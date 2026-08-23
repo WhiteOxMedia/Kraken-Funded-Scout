@@ -688,6 +688,17 @@ def main():
             logger.info("  Bot gates declined %s — desktop alert fires as CONTEST-ONLY", asset)
 
         # ── Desktop alert policy ─────────────────────────────────────────
+        # The 89% confidence floor: only champion-grade signals get your
+        # screen + Zira. Below 89% the pick still logs to the winners pool
+        # (log_winner runs after send_alert returns) and the bot may still
+        # take it via the bridge — but the desktop stays quiet. This was
+        # the original guard rail from the winning $251 run.
+        DESKTOP_ALERT_MIN = 89
+        if signal.confidence < DESKTOP_ALERT_MIN:
+            logger.info("  Desktop suppressed: %s %.0f%% < %d%% floor (still logged to winners pool)",
+                        asset, signal.confidence, DESKTOP_ALERT_MIN)
+            return
+
         # The signal already PASSED the contest criteria (champion + checklist,
         # checked upstream). Why the bot didn't take it gets spelled out so
         # the user can judge the call themselves.
@@ -991,17 +1002,21 @@ def main():
                                 logger.warning("  Could not write gainer to bridge: %s", exc)
 
                             # Desktop notification + log to winners pool
-                            notify_big(
-                                f"NEW GAINER: {signal.action.upper()} {asset} ({signal.confidence:.0f}%)",
-                                f"Trending hard — signal sent to Trader for auto-buy\n"
-                                f"24h gain: +{gainer_pct:.1f}%\n"
-                                f"Signal: {signal.action} ({signal.confidence:.0f}%)\n"
-                                f"Price: ${signal.price:.4f}\n"
-                                f"Stop: ${signal.stop_loss:.4f}\n"
-                                f"TP: ${signal.take_profit:.4f}\n"
-                                f"Time: {_fmt_mst(_now_mst())}\n"
-                                f"Trader will buy and exit check will monitor"
-                            )
+                            # (89% floor — only champion-grade gainers get the screen)
+                            if signal.confidence >= 89:
+                                notify_big(
+                                    f"NEW GAINER: {signal.action.upper()} {asset} ({signal.confidence:.0f}%)",
+                                    f"Trending hard — signal sent to Trader for auto-buy\n"
+                                    f"24h gain: +{gainer_pct:.1f}%\n"
+                                    f"Signal: {signal.action} ({signal.confidence:.0f}%)\n"
+                                    f"Price: ${signal.price:.4f}\n"
+                                    f"Stop: ${signal.stop_loss:.4f}\n"
+                                    f"TP: ${signal.take_profit:.4f}\n"
+                                    f"Time: {_fmt_mst(_now_mst())}\n"
+                                    f"Trader will buy and exit check will monitor"
+                                )
+                            else:
+                                logger.info("  Gainer %s %.0f%% < 89%% desktop floor — logged only", asset, signal.confidence)
                             log_winner(pair, signal)
                             alerted_recently[pair] = now.timestamp()
                 else:
