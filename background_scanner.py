@@ -990,7 +990,7 @@ def main():
                             except Exception as exc:
                                 logger.warning("  Could not write gainer to bridge: %s", exc)
 
-                            # Desktop notification
+                            # Desktop notification + log to winners pool
                             notify_big(
                                 f"NEW GAINER: {signal.action.upper()} {asset} ({signal.confidence:.0f}%)",
                                 f"Trending hard — signal sent to Trader for auto-buy\n"
@@ -1002,6 +1002,7 @@ def main():
                                 f"Time: {_fmt_mst(_now_mst())}\n"
                                 f"Trader will buy and exit check will monitor"
                             )
+                            log_winner(pair, signal)
                             alerted_recently[pair] = now.timestamp()
                 else:
                     pass  # No new gainers or all already tracked

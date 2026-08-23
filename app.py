@@ -1149,7 +1149,9 @@ def render_tournament(cfg: TradingConfig, scan_cfg: TradingConfig, kraken):
     with b1:
         scan_clicked = st.button("▶ RUN BRACKET", type="primary", width="stretch", key="run_tourney")
     with b2:
-        winners_clicked = st.button("🏆 WINNERS ONLY", width="stretch", key="winners_tourney")
+        winners_clicked = st.button("🏆 WINNERS ONLY", width="stretch", key="winners_tourney",
+                                    help="Battle all recent picks head-to-head — tournament champions, "
+                                         "ticker movers, AND gainers. The winner of winners gets the call.")
 
     if scan_clicked or winners_clicked:
         disable_deep_analysis()
@@ -1170,7 +1172,7 @@ def render_tournament(cfg: TradingConfig, scan_cfg: TradingConfig, kraken):
             scan_cfg.challenge_balance = cfg.challenge_balance
             scan_cfg.min_confidence = cfg.min_confidence
             scan_cfg.min_volume_usd_24h = cfg.min_volume_usd_24h
-            label = f"CHAMPIONS ({len(winner_pairs)})"
+            label = f"RECENT PICKS ({len(winner_pairs)})"
         else:
             label = f"ALL {len(scan_cfg.trading_pairs)} ASSETS"
 
