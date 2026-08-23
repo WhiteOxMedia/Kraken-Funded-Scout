@@ -615,8 +615,9 @@ def main():
             if move_thr is not None and signal.entry_price and signal.take_profit:
                 projected = (signal.take_profit - signal.entry_price) / signal.entry_price * 100
                 if projected < move_thr:
-                    gate_notes.append(f"bot's move-gate said no: projected {projected:.1f}% "
-                                      f"under the {move_thr:.1f}% floor for this rotation")
+                    gate_notes.append(f"the move's too small: {asset} would only travel "
+                                      f"{projected:.1f}% to its target — this coin typically "
+                                      f"needs {move_thr:.1f}% at this hour to be worth it")
                     logger.info("  MOVE GATE: %s %s projected %.2f%% < %.2f%% noise floor (%s %s) — contest-only",
                                 signal.action.upper(), asset, projected, move_thr, gate_sched, gate_rot)
         except Exception as exc:
@@ -633,8 +634,9 @@ def main():
             pass
 
         if signal.confidence < effective_thr:
-            gate_notes.append(f"bot's confidence bar said no: {signal.confidence:.0f}% "
-                              f"under this asset's calibrated {effective_thr}% bar")
+            gate_notes.append(f"the bot holds {asset} to a stricter bar: {signal.confidence:.0f}% sure "
+                              f"isn't enough for this coin (it demands {effective_thr}% because "
+                              f"{asset} rarely fakes out — the bar isn't about this signal)")
             logger.info("  %s %s (%.0f%%) — below %d%% bar (%s %s) — contest-only",
                         signal.action.upper(), asset, signal.confidence, effective_thr, block_name, gate_rot)
 
@@ -652,8 +654,9 @@ def main():
             if snap.get("ok"):
                 _tn, _tname, _tcons = snap["tier"]
                 _slip_s = f"{snap['slippage_pct']:.2f}%" if snap.get("slippage_pct") is not None else "—"
-                liq_line = (f"LIQUIDITY: health {snap['score']} · {_tname} · "
-                            f"{_tcons:.0f}% of book · est slip {_slip_s}")
+                liq_line = (f"EASY TO BUY/SELL: {snap['score']}/100 health · order size is "
+                            f"{_tcons:.0f}% of what's for sale (small = effortless, "
+                            f"big = careful) · expected price slip {_slip_s}")
                 logger.info("  %s", liq_line)
         except Exception as exc:
             logger.debug("Liquidity snapshot failed for %s: %s", pair, exc)
@@ -700,16 +703,16 @@ def main():
             return
 
         # The signal already PASSED the contest criteria (champion + checklist,
-        # checked upstream). Why the bot didn't take it gets spelled out so
-        # the user can judge the call themselves.
+        # checked upstream). Why the bot didn't take it gets spelled out in
+        # plain English so the user can judge the call themselves.
         bot_note = ""
         if gate_notes:
-            bot_note = ("CONTEST-ONLY CALL — the bot's gates said no:\n"
+            bot_note = ("THE BOT IS SITTING THIS ONE OUT — here's why:\n"
                         + "".join(f"  · {g}\n" for g in gate_notes)
-                        + "Enter on the contest app if you want it.\n")
+                        + "This is a CONTEST call — enter on the app if you want it.\n")
         elif not signal_written:
-            bot_note = ("NOTE: the BOT couldn't take this one (full or already\n"
-                        "holding it) — this is a CONTEST-ONLY call.\n"
+            bot_note = ("THE BOT IS FULL or already holding this coin —\n"
+                        "this one is for the CONTEST only.\n"
                         "Enter on the contest app if you want it.\n")
 
         # Desktop notification
@@ -730,17 +733,19 @@ def main():
             contest_msg = (f"  CONTEST BUY: {_chunk:.0%} (${_chunk * _bal:,.0f})\n"
                            f"  <-- pick this chunk in the contest app\n")
         if is_buy:
-            title = f"🟢🚀 BUY {asset} NOW — {signal.confidence:.0f}% CONFIDENCE 🚀🟢"
+            title = f"🟢🚀 BUY {asset} NOW — {signal.confidence:.0f}% SURE 🚀🟢"
             message = (
-                f"🏆 TOURNAMENT CHAMPION\n"
+                f"🏆 THE PICK — how sure is the strategy?\n"
                 f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
                 f"  ACTION:    BUY {asset}\n"
-                f"  CONFIDENCE: {signal.confidence:.0f}%\n"
+                f"  HOW SURE:  {signal.confidence:.0f}% — this is the strategy's\n"
+                f"             own confidence in the setup, measured on the\n"
+                f"             chart right now (not a price target)\n"
                 f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
                 f"  ENTRY:     ${signal.entry_price:.4f}\n"
-                f"  STOP:      ${signal.stop_loss:.4f}\n"
-                f"  TARGET:    ${signal.take_profit:.4f}\n"
-                f"  RISK:REWARD: 1:{signal.risk_reward:.1f}\n"
+                f"  BAIL-OUT:  ${signal.stop_loss:.4f}  (sell here if it goes wrong)\n"
+                f"  CASH-OUT:  ${signal.take_profit:.4f}  (sell here to take profit)\n"
+                f"  RISK:REWARD: 1:{signal.risk_reward:.1f}  (every $1 risked aims for ${signal.risk_reward:.1f})\n"
                 f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
                 f"{contest_msg}"
                 f"  BOT AMOUNT: ${sizing.position_size_usd:.0f}\n"
