@@ -615,9 +615,7 @@ def main():
             if move_thr is not None and signal.entry_price and signal.take_profit:
                 projected = (signal.take_profit - signal.entry_price) / signal.entry_price * 100
                 if projected < move_thr:
-                    gate_notes.append(f"the move's too small: {asset} would only travel "
-                                      f"{projected:.1f}% to its target — this coin typically "
-                                      f"needs {move_thr:.1f}% at this hour to be worth it")
+                    gate_notes.append(f"move's too small for this hour")
                     logger.info("  MOVE GATE: %s %s projected %.2f%% < %.2f%% noise floor (%s %s) — contest-only",
                                 signal.action.upper(), asset, projected, move_thr, gate_sched, gate_rot)
         except Exception as exc:
@@ -634,9 +632,7 @@ def main():
             pass
 
         if signal.confidence < effective_thr:
-            gate_notes.append(f"the bot holds {asset} to a stricter bar: {signal.confidence:.0f}% sure "
-                              f"isn't enough for this coin (it demands {effective_thr}% because "
-                              f"{asset} rarely fakes out — the bar isn't about this signal)")
+            gate_notes.append(f"{signal.confidence:.0f}% sure — bot needs {effective_thr}% for this coin")
             logger.info("  %s %s (%.0f%%) — below %d%% bar (%s %s) — contest-only",
                         signal.action.upper(), asset, signal.confidence, effective_thr, block_name, gate_rot)
 
@@ -654,9 +650,7 @@ def main():
             if snap.get("ok"):
                 _tn, _tname, _tcons = snap["tier"]
                 _slip_s = f"{snap['slippage_pct']:.2f}%" if snap.get("slippage_pct") is not None else "—"
-                liq_line = (f"EASY TO BUY/SELL: {snap['score']}/100 health · order size is "
-                            f"{_tcons:.0f}% of what's for sale (small = effortless, "
-                            f"big = careful) · expected price slip {_slip_s}")
+                liq_line = f"EASY TO SELL: {snap['score']}/100"
                 logger.info("  %s", liq_line)
         except Exception as exc:
             logger.debug("Liquidity snapshot failed for %s: %s", pair, exc)
@@ -707,13 +701,9 @@ def main():
         # plain English so the user can judge the call themselves.
         bot_note = ""
         if gate_notes:
-            bot_note = ("THE BOT IS SITTING THIS ONE OUT — here's why:\n"
-                        + "".join(f"  · {g}\n" for g in gate_notes)
-                        + "This is a CONTEST call — enter on the app if you want it.\n")
+            bot_note = "BOT'S OUT: " + " / ".join(gate_notes) + "\n"
         elif not signal_written:
-            bot_note = ("THE BOT IS FULL or already holding this coin —\n"
-                        "this one is for the CONTEST only.\n"
-                        "Enter on the contest app if you want it.\n")
+            bot_note = "BOT'S OUT: bot's full or already holds it.\n"
 
         # Desktop notification
         liq_msg = f"  {liq_line}\n" if liq_line else ""
@@ -730,47 +720,52 @@ def main():
         if _bal > 0 and sizing and sizing.position_size_usd > 0:
             _frac = sizing.position_size_usd / _bal
             _chunk = next((c for c in (0.25, 0.50, 0.75, 1.00) if _frac <= c + 1e-9), 1.00)
-            contest_msg = (f"  CONTEST BUY: {_chunk:.0%} (${_chunk * _bal:,.0f})\n"
-                           f"  <-- pick this chunk in the contest app\n")
+            contest_msg = (f"  SPEND: {_chunk:.0%} = ${_chunk * _bal:,.0f}\n")
+        # how long, from the engine's own pace data
+        hold_txt = "a few hours"
+        try:
+            from volatility_engine import load_rotation_thresholds, ROTATIONS
+            doc = load_rotation_thresholds(max_age_s=300)
+            if doc:
+                n = _now_mst()
+                rot = next((k for s, e, k, *_ in ROTATIONS if s <= n.hour < e), None)
+                sched = "weekend" if n.weekday() >= 5 else "weekday"
+                cell = (doc.get("universe", {}).get(pair, {}).get(sched, {}).get(rot)
+                        or doc.get("median", {}).get(sched, {}).get(rot))
+                avg = float(cell.get("avg_move") or 0) if cell else 0
+                if avg > 0 and signal.entry_price and signal.take_profit:
+                    _dist = (signal.take_profit - signal.entry_price) / signal.entry_price * 100
+                    _hours = (_dist / avg) * 4.0
+                    if _hours < 1:
+                        hold_txt = "under an hour"
+                    elif _hours < 2:
+                        hold_txt = "about an hour"
+                    elif _hours < 36:
+                        hold_txt = f"~{_hours:.0f} hours"
+                    else:
+                        hold_txt = f"~{_hours / 24:.0f} days"
+        except Exception:
+            pass
         if is_buy:
-            title = f"🟢🚀 BUY {asset} NOW — {signal.confidence:.0f}% SURE 🚀🟢"
+            title = f"🟢 BUY {asset} — {signal.confidence:.0f}% SURE"
             message = (
-                f"🏆 THE PICK — how sure is the strategy?\n"
-                f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-                f"  ACTION:    BUY {asset}\n"
-                f"  HOW SURE:  {signal.confidence:.0f}% — this is the strategy's\n"
-                f"             own confidence in the setup, measured on the\n"
-                f"             chart right now (not a price target)\n"
-                f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-                f"  ENTRY:     ${signal.entry_price:.4f}\n"
-                f"  BAIL-OUT:  ${signal.stop_loss:.4f}  (sell here if it goes wrong)\n"
-                f"  CASH-OUT:  ${signal.take_profit:.4f}  (sell here to take profit)\n"
-                f"  RISK:REWARD: 1:{signal.risk_reward:.1f}  (every $1 risked aims for ${signal.risk_reward:.1f})\n"
-                f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-                f"{contest_msg}"
-                f"  BOT AMOUNT: ${sizing.position_size_usd:.0f}\n"
-                f"  RISK:       ${sizing.risk_amount_usd:.0f}\n"
-                f"  PROFIT IF TP: ${sizing.potential_profit_usd:.0f}\n"
-                f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                f"BUY {asset}\n"
+                f"SPEND: {_chunk:.0%} = ${_chunk * _bal:,.0f}\n"
+                f"FOR: {hold_txt}\n"
+                f"HOW SURE: {signal.confidence:.0f}%\n"
+                f"{'-' * 30}\n"
+                f"get out at ${signal.stop_loss:.4f} (wrong)\n"
+                f"cash out at ${signal.take_profit:.4f} (win)\n"
+                f"{'-' * 30}\n"
                 f"{bot_note}"
-                f"{liq_msg}"
-                f"  Time: {_fmt_mst(_now_mst())}\n"
-                f"  Open Kraken Scout dashboard for full analysis"
+                f"  {_fmt_mst(_now_mst())}"
             )
         else:
-            title = f"🔴 SELL {asset} — {signal.confidence:.0f}% CONFIDENCE"
+            title = f"🔴 SELL {asset} — {signal.confidence:.0f}% SURE"
             message = (
-                f"🏆 TOURNAMENT CHAMPION\n"
-                f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-                f"  ACTION:    SELL {asset}\n"
-                f"  CONFIDENCE: {signal.confidence:.0f}%\n"
-                f"  ENTRY:     ${signal.entry_price:.4f}\n"
-                f"  STOP:      ${signal.stop_loss:.4f}\n"
-                f"  TARGET:    ${signal.take_profit:.4f}\n"
-                f"  RISK:REWARD: 1:{signal.risk_reward:.1f}\n"
-                f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-                f"{liq_msg}"
-                f"  Time: {_fmt_mst(_now_mst())}"
+                f"SELL {asset} — {signal.confidence:.0f}% sure\n"
+                f"{'-' * 30}\n"
+                f"  {_fmt_mst(_now_mst())}"
             )
 
         notify_big(title, message)
