@@ -443,7 +443,15 @@ def _detect_momentum(df: pd.DataFrame, ind: dict[str, Any], config: TradingConfi
     if len(recent_20) < 20:
         return {"is_momentum": False, "score": 0, "reasons": []}
     change_20 = ((recent_20.iloc[-1] - recent_20.iloc[0]) / recent_20.iloc[0]) * 100
-    uptrend_confirmed = 1.0 < change_20 < 12.0
+    # MOMENTUM CEILING: Don't buy if already up more than 6% in 20 candles —
+    # that's late-stage momentum, likely buying the peak
+    if change_20 > 6.0:
+        return {
+            "is_momentum": False, "score": 0,
+            "reasons": [f"BLOCKED: up {change_20:.1f}% in 20 candles — momentum ceiling (6%) — buying the peak"],
+            "change_20": change_20,
+        }
+    uptrend_confirmed = 1.0 < change_20 < 6.0
 
     # Volume consistency: MA5 > MA20 (sustained interest, not one candle)
     vol_consistent = vol_ma5 and vol_ma20 and vol_ma5 > vol_ma20 * 0.9
@@ -1031,6 +1039,17 @@ def evaluate_strategy(df: pd.DataFrame, config: TradingConfig) -> Signal:
     elif ema_sig == "bearish":
         sell_score += ema_sell_weight
         reasons.append("EMA bearish (short < long)")
+
+    # ── Trend-pullback confluence bonus ─────────────────────────────────
+    # Audit showed pullback entries in uptrends win ~75% (XRP bot style)
+    # while chasing momentum loses. Reward the textbook setup:
+    # uptrend + price at EMA support + RSI in pullback zone + MACD intact.
+    if trending_up and ema_sig == "bullish" and rsi_val is not None and 35 <= rsi_val <= 55:
+        price_near_ema = ema_short_val and price and abs(price - ema_short_val) / ema_short_val < 0.01
+        macd_intact = ind.get("macd_histogram") is not None and ind.get("macd_histogram") > 0
+        if price_near_ema and macd_intact:
+            buy_score += 10
+            reasons.append("Trend-pullback confluence (+10): uptrend + EMA support + RSI zone + MACD intact")
 
     # ── Volume confirmation ─────────────────────────────────────────────
     if len(df) >= 20:

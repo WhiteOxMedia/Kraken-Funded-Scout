@@ -1,0 +1,5 @@
+scout.db tables: []
+bridge signals today:
+  2026-08-22T18:09:07  XMR/USD    buy  filled    bot_strategy   67.5%
+  2026-08-22T07:03:17  XRP/USD    buy  closed    bot_strategy   50.3%
+  2026-08-22T04:46:43  XRP/USD    buy  closed    bot_strategy   37.5%

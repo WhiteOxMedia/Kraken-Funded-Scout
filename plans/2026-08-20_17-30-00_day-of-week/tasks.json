@@ -1,0 +1,22 @@
+[
+  {
+    "content": "[impl-1] Add day-of-week adjustment to background_scanner.py get_time_block",
+    "id": "1",
+    "status": "completed"
+  },
+  {
+    "content": "[impl-2] Remove redundant double confidence check in send_alert/write_buy_signal",
+    "id": "2",
+    "status": "completed"
+  },
+  {
+    "content": "[impl-3] Skip time-block rotation reset on weekends (let positions ride)",
+    "id": "3",
+    "status": "completed"
+  },
+  {
+    "content": "[impl-4] Test syntax + verify logic",
+    "id": "4",
+    "status": "completed"
+  }
+]

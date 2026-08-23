@@ -1,0 +1,22 @@
+LIVE BOOK PROBE — top-10 depth, health, buy tiers
+====================================================================================================
+BTC/USD      book $    90,942 ask / $   591,847 bid · spread    0.0bps · health 90/100
+             $100.0: T1 Micro          0.1% slip 0.000% │ $400.0: T1 Micro          0.4% slip 0.003% │ $1400.0: T1 Micro          1.5% slip 0.005%
+ETH/USD      book $    60,330 ask / $   142,162 bid · spread    0.9bps · health 90/100
+             $100.0: T1 Micro          0.2% slip 0.004% │ $400.0: T1 Micro          0.7% slip 0.004% │ $1400.0: T1 Micro          2.3% slip 0.004%
+SOL/USD      book $   682,937 ask / $   542,672 bid · spread    2.1bps · health 90/100
+             $100.0: T1 Micro          0.0% slip 0.011% │ $400.0: T1 Micro          0.1% slip 0.011% │ $1400.0: T1 Micro          0.2% slip 0.011%
+XRP/USD      book $    36,324 ask / $    43,617 bid · spread    0.7bps · health 90/100
+             $100.0: T1 Micro          0.3% slip 0.006% │ $400.0: T1 Micro          1.1% slip 0.007% │ $1400.0: T1 Micro          3.9% slip 0.007%
+ADA/USD      book $    13,067 ask / $     9,566 bid · spread    1.5bps · health 90/100
+             $100.0: T1 Micro          0.8% slip 0.008% │ $400.0: T1 Micro          3.1% slip 0.008% │ $1400.0: T2 Small         10.7% slip 0.009%
+LINK/USD     book $     9,346 ask / $    23,435 bid · spread    4.9bps · health 90/100
+             $100.0: T1 Micro          1.1% slip 0.025% │ $400.0: T1 Micro          4.3% slip 0.027% │ $1400.0: T2 Small         15.0% slip 0.038%
+EIGEN/USD    book $     6,259 ask / $     8,005 bid · spread    9.3bps · health 88/100
+             $100.0: T1 Micro          1.6% slip 0.047% │ $400.0: T2 Small          6.4% slip 0.047% │ $1400.0: T3 Medium        22.4% slip 0.087%
+PENGU/USD    book $    13,402 ask / $    12,517 bid · spread    4.6bps · health 90/100
+             $100.0: T1 Micro          0.7% slip 0.033% │ $400.0: T1 Micro          3.0% slip 0.042% │ $1400.0: T2 Small         10.4% slip 0.057%
+TURBO/USD    book $    34,201 ask / $     8,989 bid · spread   20.3bps · health 87/100
+             $100.0: T1 Micro          0.3% slip 0.102% │ $400.0: T1 Micro          1.2% slip 0.102% │ $1400.0: T1 Micro          4.1% slip 0.102%
+MOODENG/USD  book $     4,391 ask / $     2,485 bid · spread    4.4bps · health 87/100
+             $100.0: T1 Micro          2.3% slip 0.037% │ $400.0: T2 Small          9.1% slip 0.042% │ $1400.0: T3 Medium        31.9% slip 0.055%

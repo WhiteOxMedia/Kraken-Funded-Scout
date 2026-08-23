@@ -28,7 +28,8 @@ from typing import Any
 
 logger = logging.getLogger(__name__)
 
-MST = timezone(timedelta(hours=-7))
+from zoneinfo import ZoneInfo
+MST = ZoneInfo("America/Denver")  # Auto DST: MDT (UTC-6) summer, MST (UTC-7) winter
 
 # Shared database — both projects use this file
 DB_PATH = Path(r"C:\Users\birds\Workspace\kraken_scout\signals.db")
@@ -72,12 +73,143 @@ def init_db():
                 order_id TEXT,
                 execution_reason TEXT,
                 closed_at TEXT,
-                pnl REAL
+                pnl REAL,
+                highest_price REAL
             )
         """)
         conn.execute("CREATE INDEX IF NOT EXISTS idx_status ON signals(status)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_pair ON signals(pair)")
+        # Daily balance snapshots for the circuit breaker
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS daily_balance (
+                date TEXT PRIMARY KEY,
+                starting_balance REAL NOT NULL,
+                timestamp TEXT NOT NULL
+            )
+        """)
+        # Migration: add highest_price column to existing DBs
+        cols = [r["name"] for r in conn.execute("PRAGMA table_info(signals)").fetchall()]
+        if "highest_price" not in cols:
+            conn.execute("ALTER TABLE signals ADD COLUMN highest_price REAL")
         conn.commit()
+
+
+# ── Balance-based circuit breaker ────────────────────────────────────────
+
+MAX_DAILY_LOSS_PCT = 10.0  # Kill switch triggers if balance drops 10% from day start
+
+
+def record_daily_start_balance(balance: float) -> str:
+    """Record today's starting account balance. Called once at first check of the day.
+
+    If today's entry already exists, it's not overwritten.
+    Returns today's date string (YYYY-MM-DD MST).
+    """
+    init_db()
+    today = _now_mst().strftime("%Y-%m-%d")
+    now = _now_iso()
+    with _get_db() as conn:
+        conn.execute(
+            "INSERT OR IGNORE INTO daily_balance (date, starting_balance, timestamp) VALUES (?, ?, ?)",
+            (today, balance, now),
+        )
+        conn.commit()
+    return today
+
+
+def get_daily_start_balance() -> float | None:
+    """Return today's starting account balance, or None if not recorded yet."""
+    init_db()
+    today = _now_mst().strftime("%Y-%m-%d")
+    with _get_db() as conn:
+        row = conn.execute(
+            "SELECT starting_balance FROM daily_balance WHERE date=?", (today,)
+        ).fetchone()
+        return float(row["starting_balance"]) if row else None
+
+
+# ── Trailing stop ────────────────────────────────────────────────────────
+
+TRAILING_STOP_PCT = 8.0  # Sell if price drops 8% from its highest point
+
+
+def update_trailing_high(pair: str, current_price: float) -> float:
+    """Track the highest price since entry for an open position.
+
+    Returns the tracked high (updated if current_price exceeds it).
+    """
+    init_db()
+    with _get_db() as conn:
+        row = conn.execute(
+            "SELECT signal_id, highest_price, execution_price FROM signals "
+            "WHERE pair=? AND action='buy' AND status='filled' "
+            "ORDER BY executed_at DESC LIMIT 1",
+            (pair,),
+        ).fetchone()
+        if not row:
+            return 0.0
+
+        # Seed the high with the fill price on first check
+        current_high = row["highest_price"] or row["execution_price"] or current_price
+        if current_price > current_high:
+            conn.execute(
+                "UPDATE signals SET highest_price=? WHERE signal_id=?",
+                (current_price, row["signal_id"]),
+            )
+            conn.commit()
+            current_high = current_price
+        return current_high
+
+
+def get_trailing_high(pair: str) -> float | None:
+    """READ-ONLY: the auto system's tracked high for an open position.
+
+    Manual/advisory tools (console Quick Check, Exit Check, Auto-Watch) use
+    this to stay in sync with the scanner's tracking WITHOUT writing to it.
+    """
+    init_db()
+    with _get_db() as conn:
+        row = conn.execute(
+            "SELECT highest_price, execution_price FROM signals "
+            "WHERE pair=? AND action='buy' AND status='filled' "
+            "ORDER BY executed_at DESC LIMIT 1",
+            (pair,),
+        ).fetchone()
+    if not row:
+        return None
+    return row["highest_price"] or row["execution_price"] or None
+
+
+def check_trailing_stop(pair: str, current_price: float) -> tuple[bool, float]:
+    """Check if a position has hit its trailing stop.
+
+    Returns (triggered, high). Triggers when current_price has dropped
+    TRAILING_STOP_PCT% below the tracked high AND the position has some
+    profit cushion above entry (high must be above entry so we only
+    trail-stop winners, never below the entry stop-loss).
+    """
+    init_db()
+    with _get_db() as conn:
+        row = conn.execute(
+            "SELECT highest_price, execution_price FROM signals "
+            "WHERE pair=? AND action='buy' AND status='filled' "
+            "ORDER BY executed_at DESC LIMIT 1",
+            (pair,),
+        ).fetchone()
+    if not row:
+        return False, 0.0
+
+    entry = row["execution_price"] or 0.0
+    high = row["highest_price"] or entry or current_price
+
+    # Only trail-stop when the position is in profit (high above entry).
+    # Losers are handled by the regular stop-loss / exit checks.
+    if not entry or high <= entry:
+        return False, high
+
+    stop_level = high * (1 - TRAILING_STOP_PCT / 100)
+    triggered = current_price <= stop_level
+    return triggered, high
 
 
 def _now_mst() -> datetime:
@@ -110,12 +242,16 @@ def expire_old_signals():
 
 
 def is_in_cooldown(pair: str) -> bool:
-    """Check if a pair is still in cooldown (can't receive new signals)."""
+    """Check if a pair is still in cooldown (can't receive new signals).
+
+    Includes 'closed' so the 4-hour loss cooldown on losing trades blocks
+    re-buying the same loser over and over.
+    """
     init_db()
     now = _now_iso()
     with _get_db() as conn:
         row = conn.execute(
-            "SELECT 1 FROM signals WHERE pair=? AND cooldown_until > ? AND status IN ('pending','acknowledged','filled') LIMIT 1",
+            "SELECT 1 FROM signals WHERE pair=? AND cooldown_until > ? AND status IN ('pending','acknowledged','filled','closed') LIMIT 1",
             (pair, now),
         ).fetchone()
         return row is not None
@@ -132,6 +268,21 @@ def is_already_holding(pair: str) -> bool:
         return row is not None
 
 
+def count_dca_signals(pair: str) -> int:
+    """Count DCA tranches already written for a pair (pending or filled).
+
+    Scout allows max 1 DCA tranche per position (initial buy + 1 add).
+    """
+    init_db()
+    with _get_db() as conn:
+        row = conn.execute(
+            "SELECT COUNT(*) as cnt FROM signals "
+            "WHERE pair=? AND source='scout_dca' AND status IN ('pending','acknowledged','filled')",
+            (pair,),
+        ).fetchone()
+        return row["cnt"] if row else 0
+
+
 def get_open_position_count() -> int:
     """Count how many positions are currently open (filled, not closed)."""
     init_db()
@@ -142,7 +293,7 @@ def get_open_position_count() -> int:
         return row["cnt"] if row else 0
 
 
-MAX_CONCURRENT_POSITIONS = 5  # Allow more positions — some may be stuck/unbonded
+MAX_CONCURRENT_POSITIONS = 3  # Concentrate capital — fewer, bigger positions
 
 
 def write_buy_signal(
@@ -158,10 +309,15 @@ def write_buy_signal(
     source: str = "scout_auto",
     reason_summary: str = "",
     min_confidence: float = 75,  # Adaptive — passed by scanner based on time of day
+    is_dca: bool = False,  # DCA tranche: adds to an existing position
 ) -> str | None:
     """Write a buy/sell signal to the database.
 
     Returns signal_id if written, None if rejected (cooldown, duplicate, etc.).
+
+    DCA mode (is_dca=True, source='scout_dca'): skips the already-holding and
+    max-positions checks (the bot folds it into the existing position) and
+    relaxes the R:R gate (averaging down improves the blended entry).
     """
     init_db()
 
@@ -173,7 +329,7 @@ def write_buy_signal(
         return None
     if not entry_price or not stop_loss or not take_profit:
         return None
-    if not risk_reward or risk_reward < 2.0:
+    if not is_dca and (not risk_reward or risk_reward < 2.0):
         return None
     if any("exhaustion" in r.lower() for r in reasons):
         return None
@@ -186,17 +342,18 @@ def write_buy_signal(
         return None
 
     # For buys: check cooldown, duplicate, and position limit
-    if action == "buy":
+    if action == "buy" and not is_dca:
         # Don't open too many positions at once — concentrate capital
         if get_open_position_count() >= MAX_CONCURRENT_POSITIONS:
             logger.info("Already %d open positions (max %d) — not writing new buy", get_open_position_count(), MAX_CONCURRENT_POSITIONS)
             return None
-        if is_in_cooldown(pair):
-            logger.info("Cooldown active for %s — not writing signal", pair)
-            return None
         if is_already_holding(pair):
             logger.info("Already holding %s — not writing new buy signal", pair)
             return None
+    # DCA still respects cooldown (a fresh buy's 30-min window must have passed)
+    if action == "buy" and is_in_cooldown(pair):
+        logger.info("Cooldown active for %s — not writing signal", pair)
+        return None
 
     now = _now_mst()
     signal_id = str(uuid.uuid4())[:8]
@@ -290,6 +447,55 @@ def get_open_positions() -> list[dict]:
         return [dict(r) for r in rows]
 
 
+def reset_all_positions(keep_pairs: list[str] | None = None) -> dict:
+    """Reset positions when the time block rotates.
+
+    - Marks filled positions as closed (they'll be sold via reset_positions.py)
+      EXCEPT pairs in keep_pairs (winners riding the trend — trailing stop handles them)
+    - Cancels all pending signals (stale from the old block)
+    - Returns dict with counts: {closed, cancelled, kept}
+    """
+    init_db()
+    now = _now_iso()
+    keep = set(keep_pairs or [])
+    with _get_db() as conn:
+        # Count before
+        filled_count = conn.execute(
+            "SELECT COUNT(*) as cnt FROM signals WHERE status='filled'"
+        ).fetchone()["cnt"]
+        pending_count = conn.execute(
+            "SELECT COUNT(*) as cnt FROM signals WHERE status='pending'"
+        ).fetchone()["cnt"]
+        acknowledged_count = conn.execute(
+            "SELECT COUNT(*) as cnt FROM signals WHERE status='acknowledged'"
+        ).fetchone()["cnt"]
+
+        # Close filled positions except winners being kept
+        if keep:
+            placeholders = ",".join("?" for _ in keep)
+            conn.execute(
+                f"UPDATE signals SET status='closed', closed_at=?, pnl=0 "
+                f"WHERE status='filled' AND pair NOT IN ({placeholders})",
+                (now, *keep),
+            )
+        else:
+            conn.execute(
+                "UPDATE signals SET status='closed', closed_at=?, pnl=0 WHERE status='filled'",
+                (now,),
+            )
+        # Cancel all pending and acknowledged signals (even for kept pairs —
+        # stale entries from the old block; new ones can be written fresh)
+        conn.execute(
+            "UPDATE signals SET status='cancelled' WHERE status IN ('pending','acknowledged')",
+        )
+        conn.commit()
+
+    kept_count = sum(1 for p in keep if p)
+    logger.info("Reset: closed %d filled (kept %d winners), cancelled %d pending/%d acknowledged",
+                filled_count - kept_count, kept_count, pending_count, acknowledged_count)
+    return {"closed": filled_count - kept_count, "cancelled": pending_count + acknowledged_count, "kept": kept_count}
+
+
 def acknowledge(signal_id: str):
     """Bot acknowledges it has received the signal and is about to execute."""
     init_db()
@@ -325,16 +531,38 @@ def mark_rejected(signal_id: str, reason: str):
     logger.info("Signal %s rejected: %s", signal_id, reason)
 
 
+LOSS_COOLDOWN_HOURS = 4  # Don't re-buy an asset for 4h after a losing trade
+
+
 def mark_closed(signal_id: str, pnl: float):
-    """Mark a position as closed (exit executed)."""
+    """Mark a position as closed (exit executed).
+
+    Losing trades put the pair on a 4-hour cooldown so we stop
+    churning the same losers over and over (PENGU/RENDER/WLD pattern).
+    """
     init_db()
+    now = _now_mst()
     with _get_db() as conn:
+        row = conn.execute(
+            "SELECT pair FROM signals WHERE signal_id=?", (signal_id,)
+        ).fetchone()
         conn.execute(
             "UPDATE signals SET status='closed', closed_at=?, pnl=? WHERE signal_id=?",
-            (_now_iso(), pnl, signal_id),
+            (now.isoformat(), pnl, signal_id),
         )
+        # 4h cooldown on losers
+        if row and pnl is not None and pnl < 0:
+            cooldown_until = (now + timedelta(hours=LOSS_COOLDOWN_HOURS)).isoformat()
+            conn.execute(
+                "UPDATE signals SET cooldown_until=? WHERE signal_id=?",
+                (cooldown_until, signal_id),
+            )
         conn.commit()
-    logger.info("Signal %s closed (PnL: %.4f)", signal_id, pnl)
+    if row and pnl is not None and pnl < 0:
+        logger.info("Signal %s closed (PnL: %.4f) — %s on %dh loss cooldown",
+                    signal_id, pnl, row["pair"], LOSS_COOLDOWN_HOURS)
+    else:
+        logger.info("Signal %s closed (PnL: %.4f)", signal_id, pnl)
 
 
 def mark_closed_by_pair(pair: str, pnl: float):
@@ -390,9 +618,44 @@ def get_consecutive_losses() -> int:
 # ── Kill switch ──────────────────────────────────────────────────────────
 
 def trigger_kill_switch(reason: str):
-    """Activate the kill switch — stops all new trades."""
+    """Activate the kill switch — stops all new trades and flattens positions.
+
+    Writes the lock file, then runs reset_positions.py to sell everything on Kraken.
+    """
     KILL_SWITCH_FILE.write_text(f"{_now_iso()}\n{reason}\n")
-    logger.error("🛑 KILL SWITCH ACTIVATED: %s", reason)
+    logger.error("KILL SWITCH ACTIVATED: %s", reason)
+    logger.error("Flattening all positions on Kraken...")
+
+    # Run reset_positions.py to sell everything
+    try:
+        import subprocess
+        import os
+        bot_dir = r"C:\Users\birds\Workspace\kraken_xrp_trading_bot"
+        bot_python = os.path.join(bot_dir, ".venv", "Scripts", "python.exe")
+        if not os.path.exists(bot_python):
+            bot_python = "python"
+        result = subprocess.run(
+            [bot_python, "reset_positions.py"],
+            cwd=bot_dir,
+            capture_output=True,
+            text=True,
+            timeout=120,
+        )
+        if result.returncode == 0:
+            for line in result.stdout.strip().split("\n"):
+                if line.strip():
+                    logger.error("  flatten: %s", line.strip())
+        else:
+            logger.error("  reset_positions.py failed: %s", result.stderr.strip()[:200])
+    except Exception as exc:
+        logger.error("  Could not run reset_positions.py: %s", exc)
+
+    # Also clear the signal bridge DB
+    try:
+        reset_all_positions()
+        logger.error("  Bridge DB cleared")
+    except Exception as exc:
+        logger.error("  Bridge reset failed: %s", exc)
 
 
 def is_kill_switch_active() -> bool:

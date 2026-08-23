@@ -1,0 +1,19 @@
+today: Sunday — weekend schedule, rotation hour-block 12-16
+
+avg 4h move per rotation (universe median, %):
+rotation      weekday  weekend    diff
+00-04           0.94%    0.92%  -0.03
+04-08           0.84%    0.90%  +0.06
+08-12           1.24%    0.86%  -0.38
+12-16           1.07%    0.71%  -0.35
+16-20           1.03%    1.01%  -0.02
+
+false-breakout rate (universe median, % — higher = more fakeouts):
+00-04            0.0%     0.0%   +0.0
+04-08            4.8%     0.0%   -0.0
+08-12            0.0%     0.0%   +0.0
+12-16            0.0%     0.0%   +0.0
+16-20            0.0%     0.0%   +0.0
+
+today's tournament picks (all):
+  (none logged yet today)

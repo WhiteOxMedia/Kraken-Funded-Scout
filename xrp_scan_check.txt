@@ -1,0 +1,10 @@
+XRP live: $1.5014
+signal: HOLD 35%
+entry=None stop=None tp=None
+rotation: R5 🌆 US Late | bar 60% | no_buy=False
+green light (buy >= bar)? False
+reasons:
+  - Regime: high_vol (volatility rank 89/100)
+  - MACD bullish (hist=0.0016)
+  - EMA bullish (short > long)
+  - Below min_confidence (40) — holding

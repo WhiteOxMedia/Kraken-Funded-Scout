@@ -1,0 +1,9 @@
+total entries: 50
+types: {'trade': 44, 'transfer': 2, 'transaction': 1, 'receive': 1, 'spend': 2}
+— non-trade entries —
+Aug 21 08:10 PM  type=transfer  amount=135.72 USD  direction=in  after=None  id=L3M2WS-EWCCD-M5V6VL  desc=
+Aug 21 11:14 PM  type=transaction  amount=394.08 USD  direction=out  after=None  id=LFSRFR-OHPP4-HL3GJN  desc=
+Aug 22 08:08 AM  type=transfer  amount=115.92 USD  direction=in  after=None  id=LIKHTS-ZRD5W-YE4LOK  desc=
+Aug 22 01:05 PM  type=receive  amount=0.009 USD  direction=in  after=None  id=LNW3MF-6SD3S-OX2BYL  desc=
+Aug 22 01:05 PM  type=spend  amount=4e-05 TAO  direction=out  after=None  id=LKTCE7-O2RWR-EORZNA  desc=
+Aug 22 01:05 PM  type=spend  amount=8.3e-09 DOT  direction=out  after=None  id=LNMGND-TXMBP-3UXWID  desc=

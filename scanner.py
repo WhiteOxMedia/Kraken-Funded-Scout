@@ -177,8 +177,16 @@ def _check_liquidity(
 
 # ── Tournament scanner ───────────────────────────────────────────────────
 
-def _compare_signals(a: ScanResult, b: ScanResult) -> tuple[ScanResult, ScanResult, str]:
-    """Compare two scan results head-to-head. Returns (winner, loser, reason)."""
+def _compare_signals(a: ScanResult, b: ScanResult, long_only: bool = True) -> tuple[ScanResult, ScanResult, str]:
+    """Compare two scan results head-to-head. Returns (winner, loser, reason).
+
+    long_only=True  → BOT/BRIDGE mode: a buy ALWAYS beats a sell (we never
+                      short, so sells can't win a match against any long).
+    long_only=False → CONTEST mode (the original rules): actionable beats
+                      hold, then pure confidence — a strong sell CAN win the
+                      bracket, which displays as EXIT / AVOID ("market's bad,
+                      don't enter"). Honest signal, never a short call.
+    """
     # Actionable beats non-actionable
     if a.actionable and not b.actionable:
         return a, b, f"{_asset(a.pair)} {a.signal.action}({a.signal.confidence:.0f}%) beats {_asset(b.pair)} hold"
@@ -190,7 +198,15 @@ def _compare_signals(a: ScanResult, b: ScanResult) -> tuple[ScanResult, ScanResu
             return a, b, f"{_asset(a.pair)} hold({a.signal.confidence:.0f}%) beats {_asset(b.pair)} hold({b.signal.confidence:.0f}%)"
         return b, a, f"{_asset(b.pair)} hold({b.signal.confidence:.0f}%) beats {_asset(a.pair)} hold({a.signal.confidence:.0f}%)"
 
-    # Both actionable — higher confidence wins
+    # Both actionable — LONG-ONLY (bot mode): a buy always beats a sell.
+    if long_only:
+        a_buy, b_buy = a.signal.action == "buy", b.signal.action == "buy"
+        if a_buy and not b_buy:
+            return a, b, f"{_asset(a.pair)} buy({a.signal.confidence:.0f}%) beats {_asset(b.pair)} short — longs only"
+        if b_buy and not a_buy:
+            return b, a, f"{_asset(b.pair)} buy({b.signal.confidence:.0f}%) beats {_asset(a.pair)} short — longs only"
+
+    # Both actionable — higher confidence wins (original contest rule)
     if a.signal.confidence > b.signal.confidence:
         return a, b, f"{_asset(a.pair)} {a.signal.action}({a.signal.confidence:.0f}%) beats {_asset(b.pair)} {b.signal.action}({b.signal.confidence:.0f}%)"
     if b.signal.confidence > a.signal.confidence:
@@ -212,6 +228,7 @@ def tournament_scan(
     kraken: KrakenAPI,
     config: TradingConfig,
     progress_callback=None,
+    long_only: bool = True,
 ) -> tuple[ScanResult, list[dict]]:
     """Run a single-elimination tournament across all assets.
 
@@ -219,6 +236,10 @@ def tournament_scan(
     2. Round 1: 1v1 matches, fetch + evaluate both, winner advances
     3. Later rounds: cached results, instant comparisons
     4. Final winner is THE best asset to trade
+
+    long_only=True  → bot/bridge mode (buys always beat sells)
+    long_only=False → contest mode (original rules: honest bracket, a strong
+                      sell can win and displays as EXIT / AVOID)
 
     Returns (winner, match_history).
     progress_callback(round_num, match_num, total_matches, result_str) for UI updates.
@@ -271,7 +292,7 @@ def tournament_scan(
             result_b = evaluated[pair_b]
 
             # Compare
-            winner, loser, reason = _compare_signals(result_a, result_b)
+            winner, loser, reason = _compare_signals(result_a, result_b, long_only=long_only)
             next_round.append(winner.pair)
 
             match_info = {

@@ -1,0 +1,7 @@
+exception: ElementList()
+KRAKEN SCOUT: FOUND
+TODAY: missing
+NOW:: FOUND
+Win Feed: missing
+Today's Score: missing
+New here: missing

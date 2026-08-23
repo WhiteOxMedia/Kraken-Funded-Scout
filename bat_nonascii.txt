@@ -1,0 +1,203 @@
+Install Bridge.bat:@echo off
+Install Bridge.bat:REM ============================================================
+Install Bridge.bat:REM  Install Scout-to-Bot Signal Bridge
+Install Bridge.bat:REM  Copies signal_bridge.py and scout_signal_reader.py to the
+Install Bridge.bat:REM  kraken_xrp_trading_bot project and patches bot_engine.py
+Install Bridge.bat:REM ============================================================
+Install Bridge.bat:cd /d "%~dp0"
+Install Bridge.bat:echo Installing signal bridge to kraken_xrp_trading_bot...
+Install Bridge.bat:REM Copy the bridge files
+Install Bridge.bat:copy "signal_bridge.py" "C:\Users\birds\Workspace\kraken_xrp_trading_bot\signal_bridge.py"
+Install Bridge.bat:copy "scout_signal_reader.py" "C:\Users\birds\Workspace\kraken_xrp_trading_bot\scout_signal_reader.py"
+Install Bridge.bat:echo.
+Install Bridge.bat:echo Files copied. Now you need to patch bot_engine.py manually:
+Install Bridge.bat:echo.
+Install Bridge.bat:echo 1. Open C:\Users\birds\Workspace\kraken_xrp_trading_bot\bot_engine.py
+Install Bridge.bat:echo 2. Find the line:  def run_tick(self)
+Install Bridge.bat:echo 3. Add these lines right after it (before the try:):
+Install Bridge.bat:echo.
+Install Bridge.bat:echo     from scout_signal_reader import check_scout_signals
+Install Bridge.bat:echo     scout_result = check_scout_signals(self.kraken, self.config)
+Install Bridge.bat:echo     if scout_result:
+Install Bridge.bat:echo         return scout_result
+Install Bridge.bat:echo.
+Install Bridge.bat:echo 4. Save the file
+Install Bridge.bat:echo 5. Restart the XRP bot
+Install Bridge.bat:echo.
+Install Bridge.bat:echo The scout will now write buy/sell signals to trade_signals.json
+Install Bridge.bat:echo The XRP bot will read and execute them on your real Kraken account.
+Install Bridge.bat:echo.
+Kill Switch - FLATTEN.bat:@echo off
+Kill Switch - FLATTEN.bat:title Kraken Scout - Kill Switch (FLATTEN ALL)
+Kill Switch - FLATTEN.bat:cd /d "%~dp0"
+Kill Switch - FLATTEN.bat:if exist "kill_switch.lock" (
+Kill Switch - FLATTEN.bat:    echo ================================================================
+Kill Switch - FLATTEN.bat:    echo   Kill switch is ALREADY ACTIVE
+Kill Switch - FLATTEN.bat:    echo   All trades are blocked. Positions should be flattened.
+Kill Switch - FLATTEN.bat:    echo ================================================================
+Kill Switch - FLATTEN.bat:    echo.
+Kill Switch - FLATTEN.bat:    echo   To turn off: Run 'Kill Switch - RESET.bat'
+Kill Switch - FLATTEN.bat:    echo.
+Kill Switch - FLATTEN.bat:    pause
+Kill Switch - FLATTEN.bat:    exit /b
+Kill Switch - FLATTEN.bat:)
+Kill Switch - FLATTEN.bat:echo ================================================================
+Kill Switch - FLATTEN.bat:echo   KILL SWITCH - FLATTEN ALL POSITIONS
+Kill Switch - FLATTEN.bat:echo ================================================================
+Kill Switch - FLATTEN.bat:echo.
+Kill Switch - FLATTEN.bat:echo   This will:
+Kill Switch - FLATTEN.bat:echo     1. Activate the kill switch (blocks all new trades)
+Kill Switch - FLATTEN.bat:echo     2. Sell ALL positions on Kraken at market
+Kill Switch - FLATTEN.bat:echo     3. Clear the signal bridge database
+Kill Switch - FLATTEN.bat:echo.
+Kill Switch - FLATTEN.bat:echo   The scanner and bot must be running for this to work.
+Kill Switch - FLATTEN.bat:echo   The kill switch stays active until you reset it.
+Kill Switch - FLATTEN.bat:echo.
+Kill Switch - FLATTEN.bat:echo   Press any key to FLATTEN, or close this window to cancel.
+Kill Switch - FLATTEN.bat:pause >nul
+Kill Switch - FLATTEN.bat:echo.
+Kill Switch - FLATTEN.bat:echo   Activating kill switch...
+Kill Switch - FLATTEN.bat:set "PY=.venv\Scripts\python.exe"
+Kill Switch - FLATTEN.bat:%PY% --version >nul 2>&1
+Kill Switch - FLATTEN.bat:if errorlevel 1 set "PY=C:\Python314\python.exe"
+Kill Switch - FLATTEN.bat:%PY% -c "from signal_bridge import trigger_kill_switch; trigger_kill_switch('Manual kill switch - flatten all positions from desktop')"
+Kill Switch - FLATTEN.bat:echo.
+Kill Switch - FLATTEN.bat:echo ================================================================
+Kill Switch - FLATTEN.bat:echo   Kill switch activated. Check scanner/bot logs for sell output.
+Kill Switch - FLATTEN.bat:echo   Run 'Kill Switch - RESET.bat' to turn it off and resume trading.
+Kill Switch - FLATTEN.bat:echo ================================================================
+Kill Switch - FLATTEN.bat:echo.
+Kill Switch - RESET.bat:@echo off
+Kill Switch - RESET.bat:title Kraken Scout - Kill Switch RESET
+Kill Switch - RESET.bat:cd /d "%~dp0"
+Kill Switch - RESET.bat:if not exist "kill_switch.lock" (
+Kill Switch - RESET.bat:    echo ================================================================
+Kill Switch - RESET.bat:    echo   Kill switch is NOT active
+Kill Switch - RESET.bat:    echo   Trading is running normally.
+Kill Switch - RESET.bat:    echo ================================================================
+Kill Switch - RESET.bat:    echo.
+Kill Switch - RESET.bat:    pause
+Kill Switch - RESET.bat:    exit /b
+Kill Switch - RESET.bat:)
+Kill Switch - RESET.bat:echo ================================================================
+Kill Switch - RESET.bat:echo   KILL SWITCH - RESET (RESUME TRADING)
+Kill Switch - RESET.bat:echo ================================================================
+Kill Switch - RESET.bat:echo.
+Kill Switch - RESET.bat:echo   This will:
+Kill Switch - RESET.bat:echo     1. Delete the kill switch lock file
+Kill Switch - RESET.bat:echo     2. Resume normal trading (scanner + bot)
+Kill Switch - RESET.bat:echo.
+Kill Switch - RESET.bat:echo   Press any key to RESET, or close this window to cancel.
+Kill Switch - RESET.bat:pause >nul
+Kill Switch - RESET.bat:echo.
+Kill Switch - RESET.bat:echo   Resetting kill switch...
+Kill Switch - RESET.bat:set "PY=.venv\Scripts\python.exe"
+Kill Switch - RESET.bat:%PY% --version >nul 2>&1
+Kill Switch - RESET.bat:if errorlevel 1 set "PY=C:\Python314\python.exe"
+Kill Switch - RESET.bat:%PY% -c "from signal_bridge import reset_kill_switch; reset_kill_switch(); print('Kill switch reset - trading resumed')"
+Kill Switch - RESET.bat:echo.
+Kill Switch - RESET.bat:echo ================================================================
+Kill Switch - RESET.bat:echo   Kill switch reset. Trading resumes on next scan cycle.
+Kill Switch - RESET.bat:echo ================================================================
+Kill Switch - RESET.bat:echo.
+Launch Kraken.bat:@echo off
+Launch Kraken.bat:title Kraken — Full Stack Launcher
+Launch Kraken.bat:cd /d "%~dp0"
+Launch Kraken.bat:echo ============================================================
+Launch Kraken.bat:echo   KRAKEN — launching full stack
+Launch Kraken.bat:echo   1. Volatility Engine   (thresholds from real data)
+Launch Kraken.bat:echo   2. Scout Scanner       (rotation-aware auto-scanner)
+Launch Kraken.bat:echo   3. Trader Bot          (executes bridge signals)
+Launch Kraken.bat:echo   4. Console Dashboard   (localhost:8501)
+Launch Kraken.bat:echo ============================================================
+Launch Kraken.bat:if not exist ".venv\Scripts\python.exe" (
+Launch Kraken.bat:    echo Setting up venv...
+Launch Kraken.bat:    uv sync
+Launch Kraken.bat:) else (
+Launch Kraken.bat:    ".venv\Scripts\python.exe" --version >nul 2>&1
+Launch Kraken.bat:    if errorlevel 1 (
+Launch Kraken.bat:        echo Venv is broken - rebuilding...
+Launch Kraken.bat:        rmdir /s /q .venv 2>nul
+Launch Kraken.bat:        uv sync
+Launch Kraken.bat:    )
+Launch Kraken.bat:)
+Launch Kraken.bat:if exist "__pycache__" rmdir /s /q "__pycache__"
+Launch Kraken.bat:if exist "trend\__pycache__" rmdir /s /q "trend\__pycache__"
+Launch Kraken.bat:REM ── 1. Volatility Engine (own window, dup-safe) ───────────────────────
+Launch Kraken.bat:REM (PowerShell checks command lines; tasklist/wmic do not work reliably)
+Launch Kraken.bat:powershell -NoProfile -Command "if (Get-CimInstance Win32_Process -Filter \"name='python.exe'\" | Where-Object {$_.CommandLine -like '*volatility_engine*'}) { exit 0 } else { exit 1 }" >nul 2>&1
+Launch Kraken.bat:if errorlevel 1 (
+Launch Kraken.bat:    start "Volatility Engine" cmd /c ".venv\Scripts\python.exe -X utf8 volatility_engine.py 2>&1 & pause"
+Launch Kraken.bat:    echo Volatility Engine started.
+Launch Kraken.bat:) else (
+Launch Kraken.bat:    echo Volatility Engine already running - skipping.
+Launch Kraken.bat:)
+Launch Kraken.bat:REM ── 2. Scanner (own window, dup-safe) ─────────────────────────────────
+Launch Kraken.bat:powershell -NoProfile -Command "if (Get-CimInstance Win32_Process -Filter \"name='python.exe'\" | Where-Object {$_.CommandLine -like '*background_scanner*'}) { exit 0 } else { exit 1 }" >nul 2>&1
+Launch Kraken.bat:if errorlevel 1 (
+Launch Kraken.bat:    start "Scout Scanner" cmd /c ".venv\Scripts\python.exe background_scanner.py 2>&1 & pause"
+Launch Kraken.bat:    echo Scanner started.
+Launch Kraken.bat:) else (
+Launch Kraken.bat:    echo Scanner already running - skipping.
+Launch Kraken.bat:)
+Launch Kraken.bat:REM ── 3. Trader bot (own window, dup-safe, uses the BOT venv) ───────────
+Launch Kraken.bat:set BOT_DIR=C:\Users\birds\Workspace\kraken_xrp_trading_bot
+Launch Kraken.bat:powershell -NoProfile -Command "if (Get-CimInstance Win32_Process -Filter \"name='python.exe'\" | Where-Object {$_.CommandLine -like '*bot_runner*'}) { exit 0 } else { exit 1 }" >nul 2>&1
+Launch Kraken.bat:if errorlevel 1 (
+Launch Kraken.bat:    start "Kraken Trader" cmd /c "cd /d %BOT_DIR% && .venv\Scripts\python.exe bot_runner.py --interval 15 2>&1 & pause"
+Launch Kraken.bat:    echo Trader bot started.
+Launch Kraken.bat:) else (
+Launch Kraken.bat:    echo Trader bot already running - skipping.
+Launch Kraken.bat:)
+Launch Kraken.bat:REM ── 4. Console dashboard (this window; open browser if already up) ────
+Launch Kraken.bat:ping -n 4 127.0.0.1 >nul
+Launch Kraken.bat:netstat -an | findstr ":8501" | findstr "LISTENING" >nul 2>&1
+Launch Kraken.bat:if not errorlevel 1 (
+Launch Kraken.bat:    echo Console already running - opening browser...
+Launch Kraken.bat:    start "" "http://localhost:8501"
+Launch Kraken.bat:    ping -n 3 127.0.0.1 >nul
+Launch Kraken.bat:    exit /b
+Launch Kraken.bat:)
+Launch Kraken.bat:echo Starting console on http://localhost:8501...
+Launch Kraken.bat:".venv\Scripts\streamlit.exe" run app.py --server.port 8501 --server.runOnSave false
+Launch Kraken.bat:echo.
+Launch Kraken.bat:echo Dashboard stopped. Scanner / Volatility Engine / Trader run in separate windows.
+Launch Scout.bat:@echo off
+Launch Scout.bat:title Kraken Scout - Scanner + Dashboard
+Launch Scout.bat:cd /d "%~dp0"
+Launch Scout.bat:if not exist ".venv\Scripts\python.exe" (
+Launch Scout.bat:    echo Setting up venv...
+Launch Scout.bat:    uv sync
+Launch Scout.bat:) else (
+Launch Scout.bat:    ".venv\Scripts\python.exe" --version >nul 2>&1
+Launch Scout.bat:    if errorlevel 1 (
+Launch Scout.bat:        echo Venv is broken - rebuilding...
+Launch Scout.bat:        rmdir /s /q .venv 2>nul
+Launch Scout.bat:        uv sync
+Launch Scout.bat:    )
+Launch Scout.bat:)
+Launch Scout.bat:if exist "__pycache__" rmdir /s /q "__pycache__"
+Launch Scout.bat:if exist "trend\__pycache__" rmdir /s /q "trend\__pycache__"
+Launch Scout.bat:REM Check if already running - don't start duplicate scanner
+Launch Scout.bat:REM (PowerShell checks command lines; tasklist/wmic do not work reliably)
+Launch Scout.bat:powershell -NoProfile -Command "if (Get-CimInstance Win32_Process -Filter \"name='python.exe'\" | Where-Object {$_.CommandLine -like '*background_scanner*'}) { exit 0 } else { exit 1 }" >nul 2>&1
+Launch Scout.bat:if errorlevel 1 (
+Launch Scout.bat:    REM Scanner NOT running - start it in a new window
+Launch Scout.bat:    start "Scout Scanner" cmd /c ".venv\Scripts\python.exe background_scanner.py 2>&1 & pause"
+Launch Scout.bat:) else (
+Launch Scout.bat:    echo Scanner is already running - skipping scanner start.
+Launch Scout.bat:)
+Launch Scout.bat:ping -n 3 127.0.0.1 >nul
+Launch Scout.bat:REM If the console dashboard is already serving, just open the browser and exit
+Launch Scout.bat:netstat -an | findstr ":8501" | findstr "LISTENING" >nul 2>&1
+Launch Scout.bat:if not errorlevel 1 (
+Launch Scout.bat:    echo Console already running - opening browser...
+Launch Scout.bat:    start "" "http://localhost:8501"
+Launch Scout.bat:    ping -n 3 127.0.0.1 >nul
+Launch Scout.bat:    exit /b
+Launch Scout.bat:)
+Launch Scout.bat:REM Start dashboard in this window - opens the browser automatically
+Launch Scout.bat:echo Starting console on http://localhost:8501...
+Launch Scout.bat:".venv\Scripts\streamlit.exe" run app.py --server.port 8501 --server.runOnSave false
+Launch Scout.bat:echo.
+Launch Scout.bat:echo Dashboard stopped. Scanner is in a separate window.

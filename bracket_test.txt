@@ -1,0 +1,13 @@
+boot exception: ElementList()
+TOURNAMENT nav button: True
+RUN BRACKET button found: True
+after click exception: ElementList()
+  'The Pick': FOUND
+  'Champion': missing
+  'won the bracket': missing
+  'best pick': missing
+  'FIELD': FOUND
+  'matches played': FOUND
+  qc-page marker 'PICK A COIN AND HIT DEEP SCAN': no
+  qc-page marker 'best pick —': no
+  qc-page marker 'DEEP SCAN': no

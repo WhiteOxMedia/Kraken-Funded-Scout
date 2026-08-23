@@ -1,0 +1,15 @@
+XRP SIGNALS (bridge):
+  2026-08-22T07:03:17  buy  filled    bot_strategy     entry=1.49206 exec=1.49206 high=1.50962
+  2026-08-22T04:46:43  buy  closed    bot_strategy     entry=1.48843 exec=1.48843 high=1.51316
+  2026-08-21T22:27:09  buy  closed    bot_strategy     entry=1.51964 exec=1.51964 high=1.61659
+  2026-08-21T18:13:55  buy  closed    scout_auto       entry=1.42385 exec=1.42859 high=1.58261
+  2026-08-21T17:14:22  buy  closed    bot_strategy     entry=1.42859 exec=1.42859 high=1.68555
+  2026-08-21T13:09:34  buy  closed    bot_strategy     entry=1.37132 exec=1.37132 high=None
+  2026-08-21T09:04:09  buy  closed    bot_strategy     entry=1.39912 exec=1.39912 high=None
+  2026-08-19T02:29:18  sell expired   scout_exit_check entry=None exec=None high=None
+
+OPEN (filled) POSITIONS in bridge:
+  XRP/USD  bought 2026-08-22T07:03:17.094964-07:00 @ 1.49206  high=1.50962
+
+XRP LIVE: $1.4618
+  vs entry $1.4921: -2.03% | trailing floor $1.3889 (8% below high $1.5096) → trail not hit

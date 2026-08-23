@@ -1,0 +1,2 @@
+contest buy55 vs sell95 → BBB/USD (PASS): BBB sell(95%) beats AAA buy(55%)
+bot buy55 vs sell95 → AAA/USD (PASS): AAA buy(55%) beats BBB short — longs only

@@ -81,6 +81,12 @@ class TradingConfig:
     top_n: int = 5
     # Minimum confidence to include in picks (0–100)
     min_confidence: float = 40.0
+    # Liquidity floor: skip assets below this 24h USD volume in tournaments.
+    # NOTE: measured from Kraken OHLCV only — Kraken is a smaller venue, so
+    # legit mid-caps (DOT, AVAX, NEAR...) do just $1-4M/day here. $1M removes
+    # only true dust where spreads hurt; the momentum ceiling + loss cooldown
+    # handle meme-coin churn better than a blunt volume filter.
+    min_volume_usd_24h: float = 1_000_000
 
     # ── OHLC data ──────────────────────────────────────────────────────
     candle_interval: int = 60              # 1h candles — less noise than 15min
