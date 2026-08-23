@@ -1482,7 +1482,7 @@ def render_quick_check(cfg: TradingConfig, kraken):
                     _sizing = compute_position_sizing(sig, cfg)
                     _chunk = contest_chunk(_sizing.position_size_usd if _sizing else None,
                                            cfg.challenge_balance)
-                    _chunk_txt = (f"buy {_chunk[0]:.0%} (${_chunk[1]:,.0f}) in the app. "
+                    _chunk_txt = (f"buy {_chunk[0]:.0%} (${_chunk[1]:,.0f}). "
                                   if _chunk else "")
                     try:
                         w = _load_watch()
@@ -1493,15 +1493,12 @@ def render_quick_check(cfg: TradingConfig, kraken):
                             _save_watch(w)
                             logger.info("AUTO-WATCH: %s added on green light (entry %s)", pair, px)
                             try:
-                                st.toast(f"✅ GREEN LIGHT — {asset}: {_chunk_txt}"
-                                         f"I'm tracking the sell for you — the moment it turns, "
-                                         f"I'll yell GET OUT NOW.",
+                                st.toast(f"✅ GO — {asset}: {_chunk_txt}I've got the exit.",
                                          icon="✅", duration=20)
                                 _play_sound("ding")
                                 _voice_chunk = (f"{_chunk[0]:.0%}, {_chunk[1]:,.0f} dollars"
                                                 if _chunk else "full size")
-                                _speak(f"Green light! {asset}! Buy {_voice_chunk}! "
-                                       f"I'm tracking the sell for you!")
+                                _speak(f"Go! {asset}! Buy {_voice_chunk}! I've got the exit!")
                             except Exception:
                                 pass
                             # FLOW ADVANCE: position entered → take the user to the watch
@@ -1514,24 +1511,21 @@ def render_quick_check(cfg: TradingConfig, kraken):
                             st.rerun()
                         else:
                             try:
-                                st.toast(f"✅ GREEN LIGHT on {asset} — already on the watch, "
-                                         f"keep holding. Exit popup comes every minute.", icon="✅", duration=12)
+                                st.toast(f"✅ {asset} — already watching it", icon="✅", duration=12)
                                 _play_sound("ding")
                             except Exception:
                                 pass
                     except Exception as exc:
                         logger.debug("auto-watch add failed: %s", exc)
                 else:
-                    act_txt = {"buy": f"only {sig.confidence:.0f}% sure — needs {thr}%",
-                               "sell": "the chart's turned ugly on it",
-                               "hold": "no real setup right now"}[sig.action]
+                    act_txt = {"buy": f"{sig.confidence:.0f}% — needs {thr}%",
+                               "sell": "chart's red",
+                               "hold": "no setup"}[sig.action]
                     try:
-                        st.toast(f"⛔ DOESN'T PASS — {asset}: {act_txt}. "
-                                 f"NOT tracking it — don't enter this one.",
+                        st.toast(f"⛔ NO — {asset}: {act_txt}. Skip it.",
                                  icon="⛔", duration=15)
                         _play_sound("alarm")
-                        _speak(f"Doesn't pass! {asset} is only {sig.confidence:.0f} percent sure. "
-                               f"Don't enter!", rate=1)
+                        _speak(f"No! {asset}! Skip it!", rate=1)
                     except Exception:
                         pass
             except Exception as exc:
@@ -1800,13 +1794,13 @@ def _run_exit_logic(kraken, pair: str, cfg: TradingConfig, sb,
 
     reasons = []
     if trail_hit and high:
-        reasons.append(f"PROFIT GUARD FIRED — dropped {(high-live)/high*100:.1f}% from the peak of ${high:.4f}, keeping what we made")
+        reasons.append(f"down {(high-live)/high*100:.1f}% from the top")
     if strategy_sell:
-        reasons.append(f"Trend broke — {sig.confidence:.0f}% sure, past the {sell_thr}% bar")
+        reasons.append(f"trend broke ({sig.confidence:.0f}% red)")
     if exhaustion:
-        reasons.append("Climax candle pattern — this move looks done")
+        reasons.append("move's done")
     if rider_exit:
-        reasons.append("Momentum play ran out of steam")
+        reasons.append("out of steam")
 
     return {
         "pair": pair, "live": live, "high": high, "entry": entry, "signal": sig,
@@ -1900,9 +1894,9 @@ def _light_check(kraken, cfg: TradingConfig, sb, held: dict, interval_s: int) ->
     contest_rows = [v for v in watch_status if v["kind"] == "contest"]
     try:
         if any(v["exit"] for v in contest_rows):
-            sellers = [f"{_asset(v['pair'])} ({v['reasons'][0].lower()})"
+            sellers = [f"{_asset(v['pair'])} ({v['reasons'][0]})"
                        for v in contest_rows if v["exit"]]
-            st.toast("🚨 GET OUT NOW — SELL " + " · ".join(sellers), icon="🚨", duration=20)
+            st.toast("🚨 SELL NOW: " + " · ".join(sellers), icon="🚨", duration=20)
             _play_sound("alarm")
             # voice comes from the scanner (server-side) — no double-talking
         elif contest_rows:
@@ -1912,14 +1906,13 @@ def _light_check(kraken, cfg: TradingConfig, sb, held: dict, interval_s: int) ->
                     pct = (v["live"] / v["entry"] - 1) * 100
                     size = float(contest_watch.get(v["pair"], {}).get("size") or 2500.0)
                     usd = pct / 100.0 * size
-                    parts.append(f"{_asset(v['pair'])} {pct:+.1f}% (${usd:+,.0f})")
+                    parts.append(f"{_asset(v['pair'])} ${usd:+,.0f}")
                 else:
                     parts.append(_asset(v["pair"]))
-            st.toast("🟢 ALL GOOD — stay in: " + " · ".join(parts), icon="✅", duration=10)
+            st.toast("🟢 HOLD: " + " · ".join(parts), icon="✅", duration=10)
             _play_sound("tick")
         else:
-            st.toast("🟢 ALL GOOD — nothing on the list yet. "
-                     "Win a tournament or deep-scan a coin to get one.", icon="👀", duration=10)
+            st.toast("🟢 no trades yet", icon="👀", duration=10)
             _play_sound("tick")
     except Exception:
         pass
@@ -1953,8 +1946,7 @@ def _render_light_panel(interval: str):
     watch_status = st.session_state.get("watch_status") or []
     any_alert = any(v["kind"] == "contest" and v["exit"] for v in watch_status)
     n_wallet = sum(1 for v in watch_status if v["kind"] == "wallet")
-    lines = [f"<span class='dim'>checked {_now_mst().strftime('%I:%M %p')} · next check in {interval} · "
-             f"green = sit tight, red = get out</span>"]
+    lines = [f"<span class='dim'>{_now_mst().strftime('%I:%M %p')} · every {interval} · green = hold, red = sell</span>"]
     for v in watch_status:
         if v["kind"] != "contest":
             continue
@@ -1967,22 +1959,20 @@ def _render_light_panel(interval: str):
             pnl = (live / entry - 1) * 100
             usd = pnl / 100.0 * size
             pnl_html = (f' · <span style="color:{"#4be38a" if pnl >= 0 else "#ff6b5e"};">'
-                        f'{pnl:+.1f}% (${usd:+,.0f})</span>')
+                        f'${usd:+,.0f}</span>')
         if v["exit"]:
-            lines.append(f"<span style='color:#ff6b5e;font-size:16px;'>◆ {asset} — GET OUT NOW — {v['reasons'][0]}</span>")
+            lines.append(f"<span style='color:#ff6b5e;font-size:16px;'>◆ {asset} — SELL NOW — {v['reasons'][0]}</span>")
         else:
             bail = v.get("high", 0) * (1 - CONTEST_TRAIL_PCT / 100) if v.get("high") else None
-            bail_txt = f" · bail at {_fmt_price(bail)}" if bail else ""
-            lines.append(f"<span style='color:#4be38a;font-size:16px;'>◆ {asset}</span> — keep holding{pnl_html}"
-                         f"{bail_txt} <span class='dim'>· all good</span>")
+            bail_txt = f" · out at {_fmt_price(bail)}" if bail else ""
+            lines.append(f"<span style='color:#4be38a;font-size:16px;'>◆ {asset}</span> {pnl_html}"
+                         f"{bail_txt}")
     if n_wallet:
-        lines.append(f"<span class='dim'>…the bot's own trades are watched separately in the background</span>")
-    st.markdown(plate("My Trades Right Now "
-                      "<span class='dim' style='font-size:11px;'>(quick exits: bail 4% off the peak, or the moment the chart turns 50% ugly)</span>",
-                      lcd(lines, tone="red" if any_alert else "green")),
+        lines.append(f"<span class='dim'>bot trades: {n_wallet} (watched separately)</span>")
+    st.markdown(plate("MY TRADES", lcd(lines, tone="red" if any_alert else "green")),
                 unsafe_allow_html=True)
     if any_alert:
-        st.error("🚨 GET OUT NOW — sell it on the contest app right now.")
+        st.error("🚨 SELL NOW — on the contest app.")
 
 
 def render_auto_watch(cfg: TradingConfig, kraken):
@@ -2209,13 +2199,13 @@ def render_exit_check(cfg: TradingConfig, kraken):
     should_exit = trail_hit or strategy_sell or exhaustion or rider_exit
     reasons = []
     if trail_hit and high:
-        reasons.append(f"PROFIT GUARD FIRED — dropped {(high-live)/high*100:.1f}% from the peak of ${high:.4f}, keeping what we made")
+        reasons.append(f"down {(high-live)/high*100:.1f}% from the top")
     if strategy_sell:
-        reasons.append(f"Trend broke — {sig.confidence:.0f}% sure, past the {sell_thr}% bar")
+        reasons.append(f"trend broke ({sig.confidence:.0f}% red)")
     if exhaustion:
-        reasons.append("Climax candle pattern — this move looks done")
+        reasons.append("move's done")
     if rider_exit:
-        reasons.append("Momentum play ran out of steam")
+        reasons.append("out of steam")
 
     # DCA-style dip signal (advisory display only)
     if entry and sig.action == "buy":
@@ -2237,46 +2227,41 @@ def render_exit_check(cfg: TradingConfig, kraken):
     st.markdown(plate(f"Exit Check — {asset}", f'<div class="knob-row">{k}</div>'), unsafe_allow_html=True)
 
     verdict_lines = [
-        f"PRICE NOW <span class='dim'>........</span> {_fmt_price(live)}" +
-        (f"   YOU PAID <span class='dim'>....</span> {_fmt_price(entry)}" if entry else ""),
-        f"PROFIT GUARD <span class='dim'>......</span> "
-        + (f"🔴 FIRED — price dropped {CONTEST_TRAIL_PCT:.0f}% from its high, time to go" if trail_hit
-           else "🟢 not fired"
-           f"  <span class='dim'>(peaked at {_fmt_price(high)}, pulls the plug at {_fmt_price(high * (1 - CONTEST_TRAIL_PCT / 100))})</span>"),
+        f"NOW <span class='dim'>................</span> {_fmt_price(live)}" +
+        (f"   PAID <span class='dim'>............</span> {_fmt_price(entry)}" if entry else ""),
+        f"GET OUT AT <span class='dim'>..........</span> "
+        + (f"🔴 NOW — down {CONTEST_TRAIL_PCT:.0f}% from the top" if trail_hit
+           else f"🟢 {_fmt_price(high * (1 - CONTEST_TRAIL_PCT / 100))}"
+           f" <span class='dim'>(top was {_fmt_price(high)})</span>"),
     ]
     if sig.action == "sell" and sig.confidence < sell_thr:
-        gap = sell_thr - sig.confidence
+        gap = sell_thr - sell_thr + (sell_thr - sig.confidence)
         verdict_lines.append(
-            f"HOW SURE ARE WE? <span class='dim'>....</span> the chart looks {sig.confidence:.0f}% bearish — "
-            f"we sell at {sell_thr}% (contest mode: get out fast). "
-            f"<span style='color:#4be38a;'>Still {gap:.0f} points short — so we keep holding.</span>")
+            f"HOW SURE <span class='dim'>............</span> {sig.confidence:.0f}% red · "
+            f"sell at {sell_thr}% · <span style='color:#4be38a;'>{gap:.0f} points to go</span>")
     else:
         verdict_lines.append(
-            f"HOW SURE ARE WE? <span class='dim'>....</span> needs just {sell_thr}% bearish to sell "
-            f"(contest mode: get out fast) · "
-            f"strategy says {sig.action.upper()} {sig.confidence:.0f}%")
+            f"HOW SURE <span class='dim'>............</span> {sig.confidence:.0f}% · "
+            f"sells at {sell_thr}% red")
     # ── ETA to the goal: same Volatility Engine the bot uses ─────────
     goal_eta = _time_to_goal(pair, live, sig.take_profit)
     if goal_eta and not should_exit:
         pct_left, hours = goal_eta
         verdict_lines.append(
-            f"TIME TO THE GOAL <span class='dim'>.....</span> needs {pct_left:.1f}% more "
-            f"(target {_fmt_price(sig.take_profit)}) · at this rotation's pace, "
-            f"<span style='color:#4be38a;'>{_fmt_hours(hours)}</span>")
+            f"HITS GOAL IN <span class='dim'>........</span> "
+            f"<span style='color:#4be38a;'>{_fmt_hours(hours)}</span> <span class='dim'>(goal {_fmt_price(sig.take_profit)}, {pct_left:.1f}% away)</span>")
     elif not should_exit and not sig.take_profit:
-        verdict_lines.append(
-            "TIME TO THE GOAL <span class='dim'>.....</span> "
-            "<span class='dim'>no clear target on the chart right now</span>")
+        verdict_lines.append("HITS GOAL IN <span class='dim'>........</span> <span class='dim'>no goal on the chart</span>")
 
     if reasons:
-        verdict_lines.append('<span style="color:#ff6b5e;">THE CALL: SELL — the ride is over</span>')
+        verdict_lines.append('<span style="color:#ff6b5e;">SELL NOW</span>')
         for r in reasons:
             verdict_lines.append(f"  ✕ {r}")
     else:
-        verdict_lines.append('<span style="color:#4be38a;">THE CALL: HOLD — still riding, no reason to jump</span>')
+        verdict_lines.append('<span style="color:#4be38a;">HOLD</span>')
     if reasons_note:
         verdict_lines.append(reasons_note)
-    verdict_lines.append("<span class='dim'>Just advice — this tab never sells anything by itself. The bot watches its own positions separately.</span>")
+    verdict_lines.append("<span class='dim'>advice only — nothing sells by itself</span>")
 
     tone = "red" if should_exit else "green"
     st.markdown(plate("Verdict", lcd(verdict_lines, tone=tone)), unsafe_allow_html=True)
