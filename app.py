@@ -1479,7 +1479,16 @@ def render_quick_check(cfg: TradingConfig, kraken):
                 # reachable within the rotation's allowance (pace-flexible,
                 # never past midnight). Too slow = no green light, ever.
                 # (TP ETA stays as display info in the exit verdict.)
-                from background_scanner import _max_resolve_hours as _resolve_cap, _hours_to_scalp as _scalp_eta
+                # dup-safe keeps old consoles alive across restarts — if this
+                # console predates a background_scanner update, the cached
+                # module lacks the new name. Reload from disk; never crash
+                # the scan over a stale module.
+                import background_scanner as _bs
+                if not hasattr(_bs, "_hours_to_scalp"):
+                    import importlib
+                    _bs = importlib.reload(_bs)
+                _resolve_cap = _bs._max_resolve_hours
+                _scalp_eta = _bs._hours_to_scalp
                 _s_h = _scalp_eta(f"{asset}/USD", float(px))
                 if sig.action == "buy" and sig.confidence >= thr and not (_s_h is not None and _s_h > _resolve_cap()):
                     # AUTO-WATCH on green light: the deep scan IS the entry.
