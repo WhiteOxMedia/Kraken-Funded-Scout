@@ -168,6 +168,12 @@ try:
           and "AUTO-TRADE BAR PASSED" not in app_src)
     check("contract: chase guard on the green light (no stale moves)",
           "QC_CHASE_PCT = 2.0" in app_src and "_chase <= QC_CHASE_PCT" in app_src)
+    check("contract: giveback + loss warnings in the contest light",
+          "GIVEBACK_WARN_USD = 50" in bs_src and "LOSS_WARN_USD = 50" in bs_src
+          and "gave back" in bs_src and "down {_amt} dollars" in bs_src)
+    check("contract: re-entry blocked after a big TAKE IT payout",
+          "BIG_PAYOUT_USD = 100" in bs_src and "_recent_big_payout" in app_src
+          and "_payout is None" in app_src)
     check("contract: FAST $20 leaderboard on the console",
           "_fast_twenty" in app_src and "FAST $20" in app_src)
     check("contract: TAKE IT $20 system present",

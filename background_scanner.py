@@ -397,9 +397,38 @@ CONTEST_SELL_BAR = 50
 TAKE_IT_USD = 20  # the user's scalp target: out at +$20, take it every chance
 SCALP_TARGET_PCT = 0.4  # +$20 on $5,000 — the take the user actually plays for
 VOICE_PREFIX = "Mic check one, two. Testing, testing. "
+GIVEBACK_WARN_USD = 50   # fast drop from the peak gets a voice (Aug 24: PUMP
+                         # gave back ~$70 in minutes after the $140 take — silent)
+LOSS_WARN_USD = 50       # a bleeding position gets called out too (PENGU
+                         # bled -$84 with no call — the light only guarded winners)
+BIG_PAYOUT_USD = 100     # TAKE IT at/above this = the move is mature; QC blocks
+REENTRY_BLOCK_MIN = 60   # re-entries on that pair for this long
 _take_level = {}       # last announced $20 multiple per pair
+_giveback_level = {}   # last announced giveback step per pair
+_loss_level = {}       # last announced loss step per pair
 _last_allgood_ts = 0.0 # all-good voice cadence gate (TAKE IT fires anytime)
 _last_trade_done = 0.0
+TAKE_PAYOUTS_JSON = os.path.join(os.path.dirname(os.path.abspath(__file__)), "take_payouts.json")
+
+
+def _save_take_payout(pair: str, amount: int):
+    """Persist big TAKE IT payouts so the console's QC can block re-entries
+    while the move is exhausted (atomic write, survives restarts)."""
+    import json
+    try:
+        doc = {}
+        try:
+            with open(TAKE_PAYOUTS_JSON, "r", encoding="utf-8") as fh:
+                doc = json.load(fh)
+        except Exception:
+            pass
+        doc[pair] = {"amount": amount, "ts": _now_mst().isoformat()}
+        tmp = TAKE_PAYOUTS_JSON + ".tmp"
+        with open(tmp, "w", encoding="utf-8") as fh:
+            json.dump(doc, fh, indent=1)
+        os.replace(tmp, TAKE_PAYOUTS_JSON)
+    except Exception as exc:
+        logger.warning("take payout save failed: %s", exc)
 
 
 def _speak_server(text: str, rate: int = 2):
@@ -630,6 +659,41 @@ def contest_light(exchange, cfg):
             if voice:
                 _speak_server(f"Take it! {_amt} dollars up!")
             logger.info("💰 TAKE IT: %s +$%d (%.1f%%)", pair, _amt, pct)
+            # big payout = mature move: tell the console so its QC blocks
+            # re-entries while the wiggle is exhausted (Aug 24: user took
+            # the $140, re-scanned green 20 min later, rode the giveback)
+            if _amt >= BIG_PAYOUT_USD:
+                _save_take_payout(pair, _amt)
+
+        # ── 4. GIVEBACK WARNING — fast drops from the peak get a voice ──
+        # The take-it calls are one-way (up only); the giveback used to be
+        # silent. PUMP peaked +$156, gave back ~$70 in minutes — no call.
+        peak_usd = (high / entry - 1) * size if high > entry else 0.0
+        if usd > 0 and peak_usd - usd >= GIVEBACK_WARN_USD:
+            step = int((peak_usd - usd) // GIVEBACK_WARN_USD)
+            if step > _giveback_level.get(pair, 0):
+                _giveback_level[pair] = step
+                _amt = int(step * GIVEBACK_WARN_USD)
+                if voice:
+                    _speak_server(f"Warning! {asset} gave back {_amt} dollars! Take it or ride!", rate=1)
+                logger.info("⚠️ GIVEBACK: %s -$%d from peak +$%.0f (now +$%.0f)",
+                            pair, _amt, peak_usd, usd)
+        elif peak_usd - usd < GIVEBACK_WARN_USD / 2:
+            _giveback_level.pop(pair, None)  # recovered near the peak — re-arm
+
+        # ── 5. LOSS WARNING — a bleeding position gets called out too ──
+        # The old light only guarded winners (trail) and hard trend breaks;
+        # a slow bleed below entry was silent (PENGU bled to -$84, no call).
+        if usd < 0 and usd <= -LOSS_WARN_USD:
+            step = int(-usd // LOSS_WARN_USD)
+            if step > _loss_level.get(pair, 0):
+                _loss_level[pair] = step
+                _amt = int(step * LOSS_WARN_USD)
+                if voice:
+                    _speak_server(f"Warning! {asset} down {_amt} dollars! Get out or hold!", rate=1)
+                logger.info("⚠️ LOSS WARNING: %s -$%d", pair, _amt)
+        elif usd > -LOSS_WARN_USD / 2:
+            _loss_level.pop(pair, None)  # recovered — re-arm
 
         sign = "plus" if usd >= 0 else "minus"
         voice_updates.append(f"{asset}, {sign} {abs(usd):.0f} dollars")

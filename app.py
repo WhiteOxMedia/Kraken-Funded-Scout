@@ -975,6 +975,35 @@ QC_SCALP_FLOOR = 60
 # wiggle" is the right call, however confident the trend looks.
 QC_CHASE_PCT = 2.0
 
+# mirrors background_scanner.REENTRY_BLOCK_MIN (kept local: the console's
+# cached scanner module may predate it — the QC must never crash or silently
+# depend on a fresh scanner for this)
+REENTRY_BLOCK_MIN = 60
+
+
+def _recent_big_payout(pair: str) -> int | None:
+    """Amount of the last BIG TAKE IT payout (≥$100) on this pair, if it was
+    within REENTRY_BLOCK_MIN minutes. The scanner writes take_payouts.json;
+    the QC refuses to green-light re-entries on a move that just paid big —
+    it's exhausted, and the re-buy rides the giveback (PUMP, Aug 24: took
+    the $140, re-entered 20 min later, rode -$70 back down)."""
+    import json, os
+    from datetime import datetime
+    try:
+        p = os.path.join(os.path.dirname(os.path.abspath(__file__)), "take_payouts.json")
+        with open(p, "r", encoding="utf-8") as fh:
+            doc = json.load(fh)
+        rec = doc.get(pair)
+        if not rec:
+            return None
+        ts = datetime.fromisoformat(rec["ts"])
+        age_min = (datetime.now(ts.tzinfo) - ts).total_seconds() / 60
+        if age_min <= REENTRY_BLOCK_MIN:
+            return int(rec.get("amount") or 0)
+        return None
+    except Exception:
+        return None
+
 
 def contest_chunk(position_size_usd, balance: float) -> tuple[float, float] | None:
     """(chunk_fraction, chunk_usd) — the size to pick in the contest app."""
@@ -1585,10 +1614,15 @@ def render_quick_check(cfg: TradingConfig, kraken):
                     _chase = (float(px) - _base) / _base * 100 if _base > 0 else 0.0
                 except Exception:
                     _chase = 0.0
+                # re-entry guard: a pair that just paid a big TAKE IT is an
+                # exhausted move — re-entering rides the giveback
+                _payout = _recent_big_payout(pair)
                 st.session_state["qc_result"]["pace_h"] = _s_h
                 st.session_state["qc_result"]["chase_pct"] = _chase
+                st.session_state["qc_result"]["payout_block"] = _payout
                 if (sig.action == "buy" and not no_buy
                         and sig.confidence >= QC_SCALP_FLOOR
+                        and _payout is None
                         and _chase <= QC_CHASE_PCT
                         and not (_s_h is not None and _s_h > _resolve_cap())):
                     # AUTO-WATCH on green light: the deep scan IS the entry.
@@ -1631,6 +1665,17 @@ def render_quick_check(cfg: TradingConfig, kraken):
                         logger.debug("auto-watch add failed: %s", exc)
                 else:
                     if (sig.action == "buy" and not no_buy
+                            and sig.confidence >= QC_SCALP_FLOOR
+                            and _payout is not None):
+                        try:
+                            st.toast(f"⛔ JUST PAID ${_payout} — {asset} is an exhausted move. "
+                                     f"Let it build a fresh base before re-entering. Wait.",
+                                     icon="⛔", duration=18)
+                            _play_sound("alarm")
+                            _speak(f"Too early! {asset} just paid! Wait for a fresh base!", rate=1)
+                        except Exception:
+                            pass
+                    elif (sig.action == "buy" and not no_buy
                             and sig.confidence >= QC_SCALP_FLOOR
                             and _chase > QC_CHASE_PCT):
                         try:
@@ -1708,11 +1753,13 @@ def render_quick_check(cfg: TradingConfig, kraken):
     # predicts nothing for scalps.
     pace_h = result.get("pace_h")
     chase_pct = result.get("chase_pct", 0.0)
+    payout_block = result.get("payout_block")
     from background_scanner import _max_resolve_hours as _rc
     pace_ok = pace_h is None or pace_h <= _rc()
     fresh = chase_pct <= QC_CHASE_PCT
     passes = (sig.action == "buy" and not no_buy
-              and sig.confidence >= QC_SCALP_FLOOR and pace_ok and fresh)
+              and sig.confidence >= QC_SCALP_FLOOR and pace_ok and fresh
+              and payout_block is None)
     momentum_capped = any("momentum ceiling" in r.lower() for r in sig.reasons)
 
     k = (
@@ -1726,9 +1773,10 @@ def render_quick_check(cfg: TradingConfig, kraken):
     _pace_txt = (f"$20 IN ~{pace_h:.1f}H" if pace_h is not None else "$20 PACE: NO DATA")
     _green_txt = ("SCALP GREEN LIGHT" if passes else
                   ("COOLDOWN — NO BUYS" if no_buy else
-                   (f"NO GREEN — ALREADY RAN +{chase_pct:.1f}%" if not fresh else
-                    (f"NO GREEN — TOO SLOW ({pace_h:.1f}H)" if not pace_ok else
-                     f"NO GREEN — NEEDS {QC_SCALP_FLOOR}%+"))))
+                   (f"NO GREEN — JUST PAID ${payout_block}, WAIT" if payout_block is not None else
+                    (f"NO GREEN — ALREADY RAN +{chase_pct:.1f}%" if not fresh else
+                     (f"NO GREEN — TOO SLOW ({pace_h:.1f}H)" if not pace_ok else
+                      f"NO GREEN — NEEDS {QC_SCALP_FLOOR}%+")))))
     status_leds = (
         led("LIQUID" if liquid else f"ILLIQUID < ${cfg.min_volume_usd_24h/1e6:.0f}M", "g" if liquid else "r") +
         led(_pace_txt, "g" if pace_ok else "r") +
