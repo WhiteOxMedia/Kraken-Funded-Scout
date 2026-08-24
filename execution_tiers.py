@@ -413,11 +413,10 @@ def gate_buy(exchange, pair: str, desired_usd: float, min_cost_usd: float = 0.0,
                 "score": None, "tier": (1, "T1 (degraded)", 0.0),
                 "slippage_pct": None, "reason": "book unavailable"}
 
-    # Thin book → blacklist + skip (measured fact, not a failure)
-    if book["ask_tob"] < THIN_BOOK_USD:
-        blacklist_pair(pair, 24, f"thin book (top-10 ${book['ask_tob']:.0f} < ${THIN_BOOK_USD:.0f})")
-        return {"ok": False, "reason": f"thin book (top-10 ${book['ask_tob']:.0f}) — blacklisted 24h",
-                "book": book, "score": None}
+    # Thin-book BLACKLIST removed (user: "no more thin books") — the bot's
+    # ~$172 positions are small relative to most books, and the real gates
+    # (health ≥60, T2 cap, slippage ≤0.3%, stability) protect the order.
+    # Only the slippage-audit blacklist (actual bad fills, 2 strikes) remains.
 
     score, breakdown = liquidity_health_score(book, pair)
     if score < HEALTH_MIN:

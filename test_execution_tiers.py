@@ -214,14 +214,17 @@ g = et.gate_buy(StubExchange([DEEP, DEEP]), "TEST/USD", 2000, min_cost_usd=100)
 check("deep book passes gates", g["ok"], str(g.get("reason")))
 check("deep book no cap needed", g["spend_usd"] == 2000, str(g.get("spend_usd")))
 check("deep book tier T1/T2", g["tier"][0] <= 2, str(g.get("tier")))
-# Thin book: top-10 asks = 100*1.02+100*1.03+100*1.05 = $310 → blacklisted + skipped
+# Thin-book BLACKLIST is REMOVED ("no more thin books") — a thin book now
+# flows into the normal gates: health score / cap / slippage decide. The
+# THIN book (top-10 ≈ $310, health <60) should fail on HEALTH, not blacklist.
 g2 = et.gate_buy(StubExchange([THIN]), "THINTEST/USD", 200, min_cost_usd=100)
-check("thin book skipped", not g2["ok"], str(g2.get("reason")))
+check("thin book gated by health (no blacklist)", not g2["ok"] and "health" in g2.get("reason", ""),
+      str(g2.get("reason")))
 bl, _r = et.is_blacklisted("THINTEST/USD")
-check("thin book auto-blacklisted 24h", bl, "")
-# Blacklisted now blocks future gates
+check("thin book NOT blacklisted", not bl, "")
+# and it doesn't block future gates once the book recovers
 g3 = et.gate_buy(StubExchange([DEEP, DEEP]), "THINTEST/USD", 200, min_cost_usd=100)
-check("blacklist blocks gate", not g3["ok"] and "blacklisted" in g3["reason"], str(g3.get("reason")))
+check("recovered book trades again", g3["ok"], str(g3.get("reason")))
 # Cap: mid-size book — asks top10 ≈ $3,000 → $2,000 desired → cap $600
 MID = book_from_levels(
     [(99.99, 15), (99.95, 15), (99.90, 15), (99.85, 15), (99.80, 15),
