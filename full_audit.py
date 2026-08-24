@@ -166,6 +166,8 @@ try:
           "QC_SCALP_FLOOR = 60" in app_src
           and "sig.confidence >= QC_SCALP_FLOOR" in app_src
           and "AUTO-TRADE BAR PASSED" not in app_src)
+    check("contract: FAST $20 leaderboard on the console",
+          "_fast_twenty" in app_src and "FAST $20" in app_src)
     check("contract: TAKE IT $20 system present",
           "TAKE_IT_USD = 20" in bs_src and "Take it!" in bs_src)
     check("contract: cooldown flatten 20:00 (once daily, persisted)",

@@ -891,6 +891,41 @@ def current_threshold() -> tuple[str, str, int, int, bool]:
     return name, WEEKDAY_NAMES.get(n.weekday(), "?"), thr, interval, no_buy
 
 
+@st.cache_data(ttl=300)
+def _fast_twenty(rotation_key: str, sched: str) -> list[dict]:
+    """⚡ FAST $20 leaderboard: every coin ranked by how fast the $20 (+0.4%)
+    comes at THIS rotation, from the Volatility Engine's own per-asset pace.
+    PUMP was the example: 2.1%/rotation wiggle, $20 in ~0.8h — invisible to
+    conviction gates, obvious to pace. Liquidity-floored so it never points
+    at an untradeable book. Discovery only — the deep scan still judges."""
+    try:
+        from volatility_engine import load_rotation_thresholds
+        doc = load_rotation_thresholds(max_age_s=900)
+        if not doc:
+            return []
+        try:
+            from background_scanner import (LIQ_ROT_FLOOR_WEEKDAY,
+                                            LIQ_ROT_FLOOR_WEEKEND,
+                                            SCALP_TARGET_PCT)
+        except ImportError:
+            LIQ_ROT_FLOOR_WEEKDAY, LIQ_ROT_FLOOR_WEEKEND, SCALP_TARGET_PCT = 15_000, 10_000, 0.4
+        floor = LIQ_ROT_FLOOR_WEEKDAY if sched == "weekday" else LIQ_ROT_FLOOR_WEEKEND
+        out = []
+        for a in ASSETS:
+            cell = (doc.get("universe", {}).get(f"{a}/USD", {})
+                    .get(sched, {}).get(rotation_key) or {})
+            avg = float(cell.get("avg_move") or 0)
+            vol = float(cell.get("median_volume_usd") or 0)
+            if avg <= 0 or vol < floor:
+                continue
+            out.append({"asset": a, "eta": (SCALP_TARGET_PCT / avg) * 4.0,
+                        "avg": avg, "reliable": bool(cell.get("reliable"))})
+        out.sort(key=lambda x: x["eta"])
+        return out[:6]
+    except Exception:
+        return []
+
+
 def volatility_snapshot() -> dict | None:
     """Live Volatility Engine data for the current rotation (read-only peek)."""
     try:
@@ -1455,11 +1490,36 @@ def render_quick_check(cfg: TradingConfig, kraken):
     sb = _bridge()
     block, day, thr, _, no_buy = current_threshold()
 
+    # ⚡ FAST $20 leaderboard — pick a wiggle, then deep-scan it
+    try:
+        from background_scanner import rotation_key_for_hour, _schedule_for_dow
+        _n = _now_mst()
+        fast = _fast_twenty(rotation_key_for_hour(_n.hour), _schedule_for_dow(_n.weekday()))
+    except Exception:
+        fast = []
+    if fast:
+        st.markdown(plate("⚡ FAST $20 — quickest wiggles right now", lcd([
+            "<span class='dim'>ranked by how fast the $20 comes this hour — click one, then DEEP SCAN</span>",
+            "   ".join(f"<b>{f['asset']}</b> ~{f['eta']:.1f}h"
+                      + ("" if f["reliable"] else " <span class='dim'>(thin data)</span>")
+                      for f in fast),
+        ])), unsafe_allow_html=True)
+        _fb = st.columns(len(fast))
+        for i, f in enumerate(fast):
+            with _fb[i]:
+                if st.button(f"⚡ {f['asset']}", key=f"fast{i}", use_container_width=True):
+                    st.session_state["qc_pick_next"] = f["asset"]
+                    st.rerun()
+
     # flow hint: arrived from the tournament with a champion preloaded
     qc_hint = st.session_state.pop("qc_hint", None)
     if qc_hint:
         st.markdown(plate("", lcd([f"<span style='color:#4be38a;font-size:16px;'>{qc_hint}</span>"])),
                     unsafe_allow_html=True)
+
+    # a FAST $20 click lands here (BEFORE the selectbox renders)
+    if st.session_state.get("qc_pick_next"):
+        st.session_state["qc_asset"] = st.session_state.pop("qc_pick_next")
 
     c1, c2, c3 = st.columns([2, 1, 1])
     with c1:

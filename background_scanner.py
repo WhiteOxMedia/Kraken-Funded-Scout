@@ -64,6 +64,12 @@ ROTATIONS = [
 ROTATION_KEYS = [r[2] for r in ROTATIONS]
 COOLDOWN_KEY = "20-24"
 
+# Liquidity floors for the rotation-aware filter (module-level: the console's
+# FAST $20 board uses the same floors — one source of truth).
+LIQ_ROT_FLOOR_WEEKDAY = 15_000.0
+LIQ_ROT_FLOOR_WEEKEND = 10_000.0
+LIQ_DAILY_BACKSTOP = 250_000.0
+
 
 def rotation_key_for_hour(hour: int) -> str:
     """4h rotation key for a Denver-local hour (00-04 ... 20-24)."""
@@ -158,10 +164,6 @@ def filter_illiquid(data: dict, min_volume_usd: float) -> tuple[dict, list]:
     (ALGO does $60-103k PER ROTATION yet sat under $1M daily) while
     never asking whether a coin is active in the window we'd trade it.
     """
-    LIQ_ROT_FLOOR_WEEKDAY = 15_000.0
-    LIQ_ROT_FLOOR_WEEKEND = 10_000.0
-    LIQ_DAILY_BACKSTOP = 250_000.0
-
     # current rotation × schedule from the same engine tables
     n = _now_mst()
     rot_key = rotation_key_for_hour(n.hour)
