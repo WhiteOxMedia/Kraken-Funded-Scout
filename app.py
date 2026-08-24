@@ -1477,28 +1477,25 @@ def render_quick_check(cfg: TradingConfig, kraken):
                 # ── every scan talks back — never dead ──────────────────
                 if sig.action == "buy" and sig.confidence >= thr:
                     # AUTO-WATCH on green light: the deep scan IS the entry.
-                    # Enter on the contest app right now — the watch takes
-                    # over and pops the light every minute until it's time to sell.
-                    _sizing = compute_position_sizing(sig, cfg)
-                    _chunk = contest_chunk(_sizing.position_size_usd if _sizing else None,
-                                           cfg.challenge_balance)
-                    _chunk_txt = (f"buy {_chunk[0]:.0%} (${_chunk[1]:,.0f}). "
-                                  if _chunk else "")
+                    # The user's system: green → all in, scalp to +$20, out,
+                    # re-enter small, green again → buy more. Watch records
+                    # full size so the $-counting is exact; adjust if they
+                    # re-entered smaller.
+                    _chunk = (1.00, cfg.challenge_balance)
+                    _chunk_txt = f"buy 100% (${cfg.challenge_balance:,.0f}). "
                     try:
                         w = _load_watch()
                         if pair not in w:
                             w[pair] = {"entry": float(px), "high": float(px),
-                                       "size": _chunk[1] if _chunk else None,
+                                       "size": float(cfg.challenge_balance),
                                        "added": _now_mst().isoformat()}
                             _save_watch(w)
                             logger.info("AUTO-WATCH: %s added on green light (entry %s)", pair, px)
                             try:
-                                st.toast(f"✅ GO — {asset}: {_chunk_txt}I've got the exit.",
+                                st.toast(f"✅ GO — {asset}: {_chunk_txt}I count the $20s.",
                                          icon="✅", duration=20)
                                 _play_sound("ding")
-                                _voice_chunk = (f"{_chunk[0]:.0%}, {_chunk[1]:,.0f} dollars"
-                                                if _chunk else "full size")
-                                _speak(f"Go! {asset}! Buy {_voice_chunk}! I've got the exit!")
+                                _speak(f"Go! {asset}! Buy 100 percent! I count the twenties!")
                             except Exception:
                                 pass
                             # FLOW ADVANCE: position entered → take the user to the watch
@@ -1661,19 +1658,24 @@ def render_quick_check(cfg: TradingConfig, kraken):
                 st.success(f"◆ {asset} added to the exit auto-watch (entry {_fmt_price(entry_used)}). "
                            f"Flip on AUTO-WATCH in EXIT CHECK for 1-min exit alerts.")
     with w2:
-        entry_adj = st.number_input("Adjust entry $ (optional)", min_value=0.0, value=None,
+        entry_adj = st.number_input("entry $", min_value=0.0, value=None,
                                     step=0.0001, key="qc_watch_entry",
-                                    help="Set your actual contest fill; updates the watched entry")
-        if entry_adj and st.button("✎ UPDATE ENTRY", key="qc_watch_upd", width="stretch"):
+                                    help="your actual fill — fixes the $-counting")
+        size_adj = st.number_input("size $", min_value=0.0, value=None,
+                                   step=100.0, key="qc_watch_size",
+                                   help="what you actually bought — re-entered small? set it here")
+        if st.button("✎ UPDATE", key="qc_watch_upd", width="stretch"):
             w = _load_watch()
-            if pair in w:
+            if pair not in w:
+                w[pair] = {"entry": float(entry_adj or px), "high": float(px),
+                           "added": _now_mst().isoformat()}
+            if entry_adj:
                 w[pair]["entry"] = float(entry_adj)
-                _save_watch(w)
-                st.success(f"Entry updated to {_fmt_price(entry_adj)} for {asset}.")
-            else:
-                w[pair] = {"entry": float(entry_adj), "high": float(px), "added": _now_mst().isoformat()}
-                _save_watch(w)
-                st.success(f"◆ {asset} added with entry {_fmt_price(entry_adj)}.")
+            if size_adj:
+                w[pair]["size"] = float(size_adj)
+            _save_watch(w)
+            st.success(f"{asset}: entry {_fmt_price(w[pair]['entry'])}, "
+                       f"size ${w[pair].get('size', 0):,.0f}")
 
     # ADVISORY ONLY — contest use. No buttons write to the bridge; the
     # auto-scanner is the sole source of live trading signals.
@@ -1849,14 +1851,13 @@ def _light_check(kraken, cfg: TradingConfig, sb, held: dict, interval_s: int) ->
     st.session_state["exit_alerts"] = alerts
     st.session_state["watch_status"] = watch_status
 
-    # ── scalp alerts: up $10 AND rising fast (+0.5% in ~5 min) ───────
-    # Both must fire — level alone is noise at contest position sizes.
-    # Re-arms after profit falls back under $7.
+    # ── TAKE IT: the $20 call (user's scalp system) ──────────────────
+    # Green → all in → out at +$20 → re-enter small → repeat. Every +$20
+    # threshold crossed gets a popup (voice comes from the scanner).
+    # Resets when back near entry — a re-entry starts a fresh count.
     try:
         if _load_console_state().get("scalp_on", True):
-            hist = st.session_state.setdefault("scalp_hist", {})
-            scalp_alerted = st.session_state.setdefault("scalp_alerted", {})
-            now_ts = time.time()
+            take_level = st.session_state.setdefault("take_level", {})
             for v in watch_status:
                 if v["kind"] != "contest":
                     continue
@@ -1867,22 +1868,15 @@ def _light_check(kraken, cfg: TradingConfig, sb, held: dict, interval_s: int) ->
                     continue
                 size = float(contest_watch.get(pair, {}).get("size") or 2500.0)
                 profit_usd = (live / entry_px - 1) * size
-                # rolling ~6-min price history for the speed check
-                h = hist.setdefault(pair, [])
-                h.append((now_ts, live))
-                hist[pair] = [(t, p) for t, p in h if now_ts - t <= 360][-12:]
-                if pair in scalp_alerted and profit_usd < 7.0:
-                    scalp_alerted.pop(pair)  # re-arm
-                if pair in scalp_alerted:
-                    continue
-                ref = next((p for t, p in hist[pair] if now_ts - t >= 240), None)
-                rise = (live / ref - 1) * 100 if ref else 0.0
-                if profit_usd >= 10.0 and rise >= 0.5:
-                    scalp_alerted[pair] = True
+                level = int(profit_usd // 20) if profit_usd > 0 else 0
+                if profit_usd < 10.0:
+                    take_level.pop(pair, None)
+                elif level > take_level.get(pair, 0):
+                    take_level[pair] = level
                     asset = _asset(pair)
                     try:
-                        st.toast(f"💰 SCALP — {asset} is up ${profit_usd:.0f} and rising fast "
-                                 f"(+{rise:.1f}% in 5 min)", icon="💰", duration=15)
+                        st.toast(f"💰 TAKE IT — {asset} +${level * 20}",
+                                 icon="💰", duration=15)
                         _play_sound("ding")
                         # voice comes from the scanner (server-side)
                     except Exception:
@@ -1995,12 +1989,12 @@ def render_auto_watch(cfg: TradingConfig, kraken):
         wcol1, wcol2 = st.columns([1, 3])
         with wcol1:
             interval = st.selectbox("Check every", ["1 min", "2 min", "5 min"], index=0, key="watch_interval")
-        scalp_on = st.toggle("💰 SCALP ALERTS — up $10 AND rising fast",
+        scalp_on = st.toggle("💰 TAKE IT — she calls every +$20",
                              value=st.session_state.get("scalp_on", _cs.get("scalp_on", True)),
                              key="scalp_toggle",
-                             help="She speaks when a position is up $10 or more AND jumped "
-                                  "+0.5% in the last 5 minutes — real momentum, not chop. "
-                                  "Re-arms after profit dips back under $7.")
+                             help="The scalp system: green → all in → out at +$20 → repeat. "
+                                  "She counts the $20s out loud and pops a TAKE IT every "
+                                  "threshold. Resets near entry.")
         if scalp_on != _cs.get("scalp_on", True):
             _cs["scalp_on"] = scalp_on
             _save_console_state(_cs)
@@ -2019,6 +2013,26 @@ def render_auto_watch(cfg: TradingConfig, kraken):
         # check NOW if due — fires on every page change, popup follows you
         _light_check(kraken, cfg, sb, held, interval_s)
         _render_light_panel(interval)
+
+        # ── SOLD buttons: the scalper's re-entry loop ──────────────────
+        # Took the $20? Tap SOLD — the position clears and the next green
+        # light re-adds it fresh at the new entry. One tap between rounds.
+        _cw_sold = _load_watch()
+        if _cw_sold:
+            _scols = st.columns(min(len(_cw_sold), 4))
+            for _i, (_sp, _sw) in enumerate(list(_cw_sold.items())):
+                with _scols[_i % len(_scols)]:
+                    if st.button(f"✔ SOLD {_asset(_sp)}", key=f"sold_{_sp.replace('/', '_')}",
+                                 help="Clear it — you're out. Next green light re-adds fresh."):
+                        _cw_sold.pop(_sp)
+                        _save_watch(_cw_sold)
+                        st.session_state.get("take_level", {}).pop(_sp, None)
+                        try:
+                            st.toast(f"✔ {_asset(_sp)} cleared — next green light re-adds it",
+                                     icon="✔", duration=8)
+                        except Exception:
+                            pass
+                        st.rerun()
 
         # ── contest watch list: live positions only, no history ────────
         contest_watch = _load_watch()

@@ -351,9 +351,10 @@ CONTEST_WATCH_JSON = os.path.join(os.path.dirname(os.path.abspath(__file__)), "c
 CONSOLE_STATE_JSON = os.path.join(os.path.dirname(os.path.abspath(__file__)), "console_state.json")
 CONTEST_TRAIL_PCT = 4.0   # matches the console's contest profile
 CONTEST_SELL_BAR = 50
+TAKE_IT_USD = 20  # the user's scalp target: out at +$20, take it every chance
 VOICE_PREFIX = "Mic check one, two. Testing, testing. "
-_scalp_hist = {}
-_scalp_alerted = {}
+_take_level = {}       # last announced $20 multiple per pair
+_last_allgood_ts = 0.0 # all-good voice cadence gate (TAKE IT fires anytime)
 _last_trade_done = 0.0
 
 
@@ -469,21 +470,22 @@ def contest_light(exchange, cfg):
             logger.info("🚨 CONTEST LIGHT: SELL %s — %s", pair, reason)
             continue
 
-        # ── 3. scalp alert: +$10 AND +0.5% in ~5 min ───────────────────
+        # ── 3. THE $20 TAKE-IT CALL (user's scalp system) ──────────────
+        # They all-in on green, watch ~5 min, out at +$20, re-enter small,
+        # ride and take $20 every chance. She counts the $20s out loud:
+        # every +$20 threshold crossed = "TAKE IT — N dollars up".
+        # Resets when back near entry (re-entry = fresh count).
         pct = (live / entry - 1) * 100
         usd = pct / 100.0 * size
-        ts = time.time()
-        h = _scalp_hist.setdefault(pair, [])
-        h.append((ts, live))
-        _scalp_hist[pair] = [(t, p) for t, p in h if ts - t <= 360][-12:]
-        if pair in _scalp_alerted and usd < 7.0:
-            _scalp_alerted.pop(pair)
-        ref5 = next((p for t, p in _scalp_hist[pair] if ts - t >= 240), None)
-        rise = (live / ref5 - 1) * 100 if ref5 else 0.0
-        if voice and usd >= 10.0 and rise >= 0.5 and pair not in _scalp_alerted:
-            _scalp_alerted[pair] = True
-            _speak_server(f"Scalp alert! {asset} is up {usd:.0f} dollars and rising fast!")
-            logger.info("💰 CONTEST SCALP: %s up $%.0f (+%.1f%% in 5 min)", pair, usd, rise)
+        level = int(usd // TAKE_IT_USD) if usd > 0 else 0
+        if usd < 10.0:
+            _take_level.pop(pair, None)  # back near entry — fresh count
+        elif level > _take_level.get(pair, 0):
+            _take_level[pair] = level
+            _amt = level * TAKE_IT_USD
+            if voice:
+                _speak_server(f"Take it! {_amt} dollars up!")
+            logger.info("💰 TAKE IT: %s +$%d (%.1f%%)", pair, _amt, pct)
 
         sign = "plus" if usd >= 0 else "minus"
         voice_updates.append(f"{asset}, {sign} {abs(usd):.0f} dollars")
@@ -500,7 +502,11 @@ def contest_light(exchange, cfg):
 
     if dirty:
         _save_contest_watch(watch)
-    if voice and voice_updates:
+    # all-good commentary at a ~60s cadence (TAKE IT fires anytime —
+    # it's the scalp call and must never wait for the cadence)
+    global _last_allgood_ts
+    if voice and voice_updates and (time.time() - _last_allgood_ts) >= 60:
+        _last_allgood_ts = time.time()
         _speak_server("All good. " + ". ".join(voice_updates) + ".")
 
 
@@ -717,10 +723,9 @@ def main():
             _bal = float(str(_cs.get("tier", "$5,000")).replace("$", "").replace(",", ""))
         except Exception:
             _bal = 5000.0
-        if _bal > 0 and sizing and sizing.position_size_usd > 0:
-            _frac = sizing.position_size_usd / _bal
-            _chunk = next((c for c in (0.25, 0.50, 0.75, 1.00) if _frac <= c + 1e-9), 1.00)
-            contest_msg = (f"  SPEND: {_chunk:.0%} = ${_chunk * _bal:,.0f}\n")
+        # the user's system: green light → all in. The deep scan is the
+        # confirmation; when it's green they go 100%. Say what they do.
+        contest_msg = f"  SPEND: 100% = ${_bal:,.0f}\n" if _bal > 0 else ""
         # how long, from the engine's own pace data
         hold_txt = "a few hours"
         try:
@@ -1014,10 +1019,10 @@ def main():
             except Exception as exc:
                 logger.warning("Ticker scan error: %s", exc)
 
-        # ── CONTEST LIGHT (every 60s): server-side Zira voice on contest
-        #    positions — ALL GOOD with dollars / GET OUT NOW / scalp
-        #    alerts. Runs whether or not the browser is open.
-        if (now.timestamp() - last_contest_light) >= 60:
+        # ── CONTEST LIGHT (every loop pass ~30s): the scalp is a 5-minute
+        #    game — TAKE IT at +$20 must fire fast, not on a slow cadence.
+        #    The all-good voice inside keeps its own 60s cadence.
+        if (now.timestamp() - last_contest_light) >= 25:
             last_contest_light = now.timestamp()
             try:
                 contest_light(exchange, cfg)
