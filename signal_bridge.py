@@ -343,10 +343,12 @@ def write_buy_signal(
 
     # For buys: check cooldown, duplicate, and position limit
     if action == "buy" and not is_dca:
-        # Don't open too many positions at once — concentrate capital
+        # At max positions we still WRITE the signal as pending — the bot's
+        # challenge system (head-to-head: new signal vs weakest incumbent)
+        # decides there. Rejecting here would preempt the challenge and let
+        # incumbents keep their seats without ever being tested.
         if get_open_position_count() >= MAX_CONCURRENT_POSITIONS:
-            logger.info("Already %d open positions (max %d) — not writing new buy", get_open_position_count(), MAX_CONCURRENT_POSITIONS)
-            return None
+            logger.info("At max positions — writing anyway; the bot's challenge system will test this challenger")
         if is_already_holding(pair):
             logger.info("Already holding %s — not writing new buy signal", pair)
             return None
