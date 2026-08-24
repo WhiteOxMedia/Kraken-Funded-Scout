@@ -920,6 +920,17 @@ def volatility_snapshot() -> dict | None:
 # UP to the nearest allowed chunk — buy big, get out fast.
 CONTEST_CHUNKS = (0.25, 0.50, 0.75, 1.00)
 
+# ── Quick Check green-light conviction floor (Aug 24 replay evidence) ──
+# The old gate demanded the rotation's median confidence bar — a trend-trust
+# number. Replay of a week of signals vs actual price: sub-bar buys hit the
+# $20 (+0.4%) in the resolve window 80% of the time vs 72% for bar-passing
+# buys — the bar predicts NOTHING for scalps (and it swings 80→60 on a
+# single engine refresh). The QC is a SCALP tool: the $20-pace gate
+# (resolve rule) is the judge; conviction only needs a real setup (60%+).
+# Desktop alerts keep their own 89% floor; the bot bridge keeps its
+# per-asset bars — different games, different ledgers.
+QC_SCALP_FLOOR = 60
+
 
 def contest_chunk(position_size_usd, balance: float) -> tuple[float, float] | None:
     """(chunk_fraction, chunk_usd) — the size to pick in the contest app."""
@@ -1457,7 +1468,7 @@ def render_quick_check(cfg: TradingConfig, kraken):
         clicked = st.button("🔍 DEEP SCAN", type="primary", width="stretch", key="qc_btn")
     with c3:
         st.markdown(f"<div style='height:26px'></div>"
-                    f"<span class='led a'><i></i>{day} {block} · bar {thr}%</span>",
+                    f"<span class='led a'><i></i>{day} {block} · floor {QC_SCALP_FLOOR}%</span>",
                     unsafe_allow_html=True)
 
     # ── run the scan on click; PERSIST the result in session state so it
@@ -1475,9 +1486,14 @@ def render_quick_check(cfg: TradingConfig, kraken):
                 st.session_state["qc_result"] = {"asset": asset, "sig": sig, "df": df, "px": px}
 
                 # ── every scan talks back — never dead ──────────────────
-                # THE RESOLVE RULE first: the $20 scalp (+0.4%) must be
-                # reachable within the rotation's allowance (pace-flexible,
-                # never past midnight). Too slow = no green light, ever.
+                # THE SCALP GATE (Aug 24 redesign, PUMP was the example):
+                # (1) $20-pace — the +0.4% must be reachable within the
+                #     rotation's allowance (resolve rule; never past
+                #     midnight). Too slow = no green light, ever.
+                # (2) conviction floor 60% — a real setup, not the old
+                #     median bar (replay: sub-bar buys paid $20 at 80% vs
+                #     72% for bar-passers — the bar added nothing).
+                # (3) never during the 20:00-24:00 cooldown.
                 # (TP ETA stays as display info in the exit verdict.)
                 # dup-safe keeps old consoles alive across restarts — if this
                 # console predates a background_scanner update, the cached
@@ -1490,7 +1506,10 @@ def render_quick_check(cfg: TradingConfig, kraken):
                 _resolve_cap = _bs._max_resolve_hours
                 _scalp_eta = _bs._hours_to_scalp
                 _s_h = _scalp_eta(f"{asset}/USD", float(px))
-                if sig.action == "buy" and sig.confidence >= thr and not (_s_h is not None and _s_h > _resolve_cap()):
+                st.session_state["qc_result"]["pace_h"] = _s_h
+                if (sig.action == "buy" and not no_buy
+                        and sig.confidence >= QC_SCALP_FLOOR
+                        and not (_s_h is not None and _s_h > _resolve_cap())):
                     # AUTO-WATCH on green light: the deep scan IS the entry.
                     # The user's system: green → all in, scalp to +$20, out,
                     # re-enter small, green again → buy more. Watch records
@@ -1530,7 +1549,9 @@ def render_quick_check(cfg: TradingConfig, kraken):
                     except Exception as exc:
                         logger.debug("auto-watch add failed: %s", exc)
                 else:
-                    if sig.action == "buy" and sig.confidence >= thr and _s_h is not None and _s_h > _resolve_cap():
+                    if (sig.action == "buy" and not no_buy
+                            and sig.confidence >= QC_SCALP_FLOOR
+                            and _s_h is not None and _s_h > _resolve_cap()):
                         _slow_txt = (f"~{_s_h:.0f}h" if _s_h >= 3.5 else "3h+")
                         act_txt = f"too slow — {_slow_txt} to the $20"
                         try:
@@ -1540,8 +1561,16 @@ def render_quick_check(cfg: TradingConfig, kraken):
                             _speak(f"Too slow! {asset}! Skip it!", rate=1)
                         except Exception:
                             pass
+                    elif sig.action == "buy" and no_buy:
+                        try:
+                            st.toast(f"⛔ COOLDOWN (8pm-midnight) — no new buys. {asset} waits.",
+                                     icon="⛔", duration=15)
+                            _play_sound("alarm")
+                            _speak(f"Cooldown! No buys!", rate=1)
+                        except Exception:
+                            pass
                     else:
-                        act_txt = {"buy": f"{sig.confidence:.0f}% — needs {thr}%",
+                        act_txt = {"buy": f"{sig.confidence:.0f}% — needs {QC_SCALP_FLOOR}% (weak setup)",
                                    "sell": "chart's red",
                                    "hold": "no setup"}[sig.action]
                         try:
@@ -1579,7 +1608,15 @@ def render_quick_check(cfg: TradingConfig, kraken):
     col = {"buy": "#4be38a"}.get(sig.action, "#ff6b5e")
     # Never short: "sell" = exit a held long / stay out if flat
     act = {"buy": "BUY", "sell": "EXIT / AVOID"}.get(sig.action, "HOLD")
-    passes = sig.action == "buy" and sig.confidence >= thr
+    # scalp-gate verdict (Aug 24 redesign): the $20 pace decides, conviction
+    # floors at QC_SCALP_FLOOR, cooldown always blocks. The old median-bar
+    # LED is gone — it rejected 79% PUMP (paid $20 x3) and passed 100% BTC
+    # (negative all day). Replay: the bar predicts nothing for scalps.
+    pace_h = result.get("pace_h")
+    from background_scanner import _max_resolve_hours as _rc
+    pace_ok = pace_h is None or pace_h <= _rc()
+    passes = (sig.action == "buy" and not no_buy
+              and sig.confidence >= QC_SCALP_FLOOR and pace_ok)
     momentum_capped = any("momentum ceiling" in r.lower() for r in sig.reasons)
 
     k = (
@@ -1590,9 +1627,14 @@ def render_quick_check(cfg: TradingConfig, kraken):
     )
     st.markdown(plate(f"Quick Check — {asset}", f'<div class="knob-row">{k}</div>'), unsafe_allow_html=True)
 
+    _pace_txt = (f"$20 IN ~{pace_h:.1f}H" if pace_h is not None else "$20 PACE: NO DATA")
+    _green_txt = ("SCALP GREEN LIGHT" if passes else
+                  ("COOLDOWN — NO BUYS" if no_buy else
+                   f"NO GREEN — NEEDS {QC_SCALP_FLOOR}%+ & FAST $20"))
     status_leds = (
         led("LIQUID" if liquid else f"ILLIQUID < ${cfg.min_volume_usd_24h/1e6:.0f}M", "g" if liquid else "r") +
-        led("AUTO-TRADE BAR PASSED" if passes else f"BELOW {thr}% BAR", "g" if passes else "r") +
+        led(_pace_txt, "g" if pace_ok else "r") +
+        led(_green_txt, "g" if passes else "r") +
         led("MOMENTUM CEILING BLOCK" if momentum_capped else "ENTRY ALLOWED", "r" if momentum_capped else "g")
     )
 
