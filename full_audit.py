@@ -177,7 +177,7 @@ try:
     check("contract: bot own-scanning OFF (scout funnel owns buys)",
           "own_scanning_enabled: bool = False" in (BOT / "config.py").read_text(encoding="utf-8"))
     check("contract: bridge lets challengers through (no max-position write reject)",
-          "not writing new buy" not in (BASE / "signal_bridge.py").read_text(encoding="utf-8"))
+          "Already %d open positions" not in (BASE / "signal_bridge.py").read_text(encoding="utf-8"))
 except Exception as exc:
     check("design contract", False, str(exc)[:100])
 
