@@ -966,6 +966,15 @@ CONTEST_CHUNKS = (0.25, 0.50, 0.75, 1.00)
 # per-asset bars — different games, different ledgers.
 QC_SCALP_FLOOR = 60
 
+# ── Chase guard (Aug 24, PENGU was the example) ─────────────────────
+# Trend conviction is a rear-view mirror: it maxes out AFTER a move runs
+# (PENGU scanned 100% at the top of a +5.6% leg, -$44 immediately; PUMP
+# scanned 79% at the base, +$133). A green light must be FRESH: if live
+# price is more than 2% above the last hour's low, the move is old and
+# the entry pays for the part that already happened. "Wait for the next
+# wiggle" is the right call, however confident the trend looks.
+QC_CHASE_PCT = 2.0
+
 
 def contest_chunk(position_size_usd, balance: float) -> tuple[float, float] | None:
     """(chunk_fraction, chunk_usd) — the size to pick in the contest app."""
@@ -1554,6 +1563,10 @@ def render_quick_check(cfg: TradingConfig, kraken):
                 #     median bar (replay: sub-bar buys paid $20 at 80% vs
                 #     72% for bar-passers — the bar added nothing).
                 # (3) never during the 20:00-24:00 cooldown.
+                # (4) chase guard — no green if price already ran >2% off
+                #     the last hour's base (PENGU: 100% conviction, +3.6%
+                #     off base at the top, -$44; PUMP: 79% at the base,
+                #     +$133). Fresh wiggles only.
                 # (TP ETA stays as display info in the exit verdict.)
                 # dup-safe keeps old consoles alive across restarts — if this
                 # console predates a background_scanner update, the cached
@@ -1566,9 +1579,17 @@ def render_quick_check(cfg: TradingConfig, kraken):
                 _resolve_cap = _bs._max_resolve_hours
                 _scalp_eta = _bs._hours_to_scalp
                 _s_h = _scalp_eta(f"{asset}/USD", float(px))
+                # chase: distance above the last hour's low (4 x 15m candles)
+                try:
+                    _base = float(df["low"].tail(4).min())
+                    _chase = (float(px) - _base) / _base * 100 if _base > 0 else 0.0
+                except Exception:
+                    _chase = 0.0
                 st.session_state["qc_result"]["pace_h"] = _s_h
+                st.session_state["qc_result"]["chase_pct"] = _chase
                 if (sig.action == "buy" and not no_buy
                         and sig.confidence >= QC_SCALP_FLOOR
+                        and _chase <= QC_CHASE_PCT
                         and not (_s_h is not None and _s_h > _resolve_cap())):
                     # AUTO-WATCH on green light: the deep scan IS the entry.
                     # The user's system: green → all in, scalp to +$20, out,
@@ -1610,6 +1631,18 @@ def render_quick_check(cfg: TradingConfig, kraken):
                         logger.debug("auto-watch add failed: %s", exc)
                 else:
                     if (sig.action == "buy" and not no_buy
+                            and sig.confidence >= QC_SCALP_FLOOR
+                            and _chase > QC_CHASE_PCT):
+                        try:
+                            st.toast(f"⛔ ALREADY RAN — {asset}: +{_chase:.1f}% off the last hour's base. "
+                                     f"The move's old — you'd pay for the part that already happened. "
+                                     f"Wait for the next wiggle.",
+                                     icon="⛔", duration=18)
+                            _play_sound("alarm")
+                            _speak(f"Too late! {asset} already ran! Wait for the next wiggle!", rate=1)
+                        except Exception:
+                            pass
+                    elif (sig.action == "buy" and not no_buy
                             and sig.confidence >= QC_SCALP_FLOOR
                             and _s_h is not None and _s_h > _resolve_cap()):
                         _slow_txt = (f"~{_s_h:.0f}h" if _s_h >= 3.5 else "3h+")
@@ -1669,14 +1702,17 @@ def render_quick_check(cfg: TradingConfig, kraken):
     # Never short: "sell" = exit a held long / stay out if flat
     act = {"buy": "BUY", "sell": "EXIT / AVOID"}.get(sig.action, "HOLD")
     # scalp-gate verdict (Aug 24 redesign): the $20 pace decides, conviction
-    # floors at QC_SCALP_FLOOR, cooldown always blocks. The old median-bar
-    # LED is gone — it rejected 79% PUMP (paid $20 x3) and passed 100% BTC
-    # (negative all day). Replay: the bar predicts nothing for scalps.
+    # floors at QC_SCALP_FLOOR, cooldown always blocks, chase guard rejects
+    # stale moves. The old median-bar LED is gone — it rejected 79% PUMP
+    # (paid $20 x3) and passed 100% BTC (negative all day). Replay: the bar
+    # predicts nothing for scalps.
     pace_h = result.get("pace_h")
+    chase_pct = result.get("chase_pct", 0.0)
     from background_scanner import _max_resolve_hours as _rc
     pace_ok = pace_h is None or pace_h <= _rc()
+    fresh = chase_pct <= QC_CHASE_PCT
     passes = (sig.action == "buy" and not no_buy
-              and sig.confidence >= QC_SCALP_FLOOR and pace_ok)
+              and sig.confidence >= QC_SCALP_FLOOR and pace_ok and fresh)
     momentum_capped = any("momentum ceiling" in r.lower() for r in sig.reasons)
 
     k = (
@@ -1690,10 +1726,14 @@ def render_quick_check(cfg: TradingConfig, kraken):
     _pace_txt = (f"$20 IN ~{pace_h:.1f}H" if pace_h is not None else "$20 PACE: NO DATA")
     _green_txt = ("SCALP GREEN LIGHT" if passes else
                   ("COOLDOWN — NO BUYS" if no_buy else
-                   f"NO GREEN — NEEDS {QC_SCALP_FLOOR}%+ & FAST $20"))
+                   (f"NO GREEN — ALREADY RAN +{chase_pct:.1f}%" if not fresh else
+                    (f"NO GREEN — TOO SLOW ({pace_h:.1f}H)" if not pace_ok else
+                     f"NO GREEN — NEEDS {QC_SCALP_FLOOR}%+"))))
     status_leds = (
         led("LIQUID" if liquid else f"ILLIQUID < ${cfg.min_volume_usd_24h/1e6:.0f}M", "g" if liquid else "r") +
         led(_pace_txt, "g" if pace_ok else "r") +
+        led(f"FRESH +{chase_pct:.1f}% OFF BASE" if fresh else f"CHASED +{chase_pct:.1f}% — STALE MOVE",
+            "g" if fresh else "r") +
         led(_green_txt, "g" if passes else "r") +
         led("MOMENTUM CEILING BLOCK" if momentum_capped else "ENTRY ALLOWED", "r" if momentum_capped else "g")
     )
