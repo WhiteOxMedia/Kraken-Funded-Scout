@@ -84,9 +84,10 @@ class TradingConfig:
     # Liquidity floor: skip assets below this 24h USD volume in tournaments.
     # NOTE: measured from Kraken OHLCV only — Kraken is a smaller venue, so
     # legit mid-caps (DOT, AVAX, NEAR...) do just $1-4M/day here. $1M removes
-    # only true dust where spreads hurt; the momentum ceiling + loss cooldown
-    # handle meme-coin churn better than a blunt volume filter.
-    min_volume_usd_24h: float = 1_000_000
+    # Daily floor for UNKNOWN coins (no engine history yet — fresh gainers).
+    # Known coins use the rotation-aware filter instead (per-rotation volume
+    # medians + a $250k daily backstop) — see filter_illiquid.
+    min_volume_usd_24h: float = 750_000
 
     # ── OHLC data ──────────────────────────────────────────────────────
     candle_interval: int = 60              # 1h candles — less noise than 15min

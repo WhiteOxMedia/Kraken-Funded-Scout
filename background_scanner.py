@@ -141,23 +141,64 @@ def is_weekend(dow: int) -> bool:
 # ── Liquidity filter ─────────────────────────────────────────────────────
 
 def filter_illiquid(data: dict, min_volume_usd: float) -> tuple[dict, list]:
-    """Drop assets below the 24h USD volume floor.
+    """Rotation-aware liquidity filter — uses the Volatility Engine's own
+    per-asset × rotation × weekday/weekend volume history.
 
-    Low-volume meme coins whipsaw and the spread eats small positions —
-    the audit showed them as pure churn. Volume column is in base units,
-    so quote volume = sum(volume x close) over the last 24 hourly candles.
-    Returns (kept_data, excluded_list_of_(pair, volume)).
+    A coin passes when:
+      · its TYPICAL volume in the CURRENT rotation (engine median, from
+        real history) clears the rotation floor — weekday $15k, weekend
+        $10k per 4h session (everything runs thinner on weekends), AND
+      · its actual 24h volume clears a low backstop ($250k) — catches
+        coins that recently died but still have fat historical medians.
+
+    Unknown coins (no engine cell yet — fresh gainers) fall back to the
+    caller's daily floor (min_volume_usd, default $750k) alone.
+
+    This replaces the flat $1M daily bar, which killed half the universe
+    (ALGO does $60-103k PER ROTATION yet sat under $1M daily) while
+    never asking whether a coin is active in the window we'd trade it.
     """
+    LIQ_ROT_FLOOR_WEEKDAY = 15_000.0
+    LIQ_ROT_FLOOR_WEEKEND = 10_000.0
+    LIQ_DAILY_BACKSTOP = 250_000.0
+
+    # current rotation × schedule from the same engine tables
+    n = _now_mst()
+    rot_key = rotation_key_for_hour(n.hour)
+    sched = _schedule_for_dow(n.weekday())
+    rot_floor = LIQ_ROT_FLOOR_WEEKEND if sched == "weekend" else LIQ_ROT_FLOOR_WEEKDAY
+
+    engine_cells = {}
+    try:
+        from volatility_engine import load_rotation_thresholds
+        doc = load_rotation_thresholds(max_age_s=300)
+        if doc:
+            engine_cells = doc.get("universe", {})
+    except Exception:
+        engine_cells = {}
+
     kept = {}
     excluded = []
     for pair, df in data.items():
         try:
             recent = df.tail(24)
             quote_vol = float((recent["volume"] * recent["close"]).sum())
-            if quote_vol >= min_volume_usd:
-                kept[pair] = df
+
+            cell = engine_cells.get(pair, {}).get(sched, {}).get(rot_key) or {}
+            rot_typical = float(cell.get("median_volume_usd") or 0)
+
+            if cell:
+                # known coin: active in THIS rotation + alive overall
+                if rot_typical >= rot_floor and quote_vol >= LIQ_DAILY_BACKSTOP:
+                    kept[pair] = df
+                else:
+                    excluded.append((pair, quote_vol))
             else:
-                excluded.append((pair, quote_vol))
+                # unknown coin: the caller's daily floor is the whole check
+                if quote_vol >= min_volume_usd:
+                    kept[pair] = df
+                else:
+                    excluded.append((pair, quote_vol))
         except Exception:
             kept[pair] = df  # can't compute — keep rather than drop
     return kept, excluded

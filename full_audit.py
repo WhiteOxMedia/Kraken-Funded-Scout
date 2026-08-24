@@ -176,6 +176,8 @@ try:
           "CHALLENGE WIN" in (BOT / "scout_signal_reader.py").read_text(encoding="utf-8"))
     check("contract: bot own-scanning OFF (scout funnel owns buys)",
           "own_scanning_enabled: bool = False" in (BOT / "config.py").read_text(encoding="utf-8"))
+    check("contract: rotation-aware liquidity filter",
+          "LIQ_ROT_FLOOR_WEEKDAY" in bs_src and "median_volume_usd" in bs_src)
     check("contract: bridge lets challengers through (no max-position write reject)",
           "Already %d open positions" not in (BASE / "signal_bridge.py").read_text(encoding="utf-8"))
 except Exception as exc:
