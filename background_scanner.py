@@ -352,6 +352,7 @@ CONSOLE_STATE_JSON = os.path.join(os.path.dirname(os.path.abspath(__file__)), "c
 CONTEST_TRAIL_PCT = 4.0   # matches the console's contest profile
 CONTEST_SELL_BAR = 50
 TAKE_IT_USD = 20  # the user's scalp target: out at +$20, take it every chance
+MAX_TRADE_HOURS = 3.0  # contest trades must resolve within 3 hours — scalps, not grinds
 VOICE_PREFIX = "Mic check one, two. Testing, testing. "
 _take_level = {}       # last announced $20 multiple per pair
 _last_allgood_ts = 0.0 # all-good voice cadence gate (TAKE IT fires anytime)
@@ -402,6 +403,30 @@ def _voice_enabled() -> bool:
             return bool(json.load(fh).get("voice_on", True))
     except Exception:
         return True
+
+
+def _hours_to_goal(pair: str, entry, tp):
+    """Estimated hours to reach TP at this rotation's pace (engine data).
+    The 3-hour rule gates on this. None when it can't be computed."""
+    try:
+        from volatility_engine import load_rotation_thresholds, ROTATIONS
+        doc = load_rotation_thresholds(max_age_s=300)
+        if not doc:
+            return None
+        n = _now_mst()
+        rot = next((k for s, e, k, *_ in ROTATIONS if s <= n.hour < e), None)
+        if rot is None:
+            return None
+        sched = "weekend" if n.weekday() >= 5 else "weekday"
+        cell = (doc.get("universe", {}).get(pair, {}).get(sched, {}).get(rot)
+                or doc.get("median", {}).get(sched, {}).get(rot))
+        avg = float(cell.get("avg_move") or 0) if cell else 0
+        if avg <= 0 or not entry or not tp or tp <= entry:
+            return None
+        dist = (tp - entry) / entry * 100
+        return (dist / avg) * 4.0
+    except Exception:
+        return None
 
 
 def contest_light(exchange, cfg):
@@ -726,36 +751,29 @@ def main():
         # the user's system: green light → all in. The deep scan is the
         # confirmation; when it's green they go 100%. Say what they do.
         contest_msg = f"  SPEND: 100% = ${_bal:,.0f}\n" if _bal > 0 else ""
-        # how long, from the engine's own pace data
+        # how long, from the engine's own pace data — and the 3-HOUR RULE:
+        # a scalp that needs 33 hours to hit goal is the wrong trade. She
+        # still says how long; anything past 3 hours never hits the desktop.
+        _hours = _hours_to_goal(pair, signal.entry_price, signal.take_profit)
+        if _hours is not None and _hours > MAX_TRADE_HOURS:
+            logger.info("  TOO SLOW: %s ~%.0fh to goal (>%.0fh) — desktop suppressed, logged to pool",
+                        asset, _hours, MAX_TRADE_HOURS)
+            return
         hold_txt = "a few hours"
-        try:
-            from volatility_engine import load_rotation_thresholds, ROTATIONS
-            doc = load_rotation_thresholds(max_age_s=300)
-            if doc:
-                n = _now_mst()
-                rot = next((k for s, e, k, *_ in ROTATIONS if s <= n.hour < e), None)
-                sched = "weekend" if n.weekday() >= 5 else "weekday"
-                cell = (doc.get("universe", {}).get(pair, {}).get(sched, {}).get(rot)
-                        or doc.get("median", {}).get(sched, {}).get(rot))
-                avg = float(cell.get("avg_move") or 0) if cell else 0
-                if avg > 0 and signal.entry_price and signal.take_profit:
-                    _dist = (signal.take_profit - signal.entry_price) / signal.entry_price * 100
-                    _hours = (_dist / avg) * 4.0
-                    if _hours < 1:
-                        hold_txt = "under an hour"
-                    elif _hours < 2:
-                        hold_txt = "about an hour"
-                    elif _hours < 36:
-                        hold_txt = f"~{_hours:.0f} hours"
-                    else:
-                        hold_txt = f"~{_hours / 24:.0f} days"
-        except Exception:
-            pass
+        if _hours is not None:
+            if _hours < 1:
+                hold_txt = "under an hour"
+            elif _hours < 2:
+                hold_txt = "about an hour"
+            elif _hours < 36:
+                hold_txt = f"~{_hours:.0f} hours"
+            else:
+                hold_txt = f"~{_hours / 24:.0f} days"
         if is_buy:
             title = f"🟢 BUY {asset} — {signal.confidence:.0f}% SURE"
             message = (
                 f"BUY {asset}\n"
-                f"SPEND: {_chunk:.0%} = ${_chunk * _bal:,.0f}\n"
+                f"SPEND: 100% = ${_bal:,.0f}\n"
                 f"FOR: {hold_txt}\n"
                 f"HOW SURE: {signal.confidence:.0f}%\n"
                 f"{'-' * 30}\n"
@@ -998,8 +1016,9 @@ def main():
                             except Exception as exc:
                                 logger.warning("  Could not write bounce to bridge: %s", exc)
 
-                            # desktop: 89% floor, same as everything else
-                            if signal.confidence >= 89:
+                            # desktop: 89% floor + 3-hour rule, same as everything else
+                            _b_hours = _hours_to_goal(pair, signal.entry_price, signal.take_profit)
+                            if signal.confidence >= 89 and not (_b_hours is not None and _b_hours > MAX_TRADE_HOURS):
                                 notify_big(
                                     f"🔄 BOUNCE {asset} ({signal.confidence:.0f}%)",
                                     f"Yesterday's loser turning — bounce play\n"
@@ -1009,7 +1028,10 @@ def main():
                                     f"Time: {_fmt_mst(_now_mst())}"
                                 )
                             else:
-                                logger.info("  Bounce %s %.0f%% < 89%% floor — logged only", asset, signal.confidence)
+                                if _b_hours is not None and _b_hours > MAX_TRADE_HOURS:
+                                    logger.info("  Bounce %s TOO SLOW (~%.0fh) — logged only", asset, _b_hours)
+                                else:
+                                    logger.info("  Bounce %s %.0f%% < 89%% floor — logged only", asset, signal.confidence)
                             log_winner(pair, signal)
                             alerted_recently[pair] = now.timestamp()
                         except Exception as exc:

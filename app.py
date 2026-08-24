@@ -1475,7 +1475,10 @@ def render_quick_check(cfg: TradingConfig, kraken):
                 st.session_state["qc_result"] = {"asset": asset, "sig": sig, "df": df, "px": px}
 
                 # ── every scan talks back — never dead ──────────────────
-                if sig.action == "buy" and sig.confidence >= thr:
+                # THE 3-HOUR RULE first: a scalp that needs a day to hit
+                # goal is the wrong trade. Too slow = no green light, ever.
+                _eta = _time_to_goal(f"{asset}/USD", float(px), sig.take_profit) if sig.take_profit else None
+                if sig.action == "buy" and sig.confidence >= thr and not (_eta and _eta[1] > 3.0):
                     # AUTO-WATCH on green light: the deep scan IS the entry.
                     # The user's system: green → all in, scalp to +$20, out,
                     # re-enter small, green again → buy more. Watch records
@@ -1515,16 +1518,27 @@ def render_quick_check(cfg: TradingConfig, kraken):
                     except Exception as exc:
                         logger.debug("auto-watch add failed: %s", exc)
                 else:
-                    act_txt = {"buy": f"{sig.confidence:.0f}% — needs {thr}%",
-                               "sell": "chart's red",
-                               "hold": "no setup"}[sig.action]
-                    try:
-                        st.toast(f"⛔ NO — {asset}: {act_txt}. Skip it.",
-                                 icon="⛔", duration=15)
-                        _play_sound("alarm")
-                        _speak(f"No! {asset}! Skip it!", rate=1)
-                    except Exception:
-                        pass
+                    if sig.action == "buy" and sig.confidence >= thr and _eta and _eta[1] > 3.0:
+                        _slow_txt = (f"~{_eta[1]:.0f}h" if _eta[1] >= 3.5 else "3h+")
+                        act_txt = f"too slow — {_slow_txt} to the goal"
+                        try:
+                            st.toast(f"⛔ TOO SLOW — {asset}: {act_txt}. Not a scalp. Skip it.",
+                                     icon="⛔", duration=15)
+                            _play_sound("alarm")
+                            _speak(f"Too slow! {asset}! Skip it!", rate=1)
+                        except Exception:
+                            pass
+                    else:
+                        act_txt = {"buy": f"{sig.confidence:.0f}% — needs {thr}%",
+                                   "sell": "chart's red",
+                                   "hold": "no setup"}[sig.action]
+                        try:
+                            st.toast(f"⛔ NO — {asset}: {act_txt}. Skip it.",
+                                     icon="⛔", duration=15)
+                            _play_sound("alarm")
+                            _speak(f"No! {asset}! Skip it!", rate=1)
+                        except Exception:
+                            pass
             except Exception as exc:
                 disable_deep_analysis()
                 st.error(f"Scan failed for {asset}: {exc}")
