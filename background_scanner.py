@@ -888,18 +888,17 @@ def main():
         dow = now.weekday()  # 0=Mon, 6=Sun
         block_name, full_interval, min_conf, auto_trade_threshold, block_desc, no_buy, rot_key = get_time_block(hour, dow)
 
-        # ── Morning flatten: once per day at/after 08:00 ──────────────
-        # Sells losers/flat (keeps winners >5% up), clears the bridge —
-        # clean book for the new trading day. Runs EVERY day (weekends
-        # too) so the bridge self-clears daily and ghosts can't pile up.
-        # Positions then ride the whole day + night — exit checks and
-        # trailing stops protect them — the bot has all day to be patient.
+        # ── Cooldown flatten: once per day at 20:00 (cooldown start) ────
+        # The trading day ends at 20:00 — sell losers/flat (keep winners >5%
+        # up), clear the bridge, ride flat through the overnight cooldown.
+        # Fresh book + full balance at midnight when R1 Asia opens. The bot
+        # has the entire day (00:00-20:00) to be patient.
         _today_flatten = now.strftime("%Y-%m-%d")
-        if now.hour >= 8 and last_flatten_date != _today_flatten:
+        if now.hour >= 20 and last_flatten_date != _today_flatten:
             last_flatten_date = _today_flatten
             _save_scanner_state({"last_flatten_date": _today_flatten})
             logger.info("=" * 60)
-            logger.info("  MORNING FLATTEN — new trading day")
+            logger.info("  COOLDOWN FLATTEN — trading day closed")
             logger.info("=" * 60)
 
             # 1. Find WINNERS to keep — positions up >5% ride through;
@@ -969,12 +968,12 @@ def main():
             last_full_scan = 0
             last_exit_check = 0
 
-            logger.info("Morning flatten done | kept winners: %s",
+            logger.info("Cooldown flatten done | kept winners: %s",
                         ", ".join(p.split("/")[0] for p in keep_pairs) or "none")
 
         # rotation changes just log — no selling between morning flattens
         if current_block_name is not None and block_name != current_block_name:
-            logger.info("Rotation %s -> %s (positions ride — morning flatten owns resets)",
+            logger.info("Rotation %s -> %s (positions ride — cooldown flatten owns resets)",
                         current_block_name, block_name)
 
         current_block_name = block_name

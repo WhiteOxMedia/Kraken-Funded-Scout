@@ -162,8 +162,8 @@ try:
           "_resolve_cap" in app_src)
     check("contract: TAKE IT $20 system present",
           "TAKE_IT_USD = 20" in bs_src and "Take it!" in bs_src)
-    check("contract: morning flatten (once daily, persisted)",
-          "last_flatten_date" in bs_src and "_load_scanner_state" in bs_src)
+    check("contract: cooldown flatten 20:00 (once daily, persisted)",
+          "now.hour >= 20" in bs_src and "_load_scanner_state" in bs_src)
     check("contract: bounce path (losers, not gainers)",
           "Bounce: yesterday's loser turning" in bs_src
           and "NEW GAINER" not in bs_src)
