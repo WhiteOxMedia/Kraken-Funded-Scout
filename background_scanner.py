@@ -925,59 +925,53 @@ def main():
                 else:
                     logger.info("  No significant movers in challenge assets")
 
-                # ── Also scan full Kraken gainers list ───────────────
-                gainers = fetch_kraken_gainers(exchange, top_n=20, min_volume_usd=100_000)
-                # Filter out assets we already track or already hold
-                tracked_assets = set(p.split("/")[0] for p in all_pairs)
-                new_gainers = [g for g in gainers if g["asset"] not in tracked_assets]
-
-                if new_gainers:
-                    logger.info("  Top Kraken gainers (not in challenge list):")
-                    for g in new_gainers[:5]:
-                        logger.info("    %s +%s%% vol=$%sM", g["asset"], f"{g['pct']:.1f}", f"{g['volume']/1e6:.1f}")
-
-                    # Deep-scan the top 3 new gainers
-                    new_pairs = [g["pair"] for g in new_gainers[:3]]
-                    new_data = fetch_ohlcv_parallel(exchange, new_pairs, max_workers=3)
-                    for pair, df in new_data.items():
+                # ── Bounce fast path: yesterday's losers, scanned every tick ──
+                # The gainer path is retired (chasing pumps = bad fills). Instead:
+                # the daily bounce list (yesterday's top losers) gets deep-scanned
+                # here at ticker speed, so a bounce setup fires immediately
+                # instead of waiting for the next full tournament.
+                if cached_loser_pairs:
+                    for pair in cached_loser_pairs:
                         if pair in alerted_recently:
                             if (now.timestamp() - alerted_recently[pair]) < 600:
                                 continue
+                        try:
+                            ohlcv = exchange.fetch_ohlcv(pair, timeframe="1h", limit=200)
+                            if not ohlcv or len(ohlcv) < 30:
+                                continue
+                            df = pd.DataFrame(ohlcv, columns=["timestamp","open","high","low","close","volume"])
+                            df["timestamp"] = pd.to_datetime(df["timestamp"], unit="ms")
+                            df.set_index("timestamp", inplace=True)
 
-                        signal = evaluate_and_check(pair, df, min_conf)
-                        if signal:
+                            signal = evaluate_and_check(pair, df, min_conf)
+                            if not signal:
+                                continue
                             asset = pair.split("/")[0]
-                            gainer_pct = [g["pct"] for g in new_gainers if g["pair"] == pair]
-                            gainer_pct = gainer_pct[0] if gainer_pct else 0
 
-                            # Expected-move gate for gainers — AGGRESSIVE bar
-                            # (avg move): momentum is real, so only the size
-                            # filter applies at its loosest setting.
+                            # bounce move gate: aggressive bar (avg move) —
+                            # a bounce off yesterday's low needs room to travel
                             try:
                                 from volatility_engine import get_move_threshold
                                 gm_thr = get_move_threshold(pair, rot_key, _schedule_for_dow(dow), level="aggressive")
                                 if gm_thr is not None and signal.entry_price and signal.take_profit:
                                     gm_proj = (signal.take_profit - signal.entry_price) / signal.entry_price * 100
                                     if gm_proj < gm_thr:
-                                        logger.info("  MOVE GATE (gainer): %s projected %.2f%% < %.2f%% avg move (%s %s), skipping",
-                                                    asset, gm_proj, gm_thr, _schedule_for_dow(dow), rot_key)
                                         continue
-                            except Exception as exc:
-                                logger.debug("Gainer move gate failed: %s", exc)
+                            except Exception:
+                                pass
 
-                            logger.info("  🆕 NEW GAINER SIGNAL: %s %s (%.0f%%) — +%.1f%% 24h gain",
-                                        signal.action.upper(), asset, signal.confidence, gainer_pct)
+                            logger.info("  🔄 BOUNCE SIGNAL: %s %s (%.0f%%) — yesterday's loser turning",
+                                        signal.action.upper(), asset, signal.confidence)
 
-                            # Persist to the volatility universe so the
-                            # Volatility Engine has real thresholds for it tomorrow
+                            # persist to the volatility universe so the engine
+                            # learns this coin's stats for future thresholds
                             try:
                                 from volatility_engine import remember_gainer
-                                remember_gainer(pair, gainer_pct)
-                            except Exception as exc:
-                                logger.debug("Could not persist gainer: %s", exc)
+                                remember_gainer(pair, -5.0)  # was a loser, now bouncing
+                            except Exception:
+                                pass
 
-                            # Write to bridge as "filled" — assume user bought it manually
-                            # This makes the exit check monitor it for SELL signals
+                            # write to the bridge — bot may take it
                             try:
                                 from signal_bridge import write_buy_signal
                                 sid = write_buy_signal(
@@ -989,38 +983,34 @@ def main():
                                     take_profit=signal.take_profit,
                                     risk_reward=signal.risk_reward,
                                     position_size_usd=0,
-                                    reasons=[f"New gainer +{gainer_pct:.1f}% 24h", *signal.reasons],
+                                    reasons=[f"Bounce: yesterday's loser turning", *signal.reasons],
                                     source="scout_gainer",
-                                    reason_summary=f"New gainer +{gainer_pct:.1f}% 24h",
-                                    min_confidence=50,  # gainers get a lower bar — momentum is real
+                                    reason_summary="Bounce: yesterday's loser turning",
+                                    min_confidence=50,
                                 )
                                 if sid:
-                                    logger.info("  Gainer signal written as 'pending' — Trader will execute %s", asset)
-                                else:
-                                    logger.info("  Gainer signal not written (cooldown/duplicate/max positions)")
+                                    logger.info("  Bounce signal written — Trader will evaluate %s", asset)
                             except Exception as exc:
-                                logger.warning("  Could not write gainer to bridge: %s", exc)
+                                logger.warning("  Could not write bounce to bridge: %s", exc)
 
-                            # Desktop notification + log to winners pool
-                            # (89% floor — only champion-grade gainers get the screen)
+                            # desktop: 89% floor, same as everything else
                             if signal.confidence >= 89:
                                 notify_big(
-                                    f"NEW GAINER: {signal.action.upper()} {asset} ({signal.confidence:.0f}%)",
-                                    f"Trending hard — signal sent to Trader for auto-buy\n"
-                                    f"24h gain: +{gainer_pct:.1f}%\n"
-                                    f"Signal: {signal.action} ({signal.confidence:.0f}%)\n"
+                                    f"🔄 BOUNCE {asset} ({signal.confidence:.0f}%)",
+                                    f"Yesterday's loser turning — bounce play\n"
                                     f"Price: ${signal.price:.4f}\n"
                                     f"Stop: ${signal.stop_loss:.4f}\n"
                                     f"TP: ${signal.take_profit:.4f}\n"
-                                    f"Time: {_fmt_mst(_now_mst())}\n"
-                                    f"Trader will buy and exit check will monitor"
+                                    f"Time: {_fmt_mst(_now_mst())}"
                                 )
                             else:
-                                logger.info("  Gainer %s %.0f%% < 89%% desktop floor — logged only", asset, signal.confidence)
+                                logger.info("  Bounce %s %.0f%% < 89%% floor — logged only", asset, signal.confidence)
                             log_winner(pair, signal)
                             alerted_recently[pair] = now.timestamp()
+                        except Exception as exc:
+                            logger.debug("Bounce scan failed for %s: %s", pair, exc)
                 else:
-                    pass  # No new gainers or all already tracked
+                    pass  # no bounce list yet today
             except Exception as exc:
                 logger.warning("Ticker scan error: %s", exc)
 
@@ -1235,16 +1225,20 @@ def main():
                     asset = best_pair.split("/")[0]
                     logger.info("🏆 Momentum Champion: %s %s (%.0f%%)", best_signal.action, asset, best_signal.confidence)
 
-                    # ── Bounce Hunter: losers tournament + champion vs champion ─
+                    # ── Bounce Hunter: yesterday's losers → bounce candidates ─
+                    # Refresh once per day (first scan after midnight = yesterday's
+                    # closing state). List stays stable all day — consistent hunt.
+                    # Failed fetch keeps the old list and retries next scan.
                     today_str = _now_mst().strftime("%Y-%m-%d")
                     if last_loser_fetch != today_str:
-                        # Fetch today's top losers (once per day)
                         losers = fetch_kraken_losers(exchange, top_n=20, min_volume_usd=5_000_000)
-                        cached_loser_pairs = [l["pair"] for l in losers if l["pair"] not in all_pairs]
-                        last_loser_fetch = today_str
-                        if cached_loser_pairs:
-                            logger.info("  📉 Today's top losers (bounce candidates): %s",
+                        if losers:
+                            cached_loser_pairs = [l["pair"] for l in losers if l["pair"] not in all_pairs]
+                            last_loser_fetch = today_str
+                            logger.info("  📉 Yesterday's losers (bounce candidates): %s",
                                         ", ".join(l["asset"] + f"({l['pct']:.0f}%)" for l in losers[:5]))
+                        else:
+                            logger.info("  Losers fetch failed — keeping previous bounce list")
 
                     # Run bounce tournament on yesterday's losers
                     bounce_champion = None
