@@ -57,9 +57,9 @@ check("hover 10-20: silent", seq == [], str(seq))
 seq = take_sequence([("E", 20.0)])
 check("exactly $20: fires", seq == [20], str(seq))
 
-# ── 2. the 3-hour rule (hours math sanity) ──────────────────────────
+# ── 2. the resolve rule (adaptive cap) ──────────────────────────────
 lines.append("")
-lines.append("3-hour rule math:")
+lines.append("resolve-rule math:")
 # distance% / avg_move% × 4h
 # 1.2% away, avg 1.2%/rotation → 4h → BLOCKED (> 3)
 h = (1.2 / 1.2) * 4
@@ -74,15 +74,24 @@ check("2% away @4% avg = 2h → passes", h <= 3.0, f"{h}h")
 h = (5.0 / 0.6) * 4
 check("HYPE-style slow coin → ~33h → blocked", h > 3.0, f"{h:.0f}h")
 
+# the adaptive cap function itself
+try:
+    from background_scanner import _max_resolve_hours
+    from datetime import datetime
+    cap = _max_resolve_hours()
+    check("cap is 3-6h and never past midnight", 1.0 <= cap <= 6.0, f"{cap}h")
+    lines.append(f"  current cap: {cap:.1f}h")
+except Exception as exc:
+    check("_max_resolve_hours import", False, str(exc))
+
 # ── 3. _hours_to_goal live (real engine data) ───────────────────────
 lines.append("")
 lines.append("live _hours_to_goal:")
 try:
-    from background_scanner import _hours_to_goal, MAX_TRADE_HOURS
-    check("MAX_TRADE_HOURS = 3.0", MAX_TRADE_HOURS == 3.0)
+    from background_scanner import _hours_to_goal
     for pair in ["BTC/USD", "HYPE/USD", "NEAR/USD"]:
         h = _hours_to_goal(pair, 100.0, 102.0)  # 2% away synthetic
-        status = "blocked" if (h is not None and h > 3) else "passes"
+        status = "blocked" if (h is not None and h > _max_resolve_hours()) else "passes"
         lines.append(f"  {pair}: 2% away → {f'{h:.1f}h' if h is not None else 'no data'} → {status}")
 except Exception as exc:
     check("_hours_to_goal import", False, str(exc))

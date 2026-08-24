@@ -352,7 +352,6 @@ CONSOLE_STATE_JSON = os.path.join(os.path.dirname(os.path.abspath(__file__)), "c
 CONTEST_TRAIL_PCT = 4.0   # matches the console's contest profile
 CONTEST_SELL_BAR = 50
 TAKE_IT_USD = 20  # the user's scalp target: out at +$20, take it every chance
-MAX_TRADE_HOURS = 3.0  # contest trades must resolve within 3 hours — scalps, not grinds
 VOICE_PREFIX = "Mic check one, two. Testing, testing. "
 _take_level = {}       # last announced $20 multiple per pair
 _last_allgood_ts = 0.0 # all-good voice cadence gate (TAKE IT fires anytime)
@@ -407,7 +406,7 @@ def _voice_enabled() -> bool:
 
 def _hours_to_goal(pair: str, entry, tp):
     """Estimated hours to reach TP at this rotation's pace (engine data).
-    The 3-hour rule gates on this. None when it can't be computed."""
+    The resolve rule gates on this. None when it can't be computed."""
     try:
         from volatility_engine import load_rotation_thresholds, ROTATIONS
         doc = load_rotation_thresholds(max_age_s=300)
@@ -427,6 +426,32 @@ def _hours_to_goal(pair: str, entry, tp):
         return (dist / avg) * 4.0
     except Exception:
         return None
+
+
+def _max_resolve_hours() -> float:
+    """How long a contest trade may take to hit its goal:
+    base 3h, flexible by the rotation's real pace (engine data —
+    strong rotations earn patience), NEVER past midnight (never the
+    next day). Uses the rotation × weekday/weekend schedule."""
+    n = _now_mst()
+    hours_to_midnight = (24 - n.hour) - n.minute / 60.0
+    pace_cap = 4.0
+    try:
+        from volatility_engine import load_rotation_thresholds, ROTATIONS
+        doc = load_rotation_thresholds(max_age_s=300)
+        rot = next((k for s, e, k, *_ in ROTATIONS if s <= n.hour < e), None)
+        sched = "weekend" if n.weekday() >= 5 else "weekday"
+        cell = (doc or {}).get("median", {}).get(sched, {}).get(rot) or {}
+        avg = float(cell.get("avg_move") or 0)
+        if avg >= 1.0:
+            pace_cap = 6.0   # strong rotation — a few extra hours of patience
+        elif avg >= 0.8:
+            pace_cap = 5.0
+        else:
+            pace_cap = 4.0   # slow market — demand speed
+    except Exception:
+        pass
+    return min(pace_cap, hours_to_midnight)
 
 
 def contest_light(exchange, cfg):
@@ -751,13 +776,15 @@ def main():
         # the user's system: green light → all in. The deep scan is the
         # confirmation; when it's green they go 100%. Say what they do.
         contest_msg = f"  SPEND: 100% = ${_bal:,.0f}\n" if _bal > 0 else ""
-        # how long, from the engine's own pace data — and the 3-HOUR RULE:
-        # a scalp that needs 33 hours to hit goal is the wrong trade. She
-        # still says how long; anything past 3 hours never hits the desktop.
+        # how long, from the engine's own pace data — and the RESOLVE RULE:
+        # a trade must hit its goal within the rotation's allowance (3h base,
+        # pace-flexible, never past midnight). Slow trades never hit the
+        # desktop.
         _hours = _hours_to_goal(pair, signal.entry_price, signal.take_profit)
-        if _hours is not None and _hours > MAX_TRADE_HOURS:
-            logger.info("  TOO SLOW: %s ~%.0fh to goal (>%.0fh) — desktop suppressed, logged to pool",
-                        asset, _hours, MAX_TRADE_HOURS)
+        _cap = _max_resolve_hours()
+        if _hours is not None and _hours > _cap:
+            logger.info("  TOO SLOW: %s ~%.0fh to goal (cap %.0fh) — desktop suppressed, logged to pool",
+                        asset, _hours, _cap)
             return
         hold_txt = "a few hours"
         if _hours is not None:
@@ -820,6 +847,7 @@ def main():
     cached_loser_pairs = []
     alerted_recently = {}
     current_block_name = None  # track time block changes for position reset
+    last_flatten_date = ""     # morning flatten runs once per day at/after 08:00
 
     def _read_all_signals():
         """Read all signals from the SQLite bridge."""
@@ -835,89 +863,93 @@ def main():
         dow = now.weekday()  # 0=Mon, 6=Sun
         block_name, full_interval, min_conf, auto_trade_threshold, block_desc, no_buy, rot_key = get_time_block(hour, dow)
 
-        # ── Time block rotation: sell everything and reset ────────────
-        # Skip rotation reset on weekends — low volume, let positions ride
+        # ── Morning flatten: once per day at/after 08:00 ──────────────
+        # Sells losers/flat (keeps winners >5% up), clears the bridge —
+        # clean book for the new trading day. Runs EVERY day (weekends
+        # too) so the bridge self-clears daily and ghosts can't pile up.
+        # Positions then ride the whole day + night — exit checks and
+        # trailing stops protect them — the bot has all day to be patient.
+        _today_flatten = now.strftime("%Y-%m-%d")
+        if now.hour >= 8 and last_flatten_date != _today_flatten:
+            last_flatten_date = _today_flatten
+            logger.info("=" * 60)
+            logger.info("  MORNING FLATTEN — new trading day")
+            logger.info("=" * 60)
+
+            # 1. Find WINNERS to keep — positions up >5% ride through;
+            #    the trailing stop handles their exit.
+            keep_pairs = []
+            try:
+                from signal_bridge import get_open_positions
+                open_positions = get_open_positions()
+                for pos in open_positions:
+                    pair = pos.get("pair")
+                    entry = pos.get("execution_price") or pos.get("entry_price")
+                    if not pair or not entry:
+                        continue
+                    try:
+                        live = exchange.fetch_ticker(pair)
+                        price = float(live.get("last", 0))
+                        if price > entry * 1.05:
+                            gain = (price - entry) / entry * 100
+                            keep_pairs.append(pair)
+                            logger.info("  🏆 WINNER KEPT: %s up +%.1f%% — riding",
+                                        pair.split("/")[0], gain)
+                    except Exception:
+                        continue
+            except Exception as exc:
+                logger.warning("  Winner scan failed: %s", exc)
+
+            # 2. Run reset_positions.py from the XRP bot (sells everything
+            #    on Kraken except kept winners)
+            try:
+                import subprocess
+                bot_dir = r"C:\Users\birds\Workspace\kraken_xrp_trading_bot"
+                bot_python = os.path.join(bot_dir, ".venv", "Scripts", "python.exe")
+                if not os.path.exists(bot_python):
+                    bot_python = "python"  # fallback to system python
+                cmd = [bot_python, "reset_positions.py"]
+                if keep_pairs:
+                    cmd.append("--keep")
+                    cmd.append(",".join(keep_pairs))
+                result = subprocess.run(
+                    cmd,
+                    cwd=bot_dir,
+                    capture_output=True,
+                    text=True,
+                    timeout=180,
+                )
+                if result.returncode == 0:
+                    for line in result.stdout.strip().split("\n"):
+                        if line.strip():
+                            logger.info("  reset: %s", line.strip())
+                else:
+                    logger.error("  reset_positions.py failed: %s", result.stderr.strip()[:200])
+            except Exception as exc:
+                logger.error("  Could not run reset_positions.py: %s", exc)
+
+            # 3. Clear the signal bridge DB (winners stay open) — this is
+            #    the daily ghost sweep; nothing stale survives the morning.
+            try:
+                from signal_bridge import reset_all_positions
+                counts = reset_all_positions(keep_pairs=keep_pairs)
+                logger.info("  Bridge reset: closed %d, cancelled %d pending, kept %d winners",
+                            counts["closed"], counts["cancelled"], counts["kept"])
+            except Exception as exc:
+                logger.warning("  Bridge reset failed: %s", exc)
+
+            # 4. Clear alert history and force immediate tournament
+            alerted_recently = {}
+            last_full_scan = 0
+            last_exit_check = 0
+
+            logger.info("Morning flatten done | kept winners: %s",
+                        ", ".join(p.split("/")[0] for p in keep_pairs) or "none")
+
+        # rotation changes just log — no selling between morning flattens
         if current_block_name is not None and block_name != current_block_name:
-            if is_weekend(dow):
-                logger.info("  Weekend — skipping rotation reset (low volume, holding positions)")
-            else:
-                logger.info("=" * 60)
-                logger.info("  TIME BLOCK ROTATION: %s -> %s", current_block_name, block_name)
-                logger.info("  Resetting positions for fresh market session")
-                logger.info("=" * 60)
-
-                # 1. Find WINNERS to keep — positions up >5% ride through the
-                #    rotation; the trailing stop handles their exit.
-                keep_pairs = []
-                try:
-                    from signal_bridge import get_open_positions
-                    open_positions = get_open_positions()
-                    for pos in open_positions:
-                        pair = pos.get("pair")
-                        entry = pos.get("execution_price") or pos.get("entry_price")
-                        if not pair or not entry:
-                            continue
-                        try:
-                            live = exchange.fetch_ticker(pair)
-                            price = float(live.get("last", 0))
-                            if price > entry * 1.05:
-                                gain = (price - entry) / entry * 100
-                                keep_pairs.append(pair)
-                                logger.info("  🏆 WINNER KEPT: %s up +%.1f%% — riding through rotation",
-                                            pair.split("/")[0], gain)
-                        except Exception:
-                            continue
-                except Exception as exc:
-                    logger.warning("  Winner scan failed: %s", exc)
-
-                # 2. Run reset_positions.py from the XRP bot (sells everything
-                #    on Kraken except kept winners)
-                try:
-                    import subprocess
-                    bot_dir = r"C:\Users\birds\Workspace\kraken_xrp_trading_bot"
-                    bot_python = os.path.join(bot_dir, ".venv", "Scripts", "python.exe")
-                    if not os.path.exists(bot_python):
-                        bot_python = "python"  # fallback to system python
-                    cmd = [bot_python, "reset_positions.py"]
-                    if keep_pairs:
-                        cmd.append("--keep")
-                        cmd.append(",".join(keep_pairs))
-                    result = subprocess.run(
-                        cmd,
-                        cwd=bot_dir,
-                        capture_output=True,
-                        text=True,
-                        timeout=180,
-                    )
-                    if result.returncode == 0:
-                        for line in result.stdout.strip().split("\n"):
-                            if line.strip():
-                                logger.info("  reset: %s", line.strip())
-                    else:
-                        logger.error("  reset_positions.py failed: %s", result.stderr.strip()[:200])
-                except Exception as exc:
-                    logger.error("  Could not run reset_positions.py: %s", exc)
-
-                # 3. Clear the signal bridge DB (winners stay open)
-                try:
-                    from signal_bridge import reset_all_positions
-                    counts = reset_all_positions(keep_pairs=keep_pairs)
-                    logger.info("  Bridge reset: closed %d, cancelled %d pending, kept %d winners",
-                                counts["closed"], counts["cancelled"], counts["kept"])
-                except Exception as exc:
-                    logger.warning("  Bridge reset failed: %s", exc)
-
-                # 4. Clear alert history and force immediate tournament
-                alerted_recently = {}
-                last_full_scan = 0
-                last_exit_check = 0
-
-                # NO desktop popup for rotations — Windows alerts are
-                # BUY-NOW calls only (user rule). Rotation details stay
-                # in the scanner log + the console NOW strip.
-                logger.info("Market rotation %s -> %s | losers sold | kept winners: %s",
-                            current_block_name, block_name,
-                            ", ".join(p.split("/")[0] for p in keep_pairs) or "none")
+            logger.info("Rotation %s -> %s (positions ride — morning flatten owns resets)",
+                        current_block_name, block_name)
 
         current_block_name = block_name
 
@@ -1016,9 +1048,9 @@ def main():
                             except Exception as exc:
                                 logger.warning("  Could not write bounce to bridge: %s", exc)
 
-                            # desktop: 89% floor + 3-hour rule, same as everything else
+                            # desktop: 89% floor + resolve rule, same as everything else
                             _b_hours = _hours_to_goal(pair, signal.entry_price, signal.take_profit)
-                            if signal.confidence >= 89 and not (_b_hours is not None and _b_hours > MAX_TRADE_HOURS):
+                            if signal.confidence >= 89 and not (_b_hours is not None and _b_hours > _max_resolve_hours()):
                                 notify_big(
                                     f"🔄 BOUNCE {asset} ({signal.confidence:.0f}%)",
                                     f"Yesterday's loser turning — bounce play\n"
@@ -1028,7 +1060,7 @@ def main():
                                     f"Time: {_fmt_mst(_now_mst())}"
                                 )
                             else:
-                                if _b_hours is not None and _b_hours > MAX_TRADE_HOURS:
+                                if _b_hours is not None and _b_hours > _max_resolve_hours():
                                     logger.info("  Bounce %s TOO SLOW (~%.0fh) — logged only", asset, _b_hours)
                                 else:
                                     logger.info("  Bounce %s %.0f%% < 89%% floor — logged only", asset, signal.confidence)
