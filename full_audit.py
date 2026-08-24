@@ -114,10 +114,18 @@ except Exception as exc:
 # ── 9. Execution tier state ──────────────────────────────────────────
 try:
     st = json.loads((BASE / "execution_state.json").read_text())
-    check("execution state clean", not st.get("blacklist") and not st.get("pending_scales"),
-          f"blacklist={len(st.get('blacklist', {}))}, scales={len(st.get('pending_scales', {}))}")
+    now_iso = datetime.now(MST).isoformat()
+    live = {k: v for k, v in st.get("pending_scales", {}).items()
+            if v.get("expire", "") > now_iso}
+    expired = {k: v for k, v in st.get("pending_scales", {}).items()
+               if v.get("expire", "") <= now_iso}
+    # live scale-ins are WORKING STATE (tier-capped remainders draining),
+    # not errors. Blacklists and expired-lingering scales are the problems.
+    check("execution state", not st.get("blacklist") and not expired,
+          f"blacklist={len(st.get('blacklist', {}))}, live scale-ins={len(live)} "
+          f"(working), expired lingering={len(expired)}")
 except FileNotFoundError:
-    check("execution state clean", True, "not created (no gates fired — clean)")
+    check("execution state", True, "not created (no gates fired — clean)")
 except Exception as exc:
     check("execution state", False, str(exc)[:100])
 
