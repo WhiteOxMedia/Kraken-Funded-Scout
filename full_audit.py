@@ -156,10 +156,12 @@ try:
           "advisory path still labels thin books")
     check("contract: 89% desktop floor present",
           "DESKTOP_ALERT_MIN = 89" in bs_src)
-    check("contract: adaptive resolve rule present",
-          "_max_resolve_hours" in bs_src and "_hours_to_goal" in bs_src)
-    check("contract: resolve rule on the green light too",
-          "_resolve_cap" in app_src)
+    check("contract: adaptive resolve rule present (scalp-based)",
+          "_max_resolve_hours" in bs_src and "SCALP_TARGET_PCT = 0.4" in bs_src
+          and "_hours = _hours_to_scalp" in bs_src
+          and "_hours = _hours_to_goal" not in bs_src)
+    check("contract: resolve rule on the green light too (scalp-based)",
+          "_resolve_cap" in app_src and "_hours_to_scalp" in app_src)
     check("contract: TAKE IT $20 system present",
           "TAKE_IT_USD = 20" in bs_src and "Take it!" in bs_src)
     check("contract: cooldown flatten 20:00 (once daily, persisted)",

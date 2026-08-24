@@ -1475,12 +1475,13 @@ def render_quick_check(cfg: TradingConfig, kraken):
                 st.session_state["qc_result"] = {"asset": asset, "sig": sig, "df": df, "px": px}
 
                 # ── every scan talks back — never dead ──────────────────
-                # THE RESOLVE RULE first: must hit its goal within the
-                # rotation's allowance (3h base, pace-flexible, never past
-                # midnight). Too slow = no green light, ever.
-                from background_scanner import _max_resolve_hours as _resolve_cap
-                _eta = _time_to_goal(f"{asset}/USD", float(px), sig.take_profit) if sig.take_profit else None
-                if sig.action == "buy" and sig.confidence >= thr and not (_eta and _eta[1] > _resolve_cap()):
+                # THE RESOLVE RULE first: the $20 scalp (+0.4%) must be
+                # reachable within the rotation's allowance (pace-flexible,
+                # never past midnight). Too slow = no green light, ever.
+                # (TP ETA stays as display info in the exit verdict.)
+                from background_scanner import _max_resolve_hours as _resolve_cap, _hours_to_scalp as _scalp_eta
+                _s_h = _scalp_eta(f"{asset}/USD", float(px))
+                if sig.action == "buy" and sig.confidence >= thr and not (_s_h is not None and _s_h > _resolve_cap()):
                     # AUTO-WATCH on green light: the deep scan IS the entry.
                     # The user's system: green → all in, scalp to +$20, out,
                     # re-enter small, green again → buy more. Watch records
@@ -1520,9 +1521,9 @@ def render_quick_check(cfg: TradingConfig, kraken):
                     except Exception as exc:
                         logger.debug("auto-watch add failed: %s", exc)
                 else:
-                    if sig.action == "buy" and sig.confidence >= thr and _eta and _eta[1] > _resolve_cap():
-                        _slow_txt = (f"~{_eta[1]:.0f}h" if _eta[1] >= 3.5 else "3h+")
-                        act_txt = f"too slow — {_slow_txt} to the goal"
+                    if sig.action == "buy" and sig.confidence >= thr and _s_h is not None and _s_h > _resolve_cap():
+                        _slow_txt = (f"~{_s_h:.0f}h" if _s_h >= 3.5 else "3h+")
+                        act_txt = f"too slow — {_slow_txt} to the $20"
                         try:
                             st.toast(f"⛔ TOO SLOW — {asset}: {act_txt}. Not a scalp. Skip it.",
                                      icon="⛔", duration=15)

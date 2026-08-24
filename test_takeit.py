@@ -84,9 +84,26 @@ try:
 except Exception as exc:
     check("_max_resolve_hours import", False, str(exc))
 
-# ── 3. _hours_to_goal live (real engine data) ───────────────────────
+# ── 3. resolve gate measures the $20 SCALP, not TP distance ─────────
 lines.append("")
-lines.append("live _hours_to_goal:")
+lines.append("live resolve gate (scalp = +0.4% = the $20):")
+try:
+    from background_scanner import _hours_to_scalp, SCALP_TARGET_PCT, TAKE_IT_USD
+    check("SCALP_TARGET_PCT = 0.4 (+$20 on $5,000)",
+          SCALP_TARGET_PCT == 0.4 and TAKE_IT_USD == 20, f"{SCALP_TARGET_PCT}")
+    _sanity = (SCALP_TARGET_PCT / 1.24) * 4.0  # R3 Monday pace 1.24%/session
+    check("sanity: 1.24% pace → ~1.3h to $20 (passes cap)",
+          1.0 < _sanity < 1.7, f"{_sanity:.2f}h")
+    for pair in ["BTC/USD", "HYPE/USD", "NEAR/USD"]:
+        h = _hours_to_scalp(pair, 100.0)
+        status = "blocked" if (h is not None and h > _max_resolve_hours()) else "passes"
+        lines.append(f"  {pair}: $20 pace → {f'{h:.1f}h' if h is not None else 'no data'} → {status}")
+except Exception as exc:
+    check("_hours_to_scalp import", False, str(exc))
+
+# ── 3b. _hours_to_goal stays display-only (TP info) ─────────────────
+lines.append("")
+lines.append("live _hours_to_goal (display only):")
 try:
     from background_scanner import _hours_to_goal
     for pair in ["BTC/USD", "HYPE/USD", "NEAR/USD"]:

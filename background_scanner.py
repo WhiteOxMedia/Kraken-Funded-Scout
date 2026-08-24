@@ -393,6 +393,7 @@ CONSOLE_STATE_JSON = os.path.join(os.path.dirname(os.path.abspath(__file__)), "c
 CONTEST_TRAIL_PCT = 4.0   # matches the console's contest profile
 CONTEST_SELL_BAR = 50
 TAKE_IT_USD = 20  # the user's scalp target: out at +$20, take it every chance
+SCALP_TARGET_PCT = 0.4  # +$20 on $5,000 — the take the user actually plays for
 VOICE_PREFIX = "Mic check one, two. Testing, testing. "
 _take_level = {}       # last announced $20 multiple per pair
 _last_allgood_ts = 0.0 # all-good voice cadence gate (TAKE IT fires anytime)
@@ -472,7 +473,7 @@ def _voice_enabled() -> bool:
 
 def _hours_to_goal(pair: str, entry, tp):
     """Estimated hours to reach TP at this rotation's pace (engine data).
-    The resolve rule gates on this. None when it can't be computed."""
+    Display information — the RESOLVE GATE uses _hours_to_scalp instead."""
     try:
         from volatility_engine import load_rotation_thresholds, ROTATIONS
         doc = load_rotation_thresholds(max_age_s=300)
@@ -490,6 +491,31 @@ def _hours_to_goal(pair: str, entry, tp):
             return None
         dist = (tp - entry) / entry * 100
         return (dist / avg) * 4.0
+    except Exception:
+        return None
+
+
+def _hours_to_scalp(pair: str, entry):
+    """Hours to reach THE USER'S TARGET: +$20 on $5,000 = +0.4% at this
+    coin's rotation pace. This is what 'resolve within a few hours' means
+    in their system — they scalp $20s, they don't hold to TP. The old
+    TP-based gate blocked every 92% breakout (far TP, immediate scalp)."""
+    try:
+        from volatility_engine import load_rotation_thresholds, ROTATIONS
+        doc = load_rotation_thresholds(max_age_s=300)
+        if not doc or not entry:
+            return None
+        n = _now_mst()
+        rot = next((k for s, e, k, *_ in ROTATIONS if s <= n.hour < e), None)
+        if rot is None:
+            return None
+        sched = "weekend" if n.weekday() >= 5 else "weekday"
+        cell = (doc.get("universe", {}).get(pair, {}).get(sched, {}).get(rot)
+                or doc.get("median", {}).get(sched, {}).get(rot))
+        avg = float(cell.get("avg_move") or 0) if cell else 0
+        if avg <= 0:
+            return None
+        return (SCALP_TARGET_PCT / avg) * 4.0
     except Exception:
         return None
 
@@ -842,14 +868,14 @@ def main():
         # the user's system: green light → all in. The deep scan is the
         # confirmation; when it's green they go 100%. Say what they do.
         contest_msg = f"  SPEND: 100% = ${_bal:,.0f}\n" if _bal > 0 else ""
-        # how long, from the engine's own pace data — and the RESOLVE RULE:
-        # a trade must hit its goal within the rotation's allowance (3h base,
-        # pace-flexible, never past midnight). Slow trades never hit the
-        # desktop.
-        _hours = _hours_to_goal(pair, signal.entry_price, signal.take_profit)
+        # how long to THE USER'S TAKE (+$20 = +0.4%) at this rotation's pace
+        # — and the RESOLVE RULE: the $20 must be reachable within the
+        # rotation's allowance (pace-flexible, never past midnight). Slow
+        # trades never hit the desktop. (TP distance is display info only.)
+        _hours = _hours_to_scalp(pair, signal.entry_price)
         _cap = _max_resolve_hours()
         if _hours is not None and _hours > _cap:
-            logger.info("  TOO SLOW: %s ~%.0fh to goal (cap %.0fh) — desktop suppressed, logged to pool",
+            logger.info("  TOO SLOW: %s ~%.0fh to the $20 (cap %.0fh) — desktop suppressed, logged to pool",
                         asset, _hours, _cap)
             return
         hold_txt = "a few hours"
@@ -1115,7 +1141,7 @@ def main():
                                 logger.warning("  Could not write bounce to bridge: %s", exc)
 
                             # desktop: 89% floor + resolve rule, same as everything else
-                            _b_hours = _hours_to_goal(pair, signal.entry_price, signal.take_profit)
+                            _b_hours = _hours_to_scalp(pair, signal.entry_price)
                             if signal.confidence >= 89 and not (_b_hours is not None and _b_hours > _max_resolve_hours()):
                                 notify_big(
                                     f"🔄 BOUNCE {asset} ({signal.confidence:.0f}%)",
@@ -1127,7 +1153,7 @@ def main():
                                 )
                             else:
                                 if _b_hours is not None and _b_hours > _max_resolve_hours():
-                                    logger.info("  Bounce %s TOO SLOW (~%.0fh) — logged only", asset, _b_hours)
+                                    logger.info("  Bounce %s TOO SLOW (~%.0fh to the $20) — logged only", asset, _b_hours)
                                 else:
                                     logger.info("  Bounce %s %.0f%% < 89%% floor — logged only", asset, signal.confidence)
                             log_winner(pair, signal)
