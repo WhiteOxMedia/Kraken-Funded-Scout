@@ -140,6 +140,43 @@ try:
 except Exception as exc:
     check("bot heartbeat", False, str(exc)[:100])
 
+# ── 10b. DESIGN CONTRACT: does the code still do what the owner designed? ──
+# These catch intent-drift: changes half-reverted, rules forgotten,
+# old logic surviving in a second code path (the thin-book lesson).
+try:
+    et_src = (BASE / "execution_tiers.py").read_text(encoding="utf-8")
+    bs_src = (BASE / "background_scanner.py").read_text(encoding="utf-8")
+    app_src = (BASE / "app.py").read_text(encoding="utf-8")
+
+    check("contract: NO thin-book blacklist in gate_buy",
+          "blacklist_pair(pair, 24, f\"thin book" not in et_src,
+          "thin-book blacklist still present!")
+    check("contract: NO thin-book branch in liquidity_snapshot",
+          "T6 (thin book)" not in et_src,
+          "advisory path still labels thin books")
+    check("contract: 89% desktop floor present",
+          "DESKTOP_ALERT_MIN = 89" in bs_src)
+    check("contract: adaptive resolve rule present",
+          "_max_resolve_hours" in bs_src and "_hours_to_goal" in bs_src)
+    check("contract: resolve rule on the green light too",
+          "_resolve_cap" in app_src)
+    check("contract: TAKE IT $20 system present",
+          "TAKE_IT_USD = 20" in bs_src and "Take it!" in bs_src)
+    check("contract: morning flatten (once daily, persisted)",
+          "last_flatten_date" in bs_src and "_load_scanner_state" in bs_src)
+    check("contract: bounce path (losers, not gainers)",
+          "Bounce: yesterday's loser turning" in bs_src
+          and "NEW GAINER" not in bs_src)
+    check("contract: long-only hard guard on alerts",
+          "longs only (never short)" in bs_src)
+    check("contract: contest/bot tournament separation",
+          "long_only=False" in app_src and 'long_only: bool = True' in
+          (BASE / "scanner.py").read_text(encoding="utf-8"))
+    check("contract: bot BUY-only challenge (never displaces to short)",
+          "CHALLENGE WIN" in (BOT / "scout_signal_reader.py").read_text(encoding="utf-8"))
+except Exception as exc:
+    check("design contract", False, str(exc)[:100])
+
 # ── 11. Console-local state files valid ──────────────────────────────
 for f in ["contest_watch.json", "console_state.json", "payout_track.json"]:
     try:

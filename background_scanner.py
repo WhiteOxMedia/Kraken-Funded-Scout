@@ -394,6 +394,31 @@ def _save_contest_watch(watch: dict):
         logger.warning("contest watch save failed: %s", exc)
 
 
+def _load_scanner_state() -> dict:
+    """Persistent scanner state (survives restarts) — currently: the morning
+    flatten date, so a mid-day restart never re-flattens patient positions."""
+    import json
+    p = os.path.join(os.path.dirname(os.path.abspath(__file__)), "scanner_state.json")
+    try:
+        with open(p, "r", encoding="utf-8") as fh:
+            doc = json.load(fh)
+        return doc if isinstance(doc, dict) else {}
+    except Exception:
+        return {}
+
+
+def _save_scanner_state(state: dict) -> None:
+    import json
+    p = os.path.join(os.path.dirname(os.path.abspath(__file__)), "scanner_state.json")
+    try:
+        tmp = p + ".tmp"
+        with open(tmp, "w", encoding="utf-8") as fh:
+            json.dump(state, fh, indent=1)
+        os.replace(tmp, p)
+    except Exception as exc:
+        logger.warning("scanner state save failed: %s", exc)
+
+
 def _voice_enabled() -> bool:
     """Console toggle (console_state.json voice_on) — shared file."""
     import json
@@ -847,7 +872,7 @@ def main():
     cached_loser_pairs = []
     alerted_recently = {}
     current_block_name = None  # track time block changes for position reset
-    last_flatten_date = ""     # morning flatten runs once per day at/after 08:00
+    last_flatten_date = _load_scanner_state().get("last_flatten_date", "")  # persisted — restarts don't re-flatten
 
     def _read_all_signals():
         """Read all signals from the SQLite bridge."""
@@ -872,6 +897,7 @@ def main():
         _today_flatten = now.strftime("%Y-%m-%d")
         if now.hour >= 8 and last_flatten_date != _today_flatten:
             last_flatten_date = _today_flatten
+            _save_scanner_state({"last_flatten_date": _today_flatten})
             logger.info("=" * 60)
             logger.info("  MORNING FLATTEN — new trading day")
             logger.info("=" * 60)

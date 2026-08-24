@@ -972,13 +972,8 @@ def liquidity_snapshot(exchange, pair: str, notional_usd: float) -> dict:
                    "best_ask": book["best_ask"], "best_bid": book["best_bid"]}
     score, breakdown = liquidity_health_score(book, pair)
     out["score"], out["breakdown"] = score, breakdown
-    if book["ask_tob"] < THIN_BOOK_USD:
-        out["thin"] = True
-        out["tier"] = (6, "T6 (thin book)", 100.0)
-        out["slippage_pct"] = None
-        out["method"], out["est_time"] = "skip (thin book)", "—"
-        out["capped_usd"] = book["ask_tob"]
-        return out
+    # thin-book branch removed ("no more thin books") — thin books flow
+    # through the normal tier/health math like everything else
     tier = classify_tier(notional_usd, book["ask_tob"])
     slip, _vw = forecast_slippage(book["asks"], notional_usd, book["mid"], "buy")
     out["tier"], out["slippage_pct"] = tier, slip
