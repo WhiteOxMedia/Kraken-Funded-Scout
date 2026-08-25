@@ -904,10 +904,14 @@ def main():
                         logger.info("  DEEP VETO (bridge): %s deep-reads %s %.0f%% — not written; the bot and the QC would both say no",
                                     asset, _deep.action, _deep.confidence)
                         return
-                    # NOTE (Aug 25 calibration, 261 signals): the knife and
-                    # just-paid vetoes lived here but showed NO hit-rate
-                    # separation (77% vs 78%) — removed. The bot's own
-                    # stop-loss bounds a bad entry; data gates only.
+                    # NO DOWNWARD TREND PICKS (user directive, Aug 25) — same
+                    # EMA knife test as the QC, on the bot's money too
+                    from indicators import ema as _ema2
+                    _es = float(_ema2(_df["close"], cfg.ema_short).iloc[-1])
+                    _el = float(_ema2(_df["close"], cfg.ema_long).iloc[-1])
+                    if _es < _el and float(_df["close"].iloc[-1]) < _el:
+                        logger.info("  DEEP VETO (bridge): %s downward trend — no downward trend picks (user rule)", asset)
+                        return
             except Exception as _exc:
                 logger.debug("bridge deep pre-check unavailable for %s: %s (writing anyway — reader gates remain)", asset, _exc)
 
@@ -998,10 +1002,17 @@ def main():
             try:
                 if _deep is None:
                     _deep, _df = _do_deep_read()
-                    if _deep is not None and (_deep.action != "buy" or _deep.confidence < 60):
-                        logger.info("  DEEP VETO (desktop): %s deep-reads %s %.0f%% — the user's QC would say no",
-                                    asset, _deep.action, _deep.confidence)
-                        return
+                    if _deep is not None:
+                        if _deep.action != "buy" or _deep.confidence < 60:
+                            logger.info("  DEEP VETO (desktop): %s deep-reads %s %.0f%% — the user's QC would say no",
+                                        asset, _deep.action, _deep.confidence)
+                            return
+                        from indicators import ema as _ema3
+                        _es = float(_ema3(_df["close"], cfg.ema_short).iloc[-1])
+                        _el = float(_ema3(_df["close"], cfg.ema_long).iloc[-1])
+                        if _es < _el and float(_df["close"].iloc[-1]) < _el:
+                            logger.info("  DEEP VETO (desktop): %s downward trend — no downward trend picks (user rule)", asset)
+                            return
             except Exception as _exc:
                 logger.debug("desktop pre-check unavailable for %s: %s (alerting anyway — QC still gates)", asset, _exc)
 

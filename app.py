@@ -945,6 +945,21 @@ def _scalp_headline(_ex, rotation_key: str, sched: str) -> tuple[list[dict], int
         pace = _hours_to_scalp(pair, entry)
         if pace is None or pace > cap:
             continue                    # too slow to the $20
+        # NO DOWNWARD TREND PICKS (user directive, Aug 25) — same EMA knife
+        # test as the QC, so the card never crowns what the QC would block.
+        # Fail-open on data errors (the QC still gates).
+        try:
+            _oh = _ex.fetch_ohlcv(pair, timeframe="1h", limit=30)
+            if _oh and len(_oh) >= 25:
+                import pandas as _pd
+                from indicators import ema as _ema
+                _s = _pd.Series([c[4] for c in _oh])
+                _es = float(_ema(_s, 9).iloc[-1])
+                _el = float(_ema(_s, 21).iloc[-1])
+                if _es < _el and live < _el:
+                    continue            # falling knife — never headlines
+        except Exception:
+            pass
         try:
             live = float(_ex.fetch_ticker(pair)["last"])
         except Exception:
@@ -1842,14 +1857,15 @@ def render_quick_check(cfg: TradingConfig, kraken):
                 st.session_state["qc_result"] = {"asset": asset, "sig": sig, "df": df, "px": px}
 
                 # ── every scan talks back — never dead ──────────────────
-                # THE SCALP GATE (Aug 25 data calibration, diag_calibrate.py,
-                # 261 signals vs real prices): the HARD gates are the ones the
-                # data supports — (1) setup conviction >= 60 (the 283-signal
-                # replay), (2) $20 pace within the rotation's allowance,
-                # (3) never during cooldown. Chase/trend/just-paid showed NO
-                # hit-rate separation (76-80% across all cohorts) so they are
-                # AMBER WARNINGS now — displayed, spoken, never blocking.
-                # (TP ETA stays as display info in the exit verdict.)
+                # THE SCALP GATE: hard gates = setup conviction >= 60 (the
+                # 283-signal replay), $20 pace within the rotation's
+                # allowance, never during cooldown, and NO DOWNWARD TREND
+                # PICKS (user directive, Aug 25: the calibration showed hit-
+                # rate parity for falling trends, but the user chooses stuck-
+                # case protection over opportunity — their game, their rule).
+                # Chase/just-paid are amber warnings — displayed, never
+                # blocking (no hit-rate separation, and cheaper entries
+                # aren't worse entries by the data).
                 # dup-safe keeps old consoles alive across restarts — if this
                 # console predates a background_scanner update, the cached
                 # module lacks the new name. Reload from disk; never crash
@@ -1883,10 +1899,11 @@ def render_quick_check(cfg: TradingConfig, kraken):
                 st.session_state["qc_result"]["chase_pct"] = _chase
                 st.session_state["qc_result"]["payout_block"] = _payout
                 st.session_state["qc_result"]["trend"] = _trend
-                # HARD GATES (data-backed): setup + pace + cooldown.
-                # Chase/trend/payout are warnings now — see the panel LEDs.
+                # HARD GATES: setup + pace + cooldown + no downward trend.
+                # Chase/just-paid are warnings — see the panel LEDs.
                 if (sig.action == "buy" and not no_buy
                         and sig.confidence >= QC_SCALP_FLOOR
+                        and _trend != "FALLING"
                         and not (_s_h is not None and _s_h > _resolve_cap())):
                     # AUTO-WATCH on green light: the deep scan IS the entry.
                     # The user's system: green → all in, scalp to +$20, out,
@@ -1942,6 +1959,18 @@ def render_quick_check(cfg: TradingConfig, kraken):
                         logger.debug("auto-watch add failed: %s", exc)
                 else:
                     if (sig.action == "buy" and not no_buy
+                            and sig.confidence >= QC_SCALP_FLOOR
+                            and _trend == "FALLING"):
+                        try:
+                            st.toast(f"⛔ DOWNWARD TREND — {asset}: the 1h trend is falling and still "
+                                     f"making lows. No downward trend picks — wait for it to base. "
+                                     f"Skip it.",
+                                     icon="⛔", duration=18)
+                            _play_sound("alarm")
+                            _speak(f"No! {asset} is falling! Wait for it to base!", rate=1)
+                        except Exception:
+                            pass
+                    elif (sig.action == "buy" and not no_buy
                             and sig.confidence >= QC_SCALP_FLOOR
                             and _s_h is not None and _s_h > _resolve_cap()):
                         _slow_txt = (f"~{_s_h:.0f}h" if _s_h >= 3.5 else "3h+")
@@ -2015,7 +2044,8 @@ def render_quick_check(cfg: TradingConfig, kraken):
     # Chase/trend/payout showed no hit-rate separation (Aug 25 calibration,
     # 261 signals) — they warn amber, they don't block.
     passes = (sig.action == "buy" and not no_buy
-              and sig.confidence >= QC_SCALP_FLOOR and pace_ok)
+              and sig.confidence >= QC_SCALP_FLOOR and pace_ok
+              and trend != "FALLING")
     momentum_capped = any("momentum ceiling" in r.lower() for r in sig.reasons)
 
     k = (
@@ -2029,16 +2059,17 @@ def render_quick_check(cfg: TradingConfig, kraken):
     _pace_txt = (f"$20 IN ~{pace_h:.1f}H" if pace_h is not None else "$20 PACE: NO DATA")
     _green_txt = ("SCALP GREEN LIGHT" if passes else
                   ("COOLDOWN — NO BUYS" if no_buy else
-                   (f"NO GREEN — TOO SLOW ({pace_h:.1f}H)" if not pace_ok else
-                    f"NO GREEN — NEEDS {QC_SCALP_FLOOR}%+")))
+                   ("NO GREEN — DOWNWARD TREND" if trend == "FALLING" else
+                    (f"NO GREEN — TOO SLOW ({pace_h:.1f}H)" if not pace_ok else
+                     f"NO GREEN — NEEDS {QC_SCALP_FLOOR}%+"))))
     status_leds = (
         led("LIQUID" if liquid else f"ILLIQUID < ${cfg.min_volume_usd_24h/1e6:.0f}M", "g" if liquid else "r") +
         led(_pace_txt, "g" if pace_ok else "r") +
         led(f"{chase_pct:+.1f}% OFF BASE" if chase_pct <= QC_CHASE_PCT
             else f"⚠ CHASED +{chase_pct:.1f}% — pricier entry",
             "g" if chase_pct <= QC_CHASE_PCT else "a") +
-        led(f"TREND {trend}" + (" — ⚠ stuck risk" if trend == "FALLING" else ""),
-            "g" if trend == "UP" else "a") +
+        led(f"TREND {trend}" + (" — NO PICKS IN DOWNTRENDS" if trend == "FALLING" else ""),
+            "g" if trend == "UP" else ("r" if trend == "FALLING" else "a")) +
         led(f"⚠ JUST PAID ${payout_block} — may be tired" if payout_block is not None else "NO PAYOUT BLOCK",
             "a" if payout_block is not None else "g") +
         led(_green_txt, "g" if passes else "r") +

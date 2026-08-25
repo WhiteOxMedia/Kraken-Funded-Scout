@@ -166,10 +166,13 @@ try:
           "QC_SCALP_FLOOR = 60" in app_src
           and "sig.confidence >= QC_SCALP_FLOOR" in app_src
           and "AUTO-TRADE BAR PASSED" not in app_src)
-    check("contract: chase + trend + payout WARN on the QC (data gates only block)",
+    check("contract: chase + payout WARN on the QC (data: no hit-rate separation)",
           "QC_CHASE_PCT = 2.0" in app_src and "_trend_state" in app_src
-          and "_payout is None" not in app_src.split("def render_quick_check")[1][:4000]
-          and "⚠ CHASED" in app_src and "stuck risk" in app_src)
+          and "⚠ CHASED" in app_src and "may be tired" in app_src)
+    check("contract: NO downward trend picks (user rule — blocks QC, card, alerts, bot)",
+          '_trend != "FALLING"' in app_src and "DOWNWARD TREND" in app_src
+          and "falling knife — never headlines" in app_src
+          and "no downward trend picks (user rule)" in bs_src)
     check("contract: data-backed hard gates only (setup+pace+cooldown)",
           "sig.confidence >= QC_SCALP_FLOOR" in app_src
           and "_s_h > _resolve_cap()" in app_src)
