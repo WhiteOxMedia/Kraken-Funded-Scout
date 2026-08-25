@@ -1744,9 +1744,15 @@ def render_quick_check(cfg: TradingConfig, kraken):
                 _resolve_cap = _bs._max_resolve_hours
                 _scalp_eta = _bs._hours_to_scalp
                 _s_h = _scalp_eta(f"{asset}/USD", float(px))
-                # chase: distance above the last hour's low (4 x 15m candles)
+                # chase: distance above the last hour's low — MUST be 4 x 15m
+                # candles. The deep-scan df is 1h candles: using its lows made
+                # the window 4 HOURS, catching stale overnight dips and blocking
+                # fresh-base entries (PUMP sat +0.2% off its 1h base but read
+                # +3.7% "chased" against a 4h-old low). Fetch 15m explicitly —
+                # same measure as the bot's chase guard.
                 try:
-                    _base = float(df["low"].tail(4).min())
+                    _c15 = kraken.fetch_ohlcv(pair, interval_minutes=15, limit=5)
+                    _base = min(c[3] for c in _c15[-4:])
                     _chase = (float(px) - _base) / _base * 100 if _base > 0 else 0.0
                 except Exception:
                     _chase = 0.0
