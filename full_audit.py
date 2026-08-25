@@ -186,6 +186,8 @@ try:
           and "render_master_bones" in app_src)
     check("contract: desktop alerts pre-checked by the deep scan (double-check rule)",
           "DEEP VETO" in bs_src and "enable_deep_analysis()" in bs_src)
+    check("contract: bridge writes pre-checked by the deep scan too",
+          "DEEP VETO (bridge)" in bs_src)
     check("contract: TAKE IT $20 system present",
           "TAKE_IT_USD = 20" in bs_src and "Take it!" in bs_src)
     check("contract: cooldown flatten 20:00 (once daily, persisted)",

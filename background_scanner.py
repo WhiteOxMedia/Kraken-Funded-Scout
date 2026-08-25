@@ -869,6 +869,60 @@ def main():
         except Exception as exc:
             logger.debug("Liquidity snapshot failed for %s: %s", pair, exc)
 
+        # ── THE DEEP PRE-CHECK (user directive, Aug 25: "do it for the
+        # bridge too") — every signal, bot-bound or desktop-bound, gets the
+        # same deep scan the user's QC runs before it's allowed to matter.
+        # The bot trades REAL money on bridge writes: deep read must still
+        # say BUY ≥60, no falling knives, no just-paid exhausted movers.
+        # (The bot's breakout-appropriate chase rules — stale 2% / blowoff
+        # 5% — live reader-side; this is the subset right for ANY buy.)
+        # Result is CACHED in _deep for the desktop stage — one read, two
+        # consumers. Fail-open: a broken check never silently starves
+        # signals; the QC still gates everything.
+        _deep = None
+
+        def _do_deep_read():
+            import pandas as _pd
+            from strategy import evaluate_strategy as _eval_deep, \
+                enable_deep_analysis, disable_deep_analysis
+            from indicators import ema as _ema
+            _ohl = exchange.fetch_ohlcv(pair, timeframe="1h", limit=200)
+            if not _ohl or len(_ohl) < 30:
+                return None, None
+            _df = _pd.DataFrame(_ohl, columns=["timestamp", "open", "high", "low", "close", "volume"])
+            _df["timestamp"] = _pd.to_datetime(_df["timestamp"], unit="ms")
+            _df.set_index("timestamp", inplace=True)
+            enable_deep_analysis()
+            _sig = _eval_deep(_df, cfg)
+            disable_deep_analysis()
+            return _sig, _df
+
+        if is_buy and not gate_notes:
+            try:
+                _deep, _df = _do_deep_read()
+                if _deep is not None:
+                    if _deep.action != "buy" or _deep.confidence < 60:  # QC_SCALP_FLOOR
+                        logger.info("  DEEP VETO (bridge): %s deep-reads %s %.0f%% — not written; the bot and the QC would both say no",
+                                    asset, _deep.action, _deep.confidence)
+                        return
+                    _px = float(_df["close"].iloc[-1])
+                    _es = float(_ema(_df["close"], cfg.ema_short).iloc[-1])
+                    _el = float(_ema(_df["close"], cfg.ema_long).iloc[-1])
+                    if _es < _el and _px < _el:  # falling knife
+                        logger.info("  DEEP VETO (bridge): %s falling knife (short EMA under long, price under both)", asset)
+                        return
+                    import json as _j2
+                    from pathlib import Path as _P2
+                    try:
+                        _tp = _j2.loads((_P2(__file__).resolve().parent / "take_payouts.json").read_text()).get(pair)
+                        if _tp and (_now_mst() - datetime.fromisoformat(_tp["ts"])).total_seconds() < 3600:
+                            logger.info("  DEEP VETO (bridge): %s just paid $%d — exhausted move", asset, _tp.get("amount", 0))
+                            return
+                    except Exception:
+                        pass
+            except Exception as _exc:
+                logger.debug("bridge deep pre-check unavailable for %s: %s (writing anyway — reader gates remain)", asset, _exc)
+
         # Write signal to the bridge file for the XRP bot to pick up —
         # ONLY if the bot's gates passed. Gated picks stay contest-only.
         # min_confidence=0 because we already checked above — bridge still checks:
@@ -949,52 +1003,28 @@ def main():
         # must already pass the SAME deep scan the user will run in QUICK
         # CHECK — their check becomes a confirmation, not a surprise veto.
         # (This morning's PUMP: the quick read said BUY 77, the deep read
-        # said HOLD 40 — the alert fired on the wrong one.) Mirrors the QC's
-        # five yeses scanner-side: deep read ≥60 buy · fresh off the 1h base
-        # · not a falling knife · no just-paid block. Fail-open on errors —
-        # the user's QC still gates everything.
-        try:
-            import pandas as _pd
-            from strategy import evaluate_strategy as _eval_deep, \
-                enable_deep_analysis, disable_deep_analysis
-            from indicators import ema as _ema
-            _ohl = exchange.fetch_ohlcv(pair, timeframe="1h", limit=200)
-            if _ohl and len(_ohl) >= 30:
-                _df = _pd.DataFrame(_ohl, columns=["timestamp", "open", "high", "low", "close", "volume"])
-                _df["timestamp"] = _pd.to_datetime(_df["timestamp"], unit="ms")
-                _df.set_index("timestamp", inplace=True)
-                enable_deep_analysis()
-                _deep = _eval_deep(_df, cfg)
-                disable_deep_analysis()
-                if _deep.action != "buy" or _deep.confidence < 60:  # QC_SCALP_FLOOR
-                    logger.info("  DEEP VETO: %s deep-reads %s %.0f%% — the user's QC would say no; desktop stays quiet",
-                                asset, _deep.action, _deep.confidence)
-                    return
-                _px = float(_df["close"].iloc[-1])
+        # said HOLD 40 — the alert fired on the wrong one.) The deep read
+        # ran at the bridge stage for bot-bound signals; bot-declined
+        # (contest-only) signals get theirs here. Scalp-only extra: fresh
+        # off the 1h base. Fail-open on errors.
+        if is_buy:
+            try:
+                if _deep is None:
+                    _deep, _df = _do_deep_read()
+                    if _deep is not None and (_deep.action != "buy" or _deep.confidence < 60):
+                        logger.info("  DEEP VETO (desktop): %s deep-reads %s %.0f%% — the user's QC would say no",
+                                    asset, _deep.action, _deep.confidence)
+                        return
+                _px2 = float(signal.price or signal.entry_price or 0)
                 _c15 = exchange.fetch_ohlcv(pair, timeframe="15m", limit=5)
-                if _c15 and len(_c15) >= 4:
-                    _base = min(c[3] for c in _c15[-4:])
-                    _chase = (_px - _base) / _base * 100 if _base > 0 else 0.0
-                    if _chase > 2.0:  # QC_CHASE_PCT
-                        logger.info("  DEEP VETO: %s +%.1f%% off the 1h base — already ran", asset, _chase)
+                if _c15 and len(_c15) >= 4 and _px2 > 0:
+                    _base2 = min(c[3] for c in _c15[-4:])
+                    _chase2 = (_px2 - _base2) / _base2 * 100 if _base2 > 0 else 0.0
+                    if _chase2 > 2.0:  # QC_CHASE_PCT
+                        logger.info("  DEEP VETO (desktop): %s +%.1f%% off the 1h base — already ran", asset, _chase2)
                         return
-                _es = float(_ema(_df["close"], cfg.ema_short).iloc[-1])
-                _el = float(_ema(_df["close"], cfg.ema_long).iloc[-1])
-                if _es < _el and _px < _el:  # falling knife
-                    logger.info("  DEEP VETO: %s falling knife (short EMA under long, price under both)", asset)
-                    return
-                # just-paid block (QC's re-entry rule, scanner-side)
-                import json as _j2
-                from pathlib import Path as _P2
-                try:
-                    _tp = _j2.loads((_P2(__file__).resolve().parent / "take_payouts.json").read_text()).get(pair)
-                    if _tp and (_now_mst() - datetime.fromisoformat(_tp["ts"])).total_seconds() < 3600:
-                        logger.info("  DEEP VETO: %s just paid $%d — exhausted move", asset, _tp.get("amount", 0))
-                        return
-                except Exception:
-                    pass
-        except Exception as _exc:
-            logger.debug("deep pre-check unavailable for %s: %s (alerting anyway — QC still gates)", asset, _exc)
+            except Exception as _exc:
+                logger.debug("desktop pre-check unavailable for %s: %s (alerting anyway — QC still gates)", asset, _exc)
 
         hold_txt = "a few hours"
         if _hours is not None:
