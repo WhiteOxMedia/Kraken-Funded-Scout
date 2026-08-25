@@ -944,6 +944,58 @@ def main():
             logger.info("  TOO SLOW: %s ~%.0fh to the $20 (cap %.0fh) — desktop suppressed, logged to pool",
                         asset, _hours, _cap)
             return
+
+        # ── THE DOUBLE-CHECK RULE (user directive, Aug 25): a desktop signal
+        # must already pass the SAME deep scan the user will run in QUICK
+        # CHECK — their check becomes a confirmation, not a surprise veto.
+        # (This morning's PUMP: the quick read said BUY 77, the deep read
+        # said HOLD 40 — the alert fired on the wrong one.) Mirrors the QC's
+        # five yeses scanner-side: deep read ≥60 buy · fresh off the 1h base
+        # · not a falling knife · no just-paid block. Fail-open on errors —
+        # the user's QC still gates everything.
+        try:
+            import pandas as _pd
+            from strategy import evaluate_strategy as _eval_deep, \
+                enable_deep_analysis, disable_deep_analysis
+            from indicators import ema as _ema
+            _ohl = exchange.fetch_ohlcv(pair, timeframe="1h", limit=200)
+            if _ohl and len(_ohl) >= 30:
+                _df = _pd.DataFrame(_ohl, columns=["timestamp", "open", "high", "low", "close", "volume"])
+                _df["timestamp"] = _pd.to_datetime(_df["timestamp"], unit="ms")
+                _df.set_index("timestamp", inplace=True)
+                enable_deep_analysis()
+                _deep = _eval_deep(_df, cfg)
+                disable_deep_analysis()
+                if _deep.action != "buy" or _deep.confidence < 60:  # QC_SCALP_FLOOR
+                    logger.info("  DEEP VETO: %s deep-reads %s %.0f%% — the user's QC would say no; desktop stays quiet",
+                                asset, _deep.action, _deep.confidence)
+                    return
+                _px = float(_df["close"].iloc[-1])
+                _c15 = exchange.fetch_ohlcv(pair, timeframe="15m", limit=5)
+                if _c15 and len(_c15) >= 4:
+                    _base = min(c[3] for c in _c15[-4:])
+                    _chase = (_px - _base) / _base * 100 if _base > 0 else 0.0
+                    if _chase > 2.0:  # QC_CHASE_PCT
+                        logger.info("  DEEP VETO: %s +%.1f%% off the 1h base — already ran", asset, _chase)
+                        return
+                _es = float(_ema(_df["close"], cfg.ema_short).iloc[-1])
+                _el = float(_ema(_df["close"], cfg.ema_long).iloc[-1])
+                if _es < _el and _px < _el:  # falling knife
+                    logger.info("  DEEP VETO: %s falling knife (short EMA under long, price under both)", asset)
+                    return
+                # just-paid block (QC's re-entry rule, scanner-side)
+                import json as _j2
+                from pathlib import Path as _P2
+                try:
+                    _tp = _j2.loads((_P2(__file__).resolve().parent / "take_payouts.json").read_text()).get(pair)
+                    if _tp and (_now_mst() - datetime.fromisoformat(_tp["ts"])).total_seconds() < 3600:
+                        logger.info("  DEEP VETO: %s just paid $%d — exhausted move", asset, _tp.get("amount", 0))
+                        return
+                except Exception:
+                    pass
+        except Exception as _exc:
+            logger.debug("deep pre-check unavailable for %s: %s (alerting anyway — QC still gates)", asset, _exc)
+
         hold_txt = "a few hours"
         if _hours is not None:
             if _hours < 1:
