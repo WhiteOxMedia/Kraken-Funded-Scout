@@ -1074,6 +1074,27 @@ REENTRY_BLOCK_MIN = 60
 HEADLINE_MAX_AGE_MIN = 15
 
 
+def _trend_state(df, cfg, px: float) -> str:
+    """UP / BASING / FALLING on the scan timeframe (1h candles).
+
+    FALLING = confirmed knife: short EMA under the long EMA AND price below
+    both — still making lows. That's the stuck-case guard (the PENGU lesson:
+    a fast wiggle in a falling trend means getting stuck bleeds — no $20 came,
+    -$143). UP and BASING pass: in an uptrend a stuck trade gets rescued by
+    the next push; at a base (price back over the long EMA, short still under
+    — recovering) it's the PUMP-at-the-bottom entry, not a knife."""
+    try:
+        _es = float(ema(df["close"], cfg.ema_short).iloc[-1])
+        _el = float(ema(df["close"], cfg.ema_long).iloc[-1])
+        if _es < _el and px < _el:
+            return "FALLING"
+        if _es > _el:
+            return "UP"
+        return "BASING"
+    except Exception:
+        return "UP"  # can't compute → fail-open (never crash the scan)
+
+
 def _recent_big_payout(pair: str) -> int | None:
     """Amount of the last BIG TAKE IT payout (≥$100) on this pair, if it was
     within REENTRY_BLOCK_MIN minutes. The scanner writes take_payouts.json;
@@ -1750,6 +1771,10 @@ def render_quick_check(cfg: TradingConfig, kraken):
                 #     the last hour's base (PENGU: 100% conviction, +3.6%
                 #     off base at the top, -$44; PUMP: 79% at the base,
                 #     +$133). Fresh wiggles only.
+                # (5) trend guard — no falling knives (Aug 25, user's rule:
+                #     "I want the trend going up in case I get stuck" —
+                #     PENGU bled -$143 getting stuck in a downtrend; UP and
+                #     BASING pass, confirmed FALLING blocks).
                 # (TP ETA stays as display info in the exit verdict.)
                 # dup-safe keeps old consoles alive across restarts — if this
                 # console predates a background_scanner update, the cached
@@ -1774,16 +1799,21 @@ def render_quick_check(cfg: TradingConfig, kraken):
                     _chase = (float(px) - _base) / _base * 100 if _base > 0 else 0.0
                 except Exception:
                     _chase = 0.0
+                # trend: the stuck-case guard — no green lights on confirmed
+                # falling knives, no matter how fast the wiggle is
+                _trend = _trend_state(df, cfg, float(px))
                 # re-entry guard: a pair that just paid a big TAKE IT is an
                 # exhausted move — re-entering rides the giveback
                 _payout = _recent_big_payout(pair)
                 st.session_state["qc_result"]["pace_h"] = _s_h
                 st.session_state["qc_result"]["chase_pct"] = _chase
                 st.session_state["qc_result"]["payout_block"] = _payout
+                st.session_state["qc_result"]["trend"] = _trend
                 if (sig.action == "buy" and not no_buy
                         and sig.confidence >= QC_SCALP_FLOOR
                         and _payout is None
                         and _chase <= QC_CHASE_PCT
+                        and _trend != "FALLING"
                         and not (_s_h is not None and _s_h > _resolve_cap())):
                     # AUTO-WATCH on green light: the deep scan IS the entry.
                     # The user's system: green → all in, scalp to +$20, out,
@@ -1845,6 +1875,18 @@ def render_quick_check(cfg: TradingConfig, kraken):
                                      icon="⛔", duration=18)
                             _play_sound("alarm")
                             _speak(f"Too late! {asset} already ran! Wait for the next wiggle!", rate=1)
+                        except Exception:
+                            pass
+                    elif (sig.action == "buy" and not no_buy
+                            and sig.confidence >= QC_SCALP_FLOOR
+                            and _trend == "FALLING"):
+                        try:
+                            st.toast(f"⛔ FALLING KNIFE — {asset}: 1h trend is DOWN and still making lows. "
+                                     f"The wiggle's fast but getting stuck here bleeds. "
+                                     f"Wait for it to base.",
+                                     icon="⛔", duration=18)
+                            _play_sound("alarm")
+                            _speak(f"Falling knife! {asset}! Wait for it to base!", rate=1)
                         except Exception:
                             pass
                     elif (sig.action == "buy" and not no_buy
@@ -1914,12 +1956,13 @@ def render_quick_check(cfg: TradingConfig, kraken):
     pace_h = result.get("pace_h")
     chase_pct = result.get("chase_pct", 0.0)
     payout_block = result.get("payout_block")
+    trend = result.get("trend", "UP")
     from background_scanner import _max_resolve_hours as _rc
     pace_ok = pace_h is None or pace_h <= _rc()
     fresh = chase_pct <= QC_CHASE_PCT
     passes = (sig.action == "buy" and not no_buy
               and sig.confidence >= QC_SCALP_FLOOR and pace_ok and fresh
-              and payout_block is None)
+              and payout_block is None and trend != "FALLING")
     momentum_capped = any("momentum ceiling" in r.lower() for r in sig.reasons)
 
     k = (
@@ -1935,13 +1978,16 @@ def render_quick_check(cfg: TradingConfig, kraken):
                   ("COOLDOWN — NO BUYS" if no_buy else
                    (f"NO GREEN — JUST PAID ${payout_block}, WAIT" if payout_block is not None else
                     (f"NO GREEN — ALREADY RAN +{chase_pct:.1f}%" if not fresh else
-                     (f"NO GREEN — TOO SLOW ({pace_h:.1f}H)" if not pace_ok else
-                      f"NO GREEN — NEEDS {QC_SCALP_FLOOR}%+")))))
+                     ("NO GREEN — FALLING KNIFE" if trend == "FALLING" else
+                      (f"NO GREEN — TOO SLOW ({pace_h:.1f}H)" if not pace_ok else
+                       f"NO GREEN — NEEDS {QC_SCALP_FLOOR}%+"))))))
     status_leds = (
         led("LIQUID" if liquid else f"ILLIQUID < ${cfg.min_volume_usd_24h/1e6:.0f}M", "g" if liquid else "r") +
         led(_pace_txt, "g" if pace_ok else "r") +
         led(f"FRESH +{chase_pct:.1f}% OFF BASE" if fresh else f"CHASED +{chase_pct:.1f}% — STALE MOVE",
             "g" if fresh else "r") +
+        led(f"TREND {trend}" + (" — KNIFE" if trend == "FALLING" else ""),
+            "g" if trend == "UP" else ("r" if trend == "FALLING" else "a")) +
         led(_green_txt, "g" if passes else "r") +
         led("MOMENTUM CEILING BLOCK" if momentum_capped else "ENTRY ALLOWED", "r" if momentum_capped else "g")
     )
