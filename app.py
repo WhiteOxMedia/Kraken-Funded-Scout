@@ -891,6 +891,87 @@ def current_threshold() -> tuple[str, str, int, int, bool]:
     return name, WEEKDAY_NAMES.get(n.weekday(), "?"), thr, interval, no_buy
 
 
+@st.cache_data(ttl=90)
+def _scalp_headline(_ex, rotation_key: str, sched: str) -> tuple[list[dict], int]:
+    """RIGHT NOW ranking: the live signal pool, scalp-scored and clustered.
+
+    Signals arrive in correlated waves — one market move wearing many
+    tickers — and ranking them by conviction just presented a menu of
+    near-identical 90% breakouts. This ranks the same pool the way the
+    user plays: fastest $20 from the freshest entry wins, conviction is
+    the entry ticket (60+), and signals fired in the same ~10-minute
+    sweep collapse into ONE move (best-in-sweep by pace, then book depth).
+    Returns (ranked candidates, total signals considered)."""
+    import sqlite3
+    from collections import Counter
+    from background_scanner import _hours_to_scalp, _max_resolve_hours
+    try:
+        conn = sqlite3.connect(os.path.join(os.path.dirname(os.path.abspath(__file__)), "signals.db"))
+        conn.row_factory = sqlite3.Row
+        since = (_now_mst() - timedelta(minutes=45)).isoformat()
+        rows = conn.execute(
+            "SELECT pair, confidence, entry_price, timestamp FROM signals "
+            "WHERE action='buy' AND timestamp >= ? AND confidence >= ? "
+            "AND source LIKE 'scout%' AND source != 'scout_dca' "
+            "ORDER BY timestamp DESC", (since, QC_SCALP_FLOOR)).fetchall()
+        conn.close()
+    except Exception:
+        return [], 0
+    total = len(rows)
+    latest: dict[str, sqlite3.Row] = {}
+    for r in rows:                      # newest first — keep the latest per pair
+        latest.setdefault(r["pair"], r)
+
+    cap = _max_resolve_hours()
+    doc = None
+    try:
+        from volatility_engine import load_rotation_thresholds
+        doc = load_rotation_thresholds(max_age_s=900) or {}
+    except Exception:
+        doc = {}
+
+    cands = []
+    for pair, r in latest.items():
+        if pair.split("/")[0] not in ASSETS:
+            continue
+        if _recent_big_payout(pair) is not None:
+            continue                    # exhausted move — QC would reject it too
+        entry = float(r["entry_price"] or 0)
+        if entry <= 0:
+            continue
+        pace = _hours_to_scalp(pair, entry)
+        if pace is None or pace > cap:
+            continue                    # too slow to the $20
+        try:
+            live = float(_ex.fetch_ticker(pair)["last"])
+        except Exception:
+            continue
+        ran_pct = (live - entry) / entry * 100
+        if ran_pct > QC_CHASE_PCT:
+            continue                    # price already ran from the signal
+        vol = float((doc.get("universe", {}).get(pair, {})
+                     .get(sched, {}).get(rotation_key) or {}).get("median_volume_usd") or 0)
+        try:
+            bucket = int(datetime.fromisoformat(r["timestamp"]).timestamp() // 600)
+        except Exception:
+            bucket = 0
+        cands.append({"asset": pair.split("/")[0], "pair": pair,
+                      "conf": float(r["confidence"]), "pace": pace,
+                      "ran": ran_pct, "vol": vol, "bucket": bucket})
+
+    # collapse each sweep to its best expression (one market move = one pick)
+    sizes = Counter(c["bucket"] for c in cands)
+    best: dict[int, dict] = {}
+    for c in cands:
+        cur = best.get(c["bucket"])
+        if cur is None or (c["pace"], -c["vol"]) < (cur["pace"], -cur["vol"]):
+            best[c["bucket"]] = c
+    ranked = sorted(best.values(), key=lambda c: (c["pace"], -c["vol"]))
+    for c in ranked:
+        c["cluster"] = sizes[c["bucket"]]
+    return ranked, total
+
+
 @st.cache_data(ttl=300)
 def _fast_twenty(rotation_key: str, sched: str) -> list[dict]:
     """⚡ FAST $20 leaderboard: every coin ranked by how fast the $20 (+0.4%)
@@ -1228,6 +1309,61 @@ def render_master(cfg: TradingConfig, kraken):
 
 def render_tournament(cfg: TradingConfig, scan_cfg: TradingConfig, kraken):
     from strategy import enable_deep_analysis, disable_deep_analysis
+
+    # ── ⚡ RIGHT NOW — the scalp headline. No bracket run needed: the live
+    # signal pool, scalp-ranked (fastest $20, freshest entry), and the
+    # correlated wave collapsed to ONE pick. This is the answer to "all the
+    # signals come at the same time" — they're one move; here's its best
+    # expression. Zira announces when a NEW headline takes the seat.
+    block, day, thr, _, no_buy = current_threshold()
+    try:
+        from background_scanner import rotation_key_for_hour, _schedule_for_dow
+        _n = _now_mst()
+        ranked, total = _scalp_headline(kraken.exchange,
+                                        rotation_key_for_hour(_n.hour),
+                                        _schedule_for_dow(_n.weekday()))
+    except Exception:
+        ranked, total = [], 0
+    if no_buy:
+        st.markdown(plate("⚡ RIGHT NOW", lcd([
+            "🌙 COOLDOWN (8pm–midnight) — no new picks",
+            "<span class='dim'>exit checks still run · new entries at midnight (R1 Asia)</span>",
+        ], tone="amber")), unsafe_allow_html=True)
+    elif ranked:
+        h = ranked[0]
+        if st.session_state.get("_headline_asset") != h["asset"]:
+            st.session_state["_headline_asset"] = h["asset"]
+            try:
+                _speak(f"New pick! {h['asset']}! Twenty dollars in about {h['pace']:.1f} hours!")
+            except Exception:
+                pass
+        runners = ranked[1:3]
+        lines = [
+            f"<span style='color:#4be38a;font-size:30px;font-family:Audiowide;'>⚡ RIGHT NOW: {h['asset']}</span>",
+            f"$20 IN <span class='dim'>...........</span> ~{h['pace']:.1f}h"
+            f"   SINCE SIGNAL <span class='dim'>...</span> +{h['ran']:.1f}%"
+            f"   SETUP <span class='dim'>.........</span> {h['conf']:.0f}%",
+        ]
+        if runners:
+            lines.append("<span class='dim'>runners-up: "
+                         + " · ".join(f"{r['asset']} (~{r['pace']:.1f}h)" for r in runners)
+                         + "</span>")
+        lines.append(f"<span class='dim'>{total} signals in the last 45 min · "
+                     f"{len(ranked)} distinct moves · wave collapsed to one pick"
+                     + (f" · {h['cluster']} signals shared this move" if h.get("cluster", 1) > 1 else "")
+                     + "</span>")
+        st.markdown(plate("The Pick — right now", lcd(lines, tone="green")), unsafe_allow_html=True)
+        if st.button(f"➡ CONFIRM {h['asset']} IN QUICK CHECK — the final yes/no",
+                     type="primary", width="stretch", key="headline_confirm"):
+            st.session_state["qc_pick_next"] = h["asset"]
+            st.session_state["active_tab"] = "QUICK CHECK"
+            st.rerun()
+    else:
+        st.markdown(plate("⚡ RIGHT NOW", lcd([
+            "NO FRESH PICKS THIS MINUTE",
+            "<span class='dim'>the scanner's hunting — a pick lands here the moment it clears "
+            "the scalp gates (setup 60+ · fast $20 · fresh)</span>",
+        ], tone="amber")), unsafe_allow_html=True)
 
     b1, b2, _ = st.columns([1, 1, 3])
     with b1:

@@ -176,6 +176,9 @@ try:
           and "_payout is None" in app_src)
     check("contract: FAST $20 leaderboard on the console",
           "_fast_twenty" in app_src and "FAST $20" in app_src)
+    check("contract: RIGHT NOW headline (scalp-ranked, sweep-clustered)",
+          "_scalp_headline" in app_src and "RIGHT NOW" in app_src
+          and "cluster" in app_src and "_headline_asset" in app_src)
     check("contract: TAKE IT $20 system present",
           "TAKE_IT_USD = 20" in bs_src and "Take it!" in bs_src)
     check("contract: cooldown flatten 20:00 (once daily, persisted)",
