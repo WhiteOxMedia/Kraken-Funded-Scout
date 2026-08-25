@@ -293,7 +293,11 @@ def get_open_position_count() -> int:
         return row["cnt"] if row else 0
 
 
-MAX_CONCURRENT_POSITIONS = 3  # Concentrate capital — fewer, bigger positions
+MAX_CONCURRENT_POSITIONS = 1  # ONE position at a time — all capital on the single
+                              # best pick (user directive, Aug 25). A swap needs a
+                              # challenger CLEARLY stronger than the incumbent's
+                              # entry conviction (+10, 2h hold, winners protected) —
+                              # no more multi-position fee churn.
 
 
 def write_buy_signal(
