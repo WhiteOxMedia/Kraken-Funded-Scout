@@ -954,13 +954,22 @@ def main():
                 hold_txt = f"~{_hours:.0f} hours"
             else:
                 hold_txt = f"~{_hours / 24:.0f} days"
+        # HOW LONG, in the card's voice: patience = 2x the usual $20 time
+        # (min 45 minutes), snapped to 5-minute marks — "out by 11:15"
+        try:
+            _pat = max(2.0 * (_hours or 0.75) * 60.0, 45.0)
+            _out_by = (_now_mst() + timedelta(minutes=round(_pat / 5.0) * 5)).strftime("%I:%M").lstrip("0")
+        except Exception:
+            _out_by = None
+        _how_long = f"until you're up $20 — or she says out. If it hasn't paid by {_out_by}, get out."
         if is_buy:
             title = f"🟢 BUY {asset} — {signal.confidence:.0f}% SURE"
             message = (
                 f"BUY {asset}\n"
+                f"WHY: the $20 comes in {hold_txt} at this coin's speed, and the setup is real ({signal.confidence:.0f}% sure)\n"
+                f"WHEN: right now — this is fresh\n"
+                f"HOW LONG: {_how_long}\n"
                 f"SPEND: 100% = ${_bal:,.0f}\n"
-                f"FOR: {hold_txt}\n"
-                f"HOW SURE: {signal.confidence:.0f}%\n"
                 f"{'-' * 30}\n"
                 f"get out at ${signal.stop_loss:.4f} (wrong)\n"
                 f"cash out at ${signal.take_profit:.4f} (win)\n"

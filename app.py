@@ -1175,7 +1175,148 @@ def render_chart(df, signal, config: TradingConfig, height: int = 430):
 #  MASTER MODULE
 # ════════════════════════════════════════════════════════════════════════
 
+# ════════════════════════════════════════════════════════════════════════
+#  THE CARD — the flow itself (Aug 25 redesign)
+#  MASTER shows one card and nothing else on the main screen:
+#  a PICK when something's fresh, the WATCH when you're in a trade,
+#  a WAITING card while she hunts. Why / When / How long — plain English.
+# ════════════════════════════════════════════════════════════════════════
+
+def _out_by_txt(base, eta_h: float) -> str:
+    """'out by 11:15' — patience = 2x the usual $20 time, min 45 minutes,
+    snapped to 5-minute marks. base = the datetime the clock starts from."""
+    mins = max(eta_h * 60.0, 30.0)
+    patience = max(2.0 * mins, 45.0)
+    out_by = base + timedelta(minutes=round(patience / 5.0) * 5)
+    return out_by.strftime("%I:%M").lstrip("0")
+
+
+def _eta_txt(eta_h: float) -> str:
+    mins = eta_h * 60.0
+    if mins < 60:
+        return f"about {max(5, round(mins / 5.0) * 5)} minutes"
+    return f"about {eta_h:.1f} hours"
+
+
+def _pick_card(cfg: TradingConfig, kraken):
+    """The one card on MASTER. States: PICK / WATCH / WAITING / COOLDOWN."""
+    block, day, thr, _, no_buy = current_threshold()
+    cw = _load_watch()
+
+    # ── COOLDOWN ────────────────────────────────────────────────────
+    if no_buy:
+        st.markdown(plate("🌙 COOLDOWN", lcd([
+            "8pm to midnight — no new picks.",
+            "<span class='dim'>she still watches what you hold · new picks at midnight</span>",
+        ], tone="amber")), unsafe_allow_html=True)
+        return
+
+    # ── WATCH: you're in a trade — she counts the twenties ──────────
+    if cw:
+        for pair, w in cw.items():
+            entry = float(w.get("entry") or 0)
+            size = float(w.get("size") or 5000.0)
+            px = live_price(pair)
+            if not entry or not px:
+                continue
+            usd = (px / entry - 1.0) * size
+            twenties = int(usd // 20) if usd > 0 else 0
+            try:
+                added = datetime.fromisoformat(w["added"])
+            except Exception:
+                added = _now_mst()
+            try:
+                from background_scanner import _hours_to_scalp
+                eta = _hours_to_scalp(pair, entry) or 0.75
+            except Exception:
+                eta = 0.75
+            overdue = _now_mst() > added + timedelta(
+                minutes=max(2.0 * eta * 60.0, 45.0))
+            color = "#4be38a" if usd >= 0 else "#ff6b5e"
+            rows = [
+                f"<span style='color:{color};font-size:34px;font-family:Audiowide;'>"
+                f"{_asset(pair)} {'+' if usd >= 0 else '-'}${abs(usd):,.0f}</span>"
+                + (f"  <span style='color:#ffc36b;'>· {twenties} twenties taken</span>" if twenties else ""),
+                f"WHY <span class='dim'>............</span> you're in it — entered at {_fmt_price(entry)}. "
+                f"She's watching it the whole time.",
+            ]
+            if overdue:
+                rows.append(f"<span style='color:#ff6b5e;'>HOW LONG <span class='dim'>.........</span> "
+                            f"TIME'S UP — it hasn't paid its $20 by {_out_by_txt(added, eta)}. "
+                            f"Get out unless she just called something.</span>")
+            else:
+                rows.append(f"HOW LONG <span class='dim'>.........</span> until you're up $20 — or she says out. "
+                            f"If it hasn't paid by {_out_by_txt(added, eta)}, get out.")
+            rows.append("<span class='dim'>walk around the house — she'll call you</span>")
+            st.markdown(plate("👁 WATCHING", lcd(rows, tone="green" if usd >= 0 else "red")),
+                        unsafe_allow_html=True)
+        return
+
+    # ── PICK: something fresh to look at ────────────────────────────
+    try:
+        from background_scanner import rotation_key_for_hour, _schedule_for_dow
+        _n = _now_mst()
+        ranked, total = _scalp_headline(kraken.exchange,
+                                        rotation_key_for_hour(_n.hour),
+                                        _schedule_for_dow(_n.weekday()))
+    except Exception:
+        ranked, total = [], 0
+    if ranked:
+        h = ranked[0]
+        # Zira announces when a NEW young pick takes the seat
+        if st.session_state.get("_headline_asset") != h["asset"]:
+            st.session_state["_headline_asset"] = h["asset"]
+            if h["age_min"] <= 10:
+                try:
+                    _speak(f"New pick! {h['asset']}! Twenty dollars in about "
+                           f"{h['pace'] * 60:.0f} minutes!")
+                except Exception:
+                    pass
+        age_txt = f"{h['age_min']:.0f} minutes ago" if h["age_min"] >= 1 else "just now"
+        rows = [
+            f"<span style='color:#4be38a;font-size:40px;font-family:Audiowide;'>⚡ {h['asset']}</span>",
+            f"WHY <span class='dim'>............</span> its $20 comes fast — {_eta_txt(h['pace'])} at this "
+            f"coin's usual speed. It's fresh: only +{h['ran']:.1f}% above where the signal caught it, "
+            f"and the setup is real ({h['conf']:.0f}% sure).",
+            f"WHEN <span class='dim'>...........</span> the signal came in {age_txt}"
+            + ("" if h["age_min"] < 1 else " — move quick, wiggles don't wait"),
+            f"HOW LONG <span class='dim'>.........</span> until you're up $20 — or she says out. "
+            f"{_eta_txt(h['pace'])} (out by {_out_by_txt(_now_mst(), h['pace'])}).",
+            f"<span class='dim'>{total} signals · {len(ranked)} real moves · this is the best one — "
+            f"one click for the final yes/no</span>",
+        ]
+        st.markdown(plate("⚡ THE PICK", lcd(rows, tone="green")), unsafe_allow_html=True)
+        if st.button(f"➡ CHECK {h['asset']} — the final yes/no",
+                     type="primary", width="stretch", key="card_confirm"):
+            st.session_state["qc_pick_next"] = h["asset"]
+            st.session_state["active_tab"] = "QUICK CHECK"
+            try:
+                st.rerun(scope="app")
+            except TypeError:
+                st.rerun()
+        return
+
+    # ── WAITING: nothing fresh — she's hunting ──────────────────────
+    st.markdown(plate("⏳ WAITING", lcd([
+        "Nothing fresh right now — she's hunting.",
+        "<span class='dim'>the next pick lands here the moment it's real · want to move yourself? "
+        "check a coin in QUICK CHECK or run the TOURNAMENT</span>",
+    ], tone="amber")), unsafe_allow_html=True)
+
+
 def render_master(cfg: TradingConfig, kraken):
+    # THE CARD — the flow itself. One card, nothing else on the main screen.
+    @st.fragment(run_every=30_000)
+    def _card_tick():
+        _pick_card(cfg, kraken)
+    _card_tick()
+
+    # the bones — every tool and number still there, one click down
+    with st.expander("📐 THE BONES — money score, breaker, integrity"):
+        render_master_bones(cfg, kraken)
+
+
+def render_master_bones(cfg: TradingConfig, kraken):
     sb = _bridge()
 
     # ── Reconcile: DB records vs the ACTUAL Kraken wallet ────────────
@@ -1343,66 +1484,8 @@ def render_master(cfg: TradingConfig, kraken):
 def render_tournament(cfg: TradingConfig, scan_cfg: TradingConfig, kraken):
     from strategy import enable_deep_analysis, disable_deep_analysis
 
-    # ── ⚡ RIGHT NOW — the scalp headline. No bracket run needed: the live
-    # signal pool, scalp-ranked (fastest $20, freshest entry), and the
-    # correlated wave collapsed to ONE pick. This is the answer to "all the
-    # signals come at the same time" — they're one move; here's its best
-    # expression. Zira announces when a NEW headline takes the seat.
-    block, day, thr, _, no_buy = current_threshold()
-    try:
-        from background_scanner import rotation_key_for_hour, _schedule_for_dow
-        _n = _now_mst()
-        ranked, total = _scalp_headline(kraken.exchange,
-                                        rotation_key_for_hour(_n.hour),
-                                        _schedule_for_dow(_n.weekday()))
-    except Exception:
-        ranked, total = [], 0
-    if no_buy:
-        st.markdown(plate("⚡ RIGHT NOW", lcd([
-            "🌙 COOLDOWN (8pm–midnight) — no new picks",
-            "<span class='dim'>exit checks still run · new entries at midnight (R1 Asia)</span>",
-        ], tone="amber")), unsafe_allow_html=True)
-    elif ranked:
-        h = ranked[0]
-        _age_txt = f"{h['age_min']:.0f}m old" if h["age_min"] >= 1 else "brand new"
-        if st.session_state.get("_headline_asset") != h["asset"]:
-            st.session_state["_headline_asset"] = h["asset"]
-            if h["age_min"] <= 10:   # only announce YOUNG signals — an old one
-                                    # taking the seat is not actionable news
-                try:
-                    _speak(f"New pick! {h['asset']}! Twenty dollars in about {h['pace']:.1f} hours!")
-                except Exception:
-                    pass
-        runners = ranked[1:3]
-        lines = [
-            f"<span style='color:#4be38a;font-size:30px;font-family:Audiowide;'>⚡ RIGHT NOW: {h['asset']}</span>",
-            f"$20 IN <span class='dim'>...........</span> ~{h['pace']:.1f}h"
-            f"   SINCE SIGNAL <span class='dim'>...</span> +{h['ran']:.1f}%"
-            f"   SETUP <span class='dim'>.........</span> {h['conf']:.0f}%",
-            f"SIGNAL AGE <span class='dim'>........</span> "
-            f"<span style='color:{'#ffc36b' if h['age_min'] >= 10 else '#4be38a'};'>{_age_txt}</span>",
-        ]
-        if runners:
-            lines.append("<span class='dim'>runners-up: "
-                         + " · ".join(f"{r['asset']} (~{r['pace']:.1f}h, {r['age_min']:.0f}m old)"
-                                      for r in runners)
-                         + "</span>")
-        lines.append(f"<span class='dim'>{total} signals in the last {HEADLINE_MAX_AGE_MIN} min · "
-                     f"{len(ranked)} distinct moves · wave collapsed to one pick"
-                     + (f" · {h['cluster']} signals shared this move" if h.get("cluster", 1) > 1 else "")
-                     + "</span>")
-        st.markdown(plate("The Pick — right now", lcd(lines, tone="green")), unsafe_allow_html=True)
-        if st.button(f"➡ CONFIRM {h['asset']} IN QUICK CHECK — the final yes/no",
-                     type="primary", width="stretch", key="headline_confirm"):
-            st.session_state["qc_pick_next"] = h["asset"]
-            st.session_state["active_tab"] = "QUICK CHECK"
-            st.rerun()
-    else:
-        st.markdown(plate("⚡ RIGHT NOW", lcd([
-            "NO FRESH PICKS IN THE LAST 15 MINUTES",
-            "<span class='dim'>a pick lands here the moment a YOUNG signal clears the scalp gates "
-            "(setup 60+ · fast $20 · fresh · under 15 min old) — older signals are dead for scalps</span>",
-        ], tone="amber")), unsafe_allow_html=True)
+    # (the RIGHT NOW headline moved to MASTER — the card IS the flow now;
+    #  this tab is the BACKUP PICKER: run the same signal process manually)
 
     b1, b2, _ = st.columns([1, 1, 3])
     with b1:

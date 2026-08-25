@@ -181,6 +181,9 @@ try:
     check("contract: RIGHT NOW headline (scalp-ranked, sweep-clustered)",
           "_scalp_headline" in app_src and "RIGHT NOW" in app_src
           and "cluster" in app_src and "_headline_asset" in app_src)
+    check("contract: THE CARD on MASTER (why/when/how, one card = the flow)",
+          "_pick_card" in app_src and "THE PICK" in app_src and "HOW LONG" in app_src
+          and "render_master_bones" in app_src)
     check("contract: TAKE IT $20 system present",
           "TAKE_IT_USD = 20" in bs_src and "Take it!" in bs_src)
     check("contract: cooldown flatten 20:00 (once daily, persisted)",
