@@ -1326,9 +1326,52 @@ def render_master(cfg: TradingConfig, kraken):
         _pick_card(cfg, kraken)
     _card_tick()
 
+    # TODAY'S FACTS — the system grades itself from real records (user
+    # directive: MASTER is for self-correction on facts and figures —
+    # signals fired, twenties banked, what the bot rejected — no guessing)
+    st.markdown(plate("📐 TODAY'S FACTS — the system grades itself",
+                      lcd(_today_facts())), unsafe_allow_html=True)
+
     # the bones — every tool and number still there, one click down
     with st.expander("📐 THE BONES — money score, breaker, integrity"):
         render_master_bones(cfg, kraken)
+
+
+@st.cache_data(ttl=120)
+def _today_facts() -> list[str]:
+    """MASTER's self-correction plate: today's numbers, auto-counted."""
+    import sqlite3
+    day = _now_mst().strftime("%Y-%m-%d")
+    n_sig = n_rej = 0
+    try:
+        conn = sqlite3.connect(os.path.join(os.path.dirname(os.path.abspath(__file__)), "signals.db"))
+        n_sig = conn.execute(
+            "SELECT COUNT(*) FROM signals WHERE action='buy' AND timestamp LIKE ? "
+            "AND source != 'bot_strategy'", (day + "%",)).fetchone()[0]
+        n_rej = conn.execute(
+            "SELECT COUNT(*) FROM signals WHERE action='buy' AND timestamp LIKE ? "
+            "AND status='rejected'", (day + "%",)).fetchone()[0]
+        conn.close()
+    except Exception:
+        pass
+    banked = 0
+    try:
+        import json
+        tp = json.loads((Path(__file__).parent / "take_payouts.json").read_text())
+        banked = sum(int(r.get("amount") or 0) for r in tp.values()
+                     if str(r.get("ts", "")).startswith(day))
+    except Exception:
+        pass
+    cw = _load_watch()
+    n_open = len(cw)
+    return [
+        f"SIGNALS FIRED <span class='dim'>......</span> {n_sig}"
+        f"   BOT PASSED ON <span class='dim'>.....</span> {n_rej}"
+        f"   TWENTIES BANKED <span class='dim'>...</span> <span style='color:#4be38a;'>${banked}</span>",
+        f"TRADES LIVE NOW <span class='dim'>.....</span> {n_open}"
+        f"   <span class='dim'>graded from the real records — signals.db + payout ledger, "
+        f"no guessing. This is how the system learns.</span>",
+    ]
 
 
 def render_master_bones(cfg: TradingConfig, kraken):
@@ -2446,6 +2489,7 @@ def _render_light_panel(interval: str):
     watch_status = st.session_state.get("watch_status") or []
     any_alert = any(v["kind"] == "contest" and v["exit"] for v in watch_status)
     n_wallet = sum(1 for v in watch_status if v["kind"] == "wallet")
+    _w = _load_watch()
     lines = [f"<span class='dim'>{_now_mst().strftime('%I:%M %p')} · every {interval} · green = hold, red = sell</span>"]
     for v in watch_status:
         if v["kind"] != "contest":
@@ -2453,20 +2497,40 @@ def _render_light_panel(interval: str):
         asset = _asset(v["pair"])
         entry = v.get("entry")
         live = v.get("live")
-        size = float(_load_watch().get(v["pair"], {}).get("size") or 2500.0) if entry and live else 0.0
+        rec = _w.get(v["pair"], {})
+        size = float(rec.get("size") or 2500.0) if entry and live else 0.0
         pnl_html = ""
+        clock_html = ""
         if entry and live:
             pnl = (live / entry - 1) * 100
             usd = pnl / 100.0 * size
             pnl_html = (f' · <span style="color:{"#4be38a" if pnl >= 0 else "#ff6b5e"};">'
                         f'${usd:+,.0f}</span>')
+            # THE CLOCK (user directive: green must say how long to hold):
+            # out-by from the entry + 2x this coin's usual $20 time; stay
+            # close when a take is near or the clock is short.
+            try:
+                from background_scanner import _hours_to_scalp
+                _eta = _hours_to_scalp(v["pair"], entry) or 0.75
+                _added = datetime.fromisoformat(rec["added"]) if rec.get("added") else _now_mst()
+                _out_by = _added + timedelta(minutes=max(2.0 * _eta * 60.0, 45.0))
+                _rem = (_out_by - _now_mst()).total_seconds() / 60.0
+                _next20 = ((int(usd // 20) + 1) * 20 - usd) if usd > 0 else (20 - usd)
+                _near = (_next20 <= 10) or (_rem <= 15.0)
+                clock_html = (f' · <span style="color:{"#ffc36b" if _near else "#8d8271"};">'
+                              f'~{max(_rem, 0):.0f}m left'
+                              + (" · STAY CLOSE" if _near else " · walk around")
+                              + '</span>')
+            except Exception:
+                pass
         if v["exit"]:
-            lines.append(f"<span style='color:#ff6b5e;font-size:16px;'>◆ {asset} — SELL NOW — {v['reasons'][0]}</span>")
+            lines.append(f"<span style='color:#ff6b5e;font-size:16px;'>◆ {asset} — SELL NOW — {v['reasons'][0]}</span>"
+                         f"<span class='dim'> · give it about an hour to base — she'll call the next one</span>")
         else:
             bail = v.get("high", 0) * (1 - CONTEST_TRAIL_PCT / 100) if v.get("high") else None
             bail_txt = f" · out at {_fmt_price(bail)}" if bail else ""
             lines.append(f"<span style='color:#4be38a;font-size:16px;'>◆ {asset}</span> {pnl_html}"
-                         f"{bail_txt}")
+                         f"{clock_html}{bail_txt}")
     if n_wallet:
         lines.append(f"<span class='dim'>bot trades: {n_wallet} (watched separately)</span>")
     st.markdown(plate("MY TRADES", lcd(lines, tone="red" if any_alert else "green")),
@@ -2638,6 +2702,44 @@ def _fmt_hours(hours: float) -> str:
     return f"about {hours / 24:.0f} days"
 
 
+@st.cache_data(ttl=300)
+def _history_read(_ex, pair: str, dip_pct: float) -> dict | None:
+    """REAL HISTORY, no guessing (user directive): count this coin's actual
+    episodes over the last 5 days — times it fell at least dip_pct from a
+    local peak — and whether/how fast it recovered to that peak. 15-minute
+    candles straight from Kraken. Returns {n, recovered, median_min}."""
+    try:
+        oh = _ex.fetch_ohlcv(pair, "15m", limit=480)
+        if not oh or len(oh) < 120:
+            return None
+        ts = [c[0] for c in oh]
+        highs = [c[2] for c in oh]
+        lows = [c[3] for c in oh]
+        episodes = []          # (recovered, minutes)
+        peak = highs[0]
+        ep = None              # (start_i, peak)
+        for i in range(1, len(oh)):
+            if ep is None:
+                if highs[i] > peak:
+                    peak = highs[i]
+                elif peak > 0 and (peak - lows[i]) / peak * 100 >= dip_pct:
+                    ep = (i, peak)          # the dip broke the threshold
+            else:
+                if highs[i] >= ep[1]:       # back to the old peak = recovered
+                    episodes.append((True, (ts[i] - ts[ep[0]]) / 60000.0))
+                    peak = highs[i]
+                    ep = None
+        if ep is not None:
+            episodes.append((False, None))  # still underwater at data's end
+        if len(episodes) < 3:
+            return None
+        rec = [m for ok, m in episodes if ok]
+        return {"n": len(episodes), "recovered": len(rec),
+                "median_min": sorted(rec)[len(rec) // 2] if rec else None}
+    except Exception:
+        return None
+
+
 def render_exit_check(cfg: TradingConfig, kraken):
     sb = _bridge()
     # Source of truth: what the WALLET actually holds (reconciled), falling
@@ -2779,6 +2881,33 @@ def render_exit_check(cfg: TradingConfig, kraken):
             verdict_lines.append(f"  ✕ {r}")
     else:
         verdict_lines.append('<span style="color:#4be38a;">HOLD</span>')
+
+    # ── HISTORY: real episodes, no guessing (user directive, Aug 25) ──
+    # For an underwater coin: how often did dips THIS size fill, and how
+    # fast? Counted from 5 days of actual 15-minute candles.
+    try:
+        _peak_ref = max(float(entry or 0), float(high or 0))
+        if _peak_ref > live > 0:
+            _dip = (_peak_ref - live) / _peak_ref * 100
+            if _dip >= 1.0:
+                hr = _history_read(kraken.exchange, pair, _dip)
+                if hr:
+                    rate = hr["recovered"] / hr["n"]
+                    med = hr.get("median_min")
+                    med_txt = f", median {med:.0f} min" if med else ""
+                    col = "#4be38a" if rate >= 0.6 else ("#ffc36b" if rate >= 0.4 else "#ff6b5e")
+                    verdict_lines.append(
+                        f"HISTORY (5 days) <span class='dim'>....</span> fell {-_dip:.1f}% like this "
+                        f"{hr['n']}x — <span style='color:{col};'>{hr['recovered']} came back{med_txt}</span>")
+                    if rate >= 0.6:
+                        verdict_lines.append("<span class='dim'>history says: HOLD — dips this size usually fill</span>")
+                    elif rate < 0.4:
+                        verdict_lines.append('<span style="color:#ff6b5e;">history says: GET OUT — dips this size usually don\'t fill</span>')
+                    else:
+                        verdict_lines.append("<span class='dim'>history says: coin-flip — your call</span>")
+    except Exception:
+        pass
+
     if reasons_note:
         verdict_lines.append(reasons_note)
     verdict_lines.append("<span class='dim'>advice only — nothing sells by itself</span>")

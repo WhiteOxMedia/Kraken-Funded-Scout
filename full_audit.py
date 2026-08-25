@@ -173,6 +173,13 @@ try:
           '_trend != "FALLING"' in app_src and "DOWNWARD TREND" in app_src
           and "falling knife — never headlines" in app_src
           and "no downward trend picks (user rule)" in bs_src)
+    check("contract: the light speaks the clock (hold time + stay-close)",
+          "minutes left" in bs_src and "stay close" in bs_src
+          and "STAY CLOSE" in app_src and "walk around" in bs_src)
+    check("contract: exit check uses real history (episodes, no guessing)",
+          "_history_read" in app_src and "came back" in app_src)
+    check("contract: MASTER self-grades from records (TODAY'S FACTS)",
+          "_today_facts" in app_src and "grades itself" in app_src)
     check("contract: data-backed hard gates only (setup+pace+cooldown)",
           "sig.confidence >= QC_SCALP_FLOOR" in app_src
           and "_s_h > _resolve_cap()" in app_src)

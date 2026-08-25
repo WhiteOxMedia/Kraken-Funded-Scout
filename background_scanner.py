@@ -392,7 +392,8 @@ def champion_vs_champion(momentum_champion, bounce_champion) -> tuple[Any, str]:
 #    popups are separate; this is the voice that never sleeps.
 CONTEST_WATCH_JSON = os.path.join(os.path.dirname(os.path.abspath(__file__)), "contest_watch.json")
 CONSOLE_STATE_JSON = os.path.join(os.path.dirname(os.path.abspath(__file__)), "console_state.json")
-CONTEST_TRAIL_PCT = 4.0   # matches the console's contest profile
+CONTEST_TRAIL_PCT = 3.0   # trail off the peak (user: red needs to be MORE
+                          # sensitive — was 4.0; Aug 25)
 CONTEST_SELL_BAR = 50
 TAKE_IT_USD = 20  # the user's scalp target: out at +$20, take it every chance
 SCALP_TARGET_PCT = 0.4  # +$20 on $5,000 — the take the user actually plays for
@@ -611,12 +612,21 @@ def contest_light(exchange, cfg):
             w["high"] = high
             dirty = True
 
-        # ── 1. profit guard: 4% off the peak ──────────────────────────
+        # ── 1. profit guard: trail off the peak ──────────────────────────
         should_exit = False
         reason = ""
         if high > entry and live <= high * (1 - CONTEST_TRAIL_PCT / 100):
             should_exit = True
             reason = f"PROFIT GUARD FIRED — dropped {(high - live) / high * 100:.1f}% from the peak"
+
+        # ── 1b. hard stop: five twenties underwater = the trade failed ──
+        # (user: red needs to be MORE sensitive — a -$100 hole on a $20
+        # scalp game is a failed trade, not a dip)
+        if not should_exit and entry > 0 and live > 0:
+            _usd_now = (live / entry - 1.0) * size
+            if _usd_now <= -100.0:
+                should_exit = True
+                reason = "STOPPED OUT — down $100. The trade failed — get out, wait for the next one."
 
         # ── 2. strategy sell bar (contest profile: 50%) ────────────────
         if not should_exit:
@@ -639,7 +649,8 @@ def contest_light(exchange, cfg):
         if should_exit:
             exited_pairs.append(pair)
             if voice:
-                _speak_server(f"Get out now! Sell {asset}! Get out now!", rate=1)
+                _speak_server(f"Get out now! Sell {asset}! Get out now! "
+                              f"Give it about an hour to base — I'll call the next one!", rate=1)
             logger.info("🚨 CONTEST LIGHT: SELL %s — %s", pair, reason)
             continue
 
@@ -695,8 +706,28 @@ def contest_light(exchange, cfg):
         elif usd > -LOSS_WARN_USD / 2:
             _loss_level.pop(pair, None)  # recovered — re-arm
 
+        # ── 6. THE CLOCK (user directive: green must say how long to hold)
+        # out-by = entry + 2x this coin's usual $20 time (min 45 min).
+        # Near a take or short on time -> "stay close"; else "walk around".
+        try:
+            _eta = _hours_to_scalp(pair, entry) or 0.75
+            _out_by = None
+            if w.get("added"):
+                _added = datetime.fromisoformat(w["added"])
+                _out_by = _added + timedelta(minutes=max(2.0 * _eta * 60.0, 45.0))
+            if _out_by:
+                _rem = (_out_by - datetime.now(_out_by.tzinfo)).total_seconds() / 60.0
+                _next20 = ((level + 1) * TAKE_IT_USD - usd) if usd > 0 else (TAKE_IT_USD - usd)
+                _near = (_next20 <= 10) or (_rem <= 15.0)
+                _tail = f", about {max(_rem, 0):.0f} minutes left"
+                _tail += ", stay close" if _near else ", go walk around"
+            else:
+                _tail = ""
+        except Exception:
+            _tail = ""
+
         sign = "plus" if usd >= 0 else "minus"
-        voice_updates.append(f"{asset}, {sign} {abs(usd):.0f} dollars")
+        voice_updates.append(f"{asset}, {sign} {abs(usd):.0f} dollars{_tail}")
 
     if exited_pairs:
         for p in exited_pairs:
