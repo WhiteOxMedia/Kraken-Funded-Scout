@@ -901,14 +901,17 @@ def _scalp_headline(_ex, rotation_key: str, sched: str) -> tuple[list[dict], int
     user plays: fastest $20 from the freshest entry wins, conviction is
     the entry ticket (60+), and signals fired in the same ~10-minute
     sweep collapse into ONE move (best-in-sweep by pace, then book depth).
-    Returns (ranked candidates, total signals considered)."""
+    Signals older than HEADLINE_MAX_AGE_MIN never headline — a scalp's
+    entry edge lives for minutes (Aug 25: user acted on a 20-minute-old
+    signal with no idea it was old).
+    Returns (ranked candidates with age_min, total signals considered)."""
     import sqlite3
     from collections import Counter
     from background_scanner import _hours_to_scalp, _max_resolve_hours
     try:
         conn = sqlite3.connect(os.path.join(os.path.dirname(os.path.abspath(__file__)), "signals.db"))
         conn.row_factory = sqlite3.Row
-        since = (_now_mst() - timedelta(minutes=45)).isoformat()
+        since = (_now_mst() - timedelta(minutes=HEADLINE_MAX_AGE_MIN)).isoformat()
         rows = conn.execute(
             "SELECT pair, confidence, entry_price, timestamp FROM signals "
             "WHERE action='buy' AND timestamp >= ? AND confidence >= ? "
@@ -952,12 +955,15 @@ def _scalp_headline(_ex, rotation_key: str, sched: str) -> tuple[list[dict], int
         vol = float((doc.get("universe", {}).get(pair, {})
                      .get(sched, {}).get(rotation_key) or {}).get("median_volume_usd") or 0)
         try:
-            bucket = int(datetime.fromisoformat(r["timestamp"]).timestamp() // 600)
+            ts = datetime.fromisoformat(r["timestamp"])
+            bucket = int(ts.timestamp() // 600)
+            age_min = (_now_mst() - ts).total_seconds() / 60
         except Exception:
-            bucket = 0
+            bucket, age_min = 0, 0.0
         cands.append({"asset": pair.split("/")[0], "pair": pair,
                       "conf": float(r["confidence"]), "pace": pace,
-                      "ran": ran_pct, "vol": vol, "bucket": bucket})
+                      "ran": ran_pct, "vol": vol, "bucket": bucket,
+                      "age_min": max(age_min, 0.0)})
 
     # collapse each sweep to its best expression (one market move = one pick)
     sizes = Counter(c["bucket"] for c in cands)
@@ -1060,6 +1066,12 @@ QC_CHASE_PCT = 2.0
 # cached scanner module may predate it — the QC must never crash or silently
 # depend on a fresh scanner for this)
 REENTRY_BLOCK_MIN = 60
+
+# A scalp signal is FRESH for minutes, not tens of them (Aug 25 lesson: the
+# headline crowned PUMP from an 8:53 signal; the user acted the moment they
+# saw it ~9:10 and had no way to know the information was 20 minutes old —
+# the deep scan's read had already cooled). Older signals never headline.
+HEADLINE_MAX_AGE_MIN = 15
 
 
 def _recent_big_payout(pair: str) -> int | None:
@@ -1331,24 +1343,30 @@ def render_tournament(cfg: TradingConfig, scan_cfg: TradingConfig, kraken):
         ], tone="amber")), unsafe_allow_html=True)
     elif ranked:
         h = ranked[0]
+        _age_txt = f"{h['age_min']:.0f}m old" if h["age_min"] >= 1 else "brand new"
         if st.session_state.get("_headline_asset") != h["asset"]:
             st.session_state["_headline_asset"] = h["asset"]
-            try:
-                _speak(f"New pick! {h['asset']}! Twenty dollars in about {h['pace']:.1f} hours!")
-            except Exception:
-                pass
+            if h["age_min"] <= 10:   # only announce YOUNG signals — an old one
+                                    # taking the seat is not actionable news
+                try:
+                    _speak(f"New pick! {h['asset']}! Twenty dollars in about {h['pace']:.1f} hours!")
+                except Exception:
+                    pass
         runners = ranked[1:3]
         lines = [
             f"<span style='color:#4be38a;font-size:30px;font-family:Audiowide;'>⚡ RIGHT NOW: {h['asset']}</span>",
             f"$20 IN <span class='dim'>...........</span> ~{h['pace']:.1f}h"
             f"   SINCE SIGNAL <span class='dim'>...</span> +{h['ran']:.1f}%"
             f"   SETUP <span class='dim'>.........</span> {h['conf']:.0f}%",
+            f"SIGNAL AGE <span class='dim'>........</span> "
+            f"<span style='color:{'#ffc36b' if h['age_min'] >= 10 else '#4be38a'};'>{_age_txt}</span>",
         ]
         if runners:
             lines.append("<span class='dim'>runners-up: "
-                         + " · ".join(f"{r['asset']} (~{r['pace']:.1f}h)" for r in runners)
+                         + " · ".join(f"{r['asset']} (~{r['pace']:.1f}h, {r['age_min']:.0f}m old)"
+                                      for r in runners)
                          + "</span>")
-        lines.append(f"<span class='dim'>{total} signals in the last 45 min · "
+        lines.append(f"<span class='dim'>{total} signals in the last {HEADLINE_MAX_AGE_MIN} min · "
                      f"{len(ranked)} distinct moves · wave collapsed to one pick"
                      + (f" · {h['cluster']} signals shared this move" if h.get("cluster", 1) > 1 else "")
                      + "</span>")
@@ -1360,9 +1378,9 @@ def render_tournament(cfg: TradingConfig, scan_cfg: TradingConfig, kraken):
             st.rerun()
     else:
         st.markdown(plate("⚡ RIGHT NOW", lcd([
-            "NO FRESH PICKS THIS MINUTE",
-            "<span class='dim'>the scanner's hunting — a pick lands here the moment it clears "
-            "the scalp gates (setup 60+ · fast $20 · fresh)</span>",
+            "NO FRESH PICKS IN THE LAST 15 MINUTES",
+            "<span class='dim'>a pick lands here the moment a YOUNG signal clears the scalp gates "
+            "(setup 60+ · fast $20 · fresh · under 15 min old) — older signals are dead for scalps</span>",
         ], tone="amber")), unsafe_allow_html=True)
 
     b1, b2, _ = st.columns([1, 1, 3])

@@ -19,8 +19,8 @@ def check(name, ok, detail=""):
 # ── patches ────────────────────────────────────────────────────────
 _orig_assets = app.ASSETS
 _orig_pace, _orig_cap = bs._hours_to_scalp, bs._max_resolve_hours
-app.ASSETS = list(_orig_assets) + ["TESTA", "TESTB", "TESTC", "TESTD"]
-PACE = {"TESTA/USD": 0.8, "TESTB/USD": 1.2, "TESTC/USD": 1.0, "TESTD/USD": 0.5}
+app.ASSETS = list(_orig_assets) + ["TESTA", "TESTB", "TESTC", "TESTD", "TESTE"]
+PACE = {"TESTA/USD": 0.8, "TESTB/USD": 1.2, "TESTC/USD": 1.0, "TESTD/USD": 0.5, "TESTE/USD": 1.4}
 bs._hours_to_scalp = lambda pair, entry: PACE.get(pair)
 bs._max_resolve_hours = lambda: 6.0
 
@@ -30,13 +30,20 @@ class FakeEx:
     def fetch_ticker(self, pair):
         return {"last": self.prices[pair]}
 
+# pin all synthetic timestamps to the 10-minute bucket grid so the sweep
+# clustering is deterministic no matter when the test runs
+_bucket_start = (datetime.now(MST).timestamp() // 600) * 600
+def _ts(offset_sec: float) -> datetime:
+    return datetime.fromtimestamp(_bucket_start + offset_sec, MST)
+
 now = datetime.now(MST)
 rows = [
     # pair, conf, entry, ts, live
-    ("TESTA/USD", 80, 1.00, now,                      1.005),  # best pace, same sweep as TESTB
-    ("TESTB/USD", 70, 1.00, now - timedelta(seconds=60), 1.010),  # same sweep, slower -> collapses
-    ("TESTC/USD", 65, 1.00, now - timedelta(minutes=20), 0.995),  # different sweep -> own move
-    ("TESTD/USD", 55, 1.00, now,                      1.000),  # below floor -> excluded
+    ("TESTA/USD", 80, 1.00, _ts(60),   1.005),  # best pace, same sweep as TESTB
+    ("TESTB/USD", 70, 1.00, _ts(120),  1.010),  # same sweep, slower -> collapses
+    ("TESTC/USD", 65, 1.00, _ts(-1500), 0.995), # TOO OLD (~25m > 15m) -> excluded
+    ("TESTD/USD", 55, 1.00, _ts(60),   1.000),  # below floor -> excluded
+    ("TESTE/USD", 68, 1.00, _ts(-300), 0.998),  # young, PREVIOUS sweep -> runner
 ]
 
 DB = BASE / "signals.db"
@@ -54,21 +61,23 @@ try:
     ex = FakeEx({p: live for p, _, _, _, live in rows})
     ranked, total = app._scalp_headline(ex, "12-16", "weekday")
 
-    check("synthetic signals considered (live pool adds more)", total >= 4, f"total={total}")
+    check("synthetic signals considered (live pool adds more)", total >= 5, f"total={total}")
     assets = [c["asset"] for c in ranked]
     check("headline = TESTA (fastest $20)", assets and assets[0] == "TESTA", f"{assets}")
     check("TESTB collapsed into TESTA's sweep", "TESTB" not in assets, f"{assets}")
-    check("TESTC survives as its own move", "TESTC" in assets, f"{assets}")
+    check("TESTC excluded (20 min old — scalp edge is dead)", "TESTC" not in assets, f"{assets}")
     check("TESTD excluded (55% < 60 floor)", "TESTD" not in assets, f"{assets}")
+    check("TESTE survives as its own young move", "TESTE" in assets, f"{assets}")
     ta = next(c for c in ranked if c["asset"] == "TESTA")
     check("TESTA cluster size = 2 (the wave)", ta.get("cluster") == 2, f"{ta.get('cluster')}")
     check("TESTA pace carried", abs(ta["pace"] - 0.8) < 0.01, f"{ta['pace']}")
+    check("TESTA age is young (< 10 min)", ta.get("age_min", 99) < 10, f"{ta.get('age_min')}")
 
-    # chase filter: TESTC ran +3% since its signal -> excluded
+    # chase filter: TESTE ran +3% since its signal -> excluded
     app._scalp_headline.clear()   # ttl cache would serve the first call's data
-    ex2 = FakeEx({p: (1.03 if p == "TESTC/USD" else live) for p, _, _, _, live in rows})
+    ex2 = FakeEx({p: (1.03 if p == "TESTE/USD" else live) for p, _, _, _, live in rows})
     ranked2, _ = app._scalp_headline(ex2, "12-16", "weekday")
-    check("ran +3% since signal -> dropped", "TESTC" not in [c["asset"] for c in ranked2])
+    check("ran +3% since signal -> dropped", "TESTE" not in [c["asset"] for c in ranked2])
 finally:
     # ── cleanup ────────────────────────────────────────────────────
     conn = sqlite3.connect(DB)
