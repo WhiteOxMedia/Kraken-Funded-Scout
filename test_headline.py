@@ -41,7 +41,7 @@ rows = [
     # pair, conf, entry, ts, live
     ("TESTA/USD", 80, 1.00, _ts(60),   1.005),  # best pace, same sweep as TESTB
     ("TESTB/USD", 70, 1.00, _ts(120),  1.010),  # same sweep, slower -> collapses
-    ("TESTC/USD", 65, 1.00, _ts(-1500), 0.995), # TOO OLD (~25m > 15m) -> excluded
+    ("TESTC/USD", 65, 1.00, _ts(-2100), 0.995), # TOO OLD (~35m > 30m) -> excluded
     ("TESTD/USD", 55, 1.00, _ts(60),   1.000),  # below floor -> excluded
     ("TESTE/USD", 68, 1.00, _ts(-300), 0.998),  # young, PREVIOUS sweep -> runner
 ]
@@ -65,7 +65,7 @@ try:
     assets = [c["asset"] for c in ranked]
     check("headline = TESTA (fastest $20)", assets and assets[0] == "TESTA", f"{assets}")
     check("TESTB collapsed into TESTA's sweep", "TESTB" not in assets, f"{assets}")
-    check("TESTC excluded (20 min old — scalp edge is dead)", "TESTC" not in assets, f"{assets}")
+    check("TESTC excluded (~35 min old — past the 30-min cap)", "TESTC" not in assets, f"{assets}")
     check("TESTD excluded (55% < 60 floor)", "TESTD" not in assets, f"{assets}")
     check("TESTE survives as its own young move", "TESTE" in assets, f"{assets}")
     ta = next(c for c in ranked if c["asset"] == "TESTA")
@@ -73,11 +73,15 @@ try:
     check("TESTA pace carried", abs(ta["pace"] - 0.8) < 0.01, f"{ta['pace']}")
     check("TESTA age is young (< 10 min)", ta.get("age_min", 99) < 10, f"{ta.get('age_min')}")
 
-    # chase filter: TESTE ran +3% since its signal -> excluded
+    # chase is INFO now (calibration: chases hit at the same rate) — a ran
+    # signal still shows on the board, with its ran % displayed on the card
     app._scalp_headline.clear()   # ttl cache would serve the first call's data
     ex2 = FakeEx({p: (1.03 if p == "TESTE/USD" else live) for p, _, _, _, live in rows})
     ranked2, _ = app._scalp_headline(ex2, "12-16", "weekday")
-    check("ran +3% since signal -> dropped", "TESTE" not in [c["asset"] for c in ranked2])
+    te2 = next((c for c in ranked2 if c["asset"] == "TESTE"), None)
+    check("ran +3% since signal -> still shown (warning, not a block)",
+          te2 is not None and abs(te2["ran"] - 3.0) < 0.2,
+          f"{te2 and te2['ran']}")
 finally:
     # ── cleanup ────────────────────────────────────────────────────
     conn = sqlite3.connect(DB)

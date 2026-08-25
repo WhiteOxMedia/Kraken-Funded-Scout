@@ -166,16 +166,19 @@ try:
           "QC_SCALP_FLOOR = 60" in app_src
           and "sig.confidence >= QC_SCALP_FLOOR" in app_src
           and "AUTO-TRADE BAR PASSED" not in app_src)
-    check("contract: chase guard on the green light (no stale moves)",
-          "QC_CHASE_PCT = 2.0" in app_src and "_chase <= QC_CHASE_PCT" in app_src)
-    check("contract: no falling knives (trend guard on the green light)",
-          "_trend_state" in app_src and '_trend != "FALLING"' in app_src)
+    check("contract: chase + trend + payout WARN on the QC (data gates only block)",
+          "QC_CHASE_PCT = 2.0" in app_src and "_trend_state" in app_src
+          and "_payout is None" not in app_src.split("def render_quick_check")[1][:4000]
+          and "⚠ CHASED" in app_src and "stuck risk" in app_src)
+    check("contract: data-backed hard gates only (setup+pace+cooldown)",
+          "sig.confidence >= QC_SCALP_FLOOR" in app_src
+          and "_s_h > _resolve_cap()" in app_src)
     check("contract: giveback + loss warnings in the contest light",
           "GIVEBACK_WARN_USD = 50" in bs_src and "LOSS_WARN_USD = 50" in bs_src
           and "gave back" in bs_src and "down {_amt} dollars" in bs_src)
-    check("contract: re-entry blocked after a big TAKE IT payout",
+    check("contract: big payout WARNS on the QC (not a block — calibration)",
           "BIG_PAYOUT_USD = 100" in bs_src and "_recent_big_payout" in app_src
-          and "_payout is None" in app_src)
+          and "may be tired" in app_src)
     check("contract: FAST $20 leaderboard on the console",
           "_fast_twenty" in app_src and "FAST $20" in app_src)
     check("contract: RIGHT NOW headline (scalp-ranked, sweep-clustered)",
