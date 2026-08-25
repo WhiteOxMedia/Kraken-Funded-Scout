@@ -190,6 +190,12 @@ try:
           (BASE / "scanner.py").read_text(encoding="utf-8"))
     check("contract: bot BUY-only challenge (never displaces to short)",
           "CHALLENGE WIN" in (BOT / "scout_signal_reader.py").read_text(encoding="utf-8"))
+    check("contract: challenge scores incumbents by ENTRY conviction (churn fix)",
+          "_bridge_entry_conf" in (BOT / "scout_signal_reader.py").read_text(encoding="utf-8")
+          and "FRESH_BUY_COOLDOWN_MIN = 120" in (BOT / "scout_signal_reader.py").read_text(encoding="utf-8"))
+    check("contract: chase guard on bot buys (stale signal + blowoff)",
+          "_chase_guard" in (BOT / "scout_signal_reader.py").read_text(encoding="utf-8")
+          and "CHASE_BLOWOFF_PCT" in (BOT / "scout_signal_reader.py").read_text(encoding="utf-8"))
     check("contract: bot own-scanning OFF (scout funnel owns buys)",
           "own_scanning_enabled: bool = False" in (BOT / "config.py").read_text(encoding="utf-8"))
     check("contract: rotation-aware liquidity filter",
