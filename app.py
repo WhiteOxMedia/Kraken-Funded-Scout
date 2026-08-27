@@ -1328,6 +1328,7 @@ def _pick_card(cfg: TradingConfig, kraken):
         if st.button(f"➡ CHECK {h['asset']} — the final yes/no",
                      type="primary", width="stretch", key="card_confirm"):
             st.session_state["qc_pick_next"] = h["asset"]
+            st.session_state["qc_auto_scan"] = True   # scan fires on arrival
             st.session_state["active_tab"] = "QUICK CHECK"
             try:
                 st.rerun(scope="app")
@@ -1812,9 +1813,9 @@ def render_tournament(cfg: TradingConfig, scan_cfg: TradingConfig, kraken):
     if sig.action == "buy" and passes:
         _champ_asset = _asset(champ.pair)
         if _champ_asset in ASSETS:
-            st.session_state["qc_asset"] = _champ_asset
-            st.session_state["qc_hint"] = (f"🏆 {_champ_asset} is today's best pick — {sig.confidence:.0f}% sure. "
-                                           f"Hit DEEP SCAN for the final yes/no.")
+            # NOTE: the champion only takes over QUICK CHECK when you click
+            # the button — visiting this page used to silently switch your
+            # QC coin selection on every render (part of the choppiness).
             if _fresh:
                 try:
                     st.toast(f"🏆 {_champ_asset} is today's best pick — confirm it below",
@@ -1824,6 +1825,10 @@ def render_tournament(cfg: TradingConfig, scan_cfg: TradingConfig, kraken):
                     pass
             if st.button(f"➡ CONFIRM {_champ_asset} IN QUICK CHECK — the final yes/no",
                          type="primary", width="stretch", key="champ_next_btn"):
+                st.session_state["qc_pick_next"] = _champ_asset
+                st.session_state["qc_auto_scan"] = True   # scan fires on arrival
+                st.session_state["qc_hint"] = (f"🏆 {_champ_asset} is today's best pick — "
+                                               f"{sig.confidence:.0f}% sure. Scanning it now…")
                 st.session_state["active_tab"] = "QUICK CHECK"
                 st.rerun()
     elif _fresh:
@@ -1888,6 +1893,7 @@ def render_quick_check(cfg: TradingConfig, kraken):
             with _fb[i]:
                 if st.button(f"⚡ {f['asset']}", key=f"fast{i}", use_container_width=True):
                     st.session_state["qc_pick_next"] = f["asset"]
+                    st.session_state["qc_auto_scan"] = True   # scan fires on arrival
                     st.rerun()
 
     # flow hint: arrived from the tournament with a champion preloaded
@@ -1899,6 +1905,9 @@ def render_quick_check(cfg: TradingConfig, kraken):
     # a FAST $20 click lands here (BEFORE the selectbox renders)
     if st.session_state.get("qc_pick_next"):
         st.session_state["qc_asset"] = st.session_state.pop("qc_pick_next")
+    # arriving from the card/champion: run the scan AUTOMATICALLY — no
+    # second click. The loop is: see the pick → one click → the verdict.
+    _auto_scan = st.session_state.pop("qc_auto_scan", False)
 
     c1, c2, c3 = st.columns([2, 1, 1])
     with c1:
@@ -1912,7 +1921,7 @@ def render_quick_check(cfg: TradingConfig, kraken):
 
     # ── run the scan on click; PERSIST the result in session state so it
     # survives the WATCH-button rerun (buttons reset on every rerun)
-    if clicked:
+    if clicked or _auto_scan:
         pair = f"{asset}/USD"
         with st.spinner(f"Deep scanning {asset}…"):
             try:
@@ -3229,16 +3238,18 @@ def main():
     # ── beginner guide ─────────────────────────────────────────────────
     with st.expander("🆕 New here? What does this console do? (30-second tour)"):
         st.markdown(
-            "**The app walks you through the whole thing — just follow it from screen to screen.**\n\n"
+            "**One card runs the whole thing — follow it.**\n\n"
             "**The loop:**\n"
-            "1. **TOURNAMENT** — coins battle it out. The winner gets sent to Quick Check for you.\n"
-            "2. **QUICK CHECK** — the final yes/no. Green light = enter the trade on the contest app "
-            "(it tells you exactly how much to buy). Then the app moves you along.\n"
-            "3. **The light** — checks your trade every minute. Green = all good, keep holding. "
-            "Red = GET OUT NOW, sell it on the app.\n"
-            "4. Sold? The board clears and the app takes you back to hunting the next one.\n\n"
-            "- **MASTER** — your score: contest payouts that landed + how your current trades are doing.\n"
-            "- **EXIT CHECK** — 'should I sell?' on any coin, anytime.\n\n"
+            "1. **THE CARD (MASTER tab)** — shows the best fresh pick: WHY it's a pick, WHEN it "
+            "was spotted, and HOW LONG to hold. One click checks it.\n"
+            "2. **The check runs itself** — the deep scan fires the moment you arrive. Green "
+            "light = enter the trade on the contest app (it tells you exactly how much).\n"
+            "3. **The light** — she checks your trade every minute. Counts your $20s out loud, "
+            "tells you to stay close or walk around, and yells GET OUT NOW when it's time.\n"
+            "4. **Sold?** Tap the SOLD button. Re-entered on the app? Tell her what you paid "
+            "with the I RE-ENTERED panel — she needs the two numbers the contest shows you.\n\n"
+            "- **TOURNAMENT** — your backup picker: run the same hunt yourself, any time.\n"
+            "- **EXIT CHECK** — 'should I sell?' on any coin, with that coin's real history.\n\n"
             "**House rules:** only long, never short. Red never means short — it means *sell it if "
             "you've got it, stay out if you don't.* Anything not green counts as red."
         )
