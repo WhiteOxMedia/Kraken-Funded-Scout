@@ -867,9 +867,11 @@ def main():
     all_pairs = list(cfg.trading_pairs)
 
     # ── Notification ──────────────────────────────────────────────────
-    def notify_big(title: str, message: str):
-        """Desktop alert that STAYS until you read it — plus Zira says it out
-        loud. The old balloon toast died in ~5 seconds; this popup holds the
+    def notify_big(title: str, message: str, spoken: str | None = None):
+        """Desktop alert that STAYS until you read it — plus Zira says the
+        WHOLE call out loud (user directive: she speaks why/when/how-long,
+        not just the coin name — the bare 'BUY PENGU' morning taught us).
+        The old balloon toast died in ~5 seconds; this popup holds the
         screen up to 3 minutes (or until you click OK)."""
         import subprocess
         safe_title = title.replace("'", "''").replace('"', '`"')
@@ -878,10 +880,11 @@ def main():
         # 1) Zira announces it (amplified — heard across the room)
         try:
             if _voice_enabled():
-                spoken = "".join(ch for ch in title if 32 <= ord(ch) < 127).strip()
-                spoken = spoken.replace("%", " percent")
-                if spoken:
-                    _speak_server(spoken)
+                say = (spoken if spoken else title)
+                say = "".join(ch for ch in say if 32 <= ord(ch) < 127).strip()
+                say = say.replace("%", " percent")
+                if say:
+                    _speak_server(say)
         except Exception:
             pass
 
@@ -1173,6 +1176,10 @@ def main():
         _how_long = f"until you're up $20 — or she says out. If it hasn't paid by {_out_by}, get out."
         if is_buy:
             title = f"🟢 BUY {asset} — {signal.confidence:.0f}% SURE"
+            _spoken = (f"Buy {asset}! {signal.confidence:.0f} percent sure! "
+                       f"The twenty comes in {hold_txt}! "
+                       + (f"If it hasn't paid by {_out_by}, get out!" if _out_by else
+                          "Hold until you're up twenty dollars!"))
             message = (
                 f"BUY {asset}\n"
                 f"WHY: the $20 comes in {hold_txt} at this coin's speed, and the setup is real ({signal.confidence:.0f}% sure)\n"
@@ -1194,7 +1201,7 @@ def main():
                 f"  {_fmt_mst(_now_mst())}"
             )
 
-        notify_big(title, message)
+        notify_big(title, message, spoken=_spoken if is_buy else None)
         logger.info("🚀 BIG ALERT: %s %s — %.0f%% — entry $%.4f — TP $%.4f",
                     signal.action.upper(), asset, signal.confidence, signal.entry_price, signal.take_profit)
 
