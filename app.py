@@ -2666,6 +2666,50 @@ def _render_light_panel(interval: str):
         st.error("🚨 SELL NOW — on the contest app.")
 
 
+def _render_reenter_control():
+    """'I RE-ENTERED' — the contest app shows what you SPENT and how much
+    you OWN, never the price you paid (user reality-check, Aug 26: "I know
+    how much I own, the amount of my trade, and the current PnL — you have
+    to use that"). Take the two numbers they DO have and do the math:
+    paid = spent ÷ owned. Resets the watch entry, size, peak and clock to
+    the REAL position so her stop, trail and twenties count from truth."""
+    cw = _load_watch()
+    if not cw:
+        return
+    with st.expander("🔁 I RE-ENTERED — tell her what you actually paid"):
+        pair = (st.selectbox("which coin", list(cw.keys()), format_func=_asset,
+                             key="re_pair") if len(cw) > 1 else list(cw.keys())[0])
+        c1, c2 = st.columns(2)
+        with c1:
+            spent = st.number_input("$ you spent", min_value=0.0, value=None,
+                                    step=100.0, key="re_spent",
+                                    help="the contest app shows this: the amount of your trade")
+        with c2:
+            owned = st.number_input("coins you own", min_value=0.0, value=None,
+                                    step=0.0001, key="re_owned",
+                                    help="the contest app shows this: how much you own")
+        if st.button("✎ SET MY ENTRY — she counts from reality now",
+                     key="re_btn", width="stretch"):
+            if spent and owned and float(owned) > 0:
+                entry = float(spent) / float(owned)
+                w = _load_watch()
+                w[pair] = {"entry": entry, "high": entry,
+                           "size": float(spent),
+                           "added": _now_mst().isoformat()}
+                _save_watch(w)
+                st.toast(f"✅ {_asset(pair)}: you paid ${entry:.4f} per coin "
+                         f"(${float(spent):,.0f} ÷ {float(owned):,.4f}) — "
+                         f"her stop, trail and twenties count from reality now",
+                         icon="✅", duration=15)
+                try:
+                    st.rerun(scope="app")
+                except TypeError:
+                    st.rerun()
+            else:
+                st.error("Need both numbers — they're both on your position screen "
+                         "in the contest app: the $ of the trade and the coins you own.")
+
+
 def render_auto_watch(cfg: TradingConfig, kraken):
     """THE LIGHT — global (mounted on every page). A check fires whenever
     it's due: on any page navigation OR on the interval timer while you sit
@@ -2723,6 +2767,7 @@ def render_auto_watch(cfg: TradingConfig, kraken):
                                  help="Clear it — you're out. Next green light re-adds fresh."):
                         _cw_sold.pop(_sp)
                         _save_watch(_cw_sold)
+                        # the re-entered expander follows right below
                         st.session_state.get("take_level", {}).pop(_sp, None)
                         try:
                             st.toast(f"✔ {_asset(_sp)} cleared — next green light re-adds it",
@@ -2732,6 +2777,10 @@ def render_auto_watch(cfg: TradingConfig, kraken):
                         st.rerun()
 
         # ── contest watch list: live positions only, no history ────────
+        # the re-entered control: right after the SOLD buttons — the loop
+        # is sold → re-entered → sold, and it lives on every page
+        _render_reenter_control()
+
         contest_watch = _load_watch()
         n_contest = len(contest_watch)
         with st.expander(f"◆ My contest positions ({n_contest}) — add / remove", expanded=False):
