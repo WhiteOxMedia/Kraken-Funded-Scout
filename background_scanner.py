@@ -1023,6 +1023,12 @@ def main():
 
         if is_buy and not gate_notes:
             try:
+                # TIDE OUT = no entries anywhere — the bridge included. All
+                # ships sink together; the bot doesn't buy a sinking fleet.
+                _tp0, _ts0 = _fleet_tide()
+                if _ts0 == "OUT":
+                    logger.info("  TIDE OUT (fleet %.0f%%) — no bridge write; all ships sink together", _tp0)
+                    return
                 _deep, _df = _do_deep_read()
                 if _deep is not None:
                     if _deep.action != "buy" or _deep.confidence < 60:  # QC_SCALP_FLOOR
