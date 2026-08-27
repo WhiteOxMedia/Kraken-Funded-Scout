@@ -1,6 +1,8 @@
-param([string]$Text = "", [int]$Rate = 2)
+param([string]$Text = "", [int]$Rate = 2, [string]$OutFile = "")
 # Zira speaks LOUD: render TTS to WAV, amplify to near-full scale (max 3x),
 # then play. Volume 100 alone leaves her quiet — this actually boosts her.
+# With -OutFile, the amplified WAV is ALSO saved there (for the phone push)
+# instead of being deleted.
 $ErrorActionPreference = "SilentlyContinue"
 if (-not $Text) { exit }
 
@@ -57,5 +59,8 @@ if (Test-Path $wav) {
 
     $player = New-Object System.Media.SoundPlayer($wav)
     $player.PlaySync()
+    if ($OutFile) {
+        try { Copy-Item $wav $OutFile -Force } catch {}
+    }
     Remove-Item $wav
 }

@@ -509,21 +509,26 @@ def _save_take_payout(pair: str, amount: int):
 def _speak_server(text: str, rate: int = 2):
     """Zira out loud from the SCANNER process — runs whether or not any
     browser is open. Same amplified speak script the console uses.
-    Every line ALSO goes to the phone as a push notification (ntfy) so
-    she reaches you away from the house — one voice, three deliveries:
-    PC speakers, browser captions, phone push."""
+    Every line ALSO goes to the phone as a push notification (ntfy) with
+    HER ACTUAL AMPLIFIED VOICE ATTACHED — tap play on the phone, it's
+    Zira, not the phone's substitute voice. One voice, three deliveries:
+    PC speakers, browser captions, phone audio push."""
     import subprocess
+    _base = os.path.dirname(os.path.abspath(__file__))
+    _wav_path = os.path.join(_base, "speech_queue", "last_voice.wav")
     try:
-        script = os.path.join(os.path.dirname(os.path.abspath(__file__)), "speak_loud.ps1")
+        os.makedirs(os.path.dirname(_wav_path), exist_ok=True)
+        script = os.path.join(_base, "speak_loud.ps1")
         if not os.path.exists(script):
             return
         subprocess.Popen(["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass",
-                          "-File", script, "-Text", VOICE_PREFIX + text, "-Rate", str(rate)],
+                          "-File", script, "-Text", VOICE_PREFIX + text, "-Rate", str(rate),
+                          "-OutFile", _wav_path],
                          creationflags=0x08000000)
     except Exception as exc:
         logger.debug("speak failed: %s", exc)
-    # phone push: fire-and-forget, never blocks, fails silently
-    _push_to_phone(text)
+    # phone push: her text + (once the WAV renders) her actual voice
+    _push_to_phone(text, wav_path=_wav_path)
 
 
 def _push_topic() -> str | None:
@@ -535,21 +540,40 @@ def _push_topic() -> str | None:
         return None
 
 
-def _push_to_phone(text: str):
-    """Every spoken line lands on the phone as a notification — away-mode
-    delivery for the one voice (user rule, Aug 27: 'I want to still hear
-    when I'm away'). ntfy.sh: free, no account, the user subscribes once
-    in the ntfy app to the topic in push_topic.txt."""
+def _push_to_phone(text: str, wav_path: str | None = None):
+    """Every spoken line lands on the phone as a notification — with her
+    amplified WAV attached when it renders in time (user rule, Aug 27:
+    'will I hear the voice on the phone or is it just text only?' — it's
+    her voice). ntfy.sh: free, no account; the phone subscribes once."""
     topic = _push_topic()
     if not topic:
         return
     try:
         import urllib.request, urllib.parse
-        req = urllib.request.Request(
-            f"https://ntfy.sh/{urllib.parse.quote(topic)}",
-            data=text.encode("utf-8"),
-            headers={"Title": "Kraken Scout", "Priority": "default"})
-        urllib.request.urlopen(req, timeout=3)
+        # wait briefly for the WAV to render (the TTS takes ~1-3s)
+        wav = None
+        if wav_path:
+            import time as _t
+            for _ in range(20):  # up to ~4s
+                if os.path.exists(wav_path) and os.path.getsize(wav_path) > 4000:
+                    wav = wav_path
+                    break
+                _t.sleep(0.2)
+        if wav:
+            with open(wav, "rb") as fh:
+                data = fh.read()
+            req = urllib.request.Request(
+                f"https://ntfy.sh/{urllib.parse.quote(topic)}",
+                data=data, method="PUT",
+                headers={"Title": "Kraken Scout", "Filename": "zira.wav",
+                         "Content-Type": "audio/wav", "Priority": "default"})
+            urllib.request.urlopen(req, timeout=15)
+        else:
+            req = urllib.request.Request(
+                f"https://ntfy.sh/{urllib.parse.quote(topic)}",
+                data=text.encode("utf-8"),
+                headers={"Title": "Kraken Scout", "Priority": "default"})
+            urllib.request.urlopen(req, timeout=3)
     except Exception:
         pass  # push is best-effort — the PC voice already spoke
 
