@@ -508,7 +508,10 @@ def _save_take_payout(pair: str, amount: int):
 
 def _speak_server(text: str, rate: int = 2):
     """Zira out loud from the SCANNER process — runs whether or not any
-    browser is open. Same amplified speak script the console uses."""
+    browser is open. Same amplified speak script the console uses.
+    Every line ALSO goes to the phone as a push notification (ntfy) so
+    she reaches you away from the house — one voice, three deliveries:
+    PC speakers, browser captions, phone push."""
     import subprocess
     try:
         script = os.path.join(os.path.dirname(os.path.abspath(__file__)), "speak_loud.ps1")
@@ -519,6 +522,36 @@ def _speak_server(text: str, rate: int = 2):
                          creationflags=0x08000000)
     except Exception as exc:
         logger.debug("speak failed: %s", exc)
+    # phone push: fire-and-forget, never blocks, fails silently
+    _push_to_phone(text)
+
+
+def _push_topic() -> str | None:
+    """Private ntfy topic (from push_topic.txt next to this file)."""
+    try:
+        p = os.path.join(os.path.dirname(os.path.abspath(__file__)), "push_topic.txt")
+        return open(p, "r", encoding="utf-8").read().strip() or None
+    except Exception:
+        return None
+
+
+def _push_to_phone(text: str):
+    """Every spoken line lands on the phone as a notification — away-mode
+    delivery for the one voice (user rule, Aug 27: 'I want to still hear
+    when I'm away'). ntfy.sh: free, no account, the user subscribes once
+    in the ntfy app to the topic in push_topic.txt."""
+    topic = _push_topic()
+    if not topic:
+        return
+    try:
+        import urllib.request, urllib.parse
+        req = urllib.request.Request(
+            f"https://ntfy.sh/{urllib.parse.quote(topic)}",
+            data=text.encode("utf-8"),
+            headers={"Title": "Kraken Scout", "Priority": "default"})
+        urllib.request.urlopen(req, timeout=3)
+    except Exception:
+        pass  # push is best-effort — the PC voice already spoke
 
 
 def _load_contest_watch() -> dict:
