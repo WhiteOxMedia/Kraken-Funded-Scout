@@ -187,6 +187,8 @@ try:
     check("contract: ONE voice engine — console queues, scanner speaks",
           "SPEECH_QUEUE_DIR" in app_src and "SPEECH_QUEUE_DIR" in bs_src
           and "_drain_speech_queue" in bs_src)
+    check("contract: alerts speak the DEEP confidence (the brain's number, not the quick read's)",
+          "_dc = float(_deep.confidence)" in bs_src)
     check("contract: I RE-ENTERED control (spent ÷ owned = the real entry)",
           "re_spent" in app_src and "re_owned" in app_src
           and "_render_reenter_control" in app_src)

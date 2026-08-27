@@ -1074,7 +1074,11 @@ def main():
                 from signal_bridge import write_buy_signal
                 signal_written = write_buy_signal(
                     pair=pair, action=signal.action,
-                    confidence=signal.confidence,
+                    # the BRAIN'S number (deep-read confidence when we have
+                    # it): the bot's entry-conviction scoring and the QC
+                    # should never disagree about what this signal was worth
+                    confidence=(float(_deep.confidence) if _deep is not None
+                                else float(signal.confidence)),
                     entry_price=signal.entry_price,
                     stop_loss=signal.stop_loss,
                     take_profit=signal.take_profit,
@@ -1230,9 +1234,17 @@ def main():
         elif _carry is not None:
             contest_msg = f"  SPEND: 100% = ${_bal:,.0f} — big book, carries all-in\n"
         if is_buy:
-            title = f"🟢 BUY {asset} — {signal.confidence:.0f}% SURE"
+            # THE BRAIN'S NUMBER (user rule, Aug 27: "still saying 100%
+            # confident without using the brain"): the gate has used the
+            # deep read since Aug 25 — but the NUMBER kept quoting the
+            # shallow tournament read (quick 100% while the deep brain
+            # said 66). The alert now speaks and shows the DEEP
+            # confidence — the same number the user's own Quick Check
+            # would print seconds later. No more lying brags.
+            _dc = float(_deep.confidence) if _deep is not None else float(signal.confidence)
+            title = f"🟢 BUY {asset} — {_dc:.0f}% SURE"
             _small_coin = _carry is not None and _spend < (float(_bal) if _bal > 0 else 5000.0)
-            _spoken = (f"Buy {asset}! {signal.confidence:.0f} percent sure! "
+            _spoken = (f"Buy {asset}! {_dc:.0f} percent sure! "
                        f"The twenty comes in {hold_txt}! "
                        + (f"Small size only — {_spend:,.0f} dollars! " if _small_coin else "")
                        + _tide_spoken
@@ -1240,7 +1252,7 @@ def main():
                           "Hold until you're up twenty dollars!"))
             message = (
                 f"BUY {asset}\n"
-                f"WHY: the $20 comes in {hold_txt} at this coin's speed, and the setup is real ({signal.confidence:.0f}% sure)\n"
+                f"WHY: the $20 comes in {hold_txt} at this coin's speed, and the deep scan reads the setup at {_dc:.0f}%\n"
                 f"WHEN: right now — this is fresh\n"
                 f"HOW LONG: {_how_long}\n"
                 f"{_tide_line}"
