@@ -743,7 +743,22 @@ def contest_light(exchange, cfg):
         if should_exit:
             exited_pairs.append(pair)
             if voice:
-                _speak_server(f"Get out now! Sell {asset}! Get out now! "
+                # voice-first (user rule, Aug 27: the voice IS the contest —
+                # the user is on the phone, not at the screen): every call
+                # carries its WHY, spoken
+                _why = ""
+                _r = reason.lower()
+                if "profit guard" in _r:
+                    _why = "It gave back too much from the top!"
+                elif "stopped out" in _r:
+                    _why = "Down a hundred dollars — the trade failed!"
+                elif "trend broke" in _r:
+                    _why = "The trend turned against you!"
+                elif "climax" in _r:
+                    _why = "The move is done!"
+                elif "exhaustion" in _r or "steam" in _r:
+                    _why = "It's out of steam!"
+                _speak_server(f"Get out now! Sell {asset}! {_why}"
                               f"Give it about an hour to base — I'll call the next one!", rate=1)
             logger.info("🚨 CONTEST LIGHT: SELL %s — %s", pair, reason)
             continue
