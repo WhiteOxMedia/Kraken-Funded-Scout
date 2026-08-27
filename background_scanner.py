@@ -1299,11 +1299,50 @@ def main():
         except Exception:
             return []
 
+    # ── ONE VOICE ENGINE (user rule, Aug 27): the console drops every
+    # utterance into a speech-queue directory; the scanner — the one
+    # process that runs with the browser closed — speaks them. This is
+    # the ONLY mouth. Console-origin lines get the same mic-check prefix
+    # and the same amplified voice as scanner-origin lines.
+    SPEECH_QUEUE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "speech_queue")
+    _last_speech_drain = 0.0
+    SPEECH_STALE_S = 600  # older than 10 min = old news, never say it
+
+    def _drain_speech_queue():
+        """Speak and clear queued console lines (oldest first)."""
+        nonlocal _last_speech_drain
+        import glob as _glob, json as _json, os as _os
+        _now = time.time()
+        if _now - _last_speech_drain < 2.0:
+            return
+        _last_speech_drain = _now
+        try:
+            files = sorted(_glob.glob(os.path.join(SPEECH_QUEUE_DIR, "*.json")))
+            for fp in files:
+                try:
+                    doc = _json.loads(open(fp, "r", encoding="utf-8").read())
+                    _os.remove(fp)
+                    if _now - float(doc.get("ts") or 0) > SPEECH_STALE_S:
+                        continue  # stale — drop silently
+                    text = str(doc.get("text") or "").strip()
+                    if text and _voice_enabled():
+                        _speak_server(VOICE_PREFIX + text, rate=int(doc.get("rate") or 2))
+                except Exception:
+                    try:
+                        _os.remove(fp)
+                    except Exception:
+                        pass
+        except Exception as exc:
+            logger.debug("speech queue drain failed: %s", exc)
+
     while True:
         now = _now_mst()
         hour = now.hour
         dow = now.weekday()  # 0=Mon, 6=Sun
         block_name, full_interval, min_conf, auto_trade_threshold, block_desc, no_buy, rot_key = get_time_block(hour, dow)
+
+        # the ONE mouth: console lines get spoken here, always
+        _drain_speech_queue()
 
         # ── Cooldown flatten: once per day at 20:00 (cooldown start) ────
         # The trading day ends at 20:00 — sell losers/flat (keep winners >5%

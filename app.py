@@ -648,20 +648,27 @@ def _play_sound(kind: str = "ding"):
 
 VOICE_PREFIX = "Mic check one, two. Testing, testing. "
 
+# ONE VOICE ENGINE (user rule, Aug 27: "I never asked for them to be
+# separate"): the console does NOT speak directly — a browser page is dead
+# when the tab is closed, so a console-spoken message vanishes the moment
+# you walk away. Instead the console DROPS every utterance into a speech
+# queue that the SCANNER (always on, browser or not) speaks out loud.
+# One voice, one vocabulary, one engine.
+SPEECH_QUEUE_DIR = Path(__file__).parent / "speech_queue"
+
 
 def _speak(text: str, rate: int = 2):
-    """Zira (Windows' built-in female voice) reads the popup OUT LOUD —
-    rendered to WAV and amplified up to 3x before playing (volume 100
-    alone leaves her quiet). Every message opens with the soundboard mic
-    check. Fire-and-forget, never blocks."""
+    """Queue Zira's line for the SCANNER to speak — the one engine that
+    works with the browser closed. Fire-and-forget, never blocks, never
+    depends on this tab being alive."""
     try:
-        script = Path(__file__).parent / "speak_loud.ps1"
-        if not script.exists():
-            return
-        subprocess.Popen(
-            ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass",
-             "-File", str(script), "-Text", VOICE_PREFIX + text, "-Rate", str(int(rate))],
-            creationflags=0x08000000)  # hidden window
+        SPEECH_QUEUE_DIR.mkdir(exist_ok=True)
+        import json as _json, uuid as _uuid
+        name = f"{time.time():.6f}_{_uuid.uuid4().hex[:6]}.json"
+        tmp = SPEECH_QUEUE_DIR / (name + ".tmp")
+        tmp.write_text(_json.dumps({"text": text, "rate": int(rate),
+                                    "ts": time.time()}), encoding="utf-8")
+        os.replace(tmp, SPEECH_QUEUE_DIR / name)
     except Exception:
         pass
 
@@ -1305,9 +1312,37 @@ def _pick_card(cfg: TradingConfig, kraken):
         if st.session_state.get("_headline_asset") != h["asset"]:
             st.session_state["_headline_asset"] = h["asset"]
             if h["age_min"] <= 10:
+                # VOICE-FIRST, ONE STANDARD (user rule, Aug 27: "why are
+                # they not all the same?"): the card's browser voice speaks
+                # the SAME complete call as the server alert voice — coin,
+                # $20 time, SIZE if the book is thin, tide, out-by.
                 try:
+                    import background_scanner as _bsv
+                    if not hasattr(_bsv, "_fleet_tide"):
+                        import importlib
+                        _bsv = importlib.reload(_bsv)
+                    _tpv, _tsv = _bsv._fleet_tide()
+                    _tide_say = "The tide is rising! " if _tsv == "RISING" else ""
+                    _size_say = ""
+                    try:
+                        from execution_tiers import liquidity_snapshot as _lsv
+                        _balv = float(cfg.challenge_balance)
+                        _snv = _lsv(kraken.exchange, h["pair"], _balv)
+                        if _snv.get("ok"):
+                            _dep = float(_snv["book"]["ask_tob"])
+                            _carry = _dep * 0.20
+                            if _balv > _carry:
+                                _fitv = [c * _balv for c in (0.25, 0.50, 0.75, 1.00)
+                                         if c * _balv <= _carry]
+                                _spendv = max(_fitv) if _fitv else 0.0
+                                if _spendv > 0:
+                                    _size_say = f"Small size only — {_spendv:,.0f} dollars! "
+                    except Exception:
+                        pass
+                    _out_say = _out_by_txt(_now_mst(), h["pace"])
                     _speak(f"New pick! {h['asset']}! Twenty dollars in about "
-                           f"{h['pace'] * 60:.0f} minutes!")
+                           f"{h['pace'] * 60:.0f} minutes! {_size_say}{_tide_say}"
+                           f"If it hasn't paid by {_out_say}, get out!")
                 except Exception:
                     pass
         age_txt = f"{h['age_min']:.0f} minutes ago" if h["age_min"] >= 1 else "just now"

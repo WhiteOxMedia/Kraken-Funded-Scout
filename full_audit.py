@@ -184,6 +184,9 @@ try:
     check("contract: the tide (fleet breadth; OUT blocks entries everywhere)",
           "_fleet_tide" in bs_src and "_fleet_tide" in app_src
           and "TIDE" in app_src and "all ships sink together" in bs_src)
+    check("contract: ONE voice engine — console queues, scanner speaks",
+          "SPEECH_QUEUE_DIR" in app_src and "SPEECH_QUEUE_DIR" in bs_src
+          and "_drain_speech_queue" in bs_src)
     check("contract: I RE-ENTERED control (spent ÷ owned = the real entry)",
           "re_spent" in app_src and "re_owned" in app_src
           and "_render_reenter_control" in app_src)
