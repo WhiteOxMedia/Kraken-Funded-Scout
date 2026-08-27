@@ -1174,10 +1174,53 @@ def main():
         except Exception:
             _out_by = None
         _how_long = f"until you're up $20 — or she says out. If it hasn't paid by {_out_by}, get out."
+        # ── TIDE (fleet context — every alert states it) ────────────────
+        _tide_line = ""
+        _tide_spoken = ""
+        try:
+            _tp3, _ts3 = _fleet_tide()
+            if _ts3 == "RISING":
+                _tide_line = f"TIDE: RISING ({_tp3:.0f}% of the fleet up) — the market carries greens\n"
+                _tide_spoken = "The tide is rising! "
+            elif _ts3 == "FLAT":
+                _tide_line = f"TIDE: FLAT ({_tp3:.0f}% of the fleet up) — pickier, smaller\n"
+        except Exception:
+            pass
+        # ── BOOK CARRY (small coin / big coin — user rule, Aug 26) ──────
+        # Can this book carry the CONTEST money? Reuses the liquidity
+        # snapshot fetched earlier (the book depth is what matters).
+        # Sizes the SPEND down to the biggest contest chunk the book
+        # carries; if even 25% doesn't fit, the user can't trade it —
+        # no alert at all.
+        _spend = float(_bal) if _bal > 0 else 5000.0
+        _carry = None
+        try:
+            _depth = float(snap.get("book", {}).get("ask_tob") or 0.0)
+            if _depth > 0:
+                _carry = _depth * 0.20
+                if _spend > _carry:
+                    _fit = [c * _spend for c in (0.25, 0.50, 0.75, 1.00)
+                            if c * _spend <= _carry]
+                    _spend = max(_fit) if _fit else 0.0
+        except Exception:
+            _carry = None
+        if _carry is not None and _spend <= 0:
+            logger.info("  TOO THIN for contest size (book carries ~$%.0f) — desktop suppressed",
+                        _carry)
+            return
+        if _carry is not None and _spend < (float(_bal) if _bal > 0 else 5000.0):
+            contest_msg = (f"  SPEND: {_spend / (float(_bal) if _bal > 0 else 5000.0):.0%} = "
+                           f"${_spend:,.0f} — SMALL COIN: this book carries ${_spend:,.0f}, "
+                           f"not ${_bal:,.0f}\n")
+        elif _carry is not None:
+            contest_msg = f"  SPEND: 100% = ${_bal:,.0f} — big book, carries all-in\n"
         if is_buy:
             title = f"🟢 BUY {asset} — {signal.confidence:.0f}% SURE"
+            _small_coin = _carry is not None and _spend < (float(_bal) if _bal > 0 else 5000.0)
             _spoken = (f"Buy {asset}! {signal.confidence:.0f} percent sure! "
                        f"The twenty comes in {hold_txt}! "
+                       + (f"Small size only — {_spend:,.0f} dollars! " if _small_coin else "")
+                       + _tide_spoken
                        + (f"If it hasn't paid by {_out_by}, get out!" if _out_by else
                           "Hold until you're up twenty dollars!"))
             message = (
@@ -1185,7 +1228,8 @@ def main():
                 f"WHY: the $20 comes in {hold_txt} at this coin's speed, and the setup is real ({signal.confidence:.0f}% sure)\n"
                 f"WHEN: right now — this is fresh\n"
                 f"HOW LONG: {_how_long}\n"
-                f"SPEND: 100% = ${_bal:,.0f}\n"
+                f"{_tide_line}"
+                f"{contest_msg}"
                 f"{'-' * 30}\n"
                 f"get out at ${signal.stop_loss:.4f} (wrong)\n"
                 f"cash out at ${signal.take_profit:.4f} (win)\n"
