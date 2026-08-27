@@ -38,9 +38,11 @@ check("queue clean after test", len(glob.glob(str(qdir / "*.json"))) == 0)
 bs_src = (BASE / "background_scanner.py").read_text(encoding="utf-8")
 check("scanner drains the queue in its main loop",
       "_drain_speech_queue()" in bs_src and "SPEECH_QUEUE_DIR" in bs_src)
-check("console no longer speaks directly (no Popen in _speak)",
-      "subprocess.Popen" not in bs_src.split("def _drain_speech_queue")[0].split("def _speak")[-1]
-      if "def _speak" in bs_src else True)
+# 4. the CONSOLE's _speak no longer speaks directly (no Popen in it)
+app_src = (BASE / "app.py").read_text(encoding="utf-8")
+_speak_body = app_src.split("def _speak(")[1].split("\ndef ")[0]
+check("console _speak has no direct speech (Popen gone — queue only)",
+      "Popen" not in _speak_body and "SPEECH_QUEUE_DIR" in _speak_body)
 
 fails = [r for r in results if not r[1]]
 out = BASE / "onevoice_check.txt"
