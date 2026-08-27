@@ -392,8 +392,25 @@ def champion_vs_champion(momentum_champion, bounce_champion) -> tuple[Any, str]:
 #    popups are separate; this is the voice that never sleeps.
 CONTEST_WATCH_JSON = os.path.join(os.path.dirname(os.path.abspath(__file__)), "contest_watch.json")
 CONSOLE_STATE_JSON = os.path.join(os.path.dirname(os.path.abspath(__file__)), "console_state.json")
-CONTEST_TRAIL_PCT = 3.0   # trail off the peak (user: red needs to be MORE
-                          # sensitive — was 4.0; Aug 25)
+CONTEST_TRAIL_PCT = 3.0   # BASE trail off the peak — ratchets tighter on big
+                          # runs (see _ratchet_trail_pct): 2% after +$100,
+                          # 1.5% after +$200 (user rule, Aug 26: TAO ran nine
+                          # twenties and gave back $150 before a flat 3% trail
+                          # called the exit — big runs earn tight protection)
+
+
+def _ratchet_trail_pct(entry: float, high: float, size: float) -> float:
+    """Trail width ratchets down as the run grows: 3% base, 2% once the run
+    reached +$100, 1.5% after +$200. The more twenties she called, the less
+    room the giveback gets."""
+    if not entry or not high or high <= entry:
+        return CONTEST_TRAIL_PCT
+    peak_usd = (high / entry - 1.0) * size
+    if peak_usd >= 200.0:
+        return 1.5
+    if peak_usd >= 100.0:
+        return 2.0
+    return CONTEST_TRAIL_PCT
 CONTEST_SELL_BAR = 50
 TAKE_IT_USD = 20  # the user's scalp target: out at +$20, take it every chance
 SCALP_TARGET_PCT = 0.4  # +$20 on $5,000 — the take the user actually plays for
@@ -612,12 +629,17 @@ def contest_light(exchange, cfg):
             w["high"] = high
             dirty = True
 
-        # ── 1. profit guard: trail off the peak ──────────────────────────
+        # ── 1. profit guard: trail off the peak, RATCHETED by run size ──
+        # (user rule, Aug 26: nine twenties gave back $150 before a flat
+        # trail called the exit — the ratchet tightens as the run grows)
         should_exit = False
         reason = ""
-        if high > entry and live <= high * (1 - CONTEST_TRAIL_PCT / 100):
+        _trail = _ratchet_trail_pct(entry, high, size)
+        if high > entry and live <= high * (1 - _trail / 100):
+            _peak_usd = (high / entry - 1.0) * size
             should_exit = True
-            reason = f"PROFIT GUARD FIRED — dropped {(high - live) / high * 100:.1f}% from the peak"
+            reason = (f"PROFIT GUARD FIRED — dropped {(high - live) / high * 100:.1f}% from the peak "
+                      f"(trail ratcheted to {_trail:.1f}% — the run reached +${_peak_usd:.0f})")
 
         # ── 1b. hard stop: five twenties underwater = the trade failed ──
         # (user: red needs to be MORE sensitive — a -$100 hole on a $20

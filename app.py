@@ -2330,6 +2330,13 @@ def _run_exit_logic(kraken, pair: str, cfg: TradingConfig, sb,
         high = max(float(watch_entry.get("high") or 0.0), live)
         watch_entry["high"] = high
         ref = entry or high
+        # the ratchet (user rule, Aug 26): trail tightens on big runs
+        try:
+            from background_scanner import _ratchet_trail_pct as _rtp
+        except ImportError:
+            _rtp = None
+        if _rtp and ref and contest:
+            trail_pct = _rtp(float(ref), high, float(watch_entry.get("size") or 2500.0))
         trail_hit = bool(ref and high > ref and live <= high * (1 - trail_pct / 100))
     else:
         high, trail_hit = _cloned_trailing(pair, live, entry, sb, trail_pct=trail_pct)
@@ -2809,7 +2816,14 @@ def render_exit_check(cfg: TradingConfig, kraken):
     # 1. trailing stop — CLONED tool: session-local tracking, read-only bridge
     #    peek. Manual checks never write to the bridge. CONTEST profile:
     #    quick 4% guard (the bot's patient 8% is for spot, not the contest).
-    high, trail_hit = _cloned_trailing(pair, live, entry, sb, trail_pct=CONTEST_TRAIL_PCT)
+    # the ratchet for the exit check too (user rule, Aug 26)
+    try:
+        from background_scanner import _ratchet_trail_pct as _rtp2
+        _ec_trail = _rtp2(float(entry or live), high, float(_load_watch().get(pair, {}).get("size") or 2500.0)) \
+            if (entry and high) else CONTEST_TRAIL_PCT
+    except Exception:
+        _ec_trail = CONTEST_TRAIL_PCT
+    high, trail_hit = _cloned_trailing(pair, live, entry, sb, trail_pct=_ec_trail)
 
     # 2. contest sell bar — lower than the bot's (75/60): get out fast
     is_momentum = any("MOMENTUM RIDER" in r for r in sig.reasons)
