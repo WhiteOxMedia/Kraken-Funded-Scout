@@ -541,14 +541,11 @@ def _push_topic() -> str | None:
 
 
 def _push_to_phone(text: str, wav_path: str | None = None):
-    """Every spoken line lands on the phone as a notification — with her
-    amplified WAV attached when it renders in time (user rule, Aug 27:
-    'will I hear the voice on the phone or is it just text only?' — it's
-    her voice). Priority escalates with the message (user rule: 'in case
-    I don't see the notification while I'm looking away'): GET OUT /
-    TAKE IT / WARNING / STOPPED lines push at URGENT — loud alarm sound,
-    full-screen banner, vibration like an incoming call. ntfy.sh: free,
-    no account; the phone subscribes once."""
+    """Every spoken line lands on the phone as a TEXT notification (user
+    rule, Aug 27: no WAV attachment — 'I'd rather read it myself'). ntfy.sh:
+    free, no account; the phone subscribes once. Priority escalates with
+    the message: GET OUT / TAKE IT / WARNING push URGENT (alarm + banner +
+    vibration), picks push HIGH."""
     topic = _push_topic()
     if not topic:
         return
@@ -562,32 +559,12 @@ def _push_to_phone(text: str, wav_path: str | None = None):
             prio = "high"    # heads-up banner
         else:
             prio = "default"
-        # wait briefly for the WAV to render (the TTS takes ~1-3s)
-        wav = None
-        if wav_path:
-            import time as _t2
-            for _ in range(20):  # up to ~4s
-                if os.path.exists(wav_path) and os.path.getsize(wav_path) > 4000:
-                    wav = wav_path
-                    break
-                _t2.sleep(0.2)
-        if wav:
-            with open(wav, "rb") as fh:
-                data = fh.read()
-            req = urllib.request.Request(
-                f"https://ntfy.sh/{urllib.parse.quote(topic)}",
-                data=data, method="PUT",
-                headers={"Title": "Kraken Scout", "Filename": "zira.wav",
-                         "Content-Type": "audio/wav", "Priority": prio,
-                         "Tags": "rotating_light" if prio == "urgent" else "speaker"})
-            urllib.request.urlopen(req, timeout=15)
-        else:
-            req = urllib.request.Request(
-                f"https://ntfy.sh/{urllib.parse.quote(topic)}",
-                data=text.encode("utf-8"),
-                headers={"Title": "Kraken Scout", "Priority": prio,
-                         "Tags": "rotating_light" if prio == "urgent" else "speaker"})
-            urllib.request.urlopen(req, timeout=3)
+        req = urllib.request.Request(
+            f"https://ntfy.sh/{urllib.parse.quote(topic)}",
+            data=text.encode("utf-8"),
+            headers={"Title": "Kraken Scout", "Priority": prio,
+                     "Tags": "rotating_light" if prio == "urgent" else "speaker"})
+        urllib.request.urlopen(req, timeout=3)
     except Exception:
         pass  # push is best-effort — the PC voice already spoke
 
