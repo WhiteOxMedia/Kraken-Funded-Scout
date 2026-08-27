@@ -178,6 +178,9 @@ try:
           and "STAY CLOSE" in app_src and "walk around" in bs_src)
     check("contract: the ratchet — trail tightens on big runs (2% at +$100, 1.5% at +$200)",
           "_ratchet_trail_pct" in bs_src and "_ratchet_trail_pct" in app_src)
+    check("contract: book carry on the green light (size-aware, 20% of book)",
+          "TOO THIN" in app_src and "carry_usd" in app_src
+          and "spend_usd" in app_src and "ask_tob" in app_src)
     check("contract: exit check uses real history (episodes, no guessing)",
           "_history_read" in app_src and "came back" in app_src)
     check("contract: MASTER self-grades from records (TODAY'S FACTS)",

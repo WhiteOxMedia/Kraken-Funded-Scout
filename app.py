@@ -1935,6 +1935,29 @@ def render_quick_check(cfg: TradingConfig, kraken):
                 # trend: the stuck-case guard — no green lights on confirmed
                 # falling knives, no matter how fast the wiggle is
                 _trend = _trend_state(df, cfg, float(px))
+                # ── BOOK CARRY (user rule, Aug 26: "big money in small markets
+                # acts differently — I put too much money in small coins and it
+                # fails"). Your $5,000 eating more than 20% of the visible
+                # sell-side book means your money IS the market: you push the
+                # price up buying in and down selling out — the $20 can't come
+                # from a market you're moving. Verdicts: all-in fine / size
+                # down to the biggest contest chunk the book carries / too
+                # thin, skip. Fail-open when the book can't be read.
+                _carry = None
+                _spend_usd = float(cfg.challenge_balance)
+                try:
+                    from execution_tiers import liquidity_snapshot as _ls
+                    _snap = _ls(kraken.exchange, pair, _spend_usd)
+                    if _snap.get("ok"):
+                        _depth = float(_snap["book"]["ask_tob"])
+                        if _depth > 0:
+                            _carry = _depth * 0.20
+                except Exception:
+                    _carry = None
+                if _carry is not None and _spend_usd > _carry:
+                    _fit = [c * float(cfg.challenge_balance) for c in CONTEST_CHUNKS
+                            if c * float(cfg.challenge_balance) <= _carry]
+                    _spend_usd = max(_fit) if _fit else 0.0   # 0 = too thin
                 # re-entry guard: a pair that just paid a big TAKE IT is an
                 # exhausted move — re-entering rides the giveback
                 _payout = _recent_big_payout(pair)
@@ -1942,24 +1965,34 @@ def render_quick_check(cfg: TradingConfig, kraken):
                 st.session_state["qc_result"]["chase_pct"] = _chase
                 st.session_state["qc_result"]["payout_block"] = _payout
                 st.session_state["qc_result"]["trend"] = _trend
-                # HARD GATES: setup + pace + cooldown + no downward trend.
-                # Chase/just-paid are warnings — see the panel LEDs.
+                st.session_state["qc_result"]["carry_usd"] = _carry
+                st.session_state["qc_result"]["spend_usd"] = _spend_usd
+                # HARD GATES: setup + pace + cooldown + no downward trend +
+                # the book can carry your money (fail-open if unreadable).
                 if (sig.action == "buy" and not no_buy
                         and sig.confidence >= QC_SCALP_FLOOR
                         and _trend != "FALLING"
+                        and _spend_usd > 0
                         and not (_s_h is not None and _s_h > _resolve_cap())):
                     # AUTO-WATCH on green light: the deep scan IS the entry.
                     # The user's system: green → all in, scalp to +$20, out,
-                    # re-enter small, green again → buy more. Watch records
-                    # full size so the $-counting is exact; adjust if they
-                    # re-entered smaller.
-                    _chunk = (1.00, cfg.challenge_balance)
-                    _chunk_txt = f"buy 100% (${cfg.challenge_balance:,.0f}). "
+                    # re-enter small, green again → buy more. The BOOK CARRY
+                    # rule may size the spend down — the watch records the
+                    # RECOMMENDED size so the $-counting matches what they
+                    # actually hold.
+                    _chunk = (round(_spend_usd / max(cfg.challenge_balance, 1), 2), _spend_usd)
+                    if _spend_usd >= float(cfg.challenge_balance):
+                        _chunk = (1.00, float(cfg.challenge_balance))
+                        _chunk_txt = f"buy 100% (${_spend_usd:,.0f}). "
+                    else:
+                        _chunk_txt = (f"buy {_chunk[0]:.0%} (${_spend_usd:,.0f}) — "
+                                      f"this book carries ${_spend_usd:,.0f}, not all "
+                                      f"${cfg.challenge_balance:,.0f}. ")
                     try:
                         w = _load_watch()
                         if pair not in w:
                             w[pair] = {"entry": float(px), "high": float(px),
-                                       "size": float(cfg.challenge_balance),
+                                       "size": float(_spend_usd),
                                        "added": _now_mst().isoformat()}
                             _save_watch(w)
                             logger.info("AUTO-WATCH: %s added on green light (entry %s)", pair, px)
@@ -1977,9 +2010,14 @@ def render_quick_check(cfg: TradingConfig, kraken):
                                 st.toast(f"✅ GO — {asset}: {_chunk_txt}I count the $20s.{_warn_txt}",
                                          icon="✅", duration=20)
                                 _play_sound("ding")
+                                _sized_down = _spend_usd < float(cfg.challenge_balance)
+                                _pct_txt = f"{_chunk[0]:.0%}"
                                 if _warns:
-                                    _speak(f"Go! {asset}! Buy 100 percent! But heads up: "
+                                    _speak(f"Go! {asset}! Buy {_pct_txt}! But heads up: "
                                            + " and ".join(_warns) + "!", rate=1)
+                                elif _sized_down:
+                                    _speak(f"Go! {asset}! Buy {_pct_txt} — the book is thin! "
+                                           f"I count the twenties!", rate=1)
                                 else:
                                     _speak(f"Go! {asset}! Buy 100 percent! I count the twenties!")
                             except Exception:
@@ -2011,6 +2049,20 @@ def render_quick_check(cfg: TradingConfig, kraken):
                                      icon="⛔", duration=18)
                             _play_sound("alarm")
                             _speak(f"No! {asset} is falling! Wait for it to base!", rate=1)
+                        except Exception:
+                            pass
+                    elif (sig.action == "buy" and not no_buy
+                            and sig.confidence >= QC_SCALP_FLOOR
+                            and _spend_usd <= 0 and _carry is not None):
+                        _pct_book = 100.0 * float(cfg.challenge_balance) / (_carry / 0.20)
+                        try:
+                            st.toast(f"⛔ TOO THIN — {asset}: your ${cfg.challenge_balance:,.0f} would be "
+                                     f"{_pct_book:.0f}% of this coin's order book. Your money IS the "
+                                     f"market here — the $20 can't come from a market you're moving. "
+                                     f"Skip it.",
+                                     icon="⛔", duration=20)
+                            _play_sound("alarm")
+                            _speak(f"Too thin! {asset}! Your money is the market! Skip it!", rate=1)
                         except Exception:
                             pass
                     elif (sig.action == "buy" and not no_buy
@@ -2081,14 +2133,16 @@ def render_quick_check(cfg: TradingConfig, kraken):
     chase_pct = result.get("chase_pct", 0.0)
     payout_block = result.get("payout_block")
     trend = result.get("trend", "UP")
+    carry_usd = result.get("carry_usd")
+    spend_usd = result.get("spend_usd") or cfg.challenge_balance
     from background_scanner import _max_resolve_hours as _rc
     pace_ok = pace_h is None or pace_h <= _rc()
-    # HARD gates: setup floor + pace (+ cooldown handled in the handler).
-    # Chase/trend/payout showed no hit-rate separation (Aug 25 calibration,
-    # 261 signals) — they warn amber, they don't block.
+    # HARD gates: setup floor + pace + no downward trend + the book carries
+    # your size (+ cooldown in the handler). Chase/payout warn amber only.
     passes = (sig.action == "buy" and not no_buy
               and sig.confidence >= QC_SCALP_FLOOR and pace_ok
-              and trend != "FALLING")
+              and trend != "FALLING"
+              and (result.get("spend_usd", 1) or 0) > 0)
     momentum_capped = any("momentum ceiling" in r.lower() for r in sig.reasons)
 
     k = (
@@ -2102,12 +2156,23 @@ def render_quick_check(cfg: TradingConfig, kraken):
     _pace_txt = (f"$20 IN ~{pace_h:.1f}H" if pace_h is not None else "$20 PACE: NO DATA")
     _green_txt = ("SCALP GREEN LIGHT" if passes else
                   ("COOLDOWN — NO BUYS" if no_buy else
-                   ("NO GREEN — DOWNWARD TREND" if trend == "FALLING" else
-                    (f"NO GREEN — TOO SLOW ({pace_h:.1f}H)" if not pace_ok else
-                     f"NO GREEN — NEEDS {QC_SCALP_FLOOR}%+"))))
+                   ("NO GREEN — TOO THIN" if (result.get("spend_usd", 1) or 0) <= 0 else
+                    ("NO GREEN — DOWNWARD TREND" if trend == "FALLING" else
+                     (f"NO GREEN — TOO SLOW ({pace_h:.1f}H)" if not pace_ok else
+                      f"NO GREEN — NEEDS {QC_SCALP_FLOOR}%+")))))
+    if carry_usd is not None:
+        if spend_usd >= float(cfg.challenge_balance):
+            _carry_txt, _carry_col = "BOOK CARRIES ALL-IN", "g"
+        elif spend_usd > 0:
+            _carry_txt, _carry_col = f"⚠ THIN BOOK — SPEND ${spend_usd:,.0f} MAX", "a"
+        else:
+            _carry_txt, _carry_col = "TOO THIN — YOUR MONEY IS THE MARKET", "r"
+    else:
+        _carry_txt, _carry_col = "BOOK UNREADABLE — SPEND YOUR CALL", "a"
     status_leds = (
         led("LIQUID" if liquid else f"ILLIQUID < ${cfg.min_volume_usd_24h/1e6:.0f}M", "g" if liquid else "r") +
         led(_pace_txt, "g" if pace_ok else "r") +
+        led(_carry_txt, _carry_col) +
         led(f"{chase_pct:+.1f}% OFF BASE" if chase_pct <= QC_CHASE_PCT
             else f"⚠ CHASED +{chase_pct:.1f}% — pricier entry",
             "g" if chase_pct <= QC_CHASE_PCT else "a") +
