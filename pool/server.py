@@ -1205,6 +1205,9 @@ async def api_admin_wallet_status(request: Request):
 SCOUT_UPSTREAM = os.environ.get("SCOUT_UPSTREAM", "http://127.0.0.1:8501")
 _SCOUT_TIMEOUT = aiohttp.ClientTimeout(total=30)
 _SCOUT_MAX_WS_MSG = 200 * 1024 * 1024  # mirror Streamlit's default max message size
+_SCOUT_WS_IDLE_S = 120       # no frame either way for 2 min -> tear down (zombie guard)
+_SCOUT_WS_MAX_LIVE = 8       # concurrent scout websockets (1 human = 1-2 sessions)
+_scout_ws_live = {"n": 0}    # active relay counter
 
 # Response headers never forwarded from the Streamlit upstream
 _SCOUT_DROP_RESP_HEADERS = {
@@ -1307,10 +1310,20 @@ async def scout_proxy(rest_of_path: str, request: Request):
 
 @app.websocket("/scout/_stcore/stream")
 async def scout_ws_proxy(ws: WebSocket):
-    """Websocket tunnel for the Streamlit console (admin cookie required)."""
+    """Websocket tunnel for the Streamlit console (admin cookie required).
+
+    Zombie guard (Aug 27): the phone browser retries connect in a loop, and
+    close-frames from Cloudflare don't always propagate. Without cleanup each
+    retry leaked a live upstream session — 167 of them wedged the console.
+    Now: idle timeout on both pumps + a hard cap on concurrent relays.
+    """
     if not _scout_admin_ws(ws):
         await ws.close(code=1008)
         return
+    if _scout_ws_live["n"] >= _SCOUT_WS_MAX_LIVE:
+        await ws.close(code=1013)  # try again later
+        return
+    _scout_ws_live["n"] += 1
     await ws.accept()
 
     session = aiohttp.ClientSession()
@@ -1327,12 +1340,15 @@ async def scout_ws_proxy(ws: WebSocket):
         except Exception:
             pass
         await session.close()
+        _scout_ws_live["n"] -= 1
         return
 
     async def pump_client_to_upstream():
         try:
             while True:
-                msg = await ws.receive()
+                msg = await asyncio.wait_for(
+                    ws.receive(), timeout=_SCOUT_WS_IDLE_S
+                )
                 if msg["type"] == "websocket.disconnect":
                     return
                 if msg["type"] == "websocket.receive":
@@ -1340,6 +1356,8 @@ async def scout_ws_proxy(ws: WebSocket):
                         await upstream.send_bytes(msg["bytes"])
                     elif msg.get("text") is not None:
                         await upstream.send_str(msg["text"])
+        except asyncio.TimeoutError:
+            return  # idle zombie -> tear down
         except WebSocketDisconnect:
             return
         except Exception:
@@ -1347,7 +1365,10 @@ async def scout_ws_proxy(ws: WebSocket):
 
     async def pump_upstream_to_client():
         try:
-            async for msg in upstream:
+            while True:
+                msg = await asyncio.wait_for(
+                    upstream.receive(), timeout=_SCOUT_WS_IDLE_S
+                )
                 if msg.type == aiohttp.WSMsgType.TEXT:
                     await ws.send_text(msg.data)
                 elif msg.type == aiohttp.WSMsgType.BINARY:
@@ -1357,6 +1378,8 @@ async def scout_ws_proxy(ws: WebSocket):
                     aiohttp.WSMsgType.CLOSED,
                 ):
                     return
+        except asyncio.TimeoutError:
+            return  # idle zombie -> tear down
         except Exception:
             return
 
@@ -1380,6 +1403,7 @@ async def scout_ws_proxy(ws: WebSocket):
             await ws.close()
         except Exception:
             pass
+        _scout_ws_live["n"] -= 1
 
 
 if __name__ == "__main__":
