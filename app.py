@@ -1213,6 +1213,27 @@ def _eta_txt(eta_h: float) -> str:
     return f"about {eta_h:.1f} hours"
 
 
+def _tide_line() -> str:
+    """One lcd line: the tide, inside every card state (user rule, Aug 26)."""
+    try:
+        import background_scanner as _bs
+        if not hasattr(_bs, "_fleet_tide"):
+            import importlib
+            _bs = importlib.reload(_bs)
+        pct, state = _bs._fleet_tide()
+        if state:
+            col = {"RISING": "#4be38a", "FLAT": "#ffc36b", "OUT": "#ff6b5e"}[state]
+            hint = {"RISING": "the market carries greens — take them",
+                    "FLAT": "no tide to carry you — pickier, smaller",
+                    "OUT": "ALL SHIPS SINK TOGETHER — don't enter, don't hold"}[state]
+            return (f"TIDE <span class='dim'>.............</span> "
+                    f"<span style='color:{col};'>{state}</span> "
+                    f"<span class='dim'>({pct:.0f}% of the fleet up) — {hint}</span>")
+    except Exception:
+        pass
+    return ""
+
+
 def _pick_card(cfg: TradingConfig, kraken):
     """The one card on MASTER. States: PICK / WATCH / WAITING / COOLDOWN."""
     block, day, thr, _, no_buy = current_threshold()
@@ -1223,6 +1244,7 @@ def _pick_card(cfg: TradingConfig, kraken):
         st.markdown(plate("🌙 COOLDOWN", lcd([
             "8pm to midnight — no new picks.",
             "<span class='dim'>she still watches what you hold · new picks at midnight</span>",
+            _tide_line(),
         ], tone="amber")), unsafe_allow_html=True)
         return
 
@@ -1263,6 +1285,7 @@ def _pick_card(cfg: TradingConfig, kraken):
                 rows.append(f"HOW LONG <span class='dim'>.........</span> until you're up $20 — or she says out. "
                             f"If it hasn't paid by {_out_by_txt(added, eta)}, get out.")
             rows.append("<span class='dim'>walk around the house — she'll call you</span>")
+            rows.append(_tide_line())
             st.markdown(plate("👁 WATCHING", lcd(rows, tone="green" if usd >= 0 else "red")),
                         unsafe_allow_html=True)
         return
@@ -1299,6 +1322,7 @@ def _pick_card(cfg: TradingConfig, kraken):
             f"{_eta_txt(h['pace'])} (out by {_out_by_txt(_now_mst(), h['pace'])}).",
             f"<span class='dim'>{total} signals · {len(ranked)} real moves · this is the best one — "
             f"one click for the final yes/no</span>",
+            _tide_line(),
         ]
         st.markdown(plate("⚡ THE PICK", lcd(rows, tone="green")), unsafe_allow_html=True)
         if st.button(f"➡ CHECK {h['asset']} — the final yes/no",
@@ -1316,6 +1340,7 @@ def _pick_card(cfg: TradingConfig, kraken):
         "Nothing fresh right now — she's hunting.",
         "<span class='dim'>the next pick lands here the moment it's real · want to move yourself? "
         "check a coin in QUICK CHECK or run the TOURNAMENT</span>",
+        _tide_line(),
     ], tone="amber")), unsafe_allow_html=True)
 
 
@@ -1958,6 +1983,17 @@ def render_quick_check(cfg: TradingConfig, kraken):
                     _fit = [c * float(cfg.challenge_balance) for c in CONTEST_CHUNKS
                             if c * float(cfg.challenge_balance) <= _carry]
                     _spend_usd = max(_fit) if _fit else 0.0   # 0 = too thin
+                # ── THE TIDE (user rule, Aug 26): TIDE OUT = no entries
+                # anywhere. Correlation means every ship sinks together —
+                # one fleet-wide gate instead of per-coin trend checks.
+                try:
+                    import background_scanner as _bs4
+                    if not hasattr(_bs4, "_fleet_tide"):
+                        import importlib
+                        _bs4 = importlib.reload(_bs4)
+                    _tide_pct, _tide_state = _bs4._fleet_tide()
+                except Exception:
+                    _tide_pct, _tide_state = None, None
                 # re-entry guard: a pair that just paid a big TAKE IT is an
                 # exhausted move — re-entering rides the giveback
                 _payout = _recent_big_payout(pair)
@@ -1967,11 +2003,13 @@ def render_quick_check(cfg: TradingConfig, kraken):
                 st.session_state["qc_result"]["trend"] = _trend
                 st.session_state["qc_result"]["carry_usd"] = _carry
                 st.session_state["qc_result"]["spend_usd"] = _spend_usd
+                st.session_state["qc_result"]["tide"] = _tide_state
                 # HARD GATES: setup + pace + cooldown + no downward trend +
-                # the book can carry your money (fail-open if unreadable).
+                # the book carries your money + the tide isn't OUT.
                 if (sig.action == "buy" and not no_buy
                         and sig.confidence >= QC_SCALP_FLOOR
                         and _trend != "FALLING"
+                        and _tide_state != "OUT"
                         and _spend_usd > 0
                         and not (_s_h is not None and _s_h > _resolve_cap())):
                     # AUTO-WATCH on green light: the deep scan IS the entry.
@@ -2040,6 +2078,18 @@ def render_quick_check(cfg: TradingConfig, kraken):
                         logger.debug("auto-watch add failed: %s", exc)
                 else:
                     if (sig.action == "buy" and not no_buy
+                            and sig.confidence >= QC_SCALP_FLOOR
+                            and _tide_state == "OUT"):
+                        try:
+                            st.toast(f"🌊 TIDE'S OUT — only {_tide_pct:.0f}% of the market is rising. "
+                                     f"All ships sink together — don't enter anything right now. "
+                                     f"Wait for the tide to turn.",
+                                     icon="🌊", duration=20)
+                            _play_sound("alarm")
+                            _speak(f"The tide is out! All ships sink together! Wait!", rate=1)
+                        except Exception:
+                            pass
+                    elif (sig.action == "buy" and not no_buy
                             and sig.confidence >= QC_SCALP_FLOOR
                             and _trend == "FALLING"):
                         try:
@@ -2135,13 +2185,15 @@ def render_quick_check(cfg: TradingConfig, kraken):
     trend = result.get("trend", "UP")
     carry_usd = result.get("carry_usd")
     spend_usd = result.get("spend_usd") or cfg.challenge_balance
+    tide_state = result.get("tide")
     from background_scanner import _max_resolve_hours as _rc
     pace_ok = pace_h is None or pace_h <= _rc()
-    # HARD gates: setup floor + pace + no downward trend + the book carries
-    # your size (+ cooldown in the handler). Chase/payout warn amber only.
+    # HARD gates: setup floor + pace + no downward trend + book carries your
+    # size + tide isn't OUT (+ cooldown in the handler). Chase/payout warn.
     passes = (sig.action == "buy" and not no_buy
               and sig.confidence >= QC_SCALP_FLOOR and pace_ok
               and trend != "FALLING"
+              and tide_state != "OUT"
               and (result.get("spend_usd", 1) or 0) > 0)
     momentum_capped = any("momentum ceiling" in r.lower() for r in sig.reasons)
 
@@ -2156,10 +2208,11 @@ def render_quick_check(cfg: TradingConfig, kraken):
     _pace_txt = (f"$20 IN ~{pace_h:.1f}H" if pace_h is not None else "$20 PACE: NO DATA")
     _green_txt = ("SCALP GREEN LIGHT" if passes else
                   ("COOLDOWN — NO BUYS" if no_buy else
-                   ("NO GREEN — TOO THIN" if (result.get("spend_usd", 1) or 0) <= 0 else
-                    ("NO GREEN — DOWNWARD TREND" if trend == "FALLING" else
-                     (f"NO GREEN — TOO SLOW ({pace_h:.1f}H)" if not pace_ok else
-                      f"NO GREEN — NEEDS {QC_SCALP_FLOOR}%+")))))
+                   ("NO GREEN — TIDE'S OUT" if tide_state == "OUT" else
+                    ("NO GREEN — TOO THIN" if (result.get("spend_usd", 1) or 0) <= 0 else
+                     ("NO GREEN — DOWNWARD TREND" if trend == "FALLING" else
+                      (f"NO GREEN — TOO SLOW ({pace_h:.1f}H)" if not pace_ok else
+                       f"NO GREEN — NEEDS {QC_SCALP_FLOOR}%+"))))))
     if carry_usd is not None:
         if spend_usd >= float(cfg.challenge_balance):
             _carry_txt, _carry_col = "BOOK CARRIES ALL-IN", "g"
@@ -2169,9 +2222,11 @@ def render_quick_check(cfg: TradingConfig, kraken):
             _carry_txt, _carry_col = "TOO THIN — YOUR MONEY IS THE MARKET", "r"
     else:
         _carry_txt, _carry_col = "BOOK UNREADABLE — SPEND YOUR CALL", "a"
+    _tcol2 = {"RISING": "g", "FLAT": "a", "OUT": "r"}.get(tide_state, "a")
     status_leds = (
         led("LIQUID" if liquid else f"ILLIQUID < ${cfg.min_volume_usd_24h/1e6:.0f}M", "g" if liquid else "r") +
         led(_pace_txt, "g" if pace_ok else "r") +
+        led(f"TIDE {tide_state}" if tide_state else "TIDE: NO DATA", _tcol2) +
         led(_carry_txt, _carry_col) +
         led(f"{chase_pct:+.1f}% OFF BASE" if chase_pct <= QC_CHASE_PCT
             else f"⚠ CHASED +{chase_pct:.1f}% — pricier entry",

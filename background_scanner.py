@@ -429,6 +429,63 @@ _last_trade_done = 0.0
 TAKE_PAYOUTS_JSON = os.path.join(os.path.dirname(os.path.abspath(__file__)), "take_payouts.json")
 
 
+# ── THE TIDE (user rule, Aug 26: "rising tide raises all ships") ──────
+# Fleet breadth: what fraction of the tracked universe sits above its own
+# 1h trend line (EMA21). Correlation means everything rises together — and
+# SINKS together. The tide sets the tempo: RISING carries greens, FLAT
+# demands pickiness, OUT means don't enter anywhere — all ships sink
+# together. Computed from the engine's candle cache (no live API storm),
+# refreshed at most every 5 minutes.
+TIDE_RISING_MIN = 70.0
+TIDE_OUT_MAX = 35.0
+_tide_cache = {"ts": 0.0, "pct": None, "state": None}
+_tide_last_state = None
+
+
+def _tide_class(pct: float) -> str:
+    """RISING / FLAT / OUT by fleet breadth."""
+    if pct >= TIDE_RISING_MIN:
+        return "RISING"
+    if pct <= TIDE_OUT_MAX:
+        return "OUT"
+    return "FLAT"
+
+
+def _fleet_tide(max_age_s: int = 300):
+    """(breadth_pct, state) — % of the cached universe above its EMA21."""
+    import time as _time
+    _now = _time.time()
+    if _tide_cache["pct"] is not None and _now - _tide_cache["ts"] < max_age_s:
+        return _tide_cache["pct"], _tide_cache["state"]
+    try:
+        import sqlite3
+        import pandas as _pd
+        from indicators import ema as _ema
+        _cc = sqlite3.connect(os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                                           "ohlcv_cache.db"))
+        _rows = _cc.execute("SELECT pair, ts, close FROM ohlcv ORDER BY pair, ts").fetchall()
+        _cc.close()
+        _series = {}
+        for _p, _ts, _c in _rows:
+            _series.setdefault(_p, []).append(_c)
+        _above = _total = 0
+        for _p, _closes in _series.items():
+            if len(_closes) < 25:
+                continue
+            _trend = float(_ema(_pd.Series(_closes), 21).iloc[-1])
+            _total += 1
+            if _closes[-1] > _trend:
+                _above += 1
+        if _total < 10:
+            return None, None
+        _pct = 100.0 * _above / _total
+        _state = _tide_class(_pct)
+        _tide_cache.update(ts=_now, pct=_pct, state=_state)
+        return _pct, _state
+    except Exception:
+        return None, None
+
+
 def _save_take_payout(pair: str, amount: int):
     """Persist big TAKE IT payouts so the console's QC can block re-entries
     while the move is exhausted (atomic write, survives restarts)."""
@@ -607,6 +664,21 @@ def contest_light(exchange, cfg):
     if not watch:
         return
     voice = _voice_enabled()
+
+    # ── THE TIDE: fleet-wide warning (user rule, Aug 26) — when the tide
+    # goes OUT, every ship sinks together; that warning applies to ALL
+    # watched positions at once, once per transition.
+    global _tide_last_state
+    try:
+        _tp, _ts = _fleet_tide()
+        if _ts:
+            if _ts == "OUT" and _tide_last_state != "OUT" and voice:
+                _speak_server("Warning! The tide is going out! All ships sink together! "
+                              "Consider getting out!", rate=1)
+                logger.info("🌊 TIDE OUT: fleet breadth %.0f%% — all-ships warning issued", _tp)
+            _tide_last_state = _ts
+    except Exception:
+        pass
 
     exited_pairs = []
     voice_updates = []
@@ -1053,6 +1125,12 @@ def main():
         # (contest-only) signals get theirs here. Fail-open on errors.
         if is_buy:
             try:
+                # TIDE OUT = no entries anywhere (all ships sink together)
+                _tp2, _ts2 = _fleet_tide()
+                if _ts2 == "OUT":
+                    logger.info("  TIDE OUT (fleet %.0f%%) — desktop suppressed; all ships sink together",
+                                _tp2)
+                    return
                 if _deep is None:
                     _deep, _df = _do_deep_read()
                     if _deep is not None:
