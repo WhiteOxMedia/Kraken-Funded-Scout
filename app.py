@@ -1509,6 +1509,7 @@ def render_master_bones(cfg: TradingConfig, kraken):
                 _save_watch({})
                 try:
                     st.toast("↺ Score reset — board is clean for the next run", icon="↺", duration=8)
+                    _speak("Score reset! The board is clean for the next run!")
                     _play_sound("tick")
                 except Exception:
                     pass
@@ -1855,6 +1856,7 @@ def render_tournament(cfg: TradingConfig, scan_cfg: TradingConfig, kraken):
                 try:
                     st.toast(f"🏆 {_champ_asset} is today's best pick — confirm it below",
                              icon="🏆", duration=12)
+                    _speak(f"{_champ_asset} is today's best pick! Confirm it below!")
                     _play_sound("ding")
                 except Exception:
                     pass
@@ -1874,6 +1876,7 @@ def render_tournament(cfg: TradingConfig, scan_cfg: TradingConfig, kraken):
             st.toast(f"⛔ NO GOOD PICK this time — {_why}. "
                      f"Don't enter. Try again later or check a coin yourself in Quick Check.",
                      icon="⛔", duration=15)
+            _speak("No good pick this time. Don't enter. Try again later.")
             _play_sound("alarm")
         except Exception:
             pass
@@ -2115,6 +2118,7 @@ def render_quick_check(cfg: TradingConfig, kraken):
                         else:
                             try:
                                 st.toast(f"✅ {asset} — already watching it", icon="✅", duration=12)
+                                _speak(f"{asset} is already being watched!")
                                 _play_sound("ding")
                             except Exception:
                                 pass
@@ -2597,6 +2601,8 @@ def _light_check(kraken, cfg: TradingConfig, sb, held: dict, interval_s: int) ->
                     try:
                         st.toast(f"💰 TAKE IT — {asset} +${level * 20}",
                                  icon="💰", duration=15)
+                        # voice comes from the scanner (server-side) — adding
+                        # a console voice here would double-talk
                         _play_sound("ding")
                         # voice comes from the scanner (server-side)
                     except Exception:
@@ -2745,6 +2751,7 @@ def _render_reenter_control():
                          f"(${float(spent):,.0f} ÷ {float(owned):,.4f}) — "
                          f"her stop, trail and twenties count from reality now",
                          icon="✅", duration=15)
+                _speak(f"{_asset(pair)} entry set! She counts from reality now!")
                 try:
                     st.rerun(scope="app")
                 except TypeError:
@@ -2816,6 +2823,7 @@ def render_auto_watch(cfg: TradingConfig, kraken):
                         try:
                             st.toast(f"✔ {_asset(_sp)} cleared — next green light re-adds it",
                                      icon="✔", duration=8)
+                            _speak(f"{_asset(_sp)} sold! Cleared. Ready for the next one!")
                         except Exception:
                             pass
                         st.rerun()
