@@ -28,6 +28,7 @@ import sys
 import time
 from datetime import datetime, timezone, timedelta
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from pathlib import Path
 
 from zoneinfo import ZoneInfo
 MST = ZoneInfo("America/Denver")  # Auto DST: MDT (UTC-6) summer, MST (UTC-7) winter
@@ -928,6 +929,37 @@ def main():
     from config import TradingConfig
     from strategy import evaluate_strategy, enable_deep_analysis, disable_deep_analysis
     from scanner import compute_position_sizing
+
+    # ── PID lock: prevent duplicate scanners ──────────────────────────
+    # If a healthy scanner is already running, exit immediately. Makes
+    # duplicates impossible no matter what launched this instance.
+    # NOTE: os.kill(pid, 0) is WRONG on Windows — it raises WinError 87 for
+    # any process that isn't the caller's own child, so a scanner started
+    # from another window/parent always looked "dead" and duplicates ran.
+    # tasklist is the reliable cross-parent liveness check.
+    import sys as _sys
+    import subprocess as _sp
+
+    def _pid_alive_python(pid: int) -> bool:
+        try:
+            result = _sp.run(
+                ["tasklist", "/FI", f"PID eq {pid}", "/FO", "CSV", "/NH"],
+                capture_output=True, text=True, timeout=5,
+            )
+            return "python" in result.stdout.lower()
+        except Exception:
+            return False
+
+    lock_file = Path(__file__).parent / "scanner.lock"
+    if lock_file.exists():
+        try:
+            old_pid = int(lock_file.read_text().strip())
+            if _pid_alive_python(old_pid):
+                print(f"Scanner already running (pid {old_pid}) — exiting to prevent duplicate.")
+                _sys.exit(0)
+        except ValueError:
+            pass  # corrupt lock file — proceed
+    lock_file.write_text(str(os.getpid()))
 
     logger.info("=" * 60)
     logger.info("  Kraken Scout — Rotation Scanner (data-driven)")
