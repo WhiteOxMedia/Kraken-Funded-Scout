@@ -256,7 +256,7 @@ def quick_ticker_scan(exchange, pairs: list[str], threshold_pct: float = 2.0) ->
 # A US account cannot trade them, so they must never enter the funnel.
 # Aug 28 bug: EUR/USD leaked into the losers list → Bounce Hunter spammed
 # 9 doomed BUY signals all morning (Kraken: "EUR/USD trading restricted for US").
-_FIAT_BASES = {"EUR", "GBP", "CHF", "AUD", "CAD", "JPY", "NZD"}
+_FIAT_BASES = {"EUR", "GBP", "CHF", "AUD", "CAD", "JPY", "NZD", "USDT", "USDC"}
 
 
 def _is_fiat_pair(symbol: str) -> bool:
