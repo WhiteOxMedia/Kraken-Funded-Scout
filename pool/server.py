@@ -1205,8 +1205,10 @@ async def api_admin_wallet_status(request: Request):
 SCOUT_UPSTREAM = os.environ.get("SCOUT_UPSTREAM", "http://127.0.0.1:8501")
 _SCOUT_TIMEOUT = aiohttp.ClientTimeout(total=30)
 _SCOUT_MAX_WS_MSG = 200 * 1024 * 1024  # mirror Streamlit's default max message size
-_SCOUT_WS_IDLE_S = 120       # no frame either way for 2 min -> tear down (zombie guard)
-_SCOUT_WS_MAX_LIVE = 8       # concurrent scout websockets (1 human = 1-2 sessions)
+_SCOUT_WS_IDLE_S = 75        # client silent 2.5 heartbeats -> dead browser, tear down
+_SCOUT_WS_UPSTREAM_IDLE_S = 120  # upstream silent 2 min -> dead console, tear down
+_SCOUT_WS_MAX_LIVE = 16      # concurrent scout websockets (retrying tabs stack up;
+                             # 16 leaves room for fresh tabs to always get in)
 _scout_ws_live = {"n": 0}    # active relay counter
 
 # Response headers never forwarded from the Streamlit upstream
@@ -1367,7 +1369,7 @@ async def scout_ws_proxy(ws: WebSocket):
         try:
             while True:
                 msg = await asyncio.wait_for(
-                    upstream.receive(), timeout=_SCOUT_WS_IDLE_S
+                    upstream.receive(), timeout=_SCOUT_WS_UPSTREAM_IDLE_S
                 )
                 if msg.type == aiohttp.WSMsgType.TEXT:
                     await ws.send_text(msg.data)
