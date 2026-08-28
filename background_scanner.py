@@ -252,6 +252,18 @@ def quick_ticker_scan(exchange, pairs: list[str], threshold_pct: float = 2.0) ->
         return []
 
 
+# Fiat bases that appear as /USD pairs on Kraken (forex, not crypto).
+# A US account cannot trade them, so they must never enter the funnel.
+# Aug 28 bug: EUR/USD leaked into the losers list → Bounce Hunter spammed
+# 9 doomed BUY signals all morning (Kraken: "EUR/USD trading restricted for US").
+_FIAT_BASES = {"EUR", "GBP", "CHF", "AUD", "CAD", "JPY", "NZD"}
+
+
+def _is_fiat_pair(symbol: str) -> bool:
+    base = symbol.split("/")[0] if "/" in symbol else ""
+    return base in _FIAT_BASES
+
+
 def fetch_kraken_gainers(exchange, top_n: int = 20, min_volume_usd: float = 100_000) -> list[dict]:
     """Fetch top gainers across ALL Kraken pairs (not just the 54 challenge assets)."""
     try:
@@ -259,6 +271,8 @@ def fetch_kraken_gainers(exchange, top_n: int = 20, min_volume_usd: float = 100_
         gainers = []
         for symbol, t in tickers.items():
             if not symbol.endswith("/USD"):
+                continue
+            if _is_fiat_pair(symbol):
                 continue
             pct = t.get("percentage")
             if not pct or pct <= 0:
@@ -284,6 +298,8 @@ def fetch_kraken_losers(exchange, top_n: int = 20, min_volume_usd: float = 100_0
         losers = []
         for symbol, t in tickers.items():
             if not symbol.endswith("/USD"):
+                continue
+            if _is_fiat_pair(symbol):
                 continue
             pct = t.get("percentage")
             if not pct or pct >= 0:
