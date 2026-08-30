@@ -2760,6 +2760,48 @@ def _light_check(kraken, cfg: TradingConfig, sb, held: dict, interval_s: int) ->
     return True
 
 
+def _render_her_words():
+    """💬 HER WORDS — every line Zira said, on screen (user rule, Aug 30:
+    "put her notifications on the console so I can see them if my volume
+    is off"). Reads voice_log.jsonl written by the scanner's single mouth.
+    The LATEST line shows in the expander title — visible at a glance —
+    with the full recent history inside."""
+    try:
+        import json as _json
+        import html as _html
+        from pathlib import Path as _P
+        f = _P(__file__).parent / "voice_log.jsonl"
+        if not f.exists():
+            return
+        lines = [l for l in f.read_text(encoding="utf-8").splitlines() if l.strip()]
+        if not lines:
+            return
+        rows = []
+        latest_txt = ""
+        for l in reversed(lines[-12:]):  # newest first
+            try:
+                d = _json.loads(l)
+                ts = str(d.get("ts", ""))
+                hhmm = ts[11:16] if len(ts) >= 16 else ""
+                txt = str(d.get("text", ""))
+                if not latest_txt:
+                    latest_txt = txt
+                rows.append(
+                    f"<div style='padding:3px 0;border-bottom:1px solid rgba(255,255,255,0.08);'>"
+                    f"<span class='dim' style='font-family:monospace;'>{hhmm}</span>"
+                    f"&nbsp;&nbsp;{_html.escape(txt)}</div>"
+                )
+            except Exception:
+                continue
+        if not rows:
+            return
+        _latest = _html.escape(latest_txt[:70]) + ("…" if len(latest_txt) > 70 else "")
+        with st.expander(f"💬 HER WORDS — \"{_latest}\"  (tap to read all)", expanded=False):
+            st.markdown("".join(rows), unsafe_allow_html=True)
+    except Exception:
+        pass
+
+
 def _render_light_panel(interval: str):
     """The always-visible light panel — rendered from the last check."""
     watch_status = st.session_state.get("watch_status") or []
@@ -2908,6 +2950,7 @@ def render_auto_watch(cfg: TradingConfig, kraken):
         # check NOW if due — fires on every page change, popup follows you
         _light_check(kraken, cfg, sb, held, interval_s)
         _render_light_panel(interval)
+        _render_her_words()
 
         # ── SOLD buttons: the scalper's re-entry loop ──────────────────
         # Took the $20? Tap SOLD — the position clears and the next green

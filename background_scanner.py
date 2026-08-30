@@ -691,6 +691,34 @@ def _save_take_payout(pair: str, amount: int):
         logger.warning("take payout save failed: %s", exc)
 
 
+# ── HER WORDS LOG (user rule, Aug 30: "put her notifications on the console
+# so I can see them if my volume is off") — every line Zira speaks is
+# appended to voice_log.jsonl; the console's light panel renders the feed.
+# _speak_server is the ONE mouth: hooking here captures every spoken line,
+# scanner-side AND console-queued.
+VOICE_LOG_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "voice_log.jsonl")
+VOICE_LOG_MAX = 150  # lines kept on disk
+
+
+def _log_her_line(text: str):
+    """Append a spoken line to the console-visible her-words log."""
+    try:
+        import json as _json
+        clean = str(text).replace(VOICE_PREFIX, "").strip()[:300]
+        if not clean:
+            return
+        entry = {"ts": _now_mst().isoformat(), "text": clean}
+        lines = []
+        if os.path.exists(VOICE_LOG_FILE):
+            with open(VOICE_LOG_FILE, "r", encoding="utf-8") as f:
+                lines = [l for l in f.read().splitlines() if l.strip()]
+        lines.append(_json.dumps(entry, ensure_ascii=False))
+        with open(VOICE_LOG_FILE, "w", encoding="utf-8") as f:
+            f.write("\n".join(lines[-VOICE_LOG_MAX:]))
+    except Exception:
+        pass
+
+
 def _speak_server(text: str, rate: int = 2):
     """Zira out loud from the SCANNER process — runs whether or not any
     browser is open. Same amplified speak script the console uses.
@@ -701,6 +729,8 @@ def _speak_server(text: str, rate: int = 2):
     import subprocess
     _base = os.path.dirname(os.path.abspath(__file__))
     _wav_path = os.path.join(_base, "speech_queue", "last_voice.wav")
+    # her-words log: every spoken line is readable on the console
+    _log_her_line(text)
     try:
         os.makedirs(os.path.dirname(_wav_path), exist_ok=True)
         script = os.path.join(_base, "speak_loud.ps1")
