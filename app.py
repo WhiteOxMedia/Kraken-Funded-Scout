@@ -1307,6 +1307,18 @@ def _pick_card(cfg: TradingConfig, kraken):
     except Exception:
         ranked, total = [], 0
     if ranked:
+        # ROTATION LOCKOUT (user rule, Aug 30): an asset that already fired
+        # this rotation never takes the PICK seat — the card must never
+        # point at something the QC would reject as a re-run.
+        try:
+            import background_scanner as _bs6
+            if not hasattr(_bs6, "rotation_gate"):
+                import importlib
+                _bs6 = importlib.reload(_bs6)
+            ranked = [h for h in ranked if _bs6.rotation_gate(h["asset"])[0]]
+        except Exception:
+            pass
+    if ranked:
         h = ranked[0]
         # Zira announces when a NEW young pick takes the seat
         if st.session_state.get("_headline_asset") != h["asset"]:
@@ -2044,6 +2056,21 @@ def render_quick_check(cfg: TradingConfig, kraken):
                 # re-entry guard: a pair that just paid a big TAKE IT is an
                 # exhausted move — re-entering rides the giveback
                 _payout = _recent_big_payout(pair)
+                # ── ROTATION MEMORY (user rule, Aug 30): one green light per
+                # asset per rotation + yesterday's-hour context (blowoff
+                # demotion). Same reference frame as the user's instinct:
+                # what this coin does AT THIS ROTATION, not just trailing
+                # candles.
+                try:
+                    import background_scanner as _bs5
+                    if not hasattr(_bs5, "rotation_gate"):
+                        import importlib
+                        _bs5 = importlib.reload(_bs5)
+                    _rot_ok, _rot_reason, _rot_reentry, _rot_fine = _bs5.rotation_gate(asset)
+                    _yctx = _bs5.rotation_yesterday_context(pair)
+                except Exception:
+                    _rot_ok, _rot_reason, _rot_reentry, _rot_fine = True, "", False, 0.0
+                    _yctx = None
                 st.session_state["qc_result"]["pace_h"] = _s_h
                 st.session_state["qc_result"]["chase_pct"] = _chase
                 st.session_state["qc_result"]["payout_block"] = _payout
@@ -2051,13 +2078,21 @@ def render_quick_check(cfg: TradingConfig, kraken):
                 st.session_state["qc_result"]["carry_usd"] = _carry
                 st.session_state["qc_result"]["spend_usd"] = _spend_usd
                 st.session_state["qc_result"]["tide"] = _tide_state
+                st.session_state["qc_result"]["rotation_ok"] = _rot_ok
+                st.session_state["qc_result"]["rotation_reason"] = _rot_reason
+                st.session_state["qc_result"]["reentry"] = _rot_reentry
+                st.session_state["qc_result"]["fine"] = _rot_fine
+                st.session_state["qc_result"]["yesterday"] = _yctx
                 # HARD GATES: setup + pace + cooldown + no downward trend +
-                # the book carries your money + the tide isn't OUT.
+                # the book carries your money + the tide isn't OUT +
+                # rotation isn't locked + this hour didn't blow off yesterday.
                 if (sig.action == "buy" and not no_buy
                         and sig.confidence >= QC_SCALP_FLOOR
                         and _trend != "FALLING"
                         and _tide_state != "OUT"
                         and _spend_usd > 0
+                        and _rot_ok
+                        and not (_yctx and _yctx.get("shape") == "blowoff")
                         and not (_s_h is not None and _s_h > _resolve_cap())):
                     # AUTO-WATCH on green light: the deep scan IS the entry.
                     # The user's system: green → all in, scalp to +$20, out,
@@ -2081,6 +2116,12 @@ def render_quick_check(cfg: TradingConfig, kraken):
                                        "added": _now_mst().isoformat()}
                             _save_watch(w)
                             logger.info("AUTO-WATCH: %s added on green light (entry %s)", pair, px)
+                            # ROTATION LOCKOUT: green light fired — the asset
+                            # is cold until the next rotation boundary
+                            try:
+                                _bs5.rotation_mark_fired(asset)
+                            except Exception:
+                                pass
                             # amber warnings ride WITH the green (data shows
                             # they don't change hit rate — but you should know)
                             _warns = []
@@ -2091,20 +2132,27 @@ def render_quick_check(cfg: TradingConfig, kraken):
                             if _payout is not None:
                                 _warns.append(f"just paid ${_payout}")
                             _warn_txt = (f"  ⚠ {' · '.join(_warns)}." if _warns else "")
+                            _reentry_txt = ""
+                            if _rot_reentry:
+                                _reentry_txt = (f"RE-ENTRY — fired earlier today"
+                                                + (f", fine risk ${_rot_fine:,.0f}" if _rot_fine > 0 else "")
+                                                + ". ")
                             try:
-                                st.toast(f"✅ GO — {asset}: {_chunk_txt}I count the $20s.{_warn_txt}",
+                                st.toast(f"✅ GO — {asset}: {_reentry_txt}{_chunk_txt}I count the $20s.{_warn_txt}",
                                          icon="✅", duration=20)
                                 _play_sound("ding")
                                 _sized_down = _spend_usd < float(cfg.challenge_balance)
                                 _pct_txt = f"{_chunk[0]:.0%}"
+                                _fine_say = (f"Re-entry — fine risk {_rot_fine:,.0f} dollars! "
+                                             if _rot_reentry and _rot_fine > 0 else "")
                                 if _warns:
-                                    _speak(f"Go! {asset}! Buy {_pct_txt}! But heads up: "
+                                    _speak(f"Go! {asset}! Buy {_pct_txt}! {_fine_say}But heads up: "
                                            + " and ".join(_warns) + "!", rate=1)
                                 elif _sized_down:
                                     _speak(f"Go! {asset}! Buy {_pct_txt} — the book is thin! "
-                                           f"I count the twenties!", rate=1)
+                                           f"{_fine_say}I count the twenties!", rate=1)
                                 else:
-                                    _speak(f"Go! {asset}! Buy 100 percent! I count the twenties!")
+                                    _speak(f"Go! {asset}! Buy 100 percent! {_fine_say}I count the twenties!")
                             except Exception:
                                 pass
                             # FLOW ADVANCE: position entered → take the user to the watch
@@ -2126,6 +2174,30 @@ def render_quick_check(cfg: TradingConfig, kraken):
                         logger.debug("auto-watch add failed: %s", exc)
                 else:
                     if (sig.action == "buy" and not no_buy
+                            and sig.confidence >= QC_SCALP_FLOOR
+                            and not _rot_ok):
+                        try:
+                            st.toast(f"⛔ ALREADY RAN THIS ROTATION — {asset}: {_rot_reason}. "
+                                     f"The whipsaw re-entry is where double-dip fines eat the "
+                                     f"$20s. Next rotation re-arms it.",
+                                     icon="⛔", duration=20)
+                            _play_sound("alarm")
+                            _speak(f"Already ran! {asset} is cold until the next rotation!", rate=1)
+                        except Exception:
+                            pass
+                    elif (sig.action == "buy" and not no_buy
+                            and sig.confidence >= QC_SCALP_FLOOR
+                            and _yctx and _yctx.get("shape") == "blowoff"):
+                        try:
+                            st.toast(f"⛔ THIS HOUR DUMPED YESTERDAY — {asset}: "
+                                     f"{_yctx.get('detail', '')}. Today's signal at this hour is a "
+                                     f"re-run of a shape that already paid. Wait for a fresh base.",
+                                     icon="⛔", duration=20)
+                            _play_sound("alarm")
+                            _speak(f"No! {asset} dumped at this hour yesterday! Wait for a base!", rate=1)
+                        except Exception:
+                            pass
+                    elif (sig.action == "buy" and not no_buy
                             and sig.confidence >= QC_SCALP_FLOOR
                             and _tide_state == "OUT"):
                         try:
@@ -2237,12 +2309,21 @@ def render_quick_check(cfg: TradingConfig, kraken):
     from background_scanner import _max_resolve_hours as _rc
     pace_ok = pace_h is None or pace_h <= _rc()
     # HARD gates: setup floor + pace + no downward trend + book carries your
-    # size + tide isn't OUT (+ cooldown in the handler). Chase/payout warn.
+    # size + tide isn't OUT + rotation not locked + this hour didn't blow off
+    # yesterday (+ cooldown in the handler). Chase/payout warn.
+    rot_ok = result.get("rotation_ok", True)
+    rot_reason = result.get("rotation_reason", "")
+    is_reentry = result.get("reentry", False)
+    fine_usd = result.get("fine", 0.0)
+    yesterday = result.get("yesterday") or {}
+    yshape = yesterday.get("shape")
     passes = (sig.action == "buy" and not no_buy
               and sig.confidence >= QC_SCALP_FLOOR and pace_ok
               and trend != "FALLING"
               and tide_state != "OUT"
-              and (result.get("spend_usd", 1) or 0) > 0)
+              and (result.get("spend_usd", 1) or 0) > 0
+              and rot_ok
+              and yshape != "blowoff")
     momentum_capped = any("momentum ceiling" in r.lower() for r in sig.reasons)
 
     k = (
@@ -2256,11 +2337,13 @@ def render_quick_check(cfg: TradingConfig, kraken):
     _pace_txt = (f"$20 IN ~{pace_h:.1f}H" if pace_h is not None else "$20 PACE: NO DATA")
     _green_txt = ("SCALP GREEN LIGHT" if passes else
                   ("COOLDOWN — NO BUYS" if no_buy else
-                   ("NO GREEN — TIDE'S OUT" if tide_state == "OUT" else
-                    ("NO GREEN — TOO THIN" if (result.get("spend_usd", 1) or 0) <= 0 else
-                     ("NO GREEN — DOWNWARD TREND" if trend == "FALLING" else
-                      (f"NO GREEN — TOO SLOW ({pace_h:.1f}H)" if not pace_ok else
-                       f"NO GREEN — NEEDS {QC_SCALP_FLOOR}%+"))))))
+                   ("NO GREEN — ALREADY RAN THIS ROTATION" if not rot_ok else
+                    ("NO GREEN — THIS HOUR DUMPED YESTERDAY" if yshape == "blowoff" else
+                     ("NO GREEN — TIDE'S OUT" if tide_state == "OUT" else
+                      ("NO GREEN — TOO THIN" if (result.get("spend_usd", 1) or 0) <= 0 else
+                       ("NO GREEN — DOWNWARD TREND" if trend == "FALLING" else
+                        (f"NO GREEN — TOO SLOW ({pace_h:.1f}H)" if not pace_ok else
+                         f"NO GREEN — NEEDS {QC_SCALP_FLOOR}%+"))))))))
     if carry_usd is not None:
         if spend_usd >= float(cfg.challenge_balance):
             _carry_txt, _carry_col = "BOOK CARRIES ALL-IN", "g"
@@ -2271,11 +2354,29 @@ def render_quick_check(cfg: TradingConfig, kraken):
     else:
         _carry_txt, _carry_col = "BOOK UNREADABLE — SPEND YOUR CALL", "a"
     _tcol2 = {"RISING": "g", "FLAT": "a", "OUT": "r"}.get(tide_state, "a")
+    if yshape == "blowoff":
+        _yled, _ytxt = "r", f"⚠ YESTERDAY THIS HOUR: BLEW OFF — {yesterday.get('detail', '')}"
+    elif yshape == "trend":
+        _yled, _ytxt = "g", f"YESTERDAY THIS HOUR: {yesterday.get('detail', '')}"
+    elif yshape:
+        _yled, _ytxt = "a", f"YESTERDAY THIS HOUR: {yesterday.get('detail', '')}"
+    else:
+        _yled, _ytxt = "a", "YESTERDAY THIS HOUR: NO DATA"
+    if fine_usd > 0 and is_reentry:
+        _fine_led, _fine_txt = "a", f"⚠ RE-ENTRY — FINE RISK ${fine_usd:,.0f}"
+    elif is_reentry:
+        _fine_led, _fine_txt = "a", "RE-ENTRY (fired earlier today)"
+    else:
+        _fine_led, _fine_txt = "g", "FRESH — FIRST FIRE TODAY"
     status_leds = (
         led("LIQUID" if liquid else f"ILLIQUID < ${cfg.min_volume_usd_24h/1e6:.0f}M", "g" if liquid else "r") +
         led(_pace_txt, "g" if pace_ok else "r") +
         led(f"TIDE {tide_state}" if tide_state else "TIDE: NO DATA", _tcol2) +
         led(_carry_txt, _carry_col) +
+        led(("ROTATION LOCK — " + (rot_reason or "cold until the boundary")) if not rot_ok
+            else "ROTATION: FRESH — GO ALLOWED", "r" if not rot_ok else "g") +
+        led(_ytxt, _yled) +
+        led(_fine_txt, _fine_led) +
         led(f"{chase_pct:+.1f}% OFF BASE" if chase_pct <= QC_CHASE_PCT
             else f"⚠ CHASED +{chase_pct:.1f}% — pricier entry",
             "g" if chase_pct <= QC_CHASE_PCT else "a") +

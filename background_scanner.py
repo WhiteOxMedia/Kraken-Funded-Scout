@@ -77,6 +77,174 @@ def rotation_key_for_hour(hour: int) -> str:
     return ROTATION_KEYS[min(hour // 4, 5)]
 
 
+# ── ROTATION MEMORY (user rule, Aug 30: "look at the previous day's market
+# at the time of the rotation — help with noise and repeating signals back
+# to back. I go in heavy, trend stops, I get out as instructed, then I'm
+# told to get back in and double-dip fines eat the profits.") ────────────
+# Two rules with the same shape: the reference frame is the ROTATION, not
+# the trailing candles.
+#   1. LOCKOUT — one green light per asset per rotation. After the system
+#      says GO, the asset is cold until the next rotation boundary: no
+#      back-to-back re-entry signals in the same session (the whipsaw).
+#   2. YESTERDAY'S HOUR — if this coin's same rotation window ran and
+#      dumped on recent days (the PENGU shape), today's signal at this
+#      hour is a re-run of a shape that already paid — demoted.
+ROTATION_LOCKOUT_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                                     "rotation_lockout.json")
+_OHLCV_CACHE_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                                 "ohlcv_cache.db")
+
+# Double-dip fine awareness: set to the contest platform's re-entry fine
+# (USD) when known. While 0.0, re-entries behave as before; when set,
+# re-entry green lights call the fine out loud so the $20 math includes it.
+CONTEST_REENTRY_FINE_USD = 0.0
+
+
+def _rotation_window(now=None):
+    """(start_hour, end_hour, key) for the rotation containing `now` (Denver)."""
+    now = now or _now_mst()
+    for _start, _end, _key, *_rest in ROTATIONS:
+        if _start <= now.hour < _end:
+            return _start, _end, _key
+    return None
+
+
+def rotation_gate(asset: str):
+    """One green light per asset per rotation.
+
+    Returns (allowed, reason, is_reentry, fine_usd):
+      allowed    False if this asset already fired in THIS rotation today
+      reason     human explanation when blocked / re-entering
+      is_reentry True if the asset fired earlier TODAY in a different rotation
+      fine_usd   CONTEST_REENTRY_FINE_USD on a re-entry (0.0 otherwise)
+    """
+    now = _now_mst()
+    win = _rotation_window(now)
+    if win is None:
+        return True, "", False, 0.0  # cooldown hours have no buys anyway
+    _start, _end, rot_key = win
+    today = now.strftime("%Y-%m-%d")
+    try:
+        import json as _json
+        state = _json.loads(open(ROTATION_LOCKOUT_FILE, encoding="utf-8").read())
+    except Exception:
+        state = {}
+    rec = state.get(asset)
+    if rec and rec.get("date") == today:
+        if rec.get("rotation") == rot_key:
+            return False, (f"already ran this rotation ({rec.get('rotation')}) — "
+                           f"cold until the next rotation boundary"), False, 0.0
+        # fired earlier today in a DIFFERENT rotation → re-arm, but say it
+        return True, f"re-entry (fired {rec.get('rotation')} earlier today)", \
+            True, CONTEST_REENTRY_FINE_USD
+    return True, "", False, 0.0
+
+
+def rotation_mark_fired(asset: str):
+    """Record a GO on this asset for this rotation (QC green light or
+    desktop alert). Cold until the next rotation boundary."""
+    now = _now_mst()
+    win = _rotation_window(now)
+    if win is None:
+        return
+    _start, _end, rot_key = win
+    today = now.strftime("%Y-%m-%d")
+    try:
+        import json as _json
+        try:
+            state = _json.loads(open(ROTATION_LOCKOUT_FILE, encoding="utf-8").read())
+        except Exception:
+            state = {}
+        # prune to today only — the file stays tiny
+        state = {a: r for a, r in state.items() if r.get("date") == today}
+        state[asset] = {"date": today, "rotation": rot_key,
+                        "fired_at": now.isoformat()}
+        tmp = ROTATION_LOCKOUT_FILE + ".tmp"
+        with open(tmp, "w", encoding="utf-8") as f:
+            f.write(_json.dumps(state, indent=1))
+        os.replace(tmp, ROTATION_LOCKOUT_FILE)
+    except Exception as exc:
+        logger.debug("rotation mark failed: %s", exc)
+
+
+def rotation_yesterday_context(pair: str, lookback_days: int = 3):
+    """What did this pair do in the SAME rotation window on recent days?
+
+    Reads the ohlcv cache for the last `lookback_days` instances of the
+    current rotation's hours (e.g. R3 08:00-12:00 on the last 3 days) and
+    classifies the window shape:
+      blowoff — ran >= 2% and gave >= half of it back (majority of days):
+                the PENGU shape; today's signal at this hour is demoted
+      trend   — ran >= 2% and held (majority): this hour delivers
+      quiet   — rarely runs 2% at this hour
+    Returns None when the cache has no data (fail-open, no demotion).
+    """
+    import sqlite3
+    now = _now_mst()
+    win = _rotation_window(now)
+    if win is None:
+        return None
+    rot_start, rot_end, _rot_key = win
+
+    shapes = []
+    runs = []
+    retraces = []
+    for back in range(1, lookback_days + 1):
+        day = now - timedelta(days=back)
+        start_dt = day.replace(hour=rot_start, minute=0, second=0, microsecond=0)
+        end_dt = day.replace(hour=rot_end, minute=0, second=0, microsecond=0)
+        try:
+            conn = sqlite3.connect(_OHLCV_CACHE_PATH, timeout=4)
+            rows = conn.execute(
+                "SELECT open, high, low, close FROM ohlcv "
+                "WHERE pair=? AND ts>=? AND ts<? ORDER BY ts",
+                (pair, int(start_dt.timestamp() * 1000), int(end_dt.timestamp() * 1000)),
+            ).fetchall()
+            conn.close()
+        except Exception:
+            continue
+        if not rows:
+            continue
+        o = float(rows[0][0])
+        hi = max(float(r[1]) for r in rows)
+        cl = float(rows[-1][3])
+        if o <= 0 or hi <= 0:
+            continue
+        gain = (hi - o) / o * 100.0
+        retrace = (hi - cl) / hi * 100.0
+        runs.append(gain)
+        retraces.append(retrace)
+        if gain >= 2.0 and retrace >= max(0.6, gain * 0.5):
+            shapes.append("blowoff")
+        elif gain >= 2.0:
+            shapes.append("trend")
+        else:
+            shapes.append("quiet")
+
+    if not shapes:
+        return None
+    n = len(shapes)
+    blow = shapes.count("blowoff")
+    trend_n = shapes.count("trend")
+    if blow * 2 > n:
+        shape = "blowoff"
+    elif trend_n * 2 > n:
+        shape = "trend"
+    else:
+        shape = "quiet"
+    avg_run = sum(runs) / len(runs)
+    avg_re = sum(retraces) / len(retraces)
+    if shape == "blowoff":
+        detail = (f"{blow}/{n} recent days ran +{avg_run:.1f}% at this hour "
+                  f"and dumped — re-run risk")
+    elif shape == "trend":
+        detail = f"ran +{avg_run:.1f}% and held at this hour ({trend_n}/{n} days)"
+    else:
+        detail = f"quiet at this hour recently (+{avg_run:.1f}% avg run)"
+    return {"shape": shape, "detail": detail, "days": n,
+            "gain_pct": avg_run, "retrace_pct": avg_re}
+
+
 def _schedule_for_dow(dow: int) -> str:
     """Volatility Engine schedule: weekday (Mon-Fri) or weekend (Sat-Sun)."""
     return "weekend" if dow in (5, 6) else "weekday"
@@ -1049,6 +1217,25 @@ def main():
             logger.info("  %s %s signal suppressed — longs only (never short)", asset, signal.action.upper())
             return
 
+        # ── ROTATION MEMORY (user rule, Aug 30) ─────────────────────────
+        # 1. LOCKOUT: one green light per asset per rotation. After a GO the
+        #    asset is cold until the next rotation boundary — no whipsaw
+        #    re-entry alerts, no double-dip fines.
+        _allowed, _lock_reason, _is_reentry, _fine = rotation_gate(asset)
+        if not _allowed:
+            logger.info("  ROTATION LOCK: %s %s — no alert, no bridge write", asset, _lock_reason)
+            return
+        # 2. YESTERDAY'S HOUR: this coin's same rotation window blew off and
+        #    dumped on recent days → today's signal at this hour is a re-run
+        #    of a shape that already paid. Demote (noise guard).
+        try:
+            _yctx = rotation_yesterday_context(pair)
+        except Exception:
+            _yctx = None
+        if _yctx and _yctx.get("shape") == "blowoff":
+            logger.info("  YESTERDAY BLOWOFF: %s — %s — no alert", asset, _yctx.get("detail", ""))
+            return
+
         # Rotation context for the data-driven gates
         gate_now = _now_mst()
         gate_rot = rotation_key_for_hour(gate_now.hour)
@@ -1338,10 +1525,17 @@ def main():
             # confidence — the same number the user's own Quick Check
             # would print seconds later. No more lying brags.
             _dc = float(_deep.confidence) if _deep is not None else float(signal.confidence)
+            _reentry_line = ""
+            _reentry_say = ""
+            if _is_reentry:
+                _reentry_line = f"  RE-ENTRY: fired earlier today — fine risk ${_fine:,.0f}\n" if _fine > 0 else "  RE-ENTRY: fired earlier today\n"
+                _reentry_say = (f"Re-entry — fine risk {_fine:,.0f} dollars! " if _fine > 0
+                                 else "Re-entry! ")
             title = f"🟢 BUY {asset} — {_dc:.0f}% SURE"
             _small_coin = _carry is not None and _spend < (float(_bal) if _bal > 0 else 5000.0)
             _spoken = (f"Buy {asset}! {_dc:.0f} percent sure! "
-                       f"The twenty comes in {hold_txt}! "
+                       + _reentry_say
+                       + f"The twenty comes in {hold_txt}! "
                        + (f"Small size only — {_spend:,.0f} dollars! " if _small_coin else
                           ("Big book — all in fine! " if _carry is not None else ""))
                        + _tide_spoken
@@ -1353,6 +1547,7 @@ def main():
                 f"WHEN: right now — this is fresh\n"
                 f"HOW LONG: {_how_long}\n"
                 f"{_tide_line}"
+                f"{_reentry_line}"
                 f"{contest_msg}"
                 f"{'-' * 30}\n"
                 f"get out at ${signal.stop_loss:.4f} (wrong)\n"
@@ -1370,6 +1565,10 @@ def main():
             )
 
         notify_big(title, message, spoken=_spoken if is_buy else None)
+        if is_buy:
+            # ROTATION LOCKOUT: the alert fired — this asset is now cold
+            # until the next rotation boundary (no back-to-back re-entry).
+            rotation_mark_fired(asset)
         logger.info("🚀 BIG ALERT: %s %s — %.0f%% — entry $%.4f — TP $%.4f",
                     signal.action.upper(), asset, signal.confidence, signal.entry_price, signal.take_profit)
 
