@@ -2955,29 +2955,38 @@ def render_auto_watch(cfg: TradingConfig, kraken):
             else:
                 st.caption("Nothing being watched. A green light on a QUICK CHECK deep scan "
                            "puts the coin here automatically — or add one by hand:")
-            add0, add1, add2, add3 = st.columns([1, 2, 1, 1])
+            # Aug 30 fix: the add controls are a FORM — no reruns/dimming
+            # while picking size + asset; everything submits at once on ADD.
+            # Entry field removed (user: useless — I RE-ENTERED sets the
+            # real entry right after, and it starts at the live price).
             _chunk_opts = {"25%": 0.25, "50%": 0.50, "75%": 0.75, "100%": 1.00}
-            new_chunk = add0.selectbox("Size", list(_chunk_opts), index=1, key="watch_add_size",
-                                       help="How much you bought in the contest app — sets the $ size "
-                                            "for P&L and scalp alerts")
-            new_asset = add1.selectbox("Asset", ASSETS, key="watch_add_asset")
-            new_entry = add2.number_input("Entry $ (blank = live)", min_value=0.0,
-                                          value=None, step=0.0001, key="watch_add_entry")
-            if add3.button("◆ ADD", type="primary", width="stretch", key="watch_add_btn"):
-                npair = f"{new_asset}/USD"
-                live = live_price(npair) or float(new_entry or 0)
-                if live:
-                    contest_watch[npair] = {
-                        "entry": float(new_entry) if new_entry else live,
-                        "high": live,
-                        "size": _chunk_opts[new_chunk] * cfg.challenge_balance,
-                        "added": _now_mst().isoformat(),
-                    }
-                    _save_watch(contest_watch)
-                    st.success(f"◆ {new_asset} added to the watch (entry "
-                               f"{_fmt_price(contest_watch[npair]['entry'])}, "
-                               f"${contest_watch[npair]['size']:,.0f} size)")
-                    st.rerun()
+            with st.form("watch_add_form", clear_on_submit=False):
+                f0, f1 = st.columns([1, 2])
+                new_chunk = f0.selectbox("Size", list(_chunk_opts), index=1, key="watch_add_size",
+                                         help="How much you bought in the contest app — sets the $ size "
+                                              "for P&L and scalp alerts")
+                new_asset = f1.selectbox("Asset", ASSETS, key="watch_add_asset",
+                                         help="She tracks it from the LIVE price — if you paid "
+                                              "something else, tell her in I RE-ENTERED right after")
+                if st.form_submit_button("◆ ADD", type="primary"):
+                    npair = f"{new_asset}/USD"
+                    live = live_price(npair)
+                    if live:
+                        contest_watch[npair] = {
+                            "entry": live,
+                            "high": live,
+                            "size": _chunk_opts[new_chunk] * cfg.challenge_balance,
+                            "added": _now_mst().isoformat(),
+                        }
+                        _save_watch(contest_watch)
+                        try:
+                            st.toast(f"◆ {new_asset} added — entry {_fmt_price(live)} "
+                                     f"(live price). Paid something else? I RE-ENTERED, right below.",
+                                     icon="✅", duration=12)
+                            _speak(f"{new_asset} added to the watch!")
+                        except Exception:
+                            pass
+                        st.rerun()
 
         st.caption("Leave this tab open — the watch runs in your browser. "
                    "It just watches and alerts. It can't touch your money.")
