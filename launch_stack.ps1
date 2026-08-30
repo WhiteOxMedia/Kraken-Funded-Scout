@@ -7,6 +7,24 @@
 # Exit codes: 0 = all four components running when we finished
 
 $ErrorActionPreference = "SilentlyContinue"
+
+# ── LAUNCHER MUTEX ─────────────────────────────────────────────────────
+# Only ONE launch_stack.ps1 may run at a time. If the shortcut is fired
+# twice (double-click, or re-run while the first is still starting), the
+# second instance would race the first: both see "nothing running" and
+# both start everything = 2 of everything. The mutex makes the second
+# instance exit immediately instead.
+$launcherMutex = New-Object System.Threading.Mutex($false, "Global\KrakenLaunchStack")
+if (-not $launcherMutex.WaitOne(0)) {
+    Write-Host "============================================================"
+    Write-Host "  [SKIP] A Kraken launcher is ALREADY RUNNING."
+    Write-Host "  If nothing seems to be starting, give it a minute -"
+    Write-Host "  it checks each component before starting anything."
+    Write-Host "============================================================"
+    Start-Sleep -Seconds 5
+    exit 0
+}
+
 $base = Split-Path -Parent $MyInvocation.MyCommand.Path
 $botDir = "C:\Users\birds\Workspace\kraken_xrp_trading_bot"
 Set-Location $base
