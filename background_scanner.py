@@ -742,7 +742,8 @@ def _speak_server(text: str, rate: int = 2):
                          creationflags=0x08000000)
     except Exception as exc:
         logger.debug("speak failed: %s", exc)
-    # phone push: her text + (once the WAV renders) her actual voice
+    # phone push: BUY NOW / SELL NOW priority alerts only (user rule,
+    # Aug 30) — everything else stays on PC voice + the console panel
     _push_to_phone(text, wav_path=_wav_path)
 
 
@@ -755,30 +756,43 @@ def _push_topic() -> str | None:
         return None
 
 
+# phone-push throttle state: identical texts (GET OUT repeats every 60s
+# until SOLD) push at most every 5 minutes so one stuck exit can't burn
+# the ntfy.sh quota either.
+_push_state = {"text": "", "ts": 0.0}
+
+
 def _push_to_phone(text: str, wav_path: str | None = None):
-    """Every spoken line lands on the phone as a TEXT notification (user
-    rule, Aug 27: no WAV attachment — 'I'd rather read it myself'). ntfy.sh:
-    free, no account; the phone subscribes once. Priority escalates with
-    the message: GET OUT / TAKE IT / WARNING push URGENT (alarm + banner +
-    vibration), picks push HIGH."""
+    """BUY NOW / SELL NOW priority alerts ONLY on the phone (user rule,
+    Aug 30: 'Just have the ntfy.sh do the buy now and sell now priority
+    alerts only'). Buy calls push HIGH; GET OUT / SELL / STOPPED OUT /
+    TAKE IT push URGENT (alarm + banner + vibration). Everything else —
+    routine position updates, tide, trade-done — stays on the PC voice
+    and the console's HER WORDS panel. This also keeps us far under
+    ntfy.sh's ~60/hour rate limit (Aug 30 incident: every-minute position
+    pushes burned the quota -> 429s -> the phone went silent)."""
     topic = _push_topic()
     if not topic:
         return
     try:
         import urllib.request, urllib.parse
-        _t = text.lower()
-        if any(k in _t for k in ("get out", "take it", "warning", "stopped out",
-                                 "tide", "trade failed")):
-            prio = "urgent"   # max: alarm + banner + vibration
-        elif any(k in _t for k in ("new pick", "buy ", "go!")):
-            prio = "high"    # heads-up banner
-        else:
-            prio = "default"
+        _t = str(text).lower().strip()
+        is_sell = any(k in _t for k in ("get out", "sell ", "stopped out", "take it"))
+        is_buy = (not is_sell) and ("buy " in _t or "new pick" in _t or _t.startswith("go!"))
+        if not (is_buy or is_sell):
+            return  # not a BUY NOW / SELL NOW alert — don't push
+        # same text (a repeating GET OUT) pushes at most every 5 minutes
+        now = time.time()
+        if _t == _push_state["text"] and (now - _push_state["ts"]) < 300:
+            return
+        _push_state["text"] = _t
+        _push_state["ts"] = now
+        prio = "urgent" if is_sell else "high"
         req = urllib.request.Request(
             f"https://ntfy.sh/{urllib.parse.quote(topic)}",
-            data=text.encode("utf-8"),
+            data=str(text).encode("utf-8"),
             headers={"Title": "Kraken Scout", "Priority": prio,
-                     "Tags": "rotating_light" if prio == "urgent" else "speaker"})
+                     "Tags": "rotating_light" if prio == "urgent" else "chart_with_upwards_trend"})
         urllib.request.urlopen(req, timeout=3)
     except Exception:
         pass  # push is best-effort — the PC voice already spoke
