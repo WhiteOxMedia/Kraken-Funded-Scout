@@ -1815,8 +1815,10 @@ def main():
 
                             # NO desktop popup: Windows alerts are BUY-NOW
                             # calls only (user rule — never a sell popup).
-                            # The bot executes the exit automatically; the
-                            # scanner log keeps the full record.
+                            # NOTE (Aug 30, two-ledger rule): this exit signal
+                            # drives the CONTEST side only (voice/phone/
+                            # console). The bot's real account ignores it —
+                            # real money exits via the bot's own trend ladder.
                     except Exception as exc:
                         logger.debug("Exit check failed for %s: %s", pair, exc)
 
