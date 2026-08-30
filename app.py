@@ -2802,6 +2802,59 @@ def _render_her_words():
         pass
 
 
+def _toast_new_her_words():
+    """POP UP her IMPORTANT new lines as console toasts — the volume-off
+    popup the user asked for (Aug 30: "so not as a pop up?"). Scanner-side
+    lines (GET OUT, TAKE IT, warnings, picks) currently only speak + push
+    to the phone; this makes them visible on screen too.
+    Urgent lines get the alarm; picks get a ding. Routine position
+    updates ("plus 19 dollars, 40 minutes left") stay panel-only — they'd
+    spam the popups every minute. First run just sets the marker (no
+    replaying history)."""
+    try:
+        import json as _json
+        from pathlib import Path as _P
+        f = _P(__file__).parent / "voice_log.jsonl"
+        if not f.exists():
+            return
+        lines = [l for l in f.read_text(encoding="utf-8").splitlines() if l.strip()]
+        if not lines:
+            return
+        first_run = "her_words_last_ts" not in st.session_state
+        last_seen = st.session_state.get("her_words_last_ts", "")
+        newest_ts = last_seen
+        for l in lines[-20:]:
+            try:
+                d = _json.loads(l)
+                ts = str(d.get("ts", ""))
+                text = str(d.get("text", "")).strip()
+            except Exception:
+                continue
+            if not text:
+                continue
+            if ts > newest_ts:
+                newest_ts = ts
+            if first_run or ts <= last_seen:
+                continue  # history on first run, or already seen
+            t = text.lower()
+            urgent = any(k in t for k in ("get out", "take it", "warning",
+                                          "stopped out", "tide", "trade failed"))
+            heads_up = any(k in t for k in ("new pick", "buy ", "go!",
+                                            "trade done", "sold"))
+            try:
+                if urgent:
+                    st.toast(f"🚨 {text[:120]}", icon="🚨", duration=20)
+                    _play_sound("alarm")
+                elif heads_up:
+                    st.toast(f"💬 {text[:120]}", icon="✅", duration=12)
+                    _play_sound("ding")
+            except Exception:
+                pass
+        st.session_state["her_words_last_ts"] = newest_ts
+    except Exception:
+        pass
+
+
 def _render_light_panel(interval: str):
     """The always-visible light panel — rendered from the last check."""
     watch_status = st.session_state.get("watch_status") or []
@@ -2951,6 +3004,16 @@ def render_auto_watch(cfg: TradingConfig, kraken):
         _light_check(kraken, cfg, sb, held, interval_s)
         _render_light_panel(interval)
         _render_her_words()
+        _toast_new_her_words()
+
+        # her-words popup ticker: fast lane (15s) — GET OUT / TAKE IT
+        # popups shouldn't wait for the 60s light cycle (user rule, Aug 30:
+        # "so not as a pop up?")
+        @st.fragment(run_every=15_000)
+        def _her_words_tick():
+            _toast_new_her_words()
+
+        _her_words_tick()
 
         # ── SOLD buttons: the scalper's re-entry loop ──────────────────
         # Took the $20? Tap SOLD — the position clears and the next green
