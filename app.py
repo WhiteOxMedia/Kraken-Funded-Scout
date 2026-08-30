@@ -2738,14 +2738,12 @@ def _light_check(kraken, cfg: TradingConfig, sb, held: dict, interval_s: int) ->
     except Exception:
         pass
 
-    # exited contest positions drop off by themselves (Kraken's dashboard
-    # owns the trade history — we don't keep a copy)
-    exited = [v["pair"] for v in watch_status if v["kind"] == "contest" and v["exit"]]
-    if exited:
-        for p in exited:
-            contest_watch.pop(p, None)
-        _save_watch(contest_watch)
-        st.session_state["flow_exit_at"] = time.time()  # advance later, after the red light has shown
+    # Aug 30 fix: GET OUT positions are NEVER auto-dropped. One toast + one
+    # voice that deletes the tracking was losing exits (user: "if I didn't
+    # see or hear the get out and it clears it, I miss my exit"). The red
+    # alert repeats every light cycle until the user taps SOLD.
+    # (The SOLD button in render_auto_watch is the ONLY thing that clears
+    # a contest position — and it advances the flow.)
 
     # flow advance: board cleared after an exit → back to hunting.
     # Waits one light cycle past the exit so the red light has been seen.
@@ -2823,43 +2821,47 @@ def _render_reenter_control():
     how much I own, the amount of my trade, and the current PnL — you have
     to use that"). Take the two numbers they DO have and do the math:
     paid = spent ÷ owned. Resets the watch entry, size, peak and clock to
-    the REAL position so her stop, trail and twenties count from truth."""
+    the REAL position so her stop, trail and twenties count from truth.
+    Aug 30: wrapped in st.form — the light's 60s reruns were dimming the
+    page and interrupting mid-typing; a form batches everything and
+    submits once, when you're done."""
     cw = _load_watch()
     if not cw:
         return
     with st.expander("🔁 I RE-ENTERED — tell her what you actually paid"):
-        pair = (st.selectbox("which coin", list(cw.keys()), format_func=_asset,
-                             key="re_pair") if len(cw) > 1 else list(cw.keys())[0])
-        c1, c2 = st.columns(2)
-        with c1:
-            spent = st.number_input("$ you spent", min_value=0.0, value=None,
-                                    step=100.0, key="re_spent",
-                                    help="the contest app shows this: the amount of your trade")
-        with c2:
-            owned = st.number_input("coins you own", min_value=0.0, value=None,
-                                    step=0.0001, key="re_owned",
-                                    help="the contest app shows this: how much you own")
-        if st.button("✎ SET MY ENTRY — she counts from reality now",
-                     key="re_btn", width="stretch"):
-            if spent and owned and float(owned) > 0:
-                entry = float(spent) / float(owned)
-                w = _load_watch()
-                w[pair] = {"entry": entry, "high": entry,
-                           "size": float(spent),
-                           "added": _now_mst().isoformat()}
-                _save_watch(w)
-                st.toast(f"✅ {_asset(pair)}: you paid ${entry:.4f} per coin "
-                         f"(${float(spent):,.0f} ÷ {float(owned):,.4f}) — "
-                         f"her stop, trail and twenties count from reality now",
-                         icon="✅", duration=15)
-                _speak(f"{_asset(pair)} entry set! She counts from reality now!")
-                try:
-                    st.rerun(scope="app")
-                except TypeError:
-                    st.rerun()
-            else:
-                st.error("Need both numbers — they're both on your position screen "
-                         "in the contest app: the $ of the trade and the coins you own.")
+        with st.form("reenter_form", clear_on_submit=False):
+            pair = (st.selectbox("which coin", list(cw.keys()), format_func=_asset,
+                                 key="re_pair") if len(cw) > 1 else list(cw.keys())[0])
+            c1, c2 = st.columns(2)
+            with c1:
+                spent = st.number_input("$ you spent", min_value=0.0, value=None,
+                                        step=100.0, key="re_spent",
+                                        help="the contest app shows this: the amount of your trade")
+            with c2:
+                owned = st.number_input("coins you own", min_value=0.0, value=None,
+                                        step=0.0001, key="re_owned",
+                                        help="the contest app shows this: how much you own")
+            if st.form_submit_button("✎ SET MY ENTRY — she counts from reality now",
+                                     type="primary"):
+                if spent and owned and float(owned) > 0:
+                    entry = float(spent) / float(owned)
+                    w = _load_watch()
+                    w[pair] = {"entry": entry, "high": entry,
+                               "size": float(spent),
+                               "added": _now_mst().isoformat()}
+                    _save_watch(w)
+                    st.toast(f"✅ {_asset(pair)}: you paid ${entry:.4f} per coin "
+                             f"(${float(spent):,.0f} ÷ {float(owned):,.4f}) — "
+                             f"her stop, trail and twenties count from reality now",
+                             icon="✅", duration=15)
+                    _speak(f"{_asset(pair)} entry set! She counts from reality now!")
+                    try:
+                        st.rerun(scope="app")
+                    except TypeError:
+                        st.rerun()
+                else:
+                    st.error("Need both numbers — they're both on your position screen "
+                             "in the contest app: the $ of the trade and the coins you own.")
 
 
 def render_auto_watch(cfg: TradingConfig, kraken):
@@ -2921,6 +2923,9 @@ def render_auto_watch(cfg: TradingConfig, kraken):
                         _save_watch(_cw_sold)
                         # the re-entered expander follows right below
                         st.session_state.get("take_level", {}).pop(_sp, None)
+                        # flow advance moves here (Aug 30): SOLD is now the
+                        # only exit — the board clears when YOU clear it
+                        st.session_state["flow_exit_at"] = time.time()
                         try:
                             st.toast(f"✔ {_asset(_sp)} cleared — next green light re-adds it",
                                      icon="✔", duration=8)

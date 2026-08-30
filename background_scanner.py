@@ -885,10 +885,18 @@ def _max_resolve_hours() -> float:
     return min(pace_cap, hours_to_midnight)
 
 
+# GET OUT persistence (Aug 30): per-pair timestamp of the last spoken exit
+# call — the voice repeats every 60s while the exit condition holds, until
+# the user taps SOLD. Never auto-drop a tracked position.
+_last_exit_voice: dict[str, float] = {}
+
+
 def contest_light(exchange, cfg):
     """One light cycle on every contest position: 4% profit guard + 50% sell
-    bar + scalp watch. Speaks the dollars every minute. Exited positions are
-    removed from the watch (Kraken's dashboard owns the history)."""
+    bar + scalp watch. Speaks the dollars every minute. A GET OUT call
+    PERSISTS — the position stays tracked and the call repeats every ~60s
+    until the user taps SOLD (Aug 30: auto-dropping after one alert was
+    losing exits — 'I miss my exit')."""
     import pandas as pd
     from strategy import evaluate_strategy
 
@@ -975,7 +983,12 @@ def contest_light(exchange, cfg):
 
         if should_exit:
             exited_pairs.append(pair)
-            if voice:
+            # GET OUT PERSISTS (user rule, Aug 30): repeat the call every
+            # ~60s while the exit condition holds — one shout that drops
+            # the tracking is a missed exit. SOLD is the only way out.
+            _now_ts = time.time()
+            if voice and (_now_ts - _last_exit_voice.get(pair, 0)) >= 60:
+                _last_exit_voice[pair] = _now_ts
                 # voice-first (user rule, Aug 27: the voice IS the contest —
                 # the user is on the phone, not at the screen): every call
                 # carries its WHY, spoken
@@ -993,8 +1006,12 @@ def contest_light(exchange, cfg):
                     _why = "It's out of steam!"
                 _speak_server(f"Get out now! Sell {asset}! {_why}"
                               f"Give it about an hour to base — I'll call the next one!", rate=1)
-            logger.info("🚨 CONTEST LIGHT: SELL %s — %s", pair, reason)
+            logger.info("🚨 CONTEST LIGHT: SELL %s — %s (stays tracked until SOLD)", pair, reason)
             continue
+
+        # exit condition cleared (user held through it and it recovered) —
+        # re-arm the voice so a future exit shouts immediately
+        _last_exit_voice.pop(pair, None)
 
         # ── 3. THE $20 TAKE-IT CALL (user's scalp system) ──────────────
         # They all-in on green, watch ~5 min, out at +$20, re-enter small,
@@ -1072,13 +1089,10 @@ def contest_light(exchange, cfg):
         voice_updates.append(f"{asset}, {sign} {abs(usd):.0f} dollars{_tail}")
 
     if exited_pairs:
-        for p in exited_pairs:
-            watch.pop(p, None)
-        _save_contest_watch(watch)
-        if not watch and time.time() - _last_trade_done > 300:
-            _last_trade_done = time.time()
-            if voice:
-                _speak_server("Trade done! Let's find the next one!")
+        # Aug 30 fix: GET OUT positions STAY in the watch — the user taps
+        # SOLD to clear them. Auto-drop after one alert lost exits.
+        if dirty:
+            _save_contest_watch(watch)
         return
 
     if dirty:
