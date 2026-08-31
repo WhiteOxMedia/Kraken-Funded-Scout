@@ -58,11 +58,17 @@ bs._push_to_phone("Get out now! Sell ARB! It gave back too much from the top!")
 t = sent_texts()
 check("get out pushes urgent", len(t) == 1 and sent[0].headers.get("Priority") == "urgent", t)
 
-# 3. TAKE IT pushes (URGENT — it's the sell/take action)
+# 3. TAKE IT does NOT push (user rule, Aug 31: ".ntfy doesn't need the
+# 'take it' alerts. Just 'buy now' and 'Get out now'" — the take-profit
+# nudges repeat every minute during a run and spam the phone)
 sent.clear()
 bs._push_state = {"text": "", "ts": 0.0}
 bs._push_to_phone("Take it! ARB! Plus 20 dollars!")
-check("take it pushes urgent", len(sent) == 1 and sent[0].headers.get("Priority") == "urgent")
+check("take it NOT pushed (Aug 31 rule)", len(sent) == 0, sent_texts())
+sent.clear()
+bs._push_state = {"text": "", "ts": 0.0}
+bs._push_to_phone("Take it! 120 dollars up!")
+check("take it (dollar form) NOT pushed", len(sent) == 0)
 
 # 4. routine position update does NOT push
 sent.clear()

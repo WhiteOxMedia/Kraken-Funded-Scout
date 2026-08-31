@@ -931,24 +931,27 @@ _push_state = {"text": "", "ts": 0.0}
 
 
 def _push_to_phone(text: str, wav_path: str | None = None):
-    """BUY NOW / SELL NOW priority alerts ONLY on the phone (user rule,
-    Aug 30: 'Just have the ntfy.sh do the buy now and sell now priority
-    alerts only'). Buy calls push HIGH; GET OUT / SELL / STOPPED OUT /
-    TAKE IT push URGENT (alarm + banner + vibration). Everything else —
-    routine position updates, tide, trade-done — stays on the PC voice
-    and the console's HER WORDS panel. This also keeps us far under
-    ntfy.sh's ~60/hour rate limit (Aug 30 incident: every-minute position
-    pushes burned the quota -> 429s -> the phone went silent)."""
+    """BUY NOW / GET OUT NOW only on the phone (user rule, Aug 30: 'Just
+    have the ntfy.sh do the buy now and sell now priority alerts only';
+    tightened Aug 31: ".ntfy doesn't need the 'take it' alerts. Just
+    'buy now' and 'Get out now'"). Buy calls push HIGH; GET OUT / SELL /
+    STOPPED OUT push URGENT. TAKE IT does NOT push — the take-profit
+    nudges repeat every minute during a run (Aug 31: the ARB run pushed
+    ~8 of them) and there's nothing to act on that the light + her voice
+    aren't already saying. Everything else stays on the PC voice and the
+    console's HER WORDS panel. This also keeps us far under ntfy.sh's
+    ~60/hour rate limit (Aug 30 incident: every-minute position pushes
+    burned the quota -> 429s -> the phone went silent)."""
     topic = _push_topic()
     if not topic:
         return
     try:
         import urllib.request, urllib.parse
         _t = str(text).lower().strip()
-        is_sell = any(k in _t for k in ("get out", "sell ", "stopped out", "take it"))
+        is_sell = any(k in _t for k in ("get out", "sell ", "stopped out"))
         is_buy = (not is_sell) and ("buy " in _t or "new pick" in _t or _t.startswith("go!"))
         if not (is_buy or is_sell):
-            return  # not a BUY NOW / SELL NOW alert — don't push
+            return  # not a BUY NOW / GET OUT NOW alert — don't push
         # same text (a repeating GET OUT) pushes at most every 5 minutes
         now = time.time()
         if _t == _push_state["text"] and (now - _push_state["ts"]) < 300:
