@@ -145,7 +145,8 @@ check("QC gate checks rotation", "_rot_ok" in app_src)
 check("QC gate checks blowoff", 'shape") == "blowoff"' in app_src)
 check("QC marks on green", "rotation_mark_fired(asset)" in app_src)
 check("QC rejection toast", "ALREADY RAN THIS ROTATION" in app_src)
-check("card filters locked", "rotation_gate(h[\"asset\"])" in app_src)
+check("card filters locked (Aug 31: with the confirmation window — a just-fired pick stays visible for CHECK)",
+      'rotation_gate(h["asset"], confirm_window_min=_cwin)' in app_src)
 check("fine callout in voice", "fine risk" in app_src and "fine risk" in bs_src)
 
 # cleanup

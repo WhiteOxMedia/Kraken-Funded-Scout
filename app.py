@@ -1309,13 +1309,19 @@ def _pick_card(cfg: TradingConfig, kraken):
     if ranked:
         # ROTATION LOCKOUT (user rule, Aug 30): an asset that already fired
         # this rotation never takes the PICK seat — the card must never
-        # point at something the QC would reject as a re-run.
+        # point at something the QC would reject as a re-run. EXCEPTION —
+        # CONFIRMATION WINDOW (user rule, Aug 31): a pick whose alert fired
+        # within ROTATION_CONFIRM_WINDOW_MIN stays on the card so CHECK
+        # works on the very green light that set the lockout (the 'Already
+        # ran' collision — the card was hiding the pick the alert just made).
         try:
             import background_scanner as _bs6
-            if not hasattr(_bs6, "rotation_gate"):
+            if not hasattr(_bs6, "ROTATION_CONFIRM_WINDOW_MIN"):
                 import importlib
                 _bs6 = importlib.reload(_bs6)
-            ranked = [h for h in ranked if _bs6.rotation_gate(h["asset"])[0]]
+            _cwin = getattr(_bs6, "ROTATION_CONFIRM_WINDOW_MIN", 0.0)
+            ranked = [h for h in ranked
+                      if _bs6.rotation_gate(h["asset"], confirm_window_min=_cwin)[0]]
         except Exception:
             pass
     if ranked:
@@ -2069,10 +2075,14 @@ def render_quick_check(cfg: TradingConfig, kraken):
                 # candles.
                 try:
                     import background_scanner as _bs5
-                    if not hasattr(_bs5, "rotation_gate"):
+                    # ROTATION_CONFIRM_WINDOW_MIN is the marker for the
+                    # confirmation-window gate (user rule, Aug 31) — reload
+                    # if this console process predates it
+                    if not hasattr(_bs5, "ROTATION_CONFIRM_WINDOW_MIN"):
                         import importlib
                         _bs5 = importlib.reload(_bs5)
-                    _rot_ok, _rot_reason, _rot_reentry, _rot_fine = _bs5.rotation_gate(asset)
+                    _rot_ok, _rot_reason, _rot_reentry, _rot_fine = _bs5.rotation_gate(
+                        asset, confirm_window_min=getattr(_bs5, "ROTATION_CONFIRM_WINDOW_MIN", 0.0))
                     _yctx = _bs5.rotation_yesterday_context(pair)
                 except Exception:
                     _rot_ok, _rot_reason, _rot_reentry, _rot_fine = True, "", False, 0.0
@@ -2165,8 +2175,14 @@ def render_quick_check(cfg: TradingConfig, kraken):
                                 _reentry_txt = (f"RE-ENTRY — fired earlier today"
                                                 + (f", fine risk ${_rot_fine:,.0f}" if _rot_fine > 0 else "")
                                                 + ". ")
+                            # CONFIRMATION WINDOW (Aug 31): say WHY the lockout
+                            # didn't bounce this — it's the alert's own green
+                            # light being confirmed, not a fresh fire
+                            _confirm_txt = ""
+                            if str(_rot_reason or "").startswith("confirmation window"):
+                                _confirm_txt = f"🔁 {_rot_reason}. "
                             try:
-                                st.toast(f"✅ GO — {asset}: {_reentry_txt}{_chunk_txt}I count the $20s.{_warn_txt}",
+                                st.toast(f"✅ GO — {asset}: {_confirm_txt}{_reentry_txt}{_chunk_txt}I count the $20s.{_warn_txt}",
                                          icon="✅", duration=20)
                                 _play_sound("ding")
                                 _sized_down = _spend_usd < float(cfg.challenge_balance)
@@ -2407,7 +2423,14 @@ def render_quick_check(cfg: TradingConfig, kraken):
         _yled, _ytxt = "a", f"YESTERDAY THIS HOUR: {yesterday.get('detail', '')}"
     else:
         _yled, _ytxt = "a", "YESTERDAY THIS HOUR: NO DATA"
-    if fine_usd > 0 and is_reentry:
+    # CONFIRMATION WINDOW (user rule, Aug 31): the lockout was set by the
+    # alert the user is holding — this QC run is CONFIRMING that green
+    # light, not asking for a new one. Shows instead of the cold rejection.
+    _confirming = str(rot_reason or "").startswith("confirmation window")
+    if _confirming:
+        _fine_led, _fine_txt = "a", ("🔁 CONFIRMING THE ALERT — "
+                                     + str(rot_reason).replace("confirmation window — ", ""))
+    elif fine_usd > 0 and is_reentry:
         _fine_led, _fine_txt = "a", f"⚠ RE-ENTRY — FINE RISK ${fine_usd:,.0f}"
     elif is_reentry:
         _fine_led, _fine_txt = "a", "RE-ENTRY (fired earlier today)"

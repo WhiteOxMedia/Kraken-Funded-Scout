@@ -99,6 +99,17 @@ _OHLCV_CACHE_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)),
 # re-entry green lights call the fine out loud so the $20 math includes it.
 CONTEST_REENTRY_FINE_USD = 0.0
 
+# CONFIRMATION WINDOW (user rule, Aug 31 — the 'Already ran' collision):
+# the champion alert marks the rotation when it fires, and the QC + the
+# card check the same gate — so the pick the alert JUST made read
+# "Already ran! Cold!" minutes later (HYPE 12:42 "Buy!" → 12:48 "cold").
+# Within this many minutes of the fire, the QC and the card treat the
+# lockout as CONFIRMING THE LIVE ALERT (allowed, reason names the alert's
+# time). The scanner's own re-fire guard and the mover funnel call
+# rotation_gate with the default 0 — strict for the whole rotation,
+# exactly as specced Aug 30 (no back-to-back re-fires).
+ROTATION_CONFIRM_WINDOW_MIN = 15.0
+
 
 def _rotation_window(now=None):
     """(start_hour, end_hour, key) for the rotation containing `now` (Denver)."""
@@ -109,7 +120,7 @@ def _rotation_window(now=None):
     return None
 
 
-def rotation_gate(asset: str):
+def rotation_gate(asset: str, confirm_window_min: float = 0.0):
     """One green light per asset per rotation.
 
     Returns (allowed, reason, is_reentry, fine_usd):
@@ -117,6 +128,12 @@ def rotation_gate(asset: str):
       reason     human explanation when blocked / re-entering
       is_reentry True if the asset fired earlier TODAY in a different rotation
       fine_usd   CONTEST_REENTRY_FINE_USD on a re-entry (0.0 otherwise)
+
+    CONFIRMATION WINDOW (user rule, Aug 31): confirm_window_min > 0 (the
+    QC and the card pass ROTATION_CONFIRM_WINDOW_MIN) treats a lockout set
+    within that many minutes as CONFIRMING THE LIVE ALERT — allowed, with
+    the reason naming the alert's time. The default 0 (the scanner's
+    re-fire guard, the mover funnel) stays strict for the whole rotation.
     """
     now = _now_mst()
     win = _rotation_window(now)
@@ -132,6 +149,17 @@ def rotation_gate(asset: str):
     rec = state.get(asset)
     if rec and rec.get("date") == today:
         if rec.get("rotation") == rot_key:
+            if confirm_window_min > 0:
+                try:
+                    from datetime import datetime as _dt
+                    _fired = _dt.fromisoformat(str(rec.get("fired_at") or ""))
+                    _mins = (now - _fired).total_seconds() / 60.0
+                except Exception:
+                    _fired, _mins = None, None
+                if _mins is not None and 0 <= _mins <= confirm_window_min:
+                    return True, (f"confirmation window — the alert fired at "
+                                  f"{_fired.strftime('%I:%M').lstrip('0')} "
+                                  f"({_mins:.0f} min ago); confirming, not a re-fire"), False, 0.0
             return False, (f"already ran this rotation ({rec.get('rotation')}) — "
                            f"cold until the next rotation boundary"), False, 0.0
         # fired earlier today in a DIFFERENT rotation → re-arm, but say it
