@@ -671,6 +671,57 @@ def _fleet_tide(max_age_s: int = 300):
         return None, None
 
 
+# ── LONE WOLF EXCEPTION (user rule, Aug 31: "make an exception in low
+# tide to allow movers like XMR through — I set the thresholds before I
+# added the tide warning") ─────────────────────────────────────────────
+# The confidence thresholds (per-asset bars, the 89 desktop floor) were
+# calibrated BEFORE the tide existed — they're tide-blind. In a FLAT tide
+# a coin running +5%+ on its OWN is showing idiosyncratic strength the
+# confidence number can't see: XMR ran +11.2% overnight in a 37% fleet
+# and its 56% bounce signal died below the ~80 bar AND the 89 floor —
+# silent through an eleven-percent move. The discount:
+#   FLAT tide + own 24h move >= +8%  -> 35 points off the thresholds
+#   FLAT tide + own 24h move >= +5%  -> 25 points off
+#   RISING tide -> nothing (the fleet already carries greens)
+#   OUT tide    -> nothing (all ships sink together — hard block stands)
+# The user's own QC floor (deep read >= 60) is NOT discounted — the alert
+# and the Quick Check must never disagree (the PUMP lesson).
+LONE_WOLF_MOVE_MIN = 5.0      # own 24h % move that earns the discount
+LONE_WOLF_MOVE_BIG = 8.0      # own 24h % move that earns the bigger one
+LONE_WOLF_PTS = 25            # confidence points off the tide-blind bars
+LONE_WOLF_PTS_BIG = 35
+LONE_WOLF_BAR_FLOOR = 50      # the bridge bar never drops below this
+LONE_WOLF_DESKTOP_FLOOR = 55  # desktop floor never drops below this (XMR's 56% passes)
+_lone_wolf_cache = {"pair": None, "pct": 0.0, "ts": 0.0}
+
+
+def lone_wolf_discount(exchange, pair: str, max_age_s: float = 900.0) -> tuple[int, str]:
+    """(points_off, note) for a coin moving on its own in a FLAT tide.
+    The 24h move is cached per pair (15 min) — one ticker fetch per signal,
+    not one per gate. Fail-closed: a broken tide or ticker read means NO
+    discount (the normal thresholds stand)."""
+    import time as _time
+    _tp, _ts = _fleet_tide()
+    if _tp is None or _ts != "FLAT":
+        return 0, ""
+    _now = _time.time()
+    if _lone_wolf_cache.get("pair") == pair and _now - _lone_wolf_cache.get("ts", 0.0) < max_age_s:
+        own = float(_lone_wolf_cache.get("pct") or 0.0)
+    else:
+        try:
+            _tk = exchange.fetch_ticker(pair)
+            own = float(_tk.get("percentage") or 0.0)
+        except Exception as exc:
+            logger.debug("lone wolf ticker failed for %s: %s", pair, exc)
+            return 0, ""
+        _lone_wolf_cache.update(pair=pair, pct=own, ts=_now)
+    if own >= LONE_WOLF_MOVE_BIG:
+        return LONE_WOLF_PTS_BIG, f"+{own:.0f}% on her own while the tide's flat ({_tp:.0f}% of the fleet up)"
+    if own >= LONE_WOLF_MOVE_MIN:
+        return LONE_WOLF_PTS, f"+{own:.0f}% on her own while the tide's flat ({_tp:.0f}% of the fleet up)"
+    return 0, ""
+
+
 def _save_take_payout(pair: str, amount: int):
     """Persist big TAKE IT payouts so the console's QC can block re-entries
     while the move is exhausted (atomic write, survives restarts)."""
@@ -1329,6 +1380,18 @@ def main():
         except Exception:
             pass
 
+        # ── LONE WOLF (user rule, Aug 31): the bar was calibrated before
+        # the tide existed. A coin running on its own in a FLAT tide gets
+        # the discount (never below the floor). RISING gets nothing; OUT
+        # stays a hard block upstream. The deep-read floor is NOT
+        # discounted — the QC and the alert must never disagree.
+        _lw_pts, _lw_note = lone_wolf_discount(exchange, pair)
+        if _lw_pts and effective_thr > LONE_WOLF_BAR_FLOOR:
+            _lw_thr = max(LONE_WOLF_BAR_FLOOR, effective_thr - _lw_pts)
+            logger.info("  LONE WOLF: %s %s — bar relaxed %d%% → %d%%",
+                        asset, _lw_note, effective_thr, _lw_thr)
+            effective_thr = _lw_thr
+
         if signal.confidence < effective_thr:
             gate_notes.append(f"{signal.confidence:.0f}% sure — bot needs {effective_thr}% for this coin")
             logger.info("  %s %s (%.0f%%) — below %d%% bar (%s %s) — contest-only",
@@ -1445,6 +1508,13 @@ def main():
         # take it via the bridge — but the desktop stays quiet. This was
         # the original guard rail from the winning $251 run.
         DESKTOP_ALERT_MIN = 89
+        # LONE WOLF (user rule, Aug 31): the pre-tide 89 floor relaxed for
+        # a solo mover in a flat tide (never below the floor — XMR's 56%
+        # passes at 55). The deep-read check further down still demands
+        # the user's own QC floor (>= 60) — the verdict stays honest.
+        if _lw_pts:
+            DESKTOP_ALERT_MIN = max(LONE_WOLF_DESKTOP_FLOOR, DESKTOP_ALERT_MIN - _lw_pts)
+            logger.info("  LONE WOLF: %s — desktop floor relaxed to %d%%", asset, DESKTOP_ALERT_MIN)
         if signal.confidence < DESKTOP_ALERT_MIN:
             logger.info("  Desktop suppressed: %s %.0f%% < %d%% floor (still logged to winners pool)",
                         asset, signal.confidence, DESKTOP_ALERT_MIN)
@@ -1546,6 +1616,9 @@ def main():
                 _tide_line = f"TIDE: FLAT ({_tp3:.0f}% of the fleet up) — pickier, smaller\n"
         except Exception:
             pass
+        # ── LONE WOLF line (Aug 31): say WHY the alert fired below the
+        # usual floor — the call rides solo strength in a dead fleet.
+        _lw_line = f"  LONE WOLF: {_lw_note}\n" if _lw_pts else ""
         # ── BOOK CARRY (small coin / big coin — user rule, Aug 26) ──────
         # Can this book carry the CONTEST money? Reuses the liquidity
         # snapshot fetched earlier (the book depth is what matters).
@@ -1593,6 +1666,7 @@ def main():
             _small_coin = _carry is not None and _spend < (float(_bal) if _bal > 0 else 5000.0)
             _spoken = (f"Buy {asset}! {_dc:.0f} percent sure! "
                        + _reentry_say
+                       + ("Lone wolf! Moving on her own while the fleet sits still! " if _lw_pts else "")
                        + f"The twenty comes in {hold_txt}! "
                        + (f"Small size only — {_spend:,.0f} dollars! " if _small_coin else
                           ("Big book — all in fine! " if _carry is not None else ""))
@@ -1605,6 +1679,7 @@ def main():
                 f"WHEN: right now — this is fresh\n"
                 f"HOW LONG: {_how_long}\n"
                 f"{_tide_line}"
+                f"{_lw_line}"
                 f"{_reentry_line}"
                 f"{contest_msg}"
                 f"{'-' * 30}\n"
