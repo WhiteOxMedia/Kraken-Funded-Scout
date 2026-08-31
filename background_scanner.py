@@ -720,6 +720,23 @@ LONE_WOLF_DESKTOP_FLOOR = 55  # desktop floor never drops below this (XMR's 56% 
 # exempt at 55); OUT blocks upstream; a broken tide read fails to 89.
 # The deep-read ≥60 pre-check still applies to EVERY alert.
 TIDE_RISING_DESKTOP_FLOOR = 78.0
+# TIDE-AWARE ROTATION BAR (user rule, Aug 31: "it knows about the tide and
+# the weekday/weekend and coin history"): the engine's data bar already
+# carries the weekday/weekend schedules and per-coin false-breakout history
+# — the tide was the missing input. A RISING fleet relaxes the bar by the
+# same margin as the desktop floor (89→78), never below 60 (the deep-read
+# floor — the QC and the alert must never disagree). FLAT keeps the data
+# bar (the data decides); OUT blocks upstream; a broken tide read leaves
+# the data bar untouched.
+TIDE_RISING_BAR_RELAX = 89.0 - TIDE_RISING_DESKTOP_FLOOR   # 11 pts — one source of truth
+TIDE_RISING_BAR_FLOOR = 60.0        # the bar never drops below the deep-read floor
+# NEAR-MISS DEEP SCAN (user rule, Aug 31: "do a deep scan when it is
+# within 5% of passing"): the bar's first look is the tournament's quick
+# read — cheap. When a candidate lands within 5 points BELOW the bar, the
+# brain is consulted: the deep scan runs and the bar is judged on the
+# BRAIN'S number — the same deep conviction the QC, the alert, and the
+# bridge write use. A quick-read miss is not a verdict; a brain miss is.
+NEAR_MISS_PTS = 5.0
 _lone_wolf_cache = {"pair": None, "pct": 0.0, "ts": 0.0}
 
 
@@ -1378,6 +1395,32 @@ def main():
         gate_rot = rotation_key_for_hour(gate_now.hour)
         gate_sched = _schedule_for_dow(gate_now.weekday())
 
+        # ── THE DEEP READ (user directive, Aug 25: "do it for the bridge
+        # too"; defined above the gates since Aug 31 for the NEAR-MISS
+        # consult) — every signal, bot-bound or desktop-bound, gets the
+        # same deep scan the user's QC runs before it's allowed to matter.
+        # The result is CACHED in _deep — one read, every consumer: the
+        # near-miss gate, the bridge pre-check, the desktop stage.
+        # Fail-open: a broken check never silently starves signals; the
+        # QC still gates everything.
+        _deep = None
+        _df = None
+
+        def _do_deep_read():
+            import pandas as _pd
+            from strategy import evaluate_strategy as _eval_deep, \
+                enable_deep_analysis, disable_deep_analysis
+            _ohl = exchange.fetch_ohlcv(pair, timeframe="1h", limit=200)
+            if not _ohl or len(_ohl) < 30:
+                return None, None
+            _df = _pd.DataFrame(_ohl, columns=["timestamp", "open", "high", "low", "close", "volume"])
+            _df["timestamp"] = _pd.to_datetime(_df["timestamp"], unit="ms")
+            _df.set_index("timestamp", inplace=True)
+            enable_deep_analysis()
+            _sig = _eval_deep(_df, cfg)
+            disable_deep_analysis()
+            return _sig, _df
+
         # ── SEPARATED GATES: the DESKTOP alert (contest) uses the original
         # criteria — champion ≥ threshold + checklist, both checked upstream.
         # The BRIDGE write (bot's money) keeps the full new stack: move floor
@@ -1420,10 +1463,52 @@ def main():
                         asset, _lw_note, effective_thr, _lw_thr)
             effective_thr = _lw_thr
 
-        if signal.confidence < effective_thr:
-            gate_notes.append(f"{signal.confidence:.0f}% sure — bot needs {effective_thr}% for this coin")
-            logger.info("  %s %s (%.0f%%) — below %d%% bar (%s %s) — contest-only",
-                        signal.action.upper(), asset, signal.confidence, effective_thr, block_name, gate_rot)
+        # ── TIDE-AWARE BAR (user rule, Aug 31: "it knows about the tide"):
+        # same evidence as the desktop floor — in RISING fleets the high
+        # confidence numbers carried no information (≥89 won 48% while
+        # sub-60 won 83%), so the bar relaxes by the same margin, never
+        # below the deep-read floor. FLAT keeps the data bar (the data
+        # decides); OUT never reaches here (hard block upstream); a broken
+        # tide read leaves the data bar untouched.
+        try:
+            _g2_pct, _g2_state = _fleet_tide()
+        except Exception:
+            _g2_pct, _g2_state = None, None
+        if _g2_state == "RISING" and effective_thr > TIDE_RISING_BAR_FLOOR:
+            _g2_old = effective_thr
+            effective_thr = int(max(TIDE_RISING_BAR_FLOOR, effective_thr - TIDE_RISING_BAR_RELAX))
+            logger.info("  TIDE RISING (fleet %.0f%%) — rotation bar relaxed %d%% → %d%%",
+                        _g2_pct or 0, _g2_old, effective_thr)
+
+        # ── NEAR-MISS DEEP SCAN (user rule, Aug 31: "do a deep scan when
+        # it is within 5% of passing"): the quick read is judged first —
+        # cheap. A candidate within 5 points BELOW the bar gets the brain's
+        # verdict, and the bar is then judged on the BRAIN'S number (the
+        # same deep conviction the QC, the alert, and the bridge write
+        # use). No bypass — the data bar still applies; it just applies to
+        # the honest number.
+        if (signal.confidence < effective_thr
+                and signal.confidence >= effective_thr - NEAR_MISS_PTS):
+            logger.info("  NEAR MISS: %s quick %.0f%% vs bar %d%% — consulting the brain",
+                        asset, signal.confidence, effective_thr)
+            try:
+                _deep, _df = _do_deep_read()
+            except Exception as _exc:
+                logger.debug("near-miss deep read unavailable for %s: %s (quick number stands)", asset, _exc)
+        _brain_conf = (float(_deep.confidence)
+                       if _deep is not None and _deep.action == "buy"
+                       else float(signal.confidence))
+        _brain_used = _deep is not None and _deep.action == "buy"
+
+        if _brain_conf < effective_thr:
+            gate_notes.append(f"{_brain_conf:.0f}% sure — bot needs {effective_thr}% for this coin")
+            logger.info("  %s %s (%s %.0f%%) — below %d%% bar (%s %s) — contest-only",
+                        signal.action.upper(), asset,
+                        "brain" if _brain_used else "quick",
+                        _brain_conf, effective_thr, block_name, gate_rot)
+        elif _brain_used and signal.confidence < effective_thr:
+            logger.info("  NEAR MISS RESCUED: %s — the brain reads %.0f%% ≥ bar %d%% (quick said %.0f%%)",
+                        asset, _brain_conf, effective_thr, signal.confidence)
 
         # ── Liquidity advisory (execution_tiers): blacklisted markets get no
         # signal at all; healthy ones get the tier/health/slip line annotated.
@@ -1444,33 +1529,13 @@ def main():
         except Exception as exc:
             logger.debug("Liquidity snapshot failed for %s: %s", pair, exc)
 
-        # ── THE DEEP PRE-CHECK (user directive, Aug 25: "do it for the
-        # bridge too") — every signal, bot-bound or desktop-bound, gets the
-        # same deep scan the user's QC runs before it's allowed to matter.
-        # The bot trades REAL money on bridge writes: deep read must still
-        # say BUY ≥60, no falling knives, no just-paid exhausted movers.
-        # (The bot's breakout-appropriate chase rules — stale 2% / blowoff
-        # 5% — live reader-side; this is the subset right for ANY buy.)
-        # Result is CACHED in _deep for the desktop stage — one read, two
-        # consumers. Fail-open: a broken check never silently starves
-        # signals; the QC still gates everything.
-        _deep = None
-
-        def _do_deep_read():
-            import pandas as _pd
-            from strategy import evaluate_strategy as _eval_deep, \
-                enable_deep_analysis, disable_deep_analysis
-            _ohl = exchange.fetch_ohlcv(pair, timeframe="1h", limit=200)
-            if not _ohl or len(_ohl) < 30:
-                return None, None
-            _df = _pd.DataFrame(_ohl, columns=["timestamp", "open", "high", "low", "close", "volume"])
-            _df["timestamp"] = _pd.to_datetime(_df["timestamp"], unit="ms")
-            _df.set_index("timestamp", inplace=True)
-            enable_deep_analysis()
-            _sig = _eval_deep(_df, cfg)
-            disable_deep_analysis()
-            return _sig, _df
-
+        # ── THE DEEP PRE-CHECK (bridge stage) — the read itself now runs
+        # ABOVE the gates (the near-miss consult); this is the bot-money
+        # veto: deep read must still say BUY ≥60, no falling knives, no
+        # just-paid exhausted movers. A near-miss rescue already has _deep
+        # cached — no second read. (The bot's breakout-appropriate chase
+        # rules — stale 2% / blowoff 5% — live reader-side; this is the
+        # subset right for ANY buy.)
         if is_buy and not gate_notes:
             try:
                 # TIDE OUT = no entries anywhere — the bridge included. All
@@ -1479,7 +1544,8 @@ def main():
                 if _ts0 == "OUT":
                     logger.info("  TIDE OUT (fleet %.0f%%) — no bridge write; all ships sink together", _tp0)
                     return
-                _deep, _df = _do_deep_read()
+                if _deep is None:
+                    _deep, _df = _do_deep_read()
                 if _deep is not None:
                     if _deep.action != "buy" or _deep.confidence < 60:  # QC_SCALP_FLOOR
                         logger.info("  DEEP VETO (bridge): %s deep-reads %s %.0f%% — not written; the bot and the QC would both say no",
@@ -1622,19 +1688,21 @@ def main():
                     logger.info("  TIDE OUT (fleet %.0f%%) — desktop suppressed; all ships sink together",
                                 _tp2)
                     return
+                # The brain rules EVERY alert — whether this stage read it
+                # or the near-miss consult already did (one read, cached).
                 if _deep is None:
                     _deep, _df = _do_deep_read()
-                    if _deep is not None:
-                        if _deep.action != "buy" or _deep.confidence < 60:
-                            logger.info("  DEEP VETO (desktop): %s deep-reads %s %.0f%% — the user's QC would say no",
-                                        asset, _deep.action, _deep.confidence)
-                            return
-                        from indicators import ema as _ema3
-                        _es = float(_ema3(_df["close"], cfg.ema_short).iloc[-1])
-                        _el = float(_ema3(_df["close"], cfg.ema_long).iloc[-1])
-                        if _es < _el and float(_df["close"].iloc[-1]) < _el:
-                            logger.info("  DEEP VETO (desktop): %s downward trend — no downward trend picks (user rule)", asset)
-                            return
+                if _deep is not None:
+                    if _deep.action != "buy" or _deep.confidence < 60:
+                        logger.info("  DEEP VETO (desktop): %s deep-reads %s %.0f%% — the user's QC would say no",
+                                    asset, _deep.action, _deep.confidence)
+                        return
+                    from indicators import ema as _ema3
+                    _es = float(_ema3(_df["close"], cfg.ema_short).iloc[-1])
+                    _el = float(_ema3(_df["close"], cfg.ema_long).iloc[-1])
+                    if _es < _el and float(_df["close"].iloc[-1]) < _el:
+                        logger.info("  DEEP VETO (desktop): %s downward trend — no downward trend picks (user rule)", asset)
+                        return
             except Exception as _exc:
                 logger.debug("desktop pre-check unavailable for %s: %s (alerting anyway — QC still gates)", asset, _exc)
 
