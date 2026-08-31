@@ -153,6 +153,34 @@ band_report("BREADTH BANDS — all eras", rows)
 band_report("BREADTH BANDS — current-exits era (Aug 27+)",
             [x for x in rows if x["when"] >= FIX_CUTOFF])
 
+# ── CONFIDENCE × TIDE MATRIX (user rule, Aug 31: "the floors should know
+#    the tide and self-adjust") — did sub-floor confidence picks pay when
+#    the fleet was up? This is the evidence for the RISING-tide floor.
+CONF_BANDS = [("<60", 0, 59.9), ("60-74", 60, 74.9), ("75-88", 75, 88.9), (">=89", 89, 101)]
+
+
+def matrix_report(title: str, subset: list[dict]):
+    out(f"\n{'=' * 78}\n{title}\n{'=' * 78}")
+    out(f"{'tide':8} " + " ".join(f"{name:>17}" for name, _, _ in CONF_BANDS))
+    for state in ("RISING", "FLAT", "OUT"):
+        cells = []
+        for name, lo, hi in CONF_BANDS:
+            grp = [x for x in subset if x["tide"] == state and lo <= x["conf"] <= hi
+                   and x["status"] == "closed" and x["pnl"] is not None]
+            wins = len([x for x in grp if x["pnl"] > 0])
+            losses = len([x for x in grp if x["pnl"] < 0])
+            zeros = len([x for x in grp if x["pnl"] == 0])
+            decided = wins + losses
+            winpct = 100.0 * wins / decided if decided else 0.0
+            total = sum(x["pnl"] for x in grp)
+            cells.append(f"{wins}-{losses}-{zeros} {winpct:>3.0f}% {total:>+8.2f}")
+        out(f"{state:8} " + " ".join(f"{c:>17}" for c in cells))
+
+
+matrix_report("CONF x TIDE — all eras (W-L-0  win%  total$)", rows)
+matrix_report("CONF x TIDE — current-exits era (Aug 27+)",
+              [x for x in rows if x["when"] >= FIX_CUTOFF])
+
 out(f"\n{'=' * 66}\nPER-TRADE (oldest first) — 0 = pnl $0 (rotation reset, not an outcome)\n{'=' * 66}")
 out(f"{'executed (MST)':17} {'pair':12} {'tide':8} {'fleet%':>6} {'conf':>5} {'pnl':>8}  src")
 for x in rows:

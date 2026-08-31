@@ -711,6 +711,15 @@ LONE_WOLF_PTS = 25            # confidence points off the tide-blind bars
 LONE_WOLF_PTS_BIG = 35
 LONE_WOLF_BAR_FLOOR = 50      # the bridge bar never drops below this
 LONE_WOLF_DESKTOP_FLOOR = 55  # desktop floor never drops below this (XMR's 56% passes)
+# TIDE-AWARE DESKTOP FLOOR (user rule, Aug 31: "the thresholds don't know
+# the tide — they should self-adjust"): a RISING fleet carries greens, so
+# the alert floor relaxes from the pre-tide 89. Evidence (diag_tidehistory
+# conf×tide matrix): in RISING tides, ≥89 picks won 48% of decided trades
+# while sub-60 picks won 83% — the 89 floor added no quality in rising
+# fleets, it just silenced them. FLAT keeps the full 89 (lone wolves
+# exempt at 55); OUT blocks upstream; a broken tide read fails to 89.
+# The deep-read ≥60 pre-check still applies to EVERY alert.
+TIDE_RISING_DESKTOP_FLOOR = 78.0
 _lone_wolf_cache = {"pair": None, "pct": 0.0, "ts": 0.0}
 
 
@@ -1534,7 +1543,23 @@ def main():
         # (log_winner runs after send_alert returns) and the bot may still
         # take it via the bridge — but the desktop stays quiet. This was
         # the original guard rail from the winning $251 run.
-        DESKTOP_ALERT_MIN = 89
+        # ── TIDE-AWARE (user rule, Aug 31: the thresholds don't know the
+        # tide — they should self-adjust): a RISING fleet carries greens,
+        # so the floor relaxes to TIDE_RISING_DESKTOP_FLOOR. Evidence
+        # (diag_tidehistory conf×tide): in RISING tides ≥89 picks won 48%
+        # of decided trades while sub-60 picks won 83% — the 89 floor
+        # added no quality in rising fleets, it just silenced them. FLAT
+        # keeps the full 89 for ordinary coins; OUT never gets here (hard
+        # block upstream); a broken tide read fails closed to 89. The
+        # deep-read ≥60 check further down still gates every alert.
+        try:
+            _df_pct, _df_state = _fleet_tide()
+        except Exception:
+            _df_pct, _df_state = None, None
+        DESKTOP_ALERT_MIN = (TIDE_RISING_DESKTOP_FLOOR if _df_state == "RISING" else 89)
+        if _df_state == "RISING":
+            logger.info("  TIDE RISING (fleet %.0f%%) — desktop floor relaxed 89 → %d",
+                        _df_pct or 0, DESKTOP_ALERT_MIN)
         # LONE WOLF (user rule, Aug 31): the pre-tide 89 floor relaxed for
         # a solo mover in a flat tide (never below the floor — XMR's 56%
         # passes at 55). The deep-read check further down still demands
