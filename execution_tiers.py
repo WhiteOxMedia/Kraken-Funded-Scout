@@ -83,10 +83,13 @@ SLIPPAGE_MAX_PCT = 0.3     # skip buys whose VWAP-walk forecast exceeds this
 
 # ── Depth stability (two samples) ────────────────────────────────────────
 STABILITY_WINDOW_S = 10
-STABILITY_DEPTH_PCT = 20.0      # best-level depth may not move ± more than this
+STABILITY_DEPTH_PCT = 20.0      # best-level depth may not DRY more than this (dries only —
+                                # a book getting DEEPER is good news, never "unstable")
 STABILITY_SPREAD_PCT = 20.0     # spread may widen at most this (relative)…
 STABILITY_SPREAD_ABS_BPS = 10.0  # …and at most this (absolute bps)
 STABILITY_TOB_DROP_PCT = 50.0   # top-10 depth may not drop more than this
+STABILITY_LEVEL_MIN_USD = 500.0 # front rows smaller than this are order-slot noise,
+                                # not stability signals (CRV's "$49 book" was one tiny order)
 
 # ── Execution ─────────────────────────────────────────────────────────────
 LADDER_SLICES = 3
@@ -377,8 +380,16 @@ def check_depth_stability(exchange, pair: str, side: str = "asks") -> dict:
         tob1 = b1["ask_tob"] if side == "asks" else b1["bid_tob"]
         tob2 = b2["ask_tob"] if side == "asks" else b2["bid_tob"]
         reasons = []
-        if d1 > 0 and abs(d2 - d1) / d1 * 100.0 > STABILITY_DEPTH_PCT:
-            reasons.append(f"best-level depth ${d1:.0f}→${d2:.0f}")
+        # LEVEL-1 DRY CHECK (fixed Aug 31 — the gate that ate a 92% pick):
+        # the old abs() form flagged books getting DEEPER as "unstable"
+        # (HYPE $536→$12,865, a 24× improvement) and judged sub-$100 front
+        # rows (CRV $49→$32 — one tiny order slot moving). Now: only a
+        # DRY of a MATERIAL row (≥ STABILITY_LEVEL_MIN_USD) counts. The
+        # cumulative book has its own directional tob-drop check below —
+        # that one is the real measure of the book evaporating.
+        if (d1 >= STABILITY_LEVEL_MIN_USD
+                and d2 < d1 * (1.0 - STABILITY_DEPTH_PCT / 100.0)):
+            reasons.append(f"best-level depth ${d1:.0f}→${d2:.0f} (dried)")
         sp1, sp2 = b1["spread_bps"], b2["spread_bps"]
         if (sp2 - sp1) > max(STABILITY_SPREAD_PCT / 100.0 * sp1, STABILITY_SPREAD_ABS_BPS):
             reasons.append(f"spread {sp1:.1f}→{sp2:.1f}bps")
