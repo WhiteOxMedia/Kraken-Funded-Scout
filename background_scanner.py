@@ -433,18 +433,37 @@ def _is_fiat_pair(symbol: str) -> bool:
     return base in _FIAT_BASES
 
 
-def fetch_kraken_gainers(exchange, top_n: int = 20, min_volume_usd: float = 100_000) -> list[dict]:
-    """Fetch top gainers across ALL Kraken pairs (not just the 54 challenge assets)."""
+# ── THE MOVER FUNNEL (user rule, Aug 31: "widen the gainer funnel for the
+# trading bot and leave the contest alone — we don't need both, they share
+# the same goal") ───────────────────────────────────────────────────────
+# ONE funnel for everything moving OUTSIDE the 54: today's runners (≥+5%
+# on 24h across ALL Kraken pairs — the ZORA/XMR case) plus yesterday's
+# losers turning (the old bounce list, folded in here). BOT-ONLY: bridge
+# writes with source="scout_mover"; the contest path (desktop 89 floor,
+# QC, watch) is untouched. Replaces the retired gainer path.
+MOVER_MIN_CONF = 55.0       # bot-grade entry floor (NOT the tournament's adaptive bar — XMR's 56% died against ~80)
+MOVER_TOP_N = 10            # runners deep-scanned per pass (rate-limit friendly)
+MOVER_MIN_PCT = 5.0         # 24h gain that makes a coin a runner (XMR was +11.2%)
+MOVER_MIN_VOLUME_USD = 100_000.0
+MOVER_MIN_CANDLES = 100     # ≈4 days of 1h candles — a day-old +659% listing is pump risk, not a setup
+
+
+def fetch_kraken_movers(exchange, tickers=None, top_n: int = MOVER_TOP_N,
+                        min_pct: float = MOVER_MIN_PCT,
+                        min_volume_usd: float = MOVER_MIN_VOLUME_USD) -> list[dict]:
+    """Today's runners across ALL Kraken pairs (not just the 54 challenge
+    assets): up ≥min_pct on 24h, non-fiat, volume-floored, top_n by pct."""
     try:
-        tickers = exchange.fetch_tickers()
-        gainers = []
+        if tickers is None:
+            tickers = exchange.fetch_tickers()
+        movers = []
         for symbol, t in tickers.items():
             if not symbol.endswith("/USD"):
                 continue
             if _is_fiat_pair(symbol):
                 continue
             pct = t.get("percentage")
-            if not pct or pct <= 0:
+            if not pct or pct < min_pct:
                 continue
             volume = t.get("quoteVolume", 0) or 0
             if volume < min_volume_usd:
@@ -452,11 +471,11 @@ def fetch_kraken_gainers(exchange, top_n: int = 20, min_volume_usd: float = 100_
             price = t.get("last", 0) or 0
             if price <= 0:
                 continue
-            gainers.append({"pair": symbol, "asset": symbol.split("/")[0], "pct": pct, "price": price, "volume": volume})
-        gainers.sort(key=lambda x: x["pct"], reverse=True)
-        return gainers[:top_n]
+            movers.append({"pair": symbol, "asset": symbol.split("/")[0], "pct": pct, "price": price, "volume": volume})
+        movers.sort(key=lambda x: x["pct"], reverse=True)
+        return movers[:top_n]
     except Exception as exc:
-        logger.warning("Gainers fetch failed: %s", exc)
+        logger.warning("Movers fetch failed: %s", exc)
         return []
 
 
@@ -1737,6 +1756,7 @@ def main():
     last_loser_fetch = ""  # date string — fetch losers once per day
     cached_loser_pairs = []
     alerted_recently = {}
+    _mover_scanned = {}  # MOVER FUNNEL pacing: per-pair rescan timestamps (10 min), isolated from the contest path
     current_block_name = None  # track time block changes for position reset
     last_flatten_date = _load_scanner_state().get("last_flatten_date", "")  # persisted — restarts don't re-flatten
 
@@ -1910,96 +1930,147 @@ def main():
                 else:
                     logger.info("  No significant movers in challenge assets")
 
-                # ── Bounce fast path: yesterday's losers, scanned every tick ──
-                # The gainer path is retired (chasing pumps = bad fills). Instead:
-                # the daily bounce list (yesterday's top losers) gets deep-scanned
-                # here at ticker speed, so a bounce setup fires immediately
-                # instead of waiting for the next full tournament.
-                if cached_loser_pairs:
-                    for pair in cached_loser_pairs:
-                        if pair in alerted_recently:
-                            if (now.timestamp() - alerted_recently[pair]) < 600:
-                                continue
+                # ── THE MOVER FUNNEL (user rule, Aug 31: one funnel, bot-
+                #    only, widened to all Kraken pairs). Today's runners
+                #    (≥+5% on 24h — the ZORA/XMR case) plus yesterday's
+                #    losers turning (the old bounce list, folded in here).
+                #    Writes bridge signals (source="scout_mover"); the
+                #    contest path (desktop 89 floor, QC, watch) is untouched.
+                #    Kept gates, on purpose: deep read ≥60 + no downward
+                #    trend (the brain's floor), rotation lockout (fines),
+                #    tide OUT, listing age ≥4 days. The bot's own liquidity
+                #    gates + carry cap + exit ladder protect the money.
+                _mover_cands = []
+                try:
+                    _mover_cands = [(m["pair"], m["pct"]) for m in
+                                    fetch_kraken_movers(exchange, top_n=MOVER_TOP_N)]
+                except Exception as exc:
+                    logger.debug("Mover fetch failed: %s", exc)
+                for _bp in cached_loser_pairs:
+                    if _bp not in [p for p, _ in _mover_cands]:
+                        _mover_cands.append((_bp, -5.0))  # was a loser, now bouncing
+
+                for pair, _mv_pct in _mover_cands:
+                    # rescan pacing: every 10 min per pair, isolated from
+                    # alerted_recently so the contest ticker path is untouched
+                    if (now.timestamp() - _mover_scanned.get(pair, 0)) < 600:
+                        continue
+                    _mover_scanned[pair] = now.timestamp()
+                    try:
+                        ohlcv = exchange.fetch_ohlcv(pair, timeframe="1h", limit=200)
+                        if not ohlcv or len(ohlcv) < MOVER_MIN_CANDLES:
+                            continue  # fresh listing / not enough history to trust
+                        df = pd.DataFrame(ohlcv, columns=["timestamp","open","high","low","close","volume"])
+                        df["timestamp"] = pd.to_datetime(df["timestamp"], unit="ms")
+                        df.set_index("timestamp", inplace=True)
+
+                        # bot-grade floor — NOT the tournament's adaptive bar
+                        # (XMR's 56% died against ~80; the funnel takes it)
+                        signal = evaluate_and_check(pair, df, MOVER_MIN_CONF)
+                        if not signal:
+                            continue
+                        asset = pair.split("/")[0]
+
+                        # mover move gate: aggressive bar (avg move) —
+                        # a runner/bounce needs room to travel
                         try:
-                            ohlcv = exchange.fetch_ohlcv(pair, timeframe="1h", limit=200)
-                            if not ohlcv or len(ohlcv) < 30:
+                            from volatility_engine import get_move_threshold
+                            gm_thr = get_move_threshold(pair, rot_key, _schedule_for_dow(dow), level="aggressive")
+                            if gm_thr is not None and signal.entry_price and signal.take_profit:
+                                gm_proj = (signal.take_profit - signal.entry_price) / signal.entry_price * 100
+                                if gm_proj < gm_thr:
+                                    continue
+                        except Exception:
+                            pass
+
+                        # rotation lockout (user rule, Aug 30): one green light
+                        # per asset per rotation — no whipsaw re-entry, no
+                        # double-dip fines on the bot either
+                        _m_allowed, _m_lock, _m_re, _m_fine = rotation_gate(asset)
+                        if not _m_allowed:
+                            logger.info("  MOVER SKIP: %s — %s", asset, _m_lock)
+                            continue
+
+                        # deep read ≥60 + no downward trend — the quality floor
+                        # (the PUMP lesson: never buy what the brain dislikes).
+                        # Fail-open on errors, same as the bridge pre-check.
+                        try:
+                            from strategy import evaluate_strategy as _ev, \
+                                enable_deep_analysis, disable_deep_analysis
+                            enable_deep_analysis()
+                            _deep_sig = _ev(df, cfg)
+                            disable_deep_analysis()
+                            from indicators import ema as _ema_mv
+                            _es_mv = float(_ema_mv(df["close"], cfg.ema_short).iloc[-1])
+                            _el_mv = float(_ema_mv(df["close"], cfg.ema_long).iloc[-1])
+                            if (_deep_sig.action != "buy" or _deep_sig.confidence < 60
+                                    or (_es_mv < _el_mv and float(df["close"].iloc[-1]) < _el_mv)):
+                                logger.info("  MOVER VETO: %s deep-reads %s %.0f%% — the brain says no",
+                                            asset, _deep_sig.action, _deep_sig.confidence)
                                 continue
-                            df = pd.DataFrame(ohlcv, columns=["timestamp","open","high","low","close","volume"])
-                            df["timestamp"] = pd.to_datetime(df["timestamp"], unit="ms")
-                            df.set_index("timestamp", inplace=True)
+                        except Exception as _exc:
+                            logger.debug("mover deep read unavailable for %s: %s (fail-open)", pair, _exc)
 
-                            signal = evaluate_and_check(pair, df, min_conf)
-                            if not signal:
-                                continue
-                            asset = pair.split("/")[0]
+                        # tide: stamp every write; OUT = no entries anywhere
+                        _tpw, _tsw = _fleet_tide()
+                        if _tsw == "OUT":
+                            logger.info("  MOVER SKIP: %s — tide OUT (fleet %.0f%%) — all ships sink together",
+                                        asset, _tpw or 0)
+                            continue
 
-                            # bounce move gate: aggressive bar (avg move) —
-                            # a bounce off yesterday's low needs room to travel
-                            try:
-                                from volatility_engine import get_move_threshold
-                                gm_thr = get_move_threshold(pair, rot_key, _schedule_for_dow(dow), level="aggressive")
-                                if gm_thr is not None and signal.entry_price and signal.take_profit:
-                                    gm_proj = (signal.take_profit - signal.entry_price) / signal.entry_price * 100
-                                    if gm_proj < gm_thr:
-                                        continue
-                            except Exception:
-                                pass
+                        logger.info("  🚀 MOVER SIGNAL: %s %s (%.0f%%, 24h %+.0f%%) — mover outside the 54",
+                                    signal.action.upper(), asset, signal.confidence, _mv_pct)
 
-                            logger.info("  🔄 BOUNCE SIGNAL: %s %s (%.0f%%) — yesterday's loser turning",
-                                        signal.action.upper(), asset, signal.confidence)
+                        # persist to the volatility universe so the engine
+                        # learns this coin's stats for future thresholds
+                        try:
+                            from volatility_engine import remember_gainer
+                            remember_gainer(pair, _mv_pct)
+                        except Exception:
+                            pass
 
-                            # persist to the volatility universe so the engine
-                            # learns this coin's stats for future thresholds
-                            try:
-                                from volatility_engine import remember_gainer
-                                remember_gainer(pair, -5.0)  # was a loser, now bouncing
-                            except Exception:
-                                pass
-
-                            # write to the bridge — bot may take it
-                            try:
-                                from signal_bridge import write_buy_signal
-                                sid = write_buy_signal(
-                                    pair=pair,
-                                    action=signal.action,
-                                    confidence=signal.confidence,
-                                    entry_price=signal.price,
-                                    stop_loss=signal.stop_loss,
-                                    take_profit=signal.take_profit,
-                                    risk_reward=signal.risk_reward,
-                                    position_size_usd=0,
-                                    reasons=[f"Bounce: yesterday's loser turning", *signal.reasons],
-                                    source="scout_gainer",
-                                    reason_summary="Bounce: yesterday's loser turning",
-                                    min_confidence=50,
-                                )
-                                if sid:
-                                    logger.info("  Bounce signal written — Trader will evaluate %s", asset)
-                            except Exception as exc:
-                                logger.warning("  Could not write bounce to bridge: %s", exc)
-
-                            # desktop: 89% floor + resolve rule, same as everything else
-                            _b_hours = _hours_to_scalp(pair, signal.entry_price)
-                            if signal.confidence >= 89 and not (_b_hours is not None and _b_hours > _max_resolve_hours()):
-                                notify_big(
-                                    f"🔄 BOUNCE {asset} ({signal.confidence:.0f}%)",
-                                    f"Yesterday's loser turning — bounce play\n"
-                                    f"Price: ${signal.price:.4f}\n"
-                                    f"Stop: ${signal.stop_loss:.4f}\n"
-                                    f"TP: ${signal.take_profit:.4f}\n"
-                                    f"Time: {_fmt_mst(_now_mst())}"
-                                )
-                            else:
-                                if _b_hours is not None and _b_hours > _max_resolve_hours():
-                                    logger.info("  Bounce %s TOO SLOW (~%.0fh to the $20) — logged only", asset, _b_hours)
-                                else:
-                                    logger.info("  Bounce %s %.0f%% < 89%% floor — logged only", asset, signal.confidence)
-                            log_winner(pair, signal)
-                            alerted_recently[pair] = now.timestamp()
+                        # write to the bridge — bot may take it (tide-stamped)
+                        try:
+                            from signal_bridge import write_buy_signal
+                            sid = write_buy_signal(
+                                pair=pair,
+                                action=signal.action,
+                                confidence=signal.confidence,
+                                entry_price=signal.price,
+                                stop_loss=signal.stop_loss,
+                                take_profit=signal.take_profit,
+                                risk_reward=signal.risk_reward,
+                                position_size_usd=0,
+                                reasons=[f"Mover: {_mv_pct:+.0f}% on 24h — running outside the 54", *signal.reasons],
+                                source="scout_mover",
+                                reason_summary=f"Mover: {_mv_pct:+.0f}% on 24h",
+                                min_confidence=50,
+                                tide_state=(_tsw or "UNKNOWN"),
+                                tide_pct=_tpw,
+                            )
+                            if sid:
+                                logger.info("  Mover signal written — Trader will evaluate %s", asset)
                         except Exception as exc:
-                            logger.debug("Bounce scan failed for %s: %s", pair, exc)
-                else:
-                    pass  # no bounce list yet today
+                            logger.warning("  Could not write mover to bridge: %s", exc)
+
+                        # desktop: 89% floor + resolve rule, same as everything
+                        # else — the contest path is untouched by this funnel
+                        _b_hours = _hours_to_scalp(pair, signal.entry_price)
+                        if signal.confidence >= 89 and not (_b_hours is not None and _b_hours > _max_resolve_hours()):
+                            notify_big(
+                                f"🚀 MOVER {asset} ({signal.confidence:.0f}%)",
+                                f"Runner outside the 54 — {asset} {_mv_pct:+.0f}% on 24h\n"
+                                f"Price: ${signal.price:.4f}\n"
+                                f"Stop: ${signal.stop_loss:.4f}\n"
+                                f"TP: ${signal.take_profit:.4f}\n"
+                                f"Time: {_fmt_mst(_now_mst())}"
+                            )
+                        else:
+                            logger.info("  Mover %s %.0f%% — bot-only (desktop floor 89)", asset, signal.confidence)
+                        log_winner(pair, signal)
+                        alerted_recently[pair] = now.timestamp()
+                    except Exception as exc:
+                        logger.debug("Mover scan failed for %s: %s", pair, exc)
             except Exception as exc:
                 logger.warning("Ticker scan error: %s", exc)
 
