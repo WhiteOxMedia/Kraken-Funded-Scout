@@ -91,6 +91,13 @@ def init_db():
         cols = [r["name"] for r in conn.execute("PRAGMA table_info(signals)").fetchall()]
         if "highest_price" not in cols:
             conn.execute("ALTER TABLE signals ADD COLUMN highest_price REAL")
+        # Migration (Aug 31): tide stamp — the fleet state at signal time.
+        # Data collection for the tide sizing factor (user rule: collect the
+        # data before picking a FLAT number). NULL/'' = pre-stamp signal.
+        if "tide_state" not in cols:
+            conn.execute("ALTER TABLE signals ADD COLUMN tide_state TEXT")
+        if "tide_pct" not in cols:
+            conn.execute("ALTER TABLE signals ADD COLUMN tide_pct REAL")
         conn.commit()
 
 
@@ -314,6 +321,8 @@ def write_buy_signal(
     reason_summary: str = "",
     min_confidence: float = 75,  # Adaptive — passed by scanner based on time of day
     is_dca: bool = False,  # DCA tranche: adds to an existing position
+    tide_state: str = "",  # fleet state at signal time (RISING/FLAT/OUT/UNKNOWN)
+    tide_pct: float | None = None,  # fleet breadth % at signal time
 ) -> str | None:
     """Write a buy/sell signal to the database.
 
@@ -381,13 +390,15 @@ def write_buy_signal(
                 signal_id, pair, action, confidence, reason,
                 timestamp, valid_until, cooldown_until,
                 price_at_signal, entry_price, stop_loss, take_profit,
-                risk_reward, position_size_usd, source, status
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending')
+                risk_reward, position_size_usd, source, status,
+                tide_state, tide_pct
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?)
         """, (
             signal_id, pair, action, confidence, reason_summary,
             now.isoformat(), valid_until, cooldown_until,
             entry_price, entry_price, stop_loss, take_profit,
             risk_reward, position_size_usd, source,
+            tide_state, tide_pct,
         ))
         conn.commit()
 

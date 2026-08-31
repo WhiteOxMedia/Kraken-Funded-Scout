@@ -1476,6 +1476,12 @@ def main():
         if not gate_notes:
             try:
                 from signal_bridge import write_buy_signal
+                # TIDE STAMP (user rule, Aug 31: collect the data before
+                # picking a FLAT sizing number): record the fleet state at
+                # signal time on every bridge write. The bot logs it on
+                # execution; diag_tidedata.py turns it into the FLAT-vs-
+                # RISING record. Cached read — no extra API call.
+                _tpw, _tsw = _fleet_tide()
                 signal_written = write_buy_signal(
                     pair=pair, action=signal.action,
                     # the BRAIN'S number (deep-read confidence when we have
@@ -1491,6 +1497,8 @@ def main():
                     reasons=signal.reasons,
                     source="scout_auto",
                     min_confidence=0,  # Already gated in send_alert — skip redundant check
+                    tide_state=(_tsw or "UNKNOWN"),
+                    tide_pct=_tpw,
                 )
                 if signal_written:
                     logger.info("📡 Signal written to bridge for XRP bot: %s %s (%.0f%%)", signal.action.upper(), asset, signal.confidence)
