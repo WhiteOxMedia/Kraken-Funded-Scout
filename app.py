@@ -1074,6 +1074,14 @@ CONTEST_CHUNKS = (0.25, 0.50, 0.75, 1.00)
 # Desktop alerts keep their own 89% floor; the bot bridge keeps its
 # per-asset bars — different games, different ledgers.
 QC_SCALP_FLOOR = 60
+# ONE PICK VOICE (user rule, Aug 31: "the bot should be silent — I
+# shouldn't be hearing two different signals"): the scanner's champion
+# alert is the ONLY voice that calls picks. The card SHOWS the pick (the
+# ⚡ plate + CHECK button) but does not speak — its no-bar headline voice
+# was the source of the day's noise (JUP/HYPE/POPCAT card-called = noise;
+# ARB, the one correct call, came from the champion alert). Flip to True
+# to restore the card's voice.
+CARD_PICK_VOICE_ENABLED = False
 
 # ── Chase guard (Aug 24, PENGU was the example) ─────────────────────
 # Trend conviction is a rear-view mirror: it maxes out AFTER a move runs
@@ -1328,41 +1336,50 @@ def _pick_card(cfg: TradingConfig, kraken):
                 # they not all the same?"): the card's browser voice speaks
                 # the SAME complete call as the server alert voice — coin,
                 # $20 time, SIZE if the book is thin, tide, out-by.
-                try:
-                    import background_scanner as _bsv
-                    if not hasattr(_bsv, "_fleet_tide"):
-                        import importlib
-                        _bsv = importlib.reload(_bsv)
-                    _tpv, _tsv = _bsv._fleet_tide()
-                    _tide_say = "The tide is rising! " if _tsv == "RISING" else ""
-                    _size_say = ""
+                # ── RETIRED Aug 31 (user rule: "the bot should be silent —
+                # I shouldn't be hearing two different signals"): the card
+                # SHOWS the pick (the plate + CHECK button below) but no
+                # longer SPEAKS it. The scanner's champion alert is the ONE
+                # pick voice; the card's no-bar headline voice was today's
+                # noise (JUP/HYPE/POPCAT all card-called, all noise, while
+                # ARB — the one correct call — came from the champion alert).
+                # Flip this flag back to True to restore the card's voice.
+                if CARD_PICK_VOICE_ENABLED:
                     try:
-                        from execution_tiers import liquidity_snapshot as _lsv
-                        _balv = float(cfg.challenge_balance)
-                        _snv = _lsv(kraken.exchange, h["pair"], _balv)
-                        if _snv.get("ok"):
-                            _dep = float(_snv["book"]["ask_tob"])
-                            _carry = _dep * 0.20
-                            if _balv > _carry:
-                                _fitv = [c * _balv for c in (0.25, 0.50, 0.75, 1.00)
-                                         if c * _balv <= _carry]
-                                _spendv = max(_fitv) if _fitv else 0.0
-                                if _spendv > 0:
-                                    _size_say = f"Small size only — {_spendv:,.0f} dollars! "
+                        import background_scanner as _bsv
+                        if not hasattr(_bsv, "_fleet_tide"):
+                            import importlib
+                            _bsv = importlib.reload(_bsv)
+                        _tpv, _tsv = _bsv._fleet_tide()
+                        _tide_say = "The tide is rising! " if _tsv == "RISING" else ""
+                        _size_say = ""
+                        try:
+                            from execution_tiers import liquidity_snapshot as _lsv
+                            _balv = float(cfg.challenge_balance)
+                            _snv = _lsv(kraken.exchange, h["pair"], _balv)
+                            if _snv.get("ok"):
+                                _dep = float(_snv["book"]["ask_tob"])
+                                _carry = _dep * 0.20
+                                if _balv > _carry:
+                                    _fitv = [c * _balv for c in (0.25, 0.50, 0.75, 1.00)
+                                             if c * _balv <= _carry]
+                                    _spendv = max(_fitv) if _fitv else 0.0
+                                    if _spendv > 0:
+                                        _size_say = f"Small size only — {_spendv:,.0f} dollars! "
+                                    else:
+                                        _size_say = "Too thin — this book can't carry the trade! "
                                 else:
-                                    _size_say = "Too thin — this book can't carry the trade! "
+                                    _size_say = f"Big book — all {_balv:,.0f} dollars in fine! "
                             else:
-                                _size_say = f"Big book — all {_balv:,.0f} dollars in fine! "
-                        else:
+                                _size_say = "Book unreadable — your call on size! "
+                        except Exception:
                             _size_say = "Book unreadable — your call on size! "
+                        _out_say = _out_by_txt(_now_mst(), h["pace"])
+                        _speak(f"New pick! {h['asset']}! Twenty dollars in about "
+                               f"{h['pace'] * 60:.0f} minutes! {_size_say}{_tide_say}"
+                               f"If it hasn't paid by {_out_say}, get out!")
                     except Exception:
-                        _size_say = "Book unreadable — your call on size! "
-                    _out_say = _out_by_txt(_now_mst(), h["pace"])
-                    _speak(f"New pick! {h['asset']}! Twenty dollars in about "
-                           f"{h['pace'] * 60:.0f} minutes! {_size_say}{_tide_say}"
-                           f"If it hasn't paid by {_out_say}, get out!")
-                except Exception:
-                    pass
+                        pass
         age_txt = f"{h['age_min']:.0f} minutes ago" if h["age_min"] >= 1 else "just now"
         rows = [
             f"<span style='color:#4be38a;font-size:40px;font-family:Audiowide;'>⚡ {h['asset']}</span>",

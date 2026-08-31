@@ -1653,6 +1653,21 @@ def main():
         # (log_winner runs after send_alert returns) and the bot may still
         # take it via the bridge — but the desktop stays quiet. This was
         # the original guard rail from the winning $251 run.
+        # ── ONE VOICE, ONE CALL PER COIN (user rule, Aug 31: "the bot
+        # should be silent — I shouldn't be hearing two different
+        # signals"): if the bot ALREADY HOLDS this pair, the champion
+        # alert stays quiet — the coin was called when it was bought,
+        # re-calling it is a second signal on one trade (HYPE 12:42
+        # re-called a position the bot had held since 12:05). The bot's
+        # trade is tracked in the console's BOT'S BOOK, not re-announced.
+        try:
+            from signal_bridge import is_already_holding as _iah
+            if _iah(pair):
+                logger.info("  DESKTOP QUIET: %s — the bot already holds it; one call "
+                            "per coin (BOT'S BOOK tracks the trade)", asset)
+                return
+        except Exception:
+            pass  # broken read → the alert proceeds (floor stack still gates it)
         # ── TIDE-AWARE (user rule, Aug 31: the thresholds don't know the
         # tide — they should self-adjust): a RISING fleet carries greens,
         # so the floor relaxes to TIDE_RISING_DESKTOP_FLOOR. Evidence

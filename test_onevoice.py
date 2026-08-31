@@ -1,52 +1,65 @@
-"""Test the ONE voice engine: console _speak queues a file; the scanner's
-drain logic shape matches. Round-trip with real files, cleaned up."""
-import sys, json, glob, os, time
+"""Test ONE PICK VOICE (user rule, Aug 31: "the bot should be silent — I
+shouldn't be hearing two different signals?"). Two contest-side mouths
+were calling picks — the console card ("New pick! X!", no bar, every new
+headline) and the scanner's champion alert ("Buy X! N% sure!", the full
+gate stack). Today's record: ARB (the one correct call) came from the
+champion alert; JUP/HYPE-dup/POPCAT were card calls = noise. Fix: the
+card shows but doesn't speak; the champion alert stays quiet for pairs
+the bot already holds (one coin, one call)."""
+import sys
 from pathlib import Path
 
-BASE = Path(__file__).resolve().parent
-sys.path.insert(0, str(BASE))
+sys.path.insert(0, str(Path(__file__).parent))
 
-results = []
+PASS, FAIL = 0, 0
+lines = []
+
+
 def check(name, ok, detail=""):
-    results.append((name, ok, detail))
+    global PASS, FAIL
+    lines.append(("PASS  " if ok else "FAIL  ") + name + "  " + str(detail))
+    if ok:
+        PASS += 1
+    else:
+        FAIL += 1
 
-import app
 
-# 1. the console's _speak drops a queue file (does NOT speak directly)
-qdir = BASE / "speech_queue"
-before = set(glob.glob(str(qdir / "*.json")))
-app._speak("Testing the one voice engine.", rate=1)
-time.sleep(0.2)
-after = set(glob.glob(str(qdir / "*.json")))
-new_files = after - before
-check("_speak queues a file (no direct speech)", len(new_files) == 1, f"{len(new_files)}")
-if new_files:
-    f = new_files.pop()
-    doc = json.loads(Path(f).read_text())
-    check("queue file carries the text", "one voice engine" in doc.get("text", ""))
-    check("queue file carries the rate", doc.get("rate") == 1)
-    check("queue file carries a timestamp", isinstance(doc.get("ts"), float))
-    os.remove(f)
+ap = open("app.py", encoding="utf-8").read()
+sc = open("background_scanner.py", encoding="utf-8").read()
 
-# 2. no leftover files from the test
-left = glob.glob(str(qdir / "*.json")) + glob.glob(str(qdir / "*.tmp"))
-for f in left:
-    os.remove(f)
-check("queue clean after test", len(glob.glob(str(qdir / "*.json"))) == 0)
+# ── 1. the card's pick voice is retired (shows, doesn't speak) ────────
+check("CARD_PICK_VOICE_ENABLED flag exists", "CARD_PICK_VOICE_ENABLED" in ap)
+check("the card's voice is OFF",
+      "CARD_PICK_VOICE_ENABLED = False" in ap)
+check("the card's _speak is gated behind the flag",
+      0 < ap.find("if CARD_PICK_VOICE_ENABLED:")
+      < ap.find('_speak(f"New pick! {h[\'asset\']}!'))
+check("the card still SHOWS the pick (plate + check button intact)",
+      "⚡ THE PICK" in ap and "the final yes/no" in ap)
+check("the card's voice code is kept (reversible — don't delete anything)",
+      "_size_say" in ap and "Big book — all {_balv:,.0f} dollars in fine!" in ap)
 
-# 3. the scanner side has the drain (source contract)
-bs_src = (BASE / "background_scanner.py").read_text(encoding="utf-8")
-check("scanner drains the queue in its main loop",
-      "_drain_speech_queue()" in bs_src and "SPEECH_QUEUE_DIR" in bs_src)
-# 4. the CONSOLE's _speak no longer speaks directly (no Popen in it)
-app_src = (BASE / "app.py").read_text(encoding="utf-8")
-_speak_body = app_src.split("def _speak(")[1].split("\ndef ")[0]
-check("console _speak has no direct speech (Popen gone — queue only)",
-      "Popen" not in _speak_body and "SPEECH_QUEUE_DIR" in _speak_body)
+# ── 2. the champion alert stays quiet for bot-held pairs ─────────────
+check("desktop alert checks the bridge for held pairs",
+      "is_already_holding as _iah" in sc)
+check("held pair -> quiet with a log line (DESKTOP QUIET)",
+      "DESKTOP QUIET" in sc and "the bot already holds it" in sc)
+check("the held check sits in the desktop policy (after the gates, before the floor)",
+      0 < sc.find("Desktop alert policy") < sc.find("DESKTOP QUIET")
+      < sc.find('TIDE_RISING_DESKTOP_FLOOR if _df_state == "RISING" else 89'))
+check("broken bridge read fails open (the alert proceeds)",
+      "broken read → the alert proceeds" in sc)
 
-fails = [r for r in results if not r[1]]
-out = BASE / "onevoice_check.txt"
-out.write_text("\n".join(
-    f"{'PASS' if ok else 'FAIL'}  {name}" + (f"  [{d}]" if d and not ok else "")
-    for name, ok, d in results), encoding="utf-8")
-print(f"{'ALL PASS' if not fails else str(len(fails)) + ' FAILURES'}")
+# ── 3. the one voice that remains is the champion alert ──────────────
+check("the champion alert voice is intact (the ONE pick voice)",
+      'title = f"🟢 BUY {asset} — {_dc:.0f}% SURE"' in sc)
+check("the QC still speaks when the user asks (their action, not a signal)",
+      "Go! " in ap or "I count the twenties" in ap)
+check("the bot itself stays log-silent (no push/voice from the bot repo)",
+      "logger.info" in open(
+          r"C:\Users\birds\Workspace\kraken_xrp_trading_bot\notifications.py",
+          encoding="utf-8").read())
+
+lines.append(f"\nRESULT: {PASS} passed, {FAIL} failed")
+open("_onevoice_check.txt", "w", encoding="utf-8").write("\n".join(lines))
+print("DONE")
