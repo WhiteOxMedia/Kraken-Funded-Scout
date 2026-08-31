@@ -1833,7 +1833,9 @@ def main():
                        + ("Lone wolf! Moving on her own while the fleet sits still! " if _lw_pts else "")
                        + f"The twenty comes in {hold_txt}! "
                        + (f"Small size only — {_spend:,.0f} dollars! " if _small_coin else
-                          ("Big book — all in fine! " if _carry is not None else ""))
+                          (f"Big book — all {(float(_bal) if _bal > 0 else 5000.0):,.0f} dollars in fine! "
+                           if _carry is not None else
+                           "Book unreadable — your call on size! "))
                        + _tide_spoken
                        + (f"If it hasn't paid by {_out_by}, get out!" if _out_by else
                           "Hold until you're up twenty dollars!"))

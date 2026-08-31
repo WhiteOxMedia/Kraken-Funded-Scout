@@ -1349,8 +1349,14 @@ def _pick_card(cfg: TradingConfig, kraken):
                                 _spendv = max(_fitv) if _fitv else 0.0
                                 if _spendv > 0:
                                     _size_say = f"Small size only — {_spendv:,.0f} dollars! "
+                                else:
+                                    _size_say = "Too thin — this book can't carry the trade! "
+                            else:
+                                _size_say = f"Big book — all {_balv:,.0f} dollars in fine! "
+                        else:
+                            _size_say = "Book unreadable — your call on size! "
                     except Exception:
-                        pass
+                        _size_say = "Book unreadable — your call on size! "
                     _out_say = _out_by_txt(_now_mst(), h["pace"])
                     _speak(f"New pick! {h['asset']}! Twenty dollars in about "
                            f"{h['pace'] * 60:.0f} minutes! {_size_say}{_tide_say}"
