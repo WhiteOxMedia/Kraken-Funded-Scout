@@ -117,6 +117,41 @@ def bucket_report(title: str, subset: list[dict]):
 bucket_report("ALL EXECUTED BUYS (every era)", rows)
 week = [x for x in rows if x["when"] >= now - timedelta(days=7)]
 bucket_report("LAST 7 DAYS", week)
+# the era that matches TODAY'S system (exit fix Aug 27 + two-ledger Aug 30):
+# calibrating tide lines on pre-fix trades measures the old exit bug, not the tide
+FIX_CUTOFF = datetime(2026, 8, 27, 0, 0, tzinfo=MST)
+bucket_report("CURRENT-EXITS ERA (Aug 27+ — today's system)", [x for x in rows if x["when"] >= FIX_CUTOFF])
+
+# ── BREADTH-BAND CALIBRATION (user rule, Aug 31: "the strict threshold
+#    that wasn't based on anything") — where does buying actually stop
+#    paying? Buckets by raw fleet %, independent of the 70/35 labels.
+BANDS = [("<=20", 0, 20), ("21-35", 21, 35), ("36-50", 36, 50),
+         ("51-69", 51, 69), (">=70", 70, 100)]
+
+
+def band_report(title: str, subset: list[dict]):
+    out(f"\n{'=' * 66}\n{title}\n{'=' * 66}")
+    out(f"{'fleet%':7} {'trades':>6} {'W':>3} {'L':>3} {'0':>3} {'win%':>6} {'total$':>8} {'avg$':>7}")
+    for name, lo, hi in BANDS:
+        grp = [x for x in subset if x["breadth"] is not None and lo <= x["breadth"] <= hi]
+        if not grp:
+            out(f"{name:7} {0:>6}")
+            continue
+        closed = [x for x in grp if x["status"] == "closed" and x["pnl"] is not None]
+        wins = [x for x in closed if x["pnl"] > 0]
+        losses = [x for x in closed if x["pnl"] < 0]
+        zeros = [x for x in closed if x["pnl"] == 0]
+        decided = len(wins) + len(losses)
+        winpct = 100.0 * len(wins) / decided if decided else 0.0
+        total = sum(x["pnl"] for x in closed)
+        avg = total / len(closed) if closed else 0.0
+        out(f"{name:7} {len(grp):>6} {len(wins):>3} {len(losses):>3} {len(zeros):>3} "
+            f"{winpct:>5.0f}% {total:>8.2f} {avg:>7.2f}")
+
+
+band_report("BREADTH BANDS — all eras", rows)
+band_report("BREADTH BANDS — current-exits era (Aug 27+)",
+            [x for x in rows if x["when"] >= FIX_CUTOFF])
 
 out(f"\n{'=' * 66}\nPER-TRADE (oldest first) — 0 = pnl $0 (rotation reset, not an outcome)\n{'=' * 66}")
 out(f"{'executed (MST)':17} {'pair':12} {'tide':8} {'fleet%':>6} {'conf':>5} {'pnl':>8}  src")
