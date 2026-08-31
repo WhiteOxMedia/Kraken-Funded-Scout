@@ -1074,6 +1074,13 @@ CONTEST_CHUNKS = (0.25, 0.50, 0.75, 1.00)
 # Desktop alerts keep their own 89% floor; the bot bridge keeps its
 # per-asset bars — different games, different ledgers.
 QC_SCALP_FLOOR = 60
+# ONE BUY VOICE (user rule, Aug 31, sanctioned: "I only want brain buy
+# signals for the voice" + "less entries but more money"): the card SHOWS
+# the pick (the ⚡ plate + CHECK button) but does not SPEAK it. The
+# champion alert — which fires only when the deep read clears 60 and the
+# high bar (89 flat / 78 rising / 55 lone wolf) — is the only unsolicited
+# buy voice. Flip to True to restore the card's voice.
+CARD_PICK_VOICE_ENABLED = False
 
 # ── Chase guard (Aug 24, PENGU was the example) ─────────────────────
 # Trend conviction is a rear-view mirror: it maxes out AFTER a move runs
@@ -1329,7 +1336,9 @@ def _pick_card(cfg: TradingConfig, kraken):
         # Zira announces when a NEW young pick takes the seat
         if st.session_state.get("_headline_asset") != h["asset"]:
             st.session_state["_headline_asset"] = h["asset"]
-            if h["age_min"] <= 10:
+            if h["age_min"] <= 10 and CARD_PICK_VOICE_ENABLED:
+                # (voice gated by CARD_PICK_VOICE_ENABLED — the card shows,
+                # the champion alert speaks; user rule, Aug 31)
                 # VOICE-FIRST, ONE STANDARD (user rule, Aug 27: "why are
                 # they not all the same?"): the card's browser voice speaks
                 # the SAME complete call as the server alert voice — coin,
@@ -2121,9 +2130,30 @@ def render_quick_check(cfg: TradingConfig, kraken):
                 st.session_state["qc_result"]["reentry"] = _rot_reentry
                 st.session_state["qc_result"]["fine"] = _rot_fine
                 st.session_state["qc_result"]["yesterday"] = _yctx
+                # ── THE THIN-BOOK BRAIN RULE (user rule, Aug 31: "thin book
+                # buys in the contest are noisy... less entries but more
+                # money, bigger margins from big coins... it still needs the
+                # brain"): a book that can't carry the FULL position only
+                # gets a green light when the BRAIN calls it exceptional —
+                # the champion floor, same as the alert path (89 flat tide /
+                # 78 rising / 55 lone wolf). Below that: SKIP — thin book,
+                # brain not exceptional. POPCAT (74% on a thin book) would
+                # have been skipped; ARB passes on the lone-wolf floor.
+                try:
+                    _trdf = float(getattr(_bs5, "TIDE_RISING_DESKTOP_FLOOR", 78.0))
+                    _lwdf = float(getattr(_bs5, "LONE_WOLF_DESKTOP_FLOOR", 55.0))
+                except Exception:
+                    _trdf, _lwdf = 78.0, 55.0
+                _champ_floor = (_trdf if _tide_state == "RISING" else 89.0)
+                if _lw_pts:
+                    _champ_floor = max(_lwdf, _champ_floor - _lw_pts)
+                _thin_book = (0 < _spend_usd < float(cfg.challenge_balance))
+                st.session_state["qc_result"]["thin_book"] = _thin_book
+                st.session_state["qc_result"]["champ_floor"] = _champ_floor
                 # HARD GATES: setup + pace + cooldown + no downward trend +
                 # the book carries your money + the tide isn't OUT +
-                # rotation isn't locked + this hour didn't blow off yesterday.
+                # rotation isn't locked + this hour didn't blow off yesterday
+                # (+ the thin book needs an exceptional brain read).
                 if (sig.action == "buy" and not no_buy
                         and sig.confidence >= QC_SCALP_FLOOR
                         and _trend != "FALLING"
@@ -2131,7 +2161,8 @@ def render_quick_check(cfg: TradingConfig, kraken):
                         and _spend_usd > 0
                         and _rot_ok
                         and not (_yctx and _yctx.get("shape") == "blowoff")
-                        and not (_s_h is not None and _s_h > _resolve_cap())):
+                        and not (_s_h is not None and _s_h > _resolve_cap())
+                        and (not _thin_book or sig.confidence >= _champ_floor)):
                     # AUTO-WATCH on green light: the deep scan IS the entry.
                     # The user's system: green → all in, scalp to +$20, out,
                     # re-enter small, green again → buy more. The BOOK CARRY
@@ -2193,7 +2224,12 @@ def render_quick_check(cfg: TradingConfig, kraken):
                                     _speak(f"Go! {asset}! Buy {_pct_txt}! {_fine_say}But heads up: "
                                            + " and ".join(_warns) + "!", rate=1)
                                 elif _sized_down:
+                                    # THIN-BOOK BRAIN RULE: this GO only fired
+                                    # because the brain cleared the champion
+                                    # floor — say the number so the sizing
+                                    # decision is informed
                                     _speak(f"Go! {asset}! Buy {_pct_txt} — the book is thin! "
+                                           f"The brain says {sig.confidence:.0f} percent! "
                                            f"{_fine_say}I count the twenties!", rate=1)
                                 else:
                                     _speak(f"Go! {asset}! Buy 100 percent! {_fine_say}I count the twenties!")
@@ -2277,6 +2313,25 @@ def render_quick_check(cfg: TradingConfig, kraken):
                                      icon="⛔", duration=20)
                             _play_sound("alarm")
                             _speak(f"Too thin! {asset}! Your money is the market! Skip it!", rate=1)
+                        except Exception:
+                            pass
+                    elif (sig.action == "buy" and not no_buy
+                            and sig.confidence >= QC_SCALP_FLOOR
+                            and _thin_book
+                            and sig.confidence < _champ_floor):
+                        # THIN-BOOK BRAIN RULE (user rule, Aug 31): the book
+                        # can't carry full size AND the brain doesn't call it
+                        # exceptional — skip. Less entries, bigger margins.
+                        try:
+                            st.toast(f"⛔ THIN BOOK, BRAIN NOT EXCEPTIONAL — {asset}: the book "
+                                     f"carries ${_spend_usd:,.0f}, not your full "
+                                     f"${cfg.challenge_balance:,.0f}, and the brain reads "
+                                     f"{sig.confidence:.0f}% (needs {_champ_floor:.0f}% for a "
+                                     f"thin book). Skip it — wait for the big-coin calls.",
+                                     icon="⛔", duration=20)
+                            _play_sound("alarm")
+                            _speak(f"Skip {asset}! Thin book — the brain says "
+                                   f"{sig.confidence:.0f} percent, not exceptional!", rate=1)
                         except Exception:
                             pass
                     elif (sig.action == "buy" and not no_buy
@@ -2377,13 +2432,16 @@ def render_quick_check(cfg: TradingConfig, kraken):
     lw_pts = result.get("lone_wolf_pts", 0) or 0
     lw_note = result.get("lone_wolf_note", "") or ""
     yshape = yesterday.get("shape")
+    thin_book = bool(result.get("thin_book"))
+    champ_floor = float(result.get("champ_floor", 89.0) or 89.0)
     passes = (sig.action == "buy" and not no_buy
               and sig.confidence >= QC_SCALP_FLOOR and pace_ok
               and trend != "FALLING"
               and tide_state != "OUT"
               and (result.get("spend_usd", 1) or 0) > 0
               and rot_ok
-              and yshape != "blowoff")
+              and yshape != "blowoff"
+              and (not thin_book or sig.confidence >= champ_floor))
     momentum_capped = any("momentum ceiling" in r.lower() for r in sig.reasons)
 
     k = (
@@ -2401,15 +2459,19 @@ def render_quick_check(cfg: TradingConfig, kraken):
                     ("NO GREEN — THIS HOUR DUMPED YESTERDAY" if yshape == "blowoff" else
                      ("NO GREEN — TIDE'S OUT" if tide_state == "OUT" else
                       ("NO GREEN — TOO THIN" if (result.get("spend_usd", 1) or 0) <= 0 else
+                       (f"NO GREEN — THIN BOOK, BRAIN NOT EXCEPTIONAL ({sig.confidence:.0f}% vs the "
+                        f"{champ_floor:.0f}% thin-book floor) — wait for the big-coin calls"
+                        if thin_book and sig.confidence < champ_floor else
                        ("NO GREEN — DOWNWARD TREND" if trend == "FALLING" else
                         (f"NO GREEN — TOO SLOW ({pace_h:.1f}H)" if not pace_ok else
                          (f"NO GREEN — LONE WOLF NEAR MISS {sig.confidence:.0f}% VS {QC_SCALP_FLOOR}% — the alert floor is the same 60 on the deep read"
-                          if lw_pts else f"NO GREEN — NEEDS {QC_SCALP_FLOOR}%+")))))))))
+                          if lw_pts else f"NO GREEN — NEEDS {QC_SCALP_FLOOR}%+"))))))))))
     if carry_usd is not None:
         if spend_usd >= float(cfg.challenge_balance):
             _carry_txt, _carry_col = "BOOK CARRIES ALL-IN", "g"
         elif spend_usd > 0:
-            _carry_txt, _carry_col = f"⚠ THIN BOOK — SPEND ${spend_usd:,.0f} MAX", "a"
+            _carry_txt, _carry_col = (f"⚠ THIN BOOK — SPEND ${spend_usd:,.0f} MAX "
+                                      f"(the brain needs ≥{champ_floor:.0f}% here)", "a")
         else:
             _carry_txt, _carry_col = "TOO THIN — YOUR MONEY IS THE MARKET", "r"
     else:
