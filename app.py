@@ -2842,6 +2842,93 @@ def _render_her_words():
         pass
 
 
+def _render_bots_book(kraken, cfg):
+    """🤖 BOT'S BOOK — the bot's real-money trades, tracked on the console
+    (user rule, Aug 31: "can the console track it and send the signal
+    silently to the bridge side for the bot's trades?"). Bridge filled
+    records = the bot's holdings (the two repos' contract); live PnL;
+    per-pair 1h trend state — the same knife that sends the silent
+    GET OUT NOW. 🔴 REVERSED — GET OUT SENT shows while a scout_trend_exit
+    sell pends. Console-side: browser F5 loads changes, no restart."""
+    try:
+        import signal_bridge as _sb7
+        if not hasattr(_sb7, "get_open_positions"):
+            import importlib
+            _sb7 = importlib.reload(_sb7)
+        _pos = _sb7.get_open_positions() or []
+        _pend = set()
+        try:
+            for _s in (_sb7.get_pending_signals() or []):
+                if (_s or {}).get("source") == "scout_trend_exit" and (_s or {}).get("action") == "sell":
+                    _pend.add((_s or {}).get("pair"))
+        except Exception:
+            _pend = set()
+
+        if not _pos:
+            with st.expander("🤖 BOT'S BOOK — flat (no open bot trades)", expanded=False):
+                st.markdown("<div class='dim'>The bot holds nothing — every trade is closed.</div>",
+                            unsafe_allow_html=True)
+            return
+
+        # the knife, dup-safe reload (older console processes predate it)
+        try:
+            import background_scanner as _bs8
+            if not hasattr(_bs8, "knife_reversed_1h"):
+                import importlib
+                _bs8 = importlib.reload(_bs8)
+        except Exception:
+            _bs8 = None
+
+        rows = []
+        title_bits = []
+        for _p in _pos:
+            _pair = (_p or {}).get("pair") or "?"
+            _asset = _pair.split("/")[0]
+            _entry = float(_p.get("execution_price") or _p.get("entry_price") or 0.0)
+            _px = 0.0
+            try:
+                _px = float((kraken.fetch_ticker(_pair) or {}).get("last") or 0.0)
+            except Exception:
+                _px = 0.0
+            _pnl = ((_px - _entry) / _entry * 100) if (_px > 0 and _entry > 0) else None
+            _rev = False
+            if _bs8 is not None:
+                try:
+                    _rev, _kn = _bs8.knife_reversed_1h(kraken, _pair, cfg)
+                except Exception:
+                    _rev = False
+            _src = str((_p or {}).get("source") or "")
+            _conf = (_p or {}).get("confidence")
+            _tstate = str((_p or {}).get("tide_state") or "")
+            _pnl_txt = (f"{_pnl:+.1f}%" if _pnl is not None else "—")
+            _pnl_col = ("#3fb950" if (_pnl or 0) > 0
+                        else ("#f85149" if (_pnl or 0) < 0 else "#9a9a9a"))
+            if _pair in _pend:
+                _trend_html = "<span style='color:#f85149;font-weight:700;'>🔴 REVERSED — GET OUT SENT</span>"
+            elif _rev:
+                _trend_html = "<span style='color:#f85149;'>🔴 reversed</span>"
+            else:
+                _trend_html = "<span style='color:#3fb950;'>🟢 riding</span>"
+            _meta = f" · entry {_entry:.4f}"
+            if _conf:
+                _meta += f" · {float(_conf):.0f}%"
+            if _tstate:
+                _meta += f" · {_tstate}"
+            if _src:
+                _meta += f" · {_src}"
+            rows.append(
+                f"<div style='padding:4px 0;border-bottom:1px solid rgba(255,255,255,0.08);'>"
+                f"<b>{_asset}</b> &nbsp;{_trend_html}&nbsp; "
+                f"<span style='color:{_pnl_col};font-weight:600;'>{_pnl_txt}</span>"
+                f"&nbsp;<span class='dim'>{_meta}</span></div>"
+            )
+            title_bits.append(f"{_asset} {_pnl_txt}")
+        with st.expander(f"🤖 BOT'S BOOK — {'  ·  '.join(title_bits)}", expanded=False):
+            st.markdown("".join(rows), unsafe_allow_html=True)
+    except Exception:
+        pass
+
+
 def _toast_new_her_words():
     """POP UP her IMPORTANT new lines as console toasts — the volume-off
     popup the user asked for (Aug 30: "so not as a pop up?"). Scanner-side
@@ -3044,6 +3131,7 @@ def render_auto_watch(cfg: TradingConfig, kraken):
         _light_check(kraken, cfg, sb, held, interval_s)
         _render_light_panel(interval)
         _render_her_words()
+        _render_bots_book(kraken, cfg)
         _toast_new_her_words()
 
         # her-words popup ticker: fast lane (15s) — GET OUT / TAKE IT

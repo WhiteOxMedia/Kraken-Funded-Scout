@@ -739,6 +739,50 @@ TIDE_RISING_BAR_FLOOR = 60.0        # the bar never drops below the deep-read fl
 NEAR_MISS_PTS = 5.0
 _lone_wolf_cache = {"pair": None, "pct": 0.0, "ts": 0.0}
 
+# ── TREND-EXIT WATCH (user rule, Aug 31: "when the trend reverses then
+# the bot should 'get out now'" + "the console tracks it and sends the
+# signal silently to the bridge side for the bot's trades") ────────────
+# The scanner is the brain, the bot is the executor: for every pair the
+# bot HOLDS, run the same 1h EMA knife that bans entries. Reversed → a
+# SILENT exit signal (source="scout_trend_exit") goes to the bridge — no
+# voice, no popup, no phone push; the bot sells on its next cycle. The
+# bot's own knife (engine-side, Aug 31) stays as the floor if the scanner
+# dies. Read cached per pair (the 1h trend doesn't change faster than
+# minutes); failed reads are NOT cached — a transient blip retries next
+# fails. Fail-closed: a broken read never triggers an exit.
+_trend_exit_cache: dict = {}
+_trend_exit_pace: dict = {}   # pair -> last write attempt ts (15-min pacing)
+
+
+def knife_reversed_1h(exchange, pair: str, cfg, max_age_s: float = 300.0) -> tuple[bool, str]:
+    """(reversed, note) — the 1h EMA knife: EMA_short < EMA_long AND price
+    < EMA_long. The SAME structural test the QC, the bridge pre-check and
+    the desktop veto use to refuse downward-trend entries — if we wouldn't
+    BUY this trend, the bot doesn't RIDE it."""
+    import time as _time
+    _now = _time.time()
+    _c = _trend_exit_cache.get(pair) or {}
+    if _now - float(_c.get("ts") or 0.0) < max_age_s:
+        return bool(_c.get("reversed")), str(_c.get("note") or "")
+    try:
+        _ohl = exchange.fetch_ohlcv(pair, timeframe="1h", limit=100)
+        if not _ohl or len(_ohl) < 30:
+            return False, ""  # not enough data — fail-closed, don't cache
+        import pandas as _pd
+        from indicators import ema as _ema
+        _closes = _pd.DataFrame(_ohl, columns=["timestamp", "open", "high", "low", "close", "volume"])["close"]
+        _es = float(_ema(_closes, cfg.ema_short).iloc[-1])
+        _el = float(_ema(_closes, cfg.ema_long).iloc[-1])
+        _px = float(_closes.iloc[-1])
+        _rev = _es < _el and _px < _el
+        _note = (f"EMA{cfg.ema_short} {_es:.4f} < EMA{cfg.ema_long} {_el:.4f}, "
+                 f"price {_px:.4f} under both") if _rev else ""
+        _trend_exit_cache[pair] = {"ts": _now, "reversed": _rev, "note": _note}
+        return _rev, _note
+    except Exception as exc:
+        logger.debug("trend-exit knife failed for %s: %s", pair, exc)
+        return False, ""  # fail-closed, don't cache failures
+
 
 def lone_wolf_discount(exchange, pair: str, max_age_s: float = 900.0) -> tuple[int, str]:
     """(points_off, note) for a coin moving on its own in a FLAT tide.
@@ -1905,6 +1949,42 @@ def main():
 
         # the ONE mouth: console lines get spoken here, always
         _drain_speech_queue()
+
+        # ── TREND-EXIT WATCH (user rule, Aug 31) — ALWAYS runs, cooldown
+        # included (cooldown blocks buys, never exits). For every pair the
+        # bot holds (bridge filled records), the 1h knife; reversed → a
+        # SILENT bridge SELL (source="scout_trend_exit") — no voice, no
+        # popup, no phone push. The reader's two-ledger guard honors this
+        # ONE source; the bot's own engine knife remains the independent
+        # floor. Dup-safe (write_exit_signal skips while a sell pends).
+        try:
+            from signal_bridge import get_open_positions as _bop, write_exit_signal as _wes
+            _held = _bop()
+        except Exception:
+            _held = []
+        for _pos in (_held or []):
+            _pair = (_pos or {}).get("pair")
+            if not _pair:
+                continue
+            try:
+                # pacing: a rejected/expired exit signal must not be
+                # re-written every 30s pass — one attempt per pair per 15 min
+                import time as _tt
+                if _tt.time() - _trend_exit_pace.get(_pair, 0.0) < 900.0:
+                    continue
+                _rev, _note = knife_reversed_1h(exchange, _pair, cfg)
+                if _rev:
+                    _asset = _pair.split("/")[0]
+                    _sid = _wes(_pair, reason=f"GET OUT NOW — trend reversed ({_note})",
+                                source="scout_trend_exit")
+                    _trend_exit_pace[_pair] = _tt.time()
+                    if _sid:
+                        logger.info("🔁 TREND EXIT: %s — 1h knife reversed — silent SELL "
+                                    "written for the bot (signal %s)", _asset, _sid)
+                    else:
+                        logger.info("🔁 TREND EXIT: %s — knife reversed; exit already pending", _asset)
+            except Exception as _exc:
+                logger.debug("trend-exit watch failed for %s: %s", _pair, _exc)
 
         # ── Cooldown flatten: once per day at 20:00 (cooldown start) ────
         # The trading day ends at 20:00 — sell losers/flat (keep winners >5%
