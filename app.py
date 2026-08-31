@@ -2071,6 +2071,28 @@ def render_quick_check(cfg: TradingConfig, kraken):
                 except Exception:
                     _rot_ok, _rot_reason, _rot_reentry, _rot_fine = True, "", False, 0.0
                     _yctx = None
+                # ── LONE WOLF CONTEXT (user rule, Aug 31: "the QC verdict
+                # needs to match lone-wolf alerts — information is key,
+                # don't ever keep her in the dark"). SAME test as the
+                # scanner's alert funnel (identical function, identical
+                # constants): a coin moving on her own in a FLAT tide.
+                # The QC's conviction floor itself stays 60 — that IS the
+                # match: every lone-wolf alert only fires when the DEEP
+                # read clears 60 and it SPEAKS the deep number, so the QC's
+                # deep floor is the same line the alert already passed.
+                # What was missing is the CONTEXT — this makes the QC say
+                # what the alert would say, and name a near-miss instead of
+                # a bare "weak setup".
+                try:
+                    import background_scanner as _bs6
+                    if not hasattr(_bs6, "lone_wolf_discount"):
+                        import importlib
+                        _bs6 = importlib.reload(_bs6)
+                    _lw_pts, _lw_note = _bs6.lone_wolf_discount(kraken, pair)
+                except Exception:
+                    _lw_pts, _lw_note = 0, ""
+                st.session_state["qc_result"]["lone_wolf_pts"] = _lw_pts
+                st.session_state["qc_result"]["lone_wolf_note"] = _lw_note
                 st.session_state["qc_result"]["pace_h"] = _s_h
                 st.session_state["qc_result"]["chase_pct"] = _chase
                 st.session_state["qc_result"]["payout_block"] = _payout
@@ -2256,9 +2278,18 @@ def render_quick_check(cfg: TradingConfig, kraken):
                         except Exception:
                             pass
                     else:
-                        act_txt = {"buy": f"{sig.confidence:.0f}% — needs {QC_SCALP_FLOOR}% (weak setup)",
-                                   "sell": "chart's red",
-                                   "hold": "no setup"}[sig.action]
+                        if sig.action == "buy" and _lw_pts:
+                            # lone-wolf near miss (user rule, Aug 31: don't
+                            # keep her in the dark) — name the shape, not
+                            # just the number
+                            act_txt = (f"{sig.confidence:.0f}% — needs {QC_SCALP_FLOOR}% — "
+                                       f"LONE WOLF NEAR MISS ({_lw_note})")
+                            _speak(f"{asset}! Lone wolf near miss! {_lw_note}! "
+                                   f"The brain says {sig.confidence:.0f} percent — it needs {QC_SCALP_FLOOR}!", rate=1)
+                        else:
+                            act_txt = {"buy": f"{sig.confidence:.0f}% — needs {QC_SCALP_FLOOR}% (weak setup)",
+                                       "sell": "chart's red",
+                                       "hold": "no setup"}[sig.action]
                         try:
                             st.toast(f"⛔ NO — {asset}: {act_txt}. Skip it.",
                                      icon="⛔", duration=15)
@@ -2316,6 +2347,13 @@ def render_quick_check(cfg: TradingConfig, kraken):
     is_reentry = result.get("reentry", False)
     fine_usd = result.get("fine", 0.0)
     yesterday = result.get("yesterday") or {}
+    # LONE WOLF (user rule, Aug 31): the same context the alert funnel uses —
+    # a coin moving on her own in a FLAT tide. The QC floor stays 60 (that's
+    # the line every alert already passed on the deep read); the LED and the
+    # near-miss verdict make the verdict MATCH instead of leaving her in the
+    # dark about WHY the system likes this shape.
+    lw_pts = result.get("lone_wolf_pts", 0) or 0
+    lw_note = result.get("lone_wolf_note", "") or ""
     yshape = yesterday.get("shape")
     passes = (sig.action == "buy" and not no_buy
               and sig.confidence >= QC_SCALP_FLOOR and pace_ok
@@ -2343,7 +2381,8 @@ def render_quick_check(cfg: TradingConfig, kraken):
                       ("NO GREEN — TOO THIN" if (result.get("spend_usd", 1) or 0) <= 0 else
                        ("NO GREEN — DOWNWARD TREND" if trend == "FALLING" else
                         (f"NO GREEN — TOO SLOW ({pace_h:.1f}H)" if not pace_ok else
-                         f"NO GREEN — NEEDS {QC_SCALP_FLOOR}%+"))))))))
+                         (f"NO GREEN — LONE WOLF NEAR MISS {sig.confidence:.0f}% VS {QC_SCALP_FLOOR}% — the alert floor is the same 60 on the deep read"
+                          if lw_pts else f"NO GREEN — NEEDS {QC_SCALP_FLOOR}%+")))))))))
     if carry_usd is not None:
         if spend_usd >= float(cfg.challenge_balance):
             _carry_txt, _carry_col = "BOOK CARRIES ALL-IN", "g"
@@ -2372,6 +2411,7 @@ def render_quick_check(cfg: TradingConfig, kraken):
         led("LIQUID" if liquid else f"ILLIQUID < ${cfg.min_volume_usd_24h/1e6:.0f}M", "g" if liquid else "r") +
         led(_pace_txt, "g" if pace_ok else "r") +
         led(f"TIDE {tide_state}" if tide_state else "TIDE: NO DATA", _tcol2) +
+        (led(f"🐺 LONE WOLF — {lw_note}", "a") if lw_pts else "") +
         led(_carry_txt, _carry_col) +
         led(("ROTATION LOCK — " + (rot_reason or "cold until the boundary")) if not rot_ok
             else "ROTATION: FRESH — GO ALLOWED", "r" if not rot_ok else "g") +
