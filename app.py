@@ -88,10 +88,23 @@ st.markdown(f"""
 #MainMenu, footer {{ visibility: hidden; }}
 header[data-testid="stHeader"] {{ background: transparent !important; background-image: none !important; }}
 div[data-testid="stToolbar"], div[data-testid="stDecoration"] {{ visibility: hidden; }}
+/* THE REOPEN ARROW (Streamlit 1.62: stExpandSidebarButton, top-left once
+   the sidebar is collapsed) is hover-revealed by default — an invisible
+   button on the walnut background. Forced ALWAYS visible + styled. */
+[data-testid="stExpandSidebarButton"],
 [data-testid="stSidebarCollapsedControl"] {{
-  background: rgba(36,28,20,.92) !important;
-  border: 1px solid #3a352c !important; border-left: none !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  z-index: 999999 !important;
+  background: rgba(36,28,20,.95) !important;
+  border: 1px solid #3a352c !important; border-left: none !important; border-top: none !important;
   border-radius: 0 0 10px 0 !important;
+  min-width: 34px !important; min-height: 34px !important;
+}}
+[data-testid="stExpandSidebarButton"] * {{
+  visibility: visible !important;
+  opacity: 1 !important;
+  color: #ffc36b !important;
 }}
 
 h1, h2, h3 {{ font-family: 'Audiowide', sans-serif !important; color: #f0e2c8 !important;
