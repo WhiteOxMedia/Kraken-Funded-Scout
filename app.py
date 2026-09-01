@@ -3309,15 +3309,22 @@ def render_auto_watch(cfg: TradingConfig, kraken):
         wcol1, wcol2 = st.columns([1, 3])
         with wcol1:
             interval = st.selectbox("Check every", ["1 min", "2 min", "5 min"], index=0, key="watch_interval")
-        goal_on = st.toggle("🎯 GOAL CALL — she calls when the goal is reached",
+        goal_on = st.toggle("🎯 GOAL CALL — the % goal game",
                             value=st.session_state.get("goal_on",
                                                        _cs.get("goal_on",
                                                                _cs.get("scalp_on", True))),
                             key="goal_toggle",
-                            help="The goal game (Sep 1): every entry carries its own % goal "
-                                 "(the engine's expected move, 1-3%). She calls 'Goal reached' "
-                                 "when it pays and each doubling beyond. The $20 counting is "
-                                 "retired with the scalp game.")
+                            help="THE RULES OF THE GAME (Sep 1 rebuild — the $20 counting is "
+                                 "gone): every entry carries its own PERCENTAGE goal, set by "
+                                 "the market analysis — the Volatility Engine's expected move "
+                                 "for THIS coin, in THIS rotation, on THIS day of the week — "
+                                 "always clamped between 1% and 3%. The trade runs on a 1-3 "
+                                 "hour window scaled to the goal (1% → ~1h, 3% → ~3h). She "
+                                 "calls 'Goal reached — take the profit!' when it pays, and "
+                                 "'N times the goal!' at each doubling. If it hasn't paid by "
+                                 "the out-by time — get out. Entry size is capped by the 3% "
+                                 "death-line guard (the contest survives three worst-cases), "
+                                 "so no single trade ever risks the account.")
         if goal_on != _cs.get("goal_on", _cs.get("scalp_on", True)):
             _cs["goal_on"] = goal_on
             _save_console_state(_cs)
