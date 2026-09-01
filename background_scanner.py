@@ -1842,6 +1842,32 @@ def main():
                            f"not ${_bal:,.0f}\n")
         elif _carry is not None:
             contest_msg = f"  SPEND: 100% = ${_bal:,.0f} — big book, carries all-in\n"
+        # ── THE 3% DEATH-LINE GUARD (Kraken Funded rules, encoded Sep 1 —
+        # the drift audit found the -3% line was never modeled): the
+        # contest account's real state (tier + current balance from the
+        # console) sets the sizing base, and the entry is capped so the
+        # coin's WORST NORMAL CASE (its profiled window drawdown) eats at
+        # most ~1/3 of the remaining buffer. Buffer gone → NO buy popup
+        # at all — the account is at the line and any trade can close it.
+        try:
+            import contest_account as _ca
+            _acct = _ca.load_state()
+            _acct_bal = float(_acct["current_balance"])
+            if _acct_bal > 0:
+                _bal = _acct_bal  # the sizing base = the LIVE contest account
+            _wdd = _ca.window_drawdown_pct(pair)
+            _risk_cap = _ca.max_entry_usd(_acct_bal, _wdd, float(_acct["start_balance"]))
+            if _risk_cap <= 0:
+                logger.info("  DEATH LINE: buffer gone (%.0f from the line) — no buy popup",
+                            _acct_bal - _ca.death_line(_acct))
+                return
+            if _spend > _risk_cap:
+                _spend = _risk_cap
+                contest_msg = (f"  SPEND: ${_spend:,.0f} — THE 3% GUARD: this coin's worst-case "
+                               f"window drawdown is {_wdd:.1f}%; ${_spend:,.0f} is the most the "
+                               f"death line can afford\n")
+        except Exception as _exc:
+            logger.debug("3%% guard unavailable in send_alert: %s", _exc)  # fail-open
         if is_buy:
             # THE BRAIN'S NUMBER (user rule, Aug 27: "still saying 100%
             # confident without using the brain"): the gate has used the

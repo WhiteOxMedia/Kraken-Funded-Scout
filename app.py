@@ -2063,6 +2063,28 @@ def render_quick_check(cfg: TradingConfig, kraken):
                     _fit = [c * float(cfg.challenge_balance) for c in CONTEST_CHUNKS
                             if c * float(cfg.challenge_balance) <= _carry]
                     _spend_usd = max(_fit) if _fit else 0.0   # 0 = too thin
+                # ── THE 3% DEATH-LINE GUARD (Kraken Funded rules, encoded
+                # Sep 1 — the drift audit found the -3% line was never
+                # modeled): size the entry so the coin's WORST NORMAL CASE
+                # (its profiled window drawdown from the Volatility Engine)
+                # consumes at most ~1/3 of the remaining buffer. Three
+                # consecutive worst-cases still leave the account alive.
+                # Buffer gone → NO new risk at all (the at-the-line skip).
+                _risk_cap = None
+                try:
+                    import contest_account as _ca
+                    _acct = _ca.load_state()
+                    _wdd = _ca.window_drawdown_pct(pair)
+                    _risk_cap = _ca.max_entry_usd(
+                        _acct["current_balance"], _wdd, _acct["start_balance"])
+                    st.session_state["qc_result"]["risk_cap"] = _risk_cap
+                    st.session_state["qc_result"]["window_dd"] = _wdd
+                    if _risk_cap <= 0:
+                        _spend_usd = 0.0  # at/near the line — no new risk
+                    else:
+                        _spend_usd = min(_spend_usd, _risk_cap)
+                except Exception as _exc:
+                    logger.debug("3%% guard unavailable: %s", _exc)  # fail-open: book sizing stands
                 # ── THE TIDE (user rule, Aug 26): TIDE OUT = no entries
                 # anywhere. Correlation means every ship sinks together —
                 # one fleet-wide gate instead of per-coin trend checks.
@@ -2303,6 +2325,21 @@ def render_quick_check(cfg: TradingConfig, kraken):
                             pass
                     elif (sig.action == "buy" and not no_buy
                             and sig.confidence >= QC_SCALP_FLOOR
+                            and _risk_cap is not None and _risk_cap <= 0):
+                        # THE DEATH LINE (Kraken Funded: -3% from start, never
+                        # moves): the buffer is gone — any new trade can close
+                        # the account. No new risk, full stop.
+                        try:
+                            st.toast(f"☠ AT THE DEATH LINE — {asset}: the account is at "
+                                     f"the -3% line. ANY new trade can close the contest. "
+                                     f"No entries until the balance recovers above the line.",
+                                     icon="☠", duration=25)
+                            _play_sound("alarm")
+                            _speak(f"No! At the death line! No new trades!", rate=1)
+                        except Exception:
+                            pass
+                    elif (sig.action == "buy" and not no_buy
+                            and sig.confidence >= QC_SCALP_FLOOR
                             and _spend_usd <= 0 and _carry is not None):
                         _pct_book = 100.0 * float(cfg.challenge_balance) / (_carry / 0.20)
                         try:
@@ -2459,13 +2496,15 @@ def render_quick_check(cfg: TradingConfig, kraken):
                     ("NO GREEN — THIS HOUR DUMPED YESTERDAY" if yshape == "blowoff" else
                      ("NO GREEN — TIDE'S OUT" if tide_state == "OUT" else
                       ("NO GREEN — TOO THIN" if (result.get("spend_usd", 1) or 0) <= 0 else
+                       (f"NO GREEN — AT THE DEATH LINE (buffer gone — any trade can close the contest)"
+                        if (result.get("risk_cap", 1) or 0) <= 0 else
                        (f"NO GREEN — THIN BOOK, BRAIN NOT EXCEPTIONAL ({sig.confidence:.0f}% vs the "
                         f"{champ_floor:.0f}% thin-book floor) — wait for the big-coin calls"
                         if thin_book and sig.confidence < champ_floor else
                        ("NO GREEN — DOWNWARD TREND" if trend == "FALLING" else
                         (f"NO GREEN — TOO SLOW ({pace_h:.1f}H)" if not pace_ok else
                          (f"NO GREEN — LONE WOLF NEAR MISS {sig.confidence:.0f}% VS {QC_SCALP_FLOOR}% — the alert floor is the same 60 on the deep read"
-                          if lw_pts else f"NO GREEN — NEEDS {QC_SCALP_FLOOR}%+"))))))))))
+                          if lw_pts else f"NO GREEN — NEEDS {QC_SCALP_FLOOR}%+")))))))))))
     if carry_usd is not None:
         if spend_usd >= float(cfg.challenge_balance):
             _carry_txt, _carry_col = "BOOK CARRIES ALL-IN", "g"
@@ -3630,18 +3669,42 @@ def main():
     st.sidebar.markdown("### 🎛️ Console Settings")
     _cs = _load_console_state()
     _tiers = ["$1,000", "$5,000", "$10,000"]
-    _tier_default = _cs.get("tier", "$5,000")
+    import contest_account as _ca
+    _acct = _ca.load_state()
+    _tier_default = _cs.get("tier", _ca.TIERS[_acct["tier"]]["label"])
     tier = st.sidebar.selectbox(
         "Contest account balance",
         _tiers,
-        index=_tiers.index(_tier_default) if _tier_default in _tiers else 1,
+        index=_tiers.index(_tier_default) if _tier_default in _tiers else 2,
         help="The strategy sizes positions as % of the account — this must match "
              "your real contest balance or the position sizes will be wrong.",
         key="challenge_tier")
     if tier != _cs.get("tier"):
         _cs["tier"] = tier
         _save_console_state(_cs)
-    cfg.challenge_balance = float(tier.replace("$", "").replace(",", ""))
+        # a new contest at this tier: the account starts fresh at the line's zero
+        _t = int(tier.replace("$", "").replace(",", ""))
+        _acct = _ca.save_state(_t, _ca.TIERS[_t]["start"])
+    # ── THE CONTEST ACCOUNT (Kraken Funded rules, encoded Sep 1): the
+    # current balance is the sizing base; the -3% DEATH LINE never moves.
+    _cur = st.sidebar.number_input(
+        "Current contest balance ($)", min_value=0.0,
+        value=float(_acct["current_balance"]), step=50.0,
+        help="Update as the contest account moves. The -3% death line and every "
+             "position size are computed from this.")
+    if abs(_cur - float(_acct["current_balance"])) > 0.01:
+        _acct = _ca.save_state(int(_acct["tier"]), _cur)
+    cfg.challenge_balance = float(_acct["current_balance"])
+    _line = _ca.death_line(_acct)
+    _buf = _ca.buffer(_acct)
+    _pace = _ca.daily_pace_usd(_acct)
+    _line_col = "r" if _buf <= 0 else ("a" if _buf < _ca.TIERS[_acct["tier"]]["start"] * 0.01 else "g")
+    st.sidebar.markdown(plate("☠ CONTEST ACCOUNT", (
+        led(f"DEATH LINE ${_line:,.0f}", _line_col) + "<br>" +
+        led(f"BUFFER ${_buf:,.0f}", _line_col) + "<br>" +
+        led(f"PACE ${_pace:,.0f}/DAY (12%/WK)", "a") + "<br>" +
+        led(f"TARGET +12% = ${float(_acct['start_balance']) * 1.12:,.0f}", "g")
+    )), unsafe_allow_html=True)
     candle_opts = {"15 min": 15, "1 hour": 60, "4 hours": 240, "1 day": 1440}
     cfg.candle_interval = candle_opts[st.sidebar.selectbox("Candle timeframe", list(candle_opts), index=1)]
     cfg.risk_per_trade_pct = st.sidebar.slider("Risk per trade (%)", 0.5, 2.0, 1.0, 0.1)
@@ -3667,7 +3730,8 @@ def main():
     n = _now_mst()
     block, day, thr, interval, no_buy = current_threshold()
     vol = volatility_snapshot()
-    led_row = led(f"{day} {block}", 'a') + led(f"BAR {thr}%", 'a') + led(f'SCAN/{interval}m', 'off')
+    led_row = (led(f"{day} {block}", 'a') + led(f"BAR {thr}%", 'a') + led(f'SCAN/{interval}m', 'off')
+               + led(f"☠ LINE ${_line:,.0f} · ${_buf:,.0f} LEFT", _line_col))
     if no_buy:
         led_row += led("COOLDOWN — NO BUYS", 'r')
     if vol:
