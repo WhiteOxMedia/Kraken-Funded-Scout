@@ -2913,12 +2913,15 @@ def _light_check(kraken, cfg: TradingConfig, sb, held: dict, interval_s: int) ->
     st.session_state["exit_alerts"] = alerts
     st.session_state["watch_status"] = watch_status
 
-    # ── TAKE IT: the $20 call (user's scalp system) ──────────────────
-    # Green → all in → out at +$20 → re-enter small → repeat. Every +$20
-    # threshold crossed gets a popup (voice comes from the scanner).
-    # Resets when back near entry — a re-entry starts a fresh count.
+    # ── THE GOAL CALL (the rebuild, Sep 1: "scalping is over, count the
+    # 20's is gone") ──────────────────────────────────────────────────
+    # Every watch entry carries its goal (the engine's expected move at
+    # entry, 1-3%). When price reaches it, the console pops the GOAL
+    # toast (voice comes from the scanner — no double-talking). The $20
+    # level counting is retired with the scalp game.
     try:
-        if _load_console_state().get("scalp_on", True):
+        if _load_console_state().get("goal_on",
+                                     _load_console_state().get("scalp_on", True)):
             take_level = st.session_state.setdefault("take_level", {})
             for v in watch_status:
                 if v["kind"] != "contest":
@@ -2928,21 +2931,23 @@ def _light_check(kraken, cfg: TradingConfig, sb, held: dict, interval_s: int) ->
                 entry_px = v.get("entry")
                 if not live or not entry_px:
                     continue
-                size = float(contest_watch.get(pair, {}).get("size") or 2500.0)
-                profit_usd = (live / entry_px - 1) * size
-                level = int(profit_usd // 20) if profit_usd > 0 else 0
-                if profit_usd < 10.0:
+                w = contest_watch.get(pair, {}) or {}
+                goal = float(w.get("goal_pct") or 0) or 1.5
+                pct = (live / entry_px - 1) * 100
+                glevel = int(pct / goal) if pct > 0 else 0
+                if pct < goal * 0.25:
                     take_level.pop(pair, None)
-                elif level > take_level.get(pair, 0):
-                    take_level[pair] = level
+                elif glevel > take_level.get(pair, 0):
+                    take_level[pair] = glevel
                     asset = _asset(pair)
                     try:
-                        st.toast(f"💰 TAKE IT — {asset} +${level * 20}",
-                                 icon="💰", duration=15)
-                        # voice comes from the scanner (server-side) — adding
-                        # a console voice here would double-talk
+                        if glevel == 1:
+                            st.toast(f"🎯 GOAL — {asset} up {pct:.1f}% (goal {goal:.1f}%) "
+                                     f"— take the profit", icon="🎯", duration=15)
+                        else:
+                            st.toast(f"🎯 {glevel}× GOAL — {asset} up {pct:.1f}%",
+                                     icon="🎯", duration=15)
                         _play_sound("ding")
-                        # voice comes from the scanner (server-side)
                     except Exception:
                         pass
     except Exception:
@@ -3161,10 +3166,11 @@ def _toast_new_her_words():
             if first_run or ts <= last_seen:
                 continue  # history on first run, or already seen
             t = text.lower()
-            urgent = any(k in t for k in ("get out", "take it", "warning",
+            urgent = any(k in t for k in ("get out", "warning",
                                           "stopped out", "tide", "trade failed"))
             heads_up = any(k in t for k in ("new pick", "buy ", "go!",
-                                            "trade done", "sold"))
+                                            "trade done", "sold",
+                                            "goal", "take it"))
             try:
                 if urgent:
                     st.toast(f"🚨 {text[:120]}", icon="🚨", duration=20)
@@ -3303,14 +3309,17 @@ def render_auto_watch(cfg: TradingConfig, kraken):
         wcol1, wcol2 = st.columns([1, 3])
         with wcol1:
             interval = st.selectbox("Check every", ["1 min", "2 min", "5 min"], index=0, key="watch_interval")
-        scalp_on = st.toggle("💰 TAKE IT — she calls every +$20",
-                             value=st.session_state.get("scalp_on", _cs.get("scalp_on", True)),
-                             key="scalp_toggle",
-                             help="The scalp system: green → all in → out at +$20 → repeat. "
-                                  "She counts the $20s out loud and pops a TAKE IT every "
-                                  "threshold. Resets near entry.")
-        if scalp_on != _cs.get("scalp_on", True):
-            _cs["scalp_on"] = scalp_on
+        goal_on = st.toggle("🎯 GOAL CALL — she calls when the goal is reached",
+                            value=st.session_state.get("goal_on",
+                                                       _cs.get("goal_on",
+                                                               _cs.get("scalp_on", True))),
+                            key="goal_toggle",
+                            help="The goal game (Sep 1): every entry carries its own % goal "
+                                 "(the engine's expected move, 1-3%). She calls 'Goal reached' "
+                                 "when it pays and each doubling beyond. The $20 counting is "
+                                 "retired with the scalp game.")
+        if goal_on != _cs.get("goal_on", _cs.get("scalp_on", True)):
+            _cs["goal_on"] = goal_on
             _save_console_state(_cs)
         voice_on = st.toggle("🔊 HER VOICE — talks every minute, even with the browser closed",
                              value=st.session_state.get("voice_on_ui", _cs.get("voice_on", True)),
