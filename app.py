@@ -81,7 +81,18 @@ st.markdown(f"""
   background: {_WOOD}, url("{_NOISE}") !important;
   background-blend-mode: normal, normal, normal, overlay !important;
 }}
-#MainMenu, footer, header {{ visibility: hidden; }}
+/* header is TRANSPARENT, not hidden — hiding it also hides the sidebar's
+   collapsed-state expand control (it renders inside stHeader), which made
+   the sidebar impossible to reopen once collapsed (user report, Sep 1).
+   Only the toolbar junk is hidden; the toggle stays visible. */
+#MainMenu, footer {{ visibility: hidden; }}
+header[data-testid="stHeader"] {{ background: transparent !important; background-image: none !important; }}
+div[data-testid="stToolbar"], div[data-testid="stDecoration"] {{ visibility: hidden; }}
+[data-testid="stSidebarCollapsedControl"] {{
+  background: rgba(36,28,20,.92) !important;
+  border: 1px solid #3a352c !important; border-left: none !important;
+  border-radius: 0 0 10px 0 !important;
+}}
 
 h1, h2, h3 {{ font-family: 'Audiowide', sans-serif !important; color: #f0e2c8 !important;
   text-shadow: 0 2px 4px rgba(0,0,0,.6); }}
