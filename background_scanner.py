@@ -1287,27 +1287,35 @@ def contest_light(exchange, cfg):
         # re-arm the voice so a future exit shouts immediately
         _last_exit_voice.pop(pair, None)
 
-        # ── 3. THE $20 TAKE-IT CALL (user's scalp system) ──────────────
-        # They all-in on green, watch ~5 min, out at +$20, re-enter small,
-        # ride and take $20 every chance. She counts the $20s out loud:
-        # every +$20 threshold crossed = "TAKE IT — N dollars up".
-        # Resets when back near entry (re-entry = fresh count).
+        # ── 3. THE GOAL CALL (the rebuild, Sep 1: "scalping is over with,
+        # count the 20's is gone — only solid trends... percentage based
+        # goals"). Every watch entry carries its goal — the engine's
+        # expected move at entry time (1-3%, the market analysis). She
+        # calls the goal reached, and each doubling beyond it. The $20
+        # level-counting is retired with the scalp game.
         pct = (live / entry - 1) * 100
         usd = pct / 100.0 * size
-        level = int(usd // TAKE_IT_USD) if usd > 0 else 0
-        if usd < 10.0:
+        _goal = float(w.get("goal_pct") or 0) or _window_goal_pct(pair)
+        if "goal_pct" not in w:
+            w["goal_pct"] = _goal
+            w["window_min"] = max(60.0, min(180.0, _goal * 60.0))
+            dirty = True
+        _glevel = int(pct / _goal) if (_goal > 0 and pct > 0) else 0
+        if _goal > 0 and pct < _goal * 0.25:
             _take_level.pop(pair, None)  # back near entry — fresh count
-        elif level > _take_level.get(pair, 0):
-            _take_level[pair] = level
-            _amt = level * TAKE_IT_USD
+        elif _glevel > _take_level.get(pair, 0):
+            _take_level[pair] = _glevel
             if voice:
-                _speak_server(f"Take it! {_amt} dollars up!")
-            logger.info("💰 TAKE IT: %s +$%d (%.1f%%)", pair, _amt, pct)
-            # big payout = mature move: tell the console so its QC blocks
-            # re-entries while the wiggle is exhausted (Aug 24: user took
-            # the $140, re-scanned green 20 min later, rode the giveback)
-            if _amt >= BIG_PAYOUT_USD:
-                _save_take_payout(pair, _amt)
+                if _glevel == 1:
+                    _speak_server(f"Goal reached! {asset} up {pct:.1f} percent "
+                                  f"— take the profit!")
+                else:
+                    _speak_server(f"{_glevel} times the goal! {asset} "
+                                  f"up {pct:.1f} percent!")
+            logger.info("🎯 GOAL: %s +%.1f%% (goal %.1f%%, x%d)",
+                        pair, pct, _goal, _glevel)
+            # mature move = the QC's just-paid guard (re-entry blocks)
+            _save_take_payout(pair, round(usd))
 
         # ── 4. GIVEBACK WARNING — fast drops from the peak get a voice ──
         # The take-it calls are one-way (up only); the giveback used to be
@@ -1339,19 +1347,19 @@ def contest_light(exchange, cfg):
         elif usd > -LOSS_WARN_USD / 2:
             _loss_level.pop(pair, None)  # recovered — re-arm
 
-        # ── 6. THE CLOCK (user directive: green must say how long to hold)
-        # out-by = entry + 2x this coin's usual $20 time (min 45 min).
-        # Near a take or short on time -> "stay close"; else "walk around".
+        # ── 6. THE CLOCK (the goal window: 1-3h, set with the goal at
+        # entry — the $20-pace clock retired with the scalp game).
+        # Near the goal or short on time -> "stay close".
         try:
-            _eta = _hours_to_scalp(pair, entry) or 0.75
+            _win = float(w.get("window_min") or 0)
             _out_by = None
-            if w.get("added"):
+            if w.get("added") and _win > 0:
                 _added = datetime.fromisoformat(w["added"])
-                _out_by = _added + timedelta(minutes=max(2.0 * _eta * 60.0, 45.0))
+                _out_by = _added + timedelta(minutes=_win)
             if _out_by:
                 _rem = (_out_by - datetime.now(_out_by.tzinfo)).total_seconds() / 60.0
-                _next20 = ((level + 1) * TAKE_IT_USD - usd) if usd > 0 else (TAKE_IT_USD - usd)
-                _near = (_next20 <= 10) or (_rem <= 15.0)
+                _to_goal = (_goal - pct) if pct < _goal else 0.0
+                _near = (_to_goal <= _goal * 0.15) or (_rem <= 15.0)
                 _tail = f", about {max(_rem, 0):.0f} minutes left"
                 _tail += ", stay close" if _near else ", go walk around"
             else:
@@ -1359,8 +1367,9 @@ def contest_light(exchange, cfg):
         except Exception:
             _tail = ""
 
-        sign = "plus" if usd >= 0 else "minus"
-        voice_updates.append(f"{asset}, {sign} {abs(usd):.0f} dollars{_tail}")
+        sign = "up" if usd >= 0 else "down"
+        voice_updates.append(f"{asset}, {sign} {abs(pct):.1f} percent "
+                             f"toward the {_goal:.1f} percent goal{_tail}")
 
     if exited_pairs:
         # Aug 30 fix: GET OUT positions STAY in the watch — the user taps

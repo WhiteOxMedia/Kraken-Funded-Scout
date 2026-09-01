@@ -1945,12 +1945,19 @@ def render_quick_check(cfg: TradingConfig, kraken):
     sb = _bridge()
     block, day, thr, _, no_buy = current_threshold()
 
-    # ⚡ FAST $20 leaderboard — pick a wiggle, then deep-scan it
-    try:
-        from background_scanner import rotation_key_for_hour, _schedule_for_dow
-        _n = _now_mst()
-        fast = _fast_twenty(rotation_key_for_hour(_n.hour), _schedule_for_dow(_n.weekday()))
-    except Exception:
+    # ⚡ FAST $20 leaderboard — RETIRED with the scalp game (user rule,
+    # Sep 1: "scalping is over with, count the 20's is gone"). The board
+    # and its code are kept (don't delete anything) — flip the flag to
+    # bring it back.
+    FAST_BOARD_ENABLED = False
+    if FAST_BOARD_ENABLED:
+        try:
+            from background_scanner import rotation_key_for_hour, _schedule_for_dow
+            _n = _now_mst()
+            fast = _fast_twenty(rotation_key_for_hour(_n.hour), _schedule_for_dow(_n.weekday()))
+        except Exception:
+            fast = []
+    else:
         fast = []
     if fast:
         st.markdown(plate("⚡ FAST $20 — quickest wiggles right now", lcd([
@@ -2025,6 +2032,24 @@ def render_quick_check(cfg: TradingConfig, kraken):
                 _resolve_cap = _bs._max_resolve_hours
                 _scalp_eta = _bs._hours_to_scalp
                 _s_h = _scalp_eta(f"{asset}/USD", float(px))
+                # ── THE GOAL (the rebuild, Sep 1): percentage goals 1-3%
+                # set by the market analysis (the engine's expected move
+                # for this coin/rotation/day) on a 1-3h window. The $20
+                # pace gate retires; the new gate: the coin's RAW expected
+                # move must reach the 1% goal floor — a coin the engine
+                # says moves 0.3% in this window can't make 1%.
+                try:
+                    if not hasattr(_bs, "_window_goal_pct"):
+                        import importlib
+                        _bs = importlib.reload(_bs)
+                    _goal_pct = _bs._window_goal_pct(pair)
+                    from volatility_engine import get_move_threshold as _gmt
+                    from background_scanner import _rotation_window as _rw, _schedule_for_dow as _sd
+                    _rwin = _rw(_now_mst())
+                    _raw_move = _gmt(pair, _rwin[2] if _rwin else "08-12",
+                                     _sd(_now_mst().weekday()), level="standard")
+                except Exception:
+                    _goal_pct, _raw_move = 1.5, None
                 # chase: distance above the last hour's low — MUST be 4 x 15m
                 # candles. The deep-scan df is 1h candles: using its lows made
                 # the window 4 HOURS, catching stale overnight dips and blocking
@@ -2141,6 +2166,8 @@ def render_quick_check(cfg: TradingConfig, kraken):
                 st.session_state["qc_result"]["lone_wolf_pts"] = _lw_pts
                 st.session_state["qc_result"]["lone_wolf_note"] = _lw_note
                 st.session_state["qc_result"]["pace_h"] = _s_h
+                st.session_state["qc_result"]["goal_pct"] = _goal_pct
+                st.session_state["qc_result"]["raw_move"] = _raw_move
                 st.session_state["qc_result"]["chase_pct"] = _chase
                 st.session_state["qc_result"]["payout_block"] = _payout
                 st.session_state["qc_result"]["trend"] = _trend
@@ -2172,8 +2199,8 @@ def render_quick_check(cfg: TradingConfig, kraken):
                 _thin_book = (0 < _spend_usd < float(cfg.challenge_balance))
                 st.session_state["qc_result"]["thin_book"] = _thin_book
                 st.session_state["qc_result"]["champ_floor"] = _champ_floor
-                # HARD GATES: setup + pace + cooldown + no downward trend +
-                # the book carries your money + the tide isn't OUT +
+                # HARD GATES: setup + the goal gate + cooldown + no downward
+                # trend + the book carries your money + the tide isn't OUT +
                 # rotation isn't locked + this hour didn't blow off yesterday
                 # (+ the thin book needs an exceptional brain read).
                 if (sig.action == "buy" and not no_buy
@@ -2183,7 +2210,7 @@ def render_quick_check(cfg: TradingConfig, kraken):
                         and _spend_usd > 0
                         and _rot_ok
                         and not (_yctx and _yctx.get("shape") == "blowoff")
-                        and not (_s_h is not None and _s_h > _resolve_cap())
+                        and not (_raw_move is not None and float(_raw_move) < 1.0)
                         and (not _thin_book or sig.confidence >= _champ_floor)):
                     # AUTO-WATCH on green light: the deep scan IS the entry.
                     # The user's system: green → all in, scalp to +$20, out,
@@ -2204,9 +2231,15 @@ def render_quick_check(cfg: TradingConfig, kraken):
                         if pair not in w:
                             w[pair] = {"entry": float(px), "high": float(px),
                                        "size": float(_spend_usd),
-                                       "added": _now_mst().isoformat()}
+                                       "added": _now_mst().isoformat(),
+                                       # THE GOAL (Sep 1): the entry carries
+                                       # its % goal + window — the light's
+                                       # clock and goal-call run on these.
+                                       "goal_pct": float(_goal_pct or 1.5),
+                                       "window_min": float(max(60.0, min(180.0, (_goal_pct or 1.5) * 60.0)))}
                             _save_watch(w)
-                            logger.info("AUTO-WATCH: %s added on green light (entry %s)", pair, px)
+                            logger.info("AUTO-WATCH: %s added on green light (entry %s, goal %.1f%%)",
+                                        pair, px, float(_goal_pct or 1.5))
                             # ROTATION LOCKOUT: green light fired — the asset
                             # is cold until the next rotation boundary
                             try:
@@ -2373,11 +2406,15 @@ def render_quick_check(cfg: TradingConfig, kraken):
                             pass
                     elif (sig.action == "buy" and not no_buy
                             and sig.confidence >= QC_SCALP_FLOOR
-                            and _s_h is not None and _s_h > _resolve_cap()):
-                        _slow_txt = (f"~{_s_h:.0f}h" if _s_h >= 3.5 else "3h+")
-                        act_txt = f"too slow — {_slow_txt} to the $20"
+                            and _raw_move is not None and float(_raw_move) < 1.0):
+                        # THE GOAL GATE (Sep 1): the engine's raw expected
+                        # move can't reach the 1% goal floor — this coin
+                        # doesn't move enough in this window to make the
+                        # goal. The $20-pace "too slow" retired.
                         try:
-                            st.toast(f"⛔ TOO SLOW — {asset}: {act_txt}. Not a scalp. Skip it.",
+                            st.toast(f"⛔ TOO SLOW — {asset}: the engine expects only "
+                                     f"{float(_raw_move):.1f}% in this window; the goal "
+                                     f"needs 1%+. This coin can't get there today. Skip it.",
                                      icon="⛔", duration=15)
                             _play_sound("alarm")
                             _speak(f"Too slow! {asset}! Skip it!", rate=1)
@@ -2451,8 +2488,11 @@ def render_quick_check(cfg: TradingConfig, kraken):
     carry_usd = result.get("carry_usd")
     spend_usd = result.get("spend_usd") or cfg.challenge_balance
     tide_state = result.get("tide")
-    from background_scanner import _max_resolve_hours as _rc
-    pace_ok = pace_h is None or pace_h <= _rc()
+    # THE GOAL (Sep 1): the coin's raw expected move must reach the 1%
+    # goal floor. The $20-pace check retired with the scalp game.
+    goal_pct = float(result.get("goal_pct", 1.5) or 1.5)
+    raw_move = result.get("raw_move")
+    goal_ok = raw_move is None or float(raw_move) >= 1.0
     # HARD gates: setup floor + pace + no downward trend + book carries your
     # size + tide isn't OUT + rotation not locked + this hour didn't blow off
     # yesterday (+ cooldown in the handler). Chase/payout warn.
@@ -2472,7 +2512,7 @@ def render_quick_check(cfg: TradingConfig, kraken):
     thin_book = bool(result.get("thin_book"))
     champ_floor = float(result.get("champ_floor", 89.0) or 89.0)
     passes = (sig.action == "buy" and not no_buy
-              and sig.confidence >= QC_SCALP_FLOOR and pace_ok
+              and sig.confidence >= QC_SCALP_FLOOR and goal_ok
               and trend != "FALLING"
               and tide_state != "OUT"
               and (result.get("spend_usd", 1) or 0) > 0
@@ -2489,7 +2529,9 @@ def render_quick_check(cfg: TradingConfig, kraken):
     )
     st.markdown(plate(f"Quick Check — {asset}", f'<div class="knob-row">{k}</div>'), unsafe_allow_html=True)
 
-    _pace_txt = (f"$20 IN ~{pace_h:.1f}H" if pace_h is not None else "$20 PACE: NO DATA")
+    _pace_txt = (f"GOAL +{goal_pct:.1f}% · ENGINE EXPECTS "
+                 f"{float(raw_move):.1f}%" if raw_move is not None
+                 else f"GOAL +{goal_pct:.1f}% · WINDOW ~{goal_pct:.0f}H")
     _green_txt = ("SCALP GREEN LIGHT" if passes else
                   ("COOLDOWN — NO BUYS" if no_buy else
                    ("NO GREEN — ALREADY RAN THIS ROTATION" if not rot_ok else
@@ -2502,7 +2544,8 @@ def render_quick_check(cfg: TradingConfig, kraken):
                         f"{champ_floor:.0f}% thin-book floor) — wait for the big-coin calls"
                         if thin_book and sig.confidence < champ_floor else
                        ("NO GREEN — DOWNWARD TREND" if trend == "FALLING" else
-                        (f"NO GREEN — TOO SLOW ({pace_h:.1f}H)" if not pace_ok else
+                        (f"NO GREEN — TOO SLOW (engine expects only {float(raw_move):.1f}% in this window; the goal needs 1%+)"
+                         if not goal_ok else
                          (f"NO GREEN — LONE WOLF NEAR MISS {sig.confidence:.0f}% VS {QC_SCALP_FLOOR}% — the alert floor is the same 60 on the deep read"
                           if lw_pts else f"NO GREEN — NEEDS {QC_SCALP_FLOOR}%+")))))))))))
     if carry_usd is not None:
