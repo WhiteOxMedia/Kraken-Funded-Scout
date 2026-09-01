@@ -812,6 +812,65 @@ def knife_reversed_1h(exchange, pair: str, cfg, max_age_s: float = 300.0) -> tup
         return False, ""  # fail-closed, don't cache failures
 
 
+# ── THE POPUP BRAIN (user rebuild, Sep 1: "the pop ups need a current
+# deep scan before they appear and the confidence bar for the popup needs
+# to be higher than the bots side to pass... it has eliminated most of
+# the risk of the trade for that time window. No more wiggles.") ─────
+# The goal: percentage-based (1-3%), set by the market analysis (the
+# engine's expected move for this coin/rotation/day), on a 1-3h window.
+GOAL_MIN_PCT = 1.0
+GOAL_MAX_PCT = 3.0
+GOAL_DEFAULT_PCT = 1.5     # young profile / no cell: a moderate default
+
+# The stale-move guard (the APT-12:11 lesson): a RE-ENTRY whose move
+# peaked hours ago is a sagging top, not a trend. APT peaked 08:15; the
+# 12:11 re-entry fired at 100% and sank. Stale = the 4h high is at least
+# this old AND price sits at least this far below it.
+STALE_MOVE_H = 2.0
+STALE_MOVE_DROP_PCT = 1.5
+
+
+def _window_goal_pct(pair: str) -> float:
+    """The trade's % goal: the Volatility Engine's expected move (standard
+    threshold) for this coin at this rotation/day — the 'market analysis'
+    that sets 1-3% goals. Clamped to the band; moderate default when the
+    profile is young."""
+    try:
+        from volatility_engine import get_move_threshold
+        now = _now_mst()
+        win = _rotation_window(now)
+        rot = win[2] if win else "08-12"
+        sched = _schedule_for_dow(now.weekday())
+        thr = get_move_threshold(pair, rot, sched, level="standard")
+        if thr and float(thr) > 0.2:
+            return max(GOAL_MIN_PCT, min(GOAL_MAX_PCT, float(thr)))
+    except Exception:
+        pass
+    return GOAL_DEFAULT_PCT
+
+
+def _stale_move(exchange, pair: str):
+    """(hours_since_4h_high, pct_below_high) when the move is STALE — the
+    APT shape: the peak is hours old and price has fallen away from it.
+    None when the move is fresh. Re-entry popups on stale moves are the
+    account-killer (APT 12:11: 100% conf, peaked 08:15, sank on entry)."""
+    try:
+        _ohl = exchange.fetch_ohlcv(pair, timeframe="1h", limit=5)
+        if not _ohl or len(_ohl) < 4:
+            return None
+        _his = [float(c[2]) for c in _ohl]
+        _hi = max(_his)
+        _hi_idx = _his.index(_hi)
+        _age_h = float(len(_ohl) - 1 - _hi_idx)  # hours since the high candle
+        _px = float(_ohl[-1][4])
+        _drop = (_hi - _px) / _hi * 100.0 if _hi > 0 else 0.0
+        if _age_h >= STALE_MOVE_H and _drop >= STALE_MOVE_DROP_PCT:
+            return (_age_h, _drop)
+        return None
+    except Exception:
+        return None
+
+
 def lone_wolf_discount(exchange, pair: str, max_age_s: float = 900.0) -> tuple[int, str]:
     """(points_off, note) for a coin moving on its own in a FLAT tide.
     The 24h move is cached per pair (15 min) — one ticker fetch per signal,
@@ -1708,10 +1767,53 @@ def main():
         if _lw_pts:
             DESKTOP_ALERT_MIN = max(LONE_WOLF_DESKTOP_FLOOR, DESKTOP_ALERT_MIN - _lw_pts)
             logger.info("  LONE WOLF: %s — desktop floor relaxed to %d%%", asset, DESKTOP_ALERT_MIN)
-        if signal.confidence < DESKTOP_ALERT_MIN:
+        # ── THE BRAIN-JUDGED POPUP BAR (user rule, Sep 1: "the pop ups
+        # need a current deep scan before they appear and the confidence
+        # bar for the popup needs to be higher than the bots side to
+        # pass"): a CURRENT deep read runs before the popup, and the
+        # BRAIN'S number must clear the popup floor (89/78/55 — above the
+        # bot's 60-69 bar by design: the bot rides dips on its ladder,
+        # the contest dies at the -3% line). The quick tournament number
+        # no longer opens popups (the JUP loophole: quick 89+, brain 87).
+        # A broken read fails open to the old quick check.
+        _brain_floor_ok = None
+        if is_buy:
+            try:
+                if _deep is None:
+                    _deep, _df = _do_deep_read()
+                if _deep is not None:
+                    _brain_floor_ok = float(_deep.confidence) >= DESKTOP_ALERT_MIN
+                    if not _brain_floor_ok:
+                        logger.info("  Desktop suppressed: the BRAIN reads %.0f%% < %d%% "
+                                    "popup floor (quick said %.0f%%)",
+                                    float(_deep.confidence), DESKTOP_ALERT_MIN,
+                                    signal.confidence)
+                        return
+                    logger.info("  BRAIN-JUDGED BAR: the brain reads %.0f%% ≥ %d%% "
+                                "popup floor (quick %.0f%%)",
+                                float(_deep.confidence), DESKTOP_ALERT_MIN,
+                                signal.confidence)
+            except Exception:
+                _brain_floor_ok = None  # broken read → the quick check stands
+        if _brain_floor_ok is None and signal.confidence < DESKTOP_ALERT_MIN:
             logger.info("  Desktop suppressed: %s %.0f%% < %d%% floor (still logged to winners pool)",
                         asset, signal.confidence, DESKTOP_ALERT_MIN)
             return
+        # ── THE STALE-MOVE GUARD (user rule, Sep 1: "no more wiggles —
+        # only solid trends"): a RE-ENTRY whose move peaked hours ago is
+        # a sagging top, not a trend (APT: peaked 08:15, the 12:11
+        # re-entry fired at 100% and sank). Fresh first-fires are exempt —
+        # the system noticing a move is the early catch.
+        if _is_reentry:
+            try:
+                _st = _stale_move(exchange, pair)
+                if _st:
+                    logger.info("  STALE MOVE: %s — 4h high %.0fh ago, %.1f%% below it "
+                                "— re-entry popup skipped (the wiggle trap)",
+                                asset, _st[0], _st[1])
+                    return
+            except Exception:
+                pass
 
         # The signal already PASSED the contest criteria (champion + checklist,
         # checked upstream). Why the bot didn't take it gets spelled out in
@@ -1737,16 +1839,19 @@ def main():
         # the user's system: green light → all in. The deep scan is the
         # confirmation; when it's green they go 100%. Say what they do.
         contest_msg = f"  SPEND: 100% = ${_bal:,.0f}\n" if _bal > 0 else ""
-        # how long to THE USER'S TAKE (+$20 = +0.4%) at this rotation's pace
-        # — and the RESOLVE RULE: the $20 must be reachable within the
-        # rotation's allowance (pace-flexible, never past midnight). Slow
-        # trades never hit the desktop. (TP distance is display info only.)
-        _hours = _hours_to_scalp(pair, signal.entry_price)
-        _cap = _max_resolve_hours()
-        if _hours is not None and _hours > _cap:
-            logger.info("  TOO SLOW: %s ~%.0fh to the $20 (cap %.0fh) — desktop suppressed, logged to pool",
-                        asset, _hours, _cap)
-            return
+        # ── THE GOAL CLOCK (user rule, Sep 1: "scalping is over with...
+        # 1 hour to 3 hour time limits and percentage based goals >1%-3%
+        # depending on the current market analysis"): the goal is the
+        # engine's expected move for THIS coin at this rotation/day —
+        # the market analysis — clamped to 1-3%; the window scales with
+        # the goal (1% → 1h, 3% → 3h). The $20 pace and its resolve cap
+        # are retired on the popup path.
+        _goal_pct = _window_goal_pct(pair)
+        _win_min = max(60.0, min(180.0, _goal_pct * 60.0))
+        _out_by = (_now_mst() + timedelta(minutes=round(_win_min / 5.0) * 5)).strftime("%I:%M").lstrip("0")
+        hold_txt = f"+{_goal_pct:.1f}% in ~{_win_min / 60.0:.0f}h"
+        logger.info("  GOAL CLOCK: %s — goal +%.1f%% (engine expected move), "
+                    "window %.0fh, out by %s", asset, _goal_pct, _win_min / 60.0, _out_by)
 
         # ── THE DOUBLE-CHECK RULE (user directive, Aug 25): a desktop signal
         # must already pass the SAME deep scan the user will run in QUICK
@@ -1781,24 +1886,11 @@ def main():
             except Exception as _exc:
                 logger.debug("desktop pre-check unavailable for %s: %s (alerting anyway — QC still gates)", asset, _exc)
 
-        hold_txt = "a few hours"
-        if _hours is not None:
-            if _hours < 1:
-                hold_txt = "under an hour"
-            elif _hours < 2:
-                hold_txt = "about an hour"
-            elif _hours < 36:
-                hold_txt = f"~{_hours:.0f} hours"
-            else:
-                hold_txt = f"~{_hours / 24:.0f} days"
-        # HOW LONG, in the card's voice: patience = 2x the usual $20 time
-        # (min 45 minutes), snapped to 5-minute marks — "out by 11:15"
-        try:
-            _pat = max(2.0 * (_hours or 0.75) * 60.0, 45.0)
-            _out_by = (_now_mst() + timedelta(minutes=round(_pat / 5.0) * 5)).strftime("%I:%M").lstrip("0")
-        except Exception:
-            _out_by = None
-        _how_long = f"until you're up $20 — or she says out. If it hasn't paid by {_out_by}, get out."
+        # (the goal clock above set hold_txt + _out_by; the $20 patience
+        # ladder and its "up twenty dollars" phrasing retired with the
+        # scalp game — Sep 1)
+        _how_long = (f"goal +{_goal_pct:.1f}% by {_out_by} — "
+                     f"if it hasn't paid by then, get out.")
         # ── TIDE (fleet context — every alert states it) ────────────────
         _tide_line = ""
         _tide_spoken = ""
@@ -1888,17 +1980,18 @@ def main():
             _spoken = (f"Buy {asset}! {_dc:.0f} percent sure! "
                        + _reentry_say
                        + ("Lone wolf! Moving on her own while the fleet sits still! " if _lw_pts else "")
-                       + f"The twenty comes in {hold_txt}! "
+                       + f"Aim for plus {_goal_pct:.0f} percent! "
                        + (f"Small size only — {_spend:,.0f} dollars! " if _small_coin else
                           (f"Big book — all {(float(_bal) if _bal > 0 else 5000.0):,.0f} dollars in fine! "
                            if _carry is not None else
                            "Book unreadable — your call on size! "))
                        + _tide_spoken
                        + (f"If it hasn't paid by {_out_by}, get out!" if _out_by else
-                          "Hold until you're up twenty dollars!"))
+                          "Hold for the goal!"))
             message = (
                 f"BUY {asset}\n"
-                f"WHY: the $20 comes in {hold_txt} at this coin's speed, and the deep scan reads the setup at {_dc:.0f}%\n"
+                f"WHY: the engine expects +{_goal_pct:.1f}% in this window at this coin's pace, "
+                f"and the brain reads the setup at {_dc:.0f}%\n"
                 f"WHEN: right now — this is fresh\n"
                 f"HOW LONG: {_how_long}\n"
                 f"{_tide_line}"
@@ -2285,10 +2378,18 @@ def main():
                         except Exception as exc:
                             logger.warning("  Could not write mover to bridge: %s", exc)
 
-                        # desktop: 89% floor + resolve rule, same as everything
-                        # else — the contest path is untouched by this funnel
-                        _b_hours = _hours_to_scalp(pair, signal.entry_price)
-                        if signal.confidence >= 89 and not (_b_hours is not None and _b_hours > _max_resolve_hours()):
+                        # desktop: THE BRAIN-JUDGED BAR (Sep 1) — the popup
+                        # rules apply here too: the brain's current number
+                        # (the funnel's deep read, already done for the
+                        # veto) must clear the champion floor. The $20
+                        # pace resolve rule is retired with the scalp game.
+                        try:
+                            _m_desk_ok = (_deep_sig is not None
+                                          and _deep_sig.action == "buy"
+                                          and float(_deep_sig.confidence) >= 89)
+                        except Exception:
+                            _m_desk_ok = signal.confidence >= 89  # fail open
+                        if _m_desk_ok:
                             notify_big(
                                 f"🚀 MOVER {asset} ({signal.confidence:.0f}%)",
                                 f"Runner outside the 54 — {asset} {_mv_pct:+.0f}% on 24h\n"

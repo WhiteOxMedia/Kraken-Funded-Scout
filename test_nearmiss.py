@@ -92,8 +92,8 @@ check("deep read is defined ABOVE the gates (near-miss can call it)",
 check("bridge reuses the near-miss read (no second fetch)",
       src.count("if _deep is None:") >= 2)
 check("desktop veto applies to the CACHED brain too (not only its own read)",
-      src.count("_deep, _df = _do_deep_read()") == 3,
-      "def + bridge conditional + desktop conditional")
+      src.count("_deep, _df = _do_deep_read()") == 4,
+      "def + bridge conditional + desktop conditional + brain-judged bar (Sep 1)")
 check("bridge deep >=60 veto still stands (never discounted)",
       "_deep.confidence < 60" in src and "DEEP VETO (bridge)" in src)
 check("desktop deep >=60 veto still stands",

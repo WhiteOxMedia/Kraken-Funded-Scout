@@ -90,8 +90,8 @@ check("funnel skips tide OUT", "tide OUT (fleet %.0f%%)" in src)
 check("funnel has the fresh-listing guard", "len(ohlcv) < MOVER_MIN_CANDLES" in src)
 check("funnel paces itself (10-min rescan, contest path untouched)",
       "_mover_scanned.get(pair, 0)) < 600" in src)
-check("desktop keeps the 89 floor (contest untouched)",
-      'signal.confidence >= 89 and not (_b_hours is not None' in src)
+check("desktop uses the BRAIN-JUDGED bar (Sep 1: the funnel's deep read must clear 89)",
+      "_deep_sig is not None" in src and "float(_deep_sig.confidence) >= 89" in src)
 check("funnel evaluates at its own floor, not the tournament bar",
       "evaluate_and_check(pair, df, MOVER_MIN_CONF)" in src)
 
