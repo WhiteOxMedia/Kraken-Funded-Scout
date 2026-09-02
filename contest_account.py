@@ -112,6 +112,18 @@ def daily_pace_usd(state: dict | None = None) -> float:
     return float(s["start_balance"]) * WEEKLY_GOAL_PCT / 100.0 / TRADING_DAYS_PER_WEEK
 
 
+def pnl_net_usd(entry_price: float, exit_price: float, size_usd: float) -> tuple[float, float, float]:
+    """(pnl_gross, cost_rt, pnl_net) for one closed contest round trip.
+    The platform's only cost is the 0.04% spread each side — 0.08% round
+    trip — and it counts toward BOTH the target and the death line, so
+    the net is what the balance actually moved. Used by the SOLD button's
+    auto-balance (user rule, Sep 2: "auto calculate the PnL... auto fill
+    when the button is pushed")."""
+    gross = float(size_usd) * (float(exit_price) / float(entry_price) - 1.0)
+    cost = float(size_usd) * COST_ROUNDTRIP_PCT / 100.0
+    return gross, cost, gross - cost
+
+
 def window_drawdown_pct(pair: str, rot_key: str | None = None,
                         schedule: str | None = None) -> float:
     """The coin's profiled worst-window drawdown from the Volatility

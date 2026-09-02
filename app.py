@@ -3404,26 +3404,78 @@ def render_auto_watch(cfg: TradingConfig, kraken):
                 with _scols[_i % len(_scols)]:
                     if st.button(f"✔ SOLD {_asset(_sp)}", key=f"sold_{_sp.replace('/', '_')}",
                                  help="Clear it — you're out. Next green light re-adds fresh."):
-                        _cw_sold.pop(_sp)
+                        _sw = _cw_sold.pop(_sp) or {}
                         _save_watch(_cw_sold)
                         # the re-entered expander follows right below
                         st.session_state.get("take_level", {}).pop(_sp, None)
                         # flow advance moves here (Aug 30): SOLD is now the
                         # only exit — the board clears when YOU clear it
                         st.session_state["flow_exit_at"] = time.time()
+                        # ── AUTO PnL + BALANCE (user rule, Sep 2: "stamp the
+                        #    real sold time and auto calculate the PnL...
+                        #    auto fill when the button is pushed — I can
+                        #    manually self adjust later"): the entry's size +
+                        #    entry price + the live price at tap time give the
+                        #    round trip; the 0.08% RT cost counts (platform
+                        #    rule — it hits the target AND the line); the
+                        #    contest balance adjusts itself and the trade is
+                        #    logged with its sold-time stamp. No size or no
+                        #    live price → the manual reminder stands.
+                        _say_sold = (f"{_asset(_sp)} sold! Cleared. Ready for the next one! "
+                                     f"Update the contest balance in the sidebar — my numbers follow it!")
+                        _toast_sold = f"✔ {_asset(_sp)} cleared — next green light re-adds it"
+                        _sold_at = _now_mst()
                         try:
-                            st.toast(f"✔ {_asset(_sp)} cleared — next green light re-adds it",
-                                     icon="✔", duration=8)
-                            # THE BALANCE REMINDER (user rule, Sep 2 — "go"):
-                            # the growing buffer is only as accurate as the
-                            # sidebar's current balance (Kraken gives no API
-                            # for the contest side), and SOLD is the moment
-                            # the balance actually moved. Stale-high is the
-                            # dangerous direction — the 3% guard would
-                            # under-protect — so she asks for the update
-                            # right here, on every close.
-                            _speak(f"{_asset(_sp)} sold! Cleared. Ready for the next one! "
-                                   f"Update the contest balance in the sidebar — my numbers follow it!")
+                            _entry = float(_sw.get("entry") or 0.0)
+                            _size = float(_sw.get("size") or 0.0)
+                            _live = None
+                            if _entry > 0:
+                                try:
+                                    _live = float(kraken.exchange.fetch_ticker(_sp)["last"])
+                                except Exception:
+                                    _live = None
+                            if _entry > 0 and _size > 0 and _live:
+                                import contest_account as _ca_s
+                                _gross, _cost, _net = _ca_s.pnl_net_usd(_entry, _live, _size)
+                                _acct_s = _ca_s.load_state()
+                                _new_bal = float(_acct_s["current_balance"]) + _net
+                                _ca_s.save_state(int(_acct_s["tier"]), _new_bal)
+                                _held_min = ""
+                                try:
+                                    from datetime import datetime as _dts
+                                    _added = _sw.get("added")
+                                    if _added:
+                                        _held_min = f"{(_sold_at - _dts.fromisoformat(_added)).total_seconds() / 60.0:.0f}"
+                                except Exception:
+                                    pass
+                                try:
+                                    import json as _jsons
+                                    with open("contest_trades.jsonl", "a", encoding="utf-8") as _fs:
+                                        _fs.write(_jsons.dumps({
+                                            "sold_at": _sold_at.isoformat(),
+                                            "pair": _sp, "entry": _entry, "exit": _live,
+                                            "size": _size,
+                                            "pnl_gross": round(_gross, 2),
+                                            "cost_rt": round(_cost, 2),
+                                            "pnl_net": round(_net, 2),
+                                            "balance_after": round(_new_bal, 2),
+                                            "goal_pct": _sw.get("goal_pct"),
+                                            "held_min": _held_min,
+                                        }) + "\n")
+                                except Exception:
+                                    pass
+                                _sign = "+" if _net >= 0 else "-"
+                                _toast_sold = (f"✔ {_asset(_sp)} sold — {_sign}${abs(_net):,.2f} net "
+                                               f"(0.08% RT cost incl.) · balance now ${_new_bal:,.0f}")
+                                _say_sold = (f"{_asset(_sp)} sold! "
+                                             f"{'Plus' if _net >= 0 else 'Minus'} {abs(_net):,.0f} dollars net! "
+                                             f"The balance is now {_new_bal:,.0f} dollars! "
+                                             f"Adjust me in the sidebar if that's off!")
+                        except Exception:
+                            pass
+                        try:
+                            st.toast(_toast_sold, icon="✔", duration=10)
+                            _speak(_say_sold)
                         except Exception:
                             pass
                         st.rerun()
