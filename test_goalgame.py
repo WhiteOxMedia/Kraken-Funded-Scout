@@ -57,6 +57,12 @@ check("the TOO SLOW rejection speaks the expected move",
 check("the render: goal_ok replaces pace_ok",
       "goal_ok = raw_move is None or float(raw_move) >= 1.0" in ap
       and "and goal_ok" in ap)
+# THE LEFTOVER-NAME TRAP (Sep 2 crash: the QC page died with
+# NameError 'pace_ok is not defined' at the status LED row — the rename
+# missed ONE reference and the static checks never asserted the old name
+# was fully gone; the crash only surfaced on a live QC scan render)
+check("no pace_ok reference survives anywhere in the console (the NameError trap)",
+      "pace_ok" not in ap)
 check("the verdict line shows the engine's expectation",
       "NO GREEN — TOO SLOW (engine expects only" in ap)
 check("the QC header shows the GOAL, not the $20 pace",

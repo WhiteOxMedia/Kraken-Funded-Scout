@@ -2641,7 +2641,7 @@ def render_quick_check(cfg: TradingConfig, kraken):
         _fine_led, _fine_txt = "g", "FRESH — FIRST FIRE TODAY"
     status_leds = (
         led("LIQUID" if liquid else f"ILLIQUID < ${cfg.min_volume_usd_24h/1e6:.0f}M", "g" if liquid else "r") +
-        led(_pace_txt, "g" if pace_ok else "r") +
+        led(_pace_txt, "g" if goal_ok else "r") +
         led(f"TIDE {tide_state}" if tide_state else "TIDE: NO DATA", _tcol2) +
         (led(f"🐺 LONE WOLF — {lw_note}", "a") if lw_pts else "") +
         led(_carry_txt, _carry_col) +
@@ -3637,8 +3637,20 @@ def render_exit_check(cfg: TradingConfig, kraken):
     # the ratchet for the exit check too (user rule, Aug 26)
     try:
         from background_scanner import _ratchet_trail_pct as _rtp2
-        _ec_trail = _rtp2(float(entry or live), high, float(_load_watch().get(pair, {}).get("size") or 2500.0)) \
-            if (entry and high) else CONTEST_TRAIL_PCT
+        # the tracked high BEFORE the call (the same read-only sources
+        # _cloned_trailing reads): bridge tracking + the session max.
+        # (BUGFIX Sep 2: this referenced `high` before it existed — the
+        # NameError was swallowed by this except, so the ratchet NEVER
+        # fired on this page; every check used the flat 4% default.)
+        _ec_high = None
+        try:
+            _ec_high = sb.get_trailing_high(pair)
+        except Exception:
+            pass
+        _ec_sess = float(st.session_state.get("_manual_highs", {}).get(pair) or 0.0)
+        _ec_high = max(float(_ec_high or 0.0), _ec_sess) or None
+        _ec_trail = _rtp2(float(entry or live), _ec_high, float(_load_watch().get(pair, {}).get("size") or 2500.0)) \
+            if (entry and _ec_high) else CONTEST_TRAIL_PCT
     except Exception:
         _ec_trail = CONTEST_TRAIL_PCT
     high, trail_hit = _cloned_trailing(pair, live, entry, sb, trail_pct=_ec_trail)
