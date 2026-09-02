@@ -93,6 +93,10 @@ check("funnel paces itself (10-min rescan, contest path untouched)",
       "_mover_scanned.get(pair, 0)) < 600" in src)
 check("desktop uses the BRAIN-JUDGED bar (Sep 1: the funnel's deep read must clear 89)",
       "_deep_sig is not None" in src and "float(_deep_sig.confidence) >= 89" in src)
+check("mover popup fails CLOSED on a broken brain read (the JUP lesson)",
+      "_m_desk_ok = False  # fail-closed" in src)
+check("mover popup has the worth floor (half the daily pace, same as champion)",
+      "MOVER WORTH FLOOR" in src and "WORTH_FLOOR_PACE_FRAC" in src)
 check("funnel evaluates at its own floor, not the tournament bar",
       "evaluate_and_check(pair, df, MOVER_MIN_CONF)" in src)
 

@@ -839,6 +839,16 @@ GOAL_MIN_PCT = 1.0
 GOAL_MAX_PCT = 3.0
 GOAL_DEFAULT_PCT = 1.5     # young profile / no cell: a moderate default
 
+# ── THE WORTH FLOOR (user rule, Sep 2 — "big coins only... less entries
+# but more money"; the JUP 14:52 lesson: a guard-capped $233 entry at the
+# +2% goal pays $4.66 — noise that only pays the spread): the sized entry
+# at its goal must pay at least HALF the daily pace ($120 on the 10k
+# tier, $12 on 1k) or the popup is bumped. No alert is better than a
+# worthless alert. NOTE: on a FRESH account this also bumps high-drawdown
+# coins whose guard cap x goal can't reach the floor — the first trades
+# must be the safest ones; as the buffer grows, more coins unlock.
+WORTH_FLOOR_PACE_FRAC = 0.5
+
 # The stale-move guard (the APT-12:11 lesson): a RE-ENTRY whose move
 # peaked hours ago is a sagging top, not a trend. APT peaked 08:15; the
 # 12:11 re-entry fired at 100% and sank. Stale = the 4h high is at least
@@ -1835,10 +1845,19 @@ def main():
                                 float(_deep.confidence), DESKTOP_ALERT_MIN,
                                 signal.confidence)
             except Exception:
-                _brain_floor_ok = None  # broken read → the quick check stands
-        if _brain_floor_ok is None and signal.confidence < DESKTOP_ALERT_MIN:
-            logger.info("  Desktop suppressed: %s %.0f%% < %d%% floor (still logged to winners pool)",
-                        asset, signal.confidence, DESKTOP_ALERT_MIN)
+                _brain_floor_ok = None
+        # ── FAIL-CLOSED (user rule, Sep 2 — the JUP 14:52 lesson: the deep
+        # read errored, the old fail-open let the QUICK 92% open the popup
+        # with no brain check at all, and the QC's brain said 67 two minutes
+        # later — the user would have bought a thin book, eaten the spread,
+        # and been called out by the knife 5 minutes after that): NO brain
+        # read = NO popup, ever. The bridge write above already happened
+        # (the bot's ledger, the bot's own gates); the QC still fails open
+        # so the user can always run their own scan.
+        if is_buy and _brain_floor_ok is None:
+            logger.info("  Desktop suppressed: the brain could not be read for %s — "
+                        "no unverified popups (fail-closed; quick said %.0f%%)",
+                        asset, signal.confidence)
             return
         # ── THE STALE-MOVE GUARD (user rule, Sep 1: "no more wiggles —
         # only solid trends"): a RE-ENTRY whose move peaked hours ago is
@@ -2001,6 +2020,26 @@ def main():
                                f"death line can afford\n")
         except Exception as _exc:
             logger.debug("3%% guard unavailable in send_alert: %s", _exc)  # fail-open
+        # ── THE WORTH FLOOR (user rule, Sep 2: "big coins only... less
+        # entries but more money" — the JUP lesson: a $233 sized entry at
+        # the +2% goal pays $4.66, noise that only pays the spread): the
+        # sized entry at its goal must pay at least half the daily pace
+        # ($120 on 10k, $12 on 1k) or the popup is bumped. Fail-open on a
+        # broken account read — the sizing above already failed open.
+        if is_buy:
+            try:
+                import contest_account as _ca_w
+                _acct_w = _ca_w.load_state()
+                _pace_w = _ca_w.daily_pace_usd(_acct_w)
+                _worth_w = float(_spend) * (float(_goal_pct) / 100.0)
+                if _worth_w < _pace_w * WORTH_FLOOR_PACE_FRAC:
+                    logger.info("  WORTH FLOOR: %s — a $%.0f entry at the +%.1f%% goal pays "
+                                "only $%.0f (< $%.0f, half the daily pace) — popup bumped",
+                                asset, _spend, _goal_pct, _worth_w,
+                                _pace_w * WORTH_FLOOR_PACE_FRAC)
+                    return
+            except Exception as _exc:
+                logger.debug("worth floor unavailable: %s", _exc)  # fail-open
         if is_buy:
             # THE BRAIN'S NUMBER (user rule, Aug 27: "still saying 100%
             # confident without using the brain"): the gate has used the
@@ -2434,7 +2473,7 @@ def main():
                                           and _deep_sig.action == "buy"
                                           and float(_deep_sig.confidence) >= 89)
                         except Exception:
-                            _m_desk_ok = signal.confidence >= 89  # fail open
+                            _m_desk_ok = False  # fail-closed: no brain read, no popup (the JUP lesson)
                         if not _m_desk_ok:
                             logger.info("  Mover %s %.0f%% — bot-only (desktop floor 89)", asset, signal.confidence)
                         else:
@@ -2498,9 +2537,21 @@ def main():
                                             _m_bal, _m_wdd, float(_m_acct["start_balance"]))
                                         if _m_risk <= 0:
                                             _m_skip = "MOVER DEATH LINE: buffer gone — no buy popup"
-                                        elif _m_spend > _m_risk:
-                                            _m_spend = _m_risk
-                                            _m_guard_capped = True
+                                        else:
+                                            if _m_spend > _m_risk:
+                                                _m_spend = _m_risk
+                                                _m_guard_capped = True
+                                            # THE WORTH FLOOR (same rule as the champion
+                                            # popup — the JUP lesson): the sized entry at
+                                            # its goal must pay at least half the daily
+                                            # pace, or the popup is bumped.
+                                            _m_pace = _ca.daily_pace_usd(_m_acct)
+                                            _m_worth = _m_spend * (_m_goal / 100.0)
+                                            if _m_worth < _m_pace * WORTH_FLOOR_PACE_FRAC:
+                                                _m_skip = (f"MOVER WORTH FLOOR: ${_m_spend:,.0f} at the "
+                                                           f"+{_m_goal:.1f}% goal pays only ${_m_worth:,.0f} "
+                                                           f"(< ${_m_pace * WORTH_FLOOR_PACE_FRAC:,.0f}, half "
+                                                           f"the daily pace) — popup bumped")
                                 except Exception as _exc:
                                     logger.debug("mover 3%% guard unavailable: %s", _exc)  # fail-open
                                 if _m_skip:

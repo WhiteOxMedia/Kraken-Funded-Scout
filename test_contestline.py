@@ -30,7 +30,10 @@ check("tiers: 1k/$20, 5k/$50, 10k/$90",
       ca.TIERS[1000]["fee"] == 20 and ca.TIERS[5000]["fee"] == 50
       and ca.TIERS[10000]["fee"] == 90)
 check("default tier is 10k (user: 'set the default around the 10k contest')",
-      ca.DEFAULT_TIER == 10000 and ca.load_state()["tier"] == 10000)
+      ca.DEFAULT_TIER == 10000)
+check("the live account state carries a VALID tier (user-selected in the sidebar; "
+      "1k selected Sep 2 — the validation-tier plan)",
+      ca.load_state()["tier"] in ca.TIERS, ca.load_state()["tier"])
 check("the death line: -3% from start, never moves",
       ca.death_line({"start_balance": 10000.0}) == 9700.0
       and ca.death_line({"start_balance": 1000.0}) == 970.0)
