@@ -3835,6 +3835,28 @@ def main():
         led(f"PACE ${_pace:,.0f}/DAY (12%/WK)", "a") + "<br>" +
         led(f"TARGET +12% = ${float(_acct['start_balance']) * 1.12:,.0f}", "g")
     )), unsafe_allow_html=True)
+    # ── THE WORTH FLOOR DIAL (user rule, Sep 2: "should be a dial on the
+    #    console — adjustable without Workshop"): the popup gates (champion
+    #    + mover) read it LIVE from console_state.json — turning the dial
+    #    takes effect on the next alert, no scanner restart. 0% = OFF.
+    _wf_raw = _cs.get("worth_floor_frac")
+    _wf = float(_wf_raw) if _wf_raw is not None else 0.5
+    _wf_new = st.sidebar.slider(
+        "💰 Worth floor (% of daily pace)",
+        0.0, 1.0, _wf, 0.05, format="%.0f%%",
+        help="A popup must be worth it: the sized entry at its goal has to pay at least "
+             "this share of the daily pace, or it's bumped. 50% on the 1k tier = a $12 "
+             "minimum payout; on 10k = $120. 0% turns the floor off.",
+        key="worth_floor_dial")
+    if abs(_wf_new - _wf) > 1e-9:
+        _cs["worth_floor_frac"] = _wf_new
+        _save_console_state(_cs)
+        _wf = _wf_new
+    _wf_usd = _pace * _wf
+    st.sidebar.caption(
+        f"Popups must pay ≥ ${_wf_usd:,.0f} at the goal "
+        + ("— floor OFF, every gated popup fires." if _wf <= 0
+           else f"({_wf:.0%} of ${_pace:,.0f}/day). The scanner reads it live — no restart."))
     candle_opts = {"15 min": 15, "1 hour": 60, "4 hours": 240, "1 day": 1440}
     cfg.candle_interval = candle_opts[st.sidebar.selectbox("Candle timeframe", list(candle_opts), index=1)]
     cfg.risk_per_trade_pct = st.sidebar.slider("Risk per trade (%)", 0.5, 2.0, 1.0, 0.1)

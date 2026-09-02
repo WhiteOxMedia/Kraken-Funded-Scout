@@ -139,6 +139,20 @@ check("the worth floor gates send_alert AND the mover popup",
 check("a big enough entry clears (fresh 10k, low-dd coin: $5,100 at +2.5% = $127.50 ≥ $120)",
       5100.0 * 2.5 / 100.0 >= 120.0)
 
+# ── 6. THE DIAL (user rule, Sep 2: "should be a dial on the console —
+#      adjustable without Workshop") ──────────────────────────────────
+check("the floor is a DIAL: _worth_floor_frac() reads console_state.json live",
+      "def _worth_floor_frac" in src and "worth_floor_frac" in src)
+check("BOTH gates use the dial (champion + mover)",
+      src.count("_worth_floor_frac()") >= 2, src.count("_worth_floor_frac()"))
+_wf_dial = bs._worth_floor_frac()
+check("the dial reads a sane share (0.0-1.0; default 0.5 until turned)",
+      0.0 <= _wf_dial <= 1.0, _wf_dial)
+check("dial 0% = the floor is OFF (nothing falls below a $0 threshold)",
+      not (4.66 < 12.0 * 0.0))
+check("the console sidebar carries the dial (slider + live caption)",
+      "worth_floor_dial" in ap and "worth_floor_frac" in ap)
+
 lines.append(f"\nRESULT: {PASS} passed, {FAIL} failed")
 open("_popupbrain_check.txt", "w", encoding="utf-8").write("\n".join(lines))
 print("DONE")

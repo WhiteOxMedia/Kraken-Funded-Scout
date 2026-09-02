@@ -849,6 +849,25 @@ GOAL_DEFAULT_PCT = 1.5     # young profile / no cell: a moderate default
 # must be the safest ones; as the buffer grows, more coins unlock.
 WORTH_FLOOR_PACE_FRAC = 0.5
 
+
+def _worth_floor_frac() -> float:
+    """The worth-floor DIAL (user rule, Sep 2: "should be a dial on the
+    console — adjustable without Workshop"): the console's sidebar writes
+    worth_floor_frac into console_state.json; both popup gates read it
+    LIVE at alert time — turning the dial takes effect on the next alert,
+    no scanner restart. Falls back to the code default when unset or
+    unreadable. 0.0 = the floor is OFF (every gated popup fires)."""
+    try:
+        import json as _json
+        from pathlib import Path as _P
+        _cs = _json.loads((_P(__file__).resolve().parent / "console_state.json").read_text())
+        _v = float(_cs.get("worth_floor_frac"))
+        if 0.0 <= _v <= 1.0:
+            return _v
+    except Exception:
+        pass
+    return WORTH_FLOOR_PACE_FRAC
+
 # The stale-move guard (the APT-12:11 lesson): a RE-ENTRY whose move
 # peaked hours ago is a sagging top, not a trend. APT peaked 08:15; the
 # 12:11 re-entry fired at 100% and sank. Stale = the 4h high is at least
@@ -2031,12 +2050,13 @@ def main():
                 import contest_account as _ca_w
                 _acct_w = _ca_w.load_state()
                 _pace_w = _ca_w.daily_pace_usd(_acct_w)
+                _wf_w = _worth_floor_frac()  # the console dial, live
                 _worth_w = float(_spend) * (float(_goal_pct) / 100.0)
-                if _worth_w < _pace_w * WORTH_FLOOR_PACE_FRAC:
+                if _worth_w < _pace_w * _wf_w:
                     logger.info("  WORTH FLOOR: %s — a $%.0f entry at the +%.1f%% goal pays "
-                                "only $%.0f (< $%.0f, half the daily pace) — popup bumped",
+                                "only $%.0f (< $%.0f, %.0f%% of the daily pace) — popup bumped",
                                 asset, _spend, _goal_pct, _worth_w,
-                                _pace_w * WORTH_FLOOR_PACE_FRAC)
+                                _pace_w * _wf_w, _wf_w * 100.0)
                     return
             except Exception as _exc:
                 logger.debug("worth floor unavailable: %s", _exc)  # fail-open
@@ -2543,14 +2563,15 @@ def main():
                                                 _m_guard_capped = True
                                             # THE WORTH FLOOR (same rule as the champion
                                             # popup — the JUP lesson): the sized entry at
-                                            # its goal must pay at least half the daily
-                                            # pace, or the popup is bumped.
+                                            # its goal must pay at least the dial's share
+                                            # of the daily pace, or the popup is bumped.
                                             _m_pace = _ca.daily_pace_usd(_m_acct)
+                                            _m_wf = _worth_floor_frac()  # the console dial, live
                                             _m_worth = _m_spend * (_m_goal / 100.0)
-                                            if _m_worth < _m_pace * WORTH_FLOOR_PACE_FRAC:
+                                            if _m_worth < _m_pace * _m_wf:
                                                 _m_skip = (f"MOVER WORTH FLOOR: ${_m_spend:,.0f} at the "
                                                            f"+{_m_goal:.1f}% goal pays only ${_m_worth:,.0f} "
-                                                           f"(< ${_m_pace * WORTH_FLOOR_PACE_FRAC:,.0f}, half "
+                                                           f"(< ${_m_pace * _m_wf:,.0f}, {_m_wf:.0%} of "
                                                            f"the daily pace) — popup bumped")
                                 except Exception as _exc:
                                     logger.debug("mover 3%% guard unavailable: %s", _exc)  # fail-open
