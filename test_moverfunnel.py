@@ -2,7 +2,8 @@
 the trading bot and leave the contest alone — we don't need both, they
 share the same goal"). One funnel: today's runners (>=+5% on 24h, ALL
 Kraken pairs) + yesterday's losers turning. BOT-ONLY bridge writes
-(source="scout_mover"); the contest path keeps its 89 desktop floor."""
+(source="scout_mover"); the desktop popup carries the new-game gauntlet
+(Sep 2: brain's number, goal clock, stale guard, 3% guard, book carry)."""
 import sys
 from pathlib import Path
 
@@ -94,6 +95,37 @@ check("desktop uses the BRAIN-JUDGED bar (Sep 1: the funnel's deep read must cle
       "_deep_sig is not None" in src and "float(_deep_sig.confidence) >= 89" in src)
 check("funnel evaluates at its own floor, not the tournament bar",
       "evaluate_and_check(pair, df, MOVER_MIN_CONF)" in src)
+
+# ── 4b. THE NEW-GAME MOVER POPUP (user option 1, Sep 2: "convert the
+#        MOVER popup to the new-game format — same gauntlet as champion
+#        popups"; the SYRUP 10:27 popup fired the old format quoting the
+#        quick 72% while the brain's number cleared the bar) ──────────
+check("mover popup title speaks the BRAIN'S number, leads with BUY",
+      "MOVER BUY {asset}" in src and "{_m_dc:.0f}% SURE" in src,
+      "old quick-number title gone" if "MOVER {asset} ({signal.confidence:.0f}%)" not in src else "OLD TITLE STILL PRESENT")
+check("the quick number no longer headlines a mover popup (log only)",
+      "MOVER {asset} ({signal.confidence:.0f}%)" not in src)
+check("mover popup voice speaks the brain's number",
+      "Buy {asset}! {_m_dc:.0f} percent sure!" in src)
+check("mover popup carries the goal clock (engine expected move)",
+      "_m_goal = _window_goal_pct(pair)" in src
+      and "Aim for plus {_m_goal:.0f} percent! " in src)
+check("mover popup carries the out-by discipline",
+      "If it hasn't paid by {_m_out_by}, get out!" in src)
+check("mover popup has the stale-move guard (the APT wiggle trap)",
+      "MOVER STALE MOVE" in src and src.count("_stale_move(exchange, pair)") >= 2,
+      src.count("_stale_move(exchange, pair)"))
+check("mover popup has the 3% death-line guard sizing",
+      "MOVER DEATH LINE" in src and src.count("max_entry_usd(") >= 2,
+      src.count("max_entry_usd("))
+check("mover popup has the book-carry verdict (her four verdicts)",
+      "measure_book(exchange, pair)" in src
+      and "Small size only — {_m_spend:,.0f} dollars! " in src
+      and "Book unreadable — your call on size! " in src)
+check("mover popup suppresses on TOO THIN (no popup at all)",
+      "MOVER TOO THIN" in src)
+check("mover popup sizes off the LIVE contest account",
+      "_ca.load_state()" in src and "import contest_account as _ca" in src)
 
 # ── 5. the bot reader accepts the new source ───────────────────────────
 BOT_READER = r"C:\Users\birds\Workspace\kraken_xrp_trading_bot\scout_signal_reader.py"

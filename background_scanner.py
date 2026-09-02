@@ -2407,28 +2407,151 @@ def main():
                         except Exception as exc:
                             logger.warning("  Could not write mover to bridge: %s", exc)
 
-                        # desktop: THE BRAIN-JUDGED BAR (Sep 1) — the popup
-                        # rules apply here too: the brain's current number
-                        # (the funnel's deep read, already done for the
-                        # veto) must clear the champion floor. The $20
-                        # pace resolve rule is retired with the scalp game.
+                        # desktop: THE NEW-GAME MOVER POPUP (user option 1,
+                        # Sep 2: "convert the MOVER popup to the new-game
+                        # format — same gauntlet as champion popups"). The
+                        # brain-judged bar stays (the brain's CURRENT
+                        # number must clear 89); the popup now speaks the
+                        # BRAIN'S number (not the quick one — the Aug 27
+                        # no-lying-brags rule), carries the goal clock, the
+                        # stale-move guard, the 3% death-line guard sizing,
+                        # and the book-carry verdict. The bridge write above
+                        # is the bot's ledger — its gates are the bot's own.
                         try:
                             _m_desk_ok = (_deep_sig is not None
                                           and _deep_sig.action == "buy"
                                           and float(_deep_sig.confidence) >= 89)
                         except Exception:
                             _m_desk_ok = signal.confidence >= 89  # fail open
-                        if _m_desk_ok:
-                            notify_big(
-                                f"🚀 MOVER {asset} ({signal.confidence:.0f}%)",
-                                f"Runner outside the 54 — {asset} {_mv_pct:+.0f}% on 24h\n"
-                                f"Price: ${signal.price:.4f}\n"
-                                f"Stop: ${signal.stop_loss:.4f}\n"
-                                f"TP: ${signal.take_profit:.4f}\n"
-                                f"Time: {_fmt_mst(_now_mst())}"
-                            )
-                        else:
+                        if not _m_desk_ok:
                             logger.info("  Mover %s %.0f%% — bot-only (desktop floor 89)", asset, signal.confidence)
+                        else:
+                            _m_brain = None
+                            try:
+                                if _deep_sig is not None:
+                                    _m_brain = float(_deep_sig.confidence)
+                            except Exception:
+                                _m_brain = None
+                            _m_dc = _m_brain if _m_brain is not None else float(signal.confidence)
+                            # THE STALE-MOVE GUARD — a runner that peaked
+                            # hours ago is a sagging top (the APT shape).
+                            # A mover popup is never a true first-fire —
+                            # the runner already ran — so EVERY mover popup
+                            # gets the wiggle check, not just re-entries.
+                            _m_stale = _stale_move(exchange, pair)
+                            if _m_stale:
+                                logger.info("  MOVER STALE MOVE: %s — 4h high %.0fh ago, "
+                                            "%.1f%% below it — popup skipped (the wiggle trap)",
+                                            asset, _m_stale[0], _m_stale[1])
+                            else:
+                                # THE GOAL CLOCK — same math as the champion popup
+                                _m_goal = _window_goal_pct(pair)
+                                _m_win = max(60.0, min(180.0, _m_goal * 60.0))
+                                _m_out_by = (_now_mst() + timedelta(
+                                    minutes=round(_m_win / 5.0) * 5)).strftime("%I:%M").lstrip("0")
+                                # sizing: the LIVE contest account + book
+                                # carry + THE 3% DEATH-LINE GUARD (same
+                                # math as send_alert; fail-open on a broken
+                                # read — the popup then names no size)
+                                _m_bal = 0.0
+                                _m_spend = 0.0
+                                _m_carry = None
+                                _m_wdd = None
+                                _m_skip = None
+                                _m_guard_capped = False
+                                try:
+                                    import contest_account as _ca
+                                    _m_acct = _ca.load_state()
+                                    _m_bal = float(_m_acct["current_balance"])
+                                    _m_spend = _m_bal
+                                    try:
+                                        from execution_tiers import measure_book
+                                        _m_book = measure_book(exchange, pair)
+                                        _m_tob = float((_m_book or {}).get("ask_tob") or 0.0)
+                                        if _m_tob > 0:
+                                            _m_carry = _m_tob * 0.20
+                                            if _m_spend > _m_carry:
+                                                _m_fit = [c * _m_spend for c in
+                                                          (0.25, 0.50, 0.75, 1.00)
+                                                          if c * _m_spend <= _m_carry]
+                                                _m_spend = max(_m_fit) if _m_fit else 0.0
+                                    except Exception:
+                                        _m_carry = None
+                                    if _m_carry is not None and _m_spend <= 0:
+                                        _m_skip = (f"MOVER TOO THIN for contest size "
+                                                   f"(book carries ~${_m_carry:,.0f}) — desktop suppressed")
+                                    else:
+                                        _m_wdd = _ca.window_drawdown_pct(pair)
+                                        _m_risk = _ca.max_entry_usd(
+                                            _m_bal, _m_wdd, float(_m_acct["start_balance"]))
+                                        if _m_risk <= 0:
+                                            _m_skip = "MOVER DEATH LINE: buffer gone — no buy popup"
+                                        elif _m_spend > _m_risk:
+                                            _m_spend = _m_risk
+                                            _m_guard_capped = True
+                                except Exception as _exc:
+                                    logger.debug("mover 3%% guard unavailable: %s", _exc)  # fail-open
+                                if _m_skip:
+                                    logger.info("  %s", _m_skip)
+                                else:
+                                    logger.info("  MOVER POPUP: brain %.0f%% (quick %.0f%%) — "
+                                                "goal +%.1f%% by %s",
+                                                _m_dc, float(signal.confidence),
+                                                _m_goal, _m_out_by)
+                                    _m_tide_line = ""
+                                    _m_tide_say = ""
+                                    if _tsw == "RISING":
+                                        _m_tide_line = f"TIDE: RISING ({_tpw:.0f}% of the fleet up) — the market carries greens\n"
+                                        _m_tide_say = "The tide is rising! "
+                                    elif _tsw == "FLAT":
+                                        _m_tide_line = f"TIDE: FLAT ({_tpw:.0f}% of the fleet up) — pickier, smaller\n"
+                                    _m_re_line = "  RE-ENTRY: fired earlier today\n" if _m_re else ""
+                                    _m_re_say = "Re-entry! " if _m_re else ""
+                                    # the SPEND line (3% guard / small coin)
+                                    if _m_guard_capped:
+                                        _m_spend_line = (f"  SPEND: ${_m_spend:,.0f} — THE 3% GUARD: this coin's "
+                                                         f"worst-case window drawdown is {_m_wdd:.1f}%; "
+                                                         f"${_m_spend:,.0f} is the most the death line can afford\n")
+                                    elif _m_carry is not None and _m_spend < _m_bal:
+                                        _m_spend_line = (f"  SPEND: {_m_spend / _m_bal:.0%} = ${_m_spend:,.0f} — "
+                                                         f"SMALL COIN: this book carries ${_m_spend:,.0f}, "
+                                                         f"not ${_m_bal:,.0f}\n")
+                                    elif _m_carry is not None:
+                                        _m_spend_line = f"  SPEND: 100% = ${_m_bal:,.0f} — big book, carries all-in\n"
+                                    else:
+                                        _m_spend_line = ""
+                                    # HER SIZE VOICE (the four verdicts; too thin
+                                    # never reaches here — it's suppressed)
+                                    if _m_carry is not None and 0 < _m_spend < _m_bal:
+                                        _m_size_say = f"Small size only — {_m_spend:,.0f} dollars! "
+                                    elif _m_carry is not None:
+                                        _m_size_say = f"Big book — all {_m_bal:,.0f} dollars in fine! "
+                                    else:
+                                        _m_size_say = "Book unreadable — your call on size! "
+                                    _m_title = f"🚀 MOVER BUY {asset} — {_m_dc:.0f}% SURE"
+                                    _m_spoken = (f"Buy {asset}! {_m_dc:.0f} percent sure! "
+                                                 + _m_re_say
+                                                 + f"Runner outside the 54 — moving {_mv_pct:+.0f} percent on the day! "
+                                                 + f"Aim for plus {_m_goal:.0f} percent! "
+                                                 + _m_size_say
+                                                 + _m_tide_say
+                                                 + f"If it hasn't paid by {_m_out_by}, get out!")
+                                    _m_msg = (
+                                        f"BUY {asset} — MOVER\n"
+                                        f"WHY: runner outside the 54 ({_mv_pct:+.0f}% on 24h), and the brain "
+                                        f"reads the setup at {_m_dc:.0f}%\n"
+                                        f"HOW LONG: goal +{_m_goal:.1f}% by {_m_out_by} — "
+                                        f"if it hasn't paid by then, get out.\n"
+                                        f"{_m_tide_line}"
+                                        f"{_m_re_line}"
+                                        f"{_m_spend_line}"
+                                        f"{'-' * 30}\n"
+                                        f"get out at ${signal.stop_loss:.4f} (wrong)\n"
+                                        f"cash out at ${signal.take_profit:.4f} (win)\n"
+                                        f"{'-' * 30}\n"
+                                        f"  {_fmt_mst(_now_mst())}"
+                                    )
+                                    notify_big(_m_title, _m_msg, spoken=_m_spoken)
                         log_winner(pair, signal)
                         alerted_recently[pair] = now.timestamp()
                     except Exception as exc:
