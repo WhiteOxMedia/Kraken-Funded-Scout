@@ -1,6 +1,6 @@
 exception: ElementList()
 KRAKEN SCOUT: FOUND
-TODAY: missing
+TODAY: FOUND
 NOW:: FOUND
 Win Feed: missing
 Today's Score: missing

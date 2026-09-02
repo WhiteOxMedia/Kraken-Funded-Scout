@@ -976,9 +976,16 @@ def _scalp_headline(_ex, rotation_key: str, sched: str) -> tuple[list[dict], int
         pace = _hours_to_scalp(pair, entry)
         if pace is None or pace > cap:
             continue                    # too slow to the $20
+        try:
+            live = float(_ex.fetch_ticker(pair)["last"])
+        except Exception:
+            continue
         # NO DOWNWARD TREND PICKS (user directive, Aug 25) — same EMA knife
         # test as the QC, so the card never crowns what the QC would block.
         # Fail-open on data errors (the QC still gates).
+        # (BUGFIX Sep 2 — pyflakes-found: this check read `live` BEFORE it
+        # was fetched; the NameError was swallowed by the except below, so
+        # the knife NEVER ran on the card path. The fetch now happens first.)
         try:
             _oh = _ex.fetch_ohlcv(pair, timeframe="1h", limit=30)
             if _oh and len(_oh) >= 25:
@@ -991,10 +998,6 @@ def _scalp_headline(_ex, rotation_key: str, sched: str) -> tuple[list[dict], int
                     continue            # falling knife — never headlines
         except Exception:
             pass
-        try:
-            live = float(_ex.fetch_ticker(pair)["last"])
-        except Exception:
-            continue
         ran_pct = (live - entry) / entry * 100  # displayed on the card —
         # calibration showed chases hit at the same rate (76-80%), so it
         # warns, it doesn't exclude
