@@ -1286,7 +1286,7 @@ def _pick_card(cfg: TradingConfig, kraken):
         ], tone="amber")), unsafe_allow_html=True)
         return
 
-    # ── WATCH: you're in a trade — she counts the twenties ──────────
+    # ── WATCH: you're in a trade — she tracks the goal ──────────────
     if cw:
         for pair, w in cw.items():
             entry = float(w.get("entry") or 0)
@@ -1295,33 +1295,36 @@ def _pick_card(cfg: TradingConfig, kraken):
             if not entry or not px:
                 continue
             usd = (px / entry - 1.0) * size
-            twenties = int(usd // 20) if usd > 0 else 0
+            pct = (px / entry - 1.0) * 100
+            try:
+                goal = float(w.get("goal_pct") or 0) or 1.5
+            except Exception:
+                goal = 1.5
             try:
                 added = datetime.fromisoformat(w["added"])
             except Exception:
                 added = _now_mst()
             try:
-                from background_scanner import _hours_to_scalp
-                eta = _hours_to_scalp(pair, entry) or 0.75
+                _win = float(w.get("window_min") or 0) or max(60.0, min(180.0, goal * 60.0))
             except Exception:
-                eta = 0.75
-            overdue = _now_mst() > added + timedelta(
-                minutes=max(2.0 * eta * 60.0, 45.0))
+                _win = 90.0
+            overdue = _now_mst() > added + timedelta(minutes=_win)
             color = "#4be38a" if usd >= 0 else "#ff6b5e"
+            _goal_col = "#4be38a" if pct >= goal else "#ffc36b"
             rows = [
                 f"<span style='color:{color};font-size:34px;font-family:Audiowide;'>"
                 f"{_asset(pair)} {'+' if usd >= 0 else '-'}${abs(usd):,.0f}</span>"
-                + (f"  <span style='color:#ffc36b;'>· {twenties} twenties taken</span>" if twenties else ""),
+                + (f"  <span style='color:{_goal_col};'>· GOAL HIT</span>" if pct >= goal else ""),
                 f"WHY <span class='dim'>............</span> you're in it — entered at {_fmt_price(entry)}. "
                 f"She's watching it the whole time.",
             ]
             if overdue:
                 rows.append(f"<span style='color:#ff6b5e;'>HOW LONG <span class='dim'>.........</span> "
-                            f"TIME'S UP — it hasn't paid its $20 by {_out_by_txt(added, eta)}. "
+                            f"TIME'S UP — it hasn't paid its {goal:.1f}% by the window's end. "
                             f"Get out unless she just called something.</span>")
             else:
-                rows.append(f"HOW LONG <span class='dim'>.........</span> until you're up $20 — or she says out. "
-                            f"If it hasn't paid by {_out_by_txt(added, eta)}, get out.")
+                rows.append(f"HOW LONG <span class='dim'>.........</span> goal +{goal:.1f}% — "
+                            f"now {pct:+.1f}%. If it hasn't paid by the window's end, get out.")
             rows.append("<span class='dim'>walk around the house — she'll call you</span>")
             rows.append(_tide_line())
             st.markdown(plate("👁 WATCHING", lcd(rows, tone="green" if usd >= 0 else "red")),
@@ -1403,15 +1406,23 @@ def _pick_card(cfg: TradingConfig, kraken):
                 except Exception:
                     pass
         age_txt = f"{h['age_min']:.0f} minutes ago" if h["age_min"] >= 1 else "just now"
+        try:
+            import background_scanner as _bsg
+            if not hasattr(_bsg, "_window_goal_pct"):
+                import importlib
+                _bsg = importlib.reload(_bsg)
+            _card_goal = _bsg._window_goal_pct(f"{h['asset']}/USD")
+        except Exception:
+            _card_goal = 1.5
         rows = [
             f"<span style='color:#4be38a;font-size:40px;font-family:Audiowide;'>⚡ {h['asset']}</span>",
-            f"WHY <span class='dim'>............</span> its $20 comes fast — {_eta_txt(h['pace'])} at this "
-            f"coin's usual speed. It's fresh: only +{h['ran']:.1f}% above where the signal caught it, "
-            f"and the setup is real ({h['conf']:.0f}% sure).",
+            f"WHY <span class='dim'>............</span> the engine expects +{_card_goal:.1f}% in this "
+            f"window at this coin's pace. It's fresh: only +{h['ran']:.1f}% above where the signal "
+            f"caught it, and the setup is real ({h['conf']:.0f}% sure).",
             f"WHEN <span class='dim'>...........</span> the signal came in {age_txt}"
             + ("" if h["age_min"] < 1 else " — move quick, wiggles don't wait"),
-            f"HOW LONG <span class='dim'>.........</span> until you're up $20 — or she says out. "
-            f"{_eta_txt(h['pace'])} (out by {_out_by_txt(_now_mst(), h['pace'])}).",
+            f"HOW LONG <span class='dim'>.........</span> goal +{_card_goal:.1f}% — or she says out. "
+            f"If it hasn't paid by the window's end, get out.",
             f"<span class='dim'>{total} signals · {len(ranked)} real moves · this is the best one — "
             f"one click for the final yes/no</span>",
             _tide_line(),
@@ -1457,7 +1468,11 @@ def render_master(cfg: TradingConfig, kraken):
 
 @st.cache_data(ttl=120)
 def _today_facts() -> list[str]:
-    """MASTER's self-correction plate: today's numbers, auto-counted."""
+    """MASTER's self-correction plate: today's numbers, auto-counted —
+    TIER-AWARE (user rule, Sep 1: 'everything should auto adjust when the
+    contest is selected'): the death line, buffer, and pace all come from
+    the contest account (1k/5k/10k), and the banked number counts GOALS,
+    not twenties."""
     import sqlite3
     day = _now_mst().strftime("%Y-%m-%d")
     n_sig = n_rej = 0
@@ -1472,23 +1487,42 @@ def _today_facts() -> list[str]:
         conn.close()
     except Exception:
         pass
+    goals_n = 0
     banked = 0
     try:
         import json
         tp = json.loads((Path(__file__).parent / "take_payouts.json").read_text())
-        banked = sum(int(r.get("amount") or 0) for r in tp.values()
-                     if str(r.get("ts", "")).startswith(day))
+        todays = [r for r in tp.values() if str(r.get("ts", "")).startswith(day)]
+        goals_n = len(todays)
+        banked = sum(int(r.get("amount") or 0) for r in todays)
     except Exception:
         pass
     cw = _load_watch()
     n_open = len(cw)
+    # the contest account — every number here scales with the tier
+    try:
+        import contest_account as _ca_f
+        _acct = _ca_f.load_state()
+        _line = _ca_f.death_line(_acct)
+        _buf = _ca_f.buffer(_acct)
+        _pace = _ca_f.daily_pace_usd(_acct)
+        _tier = _ca_f.TIERS[_acct["tier"]]["label"]
+    except Exception:
+        _line, _buf, _pace, _tier = 0.0, 0.0, 0.0, "?"
+    _pace_col = "#4be38a" if banked >= _pace else "#ffc36b"
     return [
         f"SIGNALS FIRED <span class='dim'>......</span> {n_sig}"
         f"   BOT PASSED ON <span class='dim'>.....</span> {n_rej}"
-        f"   TWENTIES BANKED <span class='dim'>...</span> <span style='color:#4be38a;'>${banked}</span>",
-        f"TRADES LIVE NOW <span class='dim'>.....</span> {n_open}"
-        f"   <span class='dim'>graded from the real records — signals.db + payout ledger, "
-        f"no guessing. This is how the system learns.</span>",
+        f"   GOALS BANKED <span class='dim'>......</span> "
+        f"<span style='color:#4be38a;'>{goals_n} (${banked:,.0f})</span>",
+        f"☠ {_tier} LINE <span class='dim'>......</span> ${_line:,.0f}"
+        f"   BUFFER <span class='dim'>..........</span> ${_buf:,.0f}"
+        f"   PACE <span class='dim'>............</span> "
+        f"<span style='color:{_pace_col};'>${banked:,.0f} of ${_pace:,.0f}/day</span>"
+        f"   LIVE <span class='dim'>........</span> {n_open}",
+        f"<span class='dim'>graded from the real records — signals.db + the goal ledger + "
+        f"the contest account. Every number scales with the selected tier. "
+        f"This is how the system learns.</span>",
     ]
 
 
@@ -2309,9 +2343,10 @@ def render_quick_check(cfg: TradingConfig, kraken):
                                     # decision is informed
                                     _speak(f"Go! {asset}! Buy {_pct_txt} — the book is thin! "
                                            f"The brain says {sig.confidence:.0f} percent! "
-                                           f"{_fine_say}I count the twenties!", rate=1)
+                                           f"{_fine_say}Aim for plus {_goal_pct:.0f} percent!", rate=1)
                                 else:
-                                    _speak(f"Go! {asset}! Buy 100 percent! {_fine_say}I count the twenties!")
+                                    _speak(f"Go! {asset}! Buy 100 percent! "
+                                           f"{_fine_say}Aim for plus {_goal_pct:.0f} percent!")
                             except Exception:
                                 pass
                             # FLOW ADVANCE: position entered → take the user to the watch

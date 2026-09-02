@@ -647,10 +647,15 @@ CONTEST_SELL_BAR = 50
 TAKE_IT_USD = 20  # the user's scalp target: out at +$20, take it every chance
 SCALP_TARGET_PCT = 0.4  # +$20 on $5,000 — the take the user actually plays for
 VOICE_PREFIX = "Mic check one, two. Testing, testing. "
-GIVEBACK_WARN_USD = 50   # fast drop from the peak gets a voice (Aug 24: PUMP
-                         # gave back ~$70 in minutes after the $140 take — silent)
-LOSS_WARN_USD = 50       # a bleeding position gets called out too (PENGU
-                         # bled -$84 with no call — the light only guarded winners)
+# GIVEBACK/LOSS WARNINGS — tier-aware since Sep 1 ("everything should auto
+# adjust when the contest is selected"): the threshold is 1.5% of the ENTRY
+# SIZE, so the warnings are equally loud at every tier (the old fixed $50
+# was 10% of a 1k-tier entry and 1.5% of a 10k-tier entry). The old USD
+# constants stay defined (retired as thresholds, kept per don't-delete).
+GIVEBACK_WARN_USD = 50   # RETIRED as the threshold (Sep 1) — kept defined
+LOSS_WARN_USD = 50       # RETIRED as the threshold (Sep 1) — kept defined
+GIVEBACK_WARN_PCT_OF_SIZE = 1.5  # giveback threshold: 1.5% of the entry size
+LOSS_WARN_PCT_OF_SIZE = 1.5      # loss-warning threshold: same scaling
 BIG_PAYOUT_USD = 100     # TAKE IT at/above this = the move is mature; QC blocks
 REENTRY_BLOCK_MIN = 60   # re-entries on that pair for this long
 _take_level = {}       # last announced $20 multiple per pair
@@ -1228,14 +1233,25 @@ def contest_light(exchange, cfg):
             reason = (f"PROFIT GUARD FIRED — dropped {(high - live) / high * 100:.1f}% from the peak "
                       f"(trail ratcheted to {_trail:.1f}% — the run reached +${_peak_usd:.0f})")
 
-        # ── 1b. hard stop: five twenties underwater = the trade failed ──
-        # (user: red needs to be MORE sensitive — a -$100 hole on a $20
-        # scalp game is a failed trade, not a dip)
+        # ── 1b. THE HARD STOP — tier-aware (user rule, Sep 1: "everything
+        # should auto adjust when the contest is selected"): the old fixed
+        # -$100 was calibrated to the 5k tier — on the 1k tier ($30 death
+        # line) it would fire AFTER the account was already dead. Now the
+        # stop = half the remaining buffer (fresh 10k: -$150; fresh 1k:
+        # -$15) — and it TIGHTENS automatically as the buffer shrinks.
         if not should_exit and entry > 0 and live > 0:
             _usd_now = (live / entry - 1.0) * size
-            if _usd_now <= -100.0:
+            try:
+                import contest_account as _ca_l
+                _acct_l = _ca_l.load_state()
+                _stop_usd = max(_ca_l.buffer(_acct_l) * 0.5, 5.0)
+            except Exception:
+                _stop_usd = max((float(cfg.challenge_balance) * 0.03) * 0.5, 5.0)
+            if _usd_now <= -_stop_usd:
                 should_exit = True
-                reason = "STOPPED OUT — down $100. The trade failed — get out, wait for the next one."
+                reason = (f"STOPPED OUT — down ${abs(_usd_now):.0f} (the stop is "
+                          f"-${_stop_usd:.0f} — half the death-line buffer). "
+                          f"The trade failed — get out, wait for the next one.")
 
         # ── 2. strategy sell bar (contest profile: 50%) ────────────────
         if not should_exit:
@@ -1317,34 +1333,38 @@ def contest_light(exchange, cfg):
             # mature move = the QC's just-paid guard (re-entry blocks)
             _save_take_payout(pair, round(usd))
 
-        # ── 4. GIVEBACK WARNING — fast drops from the peak get a voice ──
-        # The take-it calls are one-way (up only); the giveback used to be
-        # silent. PUMP peaked +$156, gave back ~$70 in minutes — no call.
+        # ── 4. GIVEBACK WARNING — tier-aware (Sep 1: "everything should
+        # auto adjust when the contest is selected"): the old fixed $50
+        # was 10% of a 1k-tier entry (deafening) and 1.5% of a 10k-tier
+        # entry (a whisper). Now the threshold scales with the position:
+        # 1.5% of the entry size — the same loudness at every tier.
         peak_usd = (high / entry - 1) * size if high > entry else 0.0
-        if usd > 0 and peak_usd - usd >= GIVEBACK_WARN_USD:
-            step = int((peak_usd - usd) // GIVEBACK_WARN_USD)
+        _gb_thr = max(size * GIVEBACK_WARN_PCT_OF_SIZE / 100.0, 5.0)
+        if usd > 0 and peak_usd - usd >= _gb_thr:
+            step = int((peak_usd - usd) // _gb_thr)
             if step > _giveback_level.get(pair, 0):
                 _giveback_level[pair] = step
-                _amt = int(step * GIVEBACK_WARN_USD)
+                _amt = int(step * _gb_thr)
                 if voice:
                     _speak_server(f"Warning! {asset} gave back {_amt} dollars! Take it or ride!", rate=1)
                 logger.info("⚠️ GIVEBACK: %s -$%d from peak +$%.0f (now +$%.0f)",
                             pair, _amt, peak_usd, usd)
-        elif peak_usd - usd < GIVEBACK_WARN_USD / 2:
+        elif peak_usd - usd < _gb_thr / 2:
             _giveback_level.pop(pair, None)  # recovered near the peak — re-arm
 
-        # ── 5. LOSS WARNING — a bleeding position gets called out too ──
-        # The old light only guarded winners (trail) and hard trend breaks;
-        # a slow bleed below entry was silent (PENGU bled to -$84, no call).
-        if usd < 0 and usd <= -LOSS_WARN_USD:
-            step = int(-usd // LOSS_WARN_USD)
+        # ── 5. LOSS WARNING — tier-aware (same scaling): the threshold is
+        # 1.5% of the entry size, not a fixed $50. A slow bleed below
+        # entry still gets called out (the PENGU lesson) — at every tier.
+        _loss_thr = max(size * LOSS_WARN_PCT_OF_SIZE / 100.0, 5.0)
+        if usd < 0 and usd <= -_loss_thr:
+            step = int(-usd // _loss_thr)
             if step > _loss_level.get(pair, 0):
                 _loss_level[pair] = step
-                _amt = int(step * LOSS_WARN_USD)
+                _amt = int(step * _loss_thr)
                 if voice:
                     _speak_server(f"Warning! {asset} down {_amt} dollars! Get out or hold!", rate=1)
                 logger.info("⚠️ LOSS WARNING: %s -$%d", pair, _amt)
-        elif usd > -LOSS_WARN_USD / 2:
+        elif usd > -_loss_thr / 2:
             _loss_level.pop(pair, None)  # recovered — re-arm
 
         # ── 6. THE CLOCK (the goal window: 1-3h, set with the goal at
