@@ -3414,7 +3414,16 @@ def render_auto_watch(cfg: TradingConfig, kraken):
                         try:
                             st.toast(f"✔ {_asset(_sp)} cleared — next green light re-adds it",
                                      icon="✔", duration=8)
-                            _speak(f"{_asset(_sp)} sold! Cleared. Ready for the next one!")
+                            # THE BALANCE REMINDER (user rule, Sep 2 — "go"):
+                            # the growing buffer is only as accurate as the
+                            # sidebar's current balance (Kraken gives no API
+                            # for the contest side), and SOLD is the moment
+                            # the balance actually moved. Stale-high is the
+                            # dangerous direction — the 3% guard would
+                            # under-protect — so she asks for the update
+                            # right here, on every close.
+                            _speak(f"{_asset(_sp)} sold! Cleared. Ready for the next one! "
+                                   f"Update the contest balance in the sidebar — my numbers follow it!")
                         except Exception:
                             pass
                         st.rerun()

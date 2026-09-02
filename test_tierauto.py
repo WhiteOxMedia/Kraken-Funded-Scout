@@ -26,6 +26,13 @@ import background_scanner as bs
 ap = open("app.py", encoding="utf-8").read()
 sc = open("background_scanner.py", encoding="utf-8").read()
 
+# ── 0. THE BALANCE REMINDER (user rule, Sep 2 — "go"): the growing
+#      buffer is only as accurate as the sidebar's current balance (no
+#      API for the contest side); SOLD is the moment it moved, so she
+#      asks for the update on every close ────────────────────────────
+check("SOLD speaks the balance-update reminder",
+      "Update the contest balance in the sidebar — my numbers follow it!" in ap)
+
 # ── 1. every account number scales with the tier ─────────────────────
 for tier, line, pace in ((1000, 970.0, 24.0), (5000, 4850.0, 120.0),
                          (10000, 9700.0, 240.0)):
