@@ -475,6 +475,17 @@ MOVER_MIN_PCT = 5.0         # 24h gain that makes a coin a runner (XMR was +11.2
 MOVER_MIN_VOLUME_USD = 100_000.0
 MOVER_MIN_CANDLES = 100     # ≈4 days of 1h candles — a day-old +659% listing is pump risk, not a setup
 
+# ── THE DCA TRANCHE RETIREMENT (user option 2, Sep 2) ──────────────────
+# The exit-check loop's buy-the-dip path: wrote scout_dca buys on held
+# real-money positions that dipped ≥2.5% with a quick strategy ≥50 — no
+# brain bar, no 3% death-line guard, no goal clock — and the bot's reader
+# folds those writes into the position (averages down real money). That's
+# the wiggle-buy the new game retired ("solid trends that go up, buy
+# orders only, no more wiggles"), and it contradicts the bot-side
+# dca_enabled=False decision (Aug 30). Code kept (don't-delete rule);
+# re-arm ONLY by the user's explicit call.
+SCOUT_DCA_ENABLED = False
+
 
 def fetch_kraken_movers(exchange, tickers=None, top_n: int = MOVER_TOP_N,
                         min_pct: float = MOVER_MIN_PCT,
@@ -2622,16 +2633,21 @@ def main():
                         exit_sig = _eval(df, cfg)
 
                         # ── DCA tranche check: dipped but trend intact — add to position ──
-                        # Mimics the XRP bot's DCA: a pullback in an uptrend is an
-                        # entry, not an exit. Max 1 DCA per position, min 2.5% dip,
-                        # strategy must still say buy.
+                        # RETIRED behind SCOUT_DCA_ENABLED=False (user option 2, Sep 2):
+                        # the wiggle-buy the new game retired — averaging down a
+                        # dipped position on a quick >=50 read with no brain bar,
+                        # no 3% death-line guard, no goal clock, and the reader
+                        # folds scout_dca writes into REAL money. Code kept per
+                        # the don't-delete rule; flip the flag to re-arm (only by
+                        # the user's explicit call).
                         try:
                             entry = s.get("execution_price") or s.get("entry_price")
                             live = float(df["close"].iloc[-1])
                             if entry and live:
                                 dip_pct = (entry - live) / entry * 100
                                 from signal_bridge import count_dca_signals, write_buy_signal
-                                if (not no_buy and dip_pct >= 2.5 and exit_sig.action == "buy"
+                                if (SCOUT_DCA_ENABLED and not no_buy and dip_pct >= 2.5
+                                        and exit_sig.action == "buy"
                                         and exit_sig.confidence >= 50
                                         and count_dca_signals(pair) == 0
                                         and exit_sig.entry_price and exit_sig.stop_loss
