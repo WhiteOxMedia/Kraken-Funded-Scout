@@ -300,11 +300,41 @@ def get_open_position_count() -> int:
         return row["cnt"] if row else 0
 
 
-MAX_CONCURRENT_POSITIONS = 1  # ONE position at a time — all capital on the single
-                              # best pick (user directive, Aug 25). A swap needs a
-                              # challenger CLEARLY stronger than the incumbent's
-                              # entry conviction (+10, 2h hold, winners protected) —
-                              # no more multi-position fee churn.
+# ── THE POSITION LADDER (user rule, Sep 2: "a growing scale will change
+# the focus from one asset to multiple assets as the account balance
+# grows. 1k = 2 assets, 5k = 5 assets and so on up to 10k = 10"): the
+# bot concentrates while small (all capital on the single best pick —
+# the Aug 25 rule) and diversifies as the account compounds. The ladder
+# runs on the TOTAL account value (free cash + positions at market —
+# the user chose this). The READER enforces it at take-time (it has the
+# account access); this write-time cap is just the ceiling so
+# scanner-side writes never starve the reader of challengers.
+POSITION_LADDER = ((1_000.0, 2), (5_000.0, 5), (10_000.0, 10))
+POSITION_CEILING = 10
+
+
+def max_positions_for(account_value_usd: float) -> int:
+    """Slot count for the account value — piecewise through the user's
+    checkpoints (1k=2, 5k=5, 10k=10), clamped [1, 10]. Below $1k: 1 —
+    concentrate while small."""
+    v = float(account_value_usd or 0.0)
+    if v < POSITION_LADDER[0][0]:
+        return 1
+    n = POSITION_LADDER[-1][1]
+    for i, (bal, slots) in enumerate(POSITION_LADDER):
+        if v < bal:
+            prev_bal, prev_n = POSITION_LADDER[i - 1]
+            frac = (v - prev_bal) / (bal - prev_bal)
+            n = prev_n + frac * (slots - prev_n)
+            break
+    return max(1, min(POSITION_CEILING, int(n + 0.5)))
+
+
+MAX_CONCURRENT_POSITIONS = 1  # RETIRED as the live cap (Sep 2 — the position
+                              # ladder replaced it); kept defined per
+                              # don't-delete. A swap still needs a challenger
+                              # CLEARLY stronger (+10, winners protected
+                              # unless their own chart quits).
 
 
 def write_buy_signal(
@@ -356,12 +386,13 @@ def write_buy_signal(
 
     # For buys: check cooldown, duplicate, and position limit
     if action == "buy" and not is_dca:
-        # At max positions we still WRITE the signal as pending — the bot's
-        # challenge system (head-to-head: new signal vs weakest incumbent)
-        # decides there. Rejecting here would preempt the challenge and let
-        # incumbents keep their seats without ever being tested.
-        if get_open_position_count() >= MAX_CONCURRENT_POSITIONS:
-            logger.info("At max positions — writing anyway; the bot's challenge system will test this challenger")
+        # At the position ceiling we still WRITE the signal as pending — the
+        # bot's challenge system (head-to-head: new signal vs weakest
+        # incumbent) and the position ladder decide there. Rejecting here
+        # would preempt the challenge and let incumbents keep their seats
+        # without ever being tested.
+        if get_open_position_count() >= POSITION_CEILING:
+            logger.info("At the position ceiling (%d) — writing anyway; the bot's challenge system will test this challenger", POSITION_CEILING)
         if is_already_holding(pair):
             logger.info("Already holding %s — not writing new buy signal", pair)
             return None
