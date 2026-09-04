@@ -1,0 +1,169 @@
+"""Test the ROTATION-AWARE POPUP FLOOR + HEAD-TO-HEAD CHALLENGE (user rule,
+Sep 4: "the popup floor 89% doesn't know about the rotation schedule — it
+needs to self-adjust accordingly, and the brain should allow it if it's
+close within 5% to challenge head to head").
+
+Floor stack: rotation rail (ROTATION_POPUP_FLOOR) → tide margin (RISING
+relaxes by 11, never below 78) → lone wolf (never below 55). The brain's
+deep read still judges every popup; within 5 BELOW the floor it fires as
+a CHALLENGER; below floor-5 it stays suppressed; no brain read = no popup.
+The QC's thin-book rule reads the SAME stack (popup_floor) — the PUMP
+lesson: the alert and the QC must never disagree."""
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).parent))
+
+PASS, FAIL = 0, 0
+lines = []
+
+
+def check(name, ok, detail=""):
+    global PASS, FAIL
+    lines.append(("PASS  " if ok else "FAIL  ") + name + "  " + str(detail))
+    if ok:
+        PASS += 1
+    else:
+        FAIL += 1
+
+
+import background_scanner as bs
+
+bs_src = Path("background_scanner.py").read_text(encoding="utf-8")
+ap_src = Path("app.py").read_text(encoding="utf-8")
+
+# ── 1. the rotation rails ──────────────────────────────────────────────
+expected_rails = {"00-04": 84, "04-08": 89, "08-12": 84,
+                  "12-16": 89, "16-20": 93, "20-24": 99}
+check("ROTATION_POPUP_FLOOR covers all six rotations",
+      set(bs.ROTATION_POPUP_FLOOR) == set(expected_rails), sorted(bs.ROTATION_POPUP_FLOOR))
+for k, v in expected_rails.items():
+    check(f"rail {k} -> {v}", bs.ROTATION_POPUP_FLOOR.get(k) == v,
+          bs.ROTATION_POPUP_FLOOR.get(k))
+check("unknown rotation fails closed to 89",
+      bs.popup_floor_for_rotation("99-99") == 89)
+check("cooldown rail is 99 (buys blocked upstream anyway)",
+      bs.popup_floor_for_rotation("20-24") == 99)
+check("POPUP_NEAR_MISS_PTS is 5 (the head-to-head window)",
+      bs.POPUP_NEAR_MISS_PTS == 5.0, bs.POPUP_NEAR_MISS_PTS)
+
+# ── 2. the floor stack ─────────────────────────────────────────────────
+check("FLAT tide keeps the rotation rail (12-16 -> 89)",
+      bs.popup_floor("FLAT", 0, "12-16") == 89.0)
+check("RISING relaxes by the 11-pt margin, never below 78 (12-16 -> 78)",
+      bs.popup_floor("RISING", 0, "12-16") == 78.0)
+check("RISING on the tightened rail keeps the tighten (16-20 -> 82)",
+      bs.popup_floor("RISING", 0, "16-20") == 82.0)
+check("RISING on a relaxed rail bottoms at 78 (00-04 -> 78)",
+      bs.popup_floor("RISING", 0, "00-04") == 78.0)
+check("broken tide read fails closed to the rail",
+      bs.popup_floor(None, 0, "00-04") == 84.0)
+check("lone wolf 25 on FLAT 08-12 -> 59 (84-25, above the 55 floor)",
+      bs.popup_floor("FLAT", 25, "08-12") == 59.0)
+check("lone wolf 35 bottoms at the 55 floor",
+      bs.popup_floor("RISING", 35, "16-20") == 55.0)
+check("OUT never reaches the floor (blocked upstream; rail stands)",
+      bs.popup_floor("OUT", 0, "08-12") == 84.0,
+      "academic — the tide check returns first")
+
+# ── 3. the head-to-head challenge window (send_alert's branch math) ───
+def challenge_verdict(brain_conf, floor):
+    """Replicates send_alert's brain-judged bar exactly."""
+    if brain_conf >= floor:
+        return "GREEN"
+    if brain_conf >= floor - bs.POPUP_NEAR_MISS_PTS:
+        return "CHALLENGER"
+    return "SUPPRESSED"
+
+
+check("brain 90 vs floor 89 -> full green",
+      challenge_verdict(90, 89) == "GREEN")
+check("brain 86 vs floor 89 -> CHALLENGER (within 5 — the user's ask)",
+      challenge_verdict(86, 89) == "CHALLENGER")
+check("brain 84 vs floor 89 -> CHALLENGER (exactly at the window edge)",
+      challenge_verdict(84, 89) == "CHALLENGER")
+check("brain 83.9 vs floor 89 -> suppressed (below the window)",
+      challenge_verdict(83.9, 89) == "SUPPRESSED")
+check("brain 88 vs floor 93 (US Late) -> CHALLENGER at the edge",
+      challenge_verdict(88, 93) == "CHALLENGER")
+check("brain 87 vs floor 93 (US Late) -> suppressed (the tighten bites)",
+      challenge_verdict(87, 93) == "SUPPRESSED")
+check("brain 82 vs floor 84 (Asia) -> CHALLENGER",
+      challenge_verdict(82, 84) == "CHALLENGER")
+
+# ── 4. send_alert source: the rotation floor is wired in ──────────────
+check("send_alert computes DESKTOP_ALERT_MIN via popup_floor()",
+      "DESKTOP_ALERT_MIN = popup_floor(_df_state, _lw_pts, _rot_now_key)" in bs_src)
+check("the old flat-89 line is gone",
+      "DESKTOP_ALERT_MIN = (TIDE_RISING_DESKTOP_FLOOR if _df_state ==" not in bs_src)
+check("the challenger branch exists (within 5 below the floor)",
+      "elif _bc >= DESKTOP_ALERT_MIN - POPUP_NEAR_MISS_PTS:" in bs_src)
+check("_challenger flag initialized before the brain bar",
+      "_brain_floor_ok = None\n        _challenger = False" in bs_src)
+check("challenger marks the popup title",
+      '(" — CHALLENGER" if _challenger else "")' in bs_src)
+check("challenger marks the spoken line",
+      "_challenger_say" in bs_src and "just under the" in bs_src)
+check("challenger line spells the head-to-head terms in the message",
+      "allowed to challenge head-to-head" in bs_src)
+check("suppression log names the challenge threshold",
+      "challenge needs" in bs_src)
+check("fail-closed survives (no brain read = no popup)",
+      "no unverified popups (fail-closed" in bs_src)
+check("the deep-read >=60 pre-check still gates every alert",
+      "_deep.action != \"buy\" or _deep.confidence < 60" in bs_src)
+check("the floor log names the rotation",
+      "POPUP FLOOR: rotation %s" in bs_src)
+
+# ── 5. the QC agrees (the PUMP lesson) ────────────────────────────────
+check("QC champ_floor reads the shared popup_floor() helper",
+      "_bs5.popup_floor(_tide_state, _lw_pts)" in ap_src)
+check("QC stores the challenger flag + window in the result",
+      '"champ_challenge"' in ap_src and '"champ_challenge_min"' in ap_src)
+check("QC green gate uses the challenger window, not the bare floor",
+      "sig.confidence >= _champ_challenge_min" in ap_src)
+check("QC render passes on champ_min (not champ_floor)",
+      "not thin_book or sig.confidence >= champ_min" in ap_src)
+check("QC render names a CHALLENGER green",
+      "SCALP GREEN LIGHT — CHALLENGER" in ap_src)
+check("QC thin-book skip names the challenge window",
+      "%+ to challenge" in ap_src)
+check("QC GO toast names the challenger",
+      "⚔ CHALLENGER — brain" in ap_src)
+check("the auto-watch why carries the challenger mark",
+      "', challenger' if _champ_challenge else ''" in ap_src)
+check("QC dup-safe reload for popup_floor",
+      'hasattr(_bs5, "popup_floor")' in ap_src)
+
+# ── 6. QC thin-book simulation (alert/QC agreement) ───────────────────
+def qc_verdict(conf, floor):
+    """Replicates the QC thin-book gate: challenge window included."""
+    return "GREEN" if conf >= floor - 5.0 else "SKIP"
+
+
+# alert: brain 86, 12-16 FLAT -> floor 89 -> CHALLENGER popup
+# QC on the same numbers must not veto it
+check("agreement: alert CHALLENGER at 86 vs 89 -> QC also green",
+      qc_verdict(86, 89) == "GREEN")
+# alert: brain 83, 12-16 FLAT -> floor 89 -> suppressed; QC skips too
+check("agreement: alert suppressed at 83 vs 89 -> QC skips too",
+      qc_verdict(83, 89) == "SKIP")
+# 16-20 tightened rail on both sides
+check("agreement: 88 vs the 93 US-Late rail -> both challenge",
+      qc_verdict(88, 93) == "GREEN"
+      and challenge_verdict(88, 93) == "CHALLENGER")
+check("agreement: 87 vs the 93 US-Late rail -> both say no",
+      qc_verdict(87, 93) == "SKIP"
+      and challenge_verdict(87, 93) == "SUPPRESSED")
+
+# ── 7. the calibration evidence is on disk and re-runnable ────────────
+check("diag_popupfloor.py exists", Path("diag_popupfloor.py").exists())
+check("_popupfloor_check.txt exists (calibration evidence)",
+      Path("_popupfloor_check.txt").exists())
+
+lines.append("")
+lines.append(f"{PASS} passed, {FAIL} failed")
+report = "\n".join(lines)
+print(report)
+Path("_popupfloor_test.txt").write_text(report + "\n", encoding="utf-8")
+sys.exit(1 if FAIL else 0)

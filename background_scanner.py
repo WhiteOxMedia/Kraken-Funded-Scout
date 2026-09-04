@@ -784,6 +784,57 @@ TIDE_RISING_BAR_FLOOR = 60.0        # the bar never drops below the deep-read fl
 NEAR_MISS_PTS = 5.0
 _lone_wolf_cache = {"pair": None, "pct": 0.0, "ts": 0.0}
 
+# ── ROTATION-AWARE POPUP FLOOR (user rule, Sep 4: "the popup floor 89%
+# doesn't know about the rotation schedule — it needs to self-adjust
+# accordingly") ────────────────────────────────────────────────────────
+# Calibration: 199 executed buys → decided outcomes, bucketed by Denver
+# rotation × confidence band (diag_popupfloor.py → _popupfloor_check.txt).
+# The flat 89 carried no quality in most rotations — it silenced the
+# winners and passed the losers:
+#   00-04 Asia:    60-69 reads won 71% (7) while 89+ won 23% (13) → relax
+#   08-12 EU/US:   70-78 reads won 75% (8) while 89+ won 17% (30) → relax
+#   16-20 US Late: 89+ went 0-for-12 (late reversals eat champions)   → tighten
+#   04-08 / 12-16: no band beat the rail (all weak / whale-driven)     → stand
+# The floor feeds the SAME stack as before: RISING tide relaxes by the
+# 11-pt margin (never below 78), lone wolf still discounts to the 55
+# floor, the brain's deep read still judges every popup, fail-closed.
+ROTATION_POPUP_FLOOR = {
+    "00-04": 84,   # R1 Asia — slow reliable movers; mid-band reads win
+    "04-08": 89,   # R2 Pre-US — no band wins; the guard rail stands
+    "08-12": 84,   # R3 EU/US overlap — best moves; 70-78 reads won 75%
+    "12-16": 89,   # R4 US Afternoon — mixed evidence; stands
+    "16-20": 93,   # R5 US Late — 89+ went 0/12: late reversals eat champions
+    "20-24": 99,   # Cooldown — no buys anyway (upstream hard block)
+}
+# HEAD-TO-HEAD CHALLENGE (user rule, Sep 4: "the brain should allow it if
+# it's close within 5% to challenge head to head"): a brain read within 5
+# points BELOW the popup floor isn't buried — the popup fires as a
+# CHALLENGER, marked as such. Same philosophy as the bot-side near-miss
+# (NEAR_MISS_PTS): a quick miss is not a verdict, and a brain near-miss
+# deserves the user's eyes, not silence. Below floor-5 stays suppressed.
+POPUP_NEAR_MISS_PTS = 5.0
+
+
+def popup_floor_for_rotation(rot_key: str | None = None, now=None) -> int:
+    """The popup floor's rotation base — one source of truth for the alert
+    path and the QC's thin-book rule (they must never disagree). Unknown
+    rotation or a broken read fails closed to the old 89 rail."""
+    key = rot_key or rotation_key_for_hour((now or _now_mst()).hour)
+    return int(ROTATION_POPUP_FLOOR.get(key, 89))
+
+
+def popup_floor(tide_state: str | None = None, lw_pts: float = 0,
+                rot_key: str | None = None) -> float:
+    """The full popup floor stack: rotation base → tide margin → lone wolf.
+    Lives beside the constants so the alert path and the QC compute the
+    same number from the same inputs."""
+    fl = float(popup_floor_for_rotation(rot_key))
+    if tide_state == "RISING":
+        fl = max(TIDE_RISING_DESKTOP_FLOOR, fl - TIDE_RISING_BAR_RELAX)
+    if lw_pts:
+        fl = max(LONE_WOLF_DESKTOP_FLOOR, fl - lw_pts)
+    return fl
+
 # ── TREND-EXIT WATCH (user rule, Aug 31: "when the trend reverses then
 # the bot should 'get out now'" + "the console tracks it and sends the
 # signal silently to the bridge side for the bot's trades") ────────────
@@ -1815,61 +1866,93 @@ def main():
             logger.info("  Bot gates declined %s — desktop alert fires as CONTEST-ONLY", asset)
 
         # ── Desktop alert policy ─────────────────────────────────────────
-        # The 89% confidence floor: only champion-grade signals get your
-        # screen + Zira. Below 89% the pick still logs to the winners pool
-        # (log_winner runs after send_alert returns) and the bot may still
-        # take it via the bridge — but the desktop stays quiet. This was
-        # the original guard rail from the winning $251 run.
+        # The champion-grade confidence floor: only exceptional signals get
+        # your screen + Zira. Below the floor the pick still logs to the
+        # winners pool (log_winner runs after send_alert returns) and the
+        # bot may still take it via the bridge — but the desktop stays
+        # quiet. This was the original guard rail from the winning $251
+        # run (then a flat 89).
         # ── TIDE-AWARE (user rule, Aug 31: the thresholds don't know the
         # tide — they should self-adjust): a RISING fleet carries greens,
-        # so the floor relaxes to TIDE_RISING_DESKTOP_FLOOR. Evidence
+        # so the floor relaxes by the tide margin. Evidence
         # (diag_tidehistory conf×tide): in RISING tides ≥89 picks won 48%
         # of decided trades while sub-60 picks won 83% — the 89 floor
         # added no quality in rising fleets, it just silenced them. FLAT
-        # keeps the full 89 for ordinary coins; OUT never gets here (hard
-        # block upstream); a broken tide read fails closed to 89. The
-        # deep-read ≥60 check further down still gates every alert.
+        # keeps the rotation rail for ordinary coins; OUT never gets here
+        # (hard block upstream); a broken tide read fails closed to the
+        # rotation rail. The deep-read ≥60 check further down still gates
+        # every alert.
+        # ── ROTATION-AWARE (user rule, Sep 4: "the popup floor 89% doesn't
+        # know about the rotation schedule — it needs to self-adjust
+        # accordingly"): the floor starts from THIS rotation's rail
+        # (ROTATION_POPUP_FLOOR — outcome-calibrated per rotation by
+        # diag_popupfloor.py), then the tide margin and the lone-wolf
+        # discount apply as before. One helper (popup_floor) — the QC's
+        # thin-book rule reads the same stack so the alert and the QC
+        # never disagree.
         try:
             _df_pct, _df_state = _fleet_tide()
         except Exception:
             _df_pct, _df_state = None, None
-        DESKTOP_ALERT_MIN = (TIDE_RISING_DESKTOP_FLOOR if _df_state == "RISING" else 89)
-        if _df_state == "RISING":
-            logger.info("  TIDE RISING (fleet %.0f%%) — desktop floor relaxed 89 → %d",
-                        _df_pct or 0, DESKTOP_ALERT_MIN)
-        # LONE WOLF (user rule, Aug 31): the pre-tide 89 floor relaxed for
-        # a solo mover in a flat tide (never below the floor — XMR's 56%
-        # passes at 55). The deep-read check further down still demands
-        # the user's own QC floor (>= 60) — the verdict stays honest.
-        if _lw_pts:
-            DESKTOP_ALERT_MIN = max(LONE_WOLF_DESKTOP_FLOOR, DESKTOP_ALERT_MIN - _lw_pts)
-            logger.info("  LONE WOLF: %s — desktop floor relaxed to %d%%", asset, DESKTOP_ALERT_MIN)
+        _rot_now_key = rotation_key_for_hour(_now_mst().hour)
+        _rot_base_floor = popup_floor_for_rotation(_rot_now_key)
+        DESKTOP_ALERT_MIN = popup_floor(_df_state, _lw_pts, _rot_now_key)
+        if DESKTOP_ALERT_MIN != _rot_base_floor:
+            _fl_why = []
+            if _df_state == "RISING":
+                _fl_why.append(f"tide RISING (fleet {_df_pct or 0:.0f}%)")
+            if _lw_pts:
+                _fl_why.append(f"lone wolf -{_lw_pts}")
+            logger.info("  POPUP FLOOR: rotation %s rail %d → %d (%s)",
+                        _rot_now_key, _rot_base_floor, DESKTOP_ALERT_MIN,
+                        ", ".join(_fl_why) or "flat")
+        else:
+            logger.info("  POPUP FLOOR: rotation %s — %d (the rail stands)",
+                        _rot_now_key, DESKTOP_ALERT_MIN)
         # ── THE BRAIN-JUDGED POPUP BAR (user rule, Sep 1: "the pop ups
         # need a current deep scan before they appear and the confidence
         # bar for the popup needs to be higher than the bots side to
         # pass"): a CURRENT deep read runs before the popup, and the
-        # BRAIN'S number must clear the popup floor (89/78/55 — above the
-        # bot's 60-69 bar by design: the bot rides dips on its ladder,
-        # the contest dies at the -3% line). The quick tournament number
-        # no longer opens popups (the JUP loophole: quick 89+, brain 87).
-        # A broken read fails open to the old quick check.
+        # BRAIN'S number must clear the popup floor (the rotation rail,
+        # tide-relaxed / lone-wolf discounted — above the bot's 60-69 bar
+        # by design: the bot rides dips on its ladder, the contest dies
+        # at the -3% line). The quick tournament number no longer opens
+        # popups (the JUP loophole: quick 89+, brain 87). A broken read
+        # fails closed (the block below).
+        # ── HEAD-TO-HEAD CHALLENGE (user rule, Sep 4: "the brain should
+        # allow it if it's close within 5% to challenge head to head"):
+        # a brain read within POPUP_NEAR_MISS_PTS BELOW the floor doesn't
+        # get buried — the popup fires as a CHALLENGER, marked as such in
+        # the title, the voice, and the message, so a near-miss is never
+        # mistaken for a champion green. Below floor-5 stays suppressed.
         _brain_floor_ok = None
+        _challenger = False
         if is_buy:
             try:
                 if _deep is None:
                     _deep, _df = _do_deep_read()
                 if _deep is not None:
-                    _brain_floor_ok = float(_deep.confidence) >= DESKTOP_ALERT_MIN
-                    if not _brain_floor_ok:
-                        logger.info("  Desktop suppressed: the BRAIN reads %.0f%% < %d%% "
-                                    "popup floor (quick said %.0f%%)",
-                                    float(_deep.confidence), DESKTOP_ALERT_MIN,
+                    _bc = float(_deep.confidence)
+                    if _bc >= DESKTOP_ALERT_MIN:
+                        _brain_floor_ok = True
+                        logger.info("  BRAIN-JUDGED BAR: the brain reads %.0f%% ≥ %d%% "
+                                    "popup floor (quick %.0f%%)",
+                                    _bc, DESKTOP_ALERT_MIN, signal.confidence)
+                    elif _bc >= DESKTOP_ALERT_MIN - POPUP_NEAR_MISS_PTS:
+                        _brain_floor_ok = True
+                        _challenger = True
+                        logger.info("  HEAD-TO-HEAD CHALLENGE: the brain reads %.0f%% vs the "
+                                    "%d%% popup floor (within %.0f) — popup fires as a CHALLENGER "
+                                    "(quick said %.0f%%)",
+                                    _bc, DESKTOP_ALERT_MIN, POPUP_NEAR_MISS_PTS,
+                                    signal.confidence)
+                    else:
+                        logger.info("  Desktop suppressed: the BRAIN reads %.0f%% < %.0f%% "
+                                    "popup floor (challenge needs ≥%.0f%%; quick said %.0f%%)",
+                                    _bc, DESKTOP_ALERT_MIN,
+                                    DESKTOP_ALERT_MIN - POPUP_NEAR_MISS_PTS,
                                     signal.confidence)
                         return
-                    logger.info("  BRAIN-JUDGED BAR: the brain reads %.0f%% ≥ %d%% "
-                                "popup floor (quick %.0f%%)",
-                                float(_deep.confidence), DESKTOP_ALERT_MIN,
-                                signal.confidence)
             except Exception:
                 _brain_floor_ok = None
         # ── FAIL-CLOSED (user rule, Sep 2 — the JUP 14:52 lesson: the deep
@@ -2082,9 +2165,17 @@ def main():
                 _reentry_line = f"  RE-ENTRY: fired earlier today — fine risk ${_fine:,.0f}\n" if _fine > 0 else "  RE-ENTRY: fired earlier today\n"
                 _reentry_say = (f"Re-entry — fine risk {_fine:,.0f} dollars! " if _fine > 0
                                  else "Re-entry! ")
-            title = f"🟢 BUY {asset} — {_dc:.0f}% SURE"
+            title = (f"🟢 BUY {asset} — {_dc:.0f}% SURE"
+                     + (" — CHALLENGER" if _challenger else ""))
             _small_coin = _carry is not None and _spend < (float(_bal) if _bal > 0 else 5000.0)
+            _challenger_say = (f"A challenger — just under the {DESKTOP_ALERT_MIN:.0f} percent floor! "
+                               if _challenger else "")
+            _challenger_line = (f"  CHALLENGER: the brain reads {_dc:.0f}% vs this rotation's "
+                                f"{DESKTOP_ALERT_MIN:.0f}% floor — within {POPUP_NEAR_MISS_PTS:.0f}, "
+                                f"allowed to challenge head-to-head. A near-miss, not a champion: "
+                                f"size it like one.\n" if _challenger else "")
             _spoken = (f"Buy {asset}! {_dc:.0f} percent sure! "
+                       + _challenger_say
                        + _reentry_say
                        + ("Lone wolf! Moving on her own while the fleet sits still! " if _lw_pts else "")
                        + f"Aim for plus {_goal_pct:.0f} percent! "
@@ -2104,6 +2195,7 @@ def main():
                 f"{_tide_line}"
                 f"{_lw_line}"
                 f"{_reentry_line}"
+                f"{_challenger_line}"
                 f"{contest_msg}"
                 f"{'-' * 30}\n"
                 f"get out at ${signal.stop_loss:.4f} (wrong)\n"

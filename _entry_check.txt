@@ -38,6 +38,7 @@ PASS  POSITION line rendered (dollars)
 PASS  TAKE THE PROFIT verdict exists
 PASS  goal ETA uses the watch goal
 PASS  green light stores the why
+PASS  green light why carries the challenger mark (Sep 4)
 PASS  WATCH-anyway stores the why
 PASS  unified control takes a why input
 PASS  voice loop already used the ticker (pre-existing)
@@ -55,4 +56,4 @@ PASS  SIM new-trade: goal derived (not wiped)
 PASS  SIM new-trade: window derived
 PASS  SIM new-trade: peak = entry
 
-54/54 passed
+55/55 passed

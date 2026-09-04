@@ -11,10 +11,10 @@ PASS  an 80% pick stays silent in FLAT
 PASS  a 56% solo mover alerts in FLAT via lone wolf  
 PASS  an 80% pick alerts in RISING but stays silent in FLAT  
 PASS  a 70% pick stays silent everywhere (below even the relaxed floor)  
-PASS  floor is tide-aware in send_alert  
+FAIL  floor is tide-aware in send_alert  
 PASS  broken tide read fails closed to 89 (except branch)  
-PASS  relaxation is logged  
-PASS  lone-wolf discount still stacks after the tide floor  
+FAIL  relaxation is logged  
+FAIL  lone-wolf discount still stacks after the tide floor  
 PASS  the deep-read >=60 pre-check still applies (never discounted)  
 
-RESULT: 18 passed, 0 failed
+RESULT: 15 passed, 3 failed

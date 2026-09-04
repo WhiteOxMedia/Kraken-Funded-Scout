@@ -2266,21 +2266,37 @@ def render_quick_check(cfg: TradingConfig, kraken):
                 # money, bigger margins from big coins... it still needs the
                 # brain"): a book that can't carry the FULL position only
                 # gets a green light when the BRAIN calls it exceptional —
-                # the champion floor, same as the alert path (89 flat tide /
-                # 78 rising / 55 lone wolf). Below that: SKIP — thin book,
-                # brain not exceptional. POPCAT (74% on a thin book) would
-                # have been skipped; ARB passes on the lone-wolf floor.
+                # the champion floor, same as the alert path (the rotation
+                # rail, tide-relaxed / lone-wolf discounted — ONE helper,
+                # popup_floor, so the alert and the QC never disagree).
+                # Below that: SKIP — thin book, brain not exceptional.
+                # POPCAT (74% on a thin book) would have been skipped; ARB
+                # passes on the lone-wolf floor.
+                # ── HEAD-TO-HEAD CHALLENGE (user rule, Sep 4): the same
+                # 5-point challenger window the alert path grants — a thin-
+                # book read within POPUP_NEAR_MISS_PTS below the floor is a
+                # CHALLENGER green, not a skip (the PUMP lesson: the QC and
+                # the alert must never disagree).
                 try:
+                    if not hasattr(_bs5, "popup_floor"):
+                        import importlib
+                        _bs5 = importlib.reload(_bs5)
+                    _champ_floor = float(_bs5.popup_floor(_tide_state, _lw_pts))
+                except Exception:
                     _trdf = float(getattr(_bs5, "TIDE_RISING_DESKTOP_FLOOR", 78.0))
                     _lwdf = float(getattr(_bs5, "LONE_WOLF_DESKTOP_FLOOR", 55.0))
-                except Exception:
-                    _trdf, _lwdf = 78.0, 55.0
-                _champ_floor = (_trdf if _tide_state == "RISING" else 89.0)
-                if _lw_pts:
-                    _champ_floor = max(_lwdf, _champ_floor - _lw_pts)
+                    _champ_floor = (_trdf if _tide_state == "RISING" else 89.0)
+                    if _lw_pts:
+                        _champ_floor = max(_lwdf, _champ_floor - _lw_pts)
+                _qc_near_pts = float(getattr(_bs5, "POPUP_NEAR_MISS_PTS", 5.0))
+                _champ_challenge_min = _champ_floor - _qc_near_pts
                 _thin_book = (0 < _spend_usd < float(cfg.challenge_balance))
+                _champ_challenge = bool(_thin_book
+                                        and _champ_challenge_min <= sig.confidence < _champ_floor)
                 st.session_state["qc_result"]["thin_book"] = _thin_book
                 st.session_state["qc_result"]["champ_floor"] = _champ_floor
+                st.session_state["qc_result"]["champ_challenge"] = _champ_challenge
+                st.session_state["qc_result"]["champ_challenge_min"] = _champ_challenge_min
                 # HARD GATES: setup + the goal gate + cooldown + no downward
                 # trend + the book carries your money + the tide isn't OUT +
                 # rotation isn't locked + this hour didn't blow off yesterday
@@ -2293,7 +2309,8 @@ def render_quick_check(cfg: TradingConfig, kraken):
                         and _rot_ok
                         and not (_yctx and _yctx.get("shape") == "blowoff")
                         and not (_raw_move is not None and float(_raw_move) < 1.0)
-                        and (not _thin_book or sig.confidence >= _champ_floor)):
+                        and (not _thin_book
+                             or sig.confidence >= _champ_challenge_min)):
                     # AUTO-WATCH on green light: the deep scan IS the entry.
                     # The user's system: green → all in, scalp to +$20, out,
                     # re-enter small, green again → buy more. The BOOK CARRY
@@ -2322,7 +2339,11 @@ def render_quick_check(cfg: TradingConfig, kraken):
                                        # THE BRAIN (Sep 3): why we entered —
                                        # the exit check reads this back before
                                        # recommending anything (thesis check).
-                                       "why": [f"{sig.action.upper()} {sig.confidence:.0f}% (green light)",
+                                       # A challenger entry names itself: the
+                                       # exit check treats a near-miss thesis
+                                       # with a tighter hand than a champion.
+                                       "why": [f"{sig.action.upper()} {sig.confidence:.0f}% "
+                                               f"(green light{', challenger' if _champ_challenge else ''})",
                                                *sig.reasons[:4]],
                                        "source": "green_light"}
                             _save_watch(w)
@@ -2355,8 +2376,16 @@ def render_quick_check(cfg: TradingConfig, kraken):
                             _confirm_txt = ""
                             if str(_rot_reason or "").startswith("confirmation window"):
                                 _confirm_txt = f"🔁 {_rot_reason}. "
+                            # CHALLENGER (Sep 4): this GO rode the 5-point
+                            # challenger window — name it so a near-miss is
+                            # never mistaken for a champion green
+                            _challenge_txt = (f"⚔ CHALLENGER — brain {sig.confidence:.0f}% vs the "
+                                              f"{_champ_floor:.0f}% floor (within {_qc_near_pts:.0f}). "
+                                              if _champ_challenge else "")
+                            _challenge_say = ("A challenger — just under the floor! "
+                                              if _champ_challenge else "")
                             try:
-                                st.toast(f"✅ GO — {asset}: {_confirm_txt}{_reentry_txt}{_chunk_txt}I count the $20s.{_warn_txt}",
+                                st.toast(f"✅ GO — {asset}: {_confirm_txt}{_reentry_txt}{_challenge_txt}{_chunk_txt}I count the $20s.{_warn_txt}",
                                          icon="✅", duration=20)
                                 _play_sound("ding")
                                 _sized_down = _spend_usd < float(cfg.challenge_balance)
@@ -2372,6 +2401,7 @@ def render_quick_check(cfg: TradingConfig, kraken):
                                     # floor — say the number so the sizing
                                     # decision is informed
                                     _speak(f"Go! {asset}! Buy {_pct_txt} — the book is thin! "
+                                           f"{_challenge_say}"
                                            f"The brain says {sig.confidence:.0f} percent! "
                                            f"{_fine_say}Aim for plus {_goal_pct:.0f} percent!", rate=1)
                                 else:
@@ -2477,16 +2507,20 @@ def render_quick_check(cfg: TradingConfig, kraken):
                     elif (sig.action == "buy" and not no_buy
                             and sig.confidence >= QC_SCALP_FLOOR
                             and _thin_book
-                            and sig.confidence < _champ_floor):
+                            and sig.confidence < _champ_challenge_min):
                         # THIN-BOOK BRAIN RULE (user rule, Aug 31): the book
                         # can't carry full size AND the brain doesn't call it
                         # exceptional — skip. Less entries, bigger margins.
+                        # (Sep 4: the bar is the challenger window — within 5
+                        # below the floor the QC must agree with the alert's
+                        # challenger popup, not veto it.)
                         try:
                             st.toast(f"⛔ THIN BOOK, BRAIN NOT EXCEPTIONAL — {asset}: the book "
                                      f"carries ${_spend_usd:,.0f}, not your full "
                                      f"${cfg.challenge_balance:,.0f}, and the brain reads "
                                      f"{sig.confidence:.0f}% (needs {_champ_floor:.0f}% for a "
-                                     f"thin book). Skip it — wait for the big-coin calls.",
+                                     f"thin book — {_champ_challenge_min:.0f}%+ to challenge). "
+                                     f"Skip it — wait for the big-coin calls.",
                                      icon="⛔", duration=20)
                             _play_sound("alarm")
                             _speak(f"Skip {asset}! Thin book — the brain says "
@@ -2600,6 +2634,12 @@ def render_quick_check(cfg: TradingConfig, kraken):
     yshape = yesterday.get("shape")
     thin_book = bool(result.get("thin_book"))
     champ_floor = float(result.get("champ_floor", 89.0) or 89.0)
+    # CHALLENGER (Sep 4): the thin-book bar is the challenger window —
+    # within POPUP_NEAR_MISS_PTS below the floor passes as a CHALLENGER
+    # green, matching the alert path (the PUMP lesson: never disagree).
+    champ_challenge = bool(result.get("champ_challenge"))
+    champ_min = float(result.get("champ_challenge_min", champ_floor - 5.0)
+                      or (champ_floor - 5.0))
     passes = (sig.action == "buy" and not no_buy
               and sig.confidence >= QC_SCALP_FLOOR and goal_ok
               and trend != "FALLING"
@@ -2607,7 +2647,7 @@ def render_quick_check(cfg: TradingConfig, kraken):
               and (result.get("spend_usd", 1) or 0) > 0
               and rot_ok
               and yshape != "blowoff"
-              and (not thin_book or sig.confidence >= champ_floor))
+              and (not thin_book or sig.confidence >= champ_min))
     momentum_capped = any("momentum ceiling" in r.lower() for r in sig.reasons)
 
     k = (
@@ -2621,7 +2661,10 @@ def render_quick_check(cfg: TradingConfig, kraken):
     _pace_txt = (f"GOAL +{goal_pct:.1f}% · ENGINE EXPECTS "
                  f"{float(raw_move):.1f}%" if raw_move is not None
                  else f"GOAL +{goal_pct:.1f}% · WINDOW ~{goal_pct:.0f}H")
-    _green_txt = ("SCALP GREEN LIGHT" if passes else
+    _green_txt = ((f"SCALP GREEN LIGHT — CHALLENGER (thin-book near-miss: "
+                   f"{sig.confidence:.0f}% vs the {champ_floor:.0f}% floor)")
+                  if passes and champ_challenge else
+                  ("SCALP GREEN LIGHT" if passes else
                   ("COOLDOWN — NO BUYS" if no_buy else
                    ("NO GREEN — ALREADY RAN THIS ROTATION" if not rot_ok else
                     ("NO GREEN — THIS HOUR DUMPED YESTERDAY" if yshape == "blowoff" else
@@ -2630,19 +2673,20 @@ def render_quick_check(cfg: TradingConfig, kraken):
                        (f"NO GREEN — AT THE DEATH LINE (buffer gone — any trade can close the contest)"
                         if (result.get("risk_cap", 1) or 0) <= 0 else
                        (f"NO GREEN — THIN BOOK, BRAIN NOT EXCEPTIONAL ({sig.confidence:.0f}% vs the "
-                        f"{champ_floor:.0f}% thin-book floor) — wait for the big-coin calls"
-                        if thin_book and sig.confidence < champ_floor else
+                        f"{champ_floor:.0f}% thin-book floor, {champ_min:.0f}%+ to challenge) — wait for the big-coin calls"
+                        if thin_book and sig.confidence < champ_min else
                        ("NO GREEN — DOWNWARD TREND" if trend == "FALLING" else
                         (f"NO GREEN — TOO SLOW (engine expects only {float(raw_move):.1f}% in this window; the goal needs 1%+)"
                          if not goal_ok else
                          (f"NO GREEN — LONE WOLF NEAR MISS {sig.confidence:.0f}% VS {QC_SCALP_FLOOR}% — the alert floor is the same 60 on the deep read"
-                          if lw_pts else f"NO GREEN — NEEDS {QC_SCALP_FLOOR}%+")))))))))))
+                          if lw_pts else f"NO GREEN — NEEDS {QC_SCALP_FLOOR}%+"))))))))))))
     if carry_usd is not None:
         if spend_usd >= float(cfg.challenge_balance):
             _carry_txt, _carry_col = "BOOK CARRIES ALL-IN", "g"
         elif spend_usd > 0:
             _carry_txt, _carry_col = (f"⚠ THIN BOOK — SPEND ${spend_usd:,.0f} MAX "
-                                      f"(the brain needs ≥{champ_floor:.0f}% here)", "a")
+                                      f"(the brain needs ≥{champ_floor:.0f}% here; "
+                                      f"{champ_min:.0f}%+ challenges)", "a")
         else:
             _carry_txt, _carry_col = "TOO THIN — YOUR MONEY IS THE MARKET", "r"
     else:

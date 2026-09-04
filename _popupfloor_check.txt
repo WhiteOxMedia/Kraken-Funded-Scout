@@ -1,0 +1,29 @@
+executed buys: 199 | decided outcomes: 110
+
+PER-ROTATION outcome × confidence band   win% (n) net$
+   rot |             <60 |           60-69 |           70-78 |           79-88 |             89+
+ 00-04 |  100% (  2)     +3.8 |   83% (  6)     -2.0 |    0% (  4)    -22.9 |   50% (  2)     -2.2 |   50% (  6)     -2.7
+ 04-08 |  100% (  1)     +2.3 |   40% (  5)     -5.5 |  100% (  1)     +1.2 |    0% (  3)     -2.7 |   44% (  9)     +5.4
+ 08-12 |  100% (  1)     +4.2 |    0% (  6)     -8.0 |   75% (  8)    -11.2 |               — |   45% ( 11)    +12.2
+ 12-16 |   50% (  2)     +1.6 |  100% (  5)     +5.3 |   50% (  2)     -0.2 |    0% (  2)     -7.6 |   71% (  7)   +613.8
+ 16-20 |   50% (  2)     +0.4 |   83% (  6)     +4.9 |   75% (  4)    +48.1 |               — |    0% (  1)     -1.0
+ 20-24 |   67% (  6)     +3.9 |    0% (  2)    -48.3 |  100% (  2)     +4.5 |               — |   50% (  4)     +2.6
+
+OLD era (< Aug 25): 87 decided, 59% win, net +635.4
+NEW era (>= Aug 25): 23 decided, 39% win, net -35.5
+
+WHAT THE RAILS CHANGE (flat 89 → rotation rail, challenger window ±5):
+  00-04 rail 84: blocks none beyond the old 89 | challenger window opens 2 reads (1/2 won, $-2.2 net)
+  04-08 rail 89: blocks none beyond the old 89 | challenger window opens 2 reads (0/2 won, $-0.7 net)
+  08-12 rail 84: blocks none beyond the old 89 | challenger window opens nothing
+  12-16 rail 89: blocks none beyond the old 89 | challenger window opens 2 reads (0/2 won, $-7.6 net)
+  16-20 rail 93: blocks 0 old winners ($-1.0 net on that slice) | challenger window opens nothing
+  20-24 rail 99: blocks 1 old winners ($+0.7 net on that slice) | challenger window opens nothing
+
+ROTATION_POPUP_FLOOR in force (Denver rotation → popup floor, FLAT tide):
+  00-04: 84   (RISING tide → 78; challenger window ≥ 79)
+  04-08: 89   (RISING tide → 78; challenger window ≥ 84)
+  08-12: 84   (RISING tide → 78; challenger window ≥ 79)
+  12-16: 89   (RISING tide → 78; challenger window ≥ 84)
+  16-20: 93   (RISING tide → 82; challenger window ≥ 88)
+  20-24: 99   (RISING tide → 88; challenger window ≥ 94)
