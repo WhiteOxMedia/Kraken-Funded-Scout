@@ -64,9 +64,16 @@ class FakeExchange:
         return self.candles
 
 
-def goal(candles):
+def goal(candles, tide_mult=1.0):
+    """Goal with the tide PINNED (deterministic): 1.0 = the base math,
+    0.90 = FLAT, 1.15 = RISING (the production multipliers)."""
     bs._market_goal_cache.pop("T/USD", None)
-    return bs._market_goal_pct(FakeExchange(candles), "T/USD")
+    _orig = bs._goal_tide_mult
+    bs._goal_tide_mult = lambda: tide_mult
+    try:
+        return bs._market_goal_pct(FakeExchange(candles), "T/USD")
+    finally:
+        bs._goal_tide_mult = _orig
 
 
 # the ENGINE side for the test pair — read live (the universe median for
@@ -76,17 +83,59 @@ ENG = bs._window_goal_pct("T/USD")
 check("the engine side resolves (the universe median for unknown pairs)",
       1.0 <= ENG <= 3.0, ENG)
 
-# ── 1. the goal: the ENGINE number, capped by the asset's week ───────
+# ── 1. the goal: the ENGINE number, capped by the week, × the TIDE ───
+# (tide pinned to 1.0 here — the BASE math; the tide's own math is
+# checked in section 1b)
 check("a generous week (4%/day) keeps the ENGINE number (keep what won)",
       abs(goal(day_candles([4.0] * 7)) - ENG) < 0.01, goal(day_candles([4.0] * 7)))
-check("a quiet week (0.8%/day) caps the goal at 0.8 -> the 1% floor",
+check("a quiet week (0.8%/day) caps the base at 0.8 -> the 1% floor",
       abs(goal(day_candles([0.8] * 7)) - 1.0) < 0.01)
-check("the week caps a stale engine ask: 1.2%/day week -> 1.2 goal",
+check("the week caps a stale engine ask: 1.2%/day week -> 1.2 base",
       abs(goal(day_candles([1.2] * 7)) - 1.2) < 0.01)
 check("the MEDIAN day rules (one wild day doesn't lift the cap)",
       abs(goal(day_candles([1.2, 1.2, 1.2, 30.0, 1.2, 1.2, 1.2])) - 1.2) < 0.01)
 check("the cap never exceeds the engine number (a 2.5%/day week, engine 1.5 -> 1.5)",
       abs(goal(day_candles([2.5] * 7)) - ENG) < 0.01)
+
+# ── 1b. THE TIDE'S SAY (user rule, Sep 4: "the goal should be based on
+# real market data + tide knowledge... Low tide = realistic lower goals,
+# High tide = realistic higher goals — don't leave money behind") ────
+check("the tide multipliers: FLAT 0.90 / RISING 1.15",
+      bs.GOAL_TIDE_FLAT_MULT == 0.90 and bs.GOAL_TIDE_RISING_MULT == 1.15)
+check("LOW tide = realistic lower: base 1.2 -> 1.08",
+      abs(goal(day_candles([1.2] * 7), 0.90) - 1.08) < 0.01,
+      goal(day_candles([1.2] * 7), 0.90))
+check("HIGH tide = realistic higher (don't leave money behind): base 1.2 -> 1.38",
+      abs(goal(day_candles([1.2] * 7), 1.15) - 1.38) < 0.01,
+      goal(day_candles([1.2] * 7), 1.15))
+check("a high tide on the engine base scales it (week 4% -> base ENG -> ENG x 1.15)",
+      abs(goal(day_candles([4.0] * 7), 1.15) - min(3.0, ENG * 1.15)) < 0.01,
+      (goal(day_candles([4.0] * 7), 1.15), ENG))
+check("the 3% band holds in a high tide (the clamp math: 3.0 base x 1.15 -> 3.0)",
+      max(bs.GOAL_MIN_PCT, min(bs.GOAL_MAX_PCT, 3.0 * 1.15)) == 3.0)
+check("the 1% floor holds in a low tide: base 1.0 -> 0.9 -> clamped 1.0",
+      abs(goal(day_candles([1.0] * 7), 0.90) - 1.0) < 0.01)
+check("a 1.0 base in a HIGH tide rises to 1.15 (the floor never caps the upside)",
+      abs(goal(day_candles([1.0] * 7), 1.15) - 1.15) < 0.01,
+      goal(day_candles([1.0] * 7), 1.15))
+check("the rising:tide spread on the same base is ~1.28x (1.38 vs 1.08)",
+      abs(goal(day_candles([1.2] * 7), 1.15) / goal(day_candles([1.2] * 7), 0.90)
+          - 1.15 / 0.90) < 0.01)
+# the tide applies FRESH outside the per-pair cache: same cached base,
+# different tide -> different goal, no refetch
+fx_fresh = FakeExchange(day_candles([1.2] * 7))
+bs._market_goal_cache.pop("T/USD", None)
+_orig_mult = bs._goal_tide_mult
+try:
+    bs._goal_tide_mult = lambda: 0.90
+    _g_flat = bs._market_goal_pct(fx_fresh, "T/USD")
+    bs._goal_tide_mult = lambda: 1.15
+    _g_rise = bs._market_goal_pct(fx_fresh, "T/USD")
+finally:
+    bs._goal_tide_mult = _orig_mult
+check("the tide applies FRESH outside the cache (flat 1.08 -> rising 1.38, 1 fetch)",
+      abs(_g_flat - 1.08) < 0.01 and abs(_g_rise - 1.38) < 0.01
+      and fx_fresh.fetch_calls == 1, (_g_flat, _g_rise, fx_fresh.fetch_calls))
 
 
 class BrokenExchange:
@@ -95,16 +144,26 @@ class BrokenExchange:
 
 
 bs._market_goal_cache.pop("T/USD", None)
-_g = bs._market_goal_pct(BrokenExchange(), "T/USD")
+bs._goal_tide_mult = lambda: 1.0
+try:
+    _g = bs._market_goal_pct(BrokenExchange(), "T/USD")
+finally:
+    bs._goal_tide_mult = _orig_mult
 check("a broken week read leaves the ENGINE number alone (yesterday's logic, unchanged)",
       abs(_g - ENG) < 0.01, _g)
 fx = FakeExchange(day_candles([1.2] * 7))
 bs._market_goal_cache.pop("T/USD", None)
-bs._market_goal_pct(fx, "T/USD")
-bs._market_goal_pct(fx, "T/USD")
+bs._goal_tide_mult = lambda: 1.0
+try:
+    bs._market_goal_pct(fx, "T/USD")
+    bs._market_goal_pct(fx, "T/USD")
+finally:
+    bs._goal_tide_mult = _orig_mult
 check("cached 15 min per pair (1 fetch for 2 calls)", fx.fetch_calls == 1, fx.fetch_calls)
 check("the old derivation survives untouched as the engine side",
       "def _window_goal_pct(pair: str) -> float:" in src)
+check("the goal is tide-aware in the source (_goal_tide_mult in _market_goal_pct)",
+      "_goal_tide_mult()" in src[src.find("def _market_goal_pct"):src.find("def _market_goal_pct") + 2000])
 
 # ── 2. the rotation-bounded window ───────────────────────────────────
 def win(h, m):

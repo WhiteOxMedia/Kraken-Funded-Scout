@@ -4303,9 +4303,8 @@ def main():
         value=_wf_auto,
         help="ON: the dial below becomes the BASE — the effective floor auto-adjusts "
              "every rotation: x the hour's expected move (the engine's pace factor), "
-             "x the tide (RISING relaxes 15%), x your day's catch-up state (behind the "
-             "pace accepts smaller pays, ahead demands the big ones). The scanner and "
-             "this display read the SAME math live. OFF: the static dial, as before.",
+             "x the tide (RISING relaxes 15%). The scanner and this display read the "
+             "SAME math live. OFF: the static dial, as before.",
         key="worth_floor_auto_toggle")
     if _wf_auto_new != _wf_auto:
         _cs["worth_floor_auto"] = _wf_auto_new
@@ -4332,7 +4331,7 @@ def main():
         _wf_f = _bsw.worth_floor_auto_factors()
     except Exception:
         _wf_f = {"auto": _wf_auto, "base": _wf, "pace": 1.0, "tide": 1.0,
-                 "catchup": 1.0, "effective": _wf}
+                 "effective": _wf}
     _wf_eff = float(_wf_f.get("effective", _wf))
     _wf_usd = _pace * _wf_eff
     if _wf <= 0:
@@ -4341,7 +4340,7 @@ def main():
     elif _wf_f.get("auto"):
         st.sidebar.caption(
             f"THIS ROTATION: {_wf:.0%} base × {_wf_f['pace']:.2f} pace × "
-            f"{_wf_f['tide']:.2f} tide × {_wf_f['catchup']:.2f} catch-up "
+            f"{_wf_f['tide']:.2f} tide "
             f"= **{_wf_eff:.0%}** → popups must pay ≥ ${_wf_usd:,.0f} "
             f"(auto — recalculated every rotation, read live, no restart).")
     else:

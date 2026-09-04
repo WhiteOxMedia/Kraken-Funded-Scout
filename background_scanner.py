@@ -894,6 +894,30 @@ def knife_reversed_1h(exchange, pair: str, cfg, max_age_s: float = 300.0) -> tup
 GOAL_MIN_PCT = 1.0
 GOAL_MAX_PCT = 3.0
 GOAL_DEFAULT_PCT = 1.5     # young profile / no cell: a moderate default
+# ── TIDE-AWARE GOALS (user rule, Sep 4: "the goal should be based on real
+# market data + tide knowledge = what the goal should be. Auto set the
+# 'goal' every rotation and don't leave money behind. (Low tide =
+# realistic lower goals, High tide = realistic higher goals.)"): the
+# engine's rotation cell averages ALL tides — a flat fleet realizes less
+# than that average, a rising fleet carries moves beyond it. The tide
+# multiplier scales the market-capped base: FLAT x0.90 (realistic
+# lower), RISING x1.15 (don't leave money behind). OUT never reaches
+# the popup path. Applied FRESH at every read (outside the per-pair
+# cache) so the goal re-aims the moment the tide turns.
+GOAL_TIDE_RISING_MULT = 1.15
+GOAL_TIDE_FLAT_MULT = 0.90
+
+
+def _goal_tide_mult() -> float:
+    """The tide's say on the goal (user rule, Sep 4). Fail-open to the
+    flat-market multiplier on a broken read (realistic, never greedy)."""
+    try:
+        _, _ts = _fleet_tide()
+        if _ts == "RISING":
+            return GOAL_TIDE_RISING_MULT
+    except Exception:
+        pass
+    return GOAL_TIDE_FLAT_MULT
 
 # ── THE WORTH FLOOR (user rule, Sep 2 — "big coins only... less entries
 # but more money"; the JUP 14:52 lesson: a guard-capped $233 entry at the
@@ -907,25 +931,25 @@ GOAL_DEFAULT_PCT = 1.5     # young profile / no cell: a moderate default
 WORTH_FLOOR_PACE_FRAC = 0.5      # the manual-off fallback default
 # ── THE AUTO-DIAL (user rule, Sep 4: "auto-dial the worth floor dial to
 # the proper location every rotation" — user approved: base 0.25, the
-# toggle defaults ON): effective = BASE x pace x tide x catch-up,
-# clamped [10%, 40%]. The dial's slider becomes the BASE anchor when
-# auto is on; OFF = the old static behavior.
-#   pace     — this rotation's median expected move / the day's best
-#              rotation (the engine's live cells; the floor scales with
-#              what the market can actually pay this hour — a static
-#              floor goes SILENT in slow hours, killing the day's pace)
-#   tide     — RISING carries greens, don't over-filter (0.85); FLAT
-#              stands (OUT never reaches the popup)
-#   catch-up — behind the day's pace -> accept smaller pays (1.15);
-#              ahead -> only the worthwhile ones interrupt (0.90).
-#              Reads the daily lock's ledger (contest_account).
-# Calibration: diag_worthdial.py (the record's goals per rotation + the
-# engine's live pace factors — the best win-rate hours 12-16/16-20 are
-# where the engine puts the day's biggest expected moves).
+# toggle defaults ON; CORRECTED same day: "catch-up math is causing a
+# problem, we don't need to catch up — the goal is a guide not a rule"):
+# effective = BASE x pace x tide, clamped [10%, 40%]. The dial's slider
+# is the BASE anchor when auto is on; OFF = the old static behavior.
+#   pace — this rotation's median expected move / the day's best
+#          rotation (the engine's live cells; the floor scales with
+#          what the market can actually pay this hour — a static floor
+#          goes SILENT in slow hours, killing the day's pace)
+#   tide  — RISING carries greens, don't over-filter (0.85); FLAT
+#          stands (OUT never reaches the popup)
+#   catch-up — RETIRED (user rule, Sep 4): the pace is a guide, not a
+#          quota to chase. _worth_catchup_factor is kept per the
+#          don't-delete rule but is no longer in the product.
+# Calibration: diag_worthdial.py.
 WORTH_AUTO_BASE_DEFAULT = 0.25
 WORTH_AUTO_MIN = 0.10
 WORTH_AUTO_MAX = 0.40
 WORTH_TIDE_RISING_FACTOR = 0.85
+# RETIRED (user rule, Sep 4 — the catch-up correction above):
 WORTH_CATCHUP_BEHIND = 1.15
 WORTH_CATCHUP_AHEAD = 0.90
 
@@ -957,9 +981,9 @@ def _worth_pace_factor(now=None) -> float:
 
 
 def _worth_catchup_factor() -> float:
-    """Behind the day's pace -> accept smaller payouts (catch up); ahead
-    of it -> only the worthwhile ones interrupt. Reads the daily lock's
-    ledger (the day's peak gain vs the pro-rata pace). Fail-open 1.0."""
+    """RETIRED (user rule, Sep 4: "catch-up math is causing a problem,
+    we don't need to catch up — the goal is a guide not a rule"). Kept
+    per the don't-delete rule; no longer called by the auto-dial."""
     try:
         import contest_account as _ca
         _s = _ca.touch_daily_peak()
@@ -983,7 +1007,8 @@ def _worth_catchup_factor() -> float:
 def worth_floor_auto_factors(now=None) -> dict:
     """ONE source of truth for the auto-dial components — the console
     displays the SAME math the scanner gates on. {base, pace, tide,
-    catchup, effective, auto}."""
+    effective, auto}. (Sep 4 correction: NO catch-up — the pace is a
+    guide, not a quota.)"""
     _base = WORTH_AUTO_BASE_DEFAULT
     _auto = True
     try:
@@ -1005,17 +1030,16 @@ def worth_floor_auto_factors(now=None) -> dict:
             _tide_f = WORTH_TIDE_RISING_FACTOR
     except Exception:
         pass
-    _catch = _worth_catchup_factor()
     if _base <= 0:
         # the user's explicit OFF (0%) beats the auto-dial — never
         # resurrect a floor the user turned off
         _eff = 0.0
     else:
-        _eff = max(WORTH_AUTO_MIN, min(WORTH_AUTO_MAX, _base * _pace * _tide_f * _catch))
+        _eff = max(WORTH_AUTO_MIN, min(WORTH_AUTO_MAX, _base * _pace * _tide_f))
     if not _auto:
         _eff = _base
     return {"auto": _auto, "base": _base, "pace": _pace, "tide": _tide_f,
-            "catchup": _catch, "effective": _eff}
+            "effective": _eff}
 
 
 def _worth_floor_frac() -> float:
@@ -1073,36 +1097,44 @@ _market_goal_cache: dict = {}   # pair -> (ts, goal_pct)
 
 
 def _market_goal_pct(exchange, pair: str) -> float:
-    """The trade's % goal: the ENGINE's per-rotation expected move (the
-    old derivation — what picked yesterday's winners), CAPPED by the
-    asset's own week — min(engine, median daily range of the last 7
-    daily candles), clamped [1, 3]. The week never raises the goal;
-    a broken week read leaves the engine number alone."""
+    """The trade's % goal (user rule, Sep 4: "real market data + tide
+    knowledge"): the market base — the ENGINE's per-rotation expected
+    move (the old derivation, what picked yesterday's winners) CAPPED by
+    the asset's own week (median daily range of the last 7 daily
+    candles — the cap only pulls DOWN, never up) — multiplied by the
+    LIVE tide (FLAT x0.90 realistic-lower / RISING x1.15 don't-leave-
+    money-behind), clamped [1, 3]. The base is cached 15 min per pair;
+    the tide applies FRESH at every read so the goal re-aims the moment
+    the fleet turns. Broken reads fail open to the engine number."""
     import time as _t
     _eng = _window_goal_pct(pair)
     _now = _t.time()
     _c = _market_goal_cache.get(pair)
+    _base = None
     if _c and _now - _c[0] < MARKET_GOAL_TTL_S:
-        return _c[1]
-    try:
-        _d = exchange.fetch_ohlcv(pair, timeframe="1d", limit=8)
-        if _d and len(_d) >= 4:
-            _rngs = []
-            for _k in _d[-7:]:
-                _o, _h, _l = float(_k[1]), float(_k[2]), float(_k[3])
-                if _o > 0 and _h >= _l > 0:
-                    _rngs.append((_h - _l) / _o * 100.0)
-            if _rngs:
-                _rngs.sort()
-                _n = len(_rngs)
-                _med = _rngs[_n // 2] if _n % 2 else (_rngs[_n // 2 - 1] + _rngs[_n // 2]) / 2.0
-                if _med > 0.2:
-                    goal = max(GOAL_MIN_PCT, min(GOAL_MAX_PCT, min(_eng, _med)))
-                    _market_goal_cache[pair] = (_now, goal)
-                    return goal
-    except Exception:
-        pass
-    return _eng   # the engine number alone — yesterday's logic, unchanged
+        _base = _c[1]
+    else:
+        try:
+            _d = exchange.fetch_ohlcv(pair, timeframe="1d", limit=8)
+            if _d and len(_d) >= 4:
+                _rngs = []
+                for _k in _d[-7:]:
+                    _o, _h, _l = float(_k[1]), float(_k[2]), float(_k[3])
+                    if _o > 0 and _h >= _l > 0:
+                        _rngs.append((_h - _l) / _o * 100.0)
+                if _rngs:
+                    _rngs.sort()
+                    _n = len(_rngs)
+                    _med = _rngs[_n // 2] if _n % 2 else (_rngs[_n // 2 - 1] + _rngs[_n // 2]) / 2.0
+                    if _med > 0.2:
+                        _base = max(GOAL_MIN_PCT, min(GOAL_MAX_PCT, min(_eng, _med)))
+                        _market_goal_cache[pair] = (_now, _base)
+        except Exception:
+            _base = None
+    if _base is None:
+        _base = _eng   # the engine number alone — yesterday's logic, unchanged
+    # the tide's say — applied fresh, outside the cache
+    return max(GOAL_MIN_PCT, min(GOAL_MAX_PCT, _base * _goal_tide_mult()))
 
 
 def _rotation_window_min(now=None) -> float:
