@@ -212,11 +212,28 @@ def _detect_breakout(df: pd.DataFrame, ind: dict[str, Any], config: TradingConfi
     breaks_high = price >= recent_high * 0.995  # within 0.5% of 20-candle high (was 0.998)
     vol_surge = vol_ratio > 1.2  # volume 20%+ above average (was 1.3)
 
-    # Catch breakouts up to 6% (was 4%) — don't miss moves that already started
-    early_stage = abs(change_5) < 6.0
+    # ── THE TRUMP/RENDER LESSON (Sep 4: "they acted like Sell Signals but
+    #    were Buy signals somehow" — bought the top, lost $200, fell 4h+) ──
+    # A breakout must be a POSITIVE move that's genuinely EARLY:
+    #   - change_5 must be > 0: a NEGATIVE 5-candle move at the top of the
+    #     band is a ROLLOVER, not a breakout (TRUMP fired at -0.9%, -1.9%,
+    #     -1.1% "breakouts" — buying the collapse). The old abs() let
+    #     downticks through.
+    #   - cap at 4% (was 6%): +4.7-5.2% "breakouts" are the END of the
+    #     move, not the start (TRUMP's morning sequence 2.32 → 2.46 peaked
+    #     and rolled for 4 hours).
+    #   - RSI < 70 (was 78): RSI 70-78 on a band break is late-stage
+    #     chasing (RENDER fired at RSI 67.6 as "take profit" reasons rode
+    #     a 71% buy).
+    #   - not extended above the band: price > 1% above the upper band =
+    #     already stretched (the move happened without us).
+    early_stage = 0 < change_5 < 4.0
 
-    # RSI rising but not extreme — wider window to catch earlier
-    rsi_ok = rsi_val is not None and rsi_val < 78 and rsi_val > 40
+    # RSI rising but not extreme
+    rsi_ok = rsi_val is not None and rsi_val < 70 and rsi_val > 40
+
+    # Extension guard: not more than 1% above the upper band
+    not_extended = price <= bb_upper * 1.01
 
     # EMA alignment (trend support)
     ema_bullish = ema_short_val and ema_long_val and ema_short_val > ema_long_val
@@ -244,8 +261,9 @@ def _detect_breakout(df: pd.DataFrame, ind: dict[str, Any], config: TradingConfi
         breakout_score += 10
         breakout_reasons.append("EMA bullish (short > long)")
 
-    # Must have at least: price breakout + one confirmation
-    is_breakout = (breaks_bb or breaks_high) and vol_surge and early_stage and rsi_ok
+    # Must have at least: price breakout + one confirmation + genuinely early
+    # (not_extended blocks the already-stretched moves the TRUMP lesson showed)
+    is_breakout = (breaks_bb or breaks_high) and vol_surge and early_stage and rsi_ok and not_extended
 
     return {
         "is_breakout": is_breakout,
@@ -806,6 +824,15 @@ def evaluate_strategy(df: pd.DataFrame, config: TradingConfig) -> Signal:
         reasons.append(f"  Signal confidence: {conf:.0f}/100 ({get_confidence_label(conf)})")
         reasons.extend(conf_reasons)
 
+        # ── EXIT-SIGNAL VETO (Sep 4, same principle as the late-stage veto):
+        # a momentum entry whose OWN exit conditions are already firing is a
+        # contradiction — buying a move that's already dying. Downgrade to
+        # hold; the exits stay in the reasons for anyone already in.
+        if exits and conf >= config.min_confidence:
+            reasons.insert(len(reasons) - 1,
+                           "  VETOED: own exit signals firing — not entering a dying move")
+            conf = 0.0
+
         signal = Signal(
             action="buy" if conf >= config.min_confidence else "hold",
             confidence=conf,
@@ -1068,6 +1095,24 @@ def evaluate_strategy(df: pd.DataFrame, config: TradingConfig) -> Signal:
     # ── Decision ─────────────────────────────────────────────────────────
     buy_score = min(100, buy_score)
     sell_score = min(100, sell_score)
+
+    # ── LATE-STAGE VETO (the RENDER lesson, Sep 4): if the strategy's own
+    # indicators said "take profit" (RSI > 65 in an uptrend, or price at
+    # the upper Bollinger band in an uptrend), a BUY is a top-chase no
+    # matter what the phase score says. RENDER fired a 71% buy carrying
+    # "RSI overbought — take profit; BB upper band — take profit" as its
+    # own reasons and rolled over for hours. Sell reasons must never ride
+    # on a buy: they veto it.
+    _late_stage = False
+    for _r in reasons:
+        _rl = _r.lower()
+        if "take profit" in _rl or ("overbought" in _rl and "uptrend" in _rl):
+            _late_stage = True
+            break
+    if _late_stage and buy_score > sell_score:
+        reasons.append("VETOED: own indicators said take-profit — not buying the top "
+                       "(late-stage veto, Sep 4)")
+        buy_score = 0.0
 
     # Pullback quality gate for dip buyer
     if buy_score > sell_score and buy_score >= config.min_confidence:

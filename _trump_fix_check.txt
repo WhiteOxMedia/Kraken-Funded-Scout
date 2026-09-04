@@ -1,0 +1,17 @@
+TRUMP/RENDER REPLAY — FIXED BREAKOUT DETECTOR
+============================================================
+PASS  TRUMP 09:48 (-1.9% 'breakout')       expect=BLOCK got=BLOCK
+PASS  TRUMP 09:59 (-0.9% 'breakout')       expect=BLOCK got=BLOCK
+PASS  TRUMP 09:36 (-1.1% 'breakout')       expect=BLOCK got=BLOCK
+PASS  TRUMP 07:50 (+5.2% extended)         expect=BLOCK got=BLOCK
+PASS  TRUMP 11:50 (+4.5% extended)         expect=BLOCK got=BLOCK
+PASS  TRUMP 12:36 (+2.7% late RSI)         expect=BLOCK got=BLOCK
+PASS  RENDER 09:36 (RSI high)              expect=BLOCK got=BLOCK
+PASS  genuine early (+1.5%, RSI 55)        expect=PASS got=PASS
+PASS  genuine early (+2.5%, RSI 62)        expect=PASS got=PASS
+PASS  genuine early (+3.5%, RSI 66)        expect=PASS got=PASS
+
+10/10 correct
+
+PASS  RENDER-shape late-stage veto kills the 71% buy
+TOTAL: 11/11
