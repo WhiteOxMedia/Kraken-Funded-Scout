@@ -124,16 +124,22 @@ check("the window never exceeds the standing 3h cap",
 check("the window never drops below the 1h floor",
       all(win(h, 59) >= 60.0 for h in range(24)))
 
-# ── 3. the wiring: every goal clock uses the market number ───────────
+# ── 3. the wiring: every CONTEST goal clock uses the market number ───
+# (the bot's exits ask bot questions only — the goal clock is
+# contest-only per the Sep 4 ledger correction)
+_ec0 = src.find("Exit check (every 5 minutes")
+_ec_blk = src[_ec0:src.find("Full tournament", _ec0)] if _ec0 >= 0 else ""
+check("the bot's exit check carries NO goal clock (contest-only)",
+      _ec_blk and "_market_goal_pct" not in _ec_blk
+      and "_rotation_window_min" not in _ec_blk)
 check("the champion popup: the engine goal capped by the week + the rotation-bounded window",
       "_goal_pct = _market_goal_pct(exchange, pair)" in src
       and "_win_min = _rotation_window_min()" in src)
 check("the mover popup: same math",
       "_m_goal = _market_goal_pct(exchange, pair)" in src
       and "_m_win = _rotation_window_min()" in src)
-check("the bot synthesis: the goal is the capped engine number; the window is the ENTRY's rotation deadline",
-      "_market_goal_pct(exchange, pair)" in src
-      and "_rotation_window_min(_ad)" in src)
+check("the bot synthesis asks BOT questions only (the goal clock is contest-only — no market goal, no rotation window in the bot's exits)",
+      "_market_goal_pct" not in _ec_blk and "_rotation_window_min" not in _ec_blk)
 check("the QC green light derives the market goal",
       "_bs._market_goal_pct(kraken, pair)" in ap)
 check("the QC watch record stores the rotation-bounded window",

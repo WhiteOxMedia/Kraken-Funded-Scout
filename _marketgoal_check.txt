@@ -16,9 +16,10 @@ PASS  03:20 -> 60 (exception before the 04:00 boundary)
 PASS  23:30 -> 60 (exception across midnight)  
 PASS  the window never exceeds the standing 3h cap  
 PASS  the window never drops below the 1h floor  
+PASS  the bot's exit check carries NO goal clock (contest-only)  
 PASS  the champion popup: the engine goal capped by the week + the rotation-bounded window  
 PASS  the mover popup: same math  
-PASS  the bot synthesis: the goal is the capped engine number; the window is the ENTRY's rotation deadline  
+PASS  the bot synthesis asks BOT questions only (the goal clock is contest-only — no market goal, no rotation window in the bot's exits)  
 PASS  the QC green light derives the market goal  
 PASS  the QC watch record stores the rotation-bounded window  
 PASS  _derive_goal prefers the market read when an exchange is available  
@@ -34,4 +35,4 @@ PASS  10:56 entry: the window fits before 12:00 (the ideal)
 PASS  12:00 entry: 180 min ends exactly at the 15:00 boundary (the ideal)  
 PASS  03:30 entry: crosses into the 04:00 rotation  
 
-RESULT: 35 passed, 0 failed
+RESULT: 36 passed, 0 failed

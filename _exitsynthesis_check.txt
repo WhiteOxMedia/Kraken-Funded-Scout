@@ -1,25 +1,21 @@
-PASS  GOAL REACHED exit exists (take the profit at the market analysis)  
-PASS  WINDOW EXPIRED exit exists (it hasn't paid, get out)  
-PASS  THESIS DEAD exit exists (the reason we entered isn't alive)  
-PASS  position data from the bridge record (entry price + clock + conviction)  
-PASS  the goal is the SAME market number the popup clock uses (the asset's own week)  
-PASS  window math is bounded by the rotation boundary the ENTRY lived in  
+PASS  GOAL REACHED exit is GONE from the bot's code (contest-only rule)  
+PASS  WINDOW EXPIRED exit is GONE from the bot's code (contest-only rule)  
+PASS  the bot doesn't read the market goal in its exits (no _market_goal_pct here)  
+PASS  the ledger correction is documented at the synthesis  
+PASS  THESIS DEAD exit exists (the reason we entered isn't alive — the ASTER rule)  
+PASS  position conviction from the bridge record  
 PASS  real-time: the ticker still seeds the in-progress candle  
 PASS  the synthesis is fail-soft (a broken record keeps the mechanical gates)  
 PASS  the trailing stop still runs FIRST (protects winners)  
 PASS  the mechanical gates still run after the synthesis  
-PASS  goal reached outranks window expiry (bank the profit when it's there)  
-PASS  thesis alive = buy read OR weak hold <60 (the console's semantics)  
-PASS  console agreement: the same hold<60 carve-out in the EXIT CHECK  
+PASS  strategy sell bar: 75 / 60 momentum (the bot's own bar, not the contest's 50)  
+PASS  thesis alive = buy read OR weak hold <60  
 PASS  the exit write NEVER pops a desktop alert  
-PASS  +2.0% vs 1.5% goal -> GOAL (even a confident hold banks it)  
-PASS  3.3h held, +0.4% vs 1.5% goal -> WINDOW EXPIRED  
-PASS  the trail outranks everything  
-PASS  a sell read BELOW the 75/60 bar -> THESIS DEAD (the gap this closes)  
 PASS  a confident hold (>=60) against a buy thesis -> THESIS DEAD  
-PASS  a weak hold (<60) keeps the thesis (the console's carve-out)  
-PASS  a buy read keeps the thesis (recovering — the rotation's skip rule agrees)  
-PASS  1.4% vs 1.5% goal, still inside the 90-min window -> thesis decides  
-PASS  a fresh loser with a live buy thesis holds (SL/trail still guard it)  
+PASS  a sell read BELOW the 75/60 bar -> THESIS DEAD (the gap this closes)  
+PASS  a weak hold (<60) keeps the thesis (the carve-out)  
+PASS  a buy read keeps the thesis (recovering — the winner RIDES: no goal banks it)  
+PASS  the trail decides first — an +8% winner with a live thesis can still be trailed out (the bot's own exit)  
+PASS  a strong winner reading confident hold gets out on the DEAD THESIS (weak positions don't ride)  
 
-RESULT: 23 passed, 0 failed
+RESULT: 19 passed, 0 failed
