@@ -4,29 +4,25 @@ PASS  rising 1h -> not reversed
 PASS  short data -> fail-closed, not cached  
 PASS  knife cached per pair (1 fetch / 5 min)  1
 PASS  broken read -> fail-closed (no exit on a broken read)  
-PASS  SCOUT_TREND_EXIT_ENABLED exists and is False (channel retired)  
-PASS  the watch loop is gated on the flag  
-PASS  the write machinery is kept (don't-delete rule)  
-PASS  the retirement is documented at the watch  
+PASS  watch reads the bot's holdings from the bridge  
+PASS  watch writes the silent exit signal  
+PASS  watch runs ALWAYS — placed before the cooldown flatten  
+PASS  the exit write is SILENT — no voice, no popup, no phone push  
+PASS  exit reason says GET OUT NOW + the knife  
+PASS  rewrite pacing present (15 min per pair)  
 PASS  write_exit_signal is dup-safe (skips while a sell pends)  
-PASS  write_exit_signal defaults to scout_exit_check (the ONE admitted source)  
-PASS  the reader admits sells from exactly ONE source: scout_exit_check  
-PASS  scout_trend_exit is NOT admitted (retired channel)  
-PASS  the kill switch still lets exits through (sell filter, not a halt)  
-PASS  sell path handles manual Kraken positions (not in bot DB)  
-PASS  the 30-min sell cooldown still gates exits  
-PASS  engine Insufficient is the ONLY other exit-side rotation trigger  
+PASS  write_exit_signal takes a source param  
+PASS  sell branch admits BOTH scanner exit sources  
+PASS  contest exits still ignored (the two-ledger rule stands — no other sell source enters the branch)  
+PASS  trend-exit pass is logged  
+PASS  the trend-exit log names the knife reversal  
+PASS  trend exits flow before the manual-position sell path  
 PASS  BOT'S BOOK panel exists  
 PASS  panel wired next to her words  
 PASS  panel reads the bridge holdings  
-PASS  panel shows the riding vs reversed LEDs  
-PASS  panel no longer claims GET OUT SENT (channel retired)  
+PASS  panel shows the GET OUT SENT state  
+PASS  panel shows riding vs reversed LEDs  
 PASS  panel reuses the scanner's knife (dup-safe reload)  
-PASS  the engine knife is retired (user decision, Sep 4)  
-PASS  the engine's own exit stack remains the floor: SL  
-PASS  the engine's own exit stack remains the floor: TP  
-PASS  the engine's own exit stack remains the floor: ATR trail  
-PASS  the scanner's 5-min exit check still emits: trailing stop  
-PASS  the scanner's 5-min exit check still emits: strategy sell threshold  
+PASS  engine knife floor still present (independent of the scanner)  
 
-RESULT: 30 passed, 0 failed
+RESULT: 26 passed, 0 failed

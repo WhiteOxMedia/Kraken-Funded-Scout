@@ -96,17 +96,18 @@ src = open("background_scanner.py", encoding="utf-8").read()
 check("scanner stamps the bridge write", 'tide_state=(_tsw or "UNKNOWN")' in src)
 check("scanner stamps the fleet pct", "tide_pct=_tpw" in src)
 
-# ── 5. where the OUT guard lives NOW ─────────────────────────────────
-# (rewritten Sep 4: the bot reader dropped the tide-stamp guard in the
-# reader rework — the guard moved UPSTREAM. The scanner refuses the
-# BRIDGE WRITE itself on TIDE OUT ("no bridge write; all ships sink
-# together"), so an OUT signal never reaches the bot at all. The bot
-# no longer references tide_state.)
+# ── 5. the tide guards — BOTH layers (restored Sep 4: the reader's
+# belt-and-braces came back with the Sep 3-era gates; the scanner's
+# upstream refusal stands too — belt AND braces)
 BOT_READER = r"C:\Users\birds\Workspace\kraken_xrp_trading_bot\scout_signal_reader.py"
 rsrc = open(BOT_READER, encoding="utf-8").read()
-check("bot reader no longer references the tide stamp (guard moved upstream)",
-      "tide_state" not in rsrc)
-check("scanner refuses the bridge write on TIDE OUT (the guard's new home)",
+check("reader belt-and-braces: TIDE OUT stamp hard-refused (restored Sep 4)",
+      'if _sig_tide == "OUT":' in rsrc)
+check("reader's OUT rejection marks the signal",
+      "Tide OUT at signal time" in rsrc)
+check("reader's UNKNOWN stamp is tradeable (fail-open, exact match)",
+      'str(signal.get("tide_state") or "")' in rsrc)
+check("scanner refuses the bridge write on TIDE OUT (the upstream guard)",
       'if _ts0 == "OUT":' in src)
 check("scanner's OUT refusal names the bridge write",
       "no bridge write; all ships sink together" in src)

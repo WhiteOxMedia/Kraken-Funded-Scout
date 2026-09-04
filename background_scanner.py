@@ -838,23 +838,19 @@ def popup_floor(tide_state: str | None = None, lw_pts: float = 0,
 # ── TREND-EXIT WATCH (user rule, Aug 31: "when the trend reverses then
 # the bot should 'get out now'" + "the console tracks it and sends the
 # signal silently to the bridge side for the bot's trades") ────────────
-# RETIRED (user decision, Sep 4: "keep the simpler Sep 3 bot — the
-# rotation design replaces the old rules"): the Sep 3 reader admits
-# sells ONLY from scout_exit_check, so scout_trend_exit writes were dead
-# traffic — written, logged as "silent SELL written for the bot", never
-# executed. The watch is disabled behind SCOUT_TREND_EXIT_ENABLED; the
-# code is kept per the don't-delete rule. Exits that DO reach the bot's
-# real money now: the 5-min exit check (scout_exit_check — trailing
-# stop / strategy sell / exhaustion) + the engine's own SL/TP/ATR-trail
-# stack. Flip the flag to True to re-arm (and re-admit the source in
-# the reader) if the trend-exit channel is ever wanted back.
-# Original design (kept for reference): for every pair the bot HOLDS,
-# run the same 1h EMA knife that bans entries. Reversed → a SILENT exit
-# signal (source="scout_trend_exit") goes to the bridge — no voice, no
-# popup, no phone push. Read cached per pair (the 1h trend doesn't
-# change faster than minutes); failed reads are NOT cached; fail-closed:
-# a broken read never triggers an exit.
-SCOUT_TREND_EXIT_ENABLED = False   # retired Sep 4 — flip to re-arm
+# RESTORED (user directive, Sep 4: "restore the gates that were deleted
+# and make them work properly, if they were in effect on Sept 3rd" —
+# the channel was briefly retired when the Sep 3 reader rework dropped
+# the carve-out; both are back). The scanner is the brain, the bot is
+# the executor: for every pair the bot HOLDS, run the same 1h EMA knife
+# that bans entries. Reversed → a SILENT exit signal
+# (source="scout_trend_exit") goes to the bridge — no voice, no popup,
+# no phone push; the bot sells on its next cycle. The bot's own knife
+# (engine-side) is the independent floor if the scanner dies. Read
+# cached per pair (the 1h trend doesn't change faster than minutes);
+# failed reads are NOT cached; fail-closed: a broken read never
+# triggers an exit.
+SCOUT_TREND_EXIT_ENABLED = True    # restored Sep 4 — the reader admits it again
 _trend_exit_cache: dict = {}
 _trend_exit_pace: dict = {}   # pair -> last write attempt ts (15-min pacing)
 
@@ -2310,15 +2306,15 @@ def main():
         # the ONE mouth: console lines get spoken here, always
         _drain_speech_queue()
 
-        # ── TREND-EXIT WATCH (user rule, Aug 31) — RETIRED behind
-        # SCOUT_TREND_EXIT_ENABLED (user decision, Sep 4: the Sep 3 reader
-        # admits sells only from scout_exit_check; these writes were dead
-        # traffic). When disabled the loop simply has nothing to walk.
-        # Original: ALWAYS ran, cooldown included (cooldown blocks buys,
-        # never exits). For every pair the bot holds (bridge filled
+        # ── TREND-EXIT WATCH (user rule, Aug 31 — RESTORED Sep 4, in
+        # effect Sep 3) — ALWAYS runs, cooldown included (cooldown blocks
+        # buys, never exits). For every pair the bot holds (bridge filled
         # records), the 1h knife; reversed → a SILENT bridge SELL
         # (source="scout_trend_exit") — no voice, no popup, no phone
-        # push. Dup-safe (write_exit_signal skips while a sell pends).
+        # push. The reader's two-ledger guard admits this ONE source
+        # (plus scout_exit_check); the bot's own engine knife remains
+        # the independent floor. Dup-safe (write_exit_signal skips while
+        # a sell pends). Gated on SCOUT_TREND_EXIT_ENABLED.
         if SCOUT_TREND_EXIT_ENABLED:
             try:
                 from signal_bridge import get_open_positions as _bop, write_exit_signal as _wes
