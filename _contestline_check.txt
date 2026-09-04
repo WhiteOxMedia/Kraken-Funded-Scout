@@ -15,7 +15,7 @@ PASS  profit grows the buffer: 10k -> 10.5k leaves $800 of room
 PASS  entry size: book caps below the guard  
 PASS  entry size: guard caps below the book  
 PASS  entry size: never above the account  
-PASS  window drawdown reads the engine (or the 3% conservative default)  3.16
+PASS  window drawdown reads the engine (or the 3% conservative default)  1.75
 PASS  unknown coin fails conservative to 3%  
 PASS  save/load round trip  
 PASS  start balance follows the tier, not the balance  
@@ -25,8 +25,8 @@ PASS  console: tier selector drives the contest account state
 PASS  console: current balance is the sizing base  
 PASS  console: the death line is always visible (header LED + account plate)  
 PASS  QC: the 3% guard caps _spend_usd  
-PASS  QC: at-the-line rejection (buffer gone = no new risk)  
-PASS  QC: NO GREEN line for the death line  
+PASS  QC: at-the-line rejection (either binding floor = no new risk)  
+PASS  QC: NO GREEN line names the binding floor (death line or daily lock)  
 PASS  popup: the guard caps the alert's spend and can suppress  
 PASS  popup: the sizing base is the LIVE contest account  
 PASS  popup: the guard's message explains the cap  

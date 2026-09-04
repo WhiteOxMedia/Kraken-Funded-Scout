@@ -63,11 +63,11 @@ check("hard stop: fresh 1k -> -$15 (the old -$100 fired AFTER death)",
       abs(stop_for(1000) - 15.0) < 0.01, stop_for(1000))
 check("hard stop tightens as the buffer shrinks: 10k at $9,800 -> -$50",
       abs(stop_for(10000, 9800.0) - 50.0) < 0.01, stop_for(10000, 9800.0))
-check("the light's stop reads the contest account (tier-aware)",
-      "_ca_l.buffer(_acct_l) * 0.5" in sc)
+check("the light's stop reads the contest account (tier-aware, lock-aware since Sep 4)",
+      "_ca_l.effective_buffer(_acct_l) * 0.5" in sc)
 check("the fixed -100 stop is gone", "_usd_now <= -100.0" not in sc)
-check("the stop message states the tier-aware amount",
-      "half the death-line buffer" in sc)
+check("the stop message states the binding floor's amount",
+      "half the {_fl_name} buffer" in sc)
 
 # ── 3. the warnings scale with the position size ─────────────────────
 check("giveback threshold: 1.5% of entry size (not fixed $50)",

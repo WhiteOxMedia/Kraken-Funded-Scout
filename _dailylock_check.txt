@@ -1,0 +1,37 @@
+PASS  legacy state (no daily fields) fails open to the platform line  
+PASS  yesterday's peak doesn't lock today (daily reset)  
+PASS  a flat day (no gain) locks nothing  
+PASS  a down day locks nothing (the platform line stands)  
+PASS  up $400 on the day: floor = day-start + 65% of the gain ($10,260)  10260.0
+PASS  up $200: floor $10,130 (protects $130, allows $70 giveback)  
+PASS  the PEAK rules, not the current: a giveback doesn't lower the floor  
+PASS  the lock never sits below the platform line  
+PASS  THE PLATFORM LINE NEVER MOVES (the audit invariant)  
+PASS  effective buffer = the smaller of the two (lock active)  140.0
+PASS  effective buffer = the platform room when the lock is inactive  
+PASS  binding floor: 'daily-lock' when the day is up  
+PASS  binding floor: 'platform' when the lock is inactive  
+PASS  no state passed = platform-only math (the tests' deterministic path)  
+PASS  lock active: up $400, the 3% dd cap shrinks to ~$1,587 (vs ~$6,460 platform-only)  1586.6666666666667
+PASS  the guard's worst case still eats only ~34% of the LOCK buffer  
+PASS  under the lock floor: NO new risk (cap 0)  
+PASS  at the platform line (no lock): still 0 — the old rule unchanged  
+PASS  save_state creates the daily fields (the balance-write chokepoint)  
+PASS  a balance drop never lowers the peak (the lock ratchets one way)  
+PASS  a balance rise ratchets the peak  
+PASS  a new Denver day resets the lock (fresh room today)  
+PASS  touch is idempotent (a second touch changes nothing)  
+PASS  the light's hard stop uses the effective buffer  
+PASS  the light speaks the lock when it ratchets  
+PASS  the light touches the peak every pass (the day rolls even without trades)  
+PASS  send_alert's guard touches the peak + names the binding floor  
+PASS  the popup's SPEND line names BOTH guards when the lock binds  
+PASS  the mover popup's guard is lock-aware  
+PASS  the QC guard is lock-aware + stores the binding floor  
+PASS  the QC's no-green names WHICH floor binds  
+PASS  the QC's at-the-line toast has the daily-lock branch  
+PASS  the exit check's stop uses the effective buffer  
+PASS  the master panel shows the DAY FLOOR when the lock is active  
+PASS  the death-line functions are untouched (the platform model stands)  
+
+RESULT: 35 passed, 0 failed

@@ -1553,8 +1553,16 @@ def _today_facts() -> list[str]:
         _buf = _ca_f.buffer(_acct)
         _pace = _ca_f.daily_pace_usd(_acct)
         _tier = _ca_f.TIERS[_acct["tier"]]["label"]
+        # THE DAILY LOCK (Sep 4): the ratcheting floor protecting today's
+        # progress — shown when it's actually above the platform line
+        _lock_txt = ""
+        _which_f, _floor_f = _ca_f.binding_floor(_acct)
+        if _which_f == "daily-lock":
+            _lock_txt = (f"   🔒 DAY FLOOR <span class='dim'>....</span> "
+                         f"<span style='color:#ffc36b;'>${_floor_f:,.0f}</span>"
+                         f" (protects today's gain)")
     except Exception:
-        _line, _buf, _pace, _tier = 0.0, 0.0, 0.0, "?"
+        _line, _buf, _pace, _tier, _lock_txt = 0.0, 0.0, 0.0, "?", ""
     _pace_col = "#4be38a" if banked >= _pace else "#ffc36b"
     return [
         f"SIGNALS FIRED <span class='dim'>......</span> {n_sig}"
@@ -1565,7 +1573,8 @@ def _today_facts() -> list[str]:
         f"   BUFFER <span class='dim'>..........</span> ${_buf:,.0f}"
         f"   PACE <span class='dim'>............</span> "
         f"<span style='color:{_pace_col};'>${banked:,.0f} of ${_pace:,.0f}/day</span>"
-        f"   LIVE <span class='dim'>........</span> {n_open}",
+        f"   LIVE <span class='dim'>........</span> {n_open}"
+        f"{_lock_txt}",
         f"<span class='dim'>graded from the real records — signals.db + the goal ledger + "
         f"the contest account. Every number scales with the selected tier. "
         f"This is how the system learns.</span>",
@@ -2208,14 +2217,21 @@ def render_quick_check(cfg: TradingConfig, kraken):
                 _risk_cap = None
                 try:
                     import contest_account as _ca
-                    _acct = _ca.load_state()
+                    _acct = _ca.touch_daily_peak()
                     _wdd = _ca.window_drawdown_pct(pair)
                     _risk_cap = _ca.max_entry_usd(
-                        _acct["current_balance"], _wdd, _acct["start_balance"])
+                        _acct["current_balance"], _wdd, _acct["start_balance"],
+                        state=_acct)
                     st.session_state["qc_result"]["risk_cap"] = _risk_cap
                     st.session_state["qc_result"]["window_dd"] = _wdd
+                    try:
+                        _which_fl, _floor_fl = _ca.binding_floor(_acct)
+                        st.session_state["qc_result"]["binding_floor"] = _which_fl
+                        st.session_state["qc_result"]["floor_usd"] = _floor_fl
+                    except Exception:
+                        pass
                     if _risk_cap <= 0:
-                        _spend_usd = 0.0  # at/near the line — no new risk
+                        _spend_usd = 0.0  # at/near a binding floor — no new risk
                     else:
                         _spend_usd = min(_spend_usd, _risk_cap)
                 except Exception as _exc:
@@ -2511,16 +2527,29 @@ def render_quick_check(cfg: TradingConfig, kraken):
                     elif (sig.action == "buy" and not no_buy
                             and sig.confidence >= QC_SCALP_FLOOR
                             and _risk_cap is not None and _risk_cap <= 0):
-                        # THE DEATH LINE (Kraken Funded: -3% from start, never
-                        # moves): the buffer is gone — any new trade can close
-                        # the account. No new risk, full stop.
+                        # A BINDING FLOOR IS GONE: the -3% death line (Kraken
+                        # Funded: from start, never moves) OR the DAILY LOCK
+                        # (Sep 4: the day's progress is protected — the
+                        # account can afford the trade, but it would risk
+                        # today's locked-in gain). Either way: no new risk.
+                        _bf_name = str(st.session_state.get("qc_result", {})
+                                       .get("binding_floor") or "platform")
                         try:
-                            st.toast(f"☠ AT THE DEATH LINE — {asset}: the account is at "
-                                     f"the -3% line. ANY new trade can close the contest. "
-                                     f"No entries until the balance recovers above the line.",
-                                     icon="☠", duration=25)
-                            _play_sound("alarm")
-                            _speak(f"No! At the death line! No new trades!", rate=1)
+                            if _bf_name == "daily-lock":
+                                st.toast(f"🔒 AT THE DAILY LOCK — {asset}: the day's progress "
+                                         f"is locked. A new entry here would risk today's "
+                                         f"protected gain — wait for fresh room tomorrow "
+                                         f"(or a higher peak).",
+                                         icon="🔒", duration=25)
+                                _play_sound("alarm")
+                                _speak(f"No! The daily lock! Protect the day's progress!", rate=1)
+                            else:
+                                st.toast(f"☠ AT THE DEATH LINE — {asset}: the account is at "
+                                         f"the -3% line. ANY new trade can close the contest. "
+                                         f"No entries until the balance recovers above the line.",
+                                         icon="☠", duration=25)
+                                _play_sound("alarm")
+                                _speak(f"No! At the death line! No new trades!", rate=1)
                         except Exception:
                             pass
                     elif (sig.action == "buy" and not no_buy
@@ -2703,7 +2732,8 @@ def render_quick_check(cfg: TradingConfig, kraken):
                     ("NO GREEN — THIS HOUR DUMPED YESTERDAY" if yshape == "blowoff" else
                      ("NO GREEN — TIDE'S OUT" if tide_state == "OUT" else
                       ("NO GREEN — TOO THIN" if (result.get("spend_usd", 1) or 0) <= 0 else
-                       (f"NO GREEN — AT THE DEATH LINE (buffer gone — any trade can close the contest)"
+                       (f"NO GREEN — AT THE {str(result.get('binding_floor') or 'PLATFORM').upper()} "
+                        f"(a binding floor is gone — no new risk)"
                         if (result.get("risk_cap", 1) or 0) <= 0 else
                        (f"NO GREEN — THIN BOOK, BRAIN NOT EXCEPTIONAL ({sig.confidence:.0f}% vs the "
                         f"{champ_floor:.0f}% thin-book floor, {champ_min:.0f}%+ to challenge) — wait for the big-coin calls"
@@ -3999,14 +4029,15 @@ def render_exit_check(cfg: TradingConfig, kraken):
         except Exception:
             pass
     _window_expired = bool(_w_window and _left_min is not None and _left_min <= 0)
-    # tier-aware hard stop: half the remaining death-line buffer (same rule
-    # the voice uses — contest_account is the one source of truth)
+    # tier-aware hard stop: half the remaining EFFECTIVE buffer (Sep 4:
+    # the daily lock — once the day is up, the stop tightens to protect
+    # the day's progress; contest_account is the one source of truth)
     _stop_usd = None
     if _w_size:
         try:
             import contest_account as _ca_ec
             _acct_ec = _ca_ec.load_state()
-            _stop_usd = max(_ca_ec.buffer(_acct_ec) * 0.5, 5.0)
+            _stop_usd = max(_ca_ec.effective_buffer(_acct_ec) * 0.5, 5.0)
         except Exception:
             _stop_usd = None
     _hard_stop_hit = bool(_pnl_usd is not None and _stop_usd and _pnl_usd <= -_stop_usd)

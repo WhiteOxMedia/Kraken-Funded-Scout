@@ -1328,6 +1328,7 @@ def _max_resolve_hours() -> float:
 # call — the voice repeats every 60s while the exit condition holds, until
 # the user taps SOLD. Never auto-drop a tracked position.
 _last_exit_voice: dict[str, float] = {}
+_last_lock_floor_usd = 0.0   # the daily-lock voice pacing (speak on +$50 climbs)
 
 
 def contest_light(exchange, cfg):
@@ -1344,6 +1345,31 @@ def contest_light(exchange, cfg):
     if not watch:
         return
     voice = _voice_enabled()
+
+    # ── THE DAILY PROFIT LOCK (user rule, Sep 4): roll the day + ratchet
+    # the peak every pass (the rollover must happen even on a quiet day),
+    # and SPEAK the lock when it moves — the user hears the floor rise
+    # behind their progress. Paced: speak on first activation and each
+    # time the floor climbs by ≥$50.
+    global _last_lock_floor_usd
+    try:
+        import contest_account as _ca_dl
+        _acct_dl = _ca_dl.touch_daily_peak()
+        _which_dl, _floor_dl = _ca_dl.binding_floor(_acct_dl)
+        if _which_dl == "daily-lock" and voice:
+            _prev_dl = float(globals().get("_last_lock_floor_usd") or 0.0)
+            if _floor_dl > _prev_dl + 49.99 or _prev_dl <= 0.0:
+                _gain_dl = float(_acct_dl.get("daily_peak_balance") or 0.0) \
+                    - float(_acct_dl.get("daily_start_balance") or 0.0)
+                _speak_server(f"Up {_gain_dl:.0f} dollars on the day! "
+                              f"The floor moves to {_floor_dl:.0f}! "
+                              f"Protecting the progress!", rate=1)
+                logger.info("🔒 DAILY LOCK: up $%.0f on the day — the effective floor "
+                            "ratchets to $%.2f (protects %.0f%% of the day's gain)",
+                            _gain_dl, _floor_dl, _ca_dl.DAILY_PROTECT_FRAC * 100)
+                _last_lock_floor_usd = _floor_dl
+    except Exception as _exc_dl:
+        logger.debug("daily lock pass failed: %s", _exc_dl)
 
     # ── THE TIDE: fleet-wide warning (user rule, Aug 26) — when the tide
     # goes OUT, every ship sinks together; that warning applies to ALL
@@ -1397,20 +1423,27 @@ def contest_light(exchange, cfg):
         # should auto adjust when the contest is selected"): the old fixed
         # -$100 was calibrated to the 5k tier — on the 1k tier ($30 death
         # line) it would fire AFTER the account was already dead. Now the
-        # stop = half the remaining buffer (fresh 10k: -$150; fresh 1k:
-        # -$15) — and it TIGHTENS automatically as the buffer shrinks.
+        # stop = half the remaining EFFECTIVE buffer (Sep 4: the daily
+        # lock — once the day is up, the stop tightens to protect the
+        # day's progress, not just the platform line) — and it TIGHTENS
+        # automatically as the buffer shrinks.
         if not should_exit and entry > 0 and live > 0:
             _usd_now = (live / entry - 1.0) * size
             try:
                 import contest_account as _ca_l
                 _acct_l = _ca_l.load_state()
-                _stop_usd = max(_ca_l.buffer(_acct_l) * 0.5, 5.0)
+                _stop_usd = max(_ca_l.effective_buffer(_acct_l) * 0.5, 5.0)
             except Exception:
                 _stop_usd = max((float(cfg.challenge_balance) * 0.03) * 0.5, 5.0)
             if _usd_now <= -_stop_usd:
                 should_exit = True
+                _fl_name, _fl_usd = ("the daily lock", 0.0)
+                try:
+                    _fl_name, _fl_usd = _ca_l.binding_floor(_acct_l)
+                except Exception:
+                    pass
                 reason = (f"STOPPED OUT — down ${abs(_usd_now):.0f} (the stop is "
-                          f"-${_stop_usd:.0f} — half the death-line buffer). "
+                          f"-${_stop_usd:.0f} — half the {_fl_name} buffer). "
                           f"The trade failed — get out, wait for the next one.")
 
         # ── 2. strategy sell bar (contest profile: 50%) ────────────────
@@ -2186,21 +2219,27 @@ def main():
         # at all — the account is at the line and any trade can close it.
         try:
             import contest_account as _ca
-            _acct = _ca.load_state()
+            _acct = _ca.touch_daily_peak()
             _acct_bal = float(_acct["current_balance"])
             if _acct_bal > 0:
                 _bal = _acct_bal  # the sizing base = the LIVE contest account
             _wdd = _ca.window_drawdown_pct(pair)
-            _risk_cap = _ca.max_entry_usd(_acct_bal, _wdd, float(_acct["start_balance"]))
+            _risk_cap = _ca.max_entry_usd(_acct_bal, _wdd, float(_acct["start_balance"]),
+                                           state=_acct)
             if _risk_cap <= 0:
-                logger.info("  DEATH LINE: buffer gone (%.0f from the line) — no buy popup",
-                            _acct_bal - _ca.death_line(_acct))
+                _which_fl, _floor_fl = _ca.binding_floor(_acct)
+                logger.info("  %s: buffer gone (%.0f above the %s floor at $%.2f) — no buy popup",
+                            "DAILY LOCK" if _which_fl == "daily-lock" else "DEATH LINE",
+                            _acct_bal - _floor_fl, _which_fl, _floor_fl)
                 return
             if _spend > _risk_cap:
                 _spend = _risk_cap
-                contest_msg = (f"  SPEND: ${_spend:,.0f} — THE 3% GUARD: this coin's worst-case "
+                _which_fl2, _floor_fl2 = _ca.binding_floor(_acct)
+                _guard_name = ("THE 3% GUARD + THE DAILY LOCK"
+                               if _which_fl2 == "daily-lock" else "THE 3% GUARD")
+                contest_msg = (f"  SPEND: ${_spend:,.0f} — {_guard_name}: this coin's worst-case "
                                f"window drawdown is {_wdd:.1f}%; ${_spend:,.0f} is the most the "
-                               f"death line can afford\n")
+                               f"{_which_fl2} can afford\n")
         except Exception as _exc:
             logger.debug("3%% guard unavailable in send_alert: %s", _exc)  # fail-open
         # ── THE WORTH FLOOR (user rule, Sep 2: "big coins only... less
@@ -2770,10 +2809,14 @@ def main():
                                                    f"(book carries ~${_m_carry:,.0f}) — desktop suppressed")
                                     else:
                                         _m_wdd = _ca.window_drawdown_pct(pair)
+                                        _m_acct = _ca.touch_daily_peak(_m_acct)
                                         _m_risk = _ca.max_entry_usd(
-                                            _m_bal, _m_wdd, float(_m_acct["start_balance"]))
+                                            _m_bal, _m_wdd, float(_m_acct["start_balance"]),
+                                            state=_m_acct)
                                         if _m_risk <= 0:
-                                            _m_skip = "MOVER DEATH LINE: buffer gone — no buy popup"
+                                            _m_which_fl, _m_floor_fl = _ca.binding_floor(_m_acct)
+                                            _m_skip = (f"MOVER {_m_which_fl.upper()}: buffer gone "
+                                                       f"— no buy popup")
                                         else:
                                             if _m_spend > _m_risk:
                                                 _m_spend = _m_risk

@@ -9,9 +9,9 @@ PASS  entry cap scales: 1k $510 < 5k $2,550 < 10k $5,100  510/2550/5100
 PASS  hard stop: fresh 10k -> -$150 (was fixed -$100)  150.0
 PASS  hard stop: fresh 1k -> -$15 (the old -$100 fired AFTER death)  15.0
 PASS  hard stop tightens as the buffer shrinks: 10k at $9,800 -> -$50  50.0
-PASS  the light's stop reads the contest account (tier-aware)  
+PASS  the light's stop reads the contest account (tier-aware, lock-aware since Sep 4)  
 PASS  the fixed -100 stop is gone  
-PASS  the stop message states the tier-aware amount  
+PASS  the stop message states the binding floor's amount  
 PASS  giveback threshold: 1.5% of entry size (not fixed $50)  
 PASS  loss threshold: same scaling  
 PASS  the thresholds at 10k ($3,400 entry) ≈ the old $50 loudness  
