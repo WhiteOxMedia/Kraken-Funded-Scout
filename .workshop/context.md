@@ -77,6 +77,9 @@ THE THIN-BOOK BRAIN RULE (451ae90, test_thinbrain.py 23/23): a book that can't c
 
 ## THE SILENCE DIAGNOSIS + TIDE-AWARE FLOORS (272add3, test_tidefloor.py 18/18): DESKTOP_ALERT_MIN: RISING → 78; FLAT → 89; lone wolves 55; broken read fails closed to 89 (and the brain read itself fails closed — ad13541).
 
+## THE ROTATION-AWARE POPUP FLOOR + HEAD-TO-HEAD CHALLENGE (Sep 4, 6a9fe4d, test_popupfloor.py 51/51)
+The popup floor knows the rotation schedule now: DESKTOP_ALERT_MIN starts from ROTATION_POPUP_FLOOR {00-04: 84, 04-08: 89, 08-12: 84, 12-16: 89, 16-20: 93, 20-24: 99}, then RISING relaxes by 11 (never below 78), lone wolf discounts to 55, broken reads fail closed to the rail. Calibrated by diag_popupfloor.py (110 decided outcomes: in Asia/EU-US 89+ reads won 45-50% while 60-78 reads won 75-83%; US-Late 89+ went 0-1 → the tighten). POPUP_NEAR_MISS_PTS=5 — the HEAD-TO-HEAD CHALLENGE: a brain read within 5 BELOW the floor fires as a CHALLENGER popup (title "— CHALLENGER", voice "just under the floor", message line "a near-miss, not a champion: size it like one"); below floor−5 stays suppressed; no brain read = no popup. popup_floor()/popup_floor_for_rotation() in background_scanner.py = ONE source of truth — the QC's thin-book champ_floor reads the same stack + the same challenger window (champ_challenge/champ_challenge_min in qc_result; the why carries ", challenger"; green reads "SCALP GREEN LIGHT — CHALLENGER"). TRUMP/RENDER (91-96% reads) were ABOVE every rail — that was the breakout-detector fix (dd380cb), not this one.
+
 ## THE MOVER FUNNEL (46abac9/169052a + 0488911 + ad13541, test_moverfunnel.py 44/44)
 All-pair runners ≥+5%/24h + yesterday's losers; MOVER_MIN_CONF=55; deep ≥60 + no downward trend; tide stamp + OUT = no write; fresh-listing guard (≥100 candles); rotation lockout; source="scout_mover"; 10-min pacing. Desktop: brain-judged ≥89 (fail-closed) + new-game format + worth floor (dial). Bridge write = the bot's ledger.
 
@@ -135,7 +138,7 @@ Verify process start > commit time before saying live. I do NOT restart. Console
 - kraken_scout/diag_syrup.py (bridge dump), diag_aster.py (position roll audit), diag_rebaseline2.py (breaker re-baseline)
 - kraken_scout/execution_tiers.py — measure_book; SIZE_CAP_PCT=20
 - kraken_scout/volatility_engine.py — THE coin profiles; rotation_thresholds.json
-- tests (kraken_scout root): moverfunnel 44, contestline 33, popupbrain 33, positionscale 20, soldpnl 14, tierauto 26, winnerlock 10, nearmiss 39, rotation 24, trendbridge 26, lonewolf 21, tidestamp 22, thinbrain 23, confirmwindow 17, tidefloor 18, depthcheck 14, qclonewolf 13, hersize 11, pushfilter 11, persist 10, dcagate 10, herwords 9 (~530 checks, all green) + apptest
+- tests (kraken_scout root): moverfunnel 44, contestline 33, popupbrain 33, positionscale 20, soldpnl 14, tierauto 26, winnerlock 10, nearmiss 39, rotation 24, trendbridge 26, lonewolf 21, tidestamp 20 (stale bot-reader checks replaced with the upstream OUT guard, Sep 4), thinbrain 23, confirmwindow 17, tidefloor 18, depthcheck 14, qclonewolf 13, hersize 11, pushfilter 11, persist 10, dcagate 10, herwords 9, entrycontrol 55, popupfloor 51, trumpfix 11 (~640 checks, all green) + apptest
 - kraken_scout/reminders/ — the Sep 7 tide task
 
 ## Accounting notes
@@ -143,7 +146,7 @@ Real account ~$183.59 free + **the bot holds APT @ 0.5839 since 9/2 17:48 (91% s
 
 ## Open items
 - USER RULES (cumulative): ASK FIRST; never modify desktop/system scripts without telling; never restart the stack myself; "don't delete anything"; a question mark / thoughts request = ASK; the $20 game RETIRED; THE PRIORITY: less entries, more money — big coins, high confidence, brain-driven; never uv add/uv sync while the stack runs.
-- **BOT WINDOW RESTART PENDING (2 commits): d7d2c59 (winner-lock exception) + d3861cc (position ladder + deep winner-lock scan). Close the Bot window + run the shortcut. APT unaffected.**
+- **STACK RESTART PENDING (6a9fe4d, Sep 4): rotation popup floor + head-to-head challenger — the 07:08 stack predates it. Close the console window + rerun the shortcut. (Per RESTART DISCIPLINE: the user restarts, never me.)**
 - **THE FLATTEN LESSON: re-baseline BEFORE funding anything from the real account (the ASTER flatten fired 2 min ahead of the re-baseline). Tell me before transfers.**
 - **THE LIVE 10k RUN: first alerts through the full gauntlet are the validation. Dial at 25% ($60 floor). SOLD auto-fills the balance — hand-correct when reality differs.**
 - ⏰ TIDE DATA REMINDER: 2026-09-07 10:00 AM → diag_tidedata.py.
