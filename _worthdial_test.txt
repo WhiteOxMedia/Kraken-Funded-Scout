@@ -1,0 +1,30 @@
+PASS  base default is the approved 0.25  
+PASS  clamped [10%, 40%]  
+PASS  tide RISING relaxes 15%  
+PASS  catch-up: behind 1.15 / ahead 0.90  
+PASS  weekday: the day's best rotation (08-12) gets the full dial (pace 1.0)  1.0
+PASS  weekday: the slowest rotation (04-08) scales down (0.69)  0.6941778630838131
+PASS  weekend: the day's best rotation (16-20) gets the full dial (pace 1.0)  1.0
+PASS  weekend: the slowest rotation (08-12) scales down (0.66)  0.6560379918588873
+PASS  pace factor never exceeds 1.0 or drops below 0.6  
+PASS  a down day -> BEHIND (accept smaller pays)  
+PASS  way ahead of the pace -> AHEAD (only the big ones interrupt)  0.9
+PASS  the full day's pace banked -> AHEAD  
+PASS  roughly on pace -> neutral (1.0)  gain 115 vs expected 144 -> 1.0
+PASS  the toggle defaults ON when the key is missing  
+PASS  the base reads the slider (0.25)  
+PASS  the effective dial is the clamped product  {'auto': True, 'base': 0.25, 'pace': 0.7843889955214332, 'tide': 1.0, 'catchup': 1.0, 'effective': 0.1960972488803583}
+PASS  _worth_floor_frac returns the effective dial (the gates read it)  
+PASS  the toggle OFF -> the static base (the old behavior)  
+PASS  the user's 0% (OFF) beats the auto-dial (never resurrected)  
+PASS  a huge base clamps at 40%  
+PASS  a small base never drops below 10%  
+PASS  the live console ships base 0.25 + auto ON  
+PASS  both popup gates read the (now auto) dial live  
+PASS  the console toggle exists and defaults ON  
+PASS  the console shows the SAME math the scanner gates on  
+PASS  the console saves the toggle  
+PASS  0% OFF is honored in the console copy too  
+PASS  the calibration diag exists  
+
+RESULT: 28 passed, 0 failed

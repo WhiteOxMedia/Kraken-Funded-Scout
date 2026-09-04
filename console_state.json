@@ -3,6 +3,7 @@
  "watch_on": true,
  "exit_checks": 21,
  "voice_on": true,
- "worth_floor_frac": 0.35,
- "goal_on": true
+ "worth_floor_frac": 0.25,
+ "goal_on": true,
+ "worth_floor_auto": true
 }

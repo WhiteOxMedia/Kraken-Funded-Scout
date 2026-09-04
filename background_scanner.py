@@ -898,31 +898,136 @@ GOAL_DEFAULT_PCT = 1.5     # young profile / no cell: a moderate default
 # ── THE WORTH FLOOR (user rule, Sep 2 — "big coins only... less entries
 # but more money"; the JUP 14:52 lesson: a guard-capped $233 entry at the
 # +2% goal pays $4.66 — noise that only pays the spread): the sized entry
-# at its goal must pay at least HALF the daily pace ($120 on the 10k
-# tier, $12 on 1k) or the popup is bumped. No alert is better than a
-# worthless alert. NOTE: on a FRESH account this also bumps high-drawdown
-# coins whose guard cap x goal can't reach the floor — the first trades
-# must be the safest ones; as the buffer grows, more coins unlock.
-WORTH_FLOOR_PACE_FRAC = 0.5
+# at its goal must pay at least the dial's share of the daily pace
+# ($120 on the 10k tier at the 0.5 code default, $60 at the 0.25 base)
+# or the popup is bumped. No alert is better than a worthless alert.
+# NOTE: on a FRESH account this also bumps high-drawdown coins whose
+# guard cap x goal can't reach the floor — the first trades must be the
+# safest ones; as the buffer grows, more coins unlock.
+WORTH_FLOOR_PACE_FRAC = 0.5      # the manual-off fallback default
+# ── THE AUTO-DIAL (user rule, Sep 4: "auto-dial the worth floor dial to
+# the proper location every rotation" — user approved: base 0.25, the
+# toggle defaults ON): effective = BASE x pace x tide x catch-up,
+# clamped [10%, 40%]. The dial's slider becomes the BASE anchor when
+# auto is on; OFF = the old static behavior.
+#   pace     — this rotation's median expected move / the day's best
+#              rotation (the engine's live cells; the floor scales with
+#              what the market can actually pay this hour — a static
+#              floor goes SILENT in slow hours, killing the day's pace)
+#   tide     — RISING carries greens, don't over-filter (0.85); FLAT
+#              stands (OUT never reaches the popup)
+#   catch-up — behind the day's pace -> accept smaller pays (1.15);
+#              ahead -> only the worthwhile ones interrupt (0.90).
+#              Reads the daily lock's ledger (contest_account).
+# Calibration: diag_worthdial.py (the record's goals per rotation + the
+# engine's live pace factors — the best win-rate hours 12-16/16-20 are
+# where the engine puts the day's biggest expected moves).
+WORTH_AUTO_BASE_DEFAULT = 0.25
+WORTH_AUTO_MIN = 0.10
+WORTH_AUTO_MAX = 0.40
+WORTH_TIDE_RISING_FACTOR = 0.85
+WORTH_CATCHUP_BEHIND = 1.15
+WORTH_CATCHUP_AHEAD = 0.90
 
 
-def _worth_floor_frac() -> float:
-    """The worth-floor DIAL (user rule, Sep 2: "should be a dial on the
-    console — adjustable without Workshop"): the console's sidebar writes
-    worth_floor_frac into console_state.json; both popup gates read it
-    LIVE at alert time — turning the dial takes effect on the next alert,
-    no scanner restart. Falls back to the code default when unset or
-    unreadable. 0.0 = the floor is OFF (every gated popup fires)."""
+def _worth_pace_factor(now=None) -> float:
+    """This rotation's median expected move / the day's best rotation's —
+    the floor scales with what the market actually pays this hour. Fail
+    open to 1.0 (the base dial stands)."""
+    try:
+        from volatility_engine import load_rotation_thresholds
+        now = now or _now_mst()
+        doc = load_rotation_thresholds(max_age_s=900) or {}
+        sched = "weekend" if now.weekday() >= 5 else "weekday"
+        moves = {}
+        for _k in ROTATION_KEYS:
+            cell = (doc.get("median", {}).get(sched, {}) or {}).get(_k) or {}
+            _mv = float(cell.get("avg_move") or 0)
+            if _mv > 0:
+                moves[_k] = _mv
+        if not moves:
+            return 1.0
+        _best = max(moves.values())
+        _cur = moves.get(rotation_key_for_hour(now.hour)) or _best
+        if _best <= 0:
+            return 1.0
+        return max(0.6, min(1.0, _cur / _best))
+    except Exception:
+        return 1.0
+
+
+def _worth_catchup_factor() -> float:
+    """Behind the day's pace -> accept smaller payouts (catch up); ahead
+    of it -> only the worthwhile ones interrupt. Reads the daily lock's
+    ledger (the day's peak gain vs the pro-rata pace). Fail-open 1.0."""
+    try:
+        import contest_account as _ca
+        _s = _ca.touch_daily_peak()
+        _pace = _ca.daily_pace_usd(_s)
+        if _pace <= 0:
+            return 1.0
+        _gain = float(_s.get("daily_peak_balance") or 0.0) \
+            - float(_s.get("daily_start_balance") or 0.0)
+        # pro-rata across the 00:00-20:00 trading day
+        _frac = max(0.0, min(1.0, _now_mst().hour / 20.0))
+        _expected = _pace * _frac
+        if _gain <= 0 or _gain < 0.5 * _expected:
+            return WORTH_CATCHUP_BEHIND            # behind — catch up
+        if _gain >= _pace or (_expected >= 0.25 * _pace and _gain > 1.2 * _expected):
+            return WORTH_CATCHUP_AHEAD             # ahead — protect progress
+        return 1.0
+    except Exception:
+        return 1.0
+
+
+def worth_floor_auto_factors(now=None) -> dict:
+    """ONE source of truth for the auto-dial components — the console
+    displays the SAME math the scanner gates on. {base, pace, tide,
+    catchup, effective, auto}."""
+    _base = WORTH_AUTO_BASE_DEFAULT
+    _auto = True
     try:
         import json as _json
         from pathlib import Path as _P
         _cs = _json.loads((_P(__file__).resolve().parent / "console_state.json").read_text())
-        _v = float(_cs.get("worth_floor_frac"))
+        _v = float(_cs.get("worth_floor_frac", _base))
         if 0.0 <= _v <= 1.0:
-            return _v
+            _base = _v
+        _a = _cs.get("worth_floor_auto")
+        _auto = bool(_a) if _a is not None else True   # default ON (user, Sep 4)
     except Exception:
         pass
-    return WORTH_FLOOR_PACE_FRAC
+    _pace = _worth_pace_factor(now)
+    _tide_f = 1.0
+    try:
+        _, _tstate = _fleet_tide()
+        if _tstate == "RISING":
+            _tide_f = WORTH_TIDE_RISING_FACTOR
+    except Exception:
+        pass
+    _catch = _worth_catchup_factor()
+    if _base <= 0:
+        # the user's explicit OFF (0%) beats the auto-dial — never
+        # resurrect a floor the user turned off
+        _eff = 0.0
+    else:
+        _eff = max(WORTH_AUTO_MIN, min(WORTH_AUTO_MAX, _base * _pace * _tide_f * _catch))
+    if not _auto:
+        _eff = _base
+    return {"auto": _auto, "base": _base, "pace": _pace, "tide": _tide_f,
+            "catchup": _catch, "effective": _eff}
+
+
+def _worth_floor_frac() -> float:
+    """The worth-floor DIAL (user rule, Sep 2: "should be a dial on the
+    console — adjustable without Workshop"; Sep 4: auto-dialed every
+    rotation): the console's sidebar writes worth_floor_frac (the BASE
+    when auto is on) + worth_floor_auto into console_state.json; both
+    popup gates read it LIVE at alert time — no scanner restart. AUTO
+    (default on): base x pace x tide x catch-up, clamped [10%, 40%].
+    OFF: the static base. 0.0 = the floor is OFF (every gated popup
+    fires)."""
+    return float(worth_floor_auto_factors()["effective"])
 
 # The stale-move guard (the APT-12:11 lesson): a RE-ENTRY whose move
 # peaked hours ago is a sagging top, not a trend. APT peaked 08:15; the

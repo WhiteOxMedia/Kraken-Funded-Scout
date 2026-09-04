@@ -2,5 +2,8 @@
  "tier": 10000,
  "start_balance": 10000.0,
  "current_balance": 10000.69,
- "updated_at": "2026-09-04T05:08:27.094582-06:00"
+ "updated_at": "2026-09-04T05:08:27.094582-06:00",
+ "daily_peak_date": "2026-09-04",
+ "daily_start_balance": 10000.69,
+ "daily_peak_balance": 10000.69
 }
