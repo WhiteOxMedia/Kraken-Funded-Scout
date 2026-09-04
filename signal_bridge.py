@@ -300,41 +300,39 @@ def get_open_position_count() -> int:
         return row["cnt"] if row else 0
 
 
-# ── THE POSITION LADDER (user rule, Sep 2: "a growing scale will change
-# the focus from one asset to multiple assets as the account balance
-# grows. 1k = 2 assets, 5k = 5 assets and so on up to 10k = 10"): the
-# bot concentrates while small (all capital on the single best pick —
-# the Aug 25 rule) and diversifies as the account compounds. The ladder
-# runs on the TOTAL account value (free cash + positions at market —
-# the user chose this). The READER enforces it at take-time (it has the
-# account access); this write-time cap is just the ceiling so
-# scanner-side writes never starve the reader of challengers.
-POSITION_LADDER = ((1_000.0, 2), (5_000.0, 5), (10_000.0, 10))
+# ── THE POSITION LADDER (user rule, Sep 2; RESPECIFIED Sep 4: "for when
+# the real money account grows we shift gears and focus on more assets
+# than one at a time. 1k-3k = 3 assets; 3k-5k = 5 assets; 5k-10k = 10
+# assets and so on"): RANGES with fixed counts (a step, not a slope —
+# anywhere in 1k-3k is exactly 3). Below $1k: 1 — concentrate while
+# small (the Aug 25 rule). At $10k+ the ladder holds at 10 (capped —
+# new checkpoints when the account gets there). Sizing stays ALL-IN
+# (user choice, Sep 4): each buy deploys 99% of whatever's free — the
+# first position takes everything, later seats fill via ROTATION (sell
+# the weakest to fund a >=70% signal). The ladder is the CONCURRENCY
+# CEILING the reader enforces at take-time on the TOTAL account value
+# (free + positions at market — the user chose this); this write-time
+# cap is just the ceiling so scanner-side writes never starve the
+# reader of challengers.
+POSITION_LADDER = ((1_000.0, 3), (3_000.0, 5), (5_000.0, 10))
 POSITION_CEILING = 10
 
 
 def max_positions_for(account_value_usd: float) -> int:
-    """Slot count for the account value — piecewise through the user's
-    checkpoints (1k=2, 5k=5, 10k=10), clamped [1, 10]. Below $1k: 1 —
-    concentrate while small."""
+    """Slot count for the account value — the user's ranges, stepped:
+    <1k = 1, 1k-3k = 3, 3k-5k = 5, 5k+ = 10 (capped at POSITION_CEILING).
+    A broken/zero read concentrates to 1 (fail-closed)."""
     v = float(account_value_usd or 0.0)
-    if v < POSITION_LADDER[0][0]:
-        return 1
-    n = POSITION_LADDER[-1][1]
-    for i, (bal, slots) in enumerate(POSITION_LADDER):
-        if v < bal:
-            prev_bal, prev_n = POSITION_LADDER[i - 1]
-            frac = (v - prev_bal) / (bal - prev_bal)
-            n = prev_n + frac * (slots - prev_n)
-            break
-    return max(1, min(POSITION_CEILING, int(n + 0.5)))
+    slots = 1
+    for threshold, n in POSITION_LADDER:
+        if v >= threshold:
+            slots = n
+    return max(1, min(POSITION_CEILING, slots))
 
 
-MAX_CONCURRENT_POSITIONS = 1  # RETIRED as the live cap (Sep 2 — the position
-                              # ladder replaced it); kept defined per
-                              # don't-delete. A swap still needs a challenger
-                              # CLEARLY stronger (+10, winners protected
-                              # unless their own chart quits).
+MAX_CONCURRENT_POSITIONS = 1  # RETIRED as the live cap (Sep 2, restored as
+                              # retired Sep 4 — the position ladder is the
+                              # gate again); kept defined per don't-delete.
 
 
 def write_buy_signal(
