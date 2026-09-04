@@ -1501,6 +1501,11 @@ def render_master(cfg: TradingConfig, kraken):
         _pick_card(cfg, kraken)
     _card_tick()
 
+    # THE DISCIPLINE SCORE (user spec, Sep 4: "Did I leave money on the
+    # table?") — the closing rotation's grade, side-by-side with the
+    # contest results, with the lesson learned and the one insight
+    st.markdown(_discipline_plate(), unsafe_allow_html=True)
+
     # TODAY'S FACTS — the system grades itself from real records (user
     # directive: MASTER is for self-correction on facts and figures —
     # signals fired, twenties banked, what the bot rejected — no guessing)
@@ -1510,6 +1515,75 @@ def render_master(cfg: TradingConfig, kraken):
     # the bones — every tool and number still there, one click down
     with st.expander("📐 THE BONES — money score, breaker, integrity"):
         render_master_bones(cfg, kraken)
+
+
+def _discipline_plate() -> str:
+    """THE DISCIPLINE SCORE plate: the score (dopamine-styled), the
+    side-by-side with the contest results, the money-left breakdown,
+    the lesson learned, and the one insight — the spec's four parts in
+    order. Reads discipline_state.json (written by the scanner at every
+    rotation rollover); absent state = the panel hasn't run yet."""
+    try:
+        import discipline as _disc
+        _st = _disc.load_state()
+        _h = _st.get("history") or []
+        _last = _h[-1] if _h else None
+        if not _last:
+            return plate("🎓 DISCIPLINE — did I leave money on the table?",
+                         "<div class='dim' style='padding:8px 4px;'>"
+                         "The first rotation close writes the first score.<br>"
+                         "Goals vs reality vs you — graded every 4 hours, "
+                         "learning its own weights.</div>")
+        s = float(_last.get("score") or 0)
+        col = ("#4be38a" if s >= 80 else "#ffc36b" if s >= 60 else "#ff6b5e")
+        grade = ("SNIPER — nothing slipped" if s >= 85 else
+                 "SOLID — tight rotation" if s >= 65 else
+                 "CAREFUL — money slipped" if s >= 40 else
+                 "UNDISCIPLINED — the table kept it")
+        # the streak: consecutive scores >= 70
+        streak = 0
+        for row in reversed(_h):
+            if float(row.get("score") or 0) >= 70:
+                streak += 1
+            else:
+                break
+        pnl = float(_last.get("realized_pnl") or 0)
+        left = float(_last.get("total_left") or 0)
+        pnl_col = "#4be38a" if pnl > 0 else ("#ff6b5e" if pnl < 0 else "#9a9a9a")
+        # recent history strip
+        strip = " ".join(
+            f"<span style='color:{'#4be38a' if float(r.get('score') or 0) >= 70 else '#ff6b5e'};'>"
+            f"{float(r.get('score') or 0):.0f}</span>"
+            for r in _h[-10:])
+        lessons = _st.get("lessons") or []
+        lesson = lessons[-1].get("lesson", "") if lessons else ""
+        html = f"""
+<div style='font-family:Audiowide,monospace;'>
+  <div style='display:flex;align-items:center;gap:16px;padding:6px 2px;'>
+    <div style='font-size:64px;color:{col};line-height:1;'>{s:.0f}</div>
+    <div style='flex:1;'>
+      <div style='color:{col};font-size:18px;'>🎓 {grade}</div>
+      <div class='dim' style='font-size:12px;'>
+        rotation {_last.get('rot')} of {_last.get('date')} ·
+        streak <span style='color:#4be38a;'>{streak}</span> in a row ≥70 ·
+        recent: {strip}
+      </div>
+    </div>
+    <div style='text-align:right;'>
+      <div style='color:{pnl_col};font-size:22px;'>${pnl:+,.0f}</div>
+      <div class='dim' style='font-size:11px;'>realized this rotation</div>
+      <div style='color:{'#ff6b5e' if left > 1 else '#4be38a'};font-size:14px;'>
+        ${left:,.0f} left on the table</div>
+    </div>
+  </div>
+  <div class='dim' style='font-size:12px;padding:2px 4px 6px;'>
+    🧠 learned: {lesson}
+  </div>
+</div>"""
+        return plate("🎓 DISCIPLINE — did I leave money on the table?", html)
+    except Exception as exc:
+        logger.debug("discipline plate failed: %s", exc)
+        return ""
 
 
 @st.cache_data(ttl=120)

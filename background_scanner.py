@@ -2716,6 +2716,30 @@ def main():
                                       "Check the exit!", rate=1)
             except Exception as _exc:
                 logger.debug("rotation-boundary exception check failed: %s", _exc)
+            # ── THE DISCIPLINE SCORE (user spec, Sep 4: "Did I leave
+            # money on the table?"): evaluate the CLOSING rotation — its
+            # goals vs the scanner's real data vs what the user did —
+            # log it, learn from it, and speak the score + the insight
+            # at the rollover (the dopamine delivery). The console's
+            # MASTER page shows it side-by-side with the balance.
+            try:
+                import discipline as _disc
+                # the closing rotation = the 4h block that ended when the
+                # current one began (works across midnight: 00:xx -> 20-24)
+                _closing_hour = ((now.hour // 4) * 4 - 4) % 24
+                _prev_key = rotation_key_for_hour(_closing_hour)
+                _dres = _disc.evaluate_rotation(exchange, _prev_key, speak=True)
+                if _dres.get("score") is not None:
+                    logger.info("🎓 DISCIPLINE: rotation %s score %.0f — left $%.0f "
+                                "on the table (missed $%.0f / giveback $%.0f / no-exit $%.0f)",
+                                _prev_key, float(_dres["score"]),
+                                float(_dres.get("total_left") or 0),
+                                float(_dres["usd_left"].get("missed") or 0),
+                                float(_dres["usd_left"].get("giveback") or 0),
+                                float(_dres["usd_left"].get("missed_exit") or 0))
+                    logger.info("   lesson: %s", _dres.get("lesson"))
+            except Exception as _exc:
+                logger.debug("discipline evaluation failed: %s", _exc)
 
         current_block_name = block_name
 

@@ -1,0 +1,24 @@
+=== 00-04 ===
+  score: 100.0   realized: $+0.00   left on the table: $0.00
+  components: {'missed': 0, 'giveback': 0, 'missed_exit': 0, 'early_exit': 0}
+  popups: []
+  lesson: Score and money agree (score 100, realized $+0) — weights hold; the calibration stands.
+  insight: Next time: when the goal hits, tap SOLD — the exit scan already told you when.
+=== 04-08 ===
+  score: 100.0   realized: $+0.00   left on the table: $0.00
+  components: {'missed': 0, 'giveback': 0, 'missed_exit': 0, 'early_exit': 0}
+  popups: []
+  lesson: Score and money agree (score 100, realized $+0) — weights hold; the calibration stands.
+  insight: Next time: when the goal hits, tap SOLD — the exit scan already told you when.
+=== 08-12 ===
+  score: 50.0   realized: $+0.00   left on the table: $227.72
+  components: {'missed': 227.72, 'giveback': 0, 'missed_exit': 0, 'early_exit': 0}
+  popups: [('XRP/USD', 'no', 'MISSED'), ('POPCAT/USD', 'paid', 'MISSED'), ('ETH/USD', 'no', 'MISSED'), ('ATOM/USD', 'no', 'MISSED')]
+  lesson: Score and money agree (score 50, realized $+0) — weights hold; the calibration stands.
+  insight: Next time: a paying popup is the system's best call — take the green light when it fires.
+=== 12-16 ===
+  score: 100.0   realized: $+0.00   left on the table: $0.00
+  components: {'missed': 0, 'giveback': 0, 'missed_exit': 0, 'early_exit': 0}
+  popups: []
+  lesson: Score and money agree (score 100, realized $+0) — weights hold; the calibration stands.
+  insight: Next time: when the goal hits, tap SOLD — the exit scan already told you when.
