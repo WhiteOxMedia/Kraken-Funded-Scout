@@ -1,56 +1,155 @@
 # Kraken Scout — Project Context
 
 ## What it is
-Daily trade picker + auto-trader for Kraken. Scout scans 54 challenge assets, runs tournaments, signals the XRP bot (kraken_xrp_trading_bot) which executes on the regular Kraken spot account. Advisory for the Funded challenge; auto-trades spot. One merged "Trading Console" dashboard (localhost:8501) — wood-grain soundboard aesthetic, flow pages + MASTER/TOURNAMENT/QUICK CHECK/EXIT CHECK tabs.
+Daily trade picker + auto-trader for Kraken. Scout scans 54 challenge assets, runs tournaments, signals the XRP bot (kraken_xrp_trading_bot) which executes on the regular Kraken spot account. Advisory for the Funded challenge (Kraken Funded); auto-trades spot. One merged "Trading Console" dashboard (localhost:8501) — wood-grain soundboard aesthetic, flow pages + MASTER/TOURNAMENT/QUICK CHECK/EXIT CHECK tabs. REMOTE: xmrjackpot.com/scout/ reverse-proxies 8501 (admin login; pool server = monero_project\pool\server.py on C:\Python314, SCOUT_UPSTREAM=http://127.0.0.1:8501; separate python; each browser tab is its own Streamlit session).
 
-## THE CONTEST GAME (user's words, Aug 24): scalping $20s
-The user's income system: alert/deep-scan → green light → all-in $5,000 → out at +$20 (+0.4%) → repeat. They built $251 doing this manually. The system's job: find coins whose $20 comes FAST, green-light fresh entries, count the twenties (TAKE IT), call exits. Trend conviction is a REAR-VIEW score — it maxes AFTER a move runs (PENGU: 100% at the top of a +5.6% leg, -$44; PUMP: 79% at the base, +$133). Never ask conviction to pick scalps; the VERDICT (green light) does that.
+## THE REBUILD (Sep 1, commits 4e793a6 + 93e1324 + 09a87f6) — "Using the rules for the contest you just learned about, we need to start fresh rebuilding the contest popups"
+THE SITUATION THAT FORCED IT: the user lost every contest account (no live contest as of Sep 1 ~15:00). The popups killed them: all-in entries against the -3% platform death line on shaky 100%-confidence calls (FIL 10:42 fired 60s after the bot refused it; APT 12:11 = a 100% re-entry 4h after the peak, thin book, sank on entry). The bot survived; the contest side died. The user: "the first win was luck not discipline."
+THE NEW GAME (user's words): "Scalping is over with, count the 20's is gone — only solid trends that go up, buy orders only, no more wiggles. 1 hour to 3 hour time limits and percentage based goals >1%-3% depending on the current market analysis." Default tier 10k, pace $1,200/week (≈$240/day). Console-independent of Workshop. Coin profiles learned over time, tide-aware per rotation/day, deep scans before popups, never a big risk.
 
-## QC SCALP GATE (Aug 24 redesign — the four yeses)
-Green light requires ALL: (1) setup conviction ≥ QC_SCALP_FLOOR=60; (2) $20 pace — _hours_to_scalp ≤ _max_resolve_hours (pace caps 4/5/6h by rotation avg, never past midnight); (3) FRESH — chase guard QC_CHASE_PCT=2.0: live price ≤2% above the last hour's low (4×15m candle lows from the scan df); (4) not cooldown (20:00-24:00). Replaced the old median confidence bar — replay of a week of signals: sub-bar buys hit $20 at 80% vs 72% for bar-passers (the bar predicts nothing for scalps and swung 80→60 on one engine refresh). Panel LEDs: "$20 IN ~X.H", "FRESH +X% OFF BASE / CHASED — STALE MOVE", "SCALP GREEN LIGHT". Rejection toasts in order: ALREADY RAN → TOO SLOW → COOLDOWN → weak setup. The trend-confidence NUMBER stays displayed (setup quality info) — it just doesn't gate scalps.
+### STAGE 1 — THE CONTEST ACCOUNT + THE 3% DEATH-LINE GUARD (4e793a6, test_contestline.py 33/33)
+**contest_account.py** (repo root): TIERS {1k/$20, 5k/$50, 10k/$90}; MAX_LOSS_PCT=3.0 (the death line: -3% from START, never moves, touch = account closes); PROFIT_TARGET_PCT=12; WEEKLY_GOAL_PCT=12; COST_ROUNDTRIP_PCT=0.08; RISK_PER_TRADE_FRAC=0.34; DEFAULT_WINDOW_DD_PCT=3.0; DEFAULT_TIER=10000. Functions: death_line/buffer/daily_pace_usd/pnl_net_usd ((gross, cost_rt, net) — the 0.08% RT cost counts toward target AND line)/window_drawdown_pct (engine cell max_drop, conservative 3% default)/max_entry_usd ((buffer×0.34)/dd; buffer gone → $0)/entry_size_usd. State: contest_account.json — **LIVE CHALLENGE: the user bought the 10k Sep 2 ~17:29 (tier 10000, fresh $10,000; pace $240/day, buffer $300, worth floor $60 at their 25% dial)**. **THE GROWING BUFFER: every gate reads current_balance LIVE at alert time — wins add buffer dollar-for-dollar; the tier itself changes nothing (guard and floor both scale linearly); THE BALANCE IS AUTO: the SOLD tap computes the net and adjusts it (ed6073c) — hand-correct in the sidebar anytime; stale-high is the dangerous direction.** WIRED: console sidebar (tier selector resets fresh; ☠ CONTEST ACCOUNT plate; header LED; cfg.challenge_balance = live). QC: the guard caps _spend_usd; risk_cap ≤ 0 → "☠ AT THE DEATH LINE" + no green. send_alert: the guard caps the popup's spend, sizing base = live account, buffer gone → NO popup.
 
-## ⚡ FAST $20 leaderboard (Aug 24)
-Top of QUICK CHECK: every coin ranked by $20-ETA = (SCALP_TARGET_PCT/avg_move)×4h from the engine's current rotation cells, liquidity-floored (module-level LIQ_ROT_FLOOR_WEEKDAY=15k/WEEKEND=10k in background_scanner — moved out of filter_illiquid so console shares them). Click a coin → loads into the picker → DEEP SCAN. _fast_twenty() is @st.cache_data(ttl=300). PUMP ranked #2 (0.8h, 2.1%/rot) — discovery only, the scan still judges.
+### STAGE 2 — THE POPUP BRAIN (93e1324 + ad13541, test_popupbrain.py 33/33)
+1. **THE BRAIN-JUDGED BAR — FAIL-CLOSED (ad13541, the JUP lesson)**: a CURRENT deep scan runs before the popup; the BRAIN'S number must clear the popup floor (89/78/55-lone-wolf). **A broken/unavailable deep read = NO popup, ever.** Champion + mover popups. The QC still fails open (manual scans). Bridge writes unaffected.
+2. **THE STALE-MOVE GUARD** (STALE_MOVE_H=2.0, STALE_MOVE_DROP_PCT=1.5): a RE-ENTRY whose 4h high is ≥2h old AND price ≥1.5% below it → popup skipped. Fresh first-fires exempt. Fail-open.
+3. **THE GOAL CLOCK** (_window_goal_pct): goal = the engine's expected move clamped 1-3% (unknown coins read the rotation MEDIAN); window = goal×60min clamped 60-180min. "Aim for plus N percent! ... If it hasn't paid by {out_by}, get out!"
+4. **THE WORTH FLOOR (ad13541 + cfa83e2 — a DIAL)**: the sized entry × goal must pay at least the DIAL's share of the daily pace or the popup is bumped. Sidebar slider under the CONTEST ACCOUNT plate (0-100% of daily pace; 0% = off) writes `worth_floor_frac` to console_state.json; **both gates read it LIVE via _worth_floor_frac() at alert time — no scanner restart. Currently 0.25 (the user's choice = $60 floor on the live 10k).** Fail-open on a broken account read. Fresh accounts: high-dd coins stay bumped until the buffer grows.
 
-## TWO LEDGERS (user-mandated separation)
-- CONTEST/QC path = SCALP logic: pace + freshness + 60 floor. Desktop alerts keep the 89% floor (user's standing rule: "for the screen only put the 89% back"). QC changes need only browser F5 — Streamlit re-reads app.py from disk every rerun; imported modules stay cached in the console process.
-- BOT/bridge path = TREND logic: per-asset confidence bars (60+35×false_breakout_rate, per-asset when reliable else median), move gate, tier gates. Bot buys hold to TP with trailing stops — bars are correct there.
+### STAGE 3 — THE GOAL GAME (09a87f6, test_goalgame.py 21/21)
+The light: TAKE IT $20-counting → the GOAL call — watch entries carry goal_pct + window_min. "Goal reached! X up N percent — take the profit!"; _save_take_payout at the goal. QC: the goal gate (engine raw move ≥1% — "TOO SLOW"); header "GOAL +X% · ENGINE EXPECTS Y%". FAST $20 board behind FAST_BOARD_ENABLED=False. **THE LEFTOVER-NAME TRAP (1ea6f42)**: the pace_ok→goal_ok rename missed one QC LED-row reference → NameError killed the QC render; test_goalgame asserts "pace_ok" appears nowhere in app.py. LESSON: renames need a no-old-name assertion; pyflakes (uvx) catches undefined names.
+
+### THE SOLD AUTO-PnL (Sep 2, ed6073c, test_soldpnl.py 14/14)
+The SOLD tap does everything: fetches the LIVE price at tap time → pnl_net_usd(entry, exit, size) (0.08% RT cost included) → **auto-fills the contest balance** (current + net; losses subtract) → **appends to contest_trades.jsonl** (sold_at stamp, pair, entry, exit, size, pnl_gross, cost_rt, pnl_net, balance_after, goal_pct, held_min) → speaks "X sold! Plus/Minus N dollars net! The balance is now B dollars! Adjust me in the sidebar if that's off!" **No size / no live price → the manual reminder path stands.** Console-side — live on F5. contest_trades.jsonl = the contest trade log.
+
+### THE WINNER-LOCK EXCEPTION + THE DEEP SCAN (Sep 2, d7d2c59 + d3861cc, test_winnerlock.py 10/10)
+THE ASTER FADE: ASTER ran +2.5% to 0.74501, faded, lost momentum — the Aug 30 winner lock froze it while green ("we don't want to hold weak positions"). THE FIX: the fresh scan runs BEFORE the lock in _challenge_weakest; **a winner whose OWN chart says SELL is challengeable even in profit — the chart decides, not the price trail** (no giveback test — the user explicitly chose bearish-read-only). **The lock-breaking read is the DEEP read (d3861cc): the brain's number decides the lock; enable/disable wrapped in try/finally so the deep flag never leaks.** Buy/hold reads keep the lock; a broken scan keeps the lock (fail-locked); the strength math guts a bearish incumbent (entry_conf − scan_conf); fresh-buy protection + the 10-point CHALLENGE_MARGIN unchanged (the Aug 29 ENA/NEAR churn lesson intact).
+
+### THE POSITION LADDER (Sep 2, d3861cc bot + 1b19849 scout, test_positionscale.py 20/20)
+User rule: "a growing scale will change the focus from one asset to multiple assets as the account balance grows. 1k = 2 assets, 5k = 5 and so on up to 10k = 10." **max_positions_for(total_account_value)** in signal_bridge (the copy both processes resolve): piecewise through (1k→2, 5k→5, 10k→10), clamped [1,10]; **below $1k = 1 — concentrate all capital on the single best pick (the Aug 25 rule)**. Balance = TOTAL account value (free cash + positions at market — the user chose this; _get_total_account_value in the reader). The READER enforces the ladder at take-time (the gate: open_count >= max_positions_for(total)); **the ENGINE sizes each buy at total/slots** so the spread is real (guard: _slots > 1 keeps all-in for single-slot accounts; fail-open to all-in on a broken read); the bridge WRITE-side caps at POSITION_CEILING (10) so challengers always reach the reader. MAX_CONCURRENT_POSITIONS=1 RETIRED (kept defined). **At today's ~$184 the bot stays 1-slot — the ladder unlocks as winnings land.**
+
+### THE JUP INCIDENT (Sep 2, 14:52 — the case that forced fail-closed + the worth floor)
+The champion alert fired "Buy JUP! 92 percent sure! Small size only $233!" — the 92 was the QUICK number (deep read errored → fail-open hole), the QC's brain said 67 two minutes later, the 1h knife flipped at 15:00 → GET OUT ×7 → cleared 15:08. All in one candle. Fixes = ad13541.
+
+### THE MOVER POPUP CONVERSION (Sep 2, 0488911, test_moverfunnel.py 44/44)
+Title "🚀 MOVER BUY {asset} — {brain}% SURE" (the BRAIN'S number); the goal clock; stale-move guard on EVERY mover fire; sizing = live account → book carry → 3% GUARD cap (MOVER DEATH LINE / MOVER TOO THIN → no popup); her four size verdicts; tide + re-entry lines. The bridge write stays BEFORE the desktop stage. ad13541 added fail-closed + the MOVER WORTH FLOOR (dial-aware).
+
+### THE DCA TRANCHE RETIREMENT (Sep 2, 50c5f83, test_dcagate.py 10/10)
+The exit-check loop's buy-the-dip path RETIRED behind **SCOUT_DCA_ENABLED=False**. Code kept; the reader side untouched (dormant). Re-arm ONLY by the user's explicit call.
+
+### THE EXIT-CHECK RATCHET BUGFIX (Sep 2, 1ea6f42 — pyflakes-found)
+The EXIT CHECK page read `high` BEFORE `_cloned_trailing` defined it — the ratchet NEVER fired there. Fixed: reads the tracked high (bridge + session) BEFORE the call. Also `from typing import Any` added.
+
+### THE CARD KNIFE-GUARD BUGFIX (Sep 2, 187abe8 — pyflakes-found)
+The card's headline picker read `live` BEFORE fetching the ticker — the knife NEVER ran on the card path. Fixed: fetch first. AppTest smoke clean.
+
+### TIER AUTO-ADJUST (Sep 2, 8a678bf, test_tierauto.py 26/26)
+The light's hard stop: half the current buffer (min $5). Giveback/loss warnings: 1.5% of entry size. TODAY'S FACTS tier-aware. Goal language everywhere.
+
+## THE VENV INCIDENT (Sep 2 — REPAIRED)
+`uv add --dev pyflakes` ran WITH THE STACK RUNNING: uv hit DLL locks, aborted mid-transaction, left the venv PARTIALLY UNINSTALLED. REPAIR: user closed all 4 windows (COUNT 0 verified) → `uv sync` completed cleanly (streamlit 1.61.1 verified) → import chain verified → tests green. LESSON (burned in): NEVER uv add/uv sync while the stack runs — use `uvx <tool>`.
+
+## CALIBRATION DISCIPLINE (Aug 31): verdicts come from PRICE DATA, never user taps. The JUP 14:52 case: the qcbar lesson (90+ = least trustworthy band) applies doubly when the number isn't even the brain's.
+
+## THE KRACKEN FUNDED RULES (support.kraken.com/articles/funded, Aug 28 2026; NO API endpoint)
+Tiers 1k/$20, 5k/$50, 10k/$90. THE DEATH LINE: -3% from starting balance, never moves, touch = account closes; NO daily limit. Challenge: +12% target, no time limit, one at a time. Funded: 80% split, withdraw anytime (resets balance to base). Costs: 0.04% spread each side (0.08% RT), no commissions, counts toward target AND the line. Mobile app only, dollar-amount buys, NO leverage, NO STOP ORDERS (the alert system is the ONLY exit). MYTHS CORRECTED: no re-entry fine; trading windows/rotations/20:00 cooldown are OUR constructs.
+
+## THE KILL-SWITCH/CIRCUIT-BREAKER + THE FLATTEN LESSON (Sep 1-2)
+The breaker (−10% daily) reads withdrawals as losses — fired on fees three times (Sep 1, Sep 2 ×2). **THE ASTER FLATTEN (Sep 2 17:38): the $90 challenge fee fired the breaker → the flatten SOLD ASTER at 17:38 — 2 minutes BEFORE the re-baseline could prevent it (re-baselined 17:40). LESSON: when the user plans to fund anything from the real account, re-baseline FIRST (diag_rebaseline2.py) or tell me before the transfer.** After the re-baseline cleared the lock, the pending APT signal took the seat (filled 17:48). NVDA.EQ tokenized stock in the balance (untradeable).
+
+## RESTART DISCIPLINE (Aug 30, user rule) — I do NOT restart the stack
+The user starts via the desktop Kraken shortcut (start-only-missing + mutex). **Stack restarted 9/2 16:57 (scanner batch live: 0488911, 50c5f83, 1ea6f42, ad13541, cfa83e2, 187abe8). 005b9d3 + ed6073c + 1b19849(scout signal_bridge) are console/scout-side — F5 / live-read. PENDING BOT WINDOW RESTART (2 commits): d7d2c59 (winner-lock exception) + d3861cc (position ladder + deep winner-lock scan) — close the Bot window + run the shortcut. APT position unaffected (spot lives at the exchange; fresh-buy cooldown is DB-timestamped).**
+
+## THE ONE-VOICE REVERT LESSON (Aug 31) — a question mark or "thoughts?" = ASK. (Burned 3×.)
+
+## THE PRIORITY DIRECTIVE (Aug 31): "less entries but more money, bigger margins from big coins, high confidence... it still needs the brain" — enforced by the worth floor dial.
+THE THIN-BOOK BRAIN RULE (451ae90, test_thinbrain.py 23/23): a book that can't carry the FULL balance only greens when the brain clears the champion floor. ONE BUY VOICE: the champion alert + the mover popup.
+
+## THE 'ALREADY RAN' CONFIRMATION WINDOW (82011a4, test_confirmwindow.py 17/17): QC + card pass 15 min; scanner + funnel stay strict.
+
+## HER SIZE VOICE (ba891e8, test_hersize.py 11/11): "Big book — all $BAL in fine!" / "Small size only — $X!" / "Too thin!" / "Book unreadable — your call on size!"
+
+## THE DEPTH-STABILITY FIX (6f4a0fa, test_depthcheck.py 14/14): dries-only + ≥$500 material rows.
+
+## THE TREND-REVERSAL EXIT + SILENT CHANNEL (76a8810/0b40507/768668a): the ladder stays mechanical EXCEPT trend reversal = GET OUT NOW (the 1h EMA knife). ENGINE KNIFE (cached 5min, fail-closed) + SILENT CHANNEL (TREND-EXIT WATCH → scout_trend_exit, 15-min pacing) + READER CARVE-OUT (the ONE scout SELL that closes real money). EXIT STACK: SL −5% → TP +10% → trend reversal → ATR trail (arm +0.5%, ×4) → strategy sell (≥+4% AND ≥25 conf).
+
+## THE NEAR-MISS DEEP SCAN + TIDE-AWARE ROTATION BAR (8fff734, test_nearmiss.py 39/39): within 5 pts BELOW the bar → deep scan → judged on the BRAIN'S number. RISING relaxes 11 (floor 60); FLAT keeps the data bar. ONE READ, EVERY CONSUMER.
+
+## THE SILENCE DIAGNOSIS + TIDE-AWARE FLOORS (272add3, test_tidefloor.py 18/18): DESKTOP_ALERT_MIN: RISING → 78; FLAT → 89; lone wolves 55; broken read fails closed to 89 (and the brain read itself fails closed — ad13541).
+
+## THE MOVER FUNNEL (46abac9/169052a + 0488911 + ad13541, test_moverfunnel.py 44/44)
+All-pair runners ≥+5%/24h + yesterday's losers; MOVER_MIN_CONF=55; deep ≥60 + no downward trend; tide stamp + OUT = no write; fresh-listing guard (≥100 candles); rotation lockout; source="scout_mover"; 10-min pacing. Desktop: brain-judged ≥89 (fail-closed) + new-game format + worth floor (dial). Bridge write = the bot's ledger.
+
+## ALL-IN SIZING + CARRY CAP (bot side, test_carrycap.py 17/17): trade_pct=99, dca_enabled=False. deployment = min(99% of available, 20% of top-of-book, total/slots per the ladder); <$100 carry → skip.
+
+## THE TIDE SIZING DECISION (test_tidestamp.py 22/22): 99% in every tradeable tide. ⏰ "KrakenTideDataReminder" fires 2026-09-07 10:00 AM → diag_tidedata.py (keep 99% unless FLAT ≥15pts below RISING AND negative avg).
+
+## PHONE PUSH = BUY NOW / GET OUT NOW ONLY (77e8bc6, test_pushfilter.py 11/11): buys HIGH; GET OUT/SELL/STOPPED OUT URGENT; TAKE IT does NOT push; 5-min throttle. Topic kraken-scout-lsvdtkep (re-subscribe pending).
+
+## HER WORDS FEED + POPUPS (4f072ab + 3763fdc): _speak_server is the ONE mouth (speaks + logs voice_log.jsonl capped 150 + pushes); _render_her_words on every page; 15s ticker. The console's _speak() queues speech_queue files the scanner picks up.
+
+## ROTATION MEMORY (125f1f3, test_rotation.py 24/24): LOCKOUT (one green per asset per rotation); YESTERDAY'S HOUR (blowoff demotion).
+
+## THE LONE WOLF EXCEPTION (ecae0bb + bc7fbd0, test_lonewolf 21 + test_qclonewolf 13): FLAT tide + own 24h move ≥+8% → 35 pts / ≥+5% → 25 pts.
+
+## THE QC'S BAR: QC_SCALP_FLOOR=60, deep conviction. qcbar data: conviction does NOT separate winners; the 90+ band = one triple-counted trade (80-89 won 11%).
+
+## TWO-LEDGER EXIT RULE (Aug 30) + THE ONE CARVE-OUT: contest exits never sell real money; real exits via the bot's ladder — EXCEPT scout_trend_exit.
+
+## THE os.kill WINDOWS BUG + SAFE LAUNCHER (Aug 28): use tasklist for liveness. launch_stack.ps1: starts only missing, never kills.
+
+## VISIBLE WINDOWS (Aug 30): four cmd windows; visible instances don't write logs — liveness = tasklist.
+
+## BOT EXIT FIX (21ab35c): min_profit_to_sell_pct 4.0. Fee math: bot real-spot RT 0.52%; contest RT 0.08%.
+
+## BOOKS & MONEY-FLOW (Aug 30) + Sep 1-2
+Payouts: $251.64 (Aug 20-21). OPEN MYSTERIES: Aug 22 -$305, Aug 25→26 -$90, unattributed ADA sell Aug 27 20:00:30. Fees burned: $90 + $20 + one + $90 (the 10k, Sep 2). **The bot's position rolled (Sep 2): UNI closed 05:20 −$16.35 → ASTER 08:22 @ 0.72655 (92%) → peaked 0.74501 (+2.5%) → faded → FLATTENED by the breaker 17:38 (the fee misread) → APT bought 17:48 @ 0.5839 (91% scout_auto) — CURRENT.** Real account ~$183.59 free + APT. diag_syrup.py (bridge dump) + diag_aster.py (position roll audit) are the tools.
+
+## FIAT-PAIR BOUNCE SPAM (Aug 28) + LEARNED PAIR BLACKLIST (9f2c4a1): _FIAT_BASES filtered; restricted_pairs.py blocks restriction-error pairs.
+
+## QC SCALP GATE (rebuilt Sep 1): green light requires ALL: conviction ≥60 (deep); goal gate ≥1%; FRESH; not cooldown; no FALLING trend; book carry >0; not TIDE OUT; rotation not locked; no blowoff yesterday; THIN BOOKS NEED THE CHAMPION FLOOR; 3% GUARD caps size; buffer gone = AT THE DEATH LINE. Rejection order: ALREADY RAN → DUMPED YESTERDAY → TIDE OUT → DOWNWARD TREND → TOO THIN → AT THE DEATH LINE → THIN BOOK BRAIN NOT EXCEPTIONAL → TOO SLOW → COOLDOWN → weak setup.
+
+## THE ROTATION CONFIDENCE BAR (terminology): auto_trade_threshold = the ROTATION BAR / Gate 2's bar. Data-calibrated (60+35×fbr). Tournament evaluates at 50. The funnel ignores it (own 55).
+
+## TWO LEDGERS (rebuilt Sep 1): CONTEST path = the goal game (live 10k, brain-judged popups FAIL-CLOSED, goals 1-3% on 1-3h windows, 3% guard, worth floor DIAL at 25%, SOLD auto-PnL, solid trends only, buy-only). BOT path = trend logic + the winner-lock exception (deep scan) + the position ladder. No old-game buy paths remain.
+
+## Voice/push architecture
+ONE voice engine (the scanner speaks via Zira every 2s). ONE BUY VOICE: the champion alert + the mover popup (same format). Alert voice: "Buy X! {brain}% sure! [Re-entry!] [Lone wolf!] Aim for plus N percent! [size verdict] {The tide is rising!} If it hasn't paid by {out_by}, get out!" The QC speaks when asked. The light: goal calls, tier-scaled warnings, the clock, tide warnings. SOLD: "X sold! Plus/Minus N dollars net! The balance is now B dollars! Adjust me in the sidebar if that's off!" (manual fallback: "Update the contest balance in the sidebar"). PHONE: BUY/GET OUT only. The silent trend-exit channel bypasses everything.
 
 ## Timezone + conventions
-- ZoneInfo("America/Denver") everywhere. NEVER fixed offsets — the bot's bridge-notify block used fixed UTC-7 for 3 days and stamped records an hour early (Aug 24 fix: ZoneInfo, commit e025ca1).
-- ONE desktop shortcut "Kraken" (Launch Kraken.bat, PURE ASCII) fires all 4: Volatility Engine → Scanner → Trader Bot (bot venv, entry point bot_runner.py) → Console (8501). Dup-safe via PowerShell Get-CimInstance command lines (tasklist/wmic broken on this build).
-- LONG-ONLY mandate: buy always beats sell in bot matches; send_alert hard-guards action != "buy"; console sells read "EXIT / AVOID".
-- Kraken order book levels are [price, amount, timestamp] — star-unpack. Funded payouts = ledger type 'transfer', direction 'in'. @st.cache_data functions taking KrakenAPI use _kraken param.
-- Test scripts write output to *_check.txt files (terminal echo mangles inline prints; never python -c with nested quotes; PowerShell one-liners with nested $() break — write .ps1 files). cmd separator is & (not ;).
+ZoneInfo("America/Denver"). ONE desktop shortcut (start-only-missing, mutex, VISIBLE windows, never touches XMR). LONG-ONLY. Test scripts write *_check.txt and exit 0 even on FAIL — read the file. Never python -c with nested quotes — write .py files. PS 5.1 limits. The bot's scout_signal_reader.py is the LIVE copy (and inserts the SCOUT path first — the scout's signal_bridge/strategy are what the bot resolves). Streamlit edits roll back on interrupt — verify with git diff. NEVER uv add/uv sync while the stack runs — use uvx.
 
-## Process/version discipline (Aug 24 lessons — the hard way)
-- Dup-safe keeps OLD processes alive across "restarts": after ANY code change, verify process start time > commit time before saying it's live (diag_procs4.ps1 pattern). The user's 8:56 launch predated a 10:15 fix and every later restart click skipped (dup-safe) — old code served for 90 min.
-- The console caches imported modules: function-level `from background_scanner import NEW_NAME` crashes against the stale cache. QC handler uses the reload-if-missing pattern (import, check hasattr, importlib.reload). Old names imported at function level are safe.
-- When killing processes: say exactly what's now dead and what it means (no alerts / no exit checks / positions unmanaged). "Done" = verified end-to-end + told the user whether a restart is needed to make it live.
-- Sandbox cannot spawn venv trampolines — test via `cmd /c ".venv\Scripts\python.exe -X utf8 script.py"` from the project dir.
+## Process/version discipline
+Verify process start > commit time before saying live. I do NOT restart. Console module cache: reload-if-missing pattern. 2 pythons per component = ONE instance. NEVER os.kill for liveness (use tasklist).
 
-## Bridge state discipline (Aug 24)
-- Signal lifecycle: pending → acknowledged → filled → closed (the reader marks 'acknowledged' BEFORE executing — any dup check must cover non-terminal statuses: `status NOT IN ('closed','expired','rejected')`). The bot's bridge-notify block wrote a DUPLICATE 'filled' bot_strategy record for every scout buy (is_already_holding only checked 'filled') — duplicates inflated the open-position count → bogus challenge sells → fee churn (~$7 fees on 26 trades/day). Fixed (32b08e0) + regression test test_dupcheck.py (rollback-transaction synthetic).
-- Bridge open-record count MUST equal real bot positions (get_open_positions). Clean duplicates with clean_dupes.py (backs up signals.db.bak-* first, deletes only bot_strategy 'filled' rows with a scout_* 'filled' sibling for the same pair).
-- Challenge system (scout_signal_reader): new signals displace weakest incumbent by ≥10 points; winners >5% up and <30min entries protected. Displacement = sell+buy = fees — watch the churn rate; margin is the dial if it over-fires (deferred per one-week rule).
+## Bridge state discipline (Aug 24): pending → acknowledged → filled → closed. Open records = real positions. Challenge displaces weakest (with the Sep 2 lock exception) ≥10 pts; the position ladder sets the slot count. own_scanning_enabled=False.
 
 ## Key files
-- kraken_scout/app.py — console: QC scalp gate (QC_SCALP_FLOOR/QC_CHASE_PCT near CONTEST_CHUNKS), FAST $20 (_fast_twenty), pace/chase LEDs, contest watch, TAKE IT popups, simple-speak
-- kraken_scout/background_scanner.py — ROTATIONS + module-level LIQ floors, SCALP_TARGET_PCT=0.4, TAKE_IT_USD=20, _hours_to_scalp (THE resolve gate), _max_resolve_hours, send_alert (89% floor + scalp resolve + long-only guard), contest_light (25s, TAKE IT + GET OUT NOW + Zira), bounce path (yesterday's losers), cooldown flatten 20:00 persisted in scanner_state.json
-- kraken_scout/volatility_engine.py — per-asset × rotation × weekday/weekend stats, rotation_thresholds.json, ohlcv_cache.db (1h candles, ms timestamps)
-- kraken_scout/execution_tiers.py — 6 tiers by % of book, health score, VWAP slippage, tiered exec, audit strikes, scale-in queue
-- kraken_scout/diag_replay.py — replay tool: signals vs actual price, $20 hit rates (rerun to recalibrate gates with fresh data)
-- kraken_xrp_trading_bot/bot_engine.py — _execute_buy gate pipeline + fixed bridge notify (ZoneInfo + non-terminal dup check); own_scanning_enabled=False (scout funnel is the ONLY buy source)
-- kraken_xrp_trading_bot/scout_signal_reader.py — ghost sweep (35min grace), challenge system, scale drain; runs as bot_runner.py --interval 15
-- kraken_xrp_trading_bot/logs/bot.log — ground truth for bot behavior (daily rotation, 14 days)
+- kraken_scout/contest_account.py — THE CONTEST ACCOUNT + pnl_net_usd; contest_account.json (LIVE 10k challenge, fresh $10,000)
+- kraken_scout/contest_trades.jsonl — the SOLD auto-PnL trade log
+- kraken_scout/app.py — console: CONTEST ACCOUNT plate + THE WORTH FLOOR DIAL (at 0.25), QC (full gate stack), the CARD, the light panel, her words, tier-aware TODAY'S FACTS, GOAL CALL toggle, SOLD + auto-PnL; FAST_BOARD_ENABLED=False; EXIT CHECK ratchet reads the tracked high
+- kraken_scout/background_scanner.py — ROTATIONS, rotation_gate(+confirm window), lone_wolf_discount, knife_reversed_1h + TREND-EXIT WATCH, NEAR-MISS + TIDE-AWARE BAR, _window_goal_pct + _stale_move + GOAL CLOCK + BRAIN-JUDGED BAR (FAIL-CLOSED) + STALE GUARD + 3% GUARD + THE WORTH FLOOR via _worth_floor_frac(), THE NEW-GAME MOVER POPUP, THE DCA TRANCHE (RETIRED), contest_light, THE MOVER FUNNEL, _speak_server/_log_her_line/_push_to_phone, tide, scanner.lock
+- kraken_scout/signal_bridge.py — THE bridge DB + **max_positions_for (the position ladder)** + POSITION_CEILING write-through (the copy BOTH processes resolve)
+- kraken_xrp_trading_bot/scout_signal_reader.py — THE LIVE READER: the ladder gate (max_positions_for(_get_total_account_value)), the challenge + THE WINNER-LOCK EXCEPTION (deep scan, bearish read breaks the lock, fail-locked on broken scans), _get_total_account_value
+- kraken_xrp_trading_bot/bot_engine.py — per-slot sizing (total/slots, fail-open to all-in) + the carry cap + the exit stack
+- kraken_scout/diag_syrup.py (bridge dump), diag_aster.py (position roll audit), diag_rebaseline2.py (breaker re-baseline)
+- kraken_scout/execution_tiers.py — measure_book; SIZE_CAP_PCT=20
+- kraken_scout/volatility_engine.py — THE coin profiles; rotation_thresholds.json
+- tests (kraken_scout root): moverfunnel 44, contestline 33, popupbrain 33, positionscale 20, soldpnl 14, tierauto 26, winnerlock 10, nearmiss 39, rotation 24, trendbridge 26, lonewolf 21, tidestamp 22, thinbrain 23, confirmwindow 17, tidefloor 18, depthcheck 14, qclonewolf 13, hersize 11, pushfilter 11, persist 10, dcagate 10, herwords 9 (~530 checks, all green) + apptest
+- kraken_scout/reminders/ — the Sep 7 tide task
 
 ## Accounting notes
-- Funded payouts tracked in payout_track.json ($251.64). Live state Aug 24: contest watch had BTC (12:15, 79,000 — negative all day, -$8.50) and PUMP (14:28 manual WATCH at 0.004673 — +$133 by 16:08).
-- Fees matter: 0.26% taker × 2 per round trip ≈ $0.50/trade at $100 sizes; 26 trades/day ≈ $7. Event PnL in bot log is GROSS of fees.
-- ATOM21.S, NVDA.EQ, DOT/TAO dust = permanently in wallet, NOT positions.
+Real account ~$183.59 free + **the bot holds APT @ 0.5839 since 9/2 17:48 (91% scout_auto)**. NVDA.EQ untradeable. **LIVE CONTEST: 10k tier, fresh $10,000 (bought Sep 2 ~17:29)**. Fees burned: $90 + $20 + one + $90. Pace $240/day; worth floor $60 (dial 25%). The position ladder at ~$184 = 1 slot (all-in APT); slots unlock at $1k → 2, $5k → 5, $10k → 10.
 
-## Open items (deferred by the one-week rule, review ~Aug 29-31)
-- Challenge margin / displacement churn — judge on a week of clean data (dup-bug days don't count)
-- QC_SCALP_FLOOR=60 — if green lights feel too frequent, 65 is the dial; use diag_replay.py + actual scalp results
-- Optional: chase guard on the DESKTOP alert path (scanner-side; the QC already gates confirmations) — hold unless away-mode entries get burned
-- TAO/USD blacklisted until Aug 25 10:02 AM (slippage audit, 2 strikes)
+## Open items
+- USER RULES (cumulative): ASK FIRST; never modify desktop/system scripts without telling; never restart the stack myself; "don't delete anything"; a question mark / thoughts request = ASK; the $20 game RETIRED; THE PRIORITY: less entries, more money — big coins, high confidence, brain-driven; never uv add/uv sync while the stack runs.
+- **BOT WINDOW RESTART PENDING (2 commits): d7d2c59 (winner-lock exception) + d3861cc (position ladder + deep winner-lock scan). Close the Bot window + run the shortcut. APT unaffected.**
+- **THE FLATTEN LESSON: re-baseline BEFORE funding anything from the real account (the ASTER flatten fired 2 min ahead of the re-baseline). Tell me before transfers.**
+- **THE LIVE 10k RUN: first alerts through the full gauntlet are the validation. Dial at 25% ($60 floor). SOLD auto-fills the balance — hand-correct when reality differs.**
+- ⏰ TIDE DATA REMINDER: 2026-09-07 10:00 AM → diag_tidedata.py.
+- Re-subscribe the ntfy topic (kraken-scout-lsvdtkep) on the phone.
+- QC-side rotation_mark_fired may silently fail — log exceptions if entries go missing.
+- OPEN MONEY MYSTERIES: Aug 22 -$305, Aug 25→26 -$90, the ADA sell Aug 27.
+- If /scout fails on the phone: suspect VPN/private DNS/ad-block.
+- Pre-existing: pool ProxyPoller error every ~60s.
+- FOLLOW-UP POLISH: console light panel $-remnants; QC knob wording; TODAY'S FACTS could read contest_trades.jsonl.

@@ -647,6 +647,27 @@ def _save_watch(watch: dict):
         logger.debug("watch save failed: %s", exc)
 
 
+def _derive_goal(pair: str) -> tuple[float, float]:
+    """(goal_pct, window_min) for THIS coin, THIS rotation, THIS weekday —
+    the same derivation the green light uses (app.py deep scan). Shared by
+    every entry path (green light, WATCH-anyway, unified entry control) so
+    a manual entry carries a real goal instead of the 1.5% fallback."""
+    goal = 1.5
+    try:
+        import background_scanner as _bs
+        if not hasattr(_bs, "_window_goal_pct"):
+            import importlib
+            _bs = importlib.reload(_bs)
+        g = _bs._window_goal_pct(pair)
+        if g:
+            goal = float(g)
+    except Exception:
+        pass
+    window = float(max(60.0, min(180.0, goal * 60.0)))
+    return float(goal), window
+
+
+
 # ── Console state (survives refreshes): challenge tier + auto-watch on/off ──
 STATE_FILE = Path(__file__).parent / "console_state.json"
 
@@ -2739,36 +2760,36 @@ def render_quick_check(cfg: TradingConfig, kraken):
         already = pair in _load_watch()
         if already:
             st.caption(f"👀 {asset} is on the watch — AUTO-WATCH in EXIT CHECK "
-                       f"will tell you when to sell. Nothing else to do.")
+                       f"will tell you when to sell. Fix your numbers below if the "
+                       f"fill differs.")
         else:
+            _wa_size = st.number_input("size $ you're putting in", min_value=0.0, value=None,
+                                       step=100.0, key="qc_watch_size",
+                                       help="what you actually bought — keeps the $-counting real")
             if st.button(f"👁 WATCH {asset} anyway", key="qc_watch", width="stretch",
                          help="Green light adds coins automatically — this is for "
-                              "entering on your own conviction"):
+                              "entering on your own conviction (thin books included)"):
                 w = _load_watch()
                 entry_used = sig.entry_price or px
-                w[pair] = {"entry": float(entry_used), "high": float(px), "added": _now_mst().isoformat()}
+                g, win = _derive_goal(pair)
+                rec = w.get(pair) or {}
+                rec["entry"] = float(entry_used)
+                rec["high"] = float(px)
+                rec["added"] = _now_mst().isoformat()
+                if _wa_size:
+                    rec["size"] = float(_wa_size)
+                rec.setdefault("goal_pct", g)
+                rec.setdefault("window_min", win)
+                w[pair] = rec
                 _save_watch(w)
-                st.success(f"◆ {asset} added to the exit auto-watch (entry {_fmt_price(entry_used)}). "
-                           f"Flip on AUTO-WATCH in EXIT CHECK for 1-min exit alerts.")
+                st.success(f"◆ {asset} added to the exit auto-watch (entry {_fmt_price(entry_used)}"
+                           + (f", ${float(_wa_size):,.0f}" if _wa_size else "")
+                           + f", goal {g:.1f}%). Flip on AUTO-WATCH in EXIT CHECK for 1-min exit alerts.")
     with w2:
-        entry_adj = st.number_input("entry $", min_value=0.0, value=None,
-                                    step=0.0001, key="qc_watch_entry",
-                                    help="your actual fill — fixes the $-counting")
-        size_adj = st.number_input("size $", min_value=0.0, value=None,
-                                   step=100.0, key="qc_watch_size",
-                                   help="what you actually bought — re-entered small? set it here")
-        if st.button("✎ UPDATE", key="qc_watch_upd", width="stretch"):
-            w = _load_watch()
-            if pair not in w:
-                w[pair] = {"entry": float(entry_adj or px), "high": float(px),
-                           "added": _now_mst().isoformat()}
-            if entry_adj:
-                w[pair]["entry"] = float(entry_adj)
-            if size_adj:
-                w[pair]["size"] = float(size_adj)
-            _save_watch(w)
-            st.success(f"{asset}: entry {_fmt_price(w[pair]['entry'])}, "
-                       f"size ${w[pair].get('size', 0):,.0f}")
+        # THE ONE ENTRY CONTROL (Sep 3, Option B): same-trade corrections and
+        # fresh registrations share one form — contest-app language, keyed
+        # updates in same-trade mode so the clock/goal/peak survive.
+        _render_entry_control(prefix="qc", default_pair=pair)
 
     # ADVISORY ONLY — contest use. No buttons write to the bridge; the
     # auto-scanner is the sole source of live trading signals.
@@ -2854,8 +2875,28 @@ def _run_exit_logic(kraken, pair: str, cfg: TradingConfig, sb,
     """
     from strategy import evaluate_strategy as _eval
     df = fetch_df(kraken, pair, cfg)
-    sig = _eval(df, cfg)
+
+    # ── REAL-TIME PRICE (user rule, Sep 3: "the Exit bar needs real time
+    # data check not just what the console says"). The ticker is the truth;
+    # the candle close lags. Trail hit, goal call, PnL and the tracked peak
+    # all read the ticker. Candles stay for the strategy read (RSI/MACD/BB
+    # genuinely need them) — but the in-progress candle is seeded with the
+    # live price so the sell bar reacts to the move happening NOW, not the
+    # move that closed the last candle.
     live = float(df["close"].iloc[-1])
+    try:
+        _tick = kraken.fetch_ticker(pair)
+        if _tick and _tick.get("last"):
+            live = float(_tick["last"])
+            # seed the in-progress candle so indicators see the live move
+            _idx = df.index[-1]
+            df.loc[_idx, "close"] = live
+            df.loc[_idx, "high"] = max(float(df.loc[_idx, "high"]), live)
+            df.loc[_idx, "low"] = min(float(df.loc[_idx, "low"]), live)
+    except Exception:
+        pass  # ticker failed — candle close is the fallback
+
+    sig = _eval(df, cfg)
 
     entry = None
     try:
@@ -3278,53 +3319,141 @@ def _render_light_panel(interval: str):
         st.error("🚨 SELL NOW — on the contest app.")
 
 
-def _render_reenter_control():
-    """'I RE-ENTERED' — the contest app shows what you SPENT and how much
-    you OWN, never the price you paid (user reality-check, Aug 26: "I know
-    how much I own, the amount of my trade, and the current PnL — you have
-    to use that"). Take the two numbers they DO have and do the math:
-    paid = spent ÷ owned. Resets the watch entry, size, peak and clock to
-    the REAL position so her stop, trail and twenties count from truth.
-    Aug 30: wrapped in st.form — the light's 60s reruns were dimming the
-    page and interrupting mid-typing; a form batches everything and
-    submits once, when you're done."""
+def _render_entry_control(prefix: str = "ec", default_pair: str | None = None):
+    """THE ONE ENTRY CONTROL (user decision, Sep 3 — Option B): merges the old
+    'I RE-ENTERED' form and the Quick Check +/- inputs into ONE form with a
+    mode toggle. One language (the contest app's numbers), no ambiguity about
+    which tool to reach for.
+
+    Modes (user rule, Sep 3: "when I enter from the deep scan I need to adjust
+    to reality this would not need a new time stamp. they are not the same"):
+      • SAME TRADE — fix my numbers: keyed updates only. The clock (`added`),
+        the goal (`goal_pct`/`window_min`) and the tracked peak all SURVIVE;
+        only entry + size change. The peak is floored at the corrected entry.
+        This is the deep-scan adjust-to-reality case.
+      • NEW TRADE — fresh clock: new `added`, peak resets to the entry, and
+        the goal is derived from the engine (preserved if it already exists —
+        the old form's full-dict replacement silently wiped it).
+
+    Inputs speak contest-app language: $ you spent + coins you own (primary —
+    paid = spent ÷ owned), or entry $ + size $ for those who have the numbers
+    directly. Pair is a dropdown of watched coins, or free text to register a
+    manual entry the scan never watched (thin-book trades, Sep 3).
+    Wrapped in st.form — the light's 60s reruns must not interrupt typing."""
     cw = _load_watch()
-    if not cw:
-        return
-    with st.expander("🔁 I RE-ENTERED — tell her what you actually paid"):
-        with st.form("reenter_form", clear_on_submit=False):
-            pair = (st.selectbox("which coin", list(cw.keys()), format_func=_asset,
-                                 key="re_pair") if len(cw) > 1 else list(cw.keys())[0])
+    with st.expander("✎ MY ENTRY — fix the numbers or start a fresh clock"):
+        with st.form(f"{prefix}_form", clear_on_submit=False):
+            mode = st.radio("this is…", ["◉ SAME TRADE — fix my numbers",
+                                         "◯ NEW TRADE — fresh clock"],
+                            index=0, key=f"{prefix}_mode",
+                            help="SAME TRADE keeps the clock, the goal and the peak "
+                                 "running — only the numbers change. NEW TRADE restarts "
+                                 "the clock: use it after you sold and re-entered, or to "
+                                 "register a manual entry fresh.")
+            same_trade = mode.startswith("◉")
+
+            # pair: dropdown when watched coins exist, free text otherwise
+            # (default_pair pre-selects the scanned coin when present)
+            if cw:
+                _pairs = list(cw.keys())
+                _dflt = default_pair if default_pair in cw else None
+                if len(_pairs) > 1:
+                    _idx = _pairs.index(_dflt) if _dflt else 0
+                    pair = st.selectbox("which coin", _pairs, index=_idx,
+                                        format_func=_asset, key=f"{prefix}_pair")
+                else:
+                    pair = _pairs[0]
+            else:
+                pair = None
+            manual_pair = st.text_input("coin (type it if it's not on the watch yet)",
+                                        value=(default_pair or "") if (pair is None or default_pair not in cw) else "",
+                                        key=f"{prefix}_manual_pair",
+                                        placeholder="e.g. PENGU/USD",
+                                        help="for manual entries the scan never watched — "
+                                             "thin books the auto-system won't touch")
+            if manual_pair.strip():
+                _mp = manual_pair.strip().upper()
+                pair = _mp if "/" in _mp else f"{_mp}/USD"
+
+            how = st.radio("I'll tell you…", ["◉ $ you spent + coins you own",
+                                              "◯ entry $ + size $"],
+                           index=0, key=f"{prefix}_how",
+                           help="the contest app shows the $ of the trade and how much "
+                                "you own — never the price you paid")
             c1, c2 = st.columns(2)
-            with c1:
-                spent = st.number_input("$ you spent", min_value=0.0, value=None,
-                                        step=100.0, key="re_spent",
-                                        help="the contest app shows this: the amount of your trade")
-            with c2:
-                owned = st.number_input("coins you own", min_value=0.0, value=None,
-                                        step=0.0001, key="re_owned",
-                                        help="the contest app shows this: how much you own")
-            if st.form_submit_button("✎ SET MY ENTRY — she counts from reality now",
-                                     type="primary"):
+            if how.startswith("◉"):
+                with c1:
+                    spent = st.number_input("$ you spent", min_value=0.0, value=None,
+                                            step=100.0, key=f"{prefix}_spent",
+                                            help="the contest app shows this: the amount of your trade")
+                with c2:
+                    owned = st.number_input("coins you own", min_value=0.0, value=None,
+                                            step=0.0001, key=f"{prefix}_owned",
+                                            help="the contest app shows this: how much you own")
+                entry = size = None
                 if spent and owned and float(owned) > 0:
-                    entry = float(spent) / float(owned)
+                    entry, size = float(spent) / float(owned), float(spent)
+            else:
+                with c1:
+                    entry = st.number_input("entry $", min_value=0.0, value=None,
+                                            step=0.0001, key=f"{prefix}_entry",
+                                            help="what you actually paid per coin")
+                with c2:
+                    size = st.number_input("size $", min_value=0.0, value=None,
+                                       step=100.0, key=f"{prefix}_size",
+                                       help="what you actually bought — the $ of the trade")
+                entry = float(entry) if entry else None
+                size = float(size) if size else None
+
+            if st.form_submit_button("✎ SET MY ENTRY", type="primary"):
+                if not pair or not entry or entry <= 0:
+                    st.error("Need a coin and an entry — the numbers are on your "
+                             "position screen in the contest app.")
+                else:
                     w = _load_watch()
-                    w[pair] = {"entry": entry, "high": entry,
-                               "size": float(spent),
-                               "added": _now_mst().isoformat()}
-                    _save_watch(w)
-                    st.toast(f"✅ {_asset(pair)}: you paid ${entry:.4f} per coin "
-                             f"(${float(spent):,.0f} ÷ {float(owned):,.4f}) — "
-                             f"her stop, trail and twenties count from reality now",
-                             icon="✅", duration=15)
-                    _speak(f"{_asset(pair)} entry set! She counts from reality now!")
+                    fresh = pair not in w
+                    if fresh or not same_trade:
+                        # NEW TRADE (or first registration): fresh clock, peak
+                        # resets to the entry, goal preserved or derived fresh
+                        # (the old form's dict replacement silently wiped it)
+                        rec = w.get(pair) or {}
+                        rec["entry"] = float(entry)
+                        rec["high"] = float(entry)
+                        if size is not None:
+                            rec["size"] = float(size)
+                        rec["added"] = _now_mst().isoformat()
+                        if not rec.get("goal_pct") or not rec.get("window_min"):
+                            g, win = _derive_goal(pair)
+                            rec.setdefault("goal_pct", g)
+                            rec.setdefault("window_min", win)
+                        w[pair] = rec
+                        _save_watch(w)
+                        _what = "registered fresh" if fresh else "fresh clock started"
+                        st.toast(f"✅ {_asset(pair)}: entry ${entry:.4f}"
+                                 + (f" (${size:,.0f})" if size else "")
+                                 + f" — {_what}. She counts from now.",
+                                 icon="✅", duration=15)
+                        _speak(f"{_asset(pair)} entry set! Fresh clock!")
+                    else:
+                        # SAME TRADE: keyed updates ONLY — the clock, the goal
+                        # and the peak keep running. Peak is floored at the
+                        # corrected entry (it IS the reference if above).
+                        rec = w[pair]
+                        rec["entry"] = float(entry)
+                        if size is not None:
+                            rec["size"] = float(size)
+                        rec["high"] = max(float(rec.get("high") or 0.0), float(entry))
+                        # added / goal_pct / window_min untouched by design
+                        _save_watch(w)
+                        st.toast(f"✅ {_asset(pair)}: entry ${entry:.4f}"
+                                 + (f" (${size:,.0f})" if size else "")
+                                 + " — numbers corrected, the clock keeps running.",
+                                 icon="✅", duration=15)
+                        _speak(f"{_asset(pair)} numbers corrected!")
                     try:
                         st.rerun(scope="app")
                     except TypeError:
                         st.rerun()
-                else:
-                    st.error("Need both numbers — they're both on your position screen "
-                             "in the contest app: the $ of the trade and the coins you own.")
 
 
 def render_auto_watch(cfg: TradingConfig, kraken):
@@ -3483,7 +3612,7 @@ def render_auto_watch(cfg: TradingConfig, kraken):
         # ── contest watch list: live positions only, no history ────────
         # the re-entered control: right after the SOLD buttons — the loop
         # is sold → re-entered → sold, and it lives on every page
-        _render_reenter_control()
+        _render_entry_control(prefix="ec")
 
         contest_watch = _load_watch()
         n_contest = len(contest_watch)
@@ -3678,8 +3807,21 @@ def render_exit_check(cfg: TradingConfig, kraken):
         try:
             from strategy import evaluate_strategy as _eval
             df = fetch_df(kraken, pair, cfg)
-            sig = _eval(df, cfg)
+            # REAL-TIME (Sep 3): the ticker is the price truth — candles stay
+            # for the strategy read, seeded with the live price so the exit
+            # bar reacts to the move happening now.
             live = float(df["close"].iloc[-1])
+            try:
+                _tick = kraken.fetch_ticker(pair)
+                if _tick and _tick.get("last"):
+                    live = float(_tick["last"])
+                    _idx = df.index[-1]
+                    df.loc[_idx, "close"] = live
+                    df.loc[_idx, "high"] = max(float(df.loc[_idx, "high"]), live)
+                    df.loc[_idx, "low"] = min(float(df.loc[_idx, "low"]), live)
+            except Exception:
+                pass
+            sig = _eval(df, cfg)
         except Exception as exc:
             st.error(f"Check failed for {asset}: {exc}")
             return

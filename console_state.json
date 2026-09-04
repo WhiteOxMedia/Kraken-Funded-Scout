@@ -1,5 +1,8 @@
 {
- "tier": "$5,000",
+ "tier": "$10,000",
  "watch_on": true,
- "exit_checks": 2
+ "exit_checks": 21,
+ "voice_on": true,
+ "worth_floor_frac": 0.35,
+ "goal_on": true
 }

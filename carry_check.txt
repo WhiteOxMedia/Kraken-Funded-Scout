@@ -1,0 +1,7 @@
+PASS  BTC-class book ($500k) -> all-in $5,000
+PASS  $20k book -> spend 75% = $3,750
+PASS  $15k book -> spend 50% = $2,500
+PASS  $8k book -> spend 25% = $1,250
+PASS  $5k book -> TOO THIN (even 25% exceeds the book) -> no green
+PASS  carry exactly $1,250 -> 25% fits
+PASS  book unreadable -> fail-open full size

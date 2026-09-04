@@ -1,0 +1,4 @@
+KILLING BOT ROOT PID 12976
+SUCCESS: The process with PID 18116 (child process of PID 12976) has been terminated.
+SUCCESS: The process with PID 7680 (child process of PID 12976) has been terminated.
+SUCCESS: The process with PID 12976 (child process of PID 16408) has been terminated.

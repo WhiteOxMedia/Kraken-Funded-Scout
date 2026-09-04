@@ -1,0 +1,41 @@
+1. BRIDGE SIGNALS TODAY: 6
+   2026-08-31T00:25  XMR/USD      buy  conf  56 scout_gainer  rejected  Liquidity: depth unstable: best-level depth $5419→$54
+   2026-08-31T09:57  CRV/USD      buy  conf  62 scout_auto    rejected  Liquidity: depth unstable: best-level depth $49→$32
+   2026-08-31T10:25  OOB/USD      buy  conf  59 scout_mover   rejected  Liquidity: liquidity health 31 < 60
+   2026-08-31T10:36  OOB/USD      buy  conf  59 scout_mover   rejected  Liquidity: liquidity health 55 < 60
+   2026-08-31T10:45  HYPE/USD     buy  conf  92 scout_auto    rejected  Liquidity: depth unstable: best-level depth $536→$12865
+   2026-08-31T10:47  OOB/USD      buy  conf  59 scout_mover   rejected  Liquidity: liquidity health 58 < 60
+
+2. LOCKOUT (fired today): ['HYPE']
+
+3. HER LAST WORDS (19 lines logged):
+   2026-08-31T04:45:54  Hello there! My systems are online and ready to make you a ton of money today! Ready to ha
+   2026-08-31T07:08:18  Hello there! My systems are online and ready to make you a ton of money today! Ready to ha
+   2026-08-31T07:09:48  Hello there! My systems are online and ready to make you a ton of money today! Ready to ha
+   2026-08-31T07:50:28  Hello there! My systems are online and ready to make you a ton of money today! Ready to ha
+   2026-08-31T08:23:52  No! LDO! Skip it!
+   2026-08-31T08:24:28  No! LDO! Skip it!
+   2026-08-31T08:54:20  Hello there! My systems are online and ready to make you a ton of money today! Ready to ha
+   2026-08-31T10:45:34  Buy HYPE! 92 percent sure! Lone wolf! Moving on her own while the fleet sits still! The tw
+
+4. TIDE NOW: FLAT (36% of the fleet up)
+
+5. MOVER FUNNEL SEES (10 runners >= +5%):
+    +33.6%  POND/USD       vol $574K
+    +27.3%  0G/USD         vol $946K
+    +25.7%  SKR/USD        vol $6,179K
+    +24.7%  USELESS/USD    vol $1,158K
+    +22.2%  ZORA/USD       vol $1,479K
+    +20.8%  FLOCK/USD      vol $192K
+    +19.9%  DOGS/USD       vol $162K
+    +15.6%  GHST/USD       vol $335K
+    +13.8%  OOB/USD        vol $102K
+    +12.5%  NOT/USD        vol $159K
+
+6. FUNNEL DRY-RUN on the top runners (first cuts only):
+   POND/USD       -> strategy says HOLD (0%)
+   0G/USD         -> strategy says HOLD (40%)
+   SKR/USD        -> strategy says HOLD (0%)
+   USELESS/USD    -> strategy says HOLD (0%)
+   ZORA/USD       -> strategy says HOLD (21%)
+DONE

@@ -1,0 +1,69 @@
+now: Mon 08:42 AM Denver
+
+bridge signals since Sun 8 PM (42):
+  2026-08-23T23:13  ASTER/USD  buy  filled    bot_strategy   64.5%
+  2026-08-23T23:44  FIL/USD    buy  filled    bot_strategy   77.6%
+  2026-08-24T00:13  ASTER/USD  buy  closed    scout_auto     64.5%
+  2026-08-24T00:43  FIL/USD    buy  closed    scout_auto     77.6%
+  2026-08-24T02:14  HYPE/USD   buy  rejected  scout_auto     64.0%
+  2026-08-24T02:17  SUI/USD    buy  rejected  scout_auto     65.6%
+  2026-08-24T02:23  POL/USD    buy  filled    bot_strategy   84.0%
+  2026-08-24T02:26  HYPE/USD   buy  rejected  scout_auto     74.0%
+  2026-08-24T02:31  SUI/USD    buy  rejected  scout_auto     67.4%
+  2026-08-24T02:37  HYPE/USD   buy  rejected  scout_auto     74.0%
+  2026-08-24T02:48  HYPE/USD   buy  rejected  scout_auto     64.0%
+  2026-08-24T03:22  POL/USD    buy  closed    scout_auto     84.0%
+  2026-08-24T07:42  STX/USD    buy  rejected  scout_auto     67.0%
+  2026-08-24T07:42  VIRTUAL/USD buy  rejected  scout_auto     100.0%
+  2026-08-24T07:42  TAO/USD    buy  rejected  scout_auto     87.5%
+  2026-08-24T07:44  APT/USD    buy  rejected  scout_auto     70.3%
+  2026-08-24T07:44  ARB/USD    buy  rejected  scout_auto     70.1%
+  2026-08-24T07:47  ATOM/USD   buy  rejected  scout_auto     74.0%
+  2026-08-24T07:53  OP/USD     buy  rejected  scout_auto     71.8%
+  2026-08-24T07:56  ARB/USD    buy  rejected  scout_auto     66.9%
+  2026-08-24T07:56  INJ/USD    buy  rejected  scout_auto     64.0%
+  2026-08-24T07:56  VIRTUAL/USD buy  rejected  scout_auto     62.0%
+  2026-08-24T07:56  TIA/USD    buy  rejected  scout_auto     64.9%
+  2026-08-24T07:56  DOGE/USD   buy  rejected  scout_auto     61.6%
+  2026-08-24T07:57  TAO/USD    buy  rejected  scout_auto     87.5%
+  2026-08-24T07:58  ARB/USD    buy  rejected  scout_auto     66.9%
+  2026-08-24T07:58  ATOM/USD   buy  rejected  scout_auto     62.4%
+  2026-08-24T07:58  INJ/USD    buy  rejected  scout_auto     64.0%
+  2026-08-24T07:58  OP/USD     buy  rejected  scout_auto     71.8%
+  2026-08-24T07:59  TIA/USD    buy  rejected  scout_auto     71.0%
+  2026-08-24T07:59  VIRTUAL/USD buy  rejected  scout_auto     62.0%
+  2026-08-24T07:59  DOGE/USD   buy  rejected  scout_auto     61.3%
+  2026-08-24T07:59  TAO/USD    buy  rejected  scout_auto     87.5%
+  2026-08-24T08:10  VIRTUAL/USD buy  rejected  scout_auto     62.0%
+  2026-08-24T08:13  TAO/USD    buy  rejected  scout_auto     72.5%
+  2026-08-24T08:25  VIRTUAL/USD buy  rejected  scout_auto     67.0%
+  2026-08-24T08:28  TAO/USD    buy  rejected  scout_auto     72.5%
+  2026-08-24T08:30  ETH/USD    buy  rejected  scout_auto     92.0%
+  2026-08-24T08:30  BTC/USD    buy  rejected  scout_auto     92.0%
+  2026-08-24T08:37  VIRTUAL/USD buy  rejected  scout_auto     92.0%
+  2026-08-24T08:41  ETH/USD    buy  rejected  scout_auto     92.0%
+  2026-08-24T08:41  BTC/USD    buy  rejected  scout_auto     92.0%
+scanner_state: name 'json' is not defined
+
+bot positions (latest 5):
+  #136 POL/USD @ 0.11381711966742672 opened 2026-08-24 09:23 open=False
+  #135 FIL/USD @ 0.75 opened 2026-08-24 06:44 open=False
+  #134 ASTER/USD @ 0.69135 opened 2026-08-24 06:13 open=False
+  #133 ETC/USD @ 7.694 opened 2026-08-24 01:58 open=False
+  #132 NEAR/USD @ 2.0109 opened 2026-08-24 01:57 open=False
+bot trades since 8 PM (10):
+  2026-08-24 11:49 sell POL/USD
+  2026-08-24 09:26 buy  POL/USD
+  2026-08-24 09:23 buy  POL/USD
+  2026-08-24 08:13 sell FIL/USD
+  2026-08-24 07:42 sell ASTER/USD
+  2026-08-24 06:44 buy  FIL/USD
+  2026-08-24 06:13 buy  ASTER/USD
+  2026-08-24 02:31 sell ETC/USD
+  2026-08-24 02:31 sell NEAR/USD
+  2026-08-24 01:58 buy  ETC/USD
+
+execution: blacklist=[] strikes=['S/USD'] pending_scales=[]
+
+kill switch: clear
+rotation now: R3 ☀️ EU/US Overlap | bar 60% | no_buy=False

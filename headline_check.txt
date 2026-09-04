@@ -1,0 +1,11 @@
+PASS  synthetic signals considered (live pool adds more)
+PASS  headline = TESTA (fastest $20)
+PASS  TESTB collapsed into TESTA's sweep
+PASS  TESTC excluded (~35 min old — past the 30-min cap)
+PASS  TESTD excluded (55% < 60 floor)
+PASS  TESTE survives as its own young move
+PASS  TESTA cluster size = 2 (the wave)
+PASS  TESTA pace carried
+PASS  TESTA age is young (< 10 min)
+PASS  ran +3% since signal -> still shown (warning, not a block)
+PASS  synthetic rows cleaned

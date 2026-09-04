@@ -1,0 +1,11 @@
+PASS  70% -> RISING
+PASS  69.9% -> FLAT
+PASS  50% -> FLAT
+PASS  35.1% -> FLAT
+PASS  35% -> OUT
+PASS  10% -> OUT
+PASS  bands are sane
+PASS  live breadth in 0-100
+PASS  live state is a real state
+
+live tide now: 56% FLAT

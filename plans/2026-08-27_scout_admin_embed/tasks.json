@@ -1,0 +1,27 @@
+[
+  {
+    "content": "[embed-1] Install websockets into C:\\Python314 (uvicorn WS server support)",
+    "id": "embed-1",
+    "status": "completed"
+  },
+  {
+    "content": "[embed-2] Add admin-gated /scout proxy + WS tunnel to pool/server.py",
+    "id": "embed-2",
+    "status": "completed"
+  },
+  {
+    "content": "[embed-3] Add Scout console card to admin_panel.html + status in app.js",
+    "id": "embed-3",
+    "status": "completed"
+  },
+  {
+    "content": "[embed-4] Test end-to-end on port 3095 copy (register admin, login, proxy HTML/static/WS)",
+    "id": "embed-4",
+    "status": "completed"
+  },
+  {
+    "content": "[embed-5] Commit monero_project changes, restart pool server on 3094, verify live",
+    "id": "embed-5",
+    "status": "completed"
+  }
+]

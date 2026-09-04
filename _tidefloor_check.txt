@@ -1,0 +1,20 @@
+PASS  TIDE_RISING_DESKTOP_FLOOR is 78  78.0
+PASS  RISING floor sits between the deep floor and 89  
+PASS  RISING -> 78  
+PASS  FLAT -> 89 (ordinary coins stay strict)  
+PASS  UNKNOWN/broken read -> 89 (fail closed)  
+PASS  OUT never reaches the floor (blocked upstream)  the floor is academic here — the tide check returns first
+PASS  FLAT + lone wolf 35pts -> 55 (XMR's case)  
+PASS  RISING + lone wolf -> no further change (lone wolf is FLAT-only: lone_wolf_discount returns 0 pts in RISING, so the discount never runs)  
+PASS  an 80% pick alerts in RISING (was silenced by 89)  
+PASS  an 80% pick stays silent in FLAT  
+PASS  a 56% solo mover alerts in FLAT via lone wolf  
+PASS  an 80% pick alerts in RISING but stays silent in FLAT  
+PASS  a 70% pick stays silent everywhere (below even the relaxed floor)  
+PASS  floor is tide-aware in send_alert  
+PASS  broken tide read fails closed to 89 (except branch)  
+PASS  relaxation is logged  
+PASS  lone-wolf discount still stacks after the tide floor  
+PASS  the deep-read >=60 pre-check still applies (never discounted)  
+
+RESULT: 18 passed, 0 failed

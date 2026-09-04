@@ -1,0 +1,19 @@
+KII now: $0.062150
+pump started: 2026-08-23 00:00:00
+price before pump: $0.013190
+
+── THE DAY BEFORE THE PUMP:
+  24h change: -80.3%
+  24h volume: $0.18M
+  was it a LOSER? YES
+  passes $5M volume floor? NO — under the floor
+
+── STRATEGY ON THE DAY BEFORE:
+  signal: HOLD 0%
+  entry=None stop=None tp=None
+    - Regime: bear_trend (volatility rank 99/100)
+    - BLOCKED: downtrend (EMA spread -1.08%) with no MACD reversal (hist=-0.006260476972996851) — not catching a falling knife
+  passes checklist: False
+
+── DURING THE PUMP (fast path check):
+  no BUY signal in the first 24 pump hours (spike blocker held)

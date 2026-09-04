@@ -1,0 +1,12 @@
+PASS  SCOUT_DCA_ENABLED exists and is False (retired)  False
+PASS  the flag is defined with the retirement rationale  
+PASS  the DCA condition is gated by the flag (first term — short-circuits)  
+PASS  the old ungated condition is gone  
+PASS  the scout_dca write code is kept (not deleted)  
+PASS  the DCA popup code is kept (not deleted)  
+PASS  count_dca_signals still imported by the kept block  
+PASS  the retirement comment explains WHY (user option 2, Sep 2)  
+PASS  reader unchanged: scout_dca still accepted (dormant — no writer)  
+PASS  the gated condition evaluates False while retired (dip 3%, strategy buy, no prior DCA — would have fired)  
+
+RESULT: 10 passed, 0 failed

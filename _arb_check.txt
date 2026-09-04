@@ -1,0 +1,45 @@
+=== ARB post-mortem | now 2026-08-31 12:08:14 ===
+
+1. ARB BRIDGE ROWS (5):
+  2026-08-31T11:30  buy  conf 84.0  src scout_auto  status rejected
+      entry 0.0898  SL 0.088138  TP 0.093954  tide FLAT/38.23
+      reason: Regime: ranging (volatility rank 70/100); 🔥 BREAKOUT — Phase 1 — Breakout — +5.5% move with 4.5x volume;   Breaking Bollinger upper band (BB%B=1.12)
+      outcome: Liquidity: depth unstable: best-level depth $2785→$5292
+  2026-08-30T12:54  buy  conf 70.0  src scout_auto  status rejected
+      entry 0.0903  SL 0.089096  TP 0.09331  tide None/None
+      reason: Regime: low_vol (volatility rank 18/100); 🔥 BREAKOUT — Phase 1 — Breakout — +1.1% move with 4.1x volume;   Breaking Bollinger upper band (BB%B=1.00)
+      outcome: Max positions — challenger lost the head-to-head
+  2026-08-30T12:44  buy  conf 70.0  src scout_auto  status rejected
+      entry 0.09  SL 0.088796  TP 0.09301  tide None/None
+      reason: Regime: low_vol (volatility rank 18/100); 🔥 BREAKOUT — Phase 1 — Breakout — +0.8% move with 3.5x volume;   Breaking Bollinger upper band (BB%B=0.96)
+      outcome: Max positions — challenger lost the head-to-head
+  2026-08-30T12:32  buy  conf 70.0  src scout_auto  status rejected
+      entry 0.0903  SL 0.089096  TP 0.09331  tide None/None
+      reason: Regime: low_vol (volatility rank 18/100); 🔥 BREAKOUT — Phase 1 — Breakout — +1.1% move with 2.1x volume;   Breaking Bollinger upper band (BB%B=1.00)
+      outcome: Max positions — challenger lost the head-to-head
+  2026-08-30T12:22  buy  conf 100.0  src scout_auto  status rejected
+      entry 0.0908  SL 0.089607  TP 0.093783  tide None/None
+      reason: Regime: low_vol (volatility rank 17/100); 🔥 BREAKOUT — Phase 1 — Breakout — +1.7% move with 1.5x volume;   Breaking Bollinger upper band (BB%B=1.07)
+      outcome: Max positions — challenger lost the head-to-head
+
+2. HER WORDS mentioning ARB (26, last 8):
+  2026-08-31T11:48  All good. ARB, plus 174 dollars, about 179 minutes left, stay close.
+  2026-08-31T11:50  All good. ARB, plus 174 dollars, about 178 minutes left, stay close.
+  2026-08-31T11:51  All good. ARB, plus 248 dollars, about 176 minutes left, go walk around.
+  2026-08-31T11:52  All good. ARB, plus 279 dollars, about 175 minutes left, stay close.
+  2026-08-31T11:53  All good. ARB, plus 311 dollars, about 174 minutes left, stay close.
+  2026-08-31T11:54  All good. ARB, plus 353 dollars, about 173 minutes left, stay close.
+  2026-08-31T11:56  ARB sold! Cleared. Ready for the next one!
+  2026-08-31T12:04  No! ARB! Skip it!
+
+3. ARB/USD last 12h (15m):
+   12h open 0.0861  high 0.0941  low 0.0851  last 0.0939  (+9.06%)
+   10:15  O 0.0871  H 0.0871  L 0.0870  C 0.0871
+   10:30  O 0.0872  H 0.0873  L 0.0872  C 0.0873
+   10:45  O 0.0877  H 0.0880  L 0.0875  C 0.0879
+   11:00  O 0.0877  H 0.0896  L 0.0877  C 0.0896
+   11:15  O 0.0895  H 0.0901  L 0.0888  C 0.0898
+   11:30  O 0.0898  H 0.0912  L 0.0898  C 0.0907
+   11:45  O 0.0906  H 0.0942  L 0.0904  C 0.0941
+   12:00  O 0.0945  H 0.0947  L 0.0934  C 0.0939
+   ticker: last 0.0941  24h pct 12.023809523809524

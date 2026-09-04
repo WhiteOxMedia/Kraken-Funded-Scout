@@ -1,0 +1,114 @@
+01:16 PM [INFO] ============================================================
+01:16 PM [INFO]   Kraken Scout — Rotation Scanner (data-driven)
+01:16 PM [INFO]   Time zone: Mountain Time (MST/MDT, auto DST)
+01:16 PM [INFO]   R1 00-04 Asia | R2 04-08 Pre-US | R3 08-12 EU/US
+01:16 PM [INFO]   R4 12-16 US PM | R5 16-20 US Late | 20-24 cooldown
+01:16 PM [INFO]   Gates: calibrated confidence bar + expected-move floor
+01:16 PM [INFO]   Press Ctrl+C to stop
+01:16 PM [INFO] ============================================================
+01:16 PM [INFO] R4 🌤 US Afternoon — Quick ticker scan...
+01:16 PM [INFO]   Movers (>2%): AIXBT, ARB, BCH, DOT, ETH, FARTCOIN, INJ, KAITO, LDO, NEAR, ONDO, POL, PUMP, S, TAO, TRUMP, UNI, VIRTUAL, XPL, ZEC
+01:16 PM [INFO]   EASY TO SELL: 90/100
+01:16 PM [INFO] At max positions — writing anyway; the bot's challenge system will test this challenger
+01:16 PM [INFO] Signal written: BUY DOT/USD (76%) [13e4014a] valid_until=2026-08-30T13:21:11.200152-06:00
+01:16 PM [INFO] 📡 Signal written to bridge for XRP bot: BUY DOT (72%)
+01:16 PM [INFO]   Desktop suppressed: DOT 72% < 89% floor (still logged to winners pool)
+01:16 PM [INFO]   EASY TO SELL: 90/100
+01:16 PM [INFO]   DEEP VETO (bridge): NEAR deep-reads hold 40% — not written; the bot and the QC would both say no
+01:16 PM [INFO]   EASY TO SELL: 89/100
+01:16 PM [INFO]   DEEP VETO (bridge): POL downward trend — no downward trend picks (user rule)
+01:16 PM [INFO]   EASY TO SELL: 90/100
+01:16 PM [INFO] At max positions — writing anyway; the bot's challenge system will test this challenger
+01:16 PM [INFO] Signal written: BUY VIRTUAL/USD (100%) [2292a9e7] valid_until=2026-08-30T13:21:22.327243-06:00
+01:16 PM [INFO] 📡 Signal written to bridge for XRP bot: BUY VIRTUAL (92%)
+01:16 PM [INFO] 🔔 ALERT: 🟢 BUY VIRTUAL — 100% SURE
+01:16 PM [INFO]    BUY VIRTUAL
+01:16 PM [INFO]    WHY: the $20 comes in about an hour at this coin's speed, and the deep scan reads the setup at 100%
+01:16 PM [INFO]    WHEN: right now — this is fresh
+01:16 PM [INFO]    HOW LONG: until you're up $20 — or she says out. If it hasn't paid by 4:46, get out.
+01:16 PM [INFO]    TIDE: RISING (79% of the fleet up) — the market carries greens
+01:16 PM [INFO]    SPEND: 25% = $1,250 — SMALL COIN: this book carries $1,250, not $5,000
+01:16 PM [INFO]    ------------------------------
+01:16 PM [INFO]    get out at $0.7015 (wrong)
+01:16 PM [INFO]    cash out at $0.7313 (win)
+01:16 PM [INFO]    ------------------------------
+01:16 PM [INFO]    01:16 PM MST
+01:16 PM [INFO] 🚀 BIG ALERT: BUY VIRTUAL — 92% — entry $0.7100 — TP $0.7313
+01:16 PM [INFO] R4 🌤 US Afternoon — Full tournament (54 assets, min_conf=50)...
+01:16 PM [INFO]   US afternoon — reversals common
+01:16 PM [INFO]   Fetched 54/54 assets
+01:16 PM [INFO]   Liquidity filter: excluded 23 assets (< $1M 24h vol): ARB ($0.1M), GRASS ($0.1M), FIL ($0.1M), DOT ($0.2M), LDO ($0.1M), MOODENG ($0.0M), KAITO ($0.1M), PNUT ($0.0M), APT ($0.2M), S ($0.0M), ATOM ($0.1M), JTO ($0.0M), JUP ($0.3M), STX ($0.4M), OP ($0.1M), POPCAT ($0.0M), ETC ($0.1M), AIXBT ($0.0M), ASTER ($0.1M), TIA ($0.1M), WIF ($0.1M), VIRTUAL ($0.1M), XPL ($0.3M)
+01:16 PM [INFO] 🏆 Momentum Champion: buy AVAX (97%)
+01:16 PM [INFO]   📉 Yesterday's losers (bounce candidates): PUMP(-6%), HYPE(-0%)
+01:16 PM [INFO]   EASY TO SELL: 90/100
+01:16 PM [INFO] At max positions — writing anyway; the bot's challenge system will test this challenger
+01:16 PM [INFO] Signal written: BUY AVAX/USD (100%) [3ccd7ef6] valid_until=2026-08-30T13:21:42.984453-06:00
+01:16 PM [INFO] 📡 Signal written to bridge for XRP bot: BUY AVAX (97%)
+01:16 PM [INFO] 🔔 ALERT: 🟢 BUY AVAX — 100% SURE
+01:16 PM [INFO]    BUY AVAX
+01:16 PM [INFO]    WHY: the $20 comes in ~3 hours at this coin's speed, and the deep scan reads the setup at 100%
+01:16 PM [INFO]    WHEN: right now — this is fresh
+01:16 PM [INFO]    HOW LONG: until you're up $20 — or she says out. If it hasn't paid by 6:51, get out.
+01:16 PM [INFO]    TIDE: RISING (79% of the fleet up) — the market carries greens
+01:16 PM [INFO]    SPEND: 100% = $5,000 — big book, carries all-in
+01:16 PM [INFO]    ------------------------------
+01:16 PM [INFO]    get out at $7.3765 (wrong)
+01:16 PM [INFO]    cash out at $7.5742 (win)
+01:16 PM [INFO]    ------------------------------
+01:16 PM [INFO]    01:16 PM MST
+01:16 PM [INFO] 🚀 BIG ALERT: BUY AVAX — 97% — entry $7.4330 — TP $7.5742
+01:16 PM [INFO]   Tournament done in 13s
+01:16 PM [INFO]   Next check in 30s | R4 🌤 US Afternoon Sun | threshold 60% | full scan every 10m
+01:17 PM [INFO]   Next check in 30s | R4 🌤 US Afternoon Sun | threshold 60% | full scan every 10m
+01:17 PM [INFO]   Next check in 30s | R4 🌤 US Afternoon Sun | threshold 60% | full scan every 10m
+01:18 PM [INFO] R4 🌤 US Afternoon — Quick ticker scan...
+01:18 PM [INFO]   Movers (>2%): AIXBT, ARB, BCH, ETH, FARTCOIN, INJ, KAITO, LDO, NEAR, ONDO, POL, PUMP, S, TRUMP, UNI, VIRTUAL, XPL, ZEC
+01:18 PM [INFO]   Next check in 30s | R4 🌤 US Afternoon Sun | threshold 60% | full scan every 10m
+01:19 PM [INFO]   Next check in 30s | R4 🌤 US Afternoon Sun | threshold 60% | full scan every 10m
+01:19 PM [INFO]   Next check in 30s | R4 🌤 US Afternoon Sun | threshold 60% | full scan every 10m
+01:20 PM [INFO]   Next check in 30s | R4 🌤 US Afternoon Sun | threshold 60% | full scan every 10m
+01:20 PM [INFO] R4 🌤 US Afternoon — Quick ticker scan...
+01:20 PM [INFO]   Movers (>2%): AIXBT, ARB, BCH, ETH, FARTCOIN, INJ, KAITO, LDO, NEAR, ONDO, POL, PUMP, S, TRUMP, UNI, VIRTUAL, XPL, ZEC
+01:20 PM [INFO]   BUY ZEC (54%) — below 60% bar (R4 🌤 US Afternoon 12-16) — contest-only
+01:20 PM [INFO]   EASY TO SELL: 89/100
+01:20 PM [INFO]   Bot gates declined ZEC — desktop alert fires as CONTEST-ONLY
+01:20 PM [INFO]   Desktop suppressed: ZEC 54% < 89% floor (still logged to winners pool)
+01:20 PM [INFO]   Next check in 30s | R4 🌤 US Afternoon Sun | threshold 60% | full scan every 10m
+01:21 PM [INFO]   Next check in 30s | R4 🌤 US Afternoon Sun | threshold 60% | full scan every 10m
+01:22 PM [INFO]   Next check in 30s | R4 🌤 US Afternoon Sun | threshold 60% | full scan every 10m
+01:22 PM [INFO]   Next check in 30s | R4 🌤 US Afternoon Sun | threshold 60% | full scan every 10m
+01:23 PM [INFO] R4 🌤 US Afternoon — Quick ticker scan...
+01:23 PM [INFO]   Movers (>2%): AIXBT, ARB, BCH, ETH, FARTCOIN, INJ, KAITO, LDO, NEAR, ONDO, POL, PUMP, S, TRUMP, UNI, VIRTUAL, XPL, ZEC
+01:23 PM [INFO]   Next check in 30s | R4 🌤 US Afternoon Sun | threshold 60% | full scan every 10m
+01:23 PM [INFO]   Next check in 30s | R4 🌤 US Afternoon Sun | threshold 60% | full scan every 10m
+01:24 PM [INFO]   Next check in 30s | R4 🌤 US Afternoon Sun | threshold 60% | full scan every 10m
+01:24 PM [INFO]   Next check in 30s | R4 🌤 US Afternoon Sun | threshold 60% | full scan every 10m
+01:25 PM [INFO] R4 🌤 US Afternoon — Quick ticker scan...
+01:25 PM [INFO]   Movers (>2%): AIXBT, ARB, BCH, ETH, FARTCOIN, INJ, KAITO, LDO, NEAR, ONDO, POL, PUMP, S, TRUMP, UNI, VIRTUAL, XPL, ZEC
+01:25 PM [INFO]   Next check in 30s | R4 🌤 US Afternoon Sun | threshold 60% | full scan every 10m
+01:26 PM [INFO] R4 🌤 US Afternoon — Full tournament (54 assets, min_conf=50)...
+01:26 PM [INFO]   US afternoon — reversals common
+01:26 PM [INFO]   Fetched 54/54 assets
+01:26 PM [INFO]   Liquidity filter: excluded 23 assets (< $1M 24h vol): ARB ($0.1M), FIL ($0.1M), KAITO ($0.1M), DOT ($0.2M), LDO ($0.1M), GRASS ($0.1M), MOODENG ($0.0M), S ($0.0M), PNUT ($0.0M), APT ($0.2M), ATOM ($0.1M), POPCAT ($0.0M), OP ($0.1M), STX ($0.4M), ETC ($0.1M), JTO ($0.0M), JUP ($0.3M), TIA ($0.1M), AIXBT ($0.0M), ASTER ($0.1M), WIF ($0.1M), VIRTUAL ($0.1M), XPL ($0.3M)
+01:26 PM [INFO] 🏆 Momentum Champion: buy AVAX (97%)
+01:26 PM [INFO]   ROTATION LOCK: AVAX already ran this rotation (12-16) — cold until the next rotation boundary — no alert, no bridge write
+01:26 PM [INFO]   Tournament done in 10s
+01:26 PM [INFO]   Next check in 30s | R4 🌤 US Afternoon Sun | threshold 60% | full scan every 10m
+01:26 PM [INFO]   Next check in 30s | R4 🌤 US Afternoon Sun | threshold 60% | full scan every 10m
+01:27 PM [INFO]   Next check in 30s | R4 🌤 US Afternoon Sun | threshold 60% | full scan every 10m
+01:28 PM [INFO] R4 🌤 US Afternoon — Quick ticker scan...
+01:28 PM [INFO]   Movers (>2%): AIXBT, ARB, BCH, ETH, FARTCOIN, INJ, KAITO, LDO, NEAR, ONDO, POL, PUMP, S, TRUMP, UNI, VIRTUAL, XPL, ZEC
+01:28 PM [INFO]   EASY TO SELL: 90/100
+01:28 PM [INFO]   DEEP VETO (bridge): NEAR deep-reads hold 40% — not written; the bot and the QC would both say no
+01:28 PM [INFO]   EASY TO SELL: 89/100
+01:28 PM [INFO]   DEEP VETO (bridge): POL downward trend — no downward trend picks (user rule)
+01:28 PM [INFO]   ROTATION LOCK: VIRTUAL already ran this rotation (12-16) — cold until the next rotation boundary — no alert, no bridge write
+01:28 PM [INFO]   Next check in 30s | R4 🌤 US Afternoon Sun | threshold 60% | full scan every 10m
+01:28 PM [INFO]   Next check in 30s | R4 🌤 US Afternoon Sun | threshold 60% | full scan every 10m
+01:29 PM [INFO]   Next check in 30s | R4 🌤 US Afternoon Sun | threshold 60% | full scan every 10m
+01:29 PM [INFO]   Next check in 30s | R4 🌤 US Afternoon Sun | threshold 60% | full scan every 10m
+01:30 PM [INFO] R4 🌤 US Afternoon — Quick ticker scan...
+01:30 PM [INFO]   Movers (>2%): AIXBT, ARB, BCH, FARTCOIN, INJ, KAITO, LDO, NEAR, ONDO, POL, PUMP, S, TRUMP, UNI, VIRTUAL, XPL, ZEC
+01:30 PM [INFO]   Next check in 30s | R4 🌤 US Afternoon Sun | threshold 60% | full scan every 10m
+01:31 PM [INFO]   Next check in 30s | R4 🌤 US Afternoon Sun | threshold 60% | full scan every 10m
+01:31 PM [INFO]   Next check in 30s | R4 🌤 US Afternoon Sun | threshold 60% | full scan every 10m

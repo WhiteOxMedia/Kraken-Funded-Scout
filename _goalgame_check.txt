@@ -1,0 +1,23 @@
+PASS  the light calls the GOAL: 'Goal reached! ... take the profit!'  
+PASS  doublings called: 'N times the goal!'  
+PASS  the $20 level-counting is gone from the light  
+PASS  her position line speaks percent toward the goal  
+PASS  the dollar-count line is gone ('plus N dollars')  
+PASS  the clock runs the goal window (window_min from the watch entry)  
+PASS  the $20-pace clock (_hours_to_scalp) is gone from the light  
+PASS  watch entries carry goal_pct + window_min (set at green light)  
+PASS  the just-paid guard still records at the goal (QC re-entry block)  
+PASS  the QC gate: the engine's RAW expected move must reach 1%  
+PASS  the $20-pace gate is retired from the QC's green condition  
+PASS  the TOO SLOW rejection speaks the expected move  
+PASS  the render: goal_ok replaces pace_ok  
+PASS  no pace_ok reference survives anywhere in the console (the NameError trap)  
+PASS  the verdict line shows the engine's expectation  
+PASS  the QC header shows the GOAL, not the $20 pace  
+PASS  the FAST $20 board is flag-off (code kept)  
+PASS  the board's render is behind the flag  
+PASS  goals clamp to the 1-3% band on 1-3h windows  
+PASS  a goal gate failure needs a REAL small engine move (<1%)  
+PASS  a 1.5% mover passes the goal gate  
+
+RESULT: 21 passed, 0 failed

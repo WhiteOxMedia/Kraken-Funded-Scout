@@ -1,0 +1,6 @@
+backup written: signals.db.bak-20260824-dupes
+deleted 2: ['JUP/USD id=c15f040e', 'LDO/USD id=590c2e4b']
+remaining open buy records: 3
+  2026-08-24T11:24:24 ARB/USD scout_auto
+  2026-08-24T11:47:52 JUP/USD scout_auto
+  2026-08-24T11:47:53 LDO/USD scout_auto

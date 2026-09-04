@@ -1,0 +1,16 @@
+PASS  win: entry 100 -> exit 102 on $1,000: gross +$20.00  20.0
+PASS  win: the 0.08% RT cost is $0.80 (the platform's only cost)  0.8
+PASS  win: net +$19.20 — what the balance actually moved  19.2
+PASS  loss: entry 100 -> exit 99: gross -$10, net -$10.80 (cost still paid)  -10.8
+PASS  flat scratch still pays the spread: net -$0.80  -0.8
+PASS  ASTER-sized case: 0.72655 -> 0.73735 on $233 (+1.487%): net ≈ +$3.28  3.28
+PASS  SOLD computes the PnL via contest_account.pnl_net_usd  
+PASS  SOLD auto-fills the balance (save_state with current + net)  
+PASS  the trade is logged with a SOLD-TIME stamp  
+PASS  the log carries entry/exit/size/pnl/cost/balance/goal/held  
+PASS  her voice speaks the NET and the new balance  
+PASS  she still says the user can hand-correct (self-adjust later)  
+PASS  no size / no live price → the manual reminder path stands  
+PASS  losses SUBTRACT from the balance (net can be negative)  
+
+RESULT: 14 passed, 0 failed

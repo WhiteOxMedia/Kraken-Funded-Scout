@@ -30,9 +30,9 @@ PASS  calm book → no abort
 PASS  deep book passes gates
 PASS  deep book no cap needed
 PASS  deep book tier T1/T2
-PASS  thin book skipped
-PASS  thin book auto-blacklisted 24h
-PASS  blacklist blocks gate
+PASS  thin book gated by health (no blacklist)
+PASS  thin book NOT blacklisted
+PASS  recovered book trades again
 PASS  mid book capped at T2
 PASS  sliptrap book passes health
 PASS  uneven book hits slippage gate

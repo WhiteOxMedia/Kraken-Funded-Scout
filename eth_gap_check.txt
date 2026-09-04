@@ -1,0 +1,16 @@
+ETH in scout_signals DB:
+  2026-08-17 13:40:19.477134  ETH/USD  sell  68.8%
+    reasons: ["Regime: ranging (volatility rank 54/100)", "MACD bullish (hist=0.6452)", "EMA bullish (short > long)", "Volume spike (1.7x avg) confirms sell", "Signal confidence: 69/100 (\ud83d\udfe1 Medium confidence)", "Phase stable (2+ candles)", "Weak trend a
+  2026-08-16 13:58:51.897612  ETH/USD  sell  51.4%
+    reasons: ["Regime: low_vol (volatility rank 0/100)", "BB overbought (%B=0.95)", "MACD bullish (hist=0.2125)", "EMA bullish (short > long)", "Volume spike (4.0x avg) confirms sell", "MTF: no conflicting signals across 2 timeframes", "Signal unstable (67% consi
+  2026-08-15 23:54:44.650277  ETH/USD  buy  45.0%
+    reasons: ["Regime: low_vol (volatility rank 0/100)", "MACD bullish (hist=0.0654)", "EMA bullish (short > long)", "Volume spike (1.4x avg) confirms buy", "MTF: no conflicting signals across 3 timeframes", "Signal unstable (50% consistency) \u221210"]
+
+── what a QUICK CHECK deep scan sees (1h, deep analysis ON):
+  signal: HOLD 20%
+  - Regime: ranging (volatility rank 50/100)
+  - MACD bullish (hist=0.1379)
+  - EMA bullish (short > long)
+  - Below min_confidence (40) — holding
+  move gate (aggressive): 0.613% ETH must clear to be tradeable
+  move gate (standard): 0.829% ETH must clear to be tradeable

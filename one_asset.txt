@@ -1,0 +1,30 @@
+now: Mon 09:49 AM
+
+bot open positions: 1
+  #139 ETH/USD 2519.7 vol=0.054439 opened 2026-08-24 15:20
+recent trades since 8 AM MST: 6
+  2026-08-24 15:28 sell TAO/USD @ 244.1846
+  2026-08-24 15:20 buy  ETH/USD @ 2519.7
+  2026-08-24 15:19 sell VIRTUAL/USD @ 0.8204
+  2026-08-24 14:58 buy  TAO/USD @ 240.935
+  2026-08-24 14:54 buy  VIRTUAL/USD @ 0.7982
+  2026-08-24 14:49 buy  VIRTUAL/USD @ 0.8025
+
+bridge since 8:45 AM (15):
+  2026-08-24T09:45:24 AIXBT/USD    buy  rejected  scout_auto   67.0%
+  2026-08-24T09:38:43 BTC/USD      buy  rejected  scout_auto   62.0%
+  2026-08-24T09:38:42 FARTCOIN/USD buy  rejected  scout_auto   92.0%
+  2026-08-24T09:34:23 AIXBT/USD    buy  rejected  scout_auto   62.0%
+  2026-08-24T09:32:45 ZEC/USD      buy  rejected  scout_auto   72.5%
+  2026-08-24T09:29:53 ASTER/USD    buy  rejected  scout_auto   64.5%
+  2026-08-24T09:27:41 RENDER/USD   buy  rejected  scout_auto   92.0%
+  2026-08-24T09:18:53 BTC/USD      buy  rejected  scout_auto   62.0%
+  2026-08-24T09:18:51 ETH/USD      buy  filled    scout_auto   62.0%
+  2026-08-24T09:18:50 ASTER/USD    buy  rejected  scout_auto   64.5%
+  2026-08-24T09:18:12 LINK/USD     buy  rejected  scout_auto   67.0%
+  2026-08-24T09:11:00 ZEC/USD      buy  rejected  scout_auto   72.5%
+  2026-08-24T09:07:38 BTC/USD      buy  rejected  scout_auto   62.0%
+  2026-08-24T09:07:37 ETH/USD      buy  rejected  scout_auto   62.0%
+  2026-08-24T09:03:47 LINK/USD     buy  rejected  scout_auto   72.5%
+
+wallet: $349.90 USD free

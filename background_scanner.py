@@ -1302,6 +1302,13 @@ def contest_light(exchange, cfg):
                     df = pd.DataFrame(ohlcv, columns=["timestamp", "open", "high", "low", "close", "volume"])
                     df["timestamp"] = pd.to_datetime(df["timestamp"], unit="ms")
                     df.set_index("timestamp", inplace=True)
+                    # REAL-TIME (Sep 3): seed the in-progress candle with the
+                    # live price so the sell bar reacts to the move happening
+                    # now — the voice and the console must agree.
+                    _idx = df.index[-1]
+                    df.loc[_idx, "close"] = live
+                    df.loc[_idx, "high"] = max(float(df.loc[_idx, "high"]), live)
+                    df.loc[_idx, "low"] = min(float(df.loc[_idx, "low"]), live)
                     sig = evaluate_strategy(df, cfg)
                     if sig.action == "sell" and sig.confidence >= CONTEST_SELL_BAR:
                         should_exit = True
@@ -2703,6 +2710,21 @@ def main():
                         df["timestamp"] = pd.to_datetime(df["timestamp"], unit="ms")
                         df.set_index("timestamp", inplace=True)
 
+                        # REAL-TIME (Sep 3): the ticker is the price truth —
+                        # seed the in-progress candle and use the live price
+                        # for the trailing stop (candle closes lag).
+                        _rt_live = float(df["close"].iloc[-1])
+                        try:
+                            _rt_tk = exchange.fetch_ticker(pair)
+                            if _rt_tk and _rt_tk.get("last"):
+                                _rt_live = float(_rt_tk["last"])
+                                _rt_idx = df.index[-1]
+                                df.loc[_rt_idx, "close"] = _rt_live
+                                df.loc[_rt_idx, "high"] = max(float(df.loc[_rt_idx, "high"]), _rt_live)
+                                df.loc[_rt_idx, "low"] = min(float(df.loc[_rt_idx, "low"]), _rt_live)
+                        except Exception:
+                            pass
+
                         exit_sig = _eval(df, cfg)
 
                         # ── DCA tranche check: dipped but trend intact — add to position ──
@@ -2760,7 +2782,7 @@ def main():
                         exit_reason = ""
 
                         # ── Trailing stop check (runs FIRST — protects winners) ──
-                        live_price = float(df["close"].iloc[-1])
+                        live_price = _rt_live
                         try:
                             from signal_bridge import update_trailing_high, check_trailing_stop
                             high = update_trailing_high(pair, live_price)

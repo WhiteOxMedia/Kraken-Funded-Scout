@@ -1,0 +1,22 @@
+PASS  $0 → 1 (concentrate while tiny)  
+PASS  $500 → 1  
+PASS  $999 → 1  
+PASS  $1,000 → 2 (the user's first checkpoint)  
+PASS  $2,500 → 3 (interpolated)  3
+PASS  $5,000 → 5 (the user's second checkpoint)  
+PASS  $7,500 → 8 (interpolated)  8
+PASS  $10,000 → 10 (the user's third checkpoint)  
+PASS  $50,000 → 10 (capped)  
+PASS  the ladder is the user's rule verbatim: (1k,2),(5k,5),(10k,10)  
+PASS  the reader's gate uses max_positions_for(_get_total_account_value(kraken))  
+PASS  the old static MAX_CONCURRENT_POSITIONS gate is gone from the reader  
+PASS  the winner-lock scan is the DEEP read (enable/disable around evaluate)  
+PASS  the deep flag can never leak (try/finally)  
+PASS  the lock still breaks only on the chart's sell read  
+PASS  the engine caps each buy at total/slots (POSITION LADDER)  
+PASS  one slot keeps the all-in behavior (guard: _slots > 1)  
+PASS  ladder sizing fails OPEN to all-in on a broken read  
+PASS  the scout bridge writes through at the ceiling (the reader decides)  
+PASS  the bot's twin bridge is synced  
+
+RESULT: 20 passed, 0 failed

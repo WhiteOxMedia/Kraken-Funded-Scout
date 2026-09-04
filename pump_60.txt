@@ -1,0 +1,13 @@
+now: Mon 02:51 PM Denver
+watch entry: 0.004673 (added 14:28), tracked high: 0.004734, size $5,000
+
+15m candles since the entry:
+  14:00  O 0.00474  H 0.00477 (+1.97% vs entry)  C 0.00473
+  14:15  O 0.00472  H 0.00472 (+0.98% vs entry)  C 0.00468
+  14:30  O 0.00469  H 0.00473 (+1.31% vs entry)  C 0.00468
+  14:45  O 0.00469  H 0.00473 (+1.28% vs entry)  C 0.00472
+
+last: 0.00472 (+1.01% vs entry)
+  +$20 needed 0.00469 — HIT (tracked high 0.00473)
+  +$40 needed 0.00471 — HIT (tracked high 0.00473)
+  +$60 needed 0.00473 — HIT (tracked high 0.00473)

@@ -1,0 +1,9 @@
+C:\Users\birds\Workspace\kraken_xrp_trading_bot\scout_signal_reader.py:32:1: 'datetime.timedelta' imported but unused
+C:\Users\birds\Workspace\kraken_xrp_trading_bot\scout_signal_reader.py:39:5: 'signal_bridge.write_exit_signal' imported but unused
+C:\Users\birds\Workspace\kraken_xrp_trading_bot\scout_signal_reader.py:57:9: 'ccxt' imported but unused
+C:\Users\birds\Workspace\kraken_xrp_trading_bot\scout_signal_reader.py:517:5: local variable 'now' is assigned to but never used
+C:\Users\birds\Workspace\kraken_xrp_trading_bot\scout_signal_reader.py:817:29: local variable 'trade_id' is assigned to but never used
+C:\Users\birds\Workspace\kraken_xrp_trading_bot\bot_engine.py:568:17: redefinition of unused 'schedule_scale_in' from line 513
+C:\Users\birds\Workspace\kraken_xrp_trading_bot\signal_bridge.py:27:1: 'typing.Any' imported but unused
+signal_bridge.py:25:1: 'datetime.timezone' imported but unused
+signal_bridge.py:27:1: 'typing.Any' imported but unused

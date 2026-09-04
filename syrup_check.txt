@@ -1,0 +1,18 @@
+=== JUP signals since 14:00 Sep 2 ===
+2026-09-02T13:23:13 JUP/USD buy conf=64.0 src=scout_auto status=rejected reason=Max positions — challenger lost the head-to-head entry=0.21718 sl=0.213711 tp=0.225852 tide=FLAT/42.5
+2026-09-02T14:52:52 JUP/USD buy conf=92.0 src=scout_auto status=rejected reason=Max positions — challenger lost the head-to-head entry=0.21902 sl=0.214234 tp=0.230985 tide=FLAT/56.09756097560975
+
+=== console_state.json (tier) ===
+{
+ "tier": "$1,000",
+ "watch_on": true,
+ "exit_checks": 18,
+ "voice_on": true
+}
+
+=== contest_watch.json JUP entry ===
+
+=== JUP window drawdown (engine cell) ===
+window_drawdown_pct('JUP/USD') = 4.37
+account: {'tier': 1000, 'start_balance': 1000.0, 'current_balance': 1000.0, 'updated_at': '2026-09-02T14:14:57.967754-06:00'}
+max_entry_usd at that dd = 233

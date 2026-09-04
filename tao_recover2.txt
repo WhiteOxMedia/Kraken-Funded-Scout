@@ -1,0 +1,10 @@
+now: Wed 09:41 PM | TAO live 239.74 | your rebuy 244.90 -> $-105 (-2.11%)
+break-even needs +2.15% | your $20 needs +2.56%
+
+cache: 828 x 1h candles spanning 34 days
+episodes where TAO fell 2.9%+ off a peak: 9 over 34 days
+  recovered to the old peak: 8 of 9 (89%)
+  within 1 HOUR:  0 (0%)
+  within 4 hours: 4 (4444%)
+  within 24 hours:5 (5556%)
+  median time to full recovery: 5.0 hours

@@ -1,0 +1,14 @@
+rotation 12-16 weekday (floor $15,000): top 10 of 39 liquid coins
+ASSET       $20 ETA  avg/rot   rot vol  reliable
+KAITO         0.6h    2.61%    47,250  yes
+PUMP          0.8h    2.10%   294,115  yes
+HYPE          0.9h    1.86% 1,395,103  yes
+WLD           1.0h    1.68%    55,051  yes
+FARTCOIN      1.0h    1.59%    63,329  yes
+AAVE          1.0h    1.55%   131,845  yes
+TRUMP         1.0h    1.54%    21,166  yes
+JTO           1.1h    1.43%    16,309  yes
+ONDO          1.1h    1.40%   199,232  yes
+XPL           1.1h    1.40%    21,410  yes
+
+PUMP rank: 2

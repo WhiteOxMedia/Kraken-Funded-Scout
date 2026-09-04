@@ -1,0 +1,25 @@
+PASS  FLAT tide -> 89 (the strict floor)  
+PASS  RISING tide -> 78  
+PASS  FLAT + lone wolf 35 -> 55 (ARB's lane)  
+PASS  RISING keeps 78 (lone-wolf pts are FLAT-gated upstream — no stack)  
+PASS  POPCAT shape: 74% on a thin book, FLAT (floor 89) -> SKIP  
+PASS  exceptional thin book: 91% on a thin book, FLAT -> GO  
+PASS  ARB shape: 84% lone wolf (floor 55) on a FULL book -> GO (book rules)  
+PASS  a full-carry book never needs the champion floor (60 QC floor rules)  
+PASS  thin book + rising tide floor 78: 80% -> GO  
+PASS  champ floor computed from the scanner's constants (one source of truth)  
+PASS  thin_book flag = sized down but not zero  
+PASS  green-light condition includes the thin-book brain test  
+PASS  render's passes mirrors the same test  
+PASS  skip toast + voice for the non-exceptional thin book  
+PASS  GO voice speaks the brain's number when sized down  
+PASS  NO GREEN line names the thin-book floor  
+PASS  carry LED states the brain requirement on thin books  
+PASS  result stores thin_book + champ_floor for the render  
+PASS  CARD_PICK_VOICE_ENABLED flag exists and is OFF  
+PASS  the card's voice is gated (shows, doesn't speak)  
+PASS  the card still SHOWS the pick (plate + CHECK intact)  
+PASS  the champion alert voice is untouched (the ONE buy voice)  
+PASS  the card's voice code is kept (reversible — don't delete anything)  
+
+RESULT: 23 passed, 0 failed

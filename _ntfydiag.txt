@@ -1,0 +1,43 @@
+﻿now: 16:46:30
+--- console state (voice/watch toggles):
+{
+ "tier": "$5,000",
+ "watch_on": true,
+ "exit_checks": 15,
+ "voice_on": true
+}
+--- last voice (when did she last speak?):
+16:20:11
+--- speech queue pending:
+0 (drained)
+--- scanner alive:
+YES since 14:59:53
+--- voice_log exists (new code live?):
+False
+--- contest watch:
+{}
+--- rotation lockout:
+{
+ "VIRTUAL": {
+  "date": "2026-08-30",
+  "rotation": "12-16",
+  "fired_at": "2026-08-30T13:16:22.657474-06:00"
+ },
+ "AVAX": {
+  "date": "2026-08-30",
+  "rotation": "12-16",
+  "fired_at": "2026-08-30T13:16:43.273091-06:00"
+ },
+ "AAVE": {
+  "date": "2026-08-30",
+  "rotation": "12-16",
+  "fired_at": "2026-08-30T14:03:18.182193-06:00"
+ },
+ "ARB": {
+  "date": "2026-08-30",
+  "rotation": "12-16",
+  "fired_at": "2026-08-30T14:06:28.057673-06:00"
+ }
+}
+--- push topic:
+kraken-scout-lsvdtkep

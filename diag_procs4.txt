@@ -1,0 +1,12 @@
+=== stack processes (component -> start time) ===
+PID 17948   START 08/27 10:47:39  cmd /c ".venv\Scripts\python.exe -X utf8 volatility_engine.py 2>&1 & pause"
+PID 19736   START 08/27 10:47:40  .venv\Scripts\python.exe -X utf8 volatility_engine.py 
+PID 3216    START 08/27 10:47:40  "C:\Users\birds\AppData\Roaming\uv\python\cpython-3.14-windows-x86_64-none\python.exe" -X utf8 volatility_engine.py 
+PID 12076   START 08/27 10:47:40  cmd /c ".venv\Scripts\python.exe background_scanner.py 2>&1 & pause"
+PID 1660    START 08/27 10:47:41  .venv\Scripts\python.exe background_scanner.py 
+PID 15848   START 08/27 10:47:41  "C:\Users\birds\AppData\Roaming\uv\python\cpython-3.14-windows-x86_64-none\python.exe" background_scanner.py 
+PID 5384    START 08/27 10:47:41  cmd /c "cd /d C:\Users\birds\Workspace\kraken_xrp_trading_bot && .venv\Scripts\python.exe bot_runner.py --interval 15 2>&1 & pause
+PID 22580   START 08/27 10:47:42  .venv\Scripts\python.exe bot_runner.py --interval 15 
+PID 19552   START 08/27 10:47:45  ".venv\Scripts\streamlit.exe" run app.py --server.port 8501 --server.runOnSave false
+PID 4568    START 08/27 10:47:45  "C:\Users\birds\Workspace\kraken_scout\.venv\Scripts\python.exe" "C:\Users\birds\Workspace\kraken_scout\.venv\Scripts\streamlit.ex
+PID 25060   START 08/27 10:47:45  "C:\Users\birds\AppData\Roaming\uv\python\cpython-3.14-windows-x86_64-none\python.exe" "C:\Users\birds\Workspace\kraken_scout\.ven

@@ -1,7 +1,9 @@
-﻿19772 :: .venv\Scripts\python.exe  -X utf8 volatility_engine.py  
-2420 :: "C:\Users\birds\AppData\Roaming\uv\python\cpython-3.14-windows-x86_64-none\python.exe"   -X utf8 volatility_engine.py  
-10880 :: .venv\Scripts\python.exe  background_scanner.py  
-4556 :: "C:\Users\birds\AppData\Roaming\uv\python\cpython-3.14-windows-x86_64-none\python.exe"   background_scanner.py  
-5816 :: .venv\Scripts\python.exe  bot_runner.py --interval 15  
-6136 :: "C:\Users\birds\Workspace\kraken_scout\.venv\Scripts\python.exe" "C:\Users\birds\Workspace\kraken_scout\.venv\Scripts\streamlit.exe"  run app.py --server.port 8501 --server.runOnSave false
-6260 :: "C:\Users\birds\AppData\Roaming\uv\python\cpython-3.14-windows-x86_64-none\python.exe"  "C:\Users\birds\Workspace\kraken_scout\.venv\Scripts\streamlit.exe"  run app.py --server.port 8501 --server.runOnSave false
+COUNT 8
+8496 | 2026-09-02 18:49:17 | .venv\Scripts\python.exe  -X utf8 volatility_engine.py  
+20260 | 2026-09-02 18:49:17 | "C:\Users\birds\AppData\Roaming\uv\python\cpython-3.14-windows-x86_64-none\python.exe"   -X utf8 volatility_engine.py  
+16204 | 2026-09-02 18:49:19 | .venv\Scripts\python.exe  background_scanner.py  
+14848 | 2026-09-02 18:49:19 | "C:\Users\birds\AppData\Roaming\uv\python\cpython-3.14-windows-x86_64-none\python.exe"   background_scanner.py  
+8224 | 2026-09-02 18:49:21 | .venv\Scripts\python.exe  bot_runner.py --interval 15  
+3324 | 2026-09-02 18:49:23 | "C:\Users\birds\Workspace\kraken_scout\.venv\Scripts\python.exe" "C:\Users\birds\Workspace\kraken_scout\.venv\Scripts\streamlit.exe" run app.py --server.port 8501 --server.runOnSave false
+22264 | 2026-09-02 18:49:23 | "C:\Users\birds\AppData\Roaming\uv\python\cpython-3.14-windows-x86_64-none\python.exe"  "C:\Users\birds\Workspace\kraken_scout\.venv\Scripts\streamlit.exe" run app.py --server.port 8501 --server.runOnSave false
+2952 | 2026-09-02 18:49:58 | C:\Python314\python.exe  pool\server.py

@@ -1,12 +1,15 @@
-readiness check @ Sat 08:56 PM Denver
-engine JSON: updated 2 min ago
-watch list: updated 64 min ago
-kill switch: ACTIVE — BUYS BLOCKED!
+readiness check @ Mon 08:42 AM Denver
+engine JSON: updated 44 min ago
+watch list: updated 815 min ago
+kill switch: clear
 bridge: 0 pending signal(s)
-  today: 18:09 XMR/USD    buy  closed    bot_strategy   67.5%
-  today: 07:03 XRP/USD    buy  closed    bot_strategy   50.3%
-  today: 04:46 XRP/USD    buy  closed    bot_strategy   37.5%
+  today: 08:41 BTC/USD    buy  rejected  scout_auto     92.0%
+  today: 08:41 ETH/USD    buy  rejected  scout_auto     92.0%
+  today: 08:37 VIRTUAL/USD buy  rejected  scout_auto     92.0%
+  today: 08:30 BTC/USD    buy  rejected  scout_auto     92.0%
+  today: 08:30 ETH/USD    buy  rejected  scout_auto     92.0%
+  today: 08:28 TAO/USD    buy  rejected  scout_auto     72.5%
 execution: blacklist 0, pending scale-ins 0
 contest watch: empty
 payouts tracked: $251.64
-rotation now: 🌙 Cooldown | scan every 30 min | confidence bar 60% | no-buy window: YES
+rotation now: R3 ☀️ EU/US Overlap | scan every 7 min | confidence bar 60% | no-buy window: no

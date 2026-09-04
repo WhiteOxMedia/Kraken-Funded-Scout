@@ -1,0 +1,13 @@
+PASS  card: thin book -> 'Small size only — $X'  
+PASS  card: big book -> 'Big book — all $BAL in fine!'  
+PASS  card: too thin to carry 25% -> 'Too thin'  
+PASS  card: unreadable book -> honest line  not-ok branch + except branch
+PASS  card: no silent branch left (every path sets _size_say)  
+PASS  scanner alert voice: big book speaks the amount  
+PASS  scanner alert voice: unreadable book speaks too (was silent)  
+PASS  scanner alert voice: small-size line unchanged  
+PASS  one standard: 'Small size only' in both voices  
+PASS  one standard: 'Big book' in both voices  
+PASS  one standard: 'Book unreadable' in both voices  
+
+RESULT: 11 passed, 0 failed

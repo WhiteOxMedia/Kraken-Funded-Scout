@@ -1,0 +1,24 @@
+PASS  stamped signal written  9fd43c5d
+PASS  tide_state stored  FLAT
+PASS  tide_pct stored  37.0
+PASS  unstamped write leaves blank tide  
+PASS  migration adds tide_state  
+PASS  migration adds tide_pct  
+PASS  migration keeps existing columns  
+PASS  write works on migrated old DB  41f6e85e
+PASS  scanner stamps the bridge write  
+PASS  scanner stamps the fleet pct  
+PASS  OUT stamp hard-refused  
+PASS  OUT guard rejects before the challenge  
+PASS  OUT rejection marks the signal  
+PASS  UNKNOWN stamp is tradeable (exact match, not truthy)  
+PASS  execution logs the TIDE STAMP  
+PASS  diag runs without error  
+PASS  diag output file written  
+PASS  diag reports no stamped trades yet  
+PASS  diag aggregates without error  
+PASS  FLAT bucket shows 1 trade  
+PASS  closed count appears  
+PASS  readiness line present  
+
+RESULT: 22 passed, 0 failed

@@ -1,0 +1,4 @@
+PASS  falling series -> FALLING
+PASS  rising series -> UP
+PASS  decline then base, price over long EMA -> BASING (not FALLING)
+PASS  junk df -> fail-open UP

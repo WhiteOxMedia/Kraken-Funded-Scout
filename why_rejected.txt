@@ -1,0 +1,12 @@
+2026-08-24T08:41:26 BTC/USD      buy  rejected  scout_auto   92.0% reason=Regime: bull_trend (volatility rank 76/100); 🔥 BREAKOUT — Phase 1 — Breakout — +2.8% move with 2.1x 
+2026-08-24T08:41:25 ETH/USD      buy  rejected  scout_auto   92.0% reason=Regime: bull_trend (volatility rank 64/100); 🔥 BREAKOUT — Phase 1 — Breakout — +2.6% move with 2.2x 
+2026-08-24T08:37:01 VIRTUAL/USD  buy  rejected  scout_auto   92.0% reason=Regime: bull_trend (volatility rank 94/100); 🔥 BREAKOUT — Phase 1 — Breakout — +3.3% move with 2.6x 
+2026-08-24T08:30:12 BTC/USD      buy  rejected  scout_auto   92.0% reason=Regime: bull_trend (volatility rank 75/100); 🔥 BREAKOUT — Phase 1 — Breakout — +2.3% move with 1.6x 
+2026-08-24T08:30:11 ETH/USD      buy  rejected  scout_auto   92.0% reason=Regime: bull_trend (volatility rank 64/100); 🔥 BREAKOUT — Phase 1 — Breakout — +2.2% move with 1.7x 
+2026-08-24T08:28:01 TAO/USD      buy  rejected  scout_auto   72.5% reason=Regime: bull_trend (volatility rank 85/100); Pullback to EMA support in uptrend (RSI 57.8) — trend e
+2026-08-24T08:25:38 VIRTUAL/USD  buy  rejected  scout_auto   67.0% reason=Regime: bull_trend (volatility rank 92/100); 🔥 BREAKOUT — Phase 1 — Breakout — +1.0% move with 1.6x 
+
+open positions: 3
+  ASTER/USD since 2026-08-23T23:13 @ 0.69135
+  FIL/USD since 2026-08-23T23:44 @ 0.75
+  POL/USD since 2026-08-24T02:23 @ 0.11422

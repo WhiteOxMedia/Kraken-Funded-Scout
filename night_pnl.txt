@@ -1,0 +1,26 @@
+positions since Sun 8 PM MST: 3
+trades since Sun 8 PM MST: 9
+
+time    side  pair              vol      price      usd
+02:31   sell  NEAR/USD        79.78     2.0098 $ 160.34
+02:31   sell  ETC/USD         13.95      7.763 $ 108.32
+06:13   buy   ASTER/USD       232.3    0.69135 $ 160.59
+06:44   buy   FIL/USD         142.6       0.75 $ 106.97
+07:42   sell  ASTER/USD       232.3    0.69479 $ 161.39
+08:13   sell  FIL/USD         142.6      0.747 $ 106.55
+09:23   buy   POL/USD          1400    0.11422 $ 159.91
+09:26   buy   POL/USD         944.6    0.11322 $ 106.95
+11:49   sell  POL/USD          2345    0.11392 $ 267.10
+
+total bought:  $534.42
+total sold:    $803.69
+total fees:    $0.61
+net P&L:       $+268.66
+round trips:   4
+
+exit reasons:
+  02:31 NEAR/USD: Time-block rotation — flatten to cash
+  02:31 ETC/USD: Strategy sell (55%, PnL 1.0%)
+  07:42 ASTER/USD: Strategy sell (40%, PnL 1.0%)
+  08:13 FIL/USD: Rotating to XRP/USD (held FIL/USD sell signal, new buy 65% > rotation threshold 50%)
+  11:49 POL/USD: Rotating to XMR/BTC (held POL/USD sell signal, new buy 60% > rotation threshold 50%)

@@ -1,0 +1,19 @@
+PASS  STRICT (default): locked 6 min ago -> still blocked  already ran this rotation (12-16) — cold until the next rotation boundary
+PASS  WINDOW: locked 6 min ago -> ALLOWED (confirming the live alert)  confirmation window — the alert fired at 12:05 (6 min ago); confirming, not a re-fire
+PASS  the reason names the alert's time and age  confirmation window — the alert fired at 12:05 (6 min ago); confirming, not a re-fire
+PASS  not flagged as a re-entry (it's the SAME fire)  
+PASS  the HYPE pattern: 6 min after 'Buy HYPE!' the QC confirms it  
+PASS  WINDOW expires: locked 20 min ago -> still cold (double-dip protection)  already ran this rotation (12-16) — cold until the next rotation boundary
+PASS  confirm_window_min=0 == strict (the scanner's own guard)  
+PASS  no lockout -> fresh (unchanged)  
+PASS  constant exists and is 15 min  
+PASS  QC passes the window  
+PASS  card filter passes the window (the pick stays visible for CHECK)  
+PASS  QC + card reload on the new marker (old console processes)  
+PASS  the scanner's re-fire guard stays STRICT (send_alert, no window)  
+PASS  the mover funnel stays strict (no window param on its gate call)  
+PASS  GO toast says it's confirming the alert  
+PASS  the RE-ENTRY/FRESH LED gains the CONFIRMING state  
+PASS  'Already ran' rejection unchanged for older lockouts  
+
+RESULT: 17 passed, 0 failed

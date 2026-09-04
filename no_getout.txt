@@ -1,0 +1,30 @@
+now: Thu 11:28 AM Denver
+
+contest watch: ['AAVE/USD']
+  AAVE/USD: entry=128.32000 live=128.98000 high=129.29000
+    P&L: $+26 | off peak: 0.2% (trail fires at 3%)
+    added: 2026-08-27T11:06:31
+
+bridge records since 10:45 AM: 20
+  11:28:21 BTC/USD      buy   rejected  conf=68 exec=Max positions — challenger lost the head-to-head
+  11:28:18 ONDO/USD     buy   rejected  conf=93 exec=Max positions — challenger lost the head-to-head
+  11:25:55 LDO/USD      buy   rejected  conf=88 exec=Max positions — challenger lost the head-to-head
+  11:25:15 NEAR/USD     buy   rejected  conf=100 exec=Max positions — challenger lost the head-to-head
+  11:17:09 BTC/USD      buy   rejected  conf=68 exec=Max positions — challenger lost the head-to-head
+  11:14:46 LDO/USD      buy   rejected  conf=88 exec=Max positions — challenger lost the head-to-head
+  11:14:42 NEAR/USD     buy   rejected  conf=100 exec=Max positions — challenger lost the head-to-head
+  11:02:59 LDO/USD      buy   rejected  conf=88 exec=Max positions — challenger lost the head-to-head
+  10:59:13 XRP/USD      buy   rejected  conf=100 exec=Max positions — challenger lost the head-to-head
+  10:59:10 PNUT/USD     buy   rejected  conf=86 exec=Max positions — challenger lost the head-to-head
+  10:59:07 SUI/USD      buy   rejected  conf=73 exec=Max positions — challenger lost the head-to-head
+  10:59:02 LDO/USD      buy   rejected  conf=71 exec=Max positions — challenger lost the head-to-head
+  10:59:00 AAVE/USD     buy   rejected  conf=68 exec=Max positions — challenger lost the head-to-head
+  10:58:57 ATOM/USD     buy   rejected  conf=64 exec=Max positions — challenger lost the head-to-head
+  10:52:16 ONDO/USD     buy   rejected  conf=96 exec=Max positions — challenger lost the head-to-head
+  10:50:00 HYPE/USD     buy   rejected  conf=100 exec=Max positions — challenger lost the head-to-head
+  10:48:47 BTC/USD      buy   rejected  conf=100 exec=Max positions — challenger lost the head-to-head
+  10:48:32 XRP/USD      buy   rejected  conf=100 exec=Max positions — challenger lost the head-to-head
+  10:48:29 WLD/USD      buy   rejected  conf=80 exec=Max positions — challenger lost the head-to-head
+  10:48:21 SUI/USD      buy   rejected  conf=73 exec=Max positions — challenger lost the head-to-head
+
+scanner state: {'last_flatten_date': '2026-08-26'}
