@@ -1,11 +1,11 @@
-PASS  stamped signal written  0514d3c5
+PASS  stamped signal written  04d5dab2
 PASS  tide_state stored  FLAT
 PASS  tide_pct stored  37.0
 PASS  unstamped write leaves blank tide  
 PASS  migration adds tide_state  
 PASS  migration adds tide_pct  
 PASS  migration keeps existing columns  
-PASS  write works on migrated old DB  d0c0a2c4
+PASS  write works on migrated old DB  b4efe2f8
 PASS  scanner stamps the bridge write  
 PASS  scanner stamps the fleet pct  
 PASS  reader belt-and-braces: TIDE OUT stamp hard-refused (restored Sep 4)  

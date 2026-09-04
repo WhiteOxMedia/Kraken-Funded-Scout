@@ -29,7 +29,7 @@ PASS  the worth floor gates send_alert AND the mover popup
 PASS  a big enough entry clears (fresh 10k, low-dd coin: $5,100 at +2.5% = $127.50 ≥ $120)  
 PASS  the floor is a DIAL: _worth_floor_frac() reads console_state.json live  
 PASS  BOTH gates use the dial (champion + mover)  3
-PASS  the dial reads a sane share (0.0-1.0; default 0.5 until turned)  0.35
+PASS  the dial reads a sane share (0.0-1.0; default 0.5 until turned)  0.22551183621241203
 PASS  dial 0% = the floor is OFF (nothing falls below a $0 threshold)  
 PASS  the console sidebar carries the dial (slider + live caption)  
 
