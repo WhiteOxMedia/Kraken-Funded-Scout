@@ -1,0 +1,12 @@
+=== DOGE signals today (all statuses) ===
+
+=== ALL signals 16:55-17:10 (context) ===
+2026-09-04T17:01:09 XRP/USD     sell conf= 0.0 src=scout_trend_exit status=closed    reason=
+
+=== THE CURRENT FLOOR STACK AT 17:00 (16-20 rotation) ===
+ROTATION_POPUP_FLOOR = {'00-04': 84, '04-08': 89, '08-12': 84, '12-16': 89, '16-20': 93, '20-24': 99}
+POPUP_NEAR_MISS_PTS = 5.0
+popup_floor_for_rotation(17) = 89
+fleet tide now = OUT (23.91304347826087%)
+popup_floor(tide=OUT, lw=0) = 93.0
+get_time_block(17, Thursday) = R5 🌆 US Late bar=60 interval=10 no_buy=False rot=16-20
