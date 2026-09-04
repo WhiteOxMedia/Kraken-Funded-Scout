@@ -162,7 +162,7 @@ Real account ~$183.59 free + **the bot holds APT @ 0.5839 since 9/2 17:48 (91% s
 
 ## Open items
 - USER RULES (cumulative): ASK FIRST; never modify desktop/system scripts without telling; never restart the stack myself; "don't delete anything"; a question mark / thoughts request = ASK; the $20 game RETIRED; THE PRIORITY: less entries, more money — big coins, high confidence, brain-driven; never uv add/uv sync while the stack runs.
-- **STACK RESTART PENDING (Sep 4, after the 10:50 restart): the MARKET CAP + ROTATION WINDOW + BOUNDARY EXCEPTION (scanner + console). Earlier restores (Sep 2 gates, exit synthesis) went live at 10:50. Close the console window + rerun the shortcut. (Per RESTART DISCIPLINE: the user restarts, never me.)**
+- **STACK CURRENT (Sep 4, 11:38 restart): ALL of Sep 4 is live — rotation popup floor + challenger, Sep 2 gates restored, ladder v2, scout_mover, exit synthesis on real money, trend-exit channel, market cap on the goal + rotation-bounded window + boundary exception, TRUMP/RENDER breakout fix. Both repos clean. The Kraken Funded rules re-audited against the Sep 3 article: no drift; every popup path passes the 3% death-line guard before firing.**
 - **THE FLATTEN LESSON: re-baseline BEFORE funding anything from the real account (the ASTER flatten fired 2 min ahead of the re-baseline). Tell me before transfers.**
 - **THE LIVE 10k RUN: first alerts through the full gauntlet are the validation. Dial at 25% ($60 floor). SOLD auto-fills the balance — hand-correct when reality differs.**
 - ⏰ TIDE DATA REMINDER: 2026-09-07 10:00 AM → diag_tidedata.py.
