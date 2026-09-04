@@ -1,10 +1,10 @@
-PASS  the engine side resolves (the universe median for unknown pairs)  2.285
-PASS  a generous week (4%/day) keeps the ENGINE number (keep what won)  2.285
+PASS  the engine side resolves (the universe median for unknown pairs)  1.848
+PASS  a generous week (4%/day) keeps the ENGINE number (keep what won)  1.848
 PASS  a quiet week (0.8%/day) caps the goal at 0.8 -> the 1% floor  
 PASS  the week caps a stale engine ask: 1.2%/day week -> 1.2 goal  
 PASS  the MEDIAN day rules (one wild day doesn't lift the cap)  
 PASS  the cap never exceeds the engine number (a 2.5%/day week, engine 1.5 -> 1.5)  
-PASS  a broken week read leaves the ENGINE number alone (yesterday's logic, unchanged)  2.285
+PASS  a broken week read leaves the ENGINE number alone (yesterday's logic, unchanged)  1.848
 PASS  cached 15 min per pair (1 fetch for 2 calls)  1
 PASS  the old derivation survives untouched as the engine side  
 PASS  rotation start (12:00) -> the full 180 cap  

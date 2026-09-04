@@ -1,8 +1,8 @@
 PASS  goal band clamps to 1-3%  
 PASS  goal defaults moderate (1.5%) on a young profile  
 PASS  window scales with the goal: 1% -> 60min, 3% -> 180min, clamped  
-PASS  unknown coin goal = the rotation MEDIAN (the market analysis), in band  2.285
-PASS  a profiled coin reads a real engine goal in the band  1.367
+PASS  unknown coin goal = the rotation MEDIAN (the market analysis), in band  1.848
+PASS  a profiled coin reads a real engine goal in the band  1.0
 PASS  APT shape: high 2h old, ~2% below -> STALE  (2.0, 4.378640776699043)
 PASS  fresh move (high is current) -> not stale  
 PASS  old high but price holds near it -> not stale (a base, not a sag)  
