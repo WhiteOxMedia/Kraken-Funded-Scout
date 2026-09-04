@@ -1,0 +1,10 @@
+C:\Users\birds\Workspace\kraken_xrp_trading_bot\scout_signal_reader.py:32:1: 'datetime.timedelta' imported but unused
+C:\Users\birds\Workspace\kraken_xrp_trading_bot\scout_signal_reader.py:39:1: 'signal_bridge.write_exit_signal' imported but unused
+C:\Users\birds\Workspace\kraken_xrp_trading_bot\scout_signal_reader.py:56:9: 'ccxt' imported but unused
+C:\Users\birds\Workspace\kraken_xrp_trading_bot\scout_signal_reader.py:598:5: local variable 'now' is assigned to but never used
+C:\Users\birds\Workspace\kraken_xrp_trading_bot\scout_signal_reader.py:883:29: local variable 'trade_id' is assigned to but never used
+;: No such file or directory
+type: No such file or directory
+pyflakes_cd.txt:1:4: unexpected character after line continuation character
+C:\Users\birds\Workspace\kraken_xrp_trading_bot\scout_signal_reader.py:32:1: 'datetime.timedelta' imported but unused
+   ^

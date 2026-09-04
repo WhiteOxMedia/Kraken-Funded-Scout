@@ -1,0 +1,11 @@
+DB env present: True
+OPEN positions: 0
+last 8 rows (newest first):
+#198 XRP/USD ts=2026-09-04 22:12:14.080319 open=False
+#197 XMR/USD ts=2026-09-04 21:56:33.230441 open=False
+#196 XRP/USD ts=2026-09-04 17:54:48.467418 open=False
+#195 XRP/USD ts=2026-09-04 17:06:54.261321 open=False
+#194 XMR/USD ts=2026-09-04 10:52:55.771121 open=False
+#193 XRP/USD ts=2026-09-04 05:29:49.897341 open=False
+#192 XRP/USD ts=2026-09-04 02:27:01.453642 open=False
+#191 INJ/USD ts=2026-09-03 19:32:18.931801 open=False
