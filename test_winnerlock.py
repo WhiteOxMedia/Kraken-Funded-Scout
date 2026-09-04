@@ -1,10 +1,17 @@
-"""Test THE WINNER-LOCK EXCEPTION (user rule, Sep 2 — the ASTER fade: it
-ran +2.5% to 0.74501, faded, lost momentum, and the Aug 30 winner lock
-froze it while green — "we don't want to hold weak positions"). The lock
-now breaks on the CHART's verdict, not the price trail: a winner whose
-own fresh read says SELL is challengeable even in profit; a winner riding
-a pullback with a buy/hold read stays locked. The user chose 'bearish
-read only' — no giveback/trail test."""
+"""Test DISPLACEMENT PROTECTION IN THE SEP 3 ROTATION (rewritten Sep 4
+after the user decision: "keep the simpler Sep 3 bot — the rotation
+design replaces the old rules"). The Sep 2 winner-lock (the ASTER
+lesson: a green winner whose own chart says SELL is challengeable; a
+pullback rider stays locked) is RETIRED — the rotation design the user
+asked for on Sep 3 does the job with different semantics:
+
+  _find_weakest_position scores every held position by P&L + the chart's
+  own read: a position whose fresh read is BUY >=50 is NEVER sold as the
+  weakest ("recovering — skip"); a sell-reading position scores -5
+  (weakest first, even in profit); a fading hold scores -2. There is no
+  pnl>0 immunity and no entry-conviction math — the weakest seat funds
+  the stronger (>=70%) incoming buy, at a loss if that's what it is
+  (the user's Sep 3 rule: sell the weakest, not 'never sell at a loss')."""
 import sys
 from pathlib import Path
 
@@ -25,36 +32,44 @@ def check(name, ok, detail=""):
 
 READER = Path(r"C:\Users\birds\Workspace\kraken_xrp_trading_bot\scout_signal_reader.py")
 src = READER.read_text(encoding="utf-8")
-fn = src[src.find("def _challenge_weakest"):src.find("def _sell_held_position")]
+fn = src[src.find("def _find_weakest_position"):]
+fn = fn[:fn.find("\ndef ")]
 
-# ── 1. the lock breaks on the chart's verdict ─────────────────────────
-check("the lock is pnl>0 AND the fresh read is NOT sell — the chart decides",
-      'if pnl_pct > 0 and scan_action != "sell":' in fn)
-check("the old unconditional lock is gone",
-      "if pnl_pct > 0:\n                continue" not in fn)
-check("the fresh scan runs BEFORE the lock (the exception reads it)",
-      fn.find("fresh scan: what does the held asset say RIGHT NOW?")
-      < fn.find("WINNER LOCK"))
-check("the exception is documented with the ASTER lesson",
-      "ASTER fade" in fn and "the chart decides" in fn.lower()
-      or "CHART DECIDES" in fn)
+# ── 1. the protection: the chart decides who is weakest ──────────────
+check("a recovering position (own read buy >=50) is skipped, never sold",
+      'sig.action == "buy" and sig.confidence >= 50' in fn
+      and "recovering" in fn)
+check("a sell-reading position is scored weakest (-5) — even in profit",
+      "signal_penalty = -5.0" in fn and "# trend already reversed" in fn)
+check("a fading hold (hold <30) scores down (-2)",
+      "signal_penalty = -2.0" in fn and "momentum fading" in fn)
+check("the score is P&L + the chart's vote",
+      "score = pnl_pct + signal_penalty" in fn)
+check("a broken strategy read still ranks by P&L (fail-soft)",
+      "if strategy fails, just use P&L" in fn)
 
-# ── 2. what still protects a real winner ─────────────────────────────
-check("fresh-buy protection still stands (never churn a new entry)",
-      "FRESH_BUY_COOLDOWN_MIN" in fn)
-check("the strength math still guts a bearish incumbent "
-      "(entry_conf − scan_conf — a green-but-dead seat loses fast)",
-      "entry_conf - scan_conf" in fn)
-check("a broken scan keeps the lock (fail-locked: never unlock on missing data)",
-      "never unlock protection on missing data" in fn)
-check("buy/hold reads still lock a profitable position",
-      'scan_action == "buy"' in fn and 'scan_action == "sell"' in fn)
+# ── 2. no immunity — the weakest funds the stronger, at a loss if needed
+check("no never-sell-at-a-loss filter (the old bug is gone)",
+      "pnl_pct >= 0" not in fn)
+check("no winner lock — pnl>0 does not shield a seat",
+      "pnl_pct > 0" not in fn)
+check("no entry-conviction strength math (retired with the lock)",
+      "entry_conf" not in fn)
 
-# ── 3. the churn guard is intact (the Aug 29 fee-machine lesson) ──────
-check("the winner lock's original rationale is kept (Aug 29: ENA/NEAR churn)",
-      "fee machine" in fn and "ENA" in fn)
-check("the challenger still must clear CHALLENGE_MARGIN",
-      "CHALLENGE_MARGIN" in fn)
+# ── 3. the old lock machinery is retired, not deleted ────────────────
+check("the challenge/churn machinery is gone from the reader",
+      "_challenge_weakest" not in src and "CHALLENGE_MARGIN" not in src
+      and "FRESH_BUY_COOLDOWN_MIN" not in src)
+check("the displacement happens only through the rotation (>=70% buys)",
+      src.count("weakest = _find_weakest_position(kraken, config)") == 2
+      and "if confidence >= 70:" in src)
+
+# ── 4. the ASTER lesson is superseded, not forgotten ─────────────────
+# (documented decision — no code to assert; the docstring above is the
+#  record. A winner whose chart says SELL still exits FIRST through the
+#  scorer's -5 penalty: it is the weakest seat by the chart's own read.)
+check("a chart-says-SELL winner is the weakest seat by construction",
+      "-5.0" in fn)
 
 lines.append(f"\nRESULT: {PASS} passed, {FAIL} failed")
 open("_winnerlock_check.txt", "w", encoding="utf-8").write("\n".join(lines))

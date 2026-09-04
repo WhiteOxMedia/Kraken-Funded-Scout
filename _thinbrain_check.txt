@@ -9,8 +9,8 @@ PASS  a full-carry book never needs the champion floor (60 QC floor rules)
 PASS  thin book + rising tide floor 78: 80% -> GO  
 PASS  champ floor computed from the scanner's constants (one source of truth)  
 PASS  thin_book flag = sized down but not zero  
-FAIL  green-light condition includes the thin-book brain test  
-FAIL  render's passes mirrors the same test  
+PASS  green-light condition includes the thin-book brain test (Sep 4: with the challenger window — the QC agrees with the alert)  
+PASS  render's passes mirrors the same test (champ_min, not the bare floor)  
 PASS  skip toast + voice for the non-exceptional thin book  
 PASS  GO voice speaks the brain's number when sized down  
 PASS  NO GREEN line names the thin-book floor  
@@ -19,7 +19,7 @@ PASS  result stores thin_book + champ_floor for the render
 PASS  CARD_PICK_VOICE_ENABLED flag exists and is OFF  
 PASS  the card's voice is gated (shows, doesn't speak)  
 PASS  the card still SHOWS the pick (plate + CHECK intact)  
-FAIL  the champion alert voice is untouched (the ONE buy voice)  
+PASS  the champion alert voice is untouched (the ONE buy voice; Sep 4: a challenger popup appends the mark, the base line stands)  
 PASS  the card's voice code is kept (reversible — don't delete anything)  
 
-RESULT: 20 passed, 3 failed
+RESULT: 23 passed, 0 failed

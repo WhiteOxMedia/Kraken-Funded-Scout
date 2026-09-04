@@ -1,13 +1,14 @@
 PASS  goal band clamps to 1-3%  
 PASS  goal defaults moderate (1.5%) on a young profile  
 PASS  window scales with the goal: 1% -> 60min, 3% -> 180min, clamped  
-PASS  unknown coin goal = the rotation MEDIAN (the market analysis), in band  1.662
-PASS  a profiled coin reads a real engine goal in the band  1.0
+PASS  unknown coin goal = the rotation MEDIAN (the market analysis), in band  2.285
+PASS  a profiled coin reads a real engine goal in the band  1.367
 PASS  APT shape: high 2h old, ~2% below -> STALE  (2.0, 4.378640776699043)
 PASS  fresh move (high is current) -> not stale  
 PASS  old high but price holds near it -> not stale (a base, not a sag)  
 PASS  broken read -> not stale (fail-open)  
 PASS  the brain-judged bar exists: the BRAIN's number clears the popup floor  
+PASS  the head-to-head challenge window is wired (within 5 below = CHALLENGER)  
 PASS  a current deep read runs BEFORE the popup (cached if fresh)  
 PASS  the JUP loophole is closed — fail-CLOSED (a broken brain read = NO popup)  
 PASS  the fail-open quick check is GONE (the JUP 14:52 hole — quick 92 opened the popup, the QC's brain said 67 two minutes later)  
@@ -28,8 +29,8 @@ PASS  the worth floor gates send_alert AND the mover popup
 PASS  a big enough entry clears (fresh 10k, low-dd coin: $5,100 at +2.5% = $127.50 ≥ $120)  
 PASS  the floor is a DIAL: _worth_floor_frac() reads console_state.json live  
 PASS  BOTH gates use the dial (champion + mover)  3
-PASS  the dial reads a sane share (0.0-1.0; default 0.5 until turned)  0.5
+PASS  the dial reads a sane share (0.0-1.0; default 0.5 until turned)  0.35
 PASS  dial 0% = the floor is OFF (nothing falls below a $0 threshold)  
 PASS  the console sidebar carries the dial (slider + live caption)  
 
-RESULT: 33 passed, 0 failed
+RESULT: 34 passed, 0 failed

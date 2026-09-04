@@ -84,7 +84,10 @@ check("broken read -> not stale (fail-open)", bs._stale_move(_Bad(), "T/USD") is
 # ── 3. the wiring in send_alert ───────────────────────────────────────
 src = open("background_scanner.py", encoding="utf-8").read()
 check("the brain-judged bar exists: the BRAIN's number clears the popup floor",
-      "_brain_floor_ok = float(_deep.confidence) >= DESKTOP_ALERT_MIN" in src)
+      "_bc >= DESKTOP_ALERT_MIN" in src and "_brain_floor_ok = True" in src)
+check("the head-to-head challenge window is wired (within 5 below = CHALLENGER)",
+      "elif _bc >= DESKTOP_ALERT_MIN - POPUP_NEAR_MISS_PTS:" in src
+      and "_challenger = True" in src)
 check("a current deep read runs BEFORE the popup (cached if fresh)",
       "_brain_floor_ok" in src and "BRAIN-JUDGED BAR" in src)
 check("the JUP loophole is closed — fail-CLOSED (a broken brain read = NO popup)",

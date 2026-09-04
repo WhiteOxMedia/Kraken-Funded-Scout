@@ -3182,9 +3182,11 @@ def _render_bots_book(kraken, cfg):
     (user rule, Aug 31: "can the console track it and send the signal
     silently to the bridge side for the bot's trades?"). Bridge filled
     records = the bot's holdings (the two repos' contract); live PnL;
-    per-pair 1h trend state — the same knife that sends the silent
-    GET OUT NOW. 🔴 REVERSED — GET OUT SENT shows while a scout_trend_exit
-    sell pends. Console-side: browser F5 loads changes, no restart."""
+    per-pair 1h trend state. (Sep 4: the silent scout_trend_exit channel
+    is RETIRED — the Sep 3 reader admits sells only from
+    scout_exit_check; the knife state below is informational. Bot exits
+    now: the 5-min exit check + the engine's SL/TP/ATR-trail stack.)
+    Console-side: browser F5 loads changes, no restart."""
     try:
         import signal_bridge as _sb7
         if not hasattr(_sb7, "get_open_positions"):
@@ -3239,9 +3241,9 @@ def _render_bots_book(kraken, cfg):
             _pnl_col = ("#3fb950" if (_pnl or 0) > 0
                         else ("#f85149" if (_pnl or 0) < 0 else "#9a9a9a"))
             if _pair in _pend:
-                _trend_html = "<span style='color:#f85149;font-weight:700;'>🔴 REVERSED — GET OUT SENT</span>"
+                _trend_html = "<span style='color:#f85149;font-weight:700;'>🔴 REVERSED — legacy trend-exit pending (channel retired)</span>"
             elif _rev:
-                _trend_html = "<span style='color:#f85149;'>🔴 reversed</span>"
+                _trend_html = "<span style='color:#f85149;'>🔴 REVERSED</span>"
             else:
                 _trend_html = "<span style='color:#3fb950;'>🟢 riding</span>"
             _meta = f" · entry {_entry:.4f}"

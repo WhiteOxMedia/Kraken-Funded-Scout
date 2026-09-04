@@ -1,22 +1,22 @@
-PASS  $0 → 1 (concentrate while tiny)  
-PASS  $500 → 1  
-PASS  $999 → 1  
-PASS  $1,000 → 2 (the user's first checkpoint)  
-PASS  $2,500 → 3 (interpolated)  3
-PASS  $5,000 → 5 (the user's second checkpoint)  
-PASS  $7,500 → 8 (interpolated)  8
-PASS  $10,000 → 10 (the user's third checkpoint)  
-PASS  $50,000 → 10 (capped)  
-PASS  the ladder is the user's rule verbatim: (1k,2),(5k,5),(10k,10)  
-PASS  the reader's gate uses max_positions_for(_get_total_account_value(kraken))  
-PASS  the old static MAX_CONCURRENT_POSITIONS gate is gone from the reader  
-PASS  the winner-lock scan is the DEEP read (enable/disable around evaluate)  
-PASS  the deep flag can never leak (try/finally)  
-PASS  the lock still breaks only on the chart's sell read  
-PASS  the engine caps each buy at total/slots (POSITION LADDER)  
-PASS  one slot keeps the all-in behavior (guard: _slots > 1)  
-PASS  ladder sizing fails OPEN to all-in on a broken read  
-PASS  the scout bridge writes through at the ceiling (the reader decides)  
-PASS  the bot's twin bridge is synced  
+PASS  MAX_CONCURRENT_POSITIONS is 1 (concentrated by design)  1
+PASS  the reader resolves the SCOUT's bridge (path insert first)  
+PASS  the ladder math is kept in signal_bridge (retired, not deleted)  
+PASS  the ladder is the user's original rule verbatim  
+PASS  the reader does NOT call the ladder (retired by decision, Sep 4)  
+PASS  the reader enforces the static gate  
+PASS  bridge holding gate (is_already_holding)  
+PASS  bot-DB holding gate (get_position_for_asset)  
+PASS  rotation runs BEFORE the minimum reject (rotation precedes reject)  
+PASS  the minimum is $100 (fewer, bigger positions)  
+PASS  rotation only fires on a >=70% incoming buy  
+PASS  the second rotation: engine Insufficient -> sell weakest -> retry  
+PASS  rotation closes the sold pair's bridge record  
+PASS  a recovering position (own read buy >=50) is never the weakest  
+PASS  a sell-reading position scores weakest (-5)  
+PASS  a fading hold scores down (-2)  
+PASS  score = PnL + signal penalty (the chart has a vote)  
+PASS  a broken strategy read still scores by P&L (fail-soft)  
+PASS  the engine deploys trade_pct of available (all-in)  
+PASS  the per-slot division is retired (no _acct_v / _slots)  
 
 RESULT: 20 passed, 0 failed

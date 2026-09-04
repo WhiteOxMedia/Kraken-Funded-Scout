@@ -11,10 +11,11 @@ PASS  an 80% pick stays silent in FLAT
 PASS  a 56% solo mover alerts in FLAT via lone wolf  
 PASS  an 80% pick alerts in RISING but stays silent in FLAT  
 PASS  a 70% pick stays silent everywhere (below even the relaxed floor)  
-FAIL  floor is tide-aware in send_alert  
-PASS  broken tide read fails closed to 89 (except branch)  
-FAIL  relaxation is logged  
-FAIL  lone-wolf discount still stacks after the tide floor  
+PASS  floor is tide-aware + rotation-aware via popup_floor() in send_alert  
+PASS  broken tide read fails closed (except branch)  
+PASS  the tide margin still applies inside popup_floor (never below 78)  
+PASS  lone-wolf discount still stacks inside popup_floor (never below 55)  
+PASS  relaxation is logged (the floor line names the rotation)  
 PASS  the deep-read >=60 pre-check still applies (never discounted)  
 
-RESULT: 15 passed, 3 failed
+RESULT: 19 passed, 0 failed

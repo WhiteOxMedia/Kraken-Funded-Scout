@@ -838,14 +838,23 @@ def popup_floor(tide_state: str | None = None, lw_pts: float = 0,
 # ── TREND-EXIT WATCH (user rule, Aug 31: "when the trend reverses then
 # the bot should 'get out now'" + "the console tracks it and sends the
 # signal silently to the bridge side for the bot's trades") ────────────
-# The scanner is the brain, the bot is the executor: for every pair the
-# bot HOLDS, run the same 1h EMA knife that bans entries. Reversed → a
-# SILENT exit signal (source="scout_trend_exit") goes to the bridge — no
-# voice, no popup, no phone push; the bot sells on its next cycle. The
-# bot's own knife (engine-side, Aug 31) stays as the floor if the scanner
-# dies. Read cached per pair (the 1h trend doesn't change faster than
-# minutes); failed reads are NOT cached — a transient blip retries next
-# fails. Fail-closed: a broken read never triggers an exit.
+# RETIRED (user decision, Sep 4: "keep the simpler Sep 3 bot — the
+# rotation design replaces the old rules"): the Sep 3 reader admits
+# sells ONLY from scout_exit_check, so scout_trend_exit writes were dead
+# traffic — written, logged as "silent SELL written for the bot", never
+# executed. The watch is disabled behind SCOUT_TREND_EXIT_ENABLED; the
+# code is kept per the don't-delete rule. Exits that DO reach the bot's
+# real money now: the 5-min exit check (scout_exit_check — trailing
+# stop / strategy sell / exhaustion) + the engine's own SL/TP/ATR-trail
+# stack. Flip the flag to True to re-arm (and re-admit the source in
+# the reader) if the trend-exit channel is ever wanted back.
+# Original design (kept for reference): for every pair the bot HOLDS,
+# run the same 1h EMA knife that bans entries. Reversed → a SILENT exit
+# signal (source="scout_trend_exit") goes to the bridge — no voice, no
+# popup, no phone push. Read cached per pair (the 1h trend doesn't
+# change faster than minutes); failed reads are NOT cached; fail-closed:
+# a broken read never triggers an exit.
+SCOUT_TREND_EXIT_ENABLED = False   # retired Sep 4 — flip to re-arm
 _trend_exit_cache: dict = {}
 _trend_exit_pace: dict = {}   # pair -> last write attempt ts (15-min pacing)
 
@@ -2301,17 +2310,22 @@ def main():
         # the ONE mouth: console lines get spoken here, always
         _drain_speech_queue()
 
-        # ── TREND-EXIT WATCH (user rule, Aug 31) — ALWAYS runs, cooldown
-        # included (cooldown blocks buys, never exits). For every pair the
-        # bot holds (bridge filled records), the 1h knife; reversed → a
-        # SILENT bridge SELL (source="scout_trend_exit") — no voice, no
-        # popup, no phone push. The reader's two-ledger guard honors this
-        # ONE source; the bot's own engine knife remains the independent
-        # floor. Dup-safe (write_exit_signal skips while a sell pends).
-        try:
-            from signal_bridge import get_open_positions as _bop, write_exit_signal as _wes
-            _held = _bop()
-        except Exception:
+        # ── TREND-EXIT WATCH (user rule, Aug 31) — RETIRED behind
+        # SCOUT_TREND_EXIT_ENABLED (user decision, Sep 4: the Sep 3 reader
+        # admits sells only from scout_exit_check; these writes were dead
+        # traffic). When disabled the loop simply has nothing to walk.
+        # Original: ALWAYS ran, cooldown included (cooldown blocks buys,
+        # never exits). For every pair the bot holds (bridge filled
+        # records), the 1h knife; reversed → a SILENT bridge SELL
+        # (source="scout_trend_exit") — no voice, no popup, no phone
+        # push. Dup-safe (write_exit_signal skips while a sell pends).
+        if SCOUT_TREND_EXIT_ENABLED:
+            try:
+                from signal_bridge import get_open_positions as _bop, write_exit_signal as _wes
+                _held = _bop()
+            except Exception:
+                _held = []
+        else:
             _held = []
         for _pos in (_held or []):
             _pair = (_pos or {}).get("pair")
@@ -2914,10 +2928,12 @@ def main():
 
                             # NO desktop popup: Windows alerts are BUY-NOW
                             # calls only (user rule — never a sell popup).
-                            # NOTE (Aug 30, two-ledger rule): this exit signal
-                            # drives the CONTEST side only (voice/phone/
-                            # console). The bot's real account ignores it —
-                            # real money exits via the bot's own trend ladder.
+                            # TWO-LEDGER (updated Sep 4): write_exit_signal
+                            # defaults to source="scout_exit_check" — the
+                            # ONE sell source the Sep 3 reader admits on
+                            # REAL money (trailing stop / strategy sell /
+                            # exhaustion all land on the bot's account).
+                            # Every other sell source stays contest-only.
                     except Exception as exc:
                         logger.debug("Exit check failed for %s: %s", pair, exc)
 

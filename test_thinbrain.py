@@ -63,10 +63,11 @@ check("champ floor computed from the scanner's constants (one source of truth)",
       and 'getattr(_bs5, "LONE_WOLF_DESKTOP_FLOOR", 55.0)' in ap)
 check("thin_book flag = sized down but not zero",
       "_thin_book = (0 < _spend_usd < float(cfg.challenge_balance))" in ap)
-check("green-light condition includes the thin-book brain test",
-      "(not _thin_book or sig.confidence >= _champ_floor)" in ap)
-check("render's passes mirrors the same test",
-      "(not thin_book or sig.confidence >= champ_floor)" in ap)
+check("green-light condition includes the thin-book brain test "
+      "(Sep 4: with the challenger window — the QC agrees with the alert)",
+      "(not _thin_book\n                             or sig.confidence >= _champ_challenge_min)" in ap)
+check("render's passes mirrors the same test (champ_min, not the bare floor)",
+      "(not thin_book or sig.confidence >= champ_min)" in ap)
 check("skip toast + voice for the non-exceptional thin book",
       "THIN BOOK, BRAIN NOT EXCEPTIONAL" in ap
       and "not exceptional!" in ap)
@@ -86,8 +87,10 @@ check("the card's voice is gated (shows, doesn't speak)",
       'if h["age_min"] <= 10 and CARD_PICK_VOICE_ENABLED:' in ap)
 check("the card still SHOWS the pick (plate + CHECK intact)",
       "⚡ THE PICK" in ap and "the final yes/no" in ap)
-check("the champion alert voice is untouched (the ONE buy voice)",
-      'title = f"🟢 BUY {asset} — {_dc:.0f}% SURE"' in open(
+check("the champion alert voice is untouched (the ONE buy voice; Sep 4: a "
+      "challenger popup appends the mark, the base line stands)",
+      'title = (f"🟢 BUY {asset} — {_dc:.0f}% SURE"\n'
+      '                     + (" — CHALLENGER" if _challenger else ""))' in open(
           "background_scanner.py", encoding="utf-8").read())
 check("the card's voice code is kept (reversible — don't delete anything)",
       "_size_say" in ap and "New pick! {h['asset']}!" in ap)

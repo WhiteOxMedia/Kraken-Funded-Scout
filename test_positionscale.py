@@ -1,10 +1,18 @@
-"""Test THE POSITION LADDER + THE DEEP WINNER-LOCK SCAN (user rule, Sep 2:
-"'never interrupt a winner' should now trigger a current deep scan... A
-growing scale will change the focus from one asset to multiple assets as
-the account balance grows. 1k = 2 assets, 5k = 5 and so on up to 10k = 10").
-The ladder runs on TOTAL account value (free + positions at market — the
-user chose this): below $1k concentrate on ONE pick; slots unlock as the
-account compounds; each buy targets total/N so the spread is real."""
+"""Test POSITION GATING IN THE SEP 3 READER (rewritten Sep 4 after the
+user decision: "keep the simpler Sep 3 bot — the rotation design replaces
+the old rules"). The Sep 2 position ladder (1k=2, 5k=5, 10k=10 slots)
+and the winner-lock/challenge displacement are RETIRED — code kept per
+the don't-delete rule, but the reader never calls them. What governs
+positions now:
+  - ONE static slot: MAX_CONCURRENT_POSITIONS (=1, from the scout bridge
+    — the copy the reader resolves via its scout-path-first import)
+  - already-holding gates (bridge + the bot's own DB)
+  - THE ROTATION (the Sep 3 replacement for displacement): a >=70% scout
+    buy with <$100 free sells the weakest position to fund it BEFORE the
+    minimum reject, and a second rotation fires when the engine itself
+    reports Insufficient
+  - the engine deploys trade_pct (99%) of available — all-in, no
+    per-slot division"""
 import sys
 from pathlib import Path
 
@@ -25,52 +33,65 @@ def check(name, ok, detail=""):
 
 import signal_bridge as sb
 
-# ── 1. the ladder math (the user's checkpoints, piecewise between) ────
-check("$0 → 1 (concentrate while tiny)", sb.max_positions_for(0) == 1)
-check("$500 → 1", sb.max_positions_for(500) == 1)
-check("$999 → 1", sb.max_positions_for(999) == 1)
-check("$1,000 → 2 (the user's first checkpoint)", sb.max_positions_for(1_000) == 2)
-check("$2,500 → 3 (interpolated)", sb.max_positions_for(2_500) == 3, sb.max_positions_for(2_500))
-check("$5,000 → 5 (the user's second checkpoint)", sb.max_positions_for(5_000) == 5)
-check("$7,500 → 8 (interpolated)", sb.max_positions_for(7_500) == 8, sb.max_positions_for(7_500))
-check("$10,000 → 10 (the user's third checkpoint)", sb.max_positions_for(10_000) == 10)
-check("$50,000 → 10 (capped)", sb.max_positions_for(50_000) == 10)
-check("the ladder is the user's rule verbatim: (1k,2),(5k,5),(10k,10)",
+BOT = Path(r"C:\Users\birds\Workspace\kraken_xrp_trading_bot")
+rsrc = (BOT / "scout_signal_reader.py").read_text(encoding="utf-8")
+esrc = (BOT / "bot_engine.py").read_text(encoding="utf-8")
+
+# ── 1. the one static slot (the scout bridge is the live copy) ───────
+check("MAX_CONCURRENT_POSITIONS is 1 (concentrated by design)",
+      sb.MAX_CONCURRENT_POSITIONS == 1, sb.MAX_CONCURRENT_POSITIONS)
+check("the reader resolves the SCOUT's bridge (path insert first)",
+      'sys.path.insert(0, str(SCOUT_PATH))' in rsrc)
+
+# ── 2. the ladder: retired but kept (don't-delete rule) ───────────────
+check("the ladder math is kept in signal_bridge (retired, not deleted)",
+      hasattr(sb, "max_positions_for") and sb.max_positions_for(10_000) == 10)
+check("the ladder is the user's original rule verbatim",
       sb.POSITION_LADDER == ((1_000.0, 2), (5_000.0, 5), (10_000.0, 10))
       and sb.POSITION_CEILING == 10)
+check("the reader does NOT call the ladder (retired by decision, Sep 4)",
+      "max_positions_for(" not in rsrc)
+check("the reader enforces the static gate",
+      "open_count >= MAX_CONCURRENT_POSITIONS" in rsrc)
 
-# ── 2. the reader enforces the ladder at take-time ────────────────────
-rsrc = Path(r"C:\Users\birds\Workspace\kraken_xrp_trading_bot\scout_signal_reader.py").read_text(encoding="utf-8")
-check("the reader's gate uses max_positions_for(_get_total_account_value(kraken))",
-      "max_positions_for(_get_total_account_value(kraken))" in rsrc)
-check("the old static MAX_CONCURRENT_POSITIONS gate is gone from the reader",
-      "open_count >= MAX_CONCURRENT_POSITIONS" not in rsrc)
+# ── 3. the already-holding gates ─────────────────────────────────────
+check("bridge holding gate (is_already_holding)",
+      "is_already_holding(pair)" in rsrc)
+check("bot-DB holding gate (get_position_for_asset)",
+      "get_position_for_asset(base)" in rsrc)
 
-# ── 3. THE DEEP winner-lock scan (the brain's number decides the lock) ─
-fn = rsrc[rsrc.find("def _challenge_weakest"):rsrc.find("def _sell_held_position")]
-check("the winner-lock scan is the DEEP read (enable/disable around evaluate)",
-      "enable_deep_analysis()" in fn and "disable_deep_analysis()" in fn
-      and "evaluate_strategy(df, config)" in fn)
-check("the deep flag can never leak (try/finally)",
-      fn.find("finally:") < fn.find("disable_deep_analysis()")
-      and "finally:" in fn)
-check("the lock still breaks only on the chart's sell read",
-      'if pnl_pct > 0 and scan_action != "sell":' in fn)
+# ── 4. THE ROTATION — the Sep 3 replacement for displacement ─────────
+check("rotation runs BEFORE the minimum reject (rotation precedes reject)",
+      0 < rsrc.find("attempting rotation") < rsrc.find("Insufficient funds:"))
+check("the minimum is $100 (fewer, bigger positions)",
+      "available_usd < 100" in rsrc and "min $100" in rsrc)
+check("rotation only fires on a >=70% incoming buy",
+      "if confidence >= 70:" in rsrc)
+check("the second rotation: engine Insufficient -> sell weakest -> retry",
+      '"Insufficient" in buy_result.get("skipped", "")' in rsrc
+      and "Rebalance: sold" in rsrc)
+check("rotation closes the sold pair's bridge record",
+      "mark_closed_by_pair(weak_pair" in rsrc)
 
-# ── 4. the engine sizes per slot (the spread is real) ─────────────────
-esrc = Path(r"C:\Users\birds\Workspace\kraken_xrp_trading_bot\bot_engine.py").read_text(encoding="utf-8")
-check("the engine caps each buy at total/slots (POSITION LADDER)",
-      "POSITION LADDER" in esrc and "_acct_v / _slots" in esrc)
-check("one slot keeps the all-in behavior (guard: _slots > 1)",
-      "_slots > 1" in esrc)
-check("ladder sizing fails OPEN to all-in on a broken read",
-      "fail-open all-in" in esrc)
+# ── 5. the weakest-position scorer (what displacement became) ────────
+fn = rsrc[rsrc.find("def _find_weakest_position"):]
+fn = fn[:fn.find("\ndef ")]
+check("a recovering position (own read buy >=50) is never the weakest",
+      'sig.action == "buy" and sig.confidence >= 50' in fn)
+check("a sell-reading position scores weakest (-5)",
+      "signal_penalty = -5.0" in fn)
+check("a fading hold scores down (-2)",
+      "signal_penalty = -2.0" in fn)
+check("score = PnL + signal penalty (the chart has a vote)",
+      "score = pnl_pct + signal_penalty" in fn)
+check("a broken strategy read still scores by P&L (fail-soft)",
+      "if strategy fails, just use P&L" in fn)
 
-# ── 5. the write side: signals flow to the reader (no scanner-side cap) ─
-check("the scout bridge writes through at the ceiling (the reader decides)",
-      "POSITION_CEILING" in Path("signal_bridge.py").read_text(encoding="utf-8"))
-check("the bot's twin bridge is synced",
-      "POSITION_CEILING" in Path(r"C:\Users\birds\Workspace\kraken_xrp_trading_bot\signal_bridge.py").read_text(encoding="utf-8"))
+# ── 6. the engine sizes all-in (no per-slot division) ────────────────
+check("the engine deploys trade_pct of available (all-in)",
+      "available_quote * (self.config.trade_pct / 100.0)" in esrc)
+check("the per-slot division is retired (no _acct_v / _slots)",
+      "_acct_v / _slots" not in esrc)
 
 lines.append(f"\nRESULT: {PASS} passed, {FAIL} failed")
 open("_positionscale_check.txt", "w", encoding="utf-8").write("\n".join(lines))

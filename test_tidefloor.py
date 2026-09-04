@@ -60,16 +60,20 @@ check("an 80% pick alerts in RISING but stays silent in FLAT",
 check("a 70% pick stays silent everywhere (below even the relaxed floor)",
       70 < desktop_floor("FLAT") and 70 < desktop_floor("RISING"))
 
-# ── 4. source checks: the wiring ───────────────────────────────────────
+# ── 4. source checks: the wiring (updated Sep 4: the floor is
+# ROTATION-aware now — ROTATION_POPUP_FLOOR rail → tide margin → lone
+# wolf, all inside popup_floor(); the flat-89 line is retired) ────────
 src = open("background_scanner.py", encoding="utf-8").read()
-check("floor is tide-aware in send_alert",
-      'TIDE_RISING_DESKTOP_FLOOR if _df_state == "RISING" else 89' in src)
-check("broken tide read fails closed to 89 (except branch)",
+check("floor is tide-aware + rotation-aware via popup_floor() in send_alert",
+      "DESKTOP_ALERT_MIN = popup_floor(_df_state, _lw_pts, _rot_now_key)" in src)
+check("broken tide read fails closed (except branch)",
       "_df_pct, _df_state = None, None" in src)
-check("relaxation is logged",
-      "desktop floor relaxed 89" in src)
-check("lone-wolf discount still stacks after the tide floor",
-      "max(LONE_WOLF_DESKTOP_FLOOR, DESKTOP_ALERT_MIN - _lw_pts)" in src)
+check("the tide margin still applies inside popup_floor (never below 78)",
+      "fl = max(TIDE_RISING_DESKTOP_FLOOR, fl - TIDE_RISING_BAR_RELAX)" in src)
+check("lone-wolf discount still stacks inside popup_floor (never below 55)",
+      "fl = max(LONE_WOLF_DESKTOP_FLOOR, fl - lw_pts)" in src)
+check("relaxation is logged (the floor line names the rotation)",
+      "POPUP FLOOR: rotation %s" in src)
 check("the deep-read >=60 pre-check still applies (never discounted)",
       src.count("DEEP VETO (desktop)") >= 1)
 
