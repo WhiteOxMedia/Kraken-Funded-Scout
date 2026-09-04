@@ -39,6 +39,7 @@ print("OLD check would have missed it (dup written):", old_style is None)
 
 # confirm nothing persisted
 conn = sqlite3.connect(SCOUT / "signals.db")
+conn.row_factory = sqlite3.Row
 left = conn.execute("SELECT COUNT(*) c FROM signals WHERE pair='TESTACK/USD'").fetchone()["c"]
 conn.close()
 print("synthetic rows persisted (must be 0):", left)

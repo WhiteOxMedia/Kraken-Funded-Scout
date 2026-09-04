@@ -1,19 +1,24 @@
-now: Mon 10:13 AM
+now: Fri 03:39 PM
 desktop floor: 89% | resolve cap now: 6.0h
 signals since 8:45: 25
 
-≥89% (desktop-eligible): 2
-  09:38 FARTCOIN/USD 92% $20 ETA 1.0h (old TP ETA 26h) → should POP now (fix works) [status=rejected]
-  09:27 RENDER/USD   92% $20 ETA 2.7h (old TP ETA 46h) → should POP now (fix works) [status=rejected]
+≥89% (desktop-eligible): 4
+  03:49 ASTER/USD    89% $20 ETA 2.2h (old TP ETA 23h) → should POP now (fix works) [status=rejected]
+  16:55 LINK/USD     96% $20 ETA 1.4h (old TP ETA 13h) → should POP now (fix works) [status=rejected]
+  16:45 LINK/USD     96% $20 ETA 1.4h (old TP ETA 13h) → should POP now (fix works) [status=rejected]
+  16:23 BCH/USD      96% $20 ETA 2.6h (old TP ETA 25h) → should POP now (fix works) [status=rejected]
 
 sub-89% (logged only, by design):
-  AIXBT/USD    4x, best 67%
-  ASTER/USD    2x, best 64%
-  ATOM/USD     1x, best 63%
-  BTC/USD      5x, best 67%
-  ETH/USD      2x, best 62%
-  FARTCOIN/USD 1x, best 67%
-  INJ/USD      1x, best 72%
-  LINK/USD     2x, best 72%
-  TAO/USD      3x, best 72%
-  ZEC/USD      2x, best 72%
+  BCH/USD      1x, best 81%
+  DASH/USD     1x, best 72%
+  FARTCOIN/USD 1x, best 64%
+  FLOKI/USD    1x, best 84%
+  HYPE/USD     2x, best 83%
+  MINA/USD     1x, best 59%
+  NEAR/USD     2x, best 69%
+  S/USD        1x, best 66%
+  UNI/USD      3x, best 81%
+  XCN/USD      1x, best 67%
+  XMR/USD      1x, best 60%
+  XRP/USD      4x, best 54%
+  ZORA/USD     2x, best 56%

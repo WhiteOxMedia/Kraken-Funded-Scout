@@ -1,30 +1,33 @@
-now: Mon 09:49 AM
+now: Fri 03:39 PM
 
-bot open positions: 1
-  #139 ETH/USD 2519.7 vol=0.054439 opened 2026-08-24 15:20
-recent trades since 8 AM MST: 6
-  2026-08-24 15:28 sell TAO/USD @ 244.1846
-  2026-08-24 15:20 buy  ETH/USD @ 2519.7
-  2026-08-24 15:19 sell VIRTUAL/USD @ 0.8204
-  2026-08-24 14:58 buy  TAO/USD @ 240.935
-  2026-08-24 14:54 buy  VIRTUAL/USD @ 0.7982
-  2026-08-24 14:49 buy  VIRTUAL/USD @ 0.8025
+bot open positions: 0
+recent trades since 8 AM MST: 10
+  2026-09-04 18:10 sell XRP/USD @ 1.39702
+  2026-09-04 17:54 buy  XRP/USD @ 1.3931
+  2026-09-04 17:22 sell XRP/USD @ 1.39754
+  2026-09-04 17:06 buy  XRP/USD @ 1.40041
+  2026-09-04 16:52 sell XMR/USD @ 529.93
+  2026-09-04 12:23 buy  XMR/USD @ 539.83
+  2026-09-04 11:53 buy  XMR/USD @ 543.1
+  2026-09-04 10:52 buy  XMR/USD @ 548.54
+  2026-09-04 10:52 sell XRP/USD @ 1.44637
+  2026-09-04 06:30 buy  XRP/USD @ 1.44058
 
 bridge since 8:45 AM (15):
-  2026-08-24T09:45:24 AIXBT/USD    buy  rejected  scout_auto   67.0%
-  2026-08-24T09:38:43 BTC/USD      buy  rejected  scout_auto   62.0%
-  2026-08-24T09:38:42 FARTCOIN/USD buy  rejected  scout_auto   92.0%
-  2026-08-24T09:34:23 AIXBT/USD    buy  rejected  scout_auto   62.0%
-  2026-08-24T09:32:45 ZEC/USD      buy  rejected  scout_auto   72.5%
-  2026-08-24T09:29:53 ASTER/USD    buy  rejected  scout_auto   64.5%
-  2026-08-24T09:27:41 RENDER/USD   buy  rejected  scout_auto   92.0%
-  2026-08-24T09:18:53 BTC/USD      buy  rejected  scout_auto   62.0%
-  2026-08-24T09:18:51 ETH/USD      buy  filled    scout_auto   62.0%
-  2026-08-24T09:18:50 ASTER/USD    buy  rejected  scout_auto   64.5%
-  2026-08-24T09:18:12 LINK/USD     buy  rejected  scout_auto   67.0%
-  2026-08-24T09:11:00 ZEC/USD      buy  rejected  scout_auto   72.5%
-  2026-08-24T09:07:38 BTC/USD      buy  rejected  scout_auto   62.0%
-  2026-08-24T09:07:37 ETH/USD      buy  rejected  scout_auto   62.0%
-  2026-08-24T09:03:47 LINK/USD     buy  rejected  scout_auto   72.5%
+  2026-09-04T11:55:32 XRP/USD      sell rejected  scout_trend_exit 0.0%
+  2026-09-04T11:07:35 XRP/USD      sell rejected  scout_trend_exit 0.0%
+  2026-09-04T10:54:48 XRP/USD      buy  closed    bot_strategy 53.5%
+  2026-09-04T10:51:27 XMR/USD      sell closed    scout_exit_check 0.0%
+  2026-09-04T10:06:54 XRP/USD      buy  closed    bot_strategy 40.0%
+  2026-09-04T07:52:33 ZORA/USD     buy  expired   scout_mover  56.0%
+  2026-09-04T07:41:16 ZORA/USD     buy  expired   scout_mover  56.0%
+  2026-09-04T05:55:15 FARTCOIN/USD buy  rejected  scout_auto   64.0%
+  2026-09-04T03:52:56 XMR/USD      buy  closed    bot_strategy 59.5%
+  2026-09-04T03:52:02 NEAR/USD     buy  rejected  scout_auto   69.0%
+  2026-09-04T03:49:50 ASTER/USD    buy  rejected  scout_auto   89.0%
+  2026-09-04T03:41:02 NEAR/USD     buy  rejected  scout_auto   69.0%
+  2026-09-04T03:38:53 FLOKI/USD    buy  expired   scout_mover  84.0%
+  2026-09-04T03:29:54 MINA/USD     buy  expired   scout_mover  59.0%
+  2026-09-04T02:59:09 XCN/USD      buy  expired   scout_mover  67.0%
 
-wallet: $349.90 USD free
+wallet: $176.79 USD free

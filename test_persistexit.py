@@ -34,13 +34,15 @@ check("console: no contest_watch.pop on exit",
 check("console: SOLD is the only clear",
       "flow_exit_at" in app_src.split("def render_auto_watch")[1].split("def _time_to_goal")[0])
 
-# 3. I RE-ENTERED is a form (no reruns mid-typing)
-reenter = app_src.split("def _render_reenter_control")[1].split("\ndef ")[0]
-check("re-entered: wrapped in st.form", 'st.form("reenter_form"' in reenter)
-check("re-entered: form submit button (not st.button)",
+# 3. THE ONE ENTRY CONTROL is a form (no reruns mid-typing) — the Sep 3
+#    Option B merge folded re-entered + the QC +/- inputs into one form;
+#    the same guarantees are probed against the merged control
+reenter = app_src.split("def _render_entry_control")[1].split("\ndef ")[0]
+check("entry control: wrapped in st.form", "st.form(f\"{prefix}_form\"" in reenter)
+check("entry control: form submit button (not st.button)",
       "form_submit_button" in reenter and 'key="re_btn"' not in reenter)
-check("re-entered: both inputs inside the form",
-      reenter.index("st.form") < reenter.index("re_spent") < reenter.index("form_submit_button"))
+check("entry control: inputs inside the form",
+      reenter.index("st.form") < reenter.index("{prefix}_spent") < reenter.index("form_submit_button"))
 
 # 4. The red SELL NOW toast still fires every cycle while exit is true
 check("console: SELL NOW toast persists", "SELL NOW" in light_section)

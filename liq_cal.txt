@@ -1,40 +1,40 @@
-BTC/USD    weekday     8673k   17847k   32087k   15343k    8162k
-BTC/USD    weekend     3622k    3051k    8190k    6620k    9593k
-XRP/USD    weekday      913k    1728k    2474k    2276k    1561k
-XRP/USD    weekend      542k     549k    1013k    1004k    2049k
-SOL/USD    weekday     1264k    1832k    2912k    2149k    1764k
-SOL/USD    weekend      993k     777k    1904k    1245k    2172k
-ADA/USD    weekday      657k    1064k    1357k     974k     644k
-ADA/USD    weekend      497k     542k     670k     745k     629k
-ALGO/USD   weekday       38k      60k     103k      52k      58k
-ALGO/USD   weekend       23k      40k      39k      21k      43k
-JUP/USD    weekday       15k      17k      20k      17k      15k
-JUP/USD    weekend       12k      15k      21k       8k      13k
-WIF/USD    weekday        8k      11k      15k       9k       6k
-WIF/USD    weekend       14k      12k      13k      18k      14k
+BTC/USD    weekday     9154k   18356k   33019k   14706k    8938k
+BTC/USD    weekend     3622k    3777k    8190k    6620k    8388k
+XRP/USD    weekday     1181k    2782k    3854k    2490k    2752k
+XRP/USD    weekend      592k     670k    1013k    1004k    2049k
+SOL/USD    weekday     1382k    2495k    3878k    2169k    2088k
+SOL/USD    weekend     1042k    1047k    1904k    1413k    2058k
+ADA/USD    weekday      564k     927k    1341k     868k     596k
+ADA/USD    weekend      401k     409k     566k     710k     554k
+ALGO/USD   weekday       39k      58k      99k      50k      57k
+ALGO/USD   weekend       22k      32k      39k      21k      34k
+JUP/USD    weekday       24k      21k      33k      22k      23k
+JUP/USD    weekend       19k      20k      21k       9k      13k
+WIF/USD    weekday        8k      12k      18k      14k       7k
+WIF/USD    weekend       11k       9k      13k      18k      14k
                     00-04 04-08 08-12 12-16 16-20
 
 dropped-list rotation medians (current-ish rotation, weekday):
-  ARB       R1     12k · R2     14k · R3     17k
-  KAITO     R1     58k · R2     41k · R3     68k
-  DOT       R1     25k · R2     50k · R3     58k
+  ARB       R1     13k · R2     17k · R3     22k
+  KAITO     R1     29k · R2     33k · R3     58k
+  DOT       R1     23k · R2     51k · R3     59k
   GRASS     R1      6k · R2      7k · R3      9k
-  FIL       R1     13k · R2     11k · R3     23k
-  LDO       R1     19k · R2     22k · R3     27k
-  APT       R1      7k · R2      8k · R3     11k
-  ALGO      R1     38k · R2     60k · R3    103k
-  S         R1      2k · R2      3k · R3      3k
-  PNUT      R1      1k · R2      3k · R3      2k
-  OP        R1      6k · R2      9k · R3     11k
-  ATOM      R1     42k · R2     22k · R3     46k
-  JTO       R1     12k · R2     16k · R3     19k
-  RENDER    R1     27k · R2     40k · R3     64k
-  ETC       R1      5k · R2      5k · R3      6k
-  JUP       R1     15k · R2     17k · R3     20k
-  TIA       R1      9k · R2     20k · R3     13k
-  WIF       R1      8k · R2     11k · R3     15k
-  VIRTUAL   R1     11k · R2     14k · R3     20k
-  STX       R1      8k · R2      9k · R3     18k
+  FIL       R1     13k · R2     17k · R3     30k
+  LDO       R1     10k · R2     22k · R3     27k
+  APT       R1     10k · R2     14k · R3     21k
+  ALGO      R1     39k · R2     58k · R3     99k
+  S         R1      3k · R2      4k · R3      4k
+  PNUT      R1      1k · R2      3k · R3      3k
+  OP        R1      9k · R2     10k · R3     14k
+  ATOM      R1     36k · R2     24k · R3     41k
+  JTO       R1     11k · R2     14k · R3     19k
+  RENDER    R1     24k · R2     39k · R3     69k
+  ETC       R1      4k · R2      5k · R3      7k
+  JUP       R1     24k · R2     21k · R3     33k
+  TIA       R1      7k · R2     20k · R3     17k
+  WIF       R1      8k · R2     12k · R3     18k
+  VIRTUAL   R1     16k · R2     15k · R3     23k
+  STX       R1     12k · R2     13k · R3     22k
   AIXBT     R1      0k · R2      1k · R3      0k
-  MOODENG   R1      6k · R2      4k · R3      5k
+  MOODENG   R1      6k · R2      6k · R3      7k
   TURBO     R1      0k · R2      0k · R3      0k

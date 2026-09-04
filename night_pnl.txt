@@ -1,5 +1,5 @@
-positions since Sun 8 PM MST: 3
-trades since Sun 8 PM MST: 9
+positions since Sun 8 PM MST: 63
+trades since Sun 8 PM MST: 153
 
 time    side  pair              vol      price      usd
 02:31   sell  NEAR/USD        79.78     2.0098 $ 160.34
@@ -11,12 +11,156 @@ time    side  pair              vol      price      usd
 09:23   buy   POL/USD          1400    0.11422 $ 159.91
 09:26   buy   POL/USD         944.6    0.11322 $ 106.95
 11:49   sell  POL/USD          2345    0.11392 $ 267.10
+14:49   buy   VIRTUAL/USD      199.3     0.8025 $ 159.90
+14:54   buy   VIRTUAL/USD      133.1     0.7982 $ 106.27
+14:58   buy   TAO/USD        0.2959     240.94 $  71.29
+15:19   sell  VIRTUAL/USD      332.4     0.8204 $ 272.69
+15:20   buy   ETH/USD       0.05444     2519.7 $ 137.17
+15:28   sell  TAO/USD        0.2959     244.18 $  72.25
+15:57   buy   AIXBT/USD        5304    0.02172 $ 115.20
+15:59   sell  ETH/USD       0.05444     2486.3 $ 135.35
+16:02   buy   TAO/USD        0.5056     241.18 $ 121.93
+16:46   sell  TAO/USD        0.5056     241.65 $ 122.17
+16:46   buy   VIRTUAL/USD      149.6     0.8156 $ 122.00
+16:49   buy   VIRTUAL/USD      100.2     0.8098 $  81.14
+16:53   sell  AIXBT/USD        5304     0.0215 $ 114.04
+17:07   buy   PUMP/USD    1.942e+04   0.004735 $  91.97
+17:22   sell  VIRTUAL/USD      249.8     0.7841 $ 195.85
+17:24   buy   ARB/USD          1288     0.0977 $ 125.82
+17:48   buy   JUP/USD           416    0.20286 $  84.38
+17:49   sell  PUMP/USD    1.942e+04   0.004677 $  90.84
+17:50   buy   LDO/USD         230.7      0.373 $  86.04
+17:59   sell  ARB/USD          1288     0.0977 $ 125.82
+18:00   buy   XPL/USD          1046     0.0956 $ 100.04
+18:22   sell  JUP/USD           416    0.20508 $  85.31
+18:33   sell  XPL/USD          1046     0.0965 $ 100.98
+19:12   buy   DOGE/USD         1426   0.089175 $ 127.18
+19:29   buy   INJ/USD         14.85      5.713 $  84.85
+19:34   sell  LDO/USD         230.7      0.369 $  85.12
+20:07   buy   ARB/USD         877.8     0.0969 $  85.06
+20:35   sell  INJ/USD         14.85      5.687 $  84.46
+21:03   buy   XPL/USD         884.5     0.0955 $  84.47
+21:05   sell  ARB/USD         877.8     0.0976 $  85.68
+21:05   buy   SOL/USD        0.8755       96.7 $  84.66
+21:26   sell  DOGE/USD         1426   0.089682 $ 127.91
+21:40   buy   PENGU/USD   1.021e+04   0.009672 $  98.72
+21:46   sell  SOL/USD        0.8755      96.86 $  84.80
+21:47   buy   ASTER/USD       131.1    0.71796 $  94.10
+21:49   sell  XPL/USD         884.5     0.0963 $  85.18
+21:50   buy   S/USD            3118     0.0291 $  90.73
+22:01   sell  PENGU/USD   1.021e+04   0.009896 $ 101.00
+22:16   buy   S/USD            3261     0.0288 $  93.90
+22:57   buy   ASTER/USD       90.03    0.69814 $  62.86
+23:21   sell  ASTER/USD       221.1    0.69686 $ 154.07
+23:21   buy   DOT/USD         103.7     0.8942 $  92.77
+00:39   buy   JUP/USD         284.6    0.21826 $  62.13
+00:40   sell  S/USD            6378     0.0282 $ 179.87
+00:44   sell  DOT/USD         103.7      0.903 $  93.68
+00:48   buy   MOODENG/USD       2898    0.04538 $ 131.53
+00:51   buy   CRV/USD         256.9     0.3429 $  88.09
+01:02   sell  JUP/USD         284.6    0.21991 $  62.60
+01:21   buy   PENGU/USD        7763    0.01019 $  79.10
+01:32   sell  MOODENG/USD       2898     0.0449 $ 130.14
+01:42   buy   JUP/USD         431.4    0.22259 $  96.02
+01:49   sell  CRV/USD         256.9    0.33884 $  87.05
+02:00   sell  PENGU/USD        7763   0.010084 $  78.28
+02:00   sell  JUP/USD         431.4    0.21934 $  94.61
+06:29   buy   S/USD            4989     0.0301 $ 150.17
+06:37   buy   ONDO/USD        255.7    0.39026 $  99.80
+06:47   buy   AVAX/USD        8.768      7.632 $  66.92
+08:00   buy   S/USD            1537     0.0295 $  45.34
+08:12   buy   ONDO/USD        77.57    0.38353 $  29.75
+08:35   sell  S/USD            6526     0.0292 $ 190.56
+08:35   buy   POL/USD         669.5     0.1229 $  82.28
+08:44   buy   ONDO/USD          144    0.38453 $  55.38
+08:59   buy   AVAX/USD        4.902       7.53 $  36.92
+09:39   sell  POL/USD         669.5    0.12101 $  81.02
+09:58   buy   POPCAT/USD        790     0.0648 $  51.20
+10:18   buy   AVAX/USD        4.572      7.525 $  34.40
+10:34   buy   POPCAT/USD      361.9     0.0639 $  23.12
+12:04   sell  POPCAT/USD       1152     0.0635 $  73.15
+12:21   buy   OP/USD          379.6     0.1037 $  39.36
+13:59   buy   OP/USD          257.1      0.103 $  26.48
+20:04   sell  ONDO/USD        477.3    0.36719 $ 175.26
+20:51   buy   OP/USD          743.9     0.1009 $  75.06
+21:00   sell  OP/USD           1381     0.1006 $ 138.89
+21:19   sell  AVAX/USD        18.24      7.317 $ 133.48
+10:56   buy   ATOM/USD        70.63     1.5635 $ 110.43
+11:27   sell  ATOM/USD        70.63     1.5582 $ 110.06
+11:47   buy   FARTCOIN/USD        512     0.2136 $ 109.35
+18:23   sell  FARTCOIN/USD        512      0.198 $ 101.37
+01:05   buy   ZEC/USD        0.1333     803.26 $ 107.06
+01:47   buy   ZEC/USD       0.08989     796.36 $  71.58
+02:00   sell  ZEC/USD        0.2232      796.8 $ 177.82
+06:41   buy   CRV/USD         326.4     0.3259 $ 106.37
+08:35   sell  CRV/USD         326.4    0.32968 $ 107.61
+08:42   buy   ALGO/USD         1158    0.09187 $ 106.38
+11:26   buy   ALGO/USD          786    0.09061 $  71.22
+11:57   buy   ALGO/USD        529.3     0.0904 $  47.85
+14:02   sell  ALGO/USD         2473    0.09089 $ 224.79
+14:03   buy   AVAX/USD        14.18      7.477 $ 106.01
+16:48   sell  AVAX/USD        14.18      7.545 $ 106.97
+16:49   buy   ADA/USD         487.1    0.21686 $ 105.63
+23:29   buy   ADA/USD         330.1    0.21471 $  70.86
+02:00   sell  ADA/USD         817.2    0.21453 $ 175.30
+15:27   buy   EUR/USD         90.47     1.1607 $ 105.01
+16:00   buy   EUR/USD         90.54     1.1598 $ 105.01
+16:34   buy   EUR/USD         90.62     1.1588 $ 105.01
+08:17   buy   ENA/USD         812.3     0.1572 $ 127.70
+08:42   buy   ENA/USD         547.5     0.1554 $  85.08
+15:15   sell  ENA/USD          1360     0.1576 $ 214.31
+15:15   buy   JTO/USD         254.9    0.49972 $ 127.38
+16:19   sell  JTO/USD         254.9    0.49502 $ 126.18
+16:36   buy   NEAR/USD        68.74     1.8468 $ 126.95
+18:01   sell  NEAR/USD        68.74     1.8476 $ 127.01
+18:43   buy   DGAI/USD        186.1     0.6817 $ 126.88
+21:51   sell  DGAI/USD        186.1    0.67928 $ 126.43
+21:52   buy   HYPE/USD        1.517      83.38 $ 126.51
+22:34   sell  HYPE/USD        1.517      83.51 $ 126.71
+22:52   buy   AAVE/USD        1.002     125.54 $ 125.84
+02:00   sell  AAVE/USD        1.002     125.03 $ 125.33
+07:49   buy   NEAR/USD        66.54     1.8823 $ 125.25
+09:34   buy   NEAR/USD        44.87     1.8718 $  83.98
+11:08   sell  NEAR/USD        111.4     1.8827 $ 209.75
+11:08   buy   UNI/USD         25.06     5.0092 $ 125.54
+21:45   sell  UNI/USD         25.06     5.2556 $ 131.71
+18:06   buy   HYPE/USD        4.539      83.98 $ 381.17
+21:34   sell  HYPE/USD        3.457      84.87 $ 293.43
+23:11   buy   STX/USD          1153      0.252 $ 290.47
+02:00   sell  STX/USD          1153     0.2541 $ 292.89
+06:02   buy   CRV/USD         827.5    0.35274 $ 291.88
+08:51   sell  CRV/USD         827.5    0.34981 $ 289.45
+08:52   buy   UNI/USD         50.43     5.6866 $ 286.80
+02:00   sell  UNI/USD         50.43     5.8393 $ 294.50
+06:16   buy   UNI/USD         47.04     6.2198 $ 292.57
+11:20   sell  UNI/USD         47.04     5.8723 $ 276.23
+14:22   buy   ASTER/USD       379.3    0.72655 $ 275.56
+23:38   sell  ASTER/USD       253.4    0.72408 $ 183.47
+23:48   buy   APT/USD         310.9     0.5839 $ 181.52
+02:00   sell  APT/USD         310.9     0.5809 $ 180.58
+06:20   buy   BCH/USD        0.7168     249.53 $ 178.87
+19:25   sell  BCH/USD        0.7168     259.44 $ 185.97
+19:32   buy   INJ/USD         36.44       5.06 $ 184.36
+02:00   sell  INJ/USD         36.44      4.982 $ 181.52
+02:27   buy   XRP/USD         41.83     1.4384 $  60.17
+04:28   sell  XRP/USD         41.83     1.4541 $  60.82
+05:29   buy   XRP/USD         41.59     1.4482 $  60.24
+06:30   buy   XRP/USD         27.97     1.4406 $  40.29
+10:52   sell  XRP/USD         69.56     1.4464 $ 100.61
+10:52   buy   XMR/USD        0.1095     548.54 $  60.07
+11:53   buy   XMR/USD       0.07412      543.1 $  40.26
+12:23   buy   XMR/USD       0.04969     539.83 $  26.82
+16:52   sell  XMR/USD        0.2333     529.93 $ 123.64
+17:06   buy   XRP/USD         41.83     1.4004 $  58.58
+17:22   sell  XRP/USD         41.83     1.3975 $  58.46
+17:54   buy   XRP/USD         41.94     1.3931 $  58.42
+18:10   sell  XRP/USD         41.94      1.397 $  58.59
 
-total bought:  $534.42
-total sold:    $803.69
-total fees:    $0.61
-net P&L:       $+268.66
-round trips:   4
+total bought:  $9,486.85
+total sold:    $9,217.29
+total fees:    $11.17
+net P&L:       $-280.73
+round trips:   76
 
 exit reasons:
   02:31 NEAR/USD: Time-block rotation — flatten to cash
@@ -24,3 +168,63 @@ exit reasons:
   07:42 ASTER/USD: Strategy sell (40%, PnL 1.0%)
   08:13 FIL/USD: Rotating to XRP/USD (held FIL/USD sell signal, new buy 65% > rotation threshold 50%)
   11:49 POL/USD: Rotating to XMR/BTC (held POL/USD sell signal, new buy 60% > rotation threshold 50%)
+  15:19 VIRTUAL/USD: Challenge: displaced by stronger signal ASTER (64% vs 0%)
+  15:28 TAO/USD: Challenge: displaced by stronger signal RENDER (92% vs 0%)
+  15:59 ETH/USD: Challenge: displaced by stronger signal ATOM (63% vs 0%)
+  16:46 TAO/USD: Challenge: displaced by stronger signal VIRTUAL (72% vs 0%)
+  16:53 AIXBT/USD: Challenge: displaced by stronger signal SOL (72% vs 0%)
+  17:22 VIRTUAL/USD: Challenge: displaced by stronger signal ZEC (61% vs 0%)
+  17:49 PUMP/USD: Challenge: displaced by stronger signal LDO (64% vs 0%)
+  17:59 ARB/USD: Challenge: displaced by stronger signal OP (78% vs 0%)
+  18:22 JUP/USD: Challenge: displaced by stronger signal BTC (97% vs 0%)
+  18:33 XPL/USD: Strategy sell (37%, PnL 1.0%)
+  19:34 LDO/USD: Challenge: displaced by stronger signal ARB (64% vs 0%)
+  20:35 INJ/USD: Challenge: displaced by stronger signal XPL (64% vs 0%)
+  21:05 ARB/USD: Challenge: displaced by stronger signal SOL (99% vs 0%)
+  21:26 DOGE/USD: Challenge: displaced by stronger signal S (79% vs 0%)
+  21:46 SOL/USD: Exit check: momentum rider exit triggered
+  21:49 XPL/USD: Challenge: displaced by stronger signal S (84% vs 0%)
+  22:01 PENGU/USD: Strategy sell (40%, PnL 2.4%)
+  23:21 ASTER/USD: Challenge: displaced by stronger signal DOT (61% vs 0%)
+  00:40 S/USD: Challenge: displaced by stronger signal CRV (84% vs 0%)
+  00:44 DOT/USD: Strategy sell (32%, PnL 1.0%)
+  01:02 JUP/USD: Strategy sell (40%, PnL 1.0%)
+  01:32 MOODENG/USD: Challenge: displaced by stronger signal JUP (71% vs 0%)
+  01:49 CRV/USD: Challenge: displaced by stronger signal SOL (72% vs 0%)
+  02:00 PENGU/USD: Time-block rotation — flatten to cash
+  02:00 JUP/USD: Time-block rotation — flatten to cash
+  08:35 S/USD: Challenge: displaced by stronger signal POL (92% vs 72%)
+  09:39 POL/USD: Exit check: strategy SELL (77%, threshold 75%)
+  12:04 POPCAT/USD: Exit check: strategy SELL (76%, threshold 75%)
+  20:04 ONDO/USD: Stop-loss (-5.6%)
+  21:00 OP/USD: Challenge: displaced by stronger signal DOGE (94% vs 84%)
+  21:19 AVAX/USD: Time-block rotation — flatten to cash
+  11:27 ATOM/USD: Exit check: strategy SELL (78%, threshold 75%)
+  18:23 FARTCOIN/USD: Trailing stop: $0.1977 is 8.7% below high $0.2165
+  02:00 ZEC/USD: Time-block rotation — flatten to cash
+  08:35 CRV/USD: Strategy sell (47%, PnL 1.4%)
+  14:02 ALGO/USD: Challenge: displaced by stronger signal AVAX (100% vs 89%)
+  16:48 AVAX/USD: Strategy sell (38%, PnL 1.0%)
+  02:00 ADA/USD: Time-block rotation — flatten to cash
+  15:15 ENA/USD: Challenge: displaced by stronger signal JTO (100% vs 53%)
+  16:19 JTO/USD: Exit check: exhaustion signals detected
+  18:01 NEAR/USD: Exit check: exhaustion signals detected
+  21:51 DGAI/USD: Challenge: displaced by stronger signal HYPE (71% vs 57%)
+  22:34 HYPE/USD: Exit check: momentum rider exit triggered
+  02:00 AAVE/USD: Time-block rotation — flatten to cash
+  11:08 NEAR/USD: Challenge: displaced by stronger signal UNI (100% vs 90%)
+  21:45 UNI/USD: Trailing stop (ATR=$0.05×4.0→3.64%, peak $5.46 +8.99%, now -3.74% off peak, net +4.39% after fees)
+  21:34 HYPE/USD: Time-block rotation — flatten to cash
+  02:00 STX/USD: Time-block rotation — flatten to cash
+  08:51 CRV/USD: Challenge: displaced by stronger signal UNI (96% vs 86%)
+  02:00 UNI/USD: Time-block rotation — flatten to cash
+  11:20 UNI/USD: Stop-loss (-5.7%)
+  23:38 ASTER/USD: Time-block rotation — flatten to cash
+  02:00 APT/USD: Time-block rotation — flatten to cash
+  19:25 BCH/USD: Strategy sell (50%, PnL 4.2%)
+  02:00 INJ/USD: Time-block rotation — flatten to cash
+  04:28 XRP/USD: Rotating to XMR/BTC (held XRP/USD sell signal, new buy 60% > rotation threshold 50%)
+  10:52 XRP/USD: Rotating to XMR/USD (held XRP/USD sell signal, new buy 60% > rotation threshold 50%)
+  16:52 XMR/USD: WINDOW EXPIRED: 6.0h held, goal +1.3% not reached (-3.0%) — it hasn't paid, get out
+  17:22 XRP/USD: GET OUT NOW — trend reversed (EMA9 $1.4134 < EMA21 $1.4235, price $1.3976 under both, PnL -0.2%)
+  18:10 XRP/USD: GET OUT NOW — trend reversed (EMA9 $1.4096 < EMA21 $1.4208, price $1.3968 under both, PnL +0.3%)

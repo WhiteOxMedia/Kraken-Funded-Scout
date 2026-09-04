@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-09-04T13:40:21.914510-06:00",
+  "generated_at": "2026-09-04T15:41:49.027845-06:00",
   "window_weeks": 12,
   "data_weeks": 6.2,
   "min_samples": 10,
@@ -58,19 +58,19 @@
           "notes": "liquidity thin, false-breakout risk low"
         },
         "12-16": {
-          "samples": 31,
+          "samples": 32,
           "reliable": true,
-          "avg_move": 1.336,
-          "std": 1.702,
+          "avg_move": 1.301,
+          "std": 1.686,
           "max_spike": 8.56,
           "max_drop": -5.4,
-          "median_volume_usd": 125009.0,
+          "median_volume_usd": 131693.0,
           "false_breakout_rate": 0.0,
           "confidence_bar": 60,
           "thresholds": {
-            "aggressive": 1.336,
-            "standard": 2.187,
-            "conservative": 3.038
+            "aggressive": 1.301,
+            "standard": 2.144,
+            "conservative": 2.987
           },
           "notes": "liquidity thin, false-breakout risk low"
         },
@@ -268,19 +268,19 @@
           "notes": "liquidity deep, false-breakout risk low"
         },
         "12-16": {
-          "samples": 31,
+          "samples": 32,
           "reliable": true,
-          "avg_move": 1.173,
-          "std": 1.134,
+          "avg_move": 1.156,
+          "std": 1.12,
           "max_spike": 7.18,
           "max_drop": -4.13,
-          "median_volume_usd": 867607.0,
-          "false_breakout_rate": 0.032,
+          "median_volume_usd": 857928.0,
+          "false_breakout_rate": 0.031,
           "confidence_bar": 61,
           "thresholds": {
-            "aggressive": 1.173,
-            "standard": 1.74,
-            "conservative": 2.307
+            "aggressive": 1.156,
+            "standard": 1.716,
+            "conservative": 2.276
           },
           "notes": "liquidity ok, false-breakout risk low"
         },
@@ -478,19 +478,19 @@
           "notes": "liquidity thin, false-breakout risk low"
         },
         "12-16": {
-          "samples": 31,
+          "samples": 32,
           "reliable": true,
-          "avg_move": 0.763,
-          "std": 0.826,
+          "avg_move": 0.739,
+          "std": 0.824,
           "max_spike": 4.63,
           "max_drop": -3.5,
-          "median_volume_usd": 321.0,
-          "false_breakout_rate": 0.032,
+          "median_volume_usd": 304.0,
+          "false_breakout_rate": 0.031,
           "confidence_bar": 61,
           "thresholds": {
-            "aggressive": 0.763,
-            "standard": 1.176,
-            "conservative": 1.589
+            "aggressive": 0.739,
+            "standard": 1.151,
+            "conservative": 1.563
           },
           "notes": "liquidity thin, false-breakout risk low"
         },
@@ -688,19 +688,19 @@
           "notes": "liquidity thin, false-breakout risk low"
         },
         "12-16": {
-          "samples": 31,
+          "samples": 32,
           "reliable": true,
-          "avg_move": 0.761,
-          "std": 0.797,
+          "avg_move": 0.752,
+          "std": 0.786,
           "max_spike": 4.73,
           "max_drop": -3.37,
-          "median_volume_usd": 50035.0,
-          "false_breakout_rate": 0.065,
+          "median_volume_usd": 48260.0,
+          "false_breakout_rate": 0.062,
           "confidence_bar": 62,
           "thresholds": {
-            "aggressive": 0.761,
-            "standard": 1.159,
-            "conservative": 1.558
+            "aggressive": 0.752,
+            "standard": 1.145,
+            "conservative": 1.538
           },
           "notes": "liquidity thin, false-breakout risk low"
         },
@@ -898,19 +898,19 @@
           "notes": "liquidity thin, false-breakout risk low"
         },
         "12-16": {
-          "samples": 23,
+          "samples": 24,
           "reliable": true,
-          "avg_move": 2.933,
-          "std": 3.933,
+          "avg_move": 2.824,
+          "std": 3.883,
           "max_spike": 28.28,
           "max_drop": -5.92,
-          "median_volume_usd": 9181.0,
+          "median_volume_usd": 10685.0,
           "false_breakout_rate": 0.0,
           "confidence_bar": 60,
           "thresholds": {
-            "aggressive": 2.933,
-            "standard": 4.899,
-            "conservative": 6.865
+            "aggressive": 2.824,
+            "standard": 4.766,
+            "conservative": 6.707
           },
           "notes": "liquidity thin, false-breakout risk low"
         },
@@ -1108,19 +1108,19 @@
           "notes": "liquidity thin, false-breakout risk low"
         },
         "12-16": {
-          "samples": 31,
+          "samples": 32,
           "reliable": true,
-          "avg_move": 1.226,
-          "std": 1.091,
+          "avg_move": 1.19,
+          "std": 1.092,
           "max_spike": 5.06,
           "max_drop": -5.63,
-          "median_volume_usd": 8707.0,
+          "median_volume_usd": 8873.0,
           "false_breakout_rate": 0.0,
           "confidence_bar": 60,
           "thresholds": {
-            "aggressive": 1.226,
-            "standard": 1.772,
-            "conservative": 2.317
+            "aggressive": 1.19,
+            "standard": 1.736,
+            "conservative": 2.282
           },
           "notes": "liquidity thin, false-breakout risk low"
         },
@@ -1318,19 +1318,19 @@
           "notes": "liquidity thin, false-breakout risk low"
         },
         "12-16": {
-          "samples": 24,
+          "samples": 25,
           "reliable": true,
-          "avg_move": 1.197,
-          "std": 1.243,
+          "avg_move": 1.201,
+          "std": 1.217,
           "max_spike": 20.33,
           "max_drop": -17.75,
-          "median_volume_usd": 8606.0,
-          "false_breakout_rate": 0.083,
+          "median_volume_usd": 8141.0,
+          "false_breakout_rate": 0.08,
           "confidence_bar": 63,
           "thresholds": {
-            "aggressive": 1.197,
-            "standard": 1.819,
-            "conservative": 2.44
+            "aggressive": 1.201,
+            "standard": 1.81,
+            "conservative": 2.418
           },
           "notes": "liquidity thin, false-breakout risk low"
         },
@@ -1528,19 +1528,19 @@
           "notes": "liquidity thin, false-breakout risk low"
         },
         "12-16": {
-          "samples": 31,
+          "samples": 32,
           "reliable": true,
-          "avg_move": 1.578,
-          "std": 2.307,
+          "avg_move": 1.531,
+          "std": 2.285,
           "max_spike": 10.95,
           "max_drop": -4.85,
-          "median_volume_usd": 9712.0,
-          "false_breakout_rate": 0.032,
+          "median_volume_usd": 14149.0,
+          "false_breakout_rate": 0.031,
           "confidence_bar": 61,
           "thresholds": {
-            "aggressive": 1.578,
-            "standard": 2.732,
-            "conservative": 3.885
+            "aggressive": 1.531,
+            "standard": 2.674,
+            "conservative": 3.816
           },
           "notes": "liquidity thin, false-breakout risk low"
         },
@@ -1738,19 +1738,19 @@
           "notes": "liquidity thin, false-breakout risk low"
         },
         "12-16": {
-          "samples": 31,
+          "samples": 32,
           "reliable": true,
-          "avg_move": 0.728,
-          "std": 0.898,
+          "avg_move": 0.722,
+          "std": 0.884,
           "max_spike": 4.55,
           "max_drop": -4.9,
-          "median_volume_usd": 10569.0,
+          "median_volume_usd": 11719.0,
           "false_breakout_rate": 0.0,
           "confidence_bar": 60,
           "thresholds": {
-            "aggressive": 0.728,
-            "standard": 1.177,
-            "conservative": 1.626
+            "aggressive": 0.722,
+            "standard": 1.164,
+            "conservative": 1.606
           },
           "notes": "liquidity thin, false-breakout risk low"
         },
@@ -1948,19 +1948,19 @@
           "notes": "liquidity thin, false-breakout risk low"
         },
         "12-16": {
-          "samples": 31,
+          "samples": 32,
           "reliable": true,
-          "avg_move": 0.809,
-          "std": 0.925,
+          "avg_move": 0.82,
+          "std": 0.912,
           "max_spike": 5.91,
           "max_drop": -3.12,
-          "median_volume_usd": 18663.0,
+          "median_volume_usd": 18602.0,
           "false_breakout_rate": 0.0,
           "confidence_bar": 60,
           "thresholds": {
-            "aggressive": 0.809,
-            "standard": 1.272,
-            "conservative": 1.735
+            "aggressive": 0.82,
+            "standard": 1.276,
+            "conservative": 1.732
           },
           "notes": "liquidity thin, false-breakout risk low"
         },
@@ -2158,19 +2158,19 @@
           "notes": "liquidity ok, false-breakout risk low"
         },
         "12-16": {
-          "samples": 31,
+          "samples": 32,
           "reliable": true,
-          "avg_move": 0.729,
-          "std": 0.833,
+          "avg_move": 0.724,
+          "std": 0.82,
           "max_spike": 5.05,
           "max_drop": -3.55,
-          "median_volume_usd": 121571.0,
+          "median_volume_usd": 116197.0,
           "false_breakout_rate": 0.0,
           "confidence_bar": 60,
           "thresholds": {
-            "aggressive": 0.729,
-            "standard": 1.145,
-            "conservative": 1.562
+            "aggressive": 0.724,
+            "standard": 1.134,
+            "conservative": 1.544
           },
           "notes": "liquidity thin, false-breakout risk low"
         },
@@ -2368,19 +2368,19 @@
           "notes": "liquidity thin, false-breakout risk low"
         },
         "12-16": {
-          "samples": 30,
+          "samples": 31,
           "reliable": true,
-          "avg_move": 3.786,
-          "std": 8.509,
+          "avg_move": 3.819,
+          "std": 8.368,
           "max_spike": 68.56,
-          "max_drop": -6.87,
-          "median_volume_usd": 193.0,
+          "max_drop": -7.87,
+          "median_volume_usd": 261.0,
           "false_breakout_rate": 0.0,
           "confidence_bar": 60,
           "thresholds": {
-            "aggressive": 3.786,
-            "standard": 8.041,
-            "conservative": 12.295
+            "aggressive": 3.819,
+            "standard": 8.003,
+            "conservative": 12.187
           },
           "notes": "liquidity thin, false-breakout risk low"
         },
@@ -2578,19 +2578,19 @@
           "notes": "liquidity thin, false-breakout risk low"
         },
         "12-16": {
-          "samples": 31,
+          "samples": 32,
           "reliable": true,
-          "avg_move": 0.618,
-          "std": 0.752,
+          "avg_move": 0.606,
+          "std": 0.743,
           "max_spike": 3.7,
           "max_drop": -4.89,
-          "median_volume_usd": 38303.0,
-          "false_breakout_rate": 0.032,
+          "median_volume_usd": 41192.0,
+          "false_breakout_rate": 0.031,
           "confidence_bar": 61,
           "thresholds": {
-            "aggressive": 0.618,
-            "standard": 0.994,
-            "conservative": 1.37
+            "aggressive": 0.606,
+            "standard": 0.977,
+            "conservative": 1.349
           },
           "notes": "liquidity thin, false-breakout risk low"
         },
@@ -2788,19 +2788,19 @@
           "notes": "liquidity thin, false-breakout risk low"
         },
         "12-16": {
-          "samples": 31,
+          "samples": 32,
           "reliable": true,
-          "avg_move": 0.398,
-          "std": 0.506,
+          "avg_move": 0.394,
+          "std": 0.498,
           "max_spike": 3.08,
           "max_drop": -1.67,
-          "median_volume_usd": 86001.0,
-          "false_breakout_rate": 0.032,
+          "median_volume_usd": 86170.0,
+          "false_breakout_rate": 0.031,
           "confidence_bar": 61,
           "thresholds": {
-            "aggressive": 0.398,
-            "standard": 0.651,
-            "conservative": 0.904
+            "aggressive": 0.394,
+            "standard": 0.643,
+            "conservative": 0.892
           },
           "notes": "liquidity thin, false-breakout risk low"
         },
@@ -2998,19 +2998,19 @@
           "notes": "liquidity deep, false-breakout risk low"
         },
         "12-16": {
-          "samples": 31,
+          "samples": 32,
           "reliable": true,
-          "avg_move": 0.395,
-          "std": 0.46,
+          "avg_move": 0.397,
+          "std": 0.453,
           "max_spike": 2.68,
           "max_drop": -1.75,
-          "median_volume_usd": 14705873.0,
-          "false_breakout_rate": 0.032,
+          "median_volume_usd": 15256391.0,
+          "false_breakout_rate": 0.031,
           "confidence_bar": 61,
           "thresholds": {
-            "aggressive": 0.395,
-            "standard": 0.625,
-            "conservative": 0.855
+            "aggressive": 0.397,
+            "standard": 0.623,
+            "conservative": 0.85
           },
           "notes": "liquidity deep, false-breakout risk low"
         },
@@ -3208,19 +3208,19 @@
           "notes": "liquidity thin, false-breakout risk low"
         },
         "12-16": {
-          "samples": 31,
+          "samples": 32,
           "reliable": true,
-          "avg_move": 1.323,
-          "std": 1.5,
+          "avg_move": 1.299,
+          "std": 1.482,
           "max_spike": 7.23,
           "max_drop": -4.31,
-          "median_volume_usd": 99778.0,
-          "false_breakout_rate": 0.032,
+          "median_volume_usd": 84130.0,
+          "false_breakout_rate": 0.031,
           "confidence_bar": 61,
           "thresholds": {
-            "aggressive": 1.323,
-            "standard": 2.073,
-            "conservative": 2.823
+            "aggressive": 1.299,
+            "standard": 2.04,
+            "conservative": 2.781
           },
           "notes": "liquidity thin, false-breakout risk low"
         },
@@ -3418,19 +3418,19 @@
           "notes": "liquidity thin, false-breakout risk low"
         },
         "12-16": {
-          "samples": 28,
+          "samples": 29,
           "reliable": true,
-          "avg_move": 2.254,
-          "std": 1.86,
+          "avg_move": 2.188,
+          "std": 1.861,
           "max_spike": 36.91,
           "max_drop": -6.96,
-          "median_volume_usd": 24556.0,
-          "false_breakout_rate": 0.071,
+          "median_volume_usd": 21849.0,
+          "false_breakout_rate": 0.069,
           "confidence_bar": 62,
           "thresholds": {
-            "aggressive": 2.254,
-            "standard": 3.185,
-            "conservative": 4.115
+            "aggressive": 2.188,
+            "standard": 3.119,
+            "conservative": 4.05
           },
           "notes": "liquidity thin, false-breakout risk low"
         },
@@ -3628,19 +3628,19 @@
           "notes": "liquidity thin, false-breakout risk low"
         },
         "12-16": {
-          "samples": 24,
+          "samples": 25,
           "reliable": true,
-          "avg_move": 1.921,
-          "std": 1.87,
+          "avg_move": 1.859,
+          "std": 1.857,
           "max_spike": 8.5,
           "max_drop": -4.78,
-          "median_volume_usd": 31193.0,
+          "median_volume_usd": 29245.0,
           "false_breakout_rate": 0.0,
           "confidence_bar": 60,
           "thresholds": {
-            "aggressive": 1.921,
-            "standard": 2.856,
-            "conservative": 3.791
+            "aggressive": 1.859,
+            "standard": 2.787,
+            "conservative": 3.716
           },
           "notes": "liquidity thin, false-breakout risk low"
         },
@@ -3838,19 +3838,19 @@
           "notes": "liquidity thin, false-breakout risk low"
         },
         "12-16": {
-          "samples": 22,
+          "samples": 23,
           "reliable": true,
-          "avg_move": 1.923,
-          "std": 2.423,
+          "avg_move": 2.114,
+          "std": 2.538,
           "max_spike": 11.03,
           "max_drop": -5.75,
-          "median_volume_usd": 109945.0,
+          "median_volume_usd": 128713.0,
           "false_breakout_rate": 0.0,
           "confidence_bar": 60,
           "thresholds": {
-            "aggressive": 1.923,
-            "standard": 3.134,
-            "conservative": 4.346
+            "aggressive": 2.114,
+            "standard": 3.383,
+            "conservative": 4.652
           },
           "notes": "liquidity thin, false-breakout risk low"
         },
@@ -4048,19 +4048,19 @@
           "notes": "liquidity thin, false-breakout risk low"
         },
         "12-16": {
-          "samples": 30,
+          "samples": 31,
           "reliable": true,
-          "avg_move": 3.46,
-          "std": 7.107,
+          "avg_move": 3.377,
+          "std": 7.003,
           "max_spike": 77.06,
           "max_drop": -11.39,
-          "median_volume_usd": 455.0,
+          "median_volume_usd": 487.0,
           "false_breakout_rate": 0.0,
           "confidence_bar": 60,
           "thresholds": {
-            "aggressive": 3.46,
-            "standard": 7.014,
-            "conservative": 10.567
+            "aggressive": 3.377,
+            "standard": 6.878,
+            "conservative": 10.38
           },
           "notes": "liquidity thin, false-breakout risk low"
         },
@@ -4258,19 +4258,19 @@
           "notes": "liquidity ok, false-breakout risk low"
         },
         "12-16": {
-          "samples": 9,
-          "reliable": false,
-          "avg_move": 4.26,
-          "std": 8.492,
+          "samples": 10,
+          "reliable": true,
+          "avg_move": 3.924,
+          "std": 8.076,
           "max_spike": 58.71,
           "max_drop": -5.17,
-          "median_volume_usd": 316197.0,
+          "median_volume_usd": 293780.0,
           "false_breakout_rate": 0.0,
           "confidence_bar": 60,
           "thresholds": {
-            "aggressive": 4.26,
-            "standard": 8.506,
-            "conservative": 12.751
+            "aggressive": 3.924,
+            "standard": 7.962,
+            "conservative": 12.0
           },
           "notes": "liquidity ok, false-breakout risk low"
         },
@@ -4468,19 +4468,19 @@
           "notes": "liquidity ok, false-breakout risk low"
         },
         "12-16": {
-          "samples": 31,
+          "samples": 32,
           "reliable": true,
-          "avg_move": 1.095,
-          "std": 1.811,
+          "avg_move": 1.086,
+          "std": 1.782,
           "max_spike": 8.75,
           "max_drop": -4.46,
-          "median_volume_usd": 406087.0,
+          "median_volume_usd": 408834.0,
           "false_breakout_rate": 0.0,
           "confidence_bar": 60,
           "thresholds": {
-            "aggressive": 1.095,
-            "standard": 2.0,
-            "conservative": 2.906
+            "aggressive": 1.086,
+            "standard": 1.977,
+            "conservative": 2.868
           },
           "notes": "liquidity ok, false-breakout risk low"
         },
@@ -4678,19 +4678,19 @@
           "notes": "liquidity thin, false-breakout risk low"
         },
         "12-16": {
-          "samples": 31,
+          "samples": 32,
           "reliable": true,
-          "avg_move": 0.933,
-          "std": 0.766,
+          "avg_move": 0.97,
+          "std": 0.782,
           "max_spike": 3.97,
           "max_drop": -3.64,
-          "median_volume_usd": 37575.0,
+          "median_volume_usd": 37128.0,
           "false_breakout_rate": 0.0,
           "confidence_bar": 60,
           "thresholds": {
-            "aggressive": 0.933,
-            "standard": 1.316,
-            "conservative": 1.699
+            "aggressive": 0.97,
+            "standard": 1.361,
+            "conservative": 1.752
           },
           "notes": "liquidity thin, false-breakout risk low"
         },
@@ -4888,19 +4888,19 @@
           "notes": "liquidity thin, false-breakout risk low"
         },
         "12-16": {
-          "samples": 26,
+          "samples": 27,
           "reliable": true,
-          "avg_move": 1.747,
-          "std": 1.895,
+          "avg_move": 1.701,
+          "std": 1.874,
           "max_spike": 6.84,
           "max_drop": -9.08,
-          "median_volume_usd": 183446.0,
-          "false_breakout_rate": 0.038,
+          "median_volume_usd": 158580.0,
+          "false_breakout_rate": 0.037,
           "confidence_bar": 61,
           "thresholds": {
-            "aggressive": 1.747,
-            "standard": 2.695,
-            "conservative": 3.642
+            "aggressive": 1.701,
+            "standard": 2.638,
+            "conservative": 3.575
           },
           "notes": "liquidity thin, false-breakout risk low"
         },
@@ -5098,19 +5098,19 @@
           "notes": "liquidity thin, false-breakout risk low"
         },
         "12-16": {
-          "samples": 23,
+          "samples": 24,
           "reliable": true,
-          "avg_move": 3.908,
-          "std": 6.239,
+          "avg_move": 3.745,
+          "std": 6.153,
           "max_spike": 40.0,
           "max_drop": -14.29,
-          "median_volume_usd": 694.0,
-          "false_breakout_rate": 0.304,
-          "confidence_bar": 71,
+          "median_volume_usd": 660.0,
+          "false_breakout_rate": 0.292,
+          "confidence_bar": 70,
           "thresholds": {
-            "aggressive": 3.908,
-            "standard": 7.028,
-            "conservative": 10.147
+            "aggressive": 3.745,
+            "standard": 6.822,
+            "conservative": 9.899
           },
           "notes": "liquidity thin, false-breakout risk medium"
         },
@@ -5308,19 +5308,19 @@
           "notes": "liquidity thin, false-breakout risk low"
         },
         "12-16": {
-          "samples": 31,
+          "samples": 32,
           "reliable": true,
-          "avg_move": 0.989,
-          "std": 1.508,
+          "avg_move": 0.978,
+          "std": 1.484,
           "max_spike": 10.29,
           "max_drop": -4.76,
-          "median_volume_usd": 3629.0,
+          "median_volume_usd": 3793.0,
           "false_breakout_rate": 0.0,
           "confidence_bar": 60,
           "thresholds": {
-            "aggressive": 0.989,
-            "standard": 1.742,
-            "conservative": 2.496
+            "aggressive": 0.978,
+            "standard": 1.721,
+            "conservative": 2.463
           },
           "notes": "liquidity thin, false-breakout risk low"
         },
@@ -5518,19 +5518,19 @@
           "notes": "liquidity deep, false-breakout risk low"
         },
         "12-16": {
-          "samples": 31,
+          "samples": 32,
           "reliable": true,
-          "avg_move": 0.86,
-          "std": 1.728,
+          "avg_move": 0.847,
+          "std": 1.702,
           "max_spike": 11.66,
           "max_drop": -2.25,
-          "median_volume_usd": 4282546.0,
+          "median_volume_usd": 4349171.0,
           "false_breakout_rate": 0.0,
           "confidence_bar": 60,
           "thresholds": {
-            "aggressive": 0.86,
-            "standard": 1.724,
-            "conservative": 2.588
+            "aggressive": 0.847,
+            "standard": 1.698,
+            "conservative": 2.549
           },
           "notes": "liquidity deep, false-breakout risk low"
         },
@@ -5728,19 +5728,19 @@
           "notes": "liquidity deep, false-breakout risk low"
         },
         "12-16": {
-          "samples": 27,
+          "samples": 28,
           "reliable": true,
-          "avg_move": 0.053,
-          "std": 0.109,
+          "avg_move": 0.051,
+          "std": 0.107,
           "max_spike": 2.41,
           "max_drop": -14.51,
-          "median_volume_usd": 1787759.0,
+          "median_volume_usd": 1789255.0,
           "false_breakout_rate": 0.0,
           "confidence_bar": 60,
           "thresholds": {
-            "aggressive": 0.053,
-            "standard": 0.107,
-            "conservative": 0.162
+            "aggressive": 0.051,
+            "standard": 0.105,
+            "conservative": 0.158
           },
           "notes": "liquidity deep, false-breakout risk low"
         },
@@ -5938,19 +5938,19 @@
           "notes": "liquidity thin, false-breakout risk low"
         },
         "12-16": {
-          "samples": 31,
+          "samples": 32,
           "reliable": true,
-          "avg_move": 1.698,
-          "std": 1.698,
+          "avg_move": 1.69,
+          "std": 1.671,
           "max_spike": 7.43,
           "max_drop": -5.68,
-          "median_volume_usd": 78610.0,
+          "median_volume_usd": 78796.0,
           "false_breakout_rate": 0.0,
           "confidence_bar": 60,
           "thresholds": {
-            "aggressive": 1.698,
-            "standard": 2.547,
-            "conservative": 3.396
+            "aggressive": 1.69,
+            "standard": 2.526,
+            "conservative": 3.361
           },
           "notes": "liquidity thin, false-breakout risk low"
         },
@@ -6148,19 +6148,19 @@
           "notes": "liquidity thin, false-breakout risk low"
         },
         "12-16": {
-          "samples": 31,
+          "samples": 32,
           "reliable": true,
-          "avg_move": 1.162,
-          "std": 1.42,
+          "avg_move": 1.167,
+          "std": 1.398,
           "max_spike": 6.39,
           "max_drop": -5.46,
-          "median_volume_usd": 14804.0,
+          "median_volume_usd": 14598.0,
           "false_breakout_rate": 0.0,
           "confidence_bar": 60,
           "thresholds": {
-            "aggressive": 1.162,
-            "standard": 1.872,
-            "conservative": 2.582
+            "aggressive": 1.167,
+            "standard": 1.866,
+            "conservative": 2.565
           },
           "notes": "liquidity thin, false-breakout risk low"
         },
@@ -6358,19 +6358,19 @@
           "notes": "liquidity thin, false-breakout risk low"
         },
         "12-16": {
-          "samples": 22,
+          "samples": 23,
           "reliable": true,
-          "avg_move": 1.339,
-          "std": 1.761,
+          "avg_move": 1.323,
+          "std": 1.723,
           "max_spike": 7.08,
           "max_drop": -4.26,
-          "median_volume_usd": 9084.0,
+          "median_volume_usd": 8258.0,
           "false_breakout_rate": 0.0,
           "confidence_bar": 60,
           "thresholds": {
-            "aggressive": 1.339,
-            "standard": 2.219,
-            "conservative": 3.1
+            "aggressive": 1.323,
+            "standard": 2.184,
+            "conservative": 3.045
           },
           "notes": "liquidity thin, false-breakout risk low"
         },
@@ -6568,19 +6568,19 @@
           "notes": "liquidity thin, false-breakout risk low"
         },
         "12-16": {
-          "samples": 24,
+          "samples": 25,
           "reliable": true,
-          "avg_move": 0.831,
-          "std": 1.137,
+          "avg_move": 0.834,
+          "std": 1.113,
           "max_spike": 8.55,
           "max_drop": -2.31,
-          "median_volume_usd": 30963.0,
+          "median_volume_usd": 30507.0,
           "false_breakout_rate": 0.0,
           "confidence_bar": 60,
           "thresholds": {
-            "aggressive": 0.831,
-            "standard": 1.4,
-            "conservative": 1.968
+            "aggressive": 0.834,
+            "standard": 1.39,
+            "conservative": 1.947
           },
           "notes": "liquidity thin, false-breakout risk low"
         },
@@ -6778,19 +6778,19 @@
           "notes": "liquidity thin, false-breakout risk low"
         },
         "12-16": {
-          "samples": 22,
+          "samples": 23,
           "reliable": true,
-          "avg_move": 5.297,
-          "std": 19.8,
+          "avg_move": 5.122,
+          "std": 19.363,
           "max_spike": 142.54,
           "max_drop": -10.28,
-          "median_volume_usd": 327.0,
+          "median_volume_usd": 436.0,
           "false_breakout_rate": 0.0,
           "confidence_bar": 60,
           "thresholds": {
-            "aggressive": 5.297,
-            "standard": 15.197,
-            "conservative": 25.097
+            "aggressive": 5.122,
+            "standard": 14.804,
+            "conservative": 24.485
           },
           "notes": "liquidity thin, false-breakout risk low"
         },
@@ -6988,19 +6988,19 @@
           "notes": "liquidity thin, false-breakout risk low"
         },
         "12-16": {
-          "samples": 31,
+          "samples": 32,
           "reliable": true,
-          "avg_move": 1.556,
-          "std": 1.654,
+          "avg_move": 1.56,
+          "std": 1.627,
           "max_spike": 7.74,
           "max_drop": -5.28,
-          "median_volume_usd": 4333.0,
-          "false_breakout_rate": 0.032,
+          "median_volume_usd": 4757.0,
+          "false_breakout_rate": 0.031,
           "confidence_bar": 61,
           "thresholds": {
-            "aggressive": 1.556,
-            "standard": 2.383,
-            "conservative": 3.21
+            "aggressive": 1.56,
+            "standard": 2.373,
+            "conservative": 3.187
           },
           "notes": "liquidity thin, false-breakout risk low"
         },
@@ -7198,19 +7198,19 @@
           "notes": "liquidity thin, false-breakout risk low"
         },
         "12-16": {
-          "samples": 31,
+          "samples": 32,
           "reliable": true,
-          "avg_move": 0.696,
-          "std": 0.741,
+          "avg_move": 0.708,
+          "std": 0.733,
           "max_spike": 3.15,
           "max_drop": -3.37,
-          "median_volume_usd": 52353.0,
+          "median_volume_usd": 54065.0,
           "false_breakout_rate": 0.0,
           "confidence_bar": 60,
           "thresholds": {
-            "aggressive": 0.696,
-            "standard": 1.067,
-            "conservative": 1.437
+            "aggressive": 0.708,
+            "standard": 1.075,
+            "conservative": 1.441
           },
           "notes": "liquidity thin, false-breakout risk low"
         },
@@ -7408,19 +7408,19 @@
           "notes": "liquidity deep, false-breakout risk low"
         },
         "12-16": {
-          "samples": 31,
+          "samples": 32,
           "reliable": true,
-          "avg_move": 1.65,
-          "std": 2.596,
+          "avg_move": 1.626,
+          "std": 2.558,
           "max_spike": 16.74,
           "max_drop": -4.04,
-          "median_volume_usd": 1540535.0,
+          "median_volume_usd": 1554926.0,
           "false_breakout_rate": 0.0,
           "confidence_bar": 60,
           "thresholds": {
-            "aggressive": 1.65,
-            "standard": 2.948,
-            "conservative": 4.246
+            "aggressive": 1.626,
+            "standard": 2.905,
+            "conservative": 4.183
           },
           "notes": "liquidity deep, false-breakout risk low"
         },
@@ -7618,19 +7618,19 @@
           "notes": "liquidity thin, false-breakout risk low"
         },
         "12-16": {
-          "samples": 31,
+          "samples": 32,
           "reliable": true,
-          "avg_move": 1.029,
-          "std": 1.051,
+          "avg_move": 1.022,
+          "std": 1.035,
           "max_spike": 9.97,
           "max_drop": -6.03,
-          "median_volume_usd": 51624.0,
+          "median_volume_usd": 50445.0,
           "false_breakout_rate": 0.0,
           "confidence_bar": 60,
           "thresholds": {
-            "aggressive": 1.029,
-            "standard": 1.555,
-            "conservative": 2.08
+            "aggressive": 1.022,
+            "standard": 1.539,
+            "conservative": 2.057
           },
           "notes": "liquidity thin, false-breakout risk low"
         },
@@ -7828,19 +7828,19 @@
           "notes": "liquidity thin, false-breakout risk low"
         },
         "12-16": {
-          "samples": 31,
+          "samples": 32,
           "reliable": true,
-          "avg_move": 1.208,
-          "std": 0.993,
+          "avg_move": 1.182,
+          "std": 0.987,
           "max_spike": 5.32,
           "max_drop": -3.74,
-          "median_volume_usd": 9759.0,
+          "median_volume_usd": 10608.0,
           "false_breakout_rate": 0.0,
           "confidence_bar": 60,
           "thresholds": {
-            "aggressive": 1.208,
-            "standard": 1.704,
-            "conservative": 2.2
+            "aggressive": 1.182,
+            "standard": 1.676,
+            "conservative": 2.169
           },
           "notes": "liquidity thin, false-breakout risk low"
         },
@@ -8038,19 +8038,19 @@
           "notes": "liquidity thin, false-breakout risk low"
         },
         "12-16": {
-          "samples": 31,
+          "samples": 32,
           "reliable": true,
-          "avg_move": 1.05,
-          "std": 1.006,
+          "avg_move": 1.043,
+          "std": 0.991,
           "max_spike": 5.69,
           "max_drop": -4.37,
-          "median_volume_usd": 21714.0,
-          "false_breakout_rate": 0.065,
+          "median_volume_usd": 21732.0,
+          "false_breakout_rate": 0.062,
           "confidence_bar": 62,
           "thresholds": {
-            "aggressive": 1.05,
-            "standard": 1.553,
-            "conservative": 2.056
+            "aggressive": 1.043,
+            "standard": 1.538,
+            "conservative": 2.034
           },
           "notes": "liquidity thin, false-breakout risk low"
         },
@@ -8248,19 +8248,19 @@
           "notes": "liquidity thin, false-breakout risk low"
         },
         "12-16": {
-          "samples": 31,
+          "samples": 32,
           "reliable": true,
-          "avg_move": 2.097,
-          "std": 2.206,
+          "avg_move": 2.044,
+          "std": 2.191,
           "max_spike": 11.25,
           "max_drop": -6.04,
-          "median_volume_usd": 32453.0,
-          "false_breakout_rate": 0.032,
+          "median_volume_usd": 27618.0,
+          "false_breakout_rate": 0.031,
           "confidence_bar": 61,
           "thresholds": {
-            "aggressive": 2.097,
-            "standard": 3.2,
-            "conservative": 4.303
+            "aggressive": 2.044,
+            "standard": 3.139,
+            "conservative": 4.235
           },
           "notes": "liquidity thin, false-breakout risk low"
         },
@@ -8458,19 +8458,19 @@
           "notes": "liquidity thin, false-breakout risk low"
         },
         "12-16": {
-          "samples": 15,
+          "samples": 16,
           "reliable": true,
-          "avg_move": 2.781,
-          "std": 4.233,
+          "avg_move": 2.652,
+          "std": 4.121,
           "max_spike": 9.56,
           "max_drop": -17.42,
-          "median_volume_usd": 1042.0,
+          "median_volume_usd": 950.0,
           "false_breakout_rate": 0.0,
           "confidence_bar": 60,
           "thresholds": {
-            "aggressive": 2.781,
-            "standard": 4.897,
-            "conservative": 7.013
+            "aggressive": 2.652,
+            "standard": 4.713,
+            "conservative": 6.773
           },
           "notes": "liquidity thin, false-breakout risk low"
         },
@@ -8668,19 +8668,19 @@
           "notes": "liquidity thin, false-breakout risk low"
         },
         "12-16": {
-          "samples": 24,
+          "samples": 25,
           "reliable": true,
-          "avg_move": 1.836,
-          "std": 3.439,
+          "avg_move": 1.772,
+          "std": 3.382,
           "max_spike": 26.48,
           "max_drop": -10.43,
-          "median_volume_usd": 3251.0,
+          "median_volume_usd": 3455.0,
           "false_breakout_rate": 0.0,
           "confidence_bar": 60,
           "thresholds": {
-            "aggressive": 1.836,
-            "standard": 3.556,
-            "conservative": 5.275
+            "aggressive": 1.772,
+            "standard": 3.463,
+            "conservative": 5.154
           },
           "notes": "liquidity thin, false-breakout risk low"
         },
@@ -8878,19 +8878,19 @@
           "notes": "liquidity thin, false-breakout risk low"
         },
         "12-16": {
-          "samples": 23,
+          "samples": 24,
           "reliable": true,
-          "avg_move": 4.005,
-          "std": 7.968,
+          "avg_move": 3.956,
+          "std": 7.797,
           "max_spike": 40.3,
           "max_drop": -9.5,
-          "median_volume_usd": 28502.0,
-          "false_breakout_rate": 0.087,
+          "median_volume_usd": 30015.0,
+          "false_breakout_rate": 0.083,
           "confidence_bar": 63,
           "thresholds": {
-            "aggressive": 4.005,
-            "standard": 7.989,
-            "conservative": 11.973
+            "aggressive": 3.956,
+            "standard": 7.854,
+            "conservative": 11.753
           },
           "notes": "liquidity thin, false-breakout risk low"
         },
@@ -9088,19 +9088,19 @@
           "notes": "liquidity thin, false-breakout risk low"
         },
         "12-16": {
-          "samples": 31,
+          "samples": 32,
           "reliable": true,
-          "avg_move": 1.388,
-          "std": 1.007,
+          "avg_move": 1.419,
+          "std": 1.006,
           "max_spike": 7.21,
           "max_drop": -5.59,
-          "median_volume_usd": 12828.0,
+          "median_volume_usd": 12954.0,
           "false_breakout_rate": 0.0,
           "confidence_bar": 60,
           "thresholds": {
-            "aggressive": 1.388,
-            "standard": 1.891,
-            "conservative": 2.395
+            "aggressive": 1.419,
+            "standard": 1.922,
+            "conservative": 2.425
           },
           "notes": "liquidity thin, false-breakout risk low"
         },
@@ -9298,19 +9298,19 @@
           "notes": "liquidity thin, false-breakout risk medium"
         },
         "12-16": {
-          "samples": 14,
+          "samples": 15,
           "reliable": true,
-          "avg_move": 2.176,
-          "std": 1.893,
+          "avg_move": 2.06,
+          "std": 1.878,
           "max_spike": 113.8,
           "max_drop": -14.57,
-          "median_volume_usd": 97629.0,
-          "false_breakout_rate": 0.071,
-          "confidence_bar": 62,
+          "median_volume_usd": 89394.0,
+          "false_breakout_rate": 0.133,
+          "confidence_bar": 65,
           "thresholds": {
-            "aggressive": 2.176,
-            "standard": 3.122,
-            "conservative": 4.069
+            "aggressive": 2.06,
+            "standard": 3.0,
+            "conservative": 3.939
           },
           "notes": "liquidity thin, false-breakout risk low"
         },
@@ -9508,19 +9508,19 @@
           "notes": "liquidity ok, false-breakout risk low"
         },
         "12-16": {
-          "samples": 31,
+          "samples": 32,
           "reliable": true,
-          "avg_move": 1.163,
-          "std": 1.526,
+          "avg_move": 1.146,
+          "std": 1.504,
           "max_spike": 9.09,
           "max_drop": -3.76,
-          "median_volume_usd": 264870.0,
+          "median_volume_usd": 272859.0,
           "false_breakout_rate": 0.0,
           "confidence_bar": 60,
           "thresholds": {
-            "aggressive": 1.163,
-            "standard": 1.925,
-            "conservative": 2.688
+            "aggressive": 1.146,
+            "standard": 1.898,
+            "conservative": 2.65
           },
           "notes": "liquidity ok, false-breakout risk low"
         },
@@ -9718,19 +9718,19 @@
           "notes": "liquidity ok, false-breakout risk low"
         },
         "12-16": {
-          "samples": 31,
+          "samples": 32,
           "reliable": true,
-          "avg_move": 0.641,
+          "avg_move": 0.66,
           "std": 0.611,
           "max_spike": 3.15,
           "max_drop": -3.0,
-          "median_volume_usd": 274528.0,
-          "false_breakout_rate": 0.032,
+          "median_volume_usd": 277149.0,
+          "false_breakout_rate": 0.031,
           "confidence_bar": 61,
           "thresholds": {
-            "aggressive": 0.641,
-            "standard": 0.947,
-            "conservative": 1.253
+            "aggressive": 0.66,
+            "standard": 0.966,
+            "conservative": 1.271
           },
           "notes": "liquidity ok, false-breakout risk low"
         },
@@ -9928,19 +9928,19 @@
           "notes": "liquidity thin, false-breakout risk low"
         },
         "12-16": {
-          "samples": 22,
+          "samples": 23,
           "reliable": true,
-          "avg_move": 1.365,
-          "std": 1.183,
+          "avg_move": 1.362,
+          "std": 1.156,
           "max_spike": 5.77,
           "max_drop": -8.29,
-          "median_volume_usd": 27332.0,
+          "median_volume_usd": 29623.0,
           "false_breakout_rate": 0.0,
           "confidence_bar": 60,
           "thresholds": {
-            "aggressive": 1.365,
-            "standard": 1.957,
-            "conservative": 2.548
+            "aggressive": 1.362,
+            "standard": 1.94,
+            "conservative": 2.518
           },
           "notes": "liquidity thin, false-breakout risk low"
         },
@@ -10138,19 +10138,19 @@
           "notes": "liquidity thin, false-breakout risk low"
         },
         "12-16": {
-          "samples": 31,
+          "samples": 32,
           "reliable": true,
-          "avg_move": 1.041,
-          "std": 1.0,
+          "avg_move": 1.102,
+          "std": 1.043,
           "max_spike": 5.16,
           "max_drop": -6.39,
-          "median_volume_usd": 4147.0,
-          "false_breakout_rate": 0.032,
+          "median_volume_usd": 4249.0,
+          "false_breakout_rate": 0.031,
           "confidence_bar": 61,
           "thresholds": {
-            "aggressive": 1.041,
-            "standard": 1.541,
-            "conservative": 2.041
+            "aggressive": 1.102,
+            "standard": 1.623,
+            "conservative": 2.145
           },
           "notes": "liquidity thin, false-breakout risk low"
         },
@@ -10348,19 +10348,19 @@
           "notes": "liquidity thin, false-breakout risk low"
         },
         "12-16": {
-          "samples": 23,
+          "samples": 24,
           "reliable": true,
-          "avg_move": 2.662,
-          "std": 2.12,
+          "avg_move": 2.693,
+          "std": 2.079,
           "max_spike": 8.58,
           "max_drop": -7.8,
-          "median_volume_usd": 2474.0,
-          "false_breakout_rate": 0.043,
-          "confidence_bar": 62,
+          "median_volume_usd": 2354.0,
+          "false_breakout_rate": 0.042,
+          "confidence_bar": 61,
           "thresholds": {
-            "aggressive": 2.662,
-            "standard": 3.721,
-            "conservative": 4.781
+            "aggressive": 2.693,
+            "standard": 3.733,
+            "conservative": 4.772
           },
           "notes": "liquidity thin, false-breakout risk low"
         },
@@ -10558,19 +10558,19 @@
           "notes": "liquidity ok, false-breakout risk low"
         },
         "12-16": {
-          "samples": 31,
+          "samples": 32,
           "reliable": true,
-          "avg_move": 1.26,
-          "std": 0.938,
-          "max_spike": 3.89,
+          "avg_move": 1.437,
+          "std": 1.361,
+          "max_spike": 10.35,
           "max_drop": -3.63,
-          "median_volume_usd": 158301.0,
+          "median_volume_usd": 163760.0,
           "false_breakout_rate": 0.0,
           "confidence_bar": 60,
           "thresholds": {
-            "aggressive": 1.26,
-            "standard": 1.729,
-            "conservative": 2.198
+            "aggressive": 1.437,
+            "standard": 2.118,
+            "conservative": 2.798
           },
           "notes": "liquidity thin, false-breakout risk low"
         },
@@ -10768,19 +10768,19 @@
           "notes": "liquidity thin, false-breakout risk low"
         },
         "12-16": {
-          "samples": 23,
+          "samples": 24,
           "reliable": true,
-          "avg_move": 1.362,
-          "std": 0.973,
+          "avg_move": 1.311,
+          "std": 0.984,
           "max_spike": 4.12,
           "max_drop": -2.7,
-          "median_volume_usd": 31497.0,
+          "median_volume_usd": 34811.0,
           "false_breakout_rate": 0.0,
           "confidence_bar": 60,
           "thresholds": {
-            "aggressive": 1.362,
-            "standard": 1.848,
-            "conservative": 2.334
+            "aggressive": 1.311,
+            "standard": 1.802,
+            "conservative": 2.294
           },
           "notes": "liquidity thin, false-breakout risk low"
         },
@@ -10978,19 +10978,19 @@
           "notes": "liquidity thin, false-breakout risk low"
         },
         "12-16": {
-          "samples": 24,
+          "samples": 25,
           "reliable": true,
-          "avg_move": 1.119,
-          "std": 0.914,
+          "avg_move": 1.092,
+          "std": 0.905,
           "max_spike": 4.94,
           "max_drop": -4.42,
-          "median_volume_usd": 769.0,
+          "median_volume_usd": 765.0,
           "false_breakout_rate": 0.0,
           "confidence_bar": 60,
           "thresholds": {
-            "aggressive": 1.119,
-            "standard": 1.576,
-            "conservative": 2.033
+            "aggressive": 1.092,
+            "standard": 1.545,
+            "conservative": 1.997
           },
           "notes": "liquidity thin, false-breakout risk low"
         },
@@ -11188,19 +11188,19 @@
           "notes": "liquidity thin, false-breakout risk low"
         },
         "12-16": {
-          "samples": 29,
+          "samples": 30,
           "reliable": true,
-          "avg_move": 2.643,
-          "std": 3.286,
+          "avg_move": 2.772,
+          "std": 3.306,
           "max_spike": 24.62,
           "max_drop": -8.33,
-          "median_volume_usd": 6386.0,
+          "median_volume_usd": 6534.0,
           "false_breakout_rate": 0.0,
           "confidence_bar": 60,
           "thresholds": {
-            "aggressive": 2.643,
-            "standard": 4.285,
-            "conservative": 5.928
+            "aggressive": 2.772,
+            "standard": 4.425,
+            "conservative": 6.078
           },
           "notes": "liquidity thin, false-breakout risk low"
         },
@@ -11398,19 +11398,19 @@
           "notes": "liquidity thin, false-breakout risk low"
         },
         "12-16": {
-          "samples": 31,
+          "samples": 32,
           "reliable": true,
-          "avg_move": 1.286,
-          "std": 0.941,
+          "avg_move": 1.285,
+          "std": 0.925,
           "max_spike": 4.74,
           "max_drop": -4.08,
-          "median_volume_usd": 150862.0,
+          "median_volume_usd": 153073.0,
           "false_breakout_rate": 0.0,
           "confidence_bar": 60,
           "thresholds": {
-            "aggressive": 1.286,
-            "standard": 1.756,
-            "conservative": 2.227
+            "aggressive": 1.285,
+            "standard": 1.747,
+            "conservative": 2.21
           },
           "notes": "liquidity thin, false-breakout risk low"
         },
@@ -11608,19 +11608,19 @@
           "notes": "liquidity thin, false-breakout risk low"
         },
         "12-16": {
-          "samples": 24,
+          "samples": 25,
           "reliable": true,
-          "avg_move": 4.987,
-          "std": 6.817,
+          "avg_move": 4.834,
+          "std": 6.717,
           "max_spike": 60.02,
           "max_drop": -19.6,
-          "median_volume_usd": 14020.0,
-          "false_breakout_rate": 0.042,
+          "median_volume_usd": 13058.0,
+          "false_breakout_rate": 0.04,
           "confidence_bar": 61,
           "thresholds": {
-            "aggressive": 4.987,
-            "standard": 8.395,
-            "conservative": 11.804
+            "aggressive": 4.834,
+            "standard": 8.192,
+            "conservative": 11.551
           },
           "notes": "liquidity thin, false-breakout risk low"
         },
@@ -11818,19 +11818,19 @@
           "notes": "liquidity thin, false-breakout risk low"
         },
         "12-16": {
-          "samples": 31,
+          "samples": 32,
           "reliable": true,
-          "avg_move": 1.281,
-          "std": 1.544,
+          "avg_move": 1.299,
+          "std": 1.523,
           "max_spike": 8.11,
           "max_drop": -4.55,
-          "median_volume_usd": 5722.0,
-          "false_breakout_rate": 0.032,
+          "median_volume_usd": 6099.0,
+          "false_breakout_rate": 0.031,
           "confidence_bar": 61,
           "thresholds": {
-            "aggressive": 1.281,
-            "standard": 2.053,
-            "conservative": 2.825
+            "aggressive": 1.299,
+            "standard": 2.06,
+            "conservative": 2.822
           },
           "notes": "liquidity thin, false-breakout risk low"
         },
@@ -12028,19 +12028,19 @@
           "notes": "liquidity thin, false-breakout risk low"
         },
         "12-16": {
-          "samples": 31,
+          "samples": 32,
           "reliable": true,
-          "avg_move": 1.36,
-          "std": 1.214,
+          "avg_move": 1.366,
+          "std": 1.195,
           "max_spike": 5.17,
           "max_drop": -4.47,
-          "median_volume_usd": 69143.0,
+          "median_volume_usd": 71042.0,
           "false_breakout_rate": 0.0,
           "confidence_bar": 60,
           "thresholds": {
-            "aggressive": 1.36,
-            "standard": 1.967,
-            "conservative": 2.574
+            "aggressive": 1.366,
+            "standard": 1.964,
+            "conservative": 2.561
           },
           "notes": "liquidity thin, false-breakout risk low"
         },
@@ -12238,19 +12238,19 @@
           "notes": "liquidity thin, false-breakout risk low"
         },
         "12-16": {
-          "samples": 31,
+          "samples": 32,
           "reliable": true,
-          "avg_move": 0.915,
-          "std": 0.734,
+          "avg_move": 0.899,
+          "std": 0.727,
           "max_spike": 3.4,
           "max_drop": -4.62,
-          "median_volume_usd": 1831.0,
+          "median_volume_usd": 1720.0,
           "false_breakout_rate": 0.0,
           "confidence_bar": 60,
           "thresholds": {
-            "aggressive": 0.915,
-            "standard": 1.282,
-            "conservative": 1.649
+            "aggressive": 0.899,
+            "standard": 1.263,
+            "conservative": 1.627
           },
           "notes": "liquidity thin, false-breakout risk low"
         },
@@ -12448,19 +12448,19 @@
           "notes": "liquidity thin, false-breakout risk low"
         },
         "12-16": {
-          "samples": 31,
+          "samples": 32,
           "reliable": true,
-          "avg_move": 0.757,
-          "std": 0.859,
+          "avg_move": 0.744,
+          "std": 0.848,
           "max_spike": 6.81,
           "max_drop": -4.08,
-          "median_volume_usd": 46345.0,
-          "false_breakout_rate": 0.032,
+          "median_volume_usd": 45710.0,
+          "false_breakout_rate": 0.031,
           "confidence_bar": 61,
           "thresholds": {
-            "aggressive": 0.757,
-            "standard": 1.186,
-            "conservative": 1.616
+            "aggressive": 0.744,
+            "standard": 1.168,
+            "conservative": 1.593
           },
           "notes": "liquidity thin, false-breakout risk low"
         },
@@ -12658,19 +12658,19 @@
           "notes": "liquidity thin, false-breakout risk low"
         },
         "12-16": {
-          "samples": 31,
+          "samples": 32,
           "reliable": true,
-          "avg_move": 1.173,
-          "std": 0.995,
+          "avg_move": 1.143,
+          "std": 0.994,
           "max_spike": 4.28,
           "max_drop": -4.93,
-          "median_volume_usd": 7428.0,
+          "median_volume_usd": 7643.0,
           "false_breakout_rate": 0.0,
           "confidence_bar": 60,
           "thresholds": {
-            "aggressive": 1.173,
-            "standard": 1.671,
-            "conservative": 2.169
+            "aggressive": 1.143,
+            "standard": 1.64,
+            "conservative": 2.137
           },
           "notes": "liquidity thin, false-breakout risk low"
         },
@@ -12868,19 +12868,19 @@
           "notes": "liquidity ok, false-breakout risk low"
         },
         "12-16": {
-          "samples": 31,
+          "samples": 32,
           "reliable": true,
-          "avg_move": 1.916,
-          "std": 1.996,
+          "avg_move": 1.864,
+          "std": 1.985,
           "max_spike": 13.96,
           "max_drop": -4.79,
-          "median_volume_usd": 268760.0,
-          "false_breakout_rate": 0.032,
+          "median_volume_usd": 294115.0,
+          "false_breakout_rate": 0.031,
           "confidence_bar": 61,
           "thresholds": {
-            "aggressive": 1.916,
-            "standard": 2.914,
-            "conservative": 3.912
+            "aggressive": 1.864,
+            "standard": 2.857,
+            "conservative": 3.849
           },
           "notes": "liquidity ok, false-breakout risk low"
         },
@@ -13078,19 +13078,19 @@
           "notes": "liquidity thin, false-breakout risk low"
         },
         "12-16": {
-          "samples": 24,
+          "samples": 25,
           "reliable": true,
-          "avg_move": 1.468,
-          "std": 1.711,
+          "avg_move": 1.474,
+          "std": 1.675,
           "max_spike": 8.03,
           "max_drop": -6.19,
-          "median_volume_usd": 15248.0,
+          "median_volume_usd": 15416.0,
           "false_breakout_rate": 0.0,
           "confidence_bar": 60,
           "thresholds": {
-            "aggressive": 1.468,
-            "standard": 2.323,
-            "conservative": 3.179
+            "aggressive": 1.474,
+            "standard": 2.311,
+            "conservative": 3.149
           },
           "notes": "liquidity thin, false-breakout risk low"
         },
@@ -13288,19 +13288,19 @@
           "notes": "liquidity thin, false-breakout risk low"
         },
         "12-16": {
-          "samples": 30,
+          "samples": 31,
           "reliable": true,
-          "avg_move": 0.743,
-          "std": 0.815,
+          "avg_move": 0.739,
+          "std": 0.802,
           "max_spike": 4.6,
           "max_drop": -2.75,
-          "median_volume_usd": 4509.0,
-          "false_breakout_rate": 0.033,
+          "median_volume_usd": 4626.0,
+          "false_breakout_rate": 0.032,
           "confidence_bar": 61,
           "thresholds": {
-            "aggressive": 0.743,
-            "standard": 1.151,
-            "conservative": 1.558
+            "aggressive": 0.739,
+            "standard": 1.14,
+            "conservative": 1.541
           },
           "notes": "liquidity thin, false-breakout risk low"
         },
@@ -13498,19 +13498,19 @@
           "notes": "liquidity thin, false-breakout risk low"
         },
         "12-16": {
-          "samples": 31,
+          "samples": 32,
           "reliable": true,
-          "avg_move": 0.907,
-          "std": 1.054,
+          "avg_move": 0.88,
+          "std": 1.047,
           "max_spike": 6.29,
           "max_drop": -2.9,
-          "median_volume_usd": 23905.0,
+          "median_volume_usd": 23550.0,
           "false_breakout_rate": 0.0,
           "confidence_bar": 60,
           "thresholds": {
-            "aggressive": 0.907,
-            "standard": 1.433,
-            "conservative": 1.96
+            "aggressive": 0.88,
+            "standard": 1.404,
+            "conservative": 1.927
           },
           "notes": "liquidity thin, false-breakout risk low"
         },
@@ -13708,19 +13708,19 @@
           "notes": "liquidity thin, false-breakout risk low"
         },
         "12-16": {
-          "samples": 22,
+          "samples": 23,
           "reliable": true,
-          "avg_move": 4.228,
-          "std": 4.443,
+          "avg_move": 4.253,
+          "std": 4.343,
           "max_spike": 27.13,
           "max_drop": -14.72,
-          "median_volume_usd": 4913.0,
-          "false_breakout_rate": 0.045,
+          "median_volume_usd": 4551.0,
+          "false_breakout_rate": 0.043,
           "confidence_bar": 62,
           "thresholds": {
-            "aggressive": 4.228,
-            "standard": 6.449,
-            "conservative": 8.671
+            "aggressive": 4.253,
+            "standard": 6.424,
+            "conservative": 8.595
           },
           "notes": "liquidity thin, false-breakout risk low"
         },
@@ -13918,19 +13918,19 @@
           "notes": "liquidity thin, false-breakout risk low"
         },
         "12-16": {
-          "samples": 31,
+          "samples": 32,
           "reliable": true,
           "avg_move": 1.031,
-          "std": 0.885,
+          "std": 0.871,
           "max_spike": 3.9,
           "max_drop": -5.59,
-          "median_volume_usd": 3362.0,
+          "median_volume_usd": 3877.0,
           "false_breakout_rate": 0.0,
           "confidence_bar": 60,
           "thresholds": {
             "aggressive": 1.031,
-            "standard": 1.474,
-            "conservative": 1.916
+            "standard": 1.466,
+            "conservative": 1.902
           },
           "notes": "liquidity thin, false-breakout risk low"
         },
@@ -14128,19 +14128,19 @@
           "notes": "liquidity thin, false-breakout risk low"
         },
         "12-16": {
-          "samples": 30,
+          "samples": 31,
           "reliable": true,
-          "avg_move": 0.649,
-          "std": 0.506,
+          "avg_move": 0.637,
+          "std": 0.502,
           "max_spike": 7.56,
           "max_drop": -3.84,
-          "median_volume_usd": 1044.0,
-          "false_breakout_rate": 0.033,
+          "median_volume_usd": 1060.0,
+          "false_breakout_rate": 0.032,
           "confidence_bar": 61,
           "thresholds": {
-            "aggressive": 0.649,
-            "standard": 0.902,
-            "conservative": 1.155
+            "aggressive": 0.637,
+            "standard": 0.888,
+            "conservative": 1.139
           },
           "notes": "liquidity thin, false-breakout risk low"
         },
@@ -14338,19 +14338,19 @@
           "notes": "liquidity thin, false-breakout risk low"
         },
         "12-16": {
-          "samples": 24,
+          "samples": 25,
           "reliable": true,
-          "avg_move": 3.958,
-          "std": 4.728,
+          "avg_move": 3.8,
+          "std": 4.695,
           "max_spike": 46.79,
           "max_drop": -10.64,
-          "median_volume_usd": 4900.0,
-          "false_breakout_rate": 0.125,
-          "confidence_bar": 64,
+          "median_volume_usd": 4526.0,
+          "false_breakout_rate": 0.16,
+          "confidence_bar": 66,
           "thresholds": {
-            "aggressive": 3.958,
-            "standard": 6.322,
-            "conservative": 8.686
+            "aggressive": 3.8,
+            "standard": 6.148,
+            "conservative": 8.495
           },
           "notes": "liquidity thin, false-breakout risk low"
         },
@@ -14548,19 +14548,19 @@
           "notes": "liquidity deep, false-breakout risk low"
         },
         "12-16": {
-          "samples": 31,
+          "samples": 32,
           "reliable": true,
-          "avg_move": 0.8,
-          "std": 1.096,
+          "avg_move": 0.792,
+          "std": 1.079,
           "max_spike": 6.91,
           "max_drop": -2.9,
-          "median_volume_usd": 2169167.0,
+          "median_volume_usd": 2176731.0,
           "false_breakout_rate": 0.0,
           "confidence_bar": 60,
           "thresholds": {
-            "aggressive": 0.8,
-            "standard": 1.348,
-            "conservative": 1.896
+            "aggressive": 0.792,
+            "standard": 1.332,
+            "conservative": 1.872
           },
           "notes": "liquidity deep, false-breakout risk low"
         },
@@ -14758,19 +14758,19 @@
           "notes": "liquidity thin, false-breakout risk low"
         },
         "12-16": {
-          "samples": 24,
+          "samples": 25,
           "reliable": true,
-          "avg_move": 1.898,
-          "std": 2.002,
+          "avg_move": 1.832,
+          "std": 1.988,
           "max_spike": 8.45,
           "max_drop": -19.34,
-          "median_volume_usd": 57827.0,
+          "median_volume_usd": 54543.0,
           "false_breakout_rate": 0.0,
           "confidence_bar": 60,
           "thresholds": {
-            "aggressive": 1.898,
-            "standard": 2.899,
-            "conservative": 3.9
+            "aggressive": 1.832,
+            "standard": 2.826,
+            "conservative": 3.819
           },
           "notes": "liquidity thin, false-breakout risk low"
         },
@@ -14968,19 +14968,19 @@
           "notes": "liquidity thin, false-breakout risk low"
         },
         "12-16": {
-          "samples": 31,
+          "samples": 32,
           "reliable": true,
-          "avg_move": 1.261,
-          "std": 1.418,
+          "avg_move": 1.24,
+          "std": 1.4,
           "max_spike": 7.18,
           "max_drop": -5.08,
-          "median_volume_usd": 15846.0,
-          "false_breakout_rate": 0.032,
+          "median_volume_usd": 16174.0,
+          "false_breakout_rate": 0.031,
           "confidence_bar": 61,
           "thresholds": {
-            "aggressive": 1.261,
-            "standard": 1.97,
-            "conservative": 2.679
+            "aggressive": 1.24,
+            "standard": 1.94,
+            "conservative": 2.639
           },
           "notes": "liquidity thin, false-breakout risk low"
         },
@@ -15178,19 +15178,19 @@
           "notes": "liquidity ok, false-breakout risk low"
         },
         "12-16": {
-          "samples": 31,
+          "samples": 32,
           "reliable": true,
-          "avg_move": 1.04,
-          "std": 1.214,
+          "avg_move": 1.036,
+          "std": 1.194,
           "max_spike": 5.75,
           "max_drop": -4.93,
-          "median_volume_usd": 530209.0,
+          "median_volume_usd": 477702.0,
           "false_breakout_rate": 0.0,
           "confidence_bar": 60,
           "thresholds": {
-            "aggressive": 1.04,
-            "standard": 1.647,
-            "conservative": 2.254
+            "aggressive": 1.036,
+            "standard": 1.633,
+            "conservative": 2.231
           },
           "notes": "liquidity ok, false-breakout risk low"
         },
@@ -15388,19 +15388,19 @@
           "notes": "liquidity thin, false-breakout risk low"
         },
         "12-16": {
-          "samples": 24,
+          "samples": 25,
           "reliable": true,
-          "avg_move": 0.869,
-          "std": 1.106,
+          "avg_move": 0.841,
+          "std": 1.092,
           "max_spike": 6.0,
           "max_drop": -3.92,
-          "median_volume_usd": 5023.0,
+          "median_volume_usd": 4508.0,
           "false_breakout_rate": 0.0,
           "confidence_bar": 60,
           "thresholds": {
-            "aggressive": 0.869,
-            "standard": 1.422,
-            "conservative": 1.975
+            "aggressive": 0.841,
+            "standard": 1.387,
+            "conservative": 1.933
           },
           "notes": "liquidity thin, false-breakout risk low"
         },
@@ -15598,19 +15598,19 @@
           "notes": "liquidity thin, false-breakout risk low"
         },
         "12-16": {
-          "samples": 24,
+          "samples": 25,
           "reliable": true,
-          "avg_move": 0.953,
-          "std": 0.795,
+          "avg_move": 1.051,
+          "std": 0.919,
           "max_spike": 4.02,
-          "max_drop": -2.95,
-          "median_volume_usd": 7770.0,
+          "max_drop": -3.65,
+          "median_volume_usd": 8398.0,
           "false_breakout_rate": 0.0,
           "confidence_bar": 60,
           "thresholds": {
-            "aggressive": 0.953,
-            "standard": 1.351,
-            "conservative": 1.749
+            "aggressive": 1.051,
+            "standard": 1.51,
+            "conservative": 1.97
           },
           "notes": "liquidity thin, false-breakout risk low"
         },
@@ -15808,19 +15808,19 @@
           "notes": "liquidity ok, false-breakout risk low"
         },
         "12-16": {
-          "samples": 31,
+          "samples": 32,
           "reliable": true,
-          "avg_move": 1.011,
-          "std": 0.949,
+          "avg_move": 1.01,
+          "std": 0.933,
           "max_spike": 5.45,
           "max_drop": -4.55,
-          "median_volume_usd": 520951.0,
-          "false_breakout_rate": 0.032,
+          "median_volume_usd": 521162.0,
+          "false_breakout_rate": 0.031,
           "confidence_bar": 61,
           "thresholds": {
-            "aggressive": 1.011,
-            "standard": 1.486,
-            "conservative": 1.96
+            "aggressive": 1.01,
+            "standard": 1.477,
+            "conservative": 1.944
           },
           "notes": "liquidity ok, false-breakout risk low"
         },
@@ -16018,19 +16018,19 @@
           "notes": "liquidity thin, false-breakout risk low"
         },
         "12-16": {
-          "samples": 31,
+          "samples": 32,
           "reliable": true,
-          "avg_move": 1.181,
-          "std": 1.4,
+          "avg_move": 1.159,
+          "std": 1.383,
           "max_spike": 7.04,
           "max_drop": -7.75,
-          "median_volume_usd": 12261.0,
-          "false_breakout_rate": 0.032,
+          "median_volume_usd": 12999.0,
+          "false_breakout_rate": 0.031,
           "confidence_bar": 61,
           "thresholds": {
-            "aggressive": 1.181,
-            "standard": 1.881,
-            "conservative": 2.581
+            "aggressive": 1.159,
+            "standard": 1.85,
+            "conservative": 2.542
           },
           "notes": "liquidity thin, false-breakout risk low"
         },
@@ -16228,19 +16228,19 @@
           "notes": "liquidity thin, false-breakout risk low"
         },
         "12-16": {
-          "samples": 31,
+          "samples": 32,
           "reliable": true,
-          "avg_move": 1.671,
-          "std": 3.11,
+          "avg_move": 1.646,
+          "std": 3.063,
           "max_spike": 19.74,
           "max_drop": -5.8,
-          "median_volume_usd": 33554.0,
+          "median_volume_usd": 35600.0,
           "false_breakout_rate": 0.0,
           "confidence_bar": 60,
           "thresholds": {
-            "aggressive": 1.671,
-            "standard": 3.226,
-            "conservative": 4.781
+            "aggressive": 1.646,
+            "standard": 3.177,
+            "conservative": 4.709
           },
           "notes": "liquidity thin, false-breakout risk low"
         },
@@ -16438,19 +16438,19 @@
           "notes": "liquidity thin, false-breakout risk low"
         },
         "12-16": {
-          "samples": 31,
+          "samples": 32,
           "reliable": true,
-          "avg_move": 0.205,
-          "std": 0.236,
+          "avg_move": 0.202,
+          "std": 0.233,
           "max_spike": 0.64,
           "max_drop": -1.08,
-          "median_volume_usd": 104744.0,
-          "false_breakout_rate": 0.032,
+          "median_volume_usd": 105914.0,
+          "false_breakout_rate": 0.031,
           "confidence_bar": 61,
           "thresholds": {
-            "aggressive": 0.205,
-            "standard": 0.323,
-            "conservative": 0.441
+            "aggressive": 0.202,
+            "standard": 0.318,
+            "conservative": 0.434
           },
           "notes": "liquidity thin, false-breakout risk low"
         },
@@ -16648,19 +16648,19 @@
           "notes": "liquidity thin, false-breakout risk low"
         },
         "12-16": {
-          "samples": 24,
+          "samples": 25,
           "reliable": true,
-          "avg_move": 3.1,
-          "std": 4.691,
+          "avg_move": 3.152,
+          "std": 4.599,
           "max_spike": 31.9,
-          "max_drop": -10.48,
-          "median_volume_usd": 50541.0,
-          "false_breakout_rate": 0.042,
+          "max_drop": -12.74,
+          "median_volume_usd": 53555.0,
+          "false_breakout_rate": 0.04,
           "confidence_bar": 61,
           "thresholds": {
-            "aggressive": 3.1,
-            "standard": 5.445,
-            "conservative": 7.79
+            "aggressive": 3.152,
+            "standard": 5.452,
+            "conservative": 7.751
           },
           "notes": "liquidity thin, false-breakout risk low"
         },
@@ -16858,19 +16858,19 @@
           "notes": "liquidity ok, false-breakout risk low"
         },
         "12-16": {
-          "samples": 31,
+          "samples": 32,
           "reliable": true,
-          "avg_move": 1.14,
-          "std": 1.302,
+          "avg_move": 1.11,
+          "std": 1.293,
           "max_spike": 6.95,
           "max_drop": -4.07,
-          "median_volume_usd": 98139.0,
-          "false_breakout_rate": 0.065,
+          "median_volume_usd": 103513.0,
+          "false_breakout_rate": 0.062,
           "confidence_bar": 62,
           "thresholds": {
-            "aggressive": 1.14,
-            "standard": 1.791,
-            "conservative": 2.442
+            "aggressive": 1.11,
+            "standard": 1.756,
+            "conservative": 2.402
           },
           "notes": "liquidity thin, false-breakout risk low"
         },
@@ -17068,19 +17068,19 @@
           "notes": "liquidity thin, false-breakout risk low"
         },
         "12-16": {
-          "samples": 24,
+          "samples": 25,
           "reliable": true,
-          "avg_move": 2.906,
-          "std": 1.999,
+          "avg_move": 3.04,
+          "std": 2.067,
           "max_spike": 18.29,
           "max_drop": -7.06,
-          "median_volume_usd": 51927.0,
+          "median_volume_usd": 54117.0,
           "false_breakout_rate": 0.0,
           "confidence_bar": 60,
           "thresholds": {
-            "aggressive": 2.906,
-            "standard": 3.906,
-            "conservative": 4.905
+            "aggressive": 3.04,
+            "standard": 4.073,
+            "conservative": 5.106
           },
           "notes": "liquidity thin, false-breakout risk low"
         },
@@ -17278,19 +17278,19 @@
           "notes": "liquidity thin, false-breakout risk low"
         },
         "12-16": {
-          "samples": 31,
+          "samples": 32,
           "reliable": true,
-          "avg_move": 1.042,
-          "std": 0.909,
+          "avg_move": 1.028,
+          "std": 0.898,
           "max_spike": 4.63,
           "max_drop": -4.02,
-          "median_volume_usd": 20738.0,
+          "median_volume_usd": 19988.0,
           "false_breakout_rate": 0.0,
           "confidence_bar": 60,
           "thresholds": {
-            "aggressive": 1.042,
-            "standard": 1.497,
-            "conservative": 1.951
+            "aggressive": 1.028,
+            "standard": 1.477,
+            "conservative": 1.926
           },
           "notes": "liquidity thin, false-breakout risk low"
         },
@@ -17488,19 +17488,19 @@
           "notes": "liquidity thin, false-breakout risk low"
         },
         "12-16": {
-          "samples": 31,
+          "samples": 32,
           "reliable": true,
-          "avg_move": 1.263,
-          "std": 1.478,
+          "avg_move": 1.247,
+          "std": 1.457,
           "max_spike": 6.08,
           "max_drop": -4.71,
-          "median_volume_usd": 14258.0,
+          "median_volume_usd": 14525.0,
           "false_breakout_rate": 0.0,
           "confidence_bar": 60,
           "thresholds": {
-            "aggressive": 1.263,
-            "standard": 2.002,
-            "conservative": 2.741
+            "aggressive": 1.247,
+            "standard": 1.975,
+            "conservative": 2.704
           },
           "notes": "liquidity thin, false-breakout risk low"
         },
@@ -17698,19 +17698,19 @@
           "notes": "liquidity thin, false-breakout risk low"
         },
         "12-16": {
-          "samples": 31,
+          "samples": 32,
           "reliable": true,
-          "avg_move": 1.594,
-          "std": 1.79,
+          "avg_move": 1.576,
+          "std": 1.764,
           "max_spike": 6.78,
           "max_drop": -9.67,
-          "median_volume_usd": 53161.0,
-          "false_breakout_rate": 0.032,
+          "median_volume_usd": 48948.0,
+          "false_breakout_rate": 0.031,
           "confidence_bar": 61,
           "thresholds": {
-            "aggressive": 1.594,
-            "standard": 2.489,
-            "conservative": 3.384
+            "aggressive": 1.576,
+            "standard": 2.458,
+            "conservative": 3.34
           },
           "notes": "liquidity thin, false-breakout risk low"
         },
@@ -17908,19 +17908,19 @@
           "notes": "liquidity thin, false-breakout risk low"
         },
         "12-16": {
-          "samples": 30,
+          "samples": 31,
           "reliable": true,
-          "avg_move": 1.061,
-          "std": 1.066,
-          "max_spike": 6.68,
-          "max_drop": -3.29,
-          "median_volume_usd": 30953.0,
-          "false_breakout_rate": 0.0,
-          "confidence_bar": 60,
+          "avg_move": 1.359,
+          "std": 1.963,
+          "max_spike": 16.08,
+          "max_drop": -3.52,
+          "median_volume_usd": 33807.0,
+          "false_breakout_rate": 0.032,
+          "confidence_bar": 61,
           "thresholds": {
-            "aggressive": 1.061,
-            "standard": 1.594,
-            "conservative": 2.127
+            "aggressive": 1.359,
+            "standard": 2.341,
+            "conservative": 3.322
           },
           "notes": "liquidity thin, false-breakout risk low"
         },
@@ -18118,19 +18118,19 @@
           "notes": "liquidity ok, false-breakout risk low"
         },
         "12-16": {
-          "samples": 24,
+          "samples": 25,
           "reliable": true,
-          "avg_move": 1.204,
-          "std": 0.94,
-          "max_spike": 3.31,
+          "avg_move": 1.157,
+          "std": 0.95,
+          "max_spike": 3.51,
           "max_drop": -3.95,
-          "median_volume_usd": 514830.0,
-          "false_breakout_rate": 0.042,
-          "confidence_bar": 61,
+          "median_volume_usd": 533911.0,
+          "false_breakout_rate": 0.08,
+          "confidence_bar": 63,
           "thresholds": {
-            "aggressive": 1.204,
-            "standard": 1.674,
-            "conservative": 2.144
+            "aggressive": 1.157,
+            "standard": 1.632,
+            "conservative": 2.107
           },
           "notes": "liquidity ok, false-breakout risk low"
         },
@@ -18328,19 +18328,19 @@
           "notes": "liquidity thin, false-breakout risk low"
         },
         "12-16": {
-          "samples": 31,
+          "samples": 32,
           "reliable": true,
-          "avg_move": 1.319,
-          "std": 0.949,
+          "avg_move": 1.318,
+          "std": 0.934,
           "max_spike": 3.94,
           "max_drop": -5.88,
-          "median_volume_usd": 26655.0,
-          "false_breakout_rate": 0.032,
+          "median_volume_usd": 27889.0,
+          "false_breakout_rate": 0.031,
           "confidence_bar": 61,
           "thresholds": {
-            "aggressive": 1.319,
-            "standard": 1.794,
-            "conservative": 2.268
+            "aggressive": 1.318,
+            "standard": 1.785,
+            "conservative": 2.252
           },
           "notes": "liquidity thin, false-breakout risk low"
         },
@@ -18538,19 +18538,19 @@
           "notes": "liquidity deep, false-breakout risk low"
         },
         "12-16": {
-          "samples": 31,
+          "samples": 32,
           "reliable": true,
-          "avg_move": 0.924,
-          "std": 1.33,
+          "avg_move": 0.913,
+          "std": 1.31,
           "max_spike": 6.65,
           "max_drop": -6.85,
-          "median_volume_usd": 2489634.0,
+          "median_volume_usd": 2503914.0,
           "false_breakout_rate": 0.0,
           "confidence_bar": 60,
           "thresholds": {
-            "aggressive": 0.924,
-            "standard": 1.589,
-            "conservative": 2.254
+            "aggressive": 0.913,
+            "standard": 1.568,
+            "conservative": 2.223
           },
           "notes": "liquidity deep, false-breakout risk low"
         },
@@ -18748,19 +18748,19 @@
           "notes": "liquidity deep, false-breakout risk low"
         },
         "12-16": {
-          "samples": 31,
+          "samples": 32,
           "reliable": true,
-          "avg_move": 1.236,
-          "std": 1.595,
+          "avg_move": 1.239,
+          "std": 1.57,
           "max_spike": 8.82,
           "max_drop": -6.23,
-          "median_volume_usd": 853973.0,
+          "median_volume_usd": 858454.0,
           "false_breakout_rate": 0.0,
           "confidence_bar": 60,
           "thresholds": {
-            "aggressive": 1.236,
-            "standard": 2.034,
-            "conservative": 2.831
+            "aggressive": 1.239,
+            "standard": 2.024,
+            "conservative": 2.809
           },
           "notes": "liquidity ok, false-breakout risk low"
         },
@@ -18958,19 +18958,19 @@
           "notes": "liquidity thin, false-breakout risk low"
         },
         "12-16": {
-          "samples": 22,
+          "samples": 23,
           "reliable": true,
-          "avg_move": 1.388,
-          "std": 1.244,
+          "avg_move": 1.538,
+          "std": 1.414,
           "max_spike": 7.62,
-          "max_drop": -4.03,
-          "median_volume_usd": 2268.0,
-          "false_breakout_rate": 0.045,
+          "max_drop": -7.46,
+          "median_volume_usd": 2319.0,
+          "false_breakout_rate": 0.043,
           "confidence_bar": 62,
           "thresholds": {
-            "aggressive": 1.388,
-            "standard": 2.01,
-            "conservative": 2.632
+            "aggressive": 1.538,
+            "standard": 2.245,
+            "conservative": 2.953
           },
           "notes": "liquidity thin, false-breakout risk low"
         },
@@ -19168,19 +19168,19 @@
           "notes": "liquidity thin, false-breakout risk low"
         },
         "12-16": {
-          "samples": 30,
+          "samples": 31,
           "reliable": true,
-          "avg_move": 1.197,
-          "std": 1.162,
+          "avg_move": 1.173,
+          "std": 1.149,
           "max_spike": 3.82,
           "max_drop": -5.63,
-          "median_volume_usd": 16008.0,
-          "false_breakout_rate": 0.033,
+          "median_volume_usd": 16017.0,
+          "false_breakout_rate": 0.032,
           "confidence_bar": 61,
           "thresholds": {
-            "aggressive": 1.197,
-            "standard": 1.777,
-            "conservative": 2.358
+            "aggressive": 1.173,
+            "standard": 1.748,
+            "conservative": 2.323
           },
           "notes": "liquidity thin, false-breakout risk low"
         },
@@ -19373,18 +19373,18 @@
         }
       },
       "12-16": {
-        "assets": 91,
-        "avg_move": 1.226,
-        "std": 1.244,
-        "max_spike": 7.04,
-        "max_drop": -4.89,
-        "median_volume_usd": 27332.0,
+        "assets": 92,
+        "avg_move": 1.24,
+        "std": 1.372,
+        "max_spike": 7.18,
+        "max_drop": -4.92,
+        "median_volume_usd": 28567.0,
         "false_breakout_rate": 0.0,
         "confidence_bar": 60,
         "thresholds": {
-          "aggressive": 1.226,
-          "standard": 1.848,
-          "conservative": 2.47
+          "aggressive": 1.24,
+          "standard": 1.925,
+          "conservative": 2.611
         }
       },
       "16-20": {

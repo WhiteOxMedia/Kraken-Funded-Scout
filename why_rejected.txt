@@ -1,12 +1,12 @@
-2026-08-24T08:41:26 BTC/USD      buy  rejected  scout_auto   92.0% reason=Regime: bull_trend (volatility rank 76/100); 🔥 BREAKOUT — Phase 1 — Breakout — +2.8% move with 2.1x 
-2026-08-24T08:41:25 ETH/USD      buy  rejected  scout_auto   92.0% reason=Regime: bull_trend (volatility rank 64/100); 🔥 BREAKOUT — Phase 1 — Breakout — +2.6% move with 2.2x 
-2026-08-24T08:37:01 VIRTUAL/USD  buy  rejected  scout_auto   92.0% reason=Regime: bull_trend (volatility rank 94/100); 🔥 BREAKOUT — Phase 1 — Breakout — +3.3% move with 2.6x 
-2026-08-24T08:30:12 BTC/USD      buy  rejected  scout_auto   92.0% reason=Regime: bull_trend (volatility rank 75/100); 🔥 BREAKOUT — Phase 1 — Breakout — +2.3% move with 1.6x 
-2026-08-24T08:30:11 ETH/USD      buy  rejected  scout_auto   92.0% reason=Regime: bull_trend (volatility rank 64/100); 🔥 BREAKOUT — Phase 1 — Breakout — +2.2% move with 1.7x 
-2026-08-24T08:28:01 TAO/USD      buy  rejected  scout_auto   72.5% reason=Regime: bull_trend (volatility rank 85/100); Pullback to EMA support in uptrend (RSI 57.8) — trend e
-2026-08-24T08:25:38 VIRTUAL/USD  buy  rejected  scout_auto   67.0% reason=Regime: bull_trend (volatility rank 92/100); 🔥 BREAKOUT — Phase 1 — Breakout — +1.0% move with 1.6x 
+2026-09-04T11:55:32 XRP/USD      sell rejected  scout_trend_exit 0.0% reason=GET OUT NOW — trend reversed (EMA9 1.4126 < EMA21 1.4231, price 1.3933 under both)
+2026-09-04T11:07:35 XRP/USD      sell rejected  scout_trend_exit 0.0% reason=GET OUT NOW — trend reversed (EMA9 1.4141 < EMA21 1.4238, price 1.4008 under both)
+2026-09-04T10:54:48 XRP/USD      buy  closed    bot_strategy 53.5% reason=RSI oversold (30.7); MACD bullish (hist=0.0010)
+2026-09-04T10:51:27 XMR/USD      sell closed    scout_exit_check 0.0% reason=WINDOW EXPIRED: 6.0h held, goal +1.3% not reached (-3.0%) — it hasn't paid, get out
+2026-09-04T10:06:54 XRP/USD      buy  closed    bot_strategy 40.0% reason=RSI oversold (39.0); MACD bullish (hist=0.0025)
+2026-09-04T07:52:33 ZORA/USD     buy  expired   scout_mover  56.0% reason=Mover: +8% on 24h
+2026-09-04T07:41:16 ZORA/USD     buy  expired   scout_mover  56.0% reason=Mover: +6% on 24h
+2026-09-04T05:55:15 FARTCOIN/USD buy  rejected  scout_auto   64.0% reason=Regime: ranging (volatility rank 68/100); 🔥 BREAKOUT — Phase 1 — Breakout — +2.0% move with 2.1x vol
+2026-09-04T03:52:56 XMR/USD      buy  closed    bot_strategy 59.5% reason=Pullback to EMA in uptrend (RSI 56.9); BB below mid in uptrend (%B=0.49); EMA bullish (short > long)
+2026-09-04T03:52:02 NEAR/USD     buy  rejected  scout_auto   69.0% reason=Regime: bull_trend (volatility rank 55/100); 🔥 BREAKOUT — Phase 1 — Breakout — +4.4% move with 5.5x 
 
-open positions: 3
-  ASTER/USD since 2026-08-23T23:13 @ 0.69135
-  FIL/USD since 2026-08-23T23:44 @ 0.75
-  POL/USD since 2026-08-24T02:23 @ 0.11422
+open positions: 0

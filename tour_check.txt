@@ -1,15 +1,12 @@
 bridge signals today:
-  08:32  HBAR/USD   sell rejected  scout_exit_check 0.0%
-  08:27  HBAR/USD   sell rejected  scout_exit_check 0.0%
-  06:45  HBAR/USD   sell rejected  scout_exit_check 0.0%
-  06:43  PUMP/USD   buy  closed    scout_auto     64.0%
-  06:40  HBAR/USD   sell closed    scout_exit_check 0.0%
-  06:02  HBAR/USD   sell rejected  scout_exit_check 0.0%
-  05:46  XMR/USD    buy  closed    bot_strategy   60.0%
-  05:44  PUMP/USD   buy  filled    bot_strategy   64.0%
-  05:38  HBAR/USD   buy  closed    scout_auto     84.0%
-  05:34  DENT/USD   buy  rejected  scout_gainer   59.0%
-open positions in bridge: 3 (bot max = 3)
-  S/USD since 2026-08-23T03:58 @ 0.0277
-  HBAR/USD since 2026-08-23T04:39 @ 0.07941
-  PUMP/USD since 2026-08-23T05:44 @ 0.005357
+  11:55  XRP/USD    sell rejected  scout_trend_exit 0.0%
+  11:07  XRP/USD    sell rejected  scout_trend_exit 0.0%
+  10:54  XRP/USD    buy  closed    bot_strategy   53.5%
+  10:51  XMR/USD    sell closed    scout_exit_check 0.0%
+  10:06  XRP/USD    buy  closed    bot_strategy   40.0%
+  07:52  ZORA/USD   buy  expired   scout_mover    56.0%
+  07:41  ZORA/USD   buy  expired   scout_mover    56.0%
+  05:55  FARTCOIN/USD buy  rejected  scout_auto     64.0%
+  03:52  XMR/USD    buy  closed    bot_strategy   59.5%
+  03:52  NEAR/USD   buy  rejected  scout_auto     69.0%
+open positions in bridge: 0 (bot max = 3)

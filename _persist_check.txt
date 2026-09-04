@@ -4,9 +4,9 @@ PASS  scanner: exit-voice re-arm when condition clears
 PASS  scanner: 'stays tracked until SOLD' logged  
 PASS  console: no contest_watch.pop on exit  
 PASS  console: SOLD is the only clear  
-PASS  re-entered: wrapped in st.form  
-PASS  re-entered: form submit button (not st.button)  
-PASS  re-entered: both inputs inside the form  
+PASS  entry control: wrapped in st.form  
+PASS  entry control: form submit button (not st.button)  
+PASS  entry control: inputs inside the form  
 PASS  console: SELL NOW toast persists  
 
 RESULT: 10 passed, 0 failed

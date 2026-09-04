@@ -1,6 +1,4 @@
-ledger payouts found: 2
-  $115.92  ts=1787407691978  id=LIKHTS-ZRD5W-YE4LOK
-  $135.72  ts=1787364617857  id=L3M2WS-EWCCD-M5V6VL
+ledger payouts found: 0
 banner (baseline run → None expected): None
-tracked payouts: 2 · total $251.64
+tracked payouts: 3 · total $298.17
 second run banner (None expected): None

@@ -60,14 +60,17 @@ check("WATCH-anyway takes a size", 'key="qc_watch_size"' in wa_blk)
 # ── rt-1: _run_exit_logic real-time ────────────────────────────────────
 rl_i = ap.find("def _run_exit_logic")
 rl_blk = ap[rl_i:ap.find("def _light_check")]
-check("exit logic reads the ticker", "fetch_ticker(pair)" in rl_blk)
-check("ticker is primary, candle close is fallback", rl_blk.find("fetch_ticker") > rl_blk.find("live = float(df"))
+# (Sep 4 smoothness pass: the ticker read goes through the 30s-cached
+# _ticker_px wrapper — same fetch, same read order, not a fresh API call
+# on every rerun)
+check("exit logic reads the ticker", "_ticker_px(pair)" in rl_blk)
+check("ticker is primary, candle close is fallback", rl_blk.find("_ticker_px") > rl_blk.find("live = float(df"))
 check("in-progress candle seeded", 'df.loc[_idx, "close"] = live' in rl_blk)
 
 # ── rt-2: EXIT CHECK tab real-time ─────────────────────────────────────
 ec_i = ap.find("def render_exit_check")
 ec_blk = ap[ec_i:]
-check("EXIT CHECK reads the ticker", "fetch_ticker(pair)" in ec_blk[ec_blk.find("with st.spinner"):ec_blk.find("sig = _eval")])
+check("EXIT CHECK reads the ticker", "_ticker_px(pair)" in ec_blk[ec_blk.find("with st.spinner"):ec_blk.find("sig = _eval")])
 
 # ── Sep 3+: the synthesis — position data + goal knowledge + the brain ──
 check("EXIT CHECK reads the watch record", "_load_watch().get(pair)" in ec_blk)

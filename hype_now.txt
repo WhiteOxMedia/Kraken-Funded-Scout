@@ -1,13 +1,11 @@
-HYPE now: $81.2700
-watch: entry $81.53 · size $2,500 · P&L $-8
-trailing high: $81.6400 · guard at $78.3744
-strategy: HOLD 35%
-  - Regime: bull_trend (volatility rank 48/100)
-  - Pullback to EMA support in uptrend (RSI 56.5) — trend entry
-  - MACD bullish (hist=0.0376)
-  - EMA bullish (short > long)
-  - Pullback quality too low (0/100)
+HYPE now: $84.2600
+strategy: BUY 41%
+  - Regime: ranging (volatility rank 65/100)
+  - MACD bearish (hist=-0.1341)
+  - EMA bearish (short < long)
+  - Signal confidence: 41/100 (🔴 Low confidence)
+  - Phase stable (2+ candles)
+  - Jagged trend (50% smooth — below 60% threshold)
 
 VERDICT: HOLD
-
-$20 count: $28 to go
+  to goal 87.7879: 4.2% left · ~10h at this pace

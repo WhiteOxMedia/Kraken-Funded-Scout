@@ -445,7 +445,11 @@ def _bridge():
     import signal_bridge
     return signal_bridge
 
+@st.cache_data(ttl=60)
 def scanner_status() -> bool:
+    # cached 60s: a PowerShell CIM spawn per call (this fired TWICE per
+    # rerun — sidebar + NOW strip — and each spawn is ~0.5-2s of the page
+    # freezing on every click)
     try:
         r = subprocess.run(
             ['powershell', '-NoProfile', '-Command',
@@ -478,8 +482,11 @@ def bot_status() -> tuple[str, str]:
         return "UNKNOWN", str(exc)[:40]
 
 @st.cache_data(ttl=60)
+@st.cache_data(ttl=30)
 def bot_positions() -> list[dict]:
-    """Open positions from the bot's Postgres DB."""
+    """Open positions from the bot's Postgres DB. Cached 30s — this runs in
+    now_strip on EVERY rerun and a live Neon round-trip per rerun was part
+    of the page choppiness."""
     try:
         url = os.environ.get("DB195374BC_DATABASE_URL") or os.environ.get("DB1005AA9E_DATABASE_URL")
         if not url:
@@ -761,9 +768,13 @@ PAYOUT_TRACK_FILE = Path(__file__).parent / "payout_track.json"
 
 
 @st.cache_data(ttl=300)
+@st.cache_data(ttl=180)
 def fetch_payouts(_kraken) -> list[dict]:
     """Recent USD transfers IN from the Kraken ledger — the Funded contest
-    paying out. (Trades are type 'trade'; rewards are 'receive'; both excluded.)"""
+    paying out. (Trades are type 'trade'; rewards are 'receive'; both excluded.)
+    Cached 180s: this is a SIGNED ledger API call that used to run on every
+    single rerun — the biggest source of the page freezing on clicks. A
+    payout celebration may land up to 3 minutes late; payouts are rare."""
     try:
         inner = getattr(_kraken, "exchange", None)
         if inner is None or not hasattr(inner, "fetch_ledger"):
@@ -948,6 +959,22 @@ def _close_bot_positions(ids: list[int]) -> int:
 def live_price(pair: str) -> float:
     try:
         return float(get_kraken_client().fetch_price(pair))
+    except Exception:
+        return 0.0
+
+
+@st.cache_data(ttl=30)
+def _ticker_px(pair: str) -> float:
+    """One ticker read, cached 30s — the 60s light cycle and the bot book
+    share it instead of each fetching fresh on every rerun. 30s is still
+    'real time' for trail/goal calls (the candle close lags minutes)."""
+    try:
+        _k = get_kraken_client()
+        if hasattr(_k, "fetch_ticker"):
+            _t = _k.fetch_ticker(pair)
+        else:
+            _t = _k.exchange.fetch_ticker(pair)
+        return float((_t or {}).get("last") or 0.0)
     except Exception:
         return 0.0
 
@@ -1224,13 +1251,51 @@ def contest_chunk(position_size_usd, balance: float) -> tuple[float, float] | No
     return 1.0, balance
 
 
-def fetch_df(kraken, pair: str, cfg: TradingConfig):
+@st.cache_data(ttl=45)
+def _fetch_df_cached(pair: str, interval: int, lookback: int):
+    """Candles, cached 45s — the light cycle re-runs every minute and used
+    to re-fetch OHLCV per position each time (the whole page froze while
+    it ran). st.cache_data hands every caller its OWN copy of the frame,
+    so the live-price seeding in the exit paths can never poison the
+    cache."""
     import pandas as pd
-    ohlcv = kraken.fetch_ohlcv(pair, interval_minutes=cfg.candle_interval, limit=cfg.lookback_candles)
+    ohlcv = get_kraken_client().fetch_ohlcv(pair, interval_minutes=interval, limit=lookback)
     df = pd.DataFrame(ohlcv, columns=["timestamp","open","high","low","close","volume"])
     df["timestamp"] = pd.to_datetime(df["timestamp"], unit="ms")
     df.set_index("timestamp", inplace=True)
     return df
+
+def fetch_df(kraken, pair: str, cfg: TradingConfig):
+    return _fetch_df_cached(pair, cfg.candle_interval, cfg.lookback_candles)
+
+
+@st.cache_data(ttl=60)
+def _qc_liquidity(pair: str, notional: float) -> dict:
+    """The QC's advisory book readout, cached 60s — the scan result stays
+    on screen while you fix numbers below it, and the order book used to
+    re-fetch on every one of those reruns."""
+    try:
+        from execution_tiers import liquidity_snapshot as _ls
+        return _ls(get_kraken_client(), pair, float(notional))
+    except Exception as exc:
+        return {"ok": False, "reason": f"book unavailable: {exc}"}
+
+
+@st.cache_data(ttl=60)
+def _past_winners(limit: int = 15) -> list[dict]:
+    """Past champions for the TOURNAMENT plate, cached 60s as plain dicts
+    (a live Neon read on every rerun made the tab stutter; history can be
+    a minute old). Cleared when a new champion is logged."""
+    try:
+        if not _HAS_DB:
+            return []
+        ws = db.get_tournament_winners(limit=limit)
+        return [{"pair": w.pair, "action": w.action,
+                 "confidence": float(w.confidence or 0),
+                 "take_profit": w.take_profit, "timestamp": w.timestamp}
+                for w in ws]
+    except Exception:
+        return []
 
 
 def render_chart(df, signal, config: TradingConfig, height: int = 430):
@@ -1989,6 +2054,7 @@ def render_tournament(cfg: TradingConfig, scan_cfg: TradingConfig, kraken):
                             take_profit=champ_sig.take_profit, risk_reward=champ_sig.risk_reward,
                             regime=champ_sig.regime, reasons=[r[:200] for r in champ_sig.reasons[:5]],
                             scan_type="winners" if is_winners else "full")
+                        _past_winners.clear()  # the new champion shows immediately
                     except Exception:
                         pass
             except Exception as exc:
@@ -2102,26 +2168,22 @@ def render_tournament(cfg: TradingConfig, scan_cfg: TradingConfig, kraken):
             pass
 
     # champion history
-    if _HAS_DB:
-        try:
-            winners = db.get_tournament_winners(limit=15)
-            if winners:
-                rows = []
-                for w in winners:
-                    icon = "🟢" if w.action == "buy" else "🔴" if w.action == "sell" else "⏸"
-                    t = w.timestamp
-                    if t:
-                        if t.tzinfo is None:
-                            t = t.replace(tzinfo=ZoneInfo("UTC"))
-                        t = t.astimezone(MST)
-                        ts = t.strftime("%d %b %I:%M%p")
-                    else:
-                        ts = "—"
-                    rows.append(f"{icon} {ts} · {_asset(w.pair):<9} {w.action.upper():<4} "
-                                f"{w.confidence:>3.0f}%  TP {_fmt_price(w.take_profit)}")
-                st.markdown(plate("Past Picks", lcd(rows)), unsafe_allow_html=True)
-        except Exception:
-            pass
+    winners = _past_winners()
+    if winners:
+        rows = []
+        for w in winners:
+            icon = "🟢" if w["action"] == "buy" else "🔴" if w["action"] == "sell" else "⏸"
+            t = w["timestamp"]
+            if t:
+                if t.tzinfo is None:
+                    t = t.replace(tzinfo=ZoneInfo("UTC"))
+                t = t.astimezone(MST)
+                ts = t.strftime("%d %b %I:%M%p")
+            else:
+                ts = "—"
+            rows.append(f"{icon} {ts} · {_asset(w['pair']):<9} {w['action'].upper():<4} "
+                        f"{w['confidence']:>3.0f}%  TP {_fmt_price(w['take_profit'])}")
+        st.markdown(plate("Past Picks", lcd(rows)), unsafe_allow_html=True)
 
 
 # ════════════════════════════════════════════════════════════════════════
@@ -2897,9 +2959,8 @@ def render_quick_check(cfg: TradingConfig, kraken):
     # Reads the live order book and shows what the bot's tier system would do.
     # NEVER writes to the bridge, never executes — manual console stays advisory.
     try:
-        from execution_tiers import liquidity_snapshot
         _notional = sizing.position_size_usd if (sig.entry_price and sizing) else 400.0
-        snap = liquidity_snapshot(kraken, pair, _notional)
+        snap = _qc_liquidity(pair, _notional)
         if snap.get("ok"):
             _b = snap["book"]
             _tn, _tname, _tcons = snap["tier"]
@@ -3076,9 +3137,9 @@ def _run_exit_logic(kraken, pair: str, cfg: TradingConfig, sb,
     # move that closed the last candle.
     live = float(df["close"].iloc[-1])
     try:
-        _tick = kraken.fetch_ticker(pair)
-        if _tick and _tick.get("last"):
-            live = float(_tick["last"])
+        _t = _ticker_px(pair)
+        if _t and _t > 0:
+            live = float(_t)
             # seed the in-progress candle so indicators see the live move
             _idx = df.index[-1]
             df.loc[_idx, "close"] = live
@@ -3358,11 +3419,7 @@ def _render_bots_book(kraken, cfg):
             _pair = (_p or {}).get("pair") or "?"
             _asset = _pair.split("/")[0]
             _entry = float(_p.get("execution_price") or _p.get("entry_price") or 0.0)
-            _px = 0.0
-            try:
-                _px = float((kraken.fetch_ticker(_pair) or {}).get("last") or 0.0)
-            except Exception:
-                _px = 0.0
+            _px = _ticker_px(_pair)
             _pnl = ((_px - _entry) / _entry * 100) if (_px > 0 and _entry > 0) else None
             _rev = False
             if _bs8 is not None:
@@ -3478,17 +3535,24 @@ def _render_light_panel(interval: str):
             usd = pnl / 100.0 * size
             pnl_html = (f' · <span style="color:{"#4be38a" if pnl >= 0 else "#ff6b5e"};">'
                         f'${usd:+,.0f}</span>')
-            # THE CLOCK (user directive: green must say how long to hold):
-            # out-by from the entry + 2x this coin's usual $20 time; stay
-            # close when a take is near or the clock is short.
+            # THE CLOCK (user directive: green must say how long to hold).
+            # (Sep 4) the entry's OWN window is the clock now — set at
+            # entry, bounded by the rotation boundary. The old 2x-$20-pace
+            # math retired with the scalp game; it stays as the fallback
+            # for legacy entries with no window. STAY CLOSE when the goal
+            # is nearly paid or the clock is short.
             try:
-                from background_scanner import _hours_to_scalp
-                _eta = _hours_to_scalp(v["pair"], entry) or 0.75
                 _added = datetime.fromisoformat(rec["added"]) if rec.get("added") else _now_mst()
-                _out_by = _added + timedelta(minutes=max(2.0 * _eta * 60.0, 45.0))
-                _rem = (_out_by - _now_mst()).total_seconds() / 60.0
-                _next20 = ((int(usd // 20) + 1) * 20 - usd) if usd > 0 else (20 - usd)
-                _near = (_next20 <= 10) or (_rem <= 15.0)
+                _win_min = float(rec.get("window_min") or 0.0)
+                _elapsed = (_now_mst() - _added).total_seconds() / 60.0
+                if _win_min > 0:
+                    _rem = _win_min - _elapsed
+                else:
+                    from background_scanner import _hours_to_scalp
+                    _eta = _hours_to_scalp(v["pair"], entry) or 0.75
+                    _rem = max(2.0 * _eta * 60.0, 45.0) - _elapsed
+                _goal = float(rec.get("goal_pct") or 0.0)
+                _near = (_rem <= 15.0) or (_goal > 0 and pnl >= _goal * 0.75)
                 clock_html = (f' · <span style="color:{"#ffc36b" if _near else "#8d8271"};">'
                               f'~{max(_rem, 0):.0f}m left'
                               + (" · STAY CLOSE" if _near else " · walk around")
@@ -3677,34 +3741,39 @@ def render_auto_watch(cfg: TradingConfig, kraken):
         _save_console_state(_cs)
     if watch_on:
         st.session_state["watch_on"] = True
-        wcol1, wcol2 = st.columns([1, 3])
-        with wcol1:
+        # one compact settings row (Sep 4 smoothness pass): the interval +
+        # goal + voice toggles used to stack three full-width rows between
+        # the AUTO-WATCH switch and your trades on EVERY page
+        _s1, _s2, _s3 = st.columns([1, 1, 1])
+        with _s1:
             interval = st.selectbox("Check every", ["1 min", "2 min", "5 min"], index=0, key="watch_interval")
-        goal_on = st.toggle("🎯 GOAL CALL — the % goal game",
-                            value=st.session_state.get("goal_on",
-                                                       _cs.get("goal_on",
-                                                               _cs.get("scalp_on", True))),
-                            key="goal_toggle",
-                            help="THE RULES OF THE GAME (Sep 1 rebuild — the $20 counting is "
-                                 "gone): every entry carries its own PERCENTAGE goal, set by "
-                                 "the market analysis — the Volatility Engine's expected move "
-                                 "for THIS coin, in THIS rotation, on THIS day of the week — "
-                                 "always clamped between 1% and 3%. The trade runs on a 1-3 "
-                                 "hour window scaled to the goal (1% → ~1h, 3% → ~3h). She "
-                                 "calls 'Goal reached — take the profit!' when it pays, and "
-                                 "'N times the goal!' at each doubling. If it hasn't paid by "
-                                 "the out-by time — get out. Entry size is capped by the 3% "
-                                 "death-line guard (the contest survives three worst-cases), "
-                                 "so no single trade ever risks the account.")
+        with _s2:
+            goal_on = st.toggle("🎯 GOAL CALL",
+                                value=st.session_state.get("goal_on",
+                                                           _cs.get("goal_on",
+                                                                   _cs.get("scalp_on", True))),
+                                key="goal_toggle",
+                                help="THE RULES OF THE GAME: every entry carries its own "
+                                     "PERCENTAGE goal — set from what THIS coin actually "
+                                     "moves at this hour of the week (its own daily ranges, "
+                                     "capped by the engine, scaled by the tide), clamped "
+                                     "1-3%. The clock runs to the next rotation boundary. "
+                                     "She calls 'Goal reached — take the profit!' when it "
+                                     "pays, and 'N times the goal!' at each doubling. Not "
+                                     "paid by the window's end — get out. Entry size is "
+                                     "capped by the 3% death-line guard (the contest "
+                                     "survives three worst-cases), so no single trade ever "
+                                     "risks the account.")
         if goal_on != _cs.get("goal_on", _cs.get("scalp_on", True)):
             _cs["goal_on"] = goal_on
             _save_console_state(_cs)
-        voice_on = st.toggle("🔊 HER VOICE — talks every minute, even with the browser closed",
-                             value=st.session_state.get("voice_on_ui", _cs.get("voice_on", True)),
-                             key="voice_toggle",
-                             help="Zira announces your positions every minute from the scanner "
-                                  "process — she keeps talking whether or not this browser "
-                                  "tab is open.")
+        with _s3:
+            voice_on = st.toggle("🔊 HER VOICE",
+                                 value=st.session_state.get("voice_on_ui", _cs.get("voice_on", True)),
+                                 key="voice_toggle",
+                                 help="Zira announces your positions every minute from the scanner "
+                                      "process — she keeps talking whether or not this browser "
+                                      "tab is open.")
         if voice_on != _cs.get("voice_on", True):
             _cs["voice_on"] = voice_on
             _save_console_state(_cs)
@@ -4016,9 +4085,9 @@ def render_exit_check(cfg: TradingConfig, kraken):
             # bar reacts to the move happening now.
             live = float(df["close"].iloc[-1])
             try:
-                _tick = kraken.fetch_ticker(pair)
-                if _tick and _tick.get("last"):
-                    live = float(_tick["last"])
+                _t = _ticker_px(pair)
+                if _t and _t > 0:
+                    live = float(_t)
                     _idx = df.index[-1]
                     df.loc[_idx, "close"] = live
                     df.loc[_idx, "high"] = max(float(df.loc[_idx, "high"]), live)
@@ -4502,20 +4571,44 @@ def main():
     # ── beginner guide ─────────────────────────────────────────────────
     with st.expander("🆕 New here? What does this console do? (30-second tour)"):
         st.markdown(
-            "**One card runs the whole thing — follow it.**\n\n"
-            "**The loop:**\n"
-            "1. **THE CARD (MASTER tab)** — shows the best fresh pick: WHY it's a pick, WHEN it "
-            "was spotted, and HOW LONG to hold. One click checks it.\n"
-            "2. **The check runs itself** — the deep scan fires the moment you arrive. Green "
-            "light = enter the trade on the contest app (it tells you exactly how much).\n"
-            "3. **The light** — she checks your trade every minute. Counts your $20s out loud, "
-            "tells you to stay close or walk around, and yells GET OUT NOW when it's time.\n"
-            "4. **Sold?** Tap the SOLD button. Re-entered on the app? Tell her what you paid "
-            "with the I RE-ENTERED panel — she needs the two numbers the contest shows you.\n\n"
-            "- **TOURNAMENT** — your backup picker: run the same hunt yourself, any time.\n"
-            "- **EXIT CHECK** — 'should I sell?' on any coin, with that coin's real history.\n\n"
-            "**House rules:** only long, never short. Red never means short — it means *sell it if "
-            "you've got it, stay out if you don't.* Anything not green counts as red."
+            "**One board, two jobs.** It advises YOUR trades on the Kraken Funded "
+            "contest. And it runs the bot that trades your real spot account — "
+            "that's **BOT'S BOOK**, separate money on its own rules.\n\n"
+            "**The contest loop — follow the card:**\n"
+            "1. **She hunts around the clock.** Time runs in 4-hour rotations. "
+            "Every coin has a history at every hour — she knows what each one "
+            "does at THIS hour.\n"
+            "2. **A real move clears the bar → POPUP.** The bar moves with the "
+            "rotation (night hours are pickiest) and the tide. The popup names "
+            "the coin, the size, and the out-by time — and she says it out loud. "
+            "Popups are for the contest only.\n"
+            "3. **THE CARD (MASTER)** carries the pick: WHY the brain likes it, "
+            "WHEN it fired, HOW LONG to hold. The goal % is what this coin "
+            "really moves this week, and the clock ends at the rotation "
+            "boundary.\n"
+            "4. **One click = the deep scan.** Every guard gets its say: the -3% "
+            "death line, the daily lock (once the day is up, today's profit is "
+            "protected), the tide, the trend, the order book, rotation memory. "
+            "Green light → enter on the contest app at the size it names. "
+            "Anything else → skip; she says why.\n"
+            "5. **In the trade, THE LIGHT watches every minute** — green = all "
+            "good, red = GET OUT NOW. She talks even with the browser closed. "
+            "When the goal pays, she calls it.\n"
+            "6. **Sold?** Tap SOLD — she books the P&L and moves the contest "
+            "balance herself. Paid a different price, or re-entered? **MY "
+            "ENTRY** — one form: fix the numbers, or start a fresh clock.\n"
+            "7. **Every rotation close she grades the day** — the DISCIPLINE "
+            "SCORE: did you leave money on the table? Right next to TODAY'S "
+            "FACTS on MASTER.\n\n"
+            "**The other buttons:**\n"
+            "- **TOURNAMENT** — run the same hunt yourself, any time. Winners "
+            "battle head to head.\n"
+            "- **QUICK CHECK** — the deep scan on any coin you pick.\n"
+            "- **EXIT CHECK** — 'should I sell?' on any coin, with that coin's "
+            "real history.\n\n"
+            "**House rules:** only long, never short. Red never means short — it "
+            "means *sell it if you've got it, stay out if you don't.* Anything "
+            "not green counts as red."
         )
 
     # ── global exit alert banner (from Auto-Watch — visible on every tab) ──
