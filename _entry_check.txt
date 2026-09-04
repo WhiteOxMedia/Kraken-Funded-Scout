@@ -24,6 +24,22 @@ PASS  exit logic reads the ticker
 PASS  ticker is primary, candle close is fallback
 PASS  in-progress candle seeded
 PASS  EXIT CHECK reads the ticker
+PASS  EXIT CHECK reads the watch record
+PASS  watch entry overrides bridge entry
+PASS  watch peak merged into the trail
+PASS  goal multiples computed
+PASS  window clock computed
+PASS  window-expired is an exit reason
+PASS  tier-aware hard stop consulted
+PASS  thesis check: entry why vs current signal
+PASS  THESIS line rendered
+PASS  GOAL line rendered
+PASS  POSITION line rendered (dollars)
+PASS  TAKE THE PROFIT verdict exists
+PASS  goal ETA uses the watch goal
+PASS  green light stores the why
+PASS  WATCH-anyway stores the why
+PASS  unified control takes a why input
 PASS  voice loop already used the ticker (pre-existing)
 PASS  voice sell bar seeds the live price
 PASS  bridge exit check seeds the live price
@@ -39,4 +55,4 @@ PASS  SIM new-trade: goal derived (not wiped)
 PASS  SIM new-trade: window derived
 PASS  SIM new-trade: peak = entry
 
-38/38 passed
+54/54 passed

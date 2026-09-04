@@ -64,6 +64,24 @@ ec_i = ap.find("def render_exit_check")
 ec_blk = ap[ec_i:]
 check("EXIT CHECK reads the ticker", "fetch_ticker(pair)" in ec_blk[ec_blk.find("with st.spinner"):ec_blk.find("sig = _eval")])
 
+# ── Sep 3+: the synthesis — position data + goal knowledge + the brain ──
+check("EXIT CHECK reads the watch record", "_load_watch().get(pair)" in ec_blk)
+check("watch entry overrides bridge entry", 'entry = float(_wr["entry"])' in ec_blk)
+check("watch peak merged into the trail", "high = max(high, _w_high)" in ec_blk)
+check("goal multiples computed", "_goal_mult = int(_pct / _w_goal)" in ec_blk)
+check("window clock computed", "_elapsed_min = (datetime.now(MST) - _ad)" in ec_blk)
+check("window-expired is an exit reason", "_window_expired or _hard_stop_hit" in ec_blk)
+check("tier-aware hard stop consulted", "contest_account as _ca_ec" in ec_blk)
+check("thesis check: entry why vs current signal", "_thesis_ok = " in ec_blk)
+check("THESIS line rendered", "THESIS <span" in ec_blk)
+check("GOAL line rendered", "GOAL <span" in ec_blk)
+check("POSITION line rendered (dollars)", "POSITION <span" in ec_blk)
+check("TAKE THE PROFIT verdict exists", "TAKE THE PROFIT" in ec_blk)
+check("goal ETA uses the watch goal", "_goal_px = (entry * (1 + _w_goal / 100.0))" in ec_blk)
+check("green light stores the why", "(green light)" in ap)
+check("WATCH-anyway stores the why", "(watched anyway)" in ap)
+check("unified control takes a why input", 'key=f"{prefix}_why"' in ap)
+
 # ── rt-3: scanner voice + bridge exit check real-time ──────────────────
 cl_i = bs.find("def contest_light")
 cl_blk = bs[cl_i:bs.find("def ", cl_i + 50)]

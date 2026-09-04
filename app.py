@@ -2318,7 +2318,13 @@ def render_quick_check(cfg: TradingConfig, kraken):
                                        # its % goal + window — the light's
                                        # clock and goal-call run on these.
                                        "goal_pct": float(_goal_pct or 1.5),
-                                       "window_min": float(max(60.0, min(180.0, (_goal_pct or 1.5) * 60.0)))}
+                                       "window_min": float(max(60.0, min(180.0, (_goal_pct or 1.5) * 60.0))),
+                                       # THE BRAIN (Sep 3): why we entered —
+                                       # the exit check reads this back before
+                                       # recommending anything (thesis check).
+                                       "why": [f"{sig.action.upper()} {sig.confidence:.0f}% (green light)",
+                                               *sig.reasons[:4]],
+                                       "source": "green_light"}
                             _save_watch(w)
                             logger.info("AUTO-WATCH: %s added on green light (entry %s, goal %.1f%%)",
                                         pair, px, float(_goal_pct or 1.5))
@@ -2780,6 +2786,10 @@ def render_quick_check(cfg: TradingConfig, kraken):
                     rec["size"] = float(_wa_size)
                 rec.setdefault("goal_pct", g)
                 rec.setdefault("window_min", win)
+                # THE BRAIN (Sep 3): the scan's own reasons ride along
+                rec.setdefault("why", [f"{sig.action.upper()} {sig.confidence:.0f}% (watched anyway)",
+                                       *sig.reasons[:4]])
+                rec.setdefault("source", "watch_anyway")
                 w[pair] = rec
                 _save_watch(w)
                 st.success(f"◆ {asset} added to the exit auto-watch (entry {_fmt_price(entry_used)}"
@@ -3405,6 +3415,11 @@ def _render_entry_control(prefix: str = "ec", default_pair: str | None = None):
                 entry = float(entry) if entry else None
                 size = float(size) if size else None
 
+            why_txt = st.text_input("why did you enter? (optional — she'll check "
+                                    "the thesis before recommending anything)",
+                                    value="", key=f"{prefix}_why",
+                                    placeholder="e.g. deep scan green, momentum rider, my own read")
+
             if st.form_submit_button("✎ SET MY ENTRY", type="primary"):
                 if not pair or not entry or entry <= 0:
                     st.error("Need a coin and an entry — the numbers are on your "
@@ -3426,6 +3441,12 @@ def _render_entry_control(prefix: str = "ec", default_pair: str | None = None):
                             g, win = _derive_goal(pair)
                             rec.setdefault("goal_pct", g)
                             rec.setdefault("window_min", win)
+                        # THE BRAIN (Sep 3): why you entered — free text, read
+                        # back by the exit check's thesis review
+                        _why_txt = st.session_state.get(f"{prefix}_why", "").strip()
+                        if _why_txt:
+                            rec["why"] = [_why_txt]
+                        rec.setdefault("source", "manual")
                         w[pair] = rec
                         _save_watch(w)
                         _what = "registered fresh" if fresh else "fresh clock started"
@@ -3826,8 +3847,15 @@ def render_exit_check(cfg: TradingConfig, kraken):
             st.error(f"Check failed for {asset}: {exc}")
             return
 
-    # entry from bridge if it's a real spot position (read-only; contest
-    # positions aren't in the bridge and stay reference-free)
+    # ── entry + position truth (Sep 3: "the manual exit check button needs
+    #    to use the real time data + the current position size/data + Goal
+    #    knowledge + the brain (why we entered and when). Before it
+    #    recommends anything.")
+    # Priority: the contest watch record (her ledger: entry, size, peak,
+    # clock, goal, thesis) → the bridge (real spot positions) → nothing.
+    # The bridge entry alone was blind to contest positions: no size, no
+    # goal, no clock, no why — half the recommendation was missing.
+    _wr = (_load_watch().get(pair) or {})
     entry = None
     try:
         for p in sb.get_open_positions():
@@ -3836,6 +3864,14 @@ def render_exit_check(cfg: TradingConfig, kraken):
                 break
     except Exception:
         pass
+    if _wr.get("entry"):
+        entry = float(_wr["entry"])          # the watch is the contest truth
+    _w_size = float(_wr.get("size") or 0.0)  # $ of the trade (0 = unknown)
+    _w_added = _wr.get("added")
+    _w_goal = float(_wr.get("goal_pct") or 0.0)
+    _w_window = float(_wr.get("window_min") or 0.0)
+    _w_why = _wr.get("why") or []
+    _w_high = float(_wr.get("high") or 0.0)  # persistent tracked peak
 
     # 1. trailing stop — CLONED tool: session-local tracking, read-only bridge
     #    peek. Manual checks never write to the bridge. CONTEST profile:
@@ -3860,6 +3896,47 @@ def render_exit_check(cfg: TradingConfig, kraken):
     except Exception:
         _ec_trail = CONTEST_TRAIL_PCT
     high, trail_hit = _cloned_trailing(pair, live, entry, sb, trail_pct=_ec_trail)
+    # the watch's persistent peak survives restarts — merge it in so the
+    # trail counts from the REAL top, not just this browser session's
+    if _w_high:
+        high = max(high, _w_high)
+        trail_hit = bool(entry and high > entry and live <= high * (1 - _ec_trail / 100))
+
+    # ── THE SYNTHESIS: goal, clock, dollars, thesis — computed BEFORE any
+    #    recommendation is rendered ──────────────────────────────────────
+    _pct = ((live / entry - 1.0) * 100.0) if (entry and live) else 0.0
+    _pnl_usd = (_pct / 100.0 * _w_size) if _w_size else None
+    _goal_mult = int(_pct / _w_goal) if (_w_goal and _pct > 0) else 0
+    _goal_left = (_w_goal - _pct) if _w_goal else None
+    _elapsed_min = _left_min = None
+    if _w_added:
+        try:
+            _ad = datetime.fromisoformat(_w_added)
+            if _ad.tzinfo is None:
+                _ad = _ad.replace(tzinfo=MST)
+            _elapsed_min = (datetime.now(MST) - _ad).total_seconds() / 60.0
+            if _w_window:
+                _left_min = _w_window - _elapsed_min
+        except Exception:
+            pass
+    _window_expired = bool(_w_window and _left_min is not None and _left_min <= 0)
+    # tier-aware hard stop: half the remaining death-line buffer (same rule
+    # the voice uses — contest_account is the one source of truth)
+    _stop_usd = None
+    if _w_size:
+        try:
+            import contest_account as _ca_ec
+            _acct_ec = _ca_ec.load_state()
+            _stop_usd = max(_ca_ec.buffer(_acct_ec) * 0.5, 5.0)
+        except Exception:
+            _stop_usd = None
+    _hard_stop_hit = bool(_pnl_usd is not None and _stop_usd and _pnl_usd <= -_stop_usd)
+    # thesis check: the brain's entry read vs the current signal
+    _thesis_was_buy = any(("BUY" in str(_r).upper()) or ("GREEN" in str(_r).upper())
+                          for _r in _w_why)
+    _thesis_now = f"{sig.action} {sig.confidence:.0f}%"
+    _thesis_ok = (not _thesis_was_buy) or (sig.action == "buy") or \
+                 (sig.action == "hold" and sig.confidence < 60)
 
     # 2. contest sell bar — lower than the bot's (75/60): get out fast
     is_momentum = any("MOMENTUM RIDER" in r for r in sig.reasons)
@@ -3868,7 +3945,8 @@ def render_exit_check(cfg: TradingConfig, kraken):
     exhaustion = any("exhaustion" in r.lower() for r in sig.reasons) and sig.action != "buy"
     rider_exit = any("exit signal" in r.lower() for r in sig.reasons)
 
-    should_exit = trail_hit or strategy_sell or exhaustion or rider_exit
+    should_exit = trail_hit or strategy_sell or exhaustion or rider_exit \
+        or _window_expired or _hard_stop_hit
     reasons = []
     if trail_hit and high:
         reasons.append(f"down {(high-live)/high*100:.1f}% from the top")
@@ -3878,6 +3956,10 @@ def render_exit_check(cfg: TradingConfig, kraken):
         reasons.append("move's done")
     if rider_exit:
         reasons.append("out of steam")
+    if _window_expired:
+        reasons.append(f"window expired ({_elapsed_min:.0f} min in, goal not reached)")
+    if _hard_stop_hit:
+        reasons.append(f"stopped out — down ${abs(_pnl_usd):,.0f} (stop is -${_stop_usd:,.0f})")
 
     # DCA-style dip signal (advisory display only)
     if entry and sig.action == "buy":
@@ -3901,11 +3983,52 @@ def render_exit_check(cfg: TradingConfig, kraken):
     verdict_lines = [
         f"NOW <span class='dim'>................</span> {_fmt_price(live)}" +
         (f"   PAID <span class='dim'>............</span> {_fmt_price(entry)}" if entry else ""),
+    ]
+
+    # ── THE BRAIN: why we entered, when, and is the thesis still alive ──
+    if _w_why or _elapsed_min is not None:
+        _when_txt = (f"{_elapsed_min:.0f} min ago" if _elapsed_min is not None else "—")
+        verdict_lines.append(
+            f"ENTERED <span class='dim'>...........</span> {_when_txt}"
+            + (f" · {' · '.join(str(_r) for _r in _w_why[:2])}" if _w_why else ""))
+        _th_col = "#4be38a" if _thesis_ok else "#ff6b5e"
+        verdict_lines.append(
+            f"THESIS <span class='dim'>............</span> "
+            f"<span style='color:{_th_col};'>{_thesis_now} — "
+            f"{'still valid' if _thesis_ok else 'FLIPPED against the entry'}</span>")
+
+    # ── THE GOAL: reached? how many times? window state? ───────────────
+    if _w_goal:
+        if _goal_mult >= 1:
+            verdict_lines.append(
+                f"GOAL <span class='dim'>...............</span> "
+                f"<span style='color:#4be38a;'>{_pct:+.1f}% = {_goal_mult}× the {_w_goal:.1f}% goal — TAKE THE PROFIT</span>")
+        else:
+            verdict_lines.append(
+                f"GOAL <span class='dim'>...............</span> "
+                f"{_pct:+.1f}% of the {_w_goal:.1f}% goal — {_goal_left:.1f}% to go")
+        if _w_window and _elapsed_min is not None:
+            _win_col = "#ff6b5e" if _window_expired else ("#ffc36b" if _left_min < 15 else "#4be38a")
+            verdict_lines.append(
+                f"WINDOW <span class='dim'>.............</span> "
+                f"<span style='color:{_win_col};'>{_elapsed_min:.0f} of {_w_window:.0f} min — "
+                + (f"EXPIRED" if _window_expired else f"{_left_min:.0f} min left") + "</span>")
+
+    # ── THE POSITION: real dollars, real size, real peak ───────────────
+    if _w_size:
+        verdict_lines.append(
+            f"POSITION <span class='dim'>..........</span> ${_w_size:,.0f} · "
+            + (f"P&L <span style='color:{'#4be38a' if _pnl_usd >= 0 else '#ff6b5e'};'>"
+               f"${_pnl_usd:+,.0f}</span>" if _pnl_usd is not None else "P&L —")
+            + (f" · peak {_fmt_price(high)} (gave back {(high - live) / high * 100:.1f}%)"
+               if high > live else ""))
+
+    verdict_lines.append(
         f"GET OUT AT <span class='dim'>..........</span> "
         + (f"🔴 NOW — down {CONTEST_TRAIL_PCT:.0f}% from the top" if trail_hit
            else f"🟢 {_fmt_price(high * (1 - CONTEST_TRAIL_PCT / 100))}"
            f" <span class='dim'>(top was {_fmt_price(high)})</span>"),
-    ]
+    )
     if sig.action == "sell" and sig.confidence < sell_thr:
         gap = sell_thr - sell_thr + (sell_thr - sig.confidence)
         verdict_lines.append(
@@ -3915,20 +4038,27 @@ def render_exit_check(cfg: TradingConfig, kraken):
         verdict_lines.append(
             f"HOW SURE <span class='dim'>............</span> {sig.confidence:.0f}% · "
             f"sells at {sell_thr}% red")
-    # ── ETA to the goal: same Volatility Engine the bot uses ─────────
-    goal_eta = _time_to_goal(pair, live, sig.take_profit)
+    # ── ETA to the goal: same Volatility Engine the bot uses — but the
+    # watch's own goal (entry × goal%) is the truth when we have one ──
+    _goal_px = (entry * (1 + _w_goal / 100.0)) if (entry and _w_goal) else sig.take_profit
+    goal_eta = _time_to_goal(pair, live, _goal_px)
     if goal_eta and not should_exit:
         pct_left, hours = goal_eta
         verdict_lines.append(
             f"HITS GOAL IN <span class='dim'>........</span> "
-            f"<span style='color:#4be38a;'>{_fmt_hours(hours)}</span> <span class='dim'>(goal {_fmt_price(sig.take_profit)}, {pct_left:.1f}% away)</span>")
-    elif not should_exit and not sig.take_profit:
+            f"<span style='color:#4be38a;'>{_fmt_hours(hours)}</span> <span class='dim'>(goal {_fmt_price(_goal_px)}, {pct_left:.1f}% away)</span>")
+    elif not should_exit and not _goal_px:
         verdict_lines.append("HITS GOAL IN <span class='dim'>........</span> <span class='dim'>no goal on the chart</span>")
 
     if reasons:
         verdict_lines.append('<span style="color:#ff6b5e;">SELL NOW</span>')
         for r in reasons:
             verdict_lines.append(f"  ✕ {r}")
+    elif _goal_mult >= 1:
+        verdict_lines.append(
+            f'<span style="color:#ffb347;">TAKE THE PROFIT — {_goal_mult}× the goal pays '
+            f'{_fmt_price(_goal_px)}' + (f" (${_pnl_usd:+,.0f} on ${_w_size:,.0f})" if _pnl_usd is not None else "")
+            + "</span>")
     else:
         verdict_lines.append('<span style="color:#4be38a;">HOLD</span>')
 
@@ -3978,18 +4108,23 @@ def render_exit_check(cfg: TradingConfig, kraken):
             pass
     else:
         # HOLD — she answers the real question: how long to the goal?
+        # (and when the goal is REACHED, the answer is TAKE IT)
         try:
-            _pnl_txt = ""
-            if entry:
-                _pnl_txt = f"You're up {(live/entry-1)*100:.1f} percent. "
-            if goal_eta:
-                pct_left, hours = goal_eta
-                _speak(f"Still riding! {asset}! {_pnl_txt}"
-                       f"Needs {pct_left:.1f} percent more to hit the goal. "
-                       f"At tonight's pace, roughly {_fmt_hours(hours)}!")
+            if _goal_mult >= 1:
+                _speak(f"Goal reached! {asset} is up {_pct:.1f} percent — "
+                       f"{_goal_mult} times the goal! Take the profit!")
             else:
-                _speak(f"Still riding! {asset}! {_pnl_txt}No clear target on the chart — "
-                       f"I'll yell the moment it's time to sell!")
+                _pnl_txt = ""
+                if entry:
+                    _pnl_txt = f"You're up {(live/entry-1)*100:.1f} percent. "
+                if goal_eta:
+                    pct_left, hours = goal_eta
+                    _speak(f"Still riding! {asset}! {_pnl_txt}"
+                           f"Needs {pct_left:.1f} percent more to hit the goal. "
+                           f"At tonight's pace, roughly {_fmt_hours(hours)}!")
+                else:
+                    _speak(f"Still riding! {asset}! {_pnl_txt}No clear target on the chart — "
+                           f"I'll yell the moment it's time to sell!")
         except Exception:
             pass
 
