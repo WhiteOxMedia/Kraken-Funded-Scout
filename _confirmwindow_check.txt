@@ -1,6 +1,6 @@
 PASS  STRICT (default): locked 6 min ago -> still blocked  already ran this rotation (08-12) — cold until the next rotation boundary
-PASS  WINDOW: locked 6 min ago -> ALLOWED (confirming the live alert)  confirmation window — the alert fired at 9:53 (6 min ago); confirming, not a re-fire
-PASS  the reason names the alert's time and age  confirmation window — the alert fired at 9:53 (6 min ago); confirming, not a re-fire
+PASS  WINDOW: locked 6 min ago -> ALLOWED (confirming the live alert)  confirmation window — the alert fired at 10:33 (6 min ago); confirming, not a re-fire
+PASS  the reason names the alert's time and age  confirmation window — the alert fired at 10:33 (6 min ago); confirming, not a re-fire
 PASS  not flagged as a re-entry (it's the SAME fire)  
 PASS  the HYPE pattern: 6 min after 'Buy HYPE!' the QC confirms it  
 PASS  WINDOW expires: locked 20 min ago -> still cold (double-dip protection)  already ran this rotation (08-12) — cold until the next rotation boundary
