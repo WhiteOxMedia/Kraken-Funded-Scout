@@ -149,7 +149,7 @@ Real account ~$183.59 free + **the bot holds APT @ 0.5839 since 9/2 17:48 (91% s
 
 ## Open items
 - USER RULES (cumulative): ASK FIRST; never modify desktop/system scripts without telling; never restart the stack myself; "don't delete anything"; a question mark / thoughts request = ASK; the $20 game RETIRED; THE PRIORITY: less entries, more money — big coins, high confidence, brain-driven; never uv add/uv sync while the stack runs.
-- **STACK RESTART PENDING (Sep 4, after the 08:34 restart): scanner (trend-exit retirement flag) + console (BOT'S BOOK labels) + bot (scout_mover re-admitted + POSITION LADDER v2 gate). Close the console window + rerun the shortcut. (Per RESTART DISCIPLINE: the user restarts, never me.) The popup floor + challenger went LIVE with the 08:34 restart.**
+- **STACK CURRENT (Sep 4, 09:29 restart): all of Sep 4's changes are LIVE — rotation popup floor + head-to-head challenger, trend-exit retirement, honest BOT'S BOOK labels, scout_mover restored, POSITION LADDER v2. Verify process start > commit time before claiming any future change is live.**
 - **THE FLATTEN LESSON: re-baseline BEFORE funding anything from the real account (the ASTER flatten fired 2 min ahead of the re-baseline). Tell me before transfers.**
 - **THE LIVE 10k RUN: first alerts through the full gauntlet are the validation. Dial at 25% ($60 floor). SOLD auto-fills the balance — hand-correct when reality differs.**
 - ⏰ TIDE DATA REMINDER: 2026-09-07 10:00 AM → diag_tidedata.py.
