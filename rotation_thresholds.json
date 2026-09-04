@@ -1,7 +1,7 @@
 {
-  "generated_at": "2026-09-04T10:10:37.360658-06:00",
+  "generated_at": "2026-09-04T10:51:38.751360-06:00",
   "window_weeks": 12,
-  "data_weeks": 6.1,
+  "data_weeks": 6.2,
   "min_samples": 10,
   "universe": {
     "AAVE/USD": {

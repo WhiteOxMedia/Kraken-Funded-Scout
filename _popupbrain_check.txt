@@ -15,7 +15,7 @@ PASS  the fail-open quick check is GONE (the JUP 14:52 hole — quick 92 opened 
 PASS  the funnel's desktop path fails CLOSED too  
 PASS  the stale-move guard gates RE-ENTRY popups  
 PASS  fresh first-fires are exempt from the stale guard (the early catch)  
-PASS  the goal clock: engine expected move -> 1-3% goal, 1-3h window  
+PASS  the goal clock: the asset's OWN week (market goal) -> 1-3% goal, rotation-bounded window  
 PASS  the funnel's desktop path uses the brain-judged bar too  
 PASS  her line speaks the GOAL, not the twenty  
 PASS  the $20 phrasing is gone from the POPUP path (the light is stage 3)  

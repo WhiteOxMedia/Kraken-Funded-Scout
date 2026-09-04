@@ -17,8 +17,11 @@ def check(name, ok):
 
 
 # ── ent-1: shared goal helper ────────────────────────────────────────────
-check("_derive_goal defined in app.py", "def _derive_goal(pair: str)" in ap)
-check("_derive_goal wraps _window_goal_pct", "_window_goal_pct" in ap[ap.find("def _derive_goal"):ap.find("def _derive_goal") + 900])
+check("_derive_goal defined in app.py (Sep 4: takes kraken for the market cap)",
+      "def _derive_goal(pair: str, kraken=None)" in ap)
+check("_derive_goal wraps the engine derivation with the market-week cap",
+      "_market_goal_pct" in ap[ap.find("def _derive_goal"):ap.find("def _derive_goal") + 1800]
+      and "_window_goal_pct" in ap[ap.find("def _derive_goal"):ap.find("def _derive_goal") + 1800])
 check("window formula matches green light", "max(60.0, min(180.0, goal * 60.0))" in ap)
 
 # ── ent-2: the unified control ──────────────────────────────────────────
@@ -36,7 +39,8 @@ check("same-trade preserves peak (floored)", 'rec["high"] = max(' in same_blk)
 new_i = body.find("NEW TRADE (or first registration)")
 new_blk = body[new_i:body.find("# SAME TRADE: keyed updates")]
 check("new-trade sets fresh added", 'rec["added"] = _now_mst()' in new_blk)
-check("new-trade derives goal when missing", "_derive_goal(pair)" in new_blk)
+check("new-trade derives goal when missing (market-capped, kraken threaded)",
+      "_derive_goal(pair, kraken)" in new_blk)
 check("new-trade uses setdefault (no wipe)", 'setdefault("goal_pct"' in new_blk)
 check("old full-dict replacement is GONE", 'w[pair] = {"entry": entry, "high": entry,' not in ap)
 check("old _render_reenter_control is GONE", "def _render_reenter_control" not in ap)
@@ -49,7 +53,8 @@ check("Quick Check +/- inputs retired", 'key="qc_watch_upd"' not in ap)
 # ── ent-4: WATCH-anyway ────────────────────────────────────────────────
 wa_i = ap.find("entering on your own conviction")
 wa_blk = ap[max(0, wa_i - 1200):ap.find("Advisory", wa_i)]
-check("WATCH-anyway derives goal", "_derive_goal(pair)" in wa_blk)
+check("WATCH-anyway derives goal (market-capped, kraken threaded)",
+      "_derive_goal(pair, kraken)" in wa_blk)
 check("WATCH-anyway takes a size", 'key="qc_watch_size"' in wa_blk)
 
 # ── rt-1: _run_exit_logic real-time ────────────────────────────────────

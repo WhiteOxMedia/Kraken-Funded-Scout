@@ -103,8 +103,9 @@ check("the stale-move guard gates RE-ENTRY popups",
       and "_stale_move(exchange, pair)" in src)
 check("fresh first-fires are exempt from the stale guard (the early catch)",
       src.find("STALE-MOVE GUARD") < src.find("if _is_reentry:"))
-check("the goal clock: engine expected move -> 1-3% goal, 1-3h window",
-      "_window_goal_pct(pair)" in src and "GOAL CLOCK" in src)
+check("the goal clock: the asset's OWN week (market goal) -> 1-3% goal, rotation-bounded window",
+      "_market_goal_pct(exchange, pair)" in src and "GOAL CLOCK" in src
+      and "_rotation_window_min()" in src)
 check("the funnel's desktop path uses the brain-judged bar too",
       "float(_deep_sig.confidence) >= 89" in src)
 check("her line speaks the GOAL, not the twenty",

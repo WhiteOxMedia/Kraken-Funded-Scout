@@ -1,7 +1,7 @@
 VERIFICATION RESULTS
 ============================================================
-PASS  _derive_goal defined in app.py
-PASS  _derive_goal wraps _window_goal_pct
+PASS  _derive_goal defined in app.py (Sep 4: takes kraken for the market cap)
+PASS  _derive_goal wraps the engine derivation with the market-week cap
 PASS  window formula matches green light
 PASS  _render_entry_control exists
 PASS  mode toggle present
@@ -11,14 +11,14 @@ PASS  same-trade does NOT touch added
 PASS  same-trade does NOT touch goal/window
 PASS  same-trade preserves peak (floored)
 PASS  new-trade sets fresh added
-PASS  new-trade derives goal when missing
+PASS  new-trade derives goal when missing (market-capped, kraken threaded)
 PASS  new-trade uses setdefault (no wipe)
 PASS  old full-dict replacement is GONE
 PASS  old _render_reenter_control is GONE
 PASS  rendered below SOLD buttons
 PASS  rendered in Quick Check
 PASS  Quick Check +/- inputs retired
-PASS  WATCH-anyway derives goal
+PASS  WATCH-anyway derives goal (market-capped, kraken threaded)
 PASS  WATCH-anyway takes a size
 PASS  exit logic reads the ticker
 PASS  ticker is primary, candle close is fallback

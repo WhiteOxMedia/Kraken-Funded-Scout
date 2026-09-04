@@ -2,8 +2,8 @@ PASS  GOAL REACHED exit exists (take the profit at the market analysis)
 PASS  WINDOW EXPIRED exit exists (it hasn't paid, get out)  
 PASS  THESIS DEAD exit exists (the reason we entered isn't alive)  
 PASS  position data from the bridge record (entry price + clock + conviction)  
-PASS  the goal is the SAME engine number the popup clock uses  
-PASS  window math matches the popup (goal x 60, clamped 60-180)  
+PASS  the goal is the SAME market number the popup clock uses (the asset's own week)  
+PASS  window math is bounded by the rotation boundary the ENTRY lived in  
 PASS  real-time: the ticker still seeds the in-progress candle  
 PASS  the synthesis is fail-soft (a broken record keeps the mechanical gates)  
 PASS  the trailing stop still runs FIRST (protects winners)  

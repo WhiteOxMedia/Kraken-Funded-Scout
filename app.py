@@ -647,24 +647,41 @@ def _save_watch(watch: dict):
         logger.debug("watch save failed: %s", exc)
 
 
-def _derive_goal(pair: str) -> tuple[float, float]:
-    """(goal_pct, window_min) for THIS coin, THIS rotation, THIS weekday —
-    the same derivation the green light uses (app.py deep scan). Shared by
-    every entry path (green light, WATCH-anyway, unified entry control) so
-    a manual entry carries a real goal instead of the 1.5% fallback."""
+def _derive_goal(pair: str, kraken=None) -> tuple[float, float]:
+    """(goal_pct, window_min) for THIS coin — the same derivation the
+    green light uses. Shared by every entry path (green light, WATCH-
+    anyway, unified entry control) so a manual entry carries a real goal
+    instead of the 1.5% fallback.
+    (Sep 4, user rule: "target each market separately — what were those
+    assets doing at this time all week? use 24 hour candles, scan 1
+    week; the goal should reach before the rotation happens ideally"):
+    the goal is the asset's OWN week (median daily range from 7 daily
+    candles; the engine's per-rotation cell as fallback), and the window
+    is bounded by the NEXT ROTATION BOUNDARY — crossing it is the
+    exception the scanner's boundary warning + forced full exit scan
+    cover."""
     goal = 1.5
     try:
         import background_scanner as _bs
-        if not hasattr(_bs, "_window_goal_pct"):
+        if not hasattr(_bs, "_market_goal_pct"):
             import importlib
             _bs = importlib.reload(_bs)
-        g = _bs._window_goal_pct(pair)
+        if kraken is not None and hasattr(_bs, "_market_goal_pct"):
+            g = _bs._market_goal_pct(kraken, pair)
+        else:
+            g = _bs._window_goal_pct(pair)
         if g:
             goal = float(g)
     except Exception:
         pass
-    window = float(max(60.0, min(180.0, goal * 60.0)))
-    return float(goal), window
+    window = 180.0
+    try:
+        import background_scanner as _bs2
+        if hasattr(_bs2, "_rotation_window_min"):
+            window = float(_bs2._rotation_window_min())
+    except Exception:
+        window = float(max(60.0, min(180.0, goal * 60.0)))
+    return float(goal), float(window)
 
 
 
@@ -1432,10 +1449,15 @@ def _pick_card(cfg: TradingConfig, kraken):
         age_txt = f"{h['age_min']:.0f} minutes ago" if h["age_min"] >= 1 else "just now"
         try:
             import background_scanner as _bsg
-            if not hasattr(_bsg, "_window_goal_pct"):
+            if not hasattr(_bsg, "_market_goal_pct"):
                 import importlib
                 _bsg = importlib.reload(_bsg)
-            _card_goal = _bsg._window_goal_pct(f"{h['asset']}/USD")
+            # (Sep 4) the asset's OWN week of daily candles; the engine
+            # cell is the fallback
+            if hasattr(_bsg, "_market_goal_pct"):
+                _card_goal = _bsg._market_goal_pct(kraken, f"{h['asset']}/USD")
+            else:
+                _card_goal = _bsg._window_goal_pct(f"{h['asset']}/USD")
         except Exception:
             _card_goal = 1.5
         rows = [
@@ -2121,10 +2143,16 @@ def render_quick_check(cfg: TradingConfig, kraken):
                 # move must reach the 1% goal floor — a coin the engine
                 # says moves 0.3% in this window can't make 1%.
                 try:
-                    if not hasattr(_bs, "_window_goal_pct"):
+                    if not hasattr(_bs, "_market_goal_pct"):
                         import importlib
                         _bs = importlib.reload(_bs)
-                    _goal_pct = _bs._window_goal_pct(pair)
+                    # (Sep 4) the goal is the asset's OWN week of daily
+                    # candles when the market read is available; the
+                    # engine's per-rotation cell is the fallback
+                    if hasattr(_bs, "_market_goal_pct"):
+                        _goal_pct = _bs._market_goal_pct(kraken, pair)
+                    else:
+                        _goal_pct = _bs._window_goal_pct(pair)
                     from volatility_engine import get_move_threshold as _gmt
                     from background_scanner import _rotation_window as _rw, _schedule_for_dow as _sd
                     _rwin = _rw(_now_mst())
@@ -2335,7 +2363,12 @@ def render_quick_check(cfg: TradingConfig, kraken):
                                        # its % goal + window — the light's
                                        # clock and goal-call run on these.
                                        "goal_pct": float(_goal_pct or 1.5),
-                                       "window_min": float(max(60.0, min(180.0, (_goal_pct or 1.5) * 60.0))),
+                                       # (Sep 4) the window is bounded by the
+                                       # next rotation boundary — the goal should
+                                       # reach before the rotation turns
+                                       "window_min": float(_bs._rotation_window_min()
+                                                           if hasattr(_bs, "_rotation_window_min")
+                                                           else max(60.0, min(180.0, (_goal_pct or 1.5) * 60.0))),
                                        # THE BRAIN (Sep 3): why we entered —
                                        # the exit check reads this back before
                                        # recommending anything (thesis check).
@@ -2821,7 +2854,7 @@ def render_quick_check(cfg: TradingConfig, kraken):
                               "entering on your own conviction (thin books included)"):
                 w = _load_watch()
                 entry_used = sig.entry_price or px
-                g, win = _derive_goal(pair)
+                g, win = _derive_goal(pair, kraken)
                 rec = w.get(pair) or {}
                 rec["entry"] = float(entry_used)
                 rec["high"] = float(px)
@@ -2843,7 +2876,7 @@ def render_quick_check(cfg: TradingConfig, kraken):
         # THE ONE ENTRY CONTROL (Sep 3, Option B): same-trade corrections and
         # fresh registrations share one form — contest-app language, keyed
         # updates in same-trade mode so the clock/goal/peak survive.
-        _render_entry_control(prefix="qc", default_pair=pair)
+        _render_entry_control(prefix="qc", default_pair=pair, kraken=kraken)
 
     # ADVISORY ONLY — contest use. No buttons write to the bridge; the
     # auto-scanner is the sole source of live trading signals.
@@ -3374,7 +3407,8 @@ def _render_light_panel(interval: str):
         st.error("🚨 SELL NOW — on the contest app.")
 
 
-def _render_entry_control(prefix: str = "ec", default_pair: str | None = None):
+def _render_entry_control(prefix: str = "ec", default_pair: str | None = None,
+                          kraken=None):
     """THE ONE ENTRY CONTROL (user decision, Sep 3 — Option B): merges the old
     'I RE-ENTERED' form and the Quick Check +/- inputs into ONE form with a
     mode toggle. One language (the contest app's numbers), no ambiguity about
@@ -3483,7 +3517,7 @@ def _render_entry_control(prefix: str = "ec", default_pair: str | None = None):
                             rec["size"] = float(size)
                         rec["added"] = _now_mst().isoformat()
                         if not rec.get("goal_pct") or not rec.get("window_min"):
-                            g, win = _derive_goal(pair)
+                            g, win = _derive_goal(pair, kraken)
                             rec.setdefault("goal_pct", g)
                             rec.setdefault("window_min", win)
                         # THE BRAIN (Sep 3): why you entered — free text, read

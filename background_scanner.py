@@ -951,6 +951,69 @@ def _window_goal_pct(pair: str) -> float:
     return GOAL_DEFAULT_PCT
 
 
+# ── THE MARKET CAP ON THE GOAL (user rule, Sep 4: "target each market
+# separately — what were those assets doing at this time all week? use
+# 24 hour candles, scan 1 week" + user direction, Sep 4: "keep what
+# picked yesterday's winners but add to it"): THE ENGINE'S PER-ROTATION
+# EXPECTED MOVE STAYS THE GOAL (the derivation behind yesterday's
+# winners) — the asset's own week of daily candles is ADDED as a
+# reality cap: the median daily range (the room this coin actually
+# gives) can only pull the goal DOWN, never up. A stale engine cell
+# asking 2.5% of a coin giving 1.2%/day this week gets capped at 1.2%;
+# a generous week keeps the engine number untouched. Broken week read:
+# the engine number stands alone (fail-open to yesterday's logic).
+# Cached 15 min per pair — daily candles don't move faster than that.
+MARKET_GOAL_TTL_S = 900.0
+_market_goal_cache: dict = {}   # pair -> (ts, goal_pct)
+
+
+def _market_goal_pct(exchange, pair: str) -> float:
+    """The trade's % goal: the ENGINE's per-rotation expected move (the
+    old derivation — what picked yesterday's winners), CAPPED by the
+    asset's own week — min(engine, median daily range of the last 7
+    daily candles), clamped [1, 3]. The week never raises the goal;
+    a broken week read leaves the engine number alone."""
+    import time as _t
+    _eng = _window_goal_pct(pair)
+    _now = _t.time()
+    _c = _market_goal_cache.get(pair)
+    if _c and _now - _c[0] < MARKET_GOAL_TTL_S:
+        return _c[1]
+    try:
+        _d = exchange.fetch_ohlcv(pair, timeframe="1d", limit=8)
+        if _d and len(_d) >= 4:
+            _rngs = []
+            for _k in _d[-7:]:
+                _o, _h, _l = float(_k[1]), float(_k[2]), float(_k[3])
+                if _o > 0 and _h >= _l > 0:
+                    _rngs.append((_h - _l) / _o * 100.0)
+            if _rngs:
+                _rngs.sort()
+                _n = len(_rngs)
+                _med = _rngs[_n // 2] if _n % 2 else (_rngs[_n // 2 - 1] + _rngs[_n // 2]) / 2.0
+                if _med > 0.2:
+                    goal = max(GOAL_MIN_PCT, min(GOAL_MAX_PCT, min(_eng, _med)))
+                    _market_goal_cache[pair] = (_now, goal)
+                    return goal
+    except Exception:
+        pass
+    return _eng   # the engine number alone — yesterday's logic, unchanged
+
+
+def _rotation_window_min(now=None) -> float:
+    """(user rule, Sep 4: "the goal should reach before the rotation
+    happens ideally") The window is bounded by the NEXT rotation
+    boundary — the 4h block this entry lives in. min(180, max(60,
+    minutes to the boundary)): entering early in a rotation gets the
+    standing 3h cap; mid-rotation gets the remaining time; near the
+    boundary the 60-min floor makes an EXCEPTION (the window crosses
+    into the next rotation — the boundary warning + forced full exit
+    scan cover it)."""
+    now = now or _now_mst()
+    _mins_left = (4 - (now.hour % 4)) * 60 - now.minute
+    return min(180.0, max(60.0, float(_mins_left)))
+
+
 def _stale_move(exchange, pair: str):
     """(hours_since_4h_high, pct_below_high) when the move is STALE — the
     APT shape: the peak is hours old and price has fallen away from it.
@@ -2013,19 +2076,25 @@ def main():
         # the user's system: green light → all in. The deep scan is the
         # confirmation; when it's green they go 100%. Say what they do.
         contest_msg = f"  SPEND: 100% = ${_bal:,.0f}\n" if _bal > 0 else ""
-        # ── THE GOAL CLOCK (user rule, Sep 1: "scalping is over with...
-        # 1 hour to 3 hour time limits and percentage based goals >1%-3%
-        # depending on the current market analysis"): the goal is the
-        # engine's expected move for THIS coin at this rotation/day —
-        # the market analysis — clamped to 1-3%; the window scales with
-        # the goal (1% → 1h, 3% → 3h). The $20 pace and its resolve cap
-        # are retired on the popup path.
-        _goal_pct = _window_goal_pct(pair)
-        _win_min = max(60.0, min(180.0, _goal_pct * 60.0))
+        # ── THE GOAL CLOCK (user rule, Sep 1, retargeted Sep 4: "target
+        # each market separately — what were those assets doing at this
+        # time all week? use 24 hour candles, scan 1 week; the goal
+        # should reach before the rotation happens ideally" + "keep what
+        # picked yesterday's winners but add to it"): the goal is the
+        # ENGINE's per-rotation expected move (the old derivation,
+        # unchanged) CAPPED by the asset's own week (median daily range
+        # from 7 daily candles — the cap only pulls DOWN), and the window
+        # is bounded by the NEXT ROTATION BOUNDARY (min(180, max(60,
+        # time to the boundary)) — crossing it is the exception the
+        # boundary warning covers). The $20 pace and its resolve cap are
+        # retired on the popup path.
+        _goal_pct = _market_goal_pct(exchange, pair)
+        _win_min = _rotation_window_min()
         _out_by = (_now_mst() + timedelta(minutes=round(_win_min / 5.0) * 5)).strftime("%I:%M").lstrip("0")
         hold_txt = f"+{_goal_pct:.1f}% in ~{_win_min / 60.0:.0f}h"
-        logger.info("  GOAL CLOCK: %s — goal +%.1f%% (engine expected move), "
-                    "window %.0fh, out by %s", asset, _goal_pct, _win_min / 60.0, _out_by)
+        logger.info("  GOAL CLOCK: %s — goal +%.1f%% (engine expected move, capped by "
+                    "the asset's week), window %.0fh (to the rotation boundary), out by %s",
+                    asset, _goal_pct, _win_min / 60.0, _out_by)
 
         # ── THE DOUBLE-CHECK RULE (user directive, Aug 25): a desktop signal
         # must already pass the SAME deep scan the user will run in QUICK
@@ -2434,6 +2503,43 @@ def main():
         if current_block_name is not None and block_name != current_block_name:
             logger.info("Rotation %s -> %s (positions ride — cooldown flatten owns resets)",
                         current_block_name, block_name)
+            # ── ROTATION-BOUNDARY EXCEPTION (user rule, Sep 4: "the goal
+            # should reach before the rotation happens ideally. If
+            # exception is made a warning fires with the rotation if
+            # still tracking asset, full exit scan occurs to trigger a
+            # warning light if necessary"): every asset still tracked
+            # across the boundary gets the warning in the one voice, and
+            # the FULL exit scan runs immediately (not on the 5-min
+            # cadence) — its verdicts (trailing stop / GOAL / WINDOW /
+            # THESIS / strategy) ARE the warning light. Bot positions:
+            # the forced scan writes scout_exit_check exits the reader
+            # executes. Contest watch: the warning speaks; the light's
+            # own goal calls + sell bar carry the verdict from there.
+            try:
+                _bw = []
+                try:
+                    from signal_bridge import get_open_positions as _bop_b
+                    for _pb in (_bop_b() or []):
+                        _pa = (_pb or {}).get("pair")
+                        if _pa:
+                            _bw.append(_pa.split("/")[0])
+                except Exception:
+                    pass
+                _cw = [str(_k).split("/")[0] for _k in (_load_contest_watch() or {}).keys()]
+                if _bw:
+                    last_exit_check = 0   # force the FULL exit scan this pass
+                    logger.info("  ROTATION BOUNDARY: %d bot position(s) crossed (%s) — "
+                                "full exit scan forced now", len(_bw), ", ".join(_bw))
+                    _speak_server(f"Rotation passed! Still tracking {', '.join(_bw)}! "
+                                  "Full exit scan running!", rate=1)
+                for _a in _cw:
+                    if _a not in _bw:
+                        logger.info("  ROTATION BOUNDARY: contest watch still tracking %s "
+                                    "— the light carries the verdict", _a)
+                        _speak_server(f"Rotation passed! Still tracking {_a}! "
+                                      "Check the exit!", rate=1)
+            except Exception as _exc:
+                logger.debug("rotation-boundary exception check failed: %s", _exc)
 
         current_block_name = block_name
 
@@ -2625,8 +2731,10 @@ def main():
                                             asset, _m_stale[0], _m_stale[1])
                             else:
                                 # THE GOAL CLOCK — same math as the champion popup
-                                _m_goal = _window_goal_pct(pair)
-                                _m_win = max(60.0, min(180.0, _m_goal * 60.0))
+                                # (Sep 4: the asset's OWN week of daily candles;
+                                # the window bounded by the rotation boundary)
+                                _m_goal = _market_goal_pct(exchange, pair)
+                                _m_win = _rotation_window_min()
                                 _m_out_by = (_now_mst() + timedelta(
                                     minutes=round(_m_win / 5.0) * 5)).strftime("%I:%M").lstrip("0")
                                 # sizing: the LIVE contest account + book
@@ -2926,15 +3034,22 @@ def main():
                             _syn_entry = float(s.get("execution_price") or s.get("entry_price") or 0)
                             _syn_exec = str(s.get("executed_at") or "")
                             _syn_conf = float(s.get("confidence") or 0)
-                            _syn_goal = float(_window_goal_pct(pair))
-                            _syn_win_min = max(60.0, min(180.0, _syn_goal * 60.0))
+                            _syn_goal = float(_market_goal_pct(exchange, pair))
+                            # the window is bounded by the rotation boundary
+                            # the ENTRY lived in (user rule, Sep 4) — the
+                            # deadline was set when the trade opened; the
+                            # 60-min floor near a boundary is the exception
+                            # this check itself now polices
+                            _syn_win_min = 180.0
                             _syn_elapsed_min = None
                             if _syn_exec:
                                 try:
                                     _ad = datetime.fromisoformat(_syn_exec)
                                     if _ad.tzinfo is None:
                                         _ad = _ad.replace(tzinfo=MST)
-                                    _syn_elapsed_min = (datetime.now(MST) - _ad.astimezone(MST)).total_seconds() / 60.0
+                                    _ad = _ad.astimezone(MST)
+                                    _syn_win_min = _rotation_window_min(_ad)
+                                    _syn_elapsed_min = (datetime.now(MST) - _ad).total_seconds() / 60.0
                                 except Exception:
                                     _syn_elapsed_min = None
                             if _syn_entry > 0 and live_price > 0 and not should_exit:

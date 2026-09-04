@@ -111,8 +111,9 @@ check("the quick number no longer headlines a mover popup (log only)",
       "MOVER {asset} ({signal.confidence:.0f}%)" not in src)
 check("mover popup voice speaks the brain's number",
       "Buy {asset}! {_m_dc:.0f} percent sure!" in src)
-check("mover popup carries the goal clock (engine expected move)",
-      "_m_goal = _window_goal_pct(pair)" in src
+check("mover popup carries the goal clock (the asset's own week + rotation-bounded window)",
+      "_m_goal = _market_goal_pct(exchange, pair)" in src
+      and "_m_win = _rotation_window_min()" in src
       and "Aim for plus {_m_goal:.0f} percent! " in src)
 check("mover popup carries the out-by discipline",
       "If it hasn't paid by {_m_out_by}, get out!" in src)

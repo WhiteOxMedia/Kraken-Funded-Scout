@@ -34,7 +34,7 @@ PASS  funnel evaluates at its own floor, not the tournament bar
 PASS  mover popup title speaks the BRAIN'S number, leads with BUY  old quick-number title gone
 PASS  the quick number no longer headlines a mover popup (log only)  
 PASS  mover popup voice speaks the brain's number  
-PASS  mover popup carries the goal clock (engine expected move)  
+PASS  mover popup carries the goal clock (the asset's own week + rotation-bounded window)  
 PASS  mover popup carries the out-by discipline  
 PASS  mover popup has the stale-move guard (the APT wiggle trap)  2
 PASS  mover popup has the 3% death-line guard sizing  2

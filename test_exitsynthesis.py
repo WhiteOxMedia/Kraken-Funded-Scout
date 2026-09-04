@@ -57,10 +57,10 @@ check("THESIS DEAD exit exists (the reason we entered isn't alive)",
 check("position data from the bridge record (entry price + clock + conviction)",
       "s.get(\"execution_price\") or s.get(\"entry_price\")" in blk
       and "s.get(\"executed_at\")" in blk and "s.get(\"confidence\")" in blk)
-check("the goal is the SAME engine number the popup clock uses",
-      "_window_goal_pct(pair)" in blk)
-check("window math matches the popup (goal x 60, clamped 60-180)",
-      "max(60.0, min(180.0, _syn_goal * 60.0))" in blk)
+check("the goal is the SAME market number the popup clock uses (the asset's own week)",
+      "_market_goal_pct(exchange, pair)" in blk)
+check("window math is bounded by the rotation boundary the ENTRY lived in",
+      "_rotation_window_min(_ad)" in blk)
 check("real-time: the ticker still seeds the in-progress candle",
       "_rt_live" in blk and 'df.loc[_rt_idx, "close"] = _rt_live' in blk)
 check("the synthesis is fail-soft (a broken record keeps the mechanical gates)",
