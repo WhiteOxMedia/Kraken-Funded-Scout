@@ -1,0 +1,25 @@
+PASS  GOAL REACHED exit exists (take the profit at the market analysis)  
+PASS  WINDOW EXPIRED exit exists (it hasn't paid, get out)  
+PASS  THESIS DEAD exit exists (the reason we entered isn't alive)  
+PASS  position data from the bridge record (entry price + clock + conviction)  
+PASS  the goal is the SAME engine number the popup clock uses  
+PASS  window math matches the popup (goal x 60, clamped 60-180)  
+PASS  real-time: the ticker still seeds the in-progress candle  
+PASS  the synthesis is fail-soft (a broken record keeps the mechanical gates)  
+PASS  the trailing stop still runs FIRST (protects winners)  
+PASS  the mechanical gates still run after the synthesis  
+PASS  goal reached outranks window expiry (bank the profit when it's there)  
+PASS  thesis alive = buy read OR weak hold <60 (the console's semantics)  
+PASS  console agreement: the same hold<60 carve-out in the EXIT CHECK  
+PASS  the exit write NEVER pops a desktop alert  
+PASS  +2.0% vs 1.5% goal -> GOAL (even a confident hold banks it)  
+PASS  3.3h held, +0.4% vs 1.5% goal -> WINDOW EXPIRED  
+PASS  the trail outranks everything  
+PASS  a sell read BELOW the 75/60 bar -> THESIS DEAD (the gap this closes)  
+PASS  a confident hold (>=60) against a buy thesis -> THESIS DEAD  
+PASS  a weak hold (<60) keeps the thesis (the console's carve-out)  
+PASS  a buy read keeps the thesis (recovering — the rotation's skip rule agrees)  
+PASS  1.4% vs 1.5% goal, still inside the 90-min window -> thesis decides  
+PASS  a fresh loser with a live buy thesis holds (SL/trail still guard it)  
+
+RESULT: 23 passed, 0 failed

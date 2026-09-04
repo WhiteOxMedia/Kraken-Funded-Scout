@@ -2899,6 +2899,76 @@ def main():
                         except Exception as exc:
                             logger.debug("Trailing stop check failed for %s: %s", pair, exc)
 
+                        # ── THE SYNTHESIS (user rule, Sep 4: "every decision
+                        # should now be based on the real time data + brain
+                        # knowledge + scout history" → "Yes, add that"): the
+                        # bot's bridge exit check asks the SAME questions the
+                        # console's EXIT CHECK asks, on real money —
+                        #   1. REAL-TIME: the ticker already seeds the
+                        #      in-progress candle; live_price is the truth
+                        #   2. POSITION: entry price, entry clock
+                        #      (executed_at), entry conviction — from the
+                        #      bridge record itself (the bot's ledger)
+                        #   3. GOAL: the engine's expected move for THIS
+                        #      coin at THIS rotation (the same
+                        #      _window_goal_pct the popup goal clock uses);
+                        #      window = goal × 60 min, clamped 1-3h
+                        #   4. THESIS: a buy thesis is alive only while the
+                        #      current read is buy (or an ambiguous hold
+                        #      <60) — a sell read or a confident hold kills
+                        #      it (the console's exact semantics)
+                        # New exit reasons: GOAL REACHED (take the profit at
+                        # the market analysis), WINDOW EXPIRED (it hasn't
+                        # paid — get out), THESIS DEAD (the reason we
+                        # entered isn't alive). Fail-soft: a record without
+                        # entry data keeps only the mechanical gates below.
+                        try:
+                            _syn_entry = float(s.get("execution_price") or s.get("entry_price") or 0)
+                            _syn_exec = str(s.get("executed_at") or "")
+                            _syn_conf = float(s.get("confidence") or 0)
+                            _syn_goal = float(_window_goal_pct(pair))
+                            _syn_win_min = max(60.0, min(180.0, _syn_goal * 60.0))
+                            _syn_elapsed_min = None
+                            if _syn_exec:
+                                try:
+                                    _ad = datetime.fromisoformat(_syn_exec)
+                                    if _ad.tzinfo is None:
+                                        _ad = _ad.replace(tzinfo=MST)
+                                    _syn_elapsed_min = (datetime.now(MST) - _ad.astimezone(MST)).total_seconds() / 60.0
+                                except Exception:
+                                    _syn_elapsed_min = None
+                            if _syn_entry > 0 and live_price > 0 and not should_exit:
+                                _syn_pnl = (live_price - _syn_entry) / _syn_entry * 100
+                                if _syn_pnl >= _syn_goal:
+                                    should_exit = True
+                                    exit_reason = (f"GOAL REACHED: +{_syn_pnl:.1f}% ≥ +{_syn_goal:.1f}% goal "
+                                                   f"(engine expected move) — take the profit")
+                                    logger.info("  🎯 GOAL REACHED: %s +%.1f%% ≥ +%.1f%% goal — "
+                                                "take the profit (entry %.0f%%)",
+                                                pair.split("/")[0], _syn_pnl, _syn_goal, _syn_conf)
+                                elif (_syn_elapsed_min is not None and _syn_elapsed_min >= _syn_win_min
+                                      and _syn_pnl < _syn_goal):
+                                    should_exit = True
+                                    exit_reason = (f"WINDOW EXPIRED: {_syn_elapsed_min / 60.0:.1f}h held, goal "
+                                                   f"+{_syn_goal:.1f}% not reached ({_syn_pnl:+.1f}%) — "
+                                                   f"it hasn't paid, get out")
+                                    logger.info("  ⏰ WINDOW EXPIRED: %s held %.1fh, +%.1f%% vs +%.1f%% goal — "
+                                                "it hasn't paid, get out",
+                                                pair.split("/")[0], _syn_elapsed_min / 60.0,
+                                                _syn_pnl, _syn_goal)
+                                elif not (exit_sig.action == "buy"
+                                          or (exit_sig.action == "hold" and exit_sig.confidence < 60)):
+                                    should_exit = True
+                                    exit_reason = (f"THESIS DEAD: entered {_syn_conf:.0f}% on a buy read, now "
+                                                   f"reads {exit_sig.action} {exit_sig.confidence:.0f}% — "
+                                                   f"the reason we entered isn't alive")
+                                    logger.info("  🧠 THESIS DEAD: %s entered %.0f%%, now reads %s %.0f%% — "
+                                                "the reason we entered isn't alive",
+                                                pair.split("/")[0], _syn_conf,
+                                                exit_sig.action, exit_sig.confidence)
+                        except Exception as exc:
+                            logger.debug("synthesis check failed for %s: %s", pair, exc)
+
                         # Momentum rider positions get a LOWER exit bar (60%)
                         # because they're momentum plays — any momentum loss is a sell
                         is_momentum_pos = any("MOMENTUM RIDER" in r for r in exit_sig.reasons)

@@ -77,6 +77,9 @@ THE THIN-BOOK BRAIN RULE (451ae90, test_thinbrain.py 23/23): a book that can't c
 
 ## THE SILENCE DIAGNOSIS + TIDE-AWARE FLOORS (272add3, test_tidefloor.py 18/18): DESKTOP_ALERT_MIN: RISING → 78; FLAT → 89; lone wolves 55; broken read fails closed to 89 (and the brain read itself fails closed — ad13541).
 
+## THE EXIT SYNTHESIS ON REAL MONEY (user rule, Sep 4: "every decision should now be based on the real time data + brain knowledge + scout history + pop ups + console?" → "Yes, add that. The popups stay for the contest only.")
+The scanner's 5-min bridge exit check (scout_exit_check — the sells the bot executes) now asks the SAME questions the console's EXIT CHECK asks: (1) REAL-TIME — ticker seeds the in-progress candle, live price is truth; (2) POSITION — entry price/clock/conviction from the bridge record itself; (3) GOAL — _window_goal_pct(pair), the SAME engine number the popup clock uses, window = goal×60min clamped 1-3h; (4) THESIS — a buy thesis is alive only while the read is buy or an ambiguous hold <60 (the console's exact semantics); a sell read or a confident hold kills it. Exit order: trailing stop FIRST → GOAL REACHED (take the profit at the market analysis) → WINDOW EXPIRED (it hasn't paid, get out) → THESIS DEAD → the mechanical gates (strategy sell ≥75/60, exhaustion, momentum-rider). Fail-soft on broken records. POPUPS STAY CONTEST-ONLY — the exit write never notifies. test_exitsynthesis.py 23/23.
+
 ## THE SEP 2 GATES ARE RESTORED (user directive, Sep 4: "restore the gates that were deleted and make them work properly, if they were in effect on Sept 3rd" — the Sep 3 trading record ran WITH them; the 17:57 Sep 3 rework dropped them silently; TRUMP/RENDER were the mislabeled-signal bug, fixed separately dd380cb)
 RESTORED ONTO the current base (ladder v2, market orders, scout_mover, kill switch/circuit breaker, scout_exit_check sells all stand):
 - HEAD-TO-HEAD CHALLENGE (winner-lock + entry conviction + CHALLENGE_MARGIN 10 + FRESH_BUY_COOLDOWN 120min + chase guard CHASE_STALE 2%/BLOWOFF 5%): fires at the ladder cap AND on insufficient funds (<$100, with the Sep 3 >=70 floor). Winner-lock: pnl>0 AND fresh DEEP read != sell = locked; the chart decides (the ASTER lesson); broken scan keeps the lock.
@@ -148,7 +151,7 @@ Verify process start > commit time before saying live. I do NOT restart. Console
 - kraken_scout/diag_syrup.py (bridge dump), diag_aster.py (position roll audit), diag_rebaseline2.py (breaker re-baseline)
 - kraken_scout/execution_tiers.py — measure_book; SIZE_CAP_PCT=20
 - kraken_scout/volatility_engine.py — THE coin profiles; rotation_thresholds.json
-- tests (kraken_scout root): moverfunnel 44, contestline 33, popupbrain 34, positionscale 36 (ladder v2 + restored gates), soldpnl 14, tierauto 26, winnerlock 10 (Sep 2 suite, restored code), nearmiss 39, rotation 24, trendbridge 26 (channel restored), lonewolf 21, tidestamp 22, thinbrain 23, confirmwindow 17, tidefloor 19, depthcheck 14, qclonewolf 13, hersize 11, pushfilter 11, persist 10, dcagate 10, herwords 9, entrycontrol 55, popupfloor 51, trumpfix 11 (~582 checks, all green) + apptest
+- tests (kraken_scout root): moverfunnel 44, contestline 33, popupbrain 34, positionscale 36, soldpnl 14, tierauto 26, winnerlock 10, nearmiss 39, rotation 24, trendbridge 26, exitsynthesis 23, lonewolf 21, tidestamp 22, thinbrain 23, confirmwindow 17, tidefloor 19, depthcheck 14, qclonewolf 13, hersize 11, pushfilter 11, persist 10, dcagate 10, herwords 9, entrycontrol 55, popupfloor 51, trumpfix 11 (~606 checks, all green) + apptest
 - kraken_scout/reminders/ — the Sep 7 tide task
 
 ## Accounting notes
@@ -156,7 +159,7 @@ Real account ~$183.59 free + **the bot holds APT @ 0.5839 since 9/2 17:48 (91% s
 
 ## Open items
 - USER RULES (cumulative): ASK FIRST; never modify desktop/system scripts without telling; never restart the stack myself; "don't delete anything"; a question mark / thoughts request = ASK; the $20 game RETIRED; THE PRIORITY: less entries, more money — big coins, high confidence, brain-driven; never uv add/uv sync while the stack runs.
-- **STACK RESTART PENDING (Sep 4, after the 09:29 restart): the SEP 2 GATES RESTORE — scanner (trend-exit watch back on) + console (GET OUT SENT labels) + bot (challenge/winner-lock, carry cap + liquidity gates, engine knife, restricted_pairs, tide belt-and-braces, ghost sweep). Close the console window + rerun the shortcut. (Per RESTART DISCIPLINE: the user restarts, never me.)**
+- **STACK RESTART PENDING (Sep 4, after the 09:29 restart): the SEP 2 GATES RESTORE + THE EXIT SYNTHESIS — scanner (trend-exit watch on + the synthesis in the 5-min exit check) + console (GET OUT SENT labels) + bot (challenge/winner-lock, carry cap + liquidity gates, engine knife, restricted_pairs, tide belt-and-braces, ghost sweep). Close the console window + rerun the shortcut. (Per RESTART DISCIPLINE: the user restarts, never me.)**
 - **THE FLATTEN LESSON: re-baseline BEFORE funding anything from the real account (the ASTER flatten fired 2 min ahead of the re-baseline). Tell me before transfers.**
 - **THE LIVE 10k RUN: first alerts through the full gauntlet are the validation. Dial at 25% ($60 floor). SOLD auto-fills the balance — hand-correct when reality differs.**
 - ⏰ TIDE DATA REMINDER: 2026-09-07 10:00 AM → diag_tidedata.py.
