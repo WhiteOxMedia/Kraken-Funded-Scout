@@ -1174,13 +1174,17 @@ def _stale_move(exchange, pair: str):
 
 
 def lone_wolf_discount(exchange, pair: str, max_age_s: float = 900.0) -> tuple[int, str]:
-    """(points_off, note) for a coin moving on its own in a FLAT tide.
-    The 24h move is cached per pair (15 min) — one ticker fetch per signal,
-    not one per gate. Fail-closed: a broken tide or ticker read means NO
-    discount (the normal thresholds stand)."""
+    """(points_off, note) for a coin moving on its own in a dead or sinking
+    fleet. FLAT since Aug 31; OUT extended Sep 4 (the POPCAT lesson: the
+    blanket OUT block buried 12 crowns while the market paid — a TRUE solo
+    runner moving against the whole fleet earns the same discount, and the
+    popup fires marked 'against an out tide'). RISING gets nothing (the
+    fleet already carries). The 24h move is cached per pair (15 min) — one
+    ticker fetch per signal, not one per gate. Fail-closed: a broken tide
+    or ticker read means NO discount (the normal thresholds stand)."""
     import time as _time
     _tp, _ts = _fleet_tide()
-    if _tp is None or _ts != "FLAT":
+    if _tp is None or _ts not in ("FLAT", "OUT"):
         return 0, ""
     _now = _time.time()
     if _lone_wolf_cache.get("pair") == pair and _now - _lone_wolf_cache.get("ts", 0.0) < max_age_s:
@@ -1193,10 +1197,12 @@ def lone_wolf_discount(exchange, pair: str, max_age_s: float = 900.0) -> tuple[i
             logger.debug("lone wolf ticker failed for %s: %s", pair, exc)
             return 0, ""
         _lone_wolf_cache.update(pair=pair, pct=own, ts=_now)
+    _tide_txt = ("against an OUT tide" if _ts == "OUT"
+                 else "while the tide's flat")
     if own >= LONE_WOLF_MOVE_BIG:
-        return LONE_WOLF_PTS_BIG, f"+{own:.0f}% on her own while the tide's flat ({_tp:.0f}% of the fleet up)"
+        return LONE_WOLF_PTS_BIG, f"+{own:.0f}% on her own {_tide_txt} ({_tp:.0f}% of the fleet up)"
     if own >= LONE_WOLF_MOVE_MIN:
-        return LONE_WOLF_PTS, f"+{own:.0f}% on her own while the tide's flat ({_tp:.0f}% of the fleet up)"
+        return LONE_WOLF_PTS, f"+{own:.0f}% on her own {_tide_txt} ({_tp:.0f}% of the fleet up)"
     return 0, ""
 
 
@@ -1246,6 +1252,39 @@ def _log_her_line(text: str):
             f.write("\n".join(lines[-VOICE_LOG_MAX:]))
     except Exception:
         pass
+
+
+# ── THE SUPPRESSION LOG (user rule, Sep 4 — the POPCAT lesson: the funnel's
+# suppression verdicts printed to the console window only, so a buried
+# payer took three forensics scripts to name its gate). Every suppression
+# on the popup path appends one line here — which gate, what numbers, at
+# what time. The console's MASTER page renders the recent strip.
+SUPPRESSION_LOG_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                                    "popup_suppressions.jsonl")
+SUPPRESSION_LOG_MAX = 400  # lines kept on disk
+
+
+def _log_suppression(pair: str, gate: str, detail: str, **ctx):
+    """Persist one popup-funnel suppression verdict — the record that
+    answers 'who buried it?' in one line next time. ctx carries the
+    numbers (quick, brain, floor, tide, rot) — anything not None rides
+    along. Never raises: a broken log write must not block the funnel."""
+    try:
+        import json as _json
+        entry = {"ts": _now_mst().isoformat(), "pair": pair,
+                 "gate": gate, "detail": str(detail)[:220]}
+        for _k, _v in ctx.items():
+            if _v is not None:
+                entry[_k] = _v
+        lines = []
+        if os.path.exists(SUPPRESSION_LOG_FILE):
+            with open(SUPPRESSION_LOG_FILE, "r", encoding="utf-8") as f:
+                lines = [l for l in f.read().splitlines() if l.strip()]
+        lines.append(_json.dumps(entry, ensure_ascii=False, default=str))
+        with open(SUPPRESSION_LOG_FILE, "w", encoding="utf-8") as f:
+            f.write("\n".join(lines[-SUPPRESSION_LOG_MAX:]))
+    except Exception as exc:
+        logger.debug("suppression log write failed: %s", exc)
 
 
 def _speak_server(text: str, rate: int = 2):
@@ -1878,6 +1917,10 @@ def main():
         _allowed, _lock_reason, _is_reentry, _fine = rotation_gate(asset)
         if not _allowed:
             logger.info("  ROTATION LOCK: %s %s — no alert, no bridge write", asset, _lock_reason)
+            _log_suppression(pair, "rotation-lock",
+                             f"{_lock_reason} (one green per asset per rotation)",
+                             quick=float(signal.confidence),
+                             rot=rotation_key_for_hour(_now_mst().hour))
             return
         # 2. YESTERDAY'S HOUR: this coin's same rotation window blew off and
         #    dumped on recent days → today's signal at this hour is a re-run
@@ -1888,6 +1931,11 @@ def main():
             _yctx = None
         if _yctx and _yctx.get("shape") == "blowoff":
             logger.info("  YESTERDAY BLOWOFF: %s — %s — no alert", asset, _yctx.get("detail", ""))
+            _log_suppression(pair, "blowoff-yesterday",
+                             f"this hour blew off and dumped on recent days — "
+                             f"{_yctx.get('detail', '')}",
+                             quick=float(signal.confidence),
+                             rot=rotation_key_for_hour(_now_mst().hour))
             return
 
         # Rotation context for the data-driven gates
@@ -1952,9 +2000,12 @@ def main():
             pass
 
         # ── LONE WOLF (user rule, Aug 31): the bar was calibrated before
-        # the tide existed. A coin running on its own in a FLAT tide gets
-        # the discount (never below the floor). RISING gets nothing; OUT
-        # stays a hard block upstream. The deep-read floor is NOT
+        # the tide existed. A coin running on its own in a dead fleet gets
+        # the discount (never below the floor). RISING gets nothing (the
+        # fleet already carries); OUT earns the same discount since Sep 4
+        # (the POPCAT lesson — a TRUE solo runner against a sinking fleet
+        # is the strongest lone-wolf case; the bot's ledger still
+        # hard-blocks OUT — two ledgers). The deep-read floor is NOT
         # discounted — the QC and the alert must never disagree.
         _lw_pts, _lw_note = lone_wolf_discount(exchange, pair)
         if _lw_pts and effective_thr > LONE_WOLF_BAR_FLOOR:
@@ -1968,8 +2019,9 @@ def main():
         # confidence numbers carried no information (≥89 won 48% while
         # sub-60 won 83%), so the bar relaxes by the same margin, never
         # below the deep-read floor. FLAT keeps the data bar (the data
-        # decides); OUT never reaches here (hard block upstream); a broken
-        # tide read leaves the data bar untouched.
+        # decides); OUT's bot-side write stays blocked downstream (the
+        # lone-wolf carve-out is contest-only); a broken tide read leaves
+        # the data bar untouched.
         try:
             _g2_pct, _g2_state = _fleet_tide()
         except Exception:
@@ -2020,6 +2072,10 @@ def main():
             if snap.get("blacklisted"):
                 logger.info("  LIQUIDITY: %s blacklisted (%s) — no signal written",
                             asset, snap.get("blacklist_reason"))
+                _log_suppression(pair, "blacklisted",
+                                 f"{snap.get('blacklist_reason', 'learned restriction')}",
+                                 quick=float(signal.confidence),
+                                 rot=rotation_key_for_hour(_now_mst().hour))
                 return
             if snap.get("ok"):
                 _tn, _tname, _tcons = snap["tier"]
@@ -2038,18 +2094,50 @@ def main():
         # subset right for ANY buy.)
         if is_buy and not gate_notes:
             try:
-                # TIDE OUT = no entries anywhere — the bridge included. All
-                # ships sink together; the bot doesn't buy a sinking fleet.
+                # TIDE OUT = no entries anywhere on the BOT ledger — the
+                # bridge included; all ships sink together. EXCEPT THE
+                # LONE-WOLF CARVE-OUT (user rule, Sep 4, the POPCAT
+                # lesson): a TRUE solo runner (own 24h move ≥ the
+                # lone-wolf tiers — lone_wolf_discount now covers OUT)
+                # gets NO bridge write (two ledgers — the bot never buys
+                # an OUT tide) but the flow CONTINUES to the contest
+                # popup, marked. gate_notes skips the write below and the
+                # popup's BOT'S OUT line names the carve.
                 _tp0, _ts0 = _fleet_tide()
                 if _ts0 == "OUT":
-                    logger.info("  TIDE OUT (fleet %.0f%%) — no bridge write; all ships sink together", _tp0)
-                    return
+                    if _lw_pts:
+                        gate_notes.append("OUT tide — the bot stays out; the lone-wolf "
+                                          "carve-out is contest-only")
+                        logger.info("  OUT-TIDE LONE WOLF: %s — %s — no bridge write (the "
+                                    "bot's ledger hard-blocks OUT); the contest popup continues",
+                                    asset, _lw_note)
+                    else:
+                        logger.info("  TIDE OUT (fleet %.0f%%) — no bridge write; all ships sink together", _tp0)
+                        _log_suppression(pair, "tide-out",
+                                         f"fleet {_tp0:.0f}% up — all ships sink together; "
+                                         f"no solo move (the carve-out needs ≥+{LONE_WOLF_MOVE_MIN:.0f}% "
+                                         f"own 24h move)",
+                                         quick=float(signal.confidence),
+                                         brain=(float(_deep.confidence) if _deep is not None else None),
+                                         floor=float(popup_floor_for_rotation(
+                                             rotation_key_for_hour(_now_mst().hour))),
+                                         tide=f"OUT {_tp0:.0f}%",
+                                         rot=rotation_key_for_hour(_now_mst().hour))
+                        return
                 if _deep is None:
                     _deep, _df = _do_deep_read()
                 if _deep is not None:
                     if _deep.action != "buy" or _deep.confidence < 60:  # QC_SCALP_FLOOR
                         logger.info("  DEEP VETO (bridge): %s deep-reads %s %.0f%% — not written; the bot and the QC would both say no",
                                     asset, _deep.action, _deep.confidence)
+                        _log_suppression(pair, "deep-veto",
+                                         f"bridge stage: deep-reads {_deep.action} "
+                                         f"{_deep.confidence:.0f}% (the bot and the QC would "
+                                         f"both say no)",
+                                         quick=float(signal.confidence),
+                                         brain=float(_deep.confidence),
+                                         tide=f"{_ts0} {_tp0:.0f}%" if _ts0 else None,
+                                         rot=rotation_key_for_hour(_now_mst().hour))
                         return
                     # NO DOWNWARD TREND PICKS (user directive, Aug 25) — same
                     # EMA knife test as the QC, on the bot's money too
@@ -2058,6 +2146,13 @@ def main():
                     _el = float(_ema2(_df["close"], cfg.ema_long).iloc[-1])
                     if _es < _el and float(_df["close"].iloc[-1]) < _el:
                         logger.info("  DEEP VETO (bridge): %s downward trend — no downward trend picks (user rule)", asset)
+                        _log_suppression(pair, "downward-trend",
+                                         "bridge stage: EMA9<EMA21 and price<EMA21 — "
+                                         "no downward trend picks",
+                                         quick=float(signal.confidence),
+                                         brain=float(_deep.confidence),
+                                         tide=f"{_ts0} {_tp0:.0f}%" if _ts0 else None,
+                                         rot=rotation_key_for_hour(_now_mst().hour))
                         return
             except Exception as _exc:
                 logger.debug("bridge deep pre-check unavailable for %s: %s (writing anyway — reader gates remain)", asset, _exc)
@@ -2116,10 +2211,11 @@ def main():
         # (diag_tidehistory conf×tide): in RISING tides ≥89 picks won 48%
         # of decided trades while sub-60 picks won 83% — the 89 floor
         # added no quality in rising fleets, it just silenced them. FLAT
-        # keeps the rotation rail for ordinary coins; OUT never gets here
-        # (hard block upstream); a broken tide read fails closed to the
-        # rotation rail. The deep-read ≥60 check further down still gates
-        # every alert.
+        # keeps the rotation rail for ordinary coins; OUT reaches here only
+        # through the lone-wolf carve-out (Sep 4 — the solo runner's
+        # _lw_pts already discounted this floor); a broken tide read fails
+        # closed to the rotation rail. The deep-read ≥60 check further down
+        # still gates every alert.
         # ── ROTATION-AWARE (user rule, Sep 4: "the popup floor 89% doesn't
         # know about the rotation schedule — it needs to self-adjust
         # accordingly"): the floor starts from THIS rotation's rail
@@ -2190,6 +2286,13 @@ def main():
                                     _bc, DESKTOP_ALERT_MIN,
                                     DESKTOP_ALERT_MIN - POPUP_NEAR_MISS_PTS,
                                     signal.confidence)
+                        _log_suppression(pair, "brain-floor",
+                                         f"brain {_bc:.0f}% < the {DESKTOP_ALERT_MIN:.0f}% floor "
+                                         f"(challenge needs ≥{DESKTOP_ALERT_MIN - POPUP_NEAR_MISS_PTS:.0f}%)",
+                                         quick=float(signal.confidence), brain=_bc,
+                                         floor=float(DESKTOP_ALERT_MIN),
+                                         tide=(f"{_df_state} {_df_pct:.0f}%" if _df_pct is not None else _df_state),
+                                         rot=_rot_now_key)
                         return
             except Exception:
                 _brain_floor_ok = None
@@ -2205,6 +2308,11 @@ def main():
             logger.info("  Desktop suppressed: the brain could not be read for %s — "
                         "no unverified popups (fail-closed; quick said %.0f%%)",
                         asset, signal.confidence)
+            _log_suppression(pair, "fail-closed",
+                             f"the brain could not be read (quick said {signal.confidence:.0f}%)",
+                             quick=float(signal.confidence),
+                             tide=(f"{_df_state} {_df_pct:.0f}%" if _df_pct is not None else _df_state),
+                             rot=_rot_now_key)
             return
         # ── THE STALE-MOVE GUARD (user rule, Sep 1: "no more wiggles —
         # only solid trends"): a RE-ENTRY whose move peaked hours ago is
@@ -2218,6 +2326,12 @@ def main():
                     logger.info("  STALE MOVE: %s — 4h high %.0fh ago, %.1f%% below it "
                                 "— re-entry popup skipped (the wiggle trap)",
                                 asset, _st[0], _st[1])
+                    _log_suppression(pair, "stale-move",
+                                     f"4h high {_st[0]:.0f}h ago, {_st[1]:.1f}% below it (re-entry)",
+                                     quick=float(signal.confidence),
+                                     brain=(float(_deep.confidence) if _deep is not None else None),
+                                     tide=(f"{_df_state} {_df_pct:.0f}%" if _df_pct is not None else _df_state),
+                                     rot=_rot_now_key)
                     return
             except Exception:
                 pass
@@ -2274,13 +2388,38 @@ def main():
         # ran at the bridge stage for bot-bound signals; bot-declined
         # (contest-only) signals get theirs here. Fail-open on errors.
         if is_buy:
+            _out_tide_lw = False  # set by the OUT-tide lone-wolf carve-out below
             try:
-                # TIDE OUT = no entries anywhere (all ships sink together)
+                # TIDE OUT = no entries anywhere — EXCEPT THE LONE-WOLF
+                # CARVE-OUT (user rule, Sep 4, the POPCAT lesson: the
+                # blanket block buried 12 crowns of a coin the market then
+                # paid +3%). A TRUE solo runner — own 24h move ≥ the
+                # lone-wolf tiers, via lone_wolf_discount, which now
+                # covers OUT tides — passes the tide gate and the popup
+                # fires MARKED 'against an OUT tide' (the same _lw_pts
+                # already discounted the floor at the brain bar; the rail
+                # is never discounted for anyone else). Bot-side OUT
+                # blocks (the bridge write + the reader's stamp check)
+                # are UNTOUCHED — two ledgers, different rules.
                 _tp2, _ts2 = _fleet_tide()
                 if _ts2 == "OUT":
-                    logger.info("  TIDE OUT (fleet %.0f%%) — desktop suppressed; all ships sink together",
-                                _tp2)
-                    return
+                    if _lw_pts:
+                        _out_tide_lw = True
+                        logger.info("  OUT-TIDE LONE WOLF: %s — %s — the solo runner passes "
+                                    "the tide gate (the brain already cleared the %.0f%% bar)",
+                                    asset, _lw_note, DESKTOP_ALERT_MIN)
+                    else:
+                        _log_suppression(pair, "tide-out",
+                                         f"fleet {_tp2:.0f}% up — all ships sink together; "
+                                         f"no solo move (the carve-out needs ≥+{LONE_WOLF_MOVE_MIN:.0f}% "
+                                         f"own 24h move)",
+                                         quick=float(signal.confidence),
+                                         brain=(float(_deep.confidence) if _deep is not None else None),
+                                         floor=float(DESKTOP_ALERT_MIN),
+                                         tide=f"OUT {_tp2:.0f}%", rot=_rot_now_key)
+                        logger.info("  TIDE OUT (fleet %.0f%%) — desktop suppressed; all ships sink together",
+                                    _tp2)
+                        return
                 # The brain rules EVERY alert — whether this stage read it
                 # or the near-miss consult already did (one read, cached).
                 if _deep is None:
@@ -2289,12 +2428,27 @@ def main():
                     if _deep.action != "buy" or _deep.confidence < 60:
                         logger.info("  DEEP VETO (desktop): %s deep-reads %s %.0f%% — the user's QC would say no",
                                     asset, _deep.action, _deep.confidence)
+                        _log_suppression(pair, "deep-veto",
+                                         f"deep-reads {_deep.action} {_deep.confidence:.0f}% "
+                                         f"(the QC would say no)",
+                                         quick=float(signal.confidence),
+                                         brain=float(_deep.confidence),
+                                         floor=float(DESKTOP_ALERT_MIN),
+                                         tide=(f"{_df_state} {_df_pct:.0f}%" if _df_pct is not None else _df_state),
+                                         rot=_rot_now_key)
                         return
                     from indicators import ema as _ema3
                     _es = float(_ema3(_df["close"], cfg.ema_short).iloc[-1])
                     _el = float(_ema3(_df["close"], cfg.ema_long).iloc[-1])
                     if _es < _el and float(_df["close"].iloc[-1]) < _el:
                         logger.info("  DEEP VETO (desktop): %s downward trend — no downward trend picks (user rule)", asset)
+                        _log_suppression(pair, "downward-trend",
+                                         "EMA9<EMA21 and price<EMA21 — no downward trend picks",
+                                         quick=float(signal.confidence),
+                                         brain=float(_deep.confidence),
+                                         floor=float(DESKTOP_ALERT_MIN),
+                                         tide=(f"{_df_state} {_df_pct:.0f}%" if _df_pct is not None else _df_state),
+                                         rot=_rot_now_key)
                         return
             except Exception as _exc:
                 logger.debug("desktop pre-check unavailable for %s: %s (alerting anyway — QC still gates)", asset, _exc)
@@ -2314,6 +2468,12 @@ def main():
                 _tide_spoken = "The tide is rising! "
             elif _ts3 == "FLAT":
                 _tide_line = f"TIDE: FLAT ({_tp3:.0f}% of the fleet up) — pickier, smaller\n"
+            elif _ts3 == "OUT" and _lw_pts:
+                # only reachable through the OUT-tide lone-wolf carve-out —
+                # the popup fires AGAINST the fleet; say so plainly
+                _tide_line = (f"TIDE: OUT ({_tp3:.0f}% of the fleet up) — LONE WOLF carve-out: "
+                              f"this popup fires against the fleet\n")
+                _tide_spoken = "A lone wolf against an out tide! "
         except Exception:
             pass
         # ── LONE WOLF line (Aug 31): say WHY the alert fired below the
@@ -2340,6 +2500,14 @@ def main():
         if _carry is not None and _spend <= 0:
             logger.info("  TOO THIN for contest size (book carries ~$%.0f) — desktop suppressed",
                         _carry)
+            _log_suppression(pair, "too-thin",
+                             f"the book carries ~${_carry:.0f} — even 25% of the contest "
+                             f"size doesn't fit",
+                             quick=float(signal.confidence),
+                             brain=(float(_deep.confidence) if _deep is not None else None),
+                             floor=float(DESKTOP_ALERT_MIN),
+                             tide=(f"{_df_state} {_df_pct:.0f}%" if _df_pct is not None else _df_state),
+                             rot=_rot_now_key)
             return
         if _carry is not None and _spend < (float(_bal) if _bal > 0 else 5000.0):
             contest_msg = (f"  SPEND: {_spend / (float(_bal) if _bal > 0 else 5000.0):.0%} = "
@@ -2368,6 +2536,15 @@ def main():
                 logger.info("  %s: buffer gone (%.0f above the %s floor at $%.2f) — no buy popup",
                             "DAILY LOCK" if _which_fl == "daily-lock" else "DEATH LINE",
                             _acct_bal - _floor_fl, _which_fl, _floor_fl)
+                _log_suppression(pair,
+                                 "daily-lock" if _which_fl == "daily-lock" else "death-line",
+                                 f"buffer gone — the account sits at the {_which_fl} floor "
+                                 f"(${_floor_fl:.2f}); any trade can close the contest",
+                                 quick=float(signal.confidence),
+                                 brain=(float(_deep.confidence) if _deep is not None else None),
+                                 floor=float(DESKTOP_ALERT_MIN),
+                                 tide=(f"{_df_state} {_df_pct:.0f}%" if _df_pct is not None else _df_state),
+                                 rot=_rot_now_key)
                 return
             if _spend > _risk_cap:
                 _spend = _risk_cap
@@ -2397,6 +2574,15 @@ def main():
                                 "only $%.0f (< $%.0f, %.0f%% of the daily pace) — popup bumped",
                                 asset, _spend, _goal_pct, _worth_w,
                                 _pace_w * _wf_w, _wf_w * 100.0)
+                    _log_suppression(pair, "worth-floor",
+                                     f"a ${_spend:.0f} entry at the +{_goal_pct:.1f}% goal pays "
+                                     f"${_worth_w:.0f} < the ${_pace_w * _wf_w:.0f} floor "
+                                     f"({_wf_w * 100.0:.0f}% of the daily pace)",
+                                     quick=float(signal.confidence),
+                                     brain=(float(_deep.confidence) if _deep is not None else None),
+                                     floor=float(DESKTOP_ALERT_MIN),
+                                     tide=(f"{_df_state} {_df_pct:.0f}%" if _df_pct is not None else _df_state),
+                                     rot=_rot_now_key)
                     return
             except Exception as _exc:
                 logger.debug("worth floor unavailable: %s", _exc)  # fail-open
@@ -2416,7 +2602,8 @@ def main():
                 _reentry_say = (f"Re-entry — fine risk {_fine:,.0f} dollars! " if _fine > 0
                                  else "Re-entry! ")
             title = (f"🟢 BUY {asset} — {_dc:.0f}% SURE"
-                     + (" — CHALLENGER" if _challenger else ""))
+                     + (" — CHALLENGER" if _challenger else "")
+                     + (" — LONE WOLF (OUT TIDE)" if _out_tide_lw else ""))
             _small_coin = _carry is not None and _spend < (float(_bal) if _bal > 0 else 5000.0)
             _challenger_say = (f"A challenger — just under the {DESKTOP_ALERT_MIN:.0f} percent floor! "
                                if _challenger else "")
@@ -2424,10 +2611,13 @@ def main():
                                 f"{DESKTOP_ALERT_MIN:.0f}% floor — within {POPUP_NEAR_MISS_PTS:.0f}, "
                                 f"allowed to challenge head-to-head. A near-miss, not a champion: "
                                 f"size it like one.\n" if _challenger else "")
+            _lw_say = (f"Lone wolf! Moving on her own against an out tide! " if _out_tide_lw
+                       else "Lone wolf! Moving on her own while the fleet sits still! " if _lw_pts
+                       else "")
             _spoken = (f"Buy {asset}! {_dc:.0f} percent sure! "
                        + _challenger_say
                        + _reentry_say
-                       + ("Lone wolf! Moving on her own while the fleet sits still! " if _lw_pts else "")
+                       + _lw_say
                        + f"Aim for plus {_goal_pct:.0f} percent! "
                        + (f"Small size only — {_spend:,.0f} dollars! " if _small_coin else
                           (f"Big book — all {(float(_bal) if _bal > 0 else 5000.0):,.0f} dollars in fine! "
@@ -2829,6 +3019,9 @@ def main():
                         _m_allowed, _m_lock, _m_re, _m_fine = rotation_gate(asset)
                         if not _m_allowed:
                             logger.info("  MOVER SKIP: %s — %s", asset, _m_lock)
+                            _log_suppression(pair, "rotation-lock",
+                                             f"mover: {_m_lock}",
+                                             quick=float(signal.confidence), rot=rot_key)
                             continue
 
                         # deep read ≥60 + no downward trend — the quality floor
@@ -2847,16 +3040,46 @@ def main():
                                     or (_es_mv < _el_mv and float(df["close"].iloc[-1]) < _el_mv)):
                                 logger.info("  MOVER VETO: %s deep-reads %s %.0f%% — the brain says no",
                                             asset, _deep_sig.action, _deep_sig.confidence)
+                                _log_suppression(pair, "deep-veto",
+                                                 f"mover: deep-reads {_deep_sig.action} "
+                                                 f"{_deep_sig.confidence:.0f}% — the brain says no",
+                                                 quick=float(signal.confidence),
+                                                 brain=float(_deep_sig.confidence), rot=rot_key)
                                 continue
                         except Exception as _exc:
                             logger.debug("mover deep read unavailable for %s: %s (fail-open)", pair, _exc)
 
                         # tide: stamp every write; OUT = no entries anywhere
+                        # on the BOT ledger — EXCEPT THE LONE-WOLF CARVE-OUT
+                        # (user rule, Sep 4, the POPCAT lesson): a TRUE solo
+                        # runner (own 24h move ≥ the lone-wolf tier — the
+                        # mover's own _mv_pct) in an OUT tide gets the
+                        # CONTEST popup, marked; the BRIDGE WRITE stays
+                        # blocked (two ledgers — the bot never buys an OUT
+                        # tide). Bounce candidates (yesterday's losers,
+                        # _mv_pct −5) don't carve — a bounce isn't a solo
+                        # runner.
                         _tpw, _tsw = _fleet_tide()
-                        if _tsw == "OUT":
+                        _m_out_lw = bool(_tsw == "OUT"
+                                         and _mv_pct is not None
+                                         and float(_mv_pct) >= LONE_WOLF_MOVE_MIN)
+                        if _tsw == "OUT" and not _m_out_lw:
                             logger.info("  MOVER SKIP: %s — tide OUT (fleet %.0f%%) — all ships sink together",
                                         asset, _tpw or 0)
+                            _log_suppression(pair, "tide-out",
+                                             f"mover: fleet {_tpw or 0:.0f}% up — all ships sink "
+                                             f"together; own 24h {_mv_pct:+.0f}% < the "
+                                             f"+{LONE_WOLF_MOVE_MIN:.0f}% carve-out",
+                                             quick=float(signal.confidence),
+                                             brain=(float(_deep_sig.confidence)
+                                                    if _deep_sig is not None else None),
+                                             tide=f"OUT {_tpw or 0:.0f}%", rot=rot_key)
                             continue
+                        if _m_out_lw:
+                            logger.info("  OUT-TIDE LONE WOLF: %s — mover %+.0f%% on 24h against "
+                                        "an OUT tide (fleet %.0f%%) — no bridge write (the bot stays "
+                                        "out); the contest popup fires marked",
+                                        asset, _mv_pct, _tpw or 0)
 
                         logger.info("  🚀 MOVER SIGNAL: %s %s (%.0f%%, 24h %+.0f%%) — mover outside the 54",
                                     signal.action.upper(), asset, signal.confidence, _mv_pct)
@@ -2869,29 +3092,33 @@ def main():
                         except Exception:
                             pass
 
-                        # write to the bridge — bot may take it (tide-stamped)
-                        try:
-                            from signal_bridge import write_buy_signal
-                            sid = write_buy_signal(
-                                pair=pair,
-                                action=signal.action,
-                                confidence=signal.confidence,
-                                entry_price=signal.price,
-                                stop_loss=signal.stop_loss,
-                                take_profit=signal.take_profit,
-                                risk_reward=signal.risk_reward,
-                                position_size_usd=0,
-                                reasons=[f"Mover: {_mv_pct:+.0f}% on 24h — running outside the 54", *signal.reasons],
-                                source="scout_mover",
-                                reason_summary=f"Mover: {_mv_pct:+.0f}% on 24h",
-                                min_confidence=50,
-                                tide_state=(_tsw or "UNKNOWN"),
-                                tide_pct=_tpw,
-                            )
-                            if sid:
-                                logger.info("  Mover signal written — Trader will evaluate %s", asset)
-                        except Exception as exc:
-                            logger.warning("  Could not write mover to bridge: %s", exc)
+                        # write to the bridge — bot may take it (tide-stamped).
+                        # OUT tide = NO bridge write ever (the bot's ledger
+                        # hard-blocks OUT — the carve-out above is the
+                        # CONTEST popup only; two ledgers, different rules).
+                        if _tsw != "OUT":
+                            try:
+                                from signal_bridge import write_buy_signal
+                                sid = write_buy_signal(
+                                    pair=pair,
+                                    action=signal.action,
+                                    confidence=signal.confidence,
+                                    entry_price=signal.price,
+                                    stop_loss=signal.stop_loss,
+                                    take_profit=signal.take_profit,
+                                    risk_reward=signal.risk_reward,
+                                    position_size_usd=0,
+                                    reasons=[f"Mover: {_mv_pct:+.0f}% on 24h — running outside the 54", *signal.reasons],
+                                    source="scout_mover",
+                                    reason_summary=f"Mover: {_mv_pct:+.0f}% on 24h",
+                                    min_confidence=50,
+                                    tide_state=(_tsw or "UNKNOWN"),
+                                    tide_pct=_tpw,
+                                )
+                                if sid:
+                                    logger.info("  Mover signal written — Trader will evaluate %s", asset)
+                            except Exception as exc:
+                                logger.warning("  Could not write mover to bridge: %s", exc)
 
                         # desktop: THE NEW-GAME MOVER POPUP (user option 1,
                         # Sep 2: "convert the MOVER popup to the new-game
@@ -2911,6 +3138,16 @@ def main():
                             _m_desk_ok = False  # fail-closed: no brain read, no popup (the JUP lesson)
                         if not _m_desk_ok:
                             logger.info("  Mover %s %.0f%% — bot-only (desktop floor 89)", asset, signal.confidence)
+                            _log_suppression(pair, "brain-floor",
+                                             f"mover: the brain reads "
+                                             f"{(_deep_sig.action if _deep_sig is not None else '?')} "
+                                             f"{(float(_deep_sig.confidence) if _deep_sig is not None else 0):.0f}% "
+                                             f"< the 89% mover desktop floor (fail-closed)",
+                                             quick=float(signal.confidence),
+                                             brain=(float(_deep_sig.confidence)
+                                                    if _deep_sig is not None else None),
+                                             floor=89.0,
+                                             tide=f"{_tsw} {_tpw or 0:.0f}%", rot=rot_key)
                         else:
                             _m_brain = None
                             try:
@@ -2929,6 +3166,14 @@ def main():
                                 logger.info("  MOVER STALE MOVE: %s — 4h high %.0fh ago, "
                                             "%.1f%% below it — popup skipped (the wiggle trap)",
                                             asset, _m_stale[0], _m_stale[1])
+                                _log_suppression(pair, "stale-move",
+                                                 f"mover: 4h high {_m_stale[0]:.0f}h ago, "
+                                                 f"{_m_stale[1]:.1f}% below it (the wiggle trap)",
+                                                 quick=float(signal.confidence),
+                                                 brain=(float(_deep_sig.confidence)
+                                                        if _deep_sig is not None else None),
+                                                 floor=89.0,
+                                                 tide=f"{_tsw} {_tpw or 0:.0f}%", rot=rot_key)
                             else:
                                 # THE GOAL CLOCK — same math as the champion popup
                                 # (Sep 4: the asset's OWN week of daily candles;
@@ -2998,6 +3243,16 @@ def main():
                                     logger.debug("mover 3%% guard unavailable: %s", _exc)  # fail-open
                                 if _m_skip:
                                     logger.info("  %s", _m_skip)
+                                    _m_gate = ("too-thin" if "TOO THIN" in _m_skip
+                                               else "worth-floor" if "WORTH FLOOR" in _m_skip
+                                               else "daily-lock" if "DAILY LOCK" in _m_skip.upper()
+                                               else "death-line")
+                                    _log_suppression(pair, _m_gate, f"mover: {_m_skip}",
+                                                     quick=float(signal.confidence),
+                                                     brain=(float(_deep_sig.confidence)
+                                                            if _deep_sig is not None else None),
+                                                     floor=89.0,
+                                                     tide=f"{_tsw} {_tpw or 0:.0f}%", rot=rot_key)
                                 else:
                                     logger.info("  MOVER POPUP: brain %.0f%% (quick %.0f%%) — "
                                                 "goal +%.1f%% by %s",
@@ -3010,6 +3265,13 @@ def main():
                                         _m_tide_say = "The tide is rising! "
                                     elif _tsw == "FLAT":
                                         _m_tide_line = f"TIDE: FLAT ({_tpw:.0f}% of the fleet up) — pickier, smaller\n"
+                                    elif _m_out_lw:
+                                        # THE OUT-TIDE LONE-WOLF MARK (user rule, Sep 4):
+                                        # this popup fired AGAINST the fleet — say so,
+                                        # so it's never mistaken for a fleet move.
+                                        _m_tide_line = (f"TIDE: OUT ({_tpw:.0f}% up) — LONE WOLF: "
+                                                        f"{_mv_pct:+.0f}% on her own against the fleet\n")
+                                        _m_tide_say = "A lone wolf against an out tide! "
                                     _m_re_line = "  RE-ENTRY: fired earlier today\n" if _m_re else ""
                                     _m_re_say = "Re-entry! " if _m_re else ""
                                     # the SPEND line (3% guard / small coin)
@@ -3033,7 +3295,8 @@ def main():
                                         _m_size_say = f"Big book — all {_m_bal:,.0f} dollars in fine! "
                                     else:
                                         _m_size_say = "Book unreadable — your call on size! "
-                                    _m_title = f"🚀 MOVER BUY {asset} — {_m_dc:.0f}% SURE"
+                                    _m_title = (f"🚀 MOVER BUY {asset} — {_m_dc:.0f}% SURE"
+                                                + (" — LONE WOLF (OUT TIDE)" if _m_out_lw else ""))
                                     _m_spoken = (f"Buy {asset}! {_m_dc:.0f} percent sure! "
                                                  + _m_re_say
                                                  + f"Runner outside the 54 — moving {_mv_pct:+.0f} percent on the day! "

@@ -6,7 +6,9 @@ PASS  FLAT +6% -> 25 points  pts=25
 PASS  FLAT +2% -> no discount  pts=0 note=''
 PASS  FLAT -7% -> no discount  pts=0
 PASS  RISING +11% -> no discount  pts=0
-PASS  OUT +11% -> no discount  pts=0
+PASS  OUT +11% -> the carve-out discount (Sep 4 rule)  pts=35 note='+11% on her own against an OUT tide (20% of the fleet up)'
+PASS  OUT +5.5% -> the small-tier carve-out  pts=25
+PASS  OUT +2% -> no discount (a bounce is no solo runner)  pts=0
 PASS  broken tide -> no discount  pts=0
 PASS  broken ticker -> no discount, no crash  pts=0
 PASS  cached pair -> one fetch  1
@@ -20,4 +22,4 @@ PASS  big move > min move
 PASS  big pts > pts  
 PASS  bar floor below desktop floor  
 
-RESULT: 21 passed, 0 failed
+RESULT: 23 passed, 0 failed

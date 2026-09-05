@@ -1571,6 +1571,13 @@ def render_master(cfg: TradingConfig, kraken):
     # contest results, with the lesson learned and the one insight
     st.markdown(_discipline_plate(), unsafe_allow_html=True)
 
+    # 🚫 WHAT THE FUNNEL BURIED (user rule, Sep 4, the POPCAT lesson: the
+    # scanner's suppression verdicts used to print to the console window
+    # only — a buried payer took three forensics scripts to name its
+    # gate). The suppression log is now persistent and shown here: every
+    # gate, its numbers, newest first.
+    _render_suppression_strip()
+
     # TODAY'S FACTS — the system grades itself from real records (user
     # directive: MASTER is for self-correction on facts and figures —
     # signals fired, twenties banked, what the bot rejected — no guessing)
@@ -1580,6 +1587,52 @@ def render_master(cfg: TradingConfig, kraken):
     # the bones — every tool and number still there, one click down
     with st.expander("📐 THE BONES — money score, breaker, integrity"):
         render_master_bones(cfg, kraken)
+
+
+def _render_suppression_strip():
+    """🚫 WHAT THE FUNNEL BURIED — the popup path's suppression log, newest
+    first (popup_suppressions.jsonl, written by the scanner at every
+    suppression: brain-floor, tide-out, worth-floor, stale-move, deep-veto,
+    downward-trend, too-thin, death-line, daily-lock, fail-closed)."""
+    try:
+        import json as _json
+        from pathlib import Path as _P
+        f = _P(__file__).parent / "popup_suppressions.jsonl"
+        if not f.exists():
+            return
+        lines = [l for l in f.read_text(encoding="utf-8").splitlines() if l.strip()]
+        if not lines:
+            return
+        rows = []
+        for l in reversed(lines[-14:]):  # newest first
+            try:
+                d = _json.loads(l)
+            except Exception:
+                continue
+            ts = str(d.get("ts", ""))[11:16]
+            gate = str(d.get("gate", "?"))
+            gcol = ("#ff6b5e" if gate in ("tide-out", "death-line", "daily-lock")
+                    else "#ffc36b")
+            nums = []
+            if d.get("quick") is not None:
+                nums.append(f"quick {float(d['quick']):.0f}%")
+            if d.get("brain") is not None:
+                nums.append(f"brain {float(d['brain']):.0f}%")
+            if d.get("floor") is not None:
+                nums.append(f"floor {float(d['floor']):.0f}%")
+            nums_txt = f" <span class='dim'>· {' · '.join(nums)}</span>" if nums else ""
+            rows.append(
+                f"<div style='padding:3px 0;border-bottom:1px solid rgba(255,255,255,0.08);"
+                f"font-family:Share Tech Mono,monospace;font-size:12.5px;color:#d8ccb4;'>"
+                f"<span class='dim'>{ts}</span>&nbsp;&nbsp;<b>{_asset(str(d.get('pair', '?')))}</b>"
+                f"&nbsp;&nbsp;<span style='color:{gcol};'>{gate}</span>{nums_txt}<br>"
+                f"<span class='dim'>{str(d.get('detail', ''))[:130]}</span></div>")
+        if rows:
+            with st.expander(f"🚫 WHAT THE FUNNEL BURIED — the suppressed popups "
+                             f"(last {len(rows)}, newest first)"):
+                st.markdown("".join(rows), unsafe_allow_html=True)
+    except Exception as exc:
+        logger.debug("suppression strip failed: %s", exc)
 
 
 def _discipline_plate() -> str:
@@ -2638,11 +2691,13 @@ def render_quick_check(cfg: TradingConfig, kraken):
                             pass
                     elif (sig.action == "buy" and not no_buy
                             and sig.confidence >= QC_SCALP_FLOOR
-                            and _tide_state == "OUT"):
+                            and _tide_state == "OUT" and not _lw_pts):
                         try:
                             st.toast(f"🌊 TIDE'S OUT — only {_tide_pct:.0f}% of the market is rising. "
                                      f"All ships sink together — don't enter anything right now. "
-                                     f"Wait for the tide to turn.",
+                                     f"Wait for the tide to turn. "
+                                     f"(A coin moving +5% or more on her own still gets the "
+                                     f"lone-wolf exception — this one isn't.)",
                                      icon="🌊", duration=20)
                             _play_sound("alarm")
                             _speak(f"The tide is out! All ships sink together! Wait!", rate=1)
@@ -2841,7 +2896,12 @@ def render_quick_check(cfg: TradingConfig, kraken):
     passes = (sig.action == "buy" and not no_buy
               and sig.confidence >= QC_SCALP_FLOOR and goal_ok
               and trend != "FALLING"
-              and tide_state != "OUT"
+              # THE OUT-TIDE LONE-WOLF CARVE-OUT (user rule, Sep 4 — the
+              # POPCAT lesson): a TRUE solo runner (own 24h move ≥ the
+              # lone-wolf tier — lone_wolf_discount now covers OUT tides)
+              # passes the tide gate, same as the alert path (never
+              # disagree). Everyone else: OUT stays a hard reject.
+              and (tide_state != "OUT" or lw_pts > 0)
               and (result.get("spend_usd", 1) or 0) > 0
               and rot_ok
               and yshape != "blowoff"
@@ -2866,7 +2926,7 @@ def render_quick_check(cfg: TradingConfig, kraken):
                   ("COOLDOWN — NO BUYS" if no_buy else
                    ("NO GREEN — ALREADY RAN THIS ROTATION" if not rot_ok else
                     ("NO GREEN — THIS HOUR DUMPED YESTERDAY" if yshape == "blowoff" else
-                     ("NO GREEN — TIDE'S OUT" if tide_state == "OUT" else
+                     ("NO GREEN — TIDE'S OUT" if (tide_state == "OUT" and not lw_pts) else
                       ("NO GREEN — TOO THIN" if (result.get("spend_usd", 1) or 0) <= 0 else
                        (f"NO GREEN — AT THE {str(result.get('binding_floor') or 'PLATFORM').upper()} "
                         f"(a binding floor is gone — no new risk)"
@@ -2890,7 +2950,13 @@ def render_quick_check(cfg: TradingConfig, kraken):
             _carry_txt, _carry_col = "TOO THIN — YOUR MONEY IS THE MARKET", "r"
     else:
         _carry_txt, _carry_col = "BOOK UNREADABLE — SPEND YOUR CALL", "a"
-    _tcol2 = {"RISING": "g", "FLAT": "a", "OUT": "r"}.get(tide_state, "a")
+    # OUT is red — EXCEPT the lone-wolf carve-out (amber: the solo runner
+    # passes; the 🐺 LED explains why)
+    _tcol2 = ("g" if tide_state == "RISING"
+              else "a" if tide_state == "FLAT"
+              else "a" if (tide_state == "OUT" and lw_pts)
+              else "r" if tide_state == "OUT"
+              else "a")
     if yshape == "blowoff":
         _yled, _ytxt = "r", f"⚠ YESTERDAY THIS HOUR: BLEW OFF — {yesterday.get('detail', '')}"
     elif yshape == "trend":

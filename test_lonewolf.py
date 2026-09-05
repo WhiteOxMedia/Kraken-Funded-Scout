@@ -68,11 +68,23 @@ fx = reset(pct=11.2)
 pts, note = bs.lone_wolf_discount(fx, "XMR/USD")
 check("RISING +11% -> no discount", pts == 0, f"pts={pts}")
 
-# ── 6. OUT tide: no discount — the hard block stands (Aug 26 rule) ────
+# ── 6. OUT tide: THE LONE-WOLF CARVE-OUT (user rule, Sep 4, the POPCAT
+#    lesson — the blanket OUT block buried 12 crowns while the market
+#    paid): a TRUE solo runner moving against a sinking fleet earns the
+#    SAME discount as FLAT (RISING still gets nothing — the fleet carries).
 bs._tide_cache.update(ts=time.time(), pct=20.0, state="OUT")
 fx = reset(pct=11.2)
 pts, note = bs.lone_wolf_discount(fx, "XMR/USD")
-check("OUT +11% -> no discount", pts == 0, f"pts={pts}")
+check("OUT +11% -> the carve-out discount (Sep 4 rule)",
+      pts == bs.LONE_WOLF_PTS_BIG and "OUT tide" in note, f"pts={pts} note={note!r}")
+fx = reset(pct=5.5)
+pts, note = bs.lone_wolf_discount(fx, "XMR/USD")
+check("OUT +5.5% -> the small-tier carve-out",
+      pts == bs.LONE_WOLF_PTS, f"pts={pts}")
+fx = reset(pct=2.0)
+pts, note = bs.lone_wolf_discount(fx, "DOGE/USD")
+check("OUT +2% -> no discount (a bounce is no solo runner)",
+      pts == 0, f"pts={pts}")
 
 # ── 7. broken tide read: fail-closed to the normal thresholds ─────────
 # (a poisoned cache just forces a recompute — a BROKEN read is
