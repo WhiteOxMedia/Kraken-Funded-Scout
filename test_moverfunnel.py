@@ -120,8 +120,9 @@ check("mover popup carries the out-by discipline",
 check("mover popup has the stale-move guard (the APT wiggle trap)",
       "MOVER STALE MOVE" in src and src.count("_stale_move(exchange, pair)") >= 2,
       src.count("_stale_move(exchange, pair)"))
-check("mover popup has the 3% guard sizing (daily-lock aware, Sep 4)",
-      "binding_floor(_m_acct)" in src and src.count("max_entry_usd(") >= 2,
+check("mover popup has the 3% guard sizing (platform-only, Sep 5 — the daily lock removed)",
+      "MOVER DEATH LINE" in src and src.count("max_entry_usd(") >= 2
+      and "state=_m_acct" not in src,
       src.count("max_entry_usd("))
 check("mover popup has the book-carry verdict (her four verdicts)",
       "measure_book(exchange, pair)" in src

@@ -983,25 +983,10 @@ def _worth_pace_factor(now=None) -> float:
 def _worth_catchup_factor() -> float:
     """RETIRED (user rule, Sep 4: "catch-up math is causing a problem,
     we don't need to catch up — the goal is a guide not a rule"). Kept
-    per the don't-delete rule; no longer called by the auto-dial."""
-    try:
-        import contest_account as _ca
-        _s = _ca.touch_daily_peak()
-        _pace = _ca.daily_pace_usd(_s)
-        if _pace <= 0:
-            return 1.0
-        _gain = float(_s.get("daily_peak_balance") or 0.0) \
-            - float(_s.get("daily_start_balance") or 0.0)
-        # pro-rata across the 00:00-20:00 trading day
-        _frac = max(0.0, min(1.0, _now_mst().hour / 20.0))
-        _expected = _pace * _frac
-        if _gain <= 0 or _gain < 0.5 * _expected:
-            return WORTH_CATCHUP_BEHIND            # behind — catch up
-        if _gain >= _pace or (_expected >= 0.25 * _pace and _gain > 1.2 * _expected):
-            return WORTH_CATCHUP_AHEAD             # ahead — protect progress
-        return 1.0
-    except Exception:
-        return 1.0
+    per the don't-delete rule; no longer called by the auto-dial. (Sep 5)
+    the daily lock it read is REMOVED — always 1.0 now; the original
+    peak-vs-pace math lives in git history."""
+    return 1.0
 
 
 def worth_floor_auto_factors(now=None) -> dict:
@@ -1208,14 +1193,13 @@ def lone_wolf_discount(exchange, pair: str, max_age_s: float = 900.0) -> tuple[i
 
 def _hail_mary_qualifies(deep, df, carry, balance, floor,
                          ema_short=9, ema_long=21) -> tuple[bool, str]:
-    """The candidate side of THE HAIL MARY EXCEPTION (user rule, Sep 4:
-    "when a verified upward trend is detected on a high-liquidity book
-    with strong momentum and confirmed stability"): a CHAMPION-grade
-    setup on a MAJOR book — the exception relaxes the LOCK, never the
-    BRAIN and never the BOOK.
-      1. CHAMPION-GRADE: the brain's deep read clears the auto-adjusted
-         popup floor (the same bar a champion clears — a Hail Mary is
-         never a challenger-grade bet)
+    """The candidate side of THE HAIL MARY EXCEPTION (user rule, Sep 4 —
+    KEPT when the daily lock was removed, Sep 5: "Keep the 'Hail
+    Mary'"): a CHAMPION-grade setup on a MAJOR book — the exception is
+    the account-in-danger shot, never the BRAIN's or the BOOK's.
+      1. CHAMPION-GRADE: the brain's deep read clears the popup floor
+         (the same bar a champion clears — a Hail Mary is never a
+         challenger-grade bet)
       2. VERIFIED UPTREND: EMA_short > EMA_long AND close > EMA_long on
          the deep frame (the inverse knife — the same test that bans
          downtrends, reversed: the trend must be UP, not merely not-down)
@@ -1551,7 +1535,7 @@ def _max_resolve_hours() -> float:
 # call — the voice repeats every 60s while the exit condition holds, until
 # the user taps SOLD. Never auto-drop a tracked position.
 _last_exit_voice: dict[str, float] = {}
-_last_lock_floor_usd = 0.0   # the daily-lock voice pacing (speak on +$50 climbs)
+_last_lock_floor_usd = 0.0   # RETIRED (Sep 5): the daily lock's voice pacing — kept per don't-delete, nothing writes it now
 
 
 def contest_light(exchange, cfg):
@@ -1568,31 +1552,6 @@ def contest_light(exchange, cfg):
     if not watch:
         return
     voice = _voice_enabled()
-
-    # ── THE DAILY PROFIT LOCK (user rule, Sep 4): roll the day + ratchet
-    # the peak every pass (the rollover must happen even on a quiet day),
-    # and SPEAK the lock when it moves — the user hears the floor rise
-    # behind their progress. Paced: speak on first activation and each
-    # time the floor climbs by ≥$50.
-    global _last_lock_floor_usd
-    try:
-        import contest_account as _ca_dl
-        _acct_dl = _ca_dl.touch_daily_peak()
-        _which_dl, _floor_dl = _ca_dl.binding_floor(_acct_dl)
-        if _which_dl == "daily-lock" and voice:
-            _prev_dl = float(globals().get("_last_lock_floor_usd") or 0.0)
-            if _floor_dl > _prev_dl + 49.99 or _prev_dl <= 0.0:
-                _gain_dl = float(_acct_dl.get("daily_peak_balance") or 0.0) \
-                    - float(_acct_dl.get("daily_start_balance") or 0.0)
-                _speak_server(f"Up {_gain_dl:.0f} dollars on the day! "
-                              f"The floor moves to {_floor_dl:.0f}! "
-                              f"Protecting the progress!", rate=1)
-                logger.info("🔒 DAILY LOCK: up $%.0f on the day — the effective floor "
-                            "ratchets to $%.2f (protects %.0f%% of the day's gain)",
-                            _gain_dl, _floor_dl, _ca_dl.DAILY_PROTECT_FRAC * 100)
-                _last_lock_floor_usd = _floor_dl
-    except Exception as _exc_dl:
-        logger.debug("daily lock pass failed: %s", _exc_dl)
 
     # ── THE TIDE: fleet-wide warning (user rule, Aug 26) — when the tide
     # goes OUT, every ship sinks together; that warning applies to ALL
@@ -1646,27 +1605,21 @@ def contest_light(exchange, cfg):
         # should auto adjust when the contest is selected"): the old fixed
         # -$100 was calibrated to the 5k tier — on the 1k tier ($30 death
         # line) it would fire AFTER the account was already dead. Now the
-        # stop = half the remaining EFFECTIVE buffer (Sep 4: the daily
-        # lock — once the day is up, the stop tightens to protect the
-        # day's progress, not just the platform line) — and it TIGHTENS
-        # automatically as the buffer shrinks.
+        # stop = half the remaining death-line buffer (Sep 5: the daily
+        # lock removed — the platform line is the only floor) — and it
+        # TIGHTENS automatically as the buffer shrinks.
         if not should_exit and entry > 0 and live > 0:
             _usd_now = (live / entry - 1.0) * size
             try:
                 import contest_account as _ca_l
                 _acct_l = _ca_l.load_state()
-                _stop_usd = max(_ca_l.effective_buffer(_acct_l) * 0.5, 5.0)
+                _stop_usd = max(_ca_l.buffer(_acct_l) * 0.5, 5.0)
             except Exception:
                 _stop_usd = max((float(cfg.challenge_balance) * 0.03) * 0.5, 5.0)
             if _usd_now <= -_stop_usd:
                 should_exit = True
-                _fl_name, _fl_usd = ("the daily lock", 0.0)
-                try:
-                    _fl_name, _fl_usd = _ca_l.binding_floor(_acct_l)
-                except Exception:
-                    pass
                 reason = (f"STOPPED OUT — down ${abs(_usd_now):.0f} (the stop is "
-                          f"-${_stop_usd:.0f} — half the {_fl_name} buffer). "
+                          f"-${_stop_usd:.0f} — half the platform death-line buffer). "
                           f"The trade failed — get out, wait for the next one.")
 
         # ── 2. strategy sell bar (contest profile: 50%) ────────────────
@@ -2569,77 +2522,60 @@ def main():
         # coin's WORST NORMAL CASE (its profiled window drawdown) eats at
         # most ~1/3 of the remaining buffer. Buffer gone → NO buy popup
         # at all — the account is at the line and any trade can close it.
+        _hail_mary = False   # set inside the guard below (safe default)
         try:
             import contest_account as _ca
-            _acct = _ca.touch_daily_peak()
+            _acct = _ca.load_state()
             _acct_bal = float(_acct["current_balance"])
             if _acct_bal > 0:
                 _bal = _acct_bal  # the sizing base = the LIVE contest account
             _wdd = _ca.window_drawdown_pct(pair)
-            _risk_cap = _ca.max_entry_usd(_acct_bal, _wdd, float(_acct["start_balance"]),
-                                           state=_acct)
-            # ── THE HAIL MARY EXCEPTION (user rule, Sep 4: "the daily lock
-            #    is protecting my profits but I am under, no profits yet.
-            #    Contest in danger"): when the account is UNDER break-even
-            #    with no realized gains and the DAILY LOCK is what's
-            #    crushing the entries, a champion-grade setup on a major
-            #    book in a verified uptrend gets a ONE-HOUR window where
-            #    the lock yields — sizing runs against the PLATFORM
-            #    death-line buffer. The guard (0.34/dd), the knife, the
-            #    exits, every risk control STANDS ("no uncontrolled
-            #    exposure" — full allocation = the guard's cap, never the
-            #    whole balance). THE DEATH LINE NEVER YIELDS. One window
-            #    per rotation; after the hour the standard lock resumes.
+            _risk_cap = _ca.max_entry_usd(_acct_bal, _wdd, float(_acct["start_balance"]))
+            # ── THE HAIL MARY EXCEPTION (user rule, Sep 4 — KEPT when the
+            #    lock was removed, Sep 5: "Keep the 'Hail Mary'"): when the
+            #    account is UNDER break-even (the contest is in danger) with
+            #    platform room and no window used this rotation, a
+            #    CHAMPION-grade setup (never a challenger) in a VERIFIED
+            #    uptrend on a MAJOR book opens the ONE-HOUR window — the
+            #    popup is marked, the trade clock bounds by the hour. The
+            #    guard (0.34/dd), the knife, the exits, every risk control
+            #    STANDS ("no uncontrolled exposure"); THE DEATH LINE NEVER
+            #    YIELDS. One window per rotation.
             _hail_mary = _ca.hail_mary_active(_acct)
-            if not _hail_mary:
-                _platform_cap = _ca.max_entry_usd(_acct_bal, _wdd,
-                                                  float(_acct["start_balance"]),
-                                                  state=None)
-                if _platform_cap > 0 and _risk_cap <= (_platform_cap
-                                                       * _ca.HAIL_MARY_LOCK_BITE_FRAC):
-                    # the lock BITES: it crushed the possible size to under
-                    # a quarter of what the death line alone allows (or
-                    # blocked it outright) — ask for the exception
-                    _hm_ok, _hm_why = _ca.hail_mary_available(_acct)
-                    if _hm_ok:
-                        _hm_q, _hm_qwhy = _hail_mary_qualifies(
-                            deep=_deep, df=_df, carry=_carry,
-                            balance=(float(_bal) if _bal > 0 else 5000.0),
-                            floor=float(DESKTOP_ALERT_MIN),
-                            ema_short=cfg.ema_short, ema_long=cfg.ema_long)
-                        if _hm_q:
-                            _hm_old_cap = _risk_cap
-                            _acct = _ca.activate_hail_mary(_acct)
-                            _hail_mary = True
-                            _risk_cap = _ca.max_entry_usd(
-                                _acct_bal, _wdd, float(_acct["start_balance"]),
-                                state=_acct)
-                            # the trade window: one hour, not the rotation
-                            _win_min = min(_win_min, float(_ca.HAIL_MARY_WINDOW_MIN))
-                            _out_by = (_now_mst() + timedelta(
-                                minutes=round(_win_min / 5.0) * 5)).strftime("%I:%M").lstrip("0")
-                            _how_long = (f"goal +{_goal_pct:.1f}% by {_out_by} — "
-                                         f"if it hasn't paid by then, get out.")
-                            logger.info("  💪 HAIL MARY ACTIVATED: %s — the daily lock "
-                                        "yields for %d min; the death line stands; "
-                                        "cap $%.0f (was $%.2f under the lock)",
-                                        _hm_qwhy, _ca.HAIL_MARY_WINDOW_MIN,
-                                        _risk_cap, _hm_old_cap)
-                        else:
-                            logger.info("  Hail Mary declined — %s", _hm_qwhy)
+            if not _hail_mary and _risk_cap > 0:
+                _hm_ok, _hm_why = _ca.hail_mary_available(_acct)
+                if _hm_ok and not _challenger:
+                    _hm_q, _hm_qwhy = _hail_mary_qualifies(
+                        deep=_deep, df=_df, carry=_carry,
+                        balance=(float(_bal) if _bal > 0 else 5000.0),
+                        floor=float(DESKTOP_ALERT_MIN),
+                        ema_short=cfg.ema_short, ema_long=cfg.ema_long)
+                    if _hm_q:
+                        _acct = _ca.activate_hail_mary(_acct)
+                        _hail_mary = True
+                        # the trade window: one hour, not the rotation
+                        _win_min = min(_win_min, float(_ca.HAIL_MARY_WINDOW_MIN))
+                        _out_by = (_now_mst() + timedelta(
+                            minutes=round(_win_min / 5.0) * 5)).strftime("%I:%M").lstrip("0")
+                        _how_long = (f"goal +{_goal_pct:.1f}% by {_out_by} — "
+                                     f"if it hasn't paid by then, get out.")
+                        logger.info("  💪 HAIL MARY ACTIVATED: %s — the emergency hour "
+                                    "runs; the death line stands; cap $%.0f",
+                                    _hm_qwhy, _risk_cap)
                     else:
-                        logger.info("  Hail Mary unavailable — %s", _hm_why)
+                        logger.info("  Hail Mary declined — %s", _hm_qwhy)
+                elif _hm_ok and _challenger:
+                    logger.info("  Hail Mary declined — a challenger never "
+                                "gets the emergency window")
+                else:
+                    logger.debug("  Hail Mary unavailable — %s", _hm_why)
             if _risk_cap <= 0:
-                _which_fl, _floor_fl = _ca.binding_floor(_acct)
-                logger.info("  %s: buffer gone (%.0f above the %s floor at $%.2f) — no buy popup",
-                            "DAILY LOCK" if _which_fl == "daily-lock" else "DEATH LINE",
-                            _acct_bal - _floor_fl, _which_fl, _floor_fl)
-                _log_suppression(pair,
-                                 "daily-lock" if _which_fl == "daily-lock" else "death-line",
-                                 f"buffer gone — the account sits at the {_which_fl} floor "
-                                 f"(${_floor_fl:.2f}); any trade can close the contest"
-                                 + ("" if _which_fl == "death-line" else
-                                    " (the Hail Mary window is closed or unqualified)"),
+                _floor_fl = _ca.death_line(_acct)
+                logger.info("  DEATH LINE: buffer gone (%.0f above the line at $%.2f) — no buy popup",
+                            _acct_bal - _floor_fl, _floor_fl)
+                _log_suppression(pair, "death-line",
+                                 f"buffer gone — the account sits at the platform -3% line "
+                                 f"(${_floor_fl:.2f}); any trade can close the contest",
                                  quick=float(signal.confidence),
                                  brain=(float(_deep.confidence) if _deep is not None else None),
                                  floor=float(DESKTOP_ALERT_MIN),
@@ -2648,13 +2584,9 @@ def main():
                 return
             if _spend > _risk_cap:
                 _spend = _risk_cap
-                _which_fl2, _floor_fl2 = _ca.binding_floor(_acct)
-                _guard_name = ("THE 3% GUARD + THE DAILY LOCK"
-                               if (_which_fl2 == "daily-lock" and not _hail_mary)
-                               else "THE 3% GUARD (HAIL MARY — the lock yields)")
-                contest_msg = (f"  SPEND: ${_spend:,.0f} — {_guard_name}: this coin's worst-case "
+                contest_msg = (f"  SPEND: ${_spend:,.0f} — THE 3% GUARD: this coin's worst-case "
                                f"window drawdown is {_wdd:.1f}%; ${_spend:,.0f} is the most the "
-                               f"{'platform line' if _hail_mary else _which_fl2} can afford\n")
+                               f"platform line can afford\n")
         except Exception as _exc:
             logger.debug("3%% guard unavailable in send_alert: %s", _exc)  # fail-open
         # ── THE WORTH FLOOR (user rule, Sep 2: "big coins only... less
@@ -2702,24 +2634,25 @@ def main():
                 _reentry_line = f"  RE-ENTRY: fired earlier today — fine risk ${_fine:,.0f}\n" if _fine > 0 else "  RE-ENTRY: fired earlier today\n"
                 _reentry_say = (f"Re-entry — fine risk {_fine:,.0f} dollars! " if _fine > 0
                                  else "Re-entry! ")
-            # THE HAIL MARY MARK (user rule, Sep 4): this popup fired inside
-            # the one-hour window — the daily lock yields, the death line
-            # stands. Never mistaken for an ordinary green.
+            # THE HAIL MARY MARK (user rule, Sep 4 — kept Sep 5): this
+            # popup fired inside the one-hour emergency window — the
+            # account-in-danger shot, the death line standing. Never
+            # mistaken for an ordinary green.
             _hm_line = ""
             _hm_say = ""
             if _hail_mary:
                 try:
                     import contest_account as _ca_hm
                     _hm_left = _ca_hm.hail_mary_minutes_left(_acct)
-                    _hm_line = (f"  💪 HAIL MARY: the daily lock yields for "
+                    _hm_line = (f"  💪 HAIL MARY: the emergency hour runs for "
                                 f"{max(_hm_left, 0):.0f} more min — full allocation = the "
                                 f"guard's cap vs the DEATH LINE (never the whole balance); "
-                                f"after the hour the standard lock resumes\n")
-                    _hm_say = "Hail Mary! The daily lock yields for one hour! "
+                                f"the clock ends with the hour\n")
+                    _hm_say = "Hail Mary! The emergency hour is open! "
                 except Exception:
-                    _hm_line = ("  💪 HAIL MARY: the daily lock yields for this hour — "
+                    _hm_line = ("  💪 HAIL MARY: the emergency hour runs — "
                                 "the death line stands\n")
-                    _hm_say = "Hail Mary! The daily lock yields for one hour! "
+                    _hm_say = "Hail Mary! The emergency hour is open! "
             title = (f"🟢 BUY {asset} — {_dc:.0f}% SURE"
                      + (" — CHALLENGER" if _challenger else "")
                      + (" — LONE WOLF (OUT TIDE)" if _out_tide_lw else "")
@@ -3337,14 +3270,12 @@ def main():
                                                    f"(book carries ~${_m_carry:,.0f}) — desktop suppressed")
                                     else:
                                         _m_wdd = _ca.window_drawdown_pct(pair)
-                                        _m_acct = _ca.touch_daily_peak(_m_acct)
                                         _m_risk = _ca.max_entry_usd(
-                                            _m_bal, _m_wdd, float(_m_acct["start_balance"]),
-                                            state=_m_acct)
+                                            _m_bal, _m_wdd, float(_m_acct["start_balance"]))
                                         if _m_risk <= 0:
-                                            _m_which_fl, _m_floor_fl = _ca.binding_floor(_m_acct)
-                                            _m_skip = (f"MOVER {_m_which_fl.upper()}: buffer gone "
-                                                       f"— no buy popup")
+                                            _m_skip = ("MOVER DEATH LINE: buffer gone "
+                                                       f"— no buy popup (the platform -3% line "
+                                                       f"sits at ${_ca.death_line(_m_acct):,.2f})")
                                         else:
                                             if _m_spend > _m_risk:
                                                 _m_spend = _m_risk
@@ -3367,7 +3298,6 @@ def main():
                                     logger.info("  %s", _m_skip)
                                     _m_gate = ("too-thin" if "TOO THIN" in _m_skip
                                                else "worth-floor" if "WORTH FLOOR" in _m_skip
-                                               else "daily-lock" if "DAILY LOCK" in _m_skip.upper()
                                                else "death-line")
                                     _log_suppression(pair, _m_gate, f"mover: {_m_skip}",
                                                      quick=float(signal.confidence),

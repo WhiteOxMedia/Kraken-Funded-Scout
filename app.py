@@ -956,11 +956,32 @@ def _close_bot_positions(ids: list[int]) -> int:
         return 0
 
 @st.cache_data(ttl=60)
+def _live_price_cached(pair: str) -> float:
+    """The raw read — RAISES on failure (st.cache_data never caches an
+    exception, so a failed read retries fresh on the next call instead of
+    sticking at $0 for the whole TTL — the Sep 5 silent-rejection bug)."""
+    return float(get_kraken_client().fetch_price(pair))
+
+
 def live_price(pair: str) -> float:
+    """0.0 on failure (the callers' contract) — but the failure is never
+    cached: the next call reads fresh."""
     try:
-        return float(get_kraken_client().fetch_price(pair))
+        return float(_live_price_cached(pair))
     except Exception:
         return 0.0
+
+
+@st.cache_data(ttl=30)
+def _ticker_px_cached(pair: str) -> float:
+    """The raw ticker read — RAISES on failure (never cached: a failed
+    read retries fresh, the Sep 5 lesson)."""
+    _k = get_kraken_client()
+    if hasattr(_k, "fetch_ticker"):
+        _t = _k.fetch_ticker(pair)
+    else:
+        _t = _k.exchange.fetch_ticker(pair)
+    return float((_t or {}).get("last") or 0.0)
 
 
 @st.cache_data(ttl=30)
@@ -969,12 +990,7 @@ def _ticker_px(pair: str) -> float:
     share it instead of each fetching fresh on every rerun. 30s is still
     'real time' for trail/goal calls (the candle close lags minutes)."""
     try:
-        _k = get_kraken_client()
-        if hasattr(_k, "fetch_ticker"):
-            _t = _k.fetch_ticker(pair)
-        else:
-            _t = _k.exchange.fetch_ticker(pair)
-        return float((_t or {}).get("last") or 0.0)
+        return float(_ticker_px_cached(pair))
     except Exception:
         return 0.0
 
@@ -1755,16 +1771,8 @@ def _today_facts() -> list[str]:
         _buf = _ca_f.buffer(_acct)
         _pace = _ca_f.daily_pace_usd(_acct)
         _tier = _ca_f.TIERS[_acct["tier"]]["label"]
-        # THE DAILY LOCK (Sep 4): the ratcheting floor protecting today's
-        # progress — shown when it's actually above the platform line
-        _lock_txt = ""
-        _which_f, _floor_f = _ca_f.binding_floor(_acct)
-        if _which_f == "daily-lock":
-            _lock_txt = (f"   🔒 DAY FLOOR <span class='dim'>....</span> "
-                         f"<span style='color:#ffc36b;'>${_floor_f:,.0f}</span>"
-                         f" (protects today's gain)")
     except Exception:
-        _line, _buf, _pace, _tier, _lock_txt = 0.0, 0.0, 0.0, "?", ""
+        _line, _buf, _pace, _tier = 0.0, 0.0, 0.0, "?"
     _pace_col = "#4be38a" if banked >= _pace else "#ffc36b"
     return [
         f"SIGNALS FIRED <span class='dim'>......</span> {n_sig}"
@@ -1775,8 +1783,7 @@ def _today_facts() -> list[str]:
         f"   BUFFER <span class='dim'>..........</span> ${_buf:,.0f}"
         f"   PACE <span class='dim'>............</span> "
         f"<span style='color:{_pace_col};'>${banked:,.0f} of ${_pace:,.0f}/day</span>"
-        f"   LIVE <span class='dim'>........</span> {n_open}"
-        f"{_lock_txt}",
+        f"   LIVE <span class='dim'>........</span> {n_open}",
         f"<span class='dim'>graded from the real records — signals.db + the goal ledger + "
         f"the contest account. Every number scales with the selected tier. "
         f"This is how the system learns.</span>",
@@ -2416,29 +2423,25 @@ def render_quick_check(cfg: TradingConfig, kraken):
                 _risk_cap = None
                 try:
                     import contest_account as _ca
-                    _acct = _ca.touch_daily_peak()
+                    _acct = _ca.load_state()
                     _wdd = _ca.window_drawdown_pct(pair)
                     _risk_cap = _ca.max_entry_usd(
-                        _acct["current_balance"], _wdd, _acct["start_balance"],
-                        state=_acct)
-                    # ── THE HAIL MARY EXCEPTION (user rule, Sep 4 — the QC
-                    #    AGREES with the alert path, never disagree): when
-                    #    the lock BITES (it crushed the possible size to
-                    #    under a quarter of the platform-only cap) and the
-                    #    account is under break-even with no realized gains,
-                    #    a CHAMPION-grade deep read in a VERIFIED uptrend on
-                    #    a book that carries the FULL balance activates the
-                    #    one-hour window — sizing runs against the PLATFORM
-                    #    death line. The guard, the knife, the exits all
-                    #    stand; the death line never yields.
+                        _acct["current_balance"], _wdd, _acct["start_balance"])
+                    # ── THE HAIL MARY EXCEPTION (user rule, Sep 4 — KEPT
+                    #    when the lock was removed, Sep 5: the QC AGREES
+                    #    with the alert path, never disagree): when the
+                    #    account is UNDER break-even (the contest is in
+                    #    danger) with platform room and no window this
+                    #    rotation, a CHAMPION-grade deep read in a VERIFIED
+                    #    uptrend on a book that carries the FULL balance
+                    #    opens the one-hour window — the popup is marked,
+                    #    the watch clock bounds by the hour. The guard, the
+                    #    knife, the exits all stand; the death line never
+                    #    yields.
                     _qc_hm = _ca.hail_mary_active(_acct)
-                    if not _qc_hm:
-                        _platform_cap = _ca.max_entry_usd(
-                            float(_acct["current_balance"]), _wdd,
-                            float(_acct["start_balance"]), state=None)
-                        if (_platform_cap > 0
-                                and _risk_cap <= _platform_cap * _ca.HAIL_MARY_LOCK_BITE_FRAC):
-                            _hm_ok, _hm_why = _ca.hail_mary_available(_acct)
+                    if not _qc_hm and _risk_cap is not None and _risk_cap > 0:
+                        _hm_ok, _hm_why = _ca.hail_mary_available(_acct)
+                        if _hm_ok:
                             _hm_big_book = (_carry is not None
                                             and float(_carry) >= float(cfg.challenge_balance))
                             # the champion floor — computed HERE, self-sufficient
@@ -2456,15 +2459,12 @@ def render_quick_check(cfg: TradingConfig, kraken):
                                 _hm_floor = float(_bs_hm.popup_floor(_hm_tstate, _hm_lw_pts))
                             except Exception:
                                 _hm_floor = 89.0
-                            if (_hm_ok and sig.action == "buy"
+                            if (sig.action == "buy"
                                     and float(sig.confidence) >= _hm_floor
                                     and _trend == "UP" and _hm_big_book):
                                 _acct = _ca.activate_hail_mary(_acct)
                                 _qc_hm = True
-                                _risk_cap = _ca.max_entry_usd(
-                                    float(_acct["current_balance"]), _wdd,
-                                    float(_acct["start_balance"]), state=_acct)
-                            elif _hm_ok:
+                            else:
                                 _hm_why = ("Hail Mary available but this read doesn't qualify — "
                                            "it needs a champion-grade brain read "
                                            f"(≥{_hm_floor:.0f}%) in a VERIFIED uptrend on a "
@@ -2473,14 +2473,8 @@ def render_quick_check(cfg: TradingConfig, kraken):
                     st.session_state["qc_result"]["hail_mary"] = _qc_hm
                     st.session_state["qc_result"]["risk_cap"] = _risk_cap
                     st.session_state["qc_result"]["window_dd"] = _wdd
-                    try:
-                        _which_fl, _floor_fl = _ca.binding_floor(_acct)
-                        st.session_state["qc_result"]["binding_floor"] = _which_fl
-                        st.session_state["qc_result"]["floor_usd"] = _floor_fl
-                    except Exception:
-                        pass
                     if _risk_cap <= 0:
-                        _spend_usd = 0.0  # at/near a binding floor — no new risk
+                        _spend_usd = 0.0  # at/near the death line — no new risk
                     else:
                         _spend_usd = min(_spend_usd, _risk_cap)
                 except Exception as _exc:
@@ -2786,32 +2780,16 @@ def render_quick_check(cfg: TradingConfig, kraken):
                     elif (sig.action == "buy" and not no_buy
                             and sig.confidence >= QC_SCALP_FLOOR
                             and _risk_cap is not None and _risk_cap <= 0):
-                        # A BINDING FLOOR IS GONE: the -3% death line (Kraken
-                        # Funded: from start, never moves) OR the DAILY LOCK
-                        # (Sep 4: the day's progress is protected — the
-                        # account can afford the trade, but it would risk
-                        # today's locked-in gain). Either way: no new risk.
-                        _bf_name = str(st.session_state.get("qc_result", {})
-                                       .get("binding_floor") or "platform")
-                        _hm_why_txt = str(st.session_state.get("qc_result", {})
-                                          .get("hail_mary_why") or "")
+                        # THE DEATH LINE (Kraken Funded: -3% from start, never
+                        # moves) — no new risk. (Sep 5: the daily lock removed
+                        # — the platform line is the only floor left.)
                         try:
-                            if _bf_name == "daily-lock":
-                                st.toast(f"🔒 AT THE DAILY LOCK — {asset}: the day's progress "
-                                         f"is locked. A new entry here would risk today's "
-                                         f"protected gain — wait for fresh room tomorrow "
-                                         f"(or a higher peak)."
-                                         + (f" 💪 {_hm_why_txt}" if _hm_why_txt else ""),
-                                         icon="🔒", duration=25)
-                                _play_sound("alarm")
-                                _speak(f"No! The daily lock! Protect the day's progress!", rate=1)
-                            else:
-                                st.toast(f"☠ AT THE DEATH LINE — {asset}: the account is at "
-                                         f"the -3% line. ANY new trade can close the contest. "
-                                         f"No entries until the balance recovers above the line.",
-                                         icon="☠", duration=25)
-                                _play_sound("alarm")
-                                _speak(f"No! At the death line! No new trades!", rate=1)
+                            st.toast(f"☠ AT THE DEATH LINE — {asset}: the account is at "
+                                     f"the -3% line. ANY new trade can close the contest. "
+                                     f"No entries until the balance recovers above the line.",
+                                     icon="☠", duration=25)
+                            _play_sound("alarm")
+                            _speak(f"No! At the death line! No new trades!", rate=1)
                         except Exception:
                             pass
                     elif (sig.action == "buy" and not no_buy
@@ -2971,10 +2949,12 @@ def render_quick_check(cfg: TradingConfig, kraken):
         RAN → DUMPED YESTERDAY → TIDE OUT → TOO THIN → AT THE FLOOR →
         DOWNWARD TREND → TOO SLOW → COOLDOWN → weak). (Sep 5: the
         THIN-BOOK BRAIN branch retired — thin books green at the standard
-        floor like everything else; the user's call.)"""
+        floor like everything else; the daily lock removed — the platform
+        line is the only floor; the Hail Mary KEPT — the account-in-danger
+        exception.)"""
         if passes and result.get("hail_mary"):
-            return ("SCALP GREEN LIGHT — 💪 HAIL MARY (the daily lock yields for one "
-                    "hour; the death line stands; full allocation = the guard's cap)")
+            return ("SCALP GREEN LIGHT — 💪 HAIL MARY (the emergency hour is open; "
+                    "the death line stands; full allocation = the guard's cap)")
         if passes:
             return "SCALP GREEN LIGHT"
         if no_buy:
@@ -2988,9 +2968,7 @@ def render_quick_check(cfg: TradingConfig, kraken):
         if (result.get("spend_usd", 1) or 0) <= 0:
             return "NO GREEN — TOO THIN"
         if (result.get("risk_cap", 1) or 0) <= 0:
-            return (f"NO GREEN — AT THE "
-                    f"{str(result.get('binding_floor') or 'PLATFORM').upper()} "
-                    f"(a binding floor is gone — no new risk)")
+            return "NO GREEN — AT THE DEATH LINE (the platform -3% floor is gone — no new risk)"
         if trend == "FALLING":
             return "NO GREEN — DOWNWARD TREND"
         if not goal_ok:
@@ -3649,13 +3627,13 @@ def _render_light_panel(interval: str):
     any_alert = any(v["kind"] == "contest" and v["exit"] for v in watch_status)
     n_wallet = sum(1 for v in watch_status if v["kind"] == "wallet")
     _w = _load_watch()
-    # THE HAIL MARY clock rides the panel header (user rule, Sep 4)
+    # THE HAIL MARY clock rides the panel header (user rule, Sep 4 — kept Sep 5)
     _hm_note = ""
     try:
         import contest_account as _ca_lp
         _hm_left = _ca_lp.hail_mary_minutes_left()
         if _hm_left > 0:
-            _hm_note = f" · 💪 HAIL MARY {max(_hm_left, 0):.0f}m (the lock yields)"
+            _hm_note = f" · 💪 HAIL MARY {max(_hm_left, 0):.0f}m (the emergency hour)"
     except Exception:
         pass
     lines = [f"<span class='dim'>{_now_mst().strftime('%I:%M %p')} · every {interval} · "
@@ -3808,9 +3786,14 @@ def _render_entry_control(prefix: str = "ec", default_pair: str | None = None,
                                     placeholder="e.g. deep scan green, momentum rider, my own read")
 
             if st.form_submit_button("✎ SET MY ENTRY", type="primary"):
-                if not pair or not entry or entry <= 0:
-                    st.error("Need a coin and an entry — the numbers are on your "
-                             "position screen in the contest app.")
+                if not pair:
+                    st.error("Which coin? Type it in the coin field — ANY coin, it doesn't "
+                             "have to be on any list (e.g. ZEC, or TAO/USD).")
+                elif not entry or entry <= 0:
+                    st.error(f"Need the numbers for {_asset(pair)}: either '$ you spent + "
+                             f"coins you own' (the two numbers the contest app shows) or "
+                             f"'entry $ + size $' — fill both fields of whichever pair you're "
+                             f"using.")
                 else:
                     w = _load_watch()
                     fresh = pair not in w
@@ -4047,17 +4030,31 @@ def render_auto_watch(cfg: TradingConfig, kraken):
             # while picking size + asset; everything submits at once on ADD.
             # Entry field removed (user: useless — I RE-ENTERED sets the
             # real entry right after, and it starts at the live price).
+            # (Sep 5, user rule: "the manual input +/- positions, it was
+            # never designed to pick and choose") — the ADD accepts ANY
+            # coin (a free-text field overrides the dropdown: movers and
+            # off-list coins too), and a failed price read is a VISIBLE
+            # error, never a silent rejection.
             _chunk_opts = {"25%": 0.25, "50%": 0.50, "75%": 0.75, "100%": 1.00}
             with st.form("watch_add_form", clear_on_submit=False):
-                f0, f1 = st.columns([1, 2])
+                f0, f1, f2 = st.columns([1, 1.4, 1.4])
                 new_chunk = f0.selectbox("Size", list(_chunk_opts), index=1, key="watch_add_size",
                                          help="How much you bought in the contest app — sets the $ size "
                                               "for P&L and scalp alerts")
                 new_asset = f1.selectbox("Asset", ASSETS, key="watch_add_asset",
                                          help="She tracks it from the LIVE price — if you paid "
-                                              "something else, tell her in I RE-ENTERED right after")
+                                              "something else, tell her in MY ENTRY right after")
+                manual_add_coin = f2.text_input(
+                    "…or type ANY coin", value="", key="watch_add_manual",
+                    placeholder="e.g. ZEC, or TAO/USD — anything",
+                    help="Not on the list? Type it here — this overrides the dropdown. "
+                         "Movers, off-list coins, anything with a Kraken market. "
+                         "The add NEVER picks and chooses.")
                 if st.form_submit_button("◆ ADD", type="primary"):
                     npair = f"{new_asset}/USD"
+                    _manual_txt = (manual_add_coin or "").strip().upper()
+                    if _manual_txt:
+                        npair = _manual_txt if "/" in _manual_txt else f"{_manual_txt}/USD"
                     live = live_price(npair)
                     if live:
                         contest_watch[npair] = {
@@ -4068,13 +4065,22 @@ def render_auto_watch(cfg: TradingConfig, kraken):
                         }
                         _save_watch(contest_watch)
                         try:
-                            st.toast(f"◆ {new_asset} added — entry {_fmt_price(live)} "
-                                     f"(live price). Paid something else? I RE-ENTERED, right below.",
+                            st.toast(f"◆ {_asset(npair)} added — entry {_fmt_price(live)} "
+                                     f"(live price). Paid something else? MY ENTRY, right below.",
                                      icon="✅", duration=12)
-                            _speak(f"{new_asset} added to the watch!")
+                            _speak(f"{_asset(npair)} added to the watch!")
                         except Exception:
                             pass
                         st.rerun()
+                    else:
+                        # (Sep 5) THE VISIBLE REJECTION: a failed price read
+                        # used to reject SILENTLY (the button did nothing) —
+                        # and the 60s cache made it stick. Now it says so, and
+                        # the retry reads fresh (failures are never cached).
+                        st.error(f"Couldn't read the live price for {npair} — nothing was "
+                                 f"added, and it's NOT a rejection of the coin. Try again "
+                                 f"(the retry reads fresh); if it keeps failing, add it in "
+                                 f"MY ENTRY below with your real entry price.")
 
         st.caption("Leave this tab open — the watch runs in your browser. "
                    "It just watches and alerts. It can't touch your money.")
@@ -4312,15 +4318,15 @@ def render_exit_check(cfg: TradingConfig, kraken):
         except Exception:
             pass
     _window_expired = bool(_w_window and _left_min is not None and _left_min <= 0)
-    # tier-aware hard stop: half the remaining EFFECTIVE buffer (Sep 4:
-    # the daily lock — once the day is up, the stop tightens to protect
-    # the day's progress; contest_account is the one source of truth)
+    # tier-aware hard stop: half the remaining death-line buffer
+    # (Sep 5: the daily lock removed — contest_account is the one source
+    # of truth and its only floor is the platform line)
     _stop_usd = None
     if _w_size:
         try:
             import contest_account as _ca_ec
             _acct_ec = _ca_ec.load_state()
-            _stop_usd = max(_ca_ec.effective_buffer(_acct_ec) * 0.5, 5.0)
+            _stop_usd = max(_ca_ec.buffer(_acct_ec) * 0.5, 5.0)
         except Exception:
             _stop_usd = None
     _hard_stop_hit = bool(_pnl_usd is not None and _stop_usd and _pnl_usd <= -_stop_usd)
@@ -4569,14 +4575,15 @@ def main():
         led(f"PACE ${_pace:,.0f}/DAY (12%/WK)", "a") + "<br>" +
         led(f"TARGET +12% = ${float(_acct['start_balance']) * 1.12:,.0f}", "g")
     )), unsafe_allow_html=True)
-    # ── THE HAIL MARY WINDOW (user rule, Sep 4): when active, the plate
-    #    shows the countdown — the daily lock yields, the death line stands
+    # ── THE HAIL MARY WINDOW (user rule, Sep 4 — kept Sep 5): when
+    #    active, the plate shows the countdown — the emergency hour runs,
+    #    the death line stands
     try:
         _hm_left = _ca.hail_mary_minutes_left(_acct)
         if _hm_left > 0:
             st.sidebar.markdown(plate("💪 HAIL MARY", (
                 led(f"WINDOW {max(_hm_left, 0):.0f} MIN LEFT", "a") + "<br>" +
-                led("THE DAILY LOCK YIELDS — SIZING VS THE PLATFORM LINE", "a") + "<br>" +
+                led("THE EMERGENCY HOUR — ACCOUNT IN DANGER, CHAMPION SHOT", "a") + "<br>" +
                 led("THE DEATH LINE STANDS — NEVER YIELDS", "r") + "<br>" +
                 led(f"WINDOWS USED: {int(_acct.get('hail_mary_count') or 0)} · "
                     f"ONE PER ROTATION", "off")
@@ -4741,8 +4748,7 @@ def main():
             "really moves this week, and the clock ends at the rotation "
             "boundary.\n"
             "4. **One click = the deep scan.** Every guard gets its say: the -3% "
-            "death line, the daily lock (once the day is up, today's profit is "
-            "protected), the tide, the trend, the order book, rotation memory. "
+            "death line, the tide, the trend, the order book, rotation memory. "
             "Green light → enter on the contest app at the size it names. "
             "Anything else → skip; she says why.\n"
             "5. **In the trade, THE LIGHT watches every minute** — green = all "

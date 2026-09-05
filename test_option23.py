@@ -44,8 +44,9 @@ for gate in ("brain-floor", "fail-closed", "stale-move", "tide-out",
              "rotation-lock", "blowoff-yesterday", "blacklisted"):
     check(f"hook: {gate} logs its verdict",
           f'"{gate}"' in bs_src)
-check("hook: death-line + daily-lock both log",
-      '"daily-lock" if _which_fl == "daily-lock" else "death-line"' in bs_src)
+check("hook: the death-line gate logs (the daily-lock gate retired with the lock, Sep 5)",
+      '"death-line"' in bs_src
+      and '"daily-lock" if _which_fl == "daily-lock" else "death-line"' not in bs_src)
 check("hook: the bridge-stage deep vetoes log (pre-desktop deaths too)",
       "bridge stage: deep-reads" in bs_src
       and "bridge stage: EMA9<EMA21" in bs_src)

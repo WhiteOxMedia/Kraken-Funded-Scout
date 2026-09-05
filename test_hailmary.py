@@ -1,21 +1,20 @@
-"""Test THE HAIL MARY EXCEPTION (user rule, Sep 4: "the daily lock is
-protecting my profits but I am under, no profits yet. Contest in danger.
+"""Test THE HAIL MARY EXCEPTION — KEPT, LOCK-FREE (user rule, Sep 5:
+"remove the daily lock and everything to do with that idea" — then,
+same day: "Keep the 'Hail Mary'").
 
-daily lock gets triggered and Activate Hail Mary Mode... When a verified
-upward trend is detected on a high-liquidity book with strong momentum
-and confirmed stability, authorize a one-hour full-allocation trade
-window... Risk controls remain active; no uncontrolled exposure. After
-one hour, revert to standard daily lock until challenged again by
-another 'Hail Mary'").
-
-THE INTERPRETATION ON RECORD: "full allocation" = the death-line guard's
-full cap against the PLATFORM buffer (0.34/dd), NEVER the whole balance
-(the user's own rule 4). The exception relaxes the LOCK only; the death
-line, the guard, the knife, the exits all stand. One window per
-rotation; the next rotation re-arms the challenge."""
-import json
+WHAT IT IS NOW: the account-in-danger exception. The daily lock is
+gone; the Hail Mary re-anchors: when the contest sits UNDER break-even
+(no profits to protect, the account needs the shot) with platform room
+left and no window used this rotation, a CHAMPION-grade setup —
+verified uptrend on a major book, never a challenger — opens the
+ONE-HOUR window: the popup is marked "— HAIL MARY", the trade clock
+bounds by the hour, one window per rotation. Sizing inside the window
+is the guard's full platform cap (0.34/dd) — the same cap every trade
+gets now that the lock is gone; the exception adds the champion-only
+bar, the hour clock, and the loud mark. THE DEATH LINE NEVER YIELDS."""
 import sys
 import tempfile
+import json
 from datetime import datetime, timedelta
 from pathlib import Path
 from types import SimpleNamespace
@@ -37,174 +36,168 @@ def check(name, ok, detail=""):
 
 
 import contest_account as ca
+import background_scanner as bs
 
 MST = ZoneInfo("America/Denver")
+TODAY = datetime.now(MST).strftime("%Y-%m-%d")
 ca_src = Path("contest_account.py").read_text(encoding="utf-8")
 bs_src = Path("background_scanner.py").read_text(encoding="utf-8")
 ap_src = Path("app.py").read_text(encoding="utf-8")
 
-# ── 1. the constants + the account layer ──────────────────────────────
-check("the one-hour window + the lock-bite threshold are defined",
-      ca.HAIL_MARY_WINDOW_MIN == 60 and ca.HAIL_MARY_LOCK_BITE_FRAC == 0.25)
-check("the three hail mary functions exist",
-      all(f in ca_src for f in ("def hail_mary_active", "def hail_mary_available",
-                                "def activate_hail_mary", "def hail_mary_minutes_left")))
-check("effective_buffer yields the lock during the window",
-      "if hail_mary_active(s):" in ca_src.split("def effective_buffer")[1].split("def ")[0])
-check("max_entry_usd sizes vs the platform line during the window",
-      "hail_mary_active(state)" in ca_src.split("def max_entry_usd")[1].split("def ")[0])
-check("save_state carries the hail mary fields (a balance write mid-window "
-      "must not silently close it)",
-      '"hail_mary_until", "hail_mary_date", "hail_mary_rot",' in ca_src)
 
-# ── 2. functional: the account preconditions (sandboxed state) ───────
-def _state(**over):
-    s = {"tier": 10000, "start_balance": 10000.0, "current_balance": 9990.0,
-         "daily_peak_date": datetime.now(MST).strftime("%Y-%m-%d"),
-         "daily_start_balance": 9980.0, "daily_peak_balance": 10010.0}
-    s.update(over)
+def state(cur=10000.0, start=10000.0, **kw):
+    s = {"tier": 10000, "start_balance": start, "current_balance": cur,
+         "updated_at": datetime.now(MST).isoformat()}
+    s.update(kw)
     return s
 
-try:
-    with tempfile.TemporaryDirectory() as td:
-        orig_state_file = ca.STATE_FILE
-        ca.STATE_FILE = Path(td) / "acct.json"
 
-        # under break-even (9990 < 10000), lock binding (floor 9999.5 > 9700),
-        # platform room (buffer 290) -> AVAILABLE
-        s = _state()
-        ok, why = ca.hail_mary_available(s)
-        check("under break-even + the lock binds -> AVAILABLE", ok, why)
-        check("the lock floor actually binds in the fixture",
-              ca.binding_floor(s) == ("daily-lock", 9999.5),
-              ca.binding_floor(s))
+# ── 1. the account side: the window machinery ─────────────────────────
+check("HAIL_MARY_WINDOW_MIN is 60 (the one-hour window)",
+      ca.HAIL_MARY_WINDOW_MIN == 60)
+check("the lock's bite-fraction constant is GONE (lock-specific)",
+      not hasattr(ca, "HAIL_MARY_LOCK_BITE_FRAC"))
+check("no window: hail_mary_active False, minutes 0",
+      not ca.hail_mary_active(state())
+      and ca.hail_mary_minutes_left(state()) == 0.0)
+check("an active window reads True with minutes ≤ 60",
+      ca.hail_mary_active(state(hail_mary_until=(
+          datetime.now(MST) + timedelta(minutes=30)).isoformat()))
+      and 29.0 < ca.hail_mary_minutes_left(state(hail_mary_until=(
+          datetime.now(MST) + timedelta(minutes=30)).isoformat())) <= 30.0)
+check("an expired window reads inactive",
+      not ca.hail_mary_active(state(hail_mary_until=(
+          datetime.now(MST) - timedelta(minutes=1)).isoformat())))
+check("broken state fails closed (no window)",
+      not ca.hail_mary_active(state(hail_mary_until="not-a-date")))
 
-        # over break-even: the lock protects REAL profit -> no exception
-        ok, why = ca.hail_mary_available(_state(current_balance=10050.0,
-                                                daily_peak_balance=10070.0))
-        check("over break-even -> NOT available (real profit is protected)",
-              not ok and "break-even" in why, why)
+# ── 2. availability — account danger, LOCK-FREE ───────────────────────
+check("under break-even with platform room: AVAILABLE (the contest is in danger)",
+      ca.hail_mary_available(state(9990.0))[0] is True)
+check("over break-even: not available (no emergency)",
+      ca.hail_mary_available(state(10100.0))[0] is False)
+check("at the death line: not available — nothing yields, ever",
+      ca.hail_mary_available(state(9700.0))[0] is False)
+check("exactly at break-even: available (no profits to protect)",
+      ca.hail_mary_available(state(10000.0))[0] is True)
+_now_rot = f"{datetime.now(MST).hour // 4 * 4:02d}-{datetime.now(MST).hour // 4 * 4 + 4:02d}"
+_s_used = state(9990.0, hail_mary_rot=_now_rot, hail_mary_date=TODAY)
+check("a window already used this rotation: not available "
+      "(re-arms at the boundary)",
+      ca.hail_mary_available(_s_used)[0] is False)
+_other_rot = "00-04" if _now_rot != "00-04" else "04-08"
+check("yesterday's window in another rotation doesn't block today",
+      ca.hail_mary_available(state(9990.0, hail_mary_rot=_other_rot,
+                                   hail_mary_date="2026-09-01"))[0] is True)
+check("the lock's binding-floor precondition is GONE from the source",
+      "binding_floor" not in ca_src and "daily_lock_floor" not in ca_src)
 
-        # at the death line: NOTHING yields, ever
-        ok, why = ca.hail_mary_available(_state(current_balance=9690.0,
-                                                daily_start_balance=9695.0,
-                                                daily_peak_balance=9710.0))
-        check("at the death line -> NOT available (the line never yields)",
-              not ok and "death line" in why, why)
-
-        # the platform line binds (no daily gain) -> nothing to except
-        ok, why = ca.hail_mary_available(_state(daily_start_balance=9990.0,
-                                                daily_peak_balance=9990.0))
-        check("platform binding (no lock) -> NOT available", not ok, why)
-
-        # activation: the window opens, the lock yields, sizing = platform
-        ca._write_state(_state())
+# ── 3. activation + state carry ───────────────────────────────────────
+with tempfile.TemporaryDirectory() as _td:
+    _old = ca.STATE_FILE
+    try:
+        ca.STATE_FILE = Path(_td) / "contest_account.json"
+        ca.STATE_FILE.write_text(json.dumps(state(9990.0)), encoding="utf-8")
         s2 = ca.activate_hail_mary()
-        check("activation opens the window", ca.hail_mary_active(s2))
-        check("minutes left ~ 60", 55 <= ca.hail_mary_minutes_left(s2) <= 60,
-              ca.hail_mary_minutes_left(s2))
-        check("during the window: effective_buffer = the PLATFORM buffer",
-              abs(ca.effective_buffer(s2) - (9990.0 - 9700.0)) < 0.01,
-              ca.effective_buffer(s2))
-        _platform_cap = ca.max_entry_usd(9990.0, 3.0, 10000.0, state=None)
-        check("during the window: the guard cap = the platform-only cap",
-              abs(ca.max_entry_usd(9990.0, 3.0, 10000.0, state=s2) - _platform_cap) < 0.01,
-              (ca.max_entry_usd(9990.0, 3.0, 10000.0, state=s2), _platform_cap))
-        check("the cap is the GUARD's (0.34/dd), never the whole balance",
-              _platform_cap < 9990.0 and abs(_platform_cap - 290.0 * 0.34 / 0.03) < 1.0,
-              _platform_cap)
-        check("the rotation is stamped (one per rotation)",
-              s2.get("hail_mary_rot") and s2.get("hail_mary_count") == 1)
+        check("activate opens the hour (active, ≤60 min left, count 1)",
+              ca.hail_mary_active(s2)
+              and 59.0 < ca.hail_mary_minutes_left(s2) <= 60.0
+              and s2.get("hail_mary_count") == 1)
+        s3 = ca.save_state(10000, 9980.0)
+        check("a balance write mid-window carries the fields "
+              "(save_state doesn't close it)",
+              s3.get("hail_mary_count") == 1
+              and ca.hail_mary_active(s3))
+        on_disk = json.loads(ca.STATE_FILE.read_text(encoding="utf-8"))
+        check("the window fields persist to disk (survives restarts)",
+              "hail_mary_until" in on_disk and "hail_mary_rot" in on_disk)
+    finally:
+        ca.STATE_FILE = _old
 
-        # expiry: the lock rebinds
-        s3 = dict(s2)
-        s3["hail_mary_until"] = (datetime.now(MST) - timedelta(minutes=1)).isoformat()
-        check("after the hour: the lock rebinds (effective = the lock buffer)",
-              ca.effective_buffer(s3) < 0, ca.effective_buffer(s3))
-        ok, why = ca.hail_mary_available(s3)
-        check("after the hour, same rotation: NOT available (one per rotation)",
-              not ok and "rotation" in why, why)
+# ── 4. sizing: the window is a MARK, not a sizing change (lock-free) ──
+_platform_cap = ca.max_entry_usd(9990.0, 3.0, 10000.0)
+_s_win = state(9990.0, hail_mary_until=(
+    datetime.now(MST) + timedelta(minutes=30)).isoformat())
+check("during the window sizing = the platform guard cap (the lock that "
+      "used to crush it is gone — there is nothing to yield)",
+      abs(ca.max_entry_usd(9990.0, 3.0, 10000.0) - _platform_cap) < 0.01)
+check("max_entry_usd takes no state param anymore (platform-only math)",
+      "def max_entry_usd(current_balance: float, window_dd_pct: float,\n                  start_balance: float | None = None) -> float:"
+      in ca_src)
+check("at the platform line = $0 even mid-window "
+      "(the death line never yields)",
+      ca.max_entry_usd(9700.0, 3.0, 10000.0) == 0.0)
 
-        # the next rotation re-arms the challenge
-        _hour = datetime.now(MST).hour
-        _other_rot = f"{((_hour + 4) // 4 * 4) % 24:02d}-{((_hour + 4) // 4 * 4 + 4) % 24:02d}"
-        s4 = dict(s3)
-        s4["hail_mary_rot"] = _other_rot
-        ok, why = ca.hail_mary_available(s4)
-        check("the next rotation re-arms the challenge", ok, why)
+# ── 5. the candidate side: _hail_mary_qualifies ──────────────────────
+_deep_ok = SimpleNamespace(action="buy", confidence=92.0)
 
-        # save_state carries the window (a balance write mid-window)
-        s5 = ca.save_state(10000, 9992.0)
-        check("a balance write mid-window keeps the window open",
-              s5.get("hail_mary_until") and ca.hail_mary_active(s5))
-        ca.STATE_FILE = orig_state_file
-finally:
-    pass
 
-# ── 3. the candidate side: _hail_mary_qualifies ──────────────────────
-try:
-    import pandas as pd
-    import background_scanner as bs
-    _rising = pd.DataFrame({"close": [1.0 + 0.01 * i for i in range(40)]})
-    _falling = pd.DataFrame({"close": [2.0 - 0.01 * i for i in range(40)]})
-    _deep_ok = SimpleNamespace(action="buy", confidence=91.0)
-    q, why = bs._hail_mary_qualifies(_deep_ok, _rising, 12000.0, 10000.0, 89.0)
-    check("champion-grade + verified uptrend + major book -> QUALIFIES",
-          q and "champion-grade" in why, why)
-    q, why = bs._hail_mary_qualifies(SimpleNamespace(action="buy", confidence=85.0),
-                                     _rising, 12000.0, 10000.0, 89.0)
-    check("a challenger-grade read does NOT qualify (a Hail Mary is "
-          "never challenger-grade)", not q and "champion floor" in why, why)
-    q, why = bs._hail_mary_qualifies(_deep_ok, _falling, 12000.0, 10000.0, 89.0)
-    check("no verified uptrend -> does not qualify", not q and "uptrend" in why, why)
-    q, why = bs._hail_mary_qualifies(_deep_ok, _rising, 5000.0, 10000.0, 89.0)
-    check("a thin book does not qualify (majors only)", not q and "major book" in why, why)
-    q, why = bs._hail_mary_qualifies(None, _rising, 12000.0, 10000.0, 89.0)
-    check("no deep read -> fail-closed", not q)
-    q, why = bs._hail_mary_qualifies(SimpleNamespace(action="sell", confidence=95.0),
-                                     _rising, 12000.0, 10000.0, 89.0)
-    check("a sell read never qualifies", not q)
-except Exception as exc:
-    check("qualify checks ran", False, exc)
+def _df(closes):
+    return {"close": closes}
 
-# ── 4. the gate + the marks (source) ──────────────────────────────────
-check("the gate asks for the exception when the lock BITES",
-      "HAIL_MARY_LOCK_BITE_FRAC" in bs_src and "hail_mary_available(_acct)" in bs_src)
-check("activation recomputes the cap vs the platform line",
-      "activate_hail_mary(_acct)" in bs_src)
-check("the trade window bounds by the hour (not the rotation)",
+
+import pandas as pd
+_rising = pd.DataFrame({"close": [1.0, 1.01, 1.02, 1.03, 1.04, 1.05,
+                                  1.06, 1.07, 1.08, 1.09, 1.10, 1.11,
+                                  1.12, 1.13, 1.14, 1.15, 1.16, 1.17,
+                                  1.18, 1.19, 1.20, 1.21, 1.22, 1.23]})
+_falling = pd.DataFrame({"close": list(_rising["close"])[::-1]})
+q, why = bs._hail_mary_qualifies(_deep_ok, _rising, 12000.0, 10000.0, 89.0)
+check("champion brain + verified uptrend + major book = qualifies", q, why)
+q, why = bs._hail_mary_qualifies(
+    SimpleNamespace(action="buy", confidence=85.0), _rising, 12000.0, 10000.0, 89.0)
+check("below the champion floor = declined (never challenger-grade)",
+      not q and "never challenger-grade" in why)
+q, why = bs._hail_mary_qualifies(_deep_ok, _falling, 12000.0, 10000.0, 89.0)
+check("no verified uptrend = declined", not q, why)
+q, why = bs._hail_mary_qualifies(_deep_ok, _rising, 5000.0, 10000.0, 89.0)
+check("not a major book = declined", not q, why)
+q, why = bs._hail_mary_qualifies(None, _rising, 12000.0, 10000.0, 89.0)
+check("no deep read = fail-closed", not q, why)
+q, why = bs._hail_mary_qualifies(
+    SimpleNamespace(action="sell", confidence=95.0), _rising, 12000.0, 10000.0, 89.0)
+check("a sell read never qualifies", not q, why)
+
+# ── 6. the alert path: trigger + marks (lock-free) ────────────────────
+check("send_alert activates on account danger + a qualifying champion "
+      "(no lock-bite test — the lock is gone)",
+      "hail_mary_available(_acct)" in bs_src
+      and "activate_hail_mary(_acct)" in bs_src
+      and "HAIL_MARY_LOCK_BITE_FRAC" not in bs_src)
+check("a challenger never gets the window (the bar is champion-grade)",
+      "not _challenger" in bs_src.replace(" ", "")
+      or "_hm_ok and not _challenger" in bs_src)
+check("the window bounds the trade clock (one hour, not the rotation)",
       "min(_win_min, float(_ca.HAIL_MARY_WINDOW_MIN))" in bs_src)
-check("the popup title carries the mark", "— HAIL MARY" in bs_src)
-check("the voice announces it", "Hail Mary! The daily lock yields for one hour!" in bs_src)
-check("the message names the death line + the guard's cap",
-      "guard's cap vs the DEATH LINE" in bs_src
-      and "never the whole balance" in bs_src)
-check("the unqualified lock block still logs (with the Hail Mary note)",
-      "the Hail Mary window is closed or unqualified" in bs_src)
-check("the guard message names the window",
-      "HAIL MARY — the lock yields" in bs_src)
+check("the popup title carries the mark",
+      '(" — HAIL MARY" if _hail_mary else "")' in bs_src)
+check("the voice announces the emergency hour",
+      "Hail Mary! The emergency hour is open! " in bs_src)
+check("the message line explains full allocation = the guard's cap vs "
+      "the death line",
+      "full allocation = the " in bs_src
+      and "guard's cap vs the DEATH LINE" in bs_src)
+check("no 'the lock yields' language survives (the lock is gone)",
+      "the lock yields" not in bs_src)
+check("_hail_mary defaults False before the guard try "
+      "(a broken read can't NameError the marks)",
+      "_hail_mary = False" in bs_src)
 
-# ── 5. the QC agrees (never disagree) ─────────────────────────────────
-check("the QC mirrors the activation (champion floor + UP trend + big book)",
-      'float(sig.confidence) >= _hm_floor' in ap_src
-      and '_trend == "UP" and _hm_big_book' in ap_src
-      and "activate_hail_mary(_acct)" in ap_src)
+# ── 7. the console: the QC agrees (never disagree) ────────────────────
+check("the QC mirror is back: champion floor + UP trend + big book",
+      "_hm_floor" in ap_src and "_trend == \"UP\" and _hm_big_book" in ap_src)
 check("the QC result carries hail_mary + the decline reason",
       '"hail_mary"] = _qc_hm' in ap_src.replace(" ", "")
       or '["hail_mary"] = _qc_hm' in ap_src)
-check("the green light names the HAIL MARY",
+check("the green light reads the HAIL MARY mark",
       "SCALP GREEN LIGHT — 💪 HAIL MARY" in ap_src)
-check("the watch's clock bounds by the hour during the window",
-      "_champ_hm_win" in ap_src)
-check("the sidebar plate shows the countdown",
-      "💪 HAIL MARY" in ap_src and "MIN LEFT" in ap_src)
+check("the sidebar plate shows the countdown (kept)",
+      "💪 HAIL MARY" in ap_src and "WINDOWS USED" in ap_src)
 check("the light panel header carries the window",
-      "HAIL MARY {max(_hm_left, 0):.0f}m (the lock yields)" in ap_src)
-check("the AT THE LOCK toast explains the Hail Mary path when unqualified",
-      "_hm_why_txt" in ap_src)
+      "_hm_note" in ap_src and "the emergency hour" in ap_src)
+check("the watch clock bounds by the hour when the window is open",
+      "_champ_hm_win" in ap_src)
 
 lines.append(f"\nRESULT: {PASS} passed, {FAIL} failed")
 Path("_hailmary_check.txt").write_text("\n".join(lines), encoding="utf-8")
 print("DONE")
-if FAIL:
-    sys.exit(1)

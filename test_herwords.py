@@ -40,8 +40,10 @@ lines_read = open(bs.VOICE_LOG_FILE, encoding="utf-8").read().splitlines()
 last = json.loads(lines_read[-1])
 check("mic-check prefix stripped", last["text"] == "Buy PUMP!", last["text"])
 
-# 3. cap works (only last N kept)
-for i in range(200):
+# 3. cap works (only last N kept) — write PAST the cap so the trim must
+#    fire regardless of the constant's value (the Sep 4 cap raise 150→400
+#    left this writing only 202 lines: below the cap, nothing to trim)
+for i in range(bs.VOICE_LOG_MAX + 50):
     bs._log_her_line(f"filler {i}")
 lines_read = [l for l in open(bs.VOICE_LOG_FILE, encoding="utf-8").read().splitlines() if l.strip()]
 check("log capped at VOICE_LOG_MAX", len(lines_read) == bs.VOICE_LOG_MAX, f"{len(lines_read)}")

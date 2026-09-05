@@ -121,7 +121,9 @@ check("the $20 pace resolve gate is retired on the popup path",
 # ── 4. the QC + stage-1 stack still intact ────────────────────────────
 ap = open("app.py", encoding="utf-8").read()
 check("the 3% guard still caps the QC", "_spend_usd = min(_spend_usd, _risk_cap)" in ap)
-check("the thin-book brain rule still stands", "THIN BOOK, BRAIN NOT EXCEPTIONAL" in ap)
+check("the thin-book brain rule RETIRED (user rule, Sep 5 — thin books "
+      "green at the standard floor; the toast is gone)",
+      "THIN BOOK, BRAIN NOT EXCEPTIONAL" not in ap)
 
 # ── 5. THE WORTH FLOOR (user rule, Sep 2 — "big coins only... less
 #      entries but more money"; the JUP 14:52 case: a guard-capped $233

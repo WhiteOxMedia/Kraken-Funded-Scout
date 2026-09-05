@@ -120,12 +120,11 @@ check("console: the death line is always visible (header LED + account plate)",
       "☠ LINE ${_line:,.0f}" in ap and "☠ CONTEST ACCOUNT" in ap)
 check("QC: the 3% guard caps _spend_usd",
       "_spend_usd = min(_spend_usd, _risk_cap)" in ap)
-check("QC: at-the-line rejection (either binding floor = no new risk)",
+check("QC: at-the-line rejection (the platform death line = no new risk)",
       "AT THE DEATH LINE" in ap and "No! At the death line!" in ap
-      and "AT THE DAILY LOCK" in ap)
-check("QC: NO GREEN line names the binding floor (death line or daily lock)",
-      "{str(result.get('binding_floor') or 'PLATFORM').upper()}" in ap
-      and "NO GREEN — AT THE" in ap)
+      and "AT THE DAILY LOCK" not in ap)
+check("QC: NO GREEN line names the death line (the only floor, Sep 5)",
+      "NO GREEN — AT THE DEATH LINE" in ap)
 check("popup: the guard caps the alert's spend and can suppress",
       "_spend = _risk_cap" in sc and "no buy popup" in sc)
 check("popup: the sizing base is the LIVE contest account",
