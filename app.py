@@ -2441,8 +2441,23 @@ def render_quick_check(cfg: TradingConfig, kraken):
                             _hm_ok, _hm_why = _ca.hail_mary_available(_acct)
                             _hm_big_book = (_carry is not None
                                             and float(_carry) >= float(cfg.challenge_balance))
+                            # the champion floor — computed HERE, self-sufficient
+                            # (the shared _champ_floor block runs later in this
+                            # handler; referencing it would NameError and the
+                            # except would silently fail-open the whole guard —
+                            # caught in review, Sep 5)
+                            try:
+                                import background_scanner as _bs_hm
+                                if not hasattr(_bs_hm, "popup_floor"):
+                                    import importlib
+                                    _bs_hm = importlib.reload(_bs_hm)
+                                _hm_tpct, _hm_tstate = _bs_hm._fleet_tide()
+                                _hm_lw_pts, _hm_lw_note = _bs_hm.lone_wolf_discount(kraken, pair)
+                                _hm_floor = float(_bs_hm.popup_floor(_hm_tstate, _hm_lw_pts))
+                            except Exception:
+                                _hm_floor = 89.0
                             if (_hm_ok and sig.action == "buy"
-                                    and float(sig.confidence) >= _champ_floor
+                                    and float(sig.confidence) >= _hm_floor
                                     and _trend == "UP" and _hm_big_book):
                                 _acct = _ca.activate_hail_mary(_acct)
                                 _qc_hm = True
@@ -2452,7 +2467,7 @@ def render_quick_check(cfg: TradingConfig, kraken):
                             elif _hm_ok:
                                 _hm_why = ("Hail Mary available but this read doesn't qualify — "
                                            "it needs a champion-grade brain read "
-                                           f"(≥{_champ_floor:.0f}%) in a VERIFIED uptrend on a "
+                                           f"(≥{_hm_floor:.0f}%) in a VERIFIED uptrend on a "
                                            "book that carries the full balance")
                                 st.session_state["qc_result"]["hail_mary_why"] = _hm_why
                     st.session_state["qc_result"]["hail_mary"] = _qc_hm
@@ -2566,22 +2581,28 @@ def render_quick_check(cfg: TradingConfig, kraken):
                     _champ_floor = (_trdf if _tide_state == "RISING" else 89.0)
                     if _lw_pts:
                         _champ_floor = max(_lwdf, _champ_floor - _lw_pts)
-                _qc_near_pts = float(getattr(_bs5, "POPUP_NEAR_MISS_PTS", 5.0))
-                _champ_challenge_min = _champ_floor - _qc_near_pts
+                # THE THIN-BOOK BRAIN RULE RETIRED (user rule, Sep 5:
+                # "remember I said yesterday, 'Big book only'? (It stops me
+                # from deep scanning Thin book entries.) I don't like it"):
+                # a thin book no longer needs a champion-grade brain read —
+                # the standard gates apply (the 60 floor, trend, tide,
+                # rotation, goal, guard). What STAYS: the carry sizing
+                # (the spend sized to the biggest chunk the book carries)
+                # and the TOO THIN block (a book that can't fit even 25%
+                # can't be traded — the contest app only takes those
+                # chunks). The champ_floor is still computed — it's the
+                # ALERT's floor, shown for context (alerts need more than
+                # the QC; the QC is your manual check).
+                _champ_floor = _champ_floor  # computed above (kept for context)
                 _thin_book = (0 < _spend_usd < float(cfg.challenge_balance))
-                _champ_challenge = bool(_thin_book
-                                        and _champ_challenge_min <= sig.confidence < _champ_floor)
                 # THE HAIL MARY WINDOW bounds the watch's clock (one hour,
                 # not the rotation) — the QC agrees with the alert path
                 _champ_hm_win = bool(st.session_state.get("qc_result", {}).get("hail_mary"))
                 st.session_state["qc_result"]["thin_book"] = _thin_book
                 st.session_state["qc_result"]["champ_floor"] = _champ_floor
-                st.session_state["qc_result"]["champ_challenge"] = _champ_challenge
-                st.session_state["qc_result"]["champ_challenge_min"] = _champ_challenge_min
                 # HARD GATES: setup + the goal gate + cooldown + no downward
                 # trend + the book carries your money + the tide isn't OUT +
-                # rotation isn't locked + this hour didn't blow off yesterday
-                # (+ the thin book needs an exceptional brain read).
+                # rotation isn't locked + this hour didn't blow off yesterday.
                 if (sig.action == "buy" and not no_buy
                         and sig.confidence >= QC_SCALP_FLOOR
                         and _trend != "FALLING"
@@ -2589,9 +2610,7 @@ def render_quick_check(cfg: TradingConfig, kraken):
                         and _spend_usd > 0
                         and _rot_ok
                         and not (_yctx and _yctx.get("shape") == "blowoff")
-                        and not (_raw_move is not None and float(_raw_move) < 1.0)
-                        and (not _thin_book
-                             or sig.confidence >= _champ_challenge_min)):
+                        and not (_raw_move is not None and float(_raw_move) < 1.0)):
                     # AUTO-WATCH on green light: the deep scan IS the entry.
                     # The user's system: green → all in, scalp to +$20, out,
                     # re-enter small, green again → buy more. The BOOK CARRY
@@ -2635,7 +2654,7 @@ def render_quick_check(cfg: TradingConfig, kraken):
                                        # exit check treats a near-miss thesis
                                        # with a tighter hand than a champion.
                                        "why": [f"{sig.action.upper()} {sig.confidence:.0f}% "
-                                               f"(green light{', challenger' if _champ_challenge else ''})",
+                                               f"(green light)",
                                                *sig.reasons[:4]],
                                        "source": "green_light"}
                             _save_watch(w)
@@ -2668,16 +2687,15 @@ def render_quick_check(cfg: TradingConfig, kraken):
                             _confirm_txt = ""
                             if str(_rot_reason or "").startswith("confirmation window"):
                                 _confirm_txt = f"🔁 {_rot_reason}. "
-                            # CHALLENGER (Sep 4): this GO rode the 5-point
-                            # challenger window — name it so a near-miss is
-                            # never mistaken for a champion green
-                            _challenge_txt = (f"⚔ CHALLENGER — brain {sig.confidence:.0f}% vs the "
-                                              f"{_champ_floor:.0f}% floor (within {_qc_near_pts:.0f}). "
-                                              if _champ_challenge else "")
-                            _challenge_say = ("A challenger — just under the floor! "
-                                              if _champ_challenge else "")
+                            # CHALLENGER (Sep 4; retired with the thin-book
+                            # rule, Sep 5): the mark made sense when thin
+                            # books needed the champion floor — with the
+                            # standard floor a green is a green. The toast
+                            # and the voice stay clean.
+                            _challenge_txt = ""
+                            _challenge_say = ""
                             try:
-                                st.toast(f"✅ GO — {asset}: {_confirm_txt}{_reentry_txt}{_challenge_txt}{_chunk_txt}I count the $20s.{_warn_txt}",
+                                st.toast(f"✅ GO — {asset}: {_confirm_txt}{_reentry_txt}{_chunk_txt}I count the $20s.{_warn_txt}",
                                          icon="✅", duration=20)
                                 _play_sound("ding")
                                 _sized_down = _spend_usd < float(cfg.challenge_balance)
@@ -2688,13 +2706,9 @@ def render_quick_check(cfg: TradingConfig, kraken):
                                     _speak(f"Go! {asset}! Buy {_pct_txt}! {_fine_say}But heads up: "
                                            + " and ".join(_warns) + "!", rate=1)
                                 elif _sized_down:
-                                    # THIN-BOOK BRAIN RULE: this GO only fired
-                                    # because the brain cleared the champion
-                                    # floor — say the number so the sizing
-                                    # decision is informed
+                                    # the book sized the spend down — say the
+                                    # sizing so the entry is informed
                                     _speak(f"Go! {asset}! Buy {_pct_txt} — the book is thin! "
-                                           f"{_challenge_say}"
-                                           f"The brain says {sig.confidence:.0f} percent! "
                                            f"{_fine_say}Aim for plus {_goal_pct:.0f} percent!", rate=1)
                                 else:
                                     _speak(f"Go! {asset}! Buy 100 percent! "
@@ -2816,29 +2830,6 @@ def render_quick_check(cfg: TradingConfig, kraken):
                             pass
                     elif (sig.action == "buy" and not no_buy
                             and sig.confidence >= QC_SCALP_FLOOR
-                            and _thin_book
-                            and sig.confidence < _champ_challenge_min):
-                        # THIN-BOOK BRAIN RULE (user rule, Aug 31): the book
-                        # can't carry full size AND the brain doesn't call it
-                        # exceptional — skip. Less entries, bigger margins.
-                        # (Sep 4: the bar is the challenger window — within 5
-                        # below the floor the QC must agree with the alert's
-                        # challenger popup, not veto it.)
-                        try:
-                            st.toast(f"⛔ THIN BOOK, BRAIN NOT EXCEPTIONAL — {asset}: the book "
-                                     f"carries ${_spend_usd:,.0f}, not your full "
-                                     f"${cfg.challenge_balance:,.0f}, and the brain reads "
-                                     f"{sig.confidence:.0f}% (needs {_champ_floor:.0f}% for a "
-                                     f"thin book — {_champ_challenge_min:.0f}%+ to challenge). "
-                                     f"Skip it — wait for the big-coin calls.",
-                                     icon="⛔", duration=20)
-                            _play_sound("alarm")
-                            _speak(f"Skip {asset}! Thin book — the brain says "
-                                   f"{sig.confidence:.0f} percent, not exceptional!", rate=1)
-                        except Exception:
-                            pass
-                    elif (sig.action == "buy" and not no_buy
-                            and sig.confidence >= QC_SCALP_FLOOR
                             and _raw_move is not None and float(_raw_move) < 1.0):
                         # THE GOAL GATE (Sep 1): the engine's raw expected
                         # move can't reach the 1% goal floor — this coin
@@ -2943,13 +2934,10 @@ def render_quick_check(cfg: TradingConfig, kraken):
     lw_note = result.get("lone_wolf_note", "") or ""
     yshape = yesterday.get("shape")
     thin_book = bool(result.get("thin_book"))
+    # the ALERT's floor — context only (Sep 5: the thin-book challenger
+    # window retired with the brain rule; alerts still need this much,
+    # the QC is your manual check at the standard floor)
     champ_floor = float(result.get("champ_floor", 89.0) or 89.0)
-    # CHALLENGER (Sep 4): the thin-book bar is the challenger window —
-    # within POPUP_NEAR_MISS_PTS below the floor passes as a CHALLENGER
-    # green, matching the alert path (the PUMP lesson: never disagree).
-    champ_challenge = bool(result.get("champ_challenge"))
-    champ_min = float(result.get("champ_challenge_min", champ_floor - 5.0)
-                      or (champ_floor - 5.0))
     passes = (sig.action == "buy" and not no_buy
               and sig.confidence >= QC_SCALP_FLOOR and goal_ok
               and trend != "FALLING"
@@ -2961,8 +2949,10 @@ def render_quick_check(cfg: TradingConfig, kraken):
               and (tide_state != "OUT" or lw_pts > 0)
               and (result.get("spend_usd", 1) or 0) > 0
               and rot_ok
-              and yshape != "blowoff"
-              and (not thin_book or sig.confidence >= champ_min))
+              and yshape != "blowoff")
+              # (Sep 5: the thin-book brain gate RETIRED — the user's call;
+              # thin books green at the standard floor, the carry sizing
+              # and the TOO THIN block stand)
     momentum_capped = any("momentum ceiling" in r.lower() for r in sig.reasons)
 
     k = (
@@ -2978,14 +2968,13 @@ def render_quick_check(cfg: TradingConfig, kraken):
                  else f"GOAL +{goal_pct:.1f}% · WINDOW ~{goal_pct:.0f}H")
     def _qc_green_text() -> str:
         """The QC's verdict line — flat, in the rejection order (ALREADY
-        RAN → DUMPED YESTERDAY → TIDE OUT → DOWNWARD TREND → TOO THIN →
-        AT THE FLOOR → THIN BOOK BRAIN → TOO SLOW → COOLDOWN → weak)."""
+        RAN → DUMPED YESTERDAY → TIDE OUT → TOO THIN → AT THE FLOOR →
+        DOWNWARD TREND → TOO SLOW → COOLDOWN → weak). (Sep 5: the
+        THIN-BOOK BRAIN branch retired — thin books green at the standard
+        floor like everything else; the user's call.)"""
         if passes and result.get("hail_mary"):
             return ("SCALP GREEN LIGHT — 💪 HAIL MARY (the daily lock yields for one "
                     "hour; the death line stands; full allocation = the guard's cap)")
-        if passes and champ_challenge:
-            return (f"SCALP GREEN LIGHT — CHALLENGER (thin-book near-miss: "
-                    f"{sig.confidence:.0f}% vs the {champ_floor:.0f}% floor)")
         if passes:
             return "SCALP GREEN LIGHT"
         if no_buy:
@@ -3002,10 +2991,6 @@ def render_quick_check(cfg: TradingConfig, kraken):
             return (f"NO GREEN — AT THE "
                     f"{str(result.get('binding_floor') or 'PLATFORM').upper()} "
                     f"(a binding floor is gone — no new risk)")
-        if thin_book and sig.confidence < champ_min:
-            return (f"NO GREEN — THIN BOOK, BRAIN NOT EXCEPTIONAL ({sig.confidence:.0f}% "
-                    f"vs the {champ_floor:.0f}% thin-book floor, {champ_min:.0f}%+ to "
-                    f"challenge) — wait for the big-coin calls")
         if trend == "FALLING":
             return "NO GREEN — DOWNWARD TREND"
         if not goal_ok:
@@ -3020,9 +3005,11 @@ def render_quick_check(cfg: TradingConfig, kraken):
         if spend_usd >= float(cfg.challenge_balance):
             _carry_txt, _carry_col = "BOOK CARRIES ALL-IN", "g"
         elif spend_usd > 0:
+            # (Sep 5: the brain-floor wording retired with the rule — the
+            # LED now just states the sizing fact)
             _carry_txt, _carry_col = (f"⚠ THIN BOOK — SPEND ${spend_usd:,.0f} MAX "
-                                      f"(the brain needs ≥{champ_floor:.0f}% here; "
-                                      f"{champ_min:.0f}%+ challenges)", "a")
+                                      f"(the book carries this, not the full "
+                                      f"${cfg.challenge_balance:,.0f})", "a")
         else:
             _carry_txt, _carry_col = "TOO THIN — YOUR MONEY IS THE MARKET", "r"
     else:

@@ -186,7 +186,7 @@ check("the guard message names the window",
 
 # ── 5. the QC agrees (never disagree) ─────────────────────────────────
 check("the QC mirrors the activation (champion floor + UP trend + big book)",
-      'float(sig.confidence) >= _champ_floor' in ap_src
+      'float(sig.confidence) >= _hm_floor' in ap_src
       and '_trend == "UP" and _hm_big_book' in ap_src
       and "activate_hail_mary(_acct)" in ap_src)
 check("the QC result carries hail_mary + the decline reason",

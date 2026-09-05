@@ -1,25 +1,23 @@
-PASS  FLAT tide -> 89 (the strict floor)  
-PASS  RISING tide -> 78  
-PASS  FLAT + lone wolf 35 -> 55 (ARB's lane)  
-PASS  RISING keeps 78 (lone-wolf pts are FLAT-gated upstream — no stack)  
-PASS  POPCAT shape: 74% on a thin book, FLAT (floor 89) -> SKIP  
-PASS  exceptional thin book: 91% on a thin book, FLAT -> GO  
-PASS  ARB shape: 84% lone wolf (floor 55) on a FULL book -> GO (book rules)  
-PASS  a full-carry book never needs the champion floor (60 QC floor rules)  
-PASS  thin book + rising tide floor 78: 80% -> GO  
-PASS  champ floor computed from the scanner's constants (one source of truth)  
+PASS  no thin-book brain gate in the render's passes  
+PASS  no thin-book brain gate in the handler's hard gates  
+PASS  the skip toast is gone (THIN BOOK, BRAIN NOT EXCEPTIONAL)  
+PASS  the challenger window is retired with it (no gate, no mark)  
+PASS  the GO toast/voice are clean (no ⚔ CHALLENGER)  
 PASS  thin_book flag = sized down but not zero  
-PASS  green-light condition includes the thin-book brain test (Sep 4: with the challenger window — the QC agrees with the alert)  
-PASS  render's passes mirrors the same test (champ_min, not the bare floor)  
-PASS  skip toast + voice for the non-exceptional thin book  
-PASS  GO voice speaks the brain's number when sized down  
-PASS  NO GREEN line names the thin-book floor  
-PASS  carry LED states the brain requirement on thin books  
-PASS  result stores thin_book + champ_floor for the render  
+PASS  the carry sizing still sizes the spend to the book  
+PASS  TOO THIN still blocks (can't fit even 25%)  
+PASS  the spend > 0 gate stands (a too-thin book can't green)  
+PASS  the carry LED states the sizing fact (no brain-floor wording)  
+PASS  the POPCAT shape now greens: 74% on a thin book -> GO (sized to the carry; the Aug 31 SKIP is retired)  
+PASS  a weak read still doesn't green: 55% on a thin book -> NO  
+PASS  a big book reads the same: 65% -> GO  
+PASS  a thin book that can't fit 25% still can't green (TOO THIN — the platform's chunks)  
+PASS  champ_floor is still computed (the alert's floor, context only)  
+PASS  the alert path's popup floor is untouched (champion-grade for all)  
 PASS  CARD_PICK_VOICE_ENABLED flag exists and is OFF  
 PASS  the card's voice is gated (shows, doesn't speak)  
 PASS  the card still SHOWS the pick (plate + CHECK intact)  
-PASS  the champion alert voice is untouched (the ONE buy voice; Sep 4: a challenger popup appends the mark, the base line stands)  
+PASS  the champion alert voice is untouched (the ONE buy voice)  
 PASS  the card's voice code is kept (reversible — don't delete anything)  
 
-RESULT: 23 passed, 0 failed
+RESULT: 21 passed, 0 failed

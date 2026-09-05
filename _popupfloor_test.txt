@@ -35,13 +35,12 @@ PASS  fail-closed survives (no brain read = no popup)
 PASS  the deep-read >=60 pre-check still gates every alert  
 PASS  the floor log names the rotation  
 PASS  QC champ_floor reads the shared popup_floor() helper  
-PASS  QC stores the challenger flag + window in the result  
-PASS  QC green gate uses the challenger window, not the bare floor  
-PASS  QC render passes on champ_min (not champ_floor)  
-PASS  QC render names a CHALLENGER green  
-PASS  QC thin-book skip names the challenge window  
-PASS  QC GO toast names the challenger  
-PASS  the auto-watch why carries the challenger mark  
+PASS  QC stores the champ_floor for the render/Hail Mary context  
+PASS  the thin-book challenger window is retired (no gate, no mark)  
+PASS  the thin-book brain gate is gone from the render's passes  
+PASS  the thin-book skip toast is gone  
+PASS  the QC GO toast is clean (no challenger mark)  
+PASS  the auto-watch why is clean (no challenger mark)  
 PASS  QC dup-safe reload for popup_floor  
 PASS  agreement: alert CHALLENGER at 86 vs 89 -> QC also green  
 PASS  agreement: alert suppressed at 83 vs 89 -> QC skips too  
@@ -50,4 +49,4 @@ PASS  agreement: 87 vs the 93 US-Late rail -> both say no
 PASS  diag_popupfloor.py exists  
 PASS  _popupfloor_check.txt exists (calibration evidence)  
 
-51 passed, 0 failed
+50 passed, 0 failed

@@ -115,23 +115,26 @@ check("the deep-read >=60 pre-check still gates every alert",
 check("the floor log names the rotation",
       "POPUP FLOOR: rotation %s" in bs_src)
 
-# ── 5. the QC agrees (the PUMP lesson) ────────────────────────────────
+# ── 5. the QC agrees (the PUMP lesson; Sep 5: the thin-book challenger
+#     window RETIRED with the thin-book brain rule — the user's call. The
+#     QC now greens thin books at the standard floor, so it is strictly
+#     MORE permissive than the alert: a challenger popup the QC vetoes can
+#     no longer happen. The champ_floor is still computed — the Hail Mary's
+#     champion-grade check + context.) ─────────────────────────────────
 check("QC champ_floor reads the shared popup_floor() helper",
       "_bs5.popup_floor(_tide_state, _lw_pts)" in ap_src)
-check("QC stores the challenger flag + window in the result",
-      '"champ_challenge"' in ap_src and '"champ_challenge_min"' in ap_src)
-check("QC green gate uses the challenger window, not the bare floor",
-      "sig.confidence >= _champ_challenge_min" in ap_src)
-check("QC render passes on champ_min (not champ_floor)",
-      "not thin_book or sig.confidence >= champ_min" in ap_src)
-check("QC render names a CHALLENGER green",
-      "SCALP GREEN LIGHT — CHALLENGER" in ap_src)
-check("QC thin-book skip names the challenge window",
-      "%+ to challenge" in ap_src)
-check("QC GO toast names the challenger",
-      "⚔ CHALLENGER — brain" in ap_src)
-check("the auto-watch why carries the challenger mark",
-      "', challenger' if _champ_challenge else ''" in ap_src)
+check("QC stores the champ_floor for the render/Hail Mary context",
+      '"champ_floor"' in ap_src)
+check("the thin-book challenger window is retired (no gate, no mark)",
+      "champ_challenge" not in ap_src and "_champ_challenge" not in ap_src)
+check("the thin-book brain gate is gone from the render's passes",
+      "not thin_book or sig.confidence >=" not in ap_src)
+check("the thin-book skip toast is gone",
+      "THIN BOOK, BRAIN NOT EXCEPTIONAL" not in ap_src)
+check("the QC GO toast is clean (no challenger mark)",
+      "⚔ CHALLENGER — brain" not in ap_src)
+check("the auto-watch why is clean (no challenger mark)",
+      "', challenger'" not in ap_src)
 check("QC dup-safe reload for popup_floor",
       'hasattr(_bs5, "popup_floor")' in ap_src)
 

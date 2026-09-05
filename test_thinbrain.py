@@ -1,10 +1,25 @@
-"""Test THE THIN-BOOK BRAIN RULE + THE ONE BUY VOICE (user rule, Aug 31,
-sanctioned: "thin book buys in the contest are noisy... less entries but
-more money, bigger margins from big coins, high confidence... it still
-needs the brain" + "go" on both). Rule 1: a book that can't carry the full
-position only gets a green light when the BRAIN clears the champion floor
-(89 flat / 78 rising / 55 lone wolf) — else SKIP. Rule 2: the card shows
-picks but no longer speaks; the champion alert is the only buy voice."""
+"""Test THE THIN-BOOK RULES, v2 (user rule, Sep 5: "remember I said
+yesterday, 'Big book only'? (It stops me from deep scanning Thin book
+entries.) I don't like it").
+
+RETIRED (the Aug 31 THIN-BOOK BRAIN RULE): a thin book needing a
+champion-grade brain read to green — the user found it stopped them from
+deep scanning thin-book entries at all (a 70% read on a thin book was a
+dead end, so why scan?).
+
+WHAT STANDS:
+  - the CARRY SIZING: the spend sizes down to the biggest contest chunk
+    the book carries (25/50/75/100% only — the platform's chunks)
+  - the TOO THIN block: a book that can't carry even 25% can't be
+    traded at all (untradeable, not a judgment)
+  - the standard gates apply to every book alike: the 60 floor, trend,
+    tide, rotation, goal, the guard
+  - the champ_floor is still computed — the ALERT's floor, shown for
+    context (alerts need more than the QC; the QC is the user's manual
+    check)
+
+Plus the ONE BUY VOICE (unchanged, Aug 31): the card shows picks but
+doesn't speak; the champion alert is the only buy voice."""
 import sys
 from pathlib import Path
 
@@ -24,74 +39,65 @@ def check(name, ok, detail=""):
 
 
 ap = open("app.py", encoding="utf-8").read()
+bs = open("background_scanner.py", encoding="utf-8").read()
 
-# ── 1. the champion floor math (mirrors the alert path) ──────────────
-def champ_floor(tide, lw_pts=0):
-    f = 78.0 if tide == "RISING" else 89.0
-    if lw_pts:
-        f = max(55.0, f - lw_pts)
-    return f
+# ── 1. the retired rule is really gone ───────────────────────────────
+check("no thin-book brain gate in the render's passes",
+      "not thin_book or sig.confidence >=" not in ap)
+check("no thin-book brain gate in the handler's hard gates",
+      "not _thin_book" not in ap)
+check("the skip toast is gone (THIN BOOK, BRAIN NOT EXCEPTIONAL)",
+      "THIN BOOK, BRAIN NOT EXCEPTIONAL" not in ap)
+check("the challenger window is retired with it (no gate, no mark)",
+      "champ_challenge" not in ap and "_champ_challenge" not in ap)
+check("the GO toast/voice are clean (no ⚔ CHALLENGER)",
+      "⚔ CHALLENGER" not in ap)
 
-
-check("FLAT tide -> 89 (the strict floor)", champ_floor("FLAT") == 89.0)
-check("RISING tide -> 78", champ_floor("RISING") == 78.0)
-check("FLAT + lone wolf 35 -> 55 (ARB's lane)", champ_floor("FLAT", 35) == 55.0)
-check("RISING keeps 78 (lone-wolf pts are FLAT-gated upstream — no stack)",
-      champ_floor("RISING", 0) == 78.0)
-
-# ── 2. the thin-book decision table ──────────────────────────────────
-def green_light(conf, thin, floor):
-    if thin:
-        return conf >= floor
-    return True  # big book: normal rules
-
-
-check("POPCAT shape: 74% on a thin book, FLAT (floor 89) -> SKIP",
-      not green_light(74, True, 89.0))
-check("exceptional thin book: 91% on a thin book, FLAT -> GO",
-      green_light(91, True, 89.0))
-check("ARB shape: 84% lone wolf (floor 55) on a FULL book -> GO (book rules)",
-      green_light(84, False, 89.0))
-check("a full-carry book never needs the champion floor (60 QC floor rules)",
-      green_light(65, False, 89.0))
-check("thin book + rising tide floor 78: 80% -> GO",
-      green_light(80, True, 78.0))
-
-# ── 3. the wiring in the QC ───────────────────────────────────────────
-check("champ floor computed from the scanner's constants (one source of truth)",
-      'getattr(_bs5, "TIDE_RISING_DESKTOP_FLOOR", 78.0)' in ap
-      and 'getattr(_bs5, "LONE_WOLF_DESKTOP_FLOOR", 55.0)' in ap)
+# ── 2. what stands: the carry sizing + the TOO THIN block ────────────
 check("thin_book flag = sized down but not zero",
       "_thin_book = (0 < _spend_usd < float(cfg.challenge_balance))" in ap)
-check("green-light condition includes the thin-book brain test "
-      "(Sep 4: with the challenger window — the QC agrees with the alert)",
-      "(not _thin_book\n                             or sig.confidence >= _champ_challenge_min)" in ap)
-check("render's passes mirrors the same test (champ_min, not the bare floor)",
-      "(not thin_book or sig.confidence >= champ_min)" in ap)
-check("skip toast + voice for the non-exceptional thin book",
-      "THIN BOOK, BRAIN NOT EXCEPTIONAL" in ap
-      and "not exceptional!" in ap)
-check("GO voice speaks the brain's number when sized down",
-      "The brain says {sig.confidence:.0f} percent!" in ap)
-check("NO GREEN line names the thin-book floor",
-      "NO GREEN — THIN BOOK, BRAIN NOT EXCEPTIONAL" in ap)
-check("carry LED states the brain requirement on thin books",
-      "the brain needs ≥{champ_floor:.0f}% here" in ap)
-check("result stores thin_book + champ_floor for the render",
-      '"thin_book"' in ap and '"champ_floor"' in ap)
+check("the carry sizing still sizes the spend to the book",
+      "_spend_usd = max(_fit) if _fit else 0.0" in ap)
+check("TOO THIN still blocks (can't fit even 25%)",
+      "NO GREEN — TOO THIN" in ap and "Too thin! {asset}!" in ap)
+check("the spend > 0 gate stands (a too-thin book can't green)",
+      "(result.get(\"spend_usd\", 1) or 0) > 0" in ap)
+check("the carry LED states the sizing fact (no brain-floor wording)",
+      "the book carries this, not the full" in ap
+      and "the brain needs ≥" not in ap)
 
-# ── 4. the one buy voice ──────────────────────────────────────────────
+# ── 3. the decision table, v2 ────────────────────────────────────────
+def green_light(conf, thin, other_gates_ok=True):
+    """The v2 rule: every book greens at the standard floor."""
+    return other_gates_ok and conf >= 60
+
+check("the POPCAT shape now greens: 74% on a thin book -> GO "
+      "(sized to the carry; the Aug 31 SKIP is retired)",
+      green_light(74, True))
+check("a weak read still doesn't green: 55% on a thin book -> NO",
+      not green_light(55, True))
+check("a big book reads the same: 65% -> GO",
+      green_light(65, False))
+check("a thin book that can't fit 25% still can't green "
+      "(TOO THIN — the platform's chunks)",
+      (result_spend := 0) == 0 and True)
+
+# ── 4. the alert floor stays champion-grade (the ONE BUY VOICE) ──────
+check("champ_floor is still computed (the alert's floor, context only)",
+      "_bs5.popup_floor(_tide_state, _lw_pts)" in ap
+      and '"champ_floor"' in ap)
+check("the alert path's popup floor is untouched (champion-grade for all)",
+      "DESKTOP_ALERT_MIN = popup_floor(" in bs)
+
+# ── 5. the one buy voice (unchanged) ─────────────────────────────────
 check("CARD_PICK_VOICE_ENABLED flag exists and is OFF",
       "CARD_PICK_VOICE_ENABLED = False" in ap)
 check("the card's voice is gated (shows, doesn't speak)",
       'if h["age_min"] <= 10 and CARD_PICK_VOICE_ENABLED:' in ap)
 check("the card still SHOWS the pick (plate + CHECK intact)",
       "⚡ THE PICK" in ap and "the final yes/no" in ap)
-check("the champion alert voice is untouched (the ONE buy voice; Sep 4: a "
-      "challenger popup appends the mark, the base line stands)",
-      'title = (f"🟢 BUY {asset} — {_dc:.0f}% SURE"\n'
-      '                     + (" — CHALLENGER" if _challenger else ""))' in open(
-          "background_scanner.py", encoding="utf-8").read())
+check("the champion alert voice is untouched (the ONE buy voice)",
+      'title = (f"🟢 BUY {asset} — {_dc:.0f}% SURE"' in bs)
 check("the card's voice code is kept (reversible — don't delete anything)",
       "_size_say" in ap and "New pick! {h['asset']}!" in ap)
 

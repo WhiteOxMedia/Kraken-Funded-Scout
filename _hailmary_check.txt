@@ -9,7 +9,7 @@ PASS  over break-even -> NOT available (real profit is protected)  over break-ev
 PASS  at the death line -> NOT available (the line never yields)  at the death line — nothing yields, ever
 PASS  platform binding (no lock) -> NOT available  the daily lock isn't the binding floor
 PASS  activation opens the window  
-PASS  minutes left ~ 60  59.99994756666667
+PASS  minutes left ~ 60  59.99994506666667
 PASS  during the window: effective_buffer = the PLATFORM buffer  290.0
 PASS  during the window: the guard cap = the platform-only cap  (3286.666666666667, 3286.666666666667)
 PASS  the cap is the GUARD's (0.34/dd), never the whole balance  3286.666666666667
