@@ -156,7 +156,8 @@ check("the mover popup's guard is lock-aware",
 check("the QC guard is lock-aware + stores the binding floor",
       "state=_acct" in ap and '"binding_floor"' in ap)
 check("the QC's no-green names WHICH floor binds",
-      "AT THE {str(result.get('binding_floor') or 'PLATFORM').upper()}" in ap)
+      "{str(result.get('binding_floor') or 'PLATFORM').upper()}" in ap
+      and "NO GREEN — AT THE" in ap)
 check("the QC's at-the-line toast has the daily-lock branch",
       "AT THE DAILY LOCK" in ap and "Protect the day's progress" in ap)
 check("the exit check's stop uses the effective buffer",

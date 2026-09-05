@@ -178,9 +178,26 @@ try:
         res = dc.evaluate_rotation(FakeEx(), "08-12",
                                    when=start + timedelta(hours=4), speak=False)
         usd = res.get("usd_left", {})
+        # LIVE-DATA LESSON (Sep 4): the engine recalibrates rotation_thresholds.json
+        # periodically — the goal cells DRIFTED between two runs tonight (ZEC
+        # 3.0 -> 1.5, POPCAT 2.28 -> 1.14) and a hardcoded $200 assertion went
+        # stale. Compute the expectations from the SAME live cells the
+        # evaluation read, with a 5% tolerance for mid-test cell flips.
+        goal_zec = dc._rotation_goal_pct("ZEC/USD", "08-12", "weekday")
+        goal_pop = dc._rotation_goal_pct("POPCAT/USD", "08-12", "weekday")
+        try:
+            import contest_account as _ca_t
+            _bal_t = float(_ca_t.load_state().get("current_balance") or 10000.0)
+        except Exception:
+            _bal_t = 10000.0
+        _exp_sys = _bal_t * goal_pop / 100.0
+        _exp_miss = _bal_t * goal_zec / 100.0
         check("a buried payer counts as SYSTEM, not missed (the attribution fix)",
-              usd.get("system_burial", 0) > 200 and 0 < usd.get("missed", 0) < 400,
-              usd)
+              (usd.get("system_burial", 0) > 50
+               and abs(usd["system_burial"] - _exp_sys) <= 0.05 * max(_exp_sys, 1.0)
+               and abs(usd.get("missed", 0) - _exp_miss) <= 0.05 * max(_exp_miss, 1.0)),
+              {"got": usd, "expected": {"system_burial": round(_exp_sys, 2),
+                                        "missed": round(_exp_miss, 2)}})
         check("the top gate is named",
               res.get("top_gate") in ("tide-out", "brain-floor"), res.get("top_gate"))
         check("the fired payer (ZEC, voice-confirmed) is the user's miss",

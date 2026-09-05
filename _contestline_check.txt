@@ -1,6 +1,6 @@
 PASS  tiers: 1k/$20, 5k/$50, 10k/$90  
 PASS  default tier is 10k (user: 'set the default around the 10k contest')  
-PASS  the live account state carries a VALID tier (user-selected in the sidebar; 1k selected Sep 2 — the validation-tier plan)  10000
+PASS  the live account state carries a VALID tier (user-selected in the sidebar; 1k selected Sep 2 — the validation-tier plan)  5000
 PASS  the death line: -3% from start, never moves  
 PASS  the challenge target: +12%  
 PASS  the pace: $1,200/week on 10k = $240/day  
@@ -15,7 +15,7 @@ PASS  profit grows the buffer: 10k -> 10.5k leaves $800 of room
 PASS  entry size: book caps below the guard  
 PASS  entry size: guard caps below the book  
 PASS  entry size: never above the account  
-PASS  window drawdown reads the engine (or the 3% conservative default)  1.75
+PASS  window drawdown reads the engine (or the 3% conservative default)  0.86
 PASS  unknown coin fails conservative to 3%  
 PASS  save/load round trip  
 PASS  start balance follows the tier, not the balance  

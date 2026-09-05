@@ -32,7 +32,7 @@ from __future__ import annotations
 
 import json
 import os
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
@@ -57,6 +57,28 @@ WEEKLY_GOAL_PCT = 12.0        # the user's pace: 12%/week ($1,200 on 10k)
 DAILY_PROTECT_FRAC = 0.65
 TRADING_DAYS_PER_WEEK = 5     # the daily pace: weekly goal / 5
 COST_ROUNDTRIP_PCT = 0.08     # the platform spread: 0.04% each side
+
+# ── THE HAIL MARY EXCEPTION (user rule, Sep 4: "the daily lock is
+# protecting my profits but I am under, no profits yet. Contest in
+# danger") ──────────────────────────────────────────────────────────────
+# THE SITUATION: the account sits UNDER break-even with no realized
+# gains, but the day ticked up — so the daily lock (protecting a small
+# intraday gain) becomes the binding floor and the entry guard sizes
+# everything to ~$0. The lock was built to protect profits; with no
+# profits to protect it guards a rounding error while the contest
+# starves. THE EXCEPTION: for a CHAMPION-grade setup on a major book,
+# the lock yields for ONE HOUR — sizing runs against the PLATFORM
+# death-line buffer; the guard (0.34/dd), the knife, the exits, every
+# other risk control stands UNTOUCHED ("no uncontrolled exposure" —
+# "full allocation" = the guard's full cap against the platform buffer,
+# never the whole balance). After the hour the standard lock resumes.
+# ONE window per rotation ("until challenged again by another Hail
+# Mary" — the next rotation re-arms the challenge). THE DEATH LINE
+# NEVER YIELDS: at the platform line there is no exception, ever.
+HAIL_MARY_WINDOW_MIN = 60      # the one-hour full-allocation window
+HAIL_MARY_LOCK_BITE_FRAC = 0.25  # the lock "bites" when it crushes the
+                                  # possible size below this fraction of
+                                  # the platform-only cap
 
 # ── The guard's dials ──────────────────────────────────────────────────
 RISK_PER_TRADE_FRAC = 0.34    # a trade's worst case may eat at most ~1/3
@@ -111,6 +133,12 @@ def save_state(tier: int, current_balance: float) -> dict:
         s["daily_peak_date"] = today
         s["daily_start_balance"] = _prev_bal if _prev_bal > 0 else s["current_balance"]
         s["daily_peak_balance"] = max(_prev_bal, s["current_balance"])
+    # THE HAIL MARY fields ride along (save_state rebuilds the dict —
+    # without this, a balance write mid-window would silently close it)
+    for _k in ("hail_mary_until", "hail_mary_date", "hail_mary_rot",
+               "hail_mary_count"):
+        if prev.get(_k) is not None:
+            s[_k] = prev[_k]
     _write_state(s)
     return s
 
@@ -174,9 +202,14 @@ def daily_lock_floor(state: dict | None = None) -> float:
 def effective_buffer(state: dict | None = None) -> float:
     """The buffer the guards key off: the SMALLER of the platform
     death-line buffer and the daily-lock buffer. Negative = a binding
-    floor is breached — no new risk."""
+    floor is breached — no new risk. During an active HAIL MARY window
+    the lock yields: the platform buffer alone (the death line never
+    yields)."""
     s = state or load_state()
-    return min(buffer(s), float(s.get("current_balance") or 0.0) - daily_lock_floor(s))
+    bal = float(s.get("current_balance") or 0.0)
+    if hail_mary_active(s):
+        return buffer(s)
+    return min(buffer(s), bal - daily_lock_floor(s))
 
 
 def binding_floor(state: dict | None = None) -> tuple[str, float]:
@@ -187,6 +220,84 @@ def binding_floor(state: dict | None = None) -> tuple[str, float]:
     lf = daily_lock_floor(s)
     dl = death_line(s)
     return ("daily-lock", lf) if lf > dl else ("platform", dl)
+
+
+def hail_mary_active(state: dict | None = None) -> bool:
+    """True inside an active Hail Mary window (the daily lock yields;
+    the platform death line stands)."""
+    s = state or load_state()
+    try:
+        until = datetime.fromisoformat(str(s.get("hail_mary_until") or ""))
+        if until.tzinfo is None:
+            until = until.replace(tzinfo=MST)
+        return datetime.now(MST) < until
+    except Exception:
+        return False
+
+
+def hail_mary_available(state: dict | None = None) -> tuple[bool, str]:
+    """(available, why_not) — the ACCOUNT preconditions for the Hail Mary
+    Exception (the candidate side — champion-grade brain, verified
+    uptrend, major book — is checked by the callers):
+      1. under break-even: balance ≤ start (no realized gains to
+         protect — the lock is guarding a rounding error)
+      2. the platform line has room (buffer > 0 — AT THE DEATH LINE
+         nothing yields, ever)
+      3. the DAILY LOCK is the binding floor (the thing crushing the
+         entries; if the platform line binds, there is no exception to
+         grant)
+      4. no window consumed this rotation (one Hail Mary per rotation;
+         the next rotation re-arms the challenge)
+    Pure read; fail-closed on any doubt."""
+    s = state or load_state()
+    bal = float(s.get("current_balance") or 0.0)
+    start = float(s.get("start_balance") or 0.0)
+    if bal <= 0 or start <= 0:
+        return False, "no account"
+    if bal > start:
+        return False, (f"over break-even (${bal - start:+,.0f}) — "
+                       f"the lock protects real profit")
+    if buffer(s) <= 0:
+        return False, "at the death line — nothing yields, ever"
+    which, _floor = binding_floor(s)
+    if which != "daily-lock":
+        return False, "the daily lock isn't the binding floor"
+    now = datetime.now(MST)
+    rot_key = f"{now.hour // 4 * 4:02d}-{now.hour // 4 * 4 + 4:02d}"
+    if (s.get("hail_mary_rot") == rot_key
+            and s.get("hail_mary_date") == _today_str()
+            and not hail_mary_active(s)):
+        return False, ("Hail Mary already used this rotation "
+                       "(re-arms at the rotation boundary)")
+    return True, "under break-even, the lock binds, no window this rotation"
+
+
+def activate_hail_mary(state: dict | None = None) -> dict:
+    """Open the one-hour window: the daily lock yields, the platform
+    death line + every risk control stand. Stamps the rotation (one
+    window per rotation) + the count. The QUALIFYING SETUP is the
+    callers' check — this only opens the door."""
+    s = state or load_state()
+    now = datetime.now(MST)
+    s["hail_mary_until"] = (now + timedelta(minutes=HAIL_MARY_WINDOW_MIN)).isoformat()
+    s["hail_mary_date"] = _today_str()
+    s["hail_mary_rot"] = f"{now.hour // 4 * 4:02d}-{now.hour // 4 * 4 + 4:02d}"
+    s["hail_mary_count"] = int(s.get("hail_mary_count") or 0) + 1
+    _write_state(s)
+    return s
+
+
+def hail_mary_minutes_left(state: dict | None = None) -> float:
+    """Minutes remaining in the active window (0 when none) — the plates
+    and the light's clock read this."""
+    s = state or load_state()
+    try:
+        until = datetime.fromisoformat(str(s.get("hail_mary_until") or ""))
+        if until.tzinfo is None:
+            until = until.replace(tzinfo=MST)
+        return max(0.0, (until - datetime.now(MST)).total_seconds() / 60.0)
+    except Exception:
+        return 0.0
 
 
 def death_line(state: dict | None = None) -> float:
@@ -259,8 +370,13 @@ def max_entry_usd(current_balance: float, window_dd_pct: float,
     start = start_balance if start_balance is not None else TIERS[DEFAULT_TIER]["start"]
     buf = float(current_balance) - start * (1.0 - MAX_LOSS_PCT / 100.0)
     if state is not None:
-        # the daily lock: the SMALLER of the two buffers
-        buf = min(buf, float(current_balance) - daily_lock_floor(state))
+        if hail_mary_active(state):
+            # THE HAIL MARY WINDOW: the daily lock yields — the platform
+            # death-line buffer alone (the guard cap itself stands)
+            pass
+        else:
+            # the daily lock: the SMALLER of the two buffers
+            buf = min(buf, float(current_balance) - daily_lock_floor(state))
     if buf <= 0:
         return 0.0
     dd = max(float(window_dd_pct), 0.5) / 100.0

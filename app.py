@@ -2421,6 +2421,41 @@ def render_quick_check(cfg: TradingConfig, kraken):
                     _risk_cap = _ca.max_entry_usd(
                         _acct["current_balance"], _wdd, _acct["start_balance"],
                         state=_acct)
+                    # ── THE HAIL MARY EXCEPTION (user rule, Sep 4 — the QC
+                    #    AGREES with the alert path, never disagree): when
+                    #    the lock BITES (it crushed the possible size to
+                    #    under a quarter of the platform-only cap) and the
+                    #    account is under break-even with no realized gains,
+                    #    a CHAMPION-grade deep read in a VERIFIED uptrend on
+                    #    a book that carries the FULL balance activates the
+                    #    one-hour window — sizing runs against the PLATFORM
+                    #    death line. The guard, the knife, the exits all
+                    #    stand; the death line never yields.
+                    _qc_hm = _ca.hail_mary_active(_acct)
+                    if not _qc_hm:
+                        _platform_cap = _ca.max_entry_usd(
+                            float(_acct["current_balance"]), _wdd,
+                            float(_acct["start_balance"]), state=None)
+                        if (_platform_cap > 0
+                                and _risk_cap <= _platform_cap * _ca.HAIL_MARY_LOCK_BITE_FRAC):
+                            _hm_ok, _hm_why = _ca.hail_mary_available(_acct)
+                            _hm_big_book = (_carry is not None
+                                            and float(_carry) >= float(cfg.challenge_balance))
+                            if (_hm_ok and sig.action == "buy"
+                                    and float(sig.confidence) >= _champ_floor
+                                    and _trend == "UP" and _hm_big_book):
+                                _acct = _ca.activate_hail_mary(_acct)
+                                _qc_hm = True
+                                _risk_cap = _ca.max_entry_usd(
+                                    float(_acct["current_balance"]), _wdd,
+                                    float(_acct["start_balance"]), state=_acct)
+                            elif _hm_ok:
+                                _hm_why = ("Hail Mary available but this read doesn't qualify — "
+                                           "it needs a champion-grade brain read "
+                                           f"(≥{_champ_floor:.0f}%) in a VERIFIED uptrend on a "
+                                           "book that carries the full balance")
+                                st.session_state["qc_result"]["hail_mary_why"] = _hm_why
+                    st.session_state["qc_result"]["hail_mary"] = _qc_hm
                     st.session_state["qc_result"]["risk_cap"] = _risk_cap
                     st.session_state["qc_result"]["window_dd"] = _wdd
                     try:
@@ -2536,6 +2571,9 @@ def render_quick_check(cfg: TradingConfig, kraken):
                 _thin_book = (0 < _spend_usd < float(cfg.challenge_balance))
                 _champ_challenge = bool(_thin_book
                                         and _champ_challenge_min <= sig.confidence < _champ_floor)
+                # THE HAIL MARY WINDOW bounds the watch's clock (one hour,
+                # not the rotation) — the QC agrees with the alert path
+                _champ_hm_win = bool(st.session_state.get("qc_result", {}).get("hail_mary"))
                 st.session_state["qc_result"]["thin_book"] = _thin_book
                 st.session_state["qc_result"]["champ_floor"] = _champ_floor
                 st.session_state["qc_result"]["champ_challenge"] = _champ_challenge
@@ -2580,10 +2618,16 @@ def render_quick_check(cfg: TradingConfig, kraken):
                                        "goal_pct": float(_goal_pct or 1.5),
                                        # (Sep 4) the window is bounded by the
                                        # next rotation boundary — the goal should
-                                       # reach before the rotation turns
-                                       "window_min": float(_bs._rotation_window_min()
+                                       # reach before the rotation turns; a HAIL
+                                       # MARY entry bounds by the one-hour window
+                                       "window_min": (min(float(_bs._rotation_window_min()
                                                            if hasattr(_bs, "_rotation_window_min")
                                                            else max(60.0, min(180.0, (_goal_pct or 1.5) * 60.0))),
+                                                          60.0)
+                                                       if _champ_hm_win else
+                                                       float(_bs._rotation_window_min()
+                                                             if hasattr(_bs, "_rotation_window_min")
+                                                             else max(60.0, min(180.0, (_goal_pct or 1.5) * 60.0)))),
                                        # THE BRAIN (Sep 3): why we entered —
                                        # the exit check reads this back before
                                        # recommending anything (thesis check).
@@ -2735,12 +2779,15 @@ def render_quick_check(cfg: TradingConfig, kraken):
                         # today's locked-in gain). Either way: no new risk.
                         _bf_name = str(st.session_state.get("qc_result", {})
                                        .get("binding_floor") or "platform")
+                        _hm_why_txt = str(st.session_state.get("qc_result", {})
+                                          .get("hail_mary_why") or "")
                         try:
                             if _bf_name == "daily-lock":
                                 st.toast(f"🔒 AT THE DAILY LOCK — {asset}: the day's progress "
                                          f"is locked. A new entry here would risk today's "
                                          f"protected gain — wait for fresh room tomorrow "
-                                         f"(or a higher peak).",
+                                         f"(or a higher peak)."
+                                         + (f" 💪 {_hm_why_txt}" if _hm_why_txt else ""),
                                          icon="🔒", duration=25)
                                 _play_sound("alarm")
                                 _speak(f"No! The daily lock! Protect the day's progress!", rate=1)
@@ -2929,26 +2976,46 @@ def render_quick_check(cfg: TradingConfig, kraken):
     _pace_txt = (f"GOAL +{goal_pct:.1f}% · ENGINE EXPECTS "
                  f"{float(raw_move):.1f}%" if raw_move is not None
                  else f"GOAL +{goal_pct:.1f}% · WINDOW ~{goal_pct:.0f}H")
-    _green_txt = ((f"SCALP GREEN LIGHT — CHALLENGER (thin-book near-miss: "
-                   f"{sig.confidence:.0f}% vs the {champ_floor:.0f}% floor)")
-                  if passes and champ_challenge else
-                  ("SCALP GREEN LIGHT" if passes else
-                  ("COOLDOWN — NO BUYS" if no_buy else
-                   ("NO GREEN — ALREADY RAN THIS ROTATION" if not rot_ok else
-                    ("NO GREEN — THIS HOUR DUMPED YESTERDAY" if yshape == "blowoff" else
-                     ("NO GREEN — TIDE'S OUT" if (tide_state == "OUT" and not lw_pts) else
-                      ("NO GREEN — TOO THIN" if (result.get("spend_usd", 1) or 0) <= 0 else
-                       (f"NO GREEN — AT THE {str(result.get('binding_floor') or 'PLATFORM').upper()} "
-                        f"(a binding floor is gone — no new risk)"
-                        if (result.get("risk_cap", 1) or 0) <= 0 else
-                       (f"NO GREEN — THIN BOOK, BRAIN NOT EXCEPTIONAL ({sig.confidence:.0f}% vs the "
-                        f"{champ_floor:.0f}% thin-book floor, {champ_min:.0f}%+ to challenge) — wait for the big-coin calls"
-                        if thin_book and sig.confidence < champ_min else
-                       ("NO GREEN — DOWNWARD TREND" if trend == "FALLING" else
-                        (f"NO GREEN — TOO SLOW (engine expects only {float(raw_move):.1f}% in this window; the goal needs 1%+)"
-                         if not goal_ok else
-                         (f"NO GREEN — LONE WOLF NEAR MISS {sig.confidence:.0f}% VS {QC_SCALP_FLOOR}% — the alert floor is the same 60 on the deep read"
-                          if lw_pts else f"NO GREEN — NEEDS {QC_SCALP_FLOOR}%+"))))))))))))
+    def _qc_green_text() -> str:
+        """The QC's verdict line — flat, in the rejection order (ALREADY
+        RAN → DUMPED YESTERDAY → TIDE OUT → DOWNWARD TREND → TOO THIN →
+        AT THE FLOOR → THIN BOOK BRAIN → TOO SLOW → COOLDOWN → weak)."""
+        if passes and result.get("hail_mary"):
+            return ("SCALP GREEN LIGHT — 💪 HAIL MARY (the daily lock yields for one "
+                    "hour; the death line stands; full allocation = the guard's cap)")
+        if passes and champ_challenge:
+            return (f"SCALP GREEN LIGHT — CHALLENGER (thin-book near-miss: "
+                    f"{sig.confidence:.0f}% vs the {champ_floor:.0f}% floor)")
+        if passes:
+            return "SCALP GREEN LIGHT"
+        if no_buy:
+            return "COOLDOWN — NO BUYS"
+        if not rot_ok:
+            return "NO GREEN — ALREADY RAN THIS ROTATION"
+        if yshape == "blowoff":
+            return "NO GREEN — THIS HOUR DUMPED YESTERDAY"
+        if tide_state == "OUT" and not lw_pts:
+            return "NO GREEN — TIDE'S OUT"
+        if (result.get("spend_usd", 1) or 0) <= 0:
+            return "NO GREEN — TOO THIN"
+        if (result.get("risk_cap", 1) or 0) <= 0:
+            return (f"NO GREEN — AT THE "
+                    f"{str(result.get('binding_floor') or 'PLATFORM').upper()} "
+                    f"(a binding floor is gone — no new risk)")
+        if thin_book and sig.confidence < champ_min:
+            return (f"NO GREEN — THIN BOOK, BRAIN NOT EXCEPTIONAL ({sig.confidence:.0f}% "
+                    f"vs the {champ_floor:.0f}% thin-book floor, {champ_min:.0f}%+ to "
+                    f"challenge) — wait for the big-coin calls")
+        if trend == "FALLING":
+            return "NO GREEN — DOWNWARD TREND"
+        if not goal_ok:
+            return (f"NO GREEN — TOO SLOW (engine expects only "
+                    f"{float(raw_move):.1f}% in this window; the goal needs 1%+)")
+        if lw_pts:
+            return (f"NO GREEN — LONE WOLF NEAR MISS {sig.confidence:.0f}% VS "
+                    f"{QC_SCALP_FLOOR}% — the alert floor is the same 60 on the deep read")
+        return f"NO GREEN — NEEDS {QC_SCALP_FLOOR}%+"
+    _green_txt = _qc_green_text()
     if carry_usd is not None:
         if spend_usd >= float(cfg.challenge_balance):
             _carry_txt, _carry_col = "BOOK CARRIES ALL-IN", "g"
@@ -3595,7 +3662,17 @@ def _render_light_panel(interval: str):
     any_alert = any(v["kind"] == "contest" and v["exit"] for v in watch_status)
     n_wallet = sum(1 for v in watch_status if v["kind"] == "wallet")
     _w = _load_watch()
-    lines = [f"<span class='dim'>{_now_mst().strftime('%I:%M %p')} · every {interval} · green = hold, red = sell</span>"]
+    # THE HAIL MARY clock rides the panel header (user rule, Sep 4)
+    _hm_note = ""
+    try:
+        import contest_account as _ca_lp
+        _hm_left = _ca_lp.hail_mary_minutes_left()
+        if _hm_left > 0:
+            _hm_note = f" · 💪 HAIL MARY {max(_hm_left, 0):.0f}m (the lock yields)"
+    except Exception:
+        pass
+    lines = [f"<span class='dim'>{_now_mst().strftime('%I:%M %p')} · every {interval} · "
+             f"green = hold, red = sell{_hm_note}</span>"]
     for v in watch_status:
         if v["kind"] != "contest":
             continue
@@ -4505,6 +4582,20 @@ def main():
         led(f"PACE ${_pace:,.0f}/DAY (12%/WK)", "a") + "<br>" +
         led(f"TARGET +12% = ${float(_acct['start_balance']) * 1.12:,.0f}", "g")
     )), unsafe_allow_html=True)
+    # ── THE HAIL MARY WINDOW (user rule, Sep 4): when active, the plate
+    #    shows the countdown — the daily lock yields, the death line stands
+    try:
+        _hm_left = _ca.hail_mary_minutes_left(_acct)
+        if _hm_left > 0:
+            st.sidebar.markdown(plate("💪 HAIL MARY", (
+                led(f"WINDOW {max(_hm_left, 0):.0f} MIN LEFT", "a") + "<br>" +
+                led("THE DAILY LOCK YIELDS — SIZING VS THE PLATFORM LINE", "a") + "<br>" +
+                led("THE DEATH LINE STANDS — NEVER YIELDS", "r") + "<br>" +
+                led(f"WINDOWS USED: {int(_acct.get('hail_mary_count') or 0)} · "
+                    f"ONE PER ROTATION", "off")
+            )), unsafe_allow_html=True)
+    except Exception:
+        pass
     # ── THE WORTH FLOOR DIAL (user rule, Sep 2: "should be a dial on the
     #    console — adjustable without Workshop"): the popup gates (champion
     #    + mover) read it LIVE from console_state.json — turning the dial

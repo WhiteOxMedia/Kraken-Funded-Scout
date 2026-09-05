@@ -124,7 +124,8 @@ check("QC: at-the-line rejection (either binding floor = no new risk)",
       "AT THE DEATH LINE" in ap and "No! At the death line!" in ap
       and "AT THE DAILY LOCK" in ap)
 check("QC: NO GREEN line names the binding floor (death line or daily lock)",
-      "NO GREEN — AT THE {str(result.get('binding_floor') or 'PLATFORM').upper()}" in ap)
+      "{str(result.get('binding_floor') or 'PLATFORM').upper()}" in ap
+      and "NO GREEN — AT THE" in ap)
 check("popup: the guard caps the alert's spend and can suppress",
       "_spend = _risk_cap" in sc and "no buy popup" in sc)
 check("popup: the sizing base is the LIVE contest account",

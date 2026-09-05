@@ -1,0 +1,43 @@
+PASS  the one-hour window + the lock-bite threshold are defined  
+PASS  the three hail mary functions exist  
+PASS  effective_buffer yields the lock during the window  
+PASS  max_entry_usd sizes vs the platform line during the window  
+PASS  save_state carries the hail mary fields (a balance write mid-window must not silently close it)  
+PASS  under break-even + the lock binds -> AVAILABLE  under break-even, the lock binds, no window this rotation
+PASS  the lock floor actually binds in the fixture  ('daily-lock', 9999.5)
+PASS  over break-even -> NOT available (real profit is protected)  over break-even ($+50) — the lock protects real profit
+PASS  at the death line -> NOT available (the line never yields)  at the death line — nothing yields, ever
+PASS  platform binding (no lock) -> NOT available  the daily lock isn't the binding floor
+PASS  activation opens the window  
+PASS  minutes left ~ 60  59.99994756666667
+PASS  during the window: effective_buffer = the PLATFORM buffer  290.0
+PASS  during the window: the guard cap = the platform-only cap  (3286.666666666667, 3286.666666666667)
+PASS  the cap is the GUARD's (0.34/dd), never the whole balance  3286.666666666667
+PASS  the rotation is stamped (one per rotation)  
+PASS  after the hour: the lock rebinds (effective = the lock buffer)  -9.5
+PASS  after the hour, same rotation: NOT available (one per rotation)  Hail Mary already used this rotation (re-arms at the rotation boundary)
+PASS  the next rotation re-arms the challenge  under break-even, the lock binds, no window this rotation
+PASS  a balance write mid-window keeps the window open  
+PASS  champion-grade + verified uptrend + major book -> QUALIFIES  champion-grade brain 91% ≥ 89%, verified uptrend, major book (carries $12,000)
+PASS  a challenger-grade read does NOT qualify (a Hail Mary is never challenger-grade)  brain 85% < the champion floor 89% (a Hail Mary is never challenger-grade)
+PASS  no verified uptrend -> does not qualify  no verified uptrend (EMA9 must sit above EMA21 with price over both)
+PASS  a thin book does not qualify (majors only)  not a major book (carries $5,000, needs the full $10,000)
+PASS  no deep read -> fail-closed  
+PASS  a sell read never qualifies  
+PASS  the gate asks for the exception when the lock BITES  
+PASS  activation recomputes the cap vs the platform line  
+PASS  the trade window bounds by the hour (not the rotation)  
+PASS  the popup title carries the mark  
+PASS  the voice announces it  
+PASS  the message names the death line + the guard's cap  
+PASS  the unqualified lock block still logs (with the Hail Mary note)  
+PASS  the guard message names the window  
+PASS  the QC mirrors the activation (champion floor + UP trend + big book)  
+PASS  the QC result carries hail_mary + the decline reason  
+PASS  the green light names the HAIL MARY  
+PASS  the watch's clock bounds by the hour during the window  
+PASS  the sidebar plate shows the countdown  
+PASS  the light panel header carries the window  
+PASS  the AT THE LOCK toast explains the Hail Mary path when unqualified  
+
+RESULT: 41 passed, 0 failed
