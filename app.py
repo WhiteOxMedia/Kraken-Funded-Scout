@@ -1590,10 +1590,12 @@ def render_master(cfg: TradingConfig, kraken):
 
 
 def _render_suppression_strip():
-    """🚫 WHAT THE FUNNEL BURIED — the popup path's suppression log, newest
+    """🚫 MONEY LEFT ON THE TABLE — the popups the funnel buried, newest
     first (popup_suppressions.jsonl, written by the scanner at every
     suppression: brain-floor, tide-out, worth-floor, stale-move, deep-veto,
-    downward-trend, too-thin, death-line, daily-lock, fail-closed)."""
+    downward-trend, too-thin, death-line, daily-lock, fail-closed). The raw
+    record — the discipline plate's 'left by the gates' number is the paid
+    subset of exactly this."""
     try:
         import json as _json
         from pathlib import Path as _P
@@ -1628,8 +1630,8 @@ def _render_suppression_strip():
                 f"&nbsp;&nbsp;<span style='color:{gcol};'>{gate}</span>{nums_txt}<br>"
                 f"<span class='dim'>{str(d.get('detail', ''))[:130]}</span></div>")
         if rows:
-            with st.expander(f"🚫 WHAT THE FUNNEL BURIED — the suppressed popups "
-                             f"(last {len(rows)}, newest first)"):
+            with st.expander(f"🚫 MONEY LEFT ON THE TABLE — the popups the funnel "
+                             f"buried (last {len(rows)}, newest first)"):
                 st.markdown("".join(rows), unsafe_allow_html=True)
     except Exception as exc:
         logger.debug("suppression strip failed: %s", exc)
