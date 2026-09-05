@@ -1667,6 +1667,9 @@ def _discipline_plate() -> str:
                 break
         pnl = float(_last.get("realized_pnl") or 0)
         left = float(_last.get("total_left") or 0)
+        sys_left = float(_last.get("system_left") or 0)
+        user_left = max(left - sys_left, 0.0)
+        top_gate = str(_last.get("top_gate") or "")
         pnl_col = "#4be38a" if pnl > 0 else ("#ff6b5e" if pnl < 0 else "#9a9a9a")
         # recent history strip
         strip = " ".join(
@@ -1692,6 +1695,11 @@ def _discipline_plate() -> str:
       <div class='dim' style='font-size:11px;'>realized this rotation</div>
       <div style='color:{'#ff6b5e' if left > 1 else '#4be38a'};font-size:14px;'>
         ${left:,.0f} left on the table</div>
+      {f"<div style='color:#ffc36b;font-size:12px;'>${sys_left:,.0f} by the gates (theoretical)"
+       + (f" · {top_gate}" if top_gate else "")
+       + f" — user left ${user_left:,.0f}</div>" if sys_left > 1 else
+       (f"<div class='dim' style='font-size:11px;'>user left ${user_left:,.0f}</div>"
+        if left > 1 else "")}
     </div>
   </div>
   <div class='dim' style='font-size:12px;padding:2px 4px 6px;'>

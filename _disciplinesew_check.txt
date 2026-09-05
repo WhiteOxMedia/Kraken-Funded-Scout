@@ -1,0 +1,25 @@
+PASS  the system_burial weight exists (bounded like the others)  
+PASS  the suppression reader exists  
+PASS  the fired-reader exists (the voice ground truth)  
+PASS  the suppression log cap was raised for the seam  
+PASS  the voice log cap was raised (the fired record must span a rotation)  
+PASS  the result carries system_left + top_gate + system_pairs  
+PASS  the history entry carries system_left + top_gate (the plate reads them)  
+PASS  the plate shows the third column (by the gates, theoretical)  
+PASS  12-like repeats dedupe to ONE opportunity per pair  {'POPCAT/USD': 3, 'XMR/USD': 1}
+PASS  the last entry's gate is the verdict that held  
+PASS  entries outside the window are excluded  
+PASS  fired pairs parse from the spoken Buy lines  {'POPCAT/USD', 'ZEC/USD'}
+PASS  non-Buy lines and other windows don't count as fires  
+PASS  a buried payer counts as SYSTEM, not missed (the attribution fix)  {'missed': 300.02, 'giveback': 0, 'missed_exit': 0, 'early_exit': 0, 'system_burial': 227.72}
+PASS  the top gate is named  tide-out
+PASS  the fired payer (ZEC, voice-confirmed) is the user's miss  {'missed': 300.02, 'giveback': 0, 'missed_exit': 0, 'early_exit': 0, 'system_burial': 227.72}
+PASS  a buried NON-payer (XMR) counts nothing  {'missed': 300.02, 'giveback': 0, 'missed_exit': 0, 'early_exit': 0, 'system_burial': 227.72}
+PASS  system_left rides on the result + history  
+PASS  system_pairs names the pair + gate  [{'pair': 'POPCAT/USD', 'gate': 'tide-out', 'usd': 227.72}]
+PASS  the insight names the gate when system burials dominate  The tide-out gate buried POPCAT (+$250 theoretical) — carve-out data, not a discipline miss. Your taps were clean.
+PASS  a bigger user miss keeps the user's insight  Next time: a paying popup is the system's best call — take the green light when it fires.
+PASS  losing rotation + gate burials -> the system weight rises + the gate is named  Score 82 but the rotation lost $10 — and the 'tide-out' gate buried paying candidates (theoretical $250). The system_burial weight rises 1.00 → 1.10: the gate keeps costing — the carve-out data builds.
+PASS  winning rotation + buried non-payers -> the system weight eases (gates were right)  Score 30 but the rotation MADE $120 — the buried candidates mostly didn't pay: the gates were RIGHT to bury them. The system_burial weight eases 1.00 → 0.90.
+
+RESULT: 23 passed, 0 failed

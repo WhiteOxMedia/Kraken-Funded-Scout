@@ -19,7 +19,7 @@ the score gets sharper over time at telling REAL money-left (a missed
 popup that would have paid and been exited) from theoretical.
 
 MONEY LEFT ON THE TABLE — the components:
-  MISSED       a popup fired, the coin paid its goal within the window,
+  MISSED       a popup FIRED, the coin paid its goal within the window,
                the user never entered → the popup's framed spend x goal
   GIVEBACK     entered, the goal/peak was reached, exited (or valued)
                below it → peak $ - realized $
@@ -27,15 +27,27 @@ MONEY LEFT ON THE TABLE — the components:
                giveback) — the harshest weight
   EARLY EXIT   sold before the goal while the coin paid it afterward →
                the goal's $ - realized $
+  SYSTEM       THE SEAM (user rule, Sep 4: "sewing the suppression log
+  BURIAL       to the discipline score so it learns from it"): a paying
+               candidate the FUNNEL buried (the suppression log's gate)
+               → balance x goal, THEORETICAL — no popup ever reached the
+               user, so it's the machine's leave, not theirs. Its own
+               learned weight; the plate attributes it to the gate; the
+               insight names the gate when it dominates. The weight
+               LEARNS whether the gates are calibrated: buried payers
+               pile up → it stings; buried candidates mostly don't pay →
+               it eases (the gates were right).
 Deductions scale against the rotation's share of the daily pace; each
 component's weight is LEARNED. Good behaviors (took a paying popup,
 exited at/within the goal window) earn small bonuses.
 
-APPROXIMATION (v1, refined by learning): "fired popups" are read from
-the tournament winners table filtered to the rotation's popup rail —
-the table logs champions at send_alert time, including some that later
-suppressed at the brain bar; the rail filter approximates the fired
-gauntlet."""
+ATTRIBUTION (v2, the POPCAT-correction class): "fired" is now grounded —
+a winners-table crown that appears in the suppression log (and was never
+spoken) is a BURIAL, not a user miss; a spoken "Buy {asset}!" line
+(voice_log) confirms a fire even if a earlier burial attempt was logged
+(suppressed at 09:00, the tide turned, fired at 10:30 → fired). The
+winners-table approximation only remains for candidates with neither
+record."""
 import json
 import os
 from datetime import datetime, timedelta
@@ -44,6 +56,8 @@ from zoneinfo import ZoneInfo
 
 MST = ZoneInfo("America/Denver")
 STATE_FILE = Path(__file__).parent / "discipline_state.json"
+SUPPRESSION_FILE = Path(__file__).parent / "popup_suppressions.jsonl"
+VOICE_FILE = Path(__file__).parent / "voice_log.jsonl"
 
 # the learned component weights (bounded; nudged by learn())
 DEFAULT_WEIGHTS = {
@@ -51,6 +65,7 @@ DEFAULT_WEIGHTS = {
     "giveback": 0.9,      # reached the goal, exited below the peak
     "missed_exit": 1.25,  # reached the goal, no exit at all
     "early_exit": 0.5,    # sold before the goal, coin paid after
+    "system_burial": 1.0, # a paying candidate the funnel buried (the seam)
 }
 W_MIN, W_MAX = 0.25, 2.5
 NUDGE = 0.10             # ±10% per learning step
@@ -100,8 +115,10 @@ def _rotation_goal_pct(pair: str, rot_key: str, sched: str) -> float:
 
 
 def _popups_in_rotation(start, end) -> list[dict]:
-    """The (approximated) fired popups in the window: the winners table
-    filtered to the rotation's popup rail, best per pair."""
+    """The candidate popups in the window: the winners table filtered to
+    the rotation's popup rail, best per pair (v2: candidates — the
+    fired/buried attribution happens in evaluate_rotation via the
+    suppression log + the voice record)."""
     try:
         import db
         rows = db.get_tournament_winners(limit=200) or []
@@ -134,6 +151,90 @@ def _popups_in_rotation(start, end) -> list[dict]:
         except Exception:
             continue
     return list(best.values())
+
+
+def _suppressions_in_rotation(start, end, log_file=None) -> dict[str, dict]:
+    """THE SEAM'S record: the funnel's burials in the window, deduped per
+    pair (POPCAT's 12 crowns were ONE opportunity) — the LAST entry per
+    pair is the verdict that held. Returns {pair: {gate, ts, quick,
+    brain, n}}. The mover path's pairs (outside the 54) are included:
+    a buried mover popup is money left too."""
+    f = Path(log_file) if log_file else SUPPRESSION_FILE
+    out: dict[str, dict] = {}
+    try:
+        for line in f.read_text(encoding="utf-8").splitlines():
+            if not line.strip():
+                continue
+            try:
+                d = json.loads(line)
+                ts = datetime.fromisoformat(str(d.get("ts", "")))
+                if ts.tzinfo is None:
+                    ts = ts.replace(tzinfo=MST)
+                ts = ts.astimezone(MST)
+                if not (start <= ts < end):
+                    continue
+                pair = str(d.get("pair") or "")
+                if not pair:
+                    continue
+                prev = out.get(pair) or {"n": 0}
+                out[pair] = {"gate": str(d.get("gate") or "?"), "ts": ts,
+                             "quick": d.get("quick"), "brain": d.get("brain"),
+                             "n": prev.get("n", 0) + 1}
+            except Exception:
+                continue
+    except Exception:
+        pass
+    return out
+
+
+def _fired_pairs(start, end, voice_file=None) -> set[str]:
+    """The pairs a popup actually FIRED for in the window — the one mouth
+    speaks every champion/mover alert ("Buy {asset}! ..."). This is the
+    ground truth that separates a user miss (fired, never taken) from a
+    system burial (suppressed, never surfaced) — and rescues the
+    suppressed-then-fired case (buried at 09:00, the tide turned, fired
+    at 10:30 → FIRED)."""
+    f = Path(voice_file) if voice_file else VOICE_FILE
+    fired: set[str] = set()
+    try:
+        for line in f.read_text(encoding="utf-8").splitlines():
+            if not line.strip():
+                continue
+            try:
+                d = json.loads(line)
+                ts = datetime.fromisoformat(str(d.get("ts", "")))
+                if ts.tzinfo is None:
+                    ts = ts.replace(tzinfo=MST)
+                ts = ts.astimezone(MST)
+                if not (start <= ts < end):
+                    continue
+                text = str(d.get("text") or "")
+                if text.startswith("Buy ") and "!" in text:
+                    asset = text[4:].split("!")[0].strip().upper()
+                    if asset and len(asset) <= 12:
+                        fired.add(f"{asset}/USD")
+            except Exception:
+                continue
+    except Exception:
+        pass
+    return fired
+
+
+def _entry_at(exchange, pair: str, when: datetime) -> float:
+    """The price when the funnel buried it (the 1h candle close at the
+    suppression timestamp — the entry approximation for the candle test)."""
+    try:
+        since = int(when.timestamp() * 1000) - 3_600_000
+        ohl = exchange.fetch_ohlcv(pair, timeframe="1h", since=since, limit=3)
+        for c in (ohl or []):
+            ct = datetime.fromtimestamp(c[0] / 1000, tz=MST)
+            if ct <= when <= ct + timedelta(hours=1):
+                return float(c[4])
+        if ohl:
+            return float(ohl[-1][4])
+    except Exception:
+        pass
+    return 0.0
 
 
 def _sold_in_rotation(start, end) -> list[dict]:
@@ -201,12 +302,21 @@ def evaluate_rotation(exchange, rot_key: str, when=None, speak=True) -> dict:
     sold = _sold_in_rotation(start, end)
     sold_pairs = {t["pair"] for t in sold}
 
+    # ── THE SEAM (user rule, Sep 4: "sewing the suppression log to the
+    #    discipline score so it learns from it") — the attribution: a
+    #    paying candidate the funnel BURIED is the machine's leave, not
+    #    the user's. Fired = spoken (voice log) or never suppressed; a
+    #    spoken line rescues the suppressed-then-fired case.
+    supp = _suppressions_in_rotation(start, end)
+    fired = _fired_pairs(start, end)
+
     # ── the components ───────────────────────────────────────────────
     missed, giveback, missed_exit, early_exit = [], [], [], []
+    system_burial = []
     bonuses = 0.0
+    sched = "weekend" if start.weekday() >= 5 else "weekday"
     for p in popups:
-        goal = _rotation_goal_pct(p["pair"], rot_key, "weekend"
-                                  if start.weekday() >= 5 else "weekday")
+        goal = _rotation_goal_pct(p["pair"], rot_key, sched)
         p["goal_pct"] = goal
         taken = p["pair"] in sold_pairs
         if not taken:
@@ -224,11 +334,30 @@ def evaluate_rotation(exchange, rot_key: str, when=None, speak=True) -> dict:
         paid = _coin_paid(exchange, p["pair"], p["entry"] or 1.0, goal, p["ts"], end)
         p["paid"] = paid
         p["taken"] = taken
+        buried = (p["pair"] in supp and p["pair"] not in fired)
         if paid and not taken:
             p["usd"] = balance * goal / 100.0
-            missed.append(p)
+            if buried:
+                p["gate"] = supp[p["pair"]]["gate"]
+                system_burial.append(p)
+            else:
+                missed.append(p)
         elif paid and taken:
             bonuses += 2.0    # took a popup that paid — discipline
+
+    # suppressed pairs the winners table never saw (the mover path) —
+    # the same candle test; only pairs that never fired count as burials
+    popup_pairs = {p["pair"] for p in popups}
+    for pair, s in supp.items():
+        if pair in popup_pairs or pair in fired:
+            continue
+        goal = _rotation_goal_pct(pair, rot_key, sched)
+        entry = _entry_at(exchange, pair, s["ts"])
+        if entry > 0 and _coin_paid(exchange, pair, entry, goal, s["ts"], end):
+            system_burial.append({"pair": pair, "gate": s["gate"],
+                                  "usd": balance * goal / 100.0,
+                                  "goal_pct": goal, "paid": True,
+                                  "taken": False})
     for t in sold:
         entry, exitp = float(t.get("entry") or 0), float(t.get("exit") or 0)
         size, realized = float(t.get("size") or 0), float(t.get("pnl_net") or 0)
@@ -287,7 +416,14 @@ def evaluate_rotation(exchange, rot_key: str, when=None, speak=True) -> dict:
     usd = {"missed": sum(p.get("usd", 0) for p in missed),
            "giveback": sum(t.get("_left", 0) for t in giveback),
            "missed_exit": sum(t.get("_left", 0) for t in missed_exit),
-           "early_exit": sum(t.get("_left", 0) for t in early_exit)}
+           "early_exit": sum(t.get("_left", 0) for t in early_exit),
+           "system_burial": sum(p.get("usd", 0) for p in system_burial)}
+
+    # the gate that buried the most theoretical money (the insight names it)
+    _gate_usd: dict[str, float] = {}
+    for p in system_burial:
+        _gate_usd[p.get("gate") or "?"] = _gate_usd.get(p.get("gate") or "?", 0) + float(p.get("usd", 0))
+    top_gate = max(_gate_usd, key=_gate_usd.get) if _gate_usd else None
 
     # ── the score ────────────────────────────────────────────────────
     deductions = sum(
@@ -301,6 +437,11 @@ def evaluate_rotation(exchange, rot_key: str, when=None, speak=True) -> dict:
         "score": round(score, 1), "pace_share": round(pace_share, 2),
         "usd_left": {k: round(v, 2) for k, v in usd.items()},
         "total_left": round(sum(usd.values()), 2),
+        "system_left": round(usd["system_burial"], 2),
+        "top_gate": top_gate,
+        "system_pairs": [{"pair": p["pair"], "gate": p.get("gate"),
+                          "usd": round(float(p.get("usd", 0)), 2)}
+                         for p in system_burial],
         "popups": [{"pair": p["pair"], "paid": p.get("paid"),
                     "taken": p.get("taken"), "goal_pct": round(p.get("goal_pct", 0), 2)}
                    for p in popups],
@@ -314,8 +455,8 @@ def evaluate_rotation(exchange, rot_key: str, when=None, speak=True) -> dict:
     lesson = _learn(state, result)
     result["lesson"] = lesson
     _entry = {k: result[k] for k in
-              ("date", "rot", "score", "total_left", "realized_pnl",
-               "balance_after", "ts")}
+              ("date", "rot", "score", "total_left", "system_left",
+               "top_gate", "realized_pnl", "balance_after", "ts")}
     # one entry per (date, rot) — re-evaluations replace (the plate shows
     # the latest; the history stays clean)
     state["history"] = [h for h in state["history"]
@@ -332,7 +473,9 @@ def evaluate_rotation(exchange, rot_key: str, when=None, speak=True) -> dict:
 
 def _learn(state: dict, result: dict) -> str:
     """One learning step: compare the score with the realized money and
-    nudge the dominant weight when they disagree. Returns the lesson."""
+    nudge the dominant weight when they disagree. Returns the lesson.
+    (The seam: when SYSTEM BURIAL dominates, the lesson names the gate —
+    the machine's leave is calibration data, not user blame.)"""
     w = state.setdefault("weights", dict(DEFAULT_WEIGHTS))
     score, pnl = result["score"], result["realized_pnl"]
     usd = result["usd_left"]
@@ -343,17 +486,29 @@ def _learn(state: dict, result: dict) -> str:
         # over-crediting; make the dominant component sting more
         old = w.get(dominant, 1.0)
         w[dominant] = round(min(W_MAX, old * (1.0 + NUDGE)), 3)
-        lesson = (f"Score {score:.0f} but the rotation lost ${abs(pnl):.0f} — "
-                  f"the '{dominant}' weight rises {old:.2f} → {w[dominant]:.2f}: "
-                  f"next time this pattern counts harder.")
+        if dominant == "system_burial":
+            lesson = (f"Score {score:.0f} but the rotation lost ${abs(pnl):.0f} — and the "
+                      f"'{result.get('top_gate') or '?'}' gate buried paying candidates "
+                      f"(theoretical ${usd.get('system_burial', 0):.0f}). The system_burial "
+                      f"weight rises {old:.2f} → {w[dominant]:.2f}: the gate keeps costing — "
+                      f"the carve-out data builds.")
+        else:
+            lesson = (f"Score {score:.0f} but the rotation lost ${abs(pnl):.0f} — "
+                      f"the '{dominant}' weight rises {old:.2f} → {w[dominant]:.2f}: "
+                      f"next time this pattern counts harder.")
     elif score <= 40 and pnl > result["pace_share"] and dominant:
         # low score but the money came — over-penalizing (the 'missed'
         # winners were probably right to skip); soften the dominant weight
         old = w.get(dominant, 1.0)
         w[dominant] = round(max(W_MIN, old * (1.0 - NUDGE)), 3)
-        lesson = (f"Score {score:.0f} but the rotation MADE ${pnl:.0f} — "
-                  f"the '{dominant}' weight eases {old:.2f} → {w[dominant]:.2f}: "
-                  f"some 'left on the table' was right to leave.")
+        if dominant == "system_burial":
+            lesson = (f"Score {score:.0f} but the rotation MADE ${pnl:.0f} — the buried "
+                      f"candidates mostly didn't pay: the gates were RIGHT to bury them. "
+                      f"The system_burial weight eases {old:.2f} → {w[dominant]:.2f}.")
+        else:
+            lesson = (f"Score {score:.0f} but the rotation MADE ${pnl:.0f} — "
+                      f"the '{dominant}' weight eases {old:.2f} → {w[dominant]:.2f}: "
+                      f"some 'left on the table' was right to leave.")
     else:
         lesson = (f"Score and money agree (score {score:.0f}, realized "
                   f"${pnl:+.0f}) — weights hold; the calibration stands.")
@@ -377,6 +532,9 @@ def _speak_result(result: dict, missed: list, missed_exit: list):
                 line += (f"{missed[0]['pair'].split('/')[0]} paid without you! ")
             if missed_exit:
                 line += "And a goal was reached with no exit! "
+            if result.get("system_left", 0) > 1:
+                line += (f"The funnel buried ${result['system_left']:,.0f} theoretical — "
+                         f"that's on the machine, not you! ")
         else:
             line += "Nothing left on the table! "
         line += _insight(result, missed, missed_exit)
@@ -388,6 +546,17 @@ def _speak_result(result: dict, missed: list, missed_exit: list):
 def _insight(result: dict, missed: list, missed_exit: list) -> str:
     """ONE actionable suggestion — the sharpest lever this rotation."""
     usd = result["usd_left"]
+    if (usd.get("system_burial", 0) > 1
+            and usd.get("system_burial", 0) >= max(usd.values())):
+        gate = result.get("top_gate") or "?"
+        asset = "?"
+        try:
+            asset = (result.get("system_pairs") or [{}])[0].get("pair", "?").split("/")[0]
+        except Exception:
+            pass
+        return (f"The {gate} gate buried {asset} (+${usd['system_burial']:,.0f} "
+                f"theoretical) — carve-out data, not a discipline miss. "
+                f"Your taps were clean.")
     if usd.get("missed_exit", 0) >= max(usd.values()):
         return ("Next time: when the goal hits, tap SOLD — the exit scan "
                 "already told you when.")

@@ -1,4 +1,4 @@
-PASS  the learned weights default 1.0/0.9/1.25/0.5  
+PASS  the learned weights default 1.0/0.9/1.25/0.5/1.0 (system_burial since the seam)  
 PASS  weights are bounded [0.25, 2.5] with ±10% nudges  
 PASS  rotation windows resolve (08-12 -> 08:00-12:00 MST)  
 PASS  the 20-24 window resolves  

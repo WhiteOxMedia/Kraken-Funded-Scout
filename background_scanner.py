@@ -1232,7 +1232,9 @@ def _save_take_payout(pair: str, amount: int):
 # _speak_server is the ONE mouth: hooking here captures every spoken line,
 # scanner-side AND console-queued.
 VOICE_LOG_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "voice_log.jsonl")
-VOICE_LOG_MAX = 150  # lines kept on disk
+VOICE_LOG_MAX = 400  # lines kept on disk (raised for the discipline seam: the
+                      # fired-popup ground truth — 150 lines could push a
+                      # rotation's "Buy {asset}!" lines out before the rollover)
 
 
 def _log_her_line(text: str):
@@ -1261,7 +1263,9 @@ def _log_her_line(text: str):
 # what time. The console's MASTER page renders the recent strip.
 SUPPRESSION_LOG_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)),
                                     "popup_suppressions.jsonl")
-SUPPRESSION_LOG_MAX = 400  # lines kept on disk
+SUPPRESSION_LOG_MAX = 1000  # lines kept on disk (raised for the discipline seam —
+                            # a busy rotation can bury 40+ candidates; 400 didn't
+                            # reliably span the window)
 
 
 def _log_suppression(pair: str, gate: str, detail: str, **ctx):

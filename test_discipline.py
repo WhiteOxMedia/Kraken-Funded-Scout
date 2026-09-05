@@ -41,9 +41,10 @@ scan = Path("background_scanner.py").read_text(encoding="utf-8")
 ap = Path("app.py").read_text(encoding="utf-8")
 
 # ── 1. the constants + the rotation windows ───────────────────────────
-check("the learned weights default 1.0/0.9/1.25/0.5",
+check("the learned weights default 1.0/0.9/1.25/0.5/1.0 (system_burial since the seam)",
       dc.DEFAULT_WEIGHTS == {"missed": 1.0, "giveback": 0.9,
-                             "missed_exit": 1.25, "early_exit": 0.5})
+                             "missed_exit": 1.25, "early_exit": 0.5,
+                             "system_burial": 1.0})
 check("weights are bounded [0.25, 2.5] with ±10% nudges",
       dc.W_MIN == 0.25 and dc.W_MAX == 2.5 and dc.NUDGE == 0.10)
 s, e = dc._rot_window("08-12", datetime(2026, 9, 4, 10, tzinfo=MST))
