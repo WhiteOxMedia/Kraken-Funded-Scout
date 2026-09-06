@@ -1881,9 +1881,20 @@ def contest_light(exchange, cfg):
         except Exception:
             _tail = ""
 
-        sign = "up" if usd >= 0 else "down"
-        voice_updates.append(f"{asset}, {sign} {abs(pct):.1f} percent "
-                             f"toward the {_goal:.1f} percent goal{_tail}")
+        # ── THE DIRECTION VOICE (the VIRTUAL/TRUMP/RENDER lesson, Sep 5:
+        # "a SELL dressed up as a BUY — it thinks the goal is to go
+        # down?"): LONG-ONLY — a down move is NEVER progress toward the
+        # goal. The up branch says progress; the down branch says the
+        # honest drawdown + the full climb to recovery-and-goal, so a
+        # losing position can never read like the plan working.
+        if usd >= 0:
+            voice_updates.append(f"{asset}, up {abs(pct):.1f} percent "
+                                 f"toward the {_goal:.1f} percent goal{_tail}")
+        else:
+            _climb = _goal - pct  # recovery + goal: the honest remaining move
+            voice_updates.append(f"{asset}, down {abs(pct):.1f} percent — "
+                                 f"{_climb:.1f} percent to go before the "
+                                 f"{_goal:.1f} percent goal{_tail}")
 
     if exited_pairs:
         # Aug 30 fix: GET OUT positions STAY in the watch — the user taps

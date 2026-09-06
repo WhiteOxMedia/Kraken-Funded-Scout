@@ -35,6 +35,19 @@ check("the $20 level-counting is gone from the light",
       "Take it!" not in light and "TAKE_IT_USD" not in light)
 check("her position line speaks percent toward the goal",
       "percent " in light and "toward the {_goal:.1f} percent goal" in light)
+# ── THE DIRECTION VOICE (the VIRTUAL lesson, Sep 5: "a SELL dressed up
+#    as a BUY — it thinks the goal is to go down?"): LONG-ONLY — a down
+#    move is never progress toward the goal
+check("a DOWN move never says 'toward the goal' (a loss is not progress)",
+      'f"{asset}, down {abs(pct):.1f} percent — "' in light
+      and "down {abs(pct):.1f} percent \"\n                             f\"toward" not in light)
+check("the down branch speaks the honest climb: recovery + goal",
+      "_climb = _goal - pct" in light
+      and "to go before the" in light)
+check("the up branch still says progress toward the goal",
+      'f"{asset}, up {abs(pct):.1f} percent "' in light)
+check("the old direction-blind phrasing is gone (sign = up/down toward)",
+      'sign = "up" if usd >= 0 else "down"' not in light)
 check("the dollar-count line is gone ('plus N dollars')",
       "plus {abs(usd):.0f} dollars" not in light)
 check("the clock runs the goal window (window_min from the watch entry)",

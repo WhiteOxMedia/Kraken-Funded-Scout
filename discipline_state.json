@@ -118,6 +118,39 @@
    "realized_pnl": 24.84,
    "balance_after": 9929.95,
    "ts": "2026-09-05T20:00:46.027553-06:00"
+  },
+  {
+   "date": "2026-09-05",
+   "rot": "20-24",
+   "score": 100.0,
+   "total_left": 0,
+   "system_left": 0,
+   "top_gate": null,
+   "realized_pnl": 0,
+   "balance_after": 9929.95,
+   "ts": "2026-09-06T00:00:18.185369-06:00"
+  },
+  {
+   "date": "2026-09-06",
+   "rot": "00-04",
+   "score": 52.0,
+   "total_left": 862.64,
+   "system_left": 862.64,
+   "top_gate": "too-thin",
+   "realized_pnl": 32.45,
+   "balance_after": 9962.396245496944,
+   "ts": "2026-09-06T04:00:44.141983-06:00"
+  },
+  {
+   "date": "2026-09-06",
+   "rot": "04-08",
+   "score": 50.0,
+   "total_left": 309.28,
+   "system_left": 309.28,
+   "top_gate": "deep-veto",
+   "realized_pnl": -49.51,
+   "balance_after": 9912.889806846195,
+   "ts": "2026-09-06T08:00:37.260008-06:00"
   }
  ],
  "lessons": [
@@ -164,6 +197,18 @@
   {
    "ts": "2026-09-05T20:00:46.027553-06:00",
    "lesson": "Score and money agree (score 52, realized $+25) \u2014 weights hold; the calibration stands."
+  },
+  {
+   "ts": "2026-09-06T00:00:18.185369-06:00",
+   "lesson": "Score and money agree (score 100, realized $+0) \u2014 weights hold; the calibration stands."
+  },
+  {
+   "ts": "2026-09-06T04:00:44.141983-06:00",
+   "lesson": "Score and money agree (score 52, realized $+32) \u2014 weights hold; the calibration stands."
+  },
+  {
+   "ts": "2026-09-06T08:00:37.260008-06:00",
+   "lesson": "Score and money agree (score 50, realized $-50) \u2014 weights hold; the calibration stands."
   }
  ]
 }
