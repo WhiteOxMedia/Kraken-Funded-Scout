@@ -8,4 +8,4 @@ PASS  bands are sane
 PASS  live breadth in 0-100
 PASS  live state is a real state
 
-live tide now: 53% FLAT
+live tide now: 66% FLAT

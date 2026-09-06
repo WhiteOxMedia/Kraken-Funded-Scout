@@ -1,4 +1,4 @@
-today: Sunday — weekend schedule, rotation hour-block 08-12
+today: Sunday — weekend schedule, rotation hour-block 12-16
 
 avg 4h move per rotation (universe median, %):
 rotation      weekday  weekend    diff

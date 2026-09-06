@@ -1,9 +1,9 @@
 KII pairs on Kraken: ['KII/USD']
 using pair: KII/USD
 candles fetched: 200
-KII live: $0.064010
-24h change: 1.5%
-signal: HOLD 28%
+KII live: $0.064040
+24h change: 0.5%
+signal: HOLD 26%
 entry=None stop=None tp=None rr=None
 reasons:
   - Regime: low_vol (volatility rank 0/100)

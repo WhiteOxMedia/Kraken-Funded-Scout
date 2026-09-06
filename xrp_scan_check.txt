@@ -1,10 +1,10 @@
-XRP live: $1.4103
-signal: HOLD 38%
+XRP live: $1.4104
+signal: HOLD 35%
 entry=None stop=None tp=None
-rotation: R3 ☀️ EU/US Overlap | bar 60% | no_buy=False
+rotation: R4 🌤 US Afternoon | bar 60% | no_buy=False
 green light (buy >= bar)? False
 reasons:
-  - Regime: low_vol (volatility rank 20/100)
-  - MACD bearish (hist=-0.0011)
+  - Regime: low_vol (volatility rank 9/100)
+  - MACD bearish (hist=-0.0007)
   - EMA bearish (short < long)
   - Below min_confidence (40) — holding

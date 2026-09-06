@@ -107,8 +107,8 @@ check("the fire-time snapshot runs at the top of the gates",
       "def _begin_fire_snapshot" in bs_src)
 check("every suppression lands in the dataset (the hook in _log_suppression)",
       "kind\": \"suppressed\"" in bs_src)
-check("every fired popup lands in the dataset (champion + mover)",
-      bs_src.count('"kind": "fired"') == 2)
+check("every fired popup lands in the dataset (champion + mover + sure-thing)",
+      bs_src.count('"kind": "fired"') == 3)
 
 # ── 6. behavioral: the scanner functions do what the source says ─────
 import background_scanner as bs

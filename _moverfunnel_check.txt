@@ -37,7 +37,7 @@ PASS  mover popup voice speaks the brain's number
 PASS  mover popup carries the goal clock (the asset's own week + rotation-bounded window)  
 PASS  mover popup carries the out-by discipline  
 PASS  mover popup has the stale-move guard (the APT wiggle trap)  2
-PASS  mover popup has the 3% guard sizing (platform-only, Sep 5 — the daily lock removed)  2
+PASS  mover popup has the 3% guard sizing (platform-only, Sep 5 — the daily lock removed)  3
 PASS  mover popup has the book-carry verdict (her four verdicts)  
 PASS  mover popup suppresses on TOO THIN (no popup at all)  
 PASS  mover popup sizes off the LIVE contest account  

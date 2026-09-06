@@ -9,14 +9,14 @@ PASS  the plate shows the third column (by the gates, theoretical)
 PASS  12-like repeats dedupe to ONE opportunity per pair  {'POPCAT/USD': 3, 'XMR/USD': 1}
 PASS  the last entry's gate is the verdict that held  
 PASS  entries outside the window are excluded  
-PASS  fired pairs parse from the spoken Buy lines  {'ZEC/USD', 'POPCAT/USD'}
+PASS  fired pairs parse from the spoken Buy lines  {'POPCAT/USD', 'ZEC/USD'}
 PASS  non-Buy lines and other windows don't count as fires  
-PASS  a buried payer counts as SYSTEM, not missed (the attribution fix)  {'got': {'missed': 303.41, 'giveback': 0, 'missed_exit': 0, 'early_exit': 0, 'system_burial': 230.29}, 'expected': {'system_burial': 230.29, 'missed': 303.41}}
+PASS  a buried payer counts as SYSTEM, not missed (the attribution fix)  {'got': {'missed': 295.91, 'giveback': 0, 'missed_exit': 0, 'early_exit': 0, 'system_burial': 224.6}, 'expected': {'system_burial': 224.6, 'missed': 295.91}}
 PASS  the top gate is named  tide-out
-PASS  the fired payer (ZEC, voice-confirmed) is the user's miss  {'missed': 303.41, 'giveback': 0, 'missed_exit': 0, 'early_exit': 0, 'system_burial': 230.29}
-PASS  a buried NON-payer (XMR) counts nothing  {'missed': 303.41, 'giveback': 0, 'missed_exit': 0, 'early_exit': 0, 'system_burial': 230.29}
+PASS  the fired payer (ZEC, voice-confirmed) is the user's miss  {'missed': 295.91, 'giveback': 0, 'missed_exit': 0, 'early_exit': 0, 'system_burial': 224.6}
+PASS  a buried NON-payer (XMR) counts nothing  {'missed': 295.91, 'giveback': 0, 'missed_exit': 0, 'early_exit': 0, 'system_burial': 224.6}
 PASS  system_left rides on the result + history  
-PASS  system_pairs names the pair + gate  [{'pair': 'POPCAT/USD', 'gate': 'tide-out', 'usd': 230.29}]
+PASS  system_pairs names the pair + gate  [{'pair': 'POPCAT/USD', 'gate': 'tide-out', 'usd': 224.6}]
 PASS  the insight names the gate when system burials dominate  The tide-out gate buried POPCAT (+$250 theoretical) — carve-out data, not a discipline miss. Your taps were clean.
 PASS  a bigger user miss keeps the user's insight  Next time: a paying popup is the system's best call — take the green light when it fires.
 PASS  losing rotation + gate burials -> the system weight rises + the gate is named  Score 82 but the rotation lost $10 — and the 'tide-out' gate buried paying candidates (theoretical $250). The system_burial weight rises 1.00 → 1.10: the gate keeps costing — the carve-out data builds.

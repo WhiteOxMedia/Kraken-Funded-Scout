@@ -1,12 +1,14 @@
 bridge signals today:
+  12:53  LINK/USD   buy  rejected  scout_auto     81.0%
+  12:42  LINK/USD   buy  rejected  scout_auto     81.0%
+  12:30  LINK/USD   buy  rejected  scout_auto     81.0%
+  12:05  RENDER/USD buy  filled    scout_auto     100.0%
   11:25  UNI/USD    sell closed    scout_exit_check 0.0%
+  11:06  RENDER/USD buy  filled    bot_strategy   100.0%
   10:59  PUMP/USD   buy  rejected  scout_auto     64.0%
   10:58  NEAR/USD   buy  rejected  scout_auto     88.0%
   10:42  DOT/USD    buy  rejected  scout_auto     51.5%
   10:37  PUMP/USD   buy  rejected  scout_auto     69.0%
-  10:29  UNI/USD    buy  closed    scout_auto     64.0%
-  10:24  TAO/USD    buy  rejected  scout_auto     80.0%
-  10:02  RENDER/USD buy  rejected  scout_auto     100.0%
-  09:50  NEAR/USD   buy  closed    scout_auto     83.5%
-  09:38  NEAR/USD   buy  rejected  scout_auto     83.5%
-open positions in bridge: 0 (bot max = 3)
+open positions in bridge: 2 (bot max = 3)
+  RENDER/USD since 2026-09-06T12:06 @ 1.512
+  RENDER/USD since 2026-09-06T11:06 @ 1.512

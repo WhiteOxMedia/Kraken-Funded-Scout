@@ -1,8 +1,9 @@
-HYPE now: $88.0200
-strategy: HOLD 20%
-  - Regime: bull_trend (volatility rank 45/100)
-  - Pullback to EMA support in uptrend (RSI 57.3) — trend entry
-  - MACD bearish (hist=-0.1185)
+HYPE now: $87.2000
+strategy: HOLD 23%
+  - Regime: bull_trend (volatility rank 42/100)
+  - Pullback to EMA support in uptrend (RSI 44.3) — trend entry
+  - BB below midline in uptrend (%B=0.47) — pullback entry
+  - MACD bearish (hist=-0.2357)
   - EMA bullish (short > long)
   - Pullback quality too low (0/100)
 

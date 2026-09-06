@@ -1,0 +1,24 @@
+PASS  a tight coiled spring with 12 ceiling tests + a volume crack FIRES  coil 0.85% ? 12 ceiling tests ? vol rank 1.00 ? burst 3.0x
+PASS  the fire carries the trigger price (the crack, not a close-confirm)  100.62
+PASS  the detail names the structure (coil ? tests ? vol rank ? burst)  coil 0.85% ? 12 ceiling tests ? vol rank 1.00 ? burst 3.0x
+PASS  the structural score lands in the strong band (50-100)  87.9
+PASS  the zone boundaries are reported (the ceiling is the trade line)  (100.5, 99.65)
+PASS  the spring loads but no crack -> ARMED, no fire  coil 0.85% ? 12 ceiling tests ? vol rank 1.00 ? burst 1.0x
+PASS  price crosses the ceiling WITHOUT volume -> armed, no fire (a crack needs the burst)  1.19
+PASS  a wide range is not a coil (range > the threshold)  no coil: range 3.36% > 2.0%
+PASS  one ceiling test is not a weakened ceiling (< MIN_CEILING_TESTS)  only 1 ceiling tests (< 3)
+PASS  a broken floor inside the coil kills the setup  the floor broke inside the coil
+PASS  no squeeze (the coil's vol ranks HIGH vs a calm history) -> not armed  no squeeze: vol percentile 0.00 (needs ? 0.80 ? the calmest fifth)
+PASS  thin data -> a clean no-op, never raises  not enough candles
+PASS  no candles at all -> a clean no-op  
+PASS  the countdown window is the one-hour breakout clock  60.0
+PASS  the structural score sizes through the SAME bucket table (one sizing philosophy)  
+PASS  the scanner runs the fleet breakout scan (5-min cadence)  
+PASS  CONTEST-ONLY: the Sure Thing never writes the bridge  
+PASS  the protecting gates all run before the fire  
+PASS  the death-line guard caps + the structural score sizes  
+PASS  every fire logs to the scorer's dataset (route sure-thing)  
+PASS  the deep-scan waiver is the user's documented call (post-entry scan)  
+PASS  coils are announced once per zone (the armed-watch dedup)  
+
+22 passed, 0 failed

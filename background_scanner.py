@@ -3067,12 +3067,134 @@ def main():
     last_full_scan = 0
     last_exit_check = 0
     last_contest_light = 0
+    last_sure_thing_scan = 0     # THE SURE THING: 5-min fleet breakout scan
     last_loser_fetch = ""  # date string — fetch losers once per day
     cached_loser_pairs = []
     alerted_recently = {}
     _mover_scanned = {}  # MOVER FUNNEL pacing: per-pair rescan timestamps (10 min), isolated from the contest path
     current_block_name = None  # track time block changes for position reset
     last_flatten_date = _load_scanner_state().get("last_flatten_date", "")  # persisted — restarts don't re-flatten
+    _st_armed = {}  # SURE THING: asset -> {zh, ts} of the announced coil (one announcement per coil)
+
+    # ── THE SURE THING (user rule, Sep 6: "I'm losing this contest, and
+    #    that cannot happen. I need the Sure Thing running immediately.")
+    #    The breakout-pattern detector: consolidation + ceiling tests +
+    #    squeeze + volume shift -> the trigger fires AT THE CRACK, the
+    #    popup speaks the countdown. CONTEST-ONLY (no bridge write — the
+    #    bot's real money never sees an unverified signal); the deep
+    #    scan runs AFTER entry (the user's explicit waiver: "The Deep
+    #    Scan is too slow for this situation... I'll enter that manually
+    #    afterward"). The 3% death-line guard sizes it; the popup cap,
+    #    the rotation lock, the knife, the tide and the book gates all
+    #    stand. Every fire + every armed coil logs to the scorer's
+    #    dataset (route "sure-thing") — there is no sure thing, the
+    #    scorer grades the class.
+    def _sure_thing_scan(exchange):
+        import sure_thing as st
+        from hindsight_scorer import brain_size_mult as _st_mult
+        assets = [a for a in ASSETS if a not in ("NVDA",)]
+        for asset in assets:
+            try:
+                pair = f"{asset}/USD"
+                rows = exchange.fetch_ohlcv(pair, timeframe="5m", limit=180)
+                r = st.analyze(rows or [])
+                if not r.get("armed"):
+                    _st_armed.pop(asset, None)
+                    continue
+                zh = float(r.get("zone_high") or 0.0)
+                # announce the coil once (a re-announce only on a NEW zone)
+                _prev = _st_armed.get(asset)
+                if not _prev or abs(_prev.get("zh", 0.0) - zh) > zh * 0.005:
+                    _st_armed[asset] = {"zh": zh, "ts": time.time()}
+                    if _voice_enabled():
+                        _speak_server(f"{asset} is coiling! {r['tests']} tests at the ceiling — "
+                                      f"breakout watch armed!", rate=2)
+                    logger.info("🧲 SURE THING ARMED: %s — %s", asset, r["detail"])
+                if not r.get("fire"):
+                    continue
+                # ── the crack: the gates that protect the contest all run ──
+                _rot_ok, _rot_reason, _rot_re, _fine = rotation_gate(asset)
+                _lw_pts, _lw_note = lone_wolf_discount(exchange, pair)
+                _tp, _ts = _fleet_tide()
+                _announced = (time.time() - _st_armed.get(asset, {}).get("ts", 0)) \
+                    if asset in _st_armed else 999
+                if not _rot_ok:
+                    logger.info("  SURE THING %s: rotation lock — %s", asset, _rot_reason)
+                    continue
+                if _ts == "OUT" and not _lw_pts:
+                    logger.info("  SURE THING %s: tide OUT — no breakout trades against the fleet", asset)
+                    continue
+                if _recent_fired_popups() >= _popup_cap():
+                    logger.info("  SURE THING %s: popup cap full — quiet", asset)
+                    continue
+                # the knife: a both-bearish 1h trend is a falling wedge, not a coil
+                try:
+                    _knife, _ = knife_reversed_1h(exchange, pair, cfg)
+                    if _knife:
+                        logger.info("  SURE THING %s: 1h knife active — falling wedge, skip", asset)
+                        continue
+                except Exception:
+                    pass
+                # the death-line guard sizes it; the structural score sizes it more
+                try:
+                    import contest_account as _ca_st
+                    _acct = _ca_st.load_state()
+                    _bal = float(_acct["current_balance"])
+                    _wdd = _ca_st.window_drawdown_pct(pair)
+                    _cap = _ca_st.max_entry_usd(_bal, _wdd, float(_acct["start_balance"]))
+                    if _cap <= 0:
+                        logger.info("  SURE THING %s: death line — no entry", asset)
+                        continue
+                    _mult = _st_mult(r.get("score") or 0.0)
+                    _spend = _cap * _mult
+                except Exception:
+                    _spend, _mult = 0.0, 0.10
+                _score = float(r.get("score") or 0.0)
+                _out_by = (_now_mst() + timedelta(
+                    minutes=st.SURE_THING_WINDOW_MIN)).strftime("%I:%M").lstrip("0")
+                _title = (f"🧲 SURE THING — BUY {asset} — BREAKOUT — "
+                          f"{_score:.0f}% SETUP — {_mult:.2f}× SIZE")
+                _spoken = (f"Sure thing! {asset} is breaking out! "
+                           f"{r['tests']} tests at the ceiling, the coil cracked! "
+                           f"The setup scores {_score:.0f} percent — sizing at {_mult:.2f}! "
+                           f"Get in now! If it hasn't paid by {_out_by}, get out!")
+                _msg = (f"SURE THING — BUY {asset}\n"
+                        f"WHY: {r['detail']} — the ceiling at ${r['zone_high']:.4f} cracked "
+                        f"on a {r['vol_spike']:.1f}x volume burst\n"
+                        f"WHEN: NOW — the crack, not the confirmation\n"
+                        f"HOW LONG: out by {_out_by} (the countdown — "
+                        f"{st.SURE_THING_WINDOW_MIN:.0f} min window)\n"
+                        f"SPEND: ${_spend:,.0f} (the 3% guard cap × {_mult:.2f} structural sizing)\n"
+                        f"{'-' * 30}\n"
+                        f"CONTEST-ONLY — no bridge write. Run the DEEP SCAN now for "
+                        f"tracking (the one path where the popup precedes it — your call, "
+                        f"Sep 6). The death line never yields.\n"
+                        f"  {_fmt_mst(_now_mst())}")
+                notify_big(_title, _msg, spoken=_spoken)
+                rotation_mark_fired(asset)
+                _st_armed.pop(asset, None)
+                try:
+                    _snap = {"pair": pair, "quick": _score, "brain": None,
+                             "route": "sure-thing", "kind": "fired",
+                             "detail": r["detail"],
+                             "features": {"coil_range_pct": r.get("coil_range_pct"),
+                                         "tests": r.get("tests"),
+                                         "squeeze_pct": r.get("squeeze_pct"),
+                                         "vol_spike": r.get("vol_spike"),
+                                         "score": _score},
+                             "mult": _mult, "spend": float(_spend or 0.0),
+                             "entry": float(r.get("trigger_px") or 0.0),
+                             "win_min": st.SURE_THING_WINDOW_MIN}
+                    _log_signal_snapshot(_snap)
+                except Exception:
+                    pass
+                logger.info("🧲 SURE THING FIRED: %s — %s (score %.0f, %.2fx, $%.0f)",
+                            asset, r["detail"], _score, _mult, _spend)
+                time.sleep(0.4)
+            except Exception as exc:
+                logger.debug("sure-thing scan failed for %s: %s", asset, exc)
+                continue
+
 
     def _read_all_signals():
         """Read all signals from the SQLite bridge."""
@@ -3794,6 +3916,16 @@ def main():
                 contest_light(exchange, cfg)
             except Exception as exc:
                 logger.debug("contest light error: %s", exc)
+
+        # ── THE SURE THING (every 5 minutes): the fleet-wide breakout
+        #    scan — coils announced once, cracks fired at the moment
+        #    (contest-only, the deep scan waived by the user's call)
+        if (now.timestamp() - last_sure_thing_scan) >= 300:
+            last_sure_thing_scan = now.timestamp()
+            try:
+                _sure_thing_scan(exchange)
+            except Exception as exc:
+                logger.debug("sure thing scan error: %s", exc)
 
         # ── Exit check (every 5 minutes on open positions) ────────────
         if (now.timestamp() - last_exit_check) >= 300:  # 5 min

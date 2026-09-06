@@ -1,5 +1,6 @@
 bot Postgres positions (latest 10):
-  #235 UNI/USD 7.486941 @ 7.3876 opened 2026-09-06 16:30 open=True
+  #236 RENDER/USD 35.76944 @ 1.512 opened 2026-09-06 18:06 open=True
+  #235 UNI/USD 7.486941 @ 7.3876 opened 2026-09-06 16:30 open=False
   #234 NEAR/USD 22.80166 @ 2.393 opened 2026-09-06 15:51 open=False
   #233 XRP/USD 38.859266 @ 1.40714 opened 2026-09-06 15:15 open=False
   #232 LDO/USD 133.188 @ 0.411 opened 2026-09-06 15:05 open=False
@@ -8,8 +9,9 @@ bot Postgres positions (latest 10):
   #229 BNB/USD 0.07396 @ 749.18 opened 2026-09-06 14:08 open=False
   #228 CRV/USD 151.243984 @ 0.36754 opened 2026-09-06 13:27 open=False
   #227 XRP/USD 39.30762 @ 1.41841 opened 2026-09-06 11:26 open=False
-  #226 ATOM/USD 35.007176 @ 1.5975 opened 2026-09-06 09:40 open=False
 bot trades today:
+  2026-09-06 18:06 buy  RENDER/USD 35.76944 @ 1.512 ($54.08)
+  2026-09-06 17:25 sell UNI/USD    7.486941 @ 7.1755 ($53.72)
   2026-09-06 16:30 buy  UNI/USD    7.486941 @ 7.3876 ($55.31)
   2026-09-06 16:22 sell NEAR/USD   22.80166 @ 2.4209 ($55.20)
   2026-09-06 15:51 buy  NEAR/USD   22.80166 @ 2.393 ($54.56)
@@ -28,5 +30,3 @@ bot trades today:
   2026-09-06 13:27 sell XRP/USD    39.30762 @ 1.41475 ($55.61)
   2026-09-06 11:26 buy  XRP/USD    39.30762 @ 1.41841 ($55.75)
   2026-09-06 10:25 sell ATOM/USD   35.007176 @ 1.5964 ($55.89)
-  2026-09-06 09:40 buy  ATOM/USD   35.007176 @ 1.5975 ($55.92)
-  2026-09-06 09:39 sell XMR/USD    0.172259 @ 542.57 ($93.46)

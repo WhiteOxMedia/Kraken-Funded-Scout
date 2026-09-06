@@ -1,5 +1,5 @@
-positions since Sun 8 PM MST: 102
-trades since Sun 8 PM MST: 233
+positions since Sun 8 PM MST: 103
+trades since Sun 8 PM MST: 234
 
 time    side  pair              vol      price      usd
 02:31   sell  NEAR/USD        79.78     2.0098 $ 160.34
@@ -235,12 +235,13 @@ time    side  pair              vol      price      usd
 16:22   sell  NEAR/USD         22.8     2.4209 $  55.20
 16:30   buy   UNI/USD         7.487     7.3876 $  55.31
 17:25   sell  UNI/USD         7.487     7.1755 $  53.72
+18:06   buy   RENDER/USD      35.77      1.512 $  54.08
 
-total bought:  $11,766.39
+total bought:  $11,820.48
 total sold:    $11,499.71
-total fees:    $27.14
-net P&L:       $-293.83
-round trips:   116
+total fees:    $27.33
+net P&L:       $-348.10
+round trips:   117
 
 exit reasons:
   02:31 NEAR/USD: Time-block rotation — flatten to cash
