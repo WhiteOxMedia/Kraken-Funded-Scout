@@ -27,14 +27,14 @@ PASS  sanity: 1.24% pace → ~1.3h to $20 (passes cap)
 TAKE IT threshold math:
 
 resolve-rule math:
-  current cap: 3.9h
+  current cap: 5.0h
 
 live resolve gate (scalp = +0.4% = the $20):
-  BTC/USD: $20 pace → 3.9h → blocked
-  HYPE/USD: $20 pace → 2.2h → passes
-  NEAR/USD: $20 pace → 1.4h → passes
+  BTC/USD: $20 pace → 6.8h → blocked
+  HYPE/USD: $20 pace → 1.7h → passes
+  NEAR/USD: $20 pace → 2.3h → passes
 
 live _hours_to_goal (display only):
-  BTC/USD: 2% away → 19.6h → blocked
-  HYPE/USD: 2% away → 10.8h → blocked
-  NEAR/USD: 2% away → 6.8h → blocked
+  BTC/USD: 2% away → 33.8h → blocked
+  HYPE/USD: 2% away → 8.7h → blocked
+  NEAR/USD: 2% away → 11.4h → blocked

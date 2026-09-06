@@ -1,8 +1,9 @@
-now: Sat 08:06 PM Denver
+now: Sun 09:35 AM Denver
 
-OPEN positions: 0
+OPEN positions: 1
+  LDO/USD since 2026-09-06T08:05 @ 0.411
 
-full signal trail today (1691 signals):
+full signal trail today (1762 signals):
   00:00  ALGO/USD   buy  rejected  scout_auto     64.0%
   00:00  BTC/USD    buy  rejected  scout_auto     71.0%
   00:11  ADA/USD    buy  rejected  scout_auto     72.0%
@@ -1692,8 +1693,79 @@ full signal trail today (1691 signals):
   17:51  LDO/USD    buy  rejected  scout_auto     72.5%
   17:54  TIA/USD    buy  rejected  scout_auto     81.0%
   18:35  UAI/USD    buy  closed    bot_strategy   72.0%
+  19:30  XRP/USD    buy  closed    bot_strategy   30.0%
   19:35  UAI/USD    buy  closed    scout_mover    72.0%
   19:44  ADA/USD    buy  rejected  scout_auto     100.0%
+  21:14  XRP/USD    buy  closed    bot_strategy   30.0%
+  21:37  XRP/USD    sell closed    scout_exit_check 0.0%
+  23:32  INJ/USD    buy  closed    bot_strategy   100.0%
+  23:37  XRP/USD    sell closed    scout_exit_check 0.0%
+  00:31  INJ/USD    buy  closed    scout_auto     100.0%
+  00:35  XMR/USD    buy  closed    bot_strategy   51.0%
+  00:56  NEAR/USD   buy  rejected  scout_auto     64.0%
+  01:05  DASH/USD   buy  rejected  scout_mover    99.0%
+  01:13  NEAR/USD   buy  rejected  scout_auto     54.5%
+  01:13  XPL/USD    buy  rejected  scout_auto     61.0%
+  01:16  COTI/USD   buy  rejected  scout_mover    67.0%
+  01:37  GRT/USD    buy  rejected  scout_mover    72.0%
+  01:47  WLD/USD    buy  rejected  scout_auto     67.0%
+  02:02  WIF/USD    buy  rejected  scout_auto     51.3%
+  02:17  WIF/USD    buy  rejected  scout_auto     51.3%
+  02:27  NEAR/USD   buy  rejected  scout_auto     75.0%
+  02:38  S/USD      buy  rejected  scout_auto     75.0%
+  02:40  ATOM/USD   buy  closed    bot_strategy   67.0%
+  02:48  DOT/USD    buy  rejected  scout_auto     67.0%
+  03:33  WLD/USD    buy  rejected  scout_auto     97.0%
+  03:39  ATOM/USD   buy  closed    scout_auto     67.0%
+  03:49  WLD/USD    buy  rejected  scout_auto     77.0%
+  04:23  TIA/USD    buy  rejected  scout_auto     71.0%
+  04:26  XRP/USD    buy  closed    bot_strategy   32.6%
+  05:49  S/USD      buy  rejected  scout_auto     100.0%
+  06:27  CRV/USD    buy  closed    bot_strategy   61.1%
+  06:50  NEAR/USD   buy  rejected  scout_auto     100.0%
+  07:08  BNB/USD    buy  closed    bot_strategy   66.0%
+  07:17  WLD/USD    buy  rejected  scout_auto     75.0%
+  07:18  XRP/USD    buy  closed    bot_strategy   65.0%
+  07:24  BNB/USD    buy  rejected  scout_auto     66.0%
+  07:26  CRV/USD    buy  closed    scout_auto     61.1%
+  07:28  CRV/USD    sell closed    scout_trend_exit 0.0%
+  07:28  FARTCOIN/USD buy  rejected  scout_auto     91.0%
+  07:33  TIA/USD    buy  rejected  scout_auto     76.0%
+  07:41  XRP/USD    buy  closed    bot_strategy   65.0%
+  07:43  CRV/USD    sell rejected  scout_trend_exit 0.0%
+  07:44  TIA/USD    buy  rejected  scout_auto     76.0%
+  07:52  LDO/USD    buy  rejected  scout_auto     86.0%
+  07:56  BNB/USD    buy  rejected  scout_auto     66.0%
+  07:56  TIA/USD    buy  rejected  scout_auto     76.0%
+  07:59  CRV/USD    sell rejected  scout_trend_exit 0.0%
+  08:05  LDO/USD    buy  filled    bot_strategy   100.0%
+  08:08  BNB/USD    buy  closed    scout_auto     66.0%
+  08:09  BNB/USD    sell closed    scout_trend_exit 0.0%
+  08:12  VIRTUAL/USD buy  rejected  scout_auto     64.5%
+  08:15  XRP/USD    buy  closed    bot_strategy   60.0%
+  08:22  DOT/USD    buy  rejected  scout_auto     71.0%
+  08:22  JTO/USD    buy  rejected  scout_auto     91.0%
+  08:25  BNB/USD    sell rejected  scout_trend_exit 0.0%
+  08:32  HYPE/USD   buy  rejected  scout_auto     100.0%
+  08:32  NEAR/USD   buy  rejected  scout_auto     73.5%
+  08:34  XPL/USD    buy  rejected  scout_auto     84.0%
+  08:40  BNB/USD    sell rejected  scout_trend_exit 0.0%
+  08:41  LDO/USD    buy  rejected  scout_auto     66.0%
+  08:41  TRUMP/USD  buy  rejected  scout_auto     66.0%
+  08:41  XPL/USD    buy  rejected  scout_auto     87.0%
+  08:47  MOODENG/USD buy  rejected  scout_auto     51.0%
+  08:52  TRUMP/USD  buy  rejected  scout_auto     66.0%
+  08:52  XPL/USD    buy  rejected  scout_auto     77.5%
+  08:58  MOODENG/USD buy  rejected  scout_auto     51.0%
+  08:58  NEAR/USD   buy  rejected  scout_auto     83.0%
+  08:58  TRUMP/USD  buy  rejected  scout_auto     66.0%
+  08:58  XPL/USD    buy  rejected  scout_auto     87.0%
+  08:58  MET/USD    buy  rejected  scout_mover    67.0%
+  08:59  ORCA/USD   buy  rejected  scout_mover    67.0%
+  08:59  TRX/USD    buy  rejected  scout_auto     84.0%
+  09:03  XRP/USD    sell closed    scout_trend_exit 0.0%
+  09:04  LDO/USD    buy  closed    scout_auto     100.0%
+  09:18  XRP/USD    sell closed    scout_trend_exit 0.0%
 
 rejection reasons today:
   00:00 ALGO/USD: Regime: high_vol (volatility rank 87/100); RSI oversold (29.0); BB oversold (%B=-0.00)
@@ -3186,3 +3258,51 @@ rejection reasons today:
   17:51 LDO/USD: Regime: bull_trend (volatility rank 88/100); Pullback to EMA support in uptrend (RSI 57.9) — trend entry; MACD bullish (hist=0.0018)
   17:54 TIA/USD: Regime: bull_trend (volatility rank 52/100); 🔥 BREAKOUT — Phase 1 — Breakout — +1.8% move with 1.5x volume;   Breaking Bollinger upper band (BB%B=0.95)
   19:44 ADA/USD: Regime: ranging (volatility rank 27/100); 🔥 BREAKOUT — Phase 1 — Breakout — +0.6% move with 1.4x volume;   Breaking Bollinger upper band (BB%B=0.88)
+  00:56 NEAR/USD: Regime: bull_trend (volatility rank 79/100); 🔥 BREAKOUT — Phase 1 — Breakout — +1.6% move with 1.4x volume;   Breaking Bollinger upper band (BB%B=0.94)
+  01:05 DASH/USD: Mover: +11% on 24h
+  01:13 NEAR/USD: Regime: bull_trend (volatility rank 80/100); Pullback to EMA support in uptrend (RSI 57.5) — trend entry; MACD bullish (hist=0.0037)
+  01:13 XPL/USD: Regime: ranging (volatility rank 28/100); RSI oversold (32.0); BB oversold (%B=-0.14)
+  01:16 COTI/USD: Mover: +7% on 24h
+  01:37 GRT/USD: Mover: +9% on 24h
+  01:47 WLD/USD: Regime: low_vol (volatility rank 23/100); 🔥 BREAKOUT — Phase 1 — Breakout — +0.2% move with 1.9x volume;   Breaking Bollinger upper band (BB%B=0.81)
+  02:02 WIF/USD: Regime: ranging (volatility rank 27/100); BB oversold (%B=-0.01); MACD bearish (hist=-0.0006)
+  02:17 WIF/USD: Regime: ranging (volatility rank 27/100); BB oversold (%B=-0.01); MACD bearish (hist=-0.0006)
+  02:27 NEAR/USD: Regime: bull_trend (volatility rank 87/100); 🔥 BREAKOUT — Phase 1 — Breakout — +2.7% move with 1.9x volume;   Breaking Bollinger upper band (BB%B=0.95)
+  02:38 S/USD: Regime: ranging (volatility rank 72/100); 🔥 BREAKOUT — Phase 1 — Breakout — +0.7% move with 2.2x volume;   Breaking Bollinger upper band (BB%B=0.85)
+  02:48 DOT/USD: Regime: bull_trend (volatility rank 54/100); 🔥 BREAKOUT — Phase 1 — Breakout — +1.2% move with 2.4x volume;   Breaking Bollinger upper band (BB%B=0.90)
+  03:33 WLD/USD: Regime: ranging (volatility rank 26/100); 🔥 BREAKOUT — Phase 1 — Breakout — +0.7% move with 3.9x volume;   Breaking Bollinger upper band (BB%B=1.02)
+  03:49 WLD/USD: Regime: ranging (volatility rank 27/100); 🔥 BREAKOUT — Phase 1 — Breakout — +0.4% move with 4.3x volume;   Breaking Bollinger upper band (BB%B=0.93)
+  04:23 TIA/USD: Regime: bull_trend (volatility rank 80/100); 🔥 BREAKOUT — Phase 1 — Breakout — +1.6% move with 2.6x volume;   Breaking Bollinger upper band (BB%B=0.90)
+  05:49 S/USD: Regime: ranging (volatility rank 74/100); 🔥 BREAKOUT — Phase 1 — Breakout — +1.6% move with 1.9x volume;   Breaking Bollinger upper band (BB%B=0.89)
+  06:50 NEAR/USD: Regime: bull_trend (volatility rank 88/100); 🚀 MOMENTUM RIDER — Phase 2 — Momentum — up +4.1% over 20 candles;   Strong uptrend (EMA spread 2.36%)
+  07:17 WLD/USD: Regime: bull_trend (volatility rank 70/100); 🔥 BREAKOUT — Phase 1 — Breakout — +3.3% move with 1.3x volume;   Breaking Bollinger upper band (BB%B=0.90)
+  07:24 BNB/USD: Regime: ranging (volatility rank 65/100); RSI oversold (26.8); BB oversold (%B=0.05)
+  07:28 FARTCOIN/USD: Regime: high_vol (volatility rank 79/100); 🔥 BREAKOUT — Phase 1 — Breakout — +3.0% move with 1.8x volume;   Breaking Bollinger upper band (BB%B=0.79)
+  07:33 TIA/USD: Regime: bull_trend (volatility rank 87/100); 🔥 BREAKOUT — Phase 1 — Breakout — +1.4% move with 1.9x volume;   Breaking Bollinger upper band (BB%B=0.78)
+  07:43 CRV/USD: GET OUT NOW — trend reversed (EMA9 0.3730 < EMA21 0.3733, price 0.3667 under both)
+  07:44 TIA/USD: Regime: bull_trend (volatility rank 91/100); 🔥 BREAKOUT — Phase 1 — Breakout — +1.6% move with 2.9x volume;   Breaking Bollinger upper band (BB%B=0.79)
+  07:52 LDO/USD: Regime: bull_trend (volatility rank 66/100); 🔥 BREAKOUT — Phase 1 — Breakout — +2.2% move with 1.8x volume;   Breaking Bollinger upper band (BB%B=0.88)
+  07:56 BNB/USD: Regime: ranging (volatility rank 65/100); RSI oversold (26.6); BB oversold (%B=0.05)
+  07:56 TIA/USD: Regime: bull_trend (volatility rank 91/100); 🔥 BREAKOUT — Phase 1 — Breakout — +1.6% move with 2.9x volume;   Breaking Bollinger upper band (BB%B=0.79)
+  07:59 CRV/USD: GET OUT NOW — trend reversed (EMA9 0.3733 < EMA21 0.3734, price 0.3683 under both)
+  08:12 VIRTUAL/USD: Regime: bull_trend (volatility rank 73/100); Pullback to EMA support in uptrend (RSI 58.4) — trend entry; MACD bullish (hist=0.0020)
+  08:22 DOT/USD: Regime: bull_trend (volatility rank 95/100); MACD bullish (hist=0.0010); EMA bullish (short > long)
+  08:22 JTO/USD: Regime: bull_trend (volatility rank 91/100); 🔥 BREAKOUT — Phase 1 — Breakout — +0.8% move with 5.0x volume;   Breaking Bollinger upper band (BB%B=0.79)
+  08:25 BNB/USD: GET OUT NOW — trend reversed (EMA9 754.7164 < EMA21 757.0357, price 744.4200 under both)
+  08:32 HYPE/USD: Regime: bull_trend (volatility rank 40/100); 🚀 MOMENTUM RIDER — Phase 2 — Momentum — up +3.5% over 20 candles;   Strong uptrend (EMA spread 1.15%)
+  08:32 NEAR/USD: Regime: bull_trend (volatility rank 100/100); Pullback to EMA support in uptrend (RSI 58.8) — trend entry; MACD bullish (hist=0.0059)
+  08:34 XPL/USD: Regime: ranging (volatility rank 38/100); RSI oversold (32.9); BB oversold (%B=-0.06)
+  08:40 BNB/USD: GET OUT NOW — trend reversed (EMA9 754.6004 < EMA21 756.9830, price 743.8400 under both)
+  08:41 LDO/USD: Regime: bull_trend (volatility rank 96/100); 🔥 BREAKOUT — Phase 1 — Breakout — +1.2% move with 1.6x volume;   Breaking Bollinger upper band (BB%B=0.71)
+  08:41 TRUMP/USD: Regime: low_vol (volatility rank 2/100); RSI oversold (31.3); BB oversold (%B=-0.11)
+  08:41 XPL/USD: Regime: ranging (volatility rank 38/100); RSI oversold (34.0); BB oversold (%B=-0.02)
+  08:47 MOODENG/USD: Regime: high_vol (volatility rank 90/100); RSI oversold (30.7); BB oversold (%B=-0.18)
+  08:52 TRUMP/USD: Regime: low_vol (volatility rank 2/100); RSI oversold (31.5); BB oversold (%B=-0.10)
+  08:52 XPL/USD: Regime: ranging (volatility rank 38/100); BB oversold (%B=0.03); MACD bearish (hist=-0.0001)
+  08:58 MOODENG/USD: Regime: high_vol (volatility rank 90/100); RSI oversold (31.7); BB oversold (%B=-0.15)
+  08:58 NEAR/USD: Regime: bull_trend (volatility rank 100/100); 🔥 BREAKOUT — Phase 1 — Breakout — +0.6% move with 1.3x volume;   Breaking Bollinger upper band (BB%B=0.87)
+  08:58 TRUMP/USD: Regime: low_vol (volatility rank 2/100); RSI oversold (31.3); BB oversold (%B=-0.11)
+  08:58 XPL/USD: Regime: ranging (volatility rank 38/100); BB oversold (%B=0.03); MACD bearish (hist=-0.0001)
+  08:58 MET/USD: Mover: +12% on 24h
+  08:59 ORCA/USD: Mover: +10% on 24h
+  08:59 TRX/USD: Regime: ranging (volatility rank 29/100); 🔥 BREAKOUT — Phase 1 — Breakout — +0.3% move with 4.5x volume;   Breaking Bollinger upper band (BB%B=0.87)

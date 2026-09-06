@@ -1,8 +1,10 @@
-HYPE now: $85.4700
-strategy: HOLD 22%
-  - Regime: low_vol (volatility rank 17/100)
-  - MACD bearish (hist=-0.0286)
+HYPE now: $88.8600
+strategy: HOLD 25%
+  - Regime: bull_trend (volatility rank 46/100)
+  - RSI overbought in uptrend (73.2) — take profit
+  - BB upper band in uptrend (%B=0.83) — take profit
+  - MACD bullish (hist=0.0944)
   - EMA bullish (short > long)
-  - Below min_confidence (40) — holding
+  - VETOED: own indicators said take-profit — not buying the top (late-stage veto, Sep 4)
 
 VERDICT: HOLD

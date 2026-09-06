@@ -1,5 +1,5 @@
-positions since Sun 8 PM MST: 88
-trades since Sun 8 PM MST: 204
+positions since Sun 8 PM MST: 100
+trades since Sun 8 PM MST: 229
 
 time    side  pair              vol      price      usd
 02:31   sell  NEAR/USD        79.78     2.0098 $ 160.34
@@ -206,12 +206,37 @@ time    side  pair              vol      price      usd
 00:29   sell  BCH/USD         0.217     258.12 $  56.02
 01:35   buy   UAI/USD         93.73    0.59511 $  55.78
 02:00   sell  UAI/USD         93.73       0.62 $  58.11
+02:30   buy   XRP/USD         39.79     1.4166 $  56.37
+03:38   sell  XRP/USD         39.79     1.4257 $  56.73
+04:14   buy   XRP/USD         39.64      1.422 $  56.37
+05:38   sell  XRP/USD         39.64     1.4263 $  56.54
+06:32   buy   INJ/USD         11.11      5.073 $  56.35
+07:34   sell  INJ/USD         11.11      5.098 $  56.63
+07:35   buy   XMR/USD        0.1029     546.45 $  56.25
+08:52   buy   XMR/USD       0.06932     542.89 $  37.63
+09:39   sell  XMR/USD        0.1723     542.57 $  93.46
+09:40   buy   ATOM/USD        35.01     1.5975 $  55.92
+10:25   sell  ATOM/USD        35.01     1.5964 $  55.89
+11:26   buy   XRP/USD         39.31     1.4184 $  55.75
+13:27   sell  XRP/USD         39.31     1.4147 $  55.61
+13:27   buy   CRV/USD         151.2    0.36754 $  55.59
+13:29   sell  CRV/USD         151.2    0.36686 $  55.49
+14:08   buy   BNB/USD       0.07396     749.18 $  55.41
+14:10   sell  BNB/USD       0.07396     748.77 $  55.38
+14:18   buy   XRP/USD         39.16     1.4117 $  55.29
+14:34   sell  XRP/USD         39.16     1.4061 $  55.07
+14:41   buy   XRP/USD         39.07     1.4104 $  55.10
+15:04   sell  XRP/USD         39.07     1.4041 $  54.86
+15:05   buy   LDO/USD         133.2      0.411 $  54.74
+15:14   sell  LDO/USD         133.2       0.41 $  54.61
+15:15   buy   XRP/USD         38.86     1.4071 $  54.68
+15:19   sell  XRP/USD         38.86      1.408 $  54.71
 
-total bought:  $10,951.06
-total sold:    $10,685.82
-total fees:    $21.44
-net P&L:       $-286.68
-round trips:   102
+total bought:  $11,656.52
+total sold:    $11,390.78
+total fees:    $26.38
+net P&L:       $-292.11
+round trips:   114
 
 exit reasons:
   02:31 NEAR/USD: Time-block rotation — flatten to cash
@@ -304,3 +329,15 @@ exit reasons:
   23:02 AR/USD: Challenge: displaced by stronger signal BCH (100% vs 72%)
   00:29 BCH/USD: Rotating to XMR/USD (held BCH/USD sell signal, new buy 62% > rotation threshold 50%)
   02:00 UAI/USD: Time-block rotation — flatten to cash
+  03:38 XRP/USD: THESIS DEAD: entered 30% on a buy read, now reads sell 31% — the reason we entered isn't alive
+  05:38 XRP/USD: THESIS DEAD: entered 30% on a buy read, now reads sell 33% — the reason we entered isn't alive
+  07:34 INJ/USD: Rotating to XMR/USD (held INJ/USD sell signal, new buy 51% > rotation threshold 50%)
+  09:39 XMR/USD: Challenge: displaced by stronger signal ATOM (67% vs 51%)
+  10:25 ATOM/USD: Rotating to XMR/EUR (held ATOM/USD sell signal, new buy 51% > rotation threshold 50%)
+  13:27 XRP/USD: Challenge: displaced by stronger signal CRV (61% vs 33%)
+  13:29 CRV/USD: Cooldown ended at 1 min — 1h knife still reversed (EMA9 $0.3732 < EMA21 $0.3733, live $0.3674 under both)
+  14:10 BNB/USD: Cooldown ended at 1 min — 1h knife still reversed (EMA9 $755.6 < EMA21 $757.4, live $748.9 under both)
+  14:34 XRP/USD: GET OUT NOW — trend reversed (EMA9 $1.4161 < EMA21 $1.4163, price $1.4054 under both, PnL -0.4%)
+  15:04 XRP/USD: Cooldown ended at 23 min — 1h knife still reversed (EMA9 $1.414 < EMA21 $1.416, live $1.404 under both)
+  15:14 LDO/USD: Rotating to XRP/USD (held LDO/USD sell signal, new buy 60% > rotation threshold 50%)
+  15:19 XRP/USD: Cooldown ended at 4 min — 1h knife still reversed (EMA9 $1.415 < EMA21 $1.416, live $1.408 under both)

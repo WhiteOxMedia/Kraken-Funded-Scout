@@ -66,6 +66,54 @@ BRAIN_SIZE_TABLE = (
 )
 
 
+# ── THE FAST FUNNEL ROUTER (user rule, Sep 6: "we have enough data to
+# act now. Get it done.") ─────────────────────────────────────────────
+# The dual-funnel architecture: FAST = immediate entry, minimal gates
+# (the worth floor waives; the 3% guard, the popup cap, the death line,
+# too-thin, tide-OUT and the rotation lock all STAND); SLOW = the full
+# stack, exactly as it runs today. The rule source: hindsight_rules.json's
+# fast_route keys (re-extracted weekly by the scorer, read LIVE — no
+# restart); until a tercile clears the support-15/lift-1.3 bar, the
+# PROVISIONAL data-backed rule stands: momentum_1h >= +0.4% — the top
+# tercile of the first 109-event dataset (73% winners, ZERO duds, lift
+# 1.28 vs the 1.30 bar). AND-semantics when multiple rules land.
+FAST_ROUTE_PROVISIONAL = {"momentum_1h": 0.4}
+
+
+def fast_route(features) -> tuple[bool, str]:
+    """(is_fast, why) — route one fire-time feature vector. Features
+    missing/unreadable -> (False, reason): the router fails CLOSED to
+    the slow funnel (a broken read never buys speed)."""
+    try:
+        if not isinstance(features, dict) or not features:
+            return False, "no fire-time features"
+        rules = {}
+        try:
+            rules = json.loads(open(RULES_FILE, encoding="utf-8").read()
+                               ).get("fast_route") or {}
+        except Exception:
+            rules = {}
+        if not rules:
+            rules = FAST_ROUTE_PROVISIONAL
+        why = []
+        for k, spec in rules.items():
+            mn = float(spec.get("min")) if isinstance(spec, dict) else float(spec)
+            v = features.get(k)
+            if v is None:
+                return False, f"{k} missing"
+            try:
+                v = float(v)
+            except (TypeError, ValueError):
+                return False, f"{k} unreadable"
+            if v < mn:
+                return False, f"{k} {v:.2f} < {mn}"
+            why.append(f"{k} {v:.2f}≥{mn}")
+        src = "rules.json" if rules is not FAST_ROUTE_PROVISIONAL else "provisional"
+        return True, f"{src}: " + " & ".join(why)
+    except Exception as exc:
+        return False, f"router error: {exc}"
+
+
 def brain_size_mult(conf) -> float:
     """The advisory-brain size multiplier. Monotonic, never zero."""
     try:

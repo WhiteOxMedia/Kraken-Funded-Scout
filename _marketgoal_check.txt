@@ -1,5 +1,5 @@
-PASS  the engine side resolves (the universe median for unknown pairs)  1.687
-PASS  a generous week (4%/day) keeps the ENGINE number (keep what won)  1.687
+PASS  the engine side resolves (the universe median for unknown pairs)  1.407
+PASS  a generous week (4%/day) keeps the ENGINE number (keep what won)  1.407
 PASS  a quiet week (0.8%/day) caps the base at 0.8 -> the 1% floor  
 PASS  the week caps a stale engine ask: 1.2%/day week -> 1.2 base  
 PASS  the MEDIAN day rules (one wild day doesn't lift the cap)  
@@ -7,13 +7,13 @@ PASS  the cap never exceeds the engine number (a 2.5%/day week, engine 1.5 -> 1.
 PASS  the tide multipliers: FLAT 0.90 / RISING 1.15  
 PASS  LOW tide = realistic lower: base 1.2 -> 1.08  1.0799999999999899
 PASS  HIGH tide = realistic higher (don't leave money behind): base 1.2 -> 1.38  1.3799999999999868
-PASS  a high tide on the engine base scales it (week 4% -> base ENG -> ENG x 1.15)  (1.9400499999999998, 1.687)
+PASS  a high tide on the engine base scales it (week 4% -> base ENG -> ENG x 1.15)  (1.61805, 1.407)
 PASS  the 3% band holds in a high tide (the clamp math: 3.0 base x 1.15 -> 3.0)  
 PASS  the 1% floor holds in a low tide: base 1.0 -> 0.9 -> clamped 1.0  
 PASS  a 1.0 base in a HIGH tide rises to 1.15 (the floor never caps the upside)  1.15
 PASS  the rising:tide spread on the same base is ~1.28x (1.38 vs 1.08)  
 PASS  the tide applies FRESH outside the cache (flat 1.08 -> rising 1.38, 1 fetch)  (1.0799999999999899, 1.3799999999999868, 1)
-PASS  a broken week read leaves the ENGINE number alone (yesterday's logic, unchanged)  1.687
+PASS  a broken week read leaves the ENGINE number alone (yesterday's logic, unchanged)  1.407
 PASS  cached 15 min per pair (1 fetch for 2 calls)  1
 PASS  the old derivation survives untouched as the engine side  
 PASS  the goal is tide-aware in the source (_goal_tide_mult in _market_goal_pct)  

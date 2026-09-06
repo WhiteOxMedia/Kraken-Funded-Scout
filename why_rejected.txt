@@ -1,12 +1,13 @@
-2026-09-05T19:44:53 ADA/USD      buy  rejected  scout_auto   100.0% reason=Regime: ranging (volatility rank 27/100); 🔥 BREAKOUT — Phase 1 — Breakout — +0.6% move with 1.4x vol
-2026-09-05T19:35:03 UAI/USD      buy  closed    scout_mover  72.0% reason=Mover: +19% on 24h
-2026-09-05T18:35:37 UAI/USD      buy  closed    bot_strategy 72.0% reason=Mover: +19% on 24h
-2026-09-05T17:54:08 TIA/USD      buy  rejected  scout_auto   81.0% reason=Regime: bull_trend (volatility rank 52/100); 🔥 BREAKOUT — Phase 1 — Breakout — +1.8% move with 1.5x 
-2026-09-05T17:51:37 LDO/USD      buy  rejected  scout_auto   72.5% reason=Regime: bull_trend (volatility rank 88/100); Pullback to EMA support in uptrend (RSI 57.9) — trend e
-2026-09-05T17:39:53 TIA/USD      buy  rejected  scout_auto   76.0% reason=Regime: bull_trend (volatility rank 53/100); 🔥 BREAKOUT — Phase 1 — Breakout — +1.7% move with 1.4x 
-2026-09-05T17:39:42 AAVE/USD     buy  rejected  scout_auto   98.0% reason=Regime: bull_trend (volatility rank 32/100); 🚀 MOMENTUM RIDER — Phase 2 — Momentum — up +3.4% over 2
-2026-09-05T17:02:07 BCH/USD      buy  closed    scout_auto   100.0% reason=Regime: bull_trend (volatility rank 57/100); 🚀 MOMENTUM RIDER — Phase 2 — Momentum — up +3.5% over 2
-2026-09-05T16:55:05 ETC/USD      buy  rejected  scout_auto   65.0% reason=Regime: bull_trend (volatility rank 50/100); 🔥 BREAKOUT — Phase 1 — Breakout — +0.6% move with 1.7x 
-2026-09-05T16:43:40 ETC/USD      buy  rejected  scout_auto   65.0% reason=Regime: bull_trend (volatility rank 50/100); 🔥 BREAKOUT — Phase 1 — Breakout — +0.6% move with 1.7x 
+2026-09-06T09:38:55 NEAR/USD     buy  pending   scout_auto   83.5% reason=Regime: bull_trend (volatility rank 100/100); Pullback to EMA support in uptrend (RSI 59.4) — trend 
+2026-09-06T09:18:51 XRP/USD      sell closed    scout_trend_exit 0.0% reason=GET OUT NOW — trend reversed (EMA9 1.4151 < EMA21 1.4159, price 1.4073 under both)
+2026-09-06T09:04:31 LDO/USD      buy  closed    scout_auto   100.0% reason=Regime: bull_trend (volatility rank 84/100); 🚀 MOMENTUM RIDER — Phase 2 — Momentum — up +5.4% over 2
+2026-09-06T09:03:17 XRP/USD      sell closed    scout_trend_exit 0.0% reason=GET OUT NOW — trend reversed (EMA9 1.4147 < EMA21 1.4157, price 1.4051 under both)
+2026-09-06T08:59:27 TRX/USD      buy  rejected  scout_auto   84.0% reason=Regime: ranging (volatility rank 29/100); 🔥 BREAKOUT — Phase 1 — Breakout — +0.3% move with 4.5x vol
+2026-09-06T08:59:07 ORCA/USD     buy  rejected  scout_mover  67.0% reason=Mover: +10% on 24h
+2026-09-06T08:58:55 MET/USD      buy  rejected  scout_mover  67.0% reason=Mover: +12% on 24h
+2026-09-06T08:58:44 XPL/USD      buy  rejected  scout_auto   87.0% reason=Regime: ranging (volatility rank 38/100); BB oversold (%B=0.03); MACD bearish (hist=-0.0001)
+2026-09-06T08:58:38 TRUMP/USD    buy  rejected  scout_auto   66.0% reason=Regime: low_vol (volatility rank 2/100); RSI oversold (31.3); BB oversold (%B=-0.11)
+2026-09-06T08:58:30 NEAR/USD     buy  rejected  scout_auto   83.0% reason=Regime: bull_trend (volatility rank 100/100); 🔥 BREAKOUT — Phase 1 — Breakout — +0.6% move with 1.3x
 
-open positions: 0
+open positions: 1
+  LDO/USD since 2026-09-06T08:05 @ 0.411

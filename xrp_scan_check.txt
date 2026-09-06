@@ -1,10 +1,14 @@
-XRP live: $1.4197
-signal: HOLD 35%
-entry=None stop=None tp=None
-rotation: 🌙 Cooldown | bar 60% | no_buy=True
-green light (buy >= bar)? False
+XRP live: $1.4102
+signal: BUY 69%
+entry=1.4102 stop=1.396478 tp=1.444505
+rotation: R3 ☀️ EU/US Overlap | bar 60% | no_buy=False
+green light (buy >= bar)? True
 reasons:
-  - Regime: low_vol (volatility rank 10/100)
-  - MACD bullish (hist=0.0000)
-  - EMA bullish (short > long)
-  - Below min_confidence (40) — holding
+  - Regime: ranging (volatility rank 26/100)
+  - BB oversold (%B=0.05)
+  - MACD bearish (hist=-0.0014)
+  - EMA bearish (short < long)
+  - Signal confidence: 69/100 (🟡 Medium confidence)
+  - Phase stable (2+ candles)
+  - Jagged trend (50% smooth — below 60% threshold)
+  - Weak trend angle (0.0° < 10°)

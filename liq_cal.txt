@@ -1,17 +1,17 @@
 BTC/USD    weekday     9154k   18356k   33019k   15256k    8849k
-BTC/USD    weekend     3273k    4339k    7850k    8344k    8388k
+BTC/USD    weekend     3622k    3777k    7850k    8344k    7802k
 XRP/USD    weekday     1181k    2782k    3854k    2504k    2404k
-XRP/USD    weekend      602k     779k    1108k    1094k    2049k
+XRP/USD    weekend      648k     670k    1108k    1094k    2138k
 SOL/USD    weekday     1382k    2495k    3878k    2177k    2156k
-SOL/USD    weekend     1065k    1091k    1992k    1526k    2058k
+SOL/USD    weekend     1084k    1047k    1992k    1526k    2134k
 ADA/USD    weekday      564k     927k    1341k     858k     534k
-ADA/USD    weekend      400k     440k     507k     817k     554k
+ADA/USD    weekend      401k     409k     507k     817k     591k
 ALGO/USD   weekday       39k      58k      99k      48k      60k
-ALGO/USD   weekend       22k      33k      43k      25k      34k
+ALGO/USD   weekend       22k      32k      43k      25k      39k
 JUP/USD    weekday       24k      21k      33k      22k      24k
-JUP/USD    weekend       26k      17k      20k       9k      13k
+JUP/USD    weekend       27k      20k      20k       9k      16k
 WIF/USD    weekday        8k      12k      18k      15k       8k
-WIF/USD    weekend       11k      11k      13k      19k      14k
+WIF/USD    weekend       14k       9k      13k      19k      14k
                     00-04 04-08 08-12 12-16 16-20
 
 dropped-list rotation medians (current-ish rotation, weekday):

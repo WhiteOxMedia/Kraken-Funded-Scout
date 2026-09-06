@@ -2492,6 +2492,27 @@ def main():
                              tide=(f"{_df_state} {_df_pct:.0f}%" if _df_pct is not None else _df_state),
                              rot=_rot_now_key)
             return
+        # ── THE FAST FUNNEL (user rule, Sep 6: "we have enough data to
+        # act now. Get it done."): route on the fire-time features —
+        # FAST = immediate entry with minimal gates (the worth floor
+        # WAIVES below; the 3% guard, the popup cap, the death line,
+        # too-thin, tide-OUT and the rotation lock all STAND); SLOW =
+        # the full stack unchanged. The rule reads LIVE from
+        # hindsight_rules.json (the scorer re-extracts weekly) with the
+        # provisional data-backed rule (momentum_1h >= +0.4%: 73%
+        # winners, zero duds in the first 109 events) until a tercile
+        # clears the bar. Fails CLOSED to the slow funnel.
+        _fast_route, _fast_why = False, ""
+        if is_buy:
+            try:
+                from hindsight_scorer import fast_route
+                _fast_route, _fast_why = fast_route(
+                    (_SNAPSHOT_CTX.get("ctx") or {}).get("features"))
+            except Exception:
+                _fast_route, _fast_why = False, ""
+            if _fast_route:
+                logger.info("  🚀 FAST ROUTE: %s — minimal gates; the caps manage the risk",
+                            _fast_why)
         # ── THE STALE-MOVE GUARD (user rule, Sep 1: "no more wiggles —
         # only solid trends"): a RE-ENTRY whose move peaked hours ago is
         # a sagging top, not a trend (APT: peaked 08:15, the 12:11
@@ -2795,7 +2816,11 @@ def main():
         # sized entry at its goal must pay at least half the daily pace
         # ($120 on 10k, $12 on 1k) or the popup is bumped. Fail-open on a
         # broken account read — the sizing above already failed open.
-        if is_buy:
+        # (Sep 6) THE FAST FUNNEL WAIVES IT: a fast-route signal trades
+        # the pace gate for the data — the 73%-winner momentum class
+        # pays quick and often; the 3% guard + the popup cap carry the
+        # risk alone. The slow route keeps the floor.
+        if is_buy and not _fast_route:
             try:
                 import contest_account as _ca_w
                 _acct_w = _ca_w.load_state()
@@ -2868,6 +2893,7 @@ def main():
                     _hm_say = "Hail Mary! The emergency hour is open! "
             title = (f"🟢 BUY {asset} — {_dc:.0f}% SURE"
                      + (f" — {_brain_mult:.2f}× SIZE" if _brain_mult < 1.0 else "")
+                     + (" — FAST ROUTE" if _fast_route else "")
                      + (" — CHALLENGER" if _challenger else "")
                      + (" — LONE WOLF (OUT TIDE)" if _out_tide_lw else "")
                      + (" — HAIL MARY" if _hail_mary else ""))
@@ -2884,6 +2910,7 @@ def main():
             _spoken = (f"Buy {asset}! {_dc:.0f} percent sure! "
                        + _challenger_say
                        + _brain_say
+                       + ("Fast route! " if _fast_route else "")
                        + _reentry_say
                        + _hm_say
                        + _lw_say
@@ -2907,7 +2934,9 @@ def main():
                 f"{_hm_line}"
                 f"{_challenger_line}"
                 f"{_brain_line}"
-                f"{contest_msg}"
+                + (f"🚀 FAST ROUTE: {_fast_why} — minimal gates; the 3% guard + the "
+                   f"popup cap carry the risk\n" if _fast_route else "")
+                + f"{contest_msg}"
                 f"{'-' * 30}\n"
                 f"get out at ${signal.stop_loss:.4f} (wrong)\n"
                 f"cash out at ${signal.take_profit:.4f} (win)\n"
@@ -2957,7 +2986,9 @@ def main():
             # graded against.
             try:
                 _fsnap = dict(_SNAPSHOT_CTX.get("ctx") or {})
-                _fsnap.update({"kind": "fired", "route": "champion",
+                _fsnap.update({"kind": "fired",
+                               "route": ("champion-fast" if _fast_route else "champion"),
+                               "fast_why": _fast_why,
                                "brain": _dc, "mult": _brain_mult,
                                "spend": float(_spend or 0.0),
                                "goal_pct": float(_goal_pct or 0.0),
@@ -3475,6 +3506,19 @@ def main():
                             except Exception:
                                 _m_brain = None
                             _m_dc = _m_brain if _m_brain is not None else float(signal.confidence)
+                            # ── THE FAST FUNNEL (Sep 6 — same router as the
+                            # champion path): momentum-class movers are the
+                            # fast funnel's natural feed; the worth floor
+                            # waives, every cap stands
+                            _m_fast, _m_fast_why = False, ""
+                            try:
+                                from hindsight_scorer import fast_route
+                                _m_fast, _m_fast_why = fast_route(
+                                    (_SNAPSHOT_CTX.get("ctx") or {}).get("features"))
+                            except Exception:
+                                _m_fast, _m_fast_why = False, ""
+                            if _m_fast:
+                                logger.info("  🚀 MOVER FAST ROUTE: %s", _m_fast_why)
                             # THE STALE-MOVE GUARD — a runner that peaked
                             # hours ago is a sagging top (the APT shape).
                             # A mover popup is never a true first-fire —
@@ -3563,10 +3607,12 @@ def main():
                                             # popup — the JUP lesson): the sized entry at
                                             # its goal must pay at least the dial's share
                                             # of the daily pace, or the popup is bumped.
+                                            # (Sep 6) THE FAST FUNNEL WAIVES IT (the
+                                            # caps carry the risk alone).
                                             _m_pace = _ca.daily_pace_usd(_m_acct)
                                             _m_wf = _worth_floor_frac()  # the console dial, live
                                             _m_worth = _m_spend * (_m_goal / 100.0)
-                                            if _m_worth < _m_pace * _m_wf:
+                                            if _m_worth < _m_pace * _m_wf and not _m_fast:
                                                 _m_skip = (f"MOVER WORTH FLOOR: ${_m_spend:,.0f} at the "
                                                            f"+{_m_goal:.1f}% goal pays only ${_m_worth:,.0f} "
                                                            f"(< ${_m_pace * _m_wf:,.0f}, {_m_wf:.0%} of "
@@ -3628,10 +3674,12 @@ def main():
                                         _m_size_say = "Book unreadable — your call on size! "
                                     _m_title = (f"🚀 MOVER BUY {asset} — {_m_dc:.0f}% SURE"
                                                 + (f" — {_m_mult:.2f}× SIZE" if _m_mult < 1.0 else "")
+                                                + (" — FAST ROUTE" if _m_fast else "")
                                                 + (" — LONE WOLF (OUT TIDE)" if _m_out_lw else ""))
                                     _m_spoken = (f"Buy {asset}! {_m_dc:.0f} percent sure! "
                                                  + (f"The brain says {_m_dc:.0f} percent — sizing at {_m_mult:.2f}! "
                                                     if _m_mult < 1.0 else "")
+                                                 + ("Fast route! " if _m_fast else "")
                                                  + _m_re_say
                                                  + f"Runner outside the 54 — moving {_mv_pct:+.0f} percent on the day! "
                                                  + f"Aim for plus {_m_goal:.0f} percent! "
@@ -3647,6 +3695,8 @@ def main():
                                         + (f"BRAIN SIZES IT: {_m_dc:.0f}% → {_m_mult:.2f}× size = "
                                            f"${_m_spend:,.0f} — the scan ran; the number is advisory "
                                            f"(it sizes, it never blocks)\n" if _m_mult < 1.0 else "")
+                                        + (f"🚀 FAST ROUTE: {_m_fast_why} — minimal gates; the "
+                                           f"3% guard + the popup cap carry the risk\n" if _m_fast else "")
                                         + f"{_m_tide_line}"
                                         f"{_m_re_line}"
                                         f"{_m_spend_line}"
@@ -3673,7 +3723,9 @@ def main():
                                         notify_big(_m_title, _m_msg, spoken=_m_spoken)
                                         try:
                                             _mfs = dict(_SNAPSHOT_CTX.get("ctx") or {})
-                                            _mfs.update({"kind": "fired", "route": "mover",
+                                            _mfs.update({"kind": "fired",
+                                                         "route": ("mover-fast" if _m_fast else "mover"),
+                                                         "fast_why": _m_fast_why,
                                                          "brain": _m_dc, "mult": _m_mult,
                                                          "spend": float(_m_spend or 0.0),
                                                          "goal_pct": float(_m_goal or 0.0),

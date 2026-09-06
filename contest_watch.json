@@ -1,18 +1,1 @@
-{
-  "VIRTUAL/USD": {
-    "entry": 0.7008,
-    "high": 0.7008,
-    "size": 252.91250000000002,
-    "added": "2026-09-06T08:16:12.957493-06:00",
-    "goal_pct": 1.0,
-    "window_min": 60.0,
-    "why": [
-      "BUY 42% (green light)",
-      "Regime: ranging (volatility rank 49/100)",
-      "\ud83d\udd25 BREAKOUT \u2014 Phase 1 \u2014 Breakout \u2014 +2.0% move with 1.3x volume",
-      "  Breaking Bollinger upper band (BB%B=0.77)",
-      "  Volume surge 1.3x average"
-    ],
-    "source": "green_light"
-  }
-}
+{}

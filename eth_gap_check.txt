@@ -7,8 +7,11 @@ ETH in scout_signals DB:
     reasons: ["Regime: low_vol (volatility rank 0/100)", "MACD bullish (hist=0.0654)", "EMA bullish (short > long)", "Volume spike (1.4x avg) confirms buy", "MTF: no conflicting signals across 3 timeframes", "Signal unstable (50% consistency) \u221210"]
 
 ── what a QUICK CHECK deep scan sees (1h, deep analysis ON):
-  signal: HOLD 0%
-  - Regime: ranging (volatility rank 25/100)
-  - RSI 79.1 above 68.0 (waiting for dip (not buying strength))
-  move gate (aggressive): 0.597% ETH must clear to be tradeable
-  move gate (standard): 0.892% ETH must clear to be tradeable
+  signal: HOLD 30%
+  - Regime: ranging (volatility rank 28/100)
+  - RSI oversold (34.1)
+  - MACD bearish (hist=-3.9066)
+  - EMA bullish (short > long)
+  - Pullback quality too low (0/100)
+  move gate (aggressive): 0.525% ETH must clear to be tradeable
+  move gate (standard): 0.725% ETH must clear to be tradeable

@@ -1,1 +1,2 @@
-pending signals: 0
+pending signals: 1
+  b5e72b30 2026-09-06T09:38:55 NEAR/USD buy scout_auto 83.5%

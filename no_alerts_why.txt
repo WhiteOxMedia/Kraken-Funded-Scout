@@ -1,22 +1,24 @@
-now: Sat 08:09 PM
-desktop floor: 89% | resolve cap now: 3.9h
+now: Sun 09:38 AM
+desktop floor: 89% | resolve cap now: 5.0h
 signals since 8:45: 25
 
-≥89% (desktop-eligible): 6
-  19:44 ADA/USD      100% $20 ETA 1.3h (old TP ETA 13h) → should POP now (fix works) [status=rejected]
-  17:39 AAVE/USD     98% $20 ETA 1.8h (old TP ETA 17h) → should POP now (fix works) [status=rejected]
-  17:02 BCH/USD      100% $20 ETA 1.8h (old TP ETA 15h) → should POP now (fix works) [status=closed]
-  16:04 BCH/USD      100% $20 ETA 1.8h (old TP ETA 15h) → should POP now (fix works) [status=rejected]
-  16:03 BCH/USD      100% $20 ETA 1.8h (old TP ETA n/a) → should POP now (fix works) [status=closed]
-  15:05 AAVE/USD     100% $20 ETA 1.8h (old TP ETA 16h) → should POP now (fix works) [status=rejected]
+≥89% (desktop-eligible): 4
+  09:04 LDO/USD      100% $20 ETA 1.7h (old TP ETA 23h) → should POP now (fix works) [status=closed]
+  08:32 HYPE/USD     100% $20 ETA 1.7h (old TP ETA 15h) → should POP now (fix works) [status=rejected]
+  08:22 JTO/USD      91% $20 ETA 1.4h (old TP ETA 22h) → should POP now (fix works) [status=rejected]
+  08:05 LDO/USD      100% $20 ETA 1.7h (old TP ETA n/a) → should POP now (fix works) [status=filled]
 
 sub-89% (logged only, by design):
-  AAVE/USD     4x, best 81%
-  BCH/USD      2x, best 83%
-  DOGE/USD     1x, best 83%
-  ETC/USD      3x, best 65%
-  FIL/USD      3x, best 85%
-  LDO/USD      1x, best 72%
-  TIA/USD      2x, best 81%
-  UAI/USD      2x, best 72%
-  XRP/USD      1x, best 68%
+  BNB/USD      2x, best 66%
+  DOT/USD      1x, best 71%
+  LDO/USD      1x, best 66%
+  MET/USD      1x, best 67%
+  MOODENG/USD  2x, best 51%
+  NEAR/USD     2x, best 83%
+  ORCA/USD     1x, best 67%
+  TIA/USD      1x, best 76%
+  TRUMP/USD    3x, best 66%
+  TRX/USD      1x, best 84%
+  VIRTUAL/USD  1x, best 64%
+  XPL/USD      4x, best 87%
+  XRP/USD      1x, best 60%
