@@ -1,5 +1,5 @@
-positions since Sun 8 PM MST: 100
-trades since Sun 8 PM MST: 229
+positions since Sun 8 PM MST: 102
+trades since Sun 8 PM MST: 233
 
 time    side  pair              vol      price      usd
 02:31   sell  NEAR/USD        79.78     2.0098 $ 160.34
@@ -231,12 +231,16 @@ time    side  pair              vol      price      usd
 15:14   sell  LDO/USD         133.2       0.41 $  54.61
 15:15   buy   XRP/USD         38.86     1.4071 $  54.68
 15:19   sell  XRP/USD         38.86      1.408 $  54.71
+15:51   buy   NEAR/USD         22.8      2.393 $  54.56
+16:22   sell  NEAR/USD         22.8     2.4209 $  55.20
+16:30   buy   UNI/USD         7.487     7.3876 $  55.31
+17:25   sell  UNI/USD         7.487     7.1755 $  53.72
 
-total bought:  $11,656.52
-total sold:    $11,390.78
-total fees:    $26.38
-net P&L:       $-292.11
-round trips:   114
+total bought:  $11,766.39
+total sold:    $11,499.71
+total fees:    $27.14
+net P&L:       $-293.83
+round trips:   116
 
 exit reasons:
   02:31 NEAR/USD: Time-block rotation — flatten to cash
@@ -341,3 +345,5 @@ exit reasons:
   15:04 XRP/USD: Cooldown ended at 23 min — 1h knife still reversed (EMA9 $1.414 < EMA21 $1.416, live $1.404 under both)
   15:14 LDO/USD: Rotating to XRP/USD (held LDO/USD sell signal, new buy 60% > rotation threshold 50%)
   15:19 XRP/USD: Cooldown ended at 4 min — 1h knife still reversed (EMA9 $1.415 < EMA21 $1.416, live $1.408 under both)
+  16:22 NEAR/USD: Strategy sell (34%, PnL 1.0%)
+  17:25 UNI/USD: Exit check: momentum rider exit triggered

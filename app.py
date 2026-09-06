@@ -4094,6 +4094,32 @@ def render_auto_watch(cfg: TradingConfig, kraken):
                                              f"{'Plus' if _net >= 0 else 'Minus'} {abs(_net):,.0f} dollars net! "
                                              f"The balance is now {_new_bal:,.0f} dollars! "
                                              f"Adjust me in the sidebar if that's off!")
+                                # ── THE PROFIT RE-ARM (user rule, Sep 6: "can
+                                #    we carve out the winner exception if I
+                                #    collected money (profit)? I want to jump
+                                #    back in as soon when it sets up again"):
+                                #    a SOLD that books NET PROFIT disarms the
+                                #    rotation lock for this asset — the next
+                                #    setup can call it again (every gate still
+                                #    applies; the fire-time scan re-runs, the
+                                #    stale guard and the knife still judge the
+                                #    re-entry). A loss or a scratch keeps the
+                                #    lock armed — no re-buying what just beat
+                                #    you. The state file is shared with the
+                                #    running scanner — effective immediately.
+                                if _net > 0:
+                                    try:
+                                        import background_scanner as _bsr
+                                        if not hasattr(_bsr, "rotation_rearm_on_profit"):
+                                            import importlib
+                                            _bsr = importlib.reload(_bsr)
+                                        if _bsr.rotation_rearm_on_profit(_asset(_sp)):
+                                            _toast_sold += " · 🔁 re-armed"
+                                            _say_sold += (f" Profit collected — "
+                                                          f"{_asset(_sp)} is re-armed! "
+                                                          f"The next setup can call it again!")
+                                    except Exception:
+                                        pass
                         except Exception:
                             pass
                         try:

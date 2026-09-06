@@ -1,28 +1,28 @@
 === PYTHON PROCESSES ===
-PID 3812  created 9/4/2026 6:26:25 PM  cmd: C:\Python314\python.exe  pool\server.py
-PID 16692  created 9/5/2026 5:11:59 PM  cmd: .venv\Scripts\python.exe  background_scanner.py  
-PID 5168  created 9/5/2026 5:12:00 PM  cmd: "C:\Users\birds\AppData\Roaming\uv\python\cpython-3.14-windows-x86_64-none\python.exe"   background_scanner.py  
-PID 12732  created 9/5/2026 5:12:01 PM  cmd: .venv\Scripts\python.exe  bot_runner.py --interval 15  
-PID 9164  created 9/5/2026 5:12:03 PM  cmd: "C:\Users\birds\Workspace\kraken_scout\.venv\Scripts\python.exe" "C:\Users\birds\Workspace\kraken_scout\.venv\Scripts\streamlit.exe" run app
-PID 8264  created 9/5/2026 5:12:03 PM  cmd: "C:\Users\birds\AppData\Roaming\uv\python\cpython-3.14-windows-x86_64-none\python.exe"  "C:\Users\birds\Workspace\kraken_scout\.venv\Scripts
+PID 17720  created 9/6/2026 8:38:24 AM  cmd: C:\Python314\python.exe  pool\server.py
+PID 22096  created 9/6/2026 10:22:27 AM  cmd: .venv\Scripts\python.exe  background_scanner.py  
+PID 21768  created 9/6/2026 10:22:27 AM  cmd: "C:\Users\birds\AppData\Roaming\uv\python\cpython-3.14-windows-x86_64-none\python.exe"   background_scanner.py  
+PID 10812  created 9/6/2026 10:22:29 AM  cmd: .venv\Scripts\python.exe  bot_runner.py --interval 15  
+PID 22336  created 9/6/2026 10:22:30 AM  cmd: "C:\Users\birds\Workspace\kraken_scout\.venv\Scripts\python.exe" "C:\Users\birds\Workspace\kraken_scout\.venv\Scripts\streamlit.exe" run app
+PID 11568  created 9/6/2026 10:22:30 AM  cmd: "C:\Users\birds\AppData\Roaming\uv\python\cpython-3.14-windows-x86_64-none\python.exe"  "C:\Users\birds\Workspace\kraken_scout\.venv\Scripts
 total python.exe count: 8
 
 === PORT 8501 ===
-TCP    0.0.0.0:8501           0.0.0.0:0              LISTENING       8264
-TCP    [::]:8501              [::]:0                 LISTENING       8264
+TCP    0.0.0.0:8501           0.0.0.0:0              LISTENING       11568
+TCP    [::]:8501              [::]:0                 LISTENING       11568
 
 === BOT HEARTBEAT ===
-last write: 9/5/2026 5:18:31 PM  (age 00 min 26 s)
+last write: 9/6/2026 10:49:48 AM  (age 00 min 11 s)
 
 === SCANNER LOCK / VOICE ===
-scanner.lock last write: 9/5/2026 5:12:04 PM
+scanner.lock last write: 9/6/2026 10:22:31 AM
 voice_log tail:
-  {"ts": "2026-09-05T16:17:21.807388-06:00", "text": "All good. POL, down 0.1 percent toward the 1.9 percent goal, about 177 minutes left, go walk around."}
-  {"ts": "2026-09-05T16:18:42.398103-06:00", "text": "All good. POL, up 0.3 percent toward the 1.9 percent goal, about 176 minutes left, go walk around."}
-  {"ts": "2026-09-05T16:19:43.945572-06:00", "text": "POL sold! Plus 4 dollars net! The balance is now 9,880 dollars! Adjust me in the sidebar if that's off!"}
-  {"ts": "2026-09-05T17:02:08.341943-06:00", "text": "Buy BCH! 100 percent sure! Aim for plus 1 percent! Small size only  1,918 dollars! The tide is rising! If it hasn't paid by 8:02, get out!"}
-  {"ts": "2026-09-05T17:13:15.540111-06:00", "text": "Hello there! My systems are online and ready to make you a ton of money today! Ready to have some fun!"}
+  {"ts": "2026-09-06T09:37:08.119975-06:00", "text": "CRV is today's best pick! Confirm it below!"}
+  {"ts": "2026-09-06T10:02:58.118030-06:00", "text": "Buy RENDER! 100 percent sure! Aim for plus 1 percent! Small size only  4,101 dollars! If it hasn't paid by 12:02, get out!"}
+  {"ts": "2026-09-06T10:23:40.017330-06:00", "text": "Hello there! My systems are online and ready to make you a ton of money today! Ready to have some fun!"}
+  {"ts": "2026-09-06T10:29:16.326333-06:00", "text": "Buy UNI! 64 percent sure! The brain says 64 percent  sizing at 0.33! Fast route! Aim for plus 2 percent! Small size only  850 dollars! If it hasn't paid by 11:59, get out!"}
+  {"ts": "2026-09-06T10:42:56.779087-06:00", "text": "Buy DOT! 52 percent sure! The brain says 52 percent  sizing at 0.20! Fast route! Lone wolf! Moving on her own while the fleet sits still! Aim for plus 1 percent! Small size only  500 dollars! If it hasn't paid by 12:02, get out!"}
 
 === COMMIT TIMES ===
-bot repo:    f022aa9 2026-09-04 16:49:41 -0600 The cooldown decides with fresh eyes (user rule, Sep 4): a sell inside the 30-min window runs a current exit check
-scout repo:  f03bdff 2026-09-05 17:05:14 -0600 The daily lock REMOVED, the Hail Mary kept (user rule, Sep 5: "remove the daily lock and everything to do with that idea, it is causing missed trades. leaving money on the table" ??? then, same day: "Keep the Hail Mary")
+bot repo:    7cb5d73 2026-09-06 09:41:55 -0600 The self-strategy retirement (user rule, Sep 6): the real account trades ONLY scout signals
+scout repo:  026414b 2026-09-06 09:40:36 -0600 The fast funnel goes live + the self-strategy retirement (user rule, Sep 6: "We have enough data to act now. Get it done. This won't survive a week like this.")

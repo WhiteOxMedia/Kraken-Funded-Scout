@@ -1,6 +1,6 @@
-now: Sun 09:38 AM Denver
+now: Sun 11:26 AM Denver
 
-bridge signals since Sun 8 PM (1720):
+bridge signals since Sun 8 PM (1732):
   2026-08-23T23:13  ASTER/USD  buy  closed    bot_strategy   64.5%
   2026-08-23T23:44  FIL/USD    buy  closed    bot_strategy   77.6%
   2026-08-24T00:13  ASTER/USD  buy  closed    scout_auto     64.5%
@@ -1693,7 +1693,7 @@ bridge signals since Sun 8 PM (1720):
   2026-09-06T07:56  BNB/USD    buy  rejected  scout_auto     66.0%
   2026-09-06T07:56  TIA/USD    buy  rejected  scout_auto     76.0%
   2026-09-06T07:59  CRV/USD    sell rejected  scout_trend_exit 0.0%
-  2026-09-06T08:05  LDO/USD    buy  filled    bot_strategy   100.0%
+  2026-09-06T08:05  LDO/USD    buy  closed    bot_strategy   100.0%
   2026-09-06T08:08  BNB/USD    buy  closed    scout_auto     66.0%
   2026-09-06T08:09  BNB/USD    sell closed    scout_trend_exit 0.0%
   2026-09-06T08:12  VIRTUAL/USD buy  rejected  scout_auto     64.5%
@@ -1709,6 +1709,7 @@ bridge signals since Sun 8 PM (1720):
   2026-09-06T08:41  TRUMP/USD  buy  rejected  scout_auto     66.0%
   2026-09-06T08:41  XPL/USD    buy  rejected  scout_auto     87.0%
   2026-09-06T08:47  MOODENG/USD buy  rejected  scout_auto     51.0%
+  2026-09-06T08:51  NEAR/USD   buy  closed    bot_strategy   83.5%
   2026-09-06T08:52  TRUMP/USD  buy  rejected  scout_auto     66.0%
   2026-09-06T08:52  XPL/USD    buy  rejected  scout_auto     77.5%
   2026-09-06T08:58  MOODENG/USD buy  rejected  scout_auto     51.0%
@@ -1721,25 +1722,36 @@ bridge signals since Sun 8 PM (1720):
   2026-09-06T09:03  XRP/USD    sell closed    scout_trend_exit 0.0%
   2026-09-06T09:04  LDO/USD    buy  closed    scout_auto     100.0%
   2026-09-06T09:18  XRP/USD    sell closed    scout_trend_exit 0.0%
+  2026-09-06T09:30  UNI/USD    buy  closed    bot_strategy   64.0%
+  2026-09-06T09:38  NEAR/USD   buy  rejected  scout_auto     83.5%
+  2026-09-06T09:50  NEAR/USD   buy  closed    scout_auto     83.5%
+  2026-09-06T10:02  RENDER/USD buy  rejected  scout_auto     100.0%
+  2026-09-06T10:24  TAO/USD    buy  rejected  scout_auto     80.0%
+  2026-09-06T10:29  UNI/USD    buy  closed    scout_auto     64.0%
+  2026-09-06T10:37  PUMP/USD   buy  rejected  scout_auto     69.0%
+  2026-09-06T10:42  DOT/USD    buy  rejected  scout_auto     51.5%
+  2026-09-06T10:58  NEAR/USD   buy  rejected  scout_auto     88.0%
+  2026-09-06T10:59  PUMP/USD   buy  rejected  scout_auto     64.0%
+  2026-09-06T11:25  UNI/USD    sell closed    scout_exit_check 0.0%
 scanner_state: name 'json' is not defined
 
 bot positions (latest 5):
+  #235 UNI/USD @ 7.3876 opened 2026-09-06 16:30 open=False
+  #234 NEAR/USD @ 2.393 opened 2026-09-06 15:51 open=False
   #233 XRP/USD @ 1.40714 opened 2026-09-06 15:15 open=False
   #232 LDO/USD @ 0.411 opened 2026-09-06 15:05 open=False
   #231 XRP/USD @ 1.41042 opened 2026-09-06 14:41 open=False
-  #230 XRP/USD @ 1.41169 opened 2026-09-06 14:18 open=False
-  #229 BNB/USD @ 749.18 opened 2026-09-06 14:08 open=False
 bot trades since 8 PM (10):
+  2026-09-06 17:25 sell UNI/USD
+  2026-09-06 16:30 buy  UNI/USD
+  2026-09-06 16:22 sell NEAR/USD
+  2026-09-06 15:51 buy  NEAR/USD
   2026-09-06 15:19 sell XRP/USD
   2026-09-06 15:15 buy  XRP/USD
   2026-09-06 15:14 sell LDO/USD
   2026-09-06 15:05 buy  LDO/USD
   2026-09-06 15:04 sell XRP/USD
   2026-09-06 14:41 buy  XRP/USD
-  2026-09-06 14:34 sell XRP/USD
-  2026-09-06 14:18 buy  XRP/USD
-  2026-09-06 14:10 sell BNB/USD
-  2026-09-06 14:08 buy  BNB/USD
 
 execution: blacklist=[] strikes=['S/USD', 'ARB/USD', 'LDO/USD', 'POPCAT/USD', 'OP/USD'] pending_scales=[]
 

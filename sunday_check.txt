@@ -2,9 +2,9 @@ today: Sunday — weekend schedule, rotation hour-block 08-12
 
 avg 4h move per rotation (universe median, %):
 rotation      weekday  weekend    diff
-00-04           1.29%    1.08%  -0.21
-04-08           1.08%    1.11%  +0.03
-08-12           1.54%    0.95%  -0.60
+00-04           1.28%    1.08%  -0.20
+04-08           1.08%    1.15%  +0.07
+08-12           1.53%    0.94%  -0.59
 12-16           1.24%    1.08%  -0.16
 16-20           1.19%    1.45%  +0.26
 

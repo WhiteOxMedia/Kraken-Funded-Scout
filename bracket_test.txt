@@ -5,7 +5,7 @@ after click exception: ElementList()
   'The Pick': FOUND
   'Champion': missing
   'won the bracket': missing
-  'best pick': missing
+  'best pick': FOUND
   'FIELD': FOUND
   'matches played': FOUND
   qc-page marker 'PICK A COIN AND HIT DEEP SCAN': no

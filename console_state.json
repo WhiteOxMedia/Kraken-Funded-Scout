@@ -3,7 +3,7 @@
  "watch_on": true,
  "exit_checks": 22,
  "voice_on": true,
- "worth_floor_frac": 0.25,
+ "worth_floor_frac": 0.05,
  "goal_on": true,
  "worth_floor_auto": true,
  "popup_cap": 10

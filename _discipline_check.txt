@@ -3,7 +3,7 @@ PASS  weights are bounded [0.25, 2.5] with ±10% nudges
 PASS  rotation windows resolve (08-12 -> 08:00-12:00 MST)  
 PASS  the 20-24 window resolves  
 PASS  the rotation goal resolves to the [1, 3] band  1.339
-PASS  an unknown coin fails to the universe median (still in the band)  2.296
+PASS  an unknown coin fails to the universe median (still in the band)  2.262
 PASS  a coin that hit entry x (1+goal) inside the window PAID  
 PASS  a coin that never reached the goal did NOT pay  
 PASS  a coin that paid AFTER the window closed does not count  

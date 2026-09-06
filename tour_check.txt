@@ -1,13 +1,12 @@
 bridge signals today:
-  09:38  NEAR/USD   buy  pending   scout_auto     83.5%
-  09:18  XRP/USD    sell closed    scout_trend_exit 0.0%
-  09:04  LDO/USD    buy  closed    scout_auto     100.0%
-  09:03  XRP/USD    sell closed    scout_trend_exit 0.0%
-  08:59  TRX/USD    buy  rejected  scout_auto     84.0%
-  08:59  ORCA/USD   buy  rejected  scout_mover    67.0%
-  08:58  MET/USD    buy  rejected  scout_mover    67.0%
-  08:58  XPL/USD    buy  rejected  scout_auto     87.0%
-  08:58  TRUMP/USD  buy  rejected  scout_auto     66.0%
-  08:58  NEAR/USD   buy  rejected  scout_auto     83.0%
-open positions in bridge: 1 (bot max = 3)
-  LDO/USD since 2026-09-06T08:05 @ 0.411
+  11:25  UNI/USD    sell closed    scout_exit_check 0.0%
+  10:59  PUMP/USD   buy  rejected  scout_auto     64.0%
+  10:58  NEAR/USD   buy  rejected  scout_auto     88.0%
+  10:42  DOT/USD    buy  rejected  scout_auto     51.5%
+  10:37  PUMP/USD   buy  rejected  scout_auto     69.0%
+  10:29  UNI/USD    buy  closed    scout_auto     64.0%
+  10:24  TAO/USD    buy  rejected  scout_auto     80.0%
+  10:02  RENDER/USD buy  rejected  scout_auto     100.0%
+  09:50  NEAR/USD   buy  closed    scout_auto     83.5%
+  09:38  NEAR/USD   buy  rejected  scout_auto     83.5%
+open positions in bridge: 0 (bot max = 3)

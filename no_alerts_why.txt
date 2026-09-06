@@ -1,24 +1,21 @@
-now: Sun 09:38 AM
+now: Sun 11:26 AM
 desktop floor: 89% | resolve cap now: 5.0h
 signals since 8:45: 25
 
-≥89% (desktop-eligible): 4
+≥89% (desktop-eligible): 2
+  10:02 RENDER/USD   100% $20 ETA 2.7h (old TP ETA 32h) → should POP now (fix works) [status=rejected]
   09:04 LDO/USD      100% $20 ETA 1.7h (old TP ETA 23h) → should POP now (fix works) [status=closed]
-  08:32 HYPE/USD     100% $20 ETA 1.7h (old TP ETA 15h) → should POP now (fix works) [status=rejected]
-  08:22 JTO/USD      91% $20 ETA 1.4h (old TP ETA 22h) → should POP now (fix works) [status=rejected]
-  08:05 LDO/USD      100% $20 ETA 1.7h (old TP ETA n/a) → should POP now (fix works) [status=filled]
 
 sub-89% (logged only, by design):
-  BNB/USD      2x, best 66%
-  DOT/USD      1x, best 71%
+  DOT/USD      1x, best 52%
   LDO/USD      1x, best 66%
   MET/USD      1x, best 67%
   MOODENG/USD  2x, best 51%
-  NEAR/USD     2x, best 83%
+  NEAR/USD     5x, best 88%
   ORCA/USD     1x, best 67%
-  TIA/USD      1x, best 76%
+  PUMP/USD     2x, best 69%
+  TAO/USD      1x, best 80%
   TRUMP/USD    3x, best 66%
   TRX/USD      1x, best 84%
-  VIRTUAL/USD  1x, best 64%
-  XPL/USD      4x, best 87%
-  XRP/USD      1x, best 60%
+  UNI/USD      2x, best 64%
+  XPL/USD      3x, best 87%

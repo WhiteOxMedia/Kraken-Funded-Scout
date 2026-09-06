@@ -2,13 +2,13 @@ PASS  base default is the approved 0.25
 PASS  clamped [10%, 40%]  
 PASS  tide RISING relaxes 15%  
 PASS  weekday: the day's best rotation (08-12) gets the full dial (pace 1.0)  1.0
-PASS  weekday: the slowest rotation (04-08) scales down (0.70)  0.6977346278317152
+PASS  weekday: the slowest rotation (04-08) scales down (0.70)  0.7045751633986929
 PASS  weekend: the day's best rotation (16-20) gets the full dial (pace 1.0)  1.0
-PASS  weekend: the slowest rotation (08-12) scales down (0.65)  0.6515151515151515
+PASS  weekend: the slowest rotation (08-12) scales down (0.65)  0.6508264462809917
 PASS  pace factor never exceeds 1.0 or drops below 0.6  
 PASS  the toggle defaults ON when the key is missing  
 PASS  the base reads the slider (0.25)  
-PASS  NO catch-up in the product (the correction)  {'auto': True, 'base': 0.25, 'pace': 0.6515151515151515, 'tide': 1.0, 'effective': 0.16287878787878787}
+PASS  NO catch-up in the product (the correction)  {'auto': True, 'base': 0.25, 'pace': 0.6508264462809917, 'tide': 1.0, 'effective': 0.16270661157024793}
 PASS  the day's ledger does NOT bend the dial (a big day and a down day read the same)  
 PASS  _worth_catchup_factor is retired (kept, not called by the dial)  
 PASS  _worth_floor_frac returns the effective dial (the gates read it)  
@@ -17,7 +17,7 @@ PASS  the user's 0% (OFF) beats the auto-dial (never resurrected)
 PASS  a huge base clamps at 40%  
 PASS  a small base never drops below 10%  
 PASS  the live console ships with AUTO on (the default)  
-PASS  the live base is a valid dial value  0.25
+PASS  the live base is a valid dial value  0.05
 PASS  both popup gates read the (now auto) dial live  
 PASS  the console toggle exists and defaults ON  
 PASS  the console shows the SAME math the scanner gates on (NO catch-up in the display)  

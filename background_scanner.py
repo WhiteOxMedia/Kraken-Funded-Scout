@@ -196,6 +196,50 @@ def rotation_mark_fired(asset: str):
         logger.debug("rotation mark failed: %s", exc)
 
 
+def rotation_rearm_on_profit(asset: str) -> bool:
+    """THE PROFIT RE-ARM (user rule, Sep 6: "can we carve out the winner
+    exception if I collected money (profit)? I want to jump back in as
+    soon when it sets up again but the rotation lock is armed"): a SOLD
+    that BOOKED NET PROFIT disarms the rotation lockout for this asset —
+    the coin can fire again the moment a fresh setup passes EVERY gate
+    (fire-time scan, direction, stale-move, knife, 3% guard, popup cap —
+    this re-opens the door, it does not hold it open). A loss or a
+    scratch exit never calls this — you don't re-buy what just beat you.
+
+    Only a lock recorded for the CURRENT rotation is disarmed (an
+    earlier-rotation record means the gate is already open — nothing to
+    do). The state file is shared with the running scanner (it re-reads
+    per gate check), so a console-side disarm takes effect on the very
+    next scan — no restart. Returns True if a lock was actually lifted."""
+    now = _now_mst()
+    win = _rotation_window(now)
+    if win is None:
+        return False
+    _start, _end, rot_key = win
+    today = now.strftime("%Y-%m-%d")
+    try:
+        import json as _json
+        try:
+            state = _json.loads(open(ROTATION_LOCKOUT_FILE, encoding="utf-8").read())
+        except Exception:
+            return False
+        rec = state.get(asset)
+        if not rec or rec.get("date") != today or rec.get("rotation") != rot_key:
+            return False  # not locked for THIS rotation — nothing to disarm
+        del state[asset]
+        tmp = ROTATION_LOCKOUT_FILE + ".tmp"
+        with open(tmp, "w", encoding="utf-8") as f:
+            f.write(_json.dumps(state, indent=1))
+        os.replace(tmp, ROTATION_LOCKOUT_FILE)
+        logger.info("🔄 PROFIT RE-ARM: %s — profit collected, the rotation "
+                    "lock is disarmed (every gate still applies to the "
+                    "next fire)", asset)
+        return True
+    except Exception as exc:
+        logger.debug("rotation re-arm failed: %s", exc)
+        return False
+
+
 def rotation_yesterday_context(pair: str, lookback_days: int = 3):
     """What did this pair do in the SAME rotation window on recent days?
 

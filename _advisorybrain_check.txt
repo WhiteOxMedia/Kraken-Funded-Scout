@@ -28,7 +28,7 @@ PASS  the module table is the ONE source (scanner + QC import it)
 PASS  _popup_cap reads the live dial (int >= 1)  10
 PASS  _recent_fired_popups: 2 fresh fired count (stale + suppressed don't)  2
 PASS  _log_signal_snapshot appends (5 records now)  5
-PASS  the snapshot record carries its fields + a ts stamp  {'kind': 'fired', 'pair': 'E/USD', 'brain': 42.0, 'ts': '2026-09-06T09:35:21.734468-06:00'}
+PASS  the snapshot record carries its fields + a ts stamp  {'kind': 'fired', 'pair': 'E/USD', 'brain': 42.0, 'ts': '2026-09-06T11:22:24.344850-06:00'}
 PASS  _begin_fire_snapshot computes features from the 5m fetch  ['momentum_15m', 'momentum_1h', 'vol_burst']
 PASS  the context is stashed for the suppression hook  
 PASS  the suppression log still writes (never raises)  

@@ -7,6 +7,13 @@ PASS  flagged as re-entry
 PASS  fine defaults to 0  
 PASS  fine surfaces on re-entry  
 PASS  old day record ignored + pruned  
+PASS  pre: PUMP locked this rotation  
+PASS  profit re-arm lifts the lock  
+PASS  post: PUMP can fire again (clean, every gate re-applies)  
+PASS  other assets' locks untouched  
+PASS  earlier-rotation record: nothing to disarm  
+PASS  ...and the re-entry context survives  
+PASS  no record: re-arm is a clean no-op  
 PASS  blowoff majority detected  {'shape': 'blowoff', 'detail': '2/3 recent days ran +3.9% at this hour and dumped — re-run risk', 'days': 3, 'gain_pct': 3.9333333333333322, 'retrace_pct': 2.815713287411398}
 PASS  blowoff detail counts days  2/3 recent days ran +3.9% at this hour and dumped — re-run risk
 PASS  trend-and-held detected  {'shape': 'trend', 'detail': 'ran +3.9% and held at this hour (2/3 days)', 'days': 3, 'gain_pct': 3.9333333333333322, 'retrace_pct': 0.44823799540780396}
@@ -22,5 +29,10 @@ PASS  QC marks on green
 PASS  QC rejection toast  
 PASS  card filters locked (Aug 31: with the confirmation window — a just-fired pick stays visible for CHECK)  
 PASS  fine callout in voice  
+PASS  the SOLD tap re-arms through the scanner's ONE function  
+PASS  the re-arm fires ONLY on net profit (a loss keeps the lock)  
+PASS  the re-arm speaks it  
+PASS  the re-arm is dup-safe (reload-if-missing pattern)  
+PASS  the scanner-side function lives with the lock it disarms  
 
-RESULT: 24 passed, 0 failed
+RESULT: 36 passed, 0 failed

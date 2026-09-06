@@ -30,11 +30,11 @@ resolve-rule math:
   current cap: 5.0h
 
 live resolve gate (scalp = +0.4% = the $20):
-  BTC/USD: $20 pace → 6.8h → blocked
-  HYPE/USD: $20 pace → 1.7h → passes
-  NEAR/USD: $20 pace → 2.3h → passes
+  BTC/USD: $20 pace → 6.9h → blocked
+  HYPE/USD: $20 pace → 1.6h → passes
+  NEAR/USD: $20 pace → 1.9h → passes
 
 live _hours_to_goal (display only):
-  BTC/USD: 2% away → 33.8h → blocked
-  HYPE/USD: 2% away → 8.7h → blocked
-  NEAR/USD: 2% away → 11.4h → blocked
+  BTC/USD: 2% away → 34.6h → blocked
+  HYPE/USD: 2% away → 8.2h → blocked
+  NEAR/USD: 2% away → 9.3h → blocked

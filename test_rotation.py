@@ -72,6 +72,41 @@ Path(bs.ROTATION_LOCKOUT_FILE).write_text(json.dumps(state))
 allowed, _, reentry, _ = bs.rotation_gate("PUMP")
 check("old day record ignored + pruned", allowed and not reentry)
 
+# ── 2b. THE PROFIT RE-ARM (user rule, Sep 6: "can we carve out the
+#        winner exception if I collected money (profit)? I want to jump
+#        back in as soon when it sets up again but the rotation lock is
+#        armed?"): a SOLD that booked NET PROFIT disarms the current
+#        rotation's lock — the coin can fire again when a fresh setup
+#        passes every gate. A loss/scratch never disarms; other assets'
+#        locks are untouched.
+bs.rotation_mark_fired("PUMP")
+bs.rotation_mark_fired("BTC")   # another asset stays locked
+allowed, _, _, _ = bs.rotation_gate("PUMP")
+check("pre: PUMP locked this rotation", not allowed)
+rearmed = bs.rotation_rearm_on_profit("PUMP")
+check("profit re-arm lifts the lock", rearmed)
+allowed, reason, reentry, _ = bs.rotation_gate("PUMP")
+check("post: PUMP can fire again (clean, every gate re-applies)",
+      allowed and not reentry, reason)
+allowed_b, _, _, _ = bs.rotation_gate("BTC")
+check("other assets' locks untouched", not allowed_b)
+
+# an earlier-rotation record = the gate is already open -> nothing to
+# disarm, and the re-entry context survives
+state = {"PUMP": {"date": now.strftime("%Y-%m-%d"), "rotation": other_key,
+                  "fired_at": now.isoformat()}}
+Path(bs.ROTATION_LOCKOUT_FILE).write_text(json.dumps(state))
+check("earlier-rotation record: nothing to disarm",
+      not bs.rotation_rearm_on_profit("PUMP"))
+allowed, _, reentry, _ = bs.rotation_gate("PUMP")
+check("...and the re-entry context survives", allowed and reentry)
+
+# no record at all -> clean no-op
+Path(bs.ROTATION_LOCKOUT_FILE).write_text("{}")
+check("no record: re-arm is a clean no-op",
+      not bs.rotation_rearm_on_profit("PUMP"))
+
+
 # ── 3. YESTERDAY CONTEXT on a synthetic cache ─────────────────────────
 tmp_db = str(Path(__file__).parent / "_test_ohlcv_cache.db")
 try:
@@ -148,6 +183,20 @@ check("QC rejection toast", "ALREADY RAN THIS ROTATION" in app_src)
 check("card filters locked (Aug 31: with the confirmation window — a just-fired pick stays visible for CHECK)",
       'rotation_gate(h["asset"], confirm_window_min=_cwin)' in app_src)
 check("fine callout in voice", "fine risk" in app_src and "fine risk" in bs_src)
+
+# ── 6. THE PROFIT RE-ARM wiring (Sep 6) ───────────────────────────────
+check("the SOLD tap re-arms through the scanner's ONE function",
+      "rotation_rearm_on_profit(_asset(_sp))" in app_src)
+check("the re-arm fires ONLY on net profit (a loss keeps the lock)",
+      app_src.find("if _net > 0:") < app_src.find("rotation_rearm_on_profit"))
+check("the re-arm speaks it",
+      "is re-armed" in app_src)
+check("the re-arm is dup-safe (reload-if-missing pattern)",
+      'hasattr(_bsr, "rotation_rearm_on_profit")' in app_src)
+check("the scanner-side function lives with the lock it disarms",
+      "def rotation_rearm_on_profit" in bs_src
+      and bs_src.find("def rotation_rearm_on_profit")
+      > bs_src.find("def rotation_mark_fired"))
 
 # cleanup
 for f in (bs.ROTATION_LOCKOUT_FILE, tmp_db):
