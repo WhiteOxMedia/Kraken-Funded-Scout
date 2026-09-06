@@ -27,8 +27,8 @@ PASS  the bar is judged on the brain's number
 PASS  deep read is defined ABOVE the gates (near-miss can call it)  
 PASS  bridge reuses the near-miss read (no second fetch)  
 PASS  desktop veto applies to the CACHED brain too (not only its own read)  def + bridge conditional + desktop conditional + brain-judged bar (Sep 1)
-PASS  bridge deep >=60 veto still stands (never discounted)  
-PASS  desktop deep >=60 veto still stands  
+PASS  bridge direction veto still stands (Sep 5 ADVISORY BRAIN: the scan's DIRECTION gates the write; the number sizes, it never blocks)  
+PASS  desktop direction veto still stands (the number is advisory)  
 PASS  WEEKDAY_ADJUST still present  
 PASS  _apply_dow still present  
 PASS  ROTATIONS keep the 8-field shape (7 returned by get_time_block)  

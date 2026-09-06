@@ -94,10 +94,12 @@ check("bridge reuses the near-miss read (no second fetch)",
 check("desktop veto applies to the CACHED brain too (not only its own read)",
       src.count("_deep, _df = _do_deep_read()") == 4,
       "def + bridge conditional + desktop conditional + brain-judged bar (Sep 1)")
-check("bridge deep >=60 veto still stands (never discounted)",
-      "_deep.confidence < 60" in src and "DEEP VETO (bridge)" in src)
-check("desktop deep >=60 veto still stands",
-      "DEEP VETO (desktop)" in src)
+check("bridge direction veto still stands (Sep 5 ADVISORY BRAIN: the scan's "
+      "DIRECTION gates the write; the number sizes, it never blocks)",
+      "_deep.action != \"buy\"" in src and "DEEP VETO (bridge)" in src
+      and "_deep.confidence < 60" not in src)
+check("desktop direction veto still stands (the number is advisory)",
+      "DEEP VETO (desktop)" in src and '"deep-direction"' in src)
 
 # ── 6. nothing was deleted (user rule: don't delete anything) ────────
 check("WEEKDAY_ADJUST still present", "WEEKDAY_ADJUST = {" in src)

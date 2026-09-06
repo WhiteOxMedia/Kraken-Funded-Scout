@@ -1,24 +1,22 @@
-now: Fri 03:39 PM
-desktop floor: 89% | resolve cap now: 6.0h
+now: Sat 06:40 PM
+desktop floor: 89% | resolve cap now: 5.3h
 signals since 8:45: 25
 
-≥89% (desktop-eligible): 4
-  03:49 ASTER/USD    89% $20 ETA 2.2h (old TP ETA 23h) → should POP now (fix works) [status=rejected]
-  16:55 LINK/USD     96% $20 ETA 1.4h (old TP ETA 13h) → should POP now (fix works) [status=rejected]
-  16:45 LINK/USD     96% $20 ETA 1.4h (old TP ETA 13h) → should POP now (fix works) [status=rejected]
-  16:23 BCH/USD      96% $20 ETA 2.6h (old TP ETA 25h) → should POP now (fix works) [status=rejected]
+≥89% (desktop-eligible): 5
+  17:39 AAVE/USD     98% $20 ETA 1.1h (old TP ETA 11h) → should POP now (fix works) [status=rejected]
+  17:02 BCH/USD      100% $20 ETA 2.0h (old TP ETA 17h) → should POP now (fix works) [status=closed]
+  16:04 BCH/USD      100% $20 ETA 2.0h (old TP ETA 17h) → should POP now (fix works) [status=rejected]
+  16:03 BCH/USD      100% $20 ETA 2.0h (old TP ETA n/a) → should POP now (fix works) [status=closed]
+  15:05 AAVE/USD     100% $20 ETA 1.1h (old TP ETA 10h) → should POP now (fix works) [status=rejected]
 
 sub-89% (logged only, by design):
-  BCH/USD      1x, best 81%
-  DASH/USD     1x, best 72%
-  FARTCOIN/USD 1x, best 64%
-  FLOKI/USD    1x, best 84%
-  HYPE/USD     2x, best 83%
-  MINA/USD     1x, best 59%
-  NEAR/USD     2x, best 69%
-  S/USD        1x, best 66%
-  UNI/USD      3x, best 81%
-  XCN/USD      1x, best 67%
-  XMR/USD      1x, best 60%
-  XRP/USD      4x, best 54%
-  ZORA/USD     2x, best 56%
+  AAVE/USD     4x, best 81%
+  AR/USD       1x, best 72%
+  AVAX/USD     1x, best 65%
+  BCH/USD      2x, best 83%
+  DOGE/USD     2x, best 83%
+  ETC/USD      3x, best 65%
+  FIL/USD      3x, best 85%
+  LDO/USD      1x, best 72%
+  TIA/USD      2x, best 81%
+  XRP/USD      1x, best 68%

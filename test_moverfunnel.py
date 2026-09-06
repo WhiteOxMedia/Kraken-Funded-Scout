@@ -91,8 +91,11 @@ check("funnel skips tide OUT", "tide OUT (fleet %.0f%%)" in src)
 check("funnel has the fresh-listing guard", "len(ohlcv) < MOVER_MIN_CANDLES" in src)
 check("funnel paces itself (10-min rescan, contest path untouched)",
       "_mover_scanned.get(pair, 0)) < 600" in src)
-check("desktop uses the BRAIN-JUDGED bar (Sep 1: the funnel's deep read must clear 89)",
-      "_deep_sig is not None" in src and "float(_deep_sig.confidence) >= 89" in src)
+check("desktop uses the FIRE-TIME rule (Sep 5 ADVISORY BRAIN: the scan must "
+      "run and agree on direction; the 89 number-bar retired — the number sizes)",
+      "_deep_sig is not None" in src
+      and "_deep_sig.action == \"buy\"" in src
+      and "float(_deep_sig.confidence) >= 89" not in src)
 check("mover popup fails CLOSED on a broken brain read (the JUP lesson)",
       "_m_desk_ok = False  # fail-closed" in src)
 check("mover popup has the worth floor (half the daily pace, same as champion)",

@@ -1,12 +1,12 @@
 bridge signals today:
-  11:55  XRP/USD    sell rejected  scout_trend_exit 0.0%
-  11:07  XRP/USD    sell rejected  scout_trend_exit 0.0%
-  10:54  XRP/USD    buy  closed    bot_strategy   53.5%
-  10:51  XMR/USD    sell closed    scout_exit_check 0.0%
-  10:06  XRP/USD    buy  closed    bot_strategy   40.0%
-  07:52  ZORA/USD   buy  expired   scout_mover    56.0%
-  07:41  ZORA/USD   buy  expired   scout_mover    56.0%
-  05:55  FARTCOIN/USD buy  rejected  scout_auto     64.0%
-  03:52  XMR/USD    buy  closed    bot_strategy   59.5%
-  03:52  NEAR/USD   buy  rejected  scout_auto     69.0%
+  17:54  TIA/USD    buy  rejected  scout_auto     81.0%
+  17:51  LDO/USD    buy  rejected  scout_auto     72.5%
+  17:39  TIA/USD    buy  rejected  scout_auto     76.0%
+  17:39  AAVE/USD   buy  rejected  scout_auto     98.0%
+  17:02  BCH/USD    buy  closed    scout_auto     100.0%
+  16:55  ETC/USD    buy  rejected  scout_auto     65.0%
+  16:43  ETC/USD    buy  rejected  scout_auto     65.0%
+  16:32  ETC/USD    buy  rejected  scout_auto     65.0%
+  16:04  BCH/USD    buy  rejected  scout_auto     100.0%
+  16:03  BCH/USD    buy  closed    bot_strategy   100.0%
 open positions in bridge: 0 (bot max = 3)

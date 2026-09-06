@@ -34,22 +34,31 @@ check("result stores lone_wolf_note", '"lone_wolf_note"' in src)
 
 # ── 2. the QC SHOWS it ────────────────────────────────────────────────
 check("lone-wolf LED in the status row", "🐺 LONE WOLF — {lw_note}" in src)
-check("near-miss verdict names the shape (toast)",
-      "LONE WOLF NEAR MISS (" in src)
-check("near-miss verdict speaks it", "Lone wolf near miss!" in src)
-check("NO GREEN line distinguishes a lone-wolf near miss",
-      "NO GREEN — LONE WOLF NEAR MISS" in src)
+# (Sep 5, ADVISORY BRAIN: the near-miss verdicts retired with the
+# conviction floor — there is no number line to be "near" anymore. The
+# lone-wolf CONTEXT still displays; the verdict names the scan's
+# DIRECTION, never a number.)
+check("the near-miss verdicts are retired with the floor",
+      "LONE WOLF NEAR MISS (" not in src
+      and "Lone wolf near miss!" not in src
+      and "NO GREEN — LONE WOLF NEAR MISS" not in src)
+check("the verdict names the scan's direction (the number never reds)",
+      "THE SCAN READS" in src)
 
-# ── 3. the MATCH invariant: the QC floor stays 60 ─────────────────────
-check("QC floor is still 60 (the line every alert already passed)",
+# ── 3. the MATCH invariant: the QC mirrors the alert path ────────────
+check("QC_SCALP_FLOOR stays defined (history queries + context)",
       "QC_SCALP_FLOOR = 60" in src)
+check("the QC never blocks on the number (the advisory mirror)",
+      "sig.confidence >= QC_SCALP_FLOOR" not in src)
 check("no lone-wolf discount applied to QC_SCALP_FLOOR itself",
       "QC_SCALP_FLOOR -" not in src and "QC_SCALP_FLOOR-" not in src)
 
 # ── 4. the other half of matching: alerts speak the DEEP number ──────
 bsrc = open("background_scanner.py", encoding="utf-8").read()
-check("scanner's desktop alert still requires deep >= 60 (same line as the QC)",
-      "_deep.confidence < 60" in bsrc)
+check("scanner's desktop alert gates the scan's DIRECTION (the number sizes "
+      "— same line as the QC, Sep 5)",
+      "_deep.action != \"buy\"" in bsrc
+      and "_deep.confidence < 60" not in bsrc)
 check("alert title speaks the deep number",
       "_dc = float(_deep.confidence) if _deep is not None" in bsrc)
 check("lone-wolf discount exists in the scanner (the shared test)",

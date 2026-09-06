@@ -25,14 +25,13 @@ PASS  brain 87 vs floor 93 (US Late) -> suppressed (the tighten bites)
 PASS  brain 82 vs floor 84 (Asia) -> CHALLENGER  
 PASS  send_alert computes DESKTOP_ALERT_MIN via popup_floor()  
 PASS  the old flat-89 line is gone  
-PASS  the challenger branch exists (within 5 below the floor)  
-PASS  _challenger flag initialized before the brain bar  
-PASS  challenger marks the popup title  
-PASS  challenger marks the spoken line  
-PASS  challenger line spells the head-to-head terms in the message  
-PASS  suppression log names the challenge threshold  
+PASS  the challenger branch is retired (no floor to challenge)  
+PASS  _challenger flag stays initialized (dead mark, kept harmless)  
+PASS  the floor is CONTEXT + the Hail Mary bar now (never a blocker)  
+PASS  the number SIZES via the bucket table (the advisory wiring)  
+PASS  the direction gates (the number is advisory, the direction is not)  
 PASS  fail-closed survives (no brain read = no popup)  
-PASS  the deep-read >=60 pre-check still gates every alert  
+PASS  the fire-time rule holds the bridge too (no scan = no write)  
 PASS  the floor log names the rotation  
 PASS  QC champ_floor reads the shared popup_floor() helper  
 PASS  QC stores the champ_floor for the render/Hail Mary context  
@@ -49,4 +48,4 @@ PASS  agreement: 87 vs the 93 US-Late rail -> both say no
 PASS  diag_popupfloor.py exists  
 PASS  _popupfloor_check.txt exists (calibration evidence)  
 
-50 passed, 0 failed
+49 passed, 0 failed

@@ -91,27 +91,31 @@ check("brain 87 vs floor 93 (US Late) -> suppressed (the tighten bites)",
 check("brain 82 vs floor 84 (Asia) -> CHALLENGER",
       challenge_verdict(82, 84) == "CHALLENGER")
 
-# ── 4. send_alert source: the rotation floor is wired in ──────────────
+# ── 4. send_alert source: the rotation floor stack ────────────────────
+# (Sep 5, ADVISORY BRAIN: the floor no longer BLOCKS the popup — the
+# scan must run and its direction must agree; the NUMBER sizes. The
+# floor stack still computes (the Hail Mary's champion bar + the popup's
+# context line) and the challenger retired with the blocking use.)
 check("send_alert computes DESKTOP_ALERT_MIN via popup_floor()",
       "DESKTOP_ALERT_MIN = popup_floor(_df_state, _lw_pts, _rot_now_key)" in bs_src)
 check("the old flat-89 line is gone",
       "DESKTOP_ALERT_MIN = (TIDE_RISING_DESKTOP_FLOOR if _df_state ==" not in bs_src)
-check("the challenger branch exists (within 5 below the floor)",
-      "elif _bc >= DESKTOP_ALERT_MIN - POPUP_NEAR_MISS_PTS:" in bs_src)
-check("_challenger flag initialized before the brain bar",
+check("the challenger branch is retired (no floor to challenge)",
+      "elif _bc >= DESKTOP_ALERT_MIN - POPUP_NEAR_MISS_PTS:" not in bs_src
+      and "_challenger = True" not in bs_src)
+check("_challenger flag stays initialized (dead mark, kept harmless)",
       "_brain_floor_ok = None\n        _challenger = False" in bs_src)
-check("challenger marks the popup title",
-      '(" — CHALLENGER" if _challenger else "")' in bs_src)
-check("challenger marks the spoken line",
-      "_challenger_say" in bs_src and "just under the" in bs_src)
-check("challenger line spells the head-to-head terms in the message",
-      "allowed to challenge head-to-head" in bs_src)
-check("suppression log names the challenge threshold",
-      "challenge needs" in bs_src)
+check("the floor is CONTEXT + the Hail Mary bar now (never a blocker)",
+      "stays the Hail Mary's champion-grade bar and the popup's" in bs_src)
+check("the number SIZES via the bucket table (the advisory wiring)",
+      "from hindsight_scorer import brain_size_mult" in bs_src
+      and "_spend = _spend * _brain_mult" in bs_src)
+check("the direction gates (the number is advisory, the direction is not)",
+      '"deep-direction"' in bs_src)
 check("fail-closed survives (no brain read = no popup)",
       "no unverified popups (fail-closed" in bs_src)
-check("the deep-read >=60 pre-check still gates every alert",
-      "_deep.action != \"buy\" or _deep.confidence < 60" in bs_src)
+check("the fire-time rule holds the bridge too (no scan = no write)",
+      "no ledger write (the fire-time rule)" in bs_src)
 check("the floor log names the rotation",
       "POPUP FLOOR: rotation %s" in bs_src)
 

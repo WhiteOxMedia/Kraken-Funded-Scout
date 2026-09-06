@@ -2,13 +2,13 @@ PASS  base default is the approved 0.25
 PASS  clamped [10%, 40%]  
 PASS  tide RISING relaxes 15%  
 PASS  weekday: the day's best rotation (08-12) gets the full dial (pace 1.0)  1.0
-PASS  weekday: the slowest rotation (04-08) scales down (0.69)  0.6941778630838131
+PASS  weekday: the slowest rotation (04-08) scales down (0.70)  0.6977346278317152
 PASS  weekend: the day's best rotation (16-20) gets the full dial (pace 1.0)  1.0
-PASS  weekend: the slowest rotation (08-12) scales down (0.66)  0.6560379918588873
+PASS  weekend: the slowest rotation (08-12) scales down (0.64)  0.6400541271989174
 PASS  pace factor never exceeds 1.0 or drops below 0.6  
 PASS  the toggle defaults ON when the key is missing  
 PASS  the base reads the slider (0.25)  
-PASS  NO catch-up in the product (the correction)  {'auto': True, 'base': 0.25, 'pace': 0.7843889955214332, 'tide': 1.0, 'effective': 0.1960972488803583}
+PASS  NO catch-up in the product (the correction)  {'auto': True, 'base': 0.25, 'pace': 1.0, 'tide': 0.85, 'effective': 0.2125}
 PASS  the day's ledger does NOT bend the dial (a big day and a down day read the same)  
 PASS  _worth_catchup_factor is retired (kept, not called by the dial)  
 PASS  _worth_floor_frac returns the effective dial (the gates read it)  

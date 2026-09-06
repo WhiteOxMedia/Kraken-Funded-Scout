@@ -1,1 +1,2 @@
-PASS=77 FAIL=0
+PASS=76 FAIL=1
+test_entry_control.py

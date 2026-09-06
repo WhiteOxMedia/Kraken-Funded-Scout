@@ -1,43 +1,41 @@
-PASS  the one-hour window + the lock-bite threshold are defined  
-PASS  the three hail mary functions exist  
-PASS  effective_buffer yields the lock during the window  
-PASS  max_entry_usd sizes vs the platform line during the window  
-PASS  save_state carries the hail mary fields (a balance write mid-window must not silently close it)  
-PASS  under break-even + the lock binds -> AVAILABLE  under break-even, the lock binds, no window this rotation
-PASS  the lock floor actually binds in the fixture  ('daily-lock', 9999.5)
-PASS  over break-even -> NOT available (real profit is protected)  over break-even ($+50) — the lock protects real profit
-PASS  at the death line -> NOT available (the line never yields)  at the death line — nothing yields, ever
-PASS  platform binding (no lock) -> NOT available  the daily lock isn't the binding floor
-PASS  activation opens the window  
-PASS  minutes left ~ 60  59.99994506666667
-PASS  during the window: effective_buffer = the PLATFORM buffer  290.0
-PASS  during the window: the guard cap = the platform-only cap  (3286.666666666667, 3286.666666666667)
-PASS  the cap is the GUARD's (0.34/dd), never the whole balance  3286.666666666667
-PASS  the rotation is stamped (one per rotation)  
-PASS  after the hour: the lock rebinds (effective = the lock buffer)  -9.5
-PASS  after the hour, same rotation: NOT available (one per rotation)  Hail Mary already used this rotation (re-arms at the rotation boundary)
-PASS  the next rotation re-arms the challenge  under break-even, the lock binds, no window this rotation
-PASS  a balance write mid-window keeps the window open  
-PASS  champion-grade + verified uptrend + major book -> QUALIFIES  champion-grade brain 91% ≥ 89%, verified uptrend, major book (carries $12,000)
-PASS  a challenger-grade read does NOT qualify (a Hail Mary is never challenger-grade)  brain 85% < the champion floor 89% (a Hail Mary is never challenger-grade)
-PASS  no verified uptrend -> does not qualify  no verified uptrend (EMA9 must sit above EMA21 with price over both)
-PASS  a thin book does not qualify (majors only)  not a major book (carries $5,000, needs the full $10,000)
-PASS  no deep read -> fail-closed  
-PASS  a sell read never qualifies  
-PASS  the gate asks for the exception when the lock BITES  
-PASS  activation recomputes the cap vs the platform line  
-PASS  the trade window bounds by the hour (not the rotation)  
+PASS  HAIL_MARY_WINDOW_MIN is 60 (the one-hour window)  
+PASS  the lock's bite-fraction constant is GONE (lock-specific)  
+PASS  no window: hail_mary_active False, minutes 0  
+PASS  an active window reads True with minutes ≤ 60  
+PASS  an expired window reads inactive  
+PASS  broken state fails closed (no window)  
+PASS  under break-even with platform room: AVAILABLE (the contest is in danger)  
+PASS  over break-even: not available (no emergency)  
+PASS  at the death line: not available — nothing yields, ever  
+PASS  exactly at break-even: available (no profits to protect)  
+PASS  a window already used this rotation: not available (re-arms at the boundary)  
+PASS  yesterday's window in another rotation doesn't block today  
+PASS  the lock's binding-floor precondition is GONE from the source  
+PASS  activate opens the hour (active, ≤60 min left, count 1)  
+PASS  a balance write mid-window carries the fields (save_state doesn't close it)  
+PASS  the window fields persist to disk (survives restarts)  
+PASS  during the window sizing = the platform guard cap (the lock that used to crush it is gone — there is nothing to yield)  
+PASS  max_entry_usd takes no state param anymore (platform-only math)  
+PASS  at the platform line = $0 even mid-window (the death line never yields)  
+PASS  champion brain + verified uptrend + major book = qualifies  champion-grade brain 92% ≥ 89%, verified uptrend, major book (carries $12,000)
+PASS  below the champion floor = declined (never challenger-grade)  
+PASS  no verified uptrend = declined  no verified uptrend (EMA9 must sit above EMA21 with price over both)
+PASS  not a major book = declined  not a major book (carries $5,000, needs the full $10,000)
+PASS  no deep read = fail-closed  no deep read — fail-closed
+PASS  a sell read never qualifies  the brain reads sell, not buy
+PASS  send_alert activates on account danger + a qualifying champion (no lock-bite test — the lock is gone)  
+PASS  a challenger never gets the window (the bar is champion-grade)  
+PASS  the window bounds the trade clock (one hour, not the rotation)  
 PASS  the popup title carries the mark  
-PASS  the voice announces it  
-PASS  the message names the death line + the guard's cap  
-PASS  the unqualified lock block still logs (with the Hail Mary note)  
-PASS  the guard message names the window  
-PASS  the QC mirrors the activation (champion floor + UP trend + big book)  
+PASS  the voice announces the emergency hour  
+PASS  the message line explains full allocation = the guard's cap vs the death line  
+PASS  no 'the lock yields' language survives (the lock is gone)  
+PASS  _hail_mary defaults False before the guard try (a broken read can't NameError the marks)  
+PASS  the QC mirror is back: champion floor + UP trend + big book  
 PASS  the QC result carries hail_mary + the decline reason  
-PASS  the green light names the HAIL MARY  
-PASS  the watch's clock bounds by the hour during the window  
-PASS  the sidebar plate shows the countdown  
+PASS  the green light reads the HAIL MARY mark  
+PASS  the sidebar plate shows the countdown (kept)  
 PASS  the light panel header carries the window  
-PASS  the AT THE LOCK toast explains the Hail Mary path when unqualified  
+PASS  the watch clock bounds by the hour when the window is open  
 
-RESULT: 41 passed, 0 failed
+RESULT: 39 passed, 0 failed

@@ -83,13 +83,17 @@ check("broken read -> not stale (fail-open)", bs._stale_move(_Bad(), "T/USD") is
 
 # ── 3. the wiring in send_alert ───────────────────────────────────────
 src = open("background_scanner.py", encoding="utf-8").read()
-check("the brain-judged bar exists: the BRAIN's number clears the popup floor",
-      "_bc >= DESKTOP_ALERT_MIN" in src and "_brain_floor_ok = True" in src)
-check("the head-to-head challenge window is wired (within 5 below = CHALLENGER)",
-      "elif _bc >= DESKTOP_ALERT_MIN - POPUP_NEAR_MISS_PTS:" in src
-      and "_challenger = True" in src)
+# (Sep 5, ADVISORY BRAIN: the popup floor is REMOVED — the scan must run
+# (fail-closed) and its DIRECTION must agree; the number SIZES. The old
+# brain-floor + challenger assertions retired with the floor.)
+check("the brain-judged floor is REALLY gone (no number blocks the popup)",
+      "_bc >= DESKTOP_ALERT_MIN" not in src
+      and "_brain_floor_ok = True" in src)
+check("the head-to-head challenger is retired (no floor to challenge)",
+      "_challenger = True" not in src
+      and "POPUP_NEAR_MISS_PTS - POPUP_NEAR_MISS_PTS" not in src)
 check("a current deep read runs BEFORE the popup (cached if fresh)",
-      "_brain_floor_ok" in src and "BRAIN-JUDGED BAR" in src)
+      "_brain_floor_ok" in src and "ADVISORY BRAIN" in src)
 check("the JUP loophole is closed — fail-CLOSED (a broken brain read = NO popup)",
       "no unverified popups" in src
       and "if _brain_floor_ok is None and signal.confidence < DESKTOP_ALERT_MIN" not in src)
@@ -106,8 +110,9 @@ check("fresh first-fires are exempt from the stale guard (the early catch)",
 check("the goal clock: the asset's OWN week (market goal) -> 1-3% goal, rotation-bounded window",
       "_market_goal_pct(exchange, pair)" in src and "GOAL CLOCK" in src
       and "_rotation_window_min()" in src)
-check("the funnel's desktop path uses the brain-judged bar too",
-      "float(_deep_sig.confidence) >= 89" in src)
+check("the funnel's desktop path uses the FIRE-TIME rule (the scan must run; "
+      "the number sizes via the bucket table)",
+      "brain_size_mult" in src and "_m_desk_ok = (_deep_sig is not None" in src)
 check("her line speaks the GOAL, not the twenty",
       '"Aim for plus {_goal_pct:.0f} percent! "' in src.replace("'", '"').replace('"Aim', '"Aim')
       or "Aim for plus {_goal_pct:.0f} percent!" in src)

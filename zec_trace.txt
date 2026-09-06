@@ -6,8 +6,8 @@ ZEC picks in scout_signals DB:
   2026-08-16 01:45:30.392697  ZEC/USD  buy  55.5%  entry=485.74 stop=481.707009 tp=493.805982 rr=2.0
     reasons: ["Regime: low_vol (volatility rank 0/100)", "BB oversold (%B=-0.10)", "MACD bearish (hist=-0.3490)", "EMA bearish (short < long)", "Volume spike (1.4x avg) confirms buy", "MTF: no conflicting signals 
 ZEC in bridge (signals.db):
+  2026-09-05T11:19:30  ZEC/USD  buy  rejected  scout_auto     72.0% entry=1027.15
   2026-08-31T18:17:00  ZEC/USD  buy  rejected  scout_auto     63.5% entry=854.86
   2026-08-31T13:59:54  ZEC/USD  buy  rejected  scout_auto     62.0% entry=858.25
   2026-08-31T13:54:53  ZEC/USD  buy  rejected  scout_auto     62.0% entry=861.25
   2026-08-31T13:43:25  ZEC/USD  buy  rejected  scout_auto     62.0% entry=860.24
-  2026-08-31T13:32:01  ZEC/USD  buy  rejected  scout_auto     62.0% entry=862.33

@@ -1,12 +1,12 @@
-today: Friday — weekday schedule, rotation hour-block 12-16
+today: Saturday — weekend schedule, rotation hour-block 16-20
 
 avg 4h move per rotation (universe median, %):
 rotation      weekday  weekend    diff
-00-04           1.29%    1.05%  -0.24
-04-08           1.08%    1.08%  -0.00
-08-12           1.56%    0.97%  -0.60
-12-16           1.23%    1.01%  -0.21
-16-20           1.14%    1.47%  +0.33
+00-04           1.28%    1.05%  -0.22
+04-08           1.08%    1.09%  +0.02
+08-12           1.54%    0.95%  -0.60
+12-16           1.24%    1.07%  -0.16
+16-20           1.19%    1.48%  +0.29
 
 false-breakout rate (universe median, % — higher = more fakeouts):
 00-04            0.0%     0.0%   +0.0

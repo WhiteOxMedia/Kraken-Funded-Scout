@@ -1,0 +1,25 @@
+GATE GRADES -- 2026-09-05 18:42 -- 109 scored events, $2000 representative size
+(winner buried = gate cost +1.5% of size; end<0 prevented = gate saved; NET>0 = the gate pays for itself)
+
+gate                 n winners   fastW    duds  prev$   cost$       NET$
+brain-floor         40      23      23       1     256     690      -434
+too-thin            23      14      14       3      41     420      -379
+daily-lock          19      11      11       0      25     330      -305
+deep-veto           13       6       6       0     101     180       -79
+rotation-lock        6       4       4       0       6     120      -114
+downward-trend       3       1       1       1     198      30      +168
+stale-move           2       2       2       0       0      60       -60
+tide-out             1       1       1       0       0      30       -30
+worth-floor          1       0       0       0      10       0       +10
+blowoff-yesterday     1       0       0       1      20       0       +20
+
+brain-floor      LOOSEN -- buried winners at 57%: this gate is costing more than it saves (buried winners: APR/USD, APT/USD, ARB/USD, CRV/USD, FARTCOIN/USD, HBAR/USD)
+too-thin         LOOSEN -- buried winners at 61%: this gate is costing more than it saves (buried winners: ADA/USD, AIXBT/USD, APT/USD, ATOM/USD, CRV/USD, DOT/USD)
+daily-lock       LOOSEN -- buried winners at 58%: this gate is costing more than it saves (buried winners: AAVE/USD, AVAX/USD, CRV/USD, FARTCOIN/USD, FIL/USD, INJ/USD)
+deep-veto        LOOSEN -- buried winners at 46%: this gate is costing more than it saves (buried winners: ADA/USD, APR/USD, AR/USD, DOT/USD, OP/USD)
+rotation-lock    LOOSEN -- buried winners at 67%: this gate is costing more than it saves (buried winners: AAVE/USD, LTC/USD, OP/USD, SUI/USD)
+downward-trend   CONDITIONAL -- a coin-flip gate (33% winners buried): make it size-scaling, not blocking (buried winners: STX/USD)
+stale-move       LOOSEN -- buried winners at 100%: this gate is costing more than it saves (buried winners: AAVE/USD, ETC/USD)
+tide-out         LOOSEN -- buried winners at 100%: this gate is costing more than it saves (buried winners: LTC/USD)
+worth-floor      KEEP -- mostly prevents losses (duds/losses 100%) (buried winners: -)
+blowoff-yesterday KEEP -- mostly prevents losses (duds/losses 100%) (buried winners: -)

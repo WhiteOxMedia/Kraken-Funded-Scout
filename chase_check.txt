@@ -1,5 +1,5 @@
-now: Fri 03:37 PM
-PUMP: live 0.00428 vs 1h base 0.00427 -> chase +0.2% (PASS)
-  vs watch entry 0.004673: -8.52% ($-426 on $5k)
-PENGU: live 0.00832 vs 1h base 0.00830 -> chase +0.2% (PASS)
-  vs top entry ~0.00996: -16.48% ($-824 on $5k)
+now: Sat 06:37 PM
+PUMP: live 0.00385 vs 1h base 0.00375 -> chase +2.7% (REJECT)
+  vs watch entry 0.004673: -17.61% ($-881 on $5k)
+PENGU: live 0.00877 vs 1h base 0.00860 -> chase +2.0% (REJECT)
+  vs top entry ~0.00996: -11.90% ($-595 on $5k)

@@ -39,11 +39,17 @@ app_src = Path("app.py").read_text(encoding="utf-8")
 # ── 1. OPTION 2: the suppression log exists and every gate hooks it ──
 check("the log helper + file constant exist",
       "def _log_suppression" in bs_src and "popup_suppressions.jsonl" in bs_src)
-for gate in ("brain-floor", "fail-closed", "stale-move", "tide-out",
+# (Sep 5, ADVISORY BRAIN: "brain-floor" retired with the blocking floor —
+# its verdicts split into deep-direction (the scan contradicts) and
+# popup-cap (the flood cap); the other hooks stand.)
+for gate in ("fail-closed", "stale-move", "tide-out",
              "deep-veto", "downward-trend", "too-thin", "worth-floor",
-             "rotation-lock", "blowoff-yesterday", "blacklisted"):
+             "rotation-lock", "blowoff-yesterday", "blacklisted",
+             "deep-direction", "popup-cap"):
     check(f"hook: {gate} logs its verdict",
           f'"{gate}"' in bs_src)
+check("hook: the brain-floor gate is retired (no number blocks)",
+      '"brain-floor"' not in bs_src)
 check("hook: the death-line gate logs (the daily-lock gate retired with the lock, Sep 5)",
       '"death-line"' in bs_src
       and '"daily-lock" if _which_fl == "daily-lock" else "death-line"' not in bs_src)
@@ -57,8 +63,12 @@ check("the log carries the numbers (quick, brain, floor, tide, rot)",
       and "floor=float(DESKTOP_ALERT_MIN)" in bs_src)
 check("the mover's desktop suppressions log too (mover: prefix)",
       bs_src.count('"mover: {_m_skip}"') == 1 or '"mover: {_m_skip}"' in bs_src)
-check("the mover's brain-floor + stale suppressions log",
-      'f"mover: the brain reads' in bs_src and "mover: 4h high" in bs_src)
+# (Sep 5, ADVISORY BRAIN: the mover's brain-floor gate retired — its
+# desktop deaths now log as fail-closed (scan didn't run) or
+# deep-direction (the scan contradicts); the stale + m_skip hooks stand.)
+check("the mover's fire-time deaths log (fail-closed / direction)",
+      '"fail-closed" if _deep_sig is None else "deep-direction"' in bs_src
+      and "mover: 4h high" in bs_src)
 check("the console MASTER shows the strip",
       "_render_suppression_strip" in app_src
       and "_render_suppression_strip()" in app_src)

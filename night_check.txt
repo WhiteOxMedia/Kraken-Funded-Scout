@@ -1,6 +1,6 @@
-now: Fri 03:39 PM Denver
+now: Sat 06:40 PM Denver
 
-bridge signals since Sun 8 PM (1407):
+bridge signals since Sun 8 PM (1646):
   2026-08-23T23:13  ASTER/USD  buy  closed    bot_strategy   64.5%
   2026-08-23T23:44  FIL/USD    buy  closed    bot_strategy   77.6%
   2026-08-24T00:13  ASTER/USD  buy  closed    scout_auto     64.5%
@@ -1408,27 +1408,266 @@ bridge signals since Sun 8 PM (1407):
   2026-09-04T10:54  XRP/USD    buy  closed    bot_strategy   53.5%
   2026-09-04T11:07  XRP/USD    sell rejected  scout_trend_exit 0.0%
   2026-09-04T11:55  XRP/USD    sell rejected  scout_trend_exit 0.0%
+  2026-09-04T14:56  XMR/USD    buy  closed    bot_strategy   70.0%
+  2026-09-04T15:12  XRP/USD    buy  closed    bot_strategy   70.0%
+  2026-09-04T15:43  XRP/USD    buy  closed    bot_strategy   55.0%
+  2026-09-04T15:57  XMR/USD    sell rejected  scout_trend_exit 0.0%
+  2026-09-04T16:00  XRP/USD    buy  closed    bot_strategy   39.4%
+  2026-09-04T16:12  XRP/USD    sell rejected  scout_trend_exit 0.0%
+  2026-09-04T16:27  XRP/USD    sell rejected  scout_trend_exit 0.0%
+  2026-09-04T16:43  XRP/USD    sell rejected  scout_trend_exit 0.0%
+  2026-09-04T17:01  XRP/USD    sell closed    scout_trend_exit 0.0%
+  2026-09-04T17:28  XRP/USD    buy  closed    bot_strategy   33.8%
+  2026-09-04T17:59  XRP/USD    buy  closed    bot_strategy   41.0%
+  2026-09-04T18:14  XMR/USD    buy  closed    bot_strategy   30.0%
+  2026-09-04T18:28  XRP/USD    sell closed    scout_trend_exit 0.0%
+  2026-09-04T18:30  XRP/USD    buy  closed    bot_strategy   30.0%
+  2026-09-04T18:59  XRP/USD    sell closed    scout_trend_exit 0.0%
+  2026-09-04T19:01  XRP/USD    buy  closed    bot_strategy   38.7%
+  2026-09-04T19:14  XMR/USD    sell closed    scout_trend_exit 0.0%
+  2026-09-04T19:30  XRP/USD    sell closed    scout_trend_exit 0.0%
+  2026-09-04T19:32  XMR/USD    buy  closed    bot_strategy   30.0%
+  2026-09-04T20:01  XRP/USD    sell closed    scout_trend_exit 0.0%
+  2026-09-04T23:35  ETC/USD    buy  closed    bot_strategy   92.0%
+  2026-09-05T00:34  ETC/USD    buy  closed    scout_auto     92.0%
+  2026-09-05T00:41  TAO/USD    buy  rejected  scout_auto     64.0%
+  2026-09-05T00:52  TAO/USD    buy  rejected  scout_auto     74.0%
+  2026-09-05T01:19  NEAR/USD   buy  rejected  scout_auto     68.0%
+  2026-09-05T01:41  ONDO/USD   buy  rejected  scout_auto     100.0%
+  2026-09-05T01:50  APT/USD    buy  rejected  scout_auto     100.0%
+  2026-09-05T01:52  ONDO/USD   buy  rejected  scout_auto     85.0%
+  2026-09-05T01:52  TAO/USD    buy  rejected  scout_auto     75.0%
+  2026-09-05T02:01  APT/USD    buy  rejected  scout_auto     100.0%
+  2026-09-05T02:01  RENDER/USD buy  rejected  scout_auto     95.0%
+  2026-09-05T02:01  OP/USD     buy  rejected  scout_auto     81.0%
+  2026-09-05T02:18  APT/USD    buy  rejected  scout_auto     75.0%
+  2026-09-05T02:21  TRUMP/USD  buy  rejected  scout_auto     91.0%
+  2026-09-05T02:25  SUI/USD    buy  rejected  scout_auto     81.0%
+  2026-09-05T02:28  XMR/USD    buy  closed    bot_strategy   65.0%
+  2026-09-05T02:30  APT/USD    buy  rejected  scout_auto     70.0%
+  2026-09-05T02:35  DOT/USD    buy  rejected  scout_auto     100.0%
+  2026-09-05T02:41  APT/USD    buy  rejected  scout_auto     70.0%
+  2026-09-05T02:41  LTC/USD    buy  rejected  scout_auto     91.0%
+  2026-09-05T02:48  ICP/USD    buy  rejected  scout_mover    67.0%
+  2026-09-05T02:52  APT/USD    buy  rejected  scout_auto     70.0%
+  2026-09-05T02:55  PENGU/USD  buy  rejected  scout_auto     67.0%
+  2026-09-05T02:55  TRUMP/USD  buy  rejected  scout_auto     91.0%
+  2026-09-05T02:59  ICP/USD    buy  rejected  scout_mover    67.0%
+  2026-09-05T03:23  TRUMP/USD  buy  rejected  scout_auto     71.5%
+  2026-09-05T03:30  ATOM/USD   buy  rejected  scout_auto     100.0%
+  2026-09-05T03:30  AIXBT/USD  buy  rejected  scout_auto     73.0%
+  2026-09-05T03:41  ATOM/USD   buy  rejected  scout_auto     100.0%
+  2026-09-05T03:41  AIXBT/USD  buy  rejected  scout_auto     73.0%
+  2026-09-05T03:47  TRUMP/USD  buy  rejected  scout_auto     71.5%
+  2026-09-05T03:48  MOODENG/USD buy  closed    bot_strategy   60.0%
+  2026-09-05T03:51  ATOM/USD   buy  rejected  scout_auto     100.0%
+  2026-09-05T03:51  AIXBT/USD  buy  rejected  scout_auto     73.0%
+  2026-09-05T03:58  MOODENG/USD buy  rejected  scout_auto     74.0%
+  2026-09-05T04:01  APT/USD    buy  rejected  scout_auto     90.0%
+  2026-09-05T04:03  ATOM/USD   buy  rejected  scout_auto     100.0%
+  2026-09-05T04:12  APT/USD    buy  rejected  scout_auto     90.0%
+  2026-09-05T04:14  ATOM/USD   buy  rejected  scout_auto     96.0%
+  2026-09-05T04:16  TRUMP/USD  buy  rejected  scout_auto     76.5%
+  2026-09-05T04:23  MOODENG/USD buy  rejected  scout_auto     60.0%
+  2026-09-05T04:25  AVAX/USD   buy  closed    bot_strategy   100.0%
+  2026-09-05T04:26  ATOM/USD   buy  rejected  scout_auto     96.0%
+  2026-09-05T04:28  TRUMP/USD  buy  rejected  scout_auto     76.5%
+  2026-09-05T04:33  APT/USD    buy  rejected  scout_auto     90.0%
+  2026-09-05T04:35  MOODENG/USD buy  rejected  scout_auto     60.0%
+  2026-09-05T04:40  TRUMP/USD  buy  rejected  scout_auto     76.5%
+  2026-09-05T04:47  MOODENG/USD buy  closed    scout_auto     60.0%
+  2026-09-05T04:58  RENDER/USD buy  rejected  scout_auto     88.0%
+  2026-09-05T05:01  TRUMP/USD  buy  rejected  scout_auto     86.5%
+  2026-09-05T05:02  MOODENG/USD sell rejected  scout_exit_check 0.0%
+  2026-09-05T05:04  OP/USD     buy  closed    bot_strategy   86.0%
+  2026-09-05T05:06  XMR/USD    buy  closed    bot_strategy   62.5%
+  2026-09-05T05:13  JTO/USD    buy  rejected  scout_auto     67.0%
+  2026-09-05T05:13  MOODENG/USD sell rejected  scout_exit_check 0.0%
+  2026-09-05T05:18  MOODENG/USD sell closed    scout_exit_check 0.0%
+  2026-09-05T05:24  AVAX/USD   buy  closed    scout_auto     100.0%
+  2026-09-05T05:32  JTO/USD    buy  rejected  scout_auto     67.0%
+  2026-09-05T05:32  TRUMP/USD  buy  rejected  scout_auto     86.5%
+  2026-09-05T05:53  PENGU/USD  buy  rejected  scout_auto     100.0%
+  2026-09-05T05:55  JTO/USD    buy  rejected  scout_auto     67.0%
+  2026-09-05T06:00  VIRTUAL/USD buy  rejected  scout_auto     100.0%
+  2026-09-05T06:01  AVAX/USD   sell closed    scout_exit_check 0.0%
+  2026-09-05T06:03  OP/USD     buy  closed    scout_auto     86.0%
+  2026-09-05T06:26  POL/USD    buy  rejected  scout_auto     63.0%
+  2026-09-05T06:38  POL/USD    buy  rejected  scout_auto     100.0%
+  2026-09-05T06:38  TRUMP/USD  buy  rejected  scout_auto     83.5%
+  2026-09-05T06:39  LINK/USD   buy  rejected  scout_auto     92.0%
+  2026-09-05T06:40  DOT/USD    buy  rejected  scout_auto     100.0%
+  2026-09-05T06:47  TAO/USD    buy  rejected  scout_auto     88.0%
+  2026-09-05T06:50  POL/USD    buy  rejected  scout_auto     100.0%
+  2026-09-05T06:50  POPCAT/USD buy  rejected  scout_auto     64.0%
+  2026-09-05T06:50  TRUMP/USD  buy  rejected  scout_auto     83.5%
+  2026-09-05T06:51  ADA/USD    buy  rejected  scout_auto     76.0%
+  2026-09-05T06:51  DOT/USD    buy  rejected  scout_auto     100.0%
+  2026-09-05T07:00  RENDER/USD buy  rejected  scout_auto     96.0%
+  2026-09-05T07:03  SUI/USD    buy  rejected  scout_auto     100.0%
+  2026-09-05T07:03  VIRTUAL/USD buy  rejected  scout_auto     100.0%
+  2026-09-05T07:16  CRV/USD    buy  rejected  scout_auto     62.0%
+  2026-09-05T07:16  ATOM/USD   buy  rejected  scout_auto     68.0%
+  2026-09-05T07:16  POL/USD    buy  rejected  scout_auto     93.0%
+  2026-09-05T07:17  SUI/USD    buy  rejected  scout_auto     100.0%
+  2026-09-05T07:21  ADA/USD    buy  rejected  scout_auto     92.0%
+  2026-09-05T07:26  PENGU/USD  buy  rejected  scout_auto     100.0%
+  2026-09-05T07:28  ATOM/USD   buy  rejected  scout_auto     68.0%
+  2026-09-05T07:28  POL/USD    buy  rejected  scout_auto     68.0%
+  2026-09-05T07:30  WLD/USD    buy  rejected  scout_auto     83.0%
+  2026-09-05T07:30  VIRTUAL/USD buy  rejected  scout_auto     91.0%
+  2026-09-05T07:33  ADA/USD    buy  rejected  scout_auto     67.0%
+  2026-09-05T07:37  FIL/USD    buy  rejected  scout_auto     76.0%
+  2026-09-05T07:37  PENGU/USD  buy  rejected  scout_auto     91.0%
+  2026-09-05T07:37  SUI/USD    buy  rejected  scout_auto     96.0%
+  2026-09-05T07:40  ATOM/USD   buy  rejected  scout_auto     68.0%
+  2026-09-05T07:42  INJ/USD    buy  rejected  scout_auto     80.0%
+  2026-09-05T07:42  POL/USD    buy  rejected  scout_auto     68.0%
+  2026-09-05T07:42  VIRTUAL/USD buy  rejected  scout_auto     91.0%
+  2026-09-05T07:42  WLD/USD    buy  rejected  scout_auto     83.0%
+  2026-09-05T07:42  AR/USD     buy  rejected  scout_mover    59.0%
+  2026-09-05T07:44  ADA/USD    buy  rejected  scout_auto     67.0%
+  2026-09-05T07:46  POPCAT/USD buy  rejected  scout_auto     100.0%
+  2026-09-05T07:48  DOT/USD    buy  rejected  scout_auto     76.0%
+  2026-09-05T07:49  PENGU/USD  buy  rejected  scout_auto     91.0%
+  2026-09-05T07:51  ATOM/USD   buy  rejected  scout_auto     68.0%
+  2026-09-05T07:51  FIL/USD    buy  rejected  scout_auto     73.0%
+  2026-09-05T07:51  SUI/USD    buy  rejected  scout_auto     96.0%
+  2026-09-05T07:53  AR/USD     buy  rejected  scout_mover    84.0%
+  2026-09-05T07:56  ADA/USD    buy  rejected  scout_auto     67.0%
+  2026-09-05T07:56  INJ/USD    buy  rejected  scout_auto     83.0%
+  2026-09-05T07:56  POL/USD    buy  rejected  scout_auto     68.0%
+  2026-09-05T07:56  LINK/USD   buy  rejected  scout_auto     92.0%
+  2026-09-05T07:58  POPCAT/USD buy  rejected  scout_auto     78.0%
+  2026-09-05T08:01  FIL/USD    buy  rejected  scout_auto     96.0%
+  2026-09-05T08:03  DOT/USD    buy  rejected  scout_auto     96.0%
+  2026-09-05T08:04  VIRTUAL/USD buy  rejected  scout_auto     91.0%
+  2026-09-05T08:13  FIL/USD    buy  rejected  scout_auto     93.0%
+  2026-09-05T08:18  POL/USD    buy  rejected  scout_auto     68.0%
+  2026-09-05T08:29  POL/USD    buy  rejected  scout_auto     93.0%
+  2026-09-05T08:29  APR/USD    buy  rejected  scout_mover    59.0%
+  2026-09-05T08:32  ADA/USD    buy  rejected  scout_auto     92.0%
+  2026-09-05T08:37  ADA/USD    buy  closed    bot_strategy   67.0%
+  2026-09-05T08:38  ALGO/USD   buy  rejected  scout_auto     91.0%
+  2026-09-05T08:41  POL/USD    buy  rejected  scout_auto     93.0%
+  2026-09-05T08:41  APR/USD    buy  rejected  scout_mover    59.0%
+  2026-09-05T08:45  ATOM/USD   buy  rejected  scout_auto     68.0%
+  2026-09-05T08:48  ADA/USD    buy  rejected  scout_auto     67.0%
+  2026-09-05T08:50  ALGO/USD   buy  rejected  scout_auto     91.0%
+  2026-09-05T08:52  POL/USD    buy  rejected  scout_auto     93.0%
+  2026-09-05T09:01  UNI/USD    buy  rejected  scout_auto     77.0%
+  2026-09-05T09:01  FIL/USD    buy  rejected  scout_auto     100.0%
+  2026-09-05T09:13  FIL/USD    buy  rejected  scout_auto     100.0%
+  2026-09-05T09:13  UNI/USD    buy  rejected  scout_auto     77.0%
+  2026-09-05T09:18  SUI/USD    buy  rejected  scout_auto     86.0%
+  2026-09-05T09:25  FIL/USD    buy  rejected  scout_auto     100.0%
+  2026-09-05T09:36  ADA/USD    buy  closed    scout_auto     67.0%
+  2026-09-05T09:36  FIL/USD    buy  rejected  scout_auto     100.0%
+  2026-09-05T09:39  ATOM/USD   buy  rejected  scout_auto     88.0%
+  2026-09-05T09:39  LINK/USD   buy  closed    bot_strategy   100.0%
+  2026-09-05T09:41  POL/USD    buy  rejected  scout_auto     93.0%
+  2026-09-05T09:44  HYPE/USD   buy  rejected  scout_auto     92.0%
+  2026-09-05T09:46  SUI/USD    buy  rejected  scout_auto     91.0%
+  2026-09-05T09:48  FIL/USD    buy  rejected  scout_auto     100.0%
+  2026-09-05T09:50  ATOM/USD   buy  rejected  scout_auto     88.0%
+  2026-09-05T09:53  POL/USD    buy  rejected  scout_auto     93.0%
+  2026-09-05T09:57  SUI/USD    buy  rejected  scout_auto     91.0%
+  2026-09-05T09:58  AAVE/USD   buy  rejected  scout_auto     92.0%
+  2026-09-05T10:00  FIL/USD    buy  rejected  scout_auto     100.0%
+  2026-09-05T10:09  SUI/USD    buy  rejected  scout_auto     100.0%
+  2026-09-05T10:11  FIL/USD    buy  rejected  scout_auto     100.0%
+  2026-09-05T10:11  LINK/USD   buy  rejected  scout_auto     100.0%
+  2026-09-05T10:15  UNI/USD    buy  rejected  scout_auto     82.0%
+  2026-09-05T10:16  ARB/USD    buy  closed    bot_strategy   72.0%
+  2026-09-05T10:20  SUI/USD    buy  rejected  scout_auto     100.0%
+  2026-09-05T10:22  LINK/USD   buy  rejected  scout_auto     100.0%
+  2026-09-05T10:29  PNUT/USD   buy  rejected  scout_auto     83.0%
+  2026-09-05T10:32  ADA/USD    sell closed    scout_exit_check 0.0%
+  2026-09-05T10:35  BTC/USD    buy  rejected  scout_auto     84.0%
+  2026-09-05T10:38  LINK/USD   buy  closed    scout_auto     100.0%
+  2026-09-05T10:47  SUI/USD    buy  rejected  scout_auto     71.0%
+  2026-09-05T10:49  BTC/USD    buy  rejected  scout_auto     84.0%
+  2026-09-05T10:54  FARTCOIN/USD buy  rejected  scout_auto     92.0%
+  2026-09-05T10:57  ETH/USD    buy  rejected  scout_auto     92.0%
+  2026-09-05T11:04  ARB/USD    buy  rejected  scout_auto     72.0%
+  2026-09-05T11:05  CRV/USD    buy  closed    bot_strategy   96.0%
+  2026-09-05T11:15  ARB/USD    buy  closed    scout_auto     72.0%
+  2026-09-05T11:19  ZEC/USD    buy  rejected  scout_auto     72.0%
+  2026-09-05T11:29  POL/USD    buy  rejected  scout_auto     93.0%
+  2026-09-05T11:31  CRV/USD    buy  rejected  scout_auto     83.0%
+  2026-09-05T11:33  HYPE/USD   buy  rejected  scout_auto     100.0%
+  2026-09-05T11:34  SUI/USD    buy  rejected  scout_auto     71.0%
+  2026-09-05T11:39  AAVE/USD   buy  rejected  scout_auto     92.0%
+  2026-09-05T11:39  CRV/USD    buy  rejected  scout_auto     100.0%
+  2026-09-05T11:40  POL/USD    buy  rejected  scout_auto     93.0%
+  2026-09-05T11:40  SUI/USD    buy  rejected  scout_auto     71.0%
+  2026-09-05T11:42  APR/USD    buy  rejected  scout_mover    67.0%
+  2026-09-05T11:49  POPCAT/USD buy  rejected  scout_auto     68.0%
+  2026-09-05T11:57  ADA/USD    buy  closed    bot_strategy   81.0%
+  2026-09-05T12:03  CRV/USD    buy  closed    scout_auto     96.0%
+  2026-09-05T12:13  POPCAT/USD buy  rejected  scout_auto     68.0%
+  2026-09-05T12:15  HYPE/USD   buy  rejected  scout_auto     78.0%
+  2026-09-05T12:24  POPCAT/USD buy  rejected  scout_auto     68.0%
+  2026-09-05T12:35  POL/USD    buy  closed    bot_strategy   98.0%
+  2026-09-05T12:35  POPCAT/USD buy  rejected  scout_auto     93.0%
+  2026-09-05T12:49  LINK/USD   buy  rejected  scout_auto     100.0%
+  2026-09-05T12:56  ADA/USD    buy  closed    scout_auto     81.0%
+  2026-09-05T13:05  TIA/USD    buy  rejected  scout_auto     65.0%
+  2026-09-05T13:14  INJ/USD    buy  rejected  scout_auto     80.0%
+  2026-09-05T13:17  TIA/USD    buy  rejected  scout_auto     65.0%
+  2026-09-05T13:32  AR/USD     buy  closed    bot_strategy   72.0%
+  2026-09-05T13:34  POL/USD    buy  closed    scout_auto     98.0%
+  2026-09-05T13:36  OP/USD     buy  rejected  scout_auto     72.0%
+  2026-09-05T13:43  DOGE/USD   buy  rejected  scout_auto     83.0%
+  2026-09-05T13:48  SOL/USD    buy  rejected  scout_auto     100.0%
+  2026-09-05T13:50  BCH/USD    buy  rejected  scout_auto     100.0%
+  2026-09-05T13:55  AVAX/USD   buy  rejected  scout_auto     65.0%
+  2026-09-05T13:55  DOGE/USD   buy  rejected  scout_auto     83.0%
+  2026-09-05T14:12  POL/USD    sell closed    scout_exit_check 0.0%
+  2026-09-05T14:31  AR/USD     buy  closed    scout_mover    72.0%
+  2026-09-05T14:37  FIL/USD    buy  rejected  scout_auto     60.0%
+  2026-09-05T14:49  FIL/USD    buy  rejected  scout_auto     85.0%
+  2026-09-05T14:50  XRP/USD    buy  rejected  scout_auto     68.0%
+  2026-09-05T14:53  DOGE/USD   buy  rejected  scout_auto     83.0%
+  2026-09-05T15:05  AAVE/USD   buy  rejected  scout_auto     100.0%
+  2026-09-05T15:19  AAVE/USD   buy  rejected  scout_auto     81.0%
+  2026-09-05T15:28  BCH/USD    buy  rejected  scout_auto     83.0%
+  2026-09-05T15:31  AAVE/USD   buy  rejected  scout_auto     81.0%
+  2026-09-05T15:37  FIL/USD    buy  rejected  scout_auto     60.0%
+  2026-09-05T15:42  AAVE/USD   buy  rejected  scout_auto     81.0%
+  2026-09-05T15:44  BCH/USD    buy  rejected  scout_auto     83.0%
+  2026-09-05T15:53  AAVE/USD   buy  rejected  scout_auto     81.0%
+  2026-09-05T16:03  BCH/USD    buy  closed    bot_strategy   100.0%
+  2026-09-05T16:04  BCH/USD    buy  rejected  scout_auto     100.0%
+  2026-09-05T16:32  ETC/USD    buy  rejected  scout_auto     65.0%
+  2026-09-05T16:43  ETC/USD    buy  rejected  scout_auto     65.0%
+  2026-09-05T16:55  ETC/USD    buy  rejected  scout_auto     65.0%
+  2026-09-05T17:02  BCH/USD    buy  closed    scout_auto     100.0%
+  2026-09-05T17:39  AAVE/USD   buy  rejected  scout_auto     98.0%
+  2026-09-05T17:39  TIA/USD    buy  rejected  scout_auto     76.0%
+  2026-09-05T17:51  LDO/USD    buy  rejected  scout_auto     72.5%
+  2026-09-05T17:54  TIA/USD    buy  rejected  scout_auto     81.0%
 scanner_state: name 'json' is not defined
 
 bot positions (latest 5):
-  #196 XRP/USD @ 1.3931 opened 2026-09-04 17:54 open=False
-  #195 XRP/USD @ 1.40041 opened 2026-09-04 17:06 open=False
-  #194 XMR/USD @ 544.9568423218197 opened 2026-09-04 10:52 open=False
-  #193 XRP/USD @ 1.4451422342776312 opened 2026-09-04 05:29 open=False
-  #192 XRP/USD @ 1.43842 opened 2026-09-04 02:27 open=False
+  #220 BCH/USD @ 256.96 opened 2026-09-05 23:03 open=False
+  #219 AR/USD @ 3.0435693791266365 opened 2026-09-05 20:32 open=False
+  #218 POL/USD @ 0.09584 opened 2026-09-05 19:35 open=False
+  #217 ADA/USD @ 0.22012 opened 2026-09-05 18:57 open=False
+  #216 CRV/USD @ 0.36744 opened 2026-09-05 18:05 open=False
 bot trades since 8 PM (10):
-  2026-09-04 18:10 sell XRP/USD
-  2026-09-04 17:54 buy  XRP/USD
-  2026-09-04 17:22 sell XRP/USD
-  2026-09-04 17:06 buy  XRP/USD
-  2026-09-04 16:52 sell XMR/USD
-  2026-09-04 12:23 buy  XMR/USD
-  2026-09-04 11:53 buy  XMR/USD
-  2026-09-04 10:52 buy  XMR/USD
-  2026-09-04 10:52 sell XRP/USD
-  2026-09-04 06:30 buy  XRP/USD
+  2026-09-06 00:29 sell BCH/USD
+  2026-09-05 23:03 buy  BCH/USD
+  2026-09-05 23:02 sell AR/USD
+  2026-09-05 20:41 buy  AR/USD
+  2026-09-05 20:32 buy  AR/USD
+  2026-09-05 20:12 sell POL/USD
+  2026-09-05 19:35 buy  POL/USD
+  2026-09-05 19:07 sell ADA/USD
+  2026-09-05 18:57 buy  ADA/USD
+  2026-09-05 18:35 sell CRV/USD
 
 execution: blacklist=[] strikes=['S/USD', 'ARB/USD', 'LDO/USD', 'POPCAT/USD', 'OP/USD'] pending_scales=[]
 
 kill switch: clear
-rotation now: R4 🌤 US Afternoon | bar 60% | no_buy=False
+rotation now: R5 🌆 US Late | bar 60% | no_buy=False

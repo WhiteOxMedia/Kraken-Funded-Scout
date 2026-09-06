@@ -1316,6 +1316,124 @@ def _log_suppression(pair: str, gate: str, detail: str, **ctx):
             f.write("\n".join(lines[-SUPPRESSION_LOG_MAX:]))
     except Exception as exc:
         logger.debug("suppression log write failed: %s", exc)
+    # ── THE HINDSIGHT SEAM (user spec, Sep 5): every suppression ALSO
+    # lands in the signal-snapshot dataset with its fire-time feature
+    # vector, so the scorer learns from what the funnel buried — not just
+    # what it let through. Never raises; never blocks.
+    try:
+        _snap = _SNAPSHOT_CTX.get("pair") == pair and _SNAPSHOT_CTX.get("ctx")
+        if _snap and (time.time() - float(_SNAPSHOT_CTX.get("started", 0) or 0)) < 600:
+            _rec = dict(_SNAPSHOT_CTX["ctx"])
+            _rec.update({"kind": "suppressed", "gate": gate,
+                         "detail": str(detail)[:160]})
+            for _k, _v in ctx.items():
+                if _v is not None:
+                    _rec[_k] = _v
+            _log_signal_snapshot(_rec)
+    except Exception:
+        pass
+
+
+# ── THE SIGNAL-SNAPSHOT DATASET (user spec, Sep 5: "Log every
+# fired-and-entered and fired-and-suppressed signal with full feature
+# snapshots"). One jsonl line per popup-path event — champion or mover,
+# fired or buried — carrying the fire-time features (hindsight_scorer.
+# fire_features off 5-min candles) + the verdict. The scorer's backfill
+# joins outcomes onto these; extract_rules grades the features; the
+# weekly gate report reads them all. Capped at 2000 lines.
+SIGNAL_SNAPSHOTS_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                                     "signal_snapshots.jsonl")
+SIGNAL_SNAPSHOTS_MAX = 2000
+# the popup cap (user spec: "Cap concurrent fresh entries"): no more than
+# this many BUY popups per window — the advisory brain can fire often;
+# the watch never floods. Live dial: popup_cap in console_state.json.
+POPUP_CAP_WINDOW_MIN = 90.0
+POPUP_CAP_DEFAULT = 3
+
+
+def _log_signal_snapshot(rec: dict):
+    """Append one snapshot record. Never raises."""
+    try:
+        import json as _json
+        lines = []
+        if os.path.exists(SIGNAL_SNAPSHOTS_FILE):
+            with open(SIGNAL_SNAPSHOTS_FILE, "r", encoding="utf-8") as f:
+                lines = [l for l in f.read().splitlines() if l.strip()]
+        rec = dict(rec)
+        rec.setdefault("ts", _now_mst().isoformat())
+        lines.append(_json.dumps(rec, ensure_ascii=False, default=str))
+        with open(SIGNAL_SNAPSHOTS_FILE, "w", encoding="utf-8") as f:
+            f.write("\n".join(lines[-SIGNAL_SNAPSHOTS_MAX:]))
+    except Exception as exc:
+        logger.debug("signal snapshot write failed: %s", exc)
+
+
+# the CURRENT fire-time context (pair-keyed; set by _begin_fire_snapshot
+# at the top of every popup-path evaluation, consumed by the suppression
+# hook above and the fired-snapshot writes below)
+_SNAPSHOT_CTX = {}
+
+
+def _begin_fire_snapshot(exchange, pair: str, quick_conf, **extras) -> dict:
+    """Compute + stash the fire-time feature vector for this candidate —
+    ONE 5-min candle fetch, reused by every downstream verdict (fired or
+    buried). Feature failure NEVER blocks the funnel: a broken read logs
+    features=None and the gates proceed (the fail-closed rule lives on
+    the DEEP SCAN, not on the feature math)."""
+    ctx = {"pair": pair, "quick": quick_conf}
+    ctx.update(extras)
+    feats = None
+    try:
+        from hindsight_scorer import fire_features
+        rows = exchange.fetch_ohlcv(pair, timeframe="5m", limit=100)
+        feats = fire_features(rows or [])
+    except Exception as exc:
+        logger.debug("fire-time features unavailable for %s: %s", pair, exc)
+        ctx["features_error"] = True
+    ctx["features"] = feats
+    _SNAPSHOT_CTX.clear()
+    _SNAPSHOT_CTX.update({"pair": pair, "started": time.time(), "ctx": ctx})
+    return ctx
+
+
+def _popup_cap() -> int:
+    """The popup cap dial — read LIVE from console_state.json (the
+    sidebar writes it; no scanner restart), default 3, floor 1."""
+    try:
+        import json as _json
+        from pathlib import Path as _P
+        _cs = _json.loads((_P(__file__).resolve().parent / "console_state.json").read_text())
+        return max(1, int(_cs.get("popup_cap") or POPUP_CAP_DEFAULT))
+    except Exception:
+        return POPUP_CAP_DEFAULT
+
+
+def _recent_fired_popups(window_min=POPUP_CAP_WINDOW_MIN) -> int:
+    """How many BUY popups fired inside the cap window (reads the
+    snapshot log — the same file the scorer learns from)."""
+    try:
+        import json as _json
+        from datetime import datetime as _dt, timedelta as _td
+        if not os.path.exists(SIGNAL_SNAPSHOTS_FILE):
+            return 0
+        _cutoff = _now_mst() - _td(minutes=window_min)
+        _n = 0
+        with open(SIGNAL_SNAPSHOTS_FILE, "r", encoding="utf-8") as f:
+            for line in f:
+                try:
+                    r = _json.loads(line)
+                except Exception:
+                    continue
+                if r.get("kind") != "fired":
+                    continue
+                try:
+                    if _dt.fromisoformat(r.get("ts")) >= _cutoff:
+                        _n += 1
+                except Exception:
+                    continue
+        return _n
+    except Exception:
+        return 0
 
 
 def _speak_server(text: str, rate: int = 2):
@@ -1976,6 +2094,18 @@ def main():
         # the reason spelled out; the bot never sees a gated pick.
         gate_notes = []
 
+        # ── FIRE-TIME SNAPSHOT (user spec, Sep 5): the feature vector is
+        # computed BEFORE any gate verdict so every outcome — fired or
+        # buried by ANY gate below — carries the same full features for
+        # the hindsight scorer. One 5-min fetch per candidate; a broken
+        # feature read never blocks the funnel.
+        try:
+            _begin_fire_snapshot(exchange, pair, float(signal.confidence),
+                                 action=signal.action,
+                                 entry=float(signal.entry_price or 0.0))
+        except Exception:
+            pass
+
         # ── Gate 1: EXPECTED MOVE (bot's size filter) ────────────────────
         try:
             from volatility_engine import get_move_threshold
@@ -2087,11 +2217,13 @@ def main():
 
         # ── THE DEEP PRE-CHECK (bridge stage) — the read itself now runs
         # ABOVE the gates (the near-miss consult); this is the bot-money
-        # veto: deep read must still say BUY ≥60, no falling knives, no
-        # just-paid exhausted movers. A near-miss rescue already has _deep
-        # cached — no second read. (The bot's breakout-appropriate chase
-        # rules — stale 2% / blowoff 5% — live reader-side; this is the
-        # subset right for ANY buy.)
+        # gate: the scan MUST run (fail-closed — no read, no write), it
+        # must not contradict the buy, and no falling knives. The brain's
+        # NUMBER is advisory (user rule, Sep 5) — it sizes, it doesn't
+        # block; the bot's own reader gates carry the real-money veto. A
+        # near-miss rescue already has _deep cached — no second read.
+        # (The bot's breakout-appropriate chase rules — stale 2% / blowoff
+        # 5% — live reader-side; this is the subset right for ANY buy.)
         if is_buy and not gate_notes:
             try:
                 # TIDE OUT = no entries anywhere on the BOT ledger — the
@@ -2125,22 +2257,48 @@ def main():
                                          rot=rotation_key_for_hour(_now_mst().hour))
                         return
                 if _deep is None:
-                    _deep, _df = _do_deep_read()
-                if _deep is not None:
-                    if _deep.action != "buy" or _deep.confidence < 60:  # QC_SCALP_FLOOR
-                        logger.info("  DEEP VETO (bridge): %s deep-reads %s %.0f%% — not written; the bot and the QC would both say no",
-                                    asset, _deep.action, _deep.confidence)
-                        _log_suppression(pair, "deep-veto",
-                                         f"bridge stage: deep-reads {_deep.action} "
-                                         f"{_deep.confidence:.0f}% (the bot and the QC would "
-                                         f"both say no)",
-                                         quick=float(signal.confidence),
-                                         brain=float(_deep.confidence),
-                                         tide=f"{_ts0} {_tp0:.0f}%" if _ts0 else None,
-                                         rot=rotation_key_for_hour(_now_mst().hour))
-                        return
-                    # NO DOWNWARD TREND PICKS (user directive, Aug 25) — same
-                    # EMA knife test as the QC, on the bot's money too
+                    try:
+                        _deep, _df = _do_deep_read()
+                    except Exception:
+                        _deep, _df = None, None
+                # ── THE FIRE-TIME RULE (user spec, Sep 5 — the JUP
+                # guarantee, made airtight): the deep scan MUST run
+                # successfully at fire-time. A failed/null/invalid read
+                # = NO popup, NO entry, NO LEDGER WRITE — on BOTH
+                # ledgers. Nothing downstream sees an unverified signal.
+                if _deep is None:
+                    logger.info("  FAIL-CLOSED (bridge): no deep read for %s — "
+                                "no write, no popup (the fire-time rule)", asset)
+                    _log_suppression(pair, "fail-closed",
+                                     "the deep scan could not run — no popup, "
+                                     "no entry, no ledger write (the fire-time rule)",
+                                     quick=float(signal.confidence),
+                                     tide=f"{_ts0} {_tp0:.0f}%" if _ts0 else None,
+                                     rot=rotation_key_for_hour(_now_mst().hour))
+                    return
+                # ── THE ADVISORY BRAIN (user rule, Sep 5): the brain's
+                # NUMBER no longer blocks the ledger write — it sizes the
+                # entry downstream. What still blocks: the scan's
+                # DIRECTION — a deep read that says SELL/HOLD against a
+                # buy is an invalid fire-time diagnostic (its confidence
+                # measures conviction in the OPPOSITE call), and the bot's
+                # own reader gates (ladder, head-to-head, carry cap) stay
+                # the real-money protection, fully intact.
+                if _deep.action != "buy":
+                    logger.info("  DEEP VETO (bridge): %s deep-reads %s %.0f%% — not written; the scan contradicts the buy",
+                                asset, _deep.action, _deep.confidence)
+                    _log_suppression(pair, "deep-veto",
+                                     f"bridge stage: deep-reads {_deep.action} "
+                                     f"{_deep.confidence:.0f}% — the scan's direction "
+                                     f"contradicts the buy (the number is advisory, "
+                                     f"the direction is not)",
+                                     quick=float(signal.confidence),
+                                     brain=float(_deep.confidence),
+                                     tide=f"{_ts0} {_tp0:.0f}%" if _ts0 else None,
+                                     rot=rotation_key_for_hour(_now_mst().hour))
+                    return
+                # NO DOWNWARD TREND PICKS (user directive, Aug 25) — same
+                # EMA knife test as the QC, on the bot's money too
                     from indicators import ema as _ema2
                     _es = float(_ema2(_df["close"], cfg.ema_short).iloc[-1])
                     _el = float(_ema2(_df["close"], cfg.ema_long).iloc[-1])
@@ -2243,67 +2401,76 @@ def main():
         else:
             logger.info("  POPUP FLOOR: rotation %s — %d (the rail stands)",
                         _rot_now_key, DESKTOP_ALERT_MIN)
-        # ── THE BRAIN-JUDGED POPUP BAR (user rule, Sep 1: "the pop ups
-        # need a current deep scan before they appear and the confidence
-        # bar for the popup needs to be higher than the bots side to
-        # pass"): a CURRENT deep read runs before the popup, and the
-        # BRAIN'S number must clear the popup floor (the rotation rail,
-        # tide-relaxed / lone-wolf discounted — above the bot's 60-69 bar
-        # by design: the bot rides dips on its ladder, the contest dies
-        # at the -3% line). The quick tournament number no longer opens
-        # popups (the JUP loophole: quick 89+, brain 87). A broken read
-        # fails closed (the block below).
-        # ── HEAD-TO-HEAD CHALLENGE (user rule, Sep 4: "the brain should
-        # allow it if it's close within 5% to challenge head to head"):
-        # a brain read within POPUP_NEAR_MISS_PTS BELOW the floor doesn't
-        # get buried — the popup fires as a CHALLENGER, marked as such in
-        # the title, the voice, and the message, so a near-miss is never
-        # mistaken for a champion green. Below floor-5 stays suppressed.
+        # ── THE BRAIN-JUDGED POPUP BAR — RETIRED (user rule, Sep 5 — see
+        # THE ADVISORY BRAIN below): from Sep 1 to Sep 5 a current deep
+        # read ran before the popup and the BRAIN'S number had to clear
+        # the popup floor. The Sep 5 hindsight audit (diag_missedmoney)
+        # buried the floor: every brain-100 read that day was a dud while
+        # the day's biggest runs read 0-39% — the number was
+        # anti-correlated with outcomes. The scan STILL runs before every
+        # popup (fail-closed); what changed is the number's job: sizer,
+        # not gatekeeper. The HEAD-TO-HEAD CHALLENGE (Sep 4) retired with
+        # the floor — no floor to challenge.
+        # ── THE ADVISORY BRAIN (user rule, Sep 5 — the entry-path
+        # rebuild): the brain-judged POPUP FLOOR IS REMOVED. The deep scan
+        # still MUST run at fire-time (fail-closed below — the JUP
+        # guarantee, kept), and its DIRECTION must agree with the buy —
+        # but its NUMBER no longer blocks anything: it SIZES the entry
+        # (the bucket table in hindsight_scorer: >=85 -> 1.00x ... <45 ->
+        # 0.10x minimum viable). A 40% brain read on a setup that passes
+        # the goal/stale/trend/tide/book/rotation gates now FIRES at
+        # 0.10x size instead of being buried — the Sep 5 hindsight audit
+        # showed the floor was anti-correlated with outcomes (every
+        # brain-100 read was a dud; the day's biggest runs read 0-39%),
+        # and the scorer can only learn from signals that actually enter.
+        # The floor (DESKTOP_ALERT_MIN) is still computed above — it
+        # stays the Hail Mary's champion-grade bar and the popup's
+        # context line, nothing more. The CHALLENGER mark retired with
+        # the floor (no floor to challenge).
         _brain_floor_ok = None
         _challenger = False
+        _brain_mult = 1.0
         if is_buy:
             try:
                 if _deep is None:
-                    _deep, _df = _do_deep_read()
+                    try:
+                        _deep, _df = _do_deep_read()
+                    except Exception:
+                        _deep, _df = None, None
                 if _deep is not None:
                     _bc = float(_deep.confidence)
-                    if _bc >= DESKTOP_ALERT_MIN:
-                        _brain_floor_ok = True
-                        logger.info("  BRAIN-JUDGED BAR: the brain reads %.0f%% ≥ %d%% "
-                                    "popup floor (quick %.0f%%)",
-                                    _bc, DESKTOP_ALERT_MIN, signal.confidence)
-                    elif _bc >= DESKTOP_ALERT_MIN - POPUP_NEAR_MISS_PTS:
-                        _brain_floor_ok = True
-                        _challenger = True
-                        logger.info("  HEAD-TO-HEAD CHALLENGE: the brain reads %.0f%% vs the "
-                                    "%d%% popup floor (within %.0f) — popup fires as a CHALLENGER "
-                                    "(quick said %.0f%%)",
-                                    _bc, DESKTOP_ALERT_MIN, POPUP_NEAR_MISS_PTS,
-                                    signal.confidence)
-                    else:
-                        logger.info("  Desktop suppressed: the BRAIN reads %.0f%% < %.0f%% "
-                                    "popup floor (challenge needs ≥%.0f%%; quick said %.0f%%)",
-                                    _bc, DESKTOP_ALERT_MIN,
-                                    DESKTOP_ALERT_MIN - POPUP_NEAR_MISS_PTS,
-                                    signal.confidence)
-                        _log_suppression(pair, "brain-floor",
-                                         f"brain {_bc:.0f}% < the {DESKTOP_ALERT_MIN:.0f}% floor "
-                                         f"(challenge needs ≥{DESKTOP_ALERT_MIN - POPUP_NEAR_MISS_PTS:.0f}%)",
+                    if _deep.action != "buy":
+                        # the scan RAN — but it contradicts the buy: an
+                        # invalid fire-time diagnostic (its confidence
+                        # measures conviction in the opposite call; a
+                        # number you cannot use as a buy sizer)
+                        logger.info("  DEEP DIRECTION VETO (desktop): %s deep-reads "
+                                    "%s %.0f%% — the scan contradicts the buy",
+                                    asset, _deep.action, _bc)
+                        _log_suppression(pair, "deep-direction",
+                                         f"deep-reads {_deep.action} {_bc:.0f}% — the scan's "
+                                         f"direction contradicts the buy (the number is "
+                                         f"advisory, the direction is not)",
                                          quick=float(signal.confidence), brain=_bc,
                                          floor=float(DESKTOP_ALERT_MIN),
                                          tide=(f"{_df_state} {_df_pct:.0f}%" if _df_pct is not None else _df_state),
                                          rot=_rot_now_key)
                         return
+                    _brain_floor_ok = True
+                    try:
+                        from hindsight_scorer import brain_size_mult
+                        _brain_mult = brain_size_mult(_bc)
+                    except Exception:
+                        _brain_mult = 1.0
+                    logger.info("  ADVISORY BRAIN: the brain reads %.0f%% — the number "
+                                "SIZES the entry at %.2fx, the floor no longer blocks "
+                                "(quick said %.0f%%, rail %d%%)",
+                                _bc, _brain_mult, signal.confidence, DESKTOP_ALERT_MIN)
             except Exception:
                 _brain_floor_ok = None
-        # ── FAIL-CLOSED (user rule, Sep 2 — the JUP 14:52 lesson: the deep
-        # read errored, the old fail-open let the QUICK 92% open the popup
-        # with no brain check at all, and the QC's brain said 67 two minutes
-        # later — the user would have bought a thin book, eaten the spread,
-        # and been called out by the knife 5 minutes after that): NO brain
-        # read = NO popup, ever. The bridge write above already happened
-        # (the bot's ledger, the bot's own gates); the QC still fails open
-        # so the user can always run their own scan.
+        # ── FAIL-CLOSED (user rule, Sep 2 — the JUP 14:52 lesson, KEPT
+        # Sep 5 as the FIRE-TIME RULE): NO brain read = NO popup, ever.
+        # Availability is mandatory; the value is advisory.
         if is_buy and _brain_floor_ok is None:
             logger.info("  Desktop suppressed: the brain could not be read for %s — "
                         "no unverified popups (fail-closed; quick said %.0f%%)",
@@ -2425,12 +2592,18 @@ def main():
                 if _deep is None:
                     _deep, _df = _do_deep_read()
                 if _deep is not None:
-                    if _deep.action != "buy" or _deep.confidence < 60:
-                        logger.info("  DEEP VETO (desktop): %s deep-reads %s %.0f%% — the user's QC would say no",
+                    # ADVISORY BRAIN (Sep 5): the DIRECTION still vetoes —
+                    # a SELL/HOLD read against a buy is an invalid
+                    # diagnostic — but the NUMBER no longer does (it sized
+                    # the entry upstream; a 40% read fires at 0.10x, it is
+                    # not buried here).
+                    if _deep.action != "buy":
+                        logger.info("  DEEP VETO (desktop): %s deep-reads %s %.0f%% — the scan contradicts the buy",
                                     asset, _deep.action, _deep.confidence)
                         _log_suppression(pair, "deep-veto",
                                          f"deep-reads {_deep.action} {_deep.confidence:.0f}% "
-                                         f"(the QC would say no)",
+                                         f"— the scan's direction contradicts the buy "
+                                         f"(the number is advisory, the direction is not)",
                                          quick=float(signal.confidence),
                                          brain=float(_deep.confidence),
                                          floor=float(DESKTOP_ALERT_MIN),
@@ -2589,6 +2762,22 @@ def main():
                                f"platform line can afford\n")
         except Exception as _exc:
             logger.debug("3%% guard unavailable in send_alert: %s", _exc)  # fail-open
+        # ── THE ADVISORY-BRAIN SIZE SCALER (user rule, Sep 5): the brain's
+        # number multiplies the guard-capped spend — ≥85 reads full size,
+        # a 40% read 0.10x (MINIMUM VIABLE: no trade is ever sized at
+        # zero; the scorer needs entries across the whole confidence
+        # spectrum to learn where the number actually helps). Applied
+        # AFTER the 3% guard (the guard's cap is the death-line truth) and
+        # BEFORE the worth floor (a scaled entry still has to pay its
+        # pace — the dial governs, the user can zero it).
+        if is_buy:
+            try:
+                if _brain_mult < 1.0:
+                    _spend = _spend * _brain_mult
+                    logger.info("  ADVISORY BRAIN SIZING: %.2fx → $%.0f",
+                                _brain_mult, _spend)
+            except Exception:
+                pass
         # ── THE WORTH FLOOR (user rule, Sep 2: "big coins only... less
         # entries but more money" — the JUP lesson: a $233 sized entry at
         # the +2% goal pays $4.66, noise that only pays the spread): the
@@ -2628,6 +2817,19 @@ def main():
             # confidence — the same number the user's own Quick Check
             # would print seconds later. No more lying brags.
             _dc = float(_deep.confidence) if _deep is not None else float(signal.confidence)
+            # THE ADVISORY-BRAIN MARK (user rule, Sep 5): the brain's
+            # number SIZED this entry — when it's below full size the
+            # title carries the multiplier at a glance and the message +
+            # voice say it plainly, so a 0.10x popup is never mistaken
+            # for a champion green.
+            _brain_line = ""
+            _brain_say = ""
+            if _brain_mult < 1.0:
+                _brain_line = (f"  BRAIN SIZES IT: {_dc:.0f}% → {_brain_mult:.2f}× size = "
+                               f"${_spend:,.0f} — the scan ran; the number is advisory "
+                               f"(it sizes, it never blocks)\n")
+                _brain_say = (f"The brain says {_dc:.0f} percent — "
+                              f"sizing at {_brain_mult:.2f}! ")
             _reentry_line = ""
             _reentry_say = ""
             if _is_reentry:
@@ -2654,6 +2856,7 @@ def main():
                                 "the death line stands\n")
                     _hm_say = "Hail Mary! The emergency hour is open! "
             title = (f"🟢 BUY {asset} — {_dc:.0f}% SURE"
+                     + (f" — {_brain_mult:.2f}× SIZE" if _brain_mult < 1.0 else "")
                      + (" — CHALLENGER" if _challenger else "")
                      + (" — LONE WOLF (OUT TIDE)" if _out_tide_lw else "")
                      + (" — HAIL MARY" if _hail_mary else ""))
@@ -2669,6 +2872,7 @@ def main():
                        else "")
             _spoken = (f"Buy {asset}! {_dc:.0f} percent sure! "
                        + _challenger_say
+                       + _brain_say
                        + _reentry_say
                        + _hm_say
                        + _lw_say
@@ -2691,6 +2895,7 @@ def main():
                 f"{_reentry_line}"
                 f"{_hm_line}"
                 f"{_challenger_line}"
+                f"{_brain_line}"
                 f"{contest_msg}"
                 f"{'-' * 30}\n"
                 f"get out at ${signal.stop_loss:.4f} (wrong)\n"
@@ -2707,11 +2912,51 @@ def main():
                 f"  {_fmt_mst(_now_mst())}"
             )
 
+        # ── THE POPUP CAP (user spec, Sep 5: "cap concurrent fresh
+        # entries"): the advisory brain fires far more often than the old
+        # floor did — no more than the cap (sidebar dial, live) may fire
+        # inside the window. The BRIDGE WRITE above stands (the bot's own
+        # gates govern the bot's money); only the popup is capped.
+        if is_buy:
+            _cap_n = _popup_cap()
+            _fired_n = _recent_fired_popups()
+            if _fired_n >= _cap_n:
+                logger.info("  POPUP CAP: %d popups inside the last %.0f min "
+                            "(cap %d) — desktop quiet; the bridge write stands",
+                            _fired_n, POPUP_CAP_WINDOW_MIN, _cap_n)
+                _log_suppression(pair, "popup-cap",
+                                 f"{_fired_n} popups inside the last "
+                                 f"{POPUP_CAP_WINDOW_MIN:.0f} min (cap {_cap_n}) — "
+                                 f"the watch never floods",
+                                 quick=float(signal.confidence),
+                                 brain=(float(_deep.confidence) if _deep is not None else None),
+                                 floor=float(DESKTOP_ALERT_MIN),
+                                 tide=(f"{_df_state} {_df_pct:.0f}%" if _df_pct is not None else _df_state),
+                                 rot=_rot_now_key)
+                return
+
         notify_big(title, message, spoken=_spoken if is_buy else None)
         if is_buy:
             # ROTATION LOCKOUT: the alert fired — this asset is now cold
             # until the next rotation boundary (no back-to-back re-entry).
             rotation_mark_fired(asset)
+            # ── THE FIRED SNAPSHOT (user spec, Sep 5): every popup that
+            # fires lands in the scorer's dataset with its full fire-time
+            # features — the positive class the suppression records are
+            # graded against.
+            try:
+                _fsnap = dict(_SNAPSHOT_CTX.get("ctx") or {})
+                _fsnap.update({"kind": "fired", "route": "champion",
+                               "brain": _dc, "mult": _brain_mult,
+                               "spend": float(_spend or 0.0),
+                               "goal_pct": float(_goal_pct or 0.0),
+                               "win_min": float(_win_min or 0.0),
+                               "entry": float(signal.entry_price or 0.0),
+                               "hail_mary": bool(_hail_mary),
+                               "reentry": bool(_is_reentry)})
+                _log_signal_snapshot(_fsnap)
+            except Exception:
+                pass
         logger.info("🚀 BIG ALERT: %s %s — %.0f%% — entry $%.4f — TP $%.4f",
                     signal.action.upper(), asset, signal.confidence, signal.entry_price, signal.take_profit)
 
@@ -3177,27 +3422,35 @@ def main():
 
                         # desktop: THE NEW-GAME MOVER POPUP (user option 1,
                         # Sep 2: "convert the MOVER popup to the new-game
-                        # format — same gauntlet as champion popups"). The
-                        # brain-judged bar stays (the brain's CURRENT
-                        # number must clear 89); the popup now speaks the
-                        # BRAIN'S number (not the quick one — the Aug 27
-                        # no-lying-brags rule), carries the goal clock, the
-                        # stale-move guard, the 3% death-line guard sizing,
-                        # and the book-carry verdict. The bridge write above
-                        # is the bot's ledger — its gates are the bot's own.
+                        # format — same gauntlet as champion popups").
+                        # ADVISORY BRAIN (user rule, Sep 5): the scan must
+                        # RUN and its DIRECTION must agree — but the 89
+                        # desktop floor is RETIRED; the brain's number
+                        # SIZES the popup (the same bucket table as the
+                        # champion path). The popup still speaks the
+                        # BRAIN'S number (the Aug 27 no-lying-brags rule),
+                        # carries the goal clock, the stale-move guard,
+                        # the 3% death-line guard sizing, and the book-
+                        # carry verdict. The bridge write above is the
+                        # bot's ledger — its gates are the bot's own.
+                        try:
+                            _m_fire_snap = _begin_fire_snapshot(
+                                exchange, pair, float(signal.confidence),
+                                action=signal.action, route="mover",
+                                entry=float(signal.price or 0.0))
+                        except Exception:
+                            pass
                         try:
                             _m_desk_ok = (_deep_sig is not None
-                                          and _deep_sig.action == "buy"
-                                          and float(_deep_sig.confidence) >= 89)
+                                          and _deep_sig.action == "buy")
                         except Exception:
-                            _m_desk_ok = False  # fail-closed: no brain read, no popup (the JUP lesson)
+                            _m_desk_ok = False  # fail-closed: no brain read, no popup (the JUP lesson — KEPT)
                         if not _m_desk_ok:
-                            logger.info("  Mover %s %.0f%% — bot-only (desktop floor 89)", asset, signal.confidence)
-                            _log_suppression(pair, "brain-floor",
-                                             f"mover: the brain reads "
-                                             f"{(_deep_sig.action if _deep_sig is not None else '?')} "
-                                             f"{(float(_deep_sig.confidence) if _deep_sig is not None else 0):.0f}% "
-                                             f"< the 89% mover desktop floor (fail-closed)",
+                            logger.info("  Mover %s %.0f%% — bot-only (the scan "
+                                        "didn't run or contradicts the buy)", asset, signal.confidence)
+                            _log_suppression(pair, "fail-closed" if _deep_sig is None else "deep-direction",
+                                             f"mover: {'the brain could not be read' if _deep_sig is None else 'the scan reads ' + str(_deep_sig.action) + ' — it contradicts the buy'} "
+                                             f"(fire-time rule: the scan must run; the number is advisory)",
                                              quick=float(signal.confidence),
                                              brain=(float(_deep_sig.confidence)
                                                     if _deep_sig is not None else None),
@@ -3246,6 +3499,7 @@ def main():
                                 _m_carry = None
                                 _m_wdd = None
                                 _m_skip = None
+                                _m_mult = 1.0
                                 _m_guard_capped = False
                                 try:
                                     import contest_account as _ca
@@ -3280,6 +3534,20 @@ def main():
                                             if _m_spend > _m_risk:
                                                 _m_spend = _m_risk
                                                 _m_guard_capped = True
+                                            # ADVISORY-BRAIN SIZING (user rule, Sep 5 —
+                                            # same bucket table as the champion path):
+                                            # the brain's number multiplies the guard-
+                                            # capped spend; the worth floor reads the
+                                            # SCALED spend after.
+                                            try:
+                                                from hindsight_scorer import brain_size_mult
+                                                _m_mult = brain_size_mult(_m_dc)
+                                            except Exception:
+                                                _m_mult = 1.0
+                                            if _m_mult < 1.0:
+                                                _m_spend = _m_spend * _m_mult
+                                                logger.info("  MOVER ADVISORY BRAIN SIZING: "
+                                                            "%.2fx → $%.0f", _m_mult, _m_spend)
                                             # THE WORTH FLOOR (same rule as the champion
                                             # popup — the JUP lesson): the sized entry at
                                             # its goal must pay at least the dial's share
@@ -3348,8 +3616,11 @@ def main():
                                     else:
                                         _m_size_say = "Book unreadable — your call on size! "
                                     _m_title = (f"🚀 MOVER BUY {asset} — {_m_dc:.0f}% SURE"
+                                                + (f" — {_m_mult:.2f}× SIZE" if _m_mult < 1.0 else "")
                                                 + (" — LONE WOLF (OUT TIDE)" if _m_out_lw else ""))
                                     _m_spoken = (f"Buy {asset}! {_m_dc:.0f} percent sure! "
+                                                 + (f"The brain says {_m_dc:.0f} percent — sizing at {_m_mult:.2f}! "
+                                                    if _m_mult < 1.0 else "")
                                                  + _m_re_say
                                                  + f"Runner outside the 54 — moving {_mv_pct:+.0f} percent on the day! "
                                                  + f"Aim for plus {_m_goal:.0f} percent! "
@@ -3362,7 +3633,10 @@ def main():
                                         f"reads the setup at {_m_dc:.0f}%\n"
                                         f"HOW LONG: goal +{_m_goal:.1f}% by {_m_out_by} — "
                                         f"if it hasn't paid by then, get out.\n"
-                                        f"{_m_tide_line}"
+                                        + (f"BRAIN SIZES IT: {_m_dc:.0f}% → {_m_mult:.2f}× size = "
+                                           f"${_m_spend:,.0f} — the scan ran; the number is advisory "
+                                           f"(it sizes, it never blocks)\n" if _m_mult < 1.0 else "")
+                                        + f"{_m_tide_line}"
                                         f"{_m_re_line}"
                                         f"{_m_spend_line}"
                                         f"{'-' * 30}\n"
@@ -3371,7 +3645,32 @@ def main():
                                         f"{'-' * 30}\n"
                                         f"  {_fmt_mst(_now_mst())}"
                                     )
-                                    notify_big(_m_title, _m_msg, spoken=_m_spoken)
+                                    # the popup cap + the FIRED snapshot — the
+                                    # mover path rides the same rules as the
+                                    # champion path (Sep 5)
+                                    if _recent_fired_popups() >= _popup_cap():
+                                        logger.info("  MOVER POPUP CAP — desktop quiet; the bridge write stands")
+                                        _log_suppression(pair, "popup-cap",
+                                                         "mover: the popup cap is full — "
+                                                         "the watch never floods",
+                                                         quick=float(signal.confidence),
+                                                         brain=(float(_deep_sig.confidence)
+                                                                if _deep_sig is not None else None),
+                                                         floor=89.0,
+                                                         tide=f"{_tsw} {_tpw or 0:.0f}%", rot=rot_key)
+                                    else:
+                                        notify_big(_m_title, _m_msg, spoken=_m_spoken)
+                                        try:
+                                            _mfs = dict(_SNAPSHOT_CTX.get("ctx") or {})
+                                            _mfs.update({"kind": "fired", "route": "mover",
+                                                         "brain": _m_dc, "mult": _m_mult,
+                                                         "spend": float(_m_spend or 0.0),
+                                                         "goal_pct": float(_m_goal or 0.0),
+                                                         "win_min": float(_m_win or 0.0),
+                                                         "entry": float(signal.price or 0.0)})
+                                            _log_signal_snapshot(_mfs)
+                                        except Exception:
+                                            pass
                         log_winner(pair, signal)
                         alerted_recently[pair] = now.timestamp()
                     except Exception as exc:

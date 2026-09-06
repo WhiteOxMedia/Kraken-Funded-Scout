@@ -1,5 +1,4 @@
 PASS  the log helper + file constant exist  
-PASS  hook: brain-floor logs its verdict  
 PASS  hook: fail-closed logs its verdict  
 PASS  hook: stale-move logs its verdict  
 PASS  hook: tide-out logs its verdict  
@@ -10,12 +9,15 @@ PASS  hook: worth-floor logs its verdict
 PASS  hook: rotation-lock logs its verdict  
 PASS  hook: blowoff-yesterday logs its verdict  
 PASS  hook: blacklisted logs its verdict  
-PASS  hook: death-line + daily-lock both log  
+PASS  hook: deep-direction logs its verdict  
+PASS  hook: popup-cap logs its verdict  
+PASS  hook: the brain-floor gate is retired (no number blocks)  
+PASS  hook: the death-line gate logs (the daily-lock gate retired with the lock, Sep 5)  
 PASS  hook: the bridge-stage deep vetoes log (pre-desktop deaths too)  
 PASS  hook: the mover's pre-desktop deaths log (lockout + deep veto)  
 PASS  the log carries the numbers (quick, brain, floor, tide, rot)  
 PASS  the mover's desktop suppressions log too (mover: prefix)  
-PASS  the mover's brain-floor + stale suppressions log  
+PASS  the mover's fire-time deaths log (fail-closed / direction)  
 PASS  the console MASTER shows the strip  
 PASS  lone_wolf_discount covers OUT tides (the FLAT-only gate is gone)  
 PASS  the OUT note names the tide  
@@ -46,4 +48,4 @@ PASS  the discounted OUT floor never drops below the 55 floor  floor=55
 PASS  a non-solo OUT candidate keeps the full rail (no discount)  
 PASS  the live suppression log is untouched by the test  
 
-RESULT: 47 passed, 0 failed
+RESULT: 49 passed, 0 failed

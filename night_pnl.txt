@@ -1,5 +1,5 @@
-positions since Sun 8 PM MST: 63
-trades since Sun 8 PM MST: 153
+positions since Sun 8 PM MST: 87
+trades since Sun 8 PM MST: 202
 
 time    side  pair              vol      price      usd
 02:31   sell  NEAR/USD        79.78     2.0098 $ 160.34
@@ -155,12 +155,61 @@ time    side  pair              vol      price      usd
 17:22   sell  XRP/USD         41.83     1.3975 $  58.46
 17:54   buy   XRP/USD         41.94     1.3931 $  58.42
 18:10   sell  XRP/USD         41.94      1.397 $  58.59
+21:56   buy   XMR/USD        0.1135     514.26 $  58.39
+22:11   sell  XMR/USD        0.1135     516.39 $  58.63
+22:12   buy   XRP/USD         41.74     1.3964 $  58.28
+22:27   sell  XRP/USD         41.74     1.3964 $  58.29
+22:43   buy   XRP/USD         41.66      1.396 $  58.15
+22:58   sell  XRP/USD         41.66     1.3957 $  58.14
+23:00   buy   XRP/USD         41.57     1.3953 $  58.00
+23:01   sell  XRP/USD         41.57      1.395 $  57.99
+00:28   buy   XRP/USD         41.43      1.397 $  57.88
+00:29   sell  XRP/USD         41.43     1.3974 $  57.89
+00:58   buy   XRP/USD         41.38     1.3953 $  57.73
+01:00   sell  XRP/USD         41.38     1.3956 $  57.74
+01:14   buy   XMR/USD        0.1098     524.35 $  57.59
+01:15   sell  XMR/USD        0.1098     524.12 $  57.57
+01:30   buy   XRP/USD         41.01     1.4013 $  57.46
+01:31   sell  XRP/USD         41.01     1.4016 $  57.47
+02:01   buy   XRP/USD         41.06     1.3962 $  57.33
+02:02   sell  XRP/USD         41.06     1.3963 $  57.33
+02:32   buy   XMR/USD        0.1082     529.27 $  57.24
+06:35   sell  XMR/USD        0.1082      527.2 $  57.02
+06:35   buy   ETC/USD         7.455      7.658 $  57.09
+09:28   sell  ETC/USD         7.455      7.678 $  57.24
+09:28   buy   XMR/USD        0.1085     524.92 $  56.93
+10:46   sell  XMR/USD        0.1085     530.37 $  57.52
+10:48   buy   MOODENG/USD       1336    0.04264 $  56.98
+11:19   sell  MOODENG/USD       1336    0.04234 $  56.57
+11:25   buy   AVAX/USD        7.583      7.482 $  56.73
+12:02   sell  AVAX/USD        7.583      7.502 $  56.88
+12:04   buy   OP/USD          560.3     0.1012 $  56.70
+12:05   sell  OP/USD          560.3      0.101 $  56.59
+12:06   buy   XMR/USD        0.1051      537.5 $  56.48
+15:30   sell  XMR/USD        0.1051     542.61 $  57.02
+15:37   buy   ADA/USD         260.1    0.21735 $  56.53
+16:33   sell  ADA/USD         260.1    0.21832 $  56.78
+16:39   buy   LINK/USD        4.742     11.905 $  56.45
+17:06   sell  LINK/USD        4.742     12.018 $  56.98
+17:16   buy   ARB/USD         420.2     0.1346 $  56.56
+17:37   sell  ARB/USD         420.2     0.1359 $  57.11
+18:05   buy   CRV/USD         153.9    0.36744 $  56.56
+18:35   sell  CRV/USD         153.9    0.37108 $  57.13
+18:57   buy   ADA/USD         257.2    0.22012 $  56.61
+19:07   sell  ADA/USD         257.2    0.22134 $  56.93
+19:35   buy   POL/USD         590.9    0.09584 $  56.63
+20:12   sell  POL/USD         590.9    0.09575 $  56.58
+20:32   buy   AR/USD          18.54       3.05 $  56.54
+20:41   buy   AR/USD          12.46      3.034 $  37.79
+23:02   sell  AR/USD          30.99          3 $  92.98
+23:03   buy   BCH/USD         0.217     256.96 $  55.77
+00:29   sell  BCH/USD         0.217     258.12 $  56.02
 
-total bought:  $9,486.85
-total sold:    $9,217.29
-total fees:    $11.17
-net P&L:       $-280.73
-round trips:   76
+total bought:  $10,895.28
+total sold:    $10,627.71
+total fees:    $21.04
+net P&L:       $-288.61
+round trips:   101
 
 exit reasons:
   02:31 NEAR/USD: Time-block rotation — flatten to cash
@@ -228,3 +277,27 @@ exit reasons:
   16:52 XMR/USD: WINDOW EXPIRED: 6.0h held, goal +1.3% not reached (-3.0%) — it hasn't paid, get out
   17:22 XRP/USD: GET OUT NOW — trend reversed (EMA9 $1.4134 < EMA21 $1.4235, price $1.3976 under both, PnL -0.2%)
   18:10 XRP/USD: GET OUT NOW — trend reversed (EMA9 $1.4096 < EMA21 $1.4208, price $1.3968 under both, PnL +0.3%)
+  22:11 XMR/USD: GET OUT NOW — trend reversed (EMA9 $524.1137 < EMA21 $524.9698, price $516.9200 under both, PnL +0.5%)
+  22:27 XRP/USD: GET OUT NOW — trend reversed (EMA9 $1.4029 < EMA21 $1.4138, price $1.3965 under both, PnL +0.0%)
+  22:58 XRP/USD: GET OUT NOW — trend reversed (EMA9 $1.4028 < EMA21 $1.4137, price $1.3957 under both, PnL -0.0%)
+  23:01 XRP/USD: Cooldown ended at 1 min — 1h knife still reversed (EMA9 $1.401 < EMA21 $1.412, live $1.395 under both)
+  00:29 XRP/USD: Cooldown ended at 1 min — 1h knife still reversed (EMA9 $1.401 < EMA21 $1.411, live $1.397 under both)
+  01:00 XRP/USD: Cooldown ended at 1 min — 1h knife still reversed (EMA9 $1.4 < EMA21 $1.409, live $1.396 under both)
+  01:15 XMR/USD: Cooldown ended at 1 min — 1h knife still reversed (EMA9 $524.1 < EMA21 $524.7, live $524.4 under both)
+  01:31 XRP/USD: Cooldown ended at 1 min — 1h knife still reversed (EMA9 $1.401 < EMA21 $1.41, live $1.402 under both)
+  02:02 XRP/USD: Cooldown ended at 1 min — 1h knife still reversed (EMA9 $1.399 < EMA21 $1.408, live $1.396 under both)
+  06:35 XMR/USD: Challenge: displaced by stronger signal ETC (92% vs 30%)
+  09:28 ETC/USD: Rotating to XMR/USD (held ETC/USD sell signal, new buy 65% > rotation threshold 50%)
+  10:46 XMR/USD: Strategy sell (52%, PnL 1.4%)
+  11:19 MOODENG/USD: THESIS DEAD: entered 60% on a buy read, now reads sell 53% — the reason we entered isn't alive
+  12:02 AVAX/USD: THESIS DEAD: entered 100% on a buy read, now reads sell 48% — the reason we entered isn't alive
+  12:05 OP/USD: Rotating to XMR/USD (held OP/USD sell signal, new buy 62% > rotation threshold 50%)
+  15:30 XMR/USD: Strategy sell (38%, PnL 1.0%)
+  16:33 ADA/USD: THESIS DEAD: entered 67% on a buy read, now reads sell 100% — the reason we entered isn't alive
+  17:06 LINK/USD: Strategy sell (40%, PnL 0.9%)
+  17:37 ARB/USD: Strategy sell (55%, PnL 1.2%)
+  18:35 CRV/USD: Strategy sell (40%, PnL 1.0%)
+  19:07 ADA/USD: Rotating to XMR/USDT (held ADA/USD sell signal, new buy 51% > rotation threshold 50%)
+  20:12 POL/USD: THESIS DEAD: entered 98% on a buy read, now reads sell 66% — the reason we entered isn't alive
+  23:02 AR/USD: Challenge: displaced by stronger signal BCH (100% vs 72%)
+  00:29 BCH/USD: Rotating to XMR/USD (held BCH/USD sell signal, new buy 62% > rotation threshold 50%)

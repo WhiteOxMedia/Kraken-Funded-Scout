@@ -1,14 +1,14 @@
 PASS  goal band clamps to 1-3%  
 PASS  goal defaults moderate (1.5%) on a young profile  
 PASS  window scales with the goal: 1% -> 60min, 3% -> 180min, clamped  
-PASS  unknown coin goal = the rotation MEDIAN (the market analysis), in band  1.848
+PASS  unknown coin goal = the rotation MEDIAN (the market analysis), in band  2.133
 PASS  a profiled coin reads a real engine goal in the band  1.0
 PASS  APT shape: high 2h old, ~2% below -> STALE  (2.0, 4.378640776699043)
 PASS  fresh move (high is current) -> not stale  
 PASS  old high but price holds near it -> not stale (a base, not a sag)  
 PASS  broken read -> not stale (fail-open)  
-PASS  the brain-judged bar exists: the BRAIN's number clears the popup floor  
-PASS  the head-to-head challenge window is wired (within 5 below = CHALLENGER)  
+PASS  the brain-judged floor is REALLY gone (no number blocks the popup)  
+PASS  the head-to-head challenger is retired (no floor to challenge)  
 PASS  a current deep read runs BEFORE the popup (cached if fresh)  
 PASS  the JUP loophole is closed — fail-CLOSED (a broken brain read = NO popup)  
 PASS  the fail-open quick check is GONE (the JUP 14:52 hole — quick 92 opened the popup, the QC's brain said 67 two minutes later)  
@@ -16,12 +16,12 @@ PASS  the funnel's desktop path fails CLOSED too
 PASS  the stale-move guard gates RE-ENTRY popups  
 PASS  fresh first-fires are exempt from the stale guard (the early catch)  
 PASS  the goal clock: the asset's OWN week (market goal) -> 1-3% goal, rotation-bounded window  
-PASS  the funnel's desktop path uses the brain-judged bar too  
+PASS  the funnel's desktop path uses the FIRE-TIME rule (the scan must run; the number sizes via the bucket table)  
 PASS  her line speaks the GOAL, not the twenty  
 PASS  the $20 phrasing is gone from the POPUP path (the light is stage 3)  
 PASS  the $20 pace resolve gate is retired on the popup path  
 PASS  the 3% guard still caps the QC  
-PASS  the thin-book brain rule still stands  
+PASS  the thin-book brain rule RETIRED (user rule, Sep 5 — thin books green at the standard floor; the toast is gone)  
 PASS  WORTH_FLOOR_PACE_FRAC is half (0.5)  0.5
 PASS  the floor scales with the tier: $12 on 1k, $120 on 10k  
 PASS  JUP's $233 entry at +2% ($4.66) is BELOW the 1k-tier floor — bumped  4.66

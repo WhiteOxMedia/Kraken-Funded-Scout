@@ -1177,17 +1177,19 @@ CONTEST_CHUNKS = (0.25, 0.50, 0.75, 1.00)
 # number. Replay of a week of signals vs actual price: sub-bar buys hit the
 # $20 (+0.4%) in the resolve window 80% of the time vs 72% for bar-passing
 # buys — the bar predicts NOTHING for scalps (and it swings 80→60 on a
-# single engine refresh). The QC is a SCALP tool: the $20-pace gate
-# (resolve rule) is the judge; conviction only needs a real setup (60%+).
-# Desktop alerts keep their own 89% floor; the bot bridge keeps its
-# per-asset bars — different games, different ledgers.
+# single engine refresh).
+# ADVISORY BRAIN (user rule, Sep 5): the conviction floor is RETIRED as a
+# blocker — the deep read's number SIZES the entry (hindsight_scorer's
+# bucket table, the same one every popup uses); the scan's DIRECTION still
+# gates. QC_SCALP_FLOOR stays defined for the history queries + the
+# tournament context (line 1031 reads past winners above it).
 QC_SCALP_FLOOR = 60
 # ONE BUY VOICE (user rule, Aug 31, sanctioned: "I only want brain buy
 # signals for the voice" + "less entries but more money"): the card SHOWS
 # the pick (the ⚡ plate + CHECK button) but does not SPEAK it. The
-# champion alert — which fires only when the deep read clears 60 and the
-# high bar (89 flat / 78 rising / 55 lone wolf) — is the only unsolicited
-# buy voice. Flip to True to restore the card's voice.
+# champion alert — which fires whenever the deep scan RUNS and agrees on
+# direction (the number sizes the entry since Sep 5) — is the only
+# unsolicited buy voice. Flip to True to restore the card's voice.
 CARD_PICK_VOICE_ENABLED = False
 
 # ── Chase guard (Aug 24, PENGU was the example) ─────────────────────
@@ -2313,7 +2315,7 @@ def render_quick_check(cfg: TradingConfig, kraken):
         clicked = st.button("🔍 DEEP SCAN", type="primary", width="stretch", key="qc_btn")
     with c3:
         st.markdown(f"<div style='height:26px'></div>"
-                    f"<span class='led a'><i></i>{day} {block} · floor {QC_SCALP_FLOOR}%</span>",
+                    f"<span class='led a'><i></i>{day} {block} · brain sizes, never blocks</span>",
                     unsafe_allow_html=True)
 
     # ── run the scan on click; PERSIST the result in session state so it
@@ -2331,15 +2333,16 @@ def render_quick_check(cfg: TradingConfig, kraken):
                 st.session_state["qc_result"] = {"asset": asset, "sig": sig, "df": df, "px": px}
 
                 # ── every scan talks back — never dead ──────────────────
-                # THE SCALP GATE: hard gates = setup conviction >= 60 (the
-                # 283-signal replay), $20 pace within the rotation's
-                # allowance, never during cooldown, and NO DOWNWARD TREND
-                # PICKS (user directive, Aug 25: the calibration showed hit-
-                # rate parity for falling trends, but the user chooses stuck-
-                # case protection over opportunity — their game, their rule).
-                # Chase/just-paid are amber warnings — displayed, never
-                # blocking (no hit-rate separation, and cheaper entries
-                # aren't worse entries by the data).
+                # THE SCALP GATE (ADVISORY BRAIN, Sep 5): hard gates = the
+                # goal gate (the engine's raw move must reach the 1% floor),
+                # never during cooldown, and NO DOWNWARD TREND PICKS (user
+                # directive, Aug 25: the calibration showed hit-rate parity
+                # for falling trends, but the user chooses stuck-case
+                # protection over opportunity — their game, their rule).
+                # The brain's NUMBER sized the spend above — advisory, it
+                # never blocks. Chase/just-paid are amber warnings —
+                # displayed, never blocking (no hit-rate separation, and
+                # cheaper entries aren't worse entries by the data).
                 # dup-safe keeps old consoles alive across restarts — if this
                 # console predates a background_scanner update, the cached
                 # module lacks the new name. Reload from disk; never crash
@@ -2479,6 +2482,22 @@ def render_quick_check(cfg: TradingConfig, kraken):
                         _spend_usd = min(_spend_usd, _risk_cap)
                 except Exception as _exc:
                     logger.debug("3%% guard unavailable: %s", _exc)  # fail-open: book sizing stands
+                # ── THE ADVISORY BRAIN (user rule, Sep 5 — the QC AGREES
+                # with the alert path, never disagrees): the deep read's
+                # NUMBER no longer blocks the green light — it SIZES it
+                # (the same bucket table every popup uses: >=85 full,
+                # 45-54 a fifth, <45 minimum viable). A 45% read on a
+                # passing setup is a GREEN at 0.20x size, exactly what the
+                # popup would fire. The scan itself (availability +
+                # direction) still gates: it ran, or there is no verdict.
+                try:
+                    from hindsight_scorer import brain_size_mult as _qc_bsm
+                    _qc_mult = _qc_bsm(float(sig.confidence))
+                except Exception:
+                    _qc_mult = 1.0
+                st.session_state["qc_result"]["brain_mult"] = _qc_mult
+                if _spend_usd > 0:
+                    _spend_usd = _spend_usd * _qc_mult
                 # ── THE TIDE (user rule, Aug 26): TIDE OUT = no entries
                 # anywhere. Correlation means every ship sinks together —
                 # one fleet-wide gate instead of per-coin trend checks.
@@ -2517,13 +2536,10 @@ def render_quick_check(cfg: TradingConfig, kraken):
                 # don't ever keep her in the dark"). SAME test as the
                 # scanner's alert funnel (identical function, identical
                 # constants): a coin moving on her own in a FLAT tide.
-                # The QC's conviction floor itself stays 60 — that IS the
-                # match: every lone-wolf alert only fires when the DEEP
-                # read clears 60 and it SPEAKS the deep number, so the QC's
-                # deep floor is the same line the alert already passed.
-                # What was missing is the CONTEXT — this makes the QC say
-                # what the alert would say, and name a near-miss instead of
-                # a bare "weak setup".
+                # (Sep 5, ADVISORY BRAIN: the conviction floor retired as
+                # a blocker — the context STAYS so she's never in the dark
+                # about WHY the system likes this shape; the number now
+                # sizes the spend, it never reds the verdict.)
                 try:
                     import background_scanner as _bs6
                     if not hasattr(_bs6, "lone_wolf_discount"):
@@ -2594,11 +2610,12 @@ def render_quick_check(cfg: TradingConfig, kraken):
                 _champ_hm_win = bool(st.session_state.get("qc_result", {}).get("hail_mary"))
                 st.session_state["qc_result"]["thin_book"] = _thin_book
                 st.session_state["qc_result"]["champ_floor"] = _champ_floor
-                # HARD GATES: setup + the goal gate + cooldown + no downward
-                # trend + the book carries your money + the tide isn't OUT +
-                # rotation isn't locked + this hour didn't blow off yesterday.
+                # HARD GATES: the goal gate + cooldown + no downward trend +
+                # the book carries your money + the tide isn't OUT + rotation
+                # isn't locked + this hour didn't blow off yesterday. (The
+                # brain's NUMBER is advisory since Sep 5 — it sized the
+                # spend above; it no longer blocks the green.)
                 if (sig.action == "buy" and not no_buy
-                        and sig.confidence >= QC_SCALP_FLOOR
                         and _trend != "FALLING"
                         and _tide_state != "OUT"
                         and _spend_usd > 0
@@ -2612,13 +2629,15 @@ def render_quick_check(cfg: TradingConfig, kraken):
                     # RECOMMENDED size so the $-counting matches what they
                     # actually hold.
                     _chunk = (round(_spend_usd / max(cfg.challenge_balance, 1), 2), _spend_usd)
+                    _brain_size_txt = (f"the brain sizes it {_qc_mult:.2f}x. "
+                                       if _qc_mult < 1.0 else "")
                     if _spend_usd >= float(cfg.challenge_balance):
                         _chunk = (1.00, float(cfg.challenge_balance))
-                        _chunk_txt = f"buy 100% (${_spend_usd:,.0f}). "
+                        _chunk_txt = f"buy 100% (${_spend_usd:,.0f}). {_brain_size_txt}"
                     else:
                         _chunk_txt = (f"buy {_chunk[0]:.0%} (${_spend_usd:,.0f}) — "
                                       f"this book carries ${_spend_usd:,.0f}, not all "
-                                      f"${cfg.challenge_balance:,.0f}. ")
+                                      f"${cfg.challenge_balance:,.0f}. {_brain_size_txt}")
                     try:
                         w = _load_watch()
                         if pair not in w:
@@ -2704,6 +2723,12 @@ def render_quick_check(cfg: TradingConfig, kraken):
                                     # sizing so the entry is informed
                                     _speak(f"Go! {asset}! Buy {_pct_txt} — the book is thin! "
                                            f"{_fine_say}Aim for plus {_goal_pct:.0f} percent!", rate=1)
+                                elif _qc_mult < 1.0:
+                                    # ADVISORY BRAIN (Sep 5): the number
+                                    # sized this green — say it plainly
+                                    _speak(f"Go! {asset}! The brain says {sig.confidence:.0f} "
+                                           f"percent — sizing at {_qc_mult:.2f}! "
+                                           f"Aim for plus {_goal_pct:.0f} percent!", rate=1)
                                 else:
                                     _speak(f"Go! {asset}! Buy 100 percent! "
                                            f"{_fine_say}Aim for plus {_goal_pct:.0f} percent!")
@@ -2728,7 +2753,6 @@ def render_quick_check(cfg: TradingConfig, kraken):
                         logger.debug("auto-watch add failed: %s", exc)
                 else:
                     if (sig.action == "buy" and not no_buy
-                            and sig.confidence >= QC_SCALP_FLOOR
                             and not _rot_ok):
                         try:
                             st.toast(f"⛔ ALREADY RAN THIS ROTATION — {asset}: {_rot_reason}. "
@@ -2740,7 +2764,6 @@ def render_quick_check(cfg: TradingConfig, kraken):
                         except Exception:
                             pass
                     elif (sig.action == "buy" and not no_buy
-                            and sig.confidence >= QC_SCALP_FLOOR
                             and _yctx and _yctx.get("shape") == "blowoff"):
                         try:
                             st.toast(f"⛔ THIS HOUR DUMPED YESTERDAY — {asset}: "
@@ -2752,7 +2775,6 @@ def render_quick_check(cfg: TradingConfig, kraken):
                         except Exception:
                             pass
                     elif (sig.action == "buy" and not no_buy
-                            and sig.confidence >= QC_SCALP_FLOOR
                             and _tide_state == "OUT" and not _lw_pts):
                         try:
                             st.toast(f"🌊 TIDE'S OUT — only {_tide_pct:.0f}% of the market is rising. "
@@ -2766,7 +2788,6 @@ def render_quick_check(cfg: TradingConfig, kraken):
                         except Exception:
                             pass
                     elif (sig.action == "buy" and not no_buy
-                            and sig.confidence >= QC_SCALP_FLOOR
                             and _trend == "FALLING"):
                         try:
                             st.toast(f"⛔ DOWNWARD TREND — {asset}: the 1h trend is falling and still "
@@ -2778,7 +2799,6 @@ def render_quick_check(cfg: TradingConfig, kraken):
                         except Exception:
                             pass
                     elif (sig.action == "buy" and not no_buy
-                            and sig.confidence >= QC_SCALP_FLOOR
                             and _risk_cap is not None and _risk_cap <= 0):
                         # THE DEATH LINE (Kraken Funded: -3% from start, never
                         # moves) — no new risk. (Sep 5: the daily lock removed
@@ -2793,7 +2813,6 @@ def render_quick_check(cfg: TradingConfig, kraken):
                         except Exception:
                             pass
                     elif (sig.action == "buy" and not no_buy
-                            and sig.confidence >= QC_SCALP_FLOOR
                             and _spend_usd <= 0 and _carry is not None):
                         _pct_book = 100.0 * float(cfg.challenge_balance) / (_carry / 0.20)
                         try:
@@ -2807,7 +2826,6 @@ def render_quick_check(cfg: TradingConfig, kraken):
                         except Exception:
                             pass
                     elif (sig.action == "buy" and not no_buy
-                            and sig.confidence >= QC_SCALP_FLOOR
                             and _raw_move is not None and float(_raw_move) < 1.0):
                         # THE GOAL GATE (Sep 1): the engine's raw expected
                         # move can't reach the 1% goal floor — this coin
@@ -2831,18 +2849,15 @@ def render_quick_check(cfg: TradingConfig, kraken):
                         except Exception:
                             pass
                     else:
-                        if sig.action == "buy" and _lw_pts:
-                            # lone-wolf near miss (user rule, Aug 31: don't
-                            # keep her in the dark) — name the shape, not
-                            # just the number
-                            act_txt = (f"{sig.confidence:.0f}% — needs {QC_SCALP_FLOOR}% — "
-                                       f"LONE WOLF NEAR MISS ({_lw_note})")
-                            _speak(f"{asset}! Lone wolf near miss! {_lw_note}! "
-                                   f"The brain says {sig.confidence:.0f} percent — it needs {QC_SCALP_FLOOR}!", rate=1)
-                        else:
-                            act_txt = {"buy": f"{sig.confidence:.0f}% — needs {QC_SCALP_FLOOR}% (weak setup)",
-                                       "sell": "chart's red",
-                                       "hold": "no setup"}[sig.action]
+                        # ADVISORY BRAIN (Sep 5): a BUY can no longer land
+                        # here — every hard gate has its own branch above,
+                        # and the brain's number no longer blocks (it
+                        # already sized the spend). This is the sell/hold
+                        # verdict; the lone-wolf near-miss voice retired
+                        # with the floor.
+                        act_txt = {"buy": f"{sig.confidence:.0f}% — sized {_qc_mult:.2f}x (advisory)",
+                                   "sell": "chart's red",
+                                   "hold": "no setup"}[sig.action]
                         try:
                             st.toast(f"⛔ NO — {asset}: {act_txt}. Skip it.",
                                      icon="⛔", duration=15)
@@ -2878,11 +2893,12 @@ def render_quick_check(cfg: TradingConfig, kraken):
     col = {"buy": "#4be38a"}.get(sig.action, "#ff6b5e")
     # Never short: "sell" = exit a held long / stay out if flat
     act = {"buy": "BUY", "sell": "EXIT / AVOID"}.get(sig.action, "HOLD")
-    # scalp-gate verdict (Aug 24 redesign): the $20 pace decides, conviction
-    # floors at QC_SCALP_FLOOR, cooldown always blocks, chase guard rejects
-    # stale moves. The old median-bar LED is gone — it rejected 79% PUMP
-    # (paid $20 x3) and passed 100% BTC (negative all day). Replay: the bar
-    # predicts nothing for scalps.
+    # scalp-gate verdict (Aug 24 redesign; ADVISORY BRAIN, Sep 5): the
+    # goal gate decides, cooldown always blocks, chase guard rejects
+    # stale moves, and the brain's NUMBER sizes the spend (it no longer
+    # floors anything). The old median-bar LED is gone — it rejected 79%
+    # PUMP (paid $20 x3) and passed 100% BTC (negative all day). Replay:
+    # the bar predicts nothing for scalps.
     pace_h = result.get("pace_h")
     chase_pct = result.get("chase_pct", 0.0)
     payout_block = result.get("payout_block")
@@ -2895,29 +2911,30 @@ def render_quick_check(cfg: TradingConfig, kraken):
     goal_pct = float(result.get("goal_pct", 1.5) or 1.5)
     raw_move = result.get("raw_move")
     goal_ok = raw_move is None or float(raw_move) >= 1.0
-    # HARD gates: setup floor + pace + no downward trend + book carries your
-    # size + tide isn't OUT + rotation not locked + this hour didn't blow off
-    # yesterday (+ cooldown in the handler). Chase/payout warn.
+    # HARD gates (ADVISORY BRAIN, Sep 5): the goal gate + no downward trend
+    # + book carries your size + tide isn't OUT + rotation not locked + this
+    # hour didn't blow off yesterday (+ cooldown in the handler). The
+    # brain's NUMBER sized the spend — it no longer greens or reds.
+    # Chase/payout warn.
     rot_ok = result.get("rotation_ok", True)
     rot_reason = result.get("rotation_reason", "")
     is_reentry = result.get("reentry", False)
     fine_usd = result.get("fine", 0.0)
     yesterday = result.get("yesterday") or {}
     # LONE WOLF (user rule, Aug 31): the same context the alert funnel uses —
-    # a coin moving on her own in a FLAT tide. The QC floor stays 60 (that's
-    # the line every alert already passed on the deep read); the LED and the
-    # near-miss verdict make the verdict MATCH instead of leaving her in the
-    # dark about WHY the system likes this shape.
+    # a coin moving on her own in a FLAT tide. The number no longer gates
+    # (Sep 5); the LED still shows the shape so she's never in the dark
+    # about WHY the system likes this coin.
     lw_pts = result.get("lone_wolf_pts", 0) or 0
     lw_note = result.get("lone_wolf_note", "") or ""
     yshape = yesterday.get("shape")
     thin_book = bool(result.get("thin_book"))
-    # the ALERT's floor — context only (Sep 5: the thin-book challenger
-    # window retired with the brain rule; alerts still need this much,
-    # the QC is your manual check at the standard floor)
+    # the ALERT's former floor — context only (Sep 5: the popup floor
+    # RETIRED — the brain sizes, it never blocks; this is what the rail
+    # WOULD have been, kept for the Hail Mary's champion bar)
     champ_floor = float(result.get("champ_floor", 89.0) or 89.0)
     passes = (sig.action == "buy" and not no_buy
-              and sig.confidence >= QC_SCALP_FLOOR and goal_ok
+              and goal_ok
               and trend != "FALLING"
               # THE OUT-TIDE LONE-WOLF CARVE-OUT (user rule, Sep 4 — the
               # POPCAT lesson): a TRUE solo runner (own 24h move ≥ the
@@ -2946,12 +2963,12 @@ def render_quick_check(cfg: TradingConfig, kraken):
                  else f"GOAL +{goal_pct:.1f}% · WINDOW ~{goal_pct:.0f}H")
     def _qc_green_text() -> str:
         """The QC's verdict line — flat, in the rejection order (ALREADY
-        RAN → DUMPED YESTERDAY → TIDE OUT → TOO THIN → AT THE FLOOR →
-        DOWNWARD TREND → TOO SLOW → COOLDOWN → weak). (Sep 5: the
-        THIN-BOOK BRAIN branch retired — thin books green at the standard
-        floor like everything else; the daily lock removed — the platform
-        line is the only floor; the Hail Mary KEPT — the account-in-danger
-        exception.)"""
+        RAN → DUMPED YESTERDAY → TIDE OUT → TOO THIN → AT THE LINE →
+        DOWNWARD TREND → TOO SLOW → COOLDOWN → the scan's direction).
+        (Sep 5: the brain's number is ADVISORY — it sized the spend, it
+        no longer greens or reds; a buy that passes every hard gate IS a
+        green; the daily lock removed — the platform line is the only
+        floor; the Hail Mary KEPT — the account-in-danger exception.)"""
         if passes and result.get("hail_mary"):
             return ("SCALP GREEN LIGHT — 💪 HAIL MARY (the emergency hour is open; "
                     "the death line stands; full allocation = the guard's cap)")
@@ -2974,10 +2991,12 @@ def render_quick_check(cfg: TradingConfig, kraken):
         if not goal_ok:
             return (f"NO GREEN — TOO SLOW (engine expects only "
                     f"{float(raw_move):.1f}% in this window; the goal needs 1%+)")
-        if lw_pts:
-            return (f"NO GREEN — LONE WOLF NEAR MISS {sig.confidence:.0f}% VS "
-                    f"{QC_SCALP_FLOOR}% — the alert floor is the same 60 on the deep read")
-        return f"NO GREEN — NEEDS {QC_SCALP_FLOOR}%+"
+        if sig.action != "buy":
+            return (f"NO GREEN — THE SCAN READS {sig.action.upper()} "
+                    f"(the direction vetoes; the number never does)")
+        # a buy with every hard gate passed IS a green (the brain's number
+        # sized it — advisory, Sep 5); this line is the safety net
+        return "SCALP GREEN LIGHT"
     _green_txt = _qc_green_text()
     if carry_usd is not None:
         if spend_usd >= float(cfg.challenge_balance):
@@ -4652,6 +4671,43 @@ def main():
             f"Popups must pay ≥ ${_wf_usd:,.0f} at the goal "
             f"({_wf:.0%} of ${_pace:,.0f}/day, static). The scanner reads it live — "
             f"no restart.")
+    # ── THE ADVISORY BRAIN + POPUP CAP (user rules, Sep 5 — the entry-
+    #    path rebuild): the brain's number SIZES every entry (the bucket
+    #    table — ONE source: hindsight_scorer.brain_size_mult, imported by
+    #    the scanner AND this console), it never blocks. The scan itself
+    #    must run at fire-time (fail-closed — the JUP guarantee, kept).
+    #    The popup cap bounds how many BUY popups may fire inside 90 min
+    #    so the watch never floods. Both dials read LIVE — no restart.
+    _pc_raw = _cs.get("popup_cap")
+    _pc = int(_pc_raw) if _pc_raw else 3
+    _pc_new = st.sidebar.number_input(
+        "🧠 Popup cap (BUY popups per 90 min)", 1, 10, _pc,
+        help="The advisory brain fires far more often than the old floor did — no "
+             "more than this many BUY popups inside 90 minutes. Bridge writes are "
+             "unaffected (the bot's own gates govern real money); this caps the "
+             "watch and the voice.",
+        key="popup_cap_dial")
+    if int(_pc_new) != _pc:
+        _cs["popup_cap"] = int(_pc_new)
+        _save_console_state(_cs)
+        _pc = int(_pc_new)
+    try:
+        from hindsight_scorer import BRAIN_SIZE_TABLE
+        _tbl = " · ".join(f"{int(f)}+→{m:.2f}x" for f, m in BRAIN_SIZE_TABLE)
+    except Exception:
+        _tbl = "85+→1.00x · 75+→0.75x · 65+→0.50x · 55+→0.33x · 45+→0.20x · <45→0.10x"
+    _sn_n = 0
+    try:
+        _snap_path = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                                  "signal_snapshots.jsonl")
+        with open(_snap_path, "r", encoding="utf-8") as _f:
+            _sn_n = sum(1 for _ln in _f if _ln.strip())
+    except Exception:
+        pass
+    st.sidebar.caption(
+        f"THE BRAIN SIZES, IT NEVER BLOCKS — the scan must run (fail-closed): "
+        f"{_tbl}. Every popup and every burial lands in the snapshot dataset "
+        f"({_sn_n} logged) — the hindsight scorer learns from both.")
     candle_opts = {"15 min": 15, "1 hour": 60, "4 hours": 240, "1 day": 1440}
     cfg.candle_interval = candle_opts[st.sidebar.selectbox("Candle timeframe", list(candle_opts), index=1)]
     cfg.risk_per_trade_pct = st.sidebar.slider("Risk per trade (%)", 0.5, 2.0, 1.0, 0.1)
@@ -4739,10 +4795,11 @@ def main():
             "1. **She hunts around the clock.** Time runs in 4-hour rotations. "
             "Every coin has a history at every hour — she knows what each one "
             "does at THIS hour.\n"
-            "2. **A real move clears the bar → POPUP.** The bar moves with the "
-            "rotation (night hours are pickiest) and the tide. The popup names "
-            "the coin, the size, and the out-by time — and she says it out loud. "
-            "Popups are for the contest only.\n"
+            "2. **A real move clears the bar → POPUP.** The deep scan runs at "
+            "fire-time — no scan, no popup, ever. The brain's NUMBER sizes the "
+            "entry (a 100% read gets full size, a weak read a small slice — it "
+            "never blocks). The popup names the coin, the size, and the out-by "
+            "time — and she says it out loud. Popups are for the contest only.\n"
             "3. **THE CARD (MASTER)** carries the pick: WHY the brain likes it, "
             "WHEN it fired, HOW LONG to hold. The goal % is what this coin "
             "really moves this week, and the clock ends at the rotation "

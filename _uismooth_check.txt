@@ -22,10 +22,11 @@ PASS  GOAL CALL help speaks the current goal game (tide, rotation clock)
 PASS  tour mentions: two jobs  
 PASS  tour mentions: rotations  
 PASS  tour mentions: POPUP  
-PASS  tour mentions: night hours are pickiest  
+PASS  tour mentions: fire-time  
+PASS  tour mentions: no scan, no popup  
+PASS  tour mentions: sizes the  
 PASS  tour mentions: rotation boundary  
 PASS  tour mentions: death line  
-PASS  tour mentions: daily lock  
 PASS  tour mentions: GET OUT NOW  
 PASS  tour mentions: MY ENTRY  
 PASS  tour mentions: DISCIPLINE  
@@ -34,9 +35,11 @@ PASS  tour mentions: TOURNAMENT
 PASS  tour mentions: QUICK CHECK  
 PASS  tour mentions: EXIT CHECK  
 PASS  tour mentions: never short  
+PASS  tour: the retired rotation-floor wording is gone (the brain sizes, Sep 5)  
+PASS  tour: the daily lock is gone from the guards (removed with the lock, Sep 5)  
 PASS  tour: retired $20 counting gone  
 PASS  tour: retired I RE-ENTERED panel gone  
 PASS  tour: popups are contest-only is stated  
 PASS  tour: the bot is separate money is stated  
 
-RESULT: 40 passed, 0 failed
+RESULT: 43 passed, 0 failed

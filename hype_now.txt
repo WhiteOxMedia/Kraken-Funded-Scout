@@ -1,11 +1,8 @@
-HYPE now: $84.2600
-strategy: BUY 41%
-  - Regime: ranging (volatility rank 65/100)
-  - MACD bearish (hist=-0.1341)
-  - EMA bearish (short < long)
-  - Signal confidence: 41/100 (🔴 Low confidence)
-  - Phase stable (2+ candles)
-  - Jagged trend (50% smooth — below 60% threshold)
+HYPE now: $85.5000
+strategy: HOLD 25%
+  - Regime: low_vol (volatility rank 0/100)
+  - MACD bearish (hist=-0.0273)
+  - EMA bullish (short > long)
+  - Below min_confidence (40) — holding
 
 VERDICT: HOLD
-  to goal 87.7879: 4.2% left · ~10h at this pace

@@ -1,14 +1,14 @@
 scout.db tables: []
 bridge signals today:
-  2026-09-04T11:55:32  XRP/USD    sell rejected  scout_trend_exit 0.0%
-  2026-09-04T11:07:35  XRP/USD    sell rejected  scout_trend_exit 0.0%
-  2026-09-04T10:54:48  XRP/USD    buy  closed    bot_strategy   53.5%
-  2026-09-04T10:51:27  XMR/USD    sell closed    scout_exit_check 0.0%
-  2026-09-04T10:06:54  XRP/USD    buy  closed    bot_strategy   40.0%
-  2026-09-04T07:52:33  ZORA/USD   buy  expired   scout_mover    56.0%
-  2026-09-04T07:41:16  ZORA/USD   buy  expired   scout_mover    56.0%
-  2026-09-04T05:55:15  FARTCOIN/USD buy  rejected  scout_auto     64.0%
-  2026-09-04T03:52:56  XMR/USD    buy  closed    bot_strategy   59.5%
-  2026-09-04T03:52:02  NEAR/USD   buy  rejected  scout_auto     69.0%
-  2026-09-04T03:49:50  ASTER/USD  buy  rejected  scout_auto     89.0%
-  2026-09-04T03:41:02  NEAR/USD   buy  rejected  scout_auto     69.0%
+  2026-09-05T17:54:08  TIA/USD    buy  rejected  scout_auto     81.0%
+  2026-09-05T17:51:37  LDO/USD    buy  rejected  scout_auto     72.5%
+  2026-09-05T17:39:53  TIA/USD    buy  rejected  scout_auto     76.0%
+  2026-09-05T17:39:42  AAVE/USD   buy  rejected  scout_auto     98.0%
+  2026-09-05T17:02:07  BCH/USD    buy  closed    scout_auto     100.0%
+  2026-09-05T16:55:05  ETC/USD    buy  rejected  scout_auto     65.0%
+  2026-09-05T16:43:40  ETC/USD    buy  rejected  scout_auto     65.0%
+  2026-09-05T16:32:15  ETC/USD    buy  rejected  scout_auto     65.0%
+  2026-09-05T16:04:09  BCH/USD    buy  rejected  scout_auto     100.0%
+  2026-09-05T16:03:15  BCH/USD    buy  closed    bot_strategy   100.0%
+  2026-09-05T15:53:54  AAVE/USD   buy  rejected  scout_auto     81.0%
+  2026-09-05T15:44:52  BCH/USD    buy  rejected  scout_auto     83.0%

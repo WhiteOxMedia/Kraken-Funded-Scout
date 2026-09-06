@@ -3,12 +3,12 @@ PASS  dup-safe reload for older console processes
 PASS  result stores lone_wolf_pts  
 PASS  result stores lone_wolf_note  
 PASS  lone-wolf LED in the status row  
-PASS  near-miss verdict names the shape (toast)  
-PASS  near-miss verdict speaks it  
-PASS  NO GREEN line distinguishes a lone-wolf near miss  
-PASS  QC floor is still 60 (the line every alert already passed)  
+PASS  the near-miss verdicts are retired with the floor  
+PASS  the verdict names the scan's direction (the number never reds)  
+PASS  QC_SCALP_FLOOR stays defined (history queries + context)  
+PASS  the QC never blocks on the number (the advisory mirror)  
 PASS  no lone-wolf discount applied to QC_SCALP_FLOOR itself  
-PASS  scanner's desktop alert still requires deep >= 60 (same line as the QC)  
+PASS  scanner's desktop alert gates the scan's DIRECTION (the number sizes — same line as the QC, Sep 5)  
 PASS  alert title speaks the deep number  
 PASS  lone-wolf discount exists in the scanner (the shared test)  
 

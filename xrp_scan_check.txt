@@ -1,8 +1,10 @@
-XRP live: $1.4021
-signal: HOLD 0%
+XRP live: $1.4161
+signal: HOLD 20%
 entry=None stop=None tp=None
-rotation: R4 🌤 US Afternoon | bar 60% | no_buy=False
+rotation: R5 🌆 US Late | bar 60% | no_buy=False
 green light (buy >= bar)? False
 reasons:
-  - Regime: bear_trend (volatility rank 56/100)
-  - BLOCKED: downtrend (EMA spread -0.73%) with no MACD reversal (hist=-0.0003530441265116209) — not catching a falling knife
+  - Regime: low_vol (volatility rank 11/100)
+  - MACD bearish (hist=-0.0005)
+  - EMA bullish (short > long)
+  - Below min_confidence (40) — holding
