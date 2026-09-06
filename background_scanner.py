@@ -3096,7 +3096,7 @@ def main():
         for asset in assets:
             try:
                 pair = f"{asset}/USD"
-                rows = exchange.fetch_ohlcv(pair, timeframe="5m", limit=180)
+                rows = exchange.fetch_ohlcv(pair, timeframe="5m", limit=720)
                 r = st.analyze(rows or [])
                 if not r.get("armed"):
                     _st_armed.pop(asset, None)
@@ -3112,12 +3112,11 @@ def main():
                     logger.info("🧲 SURE THING ARMED: %s — %s", asset, r["detail"])
                 if not r.get("fire"):
                     continue
-                # ── the crack: the gates that protect the contest all run ──
+                # ── the fire (pre-breakout OR the crack): the gates that
+                #    protect the contest all run ──
                 _rot_ok, _rot_reason, _rot_re, _fine = rotation_gate(asset)
                 _lw_pts, _lw_note = lone_wolf_discount(exchange, pair)
                 _tp, _ts = _fleet_tide()
-                _announced = (time.time() - _st_armed.get(asset, {}).get("ts", 0)) \
-                    if asset in _st_armed else 999
                 if not _rot_ok:
                     logger.info("  SURE THING %s: rotation lock — %s", asset, _rot_reason)
                     continue
@@ -3135,7 +3134,7 @@ def main():
                         continue
                 except Exception:
                     pass
-                # the death-line guard sizes it; the structural score sizes it more
+                # the death-line guard sizes it; the probability sizes it more
                 try:
                     import contest_account as _ca_st
                     _acct = _ca_st.load_state()
@@ -3150,21 +3149,36 @@ def main():
                 except Exception:
                     _spend, _mult = 0.0, 0.10
                 _score = float(r.get("score") or 0.0)
+                _trig = str(r.get("trigger") or "crack")
+                _est = int(r.get("est_min") or 60)
                 _out_by = (_now_mst() + timedelta(
                     minutes=st.SURE_THING_WINDOW_MIN)).strftime("%I:%M").lstrip("0")
-                _title = (f"🧲 SURE THING — BUY {asset} — BREAKOUT — "
-                          f"{_score:.0f}% SETUP — {_mult:.2f}× SIZE")
-                _spoken = (f"Sure thing! {asset} is breaking out! "
-                           f"{r['tests']} tests at the ceiling, the coil cracked! "
-                           f"The setup scores {_score:.0f} percent — sizing at {_mult:.2f}! "
-                           f"Get in now! If it hasn't paid by {_out_by}, get out!")
-                _msg = (f"SURE THING — BUY {asset}\n"
-                        f"WHY: {r['detail']} — the ceiling at ${r['zone_high']:.4f} cracked "
-                        f"on a {r['vol_spike']:.1f}x volume burst\n"
-                        f"WHEN: NOW — the crack, not the confirmation\n"
+                if _trig == "pre-breakout":
+                    _title = (f"🧲 SURE THING — BUY {asset} — PRE-BREAKOUT — "
+                              f"{_score:.0f}% PROBABILITY — {_mult:.2f}× SIZE")
+                    _spoken = (f"Sure thing! {asset} is about to break out! "
+                               f"The setup scores {_score:.0f} percent — "
+                               f"sizing at {_mult:.2f}! The spring is loaded, "
+                               f"breakout window about {_est} minutes! "
+                               f"If it hasn't paid by {_out_by}, get out!")
+                    _why = (f"{r['detail']} — the probability crossed the "
+                            f"{st.PRE_BREAKOUT_THRESHOLD:.0f}% threshold while still "
+                            f"inside the coil (entering BEFORE the breakout runs)")
+                else:
+                    _title = (f"🧲 SURE THING — BUY {asset} — BREAKOUT — "
+                              f"{_score:.0f}% SETUP — {_mult:.2f}× SIZE")
+                    _spoken = (f"Sure thing! {asset} is breaking out! "
+                               f"{r['tests']} tests at the ceiling, the coil cracked! "
+                               f"The setup scores {_score:.0f} percent — sizing at {_mult:.2f}! "
+                               f"Get in now! If it hasn't paid by {_out_by}, get out!")
+                    _why = (f"{r['detail']} — the ceiling at ${r['zone_high']:.4f} cracked "
+                            f"on a {r['vol_spike']:.1f}x volume burst")
+                _msg = (f"SURE THING — BUY {asset} ({_trig.upper()})\n"
+                        f"WHY: {_why}\n"
+                        f"WHEN: {'NOW — the crack' if _trig == 'crack' else 'BEFORE the crack — the estimated window is ~' + str(_est) + ' min'}\n"
                         f"HOW LONG: out by {_out_by} (the countdown — "
                         f"{st.SURE_THING_WINDOW_MIN:.0f} min window)\n"
-                        f"SPEND: ${_spend:,.0f} (the 3% guard cap × {_mult:.2f} structural sizing)\n"
+                        f"SPEND: ${_spend:,.0f} (the 3% guard cap × {_mult:.2f} probability sizing)\n"
                         f"{'-' * 30}\n"
                         f"CONTEST-ONLY — no bridge write. Run the DEEP SCAN now for "
                         f"tracking (the one path where the popup precedes it — your call, "
@@ -3176,10 +3190,17 @@ def main():
                 try:
                     _snap = {"pair": pair, "quick": _score, "brain": None,
                              "route": "sure-thing", "kind": "fired",
+                             "trigger": _trig,
                              "detail": r["detail"],
                              "features": {"coil_range_pct": r.get("coil_range_pct"),
                                          "tests": r.get("tests"),
                                          "squeeze_pct": r.get("squeeze_pct"),
+                                         "atr_ratio": r.get("atr_ratio"),
+                                         "bb_width_pctile": r.get("bb_width_pctile"),
+                                         "pullback_trend": r.get("pullback_trend"),
+                                         "micro_spikes": r.get("micro_spikes"),
+                                         "buy_dominance": r.get("buy_dominance"),
+                                         "hist_hit_rate": r.get("hist_hit_rate"),
                                          "vol_spike": r.get("vol_spike"),
                                          "score": _score},
                              "mult": _mult, "spend": float(_spend or 0.0),
@@ -3188,8 +3209,8 @@ def main():
                     _log_signal_snapshot(_snap)
                 except Exception:
                     pass
-                logger.info("🧲 SURE THING FIRED: %s — %s (score %.0f, %.2fx, $%.0f)",
-                            asset, r["detail"], _score, _mult, _spend)
+                logger.info("🧲 SURE THING FIRED (%s): %s — %s (prob %.0f, %.2fx, $%.0f)",
+                            _trig, asset, r["detail"], _score, _mult, _spend)
                 time.sleep(0.4)
             except Exception as exc:
                 logger.debug("sure-thing scan failed for %s: %s", asset, exc)

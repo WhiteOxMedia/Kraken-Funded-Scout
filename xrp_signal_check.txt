@@ -1,5 +1,6 @@
 scout.db tables: []
 bridge signals today:
+  2026-09-06T13:46:52  TIA/USD    buy  rejected  scout_auto     92.0%
   2026-09-06T12:53:22  LINK/USD   buy  rejected  scout_auto     81.0%
   2026-09-06T12:42:01  LINK/USD   buy  rejected  scout_auto     81.0%
   2026-09-06T12:30:41  LINK/USD   buy  rejected  scout_auto     81.0%
@@ -11,4 +12,3 @@ bridge signals today:
   2026-09-06T10:42:56  DOT/USD    buy  rejected  scout_auto     51.5%
   2026-09-06T10:37:25  PUMP/USD   buy  rejected  scout_auto     69.0%
   2026-09-06T10:29:15  UNI/USD    buy  closed    scout_auto     64.0%
-  2026-09-06T10:24:51  TAO/USD    buy  rejected  scout_auto     80.0%

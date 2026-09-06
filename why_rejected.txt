@@ -1,3 +1,4 @@
+2026-09-06T13:46:52 TIA/USD      buy  rejected  scout_auto   92.0% reason=Regime: bull_trend (volatility rank 91/100); 🚀 MOMENTUM RIDER — Phase 2 — Momentum — up +5.8% over 2
 2026-09-06T12:53:22 LINK/USD     buy  rejected  scout_auto   81.0% reason=Regime: bull_trend (volatility rank 81/100); 🔥 BREAKOUT — Phase 1 — Breakout — +1.9% move with 1.9x 
 2026-09-06T12:42:01 LINK/USD     buy  rejected  scout_auto   81.0% reason=Regime: bull_trend (volatility rank 80/100); 🔥 BREAKOUT — Phase 1 — Breakout — +1.9% move with 1.8x 
 2026-09-06T12:30:41 LINK/USD     buy  rejected  scout_auto   81.0% reason=Regime: bull_trend (volatility rank 77/100); 🔥 BREAKOUT — Phase 1 — Breakout — +1.9% move with 1.7x 
@@ -7,7 +8,6 @@
 2026-09-06T10:59:46 PUMP/USD     buy  rejected  scout_auto   64.0% reason=Regime: high_vol (volatility rank 96/100); RSI oversold (33.0); BB oversold (%B=0.05)
 2026-09-06T10:58:55 NEAR/USD     buy  rejected  scout_auto   88.0% reason=Regime: bull_trend (volatility rank 98/100); 🔥 BREAKOUT — Phase 1 — Breakout — +3.3% move with 1.2x 
 2026-09-06T10:42:56 DOT/USD      buy  rejected  scout_auto   51.5% reason=Regime: bull_trend (volatility rank 95/100); Pullback to EMA support in uptrend (RSI 61.7) — trend e
-2026-09-06T10:37:25 PUMP/USD     buy  rejected  scout_auto   69.0% reason=Regime: high_vol (volatility rank 96/100); RSI oversold (28.9); BB oversold (%B=-0.10)
 
 open positions: 2
   RENDER/USD since 2026-09-06T12:06 @ 1.512

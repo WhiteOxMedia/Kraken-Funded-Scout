@@ -1,24 +1,36 @@
-PASS  a tight coiled spring with 12 ceiling tests + a volume crack FIRES  coil 0.85% ? 12 ceiling tests ? vol rank 1.00 ? burst 3.0x
-PASS  the fire carries the trigger price (the crack, not a close-confirm)  100.62
-PASS  the detail names the structure (coil ? tests ? vol rank ? burst)  coil 0.85% ? 12 ceiling tests ? vol rank 1.00 ? burst 3.0x
-PASS  the structural score lands in the strong band (50-100)  87.9
-PASS  the zone boundaries are reported (the ceiling is the trade line)  (100.5, 99.65)
-PASS  the spring loads but no crack -> ARMED, no fire  coil 0.85% ? 12 ceiling tests ? vol rank 1.00 ? burst 1.0x
-PASS  price crosses the ceiling WITHOUT volume -> armed, no fire (a crack needs the burst)  1.19
-PASS  a wide range is not a coil (range > the threshold)  no coil: range 3.36% > 2.0%
-PASS  one ceiling test is not a weakened ceiling (< MIN_CEILING_TESTS)  only 1 ceiling tests (< 3)
-PASS  a broken floor inside the coil kills the setup  the floor broke inside the coil
-PASS  no squeeze (the coil's vol ranks HIGH vs a calm history) -> not armed  no squeeze: vol percentile 0.00 (needs ? 0.80 ? the calmest fifth)
-PASS  thin data -> a clean no-op, never raises  not enough candles
+PASS  the full-pressure coil (rising floor + revs + greens + paid history) fires PRE-BREAKOUT, still inside the coil  (78.3, 'coil 0.90% ? 11 tests ? squeeze 1.00 ? ATR 0.6912906352260967 ? BB 1.0 ? revs 2 ? hist 100%/2')
+PASS  the probability crossed the threshold (>= 75)  78.3
+PASS  the trigger price is INSIDE the coil (before the breakout runs)  (100.05, 100.45)
+PASS  the countdown estimate is present (the hot setup reads 30 min)  30
+PASS  the historical signature miner found the coin's paid coils  (2, 1.0)
+PASS  the pullbacks shrank (failed rejections: the floor rose)  1.0
+PASS  micro-spikes were counted (revving without cracking)  2
+PASS  buy-side dominance rose in the late coil  1.0
+PASS  the tight coil with a volume crack fires AT THE CRACK  (51.1, 'coil 0.85% ? 12 tests ? squeeze 1.00 ? ATR 0.7939353582953345 ? BB 1.0 ? revs 0 ? hist 0%/6')
+PASS  the crack detail names the structure  coil 0.85% ? 12 tests ? squeeze 1.00 ? ATR 0.7939353582953345 ? BB 1.0 ? revs 0 ? hist 0%/6
+PASS  the structural probability lands in a sane band  51.1
+PASS  the zone boundaries are reported  
+PASS  no paid history in a plain oscillating market -> no history bonus  (6, 0.0)
+PASS  a flat-floor, no-revs coil stays under the threshold -> ARMED, no pre-breakout fire  46.4
+PASS  the lukewarm countdown reads the slower window (60 min)  60
+PASS  price crosses the ceiling WITHOUT volume -> no crack  1.19
+PASS  a wide range is not a coil  
+PASS  one ceiling test is not a weakened ceiling  
+PASS  a broken floor inside the coil kills the setup  
+PASS  no squeeze (the coil ranks volatile vs a calm history) -> not armed  
+PASS  thin data -> a clean no-op  
 PASS  no candles at all -> a clean no-op  
-PASS  the countdown window is the one-hour breakout clock  60.0
-PASS  the structural score sizes through the SAME bucket table (one sizing philosophy)  
-PASS  the scanner runs the fleet breakout scan (5-min cadence)  
+PASS  the countdown window is the one-hour breakout clock  
+PASS  the pre-breakout threshold is 75 (the full-size bucket line)  
+PASS  the probability sizes through the SAME bucket table  
+PASS  the scanner runs the fleet breakout scan (5-min cadence, 720 candles)  
 PASS  CONTEST-ONLY: the Sure Thing never writes the bridge  
 PASS  the protecting gates all run before the fire  
-PASS  the death-line guard caps + the structural score sizes  
-PASS  every fire logs to the scorer's dataset (route sure-thing)  
-PASS  the deep-scan waiver is the user's documented call (post-entry scan)  
+PASS  the death-line guard caps + the probability sizes  
+PASS  every fire logs to the scorer's dataset (route sure-thing + trigger)  
+PASS  the PRE-BREAKOUT popup variant exists (title + voice + the window)  
+PASS  the crack variant stands (the second trigger)  
+PASS  the deep-scan waiver is the user's documented call  
 PASS  coils are announced once per zone (the armed-watch dedup)  
 
-22 passed, 0 failed
+34 passed, 0 failed

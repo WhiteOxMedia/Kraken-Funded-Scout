@@ -1,6 +1,6 @@
-now: Sun 01:20 PM Denver
+now: Sun 01:54 PM Denver
 
-bridge signals since Sun 8 PM (1737):
+bridge signals since Sun 8 PM (1738):
   2026-08-23T23:13  ASTER/USD  buy  closed    bot_strategy   64.5%
   2026-08-23T23:44  FIL/USD    buy  closed    bot_strategy   77.6%
   2026-08-24T00:13  ASTER/USD  buy  closed    scout_auto     64.5%
@@ -1738,6 +1738,7 @@ bridge signals since Sun 8 PM (1737):
   2026-09-06T12:30  LINK/USD   buy  rejected  scout_auto     81.0%
   2026-09-06T12:42  LINK/USD   buy  rejected  scout_auto     81.0%
   2026-09-06T12:53  LINK/USD   buy  rejected  scout_auto     81.0%
+  2026-09-06T13:46  TIA/USD    buy  rejected  scout_auto     92.0%
 scanner_state: name 'json' is not defined
 
 bot positions (latest 5):

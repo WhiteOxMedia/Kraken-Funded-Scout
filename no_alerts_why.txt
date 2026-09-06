@@ -1,8 +1,9 @@
-now: Sun 01:20 PM
+now: Sun 01:48 PM
 desktop floor: 89% | resolve cap now: 6.0h
 signals since 8:45: 25
 
-≥89% (desktop-eligible): 4
+≥89% (desktop-eligible): 5
+  13:46 TIA/USD      92% $20 ETA 1.4h (old TP ETA 22h) → should POP now (fix works) [status=rejected]
   12:05 RENDER/USD   100% $20 ETA 2.0h (old TP ETA 24h) → should POP now (fix works) [status=filled]
   11:06 RENDER/USD   100% $20 ETA 2.0h (old TP ETA n/a) → should POP now (fix works) [status=filled]
   10:02 RENDER/USD   100% $20 ETA 2.0h (old TP ETA 24h) → should POP now (fix works) [status=rejected]
@@ -17,7 +18,7 @@ sub-89% (logged only, by design):
   ORCA/USD     1x, best 67%
   PUMP/USD     2x, best 69%
   TAO/USD      1x, best 80%
-  TRUMP/USD    2x, best 66%
+  TRUMP/USD    1x, best 66%
   TRX/USD      1x, best 84%
   UNI/USD      2x, best 64%
   XPL/USD      2x, best 87%
