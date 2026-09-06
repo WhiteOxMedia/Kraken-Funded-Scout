@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-09-05T18:13:31.369649-06:00",
+  "generated_at": "2026-09-05T19:14:17.334917-06:00",
   "window_weeks": 12,
   "data_weeks": 6.3,
   "min_samples": 10,
@@ -4379,19 +4379,19 @@
           "notes": "liquidity thin, false-breakout risk low"
         },
         "16-20": {
-          "samples": 2,
+          "samples": 3,
           "reliable": false,
-          "avg_move": 2.914,
-          "std": 3.818,
+          "avg_move": 1.983,
+          "std": 3.144,
           "max_spike": 1.15,
           "max_drop": -6.82,
-          "median_volume_usd": 395134.0,
+          "median_volume_usd": 370099.0,
           "false_breakout_rate": 0.0,
           "confidence_bar": 60,
           "thresholds": {
-            "aggressive": 2.914,
-            "standard": 4.823,
-            "conservative": 6.732
+            "aggressive": 1.983,
+            "standard": 3.556,
+            "conservative": 5.128
           },
           "notes": "liquidity ok, false-breakout risk low"
         },
@@ -8789,19 +8789,19 @@
           "notes": "liquidity thin, false-breakout risk low"
         },
         "16-20": {
-          "samples": 6,
+          "samples": 7,
           "reliable": false,
-          "avg_move": 10.996,
-          "std": 23.951,
+          "avg_move": 9.483,
+          "std": 22.228,
           "max_spike": 7.68,
           "max_drop": -80.4,
-          "median_volume_usd": 5081.0,
+          "median_volume_usd": 4385.0,
           "false_breakout_rate": 0.0,
           "confidence_bar": 60,
           "thresholds": {
-            "aggressive": 10.996,
-            "standard": 22.972,
-            "conservative": 34.947
+            "aggressive": 9.483,
+            "standard": 20.597,
+            "conservative": 31.711
           },
           "notes": "liquidity thin, false-breakout risk low"
         },
@@ -9629,19 +9629,19 @@
           "notes": "liquidity thin, false-breakout risk low"
         },
         "16-20": {
-          "samples": 4,
+          "samples": 5,
           "reliable": false,
-          "avg_move": 4.105,
-          "std": 4.242,
+          "avg_move": 3.686,
+          "std": 3.791,
           "max_spike": 10.2,
           "max_drop": -6.78,
-          "median_volume_usd": 52467.0,
+          "median_volume_usd": 19774.0,
           "false_breakout_rate": 0.0,
           "confidence_bar": 60,
           "thresholds": {
-            "aggressive": 4.105,
-            "standard": 6.226,
-            "conservative": 8.346
+            "aggressive": 3.686,
+            "standard": 5.581,
+            "conservative": 7.477
           },
           "notes": "liquidity thin, false-breakout risk low"
         },

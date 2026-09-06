@@ -107,6 +107,17 @@
    "realized_pnl": 25.19,
    "balance_after": 9855.113229114557,
    "ts": "2026-09-05T16:01:07.927490-06:00"
+  },
+  {
+   "date": "2026-09-05",
+   "rot": "16-20",
+   "score": 52.0,
+   "total_left": 576.73,
+   "system_left": 576.73,
+   "top_gate": "brain-floor",
+   "realized_pnl": 24.84,
+   "balance_after": 9929.95,
+   "ts": "2026-09-05T20:00:46.027553-06:00"
   }
  ],
  "lessons": [
@@ -148,6 +159,10 @@
   },
   {
    "ts": "2026-09-05T16:01:07.927490-06:00",
+   "lesson": "Score and money agree (score 52, realized $+25) \u2014 weights hold; the calibration stands."
+  },
+  {
+   "ts": "2026-09-05T20:00:46.027553-06:00",
    "lesson": "Score and money agree (score 52, realized $+25) \u2014 weights hold; the calibration stands."
   }
  ]

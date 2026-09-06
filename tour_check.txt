@@ -1,4 +1,7 @@
 bridge signals today:
+  19:44  ADA/USD    buy  rejected  scout_auto     100.0%
+  19:35  UAI/USD    buy  closed    scout_mover    72.0%
+  18:35  UAI/USD    buy  closed    bot_strategy   72.0%
   17:54  TIA/USD    buy  rejected  scout_auto     81.0%
   17:51  LDO/USD    buy  rejected  scout_auto     72.5%
   17:39  TIA/USD    buy  rejected  scout_auto     76.0%
@@ -6,7 +9,4 @@ bridge signals today:
   17:02  BCH/USD    buy  closed    scout_auto     100.0%
   16:55  ETC/USD    buy  rejected  scout_auto     65.0%
   16:43  ETC/USD    buy  rejected  scout_auto     65.0%
-  16:32  ETC/USD    buy  rejected  scout_auto     65.0%
-  16:04  BCH/USD    buy  rejected  scout_auto     100.0%
-  16:03  BCH/USD    buy  closed    bot_strategy   100.0%
 open positions in bridge: 0 (bot max = 3)

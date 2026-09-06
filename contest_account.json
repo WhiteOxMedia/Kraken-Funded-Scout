@@ -1,13 +1,10 @@
 {
  "tier": 10000,
  "start_balance": 10000.0,
- "current_balance": 9879.947092759028,
- "updated_at": "2026-09-05T16:19:41.741775-06:00",
+ "current_balance": 9929.95,
+ "updated_at": "2026-09-05T19:15:07.204601-06:00",
  "hail_mary_until": "2026-09-05T14:48:20.891417-06:00",
  "hail_mary_date": "2026-09-05",
  "hail_mary_rot": "12-16",
- "hail_mary_count": 2,
- "daily_peak_date": "2026-09-05",
- "daily_start_balance": 9879.947092759028,
- "daily_peak_balance": 9879.947092759028
+ "hail_mary_count": 2
 }

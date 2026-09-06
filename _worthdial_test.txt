@@ -8,7 +8,7 @@ PASS  weekend: the slowest rotation (08-12) scales down (0.64)  0.64005412719891
 PASS  pace factor never exceeds 1.0 or drops below 0.6  
 PASS  the toggle defaults ON when the key is missing  
 PASS  the base reads the slider (0.25)  
-PASS  NO catch-up in the product (the correction)  {'auto': True, 'base': 0.25, 'pace': 1.0, 'tide': 0.85, 'effective': 0.2125}
+PASS  NO catch-up in the product (the correction)  {'auto': True, 'base': 0.25, 'pace': 0.7571041948579161, 'tide': 0.85, 'effective': 0.16088464140730718}
 PASS  the day's ledger does NOT bend the dial (a big day and a down day read the same)  
 PASS  _worth_catchup_factor is retired (kept, not called by the dial)  
 PASS  _worth_floor_frac returns the effective dial (the gates read it)  

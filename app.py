@@ -28,6 +28,11 @@ import streamlit as st
 from config import TradingConfig
 from indicators import bollinger_bands, ema, rsi
 from scanner import ScanResult, compute_position_sizing, estimate_timeframe, tournament_scan
+# THE ADAPTIVE TTL SYSTEM (user spec, Sep 5): the seven hot fetchers route
+# through this engine — base/min/max TTLs per fetcher, a volatility-regime
+# multiplier (calm 1.5x / normal 1.0x / volatile 0.5x / extreme 0.25x),
+# event-driven invalidation, cross-cache rules, and the freshness plate.
+from adaptive_cache import ac_cached, ac_invalidate, freshness_html
 
 try:
     import db
@@ -445,11 +450,11 @@ def _bridge():
     import signal_bridge
     return signal_bridge
 
-@st.cache_data(ttl=60)
-def scanner_status() -> bool:
-    # cached 60s: a PowerShell CIM spawn per call (this fired TWICE per
-    # rerun — sidebar + NOW strip — and each spawn is ~0.5-2s of the page
-    # freezing on every click)
+@st.cache_data(ttl=20)
+def scanner_status_core() -> bool:
+    # the PowerShell spawn (this fired TWICE per rerun — sidebar + NOW
+    # strip — and each spawn is ~0.5-2s of the page freezing on every
+    # click); ttl=20 = the ADAPTIVE MIN, the burst shield
     try:
         r = subprocess.run(
             ['powershell', '-NoProfile', '-Command',
@@ -459,6 +464,13 @@ def scanner_status() -> bool:
         return bool(r.stdout.strip())
     except Exception:
         return False
+
+
+def scanner_status() -> bool:
+    """Through the ADAPTIVE cache: base 60s, 20-120s by regime — tightens
+    when markets move so the heartbeat feels real, loosens when calm.
+    A >10% book-depth change (the cross-cache rule) refreshes it early."""
+    return ac_cached("scanner_status", "heartbeat", scanner_status_core)
 
 def bot_status() -> tuple[str, str]:
     """Bot liveness from heartbeat file age (same rule as bot dashboard)."""
@@ -481,12 +493,11 @@ def bot_status() -> tuple[str, str]:
     except Exception as exc:
         return "UNKNOWN", str(exc)[:40]
 
-@st.cache_data(ttl=60)
-@st.cache_data(ttl=30)
-def bot_positions() -> list[dict]:
-    """Open positions from the bot's Postgres DB. Cached 30s — this runs in
-    now_strip on EVERY rerun and a live Neon round-trip per rerun was part
-    of the page choppiness."""
+@st.cache_data(ttl=10)
+def bot_positions_core() -> list[dict]:
+    """Open positions from the bot's Postgres DB. ttl=10 = the ADAPTIVE
+    MIN (the burst shield); the adaptive layer sets the cadence (30s base,
+    10-45s — tightens when the bot is trading or vol spikes)."""
     try:
         url = os.environ.get("DB195374BC_DATABASE_URL") or os.environ.get("DB1005AA9E_DATABASE_URL")
         if not url:
@@ -501,6 +512,15 @@ def bot_positions() -> list[dict]:
                      entry=float(r[4]), ts=str(r[5])) for r in rows]
     except Exception:
         return []
+
+
+def bot_positions() -> list[dict]:
+    """BOT'S BOOK through the ADAPTIVE cache — this runs in now_strip on
+    EVERY rerun and a live Neon round-trip per rerun was part of the page
+    choppiness. A position ENTER/EXIT (the cross-cache rule) refreshes
+    qc_liquidity; a >0.8% price move refreshes THIS (from ticker_px)."""
+    return ac_cached("bot_positions", "open",
+                     bot_positions_core, copy_result=True)
 
 
 # ── Dopamine layer: scoreboard + win feed + fresh-win celebration ──────
@@ -767,14 +787,14 @@ def _save_console_state(state: dict):
 PAYOUT_TRACK_FILE = Path(__file__).parent / "payout_track.json"
 
 
-@st.cache_data(ttl=300)
 @st.cache_data(ttl=180)
-def fetch_payouts(_kraken) -> list[dict]:
+def fetch_payouts_core(_kraken) -> list[dict]:
     """Recent USD transfers IN from the Kraken ledger — the Funded contest
     paying out. (Trades are type 'trade'; rewards are 'receive'; both excluded.)
-    Cached 180s: this is a SIGNED ledger API call that used to run on every
-    single rerun — the biggest source of the page freezing on clicks. A
-    payout celebration may land up to 3 minutes late; payouts are rare."""
+    The SIGNED ledger API call — the biggest source of the page freezing
+    on clicks. ARCHIVAL (the adaptive spec): the multiplier is ignored, the
+    cadence stays 180s whatever the market does. A payout celebration may
+    land up to 3 minutes late; payouts are rare."""
     try:
         inner = getattr(_kraken, "exchange", None)
         if inner is None or not hasattr(inner, "fetch_ledger"):
@@ -792,6 +812,13 @@ def fetch_payouts(_kraken) -> list[dict]:
         return out
     except Exception:
         return []
+
+
+def fetch_payouts(_kraken) -> list[dict]:
+    """The payout read through the ADAPTIVE layer — ARCHIVAL: base 180s,
+    the volatility multiplier ignored (history is history at any vol)."""
+    return ac_cached("fetch_payouts", "ledger",
+                     lambda: fetch_payouts_core(_kraken), copy_result=True)
 
 
 def _load_payout_store() -> dict:
@@ -972,10 +999,12 @@ def live_price(pair: str) -> float:
         return 0.0
 
 
-@st.cache_data(ttl=30)
+@st.cache_data(ttl=8)
 def _ticker_px_cached(pair: str) -> float:
     """The raw ticker read — RAISES on failure (never cached: a failed
-    read retries fresh, the Sep 5 lesson)."""
+    read retries fresh, the Sep 5 lesson). ttl=8s is the ADAPTIVE MIN
+    (the burst shield); the adaptive layer above decides the real cadence
+    (30s base, 8-45s by volatility regime)."""
     _k = get_kraken_client()
     if hasattr(_k, "fetch_ticker"):
         _t = _k.fetch_ticker(pair)
@@ -984,13 +1013,15 @@ def _ticker_px_cached(pair: str) -> float:
     return float((_t or {}).get("last") or 0.0)
 
 
-@st.cache_data(ttl=30)
 def _ticker_px(pair: str) -> float:
-    """One ticker read, cached 30s — the 60s light cycle and the bot book
-    share it instead of each fetching fresh on every rerun. 30s is still
-    'real time' for trail/goal calls (the candle close lags minutes)."""
+    """One ticker read through the ADAPTIVE cache (base 30s, 8-45s by
+    regime) — the 60s light cycle and the bot book share it instead of
+    each fetching fresh on every rerun. Every real fetch samples the
+    volatility model; a >0.8% move invalidates bot_positions (the
+    cross-cache rule)."""
     try:
-        return float(_ticker_px_cached(pair))
+        return ac_cached("ticker_px", pair,
+                         lambda: float(_ticker_px_cached(pair)))
     except Exception:
         return 0.0
 
@@ -1269,13 +1300,11 @@ def contest_chunk(position_size_usd, balance: float) -> tuple[float, float] | No
     return 1.0, balance
 
 
-@st.cache_data(ttl=45)
-def _fetch_df_cached(pair: str, interval: int, lookback: int):
-    """Candles, cached 45s — the light cycle re-runs every minute and used
-    to re-fetch OHLCV per position each time (the whole page froze while
-    it ran). st.cache_data hands every caller its OWN copy of the frame,
-    so the live-price seeding in the exit paths can never poison the
-    cache."""
+@st.cache_data(ttl=20)
+def _fetch_df_core(pair: str, interval: int, lookback: int):
+    """The raw candle read. ttl=20 = the ADAPTIVE MIN (the burst shield);
+    the adaptive layer sets the cadence (45s base, 20-90s by regime —
+    tightens during volatility so charts feel live)."""
     import pandas as pd
     ohlcv = get_kraken_client().fetch_ohlcv(pair, interval_minutes=interval, limit=lookback)
     df = pd.DataFrame(ohlcv, columns=["timestamp","open","high","low","close","volume"])
@@ -1283,15 +1312,25 @@ def _fetch_df_cached(pair: str, interval: int, lookback: int):
     df.set_index("timestamp", inplace=True)
     return df
 
+def _fetch_df_cached(pair: str, interval: int, lookback: int):
+    """Candles through the ADAPTIVE cache (base 45s, 20-90s by regime) —
+    the light cycle re-runs every minute and used to re-fetch OHLCV per
+    position each time (the whole page froze while it ran). Every caller
+    gets its OWN copy of the frame (copy_result): the live-price seeding
+    in the exit paths can never poison the cache. Chart overlays render
+    FROM this frame every rerun — a candle refresh refreshes them too
+    (the spec's cross-cache rule, inherent)."""
+    return ac_cached("fetch_df", f"{pair}|{interval}|{lookback}",
+                     lambda: _fetch_df_core(pair, interval, lookback),
+                     copy_result=True)
+
 def fetch_df(kraken, pair: str, cfg: TradingConfig):
     return _fetch_df_cached(pair, cfg.candle_interval, cfg.lookback_candles)
 
 
-@st.cache_data(ttl=60)
-def _qc_liquidity(pair: str, notional: float) -> dict:
-    """The QC's advisory book readout, cached 60s — the scan result stays
-    on screen while you fix numbers below it, and the order book used to
-    re-fetch on every one of those reruns."""
+@st.cache_data(ttl=20)
+def _qc_liquidity_core(pair: str, notional: float) -> dict:
+    """The raw book readout. ttl=20 = the ADAPTIVE MIN."""
     try:
         from execution_tiers import liquidity_snapshot as _ls
         return _ls(get_kraken_client(), pair, float(notional))
@@ -1299,11 +1338,22 @@ def _qc_liquidity(pair: str, notional: float) -> dict:
         return {"ok": False, "reason": f"book unavailable: {exc}"}
 
 
+def _qc_liquidity(pair: str, notional: float) -> dict:
+    """The QC's advisory book readout through the ADAPTIVE cache (base
+    60s, 20-120s — liquidity matters more during volatility, so it
+    tightens) — the scan result stays on screen while you fix numbers
+    below it, and the order book used to re-fetch on every one of those
+    reruns. A >10% depth change (the cross-cache rule) refreshes
+    scanner_status; a bot position change refreshes THIS."""
+    return ac_cached("qc_liquidity", pair,
+                     lambda: _qc_liquidity_core(pair, notional))
+
+
 @st.cache_data(ttl=60)
-def _past_winners(limit: int = 15) -> list[dict]:
-    """Past champions for the TOURNAMENT plate, cached 60s as plain dicts
-    (a live Neon read on every rerun made the tab stutter; history can be
-    a minute old). Cleared when a new champion is logged."""
+def _past_winners_core(limit: int = 15) -> list[dict]:
+    """The raw champions read (a live Neon query). ttl=60 = the ADAPTIVE
+    floor; STATIC data — the volatility multiplier is ignored (the
+    adaptive spec: history can be a minute old at any vol)."""
     try:
         if not _HAS_DB:
             return []
@@ -1314,6 +1364,14 @@ def _past_winners(limit: int = 15) -> list[dict]:
                 for w in ws]
     except Exception:
         return []
+
+
+def _past_winners(limit: int = 15) -> list[dict]:
+    """Past champions for the TOURNAMENT plate through the ADAPTIVE cache
+    (60s base, STATIC — the multiplier is ignored). Busts on a new
+    champion (ac_invalidate) — see the tournament render."""
+    return ac_cached("past_winners", int(limit),
+                     lambda: _past_winners_core(limit), copy_result=True)
 
 
 def render_chart(df, signal, config: TradingConfig, height: int = 430):
@@ -2126,7 +2184,8 @@ def render_tournament(cfg: TradingConfig, scan_cfg: TradingConfig, kraken):
                             take_profit=champ_sig.take_profit, risk_reward=champ_sig.risk_reward,
                             regime=champ_sig.regime, reasons=[r[:200] for r in champ_sig.reasons[:5]],
                             scan_type="winners" if is_winners else "full")
-                        _past_winners.clear()  # the new champion shows immediately
+                        ac_invalidate("past_winners")  # the new champion shows immediately
+                        _past_winners_core.clear()
                     except Exception:
                         pass
             except Exception as exc:
@@ -2311,6 +2370,12 @@ def render_quick_check(cfg: TradingConfig, kraken):
     c1, c2, c3 = st.columns([2, 1, 1])
     with c1:
         asset = st.selectbox("Pick a coin", ASSETS, index=ASSETS.index("BTC"), key="qc_asset")
+        # EVENT-DRIVEN INVALIDATION (the adaptive spec): switching pairs
+        # means the old pair's candles + book are the wrong data — bust
+        # them so the first read of the new pair is fresh
+        if st.session_state.get("_qc_last_asset") not in (None, asset):
+            ac_invalidate("fetch_df", "qc_liquidity")
+        st.session_state["_qc_last_asset"] = asset
     with c2:
         clicked = st.button("🔍 DEEP SCAN", type="primary", width="stretch", key="qc_btn")
     with c3:
@@ -2321,6 +2386,9 @@ def render_quick_check(cfg: TradingConfig, kraken):
     # ── run the scan on click; PERSIST the result in session state so it
     # survives the WATCH-button rerun (buttons reset on every rerun)
     if clicked or _auto_scan:
+        # EVENT-DRIVEN INVALIDATION (the adaptive spec): running a scan
+        # NEEDS fresh candles + a fresh book — the pair switch too
+        ac_invalidate("fetch_df", "qc_liquidity")
         pair = f"{asset}/USD"
         with st.spinner(f"Deep scanning {asset}…"):
             try:
@@ -2671,6 +2739,10 @@ def render_quick_check(cfg: TradingConfig, kraken):
                                                *sig.reasons[:4]],
                                        "source": "green_light"}
                             _save_watch(w)
+                            # EVENT-DRIVEN INVALIDATION (the adaptive spec):
+                            # a trade just entered — the book + bot reads
+                            # refresh on the next read
+                            ac_invalidate("qc_liquidity", "bot_positions")
                             logger.info("AUTO-WATCH: %s added on green light (entry %s, goal %.1f%%)",
                                         pair, px, float(_goal_pct or 1.5))
                             # ROTATION LOCKOUT: green light fired — the asset
@@ -3805,6 +3877,9 @@ def _render_entry_control(prefix: str = "ec", default_pair: str | None = None,
                                     placeholder="e.g. deep scan green, momentum rider, my own read")
 
             if st.form_submit_button("✎ SET MY ENTRY", type="primary"):
+                # EVENT-DRIVEN INVALIDATION (the adaptive spec): an entry
+                # changed — the book + bot reads refresh on the next read
+                ac_invalidate("qc_liquidity", "bot_positions")
                 if not pair:
                     st.error("Which coin? Type it in the coin field — ANY coin, it doesn't "
                              "have to be on any list (e.g. ZEC, or TAO/USD).")
@@ -3948,6 +4023,10 @@ def render_auto_watch(cfg: TradingConfig, kraken):
                 with _scols[_i % len(_scols)]:
                     if st.button(f"✔ SOLD {_asset(_sp)}", key=f"sold_{_sp.replace('/', '_')}",
                                  help="Clear it — you're out. Next green light re-adds fresh."):
+                        # EVENT-DRIVEN INVALIDATION (the adaptive spec): a
+                        # trade just executed — the bot book + the QC's
+                        # book read refresh on the next read
+                        ac_invalidate("bot_positions", "qc_liquidity")
                         _sw = _cw_sold.pop(_sp) or {}
                         _save_watch(_cw_sold)
                         # the re-entered expander follows right below
@@ -4726,6 +4805,19 @@ def main():
         led("KILL SWITCH ON DESKTOP", "off")
     )
     st.sidebar.markdown(plate("Status", status_html), unsafe_allow_html=True)
+
+    # ── STALENESS-AWARE UI (the adaptive spec's polish layer): one row —
+    #    the regime + per-fetcher age, colored (green fresh <10s / yellow
+    #    10-30s / orange past ttl / red forced-refresh pending), each with
+    #    a hover tooltip ('Last updated 17s ago — next refresh in 13s')
+    try:
+        st.sidebar.markdown(
+            plate("Data Freshness", f"<div style='font-family:Share Tech Mono,"
+                                    f"monospace;font-size:11px;line-height:1.7;'>"
+                                    f"{freshness_html()}</div>"),
+            unsafe_allow_html=True)
+    except Exception:
+        pass
 
     st.sidebar.caption("Launch everything from the desktop shortcuts.\nConsole = Scout + Trader in one board.")
 

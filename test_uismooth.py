@@ -35,22 +35,25 @@ def check(name, ok, detail=""):
 
 app = Path("app.py").read_text(encoding="utf-8")
 
-# ── 1. the hot-path caches (the freeze fixes) ────────────────────────
-def _has_cache(fn_name: str) -> bool:
-    """True if the function def carries an @st.cache_data decorator."""
-    import re
-    m = re.search(r"(@st\.cache_data\(ttl=\d+\)\s*\n)?def " + fn_name + r"\(", app)
-    return bool(m and m.group(1))
+# ── 1. the hot-path caches (the freeze fixes; ADAPTIVE since Sep 5) ──
+# The seven fetchers now route through adaptive_cache.py: an st.cache_data
+# CORE with the min TTL (the burst shield) + the adaptive layer on top
+# (base TTL, volatility-regime multiplier, event invalidation, cross-cache
+# rules). The public names keep their signatures — every call site stands.
+def _routes_adaptive(fn_name: str) -> bool:
+    """True if the public fn calls ac_cached (the adaptive engine)."""
+    body = app.split(f"def {fn_name}(")[1].split("\ndef ")[0]
+    return "ac_cached(" in body
 
 
-check("scanner_status cached (was 2 PowerShell spawns per rerun)",
-      _has_cache("scanner_status"))
-check("fetch_payouts cached (was a signed ledger fetch per rerun)",
-      _has_cache("fetch_payouts"))
-check("bot_positions cached (was a Neon query per rerun)",
-      _has_cache("bot_positions"))
-check("_ticker_px helper exists + cached",
-      _has_cache("_ticker_px"))
+check("scanner_status adaptive (was 2 PowerShell spawns per rerun)",
+      _routes_adaptive("scanner_status") and "def scanner_status_core" in app)
+check("fetch_payouts adaptive (was a signed ledger fetch per rerun)",
+      _routes_adaptive("fetch_payouts") and "def fetch_payouts_core" in app)
+check("bot_positions adaptive (was a Neon query per rerun)",
+      _routes_adaptive("bot_positions") and "def bot_positions_core" in app)
+check("_ticker_px helper exists + adaptive",
+      _routes_adaptive("_ticker_px") and "def _ticker_px_cached" in app)
 check("BOT'S BOOK reads prices through the cached ticker",
       "_px = _ticker_px(_pair)" in app)
 check("light cycle exit logic reads the cached ticker",
@@ -59,15 +62,17 @@ check("exit check reads the cached ticker",
       "_t = _ticker_px(pair)" in app.split("def render_exit_check")[1].split("# 1. trailing stop")[0])
 check("fetch_df delegates to the cached candle fetcher",
       "_fetch_df_cached(pair, cfg.candle_interval, cfg.lookback_candles)" in app)
-check("candle cache is TTL'd (not forever-stale)",
-      "@st.cache_data(ttl=45)" in app.split("def _fetch_df_cached")[0].split("\n")[-2]
-      or "@st.cache_data(ttl=45)\ndef _fetch_df_cached" in app)
+check("candle cache is TTL'd (not forever-stale; adaptive 45s base, 20-90)",
+      _routes_adaptive("_fetch_df_cached") and "def _fetch_df_core" in app
+      and "@st.cache_data(ttl=20)" in app.split("def _fetch_df_core")[0][-40:])
 check("QC liquidity plate cached (_qc_liquidity)",
-      _has_cache("_qc_liquidity") and "snap = _qc_liquidity(pair, _notional)" in app)
+      _routes_adaptive("_qc_liquidity") and "snap = _qc_liquidity(pair, _notional)" in app)
 check("TOURNAMENT past picks cached (_past_winners)",
-      _has_cache("_past_winners") and "winners = _past_winners()" in app)
-check("a fresh champion busts the past-picks cache",
-      "_past_winners.clear()" in app)
+      _routes_adaptive("_past_winners") and "winners = _past_winners()" in app)
+check("a fresh champion busts the past-picks cache (both layers)",
+      'ac_invalidate("past_winners")' in app and "_past_winners_core.clear()" in app)
+check("the engine module is the ONE source (imported, not reimplemented)",
+      "from adaptive_cache import ac_cached" in app)
 
 # ── 2. the light panel clock: the entry's OWN window, not $20 pace ───
 light_panel = app.split("def _render_light_panel")[1].split("def _render_entry_control")[0]

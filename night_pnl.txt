@@ -1,5 +1,5 @@
-positions since Sun 8 PM MST: 87
-trades since Sun 8 PM MST: 202
+positions since Sun 8 PM MST: 88
+trades since Sun 8 PM MST: 204
 
 time    side  pair              vol      price      usd
 02:31   sell  NEAR/USD        79.78     2.0098 $ 160.34
@@ -204,12 +204,14 @@ time    side  pair              vol      price      usd
 23:02   sell  AR/USD          30.99          3 $  92.98
 23:03   buy   BCH/USD         0.217     256.96 $  55.77
 00:29   sell  BCH/USD         0.217     258.12 $  56.02
+01:35   buy   UAI/USD         93.73    0.59511 $  55.78
+02:00   sell  UAI/USD         93.73       0.62 $  58.11
 
-total bought:  $10,895.28
-total sold:    $10,627.71
-total fees:    $21.04
-net P&L:       $-288.61
-round trips:   101
+total bought:  $10,951.06
+total sold:    $10,685.82
+total fees:    $21.44
+net P&L:       $-286.68
+round trips:   102
 
 exit reasons:
   02:31 NEAR/USD: Time-block rotation — flatten to cash
@@ -301,3 +303,4 @@ exit reasons:
   20:12 POL/USD: THESIS DEAD: entered 98% on a buy read, now reads sell 66% — the reason we entered isn't alive
   23:02 AR/USD: Challenge: displaced by stronger signal BCH (100% vs 72%)
   00:29 BCH/USD: Rotating to XMR/USD (held BCH/USD sell signal, new buy 62% > rotation threshold 50%)
+  02:00 UAI/USD: Time-block rotation — flatten to cash

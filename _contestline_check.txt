@@ -15,7 +15,7 @@ PASS  profit grows the buffer: 10k -> 10.5k leaves $800 of room
 PASS  entry size: book caps below the guard  
 PASS  entry size: guard caps below the book  
 PASS  entry size: never above the account  
-PASS  window drawdown reads the engine (or the 3% conservative default)  1.39
+PASS  window drawdown reads the engine (or the 3% conservative default)  2.1
 PASS  unknown coin fails conservative to 3%  
 PASS  save/load round trip  
 PASS  start balance follows the tier, not the balance  

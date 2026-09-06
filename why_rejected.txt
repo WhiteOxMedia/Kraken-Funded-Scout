@@ -1,3 +1,6 @@
+2026-09-05T19:44:53 ADA/USD      buy  rejected  scout_auto   100.0% reason=Regime: ranging (volatility rank 27/100); 🔥 BREAKOUT — Phase 1 — Breakout — +0.6% move with 1.4x vol
+2026-09-05T19:35:03 UAI/USD      buy  closed    scout_mover  72.0% reason=Mover: +19% on 24h
+2026-09-05T18:35:37 UAI/USD      buy  closed    bot_strategy 72.0% reason=Mover: +19% on 24h
 2026-09-05T17:54:08 TIA/USD      buy  rejected  scout_auto   81.0% reason=Regime: bull_trend (volatility rank 52/100); 🔥 BREAKOUT — Phase 1 — Breakout — +1.8% move with 1.5x 
 2026-09-05T17:51:37 LDO/USD      buy  rejected  scout_auto   72.5% reason=Regime: bull_trend (volatility rank 88/100); Pullback to EMA support in uptrend (RSI 57.9) — trend e
 2026-09-05T17:39:53 TIA/USD      buy  rejected  scout_auto   76.0% reason=Regime: bull_trend (volatility rank 53/100); 🔥 BREAKOUT — Phase 1 — Breakout — +1.7% move with 1.4x 
@@ -5,8 +8,5 @@
 2026-09-05T17:02:07 BCH/USD      buy  closed    scout_auto   100.0% reason=Regime: bull_trend (volatility rank 57/100); 🚀 MOMENTUM RIDER — Phase 2 — Momentum — up +3.5% over 2
 2026-09-05T16:55:05 ETC/USD      buy  rejected  scout_auto   65.0% reason=Regime: bull_trend (volatility rank 50/100); 🔥 BREAKOUT — Phase 1 — Breakout — +0.6% move with 1.7x 
 2026-09-05T16:43:40 ETC/USD      buy  rejected  scout_auto   65.0% reason=Regime: bull_trend (volatility rank 50/100); 🔥 BREAKOUT — Phase 1 — Breakout — +0.6% move with 1.7x 
-2026-09-05T16:32:15 ETC/USD      buy  rejected  scout_auto   65.0% reason=Regime: bull_trend (volatility rank 50/100); 🔥 BREAKOUT — Phase 1 — Breakout — +0.6% move with 1.7x 
-2026-09-05T16:04:09 BCH/USD      buy  rejected  scout_auto   100.0% reason=Regime: bull_trend (volatility rank 51/100); 🚀 MOMENTUM RIDER — Phase 2 — Momentum — up +4.2% over 2
-2026-09-05T16:03:15 BCH/USD      buy  closed    bot_strategy 100.0% reason=Regime: bull_trend (volatility rank 57/100); 🚀 MOMENTUM RIDER — Phase 2 — Momentum — up +3.5% over 2
 
 open positions: 0

@@ -1,8 +1,8 @@
-now: Sat 06:36 PM Denver
+now: Sat 08:06 PM Denver
 
 OPEN positions: 0
 
-full signal trail today (1688 signals):
+full signal trail today (1691 signals):
   00:00  ALGO/USD   buy  rejected  scout_auto     64.0%
   00:00  BTC/USD    buy  rejected  scout_auto     71.0%
   00:11  ADA/USD    buy  rejected  scout_auto     72.0%
@@ -1691,6 +1691,9 @@ full signal trail today (1688 signals):
   17:39  TIA/USD    buy  rejected  scout_auto     76.0%
   17:51  LDO/USD    buy  rejected  scout_auto     72.5%
   17:54  TIA/USD    buy  rejected  scout_auto     81.0%
+  18:35  UAI/USD    buy  closed    bot_strategy   72.0%
+  19:35  UAI/USD    buy  closed    scout_mover    72.0%
+  19:44  ADA/USD    buy  rejected  scout_auto     100.0%
 
 rejection reasons today:
   00:00 ALGO/USD: Regime: high_vol (volatility rank 87/100); RSI oversold (29.0); BB oversold (%B=-0.00)
@@ -3182,3 +3185,4 @@ rejection reasons today:
   17:39 TIA/USD: Regime: bull_trend (volatility rank 53/100); 🔥 BREAKOUT — Phase 1 — Breakout — +1.7% move with 1.4x volume;   Breaking Bollinger upper band (BB%B=0.93)
   17:51 LDO/USD: Regime: bull_trend (volatility rank 88/100); Pullback to EMA support in uptrend (RSI 57.9) — trend entry; MACD bullish (hist=0.0018)
   17:54 TIA/USD: Regime: bull_trend (volatility rank 52/100); 🔥 BREAKOUT — Phase 1 — Breakout — +1.8% move with 1.5x volume;   Breaking Bollinger upper band (BB%B=0.95)
+  19:44 ADA/USD: Regime: ranging (volatility rank 27/100); 🔥 BREAKOUT — Phase 1 — Breakout — +0.6% move with 1.4x volume;   Breaking Bollinger upper band (BB%B=0.88)

@@ -1,4 +1,1 @@
-ledger payouts found: 0
-banner (baseline run → None expected): None
-tracked payouts: 3 · total $298.17
-second run banner (None expected): None
+ERROR: name 'ac_cached' is not defined

@@ -1,4 +1,5 @@
 bot Postgres positions (latest 10):
+  #221 UAI/USD 93.72932 @ 0.59511 opened 2026-09-06 01:35 open=False
   #220 BCH/USD 0.217022 @ 256.96 opened 2026-09-05 23:03 open=False
   #219 AR/USD 30.99376 @ 3.0435693791266365 opened 2026-09-05 20:32 open=False
   #218 POL/USD 590.92948 @ 0.09584 opened 2026-09-05 19:35 open=False
@@ -8,8 +9,9 @@ bot Postgres positions (latest 10):
   #214 LINK/USD 4.74177 @ 11.90533 opened 2026-09-05 16:39 open=False
   #213 ADA/USD 260.084741 @ 0.217354 opened 2026-09-05 15:37 open=False
   #212 XMR/USD 0.105085 @ 537.5 opened 2026-09-05 12:06 open=False
-  #211 OP/USD 560.27667 @ 0.1012 opened 2026-09-05 12:04 open=False
 bot trades today:
+  2026-09-06 02:00 sell UAI/USD    93.72932 @ 0.62 ($58.11)
+  2026-09-06 01:35 buy  UAI/USD    93.72932 @ 0.59511 ($55.78)
   2026-09-06 00:29 sell BCH/USD    0.217022 @ 258.12 ($56.02)
   2026-09-05 23:03 buy  BCH/USD    0.217022 @ 256.96 ($55.77)
   2026-09-05 23:02 sell AR/USD     30.99376 @ 3.0 ($92.98)
@@ -28,5 +30,3 @@ bot trades today:
   2026-09-05 16:33 sell ADA/USD    260.084741 @ 0.218324 ($56.78)
   2026-09-05 15:37 buy  ADA/USD    260.084741 @ 0.217354 ($56.53)
   2026-09-05 15:30 sell XMR/USD    0.105085 @ 542.61 ($57.02)
-  2026-09-05 12:06 buy  XMR/USD    0.105085 @ 537.5 ($56.48)
-  2026-09-05 12:05 sell OP/USD     560.27667 @ 0.101 ($56.59)

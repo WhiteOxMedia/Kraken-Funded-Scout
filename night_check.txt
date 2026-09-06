@@ -1,6 +1,6 @@
-now: Sat 06:40 PM Denver
+now: Sat 08:09 PM Denver
 
-bridge signals since Sun 8 PM (1646):
+bridge signals since Sun 8 PM (1649):
   2026-08-23T23:13  ASTER/USD  buy  closed    bot_strategy   64.5%
   2026-08-23T23:44  FIL/USD    buy  closed    bot_strategy   77.6%
   2026-08-24T00:13  ASTER/USD  buy  closed    scout_auto     64.5%
@@ -1647,15 +1647,20 @@ bridge signals since Sun 8 PM (1646):
   2026-09-05T17:39  TIA/USD    buy  rejected  scout_auto     76.0%
   2026-09-05T17:51  LDO/USD    buy  rejected  scout_auto     72.5%
   2026-09-05T17:54  TIA/USD    buy  rejected  scout_auto     81.0%
+  2026-09-05T18:35  UAI/USD    buy  closed    bot_strategy   72.0%
+  2026-09-05T19:35  UAI/USD    buy  closed    scout_mover    72.0%
+  2026-09-05T19:44  ADA/USD    buy  rejected  scout_auto     100.0%
 scanner_state: name 'json' is not defined
 
 bot positions (latest 5):
+  #221 UAI/USD @ 0.59511 opened 2026-09-06 01:35 open=False
   #220 BCH/USD @ 256.96 opened 2026-09-05 23:03 open=False
   #219 AR/USD @ 3.0435693791266365 opened 2026-09-05 20:32 open=False
   #218 POL/USD @ 0.09584 opened 2026-09-05 19:35 open=False
   #217 ADA/USD @ 0.22012 opened 2026-09-05 18:57 open=False
-  #216 CRV/USD @ 0.36744 opened 2026-09-05 18:05 open=False
 bot trades since 8 PM (10):
+  2026-09-06 02:00 sell UAI/USD
+  2026-09-06 01:35 buy  UAI/USD
   2026-09-06 00:29 sell BCH/USD
   2026-09-05 23:03 buy  BCH/USD
   2026-09-05 23:02 sell AR/USD
@@ -1664,10 +1669,8 @@ bot trades since 8 PM (10):
   2026-09-05 20:12 sell POL/USD
   2026-09-05 19:35 buy  POL/USD
   2026-09-05 19:07 sell ADA/USD
-  2026-09-05 18:57 buy  ADA/USD
-  2026-09-05 18:35 sell CRV/USD
 
 execution: blacklist=[] strikes=['S/USD', 'ARB/USD', 'LDO/USD', 'POPCAT/USD', 'OP/USD'] pending_scales=[]
 
 kill switch: clear
-rotation now: R5 🌆 US Late | bar 60% | no_buy=False
+rotation now: 🌙 Cooldown | bar 60% | no_buy=True

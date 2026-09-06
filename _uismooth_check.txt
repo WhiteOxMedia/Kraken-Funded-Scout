@@ -1,15 +1,16 @@
-PASS  scanner_status cached (was 2 PowerShell spawns per rerun)  
-PASS  fetch_payouts cached (was a signed ledger fetch per rerun)  
-PASS  bot_positions cached (was a Neon query per rerun)  
-PASS  _ticker_px helper exists + cached  
+PASS  scanner_status adaptive (was 2 PowerShell spawns per rerun)  
+PASS  fetch_payouts adaptive (was a signed ledger fetch per rerun)  
+PASS  bot_positions adaptive (was a Neon query per rerun)  
+PASS  _ticker_px helper exists + adaptive  
 PASS  BOT'S BOOK reads prices through the cached ticker  
 PASS  light cycle exit logic reads the cached ticker  
 PASS  exit check reads the cached ticker  
 PASS  fetch_df delegates to the cached candle fetcher  
-PASS  candle cache is TTL'd (not forever-stale)  
+PASS  candle cache is TTL'd (not forever-stale; adaptive 45s base, 20-90)  
 PASS  QC liquidity plate cached (_qc_liquidity)  
 PASS  TOURNAMENT past picks cached (_past_winners)  
-PASS  a fresh champion busts the past-picks cache  
+PASS  a fresh champion busts the past-picks cache (both layers)  
+PASS  the engine module is the ONE source (imported, not reimplemented)  
 PASS  light clock reads the entry's window_min  
 PASS  light clock STAY CLOSE fires when the goal is nearly paid  
 PASS  retired $20 milestone counter gone from the panel  
@@ -42,4 +43,4 @@ PASS  tour: retired I RE-ENTERED panel gone
 PASS  tour: popups are contest-only is stated  
 PASS  tour: the bot is separate money is stated  
 
-RESULT: 43 passed, 0 failed
+RESULT: 44 passed, 0 failed
