@@ -1,4 +1,4 @@
-now: Sun 01:54 PM — testing filter_illiquid
+now: Sun 03:01 PM — testing filter_illiquid
 current rotation: 12-16 (weekend)
 
 engine cells right now: ALGO=25k DOT=21k S=2k PNUT=2k BTC=8344k

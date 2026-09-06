@@ -9,7 +9,7 @@ PASS  the plate shows the third column (by the gates, theoretical)
 PASS  12-like repeats dedupe to ONE opportunity per pair  {'POPCAT/USD': 3, 'XMR/USD': 1}
 PASS  the last entry's gate is the verdict that held  
 PASS  entries outside the window are excluded  
-PASS  fired pairs parse from the spoken Buy lines  {'ZEC/USD', 'POPCAT/USD'}
+PASS  fired pairs parse from the spoken Buy lines  {'POPCAT/USD', 'ZEC/USD'}
 PASS  non-Buy lines and other windows don't count as fires  
 PASS  a buried payer counts as SYSTEM, not missed (the attribution fix)  {'got': {'missed': 295.91, 'giveback': 0, 'missed_exit': 0, 'early_exit': 0, 'system_burial': 224.6}, 'expected': {'system_burial': 224.6, 'missed': 295.91}}
 PASS  the top gate is named  tide-out

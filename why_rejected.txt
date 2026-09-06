@@ -1,14 +1,14 @@
+2026-09-06T14:42:29 TRX/USD      buy  filled    scout_auto   81.0% reason=Regime: low_vol (volatility rank 25/100); 🔥 BREAKOUT — Phase 1 — Breakout — +0.2% move with 1.8x vol
 2026-09-06T13:46:52 TIA/USD      buy  rejected  scout_auto   92.0% reason=Regime: bull_trend (volatility rank 91/100); 🚀 MOMENTUM RIDER — Phase 2 — Momentum — up +5.8% over 2
+2026-09-06T13:43:12 TRX/USD      buy  filled    bot_strategy 81.0% reason=Regime: low_vol (volatility rank 25/100); 🔥 BREAKOUT — Phase 1 — Breakout — +0.2% move with 1.8x vol
 2026-09-06T12:53:22 LINK/USD     buy  rejected  scout_auto   81.0% reason=Regime: bull_trend (volatility rank 81/100); 🔥 BREAKOUT — Phase 1 — Breakout — +1.9% move with 1.9x 
 2026-09-06T12:42:01 LINK/USD     buy  rejected  scout_auto   81.0% reason=Regime: bull_trend (volatility rank 80/100); 🔥 BREAKOUT — Phase 1 — Breakout — +1.9% move with 1.8x 
 2026-09-06T12:30:41 LINK/USD     buy  rejected  scout_auto   81.0% reason=Regime: bull_trend (volatility rank 77/100); 🔥 BREAKOUT — Phase 1 — Breakout — +1.9% move with 1.7x 
-2026-09-06T12:05:37 RENDER/USD   buy  filled    scout_auto   100.0% reason=Regime: bull_trend (volatility rank 97/100); 🚀 MOMENTUM RIDER — Phase 2 — Momentum — up +3.0% over 2
+2026-09-06T12:05:37 RENDER/USD   buy  closed    scout_auto   100.0% reason=Regime: bull_trend (volatility rank 97/100); 🚀 MOMENTUM RIDER — Phase 2 — Momentum — up +3.0% over 2
 2026-09-06T11:25:13 UNI/USD      sell closed    scout_exit_check 0.0% reason=Exit check: momentum rider exit triggered
-2026-09-06T11:06:38 RENDER/USD   buy  filled    bot_strategy 100.0% reason=Regime: bull_trend (volatility rank 97/100); 🚀 MOMENTUM RIDER — Phase 2 — Momentum — up +3.0% over 2
+2026-09-06T11:06:38 RENDER/USD   buy  closed    bot_strategy 100.0% reason=Regime: bull_trend (volatility rank 97/100); 🚀 MOMENTUM RIDER — Phase 2 — Momentum — up +3.0% over 2
 2026-09-06T10:59:46 PUMP/USD     buy  rejected  scout_auto   64.0% reason=Regime: high_vol (volatility rank 96/100); RSI oversold (33.0); BB oversold (%B=0.05)
-2026-09-06T10:58:55 NEAR/USD     buy  rejected  scout_auto   88.0% reason=Regime: bull_trend (volatility rank 98/100); 🔥 BREAKOUT — Phase 1 — Breakout — +3.3% move with 1.2x 
-2026-09-06T10:42:56 DOT/USD      buy  rejected  scout_auto   51.5% reason=Regime: bull_trend (volatility rank 95/100); Pullback to EMA support in uptrend (RSI 61.7) — trend e
 
 open positions: 2
-  RENDER/USD since 2026-09-06T12:06 @ 1.512
-  RENDER/USD since 2026-09-06T11:06 @ 1.512
+  TRX/USD since 2026-09-06T14:43 @ 0.335925
+  TRX/USD since 2026-09-06T13:43 @ 0.335925

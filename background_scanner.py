@@ -1480,6 +1480,168 @@ def _recent_fired_popups(window_min=POPUP_CAP_WINDOW_MIN) -> int:
         return 0
 
 
+# ── THE DANGER-ZONE PANEL (user rule, Sep 6: "updated thin book rules:
+#    when you're already in a trade the effective buying power shrinks,
+#    so any new buy popup needs to show different danger-zone metrics
+#    than when you're flat... We already have some of this so just
+#    modify it and build only what we need") — the THIN-BOOK OPTIMIZED
+#    popup panel. ONE builder, appended to every BUY popup (champion +
+#    mover + sure-thing): balance overview (total/available/committed),
+#    position status (the "am I already wet?" read), auto-adjusted
+#    purchase power (full 25% flat vs reduced in-trade vs effective),
+#    danger-zone metrics (drawdown, distance, this trade's impact),
+#    the thin-book indicator (signals in the last 10 min + cluster
+#    risk), the turnaround profile (the $10/10-minute model), and the
+#    final decision snapshot. INFORMS, never gates — the gates stand.
+def _recent_signal_events(window_min: float = 10.0) -> int:
+    """Signals (fired + buried) inside the window — the cluster read."""
+    try:
+        import json as _json
+        from datetime import datetime as _dt, timedelta as _td
+        if not os.path.exists(SIGNAL_SNAPSHOTS_FILE):
+            return 0
+        _cutoff = _now_mst() - _td(minutes=window_min)
+        _n = 0
+        with open(SIGNAL_SNAPSHOTS_FILE, "r", encoding="utf-8") as f:
+            for line in f:
+                try:
+                    r = _json.loads(line)
+                except Exception:
+                    continue
+                try:
+                    if _dt.fromisoformat(r.get("ts")) >= _cutoff:
+                        _n += 1
+                except Exception:
+                    continue
+        return _n
+    except Exception:
+        return 0
+
+
+def _danger_zone_panel(exchange, pair: str, spend: float, goal_pct: float,
+                       win_min: float, mult: float) -> str:
+    """The thin-book-optimized danger-zone block for a BUY popup.
+    Reads the live contest account + the watch + the book; never raises
+    (a broken read yields an honest one-liner, the popup still fires)."""
+    try:
+        import contest_account as _ca
+        _acct = _ca.load_state()
+        _bal = float(_acct["current_balance"])
+        _start = float(_acct["start_balance"])
+        _line = _ca.death_line(_acct)
+        _buf = _bal - _line
+        _pace = _ca.daily_pace_usd(_acct)
+        _wdd = _ca.window_drawdown_pct(pair)
+
+        # 1-2. the watch: committed capital + unrealized P/L
+        _committed = 0.0
+        _pos_line = "Position: FLAT"
+        try:
+            _w = _load_contest_watch()
+            for _p, _e in (_w or {}).items():
+                _sz = float(_e.get("size") or 0.0)
+                _committed += _sz
+            if _w:
+                _upl = 0.0
+                for _p, _e in _w.items():
+                    try:
+                        _t = float((exchange.fetch_ticker(_p) or {}).get("last") or 0.0)
+                        _entry = float(_e.get("entry") or 0.0)
+                        if _t > 0 and _entry > 0:
+                            _upl += (_t - _entry) * (float(_e.get("size") or 0.0) / _entry)
+                    except Exception:
+                        pass
+                _exp = "LOW" if _committed < 0.10 * _bal else \
+                       "MEDIUM" if _committed < 0.50 * _bal else "HIGH"
+                _pos_line = (f"Position: {len(_w)} open · ${_committed:,.0f} "
+                             f"(unrealized {'+' if _upl >= 0 else ''}${_upl:,.0f}) "
+                             f"· exposure {_exp}")
+        except Exception:
+            pass
+        _avail = max(0.0, _bal - _committed)
+        _pct_comm = (_committed / _bal * 100.0) if _bal > 0 else 0.0
+
+        # 3. purchase power: full 25% flat vs reduced in-trade
+        _full25 = 0.25 * _bal
+        _red25 = 0.25 * _avail
+        _carry = None
+        try:
+            from execution_tiers import measure_book
+            _tob = float((measure_book(exchange, pair) or {}).get("ask_tob") or 0.0)
+            if _tob > 0:
+                _carry = _tob * 0.20
+        except Exception:
+            _carry = None
+        _eff = min(spend, _red25 if _committed > 0 else _full25)
+        if _carry is not None:
+            _eff = min(_eff, _carry)
+
+        # 4. danger zone + this trade's impact
+        _dd_pct = max(0.0, (_start - _bal) / _start * 100.0) if _start > 0 else 0.0
+        _dist_pct = (_buf / _start * 100.0) if _start > 0 else 0.0
+        _goal_gain = spend * goal_pct / 100.0
+        _worst = spend * _wdd / 100.0
+        if _worst >= 0.5 * _buf:
+            _impact = "INCREASES DANGER"
+        elif _goal_gain >= 0.25 * _pace:
+            _impact = "HELPS RECOVERY"
+        else:
+            _impact = "NEUTRAL"
+
+        # 5. thin book + cluster
+        _sig10 = _recent_signal_events(10.0)
+        if _carry is None:
+            _book = "UNREADABLE"
+        elif _carry >= _bal:
+            _book = "THICK"
+        elif _carry >= 0.5 * _bal:
+            _book = "NORMAL"
+        else:
+            _book = "THIN"
+        _cluster = "HIGH" if (_sig10 >= 2 and _book == "THIN") else \
+                   "MEDIUM" if (_sig10 >= 2 or _book == "THIN") else "LOW"
+
+        # 6. turnaround profile ($10 / 10-minute model)
+        _per10 = 10.0 * goal_pct / 100.0
+        if win_min <= 60 or goal_pct <= 1.2:
+            _ttype = "QUICK SCALP"
+        elif win_min <= 120:
+            _ttype = "MEDIUM SWING"
+        else:
+            _ttype = "SLOW RECOVERY"
+        if _book == "THIN":
+            _ttype += " (⚠ THIN BOOK)"
+
+        # 7. the final decision snapshot
+        _risk = "HIGH" if (_worst >= 0.5 * _buf or mult < 0.5 or _cluster == "HIGH") else \
+                "MEDIUM" if (mult < 1.0 or _book == "THIN") else "LOW"
+        _recov = "STRONG" if _goal_gain >= 0.5 * _pace else \
+                 "MODERATE" if _goal_gain >= 0.25 * _pace else "WEAK"
+        _action = "AVOID (danger zone proximity)" if _worst >= 0.6 * _buf else \
+                  "AGGRESSIVE ENTRY" if (_risk == "LOW" and _recov == "STRONG") else \
+                  "STANDARD ENTRY"
+
+        return (
+            f"{'─' * 30}\n"
+            f"DANGER ZONE — {'FLAT' if _committed <= 0 else 'IN TRADE'}\n"
+            f"  Balance: ${_bal:,.0f} total · ${_avail:,.0f} available · "
+            f"{_pct_comm:.0f}% committed\n"
+            f"  {_pos_line}\n"
+            f"  Buying power: full 25% ${_full25:,.0f} · "
+            f"reduced ${_red25:,.0f} · effective ${_eff:,.0f}\n"
+            f"  Drawdown: {_dd_pct:.1f}% · distance to line: "
+            f"{_dist_pct:.1f}% (${_buf:,.0f})\n"
+            f"  This trade: {_impact} (goal +${_goal_gain:,.0f} vs "
+            f"worst −${_worst:,.0f})\n"
+            f"  Book: {_book}{f' (${_carry:,.0f} carries)' if _carry else ''} · "
+            f"signals last 10 min: {_sig10} · cluster {_cluster}\n"
+            f"  Turnaround: ~{win_min:.0f} min · $10 unit pays "
+            f"${_per10:.2f} · {_ttype}\n"
+            f"  RISK {_risk} · recovery {_recov} → {_action}\n")
+    except Exception as exc:
+        return f"{'─' * 30}\nDANGER ZONE: metrics unavailable ({exc})\n"
+
+
 def _speak_server(text: str, rate: int = 2):
     """Zira out loud from the SCANNER process — runs whether or not any
     browser is open. Same amplified speak script the console uses.
@@ -2966,6 +3128,16 @@ def main():
                        + _tide_spoken
                        + (f"If it hasn't paid by {_out_by}, get out!" if _out_by else
                           "Hold for the goal!"))
+            # ── THE DANGER-ZONE PANEL (user rule, Sep 6 — the thin-book
+            #    optimized metrics): computed with the FINAL sized spend,
+            #    BEFORE the message build; informs, never gates
+            _dz = ""
+            try:
+                _dz = _danger_zone_panel(exchange, pair, float(_spend or 0.0),
+                                         float(_goal_pct or 1.5),
+                                         float(_win_min or 60.0), _brain_mult)
+            except Exception:
+                _dz = ""
             message = (
                 f"BUY {asset}\n"
                 f"WHY: the engine expects +{_goal_pct:.1f}% in this window at this coin's pace, "
@@ -2981,6 +3153,7 @@ def main():
                 + (f"🚀 FAST ROUTE: {_fast_why} — minimal gates; the 3% guard + the "
                    f"popup cap carry the risk\n" if _fast_route else "")
                 + f"{contest_msg}"
+                + f"{_dz}"
                 f"{'-' * 30}\n"
                 f"get out at ${signal.stop_loss:.4f} (wrong)\n"
                 f"cash out at ${signal.take_profit:.4f} (win)\n"
@@ -3092,10 +3265,11 @@ def main():
     def _sure_thing_scan(exchange):
         import sure_thing as st
         from hindsight_scorer import brain_size_mult as _st_mult
-        assets = [a for a in ASSETS if a not in ("NVDA",)]
-        for asset in assets:
+        # the scanner's own pair list (cfg.trading_pairs — the 54; the
+        # app.py ASSETS list doesn't exist here)
+        for pair in list(all_pairs):
             try:
-                pair = f"{asset}/USD"
+                asset = pair.split("/")[0]
                 rows = exchange.fetch_ohlcv(pair, timeframe="5m", limit=720)
                 r = st.analyze(rows or [])
                 if not r.get("armed"):
@@ -3179,7 +3353,9 @@ def main():
                         f"HOW LONG: out by {_out_by} (the countdown — "
                         f"{st.SURE_THING_WINDOW_MIN:.0f} min window)\n"
                         f"SPEND: ${_spend:,.0f} (the 3% guard cap × {_mult:.2f} probability sizing)\n"
-                        f"{'-' * 30}\n"
+                        + _danger_zone_panel(exchange, pair, float(_spend or 0.0),
+                                             1.5, st.SURE_THING_WINDOW_MIN, _mult)
+                        + f"{'-' * 30}\n"
                         f"CONTEST-ONLY — no bridge write. Run the DEEP SCAN now for "
                         f"tracking (the one path where the popup precedes it — your call, "
                         f"Sep 6). The death line never yields.\n"
@@ -3887,7 +4063,12 @@ def main():
                                         + f"{_m_tide_line}"
                                         f"{_m_re_line}"
                                         f"{_m_spend_line}"
-                                        f"{'-' * 30}\n"
+                                        + _danger_zone_panel(exchange, pair,
+                                                             float(_m_spend or 0.0),
+                                                             float(_m_goal or 1.5),
+                                                             float(_m_win or 60.0),
+                                                             _m_mult)
+                                        + f"{'-' * 30}\n"
                                         f"get out at ${signal.stop_loss:.4f} (wrong)\n"
                                         f"cash out at ${signal.take_profit:.4f} (win)\n"
                                         f"{'-' * 30}\n"

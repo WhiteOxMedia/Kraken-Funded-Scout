@@ -1,10 +1,10 @@
-now: Sun 01:51 PM Denver
+now: Sun 02:58 PM Denver
 
 OPEN positions: 2
-  RENDER/USD since 2026-09-06T12:06 @ 1.512
-  RENDER/USD since 2026-09-06T11:06 @ 1.512
+  TRX/USD since 2026-09-06T14:43 @ 0.335925
+  TRX/USD since 2026-09-06T13:43 @ 0.335925
 
-full signal trail today (1780 signals):
+full signal trail today (1782 signals):
   00:00  ALGO/USD   buy  rejected  scout_auto     64.0%
   00:00  BTC/USD    buy  rejected  scout_auto     71.0%
   00:11  ADA/USD    buy  rejected  scout_auto     72.0%
@@ -1778,13 +1778,15 @@ full signal trail today (1780 signals):
   10:42  DOT/USD    buy  rejected  scout_auto     51.5%
   10:58  NEAR/USD   buy  rejected  scout_auto     88.0%
   10:59  PUMP/USD   buy  rejected  scout_auto     64.0%
-  11:06  RENDER/USD buy  filled    bot_strategy   100.0%
+  11:06  RENDER/USD buy  closed    bot_strategy   100.0%
   11:25  UNI/USD    sell closed    scout_exit_check 0.0%
-  12:05  RENDER/USD buy  filled    scout_auto     100.0%
+  12:05  RENDER/USD buy  closed    scout_auto     100.0%
   12:30  LINK/USD   buy  rejected  scout_auto     81.0%
   12:42  LINK/USD   buy  rejected  scout_auto     81.0%
   12:53  LINK/USD   buy  rejected  scout_auto     81.0%
+  13:43  TRX/USD    buy  filled    bot_strategy   81.0%
   13:46  TIA/USD    buy  rejected  scout_auto     92.0%
+  14:42  TRX/USD    buy  filled    scout_auto     81.0%
 
 rejection reasons today:
   00:00 ALGO/USD: Regime: high_vol (volatility rank 87/100); RSI oversold (29.0); BB oversold (%B=-0.00)

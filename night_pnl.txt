@@ -1,5 +1,5 @@
-positions since Sun 8 PM MST: 103
-trades since Sun 8 PM MST: 234
+positions since Sun 8 PM MST: 104
+trades since Sun 8 PM MST: 236
 
 time    side  pair              vol      price      usd
 02:31   sell  NEAR/USD        79.78     2.0098 $ 160.34
@@ -236,12 +236,14 @@ time    side  pair              vol      price      usd
 16:30   buy   UNI/USD         7.487     7.3876 $  55.31
 17:25   sell  UNI/USD         7.487     7.1755 $  53.72
 18:06   buy   RENDER/USD      35.77      1.512 $  54.08
+20:09   sell  RENDER/USD      35.77       1.53 $  54.73
+20:43   buy   TRX/USD           161    0.33592 $  54.07
 
-total bought:  $11,820.48
-total sold:    $11,499.71
-total fees:    $27.33
-net P&L:       $-348.10
-round trips:   117
+total bought:  $11,874.55
+total sold:    $11,554.43
+total fees:    $27.71
+net P&L:       $-347.83
+round trips:   118
 
 exit reasons:
   02:31 NEAR/USD: Time-block rotation — flatten to cash
@@ -348,3 +350,4 @@ exit reasons:
   15:19 XRP/USD: Cooldown ended at 4 min — 1h knife still reversed (EMA9 $1.415 < EMA21 $1.416, live $1.408 under both)
   16:22 NEAR/USD: Strategy sell (34%, PnL 1.0%)
   17:25 UNI/USD: Exit check: momentum rider exit triggered
+  20:09 RENDER/USD: Strategy sell (40%, PnL 1.3%)
