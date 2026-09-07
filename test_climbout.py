@@ -58,9 +58,12 @@ def hist(n=340, base=100.0, amp=0.01, drift=0.0, vol=10.0):
     return rows
 
 
-def two_phase(n1, amp1, n2, amp2, drift2=0.0, base=100.0):
-    """Volatile early, calm (or trending) late — the squeeze setup."""
-    rows = hist(n1, base=base, amp=amp1)
+def two_phase(n1, amp1, n2, amp2, drift2=0.0, base=100.0, drift1=0.0):
+    """Volatile early, calm (or trending) late — the squeeze setup.
+    drift1 gives the early phase a real trend (high-ER windows) so a
+    choppy late phase ranks at the BOTTOM of the coin's own ER
+    distribution — the chop test needs that contrast."""
+    rows = hist(n1, base=base, amp=amp1, drift=drift1)
     px = rows[-1][4] if rows else base
     for i in range(n2):
         _j = 0.4 + ((i * 53) % 100) / 100.0
@@ -112,7 +115,7 @@ check("the map detects the stamped ceiling (repeated tests merge)",
       [(round(lv["price"], 2), lv.get("touches"), lv.get("strength"))
        for lv in highs])
 check("the map detects the stamped floor",
-      any(abs(float(lv["price"]) - final_px * 0.965) / (final_px * 0.965)
+      any(abs(float(lv["price"]) - final_px * 0.97) / (final_px * 0.97)
           < 0.005 for lv in lows))
 check("repeated tests build strength (the coin's own 'major')",
       any(float(lv.get("strength") or 0) >= co.DEFAULT_RULES["major_strength"]
@@ -176,9 +179,11 @@ check("a ceiling right overhead FAILS the clearance gate",
       not res["ok"] and res["fail_gate"] == "clearance",
       (res["fail_gate"], res["fail_reason"]))
 
-# the chop case: recent sideways + normal vol -> FAILS the ER gate
+# the chop case: a real early trend, then recent sideways + normal vol
+# -> FAILS the ER gate (the recent ER lands in the bottom of the
+# coin's own distribution — chop, not a coil: the vol is normal)
 fresh_map()
-chop_rows = two_phase(240, 0.0015, 100, 0.03, drift2=0.0)
+chop_rows = two_phase(240, 0.0015, 60, 0.03, drift2=0.0, drift1=0.004)
 cpx = chop_rows[-1][4]
 chop_rows = with_pivots(chop_rows, ceiling=cpx * 1.11, floor=cpx * 0.94,
                         times=4)

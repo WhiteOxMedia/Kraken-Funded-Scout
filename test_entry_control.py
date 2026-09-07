@@ -87,8 +87,10 @@ check("POSITION line rendered (dollars)", "POSITION <span" in ec_blk)
 check("TAKE THE PROFIT verdict exists", "TAKE THE PROFIT" in ec_blk)
 check("goal ETA uses the watch goal", "_goal_px = (entry * (1 + _w_goal / 100.0))" in ec_blk)
 check("green light stores the why", "(green light" in ap)
-check("green light why carries the challenger mark (Sep 4)",
-      "', challenger' if _champ_challenge else ''" in ap)
+# (Sep 5: the challenger mark retired with the popup floor — the
+# green-light why stays clean, same rule as the QC GO toast + auto-watch)
+check("green light why is clean (no challenger mark)",
+      "', challenger'" not in ap)
 check("WATCH-anyway stores the why", "(watched anyway)" in ap)
 check("unified control takes a why input", 'key=f"{prefix}_why"' in ap)
 
