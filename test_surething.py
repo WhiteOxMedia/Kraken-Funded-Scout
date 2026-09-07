@@ -4,9 +4,12 @@ repeated resistance/support tests, volume pressure shifts, and historical
 breakout signatures. Combine these into a breakout probability score and
 trigger a pre-breakout BUY signal with a countdown timer when the
 probability exceeds the threshold.") -- the upgraded detector: the
-PRE-BREAKOUT fire (probability >= 75 inside the coil) + the CRACK fire
-(price crossing the ceiling on volume). CONTEST-ONLY; the 3% guard, the
-popup cap, the rotation lock, the knife and the tide gates stand."""
+PRE-BREAKOUT fire (probability over the threshold inside the coil; the
+bar sits at the top-of-fleet coil AND the 0.50x sizing bucket line,
+Sep 7 recalibration) + the CRACK fire (price crossing the ceiling on
+volume -- the original path AND the closed-through path, because live
+polling reads the crack candle half-full). CONTEST-ONLY; the 3% guard,
+the popup cap, the rotation lock, the knife and the tide gates stand."""
 import sys
 from pathlib import Path
 
@@ -110,7 +113,7 @@ r = st.analyze(rows)
 check("the full-pressure coil (rising floor + revs + greens + paid "
       "history) fires PRE-BREAKOUT, still inside the coil",
       r["fire"] and r["trigger"] == "pre-breakout", (r["score"], r["detail"]))
-check("the probability crossed the threshold (>= 75)",
+check("the probability crossed the threshold (>= the fire bar)",
       r["score"] >= st.PRE_BREAKOUT_THRESHOLD, r["score"])
 check("the trigger price is INSIDE the coil (before the breakout runs)",
       r["trigger_px"] < r["zone_high"], (r["trigger_px"], r["zone_high"]))
@@ -198,8 +201,17 @@ check("no candles at all -> a clean no-op", not r["armed"])
 # ── 5. THE SIZING SEAM + THE CONSTANTS ───────────────────────────────
 check("the countdown window is the one-hour breakout clock",
       st.SURE_THING_WINDOW_MIN == 60.0)
-check("the pre-breakout threshold is 75 (the full-size bucket line)",
-      st.PRE_BREAKOUT_THRESHOLD == 75.0)
+check("the pre-breakout threshold is 65 (the top-of-fleet coil AND "
+      "the 0.50x sizing bucket line, Sep 7 recalibration)",
+      st.PRE_BREAKOUT_THRESHOLD == 65.0)
+check("the micro-spike bar is 1.25x the faded mean (a rev is volume "
+      "WAKING, not the burst -- Sep 7 recalibration)",
+      st.MICRO_SPIKE_X == 1.25)
+check("the crack still demands the full burst (2.0x the coil mean)",
+      st.VOL_SPIKE_X == 2.0)
+check("the closed-through crack path exists (1.5x burst, live polling "
+      "reads the crack candle half-full -- Sep 7 recalibration)",
+      st.VOL_SPIKE_X * 0.75 == 1.5)
 from hindsight_scorer import brain_size_mult
 cl5, ch5, clow5, cv5 = coil()
 rows = mk(osc_hist(), cl5, ch5, clow5, cv5)

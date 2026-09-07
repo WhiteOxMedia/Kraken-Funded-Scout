@@ -46,7 +46,12 @@ COIL_MAX_RANGE_PCT = 2.0    # the zone's total range must be under this (%)
 CEILING_TOUCH_PCT = 0.15    # a "test" = high within this % of the ceiling
 MIN_CEILING_TESTS = 3       # the weakening-the-ceiling count
 VOL_SPIKE_X = 2.0           # the crack candle's volume vs the coil mean
-MICRO_SPIKE_X = 1.5         # a revving candle: volume without a crack
+MICRO_SPIKE_X = 1.25        # a revving candle: volume without a crack
+                            #   (Sep 7 recalibration: at 1.5x a FADING coil
+                            #   mean a rev almost never prints -- two days of
+                            #   fleet scans read 0-4 revs per armed coil. A
+                            #   rev is volume WAKING, not the burst; the
+                            #   crack still demands the full 2.0x.)
 SQUEEZE_LOOKBACK = 288      # 24h of 5m candles for the vol baseline
 SQUEELE_PCT = 0.20          # the coil's vol must sit in the calmest fifth
 TRIGGER_EDGE_PCT = 0.05     # price at/above (ceiling - this) = the crack
@@ -57,7 +62,14 @@ BB_STD = 2.0
 BB_NARROW_PCT = 0.30        # BB width in the narrowest 30% of the window
 HIST_PAY_MOVE_PCT = 1.5     # a past setup "paid" if +this% within 12 candles
 HIST_PAY_WINDOW = 12
-PRE_BREAKOUT_THRESHOLD = 75.0   # the probability that fires pre-breakout
+PRE_BREAKOUT_THRESHOLD = 65.0   # the probability that fires pre-breakout
+                            #   (Sep 7 recalibration: two days of live fleet
+                            #   scans topped out at 60.3 -- the 75 bar was
+                            #   unreachable as calibrated; 65 is the top-of-
+                            #   fleet coil AND the 0.50x sizing bucket line.
+                            #   The protective gates -- rotation lock, tide,
+                            #   knife, popup cap, climb-out -- still stand
+                            #   between the fire and the popup.)
 
 
 def analyze(rows):
@@ -243,7 +255,9 @@ def analyze(rows):
                          f"{(out['hist_hit_rate'] or 0) * 100:.0f}%/{hist_n}")
 
         # the estimated breakout window: compression speed + revving
-        _hot = micro >= 2 or (out["pullback_trend"] or 0) >= 0.75
+        # hot = the window tightens: 3+ revs (the 1.25x bar counts more
+        # candles than the old 1.5x did) or a rising floor
+        _hot = micro >= 3 or (out["pullback_trend"] or 0) >= 0.75
         out["est_min"] = 30 if _hot else 60
 
         # 7. THE TRIGGERS
@@ -253,9 +267,22 @@ def analyze(rows):
             out["fire"] = True
             out["trigger"] = "pre-breakout"
             out["trigger_px"] = px
-        # (b) THE CRACK: price crossing the ceiling on the volume burst
+        # (b) THE CRACK: price crossing the ceiling on the volume burst.
+        #     Two paths (Sep 7): the original -- px at the edge, burst >=
+        #     2.0x -- and the closed-through path, because the scanner
+        #     polls LIVE 5m candles: mid-candle the crack candle's volume
+        #     is partial, so the 2.0x bar kept reading a half-full candle
+        #     and the crack died in a polling lottery (172 armed zones in
+        #     two days, zero cracks). If price stands strictly THROUGH the
+        #     ceiling (px > zh), 1.5x of the faded mean is a burst. The
+        #     next poll the crack candle enters the zone, its range blows
+        #     the coil, and armed drops -- one-shot by construction.
         edge = zh * (1.0 - TRIGGER_EDGE_PCT / 100.0)
         if px >= edge and burst >= VOL_SPIKE_X:
+            out["fire"] = True
+            out["trigger"] = "crack"
+            out["trigger_px"] = px
+        elif px > zh and burst >= VOL_SPIKE_X * 0.75:
             out["fire"] = True
             out["trigger"] = "crack"
             out["trigger_px"] = px
@@ -288,8 +315,15 @@ def _score(rng_pct, tests, vol_rank, burst, vol_fading, atr_ratio,
     s += min(5.0, 5.0 * (burst - 1.0)) if burst > 1.0 else 0.0
     # the squeeze
     s += max(0.0, min(15.0, 15.0 * (vol_rank - (1.0 - SQUEELE_PCT)) / SQUEELE_PCT))
-    # history: the coin's own hit rate
-    if hist_rate is not None:
+    # history: the coin's own hit rate. UNKNOWN history sits at neutral
+    # (5.0), not zero -- most majors have no minable +1.5%-in-an-hour coil
+    # in their fetched window, and zeroing them turned the bonus into a
+    # tax the bar could never clear (Sep 7: every armed coin in the fleet
+    # read hist 0.0-0.11). The score grows as the dataset grows -- from
+    # the middle, not the floor.
+    if hist_rate is None:
+        s += 5.0
+    else:
         s += 10.0 * hist_rate
     return round(min(100.0, s), 1)
 
