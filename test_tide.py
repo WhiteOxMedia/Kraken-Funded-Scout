@@ -28,6 +28,24 @@ else:
     check("live breadth in 0-100", 0.0 <= pct <= 100.0, f"{pct}")
     check("live state is a real state", state in ("RISING", "FLAT", "OUT"), state)
 
+# ── THE FLAT SIZING FACTOR (Sep 7: the stamped week spoke — FLAT 22%
+#    win vs RISING 57%; the user picked 0.50×) ──────────────────────────
+bs_src = (BASE / "background_scanner.py").read_text(encoding="utf-8").replace("\r\n", "\n")
+ap_src = (BASE / "app.py").read_text(encoding="utf-8").replace("\r\n", "\n")
+check("the factor exists at 0.50", "TIDE_FLAT_SIZE_FACTOR = 0.50" in bs_src)
+check("the champion sizes FLAT down (after the guard + brain, before the worth floor)",
+      "if is_buy and (_df_state or \"\") == \"FLAT\":" in bs_src
+      and "_spend = _spend * _tide_size_mult" in bs_src
+      and bs_src.find("FLAT TIDE SIZING") < bs_src.find("if is_buy and not _fast_route:"))
+check("the mover sizes FLAT down",
+      "(_tsw or \"\") == \"FLAT\"" in bs_src
+      and "_m_spend = _m_spend * TIDE_FLAT_SIZE_FACTOR" in bs_src)
+check("the QC mirrors the alert (never disagrees)",
+      "_bs_tsf.TIDE_FLAT_SIZE_FACTOR" in ap_src
+      and "(_tide_state or \"\") == \"FLAT\"" in ap_src)
+check("the popup + voice name the discount",
+      "TIDE SIZES IT: FLAT" in bs_src and "Flat tide — half size!" in bs_src)
+
 fails = [r for r in results if not r[1]]
 out = BASE / "tide_check.txt"
 out.write_text("\n".join(

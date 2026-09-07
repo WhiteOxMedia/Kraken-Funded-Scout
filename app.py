@@ -2577,6 +2577,15 @@ def render_quick_check(cfg: TradingConfig, kraken):
                     _tide_pct, _tide_state = _bs4._fleet_tide()
                 except Exception:
                     _tide_pct, _tide_state = None, None
+                # ── THE FLAT SIZING FACTOR (Sep 7): the QC mirrors the alert
+                #    path, never disagrees — FLAT sizes half (the stamped
+                #    week: FLAT 22% win vs RISING 57%; the user picked 0.50×).
+                if _spend_usd > 0 and (_tide_state or "") == "FLAT":
+                    try:
+                        import background_scanner as _bs_tsf
+                        _spend_usd = _spend_usd * _bs_tsf.TIDE_FLAT_SIZE_FACTOR
+                    except Exception:
+                        pass
                 # re-entry guard: a pair that just paid a big TAKE IT is an
                 # exhausted move — re-entering rides the giveback
                 _payout = _recent_big_payout(pair)

@@ -1452,6 +1452,16 @@ def _popup_cap() -> int:
         return POPUP_CAP_DEFAULT
 
 
+# ── THE FLAT SIZING FACTOR (user rule, Aug 31: "collect the data
+#    first" — the first stamped week is in, Sep 7): FLAT won 22%
+#    (2W/7L of 9 real outcomes) vs RISING 57% (8W/6L of 14) — the
+#    pre-registered discount frame met (≥15pt gap + negative FLAT avg),
+#    the user picked 0.50×. FLAT trades still flow at half size (the
+#    scorer keeps learning); RISING stays full. Re-read the record
+#    weekly: diag_tidedata.py.
+TIDE_FLAT_SIZE_FACTOR = 0.50
+
+
 def _climb_strictness() -> float:
     """THE CLIMB-OUT DIAL (user rule, Sep 6): the strictness multiplier
     (0.5x-2.0x) scales every climb-out clearance multiplier. Read LIVE
@@ -3067,6 +3077,18 @@ def main():
                                 _brain_mult, _spend)
             except Exception:
                 pass
+        # ── THE FLAT SIZING FACTOR (user rule, Aug 31: "collect the data
+        #    first" — one stamped week later, Sep 7): FLAT 22% win vs
+        #    RISING 57% — the discount frame met; the user picked 0.50×.
+        #    Rides AFTER the guard + brain sizing, BEFORE the worth floor
+        #    (a discounted entry still pays its pace — same order as the
+        #    brain multiplier). RISING/OUT untouched.
+        _tide_size_mult = 1.0
+        if is_buy and (_df_state or "") == "FLAT":
+            _tide_size_mult = TIDE_FLAT_SIZE_FACTOR
+            _spend = _spend * _tide_size_mult
+            logger.info("  FLAT TIDE SIZING: %.2fx → $%.0f (the tide data spoke)",
+                        _tide_size_mult, _spend)
         # ── THE CLIMB-OUT GATES (user rule, Sep 6: "Find swing trades
         #    that avoid danger zones: no trades near major resistance,
         #    no trades in chop, no trades when liquidity is thin. Only
@@ -3154,6 +3176,9 @@ def main():
                                f"(it sizes, it never blocks)\n")
                 _brain_say = (f"The brain says {_dc:.0f} percent — "
                               f"sizing at {_brain_mult:.2f}! ")
+            _tide_size_line = (f"  TIDE SIZES IT: FLAT — {TIDE_FLAT_SIZE_FACTOR:.2f}× size = "
+                               f"${_spend:,.0f} (the stamped week: FLAT 22% win vs "
+                               f"RISING 57% — pickier, smaller)\n" if _tide_size_mult < 1.0 else "")
             _reentry_line = ""
             _reentry_say = ""
             if _is_reentry:
@@ -3198,6 +3223,7 @@ def main():
             _spoken = (f"Buy {asset}! {_dc:.0f} percent sure! "
                        + _challenger_say
                        + _brain_say
+                       + ("Flat tide — half size! " if _tide_size_mult < 1.0 else "")
                        + ("Fast route! " if _fast_route else "")
                        + _reentry_say
                        + _hm_say
@@ -3232,6 +3258,7 @@ def main():
                 f"{_hm_line}"
                 f"{_challenger_line}"
                 f"{_brain_line}"
+                f"{_tide_size_line}"
                 + (f"🚀 FAST ROUTE: {_fast_why} — minimal gates; the 3% guard + the "
                    f"popup cap carry the risk\n" if _fast_route else "")
                 + f"{contest_msg}"
@@ -4066,6 +4093,14 @@ def main():
                                                 _m_spend = _m_spend * _m_mult
                                                 logger.info("  MOVER ADVISORY BRAIN SIZING: "
                                                             "%.2fx → $%.0f", _m_mult, _m_spend)
+                                            # ── THE FLAT SIZING FACTOR (Sep 7): the
+                                            #    same discount as the champion path —
+                                            #    the tide data spoke (FLAT 22% vs 57%)
+                                            if (_tsw or "") == "FLAT":
+                                                _m_spend = _m_spend * TIDE_FLAT_SIZE_FACTOR
+                                                logger.info("  MOVER FLAT TIDE SIZING: "
+                                                            "%.2fx → $%.0f", TIDE_FLAT_SIZE_FACTOR,
+                                                            _m_spend)
                                             # ── THE CLIMB-OUT GATES (Sep 6):
                                             #    same hard gate as the champion
                                             #    path — no escape route, no trade
@@ -4170,6 +4205,9 @@ def main():
                                         + (f"BRAIN SIZES IT: {_m_dc:.0f}% → {_m_mult:.2f}× size = "
                                            f"${_m_spend:,.0f} — the scan ran; the number is advisory "
                                            f"(it sizes, it never blocks)\n" if _m_mult < 1.0 else "")
+                                        + (f"TIDE SIZES IT: FLAT — {TIDE_FLAT_SIZE_FACTOR:.2f}× size = "
+                                           f"${_m_spend:,.0f} (the stamped week: FLAT 22% win vs "
+                                           f"RISING 57% — pickier, smaller)\n" if _tsw == "FLAT" else "")
                                         + (f"🚀 FAST ROUTE: {_m_fast_why} — minimal gates; the "
                                            f"3% guard + the popup cap carry the risk\n" if _m_fast else "")
                                         + f"{_m_tide_line}"
