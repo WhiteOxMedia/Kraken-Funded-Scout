@@ -8,3 +8,6 @@ wheels/
 
 # Virtual environments
 .venv
+
+# console watchdog runtime timestamp - rewritten on every heal
+.console_watchdog.grace
