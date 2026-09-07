@@ -294,6 +294,22 @@ check("the strictness dial reads console_state live",
       and 'climb_strictness' in bs)
 check("the fired snapshots carry the climb features",
       bs.count('"climb":') >= 2)
+bsn = bs.replace("\r\n", "\n")
+import background_scanner as _bsmod
+check("the climb features carry the tide stamp (the gate report splits by tide)",
+      "def _climb_features_stamped" in bsn
+      and _bsmod._climb_features_stamped(None, "FLAT", 47) is None
+      and _bsmod._climb_features_stamped({"climb_room_pct": 11.0}, "FLAT", 47.0)
+      == {"climb_room_pct": 11.0, "climb_tide": "FLAT", "climb_tide_pct": 47.0})
+check("the champion fired snapshot stamps the tide into its climb features",
+      "_climb_features_stamped(\n                                   _climb.get(\"features\") if _climb else None,\n                                   _df_state, _df_pct)" in bsn)
+check("the sure-thing fired snapshot stamps the tide",
+      "_st_tide_state, _st_tide_pct)" in bsn)
+check("the mover fired snapshot now carries climb features + the tide stamp",
+      "_m_climb.get(\"features\") if _m_climb else None" in bsn
+      and "_tsw, _tpw)})" in bsn)
+check("the mover climb fail-open init (a broken read never NameErrors the popup)",
+      "_m_climb = None" in bs)
 app = open("app.py", encoding="utf-8").read()
 check("the QC mirror: the green requires climb_ok (never disagrees)",
       "and _climb_ok" in app)

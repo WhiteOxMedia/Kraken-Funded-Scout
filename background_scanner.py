@@ -1513,6 +1513,23 @@ def _climb_out_check(exchange, pair: str, entry: float, goal_pct: float,
                 "features": {}, "adjustments": [], "degraded": True}
 
 
+def _climb_features_stamped(climb, tide_state=None, tide_pct=None):
+    """The climb features + the tide stamp (Sep 7): the gate report can
+    split clearance / ER / floor by tide — the FLAT-vs-RISING record for
+    the GATES, not just the sizing factor. Never raises; a None climb
+    passes through (no climb check = nothing to stamp)."""
+    if not climb:
+        return climb
+    try:
+        f = dict(climb)
+        f["climb_tide"] = str(tide_state or "?")
+        f["climb_tide_pct"] = (round(float(tide_pct), 1)
+                               if tide_pct is not None else None)
+        return f
+    except Exception:
+        return climb
+
+
 def _recent_fired_popups(window_min=POPUP_CAP_WINDOW_MIN) -> int:
     """How many BUY popups fired inside the cap window (reads the
     snapshot log — the same file the scorer learns from)."""
@@ -3317,7 +3334,9 @@ def main():
                                "route": ("champion-fast" if _fast_route else "champion"),
                                "fast_why": _fast_why,
                                "brain": _dc, "mult": _brain_mult,
-                               "climb": (_climb.get("features") if _climb else None),
+                               "climb": _climb_features_stamped(
+                                   _climb.get("features") if _climb else None,
+                                   _df_state, _df_pct),
                                "spend": float(_spend or 0.0),
                                "goal_pct": float(_goal_pct or 0.0),
                                "win_min": float(_win_min or 0.0),
@@ -3489,6 +3508,7 @@ def main():
                 notify_big(_title, _msg, spoken=_spoken)
                 rotation_mark_fired(asset)
                 _st_armed.pop(asset, None)
+                _st_tide_pct, _st_tide_state = _fleet_tide()
                 try:
                     _snap = {"pair": pair, "quick": _score, "brain": None,
                              "route": "sure-thing", "kind": "fired",
@@ -3506,7 +3526,9 @@ def main():
                                          "vol_spike": r.get("vol_spike"),
                                          "score": _score},
                              "mult": _mult, "spend": float(_spend or 0.0),
-                             "climb": (_st_climb.get("features")),
+                             "climb": _climb_features_stamped(
+                                 _st_climb.get("features"),
+                                 _st_tide_state, _st_tide_pct),
                              "entry": float(r.get("trigger_px") or 0.0),
                              "win_min": st.SURE_THING_WINDOW_MIN}
                     _log_signal_snapshot(_snap)
@@ -4046,6 +4068,7 @@ def main():
                                 _m_skip = None
                                 _m_mult = 1.0
                                 _m_guard_capped = False
+                                _m_climb = None  # fail-open init: a broken read never NameErrors the popup
                                 try:
                                     import contest_account as _ca
                                     _m_acct = _ca.load_state()
@@ -4249,7 +4272,10 @@ def main():
                                                          "spend": float(_m_spend or 0.0),
                                                          "goal_pct": float(_m_goal or 0.0),
                                                          "win_min": float(_m_win or 0.0),
-                                                         "entry": float(signal.price or 0.0)})
+                                                         "entry": float(signal.price or 0.0),
+                                                         "climb": _climb_features_stamped(
+                                                             _m_climb.get("features") if _m_climb else None,
+                                                             _tsw, _tpw)})
                                             _log_signal_snapshot(_mfs)
                                         except Exception:
                                             pass
