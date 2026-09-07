@@ -1452,6 +1452,57 @@ def _popup_cap() -> int:
         return POPUP_CAP_DEFAULT
 
 
+def _climb_strictness() -> float:
+    """THE CLIMB-OUT DIAL (user rule, Sep 6): the strictness multiplier
+    (0.5x-2.0x) scales every climb-out clearance multiplier. Read LIVE
+    from console_state.json; default 1.0 (neutral)."""
+    try:
+        import json as _json
+        from pathlib import Path as _P
+        _cs = _json.loads((_P(__file__).resolve().parent / "console_state.json").read_text())
+        return max(0.5, min(2.0, float(_cs.get("climb_strictness") or 1.0)))
+    except Exception:
+        return 1.0
+
+
+def _climb_out_check(exchange, pair: str, entry: float, goal_pct: float,
+                     spend: float, is_coil: bool = False,
+                     coil_ceiling: float | None = None):
+    """The scanner-side climb-out wrapper: reads the live context (tide,
+    death-line proximity, balance, the strictness dial) and calls
+    climb_out.climb_out_gate. Returns the gate dict; NEVER raises
+    (a broken read fails OPEN — the death-line guard is the gate that
+    never yields; climb-out protects quality, not existence)."""
+    try:
+        from climb_out import climb_out_gate
+        _tide = "FLAT"
+        try:
+            _tp, _ts = _fleet_tide()
+            _tide = _ts or "FLAT"
+        except Exception:
+            pass
+        _near_death = False
+        _balance = None
+        try:
+            import contest_account as _ca_co
+            _acct = _ca_co.load_state()
+            _balance = float(_acct["current_balance"])
+            _buf = _balance - _ca_co.death_line(_acct)
+            _near_death = _buf < 0.5 * 0.03 * float(_acct["start_balance"])
+        except Exception:
+            pass
+        return climb_out_gate(exchange, pair, entry, goal_pct, spend,
+                              is_coil=is_coil, coil_ceiling=coil_ceiling,
+                              tide_state=_tide, near_death=_near_death,
+                              balance=_balance,
+                              strictness=_climb_strictness())
+    except Exception as exc:
+        return {"ok": True, "fail_gate": None, "fail_reason": "",
+                "escape_line": "", "output_block":
+                    f"CLIMB-OUT: unavailable ({exc}) — fail-open\n",
+                "features": {}, "adjustments": [], "degraded": True}
+
+
 def _recent_fired_popups(window_min=POPUP_CAP_WINDOW_MIN) -> int:
     """How many BUY popups fired inside the cap window (reads the
     snapshot log — the same file the scorer learns from)."""
@@ -3016,6 +3067,37 @@ def main():
                                 _brain_mult, _spend)
             except Exception:
                 pass
+        # ── THE CLIMB-OUT GATES (user rule, Sep 6: "Find swing trades
+        #    that avoid danger zones: no trades near major resistance,
+        #    no trades in chop, no trades when liquidity is thin. Only
+        #    show setups with clear escape routes.") — the HARD gate:
+        #    clearance (room to the nearest major ceiling), ER (not
+        #    chop), the floor (structural support + the escape route),
+        #    the bid door. Every metric logs to the snapshot dataset;
+        #    the weekly gate report grades them (LOOSEN/KEEP/TIGHTEN);
+        #    the thresholds live in climb_rules.json, read LIVE. Fails
+        #    OPEN on a broken read (the death-line guard is the gate
+        #    that never yields; climb-out protects quality).
+        _climb = None
+        if is_buy:
+            _climb = _climb_out_check(exchange, pair,
+                                      float(signal.entry_price or 0.0),
+                                      float(_goal_pct or 1.5),
+                                      float(_spend or 0.0))
+            if not _climb.get("ok"):
+                _fg = _climb.get("fail_gate") or "?"
+                logger.info("  CLIMB-OUT %s: %s gate — %s", asset, _fg,
+                            _climb.get("fail_reason"))
+                _log_suppression(pair, f"climb-{_fg}",
+                                 f"{_climb.get('fail_reason')} — no clear "
+                                 f"escape route (climb-out)",
+                                 quick=float(signal.confidence),
+                                 brain=(float(_deep.confidence) if _deep is not None else None),
+                                 floor=float(DESKTOP_ALERT_MIN),
+                                 tide=(f"{_df_state} {_df_pct:.0f}%" if _df_pct is not None else _df_state),
+                                 rot=_rot_now_key,
+                                 climb=(_climb.get("features") or {}))
+                return
         # ── THE WORTH FLOOR (user rule, Sep 2: "big coins only... less
         # entries but more money" — the JUP lesson: a $233 sized entry at
         # the +2% goal pays $4.66, noise that only pays the spread): the
@@ -3153,6 +3235,7 @@ def main():
                 + (f"🚀 FAST ROUTE: {_fast_why} — minimal gates; the 3% guard + the "
                    f"popup cap carry the risk\n" if _fast_route else "")
                 + f"{contest_msg}"
+                + ("" if _climb is None else str(_climb.get("output_block") or ""))
                 + f"{_dz}"
                 f"{'-' * 30}\n"
                 f"get out at ${signal.stop_loss:.4f} (wrong)\n"
@@ -3207,6 +3290,7 @@ def main():
                                "route": ("champion-fast" if _fast_route else "champion"),
                                "fast_why": _fast_why,
                                "brain": _dc, "mult": _brain_mult,
+                               "climb": (_climb.get("features") if _climb else None),
                                "spend": float(_spend or 0.0),
                                "goal_pct": float(_goal_pct or 0.0),
                                "win_min": float(_win_min or 0.0),
@@ -3322,6 +3406,20 @@ def main():
                     _spend = _cap * _mult
                 except Exception:
                     _spend, _mult = 0.0, 0.10
+                # ── THE CLIMB-OUT GATES (Sep 6): the coil case — the
+                #    ceiling being crossed IS the level; the check
+                #    becomes runway BEYOND it (coil_mult x1.0). The ER
+                #    gate passes coils via the squeeze exemption (a
+                #    coil is squeezed + low ER by definition).
+                _st_climb = _climb_out_check(
+                    exchange, pair, float(r.get("trigger_px") or 0.0),
+                    1.5, float(_spend or 0.0),
+                    is_coil=True, coil_ceiling=float(r.get("zone_high") or 0.0))
+                if not _st_climb.get("ok"):
+                    logger.info("  SURE THING %s: climb-out %s — %s", asset,
+                                _st_climb.get("fail_gate"),
+                                _st_climb.get("fail_reason"))
+                    continue
                 _score = float(r.get("score") or 0.0)
                 _trig = str(r.get("trigger") or "crack")
                 _est = int(r.get("est_min") or 60)
@@ -3353,6 +3451,7 @@ def main():
                         f"HOW LONG: out by {_out_by} (the countdown — "
                         f"{st.SURE_THING_WINDOW_MIN:.0f} min window)\n"
                         f"SPEND: ${_spend:,.0f} (the 3% guard cap × {_mult:.2f} probability sizing)\n"
+                        + str(_st_climb.get("output_block") or "")
                         + _danger_zone_panel(exchange, pair, float(_spend or 0.0),
                                              1.5, st.SURE_THING_WINDOW_MIN, _mult)
                         + f"{'-' * 30}\n"
@@ -3380,6 +3479,7 @@ def main():
                                          "vol_spike": r.get("vol_spike"),
                                          "score": _score},
                              "mult": _mult, "spend": float(_spend or 0.0),
+                             "climb": (_st_climb.get("features")),
                              "entry": float(r.get("trigger_px") or 0.0),
                              "win_min": st.SURE_THING_WINDOW_MIN}
                     _log_signal_snapshot(_snap)
@@ -3966,6 +4066,18 @@ def main():
                                                 _m_spend = _m_spend * _m_mult
                                                 logger.info("  MOVER ADVISORY BRAIN SIZING: "
                                                             "%.2fx → $%.0f", _m_mult, _m_spend)
+                                            # ── THE CLIMB-OUT GATES (Sep 6):
+                                            #    same hard gate as the champion
+                                            #    path — no escape route, no trade
+                                            _m_climb = _climb_out_check(
+                                                exchange, pair,
+                                                float(signal.price or 0.0),
+                                                float(_m_goal or 1.5),
+                                                float(_m_spend or 0.0))
+                                            if not _m_climb.get("ok"):
+                                                _mfg = _m_climb.get("fail_gate") or "?"
+                                                _m_skip = (f"MOVER CLIMB-OUT {_mfg}: "
+                                                           f"{_m_climb.get('fail_reason')}")
                                             # THE WORTH FLOOR (same rule as the champion
                                             # popup — the JUP lesson): the sized entry at
                                             # its goal must pay at least the dial's share
@@ -4063,6 +4175,7 @@ def main():
                                         + f"{_m_tide_line}"
                                         f"{_m_re_line}"
                                         f"{_m_spend_line}"
+                                        + str(_m_climb.get("output_block") or "")
                                         + _danger_zone_panel(exchange, pair,
                                                              float(_m_spend or 0.0),
                                                              float(_m_goal or 1.5),

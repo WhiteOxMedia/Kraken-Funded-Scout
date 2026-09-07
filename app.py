@@ -2678,6 +2678,24 @@ def render_quick_check(cfg: TradingConfig, kraken):
                 _champ_hm_win = bool(st.session_state.get("qc_result", {}).get("hail_mary"))
                 st.session_state["qc_result"]["thin_book"] = _thin_book
                 st.session_state["qc_result"]["champ_floor"] = _champ_floor
+                # ── THE CLIMB-OUT MIRROR (user rule, Sep 6): the QC
+                #    AGREES with the alert path, never disagrees — the
+                #    same gates (clearance / ER / floor / the bid door),
+                #    the same live rules + dial. A coin the alert buried
+                #    for no escape route can't green here.
+                _climb_ok, _climb_res = True, None
+                try:
+                    import background_scanner as _bs_cl
+                    if not hasattr(_bs_cl, "_climb_out_check"):
+                        import importlib
+                        _bs_cl = importlib.reload(_bs_cl)
+                    _climb_res = _bs_cl._climb_out_check(
+                        kraken, pair, float(px),
+                        float(_goal_pct or 1.5), float(_spend_usd or 0.0))
+                    _climb_ok = bool(_climb_res.get("ok"))
+                except Exception:
+                    _climb_ok, _climb_res = True, None
+                st.session_state["qc_result"]["climb"] = _climb_res
                 # HARD GATES: the goal gate + cooldown + no downward trend +
                 # the book carries your money + the tide isn't OUT + rotation
                 # isn't locked + this hour didn't blow off yesterday. (The
@@ -2688,6 +2706,7 @@ def render_quick_check(cfg: TradingConfig, kraken):
                         and _tide_state != "OUT"
                         and _spend_usd > 0
                         and _rot_ok
+                        and _climb_ok
                         and not (_yctx and _yctx.get("shape") == "blowoff")
                         and not (_raw_move is not None and float(_raw_move) < 1.0)):
                     # AUTO-WATCH on green light: the deep scan IS the entry.
@@ -2833,6 +2852,19 @@ def render_quick_check(cfg: TradingConfig, kraken):
                                      icon="⛔", duration=20)
                             _play_sound("alarm")
                             _speak(f"Already ran! {asset} is cold until the next rotation!", rate=1)
+                        except Exception:
+                            pass
+                    elif (sig.action == "buy" and not no_buy
+                            and not _climb_ok and _climb_res):
+                        try:
+                            st.toast(f"🧗 NO ESCAPE ROUTE — {asset}: "
+                                     f"{_climb_res.get('fail_reason')}. "
+                                     f"{_climb_res.get('escape_line', '')}",
+                                     icon="🧗", duration=20)
+                            _play_sound("alarm")
+                            _speak(f"No escape route! {asset} — "
+                                   f"{_climb_res.get('fail_gate', 'the climb-out')} says skip it!",
+                                   rate=1)
                         except Exception:
                             pass
                     elif (sig.action == "buy" and not no_buy
@@ -4796,6 +4828,24 @@ def main():
         _cs["popup_cap"] = int(_pc_new)
         _save_console_state(_cs)
         _pc = int(_pc_new)
+    # ── THE CLIMB-OUT DIAL (user rule, Sep 6): the strictness
+    #    multiplier scales every climb-out clearance requirement.
+    #    The scanner reads it LIVE — no restart.
+    _cs_str = _cs.get("climb_strictness")
+    _cstr = float(_cs_str) if _cs_str is not None else 1.0
+    _cstr_new = st.sidebar.slider(
+        "🧗 Climb-out strictness (escape-route gates)", 0.5, 2.0, _cstr, 0.1,
+        format="%.1fx",
+        help="Scales the clearance requirement on every climb-out gate: room to "
+             "the nearest major ceiling, the chop bar, the floor cushion. 1.0x = "
+             "the calibrated rules; 0.5x = loosen (more setups through); 2.0x = "
+             "strict (only pristine escape routes). The weekly gate report tells "
+             "you which way the data says to move it.",
+        key="climb_strictness_dial")
+    if abs(float(_cstr_new) - _cstr) > 1e-9:
+        _cs["climb_strictness"] = float(_cstr_new)
+        _save_console_state(_cs)
+        _cstr = float(_cstr_new)
     try:
         from hindsight_scorer import BRAIN_SIZE_TABLE
         _tbl = " · ".join(f"{int(f)}+→{m:.2f}x" for f, m in BRAIN_SIZE_TABLE)
