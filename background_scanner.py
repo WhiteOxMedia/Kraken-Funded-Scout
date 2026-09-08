@@ -258,6 +258,16 @@ def rotation_yesterday_context(pair: str, lookback_days: int = 3):
     if win is None:
         return None
     rot_start, rot_end, _rot_key = win
+    # the 20-24 cooldown window ends at hour 24 — datetime.replace can't
+    # build that; midnight of the NEXT day is the same instant (Sep 7:
+    # the battery first caught this at 20:42 — the function is only
+    # reachable in the cooldown hour, which is also the only hour with
+    # no buys, which is why it survived every earlier run)
+    if rot_end >= 24:
+        rot_end = 0
+        day_shift = 1
+    else:
+        day_shift = 0
 
     shapes = []
     runs = []
@@ -265,7 +275,11 @@ def rotation_yesterday_context(pair: str, lookback_days: int = 3):
     for back in range(1, lookback_days + 1):
         day = now - timedelta(days=back)
         start_dt = day.replace(hour=rot_start, minute=0, second=0, microsecond=0)
-        end_dt = day.replace(hour=rot_end, minute=0, second=0, microsecond=0)
+        # rot_end 24 -> hour 0 of the FOLLOWING day (the same instant as
+        # "24:00"); the window still spans [start, end)
+        _end_day = day + timedelta(days=day_shift)
+        end_dt = _end_day.replace(hour=rot_end, minute=0, second=0,
+                                  microsecond=0)
         try:
             conn = sqlite3.connect(_OHLCV_CACHE_PATH, timeout=4)
             rows = conn.execute(
@@ -996,6 +1010,21 @@ WORTH_TIDE_RISING_FACTOR = 0.85
 # RETIRED (user rule, Sep 4 — the catch-up correction above):
 WORTH_CATCHUP_BEHIND = 1.15
 WORTH_CATCHUP_AHEAD = 0.90
+# ── THE ACTUAL FACTOR (user rule, Sep 7: "the auto-dial should know how
+# to auto-tune to the ACTUAL floor") — the dial reads the day's REALIZED
+# progress, not just the market's room: actual = realized net P&L today /
+# the daily pace, folded in as a gentle 10%-swing lever, clamped [0.85,
+# 1.15]. A slow morning (actual < planned) RAISES the floor — the day
+# needs worthier popups to make the pace. A green morning LOWERS it —
+# the pace is being made; let smaller pays count. It is a TILT on the
+# dial, never a quota (the Sep 4 catch-up lesson stands: the goal is a
+# guide, not a rule — hence the gentle clamp, not 1.15x-on-1.15x).
+WORTH_ACTUAL_MIN = 0.85
+WORTH_ACTUAL_MAX = 1.15
+WORTH_ACTUAL_SWING = 0.10     # ±10% around 1.0 at the extremes
+WORTH_ACTUAL_HALFLIFE_USD = 120.0   # the deficit at which the tilt maxes
+                              # ($120 = half the 10k tier's daily pace:
+                              # $120 behind -> full +10% tilt)
 
 
 def _worth_pace_factor(now=None) -> float:
@@ -1033,6 +1062,28 @@ def _worth_catchup_factor() -> float:
     return 1.0
 
 
+def _worth_actual_factor(now=None) -> float:
+    """The ACTUAL lever (Sep 7): realized net P&L today vs the day's pace,
+    as a gentle 10%-swing tilt. deficit = pace - realized; factor = 1 +
+    SWING x (deficit / HALFLIFE), clamped [0.85, 1.15]. Behind schedule
+    -> >1.0 (worthier popups); ahead -> <1.0 (smaller pays count).
+    Fail-open to 1.0 (the dial stands on pace x tide alone). Open
+    positions carry no realized outcome yet — the ledger counts what's
+    banked, which is the point: the floor tunes to the ACTUAL day."""
+    try:
+        import contest_account as _ca_a
+        _acct = _ca_a.load_state()
+        _pace = float(_ca_a.daily_pace_usd(_acct))
+        if _pace <= 0:
+            return 1.0
+        _real = float(_ca_a.realized_pnl_today(_acct, now=now))
+        _deficit = _pace - _real
+        _raw = 1.0 + WORTH_ACTUAL_SWING * (_deficit / WORTH_ACTUAL_HALFLIFE_USD)
+        return max(WORTH_ACTUAL_MIN, min(WORTH_ACTUAL_MAX, _raw))
+    except Exception:
+        return 1.0
+
+
 def worth_floor_auto_factors(now=None) -> dict:
     """ONE source of truth for the auto-dial components — the console
     displays the SAME math the scanner gates on. {base, pace, tide,
@@ -1059,16 +1110,18 @@ def worth_floor_auto_factors(now=None) -> dict:
             _tide_f = WORTH_TIDE_RISING_FACTOR
     except Exception:
         pass
+    _actual = _worth_actual_factor(now)
     if _base <= 0:
         # the user's explicit OFF (0%) beats the auto-dial — never
         # resurrect a floor the user turned off
         _eff = 0.0
     else:
-        _eff = max(WORTH_AUTO_MIN, min(WORTH_AUTO_MAX, _base * _pace * _tide_f))
+        _eff = max(WORTH_AUTO_MIN,
+                   min(WORTH_AUTO_MAX, _base * _pace * _tide_f * _actual))
     if not _auto:
         _eff = _base
     return {"auto": _auto, "base": _base, "pace": _pace, "tide": _tide_f,
-            "effective": _eff}
+            "actual": _actual, "effective": _eff}
 
 
 def _worth_floor_frac() -> float:
@@ -1079,7 +1132,8 @@ def _worth_floor_frac() -> float:
     popup gates read it LIVE at alert time — no scanner restart. AUTO
     (default on): base x pace x tide x catch-up, clamped [10%, 40%].
     OFF: the static base. 0.0 = the floor is OFF (every gated popup
-    fires)."""
+    fires). (Sep 7: the dial also knows the ACTUAL day — realized vs
+    planned bends it ±10%, gently, never a quota.)"""
     return float(worth_floor_auto_factors()["effective"])
 
 # The stale-move guard (the APT-12:11 lesson): a RE-ENTRY whose move

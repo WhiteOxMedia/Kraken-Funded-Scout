@@ -225,6 +225,36 @@ def daily_pace_usd(state: dict | None = None) -> float:
     return float(s["start_balance"]) * WEEKLY_GOAL_PCT / 100.0 / TRADING_DAYS_PER_WEEK
 
 
+def realized_pnl_today(state: dict | None = None, now=None) -> float:
+    """The ACTUAL day: net realized P&L banked today (MST), summed from
+    the bridge ledger's closed buys (pnl is NET — the platform's spread
+    is already in it; pnl_net_usd's contract). The worth-floor auto-dial's
+    actual factor reads this (Sep 7: the dial tunes to the day as it IS,
+    not as the pace hopes it to be). Fail-open to 0.0 — a broken ledger
+    must not bend the dial."""
+    try:
+        import sqlite3
+        from datetime import datetime as _dt
+        from zoneinfo import ZoneInfo as _ZI
+        _mst = _ZI("America/Denver")
+        now = now or _dt.now(_mst)
+        day = now.astimezone(_mst).strftime("%Y-%m-%d")
+        db_path = Path(__file__).resolve().parent / "signals.db"
+        if not db_path.exists():
+            return 0.0
+        conn = sqlite3.connect(str(db_path))
+        try:
+            row = conn.execute(
+                "SELECT COALESCE(SUM(pnl), 0.0) FROM signals "
+                "WHERE action='buy' AND status='closed' AND pnl IS NOT NULL "
+                "AND substr(closed_at, 1, 10) = ?", (day,)).fetchone()
+            return float(row[0] or 0.0)
+        finally:
+            conn.close()
+    except Exception:
+        return 0.0
+
+
 def pnl_net_usd(entry_price: float, exit_price: float, size_usd: float) -> tuple[float, float, float]:
     """(pnl_gross, cost_rt, pnl_net) for one closed contest round trip.
     The platform's only cost is the 0.04% spread each side — 0.08% round

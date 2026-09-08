@@ -2,13 +2,17 @@
 floor dial to the proper location every rotation" — user approved: base
 0.25, the toggle defaults ON, "build it, I trust you"; CORRECTED the
 same day: "catch-up math is causing a problem, we don't need to catch
-up — the goal is a guide not a rule").
+up — the goal is a guide not a rule"; Sep 7: the dial tunes to the
+ACTUAL day too — realized vs planned bends it ±10%).
 
-effective = BASE x pace x tide, clamped [10%, 40%] — NO catch-up:
-  pace — this rotation's median expected move / the day's best rotation
-         (the engine's live cells; a STATIC floor goes silent in slow
-         hours — the day then can't make its pace)
-  tide  — RISING relaxes 15% (the market carries greens)
+effective = BASE x pace x tide x actual, clamped [10%, 40%] — NO catch-up:
+  pace   — this rotation's median expected move / the day's best rotation
+           (the engine's live cells; a STATIC floor goes silent in slow
+           hours — the day then can't make its pace)
+  tide   — RISING relaxes 15% (the market carries greens)
+  actual — realized net P&L today vs the pace, a ±10% TILT (Sep 7): a
+           slow morning RAISES the floor, a green morning LOWERS it —
+           gently, never a quota (the catch-up lesson stands)
 The slider is the BASE when auto is on; 0% (OFF) beats the auto — never
 resurrect a floor the user turned off. OFF toggle = static.
 Calibration: diag_worthdial.py (the record's per-rotation goals + the
@@ -90,8 +94,10 @@ try:
           abs(_f["base"] - 0.25) < 1e-9)
     check("NO catch-up in the product (the correction)",
           "catchup" not in _f
-          and abs(_f["effective"] - max(0.10, min(0.40, 0.25 * _f["pace"] * _f["tide"]))) < 1e-9,
+          and abs(_f["effective"] - max(0.10, min(0.40, 0.25 * _f["pace"] * _f["tide"] * _f.get("actual", 1.0)))) < 1e-9,
           _f)
+    check("the ACTUAL factor exists and is clamped [0.85, 1.15] (Sep 7)",
+          "actual" in _f and 0.85 <= _f["actual"] <= 1.15, _f.get("actual"))
     check("the day's ledger does NOT bend the dial (a big day and a down day read the same)",
           _f["effective"] == bs.worth_floor_auto_factors()["effective"])
     check("_worth_catchup_factor is retired (kept, not called by the dial)",
@@ -149,6 +155,36 @@ check("0% OFF is honored in the console copy too",
       "floor OFF" in ap)
 check("the calibration diag exists",
       Path("diag_worthdial.py").exists() and Path("_worthdial_check.txt").exists())
+
+# ── 7. THE ACTUAL FACTOR (user rule, Sep 7: "the auto-dial should know
+# how to auto-tune to the ACTUAL floor") — realized vs planned, ±10% tilt ─
+check("the actual constants exist (swing 0.10, halflife $120, clamp [0.85, 1.15])",
+      bs.WORTH_ACTUAL_SWING == 0.10 and bs.WORTH_ACTUAL_HALFLIFE_USD == 120.0
+      and bs.WORTH_ACTUAL_MIN == 0.85 and bs.WORTH_ACTUAL_MAX == 1.15)
+_f7 = bs.worth_floor_auto_factors()
+check("the factors dict carries the actual lever",
+      "actual" in _f7 and 0.85 <= _f7["actual"] <= 1.15, _f7.get("actual"))
+check("the effective dial folds the actual lever in",
+      abs(_f7["effective"]
+          - max(0.10, min(0.40, _f7["base"] * _f7["pace"] * _f7["tide"] * _f7["actual"])))
+      < 1e-9 or _f7["effective"] == 0.0, _f7)
+check("realized_pnl_today exists in the ledger module (the ACTUAL source)",
+      hasattr(ca, "realized_pnl_today"))
+_r = ca.realized_pnl_today()
+check("realized_pnl_today returns a float (fail-open 0.0 on any break)",
+      isinstance(_r, float), _r)
+_src_a = Path("contest_account.py").read_text(encoding="utf-8")
+check("the ledger reads NET pnl from closed buys, day-scoped",
+      "status='closed'" in _src_a and "SUM(pnl)" in _src_a
+      and "substr(closed_at, 1, 10)" in _src_a)
+_src_w = Path("background_scanner.py").read_text(encoding="utf-8")
+_wf_fn = _src_w.split("def worth_floor_auto_factors")[1].split("def _worth_floor_frac")[0]
+check("the dial folds actual into the product (never a quota — a tilt)",
+      "_actual" in _wf_fn and "WORTH_ACTUAL_MIN" in _src_w
+      and "WORTH_ACTUAL_MAX" in _src_w
+      and "catchup" not in _wf_fn)
+check("the console shows the actual lever",
+      "actual" in ap[ap.find("THIS ROTATION:"):ap.find("THIS ROTATION:") + 200])
 
 lines.append(f"\nRESULT: {PASS} passed, {FAIL} failed")
 Path("_worthdial_test.txt").write_text("\n".join(lines), encoding="utf-8")

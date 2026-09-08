@@ -4809,9 +4809,10 @@ def main():
     elif _wf_f.get("auto"):
         st.sidebar.caption(
             f"THIS ROTATION: {_wf:.0%} base × {_wf_f['pace']:.2f} pace × "
-            f"{_wf_f['tide']:.2f} tide "
+            f"{_wf_f['tide']:.2f} tide × {_wf_f.get('actual', 1.0):.2f} actual "
             f"= **{_wf_eff:.0%}** → popups must pay ≥ ${_wf_usd:,.0f} "
-            f"(auto — recalculated every rotation, read live, no restart).")
+            f"(auto — recalculated every rotation, reads the day's ACTUAL "
+            f"banked P&L too; live, no restart).")
     else:
         st.sidebar.caption(
             f"Popups must pay ≥ ${_wf_usd:,.0f} at the goal "
