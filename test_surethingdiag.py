@@ -44,13 +44,16 @@ T0 = datetime(2026, 9, 8, 12, 0, tzinfo=timezone.utc).timestamp()
 
 
 def snap(trig="pre-breakout", est=40, ts=None, spend=400.0,
-         entry=1.0, win=60.0, score=70.0):
-    return {"pair": "XMR/USD", "route": "sure-thing", "kind": "fired",
-            "trigger": trig, "est_min": est, "spend": spend,
-            "entry": entry, "win_min": win, "score": score,
-            "mult": 0.5, "ts": (ts or datetime.fromtimestamp(
-                T0, tz=timezone.utc).isoformat()),
-            "climb": {"climb_tide": "RISING", "climb_tide_pct": 42.0}}
+         entry=1.0, win=60.0, score=70.0, goal=None):
+    d = {"pair": "XMR/USD", "route": "sure-thing", "kind": "fired",
+         "trigger": trig, "est_min": est, "spend": spend,
+         "entry": entry, "win_min": win, "score": score,
+         "mult": 0.5, "ts": (ts or datetime.fromtimestamp(
+             T0, tz=timezone.utc).isoformat()),
+         "climb": {"climb_tide": "RISING", "climb_tide_pct": 42.0}}
+    if goal is not None:
+        d["goal_pct"] = goal
+    return d
 
 
 # ── 1. grade_fire: the verdict ladder ──────────────────────────────────
@@ -65,6 +68,30 @@ check("paid-in-window: the paid minute anchors to the fire, not the candle open"
       g["paid_min"] is not None and 0.0 <= g["paid_min"] <= 5.0, g["paid_min"])
 check("paid-in-window: the P&L is the goal on the spend (+1.5% of $400)",
       abs(g["pnl_usd"] - 6.0) < 1e-9, g["pnl_usd"])
+
+# THE PER-FIRE GOAL (Sep 8): the snapshot's goal_pct drives the grade --
+# a 3.0% goal needs a 3.0% move to count as a winner, and its P&L is
+# 3.0% of the spend. A record WITHOUT the stamp (pre-Sep-8 fires) falls
+# back to the engine constant, which is what those fires ran with.
+g2g = dg.grade_fire(snap(est=40, goal=3.0),
+                    [candle(T0, 1, 0.020, 0.018)],   # +2% -- under a 3% goal
+                    now_s=T0 + 3600)
+check("per-fire goal: a 3% goal turns a +2% spike into a grinder, not a winner",
+      g2g["verdict"] == "short", g2g)
+check("per-fire goal: the grade carries the goal it used",
+      abs(g2g["goal_pct"] - 3.0) < 1e-9, g2g["goal_pct"])
+g3g = dg.grade_fire(snap(est=40, goal=3.0),
+                    [candle(T0, 1, 0.040, 0.030)],   # +4% -- clears it
+                    now_s=T0 + 3600)
+check("per-fire goal: a 3% goal paid pays 3% of the spend ($12, not $6)",
+      g3g["verdict"] == "paid-in-window" and abs(g3g["pnl_usd"] - 12.0) < 1e-9,
+      g3g["pnl_usd"])
+g4g = dg.grade_fire(snap(est=40),                      # no goal_pct stamp
+                    [candle(T0, 1, 0.025, 0.020)],
+                    now_s=T0 + 3600)
+check("per-fire goal: a pre-stamp record falls back to the engine constant",
+      abs(g4g["goal_pct"] - dg.st.SURE_THING_GOAL_PCT) < 1e-9
+      and g4g["verdict"] == "paid-in-window", g4g)
 
 # paid LATE: the goal pays at ~35 min, but the promise (est) was only
 # 10 minutes (and the 60-min window keeps it gradeable)
@@ -272,8 +299,8 @@ check("the diag reads the live snapshot store path",
       dg.Path(dg.bs.SIGNAL_SNAPSHOTS_FILE).name == "signal_snapshots.jsonl")
 check("the diag grades the sure-thing window the scanner fires with",
       dg.st.SURE_THING_WINDOW_MIN == 60.0)
-check("the diag grades the default goal (1.5%) the popups promise",
-      abs(dg.bs.GOAL_DEFAULT_PCT - 1.5) < 1e-9)
+check("the diag grades the per-fire goal (fallback = the engine constant)",
+      abs(dg.st.SURE_THING_GOAL_PCT - 1.5) < 1e-9)
 
 lines.append(f"\nRESULT: {PASS} passed, {FAIL} failed")
 Path("_surethingdiag_test.txt").write_text("\n".join(lines), encoding="utf-8")

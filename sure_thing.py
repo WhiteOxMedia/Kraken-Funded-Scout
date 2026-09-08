@@ -333,3 +333,7 @@ def _score(rng_pct, tests, vol_rank, burst, vol_fading, atr_ratio,
 # the countdown window: the trade bounds (out-by clock); breakouts
 # resolve fast -- one hour max, the est_min field estimates the crack
 SURE_THING_WINDOW_MIN = 60.0
+# the goal the fire is graded on (Sep 8): stamped into every fired
+# snapshot, so diag_surething.py grades each fire against THE goal that
+# fired it -- not whatever default the diag would assume
+SURE_THING_GOAL_PCT = 1.5

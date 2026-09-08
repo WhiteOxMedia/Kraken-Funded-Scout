@@ -23,8 +23,9 @@
 #   - Kraken's public OHLC serves only ~720 recent 5m candles (~60h), so
 #     fires older than that grade 'no-data' here -- the archive
 #     downloader (bt_surething.py) covers deep history separately.
-#   - The goal is graded at the default 1.5% -- the fired snapshot does
-#     not yet carry the per-fire goal call.
+#   - The goal is graded PER FIRE from the snapshot's goal_pct stamp
+#     (Sep 8); records from before the stamp fall back to the engine
+#     constant -- the value those fires actually ran with.
 #   - P&L model: winner = the goal captured (+goal% of spend), anything
 #     else = the window-close exit (end_move% of spend). Hindsight, not
 #     fills.
@@ -122,6 +123,12 @@ def grade_fire(snap, fwd_rows=None, now_s=None):
     win_min = float(snap.get("win_min") or st.SURE_THING_WINDOW_MIN)
     est = int(snap.get("est_min") or win_min)
     trig = str(snap.get("trigger") or "crack")
+    # THE PER-FIRE GOAL (Sep 8): the snapshot now carries the goal the
+    # fire was graded on at fire time (sure_thing.SURE_THING_GOAL_PCT --
+    # the same number the climb-out gate and the danger panel used).
+    # Pre-stamp records fall back to the engine constant -- which is the
+    # value those fires actually ran with.
+    goal = float(snap.get("goal_pct") or st.SURE_THING_GOAL_PCT)
     fwd_rows = [x for x in (fwd_rows or [])
                 if float(x[0]) > t0 * 1000.0]
     # and the WINDOW is fire-relative (Copilot, Sep 8): hs.outcome
@@ -144,6 +151,7 @@ def grade_fire(snap, fwd_rows=None, now_s=None):
          "trigger": trig, "score": float(snap.get("score") or 0.0),
          "spend": float(snap.get("spend") or 0.0),
          "mult": float(snap.get("mult") or 0.0),
+         "goal_pct": goal,
          "est_min": est, "promise_min": promise_min,
          "entry": entry, "age_min": round(age_min, 1),
          "tide": (snap.get("climb") or {}).get("climb_tide"),
@@ -154,7 +162,7 @@ def grade_fire(snap, fwd_rows=None, now_s=None):
     if entry <= 0 or not fwd_rows:
         g["verdict"] = "no-data"
         return g
-    oc = hs.outcome(fwd_rows, entry, bs.GOAL_DEFAULT_PCT, win_min)
+    oc = hs.outcome(fwd_rows, entry, goal, win_min)
     if oc is None:
         g["verdict"] = "no-data"
         return g
@@ -176,7 +184,7 @@ def grade_fire(snap, fwd_rows=None, now_s=None):
         # the goal paid -- did it pay inside the promise?
         g["verdict"] = ("paid-in-window" if paid <= promise_min
                         else "paid-late")
-        g["pnl_usd"] = g["spend"] * bs.GOAL_DEFAULT_PCT / 100.0
+        g["pnl_usd"] = g["spend"] * goal / 100.0
     elif payoff == "grinder":
         g["verdict"] = "short"
         g["pnl_usd"] = g["spend"] * (g["end_move"] or 0.0) / 100.0
@@ -386,9 +394,10 @@ def run(days=7.0, fetch=True, out_path="_surething_check.txt", now_s=None):
     out()
     out(f"({fetched}/{len(fires)} fires got forward candles; older fires "
         f"than ~60h grade no-data on the public API -- bt_surething.py "
-        f"holds the deep archive; goal graded at the default "
-        f"{bs.GOAL_DEFAULT_PCT:.1f}% -- the snapshot does not yet carry "
-        f"the per-fire goal; boundary candle granularity ~5 min)")
+        f"holds the deep archive; goal graded PER FIRE from the snapshot's "
+        f"goal_pct stamp (pre-stamp fires fall back to "
+        f"{st.SURE_THING_GOAL_PCT:.1f}%); boundary candle granularity "
+        f"~5 min)")
     _write(out_path)
     return agg
 

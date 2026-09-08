@@ -3587,9 +3587,10 @@ def main():
                 #    becomes runway BEYOND it (coil_mult x1.0). The ER
                 #    gate passes coils via the squeeze exemption (a
                 #    coil is squeezed + low ER by definition).
+                _st_goal = st.SURE_THING_GOAL_PCT
                 _st_climb = _climb_out_check(
                     exchange, pair, float(r.get("trigger_px") or 0.0),
-                    1.5, float(_spend or 0.0),
+                    _st_goal, float(_spend or 0.0),
                     is_coil=True, coil_ceiling=float(r.get("zone_high") or 0.0))
                 if not _st_climb.get("ok"):
                     logger.info("  SURE THING %s: climb-out %s — %s", asset,
@@ -3639,7 +3640,7 @@ def main():
                         + _st_tide_line
                         + str(_st_climb.get("output_block") or "")
                         + _danger_zone_panel(exchange, pair, float(_spend or 0.0),
-                                             1.5, st.SURE_THING_WINDOW_MIN, _mult)
+                                             _st_goal, st.SURE_THING_WINDOW_MIN, _mult)
                         + f"{'-' * 30}\n"
                         f"CONTEST-ONLY — no bridge write. The DEEP SCAN ran before "
                         f"this popup (the fire-time rule — the Sep 6 waiver "
@@ -3667,6 +3668,7 @@ def main():
                                          "vol_spike": r.get("vol_spike"),
                                          "score": _score},
                              "mult": _mult, "spend": float(_spend or 0.0),
+                             "goal_pct": _st_goal,
                              "est_min": _est,
                              "climb": _climb_features_stamped(
                                  _st_climb.get("features"),

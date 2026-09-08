@@ -101,6 +101,9 @@ _ARMED = {"armed": True, "fire": False, "zone_high": 1.0000, "tests": 6,
           "buy_dominance": 60.0, "hist_hit_rate": 55.0}
 
 
+_fake_goal = 1.5   # what the fake sure_thing module reports as the fire's goal
+
+
 def _make_harness(deep, tide_state="RISING"):
     """One poll harness: the REAL _sure_thing_scan body + fakes.
     Returns (scan_fn, captures, tide_box, armed, result_box)."""
@@ -110,6 +113,7 @@ def _make_harness(deep, tide_state="RISING"):
 
     fake_st = types.ModuleType("sure_thing")
     fake_st.SURE_THING_WINDOW_MIN = 60
+    fake_st.SURE_THING_GOAL_PCT = 1.5
     fake_st.PRE_BREAKOUT_THRESHOLD = 65
     fake_st.analyze = lambda rows: dict(result_box["r"])
     fake_ca = types.ModuleType("contest_account")
@@ -226,6 +230,9 @@ check("runtime: the snapshot's climb features carry the tide stamp",
 check("runtime: the snapshot stamps est_min (the countdown data)",
       bool(_sn) and _sn[0]["est_min"] == 45,
       _sn[0].get("est_min") if _sn else None)
+check("runtime: the snapshot stamps the per-fire goal (the diag grades the goal that fired)",
+      bool(_sn) and abs(_sn[0]["goal_pct"] - _fake_goal) < 1e-9,
+      _sn[0].get("goal_pct") if _sn else None)
 check("runtime: the tide is read FRESH at fire time (not one funnel read)",
       cap2["tide_reads"] >= 2, cap2["tide_reads"])
 check("runtime: the rotation marks fired and the armed watch clears",
