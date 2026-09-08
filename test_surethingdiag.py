@@ -19,6 +19,14 @@ sys.path.insert(0, str(Path(__file__).parent))
 
 import diag_surething as dg
 
+# the tilt evidence file is REAL RUNTIME STATE -- back it up before the
+# suite's summarize() calls write test evidence into the repo root, and
+# restore at the end (nothing the suite writes may survive)
+_TILT_FILE = Path("surething_goal_tilt.json")
+_TILT_BAK = _TILT_FILE.read_text(encoding="utf-8") if _TILT_FILE.exists() else None
+if _TILT_BAK is not None:
+    _TILT_FILE.unlink()
+
 PASS, FAIL = 0, 0
 lines = []
 
@@ -299,6 +307,93 @@ check("goal bands: the 2.5+ fires band separately",
       _ob["2.5-3.0"]["n"] == 2 and _ob["2.5-3.0"]["reach"] == 0.0,
       _ob["2.5-3.0"])
 
+# ── 3c. the goal bands CALIBRATE BACK (Sep 8: "tilt the goal down
+#    within the seam") -- the diag writes the MEASUREMENT (the evidence
+#    file whatever the verdict says), the scanner's seam owns the
+#    POLICY (the clamp, the freshness, the sample guard) ──────────────
+_ev_over = dg.summarize([gfire(1.2, "paid-in-window", 1.6),
+                         gfire(1.3, "paid-late", 1.4), gfire(1.1, "short", 0.9),
+                         gfire(1.4, "paid-in-window", 1.9), gfire(1.2, "short", 0.8),
+                         gfire(2.4, "short", 1.5), gfire(2.6, "short", 1.8),
+                         gfire(2.2, "dud", 0.2), gfire(2.8, "short", 1.2),
+                         gfire(2.3, "paid-in-window", 2.5)], days=7.0)
+check("calibrate: an OVER-AIM verdict writes the evidence file",
+      _TILT_FILE.exists() and "OVER-AIM" in _TILT_FILE.read_text(encoding="utf-8"),
+      _TILT_FILE.read_text(encoding="utf-8")[:120] if _TILT_FILE.exists() else None)
+_ev = json.loads(_TILT_FILE.read_text(encoding="utf-8"))
+check("calibrate: the evidence carries the tilt's numerator/denominator + sample",
+      abs(_ev["median_asked"] - 2.5) < 1e-9       # band medians: asked [2.3, 2.7] -> 2.5
+      and abs(_ev["median_gave"] - 1.5) < 1e-9    # gave [1.5, 1.5] -> 1.5
+      and _ev["big_n"] == 5 and "OVER-AIM" in _ev["verdict"] and _ev["ts"],
+      _ev)
+_dg_tracks = dg.summarize([gfire(1.2, "paid-in-window", 1.6),
+                           gfire(1.3, "paid-late", 1.4), gfire(1.1, "short", 0.9),
+                           gfire(1.4, "paid-in-window", 1.9), gfire(1.2, "short", 0.8),
+                           gfire(2.4, "paid-in-window", 2.6),
+                           gfire(2.6, "paid-late", 2.7), gfire(2.2, "short", 1.8),
+                           gfire(2.8, "paid-in-window", 3.0), gfire(2.3, "short", 1.9)],
+                          days=7.0)
+check("calibrate: a tracking verdict ALSO writes evidence (the seam reads neutral)",
+      "tracks" in json.loads(_TILT_FILE.read_text(encoding="utf-8"))["verdict"],
+      _TILT_FILE.read_text(encoding="utf-8")[:120])
+_TILT_FILE.write_text(json.dumps({"ts": "2026-09-01T00:00:00+00:00",
+                                  "verdict": "THE GOAL OVER-AIMS: big asks reach 20% vs 60%",
+                                  "median_gave": 1.0, "median_asked": 2.0,
+                                  "big_n": 9}), encoding="utf-8")
+dg.summarize([gfire(2.4, "short", 1.5)], days=7.0)   # small sample -> NO write
+check("calibrate: a small-sample week never erases a standing OVER-AIM (its TTL expires it)",
+      "OVER-AIM" in json.loads(_TILT_FILE.read_text(encoding="utf-8"))["verdict"])
+
+# the SEAM: policy on the evidence (clamp / freshness / sample / fail-open)
+_bs = dg.bs
+_ok_tilt = {"ts": datetime.now(timezone.utc).isoformat(),
+            "verdict": "THE GOAL OVER-AIMS: big asks reach 20% vs 60%",
+            "median_gave": 1.65, "median_asked": 2.45, "big_n": 5}
+_t = Path("_tilt_probe.json")
+try:
+    _t.write_text(json.dumps(_ok_tilt), encoding="utf-8")
+    check("seam: the tilt is the gave/asked ratio, clamped to [0.80, 1.0]",
+          abs(_bs._sure_thing_goal_tilt(path=str(_t)) - 0.80) < 1e-9,
+          _bs._sure_thing_goal_tilt(path=str(_t)))
+    _t.write_text(json.dumps(dict(_ok_tilt, median_gave=2.1,
+                                  median_asked=2.5)), encoding="utf-8")
+    check("seam: a mild ratio applies exactly (never up, never below 0.80)",
+          abs(_bs._sure_thing_goal_tilt(path=str(_t)) - 0.84) < 1e-9,
+          _bs._sure_thing_goal_tilt(path=str(_t)))
+    _t.write_text(json.dumps(dict(_ok_tilt, verdict="the live goal tracks what breakouts give")),
+                  encoding="utf-8")
+    check("seam: a tracking verdict is neutral (1.0)",
+          _bs._sure_thing_goal_tilt(path=str(_t)) == 1.0)
+    _t.write_text(json.dumps(dict(_ok_tilt, big_n=4)), encoding="utf-8")
+    check("seam: a small sample is neutral (1.0)",
+          _bs._sure_thing_goal_tilt(path=str(_t)) == 1.0)
+    _t.write_text(json.dumps(dict(_ok_tilt,
+                                  ts="2026-08-25T00:00:00+00:00")), encoding="utf-8")
+    check("seam: evidence older than the 8-day TTL is neutral (a stale squeeze must not outlive its measurement)",
+          _bs._sure_thing_goal_tilt(path=str(_t)) == 1.0)
+    _t.write_text("{not json", encoding="utf-8")
+    check("seam: corrupt evidence is neutral (fail-open)",
+          _bs._sure_thing_goal_tilt(path=str(_t)) == 1.0)
+    check("seam: no evidence at all is neutral",
+          _bs._sure_thing_goal_tilt(path="_nope_tilt.json") == 1.0)
+    # end to end: the fire's goal call applies the tilt to the live pick
+    _mgp_bak = _bs._market_goal_pct
+    try:
+        _bs._market_goal_pct = lambda ex, pair: 2.4
+        _t.write_text(json.dumps(_ok_tilt), encoding="utf-8")
+        _bs.ST_GOAL_TILT_FILE = str(_t)
+        _g2 = _bs._sure_thing_goal(object(), "XMR/USD")
+        check("seam E2E: the fire's goal is the live pick x the tilt (2.4 x 0.80 = 1.92)",
+              abs(_g2 - 1.92) < 1e-9, _g2)
+        _bs.ST_GOAL_TILT_FILE = "_nope_tilt.json"
+        _g3 = _bs._sure_thing_goal(object(), "XMR/USD")
+        check("seam E2E: with neutral evidence the machinery's pick stands untouched",
+              abs(_g3 - 2.4) < 1e-9, _g3)
+    finally:
+        _bs._market_goal_pct = _mgp_bak
+finally:
+    _t.unlink(missing_ok=True)
+
 # ── 4. the store filter (route, kind, window) ─────────────────────────
 tmp = Path("_tmp_surething_test")
 tmp.mkdir(exist_ok=True)
@@ -347,6 +442,11 @@ check("the diag grades the sure-thing window the scanner fires with",
       dg.st.SURE_THING_WINDOW_MIN == 60.0)
 check("the diag grades the per-fire goal (fallback = the engine constant)",
       abs(dg.st.SURE_THING_GOAL_PCT - 1.5) < 1e-9)
+
+# the suite's tilt file never survives; the real one (if any) is restored
+_TILT_FILE.unlink(missing_ok=True)
+if _TILT_BAK is not None:
+    _TILT_FILE.write_text(_TILT_BAK, encoding="utf-8")
 
 lines.append(f"\nRESULT: {PASS} passed, {FAIL} failed")
 Path("_surethingdiag_test.txt").write_text("\n".join(lines), encoding="utf-8")

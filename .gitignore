@@ -11,3 +11,9 @@ wheels/
 
 # console watchdog runtime timestamp - rewritten on every heal
 .console_watchdog.grace
+
+# Sure Thing backtest harness runtime data (bt_surething.py download)
+surething_data/
+_bt_download_summary.json
+# the goal-tilt evidence the weekly diag writes for the fire seam
+surething_goal_tilt.json

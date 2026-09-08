@@ -1179,21 +1179,66 @@ def _window_goal_pct(pair: str) -> float:
 # what the market can actually give, not a flat default"): the fire path
 # calls the SAME machinery — and the per-fire goal_pct stamp keeps
 # diag_surething.py accountable for whatever it picks.
+# ── THE GOAL TILT (user rule, Sep 8: "let the goal bands calibrate
+# back"): the weekly diag measures whether the big asks REACH (the
+# aim-gap section); when its verdict says the market goal over-aims for
+# breakouts, the seam tilts the pick DOWN by the evidence's own ratio
+# (median gave / median asked), clamped [0.80, 1.0] -- gentle, only
+# down, never up (a verdict that the goal tracks writes evidence too
+# and the seam stands neutral). The evidence expires after 8 days (the
+# weekly cadence + slack): a stale squeeze must not outlive its
+# measurement -- the machinery's own pick resumes. Fail-open everywhere:
+# no file, expired evidence, small sample, or any broken read = 1.0.
+ST_GOAL_TILT_MIN = 0.80
+ST_GOAL_TILT_TTL_S = 8 * 86400.0
+ST_GOAL_TILT_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                                 "surething_goal_tilt.json")
+
+
+def _sure_thing_goal_tilt(path=None) -> float:
+    """The diag's aim-gap evidence -> the goal tilt (the SEAM owns the
+    policy: the clamp, the freshness, the sample guard -- the file is
+    the measurement). 1.0 = the machinery's own pick stands."""
+    try:
+        import json as _json
+        _p = path or ST_GOAL_TILT_FILE
+        with open(_p, "r", encoding="utf-8") as _f:
+            _d = _json.load(_f)
+        _ts = datetime.fromisoformat(str(_d.get("ts")))
+        _age_s = (datetime.now(_ts.tzinfo) - _ts).total_seconds()
+        if _age_s > ST_GOAL_TILT_TTL_S:
+            return 1.0
+        if "OVER-AIM" in str(_d.get("verdict") or ""):
+            _gave = float(_d.get("median_gave") or 0.0)
+            _asked = float(_d.get("median_asked") or 0.0)
+            if float(_d.get("big_n") or 0) >= 5 and _asked > 0 and _gave > 0:
+                return max(ST_GOAL_TILT_MIN, min(1.0, _gave / _asked))
+    except Exception:
+        pass
+    return 1.0
 
 
 def _sure_thing_goal(exchange, pair: str) -> float:
     """The Sure Thing fire's % goal: the champion funnel's live market
     goal call (engine rotation cell, capped by the coin's own week,
-    x the live tide, clamped [1, 3]). Fail-open to the engine constant
-    -- a broken goal read must never stall the fire path (the fire
-    gates are the safety net; the goal is an aim)."""
+    x the live tide, clamped [1, 3]), then tilted by the goal bands'
+    calibration when the diag's evidence says the big asks over-aim.
+    Fail-open to the engine constant -- a broken goal read must never
+    stall the fire path (the fire gates are the safety net; the goal
+    is an aim)."""
     try:
         _g = float(_market_goal_pct(exchange, pair))
         if _g > 0:
-            return _g
+            _tilt = _sure_thing_goal_tilt()
+            if _tilt < 1.0:
+                logger.info("  SURE THING %s: GOAL TILT %.2f (the aim-gap "
+                            "verdict: the big asks came down)", pair, _tilt)
+            return max(GOAL_MIN_PCT, min(GOAL_MAX_PCT, _g * _tilt))
     except Exception:
         pass
     return st.SURE_THING_GOAL_PCT
+
+
 MARKET_GOAL_TTL_S = 900.0
 _market_goal_cache: dict = {}   # pair -> (ts, goal_pct)
 

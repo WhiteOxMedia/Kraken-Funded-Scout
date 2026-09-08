@@ -35,7 +35,7 @@
 import argparse
 import json
 import sys
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
@@ -351,6 +351,35 @@ def summarize(grades, days=7.0):
         agg["verdict_goal"] = (f"small sample (2.0+ n={hi_n}) -- keep grading")
     else:
         agg["verdict_goal"] = "no graded fires yet"
+    # the calibration evidence (Sep 8: "let the goal bands calibrate
+    # back"), written AFTER the verdict exists -- DEFINITIVE verdicts
+    # only: an OVER-AIM replaces the measurement (the tilt's numerator
+    # and denominator), a tracking verdict writes its own evidence (the
+    # seam reads neutral -- and a real tracking week LIFTS a standing
+    # squeeze immediately instead of waiting out the TTL). Inconclusive
+    # runs (small sample, no graded fires) NEVER write: a quiet week
+    # must not overwrite a standing OVER-AIM whose TTL handles expiry.
+    if ("OVER-AIM" in agg["verdict_goal"]
+            or "tracks" in agg["verdict_goal"]):
+        _hi_med = [b for b in ("2.0-2.4", "2.5-3.0") if b in gb
+                   and gb[b].get("median_goal") is not None]
+        try:
+            _n = sum(gb[b]["n"] for b in _hi_med)
+            _asked = _median([gb[b]["median_goal"] for b in _hi_med])
+            _gave = _median([gb[b]["median_mfe"] for b in _hi_med
+                             if gb[b].get("median_mfe") is not None])
+            _evid = {"ts": datetime.now(timezone.utc).isoformat(),
+                     "verdict": agg["verdict_goal"],
+                     "median_gave": _gave, "median_asked": _asked,
+                     "big_n": _n}
+            with open(Path(__file__).parent / "surething_goal_tilt.json",
+                      "w", encoding="utf-8") as _f:
+                json.dump(_evid, _f, indent=1)
+            agg["tilt_evidence"] = _evid
+        except Exception as _exc:
+            # fail-open for the REPORT, but visible -- a silent pass here
+            # once hid an ordering bug from the very tests built to catch it
+            print(f"(tilt evidence write failed: {_exc})")
     return agg
 
 
