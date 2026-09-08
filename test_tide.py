@@ -33,6 +33,17 @@ else:
 bs_src = (BASE / "background_scanner.py").read_text(encoding="utf-8").replace("\r\n", "\n")
 ap_src = (BASE / "app.py").read_text(encoding="utf-8").replace("\r\n", "\n")
 check("the factor exists at 0.50", "TIDE_FLAT_SIZE_FACTOR = 0.50" in bs_src)
+_st_fn = bs_src[bs_src.find("def _sure_thing_scan"):bs_src.find("# ── ONE VOICE ENGINE")]
+check("the SURE THING sizes FLAT too (Sep 7: the same factor, no exception)",
+      "_st_tide_mult = TIDE_FLAT_SIZE_FACTOR" in _st_fn
+      and "_spend = _spend * _st_tide_mult" in _st_fn
+      and "FLAT TIDE SIZING" in _st_fn)
+check("the Sure Thing popup names the FLAT factor (line + voice)",
+      "TIDE SIZES IT: FLAT" in _st_fn
+      and "flat tide — half size!" in _st_fn
+      and "× {_st_tide_mult:.2f} FLAT tide" in _st_fn)
+check("the Sure Thing reads the tide fresh at fire time (not the funnel cache)",
+      "_st_tide_pct, _st_tide_state = _fleet_tide()" in _st_fn)
 check("the champion sizes FLAT down (after the guard + brain, before the worth floor)",
       "if is_buy and (_df_state or \"\") == \"FLAT\":" in bs_src
       and "_spend = _spend * _tide_size_mult" in bs_src

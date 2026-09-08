@@ -3547,7 +3547,10 @@ def main():
                                      rot=rotation_key_for_hour(_now_mst().hour))
                     _st_armed.pop(asset, None)
                     continue
-                # the death-line guard sizes it; the probability sizes it more
+                # the death-line guard sizes it; the probability sizes it more;
+                # the FLAT tide sizes it too (Sep 7: same factor the champion,
+                # the mover and the QC already pay — FLAT 22% win vs RISING
+                # 57%, the stamped week; the coil is no exception)
                 try:
                     import contest_account as _ca_st
                     _acct = _ca_st.load_state()
@@ -3559,8 +3562,16 @@ def main():
                         continue
                     _mult = _st_mult(r.get("score") or 0.0)
                     _spend = _cap * _mult
+                    _st_tide_pct, _st_tide_state = _fleet_tide()
+                    _st_tide_mult = 1.0
+                    if (_st_tide_state or "") == "FLAT":
+                        _st_tide_mult = TIDE_FLAT_SIZE_FACTOR
+                        _spend = _spend * _st_tide_mult
+                        logger.info("  SURE THING %s: FLAT TIDE SIZING %.2fx → $%.0f",
+                                    asset, _st_tide_mult, _spend)
                 except Exception:
                     _spend, _mult = 0.0, 0.10
+                    _st_tide_mult = 1.0
                 # ── THE CLIMB-OUT GATES (Sep 6): the coil case — the
                 #    ceiling being crossed IS the level; the check
                 #    becomes runway BEYOND it (coil_mult x1.0). The ER
@@ -3585,7 +3596,9 @@ def main():
                               f"{_score:.0f}% PROBABILITY — {_mult:.2f}× SIZE")
                     _spoken = (f"Sure thing! {asset} is about to break out! "
                                f"The setup scores {_score:.0f} percent — "
-                               f"sizing at {_mult:.2f}! The spring is loaded, "
+                               f"sizing at {_mult:.2f}"
+                               + (f", flat tide — half size!" if _st_tide_mult < 1.0 else "!")
+                               + f" The spring is loaded, "
                                f"breakout window about {_est} minutes! "
                                f"If it hasn't paid by {_out_by}, get out!")
                     _why = (f"{r['detail']} — the probability crossed the "
@@ -3596,16 +3609,23 @@ def main():
                               f"{_score:.0f}% SETUP — {_mult:.2f}× SIZE")
                     _spoken = (f"Sure thing! {asset} is breaking out! "
                                f"{r['tests']} tests at the ceiling, the coil cracked! "
-                               f"The setup scores {_score:.0f} percent — sizing at {_mult:.2f}! "
-                               f"Get in now! If it hasn't paid by {_out_by}, get out!")
+                               f"The setup scores {_score:.0f} percent — sizing at {_mult:.2f}"
+                               + (f", flat tide — half size!" if _st_tide_mult < 1.0 else "!")
+                               + f" Get in now! If it hasn't paid by {_out_by}, get out!")
                     _why = (f"{r['detail']} — the ceiling at ${r['zone_high']:.4f} cracked "
                             f"on a {r['vol_spike']:.1f}x volume burst")
+                _st_tide_line = (f"TIDE SIZES IT: FLAT — {TIDE_FLAT_SIZE_FACTOR:.2f}× size = "
+                                 f"${_spend:,.0f} (the stamped week: FLAT 22% win vs "
+                                 f"RISING 57% — pickier, smaller)\n" if _st_tide_mult < 1.0 else "")
                 _msg = (f"SURE THING — BUY {asset} ({_trig.upper()})\n"
                         f"WHY: {_why}\n"
                         f"WHEN: {'NOW — the crack' if _trig == 'crack' else 'BEFORE the crack — the estimated window is ~' + str(_est) + ' min'}\n"
                         f"HOW LONG: out by {_out_by} (the countdown — "
                         f"{st.SURE_THING_WINDOW_MIN:.0f} min window)\n"
-                        f"SPEND: ${_spend:,.0f} (the 3% guard cap × {_mult:.2f} probability sizing)\n"
+                        f"SPEND: ${_spend:,.0f} (the 3% guard cap × {_mult:.2f} probability sizing"
+                        + (f" × {_st_tide_mult:.2f} FLAT tide" if _st_tide_mult < 1.0 else "")
+                        + f")\n"
+                        + _st_tide_line
                         + str(_st_climb.get("output_block") or "")
                         + _danger_zone_panel(exchange, pair, float(_spend or 0.0),
                                              1.5, st.SURE_THING_WINDOW_MIN, _mult)
