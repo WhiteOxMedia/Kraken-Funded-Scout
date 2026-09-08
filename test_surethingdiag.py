@@ -66,8 +66,9 @@ check("paid-in-window: the paid minute anchors to the fire, not the candle open"
 check("paid-in-window: the P&L is the goal on the spend (+1.5% of $400)",
       abs(g["pnl_usd"] - 6.0) < 1e-9, g["pnl_usd"])
 
-# paid LATE: same spike, but the promise (est) was only 10 minutes
-g2 = dg.grade_fire(snap(est=10), [candle(T0, 21, 0.025, 0.020)],
+# paid LATE: the goal pays at ~35 min, but the promise (est) was only
+# 10 minutes (and the 60-min window keeps it gradeable)
+g2 = dg.grade_fire(snap(est=10), [candle(T0, 7, 0.025, 0.020)],
                    now_s=T0 + 3600)
 check("paid-late: the goal paid but after the countdown ran out",
       g2["verdict"] == "paid-late" and g2["paid_min"] > g2["promise_min"], (g2["paid_min"], g2["promise_min"]))
@@ -135,6 +136,21 @@ gl2 = dg.grade_fire(snap(est=40),
                     now_s=T0 + 3600)
 check("leak guard: a quiet pre-fire candle is dropped, the next one grades",
       gl2["verdict"] == "paid-in-window" and gl2["paid_min"] <= 5.0, gl2)
+
+# the WINDOW ANCHOR (Copilot round 2): with pre-fire candles dropped,
+# hs.outcome anchors win_min at the first SURVIVING row -- a poll gap
+# would let a goal hit at minute ~62 grade in-window on a 60-min
+# promise. Candles past the fire's true deadline are trimmed.
+gw = dg.grade_fire(snap(est=40, win=60.0),
+                   [candle(T0, 13, 0.025, 0.020)],   # paid at ~65+ min
+                   now_s=T0 + 3600)
+check("window anchor: a goal hit past the fire's deadline cannot read in-window",
+      gw["verdict"] != "paid-in-window", gw)
+gw2 = dg.grade_fire(snap(est=60, win=60.0),
+                    [candle(T0, 11, 0.025, 0.020)],  # paid at ~55 min
+                    now_s=T0 + 3600)
+check("window anchor: a hit just inside the deadline still grades",
+      gw2["verdict"] == "paid-in-window", gw2)
 
 # never raises on garbage
 check("garbage in -> None out (never raises)",

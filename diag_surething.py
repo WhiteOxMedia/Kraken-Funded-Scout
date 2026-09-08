@@ -118,12 +118,18 @@ def grade_fire(snap, fwd_rows=None, now_s=None):
         t0 = datetime.fromisoformat(str(snap.get("ts"))).timestamp()
     except Exception:
         return None
-    fwd_rows = [x for x in (fwd_rows or [])
-                if float(x[0]) > t0 * 1000.0]
     entry = float(snap.get("entry") or 0.0)
     win_min = float(snap.get("win_min") or st.SURE_THING_WINDOW_MIN)
     est = int(snap.get("est_min") or win_min)
     trig = str(snap.get("trigger") or "crack")
+    fwd_rows = [x for x in (fwd_rows or [])
+                if float(x[0]) > t0 * 1000.0]
+    # and the WINDOW is fire-relative (Copilot, Sep 8): hs.outcome
+    # anchors its win_min at the first surviving row, so a poll gap
+    # would let a goal hit at minute ~62 grade as in-window on a 60-min
+    # promise -- trim everything past the fire's true deadline
+    fwd_rows = [x for x in fwd_rows
+                if float(x[0]) <= t0 * 1000.0 + win_min * 60.0 * 1000.0]
     # the promise: a pre-breakout fire promises its countdown; a crack
     # fire promises the full window (it said NOW, and NOW pays in-window)
     promise_min = est if trig == "pre-breakout" else win_min
