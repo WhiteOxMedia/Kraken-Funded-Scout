@@ -17,8 +17,12 @@ echo   KILL SWITCH - RESET (RESUME TRADING)
 echo ================================================================
 echo.
 echo   This will:
-echo     1. Delete the kill switch lock file
-echo     2. Resume normal trading (scanner + bot)
+echo     1. Re-baseline today's balance to the ACTUAL current balance
+echo        (the circuit breaker accepts the new low level — without this
+echo        it re-fires within one bot cycle: 10%% of the OLD morning
+echo        balance is gone the moment the flatten landed)
+echo     2. Delete the kill switch lock file
+echo     3. Resume normal trading (scanner + bot)
 echo.
 echo   Press any key to RESET, or close this window to cancel.
 pause >nul
@@ -28,11 +32,13 @@ echo   Resetting kill switch...
 set "PY=.venv\Scripts\python.exe"
 %PY% --version >nul 2>&1
 if errorlevel 1 set "PY=C:\Python314\python.exe"
-%PY% -c "from signal_bridge import reset_kill_switch; reset_kill_switch(); print('Kill switch reset - trading resumed')"
+%PY% reset_rebaseline.py
 
 echo.
 echo ================================================================
 echo   Kill switch reset. Trading resumes on next scan cycle.
+echo   If the balance printed above is wrong, run:
+echo     .venv\Scripts\python.exe reset_rebaseline.py <balance>
 echo ================================================================
 echo.
 pause
