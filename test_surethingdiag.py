@@ -119,6 +119,23 @@ gf = dg.grade_fire(snap(est=40, spend=200.0),
 check("flat tide: half the spend earns half the win ($200 x 1.5% = $3)",
       abs(gf["pnl_usd"] - 3.0) < 1e-9, gf["pnl_usd"])
 
+# the LEAK GUARD (Copilot, Sep 8): the popup lands MID-CANDLE, so the
+# fire candle's pre-fire range is not tradeable -- a candle opened at
+# or before the fire must be dropped, or its pre-fire high grades a
+# winner that paid before the recommendation existed
+gl = dg.grade_fire(snap(est=40),
+                   [candle(T0, 0, 0.10, 0.10),   # opens AT the fire: huge pre-fire high
+                    candle(T0, 13, 0.004, 0.004)],
+                   now_s=T0 + 3600)
+check("leak guard: the pre-fire candle's high cannot manufacture a winner",
+      gl["verdict"] != "paid-in-window", gl)
+gl2 = dg.grade_fire(snap(est=40),
+                    [candle(T0, 0, -0.001, -0.001),  # a quiet fire candle survives
+                     candle(T0, 1, 0.025, 0.020)],
+                    now_s=T0 + 3600)
+check("leak guard: a quiet pre-fire candle is dropped, the next one grades",
+      gl2["verdict"] == "paid-in-window" and gl2["paid_min"] <= 5.0, gl2)
+
 # never raises on garbage
 check("garbage in -> None out (never raises)",
       dg.grade_fire({"ts": "not-a-date"}, None) is None

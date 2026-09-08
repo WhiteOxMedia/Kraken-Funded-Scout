@@ -107,12 +107,19 @@ def grade_fire(snap, fwd_rows=None, now_s=None):
       dud             never really moved
       open            too young to judge (still inside its window)
       no-data         old enough to judge but no forward candles came
-                      back (the ~60h public-archive limit)"""
+                      back (the ~60h public-archive limit)
+    Candles that opened BEFORE the fire are dropped (Copilot, Sep 8):
+    the popup lands mid-candle and the fire candle's PRE-fire range is
+    not tradeable -- hs.outcome treats the first row as the entry
+    moment, so a leak there could grade a winner that paid before the
+    recommendation existed. Understating speed beats flattering it."""
     now_s = now_s if now_s is not None else datetime.now().timestamp()
     try:
         t0 = datetime.fromisoformat(str(snap.get("ts"))).timestamp()
     except Exception:
         return None
+    fwd_rows = [x for x in (fwd_rows or [])
+                if float(x[0]) > t0 * 1000.0]
     entry = float(snap.get("entry") or 0.0)
     win_min = float(snap.get("win_min") or st.SURE_THING_WINDOW_MIN)
     est = int(snap.get("est_min") or win_min)
@@ -267,6 +274,7 @@ def _fmt_pct(x):
 
 
 def run(days=7.0, fetch=True, out_path="_surething_check.txt", now_s=None):
+    lines.clear()
     now_s = now_s if now_s is not None else datetime.now().timestamp()
     fires = load_fires(days=days, now_s=now_s)
     out(f"THE SURE THING WEEKLY DIAG  ({days:.0f}d window, "
