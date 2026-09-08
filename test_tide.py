@@ -79,6 +79,8 @@ check("the popup + voice name the discount",
 _MST = _ZI("America/Denver")
 _scan_body = "\n".join((l[4:] if l.startswith("    ") else l)
                        for l in _st_fn.splitlines())
+_fake_goal = 1.5   # what the fake sure_thing module reports as the fire's goal
+_fake_live_goal = 2.4   # what the fake market-goal machinery picks for this coin
 check("the runtime slice is the scan function",
       _scan_body.lstrip().startswith("def _sure_thing_scan"))
 
@@ -160,6 +162,7 @@ def _make_harness(deep, tide_state="RISING"):
         "timedelta": _td,
         "rotation_key_for_hour": lambda h: "08-12",
         "TIDE_FLAT_SIZE_FACTOR": bs.TIDE_FLAT_SIZE_FACTOR,
+        "_sure_thing_goal": lambda ex, pair: _fake_live_goal,
         "_danger_zone_panel": lambda *a, **k: "[panel]",
         "rotation_mark_fired": lambda asset: cap["rot"].append(asset),
         "_st_armed": armed,
@@ -230,8 +233,9 @@ check("runtime: the snapshot's climb features carry the tide stamp",
 check("runtime: the snapshot stamps est_min (the countdown data)",
       bool(_sn) and _sn[0]["est_min"] == 45,
       _sn[0].get("est_min") if _sn else None)
-check("runtime: the snapshot stamps the per-fire goal (the diag grades the goal that fired)",
-      bool(_sn) and abs(_sn[0]["goal_pct"] - _fake_goal) < 1e-9,
+check("runtime: the snapshot stamps the per-fire goal — the LIVE market pick, not the engine constant",
+      bool(_sn) and abs(_sn[0]["goal_pct"] - _fake_live_goal) < 1e-9
+      and abs(_sn[0]["goal_pct"] - _fake_goal) > 1e-9,
       _sn[0].get("goal_pct") if _sn else None)
 check("runtime: the tide is read FRESH at fire time (not one funnel read)",
       cap2["tide_reads"] >= 2, cap2["tide_reads"])

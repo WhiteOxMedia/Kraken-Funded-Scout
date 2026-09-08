@@ -1175,6 +1175,25 @@ def _window_goal_pct(pair: str) -> float:
 # a generous week keeps the engine number untouched. Broken week read:
 # the engine number stands alone (fail-open to yesterday's logic).
 # Cached 15 min per pair — daily candles don't move faster than that.
+# THE SURE THING JOINS IT (user rule, Sep 8: "the breakout should aim at
+# what the market can actually give, not a flat default"): the fire path
+# calls the SAME machinery — and the per-fire goal_pct stamp keeps
+# diag_surething.py accountable for whatever it picks.
+
+
+def _sure_thing_goal(exchange, pair: str) -> float:
+    """The Sure Thing fire's % goal: the champion funnel's live market
+    goal call (engine rotation cell, capped by the coin's own week,
+    x the live tide, clamped [1, 3]). Fail-open to the engine constant
+    -- a broken goal read must never stall the fire path (the fire
+    gates are the safety net; the goal is an aim)."""
+    try:
+        _g = float(_market_goal_pct(exchange, pair))
+        if _g > 0:
+            return _g
+    except Exception:
+        pass
+    return st.SURE_THING_GOAL_PCT
 MARKET_GOAL_TTL_S = 900.0
 _market_goal_cache: dict = {}   # pair -> (ts, goal_pct)
 
@@ -3587,7 +3606,7 @@ def main():
                 #    becomes runway BEYOND it (coil_mult x1.0). The ER
                 #    gate passes coils via the squeeze exemption (a
                 #    coil is squeezed + low ER by definition).
-                _st_goal = st.SURE_THING_GOAL_PCT
+                _st_goal = _sure_thing_goal(exchange, pair)
                 _st_climb = _climb_out_check(
                     exchange, pair, float(r.get("trigger_px") or 0.0),
                     _st_goal, float(_spend or 0.0),

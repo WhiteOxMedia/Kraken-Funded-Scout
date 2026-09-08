@@ -260,6 +260,18 @@ check("coils are silent once per zone (user rule Sep 8: the armed watch is "
       "noise, the BUY is the first alert) — logged, never spoken",
       "_st_armed" in bs and "ARMED (silent)" in st_fn
       and "is coiling" not in st_fn)
+# the LIVE GOAL (user rule, Sep 8: "the breakout should aim at what the
+# market can actually give, not a flat default") — the fire path calls
+# the champion funnel's market-goal machinery, fail-open to the engine
+# constant, and stamps whatever it picked
+check("the fire aims at the LIVE market goal (the champion machinery), not a flat default",
+      "def _sure_thing_goal" in bs
+      and "_market_goal_pct(exchange, pair)" in bs
+      and "_st_goal = _sure_thing_goal(exchange, pair)" in bs)
+check("a broken goal read fails open to the engine constant (the fire never stalls)",
+      "return st.SURE_THING_GOAL_PCT" in bs)
+check("the goal the fire picked is stamped into the snapshot (the diag grades it)",
+      '"goal_pct": _st_goal' in bs)
 
 out = "\n".join(lines) + f"\n\n{PASS} passed, {FAIL} failed\n"
 open("_surething_check.txt", "w", encoding="ascii", errors="replace").write(out)
