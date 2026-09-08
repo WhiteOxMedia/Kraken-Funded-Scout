@@ -61,7 +61,11 @@ try:
     ex = FakeEx({p: live for p, _, _, _, live in rows})
     ranked, total = app._scalp_headline(ex, "12-16", "weekday")
 
-    check("synthetic signals considered (live pool adds more)", total >= 5, f"total={total}")
+    # the pool's guaranteed floor is the 3 QUALIFYING synthetics (TESTA/B/E);
+    # the live DB may add recent signals but the count must never DEPEND on it
+    # (CodeRabbit, Sep 8: a live-data assertion breaks whenever the pool goes quiet)
+    check("the qualifying synthetic signals are considered (the live pool may add more)",
+          total >= 3, f"total={total}")
     assets = [c["asset"] for c in ranked]
     check("headline = TESTA (fastest $20)", assets and assets[0] == "TESTA", f"{assets}")
     check("TESTB collapsed into TESTA's sweep", "TESTB" not in assets, f"{assets}")

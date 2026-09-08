@@ -186,6 +186,38 @@ check("the dial folds actual into the product (never a quota — a tilt)",
 check("the console shows the actual lever",
       "actual" in ap[ap.find("THIS ROTATION:"):ap.find("THIS ROTATION:") + 200])
 
+# ── 8. BEHAVIORAL (CodeRabbit, Sep 8: grade what the code DOES, not
+#    just the tokens it contains) — the zero-fallback + the live math ───
+_cs_bak2 = CS.read_text(encoding="utf-8")
+try:
+    CS.unlink()   # no console state at all
+    _fb = bs.worth_floor_auto_factors()
+    check("zero-fallback: no console_state -> the approved default base (0.25), AUTO on",
+          abs(_fb["base"] - 0.25) < 1e-9 and _fb["auto"] is True, _fb)
+    check("zero-fallback: the effective dial is the clamped product, not 0",
+          0.10 <= _fb["effective"] <= 0.40, _fb["effective"])
+    CS.write_text("{not json", encoding="utf-8")
+    _fb2 = bs.worth_floor_auto_factors()
+    check("zero-fallback: a corrupt console_state reads the same defaults",
+          abs(_fb2["base"] - 0.25) < 1e-9 and _fb2["auto"] is True, _fb2)
+finally:
+    CS.write_text(_cs_bak2, encoding="utf-8")
+
+# the ACTUAL factor computes from the ledger (realized vs pace, the formula)
+_pace = ca.daily_pace_usd()
+_real = ca.realized_pnl_today()
+if _pace <= 0:
+    _exp_act = 1.0
+else:
+    _exp_act = max(bs.WORTH_ACTUAL_MIN,
+                   min(bs.WORTH_ACTUAL_MAX,
+                       1.0 + bs.WORTH_ACTUAL_SWING * ((_pace - _real) / bs.WORTH_ACTUAL_HALFLIFE_USD)))
+check("the ACTUAL factor matches the formula on the live ledger (realized vs pace)",
+      abs(bs._worth_actual_factor() - _exp_act) < 1e-9,
+      (bs._worth_actual_factor(), _exp_act, _real))
+check("the ACTUAL factor is clamped [0.85, 1.15] on the live day",
+      0.85 <= bs._worth_actual_factor() <= 1.15)
+
 lines.append(f"\nRESULT: {PASS} passed, {FAIL} failed")
 Path("_worthdial_test.txt").write_text("\n".join(lines), encoding="utf-8")
 print("DONE")

@@ -4,13 +4,18 @@ shortcut") — reset_rebaseline.py: the reset re-baselines today's
 daily_balance to the ACTUAL balance so the bot's 10% circuit breaker
 accepts the new level instead of instantly re-triggering.
 
-Offline: the balance detection and the breaker math are tested against
-a synthetic daily_balance row + a synthetic lock; the live bot log is
-only READ (never written)."""
-import json
+HERMETIC (CodeRabbit, Sep 8): the breaker math, the rebaseline write and
+the lock clear run against a SYNTHETIC signals.db + kill_switch.lock in
+a temp dir (the seam is sb.DB_PATH / sb.KILL_SWITCH_FILE — the same seam
+test_tidestamp uses). The live DB is only ever READ, and only for a
+non-brittle sanity check — no balance-VALUE assertion (trading moves the
+balance; a hardcoded constant breaks the suite by design)."""
 import sqlite3
 import sys
+import tempfile
+from datetime import datetime
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 sys.path.insert(0, str(Path(__file__).parent))
 
@@ -29,12 +34,28 @@ def check(name, ok, detail=""):
 
 import signal_bridge as sb
 
-DB = Path("signals.db")
-LOCK = Path("kill_switch.lock")
-BAK = DB.read_bytes() if DB.exists() else None
-LOCK_HAD = LOCK.exists()
-if LOCK_HAD:
-    LOCK_BAK = LOCK.read_bytes()
+MST = ZoneInfo("America/Denver")
+today = datetime.now(MST).strftime("%Y-%m-%d")
+
+# ── 0. the live day (READ-ONLY, non-brittle): the fix shipped live ────
+_live = Path("signals.db")
+if _live.exists():
+    _lc = sqlite3.connect(str(_live))
+    _row = _lc.execute("SELECT starting_balance FROM daily_balance WHERE date=?",
+                       (today,)).fetchone()
+    _lc.close()
+    check("the live day's baseline, if recorded, is a positive balance (read-only)",
+          _row is None or float(_row[0]) > 0.0, _row[0] if _row else None)
+else:
+    check("no live signals.db in this environment (nothing live to assert)", True)
+check("the live kill switch is clear", not sb.is_kill_switch_active())
+
+# ── the hermetic seam: a synthetic signals.db + lock in a temp dir ────
+SCRATCH = Path(tempfile.mkdtemp(prefix="resetrebaseline_"))
+DB = SCRATCH / "signals.db"
+LOCK = SCRATCH / "kill_switch.lock"
+_sb_db, _sb_ks = sb.DB_PATH, sb.KILL_SWITCH_FILE
+sb.DB_PATH, sb.KILL_SWITCH_FILE = DB, LOCK
 
 try:
     conn = sqlite3.connect(str(DB))
@@ -42,7 +63,6 @@ try:
         date TEXT PRIMARY KEY, starting_balance REAL NOT NULL, timestamp TEXT NOT NULL)""")
     # ── 1. the incident, reproduced: a flatten drops the account 63 -> 23
     #       while the morning baseline stays 63 — the breaker reads -63% ──
-    conn.execute("DELETE FROM daily_balance WHERE date='2099-01-01'")
     conn.execute("INSERT INTO daily_balance VALUES ('2099-01-01', 63.33, 'test')")
     conn.commit()
     conn.close()
@@ -88,25 +108,37 @@ try:
     check("the RESET shortcut runs the rebaseline (not the bare reset)",
           "reset_rebaseline.py" in bat and "reset_kill_switch; reset_kill_switch()" not in bat)
     check("the shortcut tells the user how to correct a wrong balance",
-          "reset_rebaseline.py <balance>" in bat)
+          "reset_rebaseline.py ^<balance^>" in bat)
 
-    # ── 5. the live day is healthy right now (the script already ran) ──
-    import datetime as _dt
-    from zoneinfo import ZoneInfo
-    today = _dt.datetime.now(ZoneInfo("America/Denver")).strftime("%Y-%m-%d")
-    conn = sqlite3.connect(str(DB))
-    row = conn.execute("SELECT starting_balance FROM daily_balance WHERE date=?", (today,)).fetchone()
-    conn.close()
-    check("today's live baseline equals the bot's newest reading (the fix is live)",
-          row is not None and abs(float(row[0]) - 23.34) < 0.01, row[0] if row else None)
-    check("the live kill switch is clear", not sb.is_kill_switch_active())
+    # ── 4b. the GUARDED DB flow (CodeRabbit, Sep 8): the lock must clear
+    #    even when the rebaseline write dies (the live bot holds the DB) ──
+    check("the rebaseline write is guarded (except + finally around the DB flow)",
+          "except Exception" in src and "finally:" in src
+          and src.find("except Exception") < src.find("reset_kill_switch()"))
+    check("the DB connection closes on every path (no lock held into the reset)",
+          "conn.close()" in src)
+    check("a failed write still prints the re-run hint (the user is never stranded)",
+          "REBASELINE WRITE FAILED" in src)
+
+    # ── 4c. the balance detector RUNS (behavioral, not just grepped) ──
+    import reset_rebaseline as rr
+    _argv = sys.argv
+    try:
+        sys.argv = ["reset_rebaseline.py", "42.5"]
+        v, s = rr._detect_balance("2099-01-01")
+        check("detection: the typed balance wins", v == 42.5 and "argument" in s, (v, s))
+        sys.argv = ["reset_rebaseline.py", "not-a-number"]
+        v2, _s2 = rr._detect_balance("2099-01-01")
+        check("detection: a non-numeric arg falls back (2099 has no log lines)",
+              v2 is None, v2)
+        sys.argv = ["reset_rebaseline.py"]
+        v3, s3 = rr._detect_balance("2099-01-01")
+        check("detection: no arg + no matching log day -> no source (the lock still clears)",
+              v3 is None and "no source" in s3, (v3, s3))
+    finally:
+        sys.argv = _argv
 finally:
-    if BAK is not None:
-        DB.write_bytes(BAK)
-    elif DB.exists():
-        DB.unlink()
-    if LOCK_HAD:
-        LOCK.write_bytes(LOCK_BAK)
+    sb.DB_PATH, sb.KILL_SWITCH_FILE = _sb_db, _sb_ks
 
 lines.append(f"\nRESULT: {PASS} passed, {FAIL} failed")
 Path("_resetrebaseline_check.txt").write_text("\n".join(lines), encoding="utf-8")

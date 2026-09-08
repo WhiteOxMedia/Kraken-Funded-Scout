@@ -3532,7 +3532,9 @@ def main():
                                      "(the fire-time rule)",
                                      quick=float(r.get("score") or 0.0),
                                      rot=rotation_key_for_hour(_now_mst().hour))
-                    _st_armed.pop(asset, None)
+                    # the armed memory STAYS (CodeRabbit, Sep 8): the coil
+                    # is announced once per zone — popping here while the
+                    # coil is still armed re-announces it every 5-min poll
                     continue
                 if _st_deep.action != "buy":
                     logger.info("  SURE THING %s: deep veto — the scan reads %s %.0f%% "
@@ -3545,7 +3547,10 @@ def main():
                                      quick=float(r.get("score") or 0.0),
                                      brain=float(_st_deep.confidence),
                                      rot=rotation_key_for_hour(_now_mst().hour))
-                    _st_armed.pop(asset, None)
+                    # the armed memory STAYS (CodeRabbit, Sep 8): a vetoed
+                    # coil is not a new coil — popping here re-announces
+                    # the same zone every poll; the suppression log still
+                    # records every veto
                     continue
                 # the death-line guard sizes it; the probability sizes it more;
                 # the FLAT tide sizes it too (Sep 7: same factor the champion,

@@ -38,7 +38,7 @@ echo.
 echo ================================================================
 echo   Kill switch reset. Trading resumes on next scan cycle.
 echo   If the balance printed above is wrong, run:
-echo     .venv\Scripts\python.exe reset_rebaseline.py <balance>
+echo     .venv\Scripts\python.exe reset_rebaseline.py ^<balance^>
 echo ================================================================
 echo.
 pause

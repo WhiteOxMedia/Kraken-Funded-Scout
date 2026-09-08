@@ -84,29 +84,48 @@ def main():
         src = "none found"
     print(f"1. actual balance: " + (f"${bal:.2f}  ({src})" if bal is not None else f"UNKNOWN ({src})"))
 
-    conn = sqlite3.connect(str(Path(__file__).parent / "signals.db"))
-    row = conn.execute("SELECT starting_balance FROM daily_balance WHERE date=?",
-                       (today,)).fetchone()
-    old = float(row[0]) if row else None
-    print(f"2. today's baseline: " + (f"${old:.2f}" if old is not None else "not recorded yet"))
+    # the DB flow is GUARDED (CodeRabbit, Sep 8): the lock must clear
+    # even when the rebaseline write fails — the live bot holds signals.db
+    # often (WAL busy), and a stranded reset is worse than a stale baseline
+    rebaselined = False
+    old = None
+    conn = None
+    try:
+        conn = sqlite3.connect(str(Path(__file__).parent / "signals.db"),
+                               timeout=5.0)
+        row = conn.execute("SELECT starting_balance FROM daily_balance WHERE date=?",
+                           (today,)).fetchone()
+        old = float(row[0]) if row else None
+        print(f"2. today's baseline: " + (f"${old:.2f}" if old is not None else "not recorded yet"))
 
-    if bal is not None:
-        if row:
-            conn.execute("UPDATE daily_balance SET starting_balance=?, timestamp=? WHERE date=?",
-                         (bal, datetime.now(MST).isoformat(), today))
+        if bal is not None:
+            if row:
+                conn.execute("UPDATE daily_balance SET starting_balance=?, timestamp=? WHERE date=?",
+                             (bal, datetime.now(MST).isoformat(), today))
+            else:
+                conn.execute("INSERT INTO daily_balance (date, starting_balance, timestamp) VALUES (?, ?, ?)",
+                             (today, bal, datetime.now(MST).isoformat()))
+            conn.commit()
+            rebaselined = True
         else:
-            conn.execute("INSERT INTO daily_balance (date, starting_balance, timestamp) VALUES (?, ?, ?)",
-                         (today, bal, datetime.now(MST).isoformat()))
-        conn.commit()
+            print("3. NO REBASELINE possible — the lock still clears, but if the "
+                  "balance dropped >10% today the breaker WILL re-fire on the "
+                  "next bot cycle. Run again with the balance as the argument.")
+    except Exception as exc:
+        print(f"3. REBASELINE WRITE FAILED: {exc} — the lock still clears. "
+              f"Run the script again (the bot may hold the DB; it frees it) "
+              f"or type the balance as the argument.")
+    finally:
+        try:
+            if conn is not None:
+                conn.close()
+        except Exception:
+            pass
+
+    if rebaselined and bal is not None:
         print(f"3. RE-BASELINED: today now starts at ${bal:.2f}"
               + (f"  (was ${old:.2f} — the breaker would have read "
                  f"{(old - bal) / old * 100:.1f}% against it)" if old else ""))
-    else:
-        print("3. NO REBASELINE possible — the lock still clears, but if the "
-              "balance dropped >10% today the breaker WILL re-fire on the "
-              "next bot cycle. Run again with the balance as the argument.")
-
-    conn.close()
 
     # 4. the reset itself
     from signal_bridge import reset_kill_switch, is_kill_switch_active, get_daily_start_balance
