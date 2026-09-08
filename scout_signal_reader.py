@@ -355,7 +355,7 @@ def _challenge_weakest(kraken, config, new_pair: str, new_confidence: float) -> 
                 ohlcv = kraken.fetch_ohlcv(pos.pair, timeframe="1h", limit=200)
                 if ohlcv and len(ohlcv) >= 30:
                     df = pd.DataFrame(ohlcv, columns=["timestamp", "open", "high", "low", "close", "volume"])
-                    df["timestamp"] = pd.to_datetime(ohlcv, unit="ms")
+                    df["timestamp"] = pd.to_datetime(df["timestamp"], unit="ms")
                     df.set_index("timestamp", inplace=True)
                     enable_deep_analysis()
                     try:
@@ -633,10 +633,15 @@ def check_scout_signals(kraken, config) -> dict | None:
                 mark_rejected(signal_id, "Already holding this asset")
                 continue
 
+            # The bot's own position DB — imported UNCONDITIONALLY: the
+            # insufficient-funds swap below (line ~767) reads bot_db on the
+            # non-hold path too, and a DCA signal would NameError there
+            # (CodeRabbit, Sep 8; the import was is_dca-scoped)
+            import db as bot_db
+
             # Also check XRP bot's own position DB
             if not is_dca:
                 try:
-                    import db as bot_db
                     base = pair.split("/")[0] if "/" in pair else ""
                     existing = bot_db.get_position_for_asset(base)
                     if existing and existing.is_open:

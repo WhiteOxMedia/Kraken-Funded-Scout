@@ -18,16 +18,19 @@ REM the day-start balance breaker, the DST-aware MST, the dynamic caps) —
 REM a blind copy here would regress real-money protections.
 copy "signal_bridge.py" "C:\Users\birds\Workspace\kraken_xrp_trading_bot\signal_bridge.py"
 
-fc /b "scout_signal_reader.py" "C:\Users\birds\Workspace\kraken_xrp_trading_bot\scout_signal_reader.py" >nul 2>&1
-if errorlevel 1 (
-    echo.
-    echo   *** STOPPED: scout_signal_reader.py has DIVERGED from the bot's copy. ***
-    echo   The BOT's reader is the live one ^(day-start breaker, dynamic caps,
-    echo   DST MST^). Port anything new INTO the bot copy first, or diff:
-    echo     fc "scout_signal_reader.py" "C:\Users\birds\Workspace\kraken_xrp_trading_bot\scout_signal_reader.py"
-    echo   Nothing was copied over it.
-    exit /b 1
+if exist "C:\Users\birds\Workspace\kraken_xrp_trading_bot\scout_signal_reader.py" (
+    fc /b "scout_signal_reader.py" "C:\Users\birds\Workspace\kraken_xrp_trading_bot\scout_signal_reader.py" >nul 2>&1
+    if errorlevel 1 (
+        echo.
+        echo   *** STOPPED: scout_signal_reader.py has DIVERGED from the bot's copy. ***
+        echo   The BOT's reader is the live one ^(day-start breaker, dynamic caps,
+        echo   DST MST^). Port anything new INTO the bot copy first, or diff:
+        echo     fc "scout_signal_reader.py" "C:\Users\birds\Workspace\kraken_xrp_trading_bot\scout_signal_reader.py"
+        echo   Nothing was copied over it.
+        exit /b 1
+    )
 )
+REM first install: no destination yet — the copy below is the install
 copy "scout_signal_reader.py" "C:\Users\birds\Workspace\kraken_xrp_trading_bot\scout_signal_reader.py"
 
 echo.
