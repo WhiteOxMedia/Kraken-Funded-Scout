@@ -127,6 +127,50 @@ ins2 = dc._insight({"usd_left": {"missed": 50, "giveback": 0, "missed_exit": 0, 
                    [], [])
 check("a missed-popup rotation points at the green light", "green" in ins2.lower() or "popup" in ins2.lower())
 
+# ── 5b. THE OPPORTUNITY COST (user rule, Sep 7: "the Discipline score
+# gave itself a 100 because there were 0 popups — 0 popups does not help
+# the goal; the goal is the BEST popups at the RIGHT time") ────────────
+check("the empty-fire cap constant exists (60 = the CAREFUL band)",
+      dc.EMPTY_FIRE_CAP == 60.0)
+# a synthetic perfect-looking rotation with zero fires: no deductions, no
+# bonuses — the raw score would be 100; the cap must hold it at 60
+res_empty = {"score": 100.0, "realized_pnl": 0.0, "pace_share": 48.0,
+             "usd_left": {"missed": 0, "giveback": 0, "missed_exit": 0,
+                          "early_exit": 0, "system_burial": 0},
+             "empty_fire": True,
+             "ts": datetime.now(MST).isoformat()}
+state_e = {"weights": dict(dc.DEFAULT_WEIGHTS), "history": [], "lessons": []}
+lesson_e = dc._learn(state_e, res_empty)
+check("a zero-fire rotation's lesson says the silence, not perfection",
+      "No popups fired" in lesson_e and "capped" in lesson_e, lesson_e[:80])
+# zero fires + LOSING money -> the gates' leave: system_burial rises
+res_empty_loss = dict(res_empty, realized_pnl=-30.0)
+state_el = {"weights": dict(dc.DEFAULT_WEIGHTS), "history": [], "lessons": []}
+lesson_el = dc._learn(state_el, res_empty_loss)
+check("zero fires + a losing rotation -> system_burial RISES (the silent funnel)",
+      state_el["weights"]["system_burial"] > dc.DEFAULT_WEIGHTS["system_burial"],
+      state_el["weights"]["system_burial"])
+check("that lesson names the silent funnel", "silent funnel" in lesson_el
+      or "surfaced nothing" in lesson_el)
+# a FIRING rotation with the same clean sheet still earns 100
+res_full = dict(res_empty, empty_fire=False)
+state_f = {"weights": dict(dc.DEFAULT_WEIGHTS), "history": [], "lessons": []}
+lesson_f = dc._learn(state_f, res_full)
+check("a firing rotation with a clean sheet is unaffected (weights hold)",
+      state_f["weights"] == dc.DEFAULT_WEIGHTS and "agree" in lesson_f)
+check("the cap is wired into evaluate_rotation (score, not just the lesson)",
+      "EMPTY_FIRE_CAP" in src and "empty_fire = not fired" in src
+      and "score = EMPTY_FIRE_CAP" in src)
+check("the result carries the empty_fire flag (the plate reads it)",
+      '"empty_fire": empty_fire' in src)
+check("the voice says the silence instead of a grade",
+      "can't grade perfect" in src or "can't grade perfect" in src.replace("'", "'"))
+check("the plate grades a silent rotation (amber, never SNIPER)",
+      "SILENT ROTATION" in ap and "empty_fire" in ap)
+check("a capped score never feeds the streak",
+      "and not row.get(" in ap
+      and "empty_fire" in ap[ap.find("# the streak: consecutive scores >= 70"):ap.find("# the streak: consecutive scores >= 70") + 400])
+
 # ── 6. the wiring ─────────────────────────────────────────────────────
 check("the scanner evaluates at every rotation rollover",
       "evaluate_rotation(exchange, _prev_key, speak=True)" in scan

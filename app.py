@@ -1731,15 +1731,20 @@ def _discipline_plate() -> str:
                          "Goals vs reality vs you — graded every 4 hours, "
                          "learning its own weights.</div>")
         s = float(_last.get("score") or 0)
-        col = ("#4be38a" if s >= 80 else "#ffc36b" if s >= 60 else "#ff6b5e")
-        grade = ("SNIPER — nothing slipped" if s >= 85 else
+        _empty = bool(_last.get("empty_fire"))
+        col = ("#ffc36b" if _empty else
+               "#4be38a" if s >= 80 else "#ffc36b" if s >= 60 else "#ff6b5e")
+        grade = ("SILENT ROTATION — nothing fired, nothing graded (capped)" if _empty else
+                 "SNIPER — nothing slipped" if s >= 85 else
                  "SOLID — tight rotation" if s >= 65 else
                  "CAREFUL — money slipped" if s >= 40 else
                  "UNDISCIPLINED — the table kept it")
-        # the streak: consecutive scores >= 70
+        # the streak: consecutive scores >= 70 — an empty-fire capped
+        # score never feeds the streak (a silent rotation is not a
+        # disciplined one, Sep 7)
         streak = 0
         for row in reversed(_h):
-            if float(row.get("score") or 0) >= 70:
+            if float(row.get("score") or 0) >= 70 and not row.get("empty_fire"):
                 streak += 1
             else:
                 break
@@ -1749,9 +1754,9 @@ def _discipline_plate() -> str:
         user_left = max(left - sys_left, 0.0)
         top_gate = str(_last.get("top_gate") or "")
         pnl_col = "#4be38a" if pnl > 0 else ("#ff6b5e" if pnl < 0 else "#9a9a9a")
-        # recent history strip
+        # recent history strip (a capped empty-fire score reads amber)
         strip = " ".join(
-            f"<span style='color:{'#4be38a' if float(r.get('score') or 0) >= 70 else '#ff6b5e'};'>"
+            f"<span style='color:{'#ffc36b' if r.get('empty_fire') else '#4be38a' if float(r.get('score') or 0) >= 70 else '#ff6b5e'};'>"
             f"{float(r.get('score') or 0):.0f}</span>"
             for r in _h[-10:])
         lessons = _st.get("lessons") or []

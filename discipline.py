@@ -70,6 +70,18 @@ DEFAULT_WEIGHTS = {
 W_MIN, W_MAX = 0.25, 2.5
 NUDGE = 0.10             # ±10% per learning step
 BONUS_MAX = 10.0         # good-behavior bonus cap (points)
+# ── THE OPPORTUNITY COST (user rule, Sep 7: "the Discipline score gave
+# itself a 100 because there were 0 popups — 0 popups does not help the
+# goal; the goal is the BEST popups at the RIGHT time, maximizing
+# profits"): a rotation with no FIRED popup is not a perfect rotation —
+# it's a rotation where the funnel surfaced nothing worth taking, so
+# "did I leave money on the table?" is UNANSWERABLE, not "yes". The
+# empty-fire score is capped at NEUTRAL_CAP and the plate/voice say
+# why. A healthy system FIRES: 0 fires means the gates are strangling
+# the funnel (or the tape was dead) — either way the score must not
+# read as discipline perfection, or the self-learning weights drift
+# toward "suppress everything" (the exact wrong lesson).
+EMPTY_FIRE_CAP = 60.0     # a zero-fire rotation tops out here (CAREFUL band)
 ROTATIONS = [("00-04", 0, 4), ("04-08", 4, 8), ("08-12", 8, 12),
              ("12-16", 12, 16), ("16-20", 16, 20), ("20-24", 20, 24)]
 
@@ -430,6 +442,15 @@ def evaluate_rotation(exchange, rot_key: str, when=None, speak=True) -> dict:
         min(50.0, 50.0 * (usd[k] / pace_share) * weights.get(k, 1.0))
         for k in usd)
     score = max(0.0, min(100.0, 100.0 - deductions + min(bonuses, BONUS_MAX)))
+    # THE OPPORTUNITY COST (Sep 7): zero FIRED popups caps the score —
+    # a rotation where nothing was surfaced cannot grade "perfect".
+    # The candidates may have existed and not paid (honest no-trade) or
+    # been strangled by the gates — the capped score + the empty-fire
+    # flag says which world, and the learning step treats a capped
+    # score + losing money as the gates' fault (system_burial rises).
+    empty_fire = not fired
+    if empty_fire and score > EMPTY_FIRE_CAP:
+        score = EMPTY_FIRE_CAP
     realized_pnl = sum(float(t.get("pnl_net") or 0) for t in sold)
 
     result = {
@@ -447,6 +468,7 @@ def evaluate_rotation(exchange, rot_key: str, when=None, speak=True) -> dict:
                    for p in popups],
         "realized_pnl": round(realized_pnl, 2),
         "balance_after": balance,
+        "empty_fire": empty_fire,
         "bonuses": bonuses, "weights": dict(weights),
         "ts": _now().isoformat(),
     }
@@ -481,7 +503,20 @@ def _learn(state: dict, result: dict) -> str:
     usd = result["usd_left"]
     lesson = ""
     dominant = max(usd, key=usd.get) if any(usd.values()) else None
-    if score >= 80 and pnl < 0 and dominant:
+    if result.get("empty_fire") and pnl < 0:
+        # THE OPPORTUNITY COST (Sep 7): nothing fired AND the rotation
+        # lost money — the funnel surfaced nothing while the account
+        # bled. That is the gates' leave, whatever the suppression log
+        # says: the system_burial weight rises (the carve-out data
+        # builds) and the lesson names the silence.
+        old = w.get("system_burial", 1.0)
+        w["system_burial"] = round(min(W_MAX, old * (1.0 + NUDGE)), 3)
+        lesson = (f"No popups fired and the rotation lost ${abs(pnl):.0f} — "
+                  f"the funnel surfaced nothing worth taking while the "
+                  f"account bled. The system_burial weight rises "
+                  f"{old:.2f} → {w['system_burial']:.2f}: a silent funnel "
+                  f"is not a disciplined one.")
+    elif score >= 80 and pnl < 0 and dominant:
         # high score but the money went backwards — the score is
         # over-crediting; make the dominant component sting more
         old = w.get(dominant, 1.0)
@@ -509,6 +544,10 @@ def _learn(state: dict, result: dict) -> str:
             lesson = (f"Score {score:.0f} but the rotation MADE ${pnl:.0f} — "
                       f"the '{dominant}' weight eases {old:.2f} → {w[dominant]:.2f}: "
                       f"some 'left on the table' was right to leave.")
+    elif result.get("empty_fire"):
+        lesson = (f"No popups fired — score capped at {score:.0f} (the "
+                  f"opportunity cost: a silent rotation cannot grade "
+                  f"perfect). Realized ${pnl:+.0f}; weights hold.")
     else:
         lesson = (f"Score and money agree (score {score:.0f}, realized "
                   f"${pnl:+.0f}) — weights hold; the calibration stands.")
@@ -523,9 +562,13 @@ def _speak_result(result: dict, missed: list, missed_exit: list):
     try:
         import background_scanner as bs
         s = result["score"]
-        grade = ("SNIPER!" if s >= 85 else "SOLID!" if s >= 65 else
-                 "CAREFUL!" if s >= 40 else "UNDISCIPLINED!")
-        line = f"Rotation closed! Discipline score: {s:.0f}! {grade} "
+        if result.get("empty_fire"):
+            line = (f"Rotation closed! No popups fired — score {s:.0f}, "
+                    f"capped: a silent rotation can't grade perfect. ")
+        else:
+            grade = ("SNIPER!" if s >= 85 else "SOLID!" if s >= 65 else
+                     "CAREFUL!" if s >= 40 else "UNDISCIPLINED!")
+            line = f"Rotation closed! Discipline score: {s:.0f}! {grade} "
         if result["total_left"] > 1:
             line += (f"You left ${result['total_left']:,.0f} on the table. ")
             if missed:
@@ -536,7 +579,9 @@ def _speak_result(result: dict, missed: list, missed_exit: list):
                 line += (f"The funnel buried ${result['system_left']:,.0f} theoretical — "
                          f"that's on the machine, not you! ")
         else:
-            line += "Nothing left on the table! "
+            line += ("Nothing left on the table — but nothing was offered "
+                     "either! " if result.get("empty_fire")
+                     else "Nothing left on the table! ")
         line += _insight(result, missed, missed_exit)
         bs._speak_server(line, rate=1)
     except Exception:
