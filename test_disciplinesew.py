@@ -193,7 +193,7 @@ try:
         _exp_sys = _bal_t * goal_pop / 100.0
         _exp_miss = _bal_t * goal_zec / 100.0
         check("a buried payer counts as SYSTEM, not missed (the attribution fix)",
-              (usd.get("system_burial", 0) > 50
+              (usd.get("system_burial", 0) > 0.005 * _bal_t   # material: >=0.5% of the LIVE balance (the old literal 50 assumed 10k)
                and abs(usd["system_burial"] - _exp_sys) <= 0.05 * max(_exp_sys, 1.0)
                and abs(usd.get("missed", 0) - _exp_miss) <= 0.05 * max(_exp_miss, 1.0)),
               {"got": usd, "expected": {"system_burial": round(_exp_sys, 2),
