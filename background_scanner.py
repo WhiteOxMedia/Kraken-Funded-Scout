@@ -3461,6 +3461,10 @@ def main():
     #    scan runs BEFORE the popup (Sep 7: the Sep 6 post-entry waiver
     #    retired at the user's call — the fire-time rule applies: the
     #    read must run, fail-closed, and its direction must agree).
+    #    SILENT COILS (user rule, Sep 8: "the breakout watch has been
+    #    armed is just noise, no action needed, no popup until it becomes
+    #    a buy now"): an armed coil is logged, never announced — THE BUY
+    #    ITSELF is the Breakout Alert, and it opens the countdown.
     #    The 3% death-line guard sizes it; the popup cap,
     #    the rotation lock, the knife, the tide and the book gates all
     #    stand. Every fire + every armed coil logs to the scorer's
@@ -3480,14 +3484,15 @@ def main():
                     _st_armed.pop(asset, None)
                     continue
                 zh = float(r.get("zone_high") or 0.0)
-                # announce the coil once (a re-announce only on a NEW zone)
+                # the armed-watch dedup: a NEW zone is logged (diagnostics
+                # only — SILENT, user rule Sep 8: "the breakout watch has
+                # been armed is just noise, no action needed, no popup
+                # until it becomes a buy now"). The announce IS the fire:
+                # the Breakout Alert below opens the countdown.
                 _prev = _st_armed.get(asset)
                 if not _prev or abs(_prev.get("zh", 0.0) - zh) > zh * 0.005:
                     _st_armed[asset] = {"zh": zh, "ts": time.time()}
-                    if _voice_enabled():
-                        _speak_server(f"{asset} is coiling! {r['tests']} tests at the ceiling — "
-                                      f"breakout watch armed!", rate=2)
-                    logger.info("🧲 SURE THING ARMED: %s — %s", asset, r["detail"])
+                    logger.info("🧲 SURE THING ARMED (silent): %s — %s", asset, r["detail"])
                 if not r.get("fire"):
                     continue
                 # ── the fire (pre-breakout OR the crack): the gates that
@@ -3597,32 +3602,33 @@ def main():
                 _out_by = (_now_mst() + timedelta(
                     minutes=st.SURE_THING_WINDOW_MIN)).strftime("%I:%M").lstrip("0")
                 if _trig == "pre-breakout":
-                    _title = (f"🧲 SURE THING — BUY {asset} — PRE-BREAKOUT — "
-                              f"{_score:.0f}% PROBABILITY — {_mult:.2f}× SIZE")
-                    _spoken = (f"Sure thing! {asset} is about to break out! "
+                    _title = (f"🧲 BREAKOUT ALERT — BUY {asset} — PRE-BREAKOUT — "
+                              f"~{_est} MIN WINDOW — {_score:.0f}% — {_mult:.2f}× SIZE")
+                    _spoken = (f"Breakout alert! {asset} is about to break out! "
                                f"The setup scores {_score:.0f} percent — "
                                f"sizing at {_mult:.2f}"
                                + (f", flat tide — half size!" if _st_tide_mult < 1.0 else "!")
-                               + f" The spring is loaded, "
-                               f"breakout window about {_est} minutes! "
-                               f"If it hasn't paid by {_out_by}, get out!")
+                               + f" The countdown starts now: about {_est} minutes, "
+                               f"out by {_out_by}. Watch for the ceiling crack!")
                     _why = (f"{r['detail']} — the probability crossed the "
                             f"{st.PRE_BREAKOUT_THRESHOLD:.0f}% threshold while still "
                             f"inside the coil (entering BEFORE the breakout runs)")
                 else:
-                    _title = (f"🧲 SURE THING — BUY {asset} — BREAKOUT — "
+                    _title = (f"🧲 BREAKOUT ALERT — BUY {asset} — BREAKOUT NOW — "
                               f"{_score:.0f}% SETUP — {_mult:.2f}× SIZE")
-                    _spoken = (f"Sure thing! {asset} is breaking out! "
+                    _spoken = (f"Breakout alert! {asset} is breaking out! "
                                f"{r['tests']} tests at the ceiling, the coil cracked! "
                                f"The setup scores {_score:.0f} percent — sizing at {_mult:.2f}"
                                + (f", flat tide — half size!" if _st_tide_mult < 1.0 else "!")
-                               + f" Get in now! If it hasn't paid by {_out_by}, get out!")
+                               + f" Out by {_out_by} — if it hasn't paid, get out!")
                     _why = (f"{r['detail']} — the ceiling at ${r['zone_high']:.4f} cracked "
                             f"on a {r['vol_spike']:.1f}x volume burst")
                 _st_tide_line = (f"TIDE SIZES IT: FLAT — {TIDE_FLAT_SIZE_FACTOR:.2f}× size = "
                                  f"${_spend:,.0f} (the stamped week: FLAT 22% win vs "
                                  f"RISING 57% — pickier, smaller)\n" if _st_tide_mult < 1.0 else "")
-                _msg = (f"SURE THING — BUY {asset} ({_trig.upper()})\n"
+                _msg = (f"BREAKOUT ALERT — BUY {asset}"
+                        + (f" — COUNTDOWN ~{_est} MIN" if _trig == "pre-breakout" else " — NOW")
+                        + "\n"
                         f"WHY: {_why}\n"
                         f"WHEN: {'NOW — the crack' if _trig == 'crack' else 'BEFORE the crack — the estimated window is ~' + str(_est) + ' min'}\n"
                         f"HOW LONG: out by {_out_by} (the countdown — "
@@ -3661,6 +3667,7 @@ def main():
                                          "vol_spike": r.get("vol_spike"),
                                          "score": _score},
                              "mult": _mult, "spend": float(_spend or 0.0),
+                             "est_min": _est,
                              "climb": _climb_features_stamped(
                                  _st_climb.get("features"),
                                  _st_tide_state, _st_tide_pct),

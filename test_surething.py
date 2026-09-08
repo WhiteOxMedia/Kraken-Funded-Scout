@@ -236,9 +236,10 @@ check("the death-line guard caps + the probability sizes",
       "brain_size_mult as _st_mult" in st_fn and "_cap * _mult" in st_fn)
 check("every fire logs to the scorer's dataset (route sure-thing + trigger)",
       '"route": "sure-thing"' in st_fn and '"trigger": _trig' in st_fn)
-check("the PRE-BREAKOUT popup variant exists (title + voice + the window)",
-      "PRE-BREAKOUT" in st_fn and "about {_est} minutes" in st_fn
-      and "spring is loaded" in st_fn)
+check("the PRE-BREAKOUT popup variant exists (Breakout Alert + the countdown)",
+      "BREAKOUT ALERT" in st_fn and "~{_est} MIN WINDOW" in st_fn
+      and "countdown starts now" in st_fn
+      and "Watch for the ceiling crack!" in st_fn)
 check("the crack variant stands (the second trigger)",
       "the coil cracked" in st_fn)
 check("the deep scan runs BEFORE the popup (the Sep 6 waiver retired, Sep 7)",
@@ -255,8 +256,10 @@ check("the deep-read helper is ONE implementation shared with the champion",
 check("the shared helper never raises itself (callers own fail-closed)",
       bs.count("return None, None") >= 2
       and "finally:" in bs[bs.find("def _deep_read"):bs.find("def _popup_cap")])
-check("coils are announced once per zone (the armed-watch dedup)",
-      "_st_armed" in bs and "is coiling" in st_fn)
+check("coils are silent once per zone (user rule Sep 8: the armed watch is "
+      "noise, the BUY is the first alert) — logged, never spoken",
+      "_st_armed" in bs and "ARMED (silent)" in st_fn
+      and "is coiling" not in st_fn)
 
 out = "\n".join(lines) + f"\n\n{PASS} passed, {FAIL} failed\n"
 open("_surething_check.txt", "w", encoding="ascii", errors="replace").write(out)

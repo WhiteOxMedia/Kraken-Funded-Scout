@@ -177,12 +177,12 @@ def _make_harness(deep, tide_state="RISING"):
 scan1, cap1, _, armed1, box1 = _make_harness(_DeepRead("sell", 70), "RISING")
 _fx = _Ex()
 scan1(_fx)
-check("runtime: an armed coil announces exactly once",
-      len(cap1["speak"]) == 1 and "coiling" in cap1["speak"][0], cap1["speak"])
-check("runtime: the armed memory holds the zone", "XMR" in armed1, list(armed1))
+check("runtime: an armed coil is SILENT (user rule Sep 8: the BUY is the first alert)",
+      len(cap1["speak"]) == 0 and "XMR" in armed1,
+      (len(cap1["speak"]), list(armed1)))
 scan1(_fx)
-check("runtime: the SAME zone never re-announces (poll 2 silent)",
-      len(cap1["speak"]) == 1, len(cap1["speak"]))
+check("runtime: the SAME zone never re-announces (poll 2 still silent)",
+      len(cap1["speak"]) == 0, len(cap1["speak"]))
 box1["r"] = dict(_ARMED, fire=True)   # the coil cracks; the deep scan says no
 scan1(_fx)
 check("runtime: the deep veto suppresses (no popup)", len(cap1["notify"]) == 0)
@@ -191,19 +191,27 @@ check("runtime: the veto is logged with its reason",
 check("runtime: the vetoed coil KEEPS its armed memory (the re-announce fix)",
       "XMR" in armed1, list(armed1))
 scan1(_fx)
-check("runtime: the poll after a veto: still one announce, the veto logged again",
-      len(cap1["speak"]) == 1 and len(cap1["sups"]) == 2,
+check("runtime: the poll after a veto: still silent, the veto logged again",
+      len(cap1["speak"]) == 0 and len(cap1["sups"]) == 2,
       (len(cap1["speak"]), len(cap1["sups"])))
 
 # scenario 2: the FLAT fire — half size, named in the popup, stamped in the snapshot
 scan2, cap2, _, armed2, box2 = _make_harness(_DeepRead("buy", 60), "FLAT")
-box2["r"] = dict(_ARMED, fire=True)
+box2["r"] = dict(_ARMED, fire=True, trigger="pre-breakout")  # the coil, before the crack
 scan2(_Ex())
 check("runtime: the FLAT fire pops", len(cap2["notify"]) == 1)
+check("runtime: the popup IS the Breakout Alert (title, line, voice, countdown)",
+      bool(cap2["notify"])
+      and cap2["notify"][0][0].startswith("\U0001f9f2 BREAKOUT ALERT")
+      and "~45 MIN" in cap2["notify"][0][0]
+      and cap2["notify"][0][1].startswith("BREAKOUT ALERT — BUY XMR — COUNTDOWN ~45 MIN")
+      and cap2["notify"][0][2].startswith("Breakout alert!")
+      and "countdown starts now" in cap2["notify"][0][2],
+      cap2["notify"][0][0][:70] if cap2["notify"] else None)
 _sn = cap2["snaps"]
 check("runtime: the fired snapshot is written (route + kind + trigger)",
       len(_sn) == 1 and _sn[0]["route"] == "sure-thing"
-      and _sn[0]["kind"] == "fired" and _sn[0]["trigger"] == "crack",
+      and _sn[0]["kind"] == "fired" and _sn[0]["trigger"] == "pre-breakout",
       _sn[0].get("route") if _sn else None)
 check("runtime: FLAT sizes the fire to HALF (cap $1000 x 0.50 brain x 0.50 tide = $250)",
       bool(_sn) and abs(_sn[0]["spend"] - 250.0) < 1e-9,
@@ -215,6 +223,9 @@ check("runtime: the popup NAMES the FLAT factor (line + voice)",
 check("runtime: the snapshot's climb features carry the tide stamp",
       bool(_sn) and _sn[0]["climb"]["climb_tide"] == "FLAT",
       _sn[0]["climb"] if _sn else None)
+check("runtime: the snapshot stamps est_min (the countdown data)",
+      bool(_sn) and _sn[0]["est_min"] == 45,
+      _sn[0].get("est_min") if _sn else None)
 check("runtime: the tide is read FRESH at fire time (not one funnel read)",
       cap2["tide_reads"] >= 2, cap2["tide_reads"])
 check("runtime: the rotation marks fired and the armed watch clears",
@@ -230,6 +241,12 @@ check("runtime: RISING pays FULL size ($500 — no tide factor)",
       cap3["snaps"][0]["spend"] if cap3["snaps"] else None)
 check("runtime: no FLAT line on a RISING fire",
       bool(cap3["notify"]) and "TIDE SIZES IT: FLAT" not in cap3["notify"][0][1])
+check("runtime: the crack popup is the Breakout Alert — NOW (no countdown)",
+      bool(cap3["notify"])
+      and cap3["notify"][0][0].startswith("\U0001f9f2 BREAKOUT ALERT")
+      and "BREAKOUT ALERT — BUY XMR — NOW" in cap3["notify"][0][1]
+      and cap3["notify"][0][2].startswith("Breakout alert!"),
+      cap3["notify"][0][1][:60] if cap3["notify"] else None)
 
 fails = [r for r in results if not r[1]]
 out = BASE / "tide_check.txt"
