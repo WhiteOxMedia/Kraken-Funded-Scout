@@ -241,8 +241,20 @@ check("the PRE-BREAKOUT popup variant exists (title + voice + the window)",
       and "spring is loaded" in st_fn)
 check("the crack variant stands (the second trigger)",
       "the coil cracked" in st_fn)
-check("the deep-scan waiver is the user's documented call",
-      "popup precedes" in st_fn)
+check("the deep scan runs BEFORE the popup (the Sep 6 waiver retired, Sep 7)",
+      "_deep_read(exchange, pair, cfg)" in st_fn
+      and "sure-thing-fail-closed" in st_fn
+      and "sure-thing-deep-veto" in st_fn
+      and "popup precedes" not in st_fn)
+check("the fire-time rule is fail-closed on the Sure Thing path too",
+      "no deep read, " in st_fn and "no popup (the fire-time rule)" in st_fn
+      and "contradicts the breakout" in st_fn)
+check("the deep-read helper is ONE implementation shared with the champion",
+      "def _deep_read(exchange, pair, cfg)" in bs
+      and bs.count("_deep_read(exchange, pair, cfg)") >= 2)
+check("the shared helper never raises itself (callers own fail-closed)",
+      bs.count("return None, None") >= 2
+      and "finally:" in bs[bs.find("def _deep_read"):bs.find("def _popup_cap")])
 check("coils are announced once per zone (the armed-watch dedup)",
       "_st_armed" in bs and "is coiling" in st_fn)
 

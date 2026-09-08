@@ -34,7 +34,9 @@
 #      volume burst) remains the second trigger.
 #
 # The same rules as the first build stand: CONTEST-ONLY (no bridge
-# write), the deep scan runs post-entry (the user's waiver), the 3%
+# write), the deep scan runs BEFORE the popup (Sep 7: the Sep 6
+# post-entry waiver retired at the user's call — the fire-time rule:
+# the read must run, fail-closed, and its direction must agree), the 3%
 # death-line guard sizes every entry, the popup cap / rotation lock /
 # knife / tide gates all apply. The structural probability sizes through
 # the SAME bucket table as the brain. There is no sure thing -- this is

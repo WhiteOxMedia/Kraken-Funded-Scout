@@ -1440,6 +1440,34 @@ def _begin_fire_snapshot(exchange, pair: str, quick_conf, **extras) -> dict:
     return ctx
 
 
+def _deep_read(exchange, pair, cfg):
+    """The deep scan: the 1h x 200 strategy read behind every fire-time
+    verdict. ONE implementation (Sep 7): the champion path's closure and
+    the Sure Thing's pre-fire gate both call this — every popup is
+    brain-read BEFORE it fires (the Sep 6 post-entry waiver retired at
+    the user's call). Returns (signal, df) or (None, None). Never
+    raises — the callers own the fail-closed decision."""
+    try:
+        import pandas as _pd
+        from strategy import evaluate_strategy as _eval_deep, \
+            enable_deep_analysis, disable_deep_analysis
+        _ohl = exchange.fetch_ohlcv(pair, timeframe="1h", limit=200)
+        if not _ohl or len(_ohl) < 30:
+            return None, None
+        _df = _pd.DataFrame(_ohl, columns=["timestamp", "open", "high",
+                                           "low", "close", "volume"])
+        _df["timestamp"] = _pd.to_datetime(_df["timestamp"], unit="ms")
+        _df.set_index("timestamp", inplace=True)
+        enable_deep_analysis()
+        try:
+            _sig = _eval_deep(_df, cfg)
+        finally:
+            disable_deep_analysis()
+        return _sig, _df
+    except Exception:
+        return None, None
+
+
 def _popup_cap() -> int:
     """The popup cap dial — read LIVE from console_state.json (the
     sidebar writes it; no scanner restart), default 3, floor 1."""
@@ -2368,19 +2396,10 @@ def main():
         _df = None
 
         def _do_deep_read():
-            import pandas as _pd
-            from strategy import evaluate_strategy as _eval_deep, \
-                enable_deep_analysis, disable_deep_analysis
-            _ohl = exchange.fetch_ohlcv(pair, timeframe="1h", limit=200)
-            if not _ohl or len(_ohl) < 30:
-                return None, None
-            _df = _pd.DataFrame(_ohl, columns=["timestamp", "open", "high", "low", "close", "volume"])
-            _df["timestamp"] = _pd.to_datetime(_df["timestamp"], unit="ms")
-            _df.set_index("timestamp", inplace=True)
-            enable_deep_analysis()
-            _sig = _eval_deep(_df, cfg)
-            disable_deep_analysis()
-            return _sig, _df
+            # (Sep 7) ONE implementation lives module-level (_deep_read):
+            # the Sure Thing's pre-fire gate shares it, so every popup —
+            # champion or coil — is brain-read before it fires.
+            return _deep_read(exchange, pair, cfg)
 
         # ── SEPARATED GATES: the DESKTOP alert (contest) uses the original
         # criteria — champion ≥ threshold + checklist, both checked upstream.
@@ -3385,9 +3404,10 @@ def main():
     #    squeeze + volume shift -> the trigger fires AT THE CRACK, the
     #    popup speaks the countdown. CONTEST-ONLY (no bridge write — the
     #    bot's real money never sees an unverified signal); the deep
-    #    scan runs AFTER entry (the user's explicit waiver: "The Deep
-    #    Scan is too slow for this situation... I'll enter that manually
-    #    afterward"). The 3% death-line guard sizes it; the popup cap,
+    #    scan runs BEFORE the popup (Sep 7: the Sep 6 post-entry waiver
+    #    retired at the user's call — the fire-time rule applies: the
+    #    read must run, fail-closed, and its direction must agree).
+    #    The 3% death-line guard sizes it; the popup cap,
     #    the rotation lock, the knife, the tide and the book gates all
     #    stand. Every fire + every armed coil logs to the scorer's
     #    dataset (route "sure-thing") — there is no sure thing, the
@@ -3438,6 +3458,41 @@ def main():
                         continue
                 except Exception:
                     pass
+                # ── THE DEEP SCAN BEFORE THE POPUP (Sep 7: the Sep 6
+                #    post-entry waiver retired — the user's call). The
+                #    fire-time rule applies to the Sure Thing like every
+                #    other path: the read MUST run (fail-closed — no
+                #    read, no popup) and its DIRECTION must agree (a
+                #    deep SELL/HOLD against the breakout is the chart
+                #    saying no). The NUMBER stays advisory — the
+                #    probability already sized this fire.
+                try:
+                    _st_deep, _st_df = _deep_read(exchange, pair, cfg)
+                except Exception:
+                    _st_deep, _st_df = None, None
+                if _st_deep is None:
+                    logger.info("  SURE THING %s: fail-closed — no deep read, "
+                                "no popup (the fire-time rule)", asset)
+                    _log_suppression(pair, "sure-thing-fail-closed",
+                                     "the deep scan could not run — no popup "
+                                     "(the fire-time rule)",
+                                     quick=float(r.get("score") or 0.0),
+                                     rot=rotation_key_for_hour(_now_mst().hour))
+                    _st_armed.pop(asset, None)
+                    continue
+                if _st_deep.action != "buy":
+                    logger.info("  SURE THING %s: deep veto — the scan reads %s %.0f%% "
+                                "against the breakout", asset, _st_deep.action,
+                                _st_deep.confidence)
+                    _log_suppression(pair, "sure-thing-deep-veto",
+                                     f"deep-reads {_st_deep.action} "
+                                     f"{_st_deep.confidence:.0f}% — the scan "
+                                     f"contradicts the breakout",
+                                     quick=float(r.get("score") or 0.0),
+                                     brain=float(_st_deep.confidence),
+                                     rot=rotation_key_for_hour(_now_mst().hour))
+                    _st_armed.pop(asset, None)
+                    continue
                 # the death-line guard sizes it; the probability sizes it more
                 try:
                     import contest_account as _ca_st
@@ -3501,9 +3556,10 @@ def main():
                         + _danger_zone_panel(exchange, pair, float(_spend or 0.0),
                                              1.5, st.SURE_THING_WINDOW_MIN, _mult)
                         + f"{'-' * 30}\n"
-                        f"CONTEST-ONLY — no bridge write. Run the DEEP SCAN now for "
-                        f"tracking (the one path where the popup precedes it — your call, "
-                        f"Sep 6). The death line never yields.\n"
+                        f"CONTEST-ONLY — no bridge write. The DEEP SCAN ran before "
+                        f"this popup (the fire-time rule — the Sep 6 waiver "
+                        f"retired Sep 7); run it again now for live tracking. "
+                        f"The death line never yields.\n"
                         f"  {_fmt_mst(_now_mst())}")
                 notify_big(_title, _msg, spoken=_spoken)
                 rotation_mark_fired(asset)
