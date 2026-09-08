@@ -44,6 +44,12 @@ sys.path.insert(0, str(Path(__file__).parent))
 
 MST = ZoneInfo("America/Denver")
 BOT_LOG = Path(r"C:\Users\birds\Workspace\kraken_xrp_trading_bot\logs\bot.log")
+# the seams the test swaps for scratch copies (test_resetrebaseline.py)
+DB_PATH = Path(__file__).resolve().parent / "signals.db"
+# computed once at import: an interactive console can confirm; anything
+# else (cron, piped stdin, a test harness) is treated as a NO — the safe
+# state is the switch left ON
+_INTERACTIVE = bool(sys.stdin) and sys.stdin.isatty()
 
 
 def _detect_balance(today: str) -> tuple[float | None, str]:
@@ -76,6 +82,18 @@ def _detect_balance(today: str) -> tuple[float | None, str]:
     return None, "no source"
 
 
+def _confirm(prompt: str) -> bool:
+    """Ask the user. Non-interactive stdin is a NO — the safe state is the
+    switch left ON (Copilot, Sep 8: a reset must not silently clear the
+    lock on a day the rebaseline did not happen)."""
+    try:
+        if not _INTERACTIVE:
+            return False
+        return input(prompt).strip().lower() in ("y", "yes")
+    except (EOFError, KeyboardInterrupt):
+        return False
+
+
 def main():
     today = datetime.now(MST).strftime("%Y-%m-%d")
     print(f"KILL-SWITCH RESET REBASELINE — {today}")
@@ -91,8 +109,7 @@ def main():
     old = None
     conn = None
     try:
-        conn = sqlite3.connect(str(Path(__file__).parent / "signals.db"),
-                               timeout=5.0)
+        conn = sqlite3.connect(str(DB_PATH), timeout=5.0)
         row = conn.execute("SELECT starting_balance FROM daily_balance WHERE date=?",
                            (today,)).fetchone()
         old = float(row[0]) if row else None
@@ -127,19 +144,43 @@ def main():
               + (f"  (was ${old:.2f} — the breaker would have read "
                  f"{(old - bal) / old * 100:.1f}% against it)" if old else ""))
 
-    # 4. the reset itself
+    # ── the gate (Copilot's [high], Sep 8): the lock does not clear on a
+    #    day the rebaseline did NOT happen unless the user CONFIRMS —
+    #    resuming on a stale baseline invites a breaker re-fire ──
+    if not rebaselined:
+        _why = ("the rebaseline write failed" if bal is not None
+                else "no balance source was found")
+        print(f"! The lock is about to clear WITHOUT a rebaseline ({_why}).")
+        print("  If today's balance dropped more than 10%, the breaker WILL")
+        print("  re-fire on the next bot cycle.")
+        if _confirm("  Clear the kill switch anyway? [y/N]: "):
+            print("  Confirmed — clearing on your call (the baseline is stale; "
+                  "re-run with the balance to fix it).")
+        else:
+            print("  KEPT: kill_switch.lock stays — trading stays paused.")
+            print("  Re-run the shortcut, or the script with the balance as "
+                  "the argument, to finish the reset.")
+            return
+
+    # 4. the reset itself (only reached on a real rebaseline or a confirm)
     from signal_bridge import reset_kill_switch, is_kill_switch_active, get_daily_start_balance
     reset_kill_switch()
     print(f"4. kill switch: active={is_kill_switch_active()}  (lock cleared)")
 
-    # 5. verify the breaker's view
-    start = get_daily_start_balance()
-    if start and bal:
-        pct = (start - bal) / start * 100 if start else 0.0
-        print(f"5. VERIFIED: baseline ${start:.2f}, breaker reads {pct:.1f}% "
-              f"(triggers at -{10.0:.0f}%) — the day starts here.")
-    elif start:
-        print(f"5. VERIFIED: baseline ${start:.2f} unchanged (no rebaseline source).")
+    # 5. verify the breaker's view (guarded — the reset already landed;
+    #    an unreadable DB must not crash the closing output)
+    try:
+        start = get_daily_start_balance()
+        if start and bal:
+            pct = (start - bal) / start * 100 if start else 0.0
+            print(f"5. VERIFIED: baseline ${start:.2f}, breaker reads {pct:.1f}% "
+                  f"(triggers at -{10.0:.0f}%) — the day starts here.")
+        elif start:
+            print(f"5. VERIFIED: baseline ${start:.2f} unchanged — if today's drop "
+                  f"exceeds 10% the breaker will re-fire; re-run with the balance.")
+    except Exception as exc:
+        print(f"5. (could not verify the baseline: {exc} — the reset itself "
+              f"already landed; check the bot's next cycle)")
     print("Trading resumes on the next bot cycle. Exits were never blocked.")
 
 

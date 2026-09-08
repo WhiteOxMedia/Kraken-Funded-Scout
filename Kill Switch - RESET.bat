@@ -36,9 +36,18 @@ if errorlevel 1 set "PY=C:\Python314\python.exe"
 
 echo.
 echo ================================================================
-echo   Kill switch reset. Trading resumes on next scan cycle.
-echo   If the balance printed above is wrong, run:
-echo     .venv\Scripts\python.exe reset_rebaseline.py ^<balance^>
+if exist "kill_switch.lock" (
+    echo   THE RESET DID NOT COMPLETE.
+    echo   The kill switch lock is STILL IN PLACE - trading stays paused.
+    echo   Read the messages above: either you declined to clear it on a
+    echo   stale baseline, or the rebaseline could not run. Re-run this
+    echo   shortcut, or run:
+    echo     .venv\Scripts\python.exe reset_rebaseline.py ^<balance^>
+) else (
+    echo   Kill switch reset. Trading resumes on next scan cycle.
+    echo   If the balance printed above is wrong, run:
+    echo     .venv\Scripts\python.exe reset_rebaseline.py ^<balance^>
+)
 echo ================================================================
 echo.
 pause
