@@ -33,6 +33,7 @@ user updates it in the console sidebar; this script does not touch it.
 Run:  .venv\\Scripts\\python.exe reset_rebaseline.py [balance]
       (no argument = auto-detect from the bot's log)
 """
+import math
 import re
 import sqlite3
 import sys
@@ -54,12 +55,19 @@ _INTERACTIVE = bool(sys.stdin) and sys.stdin.isatty()
 
 def _detect_balance(today: str) -> tuple[float | None, str]:
     """The actual current balance: CLI arg > bot log > today's row."""
-    # 1) the user typed it
+    # 1) the user typed it — must be a REAL balance: finite and positive
+    #    (Copilot, Sep 8: 0 / negative / NaN / inf corrupt the baseline
+    #    write or bypass the breaker's truthiness checks)
     if len(sys.argv) > 1:
         try:
-            return float(sys.argv[1]), "--balance argument"
+            _v = float(sys.argv[1])
         except ValueError:
             print(f"  ! '{sys.argv[1]}' is not a number — falling back to detection")
+        else:
+            if math.isfinite(_v) and _v > 0:
+                return _v, "--balance argument"
+            print(f"  ! '{sys.argv[1]}' is not a usable balance (must be "
+                  f"finite and > 0) — falling back to detection")
     # 2) the bot's own live readings (newest first)
     if BOT_LOG.exists():
         vals = []

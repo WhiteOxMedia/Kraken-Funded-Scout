@@ -212,6 +212,12 @@ try:
         v3, s3 = rr._detect_balance("2099-01-01")
         check("detection: no arg + no matching log day -> no source (the gate decides)",
               v3 is None and "no source" in s3, (v3, s3))
+        # Copilot's [medium]: garbage balances are refused, never written
+        for _bad in ("0", "-5", "nan", "inf"):
+            sys.argv = ["reset_rebaseline.py", _bad]
+            vb, sb_ = rr._detect_balance(today)
+            check(f"detection: '{_bad}' is refused (falls back to the log)",
+                  vb == 23.34 and "bot log" in sb_, (vb, sb_))
     finally:
         sys.argv = _argv
 
