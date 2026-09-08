@@ -127,7 +127,13 @@ def grade_fire(snap, fwd_rows=None, now_s=None):
     # and the WINDOW is fire-relative (Copilot, Sep 8): hs.outcome
     # anchors its win_min at the first surviving row, so a poll gap
     # would let a goal hit at minute ~62 grade as in-window on a 60-min
-    # promise -- trim everything past the fire's true deadline
+    # promise -- trim everything past the fire's true deadline.
+    # GRANULARITY HONESTY: a boundary candle opened just before the
+    # deadline still carries its full 5-min high, so a goal crossing in
+    # its final minutes can be stamped in-window at the candle's open
+    # (bounded by ~5 min; disclosed in the report's limits -- dropping
+    # the boundary candle would under-count real in-window pays, the
+    # same lie in the other direction).
     fwd_rows = [x for x in fwd_rows
                 if float(x[0]) <= t0 * 1000.0 + win_min * 60.0 * 1000.0]
     # the promise: a pre-breakout fire promises its countdown; a crack
@@ -380,7 +386,9 @@ def run(days=7.0, fetch=True, out_path="_surething_check.txt", now_s=None):
     out()
     out(f"({fetched}/{len(fires)} fires got forward candles; older fires "
         f"than ~60h grade no-data on the public API -- bt_surething.py "
-        f"holds the deep archive)")
+        f"holds the deep archive; goal graded at the default "
+        f"{bs.GOAL_DEFAULT_PCT:.1f}% -- the snapshot does not yet carry "
+        f"the per-fire goal; boundary candle granularity ~5 min)")
     _write(out_path)
     return agg
 
