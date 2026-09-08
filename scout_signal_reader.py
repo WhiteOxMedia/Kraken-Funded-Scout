@@ -40,24 +40,103 @@ from signal_bridge import (
     init_db, get_pending_signals, acknowledge, mark_executed, mark_rejected,
     mark_closed, mark_closed_by_pair, write_exit_signal,
     is_kill_switch_active, get_kill_switch_reason, trigger_kill_switch,
-    get_daily_pnl, get_consecutive_losses, is_already_holding,
-    get_open_position_count, MAX_CONCURRENT_POSITIONS,
+    is_already_holding, get_open_position_count, max_positions_for,
+    record_daily_start_balance, get_daily_start_balance, MAX_DAILY_LOSS_PCT,
+    _get_db,  # noqa: F401 — used by the ghost sweep
 )
+from restricted_pairs import is_restricted
 
-MST = timezone(timedelta(hours=-7))
+from zoneinfo import ZoneInfo
+MST = ZoneInfo("America/Denver")  # Auto DST: MDT (UTC-6) summer, MST (UTC-7) winter
+
+
+def _get_total_account_value(kraken) -> float:
+    """Get total account value in USD: all cash + all crypto at market price."""
+    try:
+        import ccxt
+        balance = kraken.exchange.fetch_balance()
+        total_usd = 0.0
+
+        # Add cash balances (USD, USDT, EUR, etc.)
+        for cur in ("USD", "USDT", "EUR", "GBP"):
+            val = balance.get(cur, {})
+            if isinstance(val, dict):
+                total_usd += float(val.get("total", 0))
+            elif isinstance(val, (int, float)):
+                total_usd += float(val)
+
+        # Add crypto balances — convert each to USD via ticker
+        for cur, info in balance.get("total", {}).items():
+            if cur in ("USD", "USDT", "EUR", "GBP", "ZFEE"):
+                continue
+            amount = float(info) if not isinstance(info, dict) else float(info.get("total", 0))
+            if amount <= 0:
+                continue
+            try:
+                pair = f"{cur}/USD"
+                ticker = kraken.exchange.fetch_ticker(pair)
+                price = float(ticker.get("last", 0))
+                total_usd += amount * price
+            except Exception:
+                # Try USDT pair as fallback
+                try:
+                    pair = f"{cur}/USDT"
+                    ticker = kraken.exchange.fetch_ticker(pair)
+                    price = float(ticker.get("last", 0))
+                    total_usd += amount * price
+                except Exception:
+                    continue  # Skip unknown asset
+
+        return total_usd
+    except Exception as exc:
+        logger.warning("Could not fetch total account value: %s", exc)
+        return 0.0
+
+
+def _check_balance_circuit_breaker(kraken) -> tuple[bool, str]:
+    """Check if account has dropped more than MAX_DAILY_LOSS_PCT today.
+
+    Returns (should_trigger, reason).
+    Uses actual Kraken balance — snapshots at first check of the day,
+    then compares current value against that snapshot.
+    """
+    current_value = _get_total_account_value(kraken)
+    if current_value <= 0:
+        return False, ""  # Can't check — don't trigger
+
+    # Get or set today's starting balance
+    day_start = get_daily_start_balance()
+    if day_start is None:
+        # First check of the day — record the starting balance
+        record_daily_start_balance(current_value)
+        logger.info("📊 Daily balance snapshot: $%.2f (kill switch at -%s%% = $%.2f)",
+                    current_value, MAX_DAILY_LOSS_PCT, current_value * (1 - MAX_DAILY_LOSS_PCT / 100))
+        return False, ""
+
+    # Check if we've dropped more than 10%
+    loss_pct = ((day_start - current_value) / day_start) * 100
+    if loss_pct >= MAX_DAILY_LOSS_PCT:
+        return True, (f"Account dropped {loss_pct:.1f}% today "
+                      f"(start: ${day_start:.2f}, now: ${current_value:.2f}, "
+                      f"loss: ${day_start - current_value:.2f})")
+
+    logger.info("📊 Balance check: $%.2f (start $%.2f, %s%.1f%%)",
+                current_value, day_start, "+" if current_value >= day_start else "", loss_pct)
+    return False, ""
 
 logger = logging.getLogger(__name__)
 
 
 def _find_weakest_position(kraken, config) -> dict | None:
-    """Find the weakest LOSING position to sell for rebalancing.
+    """Find the weakest position to sell for rebalancing.
 
-    Only considers positions that are currently at a LOSS (pnl_pct < 0).
-    Profitable positions are never sold for rebalancing.
+    Evaluates each position by:
+    1. P&L percentage (worst first)
+    2. Current strategy signal (sell = weakest, hold = medium, buy = strongest)
 
-    Evaluates each losing position by:
-    1. P&L percentage (worst loser first)
-    2. Current strategy signal (sell/hold = weaker than buy)
+    A position showing a sell signal is the weakest regardless of PnL —
+    momentum has already left. A position showing a strong buy is spared
+    (it's recovering).
 
     Returns {"pair": str, "pnl_pct": float, "position_id": int} or None.
     """
@@ -74,10 +153,6 @@ def _find_weakest_position(kraken, config) -> dict | None:
             live_price = kraken.fetch_price(pos.pair)
             pnl_pct = ((live_price - pos.entry_price) / pos.entry_price) * 100
 
-            # ONLY consider losing positions — never sell a winner for rebalancing
-            if pnl_pct >= 0:
-                continue
-
             # Run strategy to check if trend is dying
             signal_penalty = 0
             try:
@@ -93,6 +168,8 @@ def _find_weakest_position(kraken, config) -> dict | None:
                         signal_penalty = -5.0  # trend already reversed
                     elif sig.action == "hold" and sig.confidence < 30:
                         signal_penalty = -2.0  # momentum fading
+                    elif sig.action == "buy" and sig.confidence >= 50:
+                        continue  # recovering — skip this position
             except Exception:
                 pass  # if strategy fails, just use P&L
 
@@ -108,11 +185,367 @@ def _find_weakest_position(kraken, config) -> dict | None:
             continue
 
     if weakest:
-        logger.info("  Weakest loser: %s (%.1f%% P&L)", weakest["pair"], weakest["pnl_pct"])
+        logger.info("  Weakest position: %s (%.1f%% PnL)", weakest["pair"], weakest["pnl_pct"])
     else:
-        logger.info("  No losing positions to rebalance from")
+        logger.info("  No positions available to rebalance from")
 
     return weakest
+
+
+# ── RESTORED GATES (user directive, Sep 4: "restore the gates that were
+# deleted and make them work properly, if they were in effect on Sept
+# 3rd" — the Sep 3 17:57 rework silently dropped these; the Sep 3 trading
+# record they're credited for ran WITH them): the head-to-head challenge,
+# the winner-lock, the chase guard, the ghost sweep, the learned pair
+# blacklist. Merged onto the current base: the POSITION LADDER v2, the
+# >=70 rotation floor (user rule, Sep 3), market orders, scout_mover,
+# and the scout_exit_check sell path all stand.
+# ── Head-to-head challenge: a new signal can displace the weakest position ──
+CHALLENGE_MARGIN = 10.0      # challenger must beat the incumbent by this many points
+WINNER_PROTECT_PCT = 5.0     # positions up more than this NEVER get challenged
+FRESH_BUY_COOLDOWN_MIN = 120 # positions younger than this can't be challenged
+                             # (Aug 24: 30 min allowed same-hour churn — 59 fills,
+                             # ~$16 fees; CRV lived 58 minutes, JUP was bought-sold-
+                             # rebought inside 63 minutes)
+CHASE_STALE_PCT = 2.0        # live > signal entry by this = the signal went stale
+CHASE_BLOWOFF_PCT = 5.0      # live > 1h low by this = buying a blowoff spike
+GHOST_GRACE_MIN = 35         # bridge record younger than this might be a buy in flight
+
+
+def _sweep_ghost_bridge_records() -> list[str]:
+    """Close bridge 'filled' records whose positions the bot no longer holds.
+
+    Ground truth is the bot's own position DB: if a pair has no open bot
+    position and its bridge record is older than GHOST_GRACE_MIN minutes,
+    the sell happened without the bridge being notified — a ghost. Ghosts
+    occupy the position slots and silently reject every
+    new signal (the Aug 24 morning: three ghosts ate six 92% picks).
+    Returns the list of swept pairs.
+    """
+    from datetime import datetime, timezone as _tz
+    import db as bot_db
+
+    open_bridge = []
+    try:
+        # read-only peek at the bridge's filled buys
+        conn = _get_db()
+        conn.row_factory = None
+        rows = conn.execute(
+            "SELECT signal_id, pair, executed_at FROM signals "
+            "WHERE status='filled' AND action='buy'").fetchall()
+        open_bridge = [(r[0], r[1], r[2]) for r in rows]
+        conn.close()
+    except Exception:
+        return []
+
+    if not open_bridge:
+        return []
+
+    held_bases = {p.base_currency for p in bot_db.get_open_positions()}
+    now = datetime.now(_tz.utc)
+    swept = []
+    for signal_id, pair, executed_at in open_bridge:
+        try:
+            base = pair.split("/")[0] if "/" in pair else ""
+            if base in held_bases:
+                continue  # real position — keep
+            if executed_at:
+                t = datetime.fromisoformat(executed_at)
+                if t.tzinfo is None:
+                    t = t.replace(tzinfo=_tz.utc)
+                age_min = (now - t).total_seconds() / 60
+                if age_min < GHOST_GRACE_MIN:
+                    continue  # possibly a buy still being opened — leave it
+            mark_closed(signal_id, 0.0)
+            swept.append(f"{base}({signal_id})")
+        except Exception as exc:
+            logger.debug("Ghost sweep skip %s: %s", pair, exc)
+    return swept
+
+
+def _bridge_entry_conf(pair: str) -> float:
+    """The confidence the signal carried when we BOUGHT this pair — the
+    incumbent's entry conviction. Aug 24 lesson: scoring incumbents by a
+    fresh scan returned hold=0% for nearly everything, so ANY challenger
+    won the head-to-head (a 72% SOL displaced an 89% CRV after 58 min).
+    Entry conviction is the honest strength of the incumbent's case."""
+    try:
+        conn = _get_db()
+        conn.row_factory = None
+        row = conn.execute(
+            "SELECT confidence FROM signals WHERE pair=? AND action='buy' "
+            "AND status='filled' ORDER BY executed_at DESC LIMIT 1",
+            (pair,)).fetchone()
+        conn.close()
+        return float(row[0]) if row and row[0] else 50.0
+    except Exception:
+        return 50.0
+
+
+def _chase_guard(kraken, pair: str, entry_price) -> str | None:
+    """Reject scout buys whose price already ran. (1) stale signal — live is
+    >2% above the signal's entry price; (2) blowoff — live is >5% above the
+    last hour's low (buying exhaustion). Aug 24: breakout buys chased +4-5%
+    spikes, rode the giveback, then got displaced at a loss. Returns the
+    rejection reason or None."""
+    try:
+        live = float(kraken.fetch_price(pair))
+        ep = float(entry_price or 0)
+        if ep > 0 and live > ep * (1 + CHASE_STALE_PCT / 100):
+            return f"chase guard: +{(live / ep - 1) * 100:.1f}% since the signal"
+        ohlcv = kraken.fetch_ohlcv(pair, timeframe="15m", limit=5)
+        if ohlcv and len(ohlcv) >= 4:
+            base = min(c[3] for c in ohlcv[-4:])
+            if base > 0 and live > base * (1 + CHASE_BLOWOFF_PCT / 100):
+                return f"chase guard: +{(live / base - 1) * 100:.1f}% off the 1h base (blowoff)"
+    except Exception as exc:
+        logger.debug("chase guard skip %s: %s", pair, exc)
+    return None
+
+
+def _challenge_weakest(kraken, config, new_pair: str, new_confidence: float) -> dict | None:
+    """Head-to-head: the new signal challenges the weakest held position.
+
+    Incumbent strength = its ENTRY conviction (from the bridge record),
+    adjusted by a fresh scan: a buy re-confirms, a hold is neutral, a
+    bearish read weakens. The challenger must clear the weakest incumbent
+    by CHALLENGE_MARGIN points. Fresh entries are exempt. Profitable
+    positions are locked (never interrupt a winner) — EXCEPT when their
+    own fresh read says SELL (user rule, Sep 2, the ASTER fade: the chart
+    decides, not the price trail — a green-but-dead position is a zombie,
+    not a winner, and contests its seat).
+
+    Returns the position to sell (with its current read) or None.
+    """
+    import db as bot_db
+    positions = bot_db.get_open_positions()
+    if not positions:
+        return None
+
+    weakest = None
+    weakest_conf = float("inf")
+
+    for pos in positions:
+        try:
+            if pos.pair == new_pair:
+                continue  # already holding the challenger asset
+
+            # fresh-buy protection
+            if pos.entry_timestamp:
+                entry_ts = pos.entry_timestamp
+                if entry_ts.tzinfo is None:
+                    entry_ts = entry_ts.replace(tzinfo=timezone.utc)
+                minutes_held = (datetime.now(timezone.utc) - entry_ts).total_seconds() / 60
+                if minutes_held < FRESH_BUY_COOLDOWN_MIN:
+                    continue
+
+            live_price = kraken.fetch_price(pos.pair)
+            pnl_pct = ((live_price - pos.entry_price) / pos.entry_price) * 100
+
+            # fresh scan: what does the held asset say RIGHT NOW? — THE
+            # DEEP READ (user rule, Sep 2: "'never interrupt a winner'
+            # should now trigger a current DEEP scan"): the brain's
+            # number decides the lock, not the quick read. try/finally
+            # so the deep flag can never leak into other reads.
+            scan_conf = 0.0
+            scan_action = "hold"
+            try:
+                import pandas as pd
+                from strategy import evaluate_strategy, enable_deep_analysis, disable_deep_analysis
+                ohlcv = kraken.fetch_ohlcv(pos.pair, timeframe="1h", limit=200)
+                if ohlcv and len(ohlcv) >= 30:
+                    df = pd.DataFrame(ohlcv, columns=["timestamp", "open", "high", "low", "close", "volume"])
+                    df["timestamp"] = pd.to_datetime(ohlcv, unit="ms")
+                    df.set_index("timestamp", inplace=True)
+                    enable_deep_analysis()
+                    try:
+                        sig = evaluate_strategy(df, config)
+                    finally:
+                        disable_deep_analysis()
+                    scan_action = sig.action
+                    scan_conf = float(sig.confidence)
+            except Exception:
+                scan_conf = 0.0  # can't scan → neutral read
+
+            # WINNER LOCK (Aug 30, user directive): profitable positions
+            # are locked — challengers may only displace LOSERS. The real
+            # account rides winners to its own exits (trail / TP / mature
+            # sell); swap-churning profitable positions was the fee machine
+            # (Aug 29: ENA sold at +$1.53 climbing, NEAR at +$0.52 — both
+            # displaced, both rode nothing). EXCEPTION (user rule, Sep 2 —
+            # the ASTER fade: "it's lost momentum... we don't want to hold
+            # weak positions"): a winner whose OWN CHART has quit on it
+            # (the fresh read says SELL) is challengeable even in profit —
+            # THE CHART DECIDES, not the price trail. A winner riding a
+            # pullback with a buy/hold read stays locked; a green-but-dead
+            # position contests its seat and the margin decides (the
+            # strength math already guts a bearish incumbent: entry_conf
+            # − scan_conf). A broken/unreadable scan keeps the lock —
+            # never unlock protection on missing data.
+            if pnl_pct > 0 and scan_action != "sell":
+                continue
+
+            # INCUMBENT STRENGTH = entry conviction, adjusted by the fresh read:
+            #   buy  -> re-confirms the thesis (take the better number)
+            #   hold -> NEUTRAL (the old x0.5 punishment scored every held
+            #           coin at ~0, so any challenger won — the churn bug)
+            #   sell -> a bearish read genuinely weakens the hold
+            entry_conf = _bridge_entry_conf(pos.pair)
+            if scan_action == "buy":
+                current_conf = max(entry_conf, scan_conf)
+            elif scan_action == "sell":
+                current_conf = entry_conf - scan_conf
+            else:
+                current_conf = entry_conf
+
+            if current_conf < weakest_conf:
+                weakest_conf = current_conf
+                weakest = {"pair": pos.pair, "pnl_pct": pnl_pct, "position_id": pos.id,
+                           "current_conf": current_conf, "current_action": scan_action}
+        except Exception as exc:
+            logger.debug("Challenge scan failed for %s: %s", pos.pair, exc)
+            continue
+
+    if not weakest:
+        logger.info("  Challenge: no eligible positions (winners/fresh entries protected)")
+        return None
+
+    # the head-to-head verdict
+    if new_confidence >= weakest["current_conf"] + CHALLENGE_MARGIN:
+        logger.info("  CHALLENGE WIN: %s (%.0f%%) beats %s (strength %.0f%% %s, %.1f%% PnL)",
+                    new_pair, new_confidence, weakest["pair"], weakest["current_conf"],
+                    weakest["current_action"], weakest["pnl_pct"])
+        return weakest
+
+    logger.info("  CHALLENGE LOST: %s (%.0f%%) doesn't clear %s (strength %.0f%% %s) + %d-point margin",
+                new_pair, new_confidence, weakest["pair"], weakest["current_conf"],
+                weakest["current_action"], int(CHALLENGE_MARGIN))
+    return None
+
+
+def _sell_held_position(kraken, config, weak_pair: str, reason: str) -> bool:
+    """Sell a held position via the bot engine (market sell, bookkeeping both DBs)."""
+    try:
+        import db as bot_db
+        from strategy import Signal as _Sig
+        from bot_engine import BotEngine as _BE
+
+        weak_asset = weak_pair.split("/")[0]
+        position = bot_db.get_position_for_asset(weak_asset)
+        if not position or not position.is_open:
+            logger.warning("  Challenge target %s no longer open", weak_asset)
+            return False
+
+        try:
+            weak_price = kraken.fetch_price(weak_pair)
+        except Exception:
+            weak_price = position.entry_price
+
+        sell_sig = _Sig(action="sell", confidence=0, price=weak_price, reasons=[reason])
+        engine = _BE(kraken, config)
+        sell_result = engine._execute_sell(sell_sig, reason=reason,
+                                           pair=weak_pair, position=position)
+        if "error" not in sell_result and "skipped" not in sell_result:
+            try:
+                mark_closed_by_pair(weak_pair, sell_result.get("pnl", 0))
+            except Exception:
+                pass
+            logger.info("  Sold %s @ %s — funds freed for the challenger",
+                        weak_asset, sell_result.get("price"))
+            import time as _time
+            _time.sleep(2)
+            return True
+        logger.warning("  Challenge sell failed: %s", sell_result.get("error") or sell_result.get("skipped"))
+        return False
+    except Exception as exc:
+        logger.error("  Challenge sell error: %s", exc)
+        return False
+
+
+def _cooldown_fresh_exit(kraken, config, pair: str, position, engine):
+    """THE COOLDOWN'S FRESH EYES (user rule, Sep 4: 'the cooldown should
+    run a current exit check to make a decision to end the cooldown or
+    stay the course'). Called ONLY when a scanner sell signal (either
+    admitted source) lands inside the 30-minute window. Runs a CURRENT
+    exit check on fresh data — the live price, the 1h knife computed
+    fresh (the engine's copy is cached 5 min; the decision that ends a
+    cooldown deserves the current read — the XRP 16:12 case), the
+    engine's own exit stack (stop-loss / take-profit / the ATR trail),
+    and a fresh brain read at the scanner's own exit-check bar (strategy
+    sell >=75, >=60 momentum-rider, exhaustion on a non-buy read, the
+    rider's exit signal) — and lets the fresh data decide:
+      reason returned -> the cooldown ENDS, the sell executes now
+      None            -> the position recovered: STAY THE COURSE
+    A broken read fails cool: the cooldown stands, exactly as before."""
+    try:
+        import pandas as pd
+        # fresh candles at the bot's own interval, seeded with the live price
+        ohlcv = kraken.fetch_ohlcv(pair, interval_minutes=config.candle_interval,
+                                   limit=config.lookback_candles)
+        if not ohlcv or len(ohlcv) < 30:
+            return None
+        df = pd.DataFrame(ohlcv, columns=["timestamp", "open", "high", "low", "close", "volume"])
+        df["timestamp"] = pd.to_datetime(df["timestamp"], unit="ms")
+        df.set_index("timestamp", inplace=True)
+        live = float(kraken.fetch_price(pair) or 0) or float(df["close"].iloc[-1])
+        _idx = df.index[-1]
+        df.loc[_idx, "close"] = live
+        df.loc[_idx, "high"] = max(float(df.loc[_idx, "high"]), live)
+        df.loc[_idx, "low"] = min(float(df.loc[_idx, "low"]), live)
+
+        # ── (1) the 1h knife, computed FRESH from the current candles ──
+        try:
+            if int(config.candle_interval) == 60:
+                _knife_df = df
+            else:
+                _oh60 = kraken.fetch_ohlcv(pair, interval_minutes=60, limit=100)
+                _knife_df = pd.DataFrame(_oh60, columns=["timestamp", "open", "high", "low", "close", "volume"])
+                _knife_df["timestamp"] = pd.to_datetime(_knife_df["timestamp"], unit="ms")
+                _knife_df.set_index("timestamp", inplace=True)
+                _ki = _knife_df.index[-1]
+                _knife_df.loc[_ki, "close"] = live
+                _knife_df.loc[_ki, "high"] = max(float(_knife_df.loc[_ki, "high"]), live)
+                _knife_df.loc[_ki, "low"] = min(float(_knife_df.loc[_ki, "low"]), live)
+            if len(_knife_df) >= 30:
+                from indicators import ema as _calc_ema
+                _es = float(_calc_ema(_knife_df["close"], config.ema_short).iloc[-1])
+                _el = float(_calc_ema(_knife_df["close"], config.ema_long).iloc[-1])
+                if _es < _el and live < _el:
+                    return (f"1h knife still reversed (EMA{config.ema_short} ${_es:.4g} < "
+                            f"EMA{config.ema_long} ${_el:.4g}, live ${live:.4g} under both)")
+        except Exception as exc:
+            logger.debug("cooldown fresh knife failed for %s: %s", pair, exc)
+
+        # ── (2) the engine's own exit stack on the live price — SL / TP /
+        #       the ATR trail (its knife rides the 5-min cache; (1) already
+        #       read the knife fresh) ────────────────────────────────────
+        try:
+            _reason = engine._check_position_exits(position, live, df)
+            if _reason:
+                return f"current check: {_reason}"
+        except Exception as exc:
+            logger.debug("cooldown engine-stack check failed for %s: %s", pair, exc)
+
+        # ── (3) the fresh brain read at the scanner's own exit-check bar ──
+        try:
+            from strategy import evaluate_strategy
+            sig = evaluate_strategy(df, config)
+            if sig.action != "buy":
+                _rider_pos = any("MOMENTUM RIDER" in str(r) for r in sig.reasons)
+                _thresh = 60 if _rider_pos else 75
+                if sig.action == "sell" and sig.confidence >= _thresh:
+                    return f"current brain: strategy sell {sig.confidence:.0f}% (bar {_thresh}%)"
+                if any("exit signal" in str(r).lower() for r in sig.reasons):
+                    return "current brain: momentum rider exit triggered"
+                if any("exhaustion" in str(r).lower() for r in sig.reasons):
+                    return "current brain: exhaustion signals detected"
+        except Exception as exc:
+            logger.debug("cooldown strategy read failed for %s: %s", pair, exc)
+
+        return None  # the fresh read says hold — stay the course
+    except Exception as exc:
+        logger.debug("cooldown fresh exit check failed for %s: %s", pair, exc)
+        return None  # broken read — fail cool: the cooldown stands
 
 
 def check_scout_signals(kraken, config) -> dict | None:
@@ -124,6 +557,21 @@ def check_scout_signals(kraken, config) -> dict | None:
     Returns None if no pending signals.
     """
     init_db()
+
+    # ── GHOST SWEEP: bridge 'filled' records the bot doesn't actually hold ──
+    # If the bot DB has no open position for a bridge 'filled' pair (and the
+    # record is old enough not to be a buy in flight), the record is a ghost
+    # from a sell that didn't notify the bridge. Ghosts squat the position
+    # slots and block every new signal — this mop runs every tick so they
+    # can never accumulate again. DB-to-DB reconcile; no wallet call needed.
+    try:
+        swept = _sweep_ghost_bridge_records()
+        if swept:
+            logger.info("GHOST SWEEP: closed %d stale bridge record(s): %s",
+                        len(swept), ", ".join(swept))
+    except Exception as exc:
+        logger.debug("Ghost sweep failed: %s", exc)
+
     pending = get_pending_signals()
     if not pending:
         return None
@@ -137,12 +585,11 @@ def check_scout_signals(kraken, config) -> dict | None:
         if not pending:
             return None
 
-    # ── Circuit breaker check ────────────────────────────────────────
-    daily_pnl = get_daily_pnl()
-    consec_losses = get_consecutive_losses()
-    if daily_pnl < -30 or consec_losses >= 5:  # 3% of $1000 = $30
-        trigger_kill_switch(f"Circuit breaker: daily P&L=${daily_pnl:.2f}, consecutive losses={consec_losses}")
-        logger.error("🛑 Circuit breaker triggered: daily P&L=$%.2f, %d consecutive losses", daily_pnl, consec_losses)
+    # ── Circuit breaker: balance-based (max 10% daily loss) ──────────
+    should_trigger, cb_reason = _check_balance_circuit_breaker(kraken)
+    if should_trigger:
+        trigger_kill_switch(f"Balance circuit breaker: {cb_reason}")
+        logger.error("CIRCUIT BREAKER: %s — trading halted", cb_reason)
         # Still allow exits
         pending = [s for s in pending if s.get("action") == "sell"]
         if not pending:
@@ -158,39 +605,126 @@ def check_scout_signals(kraken, config) -> dict | None:
         source = signal.get("source", "scout")
 
         # ── Handle BUY signals ────────────────────────────────────────
-        if action == "buy" and source in ("scout_auto", "scout_tournament"):
+        if action == "buy" and source in ("scout_auto", "scout_tournament", "scout_gainer", "scout_mover", "scout_dca"):
+            is_dca = source == "scout_dca"
+
+            # DCA tranches ADD to an existing position — skip the holding checks.
+            # The bot engine folds the buy into the position (averages the entry).
+            if is_dca:
+                logger.info("Scout DCA BUY %s — adding to existing position", pair)
+
+            # ── TIDE OUT belt-and-braces (user rule, Aug 31: all ships sink
+            # together). The scanner refuses to WRITE during an OUT tide —
+            # this catches anything that slips through anyway (stale pending
+            # signal, scanner bug, hand-written record). UNKNOWN/blank =
+            # pre-stamp or broken read → tradeable (fail-open, today's
+            # behavior). Applies to DCA adds too — never average into a
+            # sinking fleet.
+            _sig_tide = str(signal.get("tide_state") or "")
+            if _sig_tide == "OUT":
+                logger.info("Scout BUY %s rejected — TIDE OUT on the stamp (%.0f%% fleet up) — all ships sink together",
+                            pair, signal.get("tide_pct") or 0)
+                mark_rejected(signal_id, "Tide OUT at signal time — no entries anywhere")
+                continue
+
             # Check if we already hold this asset (in scout bridge)
-            if is_already_holding(pair):
+            if not is_dca and is_already_holding(pair):
                 logger.info("Scout BUY %s skipped — already holding (bridge)", pair)
                 mark_rejected(signal_id, "Already holding this asset")
                 continue
 
             # Also check XRP bot's own position DB
-            try:
-                import db as bot_db
-                base = pair.split("/")[0] if "/" in pair else ""
-                existing = bot_db.get_position_for_asset(base)
-                if existing and existing.is_open:
-                    logger.info("Scout BUY %s skipped — already holding (bot DB)", pair)
-                    mark_rejected(signal_id, "Already holding in bot DB")
-                    continue
-            except Exception:
-                pass
+            if not is_dca:
+                try:
+                    import db as bot_db
+                    base = pair.split("/")[0] if "/" in pair else ""
+                    existing = bot_db.get_position_for_asset(base)
+                    if existing and existing.is_open:
+                        logger.info("Scout BUY %s skipped — already holding (bot DB)", pair)
+                        mark_rejected(signal_id, "Already holding in bot DB")
+                        continue
+                except Exception:
+                    pass
 
-            # Check max concurrent positions — don't spread too thin
-            open_count = get_open_position_count()
-            if open_count >= MAX_CONCURRENT_POSITIONS:
-                logger.info("Scout BUY %s skipped — %d open positions (max %d)", pair, open_count, MAX_CONCURRENT_POSITIONS)
-                mark_rejected(signal_id, f"Max positions reached ({open_count}/{MAX_CONCURRENT_POSITIONS})")
+            # ── Learned Kraken restrictions — reject BEFORE the challenge so a
+            # pair the exchange refuses can never displace a healthy incumbent.
+            if is_restricted(pair):
+                logger.info("Scout BUY %s rejected — pair blacklisted (Kraken restriction, learned)", pair)
+                mark_rejected(signal_id, f"{pair} restricted for this Kraken account (learned)")
                 continue
 
-            # Check available balance — don't open trades under $50
+            # ── Chase guard — never buy a signal whose price already ran ──
+            # Runs BEFORE the challenge so we never sell an incumbent to make
+            # room for a challenger that then gets rejected as a chase.
+            if not is_dca:
+                _cg = _chase_guard(kraken, pair, signal.get("entry_price"))
+                if _cg:
+                    logger.info("Scout BUY %s rejected — %s", pair, _cg)
+                    mark_rejected(signal_id, _cg[:120])
+                    continue
+
+            # ── THE POSITION LADDER (user rule, respecified Sep 4:
+            # "1k-3k = 3 assets; 3k-5k = 5; 5k-10k = 10 and so on") —
+            # the CONCURRENCY CEILING scales with the TOTAL account
+            # value (free + positions at market). Below $1k it's 1 —
+            # concentrate on the single best pick. AT THE CAP a strong
+            # challenger runs the HEAD-TO-HEAD CHALLENGE (restored Sep 4,
+            # in effect Sep 3): winner-lock + entry conviction + the
+            # 10-point margin decide, not a bare reject. Sizing stays
+            # all-in (99% of free): later seats fill via challenge or
+            # rotation. DCA doesn't open a NEW position, so it's exempt.
+            if not is_dca:
+                open_count = get_open_position_count()
+                max_positions = max_positions_for(_get_total_account_value(kraken))
+                if open_count >= max_positions:
+                    confidence = signal.get("confidence", 0)
+                    logger.info("Scout BUY %s — at max positions (%d/%d, ladder by account value), running the challenge",
+                                pair, open_count, max_positions)
+                    challenger = _challenge_weakest(kraken, config, pair, confidence)
+                    if challenger and _sell_held_position(
+                            kraken, config, challenger["pair"],
+                            f"Challenge: displaced by stronger signal {pair.split('/')[0]} "
+                            f"({confidence:.0f}% vs {challenger['current_conf']:.0f}%)"):
+                        logger.info("  CHALLENGE SWAP: sold %s to make room for %s",
+                                    challenger["pair"].split("/")[0], pair.split("/")[0])
+                    else:
+                        logger.info("Scout BUY %s skipped — challenge lost, incumbents hold", pair)
+                        mark_rejected(signal_id, "Max positions — challenger lost the head-to-head")
+                        continue
+
+            # Check available balance — insufficient funds run the HEAD-TO-HEAD
+            # CHALLENGE (restored Sep 4; the Sep 3 rule's >=70 floor stays):
+            # a challenger at >=70% tests the weakest incumbent — winner-lock,
+            # entry conviction, and the 10-point margin decide. Wins → the
+            # weakest sells, the challenger buys. Loses → incumbents hold.
+            # Min trade $100: fewer, bigger positions — fee drag drops in %
+            # terms and winners actually move the needle (audit: winners were
+            # $100-200 positions).
             try:
                 available_usd = kraken.get_available_quote("USD")
-                if available_usd < 50:
-                    logger.info("Scout BUY %s skipped — only $%.2f available (min $50)", pair, available_usd)
-                    mark_rejected(signal_id, f"Insufficient funds: ${available_usd:.2f} (min $50)")
-                    continue
+                if available_usd < 100:
+                    confidence = signal.get("confidence", 0)
+                    logger.info("Scout BUY %s — only $%.2f available, running the challenge (confidence %.0f%%)",
+                                pair, available_usd, confidence)
+
+                    if confidence >= 70:
+                        challenger = _challenge_weakest(kraken, config, pair, confidence)
+                        if challenger:
+                            if _sell_held_position(
+                                    kraken, config, challenger["pair"],
+                                    f"Challenge: sold {challenger['pair'].split('/')[0]} "
+                                    f"(entry conviction {challenger['current_conf']:.0f}%, "
+                                    f"{challenger['pnl_pct']:+.1f}%) for stronger signal "
+                                    f"{pair.split('/')[0]} ({confidence:.0f}%)"):
+                                logger.info("  CHALLENGE SWAP: %s out, %s in",
+                                            challenger["pair"].split("/")[0], pair.split("/")[0])
+                                # Re-check available USD after selling
+                                available_usd = kraken.get_available_quote("USD")
+
+                    if available_usd < 100:
+                        logger.info("Scout BUY %s skipped — only $%.2f after the challenge", pair, available_usd)
+                        mark_rejected(signal_id, f"Insufficient funds: ${available_usd:.2f} (min $100)")
+                        continue
             except Exception:
                 pass
 
@@ -218,16 +752,16 @@ def check_scout_signals(kraken, config) -> dict | None:
 
                 buy_result = engine._execute_buy(scout_signal, pair=pair)
 
-                # If insufficient funds, sell the weakest LOSING position and retry
+                # If insufficient funds, sell the weakest position and retry
                 if "skipped" in buy_result and "Insufficient" in buy_result.get("skipped", ""):
-                    logger.info("💰 Insufficient funds — scanning for weakest LOSING position to sell...")
+                    logger.info("Insufficient funds — scanning for weakest position to sell...")
                     try:
                         weakest = _find_weakest_position(kraken, config)
                         if weakest:
                             weak_pair = weakest["pair"]
                             weak_pnl = weakest["pnl_pct"]
                             weak_asset = weak_pair.split("/")[0]
-                            logger.info("  Weakest loser: %s (%.1f%% P&L) — selling to free funds", weak_asset, weak_pnl)
+                            logger.info("  Weakest: %s (%.1f%% PnL) — selling to free funds", weak_asset, weak_pnl)
 
                             # Verify the position still exists and is open
                             weak_position = bot_db.get_position_for_asset(weak_asset)
@@ -268,7 +802,7 @@ def check_scout_signals(kraken, config) -> dict | None:
                                 except Exception as exc:
                                     logger.error("  Sell execution error: %s", exc)
                         else:
-                            logger.info("  No losing positions available to rebalance from")
+                            logger.info("  No positions available to rebalance from")
                     except Exception as exc:
                         logger.error("  Rebalance scan failed: %s", exc)
 
@@ -293,8 +827,21 @@ def check_scout_signals(kraken, config) -> dict | None:
                 logger.error("Scout buy execution failed: %s", exc)
                 continue
 
-        # ── Handle SELL signals (from exit check) ─────────────────────
-        elif action == "sell" and source == "scout_exit_check":
+        # ── Handle SELL signals ───────────────────────────────────────
+        elif action == "sell" and source in ("scout_exit_check", "scout_trend_exit"):
+            # TWO-LEDGER EXIT RULE (Aug 30) + THE TWO ADMITTED SOURCES
+            # (restored Sep 4 — in effect Sep 3): the scanner's exit brain
+            # reaches real money through exactly these two channels —
+            #   scout_exit_check  — the 5-min exit check (trailing stop,
+            #                      strategy sell >=75/>=60-momentum,
+            #                      exhaustion, momentum-rider exits)
+            #   scout_trend_exit  — the silent 1h-knife reversal (user
+            #                      rule, Aug 31: "get out now")
+            # Every other scout SELL source is contest-only and never
+            # touches real money.
+            if source == "scout_trend_exit":
+                logger.info("🔁 TREND-EXIT SELL %s — the scanner's 1h knife reversed; "
+                            "real money gets out now", pair)
             try:
                 import db as bot_db
                 base = pair.split("/")[0] if "/" in pair else ""
@@ -368,9 +915,33 @@ def check_scout_signals(kraken, config) -> dict | None:
                         entry_ts = entry_ts.replace(tzinfo=timezone.utc)
                     minutes_since_buy = (datetime.now(timezone.utc) - entry_ts).total_seconds() / 60
                     if minutes_since_buy < 30:
-                        logger.info("Scout SELL %s skipped — bought %.0f min ago (30 min cooldown)", pair, minutes_since_buy)
-                        mark_rejected(signal_id, f"Cooldown: bought {minutes_since_buy:.0f} min ago")
-                        continue
+                        # (Sep 4, user rule) THE COOLDOWN DECIDES WITH FRESH
+                        # EYES: the blanket 30-min hold once sat on a knife —
+                        # XRP 16:12:16, the scanner called the exit seconds
+                        # after the fill and the cooldown rejected it; the
+                        # engine knife didn't clean it up until 16:27. A sell
+                        # inside the window now runs a CURRENT exit check:
+                        # the fresh read still says get out -> the cooldown
+                        # ENDS and this sell executes; the position recovered
+                        # -> stay the course (the cooldown holds, as before).
+                        from bot_engine import BotEngine as _BE_CD
+                        _fresh = _cooldown_fresh_exit(
+                            kraken, config, pair, position, _BE_CD(kraken, config))
+                        if _fresh:
+                            logger.info("Scout SELL %s — COOLDOWN ENDED by the current exit check "
+                                        "(bought %.0f min ago): %s", pair, minutes_since_buy, _fresh)
+                            signal["reason"] = (f"Cooldown ended at {minutes_since_buy:.0f} min — "
+                                                f"{_fresh}")
+                            # fall through: the sell executes below with the
+                            # fresh reason on the trade ledger
+                        else:
+                            logger.info("Scout SELL %s skipped — cooldown HOLDS (bought %.0f min "
+                                        "ago; the current exit check says stay the course)",
+                                        pair, minutes_since_buy)
+                            mark_rejected(signal_id,
+                                          f"Cooldown holds: bought {minutes_since_buy:.0f} min ago — "
+                                          f"current exit check says hold")
+                            continue
 
                 # Acknowledge and execute
                 acknowledge(signal_id)
