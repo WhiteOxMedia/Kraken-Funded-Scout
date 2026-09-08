@@ -283,6 +283,74 @@ def summarize(grades, days=7.0):
     elif agg["graded"]:
         agg["verdict_65"] = (f"small sample (65-74 n={low['n'] if low else 0}, "
                              f"75+ n={hn}) -- keep 65, keep grading")
+    # the GOAL BANDS (Sep 8): is the live market goal over-aiming for
+    # breakouts? Breakout moves are violent but SHORT -- a goal the
+    # coin's excursion never reaches grades 'short' no matter how good
+    # the setup was. Reach (the goal reached at all: in-window + late)
+    # by goal size is the tell: the band whose reach collapses is asking
+    # for what the market doesn't give. The aim-gap (median goal minus
+    # median realized excursion) says by how much.
+    def _gband(g):
+        gp = float(g.get("goal_pct") or 0.0)
+        if gp < 1.5:
+            return "1.0-1.4"
+        if gp < 2.0:
+            return "1.5-1.9"
+        if gp < 2.5:
+            return "2.0-2.4"
+        return "2.5-3.0"
+    gb = {}
+    for g in grades:
+        if g is None or g.get("verdict") not in (
+                "paid-in-window", "paid-late", "short", "dud"):
+            continue
+        b = _gband(g)
+        d = gb.setdefault(b, {"n": 0, "win": 0, "late": 0, "short": 0,
+                              "dud": 0, "mfe": [], "goal": []})
+        d["n"] += 1
+        if g.get("verdict") == "paid-in-window":
+            d["win"] += 1
+        elif g.get("verdict") == "paid-late":
+            d["late"] += 1
+        elif g.get("verdict") == "short":
+            d["short"] += 1
+        else:
+            d["dud"] += 1
+        if g.get("mfe") is not None:
+            d["mfe"].append(float(g["mfe"]))
+        if g.get("goal_pct") is not None:
+            d["goal"].append(float(g["goal_pct"]))
+    for b, d in gb.items():
+        d["reach"] = ((d["win"] + d["late"]) / d["n"]) if d["n"] else None
+        d["win_rate"] = (d["win"] / d["n"]) if d["n"] else None
+        d["median_mfe"] = _median(d["mfe"]) if d["mfe"] else None
+        d["median_goal"] = _median(d["goal"]) if d["goal"] else None
+        d["aim_gap"] = ((d["median_goal"] - d["median_mfe"])
+                        if (d["median_mfe"] is not None
+                            and d["median_goal"] is not None) else None)
+    agg["goal_bands"] = gb
+    lo_b = gb.get("1.0-1.4")
+    hi_n = gb.get("2.0-2.4", {}).get("n", 0) + gb.get("2.5-3.0", {}).get("n", 0)
+    hi_reach_hits = (gb.get("2.0-2.4", {}).get("win", 0)
+                     + gb.get("2.0-2.4", {}).get("late", 0)
+                     + gb.get("2.5-3.0", {}).get("win", 0)
+                     + gb.get("2.5-3.0", {}).get("late", 0))
+    hi_reach = (hi_reach_hits / hi_n) if hi_n else None
+    lo_reach = lo_b.get("reach") if lo_b else None
+    if hi_n >= 5 and lo_reach is not None and hi_reach is not None:
+        if lo_reach - hi_reach >= 0.15:
+            agg["verdict_goal"] = (
+                f"THE GOAL OVER-AIMS: big asks (2.0%+) reach the goal "
+                f"{hi_reach:.0%} vs {lo_reach:.0%} for the modest ones -- "
+                f"breakout moves are short; the aim should come down")
+        else:
+            agg["verdict_goal"] = (
+                f"the live goal tracks what breakouts give (big asks "
+                f"reach {hi_reach:.0%} vs {lo_reach:.0%} modest)")
+    elif gb:
+        agg["verdict_goal"] = (f"small sample (2.0+ n={hi_n}) -- keep grading")
+    else:
+        agg["verdict_goal"] = "no graded fires yet"
     return agg
 
 
@@ -344,8 +412,8 @@ def run(days=7.0, fetch=True, out_path="_surething_check.txt", now_s=None):
         out(f"    {trig}: {t['n']} fired  "
             f"(graded {t['graded']}, open {t['open']}, no-data {t['nodata']})")
     out()
-    out("── PER-TRIGGER P&L (the hindsight model: winner = +1.5% of "
-        "spend, else the window-close exit) ──")
+    out("── PER-TRIGGER P&L (the hindsight model: winner = the fire's OWN "
+        "goal on the spend, else the window-close exit) ──")
     for trig, t in agg["per_trigger"].items():
         if not t["graded"]:
             continue
@@ -379,6 +447,28 @@ def run(days=7.0, fetch=True, out_path="_surething_check.txt", now_s=None):
             else:
                 out("  THE COUNTDOWN OVERSELLS -- est_min needs the "
                     "recalibration")
+    out()
+    out("── IS THE GOAL TOO BIG? (what the market gave vs what the goal "
+        "asked, by goal band) ──")
+    if not agg["goal_bands"]:
+        out("  no graded fires yet")
+    else:
+        for b in ("1.0-1.4", "1.5-1.9", "2.0-2.4", "2.5-3.0"):
+            if b in agg["goal_bands"]:
+                d = agg["goal_bands"][b]
+                mm = (f"{d['median_mfe']:.2f}%"
+                      if d.get("median_mfe") is not None else "-")
+                mg = (f"{d['median_goal']:.2f}%"
+                      if d.get("median_goal") is not None else "-")
+                gap = (f"  aim-gap {d['aim_gap']:+.2f}pts"
+                       if d.get("aim_gap") is not None else "")
+                out(f"    {b}%: n={d['n']}  reached {d['win'] + d['late']} "
+                    f"({_fmt_pct(d.get('reach'))})  in-window {d['win']} "
+                    f"({_fmt_pct(d.get('win_rate'))})  "
+                    f"median gave {mm} vs asked {mg}{gap}")
+        out("  (aim-gap positive = the coin's median excursion fell short "
+            "of the ask -- over-aimed)")
+        out(f"  VERDICT: {agg['verdict_goal']}")
     out()
     out("── IS 65 TOO LOOSE? (win rate by score band) ──────────")
     if not agg["bands"]:

@@ -253,6 +253,52 @@ check("65 verdict: the bands carry the win rate the report prints",
       and abs(tight["bands"]["75-84"]["win_rate"] - 2 / 3) < 1e-9,
       tight["bands"])
 
+# ── 3b. the GOAL BANDS (Sep 8: is the live market goal over-aiming
+#    for breakouts? reach by goal size + the aim-gap say) ─────────────
+def gfire(goal, verdict, mfe):
+    return {"trigger": "crack", "verdict": verdict, "score": 70.0,
+            "spend": 400.0, "pnl_usd": 0.0, "goal_pct": goal,
+            "paid_min": 10.0, "promise_min": 60.0, "mfe": mfe}
+# modest asks (1.0-1.4) reach often; big asks (2.0+) mostly fall short --
+# the over-aim signature the section exists to catch
+over = dg.summarize(
+    [gfire(1.2, "paid-in-window", 1.6), gfire(1.3, "paid-late", 1.4),
+     gfire(1.1, "short", 0.9), gfire(1.4, "paid-in-window", 1.9),
+     gfire(1.2, "short", 0.8)]
+    + [gfire(2.4, "short", 1.5), gfire(2.6, "short", 1.8),
+       gfire(2.2, "dud", 0.2), gfire(2.8, "short", 1.2),
+       gfire(2.3, "paid-in-window", 2.5)], days=7.0)
+tracks = dg.summarize(
+    [gfire(1.2, "paid-in-window", 1.6), gfire(1.3, "paid-late", 1.4),
+     gfire(1.1, "short", 0.9), gfire(1.4, "paid-in-window", 1.9),
+     gfire(1.2, "short", 0.8)]
+    + [gfire(2.4, "paid-in-window", 2.6), gfire(2.6, "paid-late", 2.7),
+       gfire(2.2, "short", 1.8), gfire(2.8, "paid-in-window", 3.0),
+       gfire(2.3, "short", 1.9)], days=7.0)
+small = dg.summarize([gfire(2.4, "short", 1.5)], days=7.0)
+check("goal bands: big asks reaching 20% vs modest 60% flags OVER-AIM",
+      "OVER-AIM" in over["verdict_goal"], over["verdict_goal"])
+check("goal bands: big asks that keep up keep the live goal",
+      "tracks" in tracks["verdict_goal"], tracks["verdict_goal"])
+check("goal bands: a small sample refuses to judge",
+      "small sample" in small["verdict_goal"], small["verdict_goal"])
+_ob = over["goal_bands"]
+check("goal bands: the reach rate is in-window + late over graded",
+      abs(_ob["2.0-2.4"]["reach"] - 1 / 3) < 1e-9   # the 2.3 winner is in-band
+      and abs(_ob["1.0-1.4"]["reach"] - 0.6) < 1e-9,
+      {k: v.get("reach") for k, v in _ob.items()})
+check("goal bands: the aim-gap is the median ask minus the median excursion",
+      abs(_ob["2.0-2.4"]["aim_gap"] - (2.3 - 1.5)) < 1e-9,
+      _ob["2.0-2.4"].get("aim_gap"))
+check("goal bands: a positive aim-gap means the coin fell short of the ask",
+      _ob["2.0-2.4"]["aim_gap"] > 0, _ob["2.0-2.4"].get("aim_gap"))
+check("goal bands: duds count in n but never in reach",
+      _ob["2.0-2.4"]["n"] == 3 and _ob["2.0-2.4"]["dud"] == 1
+      and abs(_ob["2.0-2.4"]["reach"] - 1 / 3) < 1e-9, _ob["2.0-2.4"])
+check("goal bands: the 2.5+ fires band separately",
+      _ob["2.5-3.0"]["n"] == 2 and _ob["2.5-3.0"]["reach"] == 0.0,
+      _ob["2.5-3.0"])
+
 # ── 4. the store filter (route, kind, window) ─────────────────────────
 tmp = Path("_tmp_surething_test")
 tmp.mkdir(exist_ok=True)
