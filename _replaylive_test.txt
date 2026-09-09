@@ -49,9 +49,10 @@ PASS  an unstamped bot_strategy row grades via the config rails (tp hit)
 PASS  ...and the same way on the stop side (-5%% rail reached first)  
 PASS  a row WITH its own recorded tp keeps it (no rail overwrite)  
 PASS  a scout row without levels still grades no-data (rails are bot-only)  
+PASS  the rails ride the FILLED price when the row carries one (Copilot, Sep 9)  
 PASS  the backfill script exists (the 77 historical rows route)  
 PASS  the popup window is the 120m clock  
 PASS  burials grade at the 1.5% default (they carry no goal call)  
 PASS  the report artifact exists (the diag was run)  
 
-RESULT: 55 passed, 0 failed
+RESULT: 56 passed, 0 failed

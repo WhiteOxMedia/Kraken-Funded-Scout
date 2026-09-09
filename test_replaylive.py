@@ -271,6 +271,14 @@ prow_null = {"pair": "XMR/USD", "source": "scout_auto", "ts": "t",
 check("a scout row without levels still grades no-data (rails are bot-only)",
       dl.grade_popup(prow_null, candle_rows)["verdict"] == "no-data")
 
+prow_exec = {"pair": "XMR/USD", "source": "bot_strategy", "ts": "t",
+             "entry": 2.0, "exec": 2.2, "tp": None, "sl": None, "t0": 0.0}
+middling_rows = [[0, 2.2, 2.30, 2.1, 2.25, 10.0]]
+check("the rails ride the FILLED price when the row carries one (Copilot, Sep 9)",
+      dl.grade_popup(prow_exec, middling_rows)["verdict"] == "timeout"
+      and dl.grade_popup({**prow_exec, "exec": None},
+                         middling_rows)["verdict"] == "tp")
+
 check("the backfill script exists (the 77 historical rows route)",
       Path("backfill_botstrategy_levels.py").exists())
 

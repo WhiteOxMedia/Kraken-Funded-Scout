@@ -230,7 +230,8 @@ def load_popups(db_path=None):
     sc.row_factory = sqlite3.Row
     try:
         rows = sc.execute("""
-            SELECT pair, source, entry_price, take_profit, stop_loss,
+            SELECT pair, source, entry_price, execution_price,
+                   take_profit, stop_loss,
                    position_size_usd, executed_at, confidence
             FROM signals
             WHERE action='buy' AND executed_at IS NOT NULL
@@ -245,6 +246,8 @@ def load_popups(db_path=None):
                 continue
             out.append({"pair": r["pair"], "source": r["source"] or "?",
                         "entry": float(r["entry_price"]),
+                        "exec": (float(r["execution_price"])
+                                 if r["execution_price"] else None),
                         "tp": (float(r["take_profit"])
                                if r["take_profit"] else None),
                         "sl": (float(r["stop_loss"])
@@ -423,7 +426,9 @@ def grade_popup(p, candles):
     tp, sl = p["tp"], p["sl"]
     if tp is None and sl is None and p["source"] == "bot_strategy" \
             and p.get("entry"):
-        sl, tp = bot_levels(p["entry"])
+        # rail off the FILLED price when the row carries one (Copilot,
+        # Sep 9: the exit engine measured the fill, not the quote)
+        sl, tp = bot_levels(p.get("exec") or p["entry"])
     return {"pair": p["pair"], "source": p["source"], "ts": p["ts"],
             "verdict": outcome_of(candles, p["t0"], p["entry"],
                                   tp, sl)}

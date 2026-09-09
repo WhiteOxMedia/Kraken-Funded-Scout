@@ -1,9 +1,9 @@
-THE REPLAY-LIVE DIAG  (2026-09-09 07:15)
+THE REPLAY-LIVE DIAG  (2026-09-09 07:32)
 the verdicts the funnels RECORDED, graded against the deep 5m archive (a first pass before the gate chains are factored into candle-driven functions)
 
 archive: 54 pairs, 469,369 candles
   span: 2026-08-09 -> 2026-09-08
-records: 262 popups (signals.db), 672 burials (popup_suppressions.jsonl)
+records: 262 popups (signals.db), 554 burials (popup_suppressions.jsonl)
 
 ── THE POPUPS (graded at their OWN goal call: tp before sl in 120m) ──
   graded 51/262:  TP 18 (35%)  SL 33  timeout 0
@@ -12,22 +12,16 @@ records: 262 popups (signals.db), 672 burials (popup_suppressions.jsonl)
 
 ── THE BURIALS (each gate's buried candidate, graded at a hypothetical +1.5% in 120m) ──
   a gate EARNED its keep when its burials mostly would NOT have paid
-    downward-trend: 52  would-have-paid 48%  (sl 0%, timeout 50%)
-    too-thin: 38  would-have-paid 84%  (sl 0%, timeout 16%)
+    too-thin: 31  would-have-paid 100%  (sl 0%, timeout 0%)
     brain-floor: 31  would-have-paid 100%  (sl 0%, timeout 0%)
-    tide-out: 30  would-have-paid 3%  (sl 0%, timeout 97%)
-    deep-veto: 25  would-have-paid 52%  (sl 0%, timeout 36%)
-    rotation-lock: 20  would-have-paid 95%  (sl 0%, timeout 0%)
-    stale-move: 16  would-have-paid 69%  (sl 0%, timeout 12%)
-    worth-floor: 13  would-have-paid 92%  (sl 0%, timeout 8%)
-    climb-clearance: 13  would-have-paid 15%  (sl 0%, timeout 0%)
-    climb-floor: 11  would-have-paid 27%  (sl 0%, timeout 36%)
+    downward-trend: 25  would-have-paid 100%  (sl 0%, timeout 0%)
+    rotation-lock: 19  would-have-paid 100%  (sl 0%, timeout 0%)
+    worth-floor: 12  would-have-paid 100%  (sl 0%, timeout 0%)
+    deep-veto: 11  would-have-paid 100%  (sl 0%, timeout 0%)
+    stale-move: 11  would-have-paid 100%  (sl 0%, timeout 0%)
     daily-lock: 7  would-have-paid 100%  (sl 0%, timeout 0%)
-    deep-direction: 7  would-have-paid 29%  (sl 0%, timeout 71%)
-    climb-er: 3  would-have-paid 33%  (sl 0%, timeout 33%)
-    sure-thing-deep-veto: 1  would-have-paid 0%  (sl 0%, timeout 100%)
-    death-line: 1  would-have-paid 0%  (sl 0%, timeout 0%)
-    (of the graded, 119 came from the live public-OHLC fallback)
+    tide-out: 1  would-have-paid 100%  (sl 0%, timeout 0%)
+    deep-direction: 1  would-have-paid 100%  (sl 0%, timeout 0%)
 
   (uncovered by the archive: 69 events -- popup:XMR/USD x11, burial:AR/USD x11, burial:MET/USD x7, burial:APR/USD x6, burial:XMR/USD x6, burial:ORCA/USD x4)
 
