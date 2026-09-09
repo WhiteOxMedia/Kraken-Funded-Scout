@@ -3493,7 +3493,13 @@ def _light_check(kraken, cfg: TradingConfig, sb, held: dict, interval_s: int) ->
         _merged = dict(_fresh)
         for _k, _v in contest_watch.items():
             if _k in _fresh:
-                _merged[_k] = _v
+                _mv = dict(_v)
+                # the high is a monotonic tracker -- NEVER let this
+                # cycle's stale read lower what another console raised
+                # while we ran (the trailing exit would loosen)
+                _mv["high"] = max(float(_v.get("high") or 0),
+                                  float(_fresh[_k].get("high") or 0))
+                _merged[_k] = _mv
         if _merged != _fresh:
             _save_watch(_merged)  # persist updated tracked highs
 

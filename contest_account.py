@@ -232,20 +232,33 @@ def _pid_alive(pid: int) -> bool:
 
 
 class _StateLock:
-    """O_EXCL lockfile; acquire with bounded retries + stale takeover;
-    release only if the file still carries OUR pid."""
+    """A create-if-absent lockfile (atomic os.link), bounded retries,
+    stale takeover; release only if the file still carries OUR token
+    (round 4: pid + a fresh uuid per acquisition -- token ownership
+    kills the same-pid cross-thread deletion a bare pid allowed)."""
 
     def __init__(self):
         self.held = False
 
     def __enter__(self):
         import time as _t
+        import uuid as _uuid
+        self._token = f"{os.getpid()}|{_uuid.uuid4().hex}"
+        tmp = Path(str(STATE_LOCK_FILE)
+                   + f".tmp{os.getpid()}.{_uuid.uuid4().hex[:8]}")
         for attempt in range(PNL_LOCK_RETRIES + 1):
+            # write the payload FIRST at a private temp path, then move
+            # it into place with os.link -- create-IF-ABSENT and atomic,
+            # so no observer ever sees a young half-written lock it
+            # could mistake for stale and steal, and the acquire FAILS
+            # instead of clobbering when a holder exists (os.replace
+            # would silently overwrite the holder and break mutual
+            # exclusion)
             try:
-                fd = os.open(str(STATE_LOCK_FILE),
-                             os.O_CREAT | os.O_EXCL | os.O_WRONLY)
-                os.write(fd, f"{os.getpid()}|{_now_iso()}".encode())
+                fd = os.open(str(tmp), os.O_CREAT | os.O_TRUNC | os.O_WRONLY)
+                os.write(fd, self._token.encode())
                 os.close(fd)
+                os.link(str(tmp), str(STATE_LOCK_FILE))
                 self.held = True
                 return self
             except FileExistsError:
@@ -263,15 +276,18 @@ class _StateLock:
                         STATE_LOCK_FILE.unlink()   # stale takeover
                     except Exception:
                         pass
-                    continue
                 _t.sleep(PNL_LOCK_RETRY_S)
+            except OSError:
+                _t.sleep(PNL_LOCK_RETRY_S)
+            finally:
+                tmp.unlink(missing_ok=True)
         return self            # NOT held -- caller checks .held
 
     def __exit__(self, *exc):
         if self.held:
             try:
                 txt = STATE_LOCK_FILE.read_text(encoding="utf-8")
-                if int(str(txt).split("|")[0]) == os.getpid():
+                if str(txt).strip() == self._token:
                     STATE_LOCK_FILE.unlink()
             except Exception:
                 pass

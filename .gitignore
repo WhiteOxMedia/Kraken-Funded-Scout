@@ -25,3 +25,6 @@ surething_goal_tilt.json.tmp*
 signals.db-shm
 signals.db-wal
 signals.db.bak_botstrategy
+# the contest account's writer lockfile (written on every balance save)
+contest_account.json.lock
+contest_account.json.lock.tmp*
