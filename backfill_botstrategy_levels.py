@@ -64,6 +64,11 @@ def main() -> int:
     # predicate instead of wedging the completion check at exit 2
     # forever. The old both-null SELECT and the tp-null completion check
     # disagreed on exactly that row.
+    # On Copilot round 3's preserve-non-null-sl suggestion: deliberately
+    # NOT taken. A half-null row would grade on MIXED bases (its sl off
+    # one price, the recomputed tp off another) -- the rewrite makes the
+    # pair coherent, which is the point. Zero half-null rows exist
+    # (verified Sep 9); the historical rows were all-null.
     rows = sc.execute(
         "SELECT signal_id, entry_price, execution_price FROM signals "
         "WHERE source='bot_strategy' AND action='buy' "
