@@ -20,3 +20,8 @@ surething_goal_tilt.json
 surething_goal_tilt.json.tmp*
 # the single-instance guard's pid file
 .scanner.pid
+# sqlite WAL sidecars of the live bridge db (the db itself is committed
+# after a checkpoint) + the backfill's safety copy
+signals.db-shm
+signals.db-wal
+signals.db.bak_botstrategy

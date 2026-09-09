@@ -10,7 +10,13 @@
 #
 #   POPUPS    signals.db (action='buy', executed_at IS NOT NULL, with
 #             entry/take_profit/stop): sources scout_auto (the champion
-#             QC-passed popup), scout_mover, scout_gainer, scout_dca.
+#             QC-passed popup), scout_mover, scout_gainer, scout_dca,
+#             bot_strategy (the bot's own retired self-strategy: stamped
+#             Sep 9 with the exit engine's config rails via bot_levels(),
+#             after the fact for the 77 rows that shipped tp-null;
+#             graded under the popup 120m clock -- the bot itself held
+#             without a clock, so treat its verdicts as the popup-style
+#             read).
 #             Graded at the recorded TP: did price touch the take before
 #             the stop, in-window? (the goal-call graded on its own
 #             terms -- exactly what the funnel promised)
@@ -48,6 +54,22 @@ ARCHIVE = Path(__file__).parent / "surething_data" / "kraken"
 OUT_PATH = "_replaylive_check.txt"
 WINDOW_MIN = 120.0        # the goal window the popups promised (the clock)
 BURIAL_GOAL = 1.5         # burials carry no goal call; graded at the default
+
+# The bot_strategy rails (user rule, Sep 9): the bot's exit engine runs
+# config.stop_loss_pct=5.0 / config.take_profit_pct=10.0 against the
+# filled price, so those are the levels its own-strategy rows promise --
+# stamped at insert (bot repo bot_engine.py) and backfilled for the
+# historical tp-null rows. ONE definition: the backfill and the tests
+# grade the same numbers the graders see.
+BOT_STOP_PCT = 5.0
+BOT_TAKE_PCT = 10.0
+
+
+def bot_levels(entry):
+    """The config-rail tp/sl a bot_strategy row promises off its entry."""
+    e = float(entry)
+    return (round(e * (1.0 - BOT_STOP_PCT / 100.0), 8),
+            round(e * (1.0 + BOT_TAKE_PCT / 100.0), 8))
 
 
 def out(s=""):
@@ -395,9 +417,16 @@ def graded_burial_live(arch_rows, fetch, pair, t0_s, quick,
 
 
 def grade_popup(p, candles):
+    """A bot_strategy row shipped with tp/sl=None until Sep 9; the
+    backfill stamps the config rails, and any straggler without levels
+    grades no-data (a promise never written can't be graded)."""
+    tp, sl = p["tp"], p["sl"]
+    if tp is None and sl is None and p["source"] == "bot_strategy" \
+            and p.get("entry"):
+        sl, tp = bot_levels(p["entry"])
     return {"pair": p["pair"], "source": p["source"], "ts": p["ts"],
             "verdict": outcome_of(candles, p["t0"], p["entry"],
-                                  p["tp"], p["sl"])}
+                                  tp, sl)}
 
 
 def grade_burial(b, candles):

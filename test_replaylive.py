@@ -236,7 +236,45 @@ check("summarize on empty stores is all zeros, no crash",
 check("summarize uses plain dicts (json-writable report aggregates)",
       type(agg["popups"]).__name__ == "dict")
 
-# ── 7. THE CONVENTIONS ────────────────────────────────────────────────
+# ── 7. THE BOT_STRATEGY STAMP (user rule, Sep 9: the bot's own rows
+# ── must promise what its exit engine enforces, so they grade too) ────
+
+check("the config rails exist (stop 5, take 10 -- the exit engine's numbers)",
+      dl.BOT_STOP_PCT == 5.0 and dl.BOT_TAKE_PCT == 10.0)
+_sl, _tp = dl.bot_levels(1.39912)
+check("bot_levels puts the rails exactly -5%% / +10%% off entry",
+      abs(_sl - 1.39912 * 0.95) < 1e-9 and abs(_tp - 1.39912 * 1.10) < 1e-9)
+check("bot_levels handles the None-safety contract (float coercion)",
+      dl.bot_levels("0.5") == (round(0.5 * 0.95, 8), round(0.5 * 1.10, 8)))
+
+prow = {"pair": "XMR/USD", "source": "bot_strategy", "ts": "t",
+        "entry": 2.0, "tp": None, "sl": None, "t0": 0.0}
+candle_rows = [[0, 2.0, 2.05, 1.99, 2.01, 10.0],
+               [300_000, 2.01, 2.31, 2.0, 2.30, 10.0]]
+check("an unstamped bot_strategy row grades via the config rails (tp hit)",
+      dl.grade_popup(prow, candle_rows)["verdict"] == "tp")
+
+prow_sl = {"pair": "XMR/USD", "source": "bot_strategy", "ts": "t",
+           "entry": 2.0, "tp": None, "sl": None, "t0": 0.0}
+crash_rows = [[0, 2.0, 2.01, 1.88, 1.89, 10.0]]
+check("...and the same way on the stop side (-5%% rail reached first)",
+      dl.grade_popup(prow_sl, crash_rows)["verdict"] == "sl")
+
+prow_keep = {"pair": "XMR/USD", "source": "bot_strategy", "ts": "t",
+             "entry": 2.0, "tp": 2.2, "sl": 1.9, "t0": 0.0}
+check("a row WITH its own recorded tp keeps it (no rail overwrite)",
+      dl.grade_popup(prow_keep, candle_rows)["verdict"] == "tp"
+      and candle_rows[1][2] >= 2.2)
+
+prow_null = {"pair": "XMR/USD", "source": "scout_auto", "ts": "t",
+             "entry": 2.0, "tp": None, "sl": None, "t0": 0.0}
+check("a scout row without levels still grades no-data (rails are bot-only)",
+      dl.grade_popup(prow_null, candle_rows)["verdict"] == "no-data")
+
+check("the backfill script exists (the 77 historical rows route)",
+      Path("backfill_botstrategy_levels.py").exists())
+
+# ── 8. THE CONVENTIONS ────────────────────────────────────────────────
 
 check("the popup window is the 120m clock",
       dl.WINDOW_MIN == 120.0)

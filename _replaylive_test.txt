@@ -1,0 +1,57 @@
+PASS  tp touched before sl grades 'tp'  
+PASS  sl touched before tp grades 'sl'  
+PASS  a candle containing both grades 'ambig' (the honest 5m bar)  
+PASS  first touch wins across candles (a high before the low)  
+PASS  no touch inside the window grades 'timeout'  
+PASS  the window cuts at win_min (a touch past it never grades)  
+PASS  a touch exactly on the last in-window candle grades  
+PASS  no candles after t0 grades 'no-data'  
+PASS  a zero/negative entry grades 'no-data' (never divides by it)  
+PASS  a burial with no entry but a reachable tp grades (no-data bug)  
+PASS  a burial tp never reached grades 'timeout', not 'no-data'  
+PASS  a burial tp of None grades 'no-data' (nothing promised)  
+PASS  the window pulls the archive rows around the event  
+PASS  a pair the archive forgot returns (empty, 'none')  
+PASS  the pre-window is sized (before_min=0 drops the old candle)  
+PASS  a window-empty run reports 'none' (the archive cannot grade it)  
+PASS  the live fetch covers the gap (verdict from fetched rows)  
+PASS  the live grade reports how many candles covered it  
+PASS  the burial fix rides the same fetch (no entry needed)  
+PASS  a covered burial mints its goal from the archive close  
+PASS  an uncovered burial falls back to live rows for its goal  
+PASS  no rows reaching the event -> no goal minted (never a fiction)  
+PASS  partial archive + dead fetch -> ungraded, NOT a fake timeout  
+PASS  partial archive + live span proof -> honest timeout from live  
+PASS  a spanned live window with no touch grades timeout from live  
+PASS  an empty fetch leaves the event ungraded (no premature timeout)  
+PASS  a broken fetch fails honest (ungraded, not a crash)  
+PASS  timeout wins when candles exist but the window is empty  
+PASS  rows spanning the deadline count as covered  
+PASS  rows stopping short of the deadline are NOT covered  
+PASS  an empty row set is never covered  
+PASS  a running window only needs to reach ~now  
+PASS  a still-running window without fresh rows is NOT covered  
+PASS  an unripe window with no touch grades 'open', not timeout  
+PASS  a touch inside a running window still grades on its merits  
+PASS  an elapsed window with no touch stays 'timeout'  
+PASS  load_popups survives a missing store (returns [])  
+PASS  load_burials survives a missing store (returns [])  
+PASS  load_burials skips malformed lines without dying  
+PASS  summarize grades only covered pairs (XMR lands in uncovered)  
+PASS  per-source folds split by the popup's source  
+PASS  per-gate folds skip ungraded burials (no-data never counts)  
+PASS  summarize on empty stores is all zeros, no crash  
+PASS  summarize uses plain dicts (json-writable report aggregates)  
+PASS  the config rails exist (stop 5, take 10 -- the exit engine's numbers)  
+PASS  bot_levels puts the rails exactly -5%% / +10%% off entry  
+PASS  bot_levels handles the None-safety contract (float coercion)  
+PASS  an unstamped bot_strategy row grades via the config rails (tp hit)  
+PASS  ...and the same way on the stop side (-5%% rail reached first)  
+PASS  a row WITH its own recorded tp keeps it (no rail overwrite)  
+PASS  a scout row without levels still grades no-data (rails are bot-only)  
+PASS  the backfill script exists (the 77 historical rows route)  
+PASS  the popup window is the 120m clock  
+PASS  burials grade at the 1.5% default (they carry no goal call)  
+PASS  the report artifact exists (the diag was run)  
+
+RESULT: 55 passed, 0 failed
