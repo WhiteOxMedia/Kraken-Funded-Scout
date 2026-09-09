@@ -2745,6 +2745,7 @@ def render_quick_check(cfg: TradingConfig, kraken):
                             w[pair] = {"entry": float(px), "high": float(px),
                                        "size": float(_spend_usd),
                                        "added": _now_mst().isoformat(),
+                                       "contest_id": _ca.current_contest_id(),
                                        # THE GOAL (Sep 1): the entry carries
                                        # its % goal + window — the light's
                                        # clock and goal-call run on these.
@@ -4106,9 +4107,15 @@ def render_auto_watch(cfg: TradingConfig, kraken):
                             if _entry > 0 and _size > 0 and _live:
                                 import contest_account as _ca_s
                                 _gross, _cost, _net = _ca_s.pnl_net_usd(_entry, _live, _size)
-                                _acct_s = _ca_s.load_state()
-                                _new_bal = float(_acct_s["current_balance"]) + _net
-                                _ca_s.save_state(int(_acct_s["tier"]), _new_bal)
+                                # (Sep 9) the trade lands on ITS OWN contest
+                                # window's balance -- the watch record carries
+                                # the contest_id it opened under; a foreign-
+                                # window trade is logged but never moves the
+                                # current balance (the TIA bug: an old
+                                # contest's console sold it and the loss hit
+                                # the new contest's account).
+                                _applied, _new_bal, _note = _ca_s.apply_pnl(
+                                    _net, _sw.get("contest_id"))
                                 _held_min = ""
                                 try:
                                     from datetime import datetime as _dts
@@ -4128,6 +4135,8 @@ def render_auto_watch(cfg: TradingConfig, kraken):
                                             "cost_rt": round(_cost, 2),
                                             "pnl_net": round(_net, 2),
                                             "balance_after": round(_new_bal, 2),
+                                            "applied": bool(_applied),
+                                            "note": ("" if _applied else _note),
                                             "goal_pct": _sw.get("goal_pct"),
                                             "held_min": _held_min,
                                         }) + "\n")
@@ -4140,6 +4149,12 @@ def render_auto_watch(cfg: TradingConfig, kraken):
                                              f"{'Plus' if _net >= 0 else 'Minus'} {abs(_net):,.0f} dollars net! "
                                              f"The balance is now {_new_bal:,.0f} dollars! "
                                              f"Adjust me in the sidebar if that's off!")
+                                if not _applied:
+                                    _toast_sold = (f"✔ {_asset(_sp)} sold — "
+                                                   f"{'+' if _net >= 0 else '-'}${abs(_net):,.2f} net · "
+                                                   f"OLD-CONTEST trade, logged only (balance untouched)")
+                                    _say_sold = (f"{_asset(_sp)} sold! That was an old contest trade -- "
+                                                 f"logged, but the current balance is untouched!")
                                 # ── THE PROFIT RE-ARM (user rule, Sep 6: "can
                                 #    we carve out the winner exception if I
                                 #    collected money (profit)? I want to jump
@@ -4232,6 +4247,7 @@ def render_auto_watch(cfg: TradingConfig, kraken):
                             "high": live,
                             "size": _chunk_opts[new_chunk] * cfg.challenge_balance,
                             "added": _now_mst().isoformat(),
+                            "contest_id": _ca.current_contest_id(),
                         }
                         _save_watch(contest_watch)
                         try:
@@ -4702,6 +4718,34 @@ def render_exit_check(cfg: TradingConfig, kraken):
 #  MAIN
 # ════════════════════════════════════════════════════════════════════════
 
+def _on_tier_change(key: str):
+    """(Sep 9) the tier select's on_change: a NEW CONTEST starts -- the
+    only path that resets the balance to the tier's starting amount.
+    Fires on USER INTERACTION only; a rerun (even from a stale second
+    console) can never re-trigger it. The Sep 9 bug this kills: the old
+    fixed session key let a forgotten console pin its '$10,000' and
+    re-fire the new-contest reset on every rerun -- the 1k account kept
+    snapping back to a full 10k (which also re-widened every sizing
+    gate; TAO got buried too-thin under the phantom balance)."""
+    try:
+        _t = int(str(st.session_state.get(key, "")).replace("$", "").replace(",", ""))
+        if _t in (1000, 5000, 10000):
+            import contest_account as _ca_t
+            _ca_t.new_contest(_t)
+            _cs_t = _load_console_state()
+            _cs_t["tier"] = _ca_t.TIERS[_t]["label"]
+            _save_console_state(_cs_t)
+            try:
+                st.toast(f"🆕 New {_ca_t.TIERS[_t]['label']} contest started -- "
+                         f"balance ${_ca_t.TIERS[_t]['start']:,.0f}, fresh death "
+                         f"line, fresh Hail Mary windows.", icon="🆕", duration=10)
+                _speak(f"New contest started! Balance {_ca_t.TIERS[_t]['start']:,.0f} dollars!")
+            except Exception:
+                pass
+    except Exception:
+        pass
+
+
 def main():
     cfg = TradingConfig()
 
@@ -4711,27 +4755,32 @@ def main():
     _tiers = ["$1,000", "$5,000", "$10,000"]
     import contest_account as _ca
     _acct = _ca.load_state()
-    _tier_default = _cs.get("tier", _ca.TIERS[_acct["tier"]]["label"])
+    # (Sep 9) the tier widget DISPLAYS the file's contest -- always. The
+    # key carries the account's contest_id: a new window remounts the
+    # widget fresh, every rerun shows the file, and the reset fires ONLY
+    # on user interaction (on_change). (The old fixed key let a stale
+    # console pin its "$10,000" and re-fire the new-contest reset every
+    # rerun -- the 1k account kept snapping back to a phantom 10k.)
+    _tier_key = f"challenge_tier_{_acct.get('contest_id') or 'legacy'}"
+    _bal_key = f"challenge_bal_{_acct.get('contest_id') or 'legacy'}"
     tier = st.sidebar.selectbox(
-        "Contest account balance",
+        "Contest account (the contest you're in)",
         _tiers,
-        index=_tiers.index(_tier_default) if _tier_default in _tiers else 2,
-        help="The strategy sizes positions as % of the account — this must match "
-             "your real contest balance or the position sizes will be wrong.",
-        key="challenge_tier")
-    if tier != _cs.get("tier"):
-        _cs["tier"] = tier
-        _save_console_state(_cs)
-        # a new contest at this tier: the account starts fresh at the line's zero
-        _t = int(tier.replace("$", "").replace(",", ""))
-        _acct = _ca.save_state(_t, _ca.TIERS[_t]["start"])
+        index=_tiers.index(_ca.TIERS[_acct["tier"]]["label"]),
+        on_change=_on_tier_change, args=(_tier_key,),
+        key=_tier_key,
+        help="Changing this STARTS A NEW CONTEST at that tier (balance resets, "
+             "fresh death line). It only fires when YOU change it -- never on a "
+             "rerun, never from another open console.")
     # ── THE CONTEST ACCOUNT (Kraken Funded rules, encoded Sep 1): the
     # current balance is the sizing base; the -3% DEATH LINE never moves.
     _cur = st.sidebar.number_input(
         "Current contest balance ($)", min_value=0.0,
         value=float(_acct["current_balance"]), step=50.0,
+        key=_bal_key,
         help="Update as the contest account moves. The -3% death line and every "
-             "position size are computed from this.")
+             "position size are computed from this. SOLD trades of THIS contest "
+             "adjust it automatically; old-contest trades never touch it.")
     if abs(_cur - float(_acct["current_balance"])) > 0.01:
         _acct = _ca.save_state(int(_acct["tier"]), _cur)
     cfg.challenge_balance = float(_acct["current_balance"])

@@ -1,0 +1,26 @@
+PASS  new_contest(1000) starts a 1k window at the tier start
+PASS  the window carries a contest_id stamp
+PASS  this window's loss moves the balance
+PASS  this window's profit moves it too
+PASS  an old contest's loss is REFUSED (logged, not applied)
+PASS  an old contest's PROFIT is refused just the same
+PASS  a legacy record (no contest_id) still applies -- the world it ran in
+PASS  a manual balance save keeps the SAME contest_id
+PASS  a manual save keeps the same start_balance (the death line stands)
+PASS  new_contest(10000) resets to the FULL 10k start
+PASS  the new window stamps a FRESH contest_id
+PASS  the new window clears the old Hail Mary state
+PASS  the old window's trades are now foreign (refused)
+PASS  the 1k death line is start*0.97 = $970 (this window's line)
+PASS  buffer is measured from THIS window's start
+PASS  an unknown tier falls back to the default tier (10k)
+PASS  the tier select fires the reset ONLY on user interaction (on_change)
+PASS  the tier/balance widget keys are WINDOW-SCOPED (a new contest remounts them)
+PASS  the old rerun-reset block is GONE (no 'if tier != _cs.get' reset)
+PASS  the SOLD path routes through the window-aware apply_pnl seam
+PASS  the SOLD pass carries the trade's own window stamp
+PASS  the ledger row records whether the balance actually moved
+PASS  both watch-add sites stamp the contest window
+PASS  a foreign-window sale speaks honestly (balance untouched)
+
+RESULT: 24 passed, 0 failed

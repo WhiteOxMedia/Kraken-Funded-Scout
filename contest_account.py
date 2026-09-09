@@ -93,6 +93,7 @@ def load_state() -> dict:
         "tier": DEFAULT_TIER,
         "start_balance": TIERS[DEFAULT_TIER]["start"],
         "current_balance": TIERS[DEFAULT_TIER]["start"],
+        "contest_id": datetime.now(MST).isoformat(),
         "updated_at": datetime.now(MST).isoformat(),
     }
 
@@ -113,11 +114,57 @@ def save_state(tier: int, current_balance: float) -> dict:
     }
     prev = load_state()
     for _k in ("hail_mary_until", "hail_mary_date", "hail_mary_rot",
-               "hail_mary_count"):
+               "hail_mary_count", "contest_id"):
         if prev.get(_k) is not None:
             s[_k] = prev[_k]
     _write_state(s)
     return s
+
+
+def new_contest(tier: int) -> dict:
+    """Start a NEW contest window (user rule, Sep 9: the account knows
+    which contest it is). The ONLY path that resets the balance to a
+    tier's starting amount -- the sidebar's tier select calls this on
+    USER INTERACTION (on_change), never on a rerun, so a stale second
+    console can no longer reset the account by re-rendering (the Sep 9
+    bug: a pinned $10,000 widget reset the 1k account every cycle, which
+    also re-widened every sizing gate -- TAO was buried too-thin under
+    the phantom 10k). A fresh window stamps a fresh contest_id and
+    resets the Hail Mary windows (a new account gets new ones)."""
+    tier = int(tier) if int(tier) in TIERS else DEFAULT_TIER
+    s = {
+        "tier": tier,
+        "start_balance": TIERS[tier]["start"],
+        "current_balance": TIERS[tier]["start"],
+        "contest_id": datetime.now(MST).isoformat(),
+        "updated_at": datetime.now(MST).isoformat(),
+    }
+    _write_state(s)
+    return s
+
+
+def current_contest_id(state: dict | None = None) -> str:
+    """The window stamp of the contest we are in NOW."""
+    s = state or load_state()
+    return str(s.get("contest_id") or "")
+
+
+def apply_pnl(net: float, contest_id: str | None = None) -> tuple[bool, float, str]:
+    """Apply a trade's net P&L to the CURRENT contest's balance -- but
+    only if the trade BELONGS to this contest window (its stamped
+    contest_id matches; None = a legacy record, applies as before).
+    (user rule, Sep 9: closing TIA from an OLD contest's console moved
+    the CURRENT balance -- a trade must land on its own window's
+    balance, and the balance self-adjusts from its own contest's trades
+    only.) Returns (applied, balance_now, note)."""
+    s = load_state()
+    here = str(s.get("contest_id") or "")
+    if contest_id and here and str(contest_id) != here:
+        return False, float(s["current_balance"]), \
+            f"trade from another contest window (record {contest_id} vs here {here})"
+    nb = max(float(s["current_balance"]) + float(net or 0), 0.0)
+    save_state(int(s["tier"]), nb)
+    return True, nb, ""
 
 
 def _write_state(s: dict) -> None:
