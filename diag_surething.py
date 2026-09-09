@@ -34,6 +34,7 @@
 #      ->  _surething_check.txt
 import argparse
 import json
+import os
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -372,9 +373,15 @@ def summarize(grades, days=7.0):
                      "verdict": agg["verdict_goal"],
                      "median_gave": _gave, "median_asked": _asked,
                      "big_n": _n}
-            with open(Path(__file__).parent / "surething_goal_tilt.json",
-                      "w", encoding="utf-8") as _f:
+            # ATOMIC write (Copilot, Sep 8): the scanner reads this file
+            # at fire time -- a truncated in-place write could be read
+            # mid-flight, graded neutral, and the tilt skipped for a
+            # week. Temp file + os.replace: a reader ever sees the old
+            # complete file or the new one, never a partial.
+            _tmpf = Path(__file__).parent / "surething_goal_tilt.json.tmp"
+            with open(_tmpf, "w", encoding="utf-8") as _f:
                 json.dump(_evid, _f, indent=1)
+            os.replace(_tmpf, Path(__file__).parent / "surething_goal_tilt.json")
             agg["tilt_evidence"] = _evid
         except Exception as _exc:
             # fail-open for the REPORT, but visible -- a silent pass here

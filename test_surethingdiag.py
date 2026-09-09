@@ -320,6 +320,8 @@ _ev_over = dg.summarize([gfire(1.2, "paid-in-window", 1.6),
 check("calibrate: an OVER-AIM verdict writes the evidence file",
       _TILT_FILE.exists() and "OVER-AIM" in _TILT_FILE.read_text(encoding="utf-8"),
       _TILT_FILE.read_text(encoding="utf-8")[:120] if _TILT_FILE.exists() else None)
+check("calibrate: the write is atomic (no temp file left behind)",
+      not Path("surething_goal_tilt.json.tmp").exists())
 _ev = json.loads(_TILT_FILE.read_text(encoding="utf-8"))
 check("calibrate: the evidence carries the tilt's numerator/denominator + sample",
       abs(_ev["median_asked"] - 2.5) < 1e-9       # band medians: asked [2.3, 2.7] -> 2.5
