@@ -4898,53 +4898,78 @@ def main():
 
 
 if __name__ == "__main__":
-    # THE SINGLE-INSTANCE GUARD (Sep 8: two scanners were live at once
-    # -- a launcher race doubled every popup and voice line; the
-    # duplicate also polled double the fleet, double the API load).
-    # Atomic O_EXCL pid file: the first process owns it; any second
-    # one refuses to start. A crashed run's stale pid file (its pid no
-    # longer alive) is replaced, so a wedge can never need a manual fix.
+    # THE SINGLE-INSTANCE GUARD (Sep 8): the launch path runs the venv
+    # python twice over (the uv trampoline spawns the real interpreter
+    # with the same command line), so process-count checks see a
+    # phantom second scanner -- and a REAL second one is a real-money
+    # risk: two scanners write the bridge, and the spot account does
+    # not know a signal was already acted on. Atomic O_EXCL pid file:
+    # the first process owns it; any second one refuses to start; a
+    # crashed run's stale file (its pid no longer alive) is unlinked
+    # and taken over. The guard FAILS CLOSED (Copilot, Sep 8): a guard
+    # error means we cannot know whether another scanner is live, and
+    # an unguarded duplicate double-signals the bridge -- so the start
+    # aborts loudly instead of continuing unprotected. (The popups
+    # missing is visible within minutes; a double order is not.)
     _GUARD = os.path.join(os.path.dirname(os.path.abspath(__file__)),
                           ".scanner.pid")
-    try:
-        if os.path.exists(_GUARD):
-            _old = ""
-            try:
-                _old = open(_GUARD, "r", encoding="utf-8").read().strip()
-            except Exception:
-                pass
-            _alive = False
-            if _old.isdigit():
+    _owned = False
+    _gerr = None
+    for _attempt in (1, 2):   # one retry: a transient AV hold on the
+        try:                  # file must not kill the scanner outright
+            if os.path.exists(_GUARD):
+                _old = ""
                 try:
-                    # ctypes OpenProcess: os.kill(pid, 0) succeeds on
-                    # Windows for ANY pid (it is a POSIX no-op there),
-                    # so the takeover check needs a real liveness probe
-                    import ctypes
-                    _k32 = ctypes.windll.kernel32
-                    _SYNCHRONIZE = 0x00100000
-                    _h = _k32.OpenProcess(_SYNCHRONIZE, False, int(_old))
-                    if _h:
-                        _k32.CloseHandle(_h)
-                        _alive = True
+                    _old = open(_GUARD, "r", encoding="utf-8").read().strip()
                 except Exception:
-                    _alive = True   # unknown -- assume alive, stay down
-            if _alive:
-                print(f"A scanner is already running (pid {_old}). Not "
-                      f"starting a second one -- the single-instance "
-                      f"guard refused. Close that one first.")
-                sys.exit(0)
-            print(f"Stale scanner pid file ({_old or 'empty'}) -- taking "
-                  f"over.")
-        _fd = os.open(_GUARD, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
-        try:
-            os.write(_fd, str(os.getpid()).encode())
-        finally:
-            os.close(_fd)
-    except SystemExit:
-        raise
-    except Exception as _gexc:
-        print(f"Single-instance guard could not run ({_gexc}) -- "
-              f"continuing without it (fail-open, as before).")
+                    pass
+                _alive = False
+                if _old.isdigit():
+                    try:
+                        # ctypes OpenProcess: os.kill(pid, 0) succeeds
+                        # on Windows for ANY pid (it is a POSIX no-op
+                        # there), so the takeover check needs a real
+                        # liveness probe
+                        import ctypes
+                        _k32 = ctypes.windll.kernel32
+                        _SYNCHRONIZE = 0x00100000
+                        _h = _k32.OpenProcess(_SYNCHRONIZE, False, int(_old))
+                        if _h:
+                            _k32.CloseHandle(_h)
+                            _alive = True
+                    except Exception:
+                        _alive = True   # unknown -- assume alive, stay down
+                else:
+                    _alive = False   # empty/corrupt file: nothing owns it
+                if _alive:
+                    print(f"A scanner is already running (pid {_old}). Not "
+                          f"starting a second one -- the single-instance "
+                          f"guard refused. Close that one first.")
+                    sys.exit(0)
+                print(f"Stale scanner pid file ({_old or 'empty'}) -- "
+                      f"taking over.")
+                try:
+                    os.unlink(_GUARD)   # the stale file blocks O_EXCL
+                except FileNotFoundError:
+                    pass
+            _fd = os.open(_GUARD, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+            try:
+                os.write(_fd, str(os.getpid()).encode())
+            finally:
+                os.close(_fd)
+            _owned = True
+            break
+        except SystemExit:
+            raise
+        except Exception as _exc:
+            _gerr = _exc
+            time.sleep(1.0)
+    if not _owned:
+        print(f"SINGLE-INSTANCE GUARD FAILED ({_gerr}) -- refusing to "
+              f"start: cannot verify no other scanner is live, and an "
+              f"unguarded duplicate double-signals the bridge (real "
+              f"money). Fix the error above, then relaunch.")
+        sys.exit(1)
     try:
         atexit.register(lambda: os.path.exists(_GUARD)
                         and open(_GUARD, "r", encoding="utf-8").read().strip()
