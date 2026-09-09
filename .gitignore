@@ -18,3 +18,5 @@ _bt_download_summary.json
 # the goal-tilt evidence the weekly diag writes for the fire seam
 surething_goal_tilt.json
 surething_goal_tilt.json.tmp*
+# the single-instance guard's pid file
+.scanner.pid

@@ -23,6 +23,7 @@ Usage:
 from __future__ import annotations
 
 import logging
+import atexit
 import os
 import sys
 import time
@@ -4897,7 +4898,58 @@ def main():
 
 
 if __name__ == "__main__":
+    # THE SINGLE-INSTANCE GUARD (Sep 8: two scanners were live at once
+    # -- a launcher race doubled every popup and voice line; the
+    # duplicate also polled double the fleet, double the API load).
+    # Atomic O_EXCL pid file: the first process owns it; any second
+    # one refuses to start. A crashed run's stale pid file (its pid no
+    # longer alive) is replaced, so a wedge can never need a manual fix.
+    _GUARD = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                          ".scanner.pid")
     try:
+        if os.path.exists(_GUARD):
+            _old = ""
+            try:
+                _old = open(_GUARD, "r", encoding="utf-8").read().strip()
+            except Exception:
+                pass
+            _alive = False
+            if _old.isdigit():
+                try:
+                    # ctypes OpenProcess: os.kill(pid, 0) succeeds on
+                    # Windows for ANY pid (it is a POSIX no-op there),
+                    # so the takeover check needs a real liveness probe
+                    import ctypes
+                    _k32 = ctypes.windll.kernel32
+                    _SYNCHRONIZE = 0x00100000
+                    _h = _k32.OpenProcess(_SYNCHRONIZE, False, int(_old))
+                    if _h:
+                        _k32.CloseHandle(_h)
+                        _alive = True
+                except Exception:
+                    _alive = True   # unknown -- assume alive, stay down
+            if _alive:
+                print(f"A scanner is already running (pid {_old}). Not "
+                      f"starting a second one -- the single-instance "
+                      f"guard refused. Close that one first.")
+                sys.exit(0)
+            print(f"Stale scanner pid file ({_old or 'empty'}) -- taking "
+                  f"over.")
+        _fd = os.open(_GUARD, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+        try:
+            os.write(_fd, str(os.getpid()).encode())
+        finally:
+            os.close(_fd)
+    except SystemExit:
+        raise
+    except Exception as _gexc:
+        print(f"Single-instance guard could not run ({_gexc}) -- "
+              f"continuing without it (fail-open, as before).")
+    try:
+        atexit.register(lambda: os.path.exists(_GUARD)
+                        and open(_GUARD, "r", encoding="utf-8").read().strip()
+                        == str(os.getpid())
+                        and os.remove(_GUARD))
         main()
     except KeyboardInterrupt:
         print("\nStopped.")
