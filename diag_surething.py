@@ -82,6 +82,20 @@ def _acquire_tilt_lock(lock_path=None, stale_s=None):
     return False
 
 
+def _release_tilt_lock(lock_path=None):
+    """Release ONLY if we still own it (Copilot round 6): a writer
+    stalled past the staleness bound loses the lock to another run's
+    takeover -- unconditionally unlinking from our finally would delete
+    the REPLACEMENT lock and drop mutual exclusion. The lock carries
+    the owner's pid; a foreign owner's lock is left standing."""
+    _lp = lock_path or _TILT_LOCK
+    try:
+        if _lp.read_text(encoding="utf-8").strip() == str(os.getpid()):
+            _lp.unlink(missing_ok=True)
+    except (FileNotFoundError, OSError):
+        pass   # already gone, or unreadable -- nothing to release
+
+
 def out(s=""):
     print(s)
     lines.append(s)
@@ -474,7 +488,7 @@ def summarize(grades, days=7.0):
                             os.unlink(_tmpname)
                         except OSError:
                             pass
-                    _TILT_LOCK.unlink(missing_ok=True)
+                    _release_tilt_lock()
         except Exception as _exc:
             # fail-open for the REPORT, but visible -- a silent pass here
             # once hid an ordering bug from the very tests built to catch it

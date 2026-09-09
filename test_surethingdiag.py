@@ -338,6 +338,14 @@ check("lock: a second acquisition while held is refused",
 _LP.unlink(missing_ok=True)
 check("lock: release is a plain unlink and re-acquirable",
       not _LP.exists() and dg._acquire_tilt_lock())
+dg._release_tilt_lock()
+check("lock: release removes OUR lock",
+      not _LP.exists())
+dg._acquire_tilt_lock()
+_LP.write_text("99999", encoding="utf-8")   # a takeover: another pid owns it now
+check("lock: a FOREIGN owner's lock is never released by our finally (a stalled writer must not drop the replacement's exclusion)",
+      _LP.exists() and dg._release_tilt_lock() is None and _LP.exists())
+_LP.unlink(missing_ok=True)
 _LP.unlink(missing_ok=True)
 _LP.write_text("99999", encoding="utf-8")
 import os as _os
