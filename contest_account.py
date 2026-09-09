@@ -117,7 +117,14 @@ def save_state(tier: int, current_balance: float) -> dict:
                "hail_mary_count", "contest_id"):
         if prev.get(_k) is not None:
             s[_k] = prev[_k]
-    _write_state(s)
+    # a USER action never drops silently (Sep 9, the phantom-1k lesson):
+    # a busy lock must RAISE so the caller can say "try again" -- the
+    # silent skip returned a state that was never written, and the UI
+    # showed a contest the file had never heard of
+    with _StateLock() as _lk:
+        if not _lk.held:
+            raise RuntimeError("account state busy -- retry in a moment")
+        _write_state(s)
     return s
 
 
@@ -139,7 +146,13 @@ def new_contest(tier: int) -> dict:
         "contest_id": datetime.now(MST).isoformat(),
         "updated_at": datetime.now(MST).isoformat(),
     }
-    _write_state(s)
+    # same rule as save_state: a busy lock raises -- a new contest that
+    # silently skipped would leave the file in the OLD window while the
+    # user believes a new one started
+    with _StateLock() as _lk:
+        if not _lk.held:
+            raise RuntimeError("account state busy -- retry in a moment")
+        _write_state(s)
     return s
 
 
@@ -154,36 +167,33 @@ def apply_pnl(net: float, contest_id: str | None = None,
     """Apply a trade's net P&L to the CURRENT contest's balance -- but
     only if the trade BELONGS to this contest window (its stamped
     contest_id matches; None = a legacy record, applies as before).
-    (user rule, Sep 9: closing TIA from an OLD contest's console moved
-    the CURRENT balance -- a trade must land on its own window's
-    balance, and the balance self-adjusts from its own contest's trades
-    only.) Returns (applied, balance_now, note).
+    Returns (applied, balance_now, note).
 
-    ATOMIC single load (Copilot, Sep 9): the state is read ONCE and the
-    FULL record (window stamp included) is written back atomically -- no
-    second load inside save_state for a new_contest to slip between, so
-    an old trade can never land on a new window's balance through a
-    mid-flight tier switch.
-
-    REPLAY-SAFE (Copilot, Sep 9): a dedupe_key (pair + the record's
-    added stamp) keeps two consoles -- or a rerun -- from applying the
-    same trade twice; the applied keys ride the state (last 50 kept)."""
-    s = load_state()
-    here = str(s.get("contest_id") or "")
-    if contest_id and here and str(contest_id) != here:
-        return False, float(s["current_balance"]), \
-            f"trade from another contest window (record {contest_id} vs here {here})"
-    if dedupe_key:
+    UNDER THE STATE LOCK (Copilot round 3, Sep 9): load, judge, write --
+    all inside one critical section, so two consoles cannot interleave
+    (a lost P&L) and a new_contest cannot slip between load and write
+    (a stale window over a fresh balance). Busy (lock contested past
+    the retries): the trade is logged by the caller but the P&L is NOT
+    applied -- honest skip, never a silent loss. A missing dedupe_key
+    falls back to a UNIQUE per-call key (a constant fallback would
+    reject every later trade of that pair as a replay)."""
+    with _StateLock() as _lk:
+        if not _lk.held:
+            return False, load_state()["current_balance"],                 "account state busy -- trade logged, P&L not applied"
+        s = load_state()
+        here = str(s.get("contest_id") or "")
+        if contest_id and here and str(contest_id) != here:
+            return False, float(s["current_balance"]),                 f"trade from another contest window (record {contest_id} vs here {here})"
+        key = dedupe_key or f"{here or 'legacy'}|{_now_iso()}"
         seen = s.get("applied_trades") or {}
-        if dedupe_key in seen:
-            return False, float(s["current_balance"]), \
-                "trade already applied (replayed SOLD)"
-        seen[dedupe_key] = round(float(net or 0), 2)
+        if key in seen:
+            return False, float(s["current_balance"]),                 "trade already applied (replayed SOLD)"
+        seen[key] = round(float(net or 0), 2)
         s["applied_trades"] = dict(list(seen.items())[-50:])
-    nb = max(float(s["current_balance"]) + float(net or 0), 0.0)
-    s["current_balance"] = nb
-    s["updated_at"] = datetime.now(MST).isoformat()
-    _write_state(s)
+        nb = max(float(s["current_balance"]) + float(net or 0), 0.0)
+        s["current_balance"] = nb
+        s["updated_at"] = _now_iso()
+        _write_state(s)
     return True, nb, ""
 
 
@@ -192,6 +202,96 @@ def _write_state(s: dict) -> None:
     with open(tmp, "w", encoding="utf-8") as f:
         f.write(json.dumps(s, indent=1))
     os.replace(tmp, STATE_FILE)
+
+
+# -- THE STATE LOCK (Copilot round 3, Sep 9): the account file is written
+# by every console AND the scanner -- bare load/modify/write loses updates
+# when two writers interleave (a lost P&L, or a stale window overwriting a
+# fresh one). One O_EXCL lockfile guards every WRITE (reads stay lock-free:
+# os.replace is atomic, a reader sees the whole old or whole new record).
+# Bounded retry, stale takeover (a crashed run's lock ages out), and
+# pid-ownership release -- the tilt-writer pattern from surething.
+STATE_LOCK_FILE = STATE_FILE.with_suffix(".json.lock")
+PNL_LOCK_RETRIES = 6
+PNL_LOCK_RETRY_S = 0.05
+PNL_LOCK_STALE_S = 10.0
+
+
+def _pid_alive(pid: int) -> bool:
+    try:
+        import ctypes
+        k32 = ctypes.windll.kernel32
+        SYNCHRONIZE = 0x00100000
+        h = k32.OpenProcess(SYNCHRONIZE, False, int(pid))
+        if h:
+            k32.CloseHandle(h)
+            return True
+        return False
+    except Exception:
+        return True    # probe broken: assume alive, let staleness decide
+
+
+class _StateLock:
+    """O_EXCL lockfile; acquire with bounded retries + stale takeover;
+    release only if the file still carries OUR pid."""
+
+    def __init__(self):
+        self.held = False
+
+    def __enter__(self):
+        import time as _t
+        for attempt in range(PNL_LOCK_RETRIES + 1):
+            try:
+                fd = os.open(str(STATE_LOCK_FILE),
+                             os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+                os.write(fd, f"{os.getpid()}|{_now_iso()}".encode())
+                os.close(fd)
+                self.held = True
+                return self
+            except FileExistsError:
+                try:
+                    txt = STATE_LOCK_FILE.read_text(encoding="utf-8")
+                    pid = int(str(txt).split("|")[0])
+                    ts = _iso_ts(str(txt).split("|", 1)[1])
+                except Exception:
+                    pid, ts = None, None
+                age = (_now_ts() - ts) if ts else 999.0
+                if (age > PNL_LOCK_STALE_S
+                        or (pid is not None and pid != os.getpid()
+                            and not _pid_alive(pid))):
+                    try:
+                        STATE_LOCK_FILE.unlink()   # stale takeover
+                    except Exception:
+                        pass
+                    continue
+                _t.sleep(PNL_LOCK_RETRY_S)
+        return self            # NOT held -- caller checks .held
+
+    def __exit__(self, *exc):
+        if self.held:
+            try:
+                txt = STATE_LOCK_FILE.read_text(encoding="utf-8")
+                if int(str(txt).split("|")[0]) == os.getpid():
+                    STATE_LOCK_FILE.unlink()
+            except Exception:
+                pass
+            self.held = False
+        return False
+
+
+def _now_iso() -> str:
+    return datetime.now(MST).isoformat()
+
+
+def _now_ts() -> float:
+    return datetime.now(MST).timestamp()
+
+
+def _iso_ts(s: str) -> float:
+    try:
+        return datetime.fromisoformat(s).timestamp()
+    except Exception:
+        return 0.0
 
 
 def _today_str() -> str:

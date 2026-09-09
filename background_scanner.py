@@ -4183,6 +4183,19 @@ def main():
                             except Exception as exc:
                                 logger.warning("  Could not write mover to bridge: %s", exc)
 
+                        # CONTEST POPUPS ARE THE 54 (user rule, Sep 9: XMR
+                        # popped on the desktop but "popups are for the 54
+                        # pairs in the contest only -- the Buy XMR should
+                        # have silently gone to the bridge to be
+                        # challenged"). The bridge write above already
+                        # carried this non-fleet mover to the bot; the
+                        # desktop stays silent: the popup gauntlet below
+                        # (fire snapshot, brain sizing, cap, voice) is
+                        # fleet-only. log_winner/alerted_recently stay
+                        # fleet-side too -- no popup, nothing to grade.
+                        if pair not in set(cfg.trading_pairs):
+                            logger.info("  MOVER %s -- bridge-only: popups are for the 54", asset)
+                            continue
                         # desktop: THE NEW-GAME MOVER POPUP (user option 1,
                         # Sep 2: "convert the MOVER popup to the new-game
                         # format — same gauntlet as champion popups").

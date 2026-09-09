@@ -31,6 +31,10 @@ import contest_account as ca
 _tmpdir = tempfile.mkdtemp(prefix="_contestwin_")
 STATE = Path(_tmpdir) / "contest_account.json"
 ca.STATE_FILE = STATE
+# the LOCK file binds at import from the real STATE_FILE -- rebind it too,
+# or the suite would lock/unlock the LIVE repo's lockfile
+cr_lock = Path(_tmpdir) / "contest_account.json.lock"
+ca.STATE_LOCK_FILE = cr_lock
 
 lines = []
 PASS = FAIL = 0
@@ -164,6 +168,62 @@ check("both watch-add sites stamp the contest window",
       app_src.count('"contest_id": _ca.current_contest_id()') == 2)
 check("a foreign-window sale speaks honestly (balance untouched)",
       "OLD-CONTEST trade" in app_src)
+
+# ── 10. THE STATE LOCK (Copilot round 3, Sep 9) ───────────────────────
+
+ca_src = (BASE / "contest_account.py").read_text(encoding="utf-8")
+check("all three writers run under the state lock (save/new_contest/apply)",
+      ca_src.count("with _StateLock() as _lk:") == 3)
+
+# BUSY: a fresh LIVE holder's lock survives the retries -> honest skip
+# (the fixture carries OUR pid: a dead writer's lock would be taken over
+# instantly, which is the STALE test below -- that behavior is correct,
+# and the first draft of this fixture got it wrong by using a dead pid)
+import os as _os
+now_iso = datetime.now(ca.MST).isoformat()
+# the window mints FRESH here (s3/s4 above re-minted) and BEFORE the
+# BUSY fixture locks the file: the lock tests need a CURRENT window,
+# and with the raise-on-busy rule a mint under a held lock would raise
+_here = ca.new_contest(1000)["contest_id"]
+cr_lock.write_text(f"{_os.getpid()}|{now_iso}", encoding="utf-8")
+_before = ca.load_state()["current_balance"]
+applied, bal, note = ca.apply_pnl(1.0, _here)
+check("a contested lock BUSY-skips honestly (logged, not applied)",
+      (not applied) and "busy" in note and abs(bal - _before) < 1e-9)
+
+# fixture hygiene: the BUSY fixture's lock file stays on disk by design
+# (apply_pnl is a caller of the lock, not its owner) -- clear it, or
+# the next section's new_contest hits a contested lock (the bug that
+# failed the STALE + fallback checks below: the mint no-op'd, every
+# later trade refused as foreign-window)
+cr_lock.unlink(missing_ok=True)
+# a busy USER action (new contest / balance edit) RAISES -- it must
+# never drop silently (the caller says "try again"; the old silent
+# skip returned a state that was never written)
+cr_lock.write_text(f"{_os.getpid()}|{now_iso}", encoding="utf-8")
+_busy_raised = False
+try:
+    ca.new_contest(1000)
+except RuntimeError:
+    _busy_raised = True
+check("a busy new_contest RAISES (user actions never drop silently)",
+      _busy_raised)
+cr_lock.unlink(missing_ok=True)
+
+# STALE: a dead run's lock ages out -> takeover, the trade lands
+old_iso = datetime.now(ca.MST).isoformat()
+cr_lock.write_text(f"999999|2026-09-08T00:00:00-06:00", encoding="utf-8")
+applied, bal, note = ca.apply_pnl(3.0, _here)
+check("a STALE lock is taken over (the trade applies)",
+      applied and bal > _before)
+check("the lockfile is released after the write",
+      not ca.STATE_LOCK_FILE.exists())
+
+# FALLBACK KEY: None dedupe keys are unique per call (never a constant)
+applied, bal, _ = ca.apply_pnl(2.0, _here)
+applied2, bal2, _ = ca.apply_pnl(4.0, _here)
+check("missing dedupe keys stay UNIQUE per call (both trades apply)",
+      applied and applied2 and abs(bal2 - (bal + 4.0)) < 1e-9)
 
 lines.append(f"\nRESULT: {PASS} passed, {FAIL} failed")
 out = BASE / "_contestwindow_test.txt"

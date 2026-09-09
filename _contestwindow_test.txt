@@ -27,5 +27,11 @@ PASS  the SOLD pass carries the trade's own window stamp
 PASS  the ledger row records whether the balance actually moved
 PASS  both watch-add sites stamp the contest window
 PASS  a foreign-window sale speaks honestly (balance untouched)
+PASS  all three writers run under the state lock (save/new_contest/apply)
+PASS  a contested lock BUSY-skips honestly (logged, not applied)
+PASS  a busy new_contest RAISES (user actions never drop silently)
+PASS  a STALE lock is taken over (the trade applies)
+PASS  the lockfile is released after the write
+PASS  missing dedupe keys stay UNIQUE per call (both trades apply)
 
-RESULT: 29 passed, 0 failed
+RESULT: 35 passed, 0 failed

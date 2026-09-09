@@ -3485,7 +3485,17 @@ def _light_check(kraken, cfg: TradingConfig, sb, held: dict, interval_s: int) ->
         except Exception:
             continue
     if contest_watch:
-        _save_watch(contest_watch)  # persist updated tracked highs
+        # merge-save (the TIA lesson, Sep 9): a clear from another
+        # console (or this one's panel) may land while this cycle ran --
+        # re-read the disk truth and save only pairs that still exist
+        # there, so a stale cycle can never resurrect a cleared record
+        _fresh = _load_watch()
+        _merged = dict(_fresh)
+        for _k, _v in contest_watch.items():
+            if _k in _fresh:
+                _merged[_k] = _v
+        if _merged != _fresh:
+            _save_watch(_merged)  # persist updated tracked highs
 
     st.session_state["exit_alerts"] = alerts
     st.session_state["watch_status"] = watch_status
@@ -4153,7 +4163,8 @@ def render_auto_watch(cfg: TradingConfig, kraken):
                                 if not _applied:
                                     _toast_sold = (f"✔ {_asset(_sp)} sold — "
                                                    f"{'+' if _net >= 0 else '-'}${abs(_net):,.2f} net · "
-                                                   f"OLD-CONTEST trade, logged only (balance untouched)")
+                                                   f"NOT APPLIED: {_note or 'OLD-CONTEST trade'} "
+                                                   f"(balance untouched)")
                                     _say_sold = (f"{_asset(_sp)} sold! That was an old contest trade -- "
                                                  f"logged, but the current balance is untouched!")
                                 # ── THE PROFIT RE-ARM (user rule, Sep 6: "can
@@ -4730,19 +4741,31 @@ def _on_tier_change(key: str):
     gate; TAO got buried too-thin under the phantom balance)."""
     try:
         _t = int(str(st.session_state.get(key, "")).replace("$", "").replace(",", ""))
-        if _t in (1000, 5000, 10000):
-            import contest_account as _ca_t
-            _ca_t.new_contest(_t)
-            _cs_t = _load_console_state()
-            _cs_t["tier"] = _ca_t.TIERS[_t]["label"]
-            _save_console_state(_cs_t)
-            try:
-                st.toast(f"🆕 New {_ca_t.TIERS[_t]['label']} contest started -- "
-                         f"balance ${_ca_t.TIERS[_t]['start']:,.0f}, fresh death "
-                         f"line, fresh Hail Mary windows.", icon="🆕", duration=10)
-                _speak(f"New contest started! Balance {_ca_t.TIERS[_t]['start']:,.0f} dollars!")
-            except Exception:
-                pass
+    except (TypeError, ValueError):
+        return
+    if _t not in (1000, 5000, 10000):
+        return
+    import contest_account as _ca_t
+    try:
+        _ca_t.new_contest(_t)
+    except RuntimeError:
+        # the account file is busy (another writer holds it) -- say so
+        # instead of swallowing (Sep 9: a silent drop shows a contest
+        # the file never recorded; the user picks the tier again)
+        try:
+            st.toast("⏳ The account file is busy -- pick the tier again in a moment.",
+                     icon="⏳", duration=8)
+        except Exception:
+            pass
+        return
+    _cs_t = _load_console_state()
+    _cs_t["tier"] = _ca_t.TIERS[_t]["label"]
+    _save_console_state(_cs_t)
+    try:
+        st.toast(f"🆕 New {_ca_t.TIERS[_t]['label']} contest started -- "
+                 f"balance ${_ca_t.TIERS[_t]['start']:,.0f}, fresh death "
+                 f"line, fresh Hail Mary windows.", icon="🆕", duration=10)
+        _speak(f"New contest started! Balance {_ca_t.TIERS[_t]['start']:,.0f} dollars!")
     except Exception:
         pass
 
@@ -4790,7 +4813,16 @@ def main():
              "position size are computed from this. SOLD trades of THIS contest "
              "adjust it automatically; old-contest trades never touch it.")
     if abs(_cur - float(_acct["current_balance"])) > 0.01:
-        _acct = _ca.save_state(int(_acct["tier"]), _cur)
+        try:
+            _acct = _ca.save_state(int(_acct["tier"]), _cur)
+        except RuntimeError:
+            # busy: the edit lands on the next honest rerun -- say so,
+            # never crash the rerun, never pretend it saved
+            try:
+                st.toast("⏳ The account file is busy -- your balance edit will land in a moment.",
+                         icon="⏳", duration=8)
+            except Exception:
+                pass
     cfg.challenge_balance = float(_acct["current_balance"])
     _line = _ca.death_line(_acct)
     _buf = _ca.buffer(_acct)
