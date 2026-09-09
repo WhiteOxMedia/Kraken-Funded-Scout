@@ -82,6 +82,19 @@ applied, bal, note = ca.apply_pnl(10.0, None)
 check("a legacy record (no contest_id) still applies -- the world it ran in",
       applied and abs(bal - 984.22) < 1e-9)
 
+# ── 4b. REPLAY SAFETY (Copilot, Sep 9): the same trade cannot land twice
+
+applied, bal, note = ca.apply_pnl(25.0, here, dedupe_key="TIA/USD|2026-09-09T10:00")
+check("a deduped trade applies once",
+      applied and abs(bal - 1009.22) < 1e-9)
+applied, bal, note = ca.apply_pnl(25.0, here, dedupe_key="TIA/USD|2026-09-09T10:00")
+check("...and a REPLAYED key is refused (two consoles can't double-book)",
+      (not applied) and "already applied" in note
+      and abs(bal - 1009.22) < 1e-9)
+applied, bal, _ = ca.apply_pnl(5.0, here, dedupe_key="OTHER/USD|2026-09-09T10:05")
+check("a different trade's key still applies",
+      applied and abs(bal - 1014.22) < 1e-9)
+
 # ── 5. save_state never resets the window ─────────────────────────────
 
 ca.save_state(1000, 1234.0)
@@ -132,9 +145,12 @@ app_src = (BASE / "app.py").read_text(encoding="utf-8")
 check("the tier select fires the reset ONLY on user interaction (on_change)",
       "on_change=_on_tier_change" in app_src
       and 'key="challenge_tier"' not in app_src)
-check("the tier/balance widget keys are WINDOW-SCOPED (a new contest remounts them)",
-      "_tier_key = f\"challenge_tier_" in app_src
-      and "_bal_key = f\"challenge_bal_" in app_src)
+check("the tier widget key is WINDOW-SCOPED (a new contest remounts it fresh)",
+      "_tier_key = f\"challenge_tier_" in app_src)
+check("the balance input has NO explicit key (a stale widget could undo a booked trade)",
+      "key=_bal_key" not in app_src)
+check("the SOLD pass dedupes on pair + added stamp (replay-safe)",
+      'dedupe_key=f"{_sp}|{_sw.get(\'added\')}"' in app_src)
 check("the old rerun-reset block is GONE (no 'if tier != _cs.get' reset)",
       'if tier != _cs.get("tier"):' not in app_src)
 check("the SOLD path routes through the window-aware apply_pnl seam",

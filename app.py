@@ -4115,7 +4115,8 @@ def render_auto_watch(cfg: TradingConfig, kraken):
                                 # contest's console sold it and the loss hit
                                 # the new contest's account).
                                 _applied, _new_bal, _note = _ca_s.apply_pnl(
-                                    _net, _sw.get("contest_id"))
+                                    _net, _sw.get("contest_id"),
+                                    dedupe_key=f"{_sp}|{_sw.get('added')}")
                                 _held_min = ""
                                 try:
                                     from datetime import datetime as _dts
@@ -4762,7 +4763,9 @@ def main():
     # console pin its "$10,000" and re-fire the new-contest reset every
     # rerun -- the 1k account kept snapping back to a phantom 10k.)
     _tier_key = f"challenge_tier_{_acct.get('contest_id') or 'legacy'}"
-    _bal_key = f"challenge_bal_{_acct.get('contest_id') or 'legacy'}"
+    # (Sep 9) the TIER select's key carries the window stamp: a new
+    # contest remounts it fresh. The BALANCE input deliberately has NO
+    # key -- see the number_input comment below.
     tier = st.sidebar.selectbox(
         "Contest account (the contest you're in)",
         _tiers,
@@ -4777,7 +4780,12 @@ def main():
     _cur = st.sidebar.number_input(
         "Current contest balance ($)", min_value=0.0,
         value=float(_acct["current_balance"]), step=50.0,
-        key=_bal_key,
+        # (Sep 9, Copilot [high]) NO explicit key: Streamlit's auto
+        # widget id includes the value parameter, so a file-side change
+        # (a SOLD auto-applying P&L, or another console) remounts this
+        # input showing the file's number -- an explicit key would pin
+        # the stale value and the next rerun's compare-and-save would
+        # silently UNDO the booked trade.
         help="Update as the contest account moves. The -3% death line and every "
              "position size are computed from this. SOLD trades of THIS contest "
              "adjust it automatically; old-contest trades never touch it.")

@@ -149,21 +149,41 @@ def current_contest_id(state: dict | None = None) -> str:
     return str(s.get("contest_id") or "")
 
 
-def apply_pnl(net: float, contest_id: str | None = None) -> tuple[bool, float, str]:
+def apply_pnl(net: float, contest_id: str | None = None,
+              dedupe_key: str | None = None) -> tuple[bool, float, str]:
     """Apply a trade's net P&L to the CURRENT contest's balance -- but
     only if the trade BELONGS to this contest window (its stamped
     contest_id matches; None = a legacy record, applies as before).
     (user rule, Sep 9: closing TIA from an OLD contest's console moved
     the CURRENT balance -- a trade must land on its own window's
     balance, and the balance self-adjusts from its own contest's trades
-    only.) Returns (applied, balance_now, note)."""
+    only.) Returns (applied, balance_now, note).
+
+    ATOMIC single load (Copilot, Sep 9): the state is read ONCE and the
+    FULL record (window stamp included) is written back atomically -- no
+    second load inside save_state for a new_contest to slip between, so
+    an old trade can never land on a new window's balance through a
+    mid-flight tier switch.
+
+    REPLAY-SAFE (Copilot, Sep 9): a dedupe_key (pair + the record's
+    added stamp) keeps two consoles -- or a rerun -- from applying the
+    same trade twice; the applied keys ride the state (last 50 kept)."""
     s = load_state()
     here = str(s.get("contest_id") or "")
     if contest_id and here and str(contest_id) != here:
         return False, float(s["current_balance"]), \
             f"trade from another contest window (record {contest_id} vs here {here})"
+    if dedupe_key:
+        seen = s.get("applied_trades") or {}
+        if dedupe_key in seen:
+            return False, float(s["current_balance"]), \
+                "trade already applied (replayed SOLD)"
+        seen[dedupe_key] = round(float(net or 0), 2)
+        s["applied_trades"] = dict(list(seen.items())[-50:])
     nb = max(float(s["current_balance"]) + float(net or 0), 0.0)
-    save_state(int(s["tier"]), nb)
+    s["current_balance"] = nb
+    s["updated_at"] = datetime.now(MST).isoformat()
+    _write_state(s)
     return True, nb, ""
 
 
