@@ -427,8 +427,13 @@ def grade_popup(p, candles):
     if tp is None and sl is None and p["source"] == "bot_strategy" \
             and p.get("entry"):
         # rail off the FILLED price when the row carries one (Copilot,
-        # Sep 9: the exit engine measured the fill, not the quote)
-        sl, tp = bot_levels(p.get("exec") or p["entry"])
+        # Sep 9: the exit engine measured the fill, not the quote) --
+        # with the same >0 guard the backfill uses (round 2: a malformed
+        # negative fill must fall back to the valid entry, not mint
+        # negative rails)
+        _exec = p.get("exec")
+        sl, tp = bot_levels(
+            _exec if (_exec is not None and _exec > 0) else p["entry"])
     return {"pair": p["pair"], "source": p["source"], "ts": p["ts"],
             "verdict": outcome_of(candles, p["t0"], p["entry"],
                                   tp, sl)}

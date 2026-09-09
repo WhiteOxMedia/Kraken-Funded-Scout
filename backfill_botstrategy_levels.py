@@ -58,11 +58,17 @@ def main() -> int:
         print(f"backup (sqlite snapshot API, WAL-safe): {bak.name}")
 
     sc = sqlite3.connect(str(DB), timeout=15)
+    # tp IS NULL is THE unstamped marker (Copilot round 2, Sep 9): the
+    # stamp is one unit -- both columns are always written together -- so
+    # a half-null row (sl set, tp missing) is self-healed by this same
+    # predicate instead of wedging the completion check at exit 2
+    # forever. The old both-null SELECT and the tp-null completion check
+    # disagreed on exactly that row.
     rows = sc.execute(
         "SELECT signal_id, entry_price, execution_price FROM signals "
         "WHERE source='bot_strategy' AND action='buy' "
         "AND entry_price IS NOT NULL AND entry_price > 0 "
-        "AND take_profit IS NULL AND stop_loss IS NULL"
+        "AND take_profit IS NULL"
     ).fetchall()
     print(f"rows to backfill: {len(rows)}")
     n = 0

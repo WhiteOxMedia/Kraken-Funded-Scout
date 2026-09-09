@@ -278,6 +278,9 @@ check("the rails ride the FILLED price when the row carries one (Copilot, Sep 9)
       dl.grade_popup(prow_exec, middling_rows)["verdict"] == "timeout"
       and dl.grade_popup({**prow_exec, "exec": None},
                          middling_rows)["verdict"] == "tp")
+check("a malformed NEGATIVE fill falls back to the entry (round 2 guard)",
+      dl.grade_popup({**prow_exec, "exec": -2.2},
+                     middling_rows)["verdict"] == "tp")
 
 check("the backfill script exists (the 77 historical rows route)",
       Path("backfill_botstrategy_levels.py").exists())
