@@ -47,6 +47,7 @@ import hindsight_scorer as hs
 import sure_thing as st
 
 lines = []
+_TILT_PATH = Path(__file__).parent / "surething_goal_tilt.json"
 
 
 def out(s=""):
@@ -382,14 +383,31 @@ def summarize(grades, days=7.0):
             # concurrent diag runs (scheduled + manual) cannot clobber
             # each other's temp (Copilot round 2: the fixed shared temp
             # path was not concurrency-safe).
+            # LAST-MEASUREMENT-WINS (Copilot round 3): a SLOWER run
+            # finishing last must not overwrite newer evidence with its
+            # older measurement -- immediately before the replace, the
+            # on-disk ts is re-read; if it is newer, it won and ours is
+            # skipped. The remaining race window is the microseconds
+            # between check and replace (both writers stamp the same
+            # UTC format, so the compare is a plain string compare) --
+            # beyond reasonable concern for a single-user weekly diag.
             _fdr, _tmpname = tempfile.mkstemp(
                 dir=str(Path(__file__).parent),
                 prefix="surething_goal_tilt.json.tmp")
             try:
                 with os.fdopen(_fdr, "w", encoding="utf-8") as _f:
                     json.dump(_evid, _f, indent=1)
-                os.replace(_tmpname,
-                           Path(__file__).parent / "surething_goal_tilt.json")
+                _disk_newer = False
+                try:
+                    _cur = json.loads(_TILT_PATH.read_text(encoding="utf-8"))
+                    _disk_newer = str(_cur.get("ts") or "") > _evid["ts"]
+                except Exception:
+                    pass   # unreadable or missing: our write proceeds
+                if not _disk_newer:
+                    os.replace(_tmpname, _TILT_PATH)
+                    agg["tilt_evidence"] = _evid
+                else:
+                    agg["tilt_evidence"] = dict(_evid, superseded=True)
             finally:
                 # a crash before the replace must not litter the repo
                 if os.path.exists(_tmpname):
@@ -397,7 +415,6 @@ def summarize(grades, days=7.0):
                         os.unlink(_tmpname)
                     except OSError:
                         pass
-            agg["tilt_evidence"] = _evid
         except Exception as _exc:
             # fail-open for the REPORT, but visible -- a silent pass here
             # once hid an ordering bug from the very tests built to catch it
