@@ -37,6 +37,7 @@ import json
 import os
 import sys
 import tempfile
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -48,6 +49,37 @@ import sure_thing as st
 
 lines = []
 _TILT_PATH = Path(__file__).parent / "surething_goal_tilt.json"
+_TILT_LOCK = Path(__file__).parent / "surething_goal_tilt.json.lock"
+_TILT_LOCK_STALE_S = 600.0   # a lock older than this is a crashed run's
+
+
+def _acquire_tilt_lock(lock_path=None, stale_s=None):
+    """The evidence write's critical section: an O_CREAT|O_EXCL lockfile
+    -- atomic on every OS (Copilot round 4: check-then-replace alone is
+    a TOCTOU; two runs could both observe the old file and the slower
+    one would replace the newer evidence after the check). A lock older
+    than the staleness bound is a crashed run's leftover and is taken
+    over. Returns True when the lock is held."""
+    _lp = lock_path or _TILT_LOCK
+    _stale = stale_s if stale_s is not None else _TILT_LOCK_STALE_S
+    for _ in range(2):   # one clean attempt + one stale takeover
+        try:
+            _fd = os.open(str(_lp), os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+            try:
+                os.write(_fd, str(os.getpid()).encode())
+            finally:
+                os.close(_fd)
+            return True
+        except FileExistsError:
+            try:
+                if time.time() - _lp.stat().st_mtime > _stale:
+                    _lp.unlink(missing_ok=True)
+                    continue   # a crashed run's lock -- take it over
+            except FileNotFoundError:
+                continue   # released between our open and the stat -- retry
+        except OSError:
+            return False   # broken filesystem -- fail-open, don't write
+    return False
 
 
 def out(s=""):
@@ -383,38 +415,60 @@ def summarize(grades, days=7.0):
             # concurrent diag runs (scheduled + manual) cannot clobber
             # each other's temp (Copilot round 2: the fixed shared temp
             # path was not concurrency-safe).
-            # LAST-MEASUREMENT-WINS (Copilot round 3): a SLOWER run
-            # finishing last must not overwrite newer evidence with its
-            # older measurement -- immediately before the replace, the
-            # on-disk ts is re-read; if it is newer, it won and ours is
-            # skipped. The remaining race window is the microseconds
-            # between check and replace (both writers stamp the same
-            # UTC format, so the compare is a plain string compare) --
-            # beyond reasonable concern for a single-user weekly diag.
-            _fdr, _tmpname = tempfile.mkstemp(
-                dir=str(Path(__file__).parent),
-                prefix="surething_goal_tilt.json.tmp")
+            # LAST-MEASUREMENT-WINS under a LOCK (Copilot rounds 3+4):
+            # the ts check alone was a TOCTOU -- two runs could both
+            # observe the old file and the slower one would replace the
+            # newer evidence after the check. The O_EXCL lockfile makes
+            # check + replace one critical section; a stale lock (a
+            # crashed run) is taken over; a busy lock skips the write
+            # and says so. Fail-open end to end: a broken lock must
+            # never crash the report.
+            _got = False
             try:
-                with os.fdopen(_fdr, "w", encoding="utf-8") as _f:
-                    json.dump(_evid, _f, indent=1)
-                _disk_newer = False
+                _got = _acquire_tilt_lock()
+            except Exception:
+                _got = False
+            if not _got:
+                agg["tilt_evidence"] = dict(_evid, lock_busy=True)
+            else:
+                _fdr, _tmpname = tempfile.mkstemp(
+                    dir=str(Path(__file__).parent),
+                    prefix="surething_goal_tilt.json.tmp")
                 try:
-                    _cur = json.loads(_TILT_PATH.read_text(encoding="utf-8"))
-                    _disk_newer = str(_cur.get("ts") or "") > _evid["ts"]
-                except Exception:
-                    pass   # unreadable or missing: our write proceeds
-                if not _disk_newer:
-                    os.replace(_tmpname, _TILT_PATH)
-                    agg["tilt_evidence"] = _evid
-                else:
-                    agg["tilt_evidence"] = dict(_evid, superseded=True)
-            finally:
-                # a crash before the replace must not litter the repo
-                if os.path.exists(_tmpname):
+                    with os.fdopen(_fdr, "w", encoding="utf-8") as _f:
+                        json.dump(_evid, _f, indent=1)
+                    _disk_newer = False
                     try:
-                        os.unlink(_tmpname)
-                    except OSError:
-                        pass
+                        _cur = json.loads(_TILT_PATH.read_text(encoding="utf-8"))
+                        _disk_newer = str(_cur.get("ts") or "") > _evid["ts"]
+                    except Exception:
+                        pass   # unreadable or missing: our write proceeds
+                    if not _disk_newer:
+                        # a Windows AV scanner can transiently hold the
+                        # destination -- retry the rename, fail soft
+                        _done = False
+                        for _ in range(3):
+                            try:
+                                os.replace(_tmpname, _TILT_PATH)
+                                _done = True
+                                break
+                            except OSError:
+                                time.sleep(0.15)
+                        if _done:
+                            agg["tilt_evidence"] = _evid
+                        else:
+                            agg["tilt_evidence"] = dict(_evid,
+                                                        write_failed=True)
+                    else:
+                        agg["tilt_evidence"] = dict(_evid, superseded=True)
+                finally:
+                    # a crash before the replace must not litter the repo
+                    if os.path.exists(_tmpname):
+                        try:
+                            os.unlink(_tmpname)
+                        except OSError:
+                            pass
+                    _TILT_LOCK.unlink(missing_ok=True)
         except Exception as _exc:
             # fail-open for the REPORT, but visible -- a silent pass here
             # once hid an ordering bug from the very tests built to catch it

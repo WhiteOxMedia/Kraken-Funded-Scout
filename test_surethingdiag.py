@@ -12,6 +12,7 @@
 import json
 import shutil
 import sys
+import time
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -322,6 +323,57 @@ check("calibrate: an OVER-AIM verdict writes the evidence file",
       _TILT_FILE.read_text(encoding="utf-8")[:120] if _TILT_FILE.exists() else None)
 check("calibrate: the write is atomic (no temp litter left behind, even on concurrent writers)",
       not list(Path(".").glob("surething_goal_tilt.json.tmp*")))
+
+# the LOCK (Copilot round 4): check-then-replace alone was a TOCTOU --
+# two runs could both observe the old file and the slower one would
+# replace newer evidence after the check. The O_EXCL lockfile makes
+# check + replace one critical section.
+_LP = dg._TILT_LOCK
+_LB = _LP.read_text(encoding="utf-8") if _LP.exists() else None
+_LP.unlink(missing_ok=True)
+check("lock: acquisition creates the lock and returns True",
+      dg._acquire_tilt_lock() and _LP.exists())
+check("lock: a second acquisition while held is refused",
+      not dg._acquire_tilt_lock())
+_LP.unlink(missing_ok=True)
+check("lock: release is a plain unlink and re-acquirable",
+      not _LP.exists() and dg._acquire_tilt_lock())
+_LP.unlink(missing_ok=True)
+_LP.write_text("99999", encoding="utf-8")
+import os as _os
+_stale_ts = time.time() - 3600.0
+_os.utime(_LP, (_stale_ts, _stale_ts))
+check("lock: a lock older than the staleness bound is taken over (a crashed run must not wedge calibration forever)",
+      dg._acquire_tilt_lock())
+_LP.unlink(missing_ok=True)
+# end to end: a HELD lock means the run skips the write and says so
+_LP.parent.mkdir(exist_ok=True)
+_LP.write_text("1", encoding="utf-8")   # fresh lock, held
+_TILT_FILE.write_text(json.dumps({"ts": "2026-09-01T00:00:00+00:00",
+                                  "verdict": "THE GOAL OVER-AIMS", "median_gave": 1.0,
+                                  "median_asked": 2.0, "big_n": 9}), encoding="utf-8")
+_dg_busy = dg.summarize([gfire(1.2, "paid-in-window", 1.6),
+                         gfire(1.3, "paid-late", 1.4), gfire(1.1, "short", 0.9),
+                         gfire(1.4, "paid-in-window", 1.9), gfire(1.2, "short", 0.8),
+                         gfire(2.4, "short", 1.5), gfire(2.6, "short", 1.8),
+                         gfire(2.2, "dud", 0.2), gfire(2.8, "short", 1.2),
+                         gfire(2.3, "paid-in-window", 2.5)], days=7.0)
+check("lock E2E: a busy lock skips the evidence write and reports lock_busy (the standing file is untouched)",
+      _dg_busy.get("tilt_evidence", {}).get("lock_busy") is True
+      and "OVER-AIM" in _TILT_FILE.read_text(encoding="utf-8"),
+      _dg_busy.get("tilt_evidence"))
+_LP.unlink(missing_ok=True)
+# restore the OVER-AIM evidence the busy-skip left standing, so the
+# next checks grade their own runs against their own writes (the
+# evidence may be absent if the OS dropped the write -- restore what
+# the run MEANT to write; never a KeyError on runtime artifacts)
+_TILT_FILE.write_text(json.dumps(
+    _ev_over.get("tilt_evidence") or {"ts": "2026-09-01T00:00:00+00:00",
+                                      "verdict": "THE GOAL OVER-AIMS",
+                                      "median_gave": 1.0, "median_asked": 2.0,
+                                      "big_n": 9}), encoding="utf-8")
+if _LB is not None:
+    _LP.write_text(_LB, encoding="utf-8")
 _ev = json.loads(_TILT_FILE.read_text(encoding="utf-8"))
 check("calibrate: the evidence carries the tilt's numerator/denominator + sample",
       abs(_ev["median_asked"] - 2.5) < 1e-9       # band medians: asked [2.3, 2.7] -> 2.5
