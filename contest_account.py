@@ -243,7 +243,12 @@ class _StateLock:
     def __enter__(self):
         import time as _t
         import uuid as _uuid
-        self._token = f"{os.getpid()}|{_uuid.uuid4().hex}"
+        # pid|iso|uuid (round 4, review-critical fix): the iso timestamp
+        # STAYS in the payload (the staleness parse reads field 2 -- a
+        # bare pid|uuid token parsed as stale-forever and every lock
+        # would be stolen instantly), the uuid makes ownership unique
+        # per acquisition (same-pid threads can't delete each other's)
+        self._token = f"{os.getpid()}|{_now_iso()}|{_uuid.uuid4().hex}"
         tmp = Path(str(STATE_LOCK_FILE)
                    + f".tmp{os.getpid()}.{_uuid.uuid4().hex[:8]}")
         for attempt in range(PNL_LOCK_RETRIES + 1):
@@ -263,9 +268,9 @@ class _StateLock:
                 return self
             except FileExistsError:
                 try:
-                    txt = STATE_LOCK_FILE.read_text(encoding="utf-8")
-                    pid = int(str(txt).split("|")[0])
-                    ts = _iso_ts(str(txt).split("|", 1)[1])
+                    _parts = str(STATE_LOCK_FILE.read_text(encoding="utf-8")).split("|")
+                    pid = int(_parts[0])
+                    ts = _iso_ts(_parts[1]) if len(_parts) > 1 else None
                 except Exception:
                     pid, ts = None, None
                 age = (_now_ts() - ts) if ts else 999.0

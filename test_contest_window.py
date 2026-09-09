@@ -180,12 +180,18 @@ check("all three writers run under the state lock (save/new_contest/apply)",
 # instantly, which is the STALE test below -- that behavior is correct,
 # and the first draft of this fixture got it wrong by using a dead pid)
 import os as _os
+import uuid as _uuid
 now_iso = datetime.now(ca.MST).isoformat()
+# the REAL payload format: pid|iso|uuid (the fixture must lie about
+# nothing -- a bare pid|iso fixture would let an engine payload change
+# slip through every lock test)
+def _lock_payload(pid):
+    return f"{pid}|{now_iso}|{_uuid.uuid4().hex}"
 # the window mints FRESH here (s3/s4 above re-minted) and BEFORE the
 # BUSY fixture locks the file: the lock tests need a CURRENT window,
 # and with the raise-on-busy rule a mint under a held lock would raise
 _here = ca.new_contest(1000)["contest_id"]
-cr_lock.write_text(f"{_os.getpid()}|{now_iso}", encoding="utf-8")
+cr_lock.write_text(_lock_payload(_os.getpid()), encoding="utf-8")
 _before = ca.load_state()["current_balance"]
 applied, bal, note = ca.apply_pnl(1.0, _here)
 check("a contested lock BUSY-skips honestly (logged, not applied)",
@@ -200,7 +206,7 @@ cr_lock.unlink(missing_ok=True)
 # a busy USER action (new contest / balance edit) RAISES -- it must
 # never drop silently (the caller says "try again"; the old silent
 # skip returned a state that was never written)
-cr_lock.write_text(f"{_os.getpid()}|{now_iso}", encoding="utf-8")
+cr_lock.write_text(_lock_payload(_os.getpid()), encoding="utf-8")
 _busy_raised = False
 try:
     ca.new_contest(1000)
@@ -212,7 +218,7 @@ cr_lock.unlink(missing_ok=True)
 
 # STALE: a dead run's lock ages out -> takeover, the trade lands
 old_iso = datetime.now(ca.MST).isoformat()
-cr_lock.write_text(f"999999|2026-09-08T00:00:00-06:00", encoding="utf-8")
+cr_lock.write_text(f"999999|2026-09-08T00:00:00-06:00|{_uuid.uuid4().hex}", encoding="utf-8")
 applied, bal, note = ca.apply_pnl(3.0, _here)
 check("a STALE lock is taken over (the trade applies)",
       applied and bal > _before)
