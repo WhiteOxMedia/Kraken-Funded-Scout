@@ -17,3 +17,4 @@ surething_data/
 _bt_download_summary.json
 # the goal-tilt evidence the weekly diag writes for the fire seam
 surething_goal_tilt.json
+surething_goal_tilt.json.tmp*

@@ -36,6 +36,7 @@ import argparse
 import json
 import os
 import sys
+import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -376,12 +377,26 @@ def summarize(grades, days=7.0):
             # ATOMIC write (Copilot, Sep 8): the scanner reads this file
             # at fire time -- a truncated in-place write could be read
             # mid-flight, graded neutral, and the tilt skipped for a
-            # week. Temp file + os.replace: a reader ever sees the old
-            # complete file or the new one, never a partial.
-            _tmpf = Path(__file__).parent / "surething_goal_tilt.json.tmp"
-            with open(_tmpf, "w", encoding="utf-8") as _f:
-                json.dump(_evid, _f, indent=1)
-            os.replace(_tmpf, Path(__file__).parent / "surething_goal_tilt.json")
+            # week. UNIQUE temp + os.replace: a reader ever sees the old
+            # complete file or the new one, never a partial -- and two
+            # concurrent diag runs (scheduled + manual) cannot clobber
+            # each other's temp (Copilot round 2: the fixed shared temp
+            # path was not concurrency-safe).
+            _fdr, _tmpname = tempfile.mkstemp(
+                dir=str(Path(__file__).parent),
+                prefix="surething_goal_tilt.json.tmp")
+            try:
+                with os.fdopen(_fdr, "w", encoding="utf-8") as _f:
+                    json.dump(_evid, _f, indent=1)
+                os.replace(_tmpname,
+                           Path(__file__).parent / "surething_goal_tilt.json")
+            finally:
+                # a crash before the replace must not litter the repo
+                if os.path.exists(_tmpname):
+                    try:
+                        os.unlink(_tmpname)
+                    except OSError:
+                        pass
             agg["tilt_evidence"] = _evid
         except Exception as _exc:
             # fail-open for the REPORT, but visible -- a silent pass here
