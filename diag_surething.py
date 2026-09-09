@@ -431,10 +431,16 @@ def summarize(grades, days=7.0):
             if not _got:
                 agg["tilt_evidence"] = dict(_evid, lock_busy=True)
             else:
-                _fdr, _tmpname = tempfile.mkstemp(
-                    dir=str(Path(__file__).parent),
-                    prefix="surething_goal_tilt.json.tmp")
+                # the lock release wraps the temp creation too (Copilot
+                # round 5): a mkstemp failure after the lock would jump
+                # to the outer handler past the inner finally and wedge
+                # writes for the staleness window -- the lock must be
+                # ours-to-release the moment we hold it
+                _fdr, _tmpname = None, None
                 try:
+                    _fdr, _tmpname = tempfile.mkstemp(
+                        dir=str(Path(__file__).parent),
+                        prefix="surething_goal_tilt.json.tmp")
                     with os.fdopen(_fdr, "w", encoding="utf-8") as _f:
                         json.dump(_evid, _f, indent=1)
                     _disk_newer = False
@@ -463,7 +469,7 @@ def summarize(grades, days=7.0):
                         agg["tilt_evidence"] = dict(_evid, superseded=True)
                 finally:
                     # a crash before the replace must not litter the repo
-                    if os.path.exists(_tmpname):
+                    if _tmpname and os.path.exists(_tmpname):
                         try:
                             os.unlink(_tmpname)
                         except OSError:
