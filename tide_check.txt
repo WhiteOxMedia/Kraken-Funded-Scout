@@ -1,5 +1,5 @@
-PASS  70% -> RISING
-PASS  69.9% -> FLAT
+PASS  75% -> RISING
+PASS  74.9% -> FLAT
 PASS  50% -> FLAT
 PASS  35.1% -> FLAT
 PASS  35% -> OUT
@@ -7,5 +7,36 @@ PASS  10% -> OUT
 PASS  bands are sane
 PASS  live breadth in 0-100
 PASS  live state is a real state
+PASS  the factor exists at 0.50
+PASS  the SURE THING sizes FLAT too (Sep 7: the same factor, no exception)
+PASS  the Sure Thing popup names the FLAT factor (line + voice)
+PASS  the Sure Thing reads the tide fresh at fire time (not the funnel cache)
+PASS  the champion sizes FLAT down (after the guard + brain, before the worth floor)
+PASS  the mover sizes FLAT down
+PASS  the QC mirrors the alert (never disagrees)
+PASS  the popup + voice name the discount
+PASS  the runtime slice is the scan function
+PASS  runtime: an armed coil is SILENT (user rule Sep 8: the BUY is the first alert)
+PASS  runtime: the SAME zone never re-announces (poll 2 still silent)
+PASS  runtime: the deep veto suppresses (no popup)
+PASS  runtime: the veto is logged with its reason
+PASS  runtime: the vetoed coil KEEPS its armed memory (the re-announce fix)
+PASS  runtime: the poll after a veto: still silent, the veto logged again
+PASS  runtime: the FLAT fire pops
+PASS  runtime: the popup IS the Breakout Alert (title, line, voice, countdown)
+PASS  runtime: the fired snapshot is written (route + kind + trigger)
+PASS  runtime: FLAT sizes the fire to HALF (cap $1000 x 0.50 brain x 0.50 tide = $250)
+PASS  runtime: the popup NAMES the FLAT factor (line + voice)
+PASS  runtime: the snapshot's climb features carry the tide stamp
+PASS  runtime: the snapshot stamps est_min (the countdown data)
+PASS  runtime: the snapshot stamps the per-fire goal — the LIVE market pick, not the engine constant
+PASS  runtime: the tide is read FRESH at fire time (not one funnel read)
+PASS  runtime: the rotation marks fired and the armed watch clears
+PASS  runtime: an OUT-tide fire below the learned bar is suppressed — and LOGGED
+PASS  runtime: the journal release pops the OUT-tide fire
+PASS  runtime: the OUT popup is the Breakout Alert — NOW
+PASS  runtime: RISING pays FULL size ($500 — no tide factor)
+PASS  runtime: no FLAT line on a RISING fire
+PASS  runtime: the crack popup is the Breakout Alert — NOW (no countdown)
 
-live tide now: 70% RISING
+live tide now: 64% FLAT

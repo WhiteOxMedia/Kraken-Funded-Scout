@@ -1,4 +1,4 @@
-FAIL  synthetic signals considered (live pool adds more)  [total=4]
+PASS  the qualifying synthetic signals are considered (the live pool may add more)
 PASS  headline = TESTA (fastest $20)
 PASS  TESTB collapsed into TESTA's sweep
 PASS  TESTC excluded (~35 min old — past the 30-min cap)

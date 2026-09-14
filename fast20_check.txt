@@ -1,14 +1,14 @@
 rotation 12-16 weekend (floor $10,000): top 10 of 38 liquid coins
 ASSET       $20 ETA  avg/rot   rot vol  reliable
-FARTCOIN      0.7h    2.23%    35,284  yes
-PUMP          0.8h    1.94%   290,346  yes
-KAITO         0.8h    1.93%    11,131  yes
-CRV           1.1h    1.39%   101,194  yes
-PENGU         1.1h    1.39%    83,627  yes
-UNI           1.2h    1.37%    45,545  yes
-WIF           1.2h    1.36%    19,047  yes
-POL           1.5h    1.08%    15,014  yes
-TRUMP         1.5h    1.07%    23,019  yes
-LDO           1.6h    1.00%    19,443  yes
+PUMP          0.8h    2.13%   290,346  yes
+FARTCOIN      0.8h    2.07%    35,284  yes
+KAITO         1.0h    1.68%    10,970  yes
+CRV           1.1h    1.44%   101,194  yes
+WIF           1.2h    1.34%    19,047  yes
+PENGU         1.2h    1.29%    83,627  yes
+UNI           1.3h    1.23%    99,967  yes
+NEAR          1.3h    1.19%   126,183  yes
+ZEC           1.4h    1.10%   550,783  yes
+POL           1.5h    1.05%    15,014  yes
 
-PUMP rank: 2
+PUMP rank: 1

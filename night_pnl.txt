@@ -1,5 +1,5 @@
 positions since Sun 8 PM MST: 104
-trades since Sun 8 PM MST: 236
+trades since Sun 8 PM MST: 237
 
 time    side  pair              vol      price      usd
 02:31   sell  NEAR/USD        79.78     2.0098 $ 160.34
@@ -238,11 +238,12 @@ time    side  pair              vol      price      usd
 18:06   buy   RENDER/USD      35.77      1.512 $  54.08
 20:09   sell  RENDER/USD      35.77       1.53 $  54.73
 20:43   buy   TRX/USD           161    0.33592 $  54.07
+00:56   sell  TRX/USD           161    0.33502 $  53.93
 
 total bought:  $11,874.55
-total sold:    $11,554.43
-total fees:    $27.71
-net P&L:       $-347.83
+total sold:    $11,608.36
+total fees:    $27.90
+net P&L:       $-294.09
 round trips:   118
 
 exit reasons:
@@ -351,3 +352,4 @@ exit reasons:
   16:22 NEAR/USD: Strategy sell (34%, PnL 1.0%)
   17:25 UNI/USD: Exit check: momentum rider exit triggered
   20:09 RENDER/USD: Strategy sell (40%, PnL 1.3%)
+  00:56 TRX/USD: Time-block rotation — flatten to cash

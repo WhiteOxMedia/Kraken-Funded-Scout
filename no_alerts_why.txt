@@ -1,23 +1,23 @@
-now: Sun 03:01 PM
-desktop floor: 89% | resolve cap now: 6.0h
+now: Fri 07:41 PM
+desktop floor: 89% | resolve cap now: 4.3h
 signals since 8:45: 25
 
-≥89% (desktop-eligible): 5
-  13:46 TIA/USD      92% $20 ETA 1.4h (old TP ETA 22h) → should POP now (fix works) [status=rejected]
-  12:05 RENDER/USD   100% $20 ETA 2.0h (old TP ETA 24h) → should POP now (fix works) [status=closed]
-  11:06 RENDER/USD   100% $20 ETA 2.0h (old TP ETA n/a) → should POP now (fix works) [status=closed]
-  10:02 RENDER/USD   100% $20 ETA 2.0h (old TP ETA 24h) → should POP now (fix works) [status=rejected]
-  09:04 LDO/USD      100% $20 ETA 1.6h (old TP ETA 22h) → should POP now (fix works) [status=closed]
+≥89% (desktop-eligible): 12
+  15:22 SOL/USD      100% $20 ETA 2.0h (old TP ETA 22h) → should POP now (fix works) [status=rejected]
+  15:16 SOL/USD      100% $20 ETA 2.0h (old TP ETA 21h) → should POP now (fix works) [status=rejected]
+  15:01 SOL/USD      100% $20 ETA 2.0h (old TP ETA 18h) → should POP now (fix works) [status=rejected]
+  14:18 SOL/USD      100% $20 ETA 2.0h (old TP ETA 21h) → should POP now (fix works) [status=rejected]
+  14:16 SOL/USD      100% $20 ETA 2.0h (old TP ETA 21h) → should POP now (fix works) [status=rejected]
+  14:12 SOL/USD      98% $20 ETA 2.0h (old TP ETA 20h) → should POP now (fix works) [status=rejected]
+  14:08 SOL/USD      98% $20 ETA 2.0h (old TP ETA 18h) → should POP now (fix works) [status=rejected]
+  14:06 SOL/USD      98% $20 ETA 2.0h (old TP ETA 18h) → should POP now (fix works) [status=rejected]
+  14:03 SOL/USD      98% $20 ETA 2.0h (old TP ETA 16h) → should POP now (fix works) [status=rejected]
+  13:23 HNT/USD      94% $20 ETA 0.6h (old TP ETA 15h) → should POP now (fix works) [status=rejected]
+  13:13 HNT/USD      99% $20 ETA 0.6h (old TP ETA 15h) → should POP now (fix works) [status=rejected]
+  13:02 HNT/USD      99% $20 ETA 0.6h (old TP ETA 15h) → should POP now (fix works) [status=rejected]
 
 sub-89% (logged only, by design):
-  DOT/USD      1x, best 52%
-  LINK/USD     3x, best 81%
-  MET/USD      1x, best 67%
-  NEAR/USD     4x, best 88%
-  ORCA/USD     1x, best 67%
-  PUMP/USD     2x, best 69%
-  TAO/USD      1x, best 80%
-  TRUMP/USD    1x, best 66%
-  TRX/USD      3x, best 84%
-  UNI/USD      2x, best 64%
-  XPL/USD      1x, best 87%
+  MET/USD      1x, best 57%
+  PUMP/USD     2x, best 59%
+  TIA/USD      3x, best 69%
+  ZEC/USD      7x, best 82%

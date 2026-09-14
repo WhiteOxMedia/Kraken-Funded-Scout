@@ -1,4 +1,4 @@
-KII now: $0.063760
+KII now: $0.076300
 pump started: 2026-08-23 00:00:00
 price before pump: $0.013190
 
@@ -12,7 +12,7 @@ price before pump: $0.013190
   signal: HOLD 0%
   entry=None stop=None tp=None
     - Regime: bear_trend (volatility rank 99/100)
-    - BLOCKED: downtrend (EMA spread -1.08%) with no MACD reversal (hist=-0.006260476972996851) — not catching a falling knife
+    - BLOCKED: downtrend (EMA spread -1.08%) with no MACD reversal (hist=-0.00626047698221047) — not catching a falling knife
   passes checklist: False
 
 ── DURING THE PUMP (fast path check):

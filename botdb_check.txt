@@ -1,5 +1,5 @@
 bot Postgres positions (latest 10):
-  #237 TRX/USD 160.971163 @ 0.335925 opened 2026-09-06 20:43 open=True
+  #237 TRX/USD 160.971163 @ 0.335925 opened 2026-09-06 20:43 open=False
   #236 RENDER/USD 35.76944 @ 1.512 opened 2026-09-06 18:06 open=False
   #235 UNI/USD 7.486941 @ 7.3876 opened 2026-09-06 16:30 open=False
   #234 NEAR/USD 22.80166 @ 2.393 opened 2026-09-06 15:51 open=False
@@ -10,6 +10,7 @@ bot Postgres positions (latest 10):
   #229 BNB/USD 0.07396 @ 749.18 opened 2026-09-06 14:08 open=False
   #228 CRV/USD 151.243984 @ 0.36754 opened 2026-09-06 13:27 open=False
 bot trades today:
+  2026-09-07 00:56 sell TRX/USD    160.971163 @ 0.335022 ($53.93)
   2026-09-06 20:43 buy  TRX/USD    160.971163 @ 0.335925 ($54.07)
   2026-09-06 20:09 sell RENDER/USD 35.76944 @ 1.53 ($54.73)
   2026-09-06 18:06 buy  RENDER/USD 35.76944 @ 1.512 ($54.08)
@@ -29,4 +30,3 @@ bot trades today:
   2026-09-06 14:08 buy  BNB/USD    0.07396 @ 749.18 ($55.41)
   2026-09-06 13:29 sell CRV/USD    151.243984 @ 0.36686 ($55.49)
   2026-09-06 13:27 buy  CRV/USD    151.243984 @ 0.36754 ($55.59)
-  2026-09-06 13:27 sell XRP/USD    39.30762 @ 1.41475 ($55.61)

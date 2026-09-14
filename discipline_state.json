@@ -2,7 +2,7 @@
  "weights": {
   "missed": 1.0,
   "giveback": 0.9,
-  "missed_exit": 1.25,
+  "missed_exit": 1.375,
   "early_exit": 0.5
  },
  "history": [
@@ -162,68 +162,754 @@
    "realized_pnl": 0.81,
    "balance_after": 9863.7,
    "ts": "2026-09-06T12:00:38.428620-06:00"
+  },
+  {
+   "date": "2026-09-09",
+   "rot": "12-16",
+   "score": 60.0,
+   "total_left": 0,
+   "system_left": 0,
+   "top_gate": null,
+   "realized_pnl": 0,
+   "balance_after": 1005.0,
+   "ts": "2026-09-09T16:00:31.921319-06:00"
+  },
+  {
+   "date": "2026-09-09",
+   "rot": "16-20",
+   "score": 60.0,
+   "total_left": 0,
+   "system_left": 0,
+   "top_gate": null,
+   "realized_pnl": 0,
+   "balance_after": 1055.0,
+   "ts": "2026-09-09T20:01:04.356308-06:00"
+  },
+  {
+   "date": "2026-09-09",
+   "rot": "20-24",
+   "score": 60.0,
+   "total_left": 0,
+   "system_left": 0,
+   "top_gate": null,
+   "realized_pnl": 0,
+   "balance_after": 1055.0,
+   "ts": "2026-09-10T00:00:22.670971-06:00"
+  },
+  {
+   "date": "2026-09-10",
+   "rot": "00-04",
+   "score": 50.0,
+   "total_left": 22.25,
+   "system_left": 22.25,
+   "top_gate": "blowoff-yesterday",
+   "realized_pnl": 0,
+   "balance_after": 1055.0,
+   "ts": "2026-09-10T11:52:20.804084-06:00"
+  },
+  {
+   "date": "2026-09-10",
+   "rot": "08-12",
+   "score": 50.0,
+   "total_left": 45.41,
+   "system_left": 45.41,
+   "top_gate": "tide-out",
+   "realized_pnl": 0,
+   "balance_after": 1055.0,
+   "ts": "2026-09-10T12:01:03.260410-06:00"
+  },
+  {
+   "date": "2026-09-10",
+   "rot": "04-08",
+   "score": 50.0,
+   "total_left": 73.45,
+   "system_left": 73.45,
+   "top_gate": "tide-out",
+   "realized_pnl": 0,
+   "balance_after": 1055.0,
+   "ts": "2026-09-10T12:57:04.863454-06:00"
+  },
+  {
+   "date": "2026-09-10",
+   "rot": "12-16",
+   "score": 50.0,
+   "total_left": 16.91,
+   "system_left": 16.91,
+   "top_gate": "tide-out",
+   "realized_pnl": 0,
+   "balance_after": 1055.0,
+   "ts": "2026-09-10T16:01:13.093369-06:00"
+  },
+  {
+   "date": "2026-09-10",
+   "rot": "16-20",
+   "score": 50.0,
+   "total_left": 105.53,
+   "system_left": 105.53,
+   "top_gate": "tide-out",
+   "realized_pnl": 0,
+   "balance_after": 1055.0,
+   "ts": "2026-09-10T20:01:46.150978-06:00"
+  },
+  {
+   "date": "2026-09-10",
+   "rot": "20-24",
+   "score": 50.0,
+   "total_left": 18.37,
+   "system_left": 0,
+   "top_gate": null,
+   "realized_pnl": 0,
+   "balance_after": 1055.0,
+   "ts": "2026-09-11T00:00:24.535402-06:00"
+  },
+  {
+   "date": "2026-09-11",
+   "rot": "00-04",
+   "score": 60.0,
+   "total_left": 0,
+   "system_left": 0,
+   "top_gate": null,
+   "realized_pnl": 0,
+   "balance_after": 1055.0,
+   "ts": "2026-09-11T04:00:59.184758-06:00"
+  },
+  {
+   "date": "2026-09-11",
+   "rot": "04-08",
+   "score": 0.0,
+   "total_left": 211.28,
+   "system_left": 110.49,
+   "top_gate": "deep-veto",
+   "realized_pnl": 0,
+   "balance_after": 1055.0,
+   "ts": "2026-09-11T08:01:21.611157-06:00"
+  },
+  {
+   "date": "2026-09-11",
+   "rot": "08-12",
+   "score": 50.0,
+   "total_left": 19.96,
+   "system_left": 19.96,
+   "top_gate": "deep-direction",
+   "realized_pnl": 0,
+   "balance_after": 1055.0,
+   "ts": "2026-09-11T12:00:53.344875-06:00"
+  },
+  {
+   "date": "2026-09-11",
+   "rot": "12-16",
+   "score": 50.0,
+   "total_left": 12.69,
+   "system_left": 12.69,
+   "top_gate": "deep-veto",
+   "realized_pnl": 0,
+   "balance_after": 1055.0,
+   "ts": "2026-09-11T16:00:28.284074-06:00"
+  },
+  {
+   "date": "2026-09-11",
+   "rot": "16-20",
+   "score": 50.0,
+   "total_left": 16.09,
+   "system_left": 16.09,
+   "top_gate": "tide-out",
+   "realized_pnl": 0,
+   "balance_after": 1055.0,
+   "ts": "2026-09-11T20:02:05.434118-06:00"
+  },
+  {
+   "date": "2026-09-11",
+   "rot": "20-24",
+   "score": 60.0,
+   "total_left": 0,
+   "system_left": 0,
+   "top_gate": null,
+   "realized_pnl": 0,
+   "balance_after": 1055.0,
+   "ts": "2026-09-12T00:00:23.027727-06:00"
+  },
+  {
+   "date": "2026-09-12",
+   "rot": "00-04",
+   "score": 50.0,
+   "total_left": 13.2,
+   "system_left": 13.2,
+   "top_gate": "downward-trend",
+   "realized_pnl": 0,
+   "balance_after": 1055.0,
+   "ts": "2026-09-12T04:01:00.061867-06:00"
+  },
+  {
+   "date": "2026-09-12",
+   "rot": "04-08",
+   "score": 50.0,
+   "total_left": 21.45,
+   "system_left": 21.45,
+   "top_gate": "deep-veto",
+   "realized_pnl": 0,
+   "balance_after": 1055.0,
+   "ts": "2026-09-12T08:00:26.547842-06:00"
+  },
+  {
+   "date": "2026-09-12",
+   "rot": "08-12",
+   "score": 92.2,
+   "total_left": 0.75,
+   "system_left": 0,
+   "top_gate": null,
+   "realized_pnl": -3.22,
+   "balance_after": 1051.7832296304794,
+   "ts": "2026-09-12T12:01:17.610156-06:00"
+  },
+  {
+   "date": "2026-09-12",
+   "rot": "12-16",
+   "score": 60.0,
+   "total_left": 0,
+   "system_left": 0,
+   "top_gate": null,
+   "realized_pnl": 4.74,
+   "balance_after": 1056.519175869173,
+   "ts": "2026-09-12T16:00:31.633846-06:00"
+  },
+  {
+   "date": "2026-09-12",
+   "rot": "16-20",
+   "score": 60.0,
+   "total_left": 0,
+   "system_left": 0,
+   "top_gate": null,
+   "realized_pnl": 0,
+   "balance_after": 1056.519175869173,
+   "ts": "2026-09-12T20:01:12.166984-06:00"
+  },
+  {
+   "date": "2026-09-12",
+   "rot": "20-24",
+   "score": 60.0,
+   "total_left": 0,
+   "system_left": 0,
+   "top_gate": null,
+   "realized_pnl": 0,
+   "balance_after": 1056.519175869173,
+   "ts": "2026-09-13T00:00:24.392875-06:00"
+  },
+  {
+   "date": "2026-09-13",
+   "rot": "00-04",
+   "score": 50.0,
+   "total_left": 17.96,
+   "system_left": 17.96,
+   "top_gate": "tide-out",
+   "realized_pnl": -5.22,
+   "balance_after": 1051.3029431838022,
+   "ts": "2026-09-13T04:01:36.125617-06:00"
+  },
+  {
+   "date": "2026-09-13",
+   "rot": "04-08",
+   "score": 50.0,
+   "total_left": 26.17,
+   "system_left": 26.17,
+   "top_gate": "tide-out",
+   "realized_pnl": 0,
+   "balance_after": 1051.3029431838022,
+   "ts": "2026-09-13T08:00:39.495211-06:00"
+  },
+  {
+   "date": "2026-09-13",
+   "rot": "08-12",
+   "score": 50.0,
+   "total_left": 12.47,
+   "system_left": 12.47,
+   "top_gate": "climb-floor",
+   "realized_pnl": 0,
+   "balance_after": 1051.3029431838022,
+   "ts": "2026-09-13T12:00:44.996114-06:00"
+  },
+  {
+   "date": "2026-09-13",
+   "rot": "12-16",
+   "score": 50.0,
+   "total_left": 49.03,
+   "system_left": 49.03,
+   "top_gate": "deep-veto",
+   "realized_pnl": 0,
+   "balance_after": 1051.3029431838022,
+   "ts": "2026-09-13T16:01:08.425100-06:00"
+  },
+  {
+   "date": "2026-09-13",
+   "rot": "16-20",
+   "score": 50.0,
+   "total_left": 51.32,
+   "system_left": 51.32,
+   "top_gate": "downward-trend",
+   "realized_pnl": 0,
+   "balance_after": 1051.3029431838022,
+   "ts": "2026-09-13T20:01:49.044930-06:00"
   }
  ],
  "lessons": [
   {
-   "ts": "2026-09-04T14:32:26.873452-06:00",
-   "lesson": "Score and money agree (score 100, realized $+0) \u2014 weights hold; the calibration stands."
+   "ts": "2026-09-09T20:01:04.356308-06:00",
+   "lesson": "No popups fired \u2014 score capped at 60 (the opportunity cost: a silent rotation cannot grade perfect). Realized $+0; weights hold."
   },
   {
-   "ts": "2026-09-04T14:32:27.097991-06:00",
-   "lesson": "Score and money agree (score 100, realized $+0) \u2014 weights hold; the calibration stands."
+   "ts": "2026-09-10T00:00:22.670971-06:00",
+   "lesson": "No popups fired \u2014 score capped at 60 (the opportunity cost: a silent rotation cannot grade perfect). Realized $+0; weights hold."
   },
   {
-   "ts": "2026-09-04T14:32:33.283995-06:00",
+   "ts": "2026-09-10T04:00:32.399505-06:00",
+   "lesson": "No popups fired \u2014 score capped at 60 (the opportunity cost: a silent rotation cannot grade perfect). Realized $+0; weights hold."
+  },
+  {
+   "ts": "2026-09-10T08:00:34.404022-06:00",
+   "lesson": "No popups fired \u2014 score capped at 50 (the opportunity cost: a silent rotation cannot grade perfect). Realized $+0; weights hold."
+  },
+  {
+   "ts": "2026-09-10T11:52:20.804084-06:00",
+   "lesson": "No popups fired \u2014 score capped at 50 (the opportunity cost: a silent rotation cannot grade perfect). Realized $+0; weights hold."
+  },
+  {
+   "ts": "2026-09-10T11:52:54.629265-06:00",
+   "lesson": "No popups fired \u2014 score capped at 50 (the opportunity cost: a silent rotation cannot grade perfect). Realized $+0; weights hold."
+  },
+  {
+   "ts": "2026-09-10T11:53:18.601876-06:00",
+   "lesson": "No popups fired \u2014 score capped at 50 (the opportunity cost: a silent rotation cannot grade perfect). Realized $+0; weights hold."
+  },
+  {
+   "ts": "2026-09-10T11:53:19.104766-06:00",
+   "lesson": "No popups fired \u2014 score capped at 60 (the opportunity cost: a silent rotation cannot grade perfect). Realized $+0; weights hold."
+  },
+  {
+   "ts": "2026-09-10T12:01:03.260410-06:00",
+   "lesson": "No popups fired \u2014 score capped at 50 (the opportunity cost: a silent rotation cannot grade perfect). Realized $+0; weights hold."
+  },
+  {
+   "ts": "2026-09-10T12:57:04.863454-06:00",
+   "lesson": "No popups fired \u2014 score capped at 50 (the opportunity cost: a silent rotation cannot grade perfect). Realized $+0; weights hold."
+  },
+  {
+   "ts": "2026-09-10T16:01:13.093369-06:00",
+   "lesson": "No popups fired \u2014 score capped at 50 (the opportunity cost: a silent rotation cannot grade perfect). Realized $+0; weights hold."
+  },
+  {
+   "ts": "2026-09-10T20:01:46.150978-06:00",
+   "lesson": "No popups fired \u2014 score capped at 50 (the opportunity cost: a silent rotation cannot grade perfect). Realized $+0; weights hold."
+  },
+  {
+   "ts": "2026-09-11T00:00:24.535402-06:00",
+   "lesson": "No popups fired \u2014 score capped at 50 (the opportunity cost: a silent rotation cannot grade perfect). Realized $+0; weights hold."
+  },
+  {
+   "ts": "2026-09-11T04:00:59.184758-06:00",
+   "lesson": "No popups fired \u2014 score capped at 60 (the opportunity cost: a silent rotation cannot grade perfect). Realized $+0; weights hold."
+  },
+  {
+   "ts": "2026-09-11T08:01:21.611157-06:00",
+   "lesson": "Score and money agree (score 0, realized $+0) \u2014 weights hold; the calibration stands."
+  },
+  {
+   "ts": "2026-09-11T12:00:53.344875-06:00",
    "lesson": "Score and money agree (score 50, realized $+0) \u2014 weights hold; the calibration stands."
   },
   {
-   "ts": "2026-09-04T14:32:33.555748-06:00",
-   "lesson": "Score and money agree (score 100, realized $+0) \u2014 weights hold; the calibration stands."
+   "ts": "2026-09-11T16:00:28.284074-06:00",
+   "lesson": "No popups fired \u2014 score capped at 50 (the opportunity cost: a silent rotation cannot grade perfect). Realized $+0; weights hold."
   },
   {
-   "ts": "2026-09-04T20:00:48.071060-06:00",
-   "lesson": "Score and money agree (score 100, realized $+0) \u2014 weights hold; the calibration stands."
+   "ts": "2026-09-11T20:02:05.434118-06:00",
+   "lesson": "No popups fired \u2014 score capped at 50 (the opportunity cost: a silent rotation cannot grade perfect). Realized $+0; weights hold."
   },
   {
-   "ts": "2026-09-05T00:00:21.542466-06:00",
-   "lesson": "Score and money agree (score 100, realized $+0) \u2014 weights hold; the calibration stands."
+   "ts": "2026-09-12T00:00:23.027727-06:00",
+   "lesson": "No popups fired \u2014 score capped at 60 (the opportunity cost: a silent rotation cannot grade perfect). Realized $+0; weights hold."
   },
   {
-   "ts": "2026-09-05T04:00:42.922005-06:00",
-   "lesson": "Score and money agree (score 52, realized $+0) \u2014 weights hold; the calibration stands."
+   "ts": "2026-09-12T04:01:00.061867-06:00",
+   "lesson": "No popups fired \u2014 score capped at 50 (the opportunity cost: a silent rotation cannot grade perfect). Realized $+0; weights hold."
   },
   {
-   "ts": "2026-09-05T08:00:51.816350-06:00",
-   "lesson": "Score and money agree (score 100, realized $+1) \u2014 weights hold; the calibration stands."
+   "ts": "2026-09-12T08:00:26.547842-06:00",
+   "lesson": "No popups fired \u2014 score capped at 50 (the opportunity cost: a silent rotation cannot grade perfect). Realized $+0; weights hold."
   },
   {
-   "ts": "2026-09-05T12:00:47.077772-06:00",
-   "lesson": "Score and money agree (score 52, realized $-52) \u2014 weights hold; the calibration stands."
+   "ts": "2026-09-12T12:01:17.610156-06:00",
+   "lesson": "Score 92 but the rotation lost $3 \u2014 the 'missed_exit' weight rises 1.25 \u2192 1.38: next time this pattern counts harder."
   },
   {
-   "ts": "2026-09-05T16:01:07.927490-06:00",
-   "lesson": "Score and money agree (score 52, realized $+25) \u2014 weights hold; the calibration stands."
+   "ts": "2026-09-12T16:00:31.633846-06:00",
+   "lesson": "No popups fired \u2014 score capped at 60 (the opportunity cost: a silent rotation cannot grade perfect). Realized $+5; weights hold."
   },
   {
-   "ts": "2026-09-05T20:00:46.027553-06:00",
-   "lesson": "Score and money agree (score 52, realized $+25) \u2014 weights hold; the calibration stands."
+   "ts": "2026-09-12T20:01:12.166984-06:00",
+   "lesson": "No popups fired \u2014 score capped at 60 (the opportunity cost: a silent rotation cannot grade perfect). Realized $+0; weights hold."
   },
   {
-   "ts": "2026-09-06T00:00:18.185369-06:00",
-   "lesson": "Score and money agree (score 100, realized $+0) \u2014 weights hold; the calibration stands."
+   "ts": "2026-09-13T00:00:24.392875-06:00",
+   "lesson": "No popups fired \u2014 score capped at 60 (the opportunity cost: a silent rotation cannot grade perfect). Realized $+0; weights hold."
   },
   {
-   "ts": "2026-09-06T04:00:44.141983-06:00",
-   "lesson": "Score and money agree (score 52, realized $+32) \u2014 weights hold; the calibration stands."
+   "ts": "2026-09-13T04:01:36.125617-06:00",
+   "lesson": "Score and money agree (score 50, realized $-5) \u2014 weights hold; the calibration stands."
   },
   {
-   "ts": "2026-09-06T08:00:37.260008-06:00",
-   "lesson": "Score and money agree (score 50, realized $-50) \u2014 weights hold; the calibration stands."
+   "ts": "2026-09-13T08:00:39.495211-06:00",
+   "lesson": "No popups fired \u2014 score capped at 50 (the opportunity cost: a silent rotation cannot grade perfect). Realized $+0; weights hold."
   },
   {
-   "ts": "2026-09-06T12:00:38.428620-06:00",
-   "lesson": "Score and money agree (score 2, realized $+1) \u2014 weights hold; the calibration stands."
+   "ts": "2026-09-13T12:00:44.996114-06:00",
+   "lesson": "Score and money agree (score 50, realized $+0) \u2014 weights hold; the calibration stands."
+  },
+  {
+   "ts": "2026-09-13T16:01:08.425100-06:00",
+   "lesson": "Score and money agree (score 50, realized $+0) \u2014 weights hold; the calibration stands."
+  },
+  {
+   "ts": "2026-09-13T20:01:49.044930-06:00",
+   "lesson": "No popups fired \u2014 score capped at 50 (the opportunity cost: a silent rotation cannot grade perfect). Realized $+0; weights hold."
+  }
+ ],
+ "burial_ledger": [
+  {
+   "date": "2026-09-10",
+   "rot": "04-08",
+   "ts": "2026-09-10T12:57:04.863454-06:00",
+   "gates": {
+    "tide-out": {
+     "n": 4,
+     "usd": 60.599999999999994
+    },
+    "blowoff-yesterday": {
+     "n": 1,
+     "usd": 12.85
+    }
+   },
+   "duds": {
+    "deep-veto": 1,
+    "tide-out": 3,
+    "deep-direction": 2,
+    "blowoff-yesterday": 1
+   }
+  },
+  {
+   "date": "2026-09-10",
+   "rot": "12-16",
+   "ts": "2026-09-10T16:01:13.093369-06:00",
+   "gates": {
+    "tide-out": {
+     "n": 1,
+     "usd": 16.91
+    }
+   },
+   "duds": {
+    "tide-out": 16,
+    "blowoff-yesterday": 1,
+    "deep-direction": 2
+   }
+  },
+  {
+   "date": "2026-09-10",
+   "rot": "16-20",
+   "ts": "2026-09-10T20:01:46.150978-06:00",
+   "gates": {
+    "tide-out": {
+     "n": 4,
+     "usd": 86.28
+    },
+    "deep-veto": {
+     "n": 1,
+     "usd": 19.25
+    }
+   },
+   "duds": {
+    "tide-out": 23,
+    "blowoff-yesterday": 1,
+    "deep-veto": 1
+   }
+  },
+  {
+   "date": "2026-09-10",
+   "rot": "20-24",
+   "ts": "2026-09-11T00:00:24.535402-06:00",
+   "gates": {},
+   "duds": {
+    "tide-out": 6,
+    "sure-thing-deep-veto": 2
+   }
+  },
+  {
+   "date": "2026-09-11",
+   "rot": "00-04",
+   "ts": "2026-09-11T04:00:59.184758-06:00",
+   "gates": {},
+   "duds": {
+    "deep-veto": 3,
+    "tide-out": 8,
+    "deep-direction": 1,
+    "sure-thing-deep-veto": 2,
+    "downward-trend": 1
+   }
+  },
+  {
+   "date": "2026-09-11",
+   "rot": "04-08",
+   "ts": "2026-09-11T08:01:21.611157-06:00",
+   "gates": {
+    "worth-floor": {
+     "n": 1,
+     "usd": 21.22
+    },
+    "climb-floor": {
+     "n": 1,
+     "usd": 22.71
+    },
+    "deep-veto": {
+     "n": 1,
+     "usd": 22.77
+    },
+    "tide-out": {
+     "n": 1,
+     "usd": 18.23
+    },
+    "blowoff-yesterday": {
+     "n": 1,
+     "usd": 12.96
+    },
+    "climb-clearance": {
+     "n": 1,
+     "usd": 12.61
+    }
+   },
+   "duds": {
+    "climb-er": 4,
+    "climb-clearance": 6,
+    "blowoff-yesterday": 1,
+    "tide-out": 1,
+    "deep-veto": 2,
+    "downward-trend": 1,
+    "too-thin": 1,
+    "climb-floor": 3
+   }
+  },
+  {
+   "date": "2026-09-11",
+   "rot": "08-12",
+   "ts": "2026-09-11T12:00:53.344875-06:00",
+   "gates": {
+    "deep-direction": {
+     "n": 1,
+     "usd": 19.96
+    }
+   },
+   "duds": {
+    "climb-clearance": 2,
+    "climb-floor": 4,
+    "deep-direction": 4,
+    "climb-er": 3,
+    "downward-trend": 1,
+    "deep-veto": 1,
+    "stale-move": 2
+   }
+  },
+  {
+   "date": "2026-09-11",
+   "rot": "12-16",
+   "ts": "2026-09-11T16:00:28.284074-06:00",
+   "gates": {
+    "deep-veto": {
+     "n": 1,
+     "usd": 12.69
+    }
+   },
+   "duds": {
+    "climb-clearance": 1,
+    "deep-veto": 1,
+    "tide-out": 3,
+    "downward-trend": 2
+   }
+  },
+  {
+   "date": "2026-09-11",
+   "rot": "16-20",
+   "ts": "2026-09-11T20:02:05.434118-06:00",
+   "gates": {
+    "tide-out": {
+     "n": 1,
+     "usd": 16.09
+    }
+   },
+   "duds": {
+    "tide-out": 8,
+    "sure-thing-deep-veto": 6
+   }
+  },
+  {
+   "date": "2026-09-11",
+   "rot": "20-24",
+   "ts": "2026-09-12T00:00:23.027727-06:00",
+   "gates": {},
+   "duds": {
+    "sure-thing-deep-veto": 7
+   }
+  },
+  {
+   "date": "2026-09-12",
+   "rot": "00-04",
+   "ts": "2026-09-12T04:01:00.061867-06:00",
+   "gates": {
+    "downward-trend": {
+     "n": 1,
+     "usd": 13.2
+    }
+   },
+   "duds": {
+    "sure-thing-deep-veto": 15,
+    "worth-floor": 1,
+    "deep-veto": 1,
+    "climb-floor": 1
+   }
+  },
+  {
+   "date": "2026-09-12",
+   "rot": "04-08",
+   "ts": "2026-09-12T08:00:26.547842-06:00",
+   "gates": {
+    "deep-veto": {
+     "n": 1,
+     "usd": 21.45
+    }
+   },
+   "duds": {
+    "sure-thing-deep-veto": 6,
+    "climb-clearance": 2
+   }
+  },
+  {
+   "date": "2026-09-12",
+   "rot": "08-12",
+   "ts": "2026-09-12T12:01:17.610156-06:00",
+   "gates": {},
+   "duds": {
+    "sure-thing-deep-veto": 8,
+    "climb-clearance": 1,
+    "deep-veto": 2
+   }
+  },
+  {
+   "date": "2026-09-12",
+   "rot": "12-16",
+   "ts": "2026-09-12T16:00:31.633846-06:00",
+   "gates": {},
+   "duds": {
+    "downward-trend": 1,
+    "tide-out": 4
+   }
+  },
+  {
+   "date": "2026-09-12",
+   "rot": "16-20",
+   "ts": "2026-09-12T20:01:12.166984-06:00",
+   "gates": {},
+   "duds": {
+    "tide-out": 12,
+    "climb-floor": 1,
+    "sure-thing-deep-veto": 1
+   }
+  },
+  {
+   "date": "2026-09-12",
+   "rot": "20-24",
+   "ts": "2026-09-13T00:00:24.392875-06:00",
+   "gates": {},
+   "duds": {
+    "sure-thing-deep-veto": 4
+   }
+  },
+  {
+   "date": "2026-09-13",
+   "rot": "00-04",
+   "ts": "2026-09-13T04:01:36.125617-06:00",
+   "gates": {
+    "tide-out": {
+     "n": 1,
+     "usd": 17.96
+    }
+   },
+   "duds": {
+    "tide-out": 13,
+    "sure-thing-deep-veto": 1
+   }
+  },
+  {
+   "date": "2026-09-13",
+   "rot": "04-08",
+   "ts": "2026-09-13T08:00:39.495211-06:00",
+   "gates": {
+    "tide-out": {
+     "n": 2,
+     "usd": 26.16
+    }
+   },
+   "duds": {
+    "tide-out": 13
+   }
+  },
+  {
+   "date": "2026-09-13",
+   "rot": "08-12",
+   "ts": "2026-09-13T12:00:44.996114-06:00",
+   "gates": {
+    "climb-floor": {
+     "n": 1,
+     "usd": 12.47
+    }
+   },
+   "duds": {
+    "tide-out": 3,
+    "sure-thing-deep-veto": 1,
+    "climb-clearance": 3
+   }
+  },
+  {
+   "date": "2026-09-13",
+   "rot": "12-16",
+   "ts": "2026-09-13T16:01:08.425100-06:00",
+   "gates": {
+    "deep-veto": {
+     "n": 2,
+     "usd": 49.03
+    }
+   },
+   "duds": {
+    "sure-thing-deep-veto": 10,
+    "downward-trend": 3,
+    "deep-veto": 1,
+    "climb-clearance": 2
+   }
+  },
+  {
+   "date": "2026-09-13",
+   "rot": "16-20",
+   "ts": "2026-09-13T20:01:49.044930-06:00",
+   "gates": {
+    "downward-trend": {
+     "n": 2,
+     "usd": 34.18
+    },
+    "worth-floor": {
+     "n": 1,
+     "usd": 17.15
+    }
+   },
+   "duds": {
+    "tide-out": 9,
+    "downward-trend": 12,
+    "deep-direction": 1,
+    "stale-move": 1
+   }
   }
  ]
 }

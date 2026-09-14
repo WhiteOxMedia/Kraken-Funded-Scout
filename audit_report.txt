@@ -1,4 +1,4 @@
-FULL AUDIT — Thu 09:36 AM Denver — 63/63 PASS, 0 FAIL
+FULL AUDIT — Sun 11:19 AM Denver — 63/63 PASS, 0 FAIL
 ======================================================================
 PASS  scout code compiles (10 files)
 PASS  bot code compiles (5 files)
@@ -13,19 +13,19 @@ PASS  process: scanner
 PASS  process: engine
 PASS  process: bot
 PASS  process: console
-PASS  engine thresholds fresh (<70 min)  [19 min old]
-PASS  engine thresholds valid (54 assets, cells)  [assets=64]
+PASS  engine thresholds fresh (<70 min)  [60 min old]
+PASS  engine thresholds valid (54 assets, cells)  [assets=110]
 PASS  bridge: no pending signals  [0 pending]
 PASS  bridge: no stuck (2h+) signals  [0 stuck]
-PASS  bridge: open positions tracked  [1 filled/open]
+PASS  bridge: open positions tracked  [0 filled/open]
 PASS  execution state  [blacklist=0, live scale-ins=0 (working), expired lingering=0]
-PASS  bot heartbeat fresh (<35 min)  [0 min old, status=trading]
+PASS  bot heartbeat fresh (<35 min)  [1 min old, status=trading]
 PASS  contract: NO thin-book blacklist in gate_buy  [thin-book blacklist still present!]
 PASS  contract: NO thin-book branch in liquidity_snapshot  [advisory path still labels thin books]
-PASS  contract: 89% desktop floor present
+PASS  contract: learned desktop floor present (per-rotation popup_floor)
 PASS  contract: adaptive resolve rule present (scalp-based)
 PASS  contract: resolve rule on the green light too (scalp-based)
-PASS  contract: QC green light is scalp-gated (floor + pace, not median bar)
+PASS  contract: QC green light is scalp-gated (learned floor, not median bar)
 PASS  contract: chase + payout WARN on the QC (data: no hit-rate separation)
 PASS  contract: NO downward trend picks (user rule — blocks QC, card, alerts, bot)
 PASS  contract: the light speaks the clock (hold time + stay-close)
@@ -34,10 +34,10 @@ PASS  contract: book carry on the green light (size-aware, 20% of book)
 PASS  contract: the tide (fleet breadth; OUT blocks entries everywhere)
 PASS  contract: ONE voice engine — console queues, scanner speaks
 PASS  contract: alerts speak the DEEP confidence (the brain's number, not the quick read's)
-PASS  contract: I RE-ENTERED control (spent ÷ owned = the real entry)
+PASS  contract: I RE-ENTERED control (merged entry form, Sep 3)
 PASS  contract: exit check uses real history (episodes, no guessing)
 PASS  contract: MASTER self-grades from records (TODAY'S FACTS)
-PASS  contract: data-backed hard gates only (setup+pace+cooldown)
+PASS  contract: data-backed hard gates only (floor + goal + cooldown)
 PASS  contract: giveback + loss warnings in the contest light
 PASS  contract: big payout WARNS on the QC (not a block — calibration)
 PASS  contract: FAST $20 leaderboard on the console
@@ -47,20 +47,20 @@ PASS  contract: desktop alerts pre-checked by the deep scan (double-check rule)
 PASS  contract: bridge writes pre-checked by the deep scan too
 PASS  contract: TAKE IT $20 system present
 PASS  contract: cooldown flatten 20:00 (once daily, persisted)
-PASS  contract: bounce path (losers, not gainers)
+PASS  contract: bounce path (losers tournament, not gainers)
 PASS  contract: long-only hard guard on alerts
 PASS  contract: contest/bot tournament separation
 PASS  contract: bot BUY-only challenge (never displaces to short)
 PASS  contract: challenge scores incumbents by ENTRY conviction (churn fix)
 PASS  contract: chase guard on bot buys (stale signal + blowoff)
-PASS  contract: bot own-scanning OFF (scout funnel owns buys)
+PASS  contract: bot self-strategy OFF (scout funnel owns buys)
 PASS  contract: rotation-aware liquidity filter
 PASS  contract: bot concentrates on ONE position (max concurrent = 1)
 PASS  contract: bridge lets challengers through (no max-position write reject)
 PASS  state file: contest_watch.json
 PASS  state file: console_state.json
 PASS  state file: payout_track.json
-PASS  payouts tracked  [$251.64]
+PASS  payouts tracked  [$298.17]
 PASS  kill switch  [clear]
 PASS  cooldown window awareness  [not in cooldown]
 ======================================================================

@@ -1,3 +1,18 @@
 total entries: 50
-types: {'trade': 50}
+types: {'trade': 35, 'transaction': 2, 'receive': 2, 'spend': 2, 'transfer': 1, 'staking': 8}
 — non-trade entries —
+Sep 06 05:09 PM  type=transaction  amount=98.52 USD  direction=out  after=None  id=LWCD5R-6ZIFF-A7JH7F  desc=
+Sep 07 04:27 PM  type=receive  amount=40.0 USDC  direction=in  after=None  id=LTCTOP-3HJZ7-D7BESK  desc=
+Sep 07 04:27 PM  type=spend  amount=40.0 USD  direction=out  after=None  id=L7FCZK-3UMFJ-F225WV  desc=
+Sep 07 04:31 PM  type=transaction  amount=38.93 USDC  direction=out  after=None  id=LH2YCX-LVFPN-T6GWSJ  desc=
+Sep 07 10:28 PM  type=receive  amount=0.0073 USD  direction=in  after=None  id=LJABFA-ORUWW-7WW2JE  desc=
+Sep 07 10:28 PM  type=spend  amount=0.0073 USDC  direction=out  after=None  id=LHA4KD-ZSJGK-J7N37T  desc=
+Sep 08 01:42 PM  type=transfer  amount=20.0 USD  direction=out  after=None  id=LBSYDO-CZRLH-BKKHDG  desc=
+Sep 11 02:37 AM  type=staking  amount=0.00087717 ADA  direction=in  after=None  id=LRKTPA-5KC26-TF4N37  desc=
+Sep 11 02:37 AM  type=staking  amount=0.0003063 ATOM  direction=in  after=None  id=LME4CO-6QT74-WQNMIA  desc=
+Sep 11 02:37 AM  type=staking  amount=0.00137591 TRX  direction=in  after=None  id=L3BVQX-G2XVZ-5VX66I  desc=
+Sep 11 02:37 AM  type=staking  amount=4.73703e-05 INJ  direction=in  after=None  id=LFG4TE-ON3ZR-DVBVRY  desc=
+Sep 11 02:37 AM  type=staking  amount=0.000515319 POL  direction=in  after=None  id=LB63OE-TLHI5-KLMUDS  desc=
+Sep 11 02:37 AM  type=staking  amount=1.031e-05 USDC  direction=in  after=None  id=LWJXGB-MJU55-QW7VZT  desc=
+Sep 11 02:37 AM  type=staking  amount=3.757e-05 NEAR  direction=in  after=None  id=LEGX73-HEJFR-WMTON3  desc=
+Sep 11 02:37 AM  type=staking  amount=1.59242e-05 AVAX  direction=in  after=None  id=LMMUUV-HUDYT-J34PS7  desc=

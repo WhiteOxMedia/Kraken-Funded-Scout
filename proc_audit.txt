@@ -1,7 +1,7 @@
 ﻿.venv\Scripts\python.exe  -X utf8 volatility_engine.py  
-"C:\Users\birds\AppData\Roaming\uv\python\cpython-3.14-windows-x86_64-none\python.exe"   -X utf8 volatility_engine.py  
-.venv\Scripts\python.exe  background_scanner.py  
-"C:\Users\birds\AppData\Roaming\uv\python\cpython-3.14-windows-x86_64-none\python.exe"   background_scanner.py  
+.venv\Scripts\python.exe  -X utf8 volatility_engine.py  
 .venv\Scripts\python.exe  bot_runner.py --interval 15  
-"C:\Users\birds\Workspace\kraken_scout\.venv\Scripts\python.exe" "C:\Users\birds\Workspace\kraken_scout\.venv\Scripts\streamlit.exe"  run app.py --server.port 8501 --server.runOnSave false
-"C:\Users\birds\AppData\Roaming\uv\python\cpython-3.14-windows-x86_64-none\python.exe"  "C:\Users\birds\Workspace\kraken_scout\.venv\Scripts\streamlit.exe"  run app.py --server.port 8501 --server.runOnSave false
+"C:\Users\birds\Workspace\kraken_scout\.venv\Scripts\python.exe" -m streamlit run app.py --server.port 8501 --server.runOnSave false 
+"C:\Users\birds\Workspace\kraken_scout\.venv\Scripts\python.exe" -m streamlit run app.py --server.port 8501 --server.runOnSave false 
+"C:\Users\birds\Workspace\kraken_scout\.venv\Scripts\python.exe" -X utf8 "background_scanner.py" 
+"C:\Users\birds\Workspace\kraken_scout\.venv\Scripts\python.exe" -X utf8 "background_scanner.py" 

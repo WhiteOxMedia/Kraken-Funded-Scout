@@ -354,3 +354,52 @@ Arguments: ('16-20', 93, None, 'flat')
 07:58 PM [INFO] R5 🌆 US Late — Quick ticker scan...
 07:58 PM [INFO]   Movers (>2%): AIXBT, ALGO, FIL, INJ, JTO
 07:58 PM [INFO]   Next check in 30s | R5 🌆 US Late Sun | threshold 60% | full scan every 10m
+07:58 PM [INFO]   Next check in 30s | R5 🌆 US Late Sun | threshold 60% | full scan every 10m
+07:59 PM [INFO]   Next check in 30s | R5 🌆 US Late Sun | threshold 60% | full scan every 10m
+07:59 PM [INFO] R5 🌆 US Late — Full tournament (54 assets, min_conf=50)...
+07:59 PM [INFO]   US late session — steady moves
+07:59 PM [INFO]   Fetched 54/54 assets
+07:59 PM [INFO]   Liquidity filter: excluded 15 assets (< $1M 24h vol): MOODENG ($0.1M), GRASS ($0.1M), LDO ($0.1M), KAITO ($0.0M), S ($0.0M), PNUT ($0.0M), TRUMP ($0.2M), ATOM ($0.2M), JTO ($0.1M), POPCAT ($0.1M), OP ($0.2M), ETC ($0.2M), AIXBT ($0.0M), ASTER ($0.4M), VIRTUAL ($0.2M)
+07:59 PM [INFO] 🏆 Momentum Champion: buy TRX (79%)
+07:59 PM [INFO]   TIDE MEMORY: TRX -3.0 pts in OUT — TRX/USD pays 0.0% in OUT hours (fleet 10.9%) over 479h of history; live popups 0% pay (fleet 70%, 2 events, w 1.9) -> -3.00 pts (bar 60% → 63%)
+07:59 PM [INFO]   EASY TO SELL: 90/100
+07:59 PM [INFO]   TIDE OUT (fleet 14%) — no bridge write; the OUT tide's price on the bot's ledger: quick 79.0 vs personal bar 93 (learned OUT bar 90 (outcome-fitted on 236 live candidates, payers 19.4%; deep history payers 10.9% over 479h))
+07:59 PM [INFO]   Tournament done in 14s
+07:59 PM [INFO]   Next check in 30s | R5 🌆 US Late Sun | threshold 60% | full scan every 10m
+08:00 PM [INFO] ============================================================
+08:00 PM [INFO]   COOLDOWN FLATTEN — trading day closed
+08:00 PM [INFO] ============================================================
+08:00 PM [INFO]   reset: Phase 1: 0 tracked positions in bot DB
+08:00 PM [INFO]   reset: Phase 2: Scanning actual Kraken balances for untracked assets
+08:00 PM [INFO]   reset: ADA: dust ($0.00) — skipping
+08:00 PM [INFO]   reset: ATOM: dust ($0.00) — skipping
+08:00 PM [INFO]   reset: AVAX: dust ($0.00) — skipping
+08:00 PM [INFO]   reset: INJ: dust ($0.00) — skipping
+08:00 PM [INFO]   reset: NEAR: dust ($0.00) — skipping
+08:00 PM [INFO]   reset: POL: dust ($0.00) — skipping
+08:00 PM [INFO]   reset: TRX: dust ($0.00) — skipping
+08:00 PM [INFO]   reset: USDC: dust ($0.00) — skipping
+08:00 PM [INFO]   reset: Untracked sold: 0 assets, ~$0.00 freed
+08:00 PM [INFO]   reset: --- after reset ---
+08:00 PM [INFO]   reset: open positions: 0
+08:00 PM [INFO]   reset: USD free : 3.34
+08:00 PM [INFO] Reset: closed 0 filled (kept 0 winners), cancelled 0 pending/0 acknowledged
+08:00 PM [INFO]   Bridge reset: closed 0, cancelled 0 pending, kept 0 winners
+08:00 PM [INFO] Cooldown flatten done | kept winners: none
+08:00 PM [INFO] Rotation R5 🌆 US Late -> 🌙 Cooldown (positions ride — cooldown flatten owns resets)
+08:01 PM [INFO] 🎓 DISCIPLINE: rotation 16-20 score 50 — left $51 on the table (missed $0 / giveback $0 / no-exit $0)
+08:01 PM [INFO]    lesson: No popups fired — score capped at 50 (the opportunity cost: a silent rotation cannot grade perfect). Realized $+0; weights hold.
+08:01 PM [INFO]   Next check in 30s | 🌙 Cooldown Sun | COOLDOWN — no buys until 00:00
+08:03 PM [INFO]   Next check in 30s | 🌙 Cooldown Sun | COOLDOWN — no buys until 00:00
+08:03 PM [INFO]   Next check in 30s | 🌙 Cooldown Sun | COOLDOWN — no buys until 00:00
+08:04 PM [INFO]   Next check in 30s | 🌙 Cooldown Sun | COOLDOWN — no buys until 00:00
+08:04 PM [INFO]   Next check in 30s | 🌙 Cooldown Sun | COOLDOWN — no buys until 00:00
+08:05 PM [INFO]   Next check in 30s | 🌙 Cooldown Sun | COOLDOWN — no buys until 00:00
+08:05 PM [INFO]   Next check in 30s | 🌙 Cooldown Sun | COOLDOWN — no buys until 00:00
+08:06 PM [INFO]   Next check in 30s | 🌙 Cooldown Sun | COOLDOWN — no buys until 00:00
+08:06 PM [INFO]   Next check in 30s | 🌙 Cooldown Sun | COOLDOWN — no buys until 00:00
+08:08 PM [INFO]   Next check in 30s | 🌙 Cooldown Sun | COOLDOWN — no buys until 00:00
+08:08 PM [INFO]   Next check in 30s | 🌙 Cooldown Sun | COOLDOWN — no buys until 00:00
+08:09 PM [INFO]   Next check in 30s | 🌙 Cooldown Sun | COOLDOWN — no buys until 00:00
+08:09 PM [INFO]   Next check in 30s | 🌙 Cooldown Sun | COOLDOWN — no buys until 00:00
+08:10 PM [INFO]   Next check in 30s | 🌙 Cooldown Sun | COOLDOWN — no buys until 00:00

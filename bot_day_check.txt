@@ -1,10 +1,8 @@
-now: Sun 02:58 PM Denver
+now: Sun 12:13 PM Denver
 
-OPEN positions: 2
-  TRX/USD since 2026-09-06T14:43 @ 0.335925
-  TRX/USD since 2026-09-06T13:43 @ 0.335925
+OPEN positions: 0
 
-full signal trail today (1782 signals):
+full signal trail today (2321 signals):
   00:00  ALGO/USD   buy  rejected  scout_auto     64.0%
   00:00  BTC/USD    buy  rejected  scout_auto     71.0%
   00:11  ADA/USD    buy  rejected  scout_auto     72.0%
@@ -1784,9 +1782,548 @@ full signal trail today (1782 signals):
   12:30  LINK/USD   buy  rejected  scout_auto     81.0%
   12:42  LINK/USD   buy  rejected  scout_auto     81.0%
   12:53  LINK/USD   buy  rejected  scout_auto     81.0%
-  13:43  TRX/USD    buy  filled    bot_strategy   81.0%
   13:46  TIA/USD    buy  rejected  scout_auto     92.0%
-  14:42  TRX/USD    buy  filled    scout_auto     81.0%
+  12:38  RENDER/USD sell rejected  scout_trend_exit 0.0%
+  12:41  ETC/USD    buy  rejected  scout_auto     100.0%
+  12:43  APT/USD    buy  rejected  scout_auto     59.5%
+  12:48  XPL/USD    buy  rejected  scout_auto     96.0%
+  12:48  VET/USD    buy  rejected  scout_mover    67.0%
+  12:48  ETC/USD    buy  rejected  scout_mover    77.5%
+  12:52  OP/USD     buy  rejected  scout_auto     64.0%
+  12:54  XRP/USD    buy  rejected  scout_auto     81.0%
+  12:59  XPL/USD    buy  rejected  scout_auto     96.0%
+  12:59  VET/USD    buy  rejected  scout_mover    67.0%
+  13:20  APT/USD    buy  rejected  scout_auto     59.5%
+  13:36  APT/USD    buy  rejected  scout_auto     59.5%
+  13:42  APT/USD    buy  cancelled scout_auto     59.5%
+  13:52  LDO/USD    buy  rejected  scout_auto     50.1%
+  13:54  OP/USD     buy  rejected  scout_auto     64.0%
+  13:57  PENGU/USD  buy  rejected  scout_auto     32.0%
+  06:20  GRASS/USD  buy  rejected  scout_auto     71.0%
+  06:20  TAO/USD    buy  rejected  scout_auto     67.0%
+  06:20  TIA/USD    buy  rejected  scout_auto     69.0%
+  06:21  PUMP/USD   buy  rejected  scout_auto     100.0%
+  06:21  GRASS/USD  buy  rejected  scout_mover    62.0%
+  06:22  HYPE/USD   buy  rejected  scout_auto     90.0%
+  06:27  RENDER/USD buy  rejected  scout_auto     84.0%
+  06:27  STX/USD    buy  rejected  scout_auto     77.0%
+  06:32  HYPE/USD   buy  rejected  scout_auto     90.0%
+  06:32  JUP/USD    buy  rejected  scout_auto     86.0%
+  06:33  TAO/USD    buy  rejected  scout_auto     92.0%
+  06:33  PUMP/USD   buy  rejected  scout_auto     100.0%
+  06:35  GRASS/USD  buy  rejected  scout_auto     81.5%
+  06:38  RENDER/USD buy  rejected  scout_auto     84.0%
+  06:43  JUP/USD    buy  rejected  scout_auto     86.0%
+  06:43  HYPE/USD   buy  rejected  scout_auto     93.0%
+  06:43  TAO/USD    buy  rejected  scout_auto     52.0%
+  06:44  GRASS/USD  buy  rejected  scout_mover    72.5%
+  06:51  RENDER/USD buy  rejected  scout_auto     84.0%
+  06:51  APT/USD    buy  rejected  scout_auto     84.0%
+  06:54  GRASS/USD  buy  rejected  scout_auto     71.0%
+  06:54  JUP/USD    buy  rejected  scout_auto     86.0%
+  06:54  RAY/USD    buy  rejected  scout_mover    69.0%
+  07:39  TAO/USD    buy  rejected  scout_auto     70.0%
+  07:49  TAO/USD    buy  rejected  scout_auto     70.0%
+  07:52  ETH/USD    buy  rejected  scout_auto     95.0%
+  08:01  BNB/USD    buy  rejected  scout_auto     64.0%
+  08:03  TIA/USD    buy  rejected  scout_auto     71.0%
+  08:10  MOODENG/USD buy  rejected  scout_auto     67.0%
+  08:13  TIA/USD    buy  rejected  scout_auto     71.0%
+  08:16  BNB/USD    buy  rejected  scout_auto     64.0%
+  08:18  GRASS/USD  buy  rejected  scout_auto     66.5%
+  08:19  GRASS/USD  buy  rejected  scout_mover    57.5%
+  08:21  MOODENG/USD buy  rejected  scout_auto     67.0%
+  08:24  TIA/USD    buy  rejected  scout_auto     71.0%
+  08:29  LRC/USD    buy  rejected  scout_mover    67.0%
+  08:31  DOT/USD    buy  rejected  scout_auto     64.0%
+  08:31  GRASS/USD  buy  rejected  scout_auto     66.0%
+  08:31  MOODENG/USD buy  rejected  scout_auto     92.0%
+  08:32  XMR/USD    buy  rejected  scout_mover    74.0%
+  08:42  DOT/USD    buy  rejected  scout_auto     74.0%
+  08:42  GRASS/USD  buy  rejected  scout_auto     100.0%
+  08:42  MOODENG/USD buy  rejected  scout_auto     67.0%
+  08:47  BNB/USD    buy  rejected  scout_auto     84.0%
+  08:47  TIA/USD    buy  rejected  scout_auto     71.0%
+  08:52  DOT/USD    buy  rejected  scout_auto     64.0%
+  08:58  TIA/USD    buy  rejected  scout_auto     79.0%
+  09:01  BNB/USD    buy  rejected  scout_auto     74.0%
+  09:03  OP/USD     buy  rejected  scout_auto     69.0%
+  09:08  APT/USD    buy  rejected  scout_auto     54.5%
+  09:08  TRUMP/USD  buy  expired   scout_auto     86.1%
+  09:09  PENGU/USD  buy  expired   scout_auto     97.0%
+  10:12  ARB/USD    buy  expired   scout_auto     82.0%
+  10:25  ARB/USD    buy  expired   scout_auto     82.0%
+  10:55  ARB/USD    buy  rejected  scout_auto     97.0%
+  10:55  MOODENG/USD buy  rejected  scout_auto     67.0%
+  10:55  OP/USD     buy  rejected  scout_auto     66.4%
+  10:55  ZEC/USD    buy  rejected  scout_auto     81.0%
+  12:30  FARTCOIN/USD buy  rejected  scout_auto     74.0%
+  12:32  RENDER/USD buy  rejected  scout_auto     61.0%
+  12:40  FARTCOIN/USD buy  rejected  scout_auto     74.0%
+  12:48  PENGU/USD  buy  rejected  scout_auto     69.0%
+  12:51  FARTCOIN/USD buy  rejected  scout_auto     74.0%
+  12:57  TRX/USD    buy  rejected  scout_auto     84.0%
+  12:59  PENGU/USD  buy  rejected  scout_auto     69.0%
+  13:09  PENGU/USD  buy  rejected  scout_auto     79.0%
+  13:18  XPL/USD    buy  rejected  scout_auto     64.0%
+  13:31  PENGU/USD  buy  rejected  scout_auto     79.0%
+  19:23  STX/USD    buy  rejected  scout_auto     100.0%
+  19:33  STX/USD    buy  rejected  scout_auto     100.0%
+  19:43  STX/USD    buy  rejected  scout_auto     100.0%
+  19:47  STX/USD    buy  rejected  scout_auto     100.0%
+  00:10  TRAC/USD   buy  rejected  scout_mover    62.0%
+  00:42  RAY/USD    buy  rejected  scout_mover    59.0%
+  01:51  ETH/USD    buy  rejected  scout_auto     69.0%
+  02:28  0G/USD     buy  rejected  scout_mover    67.0%
+  02:56  0G/USD     buy  rejected  scout_mover    67.0%
+  03:42  WLD/USD    buy  rejected  scout_auto     77.0%
+  04:29  POL/USD    buy  rejected  scout_auto     92.0%
+  04:31  POL/USD    buy  rejected  scout_auto     92.0%
+  04:40  POL/USD    buy  rejected  scout_auto     92.0%
+  04:42  POL/USD    buy  rejected  scout_auto     92.0%
+  04:45  TIA/USD    buy  rejected  scout_auto     99.0%
+  05:17  GRASS/USD  buy  rejected  scout_auto     92.0%
+  05:17  WLD/USD    buy  rejected  scout_auto     92.0%
+  05:19  GRASS/USD  buy  rejected  scout_auto     92.0%
+  05:22  GRASS/USD  buy  rejected  scout_auto     92.0%
+  05:25  GRASS/USD  buy  rejected  scout_auto     92.0%
+  05:28  GRASS/USD  buy  rejected  scout_auto     92.0%
+  05:30  GRASS/USD  buy  rejected  scout_auto     92.0%
+  05:33  WLD/USD    buy  rejected  scout_auto     87.0%
+  05:49  ADA/USD    buy  rejected  scout_auto     94.0%
+  06:12  HBAR/USD   buy  rejected  scout_auto     92.0%
+  06:13  TIA/USD    buy  rejected  scout_auto     92.0%
+  06:15  TIA/USD    buy  rejected  scout_auto     92.0%
+  06:17  TIA/USD    buy  rejected  scout_auto     92.0%
+  06:20  TIA/USD    buy  rejected  scout_auto     92.0%
+  06:23  TIA/USD    buy  rejected  scout_auto     92.0%
+  06:25  TIA/USD    buy  rejected  scout_auto     92.0%
+  06:26  TIA/USD    buy  rejected  scout_auto     92.0%
+  06:28  TIA/USD    buy  rejected  scout_auto     92.0%
+  06:31  TIA/USD    buy  rejected  scout_auto     100.0%
+  06:39  ETH/USD    buy  rejected  scout_auto     93.0%
+  06:40  LTC/USD    buy  rejected  scout_auto     100.0%
+  06:42  AAVE/USD   buy  rejected  scout_auto     72.0%
+  06:42  ETH/USD    buy  rejected  scout_auto     68.0%
+  06:44  ETH/USD    buy  rejected  scout_auto     93.0%
+  06:45  ETH/USD    buy  rejected  scout_auto     93.0%
+  06:48  AAVE/USD   buy  rejected  scout_auto     72.0%
+  06:49  NEAR/USD   buy  rejected  scout_auto     77.0%
+  06:50  LTC/USD    buy  rejected  scout_auto     100.0%
+  06:51  AAVE/USD   buy  rejected  scout_auto     97.0%
+  06:53  LTC/USD    buy  rejected  scout_auto     100.0%
+  06:54  POPCAT/USD buy  rejected  scout_auto     79.0%
+  06:54  PENGU/USD  buy  rejected  scout_auto     82.0%
+  06:54  ONDO/USD   buy  rejected  scout_auto     84.0%
+  06:54  TRUMP/USD  buy  rejected  scout_auto     59.0%
+  06:54  VIRTUAL/USD buy  rejected  scout_auto     74.0%
+  06:54  DOGE/USD   buy  rejected  scout_auto     82.0%
+  06:54  WIF/USD    buy  rejected  scout_auto     74.0%
+  06:55  WLD/USD    buy  rejected  scout_auto     57.0%
+  06:55  XRP/USD    buy  rejected  scout_auto     74.0%
+  06:56  AIXBT/USD  buy  rejected  scout_auto     74.0%
+  06:56  AAVE/USD   buy  rejected  scout_auto     97.0%
+  06:56  BCH/USD    buy  rejected  scout_auto     82.0%
+  06:56  HYPE/USD   buy  rejected  scout_auto     71.0%
+  06:56  JTO/USD    buy  rejected  scout_auto     80.0%
+  06:56  LTC/USD    buy  rejected  scout_auto     100.0%
+  06:57  KAITO/USD  buy  rejected  scout_auto     67.0%
+  06:57  LDO/USD    buy  rejected  scout_auto     77.0%
+  06:57  PENGU/USD  buy  rejected  scout_auto     82.0%
+  06:57  POPCAT/USD buy  rejected  scout_auto     54.0%
+  06:58  WIF/USD    buy  rejected  scout_auto     74.0%
+  06:58  VIRTUAL/USD buy  rejected  scout_auto     74.0%
+  06:58  XRP/USD    buy  rejected  scout_auto     74.0%
+  06:58  DOGE/USD   buy  rejected  scout_auto     82.0%
+  06:58  XCN/USD    buy  rejected  scout_mover    59.0%
+  06:58  LIGHTER/USD buy  rejected  scout_mover    67.0%
+  07:00  TRX/USD    buy  rejected  scout_auto     64.0%
+  07:15  TRX/USD    buy  rejected  scout_auto     64.0%
+  07:19  ETH/USD    buy  rejected  scout_auto     88.0%
+  07:20  ETH/USD    buy  rejected  scout_auto     88.0%
+  07:26  ETH/USD    buy  rejected  scout_auto     100.0%
+  07:26  SOL/USD    buy  rejected  scout_auto     84.0%
+  07:28  FARTCOIN/USD buy  rejected  scout_auto     72.0%
+  07:28  ETH/USD    buy  rejected  scout_auto     100.0%
+  07:31  FARTCOIN/USD buy  rejected  scout_auto     72.0%
+  07:31  ETH/USD    buy  rejected  scout_auto     88.0%
+  07:32  LIGHTER/USD buy  rejected  scout_mover    67.0%
+  07:33  FARTCOIN/USD buy  rejected  scout_auto     72.0%
+  07:34  ETH/USD    buy  rejected  scout_auto     88.0%
+  07:36  ETH/USD    buy  rejected  scout_auto     88.0%
+  07:37  ETH/USD    buy  rejected  scout_auto     88.0%
+  07:37  FARTCOIN/USD buy  rejected  scout_auto     72.0%
+  07:37  NEAR/USD   buy  rejected  scout_auto     70.0%
+  07:39  FARTCOIN/USD buy  rejected  scout_auto     72.0%
+  07:39  ETH/USD    buy  rejected  scout_auto     100.0%
+  07:42  AAVE/USD   buy  rejected  scout_auto     84.0%
+  07:43  BCH/USD    buy  rejected  scout_auto     82.0%
+  07:43  OP/USD     buy  rejected  scout_auto     74.0%
+  07:43  XRP/USD    buy  rejected  scout_auto     74.0%
+  07:44  LIGHTER/USD buy  rejected  scout_mover    92.0%
+  07:44  AAVE/USD   buy  rejected  scout_auto     84.0%
+  07:44  BCH/USD    buy  rejected  scout_auto     82.0%
+  07:45  OP/USD     buy  rejected  scout_auto     74.0%
+  07:45  UNI/USD    buy  rejected  scout_auto     77.0%
+  07:45  XRP/USD    buy  rejected  scout_auto     74.0%
+  07:48  BCH/USD    buy  rejected  scout_auto     82.0%
+  07:48  HYPE/USD   buy  rejected  scout_auto     92.0%
+  07:48  ONDO/USD   buy  rejected  scout_auto     84.0%
+  07:48  LINK/USD   buy  rejected  scout_auto     74.0%
+  07:49  OP/USD     buy  rejected  scout_auto     74.0%
+  07:49  PENGU/USD  buy  rejected  scout_auto     82.0%
+  07:49  XRP/USD    buy  rejected  scout_auto     74.0%
+  07:50  ADA/USD    buy  rejected  scout_auto     74.0%
+  07:50  AVAX/USD   buy  rejected  scout_auto     82.0%
+  07:50  BCH/USD    buy  rejected  scout_auto     82.0%
+  07:50  CRV/USD    buy  rejected  scout_auto     84.0%
+  07:51  ETC/USD    buy  rejected  scout_auto     74.0%
+  07:51  FIL/USD    buy  rejected  scout_auto     74.0%
+  07:51  OP/USD     buy  rejected  scout_auto     74.0%
+  07:51  POPCAT/USD buy  rejected  scout_auto     82.0%
+  07:51  RENDER/USD buy  rejected  scout_auto     59.0%
+  07:51  SUI/USD    buy  rejected  scout_auto     74.0%
+  07:52  S/USD      buy  rejected  scout_auto     59.0%
+  07:52  TAO/USD    buy  rejected  scout_auto     74.0%
+  07:52  WIF/USD    buy  rejected  scout_auto     74.0%
+  07:53  AVAX/USD   buy  rejected  scout_auto     82.0%
+  07:53  FIL/USD    buy  rejected  scout_auto     74.0%
+  07:53  CRV/USD    buy  rejected  scout_auto     84.0%
+  07:54  HBAR/USD   buy  rejected  scout_auto     74.0%
+  07:54  OP/USD     buy  rejected  scout_auto     74.0%
+  07:54  PENGU/USD  buy  rejected  scout_auto     82.0%
+  07:57  FIL/USD    buy  rejected  scout_auto     74.0%
+  07:57  POPCAT/USD buy  rejected  scout_auto     82.0%
+  07:57  RENDER/USD buy  rejected  scout_auto     74.0%
+  07:57  SUI/USD    buy  rejected  scout_auto     74.0%
+  08:08  POPCAT/USD buy  rejected  scout_auto     84.0%
+  08:11  POPCAT/USD buy  rejected  scout_auto     84.0%
+  08:15  POL/USD    buy  rejected  scout_auto     75.0%
+  08:16  POL/USD    buy  rejected  scout_auto     75.0%
+  08:18  POL/USD    buy  rejected  scout_auto     75.0%
+  08:21  POL/USD    buy  rejected  scout_auto     75.0%
+  08:25  POL/USD    buy  rejected  scout_auto     75.0%
+  08:27  POL/USD    buy  rejected  scout_auto     75.0%
+  08:29  POL/USD    buy  rejected  scout_auto     75.0%
+  08:31  POL/USD    buy  rejected  scout_auto     75.0%
+  08:34  POL/USD    buy  rejected  scout_auto     75.0%
+  08:36  POL/USD    buy  rejected  scout_auto     75.0%
+  08:37  SOL/USD    buy  rejected  scout_auto     62.0%
+  08:38  POL/USD    buy  rejected  scout_auto     75.0%
+  08:40  POL/USD    buy  rejected  scout_auto     75.0%
+  08:43  SOL/USD    buy  rejected  scout_auto     62.0%
+  08:46  POL/USD    buy  rejected  scout_auto     75.0%
+  08:51  POL/USD    buy  rejected  scout_auto     75.0%
+  08:51  SOL/USD    buy  rejected  scout_auto     62.0%
+  08:54  POL/USD    buy  rejected  scout_auto     75.0%
+  08:56  POL/USD    buy  rejected  scout_auto     75.0%
+  08:57  POL/USD    buy  rejected  scout_auto     75.0%
+  09:47  POL/USD    buy  rejected  scout_auto     70.0%
+  09:49  POL/USD    buy  rejected  scout_auto     70.0%
+  09:53  AAVE/USD   buy  rejected  scout_auto     62.0%
+  09:53  GRASS/USD  buy  rejected  scout_auto     69.0%
+  09:55  AAVE/USD   buy  rejected  scout_auto     62.0%
+  09:55  GRASS/USD  buy  rejected  scout_auto     69.0%
+  09:55  HYPE/USD   buy  rejected  scout_auto     70.0%
+  09:55  SOL/USD    buy  rejected  scout_auto     82.5%
+  09:57  AAVE/USD   buy  rejected  scout_auto     62.0%
+  09:57  HYPE/USD   buy  rejected  scout_auto     70.0%
+  09:57  GRASS/USD  buy  rejected  scout_auto     69.0%
+  09:58  SOL/USD    buy  rejected  scout_auto     62.0%
+  10:00  XRP/USD    buy  rejected  scout_auto     64.5%
+  10:03  LTC/USD    buy  rejected  scout_auto     80.5%
+  10:06  HYPE/USD   buy  rejected  scout_auto     100.0%
+  10:06  UNI/USD    buy  rejected  scout_auto     64.5%
+  10:08  SOL/USD    buy  rejected  scout_auto     67.5%
+  10:09  UNI/USD    buy  rejected  scout_auto     64.5%
+  10:11  XRP/USD    buy  rejected  scout_auto     64.5%
+  10:25  ETH/USD    buy  rejected  scout_auto     88.5%
+  10:27  NEAR/USD   buy  rejected  scout_auto     72.5%
+  10:30  TRX/USD    buy  rejected  scout_auto     62.3%
+  10:35  NEAR/USD   buy  rejected  scout_auto     72.5%
+  10:38  S/USD      buy  rejected  scout_auto     70.0%
+  10:40  S/USD      buy  rejected  scout_auto     70.0%
+  10:43  S/USD      buy  rejected  scout_auto     70.0%
+  10:45  JTO/USD    buy  rejected  scout_auto     91.0%
+  10:46  NEAR/USD   buy  rejected  scout_auto     72.5%
+  10:46  SOL/USD    buy  rejected  scout_auto     67.5%
+  10:46  S/USD      buy  rejected  scout_auto     70.0%
+  10:48  ETH/USD    buy  rejected  scout_auto     83.0%
+  10:48  JTO/USD    buy  rejected  scout_auto     91.0%
+  10:48  HYPE/USD   buy  rejected  scout_auto     80.5%
+  10:48  NEAR/USD   buy  rejected  scout_auto     72.5%
+  10:48  S/USD      buy  rejected  scout_auto     70.0%
+  10:51  ETH/USD    buy  rejected  scout_auto     83.0%
+  10:51  JTO/USD    buy  rejected  scout_auto     91.0%
+  10:51  S/USD      buy  rejected  scout_auto     70.0%
+  10:52  JTO/USD    buy  rejected  scout_auto     91.0%
+  10:53  ETH/USD    buy  rejected  scout_auto     83.0%
+  10:54  NEAR/USD   buy  rejected  scout_auto     72.5%
+  10:54  S/USD      buy  rejected  scout_auto     70.0%
+  10:57  AAVE/USD   buy  rejected  scout_auto     62.0%
+  10:57  ETH/USD    buy  rejected  scout_auto     83.0%
+  10:57  JTO/USD    buy  rejected  scout_auto     91.0%
+  10:57  S/USD      buy  rejected  scout_auto     70.0%
+  10:59  AAVE/USD   buy  rejected  scout_auto     62.0%
+  10:59  ETH/USD    buy  rejected  scout_auto     83.0%
+  10:59  HYPE/USD   buy  rejected  scout_auto     70.0%
+  10:59  JTO/USD    buy  rejected  scout_auto     91.0%
+  11:02  AAVE/USD   buy  rejected  scout_auto     37.5%
+  11:02  HYPE/USD   buy  rejected  scout_auto     80.0%
+  11:02  LINK/USD   buy  rejected  scout_auto     34.5%
+  11:03  NEAR/USD   buy  rejected  scout_auto     52.5%
+  11:03  SOL/USD    buy  rejected  scout_auto     37.5%
+  11:04  LINK/USD   buy  rejected  scout_auto     37.5%
+  11:05  SOL/USD    buy  rejected  scout_auto     37.5%
+  11:07  LINK/USD   buy  rejected  scout_auto     37.5%
+  11:07  SOL/USD    buy  rejected  scout_auto     37.5%
+  11:08  HYPE/USD   buy  rejected  scout_auto     45.5%
+  11:09  NEAR/USD   buy  rejected  scout_auto     52.5%
+  11:12  NEAR/USD   buy  rejected  scout_auto     52.5%
+  11:12  SOL/USD    buy  rejected  scout_auto     37.5%
+  11:15  HYPE/USD   buy  rejected  scout_auto     80.0%
+  11:15  JUP/USD    buy  rejected  scout_auto     88.5%
+  11:15  JTO/USD    buy  rejected  scout_auto     100.0%
+  11:17  JTO/USD    buy  rejected  scout_auto     100.0%
+  11:18  JUP/USD    buy  rejected  scout_auto     68.5%
+  11:18  NEAR/USD   buy  rejected  scout_auto     52.5%
+  11:20  HYPE/USD   buy  rejected  scout_auto     45.5%
+  11:20  NEAR/USD   buy  rejected  scout_auto     52.5%
+  11:20  SOL/USD    buy  rejected  scout_auto     52.5%
+  11:23  NEAR/USD   buy  rejected  scout_auto     52.5%
+  11:24  SOL/USD    buy  rejected  scout_auto     52.5%
+  11:25  POL/USD    buy  rejected  scout_auto     61.0%
+  11:25  SOL/USD    buy  rejected  scout_auto     52.5%
+  11:27  AAVE/USD   buy  rejected  scout_auto     37.5%
+  11:28  JUP/USD    buy  rejected  scout_auto     68.5%
+  11:28  HYPE/USD   buy  rejected  scout_auto     45.5%
+  11:28  POL/USD    buy  rejected  scout_auto     66.0%
+  11:28  SOL/USD    buy  rejected  scout_auto     52.5%
+  11:30  HYPE/USD   buy  rejected  scout_auto     45.5%
+  11:31  POL/USD    buy  rejected  scout_auto     66.0%
+  11:31  SOL/USD    buy  rejected  scout_auto     52.5%
+  11:33  HYPE/USD   buy  rejected  scout_auto     45.5%
+  11:33  NEAR/USD   buy  rejected  scout_auto     52.5%
+  11:34  POL/USD    buy  rejected  scout_auto     66.0%
+  11:35  HYPE/USD   buy  rejected  scout_auto     45.5%
+  11:35  JUP/USD    buy  rejected  scout_auto     68.5%
+  11:36  SOL/USD    buy  rejected  scout_auto     52.5%
+  11:38  JTO/USD    buy  rejected  scout_auto     100.0%
+  11:38  POL/USD    buy  rejected  scout_auto     61.0%
+  11:40  JTO/USD    buy  rejected  scout_auto     100.0%
+  11:40  NEAR/USD   buy  rejected  scout_auto     52.5%
+  11:40  POL/USD    buy  rejected  scout_auto     61.0%
+  11:42  JTO/USD    buy  rejected  scout_auto     100.0%
+  11:42  NEAR/USD   buy  rejected  scout_auto     52.5%
+  11:43  POL/USD    buy  rejected  scout_auto     61.0%
+  11:44  NEAR/USD   buy  rejected  scout_auto     52.5%
+  11:44  POL/USD    buy  rejected  scout_auto     61.0%
+  11:47  NEAR/USD   buy  rejected  scout_auto     52.5%
+  11:48  NEAR/USD   buy  rejected  scout_auto     52.5%
+  11:48  POL/USD    buy  rejected  scout_auto     61.0%
+  11:50  NEAR/USD   buy  rejected  scout_auto     52.5%
+  11:50  POL/USD    buy  rejected  scout_auto     61.0%
+  11:52  NEAR/USD   buy  rejected  scout_auto     52.5%
+  11:54  ETH/USD    buy  rejected  scout_auto     68.5%
+  12:01  ETH/USD    buy  rejected  scout_auto     86.5%
+  12:01  JTO/USD    buy  rejected  scout_auto     88.0%
+  12:01  ZEC/USD    buy  rejected  scout_auto     78.5%
+  12:04  ETH/USD    buy  rejected  scout_auto     100.0%
+  12:04  ZEC/USD    buy  rejected  scout_auto     78.5%
+  12:09  ZEC/USD    buy  rejected  scout_auto     81.5%
+  12:11  ZEC/USD    buy  rejected  scout_auto     81.5%
+  12:14  ZEC/USD    buy  rejected  scout_auto     81.5%
+  12:17  ZEC/USD    buy  rejected  scout_auto     81.5%
+  12:17  HNT/USD    buy  rejected  scout_mover    64.5%
+  12:22  ZEC/USD    buy  rejected  scout_auto     81.5%
+  12:25  ZEC/USD    buy  rejected  scout_auto     81.5%
+  12:27  ZEC/USD    buy  rejected  scout_auto     81.5%
+  12:30  TIA/USD    buy  rejected  scout_auto     61.3%
+  12:30  ZEC/USD    buy  rejected  scout_auto     81.5%
+  12:31  AERO/USD   buy  rejected  scout_mover    64.5%
+  12:32  TIA/USD    buy  rejected  scout_auto     56.0%
+  12:33  ZEC/USD    buy  rejected  scout_auto     81.5%
+  12:33  HNT/USD    buy  rejected  scout_mover    64.0%
+  12:35  ZEC/USD    buy  rejected  scout_auto     81.5%
+  12:36  TIA/USD    buy  rejected  scout_auto     60.9%
+  12:38  TIA/USD    buy  rejected  scout_auto     60.4%
+  12:38  ZEC/USD    buy  rejected  scout_auto     81.5%
+  12:40  ZEC/USD    buy  rejected  scout_auto     81.5%
+  12:41  TIA/USD    buy  rejected  scout_auto     60.4%
+  12:43  TIA/USD    buy  rejected  scout_auto     60.4%
+  12:43  ZEC/USD    buy  rejected  scout_auto     81.5%
+  12:43  HNT/USD    buy  rejected  scout_mover    72.0%
+  12:46  TIA/USD    buy  rejected  scout_auto     61.3%
+  12:46  ZEC/USD    buy  rejected  scout_auto     81.5%
+  12:48  ZEC/USD    buy  rejected  scout_auto     81.5%
+  12:48  TIA/USD    buy  rejected  scout_auto     62.9%
+  12:50  PUMP/USD   buy  rejected  scout_auto     52.0%
+  12:50  ZEC/USD    buy  rejected  scout_auto     81.5%
+  12:50  TIA/USD    buy  rejected  scout_auto     62.9%
+  12:50  HNT/USD    buy  rejected  scout_mover    72.0%
+  12:52  ZEC/USD    buy  rejected  scout_auto     81.5%
+  12:53  PUMP/USD   buy  rejected  scout_auto     59.0%
+  12:53  TIA/USD    buy  rejected  scout_auto     69.0%
+  12:55  TIA/USD    buy  rejected  scout_auto     69.0%
+  12:55  PUMP/USD   buy  rejected  scout_auto     59.0%
+  12:57  ZEC/USD    buy  rejected  scout_auto     81.5%
+  12:57  TIA/USD    buy  rejected  scout_auto     66.1%
+  12:57  PUMP/USD   buy  rejected  scout_auto     55.5%
+  12:59  TIA/USD    buy  rejected  scout_auto     69.0%
+  12:59  PUMP/USD   buy  rejected  scout_auto     59.0%
+  13:00  TIA/USD    buy  rejected  scout_auto     64.0%
+  13:02  HNT/USD    buy  rejected  scout_mover    99.0%
+  13:13  HNT/USD    buy  rejected  scout_mover    99.0%
+  13:23  MET/USD    buy  rejected  scout_mover    57.0%
+  13:23  HNT/USD    buy  rejected  scout_mover    94.0%
+  13:26  ZEC/USD    buy  rejected  scout_auto     81.5%
+  13:28  ZEC/USD    buy  rejected  scout_auto     81.5%
+  13:46  ZEC/USD    buy  rejected  scout_auto     81.5%
+  13:49  ZEC/USD    buy  rejected  scout_auto     81.5%
+  13:51  ZEC/USD    buy  rejected  scout_auto     81.5%
+  13:53  ZEC/USD    buy  rejected  scout_auto     81.5%
+  13:56  ZEC/USD    buy  rejected  scout_auto     81.5%
+  14:03  SOL/USD    buy  rejected  scout_auto     98.0%
+  14:06  SOL/USD    buy  rejected  scout_auto     98.0%
+  14:08  SOL/USD    buy  rejected  scout_auto     98.0%
+  14:12  SOL/USD    buy  rejected  scout_auto     98.0%
+  14:16  SOL/USD    buy  rejected  scout_auto     100.0%
+  14:18  SOL/USD    buy  rejected  scout_auto     100.0%
+  15:01  SOL/USD    buy  rejected  scout_auto     100.0%
+  15:16  SOL/USD    buy  rejected  scout_auto     100.0%
+  15:22  SOL/USD    buy  rejected  scout_auto     100.0%
+  00:31  TRX/USD    buy  rejected  scout_auto     64.0%
+  00:44  TRX/USD    buy  rejected  scout_auto     64.0%
+  03:33  OXT/USD    buy  rejected  scout_mover    67.0%
+  03:50  BNB/USD    buy  rejected  scout_auto     83.0%
+  04:52  ETHFI/USD  buy  rejected  scout_mover    64.0%
+  05:49  LDO/USD    buy  rejected  scout_auto     63.0%
+  05:52  LDO/USD    buy  rejected  scout_auto     63.0%
+  05:54  LDO/USD    buy  rejected  scout_auto     63.0%
+  05:57  LDO/USD    buy  rejected  scout_auto     63.0%
+  06:13  ETC/USD    buy  rejected  scout_auto     89.0%
+  06:37  ETC/USD    buy  rejected  scout_auto     89.0%
+  06:39  ETC/USD    buy  rejected  scout_auto     89.0%
+  06:39  ARB/USD    buy  rejected  scout_auto     59.0%
+  06:42  ETC/USD    buy  rejected  scout_auto     89.0%
+  06:42  ARB/USD    buy  rejected  scout_auto     59.0%
+  06:44  ARB/USD    buy  rejected  scout_auto     59.0%
+  06:48  ETC/USD    buy  rejected  scout_auto     89.0%
+  06:50  AAVE/USD   buy  rejected  scout_auto     67.0%
+  06:51  ETC/USD    buy  rejected  scout_auto     89.0%
+  07:11  ETHFI/USD  buy  rejected  scout_mover    61.5%
+  07:22  ETHFI/USD  buy  rejected  scout_mover    61.5%
+  08:04  ETHFI/USD  buy  rejected  scout_mover    59.0%
+  08:14  ETHFI/USD  buy  rejected  scout_mover    59.0%
+  08:24  ETHFI/USD  buy  rejected  scout_mover    59.0%
+  08:35  ETHFI/USD  buy  rejected  scout_mover    59.0%
+  08:37  POL/USD    buy  rejected  scout_auto     81.0%
+  08:38  KTA/USD    buy  rejected  scout_mover    67.0%
+  08:45  POL/USD    buy  rejected  scout_auto     81.0%
+  08:46  ETHFI/USD  buy  rejected  scout_mover    59.0%
+  08:51  BTC/USD    buy  rejected  scout_auto     89.0%
+  08:56  ETHFI/USD  buy  rejected  scout_mover    59.0%
+  08:59  BTC/USD    buy  rejected  scout_auto     89.0%
+  09:22  POL/USD    buy  rejected  scout_auto     84.0%
+  09:28  ETHFI/USD  buy  rejected  scout_mover    64.5%
+  09:28  POL/USD    buy  rejected  scout_auto     84.0%
+  09:36  LINK/USD   buy  rejected  scout_auto     92.0%
+  09:38  ETHFI/USD  buy  rejected  scout_mover    64.5%
+  09:43  LINK/USD   buy  rejected  scout_auto     92.0%
+  09:46  WLD/USD    buy  rejected  scout_auto     79.0%
+  09:49  WLD/USD    buy  rejected  scout_auto     84.0%
+  09:51  WLD/USD    buy  rejected  scout_auto     84.0%
+  09:51  KTA/USD    buy  rejected  scout_mover    67.0%
+  09:54  WLD/USD    buy  rejected  scout_auto     84.0%
+  09:59  XRP/USD    buy  rejected  scout_auto     100.0%
+  10:37  LRC/USD    buy  rejected  scout_mover    67.0%
+  10:37  ALGO/USD   buy  rejected  scout_auto     67.0%
+  10:44  PUMP/USD   buy  rejected  scout_auto     67.0%
+  10:47  PUMP/USD   buy  rejected  scout_auto     92.0%
+  10:47  UNI/USD    buy  rejected  scout_auto     96.0%
+  10:47  LRC/USD    buy  rejected  scout_mover    67.0%
+  10:49  PUMP/USD   buy  rejected  scout_auto     67.0%
+  10:49  UNI/USD    buy  rejected  scout_auto     51.0%
+  10:52  PUMP/USD   buy  rejected  scout_auto     67.0%
+  10:53  ALGO/USD   buy  rejected  scout_auto     67.0%
+  10:54  UNI/USD    buy  rejected  scout_auto     51.0%
+  10:55  PUMP/USD   buy  rejected  scout_auto     67.0%
+  10:58  PUMP/USD   buy  rejected  scout_auto     67.0%
+  11:34  INJ/USD    buy  rejected  scout_auto     88.0%
+  11:36  INJ/USD    buy  rejected  scout_auto     88.0%
+  11:39  INJ/USD    buy  rejected  scout_auto     88.0%
+  11:41  INJ/USD    buy  rejected  scout_auto     88.0%
+  11:45  INJ/USD    buy  rejected  scout_auto     88.0%
+  11:47  INJ/USD    buy  rejected  scout_auto     88.0%
+  11:50  INJ/USD    buy  rejected  scout_auto     88.0%
+  11:52  INJ/USD    buy  rejected  scout_auto     88.0%
+  11:57  INJ/USD    buy  rejected  scout_auto     88.0%
+  12:27  BCH/USD    buy  rejected  scout_auto     85.0%
+  12:38  BCH/USD    buy  rejected  scout_auto     95.0%
+  12:49  BCH/USD    buy  rejected  scout_auto     85.0%
+  12:54  ZEC/USD    buy  rejected  scout_auto     66.0%
+  12:56  ZEC/USD    buy  rejected  scout_auto     66.0%
+  12:59  BCH/USD    buy  rejected  scout_auto     95.0%
+  13:01  INJ/USD    buy  rejected  scout_auto     93.0%
+  13:01  JTO/USD    buy  rejected  scout_auto     85.0%
+  13:04  JTO/USD    buy  rejected  scout_auto     85.0%
+  13:06  JTO/USD    buy  rejected  scout_auto     85.0%
+  13:11  XPL/USD    buy  rejected  scout_auto     59.0%
+  13:55  TAO/USD    buy  rejected  scout_auto     87.0%
+  19:47  SOL/USD    buy  rejected  scout_auto     76.0%
+  19:57  SOL/USD    buy  rejected  scout_auto     76.0%
+  00:53  JUP/USD    buy  rejected  scout_auto     76.0%
+  00:57  JUP/USD    buy  rejected  scout_auto     76.0%
+  00:59  STX/USD    buy  rejected  scout_auto     55.0%
+  00:59  JUP/USD    buy  rejected  scout_auto     76.0%
+  01:50  JTO/USD    buy  rejected  scout_auto     71.6%
+  01:50  BNB/USD    buy  rejected  scout_auto     65.3%
+  01:52  JTO/USD    buy  rejected  scout_auto     72.4%
+  01:55  JTO/USD    buy  rejected  scout_auto     72.4%
+  01:57  JTO/USD    buy  rejected  scout_auto     72.4%
+  02:00  STX/USD    buy  rejected  scout_auto     85.0%
+  02:11  INJ/USD    buy  rejected  scout_auto     61.0%
+  02:13  INJ/USD    buy  rejected  scout_auto     61.0%
+  08:32  HBAR/USD   buy  rejected  scout_auto     100.0%
+  08:36  HBAR/USD   buy  rejected  scout_auto     78.0%
+  08:38  HBAR/USD   buy  rejected  scout_auto     78.0%
+  08:41  HBAR/USD   buy  rejected  scout_auto     100.0%
+  08:43  HBAR/USD   buy  rejected  scout_auto     100.0%
+  08:46  HBAR/USD   buy  rejected  scout_auto     100.0%
+  08:49  HBAR/USD   buy  rejected  scout_auto     100.0%
+  08:51  HBAR/USD   buy  rejected  scout_auto     100.0%
+  08:54  TIA/USD    buy  rejected  scout_auto     84.0%
+  08:57  HBAR/USD   buy  rejected  scout_auto     100.0%
+  08:59  HBAR/USD   buy  rejected  scout_auto     100.0%
+  10:28  LTC/USD    buy  rejected  scout_auto     84.0%
+  10:35  LTC/USD    buy  rejected  scout_auto     84.0%
+  10:44  LTC/USD    buy  rejected  scout_auto     84.0%
+  10:51  LTC/USD    buy  rejected  scout_auto     84.0%
+  10:59  TRX/USD    buy  rejected  scout_auto     92.0%
+  11:09  ALGO/USD   buy  rejected  scout_auto     89.0%
+  11:15  ALGO/USD   buy  rejected  scout_auto     64.0%
+  11:17  ALGO/USD   buy  rejected  scout_auto     67.0%
+  11:22  ALGO/USD   buy  rejected  scout_auto     67.0%
+  11:35  INJ/USD    buy  rejected  scout_auto     70.0%
+  11:35  ALGO/USD   buy  rejected  scout_auto     67.0%
+  11:38  INJ/USD    buy  rejected  scout_auto     70.0%
+  11:40  INJ/USD    buy  rejected  scout_auto     70.0%
+  11:43  INJ/USD    buy  rejected  scout_auto     70.0%
+  11:46  INJ/USD    buy  rejected  scout_auto     70.0%
+  11:49  INJ/USD    buy  rejected  scout_auto     70.0%
+  11:51  ONDO/USD   buy  rejected  scout_auto     79.0%
+  11:51  INJ/USD    buy  rejected  scout_auto     70.0%
+  11:51  OP/USD     buy  rejected  scout_auto     56.0%
+  11:54  ALGO/USD   buy  rejected  scout_auto     67.0%
+  11:54  INJ/USD    buy  rejected  scout_auto     70.0%
+  11:55  OP/USD     buy  rejected  scout_auto     56.0%
+  11:56  ALGO/USD   buy  rejected  scout_auto     67.0%
+  11:57  INJ/USD    buy  rejected  scout_auto     70.0%
+  11:57  OP/USD     buy  rejected  scout_auto     71.0%
+  11:57  TIA/USD    buy  rejected  scout_auto     87.0%
+  12:07  TIA/USD    buy  rejected  scout_auto     87.0%
+  12:10  TIA/USD    buy  rejected  scout_auto     87.0%
+  12:13  TIA/USD    buy  pending   scout_auto     87.0%
 
 rejection reasons today:
   00:00 ALGO/USD: Regime: high_vol (volatility rank 87/100); RSI oversold (29.0); BB oversold (%B=-0.00)
@@ -3338,3 +3875,538 @@ rejection reasons today:
   12:42 LINK/USD: Regime: bull_trend (volatility rank 80/100); 🔥 BREAKOUT — Phase 1 — Breakout — +1.9% move with 1.8x volume;   Breaking Bollinger upper band (BB%B=0.93)
   12:53 LINK/USD: Regime: bull_trend (volatility rank 81/100); 🔥 BREAKOUT — Phase 1 — Breakout — +1.9% move with 1.9x volume;   Breaking Bollinger upper band (BB%B=0.92)
   13:46 TIA/USD: Regime: bull_trend (volatility rank 91/100); 🚀 MOMENTUM RIDER — Phase 2 — Momentum — up +5.8% over 20 candles;   Strong uptrend (EMA spread 0.65%)
+  12:38 RENDER/USD: GET OUT NOW — trend reversed (EMA9 1.5210 < EMA21 1.5266, price 1.5220 under both)
+  12:41 ETC/USD: Regime: bull_trend (volatility rank 100/100); Pullback to EMA support in uptrend (RSI 61.1) — trend entry; MACD bullish (hist=0.0202)
+  12:43 APT/USD: Regime: bull_trend (volatility rank 83/100); Pullback to EMA support in uptrend (RSI 57.4) — trend entry; MACD bullish (hist=0.0005)
+  12:48 XPL/USD: Regime: high_vol (volatility rank 87/100); 🔥 BREAKOUT — Phase 1 — Breakout — +1.5% move with 5.1x volume;   Breaking Bollinger upper band (BB%B=1.00)
+  12:48 VET/USD: Mover: +10% on 24h
+  12:48 ETC/USD: Mover: +8% on 24h
+  12:52 OP/USD: Regime: ranging (volatility rank 37/100); RSI oversold (32.5); BB oversold (%B=-0.02)
+  12:54 XRP/USD: Regime: bull_trend (volatility rank 65/100); 🔥 BREAKOUT — Phase 1 — Breakout — +0.8% move with 1.4x volume;   Breaking Bollinger upper band (BB%B=0.89)
+  12:59 XPL/USD: Regime: high_vol (volatility rank 88/100); 🔥 BREAKOUT — Phase 1 — Breakout — +1.2% move with 6.1x volume;   Breaking Bollinger upper band (BB%B=0.98)
+  12:59 VET/USD: Mover: +11% on 24h
+  13:20 APT/USD: Regime: bull_trend (volatility rank 84/100); Pullback to EMA support in uptrend (RSI 57.3) — trend entry; MACD bullish (hist=0.0002)
+  13:36 APT/USD: Regime: bull_trend (volatility rank 84/100); Pullback to EMA support in uptrend (RSI 56.3) — trend entry; MACD bullish (hist=0.0000)
+  13:52 LDO/USD: Regime: ranging (volatility rank 53/100); BB oversold (%B=0.05); MACD bearish (hist=-0.0003)
+  13:54 OP/USD: Regime: ranging (volatility rank 31/100); RSI oversold (30.6); BB oversold (%B=-0.00)
+  13:57 PENGU/USD: Regime: high_vol (volatility rank 87/100); RSI oversold (32.7); BB oversold (%B=0.05)
+  06:20 GRASS/USD: Regime: bull_trend (volatility rank 98/100); MACD bullish (hist=0.0005); EMA bullish (short > long)
+  06:20 TAO/USD: Regime: bull_trend (volatility rank 78/100); 🔥 BREAKOUT — Phase 1 — Breakout — +1.8% move with 1.9x volume;   Breaking Bollinger upper band (BB%B=1.13)
+  06:20 TIA/USD: Regime: ranging (volatility rank 30/100); RSI oversold (33.7); BB oversold (%B=0.05)
+  06:21 PUMP/USD: Regime: ranging (volatility rank 72/100); 🔥 BREAKOUT — Phase 1 — Breakout — +2.8% move with 7.8x volume;   Breaking Bollinger upper band (BB%B=1.03)
+  06:21 GRASS/USD: Mover: +10% on 24h
+  06:22 HYPE/USD: Regime: bull_trend (volatility rank 17/100); 🚀 MOMENTUM RIDER — Phase 2 — Momentum — up +3.4% over 20 candles;   Strong uptrend (EMA spread 0.62%)
+  06:27 RENDER/USD: Regime: ranging (volatility rank 59/100); 🔥 BREAKOUT — Phase 1 — Breakout — +0.3% move with 1.8x volume;   Breaking Bollinger upper band (BB%B=0.99)
+  06:27 STX/USD: Regime: ranging (volatility rank 33/100); 🔥 BREAKOUT — Phase 1 — Breakout — +1.6% move with 2.7x volume;   Breaking Bollinger upper band (BB%B=1.11)
+  06:32 HYPE/USD: Regime: bull_trend (volatility rank 20/100); 🚀 MOMENTUM RIDER — Phase 2 — Momentum — up +3.5% over 20 candles;   Strong uptrend (EMA spread 0.63%)
+  06:32 JUP/USD: Regime: ranging (volatility rank 67/100); 🔥 BREAKOUT — Phase 1 — Breakout — +1.0% move with 1.3x volume;   Breaking Bollinger upper band (BB%B=0.90)
+  06:33 TAO/USD: Regime: bull_trend (volatility rank 78/100); 🔥 BREAKOUT — Phase 1 — Breakout — +2.0% move with 2.1x volume;   Breaking Bollinger upper band (BB%B=1.16)
+  06:33 PUMP/USD: Regime: ranging (volatility rank 71/100); 🔥 BREAKOUT — Phase 1 — Breakout — +3.1% move with 8.2x volume;   Breaking Bollinger upper band (BB%B=1.06)
+  06:35 GRASS/USD: Regime: bull_trend (volatility rank 98/100); Pullback to EMA support in uptrend (RSI 61.2) — trend entry; MACD bullish (hist=0.0003)
+  06:38 RENDER/USD: Regime: ranging (volatility rank 63/100); 🔥 BREAKOUT — Phase 1 — Breakout — +0.5% move with 1.9x volume;   Breaking Bollinger upper band (BB%B=1.02)
+  06:43 JUP/USD: Regime: ranging (volatility rank 68/100); 🔥 BREAKOUT — Phase 1 — Breakout — +1.3% move with 2.0x volume;   Breaking Bollinger upper band (BB%B=0.94)
+  06:43 HYPE/USD: Regime: bull_trend (volatility rank 20/100); 🚀 MOMENTUM RIDER — Phase 2 — Momentum — up +3.6% over 20 candles;   Strong uptrend (EMA spread 0.64%)
+  06:43 TAO/USD: Regime: bull_trend (volatility rank 80/100); 🔥 BREAKOUT — Phase 1 — Breakout — +1.9% move with 3.3x volume;   Breaking Bollinger upper band (BB%B=1.15)
+  06:44 GRASS/USD: Mover: +10% on 24h
+  06:51 RENDER/USD: Regime: ranging (volatility rank 63/100); 🔥 BREAKOUT — Phase 1 — Breakout — +0.3% move with 2.0x volume;   Breaking Bollinger upper band (BB%B=0.98)
+  06:51 APT/USD: Regime: ranging (volatility rank 46/100); 🔥 BREAKOUT — Phase 1 — Breakout — +1.3% move with 2.2x volume;   Breaking Bollinger upper band (BB%B=1.07)
+  06:54 GRASS/USD: Regime: bull_trend (volatility rank 98/100); MACD bullish (hist=0.0004); EMA bullish (short > long)
+  06:54 JUP/USD: Regime: ranging (volatility rank 68/100); 🔥 BREAKOUT — Phase 1 — Breakout — +1.5% move with 3.3x volume;   Breaking Bollinger upper band (BB%B=0.96)
+  06:54 RAY/USD: Mover: +10% on 24h
+  07:39 TAO/USD: Regime: bull_trend (volatility rank 81/100); 🔥 BREAKOUT — Phase 1 — Breakout — +3.1% move with 1.3x volume;   Breaking Bollinger upper band (BB%B=0.91)
+  07:49 TAO/USD: Regime: bull_trend (volatility rank 84/100); 🔥 BREAKOUT — Phase 1 — Breakout — +3.1% move with 1.4x volume;   Breaking Bollinger upper band (BB%B=0.91)
+  07:52 ETH/USD: Regime: ranging (volatility rank 54/100); 🔥 BREAKOUT — Phase 1 — Breakout — +0.8% move with 1.4x volume;   Breaking Bollinger upper band (BB%B=0.82)
+  08:01 BNB/USD: Regime: ranging (volatility rank 37/100); RSI oversold (34.1); BB oversold (%B=-0.03)
+  08:03 TIA/USD: Regime: ranging (volatility rank 25/100); RSI oversold (27.9); BB oversold (%B=-0.00)
+  08:10 MOODENG/USD: Regime: ranging (volatility rank 44/100); 🔥 BREAKOUT — Phase 1 — Breakout — +2.3% move with 1.2x volume;   Breaking Bollinger upper band (BB%B=1.06)
+  08:13 TIA/USD: Regime: ranging (volatility rank 29/100); RSI oversold (29.0); BB oversold (%B=0.03)
+  08:16 BNB/USD: Regime: ranging (volatility rank 46/100); RSI oversold (31.5); BB oversold (%B=-0.12)
+  08:18 GRASS/USD: Regime: bull_trend (volatility rank 99/100); Pullback to EMA support in uptrend (RSI 62.8) — trend entry; MACD bearish (hist=-0.0005)
+  08:19 GRASS/USD: Mover: +10% on 24h
+  08:21 MOODENG/USD: Regime: ranging (volatility rank 44/100); 🔥 BREAKOUT — Phase 1 — Breakout — +2.2% move with 1.8x volume;   Breaking Bollinger upper band (BB%B=1.03)
+  08:24 TIA/USD: Regime: ranging (volatility rank 29/100); RSI oversold (29.0); BB oversold (%B=0.03)
+  08:29 LRC/USD: Mover: +20% on 24h
+  08:31 DOT/USD: Regime: high_vol (volatility rank 87/100); RSI oversold (31.3); BB oversold (%B=0.02)
+  08:31 GRASS/USD: Regime: bull_trend (volatility rank 100/100); 🔥 BREAKOUT — Phase 1 — Breakout — +0.3% move with 1.6x volume;   Breaking Bollinger upper band (BB%B=0.80)
+  08:31 MOODENG/USD: Regime: ranging (volatility rank 44/100); 🔥 BREAKOUT — Phase 1 — Breakout — +2.8% move with 2.2x volume;   Breaking Bollinger upper band (BB%B=1.16)
+  08:32 XMR/USD: Mover: -5% on 24h
+  08:42 DOT/USD: Regime: high_vol (volatility rank 88/100); RSI oversold (29.8); BB oversold (%B=-0.01)
+  08:42 GRASS/USD: Regime: bull_trend (volatility rank 100/100); 🔥 BREAKOUT — Phase 1 — Breakout — +1.1% move with 1.7x volume;   Breaking Bollinger upper band (BB%B=0.84)
+  08:42 MOODENG/USD: Regime: ranging (volatility rank 44/100); 🔥 BREAKOUT — Phase 1 — Breakout — +2.5% move with 2.4x volume;   Breaking Bollinger upper band (BB%B=1.10)
+  08:47 BNB/USD: Regime: ranging (volatility rank 50/100); RSI oversold (32.6); BB oversold (%B=-0.08)
+  08:47 TIA/USD: Regime: ranging (volatility rank 30/100); RSI oversold (29.5); BB oversold (%B=0.04)
+  08:52 DOT/USD: Regime: high_vol (volatility rank 88/100); RSI oversold (30.1); BB oversold (%B=-0.01)
+  08:58 TIA/USD: Regime: ranging (volatility rank 35/100); RSI oversold (25.9); BB oversold (%B=-0.06)
+  09:01 BNB/USD: Regime: ranging (volatility rank 45/100); RSI oversold (31.1); BB oversold (%B=-0.04)
+  09:03 OP/USD: Regime: low_vol (volatility rank 22/100); RSI oversold (32.1); BB oversold (%B=-0.05)
+  09:08 APT/USD: Regime: bull_trend (volatility rank 78/100); Pullback to EMA support in uptrend (RSI 57.1) — trend entry; MACD bullish (hist=0.0016)
+  10:55 ARB/USD: Regime: ranging (volatility rank 38/100); RSI oversold (19.1); BB oversold (%B=-0.21)
+  10:55 MOODENG/USD: Regime: high_vol (volatility rank 76/100); 🔥 BREAKOUT — Phase 1 — Breakout — +1.5% move with 2.5x volume;   Breaking Bollinger upper band (BB%B=1.11)
+  10:55 OP/USD: Regime: ranging (volatility rank 29/100); MACD bearish (hist=-0.0001); EMA bearish (short < long)
+  10:55 ZEC/USD: Regime: bull_trend (volatility rank 67/100); 🔥 BREAKOUT — Phase 1 — Breakout — +1.1% move with 1.3x volume;   Breaking Bollinger upper band (BB%B=0.82)
+  12:30 FARTCOIN/USD: Regime: high_vol (volatility rank 96/100); RSI oversold (29.1); BB oversold (%B=-0.16)
+  12:32 RENDER/USD: Regime: ranging (volatility rank 67/100); 🔥 BREAKOUT — Phase 1 — Breakout — +1.8% move with 1.2x volume;   Breaking Bollinger upper band (BB%B=0.89)
+  12:40 FARTCOIN/USD: Regime: high_vol (volatility rank 95/100); RSI oversold (32.7); BB oversold (%B=-0.04)
+  12:48 PENGU/USD: Regime: ranging (volatility rank 56/100); RSI oversold (31.8); BB oversold (%B=0.04)
+  12:51 FARTCOIN/USD: Regime: high_vol (volatility rank 95/100); RSI oversold (32.4); BB oversold (%B=-0.05)
+  12:57 TRX/USD: Regime: ranging (volatility rank 64/100); 🔥 BREAKOUT — Phase 1 — Breakout — +0.4% move with 1.7x volume;   Breaking Bollinger upper band (BB%B=0.82)
+  12:59 PENGU/USD: Regime: ranging (volatility rank 61/100); RSI oversold (30.7); BB oversold (%B=0.01)
+  13:09 PENGU/USD: Regime: ranging (volatility rank 50/100); RSI oversold (28.5); BB oversold (%B=0.02)
+  13:18 XPL/USD: Regime: ranging (volatility rank 75/100); RSI oversold (34.6); BB oversold (%B=0.02)
+  13:31 PENGU/USD: Regime: ranging (volatility rank 52/100); RSI oversold (28.5); BB oversold (%B=0.02)
+  19:23 STX/USD: Regime: ranging (volatility rank 50/100); RSI oversold (24.2); BB oversold (%B=0.03)
+  19:33 STX/USD: Regime: ranging (volatility rank 50/100); RSI oversold (23.8); BB oversold (%B=0.03)
+  19:43 STX/USD: Regime: ranging (volatility rank 50/100); RSI oversold (25.4); BB oversold (%B=0.04)
+  19:47 STX/USD: Regime: ranging (volatility rank 50/100); RSI oversold (25.4); BB oversold (%B=0.04)
+  00:10 TRAC/USD: Mover: +9% on 24h
+  00:42 RAY/USD: Mover: +14% on 24h
+  01:51 ETH/USD: Regime: ranging (volatility rank 34/100); 🔥 BREAKOUT — Phase 1 — Breakout — +0.8% move with 1.4x volume;   Breaking Bollinger upper band (BB%B=0.75)
+  02:28 0G/USD: Mover: +6% on 24h
+  02:56 0G/USD: Mover: +6% on 24h
+  03:42 WLD/USD: Regime: low_vol (volatility rank 21/100); RSI oversold (32.9); BB oversold (%B=0.04)
+  04:29 POL/USD: Regime: ranging (volatility rank 72/100); 🔥 BREAKOUT — Phase 1 — Breakout — +2.3% move with 3.2x volume;   Breaking Bollinger upper band (BB%B=0.99)
+  04:31 POL/USD: Regime: ranging (volatility rank 72/100); 🔥 BREAKOUT — Phase 1 — Breakout — +2.2% move with 3.2x volume;   Breaking Bollinger upper band (BB%B=0.96)
+  04:40 POL/USD: Regime: ranging (volatility rank 72/100); 🔥 BREAKOUT — Phase 1 — Breakout — +2.2% move with 4.7x volume;   Breaking Bollinger upper band (BB%B=0.97)
+  04:42 POL/USD: Regime: ranging (volatility rank 72/100); 🔥 BREAKOUT — Phase 1 — Breakout — +2.3% move with 4.8x volume;   Breaking Bollinger upper band (BB%B=0.98)
+  04:45 TIA/USD: Regime: ranging (volatility rank 30/100); RSI oversold (25.4); BB oversold (%B=-0.09)
+  05:17 GRASS/USD: Regime: ranging (volatility rank 68/100); RSI oversold (30.4); BB oversold (%B=-0.14)
+  05:17 WLD/USD: Regime: ranging (volatility rank 26/100); RSI oversold (28.1); BB oversold (%B=-0.04)
+  05:19 GRASS/USD: Regime: ranging (volatility rank 68/100); RSI oversold (30.2); BB oversold (%B=-0.15)
+  05:22 GRASS/USD: Regime: ranging (volatility rank 68/100); RSI oversold (30.2); BB oversold (%B=-0.15)
+  05:25 GRASS/USD: Regime: ranging (volatility rank 68/100); RSI oversold (30.2); BB oversold (%B=-0.15)
+  05:28 GRASS/USD: Regime: ranging (volatility rank 68/100); RSI oversold (30.2); BB oversold (%B=-0.15)
+  05:30 GRASS/USD: Regime: ranging (volatility rank 68/100); RSI oversold (30.2); BB oversold (%B=-0.15)
+  05:33 WLD/USD: Regime: ranging (volatility rank 25/100); RSI oversold (30.3); BB oversold (%B=0.04)
+  05:49 ADA/USD: Regime: ranging (volatility rank 28/100); RSI oversold (25.9); BB oversold (%B=-0.02)
+  06:12 HBAR/USD: Regime: low_vol (volatility rank 9/100); RSI oversold (28.1); BB oversold (%B=0.04)
+  06:13 TIA/USD: Regime: low_vol (volatility rank 24/100); RSI oversold (21.9); BB oversold (%B=-0.02)
+  06:15 TIA/USD: Regime: low_vol (volatility rank 24/100); RSI oversold (22.0); BB oversold (%B=-0.02)
+  06:17 TIA/USD: Regime: low_vol (volatility rank 24/100); RSI oversold (23.1); BB oversold (%B=0.01)
+  06:20 TIA/USD: Regime: low_vol (volatility rank 24/100); RSI oversold (23.1); BB oversold (%B=0.01)
+  06:23 TIA/USD: Regime: low_vol (volatility rank 24/100); RSI oversold (22.2); BB oversold (%B=-0.01)
+  06:25 TIA/USD: Regime: low_vol (volatility rank 24/100); RSI oversold (22.2); BB oversold (%B=-0.01)
+  06:26 TIA/USD: Regime: low_vol (volatility rank 24/100); RSI oversold (22.9); BB oversold (%B=0.00)
+  06:28 TIA/USD: Regime: low_vol (volatility rank 24/100); RSI oversold (23.4); BB oversold (%B=0.02)
+  06:31 TIA/USD: Regime: ranging (volatility rank 33/100); RSI oversold (23.4); BB oversold (%B=0.02)
+  06:39 ETH/USD: Regime: high_vol (volatility rank 79/100); 🔥 BREAKOUT — Phase 1 — Breakout — +0.7% move with 2.8x volume;   Breaking Bollinger upper band (BB%B=1.16)
+  06:40 LTC/USD: Regime: ranging (volatility rank 38/100); 🔥 BREAKOUT — Phase 1 — Breakout — +0.2% move with 1.6x volume;   Breaking Bollinger upper band (BB%B=0.91)
+  06:42 AAVE/USD: Regime: ranging (volatility rank 31/100); 🔥 BREAKOUT — Phase 1 — Breakout — +1.8% move with 4.3x volume;   Breaking Bollinger upper band (BB%B=1.18)
+  06:42 ETH/USD: Regime: high_vol (volatility rank 82/100); 🔥 BREAKOUT — Phase 1 — Breakout — +0.6% move with 3.0x volume;   Breaking Bollinger upper band (BB%B=1.14)
+  06:44 ETH/USD: Regime: high_vol (volatility rank 82/100); 🔥 BREAKOUT — Phase 1 — Breakout — +0.7% move with 3.2x volume;   Breaking Bollinger upper band (BB%B=1.15)
+  06:45 ETH/USD: Regime: high_vol (volatility rank 81/100); 🔥 BREAKOUT — Phase 1 — Breakout — +0.9% move with 3.3x volume;   Breaking Bollinger upper band (BB%B=1.21)
+  06:48 AAVE/USD: Regime: ranging (volatility rank 31/100); 🔥 BREAKOUT — Phase 1 — Breakout — +1.8% move with 4.6x volume;   Breaking Bollinger upper band (BB%B=1.18)
+  06:49 NEAR/USD: Regime: high_vol (volatility rank 88/100); 🔥 BREAKOUT — Phase 1 — Breakout — +3.7% move with 3.6x volume;   Breaking Bollinger upper band (BB%B=1.07)
+  06:50 LTC/USD: Regime: ranging (volatility rank 38/100); 🔥 BREAKOUT — Phase 1 — Breakout — +0.2% move with 2.3x volume;   Breaking Bollinger upper band (BB%B=0.92)
+  06:51 AAVE/USD: Regime: ranging (volatility rank 31/100); 🔥 BREAKOUT — Phase 1 — Breakout — +1.9% move with 4.7x volume;   Breaking Bollinger upper band (BB%B=1.20)
+  06:53 LTC/USD: Regime: ranging (volatility rank 42/100); 🔥 BREAKOUT — Phase 1 — Breakout — +0.4% move with 2.4x volume;   Breaking Bollinger upper band (BB%B=0.96)
+  06:54 POPCAT/USD: Regime: ranging (volatility rank 49/100); 🔥 BREAKOUT — Phase 1 — Breakout — +0.6% move with 3.0x volume;   Breaking Bollinger upper band (BB%B=0.89)
+  06:54 PENGU/USD: Regime: ranging (volatility rank 33/100); 🔥 BREAKOUT — Phase 1 — Breakout — +1.4% move with 5.2x volume;   Breaking Bollinger upper band (BB%B=0.94)
+  06:54 ONDO/USD: Regime: ranging (volatility rank 48/100); 🔥 BREAKOUT — Phase 1 — Breakout — +2.0% move with 5.0x volume;   Breaking Bollinger upper band (BB%B=1.26)
+  06:54 TRUMP/USD: Regime: ranging (volatility rank 61/100); 🔥 BREAKOUT — Phase 1 — Breakout — +2.4% move with 4.0x volume;   Breaking Bollinger upper band (BB%B=1.09)
+  06:54 VIRTUAL/USD: Regime: ranging (volatility rank 32/100); 🔥 BREAKOUT — Phase 1 — Breakout — +1.4% move with 4.6x volume;   Breaking Bollinger upper band (BB%B=1.14)
+  06:54 DOGE/USD: Regime: low_vol (volatility rank 18/100); 🔥 BREAKOUT — Phase 1 — Breakout — +1.4% move with 4.2x volume;   Breaking Bollinger upper band (BB%B=1.27)
+  06:54 WIF/USD: Regime: ranging (volatility rank 51/100); 🔥 BREAKOUT — Phase 1 — Breakout — +1.5% move with 2.8x volume;   Breaking Bollinger upper band (BB%B=0.99)
+  06:55 WLD/USD: Regime: ranging (volatility rank 43/100); 🔥 BREAKOUT — Phase 1 — Breakout — +2.2% move with 5.2x volume;   Breaking Bollinger upper band (BB%B=1.13)
+  06:55 XRP/USD: Regime: high_vol (volatility rank 84/100); 🔥 BREAKOUT — Phase 1 — Breakout — +1.2% move with 2.8x volume;   Breaking Bollinger upper band (BB%B=1.07)
+  06:56 AIXBT/USD: Regime: ranging (volatility rank 36/100); 🔥 BREAKOUT — Phase 1 — Breakout — +2.6% move with 4.4x volume;   Breaking Bollinger upper band (BB%B=1.06)
+  06:56 AAVE/USD: Regime: ranging (volatility rank 31/100); 🔥 BREAKOUT — Phase 1 — Breakout — +1.9% move with 4.8x volume;   Breaking Bollinger upper band (BB%B=1.20)
+  06:56 BCH/USD: Regime: bear_trend (volatility rank 80/100); 🔥 BREAKOUT — Phase 1 — Breakout — +0.8% move with 6.2x volume;   Breaking Bollinger upper band (BB%B=0.98)
+  06:56 HYPE/USD: Regime: high_vol (volatility rank 94/100); 🔥 BREAKOUT — Phase 1 — Breakout — +2.0% move with 3.4x volume;   Breaking Bollinger upper band (BB%B=1.16)
+  06:56 JTO/USD: Regime: ranging (volatility rank 42/100); 🔥 BREAKOUT — Phase 1 — Breakout — +3.0% move with 1.5x volume;   Breaking Bollinger upper band (BB%B=1.22)
+  06:56 LTC/USD: Regime: ranging (volatility rank 42/100); 🔥 BREAKOUT — Phase 1 — Breakout — +0.4% move with 2.4x volume;   Breaking Bollinger upper band (BB%B=0.96)
+  06:57 KAITO/USD: Regime: ranging (volatility rank 61/100); 🔥 BREAKOUT — Phase 1 — Breakout — +0.9% move with 4.2x volume;   Breaking Bollinger upper band (BB%B=0.97)
+  06:57 LDO/USD: Regime: ranging (volatility rank 48/100); 🔥 BREAKOUT — Phase 1 — Breakout — +1.6% move with 3.8x volume;   Breaking Bollinger upper band (BB%B=1.15)
+  06:57 PENGU/USD: Regime: ranging (volatility rank 34/100); 🔥 BREAKOUT — Phase 1 — Breakout — +1.2% move with 5.5x volume;   Breaking Bollinger upper band (BB%B=0.91)
+  06:57 POPCAT/USD: Regime: ranging (volatility rank 50/100); 🔥 BREAKOUT — Phase 1 — Breakout — +0.4% move with 3.1x volume;   Breaking Bollinger upper band (BB%B=0.83)
+  06:58 WIF/USD: Regime: ranging (volatility rank 51/100); 🔥 BREAKOUT — Phase 1 — Breakout — +1.3% move with 2.9x volume;   Breaking Bollinger upper band (BB%B=0.96)
+  06:58 VIRTUAL/USD: Regime: ranging (volatility rank 33/100); 🔥 BREAKOUT — Phase 1 — Breakout — +1.7% move with 4.6x volume;   Breaking Bollinger upper band (BB%B=1.19)
+  06:58 XRP/USD: Regime: high_vol (volatility rank 84/100); 🔥 BREAKOUT — Phase 1 — Breakout — +1.2% move with 2.9x volume;   Breaking Bollinger upper band (BB%B=1.06)
+  06:58 DOGE/USD: Regime: low_vol (volatility rank 18/100); 🔥 BREAKOUT — Phase 1 — Breakout — +1.2% move with 4.2x volume;   Breaking Bollinger upper band (BB%B=1.23)
+  06:58 XCN/USD: Mover: +11% on 24h
+  06:58 LIGHTER/USD: Mover: +8% on 24h
+  07:00 TRX/USD: Regime: high_vol (volatility rank 97/100); RSI oversold (19.3); BB oversold (%B=0.02)
+  07:15 TRX/USD: Regime: high_vol (volatility rank 99/100); RSI oversold (18.5); BB oversold (%B=-0.00)
+  07:19 ETH/USD: Regime: high_vol (volatility rank 92/100); 🔥 BREAKOUT — Phase 1 — Breakout — +1.3% move with 1.4x volume;   Breaking Bollinger upper band (BB%B=1.03)
+  07:20 ETH/USD: Regime: high_vol (volatility rank 92/100); 🔥 BREAKOUT — Phase 1 — Breakout — +1.3% move with 1.5x volume;   Breaking Bollinger upper band (BB%B=1.05)
+  07:26 ETH/USD: Regime: high_vol (volatility rank 92/100); 🔥 BREAKOUT — Phase 1 — Breakout — +1.5% move with 1.6x volume;   Breaking Bollinger upper band (BB%B=1.08)
+  07:26 SOL/USD: Regime: high_vol (volatility rank 87/100); 🔥 BREAKOUT — Phase 1 — Breakout — +1.9% move with 1.2x volume;   Breaking Bollinger upper band (BB%B=1.07)
+  07:28 FARTCOIN/USD: Regime: ranging (volatility rank 36/100); 🔥 BREAKOUT — Phase 1 — Breakout — +3.7% move with 2.1x volume;   Breaking Bollinger upper band (BB%B=1.03)
+  07:28 ETH/USD: Regime: high_vol (volatility rank 92/100); 🔥 BREAKOUT — Phase 1 — Breakout — +1.3% move with 1.7x volume;   Breaking Bollinger upper band (BB%B=1.05)
+  07:31 FARTCOIN/USD: Regime: ranging (volatility rank 36/100); 🔥 BREAKOUT — Phase 1 — Breakout — +3.7% move with 3.0x volume;   Breaking Bollinger upper band (BB%B=1.03)
+  07:31 ETH/USD: Regime: high_vol (volatility rank 92/100); 🔥 BREAKOUT — Phase 1 — Breakout — +1.4% move with 1.8x volume;   Breaking Bollinger upper band (BB%B=1.07)
+  07:32 LIGHTER/USD: Mover: +8% on 24h
+  07:33 FARTCOIN/USD: Regime: ranging (volatility rank 41/100); 🔥 BREAKOUT — Phase 1 — Breakout — +3.4% move with 3.0x volume;   Breaking Bollinger upper band (BB%B=0.99)
+  07:34 ETH/USD: Regime: high_vol (volatility rank 92/100); 🔥 BREAKOUT — Phase 1 — Breakout — +1.1% move with 1.9x volume;   Breaking Bollinger upper band (BB%B=0.98)
+  07:36 ETH/USD: Regime: high_vol (volatility rank 92/100); 🔥 BREAKOUT — Phase 1 — Breakout — +1.2% move with 1.9x volume;   Breaking Bollinger upper band (BB%B=1.02)
+  07:37 ETH/USD: Regime: high_vol (volatility rank 94/100); 🔥 BREAKOUT — Phase 1 — Breakout — +0.9% move with 1.9x volume;   Breaking Bollinger upper band (BB%B=0.93)
+  07:37 FARTCOIN/USD: Regime: ranging (volatility rank 42/100); 🔥 BREAKOUT — Phase 1 — Breakout — +3.2% move with 3.1x volume;   Breaking Bollinger upper band (BB%B=0.97)
+  07:37 NEAR/USD: Regime: bull_trend (volatility rank 94/100); 🔥 BREAKOUT — Phase 1 — Breakout — +3.9% move with 2.0x volume;   Breaking Bollinger upper band (BB%B=0.99)
+  07:39 FARTCOIN/USD: Regime: ranging (volatility rank 39/100); 🔥 BREAKOUT — Phase 1 — Breakout — +3.9% move with 3.1x volume;   Breaking Bollinger upper band (BB%B=1.06)
+  07:39 ETH/USD: Regime: high_vol (volatility rank 94/100); 🔥 BREAKOUT — Phase 1 — Breakout — +1.3% move with 1.9x volume;   Breaking Bollinger upper band (BB%B=1.04)
+  07:42 AAVE/USD: Regime: ranging (volatility rank 34/100); 🔥 BREAKOUT — Phase 1 — Breakout — +2.0% move with 1.5x volume;   Breaking Bollinger upper band (BB%B=1.05)
+  07:43 BCH/USD: Regime: bear_trend (volatility rank 75/100); 🔥 BREAKOUT — Phase 1 — Breakout — +1.7% move with 1.5x volume;   Breaking Bollinger upper band (BB%B=0.90)
+  07:43 OP/USD: Regime: low_vol (volatility rank 25/100); 🔥 BREAKOUT — Phase 1 — Breakout — +1.5% move with 1.8x volume;   Breaking Bollinger upper band (BB%B=0.81)
+  07:43 XRP/USD: Regime: high_vol (volatility rank 90/100); 🔥 BREAKOUT — Phase 1 — Breakout — +2.1% move with 2.4x volume;   Breaking Bollinger upper band (BB%B=1.04)
+  07:44 LIGHTER/USD: Mover: +9% on 24h
+  07:44 AAVE/USD: Regime: ranging (volatility rank 34/100); 🔥 BREAKOUT — Phase 1 — Breakout — +2.1% move with 1.7x volume;   Breaking Bollinger upper band (BB%B=1.06)
+  07:44 BCH/USD: Regime: bear_trend (volatility rank 75/100); 🔥 BREAKOUT — Phase 1 — Breakout — +1.9% move with 1.6x volume;   Breaking Bollinger upper band (BB%B=0.97)
+  07:45 OP/USD: Regime: ranging (volatility rank 28/100); 🔥 BREAKOUT — Phase 1 — Breakout — +2.0% move with 2.7x volume;   Breaking Bollinger upper band (BB%B=0.94)
+  07:45 UNI/USD: Regime: ranging (volatility rank 32/100); 🔥 BREAKOUT — Phase 1 — Breakout — +2.8% move with 1.3x volume;   Breaking Bollinger upper band (BB%B=0.95)
+  07:45 XRP/USD: Regime: high_vol (volatility rank 90/100); 🔥 BREAKOUT — Phase 1 — Breakout — +1.8% move with 2.4x volume;   Breaking Bollinger upper band (BB%B=0.97)
+  07:48 BCH/USD: Regime: bear_trend (volatility rank 81/100); 🔥 BREAKOUT — Phase 1 — Breakout — +2.3% move with 1.7x volume;   Breaking Bollinger upper band (BB%B=1.07)
+  07:48 HYPE/USD: Regime: high_vol (volatility rank 97/100); 🔥 BREAKOUT — Phase 1 — Breakout — +2.8% move with 1.5x volume;   Breaking Bollinger upper band (BB%B=1.02)
+  07:48 ONDO/USD: Regime: ranging (volatility rank 53/100); 🔥 BREAKOUT — Phase 1 — Breakout — +2.4% move with 2.2x volume;   Breaking Bollinger upper band (BB%B=1.07)
+  07:48 LINK/USD: Regime: ranging (volatility rank 53/100); 🔥 BREAKOUT — Phase 1 — Breakout — +2.9% move with 1.4x volume;   Breaking Bollinger upper band (BB%B=1.09)
+  07:49 OP/USD: Regime: ranging (volatility rank 28/100); 🔥 BREAKOUT — Phase 1 — Breakout — +1.8% move with 2.9x volume;   Breaking Bollinger upper band (BB%B=0.89)
+  07:49 PENGU/USD: Regime: ranging (volatility rank 46/100); 🔥 BREAKOUT — Phase 1 — Breakout — +1.9% move with 1.6x volume;   Breaking Bollinger upper band (BB%B=0.80)
+  07:49 XRP/USD: Regime: high_vol (volatility rank 91/100); 🔥 BREAKOUT — Phase 1 — Breakout — +2.5% move with 2.6x volume;   Breaking Bollinger upper band (BB%B=1.12)
+  07:50 ADA/USD: Regime: high_vol (volatility rank 87/100); 🔥 BREAKOUT — Phase 1 — Breakout — +3.6% move with 2.8x volume;   Breaking Bollinger upper band (BB%B=0.87)
+  07:50 AVAX/USD: Regime: high_vol (volatility rank 100/100); 🔥 BREAKOUT — Phase 1 — Breakout — +3.6% move with 2.2x volume;   Breaking Bollinger upper band (BB%B=1.01)
+  07:50 BCH/USD: Regime: bear_trend (volatility rank 90/100); 🔥 BREAKOUT — Phase 1 — Breakout — +3.2% move with 1.9x volume;   Breaking Bollinger upper band (BB%B=1.25)
+  07:50 CRV/USD: Regime: ranging (volatility rank 44/100); 🔥 BREAKOUT — Phase 1 — Breakout — +2.4% move with 2.4x volume;   Breaking Bollinger upper band (BB%B=0.93)
+  07:51 ETC/USD: Regime: ranging (volatility rank 65/100); 🔥 BREAKOUT — Phase 1 — Breakout — +3.5% move with 2.9x volume;   Breaking Bollinger upper band (BB%B=1.08)
+  07:51 FIL/USD: Regime: ranging (volatility rank 48/100); 🔥 BREAKOUT — Phase 1 — Breakout — +2.9% move with 2.7x volume;   Breaking Bollinger upper band (BB%B=0.96)
+  07:51 OP/USD: Regime: ranging (volatility rank 36/100); 🔥 BREAKOUT — Phase 1 — Breakout — +3.0% move with 3.0x volume;   Breaking Bollinger upper band (BB%B=1.12)
+  07:51 POPCAT/USD: Regime: ranging (volatility rank 50/100); 🔥 BREAKOUT — Phase 1 — Breakout — +1.2% move with 2.0x volume;   Breaking Bollinger upper band (BB%B=0.83)
+  07:51 RENDER/USD: Regime: high_vol (volatility rank 78/100); 🔥 BREAKOUT — Phase 1 — Breakout — +2.4% move with 1.2x volume;   Breaking Bollinger upper band (BB%B=0.91)
+  07:51 SUI/USD: Regime: ranging (volatility rank 63/100); 🔥 BREAKOUT — Phase 1 — Breakout — +2.2% move with 1.5x volume;   Breaking Bollinger upper band (BB%B=0.96)
+  07:52 S/USD: Regime: ranging (volatility rank 38/100); 🔥 BREAKOUT — Phase 1 — Breakout — +1.9% move with 2.0x volume;   Breaking Bollinger upper band (BB%B=1.15)
+  07:52 TAO/USD: Regime: bear_trend (volatility rank 61/100); 🔥 BREAKOUT — Phase 1 — Breakout — +3.7% move with 1.4x volume;   Breaking Bollinger upper band (BB%B=0.98)
+  07:52 WIF/USD: Regime: high_vol (volatility rank 78/100); 🔥 BREAKOUT — Phase 1 — Breakout — +2.9% move with 2.1x volume;   Breaking Bollinger upper band (BB%B=1.08)
+  07:53 AVAX/USD: Regime: high_vol (volatility rank 100/100); 🔥 BREAKOUT — Phase 1 — Breakout — +3.8% move with 2.2x volume;   Breaking Bollinger upper band (BB%B=1.04)
+  07:53 FIL/USD: Regime: ranging (volatility rank 52/100); 🔥 BREAKOUT — Phase 1 — Breakout — +3.5% move with 2.7x volume;   Breaking Bollinger upper band (BB%B=1.06)
+  07:53 CRV/USD: Regime: ranging (volatility rank 52/100); 🔥 BREAKOUT — Phase 1 — Breakout — +3.4% move with 2.6x volume;   Breaking Bollinger upper band (BB%B=1.08)
+  07:54 HBAR/USD: Regime: high_vol (volatility rank 76/100); 🔥 BREAKOUT — Phase 1 — Breakout — +3.0% move with 1.7x volume;   Breaking Bollinger upper band (BB%B=1.02)
+  07:54 OP/USD: Regime: ranging (volatility rank 42/100); 🔥 BREAKOUT — Phase 1 — Breakout — +3.5% move with 3.1x volume;   Breaking Bollinger upper band (BB%B=1.20)
+  07:54 PENGU/USD: Regime: ranging (volatility rank 62/100); 🔥 BREAKOUT — Phase 1 — Breakout — +3.6% move with 4.1x volume;   Breaking Bollinger upper band (BB%B=1.17)
+  07:57 FIL/USD: Regime: ranging (volatility rank 55/100); 🔥 BREAKOUT — Phase 1 — Breakout — +3.6% move with 2.7x volume;   Breaking Bollinger upper band (BB%B=1.08)
+  07:57 POPCAT/USD: Regime: ranging (volatility rank 50/100); 🔥 BREAKOUT — Phase 1 — Breakout — +1.2% move with 2.0x volume;   Breaking Bollinger upper band (BB%B=0.83)
+  07:57 RENDER/USD: Regime: high_vol (volatility rank 84/100); 🔥 BREAKOUT — Phase 1 — Breakout — +3.3% move with 1.6x volume;   Breaking Bollinger upper band (BB%B=1.07)
+  07:57 SUI/USD: Regime: ranging (volatility rank 70/100); 🔥 BREAKOUT — Phase 1 — Breakout — +3.2% move with 1.8x volume;   Breaking Bollinger upper band (BB%B=1.13)
+  08:08 POPCAT/USD: Regime: ranging (volatility rank 54/100); 🔥 BREAKOUT — Phase 1 — Breakout — +3.6% move with 5.6x volume;   Breaking Bollinger upper band (BB%B=1.07)
+  08:11 POPCAT/USD: Regime: ranging (volatility rank 55/100); 🔥 BREAKOUT — Phase 1 — Breakout — +3.6% move with 5.7x volume;   Breaking Bollinger upper band (BB%B=1.07)
+  08:15 POL/USD: Regime: high_vol (volatility rank 92/100); 🔥 BREAKOUT — Phase 1 — Breakout — +3.1% move with 1.2x volume;   Breaking Bollinger upper band (BB%B=1.04)
+  08:16 POL/USD: Regime: high_vol (volatility rank 92/100); 🔥 BREAKOUT — Phase 1 — Breakout — +3.0% move with 1.3x volume;   Breaking Bollinger upper band (BB%B=1.04)
+  08:18 POL/USD: Regime: high_vol (volatility rank 93/100); 🔥 BREAKOUT — Phase 1 — Breakout — +2.9% move with 1.3x volume;   Breaking Bollinger upper band (BB%B=1.03)
+  08:21 POL/USD: Regime: high_vol (volatility rank 92/100); 🔥 BREAKOUT — Phase 1 — Breakout — +3.0% move with 1.3x volume;   Breaking Bollinger upper band (BB%B=1.04)
+  08:25 POL/USD: Regime: high_vol (volatility rank 92/100); 🔥 BREAKOUT — Phase 1 — Breakout — +3.0% move with 1.3x volume;   Breaking Bollinger upper band (BB%B=1.04)
+  08:27 POL/USD: Regime: high_vol (volatility rank 92/100); 🔥 BREAKOUT — Phase 1 — Breakout — +3.1% move with 1.3x volume;   Breaking Bollinger upper band (BB%B=1.04)
+  08:29 POL/USD: Regime: high_vol (volatility rank 92/100); 🔥 BREAKOUT — Phase 1 — Breakout — +3.1% move with 1.4x volume;   Breaking Bollinger upper band (BB%B=1.04)
+  08:31 POL/USD: Regime: high_vol (volatility rank 92/100); 🔥 BREAKOUT — Phase 1 — Breakout — +3.1% move with 1.4x volume;   Breaking Bollinger upper band (BB%B=1.04)
+  08:34 POL/USD: Regime: high_vol (volatility rank 93/100); 🔥 BREAKOUT — Phase 1 — Breakout — +2.7% move with 1.4x volume;   Breaking Bollinger upper band (BB%B=1.00)
+  08:36 POL/USD: Regime: high_vol (volatility rank 94/100); 🔥 BREAKOUT — Phase 1 — Breakout — +2.5% move with 1.4x volume;   Breaking Bollinger upper band (BB%B=0.97)
+  08:37 SOL/USD: Regime: bull_trend (volatility rank 100/100); 🔥 BREAKOUT — Phase 1 — Breakout — +3.8% move with 2.5x volume;   Breaking Bollinger upper band (BB%B=1.00)
+  08:38 POL/USD: Regime: high_vol (volatility rank 95/100); 🔥 BREAKOUT — Phase 1 — Breakout — +2.3% move with 1.6x volume;   Breaking Bollinger upper band (BB%B=0.95)
+  08:40 POL/USD: Regime: high_vol (volatility rank 95/100); 🔥 BREAKOUT — Phase 1 — Breakout — +2.2% move with 1.6x volume;   Breaking Bollinger upper band (BB%B=0.93)
+  08:43 SOL/USD: Regime: bull_trend (volatility rank 100/100); 🔥 BREAKOUT — Phase 1 — Breakout — +4.0% move with 2.6x volume;   Breaking Bollinger upper band (BB%B=1.02)
+  08:46 POL/USD: Regime: high_vol (volatility rank 95/100); 🔥 BREAKOUT — Phase 1 — Breakout — +2.1% move with 1.6x volume;   Breaking Bollinger upper band (BB%B=0.92)
+  08:51 POL/USD: Regime: high_vol (volatility rank 96/100); 🔥 BREAKOUT — Phase 1 — Breakout — +1.7% move with 1.8x volume;   Breaking Bollinger upper band (BB%B=0.86)
+  08:51 SOL/USD: Regime: bull_trend (volatility rank 100/100); 🔥 BREAKOUT — Phase 1 — Breakout — +3.8% move with 2.8x volume;   Breaking Bollinger upper band (BB%B=0.99)
+  08:54 POL/USD: Regime: high_vol (volatility rank 95/100); 🔥 BREAKOUT — Phase 1 — Breakout — +2.1% move with 1.8x volume;   Breaking Bollinger upper band (BB%B=0.93)
+  08:56 POL/USD: Regime: high_vol (volatility rank 95/100); 🔥 BREAKOUT — Phase 1 — Breakout — +2.3% move with 1.9x volume;   Breaking Bollinger upper band (BB%B=0.95)
+  08:57 POL/USD: Regime: high_vol (volatility rank 95/100); 🔥 BREAKOUT — Phase 1 — Breakout — +2.3% move with 1.9x volume;   Breaking Bollinger upper band (BB%B=0.95)
+  09:47 POL/USD: Regime: high_vol (volatility rank 92/100); 🔥 BREAKOUT — Phase 1 — Breakout — +3.5% move with 1.4x volume;   Breaking Bollinger upper band (BB%B=0.90)
+  09:49 POL/USD: Regime: high_vol (volatility rank 92/100); 🔥 BREAKOUT — Phase 1 — Breakout — +3.2% move with 1.5x volume;   Breaking Bollinger upper band (BB%B=0.87)
+  09:53 AAVE/USD: Regime: bull_trend (volatility rank 82/100); 🔥 BREAKOUT — Phase 1 — Breakout — +4.0% move with 3.1x volume;   Breaking Bollinger upper band (BB%B=0.92)
+  09:53 GRASS/USD: Regime: high_vol (volatility rank 84/100); RSI oversold (33.1); BB oversold (%B=-0.07)
+  09:55 AAVE/USD: Regime: bull_trend (volatility rank 92/100); 🔥 BREAKOUT — Phase 1 — Breakout — +2.9% move with 3.5x volume;   Breaking Bollinger upper band (BB%B=0.80)
+  09:55 GRASS/USD: Regime: high_vol (volatility rank 89/100); RSI oversold (30.8); BB oversold (%B=-0.15)
+  09:55 HYPE/USD: Regime: bull_trend (volatility rank 100/100); 🔥 BREAKOUT — Phase 1 — Breakout — +3.4% move with 2.0x volume;   Breaking Bollinger upper band (BB%B=0.82)
+  09:55 SOL/USD: Regime: bull_trend (volatility rank 100/100); 🔥 BREAKOUT — Phase 1 — Breakout — +2.2% move with 1.5x volume;   Breaking Bollinger upper band (BB%B=0.74)
+  09:57 AAVE/USD: Regime: bull_trend (volatility rank 92/100); 🔥 BREAKOUT — Phase 1 — Breakout — +3.0% move with 3.7x volume;   Breaking Bollinger upper band (BB%B=0.80)
+  09:57 HYPE/USD: Regime: bull_trend (volatility rank 100/100); 🔥 BREAKOUT — Phase 1 — Breakout — +3.4% move with 2.1x volume;   Breaking Bollinger upper band (BB%B=0.82)
+  09:57 GRASS/USD: Regime: high_vol (volatility rank 88/100); RSI oversold (32.9); BB oversold (%B=-0.08)
+  09:58 SOL/USD: Regime: bull_trend (volatility rank 100/100); 🔥 BREAKOUT — Phase 1 — Breakout — +2.2% move with 1.7x volume;   Breaking Bollinger upper band (BB%B=0.74)
+  10:00 XRP/USD: Regime: bull_trend (volatility rank 99/100); Pullback to EMA support in uptrend (RSI 56.9) — trend entry; MACD bullish (hist=0.0037)
+  10:03 LTC/USD: Regime: bull_trend (volatility rank 76/100); Pullback to EMA support in uptrend (RSI 58.5) — trend entry; MACD bullish (hist=0.0586)
+  10:06 HYPE/USD: Regime: bull_trend (volatility rank 99/100); 🚀 MOMENTUM RIDER — Phase 2 — Momentum — up +3.0% over 20 candles;   Strong uptrend (EMA spread 0.69%)
+  10:06 UNI/USD: Regime: bull_trend (volatility rank 80/100); Pullback to EMA support in uptrend (RSI 55.0) — trend entry; MACD bullish (hist=0.0121)
+  10:08 SOL/USD: Regime: bull_trend (volatility rank 99/100); Pullback to EMA support in uptrend (RSI 57.4) — trend entry; MACD bullish (hist=0.1964)
+  10:09 UNI/USD: Regime: bull_trend (volatility rank 81/100); Pullback to EMA support in uptrend (RSI 55.6) — trend entry; MACD bullish (hist=0.0131)
+  10:11 XRP/USD: Regime: bull_trend (volatility rank 99/100); Pullback to EMA support in uptrend (RSI 57.3) — trend entry; MACD bullish (hist=0.0038)
+  10:25 ETH/USD: Regime: bull_trend (volatility rank 99/100); Pullback to EMA support in uptrend (RSI 60.9) — trend entry; MACD bullish (hist=6.9937)
+  10:27 NEAR/USD: Regime: bull_trend (volatility rank 100/100); Pullback to EMA support in uptrend (RSI 58.3) — trend entry; MACD bullish (hist=0.0102)
+  10:30 TRX/USD: Regime: high_vol (volatility rank 98/100); RSI oversold (29.4); RSI deeply oversold (29.4) — extra buy boost
+  10:35 NEAR/USD: Regime: bull_trend (volatility rank 100/100); Pullback to EMA support in uptrend (RSI 60.0) — trend entry; MACD bullish (hist=0.0110)
+  10:38 S/USD: Regime: ranging (volatility rank 65/100); 🔥 BREAKOUT — Phase 1 — Breakout — +2.2% move with 1.4x volume;   Breaking Bollinger upper band (BB%B=0.90)
+  10:40 S/USD: Regime: ranging (volatility rank 65/100); 🔥 BREAKOUT — Phase 1 — Breakout — +2.2% move with 1.4x volume;   Breaking Bollinger upper band (BB%B=0.90)
+  10:43 S/USD: Regime: ranging (volatility rank 65/100); 🔥 BREAKOUT — Phase 1 — Breakout — +2.2% move with 1.4x volume;   Breaking Bollinger upper band (BB%B=0.90)
+  10:45 JTO/USD: Regime: bull_trend (volatility rank 77/100); 🔥 BREAKOUT — Phase 1 — Breakout — +1.4% move with 1.5x volume;   Breaking Bollinger upper band (BB%B=0.88)
+  10:46 NEAR/USD: Regime: bull_trend (volatility rank 100/100); Pullback to EMA support in uptrend (RSI 59.4) — trend entry; MACD bullish (hist=0.0107)
+  10:46 SOL/USD: Regime: bull_trend (volatility rank 99/100); Pullback to EMA support in uptrend (RSI 57.6) — trend entry; MACD bullish (hist=0.1990)
+  10:46 S/USD: Regime: ranging (volatility rank 65/100); 🔥 BREAKOUT — Phase 1 — Breakout — +2.2% move with 1.4x volume;   Breaking Bollinger upper band (BB%B=0.90)
+  10:48 ETH/USD: Regime: bull_trend (volatility rank 100/100); 🔥 BREAKOUT — Phase 1 — Breakout — +2.8% move with 1.2x volume;   Breaking Bollinger upper band (BB%B=0.90)
+  10:48 JTO/USD: Regime: bull_trend (volatility rank 77/100); 🔥 BREAKOUT — Phase 1 — Breakout — +1.7% move with 1.6x volume;   Breaking Bollinger upper band (BB%B=0.90)
+  10:48 HYPE/USD: Regime: bull_trend (volatility rank 100/100); Pullback to EMA support in uptrend (RSI 58.6) — trend entry; MACD bullish (hist=0.2544)
+  10:48 NEAR/USD: Regime: bull_trend (volatility rank 100/100); Pullback to EMA support in uptrend (RSI 60.9) — trend entry; MACD bullish (hist=0.0114)
+  10:48 S/USD: Regime: ranging (volatility rank 65/100); 🔥 BREAKOUT — Phase 1 — Breakout — +2.2% move with 1.4x volume;   Breaking Bollinger upper band (BB%B=0.90)
+  10:51 ETH/USD: Regime: bull_trend (volatility rank 100/100); 🔥 BREAKOUT — Phase 1 — Breakout — +2.7% move with 1.2x volume;   Breaking Bollinger upper band (BB%B=0.89)
+  10:51 JTO/USD: Regime: bull_trend (volatility rank 77/100); 🔥 BREAKOUT — Phase 1 — Breakout — +1.7% move with 1.6x volume;   Breaking Bollinger upper band (BB%B=0.91)
+  10:51 S/USD: Regime: ranging (volatility rank 65/100); 🔥 BREAKOUT — Phase 1 — Breakout — +2.2% move with 1.4x volume;   Breaking Bollinger upper band (BB%B=0.90)
+  10:52 JTO/USD: Regime: bull_trend (volatility rank 77/100); 🔥 BREAKOUT — Phase 1 — Breakout — +1.7% move with 1.6x volume;   Breaking Bollinger upper band (BB%B=0.91)
+  10:53 ETH/USD: Regime: bull_trend (volatility rank 100/100); 🔥 BREAKOUT — Phase 1 — Breakout — +2.7% move with 1.3x volume;   Breaking Bollinger upper band (BB%B=0.89)
+  10:54 NEAR/USD: Regime: bull_trend (volatility rank 100/100); Pullback to EMA support in uptrend (RSI 60.8) — trend entry; MACD bullish (hist=0.0114)
+  10:54 S/USD: Regime: ranging (volatility rank 65/100); 🔥 BREAKOUT — Phase 1 — Breakout — +2.2% move with 1.4x volume;   Breaking Bollinger upper band (BB%B=0.90)
+  10:57 AAVE/USD: Regime: bull_trend (volatility rank 96/100); 🔥 BREAKOUT — Phase 1 — Breakout — +1.3% move with 1.2x volume;   Breaking Bollinger upper band (BB%B=0.84)
+  10:57 ETH/USD: Regime: bull_trend (volatility rank 100/100); 🔥 BREAKOUT — Phase 1 — Breakout — +2.7% move with 1.3x volume;   Breaking Bollinger upper band (BB%B=0.89)
+  10:57 JTO/USD: Regime: bull_trend (volatility rank 77/100); 🔥 BREAKOUT — Phase 1 — Breakout — +1.7% move with 1.6x volume;   Breaking Bollinger upper band (BB%B=0.91)
+  10:57 S/USD: Regime: ranging (volatility rank 65/100); 🔥 BREAKOUT — Phase 1 — Breakout — +2.2% move with 1.4x volume;   Breaking Bollinger upper band (BB%B=0.90)
+  10:59 AAVE/USD: Regime: bull_trend (volatility rank 96/100); 🔥 BREAKOUT — Phase 1 — Breakout — +1.2% move with 1.2x volume;   Breaking Bollinger upper band (BB%B=0.83)
+  10:59 ETH/USD: Regime: bull_trend (volatility rank 100/100); 🔥 BREAKOUT — Phase 1 — Breakout — +2.7% move with 1.3x volume;   Breaking Bollinger upper band (BB%B=0.89)
+  10:59 HYPE/USD: Regime: bull_trend (volatility rank 100/100); 🔥 BREAKOUT — Phase 1 — Breakout — +0.0% move with 2.2x volume;   Breaking Bollinger upper band (BB%B=0.81)
+  10:59 JTO/USD: Regime: bull_trend (volatility rank 77/100); 🔥 BREAKOUT — Phase 1 — Breakout — +1.7% move with 1.6x volume;   Breaking Bollinger upper band (BB%B=0.91)
+  11:02 AAVE/USD: Regime: bull_trend (volatility rank 90/100); Pullback to EMA support in uptrend (RSI 61.3) — trend entry; MACD bullish (hist=0.2276)
+  11:02 HYPE/USD: Regime: bull_trend (volatility rank 98/100); 🚀 MOMENTUM RIDER — Phase 2 — Momentum — up +3.1% over 20 candles;   Strong uptrend (EMA spread 0.62%)
+  11:02 LINK/USD: Regime: bull_trend (volatility rank 81/100); Pullback to EMA support in uptrend (RSI 56.7) — trend entry; MACD bullish (hist=0.0234)
+  11:03 NEAR/USD: Regime: bull_trend (volatility rank 98/100); Pullback to EMA support in uptrend (RSI 62.1) — trend entry; MACD bullish (hist=0.0067)
+  11:03 SOL/USD: Regime: bull_trend (volatility rank 98/100); Pullback to EMA support in uptrend (RSI 58.1) — trend entry; MACD bullish (hist=0.1398)
+  11:04 LINK/USD: Regime: bull_trend (volatility rank 81/100); Pullback to EMA support in uptrend (RSI 56.8) — trend entry; MACD bullish (hist=0.0236)
+  11:05 SOL/USD: Regime: bull_trend (volatility rank 98/100); Pullback to EMA support in uptrend (RSI 58.5) — trend entry; MACD bullish (hist=0.1442)
+  11:07 LINK/USD: Regime: bull_trend (volatility rank 81/100); Pullback to EMA support in uptrend (RSI 57.9) — trend entry; MACD bullish (hist=0.0255)
+  11:07 SOL/USD: Regime: bull_trend (volatility rank 98/100); Pullback to EMA support in uptrend (RSI 58.8) — trend entry; MACD bullish (hist=0.1477)
+  11:08 HYPE/USD: Regime: bull_trend (volatility rank 98/100); Pullback to EMA support in uptrend (RSI 60.0) — trend entry; MACD bullish (hist=0.1837)
+  11:09 NEAR/USD: Regime: bull_trend (volatility rank 98/100); Pullback to EMA support in uptrend (RSI 62.6) — trend entry; MACD bullish (hist=0.0070)
+  11:12 NEAR/USD: Regime: bull_trend (volatility rank 98/100); Pullback to EMA support in uptrend (RSI 60.8) — trend entry; MACD bullish (hist=0.0062)
+  11:12 SOL/USD: Regime: bull_trend (volatility rank 98/100); Pullback to EMA support in uptrend (RSI 58.4) — trend entry; MACD bullish (hist=0.1433)
+  11:15 HYPE/USD: Regime: bull_trend (volatility rank 98/100); 🚀 MOMENTUM RIDER — Phase 2 — Momentum — up +2.9% over 20 candles;   Strong uptrend (EMA spread 0.60%)
+  11:15 JUP/USD: Regime: bull_trend (volatility rank 82/100); Pullback to EMA support in uptrend (RSI 61.3) — trend entry; MACD bullish (hist=0.0008)
+  11:15 JTO/USD: Regime: bull_trend (volatility rank 76/100); 🚀 MOMENTUM RIDER — Phase 2 — Momentum — up +4.5% over 20 candles;   Strong uptrend (EMA spread 0.55%)
+  11:17 JTO/USD: Regime: bull_trend (volatility rank 76/100); 🚀 MOMENTUM RIDER — Phase 2 — Momentum — up +4.6% over 20 candles;   Strong uptrend (EMA spread 0.55%)
+  11:18 JUP/USD: Regime: bull_trend (volatility rank 81/100); Pullback to EMA support in uptrend (RSI 62.1) — trend entry; MACD bullish (hist=0.0008)
+  11:18 NEAR/USD: Regime: bull_trend (volatility rank 99/100); Pullback to EMA support in uptrend (RSI 60.1) — trend entry; MACD bullish (hist=0.0059)
+  11:20 HYPE/USD: Regime: bull_trend (volatility rank 98/100); Pullback to EMA support in uptrend (RSI 59.2) — trend entry; MACD bullish (hist=0.1758)
+  11:20 NEAR/USD: Regime: bull_trend (volatility rank 99/100); Pullback to EMA support in uptrend (RSI 61.4) — trend entry; MACD bullish (hist=0.0064)
+  11:20 SOL/USD: Regime: bull_trend (volatility rank 98/100); Pullback to EMA support in uptrend (RSI 58.4) — trend entry; MACD bullish (hist=0.1433)
+  11:23 NEAR/USD: Regime: bull_trend (volatility rank 99/100); Pullback to EMA support in uptrend (RSI 61.2) — trend entry; MACD bullish (hist=0.0063)
+  11:24 SOL/USD: Regime: bull_trend (volatility rank 98/100); Pullback to EMA support in uptrend (RSI 58.6) — trend entry; MACD bullish (hist=0.1451)
+  11:25 POL/USD: Regime: high_vol (volatility rank 94/100); MACD bullish (hist=0.0002); EMA bullish (short > long)
+  11:25 SOL/USD: Regime: bull_trend (volatility rank 98/100); Pullback to EMA support in uptrend (RSI 58.7) — trend entry; MACD bullish (hist=0.1468)
+  11:27 AAVE/USD: Regime: bull_trend (volatility rank 92/100); Pullback to EMA support in uptrend (RSI 60.9) — trend entry; MACD bullish (hist=0.2232)
+  11:28 JUP/USD: Regime: bull_trend (volatility rank 83/100); Pullback to EMA support in uptrend (RSI 59.5) — trend entry; MACD bullish (hist=0.0007)
+  11:28 HYPE/USD: Regime: bull_trend (volatility rank 98/100); Pullback to EMA support in uptrend (RSI 59.8) — trend entry; MACD bullish (hist=0.1811)
+  11:28 POL/USD: Regime: high_vol (volatility rank 94/100); MACD bullish (hist=0.0002); EMA bullish (short > long)
+  11:28 SOL/USD: Regime: bull_trend (volatility rank 98/100); Pullback to EMA support in uptrend (RSI 59.1) — trend entry; MACD bullish (hist=0.1530)
+  11:30 HYPE/USD: Regime: bull_trend (volatility rank 98/100); Pullback to EMA support in uptrend (RSI 59.4) — trend entry; MACD bullish (hist=0.1776)
+  11:31 POL/USD: Regime: high_vol (volatility rank 94/100); MACD bullish (hist=0.0002); EMA bullish (short > long)
+  11:31 SOL/USD: Regime: bull_trend (volatility rank 98/100); Pullback to EMA support in uptrend (RSI 58.7) — trend entry; MACD bullish (hist=0.1460)
+  11:33 HYPE/USD: Regime: bull_trend (volatility rank 98/100); Pullback to EMA support in uptrend (RSI 59.5) — trend entry; MACD bullish (hist=0.1784)
+  11:33 NEAR/USD: Regime: bull_trend (volatility rank 99/100); Pullback to EMA support in uptrend (RSI 62.5) — trend entry; MACD bullish (hist=0.0069)
+  11:34 POL/USD: Regime: high_vol (volatility rank 94/100); MACD bullish (hist=0.0002); EMA bullish (short > long)
+  11:35 HYPE/USD: Regime: bull_trend (volatility rank 98/100); Pullback to EMA support in uptrend (RSI 59.8) — trend entry; MACD bullish (hist=0.1811)
+  11:35 JUP/USD: Regime: bull_trend (volatility rank 83/100); Pullback to EMA support in uptrend (RSI 59.3) — trend entry; MACD bullish (hist=0.0007)
+  11:36 SOL/USD: Regime: bull_trend (volatility rank 98/100); Pullback to EMA support in uptrend (RSI 58.9) — trend entry; MACD bullish (hist=0.1495)
+  11:38 JTO/USD: Regime: bull_trend (volatility rank 76/100); 🚀 MOMENTUM RIDER — Phase 2 — Momentum — up +4.4% over 20 candles;   Strong uptrend (EMA spread 0.54%)
+  11:38 POL/USD: Regime: high_vol (volatility rank 97/100); MACD bullish (hist=0.0002); EMA bullish (short > long)
+  11:40 JTO/USD: Regime: bull_trend (volatility rank 76/100); 🚀 MOMENTUM RIDER — Phase 2 — Momentum — up +4.4% over 20 candles;   Strong uptrend (EMA spread 0.54%)
+  11:40 NEAR/USD: Regime: bull_trend (volatility rank 99/100); Pullback to EMA support in uptrend (RSI 61.8) — trend entry; MACD bullish (hist=0.0066)
+  11:40 POL/USD: Regime: high_vol (volatility rank 97/100); MACD bullish (hist=0.0002); EMA bullish (short > long)
+  11:42 JTO/USD: Regime: bull_trend (volatility rank 76/100); 🚀 MOMENTUM RIDER — Phase 2 — Momentum — up +4.4% over 20 candles;   Strong uptrend (EMA spread 0.54%)
+  11:42 NEAR/USD: Regime: bull_trend (volatility rank 99/100); Pullback to EMA support in uptrend (RSI 60.2) — trend entry; MACD bullish (hist=0.0059)
+  11:43 POL/USD: Regime: high_vol (volatility rank 97/100); MACD bullish (hist=0.0002); EMA bullish (short > long)
+  11:44 NEAR/USD: Regime: bull_trend (volatility rank 99/100); Pullback to EMA support in uptrend (RSI 60.1) — trend entry; MACD bullish (hist=0.0059)
+  11:44 POL/USD: Regime: high_vol (volatility rank 97/100); MACD bullish (hist=0.0002); EMA bullish (short > long)
+  11:47 NEAR/USD: Regime: bull_trend (volatility rank 99/100); Pullback to EMA support in uptrend (RSI 61.6) — trend entry; MACD bullish (hist=0.0065)
+  11:48 NEAR/USD: Regime: bull_trend (volatility rank 99/100); Pullback to EMA support in uptrend (RSI 61.7) — trend entry; MACD bullish (hist=0.0065)
+  11:48 POL/USD: Regime: high_vol (volatility rank 97/100); MACD bullish (hist=0.0002); EMA bullish (short > long)
+  11:50 NEAR/USD: Regime: bull_trend (volatility rank 99/100); Pullback to EMA support in uptrend (RSI 61.0) — trend entry; MACD bullish (hist=0.0062)
+  11:50 POL/USD: Regime: high_vol (volatility rank 97/100); MACD bullish (hist=0.0002); EMA bullish (short > long)
+  11:52 NEAR/USD: Regime: bull_trend (volatility rank 99/100); Pullback to EMA support in uptrend (RSI 60.3) — trend entry; MACD bullish (hist=0.0059)
+  11:54 ETH/USD: Regime: bull_trend (volatility rank 98/100); Pullback to EMA support in uptrend (RSI 61.9) — trend entry; MACD bullish (hist=5.3108)
+  12:01 ETH/USD: Regime: bull_trend (volatility rank 98/100); Pullback to EMA support in uptrend (RSI 61.2) — trend entry; MACD bullish (hist=2.3163)
+  12:01 JTO/USD: Regime: bull_trend (volatility rank 58/100); 🚀 MOMENTUM RIDER — Phase 2 — Momentum — up +4.9% over 20 candles;   Strong uptrend (EMA spread 0.52%)
+  12:01 ZEC/USD: Regime: bull_trend (volatility rank 94/100); Pullback to EMA support in uptrend (RSI 59.4) — trend entry; MACD bullish (hist=4.4548)
+  12:04 ETH/USD: Regime: bull_trend (volatility rank 98/100); 🚀 MOMENTUM RIDER — Phase 2 — Momentum — up +4.6% over 20 candles;   Strong uptrend (EMA spread 1.29%)
+  12:04 ZEC/USD: Regime: bull_trend (volatility rank 95/100); Pullback to EMA support in uptrend (RSI 56.6) — trend entry; MACD bullish (hist=3.8149)
+  12:09 ZEC/USD: Regime: bull_trend (volatility rank 96/100); Pullback to EMA support in uptrend (RSI 58.0) — trend entry; MACD bullish (hist=4.1502)
+  12:11 ZEC/USD: Regime: bull_trend (volatility rank 96/100); Pullback to EMA support in uptrend (RSI 57.6) — trend entry; MACD bullish (hist=4.0407)
+  12:14 ZEC/USD: Regime: bull_trend (volatility rank 96/100); Pullback to EMA support in uptrend (RSI 57.2) — trend entry; MACD bullish (hist=3.9479)
+  12:17 ZEC/USD: Regime: bull_trend (volatility rank 96/100); Pullback to EMA support in uptrend (RSI 58.7) — trend entry; MACD bullish (hist=4.3016)
+  12:17 HNT/USD: Mover: +9% on 24h
+  12:22 ZEC/USD: Regime: bull_trend (volatility rank 96/100); Pullback to EMA support in uptrend (RSI 59.7) — trend entry; MACD bullish (hist=4.5371)
+  12:25 ZEC/USD: Regime: bull_trend (volatility rank 96/100); Pullback to EMA support in uptrend (RSI 59.3) — trend entry; MACD bullish (hist=4.4460)
+  12:27 ZEC/USD: Regime: bull_trend (volatility rank 96/100); Pullback to EMA support in uptrend (RSI 57.4) — trend entry; MACD bullish (hist=3.9943)
+  12:30 TIA/USD: Regime: high_vol (volatility rank 82/100); BB oversold (%B=0.03); MACD bearish (hist=-0.0008)
+  12:30 ZEC/USD: Regime: bull_trend (volatility rank 96/100); Pullback to EMA support in uptrend (RSI 58.2) — trend entry; MACD bullish (hist=4.1747)
+  12:31 AERO/USD: Mover: +9% on 24h
+  12:32 TIA/USD: Regime: high_vol (volatility rank 82/100); BB oversold (%B=0.03); MACD bearish (hist=-0.0008)
+  12:33 ZEC/USD: Regime: bull_trend (volatility rank 96/100); Pullback to EMA support in uptrend (RSI 57.6) — trend entry; MACD bullish (hist=4.0442)
+  12:33 HNT/USD: Mover: +9% on 24h
+  12:35 ZEC/USD: Regime: bull_trend (volatility rank 96/100); Pullback to EMA support in uptrend (RSI 57.1) — trend entry; MACD bullish (hist=3.9147)
+  12:36 TIA/USD: Regime: high_vol (volatility rank 82/100); BB oversold (%B=0.04); MACD bearish (hist=-0.0007)
+  12:38 TIA/USD: Regime: high_vol (volatility rank 82/100); BB oversold (%B=0.05); MACD bearish (hist=-0.0007)
+  12:38 ZEC/USD: Regime: bull_trend (volatility rank 96/100); Pullback to EMA support in uptrend (RSI 58.1) — trend entry; MACD bullish (hist=4.1712)
+  12:40 ZEC/USD: Regime: bull_trend (volatility rank 96/100); Pullback to EMA support in uptrend (RSI 58.1) — trend entry; MACD bullish (hist=4.1589)
+  12:41 TIA/USD: Regime: high_vol (volatility rank 82/100); BB oversold (%B=0.05); MACD bearish (hist=-0.0007)
+  12:43 TIA/USD: Regime: high_vol (volatility rank 82/100); BB oversold (%B=0.05); MACD bearish (hist=-0.0007)
+  12:43 ZEC/USD: Regime: bull_trend (volatility rank 96/100); Pullback to EMA support in uptrend (RSI 58.3) — trend entry; MACD bullish (hist=4.2123)
+  12:43 HNT/USD: Mover: +11% on 24h
+  12:46 TIA/USD: Regime: high_vol (volatility rank 82/100); BB oversold (%B=0.03); MACD bearish (hist=-0.0008)
+  12:46 ZEC/USD: Regime: bull_trend (volatility rank 96/100); Pullback to EMA support in uptrend (RSI 59.1) — trend entry; MACD bullish (hist=4.3935)
+  12:48 ZEC/USD: Regime: bull_trend (volatility rank 96/100); Pullback to EMA support in uptrend (RSI 57.8) — trend entry; MACD bullish (hist=4.0959)
+  12:48 TIA/USD: Regime: high_vol (volatility rank 82/100); BB oversold (%B=0.01); MACD bearish (hist=-0.0008)
+  12:50 PUMP/USD: Regime: high_vol (volatility rank 92/100); BB oversold (%B=0.05); MACD bearish (hist=-0.0000)
+  12:50 ZEC/USD: Regime: bull_trend (volatility rank 96/100); Pullback to EMA support in uptrend (RSI 57.8) — trend entry; MACD bullish (hist=4.0976)
+  12:50 TIA/USD: Regime: high_vol (volatility rank 82/100); BB oversold (%B=0.01); MACD bearish (hist=-0.0008)
+  12:50 HNT/USD: Mover: +10% on 24h
+  12:52 ZEC/USD: Regime: bull_trend (volatility rank 96/100); Pullback to EMA support in uptrend (RSI 56.7) — trend entry; MACD bullish (hist=3.8184)
+  12:53 PUMP/USD: Regime: high_vol (volatility rank 92/100); RSI oversold (33.1); BB oversold (%B=-0.11)
+  12:53 TIA/USD: Regime: high_vol (volatility rank 83/100); RSI oversold (34.9); BB oversold (%B=-0.06)
+  12:55 TIA/USD: Regime: high_vol (volatility rank 83/100); RSI oversold (34.3); BB oversold (%B=-0.08)
+  12:55 PUMP/USD: Regime: high_vol (volatility rank 92/100); RSI oversold (34.9); BB oversold (%B=-0.04)
+  12:57 ZEC/USD: Regime: bull_trend (volatility rank 96/100); Pullback to EMA support in uptrend (RSI 56.9) — trend entry; MACD bullish (hist=3.8691)
+  12:57 TIA/USD: Regime: high_vol (volatility rank 84/100); RSI oversold (34.3); BB oversold (%B=-0.08)
+  12:57 PUMP/USD: Regime: high_vol (volatility rank 92/100); BB oversold (%B=-0.02); MACD bearish (hist=-0.0000)
+  12:59 TIA/USD: Regime: high_vol (volatility rank 83/100); RSI oversold (34.8); BB oversold (%B=-0.06)
+  12:59 PUMP/USD: Regime: high_vol (volatility rank 92/100); RSI oversold (34.3); BB oversold (%B=-0.06)
+  13:00 TIA/USD: Regime: ranging (volatility rank 75/100); RSI oversold (35.0); BB oversold (%B=0.03)
+  13:02 HNT/USD: Mover: +10% on 24h
+  13:13 HNT/USD: Mover: +10% on 24h
+  13:23 MET/USD: Mover: +27% on 24h
+  13:23 HNT/USD: Mover: +9% on 24h
+  13:26 ZEC/USD: Regime: bull_trend (volatility rank 95/100); Pullback to EMA support in uptrend (RSI 57.3) — trend entry; MACD bullish (hist=1.9937)
+  13:28 ZEC/USD: Regime: bull_trend (volatility rank 96/100); Pullback to EMA support in uptrend (RSI 57.0) — trend entry; MACD bullish (hist=1.9193)
+  13:46 ZEC/USD: Regime: bull_trend (volatility rank 96/100); Pullback to EMA support in uptrend (RSI 57.9) — trend entry; MACD bullish (hist=2.1889)
+  13:49 ZEC/USD: Regime: bull_trend (volatility rank 96/100); Pullback to EMA support in uptrend (RSI 58.2) — trend entry; MACD bullish (hist=2.2721)
+  13:51 ZEC/USD: Regime: bull_trend (volatility rank 96/100); Pullback to EMA support in uptrend (RSI 58.4) — trend entry; MACD bullish (hist=2.3438)
+  13:53 ZEC/USD: Regime: bull_trend (volatility rank 96/100); Pullback to EMA support in uptrend (RSI 58.3) — trend entry; MACD bullish (hist=2.3158)
+  13:56 ZEC/USD: Regime: bull_trend (volatility rank 96/100); Pullback to EMA support in uptrend (RSI 59.7) — trend entry; MACD bullish (hist=2.7737)
+  14:03 SOL/USD: Regime: bull_trend (volatility rank 96/100); 🚀 MOMENTUM RIDER — Phase 2 — Momentum — up +3.0% over 20 candles;   Strong uptrend (EMA spread 0.59%)
+  14:06 SOL/USD: Regime: bull_trend (volatility rank 96/100); 🚀 MOMENTUM RIDER — Phase 2 — Momentum — up +3.2% over 20 candles;   Strong uptrend (EMA spread 0.61%)
+  14:08 SOL/USD: Regime: bull_trend (volatility rank 96/100); 🚀 MOMENTUM RIDER — Phase 2 — Momentum — up +3.2% over 20 candles;   Strong uptrend (EMA spread 0.61%)
+  14:12 SOL/USD: Regime: bull_trend (volatility rank 97/100); 🚀 MOMENTUM RIDER — Phase 2 — Momentum — up +3.4% over 20 candles;   Strong uptrend (EMA spread 0.63%)
+  14:16 SOL/USD: Regime: bull_trend (volatility rank 97/100); 🚀 MOMENTUM RIDER — Phase 2 — Momentum — up +3.5% over 20 candles;   Strong uptrend (EMA spread 0.64%)
+  14:18 SOL/USD: Regime: bull_trend (volatility rank 97/100); 🚀 MOMENTUM RIDER — Phase 2 — Momentum — up +3.5% over 20 candles;   Strong uptrend (EMA spread 0.64%)
+  15:01 SOL/USD: Regime: bull_trend (volatility rank 87/100); 🚀 MOMENTUM RIDER — Phase 2 — Momentum — up +3.4% over 20 candles;   Strong uptrend (EMA spread 0.63%)
+  15:16 SOL/USD: Regime: bull_trend (volatility rank 87/100); 🚀 MOMENTUM RIDER — Phase 2 — Momentum — up +3.6% over 20 candles;   Strong uptrend (EMA spread 0.66%)
+  15:22 SOL/USD: Regime: bull_trend (volatility rank 87/100); 🚀 MOMENTUM RIDER — Phase 2 — Momentum — up +3.7% over 20 candles;   Strong uptrend (EMA spread 0.66%)
+  00:31 TRX/USD: Regime: high_vol (volatility rank 100/100); 🔥 BREAKOUT — Phase 1 — Breakout — +0.7% move with 2.8x volume;   Breaking Bollinger upper band (BB%B=0.93)
+  00:44 TRX/USD: Regime: high_vol (volatility rank 100/100); 🔥 BREAKOUT — Phase 1 — Breakout — +0.5% move with 3.0x volume;   Breaking Bollinger upper band (BB%B=0.86)
+  03:33 OXT/USD: Mover: +28% on 24h
+  03:50 BNB/USD: Regime: low_vol (volatility rank 16/100); 🔥 BREAKOUT — Phase 1 — Breakout — +0.3% move with 1.3x volume;   Breaking Bollinger upper band (BB%B=0.84)
+  04:52 ETHFI/USD: Mover: +10% on 24h
+  05:49 LDO/USD: Regime: low_vol (volatility rank 8/100); 🔥 BREAKOUT — Phase 1 — Breakout — +0.5% move with 3.8x volume;   Breaking Bollinger upper band (BB%B=0.87)
+  05:52 LDO/USD: Regime: low_vol (volatility rank 8/100); 🔥 BREAKOUT — Phase 1 — Breakout — +0.5% move with 3.9x volume;   Breaking Bollinger upper band (BB%B=0.87)
+  05:54 LDO/USD: Regime: low_vol (volatility rank 8/100); 🔥 BREAKOUT — Phase 1 — Breakout — +0.5% move with 3.9x volume;   Breaking Bollinger upper band (BB%B=0.87)
+  05:57 LDO/USD: Regime: low_vol (volatility rank 8/100); 🔥 BREAKOUT — Phase 1 — Breakout — +0.5% move with 3.9x volume;   Breaking Bollinger upper band (BB%B=0.87)
+  06:13 ETC/USD: Regime: ranging (volatility rank 27/100); 🔥 BREAKOUT — Phase 1 — Breakout — +1.1% move with 2.5x volume;   Breaking Bollinger upper band (BB%B=0.98)
+  06:37 ETC/USD: Regime: ranging (volatility rank 27/100); 🔥 BREAKOUT — Phase 1 — Breakout — +1.1% move with 3.2x volume;   Breaking Bollinger upper band (BB%B=0.98)
+  06:39 ETC/USD: Regime: ranging (volatility rank 27/100); 🔥 BREAKOUT — Phase 1 — Breakout — +1.1% move with 3.2x volume;   Breaking Bollinger upper band (BB%B=0.98)
+  06:39 ARB/USD: Regime: low_vol (volatility rank 0/100); 🔥 BREAKOUT — Phase 1 — Breakout — +1.0% move with 1.6x volume;   Breaking Bollinger upper band (BB%B=0.91)
+  06:42 ETC/USD: Regime: ranging (volatility rank 27/100); 🔥 BREAKOUT — Phase 1 — Breakout — +1.1% move with 3.2x volume;   Breaking Bollinger upper band (BB%B=0.98)
+  06:42 ARB/USD: Regime: low_vol (volatility rank 0/100); 🔥 BREAKOUT — Phase 1 — Breakout — +1.0% move with 1.6x volume;   Breaking Bollinger upper band (BB%B=0.91)
+  06:44 ARB/USD: Regime: low_vol (volatility rank 0/100); 🔥 BREAKOUT — Phase 1 — Breakout — +0.8% move with 1.6x volume;   Breaking Bollinger upper band (BB%B=0.88)
+  06:48 ETC/USD: Regime: ranging (volatility rank 27/100); 🔥 BREAKOUT — Phase 1 — Breakout — +1.1% move with 3.3x volume;   Breaking Bollinger upper band (BB%B=0.98)
+  06:50 AAVE/USD: Regime: bull_trend (volatility rank 12/100); 🔥 BREAKOUT — Phase 1 — Breakout — +0.7% move with 2.8x volume;   Breaking Bollinger upper band (BB%B=0.89)
+  06:51 ETC/USD: Regime: ranging (volatility rank 27/100); 🔥 BREAKOUT — Phase 1 — Breakout — +1.1% move with 3.3x volume;   Breaking Bollinger upper band (BB%B=0.98)
+  07:11 ETHFI/USD: Mover: +10% on 24h
+  07:22 ETHFI/USD: Mover: +10% on 24h
+  08:04 ETHFI/USD: Mover: +13% on 24h
+  08:14 ETHFI/USD: Mover: +14% on 24h
+  08:24 ETHFI/USD: Mover: +14% on 24h
+  08:35 ETHFI/USD: Mover: +14% on 24h
+  08:37 POL/USD: Regime: low_vol (volatility rank 13/100); 🔥 BREAKOUT — Phase 1 — Breakout — +1.5% move with 2.4x volume;   Breaking Bollinger upper band (BB%B=1.05)
+  08:38 KTA/USD: Mover: +9% on 24h
+  08:45 POL/USD: Regime: low_vol (volatility rank 13/100); 🔥 BREAKOUT — Phase 1 — Breakout — +1.2% move with 2.9x volume;   Breaking Bollinger upper band (BB%B=0.92)
+  08:46 ETHFI/USD: Mover: +14% on 24h
+  08:51 BTC/USD: Regime: low_vol (volatility rank 21/100); 🔥 BREAKOUT — Phase 1 — Breakout — +0.2% move with 2.5x volume;   Breaking Bollinger upper band (BB%B=1.09)
+  08:56 ETHFI/USD: Mover: +13% on 24h
+  08:59 BTC/USD: Regime: low_vol (volatility rank 21/100); 🔥 BREAKOUT — Phase 1 — Breakout — +0.2% move with 2.5x volume;   Breaking Bollinger upper band (BB%B=1.04)
+  09:22 POL/USD: Regime: low_vol (volatility rank 9/100); 🔥 BREAKOUT — Phase 1 — Breakout — +0.9% move with 1.2x volume;   Breaking Bollinger upper band (BB%B=0.93)
+  09:28 ETHFI/USD: Mover: +11% on 24h
+  09:28 POL/USD: Regime: low_vol (volatility rank 10/100); 🔥 BREAKOUT — Phase 1 — Breakout — +1.0% move with 1.2x volume;   Breaking Bollinger upper band (BB%B=0.97)
+  09:36 LINK/USD: Regime: low_vol (volatility rank 0/100); 🔥 BREAKOUT — Phase 1 — Breakout — +0.3% move with 1.4x volume;   Breaking Bollinger upper band (BB%B=1.01)
+  09:38 ETHFI/USD: Mover: +11% on 24h
+  09:43 LINK/USD: Regime: low_vol (volatility rank 0/100); 🔥 BREAKOUT — Phase 1 — Breakout — +0.3% move with 1.5x volume;   Breaking Bollinger upper band (BB%B=1.03)
+  09:46 WLD/USD: Regime: low_vol (volatility rank 14/100); 🔥 BREAKOUT — Phase 1 — Breakout — +1.4% move with 1.5x volume;   Breaking Bollinger upper band (BB%B=1.02)
+  09:49 WLD/USD: Regime: low_vol (volatility rank 17/100); 🔥 BREAKOUT — Phase 1 — Breakout — +1.3% move with 1.6x volume;   Breaking Bollinger upper band (BB%B=1.00)
+  09:51 WLD/USD: Regime: low_vol (volatility rank 17/100); 🔥 BREAKOUT — Phase 1 — Breakout — +1.3% move with 1.6x volume;   Breaking Bollinger upper band (BB%B=1.00)
+  09:51 KTA/USD: Mover: +11% on 24h
+  09:54 WLD/USD: Regime: low_vol (volatility rank 17/100); 🔥 BREAKOUT — Phase 1 — Breakout — +1.3% move with 1.6x volume;   Breaking Bollinger upper band (BB%B=1.00)
+  09:59 XRP/USD: Regime: low_vol (volatility rank 11/100); 🔥 BREAKOUT — Phase 1 — Breakout — +0.0% move with 1.3x volume;   Breaking Bollinger upper band (BB%B=0.81)
+  10:37 LRC/USD: Mover: +17% on 24h
+  10:37 ALGO/USD: Regime: ranging (volatility rank 36/100); 🔥 BREAKOUT — Phase 1 — Breakout — +1.6% move with 1.5x volume;   Breaking Bollinger upper band (BB%B=0.80)
+  10:44 PUMP/USD: Regime: low_vol (volatility rank 0/100); 🔥 BREAKOUT — Phase 1 — Breakout — +2.2% move with 1.2x volume;   Breaking Bollinger upper band (BB%B=1.01)
+  10:47 PUMP/USD: Regime: low_vol (volatility rank 0/100); 🔥 BREAKOUT — Phase 1 — Breakout — +2.3% move with 1.3x volume;   Breaking Bollinger upper band (BB%B=1.04)
+  10:47 UNI/USD: Regime: bull_trend (volatility rank 18/100); 🔥 BREAKOUT — Phase 1 — Breakout — +1.1% move with 1.3x volume;   Breaking Bollinger upper band (BB%B=0.78)
+  10:47 LRC/USD: Mover: +17% on 24h
+  10:49 PUMP/USD: Regime: low_vol (volatility rank 0/100); 🔥 BREAKOUT — Phase 1 — Breakout — +2.3% move with 1.3x volume;   Breaking Bollinger upper band (BB%B=1.04)
+  10:49 UNI/USD: Regime: bull_trend (volatility rank 23/100); 🔥 BREAKOUT — Phase 1 — Breakout — +0.1% move with 1.6x volume;   Breaking Bollinger upper band (BB%B=0.70)
+  10:52 PUMP/USD: Regime: low_vol (volatility rank 0/100); 🔥 BREAKOUT — Phase 1 — Breakout — +2.1% move with 1.3x volume;   Breaking Bollinger upper band (BB%B=1.01)
+  10:53 ALGO/USD: Regime: ranging (volatility rank 36/100); 🔥 BREAKOUT — Phase 1 — Breakout — +1.4% move with 1.6x volume;   Breaking Bollinger upper band (BB%B=0.73)
+  10:54 UNI/USD: Regime: bull_trend (volatility rank 29/100); 🔥 BREAKOUT — Phase 1 — Breakout — +0.3% move with 2.7x volume;   Breaking Bollinger upper band (BB%B=0.72)
+  10:55 PUMP/USD: Regime: low_vol (volatility rank 0/100); 🔥 BREAKOUT — Phase 1 — Breakout — +2.1% move with 1.3x volume;   Breaking Bollinger upper band (BB%B=1.00)
+  10:58 PUMP/USD: Regime: low_vol (volatility rank 0/100); 🔥 BREAKOUT — Phase 1 — Breakout — +1.6% move with 1.4x volume;   Breaking Bollinger upper band (BB%B=0.93)
+  11:34 INJ/USD: Regime: low_vol (volatility rank 21/100); 🔥 BREAKOUT — Phase 1 — Breakout — +1.6% move with 1.2x volume;   Breaking Bollinger upper band (BB%B=0.82)
+  11:36 INJ/USD: Regime: low_vol (volatility rank 21/100); 🔥 BREAKOUT — Phase 1 — Breakout — +1.5% move with 1.5x volume;   Breaking Bollinger upper band (BB%B=0.80)
+  11:39 INJ/USD: Regime: low_vol (volatility rank 21/100); 🔥 BREAKOUT — Phase 1 — Breakout — +1.8% move with 1.5x volume;   Breaking Bollinger upper band (BB%B=0.85)
+  11:41 INJ/USD: Regime: low_vol (volatility rank 21/100); 🔥 BREAKOUT — Phase 1 — Breakout — +1.7% move with 1.5x volume;   Breaking Bollinger upper band (BB%B=0.84)
+  11:45 INJ/USD: Regime: low_vol (volatility rank 21/100); 🔥 BREAKOUT — Phase 1 — Breakout — +1.7% move with 1.6x volume;   Breaking Bollinger upper band (BB%B=0.84)
+  11:47 INJ/USD: Regime: low_vol (volatility rank 21/100); 🔥 BREAKOUT — Phase 1 — Breakout — +1.9% move with 1.7x volume;   Breaking Bollinger upper band (BB%B=0.87)
+  11:50 INJ/USD: Regime: low_vol (volatility rank 22/100); 🔥 BREAKOUT — Phase 1 — Breakout — +2.0% move with 1.7x volume;   Breaking Bollinger upper band (BB%B=0.88)
+  11:52 INJ/USD: Regime: low_vol (volatility rank 22/100); 🔥 BREAKOUT — Phase 1 — Breakout — +1.9% move with 1.7x volume;   Breaking Bollinger upper band (BB%B=0.86)
+  11:57 INJ/USD: Regime: low_vol (volatility rank 23/100); 🔥 BREAKOUT — Phase 1 — Breakout — +2.1% move with 1.8x volume;   Breaking Bollinger upper band (BB%B=0.90)
+  12:27 BCH/USD: Regime: low_vol (volatility rank 0/100); RSI oversold (30.8); BB oversold (%B=-0.07)
+  12:38 BCH/USD: Regime: low_vol (volatility rank 0/100); RSI oversold (29.7); BB oversold (%B=-0.10)
+  12:49 BCH/USD: Regime: low_vol (volatility rank 0/100); RSI oversold (30.8); BB oversold (%B=-0.07)
+  12:54 ZEC/USD: Regime: low_vol (volatility rank 2/100); RSI oversold (33.0); BB oversold (%B=0.05)
+  12:56 ZEC/USD: Regime: low_vol (volatility rank 2/100); RSI oversold (33.0); BB oversold (%B=0.05)
+  12:59 BCH/USD: Regime: low_vol (volatility rank 1/100); RSI oversold (28.6); BB oversold (%B=-0.14)
+  13:01 INJ/USD: Regime: bull_trend (volatility rank 11/100); 🚀 MOMENTUM RIDER — Phase 2 — Momentum — up +4.9% over 20 candles;   Strong uptrend (EMA spread 0.74%)
+  13:01 JTO/USD: Regime: bull_trend (volatility rank 0/100); 🚀 MOMENTUM RIDER — Phase 2 — Momentum — up +2.4% over 20 candles;   Strong uptrend (EMA spread 0.52%)
+  13:04 JTO/USD: Regime: bull_trend (volatility rank 0/100); 🚀 MOMENTUM RIDER — Phase 2 — Momentum — up +2.4% over 20 candles;   Strong uptrend (EMA spread 0.52%)
+  13:06 JTO/USD: Regime: bull_trend (volatility rank 0/100); 🚀 MOMENTUM RIDER — Phase 2 — Momentum — up +2.4% over 20 candles;   Strong uptrend (EMA spread 0.52%)
+  13:11 XPL/USD: Regime: low_vol (volatility rank 0/100); RSI oversold (25.2); BB oversold (%B=-0.03)
+  13:55 TAO/USD: Regime: low_vol (volatility rank 0/100); RSI oversold (29.7); BB oversold (%B=-0.09)
+  19:47 SOL/USD: Regime: low_vol (volatility rank 5/100); 🔥 BREAKOUT — Phase 1 — Breakout — +0.7% move with 1.3x volume;   Breaking Bollinger upper band (BB%B=0.82)
+  19:57 SOL/USD: Regime: low_vol (volatility rank 6/100); 🔥 BREAKOUT — Phase 1 — Breakout — +0.8% move with 1.4x volume;   Breaking Bollinger upper band (BB%B=0.90)
+  00:53 JUP/USD: Regime: low_vol (volatility rank 7/100); RSI oversold (25.3); BB oversold (%B=0.03)
+  00:57 JUP/USD: Regime: low_vol (volatility rank 8/100); RSI oversold (24.9); BB oversold (%B=0.02)
+  00:59 STX/USD: Regime: ranging (volatility rank 56/100); 🔥 BREAKOUT — Phase 1 — Breakout — +0.8% move with 4.1x volume;   Breaking Bollinger upper band (BB%B=0.87)
+  00:59 JUP/USD: Regime: low_vol (volatility rank 8/100); RSI oversold (24.2); BB oversold (%B=0.01)
+  01:50 JTO/USD: Regime: low_vol (volatility rank 3/100); RSI oversold (28.2); RSI deeply oversold (28.2) — extra buy boost
+  01:50 BNB/USD: Regime: low_vol (volatility rank 1/100); RSI oversold (26.8); RSI deeply oversold (26.8) — extra buy boost
+  01:52 JTO/USD: Regime: low_vol (volatility rank 3/100); RSI oversold (27.8); RSI deeply oversold (27.8) — extra buy boost
+  01:55 JTO/USD: Regime: low_vol (volatility rank 3/100); RSI oversold (27.8); RSI deeply oversold (27.8) — extra buy boost
+  01:57 JTO/USD: Regime: low_vol (volatility rank 3/100); RSI oversold (27.8); RSI deeply oversold (27.8) — extra buy boost
+  02:00 STX/USD: Regime: ranging (volatility rank 37/100); 🚀 MOMENTUM RIDER — Phase 2 — Momentum — up +2.6% over 20 candles;   Strong uptrend (EMA spread 0.32%)
+  02:11 INJ/USD: Regime: low_vol (volatility rank 15/100); RSI oversold (34.3); BB oversold (%B=0.02)
+  02:13 INJ/USD: Regime: low_vol (volatility rank 15/100); RSI oversold (33.5); BB oversold (%B=-0.00)
+  08:32 HBAR/USD: Regime: low_vol (volatility rank 15/100); 🔥 BREAKOUT — Phase 1 — Breakout — +1.8% move with 2.8x volume;   Breaking Bollinger upper band (BB%B=1.10)
+  08:36 HBAR/USD: Regime: low_vol (volatility rank 15/100); 🔥 BREAKOUT — Phase 1 — Breakout — +1.6% move with 2.9x volume;   Breaking Bollinger upper band (BB%B=1.05)
+  08:38 HBAR/USD: Regime: low_vol (volatility rank 15/100); 🔥 BREAKOUT — Phase 1 — Breakout — +1.7% move with 2.9x volume;   Breaking Bollinger upper band (BB%B=1.07)
+  08:41 HBAR/USD: Regime: low_vol (volatility rank 15/100); 🔥 BREAKOUT — Phase 1 — Breakout — +1.7% move with 2.9x volume;   Breaking Bollinger upper band (BB%B=1.09)
+  08:43 HBAR/USD: Regime: low_vol (volatility rank 15/100); 🔥 BREAKOUT — Phase 1 — Breakout — +1.9% move with 2.9x volume;   Breaking Bollinger upper band (BB%B=1.12)
+  08:46 HBAR/USD: Regime: low_vol (volatility rank 15/100); 🔥 BREAKOUT — Phase 1 — Breakout — +1.8% move with 2.9x volume;   Breaking Bollinger upper band (BB%B=1.11)
+  08:49 HBAR/USD: Regime: low_vol (volatility rank 15/100); 🔥 BREAKOUT — Phase 1 — Breakout — +1.7% move with 2.9x volume;   Breaking Bollinger upper band (BB%B=1.09)
+  08:51 HBAR/USD: Regime: low_vol (volatility rank 15/100); 🔥 BREAKOUT — Phase 1 — Breakout — +1.7% move with 3.0x volume;   Breaking Bollinger upper band (BB%B=1.08)
+  08:54 TIA/USD: Regime: low_vol (volatility rank 12/100); 🔥 BREAKOUT — Phase 1 — Breakout — +3.5% move with 3.3x volume;   Breaking Bollinger upper band (BB%B=1.10)
+  08:57 HBAR/USD: Regime: low_vol (volatility rank 15/100); 🔥 BREAKOUT — Phase 1 — Breakout — +1.8% move with 3.1x volume;   Breaking Bollinger upper band (BB%B=1.12)
+  08:59 HBAR/USD: Regime: low_vol (volatility rank 15/100); 🔥 BREAKOUT — Phase 1 — Breakout — +1.9% move with 3.1x volume;   Breaking Bollinger upper band (BB%B=1.12)
+  10:28 LTC/USD: Regime: low_vol (volatility rank 12/100); 🔥 BREAKOUT — Phase 1 — Breakout — +1.5% move with 1.5x volume;   Breaking Bollinger upper band (BB%B=0.94)
+  10:35 LTC/USD: Regime: low_vol (volatility rank 12/100); 🔥 BREAKOUT — Phase 1 — Breakout — +1.3% move with 1.6x volume;   Breaking Bollinger upper band (BB%B=0.89)
+  10:44 LTC/USD: Regime: low_vol (volatility rank 12/100); 🔥 BREAKOUT — Phase 1 — Breakout — +1.6% move with 1.8x volume;   Breaking Bollinger upper band (BB%B=0.99)
+  10:51 LTC/USD: Regime: low_vol (volatility rank 13/100); 🔥 BREAKOUT — Phase 1 — Breakout — +1.9% move with 1.9x volume;   Breaking Bollinger upper band (BB%B=1.08)
+  10:59 TRX/USD: Regime: low_vol (volatility rank 0/100); 🔥 BREAKOUT — Phase 1 — Breakout — +0.1% move with 1.2x volume;   Breaking Bollinger upper band (BB%B=0.86)
+  11:09 ALGO/USD: Regime: low_vol (volatility rank 13/100); 🔥 BREAKOUT — Phase 1 — Breakout — +1.7% move with 1.4x volume;   Breaking Bollinger upper band (BB%B=1.15)
+  11:15 ALGO/USD: Regime: low_vol (volatility rank 24/100); 🔥 BREAKOUT — Phase 1 — Breakout — +1.5% move with 2.2x volume;   Breaking Bollinger upper band (BB%B=1.13)
+  11:17 ALGO/USD: Regime: low_vol (volatility rank 24/100); 🔥 BREAKOUT — Phase 1 — Breakout — +1.6% move with 2.5x volume;   Breaking Bollinger upper band (BB%B=1.14)
+  11:22 ALGO/USD: Regime: low_vol (volatility rank 24/100); 🔥 BREAKOUT — Phase 1 — Breakout — +1.8% move with 2.6x volume;   Breaking Bollinger upper band (BB%B=1.17)
+  11:35 INJ/USD: Regime: bull_trend (volatility rank 31/100); 🔥 BREAKOUT — Phase 1 — Breakout — +2.7% move with 1.2x volume;   Breaking Bollinger upper band (BB%B=0.95)
+  11:35 ALGO/USD: Regime: low_vol (volatility rank 24/100); 🔥 BREAKOUT — Phase 1 — Breakout — +1.7% move with 2.8x volume;   Breaking Bollinger upper band (BB%B=1.16)
+  11:38 INJ/USD: Regime: bull_trend (volatility rank 32/100); 🔥 BREAKOUT — Phase 1 — Breakout — +2.3% move with 1.2x volume;   Breaking Bollinger upper band (BB%B=0.91)
+  11:40 INJ/USD: Regime: bull_trend (volatility rank 32/100); 🔥 BREAKOUT — Phase 1 — Breakout — +2.2% move with 1.2x volume;   Breaking Bollinger upper band (BB%B=0.91)
+  11:43 INJ/USD: Regime: bull_trend (volatility rank 32/100); 🔥 BREAKOUT — Phase 1 — Breakout — +2.4% move with 1.5x volume;   Breaking Bollinger upper band (BB%B=0.92)
+  11:46 INJ/USD: Regime: bull_trend (volatility rank 32/100); 🔥 BREAKOUT — Phase 1 — Breakout — +2.5% move with 1.5x volume;   Breaking Bollinger upper band (BB%B=0.94)
+  11:49 INJ/USD: Regime: bull_trend (volatility rank 32/100); 🔥 BREAKOUT — Phase 1 — Breakout — +2.6% move with 1.7x volume;   Breaking Bollinger upper band (BB%B=0.95)
+  11:51 ONDO/USD: Regime: low_vol (volatility rank 10/100); 🔥 BREAKOUT — Phase 1 — Breakout — +0.9% move with 1.3x volume;   Breaking Bollinger upper band (BB%B=0.85)
+  11:51 INJ/USD: Regime: bull_trend (volatility rank 32/100); 🔥 BREAKOUT — Phase 1 — Breakout — +2.3% move with 1.8x volume;   Breaking Bollinger upper band (BB%B=0.91)
+  11:51 OP/USD: Regime: low_vol (volatility rank 13/100); 🔥 BREAKOUT — Phase 1 — Breakout — +1.6% move with 1.2x volume;   Breaking Bollinger upper band (BB%B=1.11)
+  11:54 ALGO/USD: Regime: low_vol (volatility rank 24/100); 🔥 BREAKOUT — Phase 1 — Breakout — +1.7% move with 3.2x volume;   Breaking Bollinger upper band (BB%B=1.16)
+  11:54 INJ/USD: Regime: bull_trend (volatility rank 33/100); 🔥 BREAKOUT — Phase 1 — Breakout — +2.1% move with 1.9x volume;   Breaking Bollinger upper band (BB%B=0.89)
+  11:55 OP/USD: Regime: low_vol (volatility rank 13/100); 🔥 BREAKOUT — Phase 1 — Breakout — +1.7% move with 1.2x volume;   Breaking Bollinger upper band (BB%B=1.13)
+  11:56 ALGO/USD: Regime: low_vol (volatility rank 24/100); 🔥 BREAKOUT — Phase 1 — Breakout — +1.7% move with 3.2x volume;   Breaking Bollinger upper band (BB%B=1.16)
+  11:57 INJ/USD: Regime: bull_trend (volatility rank 32/100); 🔥 BREAKOUT — Phase 1 — Breakout — +2.2% move with 1.9x volume;   Breaking Bollinger upper band (BB%B=0.90)
+  11:57 OP/USD: Regime: low_vol (volatility rank 12/100); 🔥 BREAKOUT — Phase 1 — Breakout — +2.0% move with 1.3x volume;   Breaking Bollinger upper band (BB%B=1.18)
+  11:57 TIA/USD: Regime: low_vol (volatility rank 15/100); 🔥 BREAKOUT — Phase 1 — Breakout — +1.6% move with 2.9x volume;   Breaking Bollinger upper band (BB%B=1.07)
+  12:07 TIA/USD: Regime: low_vol (volatility rank 12/100); 🔥 BREAKOUT — Phase 1 — Breakout — +0.6% move with 1.2x volume;   Breaking Bollinger upper band (BB%B=0.96)
+  12:10 TIA/USD: Regime: low_vol (volatility rank 12/100); 🔥 BREAKOUT — Phase 1 — Breakout — +0.5% move with 1.3x volume;   Breaking Bollinger upper band (BB%B=0.95)

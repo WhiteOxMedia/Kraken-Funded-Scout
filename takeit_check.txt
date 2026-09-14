@@ -8,9 +8,13 @@ PASS  1.2% away @1.2% avg = 4h → blocked
 PASS  0.8% away @1.2% avg = 2.7h → passes
 PASS  2% away @4% avg = 2h → passes
 PASS  HYPE-style slow coin → ~33h → blocked
-PASS  cap is 3-6h and never past midnight
+FAIL  _max_resolve_hours import  [_max_resolve_hours() missing 1 required keyword-only argument: 'now']
 PASS  SCALP_TARGET_PCT = 0.4 (+$20 on $5,000)
 PASS  sanity: 1.24% pace → ~1.3h to $20 (passes cap)
+FAIL  _hours_to_scalp import  [_hours_to_scalp() missing 1 required keyword-only argument: 'now']
+FAIL  _hours_to_goal import  [_max_resolve_hours() missing 1 required keyword-only argument: 'now']
+
+
 
 
 
@@ -27,14 +31,7 @@ PASS  sanity: 1.24% pace → ~1.3h to $20 (passes cap)
 TAKE IT threshold math:
 
 resolve-rule math:
-  current cap: 6.0h
 
 live resolve gate (scalp = +0.4% = the $20):
-  BTC/USD: $20 pace → 6.9h → blocked
-  HYPE/USD: $20 pace → 3.0h → passes
-  NEAR/USD: $20 pace → 1.7h → passes
 
 live _hours_to_goal (display only):
-  BTC/USD: 2% away → 34.6h → blocked
-  HYPE/USD: 2% away → 15.0h → blocked
-  NEAR/USD: 2% away → 8.6h → blocked
