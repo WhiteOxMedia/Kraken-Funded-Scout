@@ -1,0 +1,37 @@
+=== THE TIDE MEMORY'S HINDSIGHT, IN DOLLARS (Sep 10) ===
+graded popup-path events: 66
+  priced by the memory's gate (desktop bar): 14
+  behind the BOT bridge's OUT wall (two-ledgers rule, the memory does not price it): 34
+  buried by gates the memory does not own (deep veto, trend, climb, blowoff): 18
+
+convention: position = $1055 x the brain's size ladder; the trade pays end_move_pct (3h close) — mfe_pct is the sell-the-top ceiling. No look-ahead: the memory is rebuilt truncated before each event's hour.
+
+── RELEASED by the memory (0 of 14 priced burials) ──
+pair         tide   quick  bar ->   on   adj  size$    end$    mfe$ payoff  
+BTC/USD      OUT     50.0   93 ->   94 -1.05    211   +0.69   +0.82 grinder 
+S/USD        OUT     56.7   92 ->   92 +0.46    348   +0.00   +0.00 dud     
+WIF/USD      OUT     50.8   92 ->   92 +0.16    211   +0.00   +0.44 dud     
+FARTCOIN/USD OUT     51.4   92 ->   91 +0.95    211   -0.61   +0.91 grinder 
+S/USD        OUT     51.3   92 ->   92 +0.49    211   -2.36   +0.79 grinder 
+XPL/USD      OUT     50.6   92 ->   91 +1.29    211   -2.95   -0.49 dud     
+ETH/USD      OUT     68.5   93 ->   94 -0.64    528   -3.34   +0.37 dud     
+PNUT/USD     OUT     57.0   92 ->   92 -0.08    348   -3.80   +0.76 dud     
+HYPE/USD     OUT     65.4   92 ->   92 +0.15    528   -5.27   +0.26 dud     
+ALGO/USD     OUT     58.6   93 ->   93 -0.04    348   -5.68   -0.93 dud     
+XRP/USD      OUT     66.6   92 ->   93 -0.68    528   -6.08   +0.07 dud     
+TAO/USD      OUT     69.5   93 ->   93 -0.27    528   -7.99   +1.32 dud     
+GRASS/USD    OUT     64.9   92 ->   91 +0.90    348   -9.26   +0.00 dud     
+KAITO/USD    OUT     66.4   92 ->   91 +1.07    528  -10.05   +0.00 dud     
+
+TOTAL released: end-move $+0.00   (sell-the-top ceiling $+0.00)
+near-misses (gap <= 3 pts even after the memory): 0
+
+── BLOCKED by the memory ──
+0 events. A negative adjustment tightens a bar that already buried — it can never un-bury. (5 priced burials DID carry a tightening adjustment; none was a fired popup, because this window contains no fired records yet.)
+
+── THE WALL, informational (NOT the memory's money) ──
+These burials are the bot bridge's blanket OUT block — the two-ledgers rule (the bot never trades OUT). The memory deliberately does not price that gate. For scale only: had the desktop's personal bar ruled there too (base 92, the value in force through the window), the quick scores that would have cleared it:
+  3 of 34 wall burials would have cleared the personal bar — end-move $-5.15, popup-style goal-take (winners exit at the 1.5% goal) $+15.82, mfe ceiling $+36.22
+  That is the two-ledgers ruling's price tag, not the memory's — changing it is a user decision, not a gate.
+
+READ: the per-coin memory's dollar effect in this window is second-order by design — it moves bars at most 3 pts, and every bar-priced burial in the window missed by more than its coin's adjustment (closest: see the table). The memory's job is the margin, not the wall; the walls are the wolf carve, the deep veto, and the bot bridge's OUT rule.

@@ -1,0 +1,26 @@
+PASS  pagination walks forward until the data runs out  (801, 801)
+PASS  every page advances `since` monotonically past the last candle  [('XPL/USD', '5m', 1789083780000.0, 720), ('XPL/USD', '5m', 1789299780000, 720)]
+PASS  the still-forming candle is dropped (never a fake close)  
+PASS  a short tail ends the walk (len < 720)  (50, None)
+PASS  a fetch error is returned, never raised  
+PASS  only strictly-new candles append (overlap excluded)  200
+PASS  no duplicates and ascending after merge  
+PASS  the native store wins on overlap (keep the earlier write)  
+PASS  identical closes -> zero diff, full payer agreement, vol ratio 1  {'close_diff_pct': 0.0, 'payer_agree_pct': 100.0, 'vol_ratio': 1.0, 'overlap_n': 100}
+PASS  doubled fresh volume -> vol ratio 0.5 (the units flag)  {'close_diff_pct': 0.0, 'payer_agree_pct': 100.0, 'vol_ratio': 0.5, 'overlap_n': 100}
+PASS  2% store-vs-fresh close gap -> close_diff ~1.96% (relative to the store)  {'close_diff_pct': 1.9608, 'payer_agree_pct': 100.0, 'vol_ratio': 1.0, 'overlap_n': 100}
+PASS  extension appends and reports the seam  {'pair': 'XPL/USD', 'appended': 600, 'gaps': 0, 'rows': 1600, 'new_end': '2026-09-08 21:38:00+00:00', 'seam': {'close_diff_pct': 0.0, 'payer_agree_pct': 100.0, 'vol_ratio': 100.0, 'overlap_n': 100}, 'vol_rescaled': True}
+PASS  the volume-unit mismatch triggers the rescale  {'close_diff_pct': 0.0, 'payer_agree_pct': 100.0, 'vol_ratio': 100.0, 'overlap_n': 100}
+PASS  appended candles land on the store's volume scale (x100)  1000.0
+PASS  the merged store keeps the 5m cadence  
+PASS  a dead fetch is skipped and named, store untouched  
+PASS  the tool reports to _5m_extension_report.txt  
+PASS  the provenance carries the extension block  
+PASS  extend_all appends over the sandboxed store  {'attempted': 1, 'extended': 1, 'failed': [], 'appended': 59, 'seams': []}
+PASS  the driver thread idles alive on the stop event (no crash)  
+PASS  the scanner wires the deep-store driver thread  
+PASS  the driver is a daemon that never takes the funnel down  
+PASS  the daily cadence constant exists (24h)  
+PASS  feather writes are atomic swaps (readers never see a partial)  
+
+RESULT: 24 passed, 0 failed

@@ -23,7 +23,7 @@ PASS  brain 83.9 vs floor 89 -> suppressed (below the window)
 PASS  brain 88 vs floor 93 (US Late) -> CHALLENGER at the edge  
 PASS  brain 87 vs floor 93 (US Late) -> suppressed (the tighten bites)  
 PASS  brain 82 vs floor 84 (Asia) -> CHALLENGER  
-PASS  send_alert computes DESKTOP_ALERT_MIN via popup_floor()  
+PASS  send_alert computes DESKTOP_ALERT_MIN via popup_floor() (with the pair — the coin's tide memory)  
 PASS  the old flat-89 line is gone  
 PASS  the challenger branch is retired (no floor to challenge)  
 PASS  _challenger flag stays initialized (dead mark, kept harmless)  
@@ -33,7 +33,7 @@ PASS  the direction gates (the number is advisory, the direction is not)
 PASS  fail-closed survives (no brain read = no popup)  
 PASS  the fire-time rule holds the bridge too (no scan = no write)  
 PASS  the floor log names the rotation  
-PASS  QC champ_floor reads the shared popup_floor() helper  
+PASS  QC champ_floor reads the shared popup_floor() helper (with the pair)  
 PASS  QC stores the champ_floor for the render/Hail Mary context  
 PASS  the thin-book challenger window is retired (no gate, no mark)  
 PASS  the thin-book brain gate is gone from the render's passes  

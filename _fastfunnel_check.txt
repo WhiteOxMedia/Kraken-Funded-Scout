@@ -18,7 +18,7 @@ PASS  the voice says Fast ROUTE
 PASS  the message spells the route + the risk story  
 PASS  the fired snapshot tags the route (champion-fast)  
 PASS  the ONLY gate the fast route waives is the worth floor (death line, caps, tide, thin all stand)  
-PASS  the popup cap still gates the fast route  
+PASS  the popup cap is retired (Sep 9: functions kept, never called) ? the fast route's cap waiver is moot  
 PASS  the mover path routes too (momentum runners are the fast feed)  
 PASS  the mover's worth floor waives on the fast route  
 PASS  the mover popup carries the mark + the snapshot tags the route  

@@ -1,0 +1,35 @@
+PASS  the provisional rule is the documented tercile edge  {'momentum_1h': 0.4}
+PASS  momentum_1h >= 0.4 routes FAST (the S-class 02:38 read)  provisional: momentum_1h 0.99≥0.4
+PASS  momentum_1h 0.39 stays SLOW (just under the edge)  momentum_1h 0.39 < 0.4
+PASS  a missing value stays SLOW  momentum_1h missing
+PASS  no features at all stays SLOW (fail-closed to the full stack)  no fire-time features
+PASS  a non-dict features payload stays SLOW, never raises  no fire-time features
+PASS  a landed rule REPLACES the provisional (momentum alone no longer routes)  vol_burst 1.00 < 2.0
+PASS  the landed rule routes on ITS feature  rules.json: vol_burst 2.50≥2.0
+PASS  the why names the source  rules.json: vol_burst 2.50≥2.0
+PASS  multiple landed rules AND together (both must clear)  (True, False)
+PASS  a corrupt rules file falls back to the provisional rule  provisional: momentum_1h 0.90≥0.4
+PASS  the champion path routes via hindsight_scorer.fast_route  
+PASS  the route reads the FIRE-TIME features (the snapshot ctx)  
+PASS  the router fails CLOSED (a broken read = the slow funnel)  
+PASS  THE WORTH FLOOR WAIVES on the fast route (and only there)  
+PASS  the popup title carries the FAST ROUTE mark  
+PASS  the voice says Fast ROUTE  
+PASS  the message spells the route + the risk story  
+PASS  the fired snapshot tags the route (champion-fast)  
+PASS  the ONLY gate the fast route waives is the worth floor (death line, caps, tide, thin all stand)  
+PASS  the popup cap is retired (Sep 9: functions kept, never called) — the fast route's cap waiver is moot  
+PASS  the mover path routes too (momentum runners are the fast feed)  
+PASS  the mover's worth floor waives on the fast route  
+PASS  the mover popup carries the mark + the snapshot tags the route  
+PASS  config: self_strategy_enabled defaults OFF  
+PASS  engine: the entry scan is gated on the flag  
+PASS  engine: the retirement logs once, says what still runs  
+PASS  engine: the DCA continuation is gated too (a retired scan must not keep adding tranches)  
+PASS  engine: the exit checks are NOT gated (the exit stack stands)  
+PASS  runner: the config_json override can flip it back without a code edit  
+PASS  the scout reader's own buys are untouched (the bridge path)  
+PASS  the router lives in the scorer (ONE source, like brain_size_mult)  
+
+32 passed, 0 failed
+

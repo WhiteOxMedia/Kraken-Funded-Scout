@@ -1,0 +1,194 @@
+07:32 PM [INFO] ============================================================
+07:32 PM [INFO]   Kraken Scout — Rotation Scanner (data-driven)
+07:32 PM [INFO]   Time zone: Mountain Time (MST/MDT, auto DST)
+07:32 PM [INFO]   R1 00-04 Asia | R2 04-08 Pre-US | R3 08-12 EU/US
+07:32 PM [INFO]   R4 12-16 US PM | R5 16-20 US Late | 20-24 cooldown
+07:32 PM [INFO]   Gates: calibrated confidence bar + expected-move floor
+07:32 PM [INFO]   Press Ctrl+C to stop
+07:32 PM [INFO] ============================================================
+07:32 PM [INFO]   Tide memory live driver: ON (popup outcomes refresh every 30 min)
+07:32 PM [INFO]   Deep store 5m driver: ON (live-Kraken extension every 24h)
+07:32 PM [INFO]   Sure Thing auto-refit driver: ON (monthly refit, first pass in 10 min; holdout degradation reported)
+07:32 PM [INFO]   Tide bar weekly driver: ON (outcome-vs-quantile hindsight — daily pass, 7-day grade window; first pass in 10 min)
+07:32 PM [INFO]   Flip grade driver: ON (the bench machinery judged on its own ledger — monthly once 2 weeks of history exist; first pass in 15 min)
+07:32 PM [INFO] R5 \U0001f306 US Late — Quick ticker scan...
+07:32 PM [INFO]   Movers (>2%): AIXBT, KAITO
+07:32 PM [INFO] \U0001f9f2 SURE THING ARMED (silent): DOT — coil 2.00% · 3 tests · squeeze 0.94 · ATR 0.5045758512282261 · BB 0.32 · revs 1 · hist 0%/13
+07:33 PM [INFO] \U0001f9f2 SURE THING ARMED (silent): MOODENG — coil 1.41% · 3 tests · squeeze 0.92 · ATR 0.26943952148870465 · BB 0.24 · revs 2 · hist 0%/12
+07:33 PM [INFO]   SURE THING NEAR: 1h knife active — falling wedge, skip
+07:33 PM [INFO] \U0001f9f2 SURE THING ARMED (silent): ONDO — coil 0.75% · 3 tests · squeeze 0.92 · ATR 0.40258998063929746 · BB 0.84 · revs 0 · hist 0%/17
+07:33 PM [INFO] R5 \U0001f306 US Late — Full tournament (54 assets, min_conf=50)...
+07:33 PM [INFO]   US late session — steady moves
+07:33 PM [INFO]   Fetched 54/54 assets
+07:33 PM [INFO]   Liquidity filter: excluded 15 assets (< $1M 24h vol): LDO ($0.2M), GRASS ($0.2M), KAITO ($0.1M), MOODENG ($0.2M), S ($0.1M), PNUT ($0.0M), POPCAT ($0.2M), ETC ($0.2M), OP ($0.3M), JTO ($0.3M), TIA ($0.4M), WIF ($0.5M), AIXBT ($0.0M), ASTER ($0.8M), VIRTUAL ($0.2M)
+07:33 PM [INFO]   No qualifying signals (min_conf=50)
+07:33 PM [INFO]   Tournament done in 8s
+07:33 PM [INFO]   Next check in 30s | R5 \U0001f306 US Late Fri | threshold 61% | full scan every 10m
+07:34 PM [INFO]   Next check in 30s | R5 \U0001f306 US Late Fri | threshold 61% | full scan every 10m
+07:34 PM [INFO] R5 \U0001f306 US Late — Quick ticker scan...
+07:34 PM [INFO]   Movers (>2%): AIXBT, KAITO
+07:35 PM [INFO]   Next check in 30s | R5 \U0001f306 US Late Fri | threshold 61% | full scan every 10m
+07:35 PM [INFO]   Next check in 30s | R5 \U0001f306 US Late Fri | threshold 61% | full scan every 10m
+07:36 PM [INFO]   Next check in 30s | R5 \U0001f306 US Late Fri | threshold 61% | full scan every 10m
+07:36 PM [INFO]   Next check in 30s | R5 \U0001f306 US Late Fri | threshold 61% | full scan every 10m
+07:37 PM [INFO] R5 \U0001f306 US Late — Quick ticker scan...
+07:37 PM [INFO]   Movers (>2%): AIXBT, KAITO
+07:37 PM [INFO]   Next check in 30s | R5 \U0001f306 US Late Fri | threshold 61% | full scan every 10m
+07:37 PM [INFO]   Next check in 30s | R5 \U0001f306 US Late Fri | threshold 61% | full scan every 10m
+07:38 PM [INFO]   SURE THING NEAR: 1h knife active — falling wedge, skip
+07:38 PM [INFO] \U0001f9f2 SURE THING ARMED (silent): PNUT — coil 0.87% · 3 tests · squeeze 0.96 · ATR 0.4492566257272113 · BB 0.12 · revs 0 · hist 0%/20
+07:38 PM [INFO]   SURE THING PNUT: deep veto — the scan reads hold 20% against the breakout
+07:38 PM [INFO] \U0001f9f2 SURE THING ARMED (silent): TRUMP — coil 0.96% · 3 tests · squeeze 0.81 · ATR 0.45827241191479884 · BB 0.68 · revs 0 · hist 0%/15
+07:39 PM [INFO]   SURE THING TRX: deep veto — the scan reads hold 40% against the breakout
+07:39 PM [INFO] \U0001f9f2 SURE THING ARMED (silent): VIRTUAL — coil 1.43% · 3 tests · squeeze 0.81 · ATR 0.38210807414388615 · BB 0.04 · revs 1 · hist 0%/17
+07:39 PM [INFO]   Next check in 30s | R5 \U0001f306 US Late Fri | threshold 61% | full scan every 10m
+07:39 PM [INFO] R5 \U0001f306 US Late — Quick ticker scan...
+07:39 PM [INFO]   Movers (>2%): AIXBT, KAITO, ZEC
+07:39 PM [INFO]   Next check in 30s | R5 \U0001f306 US Late Fri | threshold 61% | full scan every 10m
+07:40 PM [INFO]   Next check in 30s | R5 \U0001f306 US Late Fri | threshold 61% | full scan every 10m
+07:40 PM [INFO]   Next check in 30s | R5 \U0001f306 US Late Fri | threshold 61% | full scan every 10m
+07:41 PM [INFO]   Next check in 30s | R5 \U0001f306 US Late Fri | threshold 61% | full scan every 10m
+07:41 PM [INFO] R5 \U0001f306 US Late — Quick ticker scan...
+07:41 PM [INFO]   Movers (>2%): AIXBT, KAITO, ZEC
+07:41 PM [INFO]   Next check in 30s | R5 \U0001f306 US Late Fri | threshold 61% | full scan every 10m
+07:42 PM [INFO]   Next check in 30s | R5 \U0001f306 US Late Fri | threshold 61% | full scan every 10m
+07:42 PM [INFO] R5 \U0001f306 US Late — Full tournament (54 assets, min_conf=50)...
+07:42 PM [INFO]   US late session — steady moves
+07:42 PM [INFO]   Fetched 54/54 assets
+07:42 PM [INFO]   Liquidity filter: excluded 15 assets (< $1M 24h vol): MOODENG ($0.2M), LDO ($0.2M), KAITO ($0.1M), GRASS ($0.2M), S ($0.1M), PNUT ($0.0M), POPCAT ($0.2M), ETC ($0.2M), OP ($0.3M), JTO ($0.3M), TIA ($0.4M), WIF ($0.5M), AIXBT ($0.0M), ASTER ($0.8M), VIRTUAL ($0.2M)
+07:43 PM [INFO]   No qualifying signals (min_conf=50)
+07:43 PM [INFO]   Tournament done in 12s
+07:43 PM [INFO]   Next check in 30s | R5 \U0001f306 US Late Fri | threshold 61% | full scan every 10m
+07:45 PM [INFO] TIDE BAR WEEKLY: === THE TIDE BAR WEEKLY — outcome bar vs the quantile ===
+07:46 PM [INFO]   SURE THING NEAR: 1h knife active — falling wedge, skip
+07:46 PM [INFO] \U0001f9f2 SURE THING ARMED (silent): WLD — coil 1.82% · 5 tests · squeeze 0.85 · ATR 0.40976551911087433 · BB 0.84 · revs 1 · hist 0%/13
+07:46 PM [INFO] \U0001f9f2 SURE THING ARMED (silent): APT — coil 1.80% · 3 tests · squeeze 0.96 · ATR 0.3735263522884925 · BB 0.8 · revs 0 · hist 0%/2
+07:46 PM [INFO] \U0001f9f2 SURE THING ARMED (silent): ETC — coil 0.51% · 4 tests · squeeze 1.00 · ATR 0.22146944317441963 · BB 0.28 · revs 1 · hist 0%/20
+07:47 PM [INFO]   Next check in 30s | R5 \U0001f306 US Late Fri | threshold 61% | full scan every 10m
+07:47 PM [INFO] FLIP GRADE: held — 1 week(s) of history — the grade holds until 2 (the seeded replays in diag_flipgrade.py remain simulations)
+07:47 PM [INFO] R5 \U0001f306 US Late — Quick ticker scan...
+07:47 PM [INFO]   Movers (>2%): AIXBT, ARB, INJ, KAITO, ZEC
+07:47 PM [INFO]   Next check in 30s | R5 \U0001f306 US Late Fri | threshold 61% | full scan every 10m
+07:48 PM [INFO] SURE THING AUTO-REFIT: kept refit: the fresh refit regressed vs the incumbent on the same holdout (0.520 < 0.522) — no improvement, no ship
+07:48 PM [INFO]   Next check in 30s | R5 \U0001f306 US Late Fri | threshold 61% | full scan every 10m
+07:49 PM [INFO]   SURE THING ADA: deep veto — the scan reads hold 20% against the breakout
+07:49 PM [INFO]   SURE THING NEAR: 1h knife active — falling wedge, skip
+07:49 PM [INFO]   SURE THING PNUT: deep veto — the scan reads hold 27% against the breakout
+07:49 PM [INFO]   SURE THING OP: deep veto — the scan reads hold 18% against the breakout
+07:50 PM [INFO]   Next check in 30s | R5 \U0001f306 US Late Fri | threshold 61% | full scan every 10m
+07:50 PM [INFO] R5 \U0001f306 US Late — Quick ticker scan...
+07:50 PM [INFO]   Movers (>2%): AIXBT, INJ, KAITO, ZEC
+07:50 PM [INFO]   Next check in 30s | R5 \U0001f306 US Late Fri | threshold 61% | full scan every 10m
+07:51 PM [INFO]   Next check in 30s | R5 \U0001f306 US Late Fri | threshold 61% | full scan every 10m
+07:51 PM [INFO]   Next check in 30s | R5 \U0001f306 US Late Fri | threshold 61% | full scan every 10m
+07:52 PM [INFO]   Next check in 30s | R5 \U0001f306 US Late Fri | threshold 61% | full scan every 10m
+07:52 PM [INFO] R5 \U0001f306 US Late — Quick ticker scan...
+07:52 PM [INFO]   Movers (>2%): AIXBT, INJ, KAITO, ZEC
+07:52 PM [INFO]   Next check in 30s | R5 \U0001f306 US Late Fri | threshold 61% | full scan every 10m
+07:53 PM [INFO] R5 \U0001f306 US Late — Full tournament (54 assets, min_conf=50)...
+07:53 PM [INFO]   US late session — steady moves
+07:53 PM [INFO]   Fetched 54/54 assets
+07:53 PM [INFO]   Liquidity filter: excluded 15 assets (< $1M 24h vol): MOODENG ($0.2M), KAITO ($0.1M), LDO ($0.2M), GRASS ($0.2M), PNUT ($0.0M), S ($0.1M), JTO ($0.3M), ETC ($0.2M), POPCAT ($0.2M), OP ($0.3M), AIXBT ($0.0M), WIF ($0.5M), TIA ($0.4M), ASTER ($0.9M), VIRTUAL ($0.2M)
+07:53 PM [INFO]   No qualifying signals (min_conf=50)
+07:53 PM [INFO]   Tournament done in 9s
+07:53 PM [INFO]   Next check in 30s | R5 \U0001f306 US Late Fri | threshold 61% | full scan every 10m
+07:53 PM [INFO]   Next check in 30s | R5 \U0001f306 US Late Fri | threshold 61% | full scan every 10m
+07:54 PM [INFO] \U0001f9f2 SURE THING ARMED (silent): LDO — coil 1.08% · 3 tests · squeeze 0.90 · ATR 0.5031370656370656 · BB 0.72 · revs 0 · hist 0%/16
+07:55 PM [INFO] \U0001f9f2 SURE THING ARMED (silent): FARTCOIN — coil 1.11% · 5 tests · squeeze 0.81 · ATR 0.5163600701358143 · BB 0.56 · revs 2 · hist 0%/4
+07:55 PM [INFO]   Next check in 30s | R5 \U0001f306 US Late Fri | threshold 61% | full scan every 10m
+07:55 PM [INFO] R5 \U0001f306 US Late — Quick ticker scan...
+07:55 PM [INFO]   Movers (>2%): AIXBT, INJ, KAITO, ZEC
+07:56 PM [INFO]   Next check in 30s | R5 \U0001f306 US Late Fri | threshold 61% | full scan every 10m
+07:56 PM [INFO]   Next check in 30s | R5 \U0001f306 US Late Fri | threshold 61% | full scan every 10m
+07:57 PM [INFO]   Next check in 30s | R5 \U0001f306 US Late Fri | threshold 61% | full scan every 10m
+07:57 PM [INFO]   Next check in 30s | R5 \U0001f306 US Late Fri | threshold 61% | full scan every 10m
+07:58 PM [INFO] R5 \U0001f306 US Late — Quick ticker scan...
+07:58 PM [INFO]   Movers (>2%): AIXBT, INJ, KAITO
+07:58 PM [INFO]   Next check in 30s | R5 \U0001f306 US Late Fri | threshold 61% | full scan every 10m
+07:58 PM [INFO]   Next check in 30s | R5 \U0001f306 US Late Fri | threshold 61% | full scan every 10m
+07:59 PM [INFO]   Next check in 30s | R5 \U0001f306 US Late Fri | threshold 61% | full scan every 10m
+07:59 PM [INFO] \U0001f9f2 SURE THING ARMED (silent): DOT — coil 1.86% · 3 tests · squeeze 0.92 · ATR 0.5390559340521854 · BB 0.76 · revs 2 · hist 0%/15
+08:00 PM [INFO] \U0001f9f2 SURE THING ARMED (silent): TIA — coil 1.46% · 4 tests · squeeze 0.81 · ATR 0.4190666603195763 · BB 0.08 · revs 3 · hist 0%/12
+08:00 PM [INFO]   Next check in 30s | \U0001f319 Cooldown Fri | COOLDOWN — no buys until 00:00
+08:01 PM [INFO] ============================================================
+08:01 PM [INFO]   COOLDOWN FLATTEN — trading day closed
+08:01 PM [INFO] ============================================================
+08:01 PM [INFO]   reset: Phase 1: 0 tracked positions in bot DB
+08:01 PM [INFO]   reset: Phase 2: Scanning actual Kraken balances for untracked assets
+08:01 PM [INFO]   reset: ADA: dust ($0.00) — skipping
+08:01 PM [INFO]   reset: ATOM: dust ($0.00) — skipping
+08:01 PM [INFO]   reset: AVAX: dust ($0.00) — skipping
+08:01 PM [INFO]   reset: INJ: dust ($0.00) — skipping
+08:01 PM [INFO]   reset: NEAR: dust ($0.00) — skipping
+08:01 PM [INFO]   reset: POL: dust ($0.00) — skipping
+08:01 PM [INFO]   reset: TRX: dust ($0.00) — skipping
+08:01 PM [INFO]   reset: USDC: dust ($0.00) — skipping
+08:01 PM [INFO]   reset: Untracked sold: 0 assets, ~$0.00 freed
+08:01 PM [INFO]   reset: --- after reset ---
+08:01 PM [INFO]   reset: open positions: 0
+08:01 PM [INFO]   reset: USD free : 3.34
+08:01 PM [INFO] Reset: closed 0 filled (kept 0 winners), cancelled 0 pending/0 acknowledged
+08:01 PM [INFO]   Bridge reset: closed 0, cancelled 0 pending, kept 0 winners
+08:01 PM [INFO] Cooldown flatten done | kept winners: none
+08:01 PM [INFO] Rotation R5 \U0001f306 US Late -> \U0001f319 Cooldown (positions ride — cooldown flatten owns resets)
+08:02 PM [INFO] \U0001f393 DISCIPLINE: rotation 16-20 score 50 — left $16 on the table (missed $0 / giveback $0 / no-exit $0)
+08:02 PM [INFO]    lesson: No popups fired — score capped at 50 (the opportunity cost: a silent rotation cannot grade perfect). Realized $+0; weights hold.
+08:02 PM [INFO]   Next check in 30s | \U0001f319 Cooldown Fri | COOLDOWN — no buys until 00:00
+08:02 PM [INFO]   Next check in 30s | \U0001f319 Cooldown Fri | COOLDOWN — no buys until 00:00
+08:03 PM [INFO]   Next check in 30s | \U0001f319 Cooldown Fri | COOLDOWN — no buys until 00:00
+08:03 PM [INFO]   Next check in 30s | \U0001f319 Cooldown Fri | COOLDOWN — no buys until 00:00
+08:04 PM [INFO]   Next check in 30s | \U0001f319 Cooldown Fri | COOLDOWN — no buys until 00:00
+08:04 PM [INFO] \U0001f9f2 SURE THING ARMED (silent): LTC — coil 1.16% · 3 tests · squeeze 0.96 · ATR 0.7129280434454621 · BB 0.04 · revs 2 · hist 0%/25
+08:04 PM [INFO] \U0001f9f2 SURE THING ARMED (silent): NEAR — coil 1.64% · 5 tests · squeeze 0.96 · ATR 0.6066724773682741 · BB 1.0 · revs 0 · hist 50%/2
+08:05 PM [INFO]   SURE THING NEAR: 1h knife active — falling wedge, skip
+08:05 PM [INFO] \U0001f9f2 SURE THING ARMED (silent): S — coil 0.74% · 3 tests · squeeze 0.94 · ATR 0.14306298888431387 · BB 0.04 · revs 0 · hist 0%/19
+08:05 PM [INFO]   Next check in 30s | \U0001f319 Cooldown Fri | COOLDOWN — no buys until 00:00
+08:06 PM [INFO]   Next check in 30s | \U0001f319 Cooldown Fri | COOLDOWN — no buys until 00:00
+08:06 PM [INFO]   Next check in 30s | \U0001f319 Cooldown Fri | COOLDOWN — no buys until 00:00
+08:07 PM [INFO]   Next check in 30s | \U0001f319 Cooldown Fri | COOLDOWN — no buys until 00:00
+08:07 PM [INFO]   Next check in 30s | \U0001f319 Cooldown Fri | COOLDOWN — no buys until 00:00
+08:08 PM [INFO]   Next check in 30s | \U0001f319 Cooldown Fri | COOLDOWN — no buys until 00:00
+08:08 PM [INFO]   Next check in 30s | \U0001f319 Cooldown Fri | COOLDOWN — no buys until 00:00
+08:09 PM [INFO]   Next check in 30s | \U0001f319 Cooldown Fri | COOLDOWN — no buys until 00:00
+08:09 PM [INFO] \U0001f9f2 SURE THING ARMED (silent): BNB — coil 0.68% · 4 tests · squeeze 0.83 · ATR 0.6251480873693617 · BB 0.24 · revs 1 · hist 0%/26
+08:09 PM [INFO] \U0001f9f2 SURE THING ARMED (silent): CRV — coil 1.06% · 4 tests · squeeze 0.81 · ATR 0.6451400635918915 · BB 0.68 · revs 2 · hist 0%/13
+08:10 PM [INFO]   SURE THING NEAR: 1h knife active — falling wedge, skip
+08:10 PM [INFO] \U0001f9f2 SURE THING ARMED (silent): JTO — coil 1.11% · 4 tests · squeeze 0.92 · ATR 0.6219348143872959 · BB 0.92 · revs 1 · hist 18%/11
+08:10 PM [INFO] \U0001f9f2 SURE THING ARMED (silent): FARTCOIN — coil 1.11% · 5 tests · squeeze 0.83 · ATR 0.5194941099085096 · BB 0.68 · revs 1 · hist 0%/6
+08:10 PM [INFO] \U0001f9f2 SURE THING ARMED (silent): PENGU — coil 0.62% · 8 tests · squeeze 1.00 · ATR 0.4169523483030473 · BB 0.96 · revs 3 · hist 0%/16
+08:10 PM [INFO]   Next check in 30s | \U0001f319 Cooldown Fri | COOLDOWN — no buys until 00:00
+08:11 PM [INFO]   Next check in 30s | \U0001f319 Cooldown Fri | COOLDOWN — no buys until 00:00
+08:11 PM [INFO]   Next check in 30s | \U0001f319 Cooldown Fri | COOLDOWN — no buys until 00:00
+08:12 PM [INFO]   Next check in 30s | \U0001f319 Cooldown Fri | COOLDOWN — no buys until 00:00
+08:12 PM [INFO]   Next check in 30s | \U0001f319 Cooldown Fri | COOLDOWN — no buys until 00:00
+08:13 PM [INFO]   Next check in 30s | \U0001f319 Cooldown Fri | COOLDOWN — no buys until 00:00
+08:13 PM [INFO]   Next check in 30s | \U0001f319 Cooldown Fri | COOLDOWN — no buys until 00:00
+08:14 PM [INFO]   Next check in 30s | \U0001f319 Cooldown Fri | COOLDOWN — no buys until 00:00
+08:15 PM [INFO] \U0001f9f2 SURE THING ARMED (silent): HYPE — coil 0.81% · 4 tests · squeeze 0.92 · ATR 0.6311768791067882 · BB 0.84 · revs 2 · hist 6%/17
+08:15 PM [INFO]   Next check in 30s | \U0001f319 Cooldown Fri | COOLDOWN — no buys until 00:00
+08:16 PM [INFO]   Next check in 30s | \U0001f319 Cooldown Fri | COOLDOWN — no buys until 00:00
+08:16 PM [INFO]   Next check in 30s | \U0001f319 Cooldown Fri | COOLDOWN — no buys until 00:00
+08:17 PM [INFO]   Next check in 30s | \U0001f319 Cooldown Fri | COOLDOWN — no buys until 00:00
+08:17 PM [INFO]   Next check in 30s | \U0001f319 Cooldown Fri | COOLDOWN — no buys until 00:00
+08:18 PM [INFO]   Next check in 30s | \U0001f319 Cooldown Fri | COOLDOWN — no buys until 00:00
+08:18 PM [INFO]   Next check in 30s | \U0001f319 Cooldown Fri | COOLDOWN — no buys until 00:00
+08:19 PM [INFO]   Next check in 30s | \U0001f319 Cooldown Fri | COOLDOWN — no buys until 00:00
+08:20 PM [INFO] \U0001f9f2 SURE THING ARMED (silent): ADA — coil 1.23% · 3 tests · squeeze 0.94 · ATR 0.6381730549122664 · BB 0.2 · revs 3 · hist 6%/16
+08:20 PM [INFO] \U0001f9f2 SURE THING ARMED (silent): WLD — coil 1.04% · 3 tests · squeeze 0.98 · ATR 0.502832571155552 · BB 0.92 · revs 2 · hist 7%/14
+08:20 PM [INFO]   Next check in 30s | \U0001f319 Cooldown Fri | COOLDOWN — no buys until 00:00
+08:21 PM [INFO]   Next check in 30s | \U0001f319 Cooldown Fri | COOLDOWN — no buys until 00:00
+08:21 PM [INFO]   Next check in 30s | \U0001f319 Cooldown Fri | COOLDOWN — no buys until 00:00
+08:22 PM [INFO]   Next check in 30s | \U0001f319 Cooldown Fri | COOLDOWN — no buys until 00:00
+08:22 PM [INFO]   Next check in 30s | \U0001f319 Cooldown Fri | COOLDOWN — no buys until 00:00
+08:23 PM [INFO]   Next check in 30s | \U0001f319 Cooldown Fri | COOLDOWN — no buys until 00:00
+08:23 PM [INFO]   Next check in 30s | \U0001f319 Cooldown Fri | COOLDOWN — no buys until 00:00
+08:24 PM [INFO]   Next check in 30s | \U0001f319 Cooldown Fri | COOLDOWN — no buys until 00:00
+08:25 PM [INFO] \U0001f9f2 SURE THING ARMED (silent): AAVE — coil 0.67% · 3 tests · squeeze 0.92 · ATR 0.5470353675450724 · BB 0.48 · revs 2 · hist 5%/21
+08:25 PM [INFO] \U0001f9f2 SURE THING ARMED (silent): BNB — coil 0.68% · 8 tests · squeeze 0.81 · ATR 0.4511148229741276 · BB 0.04 · revs 0 · hist 0%/26
+08:25 PM [INFO] \U0001f9f2 SURE THING ARMED (silent): LTC — coil 1.46% · 3 tests · squeeze 0.92 · ATR 0.6557002860794939 · BB 0.04 · revs 4 · hist 4%/24
+08:25 PM [INFO]   Next check in 30s | \U0001f319 Cooldown Fri | COOLDOWN — no buys until 00:00
+08:26 PM [INFO]   Next check in 30s | \U0001f319 Cooldown Fri | COOLDOWN — no buys until 00:00
+08:26 PM [INFO]   Next check in 30s | \U0001f319 Cooldown Fri | COOLDOWN — no buys until 00:00
+08:27 PM [INFO]   Next check in 30s | \U0001f319 Cooldown Fri | COOLDOWN — no buys until 00:00
+08:27 PM [INFO]   Next check in 30s | \U0001f319 Cooldown Fri | COOLDOWN — no buys until 00:00
+08:28 PM [INFO]   Next check in 30s | \U0001f319 Cooldown Fri | COOLDOWN — no buys until 00:00

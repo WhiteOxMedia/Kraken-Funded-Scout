@@ -1,0 +1,1 @@
+A scanner is already running (pid 21532). Not starting a second one -- the single-instance guard refused. Close that one first.

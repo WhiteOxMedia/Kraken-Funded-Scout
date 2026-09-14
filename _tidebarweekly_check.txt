@@ -1,0 +1,212 @@
+PASS  the reckoning tally rides the shared census (the chip and the trail line both append it, both surfaces one format)
+PASS  the tally counts only REAL stamped flip-backs (sims never count; a malformed stamp is skipped, not fatal)
+PASS  nothing graded -> the tally is '' (no fake 0 · 0)
+PASS  the pass runs DAILY with a shortly-after-boot first pass
+PASS  the GRADE window stays the trailing 7 days
+PASS  the flip ledger stays week-keyed (daily runs dedupe on the ISO week)
+PASS  the scanner wires the weekly driver beside its siblings
+PASS  the report prepends and rotates (the family convention)
+PASS  the ledgers the report reads are written atomically (no empty-read race)
+PASS  the flip grade runs MONTHLY beside its driver siblings
+PASS  the manual seed-replay cannot clobber the driver's grade history
+PASS  the woken flip grade still HOLDS below the minimum history (nothing written, the hold reason logged)
+PASS  a wake on a CHANGED ledger grades immediately (W37..W38 section written by the woken run, not the monthly clock)
+PASS  a wake on an UNCHANGED ledger is a no-op (timestamps don't count — no duplicate section)
+PASS  the completed grade writes the open-bench sidecar with the benched state's live verdict
+PASS  the sidecar carries the bench's CUMULATIVE cost-to-date (realized $-20 minus the counterfactual's $+20 = $-40)
+PASS  the open-bench verdict rides the shared _event_aftermath math (open window, next_ev=None — one math everywhere)
+PASS  the completed grade's sidecar carries the pool-gate dial blocks for the plate (family, dial grade, arc-3 default) — the monthly verdict travels without the txt
+PASS  the completed grade's sidecar carries the STREAK dial's graduated evidence (FBW candidates' denied/delayed/net) so both dials' verdicts render beside each other on MASTER
+PASS  the completed grade's sidecar carries the LEARNED BARS block: the gate's live map and the fresh learner verdict (per state: bar, edge-week count, median, reason) so the plate shows what gates and what's about to
+PASS  the completed grade's txt renders the LEARNED BARS block: each state's truth named apart (IN FORCE / DERIVED THIS GRADE / global dial with its thin reason) — the evidence reads without opening the learner's file
+PASS  a held grade rewrites the sidecar — stale dollars cleared, the bench honestly pending (never hidden, never fake)
+PASS  a held grade CLEARS the pool-gate dial blocks too — a stale dial verdict never outlives its grade (the plate stays honest on a hold)
+PASS  the first pressure WARNs on the state and returns its phrase
+PASS  repeat pressure stays QUIET but still returns the phrase
+PASS  recovery LIFTS the episode: no warn, None, the state re-armed
+PASS  a re-slide after the lift WARNs fresh
+PASS  the WARN names the NEWLY pressured state (FLAT), not the already-warned OUT
+PASS  the warned ledger is clean once every pressure lifts
+PASS  a benched state CLIMBING toward its flip-back lifts its episode (re-armed for a later re-bench)
+PASS  the watcher's forecast AGREES with the gate on a steady bleed (due-now exactly at the flip week)
+PASS  the watcher is LATE when a fat pooled window blinds it (the gate fires while the proxy still forecasts weeks)
+PASS  the fired week is graded on the PRE-decision phrase (eta 0, 'gate due now' — not the post-flip silence)
+PASS  a thin ledger holds the watcher grade (checked 0 below two graded points)
+PASS  the flip grade's watcher section names the change-vs-level blindness
+PASS  the suite sandboxes the production sidecar (the all-None cold-boot transient was test leakage into JSON_FILE)
+PASS  _grade fires only at-or-above the bar
+PASS  _grade prices payers with the house convention (payers only, size-multiplied)
+PASS  nothing over the bar -> zero fires, zero dollars
+PASS  a None bar grades to None (fail-closed)
+PASS  the quantile counterfactual equals learn()'s own bar
+PASS  the pass graded the scripted week without error
+PASS  OUT's section shows both bars and the $/fire delta
+PASS  FLAT (quantile in force) counterfactuals the outcome fit
+PASS  RISING (no in-force bar) is named, not priced
+PASS  the report carries the REAL FILLS section with the coverage stamp
+PASS  fills join FORWARD in time only (the before-fire fill is excluded)
+PASS  the FLAT fire joined its fill and its winner
+PASS  an unfilled payer is paper-graded at the fire's real spend
+PASS  suppressed records never enter the fills layer
+PASS  coverage begins at the earliest fire event
+PASS  the week's fills ride the history record (compact)
+PASS  the sidecar carries the fills trend beside the edge trend
+PASS  the flip event lands on its own week's series slot
+PASS  the sidecar carries the regime marks beside the trends
+PASS  every sidecar carries the bench_warn key (None, or a coherent {state, phrase} the plate can render)
+PASS  3 losing weeks + a negative pool -> the state AUTO-FLIPS
+PASS  the flip persists (no re-flip while flipped)
+PASS  while flipped, 2 fit-winning counterfactual weeks + a positive pool -> FLIP-BACK
+PASS  POOL_MIN ships defaulting to 0.0 (the old `rd > 0` gate, named and sweep-proven)
+PASS  with POOL_MIN raised, the same 2-week streak with a thin +0.20 pool is DENIED (the sweep's premature re-arm, gated)
+PASS  at the shipped default the SAME thin arc re-arms (behavior unchanged: rd > 0 with POOL_MIN=0.0)
+PASS  the bar is inclusive: a pool exactly AT POOL_MIN (+0.50 = 0.50) re-arms (at least, not above)
+PASS  the shipped arc at the default is the old gate: W40+W41 (fit edge +2.00 each, pool +2.00) flip back with the same roll_delta
+PASS  the POOL_MIN pins restore the shipped default
+PASS  the learner derives a state's bar from its OWN edge median, quantized up to the 0.25 family (med +0.55 -> +0.75) and floors a negative-median state
+PASS  a shipped learned bar gates ITS state (rd +0.50 < bar +0.75 stays benched; the global 0.0 world re-arms) and stamps its decision-time pool_bar
+PASS  a learned bar binds only its own state (FLAT's bar holds FLAT benched while OUT re-arms on identical weeks)
+PASS  the counterfactual walk pins the global-bar world (a learned file never leaks into a pinned replay)
+PASS  the learner-file sandbox restores production's path
+PASS  the gate reads exactly the shape report_now ships (nested provenance wrapper honored; thin states fall back to the global dial)
+PASS  with no learner file the shipped gate is the OLD gate byte-for-byte (the shipped arc re-arms, pool_bar 0.0)
+PASS  while flipped, the fit LOSING to the quantile never flips back (the sign is regime-normalized)
+PASS  the canonical edge is identical across a regime boundary
+PASS  a streak counts across the regime boundary (not reset by a flip)
+PASS  a fired flip persists with its evidence weeks
+PASS  the same decision never double-appends (dedupe)
+PASS  a flip-back persists with its counterfactual evidence
+PASS  a no-event week persists nothing
+PASS  fbw3 never-arms: the extra week denies the re-arm entirely and prices the decision's own avoided cost (fit $1.00 vs quantile $3.00 over 20 fires = $40.00 saved)
+PASS  fbw3 denied: the replay holds the bench to W45 (the streak completes after W42's break) and prices the delayed arm honestly — it paid $0.50 vs the lived $2.50, saving NEGATIVE
+PASS  fbw3 denied (positive): the delayed arm pays $3.50 vs the lived $2.50 over 20 fires = $20.00 saved
+PASS  fbw3 delayed: the denied re-arm sits on the last graded week and pends honestly
+PASS  fbw3 same-week: the pool guard, not the week count, held this arm — the replay re-arms on the same week, nothing to save
+PASS  fbw3 counterfactual is honest silence on ungradeable input (pending aftermath, flip events)
+PASS  the fbw3 replay restores the shipped gate constants
+PASS  poolcf never-arms: the lived arm's pool +0.15 is under the +0.25 bar and no later week ever clears it — the re-arm is denied entirely (fit $1.00 vs quantile $3.00 over 20 fires = $40.00 saved)
+PASS  poolcf denied: the raised bar holds the +0.15 arm and re-arms at W44 once the pool clears +0.25 — the delayed arm's $4.50 vs lived $1.00 over 20 fires saves $70.00
+PASS  poolcf same-week: a fat pooled decision (+0.65) clears the raised bar — the replay re-arms on the same week, nothing to save
+PASS  poolcf is honest silence on ungradeable input (sims, flips, pending aftermath, no post-decision week)
+PASS  the poolcf replay restores the shipped constants and the learned-bar override
+PASS  the arc-3 live sweep holds 0.0 with no priced re-arms and ships no default file
+PASS  the arc-3 live sweep on stamps-mode evidence BLOCKS the raise: stamps cannot show WHERE in time a denial's dollars landed, so no per-week series means no stability proof — no proposal, no file (reconcile the walk first)
+PASS  the walked-mode raise PROPOSES and STAGES: every rolling window positive (4w and 8w over the +$20/week divergence), stable True, a proposal dict, the stage written (her confirm-to-apply is the only hand that moves the gate) — and NO default file
+PASS  the stage carries the bar, its priced count, its net, and its mode — everything the confirm-to-apply path validates
+PASS  the FBW walk PROPOSES: walked family, every rolling window positive (+$40 over the W42-W43 divergence), a proposal dict — and NO stage file (the streak dial's raise is advice for her hand, never an auto-move). On an exact net tie the more conservative candidate wins (FBW=4 over 3, the pool dial's own tiebreak)
+PASS  the FBW walk holds with zero priced re-arms (the shipped FBW=2 has no evidence to move on)
+PASS  the stability gate BLOCKS the hot streak: the full ledger nets positive but the trailing 4-week window is negative ($-16.00) — a dial that only paid in the past does not raise (no proposal, no file)
+PASS  the FBW stability gate BLOCKS the hot streak: the full ledger nets positive but the trailing window is negative ($-16.00) — a streak demand that only paid in the past does not raise
+PASS  resolution order: learned bar > hand-applied evidence default > global 0.0 (FLAT's learned 0.75 wins, OUT rides the applied 0.50)
+PASS  a pinned replay world suppresses the evidence default (the counterfactuals' baseline is the SHIPPED bar)
+PASS  the default-file sandbox restores production's path
+PASS  sim events persist with the sim mark (and only sim events)
+PASS  persist_sim_events is idempotent (a re-run adds nothing)
+PASS  _real_flip_events excludes the sims (machinery-inert)
+PASS  the trend marks never stamp a sim week (the real W39 event stamps; the sim-only W45 does not)
+PASS  the flip grade HOLDS below the minimum history
+PASS  the flip grade grades from the real ledger once the minimum history exists
+PASS  a flipped-regime week grades on the canonical axis (raw +1.0 reads as a -2.0 fit edge)
+PASS  the bench proximity line renders
+PASS  the aftermath grades the DECISION's bar vs the benched side (after a flip the quantile IS the live bar — the old math mislabeled the benched fit as live and inverted the verdict)
+PASS  the newest grade sits at the top of the file
+PASS  an aftermath with no post-decision weeks is pending
+PASS  aftermath: a tie pays the decision (no false COST)
+PASS  aftermath: after a FLIP the realized side is the quantile (the decision's own bar), pooled over both post-decision weeks
+PASS  aftermath: after a FLIP-BACK the realized side is the fit (in_force — the seats are regime-normalized by each record's own other_src)
+PASS  aftermath: pending with no post-decision weeks
+PASS  aftermath: a one-sided counterfactual stays pending (no fake zero-rate)
+PASS  aftermath: the governed window closes where the next event takes over (no mixed-regime pooling beyond it)
+PASS  one losing week never flips (the streak guard)
+PASS  a losing streak with a POSITIVE pool never flips (the pool guard)
+PASS  a one-sided week breaks the streak (honest, not lucky)
+PASS  the rolling grade pools on the canonical fit-vs-quantile axis
+PASS  the pooled fit edge is regime-normalized across a flip
+PASS  the week dedupe prevents same-week double-append (the boot-restart race)
+PASS  a broken store -> err summary, the report stands
+PASS  a thin week -> err summary, the report stands
+PASS  a thin tide-specific quantile falls back to the all-tides quantile (still a counterfactual)
+PASS  no score history at all -> honestly one-sided
+PASS  the newest section is at the top
+PASS  rotation ceiling is 500 KB
+PASS  the production report was never written by a test (byte-stable)
+PASS  the seed persisted exactly one real flip event
+PASS  the gate flipped OUT back on the pass's own ISO week (a real event, not sim)
+PASS  the flip-back record carries the bench's FINAL verdict
+PASS  the snapshot graded the OPEN window (to_date -$60.00 over 3 weeks)
+PASS  the text carries the cumulative clause
+PASS  re-running the pass cannot double-persist the flip-back (the snapshot rides the dedupe)
+PASS  no flip on the trail / thin ledger -> no snapshot, never fake
+PASS  the still-pending flip-back is not stamped and nothing warns
+PASS  re-running the pending pass stays quiet (no double stamps)
+PASS  the closure stamp survives _persist's dedupe (the later pass stamps the same flip-back)
+PASS  the agreement WARNS once — the borrow told the truth
+PASS  an already-stamped event never re-warns (idempotent)
+PASS  a wrong borrow is stamped DISAGREE and WARNs with the gap (realized $3.00 vs counterfactual $1.00 = +$2.00/fire)
+PASS  the pure grader returns the disagreement's dollars clause
+PASS  a sim flip-back never enters the reckoning
+PASS  pool-gate grade: the pool below +0.25 passes both dials; +0.50 DENIES the costing re-arm and prices the save in the trail's own dollars ($2.00/fire x 20 fires = $40.00)
+PASS  pool-gate grade: when the denied gate re-arms later, the dial DELAYS (banks only to the delayed arm) and a PAYING window reports the missed money as negative ($-4.00)
+PASS  pool-gate grade: no real flip-backs grades nothing, honestly (the sims never enter), and the shipped POOL_MIN is never disturbed
+PASS  pool-gate grade: the STREAK dial denies the 2-week re-arm at FBW=3 and FBW=4 — same dollars as the pool denial ($40.00 each, one shared governed window)
+PASS  pool-gate grade: on the paying stream the streak dial DELAYS — FBW=3's walk counts the flip-back's own evidence weeks too (the gate's real streak semantics), so its first legal re-arm is W42 banking $0.00; FBW=4 arms at W43 and banks the same -$4.00 one-bad-week span the pool dial did
+PASS  pool-gate grade: a real flip-back without its decision-time stamp grades nothing for BOTH dials, said honestly (a pre-stamp record; every fire has carried the stamp since Sep 12) — never a silent skip
+PASS  pool-gate grade: both dials' pins restore exactly (the shared walk mutates two globals, both in finally)
+PASS  pool-gate grade: the borrow's evidence rides the dial — a disagree-stamped denial names it on its line and its event dict, and the reckoning summary travels (empty window: the cumulative fallback)
+PASS  pool-gate grade: clustered disagreements become per-dial EVIDENCE, named for the dials whose own denials ride them (never an auto-move — the dials turn by her hand)
+PASS  pool-gate grade: the cluster control — agrees never tar a dial (no CLUSTERED line, cluster False)
+PASS  pool-gate grade: an unstamped event prices identically but leaves no reckoning trace (pg1, above, has no stamp)
+PASS  pool-gate grade: the no-flip-backs path carries the same reckoning shape (uniform contract for grade_ledger)
+PASS  the monthly grade embeds the dial: the POOL-GATE section renders in _flipgrade.txt, the summary carries the thresholds AND the streak dial, the STREAK VERDICT line renders, and the sim event stays excluded
+PASS  the monthly grade carries the reckoning evidence in its summary sidecar (poolgate_reckoning), zero-graded on the unstamped fixture, with the window key present and empty (no completed grade has recorded before this one)
+PASS  shared arc arc1: the LIVE shipped gate reproduces the diag's canonical events (flip@2026-W39)
+PASS  shared arc arc1: the sweep's threshold-0 walk reproduces the canon (baseline_ok) on the shared stream
+PASS  shared arc 1: no re-arm, nothing to deny — every threshold prices identical governance (the sweep's encoding of the diag's honest None)
+PASS  shared arc arc2: the LIVE shipped gate reproduces the diag's canonical events (flip@2026-W39, flip_back@2026-W43)
+PASS  shared arc arc2: the gate's pool stamp at 2026-W43 matches the diag's hand arithmetic (+0.4700)
+PASS  shared arc arc2: the sweep's threshold-0 walk reproduces the canon (baseline_ok) on the shared stream
+PASS  shared arc arc2: the LIVE family sweep at +0.25 prices the diag's canon ($+0.00) on the same stream
+PASS  shared arc arc2: the LIVE family sweep at +0.50 prices the diag's canon ($-180.40) on the same stream
+PASS  shared arc 2: the stamp grade's delayed-denial lens prices -$82.00 (window to the arm week) and the governance walk's -$180.40 canon adds the arm-lag week — the two-lens difference is exactly one week of the fit out-earning ($98.40)
+PASS  shared arc arc3: the LIVE shipped gate reproduces the diag's canonical events (flip@2026-W39, flip_back@2026-W41, flip@2026-W44)
+PASS  shared arc arc3: the gate's pool stamp at 2026-W41 matches the diag's hand arithmetic (+0.1900)
+PASS  shared arc arc3: the sweep's threshold-0 walk reproduces the canon (baseline_ok) on the shared stream
+PASS  shared arc arc3: the LIVE family sweep at +0.25 prices the diag's canon ($+307.50) on the same stream
+PASS  shared arc arc3: the LIVE family sweep at +0.50 prices the diag's canon ($+307.50) on the same stream
+PASS  shared arc 3: the STAMP grade at +0.25 denies the bad re-arm at the event's own governed window lens (+$196.80 = the walk's $307.50 canon minus the W44 week the denial also re-benches)
+PASS  shared arc 3: the STAMP grade at +0.50 denies the bad re-arm at the event's own governed window lens (+$196.80 = the walk's $307.50 canon minus the W44 week the denial also re-benches)
+PASS  shared arc arc4: the LIVE shipped gate reproduces the diag's canonical events (flip@2026-W39, flip_back@2026-W43)
+PASS  shared arc arc4: the gate's pool stamp at 2026-W43 matches the diag's hand arithmetic (+0.7900)
+PASS  shared arc arc4: the sweep's threshold-0 walk reproduces the canon (baseline_ok) on the shared stream
+PASS  shared arc arc4: the LIVE family sweep at +0.25 prices the diag's canon ($+0.00) on the same stream
+PASS  shared arc arc4: the LIVE family sweep at +0.50 prices the diag's canon ($+0.00) on the same stream
+PASS  shared arc arc5: the LIVE shipped gate reproduces the diag's canonical events (flip@2026-W39, flip_back@2026-W43)
+PASS  shared arc arc5: the gate's pool stamp at 2026-W43 matches the diag's hand arithmetic (+0.1700)
+PASS  shared arc arc5: the sweep's threshold-0 walk reproduces the canon (baseline_ok) on the shared stream
+PASS  shared arc arc5: the LIVE family sweep at +0.25 prices the diag's canon ($-61.50) on the same stream
+PASS  shared arc arc5: the LIVE family sweep at +0.50 prices the diag's canon ($-61.50) on the same stream
+PASS  the shared-arc canon agrees with the diag's own printed family ledger (one semantics, two consumers)
+PASS  shared arc arc1: the LIVE fbw walk's baseline reproduces the canon (one seed rule, one pricing lens)
+PASS  shared arc arc1: the LIVE fbw walk at FBW=3 prices the canon ($+0.00)
+PASS  shared arc arc1: the LIVE fbw walk at FBW=4 prices the canon ($+0.00)
+PASS  shared arc arc2: the LIVE fbw walk's baseline reproduces the canon (one seed rule, one pricing lens)
+PASS  shared arc arc2: the LIVE fbw walk at FBW=3 prices the canon ($-82.00)
+PASS  shared arc arc2: the LIVE fbw walk at FBW=4 prices the canon ($-180.40)
+PASS  shared arc arc3: the LIVE fbw walk's baseline reproduces the canon (one seed rule, one pricing lens)
+PASS  shared arc arc3: the LIVE fbw walk at FBW=3 prices the canon ($+307.50)
+PASS  shared arc arc3: the LIVE fbw walk at FBW=4 prices the canon ($+307.50)
+PASS  shared arc arc4: the LIVE fbw walk's baseline reproduces the canon (one seed rule, one pricing lens)
+PASS  shared arc arc4: the LIVE fbw walk at FBW=3 prices the canon ($-16.40)
+PASS  shared arc arc4: the LIVE fbw walk at FBW=4 prices the canon ($-36.90)
+PASS  shared arc 4 (FAT POOL / THIN WEEKS): the disagreement priced — the fat-pool re-arm clears BOTH pool dials (family 0.0) while BOTH fbw raises DENY its thin 2-week streak and MISS (the recovery was real)
+PASS  shared arc arc5: the LIVE fbw walk's baseline reproduces the canon (one seed rule, one pricing lens)
+PASS  shared arc arc5: the LIVE fbw walk at FBW=3 prices the canon ($+0.00)
+PASS  shared arc arc5: the LIVE fbw walk at FBW=4 prices the canon ($+0.00)
+PASS  shared arc 5 (THIN POOL / DURABLE RECOVERY): the mirror disagreement — BOTH pool raises deny the thin +0.175 re-arm and MISS $61.50 while its durable 4-week streak clears every fbw candidate (family 0.0)
+PASS  family sweep: the walk denies the costing re-arm at +0.50 and the governance divergence prices the save ($40.00: the walked world keeps the quantile through the fit's bad W42-W43); +0.25 passes untouched; the baseline reproduces the lived events
+PASS  family sweep: denying a PAYING re-arm misses (net −$34.00) AND the walked stream re-arms later (W43) — the cascade EMERGES from the replay and the governance divergence prices it once (the fit's good W42-W43 benched: −$4 and −$30)
+PASS  family sweep: the cascade's path change prices ONCE — two benched-fit weeks save (+$40.00: W42-W43 the fit under-earned) against the walked world missing the recovery week AND the fat one (−$20 −$100: a W45 re-arm ships the fit only from W46 — the arm lag stamps never price) — one net, no week counted twice
+PASS  family sweep: a trail that never recorded the bench's flip is a BASELINE DIVERGENCE, loudly — the walk refuses to price a ledger it cannot reproduce (no silent numbers)
+PASS  family sweep: grade_ledger embeds the walk's section and sidecar (baseline_ok, family net, cascades) — sims never enter the priced ledger
+
+RESULT: 210 passed, 0 failed

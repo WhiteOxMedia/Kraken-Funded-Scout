@@ -1,0 +1,5 @@
+THE DEEP STORE BUILD
+pairs written : 102
+pairs skipped : 0
+window        : 2026-07-23 15:00:00+00:00 -> 2026-09-11 01:00:00+00:00
+seconds       : 1.8

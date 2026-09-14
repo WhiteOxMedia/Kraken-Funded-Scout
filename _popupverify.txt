@@ -1,0 +1,28 @@
+=== POPUP PATH VERIFY — 2026-09-10 12:00 MDT (live) ===
+
+── 1. THE 3% GUARD (entry sizing) ──
+  live balance   : $1,055.00
+  start (tier)   : $1,000.00   death line: -3.0% (never moves)
+  buffer to death: $85.00
+  window dd      : 0.5%
+  guard cap      : $1,055   entry size: $1,055
+
+── 2. THE WORTH FLOOR (auto-tuned, per rotation) ──
+  rotation now   : 12-16 MST
+  auto           : True
+  base           : 0.05
+  pace factor    : 0.831
+  tide factor    : 1.000
+  BUFFER factor  : 0.400   (the bar — fat balance eases, thin tightens)
+  EFFECTIVE floor: 0.100  (10.0%)  clamp [0.1, 0.4]
+  gates read this LIVE at alert time (no restart)
+  cross-check    : _worth_floor_frac() -> 0.100
+
+── 3. THE EXIT TRAIL (ratchet) ──
+  base trail     : 3.0%
+  run +$   50 -> trail 3.0%
+  run +$  100 -> trail 2.0%
+  run +$  250 -> trail 1.5%
+  (3% base, 2% after +$100, 1.5% after +$200 — big runs earn tight)
+
+VERIFIED: guard sizing, worth floor (buffer), exit trail — all live.

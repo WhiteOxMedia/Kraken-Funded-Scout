@@ -1,0 +1,8 @@
+SLIPPAGE AUDIT: AUDIT/USD actual 0.20% vs forecast 0.05% — size x0.5 for 60min (strike 1/2)
+SLIPPAGE AUDIT: AUDIT/USD blacklisted 24h (actual 0.25% vs forecast 0.05%, 2 strikes)
+11:20 PM [INFO] EXEC TEST/USD BUY $500 → T1 Micro (0.1% of $375679 book) · forecast slip 0.010%
+11:20 PM [INFO] EXEC TEST/USD BUY $20000 → T5 Very Large (133.0% of $15034 book) · forecast slip 0.528%
+11:20 PM [INFO] EXEC TEST/USD SELL $500 → T1 Micro (0.1% of $374321 book) · forecast slip 0.010%
+11:20 PM [INFO] EXEC TEST/USD BUY $500 → T1 Micro (0.1% of $375679 book) · forecast slip 0.010%
+11:20 PM [INFO] EXEC TEST/USD BUY $40000 → T2 Small (10.6% of $375679 book) · forecast slip 0.029%
+ALL PASS → test_execution_tiers_check.txt

@@ -1,24 +1,24 @@
 === 00-04 ===
-  score: 100.0   realized: $+0.00   left on the table: $0.00
-  components: {'missed': 0, 'giveback': 0, 'missed_exit': 0, 'early_exit': 0}
+  score: 50.0   realized: $+0.00   left on the table: $22.25
+  components: {'missed': 0, 'giveback': 0, 'missed_exit': 0, 'early_exit': 0, 'system_burial': 22.25}
   popups: []
-  lesson: Score and money agree (score 100, realized $+0) — weights hold; the calibration stands.
-  insight: Next time: when the goal hits, tap SOLD — the exit scan already told you when.
+  lesson: No popups fired — score capped at 50 (the opportunity cost: a silent rotation cannot grade perfect). Realized $+0; weights hold.
+  insight: The blowoff-yesterday gate buried PUMP (+$22 theoretical) — carve-out data, not a discipline miss. Your taps were clean.
 === 04-08 ===
-  score: 100.0   realized: $+0.00   left on the table: $0.00
-  components: {'missed': 0, 'giveback': 0, 'missed_exit': 0, 'early_exit': 0}
-  popups: []
-  lesson: Score and money agree (score 100, realized $+0) — weights hold; the calibration stands.
-  insight: Next time: when the goal hits, tap SOLD — the exit scan already told you when.
+  score: 50.0   realized: $+0.00   left on the table: $73.45
+  components: {'missed': 0, 'giveback': 0, 'missed_exit': 0, 'early_exit': 0, 'system_burial': 73.45}
+  popups: [('POL/USD', 'no', 'MISSED'), ('BTC/USD', 'no', 'MISSED'), ('STX/USD', 'paid', 'MISSED'), ('DOGE/USD', 'no', 'MISSED'), ('ETH/USD', 'no', 'MISSED'), ('ONDO/USD', 'no', 'MISSED'), ('OP/USD', 'no', 'MISSED'), ('HBAR/USD', 'paid', 'MISSED')]
+  lesson: No popups fired — score capped at 50 (the opportunity cost: a silent rotation cannot grade perfect). Realized $+0; weights hold.
+  insight: The tide-out gate buried STX (+$73 theoretical) — carve-out data, not a discipline miss. Your taps were clean.
 === 08-12 ===
-  score: 50.0   realized: $+0.00   left on the table: $227.72
-  components: {'missed': 227.72, 'giveback': 0, 'missed_exit': 0, 'early_exit': 0}
-  popups: [('XRP/USD', 'no', 'MISSED'), ('POPCAT/USD', 'paid', 'MISSED'), ('ETH/USD', 'no', 'MISSED'), ('ATOM/USD', 'no', 'MISSED')]
-  lesson: Score and money agree (score 50, realized $+0) — weights hold; the calibration stands.
-  insight: Next time: a paying popup is the system's best call — take the green light when it fires.
+  score: 50.0   realized: $+0.00   left on the table: $22.64
+  components: {'missed': 0, 'giveback': 0, 'missed_exit': 0, 'early_exit': 0, 'system_burial': 22.64}
+  popups: [('JUP/USD', 'no', 'MISSED'), ('FARTCOIN/USD', 'no', 'MISSED'), ('ONDO/USD', 'no', 'MISSED'), ('ADA/USD', 'paid', 'MISSED')]
+  lesson: No popups fired — score capped at 50 (the opportunity cost: a silent rotation cannot grade perfect). Realized $+0; weights hold.
+  insight: The tide-out gate buried ADA (+$23 theoretical) — carve-out data, not a discipline miss. Your taps were clean.
 === 12-16 ===
-  score: 100.0   realized: $+0.00   left on the table: $0.00
-  components: {'missed': 0, 'giveback': 0, 'missed_exit': 0, 'early_exit': 0}
+  score: 60.0   realized: $+0.00   left on the table: $0.00
+  components: {'missed': 0, 'giveback': 0, 'missed_exit': 0, 'early_exit': 0, 'system_burial': 0}
   popups: []
-  lesson: Score and money agree (score 100, realized $+0) — weights hold; the calibration stands.
+  lesson: No popups fired — score capped at 60 (the opportunity cost: a silent rotation cannot grade perfect). Realized $+0; weights hold.
   insight: Next time: when the goal hits, tap SOLD — the exit scan already told you when.

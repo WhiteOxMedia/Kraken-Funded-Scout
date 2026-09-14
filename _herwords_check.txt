@@ -1,0 +1,11 @@
+PASS  line logged with text  {'ts': '2026-09-13T12:15:08.899137-06:00', 'text': 'Get out now! Sell ARB!'}
+PASS  line logged with timestamp  
+PASS  mic-check prefix stripped  Buy PUMP!
+PASS  log capped at VOICE_LOG_MAX  400
+PASS  prefix-only line not logged  
+PASS  _speak_server hooks the log  
+PASS  console renders the feed  
+PASS  feed placed with the light panel  
+PASS  latest line in the title  
+
+RESULT: 9 passed, 0 failed

@@ -1,4 +1,4 @@
-PASS  no brain-floor gate anywhere (champion + mover)  
+PASS  the brain-floor journal relief exists (the discipline seam)  
 PASS  the challenger mark never sets (retired with the floor)  
 PASS  no >=89 mover desktop floor (the tournament's own champion bar at champion-vs-champion is a different, standing gate)  
 PASS  no confidence-number deep veto (bridge or desktop)  
@@ -18,8 +18,8 @@ PASS  the QC speaks the sizing
 PASS  the popups carry the sizing mark (title + voice + message)  
 PASS  the cap dial reads live (default 3, floor 1)  
 PASS  the cap counts fired popups inside the window  
-PASS  the champion path checks the cap  
-PASS  the mover path checks the cap too  
+PASS  the champion path no longer checks the cap (retired Sep 9)  
+PASS  the mover path no longer checks the cap (retired Sep 9)  
 PASS  the snapshot log + helper exist  
 PASS  the fire-time snapshot runs at the top of the gates  
 PASS  every suppression lands in the dataset (the hook in _log_suppression)  
@@ -28,7 +28,7 @@ PASS  the module table is the ONE source (scanner + QC import it)
 PASS  _popup_cap reads the live dial (int >= 1)  10
 PASS  _recent_fired_popups: 2 fresh fired count (stale + suppressed don't)  2
 PASS  _log_signal_snapshot appends (5 records now)  5
-PASS  the snapshot record carries its fields + a ts stamp  {'kind': 'fired', 'pair': 'E/USD', 'brain': 42.0, 'ts': '2026-09-06T14:57:45.654479-06:00'}
+PASS  the snapshot record carries its fields + a ts stamp  {'kind': 'fired', 'pair': 'E/USD', 'brain': 42.0, 'ts': '2026-09-13T12:12:25.734725-06:00', 'contest_size': 1051.3029431838022}
 PASS  _begin_fire_snapshot computes features from the 5m fetch  ['momentum_15m', 'momentum_1h', 'vol_burst']
 PASS  the context is stashed for the suppression hook  
 PASS  the suppression log still writes (never raises)  

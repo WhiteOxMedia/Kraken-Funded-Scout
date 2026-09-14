@@ -21,8 +21,8 @@ PASS  funnel writes source='scout_mover'
 PASS  old dead gainer path removed  
 PASS  old bounce fast path removed  
 PASS  bounce list folded into the funnel (losers join the runners)  
-PASS  funnel stamps the tide on writes  2
-PASS  funnel has the rotation lockout  
+PASS  funnel stamps the tide on writes (the funnel's own write + the send_alert stamp it shares)  
+PASS  the lockout is retired — the gate call stays for the re-entry display  
 PASS  funnel has the deep-read >=60 veto  
 PASS  funnel skips tide OUT  
 PASS  funnel has the fresh-listing guard  

@@ -1,0 +1,44 @@
+=== THE SURE THING SCORE REFIT (Sep 11, the recalibrated store) ===
+episodes: 3848  (train 2693 before 2026-09-01 10:00:00+00:00, holdout 1155 after)
+base rate: train 6.6%  holdout 5.9%
+
+── the refit weights (vs legacy) ──
+component   legacy   refit
+tight         15.0     0.0
+atr            7.5     6.9
+bb             7.5     4.5
+tests         10.0    15.3
+pull           7.5     0.0
+buydom         7.5     0.0
+fade           5.0     1.4
+micro         10.0     3.0
+burst          5.0     0.7
+squeeze       15.0    11.9
+hist          10.0    56.3
+
+── the HOLDOUT proof (weights never saw these) ──
+payer rate by legacy-score band (holdout):
+  [30-40.0)  n= 146    8.2%
+  [40-50.0)  n= 307    7.2%
+  [50-60.0)  n= 478    5.2%
+  [60-70.0)  n= 178    3.9%
+  [70-80.0)  n=  17    0.0%
+payer rate by refit-score band (holdout):
+  [30-40.0)  n= 506    5.3%
+  [40-50.0)  n=  71    9.9%
+  [50-60.0)  n=   4   25.0%
+  [60-70.0)  n=   0    nan%
+  [70-80.0)  n=   0    nan%
+
+the refit's own fire bar, priced on the holdout (the popup's 60-min contract, the funnel's sizing ladder at the REFIT score):
+  refit bar 45: fires   17  payers   3 (17.6%)  $/fire +1.07
+  refit bar 50: fires    5  payers   2 (40.0%)  $/fire +3.01
+  refit bar 55: fires    2  payers   1 (50.0%)  $/fire +5.93
+  refit bar 60: fires    1  payers   1 (100.0%)  $/fire +11.87
+  refit bar 65: fires    1  payers   1 (100.0%)  $/fire +11.87
+
+AUC  legacy 0.410  vs  refit 0.527
+
+VERDICT: SHIP the refit (holdout AUC +0.117)
+refit weights (rounded): tight=0.0, atr=6.9, bb=4.5, tests=15.3, pull=0.0, buydom=0.0, fade=1.4, micro=3.0, burst=0.7, squeeze=11.9, hist=56.3
+replay+fit took 125s

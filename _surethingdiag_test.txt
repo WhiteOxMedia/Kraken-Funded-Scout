@@ -1,0 +1,77 @@
+PASS  paid-in-window: a quick spike grades kept  {'pair': 'XMR/USD', 'ts': '2026-09-08T12:00:00+00:00', 'trigger': 'pre-breakout', 'score': 70.0, 'spend': 400.0, 'mult': 0.5, 'goal_pct': 1.5, 'est_min': 40, 'promise_min': 40, 'entry': 1.0, 'age_min': 60.0, 'tide': 'RISING', 'verdict': 'paid-in-window', 'paid_min': 5.0, 'pnl_usd': 6.0, 'mfe': 2.5, 'end_move': 2.1}
+PASS  paid-in-window: the paid minute anchors to the fire, not the candle open  5.0
+PASS  paid-in-window: the P&L is the goal on the spend (+1.5% of $400)  6.0
+PASS  per-fire goal: a 3% goal turns a +2% spike into a grinder, not a winner  {'pair': 'XMR/USD', 'ts': '2026-09-08T12:00:00+00:00', 'trigger': 'pre-breakout', 'score': 70.0, 'spend': 400.0, 'mult': 0.5, 'goal_pct': 3.0, 'est_min': 40, 'promise_min': 40, 'entry': 1.0, 'age_min': 60.0, 'tide': 'RISING', 'verdict': 'short', 'paid_min': None, 'pnl_usd': 7.2, 'mfe': 2.0, 'end_move': 1.8}
+PASS  per-fire goal: the grade carries the goal it used  3.0
+PASS  per-fire goal: a 3% goal paid pays 3% of the spend ($12, not $6)  12.0
+PASS  per-fire goal: a pre-stamp record falls back to the engine constant  {'pair': 'XMR/USD', 'ts': '2026-09-08T12:00:00+00:00', 'trigger': 'pre-breakout', 'score': 70.0, 'spend': 400.0, 'mult': 0.5, 'goal_pct': 1.5, 'est_min': 40, 'promise_min': 40, 'entry': 1.0, 'age_min': 60.0, 'tide': 'RISING', 'verdict': 'paid-in-window', 'paid_min': 5.0, 'pnl_usd': 6.0, 'mfe': 2.5, 'end_move': 2.0}
+PASS  paid-late: the goal paid but after the countdown ran out  (35.0, 10)
+PASS  paid-late: the P&L still counts (a win the clock missed)  6.0
+PASS  short: a grinder below the goal is not a winner  {'pair': 'XMR/USD', 'ts': '2026-09-08T12:00:00+00:00', 'trigger': 'pre-breakout', 'score': 70.0, 'spend': 400.0, 'mult': 0.5, 'goal_pct': 1.5, 'est_min': 30, 'promise_min': 30, 'entry': 1.0, 'age_min': 60.0, 'tide': 'RISING', 'verdict': 'short', 'paid_min': None, 'pnl_usd': 1.6, 'mfe': 0.9, 'end_move': 0.4}
+PASS  short: the P&L is the window-close exit on the spend  (1.6, 0.4)
+PASS  dud: a fire that never moved loses the exit on the spend  {'pair': 'XMR/USD', 'ts': '2026-09-08T12:00:00+00:00', 'trigger': 'pre-breakout', 'score': 70.0, 'spend': 400.0, 'mult': 0.5, 'goal_pct': 1.5, 'est_min': 30, 'promise_min': 30, 'entry': 1.0, 'age_min': 60.0, 'tide': 'RISING', 'verdict': 'dud', 'paid_min': None, 'pnl_usd': -1.2, 'mfe': 0.2, 'end_move': -0.3}
+PASS  open: a fire inside its window is not graded yet  {'pair': 'XMR/USD', 'ts': '2026-09-08T12:00:00+00:00', 'trigger': 'pre-breakout', 'score': 70.0, 'spend': 400.0, 'mult': 0.5, 'goal_pct': 1.5, 'est_min': 40, 'promise_min': 40, 'entry': 1.0, 'age_min': 12.0, 'tide': 'RISING', 'verdict': 'open', 'paid_min': None, 'pnl_usd': 0.0}
+PASS  no-data: an expired fire without candles says so honestly  {'pair': 'XMR/USD', 'ts': '2026-09-08T12:00:00+00:00', 'trigger': 'pre-breakout', 'score': 70.0, 'spend': 400.0, 'mult': 0.5, 'goal_pct': 1.5, 'est_min': 40, 'promise_min': 40, 'entry': 1.0, 'age_min': 90.0, 'tide': 'RISING', 'verdict': 'no-data', 'paid_min': None, 'pnl_usd': 0.0}
+PASS  crack: the promise is the full window (it said NOW)  {'pair': 'XMR/USD', 'ts': '2026-09-08T12:00:00+00:00', 'trigger': 'crack', 'score': 70.0, 'spend': 400.0, 'mult': 0.5, 'goal_pct': 1.5, 'est_min': 40, 'promise_min': 240.0, 'entry': 1.0, 'age_min': 247.0, 'tide': 'RISING', 'verdict': 'paid-in-window', 'paid_min': 50.0, 'pnl_usd': 6.0, 'mfe': 2.5, 'end_move': 2.0}
+PASS  crack: a mid-window fire is still open (the promise runs)  {'pair': 'XMR/USD', 'ts': '2026-09-08T12:00:00+00:00', 'trigger': 'crack', 'score': 70.0, 'spend': 400.0, 'mult': 0.5, 'goal_pct': 1.5, 'est_min': 40, 'promise_min': 240.0, 'entry': 1.0, 'age_min': 60.0, 'tide': 'RISING', 'verdict': 'open', 'paid_min': None, 'pnl_usd': 0.0}
+PASS  crack: inside the window it is still open  {'pair': 'XMR/USD', 'ts': '2026-09-08T12:00:00+00:00', 'trigger': 'crack', 'score': 70.0, 'spend': 400.0, 'mult': 0.5, 'goal_pct': 1.5, 'est_min': 40, 'promise_min': 240.0, 'entry': 1.0, 'age_min': 50.0, 'tide': 'RISING', 'verdict': 'open', 'paid_min': None, 'pnl_usd': 0.0}
+PASS  flat tide: half the spend earns half the win ($200 x 1.5% = $3)  3.0
+PASS  leak guard: the pre-fire candle's high cannot manufacture a winner  {'pair': 'XMR/USD', 'ts': '2026-09-08T12:00:00+00:00', 'trigger': 'pre-breakout', 'score': 70.0, 'spend': 400.0, 'mult': 0.5, 'goal_pct': 1.5, 'est_min': 40, 'promise_min': 40, 'entry': 1.0, 'age_min': 60.0, 'tide': 'RISING', 'verdict': 'no-data', 'paid_min': None, 'pnl_usd': 0.0}
+PASS  leak guard: a quiet pre-fire candle is dropped, the next one grades  {'pair': 'XMR/USD', 'ts': '2026-09-08T12:00:00+00:00', 'trigger': 'pre-breakout', 'score': 70.0, 'spend': 400.0, 'mult': 0.5, 'goal_pct': 1.5, 'est_min': 40, 'promise_min': 40, 'entry': 1.0, 'age_min': 60.0, 'tide': 'RISING', 'verdict': 'paid-in-window', 'paid_min': 5.0, 'pnl_usd': 6.0, 'mfe': 2.5, 'end_move': 2.0}
+PASS  window anchor: a goal hit past the fire's deadline cannot read in-window  {'pair': 'XMR/USD', 'ts': '2026-09-08T12:00:00+00:00', 'trigger': 'pre-breakout', 'score': 70.0, 'spend': 400.0, 'mult': 0.5, 'goal_pct': 1.5, 'est_min': 40, 'promise_min': 40, 'entry': 1.0, 'age_min': 60.0, 'tide': 'RISING', 'verdict': 'no-data', 'paid_min': None, 'pnl_usd': 0.0}
+PASS  window anchor: a hit just inside the deadline still grades  {'pair': 'XMR/USD', 'ts': '2026-09-08T12:00:00+00:00', 'trigger': 'pre-breakout', 'score': 70.0, 'spend': 400.0, 'mult': 0.5, 'goal_pct': 1.5, 'est_min': 60, 'promise_min': 60, 'entry': 1.0, 'age_min': 60.0, 'tide': 'RISING', 'verdict': 'paid-in-window', 'paid_min': 55.0, 'pnl_usd': 6.0, 'mfe': 2.5, 'end_move': 2.0}
+PASS  garbage in -> None out (never raises)  
+PASS  summarize: both fires counted, P&L folded  12.0
+PASS  summarize: the est grade counts kept vs broken  {'kept': 1, 'broken': 1, 'kept_pct': 0.5, 'median_paid': 55.0, 'median_promise': 25.0}
+PASS  summarize: the medians come from the graded fires  (55.0, 25.0)
+PASS  est verdict: paying inside the promise reads honest  (30.0, 40.0)
+PASS  est verdict: ~1.25x the promise flags the countdown running hot  1.25
+PASS  est verdict: >1.5x the promise flags overselling  2.25
+PASS  65 verdict: a losing 65-74 band against winning 75+ says TIGHTEN  TIGHTEN: the 65-74 band wins 0% vs 67% above it -- the loose tail is paying for the headliners
+PASS  65 verdict: a bottom band that keeps up keeps 65  65 holds: the bottom band keeps up (60% vs 67%)
+PASS  65 verdict: a small sample refuses to judge  small sample (65-74 n=1, 75+ n=0) -- keep 65, keep grading
+PASS  65 verdict: the bands carry the win rate the report prints  {'65-74': {'n': 5, 'win': 0, 'pnl': 0.0, 'win_rate': 0.0}, '75-84': {'n': 3, 'win': 2, 'pnl': 0.0, 'win_rate': 0.6666666666666666}}
+PASS  goal bands: big asks reaching 20% vs modest 60% flags OVER-AIM  THE GOAL OVER-AIMS: big asks (2.0%+) reach the goal 20% vs 60% for the modest ones -- breakout moves are short; the aim should come down
+PASS  goal bands: big asks that keep up keep the live goal  the live goal tracks what breakouts give (big asks reach 60% vs 60% modest)
+PASS  goal bands: a small sample refuses to judge  small sample (2.0+ n=1) -- keep grading
+PASS  goal bands: the reach rate is in-window + late over graded  {'1.0-1.4': 0.6, '2.0-2.4': 0.3333333333333333, '2.5-3.0': 0.0}
+PASS  goal bands: the aim-gap is the median ask minus the median excursion  0.7999999999999998
+PASS  goal bands: a positive aim-gap means the coin fell short of the ask  0.7999999999999998
+PASS  goal bands: duds count in n but never in reach  {'n': 3, 'win': 1, 'late': 0, 'short': 1, 'dud': 1, 'mfe': [1.5, 0.2, 2.5], 'goal': [2.4, 2.2, 2.3], 'reach': 0.3333333333333333, 'win_rate': 0.3333333333333333, 'median_mfe': 1.5, 'median_goal': 2.3, 'aim_gap': 0.7999999999999998}
+PASS  goal bands: the 2.5+ fires band separately  {'n': 2, 'win': 0, 'late': 0, 'short': 2, 'dud': 0, 'mfe': [1.8, 1.2], 'goal': [2.6, 2.8], 'reach': 0.0, 'win_rate': 0.0, 'median_mfe': 1.5, 'median_goal': 2.7, 'aim_gap': 1.2000000000000002}
+PASS  calibrate: an OVER-AIM verdict writes the evidence file  {
+ "ts": "2026-09-13T18:16:09.012278+00:00",
+ "verdict": "THE GOAL OVER-AIMS: big asks (2.0%+) reach the goal 20% vs 60%
+PASS  calibrate: the write is atomic (no temp litter left behind, even on concurrent writers)  
+PASS  lock: acquisition creates the lock and returns True  
+PASS  lock: a second acquisition while held is refused  
+PASS  lock: release is a plain unlink and re-acquirable  
+PASS  lock: release removes OUR lock  
+PASS  lock: a FOREIGN owner's lock is never released by our finally (a stalled writer must not drop the replacement's exclusion)  
+PASS  lock: a lock older than the staleness bound is taken over (a crashed run must not wedge calibration forever)  
+PASS  lock E2E: a busy lock skips the evidence write and reports lock_busy (the standing file is untouched)  {'ts': '2026-09-13T18:16:09.044696+00:00', 'verdict': 'THE GOAL OVER-AIMS: big asks (2.0%+) reach the goal 20% vs 60% for the modest ones -- breakout moves are short; the aim should come down', 'median_gave': 1.5, 'median_asked': 2.5, 'big_n': 5, 'lock_busy': True}
+PASS  calibrate: the evidence carries the tilt's numerator/denominator + sample  {'ts': '2026-09-13T18:16:09.012278+00:00', 'verdict': 'THE GOAL OVER-AIMS: big asks (2.0%+) reach the goal 20% vs 60% for the modest ones -- breakout moves are short; the aim should come down', 'median_gave': 1.5, 'median_asked': 2.5, 'big_n': 5}
+PASS  calibrate: a tracking verdict ALSO writes evidence (the seam reads neutral)  {
+ "ts": "2026-09-13T18:16:09.062891+00:00",
+ "verdict": "the live goal tracks what breakouts give (big asks reach 60% v
+PASS  calibrate: a small-sample week never erases a standing OVER-AIM (its TTL expires it)  
+PASS  seam: the tilt is the gave/asked ratio, clamped to [0.80, 1.0]  0.8
+PASS  seam: a mild ratio applies exactly (never up, never below 0.80)  0.8400000000000001
+PASS  seam: a tracking verdict is neutral (1.0)  
+PASS  seam: a small sample is neutral (1.0)  
+PASS  seam: evidence older than the 8-day TTL is neutral (a stale squeeze must not outlive its measurement)  
+PASS  seam: corrupt evidence is neutral (fail-open)  
+PASS  seam: no evidence at all is neutral  
+PASS  seam E2E: the fire's goal is the live pick x the tilt (2.4 x 0.80 = 1.92)  1.92
+PASS  seam E2E: with neutral evidence the machinery's pick stands untouched  2.4
+PASS  store filter: only recent sure-thing FIRES load (route + kind + window)  ['A/USD']
+PASS  store filter: widening the window admits the old fire  2
+PASS  store filter: a missing store returns [] (first week is quiet)  
+PASS  report: an empty store prints the no-fires verdict and writes  THE SURE THING WEEKLY DIAG  (7d window, 2026-09-08 07:00 MST)
+fires: 0  (route='
+PASS  the diag reads the live snapshot store path  
+PASS  the diag grades the sure-thing window the scanner fires with (the Sep 11 re-contract: the 4h contract the coil's edge lives on)  
+PASS  the diag grades the per-fire goal (fallback = the engine constant)  
+PASS  seam: the suite never touches the production tilt path (the leak is dead)  ('C:\\Users\\birds\\AppData\\Local\\Temp\\_sbx_surethingdiag_1aoigvnd\\surething_goal_tilt.json', 'C:\\Users\\birds\\AppData\\Local\\Temp\\_sbx_surethingdiag_1aoigvnd\\surething_goal_tilt.json')
+
+RESULT: 70 passed, 0 failed

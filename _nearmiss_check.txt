@@ -33,7 +33,7 @@ PASS  WEEKDAY_ADJUST still present
 PASS  _apply_dow still present  
 PASS  ROTATIONS keep the 8-field shape (7 returned by get_time_block)  
 PASS  data bars still take precedence over fallbacks  
-PASS  desktop floor is rotation+tide aware (popup_floor, Sep 4)  
+PASS  desktop floor is rotation+tide aware via popup_floor (Sep 4; the pair arg joined Sep 10 for the personal bar)  
 PASS  mover funnel untouched (own 55 floor + deep >=60)  
 PASS  live bar comes from the data (60-99, int)  60
 PASS  cooldown hours still flag no_buy  

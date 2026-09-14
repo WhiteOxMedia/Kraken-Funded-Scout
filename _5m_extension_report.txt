@@ -1,0 +1,8 @@
+THE 5M STORE EXTENSION — live Kraken spot recalibration
+run at          : 2026-09-13 19:01
+pairs attempted : 54
+pairs extended  : 54
+pairs failed    : 0
+candles appended: 2,754
+seconds         : 66.1
+seam qa         : {'pairs_with_seam_qa': 54, 'mean_close_diff_pct': 0.0, 'mean_payer_agree_pct': 100.0, 'mean_vol_ratio': 1.0}

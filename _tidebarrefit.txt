@@ -1,0 +1,36 @@
+=== THE TIDE BAR REFIT — the OUT bar learns from live outcomes ===
+candidates with a tide stamp: 1301 (tides: OUT 771, RISING 386, FLAT 144)
+
+after dedupe (1 per pair per 15 min, best score): 755 of 1301
+joined to the store: 734 candidates (6 censored inside the last 12 bars)
+  outcome window: 2026-09-05 00:27:46.517911+00:00 .. 2026-09-11 01:57:40.634515+00:00
+
+OUT candidates joined: 318  (payers 8.8% — the store's own verdict on what the gates suppressed in OUT tides)
+
+payer rate by quick-score band (OUT) — the gradient the quantile
+assumes is monotone-up:
+  [50- 60)  n=  99    4.0%
+  [60- 70)  n=  91    6.6%
+  [70- 80)  n=  74   13.5%
+  [80- 90)  n=  38   18.4%
+
+chronological split at 2026-09-10 22:44:56.345287+00:00: train 222, holdout 96
+train OUT payer rate: 8.1%
+
+         bar  value | train $/fire  fires | holdout $/fire  fires  payers
+       curve   78.0 |       +1.53$     70 |         +2.64$     15   20.0%
+       curve   80.0 |       +1.41$     42 |         +3.30$     12   25.0%
+       curve   82.0 |       +0.99$     36 |         +3.30$     12   25.0%
+       curve   84.0 |       +0.77$     31 |         +3.96$     10   30.0%
+       curve   86.0 |       +0.00$     19 |         +2.26$      7   14.3%
+       curve   90.0 |       +0.00$     12 |         +3.96$      4   25.0%
+    quantile   94.0 |       +0.00$      5 |         +0.00$      3    0.0%
+    outcomes   80.0 |       +1.41$     42 |         +3.30$     12   25.0%
+
+VERDICT: SHIP the outcome bar (holdout $/fire +3.30 vs +0.00)
+
+learn() re-checks outcome evidence on every 30-min build: the
+outcome mapping ships only when enough live candidates have been
+joined and it prices at-or-above the quantile in-sample; otherwise
+the quantile stays (fail-closed, quantile fallback).
+join+fit took 1s

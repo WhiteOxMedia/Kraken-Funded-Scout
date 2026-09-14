@@ -1,0 +1,6 @@
+  ! 'not-a-number' is not a number — falling back to detection
+  ! '0' is not a usable balance (must be finite and > 0) — falling back to detection
+  ! '-5' is not a usable balance (must be finite and > 0) — falling back to detection
+  ! 'nan' is not a usable balance (must be finite and > 0) — falling back to detection
+  ! 'inf' is not a usable balance (must be finite and > 0) — falling back to detection
+DONE

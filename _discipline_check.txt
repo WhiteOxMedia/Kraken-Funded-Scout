@@ -2,8 +2,8 @@ PASS  the learned weights default 1.0/0.9/1.25/0.5/1.0 (system_burial since the 
 PASS  weights are bounded [0.25, 2.5] with ±10% nudges  
 PASS  rotation windows resolve (08-12 -> 08:00-12:00 MST)  
 PASS  the 20-24 window resolves  
-PASS  the rotation goal resolves to the [1, 3] band  1.339
-PASS  an unknown coin fails to the universe median (still in the band)  2.262
+PASS  the rotation goal resolves to the [1, 3] band  1.307
+PASS  an unknown coin fails to the universe median (still in the band)  2.343
 PASS  a coin that hit entry x (1+goal) inside the window PAID  
 PASS  a coin that never reached the goal did NOT pay  
 PASS  a coin that paid AFTER the window closed does not count  
@@ -16,6 +16,16 @@ PASS  score and money agree -> the weights hold
 PASS  the weight never exceeds the 2.5 bound  2.5
 PASS  a no-exit rotation points at the SOLD tap  
 PASS  a missed-popup rotation points at the green light  
+PASS  the empty-fire cap constant exists (60 = the CAREFUL band)  
+PASS  a zero-fire rotation's lesson says the silence, not perfection  No popups fired — score capped at 100 (the opportunity cost: a silent rotation c
+PASS  zero fires + a losing rotation -> system_burial RISES (the silent funnel)  1.1
+PASS  that lesson names the silent funnel  
+PASS  a firing rotation with a clean sheet is unaffected (weights hold)  
+PASS  the cap is wired into evaluate_rotation (score, not just the lesson)  
+PASS  the result carries the empty_fire flag (the plate reads it)  
+PASS  the voice says the silence instead of a grade  
+PASS  the plate grades a silent rotation (amber, never SNIPER)  
+PASS  a capped score never feeds the streak  
 PASS  the scanner evaluates at every rotation rollover  
 PASS  the closing rotation derives across midnight (00:xx -> 20-24)  
 PASS  the dopamine voice fires at the rollover  
@@ -24,4 +34,4 @@ PASS  the plate reads the scanner-written state (one source of truth)
 PASS  the popups come from the winners table (the fired log)  
 PASS  the realized side reads the SOLD ledger  
 
-RESULT: 25 passed, 0 failed
+RESULT: 35 passed, 0 failed

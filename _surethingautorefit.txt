@@ -1,0 +1,936 @@
+=== THE SURE THING AUTO-REFIT — monthly pass ===
+run at: 2026-09-14 01:11:16 UTC
+contract: +1.5% within 240 min (the 4h clock)
+episodes: 4328 (20 censored inside the store's last 48 bars)
+holdout base rate: 20.9%  (train 3029 / holdout 1299, split at 70% of episode time)
+
+── the fresh weights (vs legacy) ──
+component   legacy   fresh
+tight         15.0     0.0
+atr            7.5     3.1
+bb             7.5     4.4
+tests         10.0    22.2
+pull           7.5     4.8
+buydom         7.5     0.0
+fade           5.0     4.2
+micro         10.0     2.4
+burst          5.0     0.0
+squeeze       15.0     7.8
+hist          10.0    51.1
+
+AUC on the same holdout —  legacy 0.441   fresh 0.522   incumbent (refit) 0.526
+VERDICT: kept refit: the fresh refit regressed vs the incumbent on the same holdout (0.522 < 0.526) — no improvement, no ship
+replay+fit took 157s
+
+=== THE SURE THING AUTO-REFIT — monthly pass ===
+run at: 2026-09-13 20:58:04 UTC
+contract: +1.5% within 240 min (the 4h clock)
+episodes: 4301 (22 censored inside the store's last 48 bars)
+holdout base rate: 21.5%  (train 3010 / holdout 1291, split at 70% of episode time)
+
+── the fresh weights (vs legacy) ──
+component   legacy   fresh
+tight         15.0     0.0
+atr            7.5     2.9
+bb             7.5     4.7
+tests         10.0    22.0
+pull           7.5     4.9
+buydom         7.5     0.0
+fade           5.0     4.0
+micro         10.0     2.5
+burst          5.0     0.0
+squeeze       15.0     7.8
+hist          10.0    51.2
+
+AUC on the same holdout —  legacy 0.438   fresh 0.521   incumbent (refit) 0.526
+VERDICT: kept refit: the fresh refit regressed vs the incumbent on the same holdout (0.521 < 0.526) — no improvement, no ship
+replay+fit took 176s
+
+=== THE SURE THING AUTO-REFIT — monthly pass ===
+run at: 2026-09-13 20:30:42 UTC
+contract: +1.5% within 240 min (the 4h clock)
+episodes: 4301 (20 censored inside the store's last 48 bars)
+holdout base rate: 21.5%  (train 3010 / holdout 1291, split at 70% of episode time)
+
+── the fresh weights (vs legacy) ──
+component   legacy   fresh
+tight         15.0     0.0
+atr            7.5     2.9
+bb             7.5     4.7
+tests         10.0    22.0
+pull           7.5     4.9
+buydom         7.5     0.0
+fade           5.0     4.0
+micro         10.0     2.5
+burst          5.0     0.0
+squeeze       15.0     7.8
+hist          10.0    51.2
+
+AUC on the same holdout —  legacy 0.438   fresh 0.521   incumbent (refit) 0.526
+VERDICT: kept refit: the fresh refit regressed vs the incumbent on the same holdout (0.521 < 0.526) — no improvement, no ship
+replay+fit took 148s
+
+=== THE SURE THING AUTO-REFIT — monthly pass ===
+run at: 2026-09-13 20:03:56 UTC
+contract: +1.5% within 240 min (the 4h clock)
+episodes: 4301 (10 censored inside the store's last 48 bars)
+holdout base rate: 21.5%  (train 3010 / holdout 1291, split at 70% of episode time)
+
+── the fresh weights (vs legacy) ──
+component   legacy   fresh
+tight         15.0     0.0
+atr            7.5     2.9
+bb             7.5     4.7
+tests         10.0    22.0
+pull           7.5     4.9
+buydom         7.5     0.0
+fade           5.0     4.0
+micro         10.0     2.5
+burst          5.0     0.0
+squeeze       15.0     7.8
+hist          10.0    51.2
+
+AUC on the same holdout —  legacy 0.438   fresh 0.521   incumbent (refit) 0.526
+VERDICT: kept refit: the fresh refit regressed vs the incumbent on the same holdout (0.521 < 0.526) — no improvement, no ship
+replay+fit took 147s
+
+=== THE SURE THING AUTO-REFIT — monthly pass ===
+run at: 2026-09-13 19:38:39 UTC
+contract: +1.5% within 240 min (the 4h clock)
+episodes: 4300 (7 censored inside the store's last 48 bars)
+holdout base rate: 21.5%  (train 3010 / holdout 1290, split at 70% of episode time)
+
+── the fresh weights (vs legacy) ──
+component   legacy   fresh
+tight         15.0     0.0
+atr            7.5     2.9
+bb             7.5     4.7
+tests         10.0    22.0
+pull           7.5     4.9
+buydom         7.5     0.0
+fade           5.0     4.0
+micro         10.0     2.5
+burst          5.0     0.0
+squeeze       15.0     7.8
+hist          10.0    51.2
+
+AUC on the same holdout —  legacy 0.438   fresh 0.520   incumbent (refit) 0.524
+VERDICT: kept refit: the fresh refit regressed vs the incumbent on the same holdout (0.520 < 0.524) — no improvement, no ship
+replay+fit took 149s
+
+=== THE SURE THING AUTO-REFIT — monthly pass ===
+run at: 2026-09-13 19:11:53 UTC
+contract: +1.5% within 240 min (the 4h clock)
+episodes: 4300 (4 censored inside the store's last 48 bars)
+holdout base rate: 21.5%  (train 3010 / holdout 1290, split at 70% of episode time)
+
+── the fresh weights (vs legacy) ──
+component   legacy   fresh
+tight         15.0     0.0
+atr            7.5     2.9
+bb             7.5     4.7
+tests         10.0    22.0
+pull           7.5     4.9
+buydom         7.5     0.0
+fade           5.0     4.0
+micro         10.0     2.5
+burst          5.0     0.0
+squeeze       15.0     7.8
+hist          10.0    51.2
+
+AUC on the same holdout —  legacy 0.438   fresh 0.520   incumbent (refit) 0.524
+VERDICT: kept refit: the fresh refit regressed vs the incumbent on the same holdout (0.520 < 0.524) — no improvement, no ship
+replay+fit took 148s
+
+=== THE SURE THING AUTO-REFIT — monthly pass ===
+run at: 2026-09-13 18:50:55 UTC
+contract: +1.5% within 240 min (the 4h clock)
+episodes: 4300 (3 censored inside the store's last 48 bars)
+holdout base rate: 21.5%  (train 3010 / holdout 1290, split at 70% of episode time)
+
+── the fresh weights (vs legacy) ──
+component   legacy   fresh
+tight         15.0     0.0
+atr            7.5     2.9
+bb             7.5     4.7
+tests         10.0    22.0
+pull           7.5     4.9
+buydom         7.5     0.0
+fade           5.0     4.0
+micro         10.0     2.5
+burst          5.0     0.0
+squeeze       15.0     7.8
+hist          10.0    51.2
+
+AUC on the same holdout —  legacy 0.438   fresh 0.520   incumbent (refit) 0.524
+VERDICT: kept refit: the fresh refit regressed vs the incumbent on the same holdout (0.520 < 0.524) — no improvement, no ship
+replay+fit took 153s
+
+=== THE SURE THING AUTO-REFIT — monthly pass ===
+run at: 2026-09-13 17:33:57 UTC
+contract: +1.5% within 240 min (the 4h clock)
+episodes: 4298 (3 censored inside the store's last 48 bars)
+holdout base rate: 21.5%  (train 3008 / holdout 1290, split at 70% of episode time)
+
+── the fresh weights (vs legacy) ──
+component   legacy   fresh
+tight         15.0     0.0
+atr            7.5     2.9
+bb             7.5     4.7
+tests         10.0    21.9
+pull           7.5     5.0
+buydom         7.5     0.0
+fade           5.0     4.0
+micro         10.0     2.5
+burst          5.0     0.0
+squeeze       15.0     7.8
+hist          10.0    51.2
+
+AUC on the same holdout —  legacy 0.438   fresh 0.520   incumbent (refit) 0.525
+VERDICT: kept refit: the fresh refit regressed vs the incumbent on the same holdout (0.520 < 0.525) — no improvement, no ship
+replay+fit took 187s
+
+=== THE SURE THING AUTO-REFIT — monthly pass ===
+run at: 2026-09-13 15:41:08 UTC
+contract: +1.5% within 240 min (the 4h clock)
+episodes: 4291 (8 censored inside the store's last 48 bars)
+holdout base rate: 21.4%  (train 3003 / holdout 1288, split at 70% of episode time)
+
+── the fresh weights (vs legacy) ──
+component   legacy   fresh
+tight         15.0     0.0
+atr            7.5     2.9
+bb             7.5     4.7
+tests         10.0    21.9
+pull           7.5     5.0
+buydom         7.5     0.0
+fade           5.0     4.0
+micro         10.0     2.6
+burst          5.0     0.0
+squeeze       15.0     7.9
+hist          10.0    51.1
+
+AUC on the same holdout —  legacy 0.435   fresh 0.518   incumbent (refit) 0.522
+VERDICT: kept refit: the fresh refit regressed vs the incumbent on the same holdout (0.518 < 0.522) — no improvement, no ship
+replay+fit took 149s
+
+=== THE SURE THING AUTO-REFIT — monthly pass ===
+run at: 2026-09-13 14:25:40 UTC
+contract: +1.5% within 240 min (the 4h clock)
+episodes: 4290 (5 censored inside the store's last 48 bars)
+holdout base rate: 21.4%  (train 3003 / holdout 1287, split at 70% of episode time)
+
+── the fresh weights (vs legacy) ──
+component   legacy   fresh
+tight         15.0     0.0
+atr            7.5     2.9
+bb             7.5     4.7
+tests         10.0    21.9
+pull           7.5     5.0
+buydom         7.5     0.0
+fade           5.0     4.0
+micro         10.0     2.6
+burst          5.0     0.0
+squeeze       15.0     7.9
+hist          10.0    51.1
+
+AUC on the same holdout —  legacy 0.435   fresh 0.518   incumbent (refit) 0.523
+VERDICT: kept refit: the fresh refit regressed vs the incumbent on the same holdout (0.518 < 0.523) — no improvement, no ship
+replay+fit took 148s
+
+=== THE SURE THING AUTO-REFIT — monthly pass ===
+run at: 2026-09-13 04:38:41 UTC
+contract: +1.5% within 240 min (the 4h clock)
+episodes: 4211 (34 censored inside the store's last 48 bars)
+holdout base rate: 22.2%  (train 2947 / holdout 1264, split at 70% of episode time)
+
+── the fresh weights (vs legacy) ──
+component   legacy   fresh
+tight         15.0     0.0
+atr            7.5     3.4
+bb             7.5     4.6
+tests         10.0    21.7
+pull           7.5     4.8
+buydom         7.5     0.0
+fade           5.0     4.2
+micro         10.0     2.7
+burst          5.0     0.0
+squeeze       15.0     8.2
+hist          10.0    50.3
+
+AUC on the same holdout —  legacy 0.433   fresh 0.513   incumbent (refit) 0.519
+VERDICT: kept refit: the fresh refit regressed vs the incumbent on the same holdout (0.513 < 0.519) — no improvement, no ship
+replay+fit took 178s
+
+=== THE SURE THING AUTO-REFIT — monthly pass ===
+run at: 2026-09-13 03:27:22 UTC
+contract: +1.5% within 240 min (the 4h clock)
+episodes: 4200 (42 censored inside the store's last 48 bars)
+holdout base rate: 22.7%  (train 2940 / holdout 1260, split at 70% of episode time)
+
+── the fresh weights (vs legacy) ──
+component   legacy   fresh
+tight         15.0     0.0
+atr            7.5     3.4
+bb             7.5     4.6
+tests         10.0    21.5
+pull           7.5     4.8
+buydom         7.5     0.0
+fade           5.0     4.1
+micro         10.0     2.8
+burst          5.0     0.0
+squeeze       15.0     8.2
+hist          10.0    50.8
+
+AUC on the same holdout —  legacy 0.435   fresh 0.512   incumbent (refit) 0.517
+VERDICT: kept refit: the fresh refit regressed vs the incumbent on the same holdout (0.512 < 0.517) — no improvement, no ship
+replay+fit took 185s
+
+=== THE SURE THING AUTO-REFIT — monthly pass ===
+run at: 2026-09-12 20:28:52 UTC
+contract: +1.5% within 240 min (the 4h clock)
+episodes: 4157 (26 censored inside the store's last 48 bars)
+holdout base rate: 23.9%  (train 2909 / holdout 1248, split at 70% of episode time)
+
+── the fresh weights (vs legacy) ──
+component   legacy   fresh
+tight         15.0     0.0
+atr            7.5     3.6
+bb             7.5     4.5
+tests         10.0    21.3
+pull           7.5     4.7
+buydom         7.5     0.0
+fade           5.0     4.1
+micro         10.0     2.8
+burst          5.0     0.0
+squeeze       15.0     7.8
+hist          10.0    51.1
+
+AUC on the same holdout —  legacy 0.445   fresh 0.517   incumbent (refit) 0.522
+VERDICT: kept refit: the fresh refit regressed vs the incumbent on the same holdout (0.517 < 0.522) — no improvement, no ship
+replay+fit took 157s
+
+=== THE SURE THING AUTO-REFIT — monthly pass ===
+run at: 2026-09-12 13:01:52 UTC
+contract: +1.5% within 240 min (the 4h clock)
+episodes: 4077 (33 censored inside the store's last 48 bars)
+holdout base rate: 25.5%  (train 2853 / holdout 1224, split at 70% of episode time)
+
+── the fresh weights (vs legacy) ──
+component   legacy   fresh
+tight         15.0     0.0
+atr            7.5     3.9
+bb             7.5     4.6
+tests         10.0    20.6
+pull           7.5     4.8
+buydom         7.5     0.0
+fade           5.0     3.7
+micro         10.0     2.4
+burst          5.0     0.0
+squeeze       15.0     7.9
+hist          10.0    52.0
+
+AUC on the same holdout —  legacy 0.444   fresh 0.510   incumbent (refit) 0.512
+VERDICT: kept refit: the fresh refit regressed vs the incumbent on the same holdout (0.510 < 0.512) — no improvement, no ship
+replay+fit took 200s
+
+=== THE SURE THING AUTO-REFIT — monthly pass ===
+run at: 2026-09-12 11:23:59 UTC
+contract: +1.5% within 240 min (the 4h clock)
+episodes: 4054 (40 censored inside the store's last 48 bars)
+holdout base rate: 25.6%  (train 2837 / holdout 1217, split at 70% of episode time)
+
+── the fresh weights (vs legacy) ──
+component   legacy   fresh
+tight         15.0     0.0
+atr            7.5     3.5
+bb             7.5     4.5
+tests         10.0    21.2
+pull           7.5     4.7
+buydom         7.5     0.0
+fade           5.0     3.7
+micro         10.0     2.4
+burst          5.0     0.0
+squeeze       15.0     8.0
+hist          10.0    51.9
+
+AUC on the same holdout —  legacy 0.446   fresh 0.509   incumbent (refit) 0.512
+VERDICT: kept refit: the fresh refit regressed vs the incumbent on the same holdout (0.509 < 0.512) — no improvement, no ship
+replay+fit took 181s
+
+=== THE SURE THING AUTO-REFIT — monthly pass ===
+run at: 2026-09-12 09:01:56 UTC
+contract: +1.5% within 240 min (the 4h clock)
+episodes: 4018 (44 censored inside the store's last 48 bars)
+holdout base rate: 25.7%  (train 2812 / holdout 1206, split at 70% of episode time)
+
+── the fresh weights (vs legacy) ──
+component   legacy   fresh
+tight         15.0     0.0
+atr            7.5     3.6
+bb             7.5     4.6
+tests         10.0    21.1
+pull           7.5     4.8
+buydom         7.5     0.0
+fade           5.0     3.7
+micro         10.0     2.4
+burst          5.0     0.0
+squeeze       15.0     8.1
+hist          10.0    51.7
+
+AUC on the same holdout —  legacy 0.446   fresh 0.509   incumbent (refit) 0.512
+VERDICT: kept refit: the fresh refit regressed vs the incumbent on the same holdout (0.509 < 0.512) — no improvement, no ship
+replay+fit took 181s
+
+=== THE SURE THING AUTO-REFIT — monthly pass ===
+run at: 2026-09-12 08:21:16 UTC
+contract: +1.5% within 240 min (the 4h clock)
+episodes: 4011 (43 censored inside the store's last 48 bars)
+holdout base rate: 26.0%  (train 2807 / holdout 1204, split at 70% of episode time)
+
+── the fresh weights (vs legacy) ──
+component   legacy   fresh
+tight         15.0     0.0
+atr            7.5     3.8
+bb             7.5     4.5
+tests         10.0    21.1
+pull           7.5     4.6
+buydom         7.5     0.0
+fade           5.0     3.6
+micro         10.0     2.5
+burst          5.0     0.0
+squeeze       15.0     8.1
+hist          10.0    51.8
+
+AUC on the same holdout —  legacy 0.445   fresh 0.509   incumbent (refit) 0.511
+VERDICT: kept refit: the fresh refit regressed vs the incumbent on the same holdout (0.509 < 0.511) — no improvement, no ship
+replay+fit took 179s
+
+=== THE SURE THING AUTO-REFIT — monthly pass ===
+run at: 2026-09-12 07:11:56 UTC
+contract: +1.5% within 240 min (the 4h clock)
+episodes: 3994 (40 censored inside the store's last 48 bars)
+holdout base rate: 26.2%  (train 2795 / holdout 1199, split at 70% of episode time)
+
+── the fresh weights (vs legacy) ──
+component   legacy   fresh
+tight         15.0     0.0
+atr            7.5     3.7
+bb             7.5     4.6
+tests         10.0    21.0
+pull           7.5     4.7
+buydom         7.5     0.0
+fade           5.0     3.5
+micro         10.0     2.5
+burst          5.0     0.0
+squeeze       15.0     8.2
+hist          10.0    51.9
+
+AUC on the same holdout —  legacy 0.450   fresh 0.511   incumbent (refit) 0.514
+VERDICT: kept refit: the fresh refit regressed vs the incumbent on the same holdout (0.511 < 0.514) — no improvement, no ship
+replay+fit took 177s
+
+=== THE SURE THING AUTO-REFIT — monthly pass ===
+run at: 2026-09-12 06:41:39 UTC
+contract: +1.5% within 240 min (the 4h clock)
+episodes: 3987 (43 censored inside the store's last 48 bars)
+holdout base rate: 26.1%  (train 2790 / holdout 1197, split at 70% of episode time)
+
+── the fresh weights (vs legacy) ──
+component   legacy   fresh
+tight         15.0     0.0
+atr            7.5     3.6
+bb             7.5     4.6
+tests         10.0    21.0
+pull           7.5     4.7
+buydom         7.5     0.0
+fade           5.0     3.5
+micro         10.0     2.5
+burst          5.0     0.0
+squeeze       15.0     8.2
+hist          10.0    51.8
+
+AUC on the same holdout —  legacy 0.447   fresh 0.508   incumbent (refit) 0.511
+VERDICT: kept refit: the fresh refit regressed vs the incumbent on the same holdout (0.508 < 0.511) — no improvement, no ship
+replay+fit took 138s
+
+=== THE SURE THING AUTO-REFIT — monthly pass ===
+run at: 2026-09-12 04:21:10 UTC
+contract: +1.5% within 240 min (the 4h clock)
+episodes: 3937 (63 censored inside the store's last 48 bars)
+holdout base rate: 25.7%  (train 2755 / holdout 1182, split at 70% of episode time)
+
+── the fresh weights (vs legacy) ──
+component   legacy   fresh
+tight         15.0     0.0
+atr            7.5     3.2
+bb             7.5     4.8
+tests         10.0    21.1
+pull           7.5     4.9
+buydom         7.5     0.0
+fade           5.0     3.4
+micro         10.0     2.6
+burst          5.0     0.0
+squeeze       15.0     8.5
+hist          10.0    51.6
+
+AUC on the same holdout —  legacy 0.455   fresh 0.520   incumbent (refit) 0.522
+VERDICT: kept refit: the fresh refit regressed vs the incumbent on the same holdout (0.520 < 0.522) — no improvement, no ship
+replay+fit took 169s
+
+=== THE SURE THING AUTO-REFIT — monthly pass ===
+run at: 2026-09-12 03:07:25 UTC
+contract: +1.5% within 240 min (the 4h clock)
+episodes: 3936 (46 censored inside the store's last 48 bars)
+holdout base rate: 25.7%  (train 2755 / holdout 1181, split at 70% of episode time)
+
+── the fresh weights (vs legacy) ──
+component   legacy   fresh
+tight         15.0     0.0
+atr            7.5     3.2
+bb             7.5     4.8
+tests         10.0    21.1
+pull           7.5     4.9
+buydom         7.5     0.0
+fade           5.0     3.4
+micro         10.0     2.6
+burst          5.0     0.0
+squeeze       15.0     8.5
+hist          10.0    51.6
+
+AUC on the same holdout —  legacy 0.455   fresh 0.519   incumbent (refit) 0.522
+VERDICT: kept refit: the fresh refit regressed vs the incumbent on the same holdout (0.519 < 0.522) — no improvement, no ship
+replay+fit took 166s
+
+=== THE SURE THING AUTO-REFIT — monthly pass ===
+run at: 2026-09-12 02:41:45 UTC
+contract: +1.5% within 240 min (the 4h clock)
+episodes: 3936 (32 censored inside the store's last 48 bars)
+holdout base rate: 25.7%  (train 2755 / holdout 1181, split at 70% of episode time)
+
+── the fresh weights (vs legacy) ──
+component   legacy   fresh
+tight         15.0     0.0
+atr            7.5     3.2
+bb             7.5     4.8
+tests         10.0    21.1
+pull           7.5     4.9
+buydom         7.5     0.0
+fade           5.0     3.4
+micro         10.0     2.6
+burst          5.0     0.0
+squeeze       15.0     8.5
+hist          10.0    51.6
+
+AUC on the same holdout —  legacy 0.455   fresh 0.519   incumbent (refit) 0.522
+VERDICT: kept refit: the fresh refit regressed vs the incumbent on the same holdout (0.519 < 0.522) — no improvement, no ship
+replay+fit took 169s
+
+=== THE SURE THING AUTO-REFIT — monthly pass ===
+run at: 2026-09-12 01:48:10 UTC
+contract: +1.5% within 240 min (the 4h clock)
+episodes: 3934 (4 censored inside the store's last 48 bars)
+holdout base rate: 25.7%  (train 2753 / holdout 1181, split at 70% of episode time)
+
+── the fresh weights (vs legacy) ──
+component   legacy   fresh
+tight         15.0     0.0
+atr            7.5     3.1
+bb             7.5     4.8
+tests         10.0    21.2
+pull           7.5     4.8
+buydom         7.5     0.0
+fade           5.0     3.4
+micro         10.0     2.6
+burst          5.0     0.0
+squeeze       15.0     8.5
+hist          10.0    51.5
+
+AUC on the same holdout —  legacy 0.455   fresh 0.520   incumbent (refit) 0.522
+VERDICT: kept refit: the fresh refit regressed vs the incumbent on the same holdout (0.520 < 0.522) — no improvement, no ship
+replay+fit took 332s
+
+=== THE SURE THING AUTO-REFIT — monthly pass ===
+run at: 2026-09-12 00:48:26 UTC
+contract: +1.5% within 240 min (the 4h clock)
+episodes: 3932 (5 censored inside the store's last 48 bars)
+holdout base rate: 25.8%  (train 2752 / holdout 1180, split at 70% of episode time)
+
+── the fresh weights (vs legacy) ──
+component   legacy   fresh
+tight         15.0     0.0
+atr            7.5     3.1
+bb             7.5     4.9
+tests         10.0    21.2
+pull           7.5     4.8
+buydom         7.5     0.0
+fade           5.0     3.4
+micro         10.0     2.6
+burst          5.0     0.0
+squeeze       15.0     8.4
+hist          10.0    51.5
+
+AUC on the same holdout —  legacy 0.455   fresh 0.520   incumbent (refit) 0.522
+VERDICT: kept refit: the fresh refit regressed vs the incumbent on the same holdout (0.520 < 0.522) — no improvement, no ship
+replay+fit took 140s
+
+=== THE SURE THING AUTO-REFIT — monthly pass ===
+run at: 2026-09-11 22:22:34 UTC
+contract: +1.5% within 240 min (the 4h clock)
+episodes: 3931 (1 censored inside the store's last 48 bars)
+holdout base rate: 25.8%  (train 2751 / holdout 1180, split at 70% of episode time)
+
+── the fresh weights (vs legacy) ──
+component   legacy   fresh
+tight         15.0     0.0
+atr            7.5     3.1
+bb             7.5     4.9
+tests         10.0    21.2
+pull           7.5     4.8
+buydom         7.5     0.0
+fade           5.0     3.4
+micro         10.0     2.6
+burst          5.0     0.0
+squeeze       15.0     8.4
+hist          10.0    51.5
+
+AUC on the same holdout —  legacy 0.455   fresh 0.519   incumbent (refit) 0.522
+VERDICT: kept refit: the fresh refit regressed vs the incumbent on the same holdout (0.519 < 0.522) — no improvement, no ship
+replay+fit took 138s
+
+=== THE SURE THING AUTO-REFIT — monthly pass ===
+run at: 2026-09-11 21:15:25 UTC
+contract: +1.5% within 240 min (the 4h clock)
+episodes: 3931 (0 censored inside the store's last 48 bars)
+holdout base rate: 25.8%  (train 2751 / holdout 1180, split at 70% of episode time)
+
+── the fresh weights (vs legacy) ──
+component   legacy   fresh
+tight         15.0     0.0
+atr            7.5     3.1
+bb             7.5     4.9
+tests         10.0    21.2
+pull           7.5     4.8
+buydom         7.5     0.0
+fade           5.0     3.4
+micro         10.0     2.6
+burst          5.0     0.0
+squeeze       15.0     8.4
+hist          10.0    51.5
+
+AUC on the same holdout —  legacy 0.455   fresh 0.519   incumbent (refit) 0.522
+VERDICT: kept refit: the fresh refit regressed vs the incumbent on the same holdout (0.519 < 0.522) — no improvement, no ship
+replay+fit took 376s
+
+=== THE SURE THING AUTO-REFIT — monthly pass ===
+run at: 2026-09-11 20:23:09 UTC
+contract: +1.5% within 240 min (the 4h clock)
+episodes: 3931 (0 censored inside the store's last 48 bars)
+holdout base rate: 25.8%  (train 2751 / holdout 1180, split at 70% of episode time)
+
+── the fresh weights (vs legacy) ──
+component   legacy   fresh
+tight         15.0     0.0
+atr            7.5     3.1
+bb             7.5     4.9
+tests         10.0    21.2
+pull           7.5     4.8
+buydom         7.5     0.0
+fade           5.0     3.4
+micro         10.0     2.6
+burst          5.0     0.0
+squeeze       15.0     8.4
+hist          10.0    51.5
+
+AUC on the same holdout —  legacy 0.455   fresh 0.519   incumbent (refit) 0.522
+VERDICT: kept refit: the fresh refit regressed vs the incumbent on the same holdout (0.519 < 0.522) — no improvement, no ship
+replay+fit took 143s
+
+=== THE SURE THING AUTO-REFIT — monthly pass ===
+run at: 2026-09-11 19:56:58 UTC
+contract: +1.5% within 240 min (the 4h clock)
+episodes: 3931 (0 censored inside the store's last 48 bars)
+holdout base rate: 25.8%  (train 2751 / holdout 1180, split at 70% of episode time)
+
+── the fresh weights (vs legacy) ──
+component   legacy   fresh
+tight         15.0     0.0
+atr            7.5     3.1
+bb             7.5     4.9
+tests         10.0    21.2
+pull           7.5     4.8
+buydom         7.5     0.0
+fade           5.0     3.4
+micro         10.0     2.6
+burst          5.0     0.0
+squeeze       15.0     8.4
+hist          10.0    51.5
+
+AUC on the same holdout —  legacy 0.455   fresh 0.519   incumbent (refit) 0.522
+VERDICT: kept refit: the fresh refit regressed vs the incumbent on the same holdout (0.519 < 0.522) — no improvement, no ship
+replay+fit took 152s
+
+=== THE SURE THING AUTO-REFIT — monthly pass ===
+run at: 2026-09-11 19:02:29 UTC
+contract: +1.5% within 240 min (the 4h clock)
+episodes: 3931 (0 censored inside the store's last 48 bars)
+holdout base rate: 25.8%  (train 2751 / holdout 1180, split at 70% of episode time)
+
+── the fresh weights (vs legacy) ──
+component   legacy   fresh
+tight         15.0     0.0
+atr            7.5     3.1
+bb             7.5     4.9
+tests         10.0    21.2
+pull           7.5     4.8
+buydom         7.5     0.0
+fade           5.0     3.4
+micro         10.0     2.6
+burst          5.0     0.0
+squeeze       15.0     8.4
+hist          10.0    51.5
+
+AUC on the same holdout —  legacy 0.455   fresh 0.519   incumbent (refit) 0.522
+VERDICT: kept refit: the fresh refit regressed vs the incumbent on the same holdout (0.519 < 0.522) — no improvement, no ship
+replay+fit took 140s
+
+=== THE SURE THING AUTO-REFIT — monthly pass ===
+run at: 2026-09-11 17:57:38 UTC
+contract: +1.5% within 240 min (the 4h clock)
+episodes: 3931 (0 censored inside the store's last 48 bars)
+holdout base rate: 25.8%  (train 2751 / holdout 1180, split at 70% of episode time)
+
+── the fresh weights (vs legacy) ──
+component   legacy   fresh
+tight         15.0     0.0
+atr            7.5     3.1
+bb             7.5     4.9
+tests         10.0    21.2
+pull           7.5     4.8
+buydom         7.5     0.0
+fade           5.0     3.4
+micro         10.0     2.6
+burst          5.0     0.0
+squeeze       15.0     8.4
+hist          10.0    51.5
+
+AUC on the same holdout —  legacy 0.455   fresh 0.519   incumbent (refit) 0.522
+VERDICT: kept refit: the fresh refit regressed vs the incumbent on the same holdout (0.519 < 0.522) — no improvement, no ship
+replay+fit took 139s
+
+=== THE SURE THING AUTO-REFIT — monthly pass ===
+run at: 2026-09-11 17:35:22 UTC
+contract: +1.5% within 240 min (the 4h clock)
+episodes: 3931 (0 censored inside the store's last 48 bars)
+holdout base rate: 25.8%  (train 2751 / holdout 1180, split at 70% of episode time)
+
+── the fresh weights (vs legacy) ──
+component   legacy   fresh
+tight         15.0     0.0
+atr            7.5     3.1
+bb             7.5     4.9
+tests         10.0    21.2
+pull           7.5     4.8
+buydom         7.5     0.0
+fade           5.0     3.4
+micro         10.0     2.6
+burst          5.0     0.0
+squeeze       15.0     8.4
+hist          10.0    51.5
+
+AUC on the same holdout —  legacy 0.455   fresh 0.519   incumbent (refit) 0.522
+VERDICT: kept refit: the fresh refit regressed vs the incumbent on the same holdout (0.519 < 0.522) — no improvement, no ship
+replay+fit took 151s
+
+=== THE SURE THING AUTO-REFIT — monthly pass ===
+run at: 2026-09-11 15:47:34 UTC
+contract: +1.5% within 240 min (the 4h clock)
+episodes: 3930 (1 censored inside the store's last 48 bars)
+holdout base rate: 25.7%  (train 2751 / holdout 1179, split at 70% of episode time)
+
+── the fresh weights (vs legacy) ──
+component   legacy   fresh
+tight         15.0     0.0
+atr            7.5     3.1
+bb             7.5     4.9
+tests         10.0    21.2
+pull           7.5     4.8
+buydom         7.5     0.0
+fade           5.0     3.4
+micro         10.0     2.6
+burst          5.0     0.0
+squeeze       15.0     8.4
+hist          10.0    51.5
+
+AUC on the same holdout —  legacy 0.455   fresh 0.518   incumbent (refit) 0.521
+VERDICT: kept refit: the fresh refit regressed vs the incumbent on the same holdout (0.518 < 0.521) — no improvement, no ship
+replay+fit took 135s
+
+=== THE SURE THING AUTO-REFIT — monthly pass ===
+run at: 2026-09-11 15:25:48 UTC
+contract: +1.5% within 240 min (the 4h clock)
+episodes: 3930 (1 censored inside the store's last 48 bars)
+holdout base rate: 25.7%  (train 2751 / holdout 1179, split at 70% of episode time)
+
+── the fresh weights (vs legacy) ──
+component   legacy   fresh
+tight         15.0     0.0
+atr            7.5     3.1
+bb             7.5     4.9
+tests         10.0    21.2
+pull           7.5     4.8
+buydom         7.5     0.0
+fade           5.0     3.4
+micro         10.0     2.6
+burst          5.0     0.0
+squeeze       15.0     8.4
+hist          10.0    51.5
+
+AUC on the same holdout —  legacy 0.455   fresh 0.518   incumbent (refit) 0.521
+VERDICT: kept refit: the fresh refit regressed vs the incumbent on the same holdout (0.518 < 0.521) — no improvement, no ship
+replay+fit took 135s
+
+=== THE SURE THING AUTO-REFIT — monthly pass ===
+run at: 2026-09-11 14:50:35 UTC
+contract: +1.5% within 240 min (the 4h clock)
+episodes: 3930 (1 censored inside the store's last 48 bars)
+holdout base rate: 25.7%  (train 2751 / holdout 1179, split at 70% of episode time)
+
+── the fresh weights (vs legacy) ──
+component   legacy   fresh
+tight         15.0     0.0
+atr            7.5     3.1
+bb             7.5     4.9
+tests         10.0    21.2
+pull           7.5     4.8
+buydom         7.5     0.0
+fade           5.0     3.4
+micro         10.0     2.6
+burst          5.0     0.0
+squeeze       15.0     8.4
+hist          10.0    51.5
+
+AUC on the same holdout —  legacy 0.455   fresh 0.518   incumbent (refit) 0.521
+VERDICT: kept refit: the fresh refit regressed vs the incumbent on the same holdout (0.518 < 0.521) — no improvement, no ship
+replay+fit took 137s
+
+=== THE SURE THING AUTO-REFIT — monthly pass ===
+run at: 2026-09-11 14:25:50 UTC
+contract: +1.5% within 240 min (the 4h clock)
+episodes: 3929 (2 censored inside the store's last 48 bars)
+holdout base rate: 25.7%  (train 2750 / holdout 1179, split at 70% of episode time)
+
+── the fresh weights (vs legacy) ──
+component   legacy   fresh
+tight         15.0     0.0
+atr            7.5     3.1
+bb             7.5     4.9
+tests         10.0    21.2
+pull           7.5     4.7
+buydom         7.5     0.0
+fade           5.0     3.5
+micro         10.0     2.6
+burst          5.0     0.0
+squeeze       15.0     8.4
+hist          10.0    51.5
+
+AUC on the same holdout —  legacy 0.455   fresh 0.518   incumbent (refit) 0.520
+VERDICT: kept refit: the fresh refit regressed vs the incumbent on the same holdout (0.518 < 0.520) — no improvement, no ship
+replay+fit took 162s
+
+=== THE SURE THING AUTO-REFIT — monthly pass ===
+run at: 2026-09-11 13:31:50 UTC
+contract: +1.5% within 240 min (the 4h clock)
+episodes: 3923 (8 censored inside the store's last 48 bars)
+holdout base rate: 25.4%  (train 2746 / holdout 1177, split at 70% of episode time)
+
+── the fresh weights (vs legacy) ──
+component   legacy   fresh
+tight         15.0     0.0
+atr            7.5     3.2
+bb             7.5     4.9
+tests         10.0    21.1
+pull           7.5     4.8
+buydom         7.5     0.0
+fade           5.0     3.5
+micro         10.0     2.6
+burst          5.0     0.0
+squeeze       15.0     8.5
+hist          10.0    51.5
+
+AUC on the same holdout —  legacy 0.457   fresh 0.518   incumbent (refit) 0.521
+VERDICT: kept refit: the fresh refit regressed vs the incumbent on the same holdout (0.518 < 0.521) — no improvement, no ship
+replay+fit took 165s
+
+=== THE SURE THING AUTO-REFIT — monthly pass ===
+run at: 2026-09-11 12:54:03 UTC
+contract: +1.5% within 240 min (the 4h clock)
+episodes: 3918 (12 censored inside the store's last 48 bars)
+holdout base rate: 25.6%  (train 2742 / holdout 1176, split at 70% of episode time)
+
+── the fresh weights (vs legacy) ──
+component   legacy   fresh
+tight         15.0     0.0
+atr            7.5     3.3
+bb             7.5     4.8
+tests         10.0    21.0
+pull           7.5     4.7
+buydom         7.5     0.0
+fade           5.0     3.8
+micro         10.0     2.5
+burst          5.0     0.0
+squeeze       15.0     8.5
+hist          10.0    51.6
+
+AUC on the same holdout —  legacy 0.459   fresh 0.521   incumbent (refit) 0.522
+VERDICT: kept refit: the fresh refit regressed vs the incumbent on the same holdout (0.521 < 0.522) — no improvement, no ship
+replay+fit took 138s
+
+=== THE SURE THING AUTO-REFIT — monthly pass ===
+run at: 2026-09-11 12:23:27 UTC
+contract: +1.5% within 240 min (the 4h clock)
+episodes: 3918 (12 censored inside the store's last 48 bars)
+holdout base rate: 25.6%  (train 2742 / holdout 1176, split at 70% of episode time)
+
+── the fresh weights (vs legacy) ──
+component   legacy   fresh
+tight         15.0     0.0
+atr            7.5     3.3
+bb             7.5     4.8
+tests         10.0    21.0
+pull           7.5     4.7
+buydom         7.5     0.0
+fade           5.0     3.8
+micro         10.0     2.5
+burst          5.0     0.0
+squeeze       15.0     8.5
+hist          10.0    51.6
+
+AUC on the same holdout —  legacy 0.459   fresh 0.521   incumbent (refit) 0.522
+VERDICT: kept refit: the fresh refit regressed vs the incumbent on the same holdout (0.521 < 0.522) — no improvement, no ship
+replay+fit took 135s
+
+=== THE SURE THING AUTO-REFIT — monthly pass ===
+run at: 2026-09-11 05:47:06 UTC
+contract: +1.5% within 240 min (the 4h clock)
+episodes: 3845 (28 censored inside the store's last 48 bars)
+holdout base rate: 26.2%  (train 2691 / holdout 1154, split at 70% of episode time)
+
+── the fresh weights (vs legacy) ──
+component   legacy   fresh
+tight         15.0     0.0
+atr            7.5     3.3
+bb             7.5     4.8
+tests         10.0    21.1
+pull           7.5     4.9
+buydom         7.5     0.0
+fade           5.0     3.9
+micro         10.0     2.1
+burst          5.0     0.0
+squeeze       15.0     8.8
+hist          10.0    51.1
+
+AUC on the same holdout —  legacy 0.465   fresh 0.516   incumbent (refit) 0.519
+VERDICT: kept refit: the fresh refit regressed vs the incumbent on the same holdout (0.516 < 0.519) — no improvement, no ship
+replay+fit took 129s
+

@@ -1,0 +1,42 @@
+=== THE FLEET STUDY — 102 pairs with deep hourly history ===
+history depth: median 1187h, min 426h, max 1187h
+
+analysis over 102 deep pairs, 1187 hourly bars; hours need >= 40 ships
+
+tide thresholds in force: RISING >= 70.0, OUT <= 35.0
+state hours: FLAT: 522, OUT: 483, RISING: 182
+
+[ALL PAIRS ] RISING (182h): up 51.8% | payers >= +1.5% 26.3%
+[ALL PAIRS ] FLAT (522h): up 41.2% | payers >= +1.5% 12.3%
+[ALL PAIRS ] OUT (479h): up 41.3% | payers >= +1.5% 11.7%
+[POPUP FLEET] RISING (325h): up 49.7% | payers >= +1.5% 18.4%
+[POPUP FLEET] FLAT (409h): up 44.3% | payers >= +1.5% 9.4%
+[POPUP FLEET] OUT (449h): up 52.3% | payers >= +1.5% 12.2%
+
+── RISING (182 hours) ──
+   coins up next 4h      :  51.8% of the fleet
+   coins paying >= +1.5%:  26.3% of the fleet
+   median 4h move        : +0.11%   dispersion (median IQR): 2.69%
+   avg pairwise corr     : +0.22
+   sinkers in the RISE   : 8426 coin-hours fell anyway
+   worst carriers: APR/USD -58.9%, SHAPE/USD -27.4%, UAI/USD -25.3%, DENT/USD -20.0%, MUBARAK/USD -17.0%
+
+── FLAT (522 hours) ──
+   coins up next 4h      :  41.2% of the fleet
+   coins paying >= +1.5%:  12.3% of the fleet
+   median 4h move        : -0.04%   dispersion (median IQR): 1.51%
+   avg pairwise corr     : +0.23
+
+── OUT (479 hours) ──
+   coins up next 4h      :  41.3% of the fleet
+   coins paying >= +1.5%:  11.7% of the fleet
+   median 4h move        : +0.02%   dispersion (median IQR): 1.77%
+   avg pairwise corr     : +0.26
+   wolves in the OUT tide: 5694 coin-hours paid >= +1.5% despite the block
+   best solo runners: KII/USD +307.4%, GHST/USD +96.8%, DGAI/USD +86.6%, DENT/USD +69.5%, OOB/USD +59.6%
+
+VERDICT (Sep 10, the extended store): 'all ships sink together'
+is a myth on every cut — correlations run +0.2 to +0.5, never +1,
+and OUT hours still pay. The OUT block is a PRICE (tide_learn.py:
+the bar = the OUT payer-rate quantile of the funnel's own scores),
+not a wall — and the popup-fleet cut is the price that matters.
