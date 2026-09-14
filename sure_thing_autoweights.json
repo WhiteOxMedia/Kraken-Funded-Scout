@@ -1,0 +1,9 @@
+{
+ "ts": "2026-09-14 01:11:16 UTC",
+ "verdict": "kept refit: the fresh refit regressed vs the incumbent on the same holdout (0.522 < 0.526) \u2014 no improvement, no ship",
+ "shipped": false,
+ "auc_new": 0.522,
+ "auc_legacy": 0.4405,
+ "auc_incumbent": 0.5257,
+ "rows": 4328
+}

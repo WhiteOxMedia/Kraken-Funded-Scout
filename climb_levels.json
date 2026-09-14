@@ -1,0 +1,7597 @@
+{
+ "PUMP/USD": {
+  "updated": 1789228800000.0,
+  "levels": [
+   {
+    "side": "low",
+    "price": 0.00351,
+    "touches": 14,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1789192800000.0,
+    "last_price": 0.003507,
+    "strength": 13.434
+   },
+   {
+    "side": "high",
+    "price": 0.003931,
+    "touches": 14,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1789135200000.0,
+    "last_price": 0.003933,
+    "strength": 12.576
+   },
+   {
+    "side": "low",
+    "price": 0.003533,
+    "touches": 7,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1789210800000.0,
+    "last_price": 0.003533,
+    "strength": 6.857
+   },
+   {
+    "side": "high",
+    "price": 0.004041,
+    "touches": 7,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1789038000000.0,
+    "last_price": 0.004041,
+    "strength": 5.625
+   },
+   {
+    "side": "high",
+    "price": 0.004134,
+    "touches": 23,
+    "held": 0,
+    "broke": 1,
+    "last_ms": 1789012800000.0,
+    "last_price": 0.00413,
+    "strength": 5.387
+   },
+   {
+    "side": "high",
+    "price": 0.004862,
+    "touches": 7,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1788980400000.0,
+    "last_price": 0.004862,
+    "strength": 5.266
+   },
+   {
+    "side": "high",
+    "price": 0.004956,
+    "touches": 17,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1788098400000.0,
+    "last_price": 0.004947,
+    "strength": 4.654
+   },
+   {
+    "side": "high",
+    "price": 0.004915,
+    "touches": 12,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1788213600000.0,
+    "last_price": 0.004915,
+    "strength": 3.749
+   },
+   {
+    "side": "high",
+    "price": 0.005042,
+    "touches": 5,
+    "held": 12,
+    "broke": 0,
+    "last_ms": 1787842800000.0,
+    "last_price": 0.005042,
+    "strength": 2.247
+   },
+   {
+    "side": "high",
+    "price": 0.004443,
+    "touches": 36,
+    "held": 0,
+    "broke": 12,
+    "last_ms": 1788886800000.0,
+    "last_price": 0.004454,
+    "strength": 2.189
+   },
+   {
+    "side": "low",
+    "price": 0.004138,
+    "touches": 36,
+    "held": 0,
+    "broke": 7,
+    "last_ms": 1788847200000.0,
+    "last_price": 0.004126,
+    "strength": 2.092
+   },
+   {
+    "side": "low",
+    "price": 0.004322,
+    "touches": 36,
+    "held": 0,
+    "broke": 12,
+    "last_ms": 1788825600000.0,
+    "last_price": 0.004313,
+    "strength": 2.041
+   },
+   {
+    "side": "high",
+    "price": 0.00449,
+    "touches": 36,
+    "held": 0,
+    "broke": 12,
+    "last_ms": 1788807600000.0,
+    "last_price": 0.004496,
+    "strength": 1.999
+   },
+   {
+    "side": "low",
+    "price": 0.004344,
+    "touches": 24,
+    "held": 0,
+    "broke": 7,
+    "last_ms": 1788951600000.0,
+    "last_price": 0.004356,
+    "strength": 1.572
+   },
+   {
+    "side": "low",
+    "price": 0.00425,
+    "touches": 24,
+    "held": 0,
+    "broke": 7,
+    "last_ms": 1788901200000.0,
+    "last_price": 0.004255,
+    "strength": 1.484
+   },
+   {
+    "side": "low",
+    "price": 0.004179,
+    "touches": 24,
+    "held": 5,
+    "broke": 7,
+    "last_ms": 1788793200000.0,
+    "last_price": 0.004179,
+    "strength": 1.448
+   },
+   {
+    "side": "low",
+    "price": 0.003747,
+    "touches": 24,
+    "held": 0,
+    "broke": 7,
+    "last_ms": 1788710400000.0,
+    "last_price": 0.003757,
+    "strength": 1.192
+   },
+   {
+    "side": "low",
+    "price": 0.004231,
+    "touches": 12,
+    "held": 0,
+    "broke": 7,
+    "last_ms": 1788872400000.0,
+    "last_price": 0.004231,
+    "strength": 0.718
+   },
+   {
+    "side": "low",
+    "price": 0.003888,
+    "touches": 2,
+    "held": 0,
+    "broke": 1,
+    "last_ms": 1789023600000.0,
+    "last_price": 0.003885,
+    "strength": 0.474
+   }
+  ]
+ },
+ "RENDER/USD": {
+  "updated": 1789135200000.0,
+  "levels": [
+   {
+    "side": "high",
+    "price": 1.567,
+    "touches": 24,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1788976800000.0,
+    "last_price": 1.569,
+    "strength": 20.016
+   },
+   {
+    "side": "high",
+    "price": 1.459,
+    "touches": 16,
+    "held": 8,
+    "broke": 0,
+    "last_ms": 1789012800000.0,
+    "last_price": 1.459,
+    "strength": 17.382
+   },
+   {
+    "side": "low",
+    "price": 1.372,
+    "touches": 8,
+    "held": 8,
+    "broke": 0,
+    "last_ms": 1789084800000.0,
+    "last_price": 1.372,
+    "strength": 11.326
+   },
+   {
+    "side": "high",
+    "price": 1.543,
+    "touches": 27,
+    "held": 8,
+    "broke": 1,
+    "last_ms": 1788955200000.0,
+    "last_price": 1.545,
+    "strength": 7.566
+   },
+   {
+    "side": "high",
+    "price": 1.602,
+    "touches": 10,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1788832800000.0,
+    "last_price": 1.602,
+    "strength": 7.071
+   },
+   {
+    "side": "low",
+    "price": 1.383,
+    "touches": 36,
+    "held": 0,
+    "broke": 8,
+    "last_ms": 1789056000000.0,
+    "last_price": 1.383,
+    "strength": 2.959
+   },
+   {
+    "side": "low",
+    "price": 1.407,
+    "touches": 40,
+    "held": 2,
+    "broke": 8,
+    "last_ms": 1788530400000.0,
+    "last_price": 1.404,
+    "strength": 1.845
+   },
+   {
+    "side": "high",
+    "price": 1.537,
+    "touches": 23,
+    "held": 1,
+    "broke": 9,
+    "last_ms": 1788940800000.0,
+    "last_price": 1.537,
+    "strength": 1.693
+   },
+   {
+    "side": "low",
+    "price": 1.504,
+    "touches": 20,
+    "held": 2,
+    "broke": 8,
+    "last_ms": 1788951600000.0,
+    "last_price": 1.503,
+    "strength": 1.531
+   },
+   {
+    "side": "high",
+    "price": 1.427,
+    "touches": 16,
+    "held": 1,
+    "broke": 7,
+    "last_ms": 1789059600000.0,
+    "last_price": 1.431,
+    "strength": 1.362
+   },
+   {
+    "side": "low",
+    "price": 1.528,
+    "touches": 22,
+    "held": 0,
+    "broke": 10,
+    "last_ms": 1788793200000.0,
+    "last_price": 1.525,
+    "strength": 1.338
+   },
+   {
+    "side": "high",
+    "price": 1.574,
+    "touches": 22,
+    "held": 0,
+    "broke": 10,
+    "last_ms": 1788789600000.0,
+    "last_price": 1.573,
+    "strength": 1.332
+   },
+   {
+    "side": "low",
+    "price": 1.489,
+    "touches": 12,
+    "held": 0,
+    "broke": 8,
+    "last_ms": 1788966000000.0,
+    "last_price": 1.49,
+    "strength": 0.89
+   }
+  ]
+ },
+ "APT/USD": {
+  "updated": 1788976800000.0,
+  "levels": [
+   {
+    "side": "low",
+    "price": 0.5963,
+    "touches": 3,
+    "held": 1,
+    "broke": 0,
+    "last_ms": 1788624000000.0,
+    "last_price": 0.5965,
+    "strength": 2.336
+   },
+   {
+    "side": "low",
+    "price": 0.6271,
+    "touches": 2,
+    "held": 1,
+    "broke": 0,
+    "last_ms": 1788832800000.0,
+    "last_price": 0.6266,
+    "strength": 2.12
+   },
+   {
+    "side": "low",
+    "price": 0.6409,
+    "touches": 2,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1788966000000.0,
+    "last_price": 0.6416,
+    "strength": 1.975
+   },
+   {
+    "side": "low",
+    "price": 0.5335,
+    "touches": 4,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1788310800000.0,
+    "last_price": 0.5351,
+    "strength": 1.865
+   },
+   {
+    "side": "low",
+    "price": 0.6105,
+    "touches": 2,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1788746400000.0,
+    "last_price": 0.6122,
+    "strength": 1.536
+   },
+   {
+    "side": "low",
+    "price": 0.5303,
+    "touches": 3,
+    "held": 1,
+    "broke": 0,
+    "last_ms": 1788249600000.0,
+    "last_price": 0.5289,
+    "strength": 1.521
+   },
+   {
+    "side": "low",
+    "price": 0.5705,
+    "touches": 2,
+    "held": 1,
+    "broke": 0,
+    "last_ms": 1788530400000.0,
+    "last_price": 0.5699,
+    "strength": 1.499
+   },
+   {
+    "side": "high",
+    "price": 0.6721,
+    "touches": 1,
+    "held": 1,
+    "broke": 0,
+    "last_ms": 1788858000000.0,
+    "last_price": 0.6721,
+    "strength": 1.309
+   },
+   {
+    "side": "low",
+    "price": 0.6142,
+    "touches": 1,
+    "held": 1,
+    "broke": 0,
+    "last_ms": 1788721200000.0,
+    "last_price": 0.6142,
+    "strength": 1.119
+   },
+   {
+    "side": "high",
+    "price": 0.6836,
+    "touches": 1,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1788962400000.0,
+    "last_price": 0.6836,
+    "strength": 0.984
+   },
+   {
+    "side": "low",
+    "price": 0.6386,
+    "touches": 1,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1788948000000.0,
+    "last_price": 0.6386,
+    "strength": 0.968
+   },
+   {
+    "side": "low",
+    "price": 0.6326,
+    "touches": 1,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1788872400000.0,
+    "last_price": 0.6326,
+    "strength": 0.887
+   },
+   {
+    "side": "low",
+    "price": 0.625,
+    "touches": 1,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1788847200000.0,
+    "last_price": 0.625,
+    "strength": 0.862
+   },
+   {
+    "side": "high",
+    "price": 0.6493,
+    "touches": 3,
+    "held": 0,
+    "broke": 1,
+    "last_ms": 1788829200000.0,
+    "last_price": 0.6503,
+    "strength": 0.76
+   },
+   {
+    "side": "low",
+    "price": 0.6058,
+    "touches": 1,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1788703200000.0,
+    "last_price": 0.6058,
+    "strength": 0.731
+   },
+   {
+    "side": "low",
+    "price": 0.576,
+    "touches": 1,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1788562800000.0,
+    "last_price": 0.576,
+    "strength": 0.622
+   },
+   {
+    "side": "high",
+    "price": 0.587,
+    "touches": 3,
+    "held": 0,
+    "broke": 1,
+    "last_ms": 1788548400000.0,
+    "last_price": 0.5881,
+    "strength": 0.551
+   },
+   {
+    "side": "high",
+    "price": 0.8283,
+    "touches": 1,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1788418800000.0,
+    "last_price": 0.8283,
+    "strength": 0.528
+   },
+   {
+    "side": "low",
+    "price": 0.5516,
+    "touches": 1,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1788368400000.0,
+    "last_price": 0.5516,
+    "strength": 0.498
+   },
+   {
+    "side": "low",
+    "price": 0.5437,
+    "touches": 1,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1788343200000.0,
+    "last_price": 0.5437,
+    "strength": 0.484
+   },
+   {
+    "side": "high",
+    "price": 0.6334,
+    "touches": 2,
+    "held": 0,
+    "broke": 1,
+    "last_ms": 1788739200000.0,
+    "last_price": 0.6317,
+    "strength": 0.457
+   },
+   {
+    "side": "low",
+    "price": 0.5163,
+    "touches": 1,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1788177600000.0,
+    "last_price": 0.5163,
+    "strength": 0.4
+   }
+  ]
+ },
+ "ETH/USD": {
+  "updated": 1789131600000.0,
+  "levels": [
+   {
+    "side": "high",
+    "price": 2526.69,
+    "touches": 106,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1788958800000.0,
+    "last_price": 2520.14,
+    "strength": 86.956
+   },
+   {
+    "side": "low",
+    "price": 2430.6,
+    "touches": 60,
+    "held": 14,
+    "broke": 0,
+    "last_ms": 1789081200000.0,
+    "last_price": 2434.13,
+    "strength": 63.24
+   },
+   {
+    "side": "low",
+    "price": 2386.17,
+    "touches": 60,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1788429600000.0,
+    "last_price": 2389.0,
+    "strength": 26.837
+   },
+   {
+    "side": "low",
+    "price": 2371.5,
+    "touches": 45,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1788411600000.0,
+    "last_price": 2378.51,
+    "strength": 19.717
+   },
+   {
+    "side": "low",
+    "price": 2406.16,
+    "touches": 20,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1789045200000.0,
+    "last_price": 2404.95,
+    "strength": 18.114
+   },
+   {
+    "side": "high",
+    "price": 2535.53,
+    "touches": 15,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1788746400000.0,
+    "last_price": 2535.53,
+    "strength": 9.646
+   },
+   {
+    "side": "low",
+    "price": 2449.47,
+    "touches": 105,
+    "held": 0,
+    "broke": 15,
+    "last_ms": 1788991200000.0,
+    "last_price": 2443.0,
+    "strength": 8.045
+   },
+   {
+    "side": "high",
+    "price": 2489.0,
+    "touches": 89,
+    "held": 1,
+    "broke": 10,
+    "last_ms": 1789113600000.0,
+    "last_price": 2483.15,
+    "strength": 7.891
+   },
+   {
+    "side": "high",
+    "price": 2546.4,
+    "touches": 15,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1788512400000.0,
+    "last_price": 2546.4,
+    "strength": 7.377
+   },
+   {
+    "side": "low",
+    "price": 2355.48,
+    "touches": 15,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1788343200000.0,
+    "last_price": 2355.48,
+    "strength": 6.077
+   },
+   {
+    "side": "low",
+    "price": 2474.99,
+    "touches": 75,
+    "held": 0,
+    "broke": 15,
+    "last_ms": 1788966000000.0,
+    "last_price": 2470.44,
+    "strength": 5.583
+   },
+   {
+    "side": "high",
+    "price": 2504.88,
+    "touches": 75,
+    "held": 0,
+    "broke": 15,
+    "last_ms": 1788890400000.0,
+    "last_price": 2507.05,
+    "strength": 5.12
+   },
+   {
+    "side": "high",
+    "price": 2466.8,
+    "touches": 58,
+    "held": 1,
+    "broke": 14,
+    "last_ms": 1789059600000.0,
+    "last_price": 2473.92,
+    "strength": 4.848
+   },
+   {
+    "side": "low",
+    "price": 2462.79,
+    "touches": 3,
+    "held": 0,
+    "broke": 1,
+    "last_ms": 1788847200000.0,
+    "last_price": 2462.57,
+    "strength": 0.65
+   }
+  ]
+ },
+ "POL/USD": {
+  "updated": 1789225200000.0,
+  "levels": [
+   {
+    "side": "high",
+    "price": 0.09822,
+    "touches": 118,
+    "held": 25,
+    "broke": 0,
+    "last_ms": 1789135200000.0,
+    "last_price": 0.09812,
+    "strength": 117.71
+   },
+   {
+    "side": "low",
+    "price": 0.09127,
+    "touches": 74,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1789081200000.0,
+    "last_price": 0.0914,
+    "strength": 62.742
+   },
+   {
+    "side": "high",
+    "price": 0.09874,
+    "touches": 74,
+    "held": 37,
+    "broke": 0,
+    "last_ms": 1788883200000.0,
+    "last_price": 0.09875,
+    "strength": 62.505
+   },
+   {
+    "side": "low",
+    "price": 0.09024,
+    "touches": 74,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1789041600000.0,
+    "last_price": 0.09015,
+    "strength": 59.958
+   },
+   {
+    "side": "high",
+    "price": 0.0998,
+    "touches": 74,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1788940800000.0,
+    "last_price": 0.09988,
+    "strength": 53.417
+   },
+   {
+    "side": "low",
+    "price": 0.08975,
+    "touches": 74,
+    "held": 37,
+    "broke": 0,
+    "last_ms": 1788328800000.0,
+    "last_price": 0.08972,
+    "strength": 33.111
+   },
+   {
+    "side": "low",
+    "price": 0.09089,
+    "touches": 37,
+    "held": 37,
+    "broke": 0,
+    "last_ms": 1788530400000.0,
+    "last_price": 0.09089,
+    "strength": 25.03
+   },
+   {
+    "side": "high",
+    "price": 0.1069,
+    "touches": 70,
+    "held": 37,
+    "broke": 0,
+    "last_ms": 1788044400000.0,
+    "last_price": 0.10705,
+    "strength": 22.867
+   },
+   {
+    "side": "high",
+    "price": 0.10028,
+    "touches": 37,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1788667200000.0,
+    "last_price": 0.10028,
+    "strength": 19.519
+   },
+   {
+    "side": "low",
+    "price": 0.09503,
+    "touches": 224,
+    "held": 0,
+    "broke": 33,
+    "last_ms": 1789153200000.0,
+    "last_price": 0.09506,
+    "strength": 18.563
+   },
+   {
+    "side": "low",
+    "price": 0.09253,
+    "touches": 20,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1789128000000.0,
+    "last_price": 0.09235,
+    "strength": 17.892
+   },
+   {
+    "side": "low",
+    "price": 0.09571,
+    "touches": 12,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1789210800000.0,
+    "last_price": 0.09573,
+    "strength": 11.804
+   },
+   {
+    "side": "high",
+    "price": 0.09381,
+    "touches": 111,
+    "held": 0,
+    "broke": 37,
+    "last_ms": 1789063200000.0,
+    "last_price": 0.09384,
+    "strength": 8.297
+   },
+   {
+    "side": "high",
+    "price": 0.09725,
+    "touches": 18,
+    "held": 3,
+    "broke": 1,
+    "last_ms": 1789192800000.0,
+    "last_price": 0.09724,
+    "strength": 5.637
+   },
+   {
+    "side": "low",
+    "price": 0.09471,
+    "touches": 76,
+    "held": 0,
+    "broke": 37,
+    "last_ms": 1788966000000.0,
+    "last_price": 0.09472,
+    "strength": 5.082
+   },
+   {
+    "side": "high",
+    "price": 0.09585,
+    "touches": 3,
+    "held": 0,
+    "broke": 1,
+    "last_ms": 1788832800000.0,
+    "last_price": 0.09602,
+    "strength": 0.574
+   }
+  ]
+ },
+ "LTC/USD": {
+  "updated": 1789315200000.0,
+  "levels": [
+   {
+    "side": "high",
+    "price": 54.38,
+    "touches": 39,
+    "held": 9,
+    "broke": 0,
+    "last_ms": 1789225200000.0,
+    "last_price": 54.23,
+    "strength": 39.237
+   },
+   {
+    "side": "high",
+    "price": 54.7,
+    "touches": 40,
+    "held": 1,
+    "broke": 0,
+    "last_ms": 1789275600000.0,
+    "last_price": 54.55,
+    "strength": 38.703
+   },
+   {
+    "side": "low",
+    "price": 53.48,
+    "touches": 18,
+    "held": 4,
+    "broke": 0,
+    "last_ms": 1789290000000.0,
+    "last_price": 53.38,
+    "strength": 19.431
+   },
+   {
+    "side": "low",
+    "price": 51.7,
+    "touches": 18,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1789056000000.0,
+    "last_price": 51.64,
+    "strength": 13.374
+   },
+   {
+    "side": "low",
+    "price": 51.98,
+    "touches": 14,
+    "held": 4,
+    "broke": 0,
+    "last_ms": 1789128000000.0,
+    "last_price": 51.91,
+    "strength": 12.911
+   },
+   {
+    "side": "high",
+    "price": 56.29,
+    "touches": 18,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1788832800000.0,
+    "last_price": 56.25,
+    "strength": 10.355
+   },
+   {
+    "side": "low",
+    "price": 48.42,
+    "touches": 27,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1788343200000.0,
+    "last_price": 48.49,
+    "strength": 8.863
+   },
+   {
+    "side": "low",
+    "price": 48.91,
+    "touches": 23,
+    "held": 9,
+    "broke": 0,
+    "last_ms": 1788310800000.0,
+    "last_price": 48.85,
+    "strength": 8.698
+   },
+   {
+    "side": "high",
+    "price": 55.82,
+    "touches": 9,
+    "held": 9,
+    "broke": 0,
+    "last_ms": 1788861600000.0,
+    "last_price": 55.82,
+    "strength": 8.027
+   },
+   {
+    "side": "low",
+    "price": 53.31,
+    "touches": 8,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1789304400000.0,
+    "last_price": 53.26,
+    "strength": 7.902
+   },
+   {
+    "side": "low",
+    "price": 52.8,
+    "touches": 8,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1789164000000.0,
+    "last_price": 52.87,
+    "strength": 6.727
+   },
+   {
+    "side": "high",
+    "price": 59.42,
+    "touches": 9,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1788786000000.0,
+    "last_price": 59.42,
+    "strength": 4.907
+   },
+   {
+    "side": "low",
+    "price": 53.85,
+    "touches": 48,
+    "held": 0,
+    "broke": 9,
+    "last_ms": 1789218000000.0,
+    "last_price": 53.76,
+    "strength": 3.865
+   },
+   {
+    "side": "low",
+    "price": 49.81,
+    "touches": 9,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1788530400000.0,
+    "last_price": 49.81,
+    "strength": 3.661
+   },
+   {
+    "side": "low",
+    "price": 48.02,
+    "touches": 13,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1788184800000.0,
+    "last_price": 48.11,
+    "strength": 3.559
+   },
+   {
+    "side": "low",
+    "price": 49.46,
+    "touches": 9,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1788397200000.0,
+    "last_price": 49.46,
+    "strength": 3.143
+   },
+   {
+    "side": "high",
+    "price": 53.31,
+    "touches": 9,
+    "held": 4,
+    "broke": 5,
+    "last_ms": 1789110000000.0,
+    "last_price": 53.31,
+    "strength": 0.783
+   }
+  ]
+ },
+ "AAVE/USD": {
+  "updated": 1789214400000.0,
+  "levels": [
+   {
+    "side": "low",
+    "price": 120.7,
+    "touches": 50,
+    "held": 14,
+    "broke": 0,
+    "last_ms": 1789081200000.0,
+    "last_price": 120.62,
+    "strength": 48.93
+   },
+   {
+    "side": "high",
+    "price": 130.97,
+    "touches": 55,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1788958800000.0,
+    "last_price": 130.78,
+    "strength": 41.034
+   },
+   {
+    "side": "high",
+    "price": 135.44,
+    "touches": 56,
+    "held": 14,
+    "broke": 0,
+    "last_ms": 1788782400000.0,
+    "last_price": 135.49,
+    "strength": 38.399
+   },
+   {
+    "side": "high",
+    "price": 136.13,
+    "touches": 56,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1788757200000.0,
+    "last_price": 136.38,
+    "strength": 33.161
+   },
+   {
+    "side": "high",
+    "price": 132.85,
+    "touches": 28,
+    "held": 14,
+    "broke": 0,
+    "last_ms": 1788829200000.0,
+    "last_price": 132.96,
+    "strength": 22.508
+   },
+   {
+    "side": "low",
+    "price": 120.32,
+    "touches": 14,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1789056000000.0,
+    "last_price": 120.32,
+    "strength": 11.676
+   },
+   {
+    "side": "high",
+    "price": 132.15,
+    "touches": 14,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1788858000000.0,
+    "last_price": 132.15,
+    "strength": 9.305
+   },
+   {
+    "side": "low",
+    "price": 121.17,
+    "touches": 6,
+    "held": 6,
+    "broke": 0,
+    "last_ms": 1789124400000.0,
+    "last_price": 121.17,
+    "strength": 8.118
+   },
+   {
+    "side": "high",
+    "price": 137.39,
+    "touches": 14,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1788735600000.0,
+    "last_price": 137.39,
+    "strength": 8.087
+   },
+   {
+    "side": "high",
+    "price": 140.16,
+    "touches": 14,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1788656400000.0,
+    "last_price": 140.16,
+    "strength": 7.386
+   },
+   {
+    "side": "high",
+    "price": 130.05,
+    "touches": 6,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1789135200000.0,
+    "last_price": 130.06,
+    "strength": 5.479
+   },
+   {
+    "side": "low",
+    "price": 123.37,
+    "touches": 11,
+    "held": 3,
+    "broke": 1,
+    "last_ms": 1789149600000.0,
+    "last_price": 123.37,
+    "strength": 3.482
+   },
+   {
+    "side": "low",
+    "price": 128.44,
+    "touches": 42,
+    "held": 0,
+    "broke": 14,
+    "last_ms": 1788948000000.0,
+    "last_price": 128.21,
+    "strength": 2.785
+   },
+   {
+    "side": "high",
+    "price": 126.29,
+    "touches": 31,
+    "held": 0,
+    "broke": 6,
+    "last_ms": 1789160400000.0,
+    "last_price": 125.99,
+    "strength": 2.623
+   }
+  ]
+ },
+ "NEAR/USD": {
+  "updated": 1789146000000.0,
+  "levels": [
+   {
+    "side": "low",
+    "price": 1.8679,
+    "touches": 72,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1788429600000.0,
+    "last_price": 1.8652,
+    "strength": 31.678
+   },
+   {
+    "side": "low",
+    "price": 1.8333,
+    "touches": 72,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1788361200000.0,
+    "last_price": 1.8309,
+    "strength": 29.289
+   },
+   {
+    "side": "low",
+    "price": 1.9126,
+    "touches": 48,
+    "held": 24,
+    "broke": 0,
+    "last_ms": 1788498000000.0,
+    "last_price": 1.9143,
+    "strength": 28.551
+   },
+   {
+    "side": "low",
+    "price": 2.1593,
+    "touches": 48,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1788642000000.0,
+    "last_price": 2.1627,
+    "strength": 26.939
+   },
+   {
+    "side": "low",
+    "price": 2.2491,
+    "touches": 24,
+    "held": 24,
+    "broke": 0,
+    "last_ms": 1788840000000.0,
+    "last_price": 2.2491,
+    "strength": 25.351
+   },
+   {
+    "side": "low",
+    "price": 2.27,
+    "touches": 24,
+    "held": 24,
+    "broke": 0,
+    "last_ms": 1788818400000.0,
+    "last_price": 2.27,
+    "strength": 24.731
+   },
+   {
+    "side": "low",
+    "price": 2.38,
+    "touches": 24,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1789095600000.0,
+    "last_price": 2.38,
+    "strength": 22.653
+   },
+   {
+    "side": "low",
+    "price": 2.3974,
+    "touches": 22,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1789128000000.0,
+    "last_price": 2.3974,
+    "strength": 21.551
+   },
+   {
+    "side": "low",
+    "price": 2.3629,
+    "touches": 24,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1789041600000.0,
+    "last_price": 2.3629,
+    "strength": 21.294
+   },
+   {
+    "side": "low",
+    "price": 1.8479,
+    "touches": 48,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1788397200000.0,
+    "last_price": 1.8513,
+    "strength": 20.349
+   },
+   {
+    "side": "low",
+    "price": 2.26,
+    "touches": 24,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1788922800000.0,
+    "last_price": 2.26,
+    "strength": 18.583
+   },
+   {
+    "side": "low",
+    "price": 2.2406,
+    "touches": 24,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1788872400000.0,
+    "last_price": 2.2406,
+    "strength": 17.54
+   },
+   {
+    "side": "low",
+    "price": 1.9299,
+    "touches": 24,
+    "held": 24,
+    "broke": 0,
+    "last_ms": 1788483600000.0,
+    "last_price": 1.9299,
+    "strength": 16.85
+   },
+   {
+    "side": "high",
+    "price": 2.7344,
+    "touches": 17,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1789135200000.0,
+    "last_price": 2.7344,
+    "strength": 16.791
+   },
+   {
+    "side": "low",
+    "price": 1.9052,
+    "touches": 24,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1788530400000.0,
+    "last_price": 1.9052,
+    "strength": 11.852
+   },
+   {
+    "side": "low",
+    "price": 1.7796,
+    "touches": 24,
+    "held": 24,
+    "broke": 0,
+    "last_ms": 1787990400000.0,
+    "last_price": 1.7796,
+    "strength": 9.575
+   },
+   {
+    "side": "low",
+    "price": 1.8263,
+    "touches": 24,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1788343200000.0,
+    "last_price": 1.8263,
+    "strength": 9.564
+   },
+   {
+    "side": "low",
+    "price": 1.8,
+    "touches": 26,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1788145200000.0,
+    "last_price": 1.8013,
+    "strength": 8.257
+   }
+  ]
+ },
+ "JUP/USD": {
+  "updated": 1789146000000.0,
+  "levels": [
+   {
+    "side": "high",
+    "price": 0.25486,
+    "touches": 12,
+    "held": 3,
+    "broke": 0,
+    "last_ms": 1788955200000.0,
+    "last_price": 0.25449,
+    "strength": 10.848
+   },
+   {
+    "side": "low",
+    "price": 0.21961,
+    "touches": 12,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1789056000000.0,
+    "last_price": 0.21976,
+    "strength": 10.824
+   },
+   {
+    "side": "low",
+    "price": 0.21295,
+    "touches": 16,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1788573600000.0,
+    "last_price": 0.2134,
+    "strength": 8.303
+   },
+   {
+    "side": "low",
+    "price": 0.215,
+    "touches": 11,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1788652800000.0,
+    "last_price": 0.21561,
+    "strength": 6.25
+   },
+   {
+    "side": "low",
+    "price": 0.22269,
+    "touches": 4,
+    "held": 4,
+    "broke": 0,
+    "last_ms": 1789041600000.0,
+    "last_price": 0.22269,
+    "strength": 5.323
+   },
+   {
+    "side": "high",
+    "price": 0.25621,
+    "touches": 4,
+    "held": 3,
+    "broke": 0,
+    "last_ms": 1788825600000.0,
+    "last_price": 0.25621,
+    "strength": 3.81
+   },
+   {
+    "side": "low",
+    "price": 0.20812,
+    "touches": 8,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1788350400000.0,
+    "last_price": 0.20863,
+    "strength": 3.214
+   },
+   {
+    "side": "low",
+    "price": 0.22361,
+    "touches": 3,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1789124400000.0,
+    "last_price": 0.22361,
+    "strength": 2.927
+   },
+   {
+    "side": "high",
+    "price": 0.26087,
+    "touches": 4,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1788786000000.0,
+    "last_price": 0.26087,
+    "strength": 2.648
+   },
+   {
+    "side": "low",
+    "price": 0.202,
+    "touches": 8,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1788148800000.0,
+    "last_price": 0.202,
+    "strength": 2.551
+   },
+   {
+    "side": "high",
+    "price": 0.2776,
+    "touches": 4,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1788735600000.0,
+    "last_price": 0.2776,
+    "strength": 2.499
+   },
+   {
+    "side": "high",
+    "price": 0.28305,
+    "touches": 4,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1788692400000.0,
+    "last_price": 0.28305,
+    "strength": 2.378
+   },
+   {
+    "side": "low",
+    "price": 0.20957,
+    "touches": 4,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1788523200000.0,
+    "last_price": 0.20957,
+    "strength": 1.959
+   },
+   {
+    "side": "low",
+    "price": 0.2142,
+    "touches": 2,
+    "held": 4,
+    "broke": 0,
+    "last_ms": 1788408000000.0,
+    "last_price": 0.21464,
+    "strength": 1.717
+   },
+   {
+    "side": "low",
+    "price": 0.2425,
+    "touches": 12,
+    "held": 0,
+    "broke": 4,
+    "last_ms": 1788966000000.0,
+    "last_price": 0.24301,
+    "strength": 0.879
+   }
+  ]
+ },
+ "POPCAT/USD": {
+  "updated": 1789135200000.0,
+  "levels": [
+   {
+    "side": "high",
+    "price": 0.0532,
+    "touches": 144,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1788883200000.0,
+    "last_price": 0.0532,
+    "strength": 107.878
+   },
+   {
+    "side": "high",
+    "price": 0.0529,
+    "touches": 96,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1788940800000.0,
+    "last_price": 0.0529,
+    "strength": 76.827
+   },
+   {
+    "side": "low",
+    "price": 0.0473,
+    "touches": 24,
+    "held": 24,
+    "broke": 0,
+    "last_ms": 1789041600000.0,
+    "last_price": 0.0473,
+    "strength": 32.338
+   },
+   {
+    "side": "high",
+    "price": 0.0539,
+    "touches": 48,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1788786000000.0,
+    "last_price": 0.0539,
+    "strength": 32.169
+   },
+   {
+    "side": "high",
+    "price": 0.0545,
+    "touches": 48,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1788663600000.0,
+    "last_price": 0.0544,
+    "strength": 27.958
+   },
+   {
+    "side": "high",
+    "price": 0.0527,
+    "touches": 24,
+    "held": 24,
+    "broke": 0,
+    "last_ms": 1788912000000.0,
+    "last_price": 0.0527,
+    "strength": 27.875
+   },
+   {
+    "side": "high",
+    "price": 0.0497,
+    "touches": 24,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1789009200000.0,
+    "last_price": 0.0497,
+    "strength": 20.773
+   },
+   {
+    "side": "high",
+    "price": 0.0543,
+    "touches": 24,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1788728400000.0,
+    "last_price": 0.0543,
+    "strength": 15.057
+   },
+   {
+    "side": "high",
+    "price": 0.0552,
+    "touches": 48,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1788094800000.0,
+    "last_price": 0.0553,
+    "strength": 14.568
+   },
+   {
+    "side": "high",
+    "price": 0.055,
+    "touches": 24,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1788458400000.0,
+    "last_price": 0.055,
+    "strength": 11.05
+   },
+   {
+    "side": "low",
+    "price": 0.0515,
+    "touches": 96,
+    "held": 0,
+    "broke": 24,
+    "last_ms": 1788818400000.0,
+    "last_price": 0.0514,
+    "strength": 6.009
+   },
+   {
+    "side": "low",
+    "price": 0.0512,
+    "touches": 72,
+    "held": 0,
+    "broke": 24,
+    "last_ms": 1788951600000.0,
+    "last_price": 0.0513,
+    "strength": 5.25
+   },
+   {
+    "side": "high",
+    "price": 0.0485,
+    "touches": 48,
+    "held": 0,
+    "broke": 21,
+    "last_ms": 1789113600000.0,
+    "last_price": 0.0485,
+    "strength": 4.214
+   },
+   {
+    "side": "low",
+    "price": 0.0523,
+    "touches": 74,
+    "held": 0,
+    "broke": 24,
+    "last_ms": 1788703200000.0,
+    "last_price": 0.0523,
+    "strength": 4.059
+   },
+   {
+    "side": "high",
+    "price": 0.0489,
+    "touches": 24,
+    "held": 0,
+    "broke": 19,
+    "last_ms": 1789048800000.0,
+    "last_price": 0.0489,
+    "strength": 1.956
+   }
+  ]
+ },
+ "PENGU/USD": {
+  "updated": 1789135200000.0,
+  "levels": [
+   {
+    "side": "high",
+    "price": 0.00887,
+    "touches": 32,
+    "held": 8,
+    "broke": 0,
+    "last_ms": 1788696000000.0,
+    "last_price": 0.008879,
+    "strength": 21.762
+   },
+   {
+    "side": "high",
+    "price": 0.008406,
+    "touches": 24,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1788861600000.0,
+    "last_price": 0.008409,
+    "strength": 17.54
+   },
+   {
+    "side": "high",
+    "price": 0.008954,
+    "touches": 24,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1788782400000.0,
+    "last_price": 0.008936,
+    "strength": 16.018
+   },
+   {
+    "side": "high",
+    "price": 0.008314,
+    "touches": 16,
+    "held": 8,
+    "broke": 0,
+    "last_ms": 1788937200000.0,
+    "last_price": 0.008324,
+    "strength": 15.94
+   },
+   {
+    "side": "low",
+    "price": 0.007346,
+    "touches": 8,
+    "held": 8,
+    "broke": 0,
+    "last_ms": 1789081200000.0,
+    "last_price": 0.007346,
+    "strength": 11.28
+   },
+   {
+    "side": "low",
+    "price": 0.007295,
+    "touches": 8,
+    "held": 8,
+    "broke": 0,
+    "last_ms": 1789056000000.0,
+    "last_price": 0.007295,
+    "strength": 10.959
+   },
+   {
+    "side": "high",
+    "price": 0.008202,
+    "touches": 8,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1788958800000.0,
+    "last_price": 0.008202,
+    "strength": 6.536
+   },
+   {
+    "side": "high",
+    "price": 0.008603,
+    "touches": 8,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1788832800000.0,
+    "last_price": 0.008603,
+    "strength": 5.657
+   },
+   {
+    "side": "high",
+    "price": 0.009012,
+    "touches": 8,
+    "held": 8,
+    "broke": 0,
+    "last_ms": 1788458400000.0,
+    "last_price": 0.009012,
+    "strength": 5.525
+   },
+   {
+    "side": "high",
+    "price": 0.009326,
+    "touches": 16,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1788109200000.0,
+    "last_price": 0.009335,
+    "strength": 4.937
+   },
+   {
+    "side": "high",
+    "price": 0.009285,
+    "touches": 8,
+    "held": 8,
+    "broke": 0,
+    "last_ms": 1787976000000.0,
+    "last_price": 0.009285,
+    "strength": 3.178
+   },
+   {
+    "side": "low",
+    "price": 0.008482,
+    "touches": 48,
+    "held": 0,
+    "broke": 8,
+    "last_ms": 1788793200000.0,
+    "last_price": 0.008485,
+    "strength": 2.919
+   },
+   {
+    "side": "high",
+    "price": 0.007504,
+    "touches": 8,
+    "held": 2,
+    "broke": 6,
+    "last_ms": 1789074000000.0,
+    "last_price": 0.007504,
+    "strength": 0.755
+   }
+  ]
+ },
+ "ONDO/USD": {
+  "updated": 1789322400000.0,
+  "levels": [
+   {
+    "side": "low",
+    "price": 0.34304,
+    "touches": 41,
+    "held": 10,
+    "broke": 0,
+    "last_ms": 1789304400000.0,
+    "last_price": 0.34209,
+    "strength": 45.061
+   },
+   {
+    "side": "high",
+    "price": 0.38,
+    "touches": 39,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1788958800000.0,
+    "last_price": 0.3798,
+    "strength": 25.709
+   },
+   {
+    "side": "low",
+    "price": 0.3381,
+    "touches": 52,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1788368400000.0,
+    "last_price": 0.33827,
+    "strength": 17.425
+   },
+   {
+    "side": "high",
+    "price": 0.39515,
+    "touches": 26,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1788771600000.0,
+    "last_price": 0.39511,
+    "strength": 13.83
+   },
+   {
+    "side": "high",
+    "price": 0.35225,
+    "touches": 8,
+    "held": 3,
+    "broke": 0,
+    "last_ms": 1789200000000.0,
+    "last_price": 0.35318,
+    "strength": 8.257
+   },
+   {
+    "side": "high",
+    "price": 0.35424,
+    "touches": 9,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1789228800000.0,
+    "last_price": 0.35341,
+    "strength": 8.085
+   },
+   {
+    "side": "high",
+    "price": 0.38576,
+    "touches": 13,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1788883200000.0,
+    "last_price": 0.38576,
+    "strength": 7.858
+   },
+   {
+    "side": "high",
+    "price": 0.38996,
+    "touches": 13,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1788829200000.0,
+    "last_price": 0.38996,
+    "strength": 7.387
+   },
+   {
+    "side": "low",
+    "price": 0.34167,
+    "touches": 6,
+    "held": 3,
+    "broke": 0,
+    "last_ms": 1789290000000.0,
+    "last_price": 0.3411,
+    "strength": 7.227
+   },
+   {
+    "side": "high",
+    "price": 0.39124,
+    "touches": 13,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1788800400000.0,
+    "last_price": 0.39124,
+    "strength": 7.147
+   },
+   {
+    "side": "high",
+    "price": 0.36954,
+    "touches": 6,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1789135200000.0,
+    "last_price": 0.36862,
+    "strength": 4.841
+   },
+   {
+    "side": "high",
+    "price": 0.34972,
+    "touches": 42,
+    "held": 3,
+    "broke": 10,
+    "last_ms": 1789261200000.0,
+    "last_price": 0.35039,
+    "strength": 3.65
+   },
+   {
+    "side": "low",
+    "price": 0.37155,
+    "touches": 39,
+    "held": 0,
+    "broke": 13,
+    "last_ms": 1788951600000.0,
+    "last_price": 0.37242,
+    "strength": 2.295
+   },
+   {
+    "side": "high",
+    "price": 0.3779,
+    "touches": 39,
+    "held": 0,
+    "broke": 13,
+    "last_ms": 1788912000000.0,
+    "last_price": 0.37736,
+    "strength": 2.193
+   },
+   {
+    "side": "high",
+    "price": 0.36055,
+    "touches": 26,
+    "held": 10,
+    "broke": 3,
+    "last_ms": 1789009200000.0,
+    "last_price": 0.36106,
+    "strength": 1.949
+   },
+   {
+    "side": "low",
+    "price": 0.34742,
+    "touches": 9,
+    "held": 0,
+    "broke": 3,
+    "last_ms": 1789239600000.0,
+    "last_price": 0.3468,
+    "strength": 0.737
+   },
+   {
+    "side": "low",
+    "price": 0.35,
+    "touches": 2,
+    "held": 0,
+    "broke": 1,
+    "last_ms": 1789221600000.0,
+    "last_price": 0.34937,
+    "strength": 0.535
+   },
+   {
+    "side": "low",
+    "price": 0.37919,
+    "touches": 3,
+    "held": 0,
+    "broke": 1,
+    "last_ms": 1788818400000.0,
+    "last_price": 0.37874,
+    "strength": 0.505
+   }
+  ]
+ },
+ "TRUMP/USD": {
+  "updated": 1789128000000.0,
+  "levels": [
+   {
+    "side": "low",
+    "price": 1.936,
+    "touches": 3,
+    "held": 1,
+    "broke": 0,
+    "last_ms": 1789081200000.0,
+    "last_price": 1.94,
+    "strength": 3.317
+   },
+   {
+    "side": "high",
+    "price": 2.288,
+    "touches": 3,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1788940800000.0,
+    "last_price": 2.282,
+    "strength": 2.421
+   },
+   {
+    "side": "high",
+    "price": 2.013,
+    "touches": 2,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1789074000000.0,
+    "last_price": 2.018,
+    "strength": 1.88
+   },
+   {
+    "side": "high",
+    "price": 2.415,
+    "touches": 3,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1788656400000.0,
+    "last_price": 2.413,
+    "strength": 1.747
+   },
+   {
+    "side": "high",
+    "price": 2.365,
+    "touches": 2,
+    "held": 1,
+    "broke": 0,
+    "last_ms": 1788692400000.0,
+    "last_price": 2.371,
+    "strength": 1.517
+   },
+   {
+    "side": "high",
+    "price": 2.338,
+    "touches": 2,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1788829200000.0,
+    "last_price": 2.336,
+    "strength": 1.42
+   },
+   {
+    "side": "high",
+    "price": 2.441,
+    "touches": 2,
+    "held": 1,
+    "broke": 0,
+    "last_ms": 1788490800000.0,
+    "last_price": 2.448,
+    "strength": 1.204
+   },
+   {
+    "side": "high",
+    "price": 2.321,
+    "touches": 1,
+    "held": 1,
+    "broke": 0,
+    "last_ms": 1788789600000.0,
+    "last_price": 2.321,
+    "strength": 1.018
+   },
+   {
+    "side": "high",
+    "price": 2.45,
+    "touches": 1,
+    "held": 1,
+    "broke": 0,
+    "last_ms": 1788591600000.0,
+    "last_price": 2.45,
+    "strength": 0.811
+   },
+   {
+    "side": "high",
+    "price": 2.297,
+    "touches": 1,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1788861600000.0,
+    "last_price": 2.297,
+    "strength": 0.737
+   },
+   {
+    "side": "low",
+    "price": 2.2,
+    "touches": 3,
+    "held": 0,
+    "broke": 1,
+    "last_ms": 1788922800000.0,
+    "last_price": 2.202,
+    "strength": 0.711
+   },
+   {
+    "side": "low",
+    "price": 2.23,
+    "touches": 3,
+    "held": 0,
+    "broke": 1,
+    "last_ms": 1788854400000.0,
+    "last_price": 2.235,
+    "strength": 0.658
+   },
+   {
+    "side": "low",
+    "price": 1.974,
+    "touches": 2,
+    "held": 0,
+    "broke": 1,
+    "last_ms": 1789023600000.0,
+    "last_price": 1.979,
+    "strength": 0.532
+   },
+   {
+    "side": "low",
+    "price": 2.21,
+    "touches": 2,
+    "held": 0,
+    "broke": 1,
+    "last_ms": 1788951600000.0,
+    "last_price": 2.21,
+    "strength": 0.49
+   },
+   {
+    "side": "low",
+    "price": 2.217,
+    "touches": 2,
+    "held": 0,
+    "broke": 1,
+    "last_ms": 1788901200000.0,
+    "last_price": 2.218,
+    "strength": 0.463
+   },
+   {
+    "side": "high",
+    "price": 2.513,
+    "touches": 1,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1788454800000.0,
+    "last_price": 2.513,
+    "strength": 0.462
+   },
+   {
+    "side": "high",
+    "price": 2.695,
+    "touches": 1,
+    "held": 1,
+    "broke": 0,
+    "last_ms": 1788033600000.0,
+    "last_price": 2.695,
+    "strength": 0.428
+   }
+  ]
+ },
+ "VIRTUAL/USD": {
+  "updated": 1789135200000.0,
+  "levels": [
+   {
+    "side": "low",
+    "price": 0.628,
+    "touches": 12,
+    "held": 4,
+    "broke": 0,
+    "last_ms": 1789081200000.0,
+    "last_price": 0.6267,
+    "strength": 13.16
+   },
+   {
+    "side": "high",
+    "price": 0.7315,
+    "touches": 8,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1788940800000.0,
+    "last_price": 0.7311,
+    "strength": 6.402
+   },
+   {
+    "side": "high",
+    "price": 0.7378,
+    "touches": 8,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1788886800000.0,
+    "last_price": 0.7374,
+    "strength": 6.018
+   },
+   {
+    "side": "high",
+    "price": 0.7583,
+    "touches": 4,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1788832800000.0,
+    "last_price": 0.7583,
+    "strength": 2.828
+   },
+   {
+    "side": "low",
+    "price": 0.6213,
+    "touches": 2,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1789124400000.0,
+    "last_price": 0.6213,
+    "strength": 1.975
+   },
+   {
+    "side": "low",
+    "price": 0.6765,
+    "touches": 22,
+    "held": 0,
+    "broke": 4,
+    "last_ms": 1788678000000.0,
+    "last_price": 0.6753,
+    "strength": 1.172
+   },
+   {
+    "side": "low",
+    "price": 0.7104,
+    "touches": 16,
+    "held": 0,
+    "broke": 4,
+    "last_ms": 1788894000000.0,
+    "last_price": 0.7121,
+    "strength": 1.092
+   },
+   {
+    "side": "high",
+    "price": 0.7021,
+    "touches": 20,
+    "held": 0,
+    "broke": 4,
+    "last_ms": 1788613200000.0,
+    "last_price": 0.7,
+    "strength": 0.99
+   }
+  ]
+ },
+ "DOGE/USD": {
+  "updated": 1789138800000.0,
+  "levels": [
+   {
+    "side": "low",
+    "price": 0.0825316,
+    "touches": 55,
+    "held": 17,
+    "broke": 0,
+    "last_ms": 1789128000000.0,
+    "last_price": 0.082297,
+    "strength": 62.719
+   },
+   {
+    "side": "high",
+    "price": 0.090977,
+    "touches": 72,
+    "held": 18,
+    "broke": 0,
+    "last_ms": 1788912000000.0,
+    "last_price": 0.0909,
+    "strength": 62.46
+   },
+   {
+    "side": "high",
+    "price": 0.0913353,
+    "touches": 54,
+    "held": 18,
+    "broke": 0,
+    "last_ms": 1788955200000.0,
+    "last_price": 0.0915677,
+    "strength": 51.045
+   },
+   {
+    "side": "low",
+    "price": 0.0828697,
+    "touches": 36,
+    "held": 18,
+    "broke": 0,
+    "last_ms": 1789081200000.0,
+    "last_price": 0.0828423,
+    "strength": 42.125
+   },
+   {
+    "side": "low",
+    "price": 0.0808551,
+    "touches": 72,
+    "held": 18,
+    "broke": 0,
+    "last_ms": 1788386400000.0,
+    "last_price": 0.0808865,
+    "strength": 34.197
+   },
+   {
+    "side": "high",
+    "price": 0.0919829,
+    "touches": 36,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1788786000000.0,
+    "last_price": 0.0918311,
+    "strength": 24.027
+   },
+   {
+    "side": "low",
+    "price": 0.0820306,
+    "touches": 54,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1788411600000.0,
+    "last_price": 0.081983,
+    "strength": 23.466
+   },
+   {
+    "side": "high",
+    "price": 0.0916481,
+    "touches": 18,
+    "held": 18,
+    "broke": 0,
+    "last_ms": 1788829200000.0,
+    "last_price": 0.0916481,
+    "strength": 18.935
+   },
+   {
+    "side": "low",
+    "price": 0.0802689,
+    "touches": 36,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1788343200000.0,
+    "last_price": 0.0801077,
+    "strength": 14.465
+   },
+   {
+    "side": "high",
+    "price": 0.0950329,
+    "touches": 18,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1788627600000.0,
+    "last_price": 0.0950329,
+    "strength": 10.019
+   },
+   {
+    "side": "high",
+    "price": 0.085366,
+    "touches": 90,
+    "held": 2,
+    "broke": 16,
+    "last_ms": 1789038000000.0,
+    "last_price": 0.0854901,
+    "strength": 7.296
+   },
+   {
+    "side": "low",
+    "price": 0.08813,
+    "touches": 72,
+    "held": 0,
+    "broke": 18,
+    "last_ms": 1788966000000.0,
+    "last_price": 0.0879104,
+    "strength": 5.316
+   },
+   {
+    "side": "low",
+    "price": 0.089382,
+    "touches": 72,
+    "held": 0,
+    "broke": 18,
+    "last_ms": 1788922800000.0,
+    "last_price": 0.0894314,
+    "strength": 5.059
+   },
+   {
+    "side": "high",
+    "price": 0.0839494,
+    "touches": 54,
+    "held": 0,
+    "broke": 18,
+    "last_ms": 1789113600000.0,
+    "last_price": 0.0842001,
+    "strength": 4.722
+   }
+  ]
+ },
+ "WIF/USD": {
+  "updated": 1789336800000.0,
+  "levels": [
+   {
+    "side": "high",
+    "price": 0.2223,
+    "touches": 15,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1788883200000.0,
+    "last_price": 0.2218,
+    "strength": 8.919
+   },
+   {
+    "side": "high",
+    "price": 0.216,
+    "touches": 10,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1788958800000.0,
+    "last_price": 0.2165,
+    "strength": 6.484
+   },
+   {
+    "side": "high",
+    "price": 0.1997,
+    "touches": 20,
+    "held": 0,
+    "broke": 1,
+    "last_ms": 1789041600000.0,
+    "last_price": 0.2,
+    "strength": 4.278
+   },
+   {
+    "side": "high",
+    "price": 0.2216,
+    "touches": 5,
+    "held": 5,
+    "broke": 0,
+    "last_ms": 1788832800000.0,
+    "last_price": 0.2216,
+    "strength": 4.209
+   },
+   {
+    "side": "high",
+    "price": 0.2195,
+    "touches": 5,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1788940800000.0,
+    "last_price": 0.2195,
+    "strength": 3.176
+   },
+   {
+    "side": "high",
+    "price": 0.2033,
+    "touches": 3,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1789135200000.0,
+    "last_price": 0.2031,
+    "strength": 2.381
+   },
+   {
+    "side": "low",
+    "price": 0.1894,
+    "touches": 5,
+    "held": 4,
+    "broke": 1,
+    "last_ms": 1789081200000.0,
+    "last_price": 0.1894,
+    "strength": 1.567
+   },
+   {
+    "side": "low",
+    "price": 0.2127,
+    "touches": 25,
+    "held": 0,
+    "broke": 5,
+    "last_ms": 1788951600000.0,
+    "last_price": 0.2123,
+    "strength": 1.447
+   },
+   {
+    "side": "low",
+    "price": 0.1992,
+    "touches": 20,
+    "held": 0,
+    "broke": 5,
+    "last_ms": 1789002000000.0,
+    "last_price": 0.1994,
+    "strength": 1.226
+   },
+   {
+    "side": "low",
+    "price": 0.1853,
+    "touches": 1,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1789293600000.0,
+    "last_price": 0.1853,
+    "strength": 0.952
+   },
+   {
+    "side": "low",
+    "price": 0.173,
+    "touches": 1,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1789243200000.0,
+    "last_price": 0.173,
+    "strength": 0.898
+   },
+   {
+    "side": "high",
+    "price": 0.1934,
+    "touches": 1,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1789232400000.0,
+    "last_price": 0.1934,
+    "strength": 0.887
+   },
+   {
+    "side": "low",
+    "price": 0.1916,
+    "touches": 3,
+    "held": 0,
+    "broke": 1,
+    "last_ms": 1789218000000.0,
+    "last_price": 0.1917,
+    "strength": 0.785
+   },
+   {
+    "side": "low",
+    "price": 0.1903,
+    "touches": 5,
+    "held": 4,
+    "broke": 1,
+    "last_ms": 1788310800000.0,
+    "last_price": 0.1903,
+    "strength": 0.648
+   },
+   {
+    "side": "low",
+    "price": 0.1884,
+    "touches": 2,
+    "held": 0,
+    "broke": 1,
+    "last_ms": 1789268400000.0,
+    "last_price": 0.1883,
+    "strength": 0.555
+   },
+   {
+    "side": "high",
+    "price": 0.2187,
+    "touches": 3,
+    "held": 0,
+    "broke": 1,
+    "last_ms": 1788811200000.0,
+    "last_price": 0.2181,
+    "strength": 0.493
+   },
+   {
+    "side": "high",
+    "price": 0.1943,
+    "touches": 2,
+    "held": 0,
+    "broke": 1,
+    "last_ms": 1789113600000.0,
+    "last_price": 0.1943,
+    "strength": 0.465
+   },
+   {
+    "side": "low",
+    "price": 0.2088,
+    "touches": 3,
+    "held": 0,
+    "broke": 1,
+    "last_ms": 1788703200000.0,
+    "last_price": 0.2088,
+    "strength": 0.435
+   }
+  ]
+ },
+ "WLD/USD": {
+  "updated": 1789225200000.0,
+  "levels": [
+   {
+    "side": "low",
+    "price": 0.3938,
+    "touches": 49,
+    "held": 8,
+    "broke": 0,
+    "last_ms": 1789164000000.0,
+    "last_price": 0.3948,
+    "strength": 49.41
+   },
+   {
+    "side": "low",
+    "price": 0.355,
+    "touches": 52,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1788375600000.0,
+    "last_price": 0.356,
+    "strength": 19.639
+   },
+   {
+    "side": "high",
+    "price": 0.4603,
+    "touches": 26,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1788940800000.0,
+    "last_price": 0.4614,
+    "strength": 18.768
+   },
+   {
+    "side": "low",
+    "price": 0.3956,
+    "touches": 13,
+    "held": 13,
+    "broke": 0,
+    "last_ms": 1789095600000.0,
+    "last_price": 0.3956,
+    "strength": 16.808
+   },
+   {
+    "side": "high",
+    "price": 0.4871,
+    "touches": 13,
+    "held": 13,
+    "broke": 0,
+    "last_ms": 1788861600000.0,
+    "last_price": 0.4871,
+    "strength": 12.855
+   },
+   {
+    "side": "low",
+    "price": 0.3702,
+    "touches": 26,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1788530400000.0,
+    "last_price": 0.3702,
+    "strength": 11.726
+   },
+   {
+    "side": "high",
+    "price": 0.4081,
+    "touches": 10,
+    "held": 4,
+    "broke": 0,
+    "last_ms": 1789178400000.0,
+    "last_price": 0.407,
+    "strength": 11.373
+   },
+   {
+    "side": "low",
+    "price": 0.3537,
+    "touches": 26,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1788361200000.0,
+    "last_price": 0.3532,
+    "strength": 9.659
+   },
+   {
+    "side": "high",
+    "price": 0.4554,
+    "touches": 13,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1788958800000.0,
+    "last_price": 0.4554,
+    "strength": 9.58
+   },
+   {
+    "side": "high",
+    "price": 0.4937,
+    "touches": 13,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1788879600000.0,
+    "last_price": 0.4937,
+    "strength": 8.748
+   },
+   {
+    "side": "high",
+    "price": 0.5057,
+    "touches": 13,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1788829200000.0,
+    "last_price": 0.5057,
+    "strength": 8.257
+   },
+   {
+    "side": "low",
+    "price": 0.367,
+    "touches": 13,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1788411600000.0,
+    "last_price": 0.367,
+    "strength": 5.117
+   },
+   {
+    "side": "high",
+    "price": 0.4292,
+    "touches": 5,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1789135200000.0,
+    "last_price": 0.4292,
+    "strength": 4.51
+   },
+   {
+    "side": "low",
+    "price": 0.3881,
+    "touches": 5,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1789128000000.0,
+    "last_price": 0.3881,
+    "strength": 4.473
+   },
+   {
+    "side": "high",
+    "price": 0.4046,
+    "touches": 15,
+    "held": 0,
+    "broke": 5,
+    "last_ms": 1789200000000.0,
+    "last_price": 0.4047,
+    "strength": 1.312
+   },
+   {
+    "side": "high",
+    "price": 0.4184,
+    "touches": 13,
+    "held": 0,
+    "broke": 5,
+    "last_ms": 1789012800000.0,
+    "last_price": 0.4184,
+    "strength": 0.917
+   },
+   {
+    "side": "low",
+    "price": 0.4423,
+    "touches": 2,
+    "held": 0,
+    "broke": 1,
+    "last_ms": 1788948000000.0,
+    "last_price": 0.4424,
+    "strength": 0.437
+   },
+   {
+    "side": "low",
+    "price": 0.4605,
+    "touches": 2,
+    "held": 0,
+    "broke": 1,
+    "last_ms": 1788872400000.0,
+    "last_price": 0.4616,
+    "strength": 0.4
+   }
+  ]
+ },
+ "XRP/USD": {
+  "updated": 1789225200000.0,
+  "levels": [
+   {
+    "side": "low",
+    "price": 1.32637,
+    "touches": 16,
+    "held": 8,
+    "broke": 0,
+    "last_ms": 1789081200000.0,
+    "last_price": 1.32886,
+    "strength": 16.957
+   },
+   {
+    "side": "high",
+    "price": 1.43922,
+    "touches": 8,
+    "held": 8,
+    "broke": 0,
+    "last_ms": 1788955200000.0,
+    "last_price": 1.43922,
+    "strength": 8.806
+   },
+   {
+    "side": "high",
+    "price": 1.44565,
+    "touches": 8,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1788940800000.0,
+    "last_price": 1.44565,
+    "strength": 5.775
+   },
+   {
+    "side": "high",
+    "price": 1.45019,
+    "touches": 8,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1788883200000.0,
+    "last_price": 1.45019,
+    "strength": 5.406
+   },
+   {
+    "side": "high",
+    "price": 1.45664,
+    "touches": 8,
+    "held": 8,
+    "broke": 0,
+    "last_ms": 1788494400000.0,
+    "last_price": 1.45664,
+    "strength": 5.193
+   },
+   {
+    "side": "high",
+    "price": 1.462,
+    "touches": 8,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1788512400000.0,
+    "last_price": 1.462,
+    "strength": 3.534
+   },
+   {
+    "side": "high",
+    "price": 1.48323,
+    "touches": 8,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1788465600000.0,
+    "last_price": 1.48323,
+    "strength": 3.35
+   },
+   {
+    "side": "high",
+    "price": 1.40347,
+    "touches": 55,
+    "held": 0,
+    "broke": 8,
+    "last_ms": 1788832800000.0,
+    "last_price": 1.4068,
+    "strength": 3.157
+   },
+   {
+    "side": "low",
+    "price": 1.30948,
+    "touches": 8,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1788343200000.0,
+    "last_price": 1.30948,
+    "strength": 2.911
+   },
+   {
+    "side": "high",
+    "price": 1.433,
+    "touches": 3,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1789135200000.0,
+    "last_price": 1.43261,
+    "strength": 2.706
+   },
+   {
+    "side": "low",
+    "price": 1.31506,
+    "touches": 3,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1789128000000.0,
+    "last_price": 1.31506,
+    "strength": 2.684
+   },
+   {
+    "side": "high",
+    "price": 1.42799,
+    "touches": 39,
+    "held": 0,
+    "broke": 8,
+    "last_ms": 1788912000000.0,
+    "last_price": 1.425,
+    "strength": 2.451
+   },
+   {
+    "side": "high",
+    "price": 1.37373,
+    "touches": 2,
+    "held": 1,
+    "broke": 0,
+    "last_ms": 1789207200000.0,
+    "last_price": 1.37421,
+    "strength": 2.449
+   },
+   {
+    "side": "low",
+    "price": 1.33975,
+    "touches": 31,
+    "held": 0,
+    "broke": 8,
+    "last_ms": 1789056000000.0,
+    "last_price": 1.3421,
+    "strength": 2.298
+   },
+   {
+    "side": "low",
+    "price": 1.37711,
+    "touches": 31,
+    "held": 0,
+    "broke": 8,
+    "last_ms": 1789002000000.0,
+    "last_price": 1.37654,
+    "strength": 2.16
+   },
+   {
+    "side": "high",
+    "price": 1.35671,
+    "touches": 24,
+    "held": 0,
+    "broke": 8,
+    "last_ms": 1789110000000.0,
+    "last_price": 1.35914,
+    "strength": 1.893
+   },
+   {
+    "side": "low",
+    "price": 1.40512,
+    "touches": 24,
+    "held": 0,
+    "broke": 8,
+    "last_ms": 1788966000000.0,
+    "last_price": 1.40501,
+    "strength": 1.605
+   },
+   {
+    "side": "low",
+    "price": 1.41357,
+    "touches": 24,
+    "held": 0,
+    "broke": 8,
+    "last_ms": 1788951600000.0,
+    "last_price": 1.41667,
+    "strength": 1.579
+   },
+   {
+    "side": "low",
+    "price": 1.38712,
+    "touches": 23,
+    "held": 0,
+    "broke": 8,
+    "last_ms": 1788872400000.0,
+    "last_price": 1.38362,
+    "strength": 1.382
+   },
+   {
+    "side": "low",
+    "price": 1.34567,
+    "touches": 1,
+    "held": 1,
+    "broke": 0,
+    "last_ms": 1789153200000.0,
+    "last_price": 1.34567,
+    "strength": 1.381
+   },
+   {
+    "side": "low",
+    "price": 1.38267,
+    "touches": 19,
+    "held": 0,
+    "broke": 6,
+    "last_ms": 1788818400000.0,
+    "last_price": 1.38284,
+    "strength": 1.073
+   }
+  ]
+ },
+ "AIXBT/USD": {
+  "updated": 1789128000000.0,
+  "levels": [
+   {
+    "side": "high",
+    "price": 0.02102,
+    "touches": 2,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1789012800000.0,
+    "last_price": 0.02102,
+    "strength": 1.753
+   },
+   {
+    "side": "low",
+    "price": 0.02183,
+    "touches": 5,
+    "held": 0,
+    "broke": 1,
+    "last_ms": 1788966000000.0,
+    "last_price": 0.02189,
+    "strength": 1.246
+   },
+   {
+    "side": "low",
+    "price": 0.01997,
+    "touches": 4,
+    "held": 0,
+    "broke": 1,
+    "last_ms": 1789066800000.0,
+    "last_price": 0.01992,
+    "strength": 1.119
+   },
+   {
+    "side": "high",
+    "price": 0.02309,
+    "touches": 1,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1788940800000.0,
+    "last_price": 0.02309,
+    "strength": 0.807
+   },
+   {
+    "side": "high",
+    "price": 0.0223,
+    "touches": 3,
+    "held": 0,
+    "broke": 1,
+    "last_ms": 1788861600000.0,
+    "last_price": 0.02232,
+    "strength": 0.663
+   },
+   {
+    "side": "low",
+    "price": 0.02168,
+    "touches": 3,
+    "held": 0,
+    "broke": 1,
+    "last_ms": 1788764400000.0,
+    "last_price": 0.02169,
+    "strength": 0.593
+   },
+   {
+    "side": "high",
+    "price": 0.02013,
+    "touches": 2,
+    "held": 0,
+    "broke": 1,
+    "last_ms": 1789102800000.0,
+    "last_price": 0.02011,
+    "strength": 0.583
+   },
+   {
+    "side": "high",
+    "price": 0.02341,
+    "touches": 1,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1788598800000.0,
+    "last_price": 0.02341,
+    "strength": 0.545
+   },
+   {
+    "side": "low",
+    "price": 0.01984,
+    "touches": 2,
+    "held": 0,
+    "broke": 1,
+    "last_ms": 1789041600000.0,
+    "last_price": 0.01989,
+    "strength": 0.543
+   },
+   {
+    "side": "low",
+    "price": 0.01946,
+    "touches": 1,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1788523200000.0,
+    "last_price": 0.01946,
+    "strength": 0.5
+   },
+   {
+    "side": "high",
+    "price": 0.02277,
+    "touches": 2,
+    "held": 0,
+    "broke": 1,
+    "last_ms": 1788829200000.0,
+    "last_price": 0.02278,
+    "strength": 0.426
+   }
+  ]
+ },
+ "AVAX/USD": {
+  "updated": 1789142400000.0,
+  "levels": [
+   {
+    "side": "high",
+    "price": 8.208,
+    "touches": 32,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1788861600000.0,
+    "last_price": 8.195,
+    "strength": 23.195
+   },
+   {
+    "side": "low",
+    "price": 7.252,
+    "touches": 32,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1788523200000.0,
+    "last_price": 7.27,
+    "strength": 15.738
+   },
+   {
+    "side": "high",
+    "price": 8.052,
+    "touches": 16,
+    "held": 8,
+    "broke": 0,
+    "last_ms": 1788926400000.0,
+    "last_price": 8.048,
+    "strength": 15.614
+   },
+   {
+    "side": "high",
+    "price": 8.119,
+    "touches": 16,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1788879600000.0,
+    "last_price": 8.103,
+    "strength": 11.839
+   },
+   {
+    "side": "high",
+    "price": 7.864,
+    "touches": 8,
+    "held": 8,
+    "broke": 0,
+    "last_ms": 1789016400000.0,
+    "last_price": 7.864,
+    "strength": 10.386
+   },
+   {
+    "side": "low",
+    "price": 7.13,
+    "touches": 24,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1788397200000.0,
+    "last_price": 7.132,
+    "strength": 10.216
+   },
+   {
+    "side": "low",
+    "price": 7.275,
+    "touches": 8,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1789128000000.0,
+    "last_price": 7.275,
+    "strength": 7.869
+   },
+   {
+    "side": "low",
+    "price": 7.106,
+    "touches": 16,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1788368400000.0,
+    "last_price": 7.102,
+    "strength": 6.59
+   },
+   {
+    "side": "low",
+    "price": 7.02,
+    "touches": 16,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1788343200000.0,
+    "last_price": 7.041,
+    "strength": 6.402
+   },
+   {
+    "side": "high",
+    "price": 7.529,
+    "touches": 32,
+    "held": 1,
+    "broke": 7,
+    "last_ms": 1789110000000.0,
+    "last_price": 7.542,
+    "strength": 2.818
+   },
+   {
+    "side": "high",
+    "price": 7.329,
+    "touches": 56,
+    "held": 0,
+    "broke": 8,
+    "last_ms": 1788418800000.0,
+    "last_price": 7.337,
+    "strength": 2.199
+   },
+   {
+    "side": "low",
+    "price": 7.537,
+    "touches": 23,
+    "held": 0,
+    "broke": 8,
+    "last_ms": 1789056000000.0,
+    "last_price": 7.52,
+    "strength": 1.875
+   },
+   {
+    "side": "high",
+    "price": 7.647,
+    "touches": 16,
+    "held": 3,
+    "broke": 5,
+    "last_ms": 1789059600000.0,
+    "last_price": 7.659,
+    "strength": 1.432
+   }
+  ]
+ },
+ "HYPE/USD": {
+  "updated": 1789142400000.0,
+  "levels": [
+   {
+    "side": "high",
+    "price": 84.45,
+    "touches": 39,
+    "held": 10,
+    "broke": 0,
+    "last_ms": 1789012800000.0,
+    "last_price": 84.4,
+    "strength": 37.927
+   },
+   {
+    "side": "high",
+    "price": 87.43,
+    "touches": 30,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1788940800000.0,
+    "last_price": 87.18,
+    "strength": 23.811
+   },
+   {
+    "side": "high",
+    "price": 88.15,
+    "touches": 30,
+    "held": 10,
+    "broke": 0,
+    "last_ms": 1788782400000.0,
+    "last_price": 88.35,
+    "strength": 23.168
+   },
+   {
+    "side": "low",
+    "price": 78.53,
+    "touches": 20,
+    "held": 5,
+    "broke": 0,
+    "last_ms": 1789124400000.0,
+    "last_price": 78.57,
+    "strength": 22.041
+   },
+   {
+    "side": "low",
+    "price": 78.16,
+    "touches": 20,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1789095600000.0,
+    "last_price": 78.15,
+    "strength": 18.956
+   },
+   {
+    "side": "high",
+    "price": 87.01,
+    "touches": 10,
+    "held": 10,
+    "broke": 0,
+    "last_ms": 1788955200000.0,
+    "last_price": 87.01,
+    "strength": 12.104
+   },
+   {
+    "side": "high",
+    "price": 89.66,
+    "touches": 10,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1788696000000.0,
+    "last_price": 89.66,
+    "strength": 5.995
+   },
+   {
+    "side": "low",
+    "price": 83.58,
+    "touches": 50,
+    "held": 0,
+    "broke": 10,
+    "last_ms": 1788966000000.0,
+    "last_price": 83.82,
+    "strength": 3.676
+   },
+   {
+    "side": "low",
+    "price": 82.45,
+    "touches": 30,
+    "held": 0,
+    "broke": 10,
+    "last_ms": 1788991200000.0,
+    "last_price": 82.47,
+    "strength": 2.27
+   },
+   {
+    "side": "high",
+    "price": 84.89,
+    "touches": 31,
+    "held": 0,
+    "broke": 10,
+    "last_ms": 1788883200000.0,
+    "last_price": 84.84,
+    "strength": 2.073
+   }
+  ]
+ },
+ "FIL/USD": {
+  "updated": 1789131600000.0,
+  "levels": [
+   {
+    "side": "high",
+    "price": 0.81,
+    "touches": 12,
+    "held": 4,
+    "broke": 0,
+    "last_ms": 1789038000000.0,
+    "last_price": 0.81,
+    "strength": 12.576
+   },
+   {
+    "side": "low",
+    "price": 0.778,
+    "touches": 8,
+    "held": 4,
+    "broke": 0,
+    "last_ms": 1789081200000.0,
+    "last_price": 0.777,
+    "strength": 9.439
+   },
+   {
+    "side": "high",
+    "price": 0.857,
+    "touches": 8,
+    "held": 4,
+    "broke": 0,
+    "last_ms": 1788901200000.0,
+    "last_price": 0.858,
+    "strength": 7.679
+   },
+   {
+    "side": "low",
+    "price": 0.765,
+    "touches": 8,
+    "held": 4,
+    "broke": 0,
+    "last_ms": 1788595200000.0,
+    "last_price": 0.764,
+    "strength": 5.408
+   },
+   {
+    "side": "low",
+    "price": 0.677,
+    "touches": 8,
+    "held": 4,
+    "broke": 0,
+    "last_ms": 1788210000000.0,
+    "last_price": 0.675,
+    "strength": 3.478
+   },
+   {
+    "side": "high",
+    "price": 0.853,
+    "touches": 4,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1788973200000.0,
+    "last_price": 0.853,
+    "strength": 3.336
+   },
+   {
+    "side": "high",
+    "price": 0.876,
+    "touches": 4,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1788879600000.0,
+    "last_price": 0.876,
+    "strength": 2.997
+   },
+   {
+    "side": "high",
+    "price": 0.866,
+    "touches": 4,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1788861600000.0,
+    "last_price": 0.866,
+    "strength": 2.935
+   },
+   {
+    "side": "high",
+    "price": 0.882,
+    "touches": 4,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1788786000000.0,
+    "last_price": 0.882,
+    "strength": 2.692
+   },
+   {
+    "side": "low",
+    "price": 0.737,
+    "touches": 4,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1788523200000.0,
+    "last_price": 0.737,
+    "strength": 1.992
+   },
+   {
+    "side": "low",
+    "price": 0.836,
+    "touches": 16,
+    "held": 0,
+    "broke": 4,
+    "last_ms": 1788890400000.0,
+    "last_price": 0.838,
+    "strength": 1.092
+   },
+   {
+    "side": "high",
+    "price": 0.798,
+    "touches": 12,
+    "held": 1,
+    "broke": 3,
+    "last_ms": 1789102800000.0,
+    "last_price": 0.797,
+    "strength": 1.088
+   },
+   {
+    "side": "low",
+    "price": 0.787,
+    "touches": 12,
+    "held": 0,
+    "broke": 4,
+    "last_ms": 1789056000000.0,
+    "last_price": 0.785,
+    "strength": 0.99
+   },
+   {
+    "side": "low",
+    "price": 0.823,
+    "touches": 12,
+    "held": 0,
+    "broke": 4,
+    "last_ms": 1788948000000.0,
+    "last_price": 0.824,
+    "strength": 0.875
+   }
+  ]
+ },
+ "JTO/USD": {
+  "updated": 1789142400000.0,
+  "levels": [
+   {
+    "side": "high",
+    "price": 0.45147,
+    "touches": 24,
+    "held": 8,
+    "broke": 0,
+    "last_ms": 1788976800000.0,
+    "last_price": 0.4526,
+    "strength": 23.16
+   },
+   {
+    "side": "high",
+    "price": 0.45497,
+    "touches": 24,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1788955200000.0,
+    "last_price": 0.45491,
+    "strength": 19.366
+   },
+   {
+    "side": "low",
+    "price": 0.4072,
+    "touches": 16,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1789081200000.0,
+    "last_price": 0.4082,
+    "strength": 14.916
+   },
+   {
+    "side": "low",
+    "price": 0.39644,
+    "touches": 16,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1789056000000.0,
+    "last_price": 0.39547,
+    "strength": 14.492
+   },
+   {
+    "side": "high",
+    "price": 0.46619,
+    "touches": 16,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1788937200000.0,
+    "last_price": 0.466,
+    "strength": 12.647
+   },
+   {
+    "side": "low",
+    "price": 0.40858,
+    "touches": 8,
+    "held": 8,
+    "broke": 0,
+    "last_ms": 1789117200000.0,
+    "last_price": 0.40858,
+    "strength": 11.658
+   },
+   {
+    "side": "low",
+    "price": 0.39897,
+    "touches": 8,
+    "held": 8,
+    "broke": 0,
+    "last_ms": 1788580800000.0,
+    "last_price": 0.39897,
+    "strength": 6.305
+   },
+   {
+    "side": "low",
+    "price": 0.40195,
+    "touches": 8,
+    "held": 8,
+    "broke": 0,
+    "last_ms": 1788566400000.0,
+    "last_price": 0.40195,
+    "strength": 6.201
+   },
+   {
+    "side": "high",
+    "price": 0.49398,
+    "touches": 16,
+    "held": 8,
+    "broke": 0,
+    "last_ms": 1788112800000.0,
+    "last_price": 0.4947,
+    "strength": 6.146
+   },
+   {
+    "side": "high",
+    "price": 0.55,
+    "touches": 8,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1788732000000.0,
+    "last_price": 0.55,
+    "strength": 4.998
+   },
+   {
+    "side": "low",
+    "price": 0.35,
+    "touches": 8,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1788523200000.0,
+    "last_price": 0.35,
+    "strength": 3.935
+   },
+   {
+    "side": "high",
+    "price": 0.49744,
+    "touches": 8,
+    "held": 8,
+    "broke": 0,
+    "last_ms": 1788033600000.0,
+    "last_price": 0.49744,
+    "strength": 3.367
+   },
+   {
+    "side": "high",
+    "price": 0.5,
+    "touches": 8,
+    "held": 8,
+    "broke": 0,
+    "last_ms": 1788015600000.0,
+    "last_price": 0.5,
+    "strength": 3.299
+   },
+   {
+    "side": "low",
+    "price": 0.43711,
+    "touches": 40,
+    "held": 0,
+    "broke": 8,
+    "last_ms": 1788901200000.0,
+    "last_price": 0.43808,
+    "strength": 2.731
+   },
+   {
+    "side": "high",
+    "price": 0.42478,
+    "touches": 23,
+    "held": 0,
+    "broke": 7,
+    "last_ms": 1789099200000.0,
+    "last_price": 0.42416,
+    "strength": 1.97
+   },
+   {
+    "side": "low",
+    "price": 0.41445,
+    "touches": 32,
+    "held": 0,
+    "broke": 8,
+    "last_ms": 1788645600000.0,
+    "last_price": 0.41538,
+    "strength": 1.63
+   }
+  ]
+ },
+ "LDO/USD": {
+  "updated": 1789210800000.0,
+  "levels": [
+   {
+    "side": "low",
+    "price": 0.362,
+    "touches": 37,
+    "held": 7,
+    "broke": 0,
+    "last_ms": 1789128000000.0,
+    "last_price": 0.361,
+    "strength": 36.833
+   },
+   {
+    "side": "low",
+    "price": 0.365,
+    "touches": 22,
+    "held": 11,
+    "broke": 0,
+    "last_ms": 1789081200000.0,
+    "last_price": 0.366,
+    "strength": 23.704
+   },
+   {
+    "side": "high",
+    "price": 0.385,
+    "touches": 11,
+    "held": 10,
+    "broke": 0,
+    "last_ms": 1788976800000.0,
+    "last_price": 0.385,
+    "strength": 12.236
+   },
+   {
+    "side": "low",
+    "price": 0.355,
+    "touches": 22,
+    "held": 11,
+    "broke": 0,
+    "last_ms": 1788217200000.0,
+    "last_price": 0.356,
+    "strength": 8.806
+   },
+   {
+    "side": "high",
+    "price": 0.395,
+    "touches": 11,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1788937200000.0,
+    "last_price": 0.395,
+    "strength": 8.039
+   },
+   {
+    "side": "high",
+    "price": 0.402,
+    "touches": 11,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1788879600000.0,
+    "last_price": 0.402,
+    "strength": 7.526
+   },
+   {
+    "side": "low",
+    "price": 0.353,
+    "touches": 17,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1788343200000.0,
+    "last_price": 0.353,
+    "strength": 6.289
+   },
+   {
+    "side": "high",
+    "price": 0.434,
+    "touches": 11,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1788710400000.0,
+    "last_price": 0.434,
+    "strength": 6.199
+   },
+   {
+    "side": "low",
+    "price": 0.346,
+    "touches": 11,
+    "held": 11,
+    "broke": 0,
+    "last_ms": 1788141600000.0,
+    "last_price": 0.346,
+    "strength": 4.845
+   },
+   {
+    "side": "high",
+    "price": 0.381,
+    "touches": 4,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1789196400000.0,
+    "last_price": 0.381,
+    "strength": 3.935
+   },
+   {
+    "side": "low",
+    "price": 0.367,
+    "touches": 4,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1789164000000.0,
+    "last_price": 0.367,
+    "strength": 3.791
+   },
+   {
+    "side": "high",
+    "price": 0.391,
+    "touches": 4,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1789135200000.0,
+    "last_price": 0.391,
+    "strength": 3.668
+   },
+   {
+    "side": "high",
+    "price": 0.374,
+    "touches": 44,
+    "held": 0,
+    "broke": 11,
+    "last_ms": 1789041600000.0,
+    "last_price": 0.374,
+    "strength": 3.262
+   },
+   {
+    "side": "high",
+    "price": 0.378,
+    "touches": 33,
+    "held": 0,
+    "broke": 10,
+    "last_ms": 1789016400000.0,
+    "last_price": 0.377,
+    "strength": 2.377
+   },
+   {
+    "side": "low",
+    "price": 0.384,
+    "touches": 33,
+    "held": 0,
+    "broke": 11,
+    "last_ms": 1788922800000.0,
+    "last_price": 0.383,
+    "strength": 2.135
+   }
+  ]
+ },
+ "MOODENG/USD": {
+  "updated": 1789138800000.0,
+  "levels": [
+   {
+    "side": "low",
+    "price": 0.03846,
+    "touches": 20,
+    "held": 4,
+    "broke": 0,
+    "last_ms": 1789081200000.0,
+    "last_price": 0.03846,
+    "strength": 20.595
+   },
+   {
+    "side": "low",
+    "price": 0.03869,
+    "touches": 12,
+    "held": 4,
+    "broke": 0,
+    "last_ms": 1789056000000.0,
+    "last_price": 0.03864,
+    "strength": 12.733
+   },
+   {
+    "side": "high",
+    "price": 0.0453,
+    "touches": 12,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1788829200000.0,
+    "last_price": 0.04517,
+    "strength": 8.416
+   },
+   {
+    "side": "high",
+    "price": 0.04451,
+    "touches": 8,
+    "held": 4,
+    "broke": 0,
+    "last_ms": 1788858000000.0,
+    "last_price": 0.04444,
+    "strength": 7.248
+   },
+   {
+    "side": "high",
+    "price": 0.04475,
+    "touches": 8,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1788969600000.0,
+    "last_price": 0.04473,
+    "strength": 6.59
+   },
+   {
+    "side": "low",
+    "price": 0.0382,
+    "touches": 5,
+    "held": 3,
+    "broke": 0,
+    "last_ms": 1789128000000.0,
+    "last_price": 0.03813,
+    "strength": 6.42
+   },
+   {
+    "side": "high",
+    "price": 0.04413,
+    "touches": 4,
+    "held": 4,
+    "broke": 0,
+    "last_ms": 1788944400000.0,
+    "last_price": 0.04413,
+    "strength": 4.802
+   },
+   {
+    "side": "high",
+    "price": 0.04836,
+    "touches": 4,
+    "held": 4,
+    "broke": 0,
+    "last_ms": 1788627600000.0,
+    "last_price": 0.04836,
+    "strength": 3.34
+   },
+   {
+    "side": "high",
+    "price": 0.04588,
+    "touches": 4,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1788753600000.0,
+    "last_price": 0.04588,
+    "strength": 2.572
+   },
+   {
+    "side": "high",
+    "price": 0.04887,
+    "touches": 4,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1788645600000.0,
+    "last_price": 0.04887,
+    "strength": 2.273
+   },
+   {
+    "side": "low",
+    "price": 0.04074,
+    "touches": 12,
+    "held": 0,
+    "broke": 4,
+    "last_ms": 1789002000000.0,
+    "last_price": 0.04062,
+    "strength": 0.923
+   },
+   {
+    "side": "low",
+    "price": 0.04265,
+    "touches": 12,
+    "held": 0,
+    "broke": 4,
+    "last_ms": 1788969600000.0,
+    "last_price": 0.04273,
+    "strength": 0.89
+   },
+   {
+    "side": "high",
+    "price": 0.03964,
+    "touches": 8,
+    "held": 1,
+    "broke": 3,
+    "last_ms": 1789088400000.0,
+    "last_price": 0.03972,
+    "strength": 0.722
+   }
+  ]
+ },
+ "SOL/USD": {
+  "updated": 1789261200000.0,
+  "levels": [
+   {
+    "side": "high",
+    "price": 104.57,
+    "touches": 290,
+    "held": 37,
+    "broke": 0,
+    "last_ms": 1788883200000.0,
+    "last_price": 104.81,
+    "strength": 200.038
+   },
+   {
+    "side": "high",
+    "price": 105.87,
+    "touches": 202,
+    "held": 13,
+    "broke": 0,
+    "last_ms": 1789135200000.0,
+    "last_price": 105.72,
+    "strength": 180.464
+   },
+   {
+    "side": "low",
+    "price": 98.28,
+    "touches": 185,
+    "held": 37,
+    "broke": 0,
+    "last_ms": 1789084800000.0,
+    "last_price": 98.55,
+    "strength": 166.251
+   },
+   {
+    "side": "high",
+    "price": 104.96,
+    "touches": 74,
+    "held": 37,
+    "broke": 0,
+    "last_ms": 1788937200000.0,
+    "last_price": 105.15,
+    "strength": 63.808
+   },
+   {
+    "side": "high",
+    "price": 107.05,
+    "touches": 110,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1788746400000.0,
+    "last_price": 107.03,
+    "strength": 60.976
+   },
+   {
+    "side": "low",
+    "price": 98.82,
+    "touches": 37,
+    "held": 37,
+    "broke": 0,
+    "last_ms": 1789056000000.0,
+    "last_price": 98.82,
+    "strength": 43.869
+   },
+   {
+    "side": "high",
+    "price": 106.59,
+    "touches": 37,
+    "held": 37,
+    "broke": 0,
+    "last_ms": 1788717600000.0,
+    "last_price": 106.59,
+    "strength": 29.766
+   },
+   {
+    "side": "low",
+    "price": 97.87,
+    "touches": 28,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1789128000000.0,
+    "last_price": 97.87,
+    "strength": 24.036
+   },
+   {
+    "side": "low",
+    "price": 103.04,
+    "touches": 368,
+    "held": 0,
+    "broke": 37,
+    "last_ms": 1788951600000.0,
+    "last_price": 102.99,
+    "strength": 23.227
+   },
+   {
+    "side": "high",
+    "price": 107.44,
+    "touches": 38,
+    "held": 36,
+    "broke": 0,
+    "last_ms": 1788094800000.0,
+    "last_price": 107.44,
+    "strength": 14.711
+   },
+   {
+    "side": "low",
+    "price": 97.33,
+    "touches": 37,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1788346800000.0,
+    "last_price": 97.33,
+    "strength": 12.974
+   },
+   {
+    "side": "low",
+    "price": 101.79,
+    "touches": 114,
+    "held": 0,
+    "broke": 37,
+    "last_ms": 1789218000000.0,
+    "last_price": 101.75,
+    "strength": 9.764
+   },
+   {
+    "side": "low",
+    "price": 100.36,
+    "touches": 117,
+    "held": 0,
+    "broke": 31,
+    "last_ms": 1789149600000.0,
+    "last_price": 100.38,
+    "strength": 9.266
+   },
+   {
+    "side": "low",
+    "price": 104.69,
+    "touches": 183,
+    "held": 0,
+    "broke": 37,
+    "last_ms": 1788732000000.0,
+    "last_price": 104.99,
+    "strength": 8.98
+   },
+   {
+    "side": "high",
+    "price": 101.29,
+    "touches": 111,
+    "held": 5,
+    "broke": 31,
+    "last_ms": 1789041600000.0,
+    "last_price": 101.54,
+    "strength": 7.942
+   },
+   {
+    "side": "high",
+    "price": 100.63,
+    "touches": 111,
+    "held": 0,
+    "broke": 37,
+    "last_ms": 1789059600000.0,
+    "last_price": 100.41,
+    "strength": 7.929
+   },
+   {
+    "side": "high",
+    "price": 102.2,
+    "touches": 76,
+    "held": 8,
+    "broke": 29,
+    "last_ms": 1789214400000.0,
+    "last_price": 102.39,
+    "strength": 6.824
+   },
+   {
+    "side": "low",
+    "price": 102.29,
+    "touches": 119,
+    "held": 0,
+    "broke": 37,
+    "last_ms": 1788847200000.0,
+    "last_price": 102.36,
+    "strength": 6.664
+   },
+   {
+    "side": "low",
+    "price": 100.91,
+    "touches": 4,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1789239600000.0,
+    "last_price": 101.21,
+    "strength": 3.902
+   },
+   {
+    "side": "low",
+    "price": 101.42,
+    "touches": 2,
+    "held": 2,
+    "broke": 0,
+    "last_ms": 1789189200000.0,
+    "last_price": 101.42,
+    "strength": 2.762
+   },
+   {
+    "side": "high",
+    "price": 103.04,
+    "touches": 2,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1789160400000.0,
+    "last_price": 103.04,
+    "strength": 1.782
+   },
+   {
+    "side": "high",
+    "price": 100.12,
+    "touches": 2,
+    "held": 0,
+    "broke": 1,
+    "last_ms": 1789113600000.0,
+    "last_price": 100.24,
+    "strength": 0.507
+   }
+  ]
+ },
+ "FARTCOIN/USD": {
+  "updated": 1789131600000.0,
+  "levels": [
+   {
+    "side": "high",
+    "price": 0.1752,
+    "touches": 15,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1788883200000.0,
+    "last_price": 0.1752,
+    "strength": 11.284
+   },
+   {
+    "side": "high",
+    "price": 0.1811,
+    "touches": 15,
+    "held": 5,
+    "broke": 0,
+    "last_ms": 1788735600000.0,
+    "last_price": 0.181,
+    "strength": 11.116
+   },
+   {
+    "side": "low",
+    "price": 0.1384,
+    "touches": 5,
+    "held": 5,
+    "broke": 0,
+    "last_ms": 1789095600000.0,
+    "last_price": 0.1384,
+    "strength": 7.197
+   },
+   {
+    "side": "low",
+    "price": 0.1373,
+    "touches": 5,
+    "held": 5,
+    "broke": 0,
+    "last_ms": 1789081200000.0,
+    "last_price": 0.1373,
+    "strength": 7.079
+   },
+   {
+    "side": "high",
+    "price": 0.1464,
+    "touches": 5,
+    "held": 5,
+    "broke": 0,
+    "last_ms": 1789012800000.0,
+    "last_price": 0.1464,
+    "strength": 6.545
+   },
+   {
+    "side": "high",
+    "price": 0.1953,
+    "touches": 15,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1788098400000.0,
+    "last_price": 0.1953,
+    "strength": 4.59
+   },
+   {
+    "side": "low",
+    "price": 0.1364,
+    "touches": 5,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1789056000000.0,
+    "last_price": 0.1364,
+    "strength": 4.585
+   },
+   {
+    "side": "low",
+    "price": 0.1358,
+    "touches": 5,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1789041600000.0,
+    "last_price": 0.1358,
+    "strength": 4.51
+   },
+   {
+    "side": "high",
+    "price": 0.1704,
+    "touches": 5,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1788955200000.0,
+    "last_price": 0.1704,
+    "strength": 4.085
+   },
+   {
+    "side": "high",
+    "price": 0.1711,
+    "touches": 5,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1788940800000.0,
+    "last_price": 0.1711,
+    "strength": 4.018
+   },
+   {
+    "side": "high",
+    "price": 0.1804,
+    "touches": 5,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1788786000000.0,
+    "last_price": 0.1804,
+    "strength": 3.365
+   },
+   {
+    "side": "high",
+    "price": 0.1832,
+    "touches": 5,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1788717600000.0,
+    "last_price": 0.1832,
+    "strength": 3.111
+   },
+   {
+    "side": "high",
+    "price": 0.1871,
+    "touches": 5,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1788696000000.0,
+    "last_price": 0.1871,
+    "strength": 3.035
+   },
+   {
+    "side": "high",
+    "price": 0.142,
+    "touches": 2,
+    "held": 0,
+    "broke": 1,
+    "last_ms": 1789088400000.0,
+    "last_price": 0.1421,
+    "strength": 0.571
+   },
+   {
+    "side": "low",
+    "price": 0.1631,
+    "touches": 2,
+    "held": 0,
+    "broke": 1,
+    "last_ms": 1788922800000.0,
+    "last_price": 0.1633,
+    "strength": 0.472
+   },
+   {
+    "side": "low",
+    "price": 0.1647,
+    "touches": 2,
+    "held": 0,
+    "broke": 1,
+    "last_ms": 1788901200000.0,
+    "last_price": 0.1647,
+    "strength": 0.461
+   },
+   {
+    "side": "low",
+    "price": 0.1686,
+    "touches": 2,
+    "held": 0,
+    "broke": 1,
+    "last_ms": 1788836400000.0,
+    "last_price": 0.1688,
+    "strength": 0.428
+   },
+   {
+    "side": "low",
+    "price": 0.1675,
+    "touches": 2,
+    "held": 0,
+    "broke": 1,
+    "last_ms": 1788818400000.0,
+    "last_price": 0.1677,
+    "strength": 0.419
+   }
+  ]
+ },
+ "BCH/USD": {
+  "updated": 1789138800000.0,
+  "levels": [
+   {
+    "side": "high",
+    "price": 260.0,
+    "touches": 28,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1788958800000.0,
+    "last_price": 260.2,
+    "strength": 22.781
+   },
+   {
+    "side": "high",
+    "price": 261.36,
+    "touches": 24,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1788930000000.0,
+    "last_price": 261.32,
+    "strength": 18.892
+   },
+   {
+    "side": "high",
+    "price": 251.75,
+    "touches": 18,
+    "held": 6,
+    "broke": 0,
+    "last_ms": 1789009200000.0,
+    "last_price": 252.29,
+    "strength": 18.101
+   },
+   {
+    "side": "low",
+    "price": 223.07,
+    "touches": 12,
+    "held": 6,
+    "broke": 0,
+    "last_ms": 1789081200000.0,
+    "last_price": 223.08,
+    "strength": 14.042
+   },
+   {
+    "side": "high",
+    "price": 265.07,
+    "touches": 6,
+    "held": 6,
+    "broke": 0,
+    "last_ms": 1788663600000.0,
+    "last_price": 265.07,
+    "strength": 5.221
+   },
+   {
+    "side": "high",
+    "price": 263.32,
+    "touches": 6,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1788829200000.0,
+    "last_price": 263.32,
+    "strength": 4.208
+   },
+   {
+    "side": "high",
+    "price": 269.98,
+    "touches": 6,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1788796800000.0,
+    "last_price": 269.98,
+    "strength": 4.054
+   },
+   {
+    "side": "low",
+    "price": 219.2,
+    "touches": 2,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1789128000000.0,
+    "last_price": 219.2,
+    "strength": 1.975
+   },
+   {
+    "side": "low",
+    "price": 244.29,
+    "touches": 40,
+    "held": 0,
+    "broke": 6,
+    "last_ms": 1788566400000.0,
+    "last_price": 244.89,
+    "strength": 1.868
+   },
+   {
+    "side": "low",
+    "price": 247.82,
+    "touches": 24,
+    "held": 0,
+    "broke": 6,
+    "last_ms": 1788991200000.0,
+    "last_price": 247.73,
+    "strength": 1.824
+   },
+   {
+    "side": "low",
+    "price": 254.01,
+    "touches": 24,
+    "held": 0,
+    "broke": 6,
+    "last_ms": 1788966000000.0,
+    "last_price": 253.51,
+    "strength": 1.772
+   },
+   {
+    "side": "low",
+    "price": 256.44,
+    "touches": 23,
+    "held": 0,
+    "broke": 6,
+    "last_ms": 1788948000000.0,
+    "last_price": 256.74,
+    "strength": 1.663
+   },
+   {
+    "side": "high",
+    "price": 228.66,
+    "touches": 12,
+    "held": 0,
+    "broke": 4,
+    "last_ms": 1789113600000.0,
+    "last_price": 228.29,
+    "strength": 1.049
+   }
+  ]
+ },
+ "OP/USD": {
+  "updated": 1789329600000.0,
+  "levels": [
+   {
+    "side": "low",
+    "price": 0.0943,
+    "touches": 56,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1789290000000.0,
+    "last_price": 0.0944,
+    "strength": 53.515
+   },
+   {
+    "side": "high",
+    "price": 0.1005,
+    "touches": 56,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1789135200000.0,
+    "last_price": 0.1006,
+    "strength": 44.816
+   },
+   {
+    "side": "high",
+    "price": 0.0992,
+    "touches": 40,
+    "held": 15,
+    "broke": 0,
+    "last_ms": 1789016400000.0,
+    "last_price": 0.0994,
+    "strength": 33.174
+   },
+   {
+    "side": "high",
+    "price": 0.0982,
+    "touches": 28,
+    "held": 12,
+    "broke": 0,
+    "last_ms": 1789210800000.0,
+    "last_price": 0.0981,
+    "strength": 29.672
+   },
+   {
+    "side": "high",
+    "price": 0.1051,
+    "touches": 40,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1788958800000.0,
+    "last_price": 0.1048,
+    "strength": 26.152
+   },
+   {
+    "side": "high",
+    "price": 0.1111,
+    "touches": 40,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1788858000000.0,
+    "last_price": 0.1113,
+    "strength": 23.299
+   },
+   {
+    "side": "high",
+    "price": 0.1128,
+    "touches": 40,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1788832800000.0,
+    "last_price": 0.1125,
+    "strength": 22.635
+   },
+   {
+    "side": "low",
+    "price": 0.0936,
+    "touches": 20,
+    "held": 20,
+    "broke": 0,
+    "last_ms": 1789081200000.0,
+    "last_price": 0.0936,
+    "strength": 22.568
+   },
+   {
+    "side": "high",
+    "price": 0.0988,
+    "touches": 20,
+    "held": 20,
+    "broke": 0,
+    "last_ms": 1789038000000.0,
+    "last_price": 0.0988,
+    "strength": 21.477
+   },
+   {
+    "side": "high",
+    "price": 0.1059,
+    "touches": 20,
+    "held": 20,
+    "broke": 0,
+    "last_ms": 1788912000000.0,
+    "last_price": 0.1059,
+    "strength": 18.589
+   },
+   {
+    "side": "high",
+    "price": 0.1136,
+    "touches": 20,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1788789600000.0,
+    "last_price": 0.1136,
+    "strength": 10.771
+   },
+   {
+    "side": "low",
+    "price": 0.0933,
+    "touches": 20,
+    "held": 20,
+    "broke": 0,
+    "last_ms": 1788346800000.0,
+    "last_price": 0.0933,
+    "strength": 9.726
+   },
+   {
+    "side": "low",
+    "price": 0.093,
+    "touches": 20,
+    "held": 20,
+    "broke": 0,
+    "last_ms": 1788310800000.0,
+    "last_price": 0.093,
+    "strength": 9.333
+   },
+   {
+    "side": "high",
+    "price": 0.1141,
+    "touches": 20,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1788656400000.0,
+    "last_price": 0.1141,
+    "strength": 9.246
+   },
+   {
+    "side": "low",
+    "price": 0.0861,
+    "touches": 20,
+    "held": 20,
+    "broke": 0,
+    "last_ms": 1788181200000.0,
+    "last_price": 0.0861,
+    "strength": 8.045
+   },
+   {
+    "side": "low",
+    "price": 0.108,
+    "touches": 80,
+    "held": 0,
+    "broke": 20,
+    "last_ms": 1788854400000.0,
+    "last_price": 0.1078,
+    "strength": 4.176
+   },
+   {
+    "side": "low",
+    "price": 0.0971,
+    "touches": 42,
+    "held": 0,
+    "broke": 14,
+    "last_ms": 1789218000000.0,
+    "last_price": 0.097,
+    "strength": 3.326
+   },
+   {
+    "side": "high",
+    "price": 0.0964,
+    "touches": 34,
+    "held": 1,
+    "broke": 17,
+    "last_ms": 1789282800000.0,
+    "last_price": 0.0966,
+    "strength": 2.943
+   }
+  ]
+ },
+ "UNI/USD": {
+  "updated": 1789228800000.0,
+  "levels": [
+   {
+    "side": "low",
+    "price": 5.9368,
+    "touches": 15,
+    "held": 1,
+    "broke": 0,
+    "last_ms": 1789167600000.0,
+    "last_price": 5.9407,
+    "strength": 14.45
+   },
+   {
+    "side": "high",
+    "price": 7.1606,
+    "touches": 8,
+    "held": 4,
+    "broke": 0,
+    "last_ms": 1788832800000.0,
+    "last_price": 7.1582,
+    "strength": 6.352
+   },
+   {
+    "side": "high",
+    "price": 7.1908,
+    "touches": 8,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1788858000000.0,
+    "last_price": 7.1993,
+    "strength": 5.23
+   },
+   {
+    "side": "high",
+    "price": 6.5364,
+    "touches": 3,
+    "held": 3,
+    "broke": 0,
+    "last_ms": 1789135200000.0,
+    "last_price": 6.5364,
+    "strength": 4.042
+   },
+   {
+    "side": "low",
+    "price": 5.8019,
+    "touches": 4,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1789041600000.0,
+    "last_price": 5.8019,
+    "strength": 3.228
+   },
+   {
+    "side": "low",
+    "price": 5.6299,
+    "touches": 8,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1788418800000.0,
+    "last_price": 5.633,
+    "strength": 3.162
+   },
+   {
+    "side": "high",
+    "price": 6.955,
+    "touches": 4,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1788933600000.0,
+    "last_price": 6.955,
+    "strength": 2.852
+   },
+   {
+    "side": "low",
+    "price": 5.8754,
+    "touches": 3,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1789128000000.0,
+    "last_price": 5.8754,
+    "strength": 2.673
+   },
+   {
+    "side": "high",
+    "price": 7.3297,
+    "touches": 4,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1788735600000.0,
+    "last_price": 7.3297,
+    "strength": 2.273
+   },
+   {
+    "side": "high",
+    "price": 7.4168,
+    "touches": 4,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1788710400000.0,
+    "last_price": 7.4168,
+    "strength": 2.208
+   },
+   {
+    "side": "low",
+    "price": 5.6998,
+    "touches": 4,
+    "held": 4,
+    "broke": 0,
+    "last_ms": 1788346800000.0,
+    "last_price": 5.6998,
+    "strength": 2.183
+   },
+   {
+    "side": "high",
+    "price": 7.4821,
+    "touches": 4,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1788656400000.0,
+    "last_price": 7.4821,
+    "strength": 2.076
+   },
+   {
+    "side": "low",
+    "price": 4.3502,
+    "touches": 2,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1787990400000.0,
+    "last_price": 4.354,
+    "strength": 0.484
+   }
+  ]
+ },
+ "LINK/USD": {
+  "updated": 1789225200000.0,
+  "levels": [
+   {
+    "side": "low",
+    "price": 11.0,
+    "touches": 24,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1788984000000.0,
+    "last_price": 11.01,
+    "strength": 18.204
+   },
+   {
+    "side": "high",
+    "price": 12.8076,
+    "touches": 24,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1788883200000.0,
+    "last_price": 12.78431,
+    "strength": 16.218
+   },
+   {
+    "side": "low",
+    "price": 11.39,
+    "touches": 8,
+    "held": 8,
+    "broke": 0,
+    "last_ms": 1789088400000.0,
+    "last_price": 11.39,
+    "strength": 10.259
+   },
+   {
+    "side": "high",
+    "price": 12.23932,
+    "touches": 10,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1789135200000.0,
+    "last_price": 12.22402,
+    "strength": 9.02
+   },
+   {
+    "side": "high",
+    "price": 12.5675,
+    "touches": 8,
+    "held": 8,
+    "broke": 0,
+    "last_ms": 1788912000000.0,
+    "last_price": 12.5675,
+    "strength": 8.381
+   },
+   {
+    "side": "low",
+    "price": 11.49316,
+    "touches": 6,
+    "held": 2,
+    "broke": 0,
+    "last_ms": 1789164000000.0,
+    "last_price": 11.46959,
+    "strength": 6.526
+   },
+   {
+    "side": "low",
+    "price": 11.23657,
+    "touches": 7,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1789128000000.0,
+    "last_price": 11.23657,
+    "strength": 6.262
+   },
+   {
+    "side": "high",
+    "price": 12.63544,
+    "touches": 8,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1788937200000.0,
+    "last_price": 12.63544,
+    "strength": 5.751
+   },
+   {
+    "side": "low",
+    "price": 11.12309,
+    "touches": 8,
+    "held": 8,
+    "broke": 0,
+    "last_ms": 1788429600000.0,
+    "last_price": 11.12309,
+    "strength": 4.822
+   },
+   {
+    "side": "high",
+    "price": 11.59516,
+    "touches": 4,
+    "held": 2,
+    "broke": 0,
+    "last_ms": 1789174800000.0,
+    "last_price": 11.57454,
+    "strength": 4.719
+   },
+   {
+    "side": "high",
+    "price": 13.68365,
+    "touches": 8,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1788760800000.0,
+    "last_price": 13.68365,
+    "strength": 4.698
+   },
+   {
+    "side": "low",
+    "price": 11.4559,
+    "touches": 4,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1789182000000.0,
+    "last_price": 11.45684,
+    "strength": 3.807
+   },
+   {
+    "side": "low",
+    "price": 10.90707,
+    "touches": 8,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1788343200000.0,
+    "last_price": 10.90707,
+    "strength": 2.911
+   },
+   {
+    "side": "high",
+    "price": 11.8545,
+    "touches": 24,
+    "held": 1,
+    "broke": 7,
+    "last_ms": 1789038000000.0,
+    "last_price": 11.87822,
+    "strength": 1.779
+   }
+  ]
+ },
+ "ADA/USD": {
+  "updated": 1789131600000.0,
+  "levels": [
+   {
+    "side": "high",
+    "price": 0.222958,
+    "touches": 2,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1788940800000.0,
+    "last_price": 0.223029,
+    "strength": 1.607
+   },
+   {
+    "side": "high",
+    "price": 0.21046,
+    "touches": 1,
+    "held": 1,
+    "broke": 0,
+    "last_ms": 1789099200000.0,
+    "last_price": 0.21046,
+    "strength": 1.445
+   },
+   {
+    "side": "low",
+    "price": 0.193668,
+    "touches": 3,
+    "held": 1,
+    "broke": 0,
+    "last_ms": 1788310800000.0,
+    "last_price": 0.193092,
+    "strength": 1.366
+   },
+   {
+    "side": "high",
+    "price": 0.215,
+    "touches": 1,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1789030800000.0,
+    "last_price": 0.215,
+    "strength": 0.891
+   },
+   {
+    "side": "high",
+    "price": 0.231998,
+    "touches": 1,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1788883200000.0,
+    "last_price": 0.231998,
+    "strength": 0.752
+   },
+   {
+    "side": "low",
+    "price": 0.217276,
+    "touches": 3,
+    "held": 0,
+    "broke": 1,
+    "last_ms": 1788951600000.0,
+    "last_price": 0.21703,
+    "strength": 0.732
+   },
+   {
+    "side": "low",
+    "price": 0.218314,
+    "touches": 3,
+    "held": 0,
+    "broke": 1,
+    "last_ms": 1788901200000.0,
+    "last_price": 0.218176,
+    "strength": 0.691
+   },
+   {
+    "side": "low",
+    "price": 0.21539,
+    "touches": 3,
+    "held": 0,
+    "broke": 1,
+    "last_ms": 1788872400000.0,
+    "last_price": 0.215,
+    "strength": 0.669
+   },
+   {
+    "side": "high",
+    "price": 0.221959,
+    "touches": 3,
+    "held": 0,
+    "broke": 1,
+    "last_ms": 1788861600000.0,
+    "last_price": 0.2216,
+    "strength": 0.66
+   },
+   {
+    "side": "low",
+    "price": 0.203305,
+    "touches": 1,
+    "held": 1,
+    "broke": 0,
+    "last_ms": 1788411600000.0,
+    "last_price": 0.203305,
+    "strength": 0.657
+   },
+   {
+    "side": "high",
+    "price": 0.225377,
+    "touches": 3,
+    "held": 0,
+    "broke": 1,
+    "last_ms": 1788786000000.0,
+    "last_price": 0.224821,
+    "strength": 0.606
+   },
+   {
+    "side": "low",
+    "price": 0.212555,
+    "touches": 2,
+    "held": 0,
+    "broke": 1,
+    "last_ms": 1788966000000.0,
+    "last_price": 0.212475,
+    "strength": 0.496
+   },
+   {
+    "side": "low",
+    "price": 0.216592,
+    "touches": 2,
+    "held": 0,
+    "broke": 1,
+    "last_ms": 1788922800000.0,
+    "last_price": 0.2161,
+    "strength": 0.472
+   },
+   {
+    "side": "low",
+    "price": 0.191943,
+    "touches": 1,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1788343200000.0,
+    "last_price": 0.191943,
+    "strength": 0.405
+   }
+  ]
+ },
+ "CRV/USD": {
+  "updated": 1789311600000.0,
+  "levels": [
+   {
+    "side": "high",
+    "price": 0.3665,
+    "touches": 74,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1788976800000.0,
+    "last_price": 0.3665,
+    "strength": 50.419
+   },
+   {
+    "side": "low",
+    "price": 0.33109,
+    "touches": 44,
+    "held": 11,
+    "broke": 0,
+    "last_ms": 1789254000000.0,
+    "last_price": 0.33195,
+    "strength": 46.338
+   },
+   {
+    "side": "high",
+    "price": 0.36451,
+    "touches": 31,
+    "held": 15,
+    "broke": 0,
+    "last_ms": 1788958800000.0,
+    "last_price": 0.36523,
+    "strength": 25.696
+   },
+   {
+    "side": "high",
+    "price": 0.35856,
+    "touches": 26,
+    "held": 4,
+    "broke": 0,
+    "last_ms": 1789135200000.0,
+    "last_price": 0.35838,
+    "strength": 22.875
+   },
+   {
+    "side": "high",
+    "price": 0.38,
+    "touches": 30,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1788807600000.0,
+    "last_price": 0.37981,
+    "strength": 16.837
+   },
+   {
+    "side": "high",
+    "price": 0.38857,
+    "touches": 30,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1788786000000.0,
+    "last_price": 0.3886,
+    "strength": 16.425
+   },
+   {
+    "side": "low",
+    "price": 0.30027,
+    "touches": 38,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1788523200000.0,
+    "last_price": 0.3,
+    "strength": 15.395
+   },
+   {
+    "side": "low",
+    "price": 0.32971,
+    "touches": 11,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1789286400000.0,
+    "last_price": 0.32971,
+    "strength": 10.687
+   },
+   {
+    "side": "high",
+    "price": 0.37285,
+    "touches": 15,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1788879600000.0,
+    "last_price": 0.37285,
+    "strength": 9.143
+   },
+   {
+    "side": "high",
+    "price": 0.40859,
+    "touches": 15,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1788746400000.0,
+    "last_price": 0.40859,
+    "strength": 7.848
+   },
+   {
+    "side": "high",
+    "price": 0.4,
+    "touches": 15,
+    "held": 15,
+    "broke": 0,
+    "last_ms": 1788318000000.0,
+    "last_price": 0.4,
+    "strength": 7.205
+   },
+   {
+    "side": "low",
+    "price": 0.29699,
+    "touches": 8,
+    "held": 15,
+    "broke": 0,
+    "last_ms": 1788076800000.0,
+    "last_price": 0.29787,
+    "strength": 3.765
+   },
+   {
+    "side": "low",
+    "price": 0.33422,
+    "touches": 41,
+    "held": 4,
+    "broke": 11,
+    "last_ms": 1789214400000.0,
+    "last_price": 0.33349,
+    "strength": 3.462
+   },
+   {
+    "side": "low",
+    "price": 0.36011,
+    "touches": 60,
+    "held": 0,
+    "broke": 15,
+    "last_ms": 1788922800000.0,
+    "last_price": 0.35949,
+    "strength": 3.458
+   },
+   {
+    "side": "high",
+    "price": 0.34031,
+    "touches": 2,
+    "held": 0,
+    "broke": 1,
+    "last_ms": 1789275600000.0,
+    "last_price": 0.34037,
+    "strength": 0.576
+   }
+  ]
+ },
+ "ETC/USD": {
+  "updated": 1789214400000.0,
+  "levels": [
+   {
+    "side": "low",
+    "price": 7.38,
+    "touches": 27,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1789128000000.0,
+    "last_price": 7.4,
+    "strength": 24.455
+   },
+   {
+    "side": "low",
+    "price": 7.517,
+    "touches": 20,
+    "held": 7,
+    "broke": 0,
+    "last_ms": 1789095600000.0,
+    "last_price": 7.535,
+    "strength": 20.509
+   },
+   {
+    "side": "low",
+    "price": 7.565,
+    "touches": 12,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1789164000000.0,
+    "last_price": 7.574,
+    "strength": 11.326
+   },
+   {
+    "side": "high",
+    "price": 8.063,
+    "touches": 12,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1789135200000.0,
+    "last_price": 8.063,
+    "strength": 10.959
+   },
+   {
+    "side": "low",
+    "price": 7.282,
+    "touches": 21,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1788530400000.0,
+    "last_price": 7.299,
+    "strength": 9.589
+   },
+   {
+    "side": "low",
+    "price": 7.194,
+    "touches": 21,
+    "held": 7,
+    "broke": 0,
+    "last_ms": 1788361200000.0,
+    "last_price": 7.173,
+    "strength": 9.215
+   },
+   {
+    "side": "high",
+    "price": 7.761,
+    "touches": 27,
+    "held": 6,
+    "broke": 1,
+    "last_ms": 1789196400000.0,
+    "last_price": 7.767,
+    "strength": 8.816
+   },
+   {
+    "side": "high",
+    "price": 7.969,
+    "touches": 7,
+    "held": 7,
+    "broke": 0,
+    "last_ms": 1789016400000.0,
+    "last_price": 7.969,
+    "strength": 8.368
+   },
+   {
+    "side": "high",
+    "price": 8.89,
+    "touches": 7,
+    "held": 7,
+    "broke": 0,
+    "last_ms": 1788886800000.0,
+    "last_price": 8.89,
+    "strength": 7.213
+   },
+   {
+    "side": "high",
+    "price": 8.389,
+    "touches": 7,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1788962400000.0,
+    "last_price": 8.389,
+    "strength": 5.244
+   },
+   {
+    "side": "high",
+    "price": 9.028,
+    "touches": 7,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1788919200000.0,
+    "last_price": 9.028,
+    "strength": 4.991
+   },
+   {
+    "side": "low",
+    "price": 7.171,
+    "touches": 7,
+    "held": 7,
+    "broke": 0,
+    "last_ms": 1788343200000.0,
+    "last_price": 7.171,
+    "strength": 3.869
+   },
+   {
+    "side": "low",
+    "price": 7.129,
+    "touches": 7,
+    "held": 7,
+    "broke": 0,
+    "last_ms": 1788310800000.0,
+    "last_price": 7.129,
+    "strength": 3.728
+   },
+   {
+    "side": "low",
+    "price": 7.658,
+    "touches": 28,
+    "held": 0,
+    "broke": 7,
+    "last_ms": 1789041600000.0,
+    "last_price": 7.656,
+    "strength": 2.067
+   },
+   {
+    "side": "high",
+    "price": 7.903,
+    "touches": 14,
+    "held": 0,
+    "broke": 6,
+    "last_ms": 1789038000000.0,
+    "last_price": 7.901,
+    "strength": 1.029
+   },
+   {
+    "side": "low",
+    "price": 7.613,
+    "touches": 2,
+    "held": 0,
+    "broke": 1,
+    "last_ms": 1789056000000.0,
+    "last_price": 7.616,
+    "strength": 0.5
+   },
+   {
+    "side": "high",
+    "price": 7.687,
+    "touches": 3,
+    "held": 0,
+    "broke": 1,
+    "last_ms": 1788512400000.0,
+    "last_price": 7.691,
+    "strength": 0.403
+   }
+  ]
+ },
+ "SUI/USD": {
+  "updated": 1789131600000.0,
+  "levels": [
+   {
+    "side": "high",
+    "price": 0.835,
+    "touches": 12,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1788883200000.0,
+    "last_price": 0.8336,
+    "strength": 9.027
+   },
+   {
+    "side": "high",
+    "price": 0.7709,
+    "touches": 6,
+    "held": 3,
+    "broke": 0,
+    "last_ms": 1789020000000.0,
+    "last_price": 0.7728,
+    "strength": 6.6
+   },
+   {
+    "side": "high",
+    "price": 0.8234,
+    "touches": 6,
+    "held": 3,
+    "broke": 0,
+    "last_ms": 1788912000000.0,
+    "last_price": 0.824,
+    "strength": 5.831
+   },
+   {
+    "side": "high",
+    "price": 0.8288,
+    "touches": 3,
+    "held": 3,
+    "broke": 0,
+    "last_ms": 1788937200000.0,
+    "last_price": 0.8288,
+    "strength": 3.601
+   },
+   {
+    "side": "high",
+    "price": 0.8445,
+    "touches": 3,
+    "held": 3,
+    "broke": 0,
+    "last_ms": 1788782400000.0,
+    "last_price": 0.8445,
+    "strength": 3.016
+   },
+   {
+    "side": "low",
+    "price": 0.7075,
+    "touches": 3,
+    "held": 3,
+    "broke": 0,
+    "last_ms": 1788310800000.0,
+    "last_price": 0.7075,
+    "strength": 1.757
+   },
+   {
+    "side": "low",
+    "price": 0.7112,
+    "touches": 3,
+    "held": 3,
+    "broke": 0,
+    "last_ms": 1788296400000.0,
+    "last_price": 0.7112,
+    "strength": 1.728
+   },
+   {
+    "side": "low",
+    "price": 0.7033,
+    "touches": 3,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1788343200000.0,
+    "last_price": 0.7033,
+    "strength": 1.215
+   },
+   {
+    "side": "low",
+    "price": 0.7821,
+    "touches": 12,
+    "held": 0,
+    "broke": 3,
+    "last_ms": 1788966000000.0,
+    "last_price": 0.784,
+    "strength": 0.893
+   },
+   {
+    "side": "low",
+    "price": 0.7319,
+    "touches": 9,
+    "held": 0,
+    "broke": 3,
+    "last_ms": 1789056000000.0,
+    "last_price": 0.7324,
+    "strength": 0.743
+   },
+   {
+    "side": "low",
+    "price": 0.8057,
+    "touches": 9,
+    "held": 0,
+    "broke": 3,
+    "last_ms": 1788922800000.0,
+    "last_price": 0.8055,
+    "strength": 0.638
+   },
+   {
+    "side": "low",
+    "price": 0.7223,
+    "touches": 2,
+    "held": 0,
+    "broke": 1,
+    "last_ms": 1789081200000.0,
+    "last_price": 0.7241,
+    "strength": 0.566
+   },
+   {
+    "side": "low",
+    "price": 0.7583,
+    "touches": 2,
+    "held": 0,
+    "broke": 1,
+    "last_ms": 1789002000000.0,
+    "last_price": 0.7571,
+    "strength": 0.517
+   }
+  ]
+ },
+ "S/USD": {
+  "updated": 1789142400000.0,
+  "levels": [
+   {
+    "side": "low",
+    "price": 0.0264,
+    "touches": 22,
+    "held": 11,
+    "broke": 0,
+    "last_ms": 1789081200000.0,
+    "last_price": 0.0264,
+    "strength": 25.637
+   },
+   {
+    "side": "low",
+    "price": 0.0263,
+    "touches": 21,
+    "held": 1,
+    "broke": 0,
+    "last_ms": 1789128000000.0,
+    "last_price": 0.0263,
+    "strength": 21.148
+   },
+   {
+    "side": "high",
+    "price": 0.0305,
+    "touches": 22,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1788958800000.0,
+    "last_price": 0.0305,
+    "strength": 17.825
+   },
+   {
+    "side": "high",
+    "price": 0.0312,
+    "touches": 22,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1788739200000.0,
+    "last_price": 0.0312,
+    "strength": 13.859
+   },
+   {
+    "side": "high",
+    "price": 0.031,
+    "touches": 11,
+    "held": 11,
+    "broke": 0,
+    "last_ms": 1788667200000.0,
+    "last_price": 0.031,
+    "strength": 9.571
+   },
+   {
+    "side": "low",
+    "price": 0.0262,
+    "touches": 22,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1788397200000.0,
+    "last_price": 0.0262,
+    "strength": 9.365
+   },
+   {
+    "side": "high",
+    "price": 0.0308,
+    "touches": 11,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1788883200000.0,
+    "last_price": 0.0308,
+    "strength": 8.173
+   },
+   {
+    "side": "low",
+    "price": 0.0292,
+    "touches": 44,
+    "held": 0,
+    "broke": 11,
+    "last_ms": 1788703200000.0,
+    "last_price": 0.0292,
+    "strength": 2.394
+   },
+   {
+    "side": "high",
+    "price": 0.03,
+    "touches": 2,
+    "held": 0,
+    "broke": 1,
+    "last_ms": 1788940800000.0,
+    "last_price": 0.03,
+    "strength": 0.476
+   },
+   {
+    "side": "low",
+    "price": 0.0289,
+    "touches": 2,
+    "held": 0,
+    "broke": 1,
+    "last_ms": 1788922800000.0,
+    "last_price": 0.0289,
+    "strength": 0.466
+   },
+   {
+    "side": "low",
+    "price": 0.0293,
+    "touches": 2,
+    "held": 0,
+    "broke": 1,
+    "last_ms": 1788872400000.0,
+    "last_price": 0.0293,
+    "strength": 0.44
+   },
+   {
+    "side": "low",
+    "price": 0.0294,
+    "touches": 2,
+    "held": 0,
+    "broke": 1,
+    "last_ms": 1788836400000.0,
+    "last_price": 0.0294,
+    "strength": 0.423
+   },
+   {
+    "side": "high",
+    "price": 0.0304,
+    "touches": 2,
+    "held": 0,
+    "broke": 1,
+    "last_ms": 1788814800000.0,
+    "last_price": 0.0304,
+    "strength": 0.412
+   }
+  ]
+ },
+ "HBAR/USD": {
+  "updated": 1789333200000.0,
+  "levels": [
+   {
+    "side": "high",
+    "price": 0.07707,
+    "touches": 165,
+    "held": 32,
+    "broke": 0,
+    "last_ms": 1789135200000.0,
+    "last_price": 0.07708,
+    "strength": 144.254
+   },
+   {
+    "side": "high",
+    "price": 0.08095,
+    "touches": 177,
+    "held": 59,
+    "broke": 0,
+    "last_ms": 1788879600000.0,
+    "last_price": 0.08088,
+    "strength": 122.786
+   },
+   {
+    "side": "low",
+    "price": 0.07345,
+    "touches": 114,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1789124400000.0,
+    "last_price": 0.07331,
+    "strength": 89.738
+   },
+   {
+    "side": "low",
+    "price": 0.07387,
+    "touches": 94,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1789239600000.0,
+    "last_price": 0.07401,
+    "strength": 84.438
+   },
+   {
+    "side": "low",
+    "price": 0.073,
+    "touches": 208,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1788368400000.0,
+    "last_price": 0.0731,
+    "strength": 68.841
+   },
+   {
+    "side": "high",
+    "price": 0.08318,
+    "touches": 118,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1788814800000.0,
+    "last_price": 0.08308,
+    "strength": 65.141
+   },
+   {
+    "side": "low",
+    "price": 0.07414,
+    "touches": 47,
+    "held": 47,
+    "broke": 0,
+    "last_ms": 1789192800000.0,
+    "last_price": 0.07414,
+    "strength": 60.022
+   },
+   {
+    "side": "high",
+    "price": 0.07998,
+    "touches": 59,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1788944400000.0,
+    "last_price": 0.07998,
+    "strength": 37.786
+   },
+   {
+    "side": "high",
+    "price": 0.08293,
+    "touches": 59,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1788832800000.0,
+    "last_price": 0.08293,
+    "strength": 33.25
+   },
+   {
+    "side": "low",
+    "price": 0.07465,
+    "touches": 236,
+    "held": 47,
+    "broke": 12,
+    "last_ms": 1789286400000.0,
+    "last_price": 0.07461,
+    "strength": 22.135
+   },
+   {
+    "side": "low",
+    "price": 0.07277,
+    "touches": 59,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1788343200000.0,
+    "last_price": 0.07277,
+    "strength": 18.971
+   },
+   {
+    "side": "high",
+    "price": 0.07583,
+    "touches": 213,
+    "held": 0,
+    "broke": 54,
+    "last_ms": 1789282800000.0,
+    "last_price": 0.07579,
+    "strength": 18.094
+   },
+   {
+    "side": "high",
+    "price": 0.07637,
+    "touches": 68,
+    "held": 12,
+    "broke": 22,
+    "last_ms": 1789308000000.0,
+    "last_price": 0.07655,
+    "strength": 6.47
+   },
+   {
+    "side": "high",
+    "price": 0.07528,
+    "touches": 2,
+    "held": 0,
+    "broke": 1,
+    "last_ms": 1789228800000.0,
+    "last_price": 0.07506,
+    "strength": 0.532
+   },
+   {
+    "side": "high",
+    "price": 0.07459,
+    "touches": 2,
+    "held": 0,
+    "broke": 1,
+    "last_ms": 1789182000000.0,
+    "last_price": 0.07474,
+    "strength": 0.505
+   },
+   {
+    "side": "low",
+    "price": 0.0806,
+    "touches": 3,
+    "held": 0,
+    "broke": 1,
+    "last_ms": 1788793200000.0,
+    "last_price": 0.08056,
+    "strength": 0.485
+   }
+  ]
+ },
+ "TIA/USD": {
+  "updated": 1789322400000.0,
+  "levels": [
+   {
+    "side": "low",
+    "price": 0.3448,
+    "touches": 88,
+    "held": 28,
+    "broke": 0,
+    "last_ms": 1789268400000.0,
+    "last_price": 0.3456,
+    "strength": 95.879
+   },
+   {
+    "side": "high",
+    "price": 0.3626,
+    "touches": 56,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1789200000000.0,
+    "last_price": 0.3626,
+    "strength": 48.67
+   },
+   {
+    "side": "high",
+    "price": 0.3829,
+    "touches": 58,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1789138800000.0,
+    "last_price": 0.383,
+    "strength": 46.994
+   },
+   {
+    "side": "high",
+    "price": 0.4135,
+    "touches": 60,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1788937200000.0,
+    "last_price": 0.4133,
+    "strength": 38.585
+   },
+   {
+    "side": "high",
+    "price": 0.38,
+    "touches": 30,
+    "held": 30,
+    "broke": 0,
+    "last_ms": 1789063200000.0,
+    "last_price": 0.38,
+    "strength": 33.435
+   },
+   {
+    "side": "low",
+    "price": 0.3437,
+    "touches": 28,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1789286400000.0,
+    "last_price": 0.3437,
+    "strength": 26.868
+   },
+   {
+    "side": "high",
+    "price": 0.4343,
+    "touches": 30,
+    "held": 30,
+    "broke": 0,
+    "last_ms": 1788825600000.0,
+    "last_price": 0.4343,
+    "strength": 25.465
+   },
+   {
+    "side": "high",
+    "price": 0.4414,
+    "touches": 30,
+    "held": 30,
+    "broke": 0,
+    "last_ms": 1788786000000.0,
+    "last_price": 0.4414,
+    "strength": 24.335
+   },
+   {
+    "side": "high",
+    "price": 0.3857,
+    "touches": 30,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1789020000000.0,
+    "last_price": 0.3857,
+    "strength": 21.213
+   },
+   {
+    "side": "high",
+    "price": 0.4306,
+    "touches": 30,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1788858000000.0,
+    "last_price": 0.4306,
+    "strength": 17.619
+   },
+   {
+    "side": "low",
+    "price": 0.3237,
+    "touches": 60,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1788192000000.0,
+    "last_price": 0.3234,
+    "strength": 16.425
+   },
+   {
+    "side": "high",
+    "price": 0.48,
+    "touches": 30,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1788739200000.0,
+    "last_price": 0.48,
+    "strength": 15.376
+   },
+   {
+    "side": "low",
+    "price": 0.3459,
+    "touches": 30,
+    "held": 30,
+    "broke": 0,
+    "last_ms": 1788361200000.0,
+    "last_price": 0.3459,
+    "strength": 14.955
+   },
+   {
+    "side": "low",
+    "price": 0.334,
+    "touches": 30,
+    "held": 30,
+    "broke": 0,
+    "last_ms": 1788249600000.0,
+    "last_price": 0.334,
+    "strength": 13.16
+   },
+   {
+    "side": "low",
+    "price": 0.3389,
+    "touches": 32,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1788285600000.0,
+    "last_price": 0.3389,
+    "strength": 9.752
+   },
+   {
+    "side": "low",
+    "price": 0.3562,
+    "touches": 84,
+    "held": 0,
+    "broke": 28,
+    "last_ms": 1789189200000.0,
+    "last_price": 0.356,
+    "strength": 6.49
+   },
+   {
+    "side": "low",
+    "price": 0.3611,
+    "touches": 90,
+    "held": 2,
+    "broke": 28,
+    "last_ms": 1788620400000.0,
+    "last_price": 0.3621,
+    "strength": 3.663
+   }
+  ]
+ },
+ "INJ/USD": {
+  "updated": 1789333200000.0,
+  "levels": [
+   {
+    "side": "low",
+    "price": 4.743,
+    "touches": 153,
+    "held": 51,
+    "broke": 0,
+    "last_ms": 1788580800000.0,
+    "last_price": 4.734,
+    "strength": 75.36
+   },
+   {
+    "side": "low",
+    "price": 4.874,
+    "touches": 153,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1788616800000.0,
+    "last_price": 4.878,
+    "strength": 67.315
+   },
+   {
+    "side": "high",
+    "price": 6.149,
+    "touches": 187,
+    "held": 38,
+    "broke": 1,
+    "last_ms": 1789257600000.0,
+    "last_price": 6.164,
+    "strength": 56.671
+   },
+   {
+    "side": "high",
+    "price": 6.183,
+    "touches": 37,
+    "held": 36,
+    "broke": 0,
+    "last_ms": 1789236000000.0,
+    "last_price": 6.183,
+    "strength": 49.202
+   },
+   {
+    "side": "high",
+    "price": 6.378,
+    "touches": 51,
+    "held": 51,
+    "broke": 0,
+    "last_ms": 1788940800000.0,
+    "last_price": 6.378,
+    "strength": 48.792
+   },
+   {
+    "side": "high",
+    "price": 6.495,
+    "touches": 51,
+    "held": 51,
+    "broke": 0,
+    "last_ms": 1788894000000.0,
+    "last_price": 6.495,
+    "strength": 46.244
+   },
+   {
+    "side": "low",
+    "price": 5.69,
+    "touches": 49,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1789164000000.0,
+    "last_price": 5.69,
+    "strength": 40.363
+   },
+   {
+    "side": "low",
+    "price": 5.026,
+    "touches": 53,
+    "held": 51,
+    "broke": 0,
+    "last_ms": 1788678000000.0,
+    "last_price": 5.036,
+    "strength": 37.047
+   },
+   {
+    "side": "low",
+    "price": 4.903,
+    "touches": 51,
+    "held": 51,
+    "broke": 0,
+    "last_ms": 1788642000000.0,
+    "last_price": 4.903,
+    "strength": 34.644
+   },
+   {
+    "side": "low",
+    "price": 5.77,
+    "touches": 36,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1789286400000.0,
+    "last_price": 5.77,
+    "strength": 34.12
+   },
+   {
+    "side": "high",
+    "price": 6.251,
+    "touches": 51,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1788976800000.0,
+    "last_price": 6.251,
+    "strength": 33.898
+   },
+   {
+    "side": "low",
+    "price": 4.758,
+    "touches": 51,
+    "held": 51,
+    "broke": 0,
+    "last_ms": 1788562800000.0,
+    "last_price": 4.758,
+    "strength": 31.638
+   },
+   {
+    "side": "high",
+    "price": 6.548,
+    "touches": 51,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1788915600000.0,
+    "last_price": 6.548,
+    "strength": 31.602
+   },
+   {
+    "side": "high",
+    "price": 6.571,
+    "touches": 51,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1788879600000.0,
+    "last_price": 6.571,
+    "strength": 30.325
+   },
+   {
+    "side": "high",
+    "price": 6.713,
+    "touches": 51,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1788832800000.0,
+    "last_price": 6.713,
+    "strength": 28.741
+   },
+   {
+    "side": "low",
+    "price": 5.582,
+    "touches": 51,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1788796800000.0,
+    "last_price": 5.582,
+    "strength": 27.579
+   },
+   {
+    "side": "low",
+    "price": 5.003,
+    "touches": 53,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1788703200000.0,
+    "last_price": 4.99,
+    "strength": 25.746
+   },
+   {
+    "side": "high",
+    "price": 6.225,
+    "touches": 21,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1789322400000.0,
+    "last_price": 6.225,
+    "strength": 20.742
+   },
+   {
+    "side": "high",
+    "price": 6.044,
+    "touches": 202,
+    "held": 6,
+    "broke": 41,
+    "last_ms": 1789200000000.0,
+    "last_price": 6.044,
+    "strength": 15.838
+   },
+   {
+    "side": "low",
+    "price": 5.747,
+    "touches": 100,
+    "held": 2,
+    "broke": 49,
+    "last_ms": 1789128000000.0,
+    "last_price": 5.739,
+    "strength": 7.185
+   },
+   {
+    "side": "high",
+    "price": 5.192,
+    "touches": 106,
+    "held": 0,
+    "broke": 51,
+    "last_ms": 1788685200000.0,
+    "last_price": 5.187,
+    "strength": 4.54
+   },
+   {
+    "side": "low",
+    "price": 5.916,
+    "touches": 49,
+    "held": 0,
+    "broke": 36,
+    "last_ms": 1789218000000.0,
+    "last_price": 5.916,
+    "strength": 3.865
+   },
+   {
+    "side": "high",
+    "price": 6.086,
+    "touches": 51,
+    "held": 15,
+    "broke": 36,
+    "last_ms": 1789038000000.0,
+    "last_price": 6.086,
+    "strength": 3.754
+   }
+  ]
+ },
+ "BTC/USD": {
+  "updated": 1789221600000.0,
+  "levels": [
+   {
+    "side": "high",
+    "price": 79870.6,
+    "touches": 51,
+    "held": 5,
+    "broke": 0,
+    "last_ms": 1789135200000.0,
+    "last_price": 79832.3,
+    "strength": 48.456
+   },
+   {
+    "side": "high",
+    "price": 79371.5,
+    "touches": 35,
+    "held": 7,
+    "broke": 0,
+    "last_ms": 1788832800000.0,
+    "last_price": 79498.0,
+    "strength": 24.657
+   },
+   {
+    "side": "low",
+    "price": 76398.4,
+    "touches": 21,
+    "held": 7,
+    "broke": 0,
+    "last_ms": 1789081200000.0,
+    "last_price": 76466.0,
+    "strength": 20.859
+   },
+   {
+    "side": "low",
+    "price": 76689.3,
+    "touches": 16,
+    "held": 5,
+    "broke": 0,
+    "last_ms": 1789149600000.0,
+    "last_price": 76821.1,
+    "strength": 17.035
+   },
+   {
+    "side": "high",
+    "price": 81381.4,
+    "touches": 21,
+    "held": 7,
+    "broke": 0,
+    "last_ms": 1788519600000.0,
+    "last_price": 81400.0,
+    "strength": 10.959
+   },
+   {
+    "side": "low",
+    "price": 77000.0,
+    "touches": 10,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1789189200000.0,
+    "last_price": 77148.1,
+    "strength": 9.635
+   },
+   {
+    "side": "high",
+    "price": 80206.7,
+    "touches": 14,
+    "held": 7,
+    "broke": 0,
+    "last_ms": 1788663600000.0,
+    "last_price": 80130.7,
+    "strength": 9.232
+   },
+   {
+    "side": "high",
+    "price": 80541.2,
+    "touches": 7,
+    "held": 7,
+    "broke": 0,
+    "last_ms": 1788735600000.0,
+    "last_price": 80541.2,
+    "strength": 6.016
+   },
+   {
+    "side": "high",
+    "price": 77585.0,
+    "touches": 53,
+    "held": 1,
+    "broke": 5,
+    "last_ms": 1789174800000.0,
+    "last_price": 77371.7,
+    "strength": 4.564
+   },
+   {
+    "side": "high",
+    "price": 82288.1,
+    "touches": 7,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1788469200000.0,
+    "last_price": 82288.1,
+    "strength": 2.955
+   },
+   {
+    "side": "low",
+    "price": 77983.6,
+    "touches": 42,
+    "held": 0,
+    "broke": 7,
+    "last_ms": 1788991200000.0,
+    "last_price": 77754.9,
+    "strength": 2.903
+   },
+   {
+    "side": "low",
+    "price": 76000.0,
+    "touches": 3,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1789128000000.0,
+    "last_price": 76000.0,
+    "strength": 2.695
+   },
+   {
+    "side": "low",
+    "price": 78632.3,
+    "touches": 28,
+    "held": 0,
+    "broke": 7,
+    "last_ms": 1788951600000.0,
+    "last_price": 78718.5,
+    "strength": 1.849
+   },
+   {
+    "side": "low",
+    "price": 79462.0,
+    "touches": 35,
+    "held": 0,
+    "broke": 7,
+    "last_ms": 1788732000000.0,
+    "last_price": 79627.3,
+    "strength": 1.797
+   },
+   {
+    "side": "high",
+    "price": 78787.1,
+    "touches": 21,
+    "held": 0,
+    "broke": 7,
+    "last_ms": 1788883200000.0,
+    "last_price": 78958.3,
+    "strength": 1.282
+   },
+   {
+    "side": "low",
+    "price": 77379.7,
+    "touches": 19,
+    "held": 0,
+    "broke": 7,
+    "last_ms": 1788872400000.0,
+    "last_price": 77609.4,
+    "strength": 1.146
+   },
+   {
+    "side": "high",
+    "price": 77958.1,
+    "touches": 27,
+    "held": 0,
+    "broke": 7,
+    "last_ms": 1788418800000.0,
+    "last_price": 78099.1,
+    "strength": 0.968
+   },
+   {
+    "side": "high",
+    "price": 78316.0,
+    "touches": 4,
+    "held": 0,
+    "broke": 1,
+    "last_ms": 1788271200000.0,
+    "last_price": 78391.5,
+    "strength": 0.404
+   }
+  ]
+ },
+ "BNB/USD": {
+  "updated": 1789203600000.0,
+  "levels": [
+   {
+    "side": "high",
+    "price": 756.4,
+    "touches": 8,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1788944400000.0,
+    "last_price": 758.02,
+    "strength": 5.944
+   },
+   {
+    "side": "low",
+    "price": 703.77,
+    "touches": 5,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1789128000000.0,
+    "last_price": 705.62,
+    "strength": 4.585
+   },
+   {
+    "side": "low",
+    "price": 708.9,
+    "touches": 4,
+    "held": 2,
+    "broke": 0,
+    "last_ms": 1789081200000.0,
+    "last_price": 708.34,
+    "strength": 4.346
+   },
+   {
+    "side": "low",
+    "price": 719.13,
+    "touches": 2,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1789149600000.0,
+    "last_price": 720.73,
+    "strength": 1.88
+   },
+   {
+    "side": "low",
+    "price": 679.29,
+    "touches": 4,
+    "held": 2,
+    "broke": 0,
+    "last_ms": 1788343200000.0,
+    "last_price": 680.15,
+    "strength": 1.865
+   },
+   {
+    "side": "high",
+    "price": 742.07,
+    "touches": 2,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1789135200000.0,
+    "last_price": 741.01,
+    "strength": 1.849
+   },
+   {
+    "side": "high",
+    "price": 780.72,
+    "touches": 2,
+    "held": 2,
+    "broke": 0,
+    "last_ms": 1788627600000.0,
+    "last_price": 780.72,
+    "strength": 1.55
+   },
+   {
+    "side": "low",
+    "price": 731.35,
+    "touches": 1,
+    "held": 1,
+    "broke": 0,
+    "last_ms": 1789192800000.0,
+    "last_price": 731.35,
+    "strength": 1.482
+   },
+   {
+    "side": "high",
+    "price": 736.04,
+    "touches": 1,
+    "held": 1,
+    "broke": 0,
+    "last_ms": 1789182000000.0,
+    "last_price": 736.04,
+    "strength": 1.463
+   },
+   {
+    "side": "high",
+    "price": 760.79,
+    "touches": 2,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1788854400000.0,
+    "last_price": 760.79,
+    "strength": 1.34
+   }
+  ]
+ },
+ "STX/USD": {
+  "updated": 1789286400000.0,
+  "levels": [
+   {
+    "side": "high",
+    "price": 0.2813,
+    "touches": 12,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1788958800000.0,
+    "last_price": 0.282,
+    "strength": 8.244
+   },
+   {
+    "side": "low",
+    "price": 0.2491,
+    "touches": 8,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1789128000000.0,
+    "last_price": 0.2496,
+    "strength": 6.672
+   },
+   {
+    "side": "low",
+    "price": 0.2501,
+    "touches": 4,
+    "held": 4,
+    "broke": 0,
+    "last_ms": 1789084800000.0,
+    "last_price": 0.2501,
+    "strength": 4.762
+   },
+   {
+    "side": "low",
+    "price": 0.263,
+    "touches": 4,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1789239600000.0,
+    "last_price": 0.2637,
+    "strength": 3.791
+   },
+   {
+    "side": "high",
+    "price": 0.2802,
+    "touches": 4,
+    "held": 4,
+    "broke": 0,
+    "last_ms": 1788829200000.0,
+    "last_price": 0.2802,
+    "strength": 3.553
+   },
+   {
+    "side": "low",
+    "price": 0.245,
+    "touches": 8,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1788192000000.0,
+    "last_price": 0.2444,
+    "strength": 2.282
+   },
+   {
+    "side": "high",
+    "price": 0.2915,
+    "touches": 4,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1788786000000.0,
+    "last_price": 0.2915,
+    "strength": 2.254
+   },
+   {
+    "side": "low",
+    "price": 0.2478,
+    "touches": 4,
+    "held": 4,
+    "broke": 0,
+    "last_ms": 1788210000000.0,
+    "last_price": 0.2478,
+    "strength": 1.747
+   },
+   {
+    "side": "low",
+    "price": 0.2509,
+    "touches": 2,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1789164000000.0,
+    "last_price": 0.2509,
+    "strength": 1.738
+   },
+   {
+    "side": "high",
+    "price": 0.2732,
+    "touches": 18,
+    "held": 0,
+    "broke": 2,
+    "last_ms": 1789207200000.0,
+    "last_price": 0.2726,
+    "strength": 1.479
+   },
+   {
+    "side": "low",
+    "price": 0.2654,
+    "touches": 16,
+    "held": 0,
+    "broke": 4,
+    "last_ms": 1789005600000.0,
+    "last_price": 0.2655,
+    "strength": 1.044
+   },
+   {
+    "side": "high",
+    "price": 0.276,
+    "touches": 12,
+    "held": 0,
+    "broke": 4,
+    "last_ms": 1788886800000.0,
+    "last_price": 0.2759,
+    "strength": 0.683
+   },
+   {
+    "side": "high",
+    "price": 0.2688,
+    "touches": 8,
+    "held": 0,
+    "broke": 2,
+    "last_ms": 1789041600000.0,
+    "last_price": 0.268,
+    "strength": 0.544
+   }
+  ]
+ },
+ "ZEC/USD": {
+  "updated": 1789160400000.0,
+  "levels": [
+   {
+    "side": "high",
+    "price": 1220.0,
+    "touches": 237,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1789135200000.0,
+    "last_price": 1219.49,
+    "strength": 230.253
+   },
+   {
+    "side": "high",
+    "price": 1257.19,
+    "touches": 237,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1788998400000.0,
+    "last_price": 1256.75,
+    "strength": 196.841
+   },
+   {
+    "side": "high",
+    "price": 1239.0,
+    "touches": 158,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1789038000000.0,
+    "last_price": 1237.04,
+    "strength": 137.32
+   },
+   {
+    "side": "low",
+    "price": 805.72,
+    "touches": 237,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1788397200000.0,
+    "last_price": 804.54,
+    "strength": 98.827
+   },
+   {
+    "side": "low",
+    "price": 1085.62,
+    "touches": 79,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1789124400000.0,
+    "last_price": 1085.62,
+    "strength": 75.807
+   },
+   {
+    "side": "low",
+    "price": 1054.05,
+    "touches": 79,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1789095600000.0,
+    "last_price": 1054.05,
+    "strength": 73.346
+   },
+   {
+    "side": "high",
+    "price": 1251.89,
+    "touches": 79,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1789012800000.0,
+    "last_price": 1251.89,
+    "strength": 66.705
+   },
+   {
+    "side": "high",
+    "price": 1297.96,
+    "touches": 79,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1788966000000.0,
+    "last_price": 1297.96,
+    "strength": 63.222
+   },
+   {
+    "side": "low",
+    "price": 933.13,
+    "touches": 79,
+    "held": 79,
+    "broke": 0,
+    "last_ms": 1788472800000.0,
+    "last_price": 933.13,
+    "strength": 53.886
+   },
+   {
+    "side": "low",
+    "price": 1004.33,
+    "touches": 79,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1788638400000.0,
+    "last_price": 1004.33,
+    "strength": 43.432
+   },
+   {
+    "side": "low",
+    "price": 998.45,
+    "touches": 79,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1788595200000.0,
+    "last_price": 998.45,
+    "strength": 41.334
+   },
+   {
+    "side": "low",
+    "price": 959.34,
+    "touches": 79,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1788526800000.0,
+    "last_price": 959.34,
+    "strength": 38.218
+   },
+   {
+    "side": "low",
+    "price": 812.76,
+    "touches": 79,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1788411600000.0,
+    "last_price": 812.76,
+    "strength": 33.491
+   },
+   {
+    "side": "low",
+    "price": 1115.13,
+    "touches": 2,
+    "held": 0,
+    "broke": 1,
+    "last_ms": 1789056000000.0,
+    "last_price": 1112.59,
+    "strength": 0.532
+   },
+   {
+    "side": "low",
+    "price": 1205.57,
+    "touches": 2,
+    "held": 0,
+    "broke": 1,
+    "last_ms": 1789023600000.0,
+    "last_price": 1209.19,
+    "strength": 0.513
+   },
+   {
+    "side": "low",
+    "price": 1140.56,
+    "touches": 2,
+    "held": 0,
+    "broke": 1,
+    "last_ms": 1788897600000.0,
+    "last_price": 1143.94,
+    "strength": 0.444
+   },
+   {
+    "side": "high",
+    "price": 1211.65,
+    "touches": 2,
+    "held": 0,
+    "broke": 1,
+    "last_ms": 1788883200000.0,
+    "last_price": 1214.84,
+    "strength": 0.437
+   },
+   {
+    "side": "high",
+    "price": 1171.0,
+    "touches": 2,
+    "held": 0,
+    "broke": 1,
+    "last_ms": 1788861600000.0,
+    "last_price": 1174.51,
+    "strength": 0.426
+   }
+  ]
+ },
+ "TRX/USD": {
+  "updated": 1789326000000.0,
+  "levels": [
+   {
+    "side": "low",
+    "price": 0.335341,
+    "touches": 20,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1789142400000.0,
+    "last_price": 0.335403,
+    "strength": 16.205
+   },
+   {
+    "side": "low",
+    "price": 0.333766,
+    "touches": 16,
+    "held": 4,
+    "broke": 0,
+    "last_ms": 1788825600000.0,
+    "last_price": 0.333916,
+    "strength": 10.144
+   },
+   {
+    "side": "low",
+    "price": 0.331641,
+    "touches": 16,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1788598800000.0,
+    "last_price": 0.331731,
+    "strength": 6.953
+   },
+   {
+    "side": "low",
+    "price": 0.321802,
+    "touches": 12,
+    "held": 4,
+    "broke": 0,
+    "last_ms": 1788339600000.0,
+    "last_price": 0.322101,
+    "strength": 4.52
+   },
+   {
+    "side": "low",
+    "price": 0.327689,
+    "touches": 8,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1788523200000.0,
+    "last_price": 0.327615,
+    "strength": 3.188
+   },
+   {
+    "side": "high",
+    "price": 0.341233,
+    "touches": 28,
+    "held": 2,
+    "broke": 2,
+    "last_ms": 1789261200000.0,
+    "last_price": 0.340692,
+    "strength": 2.423
+   },
+   {
+    "side": "low",
+    "price": 0.323475,
+    "touches": 4,
+    "held": 4,
+    "broke": 0,
+    "last_ms": 1788368400000.0,
+    "last_price": 0.323475,
+    "strength": 2.002
+   },
+   {
+    "side": "high",
+    "price": 0.338852,
+    "touches": 26,
+    "held": 0,
+    "broke": 4,
+    "last_ms": 1789156800000.0,
+    "last_price": 0.339005,
+    "strength": 1.928
+   },
+   {
+    "side": "low",
+    "price": 0.337889,
+    "touches": 24,
+    "held": 0,
+    "broke": 2,
+    "last_ms": 1789196400000.0,
+    "last_price": 0.338656,
+    "strength": 1.862
+   },
+   {
+    "side": "high",
+    "price": 0.344206,
+    "touches": 2,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1789192800000.0,
+    "last_price": 0.344206,
+    "strength": 1.717
+   },
+   {
+    "side": "low",
+    "price": 0.339682,
+    "touches": 18,
+    "held": 2,
+    "broke": 2,
+    "last_ms": 1789272000000.0,
+    "last_price": 0.339237,
+    "strength": 1.607
+   },
+   {
+    "side": "high",
+    "price": 0.33411,
+    "touches": 20,
+    "held": 0,
+    "broke": 4,
+    "last_ms": 1788818400000.0,
+    "last_price": 0.334882,
+    "strength": 1.006
+   },
+   {
+    "side": "high",
+    "price": 0.337321,
+    "touches": 12,
+    "held": 0,
+    "broke": 4,
+    "last_ms": 1789135200000.0,
+    "last_price": 0.337829,
+    "strength": 0.868
+   }
+  ]
+ },
+ "ARB/USD": {
+  "updated": 1789214400000.0,
+  "levels": [
+   {
+    "side": "low",
+    "price": 0.1378,
+    "touches": 26,
+    "held": 13,
+    "broke": 0,
+    "last_ms": 1789164000000.0,
+    "last_price": 0.1374,
+    "strength": 30.676
+   },
+   {
+    "side": "high",
+    "price": 0.1531,
+    "touches": 26,
+    "held": 13,
+    "broke": 0,
+    "last_ms": 1789048800000.0,
+    "last_price": 0.1535,
+    "strength": 26.882
+   },
+   {
+    "side": "high",
+    "price": 0.1466,
+    "touches": 26,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1789196400000.0,
+    "last_price": 0.1462,
+    "strength": 25.469
+   },
+   {
+    "side": "high",
+    "price": 0.1769,
+    "touches": 13,
+    "held": 13,
+    "broke": 0,
+    "last_ms": 1788843600000.0,
+    "last_price": 0.1769,
+    "strength": 12.749
+   },
+   {
+    "side": "low",
+    "price": 0.1294,
+    "touches": 26,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1788588000000.0,
+    "last_price": 0.1291,
+    "strength": 12.682
+   },
+   {
+    "side": "high",
+    "price": 0.1518,
+    "touches": 13,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1789135200000.0,
+    "last_price": 0.1518,
+    "strength": 11.872
+   },
+   {
+    "side": "high",
+    "price": 0.2041,
+    "touches": 13,
+    "held": 13,
+    "broke": 0,
+    "last_ms": 1788667200000.0,
+    "last_price": 0.2041,
+    "strength": 10.415
+   },
+   {
+    "side": "high",
+    "price": 0.154,
+    "touches": 13,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1788994800000.0,
+    "last_price": 0.154,
+    "strength": 10.107
+   },
+   {
+    "side": "high",
+    "price": 0.1685,
+    "touches": 13,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1788958800000.0,
+    "last_price": 0.1685,
+    "strength": 9.699
+   },
+   {
+    "side": "high",
+    "price": 0.1745,
+    "touches": 13,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1788933600000.0,
+    "last_price": 0.1745,
+    "strength": 9.423
+   },
+   {
+    "side": "high",
+    "price": 0.1786,
+    "touches": 13,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1788861600000.0,
+    "last_price": 0.1786,
+    "strength": 8.676
+   },
+   {
+    "side": "high",
+    "price": 0.1918,
+    "touches": 13,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1788742800000.0,
+    "last_price": 0.1918,
+    "strength": 7.572
+   },
+   {
+    "side": "high",
+    "price": 0.2064,
+    "touches": 13,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1788681600000.0,
+    "last_price": 0.2064,
+    "strength": 7.059
+   },
+   {
+    "side": "low",
+    "price": 0.132,
+    "touches": 13,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1788620400000.0,
+    "last_price": 0.132,
+    "strength": 6.581
+   },
+   {
+    "side": "low",
+    "price": 0.105,
+    "touches": 13,
+    "held": 13,
+    "broke": 0,
+    "last_ms": 1788249600000.0,
+    "last_price": 0.105,
+    "strength": 6.454
+   },
+   {
+    "side": "low",
+    "price": 0.1281,
+    "touches": 13,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1788523200000.0,
+    "last_price": 0.1281,
+    "strength": 5.887
+   },
+   {
+    "side": "low",
+    "price": 0.1456,
+    "touches": 2,
+    "held": 0,
+    "broke": 1,
+    "last_ms": 1789041600000.0,
+    "last_price": 0.1456,
+    "strength": 0.492
+   }
+  ]
+ },
+ "ALGO/USD": {
+  "updated": 1789336800000.0,
+  "levels": [
+   {
+    "side": "low",
+    "price": 0.0914,
+    "touches": 32,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1789268400000.0,
+    "last_price": 0.09161,
+    "strength": 29.587
+   },
+   {
+    "side": "low",
+    "price": 0.09233,
+    "touches": 30,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1789304400000.0,
+    "last_price": 0.09245,
+    "strength": 28.906
+   },
+   {
+    "side": "high",
+    "price": 0.10189,
+    "touches": 33,
+    "held": 11,
+    "broke": 0,
+    "last_ms": 1788980400000.0,
+    "last_price": 0.10209,
+    "strength": 25.59
+   },
+   {
+    "side": "low",
+    "price": 0.08794,
+    "touches": 22,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1789128000000.0,
+    "last_price": 0.088,
+    "strength": 17.318
+   },
+   {
+    "side": "low",
+    "price": 0.09175,
+    "touches": 16,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1789286400000.0,
+    "last_price": 0.09184,
+    "strength": 15.102
+   },
+   {
+    "side": "high",
+    "price": 0.09523,
+    "touches": 52,
+    "held": 6,
+    "broke": 1,
+    "last_ms": 1789225200000.0,
+    "last_price": 0.09495,
+    "strength": 14.519
+   },
+   {
+    "side": "low",
+    "price": 0.09099,
+    "touches": 11,
+    "held": 11,
+    "broke": 0,
+    "last_ms": 1789149600000.0,
+    "last_price": 0.09099,
+    "strength": 13.314
+   },
+   {
+    "side": "high",
+    "price": 0.10103,
+    "touches": 11,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1789009200000.0,
+    "last_price": 0.10103,
+    "strength": 7.557
+   },
+   {
+    "side": "high",
+    "price": 0.10253,
+    "touches": 11,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1788912000000.0,
+    "last_price": 0.10253,
+    "strength": 6.76
+   },
+   {
+    "side": "high",
+    "price": 0.10339,
+    "touches": 11,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1788879600000.0,
+    "last_price": 0.10339,
+    "strength": 6.514
+   },
+   {
+    "side": "low",
+    "price": 0.087,
+    "touches": 15,
+    "held": 11,
+    "broke": 0,
+    "last_ms": 1788310800000.0,
+    "last_price": 0.08686,
+    "strength": 6.325
+   },
+   {
+    "side": "low",
+    "price": 0.08531,
+    "touches": 11,
+    "held": 11,
+    "broke": 0,
+    "last_ms": 1788210000000.0,
+    "last_price": 0.08531,
+    "strength": 4.536
+   },
+   {
+    "side": "low",
+    "price": 0.0875,
+    "touches": 11,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1788523200000.0,
+    "last_price": 0.0875,
+    "strength": 4.329
+   },
+   {
+    "side": "low",
+    "price": 0.08369,
+    "touches": 10,
+    "held": 11,
+    "broke": 0,
+    "last_ms": 1788130800000.0,
+    "last_price": 0.08369,
+    "strength": 3.891
+   },
+   {
+    "side": "low",
+    "price": 0.0867,
+    "touches": 10,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1788310800000.0,
+    "last_price": 0.08686,
+    "strength": 3.085
+   },
+   {
+    "side": "high",
+    "price": 0.09296,
+    "touches": 44,
+    "held": 0,
+    "broke": 11,
+    "last_ms": 1789102800000.0,
+    "last_price": 0.09278,
+    "strength": 3.028
+   },
+   {
+    "side": "low",
+    "price": 0.09288,
+    "touches": 32,
+    "held": 3,
+    "broke": 8,
+    "last_ms": 1789218000000.0,
+    "last_price": 0.09262,
+    "strength": 2.631
+   },
+   {
+    "side": "high",
+    "price": 0.09425,
+    "touches": 33,
+    "held": 0,
+    "broke": 11,
+    "last_ms": 1789138800000.0,
+    "last_price": 0.09452,
+    "strength": 2.367
+   },
+   {
+    "side": "high",
+    "price": 0.0937,
+    "touches": 24,
+    "held": 0,
+    "broke": 8,
+    "last_ms": 1789282800000.0,
+    "last_price": 0.09356,
+    "strength": 2.03
+   },
+   {
+    "side": "low",
+    "price": 0.09381,
+    "touches": 4,
+    "held": 0,
+    "broke": 1,
+    "last_ms": 1788703200000.0,
+    "last_price": 0.09354,
+    "strength": 0.581
+   },
+   {
+    "side": "low",
+    "price": 0.08989,
+    "touches": 2,
+    "held": 0,
+    "broke": 1,
+    "last_ms": 1789095600000.0,
+    "last_price": 0.08997,
+    "strength": 0.455
+   },
+   {
+    "side": "low",
+    "price": 0.09679,
+    "touches": 2,
+    "held": 0,
+    "broke": 1,
+    "last_ms": 1789002000000.0,
+    "last_price": 0.09687,
+    "strength": 0.409
+   }
+  ]
+ },
+ "TAO/USD": {
+  "updated": 1789333200000.0,
+  "levels": [
+   {
+    "side": "high",
+    "price": 236.8703,
+    "touches": 3,
+    "held": 1,
+    "broke": 0,
+    "last_ms": 1789228800000.0,
+    "last_price": 236.2833,
+    "strength": 3.105
+   },
+   {
+    "side": "low",
+    "price": 232.36,
+    "touches": 3,
+    "held": 1,
+    "broke": 0,
+    "last_ms": 1789192800000.0,
+    "last_price": 232.8622,
+    "strength": 2.98
+   },
+   {
+    "side": "high",
+    "price": 239.4699,
+    "touches": 3,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1789279200000.0,
+    "last_price": 239.2,
+    "strength": 2.82
+   },
+   {
+    "side": "low",
+    "price": 231.0,
+    "touches": 2,
+    "held": 1,
+    "broke": 0,
+    "last_ms": 1789293600000.0,
+    "last_price": 230.6134,
+    "strength": 2.389
+   },
+   {
+    "side": "high",
+    "price": 257.3064,
+    "touches": 2,
+    "held": 1,
+    "broke": 0,
+    "last_ms": 1789012800000.0,
+    "last_price": 257.8558,
+    "strength": 1.732
+   },
+   {
+    "side": "high",
+    "price": 269.2529,
+    "touches": 2,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1788958800000.0,
+    "last_price": 269.9999,
+    "strength": 1.302
+   },
+   {
+    "side": "low",
+    "price": 220.4621,
+    "touches": 3,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1788530400000.0,
+    "last_price": 220.17,
+    "strength": 1.195
+   },
+   {
+    "side": "high",
+    "price": 272.1822,
+    "touches": 2,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1788771600000.0,
+    "last_price": 271.9677,
+    "strength": 1.051
+   },
+   {
+    "side": "low",
+    "price": 215.6114,
+    "touches": 3,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1788397200000.0,
+    "last_price": 214.9942,
+    "strength": 1.026
+   },
+   {
+    "side": "high",
+    "price": 247.297,
+    "touches": 1,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1789135200000.0,
+    "last_price": 247.297,
+    "strength": 0.797
+   },
+   {
+    "side": "low",
+    "price": 228.4964,
+    "touches": 1,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1789128000000.0,
+    "last_price": 228.4964,
+    "strength": 0.79
+   },
+   {
+    "side": "low",
+    "price": 234.0183,
+    "touches": 3,
+    "held": 0,
+    "broke": 1,
+    "last_ms": 1789218000000.0,
+    "last_price": 234.1318,
+    "strength": 0.789
+   },
+   {
+    "side": "high",
+    "price": 230.9887,
+    "touches": 5,
+    "held": 0,
+    "broke": 1,
+    "last_ms": 1788566400000.0,
+    "last_price": 230.5521,
+    "strength": 0.623
+   },
+   {
+    "side": "high",
+    "price": 276.9686,
+    "touches": 1,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1788746400000.0,
+    "last_price": 276.9686,
+    "strength": 0.51
+   },
+   {
+    "side": "low",
+    "price": 214.8714,
+    "touches": 1,
+    "held": 1,
+    "broke": 0,
+    "last_ms": 1788343200000.0,
+    "last_price": 214.8714,
+    "strength": 0.482
+   },
+   {
+    "side": "low",
+    "price": 222.2621,
+    "touches": 1,
+    "held": 0,
+    "broke": 0,
+    "last_ms": 1788562800000.0,
+    "last_price": 222.2621,
+    "strength": 0.414
+   },
+   {
+    "side": "low",
+    "price": 250.5328,
+    "touches": 2,
+    "held": 0,
+    "broke": 1,
+    "last_ms": 1789005600000.0,
+    "last_price": 250.4783,
+    "strength": 0.412
+   }
+  ]
+ }
+}
