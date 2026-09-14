@@ -41,23 +41,30 @@ check("the log helper + file constant exist",
       "def _log_suppression" in bs_src and "popup_suppressions.jsonl" in bs_src)
 # (Sep 5, ADVISORY BRAIN: "brain-floor" retired with the blocking floor —
 # its verdicts split into deep-direction (the scan contradicts) and
-# popup-cap (the flood cap); the other hooks stand.)
+# popup-cap (the flood cap). Sep 10: "rotation-lock" retired with the
+# per-rotation cap — the hook text survives in the kept-dead branch; the
+# other hooks stand.)
 for gate in ("fail-closed", "stale-move", "tide-out",
              "deep-veto", "downward-trend", "too-thin", "worth-floor",
-             "rotation-lock", "blowoff-yesterday", "blacklisted",
-             "deep-direction", "popup-cap"):
+             "blowoff-yesterday", "blacklisted",
+             "deep-direction"):
     check(f"hook: {gate} logs its verdict",
           f'"{gate}"' in bs_src)
-check("hook: the brain-floor gate is retired (no number blocks)",
-      '"brain-floor"' not in bs_src)
+check("hook: the brain's number no longer blocks (it sizes — Sep 5; the name lives on as the journal-relief gate)",
+      "the NUMBER no longer does" in bs_src
+      and 'gate_relief("brain-floor")' in bs_src)
+check("hook: the popup-cap gate is retired (Sep 9: no money cap at any contest size — the functions are kept, never called)",
+      '"popup-cap"' not in bs_src and "def _popup_cap()" in bs_src)
+check("hook: the rotation-lock gate is retired (Sep 10: re-fires are free — the hook text survives only in the kept-dead branch)",
+      bs_src.count('"rotation-lock"') == 1)
 check("hook: the death-line gate logs (the daily-lock gate retired with the lock, Sep 5)",
       '"death-line"' in bs_src
       and '"daily-lock" if _which_fl == "daily-lock" else "death-line"' not in bs_src)
 check("hook: the bridge-stage deep vetoes log (pre-desktop deaths too)",
       "bridge stage: deep-reads" in bs_src
       and "bridge stage: EMA9<EMA21" in bs_src)
-check("hook: the mover's pre-desktop deaths log (lockout + deep veto)",
-      'f"mover: {_m_lock}"' in bs_src and "mover: deep-reads" in bs_src)
+check("hook: the mover's pre-desktop deep veto logs (the lockout hook retired Sep 10)",
+      'f"mover: {_m_lock}"' not in bs_src and "mover: deep-reads" in bs_src)
 check("the log carries the numbers (quick, brain, floor, tide, rot)",
       "quick=float(signal.confidence)" in bs_src
       and "floor=float(DESKTOP_ALERT_MIN)" in bs_src)
@@ -93,7 +100,9 @@ check("the popup title marks the carve",
 check("the voice names the out tide",
       "against an out tide" in bs_src)
 check("the tide line carries the OUT carve-out context",
-      "LONE WOLF carve-out: " in bs_src)
+      "LONE WOLF (OUT TIDE) carve-out: " in bs_src)
+check("the tide line carries the learned-bar context too (Sep 10)",
+      "the learned bar was paid" in bs_src)
 
 # ── 3. the mover path: same carve, bot ledger untouched ──────────────
 check("the mover OUT gate carves real runners only (own 24h >= the tier)",
@@ -106,9 +115,26 @@ check("the mover popup title marks the carve",
       "— LONE WOLF (OUT TIDE)" in bs_src.split("MOVER BUY")[1][:400]
       if "MOVER BUY" in bs_src else False)
 
-# ── 4. the bot ledger is untouched (two ledgers) ─────────────────────
-check("the champion bridge write still hard-blocks OUT",
+# ── 4. the bot ledger: the OUT tide is PRICED, not blind (Sep 10) ─────
+BOT_READER = Path(r"C:\Users\birds\Workspace\kraken_xrp_trading_bot\scout_signal_reader.py")
+bot_src = BOT_READER.read_text(encoding="utf-8")
+check("the champion bridge write still hard-blocks OUT (mover + cold learner)",
       "TIDE OUT (fleet %.0f%%) — no bridge write" in bs_src)
+check("THE BOT'S OUT GATE honors the learned bar on its own ledger (Sep 10 rebalance)",
+      "_bot_out_priced_pass" in bs_src
+      and 'tide_personal_bar(pair, "OUT", _bot_lbar)' in bs_src
+      and "OUT-TIDE BOT PASS" in bs_src)
+check("the bot's priced pass rides the stamp as a marker (bare OUT still rejects)",
+      'f"OUT|BAR PASSED {_bot_out_pbar:.0f}"' in bs_src)
+check("the bot's priced pass is fail-closed (a cold learner keeps the wall)",
+      "the learner is cold — the wall stands" in bs_src)
+check("the wolf carve is contest-only on the bot ledger (unchanged)",
+      "carve-out is contest-only" in bs_src)
+check("the reader honors the priced marker and still rejects a bare OUT",
+      'startswith("OUT|BAR PASSED ")' in bot_src
+      and 'if _sig_tide == "OUT" and _sig_tide_bar is None:' in bot_src)
+check("the reader degrades a malformed marker to a reject (fail-closed)",
+      "_sig_tide_bar = None" in bot_src)
 BOT_READER = Path(r"C:\Users\birds\Workspace\kraken_xrp_trading_bot\scout_signal_reader.py")
 bot_src = BOT_READER.read_text(encoding="utf-8")
 check("the reader's stamp check still rejects OUT (belt-and-braces)",
@@ -122,7 +148,7 @@ check("the QC's TIDE OUT toast only fires without the carve",
 check("the QC's green text names TIDE OUT only without the carve",
       'tide_state == "OUT" and not lw_pts' in app_src)
 check("the QC's OUT LED turns amber on the carve (red otherwise)",
-      '"a" if (tide_state == "OUT" and lw_pts)' in app_src)
+      '"a" if (tide_state == "OUT" and (lw_pts or tide_learned_pass))' in app_src)
 check("the QC toast explains the exception",
       "lone-wolf exception — this one isn't" in app_src)
 

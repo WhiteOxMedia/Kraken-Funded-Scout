@@ -96,8 +96,9 @@ try:
           "catchup" not in _f
           and abs(_f["effective"] - max(0.10, min(0.40, 0.25 * _f["pace"] * _f["tide"] * _f.get("actual", 1.0)))) < 1e-9,
           _f)
-    check("the ACTUAL factor exists and is clamped [0.85, 1.15] (Sep 7)",
-          "actual" in _f and 0.85 <= _f["actual"] <= 1.15, _f.get("actual"))
+    check("the ACTUAL lever is RETIRED from the gate (Sep 9): 'actual' now carries the BUFFER factor",
+          "actual" in _f and abs(_f["actual"] - _f["buffer"]) < 1e-9
+          and 0.40 <= _f["actual"] <= 1.60, _f.get("actual"))
     check("the day's ledger does NOT bend the dial (a big day and a down day read the same)",
           _f["effective"] == bs.worth_floor_auto_factors()["effective"])
     check("_worth_catchup_factor is retired (kept, not called by the dial)",
@@ -144,15 +145,10 @@ check("the live base is a valid dial value",
 # ── 6. the wiring ─────────────────────────────────────────────────────
 check("both popup gates read the (now auto) dial live",
       src.count("_worth_floor_frac()") >= 3)   # champion + mover + the def's caller
-check("the console toggle exists and defaults ON",
-      '"worth_floor_auto_toggle"' in ap and "value=_wf_auto" in ap)
-check("the console shows the SAME math the scanner gates on (NO catch-up in the display)",
-      "worth_floor_auto_factors()" in ap and "THIS ROTATION:" in ap
-      and "catch-up" not in ap[ap.find("THIS ROTATION:"):ap.find("THIS ROTATION:") + 400])
-check("the console saves the toggle",
-      '"worth_floor_auto"' in ap and "_save_console_state(_cs)" in ap)
-check("0% OFF is honored in the console copy too",
-      "floor OFF" in ap)
+check("the dial is INTERNAL (user rule, Sep 10): no toggle, no slider, "
+      "no live-math caption on the console",
+      '"worth_floor_auto_toggle"' not in ap and '"worth_floor_dial"' not in ap
+      and "THIS ROTATION:" not in ap and "INTERNAL ONLY" in ap)
 check("the calibration diag exists",
       Path("diag_worthdial.py").exists() and Path("_worthdial_check.txt").exists())
 
@@ -162,11 +158,12 @@ check("the actual constants exist (swing 0.10, halflife $120, clamp [0.85, 1.15]
       bs.WORTH_ACTUAL_SWING == 0.10 and bs.WORTH_ACTUAL_HALFLIFE_USD == 120.0
       and bs.WORTH_ACTUAL_MIN == 0.85 and bs.WORTH_ACTUAL_MAX == 1.15)
 _f7 = bs.worth_floor_auto_factors()
-check("the factors dict carries the actual lever",
-      "actual" in _f7 and 0.85 <= _f7["actual"] <= 1.15, _f7.get("actual"))
-check("the effective dial folds the actual lever in",
+check("the factors dict carries the buffer lever (the 'actual' key, one source of truth)",
+      "actual" in _f7 and "buffer" in _f7 and abs(_f7["actual"] - _f7["buffer"]) < 1e-9,
+      (_f7.get("actual"), _f7.get("buffer")))
+check("the effective dial folds the buffer lever in",
       abs(_f7["effective"]
-          - max(0.10, min(0.40, _f7["base"] * _f7["pace"] * _f7["tide"] * _f7["actual"])))
+          - max(0.10, min(0.40, _f7["base"] * _f7["pace"] * _f7["tide"] * _f7["buffer"])))
       < 1e-9 or _f7["effective"] == 0.0, _f7)
 check("realized_pnl_today exists in the ledger module (the ACTUAL source)",
       hasattr(ca, "realized_pnl_today"))
@@ -179,12 +176,13 @@ check("the ledger reads NET pnl from closed buys, day-scoped",
       and "substr(closed_at, 1, 10)" in _src_a)
 _src_w = Path("background_scanner.py").read_text(encoding="utf-8")
 _wf_fn = _src_w.split("def worth_floor_auto_factors")[1].split("def _worth_floor_frac")[0]
-check("the dial folds actual into the product (never a quota — a tilt)",
-      "_actual" in _wf_fn and "WORTH_ACTUAL_MIN" in _src_w
-      and "WORTH_ACTUAL_MAX" in _src_w
-      and "catchup" not in _wf_fn)
-check("the console shows the actual lever",
-      "actual" in ap[ap.find("THIS ROTATION:"):ap.find("THIS ROTATION:") + 200])
+check("the dial folds the BUFFER into the product (the bar, never a quota)",
+      "_buffer" in _wf_fn and "WORTH_BUFFER_MIN_MULT" in _src_w
+      and "WORTH_BUFFER_MAX_MULT" in _src_w
+      and "catchup" not in _wf_fn
+      and "WORTH_ACTUAL_MIN" not in _wf_fn)
+check("the floor's math stays internal to the scanner (the console copy never shows it)",
+      "worth_floor_auto_factors()" not in ap)
 
 # ── 8. BEHAVIORAL (CodeRabbit, Sep 8: grade what the code DOES, not
 #    just the tokens it contains) — the zero-fallback + the live math ───
@@ -203,20 +201,20 @@ try:
 finally:
     CS.write_text(_cs_bak2, encoding="utf-8")
 
-# the ACTUAL factor computes from the ledger (realized vs pace, the formula)
-_pace = ca.daily_pace_usd()
-_real = ca.realized_pnl_today()
-if _pace <= 0:
-    _exp_act = 1.0
+# the BUFFER factor computes from the ledger (the realized PnL above the death line)
+_acct_b = ca.load_state()
+_start_b = float(_acct_b.get("start_balance") or 0.0)
+if _start_b <= 0:
+    _exp_buf = 1.0
 else:
-    _exp_act = max(bs.WORTH_ACTUAL_MIN,
-                   min(bs.WORTH_ACTUAL_MAX,
-                       1.0 + bs.WORTH_ACTUAL_SWING * ((_pace - _real) / bs.WORTH_ACTUAL_HALFLIFE_USD)))
-check("the ACTUAL factor matches the formula on the live ledger (realized vs pace)",
-      abs(bs._worth_actual_factor() - _exp_act) < 1e-9,
-      (bs._worth_actual_factor(), _exp_act, _real))
-check("the ACTUAL factor is clamped [0.85, 1.15] on the live day",
-      0.85 <= bs._worth_actual_factor() <= 1.15)
+    _pos_b = max(0.0, min(1.0, float(ca.buffer(_acct_b)) / (_start_b * 0.03)))
+    _exp_buf = bs.WORTH_BUFFER_MAX_MULT - _pos_b * (bs.WORTH_BUFFER_MAX_MULT
+                                                    - bs.WORTH_BUFFER_MIN_MULT)
+check("the BUFFER factor matches the formula on the live ledger (buffer vs 3% of start)",
+      abs(bs._worth_buffer_factor() - _exp_buf) < 1e-9,
+      (bs._worth_buffer_factor(), _exp_buf, ca.buffer(_acct_b)))
+check("the BUFFER factor is clamped [0.40, 1.60] on the live day",
+      0.40 <= bs._worth_buffer_factor() <= 1.60)
 
 lines.append(f"\nRESULT: {PASS} passed, {FAIL} failed")
 Path("_worthdial_test.txt").write_text("\n".join(lines), encoding="utf-8")

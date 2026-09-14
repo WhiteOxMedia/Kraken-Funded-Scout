@@ -12,6 +12,7 @@
 import json
 import shutil
 import sys
+import tempfile
 import time
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -20,13 +21,20 @@ sys.path.insert(0, str(Path(__file__).parent))
 
 import diag_surething as dg
 
-# the tilt evidence file is REAL RUNTIME STATE -- back it up before the
-# suite's summarize() calls write test evidence into the repo root, and
-# restore at the end (nothing the suite writes may survive)
-_TILT_FILE = Path("surething_goal_tilt.json")
-_TILT_BAK = _TILT_FILE.read_text(encoding="utf-8") if _TILT_FILE.exists() else None
-if _TILT_BAK is not None:
-    _TILT_FILE.unlink()
+# the tilt evidence file is REAL RUNTIME STATE -- the scanner reads it on
+# the live fire path, so the suite redirects EVERY reference (dg._TILT_PATH,
+# dg._TILT_LOCK, bs.ST_GOAL_TILT_FILE) into a sandbox and never touches the
+# production file at all. (The old backup/unlink/restore-at-end pattern had
+# a kill window: a battery dying mid-suite left the suite's synthetic
+# OVER-AIM evidence in the production file, and the next run backed up that
+# residue as its baseline -- self-perpetuating. Redirect-leak-class-proof.)
+_TILT_SANDBOX = Path(tempfile.mkdtemp(prefix="_sbx_surethingdiag_"))
+_TILT_FILE = _TILT_SANDBOX / "surething_goal_tilt.json"
+dg._TILT_PATH = _TILT_FILE
+dg._TILT_LOCK = _TILT_SANDBOX / "surething_goal_tilt.json.lock"
+import background_scanner as _bs0
+_bs0.ST_GOAL_TILT_FILE = str(_TILT_FILE)
+_real_tilt_path = _bs0.ST_GOAL_TILT_FILE
 
 PASS, FAIL = 0, 0
 lines = []
@@ -140,14 +148,19 @@ check("no-data: an expired fire without candles says so honestly",
       g6["verdict"] == "no-data", g6)
 
 # the crack fire's promise is the full window, not est_min
-# (spike at i=10 -> paid ~50 min, inside the 60-min promise)
-g7 = dg.grade_fire(snap(trig="crack", est=40, win=60.0),
-                   [candle(T0, 10, 0.025, 0.020)], now_s=T0 + 3600)
-check("crack: the promise is the 60-min window (it said NOW)",
-      g7["verdict"] == "paid-in-window" and g7["promise_min"] == 60.0, g7)
-g7b = dg.grade_fire(snap(trig="crack", est=40, win=60.0),
+# (spike at i=10 -> paid ~50 min, inside the 240-min 4h promise --
+# the Sep 11 re-contract; the window travels per-snapshot)
+g7 = dg.grade_fire(snap(trig="crack", est=40, win=240.0),
+                   [candle(T0, 10, 0.025, 0.020)], now_s=T0 + 247 * 60)
+check("crack: the promise is the full window (it said NOW)",
+      g7["verdict"] == "paid-in-window" and g7["promise_min"] == 240.0, g7)
+g7c = dg.grade_fire(snap(trig="crack", est=40, win=240.0),
+                    [candle(T0, 10, 0.025, 0.020)], now_s=T0 + 3600)
+check("crack: a mid-window fire is still open (the promise runs)",
+      g7c["verdict"] == "open", g7c)
+g7b = dg.grade_fire(snap(trig="crack", est=40, win=240.0),
                     [candle(T0, 45, 0.025, 0.020)], now_s=T0 + 3000)
-check("crack: inside the 60-min window it is still open",
+check("crack: inside the window it is still open",
       g7b["verdict"] == "open", g7b)
 
 # the FLAT half-size flows into the P&L (the tide must be money, not words)
@@ -453,12 +466,14 @@ try:
               abs(_g3 - 2.4) < 1e-9, _g3)
     finally:
         _bs._market_goal_pct = _mgp_bak
+        _bs.ST_GOAL_TILT_FILE = str(_TILT_FILE)   # back to the sandbox
 finally:
     _t.unlink(missing_ok=True)
 
-# ── 4. the store filter (route, kind, window) ─────────────────────────
-tmp = Path("_tmp_surething_test")
-tmp.mkdir(exist_ok=True)
+# ── 4. the store filter (route, kind, window) ─────────────────────
+_tmp_st = Path(tempfile.mkdtemp(prefix="_sbx_surethingdiag_store_"))
+tmp = _tmp_st / "surething_test"
+tmp.mkdir(parents=True, exist_ok=True)
 try:
     now_iso = datetime.fromtimestamp(T0, tz=timezone.utc).isoformat()
     old_iso = datetime.fromtimestamp(T0 - 9 * 86400, tz=timezone.utc).isoformat()
@@ -500,15 +515,23 @@ finally:
 # not copies (the same seam discipline every suite here uses)
 check("the diag reads the live snapshot store path",
       dg.Path(dg.bs.SIGNAL_SNAPSHOTS_FILE).name == "signal_snapshots.jsonl")
-check("the diag grades the sure-thing window the scanner fires with",
-      dg.st.SURE_THING_WINDOW_MIN == 60.0)
+check("the diag grades the sure-thing window the scanner fires with "
+      "(the Sep 11 re-contract: the 4h contract the coil's edge lives on)",
+      dg.st.SURE_THING_WINDOW_MIN == 240.0)
 check("the diag grades the per-fire goal (fallback = the engine constant)",
       abs(dg.st.SURE_THING_GOAL_PCT - 1.5) < 1e-9)
 
-# the suite's tilt file never survives; the real one (if any) is restored
-_TILT_FILE.unlink(missing_ok=True)
-if _TILT_BAK is not None:
-    _TILT_FILE.write_text(_TILT_BAK, encoding="utf-8")
+# the SEAM is fully sandboxed: dg._TILT_PATH and bs.ST_GOAL_TILT_FILE
+# point into the suite's tempfile dir — the production tilt file is
+# never read, written, or locked by this suite (leak-class-proof)
+_tilt_paths = (str(dg._TILT_PATH), str(_bs0.ST_GOAL_TILT_FILE))
+check("seam: the suite never touches the production tilt path (the leak "
+      "is dead)",
+      all(p.startswith(str(_TILT_SANDBOX)) for p in _tilt_paths), _tilt_paths)
+
+# the sandbox never survives; the production tilt file was never touched
+shutil.rmtree(_TILT_SANDBOX, ignore_errors=True)
+shutil.rmtree(_tmp_st, ignore_errors=True)
 
 lines.append(f"\nRESULT: {PASS} passed, {FAIL} failed")
 Path("_surethingdiag_test.txt").write_text("\n".join(lines), encoding="utf-8")

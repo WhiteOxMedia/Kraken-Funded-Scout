@@ -84,7 +84,7 @@ check("a thin book that can't fit 25% still can't green "
 
 # ── 4. the alert floor stays champion-grade (the ONE BUY VOICE) ──────
 check("champ_floor is still computed (the alert's floor, context only)",
-      "_bs5.popup_floor(_tide_state, _lw_pts)" in ap
+      "_bs5.popup_floor(_tide_state, _lw_pts, None, pair)" in ap
       and '"champ_floor"' in ap)
 check("the alert path's popup floor is untouched (champion-grade for all)",
       "DESKTOP_ALERT_MIN = popup_floor(" in bs)

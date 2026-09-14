@@ -65,7 +65,7 @@ check("a 70% pick stays silent everywhere (below even the relaxed floor)",
 # wolf, all inside popup_floor(); the flat-89 line is retired) ────────
 src = open("background_scanner.py", encoding="utf-8").read()
 check("floor is tide-aware + rotation-aware via popup_floor() in send_alert",
-      "DESKTOP_ALERT_MIN = popup_floor(_df_state, _lw_pts, _rot_now_key)" in src)
+      "DESKTOP_ALERT_MIN = popup_floor(_df_state, _lw_pts, _rot_now_key, pair)" in src)
 check("broken tide read fails closed (except branch)",
       "_df_pct, _df_state = None, None" in src)
 check("the tide margin still applies inside popup_floor (never below 78)",

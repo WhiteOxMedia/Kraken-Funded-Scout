@@ -161,8 +161,9 @@ check("the dial reads a sane share (0.0-1.0; default 0.5 until turned)",
       0.0 <= _wf_dial <= 1.0, _wf_dial)
 check("dial 0% = the floor is OFF (nothing falls below a $0 threshold)",
       not (4.66 < 12.0 * 0.0))
-check("the console sidebar carries the dial (slider + live caption)",
-      "worth_floor_dial" in ap and "worth_floor_frac" in ap)
+check("the dial is INTERNAL (user rule, Sep 10): the console renders no dial",
+      '"worth_floor_dial"' not in ap and '"worth_floor_auto_toggle"' not in ap
+      and "INTERNAL ONLY" in ap)
 
 lines.append(f"\nRESULT: {PASS} passed, {FAIL} failed")
 open("_popupbrain_check.txt", "w", encoding="utf-8").write("\n".join(lines))

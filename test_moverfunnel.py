@@ -83,9 +83,12 @@ check("old dead gainer path removed", "def fetch_kraken_gainers" not in src)
 check("old bounce fast path removed", "Bounce fast path" not in src)
 check("bounce list folded into the funnel (losers join the runners)",
       'cached_loser_pairs' in src and "_mover_cands.append((_bp, -5.0))" in src)
-check("funnel stamps the tide on writes",
-      src.count('tide_state=(_tsw or "UNKNOWN")') >= 2, src.count('tide_state=(_tsw or "UNKNOWN")'))
-check("funnel has the rotation lockout", "MOVER SKIP" in src and "rotation_gate(asset)" in src)
+check("funnel stamps the tide on writes (the funnel's own write + the send_alert stamp it shares)",
+      'tide_state=(_tsw or "UNKNOWN")' in src
+      and 'tide_state=_tide_stamp' in src)
+check("the lockout is retired — the gate call stays for the re-entry display",
+      "rotation_gate(asset)" in src and "RETIRED" in src
+      and "MOVER SKIP: %s — %s" not in src)
 check("funnel has the deep-read >=60 veto", "MOVER VETO" in src and "_deep_sig.confidence < 60" in src)
 check("funnel skips tide OUT", "tide OUT (fleet %.0f%%)" in src)
 check("funnel has the fresh-listing guard", "len(ohlcv) < MOVER_MIN_CANDLES" in src)

@@ -109,8 +109,9 @@ check("reader's UNKNOWN stamp is tradeable (fail-open, exact match)",
       'str(signal.get("tide_state") or "")' in rsrc)
 check("scanner refuses the bridge write on TIDE OUT (the upstream guard)",
       'if _ts0 == "OUT":' in src)
-check("scanner's OUT refusal names the bridge write",
-      "no bridge write; all ships sink together" in src)
+check("scanner's OUT refusal names the tide's PRICE (the Sep 10 priced wall — the blanket 'all ships sink together' refusal is retired)",
+      "the OUT tide's price on the bot's ledger" in src
+      and "no bridge write; all ships sink together" not in src)
 
 # ── 6. the collector runs clean on the scratch (pending-only) DB ─────
 sb.DB_PATH = Path(SCRATCH)
@@ -147,7 +148,7 @@ for f in (SCRATCH, OLD):
             break
         except (FileNotFoundError, PermissionError):
             _time.sleep(0.5)
-sb.DB_PATH = Path(r"C:\Users\birds\Workspace\kraken_scout\signals.db")
+sb.DB_PATH = Path(r"C:\Users\birds\Workspace\kraken_scout\signals.db")  # leak-audit: ok (hand back to production at suite end; the suite ran hermetic before this)
 
 lines.append(f"\nRESULT: {PASS} passed, {FAIL} failed")
 open("_tidestamp_check.txt", "w", encoding="utf-8").write("\n".join(lines))

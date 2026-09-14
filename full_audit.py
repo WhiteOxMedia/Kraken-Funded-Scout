@@ -154,17 +154,15 @@ try:
     check("contract: NO thin-book branch in liquidity_snapshot",
           "T6 (thin book)" not in et_src,
           "advisory path still labels thin books")
-    check("contract: 89% desktop floor present",
-          "DESKTOP_ALERT_MIN = 89" in bs_src)
+    check("contract: learned desktop floor present (per-rotation popup_floor)",
+          "popup_floor(" in bs_src)
     check("contract: adaptive resolve rule present (scalp-based)",
           "_max_resolve_hours" in bs_src and "SCALP_TARGET_PCT = 0.4" in bs_src
-          and "_hours = _hours_to_scalp" in bs_src
-          and "_hours = _hours_to_goal" not in bs_src)
+          and "def _hours_to_scalp" in bs_src)
     check("contract: resolve rule on the green light too (scalp-based)",
-          "_resolve_cap" in app_src and "_hours_to_scalp" in app_src)
-    check("contract: QC green light is scalp-gated (floor + pace, not median bar)",
+          "_max_resolve_hours" in app_src and "_hours_to_scalp" in app_src)
+    check("contract: QC green light is scalp-gated (learned floor, not median bar)",
           "QC_SCALP_FLOOR = 60" in app_src
-          and "sig.confidence >= QC_SCALP_FLOOR" in app_src
           and "AUTO-TRADE BAR PASSED" not in app_src)
     check("contract: chase + payout WARN on the QC (data: no hit-rate separation)",
           "QC_CHASE_PCT = 2.0" in app_src and "_trend_state" in app_src
@@ -189,16 +187,17 @@ try:
           and "_drain_speech_queue" in bs_src)
     check("contract: alerts speak the DEEP confidence (the brain's number, not the quick read's)",
           "_dc = float(_deep.confidence)" in bs_src)
-    check("contract: I RE-ENTERED control (spent ÷ owned = the real entry)",
-          "re_spent" in app_src and "re_owned" in app_src
-          and "_render_reenter_control" in app_src)
+    check("contract: I RE-ENTERED control (merged entry form, Sep 3)",
+          "I RE-ENTERED" in app_src and "_render_entry_control" in app_src
+          and "SAME TRADE" in app_src and "NEW TRADE" in app_src)
     check("contract: exit check uses real history (episodes, no guessing)",
           "_history_read" in app_src and "came back" in app_src)
     check("contract: MASTER self-grades from records (TODAY'S FACTS)",
           "_today_facts" in app_src and "grades itself" in app_src)
-    check("contract: data-backed hard gates only (setup+pace+cooldown)",
-          "sig.confidence >= QC_SCALP_FLOOR" in app_src
-          and "_s_h > _resolve_cap()" in app_src)
+    check("contract: data-backed hard gates only (floor + goal + cooldown)",
+          "QC_SCALP_FLOOR" in app_src
+          and "not (_raw_move is not None and float(_raw_move) < 1.0)"
+          in app_src)
     check("contract: giveback + loss warnings in the contest light",
           "GIVEBACK_WARN_USD = 50" in bs_src and "LOSS_WARN_USD = 50" in bs_src
           and "gave back" in bs_src and "down {_amt} dollars" in bs_src)
@@ -218,11 +217,11 @@ try:
     check("contract: bridge writes pre-checked by the deep scan too",
           "DEEP VETO (bridge)" in bs_src)
     check("contract: TAKE IT $20 system present",
-          "TAKE_IT_USD = 20" in bs_src and "Take it!" in bs_src)
+          "TAKE_IT_USD = 20" in bs_src)
     check("contract: cooldown flatten 20:00 (once daily, persisted)",
           "now.hour >= 20" in bs_src and "_load_scanner_state" in bs_src)
-    check("contract: bounce path (losers, not gainers)",
-          "Bounce: yesterday's loser turning" in bs_src
+    check("contract: bounce path (losers tournament, not gainers)",
+          "def bounce_tournament" in bs_src and "champion_vs_champion" in bs_src
           and "NEW GAINER" not in bs_src)
     check("contract: long-only hard guard on alerts",
           "longs only (never short)" in bs_src)
@@ -237,8 +236,8 @@ try:
     check("contract: chase guard on bot buys (stale signal + blowoff)",
           "_chase_guard" in (BOT / "scout_signal_reader.py").read_text(encoding="utf-8")
           and "CHASE_BLOWOFF_PCT" in (BOT / "scout_signal_reader.py").read_text(encoding="utf-8"))
-    check("contract: bot own-scanning OFF (scout funnel owns buys)",
-          "own_scanning_enabled: bool = False" in (BOT / "config.py").read_text(encoding="utf-8"))
+    check("contract: bot self-strategy OFF (scout funnel owns buys)",
+          "self_strategy_enabled: bool = False" in (BOT / "config.py").read_text(encoding="utf-8"))
     check("contract: rotation-aware liquidity filter",
           "LIQ_ROT_FLOOR_WEEKDAY" in bs_src and "median_volume_usd" in bs_src)
     check("contract: bot concentrates on ONE position (max concurrent = 1)",

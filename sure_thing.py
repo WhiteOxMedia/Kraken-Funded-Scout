@@ -64,14 +64,36 @@ BB_STD = 2.0
 BB_NARROW_PCT = 0.30        # BB width in the narrowest 30% of the window
 HIST_PAY_MOVE_PCT = 1.5     # a past setup "paid" if +this% within 12 candles
 HIST_PAY_WINDOW = 12
-PRE_BREAKOUT_THRESHOLD = 65.0   # the probability that fires pre-breakout
-                            #   (Sep 7 recalibration: two days of live fleet
-                            #   scans topped out at 60.3 -- the 75 bar was
-                            #   unreachable as calibrated; 65 is the top-of-
-                            #   fleet coil AND the 0.50x sizing bucket line.
-                            #   The protective gates -- rotation lock, tide,
-                            #   knife, popup cap, climb-out -- still stand
-                            #   between the fire and the popup.)
+PRE_BREAKOUT_THRESHOLD = 45.0   # the probability that fires pre-breakout
+#   (Sep 11 REFIT: the Sep 10 grade proved the LEGACY score RANKED
+#   PAYERS BACKWARDS — holdout AUC 0.410, payer rate falling 8.2% -> 0%
+#   as the score rose — so the old "don't move the bar" verdict applied
+#   to a dead dial. The refit (ridge on 3,848 recalibrated-replay
+#   episodes, train before Sep 1, holdout after) turns the score into a
+#   forward ranker (holdout AUC 0.527) and prices its own bar: fires at
+#   refit 45 paid 17.6% on the holdout (+$1.07/fire under the popup's
+#   60-min contract — the first positive expectancy any Sure Thing bar
+#   has shown). 50 is the pickier alternative (40% payers, +$3.01, but
+#   1/3 the fires). Rollback: SURE_THING_USE_REFIT = False.)
+
+
+# ── THE REFIT WEIGHTS (Sep 11, diag_surething_refit.py) ──────────────
+# Ridge fit on the recalibrated (spot-native) replay: 3,848 armed
+# episodes, {0,1} payer labels (+1.5% / 60 min), features normalized
+# exactly like _score's pieces, no intercept, lambda 5, clipped [0,40]
+# and renormalized to sum 100. The data's story: the coin's OWN history
+# dominates (56.3 — "probability, not guesswork; it grows as the
+# dataset grows", the spec's module 4, finally priced honestly),
+# ceiling TESTS rose (15.3), the squeeze stays real (11.9); the tight-
+# coil / pullback-trend / buy-dominance terms ranked NOTHING out-of-
+# sample and zero out. Unknown history sits at the neutral center
+# (0.5), not zero — the same Sep 7 lesson, preserved.
+SURE_THING_USE_REFIT = True    # False = the legacy _score (rollback)
+REFIT_W = {
+    "tight": 0.0, "atr": 6.9, "bb": 4.5, "tests": 15.3,
+    "pull": 0.0, "buydom": 0.0, "fade": 1.4, "micro": 3.0,
+    "burst": 0.7, "squeeze": 11.9, "hist": 56.3,
+}
 
 
 def analyze(rows):
@@ -247,9 +269,16 @@ def analyze(rows):
 
         # ── ARMED: the spring is loaded
         out["armed"] = True
-        out["score"] = _score(rng_pct, tests, rank, burst, vol_fading,
-                              atr_ratio, bb_pctile, out["pullback_trend"],
-                              micro, out["buy_dominance"], out["hist_hit_rate"])
+        if SURE_THING_USE_REFIT:
+            out["score"] = _score_refit(rng_pct, tests, rank, burst,
+                                        vol_fading, atr_ratio, bb_pctile,
+                                        out["pullback_trend"], micro,
+                                        out["buy_dominance"],
+                                        out["hist_hit_rate"])
+        else:
+            out["score"] = _score(rng_pct, tests, rank, burst, vol_fading,
+                                  atr_ratio, bb_pctile, out["pullback_trend"],
+                                  micro, out["buy_dominance"], out["hist_hit_rate"])
         out["detail"] = (f"coil {rng_pct:.2f}% · {tests} tests · squeeze "
                          f"{rank:.2f} · ATR {atr_ratio or '—'} · BB "
                          f"{bb_pctile if bb_pctile is not None else '—'} · "
@@ -294,6 +323,33 @@ def analyze(rows):
         return out
 
 
+def _score_refit(rng_pct, tests, vol_rank, burst, vol_fading, atr_ratio,
+                 bb_pctile, pullback_trend, micro, buy_dominance, hist_rate):
+    """The Sep 11 REFIT of the breakout probability (same signature as
+    _score): the ridge-fit weights (REFIT_W, diag_surething_refit.py)
+    over the SAME normalized pieces — the fit that un-inverted the
+    score. Legacy _score kept verbatim below for rollback."""
+    s = 0.0
+    w = REFIT_W
+    s += w["tight"] * max(0.0, 1.0 - rng_pct / COIL_MAX_RANGE_PCT)
+    if atr_ratio is not None:
+        s += w["atr"] * max(0.0, min(1.0, 1.0 - atr_ratio / ATR_COMPRESS_RATIO))
+    if bb_pctile is not None:
+        s += w["bb"] * max(0.0, min(1.0,
+            (bb_pctile - (1.0 - BB_NARROW_PCT)) / BB_NARROW_PCT))
+    s += w["tests"] * min(1.0, max(0.0,
+        ((tests - MIN_CEILING_TESTS) * 3.0 + 5.0) / 10.0))
+    s += w["pull"] * min(1.0, max(0.0, 2.0 * (pullback_trend or 0.0)))
+    s += w["buydom"] * min(1.0, max(0.0, 2.0 * (buy_dominance or 0.0)))
+    s += w["fade"] * (1.0 if vol_fading else 0.0)
+    s += w["micro"] * min(1.0, micro / 3.0)
+    s += w["burst"] * (max(0.0, min(1.0, burst - 1.0)) if burst > 1.0 else 0.0)
+    s += w["squeeze"] * max(0.0, min(1.0,
+        (vol_rank - (1.0 - SQUEELE_PCT)) / SQUEELE_PCT))
+    s += w["hist"] * (0.5 if hist_rate is None else min(1.0, max(0.0, hist_rate)))
+    return round(min(100.0, s), 1)
+
+
 def _score(rng_pct, tests, vol_rank, burst, vol_fading, atr_ratio,
            bb_pctile, pullback_trend, micro, buy_dominance, hist_rate):
     """The breakout probability (0-100) -- the weighted blend:
@@ -330,9 +386,15 @@ def _score(rng_pct, tests, vol_rank, burst, vol_fading, atr_ratio,
     return round(min(100.0, s), 1)
 
 
-# the countdown window: the trade bounds (out-by clock); breakouts
-# resolve fast -- one hour max, the est_min field estimates the crack
-SURE_THING_WINDOW_MIN = 60.0
+# the countdown window: the trade bounds (out-by clock). RE-CONTRACTED
+# Sep 11 per the grade's contract test (diag_surething_grade.py ->
+# _surethinggrade.txt): the coil's edge is a 4-HOUR structure -- the
+# store's own horizon. Under +1.5%/4h the fires pay 47.2% at bar 45
+# (vs 16.2% on the 60-min clock), 60.5% at 55, 75% at 65 -- while the
+# 60-min contract graded the same fires at near-noise and the crack's
+# ~50-min pay routinely broke a 1-hour est promise. One contract, top
+# to bottom: the popup's clock, the est window, and the grade.
+SURE_THING_WINDOW_MIN = 240.0
 # the goal the fire is graded on (Sep 8): stamped into every fired
 # snapshot, so diag_surething.py grades each fire against THE goal that
 # fired it -- not whatever default the diag would assume

@@ -108,8 +108,8 @@ check("ROTATIONS keep the 8-field shape (7 returned by get_time_block)",
       all(len(r) == 8 for r in bs.ROTATIONS))
 check("data bars still take precedence over fallbacks",
       "if data_bar is not None:" in src)
-check("desktop floor is rotation+tide aware (popup_floor, Sep 4)",
-      "DESKTOP_ALERT_MIN = popup_floor(_df_state, _lw_pts, _rot_now_key)" in src)
+check("desktop floor is rotation+tide aware via popup_floor (Sep 4; the pair arg joined Sep 10 for the personal bar)",
+      "DESKTOP_ALERT_MIN = popup_floor(_df_state, _lw_pts, _rot_now_key, pair)" in src)
 check("mover funnel untouched (own 55 floor + deep >=60)",
       "MOVER_MIN_CONF = 55.0" in src)
 

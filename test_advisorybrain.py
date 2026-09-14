@@ -41,8 +41,12 @@ bs_src = open("background_scanner.py", encoding="utf-8").read()
 ap_src = open("app.py", encoding="utf-8").read()
 
 # ── 1. the floor is REALLY gone (no-old-name assertions — the rename lesson)
-check("no brain-floor gate anywhere (champion + mover)",
-      '"brain-floor"' not in bs_src)
+# (Sep 10 update: the DISCIPLINE SEAM brought a journal relief back under
+# the "brain-floor" name — gate_relief() eases the popup floor for gates
+# that bury PAYING candidates. The pin now demands the relief exists,
+# fail-closed, not that the string is absent.)
+check("the brain-floor journal relief exists (the discipline seam)",
+      '"brain-floor"' in bs_src and "gate_relief" in bs_src)
 check("the challenger mark never sets (retired with the floor)",
       "_challenger = True" not in bs_src)
 check("no >=89 mover desktop floor (the tournament's own champion bar "
@@ -89,16 +93,17 @@ check("the popups carry the sizing mark (title + voice + message)",
       "× SIZE" in bs_src and "BRAIN SIZES IT" in bs_src
       and "sizing at {_brain_mult:.2f}" in bs_src)
 
-# ── 4. THE POPUP CAP ─────────────────────────────────────────────────
+# ── 4. THE POPUP CAP (machinery kept, Sep 9: enforcement retired per the
+# no-money-cap ruling — _popup_cap is defined and live-dialed, never called)
 check("the cap dial reads live (default 3, floor 1)",
       "POPUP_CAP_DEFAULT = 3" in bs_src and "def _popup_cap" in bs_src)
 check("the cap counts fired popups inside the window",
       "def _recent_fired_popups" in bs_src
       and "POPUP_CAP_WINDOW_MIN = 90.0" in bs_src)
-check("the champion path checks the cap",
-      '"popup-cap"' in bs_src)
-check("the mover path checks the cap too",
-      "MOVER POPUP CAP" in bs_src)
+check("the champion path no longer checks the cap (retired Sep 9)",
+      '"popup-cap"' not in bs_src)
+check("the mover path no longer checks the cap (retired Sep 9)",
+      "MOVER POPUP CAP" not in bs_src)
 
 # ── 5. THE SNAPSHOT DATASET ──────────────────────────────────────────
 check("the snapshot log + helper exist",

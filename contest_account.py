@@ -137,7 +137,13 @@ def new_contest(tier: int) -> dict:
     bug: a pinned $10,000 widget reset the 1k account every cycle, which
     also re-widened every sizing gate -- TAO was buried too-thin under
     the phantom 10k). A fresh window stamps a fresh contest_id and
-    resets the Hail Mary windows (a new account gets new ones)."""
+    resets the Hail Mary windows (a new account gets new ones).
+
+    THE WIPE (user rule, Sep 9: "the record is wiped and starts fresh"):
+    a new contest also drops the OLD contest's tracked positions -- the
+    TIA ghost lesson (a Sep 6 position outlived its contest and shouted
+    GET OUT for 3 days into the next one). Position tracking is the old
+    contest's business; this window starts clean."""
     tier = int(tier) if int(tier) in TIERS else DEFAULT_TIER
     s = {
         "tier": tier,
@@ -153,6 +159,14 @@ def new_contest(tier: int) -> dict:
         if not _lk.held:
             raise RuntimeError("account state busy -- retry in a moment")
         _write_state(s)
+    # THE WIPE (user rule, Sep 9): the old contest's positions are not
+    # this window's business. The TIA ghost (Sep 6 position shouting GET
+    # OUT into the Sep 9 contest) is what this kills.
+    try:
+        (Path(__file__).parent / "contest_watch.json").write_text(
+            "{}", encoding="utf-8")
+    except Exception:
+        pass  # the watch panel would still show the ghost card -- tappable SOLD
     return s
 
 

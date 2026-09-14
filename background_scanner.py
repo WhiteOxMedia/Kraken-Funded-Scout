@@ -23,7 +23,9 @@ Usage:
 from __future__ import annotations
 
 import logging
+import logging.handlers
 import atexit
+import threading
 import os
 import sys
 import time
@@ -35,7 +37,42 @@ from typing import Any
 from zoneinfo import ZoneInfo
 MST = ZoneInfo("America/Denver")  # Auto DST: MDT (UTC-6) summer, MST (UTC-7) winter
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s", datefmt="%I:%M %p")
+def _config_logging() -> None:
+    """Logging that survives detachment. The driver threads log through
+    `logging` to stderr; when a launcher redirects stderr into a FILE,
+    the default console encoding (cp1252) died on the rotation glyphs
+    (the \U0001f306 mojibake in the detached logs) and a redirected
+    stdout sat block-buffered for minutes. Every record now also lands
+    in scanner.log (UTF-8; StreamHandler flushes after each record, so
+    the file is live regardless of buffering) with 14 midnight
+    rotations, no matter how the process was started. The file/level
+    setup only belongs to the scanner's own process: the console
+    (streamlit) and the diag scripts import this module too -- in those
+    hosts the logging config is left exactly as found."""
+    if not (sys.argv and sys.argv[0]
+            and sys.argv[0].lower().endswith("background_scanner.py")):
+        return
+    root = logging.getLogger()
+    if any(isinstance(_h, logging.FileHandler) for _h in root.handlers):
+        return   # idempotent: a re-call/re-import must not stack handlers
+    root.setLevel(logging.INFO)
+    _fmt = logging.Formatter(
+        "%(asctime)s [%(levelname)s] %(message)s", datefmt="%I:%M %p")
+    _con = logging.StreamHandler()
+    _con.setFormatter(_fmt)
+    root.addHandler(_con)
+    try:
+        _fh = logging.handlers.TimedRotatingFileHandler(
+            _LOG_PATH, when="midnight", backupCount=14, encoding="utf-8")
+        _fh.setFormatter(_fmt)
+        root.addHandler(_fh)
+    except Exception as exc:
+        logger.warning("log file handler unavailable (%s) — console-only "
+                       "logging this boot", exc)   # the console stays
+
+
+_LOG_PATH = Path(__file__).parent / "scanner.log"
+_config_logging()
 logger = logging.getLogger("kraken_scout")
 
 
@@ -85,9 +122,13 @@ def rotation_key_for_hour(hour: int) -> str:
 # told to get back in and double-dip fines eat the profits.") ────────────
 # Two rules with the same shape: the reference frame is the ROTATION, not
 # the trailing candles.
-#   1. LOCKOUT — one green light per asset per rotation. After the system
-#      says GO, the asset is cold until the next rotation boundary: no
-#      back-to-back re-entry signals in the same session (the whipsaw).
+#   1. LOCKOUT — RETIRED (user rule, Sep 10: "delete the rule"): the
+#      one-green-per-rotation cap and the 10-minute per-pair anti-spam are
+#      OFF. A coin can fire again the moment it passes every remaining
+#      gate — re-entries across rotations were already free; now
+#      same-rotation re-fires are too. The gate/mark functions below stay:
+#      the profit re-arm disarms the ledger, the popups still SAY
+#      "re-entry", and the yesterday's-hour demotion (rule 2) stands.
 #   2. YESTERDAY'S HOUR — if this coin's same rotation window ran and
 #      dumped on recent days (the PENGU shape), today's signal at this
 #      hour is a re-run of a shape that already paid — demoted.
@@ -107,9 +148,9 @@ CONTEST_REENTRY_FINE_USD = 0.0
 # "Already ran! Cold!" minutes later (HYPE 12:42 "Buy!" → 12:48 "cold").
 # Within this many minutes of the fire, the QC and the card treat the
 # lockout as CONFIRMING THE LIVE ALERT (allowed, reason names the alert's
-# time). The scanner's own re-fire guard and the mover funnel call
-# rotation_gate with the default 0 — strict for the whole rotation,
-# exactly as specced Aug 30 (no back-to-back re-fires).
+# time). RETIRED Sep 10 with the lock itself (rule 1 above) — the
+# constant stays: the QC's display logic still recognizes a confirming
+# green by this wording.
 ROTATION_CONFIRM_WINDOW_MIN = 15.0
 
 
@@ -123,10 +164,14 @@ def _rotation_window(now=None):
 
 
 def rotation_gate(asset: str, confirm_window_min: float = 0.0):
-    """One green light per asset per rotation.
+    """RETIRED GATE (user rule, Sep 10: "delete the rule"): the
+    one-green-per-rotation cap is OFF — this always allows. The call
+    sites keep it for what it still returns: a re-entry flag + reason
+    when the coin fired earlier TODAY (popups still say so), and the
+    confirming-green wording for the QC's display.
 
     Returns (allowed, reason, is_reentry, fine_usd):
-      allowed    False if this asset already fired in THIS rotation today
+      allowed    always True since the retirement — nothing blocks on the lock
       reason     human explanation when blocked / re-entering
       is_reentry True if the asset fired earlier TODAY in a different rotation
       fine_usd   CONTEST_REENTRY_FINE_USD on a re-entry (0.0 otherwise)
@@ -151,6 +196,9 @@ def rotation_gate(asset: str, confirm_window_min: float = 0.0):
     rec = state.get(asset)
     if rec and rec.get("date") == today:
         if rec.get("rotation") == rot_key:
+            # RETIRED (Sep 10): same-rotation re-fires are ALLOWED. The
+            # confirm-window wording survives so the QC can still show
+            # the alert's own green light as a confirmation.
             if confirm_window_min > 0:
                 try:
                     from datetime import datetime as _dt
@@ -162,9 +210,8 @@ def rotation_gate(asset: str, confirm_window_min: float = 0.0):
                     return True, (f"confirmation window — the alert fired at "
                                   f"{_fired.strftime('%I:%M').lstrip('0')} "
                                   f"({_mins:.0f} min ago); confirming, not a re-fire"), False, 0.0
-            return False, (f"already ran this rotation ({rec.get('rotation')}) — "
-                           f"cold until the next rotation boundary"), False, 0.0
-        # fired earlier today in a DIFFERENT rotation → re-arm, but say it
+        # fired earlier TODAY (this rotation or an earlier one) → allowed,
+        # flagged as a re-entry so the popup still says so
         return True, f"re-entry (fired {rec.get('rotation')} earlier today)", \
             True, CONTEST_REENTRY_FINE_USD
     return True, "", False, 0.0
@@ -172,7 +219,8 @@ def rotation_gate(asset: str, confirm_window_min: float = 0.0):
 
 def rotation_mark_fired(asset: str):
     """Record a GO on this asset for this rotation (QC green light or
-    desktop alert). Cold until the next rotation boundary."""
+    desktop alert). The lock it fed no longer blocks (retired Sep 10) —
+    the ledger stays for the profit re-arm and the re-entry display."""
     now = _now_mst()
     win = _rotation_window(now)
     if win is None:
@@ -739,12 +787,19 @@ TAKE_PAYOUTS_JSON = os.path.join(os.path.dirname(os.path.abspath(__file__)), "ta
 
 # ── THE TIDE (user rule, Aug 26: "rising tide raises all ships") ──────
 # Fleet breadth: what fraction of the tracked universe sits above its own
-# 1h trend line (EMA21). Correlation means everything rises together — and
-# SINKS together. The tide sets the tempo: RISING carries greens, FLAT
-# demands pickiness, OUT means don't enter anywhere — all ships sink
-# together. Computed from the engine's candle cache (no live API storm),
-# refreshed at most every 5 minutes.
-TIDE_RISING_MIN = 70.0
+# 1h trend line (EMA21). The tide sets the tempo: RISING carries greens
+# (goal x1.15, the desktop-floor relax), FLAT demands pickiness, OUT is
+# priced by the learned bar — NOT a wall ('all ships sink together' was
+# priced a myth: _fleetstudy.txt). Computed from the engine's candle
+# cache (no live API storm), refreshed at most every 5 minutes.
+# RETUNED Sep 11 on the recalibrated spot-native store
+# (diag_tideretune.py -> _tideretune.txt): RISING payer rate climbs
+# MONOTONICALLY with the bar (60: 20.2% -> 75: 26.9% -> 80: 31.8%), so
+# 75 keeps the relax/boost for tides that genuinely pay more (spread
+# vs OUT +16.1pp, up from +14.0 at 70). OUT stayed at 35: FLAT vs OUT
+# has no payer seam on any cutoff (~10-12% both), so the bar is
+# continuity with the learned OUT bar 92 already priced at 35.
+TIDE_RISING_MIN = 75.0
 TIDE_OUT_MAX = 35.0
 _tide_cache = {"ts": 0.0, "pct": None, "state": None}
 _tide_last_state = None
@@ -883,16 +938,147 @@ def popup_floor_for_rotation(rot_key: str | None = None, now=None) -> int:
 
 
 def popup_floor(tide_state: str | None = None, lw_pts: float = 0,
-                rot_key: str | None = None) -> float:
-    """The full popup floor stack: rotation base → tide margin → lone wolf.
-    Lives beside the constants so the alert path and the QC compute the
-    same number from the same inputs."""
+                rot_key: str | None = None,
+                pair: str | None = None) -> float:
+    """The full popup floor stack: rotation base → tide margin → lone wolf
+    → THE JOURNAL (Sep 10: the discipline seam sewn both sides — the
+    discipline engine records which gates buried PAYING candidates every
+    rotation; gate_relief() converts that hindsight into a few floor
+    points, capped and decaying; buried duds claw it back)    → THE COIN'S
+    OWN TIDE MEMORY (Sep 10 rebalance: NOT in OUT — there the memory
+    personalizes the LEARNED BAR via tide_personal_bar, one tax; in
+    FLAT and every state without its own learned bar it still eases
+    or tightens THIS floor, the coin's only price there. A coin isn't
+    taxed twice for the same tide). Lives beside
+    the constants so the alert path and the QC compute the same number
+    from the same inputs. Fail-closed: a broken journal or a broken
+    memory opens nothing."""
     fl = float(popup_floor_for_rotation(rot_key))
     if tide_state == "RISING":
         fl = max(TIDE_RISING_DESKTOP_FLOOR, fl - TIDE_RISING_BAR_RELAX)
     if lw_pts:
         fl = max(LONE_WOLF_DESKTOP_FLOOR, fl - lw_pts)
-    return fl
+    try:
+        import discipline as _dc
+        _rel = float(_dc.gate_relief("brain-floor"))
+        if _rel > 0:
+            # RELIEF ONLY LOWERS (fix, Sep 10): the old max(60, fl-rel)
+            # RAISED a lone-wolf floor that already sat at 55 — relief at
+            # zero must be a no-op. The floor never leaves [55, base];
+            # relief can drag it toward 60 at most, never below.
+            fl = max(fl - _rel, min(fl, 60.0))
+    except Exception as exc:
+        logger.warning("gate_relief read failed (%s) — the brain floor "
+                       "ships UNRELIEVED (a broken journal closes, "
+                       "never opens)", exc)
+    # the memory here — the OUT gate prices the coin through
+    # tide_personal_bar (the memory rides the LEARNED BAR, one tax);
+    # stacking it on the floor too taxed the same coin twice. FLAT (and
+    # any state without its own learned bar) still gets it here — the
+    # floor is that coin's only price.
+    try:
+        if pair and tide_state != "OUT" and tide_state in tide_memory_states():
+            import tide_memory as _tmem
+            _tadj, _twhy = _tmem.tide_edge(pair, tide_state)
+            if _tadj:
+                fl = max(LONE_WOLF_DESKTOP_FLOOR, fl - _tadj)
+    except Exception as exc:
+        logger.warning("tide_memory read failed for %s/%s (%s) — the "
+                       "coin's personal edge ships UNAPPLIED (a broken "
+                       "memory closes, never opens)", pair, tide_state, exc)
+
+
+# ── THE OUT-TIDE PASS PATHS (Sep 10). OUT is no longer a wall; it is
+# priced. A candidate passes in this order: ① THE LONE WOLF (solo
+# strength), ② THE LEARNED OUT BAR (tide_learn.py — the deep candle
+# store prices the tide from its own payer rate), ③ THE JOURNAL
+# RELEASE (the discipline journal releases EVERY champion-grade
+# candidate when tide-out has buried payers — uncapped, user rule
+# Sep 10). The last absolute gate is the data's own price —
+# fail-closed to the blanket block when the learner has no model.
+SEAM_TIDE_RELEASE_QUICK = 92.0
+SEAM_TIDE_RELEASE_DEEP = 84.0
+
+
+def tide_memory_states() -> tuple:
+    """The tide states the per-coin memory adjusts on the FLOOR and the
+    ASSET BAR (ADJUSTED_STATES in tide_memory.py — RISING rides the
+    fleet). In OUT the memory rides the learned bar instead
+    (tide_personal_bar) — never both."""
+    try:
+        import tide_memory as _tmem
+        return _tmem.ADJUSTED_STATES
+    except Exception:
+        return ()
+
+
+def tide_personal_bar(pair: str | None, tide_state: str | None,
+                      base_bar: float | None) -> float | None:
+    """THE OUT GATE'S BAR FOR THIS COIN (Sep 10 rebalance): the fleet's
+    learned price (tide_learn.py) adjusted by the coin's own tide memory
+    (tide_memory.py — the same evidence the fleet bar prices, viewed
+    per-coin). One bar, one tax: a habitual OUT-tide payer gets a
+    PERSONAL bar a few points under the fleet's; a coin that never pays
+    in OUT hours pays a few over. Clamped to the learned band [86, 97]
+    — the personal bar never leaves the band the data set. Fail-closed:
+    no fleet model -> None (the blanket block stands); a broken memory
+    or a bare pair -> the fleet bar unchanged."""
+    if base_bar is None:
+        return None   # no fleet model — nothing to personalize
+    if not pair:
+        return float(base_bar)
+    try:
+        import tide_memory as _tmem
+        import tide_learn as _tl
+        adj, _why = _tmem.tide_edge(pair, tide_state)
+        return float(max(_tl.BAR_MIN, min(_tl.BAR_MAX,
+                                          float(base_bar) - adj)))
+    except Exception:
+        return float(base_bar)
+
+
+def _tide_learn_bar() -> tuple[float | None, str]:
+    """(learned OUT bar, meta) — the deep-store learner's confidence bar
+    for OUT tides (the payer-rate price, clamped [86, 97]). (None, why)
+    when the learner has no model — the caller keeps the blanket block
+    (fail-closed). First call refreshes synchronously (~seconds), then
+    the model is cached for the TTL."""
+    try:
+        import tide_learn as _tl
+        return _tl.tide_out_floor()
+    except Exception as _exc:
+        return None, f"the tide learner is unavailable ({_exc})"
+
+
+def _seam_releases_tide_out(quick, deep, pair: str = "",
+                            deep_fetcher=None) -> tuple[bool, str]:
+    """(released, why) — the discipline journal releases EVERY
+    champion-grade candidate through the OUT-tide block (user rule,
+    Sep 10: never cap the champions — at least one is a floor, not a
+    ceiling). Requires: gate_relief('tide-out') > 0 (the journal shows
+    tide-out burying payers), quick ≥ 92, the brain's deep read ≥ 84 +
+    buy (fetched via deep_fetcher if not already cached — the champion
+    earns the consult). Fail-closed: a broken journal or a broken deep
+    read opens nothing."""
+    try:
+        import discipline as _dc
+        if _dc.gate_relief("tide-out") <= 0:
+            return False, "the journal shows no tide-out burials"
+        if float(quick or 0) < SEAM_TIDE_RELEASE_QUICK:
+            return False, "not champion-grade on the quick read"
+        if deep is None and deep_fetcher is not None:
+            try:
+                deep = deep_fetcher()
+            except Exception:
+                deep = None
+        if deep is None:
+            return False, "no deep read — fail-closed"
+        if (str(getattr(deep, "action", "") ) != "buy"
+                or float(getattr(deep, "confidence", 0) or 0) < SEAM_TIDE_RELEASE_DEEP):
+            return False, "the brain does not champion it"
+        return True, "the discipline journal opened the tide gate"
+    except Exception:
+        return False, "the journal is unreadable — fail-closed"
 
 # ── TREND-EXIT WATCH (user rule, Aug 31: "when the trend reverses then
 # the bot should 'get out now'" + "the console tracks it and sends the
@@ -944,6 +1130,60 @@ def knife_reversed_1h(exchange, pair: str, cfg, max_age_s: float = 300.0) -> tup
         return False, ""  # fail-closed, don't cache failures
 
 
+# -- THE CONTEST SIZE (the single source of truth for how big is this
+# contest -- every popup path that self-adjusts to the account ticks off
+# this one helper, the way the voice/giveback/loss warnings did at Sep 1).
+# Priority: (1) contest_account.json current_balance (the live ledger -- the
+# TIA close changed the contest window and reset the popups, so the account
+# file is the actual game state); (2) console_state.json tier label (the
+# user's selection -- $1,000 / $2,500 / $5,000 / $10,000 etc.); (3) the
+# config default. Cached per scan so every gate reads the same number.
+_CONTEST_SIZE_CACHE = {'ts': 0.0, 'size': 0.0}
+
+def _contest_size(now=None) -> float:
+    '''The contest's current balance in USD -- the number every size-sensitive
+    popup gate scales off. Fail-closed to 0.0 (no size-sensitive gate
+    fires on a broken read; the brain/goal/tide gates still decide).
+    Refresh at most every 30s -- the contest ledger moves in trade events,
+    not tick-by-tick.
+    '''
+    import time as _t
+    _now = _t.time()
+    if _CONTEST_SIZE_CACHE['size'] and _now - _CONTEST_SIZE_CACHE['ts'] < 30.0:
+        return _CONTEST_SIZE_CACHE['size']
+    _size = 0.0
+    try:
+        import contest_account as _ca
+        _acct = _ca.load_state()
+        _cb = float(_acct.get('current_balance') or 0.0)
+        if _cb > 0:
+            _size = _cb
+    except Exception as exc:
+        logger.warning("contest_account unreadable (%s) — sizing falls "
+                       "to the tier/config ladder (a mis-sized entry "
+                       "trades on stale dollars)", exc)
+    if _size <= 0.0:
+        try:
+            import json as _json
+            from pathlib import Path as _P
+            _cs = _json.loads((_P(__file__).resolve().parent / 'console_state.json').read_text())
+            _tier_txt = str(_cs.get('tier', '$1,000')).replace(',', '').replace('$', '')
+            _parsed = float(_tier_txt)
+            if _parsed > 0:
+                _size = _parsed
+        except Exception as exc:
+            logger.warning("console tier unreadable (%s) — sizing falls "
+                           "to the config default", exc)
+    if _size <= 0.0:
+        try:
+            from config import DEFAULT_CONFIG
+            _size = float(DEFAULT_CONFIG.challenge_balance)
+        except Exception:
+            _size = 1000.0
+    _CONTEST_SIZE_CACHE.update(ts=_now, size=_size)
+    return _size
+
+
 # ── THE POPUP BRAIN (user rebuild, Sep 1: "the pop ups need a current
 # deep scan before they appear and the confidence bar for the popup needs
 # to be higher than the bots side to pass... it has eliminated most of
@@ -974,8 +1214,11 @@ def _goal_tide_mult() -> float:
         _, _ts = _fleet_tide()
         if _ts == "RISING":
             return GOAL_TIDE_RISING_MULT
-    except Exception:
-        pass
+    except Exception as exc:
+        # fail-open is the docstring's contract (never greedy) — but it
+        # must say so, or a dead tide read silently deflates the goal
+        logger.warning("fleet tide read failed (%s) — the goal ships at "
+                       "the FLAT multiplier", exc)
     return GOAL_TIDE_FLAT_MULT
 
 # ── THE WORTH FLOOR (user rule, Sep 2 — "big coins only... less entries
@@ -1026,6 +1269,19 @@ WORTH_ACTUAL_SWING = 0.10     # ±10% around 1.0 at the extremes
 WORTH_ACTUAL_HALFLIFE_USD = 120.0   # the deficit at which the tilt maxes
                               # ($120 = half the 10k tier's daily pace:
                               # $120 behind -> full +10% tilt)
+# (RETIRED Sep 9 from the gate — see the BUFFER LEVER below: the buffer
+# is the bar; PnL is not an entry factor, it stays a learning signal.)
+
+# ── THE BUFFER LEVER (user rule, Sep 9 — REPLACES the actual factor in
+# the gate): the buffer is the realized PnL above the death line, and it
+# IS the bar. Fat buffer = low risk = the floor eases (more popups clear
+# the bar); thin buffer = the floor tightens. Full range: at the death
+# line the factor maxes (x 1.6 → the 40% clamp at the 25% base), at
+# break-even (buffer = 3% of start) it bottoms (x 0.4 → the 10% clamp).
+# The death line itself NEVER moves. The popup cap is NOT part of the
+# design: no money cap, no count cap — the buffer owns the risk.
+WORTH_BUFFER_MAX_MULT = 1.60   # at the death line (buffer 0): pickiest
+WORTH_BUFFER_MIN_MULT = 0.40   # at break-even and beyond: fully eased
 
 
 def _worth_pace_factor(now=None) -> float:
@@ -1064,13 +1320,22 @@ def _worth_catchup_factor() -> float:
 
 
 def _worth_actual_factor(now=None) -> float:
-    """The ACTUAL lever (Sep 7): realized net P&L today vs the day's pace,
-    as a gentle 10%-swing tilt. deficit = pace - realized; factor = 1 +
-    SWING x (deficit / HALFLIFE), clamped [0.85, 1.15]. Behind schedule
-    -> >1.0 (worthier popups); ahead -> <1.0 (smaller pays count).
-    Fail-open to 1.0 (the dial stands on pace x tide alone). Open
-    positions carry no realized outcome yet — the ledger counts what's
-    banked, which is the point: the floor tunes to the ACTUAL day."""
+    '''RETIRED from the gate (Sep 9: the buffer is the bar — PnL is not
+    an entry factor; it stays a learning signal). Kept per the
+    don't-delete rule; no longer called by worth_floor_auto_factors.
+
+    The ACTUAL lever (Sep 7 + Sep 9): realized net P&L today vs the day's
+    pace, as a gentle 10%-swing tilt whose DOLLAR SENSITIVITY self-adjusts to
+    the contest size. deficit = pace - realized; factor = 1 + SWING x
+    (deficit / halflife), clamped [0.85, 1.15]. Behind schedule -> >1.0
+    (worthier popups); ahead -> <1.0 (smaller pays count).
+
+    The halflife is size-aware (Sep 9):
+      halflife = max(WORTH_ACTUAL_HALFLIFE_MIN_USD, contest_size x 0.12)
+    so a $1k contest doesn't tilt on a $120 deficit it can't afford, and a
+    $10k contest doesn't need a $120 deficit to max out. Fail-open to 1.0
+    (the dial stands on pace x tide alone). Open positions carry no realized
+    outcome yet: the ledger counts what's banked, which is the point.'''
     try:
         import contest_account as _ca_a
         _acct = _ca_a.load_state()
@@ -1079,8 +1344,34 @@ def _worth_actual_factor(now=None) -> float:
             return 1.0
         _real = float(_ca_a.realized_pnl_today(_acct, now=now))
         _deficit = _pace - _real
-        _raw = 1.0 + WORTH_ACTUAL_SWING * (_deficit / WORTH_ACTUAL_HALFLIFE_USD)
+        _size = _contest_size(now)
+        _halflife = max(WORTH_ACTUAL_HALFLIFE_MIN_USD, _size * WORTH_ACTUAL_HALFLIFE_FRAC)
+        _raw = 1.0 + WORTH_ACTUAL_SWING * (_deficit / _halflife)
         return max(WORTH_ACTUAL_MIN, min(WORTH_ACTUAL_MAX, _raw))
+    except Exception:
+        return 1.0
+
+def _worth_buffer_factor(now=None) -> float:
+    '''THE BUFFER LEVER (Sep 9): the buffer — the realized PnL above the
+    death line — IS the bar. pos = buffer / (3% of start), clamped [0,1]:
+    0 at the line (the account is dying — only worthiest popups clear),
+    1 at break-even and beyond (the contest is safe — the floor eases and
+    more popups clear). factor = MAX - pos x (MAX - MIN), so at the 25%
+    base the full [10%, 40%] clamp is reachable: 0.25 x 1.60 = 40%,
+    0.25 x 0.40 = 10%. The death line NEVER moves; nothing here caps
+    money — a fatter balance only eases the bar. Fail-open to 1.0.'''
+    try:
+        import contest_account as _ca_b
+        _acct = _ca_b.load_state()
+        _buf = float(_ca_b.buffer(_acct))
+        _start = float(_acct.get("start_balance") or 0.0)
+        if _start <= 0:
+            return 1.0
+        _pos = max(0.0, min(1.0, _buf / (_start * 0.03)))
+        return max(WORTH_BUFFER_MIN_MULT,
+                   min(WORTH_BUFFER_MAX_MULT,
+                       WORTH_BUFFER_MAX_MULT - _pos * (WORTH_BUFFER_MAX_MULT
+                                                       - WORTH_BUFFER_MIN_MULT)))
     except Exception:
         return 1.0
 
@@ -1088,8 +1379,9 @@ def _worth_actual_factor(now=None) -> float:
 def worth_floor_auto_factors(now=None) -> dict:
     """ONE source of truth for the auto-dial components — the console
     displays the SAME math the scanner gates on. {base, pace, tide,
-    effective, auto}. (Sep 4 correction: NO catch-up — the pace is a
-    guide, not a quota.)"""
+    buffer, effective, auto}. (Sep 4 correction: NO catch-up — the pace
+    is a guide, not a quota. Sep 9: the BUFFER replaces the actual
+    factor — the buffer IS the bar.)"""
     _base = WORTH_AUTO_BASE_DEFAULT
     _auto = True
     try:
@@ -1101,28 +1393,36 @@ def worth_floor_auto_factors(now=None) -> dict:
             _base = _v
         _a = _cs.get("worth_floor_auto")
         _auto = bool(_a) if _a is not None else True   # default ON (user, Sep 4)
-    except Exception:
-        pass
+    except Exception as exc:
+        # the defaults ARE the safe shape here (auto ON, base default) —
+        # but a dead console_state silently moving the worth floor is
+        # exactly the read-before-the-eyes the sweeps exist for
+        logger.warning("worth-floor state unreadable (%s) — shipping the "
+                       "default base/auto", exc)
     _pace = _worth_pace_factor(now)
     _tide_f = 1.0
     try:
         _, _tstate = _fleet_tide()
         if _tstate == "RISING":
             _tide_f = WORTH_TIDE_RISING_FACTOR
-    except Exception:
-        pass
-    _actual = _worth_actual_factor(now)
+    except Exception as exc:
+        logger.warning("fleet tide read failed (%s) — the worth floor "
+                       "ships without the RISING lift", exc)
+    _buffer = _worth_buffer_factor(now)
     if _base <= 0:
         # the user's explicit OFF (0%) beats the auto-dial — never
         # resurrect a floor the user turned off
         _eff = 0.0
     else:
         _eff = max(WORTH_AUTO_MIN,
-                   min(WORTH_AUTO_MAX, _base * _pace * _tide_f * _actual))
+                   min(WORTH_AUTO_MAX, _base * _pace * _tide_f * _buffer))
     if not _auto:
         _eff = _base
     return {"auto": _auto, "base": _base, "pace": _pace, "tide": _tide_f,
-            "actual": _actual, "effective": _eff}
+            "buffer": _buffer,
+            # key kept for older consoles/diags that still print 'actual'
+            # (Sep 9: it now CARRIES the buffer factor — one source of truth)
+            "actual": _buffer, "effective": _eff}
 
 
 def _worth_floor_frac() -> float:
@@ -1131,10 +1431,10 @@ def _worth_floor_frac() -> float:
     rotation): the console's sidebar writes worth_floor_frac (the BASE
     when auto is on) + worth_floor_auto into console_state.json; both
     popup gates read it LIVE at alert time — no scanner restart. AUTO
-    (default on): base x pace x tide x catch-up, clamped [10%, 40%].
+    (default on): base x pace x tide x buffer, clamped [10%, 40%].
     OFF: the static base. 0.0 = the floor is OFF (every gated popup
-    fires). (Sep 7: the dial also knows the ACTUAL day — realized vs
-    planned bends it ±10%, gently, never a quota.)"""
+    fires). (Sep 9: the BUFFER is the bar — fat balance eases the floor,
+    thin tightens it.)"""
     return float(worth_floor_auto_factors()["effective"])
 
 # The stale-move guard (the APT-12:11 lesson): a RE-ENTRY whose move
@@ -1159,8 +1459,9 @@ def _window_goal_pct(pair: str) -> float:
         thr = get_move_threshold(pair, rot, sched, level="standard")
         if thr and float(thr) > 0.2:
             return max(GOAL_MIN_PCT, min(GOAL_MAX_PCT, float(thr)))
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.warning("move_threshold read failed for %s (%s) — the "
+                       "goal ships at the moderate default", pair, exc)
     return GOAL_DEFAULT_PCT
 
 
@@ -1214,8 +1515,9 @@ def _sure_thing_goal_tilt(path=None) -> float:
             _asked = float(_d.get("median_asked") or 0.0)
             if float(_d.get("big_n") or 0) >= 5 and _asked > 0 and _gave > 0:
                 return max(ST_GOAL_TILT_MIN, min(1.0, _gave / _asked))
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.warning("goal-tilt verdict unreadable (%s) — the Sure "
+                       "Thing aim ships untilted", exc)
     return 1.0
 
 
@@ -1235,8 +1537,9 @@ def _sure_thing_goal(exchange, pair: str) -> float:
                 logger.info("  SURE THING %s: GOAL TILT %.2f (the aim-gap "
                             "verdict: the big asks came down)", pair, _tilt)
             return max(GOAL_MIN_PCT, min(GOAL_MAX_PCT, _g * _tilt))
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.warning("Sure Thing goal read failed for %s (%s) — "
+                       "shipping the constant", pair, exc)
     return st.SURE_THING_GOAL_PCT
 
 
@@ -1405,8 +1708,13 @@ def _save_take_payout(pair: str, amount: int):
         try:
             with open(TAKE_PAYOUTS_JSON, "r", encoding="utf-8") as fh:
                 doc = json.load(fh)
-        except Exception:
-            pass
+        except FileNotFoundError:
+            doc = {}   # no payouts file yet — the fresh-map normal
+        except Exception as exc:
+            # the fresh entry overwrites the map either way; the loss
+            # of the PRIOR blocks (re-entry protection) must be visible
+            logger.warning("TAKE payouts map unreadable (%s) — prior "
+                           "payout blocks are lost for this write", exc)
         doc[pair] = {"amount": amount, "ts": _now_mst().isoformat()}
         tmp = TAKE_PAYOUTS_JSON + ".tmp"
         with open(tmp, "w", encoding="utf-8") as fh:
@@ -1442,8 +1750,9 @@ def _log_her_line(text: str):
         lines.append(_json.dumps(entry, ensure_ascii=False))
         with open(VOICE_LOG_FILE, "w", encoding="utf-8") as f:
             f.write("\n".join(lines[-VOICE_LOG_MAX:]))
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.warning("voice log append failed (%s) — the entry is "
+                       "lost to the log only", exc)
 
 
 # ── THE SUPPRESSION LOG (user rule, Sep 4 — the POPCAT lesson: the funnel's
@@ -1467,6 +1776,9 @@ def _log_suppression(pair: str, gate: str, detail: str, **ctx):
         import json as _json
         entry = {"ts": _now_mst().isoformat(), "pair": pair,
                  "gate": gate, "detail": str(detail)[:220]}
+        # carry contest_size (one source of truth) if the ctx has it
+        if 'contest_size' not in entry and 'contest_size' in ctx:
+            entry['contest_size'] = ctx['contest_size']
         for _k, _v in ctx.items():
             if _v is not None:
                 entry[_k] = _v
@@ -1475,8 +1787,15 @@ def _log_suppression(pair: str, gate: str, detail: str, **ctx):
             with open(SUPPRESSION_LOG_FILE, "r", encoding="utf-8") as f:
                 lines = [l for l in f.read().splitlines() if l.strip()]
         lines.append(_json.dumps(entry, ensure_ascii=False, default=str))
-        with open(SUPPRESSION_LOG_FILE, "w", encoding="utf-8") as f:
+        # ATOMIC SWAP (Sep 11): truncate-and-write left a window where a
+        # reader (the tide learner's fit, the weekly hindsight report)
+        # saw an EMPTY ledger and silently fit on nothing. Write .tmp,
+        # then os.replace — readers see old-complete or new-complete,
+        # never empty.
+        _tmp = SUPPRESSION_LOG_FILE + ".tmp"
+        with open(_tmp, "w", encoding="utf-8") as f:
             f.write("\n".join(lines[-SUPPRESSION_LOG_MAX:]))
+        os.replace(_tmp, SUPPRESSION_LOG_FILE)
     except Exception as exc:
         logger.debug("suppression log write failed: %s", exc)
     # ── THE HINDSIGHT SEAM (user spec, Sep 5): every suppression ALSO
@@ -1493,8 +1812,11 @@ def _log_suppression(pair: str, gate: str, detail: str, **ctx):
                 if _v is not None:
                     _rec[_k] = _v
             _log_signal_snapshot(_rec)
-    except Exception:
-        pass
+    except Exception as exc:
+        # a suppressed candidate that never reaches the snapshot ledger
+        # is invisible money-logic — say so
+        logger.warning("suppression snapshot failed (%s) — this "
+                       "suppression is absent from the snapshot ledger", exc)
 
 
 # ── THE SIGNAL-SNAPSHOT DATASET (user spec, Sep 5: "Log every
@@ -1524,9 +1846,14 @@ def _log_signal_snapshot(rec: dict):
                 lines = [l for l in f.read().splitlines() if l.strip()]
         rec = dict(rec)
         rec.setdefault("ts", _now_mst().isoformat())
+        rec.setdefault("contest_size", _contest_size())
         lines.append(_json.dumps(rec, ensure_ascii=False, default=str))
-        with open(SIGNAL_SNAPSHOTS_FILE, "w", encoding="utf-8") as f:
+        # ATOMIC SWAP (Sep 11): same race as the suppression ledger —
+        # .tmp then os.replace, readers never see a partial file.
+        _tmp = SIGNAL_SNAPSHOTS_FILE + ".tmp"
+        with open(_tmp, "w", encoding="utf-8") as f:
             f.write("\n".join(lines[-SIGNAL_SNAPSHOTS_MAX:]))
+        os.replace(_tmp, SIGNAL_SNAPSHOTS_FILE)
     except Exception as exc:
         logger.debug("signal snapshot write failed: %s", exc)
 
@@ -1543,7 +1870,7 @@ def _begin_fire_snapshot(exchange, pair: str, quick_conf, **extras) -> dict:
     buried). Feature failure NEVER blocks the funnel: a broken read logs
     features=None and the gates proceed (the fail-closed rule lives on
     the DEEP SCAN, not on the feature math)."""
-    ctx = {"pair": pair, "quick": quick_conf}
+    ctx = {"pair": pair, "quick": quick_conf, "contest_size": _contest_size()}
     ctx.update(extras)
     feats = None
     try:
@@ -1588,7 +1915,9 @@ def _deep_read(exchange, pair, cfg):
 
 
 def _popup_cap() -> int:
-    """The popup cap dial — read LIVE from console_state.json (the
+    """RETIRED (Sep 9: the popup cap is not part of the design — kept per
+    the don't-delete rule, no longer called by any fire path). Was: the
+    popup cap dial — read LIVE from console_state.json (the
     sidebar writes it; no scanner restart), default 3, floor 1."""
     try:
         import json as _json
@@ -1608,6 +1937,27 @@ def _popup_cap() -> int:
 #    weekly: diag_tidedata.py.
 TIDE_FLAT_SIZE_FACTOR = 0.50
 
+
+
+def _popup_cap_dollars() -> float:
+    '''RETIRED (Sep 9: no money cap at any contest size — making more
+    money is good; kept per the don't-delete rule, no longer called).
+    Was: the popup cap's DOLLAR ceiling: the most fresh-entry money the contest
+    can have open at once across all current popups. Size-adjusted (Sep 9):
+      cap = max($20, contest_size x 0.50)
+    so a $1k contest can't open 3 x $240 at once (the count cap would allow
+    it, but the dollar cap stops at ~$500 total), while a $10k contest can
+    hold up to $5,000 in fresh entries. The cap is checked at fire time: a
+    candidate whose spend would push past the ceiling is suppressed as a
+    'cap-dollar' gate (distinct from the count cap, which still applies).
+    Fail-open to $20 on a broken read (one small trade still fine).'''
+    try:
+        _sz = _contest_size()
+        if _sz <= 0:
+            return 20.0
+        return max(20.0, _sz * 0.50)
+    except Exception:
+        return 20.0
 
 def _climb_strictness() -> float:
     """THE CLIMB-OUT DIAL (user rule, Sep 6): the strictness multiplier
@@ -1636,8 +1986,9 @@ def _climb_out_check(exchange, pair: str, entry: float, goal_pct: float,
         try:
             _tp, _ts = _fleet_tide()
             _tide = _ts or "FLAT"
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning("fleet tide read failed (%s) — the CLIMB-OUT "
+                           "gate prices this candidate as FLAT", exc)
         _near_death = False
         _balance = None
         try:
@@ -1646,8 +1997,11 @@ def _climb_out_check(exchange, pair: str, entry: float, goal_pct: float,
             _balance = float(_acct["current_balance"])
             _buf = _balance - _ca_co.death_line(_acct)
             _near_death = _buf < 0.5 * 0.03 * float(_acct["start_balance"])
-        except Exception:
-            pass
+        except Exception as exc:
+            # _near_death stays False = the DEATH GUARD disarms — the
+            # riskiest fail-open in the gate; it must be visible
+            logger.warning("account read failed (%s) — the climb-out "
+                           "gate ships WITHOUT its near-death guard", exc)
         return climb_out_gate(exchange, pair, entry, goal_pct, spend,
                               is_coil=is_coil, coil_ceiling=coil_ceiling,
                               tide_state=_tide, near_death=_near_death,
@@ -1718,6 +2072,38 @@ def _recent_fired_popups(window_min=POPUP_CAP_WINDOW_MIN) -> int:
 #    the thin-book indicator (signals in the last 10 min + cluster
 #    risk), the turnaround profile (the $10/10-minute model), and the
 #    final decision snapshot. INFORMS, never gates — the gates stand.
+def _recent_fired_popups_dollars(window_min=POPUP_CAP_WINDOW_MIN) -> float:
+    '''Total spend (USD) committed by BUY popups that fired inside the cap
+    window (reads the snapshot log). Used by the size-adjusted dollar cap: a
+    new candidate whose spend + already-committed > the dollar ceiling is
+    suppressed as 'cap-dollar'. Fail-open to 0.0 on any error.'''
+    try:
+        import json as _json
+        from datetime import datetime as _dt, timedelta as _td
+        if not os.path.exists(SIGNAL_SNAPSHOTS_FILE):
+            return 0.0
+        _cutoff = _now_mst() - _td(minutes=window_min)
+        _tot = 0.0
+        with open(SIGNAL_SNAPSHOTS_FILE, 'r', encoding='utf-8') as f:
+            for line in f:
+                try:
+                    r = _json.loads(line)
+                except Exception:
+                    continue
+                if r.get('kind') != 'fired':
+                    continue
+                _spend = float(r.get('spend') or 0.0)
+                if _spend <= 0:
+                    continue
+                try:
+                    if _dt.fromisoformat(r.get('ts')) >= _cutoff:
+                        _tot += _spend
+                except Exception:
+                    continue
+        return _tot
+    except Exception:
+        return 0.0
+
 def _recent_signal_events(window_min: float = 10.0) -> int:
     """Signals (fired + buried) inside the window — the cluster read."""
     try:
@@ -1774,15 +2160,20 @@ def _danger_zone_panel(exchange, pair: str, spend: float, goal_pct: float,
                         _entry = float(_e.get("entry") or 0.0)
                         if _t > 0 and _entry > 0:
                             _upl += (_t - _entry) * (float(_e.get("size") or 0.0) / _entry)
-                    except Exception:
-                        pass
+                    except Exception as exc:
+                        logger.debug("open-position ticker read failed "
+                                      "(%s) — the unrealized line "
+                                      "under-reports", exc)
                 _exp = "LOW" if _committed < 0.10 * _bal else \
                        "MEDIUM" if _committed < 0.50 * _bal else "HIGH"
                 _pos_line = (f"Position: {len(_w)} open · ${_committed:,.0f} "
                              f"(unrealized {'+' if _upl >= 0 else ''}${_upl:,.0f}) "
                              f"· exposure {_exp}")
-        except Exception:
-            pass
+        except Exception as exc:
+            # the position/exposure line is console color; the availability
+            # math below still runs on the plain balance
+            logger.debug("position line read failed (%s) — availability "
+                         "math unaffected", exc)
         _avail = max(0.0, _bal - _committed)
         _pct_comm = (_committed / _bal * 100.0) if _bal > 0 else 0.0
 
@@ -1944,8 +2335,7 @@ def _push_to_phone(text: str, wav_path: str | None = None):
             data=str(text).encode("utf-8"),
             headers={"Title": "Kraken Scout", "Priority": prio,
                      "Tags": "rotating_light" if prio == "urgent" else "chart_with_upwards_trend"})
-        urllib.request.urlopen(req, timeout=3)
-    except Exception:
+    except (OSError, ValueError):
         pass  # push is best-effort — the PC voice already spoke
 
 
@@ -2029,17 +2419,21 @@ def _hours_to_goal(pair: str, entry, tp):
         return None
 
 
-def _hours_to_scalp(pair: str, entry):
+def _hours_to_scalp(pair: str, entry, *, now):
     """Hours to reach THE USER'S TARGET: +$20 on $5,000 = +0.4% at this
     coin's rotation pace. This is what 'resolve within a few hours' means
     in their system — they scalp $20s, they don't hold to TP. The old
-    TP-based gate blocked every 92% breakout (far TP, immediate scalp)."""
+    TP-based gate blocked every 92% breakout (far TP, immediate scalp).
+    (Sep 13) `now` is REQUIRED (fresh-stamp standard): the clock picks
+    the rotation and weekday schedule, so a cached plate must pass its
+    own (bucketed) time — zero wall-clock reads in this body, or the
+    sweep flags the freeze. Live callers pass datetime.now(MST)."""
     try:
         from volatility_engine import load_rotation_thresholds, ROTATIONS
         doc = load_rotation_thresholds(max_age_s=300)
         if not doc or not entry:
             return None
-        n = _now_mst()
+        n = now
         rot = next((k for s, e, k, *_ in ROTATIONS if s <= n.hour < e), None)
         if rot is None:
             return None
@@ -2054,12 +2448,15 @@ def _hours_to_scalp(pair: str, entry):
         return None
 
 
-def _max_resolve_hours() -> float:
+def _max_resolve_hours(*, now) -> float:
     """How long a contest trade may take to hit its goal:
     base 3h, flexible by the rotation's real pace (engine data —
     strong rotations earn patience), NEVER past midnight (never the
-    next day). Uses the rotation × weekday/weekend schedule."""
-    n = _now_mst()
+    next day). Uses the rotation × weekday/weekend schedule.
+    (Sep 13) `now` is REQUIRED (fresh-stamp standard): rotation and
+    weekday selection ride the caller's clock — zero wall-clock reads
+    in this body."""
+    n = now
     hours_to_midnight = (24 - n.hour) - n.minute / 60.0
     pace_cap = 4.0
     try:
@@ -2075,8 +2472,9 @@ def _max_resolve_hours() -> float:
             pace_cap = 5.0
         else:
             pace_cap = 4.0   # slow market — demand speed
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.warning("rotation pace read failed (%s) — the payout "
+                       "clock ships at the default cap", exc)
     return min(pace_cap, hours_to_midnight)
 
 
@@ -2114,8 +2512,11 @@ def contest_light(exchange, cfg):
                               "Consider getting out!", rate=1)
                 logger.info("🌊 TIDE OUT: fleet breadth %.0f%% — all-ships warning issued", _tp)
             _tide_last_state = _ts
-    except Exception:
-        pass
+    except Exception as exc:
+        # the tide warning is the fleet's early alarm — a dead read
+        # must be visible, not just a silent skip of the announcement
+        logger.warning("fleet tide read failed (%s) — the all-ships "
+                       "warning may not fire this cycle", exc)
 
     exited_pairs = []
     voice_updates = []
@@ -2193,8 +2594,12 @@ def contest_light(exchange, cfg):
                     elif any("exhaustion" in r.lower() for r in sig.reasons) and sig.action != "buy":
                         should_exit = True
                         reason = "Climax candle — this move looks done"
-            except Exception:
-                pass
+            except Exception as exc:
+                # the strategy's say went unread this cycle — the exit
+                # decision falls to the remaining gates; visible, so a
+                # stuck hold is explainable
+                logger.warning("exit-strategy read failed for %s (%s) — "
+                               "this cycle exits on the other gates only", pair, exc)
 
         if should_exit:
             exited_pairs.append(pair)
@@ -2398,6 +2803,91 @@ def main():
     exchange = ccxt.kraken({"enableRateLimit": True})
     all_pairs = list(cfg.trading_pairs)
 
+    # ── THE LIVE TIDE MEMORY DRIVER (Sep 10): the memory must learn
+    # beyond the candle store. This thread re-scores recent popup-path
+    # outcomes (fired AND buried — hindsight_scorer.backfill) every 30
+    # min and blends them into the per-coin edge: fired popups that pay
+    # strengthen it, buried payers restore it. Daemon — dies with the
+    # scanner; a broken refresh never takes the funnel down.
+    try:
+        import tide_memory as _tmem
+        _tmem_live_stop = threading.Event()
+        threading.Thread(target=_tmem.live_driver_loop,
+                         args=(_tmem_live_stop,), daemon=True,
+                         name="tide-memory-live").start()
+        logger.info("  Tide memory live driver: ON (popup outcomes "
+                    "refresh every %d min)", int(_tmem.LIVE_REFRESH_S / 60))
+    except Exception as _tmem_exc:
+        logger.info("  Tide memory live driver: OFF (%s)", _tmem_exc)
+
+    # ── THE DEEP STORE DRIVER (Sep 11): the 5m deep store must never go
+    # stale — the seam QA only works while the fetch gap is small (the
+    # Kraken OHLC endpoint serves the latest 720 candles per call). This
+    # thread runs the live-Kraken 5m extender once a day; the 1h layer
+    # rebuilds on top via build_deepstore (atomic swaps — readers never
+    # see a half-written feather). Daemon; a broken pass never takes the
+    # funnel down.
+    try:
+        import fetch_kraken_5m_history as _fk5m
+        _fk5m_stop = threading.Event()
+        threading.Thread(target=_fk5m.store_driver_loop,
+                         args=(_fk5m_stop,), daemon=True,
+                         name="deep-store-5m-driver").start()
+        logger.info("  Deep store 5m driver: ON (live-Kraken extension "
+                    "every %dh)", int(_fk5m.STORE_REFRESH_S // 3600))
+    except Exception as _fk5m_exc:
+        logger.info("  Deep store 5m driver: OFF (%s)", _fk5m_exc)
+
+    # ── THE SURE THING AUTO-REFIT DRIVER (Sep 11): the score's weights
+    # keep pace with the store — a monthly pass replays the deep store
+    # with the real detector, ridge-fits fresh weights under the popup's
+    # re-contracted 4h horizon, and SHIPS only when the holdout proves
+    # the fresh fit beats legacy AND the incumbent. Degradation (the
+    # holdout AUC dropping below the incumbent's or the forward-ranker
+    # floor) keeps the incumbent and REPORTS — the report + the weights
+    # ledger (_surethingautorefit.txt / sure_thing_autoweights.json)
+    # carry the verdicts. A shipped swap is atomic (REFIT_W.update) —
+    # the next poll prices with the new weights, no restart. Daemon;
+    # a broken pass never takes the funnel down.
+    try:
+        import surething_autorefit as _star
+        _star_stop = threading.Event()
+        threading.Thread(target=_star.refit_driver_loop,
+                         args=(_star_stop,), daemon=True,
+                         name="surething-autorefit").start()
+        logger.info("  Sure Thing auto-refit driver: ON (monthly refit, "
+                    "first pass in %d min; holdout degradation reported)",
+                    int(_star.FIRST_DELAY_S // 60))
+    except Exception as _star_exc:
+        logger.info("  Sure Thing auto-refit driver: OFF (%s)", _star_exc)
+
+    # ── THE TIDE BAR WEEKLY (Sep 11): hindsight for the per-state
+    # outcome bars — every week the ledgers' real candidates are graded
+    # under BOTH the in-force bar and the quantile it replaced, per tide
+    # state, in dollars (_tidebarweekly.txt, newest section first). The
+    # in-sample ship gates prove the fit; this proves the fit PAID.
+    # Daemon; a broken pass never takes the funnel down.
+    try:
+        import tidebar_weekly as _tbw
+        _tbw_stop = threading.Event()
+        threading.Thread(target=_tbw.weekly_driver_loop,
+                         args=(_tbw_stop,), daemon=True,
+                         name="tidebar-weekly").start()
+        logger.info("  Tide bar weekly driver: ON (outcome-vs-quantile "
+                    "hindsight — daily pass, 7-day grade window; "
+                    "first pass in %d min)",
+                    int(_tbw.FIRST_DELAY_S // 60))
+        threading.Thread(target=_tbw.flipgrade_driver_loop,
+                         args=(_tbw_stop,), daemon=True,
+                         name="flip-grade-driver").start()
+        logger.info("  Flip grade driver: ON (the bench machinery judged "
+                    "on its own ledger — monthly, plus a fresh grade "
+                    "shortly after each weekly tide-bar pass; first pass "
+                    "in %d min)",
+                    int(_tbw.FLIPGRADE_FIRST_DELAY_S // 60))
+    except Exception as _tbw_exc:
+        logger.info("  Tide bar weekly driver: OFF (%s)", _tbw_exc)
+
     # ── Notification ──────────────────────────────────────────────────
     def notify_big(title: str, message: str, spoken: str | None = None):
         """Desktop alert that STAYS until you read it — plus Zira says the
@@ -2417,8 +2907,9 @@ def main():
                 say = say.replace("%", " percent")
                 if say:
                     _speak_server(say)
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning("voice announce failed (%s) — the popup "
+                           "surfaces silent", exc)
 
         # 2) Persistent popup — stays up to 3 minutes or until clicked
         try:
@@ -2471,11 +2962,13 @@ def main():
             return
 
         # ── ROTATION MEMORY (user rule, Aug 30) ─────────────────────────
-        # 1. LOCKOUT: one green light per asset per rotation. After a GO the
-        #    asset is cold until the next rotation boundary — no whipsaw
-        #    re-entry alerts, no double-dip fines.
+        # 1. LOCKOUT — RETIRED (user rule, Sep 10: "delete the rule"): the
+        #    one-green-per-rotation cap is OFF; a coin can fire again the
+        #    moment it passes every remaining gate. The call stays for the
+        #    re-entry display + the stale-move exemption; nothing returns
+        #    on it.
         _allowed, _lock_reason, _is_reentry, _fine = rotation_gate(asset)
-        if not _allowed:
+        if not _allowed:  # dead since the Sep 10 retirement — kept honest
             logger.info("  ROTATION LOCK: %s %s — no alert, no bridge write", asset, _lock_reason)
             _log_suppression(pair, "rotation-lock",
                              f"{_lock_reason} (one green per asset per rotation)",
@@ -2536,8 +3029,11 @@ def main():
             _begin_fire_snapshot(exchange, pair, float(signal.confidence),
                                  action=signal.action,
                                  entry=float(signal.entry_price or 0.0))
-        except Exception:
-            pass
+        except Exception as exc:
+            # without the snapshot the popup's hindsight row is a gap
+            # in the money-logic — say so
+            logger.warning("fire snapshot failed for %s (%s) — this "
+                           "popup's hindsight row is lost", pair, exc)
 
         # ── Gate 1: EXPECTED MOVE (bot's size filter) ────────────────────
         try:
@@ -2559,8 +3055,34 @@ def main():
             asset_bar = get_confidence_bar(pair, gate_rot, gate_sched)
             if asset_bar is not None:
                 effective_thr = asset_bar
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning("confidence bar read failed for %s (%s) — "
+                           "the auto threshold ships unasset-tuned", pair, exc)
+        # ── THE PER-COIN TIDE MEMORY (Sep 10, tide_memory.py): the
+        # false-breakout pattern applied to the tide — a coin that pays
+        # in OUT/FLAT hours beyond the fleet eases its own bar up to 3
+        # pts; a coin that doesn't, pays up to 3 more. RISING rides the
+        # fleet (rho +0.24). Never below the lone-wolf floor; fail-closed
+        # on a broken store. (BOT SIDE: this is the bot ledger's own
+        # price — the DESKTOP path prices OUT once through
+        # tide_personal_bar on the learned bar, never here too.)
+        try:
+            _g0_pct, _g0_state = _fleet_tide()
+            if _g0_state in tide_memory_states():
+                import tide_memory as _tmem2
+                _tadj2, _twhy2 = _tmem2.tide_edge(pair, _g0_state)
+                if _tadj2:
+                    _new_thr = max(LONE_WOLF_BAR_FLOOR, effective_thr - _tadj2)
+                    logger.info("  TIDE MEMORY: %s %+.1f pts in %s — %s (bar %d%% → %d%%)",
+                                asset, _tadj2, _g0_state, _twhy2,
+                                effective_thr, _new_thr)
+                    effective_thr = int(_new_thr)
+        except Exception as exc:
+            # fail-open is the contract (a broken memory never gates)
+            # but the coin's personal relief silently vanishing is a
+            # popup-floor question — say so
+            logger.warning("tide_memory read failed for %s/%s (%s) — the "
+                           "coin's personal bar relief ships UNAPPLIED", pair, _g0_state, exc)
 
         # ── LONE WOLF (user rule, Aug 31): the bar was calibrated before
         # the tide existed. A coin running on its own in a dead fleet gets
@@ -2657,38 +3179,54 @@ def main():
         # near-miss rescue already has _deep cached — no second read.
         # (The bot's breakout-appropriate chase rules — stale 2% / blowoff
         # 5% — live reader-side; this is the subset right for ANY buy.)
+        _bot_out_priced_pass, _bot_out_pbar = False, None
         if is_buy and not gate_notes:
             try:
-                # TIDE OUT = no entries anywhere on the BOT ledger — the
-                # bridge included; all ships sink together. EXCEPT THE
-                # LONE-WOLF CARVE-OUT (user rule, Sep 4, the POPCAT
-                # lesson): a TRUE solo runner (own 24h move ≥ the
-                # lone-wolf tiers — lone_wolf_discount now covers OUT)
-                # gets NO bridge write (two ledgers — the bot never buys
-                # an OUT tide) but the flow CONTINUES to the contest
-                # popup, marked. gate_notes skips the write below and the
-                # popup's BOT'S OUT line names the carve.
+                # ── THE BOT'S OUT GATE (Sep 10 rebalance: the bot honors
+                # the learned bar on ITS OWN ledger). The old wall ("all
+                # ships sink together", Sep 4) rested on the 30-day
+                # artifact the extended store retired — OUT pays 12.3% on
+                # the popup fleet (the fleet study) — and the wall binds
+                # exactly the champion-grade cohort (everything here
+                # already cleared the bot's engine bar). The bot keeps
+                # its discipline: the learned bar with the personal
+                # adjustment (fail-closed — a cold learner keeps the
+                # wall), every reader veto below. THE LONE-WOLF CARVE-OUT
+                # (Sep 4, the POPCAT lesson) stands unchanged: contest
+                # popup only, never a bridge write.
                 _tp0, _ts0 = _fleet_tide()
                 if _ts0 == "OUT":
                     if _lw_pts:
                         gate_notes.append("OUT tide — the bot stays out; the lone-wolf "
                                           "carve-out is contest-only")
                         logger.info("  OUT-TIDE LONE WOLF: %s — %s — no bridge write (the "
-                                    "bot's ledger hard-blocks OUT); the contest popup continues",
+                                    "bot's carve is contest-only); the contest popup continues",
                                     asset, _lw_note)
                     else:
-                        logger.info("  TIDE OUT (fleet %.0f%%) — no bridge write; all ships sink together", _tp0)
-                        _log_suppression(pair, "tide-out",
-                                         f"fleet {_tp0:.0f}% up — all ships sink together; "
-                                         f"no solo move (the carve-out needs ≥+{LONE_WOLF_MOVE_MIN:.0f}% "
-                                         f"own 24h move)",
-                                         quick=float(signal.confidence),
-                                         brain=(float(_deep.confidence) if _deep is not None else None),
-                                         floor=float(popup_floor_for_rotation(
-                                             rotation_key_for_hour(_now_mst().hour))),
-                                         tide=f"OUT {_tp0:.0f}%",
-                                         rot=rotation_key_for_hour(_now_mst().hour))
-                        return
+                        _bot_lbar, _bot_lmeta = _tide_learn_bar()
+                        _bot_out_pbar = tide_personal_bar(pair, "OUT", _bot_lbar)
+                        if _bot_out_pbar is not None and float(signal.confidence) >= _bot_out_pbar:
+                            _bot_out_priced_pass = True
+                            logger.info("  OUT-TIDE BOT PASS: %s — quick %.1f clears the personal bar %.0f (%s) — "
+                                        "the bot's ledger prices the tide (the deep read still owes its verdict)",
+                                        asset, float(signal.confidence), _bot_out_pbar, _bot_lmeta)
+                        else:
+                            _bot_why = (f"the OUT tide's price on the bot's ledger: quick "
+                                        f"{float(signal.confidence):.1f} vs personal bar "
+                                        f"{_bot_out_pbar:.0f} ({_bot_lmeta})"
+                                        if _bot_out_pbar is not None else
+                                        f"fleet {_tp0:.0f}% up — all ships sink together; no solo move "
+                                        f"(the carve-out needs ≥+{LONE_WOLF_MOVE_MIN:.0f}% own 24h move); "
+                                        f"the learner is cold — the wall stands")
+                            logger.info("  TIDE OUT (fleet %.0f%%) — no bridge write; %s", _tp0, _bot_why)
+                            _log_suppression(pair, "tide-out", _bot_why,
+                                             quick=float(signal.confidence),
+                                             brain=(float(_deep.confidence) if _deep is not None else None),
+                                             floor=float(popup_floor_for_rotation(
+                                                 rotation_key_for_hour(_now_mst().hour))),
+                                             tide=f"OUT {_tp0:.0f}%",
+                                             rot=rotation_key_for_hour(_now_mst().hour))
+                            return
                 if _deep is None:
                     try:
                         _deep, _df = _do_deep_read()
@@ -2762,6 +3300,12 @@ def main():
                 # execution; diag_tidedata.py turns it into the FLAT-vs-
                 # RISING record. Cached read — no extra API call.
                 _tpw, _tsw = _fleet_tide()
+                _tide_stamp = _tsw or "UNKNOWN"
+                if _tide_stamp == "OUT" and _bot_out_priced_pass:
+                    # the priced OUT pass rides the stamp — the reader
+                    # honors 'OUT|BAR PASSED <bar>' and still rejects a
+                    # bare OUT (belt-and-braces, fail-closed)
+                    _tide_stamp = f"OUT|BAR PASSED {_bot_out_pbar:.0f}"
                 signal_written = write_buy_signal(
                     pair=pair, action=signal.action,
                     # the BRAIN'S number (deep-read confidence when we have
@@ -2777,7 +3321,7 @@ def main():
                     reasons=signal.reasons,
                     source="scout_auto",
                     min_confidence=0,  # Already gated in send_alert — skip redundant check
-                    tide_state=(_tsw or "UNKNOWN"),
+                    tide_state=_tide_stamp,
                     tide_pct=_tpw,
                 )
                 if signal_written:
@@ -2821,7 +3365,7 @@ def main():
             _df_pct, _df_state = None, None
         _rot_now_key = rotation_key_for_hour(_now_mst().hour)
         _rot_base_floor = popup_floor_for_rotation(_rot_now_key)
-        DESKTOP_ALERT_MIN = popup_floor(_df_state, _lw_pts, _rot_now_key)
+        DESKTOP_ALERT_MIN = popup_floor(_df_state, _lw_pts, _rot_now_key, pair)
         if DESKTOP_ALERT_MIN != _rot_base_floor:
             _fl_why = []
             if _df_state == "RISING":
@@ -2954,8 +3498,12 @@ def main():
                                      tide=(f"{_df_state} {_df_pct:.0f}%" if _df_pct is not None else _df_state),
                                      rot=_rot_now_key)
                     return
-            except Exception:
-                pass
+            except Exception as exc:
+                # THE SAGGING-TOP RISK: a stale-move read that failed
+                # lets a possibly-dead re-entry through — the guard's
+                # absence must be visible against the APT lesson
+                logger.warning("stale-move guard read failed for %s (%s) "
+                               "— this re-entry popup ships UNGUARDED", pair, exc)
 
         # The signal already PASSED the contest criteria (champion + checklist,
         # checked upstream). Why the bot didn't take it gets spelled out in
@@ -2968,18 +3516,27 @@ def main():
 
         # Desktop notification
         liq_msg = f"  {liq_line}\n" if liq_line else ""
-        # Contest chunk (25/50/75/100% — the contest app only takes those):
-        # snap the strategy size UP, reading the console's tier setting.
-        contest_msg = ""
+        # Contest chunk (25/50/75/100% ? the contest app only takes those):
+        # the spend line must reflect the REAL contest size, not the static tier
+        # label. The TIA close / window reset changes the contest; the live
+        # ledger (contest_account.json current_balance) is the actual game state;
+        # the console_state.json tier label is the user's selection fallback.
+        # Every size-sensitive popup gate (worth tilt, cap dollar ceiling, death
+        # line, danger-zone impact) now scales off _contest_size() so the same
+        # signal means a different SIZE at a $1k contest vs a $10k contest.
+        # THE CONTEST SIZE (Sep 10 — the unbound-_bal fix): every
+        # size-sensitive line below reads the LIVE contest balance via
+        # _contest_size() — the ledger (contest_account.json) is the game
+        # state; the console tier label is only the spoken fallback. (The
+        # dead refactor block that computed this into `_sz` but never
+        # bound _bal is gone: _bal was READ at the spend line before any
+        # STORE anywhere in send_alert, so the function raised
+        # UnboundLocalError on every candidate that got this far — and
+        # the book-carry filter never learned the contest's real size.)
         try:
-            import json as _json
-            from pathlib import Path as _P
-            _cs = _json.loads((_P(__file__).resolve().parent / "console_state.json").read_text())
-            _bal = float(str(_cs.get("tier", "$5,000")).replace("$", "").replace(",", ""))
+            _bal = float(_contest_size())
         except Exception:
-            _bal = 5000.0
-        # the user's system: green light → all in. The deep scan is the
-        # confirmation; when it's green they go 100%. Say what they do.
+            _bal = 0.0
         contest_msg = f"  SPEND: 100% = ${_bal:,.0f}\n" if _bal > 0 else ""
         # ── THE GOAL CLOCK (user rule, Sep 1, retargeted Sep 4: "target
         # each market separately — what were those assets doing at this
@@ -3009,7 +3566,8 @@ def main():
         # ran at the bridge stage for bot-bound signals; bot-declined
         # (contest-only) signals get theirs here. Fail-open on errors.
         if is_buy:
-            _out_tide_lw = False  # set by the OUT-tide lone-wolf carve-out below
+            _out_tide_lw = False        # the lone-wolf carve-out path
+            _out_tide_learned = False   # the learned-bar / journal-release path
             try:
                 # TIDE OUT = no entries anywhere — EXCEPT THE LONE-WOLF
                 # CARVE-OUT (user rule, Sep 4, the POPCAT lesson: the
@@ -3030,17 +3588,53 @@ def main():
                                     "the tide gate (the brain already cleared the %.0f%% bar)",
                                     asset, _lw_note, DESKTOP_ALERT_MIN)
                     else:
-                        _log_suppression(pair, "tide-out",
-                                         f"fleet {_tp2:.0f}% up — all ships sink together; "
-                                         f"no solo move (the carve-out needs ≥+{LONE_WOLF_MOVE_MIN:.0f}% "
-                                         f"own 24h move)",
-                                         quick=float(signal.confidence),
-                                         brain=(float(_deep.confidence) if _deep is not None else None),
-                                         floor=float(DESKTOP_ALERT_MIN),
-                                         tide=f"OUT {_tp2:.0f}%", rot=_rot_now_key)
-                        logger.info("  TIDE OUT (fleet %.0f%%) — desktop suppressed; all ships sink together",
-                                    _tp2)
-                        return
+                        # ── THE PERSONAL OUT BAR (Sep 10, rebalanced):
+                        # the tide became a PRICE, not a wall. The deep
+                        # store prices the tide by its payer rate
+                        # (tide_learn.py, clamped [86, 97], fail-closed
+                        # to the blanket block when the learner has no
+                        # model) and the coin's own tide memory
+                        # personalizes it (tide_personal_bar) — ONE tax,
+                        # not two. THE LONE WOLF still passes on solo
+                        # strength (above); THE JOURNAL RELEASE stays as
+                        # the backstop when the model is cold (below).
+                        _lbar, _lmeta = _tide_learn_bar()
+                        _pbar = tide_personal_bar(pair, "OUT", _lbar)
+                        if _pbar is not None and float(signal.confidence) >= _pbar:
+                            _out_tide_learned = True   # rides the marked 'against the tide' path
+                            logger.info("  OUT-TIDE LEARNED PASS: %s — quick %.1f clears %s",
+                                        asset, float(signal.confidence), _lmeta)
+                        else:
+                            # THE JOURNAL RELEASE backstop (Sep 10):
+                            # champion-grade candidates release through
+                            # the OUT-tide block when the learner is cold
+                            # AND the journal shows tide-out burying
+                            # payers (quick >= 92 AND deep >= 84 + buy)
+                            # — uncapped, user rule Sep 10.
+                            _rel, _rel_why = _seam_releases_tide_out(
+                                signal.confidence, _deep, pair,
+                                deep_fetcher=lambda: _do_deep_read()[0])
+                            if _rel:
+                                _out_tide_learned = True  # rides the marked 'against the tide' path
+                                logger.info("  OUT-TIDE JOURNAL RELEASE: %s — quick %.0f, brain %.0f — %s",
+                                            asset, float(signal.confidence),
+                                            float(getattr(_deep, "confidence", 0) or 0), _rel_why)
+                            else:
+                                _bar_txt = (f"personal bar {_pbar:.0f} ({_lmeta})"
+                                            if _pbar is not None
+                                            else f"no learned bar ({_lmeta})")
+                                _log_suppression(pair, "tide-out",
+                                                 f"fleet {_tp2:.0f}% up — the OUT tide's price: "
+                                                 f"quick {float(signal.confidence):.1f} vs {_bar_txt}; "
+                                                 f"lone wolf needs >= +{LONE_WOLF_MOVE_MIN:.0f}% "
+                                                 f"own 24h move; journal: {_rel_why}",
+                                                 quick=float(signal.confidence),
+                                                 brain=(float(_deep.confidence) if _deep is not None else None),
+                                                 floor=float(DESKTOP_ALERT_MIN),
+                                                 tide=f"OUT {_tp2:.0f}%", rot=_rot_now_key)
+                                logger.info("  TIDE OUT (fleet %.0f%%) — desktop suppressed (%s; journal: %s)",
+                                            _tp2, _bar_txt, _rel_why)
+                                return
                 # The brain rules EVERY alert — whether this stage read it
                 # or the near-miss consult already did (one read, cached).
                 if _deep is None:
@@ -3096,13 +3690,22 @@ def main():
             elif _ts3 == "FLAT":
                 _tide_line = f"TIDE: FLAT ({_tp3:.0f}% of the fleet up) — pickier, smaller\n"
             elif _ts3 == "OUT" and _lw_pts:
-                # only reachable through the OUT-tide lone-wolf carve-out —
-                # the popup fires AGAINST the fleet; say so plainly
-                _tide_line = (f"TIDE: OUT ({_tp3:.0f}% of the fleet up) — LONE WOLF carve-out: "
+                # the lone-wolf carve-out — the popup fires AGAINST the
+                # fleet on the solo runner's own strength
+                _tide_line = (f"TIDE: OUT ({_tp3:.0f}% of the fleet up) — LONE WOLF (OUT TIDE) carve-out: "
                               f"this popup fires against the fleet\n")
                 _tide_spoken = "A lone wolf against an out tide! "
-        except Exception:
-            pass
+            elif _ts3 == "OUT" and _out_tide_learned:
+                # the learned bar / journal release — the tide is a PRICE
+                # the candidate paid, not a wall; say so plainly
+                _tide_line = (f"TIDE: OUT ({_tp3:.0f}% of the fleet up) — the learned bar was paid: "
+                              f"the data says this tide still prices winners\n")
+                _tide_spoken = "Against the out tide — but it paid the learned price! "
+        except Exception as exc:
+            # the alert renders without its tide line — cosmetic, but a
+            # dead fleet read inside send_alert is a pattern worth seeing
+            logger.debug("alert tide line read failed (%s) — the popup "
+                         "renders without tide context", exc)
         # ── LONE WOLF line (Aug 31): say WHY the alert fired below the
         # usual floor — the call rides solo strength in a dead fleet.
         _lw_line = f"  LONE WOLF: {_lw_note}\n" if _lw_pts else ""
@@ -3112,7 +3715,9 @@ def main():
         # Sizes the SPEND down to the biggest contest chunk the book
         # carries; if even 25% doesn't fit, the user can't trade it —
         # no alert at all.
-        _spend = float(_bal) if _bal > 0 else 5000.0
+        # (the fallback is the CONFIGURED tier, not a fictional $5k — at
+        # the $1k tier a fake 5k blocks small books the real contest fits)
+        _spend = float(_bal) if _bal > 0 else float(DEFAULT_CONFIG.challenge_balance)
         _carry = None
         try:
             _depth = float(snap.get("book", {}).get("ask_tob") or 0.0)
@@ -3136,8 +3741,8 @@ def main():
                              tide=(f"{_df_state} {_df_pct:.0f}%" if _df_pct is not None else _df_state),
                              rot=_rot_now_key)
             return
-        if _carry is not None and _spend < (float(_bal) if _bal > 0 else 5000.0):
-            contest_msg = (f"  SPEND: {_spend / (float(_bal) if _bal > 0 else 5000.0):.0%} = "
+        if _carry is not None and _spend < (float(_bal) if _bal > 0 else float(DEFAULT_CONFIG.challenge_balance)):
+            contest_msg = (f"  SPEND: {_spend / (float(_bal) if _bal > 0 else float(DEFAULT_CONFIG.challenge_balance)):.0%} = "
                            f"${_spend:,.0f} — SMALL COIN: this book carries ${_spend:,.0f}, "
                            f"not ${_bal:,.0f}\n")
         elif _carry is not None:
@@ -3174,7 +3779,7 @@ def main():
                 if _hm_ok and not _challenger:
                     _hm_q, _hm_qwhy = _hail_mary_qualifies(
                         deep=_deep, df=_df, carry=_carry,
-                        balance=(float(_bal) if _bal > 0 else 5000.0),
+                        balance=(float(_bal) if _bal > 0 else float(DEFAULT_CONFIG.challenge_balance)),
                         floor=float(DESKTOP_ALERT_MIN),
                         ema_short=cfg.ema_short, ema_long=cfg.ema_long)
                     if _hm_q:
@@ -3230,8 +3835,11 @@ def main():
                     _spend = _spend * _brain_mult
                     logger.info("  ADVISORY BRAIN SIZING: %.2fx → $%.0f",
                                 _brain_mult, _spend)
-            except Exception:
-                pass
+            except Exception as exc:
+                # sizing dollars move here — the skipped scaler must be
+                # visible (the spend ships at its pre-scaler value)
+                logger.warning("brain size scaler failed (%s) — the "
+                               "spend ships UNSCALED", exc)
         # ── THE FLAT SIZING FACTOR (user rule, Aug 31: "collect the data
         #    first" — one stamped week later, Sep 7): FLAT 22% win vs
         #    RISING 57% — the discount frame met; the user picked 0.50×.
@@ -3363,9 +3971,10 @@ def main():
                      + (f" — {_brain_mult:.2f}× SIZE" if _brain_mult < 1.0 else "")
                      + (" — FAST ROUTE" if _fast_route else "")
                      + (" — CHALLENGER" if _challenger else "")
+                     + (" — AGAINST THE TIDE" if _out_tide_learned else "")
                      + (" — LONE WOLF (OUT TIDE)" if _out_tide_lw else "")
                      + (" — HAIL MARY" if _hail_mary else ""))
-            _small_coin = _carry is not None and _spend < (float(_bal) if _bal > 0 else 5000.0)
+            _small_coin = _carry is not None and _spend < (float(_bal) if _bal > 0 else float(DEFAULT_CONFIG.challenge_balance))
             _challenger_say = (f"A challenger — just under the {DESKTOP_ALERT_MIN:.0f} percent floor! "
                                if _challenger else "")
             _challenger_line = (f"  CHALLENGER: the brain reads {_dc:.0f}% vs this rotation's "
@@ -3385,7 +3994,7 @@ def main():
                        + _lw_say
                        + f"Aim for plus {_goal_pct:.0f} percent! "
                        + (f"Small size only — {_spend:,.0f} dollars! " if _small_coin else
-                          (f"Big book — all {(float(_bal) if _bal > 0 else 5000.0):,.0f} dollars in fine! "
+                          (f"Big book — all {(float(_bal) if _bal > 0 else float(DEFAULT_CONFIG.challenge_balance)):,.0f} dollars in fine! "
                            if _carry is not None else
                            "Book unreadable — your call on size! "))
                        + _tide_spoken
@@ -3414,8 +4023,8 @@ def main():
                 f"{_challenger_line}"
                 f"{_brain_line}"
                 f"{_tide_size_line}"
-                + (f"🚀 FAST ROUTE: {_fast_why} — minimal gates; the 3% guard + the "
-                   f"popup cap carry the risk\n" if _fast_route else "")
+                + (f"🚀 FAST ROUTE: {_fast_why} — minimal gates; the 3% guard "
+                   f"carries the risk\n" if _fast_route else "")
                 + f"{contest_msg}"
                 + ("" if _climb is None else str(_climb.get("output_block") or ""))
                 + f"{_dz}"
@@ -3439,23 +4048,10 @@ def main():
         # floor did — no more than the cap (sidebar dial, live) may fire
         # inside the window. The BRIDGE WRITE above stands (the bot's own
         # gates govern the bot's money); only the popup is capped.
-        if is_buy:
-            _cap_n = _popup_cap()
-            _fired_n = _recent_fired_popups()
-            if _fired_n >= _cap_n:
-                logger.info("  POPUP CAP: %d popups inside the last %.0f min "
-                            "(cap %d) — desktop quiet; the bridge write stands",
-                            _fired_n, POPUP_CAP_WINDOW_MIN, _cap_n)
-                _log_suppression(pair, "popup-cap",
-                                 f"{_fired_n} popups inside the last "
-                                 f"{POPUP_CAP_WINDOW_MIN:.0f} min (cap {_cap_n}) — "
-                                 f"the watch never floods",
-                                 quick=float(signal.confidence),
-                                 brain=(float(_deep.confidence) if _deep is not None else None),
-                                 floor=float(DESKTOP_ALERT_MIN),
-                                 tide=(f"{_df_state} {_df_pct:.0f}%" if _df_pct is not None else _df_state),
-                                 rot=_rot_now_key)
-                return
+        # (Sep 9) THE POPUP CAP RETIRED — not part of the design: no
+        # money cap (making more money is good), no count cap. The
+        # buffer — the realized PnL above the death line — is the risk
+        # factor and it owns the worth floor. The bridge write stands.
 
         notify_big(title, message, spoken=_spoken if is_buy else None)
         if is_buy:
@@ -3470,6 +4066,8 @@ def main():
                 _fsnap = dict(_SNAPSHOT_CTX.get("ctx") or {})
                 _fsnap.update({"kind": "fired",
                                "route": ("champion-fast" if _fast_route else "champion"),
+                               "tide": (f"{_df_state} {_df_pct:.0f}%"
+                                        if _df_state and _df_pct is not None else None),
                                "fast_why": _fast_why,
                                "brain": _dc, "mult": _brain_mult,
                                "climb": _climb_features_stamped(
@@ -3482,8 +4080,11 @@ def main():
                                "hail_mary": bool(_hail_mary),
                                "reentry": bool(_is_reentry)})
                 _log_signal_snapshot(_fsnap)
-            except Exception:
-                pass
+            except Exception as exc:
+                # a fired popup with no snapshot row is a hole in the
+                # hindsight ledger — say so
+                logger.warning("fired snapshot failed for %s (%s) — this "
+                               "fire's hindsight row is lost", asset, exc)
         logger.info("🚀 BIG ALERT: %s %s — %.0f%% — entry $%.4f — TP $%.4f",
                     signal.action.upper(), asset, signal.confidence, signal.entry_price, signal.take_profit)
 
@@ -3514,8 +4115,12 @@ def main():
     alerted_recently = {}
     _mover_scanned = {}  # MOVER FUNNEL pacing: per-pair rescan timestamps (10 min), isolated from the contest path
     current_block_name = None  # track time block changes for position reset
-    last_flatten_date = _load_scanner_state().get("last_flatten_date", "")  # persisted — restarts don't re-flatten
-    _st_armed = {}  # SURE THING: asset -> {zh, ts} of the announced coil (one announcement per coil)
+    _scanner_state0 = _load_scanner_state()
+    last_flatten_date = _scanner_state0.get("last_flatten_date", "")  # persisted — restarts don't re-flatten
+    # SURE THING: asset -> {zh, ts} of the armed coil (one announcement
+    # per coil) — PERSISTED (Sep 10): restarts don't re-announce a coil,
+    # and the dedup survives a console restart
+    _st_armed = dict(_scanner_state0.get("sure_thing_armed") or {})
 
     # ── THE SURE THING (user rule, Sep 6: "I'm losing this contest, and
     #    that cannot happen. I need the Sure Thing running immediately.")
@@ -3538,6 +4143,19 @@ def main():
     def _sure_thing_scan(exchange):
         import sure_thing as st
         from hindsight_scorer import brain_size_mult as _st_mult
+
+        def _st_armed_save():
+            """Persist the armed-coil memory (restarts keep the dedup)."""
+            try:
+                _doc = _load_scanner_state()
+                _doc["sure_thing_armed"] = _st_armed
+                _save_scanner_state(_doc)
+            except Exception as exc:
+                # the armed-coil memory rides this file — a lost write
+                # re-announces an armed coil after a restart
+                logger.warning("scanner-state save failed (%s) — the "
+                               "armed-coil memory may not survive a "
+                               "restart", exc)
         # the scanner's own pair list (cfg.trading_pairs — the 54; the
         # app.py ASSETS list doesn't exist here)
         for pair in list(all_pairs):
@@ -3557,6 +4175,7 @@ def main():
                 _prev = _st_armed.get(asset)
                 if not _prev or abs(_prev.get("zh", 0.0) - zh) > zh * 0.005:
                     _st_armed[asset] = {"zh": zh, "ts": time.time()}
+                    _st_armed_save()
                     logger.info("🧲 SURE THING ARMED (silent): %s — %s", asset, r["detail"])
                 if not r.get("fire"):
                     continue
@@ -3565,23 +4184,60 @@ def main():
                 _rot_ok, _rot_reason, _rot_re, _fine = rotation_gate(asset)
                 _lw_pts, _lw_note = lone_wolf_discount(exchange, pair)
                 _tp, _ts = _fleet_tide()
-                if not _rot_ok:
-                    logger.info("  SURE THING %s: rotation lock — %s", asset, _rot_reason)
-                    continue
+                # ROTATION LOCK RETIRED (Sep 10) — always allowed now; the
+                # re-entry flag still rides the popup.
                 if _ts == "OUT" and not _lw_pts:
-                    logger.info("  SURE THING %s: tide OUT — no breakout trades against the fleet", asset)
-                    continue
-                if _recent_fired_popups() >= _popup_cap():
-                    logger.info("  SURE THING %s: popup cap full — quiet", asset)
-                    continue
+                    # ── THE LEARNED OUT BAR (Sep 10, the same pass paths
+                    #    the champion gate uses): the tide is a PRICE, not
+                    #    a wall. The coil's probability IS this path's
+                    #    quick score; the brain's deep read below still
+                    #    holds the direction veto. ① the learned bar
+                    #    (tide_learn.py, the deep store's payer-rate
+                    #    price) — ② the journal release (uncapped,
+                    #    champion-grade; the fetcher earns the consult,
+                    #    fail-closed) — ③ otherwise the suppression is                    # LOGGED (the old silent continue hid coil deaths).
+                    _lbar, _lmeta = _tide_learn_bar()
+                    _pbar = tide_personal_bar(pair, "OUT", _lbar)
+                    if _pbar is not None and float(r.get("score") or 0.0) >= _pbar:
+                        logger.info("  SURE THING %s: OUT-TIDE LEARNED PASS — score %.1f clears %s",
+                                    asset, float(r.get("score") or 0.0), _lmeta)
+                    else:
+                        _rel, _rel_why = _seam_releases_tide_out(
+                            r.get("score"), None, pair,
+                            deep_fetcher=lambda: _deep_read(exchange, pair, cfg)[0])
+                        if _rel:
+                            logger.info("  SURE THING %s: OUT-TIDE JOURNAL RELEASE — score %.0f — %s",
+                                        asset, float(r.get("score") or 0.0), _rel_why)
+                        else:
+                            _bar_txt = (f"personal bar {_pbar:.0f} ({_lmeta})"
+                                        if _pbar is not None
+                                        else f"no learned bar ({_lmeta})")
+                            logger.info("  SURE THING %s: tide OUT — score %.1f vs %s; journal: %s",
+                                        asset, float(r.get("score") or 0.0),
+                                        _bar_txt, _rel_why)
+                            _log_suppression(pair, "tide-out",
+                                             f"breakout coil — the OUT tide's price: "
+                                             f"score {float(r.get('score') or 0.0):.1f} vs {_bar_txt}; "
+                                             f"lone wolf needs >= +{LONE_WOLF_MOVE_MIN:.0f}% "
+                                             f"own 24h move; journal: {_rel_why}",
+                                             quick=float(r.get("score") or 0.0),
+                                             tide=f"OUT {_tp:.0f}%",
+                                             rot=rotation_key_for_hour(_now_mst().hour))
+                            continue
+                # (Sep 9) the popup cap retired — the worth floor (the
+                # buffer is its bar) + the deep read gate this path
                 # the knife: a both-bearish 1h trend is a falling wedge, not a coil
                 try:
                     _knife, _ = knife_reversed_1h(exchange, pair, cfg)
                     if _knife:
                         logger.info("  SURE THING %s: 1h knife active — falling wedge, skip", asset)
                         continue
-                except Exception:
-                    pass
+                except Exception as exc:
+                    # the knife is a SKIP guard — a dead read lets the
+                    # wedge through, which must be visible
+                    logger.warning("1h knife read failed for %s (%s) — "
+                                   "the Sure Thing ships without its "
+                                   "falling-wedge guard", asset, exc)
                 # ── THE DEEP SCAN BEFORE THE POPUP (Sep 7: the Sep 6
                 #    post-entry waiver retired — the user's call). The
                 #    fire-time rule applies to the Sure Thing like every
@@ -3698,7 +4354,9 @@ def main():
                         f"WHY: {_why}\n"
                         f"WHEN: {'NOW — the crack' if _trig == 'crack' else 'BEFORE the crack — the estimated window is ~' + str(_est) + ' min'}\n"
                         f"HOW LONG: out by {_out_by} (the countdown — "
-                        f"{st.SURE_THING_WINDOW_MIN:.0f} min window)\n"
+                        f"the {st.SURE_THING_WINDOW_MIN:.0f}-min contract — "
+                        f"the coil's edge is a 4h structure; if it has not "
+                        f"paid the goal by then, get out)\n"
                         f"SPEND: ${_spend:,.0f} (the 3% guard cap × {_mult:.2f} probability sizing"
                         + (f" × {_st_tide_mult:.2f} FLAT tide" if _st_tide_mult < 1.0 else "")
                         + f")\n"
@@ -3715,10 +4373,13 @@ def main():
                 notify_big(_title, _msg, spoken=_spoken)
                 rotation_mark_fired(asset)
                 _st_armed.pop(asset, None)
+                _st_armed_save()
                 _st_tide_pct, _st_tide_state = _fleet_tide()
                 try:
                     _snap = {"pair": pair, "quick": _score, "brain": None,
                              "route": "sure-thing", "kind": "fired",
+                             "tide": (f"{_st_tide_state} {_st_tide_pct:.0f}%"
+                                      if _st_tide_state and _st_tide_pct is not None else None),
                              "trigger": _trig,
                              "detail": r["detail"],
                              "features": {"coil_range_pct": r.get("coil_range_pct"),
@@ -3741,8 +4402,9 @@ def main():
                              "entry": float(r.get("trigger_px") or 0.0),
                              "win_min": st.SURE_THING_WINDOW_MIN}
                     _log_signal_snapshot(_snap)
-                except Exception:
-                    pass
+                except Exception as exc:
+                    logger.warning("Sure Thing snapshot failed for %s (%s) "
+                                   "— this fire's hindsight row is lost", asset, exc)
                 logger.info("🧲 SURE THING FIRED (%s): %s — %s (prob %.0f, %.2fx, $%.0f)",
                             _trig, asset, r["detail"], _score, _mult, _spend)
                 time.sleep(0.4)
@@ -3790,8 +4452,8 @@ def main():
                 except Exception:
                     try:
                         _os.remove(fp)
-                    except Exception:
-                        pass
+                    except OSError:
+                        pass  # why: a temp voice file that refuses deletion is retried next drain
         except Exception as exc:
             logger.debug("speech queue drain failed: %s", exc)
 
@@ -3952,8 +4614,12 @@ def main():
                         _pa = (_pb or {}).get("pair")
                         if _pa:
                             _bw.append(_pa.split("/")[0])
-                except Exception:
-                    pass
+                except Exception as exc:
+                    # the bot-position names drive the warning light — a
+                    # dead bridge read blanks half the light's coverage
+                    logger.warning("bridge positions unreadable (%s) — "
+                                   "the warning light covers contest "
+                                   "watch only this cycle", exc)
                 _cw = [str(_k).split("/")[0] for _k in (_load_contest_watch() or {}).keys()]
                 if _bw:
                     last_exit_check = 0   # force the FULL exit scan this pass
@@ -4010,11 +4676,9 @@ def main():
                     # Deep-scan movers immediately (parallel)
                     mover_data = fetch_ohlcv_parallel(exchange, movers, max_workers=5)
                     for pair, df in mover_data.items():
-                        # Skip if alerted this asset in last 10 min
-                        if pair in alerted_recently:
-                            if (now.timestamp() - alerted_recently[pair]) < 600:
-                                continue
-
+                        # ANTI-SPAM RETIRED (user rule, Sep 10): the 10-min
+                        # per-pair skip is OFF — every pass re-evaluates and
+                        # the gates decide.
                         signal = evaluate_and_check(pair, df, min_conf)
                         if signal:
                             send_alert(pair, signal, auto_trade_threshold)
@@ -4030,9 +4694,11 @@ def main():
                 #    Writes bridge signals (source="scout_mover"); the
                 #    contest path (desktop 89 floor, QC, watch) is untouched.
                 #    Kept gates, on purpose: deep read ≥60 + no downward
-                #    trend (the brain's floor), rotation lockout (fines),
-                #    tide OUT, listing age ≥4 days. The bot's own liquidity
-                #    gates + carry cap + exit ladder protect the money.
+                #    trend (the brain's floor), tide OUT, listing age ≥4
+                #    days. RETIRED Sep 10: the rotation lockout (re-fires
+                #    free) and the 10-min per-pair anti-spam. The bot's own
+                #    liquidity gates + carry cap + exit ladder protect the
+                #    money.
                 _mover_cands = []
                 try:
                     _mover_cands = [(m["pair"], m["pct"]) for m in
@@ -4073,19 +4739,17 @@ def main():
                                 gm_proj = (signal.take_profit - signal.entry_price) / signal.entry_price * 100
                                 if gm_proj < gm_thr:
                                     continue
-                        except Exception:
-                            pass
+                        except Exception as exc:
+                            # the move gate is a SKIP guard — a dead read
+                            # lets a short-travel popup through, visibly
+                            logger.warning("mover move-gate read failed for "
+                                           "%s (%s) — the popup ships "
+                                           "without its room-to-travel check", pair, exc)
 
-                        # rotation lockout (user rule, Aug 30): one green light
-                        # per asset per rotation — no whipsaw re-entry, no
-                        # double-dip fines on the bot either
+                        # rotation lockout RETIRED (user rule, Sep 10):
+                        # re-fires are free everywhere; the call stays for
+                        # the re-entry display on the mover popup
                         _m_allowed, _m_lock, _m_re, _m_fine = rotation_gate(asset)
-                        if not _m_allowed:
-                            logger.info("  MOVER SKIP: %s — %s", asset, _m_lock)
-                            _log_suppression(pair, "rotation-lock",
-                                             f"mover: {_m_lock}",
-                                             quick=float(signal.confidence), rot=rot_key)
-                            continue
 
                         # deep read ≥60 + no downward trend — the quality floor
                         # (the PUMP lesson: never buy what the brain dislikes).
@@ -4152,8 +4816,9 @@ def main():
                         try:
                             from volatility_engine import remember_gainer
                             remember_gainer(pair, _mv_pct)
-                        except Exception:
-                            pass
+                        except Exception as exc:
+                            logger.debug("remember_gainer failed for %s (%s) "
+                                         "— the engine's stats update waits", pair, exc)
 
                         # write to the bridge — bot may take it (tide-stamped).
                         # OUT tide = NO bridge write ever (the bot's ledger
@@ -4214,8 +4879,9 @@ def main():
                                 exchange, pair, float(signal.confidence),
                                 action=signal.action, route="mover",
                                 entry=float(signal.price or 0.0))
-                        except Exception:
-                            pass
+                        except Exception as exc:
+                            logger.warning("mover fire snapshot failed for %s (%s) "
+                                           "— this fire's hindsight row is lost", pair, exc)
                         try:
                             _m_desk_ok = (_deep_sig is not None
                                           and _deep_sig.action == "buy")
@@ -4454,7 +5120,7 @@ def main():
                                            f"${_m_spend:,.0f} (the stamped week: FLAT 22% win vs "
                                            f"RISING 57% — pickier, smaller)\n" if _tsw == "FLAT" else "")
                                         + (f"🚀 FAST ROUTE: {_m_fast_why} — minimal gates; the "
-                                           f"3% guard + the popup cap carry the risk\n" if _m_fast else "")
+                                           f"3% guard carries the risk\n" if _m_fast else "")
                                         + f"{_m_tide_line}"
                                         f"{_m_re_line}"
                                         f"{_m_spend_line}"
@@ -4470,37 +5136,31 @@ def main():
                                         f"{'-' * 30}\n"
                                         f"  {_fmt_mst(_now_mst())}"
                                     )
-                                    # the popup cap + the FIRED snapshot — the
-                                    # mover path rides the same rules as the
+                                    # the FIRED snapshot — the mover
+                                    # rides the same fire rules as the
                                     # champion path (Sep 5)
-                                    if _recent_fired_popups() >= _popup_cap():
-                                        logger.info("  MOVER POPUP CAP — desktop quiet; the bridge write stands")
-                                        _log_suppression(pair, "popup-cap",
-                                                         "mover: the popup cap is full — "
-                                                         "the watch never floods",
-                                                         quick=float(signal.confidence),
-                                                         brain=(float(_deep_sig.confidence)
-                                                                if _deep_sig is not None else None),
-                                                         floor=89.0,
-                                                         tide=f"{_tsw} {_tpw or 0:.0f}%", rot=rot_key)
-                                    else:
-                                        notify_big(_m_title, _m_msg, spoken=_m_spoken)
-                                        try:
-                                            _mfs = dict(_SNAPSHOT_CTX.get("ctx") or {})
-                                            _mfs.update({"kind": "fired",
-                                                         "route": ("mover-fast" if _m_fast else "mover"),
-                                                         "fast_why": _m_fast_why,
-                                                         "brain": _m_dc, "mult": _m_mult,
-                                                         "spend": float(_m_spend or 0.0),
-                                                         "goal_pct": float(_m_goal or 0.0),
-                                                         "win_min": float(_m_win or 0.0),
-                                                         "entry": float(signal.price or 0.0),
-                                                         "climb": _climb_features_stamped(
-                                                             _m_climb.get("features") if _m_climb else None,
-                                                             _tsw, _tpw)})
-                                            _log_signal_snapshot(_mfs)
-                                        except Exception:
-                                            pass
+                                    # (Sep 9) the popup cap retired — the mover fires
+                                    # like every path: the worth floor (the buffer is
+                                    # its bar) + the deep read gate it
+                                    notify_big(_m_title, _m_msg, spoken=_m_spoken)
+                                    try:
+                                        _mfs = dict(_SNAPSHOT_CTX.get("ctx") or {})
+                                        _mfs.update({"kind": "fired",
+                                                     "route": ("mover-fast" if _m_fast else "mover"),
+                                                     "tide": (f"{_tsw} {_tpw:.0f}%"
+                                                              if _tsw and _tpw is not None else None),
+                                                     "fast_why": _m_fast_why,
+                                                     "brain": _m_dc, "mult": _m_mult,
+                                                     "spend": float(_m_spend or 0.0),
+                                                     "goal_pct": float(_m_goal or 0.0),
+                                                     "win_min": float(_m_win or 0.0),
+                                                     "entry": float(signal.price or 0.0),
+                                                     "climb": _climb_features_stamped(
+                                                         _m_climb.get("features") if _m_climb else None,
+                                                         _tsw, _tpw)})
+                                        _log_signal_snapshot(_mfs)
+                                    except (ValueError, TypeError, KeyError) as exc:
+                                        logger.debug("Mover snapshot build failed for %s: %s", pair, exc)
                         log_winner(pair, signal)
                         alerted_recently[pair] = now.timestamp()
                     except Exception as exc:
@@ -4560,12 +5220,11 @@ def main():
                             if minutes_since_buy < 30:
                                 logger.debug("  %s bought %.0f min ago — exit check on cooldown (30 min)", pair.split("/")[0], minutes_since_buy)
                                 continue
-                        except Exception:
-                            pass
+                        except (ValueError, TypeError):
+                            pass  # why: unreadable executed_at falls through to a normal exit check
 
-                    # Skip if already alerted recently
-                    if pair in alerted_recently and (now.timestamp() - alerted_recently[pair]) < 300:
-                        continue
+                    # Skip if already alerted recently — RETIRED (Sep 10):
+                    # re-alerts are free; every gate re-decides per pass
 
                     # Fetch fresh data and run strategy
                     try:
@@ -4590,8 +5249,8 @@ def main():
                                 df.loc[_rt_idx, "close"] = _rt_live
                                 df.loc[_rt_idx, "high"] = max(float(df.loc[_rt_idx, "high"]), _rt_live)
                                 df.loc[_rt_idx, "low"] = min(float(df.loc[_rt_idx, "low"]), _rt_live)
-                        except Exception:
-                            pass
+                        except Exception as exc:
+                            logger.debug("Realtime ticker overlay failed for %s: %s", pair, exc)
 
                         exit_sig = _eval(df, cfg)
 
@@ -4771,8 +5430,8 @@ def main():
                         pair = futures[future]
                         try:
                             results[pair] = future.result()
-                        except Exception:
-                            pass
+                        except Exception as exc:
+                            logger.debug("Tournament eval failed for %s: %s", pair, exc)
 
                 # Find best signal — LONGS ONLY: the tournament hunts bull runs.
                 # Sell signals are never crowned (we never short; exits are
@@ -4855,15 +5514,14 @@ def main():
                             )
 
                             if passes:
-                                if winner_pair in alerted_recently and (now.timestamp() - alerted_recently[winner_pair]) < 600:
-                                    logger.info("  Already alerted %s recently — skipping", winner_asset)
-                                else:
-                                    tag = "🔄 BOUNCE" if is_bounce else "🚀 MOMENTUM"
-                                    logger.info("  🏆 OVERALL CHAMPION: %s %s %s (%.0f%%) — ALERTING",
-                                                tag, winner_sig.action.upper(), winner_asset, winner_sig.confidence)
-                                    send_alert(winner_pair, winner_sig, auto_trade_threshold)
-                                    log_winner(winner_pair, winner_sig)
-                                    alerted_recently[winner_pair] = now.timestamp()
+                                # anti-spam gate RETIRED (Sep 10) — fires are
+                                # free; the checklist still stands
+                                tag = "🔄 BOUNCE" if is_bounce else "🚀 MOMENTUM"
+                                logger.info("  🏆 OVERALL CHAMPION: %s %s %s (%.0f%%) — ALERTING",
+                                            tag, winner_sig.action.upper(), winner_asset, winner_sig.confidence)
+                                send_alert(winner_pair, winner_sig, auto_trade_threshold)
+                                log_winner(winner_pair, winner_sig)
+                                alerted_recently[winner_pair] = now.timestamp()
                             else:
                                 logger.info("  Overall champion did not pass checklist")
                         else:
@@ -4880,12 +5538,11 @@ def main():
                         )
 
                         if passes:
-                            if best_pair in alerted_recently and (now.timestamp() - alerted_recently[best_pair]) < 600:
-                                logger.info("  Already alerted %s recently — skipping", asset)
-                            else:
-                                send_alert(best_pair, best_signal, auto_trade_threshold)
-                                log_winner(best_pair, best_signal)
-                                alerted_recently[best_pair] = now.timestamp()
+                            # anti-spam gate RETIRED (Sep 10) — fires are
+                            # free; the checklist still stands
+                            send_alert(best_pair, best_signal, auto_trade_threshold)
+                            log_winner(best_pair, best_signal)
+                            alerted_recently[best_pair] = now.timestamp()
                         else:
                             logger.info("  Champion did not pass checklist")
                 else:
@@ -4934,22 +5591,34 @@ if __name__ == "__main__":
                 _old = ""
                 try:
                     _old = open(_GUARD, "r", encoding="utf-8").read().strip()
-                except Exception:
-                    pass
+                except OSError:
+                    pass  # why: an unreadable guard file is treated as stale and taken over
                 _alive = False
                 if _old.isdigit():
                     try:
                         # ctypes OpenProcess: os.kill(pid, 0) succeeds
                         # on Windows for ANY pid (it is a POSIX no-op
                         # there), so the takeover check needs a real
-                        # liveness probe
+                        # liveness probe. (Sep 11: alive must ALSO mean
+                        # "a python owns the pid" -- after a crash the
+                        # OS recycles the pid onto any exe, and a plain
+                        # OpenProcess hit then made the guard refuse
+                        # forever, a silent no-start. Same rule as
+                        # main()'s tasklist probe: any OTHER image on
+                        # the pid is a stale lock, take it back.)
                         import ctypes
+                        import subprocess as _sp2
                         _k32 = ctypes.windll.kernel32
                         _SYNCHRONIZE = 0x00100000
                         _h = _k32.OpenProcess(_SYNCHRONIZE, False, int(_old))
                         if _h:
                             _k32.CloseHandle(_h)
-                            _alive = True
+                            _probe = _sp2.run(
+                                ["tasklist", "/FI", f"PID eq {_old}",
+                                 "/FO", "CSV", "/NH"],
+                                capture_output=True, text=True, timeout=5)
+                            _alive = "python" in (_probe.stdout or "").lower()
+                        # no handle -> pid dead -> stale, take over
                     except Exception:
                         _alive = True   # unknown -- assume alive, stay down
                 else:
@@ -4964,7 +5633,7 @@ if __name__ == "__main__":
                 try:
                     os.unlink(_GUARD)   # the stale file blocks O_EXCL
                 except FileNotFoundError:
-                    pass
+                    pass  # why: nothing to unlink means the takeover race resolved itself
             _fd = os.open(_GUARD, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
             try:
                 os.write(_fd, str(os.getpid()).encode())

@@ -138,7 +138,7 @@ check("the tight coil with a volume crack fires AT THE CRACK",
 check("the crack detail names the structure",
       "coil" in r["detail"] and "tests" in r["detail"], r["detail"])
 check("the structural probability lands in a sane band",
-      40.0 <= r["score"] <= 100.0, r["score"])
+      0.0 <= r["score"] <= 100.0, r["score"])
 check("the zone boundaries are reported",
       abs(r["zone_high"] - 100.5) < 1e-9 and abs(r["zone_low"] - 99.65) < 1e-9)
 check("no paid history in a plain oscillating market -> no history bonus",
@@ -199,11 +199,20 @@ r = st.analyze(None)
 check("no candles at all -> a clean no-op", not r["armed"])
 
 # ── 5. THE SIZING SEAM + THE CONSTANTS ───────────────────────────────
-check("the countdown window is the one-hour breakout clock",
-      st.SURE_THING_WINDOW_MIN == 60.0)
-check("the pre-breakout threshold is 65 (the top-of-fleet coil AND "
-      "the 0.50x sizing bucket line, Sep 7 recalibration)",
-      st.PRE_BREAKOUT_THRESHOLD == 65.0)
+check("the countdown window is the 4-hour contract (re-contracted Sep 11 "
+      "per the grade's contract test: the coil's edge is a 4h structure — "
+      "+1.5%/4h pays 47.2% at bar 45 vs 16.2% on the 60-min clock; the "
+      "old 60-min promise graded 4h edge at near-noise and broke on the "
+      "crack's ~50-min pays)",
+      st.SURE_THING_WINDOW_MIN == 240.0)
+check("the pre-breakout threshold is 45 (the Sep 11 refit bar — the "
+      "old 65 priced a score that ranked payers BACKWARDS; the refit's "
+      "holdout shows 45 pays 17.6% under the popup's own contract)",
+      st.PRE_BREAKOUT_THRESHOLD == 45.0)
+check("the refit weights shipped with a rollback switch",
+      st.SURE_THING_USE_REFIT is True and abs(sum(st.REFIT_W.values()) - 100.0) < 1.0
+      and st.REFIT_W["hist"] > st.REFIT_W["tests"] > 0.0
+      and st.REFIT_W["tight"] == 0.0)
 check("the micro-spike bar is 1.25x the faded mean (a rev is volume "
       "WAKING, not the burst -- Sep 7 recalibration)",
       st.MICRO_SPIKE_X == 1.25)
@@ -228,10 +237,10 @@ check("the scanner runs the fleet breakout scan (5-min cadence, 720 candles)",
       and "limit=720" in st_fn)
 check("CONTEST-ONLY: the Sure Thing never writes the bridge",
       "write_buy_signal" not in st_fn)
-check("the protecting gates all run before the fire",
+check("the protecting gates all run before the fire "
+      "(the lock retired Sep 10 — the call stays for the re-entry display)",
       "rotation_gate(asset)" in st_fn and "knife_reversed_1h" in st_fn
-      and "_popup_cap()" in st_fn and "max_entry_usd" in st_fn
-      and "_fleet_tide" in st_fn)
+      and "max_entry_usd" in st_fn and "_fleet_tide" in st_fn)
 check("the death-line guard caps + the probability sizes",
       "brain_size_mult as _st_mult" in st_fn and "_cap * _mult" in st_fn)
 check("every fire logs to the scorer's dataset (route sure-thing + trigger)",

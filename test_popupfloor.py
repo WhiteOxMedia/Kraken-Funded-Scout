@@ -96,8 +96,8 @@ check("brain 82 vs floor 84 (Asia) -> CHALLENGER",
 # scan must run and its direction must agree; the NUMBER sizes. The
 # floor stack still computes (the Hail Mary's champion bar + the popup's
 # context line) and the challenger retired with the blocking use.)
-check("send_alert computes DESKTOP_ALERT_MIN via popup_floor()",
-      "DESKTOP_ALERT_MIN = popup_floor(_df_state, _lw_pts, _rot_now_key)" in bs_src)
+check("send_alert computes DESKTOP_ALERT_MIN via popup_floor() (with the pair — the coin's tide memory)",
+      "DESKTOP_ALERT_MIN = popup_floor(_df_state, _lw_pts, _rot_now_key, pair)" in bs_src)
 check("the old flat-89 line is gone",
       "DESKTOP_ALERT_MIN = (TIDE_RISING_DESKTOP_FLOOR if _df_state ==" not in bs_src)
 check("the challenger branch is retired (no floor to challenge)",
@@ -125,8 +125,8 @@ check("the floor log names the rotation",
 #     MORE permissive than the alert: a challenger popup the QC vetoes can
 #     no longer happen. The champ_floor is still computed — the Hail Mary's
 #     champion-grade check + context.) ─────────────────────────────────
-check("QC champ_floor reads the shared popup_floor() helper",
-      "_bs5.popup_floor(_tide_state, _lw_pts)" in ap_src)
+check("QC champ_floor reads the shared popup_floor() helper (with the pair)",
+      "_bs5.popup_floor(_tide_state, _lw_pts, None, pair)" in ap_src)
 check("QC stores the champ_floor for the render/Hail Mary context",
       '"champ_floor"' in ap_src)
 check("the thin-book challenger window is retired (no gate, no mark)",

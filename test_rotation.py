@@ -1,4 +1,8 @@
-"""Test the rotation memory (Aug 30): lockout, re-entry/fine, yesterday context."""
+"""Test the rotation memory (Aug 30): yesterday context, re-entry display,
+the profit re-arm ledger. THE LOCKOUT RETIRED (user rule, Sep 10: "delete
+the rule") — the one-green-per-rotation cap and the 10-minute anti-spam
+are OFF; the gate always allows and the ledger stays for the re-entry
+display and the re-arm machinery."""
 import json
 import os
 import sqlite3
@@ -34,14 +38,16 @@ except FileNotFoundError:
 
 MST = ZoneInfo("America/Denver")
 
-# ── 1. LOCKOUT: one green light per asset per rotation ────────────────
+# ── 1. THE LOCK IS RETIRED (user rule, Sep 10) ────────────────────────
 allowed, reason, reentry, fine = bs.rotation_gate("PUMP")
 check("fresh asset allowed", allowed and not reentry)
 
 bs.rotation_mark_fired("PUMP")
 allowed, reason, reentry, fine = bs.rotation_gate("PUMP")
-check("same rotation -> LOCKED", not allowed, reason)
-check("locked reason mentions rotation", "rotation" in reason)
+check("same-rotation re-fire -> ALLOWED (the cap is off)", allowed, reason)
+check("...flagged as a re-entry (the popup still says so)", reentry)
+check("the strict 'already ran' verdict can no longer return",
+      "already ran" not in reason)
 
 # a different asset is unaffected
 allowed2, _, _, _ = bs.rotation_gate("BTC")
@@ -72,24 +78,19 @@ Path(bs.ROTATION_LOCKOUT_FILE).write_text(json.dumps(state))
 allowed, _, reentry, _ = bs.rotation_gate("PUMP")
 check("old day record ignored + pruned", allowed and not reentry)
 
-# ── 2b. THE PROFIT RE-ARM (user rule, Sep 6: "can we carve out the
-#        winner exception if I collected money (profit)? I want to jump
-#        back in as soon when it sets up again but the rotation lock is
-#        armed?"): a SOLD that booked NET PROFIT disarms the current
-#        rotation's lock — the coin can fire again when a fresh setup
-#        passes every gate. A loss/scratch never disarms; other assets'
-#        locks are untouched.
+# ── 2b. THE PROFIT RE-ARM (user rule, Sep 6; the ledger machinery KEPT
+#        Sep 10 after the lock's retirement — a profitable SOLD still
+#        clears the record so the re-entry display and the re-arm stay
+#        honest. A loss/scratch exit never calls this.)
 bs.rotation_mark_fired("PUMP")
-bs.rotation_mark_fired("BTC")   # another asset stays locked
-allowed, _, _, _ = bs.rotation_gate("PUMP")
-check("pre: PUMP locked this rotation", not allowed)
+bs.rotation_mark_fired("BTC")   # a second ledger record
 rearmed = bs.rotation_rearm_on_profit("PUMP")
-check("profit re-arm lifts the lock", rearmed)
+check("profit re-arm lifts the ledger record", rearmed)
+check("the lift is one-shot (record gone)", not bs.rotation_rearm_on_profit("PUMP"))
 allowed, reason, reentry, _ = bs.rotation_gate("PUMP")
-check("post: PUMP can fire again (clean, every gate re-applies)",
-      allowed and not reentry, reason)
-allowed_b, _, _, _ = bs.rotation_gate("BTC")
-check("other assets' locks untouched", not allowed_b)
+check("post: PUMP clean (no record at all)", allowed and not reentry, reason)
+check("other assets' records only lift on their own sale",
+      bs.rotation_rearm_on_profit("BTC"))
 
 # an earlier-rotation record = the gate is already open -> nothing to
 # disarm, and the re-entry context survives
@@ -164,23 +165,29 @@ ctx = bs.rotation_yesterday_context("NOPE/USD")
 check("no data -> None (fail-open)", ctx is None)
 
 conn.close()
-bs._OHLCV_CACHE_PATH = real_cache
+bs._OHLCV_CACHE_PATH = real_cache  # restored to the pre-suite value
 
 # ── 4. LIVE cache sanity: BTC has data for the current rotation window ──
 ctx = bs.rotation_yesterday_context("BTC/USD")
 check("live BTC context computed", ctx is not None, ctx)
 
-# ── 5. Source contracts: gates wired where they must be ───────────────
+# ── 5. Source contracts: the retirement is wired honestly ────────────
 bs_src = open("background_scanner.py", encoding="utf-8").read()
 app_src = open("app.py", encoding="utf-8").read()
-check("send_alert has rotation lock", "ROTATION LOCK:" in bs_src)
+check("THE LOCK IS RETIRED — the gate says so",
+      "RETIRED GATE" in bs_src and "always allows" in bs_src)
+check("send_alert's lock branch is retired-marked (kept, dead)",
+      "if not _allowed:  # dead since the Sep 10 retirement" in bs_src)
+check("the header retires the cap AND the anti-spam",
+      "10-minute per-pair anti-spam" in bs_src)
 check("send_alert has blowoff demotion", "YESTERDAY BLOWOFF:" in bs_src)
 check("send_alert marks on alert", "rotation_mark_fired(asset)" in bs_src)
 check("QC gate checks rotation", "_rot_ok" in app_src)
 check("QC gate checks blowoff", 'shape") == "blowoff"' in app_src)
 check("QC marks on green", "rotation_mark_fired(asset)" in app_src)
-check("QC rejection toast", "ALREADY RAN THIS ROTATION" in app_src)
-check("card filters locked (Aug 31: with the confirmation window — a just-fired pick stays visible for CHECK)",
+check("QC rejection display kept (dead since the retirement, honest machinery)",
+      "ALREADY RAN THIS ROTATION" in app_src)
+check("card filter kept (Aug 31: with the confirmation window — a just-fired pick stays visible for CHECK)",
       'rotation_gate(h["asset"], confirm_window_min=_cwin)' in app_src)
 check("fine callout in voice", "fine risk" in app_src and "fine risk" in bs_src)
 

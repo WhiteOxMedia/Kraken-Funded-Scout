@@ -104,6 +104,87 @@ def save_state(state: dict) -> None:
     os.replace(tmp, STATE_FILE)
 
 
+# ── THE JOURNAL THE GATES OPEN (Sep 10: the seam sewn BOTH sides) ─────
+# Until now the discipline seam was one-way: the suppression log fed the
+# score, the score spoke, and the gates never read a word back. These two
+# functions close the loop:
+#   record_burial_ledger() — per rotation, per gate: how many paying
+#       candidates each gate buried and the theoretical dollars. This is
+#       the JOURNAL — hindsight, written where the gates can open it.
+#   gate_relief() — the gates' side: a bounded, recency-bound relief in
+#       popup-floor points, computed ONLY from buried payers that never
+#       fired. Buried duds ease the relief back down; a silent journal
+#       (a gate behaving) gives nothing. Fail-closed everywhere.
+SEAM_RELIEF_MAX_PTS = 4.0    # hard cap: never wider than 4 popup-floor pts
+SEAM_RELIEF_DECAY_H = 8.0    # relief fades to zero 8h after the last lesson
+
+
+def record_burial_ledger(state: dict, result: dict) -> None:
+    """Append this rotation's per-gate burial record to the journal
+    (state[burial_ledger], kept 30 rotations). One entry per (date, rot)
+    — re-evaluations replace. Mutates the caller's state in place (the
+    evaluation's own save persists it — no second load/save, no clobber)."""
+    try:
+        entry = {"date": result.get("date"), "rot": result.get("rot"),
+                 "ts": result.get("ts"),
+                 "gates": {str(p.get("gate") or "?"): 
+                           {"n": 0, "usd": 0.0}
+                           for p in (result.get("system_pairs") or [])},
+                 "duds": {}}
+        for p in (result.get("system_pairs") or []):
+            g = str(p.get("gate") or "?")
+            entry["gates"][g]["n"] += 1
+            entry["gates"][g]["usd"] += float(p.get("usd") or 0)
+        for p in (result.get("system_duds") or []):
+            g = str(p.get("gate") or "?")
+            entry.setdefault("duds", {}).setdefault(g, 0)
+            entry["duds"][g] += 1
+        led = [h for h in (state.get("burial_ledger") or [])
+               if not (h.get("date") == entry["date"]
+                       and h.get("rot") == entry["rot"])]
+        led.append(entry)
+        state["burial_ledger"] = led[-30:]
+    except Exception:
+        pass   # the journal never breaks the score
+
+
+def gate_relief(gate: str, now=None) -> float:
+    """Relief in popup-floor points for ONE gate, from the journal: 1 pt
+    per buried payer that rotation (the learned system_burial weight
+    scales it), capped at SEAM_RELIEF_MAX_PTS, decaying linearly to zero
+    over SEAM_RELIEF_DECAY_H since the last burial entry. A gate that
+    buried only duds gets nothing — the dud entries drive the relief
+    DOWN (each buried-and-not-paid candidate claws back 0.5 pts)."""
+    try:
+        st = load_state()
+        led = st.get("burial_ledger") or []
+        if not led:
+            return 0.0
+        now = now or _now()
+        last_ts = None
+        pts = 0.0
+        for h in led[-5:]:   # recent rotations only
+            g = (h.get("gates") or {}).get(gate)
+            if not g:
+                continue
+            pts += float(g.get("n") or 0) * float(st.get("weights", {}).get("system_burial", 1.0))
+            dud_n = float((h.get("duds") or {}).get(gate) or 0)
+            pts -= 0.5 * dud_n   # buried duds claw the relief back
+            ts = h.get("ts")
+            if ts:
+                last_ts = ts if last_ts is None else max(last_ts, ts)
+        if pts <= 0:
+            return 0.0
+        if last_ts:
+            age_h = (now - datetime.fromisoformat(str(last_ts))).total_seconds() / 3600.0
+            if age_h < 0:
+                age_h = 0.0
+            pts *= max(0.0, 1.0 - age_h / SEAM_RELIEF_DECAY_H)
+        return round(min(SEAM_RELIEF_MAX_PTS, max(pts, 0.0)), 2)
+    except Exception:
+        return 0.0   # fail-closed: a broken journal opens nothing
+
+
 def _rot_window(rot_key: str, date: datetime):
     for key, h0, h1 in ROTATIONS:
         if key == rot_key:
@@ -359,7 +440,10 @@ def evaluate_rotation(exchange, rot_key: str, when=None, speak=True) -> dict:
 
     # suppressed pairs the winners table never saw (the mover path) —
     # the same candle test; only pairs that never fired count as burials
+    # (pairs it buried that DIDN'T pay are the gate being RIGHT — they
+    # become system_duds and claw the relief back down)
     popup_pairs = {p["pair"] for p in popups}
+    system_duds = []
     for pair, s in supp.items():
         if pair in popup_pairs or pair in fired:
             continue
@@ -370,6 +454,8 @@ def evaluate_rotation(exchange, rot_key: str, when=None, speak=True) -> dict:
                                   "usd": balance * goal / 100.0,
                                   "goal_pct": goal, "paid": True,
                                   "taken": False})
+        else:
+            system_duds.append({"pair": pair, "gate": s["gate"]})
     for t in sold:
         entry, exitp = float(t.get("entry") or 0), float(t.get("exit") or 0)
         size, realized = float(t.get("size") or 0), float(t.get("pnl_net") or 0)
@@ -463,6 +549,8 @@ def evaluate_rotation(exchange, rot_key: str, when=None, speak=True) -> dict:
         "system_pairs": [{"pair": p["pair"], "gate": p.get("gate"),
                           "usd": round(float(p.get("usd", 0)), 2)}
                          for p in system_burial],
+        "system_duds": [{"pair": p["pair"], "gate": p.get("gate")}
+                        for p in system_duds],
         "popups": [{"pair": p["pair"], "paid": p.get("paid"),
                     "taken": p.get("taken"), "goal_pct": round(p.get("goal_pct", 0), 2)}
                    for p in popups],
@@ -474,6 +562,7 @@ def evaluate_rotation(exchange, rot_key: str, when=None, speak=True) -> dict:
     }
 
     # ── self-learning: when the score and the money disagree, adjust ──
+    record_burial_ledger(state, result)   # the seam's ledger: WHICH gate buried, how much
     lesson = _learn(state, result)
     result["lesson"] = lesson
     _entry = {k: result[k] for k in
@@ -503,7 +592,25 @@ def _learn(state: dict, result: dict) -> str:
     usd = result["usd_left"]
     lesson = ""
     dominant = max(usd, key=usd.get) if any(usd.values()) else None
-    if result.get("empty_fire") and pnl < 0:
+    # ── THE BURIAL PILE-UP (Sep 10: the seam sewn both sides): when the
+    # funnel buried TWO OR MORE paying candidates in one rotation, that is
+    # calibration evidence on its own — no realized-money disagreement is
+    # needed (a no-trade rotation with $118 buried must still sting, or
+    # the weight never moves and the gates never learn).
+    # Balanced by the duds: buried-and-not-paid candidates (the gate was
+    # RIGHT) shrink the pile-up before it counts — net (payers − duds)
+    # must be ≥ 2.
+    _net = (len(result.get("system_pairs") or [])
+            - len(result.get("system_duds") or []))
+    if usd.get("system_burial", 0) > 1 and _net >= 2:
+        old = w.get("system_burial", 1.0)
+        w["system_burial"] = round(min(W_MAX, old * (1.0 + NUDGE)), 3)
+        _gates = sorted({str(p.get("gate") or "?") for p in result["system_pairs"]})
+        lesson = (f"The funnel buried {len(result['system_pairs'])} paying candidates "
+                  f"(${usd['system_burial']:,.0f} theoretical; gates: {', '.join(_gates)}) — "
+                  f"the system_burial weight rises {old:.2f} → {w['system_burial']:.2f}: "
+                  f"the journal opens the gates a little where they keep burying payers.")
+    elif result.get("empty_fire") and pnl < 0:
         # THE OPPORTUNITY COST (Sep 7): nothing fired AND the rotation
         # lost money — the funnel surfaced nothing while the account
         # bled. That is the gates' leave, whatever the suppression log

@@ -3,8 +3,12 @@ collision): the champion alert marks the rotation when it fires; the QC
 and the card check the same gate; so the pick the alert JUST made read
 "Already ran! Cold!" minutes later. Within ROTATION_CONFIRM_WINDOW_MIN,
 the QC and the card treat the lockout as CONFIRMING THE LIVE ALERT —
-allowed, reason names the alert's time. The scanner's re-fire guard and
-the mover funnel stay strict for the whole rotation."""
+allowed, reason names the alert's time.
+
+THE LOCKOUT RETIRED (user rule, Sep 10): the gate ALWAYS allows now —
+so the strict-branch checks below pin the RETIREMENT (no "already ran"
+verdict can come back), and the confirm-window wording survives only as
+the QC's confirming-green display marker."""
 import sys
 import json
 import time
@@ -52,8 +56,10 @@ tmp = set_lockout("TESTA", minutes_ago=6)
 bs.ROTATION_LOCKOUT_FILE = tmp
 try:
     ok, reason, re_, fine = bs.rotation_gate("TESTA")
-    check("STRICT (default): locked 6 min ago -> still blocked",
-          ok is False and "already ran" in reason, reason)
+    check("THE LOCK IS RETIRED: fired 6 min ago -> ALLOWED, no strict verdict",
+          ok is True and "already ran" not in reason, reason)
+    check("...flagged as a re-entry (same fire, but the ledger says so)",
+          re_ is True)
 
     ok, reason, re_, fine = bs.rotation_gate("TESTA", confirm_window_min=15)
     check("WINDOW: locked 6 min ago -> ALLOWED (confirming the live alert)",
@@ -74,8 +80,8 @@ tmp = set_lockout("TESTB", minutes_ago=20)
 bs.ROTATION_LOCKOUT_FILE = tmp
 try:
     ok, reason, re_, fine = bs.rotation_gate("TESTB", confirm_window_min=15)
-    check("WINDOW expires: locked 20 min ago -> still cold (double-dip protection)",
-          ok is False and "already ran" in reason, reason)
+    check("WINDOW expired: 20 min old -> ALLOWED anyway (the cap is off), re-entry",
+          ok is True and re_ is True, reason)
 finally:
     bs.ROTATION_LOCKOUT_FILE = _real_file
     os.remove(tmp)
@@ -84,8 +90,8 @@ tmp = set_lockout("TESTC", minutes_ago=6)
 bs.ROTATION_LOCKOUT_FILE = tmp
 try:
     ok, reason, re_, fine = bs.rotation_gate("TESTC", confirm_window_min=0)
-    check("confirm_window_min=0 == strict (the scanner's own guard)",
-          ok is False)
+    check("confirm_window_min=0: allowed as a plain re-entry (nothing blocks)",
+          ok is True and re_ is True)
 finally:
     bs.ROTATION_LOCKOUT_FILE = _real_file
     os.remove(tmp)
@@ -104,18 +110,18 @@ check("card filter passes the window (the pick stays visible for CHECK)",
 check("QC + card reload on the new marker (old console processes)",
       ap.count('hasattr(_bs5, "ROTATION_CONFIRM_WINDOW_MIN")') >= 1
       and ap.count('hasattr(_bs6, "ROTATION_CONFIRM_WINDOW_MIN")') >= 1)
-check("the scanner's re-fire guard stays STRICT (send_alert, no window)",
+check("the scanner's send_alert lock branch is retired-marked (kept, dead)",
       0 < sc.find("ROTATION LOCK: %s %s") < len(sc)
-      and "_lw_pts, _lw_note = lone_wolf_discount(exchange, pair)" in sc)
-check("the mover funnel stays strict (no window param on its gate call)",
-      sc.count("rotation_gate(asset)") >= 2)  # send_alert + funnel, both bare
+      and "dead since the Sep 10 retirement" in sc)
+check("the mover funnel's lockout hook is retired; its tide hook stands",
+      "MOVER SKIP: %s — %s" not in sc and "MOVER SKIP: %s — tide OUT" in sc)
 
 # ── 3. the QC verdict carries the confirmation ───────────────────────
 check("GO toast says it's confirming the alert",
       "🔁 {_rot_reason}" in ap and "_confirm_txt" in ap)
 check("the RE-ENTRY/FRESH LED gains the CONFIRMING state",
       "🔁 CONFIRMING THE ALERT" in ap)
-check("'Already ran' rejection unchanged for older lockouts",
+check("'Already ran' rejection display kept (dead since the retirement, honest machinery)",
       "⛔ ALREADY RAN THIS ROTATION" in ap and "cold until the next rotation" in ap)
 
 lines.append(f"\nRESULT: {PASS} passed, {FAIL} failed")

@@ -51,8 +51,8 @@ ap = open("app.py", encoding="utf-8").read()
 sold_blk = ap[ap.find("SOLD buttons"):ap.find("contest watch list")]
 check("SOLD computes the PnL via contest_account.pnl_net_usd",
       "_ca_s.pnl_net_usd" in sold_blk)
-check("SOLD auto-fills the balance (save_state with current + net)",
-      "_ca_s.save_state" in sold_blk and "+ _net" in sold_blk)
+check("SOLD applies through contest_account.apply_pnl (per-contest-window + dedupe, Sep 9/10)",
+      "_ca_s.apply_pnl(" in sold_blk and "dedupe_key=" in sold_blk)
 check("the trade is logged with a SOLD-TIME stamp",
       "contest_trades.jsonl" in sold_blk and '"sold_at"' in sold_blk)
 check("the log carries entry/exit/size/pnl/cost/balance/goal/held",
@@ -64,8 +64,9 @@ check("she still says the user can hand-correct (self-adjust later)",
       "Adjust me in the sidebar if that's off!" in sold_blk)
 check("no size / no live price → the manual reminder path stands",
       "Update the contest balance in the sidebar" in sold_blk)
-check("losses SUBTRACT from the balance (net can be negative)",
-      "float(_acct_s[\"current_balance\"]) + _net" in sold_blk)
+check("losses SUBTRACT via apply_pnl (net can be negative — the sign rides the toast)",
+      "apply_pnl(\n                                    _net," in sold_blk.replace(" _net,", "_net,")
+      or "_ca_s.apply_pnl(" in sold_blk and "_net" in sold_blk)
 
 lines.append(f"\nRESULT: {PASS} passed, {FAIL} failed")
 open("_soldpnl_check.txt", "w", encoding="utf-8").write("\n".join(lines))

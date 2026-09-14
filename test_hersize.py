@@ -44,7 +44,7 @@ check("card: no silent branch left (every path sets _size_say)",
 
 # ── 2. the scanner's alert voice matches (ONE STANDARD) ──────────────
 check("scanner alert voice: big book speaks the amount",
-      "Big book — all {(float(_bal) if _bal > 0 else 5000.0):,.0f} dollars in fine!" in sc)
+      "Big book — all {(float(_bal) if _bal > 0 else float(DEFAULT_CONFIG.challenge_balance)):,.0f} dollars in fine!" in sc)
 check("scanner alert voice: unreadable book speaks too (was silent)",
       "Book unreadable — your call on size!" in sc)
 check("scanner alert voice: small-size line unchanged",

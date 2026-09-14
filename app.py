@@ -419,19 +419,169 @@ def _asset(pair: str) -> str:
 def _now_mst() -> datetime:
     return datetime.now(MST)
 
+
+# ══ THE PLATE CACHE STRIP (Sep 13) ══════════════════════════════════
+# Cache staleness has been audited offline (diag_cachesweep) — this
+# makes it OBSERVABLE LIVE: each MASTER plate records a memory-only
+# touch when its body runs, and the MASTER diagnostics expander shows
+# per-plate HIT (served from cache) vs COMPUTE (body re-executed = the
+# ttl expired or the key changed) with the last render age. A stamp
+# frozen for longer than its ttl is now visible on the page, not just
+# in a txt file. Memory-only (a dict): no files, no locks, nothing to
+# persist; per-process, reset by restart — exactly the observability
+# horizon cache staleness lives on.
+_PLATE_CACHE_LOG: dict[str, dict] = {}
+_PLATE_TTLS: dict[str, int] = {}   # name -> ttl seconds ('' = no cache)
+
+
+def _plate_touch(name: str, cached: bool = True, ttl: int | None = None):
+    """Record that a plate's body EXECUTED (a recompute — the cache
+    missed or this plate has no cache). Called inside cached bodies so
+    it only fires when streamlit actually runs the function."""
+    rec = _PLATE_CACHE_LOG.setdefault(
+        name, {"computes": 0, "requests": 0, "last_kind": ""})
+    rec["computes"] += 1
+    rec["last_kind"] = "compute"
+    rec["_dirty"] = True   # a compute landed in the current call→render window
+    # deliberately NO clock read here: the touch rides CACHED bodies,
+    # and a wall-clock read (even metadata-only) would re-open the
+    # cachesweep's tier-2 class. The strip's clock lives in
+    # _plate_render, on uncached scope.
+    if ttl is not None:
+        _PLATE_TTLS[name] = ttl
+    elif cached and name not in _PLATE_TTLS:
+        _PLATE_TTLS[name] = 0    # cached but ttl unknown
+
+
+def _plate_call(name: str, cached: bool = True, ttl: int | None = None):
+    """Record that a plate was REQUESTED this run. If no recompute was
+    logged since the request started, the call was served from CACHE
+    (kind HIT); _plate_render then stamps the wall-clock render time.
+    The _pending flag survives one scope — set at the call site,
+    consumed by the renderer at the end of the body."""
+    if ttl is not None:
+        _PLATE_TTLS[name] = ttl
+    rec = _PLATE_CACHE_LOG.setdefault(
+        name, {"computes": 0, "requests": 0, "last_kind": ""})
+    # the request counter rides the CALL (uncached scope, every rerun)
+    # — hit rate = (requests − computes) / requests, the strip's health
+    # metric: a cached plate recomputing more often than its ttl
+    # implies is keying on something volatile
+    rec["requests"] = rec.get("requests", 0) + 1
+    rec.setdefault("_pending", set()).add(id(rec))
+
+
+def _plate_render(name: str, cached: bool = True, ttl: int | None = None):
+    """Resolve the pending call: HIT unless a compute landed between
+    the call and here (the body re-executed). Stamps the wall-clock
+    render time. _plate_call/_plate_render ride UNCACHED scope, so they
+    run every rerun; _plate_touch rides the cached body."""
+    if ttl is not None:
+        _PLATE_TTLS[name] = ttl
+    rec = _PLATE_CACHE_LOG.setdefault(
+        name, {"computes": 0, "requests": 0, "last_kind": ""})
+    # resolve the kind BEFORE clearing anything: pending and its stored
+    # set are the same object (clear first = always empty, the probe
+    # caught it), and a compute between call and render must win over
+    # the HIT the pending call would otherwise claim
+    had_pending = bool(rec.get("_pending"))
+    had_dirty = bool(rec.get("_dirty"))
+    if "_pending" in rec:
+        rec["_pending"].clear()
+    rec["_dirty"] = False
+    if had_dirty:
+        rec["last_kind"] = "compute"
+    elif had_pending:
+        rec["last_kind"] = "HIT"
+    rec["last_render"] = time.time()
+
+
+def _plate_strip_lines() -> list[str]:
+    """The per-plate observability rows, MASTER order."""
+    order = [("scalp-headline", "⚡ THE PICK data"),
+             ("todays-facts", "📐 TODAY'S FACTS"),
+             ("past-champions", "🏆 PAST CHAMPIONS data"),
+             ("tidebar-verdict", "🌊 TIDE BAR VERDICT"),
+             ("flip-grade", "⚖️ FLIP GRADE + trail")]
+    now = time.time()
+    rows = []
+    for name, label in order:
+        rec = _PLATE_CACHE_LOG.get(name) or {}
+        ttl = _PLATE_TTLS.get(name)
+        computes = rec.get("computes", 0)
+        requests = rec.get("requests", 0)
+        kind = rec.get("last_kind", "") or "—"
+        age = rec.get("last_render")
+        age_txt = (f"{now - age:,.0f}s ago" if age else "never")
+        ttl_txt = f"ttl {ttl}s" if ttl else "no cache (live)"
+        # THE HIT-RATE HEALTH METRIC (Sep 13): requests counted at the
+        # uncached call site, computes inside the cached body — a cached
+        # plate whose body re-runs on most requests is keying on
+        # something its ttl doesn't govern. Sample floor 5: a rate off
+        # one or two requests is noise, not a verdict. HOT tag: rate
+        # under 50% on a cached plate — recomputing more often than
+        # the ttl implies (a healthy plate at 30s ttl and ~30s rerun
+        # spacing sits far above it). Uncached plates never claim one:
+        # they compute every request by design, 0% would read as sick
+        # when it's the contract.
+        rate_txt, hot_txt = "", ""
+        if ttl and requests >= 5:
+            rate = (requests - computes) * 100.0 / requests
+            rate_txt = f" · {rate:.0f}% hits"
+            if rate < 50.0:
+                hot_txt = (" · 🔥 HOT — recomputing more often than "
+                           "its ttl implies")
+        rows.append(f"{label} <span class='dim'>......</span> "
+                    f"{ttl_txt} · last render {age_txt} · "
+                    f"{computes} compute(s) · last was {kind or '—'}"
+                    f"{rate_txt}{hot_txt}")
+    return rows
+
+
+def _render_master_diagnostics():
+    """The cache-strip expander for MASTER: per-plate HIT vs COMPUTE,
+    last render age, compute counts — staleness made visible live —
+    plus a force-recompute button that resets the process cache and
+    asks the page to rerun (the next pass recomputes every plate)."""
+    with st.expander("🧪 CACHE STRIP — per-plate hit/recompute (live "
+                     "staleness)", expanded=False):
+        st.markdown(plate(
+            "🧪 PLATE CACHE — live",
+            lcd(_plate_strip_lines())), unsafe_allow_html=True)
+        st.caption("HIT = served from cache (data as old as the ttl "
+                   "allows). COMPUTE = the body re-ran (ttl expired or "
+                   "the cache key changed). The 'as of' stamps render "
+                   "outside the caches — the stamps are always fresh; "
+                   "this strip shows how old the DATA behind them is. "
+                   "Hit rate = served-from-cache share of requests over "
+                   "the process's life; 🔥 HOT marks a cached plate "
+                   "recomputing on most requests — a ttl that isn't "
+                   "holding its promise.")
+        if st.button("↻ FORCE RECOMPUTE (reset the process cache)",
+                     key="plate_cache_reset"):
+            st.cache_data.clear()
+            st.rerun()
+
+
 def get_kraken_client():
     if _HAS_DB:
         try:
             try:
                 setup_secrets()  # optional — secrets.toml may not exist
-            except Exception:
-                pass  # keyring is the real credential source
+            except (FileNotFoundError, OSError, ValueError):
+                pass  # absent/unreadable secrets.toml is normal — keyring
+                      # is the real credential source; weirder errors fall
+                      # to the outer handler and get logged
             api_key = keyring.get_password("workshop", "KRAKEN_API_KEY") or ""
             api_secret = keyring.get_password("workshop", "KRAKEN_API_SECRET") or ""
             if api_key and api_secret:
                 return KrakenAPI(api_key, api_secret)
-        except Exception:
-            pass
+        except Exception as exc:
+            # THE RISKY SWALLOW (Sep 13): a silently dead keyring client
+            # traded on the unauthenticated fallback with no signal at
+            # all. The fallback itself is by design; the silence was not.
+            logger.warning("keyring Kraken client unavailable — "
+                           "using unauthenticated ccxt fallback: %s", exc)
     import ccxt
     class _Bare:
         exchange = ccxt.kraken({"enableRateLimit": True})
@@ -662,8 +812,9 @@ def _load_watch() -> dict:
         import json
         if WATCH_FILE.exists():
             return json.loads(WATCH_FILE.read_text())
-    except Exception:
-        pass
+    except (OSError, ValueError) as exc:
+        logger.warning("contest watch file unreadable — "
+                       "scoreboard restored empty: %s", exc)
     return {}
 
 def _save_watch(watch: dict):
@@ -699,8 +850,8 @@ def _derive_goal(pair: str, kraken=None) -> tuple[float, float]:
             g = _bs._window_goal_pct(pair)
         if g:
             goal = float(g)
-    except Exception:
-        pass
+    except (AttributeError, ImportError, KeyError, TypeError, ValueError) as exc:
+        logger.debug("goal derivation fell back to 1.5%% for %s: %s", pair, exc)
     window = 180.0
     try:
         import background_scanner as _bs2
@@ -714,6 +865,41 @@ def _derive_goal(pair: str, kraken=None) -> tuple[float, float]:
 
 # ── Console state (survives refreshes): challenge tier + auto-watch on/off ──
 STATE_FILE = Path(__file__).parent / "console_state.json"
+
+
+# ── THE PREFS MIRROR (Sep 12): her console choices — the audit trail's
+# show-sims toggle and the verdict filter — survive closing the browser
+# tab, not just Streamlit reruns: each on_change callback mirrors the
+# semantic pick into a tiny JSON file, restored at both init sites on
+# the next session's boot. Fail-open everywhere (a broken mirror never
+# blocks a rerun); SCOUT_PREFS_FILE overrides the path (tests).
+def _prefs_path() -> Path:
+    import os
+    env = os.environ.get("SCOUT_PREFS_FILE")
+    return (Path(env) if env
+            else Path(__file__).parent / "console_prefs.json")
+
+
+def _prefs_load() -> dict:
+    try:
+        import json
+        return (json.loads(_prefs_path().read_text(encoding="utf-8"))
+                or {})
+    except Exception:
+        return {}   # fail-open: absent or corrupt prefs read as defaults
+
+
+def _prefs_save(prefs: dict) -> None:
+    try:
+        import json, os
+        p = _prefs_path()
+        tmp = p.with_suffix(p.suffix + ".tmp")
+        tmp.write_text(json.dumps(prefs), encoding="utf-8")
+        os.replace(tmp, p)   # atomic: no torn file mid-rerun
+    except (OSError, TypeError, ValueError) as exc:
+        logger.debug("prefs save failed: %s", exc)  # the mirror never
+        # blocks the widget's own behavior — a broken save only means
+        # her last choice didn't survive the tab close
 
 
 def _play_sound(kind: str = "ding"):
@@ -731,8 +917,8 @@ def _play_sound(kind: str = "ding"):
         b64 = base64.b64encode(p.read_bytes()).decode()
         st.markdown(f'<audio autoplay src="data:audio/wav;base64,{b64}"></audio>',
                     unsafe_allow_html=True)
-    except Exception:
-        pass
+    except (OSError, ValueError):
+        pass  # alerts are best-effort — a broken sound never blocks the alert
 
 
 VOICE_PREFIX = "Mic check one, two. Testing, testing. "
@@ -758,8 +944,8 @@ def _speak(text: str, rate: int = 2):
         tmp.write_text(_json.dumps({"text": text, "rate": int(rate),
                                     "ts": time.time()}), encoding="utf-8")
         os.replace(tmp, SPEECH_QUEUE_DIR / name)
-    except Exception:
-        pass
+    except (OSError, TypeError, ValueError) as exc:
+        logger.debug("speech queue write failed — voice line dropped: %s", exc)
 
 
 def _load_console_state() -> dict:
@@ -768,8 +954,8 @@ def _load_console_state() -> dict:
         doc = json.loads(STATE_FILE.read_text())
         if isinstance(doc, dict):
             return doc
-    except Exception:
-        pass
+    except (OSError, ValueError) as exc:
+        logger.warning("console state unreadable — tier defaults applied: %s", exc)
     return {"tier": "$5,000", "watch_on": True}
 
 
@@ -828,8 +1014,8 @@ def _load_payout_store() -> dict:
             doc = json.loads(PAYOUT_TRACK_FILE.read_text())
             if isinstance(doc, dict) and isinstance(doc.get("payouts"), dict):
                 return doc
-    except Exception:
-        pass
+    except (OSError, ValueError) as exc:
+        logger.warning("payout store unreadable — restored empty: %s", exc)
     return {"payouts": {}}
 
 
@@ -1034,8 +1220,16 @@ def current_threshold() -> tuple[str, str, int, int, bool]:
     return name, WEEKDAY_NAMES.get(n.weekday(), "?"), thr, interval, no_buy
 
 
-@st.cache_data(ttl=90)
-def _scalp_headline(_ex, rotation_key: str, sched: str) -> tuple[list[dict], int]:
+# THE FRESH-STAMP DIALS (Sep 13): each cached plate's ttl, shared with
+# its call site so the bucketed now_ts and the visible 'as of' stamp
+# roll on the SAME clock — one number to change if a ttl ever moves.
+HEADLINE_STALE_TTL_S = 90    # _scalp_headline's cache ttl
+FACTS_STALE_TTL_S = 120      # _today_facts' cache ttl
+
+
+@st.cache_data(ttl=HEADLINE_STALE_TTL_S)
+def _scalp_headline(_ex, rotation_key: str, sched: str,
+                    now_ts: int) -> tuple[list[dict], int]:
     """RIGHT NOW ranking: the live signal pool, scalp-scored and clustered.
 
     Signals arrive in correlated waves — one market move wearing many
@@ -1047,14 +1241,22 @@ def _scalp_headline(_ex, rotation_key: str, sched: str) -> tuple[list[dict], int
     Signals older than HEADLINE_MAX_AGE_MIN never headline — a scalp's
     entry edge lives for minutes (Aug 25: user acted on a 20-minute-old
     signal with no idea it was old).
-    Returns (ranked candidates with age_min, total signals considered)."""
+    Returns (ranked candidates with age_min, total signals considered).
+    (Sep 13) NOW RIDES THE CACHE KEY: now_ts is the call site's BUCKETED
+    epoch second — every clock read below derives from it, so ages, the
+    freshness cutoff, and the big-payout recency check all roll with the
+    bucket instead of freezing at the first render (the cachesweep's
+    tier-2 class). The visible 'as of' stamp renders OUTSIDE this body
+    at the pick card, fresh every fragment tick."""
+    _plate_touch("scalp-headline", ttl=HEADLINE_STALE_TTL_S)
     import sqlite3
     from collections import Counter
     from background_scanner import _hours_to_scalp, _max_resolve_hours
     try:
         conn = sqlite3.connect(os.path.join(os.path.dirname(os.path.abspath(__file__)), "signals.db"))
         conn.row_factory = sqlite3.Row
-        since = (_now_mst() - timedelta(minutes=HEADLINE_MAX_AGE_MIN)).isoformat()
+        _nw = datetime.fromtimestamp(now_ts, MST)
+        since = (_nw - timedelta(minutes=HEADLINE_MAX_AGE_MIN)).isoformat()
         rows = conn.execute(
             "SELECT pair, confidence, entry_price, timestamp FROM signals "
             "WHERE action='buy' AND timestamp >= ? AND confidence >= ? "
@@ -1068,7 +1270,10 @@ def _scalp_headline(_ex, rotation_key: str, sched: str) -> tuple[list[dict], int
     for r in rows:                      # newest first — keep the latest per pair
         latest.setdefault(r["pair"], r)
 
-    cap = _max_resolve_hours()
+    # (Sep 13) the clock flows DOWN from the cache key: the helpers'
+    # rotation/weekday picks must ride the plate's bucketed time, not
+    # a live read frozen for the ttl (the fleet sweep's first catch).
+    cap = _max_resolve_hours(now=datetime.fromtimestamp(now_ts, tz=MST))
     doc = None
     try:
         from volatility_engine import load_rotation_thresholds
@@ -1080,12 +1285,13 @@ def _scalp_headline(_ex, rotation_key: str, sched: str) -> tuple[list[dict], int
     for pair, r in latest.items():
         if pair.split("/")[0] not in ASSETS:
             continue
-        if _recent_big_payout(pair) is not None:
+        if _recent_big_payout(pair, now_ts=now_ts) is not None:
             continue                    # exhausted move — QC would reject it too
         entry = float(r["entry_price"] or 0)
         if entry <= 0:
             continue
-        pace = _hours_to_scalp(pair, entry)
+        pace = _hours_to_scalp(pair, entry,
+                               now=datetime.fromtimestamp(now_ts, tz=MST))
         if pace is None or pace > cap:
             continue                    # too slow to the $20
         try:
@@ -1108,8 +1314,9 @@ def _scalp_headline(_ex, rotation_key: str, sched: str) -> tuple[list[dict], int
                 _el = float(_ema(_s, 21).iloc[-1])
                 if _es < _el and live < _el:
                     continue            # falling knife — never headlines
-        except Exception:
-            pass
+        except (AttributeError, ImportError, IndexError, KeyError,
+                TypeError, ValueError) as exc:
+            logger.debug("falling-knife probe skipped: %s", exc)
         ran_pct = (live - entry) / entry * 100  # displayed on the card —
         # calibration showed chases hit at the same rate (76-80%), so it
         # warns, it doesn't exclude
@@ -1118,7 +1325,7 @@ def _scalp_headline(_ex, rotation_key: str, sched: str) -> tuple[list[dict], int
         try:
             ts = datetime.fromisoformat(r["timestamp"])
             bucket = int(ts.timestamp() // 600)
-            age_min = (_now_mst() - ts).total_seconds() / 60
+            age_min = (_nw - ts).total_seconds() / 60
         except Exception:
             bucket, age_min = 0, 0.0
         cands.append({"asset": pair.split("/")[0], "pair": pair,
@@ -1265,12 +1472,15 @@ def _trend_state(df, cfg, px: float) -> str:
         return "UP"  # can't compute → fail-open (never crash the scan)
 
 
-def _recent_big_payout(pair: str) -> int | None:
+def _recent_big_payout(pair: str, *, now_ts: float) -> int | None:
     """Amount of the last BIG TAKE IT payout (≥$100) on this pair, if it was
     within REENTRY_BLOCK_MIN minutes. The scanner writes take_payouts.json;
     the QC refuses to green-light re-entries on a move that just paid big —
     it's exhausted, and the re-buy rides the giveback (PUMP, Aug 24: took
-    the $140, re-entered 20 min later, rode -$70 back down)."""
+    the $140, re-entered 20 min later, rode -$70 back down).
+    (Sep 13) now_ts is REQUIRED: the caller supplies the clock so a cached
+    body (the scalp headline) can pass its bucketed key instead of
+    freezing this recency check at its first render."""
     import json, os
     from datetime import datetime
     try:
@@ -1281,7 +1491,7 @@ def _recent_big_payout(pair: str) -> int | None:
         if not rec:
             return None
         ts = datetime.fromisoformat(rec["ts"])
-        age_min = (datetime.now(ts.tzinfo) - ts).total_seconds() / 60
+        age_min = (datetime.fromtimestamp(now_ts, ts.tzinfo) - ts).total_seconds() / 60
         if age_min <= REENTRY_BLOCK_MIN:
             return int(rec.get("amount") or 0)
         return None
@@ -1354,6 +1564,7 @@ def _past_winners_core(limit: int = 15) -> list[dict]:
     """The raw champions read (a live Neon query). ttl=60 = the ADAPTIVE
     floor; STATIC data — the volatility multiplier is ignored (the
     adaptive spec: history can be a minute old at any vol)."""
+    _plate_touch("past-champions", ttl=60)
     try:
         if not _HAS_DB:
             return []
@@ -1449,8 +1660,8 @@ def _tide_line() -> str:
             return (f"TIDE <span class='dim'>.............</span> "
                     f"<span style='color:{col};'>{state}</span> "
                     f"<span class='dim'>({pct:.0f}% of the fleet up) — {hint}</span>")
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.debug("tide strip unavailable: %s", exc)
     return ""
 
 
@@ -1472,9 +1683,17 @@ def _pick_card(cfg: TradingConfig, kraken):
     if cw:
         for pair, w in cw.items():
             entry = float(w.get("entry") or 0)
-            size = float(w.get("size") or 5000.0)
+            # the position size fallback is the LIVE contest balance, never
+            # a fictional $5k — at a $1k tier the old fallback showed 5x P&L
+            size = float(w.get("size") or 0.0)
+            if size <= 0:
+                try:
+                    import contest_account as _ca_w
+                    size = float(_ca_w.load_state().get("current_balance") or 0.0)
+                except Exception:
+                    size = 0.0
             px = live_price(pair)
-            if not entry or not px:
+            if not entry or not px or size <= 0:
                 continue
             usd = (px / entry - 1.0) * size
             pct = (px / entry - 1.0) * 100
@@ -1514,14 +1733,24 @@ def _pick_card(cfg: TradingConfig, kraken):
         return
 
     # ── PICK: something fresh to look at ────────────────────────────
+    # (Sep 13) call→render bracketing for the cache strip — resolves
+    # HIT vs COMPUTE between here and the strip renderer at body's end
+    _plate_call("scalp-headline", ttl=HEADLINE_STALE_TTL_S)
     try:
         from background_scanner import rotation_key_for_hour, _schedule_for_dow
         _n = _now_mst()
-        ranked, total = _scalp_headline(kraken.exchange,
-                                        rotation_key_for_hour(_n.hour),
-                                        _schedule_for_dow(_n.weekday()))
+        # THE TIME AS DATA (Sep 13): the bucketed epoch rides the cache
+        # key — ages, the freshness cutoff and the payout recency check
+        # roll with the bucket instead of freezing at the first render
+        ranked, total = _scalp_headline(
+            kraken.exchange,
+            rotation_key_for_hour(_n.hour),
+            _schedule_for_dow(_n.weekday()),
+            now_ts=int(_n.timestamp() // HEADLINE_STALE_TTL_S)
+            * HEADLINE_STALE_TTL_S)
     except Exception:
         ranked, total = [], 0
+    _plate_render("scalp-headline")
     if ranked:
         # ROTATION LOCKOUT (user rule, Aug 30): an asset that already fired
         # this rotation never takes the PICK seat — the card must never
@@ -1538,8 +1767,10 @@ def _pick_card(cfg: TradingConfig, kraken):
             _cwin = getattr(_bs6, "ROTATION_CONFIRM_WINDOW_MIN", 0.0)
             ranked = [h for h in ranked
                       if _bs6.rotation_gate(h["asset"], confirm_window_min=_cwin)[0]]
-        except Exception:
-            pass
+        except (AttributeError, ImportError, TypeError) as exc:
+            # fail-open: cards render unfiltered rather than not at all —
+            # but the skip is no longer silent
+            logger.debug("rotation gate filter skipped: %s", exc)
     if ranked:
         h = ranked[0]
         # Zira announces when a NEW young pick takes the seat
@@ -1585,8 +1816,8 @@ def _pick_card(cfg: TradingConfig, kraken):
                     _speak(f"New pick! {h['asset']}! Twenty dollars in about "
                            f"{h['pace'] * 60:.0f} minutes! {_size_say}{_tide_say}"
                            f"If it hasn't paid by {_out_say}, get out!")
-                except Exception:
-                    pass
+                except Exception as exc:
+                    logger.debug("pick announcement failed: %s", exc)
         age_txt = f"{h['age_min']:.0f} minutes ago" if h["age_min"] >= 1 else "just now"
         try:
             import background_scanner as _bsg
@@ -1612,6 +1843,10 @@ def _pick_card(cfg: TradingConfig, kraken):
             f"If it hasn't paid by the window's end, get out.",
             f"<span class='dim'>{total} signals · {len(ranked)} real moves · this is the best one — "
             f"one click for the final yes/no</span>",
+            # THE FRESH STAMP (Sep 13): rendered OUTSIDE the cached body,
+            # at fragment-tick time — the card's clock can never freeze
+            f"<span class='dim'>as of {_n.strftime('%H:%M')} MST — "
+            f"this card refreshes itself every 30 seconds</span>",
             _tide_line(),
         ]
         st.markdown(plate("⚡ THE PICK", lcd(rows, tone="green")), unsafe_allow_html=True)
@@ -1646,6 +1881,11 @@ def render_master(cfg: TradingConfig, kraken):
     # table?") — the closing rotation's grade, side-by-side with the
     # contest results, with the lesson learned and the one insight
     st.markdown(_discipline_plate(), unsafe_allow_html=True)
+    # THE FRESH STAMP (Sep 13): every MASTER plate carries a visible
+    # clock — the discipline plate re-reads its state each rerun, so
+    # the stamp is naturally fresh (consistency, not cache)
+    st.caption(f"as of {_now_mst().strftime('%H:%M')} MST — the discipline "
+               f"grade re-reads its rotation close each rerun")
 
     # 🚫 WHAT THE FUNNEL BURIED (user rule, Sep 4, the POPCAT lesson: the
     # scanner's suppression verdicts used to print to the console window
@@ -1657,19 +1897,107 @@ def render_master(cfg: TradingConfig, kraken):
     # TODAY'S FACTS — the system grades itself from real records (user
     # directive: MASTER is for self-correction on facts and figures —
     # signals fired, twenties banked, what the bot rejected — no guessing)
+    # THE FRESH STAMP (Sep 13): the graded day rides the bucketed cache
+    # key; the visible 'as of' renders OUTSIDE the cached body — fresh
+    # every rerun, never a frozen timestamp
+    _fn = _now_mst()
+    _plate_call("todays-facts", ttl=FACTS_STALE_TTL_S)
     st.markdown(plate("📐 TODAY'S FACTS — the system grades itself",
-                      lcd(_today_facts())), unsafe_allow_html=True)
+                      lcd(_today_facts(
+                          now_ts=int(_fn.timestamp() // FACTS_STALE_TTL_S)
+                          * FACTS_STALE_TTL_S))), unsafe_allow_html=True)
+    _plate_render("todays-facts")
+    st.caption(f"as of {_fn.strftime('%H:%M')} MST — the graded day rolls "
+               f"with the numbers, never frozen")
+
+    # THE TIDE BAR VERDICT (Sep 11): the weekly outcome-vs-quantile
+    # hindsight on MASTER — the per-state bars, the $/fire deltas, and
+    # the week's realized fills, without opening the report file. The
+    # expander is the click-through: the full report history, newest
+    # first, capped so a year of sections cannot stall the page.
+    # (Sep 13) call→render bracketing for the cache strip: the plate
+    # body is cached, this scope runs every rerun — a HIT vs COMPUTE
+    # resolves between here and the strip renderer at the body's end.
+    _plate_call("tidebar-verdict", ttl=300)
+    # THE FRESH STAMP (Sep 13): captured BEFORE the cached call, rendered
+    # AFTER it — outside the cached body, so a 5-minute ttl can never
+    # freeze the plate's clock (the frozen-stamp class stays closed)
+    _tv_n = _now_mst()
+    st.markdown(_tidebar_verdict(
+        sims_hidden=_sims_hidden_mirror(),
+        verdict=_verdict_filter_mirror()),
+        unsafe_allow_html=True)
+    _plate_render("tidebar-verdict")
+    st.caption(f"as of {_tv_n.strftime('%H:%M')} MST — the verdict plate "
+               f"recomputes on its data (5-min cache); this clock never "
+               f"freezes")
+    # THE MASTER-LEVEL VERDICT FILTER (Sep 13): the control lives HERE,
+    # beside the chart it drives — one pick and the whole page syncs
+    # (chart stamps, benched spans, trail rows); the trail resolves
+    # the same pick without its own widget.
+    _render_verdict_control()
+    # THE FLIP GRADE plate (Sep 11): the bench machinery's latest
+    # per-state verdicts — pooled dollars, proximity, aftermath — one
+    # glance, no file to open (refreshed after each weekly pass).
+    _plate_call("flip-grade")
+    st.markdown(_flipgrade_verdict(), unsafe_allow_html=True)
+    _plate_render("flip-grade")
+    # THE CONFIRM-TO-APPLY (Sep 13): the arc-3 sweep STAGES its
+    # evidence-backed POOL_MIN proposal (stability-gated on priced
+    # re-arms, net, and the rolling windows); the machinery never moves
+    # the gate on its own — THIS is her hand. Rendered outside the plate
+    # so the verdict stays pure; the state reader is widget-free, the
+    # apply rides the module's guarded apply_staged_pool_min().
+    import tidebar_weekly as _tbw
+    _pg_apply = _poolgate_apply_state()
+    if _pg_apply.get("stale"):
+        st.caption(
+            f"POOL_MIN proposal staged at {_pg_apply['pool_min']:+.2f} "
+            f"is stale — {_pg_apply['stale_reason']}; the next grade "
+            f"re-stages before anything can apply.")
+    elif _pg_apply:
+        st.warning(
+            f"**POOL_MIN proposal staged:** default → "
+            f"{_pg_apply['pool_min']:+.2f} · net "
+            f"{_pg_apply['net']:+,.2f} across "
+            f"{_pg_apply['n_priced']} priced real re-arms, positive "
+            f"across the 4-week and 8-week rolling windows. Confirming "
+            f"writes tide_bar_poolmin_default.json — the flip-back gate "
+            f"reads it on its next decision — and WARNS in the scanner "
+            f"log.")
+        if st.button("Apply POOL_MIN default", key="poolgate_apply_btn",
+                     type="primary"):
+            _ares = _tbw.apply_staged_pool_min()
+            if _ares.get("applied"):
+                st.success(
+                    f"POOL_MIN default applied: "
+                    f"{_ares['pool_min']:+.2f} — the flip-back gate "
+                    f"demands a recovery worth that much before "
+                    f"re-arming.")
+            else:
+                st.error(f"Apply refused: {_ares.get('reason')}")
+    _render_tidebar_history()
+    # THE FLIP AUDIT TRAIL (Sep 11): every auto-flip / flip-back with
+    # its evidence weeks, one click down — the regime story in full.
+    with st.expander("⚖️ FLIP AUDIT TRAIL — every bench decision and the "
+                     "evidence that made it"):
+        st.markdown(_render_flip_audit(), unsafe_allow_html=True)
 
     # the bones — every tool and number still there, one click down
     with st.expander("📐 THE BONES — money score, breaker, integrity"):
         render_master_bones(cfg, kraken)
+
+    # THE CACHE STRIP (Sep 13): per-plate HIT vs COMPUTE with the last
+    # render age — staleness observable LIVE on the page, not only in
+    # diag_cachesweep's offline audit.
+    _render_master_diagnostics()
 
 
 def _render_suppression_strip():
     """🚫 MONEY LEFT ON THE TABLE — the popups the funnel buried, newest
     first (popup_suppressions.jsonl, written by the scanner at every
     suppression: brain-floor, tide-out, worth-floor, stale-move, deep-veto,
-    downward-trend, too-thin, death-line, daily-lock, fail-closed). The raw
+    downward-trend, too-thin, death-line, fail-closed). The raw
     record — the discipline plate's 'left by the gates' number is the paid
     subset of exactly this."""
     try:
@@ -1689,7 +2017,7 @@ def _render_suppression_strip():
                 continue
             ts = str(d.get("ts", ""))[11:16]
             gate = str(d.get("gate", "?"))
-            gcol = ("#ff6b5e" if gate in ("tide-out", "death-line", "daily-lock")
+            gcol = ("#ff6b5e" if gate in ("tide-out", "death-line")
                     else "#ffc36b")
             nums = []
             if d.get("quick") is not None:
@@ -1709,8 +2037,81 @@ def _render_suppression_strip():
             with st.expander(f"🚫 MONEY LEFT ON THE TABLE — the popups the funnel "
                              f"buried (last {len(rows)}, newest first)"):
                 st.markdown("".join(rows), unsafe_allow_html=True)
+                # THE FRESH STAMP (Sep 13): every MASTER plate carries a
+                # visible clock — this strip re-reads its file each rerun,
+                # so the stamp is naturally fresh (consistency, not cache)
+                st.caption(f"as of {_now_mst().strftime('%H:%M')} MST — "
+                           f"the funnel's burial log, read live each rerun")
     except Exception as exc:
         logger.debug("suppression strip failed: %s", exc)
+
+
+def _no_pick_advice() -> str:
+    """The bracket's 'no good pick' earns a diagnostic, not just words
+    (Sep 10): the funnel's RECENT REJECTS (popup_suppressions.jsonl,
+    last 90 min — the scanner's every burial, so the answer covers
+    champions, movers, breakout coils and the near-misses alike) are
+    graded here: the closest calls, what buried them, the tide's price
+    if the tide is the bouncer. Fail-open: an unreadable log says so."""
+    try:
+        import json as _json2
+        from datetime import datetime as _dt2, timedelta as _td2
+        f = Path(__file__).parent / "popup_suppressions.jsonl"
+        if not f.exists():
+            return "The funnel has logged no rejections yet this session."
+        cutoff = (_dt2.now().astimezone() - _td2(minutes=90)).isoformat()
+        rows = []
+        for l in f.read_text(encoding="utf-8").splitlines()[-300:]:
+            try:
+                d = _json2.loads(l)
+            except Exception:
+                continue
+            if str(d.get("ts", "")) >= cutoff:
+                rows.append(d)
+        if not rows:
+            return ("No funnel rejections in the last 90 minutes — the "
+                    "scanner hasn't buried anything recently.")
+
+        def _bar(d):
+            """The gate's bar: the floor field, or the learned bar named
+            in the tide-out detail (the breakout coils' bar lives in the
+            text). None = no bar on the record."""
+            try:
+                return float(d["floor"])
+            except (KeyError, TypeError, ValueError):
+                pass  # no floor field — fall through to the detail text
+            try:
+                import re as _re2
+                m = _re2.search(r"vs learned bar (\d+)",
+                                str(d.get("detail", "")))
+                if m:
+                    return float(m.group(1))
+            except (TypeError, ValueError):
+                pass  # no learned bar in the detail either — no bar
+            return None
+
+        def _gap(d):
+            """Points below the gate's bar (99 = no bar on the record)."""
+            b, q = _bar(d), d.get("quick")
+            if b is None or q is None:
+                return 99.0
+            return b - float(q)
+
+        bits = []
+        close = sorted((d for d in rows if _gap(d) <= 8.0), key=_gap)[:3]
+        if close:
+            bits.append("closest to firing: " + ", ".join(
+                f"{_asset(str(d.get('pair', '?')))} {float(d['quick']):.0f}% "
+                f"vs {_bar(d):.0f}%" for d in close))
+        counts = {}
+        for d in rows:
+            g = str(d.get("gate", "?"))
+            counts[g] = counts.get(g, 0) + 1
+        top = sorted(counts.items(), key=lambda kv: -kv[1])[:2]
+        bits.append("busiest gates: " + ", ".join(f"{g} ×{n}" for g, n in top))
+        return "; ".join(bits)
+    except Exception:
+        return "the funnel's rejection log is unreadable right now"
 
 
 def _discipline_plate() -> str:
@@ -1795,15 +2196,1962 @@ def _discipline_plate() -> str:
         return ""
 
 
-@st.cache_data(ttl=120)
-def _today_facts() -> list[str]:
+def _spark_html(vals, scale=None, marks=None):
+    """A sparkline from a series of fit edges or P&L (None = a
+    one-sided week): block chars sized by the value, each char colored
+    by its own sign (green paid, red lost, grey flat-zero, dim for
+    None), scaled per state by the max |edge| in the series. scale
+    lets the caller share one scale across states. marks (aligned to
+    vals, 'action@week' elements) stamp regime-change weeks with
+    distinct glyphs: amber ▼ auto-flip (the quantile ships), green ▲
+    flip-back (the fit returns) — the glyph replaces the bar so the
+    regime change reads at a glance. Returns (html, scale-used)."""
+    blocks = " ▁▂▃▄▅▆▇█"
+    present = [v for v in (vals or []) if v is not None]
+    if not present:
+        return "", (scale if scale else 1.0)
+    m = scale if scale else max(abs(v) for v in present) or 1.0
+    chars = []
+    for i, v in enumerate(vals or []):
+        mk = (marks[i] if marks and i < len(marks) else None)
+        if mk:
+            act, _, wk = str(mk).partition("@")
+            edge = _edge_attr(v)
+            if act in ("flip", "flip2"):
+                ch, col = ("▼▼", "#ffb347") if act == "flip2" \
+                    else ("▼", "#ffb347")
+                ttl = (f"{ch} {'re-flip' if act == 'flip2' else 'auto-flip'}"
+                       f" {wk} — the quantile ships"
+                       f"{' again' if act == 'flip2' else ''}{edge}")
+            else:
+                ch, col = ("▲▲", "#4be38a") if act == "flip_back2" \
+                    else ("▲", "#4be38a")
+                ttl = (f"{ch} {'re-arm' if act == 'flip_back2' else 'flip-back'}"
+                       f" {wk} — the fit returns"
+                       f"{' again' if act == 'flip_back2' else ''}{edge}")
+            chars.append(f"<span style='color:{col};' "
+                         f"title='{ttl}'>{ch}</span>")
+            continue
+        if v is None:
+            chars.append("<span style='color:#9aa0a6;'>·</span>")
+            continue
+        k = min(8, max(0, int(round(abs(v) / m * 8))))
+        ch = blocks[k] if k else "▁"
+        col = ("#4be38a" if v > 0
+               else ("#ff6b5e" if v < 0 else "#9aa0a6"))
+        chars.append(f"<span style='color:{col};' title='{v:+.2f}'>{ch}</span>")
+    return "".join(chars), m
+
+
+def _edge_attr(v):
+    """The ' · edge ±x.xx' suffix for a mark glyph's hover title
+    (omitted when the marked week carries no grade)."""
+    return f" · edge {v:+.2f}" if v is not None else ""
+
+
+def _regime_watch(trend, flips):
+    """THE REGIME WATCH (Sep 11): the console's render of the shared
+    watch math (tidebar_weekly.regime_watch) — which states are
+    trending toward a bench or a flip-back, with the WEEKS-TO-GO
+    forecast (zero-crossing weeks at the current slope plus the gate's
+    remaining fresh weeks, capped at 8+, "gate due now" when nothing
+    remains). The scanner runs the same math after each weekly pass
+    and WARNS the log the first time a state slides toward a bench —
+    one math, both sides. Returns the state phrases (' · '-joined) or
+    '' when nothing is under pressure."""
+    try:
+        import tidebar_weekly as _tbw
+        watch = _tbw.regime_watch(trend, flips)
+        return " · ".join(f"{nm} {p}" for nm, p in watch.items())
+    except Exception:
+        return ""
+
+
+@st.cache_data(ttl=300)
+def _tidebar_verdict(jf_path=None, sims_hidden: bool = False,
+                     verdict: str = ""):
+    """THE TIDE BAR VERDICT plate for MASTER: the tide bar weekly's
+    latest outcome-vs-quantile comparison, per tide state, plus the
+    week's realized fills — read from the JSON sidecar the weekly
+    driver writes (_tidebarweekly.json, atomic-swapped). jf_path lets
+    tests inject a sandbox sidecar so the suite never touches the
+    production file. Never raises; a missing or stale sidecar renders    a quiet one-liner. sims_hidden (Sep 12) threads the trail
+    toggle's choice into the ledger chart — it is part of the CACHE
+    KEY, so a toggle flip recomputes the plate instead of serving the
+    stale cached HTML (the chart renders inside this plate).
+    """
+    try:
+        import json as _json
+        jf = Path(jf_path) if jf_path \
+            else Path(__file__).parent / "_tidebarweekly.json"
+        data = _json.loads(jf.read_text(encoding="utf-8"))
+        states = data.get("states") or {}
+        if not states:
+            raise ValueError("no states in the sidecar")
+        flips = data.get("flips") or {}
+
+        def _fmt_state(name, rec):
+            flipped = bool((flips.get(name) or {}).get("flipped"))
+            badge = (" <span style='color:#ffb347;'>[BENCHED → the "
+                     "quantile ships until it earns a flip-back]</span>"
+                     if flipped else "")
+            if not rec:
+                return (f"{name} <span class='dim'>— no grade this week</span>"
+                        f"{badge}")
+            inf = rec.get("in_force") or {}
+            oth = rec.get("other") or {}
+            d = None
+            if inf and oth and oth.get("fires"):
+                d = inf.get("usd_per_fire", 0.0) - oth.get("usd_per_fire", 0.0)
+            src = str(rec.get("other_src") or "quantile")
+            dcol = "#4be38a" if (d is not None and d >= 0) else "#ff6b5e"
+            line = (f"{name} <span class='dim'>bar</span> "
+                    f"{inf.get('bar', 0):.0f} <span class='dim'>→</span> "
+                    f"{inf.get('fires', 0)} fires "
+                    f"<span class='dim'>{inf.get('rate', 0) * 100:.0f}% pay</span> "
+                    f"<span style='color:{dcol};'>"
+                    f"${inf.get('usd_per_fire', 0):+.2f}/fire</span>{badge}")
+            if oth:
+                line += (f" <span class='dim'>vs {src} {oth.get('bar', 0):.0f}: "
+                         f"${oth.get('usd_per_fire', 0):+.2f}</span>")
+            if d is not None:
+                line += (f" <span style='color:{dcol};'>(Δ {d:+.2f})</span>")
+            return line
+
+        rows = "<br>".join(_fmt_state(nm, states.get(nm))
+                           for nm in ("OUT", "FLAT", "RISING"))
+        fills = data.get("fills")
+        if isinstance(fills, str):
+            rows += (f"<br><span class='dim'>REAL FILLS: not graded "
+                     f"({fills})</span>")
+        elif isinstance(fills, dict):
+            # PER-STATE REAL FILLS (Sep 11): each tide's fires that
+            # actually traded, colored by realized P&L — green paid,
+            # red lost, dim flat — with the unfilled-but-paper-paid
+            # fires (what the size ladder gated) on the same line.
+            # Shape: {states: {OUT: {...}}, coverage_from} (the writer's)
+            # or a flat {OUT: {...}} legacy shape.
+            fstates = fills.get("states")
+            if not isinstance(fstates, dict):
+                fstates = (fills if any(nm in fills
+                                        for nm in ("OUT", "FLAT", "RISING"))
+                           else None)
+            if fstates:
+                frows = []
+                tot_f = 0
+                tot_p = 0.0
+                for nm in ("OUT", "FLAT", "RISING"):
+                    v = fstates.get(nm)
+                    if not isinstance(v, dict):
+                        continue
+                    n_f = int(v.get("fills", 0))
+                    pnl = float(v.get("pnl", 0.0))
+                    tot_f += n_f
+                    tot_p += pnl
+                    fcol = ("#4be38a" if pnl > 0
+                            else ("#ff6b5e" if pnl < 0 else "#9aa0a6"))
+                    extra = ""
+                    if n_f == 0 and v.get("unfilled"):
+                        extra = (f" <span class='dim'>(+{v.get('unfilled')} unfilled, "
+                                 f"{v.get('unfilled_payers', 0)} paid on paper — "
+                                 f"${v.get('usd_if_paid', 0.0):.2f} the size "
+                                 f"ladder gated)</span>")
+                    frows.append(f"{nm} <span class='dim'>{n_f} filled</span> "
+                                 f"<span style='color:{fcol};'>realized "
+                                 f"${pnl:+.2f}</span>{extra}")
+                if frows:
+                    rows += ("<br><span class='dim'>REAL FILLS — the fires "
+                             "that actually traded:</span><br>"
+                             + "<br>".join(frows))
+                    cov = fills.get("coverage_from")
+                    if cov:
+                        rows += (f"<br><span class='dim'>fire-event coverage "
+                                 f"begins {str(cov)[:16].replace('T', ' ')} UTC "
+                                 f"— earlier fills unattributable</span>")
+                    tcol = ("#4be38a" if tot_p > 0
+                            else ("#ff6b5e" if tot_p < 0 else "#9aa0a6"))
+                    rows += (f"<br><span class='dim'>TOTAL:</span> {tot_f} filled, "
+                             f"<span style='color:{tcol};'>"
+                             f"realized ${tot_p:+.2f}</span> this week")
+        # THE TREND (Sep 11): the rolling pooled fit edge after each
+        # history week (oldest first), one sparkline per state. The
+        # canonical fit-vs-quantile axis: above the zero line the
+        # outcome bar pays better, below it the quantile does — so a
+        # losing bar's slide toward a bench (and a benched bar's climb
+        # toward a flip-back) reads at a glance.
+        trend = data.get("trend")
+        ftrend = data.get("fills_trend")
+        fmarks = data.get("flip_marks")
+        if isinstance(trend, dict):
+            tseries = {nm: (trend.get(nm) or [])
+                       for nm in ("OUT", "FLAT", "RISING")}
+            fseries = ({nm: ((ftrend.get(nm) or []) if isinstance(ftrend, dict)
+                             else [])
+                        for nm in ("OUT", "FLAT", "RISING")}
+                       if ftrend else None)
+            all_vals = [v for s in tseries.values() for v in (s or [])
+                        if v is not None]
+            shared = (max(abs(v) for v in all_vals) or 1.0) if all_vals else None
+            for nm in ("OUT", "FLAT", "RISING"):
+                s = tseries.get(nm) or []
+                if not s:
+                    continue
+                ms = (fmarks.get(nm) or None) \
+                    if isinstance(fmarks, dict) else None
+                if ms is not None and len(ms) != len(s):
+                    ms = None   # a misaligned series degrades to unmarked
+                spark, _ = _spark_html(s, scale=shared, marks=ms)
+                if spark:
+                    last = next(v for v in reversed(s) if v is not None)
+                    rows += (f"<br>{nm} <span class='dim'>trend</span> {spark} "
+                             f"<span class='dim'>(pooled edge, latest "
+                             f"{last:+.2f})</span>")
+                # THE FILLS SPARK (Sep 11): the same weeks' REALIZED
+                # fill P&L from the history records, under the edge
+                # line — the candle counterfactual and the real dollars
+                # trend together, one scale across states for honesty.
+                if fseries is not None:
+                    fs = fseries.get(nm) or []
+                    fsp, _ = _spark_html(fs, scale=None) \
+                        if any(v is not None for v in fs) else ("", None)
+                    if fsp:
+                        flast = next(v for v in reversed(fs)
+                                     if v is not None)
+                        rows += (f"<br>&nbsp;&nbsp;<span class='dim'>fills</span> "
+                                 f"{fsp} <span class='dim'>(realized P&L, "
+                                 f"latest ${flast:+.2f})</span>")
+        # THE REGIME WATCH (Sep 11): one compact line naming the
+        # states under bench/flip-back pressure from the edge slope —
+        # silent when nothing is under pressure (no fake urgency)
+        watch = _regime_watch(trend if isinstance(trend, dict) else None,
+                              flips)
+        rows += (f"<br><span class='dim'>REGIME WATCH:</span> "
+                 f"<span style='color:{'#ffb347' if watch else '#9aa0a6'};'>"
+                 f"{watch or 'no state under bench / flip-back pressure'}</span>")
+        # THE VERDICT CENSUS CHIP (Sep 12): the machinery's record —
+        # how many of its own calls paid, cost, still pend — as a
+        # one-line chip beside the regime watch, fed from the flip
+        # ledger. ONE FORMAT (the trail's census line): the plate and
+        # the trail can never disagree. The empty-trail shape says so
+        # honestly instead of a fake 0 · 0 · 0.
+        try:
+            import tidebar_weekly as _tbw
+            # the SAME stream the trail reads, in the SAME newest-first
+            # order — the classification's governed windows run on
+            # sibling order, so the plate's counts must see exactly
+            # what the trail's census sees
+            _evs_all = list(reversed(_tbw._load_flip_events()))
+            if not _evs_all:
+                _counts_chip = None          # the honest empty shape
+            else:
+                _recs_chip = _tbw._load_history()
+                _weeks_chip = [r.get("week") or "?" for r in _recs_chip]
+                _, _, _counts_chip = _tbw.classify_decisions(
+                    _recs_chip, _weeks_chip, _evs_all, flips)
+        except Exception:
+            _counts_chip = None
+        if _counts_chip:
+            _chip_col = ("#ff6b5e" if _counts_chip.get("COSTING")
+                         else "#4be38a")   # a COSTING call reads red
+            # THE RECKONING TALLY (Sep 12): how the borrow's own calls
+            # have graded, from the SAME stream the chip classifies —
+            # '' until a real flip-back's aftermath has graded
+            _chip_txt = (_tbw.verdict_census(_counts_chip)
+                         + _tbw.reckoning_tally(_evs_all))
+        else:
+            _chip_col = "#9aa0a6"
+            _chip_txt = "the flip ledger is empty — no decisions yet"
+        rows += (f"<br><span class='dim'>VERDICTS:</span> "
+                 f"<span style='color:{_chip_col};'>{_chip_txt}</span>")
+        # THE PLATE'S WARN STRIP (Sep 12): the pass's own bench-pressure
+        # warning, persisted in the sidecar (bench_warn) — shown while
+        # the state stays pressured, gone when the pass stops warning
+        # (the episode lifted). Same math, same phrase, both sides.
+        bw = data.get("bench_warn")
+        if isinstance(bw, dict) and bw.get("phrase"):
+            rows += (f"<br><span style='color:#ffb347;font-size:16px;'>"
+                     f"⚠️ BENCH PRESSURE: {bw['phrase']} — at 3 losing "
+                     f"weeks the bench takes over. Watch the plate.</span>")
+        # THE LEDGER CHART (Sep 11): the weekly fit edges over time —
+        # the same history the auto-flip reads, drawn. Sits between the
+        # sparklines (per-pass recency) and the footer.
+        chart = _tidebar_ledger_chart(sims_hidden=sims_hidden,
+                                      verdict=verdict)
+        if chart:
+            rows += chart
+        when = str(data.get("generated_ts") or "?")[:16].replace("T", " ")
+        rows += (f"<br><span class='dim'>graded {when} UTC · daily pass, "
+                 f"7-day grade window · full history below (📜)</span>")
+        return plate("🌊 TIDE BAR VERDICT — outcome bar vs the quantile",
+                     lcd([rows]))
+    except Exception:
+        return plate("🌊 TIDE BAR VERDICT — outcome bar vs the quantile",
+                     lcd(["the hindsight has not run yet — first pass "
+                          "~10 min after boot, daily after (7-day grade "
+                          "window)"],
+                         tone="amber"))
+
+
+def _poolgate_apply_state(staged_path=None):
+    """THE APPLY STRIP's STATE (Sep 13): whether MASTER shows the
+    confirm-to-apply button for the arc-3 sweep's STAGED POOL_MIN
+    proposal — PURE over its inputs: reads the stage file and re-prices
+    the live sweep, calls no Streamlit widgets (the button block in
+    render_master carries those), and never raises. Returns {} when no
+    sane stage exists; otherwise {pool_min, net, n_priced, staged_at}
+    plus stale=True + stale_reason when the live sweep no longer
+    proposes the staged bar (the apply would refuse — shown as a
+    caption, not a button)."""
+    import json as _json
+    try:
+        fp = Path(staged_path) if staged_path \
+            else Path(__file__).parent / "tide_bar_poolmin_staged.json"
+        raw = _json.loads(fp.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as _exc:
+        return {}   # no stage / unreadable stage -> no strip, why noted
+    if not isinstance(raw, dict):
+        return {}   # a corrupt stage file is not a proposal
+    try:
+        pm = float(raw.get("pool_min"))
+        net = float(raw.get("net") or 0.0)
+        n = int(raw.get("n_priced") or 0)
+    except (TypeError, ValueError):
+        return {}   # a stage without sane numbers is not a proposal
+    if not 0.0 < pm <= 1.0:
+        return {}   # out-of-range bars never render as applyable
+    out = {"pool_min": pm, "net": net, "n_priced": n,
+           "staged_at": raw.get("ts") or ""}
+    try:
+        import tidebar_weekly as _tbw
+        rp = _tbw.recommend_pool_min()
+    except Exception as _exc:
+        out["stale"] = True
+        out["stale_reason"] = "the live sweep could not re-price"
+        return out
+    if rp.get("recommendation") is None \
+            or abs(float(rp["recommendation"]) - pm) > 1e-9:
+        out["stale"] = True
+        out["stale_reason"] = ("the live sweep no longer proposes "
+                               "this bar")
+    return out
+
+
+def _flipgrade_verdict(txt_path=None, json_path=None):
+    """THE FLIP GRADE plate for MASTER: the latest per-state verdicts
+    from _flipgrade.txt (newest section first) — the pooled fit-vs-
+    quantile dollars, the edge streak's bench/flip-back proximity, and
+    every real decision's aftermath in dollars — so the monthly grade
+    (now refreshed after each weekly pass) is visible without opening
+    the file. THE OPEN BENCH (Sep 12): _flipgrade.json (written on
+    every grade_ledger path) carries the live verdict for a
+    CURRENTLY BENCHED state — PAID/COST in dollars before the
+    flip-back — rendered as a strip under the grade rows, so the
+    bench's running P&L shows on MASTER without the audit expander.
+    THE POOL-GATE DIALS (Sep 13): the sidecar's poolgate blocks render
+    as a compact verdict line — the walked family net per graduated
+    threshold (green SAVED / red MISSED, dim identical), the
+    baseline-hold honesty when the walk can't reproduce the ledger,
+    and the arc-3 default's verdict — so the dial's monthly grade
+    reads on MASTER without the txt.
+    txt_path/json_path let tests inject sandbox files. Never raises;
+    a missing/unparseable grade renders a quiet one-liner."""
+    try:
+        import re
+        fg = Path(txt_path) if txt_path \
+            else Path(__file__).parent / "_flipgrade.txt"
+        txt = fg.read_text(encoding="utf-8")
+        parts = txt.split("=== THE FLIP GRADE")
+        if len(parts) < 2 or not parts[1].strip():
+            raise ValueError("no grade section")
+        # the newest section: from after its header line to the next one
+        body = parts[1].split("\n", 1)[1] if "\n" in parts[1] else ""
+        body = body.split("\n=== THE FLIP GRADE")[0]
+        lines = [l for l in body.splitlines() if l.strip()]
+        head = re.search(
+            r"graded at:\s*(.+?)\s*\((\d+) weeks?: ([^)]+)\)", body)
+        if not head:
+            raise ValueError("unparseable grade header")
+        graded_ts, n_weeks, span = (head.group(1).strip(), head.group(2),
+                                    head.group(3).strip())
+
+        def _verdict_col(tail: str) -> str:
+            if "PAID" in tail:
+                return "#4be38a"
+            if "COST" in tail:
+                return "#ff6b5e"
+            return "#9aa0a6"   # pending — honest dim, no fake verdict
+
+        rows = (f"<span class='dim'>{n_weeks} weeks graded ({span}) · "
+                f"graded {graded_ts[:16].replace('T', ' ')} UTC · monthly, "
+                f"plus refreshed shortly after each weekly pass</span>")
+        cur = None
+        for l in lines:
+            m = re.match(
+                r"^(OUT|FLAT|RISING)\s+\((\d+) two-sided weeks; (.+?)\)$",
+                l.strip())
+            if m:
+                cur = m.group(1)
+                rows += (f"<br><b>{cur}</b> <span class='dim'>("
+                         f"{m.group(2)} two-sided weeks; {m.group(3)})</span>")
+                continue
+            if l.startswith("  edges by week:"):
+                toks = [t for t in l.split(":", 1)[1].split() if t]
+                rows += (f"<br>&nbsp;&nbsp;<span class='dim'>edges by "
+                         f"week</span> {' · '.join(toks)}")
+                continue
+            pm = re.search(
+                r"pooled \((\d+)w\): fit (\d+) fires "
+                r"\$([+-][\d.]+)/fire vs quantile (\d+) fires "
+                r"\$([+-][\d.]+)/fire — fit edge ([+-][\d.]+)", l)
+            if pm:
+                delta = float(pm.group(6))
+                dcol = "#4be38a" if delta >= 0 else "#ff6b5e"
+                rows += (f"<br>&nbsp;&nbsp;pooled ({pm.group(1)}w): "
+                         f"<span class='dim'>fit</span> {pm.group(2)} fires "
+                         f"${float(pm.group(3)):+.2f}/fire <span class='dim'>"
+                         f"vs quantile</span> {pm.group(4)} fires "
+                         f"${float(pm.group(5)):+.2f}/fire "
+                         f"<span style='color:{dcol};'>Δ {delta:+.2f}</span>")
+                continue
+            xm = re.match(r"^(bench|flip-back) proximity:\s*(.+)$",
+                          l.strip())
+            if xm:
+                pcol = ("#ffb347" if xm.group(1) == "bench"
+                        else "#4be38a")
+                rows += (f"<br>&nbsp;&nbsp;<span class='dim'>"
+                         f"{xm.group(1)} proximity:</span> "
+                         f"<span style='color:{pcol};'>{xm.group(2)}</span>")
+                continue
+            em = re.match(r"^⚡\s*([^:]+):\s*(.+)$", l.strip())
+            if em:
+                ecol = _verdict_col(em.group(2))
+                rows += (f"<br>&nbsp;&nbsp;<span style='color:{ecol};'>"
+                         f"⚡ {em.group(1)}: {em.group(2)}</span>")
+                continue
+            if "not graded" in l:
+                rows += (f"<br><span class='dim'>{l.strip()}</span>")
+        # THE POOL-GATE DIALS (Sep 13): the sidecar's verdict blocks —
+        # the walked family net per graduated threshold (the MAJORITY
+        # of the strip) and the arc-3 default's verdict. Absent keys ->
+        # no strip (a held/stale grade cleared them with the bench
+        # dollars — the plate never shows a stale dial verdict).
+        pg_bits = []
+        try:
+            import json as _json
+            fj = Path(json_path) if json_path \
+                else Path(__file__).parent / "_flipgrade.json"
+            _fgj = _json.loads(fj.read_text(encoding="utf-8"))
+            fam = ((_fgj.get("poolgate_family") or {}).get("net")) or {}
+            for pm in sorted(fam, key=float):
+                try:
+                    pmf = float(pm)
+                except (TypeError, ValueError):
+                    continue
+                v = fam[pm]
+                if not isinstance(v, (int, float)):
+                    continue
+                col = ("#4be38a" if v > 0
+                       else "#ff6b5e" if v < 0 else "#9aa0a6")
+                pg_bits.append(f"<span style='color:{col};'>"
+                               f"{pmf:+.2f} ${v:+,.2f}</span>")
+            _hold = (_fgj.get("poolgate_family") or {}).get("baseline_ok")
+            _arc3 = _fgj.get("poolmin_default") or {}
+            if _hold is False:
+                pg_bits.append("<span class='dim'>⚠ walk baseline held "
+                               "— the dial grade is withheld until "
+                               "reconciled</span>")
+            if _arc3.get("recommendation") is not None:
+                pg_bits.append(f"<span class='dim'>arc-3 proposes a "
+                               f"raise to</span> "
+                               f"<b>{float(_arc3['recommendation']):+.2f}</b>"
+                               f" <span class='dim'>(apply by hand)</span>")
+            elif _arc3.get("n_priced") is not None:
+                pg_bits.append(f"<span class='dim'>arc-3 holds 0.0 "
+                               f"({_arc3.get('n_priced', 0)} priced "
+                               "re-arm(s) — a raise needs every rolling "
+                               "window positive)</span>")
+            # THE LEARNED BARS (Sep 13): the per-state pool bars the
+            # learner derives from each state's own pooled-edge
+            # distribution — a state in force shows its bar; a thin
+            # state stays dim on the global dial. The block travels only
+            # on a COMPLETED grade (a hold clears it like the dial
+            # verdicts), so its presence — not the loop — gates here.
+            # THE FBW DIAL'S WALK (Sep 13): the streak dial's walked
+            # family per graduated candidate and its rolling-window-
+            # gated recommendation — advice for her hand, never an
+            # auto-move. Renders only when the blocks travel (a hold
+            # clears them like the rest).
+            _ffam = ((_fgj.get("fbwgate_family") or {}).get("net")) or {}
+            _fok = (_fgj.get("fbwgate_family") or {}).get("baseline_ok")
+            for fw in sorted(_ffam, key=float):
+                try:
+                    _fv = float(_ffam[fw])
+                except (TypeError, ValueError):
+                    continue
+                _fcol = ("#4be38a" if _fv > 0
+                         else "#ff6b5e" if _fv < 0 else "#9aa0a6")
+                pg_bits.append(f"<span class='dim'>fbw</span> "
+                               f"<b>{float(fw):g}</b> "
+                               f"<span style='color:{_fcol};'>"
+                               f"${_fv:+,.2f}</span>")
+            if _fok is False:
+                pg_bits.append("<span class='dim'>⚠ fbw walk baseline "
+                               "held — the dial grade is withheld "
+                               "until reconciled</span>")
+            _fbwd = _fgj.get("fbw_default") or {}
+            if _fbwd.get("recommendation") is not None:
+                pg_bits.append(
+                    f"<span class='dim'>fbw walk proposes raising "
+                    f"the streak to</span> "
+                    f"<b>{float(_fbwd['recommendation']):g}</b> "
+                    f"<span class='dim'>(a code change by her hand — "
+                    "never auto-applied)</span>")
+            elif _fbwd.get("n_priced") is not None:
+                pg_bits.append(
+                    f"<span class='dim'>fbw walk holds 2 "
+                    f"({_fbwd.get('n_priced', 0)} priced re-arm(s) — a "
+                    "raise needs every rolling window positive)</span>")
+            # THE STREAK DIAL (Sep 13): the FBW candidates' monthly
+            # evidence rides poolgate_streak (same per-threshold
+            # denied/delayed/net shape as the pool family) — rendered
+            # beside the pool dials so both dials' verdicts read on
+            # MASTER. Renders only when the block travels (a hold
+            # clears it like the rest); JSON keys arrive as strings.
+            _streak = _fgj.get("poolgate_streak") or {}
+            for fw in sorted(_streak, key=lambda k: float(k)):
+                _fw = _streak.get(fw) or {}
+                try:
+                    _net = float(_fw.get("net") or 0.0)
+                    _den = int(_fw.get("denied") or 0)
+                    _del = int(_fw.get("delayed") or 0)
+                except (TypeError, ValueError):
+                    continue
+                _scol = ("#4be38a" if _net > 0
+                         else "#ff6b5e" if _net < 0 else "#9aa0a6")
+                pg_bits.append(
+                    f"<span class='dim'>streak FBW={float(fw):g}</span> "
+                    f"<span style='color:{_scol};'>${_net:+,.2f}</span> "
+                    f"<span class='dim'>({_den} denied · {_del} "
+                    f"delayed)</span>")
+            if "poolmin_learned" in _fgj:
+                _pl = _fgj.get("poolmin_learned") or {}
+                _lmap = _pl.get("map") or {}
+                _learn = _pl.get("learner") or {}
+                for _ls in ("OUT", "FLAT", "RISING"):
+                    if _ls in _lmap:
+                        pg_bits.append(
+                            f"{_ls} <b style='color:#4be38a;'>"
+                            f"{_lmap[_ls]:+.2f}</b>")
+                    else:
+                        _lv = _learn.get(_ls) or {}
+                        _lf = _lv.get("pool_min")
+                        _lr = _lv.get("reason") or ""
+                        if _lf is not None:
+                            pg_bits.append(
+                                f"{_ls} <span class='dim'>derives "
+                                f"{_lf:+.2f} (ships next pass)</span>")
+                        else:
+                            _lwhy = _lr or "on the global dial"
+                            pg_bits.append(
+                                f"{_ls} <span class='dim'>global "
+                                f"({_lwhy})</span>")
+            if pg_bits:
+                rows += ("<br><span style='color:#ffb347;'>POOL-GATE "
+                         "DIALS:</span> " + " · ".join(pg_bits))
+        except (OSError, ValueError, AttributeError, TypeError, KeyError):
+            pass   # a malformed sidecar loses its dial strip, never the grade rows
+        # THE OPEN BENCH (Sep 12): the live verdict strip — the same
+        # entries the audit trail's CURRENTLY BENCHED block carries,
+        # traveled here in the sidecar. Absent/blank sidecar -> no
+        # strip (no state is benched, or the grade hasn't run).
+        strip = ""
+        try:
+            import json as _json
+            fj = Path(json_path) if json_path \
+                else Path(__file__).parent / "_flipgrade.json"
+            ob = (_json.loads(fj.read_text(encoding="utf-8"))
+                  .get("open_bench")) or []
+            bits = []
+            for e in ob:
+                if not isinstance(e, dict) or not e.get("base"):
+                    continue
+                v = e.get("verdict")
+                if v:
+                    bits.append(
+                        f"{e['base']} — <b style='color:"
+                        f"{e.get('verdict_col') or '#9aa0a6'};'>the bench "
+                        f"is {v}</b><br><span class='dim'>"
+                        f"{e.get('text') or ''}</span>")
+                else:
+                    bits.append(
+                        f"{e['base']} <span class='dim'>· "
+                        f"{e.get('text') or 'pending'}</span>")
+            if bits:
+                strip = ("<br><span style='color:#ffb347;'>CURRENTLY "
+                         "BENCHED (live):</span> " + "<br>".join(bits))
+        except Exception:
+            strip = ""
+        return plate("⚖️ FLIP GRADE — the bench machinery on its own "
+                     "ledger", lcd([rows + strip]))
+    except Exception:
+        return plate("⚖️ FLIP GRADE — the bench machinery on its own "
+                     "ledger",
+                     lcd(["the grade has not run yet — monthly, plus "
+                          "refreshed after each weekly pass once 2 weeks "
+                          "of history exist (nothing graded so far)"],
+                         tone="amber"))
+
+
+def _tidebar_week_sections(txt: str):
+    """Split the report into (label, text) sections keyed by the
+    'graded at:' ISO week tag each section carries (e.g. 2026-W37).
+    Sections render NEWEST FIRST (the report prepends), so a week with
+    several daily passes shows its sections in that order. Untagged or
+    unparseable text falls under 'unmarked (early sections)'."""
+    import re
+    sections = []
+    cur_label = None
+    cur = []
+    lines = txt.splitlines()
+    for i, line in enumerate(lines):
+        if line.startswith("=== THE TIDE BAR WEEKLY"):
+            if cur:
+                sections.append((cur_label, "\n".join(cur).strip()))
+            cur = [line]
+            # the week tag lives on the metadata line(s) right after the
+            # header ('graded at:' / the older 'week ending:') — read
+            # FORWARD from THIS header, never the whole remaining text
+            tag = "unmarked (early sections)"
+            for probe in lines[i + 1:i + 4]:
+                m = re.search(r"\d{4}-W\d{2}", probe)
+                if m:
+                    tag = m.group(0)
+                    break
+            if tag == "unmarked (early sections)":
+                # self-heal: sections written before the week tag existed
+                # still carry their own timestamp — derive the ISO week
+                # from it so the picker can isolate them like tagged
+                # weeks. A pre-2000 date is a data echo, not a report:
+                # leave it unmarked.
+                for probe in lines[i + 1:i + 4]:
+                    dm = re.search(r"(\d{4}-\d{2}-\d{2}) \d{2}:\d{2}", probe)
+                    if dm and not dm.group(1).startswith(("19", "200")):
+                        try:
+                            import time as _t
+                            tag = _t.strftime(
+                                "%G-W%V",
+                                _t.strptime(dm.group(1), "%Y-%m-%d"))
+                            break
+                        except (ImportError, ValueError):
+                            pass  # unparseable probe line — try the next
+            cur_label = tag
+        elif cur:
+            cur.append(line)
+    if cur:
+        sections.append((cur_label, "\n".join(cur).strip()))
+    return sections
+
+
+def _week_pooled_edges(sections):
+    """Per-week canonical fit-vs-quantile edges parsed from the report's
+    own per-state lines: {week: {state: fit_edge}}. Each section's
+    in-force Δ$/fire is normalized to the fit−quantile axis by the
+    section's OWN in-force bar source (the state header names it:
+    'in force: outcomes bar N' means the fit is live and Δ is already
+    the fit edge; 'in force: quantile bar N' means a flipped regime and
+    the sign flips), so every week reads on one axis. A week with
+    several sections (daily passes) takes the NEWEST section's grade —
+    the same policy the sidecar trend uses. Unparseable bodies simply
+    contribute nothing."""
+    import re as _re
+    out = {}
+    for lbl, body in sections:
+        if not _re.fullmatch(r"\d{4}-W\d{2}", lbl or ""):
+            continue
+        edges = {}
+        cur = None
+        fit_live = True
+        for line in body.splitlines():
+            m = _re.match(r"(OUT|FLAT|RISING)\s+\(\d+ candidates this week; "
+                          r"in force: ([a-z ]+) bar \d+\)", line)
+            if m:
+                cur = m.group(1)
+                fit_live = m.group(2).strip().startswith("outcomes")
+                continue
+            dm = _re.search(r"in-force Δ\$/fire ([+-]?\d+(?:\.\d+)?)", line)
+            if cur and dm:
+                d = float(dm.group(1))
+                edges[cur] = round(d if fit_live else -d, 2)
+        out.setdefault(lbl, edges)   # the file is NEWEST-first: the first
+                                     # section of a week is its latest grade
+    return out
+
+
+def _week_side_stats(sections):
+    """Per-week per-state stats for BOTH bars, parsed from the prose
+    report's own per-state lines: {week: {state: {fit: (fires, rate),
+    quantile: (fires, rate)}}} — fit and quantile always carry their
+    own side's numbers on the canonical axis, so a tooltip reads the
+    same two bars whatever regime shipped. Payer rate comes from the
+    line's own '(N payers (R%))' — no division of rounded dollar
+    figures, and a zero-fire side stays None (an honest gap, not 0%).
+    The newest section of a week wins (the file is newest-first, the
+    same policy as _week_pooled_edges). Unparseable bodies contribute
+    nothing."""
+    import re as _re
+    out = {}
+    for lbl, body in sections:
+        if not _re.fullmatch(r"\d{4}-W\d{2}", lbl or ""):
+            continue
+        week = {}
+        cur = None
+        fit_live = True
+        for line in body.splitlines():
+            m = _re.match(r"(OUT|FLAT|RISING)\s+\(\d+ candidates this week; "
+                          r"in force: ([a-z ]+) bar \d+\)", line)
+            if m:
+                cur = m.group(1)
+                fit_live = m.group(2).strip().startswith("outcomes")
+                continue
+            dm = _re.search(r"bar \d+: (\d+) fires, \d+ payers "
+                            r"\((\d+(?:\.\d+)?)%\)", line)
+            if cur and dm:
+                # the IN FORCE line is the live seat, any other graded
+                # line is the counterfactual seat — each takes its own
+                # canonical label, never both onto one
+                inforce_tag = "fit" if fit_live else "quantile"
+                tag = (inforce_tag if line.lstrip().startswith("IN FORCE")
+                       else ("quantile" if fit_live else "fit"))
+                week.setdefault(cur, {})[tag] = (
+                    int(dm.group(1)), float(dm.group(2)) / 100.0)
+        # the file is NEWEST-first: a week's FIRST section is its
+        # latest grade and later sections are discarded wholesale —
+        # the same setdefault policy as _week_pooled_edges (a merge
+        # would let an older section's states leak into the week)
+        week = {st: s for st, s in week.items()
+                if s.get("fit") and s.get("quantile")}
+        if week:
+            out.setdefault(lbl, week)
+    return out
+
+
+def _bench_spans(weeks):
+    """THE REGIME SPANS (Sep 11): benched week-index ranges per state,
+    from the append-only flip-event ledger — [(i0, i1), ...] where the
+    span covers the weeks the QUANTILE shipped (the flip week through
+    the week before its flip-back; an open bench runs to the last
+    charted week). A flip week older than the charted window clamps to
+    the left edge; events outside the window are skipped. The events
+    ledger is the single source — the flips file is only current
+    state, and history belongs to the trail."""
+    try:
+        import tidebar_weekly as _tbw
+        idx = {w: i for i, w in enumerate(weeks)}
+        first, last = 0, len(weeks) - 1
+        out = {}
+        for ev in _tbw._real_flip_events():   # sims never shade a regime
+            st = str(ev.get("state") or "")
+            if st not in ("OUT", "FLAT", "RISING"):
+                continue
+            wk = str(ev.get("week") or "")
+            act = str(ev.get("action") or "")
+            if act == "flip":
+                i0 = idx.get(wk)
+                if i0 is None:
+                    i0 = first if wk < (weeks[0] or "") else None
+                if i0 is None:
+                    continue
+                out.setdefault(st, []).append([i0, last])   # open span
+            elif act == "flip_back" and out.get(st):
+                open_spans = [s for s in out[st] if s[1] == last]
+                if not open_spans:
+                    continue
+                i1 = idx.get(wk)
+                if i1 is None:
+                    i1 = last + 1 if wk > (weeks[-1] or "") else None
+                if i1 is None:
+                    continue
+                open_spans[-1][1] = max(i1 - 1, open_spans[-1][0] - 1) \
+                    if i1 - 1 >= open_spans[-1][0] else i1 - 1
+                if open_spans[-1][1] < open_spans[-1][0]:
+                    out[st].pop()   # the bench predates the window
+        return {st: [(a, b) for a, b in spans if a <= b]
+                for st, spans in out.items()}
+    except Exception:
+        return {}
+
+
+def _flip_markers(weeks):
+    """THE FLIP-EVENT MARKERS (Sep 12): the weeks that DECIDED a bench,
+    projected from the flip-event ledger — REAL events and, since the
+    hollow-glyph dialect (Sep 12), the diag's SIMULATED worked examples
+    too, tagged sim: True so the chart can render them HOLLOW: a worked
+    example teaches on the picture without ever reading as a lived
+    decision (the sparklines and the benched spans stay real-only —
+    sims never claim regime history). Real events win a collision: a
+    sim sharing (week slot, state, action) with a lived decision is
+    skipped, so a worked example never overdraws the real story. Every
+    evidence week of an event lands its own marker aligned to that
+    week's slot, and every marker carries the HREF of its decision's
+    audit-trail row (the (state, action, decision-week[, sim]) anchor
+    id — the trail's own dedupe key), so the glyph clicks through to
+    the evidence:
+      [{'state', 'act', 'week', 'idx', 'roll_delta', 'sim', 'href',
+        'reflip'}, ...]
+    A RE-FLIP (Sep 12) is a state's SECOND (or later) flip — regime
+    churn — counted per state within each stream (real / sim) in
+    ledger order, so a sim flip never makes a real flip a re-flip.
+    Evidence weeks outside the charted window are skipped — a marker
+    must never point at a week the picture doesn't show. Pure lookup;
+    never raises."""
+    try:
+        import tidebar_weekly as _tbw
+        idx = {w: i for i, w in enumerate(weeks)}
+        out = []
+        # real events first, so the seen-set gives them the slot when a
+        # sim collides — the lived decision always wins the draw
+        evs = sorted(_tbw._load_flip_events(),
+                     key=lambda e: bool(e.get("sim")))
+        seen = set()
+        # THE RE-FLIP ORDINAL (Sep 12): per state, per stream — the
+        # ledger is chronological, so the 2nd+ flip of a state is its
+        # re-flip and the 2nd+ flip-back its re-arm (regime churn:
+        # flip, re-arm, re-flip).
+        flip_no = {False: {}, True: {}}   # stream -> state -> count
+        back_no = {False: {}, True: {}}
+        for ev in evs:
+            st = str(ev.get("state") or "")
+            act = str(ev.get("action") or "")
+            if st not in ("OUT", "FLAT", "RISING") or act not in (
+                    "flip", "flip_back"):
+                continue
+            sim = bool(ev.get("sim"))
+            repeat = False
+            if act == "flip":
+                flip_no[sim][st] = flip_no[sim].get(st, 0) + 1
+                repeat = flip_no[sim][st] > 1
+            else:
+                back_no[sim][st] = back_no[sim].get(st, 0) + 1
+                repeat = back_no[sim][st] > 1
+            for d in (ev.get("evidence") or []):
+                i = idx.get(str(d.get("week") or ""))
+                if i is None:
+                    continue
+                key = (i, st, act)
+                if key in seen:
+                    continue
+                seen.add(key)
+                out.append({"state": st, "act": act,
+                            "week": str(d.get("week")), "idx": i,
+                            "roll_delta": ev.get("roll_delta", 0),
+                            "sim": sim, "reflip": repeat,
+                            "dwk": str(ev.get("week") or ""),
+                            "href": "#flip-{}-{}-{}{}".format(
+                                st, act, str(ev.get("week") or ""),
+                                "-sim" if sim else "")})
+        return out
+    except Exception:
+        return []
+
+
+def _tidebar_ledger_chart(txt_path=None, hide_sims=None,
+                          sims_hidden: bool = False,
+                          verdict: str = "") -> str:
+    """SVG chart of the weekly fit-vs-quantile edges over time —
+    the JSONL history ledger is authoritative, and the picker's prose
+    parser (_week_pooled_edges over _tidebarweekly.txt) backfills the
+    weeks BEFORE the ledger's first record, so the picture extends
+    back through the prose history. One line per tide state, the
+    canonical fit−quantile axis (above zero the outcome bar pays
+    better, below it the quantile does), a dashed zero line, and a
+    per-point hover title (week, edge, plus each side's fires and
+    payer rate where known: ledger weeks read the record's own
+    in-force/other grades, prose weeks read _week_side_stats — the
+    label maps to the bar, not the seat, so a flipped regime still
+    reads 'fit 3 fires · 30% pay'). Points span one width step per
+    ISO week, newest at the right; None weeks (one-sided) gap the
+    line, and a flip landing on a gap week stamps the zero line. A
+    flip week's point wears the sparkline's regime glyph — ▼ amber /
+    ▲ green ON the point — so chart and sparklines tell one story.
+    THE MIRRORED HIDE (Sep 12): hollow sim glyphs obey the audit
+    trail's show/hide toggle — one choice, both surfaces. THE DIM
+    SYNC (Sep 12): when the trail's verdict filter is active, the
+    regime stamps whose decision doesn't match DIM to 25% opacity
+    (SVG opacity, not hidden — the picture keeps its full regime
+    history while the eye follows her filter; hrefs and hovers stay
+    intact). Explicit hide_sims/verdict overrides (tests, probes);
+    None/empty reads the toggle's session_state in a runtime and
+    fails open to SHOW outside one, so bare calls render exactly as
+    before. A prose-only week's
+    hover tags its provenance; the caption notes the backfill. Colors
+    match the plate palette. Never raises: an empty or missing ledger
+    renders '' and the caller falls back to the sparklines."""
+    try:
+        import tidebar_weekly as _tbw
+        recs = _tbw._load_history()
+        if not recs:
+            return ""
+        weeks = [r.get("week") or "" for r in recs]
+        series = {}
+        for st in ("OUT", "FLAT", "RISING"):
+            series[st] = [_tbw._week_fit_edge(r, st) for r in recs]
+        # THE PROSE BACKFILL (Sep 11): weeks the prose report knows but
+        # the JSONL ledger predates. The ledger stays authoritative —
+        # a week present in both is never touched. Sections are
+        # newest-first, so the parsed week order must be reversed to
+        # join the oldest-first series. Prose edge dicts carry the
+        # states that graded two-sided; the rest stay honest gaps.
+        prose_note = False
+        n_prose = 0
+        prose_sides = {}
+        try:
+            rf = Path(txt_path) if txt_path \
+                else Path(__file__).parent / "_tidebarweekly.txt"
+            if rf.exists():
+                secs = _tidebar_week_sections(
+                    rf.read_text(encoding="utf-8", errors="replace"))
+                prose = _week_pooled_edges(secs)
+                prose_sides = _week_side_stats(secs)
+                prose_weeks = [w for w in reversed(list(prose))
+                               if w not in set(weeks)]
+                if prose_weeks:
+                    prose_note = True
+                    n_prose = len(prose_weeks)
+                    weeks = prose_weeks + weeks
+                    for st in ("OUT", "FLAT", "RISING"):
+                        series[st] = ([prose.get(w, {}).get(st)
+                                       for w in prose_weeks]
+                                      + series[st])
+        except Exception:
+            prose_sides = {}   # a broken prose file backfills nothing
+        vals = [v for s in series.values() for v in s if v is not None]
+        if not vals:
+            return ""
+        # THE MIRRORED HIDE (Sep 12): the trail's toggle owns sims on
+        # both surfaces. None -> read her session_state choice (runtime
+        # only); an explicit True/False is the deterministic override.
+        _mirror_note = ""
+        _hide_sim_marks = False
+        if hide_sims is None:
+            # the cached plate threads her live toggle choice in (it
+            # is part of the cache key — see _tidebar_verdict); a
+            # bare/probe call defaults to SHOWING the sims
+            _hide_sim_marks = bool(sims_hidden)
+        else:
+            _hide_sim_marks = bool(hide_sims)
+        if _hide_sim_marks:
+            _mirror_note = (" · <span style='color:#9aa0a6;'>simulated "
+                            "glyphs hidden by the trail's toggle</span>")
+        # THE DIM SYNC (Sep 12): the trail's active verdict filter
+        # dims the stamps it filters OUT — ONE classification (the
+        # shared classify_decisions, the trail's own math) keyed by
+        # each event's (state, action, decision-week), so chart and
+        # trail can never disagree about what matches
+        _verdict = (verdict if verdict in ("PAYING", "COSTING", "pending")
+                    else "")
+        _dim_note = ""
+        _dim_v = {}
+        if _verdict:
+            try:
+                _recs_c = _tbw._load_history()
+                _weeks_c = [r.get("week") or "" for r in _recs_c]
+                _flips_c = _tbw._load_flips() or {}
+                _evs_all = _tbw._load_flip_events()
+                _, _vof, _ = _tbw.classify_decisions(
+                    _recs_c, _weeks_c, _evs_all, _flips_c)
+                _cnt = 0
+                for _i, _e in enumerate(_evs_all):
+                    _vid = (_e.get("state"), _e.get("action"),
+                            _e.get("week"))
+                    _vv = _vof.get(_i)
+                    _dim_v[_vid] = _vv
+            except Exception:
+                _verdict = ""   # classification failed: dim nothing
+        _all_marks = _flip_markers(weeks)
+        _marks = ([m for m in _all_marks if not m.get("sim")]
+                  if _hide_sim_marks else _all_marks)
+        # THE DIM SYNC, SPANS (Sep 13): a state's benched spans dim
+        # when EVERY one of its decisions on the picture fails the
+        # verdict filter — the whole chart reads through one filter.
+        # At least one real stamp exists for any span-carrying state
+        # (sims never shade), so this rides the rendered marks.
+        _dim_states = set()
+        if _verdict and _dim_v:
+            _stamp_ids = {(m["state"], m["act"], m.get("dwk"))
+                          for m in _marks}
+            for _dst in {k[0] for k in _stamp_ids}:
+                _vs = [_dim_v.get(k) for k in _stamp_ids
+                       if k[0] == _dst]
+                if _vs and all(v != _verdict for v in _vs):
+                    _dim_states.add(_dst)
+        # the note names only decisions that actually RENDER stamps
+        # (a decision with no evidence weeks and no graded week has
+        # nothing on the picture to dim — the trail filters its row,
+        # the chart simply has no glyph for it)
+        if _verdict and _dim_v:
+            _dim_ids = {(m["state"], m["act"], m.get("dwk"))
+                        for m in _marks}
+            _cnt = sum(1 for k in _dim_ids
+                       if _dim_v.get(k) != _verdict)
+            if _cnt:
+                _span_note = (f" · {len(_dim_states)} benched span(s) "
+                              "dimmed with their state") \
+                    if _dim_states else ""
+                _dim_note = (" · <span style='color:#9aa0a6;'>"
+                             f"{_cnt} regime stamp(s) dimmed — "
+                             "they don't match the verdict "
+                             f"filter{_span_note}</span>")
+        vmax = max(abs(v) for v in vals) or 1.0   # an all-flat ledger has no range — 0/0 once blanked the whole chart
+        W, H = 640, 150
+        pad_x, pad_y = 34, 16
+        n = max(len(weeks), 2)
+        iw = (W - 2 * pad_x) / (n - 1)          # one step per ISO week
+        ih = (H - 2 * pad_y) / 2                # half-height per unit edge
+
+        def pt(i, v):
+            x = pad_x + i * iw
+            y = H / 2 - v / vmax * ih
+            return x, y
+
+        def path_for(s):
+            d, open_ = [], False
+            for i, v in enumerate(s):
+                if v is None:
+                    open_ = False
+                    continue
+                x, y = pt(i, v)
+                d.append(("M" if not open_ else "L") + f"{x:.1f},{y:.1f}")
+                open_ = True
+            return "".join(d)
+
+        parts = [f"<svg width='{W}' height='{H}' viewBox='0 0 {W} {H}' "
+                 f"style='max-width:100%;height:auto;'>"]
+        y0 = H / 2
+        parts.append(f"<line x1='{pad_x}' y1='{y0}' x2='{W - pad_x}' "
+                     f"y2='{y0}' stroke='#555' stroke-dasharray='4 4'/>")
+        parts.append(f"<text x='{W - pad_x + 2}' y='{y0 + 4}' fill='#9aa0a6' "
+                     f"font-size='10'>0</text>")
+        # the ± vmax ruler labels: the chart's full vertical span
+        parts.append(f"<text x='{W - pad_x + 2}' y='{pad_y + 8}' "
+                     f"fill='#9aa0a6' font-size='10'>{vmax:+.1f}</text>")
+        parts.append(f"<text x='{W - pad_x + 2}' y='{H - pad_y + 2}' "
+                     f"fill='#9aa0a6' font-size='10'>{-vmax:+.1f}</text>")
+        cols = {"OUT": "#4be38a", "FLAT": "#4da3ff", "RISING": "#ffb347"}
+        # THE BENCHED SPANS (Sep 11): translucent bands under the
+        # lines — the weeks the quantile shipped while the fit sat
+        # benched, straight from the flip-event ledger
+        spans = _bench_spans(weeks)
+        for st, st_spans in spans.items():
+            _dimmed = st in _dim_states
+            _span_note = (" · dimmed — the state's decisions sit "
+                          "outside the verdict filter") if _dimmed else ""
+            for i0, i1 in st_spans:
+                x0 = pad_x + i0 * iw - iw / 2
+                x1 = pad_x + i1 * iw + iw / 2
+                x0c, x1c = max(x0, pad_x), min(x1, W - pad_x)
+                if x1c <= x0c:
+                    continue
+                parts.append(
+                    f"<rect x='{x0c:.1f}' y='{pad_y}' "
+                    f"width='{x1c - x0c:.1f}' height='{H - 2 * pad_y}' "
+                    f"fill='{cols[st]}' "
+                    f"fill-opacity='{'0.02' if _dimmed else '0.08'}'>"
+                    f"<title>{st} benched {weeks[i0]}..{weeks[i1]} "
+                    f"— the quantile shipped{_span_note}</title></rect>")
+        # THE FLIP-EVENT MARKERS (Sep 12): above the lines — ▼ pins the
+        # evidence weeks that DECIDED a flip, ▲ the weeks that earned a
+        # flip-back, each in its state's color and aligned to its week.
+        # THE HOLLOW DIALECT (Sep 12): the diag's simulated worked
+        # examples render as OUTLINES (fill none, 1.5px stroke) with a
+        # simulated tag in the hover — they teach on the picture but
+        # never read as lived decisions.
+        for m in _marks:
+            x = pad_x + m["idx"] * iw
+            st = m["state"]
+            sim = m.get("sim")
+            suffix = " · simulated worked example" if sim else ""
+            paint = (f"fill='none' stroke='{cols[st]}' stroke-width='1.5'"
+                     if sim else f"fill='{cols[st]}'")
+            # THE DIM SYNC: a stamp whose decision doesn't match the
+            # active verdict filter dims to 25% — still visible, still
+            # clickable, out of the eye's way
+            if _verdict and _dim_v.get(
+                    (m["state"], m["act"], m.get("dwk"))) != _verdict:
+                paint += " opacity='0.25'"
+            if m["act"] == "flip":
+                y, hover = (
+                    pad_y + 6,
+                    f"{'▼▼ re-flip' if m.get('reflip') else '▼ auto-flip'} "
+                    f"{m['week']} — {st} benched "
+                    f"{'again ' if m.get('reflip') else ''}on "
+                    f"pooled edge {m['roll_delta']:+.2f}{suffix}")
+            else:
+                y, hover = (
+                    H - pad_y + 4,
+                    f"{'▲▲ re-arm' if m.get('reflip') else '▲ flip-back'} "
+                    f"{m['week']} — the fit returned"
+                    f"{' again' if m.get('reflip') else ''}"
+                    f" (pooled edge {m['roll_delta']:+.2f}){suffix}")
+            gch = ("▼▼" if m["act"] == "flip" and m.get("reflip")
+                   else ("▼" if m["act"] == "flip"
+                         else ("▲▲" if m.get("reflip") else "▲")))
+            parts.append(
+                f"<a href='{m['href']}' style='text-decoration:none;'>"
+                f"<text x='{x:.1f}' y='{y}' {paint} "
+                f"font-size='11' text-anchor='middle'>{gch}"
+                f"<title>{hover} — click for the evidence</title></text></a>")
+        # THE ONE-STORY RULE (Sep 12): every flip event also pins its
+        # week SLOT for the point stamps, taken from the events' own
+        # evidence — so a flip landing on a gap week (the decision week
+        # never graded) still stamps, on the zero line, in the
+        # sparkline's action color. One glyph language everywhere.
+        edge_map = {}
+        for m in _marks:
+            edge_map.setdefault((m["idx"], m["state"]),
+                                (m["act"], m["week"], m["roll_delta"],
+                                 m.get("sim"), m["href"],
+                                 m.get("reflip"), m.get("dwk")))
+        # week ticks: first, middle, last (clamped — n is padded to 2
+        # for geometry, but weeks may hold fewer records)
+        for idx in sorted({min(i, len(weeks) - 1)
+                           for i in (0, n // 2, n - 1)}):
+            if weeks[idx]:
+                _, yv = pt(idx, 0)
+                parts.append(f"<text x='{pad_x + idx * iw - 20}' "
+                             f"y='{yv + 14}' fill='#9aa0a6' font-size='9'>"
+                             f"{weeks[idx][2:]}</text>")
+        for st in ("OUT", "FLAT", "RISING"):
+            d = path_for(series[st])
+            if d:
+                parts.append(f"<path d='{d}' fill='none' stroke='{cols[st]}' "
+                             f"stroke-width='2'/>" )
+            # a state with no graded weeks still reaches the point loop:
+            # its gap weeks can carry flip stamps (on the zero line)
+            for i, v in enumerate(series[st]):
+                mk = edge_map.get((i, st))
+                if v is None and mk is None:
+                    continue
+                x, y = (pt(i, 0.0) if v is None else pt(i, v))
+                # THE SIDES LAYER (Sep 11): the tooltip names each bar's
+                # own fires and payer rate, mapped by LABEL — fit gets
+                # the outcome-fitted bar, quantile the quantile bar —
+                # so a flipped-regime week still reads the same two
+                # bars in the same order. Ledger weeks read the
+                # record's grades; prose weeks read the parser.
+                rec_st = (recs[i - n_prose].get("states") or {}).get(st) \
+                    if i >= n_prose else None
+                sides = {}
+                if rec_st:
+                    src = (rec_st.get("other_src") or "quantile").lower()
+                    sides_map = (("other", "fit"), ("in_force", "quantile")) \
+                        if src.startswith("outcome") else \
+                        (("in_force", "fit"), ("other", "quantile"))
+                    for key, tag in sides_map:
+                        g = rec_st.get(key) or {}
+                        if g.get("fires"):
+                            sides[tag] = (g["fires"], g.get("rate", 0.0))
+                else:
+                    sides = prose_sides.get(weeks[i], {}).get(st) or {}
+                extra = ""
+                if sides.get("fit") and sides.get("quantile"):
+                    f_f, f_r = sides["fit"]
+                    q_f, q_r = sides["quantile"]
+                    extra = (f" — fit {f_f} fires · {f_r * 100:.0f}% pay"
+                             f" | quantile {q_f} fires · {q_r * 100:.0f}% pay")
+                prov = " (from the prose report)" if i < n_prose else ""
+                # THE REGIME STAMP (Sep 12): a flip week's point wears
+                # the sparkline's own glyph — ▼ amber / ▲ green, ON the
+                # line (the zero line when the week never graded) — so
+                # chart and sparklines tell one story. The hover keeps
+                # the decision story AND the week's own data.
+                if mk:
+                    act, mk_wk, mk_rd, mk_sim, mk_href, mk_rf, mk_dwk = mk
+                    sim = bool(mk_sim)
+                    suffix = " · simulated worked example" if sim else ""
+                    if act == "flip":
+                        gch, gcol = ("▼▼", "#ffb347") if mk_rf \
+                            else ("▼", "#ffb347")
+                        gttl = (f"{gch} "
+                                f"{'re-flip' if mk_rf else 'auto-flip'} "
+                                f"{mk_wk} — {st} benched "
+                                f"{'again ' if mk_rf else ''}on "
+                                f"pooled edge {mk_rd:+.2f}{suffix}")
+                    else:
+                        gch, gcol = ("▲▲", "#4be38a") if mk_rf \
+                            else ("▲", "#4be38a")
+                        gttl = (f"{gch} "
+                                f"{'re-arm' if mk_rf else 'flip-back'} "
+                                f"{mk_wk} — the fit returned"
+                                f"{' again' if mk_rf else ''}"
+                                f" (pooled edge {mk_rd:+.2f}){suffix}")
+                    gttl += _edge_attr(v) + extra + prov
+                    # hollow dialect: a sim's stamp is an outline in the
+                    # state's color, never a solid action-colored glyph
+                    paint = (f"fill='none' stroke='{cols[st]}' "
+                             f"stroke-width='1.5'" if sim
+                             else f"fill='{gcol}'")
+                    # THE DIM SYNC (on-point layer): same rule, same
+                    # identity — the decision's own (state, action,
+                    # decision-week)
+                    if _verdict and _dim_v.get(
+                            (st, act, mk_dwk)) != _verdict:
+                        paint += " opacity='0.25'"
+                    parts.append(
+                        f"<a href='{mk_href}' "
+                        f"style='text-decoration:none;'>"
+                        f"<text x='{x:.1f}' y='{y:.1f}' {paint} "
+                        f"font-size='9' font-weight='bold' "
+                        f"text-anchor='middle'>{gch}"
+                        f"<title>{gttl} — click for the evidence</title>"
+                        f"</text></a>")
+                    continue
+                parts.append(
+                    f"<circle cx='{x:.1f}' cy='{y:.1f}' r='2.5' "
+                    f"fill='{cols[st]}'><title>{weeks[i]} {st} fit edge "
+                    f"{v:+.2f}{extra}{prov}</title></circle>")
+        parts.append("</svg>")
+        legend = "  ".join(
+            f"<span style='color:{cols[st]};'>— {st}</span>"
+            for st in ("OUT", "FLAT", "RISING")
+            if any(v is not None for v in series[st]))
+        shaded = " · <span style='color:#ffb347;'>shaded = benched "\
+                 "(the quantile shipped)</span>" if spans else ""
+        marked = (" · ▼/▼▼/▲ = the weeks that decided a bench (▼▼ = "
+                  "re-flip) · on-line "
+                  "▼/▲ mirror the sparkline glyphs · every glyph clicks "
+                  "through to its decision's evidence"
+                  if _all_marks else "")
+        if any(m.get("sim") for m in _marks):
+            marked += " · hollow ▼/▲ = simulated worked examples"
+        back = (f" · {n_prose} earlier week{'s' if n_prose != 1 else ''} "
+                f"backfilled from the prose report" if prose_note else "")
+        cap = ("<span class='dim'>the fit−quantile edge by week — above "
+               f"zero the outcome bar pays better · {legend}{shaded}"
+               f"{marked}{back}{_mirror_note}{_dim_note}</span>")
+        return f"<br>{''.join(parts)}<br>{cap}"
+    except Exception:
+        return ""
+
+
+def _show_sims_btn(_key: str = "") -> None:
+    """THE ONE-CLICK SHOW (Sep 12): the 'show worked examples' button
+    that sits beside the trail's hidden-count notes. One click restores
+    the sims from wherever the note lives (main trail or the sims-only
+    one-liner), no hunt for the checkbox. The session write lives in an
+    on_click CALLBACK — callbacks run before the script body, the only
+    place a widget-keyed session entry may be written (the body write
+    raises after the checkbox has instantiated; the callback predates
+    it). Module level so the note builders can call it regardless of
+    local `st` shadowing; a bare context (no runtime) renders nothing —
+    the kwargs drive the tests."""
+    def _show() -> None:
+        st.session_state["show_flip_sims_cb"] = True
+        # the one-click show mirrors too: a click followed by closing
+        # the tab must not lose the show (the widget's own on_change
+        # may not fire until a later run)
+        _prefs_save({**_prefs_load(), "show_flip_sims": True})
+    try:
+        if _in_runtime():
+            st.button("show worked examples",
+                      key="show_flip_sims_btn" + _key,
+                      on_click=_show,
+                      help="one click brings the simulated "
+                           "worked examples back — the same "
+                           "as re-checking 'show simulated "
+                           "worked examples'")
+    except Exception as exc:
+        logger.debug("show-sims button failed: %s", exc)
+
+
+def _verdict_filter_mirror() -> str:
+    """The audit trail's active verdict-filter choice, read SAFELY from
+    any scope: module level, where `st` is streamlit (the same reason
+    _sims_hidden_mirror lives here). Reads the trail's semantic
+    session entry when present; a fresh session falls back to the
+    prefs mirror (the same file the dropdown restores from), so the
+    chart's dimming stays in step with her choice even across a tab
+    close. 'All verdicts' (or anything unknown) dims nothing."""
+    try:
+        if "verdict_filter" in st.session_state:
+            v = st.session_state["verdict_filter"]
+            return v if v in ("PAYING", "COSTING", "pending") \
+                else "All verdicts"
+    except Exception as exc:
+        logger.debug("verdict mirror session read failed: %s", exc)
+    try:
+        v = _prefs_load().get("verdict_filter")
+        return v if v in ("PAYING", "COSTING", "pending") \
+            else "All verdicts"
+    except Exception as exc:
+        logger.debug("verdict mirror prefs read failed: %s", exc)
+        return "All verdicts"
+
+
+def _sims_hidden_mirror() -> bool:
+    """The audit trail's show-sims choice, read SAFELY from any scope:
+    this module shadows `st` with state-loop variables in several
+    render bodies (the chart among them), so the session_state access
+    must live HERE — at module level, where `st` is streamlit. Reads
+    the toggle widget's own session entry (framework-committed before
+    the script run, so it is current for the whole page — the chart
+    renders BEFORE the trail's checkbox on MASTER). True means she hid
+    the sims (the chart drops its hollow glyphs)."""
+    try:
+        # membership + getitem only: the SessionStateProxy's proven
+        # surface (no .get — see the toggle's init)
+        for k in ("show_flip_sims_cb", "show_flip_sims"):
+            if k in st.session_state:
+                return st.session_state[k] is False
+    except Exception as exc:
+        logger.debug("sims mirror read failed: %s", exc)
+    # no session entry yet (a fresh session mid-boot): the MIRROR's
+    # last saved choice answers for the chart — the same file the
+    # toggle's init restores from, so her hide survives the tab
+    # closing and the chart stays in step
+    return _prefs_load().get("show_flip_sims") is False
+
+
+def _in_runtime() -> bool:
+    """True when a Streamlit runtime exists (the live server or an
+    AppTest run) — the ONLY case where st.checkbox/st.selectbox are
+    real widgets. Bare/probe calls (tests, shell probes) get default
+    return values from the widget fakes, never an exception, so the
+    old try/except fail-open was an accident: gating on the runtime
+    makes the bare path deterministic and the explicit hide_sims /
+    verdict kwargs the honest overrides."""
+    try:
+        from streamlit.runtime.exists import exists as _srt_exists
+        return bool(_srt_exists())
+    except Exception:
+        try:
+            from streamlit import runtime as _rt
+            return bool(_rt.exists())
+        except Exception:
+            return False
+
+
+def _render_verdict_control(counts: dict | None = None):
+    """THE MASTER-LEVEL VERDICT FILTER (Sep 13): the control moved out
+    of the trail expander and lives HERE, near the ledger chart, so
+    the sync is visible without opening the trail. ONE widget (key
+    verdict_filter_cb), ONE seed, ONE save — the trail resolves the
+    same session_state pick without rendering a second widget (the
+    duplicate-key class the gates forbid). The semantic option is what
+    session_state and the prefs file store; the counts render
+    format_func-side and never become the value (a counted label
+    stored would raise the moment the census shifted). No-op outside a
+    Streamlit runtime (bare probes fail open to ALL)."""
+    try:
+        if not _in_runtime():
+            return
+        _opts = ["All verdicts", "PAYING", "COSTING", "pending"]
+        if "verdict_filter" not in st.session_state:
+            restored = _prefs_load().get("verdict_filter")
+            st.session_state["verdict_filter"] = (
+                restored if restored in _opts else "All verdicts")
+
+        def _vf_save():
+            val = (st.session_state.get("verdict_filter_cb")
+                   or "All verdicts")
+            st.session_state["verdict_filter"] = val
+            _prefs_save({**_prefs_load(),
+                         "verdict_filter": val})   # TAB-SURVIVES
+
+        counts = counts or {}
+        _lbl = {o: (o if o == "All verdicts" or not counts
+                    else f"{o} ({counts.get(o, 0)})") for o in _opts}
+        _vf_saved = st.session_state["verdict_filter"]
+        st.selectbox(
+            "verdict", _opts, key="verdict_filter_cb",
+            index=(_opts.index(_vf_saved) if _vf_saved in _opts else 0),
+            format_func=lambda o: _lbl[o],
+            on_change=_vf_save,
+            help="the MASTER-level filter: one pick and the whole page "
+                 "syncs — chart stamps, benched spans, and the trail's "
+                 "rows all read through this verdict")
+    except Exception as exc:
+        logger.debug("verdict control render failed: %s", exc)
+
+
+def _render_flip_audit(hide_sims: bool = False, verdict: str = "") -> str:
+    """THE FLIP AUDIT TRAIL (Sep 11): every auto-flip and flip-back
+    event, newest first, with the evidence weeks that triggered it —
+    the same canonical fit edges the bench decision read. The current
+    regime per state comes from the flips file, so a state sitting
+    benched right now is visible — with a LIVE running aftermath (the
+    open bench graded in dollars, shared math) before its flip-back.
+    hide_sims=True renders the LIVED history in isolation (the show/hide
+    toggle's hide side): sim rows drop out and an honest hidden-count
+    note stays so nothing disappears silently. The    toggle itself is SESSION_STATE-BACKED (Sep 12, key 'show_flip_sims'):
+    her choice survives Streamlit reruns and widget-id drift instead of
+    snapping back to 'show', and is MIRRORED to console_prefs.json
+    (Sep 12) so it survives closing the browser tab (the next session's
+    boot restores it; SCOUT_PREFS_FILE overrides for tests). verdict
+    (Sep 12) browses the trail by decision
+    outcome — 'PAYING', 'COSTING', or 'pending' isolates those rows
+    (state meta and the benched strip always stay, hidden rows keep
+    anchor stubs so chart glyphs still resolve); anything else shows
+    everything. The dropdown is SESSION_STATE-BACKED (Sep 12, key
+    'verdict_filter', the semantic option — not the counted label —
+    so the choice also survives the counts changing under it). The hidden-count notes carry a ONE-CLICK 'show worked
+    examples' button (Sep 12) so restoring the sims needs no hunt for
+    the checkbox. Never raises; an empty trail renders a quiet
+    one-liner.
+    """
+    try:
+        import tidebar_weekly as _tbw
+        evs = list(reversed(_tbw._load_flip_events()))   # newest first
+        flips = _tbw._load_flips() or {}
+        if not evs and not any(
+                (flips.get(st) or {}).get("flipped")
+                for st in ("OUT", "FLAT", "RISING")):
+            return ("<span class='dim'>the flip audit trail is empty — "
+                    "no state has ever been benched (it shows here the "
+                    "day one is)</span>")
+        try:
+            recs = _tbw._load_history()
+            weeks_list = [r.get("week") or "?" for r in recs]
+        except Exception:
+            recs, weeks_list = [], []   # the aftermath degrades to pending
+        # THE SHOW/HIDE TOGGLE (Sep 12): lived flips readable in
+        # isolation. The checkbox appears only when sims exist, inside
+        # the trail's expander; a bare/probe context (no Streamlit
+        # runtime) fails open to SHOW, and hide_sims forces the hide
+        # side so tests pin the isolation without a runtime.
+        _n_sims = sum(1 for e in evs if e.get("sim"))
+        show_sims = True
+        if _n_sims:
+            if hide_sims:
+                show_sims = False   # the forced hide side (tests, probes)
+            elif _in_runtime():
+                # the SESSION_STATE-BACKED toggle (a stable key means her
+                # show/hide choice survives reruns and widget-id drift
+                # from layout changes). The widget's own session entry
+                # ('show_flip_sims_cb') is committed by the framework
+                # BEFORE the script body runs — so the MASTER chart,
+                # which renders EARLIER on the page, reads the CURRENT
+                # choice via _sims_hidden_mirror(), never one run stale.
+                # (Sep 12: NO value= kwarg — the key is init-on-missing
+                # only; after value= + a session write, Streamlit's
+                # widget-policies warn "created with a default value but
+                # also had its value set via the Session State API".)
+                if "show_flip_sims_cb" not in st.session_state:
+                    restored = _prefs_load().get("show_flip_sims")
+                    _val = (bool(restored)
+                            if isinstance(restored, bool) else True)
+                    st.session_state["show_flip_sims_cb"] = _val
+                    # the semantic entry exists from boot, so the
+                    # chart's mirror and the trail read the restored
+                    # choice without waiting for an interaction
+                    st.session_state["show_flip_sims"] = _val
+
+                def _sims_save():
+                    val = bool(st.session_state["show_flip_sims_cb"])
+                    st.session_state["show_flip_sims"] = val
+                    _prefs_save({**_prefs_load(),
+                                 "show_flip_sims": val})   # TAB-SURVIVES
+
+                show_sims = bool(st.checkbox(
+                    "show simulated worked examples",
+                    key="show_flip_sims_cb",
+                    on_change=_sims_save,
+                    help="the diag's seeded replays, kept so this view "
+                         "carries worked examples before the machinery "
+                         "ever benches a state for real — your choice "
+                         "is remembered across sessions (it survives "
+                         "closing the tab)"))
+            # else: bare/probe mode (no Streamlit runtime) — fail open to
+            # SHOW; hide_sims/verdict kwargs are the deterministic paths
+        if not show_sims:
+            evs = [e for e in evs if not e.get("sim")]
+            if not evs:
+                _btn = _show_sims_btn("_only")   # ONE CLICK: beside the note
+                return (f"<span class='dim'>{_n_sims} simulated worked "
+                        f"example{'s' if _n_sims != 1 else ''} hidden — no "
+                        f"lived bench events yet; show sims to read the "
+                        f"worked examples</span>{_btn}")
+        rows = []
+        # THE RE-FLIP ORDINAL (Sep 12): counted CHRONOLOGICALLY (evs is
+        # newest-first here, so the count runs reversed) per state per
+        # stream — a state's 2nd+ flip is its re-flip and its 2nd+
+        # flip-back its re-arm; regime churn (flip, re-arm, re-flip)
+        # reads as one pattern.
+        flip_no, reflip_of, back_no, rearm_of = {}, {}, {}, {}
+        for e_ch in reversed(evs):
+            _act = str(e_ch.get("action") or "")
+            if _act not in ("flip", "flip_back"):
+                continue
+            _st = str(e_ch.get("state") or "?")
+            _key = str(e_ch.get("sim") or False)
+            if _act == "flip":
+                flip_no[(_st, _key)] = flip_no.get((_st, _key), 0) + 1
+                reflip_of[(_st, str(e_ch.get("week") or ""), _key)] = \
+                    flip_no[(_st, _key)] > 1
+            else:
+                back_no[(_st, _key)] = back_no.get((_st, _key), 0) + 1
+                rearm_of[(_st, str(e_ch.get("week") or ""), _key)] = \
+                    back_no[(_st, _key)] > 1
+        # by-state sibling indices for the governed-window math; sims
+        # (marked sim: true, the diag's worked example) keep their OWN
+        # embedded aftermath — their weeks never lived in the ledger
+        # THE ONE CLASSIFICATION (Sep 12): every decision graded ONCE
+        # by the shared math in tidebar_weekly.classify_decisions — the
+        # per-row chip, the verdict filter, and the census chip all read
+        # this one pass, so they can never disagree with each other or
+        # with the aftermath dollars on the row.
+        am_of, verdict_of, _counts = _tbw.classify_decisions(
+            recs, weeks_list, evs, flips)
+        # THE FBW=3 COUNTERFACTUAL (Sep 12): a real flip-back whose
+        # aftermath grades COSTING earns its own question on the row —
+        # would ONE more re-arm week have saved it? Computed here, once,
+        # from the same graded aftermath the row shows (one math), so
+        # the clause can never disagree with the dollars above it. Any
+        # surprise fails open to no clause — an annotation must never
+        # kill the row.
+        fbw_of = {}
+        for idx, e in enumerate(evs):
+            if (e.get("sim")
+                    or str(e.get("action") or "") != "flip_back"
+                    or verdict_of.get(idx) != "COSTING"):
+                continue
+            try:
+                fbw_of[idx] = _tbw.fbw3_counterfactual(
+                    recs, e, str(e.get("state") or "?"), am_of.get(idx))
+            except Exception:
+                fbw_of[idx] = None
+        # THE POOL-THRESHOLD COUNTERFACTUAL (Sep 13): the same rows, the
+        # pool dial's own question — would raising the pool bar
+        # (+0.25, the pool-grade's graduated family) have denied a
+        # COSTING re-arm whose pool was thin? One math with the monthly
+        # grade's counterfactual machinery; any surprise fails open to
+        # no clause — an annotation must never kill the row.
+        poolcf_of = {}
+        for idx, e in enumerate(evs):
+            if (e.get("sim")
+                    or str(e.get("action") or "") != "flip_back"
+                    or verdict_of.get(idx) != "COSTING"):
+                continue
+            try:
+                poolcf_of[idx] = _tbw.poolcf_counterfactual(
+                    recs, e, str(e.get("state") or "?"), am_of.get(idx))
+            except Exception:
+                poolcf_of[idx] = None
+        # THE BORROW'S RECKONING (Sep 12): every real flip-back's verdict
+        # was BORROWED while pending (the closure pass always is) — the
+        # grader compares the borrowed tag with the realized aftermath
+        # and stamps disagreements, so the live-borrow rule is audited
+        # by the dollars it predicted over. Rendered fresh per pass so
+        # the row can never go stale; the pass hook stamps the trail.
+        rk_of = {}
+        for idx, e in enumerate(evs):
+            if e.get("sim") or str(e.get("action") or "") != "flip_back":
+                continue
+            try:
+                rk_of[idx] = _tbw.borrow_reckoning(
+                    e, str(e.get("state") or "?"), am_of.get(idx))
+            except Exception:
+                rk_of[idx] = None
+        # THE VERDICT FILTER (Sep 12): the machinery's own calls,
+        # browsable by outcome once real flips accumulate. The dropdown
+        # appears only when a graded verdict exists (an all-pending
+        # trail has nothing to filter); a bare/probe context — every
+        # existing pin — fails open to ALL, the same discipline as the
+        # sims toggle.
+        _pick, _keep = "All verdicts", None
+        _filter_note, _stub_anchors = "", ""
+        _empty_verdict_note = ""
+        if any(v != "pending" for v in verdict_of.values()):
+            _opts = ["All verdicts", "PAYING", "COSTING", "pending"]
+            if _in_runtime():
+                # THE MASTER-LEVEL CONTROL (Sep 13): the widget lives on
+                # MASTER beside the chart (render_verdict_control); the
+                # trail resolves the SAME session_state pick — one seed,
+                # one widget, one save. The seed runs here too (her
+                # first stop may be the trail with MASTER above still
+                # mounting; the session entry must exist either way).
+                if "verdict_filter" not in st.session_state:
+                    restored = _prefs_load().get("verdict_filter")
+                    st.session_state["verdict_filter"] = (
+                        restored if restored in _opts else "All verdicts")
+                _pick = st.session_state["verdict_filter"]
+            elif verdict in ("PAYING", "COSTING", "pending"):
+                _pick = verdict   # the caller's explicit filter (tests)
+            if _pick != "All verdicts":
+                _keep = {i for i in range(len(evs))
+                         if verdict_of.get(i) == _pick}
+                _n_hidden = len(evs) - len(_keep)
+                _filter_note = (f"<span class='dim'>{_n_hidden} decision"
+                                f"{'s' if _n_hidden != 1 else ''} hidden by "
+                                "the verdict filter (the MASTER control "
+                                "above, beside the chart) — switch back to "
+                                "'All verdicts' to read them</span>")
+                # the hidden rows' anchor stubs: a chart glyph hrefs its
+                # decision's id — under a filter the row may be hidden,
+                # so the id must still EXIST or the click dead-ends
+                _stub_anchors = "".join(
+                    f"<a id='flip-{str(e.get('state') or '?')}-"
+                    f"{str(e.get('action') or '?')}-"
+                    f"{str(e.get('week') or '?')}"
+                    f"{'-sim' if e.get('sim') else ''}'></a>"
+                    for i, e in enumerate(evs) if i not in _keep)
+                if not _keep:
+                    # an empty verdict view says so honestly — the note
+                    # rides the normal tail (census and the benched
+                    # strip still ship, nothing renders as a dead end)
+                    _empty_verdict_note = (f"<span class='dim'>no "
+                                           f"decisions classified {_pick} "
+                                           f"yet — the machinery has not "
+                                           f"made that call</span>")
+        for idx, e in enumerate(evs):
+            if _keep is not None and idx not in _keep:
+                continue
+            _st_e = str(e.get("state") or "?")
+            act = str(e.get("action") or "?")
+            _vc = verdict_of.get(idx, "pending")
+            _vchip = (" <span style='color:#4be38a;font-size:12px;'>PAYING</span>"
+                      if _vc == "PAYING" else
+                      (" <span style='color:#ff6b5e;font-size:12px;'>COSTING</span>"
+                       if _vc == "COSTING" else
+                       " <span style='color:#9aa0a6;font-size:12px;'>pending</span>"))
+            if act == "flip":
+                reflip = reflip_of.get(
+                    (_st_e, str(e.get("week") or ""),
+                     str(e.get("sim") or False)), False)
+                col = "#ff6b5e"
+                verb = ("RE-FLIPPED to the quantile (regime churn)"
+                        if reflip else "AUTO-FLIPPED to the quantile")
+                wk_n = e.get("losing_weeks")
+            else:
+                rearm = rearm_of.get(
+                    (_st_e, str(e.get("week") or ""),
+                     str(e.get("sim") or False)), False)
+                col, verb = ("#4be38a", (
+                    "RE-ARMED to live duty (regime churn)" if rearm
+                    else "FLIP-BACK to live duty"))
+                wk_n = e.get("winning_weeks")
+            evid = e.get("evidence") or []
+            ev_txt = " ".join(
+                f"{d.get('week', '?')[2:]} {d.get('fit_edge', 0):+.2f}"
+                for d in evid) or "(no two-sided weeks)"
+            # THE ARC NAME (Sep 12): a sim's sim_source ends with the
+            # replay's arc in parentheses ("... (the bench PAYS)") —
+            # surface it inside the badge so the worked examples scan
+            # at a glance. Fail-open: no parenthesized tail -> the bare
+            # badge (old or handcrafted sim rows never fabricate an arc).
+            sim_arc = ""
+            if e.get("sim"):
+                _src = str(e.get("sim_source") or "")
+                _lp = _src.rfind("(")
+                if _lp >= 0 and _src.endswith(")"):
+                    _tail = _src[_lp + 1:-1].strip()
+                    if _tail and ")" not in _tail and "\n" not in _tail:
+                        sim_arc = _tail
+            sim_badge = ("" if not e.get("sim") else
+                         " <span style='color:#ffb347;'>[SIMULATION"
+                         + (f" ({sim_arc})" if sim_arc else "")
+                         + " — the diag's worked example, not a lived "
+                           "decision]</span>")
+            # THE ANCHOR (Sep 12): the chart's regime stamps href here —
+            # the (state, action, decision-week[, sim]) id is the trail's
+            # own dedupe key, so every glyph lands on its decision
+            anchor = ("flip-{}-{}-{}{}".format(
+                _st_e, act, str(e.get("week") or "?"),
+                "-sim" if e.get("sim") else ""))
+            rows.append(
+                f"<a id='{anchor}'></a>"
+                f"<b style='color:{col};'>{_st_e} {verb}</b>{sim_badge}{_vchip} "
+                f"<span class='dim'>({e.get('ts') or e.get('week') or '?'} — "
+                f"{wk_n} weeks, pooled edge {e.get('roll_delta', 0):+.2f})</span>"
+                f"<br><span class='dim'>evidence: {ev_txt}</span>")
+            # THE AFTERMATH (Sep 11): the decision graded in dollars —
+            # the realized $/fire of the bar the decision put in charge
+            # (after a flip that IS the quantile) pooled over the
+            # post-decision weeks, vs the benched side's counterfactual
+            # over the same weeks. The shared _event_aftermath math, so
+            # the trail and the flip grade's txt read the same dollars.
+            # A SIM event renders ONLY its embedded simulated aftermath
+            # — its replay weeks never lived in the real ledger, so the
+            # real-ledger math must never touch it.
+            if e.get("sim"):
+                sa = e.get("sim_aftermath")
+                if isinstance(sa, dict) and sa.get("status") == "graded":
+                    rl, cf = sa["realized"], sa["counterfactual"]
+                    vcol = ("#4be38a" if sa["verdict"].startswith(
+                                "the decision PAID") else "#ff6b5e")
+                    rows.append(
+                        f"<span class='dim'>aftermath (simulated): in the "
+                        f"{sa['weeks']} weeks after, the {rl['bar']} "
+                        f"realized ${rl['usd_per_fire']:+.2f}/fire "
+                        f"({rl['fires']} fires) vs the {cf['bar']}'s "
+                        f"${cf['usd_per_fire']:+.2f}/fire over the same "
+                        f"weeks — </span>"
+                        f"<b style='color:{vcol};'>{sa['verdict']}</b>")
+                else:
+                    rows.append("<span class='dim'>aftermath (simulated): "
+                                "pending — the replay's weeks never lived "
+                                "in the ledger</span>")
+                continue
+            am = am_of.get(idx)   # graded once, in the filter pre-pass
+            if am["status"] == "pending":
+                rows.append(f"<span class='dim'>aftermath: pending — "
+                            f"{am['reason']}</span>")
+            else:
+                rl, cf = am["realized"], am["counterfactual"]
+                vcol = ("#4be38a" if am["verdict"].startswith(
+                            "the decision PAID") else "#ff6b5e")
+                rows.append(
+                    f"<span class='dim'>aftermath: in the {am['weeks']} "
+                    f"weeks after, the {rl['bar']} realized "
+                    f"${rl['usd_per_fire']:+.2f}/fire ({rl['fires']} fires) "
+                    f"vs the {cf['bar']}'s ${cf['usd_per_fire']:+.2f}/fire "
+                    f"over the same weeks — </span>"
+                    f"<b style='color:{vcol};'>{am['verdict']}</b>")
+            # THE FBW=3 CLAUSE (Sep 12): the week-count dial's own
+            # counterfactual, priced in dollars — would ONE more re-arm
+            # week (FBW=3, the diag_fbw3 dial) have saved this costing
+            # re-arm? Every case states its honest shape, including the
+            # ones where the extra week saves nothing.
+            fbw = fbw_of.get(idx)
+            if isinstance(fbw, dict):
+                if fbw["status"] == "never-arms":
+                    rows.append(
+                        f"<span class='dim'>the extra re-arm week (FBW=3) "
+                        f"would have denied this re-arm entirely (no third "
+                        f"winning week) — saved "
+                        f"${fbw['saved_total']:+,.2f} "
+                        f"(${fbw['saved_per_fire']:+.2f}/fire over the "
+                        f"{fbw['weeks']} weeks after)</span>")
+                elif fbw["status"] == "denied":
+                    if fbw["saved_total"] >= 0:
+                        rows.append(
+                            f"<span class='dim'>the extra re-arm week "
+                            f"(FBW=3) would have held the bench one more "
+                            f"week, re-arming at {fbw['arm_week']} — would "
+                            f"have saved ${fbw['saved_total']:+,.2f} "
+                            f"(${fbw['saved_per_fire']:+.2f}/fire over the "
+                            f"delayed arm's {fbw['delayed_fires']} "
+                            f"fires)</span>")
+                    else:
+                        rows.append(
+                            f"<span class='dim'>the extra re-arm week "
+                            f"(FBW=3) would have re-armed later at "
+                            f"{fbw['arm_week']} and paid "
+                            f"${abs(fbw['saved_total']):,.2f} LESS — the "
+                            f"extra week would have cost here</span>")
+                elif fbw["status"] == "same-week":
+                    rows.append(
+                        "<span class='dim'>the extra re-arm week (FBW=3) "
+                        "re-arms on the same week — the pool guard, not "
+                        "the week count, held this arm; nothing to "
+                        "save</span>")
+                elif fbw["status"] == "delayed":
+                    rows.append(
+                        f"<span class='dim'>the extra re-arm week (FBW=3) "
+                        f"delays the re-arm to {fbw['arm_week']} — too few "
+                        f"weeks have traded since to price it</span>")
+            # THE POOL-THRESHOLD CLAUSE (Sep 13): the pool dial's own
+            # counterfactual on the same COSTING rows — would raising
+            # the pool bar to +0.25 have denied this re-arm? Every case
+            # states its honest shape, fat pools included (same-week).
+            pcf = poolcf_of.get(idx)
+            if isinstance(pcf, dict):
+                if pcf["status"] == "never-arms":
+                    rows.append(
+                        f"<span class='dim'>a +0.25 pool bar would have "
+                        f"denied this re-arm entirely (no re-arm with a "
+                        f"pool clearing the bar) — saved "
+                        f"${pcf['saved_total']:+,.2f} "
+                        f"(${pcf['saved_per_fire']:+.2f}/fire over the "
+                        f"{pcf['weeks']} weeks after)</span>")
+                elif pcf["status"] == "denied":
+                    if pcf["saved_total"] >= 0:
+                        rows.append(
+                            f"<span class='dim'>a +0.25 pool bar would "
+                            f"have held the bench, re-arming at "
+                            f"{pcf['arm_week']} — would have saved "
+                            f"${pcf['saved_total']:+,.2f} "
+                            f"(${pcf['saved_per_fire']:+.2f}/fire over "
+                            f"the delayed arm's {pcf['delayed_fires']} "
+                            f"fires)</span>")
+                    else:
+                        rows.append(
+                            f"<span class='dim'>a +0.25 pool bar would "
+                            f"have re-armed later at {pcf['arm_week']} "
+                            f"and paid ${abs(pcf['saved_total']):,.2f} "
+                            f"LESS — the denial would have cost here"
+                            f"</span>")
+                elif pcf["status"] == "same-week":
+                    rows.append(
+                        "<span class='dim'>a +0.25 pool bar re-arms on "
+                        "the same week — this pool already cleared the "
+                        f"bar ({pcf.get('pool', 0):+.2f}); nothing to "
+                        "save</span>")
+                elif pcf["status"] == "delayed":
+                    rows.append(
+                        f"<span class='dim'>a +0.25 pool bar delays the "
+                        f"re-arm to {pcf['arm_week']} — too few weeks "
+                        f"have traded since to price it</span>")
+            # THE BENCH'S FINAL VERDICT (Sep 12): a flip-back carries a
+            # bench_final snapshot of the bench's OPEN live verdict at
+            # the moment the bench ended (cumulative to-date dollars,
+            # shared math) — preserved even though the state now
+            # renders un-benched. Older events and honest-pending
+            # snapshots simply render nothing here.
+            bf = e.get("bench_final")
+            if isinstance(bf, dict) and bf.get("verdict"):
+                bcol = bf.get("verdict_col") or "#9aa0a6"
+                rows.append(
+                    f"<span class='dim'>the bench's final live verdict: "
+                    f"{bf.get('text') or ''} — </span>"
+                    f"<b style='color:{bcol};'>the bench was "
+                    f"{bf['verdict']} when it ended</b>")
+            # THE BORROW'S RECKONING (Sep 12): did the verdict this row's
+            # decision borrowed while pending survive the realized
+            # dollars? Agree states the truth held; a DISAGREEMENT reads
+            # loud — the borrow rule itself got the dollars backwards.
+            # Ungradeable cases (aftermath still pending, or a not-
+            # operative borrow) render nothing — never a fake verdict.
+            rk = rk_of.get(idx)
+            if isinstance(rk, dict) and rk.get("status") == "agree":
+                rows.append(
+                    "<span class='dim'>the borrow's reckoning: the "
+                    f"verdict was borrowed while pending and the "
+                    f"realized aftermath AGREES — the borrow told the "
+                    f"truth ({rk.get('graded')})</span>")
+            elif isinstance(rk, dict) and rk.get("status") == "disagree":
+                rows.append(
+                    f"<span style='color:#ffb347;'>the borrow's "
+                    f"reckoning: DISAGREES — {rk.get('text') or ''}</span>")
+        benched = [st for st in ("OUT", "FLAT", "RISING")
+                   if (flips.get(st) or {}).get("flipped")]
+        if benched:
+            # THE LIVE AFTERMATH (Sep 12): a currently-benched state's
+            # strip grades the OPEN bench in dollars — the same shared
+            # _event_aftermath on the state's newest real flip with an
+            # open window (next_ev=None) — so PAID/COST reads BEFORE
+            # the flip-back closes the decision. Pending renders its
+            # honest reason; a flipped state without a flip event (or
+            # an empty ledger) degrades to pending.
+            # ONE MATH (Sep 12): the strip renders the SHARED
+            # _open_bench_entries entries — the same dollars the
+            # sidecar ships to the plate — not its own recount, so the
+            # trail, the plate, and _flipgrade.json can never disagree.
+            # Each graded entry's text carries the cumulative bench
+            # cost-to-date (usd_total realized minus the counterfactual
+            # over the same weeks).
+            parts_b = []
+            for en in _tbw._open_bench_entries(recs, evs)[1]:
+                if en.get("verdict"):
+                    vc = en.get("verdict_col") or "#9aa0a6"
+                    parts_b.append(
+                        f"{en['base']}<br><span class='dim'>live "
+                        f"aftermath: {en.get('text') or ''} — </span>"
+                        f"<b style='color:{vc};'>"
+                        f"the bench is {en['verdict']}</b>")
+                else:
+                    parts_b.append(
+                        f"{en['base']}<br><span class='dim'>live "
+                        f"aftermath: {en.get('text') or 'pending'}</span>")
+            rows.append("<span style='color:#ffb347;'>CURRENTLY BENCHED: "
+                        + "<br>".join(parts_b) + "</span>")
+        if not show_sims:
+            rows.append(
+                f"<span class='dim'>{_n_sims} simulated worked "
+                f"example{'s' if _n_sims != 1 else ''} hidden — "
+                f"'show worked examples' beside this restores them"
+                f"</span>")
+            _show_sims_btn()   # ONE CLICK (Sep 12): beside the note
+        # THE VERDICT CENSUS (Sep 12): the machinery's record at a
+        # glance — how many of its own calls paid, cost, still pend.
+        # ONE FORMAT (Sep 12): the shared verdict_census so the plate's
+        # chip and this line can never disagree. The reckoning tally
+        # rides the same line: how those borrowed verdicts graded.
+        rows.append("<span class='dim'>verdicts: "
+                    + _tbw.verdict_census(_counts)
+                    + _tbw.reckoning_tally(evs) + "</span>")
+        if _empty_verdict_note:
+            rows.append(_empty_verdict_note)
+        if _filter_note:
+            rows.append(_filter_note)
+        if _stub_anchors:
+            rows.append(_stub_anchors)
+        return "<br>".join(rows)
+    except Exception:
+        return ""
+
+
+def _render_tidebar_history(max_bytes: int = 120_000, rf_path=None):
+    """The click-through under the TIDE BAR VERDICT plate: the full
+    _tidebarweekly.txt history in an expander, plus an ISO-WEEK PICKER —
+    'All weeks (newest first)' by default, or any single past week's
+    sections in isolation. The report PREPENDS the newest section, so
+    All-weeks already reads newest-first. Capped at max_bytes (a year
+    of daily sections stays ~5 MB, so the cap is a page-stall guard,
+    not a real ceiling). rf_path lets tests inject a sandbox report so
+    the suite never overwrites the production file. Never raises."""
+    try:
+        rf = Path(rf_path) if rf_path \
+            else Path(__file__).parent / "_tidebarweekly.txt"
+        if not rf.exists():
+            return
+        txt = rf.read_text(encoding="utf-8", errors="replace")
+        if len(txt.encode("utf-8")) > max_bytes:
+            txt = txt[:max_bytes] + "\n… (history capped for the page — " \
+                  "the full file is on disk)"
+        with st.expander("📜 FULL TIDE BAR HISTORY — every graded week, "
+                         "newest first"):
+            secs = _tidebar_week_sections(txt)
+            edges_by_week = _week_pooled_edges(secs)
+
+            order = []
+            for lbl, _ in secs:              # newest-first option list
+                if lbl not in order:
+                    order.append(lbl)
+            # THE SNAP-BACK FIX (Sep 12): stable key + SEMANTIC options
+            # (the week tags) with the verdict deltas rendered via
+            # format_func — the old picker stored COUNTED labels (tag
+            # + edges), so her pick snapped to All-weeks on every rerun
+            # and again whenever the edges shifted under it. A stored
+            # tag survives both: the deltas re-render around it.
+            opts = (["All weeks (newest first)"] + order if order
+                    else ["All weeks (newest first)"])
+
+            def _fmt(o):
+                # the week's verdict beside its label: per-state
+                # canonical fit edges, rendered never stored
+                if o.startswith("All weeks"):
+                    return o
+                e = edges_by_week.get(o) or {}
+                parts = [f"{nm} {e[nm]:+.2f}"
+                         for nm in ("OUT", "FLAT", "RISING") if nm in e]
+                return f"{o}  ·  {'  '.join(parts)}" if parts else o
+
+            pick = st.selectbox("ISO week", opts, index=0,
+                                key="tb_week_pick", format_func=_fmt)
+            if pick.startswith("All weeks"):
+                st.code(txt, language=None)
+            else:
+                wk = pick
+                body = "\n\n".join(t for lbl, t in secs if lbl == wk) \
+                    if wk else ""
+                st.code(body or f"(no section stored for {pick})",
+                        language=None)
+    except Exception as exc:
+        logger.debug("tide-bar history expander failed: %s", exc)
+
+
+@st.cache_data(ttl=FACTS_STALE_TTL_S)
+def _today_facts(now_ts: int) -> list[str]:
     """MASTER's self-correction plate: today's numbers, auto-counted —
     TIER-AWARE (user rule, Sep 1: 'everything should auto adjust when the
     contest is selected'): the death line, buffer, and pace all come from
     the contest account (1k/5k/10k), and the banked number counts GOALS,
-    not twenties."""
+    not twenties. (Sep 13) now_ts is the call site's BUCKETED epoch second
+    and RIDES THE CACHE KEY — the graded day rolls with the    bucket instead of freezing the first render's midnight boundary; the
+    visible 'as of' stamp renders OUTSIDE this body at the plate call."""
+    _plate_touch("todays-facts", ttl=FACTS_STALE_TTL_S)
     import sqlite3
-    day = _now_mst().strftime("%Y-%m-%d")
+    day = datetime.fromtimestamp(now_ts, MST).strftime("%Y-%m-%d")
     n_sig = n_rej = 0
     try:
         conn = sqlite3.connect(os.path.join(os.path.dirname(os.path.abspath(__file__)), "signals.db"))
@@ -1814,8 +4162,10 @@ def _today_facts() -> list[str]:
             "SELECT COUNT(*) FROM signals WHERE action='buy' AND timestamp LIKE ? "
             "AND status='rejected'", (day + "%",)).fetchone()[0]
         conn.close()
-    except Exception:
-        pass
+    except Exception as exc:
+        # the plate renders zeros rather than lying — but a silently dead
+        # signals.db would have shown a 0/0 day forever with no trace
+        logger.warning("signals.db query failed — score plate shows zeros: %s", exc)
     goals_n = 0
     banked = 0
     try:
@@ -1824,8 +4174,9 @@ def _today_facts() -> list[str]:
         todays = [r for r in tp.values() if str(r.get("ts", "")).startswith(day)]
         goals_n = len(todays)
         banked = sum(int(r.get("amount") or 0) for r in todays)
-    except Exception:
-        pass
+    except (OSError, TypeError, ValueError) as exc:
+        logger.warning("take_payouts.json unreadable — "
+                       "goals/banked show zero: %s", exc)
     cw = _load_watch()
     n_open = len(cw)
     # the contest account — every number here scales with the tier
@@ -1931,8 +4282,8 @@ def render_master_bones(cfg: TradingConfig, kraken):
                     st.toast("↺ Score reset — board is clean for the next run", icon="↺", duration=8)
                     _speak("Score reset! The board is clean for the next run!")
                     _play_sound("tick")
-                except Exception:
-                    pass
+                except Exception as exc:
+                    logger.debug("reset toast/voice failed: %s", exc)
                 st.rerun()
         knobs = (
             knob(bal, 0, 1500, "Account Value", lambda v: f"${v:,.0f}") +
@@ -1995,8 +4346,9 @@ def render_master_bones(cfg: TradingConfig, kraken):
                 try:
                     sb.mark_closed(s["signal_id"], 0.0)
                     closed_bridge += 1
-                except Exception:
-                    pass
+                except Exception as exc:
+                    logger.debug("ghost close failed for %s: %s",
+                                 s.get("signal_id", "?"), exc)
             closed_bot = _close_bot_positions([p["id"] for p in rec["ghosts_bot"]])
             st.cache_data.clear()
             st.success(f"Cleaned: {closed_bot} bot-DB ghost(s), {closed_bridge} bridge ghost(s). "
@@ -2013,8 +4365,8 @@ def render_master_bones(cfg: TradingConfig, kraken):
             lines.append(f"{icon} {s['timestamp'][11:19]} {_asset(s['pair']):<9} {s['action'].upper():<4} "
                          f"{s['confidence'] or 0:>3.0f}%  {s['status']:<10} {s['source']}")
         st.markdown(plate("Signal Bus (last 12)", lcd(lines or ["— no signals yet —"])), unsafe_allow_html=True)
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.debug("signal bus plate failed: %s", exc)
 
 
 # ════════════════════════════════════════════════════════════════════════
@@ -2041,8 +4393,8 @@ def render_tournament(cfg: TradingConfig, scan_cfg: TradingConfig, kraken):
         if is_winners and _HAS_DB:
             try:
                 db.init_db()
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug("winner-pairs db init failed: %s", exc)
             winner_pairs = db.get_winner_pairs(limit=20)
             if len(winner_pairs) < 2:
                 st.warning("Not enough tournament winners yet — run a full tournament first.")
@@ -2128,8 +4480,11 @@ def render_tournament(cfg: TradingConfig, scan_cfg: TradingConfig, kraken):
                     for f in as_completed(futs):
                         try:
                             results[futs[f]] = ScanResult(pair=futs[f], signal=f.result(), ohlcv_df=data[futs[f]])
-                        except Exception:
-                            pass
+                        except Exception as exc:
+                            # a pair whose indicators blew up is skipped —
+                            # the scan must survive, but not silently
+                            logger.debug("deep-scan eval failed for %s: %s",
+                                         futs[f], exc)
                 if not results:
                     st.error("No assets could be evaluated — try again.")
                     return
@@ -2191,8 +4546,8 @@ def render_tournament(cfg: TradingConfig, scan_cfg: TradingConfig, kraken):
                             scan_type="winners" if is_winners else "full")
                         ac_invalidate("past_winners")  # the new champion shows immediately
                         _past_winners_core.clear()
-                    except Exception:
-                        pass
+                    except Exception as exc:
+                        logger.debug("champion db write failed: %s", exc)
             except Exception as exc:
                 st.error(f"Tournament failed: {exc}")
         disable_deep_analysis()
@@ -2280,8 +4635,8 @@ def render_tournament(cfg: TradingConfig, scan_cfg: TradingConfig, kraken):
                              icon="🏆", duration=12)
                     _speak(f"{_champ_asset} is today's best pick! Confirm it below!")
                     _play_sound("ding")
-                except Exception:
-                    pass
+                except Exception as exc:
+                    logger.debug("champion toast/voice failed: %s", exc)
             if st.button(f"➡ CONFIRM {_champ_asset} IN QUICK CHECK — the final yes/no",
                          type="primary", width="stretch", key="champ_next_btn"):
                 st.session_state["qc_pick_next"] = _champ_asset
@@ -2295,13 +4650,14 @@ def render_tournament(cfg: TradingConfig, scan_cfg: TradingConfig, kraken):
                 if sig.action == "buy" else
                 f"best survivor {_asset(champ.pair)} is a sell — nobody's buying right now")
         try:
-            st.toast(f"⛔ NO GOOD PICK this time — {_why}. "
+            _advice = _no_pick_advice()
+            st.toast(f"⛔ NO GOOD PICK this time — {_why}. {_advice} "
                      f"Don't enter. Try again later or check a coin yourself in Quick Check.",
                      icon="⛔", duration=15)
             _speak("No good pick this time. Don't enter. Try again later.")
             _play_sound("alarm")
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("no-pick alert failed: %s", exc)
 
     # champion history
     winners = _past_winners()
@@ -2426,7 +4782,8 @@ def render_quick_check(cfg: TradingConfig, kraken):
                     _bs = importlib.reload(_bs)
                 _resolve_cap = _bs._max_resolve_hours
                 _scalp_eta = _bs._hours_to_scalp
-                _s_h = _scalp_eta(f"{asset}/USD", float(px))
+                _s_h = _scalp_eta(f"{asset}/USD", float(px),
+                                  now=_now_mst())
                 # ── THE GOAL (the rebuild, Sep 1): percentage goals 1-3%
                 # set by the market analysis (the engine's expected move
                 # for this coin/rotation/day) on a 1-3h window. The $20
@@ -2532,7 +4889,7 @@ def render_quick_check(cfg: TradingConfig, kraken):
                                     _bs_hm = importlib.reload(_bs_hm)
                                 _hm_tpct, _hm_tstate = _bs_hm._fleet_tide()
                                 _hm_lw_pts, _hm_lw_note = _bs_hm.lone_wolf_discount(kraken, pair)
-                                _hm_floor = float(_bs_hm.popup_floor(_hm_tstate, _hm_lw_pts))
+                                _hm_floor = float(_bs_hm.popup_floor(_hm_tstate, _hm_lw_pts, None, pair))
                             except Exception:
                                 _hm_floor = 89.0
                             if (sig.action == "buy"
@@ -2589,11 +4946,12 @@ def render_quick_check(cfg: TradingConfig, kraken):
                     try:
                         import background_scanner as _bs_tsf
                         _spend_usd = _spend_usd * _bs_tsf.TIDE_FLAT_SIZE_FACTOR
-                    except Exception:
-                        pass
+                    except (AttributeError, ImportError) as exc:
+                        logger.debug("FLAT half-size factor skipped: %s", exc)
                 # re-entry guard: a pair that just paid a big TAKE IT is an
                 # exhausted move — re-entering rides the giveback
-                _payout = _recent_big_payout(pair)
+                _payout = _recent_big_payout(
+                    pair, now_ts=_now_mst().timestamp())
                 # ── ROTATION MEMORY (user rule, Aug 30): one green light per
                 # asset per rotation + yesterday's-hour context (blowoff
                 # demotion). Same reference frame as the user's instinct:
@@ -2641,6 +4999,33 @@ def render_quick_check(cfg: TradingConfig, kraken):
                 st.session_state["qc_result"]["carry_usd"] = _carry
                 st.session_state["qc_result"]["spend_usd"] = _spend_usd
                 st.session_state["qc_result"]["tide"] = _tide_state
+                # ── THE PERSONAL OUT BAR (Sep 10, the QC mirrors the alert
+                #    path — never disagree): when the tide is OUT, a
+                #    candidate whose quick score clears the coin's PERSONAL
+                #    bar passes the tide gate — the fleet's learned price
+                #    (tide_learn.py) personalized by the coin's own tide
+                #    memory (tide_personal_bar: ONE tax, the memory rides
+                #    the bar; clamped to the learned band [86, 97]). The
+                #    lone-wolf carve stays; the JOURNAL RELEASE is
+                #    alert-side only (the QC never spends it).
+                _tl_pass, _tl_why = False, ""
+                if (_tide_state or "") == "OUT" and not _lw_pts:
+                    try:
+                        _tl_bar, _tl_meta = _bs4._tide_learn_bar()
+                        _tl_pbar = _bs4.tide_personal_bar(pair, "OUT", _tl_bar)
+                        if _tl_pbar is not None and sig.action == "buy" and not no_buy \
+                                and float(sig.confidence) >= _tl_pbar:
+                            _tl_pass = True
+                            _tl_why = _tl_meta
+                        elif _tl_pbar is not None:
+                            _tl_why = (f"quick {float(sig.confidence):.1f} vs "
+                                       f"personal bar {_tl_pbar:.0f} ({_tl_meta})")
+                        else:
+                            _tl_why = _tl_meta
+                    except Exception as _tle:
+                        _tl_why = f"tide learner unavailable ({_tle})"
+                st.session_state["qc_result"]["tide_learned_pass"] = _tl_pass
+                st.session_state["qc_result"]["tide_learned_why"] = _tl_why
                 st.session_state["qc_result"]["rotation_ok"] = _rot_ok
                 st.session_state["qc_result"]["rotation_reason"] = _rot_reason
                 st.session_state["qc_result"]["reentry"] = _rot_reentry
@@ -2666,7 +5051,7 @@ def render_quick_check(cfg: TradingConfig, kraken):
                     if not hasattr(_bs5, "popup_floor"):
                         import importlib
                         _bs5 = importlib.reload(_bs5)
-                    _champ_floor = float(_bs5.popup_floor(_tide_state, _lw_pts))
+                    _champ_floor = float(_bs5.popup_floor(_tide_state, _lw_pts, None, pair))
                 except Exception:
                     _trdf = float(getattr(_bs5, "TIDE_RISING_DESKTOP_FLOOR", 78.0))
                     _lwdf = float(getattr(_bs5, "LONE_WOLF_DESKTOP_FLOOR", 55.0))
@@ -2717,7 +5102,7 @@ def render_quick_check(cfg: TradingConfig, kraken):
                 # spend above; it no longer blocks the green.)
                 if (sig.action == "buy" and not no_buy
                         and _trend != "FALLING"
-                        and _tide_state != "OUT"
+                        and ((_tide_state != "OUT") or _lw_pts or _tl_pass)
                         and _spend_usd > 0
                         and _rot_ok
                         and _climb_ok
@@ -2783,8 +5168,8 @@ def render_quick_check(cfg: TradingConfig, kraken):
                             # is cold until the next rotation boundary
                             try:
                                 _bs5.rotation_mark_fired(asset)
-                            except Exception:
-                                pass
+                            except (AttributeError, ImportError, TypeError) as exc:
+                                logger.debug("rotation lockout mark failed: %s", exc)
                             # amber warnings ride WITH the green (data shows
                             # they don't change hit rate — but you should know)
                             _warns = []
@@ -2838,8 +5223,8 @@ def render_quick_check(cfg: TradingConfig, kraken):
                                 else:
                                     _speak(f"Go! {asset}! Buy 100 percent! "
                                            f"{_fine_say}Aim for plus {_goal_pct:.0f} percent!")
-                            except Exception:
-                                pass
+                            except Exception as exc:
+                                logger.debug("green-light toast/voice failed: %s", exc)
                             # FLOW ADVANCE: position entered → take the user to the watch
                             st.session_state["last_green"] = {
                                 "asset": asset, "pair": pair, "px": float(px),
@@ -2853,13 +5238,16 @@ def render_quick_check(cfg: TradingConfig, kraken):
                                 st.toast(f"✅ {asset} — already watching it", icon="✅", duration=12)
                                 _speak(f"{asset} is already being watched!")
                                 _play_sound("ding")
-                            except Exception:
-                                pass
+                            except Exception as exc:
+                                logger.debug("already-watching toast/voice failed: %s", exc)
                     except Exception as exc:
                         logger.debug("auto-watch add failed: %s", exc)
                 else:
                     if (sig.action == "buy" and not no_buy
                             and not _rot_ok):
+                        # DEAD DISPLAY since the lock's retirement (Sep 10 —
+                        # the gate always allows); kept so an old ledger
+                        # state can never show a green here by accident.
                         try:
                             st.toast(f"⛔ ALREADY RAN THIS ROTATION — {asset}: {_rot_reason}. "
                                      f"The whipsaw re-entry is where double-dip fines eat the "
@@ -2867,8 +5255,8 @@ def render_quick_check(cfg: TradingConfig, kraken):
                                      icon="⛔", duration=20)
                             _play_sound("alarm")
                             _speak(f"Already ran! {asset} is cold until the next rotation!", rate=1)
-                        except Exception:
-                            pass
+                        except Exception as exc:
+                            logger.debug("already-ran toast/voice failed: %s", exc)
                     elif (sig.action == "buy" and not no_buy
                             and not _climb_ok and _climb_res):
                         try:
@@ -2880,8 +5268,8 @@ def render_quick_check(cfg: TradingConfig, kraken):
                             _speak(f"No escape route! {asset} — "
                                    f"{_climb_res.get('fail_gate', 'the climb-out')} says skip it!",
                                    rate=1)
-                        except Exception:
-                            pass
+                        except Exception as exc:
+                            logger.debug("no-escape toast/voice failed: %s", exc)
                     elif (sig.action == "buy" and not no_buy
                             and _yctx and _yctx.get("shape") == "blowoff"):
                         try:
@@ -2891,21 +5279,22 @@ def render_quick_check(cfg: TradingConfig, kraken):
                                      icon="⛔", duration=20)
                             _play_sound("alarm")
                             _speak(f"No! {asset} dumped at this hour yesterday! Wait for a base!", rate=1)
-                        except Exception:
-                            pass
+                        except Exception as exc:
+                            logger.debug("dump-hour toast/voice failed: %s", exc)
                     elif (sig.action == "buy" and not no_buy
-                            and _tide_state == "OUT" and not _lw_pts):
+                            and _tide_state == "OUT" and not _lw_pts and not _tl_pass):
                         try:
                             st.toast(f"🌊 TIDE'S OUT — only {_tide_pct:.0f}% of the market is rising. "
                                      f"All ships sink together — don't enter anything right now. "
                                      f"Wait for the tide to turn. "
                                      f"(A coin moving +5% or more on her own still gets the "
-                                     f"lone-wolf exception — this one isn't.)",
+                                     f"lone-wolf exception — this one isn't. A score clearing "
+                                     f"the tide's learned bar passes — {_tl_why or 'the bar is not priced yet'}.)",
                                      icon="🌊", duration=20)
                             _play_sound("alarm")
                             _speak(f"The tide is out! All ships sink together! Wait!", rate=1)
-                        except Exception:
-                            pass
+                        except Exception as exc:
+                            logger.debug("tide-out toast/voice failed: %s", exc)
                     elif (sig.action == "buy" and not no_buy
                             and _trend == "FALLING"):
                         try:
@@ -2915,8 +5304,8 @@ def render_quick_check(cfg: TradingConfig, kraken):
                                      icon="⛔", duration=18)
                             _play_sound("alarm")
                             _speak(f"No! {asset} is falling! Wait for it to base!", rate=1)
-                        except Exception:
-                            pass
+                        except Exception as exc:
+                            logger.debug("falling toast/voice failed: %s", exc)
                     elif (sig.action == "buy" and not no_buy
                             and _risk_cap is not None and _risk_cap <= 0):
                         # THE DEATH LINE (Kraken Funded: -3% from start, never
@@ -2929,8 +5318,8 @@ def render_quick_check(cfg: TradingConfig, kraken):
                                      icon="☠", duration=25)
                             _play_sound("alarm")
                             _speak(f"No! At the death line! No new trades!", rate=1)
-                        except Exception:
-                            pass
+                        except Exception as exc:
+                            logger.debug("death-line toast/voice failed: %s", exc)
                     elif (sig.action == "buy" and not no_buy
                             and _spend_usd <= 0 and _carry is not None):
                         _pct_book = 100.0 * float(cfg.challenge_balance) / (_carry / 0.20)
@@ -2942,8 +5331,8 @@ def render_quick_check(cfg: TradingConfig, kraken):
                                      icon="⛔", duration=20)
                             _play_sound("alarm")
                             _speak(f"Too thin! {asset}! Your money is the market! Skip it!", rate=1)
-                        except Exception:
-                            pass
+                        except Exception as exc:
+                            logger.debug("too-thin toast/voice failed: %s", exc)
                     elif (sig.action == "buy" and not no_buy
                             and _raw_move is not None and float(_raw_move) < 1.0):
                         # THE GOAL GATE (Sep 1): the engine's raw expected
@@ -2957,16 +5346,16 @@ def render_quick_check(cfg: TradingConfig, kraken):
                                      icon="⛔", duration=15)
                             _play_sound("alarm")
                             _speak(f"Too slow! {asset}! Skip it!", rate=1)
-                        except Exception:
-                            pass
+                        except Exception as exc:
+                            logger.debug("too-slow toast/voice failed: %s", exc)
                     elif sig.action == "buy" and no_buy:
                         try:
                             st.toast(f"⛔ COOLDOWN (8pm-midnight) — no new buys. {asset} waits.",
                                      icon="⛔", duration=15)
                             _play_sound("alarm")
                             _speak(f"Cooldown! No buys!", rate=1)
-                        except Exception:
-                            pass
+                        except Exception as exc:
+                            logger.debug("cooldown toast/voice failed: %s", exc)
                     else:
                         # ADVISORY BRAIN (Sep 5): a BUY can no longer land
                         # here — every hard gate has its own branch above,
@@ -2982,8 +5371,8 @@ def render_quick_check(cfg: TradingConfig, kraken):
                                      icon="⛔", duration=15)
                             _play_sound("alarm")
                             _speak(f"No! {asset}! Skip it!", rate=1)
-                        except Exception:
-                            pass
+                        except Exception as exc:
+                            logger.debug("wrong-action toast/voice failed: %s", exc)
             except Exception as exc:
                 disable_deep_analysis()
                 st.error(f"Scan failed for {asset}: {exc}")
@@ -3046,6 +5435,11 @@ def render_quick_check(cfg: TradingConfig, kraken):
     # about WHY the system likes this coin.
     lw_pts = result.get("lone_wolf_pts", 0) or 0
     lw_note = result.get("lone_wolf_note", "") or ""
+    # THE LEARNED OUT BAR (Sep 10): the QC mirrors the alert path — a
+    # quick score that clears the tide's learned bar passes OUT, so the
+    # verdict text and the LED show the same mercy the scanner shows.
+    tide_learned_pass = bool(result.get("tide_learned_pass"))
+    tide_learned_why = str(result.get("tide_learned_why", "") or "")
     yshape = yesterday.get("shape")
     thin_book = bool(result.get("thin_book"))
     # the ALERT's former floor — context only (Sep 5: the popup floor
@@ -3091,15 +5485,18 @@ def render_quick_check(cfg: TradingConfig, kraken):
         if passes and result.get("hail_mary"):
             return ("SCALP GREEN LIGHT — 💪 HAIL MARY (the emergency hour is open; "
                     "the death line stands; full allocation = the guard's cap)")
+        if passes and tide_learned_pass:
+            return "SCALP GREEN LIGHT — the OUT tide's learned bar was paid " \
+                   f"({tide_learned_why or 'the data priced this tide'})"
         if passes:
             return "SCALP GREEN LIGHT"
         if no_buy:
             return "COOLDOWN — NO BUYS"
-        if not rot_ok:
+        if not rot_ok:  # dead since the lock's retirement (Sep 10)
             return "NO GREEN — ALREADY RAN THIS ROTATION"
         if yshape == "blowoff":
             return "NO GREEN — THIS HOUR DUMPED YESTERDAY"
-        if tide_state == "OUT" and not lw_pts:
+        if tide_state == "OUT" and not lw_pts and not tide_learned_pass:
             return "NO GREEN — TIDE'S OUT"
         if (result.get("spend_usd", 1) or 0) <= 0:
             return "NO GREEN — TOO THIN"
@@ -3134,7 +5531,7 @@ def render_quick_check(cfg: TradingConfig, kraken):
     # passes; the 🐺 LED explains why)
     _tcol2 = ("g" if tide_state == "RISING"
               else "a" if tide_state == "FLAT"
-              else "a" if (tide_state == "OUT" and lw_pts)
+              else "a" if (tide_state == "OUT" and (lw_pts or tide_learned_pass))
               else "r" if tide_state == "OUT"
               else "a")
     if yshape == "blowoff":
@@ -3163,6 +5560,8 @@ def render_quick_check(cfg: TradingConfig, kraken):
         led(_pace_txt, "g" if goal_ok else "r") +
         led(f"TIDE {tide_state}" if tide_state else "TIDE: NO DATA", _tcol2) +
         (led(f"🐺 LONE WOLF — {lw_note}", "a") if lw_pts else "") +
+        (led("🌊 TIDE BAR PAID — " + (tide_learned_why or "the learned OUT bar"), "a")
+         if tide_learned_pass else "") +
         led(_carry_txt, _carry_col) +
         led(("ROTATION LOCK — " + (rot_reason or "cold until the boundary")) if not rot_ok
             else "ROTATION: FRESH — GO ALLOWED", "r" if not rot_ok else "g") +
@@ -3238,8 +5637,8 @@ def render_quick_check(cfg: TradingConfig, kraken):
         elif snap.get("reason"):
             st.markdown(plate("Liquidity & Execution — advisory",
                               lcd([f"BOOK UNAVAILABLE — {snap['reason']}"])), unsafe_allow_html=True)
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.debug("liquidity advisory plate failed: %s", exc)
 
     why = [f"- {r}" for r in sig.reasons[:9]]
     st.markdown(plate("Why", "<br>".join(why).replace("-", "·", 1) if False else
@@ -3345,8 +5744,8 @@ def _cloned_trailing(pair: str, live: float, entry: float | None, sb,
     bridge_high = None
     try:
         bridge_high = sb.get_trailing_high(pair)  # read-only peek at auto tracking
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.debug("trailing-high peek failed: %s", exc)
     hs = st.session_state.setdefault("_manual_highs", {})
     high = max(bridge_high or 0.0, hs.get(pair, 0.0), live)
     hs[pair] = high
@@ -3391,8 +5790,8 @@ def _run_exit_logic(kraken, pair: str, cfg: TradingConfig, sb,
             df.loc[_idx, "close"] = live
             df.loc[_idx, "high"] = max(float(df.loc[_idx, "high"]), live)
             df.loc[_idx, "low"] = min(float(df.loc[_idx, "low"]), live)
-    except Exception:
-        pass  # ticker failed — candle close is the fallback
+    except (AttributeError, KeyError, TypeError, ValueError) as exc:
+        logger.debug("live-price ticker merge skipped: %s", exc)
 
     sig = _eval(df, cfg)
 
@@ -3402,8 +5801,8 @@ def _run_exit_logic(kraken, pair: str, cfg: TradingConfig, sb,
             if p["pair"] == pair:
                 entry = p.get("execution_price") or p.get("entry_price")
                 break
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.debug("live entry lookup failed: %s", exc)
     if entry is None and entry_override:
         entry = float(entry_override)
 
@@ -3541,10 +5940,10 @@ def _light_check(kraken, cfg: TradingConfig, sb, held: dict, interval_s: int) ->
                             st.toast(f"🎯 {glevel}× GOAL — {asset} up {pct:.1f}%",
                                      icon="🎯", duration=15)
                         _play_sound("ding")
-                    except Exception:
-                        pass
-    except Exception:
-        pass
+                    except Exception as exc:
+                        logger.debug("goal toast/voice failed: %s", exc)
+    except Exception as exc:
+        logger.debug("goal watch sweep failed: %s", exc)
 
     # ── popups: fire on every page — this is the light ────────────────
     contest_rows = [v for v in watch_status if v["kind"] == "contest"]
@@ -3570,8 +5969,8 @@ def _light_check(kraken, cfg: TradingConfig, sb, held: dict, interval_s: int) ->
         else:
             st.toast("🟢 no trades yet", icon="👀", duration=10)
             _play_sound("tick")
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.debug("scoreboard toast failed: %s", exc)
 
     # Aug 30 fix: GET OUT positions are NEVER auto-dropped. One toast + one
     # voice that deletes the tracking was losing exits (user: "if I didn't
@@ -3590,8 +5989,8 @@ def _light_check(kraken, cfg: TradingConfig, sb, held: dict, interval_s: int) ->
             st.toast("✅ Trade done — now let's find the next one", icon="🎯", duration=12)
             _play_sound("ding")
             _speak("Trade done! Let's find the next one!")
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("trade-done toast/voice failed: %s", exc)
     return True
 
 
@@ -3633,8 +6032,8 @@ def _render_her_words():
         _latest = _html.escape(latest_txt[:70]) + ("…" if len(latest_txt) > 70 else "")
         with st.expander(f"💬 HER WORDS — \"{_latest}\"  (tap to read all)", expanded=False):
             st.markdown("".join(rows), unsafe_allow_html=True)
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.debug("her-words expander failed: %s", exc)
 
 
 def _render_bots_book(kraken, cfg):
@@ -3717,8 +6116,8 @@ def _render_bots_book(kraken, cfg):
             title_bits.append(f"{_asset} {_pnl_txt}")
         with st.expander(f"🤖 BOT'S BOOK — {'  ·  '.join(title_bits)}", expanded=False):
             st.markdown("".join(rows), unsafe_allow_html=True)
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.debug("bot-book plate failed: %s", exc)
 
 
 def _toast_new_her_words():
@@ -3768,11 +6167,11 @@ def _toast_new_her_words():
                 elif heads_up:
                     st.toast(f"💬 {text[:120]}", icon="✅", duration=12)
                     _play_sound("ding")
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug("her-words toast/voice failed: %s", exc)
         st.session_state["her_words_last_ts"] = newest_ts
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.debug("her-words sweep failed: %s", exc)
 
 
 def _render_light_panel(interval: str):
@@ -3788,8 +6187,8 @@ def _render_light_panel(interval: str):
         _hm_left = _ca_lp.hail_mary_minutes_left()
         if _hm_left > 0:
             _hm_note = f" · 💪 HAIL MARY {max(_hm_left, 0):.0f}m (the emergency hour)"
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.debug("hail-mary window lookup failed: %s", exc)
     lines = [f"<span class='dim'>{_now_mst().strftime('%I:%M %p')} · every {interval} · "
              f"green = hold, red = sell{_hm_note}</span>"]
     for v in watch_status:
@@ -3821,7 +6220,8 @@ def _render_light_panel(interval: str):
                     _rem = _win_min - _elapsed
                 else:
                     from background_scanner import _hours_to_scalp
-                    _eta = _hours_to_scalp(v["pair"], entry) or 0.75
+                    _eta = (_hours_to_scalp(v["pair"], entry,
+                                            now=_now_mst()) or 0.75)
                     _rem = max(2.0 * _eta * 60.0, 45.0) - _elapsed
                 _goal = float(rec.get("goal_pct") or 0.0)
                 _near = (_rem <= 15.0) or (_goal > 0 and pnl >= _goal * 0.75)
@@ -3829,8 +6229,8 @@ def _render_light_panel(interval: str):
                               f'~{max(_rem, 0):.0f}m left'
                               + (" · STAY CLOSE" if _near else " · walk around")
                               + '</span>')
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug("rotation clock html failed: %s", exc)
         if v["exit"]:
             lines.append(f"<span style='color:#ff6b5e;font-size:16px;'>◆ {asset} — SELL NOW — {v['reasons'][0]}</span>"
                          f"<span class='dim'> · give it about an hour to base — she'll call the next one</span>")
@@ -3845,6 +6245,30 @@ def _render_light_panel(interval: str):
                 unsafe_allow_html=True)
     if any_alert:
         st.error("🚨 SELL NOW — on the contest app.")
+
+
+# THE SEMANTIC-OPTIONS IDIOM (Sep 13, the verdict-dropdown pattern,
+# fleet-wide): a widget stores plain words — never a derived display
+# string — and format_func renders the decorated label. The entry
+# form's counted/decorated labels were the last stored-display class
+# (the radios' glyph prefixes WERE the stored state, read back with
+# startswith); the widgetsweep now gates this class.
+_EC_SAME, _EC_NEW = "same", "new"
+_EC_MODES = [_EC_SAME, _EC_NEW]
+
+
+def _ec_mode_lbl(m):
+    return ("◉ SAME TRADE — fix my numbers" if m == _EC_SAME
+            else "◯ NEW TRADE — fresh clock")
+
+
+_EC_HOW_SPENT, _EC_HOW_DIRECT = "spent+owned", "entry+size"
+_EC_HOWS = [_EC_HOW_SPENT, _EC_HOW_DIRECT]
+
+
+def _ec_how_lbl(h):
+    return ("◉ $ you spent + coins you own" if h == _EC_HOW_SPENT
+            else "◯ entry $ + size $")
 
 
 def _render_entry_control(prefix: str = "ec", default_pair: str | None = None,
@@ -3872,14 +6296,13 @@ def _render_entry_control(prefix: str = "ec", default_pair: str | None = None,
     cw = _load_watch()
     with st.expander("✎ MY ENTRY — fix the numbers or start a fresh clock"):
         with st.form(f"{prefix}_form", clear_on_submit=False):
-            mode = st.radio("this is…", ["◉ SAME TRADE — fix my numbers",
-                                         "◯ NEW TRADE — fresh clock"],
-                            index=0, key=f"{prefix}_mode",
+            mode = st.radio("this is…", _EC_MODES, index=0,
+                            format_func=_ec_mode_lbl, key=f"{prefix}_mode",
                             help="SAME TRADE keeps the clock, the goal and the peak "
                                  "running — only the numbers change. NEW TRADE restarts "
                                  "the clock: use it after you sold and re-entered, or to "
                                  "register a manual entry fresh.")
-            same_trade = mode.startswith("◉")
+            same_trade = mode == _EC_SAME
 
             # pair: dropdown when watched coins exist, free text otherwise
             # (default_pair pre-selects the scanned coin when present)
@@ -3904,13 +6327,12 @@ def _render_entry_control(prefix: str = "ec", default_pair: str | None = None,
                 _mp = manual_pair.strip().upper()
                 pair = _mp if "/" in _mp else f"{_mp}/USD"
 
-            how = st.radio("I'll tell you…", ["◉ $ you spent + coins you own",
-                                              "◯ entry $ + size $"],
-                           index=0, key=f"{prefix}_how",
+            how = st.radio("I'll tell you…", _EC_HOWS, index=0,
+                           format_func=_ec_how_lbl, key=f"{prefix}_how",
                            help="the contest app shows the $ of the trade and how much "
                                 "you own — never the price you paid")
             c1, c2 = st.columns(2)
-            if how.startswith("◉"):
+            if how == _EC_HOW_SPENT:
                 with c1:
                     spent = st.number_input("$ you spent", min_value=0.0, value=None,
                                             step=100.0, key=f"{prefix}_spent",
@@ -4013,25 +6435,42 @@ def render_auto_watch(cfg: TradingConfig, kraken):
     held = {a: f"{a}/USD" for a in sorted(wallet["holdings"].keys())}
 
     _cs = _load_console_state()
+    # SEMANTIC STATE, DERIVED DISPLAY (Sep 13): the toggles and the
+    # interval carry plain keys — session_state keeps the semantic
+    # entry, display is derived at render — the init-on-missing shape
+    # the verdict dropdown shipped (never value= + session writes:
+    # Streamlit's widget-policies warn). The interval stores SECONDS
+    # (the machine's number); the panel's 'every X min' is derived.
+    if "watch_on" not in st.session_state:
+        st.session_state["watch_on"] = _cs.get("watch_on", True)
     watch_on = st.toggle("🔔 AUTO-WATCH — every minute: green ALL GOOD / red GET OUT NOW",
-                         value=st.session_state.get("watch_on", _cs.get("watch_on", True)),
                          key="watch_toggle")
+    st.session_state["watch_on"] = watch_on
     if watch_on != _cs.get("watch_on", True):
         _cs["watch_on"] = watch_on
         _save_console_state(_cs)
     if watch_on:
-        st.session_state["watch_on"] = True
+        if "watch_interval_s" not in st.session_state:
+            _ci = _cs.get("watch_interval", 60)
+            if isinstance(_ci, str):   # legacy console_state string
+                _ci = {"1 min": 60, "2 min": 120,
+                       "5 min": 300}.get(_ci, 60)
+            st.session_state["watch_interval_s"] = (
+                _ci if _ci in (60, 120, 300) else 60)
         # one compact settings row (Sep 4 smoothness pass): the interval +
         # goal + voice toggles used to stack three full-width rows between
         # the AUTO-WATCH switch and your trades on EVERY page
         _s1, _s2, _s3 = st.columns([1, 1, 1])
         with _s1:
-            interval = st.selectbox("Check every", ["1 min", "2 min", "5 min"], index=0, key="watch_interval")
+            interval = st.selectbox(
+                "Check every", [60, 120, 300], index=0,
+                format_func=lambda s: f"{s // 60} min",
+                key="watch_interval_s")
         with _s2:
+            if "goal_on" not in st.session_state:
+                st.session_state["goal_on"] = _cs.get(
+                    "goal_on", _cs.get("scalp_on", True))
             goal_on = st.toggle("🎯 GOAL CALL",
-                                value=st.session_state.get("goal_on",
-                                                           _cs.get("goal_on",
-                                                                   _cs.get("scalp_on", True))),
                                 key="goal_toggle",
                                 help="THE RULES OF THE GAME: every entry carries its own "
                                      "PERCENTAGE goal — set from what THIS coin actually "
@@ -4048,8 +6487,9 @@ def render_auto_watch(cfg: TradingConfig, kraken):
             _cs["goal_on"] = goal_on
             _save_console_state(_cs)
         with _s3:
+            if "voice_on_ui" not in st.session_state:
+                st.session_state["voice_on_ui"] = _cs.get("voice_on", True)
             voice_on = st.toggle("🔊 HER VOICE",
-                                 value=st.session_state.get("voice_on_ui", _cs.get("voice_on", True)),
                                  key="voice_toggle",
                                  help="Zira announces your positions every minute from the scanner "
                                       "process — she keeps talking whether or not this browser "
@@ -4057,12 +6497,12 @@ def render_auto_watch(cfg: TradingConfig, kraken):
         if voice_on != _cs.get("voice_on", True):
             _cs["voice_on"] = voice_on
             _save_console_state(_cs)
-        interval_s = {"1 min": 60, "2 min": 120, "5 min": 300}[interval]
+        interval_s = interval   # the widget stores SECONDS directly
         interval_ms = interval_s * 1000
 
         # check NOW if due — fires on every page change, popup follows you
         _light_check(kraken, cfg, sb, held, interval_s)
-        _render_light_panel(interval)
+        _render_light_panel(f"{interval // 60} min")
         _render_her_words()
         _render_bots_book(kraken, cfg)
         _toast_new_her_words()
@@ -4139,8 +6579,8 @@ def render_auto_watch(cfg: TradingConfig, kraken):
                                     _added = _sw.get("added")
                                     if _added:
                                         _held_min = f"{(_sold_at - _dts.fromisoformat(_added)).total_seconds() / 60.0:.0f}"
-                                except Exception:
-                                    pass
+                                except (TypeError, ValueError) as exc:
+                                    logger.debug("held-minutes compute failed: %s", exc)
                                 try:
                                     import json as _jsons
                                     with open("contest_trades.jsonl", "a", encoding="utf-8") as _fs:
@@ -4157,8 +6597,8 @@ def render_auto_watch(cfg: TradingConfig, kraken):
                                             "goal_pct": _sw.get("goal_pct"),
                                             "held_min": _held_min,
                                         }) + "\n")
-                                except Exception:
-                                    pass
+                                except Exception as exc:
+                                    logger.warning("sold record write failed — outcome not journaled: %s", exc)
                                 _sign = "+" if _net >= 0 else "-"
                                 _toast_sold = (f"✔ {_asset(_sp)} sold — {_sign}${abs(_net):,.2f} net "
                                                f"(0.08% RT cost incl.) · balance now ${_new_bal:,.0f}")
@@ -4197,15 +6637,15 @@ def render_auto_watch(cfg: TradingConfig, kraken):
                                             _say_sold += (f" Profit collected — "
                                                           f"{_asset(_sp)} is re-armed! "
                                                           f"The next setup can call it again!")
-                                    except Exception:
-                                        pass
-                        except Exception:
-                            pass
+                                    except (AttributeError, ImportError, TypeError) as exc:
+                                        logger.debug("re-arm probe failed: %s", exc)
+                        except Exception as exc:
+                            logger.debug("sold-record enrich skipped: %s", exc)
                         try:
                             st.toast(_toast_sold, icon="✔", duration=10)
                             _speak(_say_sold)
-                        except Exception:
-                            pass
+                        except Exception as exc:
+                            logger.debug("sold toast/voice failed: %s", exc)
                         st.rerun()
 
         # ── contest watch list: live positions only, no history ────────
@@ -4273,15 +6713,15 @@ def render_auto_watch(cfg: TradingConfig, kraken):
                                      f"(live price). Paid something else? MY ENTRY, right below.",
                                      icon="✅", duration=12)
                             _speak(f"{_asset(npair)} added to the watch!")
-                        except Exception:
-                            pass
+                        except Exception as exc:
+                            logger.debug("watch-added toast/voice failed: %s", exc)
                         st.rerun()
                     else:
                         # (Sep 5) THE VISIBLE REJECTION: a failed price read
                         # used to reject SILENTLY (the button did nothing) —
                         # and the 60s cache made it stick. Now it says so, and
                         # the retry reads fresh (failures are never cached).
-                        st.error(f"Couldn't read the live price for {npair} — nothing was "
+                        st.error(f"Couldn't read the live price for {_asset(npair)} — nothing was "
                                  f"added, and it's NOT a rejection of the coin. Try again "
                                  f"(the retry reads fresh); if it keeps failing, add it in "
                                  f"MY ENTRY below with your real entry price.")
@@ -4442,8 +6882,8 @@ def render_exit_check(cfg: TradingConfig, kraken):
                     df.loc[_idx, "close"] = live
                     df.loc[_idx, "high"] = max(float(df.loc[_idx, "high"]), live)
                     df.loc[_idx, "low"] = min(float(df.loc[_idx, "low"]), live)
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug("live-price candle merge skipped: %s", exc)
             sig = _eval(df, cfg)
         except Exception as exc:
             st.error(f"Check failed for {asset}: {exc}")
@@ -4464,8 +6904,8 @@ def render_exit_check(cfg: TradingConfig, kraken):
             if p["pair"] == pair:
                 entry = p.get("execution_price") or p.get("entry_price")
                 break
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.debug("live entry lookup failed: %s", exc)
     if _wr.get("entry"):
         entry = float(_wr["entry"])          # the watch is the contest truth
     _w_size = float(_wr.get("size") or 0.0)  # $ of the trade (0 = unknown)
@@ -4489,8 +6929,8 @@ def render_exit_check(cfg: TradingConfig, kraken):
         _ec_high = None
         try:
             _ec_high = sb.get_trailing_high(pair)
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("exit-candle trailing high unavailable: %s", exc)
         _ec_sess = float(st.session_state.get("_manual_highs", {}).get(pair) or 0.0)
         _ec_high = max(float(_ec_high or 0.0), _ec_sess) or None
         _ec_trail = _rtp2(float(entry or live), _ec_high, float(_load_watch().get(pair, {}).get("size") or 2500.0)) \
@@ -4519,8 +6959,8 @@ def render_exit_check(cfg: TradingConfig, kraken):
             _elapsed_min = (datetime.now(MST) - _ad).total_seconds() / 60.0
             if _w_window:
                 _left_min = _w_window - _elapsed_min
-        except Exception:
-            pass
+        except (TypeError, ValueError) as exc:
+            logger.debug("watch-window minutes unknown: %s", exc)
     _window_expired = bool(_w_window and _left_min is not None and _left_min <= 0)
     # tier-aware hard stop: half the remaining death-line buffer
     # (Sep 5: the daily lock removed — contest_account is the one source
@@ -4688,8 +7128,8 @@ def render_exit_check(cfg: TradingConfig, kraken):
                         verdict_lines.append('<span style="color:#ff6b5e;">history says: GET OUT — dips this size usually don\'t fill</span>')
                     else:
                         verdict_lines.append("<span class='dim'>history says: coin-flip — your call</span>")
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.debug("dip-history verdict unavailable: %s", exc)
 
     if reasons_note:
         verdict_lines.append(reasons_note)
@@ -4707,8 +7147,8 @@ def render_exit_check(cfg: TradingConfig, kraken):
             st.toast(f"🚨 GET OUT NOW — SELL {asset}: {reasons[0]}", icon="🚨", duration=20)
             _play_sound("alarm")
             _speak(f"Get out now! Sell {asset}! Get out now!")
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("get-out toast/voice failed: %s", exc)
     else:
         # HOLD — she answers the real question: how long to the goal?
         # (and when the goal is REACHED, the answer is TAKE IT)
@@ -4728,8 +7168,8 @@ def render_exit_check(cfg: TradingConfig, kraken):
                 else:
                     _speak(f"Still riding! {asset}! {_pnl_txt}No clear target on the chart — "
                            f"I'll yell the moment it's time to sell!")
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("still-riding voice failed: %s", exc)
 
 
 # ════════════════════════════════════════════════════════════════════════
@@ -4761,8 +7201,8 @@ def _on_tier_change(key: str):
         try:
             st.toast("⏳ The account file is busy -- pick the tier again in a moment.",
                      icon="⏳", duration=8)
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("tier-busy toast failed: %s", exc)
         return
     _cs_t = _load_console_state()
     _cs_t["tier"] = _ca_t.TIERS[_t]["label"]
@@ -4772,8 +7212,8 @@ def _on_tier_change(key: str):
                  f"balance ${_ca_t.TIERS[_t]['start']:,.0f}, fresh death "
                  f"line, fresh Hail Mary windows.", icon="🆕", duration=10)
         _speak(f"New contest started! Balance {_ca_t.TIERS[_t]['start']:,.0f} dollars!")
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.debug("new-contest toast/voice failed: %s", exc)
 
 
 def main():
@@ -4827,8 +7267,8 @@ def main():
             try:
                 st.toast("⏳ The account file is busy -- your balance edit will land in a moment.",
                          icon="⏳", duration=8)
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug("balance-busy toast failed: %s", exc)
     cfg.challenge_balance = float(_acct["current_balance"])
     _line = _ca.death_line(_acct)
     _buf = _ca.buffer(_acct)
@@ -4850,94 +7290,29 @@ def main():
                 led(f"WINDOW {max(_hm_left, 0):.0f} MIN LEFT", "a") + "<br>" +
                 led("THE EMERGENCY HOUR — ACCOUNT IN DANGER, CHAMPION SHOT", "a") + "<br>" +
                 led("THE DEATH LINE STANDS — NEVER YIELDS", "r") + "<br>" +
-                led(f"WINDOWS USED: {int(_acct.get('hail_mary_count') or 0)} · "
+                led(                    f"WINDOWS USED: {int(_acct.get('hail_mary_count') or 0)} · "
                     f"ONE PER ROTATION", "off")
             )), unsafe_allow_html=True)
-    except Exception:
-        pass
-    # ── THE WORTH FLOOR DIAL (user rule, Sep 2: "should be a dial on the
-    #    console — adjustable without Workshop"): the popup gates (champion
-    #    + mover) read it LIVE from console_state.json — turning the dial
-    #    takes effect on the next alert, no scanner restart. 0% = OFF.
-    #    (Sep 4) THE AUTO-DIAL: rotation-aware — the slider becomes the
-    #    BASE anchor; the effective dial scales with the hour's real room
-    #    (the engine's pace factor), the tide, and the day's catch-up
-    #    state. Toggle defaults ON (user, Sep 4).
-    _wf_raw = _cs.get("worth_floor_frac")
-    _wf = float(_wf_raw) if _wf_raw is not None else 0.25
-    _wf_auto_raw = _cs.get("worth_floor_auto")
-    _wf_auto = bool(_wf_auto_raw) if _wf_auto_raw is not None else True
-    _wf_auto_new = st.sidebar.toggle(
-        "🤖 AUTO-DIAL the worth floor (rotation-aware)",
-        value=_wf_auto,
-        help="ON: the dial below becomes the BASE — the effective floor auto-adjusts "
-             "every rotation: x the hour's expected move (the engine's pace factor), "
-             "x the tide (RISING relaxes 15%). The scanner and this display read the "
-             "SAME math live. OFF: the static dial, as before.",
-        key="worth_floor_auto_toggle")
-    if _wf_auto_new != _wf_auto:
-        _cs["worth_floor_auto"] = _wf_auto_new
-        _save_console_state(_cs)
-        _wf_auto = _wf_auto_new
-    _wf_new = st.sidebar.slider(
-        "💰 Worth floor (% of daily pace) — the BASE when auto is on",
-        0.0, 1.0, _wf, 0.05, format="%.0f%%",
-        help="A popup must be worth it: the sized entry at its goal has to pay at least "
-             "this share of the daily pace, or it's bumped. 50% on the 1k tier = a $12 "
-             "minimum payout; on 10k = $120. 0% turns the floor off (auto respects OFF).",
-        key="worth_floor_dial")
-    if abs(_wf_new - _wf) > 1e-9:
-        _cs["worth_floor_frac"] = _wf_new
-        _save_console_state(_cs)
-        _wf = _wf_new
-    # the LIVE math — the same factors the scanner gates on (ONE source
-    # of truth; dup-safe reload for consoles older than the helper)
-    try:
-        import background_scanner as _bsw
-        if not hasattr(_bsw, "worth_floor_auto_factors"):
-            import importlib
-            _bsw = importlib.reload(_bsw)
-        _wf_f = _bsw.worth_floor_auto_factors()
-    except Exception:
-        _wf_f = {"auto": _wf_auto, "base": _wf, "pace": 1.0, "tide": 1.0,
-                 "effective": _wf}
-    _wf_eff = float(_wf_f.get("effective", _wf))
-    _wf_usd = _pace * _wf_eff
-    if _wf <= 0:
-        st.sidebar.caption("Popups must pay ≥ $0 at the goal — floor OFF, every "
-                           "gated popup fires. The scanner reads it live — no restart.")
-    elif _wf_f.get("auto"):
-        st.sidebar.caption(
-            f"THIS ROTATION: {_wf:.0%} base × {_wf_f['pace']:.2f} pace × "
-            f"{_wf_f['tide']:.2f} tide × {_wf_f.get('actual', 1.0):.2f} actual "
-            f"= **{_wf_eff:.0%}** → popups must pay ≥ ${_wf_usd:,.0f} "
-            f"(auto — recalculated every rotation, reads the day's ACTUAL "
-            f"banked P&L too; live, no restart).")
-    else:
-        st.sidebar.caption(
-            f"Popups must pay ≥ ${_wf_usd:,.0f} at the goal "
-            f"({_wf:.0%} of ${_pace:,.0f}/day, static). The scanner reads it live — "
-            f"no restart.")
-    # ── THE ADVISORY BRAIN + POPUP CAP (user rules, Sep 5 — the entry-
-    #    path rebuild): the brain's number SIZES every entry (the bucket
-    #    table — ONE source: hindsight_scorer.brain_size_mult, imported by
-    #    the scanner AND this console), it never blocks. The scan itself
-    #    must run at fire-time (fail-closed — the JUP guarantee, kept).
-    #    The popup cap bounds how many BUY popups may fire inside 90 min
-    #    so the watch never floods. Both dials read LIVE — no restart.
-    _pc_raw = _cs.get("popup_cap")
-    _pc = int(_pc_raw) if _pc_raw else 3
-    _pc_new = st.sidebar.number_input(
-        "🧠 Popup cap (BUY popups per 90 min)", 1, 10, _pc,
-        help="The advisory brain fires far more often than the old floor did — no "
-             "more than this many BUY popups inside 90 minutes. Bridge writes are "
-             "unaffected (the bot's own gates govern real money); this caps the "
-             "watch and the voice.",
-        key="popup_cap_dial")
-    if int(_pc_new) != _pc:
-        _cs["popup_cap"] = int(_pc_new)
-        _save_console_state(_cs)
-        _pc = int(_pc_new)
+    except Exception as exc:
+        logger.debug("hail-mary plate failed: %s", exc)
+    # ── THE WORTH FLOOR — INTERNAL ONLY (user rule, Sep 10: "the worth
+    #    Floor dials are for internal use only; stays hidden from console"):
+    #    NO toggle, NO slider, NO live-math caption on the sidebar. The
+    #    floor auto-tunes itself every alert — worth_floor_auto_factors
+    #    (background_scanner, ONE source of truth) reads the engine's live
+    #    rotation thresholds (the current rotation's pace), the fleet
+    #    tide, and the account buffer; both popup gates read that same
+    #    math LIVE via _worth_floor_frac(). The console_state keys stay
+    #    as the internal override; nothing here renders or saves them.
+    st.sidebar.caption("Worth floor: auto-tuned to the current market rotation (internal).")
+    # ── THE ADVISORY BRAIN (user rules, Sep 5 — the entry-path rebuild):
+    #    the brain's number SIZES every entry (the bucket table — ONE
+    #    source: hindsight_scorer.brain_size_mult, imported by the scanner
+    #    AND this console), it never blocks. The scan itself must run at
+    #    fire-time (fail-closed — the JUP guarantee, kept).
+    #    (Sep 9) THE POPUP CAP DIAL REMOVED — not part of the design: no
+    #    money cap, no count cap. The BUFFER (the realized PnL above the
+    #    death line) is the risk factor and it owns the worth floor.
     # ── THE CLIMB-OUT DIAL (user rule, Sep 6): the strictness
     #    multiplier scales every climb-out clearance requirement.
     #    The scanner reads it LIVE — no restart.
@@ -4967,8 +7342,8 @@ def main():
                                   "signal_snapshots.jsonl")
         with open(_snap_path, "r", encoding="utf-8") as _f:
             _sn_n = sum(1 for _ln in _f if _ln.strip())
-    except Exception:
-        pass
+    except OSError as exc:
+        logger.debug("snapshot count unavailable: %s", exc)
     st.sidebar.caption(
         f"THE BRAIN SIZES, IT NEVER BLOCKS — the scan must run (fail-closed): "
         f"{_tbl}. Every popup and every burial lands in the snapshot dataset "
@@ -5002,8 +7377,8 @@ def main():
                                     f"monospace;font-size:11px;line-height:1.7;'>"
                                     f"{freshness_html()}</div>"),
             unsafe_allow_html=True)
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.debug("freshness plate failed: %s", exc)
 
     st.sidebar.caption("Launch everything from the desktop shortcuts.\nConsole = Scout + Trader in one board.")
 
@@ -5045,16 +7420,16 @@ def main():
                          icon="⛔", duration=20)
                 _play_sound("alarm")
                 _speak("Wait! The kill switch is triggered! No buys until you reset it!", rate=1)
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug("kill-switch toast/voice failed: %s", exc)
         else:
             try:
                 st.toast("✅ ALL SYSTEMS GO — kill switch clear, watcher armed, ready to hunt.",
                          icon="✅", duration=15)
                 _speak("Hello there! My systems are online and ready to make you "
                        "a ton of money today! Ready to have some fun!")
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug("systems-go toast/voice failed: %s", exc)
     if _ks_on:
         # stays visible on every page until the switch is reset
         st.error("⛔ WAIT — the kill switch is TRIGGERED. No buys will fire until you reset it "
@@ -5135,12 +7510,12 @@ def main():
                 _play_sound("ding")
                 _speak(f"The contest just paid you {sum(p['amount'] for p in _p_all):,.2f} dollars! "
                        f"Real money in your account!")
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug("payout toast/voice failed: %s", exc)
             st.markdown(plate("", f'<div class="celebrate">{_p_banner}</div>'),
                         unsafe_allow_html=True)
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.debug("payout celebration failed: %s", exc)
 
     # ── THE LIGHT: auto-watch strip, always mounted (runs on every page) ──
     render_auto_watch(cfg, kraken)

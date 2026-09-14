@@ -113,7 +113,7 @@ finally:
 ap = open("app.py", encoding="utf-8").read()
 sc = open("background_scanner.py", encoding="utf-8").read()
 check("console: tier selector drives the contest account state",
-      "_acct = _ca.save_state(_t, _ca.TIERS[_t][\"start\"])" in ap)
+      "_ca_t.new_contest(_t)" in ap)
 check("console: current balance is the sizing base",
       "cfg.challenge_balance = float(_acct[\"current_balance\"])" in ap)
 check("console: the death line is always visible (header LED + account plate)",

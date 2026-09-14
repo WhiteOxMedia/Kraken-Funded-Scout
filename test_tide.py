@@ -24,13 +24,15 @@ def check(name, ok, detail=""):
     results.append((name, ok, detail))
 
 # thresholds
-check("70% -> RISING", _tide_class(70.0) == "RISING")
-check("69.9% -> FLAT", _tide_class(69.9) == "FLAT")
+check("75% -> RISING", _tide_class(75.0) == "RISING")
+check("74.9% -> FLAT", _tide_class(74.9) == "FLAT")
 check("50% -> FLAT", _tide_class(50.0) == "FLAT")
 check("35.1% -> FLAT", _tide_class(35.1) == "FLAT")
 check("35% -> OUT", _tide_class(35.0) == "OUT")
 check("10% -> OUT", _tide_class(10.0) == "OUT")
-check("bands are sane", TIDE_RISING_MIN == 70.0 and TIDE_OUT_MAX == 35.0)
+check("bands are sane", TIDE_RISING_MIN == 75.0 and TIDE_OUT_MAX == 35.0)
+# the Sep 11 retune (diag_tideretune.py): the RISING bar moved 70 -> 75
+# on the recalibrated spot-native store; OUT stayed 35 (no FLAT/OUT seam).
 
 # live reading from the real engine cache
 pct, state = _fleet_tide(max_age_s=0)
@@ -110,7 +112,8 @@ def _make_harness(deep, tide_state="RISING"):
     """One poll harness: the REAL _sure_thing_scan body + fakes.
     Returns (scan_fn, captures, tide_box, armed, result_box)."""
     cap = {"notify": [], "speak": [], "snaps": [], "sups": [], "rot": [],
-           "tide_reads": 0}
+           "tide_reads": 0, "learn_bar": (None, "cold"),
+           "seam_rel": (False, "the journal shows no tide-out burials")}
     armed, tide_box, result_box = {}, {"state": tide_state}, {"r": dict(_ARMED)}
 
     fake_st = types.ModuleType("sure_thing")
@@ -162,6 +165,11 @@ def _make_harness(deep, tide_state="RISING"):
         "timedelta": _td,
         "rotation_key_for_hour": lambda h: "08-12",
         "TIDE_FLAT_SIZE_FACTOR": bs.TIDE_FLAT_SIZE_FACTOR,
+        "LONE_WOLF_MOVE_MIN": bs.LONE_WOLF_MOVE_MIN,
+        "_tide_learn_bar": lambda: cap["learn_bar"],
+        "tide_personal_bar": bs.tide_personal_bar,   # the REAL rebalanced helper (Sep 10)
+        "_seam_releases_tide_out": lambda quick, deep, pair="", deep_fetcher=None:
+            cap["seam_rel"],
         "_sure_thing_goal": lambda ex, pair: _fake_live_goal,
         "_danger_zone_panel": lambda *a, **k: "[panel]",
         "rotation_mark_fired": lambda asset: cap["rot"].append(asset),
@@ -242,6 +250,26 @@ check("runtime: the tide is read FRESH at fire time (not one funnel read)",
 check("runtime: the rotation marks fired and the armed watch clears",
       cap2["rot"] == ["XMR"] and "XMR" not in armed2,
       (cap2["rot"], list(armed2)))
+
+# scenario 4: the OUT tide is a PRICE now (Sep 10) — the breakout
+# watch pays the learned bar or the journal release, and a buried coil
+# leaves a LOG (the old silent continue hid coil deaths)
+scan4, cap4, _, armed4, box4 = _make_harness(_DeepRead("buy", 60), "OUT")
+cap4["learn_bar"] = (92.0, "learned OUT bar 92 (payers 11.0% over 474h)")
+box4["r"] = dict(_ARMED, fire=True)
+scan4(_Ex())
+check("runtime: an OUT-tide fire below the learned bar is suppressed — and LOGGED",
+      len(cap4["notify"]) == 0 and any(k == "tide-out" for _, k in cap4["sups"]),
+      (len(cap4["notify"]), cap4["sups"]))
+cap4["seam_rel"] = (True, "the discipline journal opened the tide gate")
+scan4(_Ex())
+check("runtime: the journal release pops the OUT-tide fire",
+      len(cap4["notify"]) == 1 and cap4["rot"] == ["XMR"],
+      (len(cap4["notify"]), cap4["rot"]))
+check("runtime: the OUT popup is the Breakout Alert — NOW",
+      bool(cap4["notify"])
+      and "BREAKOUT ALERT — BUY XMR — NOW" in cap4["notify"][0][1],
+      cap4["notify"][0][1][:60] if cap4["notify"] else None)
 
 # scenario 3: the RISING fire — full size, no FLAT line
 scan3, cap3, _, _, box3 = _make_harness(_DeepRead("buy", 60), "RISING")

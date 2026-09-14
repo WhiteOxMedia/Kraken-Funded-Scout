@@ -14,7 +14,11 @@
 #   EST_MIN     the countdown's promise vs reality: pre-breakout fires
 #               promise ~N minutes; did the goal actually pay INSIDE the
 #               promise, late, or never? (crack fires promise the full
-#               window -- graded against it the same way)
+#               window -- graded against it the same way. The window is
+#               per-snapshot: since the Sep 11 re-contract the popup's
+#               clock is the 240-min 4h contract, and older fires keep
+#               their own 60-min stamps -- every fire grades against
+#               the promise ITS popup made.)
 #   IS 65 LOOSE win rate by score band (65-74 vs 75+) -- if the bottom
 #               band wins materially less, the threshold is too loose;
 #               if it keeps up, 65 earns its keep

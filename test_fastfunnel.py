@@ -4,7 +4,8 @@ a week like this.").
 
 THE DUAL FUNNELS (the hindsight scorer's task 4, live): FAST = immediate
 entry, minimal gates (the worth floor WAIVES; the 3% guard, the popup
-cap, the death line, too-thin, tide-OUT, the rotation lock all STAND);
+cap, the death line, too-thin, tide-OUT all STAND; the rotation lock and
+the per-pair anti-spam are RETIRED (Sep 10));
 SLOW = the full stack unchanged. The router reads hindsight_rules.json's
 fast_route keys LIVE (weekly re-extraction, no restart) with the
 PROVISIONAL data-backed rule until a tercile clears the bar:
@@ -109,8 +110,8 @@ check("the ONLY gate the fast route waives is the worth floor "
       champ.count("not _fast_route") == 1
       and "if is_buy and not _fast_route:" in champ
       and "DEATH LINE" in champ)
-check("the popup cap still gates the fast route",
-      champ.find("_recent_fired_popups()") > champ.find("THE FAST FUNNEL"))
+check("the popup cap is retired (Sep 9: functions kept, never called) — the fast route's cap waiver is moot",
+      "_recent_fired_popups()" not in champ and "THE FAST FUNNEL" in champ)
 
 # ── 4. the scanner wiring (mover path) ───────────────────────────────
 check("the mover path routes too (momentum runners are the fast feed)",
