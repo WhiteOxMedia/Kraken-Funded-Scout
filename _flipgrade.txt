@@ -1,0 +1,130 @@
+=== THE FLIP GRADE — the bench machinery judged on its own ledger ===
+graded at: 2026-09-14 01:11 UTC  (2 weeks: 2026-W37..2026-W38)
+canonical axis: fit edge = outcome-fitted $/fire − quantile $/fire (> 0 the outcome bar pays better)
+
+OUT  (2 two-sided weeks; the fit is live)
+  edges by week: +1.26 -0.08
+  pooled (2w): fit 99 fires $+4.16/fire vs quantile 91 fires $+3.48/fire — fit edge +0.68
+  bench proximity: 1/3 losing weeks (flips at 3 with a negative pool; 2 to go)
+
+FLAT  (2 two-sided weeks; the fit is live)
+  edges by week: +1.13 +0.00
+  pooled (2w): fit 60 fires $+2.64/fire vs quantile 68 fires $+2.33/fire — fit edge +0.31
+  bench proximity: 0/3 losing weeks (flips at 3 with a negative pool; 3 to go)
+
+RISING  (2 two-sided weeks; the fit is live)
+  edges by week: +0.33 +0.00
+  pooled (2w): fit 29 fires $+5.46/fire vs quantile 30 fires $+5.27/fire — fit edge +0.18
+  bench proximity: 0/3 losing weeks (flips at 3 with a negative pool; 3 to go)
+
+-- THE WATCHER -- the regime watch's forecast vs the gate's actual decisions (the proxy measures CHANGE, the gate measures LEVEL — a steady bleed never slopes, so late includes weeks the watcher never named)
+  OUT: 1 weeks checked — due-now weeks the gate also fired: 0, early (due-now, gate quiet): 0, late (gate fired first): 0
+    2026-W38: sliding toward a bench (+0.68, 0 losing weeks, ~5 wk to gate)
+  FLAT: 1 weeks checked — due-now weeks the gate also fired: 0, early (due-now, gate quiet): 0, late (gate fired first): 0
+    2026-W38: sliding toward a bench (+0.31, 0 losing weeks, ~4 wk to gate)
+  RISING: 1 weeks checked — due-now weeks the gate also fired: 0, early (due-now, gate quiet): 0, late (gate fired first): 0
+    2026-W38: sliding toward a bench (+0.18, 0 losing weeks, ~5 wk to gate)
+
+-- THE POOL-GATE DIAL -- the shipped POOL_MIN judged on the real ledger (a denied COSTING re-arm SAVES, a denied PAYING one MISSES — negative, same table). The STREAK dial rides the same grade: each event's own decision-time winning_weeks against the FBW candidates
+  no real flip-backs on the ledger yet — the dial grades nothing (the seeded replays stay simulations)
+  THE BORROW'S RECORD: none graded yet — the tally appears when real flip-backs' aftermaths grade
+  THE STREAK VERDICT: FBW=3 -> 0 denied, 0 delayed, net $+0.00 · FBW=4 -> 0 denied, 0 delayed, net $+0.00  (no real flip-backs — the streak grades nothing)
+  LEARNED BARS: none in force — every state rides the global dial (the learner ships per-state bars only when a state's own edge weeks clear the evidence gates)
+
+-- THE POOL-GATE FAMILY SWEEP -- the walk, wired in: the gate re-run week-by-week per graduated threshold, denials dropping the re-arm and restoring the bench so delays and cascades EMERGE from the replay (threshold 0 must reproduce the lived events — the walk's baseline check)
+  +0.25: identical governance — nothing to price
+  +0.50: identical governance — nothing to price
+  FAMILY NET: +0.25 $+0.00 · +0.50 $+0.00 — a denial saves when the fit under-earned its governed window, misses when it out-earned it (negative = the dial would have cost money)
+
+-- THE ARC-3 LIVE SWEEP -- the pool dial's raise judged on lived evidence (a denial saves; a raise proposes only on 3+ priced re-arms, a netting-positive candidate, and every rolling window staying positive — and it applies by hand, never automatically)
+  MACHINERY: the walked family — the gate re-run per candidate on the lived stream (the threshold-0 walk reproduces the lived events), delays and cascades emerging from the replay
+  no priced real re-arms yet — the shipped 0.0 has no evidence to move on (the sweep re-runs with each monthly grade)
+
+-- THE FBW-GATE FAMILY SWEEP -- the pool dial's walk on the streak axis: the gate re-run per graduated FLIP_BACK_WEEKS candidate, denied re-arms restoring the bench so delays and cascades emerge from the replay (the shipped-FBW walk must reproduce the lived events)
+  FBW=3: identical governance — nothing to price
+  FBW=4: identical governance — nothing to price
+  FAMILY NET: FBW=3 $+0.00 · FBW=4 $+0.00 — a longer streak demand saves when the re-arms it denies cost money after the fact, misses when they paid (negative = the dial would have cost money)
+
+-- THE FBW LIVE SWEEP -- the streak dial's raise judged on lived evidence (a denial saves; a raise proposes only on 3+ priced re-arms, a netting-positive candidate, and every rolling window staying positive -- and it is a recommendation, never an auto-change)
+  MACHINERY: the walked family -- the gate re-run per FBW candidate on the lived stream (the shipped-FBW walk reproduces the lived events), delays and cascades emerging from the replay
+  no priced real re-arms yet -- the shipped FBW=2 has no evidence to move on (the sweep re-runs with each monthly grade)
+
+-- THE LEARNED BARS -- each state's own POOL_MIN from its pooled-edge distribution (median of its weekly fit edges, quantized up to the 0.25 family; IN FORCE = the gate's live file, DERIVED = this grade's fresh verdict)
+  OUT: global dial (median n/a over 2 edge weeks — thin (2/6 edge weeks))
+  FLAT: global dial (median n/a over 2 edge weeks — thin (2/6 edge weeks))
+  RISING: global dial (median n/a over 2 edge weeks — thin (2/6 edge weeks))
+
+=== THE FLIP GRADE — did flipped states stop losing? (Sep 11) ===
+
+SEED — the real 2026-W37 OUT record:
+  in force (the outcome fit): 82 fires $+4.00/fire (total $+328.37)
+  counterfactual (quantile): 46 fires $+4.82/fire (total $+221.55)
+  the fit's realized edge that week: -0.82 $/fire
+
+-- A. THE BENCH — the losing streak the fit earned --
+  2026-W37: fit $+4.00/fire vs quantile $+4.82/fire  edge -0.82  pooled -0.81  -> -
+  2026-W38: fit $+3.60/fire vs quantile $+5.12/fire  edge -1.52  pooled -1.17  -> -
+  2026-W39: fit $+3.50/fire vs quantile $+5.02/fire  edge -1.52  pooled -1.28  -> flip (fit losing 3 weeks, pooled fit edge -1.28)
+  2026-W40: fit $+3.40/fire vs quantile $+4.92/fire  edge -1.52  pooled -1.34  -> -
+
+  HINDSIGHT IN DOLLARS (W37-W39, the fit still live):
+    the fit: $+910.57 over 246 fires ($+3.70/fire)
+    the quantile, same weeks: $+687.99 over 138 fires ($+4.99/fire)
+    per-dollar efficiency lost to the fit: $+1.28/fire x 246 fires
+    NOTE the contract: the flip keys on $/fire — per-dollar
+    efficiency — because the size ladder scales exposure per fire.
+    Raw totals still favor the fit's fatter fire count here; the
+    bench trades total dollars for efficiency. That tension is the
+    known open question on this machinery (see the verdict).
+
+-- B. THE FLIPPED WEEKS — does the state stop losing? --
+The quantile is live now; the fit's fires are counterfactual on
+the SAME candidate stream. First two weeks: the live quantile
+out-earns the benched fit (the bleed stops). Then two weeks where
+the fit's counterfactual wins — the recovery proof.
+  2026-W41: live quantile $+4.92/fire, fit cf $+3.30/fire (fit edge -1.62, pooled -1.54) -> -
+  2026-W42: live quantile $+4.82/fire, fit cf $+3.20/fire (fit edge -1.62, pooled -1.57) -> -
+  2026-W43: live quantile $+4.22/fire, fit cf $+4.90/fire (fit edge +0.68, pooled -1.02) -> -
+  2026-W44: live quantile $+4.32/fire, fit cf $+5.10/fire (fit edge +0.78, pooled -0.45) -> -
+  2026-W45: live quantile $+4.22/fire, fit cf $+5.20/fire (fit edge +0.98, pooled +0.21) -> flip_back (fit cf winning 3 weeks, pooled fit edge +0.21)
+  2026-W46: live quantile $+4.12/fire, fit cf $+5.30/fire (fit edge +1.18, pooled +0.91) -> -
+
+  HINDSIGHT IN DOLLARS:
+    W41-W42 (the stopped bleed): the live quantile realized $+448.04 ($+4.87/fire) while the
+    benched fit's counterfactual would have paid $+3.25/fire —
+    the flip SAVED $+1.62/fire x 92 fires = $+149.04 vs staying benched-fit.
+    W43-W44 (the recovery begins): the fit's counterfactual out-earned $+5.00/fire vs the live quantile's $+4.27 — 2 consecutive fit-winning weeks, BUT the pooled 4-week edge was still negative, so the POOL GUARD held the bar benched (see W44: no flip-back). The recovery must out-earn the bad weeks' pooled
+    memory, not just a lucky fortnight — two more winning weeks
+    (W45-W46) turned the pool positive and the flip-back landed.
+    The re-arm was earned on the fit's OWN axis, on weeks it did
+    not trade: the verdict cannot game itself.
+
+-- C. THE INVERSION PROOF — the pre-fix rule, recomputed --
+Flipped-regime weeks where the fit's counterfactual LOSES two
+weeks running (the fit stays dead weight). The old code read the
+raw in_force-other delta = quantile - fit > 0 there, i.e. it saw
+'winning weeks' and re-armed a losing fit.
+  the fit's counterfactual edges those weeks: -1.62, -1.62 (losing)
+  OLD rule: raw 'winning' streak 2, raw pool +0.05 -> flip-back fires = True
+  SHIPPED rule: flip-back fires = False (stays benched: the fit never proved it)
+
+-- VERDICT --
+Does a flipped state stop losing? The machinery is built so it
+must, and the replay shows the arc: the bench requires 3
+consecutive fit-losing weeks AND a negative pooled fit edge; the
+flipped weeks are then graded live-quantile vs counterfactual-fit
+on the same candidate stream, so 'stopped losing' is directly
+observable in $/fire; and the fit returns only after consecutive
+counterfactual winning weeks AND a positive pooled edge — the
+replay shows the pool guard holding the re-arm two extra weeks
+(W44) until the recovery out-earned the bad weeks' pooled memory.
+Both horizons run on the canonical fit−quantile axis, regime-
+normalized by each week's other_src (the pre-fix code would have
+re-armed a losing fit — section C shows it firing on raw deltas
+the shipped code correctly reads as losing; the shipped rule
+cannot). Two honest caveats: (1) the decision metric is $/fire —
+per-dollar efficiency — while raw totals can still favor the
+benched fit's fatter fire count, which is the ladder-vs-selection
+tension, not a bug; (2) one real week of history exists (W37), so
+every flip decision above is a seeded replay, not a lived event —
+from W38 on this grade is re-runnable from the live ledger.
