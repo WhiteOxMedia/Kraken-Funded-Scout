@@ -14,7 +14,7 @@ REM DIRECTIONS MATTER (the Sep 8 twin audit): signal_bridge flows
 REM scout -> bot (the bot's reader resolves THIS project's bridge via
 REM SCOUT_PATH, so this copy is the live one). The reader twin is the
 REM REVERSE: the bot's scout_signal_reader.py is the live one (it carries
-REM the day-start balance breaker, the DST-aware MST, the dynamic caps) —
+REM the day-start balance breaker, the DST-aware MST, the dynamic caps)  - 
 REM a blind copy here would regress real-money protections.
 copy "signal_bridge.py" "C:\Users\birds\Workspace\kraken_xrp_trading_bot\signal_bridge.py"
 
@@ -30,7 +30,7 @@ if exist "C:\Users\birds\Workspace\kraken_xrp_trading_bot\scout_signal_reader.py
         exit /b 1
     )
 )
-REM first install: no destination yet — the copy below is the install
+REM first install: no destination yet  -  the copy below is the install
 copy "scout_signal_reader.py" "C:\Users\birds\Workspace\kraken_xrp_trading_bot\scout_signal_reader.py"
 
 echo.

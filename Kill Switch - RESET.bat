@@ -18,7 +18,7 @@ echo ================================================================
 echo.
 echo   This will:
 echo     1. Re-baseline today's balance to the ACTUAL current balance
-echo        (the circuit breaker accepts the new low level — without this
+echo        (the circuit breaker accepts the new low level  -  without this
 echo        it re-fires within one bot cycle: 10%% of the OLD morning
 echo        balance is gone the moment the flatten landed)
 echo     2. Delete the kill switch lock file

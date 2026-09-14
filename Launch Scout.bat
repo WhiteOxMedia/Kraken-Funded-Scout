@@ -20,8 +20,9 @@ REM Check if already running - don't start duplicate scanner
 REM (PowerShell checks command lines; tasklist/wmic do not work reliably)
 powershell -NoProfile -Command "if (Get-CimInstance Win32_Process -Filter \"name='python.exe'\" | Where-Object {$_.CommandLine -like '*background_scanner*'}) { exit 0 } else { exit 1 }" >nul 2>&1
 if errorlevel 1 (
-    REM Scanner NOT running - start it in a new window
-    start "Scout Scanner" cmd /c ".venv\Scripts\python.exe background_scanner.py 2>&1 & pause"
+    REM Scanner NOT running - spawn it detached (hidden, UTF-8 logs in
+    REM logs\, stale-pid retake) and wait for the verified boot
+    powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0start_detached.ps1" -Component background_scanner -LogStem scanner -Base "%~dp0." -RetakeStalePid
 ) else (
     echo Scanner is already running - skipping scanner start.
 )
