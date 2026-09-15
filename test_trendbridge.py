@@ -95,6 +95,19 @@ check("exit reason says GET OUT NOW + the knife",
       "GET OUT NOW — trend reversed" in src)
 check("rewrite pacing present (15 min per pair)",
       "_trend_exit_pace" in src and "900.0" in src)
+# ── THE EXIT-WATCH SWITCH (Sep 14): the watch holds its fire when her
+#    console toggle pauses it — the bridge read rides through
+#    exit_watch_enabled, so an OFF watch leaves _held empty and no
+#    silent SELL is ever written. The mechanical ladder is untouched.
+check("the watch's holdings read rides the EXIT-WATCH switch (an OFF "
+      "watch holds its fire — no silent SELL written)",
+      "_held = (_bop() if _xwe() else [])" in src
+      and "exit_watch_enabled as _xwe" in src)
+check("the switch lives in the shared bridge (both processes read the "
+      "same toggle)",
+      "def exit_watch_enabled" in open("signal_bridge.py", encoding="utf-8").read()
+      and 'DB_PATH.parent / "console_state.json"'
+      in open("signal_bridge.py", encoding="utf-8").read())
 
 # ── 3. the bridge contract: dup-safe + 10-min validity (already true) ─
 import signal_bridge as sb2

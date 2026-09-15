@@ -134,7 +134,9 @@ check("the reader honors the priced marker and still rejects a bare OUT",
       'startswith("OUT|BAR PASSED ")' in bot_src
       and 'if _sig_tide == "OUT" and _sig_tide_bar is None:' in bot_src)
 check("the reader degrades a malformed marker to a reject (fail-closed)",
-      "_sig_tide_bar = None" in bot_src)
+      "def _out_bar_from_signal" in bot_src
+      and "bar = None" in bot_src
+      and 'if _sig_tide == "OUT" and _sig_tide_bar is None:' in bot_src)
 BOT_READER = Path(r"C:\Users\birds\Workspace\kraken_xrp_trading_bot\scout_signal_reader.py")
 bot_src = BOT_READER.read_text(encoding="utf-8")
 check("the reader's stamp check still rejects OUT (belt-and-braces)",

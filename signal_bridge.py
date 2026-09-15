@@ -37,6 +37,40 @@ DB_PATH = Path(r"C:\Users\birds\Workspace\kraken_scout\signals.db")
 # Kill switch lock file — when present, no new trades
 KILL_SWITCH_FILE = Path(r"C:\Users\birds\Workspace\kraken_scout\kill_switch.lock")
 
+# ── THE EXIT-WATCH SWITCH (Sep 14) ──────────────────────────────────
+# One switch that silences the exit WATCHING machinery — the scanner's
+# silent trend-exit signals AND the bot's own trend-reversal knife —
+# from ONE place: the console's EXIT WATCH toggle. This kills the
+# WATCHING, never the protection: the mechanical exit ladder (stop-loss,
+# take-profit, trailing stop) is untouched in both processes, so a
+# paused watch can never strand a position without a floor. The kill
+# switch stays the full flatten; this is only the trend-exit brain.
+# Fail-open on any read error: a broken console_state file means the
+# watch runs (the historical default) — silencing must be explicit.
+EXIT_WATCH_CACHE: dict = {"ts": 0.0, "val": True}
+
+
+def exit_watch_enabled(max_age_s: float = 30.0) -> bool:
+    """True unless she explicitly switched EXIT WATCH off on the console
+    (console_state.json 'exit_watch': False). Cached 30s per process —
+    the scanner and the bot each read at most twice a minute. Fail-open:
+    unreadable state leaves the watch ON."""
+    import time as _t
+    import json as _json
+    _now = _t.time()
+    if _now - float(EXIT_WATCH_CACHE.get("ts") or 0.0) < max_age_s:
+        return bool(EXIT_WATCH_CACHE.get("val"))
+    val = True
+    try:
+        _doc = _json.loads(
+            (DB_PATH.parent / "console_state.json").read_text(encoding="utf-8"))
+        if isinstance(_doc, dict):
+            val = bool(_doc.get("exit_watch", True))
+    except Exception:
+        val = True   # fail-open: the watch runs unless explicitly paused
+    EXIT_WATCH_CACHE.update(ts=_now, val=val)
+    return val
+
 
 def _get_db() -> sqlite3.Connection:
     """Get a SQLite connection with row factory."""
@@ -98,6 +132,13 @@ def init_db():
             conn.execute("ALTER TABLE signals ADD COLUMN tide_state TEXT")
         if "tide_pct" not in cols:
             conn.execute("ALTER TABLE signals ADD COLUMN tide_pct REAL")
+        # Migration (Sep 14, the semantic-options closure): the priced
+        # OUT pass's learned bar used to ride INSIDE the tide_state
+        # prose ('OUT|BAR PASSED 90') and the bot parsed the number
+        # back out of the sentence. A structured column carries it —
+        # the sentence becomes display-only. NULL = pre-column signal.
+        if "tide_bar" not in cols:
+            conn.execute("ALTER TABLE signals ADD COLUMN tide_bar REAL")
         conn.commit()
 
 
@@ -334,6 +375,98 @@ MAX_CONCURRENT_POSITIONS = 1  # RETIRED as the live cap (Sep 2, restored as
                               # retired Sep 4 — the position ladder is the
                               # gate again); kept defined per don't-delete.
 
+# ── THE MACHINERY'S RE-ARM GATE, SHARED (Sep 14) ────────────────────
+# The weekly tide-bar machinery benches a state when its outcome fit
+# loses FLIP_WEEKS weeks running and auto re-arms it only when the fit
+# wins FLIP_BACK_WEEKS weeks running AND the pooled fit edge clears
+# that state's OWN learned POOL_MIN. tide_learn honors the bench for
+# its own bars; what never reached the bot's ledger is this re-arm
+# evidence — the bot honored any 'OUT|BAR PASSED <bar>' stamp without
+# knowing whether the machinery itself still trusts the fit for that
+# state. This shared gate exposes the machinery's own re-arm verdict so
+# BOTH sides price re-arms on the same learned evidence.
+
+def bot_tide_rearm_gate(tide_state: str = "OUT") -> dict:
+    """The tide-bar machinery's re-arm verdict for ONE tide state — the
+    same arithmetic _evaluate_flips applies before a real flip_back:
+
+      fit_wins      the state's consecutive fit-positive weeks
+                    (None = no graded history)
+      pooled_delta  the pooled canonical fit edge, $/fire (None = no
+                    graded history)
+      pool_bar      the state's own learned POOL_MIN (the per-state
+                    evidence default; 0.0 while the global dial gates)
+      rearm_ok      the machinery would re-arm this state right now —
+                    a benched state passes ONLY when the full re-arm
+                    gate passes; an unbenched state is True (its fit is
+                    live, the bench gate owes it nothing)
+      benched       the state's current regime from tide_bar_flips.json
+
+    This gate says NOTHING about a popup's own confidence — the caller
+    keeps its confidence bar (the learned band) and every reader veto;
+    it answers one question: does the machinery's own evidence still
+    trust this state's bar? Shared-fail-closed: a broken ledger or a
+    missing history makes rearm_ok False for a benched state (its fit
+    must EARN re-arm — a verdict it cannot supply is not consent) and
+    True for an unbenched one (the fit is live; no verdict = no veto).
+    Import of tidebar_weekly rides the scout repo path the caller
+    already needs for signal_bridge itself; an import failure is a
+    verdict with meta, never an exception.
+    """
+    out = {"fit_wins": None, "pooled_delta": None, "pool_bar": None,
+           "benched": False, "rearm_ok": False,
+           "meta": "gate unavailable"}
+    state = (tide_state or "OUT").upper()
+    try:
+        import tidebar_weekly as _tbw
+        flips = _tbw._load_flips() or {}
+        benched = bool((flips.get(state) or {}).get("flipped"))
+        out["benched"] = benched
+        recs = _tbw._load_history()
+        weeks = [str(r.get("week") or "") for r in recs]
+        wk = [_tbw._week_fit_edge(r, state) for r in recs]
+        wins = 0
+        for d in reversed(wk):
+            if d is None or d <= 0:
+                break
+            wins += 1
+        roll = _tbw._rolling_grade(recs, state)
+        delta = roll.get("delta") if roll else None
+        bar = _tbw._pool_min_for(state)
+        out["fit_wins"] = wins if weeks else None
+        out["pooled_delta"] = (round(float(delta), 2)
+                               if isinstance(delta, (int, float)) else None)
+        out["pool_bar"] = (float(bar)
+                           if isinstance(bar, (int, float)) else None)
+        if not benched:
+            out["rearm_ok"] = True
+            out["meta"] = ("the fit is live for " + state
+                           + " — the bench gate owes it nothing")
+            return out
+        # benched: the full re-arm gate, exactly _evaluate_flips's
+        # flip-back branch — every None is a NO (a verdict the ledger
+        # cannot supply is not consent)
+        need_wins = int(getattr(_tbw, "FLIP_BACK_WEEKS", 2))
+        if wins >= need_wins and delta is not None and delta > 0 \
+                and bar is not None and delta >= bar:
+            out["rearm_ok"] = True
+            out["meta"] = (f"re-arm gate passes: {wins}/{need_wins} winning "
+                           f"weeks, pooled {float(delta):+.2f} >= bar "
+                           f"{float(bar):+.2f}")
+        else:
+            parts = [f"{wins}/{need_wins} winning weeks"]
+            if delta is None or delta <= 0:
+                parts.append("pooled edge not positive")
+            elif bar is None or delta < bar:
+                parts.append(f"pooled {float(delta):+.2f} below the "
+                             f"state's bar {float(bar or 0.0):+.2f}")
+            out["meta"] = ("the machinery keeps the bench: "
+                           + ", ".join(parts))
+        return out
+    except Exception as exc:
+        out["meta"] = f"gate read failed ({exc})"
+        return out
+
 
 def write_buy_signal(
     pair: str,
@@ -351,6 +484,7 @@ def write_buy_signal(
     is_dca: bool = False,  # DCA tranche: adds to an existing position
     tide_state: str = "",  # fleet state at signal time (RISING/FLAT/OUT/UNKNOWN)
     tide_pct: float | None = None,  # fleet breadth % at signal time
+    tide_bar: float | None = None,  # the learned OUT bar (structured; NULL elsewhere)
 ) -> str | None:
     """Write a buy/sell signal to the database.
 
@@ -420,14 +554,14 @@ def write_buy_signal(
                 timestamp, valid_until, cooldown_until,
                 price_at_signal, entry_price, stop_loss, take_profit,
                 risk_reward, position_size_usd, source, status,
-                tide_state, tide_pct
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?)
+                tide_state, tide_pct, tide_bar
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?)
         """, (
             signal_id, pair, action, confidence, reason_summary,
             now.isoformat(), valid_until, cooldown_until,
             entry_price, entry_price, stop_loss, take_profit,
             risk_reward, position_size_usd, source,
-            tide_state, tide_pct,
+            tide_state, tide_pct, tide_bar,
         ))
         conn.commit()
 
