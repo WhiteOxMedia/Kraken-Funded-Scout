@@ -6505,9 +6505,7 @@ def render_auto_watch(cfg: TradingConfig, kraken):
         _render_light_panel(f"{interval // 60} min")
         _render_her_words()
         _render_bots_book(kraken, cfg)
-        _toast_new_her_words()
-
-        # her-words popup ticker: fast lane (15s) — GET OUT / TAKE IT
+        _toast_new_her_words()        # her-words popup ticker: fast lane (15s) — GET OUT / TAKE IT
         # popups shouldn't wait for the 60s light cycle (user rule, Aug 30:
         # "so not as a pop up?")
         @st.fragment(run_every=15_000)
@@ -6515,6 +6513,38 @@ def render_auto_watch(cfg: TradingConfig, kraken):
             _toast_new_her_words()
 
         _her_words_tick()
+
+        # VOICE-DRIVEN FRESHNESS (Sep 21): the watching section reads its
+        # PnL and clocks only while a rerun runs — clicks or timers — so
+        # it sat stale between them. She speaks every minute while trades
+        # are tracked; a new voice_log line now triggers one full rerun
+        # (the same event that moved the numbers) so the section shows
+        # what she just said. The fragment's rerun is swallowed; the main
+        # script's rerun re-renders everything.
+        @st.fragment(run_every=15_000)
+        def _voice_refresh_tick():
+            try:
+                import json as _json
+                from pathlib import Path as _P2
+                _vf = _P2(__file__).parent / "voice_log.jsonl"
+                if not _vf.exists():
+                    return
+                _vlines = [l for l in _vf.read_text(encoding="utf-8").splitlines()
+                           if l.strip()]
+                if not _vlines:
+                    return
+                _vnew = str(_json.loads(_vlines[-1]).get("ts", ""))
+                _vseen = st.session_state.get("voice_refresh_last_ts", "")
+                if _vseen and _vnew > _vseen:
+                    st.session_state["voice_refresh_last_ts"] = _vnew
+                    st.rerun(scope="app")
+                elif not _vseen:
+                    st.session_state["voice_refresh_last_ts"] = _vnew
+            except (OSError, ValueError, KeyError) as _vexc:
+                logger.debug("voice-refresh tick skipped: %s", _vexc)
+
+        _voice_refresh_tick()
+
 
         # ── SOLD buttons: the scalper's re-entry loop ──────────────────
         # Took the $20? Tap SOLD — the position clears and the next green

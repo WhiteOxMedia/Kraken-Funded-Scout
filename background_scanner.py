@@ -4085,6 +4085,33 @@ def main():
                 # hindsight ledger — say so
                 logger.warning("fired snapshot failed for %s (%s) — this "
                                "fire's hindsight row is lost", asset, exc)
+            # ── AUTO-TRACK AT FIRE TIME (Sep 21, the ATOM gap): the popup
+            # is the contract — "if it pops up it should be auto tracking."
+            # Tracking used to ride the browser's next rerun, and a signal
+            # expiring on the bridge before any rerun (ATOM 06:27, expired
+            # 06:51 unwached) left a fired popup untracked. The scanner
+            # writes the row NOW from its own fire-time numbers; the
+            # console's later rerun merges and adds live highs. Never
+            # displaces an entry the user already has.
+            try:
+                _cw = _load_contest_watch()
+                if pair not in _cw:
+                    _cw[pair] = {"entry": float(signal.entry_price or 0.0),
+                                 "high": float(signal.entry_price or 0.0),
+                                 "added": _now_mst().isoformat(),
+                                 "size": float(_spend or 0.0),
+                                 "goal_pct": float(_goal_pct or 0.0),
+                                 "window_min": float(_win_min or 0.0),
+                                 "why": [f"BUY {signal.confidence:.0f}% (champion)"],
+                                 "source": "champion"}
+                    _save_contest_watch(_cw)
+                    logger.info("AUTO-TRACK: %s watched at fire time "
+                                "(entry $%.4f, goal %.1f%%, window %.0fm)",
+                                asset, float(signal.entry_price or 0.0),
+                                float(_goal_pct or 0.0), float(_win_min or 0.0))
+            except Exception as exc:
+                logger.warning("fire-time auto-track failed for %s (%s) — "
+                               "watch it by hand from the popup", asset, exc)
         logger.info("🚀 BIG ALERT: %s %s — %.0f%% — entry $%.4f — TP $%.4f",
                     signal.action.upper(), asset, signal.confidence, signal.entry_price, signal.take_profit)
 
