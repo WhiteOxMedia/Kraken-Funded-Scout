@@ -1,5 +1,0 @@
-KILLING SCANNER ROOT PID 24996
-SUCCESS: The process with PID 22408 (child process of PID 4252) has been terminated.
-SUCCESS: The process with PID 22116 (child process of PID 24996) has been terminated.
-SUCCESS: The process with PID 4252 (child process of PID 24996) has been terminated.
-SUCCESS: The process with PID 24996 (child process of PID 20900) has been terminated.

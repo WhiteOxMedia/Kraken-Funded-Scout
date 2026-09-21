@@ -1,9 +1,0 @@
-=== processes with kraken_scout in command line ===
-PID 21200  C:\windows\system32\cmd.exe /c ""C:\Users\birds\Workspace\kraken_scout\Launch Kraken.bat" "  START 8/24/2026 8:56:10 AM
-PID 25396  "C:\Users\birds\Workspace\kraken_scout\.venv\Scripts\python.exe" "C:\Users\birds\Workspace\kraken_scout\.venv\Scripts\streamlit.exe"  run app.py --server.port 8501 --server.runOnSave false  START 8/24/2026 8:56:14 AM
-PID 18020  "C:\Users\birds\AppData\Roaming\uv\python\cpython-3.14-windows-x86_64-none\python.exe"  "C:\Users\birds\Workspace\kraken_scout\.venv\Scripts\streamlit.exe"  run app.py --server.port 8501 --server.runOnSave false  START 8/24/2026 8:56:14 AM
-
-=== streamlit processes (any) ===
-PID 13756  ".venv\Scripts\streamlit.exe"  run app.py --server.port 8501 --server.runOnSave false  START 8/24/2026 8:56:14 AM
-PID 25396  "C:\Users\birds\Workspace\kraken_scout\.venv\Scripts\python.exe" "C:\Users\birds\Workspace\kraken_scout\.venv\Scripts\streamlit.exe"  run app.py --server.port 8501 --server.runOnSave false  START 8/24/2026 8:56:14 AM
-PID 18020  "C:\Users\birds\AppData\Roaming\uv\python\cpython-3.14-windows-x86_64-none\python.exe"  "C:\Users\birds\Workspace\kraken_scout\.venv\Scripts\streamlit.exe"  run app.py --server.port 8501 --server.runOnSave false  START 8/24/2026 8:56:14 AM

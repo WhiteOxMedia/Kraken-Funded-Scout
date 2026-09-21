@@ -1,5 +1,0 @@
-Install Bridge.bat: clean
-Kill Switch - FLATTEN.bat: clean
-Kill Switch - RESET.bat: clean
-Launch Kraken.bat: clean
-Launch Scout.bat: clean

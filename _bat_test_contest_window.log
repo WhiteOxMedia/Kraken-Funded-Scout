@@ -1,4 +1,0 @@
-PASS  the lockfile is released after the write
-PASS  missing dedupe keys stay UNIQUE per call (both trades apply)
-
-RESULT: 35 passed, 0 failed

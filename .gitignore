@@ -28,3 +28,21 @@ signals.db.bak_botstrategy
 # the contest account's writer lockfile (written on every balance save)
 contest_account.json.lock
 contest_account.json.lock.tmp*
+stop_stack.lock
+
+# ── fleet runtime state (Sep 20) ─────────────────────────────────────
+# single-instance lock files (pid journals rewritten on every boot)
+*.lock
+# atomic-write tmp suffixes (json/tmp churn from every live writer)
+*.tmp
+*.tmp.*
+# sqlite WAL sidecars of every live store (the .db itself is committed
+# after a checkpoint; the sidecars are fleet-owned)
+*-shm
+*-wal
+# scanner log rotations (the live scanner.log is committed as evidence)
+scanner.log.20*
+# the live voice wav the speech queue renders
+speech_queue/*.wav
+# cache scratch dirs from diag runs
+_test_*/

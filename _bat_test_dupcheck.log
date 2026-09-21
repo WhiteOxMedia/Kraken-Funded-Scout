@@ -1,3 +1,0 @@
-NEW check finds acknowledged record (dup suppressed): True
-OLD check would have missed it (dup written): True
-synthetic rows persisted (must be 0): 0
