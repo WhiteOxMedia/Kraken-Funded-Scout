@@ -1842,7 +1842,7 @@ def _pick_card(cfg: TradingConfig, kraken):
             f"HOW LONG <span class='dim'>.........</span> goal +{_card_goal:.1f}% — or she says out. "
             f"If it hasn't paid by the window's end, get out.",
             f"<span class='dim'>{total} signals · {len(ranked)} real moves · this is the best one — "
-            f"one click for the final yes/no</span>",
+            f"the popup is watching it, nothing to tap</span>",
             # THE FRESH STAMP (Sep 13): rendered OUTSIDE the cached body,
             # at fragment-tick time — the card's clock can never freeze
             f"<span class='dim'>as of {_n.strftime('%H:%M')} MST — "
@@ -1850,15 +1850,12 @@ def _pick_card(cfg: TradingConfig, kraken):
             _tide_line(),
         ]
         st.markdown(plate("⚡ THE PICK", lcd(rows, tone="green")), unsafe_allow_html=True)
-        if st.button(f"➡ CHECK {h['asset']} — the final yes/no",
-                     type="primary", width="stretch", key="card_confirm"):
-            st.session_state["qc_pick_next"] = h["asset"]
-            st.session_state["qc_auto_scan"] = True   # scan fires on arrival
-            st.session_state["active_tab"] = "QUICK CHECK"
-            try:
-                st.rerun(scope="app")
-            except TypeError:
-                st.rerun()
+        # NO CONFIRM BUTTON (user rule, Sep 21: phone-only — "I cannot always
+        # click on the console but I go in when it fires the popup"): the
+        # popup ROUTE auto-tracks the pick into the watch at fire time
+        # (background_scanner.auto_track_popup → contest_watch.json), so the
+        # card is a look, not a gate. A confirm button here pretended the
+        # entry waited on a tap it never needed.
         return
 
     # ── WAITING: nothing fresh — she's hunting ──────────────────────
@@ -4630,25 +4627,21 @@ def render_tournament(cfg: TradingConfig, scan_cfg: TradingConfig, kraken):
     if sig.action == "buy" and passes:
         _champ_asset = _asset(champ.pair)
         if _champ_asset in ASSETS:
-            # NOTE: the champion only takes over QUICK CHECK when you click
-            # the button — visiting this page used to silently switch your
-            # QC coin selection on every render (part of the choppiness).
+            # NO CONFIRM BUTTON (user rule, Sep 21, phone-only): the popup
+            # route auto-tracks the champion into the watch at fire time —
+            # this card never gated the entry, and the button only made it
+            # look like the entry waited on a tap. VISIT-SAFETY still holds:
+            # visiting this page silently switching the QC coin selection
+            # was the choppiness fix (Sep 4) and that stays.
             if _fresh:
                 try:
-                    st.toast(f"🏆 {_champ_asset} is today's best pick — confirm it below",
+                    st.toast(f"🏆 {_champ_asset} is today's best pick — "
+                             f"the popup is watching it, nothing to confirm",
                              icon="🏆", duration=12)
-                    _speak(f"{_champ_asset} is today's best pick! Confirm it below!")
+                    _speak(f"{_champ_asset} is today's best pick! The popup is watching it!")
                     _play_sound("ding")
                 except Exception as exc:
                     logger.debug("champion toast/voice failed: %s", exc)
-            if st.button(f"➡ CONFIRM {_champ_asset} IN QUICK CHECK — the final yes/no",
-                         type="primary", width="stretch", key="champ_next_btn"):
-                st.session_state["qc_pick_next"] = _champ_asset
-                st.session_state["qc_auto_scan"] = True   # scan fires on arrival
-                st.session_state["qc_hint"] = (f"🏆 {_champ_asset} is today's best pick — "
-                                               f"{sig.confidence:.0f}% sure. Scanning it now…")
-                st.session_state["active_tab"] = "QUICK CHECK"
-                st.rerun()
     elif _fresh:
         _why = (f"{_asset(champ.pair)} is only {sig.confidence:.0f}% sure — needs the bar"
                 if sig.action == "buy" else
@@ -5687,10 +5680,9 @@ def render_quick_check(cfg: TradingConfig, kraken):
                            + (f", ${float(_wa_size):,.0f}" if _wa_size else "")
                            + f", goal {g:.1f}%). Flip on AUTO-WATCH in EXIT CHECK for 1-min exit alerts.")
     with w2:
-        # THE ONE ENTRY CONTROL (Sep 3, Option B): same-trade corrections and
-        # fresh registrations share one form — contest-app language, keyed
-        # updates in same-trade mode so the clock/goal/peak survive.
-        _render_entry_control(prefix="qc", default_pair=pair, kraken=kraken)
+        # THE ONE ENTRY CONTROL — RETIRED here too (Sep 21): popups
+        # auto-track with the scanner's fire-time numbers; nothing to fix.
+        pass
 
     # ADVISORY ONLY — contest use. No buttons write to the bridge; the
     # auto-scanner is the sole source of live trading signals.
@@ -6003,7 +5995,12 @@ def _render_her_words():
     "put her notifications on the console so I can see them if my volume
     is off"). Reads voice_log.jsonl written by the scanner's single mouth.
     The LATEST line shows in the expander title — visible at a glance —
-    with the full recent history inside."""
+    with the full recent history inside.
+    MERGED (Sep 21, user rule: "the contest is on my phone and I need to
+    see so I can match the records to the actual contest"): the open
+    WATCHING records sit at the top of the same expander — entry, live
+    PnL, goal, window clock — so one glance matches her words to the
+    contest, then SOLD clears each one."""
     try:
         import json as _json
         import html as _html
@@ -6034,7 +6031,84 @@ def _render_her_words():
         if not rows:
             return
         _latest = _html.escape(latest_txt[:70]) + ("…" if len(latest_txt) > 70 else "")
-        with st.expander(f"💬 HER WORDS — \"{_latest}\"  (tap to read all)", expanded=False):
+        # the watched-count rides the title so the phone glance sees it
+        # before the expander even opens
+        try:
+            _n_watch = len(_load_watch() or {})
+        except Exception:
+            _n_watch = 0
+        _watch_tag = f"  · 👁 {_n_watch} watched" if _n_watch else ""
+        with st.expander(f"💬 HER WORDS — \"{_latest}\"{_watch_tag}  (tap to read all)",
+                         expanded=False):
+            # ── WATCHING NOW (the merge, Sep 21): the open records first —
+            #    same math as the WATCHING card (entry, live px, goal, the
+            #    record's own window clock). A dead price feed dims the row
+            #    instead of hiding it: an open trade is never invisible.
+            try:
+                _cw = _load_watch() or {}
+            except Exception:
+                _cw = {}
+            if _cw:
+                _bal = 0.0
+                try:
+                    import contest_account as _ca_hw
+                    _bal = float(_ca_hw.load_state().get("current_balance") or 0.0)
+                except Exception:
+                    _bal = 0.0
+                _wrows = []
+                for _wp, _w in list(_cw.items()):
+                    try:
+                        _entry = float(_w.get("entry") or 0)
+                        _size = float(_w.get("size") or 0) or _bal
+                        _goal = float(_w.get("goal_pct") or 0) or 1.5
+                        try:
+                            _added = datetime.fromisoformat(_w["added"])
+                        except Exception:
+                            _added = _now_mst()
+                        try:
+                            _win = (float(_w.get("window_min") or 0)
+                                    or max(60.0, min(180.0, _goal * 60.0)))
+                        except Exception:
+                            _win = 90.0
+                        _left = int((_added + timedelta(minutes=_win)
+                                     - _now_mst()).total_seconds() // 60)
+                        _px = _ticker_px(_wp)
+                        if _entry > 0 and _px and _size > 0:
+                            _usd = (_px / _entry - 1.0) * _size
+                            _pct = (_px / _entry - 1.0) * 100
+                            _col = "#4be38a" if _usd >= 0 else "#ff6b5e"
+                            _flags = "🎯 GOAL HIT" if _pct >= _goal else ""
+                            if _left <= 0:
+                                _flags += (" · " if _flags else "") \
+                                    + "⏰ TIME'S UP — get out"
+                            _wrows.append(
+                                f"<div style='padding:6px 0;"
+                                f"border-bottom:1px solid rgba(255,255,255,0.08);'>"
+                                f"<b>{_asset(_wp)}</b> "
+                                f"<span style='color:{_col};font-family:Audiowide;"
+                                f"font-size:20px;'>{'+' if _usd >= 0 else '-'}"
+                                f"${abs(_usd):,.0f}</span> "
+                                f"<span class='dim'>· {_pct:+.1f}% · goal +{_goal:.1f}% · "
+                                f"{_flags or f'{_left} min left'}</span></div>")
+                        else:
+                            _wrows.append(
+                                f"<div style='padding:6px 0;"
+                                f"border-bottom:1px solid rgba(255,255,255,0.08);'>"
+                                f"<b>{_asset(_wp)}</b> <span class='dim'>· entered "
+                                f"{_fmt_price(_entry) or '?'} · no live price right "
+                                f"now</span></div>")
+                    except Exception as exc:
+                        logger.debug("her-words watch row failed for %s: %s",
+                                     _wp, exc)
+                if _wrows:
+                    st.markdown(
+                        "<span class='dim' style='font-size:12px;'>👁 WATCHING NOW — "
+                        "match these to the contest</span>"
+                        + "".join(_wrows)
+                        + "<div style='padding:4px 0 8px 0;'>"
+                          "<span class='dim' style='font-size:12px;'>— everything "
+                          "she said —</span></div>",
+                        unsafe_allow_html=True)
             st.markdown("".join(rows), unsafe_allow_html=True)
     except Exception as exc:
         logger.debug("her-words expander failed: %s", exc)
@@ -6275,159 +6349,13 @@ def _ec_how_lbl(h):
             else "◯ entry $ + size $")
 
 
-def _render_entry_control(prefix: str = "ec", default_pair: str | None = None,
-                          kraken=None):
-    """THE ONE ENTRY CONTROL (user decision, Sep 3 — Option B): merges the old
-    'I RE-ENTERED' form and the Quick Check +/- inputs into ONE form with a
-    mode toggle. One language (the contest app's numbers), no ambiguity about
-    which tool to reach for.
-
-    Modes (user rule, Sep 3: "when I enter from the deep scan I need to adjust
-    to reality this would not need a new time stamp. they are not the same"):
-      • SAME TRADE — fix my numbers: keyed updates only. The clock (`added`),
-        the goal (`goal_pct`/`window_min`) and the tracked peak all SURVIVE;
-        only entry + size change. The peak is floored at the corrected entry.
-        This is the deep-scan adjust-to-reality case.
-      • NEW TRADE — fresh clock: new `added`, peak resets to the entry, and
-        the goal is derived from the engine (preserved if it already exists —
-        the old form's full-dict replacement silently wiped it).
-
-    Inputs speak contest-app language: $ you spent + coins you own (primary —
-    paid = spent ÷ owned), or entry $ + size $ for those who have the numbers
-    directly. Pair is a dropdown of watched coins, or free text to register a
-    manual entry the scan never watched (thin-book trades, Sep 3).
-    Wrapped in st.form — the light's 60s reruns must not interrupt typing."""
-    cw = _load_watch()
-    with st.expander("✎ MY ENTRY — fix the numbers or start a fresh clock"):
-        with st.form(f"{prefix}_form", clear_on_submit=False):
-            mode = st.radio("this is…", _EC_MODES, index=0,
-                            format_func=_ec_mode_lbl, key=f"{prefix}_mode",
-                            help="SAME TRADE keeps the clock, the goal and the peak "
-                                 "running — only the numbers change. NEW TRADE restarts "
-                                 "the clock: use it after you sold and re-entered, or to "
-                                 "register a manual entry fresh.")
-            same_trade = mode == _EC_SAME
-
-            # pair: dropdown when watched coins exist, free text otherwise
-            # (default_pair pre-selects the scanned coin when present)
-            if cw:
-                _pairs = list(cw.keys())
-                _dflt = default_pair if default_pair in cw else None
-                if len(_pairs) > 1:
-                    _idx = _pairs.index(_dflt) if _dflt else 0
-                    pair = st.selectbox("which coin", _pairs, index=_idx,
-                                        format_func=_asset, key=f"{prefix}_pair")
-                else:
-                    pair = _pairs[0]
-            else:
-                pair = None
-            manual_pair = st.text_input("coin (type it if it's not on the watch yet)",
-                                        value=(default_pair or "") if (pair is None or default_pair not in cw) else "",
-                                        key=f"{prefix}_manual_pair",
-                                        placeholder="e.g. PENGU/USD",
-                                        help="for manual entries the scan never watched — "
-                                             "thin books the auto-system won't touch")
-            if manual_pair.strip():
-                _mp = manual_pair.strip().upper()
-                pair = _mp if "/" in _mp else f"{_mp}/USD"
-
-            how = st.radio("I'll tell you…", _EC_HOWS, index=0,
-                           format_func=_ec_how_lbl, key=f"{prefix}_how",
-                           help="the contest app shows the $ of the trade and how much "
-                                "you own — never the price you paid")
-            c1, c2 = st.columns(2)
-            if how == _EC_HOW_SPENT:
-                with c1:
-                    spent = st.number_input("$ you spent", min_value=0.0, value=None,
-                                            step=100.0, key=f"{prefix}_spent",
-                                            help="the contest app shows this: the amount of your trade")
-                with c2:
-                    owned = st.number_input("coins you own", min_value=0.0, value=None,
-                                            step=0.0001, key=f"{prefix}_owned",
-                                            help="the contest app shows this: how much you own")
-                entry = size = None
-                if spent and owned and float(owned) > 0:
-                    entry, size = float(spent) / float(owned), float(spent)
-            else:
-                with c1:
-                    entry = st.number_input("entry $", min_value=0.0, value=None,
-                                            step=0.0001, key=f"{prefix}_entry",
-                                            help="what you actually paid per coin")
-                with c2:
-                    size = st.number_input("size $", min_value=0.0, value=None,
-                                       step=100.0, key=f"{prefix}_size",
-                                       help="what you actually bought — the $ of the trade")
-                entry = float(entry) if entry else None
-                size = float(size) if size else None
-
-            why_txt = st.text_input("why did you enter? (optional — she'll check "
-                                    "the thesis before recommending anything)",
-                                    value="", key=f"{prefix}_why",
-                                    placeholder="e.g. deep scan green, momentum rider, my own read")
-
-            if st.form_submit_button("✎ SET MY ENTRY", type="primary"):
-                # EVENT-DRIVEN INVALIDATION (the adaptive spec): an entry
-                # changed — the book + bot reads refresh on the next read
-                ac_invalidate("qc_liquidity", "bot_positions")
-                if not pair:
-                    st.error("Which coin? Type it in the coin field — ANY coin, it doesn't "
-                             "have to be on any list (e.g. ZEC, or TAO/USD).")
-                elif not entry or entry <= 0:
-                    st.error(f"Need the numbers for {_asset(pair)}: either '$ you spent + "
-                             f"coins you own' (the two numbers the contest app shows) or "
-                             f"'entry $ + size $' — fill both fields of whichever pair you're "
-                             f"using.")
-                else:
-                    w = _load_watch()
-                    fresh = pair not in w
-                    if fresh or not same_trade:
-                        # NEW TRADE (or first registration): fresh clock, peak
-                        # resets to the entry, goal preserved or derived fresh
-                        # (the old form's dict replacement silently wiped it)
-                        rec = w.get(pair) or {}
-                        rec["entry"] = float(entry)
-                        rec["high"] = float(entry)
-                        if size is not None:
-                            rec["size"] = float(size)
-                        rec["added"] = _now_mst().isoformat()
-                        if not rec.get("goal_pct") or not rec.get("window_min"):
-                            g, win = _derive_goal(pair, kraken)
-                            rec.setdefault("goal_pct", g)
-                            rec.setdefault("window_min", win)
-                        # THE BRAIN (Sep 3): why you entered — free text, read
-                        # back by the exit check's thesis review
-                        _why_txt = st.session_state.get(f"{prefix}_why", "").strip()
-                        if _why_txt:
-                            rec["why"] = [_why_txt]
-                        rec.setdefault("source", "manual")
-                        w[pair] = rec
-                        _save_watch(w)
-                        _what = "registered fresh" if fresh else "fresh clock started"
-                        st.toast(f"✅ {_asset(pair)}: entry ${entry:.4f}"
-                                 + (f" (${size:,.0f})" if size else "")
-                                 + f" — {_what}. She counts from now.",
-                                 icon="✅", duration=15)
-                        _speak(f"{_asset(pair)} entry set! Fresh clock!")
-                    else:
-                        # SAME TRADE: keyed updates ONLY — the clock, the goal
-                        # and the peak keep running. Peak is floored at the
-                        # corrected entry (it IS the reference if above).
-                        rec = w[pair]
-                        rec["entry"] = float(entry)
-                        if size is not None:
-                            rec["size"] = float(size)
-                        rec["high"] = max(float(rec.get("high") or 0.0), float(entry))
-                        # added / goal_pct / window_min untouched by design
-                        _save_watch(w)
-                        st.toast(f"✅ {_asset(pair)}: entry ${entry:.4f}"
-                                 + (f" (${size:,.0f})" if size else "")
-                                 + " — numbers corrected, the clock keeps running.",
-                                 icon="✅", duration=15)
-                        _speak(f"{_asset(pair)} numbers corrected!")
-                    try:
-                        st.rerun(scope="app")
-                    except TypeError:
-                        st.rerun()
+# THE ONE ENTRY CONTROL — RETIRED (user rule, Sep 21): "My entry-fix the
+# numbers is no longer of any use" — popups auto-track at fire time with
+# the scanner's own numbers (auto_track_popup, one writer per route), the
+# GET OUT auto-close stops the watch itself, and SOLD is the only tap
+# left (the profit collect that frees the hunt for the next setup).
+# Nothing manual to fix, nothing manual to register. The mode constants
+# above are kept (don't delete anything).
 
 
 def render_auto_watch(cfg: TradingConfig, kraken):
@@ -6445,11 +6373,15 @@ def render_auto_watch(cfg: TradingConfig, kraken):
     # the verdict dropdown shipped (never value= + session writes:
     # Streamlit's widget-policies warn). The interval stores SECONDS
     # (the machine's number); the panel's 'every X min' is derived.
-    if "watch_on" not in st.session_state:
-        st.session_state["watch_on"] = _cs.get("watch_on", True)
+    # THE TOGGLE DEFAULT (Sep 21): value= seeds the widget's OWN key from
+    # the persisted store at session start. The old init-on-missing shape
+    # seeded a shadow key the widget never read — every fresh session
+    # rendered False and the very next line SAVED that False over the
+    # persisted ON. This is why switches snapped to OFF. (Re-restored
+    # Sep 21: the fragment-seconds commit accidentally reverted it.)
     watch_on = st.toggle("🔔 AUTO-WATCH — every minute: green ALL GOOD / red GET OUT NOW",
-                         key="watch_toggle")
-    st.session_state["watch_on"] = watch_on
+                         key="watch_toggle",
+                         value=bool(_cs.get("watch_on", True)))
     if watch_on != _cs.get("watch_on", True):
         _cs["watch_on"] = watch_on
         _save_console_state(_cs)
@@ -6471,11 +6403,10 @@ def render_auto_watch(cfg: TradingConfig, kraken):
                 format_func=lambda s: f"{s // 60} min",
                 key="watch_interval_s")
         with _s2:
-            if "goal_on" not in st.session_state:
-                st.session_state["goal_on"] = _cs.get(
-                    "goal_on", _cs.get("scalp_on", True))
             goal_on = st.toggle("🎯 GOAL CALL",
                                 key="goal_toggle",
+                                value=bool(_cs.get("goal_on",
+                                                   _cs.get("scalp_on", True))),
                                 help="THE RULES OF THE GAME: every entry carries its own "
                                      "PERCENTAGE goal — set from what THIS coin actually "
                                      "moves at this hour of the week (its own daily ranges, "
@@ -6491,10 +6422,9 @@ def render_auto_watch(cfg: TradingConfig, kraken):
             _cs["goal_on"] = goal_on
             _save_console_state(_cs)
         with _s3:
-            if "voice_on_ui" not in st.session_state:
-                st.session_state["voice_on_ui"] = _cs.get("voice_on", True)
             voice_on = st.toggle("🔊 HER VOICE",
                                  key="voice_toggle",
+                                 value=bool(_cs.get("voice_on", True)),
                                  help="Zira announces your positions every minute from the scanner "
                                       "process — she keeps talking whether or not this browser "
                                       "tab is open.")
@@ -6682,83 +6612,13 @@ def render_auto_watch(cfg: TradingConfig, kraken):
                             logger.debug("sold toast/voice failed: %s", exc)
                         st.rerun()
 
-        # ── contest watch list: live positions only, no history ────────
-        # the re-entered control: right after the SOLD buttons — the loop
-        # is sold → re-entered → sold, and it lives on every page
-        _render_entry_control(prefix="ec")
-
-        contest_watch = _load_watch()
-        n_contest = len(contest_watch)
-        with st.expander(f"◆ My contest positions ({n_contest}) — add / remove", expanded=False):
-            if contest_watch:
-                for pair, w in contest_watch.items():
-                    rm_col, info_col = st.columns([1, 5])
-                    _size = w.get("size")
-                    _size_txt = f" · ${_size:,.0f} size" if _size else ""
-                    info_col.markdown(f"**◆ {_asset(pair)}** — entry {_fmt_price(w.get('entry'))}{_size_txt}")
-                    if rm_col.button("✕", key=f"rm_{pair.replace('/', '_')}", help="Remove from watch"):
-                        contest_watch.pop(pair)
-                        _save_watch(contest_watch)
-                        st.rerun()
-            else:
-                st.caption("Nothing being watched. A green light on a QUICK CHECK deep scan "
-                           "puts the coin here automatically — or add one by hand:")
-            # Aug 30 fix: the add controls are a FORM — no reruns/dimming
-            # while picking size + asset; everything submits at once on ADD.
-            # Entry field removed (user: useless — I RE-ENTERED sets the
-            # real entry right after, and it starts at the live price).
-            # (Sep 5, user rule: "the manual input +/- positions, it was
-            # never designed to pick and choose") — the ADD accepts ANY
-            # coin (a free-text field overrides the dropdown: movers and
-            # off-list coins too), and a failed price read is a VISIBLE
-            # error, never a silent rejection.
-            _chunk_opts = {"25%": 0.25, "50%": 0.50, "75%": 0.75, "100%": 1.00}
-            with st.form("watch_add_form", clear_on_submit=False):
-                f0, f1, f2 = st.columns([1, 1.4, 1.4])
-                new_chunk = f0.selectbox("Size", list(_chunk_opts), index=1, key="watch_add_size",
-                                         help="How much you bought in the contest app — sets the $ size "
-                                              "for P&L and scalp alerts")
-                new_asset = f1.selectbox("Asset", ASSETS, key="watch_add_asset",
-                                         help="She tracks it from the LIVE price — if you paid "
-                                              "something else, tell her in MY ENTRY right after")
-                manual_add_coin = f2.text_input(
-                    "…or type ANY coin", value="", key="watch_add_manual",
-                    placeholder="e.g. ZEC, or TAO/USD — anything",
-                    help="Not on the list? Type it here — this overrides the dropdown. "
-                         "Movers, off-list coins, anything with a Kraken market. "
-                         "The add NEVER picks and chooses.")
-                if st.form_submit_button("◆ ADD", type="primary"):
-                    npair = f"{new_asset}/USD"
-                    _manual_txt = (manual_add_coin or "").strip().upper()
-                    if _manual_txt:
-                        npair = _manual_txt if "/" in _manual_txt else f"{_manual_txt}/USD"
-                    live = live_price(npair)
-                    if live:
-                        contest_watch[npair] = {
-                            "entry": live,
-                            "high": live,
-                            "size": _chunk_opts[new_chunk] * cfg.challenge_balance,
-                            "added": _now_mst().isoformat(),
-                            "contest_id": _ca.current_contest_id(),
-                        }
-                        _save_watch(contest_watch)
-                        try:
-                            st.toast(f"◆ {_asset(npair)} added — entry {_fmt_price(live)} "
-                                     f"(live price). Paid something else? MY ENTRY, right below.",
-                                     icon="✅", duration=12)
-                            _speak(f"{_asset(npair)} added to the watch!")
-                        except Exception as exc:
-                            logger.debug("watch-added toast/voice failed: %s", exc)
-                        st.rerun()
-                    else:
-                        # (Sep 5) THE VISIBLE REJECTION: a failed price read
-                        # used to reject SILENTLY (the button did nothing) —
-                        # and the 60s cache made it stick. Now it says so, and
-                        # the retry reads fresh (failures are never cached).
-                        st.error(f"Couldn't read the live price for {_asset(npair)} — nothing was "
-                                 f"added, and it's NOT a rejection of the coin. Try again "
-                                 f"(the retry reads fresh); if it keeps failing, add it in "
-                                 f"MY ENTRY below with your real entry price.")
+        # ── the manual entry section retired here (user rule, Sep 21):
+        # popups auto-track when BUY NOW fires (auto_track_popup — one
+        # writer per route, and a BUY popup never fires on an asset
+        # already watched); the watch auto-stops when GET OUT NOW fires
+        # (the scanner's auto-close removes the row itself). SOLD stays:
+        # the profit collect that clears the watch so the hunt can find
+        # the next setup. The merged WATCHING rows live in HER WORDS.
 
         st.caption("Leave this tab open — the watch runs in your browser. "
                    "It just watches and alerts. It can't touch your money.")
@@ -6774,7 +6634,6 @@ def render_auto_watch(cfg: TradingConfig, kraken):
 
         _light_tick()
     else:
-        st.session_state["watch_on"] = False
         st.session_state.pop("exit_alerts", None)
 
 

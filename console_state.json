@@ -1,6 +1,6 @@
 {
  "tier": "$10,000",
- "watch_on": false,
+ "watch_on": true,
  "exit_checks": 24,
  "voice_on": true,
  "worth_floor_frac": 0.05,
