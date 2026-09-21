@@ -1872,7 +1872,11 @@ def _pick_card(cfg: TradingConfig, kraken):
 
 def render_master(cfg: TradingConfig, kraken):
     # THE CARD — the flow itself. One card, nothing else on the main screen.
-    @st.fragment(run_every=30_000)
+    # run_every is SECONDS in Streamlit (ints pass through raw —
+    # time_util.time_to_seconds only converts timedeltas/strings).
+    # These were written as milliseconds (30_000 = 8.3 HOURS), which
+    # is why every auto-refresh in the app only ever moved on clicks.
+    @st.fragment(run_every=30)
     def _card_tick():
         _pick_card(cfg, kraken)
     _card_tick()
@@ -6441,14 +6445,11 @@ def render_auto_watch(cfg: TradingConfig, kraken):
     # the verdict dropdown shipped (never value= + session writes:
     # Streamlit's widget-policies warn). The interval stores SECONDS
     # (the machine's number); the panel's 'every X min' is derived.
-    # THE TOGGLE DEFAULT (Sep 21): value= seeds the widget's OWN key from
-    # the persisted store at session start. The old init-on-missing shape
-    # seeded a shadow key the widget never read — every fresh session
-    # rendered False and the very next line SAVED that False over the
-    # persisted ON. This is why switches snapped to OFF.
+    if "watch_on" not in st.session_state:
+        st.session_state["watch_on"] = _cs.get("watch_on", True)
     watch_on = st.toggle("🔔 AUTO-WATCH — every minute: green ALL GOOD / red GET OUT NOW",
-                         key="watch_toggle",
-                         value=bool(_cs.get("watch_on", True)))
+                         key="watch_toggle")
+    st.session_state["watch_on"] = watch_on
     if watch_on != _cs.get("watch_on", True):
         _cs["watch_on"] = watch_on
         _save_console_state(_cs)
@@ -6470,10 +6471,11 @@ def render_auto_watch(cfg: TradingConfig, kraken):
                 format_func=lambda s: f"{s // 60} min",
                 key="watch_interval_s")
         with _s2:
+            if "goal_on" not in st.session_state:
+                st.session_state["goal_on"] = _cs.get(
+                    "goal_on", _cs.get("scalp_on", True))
             goal_on = st.toggle("🎯 GOAL CALL",
                                 key="goal_toggle",
-                                value=bool(_cs.get("goal_on",
-                                                   _cs.get("scalp_on", True))),
                                 help="THE RULES OF THE GAME: every entry carries its own "
                                      "PERCENTAGE goal — set from what THIS coin actually "
                                      "moves at this hour of the week (its own daily ranges, "
@@ -6489,9 +6491,10 @@ def render_auto_watch(cfg: TradingConfig, kraken):
             _cs["goal_on"] = goal_on
             _save_console_state(_cs)
         with _s3:
+            if "voice_on_ui" not in st.session_state:
+                st.session_state["voice_on_ui"] = _cs.get("voice_on", True)
             voice_on = st.toggle("🔊 HER VOICE",
                                  key="voice_toggle",
-                                 value=bool(_cs.get("voice_on", True)),
                                  help="Zira announces your positions every minute from the scanner "
                                       "process — she keeps talking whether or not this browser "
                                       "tab is open.")
@@ -6509,7 +6512,7 @@ def render_auto_watch(cfg: TradingConfig, kraken):
         _toast_new_her_words()        # her-words popup ticker: fast lane (15s) — GET OUT / TAKE IT
         # popups shouldn't wait for the 60s light cycle (user rule, Aug 30:
         # "so not as a pop up?")
-        @st.fragment(run_every=15_000)
+        @st.fragment(run_every=15)
         def _her_words_tick():
             _toast_new_her_words()
 
@@ -6522,7 +6525,7 @@ def render_auto_watch(cfg: TradingConfig, kraken):
         # (the same event that moved the numbers) so the section shows
         # what she just said. The fragment's rerun is swallowed; the main
         # script's rerun re-renders everything.
-        @st.fragment(run_every=15_000)
+        @st.fragment(run_every=15)
         def _voice_refresh_tick():
             try:
                 import json as _json
@@ -6761,7 +6764,7 @@ def render_auto_watch(cfg: TradingConfig, kraken):
                    "It just watches and alerts. It can't touch your money.")
 
         # timer: keeps the checks coming while you sit still on one page
-        @st.fragment(run_every=interval_ms)
+        @st.fragment(run_every=interval_s)  # seconds — ms was 16+ hours
         def _light_tick():
             if _light_check(kraken, cfg, sb, held, interval_s):
                 try:
@@ -6771,6 +6774,7 @@ def render_auto_watch(cfg: TradingConfig, kraken):
 
         _light_tick()
     else:
+        st.session_state["watch_on"] = False
         st.session_state.pop("exit_alerts", None)
 
 
