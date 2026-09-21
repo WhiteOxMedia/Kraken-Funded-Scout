@@ -2360,6 +2360,39 @@ def _save_contest_watch(watch: dict):
         logger.warning("contest watch save failed: %s", exc)
 
 
+def auto_track_popup(pair: str, entry: float, size: float, goal_pct: float,
+                     window_min: float, why: str, source: str) -> bool:
+    """THE POPUP IS THE CONTRACT (Sep 21): every popup that fires —
+    champion, Sure Thing, mover, DCA — auto-tracks at fire time. One
+    writer for every route: never displaces an entry the user already
+    has, never resurrects a row the machine itself closed (the GET OUT
+    auto-close removes it — a later fire re-adds fresh)."""
+    import json
+    try:
+        w = _load_contest_watch()
+        if pair in w:
+            return False
+        w[pair] = {"entry": float(entry or 0.0),
+                   "high": float(entry or 0.0),
+                   "added": _now_mst().isoformat(),
+                   "size": float(size or 0.0),
+                   "goal_pct": float(goal_pct or 0.0),
+                   "window_min": float(window_min or 0.0),
+                   "why": [why],
+                   "source": source}
+        _save_contest_watch(w)
+        logger.info("AUTO-TRACK: %s watched at fire time (entry $%.4f, "
+                    "goal %.1f%%, window %.0fm, %s)",
+                    pair.split("/")[0], float(entry or 0.0),
+                    float(goal_pct or 0.0), float(window_min or 0.0), source)
+        return True
+    except Exception as exc:
+        logger.warning("fire-time auto-track failed for %s (%s) — "
+                       "watch it by hand from the popup",
+                       pair.split("/")[0], exc)
+        return False
+
+
 def _load_scanner_state() -> dict:
     """Persistent scanner state (survives restarts) — currently: the morning
     flatten date, so a mid-day restart never re-flattens patient positions."""
@@ -2626,7 +2659,78 @@ def contest_light(exchange, cfg):
                     _why = "It's out of steam!"
                 _speak_server(f"Get out now! Sell {asset}! {_why}"
                               f"Give it about an hour to base — I'll call the next one!", rate=1)
-            logger.info("🚨 CONTEST LIGHT: SELL %s — %s (stays tracked until SOLD)", pair, reason)
+            # ── AUTO-CLOSE AT FIRE TIME (Sep 21, user rule: "after the
+            # 'Get out Now' fires a popup, it closes the virtual trade and
+            # counts the PnL so the brain can learn from the results every
+            # time — no more user interference"): the exit call IS the
+            # close. The watch row is removed here (the grade below
+            # remembers the trade for the learner); the SOLD button stays
+            # as the manual override for "the watch didn't close it" and
+            # for early profit-takes with re-entry. Grade = the same
+            # arithmetic the SOLD path uses (entry/size/live, 0.08% RT
+            # cost, own-contest window), journaled to contest_trades.jsonl
+            # — the ledger the discipline learner and the hindsight
+            # studies read.
+            _closed_note = ""
+            try:
+                import json as _jx
+                import contest_account as _ca_x
+                _entry_x = float(w.get("entry") or 0.0)
+                _size_x = float(w.get("size") or 0.0)
+                _live_x = float(live or 0.0)
+                if _entry_x > 0 and _size_x > 0 and _live_x > 0:
+                    _gross, _cost, _net = _ca_x.pnl_net_usd(
+                        _entry_x, _live_x, _size_x)
+                    _applied, _new_bal, _note = _ca_x.apply_pnl(
+                        _net, w.get("contest_id"),
+                        dedupe_key=f"{pair}|{w.get('added')}|getout")
+                    _held_min = ""
+                    try:
+                        _added = w.get("added")
+                        if _added:
+                            _held_min = f"{(_now_mst() - datetime.fromisoformat(_added)).total_seconds() / 60.0:.0f}"
+                    except (TypeError, ValueError):
+                        pass
+                    with open("contest_trades.jsonl", "a", encoding="utf-8") as _fx:
+                        _fx.write(_jx.dumps({
+                            "sold_at": _now_mst().isoformat(),
+                            "pair": pair, "entry": _entry_x, "exit": _live_x,
+                            "size": _size_x,
+                            "pnl_gross": round(_gross, 2),
+                            "cost_rt": round(_cost, 2),
+                            "pnl_net": round(_net, 2),
+                            "balance_after": round(_new_bal, 2),
+                            "applied": bool(_applied),
+                            "note": ("" if _applied else _note),
+                            "goal_pct": w.get("goal_pct"),
+                            "held_min": _held_min,
+                            "closed_by": "getout",
+                            "exit_reason": reason[:200],
+                        }) + "\n")
+                    _sign_x = "+" if _net >= 0 else "-"
+                    _closed_note = (f"Closed at fire time — {_sign_x}${abs(_net):,.2f} net "
+                                    f"(0.08% RT cost incl.)")
+                    logger.info("GET OUT CLOSED: %s — %s%s", pair, _closed_note,
+                                "" if _applied else f" (balance NOT applied: {_note})")
+                    if _net > 0:
+                        # the same profit re-arm the SOLD path grants — a
+                        # collected profit can be called again next setup
+                        try:
+                            rotation_rearm_on_profit(asset)
+                        except Exception:
+                            pass
+                else:
+                    _closed_note = "skipped — missing entry/size/live"
+                    logger.warning("GET OUT close skipped for %s: entry=%s size=%s live=%s",
+                                   pair, _entry_x, _size_x, _live_x)
+            except Exception as exc:
+                _closed_note = "close failed — watch row kept for SOLD"
+                logger.warning("GET OUT auto-close failed for %s (%s) — "
+                               "the SOLD button remains the way out", pair, exc)
+            watch.pop(pair, None)
+            _save_contest_watch(watch)
+            logger.info("🚨 CONTEST LIGHT: SELL %s — %s · %s",
+                        pair, reason, _closed_note or "watch row removed")
             continue
 
         # exit condition cleared (user held through it and it recovered) —
@@ -4093,25 +4197,12 @@ def main():
             # writes the row NOW from its own fire-time numbers; the
             # console's later rerun merges and adds live highs. Never
             # displaces an entry the user already has.
-            try:
-                _cw = _load_contest_watch()
-                if pair not in _cw:
-                    _cw[pair] = {"entry": float(signal.entry_price or 0.0),
-                                 "high": float(signal.entry_price or 0.0),
-                                 "added": _now_mst().isoformat(),
-                                 "size": float(_spend or 0.0),
-                                 "goal_pct": float(_goal_pct or 0.0),
-                                 "window_min": float(_win_min or 0.0),
-                                 "why": [f"BUY {signal.confidence:.0f}% (champion)"],
-                                 "source": "champion"}
-                    _save_contest_watch(_cw)
-                    logger.info("AUTO-TRACK: %s watched at fire time "
-                                "(entry $%.4f, goal %.1f%%, window %.0fm)",
-                                asset, float(signal.entry_price or 0.0),
-                                float(_goal_pct or 0.0), float(_win_min or 0.0))
-            except Exception as exc:
-                logger.warning("fire-time auto-track failed for %s (%s) — "
-                               "watch it by hand from the popup", asset, exc)
+            # AUTO-TRACK AT FIRE TIME — one writer for every popup route.
+            auto_track_popup(pair, float(signal.entry_price or 0.0),
+                             float(_spend or 0.0), float(_goal_pct or 0.0),
+                             float(_win_min or 0.0),
+                             f"BUY {signal.confidence:.0f}% (champion)",
+                             "champion")
         logger.info("🚀 BIG ALERT: %s %s — %.0f%% — entry $%.4f — TP $%.4f",
                     signal.action.upper(), asset, signal.confidence, signal.entry_price, signal.take_profit)
 
@@ -4398,6 +4489,13 @@ def main():
                         f"The death line never yields.\n"
                         f"  {_fmt_mst(_now_mst())}")
                 notify_big(_title, _msg, spoken=_spoken)
+                # AUTO-TRACK AT FIRE TIME — the breakout popup tracks too
+                # (one writer, one contract; entry = the trigger level)
+                auto_track_popup(pair, float(r.get("trigger_px") or 0.0),
+                                 float(_spend or 0.0), float(_st_goal or 0.0),
+                                 float(st.SURE_THING_WINDOW_MIN),
+                                 f"BUY {_score:.0f}% (breakout {_trig})",
+                                 "sure_thing")
                 rotation_mark_fired(asset)
                 _st_armed.pop(asset, None)
                 _st_armed_save()
@@ -5170,6 +5268,16 @@ def main():
                                     # like every path: the worth floor (the buffer is
                                     # its bar) + the deep read gate it
                                     notify_big(_m_title, _m_msg, spoken=_m_spoken)
+                                    # AUTO-TRACK AT FIRE TIME — the mover
+                                    # popup tracks too (the ZEC lesson: a
+                                    # fired mover must never sit unwatched)
+                                    auto_track_popup(pair,
+                                                     float(signal.price or 0.0),
+                                                     float(_m_spend or 0.0),
+                                                     float(_m_goal or 0.0),
+                                                     float(_m_win or 0.0),
+                                                     f"BUY {signal.confidence:.0f}% (mover)",
+                                                     "mover")
                                     try:
                                         _mfs = dict(_SNAPSHOT_CTX.get("ctx") or {})
                                         _mfs.update({"kind": "fired",
