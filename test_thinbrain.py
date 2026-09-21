@@ -94,8 +94,11 @@ check("CARD_PICK_VOICE_ENABLED flag exists and is OFF",
       "CARD_PICK_VOICE_ENABLED = False" in ap)
 check("the card's voice is gated (shows, doesn't speak)",
       'if h["age_min"] <= 10 and CARD_PICK_VOICE_ENABLED:' in ap)
-check("the card still SHOWS the pick (plate + CHECK intact)",
-      "⚡ THE PICK" in ap and "the final yes/no" in ap)
+check("the card still SHOWS the pick (plate intact) — but NO confirm "
+      "button: the popup auto-tracks, nothing to tap (Sep 21 rule)",
+      "⚡ THE PICK" in ap and "the final yes/no" not in ap
+      and "card_confirm" not in ap and "champ_next_btn" not in ap
+      and "auto_track_popup" in bs)
 check("the champion alert voice is untouched (the ONE buy voice)",
       'title = (f"🟢 BUY {asset} — {_dc:.0f}% SURE"' in bs)
 check("the card's voice code is kept (reversible — don't delete anything)",

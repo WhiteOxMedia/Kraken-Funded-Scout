@@ -2264,13 +2264,15 @@ def _danger_zone_panel(exchange, pair: str, spend: float, goal_pct: float,
         return f"{'─' * 30}\nDANGER ZONE: metrics unavailable ({exc})\n"
 
 
-def _speak_server(text: str, rate: int = 2):
+def _speak_server(text: str, rate: int = 2, push_text: str | None = None):
     """Zira out loud from the SCANNER process — runs whether or not any
     browser is open. Same amplified speak script the console uses.
     Every line ALSO goes to the phone as a push notification (ntfy) with
     HER ACTUAL AMPLIFIED VOICE ATTACHED — tap play on the phone, it's
     Zira, not the phone's substitute voice. One voice, three deliveries:
-    PC speakers, browser captions, phone audio push."""
+    PC speakers, browser captions, phone audio push. push_text: a richer
+    body for the phone than what she speaks aloud (the GET OUT popup's
+    full reasons) — the voice stays short, the push carries everything."""
     import subprocess
     _base = os.path.dirname(os.path.abspath(__file__))
     _wav_path = os.path.join(_base, "speech_queue", "last_voice.wav")
@@ -2288,8 +2290,10 @@ def _speak_server(text: str, rate: int = 2):
     except Exception as exc:
         logger.debug("speak failed: %s", exc)
     # phone push: BUY NOW / SELL NOW priority alerts only (user rule,
-    # Aug 30) — everything else stays on PC voice + the console panel
-    _push_to_phone(text, wav_path=_wav_path)
+    # Aug 30) — everything else stays on PC voice + the console panel.
+    # push_text (when given) carries the full-reasons body on the phone
+    # while the spoken line stays short.
+    _push_to_phone(push_text if push_text else text, wav_path=_wav_path)
 
 
 def _push_topic() -> str | None:
@@ -2341,8 +2345,17 @@ def _push_to_phone(text: str, wav_path: str | None = None):
             data=str(text).encode("utf-8"),
             headers={"Title": "Kraken Scout", "Priority": prio,
                      "Tags": "rotating_light" if prio == "urgent" else "chart_with_upwards_trend"})
-    except (OSError, ValueError):
-        pass  # push is best-effort — the PC voice already spoke
+        # THE SEND (restored Sep 21 — the big evolution commit built this
+        # request and DROPPED it: no urlopen anywhere, so the phone got
+        # nothing and the failure was silent). Sent with a timeout; every
+        # outcome is logged — a push is never a silent maybe again.
+        urllib.request.urlopen(req, timeout=10)
+        logger.info("📲 PUSHED (%s): %s", prio, str(text)[:90])
+    except Exception as exc:
+        # push is best-effort — the PC voice already spoke — but it is
+        # never SILENT: the scanner log carries every failure
+        logger.warning("phone push failed (%s) — the phone missed: %s",
+                       exc, str(text)[:90])
 
 
 def _load_contest_watch() -> dict:
@@ -2364,6 +2377,33 @@ def _save_contest_watch(watch: dict):
         os.replace(tmp, CONTEST_WATCH_JSON)
     except Exception as exc:
         logger.warning("contest watch save failed: %s", exc)
+
+
+def _popup_already_watched(pair: str) -> bool:
+    """THE ONE-WATCH RULE (user rule, Sep 21): a BUY NOW popup must never
+    fire for an asset that is ALREADY being watched — the watch IS the
+    entry record (popups auto-track at fire time), so a second popup for
+    the same pair can only be noise while she's still in it. The watch
+    clears two ways: SOLD (the user took profit) or the GET OUT
+    auto-close (the machine stopped the watch) — either way the next
+    setup may fire fresh. Checked on all three contest BUY routes
+    (champion, Sure Thing breakout, mover) — the bot's own DCA 'BUY
+    MORE' notification is a different book and stays ungated."""
+    try:
+        if pair in _load_contest_watch():
+            _log_suppression(pair, "already-watched",
+                             "a BUY popup never fires on an asset already "
+                             "being watched — SOLD or the GET OUT auto-close "
+                             "clears it for the next setup")
+            logger.info("  ONE-WATCH: %s already watched — no BUY popup, "
+                        "no auto-track (it's tracked)",
+                        pair.split("/")[0])
+            return True
+    except Exception as exc:
+        # fail-open: a dead watch read must never silence the fire alarm
+        logger.debug("already-watched check failed for %s (%s) — popup "
+                     "fires anyway", pair, exc)
+    return False
 
 
 def auto_track_popup(pair: str, entry: float, size: float, goal_pct: float,
@@ -2642,11 +2682,16 @@ def contest_light(exchange, cfg):
 
         if should_exit:
             exited_pairs.append(pair)
-            # GET OUT PERSISTS (user rule, Aug 30): repeat the call every
-            # ~60s while the exit condition holds — one shout that drops
-            # the tracking is a missed exit. SOLD is the only way out.
+            # GET OUT PERSISTS + ALWAYS FIRES (user rule, Sep 21: "don't
+            # ever clear an asset from the watch without firing a popup
+            # to Get out Now"): the call repeats every ~60s while the exit
+            # condition holds, and it fires whether or not HER VOICE is
+            # on — the phone push and the her-words log ride along every
+            # time, carrying the FULL reasons (the gate's why + the
+            # position facts). The auto-close below removes the row this
+            # same cycle; the popup is never skipped on its way out.
             _now_ts = time.time()
-            if voice and (_now_ts - _last_exit_voice.get(pair, 0)) >= 60:
+            if (_now_ts - _last_exit_voice.get(pair, 0)) >= 60:
                 _last_exit_voice[pair] = _now_ts
                 # voice-first (user rule, Aug 27: the voice IS the contest —
                 # the user is on the phone, not at the screen): every call
@@ -2663,8 +2708,23 @@ def contest_light(exchange, cfg):
                     _why = "The move is done!"
                 elif "exhaustion" in _r or "steam" in _r:
                     _why = "It's out of steam!"
+                _push_txt = (f"GET OUT NOW — Sell {asset}!\n"
+                             f"WHY: {reason}\n")
+                try:
+                    _gx_pct = (float(live) / float(entry) - 1.0) * 100.0
+                    _gx_usd = _gx_pct / 100.0 * float(w.get("size") or 0.0)
+                    _gx_held = ""
+                    if w.get("added"):
+                        _gx_held = (f" · held {(_now_mst() - datetime.fromisoformat(w['added'])).total_seconds() / 60.0:.0f} min")
+                    _push_txt += (f"POSITION: entered {float(entry):.4f} · now {float(live):.4f} · "
+                                  f"{_gx_pct:+.1f}% ({_gx_usd:+,.0f} dollars){_gx_held}\n"
+                                  f"GOAL was +{float(w.get('goal_pct') or 0) or 1.5:.1f}% — "
+                                  f"the watch auto-closed; the grade is journaled.")
+                except Exception:
+                    _push_txt += "The watch auto-closed; the grade is journaled."
                 _speak_server(f"Get out now! Sell {asset}! {_why}"
-                              f"Give it about an hour to base — I'll call the next one!", rate=1)
+                              f"Give it about an hour to base — I'll call the next one!", rate=1,
+                              push_text=_push_txt)
             # ── AUTO-CLOSE AT FIRE TIME (Sep 21, user rule: "after the
             # 'Get out Now' fires a popup, it closes the virtual trade and
             # counts the PnL so the brain can learn from the results every
@@ -2843,8 +2903,10 @@ def contest_light(exchange, cfg):
                                  f"{_goal:.1f} percent goal{_tail}")
 
     if exited_pairs:
-        # Aug 30 fix: GET OUT positions STAY in the watch — the user taps
-        # SOLD to clear them. Auto-drop after one alert lost exits.
+        # (Sep 21 comment fix — the code changed under this comment long
+        # ago: the GET OUT path AUTO-CLOSES the trade and REMOVES the watch
+        # row itself — watch.pop(pair) above. The watch auto-stops when GET
+        # OUT fires; SOLD is only for the user's own early take.)
         if dirty:
             _save_contest_watch(watch)
         return
@@ -4163,6 +4225,12 @@ def main():
         # buffer — the realized PnL above the death line — is the risk
         # factor and it owns the worth floor. The bridge write stands.
 
+        # ── THE ONE-WATCH RULE (user rule, Sep 21): no BUY NOW popup on an
+        # asset already being watched — the watch IS the entry record, so
+        # a repeat popup can only be noise. Rotation re-entry after SOLD
+        # or a GET OUT auto-close fires fresh as always.
+        if _popup_already_watched(pair):
+            return
         notify_big(title, message, spoken=_spoken if is_buy else None)
         if is_buy:
             # ROTATION LOCKOUT: the alert fired — this asset is now cold
@@ -4494,6 +4562,10 @@ def main():
                         f"retired Sep 7); run it again now for live tracking. "
                         f"The death line never yields.\n"
                         f"  {_fmt_mst(_now_mst())}")
+                # THE ONE-WATCH RULE (Sep 21): already watched → no popup,
+                # no tracking (it IS tracked) — the coil stays armed.
+                if _popup_already_watched(pair):
+                    continue
                 notify_big(_title, _msg, spoken=_spoken)
                 # AUTO-TRACK AT FIRE TIME — the breakout popup tracks too
                 # (one writer, one contract; entry = the trigger level)
@@ -5273,6 +5345,11 @@ def main():
                                     # (Sep 9) the popup cap retired — the mover fires
                                     # like every path: the worth floor (the buffer is
                                     # its bar) + the deep read gate it
+                                    # THE ONE-WATCH RULE (Sep 21): already
+                                    # watched → no popup, no tracking — the
+                                    # mover loop just moves on.
+                                    if _popup_already_watched(pair):
+                                        continue
                                     notify_big(_m_title, _m_msg, spoken=_m_spoken)
                                     # AUTO-TRACK AT FIRE TIME — the mover
                                     # popup tracks too (the ZEC lesson: a

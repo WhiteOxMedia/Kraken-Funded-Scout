@@ -106,6 +106,28 @@ sent.clear()
 bs._push_to_phone("Buy NEAR! 100 percent sure!")
 check("different text pushes immediately", len(sent) == 1)
 
+# 9. THE SEND (Sep 21): urlopen is actually invoked — the regression that
+#    built the request and dropped it is closed at the source
+check("urlopen invoked with a 10s timeout",
+      "urllib.request.urlopen(req, timeout=10)" in
+      open("background_scanner.py", encoding="utf-8").read())
+check("push success logged", "PUSHED (" in
+      open("background_scanner.py", encoding="utf-8").read())
+check("push failure logged (never silent)", "phone push failed" in
+      open("background_scanner.py", encoding="utf-8").read())
+
+# 10. the full-reasons GET OUT body pushes as one URGENT message
+sent.clear()
+bs._push_state = {"text": "", "ts": 0.0}
+bs._push_to_phone("GET OUT NOW — Sell MOODENG!\nWHY: Profit guard — it gave back 60 percent of the peak!\n"
+                  "POSITION: entered 0.1500 · now 0.1600 · +6.7% (+54 dollars) · held 42 min\n"
+                  "GOAL was +1.5% — the watch auto-closed; the grade is journaled.")
+t = sent_texts()
+check("full-reasons GET OUT pushes urgent",
+      len(t) == 1 and sent[0].headers.get("Priority") == "urgent", t)
+check("the reasons body rides intact (multi-line)",
+      len(t) == 1 and "WHY:" in t[0] and "POSITION:" in t[0] and "GOAL was" in t[0])
+
 lines.append(f"\nRESULT: {PASS} passed, {FAIL} failed")
 open("_pushfilter_check.txt", "w", encoding="utf-8").write("\n".join(lines))
 print("DONE")

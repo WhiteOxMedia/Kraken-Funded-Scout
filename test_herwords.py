@@ -60,7 +60,7 @@ app_src = open("app.py", encoding="utf-8").read()
 check("_speak_server hooks the log", "_log_her_line(text)" in bs_src)
 check("console renders the feed", "_render_her_words" in app_src)
 check("feed placed with the light panel",
-      "_render_light_panel(interval)\n        _render_her_words()" in app_src)
+      '_render_light_panel(f"{interval // 60} min")\n        _render_her_words()' in app_src)
 check("latest line in the title", "HER WORDS" in app_src and "tap to read all" in app_src)
 
 # cleanup

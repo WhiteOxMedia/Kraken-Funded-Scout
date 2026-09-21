@@ -87,9 +87,46 @@ check("notify_big is the single popup funnel (all routes pop through it)",
       bs.count("def notify_big(") == 1)
 sp_i = bs.find("def _speak_server")
 check("every spoken line lands in voice_log.jsonl (Her Words)",
-      "_log_her_line(text)" in bs[sp_i:sp_i + 800])
+      "_log_her_line(text)" in bs[sp_i:sp_i + 1200])
 check("unspoken popups still speak (title fallback → Her Words)",
       "say = (spoken if spoken else title)" in bs)
+
+# ── 4b. THE ONE-WATCH RULE (Sep 21): no BUY popup on a watched asset ────
+check("one-watch guard helper defined",
+      "def _popup_already_watched(pair: str) -> bool:" in bs)
+check("guard consults the watch (the entry record)",
+      "if pair in _load_contest_watch():" in bs)
+check("guard suppression is journaled (the 'who buried it' ledger)",
+      '_log_suppression(pair, "already-watched"' in bs)
+check("guard fails OPEN (a dead watch read never silences the alarm)",
+      "popup \"\n                     " in bs or "fires anyway" in bs)
+champ_g = bs.find("if _popup_already_watched(pair):\n            return")
+check("champion route gated (return before notify_big)", champ_g > 0)
+st_g = bs.find("if _popup_already_watched(pair):\n                    continue")
+check("Sure Thing/breakout route gated (continue)", st_g > 0)
+mv_g = bs.find("if _popup_already_watched(pair):\n                                        continue")
+check("mover route gated (continue)", mv_g > 0)
+check("guard sits BEFORE the fire (no popup on a watched pair)",
+      0 < champ_g < bs.find("notify_big(title, message", max(0, champ_g)))
+check("DCA 'BUY MORE' (the bot's book) stays ungated",
+      bs.find("DCA TRANCHE: BUY MORE") > 0)
+
+# ── 4c. GET OUT ALWAYS FIRES + the push actually sends (Sep 21) ─────────
+go_i = bs.find("GET OUT PERSISTS + ALWAYS FIRES")
+check("GET OUT always-fires contract at the gate", go_i > 0)
+check("GET OUT fires with HER VOICE off (no voice gate on the exit call)",
+      "if (_now_ts - _last_exit_voice.get(pair, 0)) >= 60:" in bs
+      and "if voice and (_now_ts - _last_exit_voice" not in bs)
+check("GET OUT push carries the FULL reasons (why + position facts)",
+      "push_text=_push_txt" in bs and "WHY: {reason}" in bs)
+check("clear only AFTER the call (a cleared row always got its popup)",
+      0 < bs.find('_speak_server(f"Get out now!')
+      < bs.find("watch.pop(pair, None)"))
+push_i = bs.find("def _push_to_phone")
+check("push actually SENDS (urlopen restored — it was built and dropped)",
+      "urllib.request.urlopen(req, timeout=10)" in bs[push_i:push_i + 2600])
+check("push success is logged (never a silent maybe)", "PUSHED (" in bs)
+check("push failure is logged (never silent)", "phone push failed" in bs)
 
 # ── 5. functional: the writer against a tempdir watch file ──────────────
 try:
@@ -112,6 +149,12 @@ try:
           bsm.auto_track_popup("ZZZ/USD", 2.0, 31.5, 1.4, 60,
                                "BUY 88% (breakout crack)", "sure_thing")
           and json.loads((tmp / "contest_watch.json").read_text(encoding="utf-8"))["ZZZ/USD"]["entry"] == 2.0)
+    bsm.CONTEST_WATCH_JSON = str(tmp / "watch2.json")
+    bsm._save_contest_watch({"WWW/USD": {"entry": 1.0}})
+    check("functional: one-watch guard trips on a watched pair",
+          bsm._popup_already_watched("WWW/USD") is True)
+    check("functional: one-watch guard passes an unwatched pair",
+          bsm._popup_already_watched("QQQ/USD") is False)
 except Exception as exc:  # noqa: BLE001 — the functional block reports itself
     check(f"functional writer block crashed: {exc}", False)
 

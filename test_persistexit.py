@@ -17,15 +17,18 @@ def check(name, ok, detail=""):
 bs_src = open("background_scanner.py", encoding="utf-8").read()
 app_src = open("app.py", encoding="utf-8").read()
 
-# 1. Scanner never drops a position on exit
-check("scanner: no watch.pop on exit",
-      "watch.pop(p, None)" not in bs_src.split("def contest_light")[1].split("def ")[0])
+# 1. Scanner exit behavior — UPDATED (Sep 21): GET OUT auto-stops the
+#    watch (auto-close removes the row) — the row NEVER silently lingers.
+check("scanner: GET OUT auto-closes the trade (pnl_net_usd)",
+      "pnl_net_usd(" in bs_src.split("AUTO-CLOSE AT FIRE TIME")[1][:4000])
+check("scanner: GET OUT removes the watch row itself (auto-stop)",
+      "watch.pop(pair, None)" in bs_src.split("AUTO-CLOSE AT FIRE TIME")[1][:5000])
 check("scanner: exit voice gated to 60s repeat",
       "_last_exit_voice.get(pair, 0)) >= 60" in bs_src)
 check("scanner: exit-voice re-arm when condition clears",
       "_last_exit_voice.pop(pair, None)" in bs_src)
-check("scanner: 'stays tracked until SOLD' logged",
-      "stays tracked until SOLD" in bs_src)
+check("scanner: close failure keeps the row for the SOLD override",
+      "the SOLD button remains the way out" in bs_src)
 
 # 2. Console never drops a position on exit
 light_section = app_src.split("def _light_check")[1].split("def _render_light_panel")[0]
@@ -34,15 +37,12 @@ check("console: no contest_watch.pop on exit",
 check("console: SOLD is the only clear",
       "flow_exit_at" in app_src.split("def render_auto_watch")[1].split("def _time_to_goal")[0])
 
-# 3. THE ONE ENTRY CONTROL is a form (no reruns mid-typing) — the Sep 3
-#    Option B merge folded re-entered + the QC +/- inputs into one form;
-#    the same guarantees are probed against the merged control
-reenter = app_src.split("def _render_entry_control")[1].split("\ndef ")[0]
-check("entry control: wrapped in st.form", "st.form(f\"{prefix}_form\"" in reenter)
-check("entry control: form submit button (not st.button)",
-      "form_submit_button" in reenter and 'key="re_btn"' not in reenter)
-check("entry control: inputs inside the form",
-      reenter.index("st.form") < reenter.index("{prefix}_spent") < reenter.index("form_submit_button"))
+# 3. The manual entry control — RETIRED (Sep 21, user rule: popups
+#    auto-track at fire time; nothing to fix by hand). The form is gone.
+check("entry control: RETIRED (the form is gone)",
+      "def _render_entry_control" not in app_src)
+check("entry control: no MY ENTRY references remain",
+      "MY ENTRY" not in app_src)
 
 # 4. The red SELL NOW toast still fires every cycle while exit is true
 check("console: SELL NOW toast persists", "SELL NOW" in light_section)

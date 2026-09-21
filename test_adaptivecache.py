@@ -265,7 +265,9 @@ check("EVENT: switching pairs busts candles + book",
       '_qc_last_asset' in app)
 check("EVENT: a trade (SOLD / green-light add / MY ENTRY) busts bot + book",
       app.count('ac_invalidate("bot_positions", "qc_liquidity")') >= 1
-      and app.count('ac_invalidate("qc_liquidity", "bot_positions")') >= 2)
+      and app.count('ac_invalidate("qc_liquidity", "bot_positions")') >= 1)
+# (Sep 21: the MY ENTRY form + the green-light add form are retired —
+# popups auto-track and the SOLD handler carries the invalidation now.)
 check("the freshness plate renders in the sidebar",
       'plate("Data Freshness"' in app and "freshness_html()" in app)
 check("a new champion busts the adaptive winners cache too",

@@ -107,9 +107,11 @@ tour = re.sub(r'"\s*\n\s*"', "", tour_raw)
 for probe in ["two jobs", "rotations", "POPUP",
               "fire-time", "no scan, no popup", "sizes the",
               "rotation boundary", "death line",
-              "GET OUT NOW", "MY ENTRY", "DISCIPLINE", "TODAY'S FACTS",
+              "GET OUT NOW", "SOLD", "DISCIPLINE", "TODAY'S FACTS",
               "TOURNAMENT", "QUICK CHECK", "EXIT CHECK", "never short"]:
     check(f"tour mentions: {probe}", probe in tour)
+# (Sep 21: MY ENTRY retired from the tour with the form itself — popups
+# auto-track; the SOLD tap is the only manual act left.)
 check("tour: the retired rotation-floor wording is gone (the brain sizes, "
       "Sep 5)", "night hours are pickiest" not in tour)
 check("tour: the daily lock is gone from the guards "
