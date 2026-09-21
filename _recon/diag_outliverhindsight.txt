@@ -1,0 +1,188 @@
+### diag_outliverhindsight — co_filename=diag_outliverhindsight.py firstlineno=1
+DOCSTRING:
+diag_outliverhindsight.py — THE OUTLIVER'S HINDSIGHT (Sep 20).
+
+WHY THIS EXISTS: the rotation-outliver gate (Sep 19) fires the early
+Get Out when a coin's own book says dips this deep usually miss the
+rotation AND the median base time outlasts the minutes left. Her
+question: "did the early Get Outs save or cost versus holding to the
+boundary, in dollars?" Every fire is journaled at decision time
+(outliver_fires.jsonl — once per rotation boundary per pair; the 60s
+repeats are hearings, not decisions). This study prices each fire:
+
+  REALIZED   — exit at the fire price.
+  COUNTERFACTUAL — hold to the rotation boundary the gate judged
+  (fire ts + remaining_min), priced on the pair's 1h store.
+
+  saved_usd = (fire_price - boundary_close) x (size / fire_price)
+  > 0 the early exit SAVED dollars; < 0 it COST (the rebound came).
+
+Also graded: the book's own thesis — did price re-touch the pre-dip
+high within 24 bars after the fire (the book predicted it would NOT)?
+
+THE MONTHLY EVIDENCE DRIVER: re-prices monthly as fires accumulate
+(the journal accrues only when the gate fires — a $0 month stays
+comparable with the month the gate finally speaks). Appends
+_outliverhindsight_monthly.jsonl;
+
+TOP-LEVEL NAMES (imports/defs in order):
+  IMPORT __future__
+  IMPORT annotations
+  STORE  annotations
+  IMPORT json
+  STORE  json
+  IMPORT logging
+  STORE  logging
+  IMPORT statistics
+  STORE  statistics
+  IMPORT sys
+  STORE  sys
+  IMPORT threading
+  STORE  threading
+  IMPORT datetime
+  IMPORT datetime
+  STORE  datetime
+  IMPORT timezone
+  STORE  timezone
+  IMPORT pathlib
+  IMPORT Path
+  STORE  Path
+  STORE  BASE
+  STORE  STORES
+  STORE  FIRES_FILE
+  STORE  OUT
+  STORE  LEDGER
+  STORE  RETOUCH_BARS
+  STORE  MONTHLY_PERIOD_S
+  STORE  FIRST_DELAY_S
+  STORE  logger
+  STORE  _read_fires
+  STORE  _load_store
+  STORE  _fire_epoch
+  STORE  grade_fire
+  STORE  run_study
+  STORE  main
+  STORE  _read_ledger
+  STORE  monthly_driver_loop
+
+ALL STRINGS (dedup, order-preserving, >=4 chars):
+  diag_outliverhindsight.py — THE OUTLIVER'S HINDSIGHT (Sep 20).
+
+WHY THIS EXISTS: the rotation-outliver gate (Sep 19) fires the early
+Get Out when a coin's own book says dips this deep usually miss the
+rotation AND the me
+  surething_data
+  kraken
+  outliver_fires.jsonl
+  _outliverhindsight.txt
+  _outliverhindsight_monthly.jsonl
+  outliverhindsight
+  path
+  Path
+  return
+  list
+  The journaled fires, oldest first; junk lines skipped.
+  utf-8
+  replace
+  pair
+  (highs, closes, epochs) from a 1h feather store; raises when
+unreadable — the caller skips. Epochs are true UTC seconds,
+computed by delta from the epoch (unit-proof across pandas
+datetime64 resolutions).
+  date
+  time
+  1970-01-01
+  int64
+  high
+  close
+  ts_iso
+  float
+  dict
+  float | None
+  One fire's hindsight against its own store. Returns a row:
+state graded | pending (boundary in the future) | skipped (no bar
+at the fire hour). Pure over its inputs.
+  live
+  size
+  right
+  state
+  skipped
+  reason
+  no bar at the fire hour
+  remaining_min
+  dip_pct
+  bucket
+  usd_at_fire
+  fire_px
+  units
+  retouched
+  pending
+  the judged boundary has not closed yet
+  store too thin to price the boundary
+  graded
+  boundary_px
+  move_pct
+  saved_usd
+  verdict
+  SAVED
+  COST
+  WASH
+  One full hindsight pass over the fire journal. Writes
+_outliverhindsight.txt and appends _outliverhindsight_monthly.jsonl
+(each month's record prices the fires AS THEY STOOD). Returns the
+summary; never raises to the cal
+  THE OUTLIVER'S HINDSIGHT — did the early Get Out beat holding to the boundary?
+  universe: 
+   journaled fire(s)
+
+  _USD-1h.feather
+  OUTLIVER_HINDSIGHT
+  FLEET VERDICT (exit-at-fire vs hold-to-boundary, per fire):
+    graded 
+   · pending 
+   · skipped 
+   (no store / no bar)
+    net: $
+  +,.2f
+   — the early exits 
+  WASHED
+   versus holding to the boundary
+   — TOO THIN TO VERDICT: 
+   graded fire(s), the ladder's OUTLIVER_HINDSIGHT rung needs 
+   (the rows below are the record; the SAVED/COST verdict waits for the sample)
+    fires that saved: 
+   · fires that cost: 
+   · the book's re-touch thesis held in 
+   graded fire(s)
+      
+  % deep -> boundary 
+  +.2f
+  % = $
+   — RE-TOUCHED
+    the gate has not fired yet — the journal accrues when it does, and this study re-prices monthly.
+  seconds
+  fires_total
+  cost_usd
+  net_usd
+  n_saved
+  n_cost
+  n_retouch
+  rows
+  outliver hindsight txt write failed (%s) — the ledger still carries the verdict
+  outliver hindsight ledger append failed (%s) — the txt still carries the verdict
+  wrote 
+   fire(s) graded — net $
+   vs holding to the boundary
+  stop
+  threading.Event
+  first_delay_s
+  period_s
+  The daemon loop: one pass shortly after boot (the ledger record
+seeds the history), then monthly. Never raises; dies with the
+scanner. The append-only ledger (_outliverhindsight_monthly.jsonl)
+is the re-pricing history —
+  OUTLIVER HINDSIGHT: monthly re-price — %d/%d fire(s) graded, net %+.2f USD vs holding to the boundary
+  OUTLIVER HINDSIGHT: pass failed (%s) — this month's re-price skips, the ledger stands
+  __main__
+
+TOTAL STRINGS: 102

@@ -1,0 +1,203 @@
+### diag_clampcost — co_filename=diag_clampcost.py firstlineno=1
+DOCSTRING:
+diag_clampcost.py — THE CLAMP BUG'S DOLLAR COST (Sep 16).
+
+WHY THIS EXISTS: tide_personal_bar clamped the personal bar to the
+QUANTILE band [86, 97] while the Sep 11 outcome refit lowered the
+evidence floor to 80 — so every coin's earned relief past 86 was
+erased at the gate (PUMP's earned -3 landed at 83 and shipped as 86).
+The question: replay the last week's graded tide-out burials through
+BOTH clamp worlds and price what the fixed clamp would have released,
+in dollars.
+
+THE HONEST REPLAY (no look-ahead), same machinery as
+diag_tidememory_hindsight (Sep 10):
+  * only graded burials price (snapshot_outcomes.jsonl carries the
+    forward outcome; the raw suppression ledger does not);
+  * the per-coin memory is REBUILT truncated BEFORE the event's hour —
+    the store model and the live popup-outcome cut only know candles
+    and outcomes from before that moment;
+  * the event's own record supplies the LEARNED bar it was gated on
+    (parsed from the detail text — exactly what the gate used), so the
+    only difference between the worlds is the clamp floor:
+      BUGGED world  bar = clamp86(learned - adj)   (shipped until Sep 16)
+      FIXED world   bar = clamp80(learned - adj)   (
+
+TOP-LEVEL NAMES (imports/defs in order):
+  IMPORT json
+  STORE  json
+  IMPORT logging
+  STORE  logging
+  IMPORT re
+  STORE  re
+  IMPORT sys
+  STORE  sys
+  IMPORT threading
+  STORE  threading
+  IMPORT time
+  STORE  time
+  IMPORT datetime
+  IMPORT datetime
+  STORE  datetime
+  IMPORT timezone
+  STORE  timezone
+  IMPORT pathlib
+  IMPORT Path
+  STORE  Path
+  STORE  BASE
+  STORE  OUT
+  STORE  OUTCOMES
+  STORE  LEDGER
+  STORE  POSITION_USD_FALLBACK
+  STORE  MONTHLY_PERIOD_S
+  STORE  FIRST_DELAY_S
+  STORE  logger
+  STORE  _position_usd
+  IMPORT tide_memory
+  STORE  tm
+  IMPORT tide_learn
+  STORE  tl
+  IMPORT hindsight_scorer
+  STORE  hs
+  STORE  PASS
+  STORE  FAIL
+  STORE  lines
+  STORE  check
+  STORE  _rows
+  STORE  _parse_ts
+  STORE  _store_cache
+  STORE  _store_adj_at
+  STORE  _LIVE_ROWS
+  STORE  _live_pts_at
+  STORE  _replayed_adj
+  STORE  _bind
+  STORE  _clamp86
+  STORE  _clamp80
+  STORE  _size
+  STORE  run_study
+  STORE  main
+  STORE  _read_ledger
+  STORE  monthly_driver_loop
+
+ALL STRINGS (dedup, order-preserving, >=4 chars):
+  diag_clampcost.py — THE CLAMP BUG'S DOLLAR COST (Sep 16).
+
+WHY THIS EXISTS: tide_personal_bar clamped the personal bar to the
+QUANTILE band [86, 97] while the Sep 11 outcome refit lowered the
+evidence floor to 80 — so ev
+  _clampcost_check.txt
+  snapshot_outcomes.jsonl
+  _clampcost_monthly.jsonl
+  clampcost
+  return
+  Today's ledger (the live contest size) with the study's own
+fallback — the sizing rule stays the funnel's, the dollars stay
+current as the contest moves.
+  live contest size unreadable (%s) — the fallback $%.0f stands
+  PASS  
+  FAIL  
+  utf-8
+  cutoff_ts
+  pair
+  state
+  int64
+  coins
+  tide
+  outcome
+  fleet
+  edge
+  (learned_bar, priced?) from the event's own detail text.
+  detail
+  learned OUT bar (\d+)
+  brain
+  quick
+  One full study pass. Returns the summary dict (and writes the
+txt + appends the ledger record). Never raises past the write.
+  gate
+  tide-out
+  all ships sink
+  === THE CLAMP BUG'S DOLLAR COST (Sep 16) ===
+  outcomes ledger window: 
+  (empty)
+   -> 
+    (the window that exists)
+  graded tide-out burials: 
+    priced by the personal bar: 
+    bot-side OUT wall (never priced — two ledgers): 
+  the clamp only raises: every bugged-world release is also a fixed-world release
+  end_move_pct
+  mfe_pct
+  ── THE TWO WORLDS ──
+  BUGGED world  (clamp [86,97]): 
+   released, 
+  +,.2f
+   USD end-move
+  FIXED world   (clamp [80,97]): 
+  >>> THE CLAMP BUG COST: 
+   USD end-move (
+   USD at the mfe ceiling) on 
+   release(s) in the recorded window
+  ── EVERY EVENT THE FIX CHANGES (quick in [80, bugged bar)) ──
+    none in this window: no buried candidate reached the 80-85 zone while the clamp was live. The bug's bite needs a payer ABOVE 86-3; this window's quicks sat in the 50s-60s against an 86+ bar — the tide, not the clamp, d
+   quick 
+   learned 
+   adj 
+  +.1f
+   → bugged 
+   / fixed 
+  payoff
+   end 
+  +.2f
+  % mfe 
+  % @ 
+   USD
+  ── THE NEAR ZONE CENSUS (buried with quick 80-85, the clamp's exact bite range) ──
+    0 events: quick 80-85 never even arrived in this window (min/max/median quick across priced burials below) — the clamp had nothing to erase this week.
+   vs bugged 
+    priced-burial quick: n=
+   min=
+   med=
+   max=
+  ── CONTEXT: the whole gate's window (the no-tide-gate world) ──
+    releasing ALL 
+   burials: 
+   at mfe) — 
+  winner
+   winners, 
+   duds, 
+  grinder
+   grinders. The clamp's $0 sits inside this: the tide gate's suppression was the window's story — the clamp's erased band (quick 80-85 against a bar it raised to 86) never even came into play this week.
+  ── CONTEXT LENS (the Sep 11 refit's EV curve, not realized) ──
+    the deep-store EV fit priced bar 83 vs 86 at +$4.25/fire (12 fires at 25% pay) — the expected per-fire cost when a payer lands in the erased zone. This window produced no such event; the realized cost above is the hone
+  RESULT: 
+   passed, 
+   failed
+  window_start
+  window_end
+  graded_tideout
+  priced
+  bugged_released
+  fixed_released
+  cost_usd
+  cost_mfe_usd
+  position_usd
+  pass
+  fail
+  clamp-cost ledger append failed (%s) — the txt still carries the verdict
+  wrote 
+   failed | cost 
+   USD on 
+   release(s)
+  stop
+  first_delay_s
+  period_s
+  The daemon loop: one pass shortly after boot (the ledger record
+seeds the history), then monthly. Never raises; dies with the
+scanner. The append-only ledger (_clampcost_monthly.jsonl) is the
+re-pricing history — each mo
+  CLAMP-COST: monthly re-price — %d graded tide-out, cost %+.2f USD (%s)
+  empty window
+  CLAMP-COST: pass failed (%s) — this month's re-price skips, the ledger stands
+  __main__
+
+TOTAL STRINGS: 109

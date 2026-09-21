@@ -1,0 +1,284 @@
+### diag_chasecap — co_filename=diag_chasecap.py firstlineno=1
+DOCSTRING:
+diag_chasecap.py — THE CHASE-CAP STUDY (Oct 3).
+
+WHY THIS EXISTS: CHASE_WATCH_MAX_PER_PASS (2) is a frequency governor,
+not a quality gate — its whole cost is delay. It never blocks a pair
+from speaking (a deferred pair re-enters the next pass's queue and
+cannot be deferred twice in a row), so "the cap deferred a turn that
+then ran" reduces to a pure delay question: did the 1-pass deferral
+push the she-decides point past a window that then paid?
+
+WHAT IT PRICES — only [watchlist]-provenance turns. The funnel's own
+budgeted 2/pass never defers the live mover's line (a [watchlist]
+deferral frees the slot), and funnel-turn quality is diag_chaseback's
+job. The deferral's cost decomposes into three non-overlapping parts
+(the chaseback convention, full chase position, ran = +2% MFE):
+
+  A. RAN MISSED      — the zero-delay world's 4-bar window touched
+                       +2% MFE from its entry but the delayed world's
+                       did not: position x 2%.
+  B. RAN ENTRY SHAVE — both windows ran, but the delayed entry paid a
+                       worse close: position x 2% x (1 - close1/close0).
+  C. HOLD DELTA      — neither ran: the shifted 4-bar hold window's
+               
+
+TOP-LEVEL NAMES (imports/defs in order):
+  IMPORT __future__
+  IMPORT annotations
+  STORE  annotations
+  IMPORT glob
+  STORE  glob
+  IMPORT json
+  STORE  json
+  IMPORT logging
+  STORE  logging
+  IMPORT re
+  STORE  re
+  IMPORT sys
+  STORE  sys
+  IMPORT threading
+  STORE  threading
+  IMPORT time
+  STORE  time
+  IMPORT pathlib
+  IMPORT Path
+  STORE  Path
+  STORE  ROOT
+  STORE  logger
+  STORE  POSITION_USD
+  STORE  POSITION_USD_FALLBACK
+  STORE  RAN_PCT
+  STORE  HORIZON_BARS
+  STORE  DELTA_BARS
+  STORE  CAPTURE_DAYS
+  IMPORT evidence_ladder
+  IMPORT TURN_BARS
+  STORE  _EL_TURN_BARS
+  STORE  MATURITY_TURNS
+  STORE  MAX_PER_PASS
+  STORE  REF_TOL
+  STORE  PASSES_PER_DAY
+  STORE  TURNS_FILE
+  STORE  DEFERRALS_JOURNAL
+  STORE  STORES_DIR
+  STORE  STUDY_OUT
+  STORE  STUDY_LEDGER
+  STORE  LOG_GLOBS
+  STORE  _utcnow_iso
+  STORE  _position_usd
+  STORE  _epoch_s_of
+  STORE  _load_store
+  STORE  _store_epochs
+  STORE  _bar_at_or_before
+  STORE  _entry_and_window
+  STORE  _price_side
+  STORE  _deferral_cost
+  STORE  read_turns
+  STORE  read_deferrals
+  STORE  match_deferral
+  STORE  _store_path
+  STORE  price_turn
+  STORE  run_study
+  STORE  cap_verdict
+  STORE  write_report
+  STORE  append_ledger
+  STORE  monthly_driver_loop
+  STORE  graded_cap_turns
+  STORE  ledger_last_graded
+  STORE  cap_watch_loop
+  STORE  main
+
+ALL STRINGS (dedup, order-preserving, >=4 chars):
+  diag_chasecap.py — THE CHASE-CAP STUDY (Oct 3).
+
+WHY THIS EXISTS: CHASE_WATCH_MAX_PER_PASS (2) is a frequency governor,
+not a quality gate — its whole cost is delay. It never blocks a pair
+from speaking (a deferred pair 
+  chasecap
+  CAP_MATURITY
+  chase_turns.jsonl
+  chase_deferrals.jsonl
+  surething_data
+  kraken
+  _chasecap_check.txt
+  _chasecap_monthly.jsonl
+  logs
+  *.log
+  *.txt
+  return
+  float
+  Resolve the live contest size, fail-closed to the study fallback.
+  CONTEST_SIZE
+  ts_iso
+  path
+  Path
+  One feather store -> (closes np array, UTC DatetimeIndex).
+
+The diag_chaseback loader convention: the 'date' column is UTC,
+sorted, de-duplicated by sort order; closes are plain floats.
+  date
+  close
+  A UTC DatetimeIndex -> epoch SECONDS via the datetime64[s] cast
+(the house chain — the naive astype('int64') is unit-ambiguous
+across pandas versions; this environment returned us-scale ints).
+  datetime64[s]
+  int64
+  Index of the last store bar with epoch <= t0 (-1 if none).
+  right
+  shift
+  (entry_close, fwd_closes, entry_epoch) for the bar t0 shifted
+`shift` bars early; None when the store cannot price it (too short
+or the 4-bar horizon is not yet closed).
+  dict
+  The chaseback convention on one entry: ran + end-move.
+  end_pct
+  zero
+  actual
+  position
+  The three non-overlapping components, A/B/C partitioned.
+  ran_missed
+  entry_shave
+  hold_delta
+  kind
+  window_days
+  list
+  Watchlist-provenance turns inside the capture window.
+  utf-8
+  replace
+  [watchlist]
+  journal
+  Deferral events: the DURABLE journal first (chase_deferrals.jsonl,
+written by the scanner's defer site since Sep 18), then any surviving
+budget-spent console-log lines (the log truncates per boot - the
+journal exists bec
+  pair
+  ref_close
+  budget spent
+  \b([A-Z0-9]{2,10}/USD)\b
+  \bref\s+([0-9]*\.?[0-9]+)
+  events
+  journal_rows
+  log_lines
+  unparsed
+  turns
+  Pair + ref-close match to a spoken turn (within REF_TOL).
+  stores_dir
+  _USD-1h.feather
+  turn
+  Price one spoken turn in both worlds (zero-delay vs actual).
+  state
+  pending
+  skipped
+  graded
+  deferral
+  scheduled
+  turns_path
+  trigger
+  The full pass: turns -> graded worlds -> deferral matching ->
+frequency stats -> the report-only cap verdict.
+  ran_actual
+  usd_actual
+  usd_zero
+  turn_ts
+  turn_state
+  then_ran
+  position_usd
+  watchlist
+  frequency
+  turns_per_day
+  demand_per_pass
+  max_per_pass
+  by_pair
+  deferrals
+  matched
+  unmatched
+  cost_by_kind
+  net_cost
+  recommendation
+  per_day
+  tdays
+  n_graded
+  n_events
+  THE CAP VERDICT - report-only, never auto-applied.
+
+The cap is a burst governor: with ~144 passes/day it binds only when
+several pairs turn in the same pass, so budget-spent lines are the
+binding evidence and GRADED TURN
+  verdict
+  keep
+  recommended
+  reason
+  immature data (
+   graded turns - frequency alone can never justify a change; the tune needs 
+  + GRADED turns, horizons closed and priced on the store)
+  the cap never bound - no budget-spent lines in surviving logs; frequency alone (%.1f turns/day = %.3f/pass demand) cannot bind 2/pass
+  raise
+  deferrals cost $
+  ,.2f
+   net across 
+   surviving events - propose raising to 
+  /pass (report-only)
+   deferral events priced net $
+   - the cap's delay was free
+  summary
+  CHASE-CAP STUDY - 
+  position $
+  ,.0f
+   | window 
+  d | max/pass 
+  [watchlist] turns: 
+   (graded 
+   / pending 
+   / skipped 
+  speak frequency: 
+  /day = 
+  /pass demand vs cap 
+  THE DEFERRAL QUESTION - did the cap ever defer a turn that then ran?
+    no deferral records - the journal is empty and no budget-spent lines survive. The journal writes from today, so every future defer is priced; pre-journal deferrals are unanswerable, not absent.
+   event(s) (journal 
+  , log lines 
+  ): matched 
+  , unmatched 
+  , unparsed 
+      THEN RAN: 
+   - deferral 
+    cost by kind: 
+   -> net $
+  PER-PAIR (graded watchlist turns, actual world):
+   ran=
+  +,.2f
+   actual (zero-delay world $
+  CAP VERDICT (report-only): 
+   at 
+  /pass - 
+  ==============================================================
+  graded_n
+  stop
+  threading.Event
+  first_delay_s
+  interval_days
+  None
+  The driver: first pass ~30 min after boot, then daily.
+  chasecap driver pass failed (%s) — this cycle skips, the ledger stands
+  float | None
+  The cap gate's exact count: every [watchlist] row in
+chase_turns.jsonl whose 4-bar horizon has closed — the same filter
+and horizon math the study grades by (HORIZON_BARS on 1h bars), so
+the watch fires when the STUDY wo
+  The newest ledger record's graded count (-1 when the ledger is
+missing/unreadable — never read as already-mature).
+  poll_s
+  Poll chase_turns.jsonl and fire the study at the FIRST moment
+the cap's maturity bar (20 graded watchlist turns) is reached —
+the first FULL verdict, one poll after the 20th turn's horizon
+closes instead of the next sche
+   CAP GATE WATCH: the ledger already holds a mature cap verdict — the daily driver owns re-pricing; the watch stands down
+   CAP GATE WATCH: %d graded watchlist turns reached the cap maturity bar (%d) — running the study for the FIRST FULL VERDICT
+  cap_gate_watch
+   CAP GATE WATCH: the fire graded only %d turns (thin stores skipped %d) — the verdict stays immature; the watch continues to the next closure
+   CAP GATE WATCH: the first full cap verdict is %s (recommended %s/pass, fired at %d graded turns) — %s
+   CAP GATE WATCH: poll failed (%s) — retrying next cycle
+  __main__
+
+TOTAL STRINGS: 164

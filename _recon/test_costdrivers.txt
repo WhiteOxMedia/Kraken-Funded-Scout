@@ -1,0 +1,183 @@
+### test_costdrivers — co_filename=test_costdrivers.py firstlineno=1
+DOCSTRING:
+test_costdrivers.py — pins for the two recurring-cost drivers added
+Sep 16 (the clamp-cost driver was the template; these two price the
+other recurring decisions):
+
+  1. TIDE-HINDSIGHT (diag_tidememory_hindsight): the per-coin tide
+     memory's dollar hindsight re-prices itself monthly off the growing
+     outcomes ledger (_tidehindsight_monthly.jsonl).
+  2. NO-CHASE FLEET (diag_nochase_fleet): the no-chase ladder replays
+     every 1h store through the one-gate counterfactual monthly
+     (_nochasefleet_monthly.jsonl); the RSI line is the decider only
+     where a decisive refusal exists.
+
+Both run HERMETICALLY here: ledger/txt/outcome paths redirected to a
+tmpdir, the fleet pass bounded to 2 stores (deterministic slice), the
+fleet driver's tick test stubbed (the real 42-min pass belongs to the
+driver thread, never to the battery).
+
+
+TOP-LEVEL NAMES (imports/defs in order):
+  IMPORT json
+  STORE  json
+  IMPORT sys
+  STORE  sys
+  IMPORT threading
+  STORE  threading
+  IMPORT time
+  STORE  time
+  IMPORT pathlib
+  IMPORT Path
+  STORE  Path
+  STORE  BASE
+  IMPORT tempfile
+  STORE  tempfile
+  STORE  results
+  STORE  check
+  STORE  tmp
+  IMPORT diag_tidememory_hindsight
+  STORE  dth
+  STORE  _saved
+  STORE  rows
+  STORE  s
+  STORE  led
+  STORE  stop
+  STORE  th
+  STORE  led2
+  STORE  k
+  STORE  v
+  STORE  _src
+  IMPORT diag_laddergrade
+  STORE  dlg
+  STORE  _saved_f
+  STORE  s
+  STORE  txt
+  STORE  led
+  STORE  dlg_out
+  STORE  _saved_glob
+  STORE  s2
+  STORE  k
+  STORE  v
+  STORE  _calls
+  STORE  _stub_run
+  STORE  _saved_rs
+  STORE  stop
+  STORE  th
+  STORE  led2
+  STORE  _srcl
+  STORE  fails
+  STORE  k
+  STORE  v
+  STORE  k
+  STORE  v
+
+ALL STRINGS (dedup, order-preserving, >=4 chars):
+  test_costdrivers.py — pins for the two recurring-cost drivers added
+Sep 16 (the clamp-cost driver was the template; these two price the
+other recurring decisions):
+
+  1. TIDE-HINDSIGHT (diag_tidememory_hindsight): the pe
+  PASS  
+  FAIL  
+  costdrivers_
+  th.txt
+  outcomes.jsonl
+  th_monthly.jsonl
+  2026-09-16T09:00:00-06:00
+  pair
+  AAA/USD
+  gate
+  tide-out
+  tide
+  OUT 30%
+  quick
+  brain
+  floor
+  detail
+  quick 64.0 vs personal bar 65 (learned OUT bar 65)
+  outcome
+  end_move_pct
+  mfe_pct
+  payoff
+  grinder
+  2026-09-16T09:30:00-06:00
+  BBB/USD
+  OUT 25%
+  all ships sink together; no solo move
+  utf-8
+  hindsight: the study prices the binder-priced row and names the wall
+  priced
+  wall_burials
+  hindsight: the record carries the study's dollars + live position
+  released_end_usd
+  position_usd
+  hindsight: run_study appends one ledger record
+  hindsight: the driver appends per tick and stops cleanly
+   records (was 
+  diag_tidememory_hindsight.py
+  hindsight: the driver is wired into the scanner's family
+  tidehindsight-monthly
+  background_scanner.py
+  hindsight: dollars stay current (the live contest-size accessor)
+  _position_usd
+  _contest_size
+  hindsight: the monthly cadence + CLI survive
+  MONTHLY_PERIOD_S = 30 * 86400.0
+  if __name__ == "__main__":
+  main()
+  hindsight: the no-look-ahead contract is intact (truncated rebuild)
+  _store_adj_at
+  truncated
+  lg.txt
+  lg_monthly.jsonl
+  ladder: the bounded pass grades real stores and reports the bound
+  pairs
+  bounded
+  hours_total
+  ladder: every rung carries a verdict + dollars
+  rungs
+  net_usd
+  verdict
+  ladder: the txt marks the bounded sample (the driver runs the 54)
+  BOUNDED SAMPLE
+  ladder: the txt carries the per-rung table with verdicts
+  PER RUNG, FLEET-WIDE
+  DEAD WEIGHT
+  ladder: run_study appends one ledger record
+  surething_data/kraken/*_NOPE-1h.feather
+  ladder: an empty store glob degrades to zeros without exception
+  stub
+  score
+  lg2.txt
+  lg2_monthly.jsonl
+  ladder: the driver appends per tick and stops cleanly
+   records
+  diag_laddergrade.py
+  ladder: the driver is wired into the scanner's family
+  laddergrade-monthly
+  ladder: each module rung's counterfactual is a one-line disable (uniqueness asserted)
+  rsi_ceiling = 78.0 if trending_up else 68.0
+  src.count(r["needle"]) == 1
+  "score floor
+  ladder: the score rung rides a cfg override (min_confidence=0), no patching
+  min_confidence=0.0
+  ladder: SELL hours are nobody's court (only blocked BUYs are priced)
+  action == "sell"
+  ladder: the heavy pass lives in the driver (boot-seed + monthly)
+  FIRST_DELAY_S = 2700.0
+  ladder: the 54 = the config's contest list (not the whole feather dir)
+  cfg.trading_pairs
+  _costdrivers_check.txt
+  PASS
+  FAIL
+  
+
+RESULT: 
+   passed, 
+   failed
+
+  RESULT: 
+   failed
+
+TOTAL STRINGS: 99

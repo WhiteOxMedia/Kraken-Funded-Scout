@@ -1,0 +1,166 @@
+### diag_courtfloor — co_filename=diag_courtfloor.py firstlineno=1
+DOCSTRING:
+diag_courtfloor.py — THE COURT-FLOOR STUDY (Sep 17).
+
+WHY THIS EXISTS: coin_floors.py learns each coin's relief from its
+blocked-trade court, but the court's floor (BAND_LO = 72) was set by
+judgment. Every blocked buy scoring below 72 vanishes from the
+learner's evidence — uncounted, unlearned, unrelieved. This study
+prices what that exclusion cost: one replay of every contest store
+with a WIDER net ([40, 72) — 40 is the strategy's buy floor), each
+trade graded forward through the popup contract, priced in the fleet's
+ledger convention (position x the brain's ladder x the end-move, the
+ran ceiling alongside).
+
+The band structure is the answer's shape:
+  - payers bunched in [70, 72) -> the cheap fix is lowering BAND_LO to
+    70 (FLOOR_BAR_FLOOR already refuses bars below 70);
+  - payers deep in [40, 60)   -> the court itself is the question.
+
+Each trade carries its hour's ts so the study can also report the
+RECENT windows (14d / 30d) — the all-time number and the live regime
+can disagree, and the decayed learner should be judged by the regime
+it actually faces. Monthly driver on the boot family: the exclusion
+re-prices itself as the stores grow. Hermetic pins bound the replay
+(max_
+
+TOP-LEVEL NAMES (imports/defs in order):
+  IMPORT __future__
+  IMPORT annotations
+  STORE  annotations
+  IMPORT glob
+  STORE  glob
+  IMPORT json
+  STORE  json
+  IMPORT logging
+  STORE  logging
+  IMPORT threading
+  STORE  threading
+  IMPORT time
+  STORE  time
+  IMPORT datetime
+  IMPORT datetime
+  STORE  datetime
+  IMPORT timezone
+  STORE  timezone
+  IMPORT pathlib
+  IMPORT Path
+  STORE  Path
+  STORE  logger
+  STORE  BASE
+  STORE  OUT
+  STORE  LEDGER
+  STORE  STORES_GLOB
+  STORE  POSITION_USD
+  STORE  POSITION_USD_FALLBACK
+  STORE  HORIZON
+  STORE  WARMUP
+  STORE  COURT_LO
+  STORE  COURT_HI
+  STORE  BANDS
+  STORE  FIRST_DELAY_S
+  STORE  MONTHLY_PERIOD_S
+  STORE  _utcnow_iso
+  STORE  _position_usd
+  STORE  _blocked_below
+  STORE  _price
+  STORE  run_study
+  STORE  _append
+  STORE  monthly_driver_loop
+
+ALL STRINGS (dedup, order-preserving, >=4 chars):
+  diag_courtfloor.py — THE COURT-FLOOR STUDY (Sep 17).
+
+WHY THIS EXISTS: coin_floors.py learns each coin's relief from its
+blocked-trade court, but the court's floor (BAND_LO = 72) was set by
+judgment. Every blocked buy sc
+  courtfloor
+  _courtfloor_check.txt
+  _courtfloor_monthly.jsonl
+  surething_data/kraken/*_USD-1h.feather
+  return
+  float
+  Today's ledger (the live contest size) with the study's own
+fallback — the family convention.
+  live contest size unreadable (%s) — the fallback $%.0f stands
+  list
+  One store -> the blocked buys the learner's court EXCLUDED:
+hours scoring a buy-conf in [lo, hi), consecutive runs collapsed to
+one trade, each graded end-move and ran (the popup contract) and
+stamped with its entry hour
+  date
+  confidence
+  close
+  high
+  entry
+  trades
+  position_usd
+  dict
+  The fleet ledger over a trade list: payers (ran, the popup
+contract), duds (end red), ledger dollars (end-move at the brain's
+ladder), the ran ceiling, and the recent-window splits.
+  payers
+  duds
+  ledger_usd
+  ran_ceiling_usd
+  max_pairs
+  int | None
+  stores_dir
+  Path | None
+  float | None
+  write
+  bool
+  One full exclusion study across the contest stores. Bounds make
+it hermetic: max_pairs slices, stores_dir/position_usd injectable
+for the pins.
+  *_USD-1h.feather
+  -1h.feather
+  pairs
+  bounded
+  total
+  bands
+  per_coin
+  === THE COURT-FLOOR STUDY: what the learner's 72-point band EXCLUDED (Sep 17) ===
+  net: blocked buys scoring [
+  ) — the court the learner never saw (40 = the strategy's buy floor, 72 = BAND_LO)
+  position $
+  ,.0f
+   x the brain's ladder | horizon 
+  h | ran = +
+  % MFE (the popup contract) | ledger $ = the end-move
+  courtfloor: %s skipped (%s)
+  stores replayed: 
+   (BOUNDED SAMPLE)
+  BAND
+  ledger $
+  ran-ceil $
+  >12,.2f
+  TOTAL
+  the excluded world: 
+   blocked trades, 
+   payers (
+  % ran) — ledger $
+  +,.2f
+   end-move, $
+  ,.2f
+   ran-ceiling
+  recent windows (the regime the decayed learner faces):
+   trades, 
+   payers, ledger $
+  top coins by excluded ledger $:
+   payers, $
+  utf-8
+  --------------------------------------------------
+  None
+  courtfloor ledger append failed (%s)
+  first_delay_s
+  period_s
+  The scanner thread body: one pass shortly after boot, then
+monthly. Never raises; dies with the stop event.
+  COURT-FLOOR: exclusion re-priced — %d trades, %d payers, ledger $%.2f (next in %.0f days)
+  COURT-FLOOR: pass failed (%s) — this cycle skips
+  __main__
+  %(asctime)s %(levelname)s %(message)s
+  done ->
+
+TOTAL STRINGS: 80

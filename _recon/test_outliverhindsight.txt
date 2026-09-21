@@ -1,0 +1,161 @@
+### test_outliverhindsight — co_filename=test_outliverhindsight.py firstlineno=1
+DOCSTRING:
+test_outliverhindsight.py — the rotation-outliver's hindsight pins.
+
+The machinery: the exit ladder journals each outliver fire's
+decision-time evidence once per rotation boundary
+(outliver_fires.jsonl), and diag_outliverhindsight prices every fire
+against the boundary the gate judged — saved or cost, in dollars.
+These pins run everything HERMETICALLY (synthetic feather stores in
+tmpdirs, module paths rebound, the scanner's clock frozen):
+
+  1. THE JOURNAL — decision-time evidence stamped (bucket row, n,
+     rec4, bmed, remaining minutes, age), the 60s repeat calls deduped
+     per boundary, a thin-book fire carrying null row fields, and a
+     journal failure never breaking the caller.
+  2. THE STUDY — the four worlds: SAVED (the exit beat the boundary),
+     COST (held into the rebound), PENDING (boundary not yet closed),
+     and the re-touch thesis check (the book predicted no recovery;
+     the study calls the miss out loud).
+  3. THE EMPTY WORLD — a gate that has not fired prices zeros without
+     exception (today's truth: zero fires since Sep 19).
+  4. THE DRIVER — monthly_driver_loop ticks on a fast clock, appends
+     per tick, stops cleanly (the family idiom).
+  5. THE 
+
+TOP-LEVEL NAMES (imports/defs in order):
+  IMPORT json
+  STORE  json
+  IMPORT sys
+  STORE  sys
+  IMPORT threading
+  STORE  threading
+  IMPORT time
+  STORE  time
+  IMPORT pathlib
+  IMPORT Path
+  STORE  Path
+  IMPORT pandas
+  STORE  pd
+  STORE  BASE
+  IMPORT diag_outliverhindsight
+  STORE  dol
+  IMPORT background_scanner
+  STORE  bs
+  STORE  PASS
+  STORE  FAIL
+  STORE  lines
+  STORE  check
+  STORE  mk_store
+  STORE  FIRE
+  IMPORT tempfile
+  STORE  tempfile
+  STORE  TMP
+  STORE  _dol_fires
+  STORE  _dol_out
+  STORE  _dol_ledger
+  STORE  _dol_stores
+  STORE  _bs_fires
+  STORE  _real
+  STORE  _real_prof
+  STORE  _real_now
+  STORE  rows
+  STORE  rows2
+  STORE  highs
+  STORE  closes
+  STORE  s
+  STORE  s2
+  IMPORT datetime
+  IMPORT datetime
+  STORE  _dtu
+  IMPORT timedelta
+  STORE  _tdu
+  IMPORT timezone
+  STORE  _tzu
+  STORE  _pending_ts
+  STORE  s3
+  STORE  _hs
+  STORE  s4
+  STORE  s0
+  STORE  stop
+  STORE  th
+  STORE  led
+  STORE  bs_src
+
+ALL STRINGS (dedup, order-preserving, >=4 chars):
+  test_outliverhindsight.py — the rotation-outliver's hindsight pins.
+
+The machinery: the exit ladder journals each outliver fire's
+decision-time evidence once per rotation boundary
+(outliver_fires.jsonl), and diag_outlive
+  PASS  
+  FAIL  
+  path
+  2026-09-19
+  date
+  open
+  high
+  close
+  volume
+  2026-09-19T04:00:00+00:00
+  pair
+  ZEC/USD
+  live
+  size
+  dip_pct
+  bucket
+  4.5-100.0
+  rec4
+  bmed_h
+  remaining_min
+  fires.jsonl
+  out.txt
+  led.jsonl
+  stores
+  scanner_fires.jsonl
+  buckets
+  bmed
+  usually misses the rotation
+  repeat 60s later
+  utf-8
+  journal: the fire stamps decision-time evidence (bucket row, n, rec4, bmed, remaining minutes, age, P&L at fire)
+  age_min
+  journal: the 60s repeat calls dedupe per boundary (one decision, not five hearings)
+  NOBOOK/USD
+  thin book
+  journal: a thin-book fire journals its DEPTH (the bucket still names itself) with null coin evidence (n/rec4/bmed) — the grade prices the move regardless
+  X/USD
+  boom
+  journal: a write failure is swallowed at debug and the caller survives
+  ZEC_USD-1h.feather
+  study: the SAVED world — the exit beat the boundary by the hand-checked arithmetic ((35-33) x 2500/35 = +142.86), the book's no-re-touch thesis held
+  graded
+  net_usd
+  rows
+  verdict
+  SAVED
+  n_retouch
+  study: the COST world — holding to the boundary rode the rebound back to 40.0 (net -357.14), the exit cost
+  COST
+  seconds
+  study: the PENDING world — a fire whose judged boundary has not closed waits honestly (never priced before it exists)
+  pending
+  study: the re-touch thesis — a coin that climbed back to its pre-dip high within 24 bars is CALLED OUT (the book was wrong for this dip)
+  retouched
+  empty world: a gate that has not fired prices zeros without exception (today's truth — the journal accrues when it speaks)
+  fires_total
+  driver: appended per tick and stopped cleanly
+   records
+  background_scanner.py
+  family: the scanner journals the fire at the outliver branch and boots the hindsight driver with the family's conventions
+  _journal_outliver_fire(pair, entry, live, high, size
+  name="outliverhindsight-monthly"
+  appends _outliverhindsight_monthly.jsonl
+  _doh.FIRST_DELAY_S
+  fire-site call or driver block missing
+  RESULT: 
+   passed, 
+   failed
+  _outliverpins_check.txt
+
+TOTAL STRINGS: 70

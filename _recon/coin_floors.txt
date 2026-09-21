@@ -1,0 +1,163 @@
+### coin_floors — co_filename=coin_floors.py firstlineno=1
+DOCSTRING:
+coin_floors.py — THE PER-COIN SCORE FLOOR (Sep 17).
+
+WHY THIS EXISTS: the popup floor is fleet-wide — every coin pays the
+same assembled bar. But the floor's court is not the fleet: it is each
+coin's OWN blocked trades. ZEC dies at 78 in this regime while SOL
+clears at 80 — the same bar buries a habitual marginal payer and
+admits a habitual marginal dud. The tide memory (Sep 10) personalizes
+the OUT bar from tide-conditioned payer rates; this module
+personalizes the SCORE FLOOR itself from each coin's own blocked-trade
+distribution: replay the coin's 1h store, find the hours the strategy
+scored a buy INSIDE the sub-floor band (the floor's own court — the
+hours the bar taxes this coin; conf in band implies a buy, the
+strategy buys at 40), grade each blocked hour's forward outcome, and
+learn the score under which this coin's blocked buys stop paying.
+
+THE EDGE (the tide memory's shape): edge_pts = median(payer blocked
+scores) - median(dud blocked scores), clamped to [0, FLOOR_EDGE_MAX_PTS].
+RELIEF ONLY: the learner may ease the fleet's floor for this coin,
+never tighten it — a dud-heavy band clamps to 0. The personal bar =
+assembled bar - edge, clamped to [FLOOR_BAR_FLOOR, 97] at the
+
+TOP-LEVEL NAMES (imports/defs in order):
+  IMPORT __future__
+  IMPORT annotations
+  STORE  annotations
+  IMPORT json
+  STORE  json
+  IMPORT logging
+  STORE  logging
+  IMPORT threading
+  STORE  threading
+  IMPORT time
+  STORE  time
+  IMPORT datetime
+  IMPORT datetime
+  STORE  datetime
+  IMPORT timezone
+  STORE  timezone
+  IMPORT pathlib
+  IMPORT Path
+  STORE  Path
+  STORE  logger
+  STORE  ROOT
+  STORE  STORE_DIR
+  STORE  FILE
+  STORE  WARMUP
+  STORE  HORIZON
+  STORE  RAN_PCT
+  STORE  BAND_HI
+  STORE  BAND_LO
+  STORE  FLOOR_EDGE_MAX_PTS
+  STORE  FLOOR_BAR_FLOOR
+  STORE  MIN_BLOCKED
+  STORE  MIN_PAYERS
+  STORE  DECAY_HALF_LIFE_H
+  STORE  CACHE_TTL_S
+  STORE  LIVE_REFRESH_S
+  STORE  _lock
+  STORE  _cache
+  STORE  _utcnow_iso
+  STORE  _evaluate
+  STORE  _replay_pair
+  STORE  _wmedian
+  STORE  _learn_from
+  STORE  _save
+  STORE  compute
+  STORE  floor_edge
+  STORE  warm
+  STORE  floors_driver_loop
+
+ALL STRINGS (dedup, order-preserving, >=4 chars):
+  coin_floors.py — THE PER-COIN SCORE FLOOR (Sep 17).
+
+WHY THIS EXISTS: the popup floor is fleet-wide — every coin pays the
+same assembled bar. But the floor's court is not the fleet: it is each
+coin's OWN blocked trades. 
+  coin_floors
+  surething_data
+  kraken
+  coin_floors.json
+  data
+  return
+  The scorer (module-level so tests can sandbox it): the real
+strategy's evaluate_strategy. conf-in-band implies a buy (the
+strategy buys at 40), so the court keys on the score alone.
+  dict | None
+  One store -> the coin's blocked trades inside the court: hours
+scoring a buy-conf in [BAND_LO, BAND_HI), consecutive runs
+collapsed to one trade, each graded end-move and ran (the popup
+contract). Returns None for stores
+  date
+  confidence
+  close
+  high
+  pair
+  -1h.feather
+  blocked
+  pairs
+  list
+  float
+  The decayed median: (score, weight) pairs; the median is the
+score where the cumulative weight first crosses half the total -
+the plain median when every weight is 1.
+  float | None
+  dict
+  The learner, factored so the study shares one set of semantics:
+the blocked list -> the coin's floor record (edge clamped to
+[0, FLOOR_EDGE_MAX_PTS], relief only).
+
+THE RECENCY DECAY (Sep 17): every blocked trade weighs 
+  edge
+  payers
+  duds
+  w_payers
+  w_duds
+  payer_med
+  dud_med
+  thin
+  expired (decayed weight 
+   of 
+   needed)
+  no structure (decayed payer weight 
+  no relief (duds outscore payers in the band)
+  earned
+  None
+  .tmp
+  utf-8
+  coin-floors save failed (%s) — the cache still serves this cycle
+  One full replay of the contest stores -> per-coin floor records.
+HEAVY — ladder-grade weight (~30 min for the 54 stores; the same
+hour-by-hour evaluate_strategy replay). The driver and the warm
+path own it, off the scan 
+  *_USD-1h.feather
+  stores unreadable (
+  coin floors: %s skipped (%s)
+  coins
+  tuple[float, str]
+  (relief_pts, why) for this coin's score floor. pts > 0 eases the
+coin's assembled bar (it pays below it), 0 = the fleet bar stands.
+NEVER computes synchronously: a cold cache says 'warming' — the
+driver's pass fills it, 
+  no blocked history for 
+  no earned floor edge
+   blocked-payer median 
+  % vs dud 
+  D of 
+   blocked, 
+   living) -> -
+   pts
+  Refresh the cache (best-effort). Returns the count of coins with
+earned relief; never raises.
+  COIN FLOORS: warm pass failed (%s) — the cache stands
+  refresh_s
+  first_delay_s
+  The scanner thread body: one pass shortly after boot (the
+relief ships from the first hours), then every refresh_s. Never
+raises; dies with the stop event.
+  COIN FLOORS: refreshed — %d coin(s) with earned relief (next in %.0f min)
+  COIN FLOORS: pass failed (%s) — this cycle skips, the cache stands
+
+TOTAL STRINGS: 64

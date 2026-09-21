@@ -1,0 +1,69 @@
+### diag_asciiclean — co_filename=diag_asciiclean.py firstlineno=1
+DOCSTRING:
+diag_asciiclean.py — THE MOJIBAKE SWEEP (Sep 16).
+
+The scanner/bot/VE console windows render UTF-8 prose (em-dashes,
+arrows, emojis) as cp437 garbage: '≡ƒÜÇ', 'ΓÇö', 'ΓëÑ'. The fix that
+matches the ask: every window-facing STRING LITERAL becomes pure ASCII
+(mapped: — -> -, ≥ -> >=, × -> x; unknown emoji stripped with its
+trailing space). Docstrings/comments outside strings are untouched by
+the tokenizer; app.py is NOT swept (the browser renders UTF-8 fine;
+its emojis are intentional). Tests are swept only by hand after the
+battery names broken pins.
+
+Run:  .venv\Scripts\python.exe -X utf8 diag_asciiclean.py
+Writes originals to %TEMP%/ascii_backup_<stamp>/ before touching files.
+
+
+TOP-LEVEL NAMES (imports/defs in order):
+  IMPORT ast
+  STORE  ast
+  IMPORT os
+  STORE  os
+  IMPORT shutil
+  STORE  shutil
+  IMPORT sys
+  STORE  sys
+  IMPORT tempfile
+  STORE  tempfile
+  IMPORT time
+  STORE  time
+  IMPORT tokenize
+  STORE  tokenize
+  IMPORT io
+  STORE  io
+  IMPORT pathlib
+  IMPORT Path
+  STORE  Path
+  STORE  ROOTS
+  STORE  CHAR_MAP
+  STORE  DROP_WITH_SPACE
+  STORE  map_text
+  STORE  sweep_file
+  STORE  main
+
+ALL STRINGS (dedup, order-preserving, >=4 chars):
+  diag_asciiclean.py — THE MOJIBAKE SWEEP (Sep 16).
+
+The scanner/bot/VE console windows render UTF-8 prose (em-dashes,
+arrows, emojis) as cp437 garbage: '≡ƒÜÇ', 'ΓÇö', 'ΓëÑ'. The fix that
+matches the ask: every window-faci
+  C:\Users\birds\Workspace\kraken_scout
+  C:\Users\birds\Workspace\kraken_xrp_trading_bot
+  return
+  path
+  backup_dir
+  utf-8
+  COMPILE FAILED, restored: 
+  %Y%m%d_%H%M%S
+  ascii_backup_
+  *.py
+  tokenize failed: 
+   strings  
+  
+TOTAL strings mapped: 
+  backups: 
+  FAILED: 
+  __main__
+
+TOTAL STRINGS: 17

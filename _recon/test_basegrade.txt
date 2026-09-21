@@ -1,0 +1,165 @@
+### test_basegrade — co_filename=test_basegrade.py firstlineno=1
+DOCSTRING:
+test_basegrade.py — the fixed-hour grade's driver-family pins.
+
+The study (diag_basegrade.py) grades the retired "about an hour" base
+call against each coin's own median base minutes from the deep stores.
+Since Sep 20 it is a member of the monthly evidence-driver family: the
+scanner boots a daemon that re-prices the fleet monthly and appends
+_basegrade_monthly.jsonl. These pins run the machinery HERMETICALLY —
+synthetic feather stores in tmpdirs, module paths rebound — so the
+battery never touches the production stores or ledger:
+
+  1. THE WALK — an engineered dip recovering after N bars prices
+     N*60 minutes; a dip that never recovers inside the rotation is
+     not a sample; a shallow dip (< 0.5%) is not a sample; an
+     unreadable store is skipped, never fatal.
+  2. THE STUDY — run_study over a sandbox dir grades/skips honestly,
+     writes the txt, appends the ledger, and returns the summary the
+     record carries (fleet median, late/fast counts, buckets).
+  3. THE EMPTY WORLD — an empty stores dir prices zeros without
+     exception (the month a store retires stays comparable).
+  4. THE DRIVER — monthly_driver_loop ticks on a fast clock, appends
+     per tick, and stops c
+
+TOP-LEVEL NAMES (imports/defs in order):
+  IMPORT json
+  STORE  json
+  IMPORT sys
+  STORE  sys
+  IMPORT threading
+  STORE  threading
+  IMPORT time
+  STORE  time
+  IMPORT pathlib
+  IMPORT Path
+  STORE  Path
+  IMPORT pandas
+  STORE  pd
+  STORE  BASE
+  IMPORT diag_basegrade
+  STORE  dbg
+  STORE  PASS
+  STORE  FAIL
+  STORE  lines
+  STORE  check
+  STORE  mk_store
+  STORE  flat_book
+  IMPORT tempfile
+  STORE  tempfile
+  STORE  TMP
+  STORE  _dbg_ledger
+  STORE  _dbg_out
+  STORE  _dbg_stores
+  STORE  _real_ledger
+  STORE  _real_out
+  STORE  _real_stores
+  STORE  closes
+  STORE  highs
+  STORE  i
+  STORE  f
+  STORE  got
+  STORE  raw
+  STORE  bmap
+  STORE  btot
+  STORE  brec4
+  STORE  b
+  STORE  closes2
+  STORE  highs2
+  STORE  i
+  STORE  f2
+  STORE  raw2
+  STORE  _
+  STORE  btot2
+  STORE  brec42
+  STORE  closes3
+  STORE  highs3
+  STORE  f3
+  STORE  got3
+  STORE  junk
+  STORE  s
+  STORE  led
+  STORE  empty
+  STORE  s2
+  STORE  stop
+  STORE  th
+  STORE  led2
+  STORE  bs_src
+
+ALL STRINGS (dedup, order-preserving, >=4 chars):
+  test_basegrade.py — the fixed-hour grade's driver-family pins.
+
+The study (diag_basegrade.py) grades the retired "about an hour" base
+call against each coin's own median base minutes from the deep stores.
+Since Sep 20 it
+  PASS  
+  FAIL  
+  path
+  2026-08-01
+  date
+  open
+  high
+  close
+  volume
+  A coin whose highs sit at hh and closes at base — every bar is a
+2%-dip bar that recovers NEXT bar (2 bars).
+  ledger.jsonl
+  out.txt
+  stores
+  AAA_USD-1h.feather
+  walk: a readable store returns (raw, bucket map, bucket totals, bucket rec4 counts)
+  walk: flat-bar dips recover in 1 bar (60 min), engineered 3-bar dips in 2 bars (120 min)
+  raw[:6]=
+  walk: the engineered dips land in the book's 3.0-4.5 bucket
+   in 
+  walk: rec4 arithmetic — every flat dip (1.96% deep, the 1.5-2.0 bucket) recovered in 1-3 bars (<= 4), so that bucket's rec-rate is 1.0
+  btot=
+   brec4=
+  walk: the engineered 3-bar dips count in the (3.0,4.5) rate's numerator too
+  BBB_USD-1h.feather
+  walk: a never-recovering dip contributes no sample (the GET OUT case is not a base-time sample)
+  max=
+  walk: a never-recovering dip STAYS in the rec-rate's denominator — the deep bucket counts it and scores rec4 0.0 (the fleet fallback's death evidence)
+  CCC_USD-1h.feather
+  walk: a store with no qualifying dips returns None — it has no base-time book (the study skips it)
+  DDD_USD-1h.feather
+  not a feather
+  utf-8
+  walk: an unreadable store returns None
+  study: the sandbox run grades the readable stores and skips the bookless + junk ones
+  graded
+  skipped
+  coins_total
+   skipped 
+  study: the summary carries the fleet verdict the ledger prices — claim, median, late/fast, buckets
+  claim_min
+  samples
+  fleet_median_min
+  buckets
+  top_offenders
+  pair
+  _USD
+  study: the txt and the ledger both landed on the sandbox paths
+  FLEET VERDICT
+  txt=
+   ledger=
+  ledger: the record round-trips the study's verdict
+  ledger: every bucket carries the rec4 rate leg the outliver's fleet fallback reads
+  rec4
+  empty
+  empty world: zeros without exception
+  driver: appended per tick and stopped cleanly
+   records
+  background_scanner.py
+  family: the scanner's driver-family block carries the basegrade daemon with the family's conventions
+  import diag_basegrade as _dbg
+  name="basegrade-monthly"
+  appends _basegrade_monthly.jsonl
+  _dbg.FIRST_DELAY_S
+  driver block missing or clock drift
+  RESULT: 
+   passed, 
+   failed
+  _basegradepins_check.txt
+
+TOTAL STRINGS: 69

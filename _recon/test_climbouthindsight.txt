@@ -1,0 +1,117 @@
+### test_climbouthindsight — co_filename=test_climbouthindsight.py firstlineno=1
+DOCSTRING:
+test_climbouthindsight.py — hermetic pins for the climb-out bridge's
+hindsight study (diag_climbouthindsight).
+
+The climb-out fire ledger has never carried a fire yet (the bridge is
+Sep 19-new), so these pins prove the machinery on synthetic worlds —
+no production file is read or written:
+
+  1. the join's five worlds: a pay, a cost, a pending, the
+     fire-before-close rule (an earlier close never joins), and the
+     repeat-fire rule (a second fire takes the pair's NEXT close)
+  2. junk-line tolerance on both ledgers; missing files price zeros
+  3. the arithmetic to the cent: net, wins/losses, per-fire average
+  4. the driver loop: fast-clock ticks append, clean stop
+  5. the family drift guard: the scanner's driver block carries the
+     climb-out daemon with the family's conventions
+
+
+TOP-LEVEL NAMES (imports/defs in order):
+  IMPORT json
+  STORE  json
+  IMPORT sys
+  STORE  sys
+  IMPORT threading
+  STORE  threading
+  IMPORT time
+  STORE  time
+  IMPORT pathlib
+  IMPORT Path
+  STORE  Path
+  STORE  BASE
+  IMPORT diag_climbouthindsight
+  STORE  dch
+  STORE  PASS
+  STORE  FAIL
+  STORE  lines
+  STORE  check
+  IMPORT tempfile
+  STORE  tempfile
+  STORE  TMP
+  STORE  _fires
+  STORE  _trades
+  STORE  _led
+  STORE  _out
+  STORE  _real
+  STORE  s
+  STORE  by_fire
+  STORE  s2
+  STORE  stop
+  STORE  th
+  STORE  led
+  STORE  bs_src
+
+ALL STRINGS (dedup, order-preserving, >=4 chars):
+  test_climbouthindsight.py — hermetic pins for the climb-out bridge's
+hindsight study (diag_climbouthindsight).
+
+The climb-out fire ledger has never carried a fire yet (the bridge is
+Sep 19-new), so these pins prove the m
+  PASS  
+  FAIL  
+  fires.jsonl
+  trades.jsonl
+  ledger.jsonl
+  out.txt
+  pair
+  AAA/USD
+  fired_at
+  2026-09-20T05:00:00-06:00
+  BBB/USD
+  CCC/USD
+  2026-09-20T09:00:00-06:00
+  junk line
+  utf-8
+  sold_at
+  2026-09-20T04:00:00-06:00
+  pnl_net
+  held_min
+  goal_pct
+  2026-09-20T05:30:00-06:00
+  2026-09-20T09:30:00-06:00
+  2026-09-20T06:00:00-06:00
+  { broken json
+  rows
+  join: a fire prices its pair's first close AT OR AFTER the fire (AAA 05:00 -> the 05:30 close, not the earlier 04:00 pay — the fire cannot claim a trade it did not open)
+  verdict
+  COST
+  join: a repeat fire takes the pair's NEXT unused close (AAA 09:00 -> the 09:30 close)
+  join: a fire with no close yet stays PENDING — never priced before it exists
+  pending
+  arithmetic to the cent: 1 win, 2 losses, net +1.50, avg +0.50/graded fire
+  wins
+  losses
+  net_usd
+  avg_usd
+  graded
+  the report and the ledger landed; junk rows priced around
+  txt=
+   led=
+  empty world: no fires prices honest zeros (no crash, no invented rows)
+  fires_total
+  driver: appended per tick and stopped cleanly
+   records
+  background_scanner.py
+  family: the scanner boots the climb-out hindsight driver with the family's conventions
+  name="climbouthindsight-monthly"
+  appends _climbouthindsight_monthly.jsonl
+  _dch.FIRST_DELAY_S
+  driver block missing or drifted
+  
+RESULT: 
+   passed, 
+   failed
+  _climbouthindsight_check.txt
+
+TOTAL STRINGS: 55

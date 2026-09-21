@@ -1,0 +1,436 @@
+### diag_directiongrade — co_filename=diag_directiongrade.py firstlineno=1
+DOCSTRING:
+diag_directiongrade.py — THE DIRECTION CROSS-CHECK, GRADED (Sep 18).
+
+WHY THIS EXISTS: on the UNI morning (+33% in 24h, +$208 of hindsight
+ceiling), the cheap quick-read answered `direction` — not-buy — on the
+top mover every 2-minute pass, and that answer STOPPED EVERYTHING: the
+brain's full-history evaluator was never asked at the good entries.
+The replay proved the brain would have bought at 09:00 and 10:00 UTC.
+A cheap veto that outranks an expensive reader is exactly the kind of
+decision that must be priced, not trusted.
+
+THE MACHINERY (two halves):
+  1. CAPTURE (background_scanner): when the head-of-class verdict on
+     the TOP mover is a direction-stage not-buy, the scanner
+     cross-checks the brain on the SAME window (the funnel's own df,
+     no extra API calls) and appends a row to direction_notes.jsonl —
+     the disagreement record. 4-hour per-pair cooldown; fail-closed
+     (any error = no row, the scan never notices).
+  2. GRADE (this module, monthly on the boot family): each row is
+     replayed on the deep 1h store — the brain re-evaluates the full
+     history UP TO the row's hour bucket, and the forward window is
+     priced in the popup convention: end-move at
+
+TOP-LEVEL NAMES (imports/defs in order):
+  IMPORT __future__
+  IMPORT annotations
+  STORE  annotations
+  IMPORT glob
+  STORE  glob
+  IMPORT json
+  STORE  json
+  IMPORT logging
+  STORE  logging
+  IMPORT time
+  STORE  time
+  IMPORT datetime
+  STORE  _dt
+  IMPORT pathlib
+  IMPORT Path
+  STORE  Path
+  STORE  BASE
+  STORE  NOTES
+  STORE  OUT
+  STORE  LEDGER
+  STORE  CHASE_LEDGER
+  STORE  SUPPRESSIONS
+  STORE  LOG_REPLAY_DAYS_DEFAULT
+  STORE  _DIRECTION_STAGE_GATES
+  STORE  backfill_notes_from_suppressions
+  STORE  _dt_parse
+  STORE  STORES_GLOB
+  STORE  WARMUP
+  STORE  HORIZON
+  STORE  RAN_PCT
+  STORE  MONTHLY_PERIOD_S
+  STORE  FIRST_DELAY_S
+  STORE  POSITION_USD_FALLBACK
+  STORE  POSITION_USD
+  STORE  FT_BAND
+  STORE  FT_N_MIN
+  STORE  FT_BUY_RATE_MIN
+  STORE  FT_RAN_MIN
+  STORE  SELL_BAND_MIN_N
+  STORE  BANDS
+  STORE  logger
+  STORE  _position_usd
+  STORE  _grade_one
+  STORE  _band_of
+  STORE  _world
+  STORE  _sell_verdict
+  STORE  _sell_verdict_by_band
+  STORE  DEFAULT_VETO_BAR
+  STORE  VETO_BAR_JSON
+  STORE  learned_veto_bar
+  STORE  ship_veto_bar
+  STORE  read_veto_bar
+  STORE  RELAX_RUNNER_CAP_PCT
+  STORE  RELAX_CONF_DIAL
+  STORE  relax_exit_pct
+  STORE  _relax_world
+  STORE  _relax_sweep
+  STORE  _chase_missed_pool
+  STORE  _detect_rearm
+  STORE  run_grade
+  STORE  monthly_driver_loop
+  STORE  s
+
+ALL STRINGS (dedup, order-preserving, >=4 chars):
+  diag_directiongrade.py — THE DIRECTION CROSS-CHECK, GRADED (Sep 18).
+
+WHY THIS EXISTS: on the UNI morning (+33% in 24h, +$208 of hindsight
+ceiling), the cheap quick-read answered `direction` — not-buy — on the
+top mover 
+  direction_notes.jsonl
+  _directiongrade_check.txt
+  _directiongrade_monthly.jsonl
+  _chaseback_monthly.jsonl
+  popup_suppressions.jsonl
+  sup_path
+  Path | None
+  notes_path
+  float | None
+  days
+  float
+  dry_run
+  bool
+  log_glob
+  str | None
+  log_days
+  return
+  dict
+  THE BACKFILL (Sep 18): the funnel's deep-direction burial rows are
+direction-veto events — but the cross-check capture (note_
+direction_veto) only fires on the TOP mover, so most vetoed hours
+never got a note and the mon
+  utf-8
+  replace
+  pair
+  gate
+  brain
+  detail
+  quick
+  quick_action
+  hold
+  quick_conf
+  brain_action
+  brain_conf
+  brain_why
+  close
+  bars
+  backfill: direction-stage burial (
+   in the suppression ledger)
+  deep-?reads?\s+(sell|short)
+  sell
+  scanner.log.20*
+  (\d{1,2}):(\d{2}) (AM|PM)\s+\[\w+\]\s+DEEP DIRECTION VETO \(desktop\): (\S+) deep-reads (sell|short|hold) (\d+(?:\.\d+)?)%\s*—
+  (\d{4})-(\d{2})-(\d{2})$
+  DEEP DIRECTION VETO (desktop):
+  /USD
+  deep-reads 
+  % — the scan contradicts the buy
+  backfill: rotated-log DEEP DIRECTION VETO (
+  .tmp
+  scanned
+  added
+  skipped_hours
+  rows
+  log_scanned
+  ISO timestamps (any offset) or epochs -> epoch seconds; None on
+junk (the capture writers never emit one, but drift happens).
+  surething_data/kraken/*_USD-1h.feather
+  directiongrade
+  Today's ledger (the live contest size) with the study's own
+fallback — the family convention (chaseback/courtfloor).
+  live contest size unreadable (%s) — the fallback $%.0f stands
+  path
+  Path
+  ts_epoch
+  dict | None
+  One row replayed on its deep store: the brain's read of the full
+history up to the row's hour bucket + the forward window priced in
+the popup convention. None when the store cannot answer (missing,
+too short, row outside
+  date
+  datetime64[s]
+  int64
+  right
+  high
+  confidence
+  entry
+  action
+  hour_open
+  lag_min
+  grade failed for %s @%s: %s
+  bconf
+  The highest brain-conviction band the row clears.
+  list
+  One band's ledger: rows, brain buys (the veto's refused money),
+brain holds (the veto's confirmations), and brain SELLS — the
+funnel's direction vetoes (Sep 19, user: "did the sells the funnel
+refused ever run after bein
+  buys
+  buys_ran
+  buys_usd
+  buys_ceiling
+  holds
+  holds_ran
+  holds_usd
+  sells
+  sells_ran
+  sells_usd
+  sells_ceiling
+  position_usd
+  THE SELLS' VERDICT (Sep 19, pure — hermetic-pin-able like the
+other helpers): given the graded rows whose replayed brain action
+is SELL, price the direction veto's hindsight. Long-side convention:
+each row's `end` is wha
+  ran_rate
+  refused_usd
+  refused_ceiling
+  saved_usd
+  net_usd
+  sell_rows
+  min_n
+  THE SELL VETO, SPLIT BY BAND (Sep 19, pure — hermetic-pin-able):
+the pooled sell verdict answers 'do the vetoes pay overall'; this
+split answers the question she actually asked — at WHAT brain
+conviction does the brain's
+  bands
+  crossover
+  veto_bar.json
+  default
+  The veto bar the band evidence earns (pure — hermetic-pin-able).
+crossover names the lowest band whose sell-veto net pays (net < 0)
+on >= min_n rows; that band's floor (BANDS lo) is the bar: a sell at
+or above it carries
+  source
+  reason
+  no band crossover yet (sample or evidence) — every sell still vetoes
+  learned
+  band 
+  's sell-veto net pays on >=
+   rows — its floor is the conviction bar
+  crossover band unknown — default stands
+  evidence unreadable — default stands
+  The monthly re-fit's SHIP: stamp + write the bar the scanner's
+Sure Thing deep veto reads. Returns False without raising when the
+write fails — a failed ship leaves the previous bar standing.
+  %Y-%m-%dT%H:%M:%S
+  The reader the scanner mirrors: the shipped bar, or the default
+(0.0 — every sell vetoes) when nothing shipped yet, the file is
+unreadable, or the value is malformed/negative. Never raises.
+  end_pct
+  cap_pct
+  The relaxed entry's exit move: the row's end, capped at the
+runner exit when the world uses the runner discipline. cap_pct=None
+is the keep world (ride to the horizon, uncapped). Pure.
+  conf_max
+  One relaxation world, priced row by row (pure — the pins ride
+hand arithmetic). conf_max=None relaxes every sell row; a number
+relaxes only sells BELOW that brain conviction. The veto itself
+trades nothing, so earned_usd
+  world
+  timestop
+  runner
+  n_relaxed
+  earned_usd
+  released_usd
+  losses_eaten_usd
+  right_vetoes_overridden
+  THE SWEEP (Sep 20): the designed rule's dial crossed with the
+two exit worlds, priced on the same graded sell rows as the band
+split. `recommendation` speaks only when a world prices positive
+(the veto cost money — that 
+  SELLVETO_REVIEW
+  every sell veto
+  sell conf < 
+  a 6h time-stop exit
+  the +
+  % runner exit
+  SHIP-CANDIDATE
+  WATCH, DONT SHIP
+  : relax 
+   with 
+   prices +$
+  ,.2f
+   on 
+   of 
+   sell rows (
+   right vetoes overridden, $
+   losses eaten) — re-price monthly across windows before any ship
+  worlds
+  recommendation
+  relaxation sweep failed: %s
+  ledger_path
+  The chase-coverage study's MISSED pool, read from its ledger (the
+file is one pretty-printed snapshot record, os.replace'd each pass —
+but concatenated records are tolerated via raw_decode so the reader
+never breaks on f
+  rate
+  usd_turn
+   
+	
+  missed
+  summary
+  THE RE-ARM ALERT (Sep 19): the next time fresh vetoed hours push the
+band-35 brain-buy rate back above the 60% arming bar after a dip, the
+moment gets SPOKEN and priced. Stateless by design: the flip is read
+from the led
+  follow_through
+  armed
+  buy_rate
+  The follow-through gate re-armed! 
+   vetoed hours say buy - 
+   percent, back above the 60 percent bar. 
+   fresh hours since the dip. Listening for the first adoption.
+  The follow-through gate armed! 
+   percent, above the 60 percent bar. Listening for the first adoption.
+  new_hours
+  first_arm
+  max_rows
+  int | None
+  stores_dir
+  write
+  chase_ledger
+  return_rows
+  Grade every capture row against its deep store. Bounds make it
+hermetic: max_rows slices, stores_dir/position injectable.
+return_rows=True (Sep 20) adds the graded rows themselves under
+'rows' — the relaxation study pric
+  +00:00
+  *_USD-1h.feather
+  -1h.feather
+  brain_buys
+  brain_usd
+  brain_ceiling
+  band
+  chase
+  shipped
+  mature
+  REVIEW THE SELL VETO: 
+  the vetoes PAY (net $
+  +,.2f
+  ) — the veto earns its override; consider extending the deep-direction gate's reach
+  the vetoes COST (net $
+  ) — the refused buys out-earned the saved losses; consider relaxing the deep-direction veto
+  the vetoes wash (net $0.00)
+  sell-veto review gate read failed (%s) — no recommendation this pass
+  notes
+  graded
+  ungraded
+  weekly_holds
+  sell_vetoes
+  sell_veto_bands
+  sell_veto_relax
+  learned_veto
+  sell_veto_review
+  per_pair
+  === THE DIRECTION CROSS-CHECK, GRADED (Sep 18) ===
+  rows: 
+   captured, 
+   graded, 
+   ungradeable (store missing/short/horizon open) | position $
+  ,.0f
+   | horizon 
+  h | ran = +
+  % MFE
+  THE BRAIN'S STANCE AT EVERY VETOED HOUR — by replayed brain conviction (a row lands in the highest band it clears; only brain-BUY rows are money the cheap read refused):
+    band | rows | brain-buy | ran |   end-move $ | ceiling $ | brain-hold rows priced
+     >=
+  >+12,.2f
+  >9,.2f
+   rows, $
+   ran)
+  THE VETO'S PRICE: the brain would have bought at 
+   vetoed hours — $
+   end-move, $
+   at the ran ceiling. Brain-hold rows are the cheap read being RIGHT (confirmation, not loss).
+  THE SELLS' HINDSIGHT (monthly, same grade): 
+  the funnel refused BUYs at 
+   hours because the brain said sell — 
+   of them fell (the sell was RIGHT, $
+   of losses the veto saved), 
+   ran (
+  %, $
+   the refused buys would have made, $
+   at the ceiling) — net $
+  the sell vetoes PAID
+  the sell vetoes COST — the refused buys out-earned the saved losses
+  the sell vetoes washed
+  no sell-veto rows graded yet — a replayed SELL at a vetoed hour prices here (the long-side convention: end < 0 = the sell was right)
+  THE SELL VETO BY BRAIN CONVICTION — at what band does the brain's sell actually pay as an override?
+    band >=+
+  : no sell-veto rows yet
+   hrs, 
+   fell, 
+  %), saved $
+   vs refused $
+   — net $
+  the veto PAYS here
+  the veto COSTS here
+  washes
+  THE CONVICTION THRESHOLD: at band >=+
+   the brain's sell earns its override — below that, the cheap read's green light has priced room to run (a band needs 
+   rows to speak)
+  NO CONVICTION THRESHOLD YET: no qualifying band's sell vetoes pay — the pooled number is already the best the sell veto does
+  MATURITY GATE (
+   graded sell rows): 
+  MATURITY GATE: 
+   graded sell rows — the verdict stays advisory until the ladder's SELLVETO REVIEW rung is reached
+  FOLLOW-THROUGH VERDICT: 
+  ARMED — band >=+
+   holds 
+   brain-buys (
+  %), 
+  % ran; direction-vetoed top movers enter the next pass's deep-read queue automatically (the priced pass's own veto still stands; the brain re-decides there)
+  dormant — band >=+
+   has 
+   rows (need 
+  % brain-buys (need 
+  % ran (need 
+  %) — nothing auto-queues
+  per pair (worst refused money first):
+   rows, brain bought 
+   — $
+   ceiling)
+  no rows graded yet — the cross-check has not fired (or no store can answer the captured hours).
+  THE WEEK IN HOLDS (last 7d): 
+   brain-hold rows ran anyway (
+  %), $
+   end — the cheap read's refused money this week
+  THE WEEK IN HOLDS (last 7d): no brain-hold rows graded this week — the veto's own blind spot is still unmeasured
+   vs the veto week's 
+  TWO BLIND SPOTS TOGETHER: the chase study's MISSED pool — 
+   setups, 
+  % ran, $
+  /turn (study 
+   — read the veto's holds and the tracker's missed setups as one class of refused money
+  TWO BLIND SPOTS TOGETHER: the chase study's missed pool is unreadable — the comparison waits for its ledger (the veto's week stands alone above)
+  direction-grade ledger append failed: %s
+  scanner
+   FOLLOW-THROUGH RE-ARM: %s
+  re-arm speak failed: %s
+  first_delay_s
+  period_s
+  The daemon loop: one grade shortly after boot, then monthly —
+the veto's price re-prices itself as rows and stores grow. Never
+raises; dies with the scanner.
+   DIRECTION BACKFILL: %d burial rows replayed, %d new vetoed hours into the notes feed
+  direction backfill failed: %s
+  direction-grade pass failed: %s
+  __main__
+  %(message)s
+
+TOTAL STRINGS: 297

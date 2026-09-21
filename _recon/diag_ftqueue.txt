@@ -1,0 +1,129 @@
+### diag_ftqueue — co_filename=diag_ftqueue.py firstlineno=1
+DOCSTRING:
+diag_ftqueue.py — THE FOLLOW-THROUGH QUEUE'S FIRST HOURS, PRICED (Sep 19).
+
+Wired the same hour the re-arm alert shipped: the next time fresh vetoed
+hours push the band-35 brain-buy rate back above the 60% bar, the gate
+re-arms, the queue seeds, and the funnel's brain path adopts — and this
+study prices that first adoption END TO END so nobody has to ask "did it
+pay?" by hand:
+
+  1. THE CANDIDATES: every band-35 brain-buy hour from the notes feed,
+     capture order (the same population the queue draws from when armed).
+  2. THE ADOPTION REPLAY: the funnel's full brain bar per candidate —
+     read the brain on the current window (not just the veto hour),
+     action buy, confidence >= 60, RR >= 2, no exhaustion/breakout-
+     failure reason — exactly background_scanner's follow-through
+     adoption contract.
+  3. THE PRICE: each adopted hour's 4h forward window in the popup
+     convention (+2% MFE = ran), end-move dollars at the live contest
+     size, the RR-2.0 ceiling, and the queue's aggregate verdict.
+
+Run: .venv\Scripts\python.exe -X utf8 diag_ftqueue.py
+Writes _ftqueue.txt. Read-only; CPU-only replay.
+
+
+TOP-LEVEL NAMES (imports/defs in order):
+  IMPORT __future__
+  IMPORT annotations
+  STORE  annotations
+  IMPORT json
+  STORE  json
+  IMPORT sys
+  STORE  sys
+  IMPORT time
+  STORE  time
+  IMPORT pathlib
+  IMPORT Path
+  STORE  Path
+  STORE  OUT
+  STORE  POSITION_USD
+  STORE  POPUP_GOAL
+  STORE  ADOPT_CONF
+  STORE  ADOPT_RR
+  STORE  CEIL_PCT
+  STORE  _adoption_contract
+  STORE  main
+
+ALL STRINGS (dedup, order-preserving, >=4 chars):
+  diag_ftqueue.py — THE FOLLOW-THROUGH QUEUE'S FIRST HOURS, PRICED (Sep 19).
+
+Wired the same hour the re-arm alert shipped: the next time fresh vetoed
+hours push the band-35 brain-buy rate back above the 60% bar, the gate
+
+  _ftqueue.txt
+  return
+  tuple[bool, str]
+  Mirror of background_scanner's follow-through adoption gate
+(7320-7334): buy, confidence >= 60, full levels, RR >= 2, and no
+exhaustion / breakout-failure reason.
+  action
+  hold
+  the brain reads 
+  confidence
+  entry_price
+  stop_loss
+  take_profit
+  risk_reward
+   under the 2.0 floor
+  reasons
+  exhaustion
+  breakout failure
+  exhaustion-class reason: 
+  contract error: 
+  utf-8
+  pair
+  %Y-%m-%dT%H:%M:%S
+  -1h.feather
+  brain_conf
+  brain_action
+  THE FOLLOW-THROUGH QUEUE'S FIRST HOURS, PRICED — what the
+  gate's re-arm would unleash, adoption bar by adoption bar.
+  band-35 brain-buy candidate hours: 
+   of 
+   graded rows
+  captured
+  age_h
+  adopt?
+  now-conf
+  now-RR
+  end4h%
+  ceiling
+  store missing
+  date
+  replay error: 
+  %m-%d %H:%M
+  >6.1f
+  >7.2f
+  >+8.2f
+  >8.2f
+     (
+  ceiling_usd
+  THE QUEUE'S FIRST HOURS, PRICED (
+   candidates clear the adoption bar on the current window):
+   end 
+  +.2f
+  % = 
+   dollars
+   — RAN the +2% goal, ceiling 
+   — under the goal; a stop-managed fill keeps at most the RR-2 ceiling
+  TWO WORLDS, HONESTLY SPLIT:
+    PREMISE WORLD (adopt at the veto hour — what the gate believes): 
+   adoptions, 
+   ran, 
+   dollars (
+  /buy)
+    EXECUTABLE-REPLAY (adopt on the now-window — this stale replay): 
+    FRESHNESS GAP: 
+   candidates are within the queue's 24h bound (the oldest edge cooled to hold); a LIVE re-arm draws minutes-old candidates, whose now-read matches the veto hour — the executable world approaches the premise world as the g
+  VERDICT: 
+   clear the now-bar and they net 
+   — the adoption bar alone is not enough edge
+   clear the now-bar and they PAY (
+   ran) — the premise holds at the adoption bar
+  zero adoptions on the stale replay — every candidate's edge cooled to hold on the current window; the gate's premise world prices 
+  /buy), and a live re-arm with minutes-old candidates is what the alert will actually unleash. Re-run this study on the re-arm's first fresh hours for the lived number.
+  ------------------------------------------------------------------------------------------------
+  __main__
+
+TOTAL STRINGS: 73
