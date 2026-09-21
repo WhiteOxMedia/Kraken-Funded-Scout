@@ -6441,11 +6441,14 @@ def render_auto_watch(cfg: TradingConfig, kraken):
     # the verdict dropdown shipped (never value= + session writes:
     # Streamlit's widget-policies warn). The interval stores SECONDS
     # (the machine's number); the panel's 'every X min' is derived.
-    if "watch_on" not in st.session_state:
-        st.session_state["watch_on"] = _cs.get("watch_on", True)
+    # THE TOGGLE DEFAULT (Sep 21): value= seeds the widget's OWN key from
+    # the persisted store at session start. The old init-on-missing shape
+    # seeded a shadow key the widget never read — every fresh session
+    # rendered False and the very next line SAVED that False over the
+    # persisted ON. This is why switches snapped to OFF.
     watch_on = st.toggle("🔔 AUTO-WATCH — every minute: green ALL GOOD / red GET OUT NOW",
-                         key="watch_toggle")
-    st.session_state["watch_on"] = watch_on
+                         key="watch_toggle",
+                         value=bool(_cs.get("watch_on", True)))
     if watch_on != _cs.get("watch_on", True):
         _cs["watch_on"] = watch_on
         _save_console_state(_cs)
@@ -6467,11 +6470,10 @@ def render_auto_watch(cfg: TradingConfig, kraken):
                 format_func=lambda s: f"{s // 60} min",
                 key="watch_interval_s")
         with _s2:
-            if "goal_on" not in st.session_state:
-                st.session_state["goal_on"] = _cs.get(
-                    "goal_on", _cs.get("scalp_on", True))
             goal_on = st.toggle("🎯 GOAL CALL",
                                 key="goal_toggle",
+                                value=bool(_cs.get("goal_on",
+                                                   _cs.get("scalp_on", True))),
                                 help="THE RULES OF THE GAME: every entry carries its own "
                                      "PERCENTAGE goal — set from what THIS coin actually "
                                      "moves at this hour of the week (its own daily ranges, "
@@ -6487,10 +6489,9 @@ def render_auto_watch(cfg: TradingConfig, kraken):
             _cs["goal_on"] = goal_on
             _save_console_state(_cs)
         with _s3:
-            if "voice_on_ui" not in st.session_state:
-                st.session_state["voice_on_ui"] = _cs.get("voice_on", True)
             voice_on = st.toggle("🔊 HER VOICE",
                                  key="voice_toggle",
+                                 value=bool(_cs.get("voice_on", True)),
                                  help="Zira announces your positions every minute from the scanner "
                                       "process — she keeps talking whether or not this browser "
                                       "tab is open.")
@@ -6770,7 +6771,6 @@ def render_auto_watch(cfg: TradingConfig, kraken):
 
         _light_tick()
     else:
-        st.session_state["watch_on"] = False
         st.session_state.pop("exit_alerts", None)
 
 
