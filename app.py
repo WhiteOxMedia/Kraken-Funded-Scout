@@ -1704,11 +1704,12 @@ def _pick_card(cfg: TradingConfig, kraken):
             ]
             if overdue:
                 rows.append(f"<span style='color:#ff6b5e;'>HOW LONG <span class='dim'>.........</span> "
-                            f"TIME'S UP — it hasn't paid its {goal:.1f}% by the window's end. "
-                            f"Get out unless she just called something.</span>")
+                            f"PAST THE WINDOW — it hasn't paid its {goal:.1f}% yet. "
+                            f"STAY CLOSE — the exit is hers (trend break), never the clock.</span>")
             else:
                 rows.append(f"HOW LONG <span class='dim'>.........</span> goal +{goal:.1f}% — "
-                            f"now {pct:+.1f}%. If it hasn't paid by the window's end, get out.")
+                            f"now {pct:+.1f}%. After the window, STAY CLOSE — the exit is hers, "
+                            f"never the clock.")
             rows.append("<span class='dim'>walk around the house — she'll call you</span>")
             rows.append(_tide_line())
             st.markdown(plate("👁 WATCHING", lcd(rows, tone="green" if usd >= 0 else "red")),
@@ -1798,7 +1799,7 @@ def _pick_card(cfg: TradingConfig, kraken):
                     _out_say = _out_by_txt(_now_mst(), h["pace"])
                     _speak(f"New pick! {h['asset']}! Twenty dollars in about "
                            f"{h['pace'] * 60:.0f} minutes! {_size_say}{_tide_say}"
-                           f"If it hasn't paid by {_out_say}, get out!")
+                           f"Stay close after {_out_say} — I'll call the exit!")
                 except Exception as exc:
                     logger.debug("pick announcement failed: %s", exc)
         age_txt = f"{h['age_min']:.0f} minutes ago" if h["age_min"] >= 1 else "just now"
@@ -1823,7 +1824,7 @@ def _pick_card(cfg: TradingConfig, kraken):
             f"WHEN <span class='dim'>...........</span> the signal came in {age_txt}"
             + ("" if h["age_min"] < 1 else " — move quick, wiggles don't wait"),
             f"HOW LONG <span class='dim'>.........</span> goal +{_card_goal:.1f}% — or she says out. "
-            f"If it hasn't paid by the window's end, get out.",
+            f"After the window, STAY CLOSE — the exit is hers, never the clock.",
             f"<span class='dim'>{total} signals · {len(ranked)} real moves · this is the best one — "
             f"the popup is watching it, nothing to tap</span>",
             # THE FRESH STAMP (Sep 13): rendered OUTSIDE the cached body,
@@ -5908,7 +5909,7 @@ def _light_check(kraken, cfg: TradingConfig, sb, held: dict, interval_s: int) ->
                     try:
                         if glevel == 1:
                             st.toast(f"🎯 GOAL — {asset} up {pct:.1f}% (goal {goal:.1f}%) "
-                                     f"— take the profit", icon="🎯", duration=15)
+                                     f"— STAY CLOSE, the exit is hers", icon="🎯", duration=15)
                         else:
                             st.toast(f"🎯 {glevel}× GOAL — {asset} up {pct:.1f}%",
                                      icon="🎯", duration=15)
@@ -5967,6 +5968,70 @@ def _light_check(kraken, cfg: TradingConfig, sb, held: dict, interval_s: int) ->
     return True
 
 
+# ── THE DROPDOWN RACE FIX (Sep 21, user spec: "deterministic, persistent,
+# stable across reruns on desktop and mobile") ─────────────────────────
+# The race: a keyless st.expander's open/close state lives in the BROWSER
+# DOM, tied to the widget instance — and Streamlit hashes that identity
+# from the LABEL. The strip's labels carry the newest popup / voice line,
+# so every new line rebuilt the expander as a NEW widget and it snapped
+# shut mid-read. The fix: the open/closed decision lives in
+# session_state under a STABLE key (never in the widget identity), the
+# expander renders expanded= from that state, and explicit Open / Close /
+# mobile buttons remove the tap race entirely — the expander becomes a
+# pure display widget. A context manager keeps call sites 1:1 with the
+# old `with st.expander(...)` shape (no body re-indent churn).
+from contextlib import contextmanager as _ctxmgr
+
+
+def _expander_open(key: str):
+    st.session_state[key] = True
+
+
+def _expander_close(key: str):
+    st.session_state[key] = False
+    # an explicit Close wins over the mobile latch — the user asked to
+    # close it, so the latch must not silently re-open it next rerun
+    st.session_state[f"{key}_mobile_force"] = False
+
+
+def _expander_mobile(key: str):
+    # the mobile latch: delayed tap events on phones can miss the header
+    # toggle entirely — once tapped, the section stays open for the session
+    st.session_state[f"{key}_mobile_force"] = True
+    st.session_state[key] = True
+
+
+@_ctxmgr
+def stable_expander(key: str, title: str):
+    """An expander whose expansion survives any rerun or remount.
+
+    1. session_state init guard: first rerun defaults to closed.
+    2. stable key: the state key is the identity — the changing label
+       can no longer rebuild the widget's state.
+    3. explicit Open / Close buttons + a mobile Tap-to-Expand latch:
+       the bulletproof fallback; the expander itself is pure display.
+    4. wrapped in a stable container to damp DOM rebuild flicker.
+    """
+    if key not in st.session_state:
+        st.session_state[key] = False
+    if st.session_state.get(f"{key}_mobile_force"):
+        st.session_state[key] = True
+    _open = bool(st.session_state[key])
+    _b_open, _b_close, _b_mob = st.columns([1, 1, 3])
+    with _b_open:
+        st.button("Open", key=f"{key}::open",
+                  on_click=_expander_open, args=(key,))
+    with _b_close:
+        st.button("Close", key=f"{key}::close",
+                  on_click=_expander_close, args=(key,))
+    with _b_mob:
+        st.button("Tap to Expand (Mobile)", key=f"{key}::mobile",
+                  on_click=_expander_mobile, args=(key,))
+    with st.container():
+        with st.expander(title, expanded=_open):
+            yield
+
+
 def _render_her_words():
     """💬 HER WORDS — every line Zira said, on screen (user rule, Aug 30:
     "put her notifications on the console so I can see them if my volume
@@ -6015,8 +6080,8 @@ def _render_her_words():
         except Exception:
             _n_watch = 0
         _watch_tag = f"  · 👁 {_n_watch} watched" if _n_watch else ""
-        with st.expander(f"💬 HER WORDS — \"{_latest}\"{_watch_tag}  (tap to read all)",
-                         expanded=False):
+        with stable_expander("her_words",
+                             f"💬 HER WORDS — \"{_latest}\"{_watch_tag}  (tap to read all)"):
             # ── WATCHING NOW (the merge, Sep 21): the open records first —
             #    same math as the WATCHING card (entry, live px, goal, the
             #    record's own window clock). A dead price feed dims the row
@@ -6146,8 +6211,8 @@ def _render_popup_history():
         if not rows:
             return
         _latest = _html.escape(latest_title[:70]) + ("…" if len(latest_title) > 70 else "")
-        with st.expander(f"📣 POPUP HISTORY — \"{_latest}\"  (tap to read all)",
-                         expanded=False):
+        with stable_expander("popup_history",
+                             f"📣 POPUP HISTORY — \"{_latest}\"  (tap to read all)"):
             st.markdown("".join(rows), unsafe_allow_html=True)
     except Exception as exc:
         logger.debug("popup-history expander failed: %s", exc)
@@ -6177,7 +6242,8 @@ def _render_bots_book(kraken, cfg):
             _pend = set()
 
         if not _pos:
-            with st.expander("🤖 BOT'S BOOK — flat (no open bot trades)", expanded=False):
+            with stable_expander("bots_book_flat",
+                             "🤖 BOT'S BOOK — flat (no open bot trades)"):
                 st.markdown("<div class='dim'>The bot holds nothing — every trade is closed.</div>",
                             unsafe_allow_html=True)
             return
@@ -6231,7 +6297,8 @@ def _render_bots_book(kraken, cfg):
                 f"&nbsp;<span class='dim'>{_meta}</span></div>"
             )
             title_bits.append(f"{_asset} {_pnl_txt}")
-        with st.expander(f"🤖 BOT'S BOOK — {'  ·  '.join(title_bits)}", expanded=False):
+        with stable_expander("bots_book",
+                             f"🤖 BOT'S BOOK — {'  ·  '.join(title_bits)}"):
             st.markdown("".join(rows), unsafe_allow_html=True)
     except Exception as exc:
         logger.debug("bot-book plate failed: %s", exc)
@@ -6350,7 +6417,7 @@ def _render_light_panel(interval: str):
                 logger.debug("rotation clock html failed: %s", exc)
         if v["exit"]:
             lines.append(f"<span style='color:#ff6b5e;font-size:16px;'>◆ {asset} — SELL NOW — {v['reasons'][0]}</span>"
-                         f"<span class='dim'> · give it about an hour to base — she'll call the next one</span>")
+                         f"<span class='dim'> · she'll base-call the next one the moment it sets up — no clock-waiting</span>")
         else:
             bail = v.get("high", 0) * (1 - CONTEST_TRAIL_PCT / 100) if v.get("high") else None
             bail_txt = f" · out at {_fmt_price(bail)}" if bail else ""
@@ -6451,9 +6518,10 @@ def render_auto_watch(cfg: TradingConfig, kraken):
                                      "moves at this hour of the week (its own daily ranges, "
                                      "capped by the engine, scaled by the tide), clamped "
                                      "1-3%. The clock runs to the next rotation boundary. "
-                                     "She calls 'Goal reached — take the profit!' when it "
-                                     "pays, and 'N times the goal!' at each doubling. Not "
-                                     "paid by the window's end — get out. Entry size is "
+                                     "She calls 'Goal reached — stay close!' when it "
+                                     "pays (the exit is hers: the trend break), and 'N times "
+                                     "the goal!' at each doubling. The clock never exits — "
+                                     "stay close past the window and wait for her call. Entry size is "
                                      "capped by the 3% death-line guard (the contest "
                                      "survives three worst-cases), so no single trade ever "
                                      "risks the account.")
@@ -7149,6 +7217,69 @@ def _on_tier_change(key: str):
         logger.debug("new-contest toast/voice failed: %s", exc)
 
 
+def _pace_target_clock_leds() -> str:
+    """ON PACE / TARGET / CLOCK — three live gauges for the header strip
+    (Sep 21, user ask). The SAME live data her 'all good' line reads:
+    today's realized PnL vs the tier's daily pace (weekly 12% / 5 days),
+    the +12% target progress from the live account balance, and the
+    minutes left in the current rotation (the window her stay-close
+    clock talks about). Never raises — the header cannot die for a
+    gauge; unreadable data renders nothing rather than a lie."""
+    out = ""
+    try:
+        import contest_account as _ca_p
+        _acct = _ca_p.load_state()
+        _bal = float(_acct.get("current_balance") or 0)
+        _start = float(_acct.get("start_balance") or 0)
+        _pace_day = _start * 0.12 / 5.0  # the weekly goal / 5 trading days
+        _today = 0.0
+        try:
+            import json as _j2
+            from pathlib import Path as _P5
+            _day = _now_mst().strftime("%Y-%m-%d")
+            for _l in (_P5(__file__).parent / "contest_trades.jsonl") \
+                    .read_text(encoding="utf-8").splitlines():
+                if not _l.strip():
+                    continue
+                _r = _j2.loads(_l)
+                if str(_r.get("sold_at", "")).startswith(_day) \
+                        and _r.get("applied"):
+                    _today += float(_r.get("pnl_net") or 0.0)
+        except Exception:
+            pass  # the pace gauge just stays off — the header never lies
+        if _start:
+            _pace_col = "g" if _today >= _pace_day else \
+                ("a" if _today >= 0 else "r")
+            out += led(f"ON PACE ${_today:+,.0f}/${_pace_day:,.0f}/day", _pace_col)
+            _tpct = (_bal / _start - 1.0) * 100.0
+            out += led(f"TARGET {_tpct:+.2f}% / 12%", "g" if _tpct > 0 else "a")
+        try:
+            import background_scanner as _bs_h
+            if not hasattr(_bs_h, "ROTATIONS"):
+                import importlib as _il
+                _bs_h = _il.reload(_bs_h)
+            _now = _now_mst()
+            _win = next((r for r in _bs_h.ROTATIONS
+                         if r[0] <= _now.hour < r[1]), None)
+            if _win:
+                from datetime import timedelta as _td
+                _end = _now.replace(hour=_win[1] % 24, minute=0,
+                                    second=0, microsecond=0)
+                if _win[1] == 24:
+                    _end += _td(days=1)
+                _left = (_end - _now).total_seconds() / 60.0
+                _rname = str(_win[3]).split()[0]  # 'R4' from 'R4 🌤 US Afternoon'
+                out += led(f"CLOCK {_rname} {_left:.0f}m left",
+                           "a" if _left < 15 else "off")
+            else:
+                out += led("CLOCK — cooldown hours", "off")
+        except Exception:
+            pass
+    except Exception:
+        pass
+    return out
+
+
 def main():
     cfg = TradingConfig()
 
@@ -7326,6 +7457,7 @@ def main():
     if vol:
         led_row += led(f"NOISE FLOOR {vol['thresholds']['standard']:.1f}%", 'a')
         led_row += led(f"VOL DATA {vol['data_weeks']:.1f}w", 'off')
+    led_row += _pace_target_clock_leds()
     head = (
         f"<div style='display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;'>"
         f"<div>"

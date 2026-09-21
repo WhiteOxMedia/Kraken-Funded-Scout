@@ -27,8 +27,9 @@ ap = open("app.py", encoding="utf-8").read()
 light = sc[sc.find("def contest_light"):sc.find("def send_alert")]
 
 # ── 1. the light speaks the goal, not the twenties ───────────────────
-check("the light calls the GOAL: 'Goal reached! ... take the profit!'",
-      "Goal reached!" in light and "take the profit!" in light)
+check("the light calls the GOAL: 'Goal reached! ... stay close!' (never 'take the profit')",
+      "Goal reached!" in light and "stay close!" in light
+      and "take the profit" not in light)
 check("doublings called: 'N times the goal!'",
       "times the goal!" in light)
 check("the $20 level-counting is gone from the light",

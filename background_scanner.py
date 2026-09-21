@@ -2792,7 +2792,7 @@ def contest_light(exchange, cfg):
                 # even if the voice/push delivery dies — what fired is history.
                 popup_journal("GET OUT", f"Get out now — Sell {asset}!", _push_txt)
                 _speak_server(f"Get out now! Sell {asset}! {_why}"
-                              f"Give it about an hour to base — I'll call the next one!", rate=1,
+                              f"I'll base-call the next one the moment it sets up — no clock-waiting!", rate=1,
                               push_text=_push_txt)
             # ── AUTO-CLOSE AT FIRE TIME (Sep 21, user rule: "after the
             # 'Get out Now' fires a popup, it closes the virtual trade and
@@ -2895,15 +2895,21 @@ def contest_light(exchange, cfg):
         elif _glevel > _take_level.get(pair, 0):
             _take_level[pair] = _glevel
             if voice:
+                # STAY CLOSE (user rule, Sep 21: after a breakout finishes
+                # and the goal is reached, she says STAY CLOSE — the exit
+                # belongs to the trend watch / exit watch, never "take the
+                # profit", never the clock)
                 if _glevel == 1:
                     _speak_server(f"Goal reached! {asset} up {pct:.1f} percent "
-                                  f"— take the profit!")
+                                  f"— stay close! I'll call the exit when "
+                                  f"the trend breaks!")
                 else:
                     _speak_server(f"{_glevel} times the goal! {asset} "
-                                  f"up {pct:.1f} percent!")
+                                  f"up {pct:.1f} percent — stay close!")
             logger.info("🎯 GOAL: %s +%.1f%% (goal %.1f%%, x%d)",
                         pair, pct, _goal, _glevel)
-            # mature move = the QC's just-paid guard (re-entry blocks)
+            # mature move = the goals-banked display record (the payout
+            # gate it once fed is retired, Sep 21)
             _save_take_payout(pair, round(usd))
 
         # ── 4. GIVEBACK WARNING — tier-aware (Sep 1: "everything should
@@ -3945,8 +3951,8 @@ def main():
         # (the goal clock above set hold_txt + _out_by; the $20 patience
         # ladder and its "up twenty dollars" phrasing retired with the
         # scalp game — Sep 1)
-        _how_long = (f"goal +{_goal_pct:.1f}% by {_out_by} — "
-                     f"if it hasn't paid by then, get out.")
+        _how_long = (f"goal +{_goal_pct:.1f}% by {_out_by} — stay close "
+                     f"after that; the exit is hers, never the clock.")
         # ── TIDE (fleet context — every alert states it) ────────────────
         _tide_line = ""
         _tide_spoken = ""
@@ -4057,8 +4063,8 @@ def main():
                         _win_min = min(_win_min, float(_ca.HAIL_MARY_WINDOW_MIN))
                         _out_by = (_now_mst() + timedelta(
                             minutes=round(_win_min / 5.0) * 5)).strftime("%I:%M").lstrip("0")
-                        _how_long = (f"goal +{_goal_pct:.1f}% by {_out_by} — "
-                                     f"if it hasn't paid by then, get out.")
+                        _how_long = (f"goal +{_goal_pct:.1f}% by {_out_by} — stay "
+                                     f"close after that; the exit is hers, never the clock.")
                         logger.info("  💪 HAIL MARY ACTIVATED: %s — the emergency hour "
                                     "runs; the death line stands; cap $%.0f",
                                     _hm_qwhy, _risk_cap)
@@ -4267,7 +4273,7 @@ def main():
                            if _carry is not None else
                            "Book unreadable — your call on size! "))
                        + _tide_spoken
-                       + (f"If it hasn't paid by {_out_by}, get out!" if _out_by else
+                       + (f"Stay close after {_out_by} — I'll call the exit!" if _out_by else
                           "Hold for the goal!"))
             # ── THE DANGER-ZONE PANEL (user rule, Sep 6 — the thin-book
             #    optimized metrics): computed with the FINAL sized spend,
@@ -4631,7 +4637,7 @@ def main():
                                f"{r['tests']} tests at the ceiling, the coil cracked! "
                                f"The setup scores {_score:.0f} percent — sizing at {_mult:.2f}"
                                + (f", flat tide — half size!" if _st_tide_mult < 1.0 else "!")
-                               + f" Out by {_out_by} — if it hasn't paid, get out!")
+                               + f" Goal by {_out_by} — after that, stay close: I'll call the exit!")
                     _why = (f"{r['detail']} — the ceiling at ${r['zone_high']:.4f} cracked "
                             f"on a {r['vol_spike']:.1f}x volume burst")
                 _st_tide_line = (f"TIDE SIZES IT: FLAT — {TIDE_FLAT_SIZE_FACTOR:.2f}× size = "
@@ -5406,13 +5412,13 @@ def main():
                                                  + f"Aim for plus {_m_goal:.0f} percent! "
                                                  + _m_size_say
                                                  + _m_tide_say
-                                                 + f"If it hasn't paid by {_m_out_by}, get out!")
+                                                 + f"Stay close after {_m_out_by} — I'll call the exit!")
                                     _m_msg = (
                                         f"BUY {asset} — MOVER\n"
                                         f"WHY: runner outside the 54 ({_mv_pct:+.0f}% on 24h), and the brain "
                                         f"reads the setup at {_m_dc:.0f}%\n"
                                         f"HOW LONG: goal +{_m_goal:.1f}% by {_m_out_by} — "
-                                        f"if it hasn't paid by then, get out.\n"
+                                        f"stay close after that; the exit is hers, never the clock.\n"
                                         + (f"BRAIN SIZES IT: {_m_dc:.0f}% → {_m_mult:.2f}× size = "
                                            f"${_m_spend:,.0f} — the scan ran; the number is advisory "
                                            f"(it sizes, it never blocks)\n" if _m_mult < 1.0 else "")

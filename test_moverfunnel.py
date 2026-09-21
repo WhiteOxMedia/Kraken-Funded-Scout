@@ -121,8 +121,9 @@ check("mover popup carries the goal clock (the asset's own week + rotation-bound
       "_m_goal = _market_goal_pct(exchange, pair)" in src
       and "_m_win = _rotation_window_min()" in src
       and "Aim for plus {_m_goal:.0f} percent! " in src)
-check("mover popup carries the out-by discipline",
-      "If it hasn't paid by {_m_out_by}, get out!" in src)
+check("mover popup carries the stay-close discipline (the clock never exits)",
+      "Stay close after {_m_out_by} — I'll call the exit!" in src
+      and "If it hasn't paid by" not in src)
 check("mover popup has the stale-move guard (the APT wiggle trap)",
       "MOVER STALE MOVE" in src and src.count("_stale_move(exchange, pair)") >= 2,
       src.count("_stale_move(exchange, pair)"))
