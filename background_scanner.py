@@ -1749,7 +1749,13 @@ def _log_her_line(text: str):
                 lines = [l for l in f.read().splitlines() if l.strip()]
         lines.append(_json.dumps(entry, ensure_ascii=False))
         with open(VOICE_LOG_FILE, "w", encoding="utf-8") as f:
-            f.write("\n".join(lines[-VOICE_LOG_MAX:]))
+            # the trailing newline is LOAD-BEARING: appenders (and any
+            # external test) add one line per write — a file ending
+            # mid-line merges the next JSON object into the last line
+            # and every tail-reading consumer (the 15s her-words tick,
+            # the voice-refresh rerun) throws on the merged line. This
+            # silent merge is what froze the console's clocks on Sep 21.
+            f.write("\n".join(lines[-VOICE_LOG_MAX:]) + "\n")
     except Exception as exc:
         logger.warning("voice log append failed (%s) — the entry is "
                        "lost to the log only", exc)
