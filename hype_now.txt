@@ -1,8 +1,0 @@
-HYPE now: $78.3200
-strategy: HOLD 20%
-  - Regime: low_vol (volatility rank 12/100)
-  - MACD bullish (hist=0.1026)
-  - EMA bearish (short < long)
-  - Below min_confidence (40) — holding
-
-VERDICT: HOLD

@@ -46,3 +46,40 @@ scanner.log.20*
 speech_queue/*.wav
 # cache scratch dirs from diag runs
 _test_*/
+
+# ── RUNTIME STATE (RUNTIME_INVARIANTS.md, Sep 21) ──
+# Owned exclusively by the running scanner/console: never committed,
+# never revertable by a git operation (the 2026-09-21 hook-dance lesson:
+# a stash/checkout of tracked state files silently reverted the live
+# contest tier and hid an open position).
+contest_account.json
+console_state.json
+contest_watch.json
+discipline_state.json
+scanner_state.json
+rotation_lockout.json
+rotation_thresholds.json
+sure_thing_autoweights.json
+climb_levels.json
+take_payouts.json
+popup_suppressions.jsonl
+popups.jsonl
+contest_trades.jsonl
+signal_snapshots.jsonl
+snapshot_outcomes.jsonl
+tide_bar_flip_events.jsonl
+tide_bar_reckoning_window.jsonl
+voice_log.jsonl
+*.db
+scanner.log
+scanner.lock
+scanner_stderr.log
+scanner_stdout.log
+logs/
+speech_queue/
+hype_now.txt
+why_rejected.txt
+kii_woulda.txt
+liq_cal.txt
+one_asset.txt
+zec_trace.txt
