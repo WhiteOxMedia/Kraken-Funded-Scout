@@ -173,8 +173,11 @@ def rotation_gate(asset: str, confirm_window_min: float = 0.0):
     Returns (allowed, reason, is_reentry, fine_usd):
       allowed    always True since the retirement — nothing blocks on the lock
       reason     human explanation when blocked / re-entering
-      is_reentry True if the asset fired earlier TODAY in a different rotation
-      fine_usd   CONTEST_REENTRY_FINE_USD on a re-entry (0.0 otherwise)
+      is_reentry True if the asset fired earlier TODAY (a DISPLAY note
+                  only — no gate hangs on it since Sep 21)
+      fine_usd   always 0.0 — the re-entry fine is RETIRED (Sep 21: "I
+                  don't want a re-entry gate; it was replaced with real
+                  data already")
 
     CONFIRMATION WINDOW (user rule, Aug 31): confirm_window_min > 0 (the
     QC and the card pass ROTATION_CONFIRM_WINDOW_MIN) treats a lockout set
@@ -211,9 +214,11 @@ def rotation_gate(asset: str, confirm_window_min: float = 0.0):
                                   f"{_fired.strftime('%I:%M').lstrip('0')} "
                                   f"({_mins:.0f} min ago); confirming, not a re-fire"), False, 0.0
         # fired earlier TODAY (this rotation or an earlier one) → allowed,
-        # flagged as a re-entry so the popup still says so
+        # flagged as a re-entry so the popup still says so. NO differential:
+        # the fine is retired (Sep 21) — the same real-data gates (stale-
+        # move trap, floor, tide, 3% guard) judge every fire identically.
         return True, f"re-entry (fired {rec.get('rotation')} earlier today)", \
-            True, CONTEST_REENTRY_FINE_USD
+            True, 0.0
     return True, "", False, 0.0
 
 
@@ -246,18 +251,18 @@ def rotation_mark_fired(asset: str):
 
 
 def rotation_rearm_on_profit(asset: str) -> bool:
-    """THE PROFIT RE-ARM (user rule, Sep 6: "can we carve out the winner
-    exception if I collected money (profit)? I want to jump back in as
-    soon when it sets up again but the rotation lock is armed"): a SOLD
-    that BOOKED NET PROFIT disarms the rotation lockout for this asset —
-    the coin can fire again the moment a fresh setup passes EVERY gate
-    (fire-time scan, direction, stale-move, knife, 3% guard, popup cap —
-    this re-opens the door, it does not hold it open). A loss or a
-    scratch exit never calls this — you don't re-buy what just beat you.
+    """THE PROFIT RE-ARM (user rule, Sep 6; reshaped Sep 21): a SOLD or
+    GET OUT that BOOKED NET PROFIT lifts the fired-today record for this
+    asset, so the next popup is not flagged as a re-entry — a fresh
+    start after collected money. Nothing was ever blocked here since
+    the Sep 10 lockout retirement (and the Sep 21 rule removed the
+    re-entry differential entirely): every fire passes the same
+    real-data gates (fire-time scan, direction, stale-move, knife, 3%
+    guard). This only resets the display note.
 
-    Only a lock recorded for the CURRENT rotation is disarmed (an
-    earlier-rotation record means the gate is already open — nothing to
-    do). The state file is shared with the running scanner (it re-reads
+    Only a record from the CURRENT rotation is lifted (an
+    earlier-rotation record means the note is already clear). The state
+    file is shared with the running scanner (it re-reads
     per gate check), so a console-side disarm takes effect on the very
     next scan — no restart. Returns True if a lock was actually lifted."""
     now = _now_mst()
@@ -742,6 +747,35 @@ def champion_vs_champion(momentum_champion, bounce_champion) -> tuple[Any, str]:
 #    dollars / GET OUT NOW on exits / scalp alerts. The console visual
 #    popups are separate; this is the voice that never sleeps.
 CONTEST_WATCH_JSON = os.path.join(os.path.dirname(os.path.abspath(__file__)), "contest_watch.json")
+POPUPS_JSONL = os.path.join(os.path.dirname(os.path.abspath(__file__)), "popups.jsonl")
+
+
+_popup_journal_last = {"title": "", "ts": 0.0}
+
+
+def popup_journal(kind: str, title: str, text: str):
+    """THE POPUP LEDGER (Sep 21, user rule: 'All popups are now visible from
+    the console'): every BUY NOW / GET OUT NOW the scanner fires lands here,
+    one JSON object per line, APPEND-ONLY — nothing (a clobbered watch, a
+    misbehaving suite, a crashed process) can erase what fired. The
+    console's POPUP HISTORY dropdown reads this file. A repeating GET OUT
+    (the 60s persistence call) journals once per 5 minutes — same throttle
+    as the phone push — so the history reads as events, not heartbeats."""
+    try:
+        import json as _pj_json
+        now = time.time()
+        if str(title) == _popup_journal_last["title"] and \
+                (now - _popup_journal_last["ts"]) < 300:
+            return
+        _popup_journal_last["title"] = str(title)
+        _popup_journal_last["ts"] = now
+        row = {"ts": _now_mst().isoformat(timespec="seconds"),
+               "kind": str(kind), "title": str(title)[:200],
+               "text": str(text)[:2000]}
+        with open(POPUPS_JSONL, "a", encoding="utf-8") as _pjf:
+            _pjf.write(_pj_json.dumps(row) + "\n")
+    except Exception:
+        logger.debug("popup journal write failed", exc_info=True)
 CONSOLE_STATE_JSON = os.path.join(os.path.dirname(os.path.abspath(__file__)), "console_state.json")
 CONTEST_TRAIL_PCT = 3.0   # BASE trail off the peak — ratchets tighter on big
                           # runs (see _ratchet_trail_pct): 2% after +$100,
@@ -986,6 +1020,12 @@ def popup_floor(tide_state: str | None = None, lw_pts: float = 0,
         logger.warning("tide_memory read failed for %s/%s (%s) — the "
                        "coin's personal edge ships UNAPPLIED (a broken "
                        "memory closes, never opens)", pair, tide_state, exc)
+    # THE RETURN (fix, Sep 21): the 6e7aac3 evolution dropped the return
+    # statement, so every caller received None — DESKTOP_ALERT_MIN was None,
+    # the %d advisory log threw (swallowed), and float(None) at the first
+    # floor consumer would hard-crash the signal path. A floor function
+    # MUST return its number.
+    return fl
 
 
 # ── THE OUT-TIDE PASS PATHS (Sep 10). OUT is no longer a wall; it is
@@ -2624,11 +2664,31 @@ def contest_light(exchange, cfg):
         should_exit = False
         reason = ""
         _trail = _ratchet_trail_pct(entry, high, size)
+        # ── 1c. GOAL-ARMED TRAIL (user rule, Sep 21: "after the goal is
+        # hit, trail a stop just under the recent high — keep riding the
+        # climb, lock the profit when it turns; never wait for a full
+        # trend break"). Once the goal is touched the profit-guard trail
+        # caps at half the goal (never looser than 1.0%) under the tracked
+        # peak. The arm is LATCHED in the watch row, so a dip back to the
+        # goal can't disarm it — the net, once set, stays set. Above the
+        # stop the position rides every new high; the turn fires the same
+        # GET OUT (popup → push → auto-close) as every other gate.
+        _goal_tr = float(w.get("goal_pct") or 0) or _window_goal_pct(pair)
+        if not w.get("trail_armed") and _goal_tr > 0 \
+                and (live / entry - 1.0) * 100.0 >= _goal_tr:
+            w["trail_armed"] = True
+            dirty = True
+        if w.get("trail_armed") and _goal_tr > 0:
+            _trail = min(_trail, max(_goal_tr * 0.5, 1.0))
         if high > entry and live <= high * (1 - _trail / 100):
             _peak_usd = (high / entry - 1.0) * size
             should_exit = True
             reason = (f"PROFIT GUARD FIRED — dropped {(high - live) / high * 100:.1f}% from the peak "
                       f"(trail ratcheted to {_trail:.1f}% — the run reached +${_peak_usd:.0f})")
+            if w.get("trail_armed"):
+                reason += (f" — GOAL TRAIL: the +{_goal_tr:.1f}% goal was hit, "
+                           f"so the stop sits {_trail:.1f}% under the peak "
+                           f"{high:.5f} and the profit is locked")
 
         # ── 1b. THE HARD STOP — tier-aware (user rule, Sep 1: "everything
         # should auto adjust when the contest is selected"): the old fixed
@@ -2680,6 +2740,12 @@ def contest_light(exchange, cfg):
                 logger.warning("exit-strategy read failed for %s (%s) — "
                                "this cycle exits on the other gates only", pair, exc)
 
+        # (Sep 21, user rule: the window NEVER exits by itself — "I don't
+        # want to Exit simply because 'Time's up'. Stay close, and fire a
+        # popup only when the trend watch or the exit watch fire the Get
+        # out now.") The clock only reminds (gate 6 below); the exit call
+        # belongs to the profit guard, the hard stop, the trend sell bar
+        # and the climax — never to the clock.
         if should_exit:
             exited_pairs.append(pair)
             # GET OUT PERSISTS + ALWAYS FIRES (user rule, Sep 21: "don't
@@ -2722,6 +2788,9 @@ def contest_light(exchange, cfg):
                                   f"the watch auto-closed; the grade is journaled.")
                 except Exception:
                     _push_txt += "The watch auto-closed; the grade is journaled."
+                # THE POPUP LEDGER first (Sep 21): the exit call is journaled
+                # even if the voice/push delivery dies — what fired is history.
+                popup_journal("GET OUT", f"Get out now — Sell {asset}!", _push_txt)
                 _speak_server(f"Get out now! Sell {asset}! {_why}"
                               f"Give it about an hour to base — I'll call the next one!", rate=1,
                               push_text=_push_txt)
@@ -2756,7 +2825,7 @@ def contest_light(exchange, cfg):
                         if _added:
                             _held_min = f"{(_now_mst() - datetime.fromisoformat(_added)).total_seconds() / 60.0:.0f}"
                     except (TypeError, ValueError):
-                        pass
+                        pass  # cosmetic held-minutes only — the trade row is already booked
                     with open("contest_trades.jsonl", "a", encoding="utf-8") as _fx:
                         _fx.write(_jx.dumps({
                             "sold_at": _now_mst().isoformat(),
@@ -2783,8 +2852,12 @@ def contest_light(exchange, cfg):
                         # collected profit can be called again next setup
                         try:
                             rotation_rearm_on_profit(asset)
-                        except Exception:
-                            pass
+                        except Exception as _ra_exc:
+                            # display-only lift (Sep 21) — a failed lift
+                            # must never un-book a closed trade, but it
+                            # must be visible
+                            logger.warning("re-arm display lift failed for %s: %s",
+                                           pair, _ra_exc)
                 else:
                     _closed_note = "skipped — missing entry/size/live"
                     logger.warning("GET OUT close skipped for %s: entry=%s size=%s live=%s",
@@ -2880,12 +2953,29 @@ def contest_light(exchange, cfg):
                 _rem = (_out_by - datetime.now(_out_by.tzinfo)).total_seconds() / 60.0
                 _to_goal = (_goal - pct) if pct < _goal else 0.0
                 _near = (_to_goal <= _goal * 0.15) or (_rem <= 15.0)
-                _tail = f", about {max(_rem, 0):.0f} minutes left"
-                _tail += ", stay close" if _near else ", go walk around"
+                if _rem <= 0:
+                    # STAY CLOSE (user rule, Sep 21): past the window the
+                    # position stays WATCHED — she keeps talking, the exit
+                    # comes only from the trend/exit gates, never the clock.
+                    _tail = (" — time's up, stay close! I'll call the exit "
+                             "when the trend breaks")
+                else:
+                    _tail = f", about {_rem:.0f} minutes left"
+                    _tail += ", stay close" if _near else ", go walk around"
             else:
                 _tail = ""
         except Exception:
             _tail = ""
+
+        # the goal trail, when armed, is SAID so the rider knows the net
+        # is already set under the peak — visible before it ever fires
+        # (user rule: she must be able to hear the plan, not read code)
+        if w.get("trail_armed") and _goal > 0:
+            _trail_now = min(_ratchet_trail_pct(entry, high, size),
+                             max(_goal * 0.5, 1.0))
+            _trail_px = high * (1 - _trail_now / 100.0)
+            _tail += (f" — trail set {_trail_now:.1f}% under the peak, "
+                      f"locks {_trail_px:.5f}")
 
         # ── THE DIRECTION VOICE (the VIRTUAL/TRUMP/RENDER lesson, Sep 5:
         # "a SELL dressed up as a BUY — it thinks the goal is to go
@@ -3099,6 +3189,11 @@ def main():
         for line in message.split("\n"):
             if line.strip():
                 logger.info("   %s", line.strip())
+        # 4) THE POPUP LEDGER (Sep 21): every popup the scanner fires is
+        #    journaled append-only — the console's POPUP HISTORY dropdown
+        #    reads this, so the console always shows what fired, even when
+        #    the phone push fails, the watch clobbers, or the window is closed.
+        popup_journal("BUY", title, message)
 
     # ── Evaluate a single asset and check checklist ──────────────────
     def evaluate_and_check(pair, df, min_conf):
@@ -3652,19 +3747,20 @@ def main():
                 logger.info("  🚀 FAST ROUTE: %s — minimal gates; the caps manage the risk",
                             _fast_why)
         # ── THE STALE-MOVE GUARD (user rule, Sep 1: "no more wiggles —
-        # only solid trends"): a RE-ENTRY whose move peaked hours ago is
-        # a sagging top, not a trend (APT: peaked 08:15, the 12:11
-        # re-entry fired at 100% and sank). Fresh first-fires are exempt —
-        # the system noticing a move is the early catch.
-        if _is_reentry:
+        # only solid trends"; Sep 21: judged on EVERY candidate — "it was
+        # replaced with real data already", no re-entry class): a move
+        # whose peak was hours ago is a sagging top, not a trend (APT:
+        # peaked 08:15, the 12:11 chase fired at 100% and sank). Pure
+        # chart data: 4h-high age + distance. One standard for all.
+        if True:
             try:
                 _st = _stale_move(exchange, pair)
                 if _st:
                     logger.info("  STALE MOVE: %s — 4h high %.0fh ago, %.1f%% below it "
-                                "— re-entry popup skipped (the wiggle trap)",
+                                "— popup skipped (the wiggle trap)",
                                 asset, _st[0], _st[1])
                     _log_suppression(pair, "stale-move",
-                                     f"4h high {_st[0]:.0f}h ago, {_st[1]:.1f}% below it (re-entry)",
+                                     f"4h high {_st[0]:.0f}h ago, {_st[1]:.1f}% below it",
                                      quick=float(signal.confidence),
                                      brain=(float(_deep.confidence) if _deep is not None else None),
                                      tide=(f"{_df_state} {_df_pct:.0f}%" if _df_pct is not None else _df_state),
@@ -4117,9 +4213,10 @@ def main():
             _reentry_line = ""
             _reentry_say = ""
             if _is_reentry:
-                _reentry_line = f"  RE-ENTRY: fired earlier today — fine risk ${_fine:,.0f}\n" if _fine > 0 else "  RE-ENTRY: fired earlier today\n"
-                _reentry_say = (f"Re-entry — fine risk {_fine:,.0f} dollars! " if _fine > 0
-                                 else "Re-entry! ")
+                # display only — the fine is retired (Sep 21): the same
+                # real-data gates judged this fire as any other
+                _reentry_line = "  RE-ENTRY: fired earlier today — the same real-data gates judged it\n"
+                _reentry_say = "Re-entry! "
             # THE HAIL MARY MARK (user rule, Sep 4 — kept Sep 5): this
             # popup fired inside the one-hour emergency window — the
             # account-in-danger shot, the death line standing. Never

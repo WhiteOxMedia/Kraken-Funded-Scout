@@ -40,15 +40,16 @@ if pf.exists():
 
 _save_take_payout("TESTPAIR/USD", 140)
 import app
-got = app._recent_big_payout("TESTPAIR/USD")
-check("payout round-trip: console sees $140", got == 140, f"got {got}")
-check("payout: other pair unaffected", app._recent_big_payout("NOPE/USD") is None)
+got = app._recent_big_payout("TESTPAIR/USD", now_ts=0.0)
+check("guard retired: a fresh $140 payout blocks nothing (Sep 21: "
+      "replaced with real data)", got is None, f"got {got}")
+check("guard retired: any pair reads as clean",
+      app._recent_big_payout("NOPE/USD", now_ts=0.0) is None)
 
-# stale payout (2h old) -> no block
+# the ledger record persists — display/history only, never a gate
 doc = json.loads(pf.read_text())
-doc["TESTPAIR/USD"]["ts"] = (datetime.now(MST) - timedelta(hours=2)).isoformat()
-pf.write_text(json.dumps(doc))
-check("payout expired after 60 min -> no block", app._recent_big_payout("TESTPAIR/USD") is None)
+check("payout ledger keeps the record for history",
+      int(doc["TESTPAIR/USD"].get("amount") or 0) == 140)
 
 # ── 3. cleanup: restore ────────────────────────────────────────────
 if bak and bak.exists():

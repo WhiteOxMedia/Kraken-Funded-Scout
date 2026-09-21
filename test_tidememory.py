@@ -161,7 +161,7 @@ check("the floor applies the memory in every adjusted state BUT OUT "
 check("the memory never drops the floor below the wolf's 55",
       "fl = max(LONE_WOLF_DESKTOP_FLOOR, fl - _tadj)" in bs_src)
 check("the memory block is fail-closed",
-      "a broken memory opens nothing" in bs_src)
+      "memory opens nothing" in bs_src)
 check("the alert popup path passes the pair",
       "popup_floor(_df_state, _lw_pts, _rot_now_key, pair)" in bs_src)
 check("the OUT gate prices the coin ONCE through the personal bar",

@@ -66,10 +66,13 @@ check("new rotation -> re-armed", allowed, reason)
 check("flagged as re-entry", reentry)
 check("fine defaults to 0", fine == 0.0)
 
-# fine passthrough when configured
+# the fine is RETIRED (Sep 21: "I don't want a re-entry gate — it was
+# replaced with real data already"): no configuration re-arms a class
+# tax — the same real-data gates judge every fire identically
 bs.CONTEST_REENTRY_FINE_USD = 10.0
 allowed, reason, reentry, fine = bs.rotation_gate("PUMP")
-check("fine surfaces on re-entry", reentry and fine == 10.0)
+check("fine is retired: re-entry returns 0.0 even if misconfigured",
+      reentry and fine == 0.0)
 bs.CONTEST_REENTRY_FINE_USD = 0.0
 
 # a NEW DAY re-arms everything (stale records pruned)
@@ -189,7 +192,8 @@ check("QC rejection display kept (dead since the retirement, honest machinery)",
       "ALREADY RAN THIS ROTATION" in app_src)
 check("card filter kept (Aug 31: with the confirmation window — a just-fired pick stays visible for CHECK)",
       'rotation_gate(h["asset"], confirm_window_min=_cwin)' in app_src)
-check("fine callout in voice", "fine risk" in app_src and "fine risk" in bs_src)
+check("the fine wording is retired from voice and card (Sep 21)",
+      "fine risk" not in app_src and "fine risk" not in bs_src)
 
 # ── 6. THE PROFIT RE-ARM wiring (Sep 6) ───────────────────────────────
 check("the SOLD tap re-arms through the scanner's ONE function",

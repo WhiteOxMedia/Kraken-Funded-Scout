@@ -1285,8 +1285,8 @@ def _scalp_headline(_ex, rotation_key: str, sched: str,
     for pair, r in latest.items():
         if pair.split("/")[0] not in ASSETS:
             continue
-        if _recent_big_payout(pair, now_ts=now_ts) is not None:
-            continue                    # exhausted move — QC would reject it too
+        # (Sep 21: the just-paid skip is retired — a payout record never
+        # hides a candidate; the real-data gates do the judging)
         entry = float(r["entry_price"] or 0)
         if entry <= 0:
             continue
@@ -1473,30 +1473,13 @@ def _trend_state(df, cfg, px: float) -> str:
 
 
 def _recent_big_payout(pair: str, *, now_ts: float) -> int | None:
-    """Amount of the last BIG TAKE IT payout (≥$100) on this pair, if it was
-    within REENTRY_BLOCK_MIN minutes. The scanner writes take_payouts.json;
-    the QC refuses to green-light re-entries on a move that just paid big —
-    it's exhausted, and the re-buy rides the giveback (PUMP, Aug 24: took
-    the $140, re-entered 20 min later, rode -$70 back down).
-    (Sep 13) now_ts is REQUIRED: the caller supplies the clock so a cached
-    body (the scalp headline) can pass its bucketed key instead of
-    freezing this recency check at its first render."""
-    import json, os
-    from datetime import datetime
-    try:
-        p = os.path.join(os.path.dirname(os.path.abspath(__file__)), "take_payouts.json")
-        with open(p, "r", encoding="utf-8") as fh:
-            doc = json.load(fh)
-        rec = doc.get(pair)
-        if not rec:
-            return None
-        ts = datetime.fromisoformat(rec["ts"])
-        age_min = (datetime.fromtimestamp(now_ts, ts.tzinfo) - ts).total_seconds() / 60
-        if age_min <= REENTRY_BLOCK_MIN:
-            return int(rec.get("amount") or 0)
-        return None
-    except Exception:
-        return None
+    """RETIRED (user rule, Sep 21: "I don't want a 'just paid guard' — it
+    was replaced with real data already"): kept only so stale callers
+    can't crash; always returns None. No payout record ever blocks or
+    hides a candidate — the real-data gates (stale-move trap, floor,
+    tide, chase) judge every entry. take_payouts.json remains a
+    display/history record only."""
+    return None  # the guard is retired — nothing reads payout recency anymore
 
 
 def contest_chunk(position_size_usd, balance: float) -> tuple[float, float] | None:
@@ -4945,10 +4928,11 @@ def render_quick_check(cfg: TradingConfig, kraken):
                         _spend_usd = _spend_usd * _bs_tsf.TIDE_FLAT_SIZE_FACTOR
                     except (AttributeError, ImportError) as exc:
                         logger.debug("FLAT half-size factor skipped: %s", exc)
-                # re-entry guard: a pair that just paid a big TAKE IT is an
-                # exhausted move — re-entering rides the giveback
-                _payout = _recent_big_payout(
-                    pair, now_ts=_now_mst().timestamp())
+                # THE JUST-PAID GUARD — RETIRED (user rule, Sep 21: "I
+                # don't want a 'just paid guard' — it was replaced with
+                # real data already"): no payout-based read, no refusal.
+                # The real-data gates (stale-move trap on the 4h tape,
+                # floor, tide, chase) judge the entry.
                 # ── ROTATION MEMORY (user rule, Aug 30): one green light per
                 # asset per rotation + yesterday's-hour context (blowoff
                 # demotion). Same reference frame as the user's instinct:
@@ -4991,7 +4975,6 @@ def render_quick_check(cfg: TradingConfig, kraken):
                 st.session_state["qc_result"]["goal_pct"] = _goal_pct
                 st.session_state["qc_result"]["raw_move"] = _raw_move
                 st.session_state["qc_result"]["chase_pct"] = _chase
-                st.session_state["qc_result"]["payout_block"] = _payout
                 st.session_state["qc_result"]["trend"] = _trend
                 st.session_state["qc_result"]["carry_usd"] = _carry
                 st.session_state["qc_result"]["spend_usd"] = _spend_usd
@@ -5174,14 +5157,12 @@ def render_quick_check(cfg: TradingConfig, kraken):
                                 _warns.append(f"already ran +{_chase:.1f}%")
                             if _trend == "FALLING":
                                 _warns.append("trend falling — don't sit in it")
-                            if _payout is not None:
-                                _warns.append(f"just paid ${_payout}")
+
                             _warn_txt = (f"  ⚠ {' · '.join(_warns)}." if _warns else "")
                             _reentry_txt = ""
                             if _rot_reentry:
-                                _reentry_txt = (f"RE-ENTRY — fired earlier today"
-                                                + (f", fine risk ${_rot_fine:,.0f}" if _rot_fine > 0 else "")
-                                                + ". ")
+                                # display only — the fine is retired (Sep 21)
+                                _reentry_txt = "RE-ENTRY — fired earlier today. "
                             # CONFIRMATION WINDOW (Aug 31): say WHY the lockout
                             # didn't bounce this — it's the alert's own green
                             # light being confirmed, not a fresh fire
@@ -5201,8 +5182,7 @@ def render_quick_check(cfg: TradingConfig, kraken):
                                 _play_sound("ding")
                                 _sized_down = _spend_usd < float(cfg.challenge_balance)
                                 _pct_txt = f"{_chunk[0]:.0%}"
-                                _fine_say = (f"Re-entry — fine risk {_rot_fine:,.0f} dollars! "
-                                             if _rot_reentry and _rot_fine > 0 else "")
+                                _fine_say = ""  # the re-entry fine is retired (Sep 21)
                                 if _warns:
                                     _speak(f"Go! {asset}! Buy {_pct_txt}! {_fine_say}But heads up: "
                                            + " and ".join(_warns) + "!", rate=1)
@@ -5406,7 +5386,6 @@ def render_quick_check(cfg: TradingConfig, kraken):
     # the bar predicts nothing for scalps.
     pace_h = result.get("pace_h")
     chase_pct = result.get("chase_pct", 0.0)
-    payout_block = result.get("payout_block")
     trend = result.get("trend", "UP")
     carry_usd = result.get("carry_usd")
     spend_usd = result.get("spend_usd") or cfg.challenge_balance
@@ -5546,9 +5525,9 @@ def render_quick_check(cfg: TradingConfig, kraken):
     if _confirming:
         _fine_led, _fine_txt = "a", ("🔁 CONFIRMING THE ALERT — "
                                      + str(rot_reason).replace("confirmation window — ", ""))
-    elif fine_usd > 0 and is_reentry:
-        _fine_led, _fine_txt = "a", f"⚠ RE-ENTRY — FINE RISK ${fine_usd:,.0f}"
     elif is_reentry:
+        # display only — the fine is retired (Sep 21): the same real-data
+        # gates judged this entry as any other
         _fine_led, _fine_txt = "a", "RE-ENTRY (fired earlier today)"
     else:
         _fine_led, _fine_txt = "g", "FRESH — FIRST FIRE TODAY"
@@ -5569,8 +5548,6 @@ def render_quick_check(cfg: TradingConfig, kraken):
             "g" if chase_pct <= QC_CHASE_PCT else "a") +
         led(f"TREND {trend}" + (" — NO PICKS IN DOWNTRENDS" if trend == "FALLING" else ""),
             "g" if trend == "UP" else ("r" if trend == "FALLING" else "a")) +
-        led(f"⚠ JUST PAID ${payout_block} — may be tired" if payout_block is not None else "NO PAYOUT BLOCK",
-            "a" if payout_block is not None else "g") +
         led(_green_txt, "g" if passes else "r") +
         led("MOMENTUM CEILING BLOCK" if momentum_capped else "ENTRY ALLOWED", "r" if momentum_capped else "g")
     )
@@ -6080,7 +6057,7 @@ def _render_her_words():
                             _flags = "🎯 GOAL HIT" if _pct >= _goal else ""
                             if _left <= 0:
                                 _flags += (" · " if _flags else "") \
-                                    + "⏰ TIME'S UP — get out"
+                                    + "⏰ time's up — staying close (exit waits for the trend)"
                             _wrows.append(
                                 f"<div style='padding:6px 0;"
                                 f"border-bottom:1px solid rgba(255,255,255,0.08);'>"
@@ -6112,6 +6089,68 @@ def _render_her_words():
             st.markdown("".join(rows), unsafe_allow_html=True)
     except Exception as exc:
         logger.debug("her-words expander failed: %s", exc)
+
+
+def _render_popup_history():
+    """📣 POPUP HISTORY — every popup the scanner fired, on screen (Sep 21,
+    user rule: "All popups are now visible from the console"). Reads
+    popups.jsonl — the scanner's APPEND-ONLY popup ledger (BUY NOW and GET
+    OUT NOW, journaled at fire time in background_scanner.popup_journal).
+    Built exactly like HER WORDS: the latest popup rides the expander
+    title, the recent history sits inside, newest first. Because the
+    ledger is append-only, a clobbered watch, a phone-push failure or a
+    closed scanner window can never erase what fired — the history IS the
+    record the phone contest is matched against."""
+    try:
+        import json as _json
+        import html as _html
+        from pathlib import Path as _P
+        f = _P(__file__).parent / "popups.jsonl"
+        if not f.exists():
+            return
+        lines = [l for l in f.read_text(encoding="utf-8").splitlines() if l.strip()]
+        if not lines:
+            return
+        rows = []
+        latest_title = ""
+        for l in reversed(lines[-12:]):
+            try:
+                d = _json.loads(l)
+                if str(d.get("kind", "")) == "TEST":
+                    continue  # journal plumbing probes never display
+                ts = str(d.get("ts", ""))
+                hhmm = ts[11:16] if len(ts) >= 16 else ""
+                kind = str(d.get("kind", "POPUP"))
+                title = str(d.get("title", ""))
+                body = str(d.get("text", ""))
+                if not latest_title:
+                    latest_title = title
+                _kcol = "#ff6b5e" if "OUT" in kind.upper() or "SELL" in kind.upper() \
+                    else "#4be38a"
+                _blines = [s.strip() for s in body.split("\n") if s.strip()]
+                _shown = _blines[:3]
+                _more = f" <span class='dim'>· …{len(_blines) - 3} more</span>" \
+                    if len(_blines) > 3 else ""
+                _body_html = "<br>".join(
+                    f"<span class='dim'>{_html.escape(s)}</span>" for s in _shown)
+                rows.append(
+                    f"<div style='padding:4px 0;border-bottom:1px solid rgba(255,255,255,0.08);'>"
+                    f"<span class='dim' style='font-family:monospace;'>{hhmm}</span>"
+                    f"&nbsp;<span style='color:{_kcol};font-family:Audiowide;'>"
+                    f"{ _html.escape(kind.upper()) }</span>"
+                    f"&nbsp;&nbsp;<b>{_html.escape(title)}</b>"
+                    + (f"<br>{_body_html}{_more}" if _body_html else "")
+                    + "</div>")
+            except Exception:
+                continue
+        if not rows:
+            return
+        _latest = _html.escape(latest_title[:70]) + ("…" if len(latest_title) > 70 else "")
+        with st.expander(f"📣 POPUP HISTORY — \"{_latest}\"  (tap to read all)",
+                         expanded=False):
+            st.markdown("".join(rows), unsafe_allow_html=True)
+    except Exception as exc:
+        logger.debug("popup-history expander failed: %s", exc)
 
 
 def _render_bots_book(kraken, cfg):
@@ -6438,6 +6477,7 @@ def render_auto_watch(cfg: TradingConfig, kraken):
         _light_check(kraken, cfg, sb, held, interval_s)
         _render_light_panel(f"{interval // 60} min")
         _render_her_words()
+        _render_popup_history()
         _render_bots_book(kraken, cfg)
         _toast_new_her_words()        # her-words popup ticker: fast lane (15s) — GET OUT / TAKE IT
         # popups shouldn't wait for the 60s light cycle (user rule, Aug 30:
