@@ -6443,27 +6443,35 @@ def _light_check(kraken, cfg: TradingConfig, sb, held: dict, interval_s: int) ->
     st.session_state["last_light_check"] = time.time()
 
     contest_watch = _load_watch()
-    watch_status, alerts = [], {}
+    watch_status = []
+    # (Sep 22, one brain) no alerts dict: the console builds no exit
+    # verdicts, so there is nothing to relay — the scanner pops the
+    # console and pushes the phone itself.
+    # ── THE ONE BRAIN (Sep 22): the console no longer runs its own exit
+    # evaluator — that second brain was the ghost-SELL class (it popped
+    # "trend broke, SELL ADA" the scanner's exit watch never called).
+    # The scanner's exit watch — the adaptive profit guard, the trend
+    # read, the trail — is the ONLY brain that can call GET OUT, and it
+    # pops the console and pushes the phone itself. The light still does
+    # the pure-price work below: the GOAL CALL and the HOLD scoreboard.
+    # (The manual Exit Check page keeps its full readout — a diagnostic
+    # you open, not a light that fires on its own.)
     for a, pair in held.items():
-        try:
-            v = _run_exit_logic(kraken, pair, cfg, sb)
-            v["kind"] = "wallet"
-            watch_status.append(v)
-            if v["exit"]:
-                alerts[pair] = "; ".join(v["reasons"])
-        except Exception:
-            continue
+        watch_status.append({"pair": pair, "kind": "wallet",
+                             "exit": False, "reasons": []})
     for pair, w in contest_watch.items():
-        if pair in held:
-            continue
         try:
-            v = _run_exit_logic(kraken, pair, cfg, sb,
-                                entry_override=w.get("entry"),
-                                watch_entry=w, contest=True)
-            v["kind"] = "contest"
-            watch_status.append(v)
-            if v["exit"]:
-                alerts[pair] = "; ".join(v["reasons"])
+            _live = None
+            try:
+                _t = _ticker_px(pair)
+                _live = float(_t) if _t and float(_t) > 0 else None
+            except Exception:
+                _live = None
+            watch_status.append({
+                "pair": pair, "kind": "contest", "exit": False,
+                "reasons": [], "entry": w.get("entry"),
+                "high": w.get("high"), "live": _live,
+            })
         except Exception:
             continue
     if contest_watch:
@@ -6485,7 +6493,6 @@ def _light_check(kraken, cfg: TradingConfig, sb, held: dict, interval_s: int) ->
         if _merged != _fresh:
             _save_watch(_merged)  # persist updated tracked highs
 
-    st.session_state["exit_alerts"] = alerts
     st.session_state["watch_status"] = watch_status
 
     # ── THE GOAL CALL (the rebuild, Sep 1: "scalping is over, count the
@@ -6531,13 +6538,10 @@ def _light_check(kraken, cfg: TradingConfig, sb, held: dict, interval_s: int) ->
     # ── popups: fire on every page — this is the light ────────────────
     contest_rows = [v for v in watch_status if v["kind"] == "contest"]
     try:
-        if any(v["exit"] for v in contest_rows):
-            sellers = [f"{_asset(v['pair'])} ({v['reasons'][0]})"
-                       for v in contest_rows if v["exit"]]
-            st.toast("🚨 SELL NOW: " + " · ".join(sellers), icon="🚨", duration=20)
-            _play_sound("alarm")
-            # voice comes from the scanner (server-side) — no double-talking
-        elif contest_rows:
+        # (Sep 22, one brain) the red SELL NOW toast retired with the
+        # console's own evaluator — GET OUT comes only from the scanner's
+        # exit watch (its own popup + push). What remains is the scoreboard.
+        if contest_rows:
             parts = []
             for v in contest_rows:
                 if v.get("entry") and v.get("live"):
@@ -6943,7 +6947,9 @@ def _toast_new_her_words():
 def _render_light_panel(interval: str):
     """The always-visible light panel — rendered from the last check."""
     watch_status = st.session_state.get("watch_status") or []
-    any_alert = any(v["kind"] == "contest" and v["exit"] for v in watch_status)
+    # (Sep 22, one brain) no console-side exit verdict exists anymore —
+    # the light is always green unless the scanner's own GET OUT popup
+    # says otherwise. n_wallet keeps the bot-trades line alive.
     n_wallet = sum(1 for v in watch_status if v["kind"] == "wallet")
     _w = _load_watch()
     # THE HAIL MARY clock rides the panel header (user rule, Sep 4 — kept Sep 5)
@@ -6997,20 +7003,14 @@ def _render_light_panel(interval: str):
                               + '</span>')
             except Exception as exc:
                 logger.debug("rotation clock html failed: %s", exc)
-        if v["exit"]:
-            lines.append(f"<span style='color:#ff6b5e;font-size:16px;'>◆ {asset} — SELL NOW — {v['reasons'][0]}</span>"
-                         f"<span class='dim'> · she'll base-call the next one the moment it sets up — no clock-waiting</span>")
-        else:
             bail = v.get("high", 0) * (1 - CONTEST_TRAIL_PCT / 100) if v.get("high") else None
             bail_txt = f" · out at {_fmt_price(bail)}" if bail else ""
             lines.append(f"<span style='color:#4be38a;font-size:16px;'>◆ {asset}</span> {pnl_html}"
                          f"{clock_html}{bail_txt}")
     if n_wallet:
         lines.append(f"<span class='dim'>bot trades: {n_wallet} (watched separately)</span>")
-    st.markdown(plate("MY TRADES", lcd(lines, tone="red" if any_alert else "green")),
+    st.markdown(plate("MY TRADES", lcd(lines, tone="green")),
                 unsafe_allow_html=True)
-    if any_alert:
-        st.error("🚨 SELL NOW — on the contest app.")
 
 
 # THE SEMANTIC-OPTIONS IDIOM (Sep 13, the verdict-dropdown pattern,
@@ -8241,18 +8241,10 @@ def main():
             "not green counts as red."
         )
 
-    # ── global exit alert banner (from Auto-Watch — visible on every tab) ──
-    exit_alerts = st.session_state.get("exit_alerts") or {}
-    if exit_alerts:
-        alert_rows = "".join(
-            f"<div style='color:#ff6b5e;font-size:15px;'>🚨 SELL: <b>{_asset(p)}</b> — {r}</div>"
-            for p, r in exit_alerts.items()
-        )
-        st.markdown(plate("🚨 GET OUT NOW",
-                          f"<div style='font-family:Share Tech Mono,monospace;'>{alert_rows}</div>"
-                          "<div style='margin-top:6px;color:#b9a06d;font-size:12px;'>"
-                          "sell on the contest app — nothing sells by itself</div>"),
-                    unsafe_allow_html=True)
+    # (Sep 22, one brain) the global SELL banner is retired with the
+    # console's own evaluator — it fired exit verdicts the scanner's exit
+    # watch never called (the ghost-SELL class). GET OUT arrives only
+    # from the scanner: its own popup, its own push.
 
     # ── console modules ──────────────────────────────────────────────
     kraken = get_kraken_client()

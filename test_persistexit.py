@@ -22,7 +22,7 @@ app_src = open("app.py", encoding="utf-8").read()
 check("scanner: GET OUT auto-closes the trade (pnl_net_usd)",
       "pnl_net_usd(" in bs_src.split("AUTO-CLOSE AT FIRE TIME")[1][:4000])
 check("scanner: GET OUT removes the watch row itself (auto-stop)",
-      "watch.pop(pair, None)" in bs_src.split("AUTO-CLOSE AT FIRE TIME")[1][:5000])
+      "watch.pop(pair, None)" in bs_src.split("AUTO-CLOSE AT FIRE TIME")[1][:8000])
 check("scanner: exit voice gated to 60s repeat",
       "_last_exit_voice.get(pair, 0)) >= 60" in bs_src)
 check("scanner: exit-voice re-arm when condition clears",
@@ -44,8 +44,22 @@ check("entry control: RETIRED (the form is gone)",
 check("entry control: no MY ENTRY references remain",
       "MY ENTRY" not in app_src)
 
-# 4. The red SELL NOW toast still fires every cycle while exit is true
-check("console: SELL NOW toast persists", "SELL NOW" in light_section)
+# 4. ONE BRAIN (Sep 22, user: "the console doesn't need its own exit
+#    evaluator anymore"): the light's console-side evaluator is retired —
+#    GET OUT verdicts come only from the scanner's exit watch (its own
+#    popup + push). The ghost-SELL class is dead at the source.
+check("one brain: the light's console evaluator is retired",
+      "_run_exit_logic(kraken, pair, cfg, sb)" not in light_section)
+check("one brain: the red SELL NOW toast is gone",
+      "SELL NOW:" not in light_section)
+check("one brain: the global SELL banner is gone (no exit_alerts anywhere)",
+      "exit_alerts" not in app_src)
+check("one brain: the light still does the pure-price work (GOAL CALL)",
+      "THE GOAL CALL" in light_section and "take_level" in light_section)
+check("one brain: the light feeds the phone-free rows (no alerts dict)",
+      "alerts[pair]" not in light_section)
+check("one brain: manual Exit Check page survives as a diagnostic",
+      "def render_exit_check" in app_src)
 
 lines.append(f"\nRESULT: {PASS} passed, {FAIL} failed")
 open("_persist_check.txt", "w", encoding="utf-8").write("\n".join(lines))
