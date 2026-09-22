@@ -8083,14 +8083,19 @@ def main():
             except Exception as exc:
                 logger.debug("balance-busy toast failed: %s", exc)
     cfg.challenge_balance = float(_acct["current_balance"])
-    # ── THE BALANCE POP: render the change LOUD (see _balance_pop_state).
-    # Animated count on the rerun that first sees the change; a small
-    # colored chip afterwards, staying until the next change replaces it.
-    try:
+    # ── THE BALANCE, LIVE (Sep 22, the KAITO lesson): the +$0.77 from a
+    # profit-guard close hit the FILE at 13:45 but the sidebar only
+    # re-renders on a full rerun — on a phone (tab backgrounded, timers
+    # throttled) it sat unseen until the next touch. The pop and the
+    # account plate now ride a fragment that re-reads the account file
+    # every 15s: the change arrives on its own, no touch required.
+    def _balance_tick():
+      try:
         import streamlit.components.v1 as _components
-        _bp_cur = float(_acct["current_balance"])
+        _acct_l = _ca.load_state()
+        _bp_cur = float(_acct_l["current_balance"])
         _bp = _balance_pop_state(st.session_state.get("_bal_pop_prev"), _bp_cur,
-                                 _acct.get("applied_trades") or {}, time.time())
+                                 _acct_l.get("applied_trades") or {}, time.time())
         st.session_state["_bal_pop_prev"] = _bp_cur
         if _bp["kind"] == "pop":
             st.session_state["_bal_pop"] = {**_bp, "born": time.time(), "rendered": False}
@@ -8113,24 +8118,28 @@ def main():
                            .replace("__NEW__", repr(_pop["new"])),
                     height=122, scrolling=False)
             else:
-                st.markdown(
+                st.sidebar.markdown(
                     f'<div style="border-left:3px solid {_pcol};background:{_pcol}14;'
                     f'border-radius:8px;padding:5px 10px;margin:-4px 0 10px 0;font-size:.86rem;">'
                     f'<b style="color:{_pcol}">{_psign}${abs(_pop["delta"]):,.2f}</b>'
                     f' · {_pop["caption"]} · now <b>${_pop["new"]:,.2f}</b></div>',
                     unsafe_allow_html=True)
-    except Exception as exc:
-        logger.debug("balance pop skipped: %s", exc)
-    _line = _ca.death_line(_acct)
-    _buf = _ca.buffer(_acct)
-    _pace = _ca.daily_pace_usd(_acct)
-    _line_col = "r" if _buf <= 0 else ("a" if _buf < _ca.TIERS[_acct["tier"]]["start"] * 0.01 else "g")
-    st.sidebar.markdown(plate("☠ CONTEST ACCOUNT", (
-        led(f"DEATH LINE ${_line:,.0f}", _line_col) + "<br>" +
-        led(f"BUFFER ${_buf:,.0f}", _line_col) + "<br>" +
-        led(f"PACE ${_pace:,.0f}/DAY (12%/WK)", "a") + "<br>" +
-        led(f"TARGET +12% = ${float(_acct['start_balance']) * 1.12:,.0f}", "g")
-    )), unsafe_allow_html=True)
+      except Exception as exc:
+        logger.debug("balance tick skipped: %s", exc)
+        return   # (CodeRabbit) no _acct_l binding — never fall through to the plate
+      _line = _ca.death_line(_acct_l)
+      _buf = _ca.buffer(_acct_l)
+      _pace = _ca.daily_pace_usd(_acct_l)
+      _line_col = "r" if _buf <= 0 else ("a" if _buf < _ca.TIERS[_acct_l["tier"]]["start"] * 0.01 else "g")
+      st.sidebar.markdown(plate("☠ CONTEST ACCOUNT", (
+          led(f"BALANCE ${_bp_cur:,.2f}", _line_col) + "<br>" +
+          led(f"DEATH LINE ${_line:,.0f}", _line_col) + "<br>" +
+          led(f"BUFFER ${_buf:,.0f}", _line_col) + "<br>" +
+          led(f"PACE ${_pace:,.0f}/DAY (12%/WK)", "a") + "<br>" +
+          led(f"TARGET +12% = ${float(_acct_l['start_balance']) * 1.12:,.0f}", "g")
+      )), unsafe_allow_html=True)
+    _balance_tick = st.fragment(run_every=15)(_balance_tick)
+    _balance_tick()
     # ── THE HAIL MARY WINDOW (user rule, Sep 4 — kept Sep 5): when
     #    active, the plate shows the countdown — the emergency hour runs,
     #    the death line stands

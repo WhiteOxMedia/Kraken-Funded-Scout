@@ -109,7 +109,7 @@ check("caption rides the pop html", '_pop["caption"]' in ap)
 check("components iframe sized for the sidebar",
       "height=122, scrolling=False" in ap)
 check("fail-soft wrapper so a pop bug can never break the sidebar",
-      "balance pop skipped" in ap)
+      "balance tick skipped" in ap)
 
 lines.append(f"\nRESULT: {PASS} passed, {FAIL} failed")
 Path("_balancepop_check.txt").write_text("\n".join(lines), encoding="utf-8")
