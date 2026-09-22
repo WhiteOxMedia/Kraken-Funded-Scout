@@ -128,6 +128,71 @@ check("full-reasons GET OUT pushes urgent",
 check("the reasons body rides intact (multi-line)",
       len(t) == 1 and "WHY:" in t[0] and "POSITION:" in t[0] and "GOAL was" in t[0])
 
+# 11. THE URGENCY-CLASS MATRIX (Sep 22): every spelling the user named.
+# Word-boundary regexes — case never matters, quote style never matters,
+# punctuation never matters. Buy class pushes HIGH; sell class URGENT.
+_MATRIX_BUY = [
+    'Buy "X" now! 91 percent sure!',        # Buy "x" now (double quotes)
+    "Buy PUMP! 91 percent sure!",           # the real fire line
+    "buy now — the rotation turned!",       # buy now
+    'BUY "X" NOW — new champion!',          # BUY "X" NOW
+    "New pick! Buy ARB!",                   # the new-pick shape
+    "GO! Buy DOGE!",                        # the go! prefix
+]
+_MATRIX_SELL = [
+    "Get out now! Sell ARB! It gave back too much!",
+    "GET OUT NOW — Sell PUMP!\nWHY: trend broke",   # the full-reasons body
+    "get out — the trend broke!",
+    'SELL "X" NOW! It reversed!',
+    "Sell 'x' now!",                        # Sell 'x' now (single quotes)
+    "Sell now — take the money!",
+    "GET OUT",                              # bare, uppercase
+    "get out",                              # bare, lowercase
+    "STOPPED OUT — sell KAITO!",
+    "Time to sell!",                        # word at line END (the old
+    #                                         'sell ' substring missed this)
+]
+for _txt in _MATRIX_BUY:
+    sent.clear()
+    bs._push_state = {"text": "", "ts": 0.0}
+    bs._push_to_phone(_txt)
+    check(f"BUY class pushes HIGH: {_txt[:30]!r}",
+          len(sent) == 1 and sent[0].headers.get("Priority") == "high",
+          f"n={len(sent)}")
+for _txt in _MATRIX_SELL:
+    sent.clear()
+    bs._push_state = {"text": "", "ts": 0.0}
+    bs._push_to_phone(_txt)
+    check(f"SELL class pushes URGENT: {_txt[:30]!r}",
+          len(sent) == 1 and sent[0].headers.get("Priority") == "urgent",
+          f"n={len(sent)}")
+
+# 12. THE WARNING GUARD (Sep 22): a line that STARTS with 'warning' is a
+#     console status call — its text NEVER pushes, even when it contains
+#     'get out' or 'sell'. The 06:41 loss warning ('Warning! PUMP down 11
+#     dollars! Get out or hold!') pushed URGENT through exactly that hole.
+_MATRIX_WARN = [
+    "Warning! PUMP down 11 dollars! Get out or hold!",
+    "Warning! ARB gave back 60 percent! Take it or ride!",
+    "Warning! The tide is going out! All ships sink together!",
+    "warning! lowercase start is guarded too!",
+]
+for _txt in _MATRIX_WARN:
+    sent.clear()
+    bs._push_state = {"text": "", "ts": 0.0}
+    bs._push_to_phone(_txt)
+    check(f"WARNING never pushes: {_txt[:38]!r}", len(sent) == 0)
+
+# 13. word boundaries keep chatter out — 'buyer'/'resell' contain the
+#     stems but are not calls
+for _txt in ("the buyer stepped in", "we resell nothing",
+             "Take it! ARB! Plus 20 dollars!",
+             "ARB, plus 19 dollars, about 40 minutes left, stay close"):
+    sent.clear()
+    bs._push_state = {"text": "", "ts": 0.0}
+    bs._push_to_phone(_txt)
+    check(f"chatter never pushes: {_txt[:36]!r}", len(sent) == 0)
+
 lines.append(f"\nRESULT: {PASS} passed, {FAIL} failed")
 open("_pushfilter_check.txt", "w", encoding="utf-8").write("\n".join(lines))
 print("DONE")

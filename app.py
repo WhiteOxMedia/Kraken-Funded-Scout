@@ -7780,6 +7780,86 @@ def _pace_target_clock_leds() -> str:
     return out
 
 
+# ── THE BALANCE POP (user ask, Sep 22: 'make it a colorful display with
+# real dopamine delivery when the sidebar is changed in slow motion so I
+# can see it even when the Amount is small') — a −$6.92 ripples on a 10k
+# book is invisible at a glance; when the balance moves, the sidebar now
+# counts the old number down (red) or up (green) to the new one over
+# ~2.8s, captioned with the trade that moved it, then settles into a
+# small colored chip that stays until the next change.
+_BALANCE_POP_CSS = """<style>
+  .bp{border-radius:12px;padding:10px 14px;margin:2px 0 10px 0;
+      font-family:'Source Sans Pro',sans-serif;
+      animation:bpIn .8s cubic-bezier(.2,1.6,.35,1) both;}
+  .bp-win{background:rgba(61,220,132,.10);border:1px solid rgba(61,220,132,.40);
+          animation:bpIn .8s cubic-bezier(.2,1.6,.35,1) both,bpGlowW 1.6s ease-in-out .8s infinite alternate;}
+  .bp-loss{background:rgba(255,92,92,.10);border:1px solid rgba(255,92,92,.40);
+           animation:bpIn .8s cubic-bezier(.2,1.6,.35,1) both,bpGlowL 1.6s ease-in-out .8s infinite alternate;}
+  @keyframes bpIn{0%{transform:scale(.82) translateY(-8px);opacity:0}
+                  100%{transform:scale(1) translateY(0);opacity:1}}
+  @keyframes bpGlowW{from{box-shadow:0 0 8px rgba(61,220,132,.25)}to{box-shadow:0 0 22px rgba(61,220,132,.55)}}
+  @keyframes bpGlowL{from{box-shadow:0 0 8px rgba(255,92,92,.25)}to{box-shadow:0 0 22px rgba(255,92,92,.55)}}
+  .bp-top{display:flex;align-items:center;gap:6px;font-size:.78rem;letter-spacing:.4px;
+          text-transform:uppercase;color:#9aa7b8;margin-bottom:2px;}
+  .bp-delta{font-size:1.55rem;font-weight:800;line-height:1.15;font-variant-numeric:tabular-nums;}
+  .bp-win .bp-delta{color:#3ddc84}.bp-loss .bp-delta{color:#ff5c5c}
+  .bp-cnt{font-size:1.02rem;font-weight:600;color:#e8edf4;font-variant-numeric:tabular-nums;}
+  .bp-sub{font-size:.74rem;color:#9aa7b8;}
+</style>"""
+_BP_JS = """<script>
+const _s=__OLD__, _e=__NEW__, _d=2800, _el=document.getElementById('bpn'), _t0=performance.now();
+function _ease(t){return 1-Math.pow(1-t,3);}
+function _f(n){var t=Math.min((n-_t0)/_d,1);
+ _el.textContent=(_s+(_e-_s)*_ease(t)).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+ if(t<1)requestAnimationFrame(_f);}
+requestAnimationFrame(_f);
+</script>"""
+
+
+def _balance_pop_state(prev: float | None, cur: float,
+                       applied: dict | None, now_ts: float) -> dict:
+    """Pure state machine behind the sidebar's balance pop. Returns
+    {'kind': 'seed'|'none'|'pop', 'old', 'new', 'delta', 'caption'}.
+    First render seeds silently (no pop for history before the tab
+    opened); a |delta| under half a cent is float noise, not a change;
+    the caption names the trade that moved the balance when the newest
+    applied trade's amount matches the delta and it is fresh (< 10 min) —
+    'PUMP · GET OUT' — otherwise the change was your own edit: 'manual'.
+    Fail-soft: any surprise in the applied map degrades to 'manual'."""
+    if prev is None:
+        return {"kind": "seed", "old": cur, "new": cur, "delta": 0.0, "caption": ""}
+    delta = float(cur) - float(prev)
+    if abs(delta) < 0.005:
+        return {"kind": "none", "old": prev, "new": cur, "delta": 0.0, "caption": ""}
+    caption = "manual"
+    try:
+        best_ts = best_pair = best_tag = None
+        best_amt = None
+        for key, amt in (applied or {}).items():
+            parts = str(key).split("|")
+            ts = parts[1] if len(parts) > 1 else ""
+            if ts and (best_ts is None or ts > best_ts):
+                best_ts = ts
+                best_pair = parts[0]
+                best_tag = parts[2] if len(parts) > 2 else ""
+                best_amt = float(amt or 0)
+        if best_ts and best_amt is not None and abs(best_amt - delta) < 0.02:
+            import datetime as _dt
+            try:
+                t = _dt.datetime.fromisoformat(best_ts)
+                fresh = abs(now_ts - t.timestamp()) < 600
+            except Exception:
+                fresh = False
+            if fresh:
+                _tag = str(best_tag or "SOLD").strip()
+                _tag = "GET OUT" if _tag.lower() == "getout" else _tag.upper()
+                caption = f"{str(best_pair).replace('/USD', '')} · {_tag}"
+    except Exception:
+        caption = "manual"
+    return {"kind": "pop", "old": float(prev), "new": float(cur),
+            "delta": delta, "caption": caption}
+
+
 def main():
     cfg = TradingConfig()
 
@@ -7834,6 +7914,44 @@ def main():
             except Exception as exc:
                 logger.debug("balance-busy toast failed: %s", exc)
     cfg.challenge_balance = float(_acct["current_balance"])
+    # ── THE BALANCE POP: render the change LOUD (see _balance_pop_state).
+    # Animated count on the rerun that first sees the change; a small
+    # colored chip afterwards, staying until the next change replaces it.
+    try:
+        import streamlit.components.v1 as _components
+        _bp_cur = float(_acct["current_balance"])
+        _bp = _balance_pop_state(st.session_state.get("_bal_pop_prev"), _bp_cur,
+                                 _acct.get("applied_trades") or {}, time.time())
+        st.session_state["_bal_pop_prev"] = _bp_cur
+        if _bp["kind"] == "pop":
+            st.session_state["_bal_pop"] = {**_bp, "born": time.time(), "rendered": False}
+        _pop = st.session_state.get("_bal_pop")
+        if _pop:
+            _pwin = _pop["delta"] > 0
+            _pcol = "#3ddc84" if _pwin else "#ff5c5c"
+            _psign = "+" if _pwin else "−"
+            if not _pop.get("rendered"):
+                _pop["rendered"] = True
+                _components.html(
+                    _BALANCE_POP_CSS
+                    + f'<div class="bp {"bp-win" if _pwin else "bp-loss"}">'
+                      f'<div class="bp-top"><span>{"🟢" if _pwin else "🔴"}</span>'
+                      f'<span class="bp-cap">{_pop["caption"]}</span></div>'
+                      f'<div class="bp-delta">{_psign}${abs(_pop["delta"]):,.2f}</div>'
+                      f'<div class="bp-cnt">$<span id="bpn">0.00</span> now</div>'
+                      f'<div class="bp-sub">was ${_pop["old"]:,.2f}</div></div>'
+                    + _BP_JS.replace("__OLD__", repr(_pop["old"]))
+                           .replace("__NEW__", repr(_pop["new"])),
+                    height=122, scrolling=False)
+            else:
+                st.markdown(
+                    f'<div style="border-left:3px solid {_pcol};background:{_pcol}14;'
+                    f'border-radius:8px;padding:5px 10px;margin:-4px 0 10px 0;font-size:.86rem;">'
+                    f'<b style="color:{_pcol}">{_psign}${abs(_pop["delta"]):,.2f}</b>'
+                    f' · {_pop["caption"]} · now <b>${_pop["new"]:,.2f}</b></div>',
+                    unsafe_allow_html=True)
+    except Exception as exc:
+        logger.debug("balance pop skipped: %s", exc)
     _line = _ca.death_line(_acct)
     _buf = _ca.buffer(_acct)
     _pace = _ca.daily_pace_usd(_acct)

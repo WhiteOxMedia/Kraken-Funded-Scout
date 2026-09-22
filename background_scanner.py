@@ -2530,6 +2530,20 @@ def _process_daily_canary():
         logger.warning("canary cycle skipped: %s", exc)
 
 
+# the phone classifier — word-boundary regexes so EVERY spelling of the
+# calls lands in its class (text is lowercased first, so case never
+# matters):
+#   SELL class (urgent): get out · GET OUT NOW · Get out now · sell now ·
+#     SELL 'X' NOW · Sell "x" now · stopped out
+#   BUY class  (high):   buy "x" now · buy now · BUY "X" NOW · new pick · go!
+# Word boundaries keep "buyer"/"resell" out, while a bare "sell" at the
+# very end of a line still matches (the old "sell " substring missed it).
+import re as _re_mod  # module-level for the classifier (re is imported
+                      # locally elsewhere; this compile runs at import)
+_PUSH_SELL_RE = _re_mod.compile(r"\bget out\b|\bsell\b|\bstopped out\b")
+_PUSH_BUY_RE = _re_mod.compile(r"\bbuy\b|\bnew pick\b")
+
+
 def _push_to_phone(text: str, wav_path: str | None = None):
     """BUY NOW / GET OUT NOW only on the phone (user rule, Aug 30: 'Just
     have the ntfy.sh do the buy now and sell now priority alerts only';
@@ -2543,15 +2557,20 @@ def _push_to_phone(text: str, wav_path: str | None = None):
     light + her voice aren't already saying. Everything else stays on
     the PC voice and the console's HER WORDS panel. This also keeps us
     far under ntfy.sh's ~60/hour rate limit (Aug 30 incident:
-    every-minute position pushes burned the quota -> 429s -> the phone
+    every-minute position pushes burned the    quota -> 429s -> the phone
     went silent)."""
     topic = _push_topic()
     if not topic:
         return
     try:
         _t = str(text).lower().strip()
-        is_sell = any(k in _t for k in ("get out", "sell ", "stopped out"))
-        is_buy = (not is_sell) and ("buy " in _t or "new pick" in _t or _t.startswith("go!"))
+        if _t.startswith("warning"):
+            return  # warnings are voice + console only (user rule, Sep 22:
+                    # "Get out or hold!" phrasing must not masquerade as a
+                    # GET OUT call — that is exactly how the 06:41 loss
+                    # warning pushed URGENT to the phone)
+        is_sell = bool(_PUSH_SELL_RE.search(_t))
+        is_buy = (not is_sell) and (bool(_PUSH_BUY_RE.search(_t)) or _t.startswith("go!"))
         if not (is_buy or is_sell):
             return  # not a BUY NOW / GET OUT NOW alert — don't push
         # same text (a repeating GET OUT) pushes at most every 5 minutes
