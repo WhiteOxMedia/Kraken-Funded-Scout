@@ -8138,23 +8138,27 @@ def main():
           led(f"PACE ${_pace:,.0f}/DAY (12%/WK)", "a") + "<br>" +
           led(f"TARGET +12% = ${float(_acct_l['start_balance']) * 1.12:,.0f}", "g")
       )), unsafe_allow_html=True)
+      # ── THE HAIL MARY WINDOW (user rule, Sep 4 — kept Sep 5; swept into
+      #    the live fragment Sep 22): the emergency clock reads the SAME
+      #    fresh account read as the plate — a frozen countdown was the
+      #    same lie as a frozen balance.
+      try:
+          _hm_left = _ca.hail_mary_minutes_left(_acct_l)
+          if _hm_left > 0:
+              st.sidebar.markdown(plate("💪 HAIL MARY", (
+                  led(f"WINDOW {max(_hm_left, 0):.0f} MIN LEFT", "a") + "<br>" +
+                  led("THE EMERGENCY HOUR — ACCOUNT IN DANGER, CHAMPION SHOT", "a") + "<br>" +
+                  led("THE DEATH LINE STANDS — NEVER YIELDS", "r") + "<br>" +
+                  led(f"WINDOWS USED: {int(_acct_l.get('hail_mary_count') or 0)} · "
+                      f"ONE PER ROTATION", "off")
+              )), unsafe_allow_html=True)
+      except Exception as exc:
+          logger.debug("hail-mary plate failed: %s", exc)
     _balance_tick = st.fragment(run_every=15)(_balance_tick)
     _balance_tick()
-    # ── THE HAIL MARY WINDOW (user rule, Sep 4 — kept Sep 5): when
-    #    active, the plate shows the countdown — the emergency hour runs,
-    #    the death line stands
-    try:
-        _hm_left = _ca.hail_mary_minutes_left(_acct)
-        if _hm_left > 0:
-            st.sidebar.markdown(plate("💪 HAIL MARY", (
-                led(f"WINDOW {max(_hm_left, 0):.0f} MIN LEFT", "a") + "<br>" +
-                led("THE EMERGENCY HOUR — ACCOUNT IN DANGER, CHAMPION SHOT", "a") + "<br>" +
-                led("THE DEATH LINE STANDS — NEVER YIELDS", "r") + "<br>" +
-                led(                    f"WINDOWS USED: {int(_acct.get('hail_mary_count') or 0)} · "
-                    f"ONE PER ROTATION", "off")
-            )), unsafe_allow_html=True)
-    except Exception as exc:
-        logger.debug("hail-mary plate failed: %s", exc)
+    # (Sep 22 sweep) the HAIL MARY plate moved INSIDE the live fragment —
+    # it renders in the same spot (right after the account plate), now on
+    # the 15s re-read instead of waiting for a full rerun.
     # ── THE WORTH FLOOR — INTERNAL ONLY (user rule, Sep 10: "the worth
     #    Floor dials are for internal use only; stays hidden from console"):
     #    NO toggle, NO slider, NO live-math caption on the sidebar. The
@@ -8196,18 +8200,24 @@ def main():
         _tbl = " · ".join(f"{int(f)}+→{m:.2f}x" for f, m in BRAIN_SIZE_TABLE)
     except Exception:
         _tbl = "85+→1.00x · 75+→0.75x · 65+→0.50x · 55+→0.33x · 45+→0.20x · <45→0.10x"
-    _sn_n = 0
-    try:
-        _snap_path = os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                                  "signal_snapshots.jsonl")
-        with open(_snap_path, "r", encoding="utf-8") as _f:
-            _sn_n = sum(1 for _ln in _f if _ln.strip())
-    except OSError as exc:
-        logger.debug("snapshot count unavailable: %s", exc)
-    st.sidebar.caption(
-        f"THE BRAIN SIZES, IT NEVER BLOCKS — the scan must run (fail-closed): "
-        f"{_tbl}. Every popup and every burial lands in the snapshot dataset "
-        f"({_sn_n} logged) — the hindsight scorer learns from both.")
+    # (Sep 22 sweep) the snapshot count is a FILE READ — it used to freeze
+    # between full reruns; it now rides its own 15s fragment at the same
+    # spot, so a fresh popup or burial shows up without a touch.
+    @st.fragment(run_every=15)
+    def _brain_count_tick():
+        _sn_n = 0
+        try:
+            _snap_path = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                                      "signal_snapshots.jsonl")
+            with open(_snap_path, "r", encoding="utf-8") as _f:
+                _sn_n = sum(1 for _ln in _f if _ln.strip())
+        except OSError as exc:
+            logger.debug("snapshot count unavailable: %s", exc)
+        st.sidebar.caption(
+            f"THE BRAIN SIZES, IT NEVER BLOCKS — the scan must run (fail-closed): "
+            f"{_tbl}. Every popup and every burial lands in the snapshot dataset "
+            f"({_sn_n} logged) — the hindsight scorer learns from both.")
+    _brain_count_tick()
     candle_opts = {"15 min": 15, "1 hour": 60, "4 hours": 240, "1 day": 1440}
     cfg.candle_interval = candle_opts[st.sidebar.selectbox("Candle timeframe", list(candle_opts), index=1)]
     cfg.risk_per_trade_pct = st.sidebar.slider("Risk per trade (%)", 0.5, 2.0, 1.0, 0.1)
