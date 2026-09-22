@@ -33,7 +33,9 @@ _disc = types.ModuleType("discipline")
 _disc.load_state = lambda: DISC_STATE
 _disc.verdict_history = lambda days=14: []
 _disc.top_verdict_streak = lambda: (0, "", 0.0)
+_disc.verdict_top_three = lambda: None
 _disc.VERDICT_STREAK_WARN_N = 7
+_disc.VERDICT_TOP3_STREAK_N = 3
 sys.modules["discipline"] = _disc
 
 DISC_STATE = {"history": []}
@@ -373,6 +375,178 @@ check("voice: class and color clauses coexist when both fire",
 src_d = "\n".join(lines_d)
 check("wiring: the DAY row and the review result carry the color streak",
       src_d.count('"verdict_color_streak"') >= 3)
+
+# ═══════════════════════════════════════5. the top three (3 nights) ════
+# the REAL verdict_top_three: the study's own summary order, zeros
+# dropped, short names, voice-safe types — the study stubbed at its seam
+_vs_stub = types.ModuleType("_verdict_study")
+_vs_stub.summary = lambda: [
+    ("stayed too long - gave back over half the peak", 6, 64.78),
+    ("bought the top - the coin never ran", 3, 42.52),
+    ("exited too soon - the run continued without us", 2, 0.0),
+]
+sys.modules["_verdict_study"] = _vs_stub
+t3 = dc_real.verdict_top_three()
+check("top three: the study's ranking, zeros excluded, short names",
+      t3 == [("stayed too long", 6, 64.78), ("bought the top", 3, 42.52)],
+      t3)
+_vs_stub.summary = lambda: []
+check("top three: a clean book is None", dc_real.verdict_top_three() is None)
+_vs_stub.summary = lambda: (_ for _ in ()).throw(RuntimeError("ledger gone"))
+check("top three: a broken study fails soft to None",
+      dc_real.verdict_top_three() is None)
+check("the threshold is the user's three nights",
+      dc_real.VERDICT_TOP3_STREAK_N == 3)
+
+# her voice: the top three replaces the single mention on a streak night
+_SPOKEN.clear()
+_speak(dict(_base, top_three=[("stayed too long", 6, 64.78),
+                              ("bought the top", 3, 42.52)],
+            top_verdict=("stayed too long - gave back over half the peak",
+                         64.78),
+            verdict_streak=None, verdict_color_streak=None),
+       20.0, 10.0, 2, "flat", False)
+_t3s = next((s for s in _SPOKEN if "top three on the book" in s), "")
+check("voice: the top three clause fires with name, dollars and count",
+      "stayed too long 65 dollars" in _t3s
+      and "bought the top 43 dollars" in _t3s
+      and "6 trades" in _t3s, _t3s)
+check("voice: the top three replaces the single mention (no #1 twice)",
+      _t3s and not any("costliest pattern on the book" in s
+                       for s in _SPOKEN), _SPOKEN)
+
+_SPOKEN.clear()
+_speak(dict(_base, top_three=[("stayed too long", 6, 64.78)],
+            top_verdict=("stayed too long - gave back over half the peak",
+                         64.78),
+            verdict_streak=None, verdict_color_streak=None),
+       20.0, 10.0, 2, "flat", False)
+check("voice: a lone entry falls back to the single mention",
+      any("costliest pattern on the book is stayed too long" in s
+          for s in _SPOKEN)
+      and not any("top three on the book" in s for s in _SPOKEN), _SPOKEN)
+
+_SPOKEN.clear()
+_speak(dict(_base, top_three=None,
+            top_verdict=("stayed too long - gave back over half the peak",
+                         64.78),
+            verdict_streak=None, verdict_color_streak=None),
+       20.0, 10.0, 2, "flat", False)
+check("voice: below the streak the single mention stands alone",
+      any("costliest pattern on the book is stayed too long" in s
+          for s in _SPOKEN)
+      and not any("top three on the book" in s for s in _SPOKEN), _SPOKEN)
+
+_SPOKEN.clear()
+_speak(dict(_base, top_three=[("stayed too long", 6, 64.78),
+                              ("bought the top", 3, 42.52)],
+            verdict_streak={"n": 7, "name": "stayed too long", "usd": 60.0},
+            verdict_color_streak={"n": 5, "color": "red", "usd": 50.0}),
+       20.0, 10.0, 2, "flat", False)
+check("voice: the top three coexists with the streak clauses",
+      any("top three on the book" in s for s in _SPOKEN)
+      and any("topped the book 7 nights" in s for s in _SPOKEN)
+      and any("topped the strip 5 nights" in s for s in _SPOKEN), _SPOKEN)
+
+check("wiring: top_three rides return + DAY row, gated by the streak",
+      src_d.count('"top_three"') >= 3
+      and "VERDICT_TOP3_STREAK_N" in src_d
+      and ">= VERDICT_TOP3_STREAK_N" in src_d)
+
+# ═══════════════════════════════6. the trail proposal (week warning) ═══
+# the REAL trail_proposal against the study stubbed at its seam: the
+# control guard and the per-trade selection must both bite
+_vs_stub.grade_trades = staticmethod(lambda: [
+    {"verdict": "stayed too long - gave back over half the peak"},
+    {"verdict": "stayed too long - gave back over half the peak"},
+    {"verdict": "took the goal - the discipline shape"}])
+_vs_stub.TABLE = {   # P: (leak (d, n), ctrl (d, n))
+    1.0: ((10.0, 2), (-4.0, 1)),   # best leak per BUT breaks the control
+    1.5: ((6.0, 2), (2.0, 1)),     # the winner (per 3.0, control safe)
+    2.0: ((2.0, 2), (0.0, 1)),     # positive but smaller per
+    3.0: ((-2.0, 2), (0.0, 1)),    # negative edge -> never proposed
+}
+def _sim_armed_stub(trades, P):
+    leak, ctrl = _vs_stub.TABLE[P]
+    return leak if len(trades) == 2 else ctrl
+_vs_stub._sim_armed = staticmethod(_sim_armed_stub)
+prop = dc_real.trail_proposal("stayed too long")
+check("proposal: picks the best per-trade width the control allows",
+      prop is not None and prop["width"] == 1.5 and abs(prop["per"] - 3.0) < 1e-9,
+      prop)
+check("proposal: the control-guarded width is excluded (a good dial "
+      "must not break took-the-goal)",
+      prop is not None and prop["width"] != 1.0)
+check("proposal: the spoken clause carries width, dollars and count",
+      prop is not None and "1.5% armed trail" in prop["proposal"]
+      and "3 dollars more per trade" in prop["proposal"]
+      and "2 trades" in prop["proposal"],
+      prop and prop["proposal"])
+_vs_stub.grade_trades = staticmethod(lambda: [
+    {"verdict": "took the goal - the discipline shape"}])
+check("proposal: a pattern with no trades is None (nothing to defend)",
+      dc_real.trail_proposal("stayed too long") is None)
+_vs_stub.grade_trades = staticmethod(
+    lambda: (_ for _ in ()).throw(RuntimeError("ledger gone")))
+check("proposal: a broken study fails soft to None",
+      dc_real.trail_proposal("stayed too long") is None)
+_vs_stub.grade_trades = staticmethod(lambda: [
+    {"verdict": "stayed too long - gave back over half the peak"},
+    {"verdict": "stayed too long - gave back over half the peak"}])
+_vs_stub.TABLE = {   # P: (leak (d, n), ctrl (d, n)) — every leak edge negative
+    1.0: ((-5.0, 2), (0.0, 1)),
+    1.5: ((-3.0, 2), (0.0, 1)),
+    2.0: ((-1.0, 2), (0.0, 1)),
+    3.0: ((-2.0, 2), (0.0, 1)),
+}
+check("proposal: no positive edge on any width -> None (she stays silent)",
+      dc_real.trail_proposal("stayed too long") is None)
+_vs_stub._sim_armed = staticmethod(lambda trades, P: (0, 0))
+check("proposal: sims with no usable candles -> None (no divide-by-zero)",
+      dc_real.trail_proposal("stayed too long") is None)
+
+# her voice: the proposal clause rides the week warning, or stays silent.
+# The exec'd voice reads its globals from the NSD snapshot taken at exec
+# time — so the patch must land on NSD, not on the module attribute.
+_orig_prop_nsd = NSD["trail_proposal"]
+try:
+    NSD["trail_proposal"] = lambda name: {
+        "proposal": "the sim says a 1.5% armed trail would have kept "
+                    "3 dollars more per trade across 2 trades"}
+    _SPOKEN.clear()
+    _speak(dict(_base, verdict_streak={"n": 7, "name": "stayed too long",
+                                       "usd": 60.0},
+                verdict_color_streak=None),
+           20.0, 10.0, 2, "flat", False)
+    check("voice: the week warning carries the sim's specific dial",
+          any("topped the book 7 nights" in s for s in _SPOKEN)
+          and any("1.5% armed trail" in s for s in _SPOKEN), _SPOKEN)
+
+    NSD["trail_proposal"] = lambda name: None
+    _SPOKEN.clear()
+    _speak(dict(_base, verdict_streak={"n": 7, "name": "stayed too long",
+                                       "usd": 60.0},
+                verdict_color_streak=None),
+           20.0, 10.0, 2, "flat", False)
+    check("voice: an undefended warning stays alone (no empty proposal)",
+          any("the dial is waiting" in s for s in _SPOKEN)
+          and not any("armed trail" in s for s in _SPOKEN), _SPOKEN)
+
+    NSD["trail_proposal"] = _orig_prop_nsd
+    _SPOKEN.clear()
+    _speak(dict(_base, verdict_streak={"n": 2, "name": "stayed too long",
+                                       "usd": 60.0},
+                verdict_color_streak=None),
+           20.0, 10.0, 2, "flat", False)
+    check("voice: below the warning threshold no proposal is sought",
+          not any("armed trail" in s for s in _SPOKEN)
+          and not any("the dial is waiting" in s for s in _SPOKEN), _SPOKEN)
+finally:
+    NSD["trail_proposal"] = _orig_prop_nsd
+
+check("wiring: the proposal rides the warning, gated on the streak",
+      src_d.count("trail_proposal(") >= 2
+      and "TRAIL_SIM_ABLE" in src_d)
 
 print(f"\nRESULT: {PASS} passed, {FAIL} failed")
 sys.exit(1 if FAIL else 0)

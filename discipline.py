@@ -912,6 +912,15 @@ def cooldown_review(exchange=None, when=None, speak=True, dry_run=False) -> dict
     _day_result["verdict_color_streak"] = (
         {"n": _cstrk, "color": _ccol, "usd": round(_cusd, 2)}
         if _cstrk >= VERDICT_COLOR_STREAK_WARN_N else None)
+    # the top-three line (user, Sep 22): when the #1 pattern has held
+    # VERDICT_TOP3_STREAK_N nights running, the review carries the
+    # report's top three — the return, the DAY row and the voice share it
+    try:
+        _t3 = (verdict_top_three()
+               if _strk >= VERDICT_TOP3_STREAK_N else None)
+    except Exception:
+        _t3 = None
+    _day_result["top_three"] = _t3
 
     # ── 7. persist: the day entry rides the history (one per day) and
     # the lesson rides the lessons log — the console's brain-log readers
@@ -928,6 +937,7 @@ def cooldown_review(exchange=None, when=None, speak=True, dry_run=False) -> dict
             "top_verdict": _topv,
             "verdict_streak": _day_result["verdict_streak"],
             "verdict_color_streak": _day_result["verdict_color_streak"],
+            "top_three": _day_result.get("top_three"),
         })
         state["history"] = state["history"][-60:]
         save_state(state)
@@ -952,6 +962,7 @@ def cooldown_review(exchange=None, when=None, speak=True, dry_run=False) -> dict
         "top_verdict": _topv,
         "verdict_streak": _day_result["verdict_streak"],
         "verdict_color_streak": _day_result["verdict_color_streak"],
+        "top_three": _day_result.get("top_three"),
     }
 
 
@@ -972,7 +983,14 @@ def _speak_cooldown_review(result, pace, realized, n_trades, tide_txt,
                 _p.append(f"the {result['top_gate']} gate buried the most")
         if tide_txt:
             _p.append(f"the tide closed {tide_txt}")
-        if result.get("top_verdict"):
+        _t3 = result.get("top_three")
+        if _t3 and len(_t3) >= 2:
+            # the top three replaces the single mention that night — she
+            # would otherwise say the #1 twice
+            _p.append("the top three on the book: " + "; ".join(
+                f"{nm} {u:,.0f} dollars across {n} trades"
+                for nm, n, u in _t3))
+        elif result.get("top_verdict"):
             _tv = result["top_verdict"]
             _tv_name = str(_tv[0]).split(" - ")[0]
             _lesson_txt = str(result.get("lesson") or "").lower()
@@ -983,6 +1001,12 @@ def _speak_cooldown_review(result, pace, realized, n_trades, tide_txt,
         if _vst and int(_vst.get("n") or 0) >= VERDICT_STREAK_WARN_N:
             _p.append(f"and {_vst['name']} has topped the book "
                       f"{_vst['n']} nights straight — the dial is waiting")
+            # the study's proposal rides the warning (user, Sep 22): say
+            # the SPECIFIC dial, from the trail sim, or nothing — a warning
+            # without a defended number is noise
+            _prop = trail_proposal(str(_vst.get("name") or ""))
+            if _prop:
+                _p.append(_prop["proposal"])
         _vcs = result.get("verdict_color_streak")
         if _vcs and int(_vcs.get("n") or 0) >= VERDICT_COLOR_STREAK_WARN_N:
             _p.append(f"and the {_vcs['color']} leak has topped the strip "
@@ -1407,3 +1431,70 @@ def verdict_color_streak():
         return n, col, float(hist[-1][2])
     except Exception:
         return 0, "", 0.0
+
+
+def verdict_top_three() -> list | None:
+    """The report's top three patterns for her voice (user, Sep 22: speak
+    the top three when the #1 has held three nights running): the three
+    costliest classes from _verdict_study.summary() — the same ranking
+    the nightly report writes — as voice-safe short names with dollars
+    and trade counts. None when the book is clean or unreadable. Never
+    raises."""
+    try:
+        import _verdict_study as _vs
+        s = [r for r in (_vs.summary() or []) if float(r[2]) > 0][:3]
+        if not s:
+            return None
+        return [(str(k).split(" - ")[0], int(n), float(u)) for k, n, u in s]
+    except Exception:
+        return None
+
+
+VERDICT_TOP3_STREAK_N = 3   # user, Sep 22: three nights running earns the top three
+
+# the widths the nightly report sims (the study's own armed-trail sweep)
+TRAIL_SIM_ABLE = (1.0, 1.5, 2.0, 3.0)
+
+
+def trail_proposal(name: str) -> dict | None:
+    """The verdict-cost study's trail sim, focused on ONE pattern (user,
+    Sep 22: when the week warning fires, propose the specific dial). Sims
+    the study's POST-GOAL-ARMED trail — the live machinery's shape, the
+    stop exists only after the peak reaches 90% of the trade's goal — at
+    the report's own widths over the streak pattern's trades, and returns
+    {width, delta, n, proposal} for the best POSITIVE edge: per-trade
+    improvement first, the took-the-goal control (a good dial must not
+    break what works) as a guard. None (fail-soft, never raises) when the
+    study can't read its ledgers, the pattern has no trades, or no width
+    shows a positive edge — she stays silent rather than propose a dial
+    the sim can't defend."""
+    try:
+        import _verdict_study as _vs
+        graded = _vs.grade_trades()
+        rows = [g for g in graded
+                if str(g["verdict"]).split(" - ")[0] == name]
+        if not rows:
+            return None
+        ctrl = [g for g in graded if "took the goal" in g["verdict"]]
+        best = None
+        for _P in TRAIL_SIM_ABLE:
+            _d, _n = _vs._sim_armed(rows, _P)
+            if _n and _d > 0:
+                _per = _d / _n
+                _dc_, _nc = _vs._sim_armed(ctrl, _P)
+                _per_c = (_dc_ / _nc) if _nc else 0.0
+                if _per_c < 0:                 # a good dial must not break the control
+                    continue
+                if best is None or _per > best["per"]:
+                    best = {"width": _P, "delta": _d, "n": _n,
+                            "per": _per}
+        if not best:
+            return None
+        best["proposal"] = (f"the sim says a {best['width']:.1f}% armed trail "
+                            f"would have kept {best['per']:.0f} dollars more "
+                            f"per trade across {best['n']} "
+                            f"trade{'s' if best['n'] != 1 else ''} — "
+                            f"the dial change to make")
+        return best
+    except Exception:
+        return None
