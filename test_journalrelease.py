@@ -32,16 +32,23 @@ import discipline as dc
 NOW = datetime.datetime(2026, 9, 21, 20, 0, tzinfo=dc.MST)
 
 
-def _state(gates, duds=None, ts="2026-09-21T19:30:00-06:00"):
+def _state(gates, duds=None, ts=None):
+    # (Sep 22) the default stamp is FRESH relative to real wall-clock: the
+    # exec'd veto block calls journal_release_pts WITHOUT now=, so a
+    # hardcoded ts ages past SEAM_RELIEF_DECAY_H and the drive's released
+    # case silently degrades to a veto (the time bomb this session
+    # detonated). Cases that pin decay arithmetic pass ts explicitly.
+    _ts = ts or datetime.datetime.now(dc.MST).isoformat()
     return {"weights": {"system_burial": 1.0},
-            "burial_ledger": [{"date": "2026-09-21", "rot": "16-20",
-                               "ts": ts, "gates": gates, "duds": duds or {}}]}
+            "burial_ledger": [{"date": _ts[:10], "rot": "16-20",
+                               "ts": _ts, "gates": gates, "duds": duds or {}}]}
 
 
 _real_load = dc.load_state
 
 # ── 1. the relief math is THE SAME journal ──────────────────────────────
-st = _state({"deep-veto": {"n": 3, "usd": 45.0}})
+st = _state({"deep-veto": {"n": 3, "usd": 45.0}},
+            ts="2026-09-21T19:30:00-06:00")
 dc.load_state = lambda: st
 pts = dc.journal_release_pts("deep-veto", now=NOW)
 # journal ts 19:30 vs NOW 20:00 → 0.5h age → decay 1 − 0.5/8 = 0.9375
@@ -107,9 +114,10 @@ NS = {"logger": types.SimpleNamespace(
         debug=lambda *a, **k: None),
       "_log_suppression": lambda pair, gate, detail, **kw:
           NS["supp"].append((pair, gate, kw.get("quick"))),
+      "_mark_release": lambda pair, gate: NS["marks"].append((pair, gate)),
       "DESKTOP_ALERT_MIN": 92.0,
       "_df_state": "FLAT", "_df_pct": 61.0, "_rot_now_key": "16-20",
-      "pair": "X/USD", "asset": "X", "logs": [], "supp": []}
+      "pair": "X/USD", "asset": "X", "logs": [], "supp": [], "marks": []}
 
 class _Sig:
     confidence = 88.0
@@ -128,11 +136,13 @@ check("SELL always stands — no release, suppression written",
       not any("JOURNAL RELEASE" in l for l in NS["logs"])
       and len(NS["supp"]) == 1 and NS["supp"][0][1] == "deep-veto")
 
-NS["logs"].clear(); NS["supp"].clear()
+NS["logs"].clear(); NS["supp"].clear(); NS["marks"].clear()
 NS["_veto"](_Deep("hold", 70.0), _Sig())
 check("HOLD + champion journal + quick within slack → released",
       any("JOURNAL RELEASE" in l for l in NS["logs"])
       and not NS["supp"], NS["supp"])
+check("the release stamps the pair's provenance (gate recorded)",
+      NS["marks"] == [("X/USD", "deep-veto")], NS["marks"])
 
 NS["logs"].clear(); NS["supp"].clear()
 NS["SIG"] = 80.0
@@ -191,6 +201,109 @@ exec(compile("def _cond2(_deep_sig):\n    return (" + cond + ")",
              "mover_cond2", "exec"), mns2)
 check("EMA-down + close below EMA vetoes a buy (the trend knife)",
       mns2["_cond2"](_Deep("buy", 70.0)) is True)
+
+# ── 5. the sure-thing veto block, exec'd from source (Sep 22) ───────────
+# the same release, on the sure-thing's own gate name: hold edge only,
+# sell always stands, slack vs the popup floor, relief read from THIS
+# gate's own burials (sure-thing-deep-veto keeps its own ledger — the
+# desktop pool must not open this gate).
+ssrc = Path("background_scanner.py").read_text(encoding="utf-8")
+_s_anchor = ssrc.index('if _st_deep.action != "buy":')
+# the block's continue lives inside the else-branch (24 spaces) since the
+# release split the old flat veto into released/else
+_s_end = ssrc.index("\n                        continue", _s_anchor) \
+    + len("\n                        continue")
+_s_block = ssrc[_s_anchor:_s_end]
+_s_indent = len(_s_block) - len(_s_block.lstrip(" "))   # 16 spaces
+# the block's trailing `continue` is loop-bound in situ; at this
+# extraction boundary `return` is its exact equivalent (both abandon the
+# candidate) and the only legal form inside the exec'd function
+_s_block = _s_block.replace("continue", "return", 1)
+_s_ded = "\n".join(ln[_s_indent:] if ln.strip() else ln
+                   for ln in _s_block.splitlines())
+
+class _R:  # the coil result: .get("score")
+    def __init__(self, score): self._s = score
+    def get(self, k, d=None): return self._s if k == "score" else d
+
+
+SNS = {"logger": types.SimpleNamespace(
+           info=lambda *a, **k: SNS["logs"].append(
+               " ".join(str(x) for x in a)),
+           debug=lambda *a, **k: None),
+       "_log_suppression": lambda pair, gate, detail, **kw:
+           SNS["supp"].append((pair, gate)),
+       "_mark_release": lambda pair, gate:
+           SNS["marks"].append((pair, gate)),
+       "DESKTOP_ALERT_MIN": 92.0,
+       "asset": "X", "pair": "X/USD",
+       "_now_mst": datetime.datetime.now,   # rot key only
+       "rotation_key_for_hour": lambda h: "0-4",
+       "logs": [], "supp": [], "marks": []}
+
+exec(compile("def _st_veto(_st_deep, r):\n"
+             + "\n".join("    " + ln for ln in _s_ded.splitlines()),
+             "surething_block", "exec"), SNS)
+
+def _st_state(gates):
+    return {"weights": {"system_burial": 1.0},
+            "burial_ledger": [{"date": datetime.datetime.now(dc.MST)
+                               .isoformat()[:10], "rot": "16-20",
+                               "ts": datetime.datetime.now(dc.MST).isoformat(),
+                               "gates": gates, "duds": {}}]}
+
+# SELL always stands — even with a champion journal
+SNS["logs"].clear(); SNS["supp"].clear(); SNS["marks"].clear()
+dc.load_state = lambda: _st_state({"sure-thing-deep-veto": {"n": 3, "usd": 45.0}})
+SNS["_st_veto"](_Deep("sell", 80.0), _R(88.0))
+check("sure-thing: SELL always stands — no release even with the journal",
+      len(SNS["supp"]) == 1 and SNS["supp"][0][1] == "sure-thing-deep-veto"
+      and not any("JOURNAL RELEASE" in l for l in SNS["logs"])
+      and not SNS["marks"], SNS["marks"])
+
+# HOLD + own-gate journal + within slack → released, provenance marked
+SNS["logs"].clear(); SNS["supp"].clear(); SNS["marks"].clear()
+SNS["_st_veto"](_Deep("hold", 70.0), _R(88.0))
+check("sure-thing: HOLD + own-gate journal + within slack → released",
+      any("JOURNAL RELEASE" in l for l in SNS["logs"])
+      and not SNS["supp"], SNS["supp"])
+check("sure-thing: the release stamps its own gate's provenance",
+      SNS["marks"] == [("X/USD", "sure-thing-deep-veto")], SNS["marks"])
+
+# beyond slack → veto stands
+SNS["logs"].clear(); SNS["supp"].clear(); SNS["marks"].clear()
+SNS["_st_veto"](_Deep("hold", 70.0), _R(80.0))
+check("sure-thing: HOLD + journal but beyond slack → veto stands",
+      len(SNS["supp"]) == 1 and not SNS["marks"])
+
+# the own-ledger proof: the DESKTOP pool's relief must not open this gate
+SNS["logs"].clear(); SNS["supp"].clear(); SNS["marks"].clear()
+dc.load_state = lambda: _st_state({"deep-veto": {"n": 3, "usd": 45.0}})
+SNS["_st_veto"](_Deep("hold", 70.0), _R(88.0))
+check("sure-thing: the desktop gate's journal does NOT release this gate",
+      len(SNS["supp"]) == 1 and not SNS["marks"], SNS["marks"])
+
+# silent journal → fail-closed
+SNS["logs"].clear(); SNS["supp"].clear(); SNS["marks"].clear()
+dc.load_state = lambda: {"weights": {}, "burial_ledger": []}
+SNS["_st_veto"](_Deep("hold", 70.0), _R(88.0))
+check("sure-thing: silent journal → veto stands (fail-closed)",
+      len(SNS["supp"]) == 1)
+
+# broken journal → fail-closed
+dc.load_state = _boom
+SNS["logs"].clear(); SNS["supp"].clear(); SNS["marks"].clear()
+SNS["_st_veto"](_Deep("hold", 70.0), _R(88.0))
+check("sure-thing: broken journal → veto stands (fail-closed)",
+      len(SNS["supp"]) == 1 and not SNS["marks"])
+dc.load_state = _real_load
+
+# the wiring: the fifth mark site and the release log line
+check("sure-thing: the release marks provenance at the call site",
+      ssrc.count('_mark_release(pair, "sure-thing-deep-veto")') == 1)
+check("sure-thing: the release log names the gate and the slack",
+      "SURE THING %s: JOURNAL RELEASE" in ssrc
+      and '"sure-thing-deep-veto")' in ssrc)
 
 print(f"RESULT: {PASS} passed, {FAIL} failed")
 sys.exit(1 if FAIL else 0)

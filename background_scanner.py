@@ -1834,6 +1834,13 @@ def _log_suppression(pair: str, gate: str, detail: str, **ctx):
         import json as _json
         entry = {"ts": _now_mst().isoformat(), "pair": pair,
                  "gate": gate, "detail": str(detail)[:220]}
+        # RELEASE PROVENANCE (Sep 22): any burial of the pair voids a
+        # stale release mark — provenance rides only a candidate that
+        # actually fires (a release past one gate is not a pass past all)
+        try:
+            _RELEASE_PROV.pop(str(pair), None)
+        except Exception:
+            pass
         # carry contest_size (one source of truth) if the ctx has it
         if 'contest_size' not in entry and 'contest_size' in ctx:
             entry['contest_size'] = ctx['contest_size']
@@ -1914,6 +1921,44 @@ def _log_signal_snapshot(rec: dict):
         os.replace(_tmp, SIGNAL_SNAPSHOTS_FILE)
     except Exception as exc:
         logger.debug("signal snapshot write failed: %s", exc)
+
+
+# ── RELEASE PROVENANCE (user spec, Sep 22): a candidate the JOURNAL
+# RELEASE saves from a veto must be identifiable on its fired-snapshot
+# row — the hindsight ledger grades the release policy, so a released
+# fire can never masquerade as a conventional one. Pair-keyed one-shot
+# (the honesty contract of _SNAPSHOT_CTX): set ONLY on a release path,
+# consumed by the pair's next popup cycle, voided by any burial, and
+# expired after RELEASE_PROV_TTL_S so a stale mark never rides a fresh
+# fire. Never raises.
+RELEASE_PROV_TTL_S = 600
+_RELEASE_PROV: dict = {}
+
+
+def _mark_release(pair: str, gate: str) -> None:
+    """Stamp the pair's release provenance (the gate that was eased)."""
+    try:
+        _RELEASE_PROV[str(pair)] = (str(gate), time.time())
+    except Exception:
+        pass
+
+
+def _take_release_prov(pair: str):
+    """Consume the mark: the eased gate's name, or None (conventional
+    fire / stale / never marked). One-shot either way."""
+    try:
+        _mark = _RELEASE_PROV.pop(str(pair), None)
+    except Exception:
+        return None
+    if not _mark:
+        return None
+    _gate, _ts = _mark
+    try:
+        if (time.time() - float(_ts)) <= RELEASE_PROV_TTL_S:
+            return _gate
+    except Exception:
+        return None
+    return None
 
 
 # the CURRENT fire-time context (pair-keyed; set by _begin_fire_snapshot
@@ -2806,6 +2851,44 @@ def _all_good_lead() -> str:
                 _end += timedelta(days=1)
             _left = (_end - _now).total_seconds() / 60.0
             lead += f", {max(_left, 0):.0f} minutes left in this rotation"
+    except Exception:
+        pass
+    # THE HEARABLE NET (user, Sep 22): when a watched pair's goal trail is
+    # armed, the all-good line says the enforced stop — the same number the
+    # exit watch enforces (ratchet % capped at half the goal, stop = peak ×
+    # (1 − trail%)) — so the net is hearable, not just readable on the
+    # WATCHING card. Multiple watched pairs: the tightest lock in dollars,
+    # then the nearest in percent; pair names in the tail. Fail-soft: a
+    # broken watch read or bad row leaves the lead untouched, and a lead
+    # with no pace/clock clause still grows the tail ("All good — PUMP trail…").
+    try:
+        _watch_ag = _load_contest_watch() or {}
+        _best = None   # (usd_lock, pct, name) — max by usd, tiebreak max pct
+        for _p_ag, _w_ag in _watch_ag.items():
+            if not _w_ag.get("trail_armed"):
+                continue
+            _e_ag, _h_ag, _s_ag = (float(_w_ag.get("entry") or 0.0),
+                                   float(_w_ag.get("high") or 0.0),
+                                   float(_w_ag.get("size") or 0.0))
+            if _e_ag <= 0 or _h_ag <= 0:
+                continue
+            _g_ag = float(_w_ag.get("goal_pct") or 0.0)
+            _t_ag = min(_ratchet_trail_pct(_e_ag, _h_ag, _s_ag),
+                        max(_g_ag * 0.5, 1.0))
+            _px_ag = _h_ag * (1 - _t_ag / 100.0)
+            _u_ag = (_px_ag - _e_ag) * _s_ag
+            _k_ag = (_u_ag, _t_ag, str(_p_ag).split("/")[0])
+            if _best is None or _k_ag[:2] > _best[:2]:
+                _best = _k_ag
+        if _best:
+            _names = ", ".join(
+                str(_p_ag).split("/")[0]
+                for _p_ag, _w_ag in sorted(_watch_ag.items())
+                if _w_ag.get("trail_armed"))
+            _lock_txt = (f"{_best[0]:.0f} dollars" if _best[0] >= 1.0
+                         else "less than a dollar")
+            lead += (f" — {_names} trail armed, stop {_best[1]:.1f}% under "
+                     f"the peak, locking {_lock_txt}")
     except Exception:
         pass
     return lead
@@ -4097,6 +4180,7 @@ def main():
                                 deep_fetcher=lambda: _do_deep_read()[0])
                             if _rel:
                                 _out_tide_learned = True  # rides the marked 'against the tide' path
+                                _mark_release(pair, "tide-out")
                                 logger.info("  OUT-TIDE JOURNAL RELEASE: %s — quick %.0f, brain %.0f — %s",
                                             asset, float(signal.confidence),
                                             float(getattr(_deep, "confidence", 0) or 0), _rel_why)
@@ -4148,6 +4232,7 @@ def main():
                             except Exception:
                                 _rel_pts = 0.0
                         if _released:
+                            _mark_release(pair, "deep-veto")
                             logger.info(
                                 "  JOURNAL RELEASE (desktop): %s deep-reads hold %.0f%% — "
                                 "quick %.0f%% within %s pts of the floor %.0f%%; the journal "
@@ -4584,6 +4669,7 @@ def main():
                 _fsnap = dict(_SNAPSHOT_CTX.get("ctx") or {})
                 _fsnap.update({"kind": "fired",
                                "route": ("champion-fast" if _fast_route else "champion"),
+                               "release": _take_release_prov(pair),
                                "tide": (f"{_df_state} {_df_pct:.0f}%"
                                         if _df_state and _df_pct is not None else None),
                                "fast_why": _fast_why,
@@ -4738,6 +4824,7 @@ def main():
                             r.get("score"), None, pair,
                             deep_fetcher=lambda: _deep_read(exchange, pair, cfg)[0])
                         if _rel:
+                            _mark_release(pair, "tide-out")
                             logger.info("  SURE THING %s: OUT-TIDE JOURNAL RELEASE — score %.0f — %s",
                                         asset, float(r.get("score") or 0.0), _rel_why)
                         else:
@@ -4795,21 +4882,54 @@ def main():
                     # coil is still armed re-announces it every 5-min poll
                     continue
                 if _st_deep.action != "buy":
-                    logger.info("  SURE THING %s: deep veto — the scan reads %s %.0f%% "
-                                "against the breakout", asset, _st_deep.action,
-                                _st_deep.confidence)
-                    _log_suppression(pair, "sure-thing-deep-veto",
-                                     f"deep-reads {_st_deep.action} "
-                                     f"{_st_deep.confidence:.0f}% — the scan "
-                                     f"contradicts the breakout",
-                                     quick=float(r.get("score") or 0.0),
-                                     brain=float(_st_deep.confidence),
-                                     rot=rotation_key_for_hour(_now_mst().hour))
-                    # the armed memory STAYS (CodeRabbit, Sep 8): a vetoed
-                    # coil is not a new coil — popping here re-announces
-                    # the same zone every poll; the suppression log still
-                    # records every veto
-                    continue
+                    # THE JOURNAL RELEASE (Sep 21, the verdict-cost study;
+                    # extended to this gate Sep 22): the SOFT edge only —
+                    # a HOLD near the popup floor with the journal's
+                    # champion-grade hindsight on THIS gate's own burials
+                    # (sure-thing-deep-veto keeps its own ledger) becomes a
+                    # pass. A SELL always stands; a broken journal vetoes
+                    # (fail-closed, like every relief).
+                    _st_rel_pts = 0.0
+                    _st_released = False
+                    if _st_deep.action == "hold":
+                        try:
+                            import discipline as _dc_st
+                            _st_rel_pts = _dc_st.journal_release_pts(
+                                "sure-thing-deep-veto")
+                            if (_st_rel_pts > 0.0
+                                    and float(r.get("score") or 0.0)
+                                    + _dc_st.SEAM_RELEASE_SLACK
+                                    >= float(DESKTOP_ALERT_MIN)):
+                                _st_released = True
+                        except Exception:
+                            _st_rel_pts = 0.0
+                    if _st_released:
+                        _mark_release(pair, "sure-thing-deep-veto")
+                        logger.info(
+                            "  SURE THING %s: JOURNAL RELEASE — deep-reads hold "
+                            "%.0f%% against the breakout, quick %.0f within %s pts "
+                            "of the floor %.0f%%; the journal shows this gate "
+                            "burying champion-grade coils (relief %.1f pts) — released",
+                            asset, _st_deep.confidence,
+                            float(r.get("score") or 0.0),
+                            _dc_st.SEAM_RELEASE_SLACK, float(DESKTOP_ALERT_MIN),
+                            _st_rel_pts)
+                    else:
+                        logger.info("  SURE THING %s: deep veto — the scan reads %s %.0f%% "
+                                    "against the breakout", asset, _st_deep.action,
+                                    _st_deep.confidence)
+                        _log_suppression(pair, "sure-thing-deep-veto",
+                                         f"deep-reads {_st_deep.action} "
+                                         f"{_st_deep.confidence:.0f}% — the scan "
+                                         f"contradicts the breakout",
+                                         quick=float(r.get("score") or 0.0),
+                                         brain=float(_st_deep.confidence),
+                                         rot=rotation_key_for_hour(_now_mst().hour))
+                        # the armed memory STAYS (CodeRabbit, Sep 8): a vetoed
+                        # coil is not a new coil — popping here re-announces
+                        # the same zone every poll; the suppression log still
+                        # records every veto
+                        continue
                 # the death-line guard sizes it; the probability sizes it more;
                 # the FLAT tide sizes it too (Sep 7: same factor the champion,
                 # the mover and the QC already pay — FLAT 22% win vs RISING
@@ -4921,6 +5041,7 @@ def main():
                 try:
                     _snap = {"pair": pair, "quick": _score, "brain": None,
                              "route": "sure-thing", "kind": "fired",
+                             "release": _take_release_prov(pair),
                              "tide": (f"{_st_tide_state} {_st_tide_pct:.0f}%"
                                       if _st_tide_state and _st_tide_pct is not None else None),
                              "trigger": _trig,
@@ -5369,6 +5490,7 @@ def main():
                                     or (_es_mv < _el_mv and float(df["close"].iloc[-1]) < _el_mv)):
                                 if _deep_sig.action == "hold" and _m_release \
                                         and not _m_released_said:
+                                    _mark_release(pair, "deep-veto")
                                     logger.info(
                                         "  JOURNAL RELEASE (mover): %s deep-reads hold %.0f%% — "
                                         "near the 60 bar with the journal's champion-grade "
@@ -5773,6 +5895,7 @@ def main():
                                         _mfs = dict(_SNAPSHOT_CTX.get("ctx") or {})
                                         _mfs.update({"kind": "fired",
                                                      "route": ("mover-fast" if _m_fast else "mover"),
+                                                     "release": _take_release_prov(pair),
                                                      "tide": (f"{_tsw} {_tpw:.0f}%"
                                                               if _tsw and _tpw is not None else None),
                                                      "fast_why": _m_fast_why,
