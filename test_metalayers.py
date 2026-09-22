@@ -401,7 +401,8 @@ print("== 7. LIVE probes on the real book ==")
 ml.ROOT = _ML_ROOT
 _RealState = HERE / "meta_layers_state.json"
 _RealBytes = _RealState.read_bytes() if _RealState.exists() else None
-ml.STATE_FILE = _RealState
+_CreatedByProbe = _RealBytes is None   # fresh clone: the probe's writes would
+ml.STATE_FILE = _RealState             # CREATE the production-named file
 _lr = ml.rcl_measure("ZEC/USD")
 check(7.1, isinstance(_lr["verdict"], str) and _lr["verdict"] in
       ("NORMAL", "MILD DRIFT", "MAJOR DRIFT", "UNKNOWN"),
@@ -414,10 +415,15 @@ check(7.3, isinstance(ml.endgame_active(), bool)
       and isinstance(ml.reentry_blocked(), bool),
       "LIVE: the gates answer without crashing on real state")
 # (CodeRabbit major) the probe must never erase the machine's real meta
-# state: byte-exact restore, scrub only what this run created.
+# state: byte-exact restore, scrub only what this run created. On a fresh
+# clone (no pre-existing file) the probe's writes CREATE the file — that
+# residue is scrubbed too, never left behind as a fake production state.
 if _RealBytes is not None:
     _RealState.write_bytes(_RealBytes)
     print("        (real meta state restored byte-exact)")
+elif _CreatedByProbe and _RealState.exists():
+    _RealState.unlink()
+    print("        (fresh clone: probe-created state file scrubbed)")
 elif _RealState.exists():
     _RealState.unlink()
     print("        (probe-created state scrubbed)")
