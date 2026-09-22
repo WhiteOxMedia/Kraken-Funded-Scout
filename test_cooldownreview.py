@@ -105,7 +105,22 @@ _st["history"] = (_st.get("history") or []) + [
                       {"pair": "B/USD", "gate": "floor", "usd": 58}],
      "system_duds": [], "ts": f"{today}T12:00:00"}]
 disc.load_state = lambda: _st
+# hermetic (Sep 22): the review's per-day aggregations read the LIVE
+# files — real burials/duds from tonight's grading flipped this
+# scenario's branch and the weight never moved. Stub them to the
+# fabricated data the scenario is about: 2 payers, 0 duds, fired today.
+_e_pairs = disc._day_system_pairs
+_e_duds = disc._day_system_duds
+_e_fired = disc._day_fired_any
+disc._day_system_pairs = lambda st, d: [
+    {"pair": "A/USD", "gate": "deep-direction", "usd": 60},
+    {"pair": "B/USD", "gate": "floor", "usd": 58}]
+disc._day_system_duds = lambda st, d: []
+disc._day_fired_any = lambda d: True
 rev_e = disc.cooldown_review(when=now, speak=False, dry_run=True)
+disc._day_system_pairs = _e_pairs
+disc._day_system_duds = _e_duds
+disc._day_fired_any = _e_fired
 _w1 = float(_st["weights"]["system_burial"])
 check("day-level burial pile-up raises the SAME weight", _w1 > _w0)
 check("the day lesson names the burials", "buried" in rev_e["lesson"])

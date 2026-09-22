@@ -79,6 +79,60 @@ check("second write PREPENDS (newest first)",
       _r2 == vs.REPORT_PATH and _after2.count("### ") == 2
       and _after2.startswith("### "))
 
+# ── 3b. the per-night delta line (Sep 22) ───────────────────────────
+_real_summary = vs.summary
+_PREV = ("### 2026-09-21 22:16 - graded 48 closed trades\n\n"
+         "| verdict class | n | $ left |\n|---|---|---|\n"
+         "| stayed too long - gave back over half the peak | 6 | 64.78 |\n"
+         "| bought the top - the entry chased the move | 3 | 42.52 |\n\n")
+
+def _delta_sec():
+    return vs.REPORT_PATH.read_text(encoding="utf-8").split("###")[1]
+
+# growth + a new class; unchanged classes stay unnamed
+vs.REPORT_PATH.write_text(_PREV, encoding="utf-8")
+vs.summary = lambda: [
+    ("stayed too long - gave back over half the peak", 6, 70.0),
+    ("bought the top - the entry chased the move", 3, 42.52),
+    ("exited too soon - the goal was on the tape", 2, 10.0)]
+vs.write_report()
+_sec = _delta_sec()
+check("delta line present", "\u0394 since the last section:" in _sec)
+check("grown class shows its gain and n",
+      "+$5.22 (n 6\u21926)" in _sec, _sec[_sec.find("\u0394"):][:120])
+check("new class marked (new)", "+$10.00 (new)" in _sec)
+check("unchanged class not named in the delta",
+      _sec.count("bought the top") == 1)
+
+# no change -> the honest one-liner
+vs.REPORT_PATH.write_text(_PREV, encoding="utf-8")
+vs.summary = lambda: [
+    ("stayed too long - gave back over half the peak", 6, 64.78),
+    ("bought the top - the entry chased the move", 3, 42.52)]
+vs.write_report()
+check("unchanged book says so in one clause",
+      "no change on the book" in _delta_sec())
+
+# shrink + a class falling off the book
+vs.REPORT_PATH.write_text(_PREV, encoding="utf-8")
+vs.summary = lambda: [
+    ("stayed too long - gave back over half the peak", 6, 50.0)]
+vs.write_report()
+_sec = _delta_sec()
+check("shrunken class shows its loss", "\u2212$14.78" in _sec)
+check("dropped class marked off the book",
+      "\u2212$42.52 (off the book)" in _sec)
+
+# garbage previous section -> no delta line, never a raise
+vs.REPORT_PATH.write_text("### garbage\n\nno table here\n", encoding="utf-8")
+vs.summary = _real_summary
+try:
+    vs.write_report()
+    check("garbage prev section -> no delta line, no raise",
+          "\u0394 since the last section:" not in _delta_sec())
+except Exception as e:
+    check("garbage prev section -> no delta line, no raise", False, e)
+
 # stubbed ledger: the report says so honestly instead of raising
 vs.grade_trades = lambda: (_ for _ in ()).throw(RuntimeError("no db"))
 check("broken ledger -> summary None (fail-soft)", vs.summary() is None)

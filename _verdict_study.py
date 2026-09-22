@@ -85,27 +85,88 @@ def top_line():
     return f"{name}: {s[0][2]:,.0f} dollars across {s[0][1]} trades"
 
 
+def _prev_section_usd(text):
+    """The newest section's table as {full class name: (n, usd)}, for the
+    per-night delta line. Returns {} on any parse problem - a garbage or
+    missing section simply produces no deltas, never a failure."""
+    try:
+        if not text or "###" not in text:
+            return {}
+        sec = text.split("###")[1]
+        out = {}
+        for ln in sec.split("\n"):
+            ln = ln.strip()
+            if not ln.startswith("|") or "---" in ln \
+                    or "verdict class" in ln:
+                continue
+            parts = [p.strip() for p in ln.strip("|").split("|")]
+            if len(parts) < 3:
+                continue
+            try:
+                out[parts[0]] = (int(parts[1]),
+                                 float(parts[2].replace(",", "")))
+            except ValueError:
+                continue          # the 'unreadable ledger' placeholder row
+        return out
+    except Exception:
+        return {}
+
+
 def write_report():
     """Prepend tonight's section to the report (newest first, like the
-    tide-bar weekly). Never raises — a failed write is a missing
-    report, the review and console keep their live reads. Returns the
-    path or None."""
+    tide-bar weekly), with a per-night delta line: which classes grew
+    or shrank since the last section. Never raises - a failed write is
+    a missing report, the review and console keep their live reads.
+    Returns the path or None."""
     try:
         s = summary()
         graded_n = len(grade_trades()) if s is not None else 0
         today = _now_stamp()
-        lines = [f"### {today} — graded {graded_n} closed trades",
+        lines = [f"### {today} - graded {graded_n} closed trades",
                  "", "| verdict class | n | $ left |",
                  "|---|---|---|"]
         if s:
             for k, n, u in s:
                 lines.append(f"| {k} | {n} | {u:,.2f} |")
         else:
-            lines.append("| unreadable ledger — nothing graded "
+            lines.append("| unreadable ledger - nothing graded "
                          "tonight | - | - |")
-        lines += [""]
         prev = REPORT_PATH.read_text(encoding="utf-8") \
             if REPORT_PATH.exists() else ""
+        # -- the per-night delta line (user, Sep 22): which classes grew
+        # or shrank since the last section. The book is cumulative, so a
+        # delta is usually the night's own contribution; a shrink means
+        # a regrade moved the number. Only changed classes are named -
+        # an unchanged book says so in one clause.
+        try:
+            _prev = _prev_section_usd(prev)
+            if _prev and s:
+                _now_usd = {k: u for k, n, u in s}
+                _now_n = {k: n for k, n, u in s}
+                _dels = []
+                for k, u in _now_usd.items():
+                    pn, pu = _prev.get(k, (None, None))
+                    if pu is None:
+                        _dels.append(f"{str(k).split(' - ')[0]} "
+                                     f"+${u:,.2f} (new)")
+                    elif abs(u - pu) >= 0.005 or pn != _now_n[k]:
+                        _d = u - pu
+                        _dels.append(
+                            f"{str(k).split(' - ')[0]} "
+                            f"{'+' if _d >= 0 else chr(8722)}"
+                            f"${abs(_d):,.2f} (n {pn}\u2192{_now_n[k]})")
+                for k, (pn, pu) in _prev.items():
+                    if k not in _now_usd:
+                        _dels.append(f"{str(k).split(' - ')[0]} "
+                                     f"{chr(8722)}${pu:,.2f} (off the book)")
+                lines.append("")
+                lines.append(
+                    "\u0394 since the last section: "
+                    + (" \u00b7 ".join(_dels) if _dels
+                       else "no change on the book"))
+        except Exception:
+            pass
+        lines += [""]
         REPORT_PATH.parent.mkdir(exist_ok=True)
         tmp = str(REPORT_PATH) + ".tmp"
         _Path(tmp).write_text("\n".join(lines) + "\n" + prev,
@@ -115,8 +176,6 @@ def write_report():
         return REPORT_PATH
     except Exception:
         return None
-
-
 def _now_stamp():
     import datetime as _dt
     try:
