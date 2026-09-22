@@ -65,7 +65,7 @@ check("close journals to contest_trades.jsonl (the brain's record)",
 check("close journal carries closed_by=getout + the exit reason",
       '"closed_by": "getout"' in gx and '"exit_reason": reason[:200]' in gx)
 check("close removes the watch row itself (no user action)",
-      "watch.pop(pair, None)" in bs[gi:gi + 5000]
+      "watch.pop(pair, None)" in bs[gi:gi + 8000]   # widened Sep 22: the SAL audit block joined the close path
       and bs.find("watch.pop(pair, None)", gi) < bs.find("# exit condition cleared", gi))
 check("close speaks once, then the row is gone (no repeat ladder on a dead row)",
       '_speak_server(f"Get out now! Sell {asset}! {_why}"' in bs)
