@@ -1228,23 +1228,17 @@ def _asset_lead(assets):
 
 def _top_verdict_class():
     """The most expensive verdict class across the closed-trade ledger,
-    from _verdict_study.grade_trades() (the same candle-derived peaks the
-    study's dial proposals were built on). User, Sep 21: the nightly
-    review speaks the current top verdict class and its dollar cost, so
-    the book's biggest leak is named every night, not just in studies.
+    cited from the nightly diagnostic: _verdict_study.summary() is the
+    single source of truth (the same numbers the report and the console
+    plate show); this picks the top row. User, Sep 21: the nightly
+    review speaks the current top verdict class and its dollar cost.
     (verdict, usd_left) or None — fail-soft: an unreadable ledger or
     candle store says nothing, never breaks the review."""
     try:
         import _verdict_study as _vs
-        graded = _vs.grade_trades()
-        by = {}
-        for g in graded:
-            k = str(g.get("verdict") or "?")
-            by[k] = by.get(k, 0.0) + float(g.get("left") or 0.0)
-        by = {k: v for k, v in by.items() if v > 0}
-        if not by:
+        s = _vs.summary()
+        if not s or s[0][2] <= 0:
             return None
-        k = max(by, key=by.get)
-        return (k, round(by[k], 2))
+        return (str(s[0][0]), float(s[0][2]))
     except Exception:
         return None

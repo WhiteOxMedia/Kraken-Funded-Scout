@@ -5227,6 +5227,19 @@ def main():
                             _review.get("tide_at_close") or "unknown",
                             _review.get("weight_deltas") or {})
                 logger.info("   lesson: %s", _review.get("lesson"))
+                # THE NIGHTLY DIAGNOSTIC (Sep 21): the verdict-cost study
+                # writes its ranked table to logs/verdict_cost_report.md —
+                # the permanent record the nightly line cites (newest
+                # first, one section per night, same shape as the tide-
+                # bar weekly). Never raises; a failed write is a missing
+                # report, never a broken review.
+                try:
+                    import _verdict_study as _vst
+                    _vp = _vst.write_report()
+                    if _vp:
+                        logger.info("   verdict-cost report: %s", _vp.name)
+                except Exception as _exc:
+                    logger.debug("verdict-cost report failed: %s", _exc)
             except Exception as _exc:
                 logger.debug("cooldown review failed: %s", _exc)
 

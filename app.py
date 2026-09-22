@@ -2442,11 +2442,28 @@ def _render_cooldown_review():
                     unsafe_allow_html=True)
             if not rows and not bd:
                 st.markdown(
-                    "<div class=\'dim\' style=\'font-family:Share Tech Mono,"
+                    "<div class=\'dim\' style=\'font-family:Share Tech Mono," 
                     "monospace;font-size:12px;padding:4px 2px;\'>"
                     "tonight\'s review predates the per-asset rows \u2014 the "
                     "day-by-day strip above is the record so far.</div>",
                     unsafe_allow_html=True)
+            # THE STUDY'S RECORD (Sep 21): the nightly diagnostic's
+            # latest section — the same ranking her line cites — read
+            # live from logs/verdict_cost_report.md (newest first).
+            try:
+                import _verdict_study as _vst
+                _rep = _vst.REPORT_PATH
+                if _rep.exists():
+                    _head = _rep.read_text(encoding="utf-8").split("###")
+                    if len(_head) > 1:
+                        st.markdown(
+                            "<div style='font-family:Share Tech Mono," 
+                            "monospace;font-size:12px;padding:8px 2px 0;"
+                            "color:#d8ccb4;'><b>the nightly diagnostic:</b> "
+                            + str(_head[1]).strip().split("\n")[0]
+                            + "</div>", unsafe_allow_html=True)
+            except Exception:
+                pass
             st.caption(f"as of {_now_mst().strftime('%H:%M')} MST \u2014 the "
                        f"cooldown review's own verdicts (the same rows her "
                        f"20:00 line speaks), read live each rerun")

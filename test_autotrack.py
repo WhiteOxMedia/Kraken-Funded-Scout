@@ -123,8 +123,12 @@ check("clear only AFTER the call (a cleared row always got its popup)",
       0 < bs.find('_speak_server(f"Get out now!')
       < bs.find("watch.pop(pair, None)"))
 push_i = bs.find("def _push_to_phone")
-check("push actually SENDS (urlopen restored — it was built and dropped)",
-      "urllib.request.urlopen(req, timeout=10)" in bs[push_i:push_i + 2600])
+send_i = bs.find("def _send_ntfy")
+check("push actually SENDS (attempt 1/2 rides _send_ntfy — the one pipe "
+      "every path shares — and that pipe holds the urlopen send)",
+      send_i > 0
+      and "urllib.request.urlopen(req, timeout=10)" in bs[send_i:send_i + 1600]
+      and "_send_ntfy(str(text), prio, \"attempt 1/2\")" in bs[push_i:push_i + 2600])
 check("push success is logged (never a silent maybe)", "PUSHED (" in bs)
 check("push failure is logged (never silent)", "phone push failed" in bs)
 

@@ -166,7 +166,11 @@ else:
 # ── G. the book-wide verdict cost on the nightly line (Sep 21) ──────
 import types as _types
 _vs = _types.ModuleType("_verdict_study")
-_vs.grade_trades = lambda: [
+_vs.summary = lambda: [
+    ("stayed too long - gave back over half the peak", 2, 65.0),
+    ("bought the top - the coin never ran", 1, 10.0),
+]
+_vs.grade_trades = lambda: [   # the raw grader stays exercised for shape
     {"verdict": "stayed too long - gave back over half the peak", "left": 40.0},
     {"verdict": "stayed too long - gave back over half the peak", "left": 25.0},
     {"verdict": "bought the top - the coin never ran", "left": 10.0},
@@ -177,9 +181,11 @@ _rv1 = disc._top_verdict_class()
 print("      top verdict ->", _rv1)
 check("top verdict class is the costliest",
       _rv1 == ("stayed too long - gave back over half the peak", 65.0))
+_vs.summary = lambda: []
 _vs.grade_trades = lambda: [{"verdict": "took the goal", "left": 0.0}]
 check("all-zero classes -> None (no chatter)", disc._top_verdict_class() is None)
 _vs.grade_trades = lambda: (_ for _ in ()).throw(RuntimeError("boom"))
+_vs.summary = lambda: (_ for _ in ()).throw(RuntimeError("boom"))
 check("broken study -> None (fail-soft)", disc._top_verdict_class() is None)
 sys.modules.pop("_verdict_study", None)
 _rtv = disc._top_verdict_class()   # the REAL study, through the same helper
@@ -190,6 +196,8 @@ check("real study returns a (name, usd) pair",
 
 # the review carries it (dry-run, stubbed study) and the line speaks it
 sys.modules["_verdict_study"] = _vs
+_vs.summary = lambda: [
+    ("stayed too long - gave back over half the peak", 1, 65.0)]
 _vs.grade_trades = lambda: [
     {"verdict": "stayed too long - gave back over half the peak", "left": 65.0}]
 rev_g = disc.cooldown_review(when=now, speak=False, dry_run=True)

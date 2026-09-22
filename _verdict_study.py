@@ -26,6 +26,86 @@ conn = sqlite3.connect(DB)
 LOOKBACK_MS = 120 * 60 * 1000        # if entry time unknown: 2h before exit
 AFTER_MS = 240 * 60 * 1000           # post-exit run window (4h)
 
+# ── THE NIGHTLY DIAGNOSTIC LAYER (Sep 21): the study is no longer a
+# scratch script — the cooldown review cites it, the scanner writes its
+# report to logs/ at the 20:00 boundary, and the console reads the
+# summary live. Same house shape as tidebar_weekly's driver: report_now
+# never raises, the newest section prepends, and a failed write is a
+# missing report, never a broken review.
+from pathlib import Path as _Path
+REPORT_PATH = _Path(__file__).parent / "logs" / "verdict_cost_report.md"
+
+
+def summary():
+    """The ranked verdict classes over the whole closed-trade ledger:
+    [(verdict, n, usd_left), ...] costliest first, or None when the
+    ledger cannot be graded. The ONE number the review and the console
+    cite — computed here so there is a single source of truth."""
+    try:
+        graded = grade_trades()
+        if not graded:
+            return None
+        by = {}
+        for g in graded:
+            k = str(g.get("verdict") or "?")
+            n, usd = by.get(k, (0, 0.0))
+            by[k] = (n + 1, usd + float(g.get("left") or 0.0))
+        out = [(k, n, round(u, 2)) for k, (n, u) in by.items()]
+        out.sort(key=lambda t: -t[2])
+        return out
+    except Exception:
+        return None
+
+
+def top_line():
+    """The costliest verdict class as a voice-safe clause fragment,
+    or None: 'stayed too long: 65 dollars across 6 trades'."""
+    s = summary()
+    if not s or s[0][2] <= 0:
+        return None
+    name = str(s[0][0]).split(" - ")[0]
+    return f"{name}: {s[0][2]:,.0f} dollars across {s[0][1]} trades"
+
+
+def write_report():
+    """Prepend tonight's section to the report (newest first, like the
+    tide-bar weekly). Never raises — a failed write is a missing
+    report, the review and console keep their live reads. Returns the
+    path or None."""
+    try:
+        s = summary()
+        graded_n = len(grade_trades()) if s is not None else 0
+        today = _now_stamp()
+        lines = [f"### {today} — graded {graded_n} closed trades",
+                 "", "| verdict class | n | $ left |",
+                 "|---|---|---|"]
+        if s:
+            for k, n, u in s:
+                lines.append(f"| {k} | {n} | {u:,.2f} |")
+        else:
+            lines.append("| unreadable ledger — nothing graded "
+                         "tonight | - | - |")
+        lines += [""]
+        prev = REPORT_PATH.read_text(encoding="utf-8") \
+            if REPORT_PATH.exists() else ""
+        REPORT_PATH.parent.mkdir(exist_ok=True)
+        tmp = str(REPORT_PATH) + ".tmp"
+        _Path(tmp).write_text("\n".join(lines) + "\n" + prev,
+                              encoding="utf-8")
+        import os as _os
+        _os.replace(tmp, REPORT_PATH)
+        return REPORT_PATH
+    except Exception:
+        return None
+
+
+def _now_stamp():
+    import datetime as _dt
+    try:
+        return _dt.datetime.now(dc.MST).strftime("%Y-%m-%d %H:%M")
+    except Exception:
+        return _dt.datetime.now().strftime("%Y-%m-%d %H:%M")
+
 
 def peak_in(pair, lo_ms, hi_ms):
     rows = conn.execute(
@@ -105,8 +185,10 @@ def _sim_armed(trades, P, goal_mult=0.9):
 
 
 def _ratchet_exit(g, thr):
-    """Trail exit with a ratchet policy: thr=(usd100, usd200) tier-blind, or
-    None = size-scaled (2% at peak >= 2.5x size, 1.5% at >= 5x size)."""
+    """Trail exit with a ratchet policy: thr=(usd100, usd200) tier-blind,
+    "live" = the Sep-21 peak-percent re-base (2% at peak >= +1% of entry,
+    1.5% at >= +2%), or None = size-scaled (2% at peak >= 2.5x size,
+    1.5% at >= 5x size)."""
     pair, entry, size = g["pair"], g["entry"], g["size"]
     stop = None
     peak = entry
@@ -116,7 +198,10 @@ def _ratchet_exit(g, thr):
         if hi > peak:
             peak = hi
             pu = (peak / entry - 1.0) * size
-            if thr is None:
+            pp = (peak / entry - 1.0) * 100.0
+            if thr == "live":
+                P = 1.5 if pp >= 2.0 else (2.0 if pp >= 1.0 else 3.0)
+            elif thr is None:
                 P = 1.5 if pu >= 5 * size else (2.0 if pu >= 2.5 * size else 3.0)
             else:
                 P = 1.5 if pu >= thr[1] else (2.0 if pu >= thr[0] else 3.0)
@@ -219,12 +304,14 @@ def main():
         print(f"{P:>4} | {n:>6}{d:>14,.0f}{(d / n if n else 0):>8,.2f} | "
               f"{nc:>6}{dc_:>14,.0f}")
 
-    # ── the tier-blind ratchet: current thresholds vs size-scaled ones ──
+    # ── the ratchet: the LIVE peak-percent policy vs the retired one ──
     print()
-    print("RATCHET CHECK — the +$100/+$200 tier-blind thresholds vs size-")
-    print("scaled ones (2% at peak >= 2.5x size, 1.5% at >= 5x size):")
-    print(f"{'policy':<28}{'engaged':>8}{'delta $ (leak)':>15}")
-    for name, thr in (("current +100/200 (tier-blind)", (100.0, 200.0)),
+    print("RATCHET CHECK — the LIVE Sep-21 peak-percent re-base (2% at peak")
+    print(">= +1% of entry, 1.5% at >= +2%) vs the retired tier-blind +$100/+$200")
+    print("and the size-scaled alternative:")
+    print(f"{'policy':<30}{'engaged':>8}{'delta $ (leak)':>15}")
+    for name, thr in (("LIVE +1%/+2% peak-pct", "live"),
+                      ("retired +100/200 tier-blind", (100.0, 200.0)),
                       ("scaled 2.5x/5x size", None)):
         d, n = 0.0, 0
         for g in leak:
@@ -237,14 +324,18 @@ def main():
             n += 1
         print(f"{name:<28}{n:>8}{d:>15,.0f}")
     # engagement proof: how often each policy would tighten at all
-    eng = {"current +100/200": 0, "scaled 2.5x/5x": 0}
+    # (the LIVE policy's first tighten step is peak >= +1% of entry)
+    eng = {"LIVE +1%/+2%": 0, "retired +100/200": 0, "scaled 2.5x/5x": 0}
     for g in graded:
+        pp = (g["peak"] / g["entry"] - 1.0) * 100.0
         peak_usd = (g["peak"] / g["entry"] - 1.0) * g["size"]
+        if pp >= 1.0:
+            eng["LIVE +1%/+2%"] += 1
         if peak_usd >= 100.0:
-            eng["current +100/200"] += 1
+            eng["retired +100/200"] += 1
         if peak_usd >= 2.5 * g["size"]:
             eng["scaled 2.5x/5x"] += 1
-    print(f"  ratchet engagements across all 48 trades: {eng}")
+    print(f"  ratchet engagements across all {len(graded)} trades: {eng}")
 
     # ── burial side: candidate quality vs outcome, by gate ──────────
     print()
