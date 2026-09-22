@@ -1872,6 +1872,27 @@ def _pick_card(cfg: TradingConfig, kraken):
                 f"WHY <span class='dim'>............</span> you're in it — entered at {_fmt_price(entry)}. "
                 f"She's watching it the whole time.",
             ]
+            # ── LIVENESS (Sep 22, user: "a silent watcher is noticeable
+            # instead of invisible"): the scanner stamps each watch row
+            # every time the exit watch actually checks it. Fresh shows
+            # green, a stale or missing stamp says so — silence is never
+            # dressed up as health.
+            _age = None
+            try:
+                _age = time.time() - float(w.get("checked_ts") or 0)
+            except Exception:
+                _age = None
+            if _age is None or _age <= 0 or _age > 86400:
+                rows.append("<span style='color:#ffc36b;'>LIVE <span class='dim'>.............</span> "
+                            "watcher has not checked yet — give it a minute</span>")
+            else:
+                _la = _age if _age < 60 else (_age / 60)
+                _lv_col = "#4be38a" if _age <= 180 else "#ffc36b"
+                rows.append(f"LIVE <span class='dim'>.............</span> "
+                            f"<span style='color:{_lv_col};'>checked {_la:.0f} "
+                            f"{'s' if _age < 60 else 'm'} ago</span> "
+                            + ("" if _age <= 180 else
+                               "<span style='color:#ff6b5e;'>— SILENT, the scanner may be down</span>"))
             if overdue:
                 rows.append(f"<span style='color:#ff6b5e;'>HOW LONG <span class='dim'>.........</span> "
                             f"PAST THE WINDOW — it hasn't paid its {goal:.1f}% yet. "
@@ -7005,8 +7026,25 @@ def _render_light_panel(interval: str):
                 logger.debug("rotation clock html failed: %s", exc)
             bail = v.get("high", 0) * (1 - CONTEST_TRAIL_PCT / 100) if v.get("high") else None
             bail_txt = f" · out at {_fmt_price(bail)}" if bail else ""
+            # (Sep 22) liveness rides the same line — the watcher's check
+            # age straight from the watch row, silent ≠ healthy.
+            try:
+                _age = time.time() - float(rec.get("checked_ts") or 0)
+            except Exception:
+                _age = None
+            if _age is not None and (_age <= 0 or _age > 86400):
+                _age = None   # (CodeRabbit) a missing stamp is NEVER a 29-million-minute silence
+            if _age is not None and 0 < _age <= 180:
+                live_txt = (f" · <span style='color:#4be38a;'>checked "
+                            f"{_age:.0f}s ago</span>")
+            elif _age is not None and _age > 180:
+                live_txt = (f" · <span style='color:#ff6b5e;'>SILENT "
+                            f"{_age / 60:.0f}m</span>")
+            else:
+                live_txt = (" · <span style='color:#ffc36b;'>not checked "
+                            "yet</span>")
             lines.append(f"<span style='color:#4be38a;font-size:16px;'>◆ {asset}</span> {pnl_html}"
-                         f"{clock_html}{bail_txt}")
+                         f"{clock_html}{live_txt}{bail_txt}")
     if n_wallet:
         lines.append(f"<span class='dim'>bot trades: {n_wallet} (watched separately)</span>")
     st.markdown(plate("MY TRADES", lcd(lines, tone="green")),

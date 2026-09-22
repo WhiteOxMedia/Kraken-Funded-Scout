@@ -2976,6 +2976,15 @@ def contest_light(exchange, cfg):
         if not entry:
             continue
 
+        # ── LIVENESS STAMP (Sep 22, user: "a silent watcher is noticeable
+        # instead of invisible"): the console reads this per-pair stamp
+        # and shows the check's age — a watcher gone silent (dead ticker,
+        # crashed cycle) shows as silent instead of looking healthy.
+        # Written even when every gate says HOLD, so absence of an exit
+        # can never be confused with absence of a check.
+        w["checked_ts"] = time.time()
+        dirty = True
+
         # track high in the watch file (survives restarts)
         old_high = float(w.get("high") or 0)
         high = max(old_high, live)
