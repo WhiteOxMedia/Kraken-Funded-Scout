@@ -202,9 +202,15 @@ def journal_release(gate: str, quick: float, floor: float, now=None) -> bool:
     the LIVE candidate — fail-closed everywhere (a broken journal
     releases nothing)."""
     try:
-        if floor is None or quick is None:
+        # convert once, reject non-finite (CodeRabbit, Sep 21): a NaN
+        # quick slips every comparison (all False) and would be RELEASED
+        # whenever the journal has relief — a broken score must close,
+        # never open
+        import math as _math
+        _q, _f = float(quick), float(floor)
+        if not (_math.isfinite(_q) and _math.isfinite(_f)):
             return False
-        if float(quick) + SEAM_RELEASE_SLACK < float(floor):
+        if _q + SEAM_RELEASE_SLACK < _f:
             return False
         return journal_release_pts(gate, now) > 0.0
     except Exception:

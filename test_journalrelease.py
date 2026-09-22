@@ -84,6 +84,12 @@ check("gate with no journal entries → no release even at the bar",
       dc.journal_release("tide-out", 92.0, 92.0, now=NOW) is False)
 check("None quick fails closed",
       dc.journal_release("deep-veto", None, 92.0, now=NOW) is False)
+check("NaN quick fails closed (a broken score closes, never opens)",
+      dc.journal_release("deep-veto", float("nan"), 92.0, now=NOW) is False)
+check("inf quick fails closed",
+      dc.journal_release("deep-veto", float("inf"), 92.0, now=NOW) is False)
+check("NaN floor fails closed",
+      dc.journal_release("deep-veto", 88.0, float("nan"), now=NOW) is False)
 
 # ── 3. the desktop veto block, exec'd from source ───────────────────────
 src = Path("background_scanner.py").read_text(encoding="utf-8")
