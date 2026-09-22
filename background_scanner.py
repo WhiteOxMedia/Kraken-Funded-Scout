@@ -2359,7 +2359,7 @@ _push_state = {"text": "", "ts": 0.0}
 _push_retry_q = []  # [{"text":…, "prio":…, "due": epoch, "why":…}]
 
 
-def _send_ntfy(text: str, prio: str, attempt: str) -> bool:
+def _send_ntfy(text: str, prio: str, attempt: str, tag: str | None = None) -> bool:
     """One logged ntfy attempt. True only on an HTTP accept — which is
     delivery to the server, never proof the PHONE received it."""
     topic = _push_topic()
@@ -2372,7 +2372,7 @@ def _send_ntfy(text: str, prio: str, attempt: str) -> bool:
             f"https://ntfy.sh/{urllib.parse.quote(topic)}",
             data=str(text).encode("utf-8"),
             headers={"Title": "Kraken Scout", "Priority": prio,
-                     "Tags": "rotating_light" if prio == "urgent" else "chart_with_upwards_trend"})
+                     "Tags": tag or ("rotating_light" if prio == "urgent" else "chart_with_upwards_trend")})
         urllib.request.urlopen(req, timeout=10)
         logger.info("📲 PUSHED (%s, %s): %s", prio, attempt, str(text)[:90])
         return True
@@ -2398,6 +2398,79 @@ def _process_push_retries():
                    f"attempt 2/2, first sent {now - _r['why']:.0f}s earlier")
     if len(_push_retry_q) > 8:
         del _push_retry_q[8:]
+
+
+# ── THE DAILY CANARY (Sep 21, the 16:05 lesson's last gap) ──────────
+# ntfy offers no delivery receipt: the scanner can prove it SENT but
+# never that the PHONE received. A dead phone connection used to be
+# discovered mid-GET-OUT. The canary flips that: ONE low-stakes push
+# every day at/after 09:00 MST proves the pipe end to end while the
+# stakes are zero — if the phone shows no canary by mid-morning, the
+# connection is dead and FIXING it doesn't wait for an emergency.
+# State: push_canary.json (runtime state — gitignored; owned by the
+# running scanner like every other live store).
+_PUSH_CANARY_JSON = os.path.join(
+    os.path.dirname(os.path.abspath(__file__)), "push_canary.json")
+_CANARY_HOUR = 9  # MST
+_CANARY_TEXT = ("✅ Daily pipe check — if you can read this, the "
+                "GET OUT pipe is alive. No action needed.")
+
+
+def _canary_load() -> dict:
+    import json
+    try:
+        with open(_PUSH_CANARY_JSON, "r", encoding="utf-8") as fh:
+            doc = json.load(fh)
+        return doc if isinstance(doc, dict) else {}
+    except Exception:
+        return {}
+
+
+def _canary_save(doc: dict):
+    import json
+    try:
+        with open(_PUSH_CANARY_JSON + ".tmp", "w", encoding="utf-8") as fh:
+            json.dump(doc, fh, indent=2)
+        os.replace(_PUSH_CANARY_JSON + ".tmp", _PUSH_CANARY_JSON)
+    except Exception as exc:
+        logger.warning("canary state write failed (retry stays armed): %s", exc)
+
+
+def _process_daily_canary():
+    """Called once per main cycle (30s tick), right beside the GET OUT
+    retry processor. Once per MST day at/after 09:00: one low-priority
+    push through the SAME ntfy pipe the GET OUTs use. Never marked sent
+    without an HTTP-accepted send; retries every 5 min until it lands
+    (capped at the canary window so a dead pipe can't nag all night)."""
+    try:
+        if not _push_topic():
+            return  # no topic configured — nothing to prove
+        _n = datetime.now(MST)
+        if _n.hour < _CANARY_HOUR:
+            return  # before the window
+        _today = _n.strftime("%Y-%m-%d")
+        if _n.hour >= 21:  # last fire chance 20:59 — stop nagging after
+            return
+        st = _canary_load()
+        if st.get("last_sent_day") == _today:
+            return  # today's canary already landed
+        if st.get("day") == _today and \
+                (time.time() - float(st.get("last_try_ts", 0.0) or 0.0)) < 300:
+            return  # tried <5 min ago — back off, the pipe may be down
+        ok = _send_ntfy(_CANARY_TEXT, "low", "canary", tag="white_check_mark")
+        doc = {"day": _today, "last_try_ts": time.time()}
+        if ok:
+            doc["last_sent_day"] = _today
+            doc["sent_at"] = _n.strftime("%H:%M")
+            logger.info("🐦 Canary sent for %s — if the phone stayed "
+                        "silent, the connection is dead and the GET OUT "
+                        "pipe with it.", _today)
+        else:
+            logger.warning("🐦 Canary attempt failed for %s — will retry "
+                           "in 5 min until 21:00 MST.", _today)
+        _canary_save(doc)
+    except Exception as exc:
+        logger.warning("canary cycle skipped: %s", exc)
 
 
 def _push_to_phone(text: str, wav_path: str | None = None):
@@ -2575,6 +2648,21 @@ def _voice_volume() -> int:
             return max(0, min(100, int(json.load(fh).get("voice_volume", 100))))
     except Exception:
         return 100
+
+
+def _day_review_spoken(now) -> bool:
+    """True once discipline_state.json carries today's DAY review row —
+    the cooldown review runs ONCE per MST day and stays restart-proof:
+    a scanner boot at 20:30 re-enters the rollover branch on its first
+    cycle, and the state row (not the process memory) is the guard."""
+    try:
+        import discipline as _disc_g
+        _hist = _disc_g.load_state().get("history") or []
+        return any(h.get("rot") == "DAY"
+                   and h.get("date") == now.strftime("%Y-%m-%d")
+                   for h in _hist)
+    except Exception:
+        return False
 
 
 def _hours_to_goal(pair: str, entry, tp):
@@ -5073,6 +5161,33 @@ def main():
             except Exception as _exc:
                 logger.debug("discipline evaluation failed: %s", _exc)
 
+        # ── THE COOLDOWN REVIEW (user spec, Sep 21: "What did I learn
+        # today, and how do I increase the PnL when this setup appears
+        # again?") — at the 20:00 cooldown boundary, ONCE per MST day:
+        # the day-level factual readout (money left, discipline score,
+        # liquidity/tide, realized vs the daily goal, the adjustments
+        # actually made) + one learning step on the SAME weights the
+        # rotation score uses — the brain log learns from the day the
+        # way it learns from a rotation. The lesson rides the same
+        # lessons log the console's brain-log readers consume.
+        if no_buy and now.hour == 20 and not _day_review_spoken(now):
+            try:
+                import discipline as _disc
+                _review = _disc.cooldown_review(exchange, speak=True)
+                logger.info("🌙 COOLDOWN REVIEW %s: score %s | left $%.0f "
+                            "| realized $%.2f vs pace $%.2f | tide %s | "
+                            "deltas %s",
+                            _review.get("date"),
+                            _review.get("score"),
+                            float(_review.get("total_left") or 0),
+                            float(_review.get("realized_pnl") or 0),
+                            float(_review.get("daily_pace") or 0),
+                            _review.get("tide_at_close") or "unknown",
+                            _review.get("weight_deltas") or {})
+                logger.info("   lesson: %s", _review.get("lesson"))
+            except Exception as _exc:
+                logger.debug("cooldown review failed: %s", _exc)
+
         current_block_name = block_name
 
         # ── Ticker pre-scan (every 2 minutes, trading rotations only) ──
@@ -5993,6 +6108,7 @@ def main():
             logger.info("  Next check in 30s | %s %s | threshold %d%% | full scan every %dm",
                         next_block_name, _day_label, auto_trade_threshold, next_interval)
         _process_push_retries()   # GET OUT attempt 2/2, ~60s after attempt 1
+        _process_daily_canary()   # one pipe-alive push per day at/after 09:00 MST
         time.sleep(30)
 
 

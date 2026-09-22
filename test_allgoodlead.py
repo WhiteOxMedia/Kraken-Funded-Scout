@@ -46,8 +46,12 @@ try:
     check("no-trades: still a valid all-good line",
           lead2.startswith("All good"))
 finally:
+    # restore the real ledger byte-for-byte; a file this test created
+    # (backup None) is removed, not left behind for the live scanner
     if backup is not None:
         tf.write_bytes(backup)
+    elif tf.exists():
+        tf.unlink()
 
 # ── 3. trades present but unapplied → dropped (applied gate respected)
 try:
@@ -60,6 +64,8 @@ try:
 finally:
     if backup is not None:
         tf.write_bytes(backup)
+    elif tf.exists():
+        tf.unlink()
 
 # ── 4. unreadable rotation schedule → clock clause dropped gracefully
 # (every hour is covered by ROTATIONS — 20-24 IS the cooldown rotation —

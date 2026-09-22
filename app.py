@@ -1665,6 +1665,112 @@ def _tide_line() -> str:
     return ""
 
 
+def _boot_facts_voice(block, no_buy, vol) -> str:
+    """THE FACTUAL BOOT GREETING (user rule, Sep 21: 'should be based on
+    facts'). Replaces the old 'ready to make you a ton of money' fantasy
+    with what is actually true at boot, in her speaking order:
+      1. Systems Check   — scanner heartbeat + bot heartbeat
+      2. Rotation        — the current market block (or cooldown)
+      3. Fleet knowledge — weeks of data behind the dials + noise floor
+      4. Tide awareness  — breadth state + percent of the fleet up
+      5. Liquidity size  — balance and the buffer above the death line
+      6. Realistic goal  — the tier's real daily pace + what's booked today
+    Every clause comes from live data; any broken read drops its clause
+    (never stalls boot, never invents a number)."""
+    rot = " ".join(ch for ch in str(block or "").split() if ch.isascii()) \
+        or "unknown"
+    scanner_ok = True
+    try:
+        scanner_ok = bool(scanner_status())
+    except Exception:
+        pass
+    bot_note = ""
+    try:
+        _bs_stat, _bs_note = bot_status()
+        _bs_stat = str(_bs_stat).upper()
+        # the heartbeat's own status word is health (TRADING/IDLE/…) —
+        # only these two verdicts mean the bot is actually down
+        if _bs_stat in ("NOT RUNNING", "UNKNOWN"):
+            bot_note = (f"the bot is {_bs_stat.lower()}"
+                        + (f" ({_bs_note})" if _bs_note else ""))
+    except Exception:
+        pass
+    parts: list[str] = []
+    # 2. the rotation's market announcement
+    parts.append("cooldown rotation, no new buys" if no_buy
+                 else f"{rot} rotation")
+    # 4. tide awareness
+    try:
+        import background_scanner as _bsf
+        if not hasattr(_bsf, "_fleet_tide"):
+            import importlib
+            _bsf = importlib.reload(_bsf)
+        _pct, _tstate = _bsf._fleet_tide()
+        if _tstate:
+            parts.append(f"tide {_tstate.lower()}, {_pct:.0f} percent of the fleet up")
+    except Exception as exc:
+        logger.debug("boot facts: tide unavailable: %s", exc)
+    # 3. fleet knowledge: data weeks + noise floor
+    try:
+        if vol:
+            parts.append(f"{float(vol['data_weeks']):.0f} weeks of data behind the dials, "
+                         f"noise floor {float(vol['thresholds']['standard']):.1f} percent")
+    except Exception as exc:
+        logger.debug("boot facts: vol snapshot unavailable: %s", exc)
+    # 5. liquidity size vs the death line
+    try:
+        import contest_account as _ca_b
+        _acct = _ca_b.load_state()
+        _bal = float(_acct.get("current_balance") or 0.0)
+        _start = float(_acct.get("start_balance") or 0.0)
+        if _bal > 0:
+            parts.append(f"{_bal:,.0f} dollars on the book")
+            _buf = _bal - _start * (1 - _ca_b.MAX_LOSS_PCT / 100.0)
+            parts.append(f"{_buf:,.0f} above the death line" if _buf > 0
+                         else "no buffer above the death line")
+    except Exception as exc:
+        logger.debug("boot facts: account unavailable: %s", exc)
+    # 6. the realistic goal: the tier's daily pace + today's booked PnL
+    try:
+        import contest_account as _ca_b
+        _acct = _ca_b.load_state()
+        _pace = (float(_acct.get("start_balance") or 0.0)
+                 * (_ca_b.WEEKLY_GOAL_PCT / 100.0) / _ca_b.TRADING_DAYS_PER_WEEK)
+        if _pace > 0:
+            parts.append(f"pace {_pace:,.0f} a day")
+    except Exception as exc:
+        logger.debug("boot facts: pace unavailable: %s", exc)
+    try:
+        import json as _jsonb
+        from pathlib import Path as _Pb
+        _today = _now_mst().strftime("%Y-%m-%d")
+        _real = 0.0
+        _any = False
+        for _l in (_Pb(__file__).parent / "contest_trades.jsonl") \
+                .read_text(encoding="utf-8").splitlines():
+            try:
+                _r = _jsonb.loads(_l)
+                if _r.get("applied") and str(_r.get("sold_at", "")).startswith(_today):
+                    _real += float(_r.get("pnl_net") or 0.0)
+                    _any = True
+            except Exception:
+                continue
+        # a sub-$1 day says nothing (the all-good lead's rule: never
+        # chatter "$0 today" — 19 cents rounds to a lie of precision)
+        if _any and round(abs(_real)) >= 1:
+            parts.append(f"{abs(_real):,.0f} dollars {'booked' if _real >= 0 else 'down'} today")
+    except Exception as exc:
+        logger.debug("boot facts: ledger unavailable: %s", exc)
+    # 1. the systems-check verdict closes the line
+    tail = "systems green, hunting" if (scanner_ok and not bot_note) \
+        else "fix the systems before the hunt"
+    if bot_note:
+        parts.append(bot_note)
+    if not parts:
+        return "Systems online. Ready to hunt."
+    return ". ".join([*parts, tail]) + "."
+
+
 def _pick_card(cfg: TradingConfig, kraken):
     """The one card on MASTER. States: PICK / WATCH / WAITING / COOLDOWN."""
     block, day, thr, _, no_buy = current_threshold()
@@ -1888,6 +1994,11 @@ def render_master(cfg: TradingConfig, kraken):
     # the stamp is naturally fresh (consistency, not cache)
     st.caption(f"as of {_now_mst().strftime('%H:%M')} MST — the discipline "
                f"grade re-reads its rotation close each rerun")
+
+    # 📞 TONIGHT'S REVIEW (Sep 21): the cooldown check's per-asset
+    # verdicts on the page — read the review, don't wait for her to
+    # speak it. Sits beside the score it grades.
+    _render_cooldown_review()
 
     # 🚫 WHAT THE FUNNEL BURIED (user rule, Sep 4, the POPCAT lesson: the
     # scanner's suppression verdicts used to print to the console window
@@ -2196,6 +2307,91 @@ def _discipline_plate() -> str:
     except Exception as exc:
         logger.debug("discipline plate failed: %s", exc)
         return ""
+
+
+def _render_cooldown_review():
+    """📞 TONIGHT'S REVIEW (user, Sep 21: "show the per-asset verdicts and
+    money-left-on-the-table breakdown in the console so I can read
+    tonight's review without waiting for her to speak"). Reads the DAY
+    row the scanner's 20:00 cooldown review writes into
+    discipline_state.json — the SAME assets the spoken line uses, one
+    verdict row per asset (took the goal / exited too soon / stayed too
+    long / bought the top / buried by the funnel) plus the money-left
+    breakdown by verdict class. Shows the latest review on record
+    (tonight's after 20:00, yesterday's before). Fail-soft: no review on
+    record yet renders nothing — the plate has not run."""
+    try:
+        import discipline as _disc
+        _st = _disc.load_state()
+        _day = next((h for h in reversed(_st.get("history") or [])
+                     if h.get("rot") == "DAY"), None)
+        assets = (_day or {}).get("assets") or []
+        if not assets:
+            return
+        _VC = (("took the goal", "#4be38a"),
+               ("exited too soon", "#ffc36b"),
+               ("stayed too long", "#ff6b5e"),
+               ("bought the top", "#ff6b5e"),
+               ("goal hit and never exited", "#ff6b5e"),
+               ("buried by the funnel", "#9a86ff"),
+               ("still holding under the goal", "#ffc36b"),
+               ("scratch", "#9a9a9a"), ("unreadable", "#9a9a9a"))
+
+        def _vcol(v):
+            for k, c in _VC:
+                if k in str(v):
+                    return c
+            return "#d8ccb4"
+
+        rows = []
+        for a in assets:
+            kind = str(a.get("kind", "?"))
+            v = str(a.get("verdict", "?"))
+            left = float(a.get("usd_left") or 0)
+            if kind == "buried":
+                detail = (f"gate {a.get('gate') or '?'} · "
+                          f"${left:,.0f} theoretical")
+            else:
+                entry = float(a.get("entry") or 0)
+                peak = float(a.get("peak") or 0)
+                run = (peak / entry - 1.0) * 100.0 if entry and peak else 0.0
+                detail = (f"peak +{run:.1f}% vs goal "
+                          f"{float(a.get('goal_pct') or 0):.1f}% · "
+                          f"realized ${float(a.get('realized') or 0):,.2f}"
+                          + (f" · ${left:,.0f} left" if left > 1 else ""))
+            rows.append(
+                f"<div style='padding:4px 0;"
+                f"border-bottom:1px solid rgba(255,255,255,0.08);"
+                f"font-family:Share Tech Mono,monospace;font-size:12.5px;"
+                f"color:#d8ccb4;'><b>{_asset(str(a.get('asset', '?')))}</b>"
+                f"&nbsp;<span class='dim'>({kind})</span>&nbsp;&nbsp;"
+                f"<span style='color:{_vcol(v)};'>{v}</span><br>"
+                f"<span class='dim'>{detail}</span></div>")
+        cls = {}
+        for a in assets:
+            k = str(a.get("verdict", "?"))
+            cls[k] = cls.get(k, 0.0) + float(a.get("usd_left") or 0.0)
+        total = sum(cls.values())
+        bd = " · ".join(
+            f"<span style='color:{_vcol(k)};'>{k.split(' - ')[0]} "
+            f"${v:,.0f}</span>"
+            for k, v in sorted(cls.items(), key=lambda kv: -kv[1]) if v > 0)
+        with st.expander(
+                f"📞 TONIGHT'S REVIEW — every asset the day touched, the "
+                f"verdicts and the money left ({_day.get('date', '')})",
+                key="cooldown_review_expander"):
+            st.markdown("".join(rows), unsafe_allow_html=True)
+            if bd:
+                st.markdown(
+                    f"<div style='font-family:Share Tech Mono,monospace;"
+                    f"font-size:12.5px;padding:8px 2px 2px;color:#d8ccb4;'>"
+                    f"<b>${total:,.0f} left on the table</b> — {bd}</div>",
+                    unsafe_allow_html=True)
+            st.caption(f"as of {_now_mst().strftime('%H:%M')} MST — the "
+                       f"cooldown review's own verdicts (the same rows her "
+                       f"20:00 line speaks), read live each rerun")
+    except Exception as exc:
+        logger.debug("cooldown review plate failed: %s", exc)
 
 
 def _spark_html(vals, scale=None, marks=None):
@@ -6691,11 +6887,14 @@ def render_auto_watch(cfg: TradingConfig, kraken):
                                     logger.debug("re-arm probe failed: %s", exc)
                     except Exception as exc:
                         logger.debug("sold-record enrich skipped: %s", exc)
-                        try:
-                            st.toast(_toast_sold, icon="✔", duration=10)
-                            _speak(_say_sold)
-                        except Exception as exc:
-                            logger.debug("sold toast/voice failed: %s", exc)
+                    # Toast + voice fire on EVERY confirmed exit, healthy or
+                    # enriched-skip alike — the enrichment's failure must
+                    # never silence the confirmation of a closed position.
+                    try:
+                        st.toast(_toast_sold, icon="✔", duration=10)
+                        _speak(_say_sold)
+                    except Exception as exc:
+                        logger.debug("sold toast/voice failed: %s", exc)
                     st.rerun()
 
     # ── the manual entry section retired here (user rule, Sep 21):
@@ -7470,10 +7669,11 @@ def main():
                 logger.debug("kill-switch toast/voice failed: %s", exc)
         else:
             try:
-                st.toast("✅ ALL SYSTEMS GO — kill switch clear, watcher armed, ready to hunt.",
+                _facts = _boot_facts_voice(block, no_buy, vol)
+                st.toast("✅ ALL SYSTEMS GO — "
+                         + (_facts.split(". ")[0] if _facts else "watcher armed"),
                          icon="✅", duration=15)
-                _speak("Hello there! My systems are online and ready to make you "
-                       "a ton of money today! Ready to have some fun!")
+                _speak("Systems check. " + _facts)
             except Exception as exc:
                 logger.debug("systems-go toast/voice failed: %s", exc)
     if _ks_on:

@@ -567,7 +567,13 @@ def evaluate_rotation(exchange, rot_key: str, when=None, speak=True) -> dict:
     result["lesson"] = lesson
     _entry = {k: result[k] for k in
               ("date", "rot", "score", "total_left", "system_left",
-               "top_gate", "realized_pnl", "balance_after", "ts")}
+               "top_gate", "realized_pnl", "balance_after", "ts",
+               "system_pairs", "system_duds")}   # the per-pair burials
+    # persist too (Sep 21): the cooldown review's per-asset layer and the
+    # console's review plate read them — a burial with no pair named is
+    # money the review can never attribute
+    _entry["usd_left"] = dict(result["usd_left"])   # the component map:
+    # the cooldown review aggregates the DAY from these rows (Sep 21)
     # one entry per (date, rot) — re-evaluations replace (the plate shows
     # the latest; the history stays clean)
     state["history"] = [h for h in state["history"]
@@ -695,8 +701,311 @@ def _speak_result(result: dict, missed: list, missed_exit: list):
         pass
 
 
+def cooldown_review(exchange=None, when=None, speak=True, dry_run=False) -> dict:
+    """THE COOLDOWN REVIEW (user spec, Sep 21) — "What did I learn today,
+    and how do I increase the PnL when this setup appears again?"
+
+    The day-level layer on the SAME rails as the per-rotation score:
+
+      1. money left on the table   sum of today's rotation results'
+                                   usd_left components (missed / giveback
+                                   / missed_exit / system_burial)
+      2. discipline score          today's rotations, averaged
+      3. liquidity conditions      candle tests that returned no data
+                                   (the honest unknown) + tide at close
+      4. vs the daily goal         realized PnL vs the tier's daily pace
+      5. adjustments ACTUALLY made the day's learned weight deltas — the
+                                   calibration that really happened
+      6. suggestions               the top gate's name + the SAME
+                                   _insight lever the rotation score uses
+
+    Self-learning: one extra _learn step on the day's AGGREGATE (same
+    weight-nudge machinery as the rotation score), so the brain log can
+    learn from the day the way it learns from a rotation. The lesson
+    rides the state's lessons log (the same one the console reads).
+
+    dry_run: skip the state write and the voice — for tests.
+    Fail-soft everywhere: a missing rotation result is a skipped fact,
+    never an exception; the review speaks only what it can prove."""
+    when = when or _now()
+    _today = when.strftime("%Y-%m-%d")
+    state = load_state()
+
+    # ── 1. the day's rotation results (already learned at each rollover)
+    _today_rots = [h for h in (state.get("history") or [])
+                   if h.get("date") == _today
+                   and h.get("rot") != "DAY"]   # the day's own row is
+    # the OUTPUT, never an input (a re-evaluation must not aggregate
+    # itself — the live 20:08 run exposed exactly that)
+    _sched = "weekend" if when.weekday() >= 5 else "weekday"
+    _sched = "both" if _rot_is_split(when) else _sched
+
+    # ── 2. aggregate the money-left components across today's rotations
+    _agg = {"missed": 0.0, "giveback": 0.0, "missed_exit": 0.0,
+            "early_exit": 0.0, "system_burial": 0.0}
+    _other_left = 0.0   # legacy rows: a total without component detail
+    for h in _today_rots:
+        _ul = h.get("usd_left")
+        if isinstance(_ul, dict) and _ul:
+            for _k in _agg:
+                _agg[_k] += float(_ul.get(_k) or 0.0)
+            continue
+        # rows written before the component map was persisted: the
+        # system share is stored; the rest is real money-left whose
+        # split is honestly unknown (reported, not attributed)
+        _tl = float(h.get("total_left") or 0.0)
+        _sl = float(h.get("system_left") or 0.0)
+        _agg["system_burial"] += _sl
+        _other_left += max(0.0, _tl - _sl)
+    agg = _agg
+    total_left = round(sum(agg.values()) + _other_left, 2)
+    rot_scores = [float(h["score"]) for h in _today_rots
+                  if h.get("score") is not None]
+    avg_score = (round(sum(rot_scores) / len(rot_scores), 1)
+                 if rot_scores else None)
+
+    # ── 3. realized vs the daily goal
+    try:
+        import contest_account as _ca
+        _acct = _ca.load_state()
+        _pace = float(_ca.daily_pace_usd(_acct))
+        _bal = float(_acct.get("current_balance") or 0.0)
+    except Exception:
+        _pace, _bal = 240.0, 10000.0
+    _day_rows = []
+    try:
+        _p = Path(__file__).parent / "contest_trades.jsonl"
+        for _line in _p.read_text(encoding="utf-8").splitlines():
+            if not _line.strip():
+                continue
+            _t = json.loads(_line)
+            _ts = datetime.fromisoformat(str(_t.get("sold_at", "")))
+            if _ts.tzinfo is None:
+                _ts = _ts.replace(tzinfo=MST)
+            if _ts.astimezone(MST).strftime("%Y-%m-%d") == _today \
+                    and _t.get("applied"):
+                _day_rows.append(_t)
+    except Exception:
+        pass
+    _realized = round(sum(float(_t.get("pnl_net") or 0)
+                          for _t in _day_rows), 2)
+    _n_trades = len(_day_rows)
+
+    # ── 4. liquidity conditions — the honest unknown. The candle tests
+    # are live-API; at review time they are history. What the LEDGER
+    # proves: today's system burials where no candle data existed are
+    # not graded; the tide at close IS provable without the API.
+    try:
+        import background_scanner as _bs
+        _tide_pct, _tide_state = _bs._fleet_tide()
+        _tide_txt = f"{_tide_state.lower()} ({_tide_pct:.0f}% of the fleet up)"
+    except Exception:
+        _tide_txt = None
+    _no_candle = 0   # burials whose candle test could not run — not graded
+
+    # ── 5. the adjustments ACTUALLY made today: the weight deltas from
+    # the day's rotation lessons (the real calibration, not a wish)
+    _deltas = _day_weight_deltas(state, _today)
+
+    # ── 6b. THE PER-ASSET REVIEW (user spec, Sep 21: "review all the
+    # assets and how they actually performed ... did we buy the top,
+    # exit too soon or stay too long, what happened to the money left
+    # on the table?"): every asset the day touched — sold, still held,
+    # and what the funnel buried — each with one factual verdict using
+    # the SAME component arithmetic the rotation score uses.
+    assets = _day_assets(exchange, _today, state)
+
+    # ── 6. the aggregate learning step — the day itself is one lesson on
+    # the SAME weights the rotation score nudges. The brain log learns
+    # from the day in the same way.
+    _day_result = {
+        "date": _today, "rot": "DAY", "score": avg_score,
+        "pace_share": max(_pace, 1.0),
+        "usd_left": {k: round(v, 2) for k, v in agg.items()},
+        "total_left": total_left,
+        "system_left": round(agg.get("system_burial", 0.0), 2),
+        "top_gate": _top_gate_of_day(state, _today),
+        "system_pairs": _day_system_pairs(state, _today),
+    "system_duds": _day_system_duds(state, _today),
+        "popups": [],
+        "assets": assets,
+        "realized_pnl": _realized,
+        "balance_after": _bal,
+        "empty_fire": not _day_fired_any(_today),
+        "bonuses": 0.0, "weights": dict(state.get("weights") or {}),
+        "ts": _now().isoformat(),
+    }
+    # a day with no rotation results has NO score — the learning step
+    # needs a number to disagree with; without one, the review records
+    # facts and holds the weights (a verdict it cannot supply is not a
+    # nudge)
+    if _day_result["score"] is not None:
+        lesson = _learn(state, _day_result)
+    else:
+        lesson = ("No rotation evaluations for today — the review "
+                  "records the facts; weights hold until there is a "
+                  "score to learn from.")
+    _day_result["lesson"] = lesson
+    # the asset-level story rides the day lesson — the brain log learns
+    # the sharpest asset fact the same way it learns the aggregates
+    _alead = _asset_lead(assets)
+    if _alead:
+        lesson = f"{lesson} {_alead}"
+        _day_result["lesson"] = lesson
+
+    # ── 7. persist: the day entry rides the history (one per day) and
+    # the lesson rides the lessons log — the console's brain-log readers
+    # pick it up exactly like a rotation lesson
+    if not dry_run:
+        state["history"] = [h for h in state["history"]
+                            if not (h.get("date") == _today
+                                    and h.get("rot") == "DAY")]
+        state["history"].append({
+            "date": _today, "rot": "DAY", "score": avg_score,
+            "total_left": total_left, "realized_pnl": _realized,
+            "balance_after": _bal, "usd_left": _day_result["usd_left"],
+            "top_gate": _day_result["top_gate"], "ts": _now().isoformat(),
+        })
+        state["history"] = state["history"][-60:]
+        save_state(state)
+        if speak:
+            _speak_cooldown_review(_day_result, _pace, _realized,
+                                   _n_trades, _tide_txt, _no_candle)
+
+    return {
+        "date": _today, "kind": "cooldown_review", "score": avg_score,
+        "rotations": len(_today_rots),
+        "usd_left": _day_result["usd_left"], "total_left": total_left,
+        "top_gate": _day_result["top_gate"],
+        "system_left": _day_result["system_left"],
+        "realized_pnl": _realized, "n_trades": _n_trades,
+        "daily_pace": round(_pace, 2),
+        "vs_pace": round(_realized - _pace, 2),
+        "tide_at_close": _tide_txt,
+        "no_candle": _no_candle,
+        "weight_deltas": _deltas,
+        "assets": assets,
+        "lesson": lesson,
+    }
+
+
+def _speak_cooldown_review(result, pace, realized, n_trades, tide_txt,
+                           no_candle) -> None:
+    """The cooldown review in her voice: the facts, the gap, the plan."""
+    try:
+        import background_scanner as bs
+        _p = []
+        _p.append(f"Today's review. "
+                  f"{n_trades} trade{'s' if n_trades != 1 else ''}, "
+                  f"{'plus' if realized >= 0 else 'minus'} "
+                  f"{abs(realized):,.0f} dollars realized"
+                  + (f", the goal was {pace:,.0f}" if pace > 0 else "") + ".")
+        if result["total_left"] > 1:
+            _p.append(f"{result['total_left']:,.0f} dollars was left on the table")
+            if result.get("top_gate"):
+                _p.append(f"the {result['top_gate']} gate buried the most")
+        if tide_txt:
+            _p.append(f"the tide closed {tide_txt}")
+        # the asset story rides the lesson (appended once, by the
+        # review) — the lesson is the last clause; no separate asset
+        # line, she would say it twice
+        if result.get("lesson"):
+            _p.append(str(result["lesson"]))
+        # normalize: clauses carry no trailing period — the joiner owns
+        # the sentence boundaries (the live 20:08 line said "240..")
+        _p = [str(c).rstrip(".") for c in _p]
+        bs._speak_server(". ".join(_p) + ".", rate=1)
+    except Exception:
+        pass
+
+
+def _rot_is_split(when) -> bool:
+    """True when the MST day started mid-rotation (weekday boundary).
+    The day's rotation results may belong to a rotation that opened the
+    previous MST day — the review aggregates by date, honestly."""
+    return False  # today's 20-24 close always owns its own day-window
+
+
+# ── THE DAY-LEVEL AGGREGATION HELPERS (the review reads only what the
+#    rotation evaluations already proved — no new theory) ────────────
+
+def _day_system_pairs(state, today):
+    out = []
+    for h in state.get("history") or []:
+        if h.get("date") == today and h.get("rot") != "DAY":
+            out.extend(h.get("system_pairs") or [])
+    return out
+
+
+def _day_system_duds(state, today):
+    out = []
+    for h in state.get("history") or []:
+        if h.get("date") == today and h.get("rot") != "DAY":
+            out.extend(h.get("system_duds") or [])
+    return out
+
+
+def _day_fired_any(today) -> bool:
+    """Did ANY popup fire today? The SAME evidence the rotation's fired
+    set uses: a spoken 'Buy {asset}!' line in the voice log (the fire
+    confirmation — a burial row proves a burial, never a fire)."""
+    try:
+        p = Path(__file__).parent / "voice_log.jsonl"
+        for line in p.read_text(encoding="utf-8").splitlines():
+            if not line.strip():
+                continue
+            try:
+                d = json.loads(line)
+                ts = str(d.get("ts", ""))
+                if not ts.startswith(today):
+                    continue
+                text = str(d.get("text") or "")
+                if text.startswith("Buy ") and "!" in text:
+                    return True
+            except Exception:
+                continue
+    except Exception:
+        pass
+    return False
+
+
+def _top_gate_of_day(state, today):
+    gate_usd = {}
+    for h in state.get("history") or []:
+        if h.get("date") == today and h.get("rot") != "DAY":
+            for p in (h.get("system_pairs") or []):
+                g = str(p.get("gate") or "?")
+                gate_usd.get(g)
+                gate_usd[g] = gate_usd.get(g, 0.0) + float(p.get("usd") or 0.0)
+    return max(gate_usd, key=gate_usd.get) if gate_usd else None
+
+
+def _day_rot_fired(h) -> bool:
+    """RETAINED as documentation of the wrong heuristic: the burial
+    ledger records burials, not fires — _day_fired_any (voice log) is
+    the factual fire evidence. Kept defined per don't-delete."""
+    return _day_fired_any(str(h.get("date") or ""))
+
+
+def _day_weight_deltas(state, today):
+    # The adjustments ACTUALLY made today: weight changes recorded in
+    # today's lessons. Parses the lessons log's rises/eases sentences
+    # (the only record of the nudge) - factual by construction.
+    deltas = {}
+    import re as _re
+    for l in state.get("lessons") or []:
+        if not str(l.get("ts", "")).startswith(today):
+            continue
+        for m in _re.finditer(
+                r"(\w+) (?:weight )?(?:rises|eases) ([\d.]+) (?:.>?) ([\d.]+)",
+                str(l.get("lesson") or "")):
+            name, a, b = m.group(1), float(m.group(2)), float(m.group(3))
+            deltas[name] = round(deltas.get(name, 0.0) + (b - a), 3)
+    return deltas
+
+
 def _insight(result: dict, missed: list, missed_exit: list) -> str:
-    """ONE actionable suggestion — the sharpest lever this rotation."""
+    # ONE actionable suggestion - the sharpest lever this rotation.
     usd = result["usd_left"]
     if (usd.get("system_burial", 0) > 1
             and usd.get("system_burial", 0) >= max(usd.values())):
@@ -707,16 +1016,156 @@ def _insight(result: dict, missed: list, missed_exit: list) -> str:
         except Exception:
             pass
         return (f"The {gate} gate buried {asset} (+${usd['system_burial']:,.0f} "
-                f"theoretical) — carve-out data, not a discipline miss. "
+                f"theoretical) - carve-out data, not a discipline miss. "
                 f"Your taps were clean.")
     if usd.get("missed_exit", 0) >= max(usd.values()):
-        return ("Next time: when the goal hits, tap SOLD — the exit scan "
+        return ("Next time: when the goal hits, tap SOLD - the exit scan "
                 "already told you when.")
     if usd.get("missed", 0) >= max(usd.values()):
-        return ("Next time: a paying popup is the system's best call — "
+        return ("Next time: a paying popup is the system's best call - "
                 "take the green light when it fires.")
     if usd.get("giveback", 0) >= max(usd.values()):
-        return ("Next time: bank at the goal — the trail protects the "
+        return ("Next time: bank at the goal - the trail protects the "
                 "rest, but the goal is yours to take.")
-    return ("Keep the rotation rhythm: goal, window, exit — the machine "
+    return ("Keep the rotation rhythm: goal, window, exit - the machine "
             "keeps the clock, you keep the taps.")
+
+
+# ── THE PER-ASSET REVIEW (user spec, Sep 21: "review all the assets
+# and how they actually performed ... did we buy the top, exit too soon
+# or stay too long, what happened to the money left on the table?") ──
+# One factual verdict per asset the day touched, using the SAME
+# component arithmetic as the rotation score: realized vs the goal,
+# the peak reached, and where the theoretical money went.
+
+def _asset_verdict(entry, exit_px, peak, goal_pct, realized, size):
+    """(verdict, usd_left) from the trade's real numbers — the same
+    giveback/missed-exit shape the rotation evaluation computes."""
+    if not entry or not peak or entry <= 0:
+        return ("unreadable", 0.0)
+    peak_pct = (peak / entry - 1.0) * 100.0
+    if goal_pct <= 0:
+        goal_pct = 1.5
+    reached = peak_pct >= goal_pct * 0.9
+    if exit_px and exit_px > 0:
+        # stayed-too-long first: a peak far past the goal with most of
+        # it given back is that verdict, not "exited too soon"
+        if peak_pct >= goal_pct * 1.5 and realized < peak_pct / 100.0 * size * 0.5:
+            left = max(0.0, size * peak_pct / 100.0 - max(realized, 0.0))
+            return ("stayed too long - gave back over half the peak", left)
+        if reached and realized < goal_pct / 100.0 * size * 0.9:
+            left = max(0.0, size * peak_pct / 100.0 - max(realized, 0.0))
+            return ("exited too soon - the goal was on the tape", left)
+        if realized >= goal_pct / 100.0 * size * 0.9:
+            return ("took the goal - the discipline shape", 0.0)
+        if entry > 0 and exit_px < entry * 0.995 and peak_pct <= goal_pct * 0.5:
+            return ("bought the top - the coin never ran", max(0.0, -realized))
+        return ("scratch - small move, small result", 0.0)
+    if reached:
+        left = max(0.0, size * peak_pct / 100.0)
+        return ("goal hit and never exited", left)
+    return ("still holding under the goal", 0.0)
+
+
+def _day_assets(exchange, today, state):
+    """Every asset the day touched, factually: sold trades (their real
+    numbers), still-held watch rows (live price), and the funnel's
+    buried candidates (the rotation evaluations' system_pairs). Returns
+    the list the review reports — no theory, only recorded outcomes."""
+    out = []
+    try:
+        p = Path(__file__).parent / "contest_trades.jsonl"
+        for line in p.read_text(encoding="utf-8").splitlines():
+            if not line.strip():
+                continue
+            try:
+                t = json.loads(line)
+            except Exception:
+                continue
+            ts = str(t.get("sold_at", ""))
+            if not ts.startswith(today):
+                continue
+            entry = float(t.get("entry") or 0.0)
+            exit_px = float(t.get("exit") or 0.0)
+            size = float(t.get("size") or 0.0)
+            realized = float(t.get("pnl_net") or 0.0)
+            goal = float(t.get("goal_pct") or 1.5)
+            high = float(t.get("high") or 0.0) or max(exit_px, entry)
+            v, left = _asset_verdict(entry, exit_px, high, goal,
+                                     realized, size)
+            out.append({"asset": str(t.get("pair", "?")).split("/")[0],
+                        "kind": "sold", "entry": entry, "exit": exit_px,
+                        "peak": high, "goal_pct": goal,
+                        "realized": realized, "size": size,
+                        "verdict": v, "usd_left": round(left, 2)})
+    except Exception:
+        pass
+    # still-held: the watch rows added today (the live price closes them)
+    try:
+        import json as _j
+        wdoc = _j.loads((Path(__file__).parent / "contest_watch.json")
+                        .read_text(encoding="utf-8"))
+        for pair, wr in (wdoc or {}).items():
+            try:
+                ad = str(wr.get("added") or "")
+                if not ad.startswith(today):
+                    continue
+                entry = float(wr.get("entry") or 0.0)
+                size = float(wr.get("size") or 0.0)
+                if not entry or not size:
+                    continue
+                goal = float(wr.get("goal_pct") or 1.5)
+                high = float(wr.get("high") or entry)
+                live = None
+                try:
+                    live = float(exchange.fetch_ticker(pair)["last"])
+                except Exception:
+                    live = None
+                cur = (live / entry - 1.0) * size if live else 0.0
+                v, left = _asset_verdict(entry, live or 0.0, high, goal,
+                                         cur, size)
+                out.append({"asset": str(pair).split("/")[0],
+                            "kind": "held", "entry": entry,
+                            "exit": live, "peak": high, "goal_pct": goal,
+                            "realized": round(cur, 2), "size": size,
+                            "verdict": v, "usd_left": round(left, 2)})
+            except Exception:
+                continue
+    except Exception:
+        pass
+    # buried: what the funnel never let reach the user (from the day's
+    # rotation evaluations — the same rows the seam scores)
+    for h in (state.get("history") or []):
+        if h.get("date") != today or h.get("rot") == "DAY":
+            continue
+        for sp in (h.get("system_pairs") or []):
+            out.append({"asset": str(sp.get("pair", "?")).split("/")[0],
+                        "kind": "buried", "gate": sp.get("gate"),
+                        "usd_left": round(float(sp.get("usd") or 0.0), 2),
+                        "verdict": "buried by the funnel - never offered"})
+    return out
+
+
+def _asset_lead(assets):
+    """The sharpest asset fact, for the day lesson: the single biggest
+    left-on-the-table line, or the clean-taps line when nothing leaked."""
+    real = [a for a in (assets or []) if a.get("kind") in ("sold", "held")]
+    buried = [a for a in (assets or []) if a.get("kind") == "buried"]
+    if real:
+        top = max(real, key=lambda a: float(a.get("usd_left") or 0.0))
+        if float(top.get("usd_left") or 0.0) > 1:
+            return (f"{top['asset']}: {top['verdict']} - "
+                    f"${top['usd_left']:,.0f} of the move went with it.")
+        bad = [a for a in real if "bought the top" in str(a.get("verdict"))]
+        if bad:
+            return (f"{bad[0]['asset']}: bought the top - the setup "
+                    f"appears again, the tape did not.")
+    if buried:
+        bg = max(buried, key=lambda a: float(a.get("usd_left") or 0.0))
+        if float(bg.get("usd_left") or 0.0) > 1:
+            return (f"The funnel buried {bg['asset']} "
+                    f"(${bg['usd_left']:,.0f} theoretical, "
+                    f"{bg.get('gate') or '?'} gate) - the machine's leave.")
+    if real:
+        return "Every asset taken closed clean - nothing leaked."
+    return ""

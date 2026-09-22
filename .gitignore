@@ -53,6 +53,8 @@ _test_*/
 # a stash/checkout of tracked state files silently reverted the live
 # contest tier and hid an open position).
 contest_account.json
+push_canary.json
+push_canary.json.tmp*
 console_state.json
 contest_watch.json
 discipline_state.json

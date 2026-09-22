@@ -89,9 +89,12 @@ check("legacy entries (no window) still get the old pace fallback",
 watch_block = app.split("def render_auto_watch")[1].split("def _time_to_goal")[0]
 check("interval selectbox + volume dial in ONE row of columns",
       "_s1, _s2 = st.columns" in watch_block)
-check("the status caption is FULL WIDTH (never inside a column)",
-      watch_block.find('always on (critical to the system') <
-      watch_block.find('with _s1:'))
+_cap = "critical to the system; the switches are retired"
+check("the status caption exists in the watch block", _cap in watch_block)
+_cap_line = next((ln for ln in watch_block.splitlines()
+                  if "st.caption(" in ln and "AUTO-WATCH" in ln), "")
+check("the status caption is FULL WIDTH (page-level indent, never inside a column)",
+      _cap_line != "" and (len(_cap_line) - len(_cap_line.lstrip())) == 4)
 check("the volume dial keeps its key (state survives)",
       'key="voice_volume"' in watch_block)
 check("the retired toggles render nowhere in the watch block",

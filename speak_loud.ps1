@@ -39,8 +39,17 @@ if (Test-Path $wav) {
                 $samples[$i] = $v
                 $a = [Math]::Abs($v); if ($a -gt $peak) { $peak = $a }
             }
-            $gain = 0.95 * 32767 / $peak
-            if ($gain -gt 3.0) { $gain = 3.0 }
+            # The volume dial scales the normalization TARGET (Sep 21):
+            # 100 -> the historical 95% full-scale loudness, 50 -> half
+            # that, 0 -> silence. Without this, every render was boosted
+            # to full scale and the dial did nothing to the phone-push WAV.
+            $volTarget = 0.95 * ($s.Volume / 100.0)
+            if ($volTarget -le 0) {
+                $gain = 0.0
+            } else {
+                $gain = $volTarget * 32767 / $peak
+                if ($gain -gt 3.0) { $gain = 3.0 }
+            }
             if ($gain -gt 1.05) {
                 for ($i = 0; $i -lt $n; $i++) {
                     $v = [int]($samples[$i] * $gain)
