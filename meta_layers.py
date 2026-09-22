@@ -261,11 +261,19 @@ def rcl_apply(res: dict, gf: float | None, when: datetime | None = None) -> tupl
         act["reentry_blocked"] = True
         act["suppress_borderline"] = True
         act["endgame"] = True
-        st = _state()
-        pen = float(st.get("discipline_penalty_extra", 0.0)) + 1.0
-        st["discipline_penalty_extra"] = round(min(pen, 3.0), 2)
-        _save(st)
-        note_endgame(when)    # RotationEndGameMode arms WITH the verdict
+        # (CodeRabbit major) once per VERDICT, not once per tick: the
+        # exit watch calls finalize every tick, and the old per-call
+        # penalty hit its 3.0 cap in three ticks while endgame_events
+        # counted hundreds for one drift episode.
+        _prev = (_state().get("rcl_last") or {})
+        _same = (_prev.get("verdict") == "MAJOR DRIFT"
+                 and _prev.get("rot") == _rot_key_of(when))
+        if not _same:
+            st = _state()
+            pen = float(st.get("discipline_penalty_extra", 0.0)) + 1.0
+            st["discipline_penalty_extra"] = round(min(pen, 3.0), 2)
+            _save(st)
+            note_endgame(when)    # RotationEndGameMode arms WITH the verdict
     if verdict in ("MILD DRIFT", "MAJOR DRIFT"):
         # re-read: note_endgame just wrote, and a stale local snapshot
         # would clobber its key (the drive's finding, Sep 22)
@@ -772,6 +780,11 @@ def shadow_trail_start(pair: str, exit_price: float, watch: dict | None = None,
             "exit_price": float(exit_price or 0),
             "exit_ts": when.isoformat(timespec="seconds"),
             "rot": _rot_key_of(when),
+            # (CodeRabbit major) the miss is USD, not price delta: a
+            # $0.01 coin could never graduate, BTC over-counted. The
+            # position size rides the shadow so graduation computes
+            # (peak/exit - 1) * size — real dollars left on the table.
+            "size": float((watch or {}).get("size") or 0.0),
             "peak": float(exit_price or 0), "last": float(exit_price or 0),
             "dip": float(exit_price or 0), "breakout": False,
             "liq_surge": False}
@@ -828,8 +841,10 @@ def shadow_trail_tick(pairs: list[str] | None = None,
         except Exception:
             age_h = 0.0
         if age_h >= SHADOW_MAX_HOURS:
-            gain = (float(sh.get("peak") or 0)
-                    - float(sh.get("exit_price") or 0))
+            _sh_px = float(sh.get("exit_price") or 0)
+            _sh_sz = float(sh.get("size") or 0.0)
+            gain = ((float(sh.get("peak") or 0) / _sh_px - 1.0) * _sh_sz
+                    if _sh_px > 0 and _sh_sz > 0 else 0.0)
             if gain >= SHADOW_MIN_GAIN_USD:
                 st["shadow_graduations"] = st.get("shadow_graduations", 0) + 1
                 st["shadow_missed_usd_total"] = round(
@@ -937,10 +952,13 @@ def endgame_trigger_check(when: datetime | None = None,
                                    "funding_flipping", "vol_spiking",
                                    "breadth_narrowing")}
     fired = sum(1 for v in trig.values() if v is True)
+    st["endgame_triggers"] = {"fired": fired, "signals": trig}
+    # (CodeRabbit major) save BEFORE note_endgame: the merge-save only
+    # protects keys absent from the snapshot — a stale endgame.rot from
+    # an earlier rotation in `st` would overwrite the fresh latch.
+    _save(st)
     if fired >= ENDGAME_TRIGGERS_NEEDED and not endgame_active(when):
         note_endgame(when)
-    st["endgame_triggers"] = {"fired": fired, "signals": trig}
-    _save(st)
     return {"armed": endgame_active(when), "fired": fired, "signals": trig}
 
 

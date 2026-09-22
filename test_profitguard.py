@@ -265,7 +265,9 @@ check(10.5, '"opened_ts": _now_mst().isoformat()' in SRC,
 # the real book, not the section-1/8/9 stubs (the contamination the era
 # drive taught us to check for)
 pg.ROOT = _REAL_ROOT
-pg.STATE_FILE = HERE / "profit_guard_state.json"
+_RealState = HERE / "profit_guard_state.json"
+_RealBytes = _RealState.read_bytes() if _RealState.exists() else None
+pg.STATE_FILE = _RealState
 sys.modules.pop("profit_guard", None)
 sys.modules.pop("background_scanner", None)
 pg_real = __import__("profit_guard")
@@ -284,14 +286,21 @@ _lres_h = pg_real.guard_factor("ZEC/USD", {"added": "2026-09-22T08:55:24-06:00"}
 check(10.8, pg_real.explain(_lres_h, "ZEC") and len(pg_real.explain(_lres_h, "ZEC")) > 10,
       "LIVE: the explain line is hearable")
 print(f"        ({pg_real.explain(_lres_h, 'ZEC')})")
-# the probe must not have stamped tonight's one-shot
-_ladj = pg_real.self_adjust()
-if _ladj is not None:
-    (HERE / "profit_guard_state.json").unlink(missing_ok=True)
-    print("        (probe self_adjust returned a result — state file removed "
-          "so tonight's cooldown owns the first stamp)")
-check(10.9, not (HERE / "profit_guard_state.json").exists(),
-      "LIVE: the drive leaves tonight's one-shot unstamped")
+# (CodeRabbit major) the probe must never clobber the machine's real
+# guard state: byte-exact restore. The 10.9 check only scrubs when this
+# run CREATED the file — a pre-existing state file is the scanner's.
+if _RealBytes is not None:
+    _RealState.write_bytes(_RealBytes)
+    print("        (real guard state restored byte-exact)")
+    check(10.9, _RealState.exists(),
+          "LIVE: the real guard state survived the probe untouched")
+elif _RealState.exists():
+    _RealState.unlink()
+    print("        (probe-created state scrubbed — tonight's one-shot unstamped)")
+    check(10.9, not _RealState.exists(),
+          "LIVE: the probe-created one-shot stamp was scrubbed")
+else:
+    check(10.9, True, "LIVE: no state file existed — nothing to protect")
 
 RESULT = f"{len(PASSES)} passed, {len(FAILS)} failed"
 print(RESULT)

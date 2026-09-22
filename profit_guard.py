@@ -502,8 +502,11 @@ def self_adjust(now: datetime | None = None) -> dict | None:
     if st.get("adjusted_on") == today:
         return None
     res = guard_factor("", None, when=now)
-    if not res.get("readable"):
-        return None    # nothing readable yet — try again next cycle, no stamp
+    # (CodeRabbit minor) a CARRIED factor is not today's adjustment: if
+    # the loop halves are unreadable the stored factor renews itself
+    # every night, and the 2-day freshness check could never expire.
+    if not res.get("readable") or res.get("carried_from"):
+        return None    # nothing freshly computed — try again next cycle, no stamp
     _save({"adjusted_on": today, "factor": res["factor"], "parts": {
         k: res.get(k) for k in ("env", "disc_mod", "mlt_corr", "vol_mod",
                                 "asset_mem", "funding_mod", "decay_mod")},

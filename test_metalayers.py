@@ -310,7 +310,7 @@ check(8.7, not ml.reentry_candidate("X/USD"),
       "a candidate from another rotation is not one for this rotation")
 # shadow trail: start, tick up, graduate into the ledgers
 ml._SLOPE.clear()
-ml.shadow_trail_start("X/USD", 100.0, None, _w())
+ml.shadow_trail_start("X/USD", 100.0, {"size": 100.0}, _w())   # sized: the miss is USD now
 class _FakeEx:
     def fetch_ticker(self, p):
         return {"last": 105.0 if p.startswith("X") else 100.3}   # Y stays under the noise floor
@@ -326,8 +326,8 @@ ml.STATE_FILE.write_text(json.dumps(_st8), encoding="utf-8")
 ml.shadow_trail_tick(["X/USD"], force=True)
 check(8.9, ml.shadow_missed_gain("X/USD") is None
       and ml.shadow_graduated_notes()["missed_usd"] == 5.0,
-      "graduation writes the miss into the ledger and retires the trail")
-ml.shadow_trail_start("Y/USD", 100.0, None, _w())
+      "graduation writes the USD miss into the ledger and retires the trail")
+ml.shadow_trail_start("Y/USD", 100.0, {"size": 100.0}, _w())
 ml.shadow_trail_tick(["Y/USD"], force=True)
 _st8 = json.loads(ml.STATE_FILE.read_text(encoding="utf-8"))
 _st8["shadows"]["Y/USD"]["exit_ts"] = (_w() - timedelta(hours=9)).isoformat(timespec="seconds")
@@ -399,7 +399,9 @@ check(6.10, ml.ENDGAME_TRAIL_MULT == 0.7 and ml.ENDGAME_LOCKIN_MULT == 1.3,
 # ════════ 7. LIVE probes ════════
 print("== 7. LIVE probes on the real book ==")
 ml.ROOT = _ML_ROOT
-ml.STATE_FILE = HERE / "meta_layers_state.json"
+_RealState = HERE / "meta_layers_state.json"
+_RealBytes = _RealState.read_bytes() if _RealState.exists() else None
+ml.STATE_FILE = _RealState
 _lr = ml.rcl_measure("ZEC/USD")
 check(7.1, isinstance(_lr["verdict"], str) and _lr["verdict"] in
       ("NORMAL", "MILD DRIFT", "MAJOR DRIFT", "UNKNOWN"),
@@ -411,9 +413,14 @@ check(7.2, _lgf is None or (0.4 <= _lgf <= 2.0),
 check(7.3, isinstance(ml.endgame_active(), bool)
       and isinstance(ml.reentry_blocked(), bool),
       "LIVE: the gates answer without crashing on real state")
-if (HERE / "meta_layers_state.json").exists():
-    (HERE / "meta_layers_state.json").unlink()
-    print("        (probe state scrubbed)")
+# (CodeRabbit major) the probe must never erase the machine's real meta
+# state: byte-exact restore, scrub only what this run created.
+if _RealBytes is not None:
+    _RealState.write_bytes(_RealBytes)
+    print("        (real meta state restored byte-exact)")
+elif _RealState.exists():
+    _RealState.unlink()
+    print("        (probe-created state scrubbed)")
 
 RESULT = f"{len(PASSES)} passed, {len(FAILS)} failed"
 print(RESULT)
