@@ -1,0 +1,232 @@
+#!/usr/bin/env bash
+# VERSIONED (Sep 22): this file is tracked at hooks/pre-commit so the
+# tripwire gate, the runtime-stash guard, and the CodeRabbit finding
+# renderer survive fresh clones. A new checkout arms it with ONE line:
+#   git config core.hooksPath hooks
+# (.git/hooks copies are machine-local by git's design and will drift —
+#  this tracked copy is the single source of truth.)
+# ─────────────────────────────────────────────────────────────────────────
+# PRE-COMMIT: CodeRabbit advisory review (user rule, Sep 7 — "wire cr
+# review --agent into the pre-commit flow so changes get reviewed before
+# landing").
+#
+# POLICY (user-chosen, Sep 7):
+#   · WARN-ONLY — findings print, the commit is NEVER blocked by a review.
+#   · FAIL-OPEN — if CodeRabbit is unavailable (signed out, offline, the
+#     command hangs/errors), the commit proceeds and the reason is logged.
+#
+# WHY: kraken_scout is a LIVE TRADING system — the commit flow must never
+# be hostage to a third-party CLI's auth state or uptime. The review is a
+# second pair of eyes, not a gate. Use `git commit --no-verify` to skip
+# entirely when you're in a hurry (the hook says so).
+#
+# WHAT IT REVIEWS: the staged content, reviewed in place. The repo churns
+# live runtime state (logs, caches, ledgers, snapshots — see
+# RUNTIME_INVARIANTS.md for the class list); the reviewer may see that
+# churn in the working tree and it is noise, not danger. The review
+# performs NO stash operations and never writes or moves a file: runtime
+# state is owned exclusively by the running scanner.
+#
+# AUTH: `coderabbit auth login --api-key <key>` (an AGENTIC key from
+# CodeRabbit settings — plain user keys are rejected by the CLI). The
+# key is stored by CodeRabbit itself; the hook never handles it.
+#
+# ENV OVERRIDES:
+#   CODERABBIT_OFF=1          skip the review entirely
+#   CODERABBIT_TIMEOUT_SEC    review max seconds (default 300)
+# ─────────────────────────────────────────────────────────────────────────
+set -u
+
+# Hoisted python resolution — used by the tripwire gate below AND the
+# finding renderer at the bottom (absolute: blocks may cd into scratch dirs).
+PY="$PWD/.venv/Scripts/python.exe"
+[ -x "$PY" ] || PY="$(command -v python || command -v py || true)"
+
+# ── PERMANENT GUARD (2026-09-21, RUNTIME_INVARIANTS.md): runtime state is
+# never stashed. Any commit that ADDS stash logic is blocked here — except
+# inside the enforcement layer itself (the guard suites and the safe-commit
+# wrapper QUOTE the pattern in order to forbid it, mirroring the suite's
+# own exemption; a real stash execution added there is still caught by
+# test_no_runtime_stash's executable-line scan in the battery).
+if git diff --cached -- . \
+        ':(exclude)test_no_runtime_stash.py' \
+        ':(exclude)test_hooks_ignore_runtime_state.py' \
+        ':(exclude)safe_commit.py' \
+        ':(exclude)runtime_tripwire.py' \
+        ':(exclude)RUNTIME_INVARIANTS.md' 2>/dev/null | grep -qE '^\+.*git[[:space:]]+stash'; then
+    echo "  ⛔ GUARD: added lines invoke a stash command — runtime state must" >&2
+    echo "     never be stashed or auto-swept (see RUNTIME_INVARIANTS.md)." >&2
+    echo "     Commit blocked. Remove the stash logic and retry." >&2
+    exit 1
+fi
+
+# ── THE ONE-BRAIN TRIPWIRE (Sep 22) ────────────────────────────────
+# The console must never again grow a second exit brain (the ghost-SELL
+# saga: the old light evaluator popped console-only SELLs the real exit
+# watch never called — see test_persistexit.py's census). Whenever app.py
+# is staged, the tripwire drive runs against the STAGED content in a
+# scratch dir — never the worktree, never runtime state — and a census
+# failure BLOCKS the commit. Fail-closed: a missing RESULT line (a crash,
+# a truncated run) blocks too. The drive is a pure text census: it reads
+# only the two source files and writes only its own check file inside
+# the scratch dir, so runtime state is untouched (RUNTIME_INVARIANTS.md).
+# Emergency bypass stays available: git commit --no-verify.
+if git diff --cached --name-only | grep -qx 'app.py'; then
+    if [ -z "$PY" ]; then
+        echo "  ⛔ TRIPWIRE: app.py staged but no python found — commit blocked." >&2
+        exit 1
+    fi
+    SCRATCH="$(mktemp -d "${TMPDIR:-/tmp}/onebrain.XXXXXX")"
+    trap 'rm -rf "$SCRATCH"' EXIT
+    git show :app.py > "$SCRATCH/app.py" || { echo "  ⛔ TRIPWIRE: cannot read staged app.py" >&2; exit 1; }
+    git show :background_scanner.py > "$SCRATCH/background_scanner.py" \
+        || { echo "  ⛔ TRIPWIRE: cannot read background_scanner.py from the index" >&2; exit 1; }
+    cp test_persistexit.py "$SCRATCH/test_persistexit.py"
+    trip_out="$(cd "$SCRATCH" && "$PY" test_persistexit.py 2>&1)"; trip_rc=$?
+    # the drive prints only DONE to stdout — the RESULT verdict lives in
+    # its check file (written in its CWD = the scratch dir). A missing
+    # file (crash before the write) leaves trip_res empty -> blocked.
+    trip_res="$(grep -oE 'RESULT: [0-9]+ passed, [0-9]+ failed' \
+                   "$SCRATCH/_persist_check.txt" 2>/dev/null | tail -1)"
+    trip_failed="$(printf '%s' "$trip_res" | sed -n 's/.*, \([0-9]*\) failed/\1/p')"
+    if [ $trip_rc -ne 0 ] || [ -z "$trip_res" ] || [ "${trip_failed:-1}" != "0" ]; then
+        tail -8 "$SCRATCH/_persist_check.txt" 2>/dev/null >&2
+        printf '%s\n' "$trip_out" | tail -3 >&2
+        echo "  ⛔ TRIPWIRE: the one-brain census FAILED on the staged app.py" >&2
+        echo "     (${trip_res:-no RESULT line — run crashed or was truncated})" >&2
+        echo "     A console second brain or a re-mounted exit evaluator is born." >&2
+        echo "     Fix the finding (run: python test_persistexit.py) or bypass with" >&2
+        echo "     git commit --no-verify — deliberately, never casually." >&2
+        exit 1
+    fi
+    echo "  🧠 one-brain tripwire: $trip_res on the staged content." >&2
+fi
+
+[ "${CODERABBIT_OFF:-0}" = "1" ] && exit 0
+[ -z "$(git diff --cached --name-only)" ] && exit 0   # nothing staged
+
+BIN="$(command -v coderabbit || command -v cr || true)"
+if [ -z "$BIN" ]; then
+    echo "  🐇 CodeRabbit: CLI not found — skipping review (fail-open)." >&2
+    echo "    hmm — 'coderabbit auth login' + restart the terminal to arm." >&2
+    exit 0
+fi
+
+TIMEOUT="${CODERABBIT_TIMEOUT_SEC:-300}"
+
+# Disabled: auto-stash of runtime state can hide live positions.
+# (2026-09-21: the old dance reset the live watch ledger to empty twice,
+# left a position unwatched mid-session, and its silent pop failure leaked
+# 17 stashes. The review now runs against the tree as-is — runtime churn
+# seen by the reviewer is noise. See RUNTIME_INVARIANTS.md.)
+review_json="$(
+  timeout "$TIMEOUT" "$BIN" review --agent --uncommitted 2>/dev/null | tr -d '\r'
+)" 2>/dev/null
+rc=$?
+
+if [ $rc -ne 0 ]; then
+    echo "  🐇 CodeRabbit: review didn't finish (rc=$rc; timeout ${TIMEOUT}s) — commit proceeds (fail-open)." >&2
+    exit 0
+fi
+
+if [ -z "$review_json" ]; then
+    echo "  🐇 CodeRabbit: no findings — clean review." >&2
+    exit 0
+fi
+
+# Render the agent-mode findings. The REAL CLI shape (verified against
+# the local review store, 2026-09-22): JSON records whose fields are
+# fileName / startLine / severity / title / comment — the old sed looked
+# for "file"/"line", matched nothing, and printed ?:? placeholders.
+# This parser is field-tolerant (both key generations), handles JSONL,
+# wrapped envelopes, and pretty-printed JSON, and NEVER swallows findings
+# silently: if the stream carries text but nothing parses, the raw head
+# is printed for eyes-on.
+PYCODE="$(cat <<'CRPYEOF'
+import sys, json
+
+def walk(o, out):
+    if isinstance(o, list):
+        for i in o:
+            walk(i, out)
+    elif isinstance(o, dict):
+        has_file = any(k in o for k in ("fileName", "file", "path"))
+        has_body = any(k in o for k in ("severity", "title", "comment"))
+        if has_file and has_body:
+            out.append(o)
+        else:
+            for v in o.values():
+                if isinstance(v, (list, dict)):
+                    walk(v, out)
+
+raw = sys.stdin.read().replace("\r", "")
+records = []
+try:
+    walk(json.loads(raw), records)          # pretty-printed single JSON
+except Exception:
+    pass
+if not records:
+    buf = ""                                # JSONL, pretty or compact:
+    for ln in raw.splitlines():             # accumulate to balanced braces
+        buf += ln + "\n"
+        if buf.count("{") <= buf.count("}"):
+            try:
+                walk(json.loads(buf), records)
+            except Exception:
+                pass
+            buf = ""
+    if buf.strip():
+        try:
+            walk(json.loads(buf), records)
+        except Exception:
+            pass
+if not records:
+    print("RAWFALLBACK")
+    sys.exit(0)
+n = 0
+sevs = []
+for o in records:
+    f = o.get("fileName") or o.get("file") or o.get("path") or "?"
+    l = o.get("startLine")
+    if l is None:
+        l = o.get("line")
+    if l is None:
+        lr = o.get("lineRange") or {}
+        l = lr.get("start") if isinstance(lr, dict) else None
+    if l is None:
+        l = o.get("endLine") or "?"
+    s = str(o.get("severity") or "?")
+    # title fallbacks: null fields appear in the live stream even when
+    # the local store later fills them — never print ? while any
+    # descriptive text survives in the record
+    t = (o.get("title") or o.get("comment") or o.get("type")
+         or o.get("commentCategory") or "")
+    if not t and o.get("indicatorTypes"):
+        t = ", ".join(str(x) for x in o["indicatorTypes"])
+    t = str(t).strip().splitlines()[0][:100] if str(t).strip() else "(no title text in stream)"
+    n += 1
+    sevs.append(s)
+    print("- %s:%s [%s] %s" % (f, l, s, t))
+print("COUNT %d" % n)
+for s in sevs:
+    print("SEV " + s)
+CRPYEOF
+)"
+PARSER_OUT="$(printf '%s\n' "$review_json" | "$PY" -c "$PYCODE" 2>/dev/null)"
+n="$(printf '%s\n' "$PARSER_OUT" | sed -n 's/^COUNT //p' | tail -1)"
+sev="$(printf '%s\n' "$PARSER_OUT" | sed -n 's/^SEV //p' | tr '\n' ' ' | sed 's/ $//')"
+if [ -z "$n" ]; then
+    echo "  🐇 CodeRabbit findings (unparsed stream — eyes on, commit proceeds):" >&2
+    printf '%s' "$review_json" | head -c 600 >&2
+    echo >&2
+    n=0
+    sev=""
+else
+    echo "  🐇 CodeRabbit findings:" >&2
+    printf '%s\n' "$PARSER_OUT" | grep '^-' | sed 's/^/    /' >&2
+fi
+
+echo "  🐇 CodeRabbit: $n finding(s). Advisory only — commit proceeds." >&2
+echo "    (blockers seen:${sev:+ $sev})" >&2
+echo "    skip anytime: git commit --no-verify" >&2
+exit 0
