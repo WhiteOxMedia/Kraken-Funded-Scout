@@ -2310,23 +2310,30 @@ def _discipline_plate() -> str:
 
 
 def _render_cooldown_review():
-    """📞 TONIGHT'S REVIEW (user, Sep 21: "show the per-asset verdicts and
+    """\U0001F4DE TONIGHT'S REVIEW (user, Sep 21: "show the per-asset verdicts and
     money-left-on-the-table breakdown in the console so I can read
     tonight's review without waiting for her to speak"). Reads the DAY
-    row the scanner's 20:00 cooldown review writes into
-    discipline_state.json — the SAME assets the spoken line uses, one
-    verdict row per asset (took the goal / exited too soon / stayed too
-    long / bought the top / buried by the funnel) plus the money-left
-    breakdown by verdict class. Shows the latest review on record
-    (tonight's after 20:00, yesterday's before). Fail-soft: no review on
-    record yet renders nothing — the plate has not run."""
+    rows the scanner's 20:00 cooldown review writes into
+    discipline_state.json. Two layers, each independent:
+
+      \u2022 THE VERDICT-HISTORY STRIP \u2014 one glyph per DAY row (oldest
+        \u2192 newest, 30-day cap), colored by the day's worst leak, so the
+        pattern over time reads at a glance even on days whose review
+        predates per-asset rows.
+      \u2022 THE ASSET VERDICTS \u2014 the latest DAY row's per-asset verdict
+        rows plus the money-left breakdown, when that row carries them.
+
+    Fail-soft: a day with neither layer renders nothing (the plate has
+    not run); a broken state file renders nothing."""
     try:
         import discipline as _disc
         _st = _disc.load_state()
-        _day = next((h for h in reversed(_st.get("history") or [])
+        _hist = _st.get("history") or []
+        _day = next((h for h in reversed(_hist)
                      if h.get("rot") == "DAY"), None)
         assets = (_day or {}).get("assets") or []
-        if not assets:
+        _days = [h for h in _hist if h.get("rot") == "DAY"][-30:]
+        if not assets and not _days:
             return
         _VC = (("took the goal", "#4be38a"),
                ("exited too soon", "#ffc36b"),
@@ -2349,16 +2356,16 @@ def _render_cooldown_review():
             v = str(a.get("verdict", "?"))
             left = float(a.get("usd_left") or 0)
             if kind == "buried":
-                detail = (f"gate {a.get('gate') or '?'} · "
+                detail = (f"gate {a.get('gate') or '?'} \u00b7 "
                           f"${left:,.0f} theoretical")
             else:
                 entry = float(a.get("entry") or 0)
                 peak = float(a.get("peak") or 0)
                 run = (peak / entry - 1.0) * 100.0 if entry and peak else 0.0
                 detail = (f"peak +{run:.1f}% vs goal "
-                          f"{float(a.get('goal_pct') or 0):.1f}% · "
+                          f"{float(a.get('goal_pct') or 0):.1f}% \u00b7 "
                           f"realized ${float(a.get('realized') or 0):,.2f}"
-                          + (f" · ${left:,.0f} left" if left > 1 else ""))
+                          + (f" \u00b7 ${left:,.0f} left" if left > 1 else ""))
             rows.append(
                 f"<div style='padding:4px 0;"
                 f"border-bottom:1px solid rgba(255,255,255,0.08);"
@@ -2372,22 +2379,75 @@ def _render_cooldown_review():
             k = str(a.get("verdict", "?"))
             cls[k] = cls.get(k, 0.0) + float(a.get("usd_left") or 0.0)
         total = sum(cls.values())
-        bd = " · ".join(
+        bd = " \u00b7 ".join(
             f"<span style='color:{_vcol(k)};'>{k.split(' - ')[0]} "
             f"${v:,.0f}</span>"
             for k, v in sorted(cls.items(), key=lambda kv: -kv[1]) if v > 0)
+
+        # \u2500\u2500 THE VERDICT-HISTORY STRIP \u2500\u2500 one glyph per DAY row,
+        # colored by the day's worst leak. Rows written before
+        # top_verdict existed derive their worst leak from the
+        # persisted usd_left component map; a day with nothing left on
+        # the table is a green glyph.
+        _COMP = (("system_burial", "buried by the funnel", "#9a86ff"),
+                 ("giveback", "gave back after the goal", "#ffc36b"),
+                 ("missed_exit", "goal hit, never exited", "#ff6b5e"),
+                 ("early_exit", "exited too soon", "#ffc36b"),
+                 ("missed", "missed the popup", "#ffc36b"))
+        _glyphs = []
+        for _h in _days:
+            _d = str(_h.get("date"))[5:]
+            _tv = _h.get("top_verdict")
+            _total = float(_h.get("total_left") or 0)
+            _name, _usd, _col = "clean - nothing leaked", 0.0, "#4be38a"
+            if _tv:
+                _name = str(_tv[0])
+                _usd = float(_tv[1] or 0.0)
+                _col = _vcol(_name)
+            elif _total > 1:
+                _ul = _h.get("usd_left") or {}
+                _ck = max(_COMP, key=lambda t: float(_ul.get(t[0]) or 0.0))
+                _usd = float(_ul.get(_ck[0]) or 0.0)
+                if _usd > 0:
+                    _name, _col = _ck[1], _ck[2]
+            _glyphs.append(
+                f"<span style='color:{_col};font-size:15px;' "
+                f"title='{_d}: {_name} - ${_usd:,.0f} left'>\u25a0</span>")
+        _strip = ""
+        if _glyphs:
+            _strip = (
+                "<div style='font-family:Share Tech Mono,monospace;"
+                "font-size:12px;padding:8px 2px 0;color:#d8ccb4;'>"
+                "the book's leaks, day by day (oldest \u2192 newest): "
+                + "".join(_glyphs)
+                + "<span class='dim' style='font-size:11px;'>"
+                "&nbsp; green clean \u00b7 amber exited early \u00b7 red held too "
+                "long \u00b7 violet buried by the funnel</span></div>")
+
+        _label = ((_day or {}).get("date", "") if assets
+                  else f"{len(_days)} days on record")
         with st.expander(
-                f"📞 TONIGHT'S REVIEW — every asset the day touched, the "
-                f"verdicts and the money left ({_day.get('date', '')})",
+                f"\U0001F4DE TONIGHT'S REVIEW \u2014 every asset the day touched, the "
+                f"verdicts and the money left ({_label})",
                 key="cooldown_review_expander"):
-            st.markdown("".join(rows), unsafe_allow_html=True)
+            if rows:
+                st.markdown("".join(rows), unsafe_allow_html=True)
+            if _strip:
+                st.markdown(_strip, unsafe_allow_html=True)
             if bd:
                 st.markdown(
                     f"<div style='font-family:Share Tech Mono,monospace;"
                     f"font-size:12.5px;padding:8px 2px 2px;color:#d8ccb4;'>"
-                    f"<b>${total:,.0f} left on the table</b> — {bd}</div>",
+                    f"<b>${total:,.0f} left on the table</b> \u2014 {bd}</div>",
                     unsafe_allow_html=True)
-            st.caption(f"as of {_now_mst().strftime('%H:%M')} MST — the "
+            if not rows and not bd:
+                st.markdown(
+                    "<div class=\'dim\' style=\'font-family:Share Tech Mono,"
+                    "monospace;font-size:12px;padding:4px 2px;\'>"
+                    "tonight\'s review predates the per-asset rows \u2014 the "
+                    "day-by-day strip above is the record so far.</div>",
+                    unsafe_allow_html=True)
+            st.caption(f"as of {_now_mst().strftime('%H:%M')} MST \u2014 the "
                        f"cooldown review's own verdicts (the same rows her "
                        f"20:00 line speaks), read live each rerun")
     except Exception as exc:

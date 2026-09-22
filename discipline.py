@@ -117,6 +117,8 @@ def save_state(state: dict) -> None:
 #       (a gate behaving) gives nothing. Fail-closed everywhere.
 SEAM_RELIEF_MAX_PTS = 4.0    # hard cap: never wider than 4 popup-floor pts
 SEAM_RELIEF_DECAY_H = 8.0    # relief fades to zero 8h after the last lesson
+SEAM_RELEASE_SLACK = 5.0     # the journal release: a candidate within 5 pts
+                             # of the gate's bar is a near-miss it may re-see
 
 
 def record_burial_ledger(state: dict, result: dict) -> None:
@@ -183,6 +185,37 @@ def gate_relief(gate: str, now=None) -> float:
         return round(min(SEAM_RELIEF_MAX_PTS, max(pts, 0.0)), 2)
     except Exception:
         return 0.0   # fail-closed: a broken journal opens nothing
+
+
+def journal_release(gate: str, quick: float, floor: float, now=None) -> bool:
+    """THE JOURNAL RELEASE (Sep 21, the verdict-cost study: deep-veto was
+    the single largest mispriced pool — 86 burials, 86 high-quality, 24
+    of them ran +3% after). When a gate buries champion-grade candidates
+    that go on to pay, the journal grants ONE release: the candidate's
+    quick score must sit within SEAM_RELEASE_SLACK points of the gate's
+    bar (deep-veto's soft edge is HOLD-vs-SELL — SELL always stands).
+    Same caps as every relief: the journal's total for the gate (buried
+    payers minus duds, the learned burial weight) capped at
+    SEAM_RELIEF_MAX_PTS, decaying to zero over SEAM_RELIEF_DECAY_H —
+    a mispriced funnel eases, a behaving funnel gives nothing.
+    gate_relief decides from the journal's own hindsight; this reads
+    the LIVE candidate — fail-closed everywhere (a broken journal
+    releases nothing)."""
+    try:
+        if floor is None or quick is None:
+            return False
+        if float(quick) + SEAM_RELEASE_SLACK < float(floor):
+            return False
+        return journal_release_pts(gate, now) > 0.0
+    except Exception:
+        return False
+
+
+def journal_release_pts(gate: str, now=None) -> float:
+    """The relief number the release rides — gate_relief's exact math.
+    Kept separate so the gates can show the points in their log line
+    while journal_release() stays a boolean decision."""
+    return gate_relief(gate, now=now)
 
 
 def _rot_window(rot_key: str, date: datetime):
@@ -815,6 +848,12 @@ def cooldown_review(exchange=None, when=None, speak=True, dry_run=False) -> dict
     # the SAME component arithmetic the rotation score uses.
     assets = _day_assets(exchange, _today, state)
 
+    # ── 6c. THE BOOK-WIDE VERDICT COST (user, Sep 21): the study's
+    # ranking rides the nightly line — the top verdict class across ALL
+    # closed trades, not just today's, so the biggest leak is named
+    # every night and the DAY row carries its history.
+    _topv = _top_verdict_class()
+
     # ── 6. the aggregate learning step — the day itself is one lesson on
     # the SAME weights the rotation score nudges. The brain log learns
     # from the day in the same way.
@@ -852,6 +891,7 @@ def cooldown_review(exchange=None, when=None, speak=True, dry_run=False) -> dict
     if _alead:
         lesson = f"{lesson} {_alead}"
         _day_result["lesson"] = lesson
+    _day_result["top_verdict"] = _topv
 
     # ── 7. persist: the day entry rides the history (one per day) and
     # the lesson rides the lessons log — the console's brain-log readers
@@ -865,6 +905,7 @@ def cooldown_review(exchange=None, when=None, speak=True, dry_run=False) -> dict
             "total_left": total_left, "realized_pnl": _realized,
             "balance_after": _bal, "usd_left": _day_result["usd_left"],
             "top_gate": _day_result["top_gate"], "ts": _now().isoformat(),
+            "top_verdict": _topv,
         })
         state["history"] = state["history"][-60:]
         save_state(state)
@@ -886,6 +927,7 @@ def cooldown_review(exchange=None, when=None, speak=True, dry_run=False) -> dict
         "weight_deltas": _deltas,
         "assets": assets,
         "lesson": lesson,
+        "top_verdict": _topv,
     }
 
 
@@ -906,6 +948,13 @@ def _speak_cooldown_review(result, pace, realized, n_trades, tide_txt,
                 _p.append(f"the {result['top_gate']} gate buried the most")
         if tide_txt:
             _p.append(f"the tide closed {tide_txt}")
+        if result.get("top_verdict"):
+            _tv = result["top_verdict"]
+            _tv_name = str(_tv[0]).split(" - ")[0]
+            _lesson_txt = str(result.get("lesson") or "").lower()
+            if _tv_name.lower() not in _lesson_txt:
+                _p.append(f"the costliest pattern on the book is "
+                          f"{_tv_name} at {_tv[1]:,.0f} dollars")
         # the asset story rides the lesson (appended once, by the
         # review) — the lesson is the last clause; no separate asset
         # line, she would say it twice
@@ -1169,3 +1218,27 @@ def _asset_lead(assets):
     if real:
         return "Every asset taken closed clean - nothing leaked."
     return ""
+
+
+def _top_verdict_class():
+    """The most expensive verdict class across the closed-trade ledger,
+    from _verdict_study.grade_trades() (the same candle-derived peaks the
+    study's dial proposals were built on). User, Sep 21: the nightly
+    review speaks the current top verdict class and its dollar cost, so
+    the book's biggest leak is named every night, not just in studies.
+    (verdict, usd_left) or None — fail-soft: an unreadable ledger or
+    candle store says nothing, never breaks the review."""
+    try:
+        import _verdict_study as _vs
+        graded = _vs.grade_trades()
+        by = {}
+        for g in graded:
+            k = str(g.get("verdict") or "?")
+            by[k] = by.get(k, 0.0) + float(g.get("left") or 0.0)
+        by = {k: v for k, v in by.items() if v > 0}
+        if not by:
+            return None
+        k = max(by, key=by.get)
+        return (k, round(by[k], 2))
+    except Exception:
+        return None

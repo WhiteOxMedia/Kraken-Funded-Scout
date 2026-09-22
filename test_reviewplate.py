@@ -139,5 +139,61 @@ try:
 except Exception as e:
     check("broken state fails soft (no raise, nothing rendered)", False, e)
 
+# ── 5. the verdict-history strip ─────────────────────────────────
+STUB.markdowns.clear()
+_disc.load_state = lambda: {"history": [
+    {"rot": "DAY", "date": "2026-09-19", "total_left": 704.2,
+     "usd_left": {"system_burial": 704.2, "missed": 0.0}},   # legacy row
+    {"rot": "DAY", "date": "2026-09-20", "total_left": 22.0,
+     "usd_left": {"early_exit": 22.0, "system_burial": 0.0},
+     "top_verdict": None},
+    {"rot": "DAY", "date": "2026-09-21", "total_left": 50.0,
+     "usd_left": {},
+     "top_verdict": ("stayed too long - gave back over half the peak", 50.0)},
+    {"rot": "DAY", "date": "2026-09-22", "total_left": 0.0,
+     "usd_left": {}, "top_verdict": None},
+]}
+render()
+strip_md = [m for m in STUB.markdowns if "day by day" in m]
+check("strip renders when DAY rows exist", bool(strip_md))
+s = strip_md[-1] if strip_md else ""
+check("one glyph per DAY row", s.count("■") == 4, s.count("■"))
+check("today's top_verdict paints red (held too long)",
+      "#ff6b5e" in s)
+check("legacy row derives the burial violet from its usd map",
+      "#9a86ff" in s)
+check("legacy early-exit row derives amber",
+      s.count("#ffc36b") == 1)
+check("a clean day paints green", "#4be38a" in s)
+check("titles carry date, class and dollars",
+      "09-21: stayed too long - gave back over half the peak - $50 left"
+      in s and "09-19: buried by the funnel - $704 left" in s)
+check("clean title says nothing leaked",
+      "09-22: clean - nothing leaked - $0 left" in s)
+check("legend present", "green clean" in s and "violet buried" in s)
+
+# oldest -> newest: title dates appear in ascending order in the html
+import re as _re
+dates = _re.findall(r"title='(\d\d-\d\d):", s)
+check("glyphs run oldest to newest", dates == sorted(dates), dates)
+
+# the 30-day cap
+_disc.load_state = lambda: {"history": [
+    {"rot": "DAY", "date": f"2026-08-{d:02d}", "total_left": 5.0,
+     "usd_left": {"missed": 5.0}, "top_verdict": None}
+    for d in range(1, 41)]}
+STUB.markdowns.clear()
+render()
+strip_md = [m for m in STUB.markdowns if "day by day" in m]
+check("strip caps at 30 days", bool(strip_md)
+      and strip_md[-1].count("■") == 30, strip_md[-1].count("■") if strip_md else 0)
+
+# no DAY rows -> no strip (and no rows)
+STUB.markdowns.clear()
+_disc.load_state = lambda: {"history": [{"rot": "0-4", "score": 70.0}]}
+render()
+check("no DAY rows -> no strip",
+      not any("day by day" in m for m in STUB.markdowns))
+
 print(f"RESULT: {PASS} passed, {FAIL} failed")
 sys.exit(1 if FAIL else 0)

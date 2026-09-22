@@ -777,23 +777,35 @@ def popup_journal(kind: str, title: str, text: str):
     except Exception:
         logger.debug("popup journal write failed", exc_info=True)
 CONSOLE_STATE_JSON = os.path.join(os.path.dirname(os.path.abspath(__file__)), "console_state.json")
-CONTEST_TRAIL_PCT = 3.0   # BASE trail off the peak — ratchets tighter on big
-                          # runs (see _ratchet_trail_pct): 2% after +$100,
-                          # 1.5% after +$200 (user rule, Aug 26: TAO ran nine
-                          # twenties and gave back $150 before a flat 3% trail
-                          # called the exit — big runs earn tight protection)
+CONTEST_TRAIL_PCT = 3.0   # BASE trail off the peak — ratchets tighter as the
+                          # run grows in PEAK-PERCENT terms (see
+                          # _ratchet_trail_pct): 2% once the peak reached
+                          # +1% of entry, 1.5% at +2% (user rule, Aug 26:
+                          # TAO ran nine twenties and gave back $150 before
+                          # a flat 3% trail called the exit — big runs earn
+                          # tight protection). RE-BASED Sep 21 from the
+                          # tier-blind +$100/+$200 thresholds, which engaged
+                          # ZERO times in the 48-trade ledger at the current
+                          # tier (the verdict-cost study: +$100 needed a
+                          # +21% peak at a $470 entry) — peak-percent terms
+                          # engage on any real run at every tier.
 
 
 def _ratchet_trail_pct(entry: float, high: float, size: float) -> float:
-    """Trail width ratchets down as the run grows: 3% base, 2% once the run
-    reached +$100, 1.5% after +$200. The more twenties she called, the less
-    room the giveback gets."""
+    """Trail width ratchets down as the run grows: 3% base, 2% once the
+    peak reached +1% of entry, 1.5% at +2%. Re-based Sep 21 to
+    PEAK-PERCENT thresholds — the old +$100/+$200 dollar thresholds were
+    tier-blind and never fired at the current tier, while percent terms
+    engage on any real run regardless of size. `size` stays in the
+    signature for call-site stability; the thresholds are deliberately
+    size-independent so the trail width cannot drift when the contest
+    tier changes."""
     if not entry or not high or high <= entry:
         return CONTEST_TRAIL_PCT
-    peak_usd = (high / entry - 1.0) * size
-    if peak_usd >= 200.0:
+    peak_pct = (high / entry - 1.0) * 100.0
+    if peak_pct >= 2.0:
         return 1.5
-    if peak_usd >= 100.0:
+    if peak_pct >= 1.0:
         return 2.0
     return CONTEST_TRAIL_PCT
 CONTEST_SELL_BAR = 50
@@ -4115,18 +4127,48 @@ def main():
                     # the entry upstream; a 40% read fires at 0.10x, it is
                     # not buried here).
                     if _deep.action != "buy":
-                        logger.info("  DEEP VETO (desktop): %s deep-reads %s %.0f%% — the scan contradicts the buy",
-                                    asset, _deep.action, _deep.confidence)
-                        _log_suppression(pair, "deep-veto",
-                                         f"deep-reads {_deep.action} {_deep.confidence:.0f}% "
-                                         f"— the scan's direction contradicts the buy "
-                                         f"(the number is advisory, the direction is not)",
-                                         quick=float(signal.confidence),
-                                         brain=float(_deep.confidence),
-                                         floor=float(DESKTOP_ALERT_MIN),
-                                         tide=(f"{_df_state} {_df_pct:.0f}%" if _df_pct is not None else _df_state),
-                                         rot=_rot_now_key)
-                        return
+                        # THE JOURNAL RELEASE (Sep 21, the verdict-cost study:
+                        # deep-veto was the largest mispriced pool — 86
+                        # burials, 86 high-quality, 24 ran +3% after) — the
+                        # SOFT edge only: a HOLD near the floor with the
+                        # journal's champion-grade hindsight on this gate
+                        # becomes a pass. A SELL always stands; a broken
+                        # journal vetoes (fail-closed, like every relief).
+                        _rel_pts = 0.0
+                        _released = False
+                        if _deep.action == "hold":
+                            try:
+                                import discipline as _dc_r
+                                _rel_pts = _dc_r.journal_release_pts("deep-veto")
+                                if (_rel_pts > 0.0
+                                        and float(signal.confidence)
+                                        + _dc_r.SEAM_RELEASE_SLACK
+                                        >= float(DESKTOP_ALERT_MIN)):
+                                    _released = True
+                            except Exception:
+                                _rel_pts = 0.0
+                        if _released:
+                            logger.info(
+                                "  JOURNAL RELEASE (desktop): %s deep-reads hold %.0f%% — "
+                                "quick %.0f%% within %s pts of the floor %.0f%%; the journal "
+                                "shows deep-veto burying champion-grade payers "
+                                "(relief %.1f pts) — released",
+                                asset, _deep.confidence, float(signal.confidence),
+                                _dc_r.SEAM_RELEASE_SLACK, float(DESKTOP_ALERT_MIN),
+                                _rel_pts)
+                        else:
+                            logger.info("  DEEP VETO (desktop): %s deep-reads %s %.0f%% — the scan contradicts the buy",
+                                        asset, _deep.action, _deep.confidence)
+                            _log_suppression(pair, "deep-veto",
+                                             f"deep-reads {_deep.action} {_deep.confidence:.0f}% "
+                                             f"— the scan's direction contradicts the buy "
+                                             f"(the number is advisory, the direction is not)",
+                                             quick=float(signal.confidence),
+                                             brain=float(_deep.confidence),
+                                             floor=float(DESKTOP_ALERT_MIN),
+                                             tide=(f"{_df_state} {_df_pct:.0f}%" if _df_pct is not None else _df_state),
+                                             rot=_rot_now_key)
+                            return
                     from indicators import ema as _ema3
                     _es = float(_ema3(_df["close"], cfg.ema_short).iloc[-1])
                     _el = float(_ema3(_df["close"], cfg.ema_long).iloc[-1])
@@ -5283,6 +5325,19 @@ def main():
                         # (the PUMP lesson: never buy what the brain dislikes).
                         # Fail-open on errors, same as the bridge pre-check.
                         try:
+                            # THE JOURNAL RELEASE for the mover's deep-veto
+                            # too (Sep 21): near-bar HOLD + the journal's
+                            # champion-grade hindsight on deep-veto = pass;
+                            # SELL still buries. Fail-closed.
+                            _m_release, _m_rel_pts, _dc_r = False, 0.0, None
+                            _m_released_said = False
+                            try:
+                                import discipline as _dc_r
+                                _m_rel_pts = _dc_r.journal_release_pts("deep-veto")
+                                if _m_rel_pts > 0.0:
+                                    _m_release = True
+                            except Exception:
+                                _m_release = False
                             from strategy import evaluate_strategy as _ev, \
                                 enable_deep_analysis, disable_deep_analysis
                             enable_deep_analysis()
@@ -5291,16 +5346,31 @@ def main():
                             from indicators import ema as _ema_mv
                             _es_mv = float(_ema_mv(df["close"], cfg.ema_short).iloc[-1])
                             _el_mv = float(_ema_mv(df["close"], cfg.ema_long).iloc[-1])
-                            if (_deep_sig.action != "buy" or _deep_sig.confidence < 60
+                            if (_deep_sig.action == "sell"
+                                    or (_deep_sig.action == "hold"
+                                        and (not _m_release
+                                             or _deep_sig.confidence
+                                             + _dc_r.SEAM_RELEASE_SLACK < 60))
+                                    or (_deep_sig.action == "buy"
+                                        and _deep_sig.confidence < 60)
                                     or (_es_mv < _el_mv and float(df["close"].iloc[-1]) < _el_mv)):
-                                logger.info("  MOVER VETO: %s deep-reads %s %.0f%% — the brain says no",
-                                            asset, _deep_sig.action, _deep_sig.confidence)
-                                _log_suppression(pair, "deep-veto",
-                                                 f"mover: deep-reads {_deep_sig.action} "
-                                                 f"{_deep_sig.confidence:.0f}% — the brain says no",
-                                                 quick=float(signal.confidence),
-                                                 brain=float(_deep_sig.confidence), rot=rot_key)
-                                continue
+                                if _deep_sig.action == "hold" and _m_release \
+                                        and not _m_released_said:
+                                    logger.info(
+                                        "  JOURNAL RELEASE (mover): %s deep-reads hold %.0f%% — "
+                                        "near the 60 bar with the journal's champion-grade "
+                                        "hindsight on deep-veto (relief %.1f pts) — released",
+                                        asset, _deep_sig.confidence, _m_rel_pts)
+                                    _m_released_said = True
+                                else:
+                                    logger.info("  MOVER VETO: %s deep-reads %s %.0f%% — the brain says no",
+                                                asset, _deep_sig.action, _deep_sig.confidence)
+                                    _log_suppression(pair, "deep-veto",
+                                                     f"mover: deep-reads {_deep_sig.action} "
+                                                     f"{_deep_sig.confidence:.0f}% — the brain says no",
+                                                     quick=float(signal.confidence),
+                                                     brain=float(_deep_sig.confidence), rot=rot_key)
+                                    continue
                         except Exception as _exc:
                             logger.debug("mover deep read unavailable for %s: %s (fail-open)", pair, _exc)
 

@@ -163,5 +163,76 @@ if not bs._day_review_spoken(now):
 else:
     print("NOTE: today's review already ran live - guard held end to end (proof, not a failure)")
 
+# ── G. the book-wide verdict cost on the nightly line (Sep 21) ──────
+import types as _types
+_vs = _types.ModuleType("_verdict_study")
+_vs.grade_trades = lambda: [
+    {"verdict": "stayed too long - gave back over half the peak", "left": 40.0},
+    {"verdict": "stayed too long - gave back over half the peak", "left": 25.0},
+    {"verdict": "bought the top - the coin never ran", "left": 10.0},
+    {"verdict": "took the goal - the discipline shape", "left": 0.0},
+]
+sys.modules["_verdict_study"] = _vs
+_rv1 = disc._top_verdict_class()
+print("      top verdict ->", _rv1)
+check("top verdict class is the costliest",
+      _rv1 == ("stayed too long - gave back over half the peak", 65.0))
+_vs.grade_trades = lambda: [{"verdict": "took the goal", "left": 0.0}]
+check("all-zero classes -> None (no chatter)", disc._top_verdict_class() is None)
+_vs.grade_trades = lambda: (_ for _ in ()).throw(RuntimeError("boom"))
+check("broken study -> None (fail-soft)", disc._top_verdict_class() is None)
+sys.modules.pop("_verdict_study", None)
+_rtv = disc._top_verdict_class()   # the REAL study, through the same helper
+print("      real study ->", _rtv)
+check("real study returns a (name, usd) pair",
+      _rtv is None or (isinstance(_rtv, tuple)
+                       and isinstance(_rtv[0], str) and _rtv[1] >= 0))
+
+# the review carries it (dry-run, stubbed study) and the line speaks it
+sys.modules["_verdict_study"] = _vs
+_vs.grade_trades = lambda: [
+    {"verdict": "stayed too long - gave back over half the peak", "left": 65.0}]
+rev_g = disc.cooldown_review(when=now, speak=False, dry_run=True)
+check("the review's result carries top_verdict",
+      rev_g.get("top_verdict") == ("stayed too long - gave back over "
+                                   "half the peak", 65.0))
+spoke = []
+_orig_speak = bs._speak_server
+try:
+    bs._speak_server = lambda line, rate=1: spoke.append(line)
+    disc._speak_cooldown_review(
+        {"total_left": 704.2, "top_gate": "downward-trend",
+         "top_verdict": ("stayed too long - gave back over half the peak",
+                         64.78),
+         "lesson": "Every asset taken closed clean - nothing leaked."},
+        240.0, 12.94, 2, "flat (61% of the fleet up)", 0)
+finally:
+    bs._speak_server = _orig_speak
+    sys.modules.pop("_verdict_study", None)
+print("      spoken line ->", spoke[:1])
+check("the nightly line names the costliest pattern",
+      bool(spoke) and "costliest pattern" in spoke[0]
+      and "stayed too long" in spoke[0] and "65 dollars" in spoke[0])
+spoke.clear()
+try:
+    bs._speak_server = lambda line, rate=1: spoke.append(line)
+    disc._speak_cooldown_review(
+        {"total_left": 0.0, "top_gate": None,
+         "top_verdict": ("stayed too long - gave back over half the peak",
+                         64.78),
+         "lesson": ("FARTCOIN: stayed too long - gave back over half the "
+                    "peak - $14 of the move went with it.")},
+        240.0, 0.0, 0, None, 0)
+    check("no doubled pattern when the lesson already names it",
+          bool(spoke) and "costliest pattern" not in spoke[0])
+    spoke.clear()
+    disc._speak_cooldown_review(
+        {"total_left": 0.0, "top_gate": None, "top_verdict": None,
+         "lesson": ""}, 240.0, 0.0, 0, None, 0)
+    check("no pattern clause when the study says nothing",
+          bool(spoke) and "costliest pattern" not in spoke[0])
+finally:
+    bs._speak_server = _orig_speak
+
 print(f"RESULT: {PASS} passed, {FAIL} failed")
 sys.exit(1 if FAIL else 0)
