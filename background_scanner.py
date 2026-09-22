@@ -778,6 +778,12 @@ def popup_journal(kind: str, title: str, text: str):
         logger.debug("popup journal write failed", exc_info=True)
 CONSOLE_STATE_JSON = os.path.join(os.path.dirname(os.path.abspath(__file__)), "console_state.json")
 CONTEST_TRAIL_PCT = 3.0   # BASE trail off the peak — ratchets tighter as the
+# THE HALF-GOAL ARM (user rule, Sep 22: "trigger the profit guard half the
+# way to the goal instead of waiting until the goal is reached"): the
+# goal-armed trail LATCHES at half the goal, and the armed trail caps at
+# the same half-goal width (floor 1.0%) — the net that used to be a
+# goal-reached privilege is a halfway milestone now.
+GOAL_TRAIL_ARM_FRAC = 0.5
                           # run grows in PEAK-PERCENT terms (see
                           # _ratchet_trail_pct): 2% once the peak reached
                           # +1% of entry, 1.5% at +2% (user rule, Aug 26:
@@ -2661,6 +2667,7 @@ def auto_track_popup(pair: str, entry: float, size: float, goal_pct: float,
         w[pair] = {"entry": float(entry or 0.0),
                    "high": float(entry or 0.0),
                    "added": _now_mst().isoformat(),
+                   "opened_ts": _now_mst().isoformat(),
                    "size": float(size or 0.0),
                    "goal_pct": float(goal_pct or 0.0),
                    "window_min": float(window_min or 0.0),
@@ -2949,6 +2956,15 @@ def contest_light(exchange, cfg):
     exited_pairs = []
     voice_updates = []
     dirty = False
+    # ── THE META LAYERS' TICKERS (user spec, Sep 22): the shadow trails
+    # follow their exits and the end-game triggers watch the rotation
+    # roll — both cadence-gated inside, fail-soft like everything here.
+    try:
+        import meta_layers as _mlt
+        _mlt.shadow_trail_tick(list(watch.keys()), exchange=exchange)
+        _mlt.endgame_trigger_check()
+    except Exception:
+        pass
     for pair, w in list(watch.items()):
         asset = pair.split("/")[0]
         try:
@@ -2967,37 +2983,98 @@ def contest_light(exchange, cfg):
             w["high"] = high
             dirty = True
 
-        # ── 1. profit guard: trail off the peak, RATCHETED by run size ──
-        # (user rule, Aug 26: nine twenties gave back $150 before a flat
-        # trail called the exit — the ratchet tightens as the run grows)
+        # ── 1. profit guard: trail off the peak, RATCHETED by run size, ──
+        # then SCALED BY THE ADAPTIVE GUARD FACTOR (user spec, Sep 22:
+        # "GuardFactor = EnvScore * DiscMod * (1 + MLT_Corr) * VolMod *
+        # AssetMemory * FundingMod * DecayMod" — strong context widens
+        # the trail, weak context tightens it; unreadable context keeps
+        # the committed fixed rules)
         should_exit = False
         reason = ""
+        _pgres = None
+        _pgf = None
+        try:
+            import profit_guard as _pg
+            _pgres = _pg.guard_factor(pair, w)
+            if _pgres.get("readable"):
+                _pgf = float(_pgres["factor"])
+        except Exception:
+            _pgres = None
+        # ── THE META LAYERS (user spec, Sep 22): RCL runs BEFORE the
+        # factor is finalized, SAL's stored adjustment multiplies after,
+        # End-Game Mode's trail/lock-in override rides the verdict.
+        _meta = None
+        _eg_m = None
+        try:
+            import meta_layers as _ml
+            _pgf, _meta = _ml.finalize(pair, _pgf)
+            if _meta.get("endgame"):
+                _eg_m = _ml.endgame_scales()
+        except Exception:
+            _meta = None
         _trail = _ratchet_trail_pct(entry, high, size)
+        if _pgf is not None:
+            _trail = round(_trail * _pgf, 3)
+        if _eg_m is not None:
+            _trail = round(_trail * _eg_m[0], 3)
         # ── 1c. GOAL-ARMED TRAIL (user rule, Sep 21: "after the goal is
         # hit, trail a stop just under the recent high — keep riding the
         # climb, lock the profit when it turns; never wait for a full
-        # trend break"). Once the goal is touched the profit-guard trail
-        # caps at half the goal (never looser than 1.0%) under the tracked
-        # peak. The arm is LATCHED in the watch row, so a dip back to the
-        # goal can't disarm it — the net, once set, stays set. Above the
-        # stop the position rides every new high; the turn fires the same
+        # trend break"). HALF-GOAL ARM (Sep 22: trigger the profit guard
+        # half the way to the goal): the trail latches at
+        # GOAL_TRAIL_ARM_FRAC (0.5) of the goal and, once armed, caps at
+        # the same half-goal width (never looser than 1.0%) under the
+        # tracked peak. The arm is LATCHED in the watch row, so a dip back
+        # can't disarm it — the net, once set, stays set. Above the stop
+        # the position rides every new high; the turn fires the same
         # GET OUT (popup → push → auto-close) as every other gate.
         _goal_tr = float(w.get("goal_pct") or 0) or _window_goal_pct(pair)
+        _arm_at = _goal_tr * GOAL_TRAIL_ARM_FRAC
         if not w.get("trail_armed") and _goal_tr > 0 \
-                and (live / entry - 1.0) * 100.0 >= _goal_tr:
+                and (live / entry - 1.0) * 100.0 >= _arm_at:
             w["trail_armed"] = True
             dirty = True
         if w.get("trail_armed") and _goal_tr > 0:
-            _trail = min(_trail, max(_goal_tr * 0.5, 1.0))
+            # armed cap = goal * ARM_FRAC * (BASE_LOCK_IN / lockin_pct):
+            # since lockin_pct = BASE_LOCK_IN / GF, the cap is the
+            # half-goal width scaled by GF — strength waits for the full
+            # goal, weakness locks the crumbs early (spec step 9).
+            # (Sep 22, the CodeRabbit major): the WIDTH cap alone cannot
+            # lock profit — at a 2% goal the arm gain is 1%, but the
+            # ratchet band at that peak is 2%, so the stop lands BELOW
+            # entry and net of the 0.08% round-trip cost an armed exit
+            # could book a LOSS while the reason says profit is locked.
+            # The stop is therefore PRICE-floored: it can never sit below
+            # entry + 2x the round-trip cost (net-positive by one cost
+            # unit). Near the arm point this tightens the net; a real
+            # climb (peak well above entry) never feels it.
+            _cap = max(_goal_tr * GOAL_TRAIL_ARM_FRAC, 1.0)
+            if _pgf is not None:
+                _cap = round(_cap * _pgf, 3)
+            try:
+                from contest_account import COST_ROUNDTRIP_PCT as _rt_pct
+                _lock_w = max(0.0, (1.0 - entry * (1.0 + 2.0 * _rt_pct / 100.0)
+                                    / high) * 100.0)
+                if _lock_w > 0:
+                    _cap = min(_cap, round(_lock_w, 3))
+            except Exception:
+                pass
+            _trail = min(_trail, _cap)
         if high > entry and live <= high * (1 - _trail / 100):
             _peak_usd = (high / entry - 1.0) * size
             should_exit = True
             reason = (f"PROFIT GUARD FIRED — dropped {(high - live) / high * 100:.1f}% from the peak "
                       f"(trail ratcheted to {_trail:.1f}% — the run reached +${_peak_usd:.0f})")
             if w.get("trail_armed"):
-                reason += (f" — GOAL TRAIL: the +{_goal_tr:.1f}% goal was hit, "
-                           f"so the stop sits {_trail:.1f}% under the peak "
-                           f"{high:.5f} and the profit is locked")
+                reason += (f" — HALF-GOAL TRAIL: the run reached +{_arm_at:.1f}% "
+                           f"(half the +{_goal_tr:.1f}% goal), so the stop sits "
+                           f"{_trail:.1f}% under the peak "
+                           f"and the profit is locked (above entry + costs)")
+            if _pgres is not None and _pgres.get("readable"):
+                try:
+                    reason += f" — ADAPTIVE GUARD: {_pg.explain(_pgres, asset)}"
+                except Exception:
+                    pass
 
         # ── 1b. THE HARD STOP — tier-aware (user rule, Sep 1: "everything
         # should auto adjust when the contest is selected"): the old fixed
@@ -3151,6 +3228,44 @@ def contest_light(exchange, cfg):
                             "closed_by": "getout",
                             "exit_reason": reason[:200],
                         }) + "\n")
+                    # ── THE SELF-AUDIT LAYER (user spec, Sep 22): after
+                    # every close, count the rule violations the row can
+                    # prove, feed tomorrow's guard (>=3 -> x0.85 + the
+                    # confidence dock; 0 -> penalty decay + x1.05).
+                    try:
+                        import meta_layers as _mla
+                        _aud = _mla.audit_close(
+                            {"pair": pair, "entry": _entry_x,
+                             "exit": _live_x, "goal_pct": w.get("goal_pct"),
+                             "exit_reason": reason, "closed_by": "getout"},
+                            w)
+                        if _aud.get("violations"):
+                            logger.warning("SAL: %s closed with %d rule "
+                                           "violations — tomorrow's guard "
+                                           "adjusts", pair, _aud["violations"])
+                    except Exception as _sal_exc:
+                        logger.debug("self-audit failed: %s", _sal_exc)
+                    # ── THE POST-EXIT SHADOW TRAIL (user spec, Sep 22):
+                    # track what the market does after we leave — the
+                    # next high, pullback, breakout, liquidity surge —
+                    # so graduation writes the miss into the ledgers.
+                    try:
+                        import meta_layers as _mlsh
+                        _mlsh.shadow_trail_start(pair, _live_x, w)
+                    except Exception as _sh_exc:
+                        logger.debug("shadow trail start failed: %s", _sh_exc)
+                    # ── RE-ENTRY AWARENESS (user spec, Sep 22): the five
+                    # conditions decide whether the trend that just paid
+                    # deserves a marked candidate for its next setup.
+                    try:
+                        import meta_layers as _mlre
+                        _re = _mlre.reentry_candidate_check(pair)
+                        if _re.get("eligible"):
+                            logger.info("RE-ENTRY CANDIDATE: %s — the "
+                                        "trend still lives, the next "
+                                        "clean setup may re-enter", asset)
+                    except Exception as _re_exc:
+                        logger.debug("re-entry check failed: %s", _re_exc)
                     _sign_x = "+" if _net >= 0 else "-"
                     _closed_note = (f"Closed at fire time — {_sign_x}${abs(_net):,.2f} net "
                                     f"(0.08% RT cost incl.)")
@@ -3286,11 +3401,39 @@ def contest_light(exchange, cfg):
         # is already set under the peak — visible before it ever fires
         # (user rule: she must be able to hear the plan, not read code)
         if w.get("trail_armed") and _goal > 0:
-            _trail_now = min(_ratchet_trail_pct(entry, high, size),
-                             max(_goal * 0.5, 1.0))
+            # the voice computes the SAME stop the exit enforces — the
+            # adaptive factor scales both sides identically (parity)
+            _vgf = None
+            try:
+                import profit_guard as _pgv
+                _vres = _pgv.guard_factor(pair, w)
+                if _vres.get("readable"):
+                    _vgf = float(_vres["factor"])
+            except Exception:
+                _vgf = None
+            _trail_now = _ratchet_trail_pct(entry, high, size)
+            _cap_now = max(_goal * GOAL_TRAIL_ARM_FRAC, 1.0)
+            try:
+                from contest_account import COST_ROUNDTRIP_PCT as _rt_pct
+                _lock_wv = max(0.0, (1.0 - entry * (1.0 + 2.0 * _rt_pct / 100.0)
+                                     / high) * 100.0)
+                if _lock_wv > 0:
+                    _cap_now = min(_cap_now, round(_lock_wv, 3))
+            except Exception:
+                pass
+            if _vgf is not None:
+                _trail_now = round(_trail_now * _vgf, 3)
+                _cap_now = round(_cap_now * _vgf, 3)
+            if _eg_m is not None:
+                _trail_now = round(_trail_now * _eg_m[0], 3)
+            _trail_now = min(_trail_now, _cap_now)
             _trail_px = high * (1 - _trail_now / 100.0)
             _tail += (f" — trail set {_trail_now:.1f}% under the peak, "
                       f"locks {_trail_px:.5f}")
+            if _eg_m is not None:
+                _tail += (f" — END-GAME MODE: the net tightens "
+                          f"(trail x{_eg_m[0]}, lock-in x{_eg_m[1]}) "
+                          f"because reality drifted from the calibration")
 
         # ── THE DIRECTION VOICE (the VIRTUAL/TRUMP/RENDER lesson, Sep 5:
         # "a SELL dressed up as a BUY — it thinks the goal is to go
@@ -3550,6 +3693,25 @@ def main():
         #    re-entry display + the stale-move exemption; nothing returns
         #    on it.
         _allowed, _lock_reason, _is_reentry, _fine = rotation_gate(asset)
+        # ── RE-ENTRY AWARENESS REFERENCES RCL (user spec, Sep 22): while
+        # a fresh drift verdict stands, a re-entry candidate is NOT
+        # offered — reality moved, the calibration is behind. Fail-open:
+        # the layer being down never blocks a setup.
+        if _is_reentry:
+            try:
+                import meta_layers as _mlr
+                if _mlr.reentry_blocked():
+                    _mlr.note_reentry_block()
+                    logger.info("  RCL DRIFT: %s re-entry suppressed — "
+                                "reality moved, the calibration is behind",
+                                asset)
+                    _log_suppression(pair, "rcl-drift-reentry",
+                                     "RCL drift — re-entry candidate suppressed",
+                                     quick=float(signal.confidence),
+                                     rot=rotation_key_for_hour(_now_mst().hour))
+                    return
+            except Exception:
+                pass
         if not _allowed:  # dead since the Sep 10 retirement — kept honest
             logger.info("  ROTATION LOCK: %s %s — no alert, no bridge write", asset, _lock_reason)
             _log_suppression(pair, "rotation-lock",
@@ -3948,6 +4110,17 @@ def main():
         _rot_now_key = rotation_key_for_hour(_now_mst().hour)
         _rot_base_floor = popup_floor_for_rotation(_rot_now_key)
         DESKTOP_ALERT_MIN = popup_floor(_df_state, _lw_pts, _rot_now_key, pair)
+        # ── RCL BORDERLINE SUPPRESSION (user spec, Sep 22): major drift
+        # raises the popup floor 10 points — borderline signals die while
+        # reality disagrees with the calibration (fail-open).
+        try:
+            import meta_layers as _mlf
+            if _mlf.endgame_active():
+                DESKTOP_ALERT_MIN = min(DESKTOP_ALERT_MIN + 10, 99)
+                logger.info("  RCL END-GAME: the popup floor rises to %d "
+                            "while the drift stands", DESKTOP_ALERT_MIN)
+        except Exception:
+            pass
         if DESKTOP_ALERT_MIN != _rot_base_floor:
             _fl_why = []
             if _df_state == "RISING":
@@ -4560,6 +4733,18 @@ def main():
             _reentry_line = ""
             _reentry_say = ""
             if _is_reentry:
+                # RCL drift suppresses re-entry candidates here too (the
+                # mover route): no popup while reality disagrees (fail-open)
+                try:
+                    import meta_layers as _mlr2
+                    if _mlr2.reentry_blocked():
+                        _mlr2.note_reentry_block()
+                        logger.info("  RCL DRIFT: %s re-entry suppressed "
+                                    "(mover route) — no popup while reality "
+                                    "drifts", pair)
+                        return
+                except Exception:
+                    pass
                 # display only — the fine is retired (Sep 21): the same
                 # real-data gates judged this fire as any other
                 _reentry_line = "  RE-ENTRY: fired earlier today — the same real-data gates judged it\n"
@@ -5393,6 +5578,46 @@ def main():
                         _ec.mark_done(now)
                 except Exception as _exc:
                     logger.debug("era-compare failed: %s", _exc)
+                # THE PROFIT GUARD'S DAILY SELF-ADJUSTMENT (user spec,
+                # Sep 22, step 10): recompute every modifier at cooldown
+                # and store GuardFactor for tomorrow's learning —
+                # date-marked, restart-proof, fail-soft like every clause.
+                try:
+                    import profit_guard as _pgc
+                    _pgadj = _pgc.self_adjust(now)
+                    if _pgadj:
+                        logger.info("🛡 PROFIT GUARD re-tuned for tomorrow: "
+                                    "factor %.2f — %s",
+                                    _pgadj.get("factor", 1.0),
+                                    _pgc.explain(_pgadj))
+                except Exception as _exc:
+                    logger.debug("profit-guard self-adjust failed: %s", _exc)
+                # SAL's verdict feeds the penalty (user spec: audit the
+                # day's closes, adjust for tomorrow) — before the review
+                # so the night's readout already includes it.
+                try:
+                    import meta_layers as _mls
+                    _extra = _mls.discipline_penalty_extra()
+                    if _extra > 0:
+                        logger.info("   SAL/RCL penalty extra: +%.1f on "
+                                    "tomorrow's discipline modifier", _extra)
+                except Exception as _exc:
+                    logger.debug("SAL penalty read failed: %s", _exc)
+                # ── THE DAILY NARRATIVE LAYER (user spec, Sep 22): runs
+                # LAST — the day's numbers become the seven questions,
+                # stored with the learning factor that scales tomorrow's
+                # DailyGoal. Fail-soft like every clause.
+                try:
+                    import meta_layers as _mln
+                    _dnl = _mln.dnl_report(now)
+                    if _dnl:
+                        logger.info("📖 DNL: %s | focus: %s",
+                                    _dnl.get("What did I learn today?"),
+                                    _dnl.get("What is tomorrow's focus?"))
+                        logger.info("   tomorrow's goal multiplier: %.2f",
+                                    _mln.tomorrow_goal_multiplier())
+                except Exception as _exc:
+                    logger.debug("DNL failed: %s", _exc)
             except Exception as _exc:
                 logger.debug("cooldown review failed: %s", _exc)
 
