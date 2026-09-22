@@ -898,6 +898,20 @@ def cooldown_review(exchange=None, when=None, speak=True, dry_run=False) -> dict
         lesson = f"{lesson} {_alead}"
         _day_result["lesson"] = lesson
     _day_result["top_verdict"] = _topv
+    # the night-to-night tracker: when one pattern has topped the book a
+    # week straight, the streak rides the review (return, DAY row, voice)
+    # so the warning is impossible to miss on any surface
+    _strk, _strk_name, _strk_usd = top_verdict_streak()
+    _day_result["verdict_streak"] = (
+        {"n": _strk, "name": _strk_name, "usd": round(_strk_usd, 2)}
+        if _strk >= VERDICT_STREAK_WARN_N else None)
+    # the color-level streak (user, Sep 21): the same LEAK color atop the
+    # strip five nights running — coarser than the class streak, so a
+    # mixed red week (stayed-too-long + bought-the-top) still warns
+    _cstrk, _ccol, _cusd = verdict_color_streak()
+    _day_result["verdict_color_streak"] = (
+        {"n": _cstrk, "color": _ccol, "usd": round(_cusd, 2)}
+        if _cstrk >= VERDICT_COLOR_STREAK_WARN_N else None)
 
     # ── 7. persist: the day entry rides the history (one per day) and
     # the lesson rides the lessons log — the console's brain-log readers
@@ -912,6 +926,8 @@ def cooldown_review(exchange=None, when=None, speak=True, dry_run=False) -> dict
             "balance_after": _bal, "usd_left": _day_result["usd_left"],
             "top_gate": _day_result["top_gate"], "ts": _now().isoformat(),
             "top_verdict": _topv,
+            "verdict_streak": _day_result["verdict_streak"],
+            "verdict_color_streak": _day_result["verdict_color_streak"],
         })
         state["history"] = state["history"][-60:]
         save_state(state)
@@ -934,6 +950,8 @@ def cooldown_review(exchange=None, when=None, speak=True, dry_run=False) -> dict
         "assets": assets,
         "lesson": lesson,
         "top_verdict": _topv,
+        "verdict_streak": _day_result["verdict_streak"],
+        "verdict_color_streak": _day_result["verdict_color_streak"],
     }
 
 
@@ -961,6 +979,15 @@ def _speak_cooldown_review(result, pace, realized, n_trades, tide_txt,
             if _tv_name.lower() not in _lesson_txt:
                 _p.append(f"the costliest pattern on the book is "
                           f"{_tv_name} at {_tv[1]:,.0f} dollars")
+        _vst = result.get("verdict_streak")
+        if _vst and int(_vst.get("n") or 0) >= VERDICT_STREAK_WARN_N:
+            _p.append(f"and {_vst['name']} has topped the book "
+                      f"{_vst['n']} nights straight — the dial is waiting")
+        _vcs = result.get("verdict_color_streak")
+        if _vcs and int(_vcs.get("n") or 0) >= VERDICT_COLOR_STREAK_WARN_N:
+            _p.append(f"and the {_vcs['color']} leak has topped the strip "
+                      f"{_vcs['n']} nights straight — the pattern is "
+                      f"bigger than one gate")
         # the asset story rides the lesson (appended once, by the
         # review) — the lesson is the last clause; no separate asset
         # line, she would say it twice
@@ -1242,3 +1269,141 @@ def _top_verdict_class():
         return (str(s[0][0]), float(s[0][2]))
     except Exception:
         return None
+
+
+def top_verdict() -> dict | None:
+    """TONIGHT'S PATTERN for the console plate (user, Sep 22: "show the
+    top-verdict pattern alongside the per-asset verdicts"): the
+    costliest verdict class on the closed-trade book, its dollar cost,
+    and the trade count — straight from _verdict_study.summary(), the
+    same source her 20:00 line cites via _top_verdict_class, so the
+    plate, the voice and the nightly report can never disagree.
+    Returns {'verdict', 'usd_left', 'n'} or None when the book is clean
+    (nothing left on the table) or the ledger cannot be graded."""
+    _t = _top_verdict_class()
+    if not _t:
+        return None
+    _n = 0
+    try:
+        import _verdict_study as _vs
+        s = _vs.summary() or []
+        _n = next((int(n) for k, n, u in s if str(k) == str(_t[0])), 0)
+    except Exception:
+        pass
+    return {"verdict": str(_t[0]), "usd_left": float(_t[1]), "n": _n}
+
+
+VERDICT_STREAK_WARN_N = 7   # user, Sep 21: a week straight of the same top
+
+
+def verdict_history(days: int = 14):
+    """THE NIGHT-TO-NIGHT TRACKER (user, Sep 21: track how the top verdict
+    class and its cost move night to night). The nightly top-verdict
+    trail, oldest -> newest, from the persisted DAY rows: top_verdict
+    when the row carries it; the usd_left component map for the nights
+    before that field existed (the strip's derivation). Nights with no
+    review are skipped. Never raises."""
+    try:
+        st_ = load_state()
+        hist = [h for h in (st_.get("history") or []) if h.get("rot") == "DAY"]
+        hist.sort(key=lambda h: str(h.get("date") or ""))
+        comp = {"missed": "missed the popup",
+                "giveback": "gave back after the goal",
+                "missed_exit": "goal hit, never exited",
+                "early_exit": "exited too soon",
+                "system_burial": "buried by the funnel"}
+        out = []
+        for h in hist[-days:]:
+            tv = h.get("top_verdict")
+            if tv and len(tv) >= 2:
+                out.append((str(h.get("date") or "")[:10], str(tv[0]),
+                            float(tv[1] or 0.0)))
+                continue
+            if float(h.get("total_left") or 0) > 1:
+                ul = h.get("usd_left") or {}
+                if ul:
+                    k = max(ul, key=lambda kk: float(ul.get(kk) or 0.0))
+                    if float(ul.get(k) or 0.0) > 0:
+                        out.append((str(h.get("date") or "")[:10],
+                                    comp.get(k, "buried by the funnel"),
+                                    float(ul.get(k) or 0.0)))
+        return out
+    except Exception:
+        return []
+
+
+def top_verdict_streak():
+    """Consecutive most-recent nights the SAME verdict class tops the
+    book (short-form name, before ' - '), capped at the trail's depth.
+    (streak, name, latest usd_left) — (0, '', 0.0) when nothing tops.
+    The warning fires in the review's voice and on the plate when the
+    streak reaches VERDICT_STREAK_WARN_N: a week of the same pattern
+    means the dial is waiting, not drifting. Never raises."""
+    try:
+        hist = verdict_history()
+        if not hist:
+            return 0, "", 0.0
+        top = str(hist[-1][1]).split(" - ")[0]
+        if not top:
+            return 0, "", 0.0
+        n = 0
+        for _d, name, _usd in reversed(hist):
+            if str(name).split(" - ")[0] == top:
+                n += 1
+            else:
+                break
+        return n, top, float(hist[-1][2])
+    except Exception:
+        return 0, "", 0.0
+
+
+VERDICT_COLOR_STREAK_WARN_N = 5   # user, Sep 21: five nights of the same leak color
+
+# THE LEAK COLORS — an exact mirror of the console strip's table
+# (app.py's _vcol/_VC): her warning and the glyphs can never disagree.
+_VERDICT_COLORS = (("took the goal", "green"),
+                   ("exited too soon", "amber"),
+                   ("stayed too long", "red"),
+                   ("bought the top", "red"),
+                   ("goal hit and never exited", "red"),
+                   ("goal hit, never exited", "red"),
+                   ("buried by the funnel", "violet"),
+                   ("still holding under the goal", "amber"),
+                   ("scratch", "grey"), ("unreadable", "grey"))
+
+
+def verdict_color(name) -> str:
+    """The strip color for a verdict/component name — the same substring
+    table the day-by-day glyphs paint with. Unknown names are grey (the
+    strip's own fallback). Never raises."""
+    try:
+        for k, c in _VERDICT_COLORS:
+            if k in str(name):
+                return c
+        return "grey"
+    except Exception:
+        return "grey"
+
+
+def verdict_color_streak():
+    """Consecutive most-recent nights the same LEAK COLOR tops the book —
+    coarser than the class streak: stayed-too-long and bought-the-top are
+    different classes but the same red leak. (streak, color, latest usd).
+    Green is never a leak (a week of goals is good news, not an alarm)
+    and grey is not a color — both return a 0 streak. Never raises."""
+    try:
+        hist = verdict_history()
+        if not hist:
+            return 0, "", 0.0
+        col = verdict_color(hist[-1][1])
+        if col in ("grey", "green"):
+            return 0, col, 0.0
+        n = 0
+        for _d, name, _u in reversed(hist):
+            if verdict_color(name) == col:
+                n += 1
+            else:
+                break
+        return n, col, float(hist[-1][2])
+    except Exception:
+        return 0, "", 0.0

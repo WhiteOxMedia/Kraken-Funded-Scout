@@ -21,8 +21,20 @@ from collections import defaultdict
 import discipline as dc
 
 RT_COST = 0.0008
-DB = "ohlcv_cache.db"
-conn = sqlite3.connect(DB)
+from pathlib import Path as _Path
+_ROOT = _Path(__file__).resolve().parent
+DB = str(_ROOT / "ohlcv_cache.db")
+_DB_URI = _Path(DB).as_uri()
+
+
+def _db():
+    """A fresh READ-ONLY connection per call (Sep 22): the scanner owns
+    ohlcv_cache.db and writes candles continuously — the old shared
+    read handle collided with the writer's commit window and the
+    resulting OperationalError made summary() silently return None
+    (the plate's headline flickered). mode=ro never writes; timeout=2
+    waits out a commit instead of failing instantly."""
+    return sqlite3.connect(f"{_DB_URI}?mode=ro", uri=True, timeout=2.0)
 LOOKBACK_MS = 120 * 60 * 1000        # if entry time unknown: 2h before exit
 AFTER_MS = 240 * 60 * 1000           # post-exit run window (4h)
 
@@ -34,6 +46,12 @@ AFTER_MS = 240 * 60 * 1000           # post-exit run window (4h)
 # missing report, never a broken review.
 from pathlib import Path as _Path
 REPORT_PATH = _Path(__file__).parent / "logs" / "verdict_cost_report.md"
+# The data ledgers too (Sep 22): the study is imported by the console,
+# the scanner and the cooldown review — whatever each caller's working
+# directory is, the study must grade THE book, not "whatever jsonl the
+# cwd happens to hold". Module-relative like REPORT_PATH.
+TRADES_PATH = _ROOT / "contest_trades.jsonl"
+SUPPRESSIONS_PATH = _ROOT / "popup_suppressions.jsonl"
 
 
 def summary():
@@ -108,7 +126,7 @@ def _now_stamp():
 
 
 def peak_in(pair, lo_ms, hi_ms):
-    rows = conn.execute(
+    rows = _db().execute(
         "SELECT MAX(high) FROM ohlcv WHERE pair=? AND ts>=? AND ts<=?",
         (pair, int(lo_ms), int(hi_ms))).fetchone()
     return rows[0] if rows and rows[0] else None
@@ -128,7 +146,7 @@ def trail_exit(pair, entry_ms, end_ms, entry, size, pct):
     price the first bar whose low touches it. Returns (exit_px, ts) or None."""
     stop = None
     peak = entry
-    for ts, hi, lo in conn.execute(
+    for ts, hi, lo in _db().execute(
             "SELECT ts, high, low FROM ohlcv WHERE pair=? AND ts>=? AND ts<=? "
             "ORDER BY ts", (pair, int(entry_ms), int(end_ms))):
         if hi > peak:
@@ -164,7 +182,7 @@ def _sim_armed(trades, P, goal_mult=0.9):
         stop = None
         peak = g["entry"]
         te = None
-        for ts, hi, lo in conn.execute(
+        for ts, hi, lo in _db().execute(
                 "SELECT ts, high, low FROM ohlcv WHERE pair=? AND ts>=? "
                 "AND ts<=? ORDER BY ts",
                 (g["pair"], int(g["en_ms"]), int(g["ex_ms"] + AFTER_MS))):
@@ -192,7 +210,7 @@ def _ratchet_exit(g, thr):
     pair, entry, size = g["pair"], g["entry"], g["size"]
     stop = None
     peak = entry
-    for ts, hi, lo in conn.execute(
+    for ts, hi, lo in _db().execute(
             "SELECT ts, high, low FROM ohlcv WHERE pair=? AND ts>=? AND ts<=? "
             "ORDER BY ts", (pair, int(g["en_ms"]), int(g["ex_ms"] + AFTER_MS))):
         if hi > peak:
@@ -216,7 +234,7 @@ def grade_trades():
     the nightly cooldown review (which speaks the current top verdict
     class and its dollar cost). Returns the graded list; see main() for
     the printed tables."""
-    rows = [json.loads(l) for l in open("contest_trades.jsonl",
+    rows = [json.loads(l) for l in open(TRADES_PATH,
                                         encoding="utf-8") if l.strip()]
     applied_sizes = defaultdict(list)
     for r in rows:
@@ -342,7 +360,7 @@ def main():
     print("BURIAL SIDE — candidate quality (quick score) vs whether the pair")
     print("reached a goal-size run (+1.5%) in the window after the gate said")
     print("no. High-quality burials are the mispriced ones:")
-    sups = [json.loads(l) for l in open("popup_suppressions.jsonl",
+    sups = [json.loads(l) for l in open(SUPPRESSIONS_PATH,
                                         encoding="utf-8") if l.strip()]
     gate_stats = defaultdict(lambda: {"n": 0, "reach": 0, "reach3": 0,
                                       "hi_q": 0, "hi_q_reach": 0})
@@ -357,7 +375,7 @@ def main():
             continue
         t_ms = int(t.timestamp() * 1000)
         end_ms = t_ms + 7 * 3600 * 1000
-        pre = conn.execute("SELECT close FROM ohlcv WHERE pair=? AND ts<? "
+        pre = _db().execute("SELECT close FROM ohlcv WHERE pair=? AND ts<? "
                            "ORDER BY ts DESC LIMIT 1", (pair, t_ms)).fetchone()
         hi = peak_in(pair, t_ms, end_ms)
         if not hi or not pre or not pre[0]:

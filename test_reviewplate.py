@@ -195,5 +195,47 @@ render()
 check("no DAY rows -> no strip",
       not any("day by day" in m for m in STUB.markdowns))
 
+# ── 5b. TONIGHT'S PATTERN — the headline block (user, Sep 22) ─────────
+# the plate reads _disc.top_verdict() so it cites the same summary()
+# her 20:00 line speaks; sections 1-5 ran without the attribute (the
+# stub module never had it) — silence there is the fail-soft proof.
+_real_topv = getattr(_disc, "top_verdict", None)
+_disc.top_verdict = lambda: {"verdict":
+                             "stayed too long - gave back over half the peak",
+                             "usd_left": 64.78, "n": 6}
+STUB.markdowns.clear()
+_disc.load_state = lambda: {"history": [
+    {"rot": "0-4", "score": 70.0}, {"rot": "DAY", **DAY}]}
+render()
+_patt = [m for m in STUB.markdowns if "tonight's pattern" in m]
+check("headline renders with the DAY row", len(_patt) == 1, len(_patt))
+_hp = _patt[-1] if _patt else ""
+check("headline leads the plate (before the asset rows)",
+      bool(_patt) and STUB.markdowns.index(_hp)
+      < next(i for i, m in enumerate(STUB.markdowns) if "FARTCOIN" in m))
+check("headline names the class short label", "stayed too long" in _hp)
+check("headline carries the dollar cost", "$65" in _hp, "$64.78 rounds")
+check("headline carries the trade count", "6 closed trades" in _hp)
+check("subline carries the class reason",
+      "gave back over half the peak" in _hp)
+check("headline colors by the same leak table", "#ff6b5e" in _hp)
+
+# ── 5c. TONIGHT'S PATTERN edge cases ────────────────────────────────
+STUB.markdowns.clear()
+_disc.top_verdict = lambda: None
+render()
+check("clean book -> no headline",
+      not any("tonight's pattern" in m for m in STUB.markdowns))
+STUB.markdowns.clear()
+def _boom():
+    raise RuntimeError("boom")
+_disc.top_verdict = _boom
+render()
+check("broken helper fails soft (no raise escapes the plate)", True)
+check("plate still renders the strip beside the broken headline",
+      any("day by day" in m for m in STUB.markdowns))
+if _real_topv is not None:
+    _disc.top_verdict = _real_topv
+
 print(f"RESULT: {PASS} passed, {FAIL} failed")
 sys.exit(1 if FAIL else 0)

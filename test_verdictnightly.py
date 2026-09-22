@@ -33,6 +33,30 @@ tl = vs.top_line()
 check("top_line is voice-safe (short name, dollars, n)",
       bool(tl) and " - " not in tl and "dollars across" in tl, tl)
 
+# ── 1b. the ledgers are module-anchored (Sep 22) ────────────────────────
+# The console, the scanner and the review all import the study from
+# their own working directories; the numbers can never depend on the
+# caller's cwd (the Sep 22 defect: the console's plate went silent
+# because the study graded "whatever jsonl the cwd holds").
+import os
+import importlib
+_prev_cwd = os.getcwd()
+try:
+    os.chdir(tempfile.mkdtemp())
+    importlib.reload(vs)
+    check("ledger paths are absolute under a foreign cwd",
+          vs.TRADES_PATH.is_absolute() and vs.SUPPRESSIONS_PATH.is_absolute(),
+          str(vs.TRADES_PATH))
+    s2 = vs.summary()
+    check("summary grades the real book from a foreign cwd",
+          bool(s2) and bool(s) and s2[0][0] == s[0][0]
+          and abs(s2[0][2] - s[0][2]) < 0.005, (s2 or [None])[0])
+finally:
+    os.chdir(_prev_cwd)
+    importlib.reload(vs)
+check("module restored after the foreign-cwd probe",
+      vs.TRADES_PATH.is_absolute())
+
 # ── 2. the review cites the SAME source ─────────────────────────────────
 if s and s[0][2] > 0:
     check("review's citation == summary's top row",

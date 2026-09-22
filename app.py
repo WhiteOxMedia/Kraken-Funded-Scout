@@ -1833,6 +1833,36 @@ def _pick_card(cfg: TradingConfig, kraken):
                 rows.append(f"HOW LONG <span class='dim'>.........</span> goal +{goal:.1f}% — "
                             f"now {pct:+.1f}%. After the window, STAY CLOSE — the exit is hers, "
                             f"never the clock.")
+            # THE ENFORCED STOP (Sep 21, on the page): the exact trail
+            # width the exit watch applies this second — the ratchet's
+            # live band (3% base, 2% at a +1% peak, 1.5% at +2%) and,
+            # once the goal trail is armed (latched in the watch row),
+            # the half-goal cap. Read from the scanner's own math, not a
+            # copy — the page can never disagree with the exit.
+            _high = max(float(w.get("high") or 0), px)
+            _trail_w, _stop_px, _armed = None, None, False
+            try:
+                import background_scanner as _bs_tr
+                if hasattr(_bs_tr, "_ratchet_trail_pct"):
+                    _armed = bool(w.get("trail_armed"))
+                    _trail_w = float(_bs_tr._ratchet_trail_pct(entry, _high, size))
+                    if _armed and goal > 0:
+                        _trail_w = min(_trail_w, max(goal * 0.5, 1.0))
+                    _stop_px = _high * (1 - _trail_w / 100.0)
+            except Exception:
+                _trail_w = None
+            if _trail_w is not None and _high > entry:
+                _tr_col = "#4be38a" if _armed else "#ffc36b"
+                _tr_extra = " · goal trail armed — the net is set" if _armed else ""
+                if _high > px:
+                    _tr_extra += f" · peak {_fmt_price(_high)}"
+                rows.append(f"TRAIL <span class='dim'>.........</span> "
+                            f"<span style='color:{_tr_col};'>stop {_trail_w:.1f}% "
+                            f"under the peak — fires at {_fmt_price(_stop_px)}</span>"
+                            f"{_tr_extra}")
+            else:
+                rows.append("TRAIL <span class='dim'>.........</span> "
+                            "<span class='dim'>none yet — the profit guard arms once the run clears entry</span>")
             rows.append("<span class='dim'>walk around the house — she'll call you</span>")
             rows.append(_tide_line())
             st.markdown(plate("👁 WATCHING", lcd(rows, tone="green" if usd >= 0 else "red")),
@@ -2113,6 +2143,42 @@ def _render_suppression_strip():
     downward-trend, too-thin, death-line, fail-closed). The raw
     record — the discipline plate's 'left by the gates' number is the paid
     subset of exactly this."""
+    # ── THE EASE LINE (Sep 21, page level): when the journal's relief
+    # points are live, the funnel is being ASKED to ease — that signal
+    # sits on the page, no tap required. Gates ride the burial ledger
+    # (always present once the journal has graded any rotation); the
+    # full per-gate table stays in the expander below. Fail-soft.
+    try:
+        import discipline as _dc_ez
+        _ez_gates = []
+        try:
+            _st_ez = _dc_ez.load_state()
+            for _h in (_st_ez.get("burial_ledger") or []):
+                for _g in (_h.get("gates") or {}):
+                    if _g and _g not in _ez_gates:
+                        _ez_gates.append(_g)
+        except Exception:
+            pass
+        if _ez_gates:
+            _ez = {g: float(_dc_ez.journal_release_pts(g)) for g in _ez_gates}
+            _live = [(g, p) for g, p in
+                     sorted(_ez.items(), key=lambda kv: -kv[1]) if p > 0]
+            if _live:
+                _txt = " · ".join(f"{g} {p:.2f} pts" for g, p in _live)
+                st.markdown(
+                    f"<div style='font-family:Share Tech Mono,monospace;"
+                    f"font-size:12.5px;padding:2px 2px 6px;color:#ffc36b;'>"
+                    f"⚑ the funnel is being asked to ease: {_txt}"
+                    f"<span class='dim'> — above 0, the gate can release a "
+                    f"near-bar champion</span></div>", unsafe_allow_html=True)
+            else:
+                st.markdown(
+                    "<div class='dim' style='font-family:Share Tech Mono,"
+                    "monospace;font-size:12px;padding:2px 2px 6px;'>⚑ the "
+                    "funnel is strict — no gate carries release fuel right "
+                    "now</div>", unsafe_allow_html=True)
+    except Exception:
+        pass
     try:
         import json as _json
         from pathlib import Path as _P
@@ -2150,6 +2216,48 @@ def _render_suppression_strip():
             with st.expander(f"🚫 MONEY LEFT ON THE TABLE — the popups the funnel "
                              f"buried (last {len(rows)}, newest first)"):
                 st.markdown("".join(rows), unsafe_allow_html=True)
+                # THE JOURNAL'S RELEASE FUEL (Sep 21, on the page): each
+                # gate's LIVE relief points — the same number the journal
+                # release consumes at the deep-veto and tide-out gates.
+                # Above 0, the gate can release a near-bar champion; at
+                # 0.00 it is closed. Read-only, fail-soft.
+                try:
+                    import discipline as _dc_rel
+                    _gates = []
+                    for _rl in reversed(lines[-200:]):
+                        try:
+                            _g = str(_json.loads(_rl).get("gate") or "")
+                            if _g and _g not in _gates:
+                                _gates.append(_g)
+                        except Exception:
+                            continue
+                    try:
+                        _st_d = _dc_rel.load_state()
+                        for _h in (_st_d.get("burial_ledger") or []):
+                            for _g in (_h.get("gates") or {}):
+                                if _g and _g not in _gates:
+                                    _gates.append(_g)
+                    except Exception:
+                        pass
+                    if _gates:
+                        _pts = {g: _dc_rel.journal_release_pts(g) for g in _gates}
+                        _rel_rows = []
+                        for _g in sorted(_gates, key=lambda g: -_pts[g]):
+                            _c = "#4be38a" if _pts[_g] > 0 else "#8a8171"
+                            _rel_rows.append(
+                                f"<div style='font-family:Share Tech Mono,monospace;"
+                                f"font-size:12.5px;color:#d8ccb4;padding:2px 0;'>"
+                                f"<span style='color:{_c};'>{_g}</span>"
+                                f"<span class='dim'> ......... </span>{_pts[_g]:.2f} pts</div>")
+                        st.markdown(
+                            "<div style='padding:8px 2px 0;font-family:Share Tech Mono,"
+                            "monospace;font-size:12px;color:#8a8171;'>THE JOURNAL'S "
+                            "RELEASE FUEL — live relief per gate (buried payers − duds, "
+                            "capped 4, decaying over 8h). Above 0, the gate can release "
+                            "a near-bar champion; at 0.00 it is closed:</div>"
+                            + "".join(_rel_rows), unsafe_allow_html=True)
+                except Exception:
+                    pass
                 # THE FRESH STAMP (Sep 13): every MASTER plate carries a
                 # visible clock — this strip re-reads its file each rerun,
                 # so the stamp is naturally fresh (consistency, not cache)
@@ -2424,6 +2532,50 @@ def _render_cooldown_review():
                 "&nbsp; green clean \u00b7 amber exited early \u00b7 red held too "
                 "long \u00b7 violet buried by the funnel</span></div>")
 
+
+        # ── THE WEEK WARNING (user, Sep 21): one verdict class atop the
+        # book for a week straight — the alarm the page shows outright.
+        try:
+            _strk_n, _strk_name, _strk_usd = _disc.top_verdict_streak()
+            if _strk_n >= _disc.VERDICT_STREAK_WARN_N:
+                st.markdown(
+                    "<div style='font-family:Share Tech Mono,monospace;"
+                    "font-size:12.5px;padding:6px 2px 0;color:#ff6b5e;'>"
+                    f"⚠ {_strk_name} has topped the book {_strk_n} nights "
+                    "straight — the dial is waiting</div>",
+                    unsafe_allow_html=True)
+        except Exception:
+            pass
+
+        # ── TONIGHT'S PATTERN (user, Sep 22: "add the top-verdict pattern
+        # to the plate") — the costliest class on the closed-trade book,
+        # cited through discipline.top_verdict so the plate reads the
+        # same summary() her 20:00 line speaks. Silence when the book is
+        # clean.
+        try:
+            _tv = _disc.top_verdict()
+            if _tv:
+                _tv_name = str(_tv.get("verdict") or "")
+                _tv_short = _tv_name.split(" - ")[0]
+                _tv_reason = (_tv_name.split(" - ", 1)[1]
+                              if " - " in _tv_name else "")
+                _tv_usd = float(_tv.get("usd_left") or 0.0)
+                _tv_n = int(_tv.get("n") or 0)
+                st.markdown(
+                    "<div style='font-family:Share Tech Mono,monospace;"
+                    "font-size:14px;padding:10px 2px 2px;color:#d8ccb4;'>"
+                    "<span class='dim' style='font-size:11px;'>tonight's "
+                    "pattern — the costliest class on the book:</span><br>"
+                    f"<b style='color:{_vcol(_tv_name)};'>{_tv_short}</b>"
+                    f"&nbsp;&nbsp;${_tv_usd:,.0f}"
+                    "<span class='dim' style='font-size:11px;'> across "
+                    f"{_tv_n} closed trades"
+                    + (f" · {_tv_reason}</span></div>" if _tv_reason
+                       else "</span></div>"),
+                    unsafe_allow_html=True)
+        except Exception:
+            pass
+
         _label = ((_day or {}).get("date", "") if assets
                   else f"{len(_days)} days on record")
         with st.expander(
@@ -2434,6 +2586,41 @@ def _render_cooldown_review():
                 st.markdown("".join(rows), unsafe_allow_html=True)
             if _strip:
                 st.markdown(_strip, unsafe_allow_html=True)
+
+            # ── THE TOP-VERDICT TRAIL (user, Sep 21): the top verdict and its cost, night to night, newest first; green ∆ shrinking, red growing.
+            try:
+                _trail = _disc.verdict_history()
+                _trail_md = ""
+                if _trail:
+                    _t_rows = []
+                    for _i in range(len(_trail) - 1, -1, -1):
+                        _d, _nm, _usd = _trail[_i]
+                        _prev = (_trail[_i - 1][2]
+                                 if _i > 0 and _trail[_i - 1][1].split(" - ")[0]
+                                 == _nm.split(" - ")[0] else None)
+                        _delta = ""
+                        if _prev is not None:
+                            _dd = _usd - _prev
+                            _dc = "#4be38a" if _dd <= 0 else "#ff6b5e"
+                            _delta = (f" <span style='color:{_dc};'>Δ "
+                                      f"{'+' if _dd >= 0 else ''}{_dd:,.0f}</span>")
+                        _tc = _vcol(_nm)
+                        _t_rows.append(
+                            f"<div style='font-family:Share Tech Mono,monospace;"
+                            f"font-size:12.5px;color:#d8ccb4;padding:2px 0;'>"
+                            f"<span class='dim'>{str(_d)[5:]}</span>&nbsp;&nbsp;"
+                            f"<span style='color:{_tc};'>{str(_nm).split(' - ')[0]}</span>"
+                            f"&nbsp;&nbsp;${_usd:,.0f}{_delta}</div>")
+                    _trail_md = "".join(_t_rows)
+                if _trail_md:
+                    st.markdown(
+                        "<div style='font-family:Share Tech Mono,monospace;"
+                        "font-size:12px;padding:8px 2px 0;color:#8a8171;'>"
+                        "the top verdict, night to night (newest first):</div>"
+                        + _trail_md, unsafe_allow_html=True)
+            except Exception:
+                pass
+
             if bd:
                 st.markdown(
                     f"<div style='font-family:Share Tech Mono,monospace;"
