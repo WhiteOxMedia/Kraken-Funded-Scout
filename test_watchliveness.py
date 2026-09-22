@@ -136,18 +136,26 @@ check(3.8, src_bs.count('w["checked_ts"] = time.time()') == 1,
       "exactly one stamp site in the scanner (after the ticker + entry gates)")
 
 print("== 4. LIVE probe: the real watch file's heartbeat right now ==")
-try:
-    real = json.loads((HERE / "contest_watch.json").read_text(encoding="utf-8"))
-    for pair, row in real.items():
-        ts = float(row.get("checked_ts") or 0)
-        age = time.time() - ts if ts else None
-        state = ("NEVER" if age is None else
-                 f"{age:.0f}s" if age <= 180 else
-                 f"SILENT {age / 60:.0f}m")
-        print(f"      {pair}: {state}")
-    check(4.1, True, "read-only probe (the running scanner stamps on its next cycle)")
-except Exception as exc:
-    check(4.1, False, f"probe failed: {exc!r}")
+# (CodeRabbit minor) a fresh checkout has no runtime watch file — the
+# probe is operational, not hermetic, and must not fail the drive for
+# an environmental absence. The hermetic sections stay authoritative.
+_RealWatch = HERE / "contest_watch.json"
+if not _RealWatch.exists():
+    check(4.1, True, "skip: no runtime watch file yet (fresh checkout) — "
+          "the hermetic sections above are the contract")
+else:
+    try:
+        real = json.loads(_RealWatch.read_text(encoding="utf-8"))
+        for pair, row in real.items():
+            ts = float(row.get("checked_ts") or 0)
+            age = time.time() - ts if ts else None
+            state = ("NEVER" if age is None else
+                     f"{age:.0f}s" if age <= 180 else
+                     f"SILENT {age / 60:.0f}m")
+            print(f"      {pair}: {state}")
+        check(4.1, True, "read-only probe (the running scanner stamps on its next cycle)")
+    except Exception as exc:
+        check(4.1, False, f"probe failed: {exc!r}")
 
 import shutil
 shutil.rmtree(TMP, ignore_errors=True)
