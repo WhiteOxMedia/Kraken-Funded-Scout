@@ -416,6 +416,53 @@ def _fmt_price(p: float | None) -> str:
 def _asset(pair: str) -> str:
     return pair.split("/")[0] if "/" in pair else pair
 
+
+def _scanned_assets() -> set | None:
+    """The scanner's LIVE scan set, from its own log. The funnel is
+    movers-only (the wiggle-trap kill, Sep 21) — the scan's eligible set
+    is exactly the pairs on the newest "Movers (>2%)" line, and the line's
+    30s cadence makes staleness measurable. Returns None when no movers
+    line exists at all (fresh log, restart truncation, or the file moved)
+    so the callers can say "unknown" instead of inventing a set. Fail-soft:
+    any read problem is None, never an exception out."""
+    try:
+        import re as _re
+        log = Path(__file__).resolve().parent / "logs" / "scanner_console.log"
+        with open(log, encoding="utf-8", errors="replace") as f:
+            lines = f.readlines()
+        _stamp_re = _re.compile(r"^(\d{1,2}):(\d{2}) (AM|PM) \[")
+        _cont_re = _re.compile(r"^\d{1,2}:\d{2} (AM|PM) \[")
+        for idx in range(len(lines) - 1, -1, -1):
+            ln = lines[idx]
+            if "Movers (>2%)" not in ln:
+                continue
+            m = _stamp_re.match(ln)
+            if not m:
+                continue
+            _now = datetime.now(MST)
+            _hh = int(m.group(1)) % 12 + (12 if m.group(3) == "PM" else 0)
+            _t = _now.replace(hour=_hh, minute=int(m.group(2)),
+                              second=0, microsecond=0)
+            if _t > _now:  # stamp from yesterday (near midnight)
+                _t -= timedelta(days=1)
+            if (_now - _t).total_seconds() / 60.0 > 30:
+                return None          # the funnel's own view is stale
+            # the list wraps across continuation lines (the tee wraps at
+            # console width): join until the next stamped log line
+            text = ln
+            k = idx + 1
+            while k < len(lines) and not _cont_re.match(lines[k]):
+                text += " " + lines[k].strip()
+                k += 1
+            _, _, rest = text.partition("Movers (>2%)")
+            rest = rest.strip().lstrip(":").strip()
+            names = [a.strip() for a in rest.split(",") if a.strip()]
+            return {n.split()[0].upper() for n in names
+                    if n.split() and n.split()[0].isalpha()}
+        return None
+    except Exception:
+        return None
+
 def _now_mst() -> datetime:
     return datetime.now(MST)
 
@@ -5097,13 +5144,35 @@ def render_tournament(cfg: TradingConfig, scan_cfg: TradingConfig, kraken):
 
     block, day, thr, _, no_buy = current_threshold()
     passes = sig.confidence >= thr and not no_buy
-
     lines = [
         f"<span style='color:{col};font-size:26px;font-family:Audiowide;'>{_asset(champ.pair)} — {act}</span>",
-        f"CONFIDENCE <span class='dim'>.......</span> {sig.confidence:.0f}%"
+        f"CONFIDENCE <span class='dim'>....... </span> {sig.confidence:.0f}%"
         f"  <span class='dim'>(auto-trade bar: {thr}% → </span>"
         f"<span style='color:{'#4be38a' if passes else '#ff6b5e'};'>{'PASSES' if passes else 'BELOW BAR'}</span><span class='dim'>)</span>",
     ]
+    # ── SCAN-SET HONESTY (user, Sep 22: a champion the funnel can't read
+    # must never read as a coming popup): the plate says what the scanner
+    # is actually scanning. In the set → say so. Out of it → say so, plainly
+    # (TRUMP case: a −0.4% coin was 'today's best pick' while the funnel
+    # had nothing to say about it). Unknown → say that too.
+    try:
+        _scanned = _scanned_assets()
+        _champ_a = _asset(champ.pair)
+        if _scanned is None:
+            lines.append("<span class='dim'>SCAN SET unknown — the funnel's movers "
+                         "view isn't readable right now; popup eligibility can't "
+                         "be judged from this plate.</span>")
+        elif _champ_a in _scanned:
+            lines.append(f"<span style='color:#4be38a;'>IN THE FUNNEL'S SCAN SET</span> "
+                         f"<span class='dim'>({len(_scanned)} movers scanned) — "
+                         "eligible for a popup when it fires.</span>")
+        else:
+            lines.append(f"<span style='color:#ffc36b;'>NOT IN THE FUNNEL'S SCAN SET</span> "
+                         f"<span class='dim'>(the funnel scans only the movers, "
+                         f"{len(_scanned)} now) — no popup can fire for this pick "
+                         "until it moves into the movers list.</span>")
+    except Exception:
+        pass
     if sig.action == "sell":
         lines.append("<span class='dim'>Bearish champion — never a short: exit if held, stay out if flat.</span>")
     if sig.entry_price:
@@ -5152,11 +5221,18 @@ def render_tournament(cfg: TradingConfig, scan_cfg: TradingConfig, kraken):
             # was the choppiness fix (Sep 4) and that stays.
             if _fresh:
                 try:
-                    st.toast(f"🏆 {_champ_asset} is today's best pick — "
-                             f"the popup is watching it, nothing to confirm",
-                             icon="🏆", duration=12)
-                    _speak(f"{_champ_asset} is today's best pick! The popup is watching it!")
-                    _play_sound("ding")
+                    _sc = _scanned_assets()
+                    if _sc is not None and _champ_asset in _sc:
+                        st.toast(f"🏆 {_champ_asset} is today's best pick — "
+                                 f"the popup is watching it, nothing to confirm",
+                                 icon="🏆", duration=12)
+                        _speak(f"{_champ_asset} is today's best pick! The popup is watching it!")
+                        _play_sound("ding")
+                    else:
+                        st.toast(f"🏆 {_champ_asset} is today's best pick — but it's "
+                                 f"NOT in the funnel's scan set (movers only), so no "
+                                 f"popup will fire for it",
+                                 icon="🟡", duration=12)
                 except Exception as exc:
                     logger.debug("champion toast/voice failed: %s", exc)
     elif _fresh:
