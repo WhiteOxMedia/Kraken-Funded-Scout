@@ -921,6 +921,28 @@ def cooldown_review(exchange=None, when=None, speak=True, dry_run=False) -> dict
     except Exception:
         _t3 = None
     _day_result["top_three"] = _t3
+    # ── THE ERA COMPARE ANNOUNCEMENT (user, Sep 22): the re-base's
+    # week-one read rides this night's review — the scanner's one-shot
+    # runs on/after Sep 28 and its report lands beside the verdict-
+    # cost's; she speaks the headline from the same grading the report
+    # used. Before the target date: silent (no pre-week nagging). On or
+    # after it: the comparison when the post-era can support one, the
+    # armed-state line when it cannot. Fail-soft: a broken module is a
+    # missing clause, never a broken review.
+    try:
+        import era_compare as _ec
+        _ecs = _ec.summary()
+        if _ecs.get("readable"):
+            _day_result["era_line"] = _ec.top_line(_ecs)
+        elif _today >= str(_ec.TARGET_DATE):
+            _day_result["era_line"] = (
+                f"the re-base week-one read is due — the new era holds "
+                f"{_ecs['post']['trades']} closed trades, short of the "
+                f"{_ecs['min_post_trades']} a comparison needs")
+        else:
+            _day_result["era_line"] = None
+    except Exception:
+        _day_result["era_line"] = None
 
     # ── 7. persist: the day entry rides the history (one per day) and
     # the lesson rides the lessons log — the console's brain-log readers
@@ -938,6 +960,7 @@ def cooldown_review(exchange=None, when=None, speak=True, dry_run=False) -> dict
             "verdict_streak": _day_result["verdict_streak"],
             "verdict_color_streak": _day_result["verdict_color_streak"],
             "top_three": _day_result.get("top_three"),
+            "era_line": _day_result.get("era_line"),
         })
         state["history"] = state["history"][-60:]
         save_state(state)
@@ -963,6 +986,7 @@ def cooldown_review(exchange=None, when=None, speak=True, dry_run=False) -> dict
         "verdict_streak": _day_result["verdict_streak"],
         "verdict_color_streak": _day_result["verdict_color_streak"],
         "top_three": _day_result.get("top_three"),
+        "era_line": _day_result.get("era_line"),
     }
 
 
@@ -1012,6 +1036,11 @@ def _speak_cooldown_review(result, pace, realized, n_trades, tide_txt,
             _p.append(f"and the {_vcs['color']} leak has topped the strip "
                       f"{_vcs['n']} nights straight — the pattern is "
                       f"bigger than one gate")
+        # the era-compare week-one read (user, Sep 22): the scheduled
+        # verdict on the re-based ratchet — the comparison when the data
+        # supports it, the honest shortfall line when it does not
+        if result.get("era_line"):
+            _p.append(str(result["era_line"]))
         # the asset story rides the lesson (appended once, by the
         # review) — the lesson is the last clause; no separate asset
         # line, she would say it twice

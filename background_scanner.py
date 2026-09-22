@@ -5380,6 +5380,19 @@ def main():
                         logger.info("   verdict-cost report: %s", _vp.name)
                 except Exception as _exc:
                     logger.debug("verdict-cost report failed: %s", _exc)
+                # THE ERA COMPARE (user, Sep 22): the re-base's week-one
+                # read runs ONCE on/after Sep 28 — date-gated so a restart
+                # during the day cannot miss it, state-marked so it never
+                # re-runs — and its report lands beside the verdict-cost's.
+                try:
+                    import era_compare as _ec
+                    if _ec.due(now):
+                        _ecp = _ec.write_report()
+                        if _ecp:
+                            logger.info("   era-compare report: %s", _ecp.name)
+                        _ec.mark_done(now)
+                except Exception as _exc:
+                    logger.debug("era-compare failed: %s", _exc)
             except Exception as _exc:
                 logger.debug("cooldown review failed: %s", _exc)
 
