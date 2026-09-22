@@ -6965,6 +6965,57 @@ def _toast_new_her_words():
         logger.debug("her-words sweep failed: %s", exc)
 
 
+# ── THE SCANNER PULSE (Sep 22): the light CYCLE's heartbeat, read from
+# scanner_pulse.json — one beat per completed contest_light cycle,
+# stamped in the scanner's loop (a raise there never beats). This is
+# the whole-machine pulse: it beats even with NO pairs watched, so a
+# crashed cycle or a dead scanner is visible on the auto-watch plate
+# instead of invisible.
+PULSE_JSON = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                          "scanner_pulse.json")
+
+
+def _scanner_pulse():
+    """(cycles, age_s) from the pulse file — (None, None) when the
+    scanner has never beaten (file missing, empty, or absurd — a stale
+    file can't masquerade as a live machine)."""
+    try:
+        import json as _json
+        with open(PULSE_JSON, "r", encoding="utf-8") as fh:
+            _p = _json.load(fh)
+        _cyc = int(_p.get("cycles") or 0)
+        _age = time.time() - float(_p.get("last_cycle_ts") or 0)
+        if _cyc <= 0 or _age <= 0 or _age > 86400:
+            return None, None   # (CodeRabbit rule: never a 29-million-minute silence)
+        return _cyc, _age
+    except Exception:
+        return None, None
+
+
+def _fmt_pulse_age(age: float) -> str:
+    if age < 90:
+        return f"{age:.0f}s"
+    if age < 3600:
+        return f"{age / 60:.0f}m"
+    return f"{age / 3600:.1f}h"
+
+
+def _pulse_html():
+    """The auto-watch plate's heartbeat line — alive / slow / frozen."""
+    cyc, age = _scanner_pulse()
+    if cyc is None:
+        return ("<span style='color:#ffc36b;'>scanner: no heartbeat yet — "
+                "give it a minute (or start the scanner)</span>")
+    if age <= 90:
+        col, word = "#4be38a", "alive"
+    elif age <= 300:
+        col, word = "#ffc36b", "slow"
+    else:
+        col, word = "#ff6b5e", "FROZEN"
+    return (f"<span style='color:{col};'>scanner: {word} — cycle #{cyc:,} "
+            f"finished {_fmt_pulse_age(age)} ago</span>")
+
+
 def _render_light_panel(interval: str):
     """The always-visible light panel — rendered from the last check."""
     watch_status = st.session_state.get("watch_status") or []
@@ -6983,7 +7034,11 @@ def _render_light_panel(interval: str):
     except Exception as exc:
         logger.debug("hail-mary window lookup failed: %s", exc)
     lines = [f"<span class='dim'>{_now_mst().strftime('%I:%M %p')} · every {interval} · "
-             f"green = hold, red = sell{_hm_note}</span>"]
+             f"green = hold, red = sell{_hm_note}</span>",
+             # (Sep 22) THE SCANNER PULSE — the whole-machine heartbeat on
+             # its own line, above every position: a crashed cycle or a
+             # dead scanner shows even with NO pairs watched.
+             _pulse_html()]
     for v in watch_status:
         if v["kind"] != "contest":
             continue

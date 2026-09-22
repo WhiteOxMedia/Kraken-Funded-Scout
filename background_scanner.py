@@ -2733,6 +2733,37 @@ def _voice_volume() -> int:
         return 100
 
 
+PULSE_JSON = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                          "scanner_pulse.json")
+
+
+def _pulse_beat():
+    """THE SCANNER PULSE (Sep 22): one file write after every COMPLETED
+    contest_light cycle — counter + completion timestamp — read by the
+    console's auto-watch plate. Stamp-in-the-loop, not in contest_light:
+    the loop's try/except swallows a raise, so only a real completion
+    advances the counter — a crashed cycle (or a dead thread) freezes it
+    and the console shows the frozen age. Empty watch beats too: a
+    crashed cycle is visible even with no pairs watched."""
+    try:
+        import json as _json
+        _p = {}
+        try:
+            with open(PULSE_JSON, "r", encoding="utf-8") as _fh:
+                _p = _json.load(_fh)
+        except Exception:
+            pass
+        _p["cycles"] = int(_p.get("cycles", 0)) + 1
+        _p["last_cycle_ts"] = time.time()
+        _p["pid"] = os.getpid()
+        _tmp = PULSE_JSON + ".tmp"
+        with open(_tmp, "w", encoding="utf-8") as _fh:
+            _json.dump(_p, _fh)
+        os.replace(_tmp, PULSE_JSON)
+    except Exception as exc:
+        logger.debug("pulse beat skipped: %s", exc)
+
+
 def _day_review_spoken(now) -> bool:
     """True once discipline_state.json carries today's DAY review row —
     the cooldown review runs ONCE per MST day and stays restart-proof:
@@ -6190,6 +6221,7 @@ def main():
             last_contest_light = now.timestamp()
             try:
                 contest_light(exchange, cfg)
+                _pulse_beat()          # the completed-cycle heartbeat
             except Exception as exc:
                 logger.debug("contest light error: %s", exc)
 

@@ -16,9 +16,14 @@ CONTRACT:
      not-checked-yet (amber, missing stamp or absurd age — a stamp is
      never trusted past a day).
   4. MY TRADES carries the same heartbeat on the same line as P&L.
+  5. THE SCANNER PULSE (Sep 22, the whole machine): one beat per
+     COMPLETED light cycle — counter + timestamp in scanner_pulse.json —
+     beats even with NO pairs watched; a crashed cycle (the loop's try
+     swallows the raise) freezes the counter, and the auto-watch plate
+     shows alive / slow / FROZEN from the age.
 Run:  python test_watchliveness.py   (exit 0 = all pass)
 """
-import sys, types, time, json
+import sys, types, time, json, os
 from pathlib import Path
 from datetime import datetime, timezone
 
@@ -156,6 +161,61 @@ else:
         check(4.1, True, "read-only probe (the running scanner stamps on its next cycle)")
     except Exception as exc:
         check(4.1, False, f"probe failed: {exc!r}")
+
+print("== 5. the scanner pulse — the whole-machine heartbeat ==")
+_pulse_file = TMP / "scanner_pulse.json"
+bs.PULSE_JSON = str(_pulse_file)          # hermetic: never the real pulse
+_pulse_file.unlink(missing_ok=True)
+bs._pulse_beat()
+bs._pulse_beat()
+_p1 = json.loads(_pulse_file.read_text(encoding="utf-8"))
+check(5.1, _p1.get("cycles") == 2,
+      f"two beats -> the counter advanced by exactly 2 (got {_p1.get('cycles')})")
+check(5.2, time.time() - float(_p1.get("last_cycle_ts") or 0) < 5,
+      "last_cycle_ts is the completion moment (fresh)")
+check(5.3, int(_p1.get("pid") or 0) == os.getpid(),
+      "the beating pid is stamped (which scanner instance is alive)")
+_p1["operator_key"] = "keep-me"
+_pulse_file.write_text(json.dumps(_p1), encoding="utf-8")
+bs._pulse_beat()
+_p2 = json.loads(_pulse_file.read_text(encoding="utf-8"))
+check(5.4, _p2.get("operator_key") == "keep-me" and _p2.get("cycles") == 3,
+      "the beat MERGES — it never clobbers keys another writer added")
+# the freeze contract: the beat lives INSIDE the loop's try, AFTER the
+# contest_light call — a raise (or a dead thread) freezes the counter.
+_call = src_bs.find("contest_light(exchange, cfg)",
+                    src_bs.find("last_contest_light = 0"))
+_window = src_bs[_call:src_bs.find("sure thing scan error", _call)]
+_beat_at = _window.find("_pulse_beat()")
+_except_at = _window.find("except Exception as exc:")
+check(5.5, _window.count("_pulse_beat()") == 1,
+      f"exactly one beat site in the loop (got {_window.count('_pulse_beat()')})")
+check(5.6, 0 < _beat_at < _except_at,
+      "the beat sits AFTER the contest_light call, INSIDE the try — "
+      "a crashed cycle never advances the counter (freeze = visible)")
+_defblk = src_bs[src_bs.find("def _pulse_beat"):src_bs.find("def _pulse_beat") + 900]
+check(5.7, "Empty watch beats" in _defblk,
+      "an empty watch still beats: the pulse is the cycle's, not the positions'")
+# console census
+check(5.8, "scanner_pulse.json" in app and app.count("_pulse_html()") >= 2,
+      "the console reads the pulse and renders it on the light panel")
+check(5.9, all(w in app for w in
+               ("no heartbeat yet", "alive", "slow", "FROZEN", "cycle #")),
+      "the three pulse states + the cycle counter are real render paths")
+check(5.10, "def _scanner_pulse" in app and "86400" in app,
+      "the pulse reader distrusts missing/absurd files (a stale file "
+      "can't fake a live machine)")
+# live probe (operational, read-only — the running scanner beats on its
+# next restart; absence must not fail the drive)
+_RealPulse = HERE / "scanner_pulse.json"
+if _RealPulse.exists():
+    try:
+        _rp = json.loads(_RealPulse.read_text(encoding="utf-8"))
+        _age = time.time() - float(_rp.get("last_cycle_ts") or 0)
+        print(f"      live pulse: cycle #{_rp.get('cycles')} finished {_age:.0f}s ago")
+    except Exception as exc:
+        print(f"      live pulse unreadable: {exc!r}")
+check(5.11, True, "live-pulse probe is read-only")
 
 import shutil
 shutil.rmtree(TMP, ignore_errors=True)

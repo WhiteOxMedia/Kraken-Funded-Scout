@@ -61,6 +61,57 @@ check("one brain: the light feeds the phone-free rows (no alerts dict)",
 check("one brain: manual Exit Check page survives as a diagnostic",
       "def render_exit_check" in app_src)
 
+# 5. THE SECOND-BRAIN TRIPWIRE (Sep 22, user rule: fail if any console
+#    code path ever again evaluates strategy signals FOR AN EXIT VERDICT
+#    outside the manual Exit Check page). Display reads stay legal — the
+#    tournament ranks candidates, quick-check renders a read — but an
+#    eval that shares a function with an exit verdict, a SELL/GET OUT
+#    delivery, or the light is the ghost-SELL class come back.
+import re as _re
+
+
+def _strip_docs_comments(src):
+    src = _re.sub(r'""".*?"""', ' ', src, flags=_re.S)
+    src = _re.sub(r"'''.*?'''", ' ', src, flags=_re.S)
+    return "\n".join(ln for ln in src.splitlines()
+                     if not ln.lstrip().startswith("#"))
+
+
+_top = [(m.start(), m.group(1)) for m in
+        _re.finditer(r"^def ([A-Za-z_][A-Za-z0-9_]*)\(", app_src, _re.M)]
+_spans = []
+for _i, (_pos, _nm) in enumerate(_top):
+    _end = _top[_i + 1][0] if _i + 1 < len(_top) else len(app_src)
+    _spans.append((_nm, _strip_docs_comments(app_src[_pos:_end])))
+
+_EVAL = _re.compile(r"evaluate_strategy\(|=\s*_eval\(")
+_EXIT_MARKS = ("should_exit", '"exit"', "GET OUT", "SELL NOW")
+_ALLOWED_EVAL_EXIT = {"render_exit_check"}   # the manual diagnostic page
+
+for _nm, _body in _spans:
+    _has_eval = bool(_EVAL.search(_body))
+    _has_exit = any(_m in _body for _m in _EXIT_MARKS)
+    if _nm in _ALLOWED_EVAL_EXIT:
+        continue
+    if _nm == "_run_exit_logic":
+        # the quarantined corpse: pinned separately below (zero callers)
+        continue
+    check(f"second-brain tripwire: {_nm}",
+          not (_has_eval and _has_exit),
+          f"eval={_has_eval} exit-marks={_has_exit}")
+
+_light_src = _strip_docs_comments(
+    app_src.split("def _light_check")[1].split("def render_auto_watch")[0])
+check("second-brain tripwire: the light path runs no eval at all",
+      not _EVAL.search(_light_src))
+check("second-brain tripwire: _run_exit_logic has zero callers",
+      not [n for n, b in _spans if n != "_run_exit_logic"
+           and "_run_exit_logic(" in b],
+      "a re-mounted corpse is the same regression by another door")
+check("second-brain tripwire: the light's rows are born verdict-free",
+      '"exit": False' in _light_src,
+      "rows may hold state; they may never hold a verdict")
+
 lines.append(f"\nRESULT: {PASS} passed, {FAIL} failed")
 open("_persist_check.txt", "w", encoding="utf-8").write("\n".join(lines))
 print("DONE")
