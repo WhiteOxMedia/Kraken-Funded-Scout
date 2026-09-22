@@ -27,6 +27,9 @@ class _Stub:
         self.expander_open = []
         self.markdowns = []
         self.captions = []
+        self.pills_calls = []
+        self.pills_return = None
+        self.session_state = None
         self._ctx = None
 
     class _Exp:
@@ -48,6 +51,12 @@ class _Stub:
 
     def caption(self, txt):
         self.captions.append(str(txt))
+
+    def pills(self, label, options, selection_mode="single", default=None,
+              format_func=None, key=None):
+        self.pills_calls.append({"label": label, "options": list(options),
+                                 "default": default, "key": key})
+        return self.pills_return
 
 
 STUB = _Stub()
@@ -236,6 +245,96 @@ check("plate still renders the strip beside the broken headline",
       any("day by day" in m for m in STUB.markdowns))
 if _real_topv is not None:
     _disc.top_verdict = _real_topv
+
+# ── 5d. THE DAY PICK — tappable strip days (user, Sep 22) ───────────
+_disc.top_verdict = lambda: None          # silence the headline here
+HIST2 = [
+    {"rot": "DAY", "date": "2026-09-18", "total_left": 12.0,
+     "usd_left": {},
+     "top_verdict": ("bought the top - the entry chased", 12.0)},
+    {"rot": "DAY", "date": "2026-09-19", "total_left": 704.2,
+     "usd_left": {"system_burial": 704.2, "missed": 0.0}},
+    {"rot": "DAY", "date": "2026-09-20", "total_left": 0.0,
+     "usd_left": {}, "top_verdict": None,
+     "assets": [{"asset": "DOGE", "kind": "sold", "entry": 0.1,
+                 "exit": 0.11, "peak": 0.115, "goal_pct": 2.0,
+                 "realized": 5.0, "size": 500,
+                 "verdict": "took the goal - the discipline shape",
+                 "usd_left": 0.0}]},
+    {"rot": "DAY", "date": "2026-09-21", "total_left": 50.0,
+     "usd_left": {},
+     "top_verdict": ("stayed too long - gave back over half the peak", 50.0),
+     "assets": [{"asset": "WLD", "kind": "sold", "entry": 0.1,
+                 "exit": 0.09, "peak": 0.12, "goal_pct": 1.5,
+                 "realized": -20.0, "size": 1000,
+                 "verdict": "stayed too long - gave back over half the peak",
+                 "usd_left": 50.0}]},
+]
+_disc.load_state = lambda: {"history": [
+    {"rot": "0-4", "score": 70.0}] + HIST2}
+
+STUB.markdowns.clear()
+STUB.pills_return = None
+render()
+check("pills called with the DAY dates oldest-first",
+      STUB.pills_calls and STUB.pills_calls[-1]["options"]
+      == ["2026-09-18", "2026-09-19", "2026-09-20", "2026-09-21"],
+      STUB.pills_calls[-1] if STUB.pills_calls else None)
+check("pills default is the latest day",
+      STUB.pills_calls[-1]["default"] == "2026-09-21")
+check("pills carry the stable key",
+      STUB.pills_calls[-1]["key"] == "review_day_pick")
+check("no selection -> no drill-down rows",
+      not any("DOGE" in m for m in STUB.markdowns))
+
+STUB.markdowns.clear()
+STUB.pills_return = "2026-09-20"
+render()
+check("picked day renders its own rows", any("DOGE" in m for m in STUB.markdowns))
+check("latest-day rows still render beside the pick",
+      any("WLD" in m for m in STUB.markdowns))
+check("picked day with nothing left shows no breakdown",
+      not any("$0 left on the table" in m for m in STUB.markdowns))
+
+STUB.markdowns.clear()
+STUB.pills_return = "2026-09-19"
+render()
+check("legacy day says it predates per-asset rows",
+      any("2026-09-19 predates the per-asset rows" in m for m in STUB.markdowns))
+check("legacy day names its dollar total",
+      any("$704 left" in m for m in STUB.markdowns))
+
+STUB.markdowns.clear()
+STUB.pills_return = "2026-09-18"
+render()
+check("legacy day with a spoken verdict names the worst leak",
+      any("worst leak: bought the top $12" in m for m in STUB.markdowns))
+
+STUB.markdowns.clear()
+STUB.pills_return = "2026-09-21"
+render()
+check("picking the latest day adds no drill-down",
+      sum("WLD" in m for m in STUB.markdowns) == 1)
+
+STUB.session_state = {"review_day_pick": "1999-01-01"}
+STUB.markdowns.clear()
+STUB.pills_return = None
+render()
+check("stale session key is cleared before the picker",
+      "review_day_pick" not in STUB.session_state
+      and STUB.pills_calls[-1]["options"][-1] == "2026-09-21")
+STUB.session_state = None
+
+STUB.pills = None   # instance shadow: getattr(st, "pills") -> None
+STUB.markdowns.clear()
+try:
+    render()
+    check("no pills widget -> plate still renders (guard)",
+          any("WLD" in m for m in STUB.markdowns))
+except Exception as e:
+    check("no pills widget -> plate still renders (guard)", False, e)
+del STUB.pills      # the class method shows through again
+_disc.top_verdict = _real_topv if _real_topv is not None else (lambda: None)
 
 print(f"RESULT: {PASS} passed, {FAIL} failed")
 sys.exit(1 if FAIL else 0)

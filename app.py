@@ -2457,40 +2457,47 @@ def _render_cooldown_review():
                 if k in str(v):
                     return c
             return "#d8ccb4"
-
-        rows = []
-        for a in assets:
+        def _day_row_html(a):
             kind = str(a.get("kind", "?"))
             v = str(a.get("verdict", "?"))
             left = float(a.get("usd_left") or 0)
             if kind == "buried":
-                detail = (f"gate {a.get('gate') or '?'} \u00b7 "
+                detail = (f"gate {a.get('gate') or '?'} · "
                           f"${left:,.0f} theoretical")
             else:
                 entry = float(a.get("entry") or 0)
                 peak = float(a.get("peak") or 0)
                 run = (peak / entry - 1.0) * 100.0 if entry and peak else 0.0
                 detail = (f"peak +{run:.1f}% vs goal "
-                          f"{float(a.get('goal_pct') or 0):.1f}% \u00b7 "
+                          f"{float(a.get('goal_pct') or 0):.1f}% · "
                           f"realized ${float(a.get('realized') or 0):,.2f}"
-                          + (f" \u00b7 ${left:,.0f} left" if left > 1 else ""))
-            rows.append(
-                f"<div style='padding:4px 0;"
-                f"border-bottom:1px solid rgba(255,255,255,0.08);"
-                f"font-family:Share Tech Mono,monospace;font-size:12.5px;"
-                f"color:#d8ccb4;'><b>{_asset(str(a.get('asset', '?')))}</b>"
-                f"&nbsp;<span class='dim'>({kind})</span>&nbsp;&nbsp;"
-                f"<span style='color:{_vcol(v)};'>{v}</span><br>"
-                f"<span class='dim'>{detail}</span></div>")
-        cls = {}
-        for a in assets:
-            k = str(a.get("verdict", "?"))
-            cls[k] = cls.get(k, 0.0) + float(a.get("usd_left") or 0.0)
-        total = sum(cls.values())
-        bd = " \u00b7 ".join(
-            f"<span style='color:{_vcol(k)};'>{k.split(' - ')[0]} "
-            f"${v:,.0f}</span>"
-            for k, v in sorted(cls.items(), key=lambda kv: -kv[1]) if v > 0)
+                          + (f" · ${left:,.0f} left" if left > 1 else ""))
+            return (f"<div style='padding:4px 0;"
+                    f"border-bottom:1px solid rgba(255,255,255,0.08);"
+                    f"font-family:Share Tech Mono,monospace;font-size:12.5px;"
+                    f"color:#d8ccb4;'><b>{_asset(str(a.get('asset', '?')))}</b>"
+                    f"&nbsp;<span class='dim'>({kind})</span>&nbsp;&nbsp;"
+                    f"<span style='color:{_vcol(v)};'>{v}</span><br>"
+                    f"<span class='dim'>{detail}</span></div>")
+
+        def _day_bd_md(a_list):
+            cls = {}
+            for a in a_list:
+                k = str(a.get("verdict", "?"))
+                cls[k] = cls.get(k, 0.0) + float(a.get("usd_left") or 0.0)
+            total = sum(cls.values())
+            bd = " · ".join(
+                f"<span style='color:{_vcol(k)};'>{k.split(' - ')[0]} "
+                f"${v:,.0f}</span>"
+                for k, v in sorted(cls.items(), key=lambda kv: -kv[1]) if v > 0)
+            if not bd:
+                return ""
+            return (f"<div style='font-family:Share Tech Mono,monospace;"
+                    f"font-size:12.5px;padding:8px 2px 2px;color:#d8ccb4;'>"
+                    f"<b>${total:,.0f} left on the table</b> — {bd}</div>")
+
+        rows = [_day_row_html(a) for a in assets]
+        bd = _day_bd_md(assets)
 
         # \u2500\u2500 THE VERDICT-HISTORY STRIP \u2500\u2500 one glyph per DAY row,
         # colored by the day's worst leak. Rows written before
@@ -2586,6 +2593,59 @@ def _render_cooldown_review():
                 st.markdown("".join(rows), unsafe_allow_html=True)
             if _strip:
                 st.markdown(_strip, unsafe_allow_html=True)
+            # ── THE DAY PICK (user, Sep 22: "make the glyphs
+            # clickable") ── the strip's days are taps: a picked day
+            # reads its own verdict rows through the same helpers; a day
+            # without per-asset rows says so and names its worst leak.
+            # Guarded so bare probes and stub st's fail soft.
+            try:
+                _pills_fn = getattr(st, "pills", None)
+                if _pills_fn is not None and _days:
+                    _d_opts = [str(h.get("date") or "") for h in _days]
+                    _d_opts = [d for d in _d_opts if d]
+                    _ss = getattr(st, "session_state", None)
+                    _pk = "review_day_pick"
+                    if _ss is not None and _pk in _ss \
+                            and _ss[_pk] not in _d_opts:
+                        try:
+                            del _ss[_pk]
+                        except Exception:
+                            pass
+                    _picked = _pills_fn(
+                        "tap a day to read its verdicts", _d_opts,
+                        selection_mode="single", default=_d_opts[-1],
+                        format_func=lambda d: str(d)[5:], key=_pk)
+                    _cur = str((_day or {}).get("date") or "")
+                    if _picked and _picked != _cur:
+                        _sel = next((h for h in _days
+                                     if str(h.get("date") or "") == _picked),
+                                    None)
+                        _sel_a = (_sel or {}).get("assets") or []
+                        if _sel_a:
+                            st.markdown(
+                                "".join(_day_row_html(a) for a in _sel_a),
+                                unsafe_allow_html=True)
+                            _sel_bd = _day_bd_md(_sel_a)
+                            if _sel_bd:
+                                st.markdown(_sel_bd, unsafe_allow_html=True)
+                        else:
+                            _sv = (_sel or {}).get("top_verdict")
+                            _stl = float((_sel or {}).get("total_left") or 0)
+                            _msg = (f"{_picked} predates the per-asset rows "
+                                    "— its strip glyph is the record")
+                            if _sv:
+                                _msg += (f" (worst leak: "
+                                         f"{str(_sv[0]).split(' - ')[0]} "
+                                         f"${float(_sv[1] or 0):,.0f})")
+                            elif _stl > 1:
+                                _msg += f" (${_stl:,.0f} left)"
+                            st.markdown(
+                                "<div class='dim' style='font-family:Share "
+                                "Tech Mono,monospace;font-size:12px;"
+                                f"padding:4px 2px;'>{_msg}</div>",
+                                unsafe_allow_html=True)
+            except Exception:
+                pass
 
             # ── THE TOP-VERDICT TRAIL (user, Sep 21): the top verdict and its cost, night to night, newest first; green ∆ shrinking, red growing.
             try:
@@ -2622,11 +2682,7 @@ def _render_cooldown_review():
                 pass
 
             if bd:
-                st.markdown(
-                    f"<div style='font-family:Share Tech Mono,monospace;"
-                    f"font-size:12.5px;padding:8px 2px 2px;color:#d8ccb4;'>"
-                    f"<b>${total:,.0f} left on the table</b> \u2014 {bd}</div>",
-                    unsafe_allow_html=True)
+                st.markdown(bd, unsafe_allow_html=True)
             if not rows and not bd:
                 st.markdown(
                     "<div class=\'dim\' style=\'font-family:Share Tech Mono," 
