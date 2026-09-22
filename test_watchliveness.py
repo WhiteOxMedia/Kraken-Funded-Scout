@@ -164,22 +164,27 @@ else:
 
 print("== 5. the scanner pulse — the whole-machine heartbeat ==")
 _pulse_file = TMP / "scanner_pulse.json"
-bs.PULSE_JSON = str(_pulse_file)          # hermetic: never the real pulse
-_pulse_file.unlink(missing_ok=True)
-bs._pulse_beat()
-bs._pulse_beat()
-_p1 = json.loads(_pulse_file.read_text(encoding="utf-8"))
-check(5.1, _p1.get("cycles") == 2,
-      f"two beats -> the counter advanced by exactly 2 (got {_p1.get('cycles')})")
-check(5.2, time.time() - float(_p1.get("last_cycle_ts") or 0) < 5,
+_pulse_orig = bs.PULSE_JSON             # guarded swap (diag_testleaks): every
+_p1 = _p2 = None                        # file-touching beat runs while the
+try:                                    # production path is swapped out; the
+    bs.PULSE_JSON = str(_pulse_file)    # finally restores it BEFORE any code
+    _pulse_file.unlink(missing_ok=True) # that could raise past the section
+    bs._pulse_beat()
+    bs._pulse_beat()
+    _p1 = json.loads(_pulse_file.read_text(encoding="utf-8"))
+    _p1["operator_key"] = "keep-me"
+    _pulse_file.write_text(json.dumps(_p1), encoding="utf-8")
+    bs._pulse_beat()
+    _p2 = json.loads(_pulse_file.read_text(encoding="utf-8"))
+finally:
+    bs.PULSE_JSON = _pulse_orig
+check(5.1, (_p1 or {}).get("cycles") == 2,
+      f"two beats -> the counter advanced by exactly 2 (got {(_p1 or {}).get('cycles')})")
+check(5.2, time.time() - float((_p1 or {}).get("last_cycle_ts") or 0) < 5,
       "last_cycle_ts is the completion moment (fresh)")
-check(5.3, int(_p1.get("pid") or 0) == os.getpid(),
+check(5.3, int((_p1 or {}).get("pid") or 0) == os.getpid(),
       "the beating pid is stamped (which scanner instance is alive)")
-_p1["operator_key"] = "keep-me"
-_pulse_file.write_text(json.dumps(_p1), encoding="utf-8")
-bs._pulse_beat()
-_p2 = json.loads(_pulse_file.read_text(encoding="utf-8"))
-check(5.4, _p2.get("operator_key") == "keep-me" and _p2.get("cycles") == 3,
+check(5.4, (_p2 or {}).get("operator_key") == "keep-me" and (_p2 or {}).get("cycles") == 3,
       "the beat MERGES — it never clobbers keys another writer added")
 # the freeze contract: the beat lives INSIDE the loop's try, AFTER the
 # contest_light call — a raise (or a dead thread) freezes the counter.
