@@ -70,17 +70,15 @@ for fn_name, tag in (("_render_her_words", "her_words"),
 
 check("2.bots_book flat variant keyed", 'stable_expander("bots_book_flat"' in SRC)
 
-print("== 3. explicit controls (the bulletproof fallback) ==")
-check(3.1, 'on_click=_expander_open' in SRC and 'on_click=_expander_close' in SRC
-      and 'on_click=_expander_mobile' in SRC,
-      "Open / Close / Mobile buttons wired via on_click callbacks")
-check(3.2, "Tap to Expand (Mobile)" in SRC,
-      "mobile Tap-to-Expand button present")
-check(3.3, "_mobile_force" in SRC and "st.session_state[key] = True" in SRC,
-      "mobile latch forces the section open for the session")
-check(3.4, '_expander_close' in SRC and
-      'f"{key}_mobile_force"] = False' in SRC,
-      "an explicit Close clears the mobile latch (close wins)")
+print("== 3. the header tap is the only control (buttons retired) ==")
+check(3.1, "on_click=_expander" not in SRC and "Tap to Expand (Mobile)" not in SRC
+      and "_mobile_force" not in SRC,
+      "no button trios, no mobile latch — the header tap persists alone")
+check(3.2, "with st.container():" in SRC,
+      "still wrapped in a stable container (flicker damp)")
+check(3.3, "st.columns" not in body_src(FN["stable_expander"])
+      and "st.button" not in body_src(FN["stable_expander"]),
+      "no button columns in the expander helper")
 
 print("== 4. the state machine BEHAVES (driven, not grepped) ==")
 try:
@@ -89,30 +87,22 @@ try:
 
     # fresh keys each run so the init guard is exercised
     k = "popup_history"
-    for kk in (k, f"{k}_mobile_force"):
-        st.session_state.pop(kk, None)
+    st.session_state.pop(k, None)
     check(4.1, k not in st.session_state, "state starts unset (init guard owns it)")
 
-    app_mod._expander_open(k)
-    check(4.2, st.session_state[k] is True, "Open flips the state open")
+    # what a header tap does: writes the stable state directly (the
+    # widget's own on-toggle write); a remount cannot lose it because
+    # the identity is the key, not the label
+    st.session_state[k] = True
+    check(4.2, st.session_state[k] is True, "header tap flips the state open")
 
-    app_mod._expander_mobile(k)
     st.session_state[k] = False          # simulate a remount losing the DOM state
-    check(4.3, st.session_state.get(f"{k}_mobile_force") is True
-          and app_mod.stable_expander is not None,
-          "mobile latch recorded")
-    # the init-guard + latch read is what a rerun executes:
+    # the init-guard read is what a rerun executes:
     if k not in st.session_state:
         st.session_state[k] = False
-    if st.session_state.get(f"{k}_mobile_force"):
-        st.session_state[k] = True
-    check(4.4, st.session_state[k] is True,
-          "after a simulated remount the latch re-opens the section (persistence)")
-
-    app_mod._expander_close(k)
-    check(4.5, st.session_state[k] is False
-          and st.session_state.get(f"{k}_mobile_force") is False,
-          "Close shuts it AND clears the latch (no silent re-open)")
+    check(4.3, st.session_state[k] is False
+          and app_mod.stable_expander is not None,
+          "the state rides session_state, not the DOM remount")
 except Exception as exc:
     check("4.state-machine", False, f"drive failed: {exc}")
 

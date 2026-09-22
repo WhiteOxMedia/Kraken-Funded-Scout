@@ -58,9 +58,12 @@ check("watch entry overrides bridge entry", 'entry = float(_wr["entry"])' in ec_
 check("watch peak merged into the trail", "high = max(high, _w_high)" in ec_blk)
 check("goal multiples computed", "_goal_mult = int(_pct / _w_goal)" in ec_blk)
 check("window clock computed", "_elapsed_min = (datetime.now(MST) - _ad)" in ec_blk)
-check("window-expired is an exit reason", "_window_expired or _hard_stop_hit" in ec_blk)
+check("window-expired is NOT an exit term (the clock never exits)",
+      "_window_expired or _hard_stop_hit" not in ec_blk
+      and "_window_expired" in ec_blk)
 check("thesis check: entry why vs current signal", "_thesis_ok = " in ec_blk)
-check("TAKE THE PROFIT verdict exists", "TAKE THE PROFIT" in ec_blk)
+check("goal verdict says STAY CLOSE (never take the profit)",
+      "STAY CLOSE" in ec_blk and "TAKE THE PROFIT" not in ec_blk)
 check("green light why is clean (no challenger mark)", "', challenger'" not in ap)
 
 # ── rt-3: scanner voice + bridge exit check real-time ──────────────────

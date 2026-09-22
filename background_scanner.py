@@ -2325,7 +2325,7 @@ def _speak_server(text: str, rate: int = 2, push_text: str | None = None):
             return
         subprocess.Popen(["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass",
                           "-File", script, "-Text", VOICE_PREFIX + text, "-Rate", str(rate),
-                          "-OutFile", _wav_path],
+                          "-Volume", str(_voice_volume()), "-OutFile", _wav_path],
                          creationflags=0x08000000)
     except Exception as exc:
         logger.debug("speak failed: %s", exc)
@@ -2350,24 +2350,75 @@ def _push_topic() -> str | None:
 # the ntfy.sh quota either.
 _push_state = {"text": "", "ts": 0.0}
 
+# GET OUT retry queue (Sep 21, the 16:05 lesson: ntfy accepted the push
+# with a 200 but the phone app never showed it — ntfy has NO delivery
+# receipt, so every GET OUT is "in doubt" and gets exactly one second
+# attempt ~60s later. A dropped phone connection is discovered by a
+# retry, not by a silence). Processed by _process_push_retries() on the
+# main cycle; survives the watch emptying, dies with the process.
+_push_retry_q = []  # [{"text":…, "prio":…, "due": epoch, "why":…}]
+
+
+def _send_ntfy(text: str, prio: str, attempt: str) -> bool:
+    """One logged ntfy attempt. True only on an HTTP accept — which is
+    delivery to the server, never proof the PHONE received it."""
+    topic = _push_topic()
+    if not topic:
+        logger.warning("phone push skipped (%s) — no push_topic.txt", attempt)
+        return False
+    try:
+        import urllib.request, urllib.parse
+        req = urllib.request.Request(
+            f"https://ntfy.sh/{urllib.parse.quote(topic)}",
+            data=str(text).encode("utf-8"),
+            headers={"Title": "Kraken Scout", "Priority": prio,
+                     "Tags": "rotating_light" if prio == "urgent" else "chart_with_upwards_trend"})
+        urllib.request.urlopen(req, timeout=10)
+        logger.info("📲 PUSHED (%s, %s): %s", prio, attempt, str(text)[:90])
+        return True
+    except Exception as exc:
+        # push is best-effort — the PC voice already spoke — but it is
+        # never SILENT: the scanner log carries every failure
+        logger.warning("phone push failed (%s, %s) — the phone missed: %s",
+                       exc, attempt, str(text)[:90])
+        return False
+
+
+def _process_push_retries():
+    """Called once per main cycle (30s tick): fires due GET OUT retries.
+    Queue capped at 8 so a pathological burst can't grow it unbounded."""
+    if not _push_retry_q:
+        return
+    now = time.time()
+    for _r in _push_retry_q[:]:
+        if now < _r["due"]:
+            continue
+        _push_retry_q.remove(_r)
+        _send_ntfy(_r["text"], _r["prio"],
+                   f"attempt 2/2, first sent {now - _r['why']:.0f}s earlier")
+    if len(_push_retry_q) > 8:
+        del _push_retry_q[8:]
+
 
 def _push_to_phone(text: str, wav_path: str | None = None):
     """BUY NOW / GET OUT NOW only on the phone (user rule, Aug 30: 'Just
     have the ntfy.sh do the buy now and sell now priority alerts only';
     tightened Aug 31: ".ntfy doesn't need the 'take it' alerts. Just
     'buy now' and 'Get out now'"). Buy calls push HIGH; GET OUT / SELL /
-    STOPPED OUT push URGENT. TAKE IT does NOT push — the take-profit
-    nudges repeat every minute during a run (Aug 31: the ARB run pushed
-    ~8 of them) and there's nothing to act on that the light + her voice
-    aren't already saying. Everything else stays on the PC voice and the
-    console's HER WORDS panel. This also keeps us far under ntfy.sh's
-    ~60/hour rate limit (Aug 30 incident: every-minute position pushes
-    burned the quota -> 429s -> the phone went silent)."""
+    STOPPED OUT push URGENT — and every GET OUT-class push arms ONE
+    automatic second attempt ~60s later (attempt 2/2), because ntfy's
+    200 says nothing about the phone. TAKE IT does NOT push — the
+    take-profit nudges repeat every minute during a run (Aug 31: the
+    ARB run pushed ~8 of them) and there's nothing to act on that the
+    light + her voice aren't already saying. Everything else stays on
+    the PC voice and the console's HER WORDS panel. This also keeps us
+    far under ntfy.sh's ~60/hour rate limit (Aug 30 incident:
+    every-minute position pushes burned the quota -> 429s -> the phone
+    went silent)."""
     topic = _push_topic()
     if not topic:
         return
     try:
-        import urllib.request, urllib.parse
         _t = str(text).lower().strip()
         is_sell = any(k in _t for k in ("get out", "sell ", "stopped out"))
         is_buy = (not is_sell) and ("buy " in _t or "new pick" in _t or _t.startswith("go!"))
@@ -2380,17 +2431,17 @@ def _push_to_phone(text: str, wav_path: str | None = None):
         _push_state["text"] = _t
         _push_state["ts"] = now
         prio = "urgent" if is_sell else "high"
-        req = urllib.request.Request(
-            f"https://ntfy.sh/{urllib.parse.quote(topic)}",
-            data=str(text).encode("utf-8"),
-            headers={"Title": "Kraken Scout", "Priority": prio,
-                     "Tags": "rotating_light" if prio == "urgent" else "chart_with_upwards_trend"})
-        # THE SEND (restored Sep 21 — the big evolution commit built this
-        # request and DROPPED it: no urlopen anywhere, so the phone got
-        # nothing and the failure was silent). Sent with a timeout; every
-        # outcome is logged — a push is never a silent maybe again.
-        urllib.request.urlopen(req, timeout=10)
-        logger.info("📲 PUSHED (%s): %s", prio, str(text)[:90])
+        _send_ntfy(str(text), prio, "attempt 1/2")
+        if is_sell:
+            # the ONLY delivery guarantee we can buy: a second shot ~60s
+            # later, armed whether attempt 1 was accepted OR failed (a
+            # failed send is the most doubt of all). Not deduped (attempt
+            # 2 must survive even when the phone DID get attempt 1 — a
+            # duplicate GET OUT is the cheap failure); bounded by the
+            # 8-deep queue cap.
+            _push_retry_q.append({"text": str(text), "prio": prio,
+                                  "due": now + 60.0,
+                                  "why": now})
     except Exception as exc:
         # push is best-effort — the PC voice already spoke — but it is
         # never SILENT: the scanner log carries every failure
@@ -2505,13 +2556,25 @@ def _save_scanner_state(state: dict) -> None:
 
 
 def _voice_enabled() -> bool:
-    """Console toggle (console_state.json voice_on) — shared file."""
+    """Her voice is ALWAYS on (Sep 21, user rule: the switches were
+    critical to the system and are retired from the console — she can
+    no longer be silenced by a toggle, and the snap-to-OFF bug class
+    dies with them). Kept as a permanent True so the three call sites
+    keep their meaning and any future accidental writer of
+    console_state.voice_on=false stays harmless. Loudness is the
+    console's VOLUME dial (voice_volume 0-100) — see _voice_volume."""
+    return True
+
+
+def _voice_volume() -> int:
+    """Her loudness 0-100 (console_state.json voice_volume, default 100)
+    — the console's VOLUME dial, applied when the WAV is rendered."""
     import json
     try:
         with open(CONSOLE_STATE_JSON, "r", encoding="utf-8") as fh:
-            return bool(json.load(fh).get("voice_on", True))
+            return max(0, min(100, int(json.load(fh).get("voice_volume", 100))))
     except Exception:
-        return True
+        return 100
 
 
 def _hours_to_goal(pair: str, entry, tp):
@@ -2602,6 +2665,50 @@ def _max_resolve_hours(*, now) -> float:
 # the user taps SOLD. Never auto-drop a tracked position.
 _last_exit_voice: dict[str, float] = {}
 _last_lock_floor_usd = 0.0   # RETIRED (Sep 5): the daily lock's voice pacing — kept per don't-delete, nothing writes it now
+
+
+def _all_good_lead() -> str:
+    """The pace-and-clock lead for the all-good line (Sep 21, user ask):
+    \"All good — plus 13 dollars today, 8 minutes left in this rotation.\"
+    Reads the SAME live data as the console's ON PACE / CLOCK gauges:
+    today's applied realized PnL from contest_trades.jsonl and the
+    minutes left in the current rotation. Returns just \"All good\" when
+    either read comes up empty — a missing gauge must never stall the
+    voice, and never lie."""
+    lead = "All good"
+    try:
+        import json as _j_ag
+        from pathlib import Path as _P_ag
+        _day = _now_mst().strftime("%Y-%m-%d")
+        _today = 0.0
+        _n = 0
+        for _l in (_P_ag(__file__).parent / "contest_trades.jsonl") \
+                .read_text(encoding="utf-8").splitlines():
+            if not _l.strip():
+                continue
+            _r = _j_ag.loads(_l)
+            if str(_r.get("sold_at", "")).startswith(_day) and _r.get("applied"):
+                _today += float(_r.get("pnl_net") or 0.0)
+                _n += 1
+        if _n:
+            lead += f" — {'plus' if _today >= 0 else 'minus'} " \
+                    f"{abs(_today):.0f} dollars today"
+    except Exception:
+        pass
+    try:
+        from volatility_engine import ROTATIONS as _R_AG
+        _now = _now_mst()
+        _win = next((r for r in _R_AG if r[0] <= _now.hour < r[1]), None)
+        if _win:
+            _end = _now.replace(hour=_win[1] % 24, minute=0,
+                                second=0, microsecond=0)
+            if _win[1] == 24:
+                _end += timedelta(days=1)
+            _left = (_end - _now).total_seconds() / 60.0
+            lead += f", {max(_left, 0):.0f} minutes left in this rotation"
+    except Exception:
+        pass
+    return lead
 
 
 def contest_light(exchange, cfg):
@@ -3014,7 +3121,7 @@ def contest_light(exchange, cfg):
     global _last_allgood_ts
     if voice and voice_updates and (time.time() - _last_allgood_ts) >= 60:
         _last_allgood_ts = time.time()
-        _speak_server("All good. " + ". ".join(voice_updates) + ".")
+        _speak_server(_all_good_lead() + ". " + ". ".join(voice_updates) + ".")
 
 
 def main():
@@ -5885,6 +5992,7 @@ def main():
         else:
             logger.info("  Next check in 30s | %s %s | threshold %d%% | full scan every %dm",
                         next_block_name, _day_label, auto_trade_threshold, next_interval)
+        _process_push_retries()   # GET OUT attempt 2/2, ~60s after attempt 1
         time.sleep(30)
 
 

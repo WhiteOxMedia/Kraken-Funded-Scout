@@ -1,4 +1,4 @@
-param([string]$Text = "", [int]$Rate = 2, [string]$OutFile = "")
+param([string]$Text = "", [int]$Rate = 2, [int]$Volume = 100, [string]$OutFile = "")
 # Zira speaks LOUD: render TTS to WAV, amplify to near-full scale (max 3x),
 # then play. Volume 100 alone leaves her quiet — this actually boosts her.
 # With -OutFile, the amplified WAV is ALSO saved there (for the phone push)
@@ -9,7 +9,7 @@ if (-not $Text) { exit }
 Add-Type -AssemblyName System.Speech
 $s = New-Object System.Speech.Synthesis.SpeechSynthesizer
 try { $s.SelectVoiceByHints([System.Speech.Synthesis.VoiceGender]::Female) } catch {}
-$s.Volume = 100
+$s.Volume = [Math]::Max(0, [Math]::Min(100, $Volume))
 $s.Rate = $Rate
 
 $wav = Join-Path $env:TEMP ("zira_" + $PID + ".wav")

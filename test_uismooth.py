@@ -87,16 +87,24 @@ check("legacy entries (no window) still get the old pace fallback",
 
 # ── 3. the watch settings row (was 4 stacked full-width rows) ────────
 watch_block = app.split("def render_auto_watch")[1].split("def _time_to_goal")[0]
-check("interval + goal + voice toggles in ONE row of columns",
-      "_s1, _s2, _s3 = st.columns" in watch_block)
-check("goal toggle keeps its key (state survives)",
-      'key="goal_toggle"' in watch_block)
-check("voice toggle keeps its key (state survives)",
-      'key="voice_toggle"' in watch_block)
+check("interval selectbox + volume dial in ONE row of columns",
+      "_s1, _s2 = st.columns" in watch_block)
+check("the status caption is FULL WIDTH (never inside a column)",
+      watch_block.find('always on (critical to the system') <
+      watch_block.find('with _s1:'))
+check("the volume dial keeps its key (state survives)",
+      'key="voice_volume"' in watch_block)
+check("the retired toggles render nowhere in the watch block",
+      'key="goal_toggle"' not in watch_block
+      and 'key="voice_toggle"' not in watch_block
+      and 'key="watch_toggle"' not in watch_block)
 check("interval selectbox keeps its key (state survives)",
-      'key="watch_interval"' in watch_block)
-check("GOAL CALL help speaks the current goal game (tide, rotation clock)",
-      "scaled by the tide" in watch_block and "rotation boundary" in watch_block)
+      'key="watch_interval_s"' in watch_block)
+check("the settings row declares the three fixed-on features",
+      "AUTO-WATCH" in watch_block and "GOAL CALL" in watch_block
+      and "HER VOICE" in watch_block and "always on" in watch_block)
+check("the volume dial says loudness-only (her voice is not a setting)",
+      "Loudness only" in watch_block and "always on" in watch_block)
 
 # ── 4. New Here: the current end-to-end, simple speak ────────────────
 import re

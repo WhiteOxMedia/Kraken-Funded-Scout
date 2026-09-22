@@ -50,8 +50,12 @@ def check(name, ok, detail=""):
 
 app = Path("app.py").read_text(encoding="utf-8")
 
-# ── the three persisted toggles (update here AND in TOGGLES below when
-#    a console switch is added — a new one without value= must fail) ──
+# ── the three persisted toggles (Sep 21, user rule: RETIRED from the
+#    console — critical to the system, fixed ON, hidden; the volume
+#    dial 0-100 replaces the HER VOICE switch). The guard now enforces
+#    the retirement itself: no toggle may carry these keys again, and
+#    nothing may write them False. If a console switch is ever added,
+#    it needs its own name AND a value= seed — add it to WIDGETS below.
 TOGGLES = [
     # (label in the UI, widget key, persisted store key)
     ("AUTO-WATCH", "watch_toggle", "watch_on"),
@@ -77,7 +81,7 @@ def _call(src: str, start: int) -> str:
     return src[start:start + 400]  # unbalanced — probe fails downstream
 
 
-# ── 1. every toggle carries value=bool(<persisted>...) ────────────────
+# ── 1. the retirement itself: the three switches are GONE from the UI ──
 toggle_calls = []  # (key, call_source)
 for m in re.finditer(r"st\.toggle\(", app):
     call = _call(app, m.start())
@@ -85,23 +89,15 @@ for m in re.finditer(r"st\.toggle\(", app):
     toggle_calls.append((km.group(1) if km else None, call))
 
 found_keys = sorted({k for k, _ in toggle_calls if k})
-check("the three console toggles all exist in app.py",
-      all(wk in found_keys for wk in _widget_keys),
-      f"found keys: {found_keys}")
-
-for label, wkey, pkey in TOGGLES:
-    call = next((c for k, c in toggle_calls if k == wkey), None)
-    if call is None:
-        check(f"{label}: toggle present", False, f'key="{wkey}" not found')
-        continue
-    has_value = re.search(r"\bvalue\s*=", call) is not None
-    seeds_from_store = re.search(
-        rf"value\s*=\s*bool\(\s*_cs\.get\(\s*\"{pkey}\"", call) is not None
-    check(f"{label}: st.toggle seeds value= from the persisted store "
-          f"(console_state.json.{pkey})",
-          has_value and seeds_from_store,
-          "missing value=" if not has_value else
-          "value= does not seed from the store (hardcoded or wrong key)")
+check("the three retired switches render nowhere in app.py",
+      all(wk not in found_keys for wk in _widget_keys),
+      f"toggle keys found: {found_keys}")
+check("the features stay declared fixed-ON in code",
+      re.search(r'watch_on = bool\(_cs\.get\("watch_on", True\)\) or True', app)
+      is not None)
+check("the VOLUME dial is a slider (0-100), seeded from the store",
+      re.search(r'st\.slider\(".*",\s*0,\s*100,\s*key="voice_volume"', app)
+      is not None and "_cs.get(\"voice_volume\", 100)" in app)
 
 # ── 2. nobody hand-writes a toggle's OWN session key ──────────────────
 #    Streamlit widget-policies: the widget owns its key. A write below
@@ -142,6 +138,14 @@ for pkey in _persist_keys:
         hardcoded.append((pkey, ln))
 check("no hardcoded 'False' seeds for the persisted toggle keys",
       not hardcoded, hardcoded)
+
+# ── 5. the scanner can no longer be silenced by the store ─────────
+bs_src = Path("background_scanner.py").read_text(encoding="utf-8")
+check("_voice_enabled() is permanently True (her voice is not a setting)",
+      re.search(r'def _voice_enabled\(\) -> bool:\n(    .*\n)*?    return True', bs_src)
+      is not None)
+check("the scanner renders her WAV at the console's volume dial",
+      '_voice_volume()' in bs_src and '"-Volume", str(_voice_volume())' in bs_src)
 
 lines.append(f"\nRESULT: {PASS} passed, {FAIL} failed")
 Path("_toggleguard_check.txt").write_text("\n".join(lines), encoding="utf-8")

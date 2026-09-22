@@ -932,16 +932,33 @@ VOICE_PREFIX = "Mic check one, two. Testing, testing. "
 SPEECH_QUEUE_DIR = Path(__file__).parent / "speech_queue"
 
 
+def _her_volume() -> int:
+    """Her loudness, 0-100 — the console's VOLUME dial (console_state.json
+    voice_volume, default 100). The voice itself is always on; this is
+    loudness only. Never raises; an unreadable dial is full volume."""
+    try:
+        import json as _j
+        return max(0, min(100, int(json.loads(STATE_FILE.read_text())
+                                  .get("voice_volume", 100))))
+    except Exception:
+        return 100
+
+
+
 def _speak(text: str, rate: int = 2):
     """Queue Zira's line for the SCANNER to speak — the one engine that
     works with the browser closed. Fire-and-forget, never blocks, never
-    depends on this tab being alive."""
+    depends on this tab being alive. Her VOICE is always on (the switch
+    that could silence it is retired, Sep 21); the console's VOLUME
+    dial (0-100) rides along as her loudness in the WAV the scanner
+    renders."""
     try:
         SPEECH_QUEUE_DIR.mkdir(exist_ok=True)
         import json as _json, uuid as _uuid
         name = f"{time.time():.6f}_{_uuid.uuid4().hex[:6]}.json"
         tmp = SPEECH_QUEUE_DIR / (name + ".tmp")
         tmp.write_text(_json.dumps({"text": text, "rate": int(rate),
+                                    "volume": _her_volume(),
                                     "ts": time.time()}), encoding="utf-8")
         os.replace(tmp, SPEECH_QUEUE_DIR / name)
     except (OSError, TypeError, ValueError) as exc:
@@ -5983,50 +6000,23 @@ def _light_check(kraken, cfg: TradingConfig, sb, held: dict, interval_s: int) ->
 from contextlib import contextmanager as _ctxmgr
 
 
-def _expander_open(key: str):
-    st.session_state[key] = True
-
-
-def _expander_close(key: str):
-    st.session_state[key] = False
-    # an explicit Close wins over the mobile latch — the user asked to
-    # close it, so the latch must not silently re-open it next rerun
-    st.session_state[f"{key}_mobile_force"] = False
-
-
-def _expander_mobile(key: str):
-    # the mobile latch: delayed tap events on phones can miss the header
-    # toggle entirely — once tapped, the section stays open for the session
-    st.session_state[f"{key}_mobile_force"] = True
-    st.session_state[key] = True
-
-
 @_ctxmgr
 def stable_expander(key: str, title: str):
     """An expander whose expansion survives any rerun or remount.
 
     1. session_state init guard: first rerun defaults to closed.
     2. stable key: the state key is the identity — the changing label
-       can no longer rebuild the widget's state.
-    3. explicit Open / Close buttons + a mobile Tap-to-Expand latch:
-       the bulletproof fallback; the expander itself is pure display.
-    4. wrapped in a stable container to damp DOM rebuild flicker.
+       can no longer rebuild the widget's state. The header tap IS the
+       control: it writes this state, so it persists like any other.
+    3. wrapped in a stable container to damp DOM rebuild flicker.
+
+    (Sep 21) the Open/Close/Tap-to-Expand button trios are retired:
+    with the state on a stable key the header tap persists on its own,
+    and three unlabeled buttons per section told nobody anything.
     """
     if key not in st.session_state:
         st.session_state[key] = False
-    if st.session_state.get(f"{key}_mobile_force"):
-        st.session_state[key] = True
     _open = bool(st.session_state[key])
-    _b_open, _b_close, _b_mob = st.columns([1, 1, 3])
-    with _b_open:
-        st.button("Open", key=f"{key}::open",
-                  on_click=_expander_open, args=(key,))
-    with _b_close:
-        st.button("Close", key=f"{key}::close",
-                  on_click=_expander_close, args=(key,))
-    with _b_mob:
-        st.button("Tap to Expand (Mobile)", key=f"{key}::mobile",
-                  on_click=_expander_mobile, args=(key,))
     with st.container():
         with st.expander(title, expanded=_open):
             yield
@@ -6479,270 +6469,256 @@ def render_auto_watch(cfg: TradingConfig, kraken):
     # the verdict dropdown shipped (never value= + session writes:
     # Streamlit's widget-policies warn). The interval stores SECONDS
     # (the machine's number); the panel's 'every X min' is derived.
-    # THE TOGGLE DEFAULT (Sep 21): value= seeds the widget's OWN key from
-    # the persisted store at session start. The old init-on-missing shape
-    # seeded a shadow key the widget never read — every fresh session
-    # rendered False and the very next line SAVED that False over the
-    # persisted ON. This is why switches snapped to OFF. (Re-restored
-    # Sep 21: the fragment-seconds commit accidentally reverted it.)
-    watch_on = st.toggle("🔔 AUTO-WATCH — every minute: green ALL GOOD / red GET OUT NOW",
-                         key="watch_toggle",
-                         value=bool(_cs.get("watch_on", True)))
-    if watch_on != _cs.get("watch_on", True):
-        _cs["watch_on"] = watch_on
-        _save_console_state(_cs)
-    if watch_on:
-        if "watch_interval_s" not in st.session_state:
-            _ci = _cs.get("watch_interval", 60)
-            if isinstance(_ci, str):   # legacy console_state string
-                _ci = {"1 min": 60, "2 min": 120,
-                       "5 min": 300}.get(_ci, 60)
-            st.session_state["watch_interval_s"] = (
-                _ci if _ci in (60, 120, 300) else 60)
-        # one compact settings row (Sep 4 smoothness pass): the interval +
-        # goal + voice toggles used to stack three full-width rows between
-        # the AUTO-WATCH switch and your trades on EVERY page
-        _s1, _s2, _s3 = st.columns([1, 1, 1])
-        with _s1:
-            interval = st.selectbox(
-                "Check every", [60, 120, 300], index=0,
-                format_func=lambda s: f"{s // 60} min",
-                key="watch_interval_s")
-        with _s2:
-            goal_on = st.toggle("🎯 GOAL CALL",
-                                key="goal_toggle",
-                                value=bool(_cs.get("goal_on",
-                                                   _cs.get("scalp_on", True))),
-                                help="THE RULES OF THE GAME: every entry carries its own "
-                                     "PERCENTAGE goal — set from what THIS coin actually "
-                                     "moves at this hour of the week (its own daily ranges, "
-                                     "capped by the engine, scaled by the tide), clamped "
-                                     "1-3%. The clock runs to the next rotation boundary. "
-                                     "She calls 'Goal reached — stay close!' when it "
-                                     "pays (the exit is hers: the trend break), and 'N times "
-                                     "the goal!' at each doubling. The clock never exits — "
-                                     "stay close past the window and wait for her call. Entry size is "
-                                     "capped by the 3% death-line guard (the contest "
-                                     "survives three worst-cases), so no single trade ever "
-                                     "risks the account.")
-        if goal_on != _cs.get("goal_on", _cs.get("scalp_on", True)):
-            _cs["goal_on"] = goal_on
+    # FIXED ON, HIDDEN (Sep 21, user rule — critical to the system):
+    # AUTO-WATCH, GOAL CALL and HER VOICE were console toggles, but the
+    # switches created the one failure mode that matters — snap-to-OFF
+    # (the toggle-guard saga: a widget-defaulting bug silently turned
+    # the watch off under a live position, twice). The features are the
+    # system's spine: they no longer render as switches and can no
+    # longer be off. Their persisted keys stay ON in console_state.json
+    # (the scanner's _voice_enabled() still reads voice_on; default ON).
+    watch_on = bool(_cs.get("watch_on", True)) or True
+    if "watch_interval_s" not in st.session_state:
+        _ci = _cs.get("watch_interval", 60)
+        if isinstance(_ci, str):   # legacy console_state string
+            _ci = {"1 min": 60, "2 min": 120,
+                   "5 min": 300}.get(_ci, 60)
+        st.session_state["watch_interval_s"] = (
+            _ci if _ci in (60, 120, 300) else 60)
+    # one compact settings row (Sep 4 smoothness pass): the interval +
+    # goal + voice toggles used to stack three full-width rows between
+    # the AUTO-WATCH switch and your trades on EVERY page
+    # two-column settings row (Sep 21 re-fit): the interval + the
+    # volume dial share the width; the status line below is full width
+    _s1, _s2 = st.columns([1, 1])
+    with _s1:
+        interval = st.selectbox(
+            "Check every", [60, 120, 300], index=0,
+            format_func=lambda s: f"{s // 60} min",
+            key="watch_interval_s")
+    with _s2:
+        # THE VOLUME DIAL (restored Sep 21, user rule: "Volume is
+        # separated and controlled with the dial 0-100") — the loudness
+        # of her voice, not whether she speaks. Her voice persists
+        # across store writes: the value= re-seeds from the store if a
+        # hand edit or a restore ever blanked the key.
+        voice_volume = st.slider("🔊 Her volume", 0, 100, key="voice_volume",
+                                 value=int(_cs.get("voice_volume", 100)),
+                                 help="Loudness only — her voice itself is always on "
+                                      "(the switch that could silence her is retired). "
+                                      "Drives the scanner's speaker and the phone-push audio.")
+        if voice_volume != _cs.get("voice_volume", 100):
+            _cs["voice_volume"] = int(voice_volume)
             _save_console_state(_cs)
-        with _s3:
-            voice_on = st.toggle("🔊 HER VOICE",
-                                 key="voice_toggle",
-                                 value=bool(_cs.get("voice_on", True)),
-                                 help="Zira announces your positions every minute from the scanner "
-                                      "process — she keeps talking whether or not this browser "
-                                      "tab is open.")
-        if voice_on != _cs.get("voice_on", True):
-            _cs["voice_on"] = voice_on
-            _save_console_state(_cs)
-        interval_s = interval   # the widget stores SECONDS directly
-        interval_ms = interval_s * 1000
+    # THE STATUS LINE, FULL WIDTH (Sep 21 re-fit): this caption used to
+    # live in the old third settings column — the long line forced the
+    # row wide and pushed every section below it sideways on the phone.
+    # Full width now: it wraps, and the sections render across the page.
+    st.caption("🔔 AUTO-WATCH · 🎯 GOAL CALL · 🔊 HER VOICE — always on "
+               "(critical to the system; the switches are retired)")
+    interval_s = interval   # the widget stores SECONDS directly
+    interval_ms = interval_s * 1000
 
-        # check NOW if due — fires on every page change, popup follows you
-        _light_check(kraken, cfg, sb, held, interval_s)
-        _render_light_panel(f"{interval // 60} min")
-        _render_her_words()
-        _render_popup_history()
-        _render_bots_book(kraken, cfg)
-        _toast_new_her_words()        # her-words popup ticker: fast lane (15s) — GET OUT / TAKE IT
-        # popups shouldn't wait for the 60s light cycle (user rule, Aug 30:
-        # "so not as a pop up?")
-        @st.fragment(run_every=15)
-        def _her_words_tick():
-            _toast_new_her_words()
+    # check NOW if due — fires on every page change, popup follows you
+    _light_check(kraken, cfg, sb, held, interval_s)
+    _render_light_panel(f"{interval // 60} min")
+    _render_her_words()
+    _render_popup_history()
+    _render_bots_book(kraken, cfg)
+    _toast_new_her_words()        # her-words popup ticker: fast lane (15s) — GET OUT / TAKE IT
+    # popups shouldn't wait for the 60s light cycle (user rule, Aug 30:
+    # "so not as a pop up?")
+    @st.fragment(run_every=15)
+    def _her_words_tick():
+        _toast_new_her_words()
 
-        _her_words_tick()
+    _her_words_tick()
 
-        # VOICE-DRIVEN FRESHNESS (Sep 21): the watching section reads its
-        # PnL and clocks only while a rerun runs — clicks or timers — so
-        # it sat stale between them. She speaks every minute while trades
-        # are tracked; a new voice_log line now triggers one full rerun
-        # (the same event that moved the numbers) so the section shows
-        # what she just said. The fragment's rerun is swallowed; the main
-        # script's rerun re-renders everything.
-        @st.fragment(run_every=15)
-        def _voice_refresh_tick():
-            try:
-                import json as _json
-                from pathlib import Path as _P2
-                _vf = _P2(__file__).parent / "voice_log.jsonl"
-                if not _vf.exists():
-                    return
-                _vlines = [l for l in _vf.read_text(encoding="utf-8").splitlines()
-                           if l.strip()]
-                if not _vlines:
-                    return
-                _vnew = str(_json.loads(_vlines[-1]).get("ts", ""))
-                _vseen = st.session_state.get("voice_refresh_last_ts", "")
-                if _vseen and _vnew > _vseen:
-                    st.session_state["voice_refresh_last_ts"] = _vnew
-                    st.rerun(scope="app")
-                elif not _vseen:
-                    st.session_state["voice_refresh_last_ts"] = _vnew
-            except (OSError, ValueError, KeyError) as _vexc:
-                logger.debug("voice-refresh tick skipped: %s", _vexc)
+    # VOICE-DRIVEN FRESHNESS (Sep 21): the watching section reads its
+    # PnL and clocks only while a rerun runs — clicks or timers — so
+    # it sat stale between them. She speaks every minute while trades
+    # are tracked; a new voice_log line now triggers one full rerun
+    # (the same event that moved the numbers) so the section shows
+    # what she just said. The fragment's rerun is swallowed; the main
+    # script's rerun re-renders everything.
+    @st.fragment(run_every=15)
+    def _voice_refresh_tick():
+        try:
+            import json as _json
+            from pathlib import Path as _P2
+            _vf = _P2(__file__).parent / "voice_log.jsonl"
+            if not _vf.exists():
+                return
+            _vlines = [l for l in _vf.read_text(encoding="utf-8").splitlines()
+                       if l.strip()]
+            if not _vlines:
+                return
+            _vnew = str(_json.loads(_vlines[-1]).get("ts", ""))
+            _vseen = st.session_state.get("voice_refresh_last_ts", "")
+            if _vseen and _vnew > _vseen:
+                st.session_state["voice_refresh_last_ts"] = _vnew
+                st.rerun(scope="app")
+            elif not _vseen:
+                st.session_state["voice_refresh_last_ts"] = _vnew
+        except (OSError, ValueError, KeyError) as _vexc:
+            logger.debug("voice-refresh tick skipped: %s", _vexc)
 
-        _voice_refresh_tick()
+    _voice_refresh_tick()
 
 
-        # ── SOLD buttons: the scalper's re-entry loop ──────────────────
-        # Took the $20? Tap SOLD — the position clears and the next green
-        # light re-adds it fresh at the new entry. One tap between rounds.
-        _cw_sold = _load_watch()
-        if _cw_sold:
-            _scols = st.columns(min(len(_cw_sold), 4))
-            for _i, (_sp, _sw) in enumerate(list(_cw_sold.items())):
-                with _scols[_i % len(_scols)]:
-                    if st.button(f"✔ SOLD {_asset(_sp)}", key=f"sold_{_sp.replace('/', '_')}",
-                                 help="Clear it — you're out. Next green light re-adds fresh."):
-                        # EVENT-DRIVEN INVALIDATION (the adaptive spec): a
-                        # trade just executed — the bot book + the QC's
-                        # book read refresh on the next read
-                        ac_invalidate("bot_positions", "qc_liquidity")
-                        _sw = _cw_sold.pop(_sp) or {}
-                        _save_watch(_cw_sold)
-                        # the re-entered expander follows right below
-                        st.session_state.get("take_level", {}).pop(_sp, None)
-                        # flow advance moves here (Aug 30): SOLD is now the
-                        # only exit — the board clears when YOU clear it
-                        st.session_state["flow_exit_at"] = time.time()
-                        # ── AUTO PnL + BALANCE (user rule, Sep 2: "stamp the
-                        #    real sold time and auto calculate the PnL...
-                        #    auto fill when the button is pushed — I can
-                        #    manually self adjust later"): the entry's size +
-                        #    entry price + the live price at tap time give the
-                        #    round trip; the 0.08% RT cost counts (platform
-                        #    rule — it hits the target AND the line); the
-                        #    contest balance adjusts itself and the trade is
-                        #    logged with its sold-time stamp. No size or no
-                        #    live price → the manual reminder stands.
-                        _say_sold = (f"{_asset(_sp)} sold! Cleared. Ready for the next one! "
-                                     f"Update the contest balance in the sidebar — my numbers follow it!")
-                        _toast_sold = f"✔ {_asset(_sp)} cleared — next green light re-adds it"
-                        _sold_at = _now_mst()
-                        try:
-                            _entry = float(_sw.get("entry") or 0.0)
-                            _size = float(_sw.get("size") or 0.0)
-                            _live = None
-                            if _entry > 0:
+    # ── SOLD buttons: the scalper's re-entry loop ──────────────────
+    # Took the $20? Tap SOLD — the position clears and the next green
+    # light re-adds it fresh at the new entry. One tap between rounds.
+    _cw_sold = _load_watch()
+    if _cw_sold:
+        _scols = st.columns(min(len(_cw_sold), 4))
+        for _i, (_sp, _sw) in enumerate(list(_cw_sold.items())):
+            with _scols[_i % len(_scols)]:
+                if st.button(f"✔ SOLD {_asset(_sp)}", key=f"sold_{_sp.replace('/', '_')}",
+                             help="Clear it — you're out. Next green light re-adds fresh."):
+                    # EVENT-DRIVEN INVALIDATION (the adaptive spec): a
+                    # trade just executed — the bot book + the QC's
+                    # book read refresh on the next read
+                    ac_invalidate("bot_positions", "qc_liquidity")
+                    _sw = _cw_sold.pop(_sp) or {}
+                    _save_watch(_cw_sold)
+                    # the re-entered expander follows right below
+                    st.session_state.get("take_level", {}).pop(_sp, None)
+                    # flow advance moves here (Aug 30): SOLD is now the
+                    # only exit — the board clears when YOU clear it
+                    st.session_state["flow_exit_at"] = time.time()
+                    # ── AUTO PnL + BALANCE (user rule, Sep 2: "stamp the
+                    #    real sold time and auto calculate the PnL...
+                    #    auto fill when the button is pushed — I can
+                    #    manually self adjust later"): the entry's size +
+                    #    entry price + the live price at tap time give the
+                    #    round trip; the 0.08% RT cost counts (platform
+                    #    rule — it hits the target AND the line); the
+                    #    contest balance adjusts itself and the trade is
+                    #    logged with its sold-time stamp. No size or no
+                    #    live price → the manual reminder stands.
+                    _say_sold = (f"{_asset(_sp)} sold! Cleared. Ready for the next one! "
+                             f"Update the contest balance in the sidebar — my numbers follow it!")
+                    _toast_sold = f"✔ {_asset(_sp)} cleared — next green light re-adds it"
+                    _sold_at = _now_mst()
+                    try:
+                        _entry = float(_sw.get("entry") or 0.0)
+                        _size = float(_sw.get("size") or 0.0)
+                        _live = None
+                        if _entry > 0:
+                            try:
+                                _live = float(kraken.exchange.fetch_ticker(_sp)["last"])
+                            except Exception:
+                                _live = None
+                        if _entry > 0 and _size > 0 and _live:
+                            import contest_account as _ca_s
+                            _gross, _cost, _net = _ca_s.pnl_net_usd(_entry, _live, _size)
+                            # (Sep 9) the trade lands on ITS OWN contest
+                            # window's balance -- the watch record carries
+                            # the contest_id it opened under; a foreign-
+                            # window trade is logged but never moves the
+                            # current balance (the TIA bug: an old
+                            # contest's console sold it and the loss hit
+                            # the new contest's account).
+                            _applied, _new_bal, _note = _ca_s.apply_pnl(
+                                _net, _sw.get("contest_id"),
+                                dedupe_key=f"{_sp}|{_sw.get('added')}")
+                            _held_min = ""
+                            try:
+                                from datetime import datetime as _dts
+                                _added = _sw.get("added")
+                                if _added:
+                                    _held_min = f"{(_sold_at - _dts.fromisoformat(_added)).total_seconds() / 60.0:.0f}"
+                            except (TypeError, ValueError) as exc:
+                                logger.debug("held-minutes compute failed: %s", exc)
+                            try:
+                                import json as _jsons
+                                with open("contest_trades.jsonl", "a", encoding="utf-8") as _fs:
+                                    _fs.write(_jsons.dumps({
+                                        "sold_at": _sold_at.isoformat(),
+                                        "pair": _sp, "entry": _entry, "exit": _live,
+                                        "size": _size,
+                                        "pnl_gross": round(_gross, 2),
+                                        "cost_rt": round(_cost, 2),
+                                        "pnl_net": round(_net, 2),
+                                        "balance_after": round(_new_bal, 2),
+                                        "applied": bool(_applied),
+                                        "note": ("" if _applied else _note),
+                                        "goal_pct": _sw.get("goal_pct"),
+                                        "held_min": _held_min,
+                                    }) + "\n")
+                            except Exception as exc:
+                                logger.warning("sold record write failed — outcome not journaled: %s", exc)
+                            _sign = "+" if _net >= 0 else "-"
+                            _toast_sold = (f"✔ {_asset(_sp)} sold — {_sign}${abs(_net):,.2f} net "
+                                           f"(0.08% RT cost incl.) · balance now ${_new_bal:,.0f}")
+                            _say_sold = (f"{_asset(_sp)} sold! "
+                                         f"{'Plus' if _net >= 0 else 'Minus'} {abs(_net):,.0f} dollars net! "
+                                         f"The balance is now {_new_bal:,.0f} dollars! "
+                                         f"Adjust me in the sidebar if that's off!")
+                            if not _applied:
+                                _toast_sold = (f"✔ {_asset(_sp)} sold — "
+                                               f"{'+' if _net >= 0 else '-'}${abs(_net):,.2f} net · "
+                                               f"NOT APPLIED: {_note or 'OLD-CONTEST trade'} "
+                                               f"(balance untouched)")
+                                _say_sold = (f"{_asset(_sp)} sold! That was an old contest trade -- "
+                                             f"logged, but the current balance is untouched!")
+                            # ── THE PROFIT RE-ARM (user rule, Sep 6: "can
+                            #    we carve out the winner exception if I
+                            #    collected money (profit)? I want to jump
+                            #    back in as soon when it sets up again"):
+                            #    a SOLD that books NET PROFIT disarms the
+                            #    rotation lock for this asset — the next
+                            #    setup can call it again (every gate still
+                            #    applies; the fire-time scan re-runs, the
+                            #    stale guard and the knife still judge the
+                            #    re-entry). A loss or a scratch keeps the
+                            #    lock armed — no re-buying what just beat
+                            #    you. The state file is shared with the
+                            #    running scanner — effective immediately.
+                            if _net > 0:
                                 try:
-                                    _live = float(kraken.exchange.fetch_ticker(_sp)["last"])
-                                except Exception:
-                                    _live = None
-                            if _entry > 0 and _size > 0 and _live:
-                                import contest_account as _ca_s
-                                _gross, _cost, _net = _ca_s.pnl_net_usd(_entry, _live, _size)
-                                # (Sep 9) the trade lands on ITS OWN contest
-                                # window's balance -- the watch record carries
-                                # the contest_id it opened under; a foreign-
-                                # window trade is logged but never moves the
-                                # current balance (the TIA bug: an old
-                                # contest's console sold it and the loss hit
-                                # the new contest's account).
-                                _applied, _new_bal, _note = _ca_s.apply_pnl(
-                                    _net, _sw.get("contest_id"),
-                                    dedupe_key=f"{_sp}|{_sw.get('added')}")
-                                _held_min = ""
-                                try:
-                                    from datetime import datetime as _dts
-                                    _added = _sw.get("added")
-                                    if _added:
-                                        _held_min = f"{(_sold_at - _dts.fromisoformat(_added)).total_seconds() / 60.0:.0f}"
-                                except (TypeError, ValueError) as exc:
-                                    logger.debug("held-minutes compute failed: %s", exc)
-                                try:
-                                    import json as _jsons
-                                    with open("contest_trades.jsonl", "a", encoding="utf-8") as _fs:
-                                        _fs.write(_jsons.dumps({
-                                            "sold_at": _sold_at.isoformat(),
-                                            "pair": _sp, "entry": _entry, "exit": _live,
-                                            "size": _size,
-                                            "pnl_gross": round(_gross, 2),
-                                            "cost_rt": round(_cost, 2),
-                                            "pnl_net": round(_net, 2),
-                                            "balance_after": round(_new_bal, 2),
-                                            "applied": bool(_applied),
-                                            "note": ("" if _applied else _note),
-                                            "goal_pct": _sw.get("goal_pct"),
-                                            "held_min": _held_min,
-                                        }) + "\n")
-                                except Exception as exc:
-                                    logger.warning("sold record write failed — outcome not journaled: %s", exc)
-                                _sign = "+" if _net >= 0 else "-"
-                                _toast_sold = (f"✔ {_asset(_sp)} sold — {_sign}${abs(_net):,.2f} net "
-                                               f"(0.08% RT cost incl.) · balance now ${_new_bal:,.0f}")
-                                _say_sold = (f"{_asset(_sp)} sold! "
-                                             f"{'Plus' if _net >= 0 else 'Minus'} {abs(_net):,.0f} dollars net! "
-                                             f"The balance is now {_new_bal:,.0f} dollars! "
-                                             f"Adjust me in the sidebar if that's off!")
-                                if not _applied:
-                                    _toast_sold = (f"✔ {_asset(_sp)} sold — "
-                                                   f"{'+' if _net >= 0 else '-'}${abs(_net):,.2f} net · "
-                                                   f"NOT APPLIED: {_note or 'OLD-CONTEST trade'} "
-                                                   f"(balance untouched)")
-                                    _say_sold = (f"{_asset(_sp)} sold! That was an old contest trade -- "
-                                                 f"logged, but the current balance is untouched!")
-                                # ── THE PROFIT RE-ARM (user rule, Sep 6: "can
-                                #    we carve out the winner exception if I
-                                #    collected money (profit)? I want to jump
-                                #    back in as soon when it sets up again"):
-                                #    a SOLD that books NET PROFIT disarms the
-                                #    rotation lock for this asset — the next
-                                #    setup can call it again (every gate still
-                                #    applies; the fire-time scan re-runs, the
-                                #    stale guard and the knife still judge the
-                                #    re-entry). A loss or a scratch keeps the
-                                #    lock armed — no re-buying what just beat
-                                #    you. The state file is shared with the
-                                #    running scanner — effective immediately.
-                                if _net > 0:
-                                    try:
-                                        import background_scanner as _bsr
-                                        if not hasattr(_bsr, "rotation_rearm_on_profit"):
-                                            import importlib
-                                            _bsr = importlib.reload(_bsr)
-                                        if _bsr.rotation_rearm_on_profit(_asset(_sp)):
-                                            _toast_sold += " · 🔁 re-armed"
-                                            _say_sold += (f" Profit collected — "
-                                                          f"{_asset(_sp)} is re-armed! "
-                                                          f"The next setup can call it again!")
-                                    except (AttributeError, ImportError, TypeError) as exc:
-                                        logger.debug("re-arm probe failed: %s", exc)
-                        except Exception as exc:
-                            logger.debug("sold-record enrich skipped: %s", exc)
+                                    import background_scanner as _bsr
+                                    if not hasattr(_bsr, "rotation_rearm_on_profit"):
+                                        import importlib
+                                        _bsr = importlib.reload(_bsr)
+                                    if _bsr.rotation_rearm_on_profit(_asset(_sp)):
+                                        _toast_sold += " · 🔁 re-armed"
+                                        _say_sold += (f" Profit collected — "
+                                                      f"{_asset(_sp)} is re-armed! "
+                                                      f"The next setup can call it again!")
+                                except (AttributeError, ImportError, TypeError) as exc:
+                                    logger.debug("re-arm probe failed: %s", exc)
+                    except Exception as exc:
+                        logger.debug("sold-record enrich skipped: %s", exc)
                         try:
                             st.toast(_toast_sold, icon="✔", duration=10)
                             _speak(_say_sold)
                         except Exception as exc:
                             logger.debug("sold toast/voice failed: %s", exc)
-                        st.rerun()
-
-        # ── the manual entry section retired here (user rule, Sep 21):
-        # popups auto-track when BUY NOW fires (auto_track_popup — one
-        # writer per route, and a BUY popup never fires on an asset
-        # already watched); the watch auto-stops when GET OUT NOW fires
-        # (the scanner's auto-close removes the row itself). SOLD stays:
-        # the profit collect that clears the watch so the hunt can find
-        # the next setup. The merged WATCHING rows live in HER WORDS.
-
-        st.caption("Leave this tab open — the watch runs in your browser. "
-                   "It just watches and alerts. It can't touch your money.")
-
-        # timer: keeps the checks coming while you sit still on one page
-        @st.fragment(run_every=interval_s)  # seconds — ms was 16+ hours
-        def _light_tick():
-            if _light_check(kraken, cfg, sb, held, interval_s):
-                try:
-                    st.rerun(scope="app")  # refresh the global panel
-                except TypeError:
                     st.rerun()
 
-        _light_tick()
-    else:
-        st.session_state.pop("exit_alerts", None)
+    # ── the manual entry section retired here (user rule, Sep 21):
+    # popups auto-track when BUY NOW fires (auto_track_popup — one
+    # writer per route, and a BUY popup never fires on an asset
+    # already watched); the watch auto-stops when GET OUT NOW fires
+    # (the scanner's auto-close removes the row itself). SOLD stays:
+    # the profit collect that clears the watch so the hunt can find
+    # the next setup. The merged WATCHING rows live in HER WORDS.
+
+    st.caption("Leave this tab open — the watch runs in your browser. "
+               "It just watches and alerts. It can't touch your money.")
+
+    # timer: keeps the checks coming while you sit still on one page
+    @st.fragment(run_every=interval_s)  # seconds — ms was 16+ hours
+    def _light_tick():
+        if _light_check(kraken, cfg, sb, held, interval_s):
+            try:
+                st.rerun(scope="app")  # refresh the global panel
+            except TypeError:
+                st.rerun()
+
+    _light_tick()
 
 
 def _time_to_goal(pair: str, live: float, tp):
@@ -6962,6 +6938,8 @@ def render_exit_check(cfg: TradingConfig, kraken):
                 _left_min = _w_window - _elapsed_min
         except (TypeError, ValueError) as exc:
             logger.debug("watch-window minutes unknown: %s", exc)
+    # STAY CLOSE (Sep 21 audit): window expiry is a stay-close MARKER,
+    # never an exit trigger — the exit belongs to the trend/exit gates
     _window_expired = bool(_w_window and _left_min is not None and _left_min <= 0)
     # tier-aware hard stop: half the remaining death-line buffer
     # (Sep 5: the daily lock removed — contest_account is the one source
@@ -6989,8 +6967,11 @@ def render_exit_check(cfg: TradingConfig, kraken):
     exhaustion = any("exhaustion" in r.lower() for r in sig.reasons) and sig.action != "buy"
     rider_exit = any("exit signal" in r.lower() for r in sig.reasons)
 
+    # (Sep 21 audit) NO _window_expired term: the clock never exits. The
+    # window's end is display-only (STAY CLOSE) — the exit gates below
+    # are all real data: trail, trend sell bar, exhaustion, rider, stop.
     should_exit = trail_hit or strategy_sell or exhaustion or rider_exit \
-        or _window_expired or _hard_stop_hit
+        or _hard_stop_hit
     reasons = []
     if trail_hit and high:
         reasons.append(f"down {(high-live)/high*100:.1f}% from the top")
@@ -7000,8 +6981,6 @@ def render_exit_check(cfg: TradingConfig, kraken):
         reasons.append("move's done")
     if rider_exit:
         reasons.append("out of steam")
-    if _window_expired:
-        reasons.append(f"window expired ({_elapsed_min:.0f} min in, goal not reached)")
     if _hard_stop_hit:
         reasons.append(f"stopped out — down ${abs(_pnl_usd):,.0f} (stop is -${_stop_usd:,.0f})")
 
@@ -7046,17 +7025,18 @@ def render_exit_check(cfg: TradingConfig, kraken):
         if _goal_mult >= 1:
             verdict_lines.append(
                 f"GOAL <span class='dim'>...............</span> "
-                f"<span style='color:#4be38a;'>{_pct:+.1f}% = {_goal_mult}× the {_w_goal:.1f}% goal — TAKE THE PROFIT</span>")
+                f"<span style='color:#4be38a;'>{_pct:+.1f}% = {_goal_mult}× the {_w_goal:.1f}% goal — STAY CLOSE, the exit is hers</span>")
         else:
             verdict_lines.append(
                 f"GOAL <span class='dim'>...............</span> "
                 f"{_pct:+.1f}% of the {_w_goal:.1f}% goal — {_goal_left:.1f}% to go")
         if _w_window and _elapsed_min is not None:
-            _win_col = "#ff6b5e" if _window_expired else ("#ffc36b" if _left_min < 15 else "#4be38a")
+            # expired ⇒ _left_min <= 0 < 15, so one amber ternary covers both
+            _win_col = "#ffc36b" if _left_min < 15 else "#4be38a"
             verdict_lines.append(
                 f"WINDOW <span class='dim'>.............</span> "
                 f"<span style='color:{_win_col};'>{_elapsed_min:.0f} of {_w_window:.0f} min — "
-                + (f"EXPIRED" if _window_expired else f"{_left_min:.0f} min left") + "</span>")
+                + (f"PAST — STAY CLOSE (exit is hers)" if _window_expired else f"{_left_min:.0f} min left") + "</span>")
 
     # ── THE POSITION: real dollars, real size, real peak ───────────────
     if _w_size:
@@ -7100,7 +7080,7 @@ def render_exit_check(cfg: TradingConfig, kraken):
             verdict_lines.append(f"  ✕ {r}")
     elif _goal_mult >= 1:
         verdict_lines.append(
-            f'<span style="color:#ffb347;">TAKE THE PROFIT — {_goal_mult}× the goal pays '
+            f'<span style="color:#ffb347;">STAY CLOSE — {_goal_mult}× the goal pays '
             f'{_fmt_price(_goal_px)}' + (f" (${_pnl_usd:+,.0f} on ${_w_size:,.0f})" if _pnl_usd is not None else "")
             + "</span>")
     else:
@@ -7152,11 +7132,12 @@ def render_exit_check(cfg: TradingConfig, kraken):
             logger.debug("get-out toast/voice failed: %s", exc)
     else:
         # HOLD — she answers the real question: how long to the goal?
-        # (and when the goal is REACHED, the answer is TAKE IT)
+        # (when the goal is REACHED the answer is STAY CLOSE — the exit
+        # is hers: the trend break, never the clock)
         try:
             if _goal_mult >= 1:
                 _speak(f"Goal reached! {asset} is up {_pct:.1f} percent — "
-                       f"{_goal_mult} times the goal! Take the profit!")
+                       f"{_goal_mult} times the goal! Stay close!")
             else:
                 _pnl_txt = ""
                 if entry:
