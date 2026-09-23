@@ -112,6 +112,46 @@ check("second-brain tripwire: the light's rows are born verdict-free",
       '"exit": False' in _light_src,
       "rows may hold state; they may never hold a verdict")
 
+# 6. THE MIRROR TRIPWIRE (Sep 22, user rule: the scanner must compute its
+#    own exits): background_scanner never READS a console-written verdict.
+#    The one-brain rule killed the console computing exits; this kills the
+#    mirror image — the scanner delegating its exit decision to something
+#    the console (or any console code path) wrote. Reads that stay legal:
+#    user DIALS (inputs a human turns) and scanner/diag-computed state.
+#    Provenance, verified Sep 22: the six console_state keys are dials;
+#    surething_goal_tilt.json is written by the DIAG, not the console;
+#    evaluate_strategy( at the exit site is the scanner computing its own
+#    verdict from price data — the behavior this tripwire PROTECTS.
+bs_stripped = _strip_docs_comments(bs_src)
+_bs_lines = bs_stripped.splitlines()
+_cs_sites = [i for i, ln in enumerate(_bs_lines)
+             if "console_state.json" in ln]
+check("mirror tripwire: the scanner reads console_state at all (the "
+      "surface exists to be pinned — re-verify provenance if this "
+      "count moves)",
+      len(_cs_sites) == 5, f"{len(_cs_sites)} sites")
+_cs_keys = set()
+for _i in _cs_sites:
+    for _ln in _bs_lines[_i:_i + 12]:
+        _cs_keys |= set(_re.findall(r'\.get\(\s*["\']([A-Za-z_]+)["\']', _ln))
+_MIRROR_DIALS = {"tier", "worth_floor_frac", "worth_floor_auto",
+                 "popup_cap", "climb_strictness", "voice_volume"}
+_stray = _cs_keys - _MIRROR_DIALS
+check("mirror tripwire: every console_state key the scanner reads is a "
+      "user dial (a new key is a new decision — pin it consciously)",
+      not _stray, f"stray: {sorted(_stray)}")
+check("mirror tripwire: no import of the console module",
+      "import app" not in bs_stripped and "from app import" not in bs_stripped)
+_MIRROR_ARTIFACTS = [a for a in ("exit_alerts", "flow_exit_at",
+                                 "_run_exit_logic(") if a in bs_stripped]
+check("mirror tripwire: no retired console-verdict artifact anywhere",
+      not _MIRROR_ARTIFACTS, f"found: {_MIRROR_ARTIFACTS}")
+_MIRROR_VERDICT_KEYS = _re.findall(
+    r'\.get\(\s*["\'](exit|sell|get_out|exit_alert)["\']', bs_stripped)
+check("mirror tripwire: no verdict-shaped read from any shared store "
+      "(watch rows, console_state, her words)",
+      not _MIRROR_VERDICT_KEYS, f"found: {_MIRROR_VERDICT_KEYS}")
+
 lines.append(f"\nRESULT: {PASS} passed, {FAIL} failed")
 open("_persist_check.txt", "w", encoding="utf-8").write("\n".join(lines))
 print("DONE")
