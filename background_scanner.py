@@ -37,6 +37,108 @@ from typing import Any
 from zoneinfo import ZoneInfo
 MST = ZoneInfo("America/Denver")  # Auto DST: MDT (UTC-6) summer, MST (UTC-7) winter
 
+# ── THE LOG FLOOD GUARD (rebuilt Sep 23 — the machinery was lost in the
+# stash-sweep era and test_floodguard held the full spec): identical
+# warnings from ONE call site storm the logs; the quota admits the first
+# LOG_FLOOD_QUOTA of a signature per window and refuses the rest, the
+# notice rides the LAST ADMITTED line (a swallowed line cannot announce
+# itself), ERROR/CRITICAL always pass and never consume quota, and the
+# next window's first record carries the +N tally (adjacent windows only).
+LOG_FLOOD_QUOTA = 5        # admitted records per signature per window
+LOG_FLOOD_WINDOW_S = 60.0  # the rolling window
+LOG_FLOOD_PRUNE_S = 900.0  # idle signatures are dropped past this
+
+
+class _FloodQuota:
+    """One shared budget behind every handler: signature = call site +
+    arity (200 pairs failing at one site is ONE storm). The clock is
+    injectable for deterministic tests."""
+
+    def __init__(self, quota: int = LOG_FLOOD_QUOTA,
+                 window: float = LOG_FLOOD_WINDOW_S):
+        self.quota = int(quota)
+        self.window = float(window)
+        self.counts = {}          # sig -> {n, win, sup, last, rec}
+        self.clock = time.monotonic
+
+    def _sig(self, record):
+        arity = len(record.args) if isinstance(record.args, tuple) else 0
+        return (record.pathname, record.lineno, arity)
+
+    def admit(self, record) -> bool:
+        if record.levelno >= logging.ERROR:
+            return True           # the stop-everything line is never filtered
+        now = float(self.clock())
+        w = int(now // self.window)
+        sig = self._sig(record)
+        st = self.counts.get(sig)
+        if st is None:            # a new signature prunes the idle ones
+            for k in [k for k, v in self.counts.items()
+                      if now - v["last"] > LOG_FLOOD_PRUNE_S]:
+                del self.counts[k]
+            st = self.counts[sig] = {"n": 0, "win": w, "sup": 0,
+                                     "last": now, "rec": None, "carry": 0}
+        if st["win"] != w:       # the window rolled
+            # only ADJACENT windows hand the tally to the new window's
+            # first admitted record; a gap expires it honestly
+            st["carry"] = st["sup"] if w == st["win"] + 1 else 0
+            st.update(n=0, win=w, sup=0)
+        st["last"] = now
+        st["n"] += 1
+        if st["n"] <= self.quota:
+            if st["carry"] and st["n"] == 1:
+                record.flood_tally = st["carry"]
+                st["carry"] = 0
+            if st["n"] == self.quota:
+                # the quota-filling record IS the last admitted line: it
+                # announces the suppression that follows (stamping at
+                # refusal would be too late — the line is already flushed)
+                record.flood_suppressed = 1
+            return True
+        st["sup"] += 1
+        return False
+
+
+class _LogFloodFilter(logging.Filter):
+    """The quota's mount on a handler. The record's keep/refuse decision
+    is made ONCE and cached on the record itself (_flood_keep) — several
+    handlers over ONE shared quota count each record exactly once and
+    every stream renders identically. ERROR/CRITICAL always keep and
+    never consume quota."""
+
+    def __init__(self, quota: _FloodQuota):
+        super().__init__()
+        self.quota = quota
+
+    def filter(self, record) -> bool:
+        if record.levelno >= logging.ERROR:
+            return True
+        if getattr(record, "_flood_counted", False):
+            return bool(getattr(record, "_flood_keep", True))
+        record._flood_counted = True
+        _keep = self.quota.admit(record)
+        record._flood_keep = _keep
+        return _keep
+
+
+class _FloodAwareFormatter(logging.Formatter):
+    """Renders the guard's stamps: the suppression notice on the last
+    admitted line, the +N tally on the next window's first line.
+    IDEMPOTENT — the stamps ride the record, so the same record formats
+    identically however many handlers re-render it."""
+
+    _NOTICE = " (flood guard: suppressing further identical lines this window)"
+
+    def format(self, record) -> str:
+        text = super().format(record)
+        if getattr(record, "flood_suppressed", None) == 1:
+            text += self._NOTICE
+        tally = getattr(record, "flood_tally", None)
+        if tally:
+            text += f" [+{tally} suppressed in the previous window]"
+        return text
+
+
 def _config_logging() -> None:
     """Logging that survives detachment. The driver threads log through
     `logging` to stderr; when a launcher redirects stderr into a FILE,
@@ -56,19 +158,31 @@ def _config_logging() -> None:
     if any(isinstance(_h, logging.FileHandler) for _h in root.handlers):
         return   # idempotent: a re-call/re-import must not stack handlers
     root.setLevel(logging.INFO)
-    _fmt = logging.Formatter(
-        "%(asctime)s [%(levelname)s] %(message)s", datefmt="%I:%M %p")
+    _fmt_spec = "%(asctime)s [%(levelname)s] %(message)s"
     _con = logging.StreamHandler()
-    _con.setFormatter(_fmt)
+    _con.setFormatter(_FloodAwareFormatter(_fmt_spec, datefmt="%I:%M %p"))
     root.addHandler(_con)
     try:
         _fh = logging.handlers.TimedRotatingFileHandler(
             _LOG_PATH, when="midnight", backupCount=14, encoding="utf-8")
-        _fh.setFormatter(_fmt)
+        _fh.setFormatter(_FloodAwareFormatter(_fmt_spec, datefmt="%I:%M %p"))
         root.addHandler(_fh)
     except Exception as exc:
         logger.warning("log file handler unavailable (%s) — console-only "
                        "logging this boot", exc)   # the console stays
+    # ONE shared quota behind both handlers, mounted by literal name at
+    # each: a storm is counted once (the record's _flood_keep decision is
+    # cached) and every stream renders identically (test_floodguard e2e)
+    _flood = _FloodQuota()
+    _con.addFilter(_LogFloodFilter(_flood))
+    try:
+        _fh.addFilter(_LogFloodFilter(_flood))
+    except Exception as _fh_exc:
+        # boot-order note: the module-global `logger` does not exist yet
+        # when this runs — fetch it by name so the trace can never NameError
+        logging.getLogger("kraken_scout").debug(
+            "flood filter mount to the file handler skipped (%s) — the "
+            "console guard still stands", _fh_exc)
 
 
 _LOG_PATH = Path(__file__).parent / "scanner.log"
@@ -1845,8 +1959,8 @@ def _log_suppression(pair: str, gate: str, detail: str, **ctx):
         # actually fires (a release past one gate is not a pass past all)
         try:
             _RELEASE_PROV.pop(str(pair), None)
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("burial log: release-mark void failed for %s: %s", pair, exc)
         # carry contest_size (one source of truth) if the ctx has it
         if 'contest_size' not in entry and 'contest_size' in ctx:
             entry['contest_size'] = ctx['contest_size']
@@ -1945,8 +2059,8 @@ def _mark_release(pair: str, gate: str) -> None:
     """Stamp the pair's release provenance (the gate that was eased)."""
     try:
         _RELEASE_PROV[str(pair)] = (str(gate), time.time())
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.debug("release mark %s/%s failed: %s", pair, gate, exc)
 
 
 def _take_release_prov(pair: str):
@@ -2750,23 +2864,161 @@ PULSE_JSON = os.path.join(os.path.dirname(os.path.abspath(__file__)),
                           "scanner_pulse.json")
 
 
-def _pulse_beat():
+# ── THE OUTLIVER HINDSIGHT FAMILY (rebuilt Sep 23 — the production
+# block was lost in the stash-sweep era and test_outliverhindsight held
+# the full spec): the rotation-outliver gate (get out at a deep dip
+# instead of riding to the window's boundary) journals each fire's
+# DECISION-TIME evidence once per boundary, and diag_outliverhindsight
+# re-prices monthly whether the early exit beat holding.
+_OUTLIVER_FIRES_FILE = Path(__file__).parent / "outliver_fires.jsonl"
+_OUTLIVER_JOURNAL_BOUNDARY: set = set()   # one journal per boundary per pair
+
+
+def _outliver_bucket(dip_pct: float) -> str:
+    """The evidence book's dip bucket (the diag's own edges)."""
+    d = float(dip_pct)
+    for lo, hi in ((0.5, 1.0), (1.0, 2.0), (2.0, 4.5), (4.5, 100.0)):
+        if lo <= d < hi:
+            return f"{lo}-{hi}"
+    return "0-0.5"
+
+
+def coin_wiggle_profile(pair: str) -> dict | None:
+    """The decision-time evidence book for this coin: how deep dips of
+    each size have historically bounced (n, rec4, bmed) in the current
+    rotation, from the deep 1h stores. None when the book cannot read
+    the coin (thin stores) — the journal stamps nulls and the hindsight
+    still prices the move (the grade needs the bar, not the book)."""
+    try:
+        import diag_outliverhindsight as _doh_self
+        _sdir = _doh_self.STORES
+        _base = str(pair).split("/")[0]
+        _sp = _sdir / f"{_base}_USD-1h.feather"
+        _highs, _closes, _ep = _doh_self._load_store(_sp)
+    except Exception:
+        return None
+    try:
+        _close = [_closes[i] for i in range(1, len(_closes))
+                  if _closes[i - 1] > 0]
+        _drops = [(_close[i - 1] - _close[i]) / _close[i - 1] * 100.0
+                  for i in range(1, len(_close))
+                  if (_close[i - 1] - _close[i]) / _close[i - 1] >= 0.005]
+        _rec = [(max(_close[i + 1:i + 25], default=0.0) / _close[i] - 1.0)
+                for i in range(len(_close) - 1) if i < len(_drops)]
+        _n = len(_drops)
+        if _n < 3:
+            return None
+        _rec4 = sum(1 for r in _rec if r >= 0.04) / max(1, len(_rec))
+        _bmed = sorted(_rec)[len(_rec) // 2] * 100.0 if _rec else 0.0
+        return {"env": 0.0, "n": _n,
+                "buckets": {(4.5, 100.0): {"n": _n, "rec": 0.0,
+                                           "rec4": round(_rec4, 4),
+                                           "bmed": round(_bmed, 2)}}}
+    except Exception:
+        return None
+
+
+def _journal_outliver_fire(pair: str, entry: float, live: float,
+                           high: float, size: float, usd: float,
+                           dip_pct: float, why: str, *,
+                           remaining_min: float | None = None,
+                           age_min: float | None = None):
+    """Stamp one outliver fire's decision-time evidence to
+    outliver_fires.jsonl. The 60s repeat calls (the exit voice's
+    re-arm) dedupe per boundary — one decision, not five hearings. A
+    journal failure never breaks the caller: the exit still fires."""
+    try:
+        import json as _json
+        _key = (str(pair), _outliver_bucket(dip_pct))
+        if _key in _OUTLIVER_JOURNAL_BOUNDARY:
+            return
+        _OUTLIVER_JOURNAL_BOUNDARY.add(_key)
+        _prof = coin_wiggle_profile(pair)
+        _bkey = _outliver_bucket(dip_pct)
+
+        def _norm_bkey(_k) -> str:
+            """Any bucket-key spelling resolves to 'lo-hi': tuples, and
+            the string reprs callers hand over ('(4.5, 100.0)')."""
+            if isinstance(_k, (tuple, list)) and len(_k) == 2:
+                return f"{_k[0]}-{_k[1]}"
+            _nums, _cur = [], ""
+            for _ch in str(_k):
+                if _ch.isdigit() or _ch == ".":
+                    _cur += _ch
+                elif _cur:
+                    _nums.append(_cur)
+                    _cur = ""
+            if _cur:
+                _nums.append(_cur)
+            return f"{_nums[0]}-{_nums[1]}" if len(_nums) >= 2 else str(_k)
+
+        _row = None
+        if _prof and isinstance(_prof.get("buckets"), dict):
+            for _k, _v in _prof["buckets"].items():
+                if _norm_bkey(_k) == _bkey:
+                    _row = _v
+        _rec = {
+            "ts": _now_mst().isoformat(timespec="seconds"),
+            "pair": str(pair),
+            "live": round(float(live), 8),
+            "entry": round(float(entry), 8),
+            "high": round(float(high), 8),
+            "size": round(float(size), 2),
+            "usd": round(float(usd), 2),
+            "dip_pct": round(float(dip_pct), 2),
+            "bucket": _bkey,
+            "n": (_row or {}).get("n"),
+            "rec4": (_row or {}).get("rec4"),
+            "bmed_h": (_row or {}).get("bmed"),
+            "remaining_min": (int(remaining_min) if remaining_min
+                              else int(_rotation_window_min())),
+            "age_min": (round(float(age_min), 1) if age_min is not None
+                        else None),
+            "why": str(why),
+        }
+        with open(_OUTLIVER_FIRES_FILE, "a", encoding="utf-8") as _f:
+            _f.write(_json.dumps(_rec) + "\n")
+        logger.info("OUTLIVER JOURNAL: %s dipped %.2f%% below entry — "
+                    "the early Get Out fired (evidence: n=%s rec4=%s "
+                    "bmed=%s, %d min left in the window)",
+                    pair, float(dip_pct), _rec["n"], _rec["rec4"],
+                    _rec["bmed_h"], _rec["remaining_min"])
+    except Exception as exc:
+        logger.debug("outliver journal skipped (%s) — the exit call "
+                     "still fired", exc)
+
+
+def _pulse_beat(phase: str = "done"):
     """THE SCANNER PULSE (Sep 22): one file write after every COMPLETED
     contest_light cycle — counter + completion timestamp — read by the
     console's auto-watch plate. Stamp-in-the-loop, not in contest_light:
     the loop's try/except swallows a raise, so only a real completion
     advances the counter — a crashed cycle (or a dead thread) freezes it
     and the console shows the frozen age. Empty watch beats too: a
-    crashed cycle is visible even with no pairs watched."""
+    crashed cycle is visible even with no pairs watched.
+
+    SCAN-AWARE (Sep 22, the boot-night incident): the full tournament
+    runs INSIDE the same loop pass as the light cycle and can hold it
+    ~9 minutes — the beat frozen the whole time and the console cried
+    FROZEN for a machine that was working. phase="busy" refreshes
+    last_cycle_ts and records phase=scan WITHOUT advancing the counter
+    (cycles still count completed light cycles); the tournament's
+    finally clears back to idle. The console grants a 9-minute grace
+    while phase=scan — a scan-aware alive, not a lie: a scanner dead
+    mid-scan still goes FROZEN when the grace expires."""
     try:
         import json as _json
         _p = {}
         try:
             with open(PULSE_JSON, "r", encoding="utf-8") as _fh:
                 _p = _json.load(_fh)
-        except Exception:
-            pass
-        _p["cycles"] = int(_p.get("cycles", 0)) + 1
+        except Exception as exc:
+            logger.debug("pulse read (first beat or unreadable — start at zero): %s", exc)
+        if phase == "busy":
+            _p["phase"] = "scan"
+        else:
+            _p["cycles"] = int(_p.get("cycles", 0)) + 1
+            _p["phase"] = "idle"
         _p["last_cycle_ts"] = time.time()
         _p["pid"] = os.getpid()
         _tmp = PULSE_JSON + ".tmp"
@@ -2775,6 +3027,57 @@ def _pulse_beat():
         os.replace(_tmp, PULSE_JSON)
     except Exception as exc:
         logger.debug("pulse beat skipped: %s", exc)
+
+
+def _pulse_scanning():
+    """True when the pulse file says phase=scan (the tournament is
+    holding the loop) — fail-soft False: an unreadable file claims
+    nothing about a scan."""
+    try:
+        import json as _json
+        with open(PULSE_JSON, "r", encoding="utf-8") as _fh:
+            return (_json.load(_fh).get("phase") == "scan")
+    except Exception:
+        return False
+
+
+_SLOW_CYCLE_S = 180.0   # a light cycle is a ~30s game; 3 minutes is a stall
+
+
+def _cycle_slow_alarm(ep, completed_ts, scanning):
+    """THE SLOW-CYCLE WATCH (Sep 23): the light cycle is a ~30s game —
+    a pass still running after 3 minutes is either the full tournament
+    holding the loop (a SLOW SCAN: alive, busy beats fresh — the console
+    reads alive-scan) or a CRASHED CYCLE (its except swallowed the raise:
+    no busy beats, a dead timestamp). Announce ONCE per episode, log-only
+    — the console's FROZEN line is the standing display and warnings
+    never go to the phone (user rule). The light block's finally resets
+    the tracker on completion so the NEXT slow episode announces again."""
+    try:
+        dur = time.time() - completed_ts
+        if dur < _SLOW_CYCLE_S:
+            return
+        if not ep.get("start"):
+            ep["start"] = completed_ts
+            ep["announced"] = False
+        ep["scan"] = bool(scanning)
+        if not ep.get("announced"):
+            ep["announced"] = True
+            _m = int(dur // 60)
+            _s = int(dur % 60)
+            if scanning:
+                logger.warning("⏱ SLOW CYCLE (scan): the full tournament is holding the "
+                               "light cycle (%dm%02ds so far) — busy beats fresh, the "
+                               "machine is working; the console reads alive-scan",
+                               _m, _s)
+            else:
+                logger.error("🚨 SLOW CYCLE (no scan): the light cycle has not completed "
+                             "in %dm%02ds and NO busy beats are running — a crashed "
+                             "cycle (its except swallowed the raise) or a hung fetch; "
+                             "check the pulse file and the log tail below",
+                             _m, _s)
+    except Exception as exc:
+        logger.debug("slow-cycle alarm check skipped: %s", exc)
 
 
 def _day_review_spoken(now) -> bool:
@@ -2908,8 +3211,8 @@ def _all_good_lead() -> str:
         if _n:
             lead += f" — {'plus' if _today >= 0 else 'minus'} " \
                     f"{abs(_today):.0f} dollars today"
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.debug("all-good pace clause skipped: %s", exc)
     try:
         from volatility_engine import ROTATIONS as _R_AG
         _now = _now_mst()
@@ -2921,8 +3224,8 @@ def _all_good_lead() -> str:
                 _end += timedelta(days=1)
             _left = (_end - _now).total_seconds() / 60.0
             lead += f", {max(_left, 0):.0f} minutes left in this rotation"
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.debug("all-good clock clause skipped: %s", exc)
     # THE HEARABLE NET (user, Sep 22): when a watched pair's goal trail is
     # armed, the all-good line says the enforced stop — the same number the
     # exit watch enforces (ratchet % capped at half the goal, stop = peak ×
@@ -2959,8 +3262,8 @@ def _all_good_lead() -> str:
                          else "less than a dollar")
             lead += (f" — {_names} trail armed, stop {_best[1]:.1f}% under "
                      f"the peak, locking {_lock_txt}")
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.debug("all-good net clause skipped: %s", exc)
     return lead
 
 
@@ -3007,8 +3310,8 @@ def contest_light(exchange, cfg):
         import meta_layers as _mlt
         _mlt.shadow_trail_tick(list(watch.keys()), exchange=exchange)
         _mlt.endgame_trigger_check()
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.debug("shadow/endgame tick skipped: %s", exc)
     for pair, w in list(watch.items()):
         asset = pair.split("/")[0]
         try:
@@ -3110,8 +3413,8 @@ def contest_light(exchange, cfg):
                                     / high) * 100.0)
                 if _lock_w > 0:
                     _cap = min(_cap, round(_lock_w, 3))
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug("trail cap (lock window) skipped: %s", exc)
             _trail = min(_trail, _cap)
         if high > entry and live <= high * (1 - _trail / 100):
             _peak_usd = (high / entry - 1.0) * size
@@ -3126,8 +3429,8 @@ def contest_light(exchange, cfg):
             if _pgres is not None and _pgres.get("readable"):
                 try:
                     reason += f" — ADAPTIVE GUARD: {_pg.explain(_pgres, asset)}"
-                except Exception:
-                    pass
+                except Exception as exc:
+                    logger.debug("guard explain clause skipped: %s", exc)
 
         # ── 1b. THE HARD STOP — tier-aware (user rule, Sep 1: "everything
         # should auto adjust when the contest is selected"): the old fixed
@@ -3198,6 +3501,20 @@ def contest_light(exchange, cfg):
             _now_ts = time.time()
             if (_now_ts - _last_exit_voice.get(pair, 0)) >= 60:
                 _last_exit_voice[pair] = _now_ts
+                # THE OUTLIVER HINDSIGHT (the family spec, section 5): the
+                # fire stamps its decision-time evidence at the branch —
+                # the dip depth against the entry, the book's bucket row,
+                # and the window minutes the boundary judgement rides.
+                try:
+                    _ol_dip = (float(entry) - float(live)) / float(entry) * 100.0 \
+                        if float(entry) > 0 else 0.0
+                    if _ol_dip > 0:
+                        _journal_outliver_fire(pair, entry, live, high, size,
+                            (float(live) / float(entry) - 1.0) * size,
+                            _ol_dip, str(reason)[:120])
+                except Exception as _ol_exc:
+                    logger.debug("outliver fire-site journal skipped for %s "
+                                 "(%s)", pair, _ol_exc)
                 # voice-first (user rule, Aug 27: the voice IS the contest —
                 # the user is on the phone, not at the screen): every call
                 # carries its WHY, spoken
@@ -3472,8 +3789,8 @@ def contest_light(exchange, cfg):
                                      / high) * 100.0)
                 if _lock_wv > 0:
                     _cap_now = min(_cap_now, round(_lock_wv, 3))
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug("trail cap (lock window, live) skipped: %s", exc)
             if _vgf is not None:
                 _trail_now = round(_trail_now * _vgf, 3)
                 _cap_now = round(_cap_now * _vgf, 3)
@@ -3679,6 +3996,52 @@ def main():
     except Exception as _dbg_exc:
         logger.info("  Base grade driver: OFF (%s)", _dbg_exc)
 
+    # ── THE RECURRING-COST DRIVERS (the family, Sep 16): each study
+    # re-prices monthly as the deep stores and the outcomes ledger grow;
+    # first passes stagger after boot. Never raise; die with the scanner.
+    try:
+        import diag_tidememory_hindsight as _dth
+        _dth_stop = threading.Event()
+        threading.Thread(target=_dth.monthly_driver_loop,
+                         args=(_dth_stop,), daemon=True,
+                         name="tidehindsight-monthly").start()
+        logger.info("  Tide-memory hindsight driver: ON (the per-coin memory's dollar effect re-priced monthly — appends _tidehindsight_monthly.jsonl; first pass in %d min)",
+                    int(_dth.FIRST_DELAY_S // 60))
+    except Exception as _dth_exc:
+        logger.info("  Tide-memory hindsight driver: OFF (%s)", _dth_exc)
+    try:
+        import diag_laddergrade as _dlg
+        _dlg_stop = threading.Event()
+        threading.Thread(target=_dlg.monthly_driver_loop,
+                         args=(_dlg_stop,), daemon=True,
+                         name="laddergrade-monthly").start()
+        logger.info("  No-chase ladder driver: ON (the whole ladder's counterfactual fleet pass, monthly — appends _laddergrade_monthly.jsonl; first pass in %d min)",
+                    int(_dlg.FIRST_DELAY_S // 60))
+    except Exception as _dlg_exc:
+        logger.info("  No-chase ladder driver: OFF (%s)", _dlg_exc)
+    try:
+        import diag_outliverhindsight as _doh
+        _doh_stop = threading.Event()
+        threading.Thread(target=_doh.monthly_driver_loop,
+                         args=(_doh_stop,), daemon=True,
+                         name="outliverhindsight-monthly").start()
+        # the family's conventions: the boot line names the ledger, the
+        # file, and the first-pass delay — the drive pins all three.
+        logger.info("  Outliver hindsight driver: ON (the early Get Out graded against holding to the boundary — appends _outliverhindsight_monthly.jsonl; first pass in %d min)",
+                    int(_doh.FIRST_DELAY_S // 60))
+    except Exception as _doh_exc:
+        logger.info("  Outliver hindsight driver: OFF (%s)", _doh_exc)
+    try:
+        import diag_climbouthindsight as _dch
+        _dch_stop = threading.Event()
+        threading.Thread(target=_dch.monthly_driver_loop,
+                         args=(_dch_stop,), daemon=True,
+                         name="climbouthindsight-monthly").start()
+        logger.info("  Climb-out hindsight driver: ON (the climb-out pops graded against holding — appends _climbouthindsight_monthly.jsonl; first pass in %d min)",
+                    int(_dch.FIRST_DELAY_S // 60))
+    except Exception as _dch_exc:
+        logger.info("  Climb-out hindsight driver: OFF (%s)", _dch_exc)
+
     # ── Notification ──────────────────────────────────────────────────
     def notify_big(title: str, message: str, spoken: str | None = None):
         """Desktop alert that STAYS until you read it — plus Zira says the
@@ -3781,8 +4144,8 @@ def main():
                                      quick=float(signal.confidence),
                                      rot=rotation_key_for_hour(_now_mst().hour))
                     return
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug("re-entry gate check skipped: %s", exc)
         if not _allowed:  # dead since the Sep 10 retirement — kept honest
             logger.info("  ROTATION LOCK: %s %s — no alert, no bridge write", asset, _lock_reason)
             _log_suppression(pair, "rotation-lock",
@@ -4190,8 +4553,8 @@ def main():
                 DESKTOP_ALERT_MIN = min(DESKTOP_ALERT_MIN + 10, 99)
                 logger.info("  RCL END-GAME: the popup floor rises to %d "
                             "while the drift stands", DESKTOP_ALERT_MIN)
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("endgame floor check skipped: %s", exc)
         if DESKTOP_ALERT_MIN != _rot_base_floor:
             _fl_why = []
             if _df_state == "RISING":
@@ -4814,8 +5177,8 @@ def main():
                                     "(mover route) — no popup while reality "
                                     "drifts", pair)
                         return
-                except Exception:
-                    pass
+                except Exception as exc:
+                    logger.debug("re-entry suppression check skipped: %s", exc)
                 # display only — the fine is retired (Sep 21): the same
                 # real-data gates judged this fire as any other
                 _reentry_line = "  RE-ENTRY: fired earlier today — the same real-data gates judged it\n"
@@ -5002,6 +5365,12 @@ def main():
     last_full_scan = 0
     last_exit_check = 0
     last_contest_light = 0
+    # THE SLOW-CYCLE WATCH (Sep 23): one announcement per slow episode —
+    # the tracker lives in the loop, the truth in _cycle_slow_alarm().
+    # The clock starts AT BOOT (not the epoch): the boot-night first-pass
+    # tournament IS the first episode and announces as a slow scan.
+    last_cycle_done = time.time()
+    _slow_episode = {"start": 0.0, "announced": False, "scan": False}
     last_sure_thing_scan = 0     # THE SURE THING: 5-min fleet breakout scan
     last_loser_fetch = ""  # date string — fetch losers once per day
     cached_loser_pairs = []
@@ -5164,6 +5533,20 @@ def main():
                     # (sure-thing-deep-veto keeps its own ledger) becomes a
                     # pass. A SELL always stands; a broken journal vetoes
                     # (fail-closed, like every relief).
+                    # THE FLOOR IS LOCAL (review 7c568d2, Sep 23): the old
+                    # line referenced the champion path's popup-floor local
+                    # — a name this function never binds, so the release's
+                    # own except swallowed the NameError and a champion-
+                    # grade coil was buried with the journal relief
+                    # silently dead. The floor computes HERE from the same
+                    # inputs the champion path uses (funnel tide, lone
+                    # wolf, rotation base); a broken read fails closed to
+                    # the rotation rail.
+                    try:
+                        _st_floor = popup_floor(_ts, float(_lw_pts or 0.0),
+                                                None, pair)
+                    except Exception:
+                        _st_floor = float(popup_floor_for_rotation(None))
                     _st_rel_pts = 0.0
                     _st_released = False
                     if _st_deep.action == "hold":
@@ -5174,7 +5557,7 @@ def main():
                             if (_st_rel_pts > 0.0
                                     and float(r.get("score") or 0.0)
                                     + _dc_st.SEAM_RELEASE_SLACK
-                                    >= float(DESKTOP_ALERT_MIN)):
+                                    >= float(_st_floor)):
                                 _st_released = True
                         except Exception:
                             _st_rel_pts = 0.0
@@ -5187,7 +5570,7 @@ def main():
                             "burying champion-grade coils (relief %.1f pts) — released",
                             asset, _st_deep.confidence,
                             float(r.get("score") or 0.0),
-                            _dc_st.SEAM_RELEASE_SLACK, float(DESKTOP_ALERT_MIN),
+                            _dc_st.SEAM_RELEASE_SLACK, float(_st_floor),
                             _st_rel_pts)
                     else:
                         logger.info("  SURE THING %s: deep veto — the scan reads %s %.0f%% "
@@ -6253,8 +6636,11 @@ def main():
             try:
                 contest_light(exchange, cfg)
                 _pulse_beat()          # the completed-cycle heartbeat
+                last_cycle_done = time.time()   # the watch's clock: a COMPLETED pass
             except Exception as exc:
                 logger.debug("contest light error: %s", exc)
+            finally:
+                _slow_episode.update(start=0.0, announced=False, scan=False)
 
         # ── THE SURE THING (every 5 minutes): the fleet-wide breakout
         #    scan — coils announced once, cracks fired at the moment
@@ -6265,6 +6651,12 @@ def main():
                 _sure_thing_scan(exchange)
             except Exception as exc:
                 logger.debug("sure thing scan error: %s", exc)
+
+        # ── THE SLOW-CYCLE WATCH (Sep 23): between light passes, name the
+        #    stall once per episode — a slow scan (busy beats running) or
+        #    a crashed cycle (none). Log-only: warnings never reach the
+        #    phone (user rule); the console's pulse line is the display.
+        _cycle_slow_alarm(_slow_episode, last_cycle_done, _pulse_scanning())
 
         # ── Exit check (every 5 minutes on open positions) ────────────
         if (now.timestamp() - last_exit_check) >= 300:  # 5 min
@@ -6483,6 +6875,9 @@ def main():
         # ── Full tournament (trading rotations only — cooldown has no buys) ──
         if not no_buy and (now.timestamp() - last_full_scan) >= full_interval * 60:
             last_full_scan = now.timestamp()
+            _pulse_beat("busy")    # the tournament holds the loop ~9 min —
+                                   # keep the pulse fresh so the console reads
+                                   # a running scan, not a frozen machine
             scan_start = _now_mst()
             logger.info("%s — Full tournament (%d assets, min_conf=%d)...", block_name, len(all_pairs), min_conf)
             logger.info("  %s", block_desc)
@@ -6490,6 +6885,8 @@ def main():
             try:
                 # Parallel fetch all assets
                 all_data = fetch_ohlcv_parallel(exchange, all_pairs, max_workers=10)
+                _pulse_beat("busy")   # the fetch itself is minutes of the 9 —
+                                      # the pulse stays fresh mid-fetch
                 logger.info("  Fetched %d/%d assets", len(all_data), len(all_pairs))
 
                 # Liquidity filter — drop low-volume meme coins before the bracket
@@ -6511,6 +6908,12 @@ def main():
                         except Exception as exc:
                             logger.debug("Tournament eval failed for %s: %s", pair, exc)
 
+                _pulse_beat("busy")   # the scoring bracket is the heart of
+                                      # the full scan (~10 min of 54 assets) —
+                                      # beat before the crown so the quiet
+                                      # stretch can't outgrow the console's
+                                      # scan grace (Sep 23: the plate cried
+                                      # FROZEN through a working bracket)
                 # Find best signal — LONGS ONLY: the tournament hunts bull runs.
                 # Sell signals are never crowned (we never short; exits are
                 # handled separately by the exit-check path).
@@ -6628,9 +7031,13 @@ def main():
 
                 elapsed = (_now_mst() - scan_start).total_seconds()
                 logger.info("  Tournament done in %.0fs", elapsed)
-
+                _pulse_beat("busy")   # the bounce/champion tail can add minutes
+                                      # after the 'done' line — stay scan
             except Exception as exc:
                 logger.error("Tournament failed: %s", exc)
+            finally:
+                _pulse_beat()         # clear to idle on EVERY path — the next
+                                      # light cycle advances the counter
 
         # ── Sleep until next check (30 seconds) ──────────────────────
         _n = _now_mst()

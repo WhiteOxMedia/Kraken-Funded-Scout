@@ -1729,8 +1729,8 @@ def _boot_facts_voice(block, no_buy, vol) -> str:
     scanner_ok = True
     try:
         scanner_ok = bool(scanner_status())
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.debug("boot facts: scanner probe failed: %s", exc)
     bot_note = ""
     try:
         _bs_stat, _bs_note = bot_status()
@@ -1740,8 +1740,8 @@ def _boot_facts_voice(block, no_buy, vol) -> str:
         if _bs_stat in ("NOT RUNNING", "UNKNOWN"):
             bot_note = (f"the bot is {_bs_stat.lower()}"
                         + (f" ({_bs_note})" if _bs_note else ""))
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.debug("boot facts: bot status probe failed: %s", exc)
     parts: list[str] = []
     # 2. the rotation's market announcement
     parts.append("cooldown rotation, no new buys" if no_buy
@@ -2225,8 +2225,8 @@ def _render_suppression_strip():
                 for _g in (_h.get("gates") or {}):
                     if _g and _g not in _ez_gates:
                         _ez_gates.append(_g)
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("funnel-relief strip: discipline state unread: %s", exc)
         if _ez_gates:
             _ez = {g: float(_dc_ez.journal_release_pts(g)) for g in _ez_gates}
             _live = [(g, p) for g, p in
@@ -2245,8 +2245,8 @@ def _render_suppression_strip():
                     "monospace;font-size:12px;padding:2px 2px 6px;'>⚑ the "
                     "funnel is strict — no gate carries release fuel right "
                     "now</div>", unsafe_allow_html=True)
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.debug("release fuel strip skipped: %s", exc)
     try:
         import json as _json
         from pathlib import Path as _P
@@ -2305,8 +2305,8 @@ def _render_suppression_strip():
                             for _g in (_h.get("gates") or {}):
                                 if _g and _g not in _gates:
                                     _gates.append(_g)
-                    except Exception:
-                        pass
+                    except Exception as exc:
+                        logger.debug("release fuel: discipline state unread: %s", exc)
                     if _gates:
                         _pts = {g: _dc_rel.journal_release_pts(g) for g in _gates}
                         _rel_rows = []
@@ -2324,8 +2324,8 @@ def _render_suppression_strip():
                             "capped 4, decaying over 8h). Above 0, the gate can release "
                             "a near-bar champion; at 0.00 it is closed:</div>"
                             + "".join(_rel_rows), unsafe_allow_html=True)
-                except Exception:
-                    pass
+                except Exception as exc:
+                    logger.debug("release fuel points skipped: %s", exc)
                 # THE FRESH STAMP (Sep 13): every MASTER plate carries a
                 # visible clock — this strip re-reads its file each rerun,
                 # so the stamp is naturally fresh (consistency, not cache)
@@ -2619,8 +2619,8 @@ def _render_cooldown_review():
                     f"⚠ {_strk_name} has topped the book {_strk_n} nights "
                     "straight — the dial is waiting</div>",
                     unsafe_allow_html=True)
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("week-strike warning skipped: %s", exc)
 
         # ── TONIGHT'S PATTERN (user, Sep 22: "add the top-verdict pattern
         # to the plate") — the costliest class on the closed-trade book,
@@ -2648,8 +2648,8 @@ def _render_cooldown_review():
                     + (f" · {_tv_reason}</span></div>" if _tv_reason
                        else "</span></div>"),
                     unsafe_allow_html=True)
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("tonight's pattern skipped: %s", exc)
 
         _label = ((_day or {}).get("date", "") if assets
                   else f"{len(_days)} days on record")
@@ -2677,8 +2677,8 @@ def _render_cooldown_review():
                             and _ss[_pk] not in _d_opts:
                         try:
                             del _ss[_pk]
-                        except Exception:
-                            pass
+                        except Exception as exc:
+                            logger.debug("day pick: stale selection prune skipped: %s", exc)
                     _picked = _pills_fn(
                         "tap a day to read its verdicts", _d_opts,
                         selection_mode="single", default=_d_opts[-1],
@@ -2712,8 +2712,8 @@ def _render_cooldown_review():
                                 "Tech Mono,monospace;font-size:12px;"
                                 f"padding:4px 2px;'>{_msg}</div>",
                                 unsafe_allow_html=True)
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug("day pick skipped: %s", exc)
 
             # ── THE TOP-VERDICT TRAIL (user, Sep 21): the top verdict and its cost, night to night, newest first; green ∆ shrinking, red growing.
             try:
@@ -2746,8 +2746,8 @@ def _render_cooldown_review():
                         "font-size:12px;padding:8px 2px 0;color:#8a8171;'>"
                         "the top verdict, night to night (newest first):</div>"
                         + _trail_md, unsafe_allow_html=True)
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug("top-verdict trail skipped: %s", exc)
 
             if bd:
                 st.markdown(bd, unsafe_allow_html=True)
@@ -2773,8 +2773,8 @@ def _render_cooldown_review():
                             "color:#d8ccb4;'><b>the nightly diagnostic:</b> "
                             + str(_head[1]).strip().split("\n")[0]
                             + "</div>", unsafe_allow_html=True)
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug("nightly diagnostic read skipped: %s", exc)
             st.caption(f"as of {_now_mst().strftime('%H:%M')} MST \u2014 the "
                        f"cooldown review's own verdicts (the same rows her "
                        f"20:00 line speaks), read live each rerun")
@@ -5192,8 +5192,8 @@ def render_tournament(cfg: TradingConfig, scan_cfg: TradingConfig, kraken):
                          f"<span class='dim'>(the funnel scans only the movers, "
                          f"{len(_scanned)} now) — no popup can fire for this pick "
                          "until it moves into the movers list.</span>")
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.debug("scan-set honesty read skipped: %s", exc)
     if sig.action == "sell":
         lines.append("<span class='dim'>Bearish champion — never a short: exit if held, stay out if flat.</span>")
     if sig.entry_price:
@@ -7001,12 +7001,40 @@ def _fmt_pulse_age(age: float) -> str:
 
 
 def _pulse_html():
-    """The auto-watch plate's heartbeat line — alive / slow / frozen."""
+    """The auto-watch plate's heartbeat line — alive / slow / frozen.
+    SCAN-AWARE (Sep 22, the boot-night incident): the full tournament
+    runs inside the same loop pass as the light cycle and held it ~9
+    minutes — the pulse froze and this line cried FROZEN for a machine
+    that was working. While the pulse says phase=scan, the age reads
+    alive-scan up to a 12-minute grace (Sep 23: the observed full scan
+    grew past the old 10-minute worst, and the generic slow band was
+    pre-empting the scan branch entirely — a 2-4 minute scan lull read
+    'slow' for a machine that was mid-bracket). Past the grace: FROZEN
+    — a scanner dead mid-scan is still caught, and the per-pair stamps
+    (SILENT >180s) never get scan grace."""
     cyc, age = _scanner_pulse()
     if cyc is None:
         return ("<span style='color:#ffc36b;'>scanner: no heartbeat yet — "
                 "give it a minute (or start the scanner)</span>")
-    if age <= 90:
+    _scanning = False   # fail-soft: an unreadable phase is just the old rule
+    try:
+        import json as _json
+        with open(PULSE_JSON, "r", encoding="utf-8") as _fh:
+            _scanning = (_json.load(_fh).get("phase") == "scan")
+    except Exception as _scan_exc:
+        # fail-soft by design: an unreadable pulse file renders as idle
+        # (the plate's fail-soft rule) — the trace keeps the reason visible
+        logging.getLogger(__name__).debug(
+            "pulse phase read failed (%s) — plate renders idle", _scan_exc)
+    if _scanning:
+        # the phase reads FIRST (Sep 23): a running scan is never 'slow'
+        # by the generic band, and the grace is the observed worst scan
+        # plus margin — a scanner dead mid-scan still trips it
+        if age <= 720:
+            col, word = "#4be38a", "alive-scan (tournament running)"
+        else:
+            col, word = "#ff6b5e", "FROZEN (scan grace expired)"
+    elif age <= 90:
         col, word = "#4be38a", "alive"
     elif age <= 300:
         col, word = "#ffc36b", "slow"
@@ -7914,8 +7942,8 @@ def _pace_target_clock_leds() -> str:
                 if str(_r.get("sold_at", "")).startswith(_day) \
                         and _r.get("applied"):
                     _today += float(_r.get("pnl_net") or 0.0)
-        except Exception:
-            pass  # the pace gauge just stays off — the header never lies
+        except Exception as exc:
+            logger.debug("pace gauge just stays off — the header never lies: %s", exc)
         if _start:
             _pace_col = "g" if _today >= _pace_day else \
                 ("a" if _today >= 0 else "r")
@@ -7942,10 +7970,10 @@ def _pace_target_clock_leds() -> str:
                            "a" if _left < 15 else "off")
             else:
                 out += led("CLOCK — cooldown hours", "off")
-        except Exception:
-            pass
-    except Exception:
-        pass
+        except Exception as exc:
+            logger.debug("clock gauge skipped: %s", exc)
+    except Exception as exc:
+        logger.debug("pace/clock led block skipped: %s", exc)
     return out
 
 
