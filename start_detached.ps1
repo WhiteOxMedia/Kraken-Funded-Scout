@@ -32,14 +32,9 @@ param(
     [Parameter(Mandatory = $true)][string]$LogStem,
     [Parameter(Mandatory = $true)][string]$Base,
     [string]$BotDir = "",
-    [switch]$RetakeStalePid
+    [switch]$RetakeStalePid,
+    [switch]$ShowWin
 )
-
-# THE VISIBILITY DECISION (Sep 21) lives HERE, once: VISIBLE unless the
-# fleet's visible_stack.off marker exists. The Sep 20 recovery spawns
-# omitted the old -ShowWin flag and the fleet came up hidden -- so no
-# caller arg decides this anymore, only the marker does.
-$ShowWin = -not (Test-Path (Join-Path $Base "visible_stack.off"))
 
 # Sep 15 - THE VISIBLE STACK (user request: "the python window(s) need to
 # be visible to me, not running in the background - I need to see it
@@ -96,17 +91,6 @@ switch ($Component) {
         $lockFile = "$Base\.scanner.pid"
     }
     "volatility_engine" {
-        # Sep 21 - THE ENGINE MUTEX: the engine has no pid lock of its
-        # own (it is verified by command line), so a doubled launcher
-        # call could race two helpers 4s apart and start TWO engines -
-        # exactly the "2 PowerShell windows for volatility_engine"
-        # report. A named mutex (held for this spawn's lifetime) makes
-        # the second helper stand down before it spawns.
-        $engMutex = New-Object System.Threading.Mutex($false, "Global\KrakenEngineSpawn")
-        if (-not $engMutex.WaitOne(0)) {
-            Say "[helper] engine spawn already in flight - standing down (duplicate prevention)"
-            exit 0
-        }
         $script = "volatility_engine.py"; $py = "$Base\.venv\Scripts\python.exe"
         $lockFile = ""   # no own guard; the launcher verifies by command line
     }
@@ -129,26 +113,8 @@ switch ($Component) {
         # surprise tab from every watchdog heal). The LAUNCHER is the
         # single browser-opener, on both the fresh and already-running
         # paths.
-        # --server.address 127.0.0.1 (Sep 21): the default dual-bind
-        # listens on the IPv6 wildcard first (:: :8501), and the
-        # asyncio accept loop on that socket dies the WinError-64 death
-        # on client-aborted connections - the console then churns every
-        # couple of minutes under any browser's connect pattern. An
-        # explicit IPv4 bind has never shown the crash. (Both the
-        # launcher's and the watchdog's LISTENING checks match an IPv4
-        # :8501 line unchanged.)
-        $extra = "streamlit run app.py --server.port 8501 --server.address 127.0.0.1 --server.runOnSave false --server.headless true"
+        $extra = "streamlit run app.py --server.port 8501 --server.runOnSave false --server.headless true"
         $lockFile = ""
-        # Sep 21 - same duplicate-prevention as the engine: a watchdog
-        # tick racing a launcher run could both see "no listener" during
-        # the ~20s boot and spawn a second console (the duplicate
-        # console the Sep 20 swap removed). The helper holds a named
-        # mutex for its spawn lifetime; a second helper stands down.
-        $conMutex = New-Object System.Threading.Mutex($false, "Global\KrakenConsoleSpawn")
-        if (-not $conMutex.WaitOne(0)) {
-            Say "[helper] console spawn already in flight - standing down (duplicate prevention)"
-            exit 0
-        }
     }
     default { Say "[helper] unknown component '$Component'"; exit 2 }
 }

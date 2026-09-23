@@ -10,9 +10,8 @@
 # single-instance guard refuse -- and the launcher never noticed.
 #
 # This launcher:
-#   1. spawns each piece through start_detached.ps1 (UTF-8,
-#      explicit -WorkingDirectory, no pause trap, exit code + logs kept,
-#      visible-or-hidden per the fleet's visible_stack.off marker);
+#   1. spawns each piece through start_detached.ps1 (hidden window, UTF-8,
+#      explicit -WorkingDirectory, no pause trap, exit code + logs kept);
 #   2. WAITS and verifies each piece is actually alive (its pid lock
 #      names a live process) before moving on;
 #   3. on a failed verify (e.g. the guard refused on a RECYCLED pid --
@@ -32,6 +31,11 @@
 # as verification completes, never at the child's exit.
 #
 # Usage:  powershell -NoProfile -ExecutionPolicy Bypass -File launch_stack.ps1
+
+param(
+    [switch]$Visible,
+    [switch]$Hidden
+)
 
 $ErrorActionPreference = "SilentlyContinue"
 
@@ -64,10 +68,11 @@ $helper = Join-Path $base "start_detached.ps1"
 # Default = VISIBLE: one titled console per component ('Kraken -
 # <component>'), live output tee'd into logs\<stem>_console.log. Drop a
 # file named visible_stack.off in the repo root to return to the old
-# all-hidden fleet. The decision lives in start_detached.ps1 (the same
-# rule the watchdog's respawn uses); the launcher only reports it and
-# probes the matching shape.
+# all-hidden fleet. -Visible / -Hidden override the marker for one run
+# (and -Hidden never flips her saved preference).
 $showWin = -not (Test-Path (Join-Path $base "visible_stack.off"))
+if ($Hidden)  { $showWin = $false }
+if ($Visible) { $showWin = $true }
 
 function Test-Component([string]$pattern) {
     # True if any python process's command line contains the pattern.
@@ -98,7 +103,7 @@ function Start-Verified([string]$component, [string]$logStem,
                "-Component", $component, "-LogStem", $logStem,
                "-Base", "`"$base`"",
                "-BotDir", "`"$botDirForHelper`"")
-    # no -ShowWin here: the helper reads the fleet marker itself (Sep 21)
+    if ($ShowWin) { $hargs += "-ShowWin" }
     # Spawn detached, then WAIT until the piece's pid lock names a live
     # process. Returns $true only when verifiably up.
     # Sep 14 HANDLE SEVERING: the helper runs as its OWN hidden process
@@ -148,7 +153,7 @@ $okAll = $true
 if (Test-Component "volatility_engine") {
     Write-Host "[OK]  Volatility Engine already running - skipping"
 } else {
-    Write-Host "[NEW] Starting Volatility Engine (verified)..."
+    Write-Host "[NEW] Starting Volatility Engine (hidden, verified)..."
     if (Start-Verified "volatility_engine" "volatility_engine" "" -ShowWin:$showWin) { 
         Write-Host "[UP]  Volatility Engine is alive."
     } else {
@@ -161,7 +166,7 @@ if (Test-Component "volatility_engine") {
 if (Test-Component "background_scanner") {
     Write-Host "[OK]  Scout Scanner already running - skipping"
 } else {
-    Write-Host "[NEW] Starting Scout Scanner (verified)..."
+    Write-Host "[NEW] Starting Scout Scanner (hidden, verified)..."
     if (Start-Verified "background_scanner" "scanner" "" -ShowWin:$showWin) {
         Write-Host "[UP]  Scout Scanner is alive."
     } else {
@@ -174,7 +179,7 @@ if (Test-Component "background_scanner") {
 if (Test-Component "bot_runner") {
     Write-Host "[OK]  Trader Bot already running - skipping"
 } else {
-    Write-Host "[NEW] Starting Trader Bot (verified)..."
+    Write-Host "[NEW] Starting Trader Bot (hidden, verified)..."
     if (Start-Verified "bot_runner" "bot" $botDir -ShowWin:$showWin) {
         Write-Host "[UP]  Trader Bot is alive."
     } else {
@@ -202,7 +207,7 @@ if ($consoleUp) {
     # starting - and the LAUNCHER is the single browser-opener    # (streamlit runs headless, so it never opens its own tab)
     Start-Process "http://localhost:8501"
 } else {
-    Write-Host "[NEW] Starting Console (detached, verified)..."
+    Write-Host "[NEW] Starting Console (detached, hidden, verified)..."
     if (Start-Verified "streamlit" "console" "" -ShowWin:$showWin) {
         Write-Host "[UP]  Console is alive on :8501."
         Start-Process "http://localhost:8501"   # double-click UX parity:

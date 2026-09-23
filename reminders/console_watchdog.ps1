@@ -97,14 +97,16 @@ foreach ($k in $targets.Keys) {
     Stop-Process -Id $k -Force -ErrorAction SilentlyContinue
 }
 Start-Sleep -Seconds 2
+
 Add-Content -Path $log -Value "$(Get-Date -Format s) WATCHDOG: console listener dead (WinError 64 accept crash) - restarting (fleet gate passed, mode $(if (Test-Path (Join-Path $scout 'visible_stack.off')) { 'hidden' } else { 'visible' }))"
 
 # ── respawn through the hardened helper (honest pid, rotated logs) ─────
-# In the stack's own mode: the helper reads the same visible_stack.off
-# marker we just reported, so a healthy fleet heals visibly and a
-# hidden fleet heals hidden - no flag to pass, no way to drift.
+# In the stack's own mode: visible when the fleet runs visible (a
+# healthy fleet heals visibly - a hidden respawn would look like a
+# component vanished), hidden when visible_stack.off is present.
 $hargs = @('-NoProfile','-ExecutionPolicy','Bypass','-File',"$scout\start_detached.ps1",`
            '-Component','streamlit','-LogStem','console','-Base',$scout)
+if (-not (Test-Path (Join-Path $scout 'visible_stack.off'))) { $hargs += '-ShowWin' }
 Start-Process -FilePath "powershell.exe" -ArgumentList $hargs `
     -WindowStyle Hidden | Out-Null
 

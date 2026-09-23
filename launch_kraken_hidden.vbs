@@ -18,7 +18,31 @@
 ' first launcher run is still verifying shows "[SKIP] ALREADY RUNNING" and
 ' exits; the components themselves are single-instance (pid locks + spawn
 ' mutexes in start_detached.ps1).
+'
+' Sep 23: the two pinned click-path behaviors are back (the battery's
+' lifecycle contract holds the spec): the venv self-check runs hidden
+' BEFORE the launcher, and the launcher's checklist is transcribed to
+' logs\launch_stack.log — the click keeps its paper trail.
+
+Dim sh: Set sh = CreateObject("WScript.Shell")
+Dim fso: Set fso = CreateObject("Scripting.FileSystemObject")
+
+Const SCOUT = "C:\Users\birds\Workspace\kraken_scout"
+
+' venv self-check, hidden (same contract as Launch Kraken.bat)
+Dim py: py = SCOUT & "\.venv\Scripts\python.exe"
+If Not fso.FileExists(py) Then
+    sh.Run "cmd /c cd /d """ & SCOUT & """ && uv sync", 0, True
+Else
+    If sh.Run("cmd /c """ & py & """ --version >nul 2>&1", 0, True) <> 0 Then
+        ' interpreter broken: rebuild then
+        sh.Run "cmd /c cd /d """ & SCOUT & """ && rmdir /s /q .venv & uv sync", 0, True
+    End If
+End If
 
 Set sh = CreateObject("WScript.Shell")
 sh.CurrentDirectory = "C:\Users\birds\Workspace\kraken_scout"
-sh.Run "powershell -NoProfile -ExecutionPolicy Bypass -File ""C:\Users\birds\Workspace\kraken_scout\launch_stack.ps1""", 0, False
+' the launcher, hidden, its checklist transcribed to the log file
+' (cmd-level redirection: Write-Host bypasses the PowerShell pipeline,
+' so a Tee-Object wrapper would see nothing).
+sh.Run "cmd /c cd /d """ & SCOUT & """ && powershell -NoProfile -ExecutionPolicy Bypass -File launch_stack.ps1 > logs\launch_stack.log 2>&1", 0, False
