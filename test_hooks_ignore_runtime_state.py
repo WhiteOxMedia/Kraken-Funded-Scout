@@ -8,6 +8,13 @@ into, or even name the live files the running scanner owns.
 The filename list here mirrors RUNTIME_INVARIANTS.md ("What counts as
 runtime state"); class-based patterns (extensions) in hooks are fine —
 literal paths are not.
+
+DRIFT CENSUS (Sep 23): also fails if the machine-local .git/hooks copy of
+pre-commit ever drifts from the tracked hooks/pre-commit. The tracked file
+is the reviewable source (core.hooksPath executes it); the .git/hooks copy
+is the fallback if the hooksPath config is ever lost. It lives OUTSIDE git
+— an out-of-band edit there is invisible to every review — so this census
+is the only thing pinning the two together byte-for-byte.
 """
 import os
 import re
@@ -109,6 +116,43 @@ for d in active_hook_dirs():
 
 check("no active hook touches or names runtime state", not hits,
       "; ".join(hits[:6]))
+
+# ── the drift census: the machine-local fallback must mirror the commit ──
+# The tracked hooks/pre-commit is what core.hooksPath executes and what
+# every review reviews. The .git/hooks copy is the fallback that keeps the
+# guards running if core.hooksPath is ever lost — but it lives outside git,
+# so an out-of-band edit there (the 2026-09-21 hook-dance failure mode) is
+# invisible to git, to reviews, and to every other guard. Byte-for-byte,
+# CRLF-normalized (Windows checkouts may hold CRLF while the blob is LF).
+TRACKED_HOOK = "hooks/pre-commit"
+LOCAL_HOOK = os.path.join(".git", "hooks", "pre-commit")
+try:
+    with open(TRACKED_HOOK, "rb") as _f:
+        _tracked_bytes = _f.read().replace(b"\r\n", b"\n")
+except OSError as _exc:
+    _tracked_bytes = None
+    _tracked_err = str(_exc)
+try:
+    with open(LOCAL_HOOK, "rb") as _f:
+        _local_bytes = _f.read().replace(b"\r\n", b"\n")
+except OSError as _exc:
+    _local_bytes = None
+    _local_err = str(_exc)
+
+if _tracked_bytes is None:
+    check("machine-local .git/hooks/pre-commit mirrors the tracked hook",
+          False, f"cannot read {TRACKED_HOOK}: {_tracked_err}")
+elif _local_bytes is None:
+    check("machine-local .git/hooks/pre-commit mirrors the tracked hook",
+          False, f"the fallback copy is missing ({_local_err}) — re-arm it: "
+                 f"cp {TRACKED_HOOK} .git/hooks/pre-commit")
+else:
+    check("machine-local .git/hooks/pre-commit mirrors the tracked hook",
+          _tracked_bytes == _local_bytes,
+          "DRIFT — the machine-local copy no longer matches the tracked "
+          "hook; an out-of-band edit or a stale refresh leaves the fallback "
+          "running a hook nobody reviewed. Re-arm: cp "
+          f"{TRACKED_HOOK} {LOCAL_HOOK}")
 
 n_pass = sum(1 for _, ok, _ in results if ok)
 print(f"\nRESULT: {n_pass} passed, {len(results) - n_pass} failed")
