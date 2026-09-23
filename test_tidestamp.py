@@ -23,13 +23,16 @@ def check(name, ok, detail=""):
 
 import signal_bridge as sb
 
-# ── scratch DB (never touch the live signals.db) ──────────────────────
-SCRATCH = str(Path(__file__).parent / "_test_tidestamp.db")
+# ── scratch DB in a mkdtemp sandbox (testleaks triage, Sep 23) — never
+# the live signals.db, and never a scratch file in the repo dir ──
+import tempfile as _tempfile  # noqa: E402
+_TTS_SANDBOX = Path(_tempfile.mkdtemp(prefix="_sbx_tidestamp_"))
+SCRATCH = str(_TTS_SANDBOX / "test_tidestamp.db")
 try:
     os.unlink(SCRATCH)
 except FileNotFoundError:
     pass
-sb.DB_PATH = Path(SCRATCH)
+sb.DB_PATH = Path(SCRATCH)  # leak-audit: ok (suite-long redirect into the mkdtemp world; restore-never, suite-per-process)
 sb.init_db()
 
 # ── 1. write_buy_signal stores the tide stamp ─────────────────────────
@@ -60,7 +63,7 @@ check("unstamped write leaves blank tide", row2["tide_state"] in (None, ""), row
 conn.close()
 
 # ── 3. migration: an OLD DB (no tide columns) gets them added ─────────
-OLD = str(Path(__file__).parent / "_test_tidestamp_old.db")
+OLD = str(_TTS_SANDBOX / "test_tidestamp_old.db")
 try:
     os.unlink(OLD)
 except FileNotFoundError:
@@ -75,7 +78,7 @@ oc.execute("""CREATE TABLE signals (
     execution_reason TEXT, closed_at TEXT, pnl REAL, highest_price REAL)""")
 oc.commit()
 oc.close()
-sb.DB_PATH = Path(OLD)
+sb.DB_PATH = Path(OLD)  # leak-audit: ok (same mkdtemp world, the migration fixture)
 sb.init_db()  # migration runs here
 cols = [r[1] for r in sqlite3.connect(OLD).execute("PRAGMA table_info(signals)").fetchall()]
 check("migration adds tide_state", "tide_state" in cols)
@@ -101,8 +104,9 @@ check("scanner stamps the fleet pct", "tide_pct=_tpw" in src)
 # upstream refusal stands too — belt AND braces)
 BOT_READER = r"C:\Users\birds\Workspace\kraken_xrp_trading_bot\scout_signal_reader.py"
 rsrc = open(BOT_READER, encoding="utf-8").read()
-check("reader belt-and-braces: TIDE OUT stamp hard-refused (restored Sep 4)",
-      'if _sig_tide == "OUT":' in rsrc)
+check("reader belt-and-braces: OUT-without-a-bar hard-refused (the bar-aware reader; a bar rides the priced wall)",
+      '_sig_tide == "OUT" and _sig_tide_bar is None' in rsrc
+      and '_sig_tide == "OUT" and _sig_tide_bar is not None' in rsrc)
 check("reader's OUT rejection marks the signal",
       "Tide OUT at signal time" in rsrc)
 check("reader's UNKNOWN stamp is tradeable (fail-open, exact match)",
@@ -114,17 +118,22 @@ check("scanner's OUT refusal names the tide's PRICE (the Sep 10 priced wall — 
       and "no bridge write; all ships sink together" not in src)
 
 # ── 6. the collector runs clean on the scratch (pending-only) DB ─────
-sb.DB_PATH = Path(SCRATCH)
+sb.DB_PATH = Path(SCRATCH)  # leak-audit: ok (the mkdtemp redirect, re-armed per section)
 import subprocess
+# bytes + explicit lossless decode: the diag child's console output can
+# carry cp1252 bytes (an em-dash) and text=True's utf-8 reader thread
+# dies mid-suite (the climbout-UTF-8 class; battery flake Sep 23)
 res = subprocess.run([sys.executable, "diag_tidedata.py", SCRATCH],
-                     capture_output=True, text=True, timeout=60)
+                     capture_output=True, timeout=60)
+res.stdout = res.stdout.decode("utf-8", errors="replace") if res.stdout else ""
+res.stderr = res.stderr.decode("utf-8", errors="replace") if res.stderr else ""
 check("diag runs without error", res.returncode == 0, (res.stderr or "")[-200:])
 _check = Path("_tidedata_check.txt").read_text(encoding="utf-8")
 check("diag output file written", "TIDE DATA" in _check)
 check("diag reports no stamped trades yet", "no stamped trades" in _check)
 
 # ── 7. the collector aggregates outcomes: closed trades per tide ─────
-sb.DB_PATH = Path(SCRATCH)
+sb.DB_PATH = Path(SCRATCH)  # leak-audit: ok (the mkdtemp redirect, re-armed for section 7)
 sb.init_db()
 _conn = sqlite3.connect(SCRATCH)
 _conn.execute("UPDATE signals SET status='closed', executed_at='2026-08-31T10:00:00', pnl=6.0 WHERE signal_id=?", (sid,))
@@ -132,7 +141,9 @@ _conn.execute("UPDATE signals SET status='closed', executed_at='2026-08-31T11:00
 _conn.commit()
 _conn.close()
 res2 = subprocess.run([sys.executable, "diag_tidedata.py", SCRATCH],
-                      capture_output=True, text=True, timeout=60)
+                      capture_output=True, timeout=60)
+res2.stdout = res2.stdout.decode("utf-8", errors="replace") if res2.stdout else ""
+res2.stderr = res2.stderr.decode("utf-8", errors="replace") if res2.stderr else ""
 check("diag aggregates without error", res2.returncode == 0, (res2.stderr or "")[-200:])
 _check2 = Path("_tidedata_check.txt").read_text(encoding="utf-8")
 check("FLAT bucket shows 1 trade", "FLAT" in _check2 and " 1 " in _check2)
@@ -148,7 +159,7 @@ for f in (SCRATCH, OLD):
             break
         except (FileNotFoundError, PermissionError):
             _time.sleep(0.5)
-sb.DB_PATH = Path(r"C:\Users\birds\Workspace\kraken_scout\signals.db")  # leak-audit: ok (hand back to production at suite end; the suite ran hermetic before this)
+sb.DB_PATH = Path(r"C:\Users\birds\Workspace\kraken_scout\signals.db")  # leak-audit: ok (deliberate hand back to production at suite end; every run before this was hermetic in the mkdtemp world)
 
 lines.append(f"\nRESULT: {PASS} passed, {FAIL} failed")
 open("_tidestamp_check.txt", "w", encoding="utf-8").write("\n".join(lines))

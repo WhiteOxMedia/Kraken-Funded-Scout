@@ -75,12 +75,16 @@ _dol_stores.mkdir()
 _bs_fires = TMP / "scanner_fires.jsonl"
 _real = (dol.FIRES_FILE, dol.OUT, dol.LEDGER, dol.STORES,
          bs._OUTLIVER_FIRES_FILE)
-dol.FIRES_FILE, dol.OUT, dol.LEDGER, dol.STORES = (
-    _dol_fires, _dol_out, _dol_ledger, _dol_stores)
-bs._OUTLIVER_FIRES_FILE = _bs_fires
 _real_prof = bs.coin_wiggle_profile   # captured BEFORE the try: the finally's restore can never NameError
 
 try:
+    # the sandbox swaps live INSIDE the try (the PULSE_JSON pattern):
+    # a crash between capture and the finally below must never strand
+    # the production paths at the tempdir for the rest of the process
+    dol.FIRES_FILE, dol.OUT, dol.LEDGER, dol.STORES = (
+        _dol_fires, _dol_out, _dol_ledger, _dol_stores)
+    bs._OUTLIVER_FIRES_FILE = _bs_fires
+
     # 1. THE JOURNAL
     _real_now = bs._now_mst
     bs._now_mst = lambda: _real_now().replace(hour=13, minute=42)

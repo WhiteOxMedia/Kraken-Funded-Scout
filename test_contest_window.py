@@ -28,13 +28,16 @@ import contest_account as ca
 
 # Redirect the state file BEFORE anything reads it (import time already
 # bound the name; rebind and every helper sees the temp file).
+# (testleaks triage, Sep 23: deliberate pre-import-world swap with no
+# restore — the suite-per-process model bounds it, and the suite's whole
+# purpose is exercising the state machine, never the live account.)
 _tmpdir = tempfile.mkdtemp(prefix="_contestwin_")
 STATE = Path(_tmpdir) / "contest_account.json"
-ca.STATE_FILE = STATE
+ca.STATE_FILE = STATE  # leak-audit: ok (tempfile-derived sandbox; the suite exercises the state machine, never the live account)
 # the LOCK file binds at import from the real STATE_FILE -- rebind it too,
 # or the suite would lock/unlock the LIVE repo's lockfile
 cr_lock = Path(_tmpdir) / "contest_account.json.lock"
-ca.STATE_LOCK_FILE = cr_lock
+ca.STATE_LOCK_FILE = cr_lock  # leak-audit: ok (tempfile-derived sandbox; the rebind is deliberate — see comment above)
 
 lines = []
 PASS = FAIL = 0

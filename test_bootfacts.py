@@ -12,6 +12,7 @@ with leaf dependencies stubbed. Scenarios:
 """
 import re
 import sys
+from pathlib import Path
 
 PASS, FAIL = 0, 0
 
@@ -76,8 +77,10 @@ _F = NS["_boot_facts_voice"]
 import os
 
 # ── A. full facts ────────────────────────────────────────────────────
-os.chdir(os.environ.get("KRKN_DRIVE_DIR", "."))
-NS["__file__"] = os.path.join(os.getcwd(), "app.py")
+# (Sep 23: the cwd dance is gone — the exec'd function resolves its file
+# reads from NS["__file__"], so an absolute __file__ gives the same
+# coverage without ever moving the process's working directory.)
+NS["__file__"] = str(Path("app.py").resolve())
 line = _F("EU/US Overlap", False, {"data_weeks": 12.4,
                                    "thresholds": {"standard": 1.4}})
 print("FULL:", line)
