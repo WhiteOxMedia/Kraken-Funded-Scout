@@ -8,6 +8,11 @@ PRIMARY keys with the old names kept only as fallbacks. This drive fails
 if the parser ever drops back: precedence is proven BEHAVIORALLY — a
 record carrying BOTH generations must resolve through the NEW keys —
 plus ordering censuses, the never-silent raw-fallback, and the wiring.
+Sep 23 (second guard): the null-field fallbacks are pinned the same way
+— title→comment→type→commentCategory→indicatorTypes and
+startLine→line→lineRange.start→endLine, each proven alive through the
+real parser, because the live stream leaves those fields null and a
+dropped fallback renders real findings as bare ?.
 
 Run:  python test_hookparser.py   (exit 0 = all pass)
 Reads hooks/pre-commit RELATIVE to the cwd: in the repo that is the
@@ -88,6 +93,65 @@ out = run_parser(json.dumps({"fileName": "x.py", "startLine": None,
                              "severity": "minor", "title": "N"}) + "\n")
 check("a null line renders ? honestly (never a fabricated number)",
       "- x.py:? [minor] N" in out, out.strip().splitlines()[:1])
+
+# ── 3b. THE NULL-FIELD FALLBACKS (guard, Sep 23): the live stream fills
+# title/line fields late — the parser must milk every descriptive field
+# before printing ?, or a real finding renders as noise. Each fallback is
+# proven BEHAVIORALLY through the real parser; lose one and its check
+# names it.
+out = run_parser(json.dumps({"fileName": "a.py", "startLine": 1,
+                             "severity": "major",
+                             "comment": "The comment body"}) + "\n")
+check("null title falls back to the comment text",
+      "- a.py:1 [major] The comment body" in out,
+      out.strip().splitlines()[:1])
+out = run_parser(json.dumps({"fileName": "t.py", "startLine": 2,
+                             "severity": "minor", "type": "actionable"}) + "\n")
+check("null title+comment falls back to the type",
+      "- t.py:2 [minor] actionable" in out, out.strip().splitlines()[:1])
+out = run_parser(json.dumps({"fileName": "cc.py", "startLine": 3,
+                             "severity": "minor",
+                             "commentCategory": "FUNCTIONAL_CORRECTNESS"}) + "\n")
+check("null title/comment/type falls back to commentCategory",
+      "- cc.py:3 [minor] FUNCTIONAL_CORRECTNESS" in out,
+      out.strip().splitlines()[:1])
+out = run_parser(json.dumps({"fileName": "it.py", "startLine": 4,
+                             "severity": "minor",
+                             "indicatorTypes": ["potential_issue"]}) + "\n")
+check("null title/comment/type/category falls back to indicatorTypes",
+      "- it.py:4 [minor] potential_issue" in out,
+      out.strip().splitlines()[:1])
+out = run_parser(json.dumps({"fileName": "e.py", "startLine": 5,
+                             "severity": "minor"}) + "\n")
+check("a fully-naked record still names itself (never a bare ?)",
+      "- e.py:5 [minor] (no title text in stream)" in out,
+      out.strip().splitlines()[:1])
+out = run_parser(json.dumps({"fileName": "lr.py",
+                             "severity": "minor", "title": "R",
+                             "lineRange": {"start": 12, "end": 15}}) + "\n")
+check("a null startLine falls back to lineRange.start",
+      "- lr.py:12 [minor] R" in out, out.strip().splitlines()[:1])
+out = run_parser(json.dumps({"fileName": "el.py",
+                             "severity": "minor", "title": "E",
+                             "endLine": 9}) + "\n")
+check("a null startLine+lineRange falls back to endLine",
+      "- el.py:9 [minor] E" in out, out.strip().splitlines()[:1])
+# precedence within each chain: the first live field wins
+out = run_parser(json.dumps({"fileName": "p.py", "startLine": 3,
+                             "lineRange": {"start": 8}, "endLine": 20,
+                             "severity": "major", "title": "T",
+                             "comment": "C"}) + "\n")
+check("chain precedence: title beats comment, startLine beats lineRange/endLine",
+      "- p.py:3 [major] T" in out, out.strip().splitlines()[:1])
+
+# the fallback chains survive in source, in order (belt to the suspenders)
+_chain = [PYCODE.find(f'o.get("{k}")')
+          for k in ("title", "comment", "type", "commentCategory")]
+check("the title fallback chain is present and ordered",
+      all(0 < v for v in _chain) and _chain == sorted(_chain), _chain)
+check("the lineRange fallback survives in source",
+      'o.get("lineRange")' in PYCODE and 'lr.get("start")' in PYCODE
+      and 'o.get("endLine")' in PYCODE)
 
 # the never-silent guarantee: unparsable text reaches eyes, not /dev/null
 out = run_parser("this is not json at all\n")
