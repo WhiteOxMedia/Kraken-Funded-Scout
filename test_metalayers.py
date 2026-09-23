@@ -61,6 +61,16 @@ def _w():
     return datetime(2026, 9, 22, 9, 0, tzinfo=_MST)
 
 
+def _now_real():
+    # the REAL clock, not _w(): shadow graduation (SHADOW_MAX_HOURS)
+    # compares stamps against time.time(), so a frozen stamp keeps aging
+    # while the drive runs — "fresh" must be relative to now, or the
+    # live-shadow checks fail on any evening run and the 9h-back
+    # graduation stamps fail on any early-morning run (both windows
+    # caught live by the Sep-22 commit gate drills).
+    return datetime.now(_MST)
+
+
 # ════════ 1. RCL — the five diffs ════════
 print("== 1. RCL: five diffs, MismatchScore ==")
 ml._recent_move_pct = lambda: 0.15          # realized 0.15% in 30 min
@@ -310,7 +320,7 @@ check(8.7, not ml.reentry_candidate("X/USD"),
       "a candidate from another rotation is not one for this rotation")
 # shadow trail: start, tick up, graduate into the ledgers
 ml._SLOPE.clear()
-ml.shadow_trail_start("X/USD", 100.0, {"size": 100.0}, _w())   # sized: the miss is USD now
+ml.shadow_trail_start("X/USD", 100.0, {"size": 100.0}, _now_real())   # sized: the miss is USD now; REAL-now stamp — graduation ages against the real clock
 class _FakeEx:
     def fetch_ticker(self, p):
         return {"last": 105.0 if p.startswith("X") else 100.3}   # Y stays under the noise floor
@@ -321,16 +331,16 @@ ml.shadow_trail_tick(["X/USD"], force=True)
 check(8.8, ml.shadow_missed_gain("X/USD") == 5.0,
       "the live shadow tracks the next high: 105 vs 100 exit -> miss 5.0")
 _st8 = json.loads(ml.STATE_FILE.read_text(encoding="utf-8"))
-_st8["shadows"]["X/USD"]["exit_ts"] = (_w() - timedelta(hours=9)).isoformat(timespec="seconds")
+_st8["shadows"]["X/USD"]["exit_ts"] = (_now_real() - timedelta(hours=9)).isoformat(timespec="seconds")
 ml.STATE_FILE.write_text(json.dumps(_st8), encoding="utf-8")
 ml.shadow_trail_tick(["X/USD"], force=True)
 check(8.9, ml.shadow_missed_gain("X/USD") is None
       and ml.shadow_graduated_notes()["missed_usd"] == 5.0,
       "graduation writes the USD miss into the ledger and retires the trail")
-ml.shadow_trail_start("Y/USD", 100.0, {"size": 100.0}, _w())
+ml.shadow_trail_start("Y/USD", 100.0, {"size": 100.0}, _now_real())
 ml.shadow_trail_tick(["Y/USD"], force=True)
 _st8 = json.loads(ml.STATE_FILE.read_text(encoding="utf-8"))
-_st8["shadows"]["Y/USD"]["exit_ts"] = (_w() - timedelta(hours=9)).isoformat(timespec="seconds")
+_st8["shadows"]["Y/USD"]["exit_ts"] = (_now_real() - timedelta(hours=9)).isoformat(timespec="seconds")
 ml.STATE_FILE.write_text(json.dumps(_st8), encoding="utf-8")
 ml.shadow_trail_tick(["Y/USD"], force=True)
 check(8.15, ml.shadow_graduated_notes()["missed_usd"] == 5.0,

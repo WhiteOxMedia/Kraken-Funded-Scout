@@ -60,46 +60,119 @@ if git diff --cached -- . \
     exit 1
 fi
 
-# ── THE ONE-BRAIN TRIPWIRE (Sep 22) ────────────────────────────────
-# The console must never again grow a second exit brain (the ghost-SELL
-# saga: the old light evaluator popped console-only SELLs the real exit
-# watch never called — see test_persistexit.py's census). Whenever app.py
-# is staged, the tripwire drive runs against the STAGED content in a
-# scratch dir — never the worktree, never runtime state — and a census
-# failure BLOCKS the commit. Fail-closed: a missing RESULT line (a crash,
-# a truncated run) blocks too. The drive is a pure text census: it reads
-# only the two source files and writes only its own check file inside
-# the scratch dir, so runtime state is untouched (RUNTIME_INVARIANTS.md).
-# Emergency bypass stays available: git commit --no-verify.
-if git diff --cached --name-only | grep -qx 'app.py'; then
+# ── THE COMMIT GATE (Sep 22, generalized from the one-brain tripwire) ──
+# Every staged change to a guarded source file runs that source's check
+# drives against the STAGED content: the index exports into a scratch dir
+# (never the worktree, never runtime state), drives run there with
+# PYTHONPATH pointing back at the repo so non-staged imports resolve from
+# HEAD. A failed verdict, a crash, or a budget overrun BLOCKS the commit
+# — fail-closed everywhere, a missing verdict included. Per-drive budgets
+# are sized ~5x the battery-measured runtime; -X utf8 matches the
+# battery's own interpreter flag (the drives print unicode).
+# Per-drive verdict contracts (verified 2026-09-22):
+#   test_persistexit   check-file only (prints DONE; rc always 0)
+#   test_autotrack     exit code + "N/M passed"
+#   test_trailstop     exit code + "RESULT: N passed, M failed"
+#   test_watchliveness exit code + RESULT (imports bs+ml: needs the
+#                      scratch exports + PYTHONPATH)
+#   test_metalayers    exit code + RESULT (censuses every guarded source)
+# Measured cold runtimes (2026-09-22, HEAD): persistexit 0.4s, autotrack
+# 0.7s, trailstop 0.4s, metalayers 2.9s, watchliveness 3.3s — the budgets
+# below are ~5x those. Each drive runs at most ONCE per commit even when
+# several guarded sources are staged together.
+# Measured cold runtimes (2026-09-22, HEAD): persistexit 0.4s, autotrack
+# 0.7s, trailstop 0.4s, metalayers 2.9s, watchliveness 3.3s — the budgets
+# below are ~5x those. Each drive runs at most ONCE per commit even when
+# several guarded sources are staged together.
+# Emergency bypass stays available: git commit --no-verify — deliberately.
+if git diff --cached --name-only | grep -qxE 'app\.py|background_scanner\.py|meta_layers\.py|profit_guard\.py'; then
     if [ -z "$PY" ]; then
-        echo "  ⛔ TRIPWIRE: app.py staged but no python found — commit blocked." >&2
+        echo "  ⛔ GATE: guarded source staged but no python found — commit blocked." >&2
         exit 1
     fi
-    SCRATCH="$(mktemp -d "${TMPDIR:-/tmp}/onebrain.XXXXXX")"
+    SCRATCH="$(mktemp -d "${TMPDIR:-/tmp}/commitgate.XXXXXX")"
     trap 'rm -rf "$SCRATCH"' EXIT
-    git show :app.py > "$SCRATCH/app.py" || { echo "  ⛔ TRIPWIRE: cannot read staged app.py" >&2; exit 1; }
-    git show :background_scanner.py > "$SCRATCH/background_scanner.py" \
-        || { echo "  ⛔ TRIPWIRE: cannot read background_scanner.py from the index" >&2; exit 1; }
-    cp test_persistexit.py "$SCRATCH/test_persistexit.py"
-    trip_out="$(cd "$SCRATCH" && "$PY" test_persistexit.py 2>&1)"; trip_rc=$?
-    # the drive prints only DONE to stdout — the RESULT verdict lives in
-    # its check file (written in its CWD = the scratch dir). A missing
-    # file (crash before the write) leaves trip_res empty -> blocked.
-    trip_res="$(grep -oE 'RESULT: [0-9]+ passed, [0-9]+ failed' \
-                   "$SCRATCH/_persist_check.txt" 2>/dev/null | tail -1)"
-    trip_failed="$(printf '%s' "$trip_res" | sed -n 's/.*, \([0-9]*\) failed/\1/p')"
-    if [ $trip_rc -ne 0 ] || [ -z "$trip_res" ] || [ "${trip_failed:-1}" != "0" ]; then
-        tail -8 "$SCRATCH/_persist_check.txt" 2>/dev/null >&2
-        printf '%s\n' "$trip_out" | tail -3 >&2
-        echo "  ⛔ TRIPWIRE: the one-brain census FAILED on the staged app.py" >&2
-        echo "     (${trip_res:-no RESULT line — run crashed or was truncated})" >&2
-        echo "     A console second brain or a re-mounted exit evaluator is born." >&2
-        echo "     Fix the finding (run: python test_persistexit.py) or bypass with" >&2
+    for src in app.py background_scanner.py meta_layers.py profit_guard.py; do
+        git show ":$src" > "$SCRATCH/$src" 2>/dev/null || cp "$src" "$SCRATCH/$src" \
+            || { echo "  ⛔ GATE: cannot stage $src for the gate" >&2; exit 1; }
+    done
+    # Windows Python cannot consume MSYS-style paths (/tmp, /c/...);
+    # cygpath -w renders both PYTHONPATH entries natively: the scratch
+    # (staged content) FIRST, the worktree as the fallback for modules
+    # that were not staged (discipline, volatility_engine, ...).
+    WINSCRATCH="$(cygpath -w "$SCRATCH" 2>/dev/null || echo "$SCRATCH")"
+    WINREPO="$(cygpath -w "$PWD" 2>/dev/null || echo "$PWD")"
+    export PYTHONPATH="$WINSCRATCH;$WINREPO"
+    FAILS=""
+    run_drive() {
+        local t="$1" mode="$2" budget="$3"
+        local out rc res failed p tot t0 t1 dt
+        git show ":$t" > "$SCRATCH/$t" 2>/dev/null || cp "$t" "$SCRATCH/$t"
+        t0="$(date +%s%N)"
+        out="$(cd "$SCRATCH" && timeout "$budget" "$PY" -X utf8 "$t" 2>&1)"; rc=$?
+        t1="$(date +%s%N)"; dt=$(( (t1 - t0) / 1000000 ))
+        res=""; failed=""
+        case "$mode" in
+            checkfile)
+                res="$(grep -oE 'RESULT: [0-9]+ passed, [0-9]+ failed' \
+                           "$SCRATCH/_persist_check.txt" 2>/dev/null | tail -1)"
+                failed="$(printf '%s' "$res" | sed -n 's/.*, \([0-9]*\) failed/\1/p')" ;;
+            result)
+                # two real conventions: "RESULT: N passed, M failed"
+                # (persistexit-style) and the bare "N passed, M failed"
+                # (trailstop, metalayers) — take the last verdict line
+                res="$(printf '%s\n' "$out" | grep -oE '(RESULT: )?[0-9]+ passed, [0-9]+ failed' | tail -1)"
+                failed="$(printf '%s' "$res" | sed -n 's/.*, \([0-9]*\) failed/\1/p')" ;;
+            nm)
+                res="$(printf '%s\n' "$out" | grep -oE '[0-9]+/[0-9]+ passed' | tail -1)"
+                p="$(printf '%s' "$res" | sed -n 's/^\([0-9]*\)\/.*/\1/p')"
+                tot="$(printf '%s' "$res" | sed -n 's|^[0-9]*/\([0-9]*\) passed.*|\1|p')"
+                if [ -n "$p" ] && [ -n "$tot" ]; then failed=$(( tot - p )); fi ;;
+        esac
+        if [ "$rc" -eq 124 ]; then
+            echo "  ⛔ GATE: $t exceeded its ${budget}s budget — blocked." >&2
+            printf '%s\n' "$out" | tail -3 >&2
+            FAILS="$FAILS $t(timeout)"
+        elif [ "$rc" -ne 0 ] || [ -z "$res" ] || [ "${failed:-1}" != "0" ]; then
+            echo "  ⛔ GATE: $t FAILED (${res:-no verdict — crashed or truncated}; rc=$rc)" >&2
+            printf '%s\n' "$out" | tail -4 >&2
+            FAILS="$FAILS $t"
+        else
+            echo "  🧠 gate: $t — $res (${dt}ms, budget ${budget}s)" >&2
+        fi
+    }
+    _APP=no; _BS=no; _ML=no
+    printf '%s\n' "$(git diff --cached --name-only)" | grep -qx 'app.py' && _APP=yes
+    printf '%s\n' "$(git diff --cached --name-only)" | grep -qx 'background_scanner.py' && _BS=yes
+    printf '%s\n' "$(git diff --cached --name-only)" | grep -qxE 'meta_layers\.py|profit_guard\.py' && _ML=yes
+    # Trigger → drive map, deduped: when app.py AND background_scanner.py
+    # are staged together (the f5ad99d shape), watchliveness and metalayers
+    # would run twice under a naive per-source block — maybe_run keys on
+    # the test name and runs each drive at most once per commit.
+    RAN=""
+    maybe_run() {
+        local flag="$1" t; shift
+        [ "$flag" = yes ] || return 0
+        t="$1"
+        case " $RAN " in *" $t "*) return 0 ;; esac
+        RAN="$RAN $t"
+        run_drive "$@"
+    }
+    maybe_run "$_APP" test_persistexit.py  checkfile 5
+    maybe_run "$_APP" test_watchliveness.py result  20
+    maybe_run "$_APP" test_metalayers.py   result   15
+    maybe_run "$_BS"  test_autotrack.py    nm        5
+    maybe_run "$_BS"  test_trailstop.py    result    5
+    maybe_run "$_BS"  test_watchliveness.py result  20   # deduped when app.py also staged
+    maybe_run "$_BS"  test_metalayers.py   result   15   # deduped
+    maybe_run "$_ML"  test_metalayers.py   result   15   # deduped
+    if [ -n "$FAILS" ]; then
+        echo "  ⛔ COMMIT GATE: failed drives:${FAILS}" >&2
+        echo "     Fix them (run the drive in the repo root) or bypass with" >&2
         echo "     git commit --no-verify — deliberately, never casually." >&2
         exit 1
     fi
-    echo "  🧠 one-brain tripwire: $trip_res on the staged content." >&2
+    echo "  🧠 commit gate: every triggered drive green on the staged content." >&2
 fi
 
 [ "${CODERABBIT_OFF:-0}" = "1" ] && exit 0
