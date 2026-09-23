@@ -932,13 +932,14 @@ def cooldown_review(exchange=None, when=None, speak=True, dry_run=False) -> dict
     try:
         import era_compare as _ec
         _ecs = _ec.summary()
-        if _ecs.get("readable"):
-            _day_result["era_line"] = _ec.top_line(_ecs)
-        elif _today >= str(_ec.TARGET_DATE):
-            _day_result["era_line"] = (
-                f"the re-base week-one read is due — the new era holds "
-                f"{_ecs['post']['trades']} closed trades, short of the "
-                f"{_ecs['min_post_trades']} a comparison needs")
+        if _today >= str(_ec.TARGET_DATE):
+            if _ecs.get("readable"):
+                _day_result["era_line"] = _ec.top_line(_ecs)
+            else:
+                _day_result["era_line"] = (
+                    f"the re-base week-one read is due — the new era holds "
+                    f"{_ecs['post']['trades']} closed trades, short of the "
+                    f"{_ecs['min_post_trades']} a comparison needs")
         else:
             _day_result["era_line"] = None
     except Exception:
