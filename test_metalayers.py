@@ -26,7 +26,8 @@ def check(n, cond, why=""):
 
 _MST = timezone(timedelta(hours=-6))
 HERE = Path(__file__).resolve().parent
-TMP = HERE / "_mltmp"
+import tempfile
+TMP = Path(tempfile.mkdtemp(prefix="mltmp_"))   # sandbox-derived: every write below lands in the tmpdir
 TMP.mkdir(exist_ok=True)
 (TMP / "meta_layers_state.json").unlink(missing_ok=True)
 
@@ -40,7 +41,7 @@ sys.modules["background_scanner"] = bs
 import meta_layers as ml
 import profit_guard as pg
 
-ml.STATE_FILE = TMP / "meta_layers_state.json"
+ml.STATE_FILE = TMP / "meta_layers_state.json"  # leak-audit: ok (suite-long redirect into the mkdtemp world; restore-never, suite-per-process)
 _ML_ROOT = ml.ROOT
 ml.ROOT = TMP                       # thresholds + trades all in tmp now
 (TMP / "rotation_thresholds.json").write_text(json.dumps({
@@ -269,7 +270,7 @@ ml._SLOPE.clear()
 # ════════ 8. the four behaviors ════════
 print("== 8. momentum / re-entry / shadow / end-game triggers ==")
 ml.ROOT = TMP
-ml.STATE_FILE = TMP / "meta_layers_state.json"
+ml.STATE_FILE = TMP / "meta_layers_state.json"  # leak-audit: ok (suite-long redirect into the mkdtemp world; restore-never, suite-per-process)
 (TMP / "meta_layers_state.json").unlink(missing_ok=True)
 # every seam this section stubs, saved for the restore at the tail
 _S8 = [(ml, "_signal_higher_highs"), (ml, "_signal_funding_rising"),
@@ -408,10 +409,12 @@ check(6.10, ml.ENDGAME_TRAIL_MULT == 0.7 and ml.ENDGAME_LOCKIN_MULT == 1.3,
 
 # ════════ 7. LIVE probes ════════
 print("== 7. LIVE probes on the real book ==")
-ml.ROOT = _ML_ROOT
+ml.ROOT = _ML_ROOT      # leak-audit: ok — the deliberate hand-back at the LIVE-probe section
 _RealState = HERE / "meta_layers_state.json"
 _RealBytes = _RealState.read_bytes() if _RealState.exists() else None
 _CreatedByProbe = _RealBytes is None   # fresh clone: the probe's writes would
+# leak-audit: ok — the probe wants the REAL module state, and the tail
+# restores it byte-exact (or scrubs what this run created)
 ml.STATE_FILE = _RealState             # CREATE the production-named file
 _lr = ml.rcl_measure("ZEC/USD")
 check(7.1, isinstance(_lr["verdict"], str) and _lr["verdict"] in

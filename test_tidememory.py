@@ -248,9 +248,14 @@ from datetime import datetime, timedelta, timezone as _tz
 
 
 def _live_rec(pair, st, mfe, hours_ago, goal=1.5):
+    # SINGLE-CLOCK fixtures (the clock-freeze sweep, Sep 23): the stamp
+    # derives from the SAME epoch clock that supplies now_ts — the old
+    # datetime.now() stamp disagreed with time.time() under any clock
+    # perturbation, silently aging the "fresh" payers past the decay
+    # (the metalayers shadow-bomb precondition, caught at +40d)
     return {"pair": pair, "tide": f"{st} 22%", "goal_pct": goal,
-            "ts": (datetime.now(_tz.utc) - timedelta(hours=hours_ago))
-                  .isoformat(),
+            "ts": datetime.fromtimestamp(time.time() - hours_ago * 3600,
+                                         _tz.utc).isoformat(),
             "outcome": {"mfe_pct": mfe}}
 
 

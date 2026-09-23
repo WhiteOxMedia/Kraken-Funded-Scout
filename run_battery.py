@@ -43,6 +43,7 @@ DIAG_RUN = {
     "diag_sizingaudit",    # read-before-assign in sizing gates
     "diag_smoketier",      # THE $1K-TIER SMOKE: guard/carry/stop by arithmetic
     "diag_testleaks",      # module-global leaks in the suites
+    "diag_clockbombs",     # clock-freeze time bombs (suites that only pass at certain hours)
 }
 
 PER_ENTRY_TIMEOUT = 420   # seconds; a hung suite fails instead of hanging
