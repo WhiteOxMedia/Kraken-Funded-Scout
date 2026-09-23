@@ -49,6 +49,15 @@ with no exit checks. That incident is the reason every rule below exists.
    CodeRabbit review runs against the tree as-is. Churn is noise; noise is
    never an excuse to move files under a live trading system.
 
+## Arming the hook (fresh clones)
+
+The pre-commit hook is **versioned at `hooks/pre-commit`** and survives
+clones; machine-local `.git/hooks` copies are not used. A fresh checkout
+arms it with ONE line (this is policy, not folklore — without it the
+stash guard, the commit gate, and the tripwires do not run):
+
+    git config core.hooksPath hooks
+
 ## Enforcement map
 
 | Layer | Guard |

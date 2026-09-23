@@ -79,6 +79,11 @@ fi
 #   test_watchliveness exit code + RESULT (imports bs+ml: needs the
 #                      scratch exports + PYTHONPATH)
 #   test_metalayers    exit code + RESULT (censuses every guarded source)
+#   test_rebootsurv    exit code + RESULT (reboot-survival: pulse/stamps/
+#                      guard state survive a reboot; hermetic tmpdirs)
+#   test_balancepop    exit code + RESULT (the sidebar-sweep census:
+#                      no file-read display strands outside a live
+#                      fragment — the KAITO freeze can never return)
 # Measured cold runtimes (2026-09-22, HEAD): persistexit 0.4s, autotrack
 # 0.7s, trailstop 0.4s, metalayers 2.9s, watchliveness 3.3s — the budgets
 # below are ~5x those. Each drive runs at most ONCE per commit even when
@@ -158,6 +163,9 @@ if git diff --cached --name-only | grep -qxE 'app\.py|background_scanner\.py|met
         run_drive "$@"
     }
     maybe_run "$_APP" test_persistexit.py  checkfile 5
+    maybe_run "$_APP" test_balancepop.py  result    5   # sidebar-sweep census:
+                                                        # every display read
+                                                        # rides a fragment
     maybe_run "$_APP" test_watchliveness.py result  20
     maybe_run "$_APP" test_metalayers.py   result   15
     maybe_run "$_BS"  test_persistexit.py checkfile 5   # the MIRROR tripwire:
@@ -165,6 +173,7 @@ if git diff --cached --name-only | grep -qxE 'app\.py|background_scanner\.py|met
                                                         # console-written verdict
     maybe_run "$_BS"  test_autotrack.py    nm        5
     maybe_run "$_BS"  test_trailstop.py    result    5
+    maybe_run "$_BS"  test_rebootsurv.py  result    5   # pulse/stamps/guard survive reboots
     maybe_run "$_BS"  test_watchliveness.py result  20   # deduped when app.py also staged
     maybe_run "$_BS"  test_metalayers.py   result   15   # deduped
     maybe_run "$_ML"  test_metalayers.py   result   15   # deduped
