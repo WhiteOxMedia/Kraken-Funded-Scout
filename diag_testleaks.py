@@ -131,7 +131,8 @@ def finally_targets(tree):
                                     if isinstance(elt, (ast.Attribute,
                                                         ast.Name)):
                                         restored.add(ast.unparse(elt))
-                            elif isinstance(t, (ast.Attribute, ast.Name)):
+                            elif isinstance(t, (ast.Attribute, ast.Name,
+                                                ast.Subscript)):
                                 restored.add(ast.unparse(t))
                     elif isinstance(sub, ast.Delete):
                         for t in sub.targets:
@@ -198,6 +199,11 @@ def audit_file(py, prod_names):
             else:
                 tnode = node.args[1] if len(args) > 1 else None
             name = target_name(tnode) if tnode is not None else None
+            # a target built FROM a sandbox-derived name (TMP = mkdtemp())
+            # is sandbox even when the literal basename names a production
+            # file — the directory, not the basename, is what clobbers
+            if tnode is not None and (free_names(tnode) & sbx):
+                continue
             if name and not is_sandbox(name):
                 if name in prod_names:
                     hits.append((node.lineno,
@@ -214,6 +220,8 @@ def audit_file(py, prod_names):
                 and re.search(r"[wa]", node.args[1].value):
             name = target_name(node.args[0])
             if name and not is_sandbox(name):
+                if free_names(node.args[0]) & sbx:
+                    continue
                 if name in prod_names:
                     hits.append((node.lineno,
                                  f"PRODUCTION-PATH WRITE: open('{name}')"))

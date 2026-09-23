@@ -72,32 +72,38 @@ CONTRACTS = [
 
 
 def main():
-    # ── 1. SELF-CHECK: the scanner's mouth honors the never-shape lines ──
+    # ── 1. SELF-CHECK: the scanner's mouth honors the dial contract ─────
+    #    (Sep 23 re-pin: the mouth was rebuilt in the voice-parity era —
+    #    ONE voice, three deliveries, the VOLUME dial (0-100) governing
+    #    her loudness everywhere by the user's own retirement of the
+    #    switches. The old console-queue-only dial split is retired with
+    #    them. What must hold now: voice ALWAYS on (no toggle can silence
+    #    her), the dial read from console_state with a fail-soft 100 and
+    #    clamped 0-100, the spawn carrying -Volume, and the her-words log
+    #    written BEFORE the spawn.)
     _speak = (ROOT / "background_scanner.py").read_text(encoding="utf-8")
 
     self_ok = True
     try:
-        m = re.search(
-            r"if source in CONSOLE_SOURCES:.*?subprocess\.Popen\(_cmd",
-            _speak, re.S)
-        _mouth = m.group(0) if m else ""
+        _vol_body = re.search(
+            r"def _voice_volume\(\).*?(?=\ndef |\n\n\n)", _speak, re.S).group(0)
+        _voice_body = re.search(
+            r"def _voice_enabled\(\).*?(?=\ndef |\n\n\n)", _speak, re.S).group(0)
+        _mouth = re.search(
+            r"def _speak_server\(.*?subprocess\.Popen\(\[.*?\]",
+            _speak, re.S).group(0)
         check1 = (
-            'CONSOLE_SOURCES = {"console_queue"}' in _speak
-            and "def _her_volume_pct" in _speak
-            and "def _voice_enabled" in _speak
-            and "if source in CONSOLE_SOURCES:" in _mouth
-            and "-Volume" in _mouth
-            and "else:" in _mouth
-            and "100%" in _mouth
-            and "HER VOLUME: %s alert at 100%%" in _speak
-            and "HER VOLUME: console line at %d%%" in _speak
-            and "HER VOLUME: console line dialed OUT (vol 0)" in _speak
-            and _mouth.index("return  # dialed to zero")
-            < _mouth.index("subprocess.Popen")
+            "return True" in _voice_body and "ALWAYS on" in _voice_body
+            and '"voice_volume", 100' in _vol_body
+            and "max(0, min(100" in _vol_body
+            and "return 100" in _vol_body
+            and '"-Volume"' in _mouth and "_voice_volume()" in _mouth
+            and _mouth.index("_log_her_line(text)")
+            < _mouth.index("subprocess.Popen([")
         )
         say("SELF-CHECK — the mouth's dial contract")
-        say(f"  dial reaches ONLY console-sourced lines, alerts always 100, "
-            f"mute returns before spawn, proof lines log: "
+        say(f"  voice ALWAYS on, the dial clamped 0-100 fail-soft 100, "
+            f"-Volume on the spawn, the her-words log before it: "
             f"{'OK' if check1 else 'VIOLATION'}")
         self_ok &= check1
     except Exception as exc:
@@ -105,16 +111,32 @@ def main():
         say(f"SELF-CHECK ERROR: {exc}")
 
     # ── 2. THE AND-LATCH IS GONE: exit_watch stores its own toggle ───────
+    #    (Sep 23 re-pin: the toggle WIDGETS are retired — Sep 22, user rule
+    #    "remove from the console only and fix in the on position", the
+    #    switches are critical to the system and hidden. So the console no
+    #    longer writes exit_watch AT ALL: the bridge's fail-open default IS
+    #    the forced-on. The pin is the ABSENCE: no AND-latch and no toggle
+    #    write to the key may come back.)
     _app = (ROOT / "app.py").read_text(encoding="utf-8")
     latch = re.search(r"_cs\[\"exit_watch\"\]\s*=\s*bool\(watch_on and", _app)
-    check2 = latch is None and 'bool(exit_watch)' in _app
+    any_write = re.search(r'_cs\[\s*["\']exit_watch["\']\s*\]\s*=', _app) \
+        or re.search(r'["\']exit_watch["\']\s*:\s*(?:bool|True|False)', _app)
+    check2 = latch is None and any_write is None
     say("")
     say("LATCH CHECK — the exit_watch AND-latch")
-    say(f"  exit_watch key stores its own toggle's state, never the AND: "
-        f"{'OK' if check2 else 'VIOLATION ' + (latch.group(0) if latch else '')}")
+    say(f"  console never writes exit_watch (the toggle is retired; the "
+        f"bridge's fail-open IS the forced-on): "
+        f"{'OK' if check2 else 'VIOLATION ' + ((latch or any_write).group(0) if (latch or any_write) else '')}")
     self_ok &= check2
 
-    # ── 3. SEED/KEY ALIGNMENT: every toggle seeds its widget's real key ──
+    # ── 3. SEED/KEY ALIGNMENT (Sep 23 re-pin: the retirement) ────────────
+    #    The four toggle widgets are GONE from the console (the Sep 22
+    #    user rule). Their file keys stay always-on: watch_on is seeded
+    #    and forced true; voice rides the always-on default with the
+    #    HER VOLUME slider as its only seeded control; goal_on is read
+    #    with a default-on; exit_watch has no console writer at all.
+    #    A toggle widget re-appearing for any of these keys is the
+    #    regression — the snap-to-OFF class must stay closed.
     SEEDS = [
         ("watch_toggle", "watch_on"),
         ("exit_watch_toggle", "exit_watch"),
@@ -123,16 +145,35 @@ def main():
     ]
     seed_ok = True
     say("")
-    say("SEED ALIGNMENT — widget keys seed from their own file key")
+    say("SEED ALIGNMENT — the toggle retirement (no toggle widgets; "
+        "forced-on semantics)")
+    _scan_src = (ROOT / "background_scanner.py").read_text(encoding="utf-8")
     for widget_key, file_key in SEEDS:
-        # whitespace-tolerant: a seed may wrap across lines
+        # the widget must NOT exist, and must not seed itself from the file
         pat = (rf'st\.session_state\["{widget_key}"\]\s*=\s*'
                rf'_cs\.get\(\s*"{file_key}"')
-        ok = re.search(pat, _app) is not None
+        widget_gone = re.search(pat, _app) is None \
+            and f'key="{widget_key}"' not in _app
+        # per-key forced-on evidence:
+        #   watch_on  — seeded AND forced true on its read line (app.py)
+        #   goal_on   — read with a default-true chain (app.py)
+        #   voice_on  — the scanner's _voice_enabled is a permanent True
+        #   exit_watch — no console writer at all (bridge fail-open = on)
+        if file_key == "watch_on":
+            forced = re.search(rf'{file_key}[^\n]*or True', _app) is not None
+        elif file_key == "goal_on":
+            forced = re.search(rf'get\(\s*"{file_key}"', _app) is not None
+        elif file_key == "voice_on":
+            forced = ("def _voice_enabled" in _scan_src
+                      and re.search(r"def _voice_enabled\(\)[^\n]*\n(.*?)return True",
+                                    _scan_src, re.S) is not None)
+        else:  # exit_watch
+            forced = "exit_watch" not in _app
+        ok = widget_gone and forced
         stale = f'{widget_key.replace("_toggle", "")}_ui"' in _app
         seed_ok &= ok and not stale
         say(f"  {widget_key:<20} <- {file_key:<14} "
-            f"{'OK' if ok and not stale else 'VIOLATION'}")
+            f"{'OK (widget gone, forced-on)' if ok and not stale else 'VIOLATION'}")
     self_ok &= seed_ok
 
     # ── 4. HERMETIC GATE WORLDS: the bridge reader + fail-open ──────────

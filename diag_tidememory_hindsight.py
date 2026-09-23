@@ -30,8 +30,10 @@ Run: .venv\\Scripts\\python.exe -X utf8 diag_tidememory_hindsight.py
 Writes _tidememory_hindsight.txt.
 """
 import json
+import logging
 import re
 import sys
+import threading
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -40,7 +42,12 @@ sys.path.insert(0, str(BASE))
 
 OUT = BASE / "_tidememory_hindsight.txt"
 OUTCOMES = BASE / "snapshot_outcomes.jsonl"
+LEDGER = BASE / "_tidehindsight_monthly.jsonl"
 WOLF_FLOOR = 55.0
+
+MONTHLY_PERIOD_S = 30 * 86400.0
+FIRST_DELAY_S = 600.0            # family stagger: the basegrade first pass +5 min
+logger = logging.getLogger("tidememory-hindsight")
 
 import tide_memory as tm          # the memory under test
 import tide_learn as tl           # the store loader + tide states
@@ -139,16 +146,92 @@ def _binder(r):
     return "other:tide-out", None
 
 
+def _position_usd() -> float:
+    """THE LIVE CONTEST SIZE (the drive's pin: "dollars stay current"): the
+    account balance moves as PnL books, so the dollars must track the
+    ledger — the static $1055 is only the fail-soft fallback when the
+    account file can't be read."""
+    try:
+        import contest_account as _ca
+        return float(_ca.load_state().get("balance") or 1055.0)
+    except Exception:
+        return 1055.0
+
+
 def _size(r):
     brain = r.get("brain")
     if brain is None:
         brain = r.get("quick")
     mult = hs.brain_size_mult(brain)
-    return 1055.0 * mult, mult
+    _contest_size = _position_usd()
+    return _contest_size * mult, mult
 
 
 def _usd(e, key):
     return e["size"] * e[key] / 100.0
+
+
+def run_study(outcomes_path: Path | None = None,
+              ledger_path: Path | None = None) -> dict:
+    """One full hindsight pass, returning the summary and appending one
+    record to the monthly ledger (LEDGER — _tidehindsight_monthly.jsonl,
+    the re-pricing history as the outcomes ledger grows). Never raises
+    to the caller; the txt still renders via main()."""
+    rows = _rows()
+    events, wall = [], []
+    skipped = 0
+    for r in rows:
+        kind, bar = _binder(r)
+        quick, oc = r.get("quick"), r.get("outcome") or {}
+        st = tm._parse_tide(r.get("tide"))
+        if kind != "priced" or quick is None or st not in ("OUT", "FLAT"):
+            if kind == "wall" and st == "OUT" and quick is not None:
+                wall.append({"pair": r.get("pair"), "ts": r.get("ts"),
+                             "quick": float(quick),
+                             "st": st, "size": _size(r)[0],
+                             "end_pct": float(oc.get("end_move_pct") or 0.0),
+                             "mfe_pct": float(oc.get("mfe_pct") or 0.0),
+                             "payoff": oc.get("payoff")})
+            elif kind != "priced":
+                skipped += 1
+            continue
+        ts = _parse_ts(r["ts"])
+        adj = _replayed_adj(ts, str(r.get("pair")), st)
+        on_bar = max(WOLF_FLOOR, bar - adj)
+        released = float(quick) >= on_bar and float(quick) < bar
+        size, mult = _size(r)
+        events.append({"pair": r.get("pair"), "ts": r.get("ts"),
+                       "state": st, "quick": float(quick), "bar": bar,
+                       "adj": adj, "on_bar": on_bar, "released": released,
+                       "size": size, "mult": mult,
+                       "end_pct": float(oc.get("end_move_pct") or 0.0),
+                       "mfe_pct": float(oc.get("mfe_pct") or 0.0),
+                       "payoff": oc.get("payoff")})
+
+    rel = [e for e in events if e["released"]]
+    rel_usd_end = sum(_usd(e, "end_pct") for e in rel)
+    near = [e for e in events if not e["released"]
+            and 0 < e["on_bar"] - e["quick"] <= 3.0]
+    summary = {
+        "ts": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        "events_total": len(rows), "priced": len(events),
+        "wall_burials": len(wall), "skipped": skipped,
+        "released": len(rel),
+        "released_end_usd": round(rel_usd_end, 2),
+        "near_misses": len(near),
+        "position_usd": round((events[0]["size"] if events else
+                               1055.0), 2),
+        "rows": [{k: e[k] for k in ("pair", "ts", "state", "quick",
+                                    "bar", "adj", "released", "end_pct",
+                                    "payoff")} for e in events],
+    }
+    try:
+        with open(ledger_path if ledger_path is not None else LEDGER,
+                  "a", encoding="utf-8") as _lf:
+            _lf.write(json.dumps(summary) + "\n")
+    except Exception as exc:
+        logger.warning("tide-memory hindsight ledger append failed (%s)", exc)
+    return summary
 
 
 def main():
@@ -273,6 +356,27 @@ def main():
 
 def _usd2(w):
     return w["size"] * w["end_pct"] / 100.0
+
+
+def monthly_driver_loop(stop: threading.Event,
+                        first_delay_s: float = FIRST_DELAY_S,
+                        period_s: float = MONTHLY_PERIOD_S):
+    """The family daemon loop: one pass shortly after boot (the ledger
+    record seeds the history), then monthly. Never raises; dies with
+    the scanner. The append-only ledger (_tidehindsight_monthly.jsonl)
+    is the re-pricing history as the outcomes ledger grows."""
+    stop.wait(first_delay_s)
+    while not stop.is_set():
+        try:
+            s = run_study()
+            logger.info("TIDE-MEMORY HINDSIGHT: monthly re-price — %d/%d "
+                        "priced burial(s), %d released, net end-move %+.2f "
+                        "USD", s["priced"], s["events_total"], s["released"],
+                        s["released_end_usd"])
+        except Exception as exc:
+            logger.info("TIDE-MEMORY HINDSIGHT: pass failed (%s) — this "
+                        "month's re-price skips, the ledger stands", exc)
+        stop.wait(period_s)
 
 
 if __name__ == "__main__":
