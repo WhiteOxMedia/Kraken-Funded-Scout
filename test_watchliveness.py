@@ -21,6 +21,21 @@ CONTRACT:
      beats even with NO pairs watched; a crashed cycle (the loop's try
      swallows the raise) freezes the counter, and the auto-watch plate
      shows alive / slow / FROZEN from the age.
+  6. SCAN-AWARE PULSE (Sep 22, the boot-night incident): the full
+     tournament runs inside the same loop pass and held the pulse ~9
+     minutes — the console cried FROZEN for a working machine. A busy
+     beat (phase=scan) refreshes the timestamp WITHOUT advancing the
+     counter; the tournament beats busy at entry/mid-fetch/tail and
+     clears to idle in a finally on EVERY path; the console reads a
+     fresh-ish scan phase as alive-scan up to a 15-minute grace, past
+     it FROZEN (a scanner dead mid-scan is still caught), and the
+     per-pair stamps keep their hard 180s SILENT bound — no scan grace.
+  7. THE SLOW-CYCLE WATCH (Sep 23): a light cycle still running past
+     180s announces ONCE per episode, log-only (warnings never reach
+     the phone) — distinguishing a SLOW SCAN (phase=scan, busy beats
+     running) from a CRASHED CYCLE (no scan, the except swallowed the
+     raise). The light block's finally resets the episode so the next
+     slow episode announces again; the duration clock starts at boot.
 Run:  python test_watchliveness.py   (exit 0 = all pass)
 """
 import sys, types, time, json, os
@@ -77,20 +92,26 @@ try:
     bs._fleet_tide = lambda max_age_s=300: (55.0, "FLAT")
 except Exception:
     pass
-# the meta tickers ride the cycle — hermetic state file for them
-ml.ROOT = TMP
-ml.STATE_FILE = TMP / "meta_layers_state.json"
-(TMP / "meta_layers_state.json").unlink(missing_ok=True)
-
+# the meta tickers ride the cycle — hermetic state file for them:
+# each cycle's swap lives INSIDE its try and the finally restores the
+# production paths (diag_testleaks class 2: a module-global path swap
+# without an enclosing try/finally restore leaves the leak open)
+_ml_root0, _ml_state0 = ml.ROOT, ml.STATE_FILE
 cfg = types.SimpleNamespace(challenge_balance=10000.0, candle_interval=60,
                             lookback_candles=200)
 t0 = time.time()
 try:
+    ml.ROOT = TMP
+    ml.STATE_FILE = TMP / "meta_layers_state.json"
+    (TMP / "meta_layers_state.json").unlink(missing_ok=True)
     bs.contest_light(_Ex(), cfg)
     _ran = True
 except Exception as exc:
     _ran = False
     print(f"      (contest_light raised: {exc!r})")
+finally:
+    ml.ROOT = _ml_root0
+    ml.STATE_FILE = _ml_state0
 check(1.1, _ran, "the real contest_light cycle runs on the stub exchange")
 saved_rows = _saved or {}
 check(1.2, "FAKE/USD" in saved_rows and "DEAD/USD" in saved_rows,
@@ -114,9 +135,14 @@ bs._load_contest_watch = lambda: json.loads(json.dumps(WATCH2))
 _saved2 = {}
 bs._save_contest_watch = lambda w: _saved2.update(json.loads(json.dumps(w)))
 try:
+    ml.ROOT = TMP
+    ml.STATE_FILE = TMP / "meta_layers_state.json"
     bs.contest_light(_Ex(), cfg)
 except Exception:
     pass
+finally:
+    ml.ROOT = _ml_root0
+    ml.STATE_FILE = _ml_state0
 _ts2 = float(_saved2.get("FAKE/USD", {}).get("checked_ts") or 0)
 check(2.1, _ts2 >= time.time() - 5,
       "a stale stamp is overwritten the moment the watcher checks again")
