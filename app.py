@@ -8256,6 +8256,20 @@ def main():
     n = _now_mst()
     block, day, thr, interval, no_buy = current_threshold()
     vol = volatility_snapshot()
+    # the header's LINE LED computes its own fresh account read (Sep 22:
+    # the live balance fragment now owns _line/_buf/_line_col in its own
+    # scope — the sweep stranded the header's references and booted a
+    # NameError. A def-local read here; fail-soft to an OFF led if the
+    # account file is busy, never a crash.
+    try:
+        _acct_h = _ca.load_state()
+        _line = _ca.death_line(_acct_h)
+        _buf = _ca.buffer(_acct_h)
+        _line_col = ("r" if _buf <= 0
+                     else ("a" if _buf < _ca.TIERS[_acct_h["tier"]]["start"] * 0.01 else "g"))
+    except Exception as exc:
+        logger.debug("header line read failed: %s", exc)
+        _line, _buf, _line_col = 0.0, 0.0, "off"
     led_row = (led(f"{day} {block}", 'a') + led(f"BAR {thr}%", 'a') + led(f'SCAN/{interval}m', 'off')
                + led(f"☠ LINE ${_line:,.0f} · ${_buf:,.0f} LEFT", _line_col))
     if no_buy:
