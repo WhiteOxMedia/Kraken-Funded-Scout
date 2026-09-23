@@ -164,8 +164,14 @@ check("the SOLD pass carries the trade's own window stamp",
       '_sw.get("contest_id")' in app_src)
 check("the ledger row records whether the balance actually moved",
       '"applied": bool(_applied)' in app_src)
-check("both watch-add sites stamp the contest window",
-      app_src.count('"contest_id": _ca.current_contest_id()') == 2)
+check("the watch-add site stamps the contest window",
+      app_src.count('"contest_id": _ca.current_contest_id()') == 1)
+# Sep 22: popups are the only writer, so the SCANNER's auto-track add
+# must stamp too — its own GET OUT exit judges w.get("contest_id")
+bs_src_cw = (BASE / "background_scanner.py").read_text(encoding="utf-8")
+check("the scanner's auto-track add stamps the window (legacy-degrade)",
+      "import contest_account as _ca_at" in bs_src_cw
+      and '"contest_id": _ca_stamp' in bs_src_cw)
 check("a foreign-window sale speaks honestly (balance untouched)",
       "OLD-CONTEST trade" in app_src)
 

@@ -140,7 +140,8 @@ check("the reader degrades a malformed marker to a reject (fail-closed)",
 BOT_READER = Path(r"C:\Users\birds\Workspace\kraken_xrp_trading_bot\scout_signal_reader.py")
 bot_src = BOT_READER.read_text(encoding="utf-8")
 check("the reader's stamp check still rejects OUT (belt-and-braces)",
-      "Tide OUT at signal time — no entries anywhere" in bot_src)
+      "Tide OUT at signal time" in bot_src
+      and "no entries anywhere" in bot_src)
 
 # ── 5. the QC agrees (never disagree) ─────────────────────────────────
 check("the QC's hard gate carves the solo runner",

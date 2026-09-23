@@ -2661,6 +2661,18 @@ def auto_track_popup(pair: str, entry: float, size: float, goal_pct: float,
     auto-close removes it — a later fire re-adds fresh)."""
     import json
     try:
+        # THE WINDOW STAMP (Sep 22): the row carries the contest window it
+        # opened under, so this file's own GET OUT exit (apply_pnl judges
+        # w.get("contest_id")) books into the RIGHT contest even if the
+        # window rolls mid-trade. Stamp failure degrades to "" — the row
+        # lands legacy and applies as before, never blocks the track.
+        import contest_account as _ca_at
+        _ca_stamp = _ca_at.current_contest_id()
+    except Exception as _ca_at_exc:
+        logger.debug("auto_track_popup: window stamp unavailable for %s "
+                     "(%s) — row lands legacy", pair, _ca_at_exc)
+        _ca_stamp = ""
+    try:
         w = _load_contest_watch()
         if pair in w:
             return False
@@ -2668,6 +2680,7 @@ def auto_track_popup(pair: str, entry: float, size: float, goal_pct: float,
                    "high": float(entry or 0.0),
                    "added": _now_mst().isoformat(),
                    "opened_ts": _now_mst().isoformat(),
+                   "contest_id": _ca_stamp,
                    "size": float(size or 0.0),
                    "goal_pct": float(goal_pct or 0.0),
                    "window_min": float(window_min or 0.0),
@@ -3647,6 +3660,24 @@ def main():
                     int(_tbw.FLIPGRADE_FIRST_DELAY_S // 60))
     except Exception as _tbw_exc:
         logger.info("  Tide bar weekly driver: OFF (%s)", _tbw_exc)
+
+    # ── THE BASE-GRADE DAEMON (Sep 20 spec; boot restored Sep 22 — the
+    # block was lost in the stash-sweep era and the pin held the spec):
+    # the study re-prices its fleet-wide verdict monthly as the deep
+    # stores grow; first pass ~15 min after boot. Never raises; dies
+    # with the scanner. Appends _basegrade_monthly.jsonl.
+    try:
+        import diag_basegrade as _dbg
+        _dbg_stop = threading.Event()
+        threading.Thread(target=_dbg.monthly_driver_loop,
+                         args=(_dbg_stop,), daemon=True,
+                         name="basegrade-monthly").start()
+        logger.info("  Base grade driver: ON (the retired 'about an hour' "
+                    "claim graded fleet-wide — appends _basegrade_monthly.jsonl, "
+                    "monthly; first pass in %d min)",
+                    int(_dbg.FIRST_DELAY_S // 60))
+    except Exception as _dbg_exc:
+        logger.info("  Base grade driver: OFF (%s)", _dbg_exc)
 
     # ── Notification ──────────────────────────────────────────────────
     def notify_big(title: str, message: str, spoken: str | None = None):

@@ -86,8 +86,11 @@ check("rotation announced", "EU/US Overlap rotation" in line)
 # assert the shape, not a frozen number
 check("tide clause live", "tide " in line and "percent of the fleet up" in line)
 check("fleet knowledge clause", "12 weeks of data" in line and "noise floor 1.4 percent" in line)
-check("liquidity size clause", "10,013 dollars on the book" in line)
-check("buffer clause", "313 above the death line" in line)
+# the balance is LIVE — the frozen "10,013"/"313" rotted the day the
+# account moved (same lesson as the tide clause above): pin the clause
+# shape, never the dollar figure
+check("liquidity size clause", "dollars on the book" in line)
+check("buffer clause", "above the death line" in line)
 check("realistic pace clause", "pace 240 a day" in line)
 check("systems-green tail", line.rstrip(".").endswith("systems green, hunting"))
 
