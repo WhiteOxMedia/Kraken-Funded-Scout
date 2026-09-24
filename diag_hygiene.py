@@ -115,7 +115,17 @@ FACTORY_SCRATCH = {"_test_tidestamp.db", "_test_tidestamp_old.db"}
 # confuse audits. Empty ghosts flag as litter; the same name carrying
 # real rows flags louder, because data in an orphan name means an
 # unknown writer is stashing records where no reader looks.
-KNOWN_DEAD_ARTIFACTS = {"trading_bot.db"}
+KNOWN_DEAD_ARTIFACTS = {
+    "trading_bot.db",
+    # the RULE D sweep (Sep 24): verified zero-reference names across both
+    # repos' tracked content. scout.db: the winners tables live in remote
+    # Postgres (db.py) — a 0-byte scout.db only ever existed because
+    # test_xrp_signals's sqlite3.connect auto-created it (rebirth fixed in
+    # the same sweep). popups.jsonl.lock: no writer exists anywhere; the
+    # only .json.lock writer is contest_account's own STATE_LOCK_FILE.
+    "scout.db",
+    "popups.jsonl.lock",
+}
 
 RULE_A = re.compile(r"^(_.*\.(?:db|log)|_sbx_.*|_bat_.*|\$.*)$")
 REF_EXTS = ("*.py", "*.bat", "*.ps1", "*.md")
