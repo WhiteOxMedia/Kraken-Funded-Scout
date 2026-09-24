@@ -75,6 +75,28 @@ check(1.5, "QUIET MODE (Sep 23): GATE_QUIET=1 (env, default 0)" in src,
 check(1.6, 'maybe_run "$_HK"  test_commitgate.py result  180' in src,
       "the self-arming trigger line is missing from the matrix")
 
+# 1.7 the MIRROR CHECK (user, Sep 23: "verify the machine-local mirror
+#     before running, so drift is caught at commit time"): the hook
+#     verifies every tracked hook's fallback copy BEFORE the gate —
+#     missing auto-arms, diverged blocks, worktree-reference semantics.
+mstart = src.find("check_mirror() {")
+check(1.7, mstart != -1, "the mirror-check function is missing from the hook")
+if mstart != -1:
+    mend = src.find("\n}", mstart)   # the function's closing brace
+    body = src[mstart:mend if mend != -1 else len(src)]
+    check(1.71, "MIRROR DRIFT" in body and "exit 1" in body,
+          "a diverged mirror no longer blocks with the re-arm recipe")
+    check(1.72, 'mkdir -p ".git/hooks"' in body and "was missing — armed from" in body,
+          "a missing mirror is no longer auto-armed (fresh clones would stay fallback-less)")
+    # 1.73 the reference is the WORKTREE hook — the file that actually
+    #      RUNS under core.hooksPath — the same reference the battery's
+    #      two-way census uses, so the two checks can never disagree
+    check(1.73, "tr -d '\\r' < \"$tracked\"" in body,
+          "the check lost its worktree-reference (run-content) comparison")
+# 1.74 the sweep covers EVERY tracked hook name, not just pre-commit
+check(1.74, "git ls-files 'hooks/*'" in src and "*.sample) continue" in src,
+      "the mirror sweep no longer covers every tracked hook name")
+
 if not RERUN:
     # ════════ 2. behavioral sandbox: the gate body, run for real ════════
     print("== 2. sandbox: the gate runs live in a scratch repo ==")
