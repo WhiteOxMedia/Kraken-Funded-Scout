@@ -25,6 +25,7 @@ BASE = Path(__file__).resolve().parent
 sys.path.insert(0, str(BASE))
 
 import contest_account as ca
+import scratch_space   # scratch policy: nothing volatile lands in the repo root
 
 # Redirect the state file BEFORE anything reads it (import time already
 # bound the name; rebind and every helper sees the temp file).
@@ -242,6 +243,6 @@ check("missing dedupe keys stay UNIQUE per call (both trades apply)",
 
 lines.append(f"\nRESULT: {PASS} passed, {FAIL} failed")
 out = BASE / "_contestwindow_test.txt"
-out.write_text("\n".join(lines), encoding="utf-8")
+scratch_space.report_temp('_contestwindow_test.txt').write_text("\n".join(lines), encoding="utf-8")
 print("\n".join(lines[-3:]))
 sys.exit(1 if FAIL else 0)

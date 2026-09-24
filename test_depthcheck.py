@@ -24,6 +24,7 @@ def check(name, ok, detail=""):
 
 
 import execution_tiers as et
+import scratch_space   # scratch policy: nothing volatile lands in the repo root
 
 # ── fake the book: two snapshots, no real API, no real 10s wait ────────
 _real_sleep = time.sleep
@@ -102,5 +103,5 @@ check("cumulative tob-drop check still directional (drops only)",
       "(tob1 - tob2) / tob1" in src)
 
 lines.append(f"\nRESULT: {PASS} passed, {FAIL} failed")
-open("_depthcheck_check.txt", "w", encoding="utf-8").write("\n".join(lines))
+open(scratch_space.report_temp('_depthcheck_check.txt'), "w", encoding="utf-8").write("\n".join(lines))
 print("DONE")

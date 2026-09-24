@@ -1,7 +1,0 @@
-now: Sun 12:15 PM — testing filter_illiquid
-current rotation: 12-16 (weekend)
-
-engine cells right now: ALGO=25k DOT=23k S=2k PNUT=2k BTC=8344k
-PASS  active in / dead out: kept=['ALGO/USD', 'BTC/USD'] excluded=['S/USD']
-PASS  unknown coin: daily floor only: kept=['NEWCOIN/USD'] excluded=['DEADNEW/USD']
-PASS  recently-died coin blocked by daily backstop: kept=[] excluded=['ALGO/USD']

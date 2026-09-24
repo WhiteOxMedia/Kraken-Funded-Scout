@@ -20,6 +20,7 @@ BASE = Path(__file__).resolve().parent
 sys.path.insert(0, str(BASE))
 
 import tidebar_weekly as tbw
+import scratch_space   # scratch policy: nothing volatile lands in the repo root
 
 results = []
 def check(name, ok, detail=""):
@@ -2475,7 +2476,7 @@ finally:
     _shutil_fs.rmtree(_fs_sbx, ignore_errors=True)
 
 fails = [r for r in results if not r[1]]
-(BASE / "_tidebarweekly_check.txt").write_text(
+(scratch_space.report_temp('_tidebarweekly_check.txt')).write_text(
     "\n".join(f"{'PASS' if ok else 'FAIL'}  {name}" + (f"  [{d}]" if d and not ok else "")
               for name, ok, d in results)
     + f"\n\nRESULT: {len(results) - len(fails)} passed, {len(fails)} failed\n",

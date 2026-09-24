@@ -1,6 +1,7 @@
 """End-to-end: fetch real payouts + run the tracker (baseline run)."""
 import sys
 from pathlib import Path
+import scratch_space   # scratch policy: nothing volatile lands in the repo root
 
 BASE = Path(__file__).resolve().parent
 sys.path.insert(0, str(BASE))
@@ -40,5 +41,5 @@ except Exception as exc:
     lines.append(f"ERROR: {exc}")
 
 out = BASE / "payout_e2e_check.txt"
-out.write_text("\n".join(lines), encoding="utf-8")
+scratch_space.report_temp('payout_e2e_check.txt').write_text("\n".join(lines), encoding="utf-8")
 print("done")

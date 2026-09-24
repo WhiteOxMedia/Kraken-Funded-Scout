@@ -37,6 +37,7 @@ def check(name, ok, detail=""):
 
 
 import background_scanner as bs
+import scratch_space   # scratch policy: nothing volatile lands in the repo root
 
 src = Path("background_scanner.py").read_text(encoding="utf-8")
 # the 5-min exit check block only
@@ -111,5 +112,5 @@ check("a strong winner reading confident hold gets out on the DEAD THESIS (weak 
       ok and why == "thesis")
 
 lines.append(f"\nRESULT: {PASS} passed, {FAIL} failed")
-Path("_exitsynthesis_check.txt").write_text("\n".join(lines), encoding="utf-8")
+scratch_space.report_temp('_exitsynthesis_check.txt').write_text("\n".join(lines), encoding="utf-8")
 print("DONE")

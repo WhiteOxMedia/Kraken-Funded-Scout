@@ -41,6 +41,7 @@ ap_src = _src("app.py")
 tm_src = _src("tide_memory.py")
 
 import tide_memory as tm
+import scratch_space   # scratch policy: nothing volatile lands in the repo root
 
 # ── 1. the math ──────────────────────────────────────────────────────
 check("the dials exist (30h gate, 10x scale, ±3 cap, OUT+FLAT only)",
@@ -361,7 +362,7 @@ except Exception as exc:
 
 # ── RUN ──────────────────────────────────────────────────────────────
 fails = [r for r in results if not r[1]]
-(BASE / "_tidememory_check.txt").write_text(
+(scratch_space.report_temp('_tidememory_check.txt')).write_text(
     "\n".join(f"{'PASS' if ok else 'FAIL'}  {name}" + (f"  [{d}]" if d and not ok else "")
               for name, ok, d in results)
     + f"\n\nRESULT: {len(results) - len(fails)} passed, {len(fails)} failed\n",

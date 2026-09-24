@@ -15,6 +15,20 @@ MST = ZoneInfo("America/Denver")
 now = datetime.now(MST)
 SCOUT_PY = BASE / ".venv\\Scripts\\python.exe"
 BOT_PY = BOT / ".venv\\Scripts\\python.exe"
+REPORTS = BASE / "reports"          # audit summaries live here (scratch policy)
+
+
+def _report(name: str) -> str:
+    """A drive's check report, wherever the scratch policy put it:
+    scratch/reports_temp first (the migrated home), repo root second
+    (the pre-policy copies, and any straggler drive)."""
+    for p in (BASE / "scratch" / "reports_temp" / name, BASE / name):
+        try:
+            if p.exists():
+                return p.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            continue
+    return ""
 
 results = []
 
@@ -45,18 +59,18 @@ check("bot code compiles (5 files)", ok, out)
 
 # ── 2. Unit test suites ──────────────────────────────────────────────
 ok, out = run([str(SCOUT_PY), "-X", "utf8", "test_execution_tiers.py"], BASE)
-tiers = (BASE / "test_execution_tiers_check.txt").read_text(encoding="utf-8") if (BASE / "test_execution_tiers_check.txt").exists() else ""
+tiers = _report("test_execution_tiers_check.txt")
 tiers_ok = "0 failed" in tiers
 check("execution-tier tests (66 checks)", tiers_ok, tiers.splitlines()[0] if tiers else "no output")
 
 ok, out = run([str(SCOUT_PY), "-X", "utf8", "test_longonly.py"], BASE)
-lo = (BASE / "longonly_check.txt").read_text(encoding="utf-8") if (BASE / "longonly_check.txt").exists() else ""
+lo = _report("longonly_check.txt")
 lo_fails = [l for l in lo.splitlines() if "FAIL" in l]
 check("long-only rules tests (buy beats sell)", not lo_fails, f"{len(lo_fails)} failed")
 
 # ── 3. AppTest boot smoke ────────────────────────────────────────────
 ok, out = run([str(SCOUT_PY), "-X", "utf8", "test_apptest.py"], BASE)
-at = (BASE / "apptest_check.txt").read_text(encoding="utf-8") if (BASE / "apptest_check.txt").exists() else ""
+at = _report("apptest_check.txt")
 check("console boots (AppTest, no exceptions)", "ElementList()" in at, at.splitlines()[0] if at else "?")
 
 # ── 4. Launcher + bat files pure ASCII ───────────────────────────────
@@ -296,6 +310,7 @@ else:
     lines.append("VERDICT: ALL SYSTEMS PASS — ready for a fresh start "
                  "(kill switch reset pending)")
 
-out = BASE / "audit_report.txt"
+out = REPORTS / "audit_report.txt"      # an allowed summary class, per policy
+REPORTS.mkdir(parents=True, exist_ok=True)
 out.write_text("\n".join(lines), encoding="utf-8")
 print(f"{'ALL PASS' if not fails else str(len(fails)) + ' FAILURES'}")

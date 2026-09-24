@@ -40,6 +40,7 @@ if pf.exists():
 
 _save_take_payout("TESTPAIR/USD", 140)
 import app
+import scratch_space   # scratch policy: nothing volatile lands in the repo root
 got = app._recent_big_payout("TESTPAIR/USD", now_ts=0.0)
 check("guard retired: a fresh $140 payout blocks nothing (Sep 21: "
       "replaced with real data)", got is None, f"got {got}")
@@ -63,7 +64,7 @@ check("payout file restored (no residue)",
 
 fails = [r for r in results if not r[1]]
 out = BASE / "giveback_check.txt"
-out.write_text("\n".join(
+scratch_space.report_temp('giveback_check.txt').write_text("\n".join(
     [f"{'PASS' if ok else 'FAIL'}  {name}" + (f"  [{d}]" if d and not ok else "")
      for name, ok, d in results] + [""] + lines), encoding="utf-8")
 print(f"{'ALL PASS' if not fails else str(len(fails)) + ' FAILURES'}")

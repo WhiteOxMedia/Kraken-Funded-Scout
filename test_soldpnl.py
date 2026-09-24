@@ -24,6 +24,7 @@ def check(name, ok, detail=""):
 
 
 import contest_account as ca
+import scratch_space   # scratch policy: nothing volatile lands in the repo root
 
 # ── 1. the round-trip math ────────────────────────────────────────────
 g, c, n = ca.pnl_net_usd(100.0, 102.0, 1000.0)
@@ -69,5 +70,5 @@ check("losses SUBTRACT via apply_pnl (net can be negative — the sign rides the
       or "_ca_s.apply_pnl(" in sold_blk and "_net" in sold_blk)
 
 lines.append(f"\nRESULT: {PASS} passed, {FAIL} failed")
-open("_soldpnl_check.txt", "w", encoding="utf-8").write("\n".join(lines))
+open(scratch_space.report_temp('_soldpnl_check.txt'), "w", encoding="utf-8").write("\n".join(lines))
 print("DONE")

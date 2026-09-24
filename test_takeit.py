@@ -1,6 +1,7 @@
 """Verify the $20 TAKE IT math and the 3-hour rule logic (no network)."""
 import sys
 from pathlib import Path
+import scratch_space   # scratch policy: nothing volatile lands in the repo root
 
 BASE = Path(__file__).resolve().parent
 sys.path.insert(0, str(BASE))
@@ -120,5 +121,5 @@ for name, ok, detail in results:
 lines_out = [f"{'PASS' if ok else 'FAIL'}  {name}" + (f"  [{detail}]" if detail and not ok else "")
              for name, ok, detail in results] + lines
 out = BASE / "takeit_check.txt"
-out.write_text("\n".join(lines_out), encoding="utf-8")
+scratch_space.report_temp('takeit_check.txt').write_text("\n".join(lines_out), encoding="utf-8")
 print(f"{'ALL PASS' if not fails else str(len(fails)) + ' FAILURES'}")

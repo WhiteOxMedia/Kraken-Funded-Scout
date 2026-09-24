@@ -21,6 +21,7 @@ import pandas as pd
 
 import background_scanner as bs  # TIDE_RISING_MIN / TIDE_OUT_MAX stay in sync
 from indicators import ema
+import scratch_space   # scratch policy: nothing volatile lands in the repo root
 
 MST = ZoneInfo("America/Denver")
 EMA_PERIOD = 21
@@ -189,5 +190,5 @@ for x in rows:
     out(f"{x['when'].strftime('%m-%d %H:%M'):17} {x['pair'][:12]:12} {x['tide']:8} {br:>6} "
         f"{x['conf']:>5.0f} {pnl:>8}  {x['source']}")
 
-Path("_tidehistory_check.txt").write_text("\n".join(lines), encoding="utf-8")
+scratch_space.report_temp('_tidehistory_check.txt').write_text("\n".join(lines), encoding="utf-8")
 print("DONE")

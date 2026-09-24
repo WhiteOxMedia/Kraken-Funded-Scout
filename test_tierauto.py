@@ -23,6 +23,7 @@ def check(name, ok, detail=""):
 
 import contest_account as ca
 import background_scanner as bs
+import scratch_space   # scratch policy: nothing volatile lands in the repo root
 ap = open("app.py", encoding="utf-8").read()
 sc = open("background_scanner.py", encoding="utf-8").read()
 
@@ -103,5 +104,5 @@ check("no '$20'/'twenties' text left in the live card/watch/QC voice",
           ap.replace("ranked by how fast the $20 comes this hour", "")))  # the retired FAST board's text stays behind its flag
 
 lines.append(f"\nRESULT: {PASS} passed, {FAIL} failed")
-open("_tierauto_check.txt", "w", encoding="utf-8").write("\n".join(lines))
+open(scratch_space.report_temp('_tierauto_check.txt'), "w", encoding="utf-8").write("\n".join(lines))
 print("DONE")

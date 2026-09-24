@@ -3,6 +3,7 @@ import sqlite3
 from pathlib import Path
 from datetime import datetime
 from zoneinfo import ZoneInfo
+import scratch_space   # scratch policy: nothing volatile lands in the repo root
 
 BASE = Path(__file__).resolve().parent
 MST = ZoneInfo("America/Denver")
@@ -43,5 +44,5 @@ if "rejection_reason" in cols or "reason" in cols:
 
 conn.close()
 out = BASE / "bot_day_check.txt"
-out.write_text("\n".join(lines), encoding="utf-8")
+scratch_space.report_temp('bot_day_check.txt').write_text("\n".join(lines), encoding="utf-8")
 print("done")

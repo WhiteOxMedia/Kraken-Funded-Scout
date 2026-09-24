@@ -41,6 +41,7 @@ import re
 import sys
 import tempfile
 from pathlib import Path
+import scratch_space   # scratch policy: nothing volatile lands in the repo root
 
 BASE = Path(__file__).parent
 sys.path.insert(0, str(BASE))
@@ -209,7 +210,7 @@ def main():
                f"just hold-to-horizon.")
     out.append("")
     out.append(f"RESULT: {PASS} passed, {FAIL} failed")
-    OUT.write_text("\n".join(out), encoding="utf-8")
+    scratch_space.report_temp('_nochase_check.txt').write_text("\n".join(out), encoding="utf-8")
     print(f"wrote {OUT.name}: {PASS} passed, {FAIL} failed, "
           f"{len(rows)} decisive refusals")
 

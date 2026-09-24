@@ -7,6 +7,7 @@ sys.path.insert(0, str(BASE))
 
 from scanner import _compare_signals, ScanResult
 from strategy import Signal
+import scratch_space   # scratch policy: nothing volatile lands in the repo root
 
 lines = []
 
@@ -25,5 +26,5 @@ w, l, reason = _compare_signals(res("buy", 55), res("sell", 95, pair="BBB/USD"))
 lines.append(f"bot buy55 vs sell95 → {w.pair} ({'PASS' if w.pair == 'AAA/USD' else 'FAIL'}): {reason}")
 
 out = BASE / "contest_mode_check.txt"
-out.write_text("\n".join(lines), encoding="utf-8")
+scratch_space.report_temp('contest_mode_check.txt').write_text("\n".join(lines), encoding="utf-8")
 print("done")

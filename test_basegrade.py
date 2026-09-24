@@ -70,6 +70,7 @@ def flat_book(n=500, base=100.0, hh=102.0):
 
 # ── sandbox paths for the whole suite ──
 import tempfile   # noqa: E402
+import scratch_space   # scratch policy: nothing volatile lands in the repo root
 TMP = Path(tempfile.mkdtemp())
 _dbg_ledger = TMP / "ledger.jsonl"
 _dbg_out = TMP / "out.txt"
@@ -223,7 +224,7 @@ finally:
     dbg.LEDGER, dbg.OUT, dbg.STORES = _real_ledger, _real_out, _real_stores
 
 lines.append(f"RESULT: {PASS} passed, {FAIL} failed")
-(BASE / "_basegradepins_check.txt").write_text("\n".join(lines) + "\n",
+(scratch_space.report_temp('_basegradepins_check.txt')).write_text("\n".join(lines) + "\n",
                                                encoding="utf-8")
 print("\n".join(lines))
 sys.exit(1 if FAIL else 0)

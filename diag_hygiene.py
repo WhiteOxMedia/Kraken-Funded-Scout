@@ -22,6 +22,22 @@ release is reported as a stray, never crashes the audit. A swept name
 that reappears next run is simply re-swept - the trace is the SWEPT
 line, the protection is the sweepable set staying narrow.
 
+THE SCRATCH POLICY (Sep 24, same day): volatile artifacts (check
+reports, sandbox shapes, db shapes, logs, temp) route into the repo's
+scratch/ tree via scratch_space.py, and kraken_stalewatch purges every
+scratch dir of 90-minute-old files each battery rotation, writing a
+filename/age/timestamp-only summary into reports/. The repo ROOT stops
+being a scratch destination entirely. This gate carries the policy's
+teeth: after the sweep it runs a WRITE-CENSUS over both repos' sources
+to list every drive that still writes a scratch-shaped file at a root
+(the stragglers are mid-flight in another workstream's uncommitted
+hunks - they stay visible here until their owners migrate them).
+Production writers (the scanner's own ledgers and locks: pending_check,
+suppressions, the tidebar/flipgrade family...) are pinned exempt by
+name in PRODUCTION_WRITES - the census is about SCRATCH, not runtime
+state. The gate's own summary joins the allowed report classes in
+reports/ (hygiene summaries, per policy).
+
 RULES (both repo roots; anything NESTED below the root is exempt -
 subdirectory scratch is deliberate sandbox output):
   A. ROOT SCRATCH of the litter classes the sweep found:
@@ -50,9 +66,11 @@ subdirectory scratch is deliberate sandbox output):
 Run:  .venv\\Scripts\\python.exe -X utf8 diag_hygiene.py
 """
 
+import ast
 import re
 import sys
 import tempfile
+import time
 from pathlib import Path
 
 SCOUT = Path(__file__).resolve().parent
@@ -90,6 +108,32 @@ KNOWN_DEAD_ARTIFACTS = {"trading_bot.db"}
 
 RULE_A = re.compile(r"^(_.*\.(?:db|log)|_sbx_.*|_bat_.*|\$.*)$")
 REF_EXTS = ("*.py", "*.bat", "*.ps1", "*.md")
+
+# ── the scratch-policy WRITE CENSUS (Sep 24) ────────────────────────────
+# Root writes of these name classes are scratch-in-waiting: (a) the RULE
+# A/C litter classes themselves, (b) the drive check-report family the
+# policy evicted from the root (scratch/reports_temp is their home).
+CENSUS_A = re.compile(r"^(_.*\.(?:db|log)|_sbx_.*|_bat_.*|\$.*)$")
+CENSUS_B = re.compile(r"^[a-z0-9_]+_(?:check|test)\.txt$", re.IGNORECASE)
+
+# Production writers pinned EXEMPT (exact names): the running scanner
+# owns these; a drive writing them is restoring/verifying live state,
+# not scratching.
+PRODUCTION_WRITES = {
+    "pending_check.txt",            # RUNTIME_INVARIANTS runtime state
+    "trading_bot.db",               # RULE D special-cases it above
+}
+
+# Segments that prove the path is NOT a bare root write: a sandbox or
+# OS-temp route. (A `BASE / "name"` join is NOT a skip - the resolver
+# below chases the base's binding to decide root vs nested.)
+CENSUS_SKIP = re.compile(
+    r"scratch_space|report_temp|\bsbx\(|dbshape|os_temp|"
+    r"gettempdir|mkdtemp|TemporaryDirectory|NamedTemporaryFile")
+# bases whose binding IS the repo root (a join onto them is a root write)
+CENSUS_ROOT_BASE = re.compile(
+    r"^(BASE|ROOT|HERE|SCOUT|REPO|BASE_DIR|REPO_ROOT)$"
+    r"|Path\(__file__\)|dirname\(os\.path\.abspath\(__file__\)\)")
 
 
 def rule_a_hit(name: str) -> bool:
@@ -267,16 +311,162 @@ def selftest() -> int:
         finally:
             KNOWN_DEAD_ARTIFACTS.discard("_hyg_ghost.db")
 
+    # ── the write-census pins (scratch policy, Sep 24) ──────────────
+    # a fake root: a root check-report write and a root _sbx_ shape flag;
+    # a production writer, a monthly jsonl, and a nested write do not.
+    with tempfile.TemporaryDirectory(prefix="_sbx_hyg_census_") as td:
+        troot = Path(td)
+        (troot / "test_somechecker.py").write_text(
+            "from pathlib import Path\n"
+            "Path('_some_check.txt').write_text('r', encoding='utf-8')\n"
+            "open('_sbx_shape.jsonl', 'w').write('r')\n"
+            "Path('pending_check.txt').write_text('live', encoding='utf-8')\n"
+            "Path('_ledger_monthly.jsonl').write_text('prod', encoding='utf-8')\n"
+            "Path('_nested.json').write_text('nested', encoding='utf-8')\n",
+            encoding="utf-8")
+        got_c = {(f, n) for f, _l, n, _s in census_writers([troot])}
+        want_c = {("test_somechecker.py", "_some_check.txt"),
+                  ("test_somechecker.py", "_sbx_shape.jsonl")}
+        if got_c != want_c:
+            print(f"  FAIL  selftest census: got {sorted(got_c)}, "
+                  f"want {sorted(want_c)}")
+            ok = False
+
     if ok:
         print(f"  selftest: rule pins green ({len(cases)} name cases, "
-              f"{len(cls)} sweep classes, 1 behavioral sweep)")
+              f"{len(cls)} sweep classes, 1 behavioral sweep, "
+              "write-census)")
     return 0 if ok else 1
+
+
+def census_writers(roots=()) -> list:
+    """Drives still writing scratch-shaped files at a repo root.
+    AST-proper: a bare-Name receiver (OUT.write_text), a root-alias
+    join (BASE / "name"), a Path("literal") write, and a bare
+    open("name") are all chased one binding level. Known blind spots:
+    two-level indirection, f-string/computed names, and the bot repo's
+    absolute-path writes. Informational - never fails the audit."""
+    roots = list(roots) or [SCOUT, BOT]
+    hits = []
+    for root in roots:
+        if not root.is_dir():
+            continue
+        for f in sorted(root.glob("*.py")):
+            try:
+                src = f.read_text(encoding="utf-8", errors="ignore")
+                tree = ast.parse(src)
+            except Exception:
+                continue   # a drive that cannot parse is not this census's court
+            binds: dict = {}
+            for node in ast.walk(tree):
+                if (isinstance(node, ast.Assign) and len(node.targets) == 1
+                        and isinstance(node.targets[0], ast.Name)):
+                    binds.setdefault(node.targets[0].id, []).append(node.value)
+
+            def chases_root(var: str) -> bool:
+                """True when var's binding names the repo root (or hits
+                a sandbox/OS-temp route, which settles it as NOT root)."""
+                for b in binds.get(var, []):
+                    bsrc = ast.get_source_segment(src, b) or ""
+                    if CENSUS_SKIP.search(bsrc):
+                        return False
+                    if CENSUS_ROOT_BASE.search(bsrc):
+                        return True
+                return False
+
+            def root_name(val) -> str | None:
+                """The root filename when val is a root write, else None."""
+                if isinstance(val, ast.Name):
+                    vs = binds.get(val.id, [])
+                    return root_name(vs[0]) if vs else None
+                if isinstance(val, ast.Constant) and isinstance(val.value, str):
+                    return val.value if "/" not in val.value \
+                        and "\\" not in val.value else None
+                if (isinstance(val, ast.Call)
+                        and isinstance(val.func, ast.Name)
+                        and val.func.id == "Path" and val.args
+                        and isinstance(val.args[0], ast.Constant)
+                        and isinstance(val.args[0].value, str)):
+                    n = val.args[0].value
+                    return n if "/" not in n and "\\" not in n else None
+                if (isinstance(val, ast.Call)
+                        and isinstance(val.func, ast.Attribute)
+                        and val.func.attr == "with_name" and val.args
+                        and isinstance(val.args[0], ast.Constant)
+                        and isinstance(val.args[0].value, str)):
+                    # Path(__file__).with_name("x") - the object decides
+                    lsrc = ast.get_source_segment(src, val.func.value) or ""
+                    return val.args[0].value if CENSUS_ROOT_BASE.search(lsrc) \
+                        else None
+                if isinstance(val, ast.BinOp) and isinstance(val.op, ast.Div):
+                    left, right = val.left, val.right
+                    if not (isinstance(right, ast.Constant)
+                            and isinstance(right.value, str)):
+                        return None
+                    n = right.value
+                    if "/" in n or "\\" in n:
+                        return None
+                    if isinstance(left, ast.Name):
+                        if (CENSUS_ROOT_BASE.match(left.id)
+                                or chases_root(left.id)):
+                            return n
+                        return None
+                    lsrc = ast.get_source_segment(src, left) or ""
+                    return n if CENSUS_ROOT_BASE.search(lsrc) else None
+                return None
+
+            for node in ast.walk(tree):
+                if not isinstance(node, ast.Call):
+                    continue
+                fn = node.func
+                if isinstance(fn, ast.Name) and fn.id == "open" and node.args:
+                    shape, val = "open", node.args[0]
+                elif isinstance(fn, ast.Attribute) and fn.attr in (
+                        "write_text", "write_bytes", "connect", "touch"):
+                    shape, val = fn.attr, fn.value
+                else:
+                    continue
+                name = root_name(val)
+                if not name or name in PRODUCTION_WRITES:
+                    continue
+                if not (CENSUS_A.match(name) or CENSUS_B.match(name)):
+                    continue
+                hits.append((f.name, node.lineno, name, shape))
+    return hits
+
+
+def _write_summary(swept, strays, cens) -> None:
+    """The policy's allowed hygiene-summary class, into reports/.
+    Verdicts and names only - never report CONTENT."""
+    try:
+        rdir = SCOUT / "reports"
+        rdir.mkdir(parents=True, exist_ok=True)
+        stamp = time.strftime("%Y%m%d_%H%M%S")
+        p = rdir / f"hygiene_summary_{stamp}.txt"
+        lines = [f"HYGIENE SUMMARY - {stamp}",
+                 f"  strays remaining: {len(strays)}",
+                 f"  auto-swept: {len(swept)}",
+                 f"  root-writers pending migration (census): {len(cens)}"]
+        for f, why in strays:
+            lines.append(f"  STRAY  {f}  [{why}]")
+        for fname, ln, name, shape in cens:
+            lines.append(f"  ROOT-WRITER  {fname}:{ln} -> {name} ({shape})")
+        p.write_text("\n".join(lines) + "\n", encoding="utf-8")
+        olds = sorted(rdir.glob("hygiene_summary_*.txt"))
+        for old in olds[:-30]:
+            try:
+                old.unlink()
+            except OSError:
+                pass
+    except OSError:
+        pass   # reporting never crashes the gate
 
 
 def main() -> int:
     st = selftest()
     strays, counts = audit()
     swept, strays = sweep(strays)
+    cens = census_writers()
     print("=" * 60)
     print("  HYGIENE AUDIT - root scratch + one-off probes, both repos")
     print("=" * 60)
@@ -284,6 +474,12 @@ def main() -> int:
         print(f"  {root}: {n_a} root files scanned, {n_b} diag files")
     for f, why in swept:
         print(f"  SWEPT  {f.name}  [{why}] - regenerate-able, removed")
+    if cens:
+        print(f"  CENSUS: {len(cens)} drive(s) still write scratch at a "
+              "root (scratch policy pending on those files):")
+        for fname, ln, name, shape in cens:
+            print(f"    {fname}:{ln}  {shape} -> {name}")
+    _write_summary(swept, strays, cens)
     if strays:
         for f, why in strays:
             print(f"  STRAY  {f}  [{why}]")

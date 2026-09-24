@@ -33,6 +33,7 @@ def check(name, ok, detail=""):
 import carve_out as co
 import profit_guard as pg
 import meta_layers as ml
+import scratch_space   # scratch policy: nothing volatile lands in the repo root
 
 def _src(name):
     return (BASE / name).read_text(encoding="utf-8").replace("\r\n", "\n")
@@ -240,7 +241,7 @@ check("8.5 the console's breakdown can never import the carve (one-brain)",
       "_guard_breakdown_rows" in ap_src)
 
 fails = [r for r in results if not r[1]]
-(BASE / "_carveout_check.txt").write_text(
+(scratch_space.report_temp('_carveout_check.txt')).write_text(
     "\n".join(f"{'PASS' if ok else 'FAIL'}  {name}" + (f"  [{d}]" if d and not ok else "")
               for name, ok, d in results)
     + f"\n\nRESULT: {len(results) - len(fails)} passed, {len(fails)} failed\n",

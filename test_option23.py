@@ -17,6 +17,7 @@ import json
 import sys
 import time
 from pathlib import Path
+import scratch_space   # scratch policy: nothing volatile lands in the repo root
 
 sys.path.insert(0, str(Path(__file__).parent))
 
@@ -219,7 +220,7 @@ except Exception as exc:
     check("functional checks ran", False, exc)
 
 lines.append(f"\nRESULT: {PASS} passed, {FAIL} failed")
-Path("_option23_check.txt").write_text("\n".join(lines), encoding="utf-8")
+scratch_space.report_temp('_option23_check.txt').write_text("\n".join(lines), encoding="utf-8")
 print("DONE")
 # THE HONEST VERDICT (battery triage, Sep 23): the battery's result mode
 # parses the STREAMED OUTPUT — a verdict that lived only in the check

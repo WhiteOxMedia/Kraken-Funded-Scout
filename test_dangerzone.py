@@ -29,6 +29,7 @@ def check(name, ok, detail=""):
 import background_scanner as bs
 import contest_account as ca
 import execution_tiers as et
+import scratch_space   # scratch policy: nothing volatile lands in the repo root
 
 
 class _FakeEx:
@@ -156,6 +157,6 @@ check("the panel INFORMS, never gates (no return on its output)",
       src.count("_danger_zone_panel(") >= 4)
 
 out = "\n".join(lines) + f"\n\n{PASS} passed, {FAIL} failed\n"
-open("_dangerzone_check.txt", "w", encoding="ascii", errors="replace").write(out)
+open(scratch_space.report_temp('_dangerzone_check.txt'), "w", encoding="ascii", errors="replace").write(out)
 print(out)
 sys.exit(0)

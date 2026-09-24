@@ -17,6 +17,7 @@ Run: .venv\\Scripts\\python.exe -X utf8 test_funnelplate.py
 import sys
 import re
 from pathlib import Path
+import scratch_space   # scratch policy: nothing volatile lands in the repo root
 
 BASE = Path(__file__).resolve().parent
 sys.path.insert(0, str(BASE))
@@ -117,7 +118,7 @@ check("3.3 no st.\\* widget calls inside the builder (pure, drive-testable)",
       "st." not in builder_src)
 
 fails = [r for r in results if not r[1]]
-(BASE / "_funnelplate_check.txt").write_text(
+(scratch_space.report_temp('_funnelplate_check.txt')).write_text(
     "\n".join(f"{'PASS' if ok else 'FAIL'}  {name}" + (f"  [{d}]" if d and not ok else "")
               for name, ok, d in results)
     + f"\n\nRESULT: {len(results) - len(fails)} passed, {len(fails)} failed\n",

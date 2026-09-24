@@ -31,6 +31,7 @@ import threading
 import time
 from datetime import datetime, timezone
 from pathlib import Path
+import scratch_space   # scratch policy: nothing volatile lands in the repo root
 
 logger = logging.getLogger("courtfloor")
 
@@ -269,7 +270,7 @@ def run_study(max_pairs: int | None = None, stores_dir: Path | None = None,
         for pair2, pc in list(top.items())[:8]:
             out.append(f"  {pair2:<12} {pc['n']:>4} trades, "
                        f"{pc['payers']} payers, ${pc['ledger_usd']:+,.2f}")
-        OUT.write_text("\n".join(out) + "\n", encoding="utf-8")
+        scratch_space.report_temp('_courtfloor_check.txt').write_text("\n".join(out) + "\n", encoding="utf-8")
     _append(summary)
     return summary
 

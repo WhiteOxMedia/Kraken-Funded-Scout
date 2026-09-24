@@ -6,6 +6,7 @@ match: every alert speaks the DEEP number (>=60 required), so the QC's
 deep floor is the same line the alert already passed."""
 import sys
 from pathlib import Path
+import scratch_space   # scratch policy: nothing volatile lands in the repo root
 
 sys.path.insert(0, str(Path(__file__).parent))
 
@@ -65,5 +66,5 @@ check("lone-wolf discount exists in the scanner (the shared test)",
       "def lone_wolf_discount" in bsrc)
 
 lines.append(f"\nRESULT: {PASS} passed, {FAIL} failed")
-open("_qclonewolf_check.txt", "w", encoding="utf-8").write("\n".join(lines))
+open(scratch_space.report_temp('_qclonewolf_check.txt'), "w", encoding="utf-8").write("\n".join(lines))
 print("DONE")

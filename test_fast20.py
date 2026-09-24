@@ -13,6 +13,7 @@ from background_scanner import (rotation_key_for_hour, _schedule_for_dow,
                                 LIQ_ROT_FLOOR_WEEKDAY, LIQ_ROT_FLOOR_WEEKEND,
                                 SCALP_TARGET_PCT)
 from volatility_engine import load_rotation_thresholds
+import scratch_space   # scratch policy: nothing volatile lands in the repo root
 
 ASSETS = ["BTC","ETH","LINK","BCH","DOGE","ARB","AAVE","AVAX","BNB","CRV",
           "DOT","FIL","GRASS","ADA","HBAR","INJ","KAITO","LDO","LTC","MOODENG",
@@ -45,5 +46,5 @@ lines.append("")
 lines.append(f"PUMP rank: {rows.index(pump[0]) + 1 if pump else 'NOT ON BOARD (filtered)'}")
 
 out = BASE / "fast20_check.txt"
-out.write_text("\n".join(lines), encoding="utf-8")
+scratch_space.report_temp('fast20_check.txt').write_text("\n".join(lines), encoding="utf-8")
 print("done")

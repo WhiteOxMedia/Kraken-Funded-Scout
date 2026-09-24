@@ -62,6 +62,7 @@ check("the plate shows the third column (by the gates, theoretical)",
 
 # ── 2. the readers, functional ────────────────────────────────────────
 import tempfile
+import scratch_space   # scratch policy: nothing volatile lands in the repo root
 
 start = datetime(2026, 9, 4, 8, tzinfo=MST)
 end = start + timedelta(hours=4)
@@ -258,7 +259,7 @@ finally:
     dc.STATE_FILE = _orig["state"]
 
 lines.append(f"\nRESULT: {PASS} passed, {FAIL} failed")
-Path("_disciplinesew_check.txt").write_text("\n".join(lines), encoding="utf-8")
+scratch_space.report_temp('_disciplinesew_check.txt').write_text("\n".join(lines), encoding="utf-8")
 print("DONE")
 if FAIL:
     sys.exit(1)

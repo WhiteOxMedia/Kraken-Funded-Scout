@@ -2,6 +2,7 @@
 error out, or bounce somewhere?"""
 import sys
 from pathlib import Path
+import scratch_space   # scratch policy: nothing volatile lands in the repo root
 
 BASE = Path(__file__).resolve().parent
 sys.path.insert(0, str(BASE))
@@ -37,5 +38,5 @@ except Exception as exc:
     lines.append(f"TEST ERROR: {exc}")
 
 out = BASE / "bracket_test.txt"
-out.write_text("\n".join(lines), encoding="utf-8")
+scratch_space.report_temp('bracket_test.txt').write_text("\n".join(lines), encoding="utf-8")
 print("done")

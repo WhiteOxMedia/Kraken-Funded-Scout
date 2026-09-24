@@ -26,6 +26,7 @@ import signal_bridge as sb
 # ── scratch DB in a mkdtemp sandbox (testleaks triage, Sep 23) — never
 # the live signals.db, and never a scratch file in the repo dir ──
 import tempfile as _tempfile  # noqa: E402
+import scratch_space   # scratch policy: nothing volatile lands in the repo root
 _TTS_SANDBOX = Path(_tempfile.mkdtemp(prefix="_sbx_tidestamp_"))
 SCRATCH = str(_TTS_SANDBOX / "test_tidestamp.db")
 try:
@@ -128,7 +129,7 @@ res = subprocess.run([sys.executable, "diag_tidedata.py", SCRATCH],
 res.stdout = res.stdout.decode("utf-8", errors="replace") if res.stdout else ""
 res.stderr = res.stderr.decode("utf-8", errors="replace") if res.stderr else ""
 check("diag runs without error", res.returncode == 0, (res.stderr or "")[-200:])
-_check = Path("_tidedata_check.txt").read_text(encoding="utf-8")
+_check = scratch_space.report_temp("_tidedata_check.txt").read_text(encoding="utf-8")
 check("diag output file written", "TIDE DATA" in _check)
 check("diag reports no stamped trades yet", "no stamped trades" in _check)
 
@@ -145,7 +146,7 @@ res2 = subprocess.run([sys.executable, "diag_tidedata.py", SCRATCH],
 res2.stdout = res2.stdout.decode("utf-8", errors="replace") if res2.stdout else ""
 res2.stderr = res2.stderr.decode("utf-8", errors="replace") if res2.stderr else ""
 check("diag aggregates without error", res2.returncode == 0, (res2.stderr or "")[-200:])
-_check2 = Path("_tidedata_check.txt").read_text(encoding="utf-8")
+_check2 = scratch_space.report_temp("_tidedata_check.txt").read_text(encoding="utf-8")
 check("FLAT bucket shows 1 trade", "FLAT" in _check2 and " 1 " in _check2)
 check("closed count appears", "closed" in _check2)
 check("readiness line present", "READINESS" in _check2)
@@ -163,5 +164,5 @@ for f in (SCRATCH, OLD):
 sb.DB_PATH = Path(r"C:\Users\birds\Workspace\kraken_scout\signals.db")  # leak-audit: ok (deliberate hand back to production at suite end; every run before this was hermetic in the mkdtemp world)
 
 lines.append(f"\nRESULT: {PASS} passed, {FAIL} failed")
-open("_tidestamp_check.txt", "w", encoding="utf-8").write("\n".join(lines))
+open(scratch_space.report_temp('_tidestamp_check.txt'), "w", encoding="utf-8").write("\n".join(lines))
 print("DONE")

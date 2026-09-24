@@ -14,6 +14,8 @@ import sys
 import tempfile
 from pathlib import Path
 
+import scratch_space   # scratch policy: nothing volatile lands in the repo root
+
 BASE = Path(__file__).resolve().parent
 ap = (BASE / "app.py").read_text(encoding="utf-8")
 bs = (BASE / "background_scanner.py").read_text(encoding="utf-8")
@@ -123,6 +125,6 @@ for name, ok in results:
     fails += 0 if ok else 1
 out.append("")
 out.append(f"{len(results) - fails}/{len(results)} passed")
-Path(__file__).with_name("_entry_check.txt").write_text("\n".join(out), encoding="utf-8")
+scratch_space.report_temp("_entry_check.txt").write_text("\n".join(out), encoding="utf-8")
 print(f"{len(results) - fails}/{len(results)} passed -> _entry_check.txt")
 sys.exit(1 if fails else 0)

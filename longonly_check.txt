@@ -1,6 +1,0 @@
-buy55 vs sell95 → winner=AAA/USD (PASS): AAA buy(55%) beats BBB short — longs only
-sell95 vs buy55 → winner=AAA/USD (PASS): AAA buy(55%) beats BBB short — longs only
-buy40 vs hold90 → winner=AAA/USD (PASS): AAA buy(40%) beats BBB hold
-buy70 vs buy80 → winner=BBB/USD (PASS): BBB buy(80%) beats AAA buy(70%)
-sell60 vs hold90 → winner=AAA/USD (PASS): AAA sell(60%) beats BBB hold
-sell60 vs sell70 → winner=BBB/USD (PASS): BBB sell(70%) beats AAA sell(60%)

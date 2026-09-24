@@ -11,6 +11,7 @@ live processes.)"""
 import subprocess
 import time
 from pathlib import Path
+import scratch_space   # scratch policy: nothing volatile lands in the repo root
 
 lines = []
 
@@ -93,5 +94,5 @@ else:
 
 lines.append("PASS - duplicates refused (or cleanly skipped: not running)"
              if (r1 and r2) else "FAIL - at least one duplicate ran")
-open("_dupfinal_check.txt", "w", encoding="utf-8").write("\n".join(lines))
+open(scratch_space.report_temp('_dupfinal_check.txt'), "w", encoding="utf-8").write("\n".join(lines))
 print("DONE")

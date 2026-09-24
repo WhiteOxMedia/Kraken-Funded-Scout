@@ -10,6 +10,7 @@ MST = ZoneInfo("America/Denver")
 lines = [f"now: {datetime.now(MST).strftime('%a %I:%M %p')}"]
 
 import ccxt
+import scratch_space   # scratch policy: nothing volatile lands in the repo root
 ex = ccxt.kraken()
 
 def chase(pair, ref_price, label):
@@ -33,5 +34,5 @@ lines.append(f"  vs top entry ~0.00996: {(g-0.00996)/0.00996:+.2%} "
              f"(${(g-0.00996)/0.00996*5000:+.0f} on $5k)")
 
 out = BASE / "chase_check.txt"
-out.write_text("\n".join(lines), encoding="utf-8")
+scratch_space.report_temp('chase_check.txt').write_text("\n".join(lines), encoding="utf-8")
 print("done")

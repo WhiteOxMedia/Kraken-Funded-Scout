@@ -66,6 +66,7 @@ check("FARTCOIN today: +3.3% peak -> 1.5%",
 # ── the engagement proof, straight from the verdict-cost study ──────────
 import json
 import sqlite3
+import scratch_space   # scratch policy: nothing volatile lands in the repo root
 
 # clock-audit: ok — LIVE-PROBE (manual bot-day report — reports on the live system by design) (clockbombs census 4)
 conn = sqlite3.connect(BASE / "ohlcv_cache.db")
@@ -99,7 +100,7 @@ check("the re-based ratchet engages on the real ledger",
 
 fails = [r for r in results if not r[1]]
 out = BASE / "ratchet_check.txt"
-out.write_text("\n".join(
+scratch_space.report_temp('ratchet_check.txt').write_text("\n".join(
     f"{'PASS' if ok else 'FAIL'}  {name}  {detail}" for name, ok, detail in results)
     + f"\nRESULT: {len(results) - len(fails)}/{len(results)}\n")
 print(f"RESULT: {len(results) - len(fails)}/{len(results)} passed -> {out.name}")

@@ -44,6 +44,8 @@ from collections import defaultdict
 from datetime import datetime, timezone
 from pathlib import Path
 
+import scratch_space   # scratch policy: nothing volatile lands in the repo root
+
 sys.path.insert(0, str(Path(__file__).parent))
 
 import background_scanner as bs
@@ -51,7 +53,7 @@ import background_scanner as bs
 lines = []
 
 ARCHIVE = Path(__file__).parent / "surething_data" / "kraken"
-OUT_PATH = "_replaylive_check.txt"
+OUT_PATH = str(scratch_space.report_temp("_replaylive_check.txt"))
 WINDOW_MIN = 120.0        # the goal window the popups promised (the clock)
 BURIAL_GOAL = 1.5         # burials carry no goal call; graded at the default
 

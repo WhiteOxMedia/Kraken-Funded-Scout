@@ -45,6 +45,8 @@ import time
 from datetime import datetime, timezone
 from pathlib import Path
 
+import scratch_space   # scratch policy: nothing volatile lands in the repo root
+
 sys.path.insert(0, str(Path(__file__).parent))
 
 import background_scanner as bs
@@ -507,7 +509,9 @@ def _fmt_pct(x):
     return f"{x:.0%}" if x is not None else "-"
 
 
-def run(days=7.0, fetch=True, out_path="_surething_check.txt", now_s=None):
+def run(days=7.0, fetch=True, out_path=None, now_s=None):
+    if out_path is None:
+        out_path = str(scratch_space.report_temp("_surething_check.txt"))
     lines.clear()
     now_s = now_s if now_s is not None else datetime.now().timestamp()
     fires = load_fires(days=days, now_s=now_s)

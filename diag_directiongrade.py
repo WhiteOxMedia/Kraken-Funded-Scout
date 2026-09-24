@@ -41,6 +41,7 @@ import logging
 import time
 import datetime as _dt
 from pathlib import Path
+import scratch_space   # scratch policy: nothing volatile lands in the repo root
 
 BASE = Path(__file__).resolve().parent
 NOTES = BASE / "direction_notes.jsonl"
@@ -1150,7 +1151,7 @@ def run_grade(max_rows: int | None = None, stores_dir: Path | None = None,
     out.append("")
 
     if write:
-        OUT.write_text("\n".join(out), encoding="utf-8")
+        scratch_space.report_temp('_directiongrade_check.txt').write_text("\n".join(out), encoding="utf-8")
         _rearm = _detect_rearm(summary)
         try:
             with open(LEDGER, "a", encoding="utf-8") as jf:

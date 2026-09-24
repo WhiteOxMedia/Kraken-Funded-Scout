@@ -24,6 +24,7 @@ def check(name, ok, detail=""):
 
 
 import background_scanner as bs
+import scratch_space   # scratch policy: nothing volatile lands in the repo root
 
 src = open("background_scanner.py", encoding="utf-8").read()
 
@@ -64,5 +65,5 @@ check("the gated condition evaluates False while retired "
            and _nodca == 0))
 
 lines.append(f"\nRESULT: {PASS} passed, {FAIL} failed")
-open("_dcagate_check.txt", "w", encoding="utf-8").write("\n".join(lines))
+open(scratch_space.report_temp('_dcagate_check.txt'), "w", encoding="utf-8").write("\n".join(lines))
 print("DONE")

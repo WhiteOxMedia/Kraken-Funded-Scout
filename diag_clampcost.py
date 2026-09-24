@@ -46,10 +46,12 @@ import time
 from datetime import datetime, timezone
 from pathlib import Path
 
+import scratch_space   # scratch policy: nothing volatile lands in the repo root
+
 BASE = Path(__file__).parent
 sys.path.insert(0, str(BASE))
 
-OUT = BASE / "_clampcost_check.txt"
+OUT = scratch_space.report_temp("_clampcost_check.txt")   # scratch policy
 OUTCOMES = BASE / "snapshot_outcomes.jsonl"
 LEDGER = BASE / "_clampcost_monthly.jsonl"
 POSITION_USD_FALLBACK = 1055.0
@@ -328,7 +330,7 @@ def run_study() -> dict:
     out.append("")
     out.append(f"RESULT: {PASS} passed, {FAIL} failed")
 
-    OUT.write_text("\n".join(out), encoding="utf-8")
+    OUT.write_text("\n".join(out), encoding="utf-8")   # OUT routes to scratch by default (tests may sandbox it)
     summary = {
         "ts": datetime.now(timezone.utc).astimezone().isoformat(),
         "window_start": str(rows[0].get("ts", ""))[:16] if rows else "",

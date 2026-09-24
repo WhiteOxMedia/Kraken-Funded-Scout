@@ -1,6 +1,7 @@
 """Would KII have fired? Deep-scan it now to see what the strategy says."""
 import sys
 from pathlib import Path
+import scratch_space   # scratch policy: nothing volatile lands in the repo root
 
 BASE = Path(__file__).resolve().parent
 sys.path.insert(0, str(BASE))
@@ -71,5 +72,5 @@ except Exception as exc:
     lines.append(f"ERROR: {exc}")
 
 out = BASE / "kii_check.txt"
-out.write_text("\n".join(lines), encoding="utf-8")
+scratch_space.report_temp('kii_check.txt').write_text("\n".join(lines), encoding="utf-8")
 print("done")

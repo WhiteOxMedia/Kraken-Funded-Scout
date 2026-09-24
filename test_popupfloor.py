@@ -28,6 +28,7 @@ def check(name, ok, detail=""):
 
 
 import background_scanner as bs
+import scratch_space   # scratch policy: nothing volatile lands in the repo root
 
 bs_src = Path("background_scanner.py").read_text(encoding="utf-8")
 ap_src = Path("app.py").read_text(encoding="utf-8")
@@ -166,11 +167,11 @@ check("agreement: 87 vs the 93 US-Late rail -> both say no",
 # ── 7. the calibration evidence is on disk and re-runnable ────────────
 check("diag_popupfloor.py exists", Path("diag_popupfloor.py").exists())
 check("_popupfloor_check.txt exists (calibration evidence)",
-      Path("_popupfloor_check.txt").exists())
+      scratch_space.report_temp("_popupfloor_check.txt").exists())
 
 lines.append("")
 lines.append(f"{PASS} passed, {FAIL} failed")
 report = "\n".join(lines)
 print(report)
-Path("_popupfloor_test.txt").write_text(report + "\n", encoding="utf-8")
+scratch_space.report_temp('_popupfloor_test.txt').write_text(report + "\n", encoding="utf-8")
 sys.exit(1 if FAIL else 0)

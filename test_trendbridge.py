@@ -26,6 +26,7 @@ def check(name, ok, detail=""):
 
 
 import background_scanner as bs
+import scratch_space   # scratch policy: nothing volatile lands in the repo root
 
 
 class _Cfg:
@@ -155,5 +156,5 @@ check("engine knife floor still present (independent of the scanner)",
       "_trend_reversed_1h" in be and "GET OUT NOW — trend reversed" in be)
 
 lines.append(f"\nRESULT: {PASS} passed, {FAIL} failed")
-open("_trendbridge_check.txt", "w", encoding="utf-8").write("\n".join(lines))
+open(scratch_space.report_temp('_trendbridge_check.txt'), "w", encoding="utf-8").write("\n".join(lines))
 print("DONE")

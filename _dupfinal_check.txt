@@ -1,6 +1,0 @@
-scanner: exit=0 refused=True
-  first 200 chars: 'A scanner is already running (pid 21532). Not starting a second one -- the single-instance guard refused. Close that one first.\n'
-bot: exit=0 refused=True
-  first 200 chars: 'Bot already running (pid 2284) � exiting to prevent duplicate.\n'
-bot: lock intact after the duplicate test
-PASS - duplicates refused (or cleanly skipped: not running)

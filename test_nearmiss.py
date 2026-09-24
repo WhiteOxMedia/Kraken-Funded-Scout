@@ -23,6 +23,7 @@ def check(name, ok, detail=""):
 
 
 import background_scanner as bs
+import scratch_space   # scratch policy: nothing volatile lands in the repo root
 
 # ── 1. the constants ──────────────────────────────────────────────────
 check("NEAR_MISS_PTS is 5 points", bs.NEAR_MISS_PTS == 5.0, bs.NEAR_MISS_PTS)
@@ -123,5 +124,5 @@ check("cooldown hours still flag no_buy",
       bs.get_time_block(21, 0)[5] is True)
 
 lines.append(f"\nRESULT: {PASS} passed, {FAIL} failed")
-open("_nearmiss_check.txt", "w", encoding="utf-8").write("\n".join(lines))
+open(scratch_space.report_temp('_nearmiss_check.txt'), "w", encoding="utf-8").write("\n".join(lines))
 print("DONE")

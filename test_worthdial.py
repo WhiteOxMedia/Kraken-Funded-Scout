@@ -56,6 +56,7 @@ check("tide RISING relaxes 15%", bs.WORTH_TIDE_RISING_FACTOR == 0.85)
 
 # ── 2. the pace factor (the engine's live cells) ──────────────────────
 from volatility_engine import load_rotation_thresholds
+import scratch_space   # scratch policy: nothing volatile lands in the repo root
 doc = load_rotation_thresholds(max_age_s=0) or {}
 for sched, day in (("weekday", 4), ("weekend", 5)):   # Fri Sep 4 / Sat Sep 5, 2026
     moves = {}
@@ -151,7 +152,8 @@ check("the dial is INTERNAL (user rule, Sep 10): no toggle, no slider, "
       '"worth_floor_auto_toggle"' not in ap and '"worth_floor_dial"' not in ap
       and "THIS ROTATION:" not in ap and "INTERNAL ONLY" in ap)
 check("the calibration diag exists",
-      Path("diag_worthdial.py").exists() and Path("_worthdial_check.txt").exists())
+      Path("diag_worthdial.py").exists()
+      and scratch_space.report_temp("_worthdial_check.txt").exists())
 
 # ── 7. THE ACTUAL FACTOR (user rule, Sep 7: "the auto-dial should know
 # how to auto-tune to the ACTUAL floor") — realized vs planned, ±10% tilt ─
@@ -218,5 +220,5 @@ check("the BUFFER factor is clamped [0.40, 1.60] on the live day",
       0.40 <= bs._worth_buffer_factor() <= 1.60)
 
 lines.append(f"\nRESULT: {PASS} passed, {FAIL} failed")
-Path("_worthdial_test.txt").write_text("\n".join(lines), encoding="utf-8")
+scratch_space.report_temp('_worthdial_test.txt').write_text("\n".join(lines), encoding="utf-8")
 print("DONE")

@@ -76,6 +76,7 @@ lines.append(f"{len(results) - fails}/{len(results)} correct")
 # RSI 67.6 in uptrend + BB 0.95 in uptrend + MACD/EMA bullish pushing
 # buy_score 71 over sell_score ~40 — the veto must kill the buy.
 from strategy import Signal
+import scratch_space   # scratch policy: nothing volatile lands in the repo root
 veto_fired = True
 try:
     # replicate the veto logic exactly as coded
@@ -99,5 +100,5 @@ lines.append(f"{'PASS' if veto_fired else 'FAIL'}  RENDER-shape late-stage veto 
 fails += 0 if veto_fired else 1
 lines.append(f"TOTAL: {len(results) + 1 - fails}/{len(results) + 1}")
 
-open("_trump_fix_check.txt", "w", encoding="utf-8").write("\n".join(lines))
+open(scratch_space.report_temp('_trump_fix_check.txt'), "w", encoding="utf-8").write("\n".join(lines))
 print("written")

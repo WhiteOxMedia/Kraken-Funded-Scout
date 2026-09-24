@@ -15,6 +15,7 @@ line drift but not a new stranded read site.
 import sys
 from pathlib import Path
 from datetime import datetime, timedelta
+import scratch_space   # scratch policy: nothing volatile lands in the repo root
 
 sys.path.insert(0, str(Path(__file__).parent))
 
@@ -182,6 +183,6 @@ check("both live fragments re-read every 15s",
       and "@st.fragment(run_every=15)\n    def _brain_count_tick():" in ap)
 
 lines.append(f"\nRESULT: {PASS} passed, {FAIL} failed")
-Path("_balancepop_check.txt").write_text("\n".join(lines), encoding="utf-8")
+scratch_space.report_temp('_balancepop_check.txt').write_text("\n".join(lines), encoding="utf-8")
 print("\n".join(lines))   # the verdict rides STDOUT — the gate's result
                            # mode reads it there (DONE-only fails closed)

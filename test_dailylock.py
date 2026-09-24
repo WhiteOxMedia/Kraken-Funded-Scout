@@ -31,6 +31,7 @@ def check(name, ok, detail=""):
 
 
 import contest_account as ca
+import scratch_space   # scratch policy: nothing volatile lands in the repo root
 
 LINE = 9700.0    # the 10k platform line
 ca_src = Path("contest_account.py").read_text(encoding="utf-8")
@@ -138,5 +139,5 @@ check("the New Here tour names only the death line in the guards",
       or "death line, the tide, the trend" in ap_src)
 
 lines.append(f"\nRESULT: {PASS} passed, {FAIL} failed")
-Path("_dailylock_check.txt").write_text("\n".join(lines), encoding="utf-8")
+scratch_space.report_temp('_dailylock_check.txt').write_text("\n".join(lines), encoding="utf-8")
 print("DONE")

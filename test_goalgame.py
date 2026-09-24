@@ -6,6 +6,7 @@ goal window (not the $20 pace), the QC's pace gate became the goal gate
 is retired behind a flag."""
 import sys
 from pathlib import Path
+import scratch_space   # scratch policy: nothing volatile lands in the repo root
 
 sys.path.insert(0, str(Path(__file__).parent))
 
@@ -97,5 +98,5 @@ check("a goal gate failure needs a REAL small engine move (<1%)",
 check("a 1.5% mover passes the goal gate", 1.5 >= 1.0)
 
 lines.append(f"\nRESULT: {PASS} passed, {FAIL} failed")
-open("_goalgame_check.txt", "w", encoding="utf-8").write("\n".join(lines))
+open(scratch_space.report_temp('_goalgame_check.txt'), "w", encoding="utf-8").write("\n".join(lines))
 print("DONE")

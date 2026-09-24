@@ -64,6 +64,7 @@ FIRST_DELAY_S = 3600.0
 # THE EVIDENCE LADDER (Sep 19): the bars live in evidence_ladder.py —
 # every maturity gate in the fleet reads its rung from there.
 from evidence_ladder import TURN_BARS as _EL_TURN_BARS
+import scratch_space   # scratch policy: nothing volatile lands in the repo root
 GROWTH_GATE_N = _EL_TURN_BARS["GROWTH_GATE"]  # graded [watchlist] turns before the growth verdict may speak
 GROWTH_MILESTONE = BASE / "growth_milestone.json"   # the GROW call's date + dollars (Sep 19)
 GROWTH_GATE_EARLY_N = _EL_TURN_BARS["GROWTH_GATE_EARLY"]  # THE EARLY GATE (Sep 19): the verdict may speak sooner
@@ -1151,7 +1152,7 @@ def run_study(max_pairs: int | None = None, stores_dir: Path | None = None,
     out.append("")
 
     if write:
-        OUT.write_text("\n".join(out), encoding="utf-8")
+        scratch_space.report_temp('_chaseback_check.txt').write_text("\n".join(out), encoding="utf-8")
         try:
             _tmp = str(LEDGER) + ".tmp"
             with open(_tmp, "w", encoding="utf-8") as jf:

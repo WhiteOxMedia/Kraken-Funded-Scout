@@ -21,6 +21,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 
 import background_scanner as bs
 from volatility_engine import load_rotation_thresholds
+import scratch_space   # scratch policy: nothing volatile lands in the repo root
 
 MST = ZoneInfo("America/Denver")
 ROT_KEYS = ["00-04", "04-08", "08-12", "12-16", "16-20", "20-24"]
@@ -132,6 +133,6 @@ out("VERDICT: the pace factor tracks the hour's real room — slow hours")
 out("auto-lower the floor (smaller pays still count toward the pace),")
 out("peak hours demand the big payouts. Tide and catch-up bend it live.")
 
-with open("_worthdial_check.txt", "w", encoding="utf-8") as f:
+with open(scratch_space.report_temp('_worthdial_check.txt'), "w", encoding="utf-8") as f:
     f.write("\n".join(lines) + "\n")
 print("\n→ _worthdial_check.txt")

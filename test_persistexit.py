@@ -68,6 +68,7 @@ check("one brain: manual Exit Check page survives as a diagnostic",
 #    eval that shares a function with an exit verdict, a SELL/GET OUT
 #    delivery, or the light is the ghost-SELL class come back.
 import re as _re
+import scratch_space   # scratch policy: nothing volatile lands in the repo root
 
 
 def _strip_docs_comments(src):
@@ -153,5 +154,5 @@ check("mirror tripwire: no verdict-shaped read from any shared store "
       not _MIRROR_VERDICT_KEYS, f"found: {_MIRROR_VERDICT_KEYS}")
 
 lines.append(f"\nRESULT: {PASS} passed, {FAIL} failed")
-open("_persist_check.txt", "w", encoding="utf-8").write("\n".join(lines))
+open(scratch_space.report_temp('_persist_check.txt'), "w", encoding="utf-8").write("\n".join(lines))
 print("DONE")

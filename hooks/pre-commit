@@ -221,8 +221,14 @@ if git diff --cached --name-only | grep -qxE 'app\.py|background_scanner\.py|met
         res=""; failed=""
         case "$mode" in
             checkfile)
+                # the report follows the scratch policy (Sep 24): drives
+                # write it into the repo's scratch/reports_temp/ via
+                # scratch_space; both locations answer (grep prints
+                # path:match — the sed still extracts the tail number).
                 res="$(grep -oE 'RESULT: [0-9]+ passed, [0-9]+ failed' \
-                           "$SCRATCH/_persist_check.txt" 2>/dev/null | tail -1)"
+                           "$SCRATCH/_persist_check.txt" \
+                           "$PWD/scratch/reports_temp/_persist_check.txt" \
+                           2>/dev/null | tail -1)"
                 failed="$(printf '%s' "$res" | sed -n 's/.*, \([0-9]*\) failed/\1/p')" ;;
             result)
                 # two real conventions: "RESULT: N passed, M failed"

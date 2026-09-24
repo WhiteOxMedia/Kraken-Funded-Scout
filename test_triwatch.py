@@ -68,6 +68,7 @@ tw.ROOT = TMP                                # the snapshot's watch-store read
                                              # live contest_watch.json
 
 import pandas as pd  # noqa: E402  (meta_layers already required it)
+import scratch_space   # scratch policy: nothing volatile lands in the repo root
 
 NOW = tw._now_mst()
 
@@ -270,7 +271,7 @@ check("7.4 a corrupt state file reads neutral",
       tw.day_exitmod_high() == 0.0 and tw.snapshot(NOW) is not None)
 
 fails = [r for r in results if not r[1]]
-(BASE / "_triwatch_check.txt").write_text(
+(scratch_space.report_temp('_triwatch_check.txt')).write_text(
     "\n".join(f"{'PASS' if ok else 'FAIL'}  {name}"
               + (f"  [{d}]" if d and not ok else "")
               for name, ok, d in results)

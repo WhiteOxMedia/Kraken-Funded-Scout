@@ -27,6 +27,7 @@ sys.path.insert(0, str(BASE))
 
 from background_scanner import _tide_class, _fleet_tide, TIDE_RISING_MIN, TIDE_OUT_MAX
 import background_scanner as bs
+import scratch_space   # scratch policy: nothing volatile lands in the repo root
 
 results = []
 def check(name, ok, detail=""):
@@ -360,7 +361,7 @@ check("runtime: the crack popup is the Breakout Alert — NOW (no countdown)",
 
 fails = [r for r in results if not r[1]]
 out = BASE / "tide_check.txt"
-out.write_text("\n".join(
+scratch_space.report_temp('tide_check.txt').write_text("\n".join(
     f"{'PASS' if ok else 'FAIL'}  {name}" + (f"  [{d}]" if d and not ok else "")
     for name, ok, d in results) +
     (f"\n\nlive tide now: {pct and f'{pct:.0f}%'} {state or '(no data)'}"), encoding="utf-8")

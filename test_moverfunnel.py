@@ -23,6 +23,7 @@ def check(name, ok, detail=""):
 
 
 import background_scanner as bs
+import scratch_space   # scratch policy: nothing volatile lands in the repo root
 
 # ── 1. constants: the funnel's own calibration ─────────────────────────
 check("MOVER_MIN_CONF is 55 (bot-grade, not the tournament bar)", bs.MOVER_MIN_CONF == 55.0, bs.MOVER_MIN_CONF)
@@ -146,5 +147,5 @@ rsrc = open(BOT_READER, encoding="utf-8").read()
 check("reader accepts scout_mover buys", '"scout_mover"' in rsrc)
 
 lines.append(f"\nRESULT: {PASS} passed, {FAIL} failed")
-open("_moverfunnel_check.txt", "w", encoding="utf-8").write("\n".join(lines))
+open(scratch_space.report_temp('_moverfunnel_check.txt'), "w", encoding="utf-8").write("\n".join(lines))
 print("DONE")

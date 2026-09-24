@@ -13,6 +13,7 @@ cool: the cooldown stands, exactly as before."""
 import sys
 from pathlib import Path
 from types import SimpleNamespace
+import scratch_space   # scratch policy: nothing volatile lands in the repo root
 
 sys.path.insert(0, str(Path(__file__).parent))
 
@@ -170,7 +171,7 @@ except Exception as exc:
     check("reader imports + functional checks ran", False, exc)
 
 lines.append(f"\nRESULT: {PASS} passed, {FAIL} failed")
-Path("_cooldowncheck_check.txt").write_text("\n".join(lines), encoding="utf-8")
+scratch_space.report_temp('_cooldowncheck_check.txt').write_text("\n".join(lines), encoding="utf-8")
 print("DONE")
 if FAIL:
     sys.exit(1)

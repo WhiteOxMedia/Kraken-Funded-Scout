@@ -39,6 +39,7 @@ import threading
 import time
 from datetime import datetime, timezone
 from pathlib import Path
+import scratch_space   # scratch policy: nothing volatile lands in the repo root
 
 BASE = Path(__file__).parent
 sys.path.insert(0, str(BASE))
@@ -191,7 +192,7 @@ def run_study(max_stores: int | None = None) -> dict:
                    "pairs": 0, "hours_total": 0, "decisive": 0,
                    "left_usd": 0.0, "saved_usd": 0.0, "mfe_left_usd": 0.0,
                    "net_usd": 0.0, "position_usd": POSITION_USD}
-        OUT.write_text("\n".join(out) + "\n", encoding="utf-8")
+        scratch_space.report_temp('_nochasefleet_check.txt').write_text("\n".join(out) + "\n", encoding="utf-8")
         _append(summary)
         return summary
 
@@ -256,7 +257,7 @@ def run_study(max_stores: int | None = None) -> dict:
                "mfe_left_usd": mfe_left, "net_usd": net,
                "position_usd": POSITION_USD,
                "pass_min": round((time.time() - t_start) / 60.0, 1)}
-    OUT.write_text("\n".join(out) + "\n", encoding="utf-8")
+    scratch_space.report_temp('_nochasefleet_check.txt').write_text("\n".join(out) + "\n", encoding="utf-8")
     _append(summary)
     return summary
 

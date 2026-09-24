@@ -32,6 +32,7 @@ ap_src = _src("app.py")
 tl_src = _src("tide_learn.py")
 
 import tide_learn as tl
+import scratch_space   # scratch policy: nothing volatile lands in the repo root
 
 # ── 1. the math ──────────────────────────────────────────────────────
 check("the clamp band is [86, 97]",
@@ -307,7 +308,7 @@ else:
 
 # ── RUN ──────────────────────────────────────────────────────────────
 fails = [r for r in results if not r[1]]
-(BASE / "_tidelearn_check.txt").write_text(
+(scratch_space.report_temp('_tidelearn_check.txt')).write_text(
     "\n".join(f"{'PASS' if ok else 'FAIL'}  {name}" + (f"  [{d}]" if d and not ok else "")
               for name, ok, d in results)
     + f"\n\nRESULT: {len(results) - len(fails)} passed, {len(fails)} failed\n",

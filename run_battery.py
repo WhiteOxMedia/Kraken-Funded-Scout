@@ -94,6 +94,9 @@ DIAG_RUN = {
     "diag_sizingaudit",    # read-before-assign in sizing gates
     "diag_smoketier",      # THE $1K-TIER SMOKE: guard/carry/stop by arithmetic
     "diag_testleaks",      # module-global leaks in the suites
+    "kraken_stalewatch",   # THE STALE-FILE WATCHER: purges scratch/ + OS
+                           # temp workspace of 90-min-old artifacts every
+                           # rotation, summary-only into reports/
 }
 
 PER_ENTRY_TIMEOUT = 420   # seconds; a hung suite fails instead of hanging
@@ -501,6 +504,17 @@ def main(argv: list[str] | None = None) -> int:
     if _flt:
         tests = [t for t in tests if _flt in t.stem]
         diags = [d for d in diags if _flt in d.stem]
+    # DIAG_RUN may name a rotation entry outside the diag_ glob: the
+    # Kraken stale-file watcher is policy machinery (scratch hygiene),
+    # not a diagnostic - it joins the rotation through the same
+    # per-entry machinery all the same.
+    for _n in sorted(DIAG_RUN):
+        if _n.startswith("diag_"):
+            continue
+        _p = SCOUT / f"{_n}.py"
+        if _p.exists() and _p not in diags and (_flt in _n if _flt else True):
+            diags.append(_p)
+            diags.sort()
 
     if flags.get("list"):
         for nm, coll in (("test", tests), ("diag", diags)):

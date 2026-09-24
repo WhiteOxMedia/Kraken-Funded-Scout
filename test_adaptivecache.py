@@ -27,6 +27,7 @@ def check(name, ok, detail=""):
 
 
 import adaptive_cache as ac
+import scratch_space   # scratch policy: nothing volatile lands in the repo root
 
 
 def reset():
@@ -274,6 +275,6 @@ check("a new champion busts the adaptive winners cache too",
       'ac_invalidate("past_winners")' in app)
 
 out = "\n".join(lines) + f"\n\n{PASS} passed, {FAIL} failed\n"
-open("_adaptivecache_check.txt", "w", encoding="ascii", errors="replace").write(out)
+open(scratch_space.report_temp('_adaptivecache_check.txt'), "w", encoding="ascii", errors="replace").write(out)
 print(out)
 sys.exit(0)

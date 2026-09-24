@@ -66,6 +66,7 @@ FIRE = {"ts": "2026-09-19T04:00:00+00:00", "pair": "ZEC/USD",
 
 # ── sandbox paths for the whole suite ──
 import tempfile   # noqa: E402
+import scratch_space   # scratch policy: nothing volatile lands in the repo root
 TMP = Path(tempfile.mkdtemp())
 _dol_fires = TMP / "fires.jsonl"
 _dol_out = TMP / "out.txt"
@@ -222,7 +223,7 @@ finally:
     bs.coin_wiggle_profile = _real_prof   # the wiggle swap's restore-in-finally (leak gate)
 
 lines.append(f"RESULT: {PASS} passed, {FAIL} failed")
-(BASE / "_outliverpins_check.txt").write_text("\n".join(lines) + "\n",
+(scratch_space.report_temp('_outliverpins_check.txt')).write_text("\n".join(lines) + "\n",
                                               encoding="utf-8")
 print("\n".join(lines))
 sys.exit(1 if FAIL else 0)

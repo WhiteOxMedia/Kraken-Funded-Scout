@@ -34,6 +34,7 @@ def check(name, ok, detail=""):
 
 
 import discipline as dc
+import scratch_space   # scratch policy: nothing volatile lands in the repo root
 
 MST = ZoneInfo("America/Denver")
 src = Path("discipline.py").read_text(encoding="utf-8")
@@ -190,5 +191,5 @@ check("the realized side reads the SOLD ledger",
       "contest_trades.jsonl" in src)
 
 lines.append(f"\nRESULT: {PASS} passed, {FAIL} failed")
-Path("_discipline_check.txt").write_text("\n".join(lines), encoding="utf-8")
+scratch_space.report_temp('_discipline_check.txt').write_text("\n".join(lines), encoding="utf-8")
 print("DONE")

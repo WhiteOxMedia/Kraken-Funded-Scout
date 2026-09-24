@@ -5,6 +5,7 @@ import sqlite3
 from pathlib import Path
 from datetime import datetime
 from zoneinfo import ZoneInfo
+import scratch_space   # scratch policy: nothing volatile lands in the repo root
 
 BASE = Path(__file__).resolve().parent
 sys.path.insert(0, str(BASE))
@@ -82,5 +83,5 @@ except Exception as exc:
     lines.append(f"rotation: {exc}")
 
 out = BASE / "night_check.txt"
-out.write_text("\n".join(lines), encoding="utf-8")
+scratch_space.report_temp('night_check.txt').write_text("\n".join(lines), encoding="utf-8")
 print("done")

@@ -37,6 +37,7 @@ def check(name, ok, detail=""):
 
 
 import background_scanner as bs
+import scratch_space   # scratch policy: nothing volatile lands in the repo root
 
 MST = ZoneInfo("America/Denver")
 src = Path("background_scanner.py").read_text(encoding="utf-8")
@@ -243,5 +244,5 @@ check("03:30 entry: crosses into the 04:00 rotation",
       crossed(3, 30))
 
 lines.append(f"\nRESULT: {PASS} passed, {FAIL} failed")
-Path("_marketgoal_check.txt").write_text("\n".join(lines), encoding="utf-8")
+scratch_space.report_temp('_marketgoal_check.txt').write_text("\n".join(lines), encoding="utf-8")
 print("DONE")

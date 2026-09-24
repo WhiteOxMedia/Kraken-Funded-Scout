@@ -9,6 +9,7 @@ sys.path.insert(0, str(BASE))
 import pandas as pd
 import app
 from config import TradingConfig
+import scratch_space   # scratch policy: nothing volatile lands in the repo root
 
 cfg = TradingConfig()
 results = []
@@ -46,7 +47,7 @@ check("junk df -> fail-open UP", app._trend_state(pd.DataFrame(), cfg, 1.0) == "
 
 fails = [r for r in results if not r[1]]
 out = BASE / "trend_check.txt"
-out.write_text("\n".join(
+scratch_space.report_temp('trend_check.txt').write_text("\n".join(
     f"{'PASS' if ok else 'FAIL'}  {name}" + (f"  [{d}]" if d and not ok else "")
     for name, ok, d in results), encoding="utf-8")
 print(f"{'ALL PASS' if not fails else str(len(fails)) + ' FAILURES'}")

@@ -22,6 +22,7 @@ Plus the ONE BUY VOICE (unchanged, Aug 31): the card shows picks but
 doesn't speak; the champion alert is the only buy voice."""
 import sys
 from pathlib import Path
+import scratch_space   # scratch policy: nothing volatile lands in the repo root
 
 sys.path.insert(0, str(Path(__file__).parent))
 
@@ -105,5 +106,5 @@ check("the card's voice code is kept (reversible — don't delete anything)",
       "_size_say" in ap and "New pick! {h['asset']}!" in ap)
 
 lines.append(f"\nRESULT: {PASS} passed, {FAIL} failed")
-open("_thinbrain_check.txt", "w", encoding="utf-8").write("\n".join(lines))
+open(scratch_space.report_temp('_thinbrain_check.txt'), "w", encoding="utf-8").write("\n".join(lines))
 print("DONE")

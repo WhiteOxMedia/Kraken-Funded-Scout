@@ -51,6 +51,7 @@ def set_lockout(asset, minutes_ago, rotation=None):
 # ── 1. the window math (sandbox the lockout file) ────────────────────
 _real_file = bs.ROTATION_LOCKOUT_FILE
 import os
+import scratch_space   # scratch policy: nothing volatile lands in the repo root
 
 tmp = set_lockout("TESTA", minutes_ago=6)
 bs.ROTATION_LOCKOUT_FILE = tmp
@@ -125,5 +126,5 @@ check("'Already ran' rejection display kept (dead since the retirement, honest m
       "⛔ ALREADY RAN THIS ROTATION" in ap and "cold until the next rotation" in ap)
 
 lines.append(f"\nRESULT: {PASS} passed, {FAIL} failed")
-open("_confirmwindow_check.txt", "w", encoding="utf-8").write("\n".join(lines))
+open(scratch_space.report_temp('_confirmwindow_check.txt'), "w", encoding="utf-8").write("\n".join(lines))
 print("DONE")

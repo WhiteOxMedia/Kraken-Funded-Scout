@@ -22,6 +22,7 @@ BASE = Path(__file__).parent
 sys.path.insert(0, str(BASE))
 
 import diag_runnertether as drt  # noqa: E402
+import scratch_space   # scratch policy: nothing volatile lands in the repo root
 
 PASS, FAIL = 0, 0
 lines = []
@@ -98,7 +99,7 @@ check("the fix is ARMED: the naive tether-everything world (which "
       and "ARMED" in drt.price_tether.__doc__)
 
 lines.append(f"\nRESULT: {PASS} passed, {FAIL} failed")
-(BASE / "_runnertether_check.txt").write_text(
+(scratch_space.report_temp('_runnertether_check.txt')).write_text(
     "\n".join(lines) + "\n", encoding="utf-8")
 print("\n".join(lines))
 sys.exit(1 if FAIL else 0)

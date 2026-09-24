@@ -37,6 +37,7 @@ def run(name, pairs_vols, expect_in, expect_out):
 
 # against the LIVE engine cells for the current rotation
 import json
+import scratch_space   # scratch policy: nothing volatile lands in the repo root
 # clock-audit: ok — LIVE-PROBE (manual bot-day report — reports on the live system by design) (clockbombs census 4)
 doc = json.loads((BASE / "rotation_thresholds.json").read_text())
 uni = doc.get("universe", {})
@@ -72,5 +73,5 @@ run("recently-died coin blocked by daily backstop",
     expect_in=[], expect_out=["ALGO/USD"])
 
 out = BASE / "liq_filter_check.txt"
-out.write_text("\n".join(lines), encoding="utf-8")
+scratch_space.report_temp('liq_filter_check.txt').write_text("\n".join(lines), encoding="utf-8")
 print(f"{'ALL PASS' if all(results) else 'FAILURES'}")

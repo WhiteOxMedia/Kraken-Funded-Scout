@@ -29,6 +29,7 @@ def check(name, ok, detail=""):
 
 
 import sure_thing as st
+import scratch_space   # scratch policy: nothing volatile lands in the repo root
 
 T0 = 1700000000000
 
@@ -283,6 +284,6 @@ check("the goal the fire picked is stamped into the snapshot (the diag grades it
       '"goal_pct": _st_goal' in bs)
 
 out = "\n".join(lines) + f"\n\n{PASS} passed, {FAIL} failed\n"
-open("_surething_check.txt", "w", encoding="ascii", errors="replace").write(out)
+open(scratch_space.report_temp('_surething_check.txt'), "w", encoding="ascii", errors="replace").write(out)
 print(out)
 sys.exit(0)

@@ -31,6 +31,7 @@ def fake_urlopen(req, timeout=None):
 
 
 import urllib.request
+import scratch_space   # scratch policy: nothing volatile lands in the repo root
 urllib.request.urlopen = fake_urlopen
 
 # pretend we have a topic
@@ -194,5 +195,5 @@ for _txt in ("the buyer stepped in", "we resell nothing",
     check(f"chatter never pushes: {_txt[:36]!r}", len(sent) == 0)
 
 lines.append(f"\nRESULT: {PASS} passed, {FAIL} failed")
-open("_pushfilter_check.txt", "w", encoding="utf-8").write("\n".join(lines))
+open(scratch_space.report_temp('_pushfilter_check.txt'), "w", encoding="utf-8").write("\n".join(lines))
 print("DONE")

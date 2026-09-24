@@ -24,6 +24,7 @@ def check(name, ok, detail=""):
 
 
 import contest_account as ca
+import scratch_space   # scratch policy: nothing volatile lands in the repo root
 
 # ── 1. the platform rules, encoded ────────────────────────────────────
 check("tiers: 1k/$20, 5k/$50, 10k/$90",
@@ -135,5 +136,5 @@ check("guard fails OPEN (broken read -> the old sizing stands)",
       "fail-open" in sc and "fail-open: book sizing stands" in ap)
 
 lines.append(f"\nRESULT: {PASS} passed, {FAIL} failed")
-open("_contestline_check.txt", "w", encoding="utf-8").write("\n".join(lines))
+open(scratch_space.report_temp('_contestline_check.txt'), "w", encoding="utf-8").write("\n".join(lines))
 print("DONE")

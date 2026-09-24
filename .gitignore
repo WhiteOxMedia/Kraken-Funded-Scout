@@ -88,3 +88,10 @@ zec_trace.txt
 
 # battery health reports: machine-written run history (never committed)
 battery_history/
+
+# scratch policy (Sep 24): volatile artifacts live in scratch/, swept
+# by kraken_stalewatch; the repo root stops being a scratch destination
+scratch/
+
+# policy summaries (stale purges, hygiene) are runtime state, like battery_history
+reports/

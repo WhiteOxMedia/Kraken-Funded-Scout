@@ -32,6 +32,7 @@ import threading
 import time
 from datetime import datetime, timezone
 from pathlib import Path
+import scratch_space   # scratch policy: nothing volatile lands in the repo root
 
 logger = logging.getLogger("coinfloordelta")
 
@@ -160,7 +161,7 @@ def run_study(max_pairs: int | None = None, stores_dir: Path | None = None,
            f" of {len(recs)} learned", ""]
     if not paths:
         out.append("no stores found — the study cannot run")
-        OUT.write_text("\n".join(out) + "\n", encoding="utf-8")
+        scratch_space.report_temp('_coinfloordelta_check.txt').write_text("\n".join(out) + "\n", encoding="utf-8")
         _append(summary)
         return summary
 
@@ -271,7 +272,7 @@ def run_study(max_pairs: int | None = None, stores_dir: Path | None = None,
                    "relief's net is information, not advice yet")
         out.append(f">> {verdict}")
         summary["verdict"] = verdict
-    OUT.write_text("\n".join(out) + "\n", encoding="utf-8")
+    scratch_space.report_temp('_coinfloordelta_check.txt').write_text("\n".join(out) + "\n", encoding="utf-8")
     _append(summary)
     return summary
 

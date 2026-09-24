@@ -51,6 +51,7 @@ import numpy as np
 import pandas as pd
 
 import diag_extfade as ef
+import scratch_space   # scratch policy: nothing volatile lands in the repo root
 
 # ---------------------------------------------------------------- 1
 tmp = tempfile.mkdtemp()
@@ -126,6 +127,6 @@ check("decision rule: the study's lived verdict is registered",
       "stays unwired" in (__doc__ or ""), "HIGH stretch +$105.19, HIGH run24 +$129.43, strict +$75.05")
 
 out = "\n".join(lines) + f"\n\n{PASS} passed, {FAIL} failed\n"
-open("_extfade_check.txt", "w", encoding="ascii", errors="replace").write(out)
+open(scratch_space.report_temp('_extfade_check.txt'), "w", encoding="ascii", errors="replace").write(out)
 print(out)
 sys.exit(1 if FAIL else 0)

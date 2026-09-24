@@ -32,6 +32,7 @@ def check(name, ok, detail=""):
 
 
 import signal_bridge as sb
+import scratch_space   # scratch policy: nothing volatile lands in the repo root
 
 BOT = Path(r"C:\Users\birds\Workspace\kraken_xrp_trading_bot")
 rsrc = (BOT / "scout_signal_reader.py").read_text(encoding="utf-8")
@@ -125,5 +126,5 @@ check("the scout bridge writes through at the ceiling (the reader decides)",
       "POSITION_CEILING" in Path("signal_bridge.py").read_text(encoding="utf-8"))
 
 lines.append(f"\nRESULT: {PASS} passed, {FAIL} failed")
-open("_positionscale_check.txt", "w", encoding="utf-8").write("\n".join(lines))
+open(scratch_space.report_temp('_positionscale_check.txt'), "w", encoding="utf-8").write("\n".join(lines))
 print("DONE")

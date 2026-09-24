@@ -33,6 +33,7 @@ def check(name, ok, detail=""):
 
 
 import hindsight_scorer as hs
+import scratch_space   # scratch policy: nothing volatile lands in the repo root
 
 
 # ── 1. THE SIZE SCALER (the user's bucket table) ─────────────────────
@@ -220,6 +221,6 @@ check("the CLI exposes backfill | rules | grade | all",
           for k in ('"backfill"', '"rules"', '"grade"')))
 
 out = "\n".join(lines) + f"\n\n{PASS} passed, {FAIL} failed\n"
-open("_hindsight_check.txt", "w", encoding="ascii", errors="replace").write(out)
+open(scratch_space.report_temp('_hindsight_check.txt'), "w", encoding="ascii", errors="replace").write(out)
 print(out)
 sys.exit(0)

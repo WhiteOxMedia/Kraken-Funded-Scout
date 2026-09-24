@@ -32,6 +32,7 @@ Run: python test_toggleguard.py   (exit 1 on any violation)
 import re
 import sys
 from pathlib import Path
+import scratch_space   # scratch policy: nothing volatile lands in the repo root
 
 sys.path.insert(0, str(Path(__file__).parent))
 
@@ -148,7 +149,7 @@ check("the scanner renders her WAV at the console's volume dial",
       '_voice_volume()' in bs_src and '"-Volume", str(_voice_volume())' in bs_src)
 
 lines.append(f"\nRESULT: {PASS} passed, {FAIL} failed")
-Path("_toggleguard_check.txt").write_text("\n".join(lines), encoding="utf-8")
+scratch_space.report_temp('_toggleguard_check.txt').write_text("\n".join(lines), encoding="utf-8")
 print("DONE")
 if FAIL:
     sys.exit(1)

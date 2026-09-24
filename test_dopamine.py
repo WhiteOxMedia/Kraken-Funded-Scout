@@ -25,6 +25,7 @@ for r in rows:
 # today_scoreboard needs st (cache) — test the math inline instead
 from datetime import datetime
 from zoneinfo import ZoneInfo
+import scratch_space   # scratch policy: nothing volatile lands in the repo root
 MST = ZoneInfo("America/Denver")
 now = datetime.now(MST)
 today_iso = now.replace(hour=0, minute=0, second=0, microsecond=0).isoformat()
@@ -50,5 +51,5 @@ for t in rows:
 lines.append(f"fresh win in last 30min: {fresh or 'none'}")
 
 out = BASE / "dopamine_check.txt"
-out.write_text("\n".join(lines), encoding="utf-8")
+scratch_space.report_temp('dopamine_check.txt').write_text("\n".join(lines), encoding="utf-8")
 print("ok")

@@ -20,6 +20,7 @@ from zoneinfo import ZoneInfo
 sys.path.insert(0, str(Path(__file__).parent))
 
 import background_scanner as bs
+import scratch_space   # scratch policy: nothing volatile lands in the repo root
 
 MST = ZoneInfo("America/Denver")
 ROT_KEYS = ["00-04", "04-08", "08-12", "12-16", "16-20", "20-24"]
@@ -140,6 +141,6 @@ for k in ROT_KEYS:
     out(f"  {k}: {fl}   (RISING tide → {bs.popup_floor('RISING', 0, k):.0f}; "
         f"challenger window ≥ {fl - bs.POPUP_NEAR_MISS_PTS:.0f})")
 
-with open("_popupfloor_check.txt", "w", encoding="utf-8") as f:
+with open(scratch_space.report_temp('_popupfloor_check.txt'), "w", encoding="utf-8") as f:
     f.write("\n".join(lines) + "\n")
 print("\n→ _popupfloor_check.txt")

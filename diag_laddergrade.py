@@ -52,11 +52,12 @@ import threading
 import time
 from datetime import datetime, timezone
 from pathlib import Path
+import scratch_space   # scratch policy: nothing volatile lands in the repo root
 
 BASE = Path(__file__).parent
 sys.path.insert(0, str(BASE))
 
-OUT = BASE / "_laddergrade_check.txt"
+OUT = scratch_space.report_temp("_laddergrade_check.txt")   # scratch policy
 LEDGER = BASE / "_laddergrade_monthly.jsonl"
 STORES_GLOB = "surething_data/kraken/*_USD-1h.feather"
 POSITION_USD = 1055.0
@@ -226,7 +227,7 @@ def run_study(max_pairs: int | None = None) -> dict:
                "bounded": bounded}
     if not paths:
         out.append("no contest stores found — the study cannot run")
-        OUT.write_text("\n".join(out) + "\n", encoding="utf-8")
+        OUT.write_text("\n".join(out) + "\n", encoding="utf-8")   # OUT routes to scratch by default (tests may sandbox it)
         _append(summary)
         return summary
 
@@ -300,7 +301,7 @@ def run_study(max_pairs: int | None = None) -> dict:
     summary["pairs"] = len(per_rows)
     summary["hours_total"] = hours_total
     summary["pass_min"] = round((time.time() - t_start) / 60.0, 1)
-    OUT.write_text("\n".join(out) + "\n", encoding="utf-8")
+    OUT.write_text("\n".join(out) + "\n", encoding="utf-8")   # OUT routes to scratch by default (tests may sandbox it)
     _append(summary)
     return summary
 

@@ -48,6 +48,7 @@ ml.STATE_FILE = TMP / "meta_layers_state.json"
 # the exam's decay family reads discipline's verdict history — the
 # drive stubs it empty (no live verdict store is touched)
 import discipline as _disc
+import scratch_space   # scratch policy: nothing volatile lands in the repo root
 _disc.verdict_history = lambda days=14: []
 
 NOW = co._now_mst()
@@ -299,7 +300,7 @@ check("7.2 the bounds helpers survive a dark corrections record",
       isinstance(mc_dark, float) and mc_dark > 0)
 
 fails = [r for r in results if not r[1]]
-(BASE / "_boundaryexam_check.txt").write_text(
+(scratch_space.report_temp('_boundaryexam_check.txt')).write_text(
     "\n".join(f"{'PASS' if ok else 'FAIL'}  {name}"
               + (f"  [{d}]" if d and not ok else "")
               for name, ok, d in results)

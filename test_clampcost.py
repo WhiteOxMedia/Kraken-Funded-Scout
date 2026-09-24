@@ -33,6 +33,7 @@ BASE = Path(__file__).parent
 sys.path.insert(0, str(BASE))
 
 import diag_clampcost as dc
+import scratch_space   # scratch policy: nothing volatile lands in the repo root
 
 PASS, FAIL = 0, 0
 lines = []
@@ -141,7 +142,7 @@ def main():
           and s3["pass"] >= 1 and s3["fail"] == 0, s3)
 
     lines.append(f"RESULT: {PASS} passed, {FAIL} failed")
-    (BASE / "_clampcostpins_check.txt").write_text("\n".join(lines), encoding="utf-8")
+    (scratch_space.report_temp('_clampcostpins_check.txt')).write_text("\n".join(lines), encoding="utf-8")
     print("\n".join(lines))
     sys.exit(1 if FAIL else 0)
 

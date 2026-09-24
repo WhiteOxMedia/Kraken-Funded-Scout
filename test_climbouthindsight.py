@@ -40,6 +40,7 @@ def check(name, ok, detail=""):
 
 
 import tempfile  # noqa: E402
+import scratch_space   # scratch policy: nothing volatile lands in the repo root
 TMP = Path(tempfile.mkdtemp())
 _fires = TMP / "fires.jsonl"
 _trades = TMP / "trades.jsonl"
@@ -150,7 +151,7 @@ finally:
     (dch.FIRES_FILE, dch.TRADES_FILE, dch.LEDGER, dch.OUT) = _real
 
 lines.append(f"\nRESULT: {PASS} passed, {FAIL} failed")
-(BASE / "_climbouthindsight_check.txt").write_text(
+(scratch_space.report_temp('_climbouthindsight_check.txt')).write_text(
     "\n".join(lines) + "\n", encoding="utf-8")
 print("\n".join(lines))
 sys.exit(1 if FAIL else 0)

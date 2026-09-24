@@ -11,6 +11,7 @@ import sys
 import tempfile
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+import scratch_space   # scratch policy: nothing volatile lands in the repo root
 
 sys.path.insert(0, str(Path(__file__).parent))
 
@@ -137,5 +138,5 @@ check("the promise lives ONLY inside the in-set branch",
       blk.lower().count("popup is watching it"))
 
 lines.append(f"\nRESULT: {PASS} passed, {FAIL} failed")
-Path("_scanset_check.txt").write_text("\n".join(lines), encoding="utf-8")
+scratch_space.report_temp('_scanset_check.txt').write_text("\n".join(lines), encoding="utf-8")
 print("DONE")

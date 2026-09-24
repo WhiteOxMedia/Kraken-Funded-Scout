@@ -6,6 +6,7 @@ card's voice and the scanner's alert voice use the SAME four phrases
 (user rule, Aug 27: 'why are they not all the same?')."""
 import sys
 from pathlib import Path
+import scratch_space   # scratch policy: nothing volatile lands in the repo root
 
 sys.path.insert(0, str(Path(__file__).parent))
 
@@ -56,5 +57,5 @@ for phrase in ("Small size only", "Big book", "Book unreadable"):
           phrase in _card and phrase in sc)
 
 lines.append(f"\nRESULT: {PASS} passed, {FAIL} failed")
-open("_hersize_check.txt", "w", encoding="utf-8").write("\n".join(lines))
+open(scratch_space.report_temp('_hersize_check.txt'), "w", encoding="utf-8").write("\n".join(lines))
 print("DONE")

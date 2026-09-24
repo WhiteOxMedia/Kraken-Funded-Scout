@@ -21,6 +21,7 @@ def check(name, ok, detail=""):
 
 
 import background_scanner as bs
+import scratch_space   # scratch policy: nothing volatile lands in the repo root
 
 # ── 1. the constant ────────────────────────────────────────────────────
 check("TIDE_RISING_DESKTOP_FLOOR is 78", bs.TIDE_RISING_DESKTOP_FLOOR == 78.0,
@@ -78,5 +79,5 @@ check("the deep-read >=60 pre-check still applies (never discounted)",
       src.count("DEEP VETO (desktop)") >= 1)
 
 lines.append(f"\nRESULT: {PASS} passed, {FAIL} failed")
-open("_tidefloor_check.txt", "w", encoding="utf-8").write("\n".join(lines))
+open(scratch_space.report_temp('_tidefloor_check.txt'), "w", encoding="utf-8").write("\n".join(lines))
 print("DONE")

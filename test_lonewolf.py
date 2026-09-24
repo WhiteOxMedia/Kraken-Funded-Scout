@@ -8,6 +8,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent))
 
 import background_scanner as bs
+import scratch_space   # scratch policy: nothing volatile lands in the repo root
 
 PASS, FAIL = 0, 0
 lines = []
@@ -146,5 +147,5 @@ bs._lone_wolf_cache.update(pair=None, pct=0.0, ts=0.0)
 bs._tide_cache.update(ts=0.0, pct=None, state=None)
 
 lines.append(f"\nRESULT: {PASS} passed, {FAIL} failed")
-open("_lonewolf_check.txt", "w", encoding="utf-8").write("\n".join(lines))
+open(scratch_space.report_temp('_lonewolf_check.txt'), "w", encoding="utf-8").write("\n".join(lines))
 print("DONE")

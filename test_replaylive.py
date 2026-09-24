@@ -15,6 +15,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent))
 
 import diag_replaylive as dl
+import scratch_space   # scratch policy: nothing volatile lands in the repo root
 
 PASS, FAIL = 0, 0
 lines = []
@@ -292,9 +293,9 @@ check("the popup window is the 120m clock",
 check("burials grade at the 1.5% default (they carry no goal call)",
       dl.BURIAL_GOAL == 1.5)
 check("the report artifact exists (the diag was run)",
-      Path("_replaylive_check.txt").exists())
+      scratch_space.report_temp("_replaylive_check.txt").exists())
 
 lines.append(f"\nRESULT: {PASS} passed, {FAIL} failed")
-Path("_replaylive_test.txt").write_text("\n".join(lines), encoding="utf-8")
+scratch_space.report_temp('_replaylive_test.txt').write_text("\n".join(lines), encoding="utf-8")
 print("DONE")
 sys.exit(1 if FAIL else 0)

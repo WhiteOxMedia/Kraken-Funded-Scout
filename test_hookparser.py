@@ -23,6 +23,7 @@ import sys
 import json
 import subprocess
 from pathlib import Path
+import scratch_space   # scratch policy: nothing volatile lands in the repo root
 
 PASS, FAIL = 0, 0
 lines = []
@@ -206,7 +207,7 @@ check("the review stays advisory (findings never block the commit)",
       "Advisory only — commit proceeds" in src)
 
 lines.append(f"\nRESULT: {PASS} passed, {FAIL} failed")
-Path("_hookparser_check.txt").write_text("\n".join(lines), encoding="utf-8")
+scratch_space.report_temp('_hookparser_check.txt').write_text("\n".join(lines), encoding="utf-8")
 print("\n".join(lines))   # the verdict rides STDOUT — the gate's result
                            # mode reads it there (DONE-only fails closed)
 sys.exit(1 if FAIL else 0)

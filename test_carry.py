@@ -6,6 +6,7 @@ from pathlib import Path
 BASE = Path(__file__).resolve().parent
 sys.path.insert(0, str(BASE))
 from config import TradingConfig
+import scratch_space   # scratch policy: nothing volatile lands in the repo root
 
 CONTEST_CHUNKS = (0.25, 0.50, 0.75, 1.00)
 BAL = 5000.0
@@ -54,7 +55,7 @@ check("book unreadable -> fail-open full size", s == BAL and c is None)
 
 fails = [r for r in results if not r[1]]
 out = BASE / "carry_check.txt"
-out.write_text("\n".join(
+scratch_space.report_temp('carry_check.txt').write_text("\n".join(
     f"{'PASS' if ok else 'FAIL'}  {name}" + (f"  [{d}]" if d and not ok else "")
     for name, ok, d in results), encoding="utf-8")
 print(f"{'ALL PASS' if not fails else str(len(fails)) + ' FAILURES'}")

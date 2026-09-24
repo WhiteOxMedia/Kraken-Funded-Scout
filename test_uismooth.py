@@ -17,6 +17,7 @@ the New Here tour still described the $20 game and the I RE-ENTERED
 panel."""
 import sys
 from pathlib import Path
+import scratch_space   # scratch policy: nothing volatile lands in the repo root
 
 sys.path.insert(0, str(Path(__file__).parent))
 
@@ -133,7 +134,7 @@ check("tour: popups are contest-only is stated", "contest only" in tour)
 check("tour: the bot is separate money is stated", "separate money" in tour)
 
 lines.append(f"\nRESULT: {PASS} passed, {FAIL} failed")
-Path("_uismooth_check.txt").write_text("\n".join(lines), encoding="utf-8")
+scratch_space.report_temp('_uismooth_check.txt').write_text("\n".join(lines), encoding="utf-8")
 print("DONE")
 if FAIL:
     sys.exit(1)

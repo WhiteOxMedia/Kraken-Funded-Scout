@@ -37,6 +37,7 @@ tmp = Path(tempfile.mkdtemp(prefix="costdrivers_"))
 
 # ── 1. the tide-hindsight driver ─────────────────────────────────────
 import diag_tidememory_hindsight as dth
+import scratch_space   # scratch policy: nothing volatile lands in the repo root
 
 _saved = {k: getattr(dth, k) for k in ("OUT", "OUTCOMES", "LEDGER")}
 try:
@@ -190,7 +191,7 @@ check("ladder: the 54 = the config's contest list (not the whole feather dir)",
 
 # ── RUN ──────────────────────────────────────────────────────────────
 fails = [r for r in results if not r[1]]
-(BASE / "_costdrivers_check.txt").write_text(
+(scratch_space.report_temp('_costdrivers_check.txt')).write_text(
     "\n".join(f"{'PASS' if ok else 'FAIL'}  {name}" + (f"  [{d}]" if d and not ok else "")
               for name, ok, d in results)
     + f"\n\nRESULT: {len(results) - len(fails)} passed, {len(fails)} failed\n",

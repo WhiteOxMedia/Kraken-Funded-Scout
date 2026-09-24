@@ -24,6 +24,7 @@ def check(name, ok, detail=""):
 
 
 import background_scanner as bs
+import scratch_space   # scratch policy: nothing volatile lands in the repo root
 
 # ── 1. the goal clock (the market analysis sets 1-3% on a 1-3h window) ─
 def goal_band(thr):
@@ -169,5 +170,5 @@ check("the dial is INTERNAL (user rule, Sep 10): the console renders no dial",
       and "INTERNAL ONLY" in ap)
 
 lines.append(f"\nRESULT: {PASS} passed, {FAIL} failed")
-open("_popupbrain_check.txt", "w", encoding="utf-8").write("\n".join(lines))
+open(scratch_space.report_temp('_popupbrain_check.txt'), "w", encoding="utf-8").write("\n".join(lines))
 print("DONE")

@@ -28,12 +28,13 @@ def out(s=""):
 
 if not DB.exists():
     out("no signals DB at %s — nothing collected yet" % DB)
-    Path("_tidedata_check.txt").write_text("\n".join(lines), encoding="utf-8")
+    scratch_space.report_temp('_tidedata_check.txt').write_text("\n".join(lines), encoding="utf-8")
     sys.exit(0)
 
 # Ensure the tide columns exist (additive migration — also upgrades a live
 # pre-restart DB so the first stamped write lands cleanly).
 import signal_bridge as sb
+import scratch_space   # scratch policy: nothing volatile lands in the repo root
 sb.DB_PATH = DB
 sb.init_db()
 
@@ -54,7 +55,7 @@ if not rows:
     out("TIDE DATA: no stamped trades yet.")
     out("(Stamps start after the scanner restart with the Aug 31 change —")
     out(" then one row per executed scout buy.)")
-    Path("_tidedata_check.txt").write_text("\n".join(lines), encoding="utf-8")
+    scratch_space.report_temp('_tidedata_check.txt').write_text("\n".join(lines), encoding="utf-8")
     sys.exit(0)
 
 out("=" * 72)
@@ -113,5 +114,5 @@ out("DECISION FRAME: if FLAT win rate sits well below RISING's (>= 15pts")
 out("gap) and avg P&L is negative, a FLAT discount is justified — pick the")
 out("number then. Otherwise keep 99% in every tradeable tide.")
 
-Path("_tidedata_check.txt").write_text("\n".join(lines), encoding="utf-8")
+scratch_space.report_temp('_tidedata_check.txt').write_text("\n".join(lines), encoding="utf-8")
 print("DONE")

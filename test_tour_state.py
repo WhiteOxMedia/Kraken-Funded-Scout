@@ -3,6 +3,7 @@ import sqlite3
 from pathlib import Path
 from datetime import datetime
 from zoneinfo import ZoneInfo
+import scratch_space   # scratch policy: nothing volatile lands in the repo root
 
 BASE = Path(__file__).resolve().parent
 MST = ZoneInfo("America/Denver")
@@ -31,5 +32,5 @@ except Exception as exc:
     lines.append(f"bridge: {exc}")
 
 out = BASE / "tour_check.txt"
-out.write_text("\n".join(lines), encoding="utf-8")
+scratch_space.report_temp('tour_check.txt').write_text("\n".join(lines), encoding="utf-8")
 print("done")

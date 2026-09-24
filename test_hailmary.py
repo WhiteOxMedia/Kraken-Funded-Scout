@@ -37,6 +37,7 @@ def check(name, ok, detail=""):
 
 import contest_account as ca
 import background_scanner as bs
+import scratch_space   # scratch policy: nothing volatile lands in the repo root
 
 MST = ZoneInfo("America/Denver")
 TODAY = datetime.now(MST).strftime("%Y-%m-%d")
@@ -199,5 +200,5 @@ check("the watch clock bounds by the hour when the window is open",
       "_champ_hm_win" in ap_src)
 
 lines.append(f"\nRESULT: {PASS} passed, {FAIL} failed")
-Path("_hailmary_check.txt").write_text("\n".join(lines), encoding="utf-8")
+scratch_space.report_temp('_hailmary_check.txt').write_text("\n".join(lines), encoding="utf-8")
 print("DONE")

@@ -34,11 +34,12 @@ import sys
 import threading
 from datetime import datetime, timezone
 from pathlib import Path
+import scratch_space   # scratch policy: nothing volatile lands in the repo root
 
 BASE = Path(__file__).parent
 sys.path.insert(0, str(BASE))
 STORES = BASE / "surething_data" / "kraken"
-OUT = BASE / "_basegrade_check.txt"
+OUT = scratch_space.report_temp("_basegrade_check.txt")   # scratch policy
 LEDGER = BASE / "_basegrade_monthly.jsonl"
 FIXED_CLAIM_MIN = 60.0          # the retired claim: "about an hour"
 LOOKBACK_DAYS = 30              # WIGGLE_LOOKBACK_DAYS, mirrored
@@ -261,7 +262,7 @@ def run_study(stores_dir=None, anchor: bool = True) -> dict:
             for r in solid[:8]],
     }
     try:
-        OUT.write_text("\n".join(lines) + "\n", encoding="utf-8")
+        OUT.write_text("\n".join(lines) + "\n", encoding="utf-8")   # OUT routes to scratch by default (tests may sandbox it)
     except OSError as exc:
         logger.warning("basegrade txt write failed (%s) — the ledger "
                        "still carries the verdict", exc)

@@ -7,6 +7,7 @@ a pullback with a buy/hold read stays locked. The user chose 'bearish
 read only' — no giveback/trail test."""
 import sys
 from pathlib import Path
+import scratch_space   # scratch policy: nothing volatile lands in the repo root
 
 sys.path.insert(0, str(Path(__file__).parent))
 
@@ -57,5 +58,5 @@ check("the challenger still must clear CHALLENGE_MARGIN",
       "CHALLENGE_MARGIN" in fn)
 
 lines.append(f"\nRESULT: {PASS} passed, {FAIL} failed")
-open("_winnerlock_check.txt", "w", encoding="utf-8").write("\n".join(lines))
+open(scratch_space.report_temp('_winnerlock_check.txt'), "w", encoding="utf-8").write("\n".join(lines))
 print("DONE")
