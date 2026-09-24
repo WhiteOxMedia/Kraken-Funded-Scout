@@ -117,8 +117,12 @@ done
 # Every staged change to a guarded source file runs that source's check
 # drives against the STAGED content: the index exports into a scratch dir
 # (never the worktree, never runtime state), drives run there with
-# PYTHONPATH pointing back at the repo so non-staged imports resolve from
-# HEAD. A failed verdict, a crash, or a budget overrun BLOCKS the commit
+# PYTHONPATH layered staged -> HEAD -> worktree, so a non-staged import
+# resolves from the COMMITTED content first (finding 3, Sep 23 — the
+# dirty worktree can never leak into the gate's verdict) and the
+# worktree serves only what HEAD cannot: untracked data modules and the
+# LIVE-probe ledgers. A failed verdict, a crash, or a budget overrun
+# BLOCKS the commit
 # — fail-closed everywhere, a missing verdict included. Per-drive budgets
 # are sized ~5x the battery-measured runtime; -X utf8 matches the
 # battery's own interpreter flag (the drives print unicode).
@@ -167,12 +171,42 @@ if git diff --cached --name-only | grep -qxE 'app\.py|background_scanner\.py|met
             || { echo "  ⛔ GATE: cannot stage $src for the gate" >&2; exit 1; }
     done
     # Windows Python cannot consume MSYS-style paths (/tmp, /c/...);
-    # cygpath -w renders both PYTHONPATH entries natively: the scratch
-    # (staged content) FIRST, the worktree as the fallback for modules
-    # that were not staged (discipline, volatility_engine, ...).
+    # cygpath -w renders the paths natively. THE THREE-LAYER RESOLUTION
+    # (finding 3, Sep 23): the scratch (STAGED content) first, then a
+    # HEAD archive — the COMMITTED content of every tracked .py the
+    # index knows, exported once — so a drive's non-staged imports
+    # resolve from what the commit will actually build, never from a
+    # dirty worktree file nobody staged (the old worktree fallback could
+    # green-light a combination HEAD never contained). The worktree
+    # comes LAST: it only serves what HEAD cannot — the untracked data
+    # modules and the live ledgers the LIVE probes read (their
+    # PYTHONPATH walk skips the scratch and the archive, both of which
+    # carry no contest_trades.jsonl, and land on the real repo).
+    # The staged-shadow sources are skipped in the archive pass — they
+    # are in the scratch already (or deliberately absent when not
+    # staged), and shadowing the scratch with stale HEAD copies would
+    # reverse the whole design.
     WINSCRATCH="$(cygpath -w "$SCRATCH" 2>/dev/null || echo "$SCRATCH")"
     WINREPO="$(cygpath -w "$PWD" 2>/dev/null || echo "$PWD")"
-    export PYTHONPATH="$WINSCRATCH;$WINREPO"
+    # ONE spawn, not one per file: git archive exports the whole
+    # tracked .py tree (minus the staged-shadow sources) in a single
+    # subprocess — a per-file `git show` loop costs ~200 spawns per
+    # gate invocation and the commitgate drills invoke the gate 3x.
+    # The archive pass fails closed to the plain fallback when HEAD
+    # cannot serve (a bare scratch repo) — the worktree layer then
+    # answers, exactly as before this layer existed.
+    if git archive HEAD -o "$SCRATCH/head.tar" -- '*.py' \
+            ':(exclude)app.py' ':(exclude)background_scanner.py' \
+            ':(exclude)meta_layers.py' ':(exclude)profit_guard.py' \
+            ':(exclude)carve_out.py' ':(exclude)tri_watch.py' \
+            ':(exclude)hooks/*' > /dev/null 2>&1 \
+            && tar -xf "$SCRATCH/head.tar" -C "$SCRATCH/HEAD" 2>/dev/null; then
+        rm -f "$SCRATCH/head.tar"
+        WINHEAD="$(cygpath -w "$SCRATCH/HEAD" 2>/dev/null || echo "$SCRATCH/HEAD")"
+        export PYTHONPATH="$WINSCRATCH;$WINHEAD;$WINREPO"
+    else
+        export PYTHONPATH="$WINSCRATCH;$WINREPO"   # no HEAD to archive (bare scratch repo)
+    fi
     # fail-open to verbose: an unset/corrupt flag can never silence the gate
     GATE_QUIET="${GATE_QUIET:-0}"
     _DRIVES_RUN=0

@@ -97,6 +97,28 @@ if mstart != -1:
 check(1.74, "git ls-files 'hooks/*'" in src and "*.sample) continue" in src,
       "the mirror sweep no longer covers every tracked hook name")
 
+# 1.8 THE THREE-LAYER RESOLUTION (finding 3, Sep 23): the drive sandbox's
+#     PYTHONPATH layers staged -> HEAD -> worktree, so a non-staged import
+#     resolves from COMMITTED content first and the dirty worktree can
+#     never leak into the gate's verdict. The worktree layer exists only
+#     for what HEAD cannot serve: untracked data modules and the LIVE
+#     probes' ledgers.
+check(1.8, "git archive HEAD" in src and '$SCRATCH/HEAD' in src
+      and "tar -xf" in src,
+      "the HEAD archive layer is missing (the worktree fallback answers "
+      "non-staged imports again)")
+check(1.81, 'export PYTHONPATH="$WINSCRATCH;$WINHEAD;$WINREPO"' in src,
+      "PYTHONPATH lost the HEAD layer between scratch and worktree")
+check(1.82, "':(exclude)app.py'" in src
+      and "':(exclude)hooks/*'" in src,
+      "the archive's staged-shadow exclusion list is missing — stale HEAD "
+      "copies would shadow the scratch and reverse the design")
+check(1.83, "no HEAD to archive" in src and "> /dev/null 2>&1" in src,
+      "the archive no longer fails closed to the plain fallback (a bare "
+      "scratch repo must not break the gate)")
+check(1.84, 'export PYTHONPATH="$WINSCRATCH;$WINREPO"' in src,
+      "the no-HEAD bail-out (bare scratch repo) lost its plain fallback")
+
 if not RERUN:
     # ════════ 2. behavioral sandbox: the gate body, run for real ════════
     print("== 2. sandbox: the gate runs live in a scratch repo ==")
