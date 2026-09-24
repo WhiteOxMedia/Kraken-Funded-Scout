@@ -24,8 +24,11 @@ guard, both of which load lazily):
 
 Every modifier is clamped and fail-neutral: an unreadable source is 1.0
 (no opinion), never a phantom tighten or widen. The final CarveOut is
-clamped [0, 10%] — a reading can never let a candidate through with more
-than a tenth of extra allowance.
+clamped [0, MaxCarveOut] — the ceiling itself breathes with the regime
+(0.10 x RotationMod x VolMod x TideMod): a strong regime may let an
+allowance run past the old static 10%, a dead tide caps it near 3%, and
+unreadable sources fail OPEN to the old static 10% (never a phantom
+tighten or widen).
 """
 from __future__ import annotations
 
@@ -51,7 +54,8 @@ VOLMOD_CLAMP = (0.5, 2.0)
 ROTMOD_CLAMP = (0.5, 1.5)
 BOOKMOD_CLAMP = (0.5, 1.0)     # the book can widen the allowance, never
                                # beyond 1.0 — pressure only ever tightens
-CARVE_CLAMP = (0.0, 0.10)      # the final allowance never exceeds 10%
+CARVE_ABS_MIN = 0.0            # the allowance never goes negative
+                               # (the CEILING is adaptive — see 2.1)
 
 DRIFT_MULT = 0.8               # RCL drift
 SAL_BAD_MULT = 0.85            # rule violations (meta_layers' own dial)
@@ -222,7 +226,6 @@ def compute_carve_out(pair: str | None = None,
     fm, bm, tm, vm, rm = (_n(live["fleet"]), _n(live["book"]), _n(live["tide"]),
                           _n(live["vol"]), _n(live["rot"]))
     carve = (BASE_CARVE_OUT * fm * bm * tm * vm * rm)
-
     # ── RCL (Section 3): drift tightens and kills the lone-wolf mode ──
     if drift_detected is None:
         try:
@@ -264,7 +267,12 @@ def compute_carve_out(pair: str | None = None,
     elif expand:
         carve *= EXPAND_MULT
 
-    carve = _clamp(carve, CARVE_CLAMP)
+    # ── THE ADAPTIVE BOUNDARY (user spec, Sep 23, clamp 2.1) — the
+    # ceiling breathes: MaxCarveOut = 0.10 x RotationMod x VolMod x
+    # TideMod. Neutral mods reproduce the static 10% exactly; unreadable
+    # sources read neutral, so they fail open to 10% (fail_open: True).
+    max_carve = round(0.10 * rm * vm * tm, 4)
+    carve = round(max(CARVE_ABS_MIN, min(max_carve, carve)), 4)
 
     permission = (
         carve >= CARVEOUT_THRESHOLD
@@ -289,7 +297,8 @@ def compute_carve_out(pair: str | None = None,
                      "rot_mod": live["rot"]},
             "drift": bool(drift_detected), "sal_mult": sal_mult,
             "endgame": endgame, "suppressed": bool(suppress),
-            "expanded": bool(expand) and not suppress}
+            "expanded": bool(expand) and not suppress,
+            "max_carve": max_carve}
 
 
 # ═══ THE GATE (cached) ════════════════════════════════════════════════
@@ -307,7 +316,12 @@ def gate(pair: str | None = None, when: datetime | None = None,
     _GATE.update(ts=now, res=res)
     st = _state()
     st["last"] = {"carve": res["carve"], "lone_wolf": res["lone_wolf"],
-                  "mods": res["mods"], "ts": res["when"]}
+                  "mods": res["mods"], "ts": res["when"],
+                  # THE BOUNDARY STAMP (clamp Section 6): the funnel plate
+                  # renders the day's breathing hatch band and carve
+                  # ceiling — the page reads them, it never computes them
+                  "max_carve": res.get("max_carve"),
+                  "hatch_band": list(hatch_bounds(res))}
     _save(st)
     return res
 
@@ -316,14 +330,21 @@ def gate(pair: str | None = None, when: datetime | None = None,
 def apply_to_guard_factor(gf: float | None, res: dict | None = None,
                           when: datetime | None = None) -> tuple:
     """GF *= (1 + CarveOut). A None factor passes through untouched (the
-    caller keeps the committed fixed rules). Returns (gf', meta)."""
+    caller keeps the committed fixed rules). The final clamp is THE
+    ADAPTIVE BOUND (clamp 2.2, the spec's integration point — after
+    RCL -> SAL -> CarveOut): MinGF = 0.40 x TideMod x BookMod, MaxGF =
+    2.00 x RotationMod x VolMod; neutral mods reproduce the old static
+    (0.4, 2.0) band exactly and unreadable sources fail open to it.
+    Returns (gf', meta)."""
     if gf is None:
         return None, {}
     res = res or gate(when=when)
+    lo, hi = gf_bounds(base=(0.4, 2.0), res=res)
     out = round(float(gf) * (1.0 + float(res["carve"])), 3)
-    out = round(max(0.4, min(2.0, out)), 3)
+    out = round(max(lo, min(hi, out)), 3)
     return out, {"carve_mult": round(1.0 + float(res["carve"]), 3),
-                 "carve": res["carve"], "lone_wolf": res["lone_wolf"]}
+                 "carve": res["carve"], "lone_wolf": res["lone_wolf"],
+                 "gf_min": lo, "gf_max": hi}
 
 
 # ═══ SECTION 5 — the DNL integration ═════════════════════════════════
@@ -372,12 +393,16 @@ def required_own_move(res: dict | None = None) -> float:
     arithmetic (Section 7): Base × the five mods, so tide-out's
     5% x 0.8 x 0.9 x 0.6 = 2.16% is the number the hatch demands ("your
     carve-out should be ~2%, not 5%"). Section 6's suppression x0.5
-    lands on the 2% floor (still ~2%); expansion x1.2 raises the bar in
-    strong regimes — a solo move means more when the whole fleet runs.
-    Floors at 2%, ceilings at 8% — the dial never leaves solo-runner
-    territory."""
+    lands on the adaptive floor; expansion x1.2 raises the bar in
+    strong regimes. THE ADAPTIVE BOUND (clamp 2.3): the band breathes —
+    MinHatch = 2% x TideMod, MaxHatch = 8% x RotationMod x VolMod —
+    neutral mods reproduce the old static (2%, 8%) and unreadable
+    sources fail open to it. (In a true dead tide the permission gate
+    closes the hatch outright; the sinking floor only ever meets a hatch
+    that permission already opened.)"""
     res = res or compute_carve_out()
-    return round(max(2.0, min(8.0, 100.0 * float(res["carve"]))), 2)
+    lo, hi = hatch_bounds(res)
+    return round(max(lo, min(hi, 100.0 * float(res["carve"]))), 2)
 
 
 def explain(res: dict) -> str:
@@ -477,3 +502,101 @@ def goal_context(when: datetime | None = None) -> tuple:
 def last_night() -> dict:
     """Yesterday's frozen record (for DNL's narrative and the console)."""
     return _state().get("last_night") or {}
+
+
+# ═══ THE ADAPTIVE BOUNDARY SYSTEM (user spec, Sep 23 — clamps for all
+# six systems). Every bounds helper reads the SAME five mods as the
+# carve-out (one context, no second opinion), fails OPEN to the
+# committed static band when the sources are unreadable, and reproduces
+# that static band exactly at neutral mods. Guards: min/max sanity,
+# fail_open True everywhere, no division anywhere (no zero risk).
+
+def _mods_n(res: dict | None = None, when: datetime | None = None) -> dict:
+    """The five mods, neutral-defaulted — the boundary arithmetic works
+    even when the context is dark (that IS the fail-open path)."""
+    res = res or compute_carve_out(when=when)
+    m = res.get("mods") or {}
+
+    def n(k):
+        v = m.get(k)
+        return 1.0 if v is None else float(v)
+
+    return {"fm": n("fleet_mod"), "bm": n("book_mod"), "tm": n("tide_mod"),
+            "vm": n("vol_mod"), "rm": n("rot_mod"),
+            "readable": bool(res.get("readable"))}
+
+
+def max_carve_out(res: dict | None = None,
+                  when: datetime | None = None) -> float:
+    """Clamp 2.1: MaxCarveOut = 0.10 x RotationMod x VolMod x TideMod.
+    Neutral -> 0.10 (the old static ceiling)."""
+    m = _mods_n(res, when)
+    return round(max(0.0, 0.10 * m["rm"] * m["vm"] * m["tm"]), 4)
+
+
+def gf_bounds(base: tuple = (0.4, 2.0), res: dict | None = None,
+              when: datetime | None = None) -> tuple:
+    """Clamp 2.2: MinGF = base_min x TideMod x BookMod, MaxGF =
+    base_max x RotationMod x VolMod. The caller supplies its own
+    committed base (the guard's raw clamp keeps its (0.5, 2.0); the
+    finalize's final clamp uses the spec's (0.4, 2.0)). Neutral mods ->
+    the base band unchanged; heavy book raises the floor, strong
+    rotation/vol raise the ceiling, a dead tide lets the floor sink."""
+    m = _mods_n(res, when)
+    lo = round(max(0.0, float(base[0]) * m["tm"] * m["bm"]), 3)
+    hi = round(float(base[1]) * m["rm"] * m["vm"], 3)
+    return lo, max(lo, hi)          # guard: hi can never sit under lo
+
+
+def hatch_bounds(res: dict | None = None,
+                 when: datetime | None = None) -> tuple:
+    """Clamp 2.3 (percent units): MinHatch = 2.0 x TideMod, MaxHatch =
+    8.0 x RotationMod x VolMod. Neutral -> (2.0, 8.0)."""
+    m = _mods_n(res, when)
+    lo = round(2.0 * m["tm"], 3)
+    hi = round(8.0 * m["rm"] * m["vm"], 3)
+    return lo, max(lo, hi)
+
+
+def penalty_bounds(when: datetime | None = None,
+                   res: dict | None = None) -> tuple:
+    """Clamp 2.5 (per-violation docked weight): MinPenalty = 0.50 x
+    TideMod x BookMod, MaxPenalty = 2.00 x RotationMod x VolMod x
+    FleetMod. Neutral -> (0.5, 2.0). A heavy book raises the floor (the
+    system needs discipline when stretched), a strong regime raises the
+    ceiling; the accumulated extra keeps its own committed 3.0 rail."""
+    m = _mods_n(res, when)
+    lo = round(0.50 * m["tm"] * m["bm"], 3)
+    hi = round(2.00 * m["rm"] * m["vm"] * m["fm"], 3)
+    return lo, max(lo, hi)
+
+
+def goal_bounds(base_goal: float, when: datetime | None = None,
+                res: dict | None = None) -> tuple:
+    """Clamp 2.6 (dollar units): MinGoal = base x TideMod x BookMod,
+    MaxGoal = base x RotationMod x VolMod x FleetMod. Neutral -> a point
+    band at the base goal — the context may not move it off base unless
+    the regime actually reads."""
+    base_goal = float(base_goal or 0.0)
+    if base_goal <= 0:
+        return 0.0, 0.0
+    m = _mods_n(res, when)
+    lo = round(base_goal * m["tm"] * m["bm"], 2)
+    hi = round(base_goal * m["rm"] * m["vm"] * m["fm"], 2)
+    return min(lo, hi), max(lo, hi)
+
+
+def decay_bounds(when: datetime | None = None,
+                 res: dict | None = None) -> tuple:
+    """Clamp 2.4: MinDecay = DECAY_FLOOR x TideMod (a dead tide lets the
+    decay sink deeper — faster aging), MaxDecay = DECAY_CEILING x
+    RotationMod (1.0 x rot — never above no-decay). Neutral ->
+    (DECAY_FLOOR, DECAY_CEILING)."""
+    try:
+        floor_v = float(__import__("profit_guard").DECAY_FLOOR)
+    except Exception:
+        floor_v = 0.7
+    m = _mods_n(res, when)
+    lo = round(floor_v * m["tm"], 3)
+    hi = round(1.0 * m["rm"], 3)
+    return lo, max(lo, hi)

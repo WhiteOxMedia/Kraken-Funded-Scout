@@ -271,6 +271,16 @@ def daily_goal_usd(when: datetime | None = None) -> float | None:
             _gm, _gr = _co.goal_context(when)
             if _gr:
                 pace *= _gm
+            # THE ADAPTIVE GOAL BAND (user spec, Sep 23, clamp 2.6): the
+            # adaptive pace clamps to MinGoal = base x TideMod x BookMod /
+            # MaxGoal = base x RotationMod x VolMod x FleetMod — the
+            # context may move the goal off base only within the regime's
+            # own band. Unreadable sources fail open (no clamp applied).
+            if _gr:
+                _glo, _ghi = _co.goal_bounds(float(facts["daily_pace"]),
+                                             when=when)
+                if _glo > 0 and _ghi >= _glo:
+                    pace = max(_glo, min(_ghi, pace))
         except Exception:
             pass
         return round(pace, 2)
@@ -429,7 +439,21 @@ def decay_mod(w: dict | None = None,
         if context and context[1] and context[0]:
             eff_tau = max(DECAY_TAU_MIN / float(context[0]), 5.0)
             base = math.exp(-max(t_min, 0.0) / eff_tau)
-        return round(max(DECAY_FLOOR, base), 3)
+        # THE ADAPTIVE RAIL (user spec, Sep 23, clamp 2.4): the floor
+        # itself breathes — MinDecay = DECAY_FLOOR x TideMod — so a dead
+        # tide lets old positions decay deeper and a live tide holds the
+        # rail higher. Unreadable tide -> the static DECAY_FLOOR rail
+        # (fail-open, exactly the committed behavior).
+        _rail = DECAY_FLOOR
+        try:
+            import carve_out as _co_d
+            _lo, _hi = _co_d.decay_bounds()   # no when arg here: the live
+                                              # clock is the decay's own
+            if _lo < _rail:
+                _rail = _lo
+        except Exception:
+            _rail = DECAY_FLOOR
+        return round(max(_rail, base), 3)
     except Exception:
         return 1.0
 
@@ -485,6 +509,14 @@ def guard_factor(pair: str, w: dict | None = None,
         env_term = (float(env) / ENV_NEUTRAL) if env is not None else 1.0
         factor = env_term * _n(dm) * (1.0 + _n(mlt, 0.0)) * _n(vr) * _n(am) * _n(fm) * _n(dec)
         factor = round(max(GUARD_CLAMP[0], min(GUARD_CLAMP[1], factor)), 3)
+    # THE DECAY RAIL for the plate (clamp 2.4's UI): the effective floor
+    # this cycle's decay enforced — the plate renders it, never recomputes
+    # it (one-brain). Same min() semantics as decay_mod's rail.
+    try:
+        import carve_out as _co_r
+        _rail_lo = min(DECAY_FLOOR, float(_co_r.decay_bounds(when=when)[0]))
+    except Exception:
+        _rail_lo = DECAY_FLOOR
     return {"factor": factor, "readable": loop_readable or bool(carried),
             "carried_from": carried[0] if carried else None,
             "env": env, "disc_mod": dm, "mlt_corr": mlt, "vol_mod":
@@ -493,7 +525,7 @@ def guard_factor(pair: str, w: dict | None = None,
             "asset_mem": (round(max(ASSET_MEMORY_CLAMP[0],
                                     min(ASSET_MEMORY_CLAMP[1], am)), 3)
                           if am is not None else None),
-            "funding_mod": fm, "decay_mod": dec}
+            "funding_mod": fm, "decay_mod": dec, "decay_rail": _rail_lo}
 
 
 # ── 9. the trailing rules ────────────────────────────────────────────────

@@ -3421,6 +3421,9 @@ def contest_light(exchange, cfg):
                 "sal_mult": (_meta or {}).get("sal_mult"),
                 "momentum": bool((_meta or {}).get("momentum_continuation")),
                 "endgame": bool((_meta or {}).get("endgame")),
+                "gf_min": (_meta or {}).get("gf_min"),
+                "gf_max": (_meta or {}).get("gf_max"),
+                "max_carve": (_meta or {}).get("max_carve"),
             }
             dirty = True
         _trail = _ratchet_trail_pct(entry, high, size)

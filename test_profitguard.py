@@ -113,6 +113,10 @@ check(3.5, abs(pg.disc_mod_from_penalty(pg.discipline_penalty()) - 0.8) < 1e-9,
 # pinned scaling explicitly — the context multiplier folds into the pace
 import carve_out as _co_pg
 _gc_orig = _co_pg.goal_context
+_gb_orig = _co_pg.goal_bounds
+_co_pg.goal_bounds = lambda *a, **k: (0.0, 0.0)   # band neutral: the raw pins
+                                                  # test the multiplier path,
+                                                  # not the regime's band
 _co_pg.goal_context = lambda when=None: (1.0, False)
 check(3.2, pg.daily_goal_usd() == 60.0, "the pace reads from the facts")
 check(3.3, abs(pg.mlt_corr() - 0.5) < 1e-9, "MLT_Corr = 30/60 = +0.5 (loosen)")
@@ -120,7 +124,18 @@ _co_pg.goal_context = lambda when=None: (1.2, True)
 check(3.8, pg.daily_goal_usd() == 72.0,
       "the goal scales with the context (60 x 1.2 = 72)")
 _co_pg.goal_context = lambda when=None: (1.0, False)
+_co_pg.goal_bounds = lambda *a, **k: (0.0, 0.0)
+check("3.8b", pg.daily_goal_usd() == 60.0,
+      "a dark band restores the pace (no clamp applied)")
+_co_pg.goal_context = lambda when=None: (1.4, True)
+_co_pg.goal_bounds = lambda base, when=None, res=None: (round(base * 0.9, 2), round(base * 1.2, 2))
+check("3.8c", abs(pg.daily_goal_usd() - 72.0) < 1e-9,
+      "the pace clamps to the band ceiling (60x1.4=84 capped at 60x1.2=72)")
+_co_pg.goal_context = lambda when=None: (1.1, True)
+check("3.8d", abs(pg.daily_goal_usd() - 66.0) < 1e-9,
+      "a pace inside the band passes through untouched (60x1.1=66)")
 _co_pg.goal_context = _gc_orig
+_co_pg.goal_bounds = _gb_orig
 pg._daily_facts = lambda when=None: {"score": 100.0, "total_left": 0.0,
                                      "daily_pace": 0.0}
 check(3.6, pg.mlt_corr() is None, "zero pace -> None (no divide-by-zero)")

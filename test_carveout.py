@@ -91,8 +91,12 @@ def _carve(mods, drift=False, sal=1.0):
 r = _carve({"fleet": 0.8, "book": 0.9, "tide": 0.6, "vol": 1.0, "rot": 1.0})
 check("2.1 the spec example: the product then the suppression x0.5",
       abs(r["carve"] - (0.05 * 0.8 * 0.9 * 0.6 * 0.5)) < 1e-9, r["carve"])
-check("2.2 the spec example reads ~2% at the hatch (the floor holds)",
-      co.required_own_move(r) == 2.0, co.required_own_move(r))
+check("2.2 the spec example reads ~2% at the hatch (the ADAPTIVE floor: MinHatch = 2 x TideMod = 1.2 in this dead tide)",
+      abs(co.required_own_move(r) - 1.2) < 1e-9, co.required_own_move(r))
+check("2.2b the adaptive floor reproduces the static 2% at neutral mods",
+      co.hatch_bounds(res={"readable": True, "mods": {"fleet_mod": 1.0,
+          "book_mod": 1.0, "tide_mod": 1.0, "vol_mod": 1.0,
+          "rot_mod": 1.0}}) == (2.0, 8.0), co.hatch_bounds())
 check("2.3 a dead tide NEVER grants lone-wolf mode",
       r["lone_wolf"] is False and r["suppressed"] is True)
 NEUTRAL = {"fleet": None, "book": None, "tide": 1.0, "vol": None, "rot": 1.0}
@@ -116,15 +120,28 @@ check("2.8 strong everything + a light book EXPANDS (x1.2)",
       and abs(r6["carve"] - 0.05 * 1.2 * 0.7 * 1.2 * 1.2 * 1.2 * 1.2) < 2e-4,
       r6["carve"])
 r7 = _carve({"fleet": 2.0, "book": 0.5, "tide": 1.5, "vol": 2.0, "rot": 1.5})
-check("2.9 the allowance never exceeds the 10% clamp",
-      r7["carve"] <= co.CARVE_CLAMP[1], r7["carve"])
+check("2.9 the allowance never exceeds its ADAPTIVE ceiling",
+      r7["carve"] <= r7["max_carve"] + 1e-9
+      and abs(r7["max_carve"] - 0.10 * 1.5 * 2.0 * 1.5) < 1e-9,
+      (r7["carve"], r7["max_carve"]))
+check("2.9b the ceiling breathes past the old static 10% only in a strong regime",
+      r7["max_carve"] > 0.10, r7["max_carve"])
+check("2.9c the ceiling fails OPEN to the static 10% on a dark context",
+      abs(co.max_carve_out(res={"readable": False, "mods": {
+          "fleet_mod": None, "book_mod": None, "tide_mod": None,
+          "vol_mod": None, "rot_mod": None}}) - 0.10) < 1e-9,
+      co.max_carve_out(res={"readable": False, "mods": {
+          "fleet_mod": None, "book_mod": None, "tide_mod": None,
+          "vol_mod": None, "rot_mod": None}}))
 check("2.10 the discount scale clamps 0.5-1.5",
       r7["lw_scale"] <= 1.5 and r3["lw_scale"] >= 0.5,
       (r7["lw_scale"], r3["lw_scale"]))
 
 # ═══ 3. the entry hatch ══════════════════════════════════════════════
-check("3.1 the hatch never demands less than 2% own move",
-      co.required_own_move(r7) <= 8.0 and co.required_own_move(r) >= 2.0)
+check("3.1 the hatch never leaves its regime's band (a dead tide's floor sinks to 2 x TideMod; the old static 2% is the neutral case)",
+      co.required_own_move(r7) <= co.hatch_bounds(res=r7)[1]
+      and co.required_own_move(r) >= co.hatch_bounds(res=r)[0],
+      (co.required_own_move(r), co.hatch_bounds(res=r)))
 r8 = _carve({"fleet": 1.2, "book": 0.6, "tide": 1.4, "vol": 1.3, "rot": 1.4})
 check("3.2 a strong regime RAISES the bar (a solo move means less there)",
       co.required_own_move(r8) > co.required_own_move(r2),
@@ -182,8 +199,9 @@ check("5.1 GF x (1 + CarveOut) at the finalize",
 gfn, metan = co.apply_to_guard_factor(None, _with_res(NEUTRAL), NOW)
 check("5.2 a None GF passes through untouched (fixed rules stand)",
       gfn is None and metan == {})
-check("5.3 the composite clamp still bounds the finalize",
-      ml_src.count("max(0.4, min(2.0") >= 1)
+check("5.3 the finalize's tail clamp is the ADAPTIVE band (the static 0.4/2.0 are only the no-carve fallback)",
+      'meta.get("gf_min")' in ml_src and 'meta.get("gf_max")' in ml_src
+      and "max(_lo, min(max(_lo, _hi), final))" in ml_src)
 
 # ═══ 6. the RCL kill ═════════════════════════════════════════════════
 _orig_blocked = ml.reentry_blocked

@@ -271,6 +271,17 @@ def rcl_apply(res: dict, gf: float | None, when: datetime | None = None) -> tupl
         if not _same:
             st = _state()
             pen = float(st.get("discipline_penalty_extra", 0.0)) + 1.0
+            # THE ADAPTIVE PENALTY CAP (user spec, Sep 23, clamp 2.5): the
+            # per-violation docked weight clamps to MaxPenalty = 2.00 x
+            # RotationMod x VolMod x FleetMod (MinPenalty = 0.50 x TideMod
+            # x BookMod governs the +1.0 dock floor). Neutral mods ->
+            # cap 2.0; unreadable sources fail open to the committed rail.
+            try:
+                import carve_out as _co_p
+                _plo, _phi = _co_p.penalty_bounds(when=when)
+                pen = min(max(pen, _plo), _phi)
+            except Exception:
+                pen = min(pen, 3.0)
             st["discipline_penalty_extra"] = round(min(pen, 3.0), 2)
             _save(st)
             note_endgame(when)    # RotationEndGameMode arms WITH the verdict
@@ -490,8 +501,6 @@ def dnl_report(when: datetime | None = None) -> dict | None:
         st["shadow_missed_usd_total"] = 0.0
         report["_data"]["learning_factor"] = round(lf, 3)
         st["dnl"] = st.get("dnl") or {}
-        st["dnl"][today] = report
-        st["dnl_last_date"] = today
         try:
             import carve_out as _co
             _goal_mult, _gr = _co.goal_context(when)
@@ -510,8 +519,40 @@ def dnl_report(when: datetime | None = None) -> dict | None:
                                                  ("fleet_mod", "book_mod",
                                                   "tide_mod", "vol_mod",
                                                   "rot_mod")}
+                # THE BOUNDARY RECORD (clamp Section 5): the day's live
+                # clamp bands + the context snapshot ride the narrative
+                # data — the learning loop sees not just the readings but
+                # the bounds they were allowed to move within
+                try:
+                    import carve_out as _co_b
+                    _m = _co_b._mods_n(when=when)
+                    _gbase = None
+                    try:
+                        import profit_guard as _pg_g
+                        _gfacts = _pg_g._daily_facts(when)
+                        _gbase = (_gfacts or {}).get("daily_pace")
+                    except Exception:
+                        _gbase = None
+                    report["_data"]["clamp_bounds"] = {
+                        "max_carve_out": _co_b.max_carve_out(when=when),
+                        "gf_bounds": list(_co_b.gf_bounds(res=None, when=when)),
+                        "hatch_bounds": list(_co_b.hatch_bounds(when=when)),
+                        "decay_bounds": list(_co_b.decay_bounds(when=when)),
+                        "penalty_bounds": list(_co_b.penalty_bounds(when=when)),
+                        "dailygoal_bounds": list(_co_b.goal_bounds(
+                            _gbase or 0.0, when=when)),
+                        "readable": _m["readable"],
+                        "context": {"fleet_mod": _m["fm"], "book_mod": _m["bm"],
+                                    "tide_mod": _m["tm"], "vol_mod": _m["vm"],
+                                    "rot_mod": _m["rm"]}}
+                except Exception:
+                    report["_data"]["clamp_bounds"] = {"readable": False}
         except Exception:
             pass
+        # stored LAST (the 4.5 lesson): the carve record and the boundary
+        # record above mutate the report — the stored copy must carry them
+        st["dnl"][today] = report
+        st["dnl_last_date"] = today
         st["reentry_blocks_today"] = 0
         _save(st)
         return report
@@ -626,6 +667,10 @@ def finalize(pair: str, gf: float | None, res: dict | None = None,
         if final is not None:
             _cres = _co.gate(pair=pair, when=when)
             _carm, _cmeta = _co.apply_to_guard_factor(final, _cres, when)
+            # the boundary rides the meta: the finalize's final GF band
+            # (gf_min/gf_max) and the day's breathing carve ceiling — the
+            # stamp and the console render the range, they never compute it
+            _cmeta["max_carve"] = _co.max_carve_out(res=_cres, when=when)
             if _carm is not None:
                 final = _carm
                 meta.update(_cmeta)
@@ -637,7 +682,15 @@ def finalize(pair: str, gf: float | None, res: dict | None = None,
         final = round(final * MOMENTUM_CONT_MULT, 3)
         meta["momentum_continuation"] = True
     if final is not None:
-        final = round(max(0.4, min(2.0, final)), 3)
+        # THE FINAL ADAPTIVE CLAMP (user spec, Sep 23, clamp 2.2 + the
+        # integration table): the finalize's own clamp is the band —
+        # MinGF/MaxGF breathe with TideMod x BookMod / RotationMod x
+        # VolMod (delivered by the carve step above). No carve meta ->
+        # the committed static band (fail-open).
+        _lo, _hi = meta.get("gf_min"), meta.get("gf_max")
+        _lo = _lo if isinstance(_lo, (int, float)) else 0.4
+        _hi = _hi if isinstance(_hi, (int, float)) else 2.0
+        final = round(max(_lo, min(max(_lo, _hi), final)), 3)
     if endgame_active(when):
         meta["endgame"] = True
     return final, meta

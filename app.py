@@ -2255,6 +2255,28 @@ def _funnel_plate_rows(rot_key: str, sup_rows: list, fire_rows: list):
     return total, out
 
 
+def _band_txt() -> str:
+    """THE HATCH BAND (clamp 2.3's UI, Sep 23): the day's breathing hatch
+    band and carve ceiling from the scanner's stamped gate state — the
+    plate renders the bounds the funnel is operating within, it never
+    computes them (one-brain). Fail-soft: no state, no line."""
+    try:
+        import json as _jb
+        _st = _jb.loads((__import__("pathlib").Path(__file__).parent
+                         / "carve_out.json").read_text(encoding="utf-8"))
+        _last = _st.get("last") or {}
+        _hb = _last.get("hatch_band")
+        _mc = _last.get("max_carve")
+        if isinstance(_hb, list) and len(_hb) == 2:
+            _t = f" Hatch band {_hb[0]:.1f}%–{_hb[1]:.1f}%"
+            if isinstance(_mc, (int, float)):
+                _t += f" · carve ceiling {_mc * 100:.1f}%"
+            return _t
+    except Exception:
+        pass
+    return ""
+
+
 def _render_funnel_plate():
     """🕳️ THE FUNNEL, LIVE (Sep 23): every candidate the scanner has read
     THIS rotation — its quick (and brain, when consulted) read, the bar
@@ -2315,7 +2337,7 @@ def _render_funnel_plate():
                 f"as of {now.strftime('%H:%M')} MST — rotation {rot}; re-reads "
                 f"the scanner's own ledgers live each rerun. Showing newest "
                 f"{len(rows)} of {total}. Bars move with the tide: tide-out "
-                f"prices each rotation's payer rate.")
+                f"prices each rotation's payer rate.{_band_txt()}")
     except Exception as exc:
         logger.debug("funnel plate failed: %s", exc)
 
@@ -7211,6 +7233,23 @@ def _guard_breakdown_rows(w: dict, pct: float) -> list[str]:
     if extras:
         rows.append("<span class='dim' style='font-size:12px;margin-left:14px;'>"
                     + " · ".join(extras) + "</span>")
+    # THE ADAPTIVE BAND (Sep 23, clamp Section 6): the finalized factor's
+    # allowed range and the day's breathing carve ceiling — where the net
+    # sits inside its own band decides the color (near the floor = tight
+    # red, near the ceiling = wide green, mid-band = neutral yellow).
+    _lo, _hi = brk.get("gf_min"), brk.get("gf_max")
+    if isinstance(_lo, (int, float)) and isinstance(_hi, (int, float)) and _hi > _lo:
+        _frac = (gf - _lo) / (_hi - _lo)
+        _bcol = "#ff6b5e" if _frac <= 0.15 else "#4be38a" if _frac >= 0.85 else "#ffc36b"
+        _band = f"band {_lo:.2f}–{_hi:.2f}"
+        _cap = brk.get("max_carve")
+        if isinstance(_cap, (int, float)):
+            _band += f" · carve cap {_cap * 100:.1f}%"
+        _rail = (brk.get("parts") or {}).get("decay_rail")
+        if isinstance(_rail, (int, float)) and _rail != 0.7:
+            _band += f" · decay rail {_rail:.2f}"
+        rows.append("<span class='dim' style='font-size:12px;margin-left:14px;'>"
+                    f"<span style='color:{_bcol};'>{_band}</span></span>")
     return rows
 
 
