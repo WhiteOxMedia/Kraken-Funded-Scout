@@ -22,6 +22,16 @@ release is reported as a stray, never crashes the audit. A swept name
 that reappears next run is simply re-swept - the trace is the SWEPT
 line, the protection is the sweepable set staying narrow.
 
+THE SWEPT-LEDGER (Sep 24, user: "a recurring scratch name can be spotted
+and traced to its writer"): every removal lands a line in reports/
+hygiene_swept_ledger.jsonl (ts, name, rule, repo — bounded at the
+tailing 500, deliberately OUTSIDE the stalewatcher's purge set, because
+a memory collected at 90 minutes is no memory). When a name reaches
+RECUR_AT occurrences in the trailing window, the gate prints RECURRING
+with the write-census's writer — detection and identification in one
+gate, so a suite that regenerates its litter every run stops being
+invisible just because the sweep keeps winning.
+
 THE SCRATCH POLICY (Sep 24, same day): volatile artifacts (check
 reports, sandbox shapes, db shapes, logs, temp) route into the repo's
 scratch/ tree via scratch_space.py, and kraken_stalewatch purges every
@@ -67,6 +77,7 @@ Run:  .venv\\Scripts\\python.exe -X utf8 diag_hygiene.py
 """
 
 import ast
+import json
 import re
 import sys
 import tempfile
@@ -134,6 +145,13 @@ CENSUS_SKIP = re.compile(
 CENSUS_ROOT_BASE = re.compile(
     r"^(BASE|ROOT|HERE|SCOUT|REPO|BASE_DIR|REPO_ROOT)$"
     r"|Path\(__file__\)|dirname\(os\.path\.abspath\(__file__\)\)")
+
+# ── THE SWEPT-LEDGER (Sep 24) ─────────────────────────────────────────
+# Runtime state (git-ignored reports/), bounded like the summaries, and
+# placed OUTSIDE the stalewatcher's scan set — see the docstring.
+LEDGER_PATH = SCOUT / "reports" / "hygiene_swept_ledger.jsonl"
+LEDGER_KEEP = 500      # trailing entries kept
+RECUR_AT = 3           # occurrences in the trailing window => RECURRING
 
 
 def rule_a_hit(name: str) -> bool:
@@ -332,10 +350,57 @@ def selftest() -> int:
                   f"want {sorted(want_c)}")
             ok = False
 
+    # ── the swept-ledger pins (Sep 24) ────────────────────────────
+    with tempfile.TemporaryDirectory(prefix="_sbx_hyg_ledger_") as td:
+        lp = Path(td) / "ledger.jsonl"
+        # 1. fail-soft load on an absent file
+        if _ledger_load(lp) != []:
+            print("  FAIL  selftest ledger: absent file must load empty")
+            ok = False
+        # 2. round-trip + shape (ts, name, rule, repo)
+        _ledger_append([
+            {"ts": "t1", "name": "_probe.db", "rule": "RULE A",
+             "repo": "r"},
+            {"ts": "t2", "name": "_probe.db", "rule": "RULE A",
+             "repo": "r"},
+            {"ts": "t3", "name": "_probe.db", "rule": "RULE A",
+             "repo": "r"},
+            {"ts": "t4", "name": "_other.log", "rule": "RULE A",
+             "repo": "r"}], lp)
+        rows_t = _ledger_load(lp)
+        if len(rows_t) != 4 or rows_t[0].get("name") != "_probe.db":
+            print(f"  FAIL  selftest ledger: round-trip got {len(rows_t)} rows")
+            ok = False
+        # 3. recurrence: 3x the same name trips RECUR_AT, the other doesn't
+        rec_t = _ledger_recurring(rows_t, {"_probe.db"})
+        if rec_t != {"_probe.db": 3}:
+            print(f"  FAIL  selftest ledger: recurrence got {rec_t}")
+            ok = False
+        if _ledger_recurring(rows_t, {"_other.log"}) != {}:
+            print("  FAIL  selftest ledger: a 1x name must not recur")
+            ok = False
+        # 4. the bound: a ledger over KEEP trims to the trailing window
+        _real_keep = LEDGER_KEEP
+        globals()["LEDGER_KEEP"] = 3
+        try:
+            _ledger_append([{"ts": "t5", "name": "_n.db", "rule": "RULE A",
+                             "repo": "r"}], lp)
+            rows_b = _ledger_load(lp)
+            if len(rows_b) != 3 or rows_b[-1].get("name") != "_n.db":
+                print(f"  FAIL  selftest ledger: bound kept {len(rows_b)}")
+                ok = False
+        finally:
+            globals()["LEDGER_KEEP"] = _real_keep
+        # 5. the live ledger lives in reports/ (outside the purge set,
+        #    git-ignored) — the memory-survival contract
+        if "reports" not in str(LEDGER_PATH):
+            print("  FAIL  selftest ledger: LEDGER_PATH must sit in reports/")
+            ok = False
+
     if ok:
         print(f"  selftest: rule pins green ({len(cases)} name cases, "
               f"{len(cls)} sweep classes, 1 behavioral sweep, "
-              "write-census)")
+              "write-census, swept-ledger)")
     return 0 if ok else 1
 
 
@@ -435,7 +500,57 @@ def census_writers(roots=()) -> list:
     return hits
 
 
-def _write_summary(swept, strays, cens) -> None:
+def _ledger_load(path: Path | None = None) -> list:
+    """The trailing swept rows (fail-soft: unreadable = empty)."""
+    p = path or LEDGER_PATH
+    try:
+        lines = p.read_text(encoding="utf-8").splitlines()
+    except OSError:
+        return []
+    out = []
+    for ln in lines:
+        try:
+            d = json.loads(ln)
+        except ValueError:
+            continue
+        if isinstance(d, dict):
+            out.append(d)
+    return out
+
+
+def _ledger_append(rows: list, path: Path | None = None) -> None:
+    """Append swept rows, then bound the file to the trailing
+    LEDGER_KEEP. Reporting must never crash the gate."""
+    p = path or LEDGER_PATH
+    if not rows:
+        return
+    try:
+        p.parent.mkdir(parents=True, exist_ok=True)
+        with p.open("a", encoding="utf-8") as f:
+            for r in rows:
+                f.write(json.dumps(r, sort_keys=True) + "\n")
+        all_rows = _ledger_load(p)
+        if len(all_rows) > LEDGER_KEEP:
+            keep = all_rows[-LEDGER_KEEP:]
+            p.write_text(
+                "".join(json.dumps(r, sort_keys=True) + "\n" for r in keep),
+                encoding="utf-8")
+    except OSError:
+        pass
+
+
+def _ledger_recurring(rows: list, names: set) -> dict:
+    """Names from THIS sweep whose trailing-window count reached
+    RECUR_AT — the recurring-litter signal."""
+    counts: dict = {}
+    for r in rows:
+        n = r.get("name")
+        if n in names:
+            counts[n] = counts.get(n, 0) + 1
+    return {n: c for n, c in counts.items() if c >= RECUR_AT}
+
+
+def _write_summary(swept, strays, cens, rec=None) -> None:
     """The policy's allowed hygiene-summary class, into reports/.
     Verdicts and names only - never report CONTENT."""
     try:
@@ -446,7 +561,8 @@ def _write_summary(swept, strays, cens) -> None:
         lines = [f"HYGIENE SUMMARY - {stamp}",
                  f"  strays remaining: {len(strays)}",
                  f"  auto-swept: {len(swept)}",
-                 f"  root-writers pending migration (census): {len(cens)}"]
+                 f"  root-writers pending migration (census): {len(cens)}",
+                 f"  recurring swept names: {len(rec or {})}"]
         for f, why in strays:
             lines.append(f"  STRAY  {f}  [{why}]")
         for fname, ln, name, shape in cens:
@@ -466,6 +582,15 @@ def main() -> int:
     st = selftest()
     strays, counts = audit()
     swept, strays = sweep(strays)
+    # the swept-ledger: record THIS sweep's removals, then detect the
+    # recurring names against the trailing window (before the census —
+    # the RECURRING lines want the writers)
+    _rows = [{"ts": time.strftime("%Y-%m-%dT%H:%M:%SZ"), "name": f.name,
+              "rule": why.split(":")[0], "repo": str(f.parent)}
+             for f, why in swept]
+    _ledger_append(_rows)
+    _rec = _ledger_recurring(_ledger_load(),
+                             {r["name"] for r in _rows}) if _rows else {}
     cens = census_writers()
     print("=" * 60)
     print("  HYGIENE AUDIT - root scratch + one-off probes, both repos")
@@ -474,6 +599,14 @@ def main() -> int:
         print(f"  {root}: {n_a} root files scanned, {n_b} diag files")
     for f, why in swept:
         print(f"  SWEPT  {f.name}  [{why}] - regenerate-able, removed")
+    for name, cnt in sorted(_rec.items()):
+        writers = [f"{fn}:{ln} ({sh})" for fn, ln, n, sh in cens if n == name]
+        wtxt = ", ".join(writers) if writers else \
+            "no current root-writer in the census (the writer stopped, " \
+            "or the name is not source-visible)"
+        print(f"  RECURRING  {name}  x{cnt} in the trailing {LEDGER_KEEP}"
+              f"  — writer: {wtxt}")
+    _write_summary(swept, strays, cens, _rec)
     if cens:
         print(f"  CENSUS: {len(cens)} drive(s) still write scratch at a "
               "root (scratch policy pending on those files):")
