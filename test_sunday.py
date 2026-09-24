@@ -11,6 +11,7 @@ now = datetime.now(MST)
 lines = [f"today: {now.strftime('%A')} — {'weekend' if now.weekday() >= 5 else 'weekday'} schedule, "
          f"rotation hour-block {now.hour // 4 * 4:02d}-{(now.hour // 4 + 1) * 4:02d}"]
 
+# clock-audit: ok — LIVE-PROBE (manual bot-day report — reports on the live system by design) (clockbombs census 4)
 doc = json.loads((BASE / "rotation_thresholds.json").read_text())
 med = doc.get("median", {})
 lines.append("")

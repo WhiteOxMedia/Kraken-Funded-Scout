@@ -365,6 +365,7 @@ pg.ROOT = _REAL_ROOT    # leak-audit: ok — the deliberate hand-back at the LIV
 # as before.
 _REPO_ROOT = _REAL_ROOT
 for _pp in os.environ.get("PYTHONPATH", "").split(os.pathsep):
+    # clock-audit: ok — LIVE-PROBE (existence-only walk for the real repo root; documented gate-scratch-safe) (clockbombs census 4)
     if _pp and (Path(_pp) / "contest_trades.jsonl").exists():
         _REPO_ROOT = Path(_pp)
         break

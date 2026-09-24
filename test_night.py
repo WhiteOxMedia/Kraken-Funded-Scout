@@ -14,6 +14,7 @@ lines = [f"now: {now.strftime('%a %I:%M %p')} Denver"]
 
 # bridge trail since Sun 20:00
 try:
+    # clock-audit: ok — LIVE-PROBE (manual bot-day report — reports on the live system by design) (clockbombs census 4)
     conn = sqlite3.connect(BASE / "signals.db")
     conn.row_factory = sqlite3.Row
     rows = conn.execute(
@@ -29,6 +30,7 @@ except Exception as exc:
 
 # scanner state: did the cooldown flatten run? winners kept?
 try:
+    # clock-audit: ok — LIVE-PROBE (manual bot-day report — reports on the live system by design) (clockbombs census 4)
     st = json.loads((BASE / "scanner_state.json").read_text())
     lines.append(f"\nscanner_state: {st}")
 except Exception as exc:

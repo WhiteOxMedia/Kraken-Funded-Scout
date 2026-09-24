@@ -58,6 +58,7 @@ def run_dup(cwd, exe, script, args, name, deadline=20):
 
 
 # ── the scanner side (the dup refuses before ever writing the lock) ──
+# clock-audit: ok — SANDBOXED (snapshot read for byte-for-byte restore in the finally) (clockbombs census 4)
 scanner_lock = Path(r"C:\Users\birds\Workspace\kraken_scout\scanner.lock")
 scanner_snap = scanner_lock.read_text() if scanner_lock.exists() else None
 r1 = run_dup(

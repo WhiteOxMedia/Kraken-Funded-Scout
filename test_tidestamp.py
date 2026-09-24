@@ -159,6 +159,7 @@ for f in (SCRATCH, OLD):
             break
         except (FileNotFoundError, PermissionError):
             _time.sleep(0.5)
+# clock-audit: ok — SANDBOXED (deliberate hand-back to production after the sandbox; leak-audit documented) (clockbombs census 4)
 sb.DB_PATH = Path(r"C:\Users\birds\Workspace\kraken_scout\signals.db")  # leak-audit: ok (deliberate hand back to production at suite end; every run before this was hermetic in the mkdtemp world)
 
 lines.append(f"\nRESULT: {PASS} passed, {FAIL} failed")

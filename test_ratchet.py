@@ -67,9 +67,11 @@ check("FARTCOIN today: +3.3% peak -> 1.5%",
 import json
 import sqlite3
 
+# clock-audit: ok — LIVE-PROBE (manual bot-day report — reports on the live system by design) (clockbombs census 4)
 conn = sqlite3.connect(BASE / "ohlcv_cache.db")
 engaged = 0
 checked = 0
+# clock-audit: ok — LIVE-PROBE (manual bot-day report — reports on the live system by design) (clockbombs census 4)
 for line in (BASE / "contest_trades.jsonl").read_text(encoding="utf-8").splitlines():
     if not line.strip():
         continue

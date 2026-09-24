@@ -28,6 +28,7 @@ try:
 
     # watch entry
     import json
+    # clock-audit: ok — LIVE-PROBE (reads the live watch entry, shape-probed via .get defaults) (clockbombs census 4)
     w = json.loads((BASE / "contest_watch.json").read_text())
     h = w.get("HYPE/USD", {})
     entry = h.get("entry")

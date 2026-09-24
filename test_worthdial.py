@@ -42,6 +42,7 @@ import background_scanner as bs
 import contest_account as ca
 
 MST = ZoneInfo("America/Denver")
+# clock-audit: ok — SANDBOXED (backup/seed/restore harness — _acct_bak/_cs_bak restored in the finally) (clockbombs census 4)
 CS = Path("console_state.json")
 ACCT = ca.STATE_FILE
 

@@ -37,6 +37,7 @@ def run(name, pairs_vols, expect_in, expect_out):
 
 # against the LIVE engine cells for the current rotation
 import json
+# clock-audit: ok — LIVE-PROBE (manual bot-day report — reports on the live system by design) (clockbombs census 4)
 doc = json.loads((BASE / "rotation_thresholds.json").read_text())
 uni = doc.get("universe", {})
 

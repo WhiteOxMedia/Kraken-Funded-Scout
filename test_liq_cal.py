@@ -6,6 +6,7 @@ from zoneinfo import ZoneInfo
 
 BASE = Path(__file__).resolve().parent
 MST = ZoneInfo("America/Denver")
+# clock-audit: ok — LIVE-PROBE (manual bot-day report — reports on the live system by design) (clockbombs census 4)
 doc = json.loads((BASE / "rotation_thresholds.json").read_text())
 n = datetime.now(MST)
 

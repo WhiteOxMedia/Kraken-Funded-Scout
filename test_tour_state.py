@@ -10,6 +10,7 @@ lines = []
 
 # Bridge: today's signals + open positions
 try:
+    # clock-audit: ok — LIVE-PROBE (manual bot-day report — reports on the live system by design) (clockbombs census 4)
     conn = sqlite3.connect(BASE / "signals.db")
     conn.row_factory = sqlite3.Row
     today = datetime.now(MST).strftime("%Y-%m-%d")

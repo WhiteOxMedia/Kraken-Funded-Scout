@@ -20,6 +20,7 @@ def check(name, cond):
 # ── 1. live data: an applied trade for today → the pace clause speaks it
 # (hermetic since Sep 22: the live day's applied count changes under the
 # test — a seeded applied trade makes the clause deterministic)
+# clock-audit: ok — LIVE-PROBE (backup/seed/restore — determinism comes from the seed, not the book) (clockbombs census 4)
 tf = Path("contest_trades.jsonl")
 backup = tf.read_bytes() if tf.exists() else None
 _today = bs._now_mst().strftime("%Y-%m-%d")
@@ -44,6 +45,7 @@ finally:
         tf.unlink()
 
 # ── 2. no trades today → pace clause dropped, clock stays
+# clock-audit: ok — SANDBOXED (backup/restore byte-for-byte in the try/finally below) (clockbombs census 4)
 tf = Path("contest_trades.jsonl")
 backup = tf.read_bytes() if tf.exists() else None
 try:
@@ -100,6 +102,7 @@ check("voice words are plus/minus, never symbols",
 # ── 6. the hearable net (Sep 22): armed trails ride the lead ────────────
 # sandbox the watch file — backup/restore byte-for-byte, removed if this
 # test created it (the live scanner must never see a stray file)
+# clock-audit: ok — SANDBOXED (backup/restore byte-for-byte in the try/finally below) (clockbombs census 4)
 wf = Path("contest_watch.json")
 wbackup = wf.read_bytes() if wf.exists() else None
 _orig_ratchet = bs._ratchet_trail_pct

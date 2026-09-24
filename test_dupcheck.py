@@ -9,6 +9,7 @@ SCOUT = Path(r"C:\Users\birds\Workspace\kraken_scout")
 MST = ZoneInfo("America/Denver")
 now = datetime.now(MST).isoformat()
 
+# clock-audit: ok — SANDBOXED (transaction-rollback drill — BEGIN/ROLLBACK leaves no residue; :41 proves it) (clockbombs census 4)
 conn = sqlite3.connect(SCOUT / "signals.db")
 conn.row_factory = sqlite3.Row
 conn.execute("BEGIN")
@@ -38,6 +39,7 @@ print("NEW check finds acknowledged record (dup suppressed):", dup is not None)
 print("OLD check would have missed it (dup written):", old_style is None)
 
 # confirm nothing persisted
+# clock-audit: ok — LIVE-PROBE (existence/count pin — expects zero residue from the rollback above) (clockbombs census 4)
 conn = sqlite3.connect(SCOUT / "signals.db")
 conn.row_factory = sqlite3.Row
 left = conn.execute("SELECT COUNT(*) c FROM signals WHERE pair='TESTACK/USD'").fetchone()["c"]

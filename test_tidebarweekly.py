@@ -501,6 +501,7 @@ try:
           "cold-boot transient was test leakage into JSON_FILE)",
           tbw.JSON_FILE != real_json and tbw.JSON_FILE.name == "sidecar.json",
           (str(tbw.JSON_FILE), str(real_json)))
+    # clock-audit: ok — SANDBOXED (tbw.SNAP_OUTCOMES_FILE redirected into the sandbox at :492) (clockbombs census 4)
     tbw.SNAP_OUTCOMES_FILE.write_text(
         "\n".join(json.dumps(r) for r in snap_lines) + "\n", encoding="utf-8")
     tbw.TRADES_FILE.write_text(

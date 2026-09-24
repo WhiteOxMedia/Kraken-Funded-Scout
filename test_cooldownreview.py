@@ -42,6 +42,7 @@ _exp_left = round(sum(float(h.get("total_left") or 0) for h in rows), 2)
 check("money-left aggregates the day's rotations", rev["total_left"] == _exp_left)
 _exp_real = 0.0
 try:
+    # clock-audit: ok — LIVE-PROBE (same-ledger cross-aggregation — the drive seeds the row it grades) (clockbombs census 4)
     for line in open("contest_trades.jsonl", encoding="utf-8"):
         if not line.strip():
             continue
@@ -74,6 +75,7 @@ check("old days excluded", d.get("missed", 0) != 8.99)
 fired = disc._day_fired_any(today)
 _grep = False
 try:
+    # clock-audit: ok — LIVE-PROBE (absence grep for today's Buy line — absence is the expected verdict) (clockbombs census 4)
     for line in open("voice_log.jsonl", encoding="utf-8"):
         if line.strip() and json.loads(line).get("ts", "").startswith(today) \
                 and str(json.loads(line).get("text", "")).startswith("Buy "):
@@ -152,6 +154,7 @@ _assets = rev2.get("assets") or []
 _sold_n = sum(1 for a in _assets if a.get("kind") == "sold")
 _ledger_n = 0
 try:
+    # clock-audit: ok — LIVE-PROBE (same-ledger cross-aggregation — sold-kind count vs the seeded rows) (clockbombs census 4)
     for line in open("contest_trades.jsonl", encoding="utf-8"):
         if line.strip() and json.loads(line).get("sold_at", "").startswith(today):
             _ledger_n += 1
