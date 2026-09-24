@@ -345,41 +345,89 @@ def _guard_snap() -> dict:
     snap = {}
     for name in PROD_GUARD:
         p = SCOUT / name
-        try:
-            snap[name] = p.read_text(encoding="utf-8") if p.exists() else None
-        except OSError:
-            snap[name] = "<unreadable>"
+        val = None
+        for _try in range(3):   # the live scanner writes these files
+            try:                # throughout a battery; a read landing
+                val = (p.read_text(encoding="utf-8")  # in a write window
+                       if p.exists() else None)      # retries before it
+                break                                # may call <unreadable>
+            except OSError:
+                val = "<unreadable>"
+                time.sleep(0.25)
+        snap[name] = val
     return snap
 
 
-def _guard_live_entries(watch_json: str | None) -> int:
-    """How many watch entries held an OPEN window at parse time (added
-    + window_min still in the future). Unparseable fields count as
-    live — the guard fails toward flagging. A wipe that erases only
-    EXPIRED entries is the scanner's own quiet retirement (ATOM's
-    16:15 pass) and must not flag; erasing a live window is the
-    13:54-class leak."""
+def _guard_close_receipts(t0: float, t1: float) -> set[str]:
+    """Pairs with a REAL close record inside the run window — the exit
+    that removes a watch row lands its trade here before (or moments
+    after) the row is dropped. ±60s slop covers the save gap. An
+    unreadable ledger yields NO receipts: the guard fails toward
+    flagging, never toward silence."""
+    out: set[str] = set()
     try:
-        w = json.loads(watch_json) if watch_json else None
+        f = SCOUT / "contest_trades.jsonl"
+        if not f.exists():
+            return out
+        for ln in f.read_text(encoding="utf-8", errors="replace").splitlines():
+            if not ln.strip():
+                continue
+            try:
+                rec = json.loads(ln)
+                sold = _dt.fromisoformat(str(rec.get("sold_at"))).timestamp()
+                if t0 - 60 <= sold <= t1 + 60:
+                    out.add(str(rec.get("pair") or ""))
+            except (ValueError, TypeError):
+                continue
+    except OSError:
+        pass
+    return out
+
+
+def _guard_entry_expiry(e: dict) -> float | None:
+    """The watch entry's window expiry as epoch (added + window_min);
+    None when unparseable — an unknown window is never assumed expired."""
+    try:
+        added = _dt.fromisoformat(str((e or {}).get("added")))
+        return added.timestamp() + float((e or {}).get("window_min") or 0.0) * 60.0
+    except Exception:
+        return None
+
+
+def _guard_leak(before: dict, after: dict,
+                t0: float | None = None, t1: float | None = None,
+                receipts: set[str] | None = None) -> str | None:
+    """THE SCAN-AWARE GUARD (Sep 24): a battery entry can run 40 minutes,
+    and the scanner keeps working the whole time — an exit auto-closes a
+    position and drops its row, an expired window retires quietly, a
+    user opens a new contest (the ONLY contest_id writer, whose fresh
+    stamp is its own receipt and whose documented wipe rides along).
+    The old before/after text compare called all of that the 13:54 leak.
+    Now every vanished entry needs a RECEIPT: a close record for its
+    pair inside the run window, or a window that expired by the
+    after-snapshot, or a fresh contest window. No receipt and the window
+    still open -> the leak — even when OTHER entries survive (the
+    partial-wipe gap the old ->{}-only check never saw). Additions stay
+    free (a live fire enriching the watch); file create/delete and an
+    unexplained contest_id move still flag."""
+    t0 = time.time() - 1 if t0 is None else t0
+    t1 = time.time() if t1 is None else t1
+
+    # the fresh-window receipt, computed once: contest_id moves ONLY in
+    # new_contest (user action) — a stamp born inside the run window is
+    # that user action's signature, and the wipe it performs is documented
+    _fresh_window = False
+    try:
+        _bid = str((json.loads(before.get("contest_account.json")
+                               or "{}") or {}).get("contest_id") or "")
+        _aid = str((json.loads(after.get("contest_account.json")
+                               or "{}") or {}).get("contest_id") or "")
+        if _aid and _aid != _bid:
+            _st = _dt.fromisoformat(_aid).timestamp()
+            _fresh_window = t0 - 60 <= _st <= t1 + 60
     except (ValueError, TypeError):
-        return -1                      # unreadable — let the caller flag
-    if not isinstance(w, dict):
-        return 0
-    from datetime import datetime
-    live = 0
-    for pair, e in w.items():
-        try:
-            added = datetime.fromisoformat(str((e or {}).get("added")))
-            win = float((e or {}).get("window_min") or 0.0)
-            exp = added.timestamp() + win * 60.0
-            if exp >= time.time():
-                live += 1
-        except Exception:
-            live += 1                  # unknown window — assume live
-    return live
+        pass
 
-
-def _guard_leak(before: dict, after: dict) -> str | None:
     for name in PROD_GUARD:
         b, a = before.get(name), after.get(name)
         if b == a:
@@ -394,21 +442,31 @@ def _guard_leak(before: dict, after: dict) -> str | None:
                 return f"{name} was CREATED during the battery"
             if b is not None and a is None:
                 return f"{name} was DELETED during the battery"
-            if (bj or {}) and isinstance(aj, dict) and not aj:
-                # window-aware (Sep 17, the ATOM retirement lesson): a
-                # wipe is a leak only when a STILL-LIVE window died
-                if _guard_live_entries(b) > 0:
-                    return f"{name} was WIPED to empty during the battery"
-            continue  # enrichment (a live fire adding an entry) is fine
-        # contest_account.json: only the window stamp matters (a balance
-        # write from a live fill can land mid-battery; a WINDOW move is
-        # the phantom-reset signature and never legitimate here)
+            if not isinstance(bj, dict) or not isinstance(aj, dict):
+                continue
+            vanished = {k: v for k, v in bj.items() if k not in aj}
+            if not vanished:
+                continue          # additions/edits only: enrichment is fine
+            if receipts is None:
+                receipts = _guard_close_receipts(t0, t1)   # lazy: only a
+                           # vanished entry opens the ledger
+            for k, e in vanished.items():
+                exp = _guard_entry_expiry(e)
+                if (k not in receipts
+                        and not (exp is not None and exp <= t1)
+                        and not _fresh_window):
+                    return (f"{name} lost live entry {k} with no close "
+                            f"receipt, expiry, or new-window wipe")
+            continue
+        # contest_account.json: balance writes from live fills are normal
+        # mid-battery; the window stamp moving WITHOUT a fresh-window
+        # signature is the phantom-reset class and never legitimate here
         try:
             bid = str((json.loads(b) or {}).get("contest_id") or "")
             aid = str((json.loads(a) or {}).get("contest_id") or "")
         except (ValueError, TypeError):
             return f"{name} became unreadable"
-        if bid != aid:
+        if bid != aid and not _fresh_window:
             return (f"{name} contest_id moved "
                     f"{bid[:19]} -> {aid[:19]}")
     return None
@@ -617,7 +675,7 @@ def main(argv: list[str] | None = None) -> int:
     for i, t in enumerate(tests, 1 + _i_base):
         if _chunk_pause("test", t.stem):
             return 2
-        _gs = _guard_snap()
+        _gs, _g_t0 = _guard_snap(), time.time()
         if lane == "fast":
             left = fast_budget - (time.monotonic() - lane_t0)
             if left < 15:
@@ -631,7 +689,7 @@ def main(argv: list[str] | None = None) -> int:
             st, dt, det = run_entry(t)
         if st != "TIMEOUT":
             measured[t.stem] = dt   # a killed run's elapsed is a lie about the suite
-        _leak = _guard_leak(_gs, _guard_snap())
+        _leak = _guard_leak(_gs, _guard_snap(), _g_t0, time.time())
         if _leak:
             st, det = "FAIL", f"LEDGER LEAK: {_leak}"
         rows.append(("test", t.stem, st, dt, det))
@@ -645,7 +703,7 @@ def main(argv: list[str] | None = None) -> int:
         if d.stem in DIAG_RUN:
             if _chunk_pause("diag", d.stem):
                 return 2
-            _gs = _guard_snap()
+            _gs, _g_t0 = _guard_snap(), time.time()
             if lane == "fast":
                 left = fast_budget - (time.monotonic() - lane_t0)
                 if left < 15:
@@ -660,7 +718,7 @@ def main(argv: list[str] | None = None) -> int:
                 st, dt, det = run_entry(d)
             if st != "TIMEOUT":
                 measured[d.stem] = dt
-            _leak = _guard_leak(_gs, _guard_snap())
+            _leak = _guard_leak(_gs, _guard_snap(), _g_t0, time.time())
             if _leak:
                 st, det = "FAIL", f"LEDGER LEAK: {_leak}"
             rows.append(("diag", d.stem, st, dt, det))

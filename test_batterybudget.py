@@ -160,6 +160,131 @@ check(5.8, "if _saving:" in _src
       "never writes pause state, and a run facing a foreign pause never "
       "saves its own progress over the waiting sweep's state")
 
+print("== 6. the scan-aware ledger guard (Sep 24) ==")
+from datetime import datetime as _fromiso
+_T0 = _fromiso.fromisoformat("2026-09-24T09:00:00-06:00").timestamp()
+_T1 = _T0 + 600.0                        # a ten-minute entry window
+_t0, _t1 = _T0, _T1
+_A = "2026-09-24T09:00:00-06:00"          # added at the window's open
+_LIVE = {"added": _A, "window_min": 120}   # expires 11:00, AFTER the run
+_EXP = {"added": "2026-09-24T07:00:00-06:00", "window_min": 60}  # 08:00, before t0
+
+
+def _w(entries):
+    return json.dumps(entries)
+
+
+def _acct(cid):
+    return json.dumps({"contest_id": cid, "current_balance": 10000.0})
+
+
+# 6.1 the enrichment pass-through still holds (additions never flag)
+check(6.1, rb._guard_leak(
+          {"contest_watch.json": _w({"A/USD": _LIVE}),
+           "contest_account.json": _acct("x")},
+          {"contest_watch.json": _w({"A/USD": _LIVE, "B/USD": _LIVE}),
+           "contest_account.json": _acct("x")}, _t0, _t1) is None,
+      "a live fire enriching the watch stays free")
+
+# 6.2 THE HEADLINE: the scanner's exit removes a live row mid-suite ->
+# a close receipt in the window exonerates it (the costdrivers shape)
+check(6.2, rb._guard_leak(
+          {"contest_watch.json": _w({"A/USD": _LIVE}),
+           "contest_account.json": _acct("x")},
+          {"contest_watch.json": _w({}),
+           "contest_account.json": _acct("x")}, _t0, _t1,
+          receipts={"A/USD"}) is None,
+      "a vanished live entry WITH a close receipt is the scanner working")
+
+# 6.3 the same vanish with NO receipt, window still open -> the leak
+check(6.3, rb._guard_leak(
+          {"contest_watch.json": _w({"A/USD": _LIVE}),
+           "contest_account.json": _acct("x")},
+          {"contest_watch.json": _w({}),
+           "contest_account.json": _acct("x")}, _t0, _t1,
+          receipts=set()) is not None,
+      "a vanished live entry with no receipt is the 13:54 leak — flagged")
+
+# 6.4 the PARTIAL wipe gap closes: other rows survive, the live one
+# doesn't, no receipt -> still flagged (the old ->{}-only check missed it)
+check(6.4, rb._guard_leak(
+          {"contest_watch.json": _w({"A/USD": _LIVE, "B/USD": _LIVE}),
+           "contest_account.json": _acct("x")},
+          {"contest_watch.json": _w({"B/USD": _LIVE}),
+           "contest_account.json": _acct("x")}, _t0, _t1,
+          receipts=set()) is not None,
+      "a partial wipe loses its receipt-less live entry — flagged even "
+      "with survivors")
+
+# 6.5 expiry exoneration: the window ran out during the suite (the
+# scanner retires it — a long suite's legitimate mid-run shape)
+check(6.5, rb._guard_leak(
+          {"contest_watch.json": _w({"A/USD": _EXP}),
+           "contest_account.json": _acct("x")},
+          {"contest_watch.json": _w({}),
+           "contest_account.json": _acct("x")}, _t0, _t1,
+          receipts=set()) is None,
+      "an entry whose window expired by the after-snapshot is quiet retirement")
+
+# 6.6 the fresh-window receipt: new_contest stamps its id INSIDE the run
+# window -> its documented wipe rides free, and the account id move is fine
+check(6.6, rb._guard_leak(
+          {"contest_watch.json": _w({"A/USD": _LIVE}),
+           "contest_account.json": _acct("2026-09-20T09:00:00-06:00")},
+          {"contest_watch.json": _w({}),
+           "contest_account.json": _acct("2026-09-24T09:08:00-06:00")},
+          _t0, _t1, receipts=set()) is None,
+      "a contest opened mid-run (stamp inside the window) is the user's "
+      "new_contest receipt — wipe and id move both free")
+
+# 6.7 the phantom reset keeps flagging: id moved but the stamp predates
+# the run (an old file restored, a rogue write — no receipt)
+check(6.7, rb._guard_leak(
+          {"contest_watch.json": _w({}),
+           "contest_account.json": _acct("2026-09-09T13:40:07-06:00")},
+          {"contest_watch.json": _w({}),
+           "contest_account.json": _acct("2026-09-01T00:00:00-06:00")},
+          _t0, _t1, receipts=set()) is not None,
+      "a contest_id move with no fresh-window stamp is still the phantom reset")
+# 6.8 the guard reads the REAL ledger when receipts are not handed in
+# (the production path) — a receipt inside the window saves the entry
+_rlf = rb.SCOUT / "contest_trades.jsonl"
+_real = _rlf.read_bytes() if _rlf.exists() else None
+try:
+    _rlf.write_text(
+        json.dumps({"pair": "A/USD", "sold_at": "2026-09-24T09:05:00-06:00"})
+        + "\n", encoding="utf-8")
+    check(6.8, rb._guard_leak(
+              {"contest_watch.json": _w({"A/USD": _LIVE}),
+               "contest_account.json": _acct("x")},
+              {"contest_watch.json": _w({}),
+               "contest_account.json": _acct("x")}, _t0, _t1) is None,
+          "with no handed receipts the guard opens contest_trades.jsonl "
+          "itself and the close record exonerates")
+finally:
+    if _real is None:
+        _rlf.unlink(missing_ok=True)
+    else:
+        _rlf.write_bytes(_real)
+
+# 6.9 the unreadable ledger yields NO receipts — fails toward flagging
+check(6.9, rb._guard_leak(
+          {"contest_watch.json": _w({"A/USD": _LIVE}),
+           "contest_account.json": _acct("x")},
+          {"contest_watch.json": _w({}),
+           "contest_account.json": _acct("x")},
+          _t0, _t1, receipts=None, ) is not None,
+      "the real ledger holds no window receipt here — flag (fail toward flagging)")
+
+# 6.10 the wiring: both call sites hand the epoch window in
+check(6.10, "_gs, _g_t0 = _guard_snap(), time.time()" in _src
+      and _src.count("_guard_leak(_gs, _guard_snap(), _g_t0, time.time())") == 2,
+      "both test and diag loops capture the snapshot epoch and hand the "
+      "run window to the guard")
+check(6.11, "time.sleep(0.25)" in _src and "for _try in range(3)" in _src,
+      "the snapshot read retries through the scanner's write window "
+      "before calling a file unreadable")
+
 print("== 3. live: the real manifest speaks when it exists ==")
 _live = rb._lanes_load().get("test_costdrivers")
 if _live and _live.get("secs"):
