@@ -72,8 +72,10 @@ import sys
 import time
 try:
     import msvcrt            # the lanes manifest's cross-process lock (Windows)
-except ImportError:          # non-Windows: unlocked, still atomic-replace
-    msvcrt = None
+except ImportError:          # non-Windows: unlocked — the atomic replace still
+    msvcrt = None            # prevents torn reads, and this fleet is Windows
+                             # (the Sep-24 review asked for a cross-platform
+                             # lock; a third-party dep buys nothing here)
 
 import scratch_space
 from datetime import datetime as _dt
@@ -777,13 +779,15 @@ def main(argv: list[str] | None = None) -> int:
             st, dt, det = run_entry(t, cap=int(left))
         else:
             st, dt, det = run_entry(t)
-        if st == "PASS":
-            measured[t.stem] = dt   # only a GREEN run proves the runtime —
-                                    # a quick FAIL is no lane measurement
-                                    # (the Sep-22 CodeRabbit finding)
         _leak = _guard_leak(_gs, _guard_snap(), _g_t0, time.time())
         if _leak:
             st, det = "FAIL", f"LEDGER LEAK: {_leak}"
+        if st == "PASS":
+            measured[t.stem] = dt   # only a GREEN FINAL verdict proves the
+                                    # runtime — the leak check can still flip
+                                    # a PASS to FAIL, so measurement waits
+                                    # for it (Sep-22 CodeRabbit, and the
+                                    # Sep-24 review of this merge itself)
         rows.append(("test", t.stem, st, dt, det))
         if _saving:
             _resume_save(mode_key, _flt, _cno, rows, [],
@@ -810,11 +814,12 @@ def main(argv: list[str] | None = None) -> int:
                 st, dt, det = run_entry(d, cap=int(left))
             else:
                 st, dt, det = run_entry(d)
-            if st == "PASS":
-                measured[d.stem] = dt   # PASS-only, like the test loop
             _leak = _guard_leak(_gs, _guard_snap(), _g_t0, time.time())
             if _leak:
                 st, det = "FAIL", f"LEDGER LEAK: {_leak}"
+            if st == "PASS":
+                measured[d.stem] = dt   # PASS-only, after the FINAL verdict,
+                                        # like the test loop
             rows.append(("diag", d.stem, st, dt, det))
             if _saving:
                 _resume_save(mode_key, _flt, _cno, rows, [],
