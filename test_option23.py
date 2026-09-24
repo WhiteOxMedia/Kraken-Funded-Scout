@@ -105,8 +105,10 @@ check("the tide line carries the learned-bar context too (Sep 10)",
       "the learned bar was paid" in bs_src)
 
 # ── 3. the mover path: same carve, bot ledger untouched ──────────────
-check("the mover OUT gate carves real runners only (own 24h >= the tier)",
-      "_m_out_lw" in bs_src and "_mv_pct) >= LONE_WOLF_MOVE_MIN" in bs_src)
+check("the mover OUT gate carves real runners only (own 24h >= the "
+      "adaptive carve requirement AND lone-wolf mode granted)",
+      "_m_out_lw" in bs_src and "float(_mv_pct) >= _m_req" in bs_src
+      and "and _m_mode)" in bs_src)
 check("bounce candidates (the -5 losers) don't carve",
       "a bounce isn't a solo" in bs_src)
 check("NO bridge write in an OUT tide (the bot ledger hard-blocks OUT)",
@@ -197,8 +199,14 @@ try:
             return {"percentage": 9.4}
 
     pts, note = bs.lone_wolf_discount(_Fx(), "XMR/USD")
-    check("OUT +9.4% own move -> the big-tier carve (35 pts)",
-          pts == 35 and "against an OUT tide" in note, f"pts={pts}")
+    # THE ADAPTIVE CONTRACT (Sep 23 spec): in an OUT tide the hatch only
+    # OPENS on LoneWolfMode — and the permission gate requires
+    # tide_mod >= 0.8 while an OUT tide clamps TideMod to 0.5, so the
+    # POPCAT-era fixed-tier carve is superseded by design: the
+    # permission GATE is the real brake in a dead tide.
+    check("OUT +9.4% own move with the mode unreachable -> the permission "
+          "gate keeps the hatch closed",
+          pts == 0 and note == "", f"pts={pts} note={note!r}")
     check("the discounted OUT floor never drops below the 55 floor",
           bs.popup_floor("OUT", 35, "08-12") == 55.0,
           f"floor={bs.popup_floor('OUT', 35, '08-12')}")
@@ -213,5 +221,9 @@ except Exception as exc:
 lines.append(f"\nRESULT: {PASS} passed, {FAIL} failed")
 Path("_option23_check.txt").write_text("\n".join(lines), encoding="utf-8")
 print("DONE")
+# THE HONEST VERDICT (battery triage, Sep 23): the battery's result mode
+# parses the STREAMED OUTPUT — a verdict that lived only in the check
+# file read as a no-verdict failure every full run.
+print(f"RESULT: {PASS} passed, {FAIL} failed")
 if FAIL:
     sys.exit(1)

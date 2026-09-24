@@ -3567,8 +3567,9 @@ def contest_light(exchange, cfg):
                     should_exit = True
                     reason = str(_tw_gate.get("force_reason") or
                                  "EXIT WATCH — the trend read says this move is done")
-            except Exception:
-                pass
+            except Exception as _exc:
+                logger.debug("exit-watch force gate read skipped for %s: %s",
+                             pair, _exc)
 
         # (Sep 21, user rule: the window NEVER exits by itself — "I don't
         # want to Exit simply because 'Time's up'. Stay close, and fire a

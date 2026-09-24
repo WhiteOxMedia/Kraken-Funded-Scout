@@ -135,6 +135,12 @@ def _extract_fn(name):
 
 
 exec(_extract_fn("_fmt_price"), NS)
+# THE MISSING BADGE (battery triage, Sep 23): production's _pick_card
+# grew the guard-breakdown badge inside the trail block — the sliced
+# body calls _guard_breakdown_rows, so the drive must provide THE REAL
+# ONE (sliced like everything else) or the block NameErrors mid-call
+# and every trail-row check below silently proves nothing.
+exec(_extract_fn("_guard_breakdown_rows"), NS)
 _pick_card = NS["_pick_card"]
 _render_suppression_strip = NS["_render_suppression_strip"]
 

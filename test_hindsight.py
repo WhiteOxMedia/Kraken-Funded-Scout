@@ -193,6 +193,12 @@ try:
         for r in recs:
             f.write(json.dumps(r) + "\n")
     old_out = hs.OUTCOMES_FILE
+    # THE MISSING SANDBOX (battery triage, Sep 23): the redirect below is
+    # what keeps the rule extraction on the SEEDED correlation — without
+    # it the extractor reads the live outcomes ledger, and as production
+    # data grew past the support threshold the terciles went real and the
+    # seeded fast-route rule vanished (the drive then crashed on the
+    # hard-index check).
     hs.OUTCOMES_FILE = str(out_path)
     rules = hs.extract_rules(min_support=15)
     check("a clean feature/outcome correlation becomes a fast-route rule",
@@ -202,8 +208,8 @@ try:
           rules["fast_route"]["vol_burst"]["support"] >= 15
           and rules["fast_route"]["vol_burst"]["winner_rate"] > 0.8,
           rules["fast_route"].get("vol_burst"))
-    hs.OUTCOMES_FILE = old_out
 finally:
+    hs.OUTCOMES_FILE = old_out
     hs.RULES_FILE = old_rules
 
 # ── 6. the module's own wiring ───────────────────────────────────────

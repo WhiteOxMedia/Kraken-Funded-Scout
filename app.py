@@ -2272,8 +2272,9 @@ def _band_txt() -> str:
             if isinstance(_mc, (int, float)):
                 _t += f" · carve ceiling {_mc * 100:.1f}%"
             return _t
-    except Exception:
-        pass
+    except Exception as _exc:
+        logging.getLogger(__name__).debug(
+            "carve-out night-band text skipped: %s", _exc)
     return ""
 
 
