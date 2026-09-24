@@ -3034,9 +3034,18 @@ def _pulse_beat(phase: str = "done"):
     FROZEN for a machine that was working. phase="busy" refreshes
     last_cycle_ts and records phase=scan WITHOUT advancing the counter
     (cycles still count completed light cycles); the tournament's
-    finally clears back to idle. The console grants a 9-minute grace
-    while phase=scan — a scan-aware alive, not a lie: a scanner dead
-    mid-scan still goes FROZEN when the grace expires."""
+    finally clears back to idle. The console    grants a 9-minute grace while phase=scan — a scan-aware alive, not a
+    lie: a scanner dead mid-scan still goes FROZEN when the grace expires.
+
+    THE SELF-SIZING SCAN GRACE (Sep 24): the clock lives HERE, riding the
+    beats — the first busy beat of a hold stamps scan_started_ts, the
+    finally's clear beat (which fires on EVERY path, success or crash)
+    closes the tournament and records its real duration. The last 10
+    durations ride the pulse file and the console's grace self-sizes to
+    max(720, 1.25x the worst real scan) — no constant can go stale when
+    the market's scan grows, and a crashed tournament's duration only
+    lands if it is sane (30s..1800s), so a stranded clock can never
+    inflate the grace."""
     try:
         import json as _json
         _p = {}
@@ -3045,12 +3054,27 @@ def _pulse_beat(phase: str = "done"):
                 _p = _json.load(_fh)
         except Exception as exc:
             logger.debug("pulse read (first beat or unreadable — start at zero): %s", exc)
+        _now = time.time()
         if phase == "busy":
+            if _p.get("phase") != "scan":
+                _p["scan_started_ts"] = _now   # THIS hold starts the clock
             _p["phase"] = "scan"
         else:
+            if _p.get("phase") == "scan" and isinstance(
+                    _p.get("scan_started_ts"), (int, float)):
+                _dur = _now - float(_p["scan_started_ts"])
+                if 30.0 <= _dur <= 1800.0:     # sane tournaments only
+                    _durs = [float(d) for d in (_p.get("scan_durs") or [])
+                             if isinstance(d, (int, float))][-9:]
+                    _durs.append(_dur)
+                    _p["scan_durs"] = _durs    # the last 10 scans' memory
+                    _g = max(720.0, max(_durs) * 1.25)
+                    _p["scan_grace_s"] = int(min(1800.0, _g) + 29) // 30 * 30
+                    _p["scan_grace_set"] = _now
+            _p.pop("scan_started_ts", None)   # the clock closes on every path
             _p["cycles"] = int(_p.get("cycles", 0)) + 1
             _p["phase"] = "idle"
-        _p["last_cycle_ts"] = time.time()
+        _p["last_cycle_ts"] = _now
         _p["pid"] = os.getpid()
         _tmp = PULSE_JSON + ".tmp"
         with open(_tmp, "w", encoding="utf-8") as _fh:

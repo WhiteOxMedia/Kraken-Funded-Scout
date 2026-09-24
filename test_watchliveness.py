@@ -468,6 +468,103 @@ finally:
     bs.logger = _orig_logger7
     bs.PULSE_JSON = _orig_pulse7
 
+# ═══════════════════════════════════════════════════════════════════
+# 8. THE SELF-SIZING SCAN GRACE (Sep 24): the scanner measures every real
+# tournament (clock opens at the hold's first busy beat, closes at the
+# finally's clear beat — every path), keeps the last 10 durations in the
+# pulse file, and ships scan_grace_s = max(720, 1.25x the worst). The
+# console RENDERS that number — no constant can go stale when the
+# market's scan grows, and no crashed/stuck tournament can inflate it.
+print("== 8. the scan grace self-sizes to the worst real scan ==")
+_pulse_orig8 = bs.PULSE_JSON
+try:
+    bs.PULSE_JSON = str(_pulse_file6)
+    _now8 = time.time()
+
+    def _seed8(doc):
+        _pulse_file6.write_text(json.dumps(doc), encoding="utf-8")
+
+    # 8.1 a real tournament lands and the grace self-sizes above the floor
+    _seed8({"cycles": 5, "phase": "scan", "pid": 1,
+            "last_cycle_ts": _now8 - 10,
+            "scan_started_ts": _now8 - 600})
+    bs._pulse_beat()
+    _p8 = json.loads(_pulse_file6.read_text(encoding="utf-8"))
+    check(8.1, len(_p8.get("scan_durs") or []) == 1
+          and 598 <= _p8["scan_durs"][0] <= 605
+          and _p8.get("scan_grace_s") == 750,
+          f"a 600s tournament lands (durs={_p8.get('scan_durs')}) and the "
+          f"grace sizes to 1.25x = 750 (got {_p8.get('scan_grace_s')})")
+    # 8.2 the floor: a tiny scan never drags the grace under 720
+    _seed8({"cycles": 1, "phase": "scan", "pid": 1,
+            "last_cycle_ts": _now8 - 5,
+            "scan_started_ts": _now8 - 40})
+    bs._pulse_beat()
+    _p8b = json.loads(_pulse_file6.read_text(encoding="utf-8"))
+    check(8.2, (_p8b.get("scan_grace_s") == 720
+                and len(_p8b.get("scan_durs") or []) == 1),
+          f"a 40s scan records but the grace floors at 720 "
+          f"(got {_p8b.get('scan_grace_s')})")
+    # 8.3 a crashed/stuck tournament (insane duration) inflates nothing
+    _seed8({"cycles": 1, "phase": "scan", "pid": 1,
+            "last_cycle_ts": _now8 - 90000,
+            "scan_started_ts": _now8 - 90000})
+    bs._pulse_beat()
+    _p8c = json.loads(_pulse_file6.read_text(encoding="utf-8"))
+    check(8.3, not _p8c.get("scan_durs") and "scan_grace_s" not in _p8c,
+          "an insane duration (stranded clock) records nothing — the grace "
+          "can only be earned by sane tournaments (30s..1800s)")
+    # 8.4 the clock only closes what a hold opened (no phantom durations)
+    _seed8({"cycles": 2, "phase": "idle", "pid": 1,
+            "last_cycle_ts": _now8 - 5})
+    bs._pulse_beat()
+    _p8d = json.loads(_pulse_file6.read_text(encoding="utf-8"))
+    check(8.4, not _p8d.get("scan_durs") and "scan_started_ts" not in _p8d,
+          "an idle clear opens no clock and records no duration")
+    # 8.5 the memory is bounded — the last 10, never a growth without end
+    _seed8({"cycles": 9, "phase": "scan", "pid": 1,
+            "last_cycle_ts": _now8 - 5, "scan_started_ts": _now8 - 100,
+            "scan_durs": [100.0] * 12})
+    bs._pulse_beat()
+    _p8e = json.loads(_pulse_file6.read_text(encoding="utf-8"))
+    check(8.5, len(_p8e.get("scan_durs") or []) == 10,
+          f"the durations memory holds the last 10 (got "
+          f"{len(_p8e.get('scan_durs') or [])})")
+    # the console renders the scanner's own grace (the REAL chain, exec'd
+    # like section 6 — the same _NS6 namespace, same pulse file)
+    _write_pulse(9, 730, "scan")
+    _pp = json.loads(_pulse_file6.read_text(encoding="utf-8"))
+    _pp["scan_grace_s"] = 1200
+    _pulse_file6.write_text(json.dumps(_pp), encoding="utf-8")
+    check(8.6, "alive-scan" in _html() and "FROZEN" not in _html(),
+          "730s under a self-sized 1200s grace reads alive-scan — the old "
+          "720s constant would have cried FROZEN for a working scan")
+    _pp["last_cycle_ts"] = time.time() - 1300
+    _pulse_file6.write_text(json.dumps(_pp), encoding="utf-8")
+    check(8.7, "FROZEN" in _html(),
+          "past the self-sized grace a dead-mid-scan scanner still trips")
+    _pulse_file6.unlink(missing_ok=True)
+    _write_pulse(9, 730, "scan")
+    check(8.8, "FROZEN" in _html(),
+          "no scanner-taught grace in the file -> the fail-soft default is "
+          "the old 720 behavior (backward compatible)")
+    _pp = json.loads(_pulse_file6.read_text(encoding="utf-8"))
+    _pp["scan_grace_s"] = 5000
+    _pulse_file6.write_text(json.dumps(_pp), encoding="utf-8")
+    check(8.9, "FROZEN" in _html(),
+          "an absurd grace from a corrupt file is distrusted (the sanity "
+          "band 600..1800 bounds what the console will render)")
+finally:
+    bs.PULSE_JSON = _pulse_orig8
+# one-brain: the scanner computes the grace, the console renders it
+check(8.10, "max(720.0, max(_durs) * 1.25)" in src_bs
+      and "scan_grace_s" in src_bs,
+      "the scanner's beat computes and ships the self-sized grace")
+check(8.11, "scan_grace_s" in app and "600 <=" in app
+      and "max(_durs)" not in app,
+      "the console renders the scanner's grace (with a sanity band) and "
+      "never recomputes the durations memory (one-brain)")
+
 import shutil
 shutil.rmtree(TMP, ignore_errors=True)
 print(f"\nRESULT: {len(P)} passed, {len(F)} failed")

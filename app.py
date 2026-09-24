@@ -7150,16 +7150,29 @@ def _pulse_html():
     pre-empting the scan branch entirely — a 2-4 minute scan lull read
     'slow' for a machine that was mid-bracket). Past the grace: FROZEN
     — a scanner dead mid-scan is still caught, and the per-pair stamps
-    (SILENT >180s) never get scan grace."""
+    (SILENT >180s) never get scan grace.
+
+    THE GRACE SELF-SIZES (Sep 24): the scanner measures every real
+    tournament (the pulse's scan_durs memory) and ships scan_grace_s =
+    max(720, 1.25x the worst of the last 10); this page RENDERS that
+    number (one-brain: the scanner decides, the console never
+    computes) with a fail-soft default to the old 720 when the
+    scanner hasn't taught the file yet."""
     cyc, age = _scanner_pulse()
     if cyc is None:
         return ("<span style='color:#ffc36b;'>scanner: no heartbeat yet — "
                 "give it a minute (or start the scanner)</span>")
     _scanning = False   # fail-soft: an unreadable phase is just the old rule
+    _grace = 720        # the pre-self-sizing default — a file without the
+                        # memory still renders the old, known behavior
     try:
         import json as _json
         with open(PULSE_JSON, "r", encoding="utf-8") as _fh:
-            _scanning = (_json.load(_fh).get("phase") == "scan")
+            _pp = _json.load(_fh)
+            _scanning = (_pp.get("phase") == "scan")
+            _g = _pp.get("scan_grace_s")
+            if isinstance(_g, (int, float)) and 600 <= float(_g) <= 1800:
+                _grace = float(_g)
     except Exception as _scan_exc:
         # fail-soft by design: an unreadable pulse file renders as idle
         # (the plate's fail-soft rule) — the trace keeps the reason visible
@@ -7168,8 +7181,9 @@ def _pulse_html():
     if _scanning:
         # the phase reads FIRST (Sep 23): a running scan is never 'slow'
         # by the generic band, and the grace is the observed worst scan
-        # plus margin — a scanner dead mid-scan still trips it
-        if age <= 720:
+        # plus margin (self-sized from the scanner's own measurements,
+        # never a constant) — a scanner dead mid-scan still trips it
+        if age <= _grace:
             col, word = "#4be38a", "alive-scan (tournament running)"
         else:
             col, word = "#ff6b5e", "FROZEN (scan grace expired)"
