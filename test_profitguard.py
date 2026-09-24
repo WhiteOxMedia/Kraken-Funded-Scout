@@ -50,7 +50,11 @@ _ORIG_FACTS = pg._daily_facts
 
 _REAL_ROOT = pg.ROOT
 pg.ROOT = TMP                    # thresholds + state + trades all in tmp now
-pg.STATE_FILE = TMP / "profit_guard_state.json"  # leak-audit: ok (suite-long redirect into the mkdtemp world; restore-never, suite-per-process)
+# (the old suite-long STATE_FILE pin is GONE, Sep 24: state now follows
+# ROOT per call — _state_file() derives it from the CURRENT ROOT, so
+# every sandbox redirect below is hermetic without a manual pin. The
+# explicit-pin contract is still proven at 9.0 and used by the LIVE
+# probes with their byte-exact restore.)
 (TMP / "rotation_thresholds.json").write_text(json.dumps({
     "median": {"weekday": {
         "08-12": {"avg_move": 2.4, "std": 1.5, "median_volume_usd": 60000,
@@ -286,18 +290,52 @@ check(8.6, _dead["readable"] is False and _dead["factor"] == 1.0,
       "(the committed fixed rules stand)")
 check(8.7, pg.trail_pct(3.0, _dead) is None and pg.lockin_pct(_dead) is None,
       "an unreadable factor yields NO trail/lock-in override")
-for f in (TMP / "profit_guard_state.json",):
-    f.write_text(json.dumps({"adjusted_on": "2026-09-21", "factor": 1.3}),
+for f in (pg.ROOT / "profit_guard_state.json",):
+    # the fixture goes where the module CURRENTLY resolves state — the
+    # sandbox ROOT — never a hardcoded TMP (the old shape wrote the
+    # fixture to TMP while ROOT pointed here; the pin passed only
+    # while the live production state stayed stale). The stamp is
+    # YESTERDAY against the real clock: the carry rule refuses a
+    # factor older than 2 days, so a hardcoded date would time-bomb.
+    _yest = (datetime.now(_MST) - timedelta(days=1)).date().isoformat()
+    f.write_text(json.dumps({"adjusted_on": _yest, "factor": 1.3}),
                  encoding="utf-8")
 _reset()
 _carried = pg.guard_factor("ZEC/USD", w_fresh)
+_sf = pg._state_file()
 check(8.8, _carried["readable"] is True and _carried["factor"] == 1.3
-      and _carried["carried_from"] == "2026-09-21",
-      "loop dead but yesterday's factor stored -> carried (readable, 1.3)")
+      and _carried["carried_from"] == _yest,
+      f"loop dead but yesterday's factor stored -> carried (readable, 1.3) "
+      f"[got readable={_carried.get('readable')} factor={_carried.get('factor')} "
+      f"from={_carried.get('carried_from')} want-from={_yest} "
+      f"root={pg.ROOT} sf={_sf} sf-exists={_sf.exists()} "
+      f"sf-body={_sf.read_text(encoding='utf-8')[:60] if _sf.exists() else ''}]")
+# THE HERMETIC-REDIRECT PIN (Sep 24, the 8.8 lesson): a ROOT redirect
+# must move the state file with it — the old import-time STATE_FILE
+# binding kept probes on the LIVE production file (the metalayers
+# latent-bomb class: green until the scanner stamped a fresh factor).
+pg._ENV_CACHE.update(ts=0.0, v=None)
+(HERE / "_pgtmp_nothresholds" / "profit_guard_state.json").unlink(missing_ok=True)
+_herm = pg.guard_factor("ZEC/USD", w_fresh)
+check(8.81, _herm["readable"] is False and _herm["factor"] == 1.0,
+      "a fresh ROOT with no state file carries NOTHING — the redirect is "
+      "hermetic (the live stamp cannot leak through)")
 
 # ════════ 9. the daily self-adjustment loop ════════
 print("== 9. step 10: the cooldown self-adjustment ==")
 pg.ROOT = TMP
+# the state-path contract's other half: an EXPLICIT pin still wins over
+# the ROOT derivation (the LIVE probes' documented restore mechanism)
+pg.STATE_FILE = TMP / "pinned_state.json"
+pg._ENV_CACHE.update(ts=0.0, v=None)
+_yest2 = (datetime.now(_MST) - timedelta(days=1)).date().isoformat()
+(TMP / "pinned_state.json").write_text(
+    json.dumps({"adjusted_on": _yest2, "factor": 1.3}), encoding="utf-8")
+_pinned = pg.guard_factor("ZEC/USD", w_fresh)
+check(9.0, _pinned.get("carried_from") == _yest2,
+      "an explicit STATE_FILE pin wins over the ROOT derivation (the LIVE "
+      "probes' contract)")
+pg.STATE_FILE = None   # back to ROOT-derived for the rest of the drive
 pg._daily_facts = lambda when=None: {"score": 90.0, "total_left": 15.0,
                                      "daily_pace": 60.0}
 pg.rotation_strength = lambda when=None: 4

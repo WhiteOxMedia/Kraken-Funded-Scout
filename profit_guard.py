@@ -76,7 +76,16 @@ VOL_WINDOW = 100          # the guard's DIRECT candle window (Sep 23:
                           # learned per-cell std over weeks of candles)
 BASE_LOCK_IN_PCT = 1.0    # the lock width the armed cap normalizes against
 
-STATE_FILE = ROOT / "profit_guard_state.json"
+# THE STATE PATH IS RESOLVED PER CALL (Sep 24, the 8.8 lesson): the old
+# module-level `STATE_FILE = ROOT / ...` froze the REAL path at import,
+# so every drive's `pg.ROOT = sandbox` redirect silently kept reading
+# and writing the LIVE production state — the probe passed only while
+# the live stamp was stale, and failed the day the scanner stamped a
+# fresh factor (the metalayers latent-bomb class, caught red-handed).
+# _state_file() now prefers an explicitly-set STATE_FILE (the LIVE
+# probes pin it to the real file and restore it byte-exact) and
+# otherwise derives from the CURRENT ROOT — production resolves to the
+# same file it always did; a redirected probe world is finally hermetic.
 
 
 # ── 1. the environment ───────────────────────────────────────────────────
@@ -547,15 +556,22 @@ def lockin_pct(res: dict) -> float | None:
 
 
 # ── 10. the daily self-adjustment loop ───────────────────────────────────
+def _state_file() -> Path:
+    sf = globals().get("STATE_FILE")
+    if sf is not None:
+        return Path(sf)          # an explicit pin (the LIVE probes) wins
+    return ROOT / "profit_guard_state.json"   # resolved NOW, not at import
+
+
 def _state() -> dict:
     try:
-        return json.loads(STATE_FILE.read_text(encoding="utf-8"))
+        return json.loads(_state_file().read_text(encoding="utf-8"))
     except Exception:
         return {}
 
 
 def _save(st: dict) -> None:
-    STATE_FILE.write_text(json.dumps(st, indent=2), encoding="utf-8")
+    _state_file().write_text(json.dumps(st, indent=2), encoding="utf-8")
 
 
 def stored_factor() -> float | None:

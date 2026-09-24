@@ -63,8 +63,11 @@ PULSE = TMP / "scanner_pulse.json"
 WATCH = TMP / "contest_watch.json"
 GSTATE = TMP / "profit_guard_state.json"
 
-_real_pulse, _real_watch, _real_gstate = (
-    bs.PULSE_JSON, bs.CONTEST_WATCH_JSON, pg.STATE_FILE)
+_real_pulse, _real_watch = bs.PULSE_JSON, bs.CONTEST_WATCH_JSON
+# the guard's state path is ROOT-derived per call now (Sep 24) — capture
+# the MODULE DEFAULT via getattr (an explicit pin may not exist)
+_real_gstate = getattr(pg, "STATE_FILE", None)
+_real_pg_root = pg.ROOT
 
 try:
     # GUARDED SWAPS (testleaks, Sep 23): installed inside the try whose
@@ -72,7 +75,8 @@ try:
     # scenarios can never strand a sandbox pointer on a crash.
     bs.PULSE_JSON = str(PULSE)
     bs.CONTEST_WATCH_JSON = str(WATCH)
-    pg.STATE_FILE = GSTATE
+    pg.ROOT = TMP                    # the state path follows ROOT per call
+    pg.STATE_FILE = GSTATE           # explicit pin still wins (belt + braces)
     # ── 1. THE PULSE SURVIVES ────────────────────────────────────────
     PULSE.write_text(json.dumps({"cycles": 499, "last_cycle_ts": 0.0,
                                  "pid": 26208}), encoding="utf-8")
@@ -180,7 +184,8 @@ try:
 
         # ── THE REBOOT: a fresh module, no process memory ──
         importlib.reload(pg)
-        pg.STATE_FILE = GSTATE          # the reload restores the module default
+        pg.ROOT = TMP           # the reload restores the ROOT default
+        pg.STATE_FILE = GSTATE  # re-pin (belt + braces for the guard state)
         check("guard: after a REBOOT (fresh module) the same-day gate "
               "still holds — the date lives in the FILE, not the process",
               pg.self_adjust(now=_today) is None,
@@ -215,7 +220,7 @@ try:
     check("census: the watch loader reads disk per call",
           "open(CONTEST_WATCH_JSON" in _sv)
     check("census: the guard's state is read per call (no cache)",
-          "json.loads(STATE_FILE.read_text" in
+          "json.loads(_state_file().read_text" in
           (BASE / "profit_guard.py").read_text(encoding="utf-8")
           .replace("\r\n", "\n"))
     check("census: the DAY-review guard reads discipline state per call "
@@ -224,8 +229,12 @@ try:
           and 'h.get("rot") == "DAY"' in _sv
           and "load_state().get(" in _sv)
 finally:
-    bs.PULSE_JSON, bs.CONTEST_WATCH_JSON, pg.STATE_FILE = (
-        _real_pulse, _real_watch, _real_gstate)
+    bs.PULSE_JSON, bs.CONTEST_WATCH_JSON = _real_pulse, _real_watch
+    pg.ROOT = _real_pg_root
+    if _real_gstate is not None:
+        pg.STATE_FILE = _real_gstate
+    else:
+        pg.STATE_FILE = None    # back to the ROOT-derived default
     for _p in PULSE, WATCH, GSTATE:
         try:
             _p.unlink()
