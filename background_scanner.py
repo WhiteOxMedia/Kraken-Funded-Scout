@@ -3425,6 +3425,20 @@ def contest_light(exchange, cfg):
                 "gf_max": (_meta or {}).get("gf_max"),
                 "max_carve": (_meta or {}).get("max_carve"),
             }
+            # ── THE TRI-WATCH EXIT STAMP (user spec, Sep 23): the
+            # ExitWatch read rides the same breakdown heartbeat — the
+            # console renders the watch's why, it never computes it
+            # (one-brain). The force GATE reads this same stamp below,
+            # after every calibrated gate has had its say.
+            try:
+                import tri_watch as _tw
+                _tw_es = _tw.exit_state(pair, _pgf)
+                _tw_es.pop("trend", None)          # the stamp stays flat
+                w["exit_watch"] = _tw_es
+                dirty = True
+            except Exception as _tw_exc:
+                logger.debug("tri-watch stamp failed for %s: %s",
+                             pair, _tw_exc)
             dirty = True
         _trail = _ratchet_trail_pct(entry, high, size)
         if _pgf is not None:
@@ -3539,6 +3553,22 @@ def contest_light(exchange, cfg):
                 # stuck hold is explainable
                 logger.warning("exit-strategy read failed for %s (%s) — "
                                "this cycle exits on the other gates only", pair, exc)
+
+        # ── 3. THE EXIT WATCH'S FORCE GATE (user spec, Sep 23) — the
+        # LAST gate: the profit guard's trail, the hard stop and the
+        # trend sell bar are the calibrated exits and get their say
+        # first. ExitMod > EXITMOD_FORCE (a maxed reversal + exhaustion
+        # on a dead trend read) arms the Get Out — same popup → push →
+        # auto-close path as every other gate, never a silent close.
+        if not should_exit:
+            try:
+                _tw_gate = w.get("exit_watch")
+                if isinstance(_tw_gate, dict) and _tw_gate.get("force_exit"):
+                    should_exit = True
+                    reason = str(_tw_gate.get("force_reason") or
+                                 "EXIT WATCH — the trend read says this move is done")
+            except Exception:
+                pass
 
         # (Sep 21, user rule: the window NEVER exits by itself — "I don't
         # want to Exit simply because 'Time's up'. Stay close, and fire a
@@ -6156,6 +6186,60 @@ def main():
                                 "ON" if _con["lone_wolf"] else "OFF")
                 except Exception as _exc:
                     logger.debug("carve-out night update failed: %s", _exc)
+                # ── THE BOUNDARY CROSS-EXAMINATION TICK (user spec,
+                # Sep 23, section 5: the cooldown summary runs the exam
+                # every 6 rotations, feeds WARN/FAIL to the correction
+                # module, reschedules +3). One night = one rotation, so
+                # the rotation count derives from the DNL ledger's
+                # readable clamp_bounds records — restart-proof, no
+                # counter to drift. Fail-soft like every clause.
+                try:
+                    import carve_out as _co_x
+                    import meta_layers as _ml_x
+                    _dnl = _ml_x._state().get("dnl") or {}
+                    _rotations = sum(
+                        1 for _d in _dnl
+                        if ((_dnl.get(_d) or {}).get("_data") or {})
+                        .get("clamp_bounds", {}).get("readable"))
+                    if _rotations >= _co_x._EXAM_EVERY_N \
+                            and _rotations >= _co_x._next_exam_due():
+                        _exam = _co_x.cross_examine(now)
+                        if _exam:
+                            logger.info("🔍 BOUNDARY CROSS-EXAM (rotation %d): %s — %s",
+                                        _rotations, _exam.get("FinalVerdict"),
+                                        _exam.get("Summary"))
+                            for _fam, _fd in (_exam.get("families") or {}).items():
+                                logger.info("   %s: %s (%s)", _fam,
+                                            "ok" if _fd.get("ok") else "NOT ok",
+                                            _fd.get("evidence"))
+                            _corr = _co_x.cross_examine_corrections(_exam, now)
+                            if _corr.get("applied"):
+                                logger.info("   boundary corrections applied: %s "
+                                            "(expire %s)",
+                                            ", ".join(_corr["applied"]),
+                                            _corr.get("expires"))
+                            elif _corr.get("cleared"):
+                                logger.info("   boundary corrections cleared "
+                                            "— the bands held their exam")
+                    _co_x._schedule_exam(now)
+                except Exception as _exc:
+                    logger.debug("boundary cross-exam tick failed: %s", _exc)
+                # THE TRI-WATCH COOLDOWN SNAPSHOT (user spec, Sep 23,
+                # section 5): one read of every watched pair's exit
+                # state at the cooldown boundary — the day's ExitMod
+                # high-water mark and the near-missed force exits ride
+                # the ledger for tomorrow's exam.
+                try:
+                    import tri_watch as _tws
+                    _snap = _tws.snapshot(now)
+                    if _snap:
+                        logger.info("👁 TRI-WATCH snapshot: %d pair(s) read, "
+                                    "day ExitMod high %.2f, forced exits %d",
+                                    len(_snap.get("pairs") or {}),
+                                    float(_snap.get("exitmod_high") or 0),
+                                    int(_snap.get("force_exits") or 0))
+                except Exception as _exc:
+                    logger.debug("tri-watch snapshot failed: %s", _exc)
             except Exception as _exc:
                 logger.debug("cooldown review failed: %s", _exc)
 

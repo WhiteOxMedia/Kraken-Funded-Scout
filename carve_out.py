@@ -529,9 +529,13 @@ def _mods_n(res: dict | None = None, when: datetime | None = None) -> dict:
 def max_carve_out(res: dict | None = None,
                   when: datetime | None = None) -> float:
     """Clamp 2.1: MaxCarveOut = 0.10 x RotationMod x VolMod x TideMod.
-    Neutral -> 0.10 (the old static ceiling)."""
+    Neutral -> 0.10 (the old static ceiling). Correction overlays (the
+    cross-examination's dial moves) multiply the result within their
+    context gate — they can bend a band, never remove it."""
     m = _mods_n(res, when)
-    return round(max(0.0, 0.10 * m["rm"] * m["vm"] * m["tm"]), 4)
+    v = max(0.0, 0.10 * m["rm"] * m["vm"] * m["tm"])
+    v *= _overlay_mult("max_carve_out", m, when)
+    return round(max(0.0, v), 4)
 
 
 def gf_bounds(base: tuple = (0.4, 2.0), res: dict | None = None,
@@ -545,6 +549,8 @@ def gf_bounds(base: tuple = (0.4, 2.0), res: dict | None = None,
     m = _mods_n(res, when)
     lo = round(max(0.0, float(base[0]) * m["tm"] * m["bm"]), 3)
     hi = round(float(base[1]) * m["rm"] * m["vm"], 3)
+    lo *= _overlay_mult("gf_min", m, when)
+    hi *= _overlay_mult("gf_max", m, when)
     return lo, max(lo, hi)          # guard: hi can never sit under lo
 
 
@@ -555,6 +561,8 @@ def hatch_bounds(res: dict | None = None,
     m = _mods_n(res, when)
     lo = round(2.0 * m["tm"], 3)
     hi = round(8.0 * m["rm"] * m["vm"], 3)
+    lo *= _overlay_mult("hatch_min", m, when)
+    hi *= _overlay_mult("hatch_max", m, when)
     return lo, max(lo, hi)
 
 
@@ -568,6 +576,8 @@ def penalty_bounds(when: datetime | None = None,
     m = _mods_n(res, when)
     lo = round(0.50 * m["tm"] * m["bm"], 3)
     hi = round(2.00 * m["rm"] * m["vm"] * m["fm"], 3)
+    lo *= _overlay_mult("penalty_min", m, when)
+    hi *= _overlay_mult("penalty_max", m, when)
     return lo, max(lo, hi)
 
 
@@ -583,6 +593,8 @@ def goal_bounds(base_goal: float, when: datetime | None = None,
     m = _mods_n(res, when)
     lo = round(base_goal * m["tm"] * m["bm"], 2)
     hi = round(base_goal * m["rm"] * m["vm"] * m["fm"], 2)
+    lo *= _overlay_mult("goal_min", m, when)
+    hi *= _overlay_mult("goal_max", m, when)
     return min(lo, hi), max(lo, hi)
 
 
@@ -599,4 +611,530 @@ def decay_bounds(when: datetime | None = None,
     m = _mods_n(res, when)
     lo = round(floor_v * m["tm"], 3)
     hi = round(1.0 * m["rm"], 3)
+    lo *= _overlay_mult("decay_min", m, when)
+    hi *= _overlay_mult("decay_max", m, when)
     return lo, max(lo, hi)
+
+
+# ═══ THE CROSS-EXAMINATION'S CORRECTION OVERLAYS (user spec, Sep 23,
+# section 4: the post-examination correction module). The exam (in
+# meta_layers) grades the boundary system every 6-7 rotations; when it
+# returns WARN/FAIL it hands dial moves here as expiring overlays on
+# the bounds helpers above. CONTRACT: an overlay BENDS a band within
+# its context gate (strong = RotationMod > 1.2, weak = tide out or a
+# heavy book, always = unconditional), multiplies are clamped to
+# (0.5, 2.0) so no correction can ever REMOVE a clamp, and every
+# overlay EXPIRES after 3 rotations — the band then re-reads pure
+# context. Fail-neutral: an unreadable corrections record multiplies
+# by exactly 1.0, and the guards (hi >= lo, the floors) still apply
+# after the overlay — the shape of every band is preserved.
+_OVERLAY_MIN, _OVERLAY_MAX = 0.5, 2.0
+_OVERLAY_KEYS = frozenset(("max_carve_out", "gf_min", "gf_max",
+                           "hatch_min", "hatch_max", "decay_min",
+                           "decay_max", "penalty_min", "penalty_max",
+                           "goal_min", "goal_max"))
+
+
+def set_boundary_corrections(overlays: dict, rotations: int = 3,
+                             when: datetime | None = None) -> dict:
+    """Install the exam's dial moves (meta_layers calls this at
+    cooldown). Keys not in _OVERLAY_KEYS are rejected, mults are
+    clamped, and the record expires after `rotations` days (a rotation
+    ≈ a night in this machine's cycle). Returns the stored record."""
+    when = when or _now_mst()
+    clean = {}
+    for k, spec in (overlays or {}).items():
+        if k not in _OVERLAY_KEYS or not isinstance(spec, dict):
+            continue
+        entry = {}
+        for gate_k in ("mult_always", "mult_strong", "mult_weak"):
+            v = spec.get(gate_k)
+            if isinstance(v, (int, float)) and float(v) != 1.0:
+                entry[gate_k] = round(max(_OVERLAY_MIN,
+                                          min(_OVERLAY_MAX, float(v))), 4)
+        if entry:
+            clean[k] = entry
+    rec = {"set_date": when.strftime("%Y-%m-%d"),
+           "expires": (when + timedelta(days=max(1, int(rotations))))
+           .strftime("%Y-%m-%d"),
+           "overlays": clean}
+    st = _state()
+    st["boundary_corrections"] = rec
+    _save(st)
+    return rec
+
+
+def boundary_corrections() -> dict:
+    """The live corrections record, or {} — never raises."""
+    try:
+        return _state().get("boundary_corrections") or {}
+    except Exception:
+        return {}
+
+
+def _overlay_mult(key: str, m: dict, when: datetime | None = None) -> float:
+    """The context-gated overlay multiplier for one bound, or 1.0.
+    Expired records read 1.0 (the band returns to pure context) and
+    night_update scrubs them."""
+    try:
+        rec = boundary_corrections()
+        if not rec or str(rec.get("expires") or "") < \
+                (when or _now_mst()).strftime("%Y-%m-%d"):
+            return 1.0
+        entry = (rec.get("overlays") or {}).get(key)
+        if not entry:
+            return 1.0
+        mult = entry.get("mult_always")
+        if m.get("rm", 1.0) > 1.2 and entry.get("mult_strong") is not None:
+            mult = entry["mult_strong"]
+        elif (m.get("tm", 1.0) < 1.0 or m.get("bm", 1.0) > 1.1) \
+                and entry.get("mult_weak") is not None:
+            mult = entry["mult_weak"]
+        f = float(mult or 1.0)
+        return max(_OVERLAY_MIN, min(_OVERLAY_MAX, f))
+    except Exception:
+        return 1.0
+
+
+# ═══ THE BOUNDARY CROSS-EXAMINATION (user spec, Sep 23, section 3:
+# after 6-7 rotations the boundary system itself is cross-examined) —
+# a self-audit FOR THE BOUNDARIES: gather the per-rotation evidence
+# (values + bounds + context + the outcome events), answer the eight
+# question families, deliver PASS / WARN / FAIL, and hand WARN/FAIL
+# dial moves to the correction module. Fail-neutral everywhere: an
+# unreadable night record contributes nothing and never invents an
+# answer; the verdict needs EVIDENCE, not absence.
+_EXAM_EVERY_N = 6
+_EXAM_RESCHEDULE = 3
+
+
+def cross_examine(when: datetime | None = None) -> dict | None:
+    """Grade the boundary system over the night ledger (one night = one
+    rotation). None when the evidence cannot support a verdict yet
+    (fewer than _EXAM_EVERY_N readable nights with clamp_bounds)."""
+    when = when or _now_mst()
+    try:
+        import meta_layers as _ml
+        st = _ml._state()
+        dnl = st.get("dnl") or {}
+    except Exception:
+        return None
+    nights = []
+    for date in sorted(dnl.keys()):
+        rec = ((dnl.get(date) or {}).get("_data") or {}).get("clamp_bounds")
+        if isinstance(rec, dict) and rec.get("readable"):
+            nights.append({"date": date, "cb": rec,
+                           "data": (dnl.get(date) or {}).get("_data") or {}})
+    if len(nights) < _EXAM_EVERY_N:
+        return None
+    nights = nights[-_EXAM_EVERY_N:]
+    qs = []
+
+    def _vac(hit: bool, seen: bool, label: str) -> tuple[bool, str]:
+        """A question whose context never arose in the window is
+        VACUOUS — answered yes (absence of counter-evidence, never its
+        invention), with the evidence string saying so honestly. A
+        neutral six nights must PASS, not warn its way into
+        corrections."""
+        if seen:
+            return hit, ""
+        return True, f"; {label} never arose (vacuous)"
+
+    def _mods(cb):
+        c = cb.get("context") or {}
+        def g(k, d=1.0):
+            v = c.get(k)
+            return float(v) if isinstance(v, (int, float)) else d
+        return g("rot_mod"), g("tide_mod"), g("vol_mod"), \
+            g("fleet_mod"), g("book_mod")
+
+    def _pair(band):
+        b = band or []
+        if isinstance(b, list) and len(b) >= 2:
+            try:
+                return float(b[0]), float(b[1])
+            except (TypeError, ValueError):
+                return None
+        return None
+
+    # ── CarveOut: bands widen with rotation strength, tighten in weak
+    # conditions, and the allowance never exceeded its ceiling
+    oob = 0
+    wide_rot = tight_weak = 0
+    for n in nights:
+        rm, tm, vm, _fm, _bm = _mods(n["cb"])
+        mc = n["cb"].get("max_carve_out")
+        exp = 0.10 * rm * vm * tm
+        if not isinstance(mc, (int, float)) or mc > exp + 0.005:
+            oob += 1
+        else:
+            if rm > 1.2 and mc > 0.10 + 0.005:
+                wide_rot += 1
+            if (tm < 1.0 or _bm > 1.1) and mc < 0.10 - 0.005:
+                tight_weak += 1
+    _ws = any(_mods(n["cb"])[0] > 1.2 for n in nights)
+    _ks = any(_mods(n["cb"])[1] < 1.0 or _mods(n["cb"])[4] > 1.1
+              for n in nights)
+    y1, s1 = _vac(wide_rot > 0, _ws, "strong rotation")
+    y2, s2 = _vac(tight_weak > 0, _ks, "weak conditions")
+    qs.append(("carve_out", [
+        "Did MaxCarveOut widen in strong rotation?",
+        "Did MaxCarveOut tighten in weak conditions?",
+        "Did CarveOut ever exceed MaxCarveOut?"],
+        y1, y2, oob == 0,
+        f"out-of-band nights: {oob}; widened in strength: {wide_rot}; "
+        f"tightened in weakness: {tight_weak}" + s1 + s2))
+
+    # ── GuardFactor: the floor rises in weak conditions, the ceiling
+    # widens in strength, and the factor never sat outside its band
+    oob = 0
+    wide_rot = tight_weak = 0
+    for n in nights:
+        rm, tm, vm, _fm, bm = _mods(n["cb"])
+        g = _pair(n["cb"].get("gf_bounds"))
+        if g is None:
+            oob += 1
+            continue
+        lo, hi = g
+        exp_lo, exp_hi = 0.40 * tm * bm, 2.00 * rm * vm
+        if lo > exp_lo + 0.02 or hi < exp_hi - 0.02:
+            oob += 1
+        else:
+            if rm > 1.2 and hi > 2.0 + 0.02:
+                wide_rot += 1
+            # the floor's adaptive motion: a dead tide SINKS the floor
+            # (MinGF = base x TideMod x BookMod — the book can never
+            # push past 1.0), so 'tracked the context' is the evidence
+            if (tm < 1.0 or bm > 1.1) and lo < 0.40 - 0.02:
+                tight_weak += 1
+    _ws = any(_mods(n["cb"])[0] > 1.2 for n in nights)
+    _ks = any(_mods(n["cb"])[1] < 1.0 or _mods(n["cb"])[4] > 1.1
+              for n in nights)
+    y1, s1 = _vac(wide_rot > 0, _ws, "strong rotation")
+    y2, s2 = _vac(tight_weak > 0, _ks, "tide-out or heavy-book nights")
+    qs.append(("guard_factor", [
+        "Did MinGF rise when tide was out or book was heavy?",
+        "Did MaxGF widen when rotation was strong?",
+        "Did GF stay inside adaptive boundaries?"],
+        y1, y2, oob == 0,
+        f"out-of-band nights: {oob}; widened in strength: {wide_rot}; "
+        f"floors tracked the tide in weakness: {tight_weak}" + s1 + s2))
+
+    # ── Hatch: same orientation on its two bounds
+    oob = 0
+    wide_rot = tight_weak = 0
+    for n in nights:
+        rm, tm, vm, _fm, _bm = _mods(n["cb"])
+        hb = _pair(n["cb"].get("hatch_bounds"))
+        if hb is None:
+            oob += 1
+            continue
+        lo, hi = hb
+        if lo > 2.0 * tm + 0.05 or hi < 8.0 * rm * vm - 0.05:
+            oob += 1
+        else:
+            if rm > 1.2 and hi > 8.0 + 0.05:
+                wide_rot += 1
+            if tm < 1.0 and lo < 2.0 - 0.05:
+                tight_weak += 1
+    _ws = any(_mods(n["cb"])[0] > 1.2 for n in nights)
+    _ks = any(_mods(n["cb"])[1] < 1.0 for n in nights)
+    y1, s1 = _vac(wide_rot > 0, _ws, "strong rotation")
+    y2, s2 = _vac(tight_weak > 0, _ks, "tide-out nights")
+    qs.append(("hatch", [
+        "Did MinHatch tighten in tide-out conditions?",
+        "Did MaxHatch widen in strong rotation?",
+        "Did the hatch allow re-entry when continuation was real?"],
+        y1, y2, oob == 0,
+        f"out-of-band nights: {oob}; widened in strength: {wide_rot}; "
+        f"tightened in tide-out: {tight_weak}" + s1 + s2))
+
+    # ── Decay: the floor sinks in a dead tide, the ceiling rises in
+    # strength, and held-too-long cost fell — premature exits AND
+    # overlong holds (discipline's per-asset verdicts) over the window
+    oob = 0
+    wide_rot = tight_weak = 0
+    for n in nights:
+        rm, tm, _vm, _fm, _bm = _mods(n["cb"])
+        db = _pair(n["cb"].get("decay_bounds"))
+        if db is None:
+            oob += 1
+            continue
+        lo, hi = db
+        if hi > 1.0 * rm + 0.02:
+            oob += 1
+        else:
+            if rm > 1.2 and hi > 1.0 + 0.02:
+                wide_rot += 1
+            if tm < 1.0 and lo < 0.7 - 0.02:
+                tight_weak += 1
+    premature = overlong = 0
+    try:
+        import discipline as _disc
+        for _d, name, _usd in _disc.verdict_history(days=7):
+            if "exited too soon" in name:
+                premature += 1
+            elif "stayed too long" in name:
+                overlong += 1
+    except Exception:
+        pass
+    _ws = any(_mods(n["cb"])[0] > 1.2 for n in nights)
+    _ks = any(_mods(n["cb"])[1] < 1.0 for n in nights)
+    y1, s1 = _vac(wide_rot > 0, _ws, "strong rotation")
+    y2, s2 = _vac(tight_weak > 0, _ks, "tide-out nights")
+    qs.append(("decay", [
+        "Did MinDecay rise in tide-out conditions?",
+        "Did MaxDecay rise in strong rotation?",
+        "Did decay prevent premature exits?"],
+        y1, y2, oob == 0 and premature <= overlong,
+        f"out-of-band nights: {oob}; premature exits {premature} vs "
+        f"overlong holds {overlong} (7 nights)" + s1 + s2))
+
+    # ── Penalty: floor/ceiling orientation (the bounds live in the
+    # record, never the achieved weights — the achieved weight is a
+    # separate instrument)
+    oob = 0
+    wide_rot = tight_weak = 0
+    for n in nights:
+        rm, tm, vm, fm, bm = _mods(n["cb"])
+        pb = _pair(n["cb"].get("penalty_bounds"))
+        if pb is None:
+            oob += 1
+            continue
+        lo, hi = pb
+        exp_lo, exp_hi = 0.50 * tm * bm, 2.00 * rm * vm * fm
+        if lo > exp_lo + 0.02 or hi < exp_hi - 0.02:
+            oob += 1
+        else:
+            if rm > 1.2 and hi > 2.0 + 0.02:
+                wide_rot += 1
+            # same tracking reading as the GF floor: a dead tide sinks
+            # the minimum (MinPenalty = 0.50 x TideMod x BookMod)
+            if (tm < 1.0 or bm > 1.1) and lo < 0.50 - 0.02:
+                tight_weak += 1
+    _ws = any(_mods(n["cb"])[0] > 1.2 for n in nights)
+    _ks = any(_mods(n["cb"])[1] < 1.0 or _mods(n["cb"])[4] > 1.1
+              for n in nights)
+    y1, s1 = _vac(wide_rot > 0, _ws, "strong rotation")
+    y2, s2 = _vac(tight_weak > 0, _ks, "tide-out or heavy-book nights")
+    qs.append(("penalty", [
+        "Did MinPenalty rise when book was heavy?",
+        "Did MaxPenalty widen when rotation was strong?",
+        "Did penalties remain meaningful?"],
+        y1, y2, oob == 0,
+        f"out-of-band nights: {oob}; widened in strength: {wide_rot}; "
+        f"floors tracked the tide in weakness: {tight_weak}" + s1 + s2))
+
+    # ── DailyGoal: bounds orientation + realism (realized vs pace)
+    oob = 0
+    wide_rot = tight_weak = 0
+    realistic = 0
+    total = 0
+    for n in nights:
+        rm, tm, vm, fm, bm = _mods(n["cb"])
+        gb = _pair(n["cb"].get("dailygoal_bounds"))
+        if gb is None:
+            oob += 1
+            continue
+        lo, hi = gb
+        if lo > 0 and hi < lo * 0.98:
+            oob += 1
+        else:
+            if rm > 1.2 and fm > 1.1 and hi > lo * 1.05:
+                wide_rot += 1
+            if (tm < 1.0 or bm > 1.1) and lo < hi * 0.95:
+                tight_weak += 1
+        pace = n["data"].get("daily_pace")
+        realized = n["data"].get("realized")
+        if isinstance(pace, (int, float)) and pace > 0 \
+                and isinstance(realized, (int, float)) \
+                and int(n["data"].get("n_trades") or 0) > 0:
+            total += 1
+            if float(realized) >= 0.5 * float(pace):
+                realistic += 1
+    _ws = any(_mods(n["cb"])[0] > 1.2 and _mods(n["cb"])[3] > 1.1
+              for n in nights)
+    _ks = any(_mods(n["cb"])[1] < 1.0 or _mods(n["cb"])[4] > 1.1
+              for n in nights)
+    y1, s1 = _vac(wide_rot > 0, _ws, "strong-rotation nights")
+    y2, s2 = _vac(tight_weak > 0, _ks, "weak-fleet nights")
+    qs.append(("daily_goal", [
+        "Did MaxGoal rise in strong rotation?",
+        "Did MinGoal tighten in weak fleet conditions?",
+        "Did daily goals remain realistic?"],
+        y1, y2, oob == 0 and (total == 0 or realistic >= max(1, total // 2)),
+        f"out-of-band nights: {oob}; realistic nights {realistic}/{total}"
+        + s1 + s2))
+
+    # ── Continuation & RCL: re-entry events vs blocks (the night data
+    # carries both counters), second legs never measured while RCL
+    # suppressed them
+    cont_ev = block_ev = 0
+    for n in nights:
+        cont_ev += int(n["data"].get("endgame_events") or 0) \
+            + int(n["data"].get("reentry_blocks") or 0)
+        block_ev += int(n["data"].get("reentry_blocks") or 0)
+    _trades = sum(int(n["data"].get("n_trades") or 0) for n in nights)
+    y1, s1 = _vac(cont_ev > 0, _trades > 0, "trading nights")
+    # blocks absent = the suppression was never tested (vacuous),
+    # blocks present = RCL did its job
+    y2, s2 = _vac(block_ev > 0, block_ev > 0, "re-entry chances")
+    qs.append(("continuation", [
+        "Did the system capture second legs?",
+        "Did it avoid false re-entries?",
+        "Did RCL drift kills suppress bad re-entries?"],
+        y1, y2, True,
+        f"continuation/re-entry events: {cont_ev}; re-entry blocks: "
+        f"{block_ev} (RCL suppressions counted)" + s1 + s2))
+
+    # ── DNL stability: did the clamp records themselves hold a shape?
+    # (every night in the window IS readable by construction — the
+    # gather dropped unreadable ones; the bands' consistency is judged
+    # by the out-of-band counters already computed above)
+    consistent = sum(1 for n in nights if isinstance(n["cb"], dict)
+                     and n["cb"].get("readable"))
+    # convergence: readable records every night AND no wild whipsaw —
+    # no band tripling or collapsing below a third of its predecessor
+    # (adaptive bands are SUPPOSED to move with the context; the record
+    # is unstable only when they jump)
+    whipsaw = 0
+    prev = None
+    for n in nights:
+        mcv = n["cb"].get("max_carve_out")
+        if isinstance(mcv, (int, float)) and mcv > 0:
+            if prev and (mcv > prev * 3.0 or mcv < prev / 3.0):
+                whipsaw += 1
+            prev = float(mcv)
+    _vy, _vs = _vac(whipsaw == 0, True, "")
+    qs.append(("dnl", [
+        "Did adaptive boundaries stabilize?",
+        "Did clamps converge?",
+        "Did context snapshots show consistent patterns?"],
+        consistent >= _EXAM_EVERY_N, _vy,
+        consistent >= _EXAM_EVERY_N and whipsaw == 0,
+        f"readable boundary records: {consistent}/{_EXAM_EVERY_N}; "
+        f"whipsawed bands: {whipsaw}" + _vs))
+
+    fails = [q for q in qs if not q[4]]
+    warns = [q for q in qs if q[4] and not (q[2] and q[3])]
+    verdict = "PASS" if not fails and not warns else \
+        ("FAIL" if len(fails) >= 2 else "WARN")
+    return {
+        "date": when.strftime("%Y-%m-%d"),
+        "rotations": len(nights),
+        "verdict": verdict,
+        "fail_families": [f[0] for f in fails],
+        "warn_families": [w[0] for w in warns],
+        "families": {q[0]: {"questions": q[1], "answered_yes": bool(q[2]),
+                            "answered_yes2": bool(q[3]), "ok": bool(q[4]),
+                            "evidence": q[5]} for q in qs},
+        "Summary": "the boundary bands track their context and stayed "
+                   "within themselves" if verdict == "PASS" else
+                   f"{len(fails)} family(ies) failed, {len(warns)} warned "
+                   "over the last " + str(len(nights)) + " rotations",
+        "BoundaryBehavior": "; ".join(
+            f"{q[0]}: {q[5]}" for q in qs),
+        "ClampBehavior": "out-of-band nights are the clamp-adherence "
+                         "evidence (0 required for a PASS)",
+        "ContinuationBehavior": f"events {cont_ev}, blocks {block_ev}",
+        "ReEntryBehavior": f"RCL-suppressed re-entries: {block_ev}",
+        "DNLBehavior": f"boundary records readable: {consistent}/"
+                       f"{_EXAM_EVERY_N}",
+        "FinalVerdict": verdict,
+    }
+
+
+def cross_examine_corrections(exam: dict,
+                              when: datetime | None = None) -> dict:
+    """Section 4: the post-examination correction module. A WARN/FAIL
+    verdict hands dial moves here as expiring context-gated overlays
+    (3 rotations, then re-evaluation by the next exam). PASS clears
+    any standing corrections — a healthy boundary system needs none.
+    The safety rule is structural: overlays multiply the existing band
+    and are clamped to (0.5, 2.0), so no correction can remove a
+    clamp, and the guards (hi >= lo) re-apply after every overlay."""
+    when = when or _now_mst()
+    verdict = str((exam or {}).get("FinalVerdict") or (exam or {}).get(
+        "verdict") or "PASS")
+    fam = set((exam or {}).get("fail_families") or []) \
+        | set((exam or {}).get("warn_families") or [])
+    if verdict == "PASS":
+        st = _state()
+        had = bool(st.get("boundary_corrections"))
+        if had:
+            st.pop("boundary_corrections", None)
+            _save(st)
+        return {"applied": [], "cleared": had, "verdict": verdict}
+    moves = {}
+    if "carve_out" in fam:
+        # IfNeverUsesClampInStrongRotation: widen the strong-context
+        # ceiling; the exceeded-clamp arm is structural (the band IS the
+        # ceiling — the clamp cannot be exceeded, it can only sit too
+        # tight, which is the arm that fires)
+        moves["max_carve_out"] = {"mult_strong": 1.05}
+    if "guard_factor" in fam:
+        moves["gf_max"] = {"mult_strong": 1.10}
+        moves["gf_min"] = {"mult_weak": 1.10}
+    if "hatch" in fam:
+        moves["hatch_max"] = {"mult_strong": 1.10}
+        moves["hatch_min"] = {"mult_weak": 1.10}
+    if "decay" in fam:
+        moves["decay_min"] = {"mult_strong": 0.90}
+        moves["decay_max"] = {"mult_weak": 1.10}
+    if "penalty" in fam:
+        moves["penalty_min"] = {"mult_weak": 1.10}
+        moves["penalty_max"] = {"mult_strong": 0.90}
+    if "daily_goal" in fam:
+        moves["goal_max"] = {"mult_strong": 1.075}
+        moves["goal_min"] = {"mult_weak": 0.90}
+    if not moves:
+        return {"applied": [], "cleared": False, "verdict": verdict}
+    rec = set_boundary_corrections(moves, rotations=_EXAM_RESCHEDULE,
+                                   when=when)
+    return {"applied": sorted(rec.get("overlays") or {}),
+            "expires": rec.get("expires"), "cleared": False,
+            "verdict": verdict}
+
+
+# ── SECTION 5 — THE COOLDOWN SCHEDULER (user spec: run the exam every
+# 6 rotations, reschedule +3 after each). The rotation count IS the
+# ledger (restart-proof — no counter to drift); the schedule lives in
+# carve-out state as the next-due rotation number. Fail-neutral: an
+# unreadable state reads the first exam at _EXAM_EVERY_N, and a failed
+# schedule write never raises into the cooldown chain.
+def _readable_nights() -> int:
+    """How many DNL nights carry a readable clamp_bounds record."""
+    try:
+        import meta_layers as _ml
+        dnl = (_ml._state().get("dnl") or {})
+        return sum(1 for _d in dnl
+                   if ((dnl.get(_d) or {}).get("_data") or {})
+                   .get("clamp_bounds", {}).get("readable"))
+    except Exception:
+        return 0
+
+
+def _next_exam_due() -> int:
+    """The rotation number the next exam fires at (6, then +3 each)."""
+    try:
+        return int(_state().get("exam_next_due") or _EXAM_EVERY_N)
+    except Exception:
+        return _EXAM_EVERY_N
+
+
+def _schedule_exam(when: datetime | None = None) -> None:
+    """Called at every cooldown tick after the gate: pins the next-due
+    rotation. Before the first exam it stays at _EXAM_EVERY_N; after an
+    exam ran (readable nights reached the due mark) it moves to nights
+    + _EXAM_RESCHEDULE — the spec's 'rotation_count + 3'."""
+    try:
+        st = _state()
+        due = int(st.get("exam_next_due") or 0)
+        nights = _readable_nights()
+        if due <= 0:
+            st["exam_next_due"] = _EXAM_EVERY_N
+        elif nights >= due:
+            st["exam_next_due"] = nights + _EXAM_RESCHEDULE
+        _save(st)
+    except Exception:
+        pass

@@ -549,6 +549,22 @@ def dnl_report(when: datetime | None = None) -> dict | None:
                     report["_data"]["clamp_bounds"] = {"readable": False}
         except Exception:
             pass
+        # THE BOUNDARY CORRECTIONS RECORD (user spec, Sep 23, section 4
+        # Logging): the cross-examination's dial moves (the expiring
+        # overlays) ride the same night data — the ledger shows what the
+        # bands WERE and what the exam did about it. Recorded every night
+        # regardless of the carve record; an empty record is an explicit
+        # none, so the absence stays auditable.
+        try:
+            import carve_out as _co_c
+            _bc = _co_c.boundary_corrections()
+            report["_data"]["BoundaryCorrections"] = {
+                "set_date": _bc.get("set_date"),
+                "expires": _bc.get("expires"),
+                "overlays": _bc.get("overlays") or {},
+            }
+        except Exception:
+            report["_data"]["BoundaryCorrections"] = {}
         # stored LAST (the 4.5 lesson): the carve record and the boundary
         # record above mutate the report — the stored copy must carry them
         st["dnl"][today] = report
@@ -731,14 +747,17 @@ def _momentum_signals(pair: str, when: datetime) -> dict:
 
 
 def _candles(pair: str, n: int = 30):
+    """The one candle read (full OHLCV since the Tri-Watch's health
+    needs the indicator set; the older consumers touch only close/high
+    and ignore the extra columns)."""
     try:
         import sqlite3
         import pandas as _pd
         cc = sqlite3.connect(ROOT / "ohlcv_cache.db")
         try:
             df = _pd.read_sql_query(
-                "SELECT ts, close, high FROM ohlcv WHERE pair=? "
-                "ORDER BY ts DESC LIMIT ?", cc, params=(pair, n))
+                "SELECT ts, open, high, low, close, volume FROM ohlcv "
+                "WHERE pair=? ORDER BY ts DESC LIMIT ?", cc, params=(pair, n))
         finally:
             cc.close()
         return df.iloc[::-1].reset_index(drop=True) if len(df) >= 10 else None
