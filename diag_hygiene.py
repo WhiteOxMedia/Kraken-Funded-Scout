@@ -5,9 +5,22 @@ WHY THIS EXISTS: the Sep 14 sweep deleted ~200 stray artifacts across
 both repos - one-off diag probes, per-suite _bat_test_*.log captures,
 scratch DBs the test suites re-created on every run, the bot's literal
 `$null` file. Litter re-accumulates silently unless something FAILS on
-it. This gate is that something: run it anytime, it is strictly
-read-only, stdlib only, and exit-coded (0 clean / 1 findings) so a .bat
-or scheduler can gate on it.
+it. This gate is that something: run it anytime, stdlib only, and
+exit-coded (0 clean / 1 findings) so a .bat or scheduler can gate on it.
+
+THE AUTO-SWEEP (Sep 24): the regenerate-able scratch classes no longer
+fail the audit - they are REMOVED and reported (SWEPT lines), so the
+battery's hygiene entry self-heals root litter instead of going red on
+names the suites re-create on demand. Sweepable = provably safe to
+delete: RULE A root scratch (_*.db/_*.log/_sbx_*/_bat_*/$*), RULE C
+factory scratch (the suites' own re-created names - the redirect
+regression stays pinned by the suites' drives), and the RULE D 0-byte
+ghost. NEVER swept: RULE B unreferenced diag probes (code - a human
+verdict) and a known-dead name carrying LIVE data (an unknown writer -
+a human must identify it first). Fail-soft: a file the OS refuses to
+release is reported as a stray, never crashes the audit. A swept name
+that reappears next run is simply re-swept - the trace is the SWEPT
+line, the protection is the sweepable set staying narrow.
 
 RULES (both repo roots; anything NESTED below the root is exempt -
 subdirectory scratch is deliberate sandbox output):
@@ -39,6 +52,7 @@ Run:  .venv\\Scripts\\python.exe -X utf8 diag_hygiene.py
 
 import re
 import sys
+import tempfile
 from pathlib import Path
 
 SCOUT = Path(__file__).resolve().parent
@@ -128,7 +142,12 @@ def audit(roots=()):
                         (f, "RULE D: known dead artifact (0-byte ghost) - "
                             "delete it"))
                 continue
-            if f.name in FACTORY_SCRATCH or rule_a_hit(f.name):
+            if f.name in FACTORY_SCRATCH:
+                strays.append(
+                    (f, "RULE C: factory scratch (the tempdir redirect "
+                        "regressed)"))
+                continue
+            if rule_a_hit(f.name):
                 strays.append((f, "RULE A: root scratch"))
                 continue
             if f.name.startswith("diag_"):
@@ -138,6 +157,34 @@ def audit(roots=()):
                     strays.append((f, "RULE B: unreferenced one-off probe"))
         counts[str(root)] = (n_a, n_b)
     return strays, counts
+
+
+def sweepable(why: str) -> bool:
+    """True when this stray's CLASS is one deletion can never regret:
+    transient scratch the suites re-create on demand, or a 0-byte
+    fossil. Code (RULE B) and unknown-writer data (RULE D live) are
+    NEVER swept - they fail, as always, for a human verdict."""
+    return (why.startswith("RULE A") or why.startswith("RULE C")
+            or (why.startswith("RULE D") and "0-byte ghost" in why))
+
+
+def sweep(strays: list) -> tuple:
+    """Remove the sweepable strays; return (swept, remaining). Fail-soft:
+    a file the OS refuses to release (held open by a live process) is
+    reported as a remaining stray with the reason, never a crash."""
+    swept, remaining = [], []
+    for f, why in strays:
+        if not sweepable(why):
+            remaining.append((f, why))
+            continue
+        try:
+            f.unlink()
+            swept.append((f, why))
+        except OSError:
+            remaining.append(
+                (f, why + " [auto-sweep failed: file held open? - delete "
+                          "by hand]"))
+    return swept, remaining
 
 
 def selftest() -> int:
@@ -167,25 +214,86 @@ def selftest() -> int:
     if SCOUT.name in ("", "/"):
         print("  FAIL  selftest: SCOUT resolved oddly")
         ok = False
+
+    # ── the auto-sweep contract (Sep 24) ─────────────────────────────
+    # 1. classification: regenerate-able classes sweep; code and
+    #    unknown-writer data never do
+    cls = [
+        ("RULE A: root scratch", True),
+        ("RULE C: factory scratch (the tempdir redirect regressed)", True),
+        ("RULE D: known dead artifact (0-byte ghost) - delete it", True),
+        ("RULE B: unreferenced one-off probe", False),
+        ("RULE D: known dead artifact name with LIVE data - identify "
+         "the writer before trusting it", False),
+    ]
+    for why, want in cls:
+        got = sweepable(why)
+        if got != want:
+            print(f"  FAIL  selftest sweepable({why[:28]}...): "
+                  f"got {got}, want {want}")
+            ok = False
+
+    # 2. behavioral, hermetic: a fake root's regenerate-able strays are
+    #    swept, the human-verdict classes survive, the real roots are
+    #    never touched
+    with tempfile.TemporaryDirectory(prefix="_sbx_hyg_") as td:
+        troot = Path(td)
+        (troot / "_probe.db").write_bytes(b"x")          # RULE A
+        (troot / "_sbx_stage.json").write_bytes(b"x")    # RULE A
+        (troot / "_test_tidestamp.db").write_bytes(b"x") # RULE C name
+        (troot / "trading_bot.db").write_bytes(b"")      # RULE D ghost
+        KNOWN_DEAD_ARTIFACTS.add("_hyg_ghost.db")
+        try:
+            (troot / "_hyg_ghost.db").write_bytes(b"real rows")  # RULE D live
+            (troot / "diag_oneshot.py").write_text(
+                "# a one-off probe, referenced nowhere\n", encoding="utf-8")
+            strays_t, _c = audit([troot])
+            swept_t, left_t = sweep(strays_t)
+            got_swept = {f.name for f, _ in swept_t}
+            got_left = {f.name for f, _ in left_t}
+            want_swept = {"_probe.db", "_sbx_stage.json",
+                          "_test_tidestamp.db", "trading_bot.db"}
+            want_left = {"_hyg_ghost.db",       # RULE D live: unswept
+                         "diag_oneshot.py"}     # RULE B: unswept code
+            if got_swept != want_swept or got_left != want_left:
+                print(f"  FAIL  selftest sweep behavior: "
+                      f"swept={sorted(got_swept)} left={sorted(got_left)}")
+                ok = False
+            if (not (troot / "diag_oneshot.py").exists()
+                    or not (troot / "_hyg_ghost.db").exists()):
+                print("  FAIL  selftest sweep behavior: a human-verdict "
+                      "stray was deleted")
+                ok = False
+        finally:
+            KNOWN_DEAD_ARTIFACTS.discard("_hyg_ghost.db")
+
     if ok:
-        print("  selftest: rule pins green (13 cases)")
+        print(f"  selftest: rule pins green ({len(cases)} name cases, "
+              f"{len(cls)} sweep classes, 1 behavioral sweep)")
     return 0 if ok else 1
 
 
 def main() -> int:
     st = selftest()
     strays, counts = audit()
+    swept, strays = sweep(strays)
     print("=" * 60)
     print("  HYGIENE AUDIT - root scratch + one-off probes, both repos")
     print("=" * 60)
     for root, (n_a, n_b) in counts.items():
         print(f"  {root}: {n_a} root files scanned, {n_b} diag files")
+    for f, why in swept:
+        print(f"  SWEPT  {f.name}  [{why}] - regenerate-able, removed")
     if strays:
         for f, why in strays:
             print(f"  STRAY  {f}  [{why}]")
         print(f"\nHYGIENE: {len(strays)} STRAY FILE(S) - clean before shipping")
         return 1
-    print("\nHYGIENE: CLEAN")
+    if swept:
+        print(f"\nHYGIENE: CLEAN (auto-swept {len(swept)} regenerate-able "
+              "stray(s))")
+    else:
+        print("\nHYGIENE: CLEAN")
     return 0 if st == 0 else 1
 
 
