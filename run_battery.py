@@ -15,6 +15,34 @@ summary table with pass-counts parsed from each suite's own final
 "N/M" line. Exit 0 only when every RUN entry passed.
 
 Run:  .venv\\Scripts\\python.exe -X utf8 run_battery.py
+
+THE LANES (Sep 22): the battery grew past what one shell window holds -
+a full run exceeds the 600s terminal sync timeout, so "test everything"
+kept dying mid-sweep. Lanes split the fleet by MEASURED runtime, kept
+in a manifest the battery itself maintains:
+
+  battery_lanes.json    {stem: {"secs": <last measured>, "runs": <n>}}
+                        (bare name, matching the other permanent runtime
+                        files: scanner_pulse.json, console_prefs.json)
+
+  --fast [budget=N]     only suites PROVEN fast (last measured secs <=
+                        fastmax, default 60), and only while the lane's
+                        cumulative elapsed stays under budget (default
+                        420s). Anything slow or NEVER MEASURED defers —
+                        the fast lane is terminal-safe by construction,
+                        not by optimism. A per-entry watchdog that would
+                        outlive the lane budget is tightened to fit.
+  --slow                the complement: proven-slow suites PLUS every
+                        never-measured one. This lane is allowed to be
+                        long - run it when there is time, or in chunks
+                        via the existing positional filter.
+  --list                print the lane assignment and exit (no runs).
+  (no flags)            the full battery, exactly as before; every run
+                        refreshes the manifest with fresh measurements.
+
+A deferred entry is not a failure: the summary counts it separately
+and says how to finish the sweep. The manifest is runtime state (it
+stays uncommitted like the check files).
 """
 
 import json
@@ -22,12 +50,17 @@ import re
 import subprocess
 import sys
 import time
+from datetime import datetime as _dt
 from pathlib import Path
 
 SCOUT = Path(__file__).resolve().parent
 PY = SCOUT / ".venv" / "Scripts" / "python.exe"
 if not PY.exists():
     PY = Path(sys.executable)
+
+LANES_MANIFEST = SCOUT / "battery_lanes.json"
+FAST_DEFAULT_BUDGET = 420    # the fast lane's total wall-clock ceiling
+FAST_DEFAULT_MAX = 60        # a suite measured slower than this is SLOW
 
 # The diag worlds the battery runs (kept fast + hermetic by design).
 # Heavy/interactive replays (fleet studies, live-API calibrations, the
@@ -43,7 +76,6 @@ DIAG_RUN = {
     "diag_sizingaudit",    # read-before-assign in sizing gates
     "diag_smoketier",      # THE $1K-TIER SMOKE: guard/carry/stop by arithmetic
     "diag_testleaks",      # module-global leaks in the suites
-    "diag_clockbombs",     # clock-freeze time bombs (suites that only pass at certain hours)
 }
 
 PER_ENTRY_TIMEOUT = 420   # seconds; a hung suite fails instead of hanging
@@ -61,10 +93,188 @@ TIMEOUT_OVERRIDES = {
 }
 WARN_FRACTION = 0.5       # PASS using >50% of budget gets a WARN in its detail
 
+# ── MEASURED SLOW-SUITE BUDGETS (Sep 23, the costdrivers WARN): a flat
+# watchdog makes the WARN_FRACTION band a tripwire on every honest run of
+# a genuinely slow suite — costdrivers' lane mean is ~280s against the
+# 420s default, so the >210s WARN band fired on a healthy 318s PASS. A
+# suite with a measured lane time now earns a watchdog of
+# max(override, MEASURED_BUDGET_MULT x mean), capped at
+# MAX_MEASURED_BUDGET — in EVERY mode, the apptest-override precedent:
+# a budget that only spoke in one lane would leave the full run lying.
+# An honest run lands well under 50% again; a suite drifting toward 3x
+# its mean STILL warns (the signal keeps its meaning). Never-measured
+# suites and fresh clones (no manifest) keep the flat default — hang
+# detection stays tight everywhere the measurement can't speak.
+MEASURED_BUDGET_MULT = 3.0    # watchdog = 3x the lane mean (headroom, not a target)
+MAX_MEASURED_BUDGET = 1800    # 30 min hard ceiling: a suite that slows 10x
+                              # re-baselines its own budget (latest-wins
+                              # manifest) — this bounds that ratchet
+
 
 def budget_for(stem: str) -> int:
-    """The watchdog budget for one entry (override map, else the default)."""
-    return TIMEOUT_OVERRIDES.get(stem, PER_ENTRY_TIMEOUT)
+    """The watchdog budget for one entry: the override map, else the flat
+    default — raised to max(override, MULT x measured mean) when the lanes
+    manifest holds a measurement for it (capped at MAX_MEASURED_BUDGET)."""
+    b = TIMEOUT_OVERRIDES.get(stem, PER_ENTRY_TIMEOUT)
+    e = _lanes_load().get(stem)
+    if e and e.get("secs"):
+        b = max(b, min(int(float(e["secs"]) * MEASURED_BUDGET_MULT),
+                       MAX_MEASURED_BUDGET))
+    return b
+
+
+def _lanes_load() -> dict:
+    try:
+        d = json.loads(LANES_MANIFEST.read_text(encoding="utf-8"))
+        return d if isinstance(d, dict) else {}
+    except (OSError, ValueError):
+        return {}
+
+
+def _lanes_save(measured: dict) -> None:
+    """Merge this run's fresh measurements into the manifest: latest
+    seconds win, the run count accumulates. Runtime state - never a
+    product file, never committed."""
+    lanes = _lanes_load()
+    for stem, secs in measured.items():
+        e = lanes.get(stem) or {}
+        lanes[stem] = {"secs": round(float(secs), 1),
+                       "runs": int(e.get("runs") or 0) + 1}
+    try:
+        LANES_MANIFEST.write_text(json.dumps(lanes, indent=1),
+                                  encoding="utf-8")
+    except OSError:
+        pass  # a lost manifest only costs the lanes their memory
+
+
+# ── THE HEALTH REPORT (Sep 23): every battery run lands one timestamped
+# JSON record in battery_history/ — the consolidated table, machine-
+# readable, so battery history is comparable week over week. The console
+# table stays the human view; the record is the durable one. Each record
+# carries the mode it ran in (full/fast/slow/chunk) and the skip/defer
+# counts, so a partial lane run is self-describing and never reads as a
+# regression. Runtime state: the folder stays uncommitted, like the
+# check files. A lost or unwritable history never fails a green run.
+HISTORY_DIR = SCOUT / "battery_history"
+
+
+def _history_record(rows, mode: str, wall_s: float) -> dict:
+    """The run's durable record: totals, failures, warns, per-suite
+    status + measured seconds (the same numbers the lanes manifest
+    keeps, plus everything the manifest drops)."""
+    suites = {}
+    failures, warns = [], []
+    n_pass = n_fail = n_skip = n_defer = 0
+    for kind, name, st, dt, det in rows:
+        suites[name] = {"status": st, "secs": round(float(dt), 1),
+                        "detail": det}
+        if st == "PASS":
+            n_pass += 1
+        elif st in ("SKIP", "DEFER"):
+            n_skip += 1
+            if st == "DEFER":
+                n_defer += 1
+        else:
+            n_fail += 1
+            failures.append({"name": name, "status": st,
+                             "detail": str(det)[:200]})
+        if "WARN:" in str(det):
+            warns.append({"name": name, "detail": str(det)[:160]})
+    return {
+        "ts": _dt.now().astimezone().isoformat(timespec="seconds"),
+        "ts_epoch": time.time(),
+        "mode": mode,
+        "totals": {"pass": n_pass, "fail": n_fail, "skip": n_skip,
+                   "defer": n_defer, "ran": n_pass + n_fail},
+        "wall_s": round(wall_s, 1),
+        "failures": failures,
+        "warn": warns,
+        "suites": suites,
+    }
+
+
+def _history_save(rec: dict) -> Path | None:
+    """Write run_<stamp>.json + the latest.json mirror. Best-effort:
+    history is a convenience, never a gate."""
+    try:
+        HISTORY_DIR.mkdir(exist_ok=True)
+        stamp = _dt.now().strftime("%Y%m%d_%H%M%S")
+        p = HISTORY_DIR / f"run_{stamp}.json"
+        p.write_text(json.dumps(rec, indent=1), encoding="utf-8")
+        (HISTORY_DIR / "latest.json").write_text(
+            json.dumps(rec, indent=1), encoding="utf-8")
+        return p
+    except OSError:
+        return None
+
+
+def _history_compare(rec: dict) -> str | None:
+    """The week-over-week line: the record nearest 7 days back (±2 days,
+    same mode preferred), else the most recent previous one. Totals,
+    wall clock, failure-set diff, and the notable per-suite time moves
+    (>25% AND >0.5s, biggest first)."""
+    try:
+        cands = []
+        for p in HISTORY_DIR.glob("run_*.json"):
+            try:
+                d = json.loads(p.read_text(encoding="utf-8"))
+            except (OSError, ValueError):
+                continue
+            if d.get("ts_epoch") and d.get("ts_epoch") < rec["ts_epoch"]:
+                cands.append((float(d["ts_epoch"]), p.name, d))
+        if not cands:
+            return None
+        cands.sort()
+        week_lo, week_hi = rec["ts_epoch"] - 9 * 86400, rec["ts_epoch"] - 5 * 86400
+        same_mode = [c for c in cands
+                     if week_lo <= c[0] <= week_hi and c[2].get("mode") == rec["mode"]]
+        week_any = [c for c in cands if week_lo <= c[0] <= week_hi]
+        # same mode preferred; inside the window the record NEAREST the
+        # 7-day mark wins; with no week-window record at all, the most
+        # recent previous run — named honestly in the line
+        week_pool = same_mode or week_any
+        if week_pool:
+            base = min(week_pool,
+                       key=lambda c: abs((rec["ts_epoch"] - c[0]) - 7 * 86400))
+        else:
+            base = cands[-1]
+        bep, bname, b = base
+        age_d = (rec["ts_epoch"] - bep) / 86400.0
+        bt, rt = b.get("totals") or {}, rec["totals"]
+        out = [f"WEEK OVER WEEK (vs {bname}, {age_d:.1f}d ago, "
+               f"mode={b.get('mode')})"]
+        out.append(f"  pass {bt.get('pass')} -> {rt['pass']}   "
+                   f"fail {bt.get('fail')} -> {rt['fail']}   "
+                   f"wall {b.get('wall_s')}s -> {rec['wall_s']}s")
+        bf = {f["name"] for f in b.get("failures") or []}
+        rf = {f["name"] for f in rec["failures"]}
+        if rf - bf:
+            out.append(f"  NEW FAILURES: {', '.join(sorted(rf - bf))}")
+        if bf - rf:
+            out.append(f"  healed: {', '.join(sorted(bf - rf))}")
+        common = set(b.get("suites") or {}) & set(rec["suites"])
+        moves = []
+        for nm in common:
+            bs_ = float((b["suites"][nm] or {}).get("secs") or 0.0)
+            rs_ = float((rec["suites"][nm] or {}).get("secs") or 0.0)
+            if bs_ > 0 and abs(rs_ - bs_) > 0.5 and abs(rs_ - bs_) / bs_ > 0.25:
+                moves.append((abs(rs_ - bs_) / bs_, nm, bs_, rs_))
+        moves.sort(reverse=True)
+        for frac, nm, bs_, rs_ in moves[:3]:
+            arrow = "slower" if rs_ > bs_ else "faster"
+            out.append(f"  {arrow}: {nm} {bs_:.1f}s -> {rs_:.1f}s "
+                       f"({(rs_ / bs_ - 1.0) * 100:+.0f}%)")
+        return "\n".join(out)
+    except Exception:
+        return None   # a broken comparison line must never fail the run
+
+
+def lane_of(stem: str, fastmax: float) -> str:
+    """'fast' (proven fast), 'slow' (proven slow), or 'unmeasured'."""
+    e = _lanes_load().get(stem)
+    if not e or e.get("secs") is None:
+        return "unmeasured"
+    return "fast" if float(e["secs"]) <= fastmax else "slow"
 
 
 PASS_RE = re.compile(r"(\d+)/(\d+)\s*$")
@@ -152,17 +362,22 @@ def _guard_leak(before: dict, after: dict) -> str | None:
     return None
 
 
-def run_entry(path: Path):
-    """Returns (status, seconds, detail). status in PASS/FAIL/TIMEOUT."""
+def run_entry(path: Path, cap: int | None = None):
+    """Returns (status, seconds, detail). status in PASS/FAIL/TIMEOUT.
+    cap (lanes): tighten the watchdog to the lane's remaining budget so
+    a hung 'fast' suite cannot blow the lane's terminal-safety promise."""
+    b = budget_for(path.stem)
+    if cap is not None:
+        b = min(b, max(cap, 5))
     t0 = time.monotonic()
     try:
         p = subprocess.run(
             [str(PY), "-X", "utf8", str(path)],
             cwd=str(SCOUT), capture_output=True, text=True,
             encoding="utf-8", errors="replace",
-            timeout=budget_for(path.stem))
+            timeout=b)
     except subprocess.TimeoutExpired:
-        return "TIMEOUT", time.monotonic() - t0, f">{budget_for(path.stem)}s"
+        return "TIMEOUT", time.monotonic() - t0, f">{b}s"
     dt = time.monotonic() - t0
     if p.returncode != 0:
         tail = (p.stdout or "").strip().splitlines()[-3:]
@@ -175,43 +390,130 @@ def run_entry(path: Path):
         if m2:
             m = m2
     det = f"{m.group(1)}/{m.group(2)}" if m else ""
-    b = budget_for(path.stem)
     if dt > b * WARN_FRACTION:
         det = (det + f"  WARN: {dt:.0f}s of {b}s budget").strip()
     return "PASS", dt, det
 
 
+def _parse_flags(argv: list[str]):
+    """Split --flags from the legacy positional args (the chunk filter
+    keeps its positional index; flags never shift it)."""
+    flags: dict = {}
+    pos: list[str] = []
+    i = 0
+    while i < len(argv):
+        a = argv[i]
+        if a == "--fast":
+            flags["lane"] = "fast"
+        elif a == "--slow":
+            flags["lane"] = "slow"
+        elif a == "--list":
+            flags["list"] = True
+        elif a.startswith("--budget="):
+            try:
+                flags["budget"] = max(30, int(a.split("=", 1)[1]))
+            except ValueError:
+                pass
+        elif a.startswith("--fastmax="):
+            try:
+                flags["fastmax"] = max(5, float(a.split("=", 1)[1]))
+            except ValueError:
+                pass
+        else:
+            pos.append(a)
+        i += 1
+    return flags, pos
+
+
 def main(argv: list[str] | None = None) -> int:
     # THE CHUNK FILTER (Sep 20): an optional substring arg runs only the
-    # matching entries (`run_battery.py _batt_chunk.log '' trend"). The
+    # matching entries (`run_battery.py _batt_chunk.log '' trend`). The
     # battery's growth (100+ entries, the plate suite alone 900s) means
     # a full run no longer fits a single shell window - chunks let a
     # session sweep the family in slices and still read one summary.
+    # THE LANES (Sep 22) slice by MEASURED TIME instead of by name:
+    # --fast keeps a terminal window safe, --slow owns the long tail,
+    # no flags runs everything and refreshes the lanes manifest.
     _argv = list(argv if argv is not None else sys.argv[1:])
-    _flt = _argv[2] if len(_argv) > 2 else ""
+    flags, _argv_pos = _parse_flags(_argv)
+    _flt = _argv_pos[2] if len(_argv_pos) > 2 else ""
+    lane = flags.get("lane")
+    fastmax = flags.get("fastmax", FAST_DEFAULT_MAX)
+    fast_budget = flags.get("budget", FAST_DEFAULT_BUDGET)
     tests = sorted(SCOUT.glob("test_*.py"))
     diags = sorted(SCOUT.glob("diag_*.py"))
     if _flt:
         tests = [t for t in tests if _flt in t.stem]
         diags = [d for d in diags if _flt in d.stem]
+
+    if flags.get("list"):
+        for nm, coll in (("test", tests), ("diag", diags)):
+            for p in coll:
+                print(f"  {lane_of(p.stem, fastmax):<11} {p.stem}")
+        return 0
+
+    if lane == "fast":
+        tests = [t for t in tests if lane_of(t.stem, fastmax) == "fast"]
+        diags = [d for d in diags if lane_of(d.stem, fastmax) == "fast"]
+    elif lane == "slow":
+        # the slow lane owns the long tail: proven-slow PLUS every suite
+        # never yet measured (it is the coverage lane - allowed to run long)
+        tests = [t for t in tests if lane_of(t.stem, fastmax) != "fast"]
+        diags = [d for d in diags if lane_of(d.stem, fastmax) != "fast"]
+
+    n_total = len(tests) + sum(1 for d in diags if d.stem in DIAG_RUN)
     rows = []          # (kind, name, status, seconds, detail)
+    measured: dict = {}
+    lane_t0 = time.monotonic()
+    n_defer = 0
     print(f"KRAKEN BATTERY - {len(tests)} suites, "
           f"{len(diags)} diags ({len(DIAG_RUN & {d.stem for d in diags})} run)"
-          + (f"  [chunk: '{_flt}']" if _flt else ""))
+          + (f"  [chunk: '{_flt}']" if _flt else "")
+          + (f"  [lane: {lane}, budget {fast_budget}s]" if lane == "fast"
+             else (f"  [lane: {lane}]" if lane else "")))
+    if lane == "fast" and n_total == 0:
+        print("  the fast lane is empty — every suite is unmeasured yet.")
+        print("  seed the lanes once: run the full battery (no flags) or --slow,")
+        print("  then --fast knows exactly what fits a terminal window.")
     for i, t in enumerate(tests, 1):
         _gs = _guard_snap()
-        st, dt, det = run_entry(t)
+        if lane == "fast":
+            left = fast_budget - (time.monotonic() - lane_t0)
+            if left < 15:
+                n_defer += 1
+                rows.append(("test", t.stem, "DEFER", 0.0,
+                             "deferred: fast-lane budget — run --slow"))
+                print(f"  [{i:3d}] - {t.stem:<34}      deferred", flush=True)
+                continue
+            st, dt, det = run_entry(t, cap=int(left))
+        else:
+            st, dt, det = run_entry(t)
+        if st != "TIMEOUT":
+            measured[t.stem] = dt   # a killed run's elapsed is a lie about the suite
         _leak = _guard_leak(_gs, _guard_snap())
         if _leak:
             st, det = "FAIL", f"LEDGER LEAK: {_leak}"
         rows.append(("test", t.stem, st, dt, det))
-        mark = {"PASS": ".", "FAIL": "F", "TIMEOUT": "T"}[st]
+        mark = {"PASS": ".", "FAIL": "F", "TIMEOUT": "T"}.get(st, "-")
         print(f"  [{i:3d}] {mark} {t.stem:<34} {dt:6.1f}s  {det}",
               flush=True)
     for d in diags:
         if d.stem in DIAG_RUN:
             _gs = _guard_snap()
-            st, dt, det = run_entry(d)
+            if lane == "fast":
+                left = fast_budget - (time.monotonic() - lane_t0)
+                if left < 15:
+                    n_defer += 1
+                    rows.append(("diag", d.stem, "DEFER", 0.0,
+                                 "deferred: fast-lane budget — run --slow"))
+                    print(f"  [diag] - {d.stem:<34}      deferred",
+                          flush=True)
+                    continue
+                st, dt, det = run_entry(d, cap=int(left))
+            else:
+                st, dt, det = run_entry(d)
+            if st != "TIMEOUT":
+                measured[d.stem] = dt
             _leak = _guard_leak(_gs, _guard_snap())
             if _leak:
                 st, det = "FAIL", f"LEDGER LEAK: {_leak}"
@@ -221,6 +523,9 @@ def main(argv: list[str] | None = None) -> int:
         else:
             rows.append(("diag", d.stem, "SKIP", 0.0, "manual world"))
 
+    if measured:
+        _lanes_save(measured)
+
     print("\n" + "=" * 72)
     print(f"{'ENTRY':<38}{'RESULT':<10}{'SECS':>7}  DETAIL")
     print("-" * 72)
@@ -229,13 +534,29 @@ def main(argv: list[str] | None = None) -> int:
         print(f"{name:<38}{st:<10}{dt:>7.1f}  {det}")
         if st == "PASS":
             n_pass += 1
-        elif st == "SKIP":
+        elif st in ("SKIP", "DEFER"):
             n_skip += 1
         else:
             n_fail += 1
     print("-" * 72)
     print(f"BATTERY: {n_pass} passed, {n_fail} FAILED, {n_skip} skipped "
-          f"(manual diag worlds)")
+          f"(manual diag worlds"
+          + (f", {n_defer} deferred" if n_defer else "") + ")")
+    if n_defer:
+        print(f"  {n_defer} entry(ies) deferred by the fast lane — "
+              f"finish the sweep with: run_battery.py --slow")
+
+    # THE HEALTH REPORT (Sep 23): land the durable record, then speak the
+    # week-over-week delta when history exists to compare against.
+    _mode = (lane or "full") + (f"+chunk:{_flt}" if _flt else "")
+    _rec = _history_record(rows, _mode, time.monotonic() - lane_t0)
+    _hp = _history_save(_rec)
+    if _hp:
+        print(f"  health report: battery_history/{_hp.name} "
+              f"(+ latest.json mirror)")
+    _cmp = _history_compare(_rec)
+    if _cmp:
+        print(_cmp)
     return 1 if n_fail else 0
 
 

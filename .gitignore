@@ -85,3 +85,6 @@ kii_woulda.txt
 liq_cal.txt
 one_asset.txt
 zec_trace.txt
+
+# battery health reports: machine-written run history (never committed)
+battery_history/
