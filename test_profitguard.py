@@ -335,7 +335,8 @@ _pinned = pg.guard_factor("ZEC/USD", w_fresh)
 check(9.0, _pinned.get("carried_from") == _yest2,
       "an explicit STATE_FILE pin wins over the ROOT derivation (the LIVE "
       "probes' contract)")
-pg.STATE_FILE = None   # back to ROOT-derived for the rest of the drive
+# leak-audit: ok — hand the module back to the ROOT-derived path
+pg.STATE_FILE = None
 pg._daily_facts = lambda when=None: {"score": 90.0, "total_left": 15.0,
                                      "daily_pace": 60.0}
 pg.rotation_strength = lambda when=None: 4

@@ -164,9 +164,19 @@ check("agreement: 87 vs the 93 US-Late rail -> both say no",
       qc_verdict(87, 93) == "SKIP"
       and challenge_verdict(87, 93) == "SUPPRESSED")
 
-# ── 7. the calibration evidence is on disk and re-runnable ────────────
-check("diag_popupfloor.py exists", Path("diag_popupfloor.py").exists())
-check("_popupfloor_check.txt exists (calibration evidence)",
+# ── 7. the calibration evidence: the drive PRODUCES it, then asserts it
+# (Sep 24, the stalewatch lesson: the report lives in scratch/reports_temp
+# and the watcher's honest 90-min purge must never hollow an evidence
+# check — ordering-free, no manual diag run needed first)
+import importlib
+try:
+    importlib.import_module("diag_popupfloor")   # module-level study; writes the report
+    _diag_ran, _diag_err = True, ""
+except Exception as _exc:
+    _diag_ran, _diag_err = False, repr(_exc)[:140]
+check("diag_popupfloor.py runs (the evidence is re-runnable by this drive)",
+      _diag_ran, _diag_err)
+check("_popupfloor_check.txt exists (calibration evidence, just produced)",
       scratch_space.report_temp("_popupfloor_check.txt").exists())
 
 lines.append("")

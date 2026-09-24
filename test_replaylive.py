@@ -292,8 +292,17 @@ check("the popup window is the 120m clock",
       dl.WINDOW_MIN == 120.0)
 check("burials grade at the 1.5% default (they carry no goal call)",
       dl.BURIAL_GOAL == 1.5)
-check("the report artifact exists (the diag was run)",
-      scratch_space.report_temp("_replaylive_check.txt").exists())
+# the report artifact: PRODUCED by this run, then asserted (Sep 24, the
+# stalewatch lesson — an exists-only check on scratch evidence hollows
+# the moment the watcher's honest 90-min purge collects it)
+try:
+    dl.run()          # default out_path = the scratch report home
+    _dl_ok, _dl_err = True, ""
+except Exception as _exc:
+    _dl_ok, _dl_err = False, repr(_exc)[:140]
+check("the report artifact is produced by THIS run (re-runnable evidence)",
+      _dl_ok and scratch_space.report_temp("_replaylive_check.txt").exists(),
+      _dl_err)
 
 lines.append(f"\nRESULT: {PASS} passed, {FAIL} failed")
 scratch_space.report_temp('_replaylive_test.txt').write_text("\n".join(lines), encoding="utf-8")

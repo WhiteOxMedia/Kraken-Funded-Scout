@@ -73,10 +73,10 @@ try:
     # GUARDED SWAPS (testleaks, Sep 23): installed inside the try whose
     # finally hands the production paths back — the reboot-survival
     # scenarios can never strand a sandbox pointer on a crash.
-    bs.PULSE_JSON = str(PULSE)
-    bs.CONTEST_WATCH_JSON = str(WATCH)
-    pg.ROOT = TMP                    # the state path follows ROOT per call
-    pg.STATE_FILE = GSTATE           # explicit pin still wins (belt + braces)
+    bs.PULSE_JSON = str(PULSE)       # leak-audit: ok — restored in the finally below
+    bs.CONTEST_WATCH_JSON = str(WATCH)   # leak-audit: ok — same finally
+    pg.ROOT = TMP                    # leak-audit: ok — the state path follows ROOT per call, restored in the finally
+    pg.STATE_FILE = GSTATE           # leak-audit: ok — explicit pin still wins (belt + braces); restored in the finally
     # ── 1. THE PULSE SURVIVES ────────────────────────────────────────
     PULSE.write_text(json.dumps({"cycles": 499, "last_cycle_ts": 0.0,
                                  "pid": 26208}), encoding="utf-8")
@@ -229,12 +229,15 @@ try:
           and 'h.get("rot") == "DAY"' in _sv
           and "load_state().get(" in _sv)
 finally:
+    # leak-audit: ok — the GUARDED RESTORE: production pointers handed
+    # back (STATE_FILE None when no default existed, returning the
+    # module to its ROOT-derived per-call path)
     bs.PULSE_JSON, bs.CONTEST_WATCH_JSON = _real_pulse, _real_watch
     pg.ROOT = _real_pg_root
     if _real_gstate is not None:
         pg.STATE_FILE = _real_gstate
-    else:
-        pg.STATE_FILE = None    # back to the ROOT-derived default
+    else:   # leak-audit: ok — the guarded restore in this finally
+        pg.STATE_FILE = None
     for _p in PULSE, WATCH, GSTATE:
         try:
             _p.unlink()
