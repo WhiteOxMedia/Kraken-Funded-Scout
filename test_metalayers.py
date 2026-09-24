@@ -213,6 +213,18 @@ pg.stored_factor = lambda: 1.3
                 "pnl_net": 12.5}) + "\n" +
     json.dumps({"sold_at": "2026-09-22T11:00:00-06:00", "pair": "ADA/USD",
                 "pnl_net": -3.0}) + "\n", encoding="utf-8")
+# THE CARVE-OUT STUB (Sep 23): the compose now folds carve_out in —
+# pinned NEUTRAL here (carve 0.0, goal context unreadable) so these
+# sections keep grading RCL x SAL x momentum exactly; the carve's own
+# math is test_carveout.py's job.
+import carve_out as _co_stub
+_co_stub.goal_context = lambda when=None: (1.0, False)
+_co_stub.gate = lambda pair=None, when=None, force=False: {
+    "carve": 0.0, "lone_wolf": False, "readable": True, "when": "",
+    "mods": {"fleet_mod": None, "book_mod": None, "tide_mod": None,
+             "vol_mod": None, "rot_mod": None},
+    "drift": False, "sal_mult": 1.0, "endgame": False,
+    "suppressed": False, "expanded": False, "lw_scale": 1.0}
 rep = ml.dnl_report(_w())
 check(4.1, rep is not None and all(
     k in rep for k in ("What did I learn today?", "What surprised me?",

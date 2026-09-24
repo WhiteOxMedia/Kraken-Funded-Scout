@@ -492,7 +492,26 @@ def dnl_report(when: datetime | None = None) -> dict | None:
         st["dnl"] = st.get("dnl") or {}
         st["dnl"][today] = report
         st["dnl_last_date"] = today
-        st["tomorrow_goal_factor"] = round(1.0 + lf, 3)
+        try:
+            import carve_out as _co
+            _goal_mult, _gr = _co.goal_context(when)
+        except Exception:
+            _goal_mult, _gr = 1.0, False
+        st["tomorrow_goal_factor"] = round((1.0 + lf) * (_goal_mult if _gr else 1.0), 3)
+        # THE CARVE-OUT'S NIGHTLY RECORD (user spec, Sep 23, Section 5):
+        # the day's CarveOut and its five mods ride the narrative data —
+        # the learning layer sees what the funnel's allowance did today
+        try:
+            import carve_out as _co_d
+            _ln = _co_d.last_night()
+            if _ln:
+                report["_data"]["carve_out"] = _ln.get("carve")
+                report["_data"]["carve_mods"] = {k: _ln.get(k) for k in
+                                                 ("fleet_mod", "book_mod",
+                                                  "tide_mod", "vol_mod",
+                                                  "rot_mod")}
+        except Exception:
+            pass
         st["reentry_blocks_today"] = 0
         _save(st)
         return report
@@ -587,7 +606,9 @@ def dnl_last() -> dict | None:
 def finalize(pair: str, gf: float | None, res: dict | None = None,
              when: datetime | None = None) -> tuple[float | None, dict]:
     """The exit watch's one call: RCL runs BEFORE the factor is
-    finalized, then SAL's stored adjustment multiplies it, then
+    finalized, then SAL's stored adjustment multiplies it, then THE
+    CARVE-OUT (user spec, Sep 23, Section 2: GF *= 1 + CarveOut — tide
+    out tightens the net, tide in loosens it), then momentum, then
     End-Game Mode's override is reported. Returns (final GF, meta)."""
     when = when or _now_mst()
     meta: dict = {}
@@ -597,6 +618,19 @@ def finalize(pair: str, gf: float | None, res: dict | None = None,
     if sal_m != 1.0:
         meta["sal_mult"] = sal_m
     final = None if gf_after_rcl is None else round(gf_after_rcl * sal_m, 3)
+    # THE ADAPTIVE CARVE-OUT (user spec, Sep 23, Section 2): the final
+    # factor scales by (1 + CarveOut) — computed AFTER RCL/SAL so the
+    # allowance already carries their drift and discipline adjustments
+    try:
+        import carve_out as _co
+        if final is not None:
+            _cres = _co.gate(pair=pair, when=when)
+            _carm, _cmeta = _co.apply_to_guard_factor(final, _cres, when)
+            if _carm is not None:
+                final = _carm
+                meta.update(_cmeta)
+    except Exception:
+        pass
     # MOMENTUM CONTINUATION feeds the factor (user spec section 3.3):
     # while the detector says the move isn't done, the net loosens 15%
     if final is not None and pair and momentum_active(pair):
@@ -896,6 +930,17 @@ def reentry_candidate_check(pair: str,
         "asset_memory_ge_1": (am is not None and am >= 1.0),
         "momentum_continuation": mom["detected"],
     }
+    # THE RCL KILL (user spec, Sep 23, Section 3): a standing drift
+    # verdict voids the candidate outright — no lone-wolf behavior in an
+    # unstable market (reentry_blocked already expires stale verdicts)
+    try:
+        drift = reentry_blocked(when)
+    except Exception:
+        drift = False
+    if drift:
+        conds["rcl_drift"] = True
+        return {"eligible": False, "conditions": conds,
+                "why": "RCL drift stands — ReEntryCandidate = FALSE"}
     eligible = all(conds.values())
     if eligible:
         st = _state()

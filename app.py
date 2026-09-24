@@ -1931,6 +1931,7 @@ def _pick_card(cfg: TradingConfig, kraken):
             else:
                 rows.append("TRAIL <span class='dim'>.........</span> "
                             "<span class='dim'>none yet — the profit guard arms once the run clears entry</span>")
+            rows.extend(_guard_breakdown_rows(w, pct))
             rows.append("<span class='dim'>walk around the house — she'll call you</span>")
             rows.append(_tide_line())
             st.markdown(plate("👁 WATCHING", lcd(rows, tone="green" if usd >= 0 else "red")),
@@ -2098,6 +2099,12 @@ def render_master(cfg: TradingConfig, kraken):
     # speak it. Sits beside the score it grades.
     _render_cooldown_review()
 
+    # 🕳️ THE FUNNEL, LIVE (Sep 23): every candidate THIS rotation — its
+    # quick/brain read, the bar it faced, which gate buried it (or
+    # FIRED). The rotation-scoped view; the burial strip below keeps
+    # the all-time record.
+    _render_funnel_plate()
+
     # 🚫 WHAT THE FUNNEL BURIED (user rule, Sep 4, the POPCAT lesson: the
     # scanner's suppression verdicts used to print to the console window
     # only — a buried payer took three forensics scripts to name its
@@ -2202,6 +2209,115 @@ def render_master(cfg: TradingConfig, kraken):
     # render age — staleness observable LIVE on the page, not only in
     # diag_cachesweep's offline audit.
     _render_master_diagnostics()
+
+
+def _funnel_plate_rows(rot_key: str, sup_rows: list, fire_rows: list):
+    """THE FUNNEL PLATE's row builder — pure, so the drive can grade it
+    without streamlit or the ledgers. (total, [html]): every candidate
+    read this rotation, newest first, each line its quick read, the bar
+    it faced, and the gate that buried it (or FIRED). A sub-45 quick is
+    dimmed — the funnel's noise floor, not a near-miss."""
+    merged = [("sup", d) for d in sup_rows] + [("fired", d) for d in fire_rows]
+    merged.sort(key=lambda kd: str(kd[1].get("ts", "")), reverse=True)
+    total = len(merged)
+    out = []
+    for kind, d in merged[:14]:
+        ts = str(d.get("ts", ""))[11:16]
+        gate = "FIRED" if kind == "fired" else str(d.get("gate", "?"))
+        gcol = ("#4be38a" if kind == "fired"
+                else "#ff6b5e" if gate in ("tide-out", "death-line")
+                else "#ffc36b")
+        quick = d.get("quick")
+        try:
+            qv = float(quick)
+            qtxt = (f"<span class='dim'>quick {qv:.0f}</span>" if qv < 45
+                    else f"quick {qv:.0f}")
+        except Exception:
+            qtxt = "quick ?"
+        bar = d.get("bar", d.get("floor"))
+        try:
+            btxt = f"vs bar {float(bar):.0f}"
+        except Exception:
+            btxt = "vs bar —"
+        brain = d.get("brain")
+        try:
+            brain_txt = f" · brain {float(brain):.0f}"
+        except Exception:
+            brain_txt = ""
+        detail = str(d.get("detail", ""))[:110]
+        out.append(
+            f"<div style='padding:3px 0;border-bottom:1px solid rgba(255,255,255,0.08);"
+            f"font-family:Share Tech Mono,monospace;font-size:12.5px;color:#d8ccb4;'>"
+            f"<span class='dim'>{ts}</span>&nbsp;&nbsp;<b>{_asset(str(d.get('pair', '?')))}</b>"
+            f"&nbsp;&nbsp;<span style='color:{gcol};'>{gate}</span>"
+            f"&nbsp;&nbsp;{qtxt} <span class='dim'>{btxt}{brain_txt}</span><br>"
+            f"<span class='dim'>{detail}</span></div>")
+    return total, out
+
+
+def _render_funnel_plate():
+    """🕳️ THE FUNNEL, LIVE (Sep 23): every candidate the scanner has read
+    THIS rotation — its quick (and brain, when consulted) read, the bar
+    it faced, and which gate buried it (or FIRED, from the snapshot
+    ledger's kind='fired' rows). The rotation-scoped sibling of the
+    burial strip below: the burial log keeps the all-time record, this
+    plate shows the rotation the scanner is working right now, scoped
+    by the same rot key the scanner stamps on every candidate. Read-
+    only — the scanner computes, this plate renders (one-brain)."""
+    try:
+        import json as _json
+        from datetime import datetime as _dt
+        from pathlib import Path as _P
+        import background_scanner as _bs1
+        now = _now_mst()
+        rot = _bs1.rotation_key_for_hour(now.hour)
+        today = now.date()
+
+        def _rot_rows(fname, kinds):
+            f = _P(__file__).parent / fname
+            if not f.exists():
+                return []
+            out = []
+            for l in reversed(f.read_text(encoding="utf-8").splitlines()[-400:]):
+                try:
+                    d = _json.loads(l)
+                except Exception:
+                    continue
+                if str(d.get("rot", "")) != rot:
+                    continue
+                try:
+                    if _dt.fromisoformat(str(d.get("ts", ""))).date() != today:
+                        continue
+                except Exception:
+                    continue
+                if kinds is not None and d.get("kind") not in kinds:
+                    continue
+                out.append(d)
+            return out
+
+        sup = _rot_rows("popup_suppressions.jsonl", None)
+        fired = _rot_rows("signal_snapshots.jsonl", {"fired"})
+        total, rows = _funnel_plate_rows(rot, sup, fired)
+        if total == 0:
+            st.markdown(
+                f"<div class='dim' style='font-family:Share Tech Mono,monospace;"
+                f"font-size:12px;padding:2px 2px 6px;'>🕳️ THE FUNNEL, LIVE — "
+                f"nothing buried and nothing fired yet in {rot} MST. The plate "
+                f"fills as the scanner cycles (a light pass every ~45s, a full "
+                f"scan up to 10 min).</div>", unsafe_allow_html=True)
+            return
+        with st.expander(
+                f"🕳️ THE FUNNEL, LIVE — every candidate read this rotation "
+                f"({rot} MST): score vs the bar it faced, and the gate that "
+                f"buried it ({total} candidate read{'s' if total != 1 else ''})"):
+            st.markdown("".join(rows), unsafe_allow_html=True)
+            st.caption(
+                f"as of {now.strftime('%H:%M')} MST — rotation {rot}; re-reads "
+                f"the scanner's own ledgers live each rerun. Showing newest "
+                f"{len(rows)} of {total}. Bars move with the tide: tide-out "
+                f"prices each rotation's payer rate.")
+    except Exception as exc:
+        logger.debug("funnel plate failed: %s", exc)
 
 
 def _render_suppression_strip():
@@ -7044,6 +7160,60 @@ def _pulse_html():
             f"finished {_fmt_pulse_age(age)} ago</span>")
 
 
+# ── THE GUARD BREAKDOWN (Sep 23, user: "show each watched pair's live
+# GuardFactor breakdown — env, discipline, MLT, vol, memory — so I can
+# see why the net is wide or tight"): the scanner stamps the FINALIZED
+# factor and its named parts onto the watch row each check
+# (`guard_brk`); this renders the why — it never computes it (the
+# one-brain rule: the page reads, the scanner decides).
+def _guard_breakdown_rows(w: dict, pct: float) -> list[str]:
+    brk = w.get("guard_brk") or {}
+    gf = brk.get("gf")
+    if not isinstance(gf, (int, float)) or gf <= 0:
+        return ["<span class='dim'>GUARD ......... the net is the committed "
+                "fixed rules — the guard hasn't read this pair yet</span>"]
+    parts = brk.get("parts") or {}
+    names = (("env", "env"), ("disc_mod", "disc"), ("mlt_corr", "mlt"),
+             ("vol_mod", "vol"), ("asset_mem", "mem"),
+             ("funding_mod", "fund"), ("decay_mod", "decay"))
+
+    def _fmt(key, label):
+        v = parts.get(key)
+        if key == "mlt_corr":
+            return f"{label} {v:+.2f}" if isinstance(v, (int, float)) else f"{label} —"
+        return f"{label} {v:.2f}" if isinstance(v, (int, float)) else f"{label} —"
+
+    bits = " · ".join(_fmt(k, lbl) for k, lbl in names)
+    gcol = "#4be38a" if gf >= 1.2 else "#ff6b5e" if gf < 0.9 else "#ffc36b"
+    mood = ("LET IT RUN" if gf >= 1.2 else
+            "TIGHTEN" if gf < 0.9 else "normal trailing")
+    carried = brk.get("carried_from")
+    head = (f"GUARD <span class='dim'>.........</span> "
+            f"<span style='color:{gcol};'>net ×{gf:.2f} — {mood}</span>")
+    if brk.get("readable") is False and carried:
+        head += (f" <span class='dim'>(carried from {carried} — the live "
+                 f"loop is unreadable)</span>")
+    rows = [head,
+            f"<span class='dim' style='font-size:12px;margin-left:14px;'>"
+            f"{bits}</span>"]
+    extras = []
+    rcl = brk.get("rcl")
+    if rcl and rcl != "NORMAL":
+        rm = brk.get("rcl_mult")
+        extras.append(f"RCL {rcl}" + (f" ×{rm:.2f}" if isinstance(rm, (int, float)) and rm != 1.0 else ""))
+    sm = brk.get("sal_mult")
+    if isinstance(sm, (int, float)) and sm != 1.0:
+        extras.append(f"SAL ×{sm:.2f}")
+    if brk.get("momentum"):
+        extras.append("MOMENTUM +15%")
+    if brk.get("endgame"):
+        extras.append("END-GAME")
+    if extras:
+        rows.append("<span class='dim' style='font-size:12px;margin-left:14px;'>"
+                    + " · ".join(extras) + "</span>")
+    return rows
+
+
 def _render_light_panel(interval: str):
     """The always-visible light panel — rendered from the last check."""
     watch_status = st.session_state.get("watch_status") or []
@@ -7117,6 +7287,22 @@ def _render_light_panel(interval: str):
                 _age = None
             if _age is not None and (_age <= 0 or _age > 86400):
                 _age = None   # (CodeRabbit) a missing stamp is NEVER a 29-million-minute silence
+            # (Sep 23) THE GUARD BADGE — the finalized factor the exit
+            # watch enforces, straight from the row's guard_brk stamp.
+            _gb_txt = ""
+            try:
+                _gb = rec.get("guard_brk") or {}
+                _gfg = _gb.get("gf")
+                if isinstance(_gfg, (int, float)) and _gfg > 0:
+                    _gcol = "#4be38a" if _gfg >= 1.2 else "#ff6b5e" if _gfg < 0.9 else "#ffc36b"
+                    _gb_txt = (f" · <span style='color:{_gcol};'>net ×{_gfg:.2f}"
+                               + (" · EG" if _gb.get("endgame") else "")
+                               + (" · MOM" if _gb.get("momentum") else "")
+                               + "</span>")
+                else:
+                    _gb_txt = " · <span style='color:#8d8271;'>net fixed</span>"
+            except Exception:
+                _gb_txt = ""
             if _age is not None and 0 < _age <= 180:
                 live_txt = (f" · <span style='color:#4be38a;'>checked "
                             f"{_age:.0f}s ago</span>")
@@ -7127,7 +7313,7 @@ def _render_light_panel(interval: str):
                 live_txt = (" · <span style='color:#ffc36b;'>not checked "
                             "yet</span>")
             lines.append(f"<span style='color:#4be38a;font-size:16px;'>◆ {asset}</span> {pnl_html}"
-                         f"{clock_html}{live_txt}{bail_txt}")
+                         f"{clock_html}{live_txt}{bail_txt}{_gb_txt}")
     if n_wallet:
         lines.append(f"<span class='dim'>bot trades: {n_wallet} (watched separately)</span>")
     st.markdown(plate("MY TRADES", lcd(lines, tone="green")),

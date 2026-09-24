@@ -69,6 +69,11 @@ FUNDING_FALLING_MULT = 0.9
 FUNDING_NEUTRAL_MULT = 1.0
 DECAY_TAU_MIN = 90.0
 DECAY_FLOOR = 0.7
+VOL_WINDOW = 100          # the guard's DIRECT candle window (Sep 23:
+                          # deepened 20 -> 100 — a stabler realized ATR;
+                          # the "deep history" half stays indirect, the
+                          # baseline still comes from the rotation cell's
+                          # learned per-cell std over weeks of candles)
 BASE_LOCK_IN_PCT = 1.0    # the lock width the armed cap normalizes against
 
 STATE_FILE = ROOT / "profit_guard_state.json"
@@ -195,7 +200,10 @@ def _env_cache_get(when: datetime) -> float | None:
 def discipline_penalty(when: datetime | None = None) -> float | None:
     """DisciplinePenalty 0-10 from the discipline score's own gap to 100
     (a 100 discipline night costs nothing; 30 costs 7). Unreadable
-    -> None."""
+    -> None. THE ADAPTIVE WEIGHT (user spec, Sep 23): the meta layers'
+    docked extra scales with carve_out.penalty_context — high vol or a
+    strong rotation forgives, a weak fleet or a heavy book bites harder
+    — so the same violation costs differently per regime."""
     facts = _daily_facts(when)
     if not facts or facts.get("score") is None:
         return None
@@ -206,7 +214,16 @@ def discipline_penalty(when: datetime | None = None) -> float | None:
         # and SAL violations raise DisciplinePenalty) — fail-soft, capped
         try:
             import meta_layers as _ml
-            pen += float(_ml.discipline_penalty_extra() or 0.0)
+            _extra = float(_ml.discipline_penalty_extra() or 0.0)
+            if _extra > 0:
+                try:
+                    import carve_out as _co
+                    _w, _r = _co.penalty_context(when)
+                    if _r:
+                        _extra *= _w
+                except Exception:
+                    pass
+                pen += _extra
         except Exception:
             pass
         return round(min(pen, 10.0), 3)
@@ -237,13 +254,26 @@ def money_left_on_table(when: datetime | None = None) -> float | None:
 
 def daily_goal_usd(when: datetime | None = None) -> float | None:
     """The tier's realistic daily pace — the same number the all-good
-    pace clock uses, via the same readout. Unreadable -> None."""
+    pace clock uses, via the same readout — now THE ADAPTIVE BASELINE
+    (user spec, Sep 23): x goal_context (strong rotation/tide/fleet
+    raise it; high vol and a heavy book lower it) when the context
+    reads. DNL's learning factor composes separately (tomorrow's
+    goal = base x context x (1 + learning_factor)). Unreadable -> None."""
     facts = _daily_facts(when)
     if not facts or facts.get("daily_pace") is None:
         return None
     try:
         pace = float(facts["daily_pace"])
-        return round(pace, 2) if pace > 0 else None
+        if pace <= 0:
+            return None
+        try:
+            import carve_out as _co
+            _gm, _gr = _co.goal_context(when)
+            if _gr:
+                pace *= _gm
+        except Exception:
+            pass
+        return round(pace, 2)
     except Exception:
         return None
 
@@ -261,9 +291,9 @@ def mlt_corr(when: datetime | None = None) -> float | None:
 
 # ── 4. the volatility modifier ───────────────────────────────────────────
 def vol_ratio(pair: str) -> float | None:
-    """CurrentVol / BaselineVol: the pair's realized 20-candle volatility
-    over the engine's per-cell std for its rotation. Unreadable -> None.
-    Clamped VOL_MOD_CLAMP at the consumer."""
+    """CurrentVol / BaselineVol: the pair's realized VOL_WINDOW-candle
+    volatility over the engine's per-cell std for its rotation.
+    Unreadable -> None. Clamped VOL_MOD_CLAMP at the consumer."""
     try:
         import sqlite3
         import pandas as _pd
@@ -272,10 +302,10 @@ def vol_ratio(pair: str) -> float | None:
         try:
             df = _pd.read_sql_query(
                 "SELECT ts, open, high, low, close, volume FROM ohlcv WHERE pair=? "
-                "ORDER BY ts DESC LIMIT 20", cc, params=(pair,))
+                "ORDER BY ts DESC LIMIT ?", cc, params=(pair, VOL_WINDOW))
         finally:
             cc.close()   # never leak the handle (Windows locks the file)
-        if len(df) < 20:
+        if len(df) < VOL_WINDOW:
             return None
         df = df.iloc[::-1].reset_index(drop=True)
         cur = float(_atr(df, 14).iloc[-1]) / max(float(df["close"].iloc[-1]), 1e-9)
@@ -375,10 +405,15 @@ def _funding_mod_fresh(pair: str) -> float:
 
 
 # ── 7. the time-in-trade decay ───────────────────────────────────────────
-def decay_mod(w: dict | None = None) -> float:
+def decay_mod(w: dict | None = None,
+              context: tuple | None = None) -> float:
     """DecayMod = exp(-t / tau) over minutes in trade, floored at
     DECAY_FLOOR: the older the position, the less it deserves the wide
-    net. No opened_ts (legacy row) -> 1.0 neutral."""
+    net. THE ADAPTIVE BASELINE (user spec, Sep 23): `context` is
+    (multiplier, readable) from carve_out.decay_context — the tau slope
+    scales with tide/rotation/vol/book (tide out or a heavy book decays
+    FASTER; high vol or a strong rotation decays SLOWER) — the decay is
+    contextual, not fixed. None/False -> the fixed slope (fail-neutral)."""
     try:
         added = (w or {}).get("opened_ts") or (w or {}).get("added")
         if not added:
@@ -387,7 +422,14 @@ def decay_mod(w: dict | None = None) -> float:
         if _d.tzinfo is None:          # legacy naive stamp -> MST
             _d = _d.replace(tzinfo=_now_mst().tzinfo)
         t_min = (datetime.now(_d.tzinfo) - _d).total_seconds() / 60.0
-        return round(max(DECAY_FLOOR, math.exp(-max(t_min, 0.0) / DECAY_TAU_MIN)), 3)
+        # the context scales the SLOPE: a multiplier < 1 stretches tau
+        # (slower decay), > 1 shrinks it (faster decay) — never past the
+        # DECAY_FLOOR, and only when the context actually read
+        base = math.exp(-max(t_min, 0.0) / DECAY_TAU_MIN)
+        if context and context[1] and context[0]:
+            eff_tau = max(DECAY_TAU_MIN / float(context[0]), 5.0)
+            base = math.exp(-max(t_min, 0.0) / eff_tau)
+        return round(max(DECAY_FLOOR, base), 3)
     except Exception:
         return 1.0
 
@@ -412,9 +454,10 @@ def guard_factor(pair: str, w: dict | None = None,
     # DOWN — an aging position in a living trend is not a stale one
     try:
         import meta_layers as _ml
-        dec = 1.0 if _ml.momentum_active(pair) else decay_mod(w)
+        dec = 1.0 if _ml.momentum_active(pair) else decay_mod(
+            w, __import__("carve_out", fromlist=["x"]).decay_context(pair, when))
     except Exception:
-        dec = decay_mod(w)
+        dec = decay_mod(w, __import__("carve_out", fromlist=["x"]).decay_context(pair, when))
 
     def _n(v, neutral=1.0):
         return neutral if v is None else float(v)

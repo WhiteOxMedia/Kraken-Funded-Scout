@@ -136,6 +136,12 @@ if not RERUN:
             _git("add", "-f", f)
         env = dict(os.environ)
         env["CODERABBIT_OFF"] = "1"   # sandbox isolation: gate only
+        # (Sep 23, the gate's own first quiet commit) the scenarios OWN the
+        # quiet flag: a caller-set GATE_QUIET leaks through os.environ into
+        # 2.2's "default unset" scenario, flips it quiet, and the verbose
+        # census fails against a healthy gate — the sandbox would lie about
+        # the hook while the hook is fine. Force each scenario's flag.
+        env["GATE_QUIET"] = (extra_env or {}).get("GATE_QUIET", "0")
         env.update(extra_env or {})
         p = subprocess.run(["bash", str(hook_exe)], cwd=str(sandbox),
                            capture_output=True, text=True, encoding="utf-8",

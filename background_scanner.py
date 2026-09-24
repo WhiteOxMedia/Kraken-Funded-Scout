@@ -1191,8 +1191,10 @@ def tide_personal_bar(pair: str | None, tide_state: str | None,
     (tide_memory.py — the same evidence the fleet bar prices, viewed
     per-coin). One bar, one tax: a habitual OUT-tide payer gets a
     PERSONAL bar a few points under the fleet's; a coin that never pays
-    in OUT hours pays a few over. Clamped to the learned band [86, 97]
-    — the personal bar never leaves the band the data set. Fail-closed:
+    in OUT hours pays a few over. Floored at the bar's own SOURCE-matched
+    floor (tide_learn.state_bar_floor): a ladder-admitted outcome bar's
+    evidence flows through to every coin, the old [86, 97] constant
+    floor only for quantile bars. Ceiling BAR_MAX as ever. Fail-closed:
     no fleet model -> None (the blanket block stands); a broken memory
     or a bare pair -> the fleet bar unchanged."""
     if base_bar is None:
@@ -1203,15 +1205,21 @@ def tide_personal_bar(pair: str | None, tide_state: str | None,
         import tide_memory as _tmem
         import tide_learn as _tl
         adj, _why = _tmem.tide_edge(pair, tide_state)
-        return float(max(_tl.BAR_MIN, min(_tl.BAR_MAX,
-                                          float(base_bar) - adj)))
+        # (Sep 23, the burial-ledger tuning) the floor follows the bar's
+        # own source: a ladder-admitted OUTCOME bar may sit below 80, and
+        # re-flooring every personal bar to the quantile's 86 here would
+        # undo the fleet's evidence coin by coin.
+        return float(max(_tl.state_bar_floor(tide_state),
+                         min(_tl.BAR_MAX, float(base_bar) - adj)))
     except Exception:
         return float(base_bar)
 
 
 def _tide_learn_bar() -> tuple[float | None, str]:
     """(learned OUT bar, meta) — the deep-store learner's confidence bar
-    for OUT tides (the payer-rate price, clamped [86, 97]). (None, why)
+    for OUT tides (the payer-rate price; the fleet bar floors at the
+    state's evidence-gated floor — see tide_learn.state_bar_floor).
+    (None, why)
     when the learner has no model — the caller keeps the blanket block
     (fail-closed). First call refreshes synchronously (~seconds), then
     the model is cached for the TTL."""
@@ -1802,9 +1810,19 @@ def lone_wolf_discount(exchange, pair: str, max_age_s: float = 900.0) -> tuple[i
     blanket OUT block buried 12 crowns while the market paid — a TRUE solo
     runner moving against the whole fleet earns the same discount, and the
     popup fires marked 'against an out tide'). RISING gets nothing (the
-    fleet already carries). The 24h move is cached per pair (15 min) — one
-    ticker fetch per signal, not one per gate. Fail-closed: a broken tide
-    or ticker read means NO discount (the normal thresholds stand)."""
+    fleet already carries). THE ADAPTIVE CARVE-OUT (user spec, Sep 23):
+    the fixed +5%/+8% tiers and the 25/35-pt discounts become
+    carve_out.py's allowance — the required own move is Base x the five
+    regime mods (tide out tightens toward ~2%, strength expands it), the
+    points scale with the same reading (clamped 0.5-1.5x), and in an OUT
+    tide the hatch only OPENS when LoneWolfMode is granted (the
+    permission gate: carve, fleet, tide, rotation all clear, no RCL
+    drift, no end-game, no suppression — a dead tide stops buying solo
+    runners with a static number). The 24h move is cached per pair
+    (15 min) — one ticker fetch per signal, not one per gate. Fail-open:
+    an unreadable carve module falls back to the OLD fixed tiers; a
+    broken tide or ticker read means NO discount (the normal thresholds
+    stand)."""
     import time as _time
     _tp, _ts = _fleet_tide()
     if _tp is None or _ts not in ("FLAT", "OUT"):
@@ -1822,10 +1840,23 @@ def lone_wolf_discount(exchange, pair: str, max_age_s: float = 900.0) -> tuple[i
         _lone_wolf_cache.update(pair=pair, pct=own, ts=_now)
     _tide_txt = ("against an OUT tide" if _ts == "OUT"
                  else "while the tide's flat")
-    if own >= LONE_WOLF_MOVE_BIG:
-        return LONE_WOLF_PTS_BIG, f"+{own:.0f}% on her own {_tide_txt} ({_tp:.0f}% of the fleet up)"
-    if own >= LONE_WOLF_MOVE_MIN:
-        return LONE_WOLF_PTS, f"+{own:.0f}% on her own {_tide_txt} ({_tp:.0f}% of the fleet up)"
+    # ── the adaptive reading (fail-open to the Sep-4 fixed tiers) ──
+    try:
+        import carve_out as _co
+        _cres = _co.gate(pair=pair)
+        req = float(_co.required_own_move(_cres))
+        _lw_scale = float(_cres.get("lw_scale") or 1.0)
+        _mode = bool(_cres.get("lone_wolf"))
+    except Exception:
+        req, _lw_scale, _mode = LONE_WOLF_MOVE_MIN, 1.0, False
+    big = req * 1.6                       # the old 5->8 tier ratio
+    if _ts == "OUT" and not _mode:
+        return 0, ""                      # the permission gate: hatch closed
+    _why_tail = f" ({_tp:.0f}% of the fleet up; carve req {req:.1f}%)"
+    if own >= big:
+        return int(round(LONE_WOLF_PTS_BIG * _lw_scale)), f"+{own:.0f}% on her own {_tide_txt}{_why_tail}"
+    if own >= req:
+        return int(round(LONE_WOLF_PTS * _lw_scale)), f"+{own:.0f}% on her own {_tide_txt}{_why_tail}"
     return 0, ""
 
 
@@ -3368,6 +3399,30 @@ def contest_light(exchange, cfg):
                 _eg_m = _ml.endgame_scales()
         except Exception:
             _meta = None
+        # ── THE GUARD BREAKDOWN STAMP (Sep 23, user: "show each watched
+        # pair's live GuardFactor breakdown on the console — env,
+        # discipline, MLT, vol, memory — so I can see why the net is
+        # wide or tight"): the FINALIZED factor (after RCL/SAL/momentum)
+        # plus every named part ride the watch row each check — the
+        # page renders the why, it never computes it (the one-brain
+        # rule). Written on HOLD too: the breakdown is a heartbeat,
+        # not an event.
+        if _pgres is not None:
+            w["guard_brk"] = {
+                "ts": time.time(),
+                "gf": _pgf,
+                "readable": bool(_pgres.get("readable")),
+                "carried_from": _pgres.get("carried_from"),
+                "parts": {k: _pgres.get(k) for k in
+                          ("env", "disc_mod", "mlt_corr", "vol_mod",
+                           "asset_mem", "funding_mod", "decay_mod")},
+                "rcl": (_meta or {}).get("rcl"),
+                "rcl_mult": (_meta or {}).get("mult"),
+                "sal_mult": (_meta or {}).get("sal_mult"),
+                "momentum": bool((_meta or {}).get("momentum_continuation")),
+                "endgame": bool((_meta or {}).get("endgame")),
+            }
+            dirty = True
         _trail = _ratchet_trail_pct(entry, high, size)
         if _pgf is not None:
             _trail = round(_trail * _pgf, 3)
@@ -4814,11 +4869,18 @@ def main():
                                 _bar_txt = (f"personal bar {_pbar:.0f} ({_lmeta})"
                                             if _pbar is not None
                                             else f"no learned bar ({_lmeta})")
+                                try:
+                                    import carve_out as _co_t
+                                    _lw_req_txt = (f"lone wolf needs >= "
+                                                   f"+{_co_t.required_own_move(_co_t.gate(pair=pair)):.0f}% "
+                                                   f"own 24h move")
+                                except Exception:
+                                    _lw_req_txt = (f"lone wolf needs >= "
+                                                   f"+{LONE_WOLF_MOVE_MIN:.0f}% own 24h move")
                                 _log_suppression(pair, "tide-out",
                                                  f"fleet {_tp2:.0f}% up — the OUT tide's price: "
                                                  f"quick {float(signal.confidence):.1f} vs {_bar_txt}; "
-                                                 f"lone wolf needs >= +{LONE_WOLF_MOVE_MIN:.0f}% "
-                                                 f"own 24h move; journal: {_rel_why}",
+                                                 f"{_lw_req_txt}; journal: {_rel_why}",
                                                  quick=float(signal.confidence),
                                                  brain=(float(_deep.confidence) if _deep is not None else None),
                                                  floor=float(DESKTOP_ALERT_MIN),
@@ -5478,11 +5540,18 @@ def main():
                             logger.info("  SURE THING %s: tide OUT — score %.1f vs %s; journal: %s",
                                         asset, float(r.get("score") or 0.0),
                                         _bar_txt, _rel_why)
+                            try:
+                                import carve_out as _co_s
+                                _lw_req_s = (f"lone wolf needs >= "
+                                             f"+{_co_s.required_own_move(_co_s.gate(pair=pair)):.0f}% "
+                                             f"own 24h move")
+                            except Exception:
+                                _lw_req_s = (f"lone wolf needs >= "
+                                             f"+{LONE_WOLF_MOVE_MIN:.0f}% own 24h move")
                             _log_suppression(pair, "tide-out",
                                              f"breakout coil — the OUT tide's price: "
                                              f"score {float(r.get('score') or 0.0):.1f} vs {_bar_txt}; "
-                                             f"lone wolf needs >= +{LONE_WOLF_MOVE_MIN:.0f}% "
-                                             f"own 24h move; journal: {_rel_why}",
+                                             f"{_lw_req_s}; journal: {_rel_why}",
                                              quick=float(r.get("score") or 0.0),
                                              tide=f"OUT {_tp:.0f}%",
                                              rot=rotation_key_for_hour(_now_mst().hour))
@@ -6072,6 +6141,18 @@ def main():
                                     _mln.tomorrow_goal_multiplier())
                 except Exception as _exc:
                     logger.debug("DNL failed: %s", _exc)
+                # THE CARVE-OUT'S NIGHT UPDATE (user spec, Sep 23):
+                # freeze today's allowance + the five mods into the
+                # history and carry unreadable sources for a day —
+                # runs after DNL so the narrative cites tonight's
+                try:
+                    import carve_out as _co_n
+                    _con = _co_n.night_update(now)
+                    logger.info("   carve-out tonight: %.1f%% (goal x%.2f, lone-wolf %s)",
+                                _con["carve"] * 100.0, _con["goal_factor"],
+                                "ON" if _con["lone_wolf"] else "OFF")
+                except Exception as _exc:
+                    logger.debug("carve-out night update failed: %s", _exc)
             except Exception as _exc:
                 logger.debug("cooldown review failed: %s", _exc)
 
@@ -6231,16 +6312,29 @@ def main():
                         # _mv_pct −5) don't carve — a bounce isn't a solo
                         # runner.
                         _tpw, _tsw = _fleet_tide()
+                        # the ADAPTIVE hatch (Sep 23): the required own
+                        # move is carve_out's allowance (Base x the five
+                        # mods, 2-8%), and the hatch only OPENS when
+                        # LoneWolfMode is granted (permission gate)
+                        try:
+                            import carve_out as _co_m
+                            _m_cres = _co_m.gate(pair=pair)
+                            _m_req = float(_co_m.required_own_move(_m_cres))
+                            _m_mode = bool(_m_cres.get("lone_wolf"))
+                        except Exception:
+                            _m_req, _m_mode = LONE_WOLF_MOVE_MIN, False
                         _m_out_lw = bool(_tsw == "OUT"
                                          and _mv_pct is not None
-                                         and float(_mv_pct) >= LONE_WOLF_MOVE_MIN)
+                                         and float(_mv_pct) >= _m_req
+                                         and _m_mode)
                         if _tsw == "OUT" and not _m_out_lw:
                             logger.info("  MOVER SKIP: %s — tide OUT (fleet %.0f%%) — all ships sink together",
                                         asset, _tpw or 0)
                             _log_suppression(pair, "tide-out",
                                              f"mover: fleet {_tpw or 0:.0f}% up — all ships sink "
-                                             f"together; own 24h {_mv_pct:+.0f}% < the "
-                                             f"+{LONE_WOLF_MOVE_MIN:.0f}% carve-out",
+                                             f"together; own 24h {_mv_pct:+.0f}% vs the "
+                                             f"carve-out's {_m_req:.1f}%"
+                                             + ("" if _m_mode else " — lone-wolf mode OFF"),
                                              quick=float(signal.confidence),
                                              brain=(float(_deep_sig.confidence)
                                                     if _deep_sig is not None else None),

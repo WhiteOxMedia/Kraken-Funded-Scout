@@ -8,6 +8,7 @@ book ride inside, clearly marked.
 """
 import json
 import math
+import os
 import sys
 import time
 import types
@@ -25,7 +26,8 @@ def check(n, cond, why=""):
 
 _MST = timezone(timedelta(hours=-6))
 HERE = Path(__file__).resolve().parent
-TMP = HERE / "_pgtmp"
+import tempfile
+TMP = Path(tempfile.mkdtemp(prefix="pgtmp_"))
 TMP.mkdir(exist_ok=True)
 (TMP / "profit_guard_state.json").unlink(missing_ok=True)   # no cross-run leaks
 
@@ -48,7 +50,7 @@ _ORIG_FACTS = pg._daily_facts
 
 _REAL_ROOT = pg.ROOT
 pg.ROOT = TMP                    # thresholds + state + trades all in tmp now
-pg.STATE_FILE = TMP / "profit_guard_state.json"
+pg.STATE_FILE = TMP / "profit_guard_state.json"  # leak-audit: ok (suite-long redirect into the mkdtemp world; restore-never, suite-per-process)
 (TMP / "rotation_thresholds.json").write_text(json.dumps({
     "median": {"weekday": {
         "08-12": {"avg_move": 2.4, "std": 1.5, "median_volume_usd": 60000,
@@ -104,11 +106,21 @@ pg.ROOT = TMP
 pg._daily_facts = lambda when=None: {"score": 80.0, "total_left": 30.0,
                                      "daily_pace": 60.0}
 check(3.1, pg.money_left_on_table() == 30.0, "yesterday's left reads from the facts")
-check(3.2, pg.daily_goal_usd() == 60.0, "the pace reads from the facts")
-check(3.3, abs(pg.mlt_corr() - 0.5) < 1e-9, "MLT_Corr = 30/60 = +0.5 (loosen)")
 check(3.4, pg.discipline_penalty() == 2.0, "score 80 -> penalty 2.0")
 check(3.5, abs(pg.disc_mod_from_penalty(pg.discipline_penalty()) - 0.8) < 1e-9,
       "DiscMod composes from the same facts (0.8)")
+# THE ADAPTIVE GOAL (Sep 23): stubbed NEUTRAL for the raw pins above, then
+# pinned scaling explicitly — the context multiplier folds into the pace
+import carve_out as _co_pg
+_gc_orig = _co_pg.goal_context
+_co_pg.goal_context = lambda when=None: (1.0, False)
+check(3.2, pg.daily_goal_usd() == 60.0, "the pace reads from the facts")
+check(3.3, abs(pg.mlt_corr() - 0.5) < 1e-9, "MLT_Corr = 30/60 = +0.5 (loosen)")
+_co_pg.goal_context = lambda when=None: (1.2, True)
+check(3.8, pg.daily_goal_usd() == 72.0,
+      "the goal scales with the context (60 x 1.2 = 72)")
+_co_pg.goal_context = lambda when=None: (1.0, False)
+_co_pg.goal_context = _gc_orig
 pg._daily_facts = lambda when=None: {"score": 100.0, "total_left": 0.0,
                                      "daily_pace": 0.0}
 check(3.6, pg.mlt_corr() is None, "zero pace -> None (no divide-by-zero)")
@@ -121,6 +133,65 @@ check(3.7, pg.mlt_corr() is None and pg.discipline_penalty() is None
 print("== 4. VolMod = CurrentVol / BaselineVol ==")
 check(4.1, pg.vol_ratio("ZEC/USD") is None,
       "HERMETIC: no candle db in tmp -> None (neutral in product)")
+
+# ── THE DIRECT WINDOW (Sep 23, user: "deepen the guard's direct candle
+# window from 20 to 100"): a REAL sqlite fixture proves the floor moved
+# WITH the window — 99 candles must answer None (a 20-floor would have
+# answered here) and 100 must compute. The loud-tail ordering check is
+# ATR-variant-proof: a louder last-15 block yields a strictly higher
+# realized vol under Wilder, ewm, or rolling-mean smoothing alike.
+import sqlite3 as _sq
+import pandas as _pd
+
+
+def _candle_db(rows, path):
+    # the REAL cache's shape: vol_ratio filters WHERE pair=?
+    cc = _sq.connect(path)
+    cc.execute("DROP TABLE IF EXISTS ohlcv")   # the fixture rebuilds per case
+    cc.execute("CREATE TABLE ohlcv (pair TEXT, ts INTEGER, open REAL, high REAL, "
+               "low REAL, close REAL, volume REAL)")
+    cc.executemany("INSERT INTO ohlcv VALUES (?,?,?,?,?,?,?)",
+                   [("ZEC/USD",) + r for r in rows])
+    cc.commit()
+    cc.close()
+
+
+def _rows(n, loud_tail=0):
+    ts0 = 1_700_000_000
+    out = []
+    for i in range(n):
+        if loud_tail and i >= n - loud_tail:      # the loud block: +-1 range
+            out.append((ts0 + i * 300, 100.0, 101.0, 99.0, 100.0, 10.0))
+        else:                                     # the quiet body: zero range
+            out.append((ts0 + i * 300, 100.0, 100.0, 100.0, 100.0, 10.0))
+    return out
+
+
+_keys = ["00-04", "04-08", "08-12", "12-16", "16-20", "20-24"]
+(TMP / "rotation_thresholds.json").write_text(json.dumps(
+    {"median": {"weekday": {k: {"std": 1.2} for k in _keys},
+                "weekend": {k: {"std": 1.2} for k in _keys}}}), encoding="utf-8")
+_db = TMP / "ohlcv_cache.db"
+_candle_db(_rows(99), _db)
+check(4.2, pg.vol_ratio("ZEC/USD") is None,
+      "99 candles -> None: the floor moved WITH the window (a 20-floor "
+      "would have answered here — this is the 20->100 pin)")
+_candle_db(_rows(100), _db)
+_quiet = pg.vol_ratio("ZEC/USD")
+check(4.3, isinstance(_quiet, float) and _quiet >= 0.0,
+      f"100 candles + a readable rotation cell -> a real ratio ({_quiet})")
+_candle_db(_rows(100, loud_tail=15), _db)
+_loud = pg.vol_ratio("ZEC/USD")
+check(4.4, isinstance(_loud, float) and _loud > _quiet,
+      f"a loud last-15 block prices STRICTLY higher than a quiet series "
+      f"({_loud} > {_quiet}) — the current window's content drives the number")
+check(4.5, pg.VOL_WINDOW == 100 and "LIMIT ?" in (HERE / "profit_guard.py").read_text(encoding="utf-8")
+      and "params=(pair, VOL_WINDOW)" in (HERE / "profit_guard.py").read_text(encoding="utf-8")
+      and "LIMIT 20" not in (HERE / "profit_guard.py").read_text(encoding="utf-8"),
+      "the window is the VOL_WINDOW dial (100), bound as a parameter — "
+      "no LIMIT 20 literal survives to drift apart from the floor")
+_db.unlink(missing_ok=True)
+(TMP / "rotation_thresholds.json").unlink(missing_ok=True)
 
 # ════════ 5. AssetMemory ════════
 print("== 5. AssetMemory = asset run / fleet run ==")
@@ -218,15 +289,20 @@ pg.rotation_strength = lambda when=None: 4
 bs._fleet_tide = lambda max_age_s=300: (78.0, "RISING")
 _reset()
 (TMP / "profit_guard_state.json").unlink(missing_ok=True)
-_adj = pg.self_adjust()
+# THE FROZEN COOLDOWN CLOCK (hermetic by contract): self_adjust takes an
+# explicit `now`, so the drive freezes it — the stamp's date can never
+# flip with time of day (the metalayers shadow-bomb class).
+from datetime import datetime as _dt, timezone as _tz
+_ADJ_NOW = _dt(2026, 9, 22, 21, 0, tzinfo=_tz.utc)
+_adj = pg.self_adjust(now=_ADJ_NOW)
 check(9.1, _adj is not None and (TMP / "profit_guard_state.json").exists(),
       "first call adjusts and stamps the state file")
 _st = json.loads((TMP / "profit_guard_state.json").read_text(encoding="utf-8"))
 check(9.2, _st.get("adjusted_on") == "2026-09-22",
-      "the stamp is today's MST date (once per day)")
+      "the stamp is the frozen clock's MST date (once per day)")
 check(9.3, isinstance(_st.get("factor"), (int, float)),
       "GuardFactor stored for tomorrow's learning")
-check(9.4, pg.self_adjust() is None,
+check(9.4, pg.self_adjust(now=_ADJ_NOW) is None,
       "second call same day -> None (idempotent)")
 (TMP / "profit_guard_state.json").unlink(missing_ok=True)
 pg._daily_facts = lambda when=None: None
@@ -234,7 +310,7 @@ pg.rotation_strength = _ORIG_RS      # real fn — the stub must not leak in
 bs._fleet_tide = lambda max_age_s=300: (_ for _ in ()).throw(RuntimeError("dead"))
 pg.ROOT = HERE / "_pgtmp_nothresholds"
 _reset()
-check(9.5, pg.self_adjust() is None
+check(9.5, pg.self_adjust(now=_ADJ_NOW) is None
       and not (TMP / "profit_guard_state.json").exists(),
       "nothing readable -> no adjust, NO stamp (retries next cycle)")
 (TMP / "profit_guard_state.json").write_text("garbage", encoding="utf-8")
@@ -244,7 +320,7 @@ pg.ROOT = TMP
 pg._daily_facts = lambda when=None: {"score": 90.0, "total_left": 15.0,
                                      "daily_pace": 60.0}
 _reset()
-_adj2 = pg.self_adjust()
+_adj2 = pg.self_adjust(now=_ADJ_NOW)
 check(9.7, _adj2 is not None,
       "corrupted state does not block a fresh adjustment (restart-proof)")
 
@@ -264,14 +340,33 @@ check(10.5, '"opened_ts": _now_mst().isoformat()' in SRC,
 # scrub every stub and re-import REAL modules — the live probes must read
 # the real book, not the section-1/8/9 stubs (the contamination the era
 # drive taught us to check for)
-pg.ROOT = _REAL_ROOT
-_RealState = HERE / "profit_guard_state.json"
+pg.ROOT = _REAL_ROOT    # leak-audit: ok — the deliberate hand-back at the LIVE-probe section
+# (Sep 23, the gate's first staged run) the LIVE probes read the REAL book
+# from the module ROOT — but under the commit gate this drive runs from its
+# scratch with the repo only as PYTHONPATH's fallback, so ROOT-as-HERE
+# finds no contest_trades.jsonl and 10.7 fails against a healthy book.
+# Resolve the real repo from PYTHONPATH (the first existing entry that
+# holds the trades ledger); in-repo runs resolve HERE and behave exactly
+# as before.
+_REPO_ROOT = _REAL_ROOT
+for _pp in os.environ.get("PYTHONPATH", "").split(os.pathsep):
+    if _pp and (Path(_pp) / "contest_trades.jsonl").exists():
+        _REPO_ROOT = Path(_pp)
+        break
+pg.ROOT = _REPO_ROOT
+_RealState = _REPO_ROOT / "profit_guard_state.json"
 _RealBytes = _RealState.read_bytes() if _RealState.exists() else None
+# leak-audit: ok — the LIVE probe wants the REAL module state, and the
+# tail restores it byte-exact (or scrubs what this run created)
 pg.STATE_FILE = _RealState
 sys.modules.pop("profit_guard", None)
 sys.modules.pop("background_scanner", None)
 pg_real = __import__("profit_guard")
 __import__("background_scanner")          # the real seams for tide/rotation
+# the re-import resolves ROOT to its own dir — under the gate that's the
+# scratch again, so the fresh module is pointed at the real repo too
+pg_real.ROOT = _REPO_ROOT
+pg_real.STATE_FILE = _RealState
 _lres = pg_real.guard_factor("ZEC/USD", {"added": "2026-09-22T08:55:24-06:00"})
 check(10.6, isinstance(_lres.get("factor"), (int, float)),
       "LIVE: the real book yields a factor")

@@ -101,14 +101,14 @@ fi
 # red), and the green summary counts the drives so quiet output still
 # proves the gate ran.
 # Emergency bypass stays available: git commit --no-verify — deliberately.
-if git diff --cached --name-only | grep -qxE 'app\.py|background_scanner\.py|meta_layers\.py|profit_guard\.py|hooks/pre-commit'; then
+if git diff --cached --name-only | grep -qxE 'app\.py|background_scanner\.py|meta_layers\.py|profit_guard\.py|carve_out\.py|hooks/pre-commit'; then
     if [ -z "$PY" ]; then
         echo "  ⛔ GATE: guarded source staged but no python found — commit blocked." >&2
         exit 1
     fi
     SCRATCH="$(mktemp -d "${TMPDIR:-/tmp}/commitgate.XXXXXX")"
     trap 'rm -rf "$SCRATCH"' EXIT
-    for src in app.py background_scanner.py meta_layers.py profit_guard.py hooks/pre-commit; do
+    for src in app.py background_scanner.py meta_layers.py profit_guard.py carve_out.py hooks/pre-commit; do
         mkdir -p "$SCRATCH/$(dirname "$src")"   # nested guarded paths (hooks/)
         git show ":$src" > "$SCRATCH/$src" 2>/dev/null || cp "$src" "$SCRATCH/$src" \
             || { echo "  ⛔ GATE: cannot stage $src for the gate" >&2; exit 1; }
@@ -161,10 +161,11 @@ if git diff --cached --name-only | grep -qxE 'app\.py|background_scanner\.py|met
             [ "$GATE_QUIET" = "1" ] || echo "  🧠 gate: $t — $res (${dt}ms, budget ${budget}s)" >&2
         fi
     }
-    _APP=no; _BS=no; _ML=no; _HK=no
+    _APP=no; _BS=no; _ML=no; _CO=no; _HK=no
     printf '%s\n' "$(git diff --cached --name-only)" | grep -qx 'app.py' && _APP=yes
     printf '%s\n' "$(git diff --cached --name-only)" | grep -qx 'background_scanner.py' && _BS=yes
     printf '%s\n' "$(git diff --cached --name-only)" | grep -qxE 'meta_layers\.py|profit_guard\.py' && _ML=yes
+    printf '%s\n' "$(git diff --cached --name-only)" | grep -qxE 'carve_out\.py|meta_layers\.py|profit_guard\.py' && _CO=yes
     printf '%s\n' "$(git diff --cached --name-only)" | grep -qx 'hooks/pre-commit' && _HK=yes
     # Trigger → drive map, deduped: when app.py AND background_scanner.py
     # are staged together (the f5ad99d shape), watchliveness and metalayers
@@ -185,6 +186,9 @@ if git diff --cached --name-only | grep -qxE 'app\.py|background_scanner\.py|met
                                                         # every display read
                                                         # rides a fragment
     maybe_run "$_APP" test_watchliveness.py result  20
+    maybe_run "$_APP" test_funnelplate.py  result   10   # the funnel plate's
+                                                        # builder + wiring
+    maybe_run "$_APP" test_guardbreakdown.py result 20 # the guard badge
     maybe_run "$_APP" test_metalayers.py   result   15
     maybe_run "$_BS"  test_persistexit.py checkfile 5   # the MIRROR tripwire:
                                                         # scanner never reads a
@@ -193,7 +197,13 @@ if git diff --cached --name-only | grep -qxE 'app\.py|background_scanner\.py|met
     maybe_run "$_BS"  test_trailstop.py    result    5
     maybe_run "$_BS"  test_rebootsurv.py  result    5   # pulse/stamps/guard survive reboots    maybe_run "$_BS"  test_watchliveness.py result 20   # deduped when app.py also staged
     maybe_run "$_BS"  test_metalayers.py   result   15   # deduped
+    maybe_run "$_BS"  test_carveout.py    result   15   # the adaptive carve-out
+    maybe_run "$_BS"  test_guardbreakdown.py result 20 # deduped
     maybe_run "$_ML"  test_metalayers.py   result   15   # deduped
+    maybe_run "$_ML"  test_profitguard.py  result   15   # the guard's own suite
+    maybe_run "$_ML"  test_carveout.py    result   15   # deduped
+    maybe_run "$_CO"  test_carveout.py    result   15   # deduped
+    maybe_run "$_CO"  test_profitguard.py  result   15   # deduped
     maybe_run "$_HK"  test_hookparser.py  result   10   # the parser's key
                                                         # contract, against
                                                         # the staged hook
