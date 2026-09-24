@@ -152,6 +152,17 @@ _MIRROR_VERDICT_KEYS = _re.findall(
 check("mirror tripwire: no verdict-shaped read from any shared store "
       "(watch rows, console_state, her words)",
       not _MIRROR_VERDICT_KEYS, f"found: {_MIRROR_VERDICT_KEYS}")
+# (CodeRabbit, Sep 22 — merged Sep 24): the census above only saw .get();
+# a scanner change reading store["exit"] as a SUBSCRIPT sailed through
+# with the read-site count unchanged. Both shapes are the same crime —
+# a verdict read off a store the console wrote — so the tripwire now
+# hunts the indexed form too. Proven live: the scanner carries neither
+# shape today (the 6.10 census would have caught it at either key).
+_MIRROR_VERDICT_SUBS = _re.findall(
+    r'\[\s*["\'](exit|sell|get_out|exit_alert)["\']\s*\]', bs_stripped)
+check("mirror tripwire: no verdict-shaped SUBSCRIPT read from any "
+      "shared store (store[\"exit\"] evaded the .get()-only census)",
+      not _MIRROR_VERDICT_SUBS, f"found: {_MIRROR_VERDICT_SUBS}")
 
 lines.append(f"\nRESULT: {PASS} passed, {FAIL} failed")
 open(scratch_space.report_temp('_persist_check.txt'), "w", encoding="utf-8").write("\n".join(lines))

@@ -16,6 +16,13 @@ All mean-dependent checks run against a SANDBOX manifest (the real
 manifest is runtime state whose values move with the machine) — the
 only live-manifest check is the presence one, skipped honestly when the
 manifest is absent. Prints "RESULT: N passed, M failed"; fast by design.
+
+Section 7 (Sep 24) pins THE MERGED LANES CONTRACT — the run_battery
+CodeRabbit findings from the Sep 22 review, merged: manifest entries
+are validated before use, the manifest read-modify-write is serialized
++ atomic, only a PASS establishes a lane runtime, the fast lane defers
+what cannot FIT the remaining budget, and the deferred follow-up
+(--slow --rerun-deferred) can actually finish the sweep it names.
 """
 import json
 import sys
@@ -284,6 +291,129 @@ check(6.10, "_gs, _g_t0 = _guard_snap(), time.time()" in _src
 check(6.11, "time.sleep(0.25)" in _src and "for _try in range(3)" in _src,
       "the snapshot read retries through the scanner's write window "
       "before calling a file unreadable")
+
+print("== 7. THE MERGED LANES CONTRACT (CodeRabbit Sep 22, merged Sep 24) ==")
+# 7.1 one manifest entry is VALIDATED before it is trusted
+check(7.1, rb._lanes_entry({"secs": "unknown", "runs": 1}) is None
+      and rb._lanes_entry({"secs": -5, "runs": 1}) is None
+      and rb._lanes_entry({"secs": float("inf"), "runs": 1}) is None
+      and rb._lanes_entry("junk") is None
+      and rb._lanes_entry({"secs": 100, "runs": -3}) == {"secs": 100.0, "runs": 0}
+      and rb._lanes_entry({"secs": "50.5", "runs": 2}) == {"secs": 50.5, "runs": 2},
+      "a malformed entry is discarded, a numeric-string one is accepted, "
+      "negatives/infinities never pass, a negative runs clamps to 0")
+
+# 7.2 the loader drops the bad entry without dying (lane_of can never
+# see a non-numeric secs — the ValueError-mid---list class)
+_lf = rb.LANES_MANIFEST
+try:
+    with tempfile.TemporaryDirectory(prefix="battlanes_") as td:
+        sbx = Path(td) / "lanes.json"
+        sbx.write_text(json.dumps(
+            {"test_x": {"secs": "unknown"}, "test_y": {"secs": 30, "runs": 1}}),
+            encoding="utf-8")
+        rb.LANES_MANIFEST = sbx
+        _loaded = rb._lanes_load()
+        check(7.2, "test_x" not in _loaded and _loaded.get("test_y", {}).get("secs") == 30.0,
+              "a corrupt entry is dropped, its valid siblings survive")
+finally:
+    rb.LANES_MANIFEST = _lf
+
+# 7.3 the save is serialized + atomic (source pins: the cross-process
+# lock lives in the scratch tree, publication goes through os.replace)
+check(7.3, "msvcrt.locking" in _src
+      and 'scratch_space.report_temp("battery_lanes.lock")' in _src
+      and "os.replace(tmp, LANES_MANIFEST)" in _src,
+      "the read-modify-write holds a lock and publishes atomically — "
+      "two concurrent lanes can no longer discard each other's "
+      "measurements, and no half-written manifest can be read")
+
+# 7.4 only a PASS proves a runtime (both loops; the old
+# record-on-anything-but-TIMEOUT shape must be GONE)
+check(7.4, 'if st == "PASS":' in _src
+      and _src.count('if st == "PASS":') >= 2
+      and "measured[t.stem] = dt" in _src and "measured[d.stem] = dt" in _src,
+      "a quick FAIL no longer enters the manifest as a fast runtime — "
+      "the fast lane can only admit suites whose green run was measured")
+
+# 7.5 the fast lane defers what cannot FIT the remaining budget (both
+# loops route through _fits; unmeasured entries keep the 15s gate)
+check(7.5, "def _fits(" in _src and _src.count("not _fits(") == 2
+      and "left >= 15" in _src,
+      "a 50s suite with 20s left defers instead of starting into a "
+      "guaranteed TIMEOUT; the unmeasured 15s gate holds")
+
+# 7.6 the follow-up can FINISH the sweep it names
+check(7.6, 'a == "--rerun-deferred"' in _src
+      and "--rerun-deferred" in _src
+      and "--fast --budget=N" in _src,
+      "--rerun-deferred is a real flag, the DEFER rows and the summary "
+      "point at it, and the docstring's budget form matches the parser")
+
+# 7.7-7.10 BEHAVIORAL: fast-lane + slow-lane runs in a patched universe
+# (SCOUT/history/manifest/RESUME all sandboxed; the seeded suites print
+# and exit 0 — they never hang) prove the whole chain:
+# defer-what-doesn't-fit, honest deferred accounting, the plain --slow
+# exclusion of measured-fast entries, and the --slow --rerun-deferred
+# completion.
+_scout0, _hist0, _fm0, _rfm0 = rb.SCOUT, rb.HISTORY_DIR, rb.FAST_DEFAULT_MAX, rb.RESUME_FILE
+_lm0 = rb.LANES_MANIFEST
+try:
+    with tempfile.TemporaryDirectory(prefix="battfast_") as td:
+        tdp = Path(td)
+        rb.SCOUT = tdp
+        rb.HISTORY_DIR = tdp / "battery_history"
+        rb.RESUME_FILE = tdp / "resume.json"        # --fast never writes it
+        (tdp / "test_fast.py").write_text("print('seed')\n", encoding="utf-8")
+        (tdp / "test_zz.py").write_text("print('seed')\n", encoding="utf-8")
+        (tdp / "diag_hygiene.py").write_text("print('seed')\n", encoding="utf-8")
+        # the manifest seeds BOTH measured: test_fast 45s (fast),
+        # test_zz 300s (slow) — deterministic lanes, no real-manifest drift
+        rb.LANES_MANIFEST = tdp / "lanes.json"
+        rb.LANES_MANIFEST.write_text(json.dumps(
+            {"test_fast": {"secs": 45.0, "runs": 1},
+             "test_zz": {"secs": 300.0, "runs": 1}}), encoding="utf-8")
+
+        # --fast --budget=30: test_fast (measured 45s) CANNOT fit the
+        # remaining ~29s -> DEFER, not a guaranteed-TIMEOUT start. The
+        # slow test_zz is not the fast lane's to count at all.
+        rc_fast = rb.main(["--fast", "--budget=30"])
+        _rec = json.loads((rb.HISTORY_DIR / "latest.json").read_text(encoding="utf-8"))
+        check(7.7, rc_fast == 0 and _rec["totals"]["defer"] == 1
+              and _rec["totals"]["ran"] == 0
+              and _rec["suites"]["test_fast"]["status"] == "DEFER",
+              "a measured 45s entry with ~29s left defers (DEFER is not a "
+              "failure — rc stays 0 — but the record is honest: ran=0, "
+              "one DEFER row, follow-up printed) instead of starting "
+              "into a guaranteed TIMEOUT")
+
+        # plain --slow: test_fast is measured-FAST -> EXCLUDED (the shape
+        # that made the old printed follow-up unfinishable)
+        rc_slow = rb.main(["--slow"])
+        _recs = json.loads((rb.HISTORY_DIR / "latest.json").read_text(encoding="utf-8"))
+        check(7.8, rc_slow == 0 and "test_fast" not in _recs["suites"]
+              and _recs["suites"]["test_zz"]["status"] == "PASS",
+              "plain --slow still excludes measured-fast entries — which "
+              "is exactly why the follow-up needs --rerun-deferred")
+
+        # --slow --rerun-deferred: the deferred fast entry runs too and
+        # the sweep COMPLETES (both suites green, rc=0)
+        rc_rr = rb.main(["--slow", "--rerun-deferred"])
+        _recr = json.loads((rb.HISTORY_DIR / "latest.json").read_text(encoding="utf-8"))
+        check(7.9, rc_rr == 0 and _recr["totals"]["pass"] == 3
+              and _recr["suites"]["test_fast"]["status"] == "PASS"
+              and _recr["suites"]["test_zz"]["status"] == "PASS",
+              "the printed follow-up (--slow --rerun-deferred) runs the "
+              "measured-FAST deferred entries too and completes the sweep")
+
+        # the history record stays honest about what a lane ran vs deferred
+        check(7.10, _rec["mode"].startswith("fast") and _recr["mode"].startswith("slow"),
+              "each lane's record carries its own mode — a partial lane run "
+              "never reads as a full-sweep regression")
+finally:
+    rb.SCOUT, rb.HISTORY_DIR = _scout0, _hist0
+    rb.FAST_DEFAULT_MAX, rb.RESUME_FILE = _fm0, _rfm0
+    rb.LANES_MANIFEST = _lm0
 
 print("== 3. live: the real manifest speaks when it exists ==")
 _live = rb._lanes_load().get("test_costdrivers")

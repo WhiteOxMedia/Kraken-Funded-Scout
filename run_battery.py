@@ -25,7 +25,7 @@ in a manifest the battery itself maintains:
                         (bare name, matching the other permanent runtime
                         files: scanner_pulse.json, console_prefs.json)
 
-  --fast [budget=N]     only suites PROVEN fast (last measured secs <=
+  --fast --budget=N     only suites PROVEN fast (last measured secs <=
                         fastmax, default 60), and only while the lane's
                         cumulative elapsed stays under budget (default
                         420s). Anything slow or NEVER MEASURED defers —
@@ -36,6 +36,10 @@ in a manifest the battery itself maintains:
                         never-measured one. This lane is allowed to be
                         long - run it when there is time, or in chunks
                         via the existing positional filter.
+  --rerun-deferred      (with --slow) also run the entries a previous
+                        --fast deferred — they are measured-FAST, so the
+                        plain lane filter excludes them and the summary's
+                        follow-up names this flag.
   --list                print the lane assignment and exit (no runs).
   (no flags)            the full battery, exactly as before; every run
                         refreshes the manifest with fresh measurements.A deferred entry is not a failure: the summary counts it separately
@@ -60,10 +64,18 @@ by construction) and leaves any pause waiting.
 """
 
 import json
+import math
+import os
 import re
 import subprocess
 import sys
 import time
+try:
+    import msvcrt            # the lanes manifest's cross-process lock (Windows)
+except ImportError:          # non-Windows: unlocked, still atomic-replace
+    msvcrt = None
+
+import scratch_space
 from datetime import datetime as _dt
 from pathlib import Path
 
@@ -144,28 +156,83 @@ def budget_for(stem: str) -> int:
     return b
 
 
+def _lanes_entry(e) -> dict | None:
+    """One manifest entry, VALIDATED: secs must parse to a finite,
+    non-negative number and runs to a non-negative int. A corrupt or
+    hand-edited entry is DISCARDED, never trusted — a `secs: "unknown"`
+    that reached lane_of would raise ValueError mid-`--list`/`--fast`
+    and stop the battery (the Sep-22 CodeRabbit finding, merged Sep 24).
+    None means unusable."""
+    if not isinstance(e, dict):
+        return None
+    try:
+        secs = float(e.get("secs"))
+        runs = int(e.get("runs") or 0)
+    except (TypeError, ValueError, OverflowError):
+        return None
+    if not math.isfinite(secs) or secs < 0.0:
+        return None
+    return {"secs": secs, "runs": max(0, runs)}
+
+
 def _lanes_load() -> dict:
+    """The lanes manifest, entry-validated. A corrupt shape or a
+    malformed entry fails soft to that entry's absence — one bad
+    measurement can never stop a sweep, and garbage secs can never
+    reach lane_of."""
     try:
         d = json.loads(LANES_MANIFEST.read_text(encoding="utf-8"))
-        return d if isinstance(d, dict) else {}
     except (OSError, ValueError):
         return {}
+    if not isinstance(d, dict):
+        return {}
+    out = {}
+    for st, e in d.items():
+        v = _lanes_entry(e)
+        if v is not None:
+            out[st] = v
+    return out
 
 
 def _lanes_save(measured: dict) -> None:
     """Merge this run's fresh measurements into the manifest: latest
-    seconds win, the run count accumulates. Runtime state - never a
-    product file, never committed."""
-    lanes = _lanes_load()
-    for stem, secs in measured.items():
-        e = lanes.get(stem) or {}
-        lanes[stem] = {"secs": round(float(secs), 1),
-                       "runs": int(e.get("runs") or 0) + 1}
+    seconds win, the run count accumulates. The read-modify-write is
+    SERIALIZED across concurrent battery processes (a lock file in the
+    scratch policy dirs — two lanes racing used to let the later write
+    discard the other's measurements) and published ATOMICALLY via
+    temp+replace, so a concurrent _lanes_load can never read a
+    half-written manifest. Runtime state - never a product file,
+    never committed."""
     try:
-        LANES_MANIFEST.write_text(json.dumps(lanes, indent=1),
-                                  encoding="utf-8")
+        lock_path = scratch_space.report_temp("battery_lanes.lock")
+        with open(lock_path, "a+") as lk:
+            if msvcrt is not None:
+                try:
+                    msvcrt.locking(lk.fileno(), msvcrt.LK_LOCK, 1)
+                except OSError:
+                    pass                   # a lost lock degrades, never blocks
+            try:
+                lanes = _lanes_load()
+                for stem, secs in measured.items():
+                    e = lanes.get(stem) or {}
+                    lanes[stem] = {"secs": round(float(secs), 1),
+                                   "runs": int(e.get("runs") or 0) + 1}
+                # the temp publishes from the scratch tree (same volume,
+                # so the replace stays atomic): a root-adjacent .tmp could
+                # be caught by the hygiene gate's root audit mid-write
+                tmp = scratch_space.report_temp("battery_lanes.json.tmp")
+                tmp.write_text(json.dumps(lanes, indent=1), encoding="utf-8")
+                os.replace(tmp, LANES_MANIFEST)
+            except OSError:
+                pass  # a lost manifest only costs the lanes their memory
+            finally:
+                if msvcrt is not None:
+                    try:
+                        msvcrt.locking(lk.fileno(), msvcrt.LK_UNLCK, 1)
+                    except OSError:
+                        pass
     except OSError:
-        pass  # a lost manifest only costs the lanes their memory
+        pass   # a lost lock or an unwritable scratch only costs the merge
 
 
 def _resume_load() -> dict:
@@ -536,6 +603,8 @@ def _parse_flags(argv: list[str]):
                 pass
         elif a == "--fresh":
             flags["fresh"] = True
+        elif a == "--rerun-deferred":
+            flags["rerun_deferred"] = True
         else:
             pos.append(a)
         i += 1
@@ -585,9 +654,16 @@ def main(argv: list[str] | None = None) -> int:
         diags = [d for d in diags if lane_of(d.stem, fastmax) == "fast"]
     elif lane == "slow":
         # the slow lane owns the long tail: proven-slow PLUS every suite
-        # never yet measured (it is the coverage lane - allowed to run long)
-        tests = [t for t in tests if lane_of(t.stem, fastmax) != "fast"]
-        diags = [d for d in diags if lane_of(d.stem, fastmax) != "fast"]
+        # never yet measured (it is the coverage lane - allowed to run
+        # long). --rerun-deferred folds back in the entries a previous
+        # --fast deferred: they are measured-FAST, so the plain lane
+        # filter excludes them and the printed follow-up could never
+        # finish the sweep it names (the Sep-22 CodeRabbit finding,
+        # merged Sep 24).
+        tests = [t for t in tests if flags.get("rerun_deferred")
+                 or lane_of(t.stem, fastmax) != "fast"]
+        diags = [d for d in diags if flags.get("rerun_deferred")
+                 or lane_of(d.stem, fastmax) != "fast"]
 
     # THE AUTO-CHUNK (Sep 24): the full sweep outgrew one shell window,
     # and a window death used to lose the sweep AND its history record.
@@ -662,7 +738,19 @@ def main(argv: list[str] | None = None) -> int:
         return True
 
     n_total = len(tests) + sum(1 for d in diags if d.stem in DIAG_RUN)
-    n_defer = 0
+    n_defer = 0             # every runnable entry this lane did NOT run
+    deferred: list[str] = []   # their names, for the honest follow-up line
+
+    def _fits(stem: str, left: float) -> bool:
+        """False when the remaining fast-lane budget cannot hold this
+        entry even at its measured pace: starting a 50s suite with 20s
+        left only produces a TIMEOUT the lane then calls a failure.
+        Unmeasured entries keep the 15s gate (they cannot promise
+        anything). The Sep-22 CodeRabbit finding, merged Sep 24."""
+        e = _lanes_load().get(stem)
+        if not e or not e.get("secs"):
+            return left >= 15
+        return left >= max(15.0, float(e["secs"]))
     print(f"KRAKEN BATTERY - {len(tests)} suites, "
           f"{len(diags)} diags ({len(DIAG_RUN & {d.stem for d in diags})} run)"
           + (f"  [chunk: '{_flt}']" if _flt else "")
@@ -678,17 +766,21 @@ def main(argv: list[str] | None = None) -> int:
         _gs, _g_t0 = _guard_snap(), time.time()
         if lane == "fast":
             left = fast_budget - (time.monotonic() - lane_t0)
-            if left < 15:
+            if not _fits(t.stem, left):
                 n_defer += 1
+                deferred.append(t.stem)
                 rows.append(("test", t.stem, "DEFER", 0.0,
-                             "deferred: fast-lane budget — run --slow"))
+                             "deferred: fast-lane budget — "
+                             "run --slow --rerun-deferred"))
                 print(f"  [{i:3d}] - {t.stem:<34}      deferred", flush=True)
                 continue
             st, dt, det = run_entry(t, cap=int(left))
         else:
             st, dt, det = run_entry(t)
-        if st != "TIMEOUT":
-            measured[t.stem] = dt   # a killed run's elapsed is a lie about the suite
+        if st == "PASS":
+            measured[t.stem] = dt   # only a GREEN run proves the runtime —
+                                    # a quick FAIL is no lane measurement
+                                    # (the Sep-22 CodeRabbit finding)
         _leak = _guard_leak(_gs, _guard_snap(), _g_t0, time.time())
         if _leak:
             st, det = "FAIL", f"LEDGER LEAK: {_leak}"
@@ -706,18 +798,20 @@ def main(argv: list[str] | None = None) -> int:
             _gs, _g_t0 = _guard_snap(), time.time()
             if lane == "fast":
                 left = fast_budget - (time.monotonic() - lane_t0)
-                if left < 15:
+                if not _fits(d.stem, left):
                     n_defer += 1
+                    deferred.append(d.stem)
                     rows.append(("diag", d.stem, "DEFER", 0.0,
-                                 "deferred: fast-lane budget — run --slow"))
+                                 "deferred: fast-lane budget — "
+                                 "run --slow --rerun-deferred"))
                     print(f"  [diag] - {d.stem:<34}      deferred",
                           flush=True)
                     continue
                 st, dt, det = run_entry(d, cap=int(left))
             else:
                 st, dt, det = run_entry(d)
-            if st != "TIMEOUT":
-                measured[d.stem] = dt
+            if st == "PASS":
+                measured[d.stem] = dt   # PASS-only, like the test loop
             _leak = _guard_leak(_gs, _guard_snap(), _g_t0, time.time())
             if _leak:
                 st, det = "FAIL", f"LEDGER LEAK: {_leak}"
@@ -735,8 +829,13 @@ def main(argv: list[str] | None = None) -> int:
 
     # the sweep completed — only the OWNER retires the pause: a --fast
     # run (or any run whose pause waited on a different command) must
-    # leave the waiting sweep's state alone
-    if _resumed or flags.get("fresh"):
+    # leave the waiting sweep's state alone. The owner is whoever was
+    # allowed to WRITE pause state, so _saving is the exact dial: a
+    # plain single-invocation sweep also retires its own pause here —
+    # the old _resumed-only clear left a COMPLETED sweep's resume file
+    # behind, and the next same-mode run hijacked it as a resume and
+    # skipped every entry as already done.
+    if _saving:
         _resume_clear()
     _n_chunks = _cno if wall_acc > 0 else 1
 
@@ -757,8 +856,14 @@ def main(argv: list[str] | None = None) -> int:
           f"(manual diag worlds"
           + (f", {n_defer} deferred" if n_defer else "") + ")")
     if n_defer:
+        # the follow-up must be able to FINISH the sweep it names: --fast
+        # defers measured-FAST entries, which the plain --slow lane filter
+        # excludes — hence --rerun-deferred (the Sep-22 CodeRabbit finding).
         print(f"  {n_defer} entry(ies) deferred by the fast lane — "
-              f"finish the sweep with: run_battery.py --slow")
+              f"finish the sweep with: run_battery.py --slow "
+              f"--rerun-deferred ({', '.join(deferred[:4])}"
+              + (f", +{len(deferred) - 4} more" if len(deferred) > 4 else "")
+              + ")")
     if _n_chunks > 1:
         print(f"  sweep assembled across {_n_chunks} auto-chunks — "
               f"one summary, one history record.")
