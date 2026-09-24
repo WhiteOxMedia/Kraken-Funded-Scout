@@ -154,14 +154,14 @@ done
 # red), and the green summary counts the drives so quiet output still
 # proves the gate ran.
 # Emergency bypass stays available: git commit --no-verify — deliberately.
-if git diff --cached --name-only | grep -qxE 'app\.py|background_scanner\.py|meta_layers\.py|profit_guard\.py|carve_out\.py|hooks/pre-commit'; then
+if git diff --cached --name-only | grep -qxE 'app\.py|background_scanner\.py|meta_layers\.py|profit_guard\.py|carve_out\.py|tri_watch\.py|hooks/pre-commit'; then
     if [ -z "$PY" ]; then
         echo "  ⛔ GATE: guarded source staged but no python found — commit blocked." >&2
         exit 1
     fi
     SCRATCH="$(mktemp -d "${TMPDIR:-/tmp}/commitgate.XXXXXX")"
     trap 'rm -rf "$SCRATCH"' EXIT
-    for src in app.py background_scanner.py meta_layers.py profit_guard.py carve_out.py hooks/pre-commit; do
+    for src in app.py background_scanner.py meta_layers.py profit_guard.py carve_out.py tri_watch.py hooks/pre-commit; do
         mkdir -p "$SCRATCH/$(dirname "$src")"   # nested guarded paths (hooks/)
         git show ":$src" > "$SCRATCH/$src" 2>/dev/null || cp "$src" "$SCRATCH/$src" \
             || { echo "  ⛔ GATE: cannot stage $src for the gate" >&2; exit 1; }
@@ -214,11 +214,12 @@ if git diff --cached --name-only | grep -qxE 'app\.py|background_scanner\.py|met
             [ "$GATE_QUIET" = "1" ] || echo "  🧠 gate: $t — $res (${dt}ms, budget ${budget}s)" >&2
         fi
     }
-    _APP=no; _BS=no; _ML=no; _CO=no; _HK=no
+    _APP=no; _BS=no; _ML=no; _CO=no; _TW=no; _HK=no
     printf '%s\n' "$(git diff --cached --name-only)" | grep -qx 'app.py' && _APP=yes
     printf '%s\n' "$(git diff --cached --name-only)" | grep -qx 'background_scanner.py' && _BS=yes
     printf '%s\n' "$(git diff --cached --name-only)" | grep -qxE 'meta_layers\.py|profit_guard\.py' && _ML=yes
     printf '%s\n' "$(git diff --cached --name-only)" | grep -qxE 'carve_out\.py|meta_layers\.py|profit_guard\.py' && _CO=yes
+    printf '%s\n' "$(git diff --cached --name-only)" | grep -qx 'tri_watch.py' && _TW=yes
     printf '%s\n' "$(git diff --cached --name-only)" | grep -qx 'hooks/pre-commit' && _HK=yes
     # Trigger → drive map, deduped: when app.py AND background_scanner.py
     # are staged together (the f5ad99d shape), watchliveness and metalayers
@@ -257,6 +258,15 @@ if git diff --cached --name-only | grep -qxE 'app\.py|background_scanner\.py|met
     maybe_run "$_ML"  test_carveout.py    result   15   # deduped
     maybe_run "$_CO"  test_carveout.py    result   15   # deduped
     maybe_run "$_CO"  test_profitguard.py  result   15   # deduped
+    maybe_run "$_CO"  test_boundaryexam.py result  30   # the boundary
+                                                        # cross-exam + the
+                                                        # correction overlays
+    maybe_run "$_BS"  test_boundaryexam.py result  30   # deduped; the tick's
+                                                        # trigger, verdicts,
+                                                        # reschedule pins
+    maybe_run "$_TW"  test_triwatch.py     result  30   # the tri-watch stack
+    maybe_run "$_TW"  test_metalayers.py   result   15   # deduped; the shared
+                                                        # candle read
     maybe_run "$_HK"  test_hookparser.py  result   10   # the parser's key
                                                         # contract, against
                                                         # the staged hook
@@ -315,7 +325,11 @@ fi
 # This parser is field-tolerant (both key generations), handles JSONL,
 # wrapped envelopes, and pretty-printed JSON, and NEVER swallows findings
 # silently: if the stream carries text but nothing parses, the raw head
-# is printed for eyes-on.
+# is printed for eyes-on. An EXPLICITLY EMPTY review is not a failure:
+# valid JSON carrying zero records ("[]", {"findings": []}) prints
+# CLEANJSON and the hook confirms in one quiet line — the eyes-on raw
+# dump is reserved for streams that never parsed at all, so a clean
+# commit speaks findings only when it has findings.
 PYCODE="$(cat <<'CRPYEOF'
 import sys, json
 
@@ -335,8 +349,11 @@ def walk(o, out):
 
 raw = sys.stdin.read().replace("\r", "")
 records = []
+parsed_any = False
 try:
-    walk(json.loads(raw), records)          # pretty-printed single JSON
+    val = json.loads(raw)
+    parsed_any = True
+    walk(val, records)                      # pretty-printed single JSON
 except Exception:
     pass
 if not records:
@@ -345,17 +362,24 @@ if not records:
         buf += ln + "\n"
         if buf.count("{") <= buf.count("}"):
             try:
-                walk(json.loads(buf), records)
+                val = json.loads(buf)
+                parsed_any = True
+                walk(val, records)
             except Exception:
                 pass
             buf = ""
     if buf.strip():
         try:
-            walk(json.loads(buf), records)
+            val = json.loads(buf)
+            parsed_any = True
+            walk(val, records)
         except Exception:
             pass
 if not records:
-    print("RAWFALLBACK")
+    if parsed_any:
+        print("CLEANJSON")   # valid JSON, zero records: explicitly empty
+    else:
+        print("RAWFALLBACK") # never parsed at all: eyes on
     sys.exit(0)
 n = 0
 sevs = []
@@ -390,6 +414,10 @@ PARSER_OUT="$(printf '%s\n' "$review_json" | "$PY" -c "$PYCODE" 2>/dev/null)"
 n="$(printf '%s\n' "$PARSER_OUT" | sed -n 's/^COUNT //p' | tail -1)"
 sev="$(printf '%s\n' "$PARSER_OUT" | sed -n 's/^SEV //p' | tr '\n' ' ' | sed 's/ $//')"
 if [ -z "$n" ]; then
+    if printf '%s\n' "$PARSER_OUT" | grep -q '^CLEANJSON$'; then
+        echo "  🐇 CodeRabbit: zero findings — clean JSON review." >&2
+        exit 0
+    fi
     echo "  🐇 CodeRabbit findings (unparsed stream — eyes on, commit proceeds):" >&2
     printf '%s' "$review_json" | head -c 600 >&2
     echo >&2

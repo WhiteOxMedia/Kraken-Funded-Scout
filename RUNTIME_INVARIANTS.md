@@ -64,7 +64,7 @@ stash guard, the commit gate, and the tripwires do not run):
 |---|---|
 | pre-commit hook | blocks any staged diff adding stash logic; runs no file operations itself |
 | `test_no_runtime_stash.py` | fails if hooks/scripts/aliases contain stash invocations; fails if `git stash list` is non-empty |
-| `test_hooks_ignore_runtime_state.py` | fails if any active hook references runtime paths |
+| `test_hooks_ignore_runtime_state.py` | fails if any active hook references runtime paths; fails if the machine-local `.git/hooks/pre-commit` drifts from the tracked `hooks/pre-commit` (byte-census, CRLF-normalized — the fallback lives outside git, so the census is its only pin) |
 | `runtime_tripwire.py` | passive monitor: checksums runtime state, reports commits/stashes/scripts touching it |
 | `safe_commit.py` | refuses to commit while the scanner is mid-write (live pid + watch rows) |
 

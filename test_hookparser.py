@@ -158,6 +158,20 @@ out = run_parser("this is not json at all\n")
 check("an unparsable stream prints RAWFALLBACK for eyes-on",
       "RAWFALLBACK" in out, out.strip()[:40])
 
+# ── 3c. THE EXPLICIT-EMPTY CONTRACT (guard, Sep 23): valid JSON carrying
+# zero records is a CLEAN review, not a parse failure — the eyes-on raw
+# dump is noise on every quiet commit. The two states must stay disjoint.
+out = run_parser("[]\n")
+check("an explicitly empty JSON array prints CLEANJSON (not the raw-dump failure)",
+      "CLEANJSON" in out and "RAWFALLBACK" not in out, out.strip()[:40])
+out = run_parser(json.dumps({"findings": []}) + "\n")
+check("an empty findings envelope prints CLEANJSON (not the raw-dump failure)",
+      "CLEANJSON" in out and "RAWFALLBACK" not in out, out.strip()[:40])
+out = run_parser(json.dumps({"fileName": "d.py", "startLine": 9,
+                             "severity": "major", "title": "D"}) + "\n")
+check("CLEANJSON never rides a stream that carried records",
+      "COUNT 1" in out and "CLEANJSON" not in out, out.strip()[-20:])
+
 # JSONL and wrapped-envelope shapes both parse (the stream is not one shape)
 _lines = [json.dumps({"fileName": "a.py", "startLine": 1,
                       "severity": "major", "title": "A"}),
@@ -176,6 +190,18 @@ check("the renderer consumes COUNT/SEV and prints the finding list",
       and "CodeRabbit findings:" in src)
 check("an unparsed stream falls back to the raw head (eyes-on, warn-only)",
       "unparsed stream" in src and "head -c 600" in src)
+# the explicit-empty answer: CLEANJSON is answered with one quiet line
+check("the hook answers CLEANJSON with the quiet zero-findings line",
+      "grep -q " in src and "'^CLEANJSON$'" in src
+      and "zero findings" in src)
+# regional: the CLEANJSON answer sits inside the empty-parse gate, ahead
+# of the raw dump, and exits quietly — a clean review never reaches eyes-on
+_tail = src[src.rfind('if [ -z "$n" ]; then'):]
+_cj = _tail.find("CLEANJSON")
+_hd = _tail.find("head -c 600")
+check("the clean-JSON answer precedes the raw dump and exits quietly",
+      0 <= _cj < _hd and "exit 0" in _tail[_cj:_hd],
+      (_cj, _hd))
 check("the review stays advisory (findings never block the commit)",
       "Advisory only — commit proceeds" in src)
 
