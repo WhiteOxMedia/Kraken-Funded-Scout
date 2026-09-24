@@ -6972,14 +6972,19 @@ def main():
         # ── Full tournament (trading rotations only — cooldown has no buys) ──
         if not no_buy and (now.timestamp() - last_full_scan) >= full_interval * 60:
             last_full_scan = now.timestamp()
-            _pulse_beat("busy")    # the tournament holds the loop ~9 min —
-                                   # keep the pulse fresh so the console reads
-                                   # a running scan, not a frozen machine
             scan_start = _now_mst()
             logger.info("%s — Full tournament (%d assets, min_conf=%d)...", block_name, len(all_pairs), min_conf)
             logger.info("  %s", block_desc)
 
             try:
+                _pulse_beat("busy")    # the tournament holds the loop ~9 min —
+                                       # keep the pulse fresh so the console
+                                       # reads a running scan. INSIDE the gate
+                                       # (Sep 23 negative-space census): a busy
+                                       # beat outside the try can never clear
+                                       # its phase — an exception between here
+                                       # and the finally would leave the pulse
+                                       # stuck at scan until the next hold.
                 # Parallel fetch all assets
                 all_data = fetch_ohlcv_parallel(exchange, all_pairs, max_workers=10)
                 _pulse_beat("busy")   # the fetch itself is minutes of the 9 —

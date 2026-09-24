@@ -324,6 +324,32 @@ check(6.16, _light.count("_pulse_beat(") == 0,
       f"{_light.count('_pulse_beat(')}) — a beat there fires before the "
       "pass completes: the freeze contract (5.6) only holds while the "
       "beat follows the call site in the loop's try")
+# THE TOURNAMENT'S NEGATIVE SPACE (Sep 23, pinned like 6.16): main's
+# tournament block may beat busy only INSIDE the gate's try — the finally
+# clears the phase on every path, so any beat outside the try is a beat
+# an exception strand can never clear (the pulse would read 'scan' until
+# the next hold instead of falling back to stamps).
+_mi = src_bs.find("def main():")
+_mj = src_bs.find("\ndef ", _mi)
+_main = src_bs[_mi:_mj if _mj > _mi else len(src_bs)]
+_ti = _main.find("if not no_buy and (now.timestamp() - last_full_scan) >= full_interval * 60:")
+_fi = _main.find("finally:", _ti)
+_tournament = _main[_ti:_fi if _fi > _ti else len(_main)]
+_tbody = _tournament[_tournament.find("try:"):] if "try:" in _tournament else ""
+check(6.17, 0 < _ti < _fi,
+      "the tournament block and its finally are both found (census anchors intact)")
+check(6.18, _tournament.count('_pulse_beat("busy")') == _tbody.count('_pulse_beat("busy")'),
+      f"EVERY busy beat in the tournament block sits inside the gate's try "
+      f"({_tbody.count('_pulse_beat(\"busy\")')}/{_tournament.count('_pulse_beat(\"busy\")')}) "
+      "— a beat outside the try is a phase an exception can strand at scan "
+      "until the next hold; the finally clears only what the try began")
+check(6.19, _tbody.count('_pulse_beat("busy")') >= 2,
+      f"the hold still beats busy through its long phases ({_tbody.count('_pulse_beat(\"busy\")')} in-body: "
+      "hold entry, mid-fetch, bracket, tail) — the scan grace is earned by "
+      "beats, not by the block's mere presence")
+check(6.20, "_pulse_beat()" in _main[_fi:_fi + 400],
+      "the clear-to-idle beat still lives in the finally (the counter's "
+      "owner, never strandable)")
 # console classification: the REAL defs exec'd against a real pulse file
 # (the _scanner_pulse -> _fmt_pulse_age -> _pulse_html chain, one slice)
 _i = app.find("def _scanner_pulse():")
