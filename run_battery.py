@@ -38,11 +38,25 @@ in a manifest the battery itself maintains:
                         via the existing positional filter.
   --list                print the lane assignment and exit (no runs).
   (no flags)            the full battery, exactly as before; every run
-                        refreshes the manifest with fresh measurements.
+                        refreshes the manifest with fresh measurements.A deferred entry is not a failure: the summary counts it separately
+  and says how to finish the sweep. The manifest is runtime state (it
+  stays uncommitted like the check files).
 
-A deferred entry is not a failure: the summary counts it separately
-and says how to finish the sweep. The manifest is runtime state (it
-stays uncommitted like the check files).
+THE AUTO-CHUNK (Sep 24): even the full sweep outgrew the lanes - a
+complete run is ~20 minutes, past what one shell window reliably
+holds, and a window death used to lose the whole sweep AND its
+history record. Now a full or --slow run chunks ITSELF: after
+CHUNK_DEFAULT seconds of wall time (--chunk=N overrides, --chunk=0
+disables) the battery pauses cleanly at the next entry boundary and
+saves battery_resume.json (runtime state, uncommitted). Re-running
+the same command RESUMES: finished entries are skipped, the remainder
+runs under a fresh budget, and the completed sweep lands ONE summary
+and ONE history record assembled across chunks - true total wall
+time, "chunks": N in the record. State is saved after every entry,
+so a hard window death costs at most the one entry that was mid-run.
+--fresh discards a paused sweep; a pause of a different mode or
+filter is left alone; --fast never pauses (its lane is terminal-safe
+by construction) and leaves any pause waiting.
 """
 
 import json
@@ -61,6 +75,10 @@ if not PY.exists():
 LANES_MANIFEST = SCOUT / "battery_lanes.json"
 FAST_DEFAULT_BUDGET = 420    # the fast lane's total wall-clock ceiling
 FAST_DEFAULT_MAX = 60        # a suite measured slower than this is SLOW
+
+CHUNK_DEFAULT = 600          # wall seconds per invocation before the run
+                             # auto-chunks (the terminal sync window)
+RESUME_FILE = SCOUT / "battery_resume.json"
 
 # The diag worlds the battery runs (kept fast + hermetic by design).
 # Heavy/interactive replays (fleet studies, live-API calibrations, the
@@ -145,6 +163,37 @@ def _lanes_save(measured: dict) -> None:
                                   encoding="utf-8")
     except OSError:
         pass  # a lost manifest only costs the lanes their memory
+
+
+def _resume_load() -> dict:
+    """The paused sweep, if one waits. Runtime state - never committed."""
+    try:
+        d = json.loads(RESUME_FILE.read_text(encoding="utf-8"))
+        return d if isinstance(d, dict) and d.get("mode") else {}
+    except (OSError, ValueError):
+        return {}
+
+
+def _resume_save(mode: str, flt: str, chunk_no: int, rows: list,
+                 done: list, wall_acc: float) -> None:
+    """Persist the sweep-in-progress (called after every finished entry,
+    so a hard window death costs at most the one mid-run entry)."""
+    try:
+        RESUME_FILE.write_text(json.dumps({
+            "mode": mode, "filter": flt, "chunk": chunk_no,
+            "ts": _dt.now().astimezone().isoformat(timespec="seconds"),
+            "rows": rows, "done": done,
+            "wall_acc": round(float(wall_acc), 1),
+        }, indent=1), encoding="utf-8")
+    except OSError:
+        pass  # a lost pause only costs the sweep its resume
+
+
+def _resume_clear() -> None:
+    try:
+        RESUME_FILE.unlink(missing_ok=True)
+    except OSError:
+        pass
 
 
 # ── THE HEALTH REPORT (Sep 23): every battery run lands one timestamped
@@ -419,6 +468,13 @@ def _parse_flags(argv: list[str]):
                 flags["fastmax"] = max(5, float(a.split("=", 1)[1]))
             except ValueError:
                 pass
+        elif a.startswith("--chunk="):
+            try:
+                flags["chunk"] = max(0, int(a.split("=", 1)[1]))
+            except ValueError:
+                pass
+        elif a == "--fresh":
+            flags["fresh"] = True
         else:
             pos.append(a)
         i += 1
@@ -461,10 +517,79 @@ def main(argv: list[str] | None = None) -> int:
         tests = [t for t in tests if lane_of(t.stem, fastmax) != "fast"]
         diags = [d for d in diags if lane_of(d.stem, fastmax) != "fast"]
 
-    n_total = len(tests) + sum(1 for d in diags if d.stem in DIAG_RUN)
-    rows = []          # (kind, name, status, seconds, detail)
+    # THE AUTO-CHUNK (Sep 24): the full sweep outgrew one shell window,
+    # and a window death used to lose the sweep AND its history record.
+    # chunk_limit = wall seconds this invocation may spend before it
+    # pauses at the next entry boundary; --chunk=N overrides, 0 disables;
+    # --fast never pauses (its lane is terminal-safe by construction) and
+    # leaves a waiting pause alone for the command that owns it. A paused
+    # sweep saves after EVERY entry, so a hard window death costs at most
+    # the one entry that was mid-run. Rerunning the same command resumes:
+    # the tail runs under a fresh budget, no further pausing (chunk_limit
+    # = 0), and the mode label keeps the sweep's TRUE lane so a chunked
+    # full run still lands a 'full' history record (with "chunks": N)
+    # and stays baseline-comparable.
+    chunk_limit = flags.get("chunk", CHUNK_DEFAULT)
+    mode_key = (lane or "full") + (f":{_flt}" if _flt else "")
+    if flags.get("fresh") and _resume_load():
+        _resume_clear()
+        print("  --fresh: the paused sweep is discarded.")
+    paused = {} if lane == "fast" else _resume_load()
+    _resumed = False
+    _foreign_block = False   # a foreign pause waits: this run must not save
+    _cno = 1
+    if paused:
+        if paused.get("mode") != mode_key:
+            print(f"  a paused '{paused.get('mode')}' sweep is waiting — "
+                  f"rerun that command to resume, or --fresh to discard.")
+            paused = {}
+            _foreign_block = True
+        else:
+            _resumed = True
+            done_names = {r[1] for r in paused.get("rows") or []
+                          if r[2] != "PAUSED"}
+            tests = [t for t in tests if t.stem not in done_names]
+            diags = [d for d in diags if d.stem not in done_names]
+            chunk_limit = 0     # the tail finishes, however long it takes
+            _cno = int(paused.get("chunk") or 1) + 1
+            print(f"  RESUME: chunk #{_cno} of the paused sweep — "
+                  f"{len(done_names)} entries done, "
+                  f"{len(tests)} suites + "
+                  f"{sum(1 for d in diags if d.stem in DIAG_RUN)} diags to go.")
+    rows = [r for r in (paused.get("rows") or []) if r[2] != "PAUSED"]
+    _i_base = sum(1 for r in rows if r[0] == "test")
     measured: dict = {}
+    wall_acc = float(paused.get("wall_acc") or 0.0)
     lane_t0 = time.monotonic()
+    if lane == "fast":
+        chunk_limit = 0          # --fast never pauses: the lane is
+                                 # terminal-safe by construction, and a
+                                 # fast run must never write resume state
+    _saving = lane != "fast" and not _foreign_block
+
+    def _chunk_pause(kind: str, stem: str) -> bool:
+        """True when this invocation must stop at the next entry boundary:
+        the pause is persisted (surviving even a hard window death, since
+        it is refreshed after every entry) and the caller exits rc=2
+        without a summary — the completed sweep assembles it."""
+        if not chunk_limit or time.monotonic() - lane_t0 < chunk_limit:
+            return False
+        rows.append((kind, stem, "PAUSED", 0.0,
+                     f"auto-chunk wall {chunk_limit}s — rerun to resume"))
+        if _saving:
+            _resume_save(mode_key, _flt, _cno, rows, [],
+                         wall_acc + (time.monotonic() - lane_t0))
+        else:
+            print("  (a foreign sweep's pause is waiting — this run's "
+                  "progress is NOT saved; --fresh to discard it first)")
+        print(f"\n  AUTO-CHUNK: {len(rows)} entries done, wall "
+              f"{wall_acc + time.monotonic() - lane_t0:.0f}s cumulative — "
+              f"pausing cleanly (this chunk hit the {chunk_limit}s window).")
+        print("  rerun the same command to resume; "
+              "--fresh discards, --chunk=0 runs to the end.")
+        return True
+
+    n_total = len(tests) + sum(1 for d in diags if d.stem in DIAG_RUN)
     n_defer = 0
     print(f"KRAKEN BATTERY - {len(tests)} suites, "
           f"{len(diags)} diags ({len(DIAG_RUN & {d.stem for d in diags})} run)"
@@ -475,7 +600,9 @@ def main(argv: list[str] | None = None) -> int:
         print("  the fast lane is empty — every suite is unmeasured yet.")
         print("  seed the lanes once: run the full battery (no flags) or --slow,")
         print("  then --fast knows exactly what fits a terminal window.")
-    for i, t in enumerate(tests, 1):
+    for i, t in enumerate(tests, 1 + _i_base):
+        if _chunk_pause("test", t.stem):
+            return 2
         _gs = _guard_snap()
         if lane == "fast":
             left = fast_budget - (time.monotonic() - lane_t0)
@@ -494,11 +621,16 @@ def main(argv: list[str] | None = None) -> int:
         if _leak:
             st, det = "FAIL", f"LEDGER LEAK: {_leak}"
         rows.append(("test", t.stem, st, dt, det))
+        if _saving:
+            _resume_save(mode_key, _flt, _cno, rows, [],
+                         wall_acc + (time.monotonic() - lane_t0))
         mark = {"PASS": ".", "FAIL": "F", "TIMEOUT": "T"}.get(st, "-")
         print(f"  [{i:3d}] {mark} {t.stem:<34} {dt:6.1f}s  {det}",
               flush=True)
     for d in diags:
         if d.stem in DIAG_RUN:
+            if _chunk_pause("diag", d.stem):
+                return 2
             _gs = _guard_snap()
             if lane == "fast":
                 left = fast_budget - (time.monotonic() - lane_t0)
@@ -518,6 +650,9 @@ def main(argv: list[str] | None = None) -> int:
             if _leak:
                 st, det = "FAIL", f"LEDGER LEAK: {_leak}"
             rows.append(("diag", d.stem, st, dt, det))
+            if _saving:
+                _resume_save(mode_key, _flt, _cno, rows, [],
+                             wall_acc + (time.monotonic() - lane_t0))
             print(f"  [diag] {'.' if st == 'PASS' else 'X'} {d.stem:<34} "
                   f"{dt:6.1f}s  {det}", flush=True)
         else:
@@ -525,6 +660,13 @@ def main(argv: list[str] | None = None) -> int:
 
     if measured:
         _lanes_save(measured)
+
+    # the sweep completed — only the OWNER retires the pause: a --fast
+    # run (or any run whose pause waited on a different command) must
+    # leave the waiting sweep's state alone
+    if _resumed or flags.get("fresh"):
+        _resume_clear()
+    _n_chunks = _cno if wall_acc > 0 else 1
 
     print("\n" + "=" * 72)
     print(f"{'ENTRY':<38}{'RESULT':<10}{'SECS':>7}  DETAIL")
@@ -545,11 +687,16 @@ def main(argv: list[str] | None = None) -> int:
     if n_defer:
         print(f"  {n_defer} entry(ies) deferred by the fast lane — "
               f"finish the sweep with: run_battery.py --slow")
+    if _n_chunks > 1:
+        print(f"  sweep assembled across {_n_chunks} auto-chunks — "
+              f"one summary, one history record.")
 
     # THE HEALTH REPORT (Sep 23): land the durable record, then speak the
     # week-over-week delta when history exists to compare against.
     _mode = (lane or "full") + (f"+chunk:{_flt}" if _flt else "")
-    _rec = _history_record(rows, _mode, time.monotonic() - lane_t0)
+    _rec = _history_record(rows, _mode, wall_acc + (time.monotonic() - lane_t0))
+    if _n_chunks > 1:
+        _rec["chunks"] = _n_chunks
     _hp = _history_save(_rec)
     if _hp:
         print(f"  health report: battery_history/{_hp.name} "
