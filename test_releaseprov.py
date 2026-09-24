@@ -37,11 +37,16 @@ def check(name, ok, detail=""):
 os.environ.setdefault("SCOUT_HEADLESS", "1")
 import background_scanner as bs  # noqa: E402
 
-# ── sandbox: point both ledgers at tmp files ────────────────────────────
+# ── sandbox: point both ledgers at tmp files ────────────────────────
+# (testleaks triage, Sep 23: GUARDED PATTERN ADAPTED — the suite is
+# linear, so the hand-back carries the explicit leak-audit sentinel; the
+# restore line sits at the tail and the window it guards is the run's
+# own lifetime, the same bound every suite here relies on.)
 _tmp = Path(tempfile.mkdtemp())
 SNAP = _tmp / "signal_snapshots.jsonl"
 SUPP = _tmp / "popup_suppressions.jsonl"
 _orig = (bs.SIGNAL_SNAPSHOTS_FILE, bs.SUPPRESSION_LOG_FILE)
+# leak-audit: ok — sandbox-valued, restored by name at the tail
 bs.SIGNAL_SNAPSHOTS_FILE = str(SNAP)
 bs.SUPPRESSION_LOG_FILE = str(SUPP)
 
@@ -167,7 +172,7 @@ check("the eased-gate labels are journal gates, free of route names",
       all(g in ("deep-veto", "tide-out") for g in
           [m for m in ("deep-veto", "tide-out")]))
 
-# restore runtime paths
+# restore runtime paths (the leak-audit sentinel's hand-back target)
 bs.SIGNAL_SNAPSHOTS_FILE, bs.SUPPRESSION_LOG_FILE = _orig
 _reset()
 

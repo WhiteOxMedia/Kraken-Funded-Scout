@@ -5,7 +5,16 @@ tokens — a runtime harness EXECUTES the real `_sure_thing_scan` body
 against fakes and grades what the code DOES: the armed-announce dedup,
 the vetoed coil's memory (the re-announce loop fix), the FLAT half-size
 on a real fire, the fresh fire-time tide read, and the climb-tide stamp
-in the fired snapshot."""
+in the fired snapshot.
+
+Sep 23 (review 7c568d2 triage): the harness caught up with the fire
+path — auto-track, the one-watch gate, release provenance, and the
+armed-coil persistence all run there now (the missing names made every
+fire scenario NameError into the body's own except, silently, since
+those features landed). New: the deep-veto journal release graded on
+behavior with its OWN local floor (the DESKTOP_ALERT_MIN leak fix),
+and the suite exits non-zero on failure so it can never fake-green
+the battery again."""
 import sys
 import time as _time
 import types
@@ -106,6 +115,7 @@ _ARMED = {"armed": True, "fire": False, "zone_high": 1.0000, "tests": 6,
 
 
 _fake_goal = 1.5   # what the fake sure_thing module reports as the fire's goal
+_rel_pts_box = {"pts": 0.0}   # the fake journal's release points (per scenario)
 
 
 def _make_harness(deep, tide_state="RISING"):
@@ -113,7 +123,9 @@ def _make_harness(deep, tide_state="RISING"):
     Returns (scan_fn, captures, tide_box, armed, result_box)."""
     cap = {"notify": [], "speak": [], "snaps": [], "sups": [], "rot": [],
            "tide_reads": 0, "learn_bar": (None, "cold"),
-           "seam_rel": (False, "the journal shows no tide-out burials")}
+           "seam_rel": (False, "the journal shows no tide-out burials"),
+           "rels": [], "track": [],
+           "state_doc": {"sure_thing_armed": {}}}
     armed, tide_box, result_box = {}, {"state": tide_state}, {"r": dict(_ARMED)}
 
     fake_st = types.ModuleType("sure_thing")
@@ -126,12 +138,20 @@ def _make_harness(deep, tide_state="RISING"):
                                   "start_balance": 10000.0}
     fake_ca.window_drawdown_pct = lambda pair: 2.0
     fake_ca.max_entry_usd = lambda bal, wdd, start: 1000.0
+    # THE JOURNAL FAKE (Sep 23): the deep-veto release path imports
+    # discipline lazily at CALL time — the release scenario needs the
+    # seam's points and slack without touching the real journal.
+    fake_dc = types.ModuleType("discipline")
+    fake_dc.journal_release_pts = lambda gate: _rel_pts_box["pts"]
+    fake_dc.SEAM_RELEASE_SLACK = 5.0
 
     def _fake_import(name, globals=None, locals=None, fromlist=(), level=0):
         if name == "sure_thing":
             return fake_st
         if name == "contest_account":
             return fake_ca
+        if name == "discipline":
+            return fake_dc
         if name == "hindsight_scorer":
             return types.SimpleNamespace(brain_size_mult=lambda score: 0.50)
         return real_import(name, globals, locals, fromlist, level)
@@ -182,9 +202,33 @@ def _make_harness(deep, tide_state="RISING"):
         "_speak_server": lambda text, rate=2: cap["speak"].append(text),
         "all_pairs": ["XMR/USD"],
         "exchange": _Ex(),
+        # ── THE FIRE-PATH CONTRACT (Sep 23): the body evolved past the
+        #    Sep-8 harness — auto-track, the one-watch gate, the armed-
+        #    coil persistence, and the release provenance all run in the
+        #    fire path now. The fakes below are SANDBOXED (no production
+        #    file, no real ledger). The popup floor is a deterministic
+        #    stub (the real one reads the live rotation clock).
+        "_load_scanner_state": lambda: dict(cap["state_doc"]),
+        "_save_scanner_state": lambda d: cap["state_doc"].update(d),
+        "_mark_release": lambda pair, gate: cap["rels"].append((pair, gate)),
+        "_take_release_prov": lambda pair: None,
+        "auto_track_popup": lambda pair, px, spend, goal, window, note,
+                            route="": cap["track"].append(pair),
+        "_popup_already_watched": lambda pair: False,
+        "popup_floor": lambda tide_state=None, lw_pts=0, rot_key=None,
+                       pair=None: 89.0,
     }
     exec(compile(_scan_body, "background_scanner.py", "exec"), ns)
     return ns["_sure_thing_scan"], cap, tide_box, armed, result_box
+
+
+_make_harness_raw = _make_harness
+
+
+def _make_harness(deep, tide_state="RISING", rel_pts=0.0):
+    """The harness, with the journal-release points tunable per scenario."""
+    _rel_pts_box["pts"] = rel_pts
+    return _make_harness_raw(deep, tide_state)
 
 
 # scenario 1: the armed dedup + the vetoed coil's memory (the re-announce
@@ -209,6 +253,33 @@ scan1(_fx)
 check("runtime: the poll after a veto: still silent, the veto logged again",
       len(cap1["speak"]) == 0 and len(cap1["sups"]) == 2,
       (len(cap1["speak"]), len(cap1["sups"])))
+
+# ── scenario 5: THE DEEP-VETO JOURNAL RELEASE (review 7c568d2, Sep 23):
+#    a HOLD deep-read with champion-grade journal relief must RELEASE —
+#    the old code referenced the champion path's DESKTOP_ALERT_MIN from
+#    inside this function, NameError'd into its own except, and the
+#    release silently never fired. The floor now computes locally.
+scan5, cap5, _, _, box5 = _make_harness(_DeepRead("hold", 92), "RISING",
+                                        rel_pts=6.0)
+box5["r"] = dict(_ARMED, fire=True, score=88.0)   # 88 + slack 5 >= floor 89
+scan5(_Ex())
+check("runtime: a HOLD deep-read with journal relief RELEASES the coil",
+      len(cap5["notify"]) == 1
+      and cap5["rels"] == [("XMR/USD", "sure-thing-deep-veto")],
+      (len(cap5["notify"]), cap5["rels"]))
+check("runtime: the release pop is the Breakout Alert",
+      bool(cap5["notify"])
+      and "BREAKOUT ALERT — BUY XMR" in cap5["notify"][0][1],
+      cap5["notify"][0][1][:60] if cap5["notify"] else None)
+scan5b, cap5b, _, _, box5b = _make_harness(_DeepRead("hold", 70), "RISING",
+                                           rel_pts=0.0)
+box5b["r"] = dict(_ARMED, fire=True)   # score 70 + slack 5 < floor 89
+scan5b(_Ex())
+check("runtime: a HOLD deep-read without the relief stays vetoed (no popup)",
+      len(cap5b["notify"]) == 0 and cap5b["rels"] == [],
+      (len(cap5b["notify"]), cap5b["rels"]))
+check("the release floor is LOCAL (no champion-path DESKTOP_ALERT_MIN leak)",
+      "DESKTOP_ALERT_MIN" not in _st_fn)
 
 # scenario 2: the FLAT fire — half size, named in the popup, stamped in the snapshot
 scan2, cap2, _, armed2, box2 = _make_harness(_DeepRead("buy", 60), "FLAT")
@@ -294,3 +365,7 @@ out.write_text("\n".join(
     for name, ok, d in results) +
     (f"\n\nlive tide now: {pct and f'{pct:.0f}%'} {state or '(no data)'}"), encoding="utf-8")
 print(f"{'ALL PASS' if not fails else str(len(fails)) + ' FAILURES'}")
+# THE HONEST EXIT (Sep 23): the battery gates on this suite's exit code —
+# a silent rc=0 on failures let the fire path rot undetected for weeks.
+if fails:
+    sys.exit(1)

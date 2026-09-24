@@ -443,22 +443,16 @@ sandbox = BASE / "_test_tbw_dir"
 import shutil as _sh
 _sh.rmtree(sandbox, ignore_errors=True)
 sandbox.mkdir(exist_ok=True)
-tbw.OUT_FILE = sandbox / "weekly.txt"
 real_snap = tbw.SNAP_OUTCOMES_FILE
 real_trades = tbw.TRADES_FILE
-tbw.SNAP_OUTCOMES_FILE = sandbox / "snap_outcomes.jsonl"
-tbw.TRADES_FILE = sandbox / "trades.jsonl"
 real_json = tbw.JSON_FILE
 real_hist = tbw.HISTORY_FILE
 real_flip = tbw.FLIP_FILE
-tbw.HISTORY_FILE = sandbox / "history.jsonl"
-tbw.FLIP_FILE = sandbox / "flips.json"
-tbw.JSON_FILE = sandbox / "sidecar.json"   # the production sidecar is
-                                           # never clobbered by a test
 real_events = tbw.FLIP_EVENTS_FILE
-tbw.FLIP_EVENTS_FILE = sandbox / "flip_events.jsonl"
 real_poolmin = tbw.POOLMIN_LEARN_FILE
-tbw.POOLMIN_LEARN_FILE = sandbox / "poolmin.json"   # the learner's
+# the sandbox swaps live INSIDE the try below (the PULSE_JSON pattern):
+# a crash before that finally must never leave the production paths
+# pointing at _test_tbw_dir for the rest of the process
 # shipped bars are production state — the suite proves its own behavior
 # in its own world, never writes the real one
 # THE COLD-BOOT TRANSIENT (Sep 10): the first pass after a restart once
@@ -466,11 +460,6 @@ tbw.POOLMIN_LEARN_FILE = sandbox / "poolmin.json"   # the learner's
 # reading a TEST-written sidecar: this suite ran report_now() against
 # the PRODUCTION JSON_FILE. The sandbox line above IS the fix; this pin
 # makes the fix a contract (the suite fails loudly if it regresses).
-check("the suite sandboxes the production sidecar (the all-None "
-      "cold-boot transient was test leakage into JSON_FILE)",
-      tbw.JSON_FILE != real_json and tbw.JSON_FILE.name == "sidecar.json",
-      (str(tbw.JSON_FILE), str(real_json)))
-
 # fake fill ledgers: a FLAT fire that filled (+$5.50), a RISING fire
 # whose only same-pair fill sold BEFORE the fire (must NOT join), and
 # a suppressed record (ignored)
@@ -493,15 +482,30 @@ trade_lines = [
     {"sold_at": (_T0 - _pd.Timedelta(hours=1)).isoformat(),
      "pair": "RIX/USD", "pnl_net": 9.9},          # before the fire: no join
 ]
-tbw.SNAP_OUTCOMES_FILE.write_text(
-    "\n".join(json.dumps(r) for r in snap_lines) + "\n", encoding="utf-8")
-tbw.TRADES_FILE.write_text(
-    "\n".join(json.dumps(r) for r in trade_lines) + "\n", encoding="utf-8")
-
 import tide_learn as tl
 real_learn = tl.learn
 real_cache = dict(tl._cache)
 try:
+    # the production paths re-pointed INSIDE the try (the PULSE_JSON
+    # pattern): the finally restores them even on a mid-suite crash
+    tbw.OUT_FILE = sandbox / "weekly.txt"
+    tbw.SNAP_OUTCOMES_FILE = sandbox / "snap_outcomes.jsonl"
+    tbw.TRADES_FILE = sandbox / "trades.jsonl"
+    tbw.HISTORY_FILE = sandbox / "history.jsonl"
+    tbw.FLIP_FILE = sandbox / "flips.json"
+    tbw.JSON_FILE = sandbox / "sidecar.json"   # the production sidecar is
+                                               # never clobbered by a test
+    tbw.FLIP_EVENTS_FILE = sandbox / "flip_events.jsonl"
+    tbw.POOLMIN_LEARN_FILE = sandbox / "poolmin.json"   # the learner's
+    check("the suite sandboxes the production sidecar (the all-None "
+          "cold-boot transient was test leakage into JSON_FILE)",
+          tbw.JSON_FILE != real_json and tbw.JSON_FILE.name == "sidecar.json",
+          (str(tbw.JSON_FILE), str(real_json)))
+    tbw.SNAP_OUTCOMES_FILE.write_text(
+        "\n".join(json.dumps(r) for r in snap_lines) + "\n", encoding="utf-8")
+    tbw.TRADES_FILE.write_text(
+        "\n".join(json.dumps(r) for r in trade_lines) + "\n", encoding="utf-8")
+
     # a scripted model: OUT outcome-fitted, FLAT quantile, RISING none
     MODEL = {"err": None, "hours": 500, "generated_ts": "t",
              "window": ["a", "b"],
@@ -538,7 +542,7 @@ try:
     qbar = tbw._quantile_bar_as_learn("OUT", MODEL)
     rate = MODEL["states"]["OUT"]["payer_rate"]
     scores = _tl._funnel_score_quantiles()
-    expect = round(max(_tl.BAR_MIN, min(_tl.BAR_MAX,
+    expect = round(max(_tl.OUTCOME_BAR_FLOOR_MIN, min(_tl.BAR_MAX,
                     _tl._quantile(scores, 1.0 - rate))), 1)
     check("the quantile counterfactual equals learn()'s own bar",
           qbar == expect, (qbar, expect))
@@ -1678,27 +1682,29 @@ check("the production report was never written by a test (byte-stable)",
 #    graded on the OPEN window (W35..now): to_date -$60.00.
 import tide_learn as _tbl
 
-_bf_sbx = sandbox / "benchfinal"
-_bf_sbx.mkdir(parents=True, exist_ok=True)
 _saved_bf = {k: getattr(tbw, k) for k in
              ("OUT_FILE", "JSON_FILE", "SNAP_OUTCOMES_FILE", "TRADES_FILE",
               "HISTORY_FILE", "FLIP_FILE", "FLIPGRADE_FILE",
               "FLIPGRADE_JSON", "FLIP_EVENTS_FILE")}
-tbw.OUT_FILE = _bf_sbx / "weekly.txt"
-tbw.JSON_FILE = _bf_sbx / "sidecar.json"
-tbw.SNAP_OUTCOMES_FILE = _bf_sbx / "snap.jsonl"
-tbw.TRADES_FILE = _bf_sbx / "trades.jsonl"
-tbw.HISTORY_FILE = _bf_sbx / "history.jsonl"
-tbw.FLIP_FILE = _bf_sbx / "flips.json"
-tbw.FLIPGRADE_FILE = _bf_sbx / "fg.txt"
-tbw.FLIPGRADE_JSON = _bf_sbx / "fg.json"
-tbw.FLIP_EVENTS_FILE = _bf_sbx / "events.jsonl"
 real_cand_bf = tbw._week_candidates
 real_learn_bf = tl.learn
 real_grade_bf = tbw._grade
 real_q_bf = _tbl._funnel_score_quantiles
 real_fitbar_bf = _tbl._outcome_fit_bar
 try:
+    # the path re-points INSIDE the try (the PULSE_JSON pattern): the
+    # finally below restores the sandbox even on a mid-suite crash
+    _bf_sbx = sandbox / "benchfinal"
+    _bf_sbx.mkdir(parents=True, exist_ok=True)
+    tbw.OUT_FILE = _bf_sbx / "weekly.txt"
+    tbw.JSON_FILE = _bf_sbx / "sidecar.json"
+    tbw.SNAP_OUTCOMES_FILE = _bf_sbx / "snap.jsonl"
+    tbw.TRADES_FILE = _bf_sbx / "trades.jsonl"
+    tbw.HISTORY_FILE = _bf_sbx / "history.jsonl"
+    tbw.FLIP_FILE = _bf_sbx / "flips.json"
+    tbw.FLIPGRADE_FILE = _bf_sbx / "fg.txt"
+    tbw.FLIPGRADE_JSON = _bf_sbx / "fg.json"
+    tbw.FLIP_EVENTS_FILE = _bf_sbx / "events.jsonl"
     # deterministic dollars: the LOW bar (86, the quantile) realizes
     # $1.00/fire, the HIGH bar (92, the refit) $3.00/fire — so the
     # staged week's fit edge is +2.00 in either regime.

@@ -102,11 +102,14 @@ check("the fail-open quick check is GONE (the JUP 14:52 hole — quick 92 opened
       "the quick check stands" not in src)
 check("the funnel's desktop path fails CLOSED too",
       "_m_desk_ok = False  # fail-closed" in src)
-check("the stale-move guard gates RE-ENTRY popups",
-      "if _is_reentry:" in src and "STALE MOVE" in src
-      and "_stale_move(exchange, pair)" in src)
-check("fresh first-fires are exempt from the stale guard (the early catch)",
-      src.find("STALE-MOVE GUARD") < src.find("if _is_reentry:"))
+check("the stale-move guard judges EVERY candidate (Sep 21: the re-entry "
+      "class was retired — \"it was replaced with real data already\")",
+      "if _is_reentry:" in src and "THE STALE-MOVE GUARD" in src
+      and "_stale_move(exchange, pair)" in src
+      and '"stale-move"' in src)
+check("the stale guard's failure is VISIBLE (the sagging-top warning, "
+      "not a silent pass through a broken read)",
+      "ships UNGUARDED" in src)
 check("the goal clock: the asset's OWN week (market goal) -> 1-3% goal, rotation-bounded window",
       "_market_goal_pct(exchange, pair)" in src and "GOAL CLOCK" in src
       and "_rotation_window_min()" in src)

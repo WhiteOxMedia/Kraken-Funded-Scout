@@ -235,7 +235,13 @@ SNS = {"logger": types.SimpleNamespace(
            SNS["supp"].append((pair, gate)),
        "_mark_release": lambda pair, gate:
            SNS["marks"].append((pair, gate)),
-       "DESKTOP_ALERT_MIN": 92.0,
+       # THE FLOOR IS LOCAL (Sep 23): the block computes its own popup
+       # floor now — the old DESKTOP_ALERT_MIN stub was the leak's
+       # fingerprint (a name production never binds in that scope). The
+       # stub keeps the slack math identical to the old 92.0.
+       "popup_floor": lambda tide_state=None, lw_pts=0, rot_key=None,
+                      pair=None: 92.0,
+       "popup_floor_for_rotation": lambda rot_key=None, now=None: 92.0,
        "asset": "X", "pair": "X/USD",
        "_now_mst": datetime.datetime.now,   # rot key only
        "rotation_key_for_hour": lambda h: "0-4",
@@ -244,6 +250,9 @@ SNS = {"logger": types.SimpleNamespace(
 exec(compile("def _st_veto(_st_deep, r):\n"
              + "\n".join("    " + ln for ln in _s_ded.splitlines()),
              "surething_block", "exec"), SNS)
+check("the sure-thing release's floor is LOCAL (the exec'd block carries no "
+      "champion-path leak)",
+      "DESKTOP_ALERT_MIN" not in _s_block)
 
 def _st_state(gates):
     return {"weights": {"system_burial": 1.0},

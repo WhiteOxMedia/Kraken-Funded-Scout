@@ -57,6 +57,16 @@ check("the outcome-fit machinery exists",
       and "def _pair_5m_arrs" in tl_src)
 check("the outcome bar's floor is EVIDENCE, not the quantile clamp",
       tl.OUTCOME_BAR_FLOOR == 80.0 and tl.OUTCOME_BAR_FLOOR < tl.BAR_MIN)
+check("the floor is EVIDENCE-GATED: an EV ladder may lower it below the "
+      "old 80 clamp when the money says so",
+      tl.OUTCOME_BAR_FLOOR_MIN < tl.OUTCOME_BAR_FLOOR
+      and tl.OUTCOME_BAR_FLOOR_MIN > 0
+      and "_ev_ladder_floor" in tl_src
+      and "OUTCOME_BAR_FLOOR_MIN" in tl_src)
+check("the personal bar floors at the source-matched floor, not the old 86 constant",
+      "def tide_personal_bar" in bs_src
+      and "_tl.state_bar_floor(tide_state)" in bs_src
+      and "def state_bar_floor" in tl_src)
 check("the outcome fit runs on BOTH candidate ledgers",
       "SUPPRESSIONS_FILE, SNAPSHOTS_FILE" in tl_src.replace("for path in (", ""))
 check("the ship rule: EV >= the quantile's, or the quantile stays",
@@ -88,8 +98,8 @@ import json as _json
 _flip_dir = BASE / "_test_tideflip"
 _flip_dir.mkdir(exist_ok=True)
 _real_flipf = tl.FLIP_FILE
-tl.FLIP_FILE = _flip_dir / "flips.json"
 try:
+    tl.FLIP_FILE = _flip_dir / "flips.json"   # GUARDED SWAP (testleaks, Sep 23)
     tl.FLIP_FILE.write_text(
         _json.dumps({"OUT": {"flipped": True}}), encoding="utf-8")
     _m = tl.learn()
