@@ -1,0 +1,100 @@
+#!/usr/bin/env bash
+# ─────────────────────────────────────────────────────────────────────────
+# POST-COMMIT: Copilot CLI second opinion (user rule, Sep 7 — "wire the
+# Copilot CLI into kraken_scout as a second-opinion reviewer alongside
+# the CodeRabbit pre-commit gate").
+#
+# THE DIVISION OF LABOR:
+#   pre-commit  CodeRabbit  reviews the STAGED diff BEFORE it lands —
+#               structured findings, the last chance to catch a problem.
+#   post-commit Copilot     reviews the commit that JUST landed — a free
+#               second opinion with a different model's eyes. It can't
+#               stop anything (the commit exists); it speaks up for the
+#               NEXT decision (amend, revert, follow-up).
+#
+# POLICY (mirrors the CodeRabbit gate, user-chosen Sep 7):
+#   · WARN-ONLY — findings print to the terminal; nothing is blocked.
+#   · FAIL-OPEN — no auth, CLI missing, timeout, error: one line of
+#     reason, exit 0. A post-commit hook MUST never fail a commit that
+#     already happened — and must never leave the repo in a bad state.
+#
+# WHAT IT REVIEWS: the newest commit's diff (`git show`), piped into a
+# non-interactive Copilot run. Runtime churn (see RUNTIME_INVARIANTS.md for
+# the class list) is filtered out of the diff — the reviewer sees CODE only.
+#
+# ENV OVERRIDES:
+#   COPILOT_OFF=1             skip entirely
+#   COPILOT_TIMEOUT_SEC       review max seconds (default 240)
+# ─────────────────────────────────────────────────────────────────────────
+set -u
+
+[ "${COPILOT_OFF:-0}" = "1" ] && exit 0
+
+BIN="$(command -v copilot || true)"
+if [ -z "$BIN" ]; then
+    # the npm global bin is not always on the hook's PATH
+    for c in "$HOME/AppData/Roaming/npm/copilot" "$HOME/.npm-global/bin/copilot"; do
+        [ -x "$c" ] && BIN="$c" && break
+    done
+fi
+[ -z "$BIN" ] && exit 0   # not installed — silently nothing to do
+
+# only review when this commit is HEAD (a rebase/amend cascade fires the
+# hook many times; reviewing every replay is noise)
+HEAD_SUBJECT=$(git log -1 --format=%s 2>/dev/null)
+case "$HEAD_SUBJECT" in
+    *"Generated with Codebuff"*) ;;          # ours — review it
+    *) : ;;                                   # anything else — still review
+esac
+
+TIMEOUT="${COPILOT_TIMEOUT_SEC:-240}"
+
+DIFF=$(git show --format= --unified=3 HEAD 2>/dev/null | tr -d '\r')
+[ -z "$DIFF" ] && exit 0
+
+# the churn filter: runtime state, caches, test-output txt, binaries
+# RUNTIME-STATE FILTER (2026-09-21, RUNTIME_INVARIANTS.md): runtime state is
+# owned exclusively by the running scanner and is never committed. The churn
+# filter is CLASS-based (extensions + runtime dirs + scratch prefixes) — it
+# lists no literal runtime file paths, so runtime state can never be
+# "referenced" from a hook.
+FILTERED=$(printf '%s\n' "$DIFF" | awk '
+    /^diff --git/ {
+        keep = 1
+        if ($0 ~ /\.(jsonl|json|db|db-wal|db-shm|wav|lock|pid|bak|prev|tmp|log|txt)("|$|[ ])/ ||
+            $0 ~ /(^|\/|"| )(logs|speech_queue)\// ||
+            $0 ~ /(^|\/|"| )(_check|_test|_run|_out|_woulda)[-.]/ ||
+            $0 ~ /\.freebuff\//) keep = 0
+    }
+    keep { print }
+')
+[ -z "$FILTERED" ] && exit 0          # a churn-only commit — nothing to review
+
+# size guard: a giant diff would burn tokens; cap at ~40k chars
+if [ ${#FILTERED} -gt 40000 ]; then
+    FILTERED="${FILTERED:0:40000}
+... (diff truncated at 40000 chars for the review)"
+fi
+
+PROMPT="You are a second-opinion code reviewer for a live crypto-trading system (kraken_scout). Review the following git diff. Focus on: real bugs, broken logic, money-math errors, race conditions, and security issues. Style nits are NOT interesting. If the diff is clean, say CLEAN. Otherwise list findings as: [severity] file:line - issue. Be terse.
+
+DIFF:
+$FILTERED"
+
+OUT=$(timeout "$TIMEOUT" "$BIN" -p "$PROMPT" --allow-all-tools 2>/dev/null | tr -d '\r')
+rc=$?
+
+if [ $rc -ne 0 ]; then
+    # 130 = our timeout killed it; auth errors land here too
+    echo "  🤖 Copilot second opinion: unavailable (rc=$rc) — noted, nothing blocked." >&2
+    exit 0
+fi
+
+[ -z "$OUT" ] && exit 0
+
+echo "  🤖 Copilot second opinion:" >&2
+printf '%s\n' "$OUT" | sed 's/^/    /' >&2
+if printf '%s' "$OUT" | grep -qi "CLEAN"; then
+    echo "  🤖 second opinion: clean." >&2
+fi
+exit 0

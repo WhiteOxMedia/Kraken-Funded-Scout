@@ -124,35 +124,78 @@ check("no active hook touches or names runtime state", not hits,
 # so an out-of-band edit there (the 2026-09-21 hook-dance failure mode) is
 # invisible to git, to reviews, and to every other guard. Byte-for-byte,
 # CRLF-normalized (Windows checkouts may hold CRLF while the blob is LF).
-TRACKED_HOOK = "hooks/pre-commit"
-LOCAL_HOOK = os.path.join(".git", "hooks", "pre-commit")
-try:
-    with open(TRACKED_HOOK, "rb") as _f:
-        _tracked_bytes = _f.read().replace(b"\r\n", b"\n")
-except OSError as _exc:
-    _tracked_bytes = None
-    _tracked_err = str(_exc)
-try:
-    with open(LOCAL_HOOK, "rb") as _f:
-        _local_bytes = _f.read().replace(b"\r\n", b"\n")
-except OSError as _exc:
-    _local_bytes = None
-    _local_err = str(_exc)
+# THE GENERALIZED MIRROR CENSUS (Sep 23, the user's sweep: "extend the
+# same census to the other machine-local hook copies") — two directions,
+# over EVERY hook name, not just pre-commit:
+#
+#   1. tracked -> machine-local: every TRACKED hooks/<name> must be
+#      mirrored byte-for-byte (CRLF-normalized) at .git/hooks/<name>.
+#      The machine-local copy is the fallback if core.hooksPath is ever
+#      lost; a stale or missing copy leaves the fallback running an
+#      unreviewed hook (or no fallback at all).
+#
+#   2. machine-local -> tracked: every non-sample executable in
+#      .git/hooks must have a tracked twin in hooks/. A real hook that
+#      exists ONLY machine-locally is unreviewable and unversionable —
+#      exactly how the post-commit Copilot reviewer (the Sep-7 rule)
+#      silently DIED when core.hooksPath was armed at hooks/: git ran
+#      the tracked dir, the live hook sat in .git/hooks, and no check
+#      said a word. This census makes that class impossible to repeat.
+#
+# commit-msg, prepare-commit-msg, post-commit, and any future hook name
+# are all covered by construction — nothing new to pin per-name.
+def _norm(path):
+    try:
+        with open(path, "rb") as _f:
+            return _f.read().replace(b"\r\n", b"\n"), None
+    except OSError as _exc:
+        return None, str(_exc)
 
-if _tracked_bytes is None:
-    check("machine-local .git/hooks/pre-commit mirrors the tracked hook",
-          False, f"cannot read {TRACKED_HOOK}: {_tracked_err}")
-elif _local_bytes is None:
-    check("machine-local .git/hooks/pre-commit mirrors the tracked hook",
-          False, f"the fallback copy is missing ({_local_err}) — re-arm it: "
-                 f"cp {TRACKED_HOOK} .git/hooks/pre-commit")
-else:
-    check("machine-local .git/hooks/pre-commit mirrors the tracked hook",
-          _tracked_bytes == _local_bytes,
-          "DRIFT — the machine-local copy no longer matches the tracked "
-          "hook; an out-of-band edit or a stale refresh leaves the fallback "
-          "running a hook nobody reviewed. Re-arm: cp "
-          f"{TRACKED_HOOK} {LOCAL_HOOK}")
+
+TRACKED_HOOKS_DIR = "hooks"
+LOCAL_HOOKS_DIR = os.path.join(".git", "hooks")
+_ls = subprocess.run(["git", "ls-files", "hooks"], capture_output=True,
+                     text=True)
+TRACKED_HOOKS = sorted(
+    os.path.basename(p) for p in _ls.stdout.split()
+    if p.startswith("hooks/") and not p.endswith(".sample"))
+try:
+    _local_names = sorted(
+        fn for fn in os.listdir(LOCAL_HOOKS_DIR)
+        if not fn.endswith(".sample"))
+except OSError as _exc:
+    _local_names = []
+    print(f"FAIL  the machine-local hooks dir is unreadable: {_exc}")
+    results.append(("the machine-local hooks dir is unreadable", False,
+                    str(_exc)))
+
+# direction 1: tracked -> machine-local
+for _name in TRACKED_HOOKS:
+    _t, _terr = _norm(os.path.join(TRACKED_HOOKS_DIR, _name))
+    _l, _lerr = _norm(os.path.join(LOCAL_HOOKS_DIR, _name))
+    if _t is None:
+        check(f"machine-local {_name} mirrors the tracked hook", False,
+              f"cannot read {TRACKED_HOOKS_DIR}/{_name}: {_terr}")
+    elif _l is None:
+        check(f"machine-local {_name} mirrors the tracked hook", False,
+              f"the fallback copy is missing ({_lerr}) — re-arm it: "
+              f"cp {TRACKED_HOOKS_DIR}/{_name} {LOCAL_HOOKS_DIR}/{_name}")
+    else:
+        check(f"machine-local {_name} mirrors the tracked hook",
+              _t == _l,
+              f"DRIFT — the machine-local {_name} no longer matches the "
+              "tracked hook; an out-of-band edit or a stale refresh leaves "
+              "the fallback running a hook nobody reviewed. Re-arm: cp "
+              f"{TRACKED_HOOKS_DIR}/{_name} {LOCAL_HOOKS_DIR}/{_name}")
+
+# direction 2: machine-local -> tracked (the dead-hook detector)
+_orphans = [fn for fn in _local_names if fn not in TRACKED_HOOKS]
+check("every machine-local hook has a tracked twin (no dead hooks)",
+      not _orphans,
+      f"REAL HOOKS LIVING ONLY IN {LOCAL_HOOKS_DIR}: {_orphans} — git does "
+      f"not run them (core.hooksPath executes {TRACKED_HOOKS_DIR}/), so "
+      "they are dead while looking armed, and invisible to every review. "
+      "Version them: mv into hooks/ and commit, then re-sync the mirror.")
 
 n_pass = sum(1 for _, ok, _ in results if ok)
 print(f"\nRESULT: {n_pass} passed, {len(results) - n_pass} failed")
