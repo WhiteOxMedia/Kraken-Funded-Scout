@@ -113,7 +113,7 @@ check("3.1 the builder never evaluates strategy (it renders rows only)",
 check("3.2 the renderer imports the scanner ONLY for the rot key",
       re.search(r"def _render_funnel_plate\(.*?import background_scanner as "
                 r"_bs1\s*\n\s*now = _now_mst\(\)", src, re.S) is not None)
-check("3.3 no st.\* widget calls inside the builder (pure, drive-testable)",
+check("3.3 no st.\\* widget calls inside the builder (pure, drive-testable)",
       "st." not in builder_src)
 
 fails = [r for r in results if not r[1]]

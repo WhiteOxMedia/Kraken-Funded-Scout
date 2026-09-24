@@ -381,6 +381,8 @@ __import__("background_scanner")          # the real seams for tide/rotation
 # the re-import resolves ROOT to its own dir — under the gate that's the
 # scratch again, so the fresh module is pointed at the real repo too
 pg_real.ROOT = _REPO_ROOT
+# leak-audit: ok — same _RealState as pg's LIVE swap above; the same
+# tail restore (or scrub) covers pg_real's view of the file
 pg_real.STATE_FILE = _RealState
 _lres = pg_real.guard_factor("ZEC/USD", {"added": "2026-09-22T08:55:24-06:00"})
 check(10.6, isinstance(_lres.get("factor"), (int, float)),

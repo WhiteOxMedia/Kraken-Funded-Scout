@@ -17,13 +17,35 @@ walks every test_*.py and flags the two leak classes:
      later boots the app (AppTest) lets production code write through
      the swapped constant.
 
+  THE TIGHTENED SWAP RULE (Sep 23, folded permanently): every swap
+  needs a finally restore, a sandbox local, or a sentinel — judged PER
+  ASSIGNMENT. An earlier sandbox-shaped VALUE on the same dotted name
+  no longer immunizes later swaps of that name: the restore-swap
+  `SWAP = <production>` that rides a value-shape exemption earned by a
+  previous `SWAP = tempfile.mkdtemp()` was exactly the gap through
+  which the PULSE_JSON near miss re-entered. Genuine multi-step
+  sandbox derivations keep their exemption through sandbox_names()'s
+  transitive pass (TMP = mkdtemp(); P = TMP / "f.json" is still a
+  sandbox local), so nothing real is newly flagged — only the
+  production-valued swap riding a stale exemption.
+
 Also flags os.chdir and os.environ stores (unguarded) for the same
 reason. Writes _testleaks.txt (family convention) and prints a
 summary. Run: .venv\\Scripts\\python.exe -X utf8 diag_testleaks.py
+
+THE PERMANENT SELF-CHECK (Sep 23): main() also exercises this audit
+on probe suites in a sandbox tempdir and fails the run unless the
+tightened rule holds exactly — the reopen shape (value-shape sandbox
+pass then a production restore-swap) must score TWO hits, the
+sandbox-value assignment staying exempt; the finally, sandbox-local,
+and sentinel arms must each stay clean. The self-check runs on every
+battery pass (DIAG_RUN) and in every pre-commit gate pass, so the
+value-shape exemption gap cannot reopen silently.
 """
 import ast
 import re
 import sys
+import tempfile
 from pathlib import Path
 
 ROOT = Path(__file__).parent
@@ -167,7 +189,16 @@ def audit_file(py, prod_names):
     src_lines = src.splitlines()
     restored = finally_targets(tree)
     sbx = sandbox_names(tree)
-    sandbox_touched = set()   # dotted targets ever assigned a sandbox value
+    # a name assigned exactly once is a DEFINITION, not a swap — there is
+    # nothing to restore, so the swap class (which needs a finally, a
+    # sandbox local, or a sentinel) cannot apply to it
+    assign_counts = {}
+    for node in ast.walk(tree):
+        if isinstance(node, (ast.Assign, ast.AnnAssign)):
+            for t in node.targets:
+                if isinstance(t, (ast.Attribute, ast.Name)):
+                    key = ast.unparse(t)
+                    assign_counts[key] = assign_counts.get(key, 0) + 1
 
     def value_is_sandbox(val):
         if val is None:
@@ -176,16 +207,6 @@ def audit_file(py, prod_names):
             return True
         tname = target_name(val)
         return bool(tname and is_sandbox(tname))
-
-    # pre-pass: which dotted swap targets were EVER given a sandbox value
-    for node in ast.walk(tree):
-        if isinstance(node, (ast.Assign, ast.AnnAssign)):
-            targets = node.targets if isinstance(node, ast.Assign) \
-                else [node.target]
-            for t in targets:
-                if isinstance(t, (ast.Attribute, ast.Name)) \
-                        and value_is_sandbox(getattr(node, "value", None)):
-                    sandbox_touched.add(ast.unparse(t))
 
     for node in ast.walk(tree):
         # 1) writes to literal paths — for p.write_text(content) the
@@ -230,7 +251,15 @@ def audit_file(py, prod_names):
                                  f"RELATIVE-PATH WRITE: open('{name}') — use "
                                  f"BASE / or a sandbox"))
 
-        # 2) module-global swaps
+        # 2) module-global swaps — THE TIGHTENED RULE (Sep 23), judged
+        # per assignment: THIS assignment's own value is the only
+        # sandbox escape. There is no standing immunization: a
+        # value-shape sandbox pass on an earlier line can never exempt
+        # a later production-valued swap of the same name (the exact
+        # reopen path of the PULSE_JSON near miss — the restore-swap
+        # `SWAP = <production>` riding an earlier mkdtemp value).
+        # sandbox_names()'s transitive pass still covers genuine
+        # multi-step derivations, so real sandbox locals keep their arm.
         if isinstance(node, (ast.Assign, ast.AnnAssign)):
             targets = node.targets if isinstance(node, ast.Assign) \
                 else [node.target]
@@ -245,21 +274,27 @@ def audit_file(py, prod_names):
                 pathish = bool(PATHISH.search(dotted))
                 if not ((base_is_module and pathish) or (caps and pathish)):
                     continue
+                if assign_counts.get(dotted, 0) < 2:
+                    continue   # a definition, not a swap — nothing to restore
                 if dotted in restored or f"del {dotted}" in restored:
                     continue
                 val = getattr(node, "value", None)
-                if value_is_sandbox(val) or dotted in sandbox_touched:
+                if value_is_sandbox(val):
                     continue
                 # the deliberate 'hand the module back to production at
-                # suite end' idiom carries an explicit sentinel comment
-                near = "\n".join(src_lines[max(node.lineno - 2, 0):
+                # suite end' idiom carries an explicit sentinel comment —
+                # a block comment's marker may sit above the FIRST line of
+                # the comment, so the window reaches back five lines
+                near = "\n".join(src_lines[max(node.lineno - 5, 0):
                                            node.lineno])
                 if "leak-audit: ok" in near:
                     continue
                 vname = target_name(val) if val is not None else "?"
                 hits.append((node.lineno,
                              f"UNGUARDED SWAP: {dotted} = "
-                             f"{vname or ast.dump(val)[:40]}"))
+                             f"{vname or ast.dump(val)[:40]} — every swap "
+                             f"needs a finally restore, a sandbox local, or "
+                             f"a 'leak-audit: ok' sentinel"))
 
         # 3) cwd / env
         if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute) \
@@ -278,6 +313,125 @@ def audit_file(py, prod_names):
     return [f"  L{n}: {msg}" for n, msg in sorted(hits)]
 
 
+def audit_selfcheck(prod_names):
+    """THE PERMANENT SELF-CHECK (Sep 23): the diag exercises its own
+    audit_file on probe suites in a sandbox tempdir and FAILS the run
+    unless the tightened swap rule holds exactly.
+
+      probe_gap   the reopen shape — init, a value-shape sandbox pass
+                  (tempfile.mkdtemp), then the restore-swap with a
+                  PRODUCTION value, no finally: BOTH production
+                  assignments must be flagged and the sandbox-value
+                  assignment must stay exempt (exactly hits at L3 and
+                  L5, never L4). Under the old standing exemption this
+                  probe scored 1 — if it ever scores 1 again, the
+                  value-shape gap has reopened and the battery goes red.
+      probe_sbx   a sandbox local (mkdtemp value) — exempt
+      probe_fin   a try/finally restore — exempt
+      probe_sent  the 'leak-audit: ok' sentinel — exempt
+
+    The probes run the REAL audit_file on real files, so any edit that
+    restores the standing immunization, weakens the finally/sandbox/
+    sentinel arms, or breaks audit_file itself fails here — on every
+    battery pass and every pre-commit gate pass."""
+    failures = []
+    probes = {
+        "probe_gap": (
+            "import m\n"
+            "import tempfile\n"
+            "SWAP_PATH = m.PULSE_JSON\n"
+            "SWAP_PATH = tempfile.mkdtemp()\n"
+            "SWAP_PATH = m.PULSE_JSON\n"
+        ),
+        "probe_sbx": (
+            "import tempfile\n"
+            "SWAP_PATH = tempfile.mkdtemp()\n"
+        ),
+        "probe_fin": (
+            "import m\n"
+            "SWAP_PATH = m.PULSE_JSON\n"
+            "try:\n"
+            "    SWAP_PATH = m.OTHER_JSON\n"
+            "finally:\n"
+            "    SWAP_PATH = m.PULSE_JSON\n"
+        ),
+        "probe_sent": (
+            "import m\n"
+            "# leak-audit: ok — the deliberate hand-back, documented\n"
+            "# above the assignment as the block-comment idiom writes it\n"
+            "SWAP_PATH = m.PULSE_JSON\n"
+        ),
+        "probe_def": (
+            "TRACKED_HOOKS_DIR = \"hooks\"\n"
+            "LOCAL_HOOKS_DIR = OTHER_DIR\n"
+        ),
+    }
+    with tempfile.TemporaryDirectory(prefix="_testleaks_probe_") as td:
+        tdp = Path(td)
+        hits = {}
+        for name, text in probes.items():
+            p = tdp / f"{name}.py"
+            p.write_text(text, encoding="utf-8")
+            hits[name] = audit_file(p, prod_names)
+
+        def _lines(hs):
+            out = []
+            for h in hs:
+                m = re.match(r"\s*L(\d+):", h)
+                if m:
+                    out.append(int(m.group(1)))
+            return sorted(out)
+
+        gap = _lines(hits["probe_gap"])
+        if gap != [3, 5]:
+            failures.append(
+                f"probe_gap scored L{gap}, expected L[3, 5] — the "
+                "value-shape exemption gap has REOPENED (a standing "
+                "immunization is exempting the restore-swap again, "
+                "scoring 1) or the sandbox-local arm over-tightened "
+                "(flagging the sandbox swap)")
+        for name in ("probe_sbx", "probe_fin", "probe_sent", "probe_def"):
+            if hits[name]:
+                failures.append(
+                    f"{name} must stay clean but was flagged: "
+                    f"{hits[name]} — a legitimate arm regressed")
+
+    # source pins. TWO anti-vacuity disciplines, learned the hard way in
+    # this very file: a pin that searches for a literal which also appears
+    # in the pin's own source line can NEVER fail (the needle always finds
+    # itself), and a pin outside the region it guards passes even when the
+    # region is deleted. So: needles are built from parts so the literal
+    # never appears whole in this checker, and the branch arms are asserted
+    # REGIONALLY — within the swap branch around the UNGUARDED SWAP verdict,
+    # not anywhere in the file.
+    src = Path(__file__).read_text(encoding="utf-8")
+    if ("sandbox_" + "touched") in src:
+        failures.append(
+            "the standing value-shape immunization is back in the "
+            "source — the per-assignment rule has been weakened")
+    sstart = src.find('f"UNGUARDED SWAP:')
+    if sstart == -1:
+        failures.append(
+            "the UNGUARDED SWAP verdict is missing from the audit — "
+            "the swap class no longer grades anything")
+    else:
+        region = src[max(sstart - 3000, 0):sstart + 400]
+        for needle, what in (
+            ('if "leak-audit: ok" in near', "the sentinel arm"),
+            ("assign_counts.get(dotted, 0) < 2", "the definition exemption"),
+            ("value_is_sandbox(val)",
+             "the per-assignment sandbox escape"),
+            ("dotted in restored", "the finally arm"),
+            ("finally restore, " + "a sandbox local",
+             "the tightened rule sentence"),
+        ):
+            if needle not in region:
+                failures.append(
+                    f"{what} is missing from the swap branch — the "
+                    "tightened rule has been weakened where it is enforced")
+    return failures
+
+
 def main():
     prod = collect_production_names()
     report = ["TEST-SUITE LEAK AUDIT — module globals & production paths",
@@ -291,14 +445,26 @@ def main():
             report.append(f"{py.name}: {len(hits)} finding(s)")
             report.extend(hits)
             report.append("")
+    # THE PERMANENT SELF-CHECK: the audit grades its own tightened rule;
+    # a self-check that cannot even run is a red, never a silent skip.
+    try:
+        selffail = audit_selfcheck(prod)
+    except Exception as exc:
+        selffail = [f"self-check crashed: {exc!r}"]
+    if selffail:
+        report.append("SELF-CHECK FAILED — the swap-rule contract drifted:")
+        report.extend(f"  {s}" for s in selffail)
+        report.append("")
+    total += len(selffail)
     if total == 0:
-        report.append("CLEAN — no unguarded swaps, no production-path writes.")
+        report.append("CLEAN — no unguarded swaps, no production-path writes, "
+                      "self-check green.")
     else:
         report.append(f"TOTAL: {total} finding(s) across the suites above.")
     OUT.write_text("\n".join(report) + "\n", encoding="utf-8")
     print("\n".join(report))
     # battery-gradable: findings fail the run so a leak can never
-    # re-enter the suite family unnoticed
+    # re-enter the suite family unnoticed — the self-check included
     return 1 if total else 0
 
 
