@@ -19,6 +19,13 @@ CONTRACT:
      (RCL drift, SAL, momentum, end-game) only when they actually bite.
   4. MY TRADES carries the same factor as a per-line badge with the EG /
      MOM flags, straight from the row — silent (fixed rules) says so.
+  5. THE 24-HOUR RING (Sep 24, user: "a 24-hour guard-factor sparkline
+     per pair — see how the net has moved across rotations"): the
+     scanner samples the finalized factor onto the row's bounded ring
+     (72 samples max, one per 20-min throttle, >24h pruned, unreadable
+     records nothing); the plate draws the polyline with the REAL
+     sample extremes and the last sample's age. One dot or a stale
+     ring draws NOTHING — a one-point sparkline is a lie about a trend.
 Run:  python test_guardbreakdown.py   (exit 0 = all pass)
 """
 import sys, types, time, json, os
@@ -114,12 +121,62 @@ check(1.8, isinstance(row.get("momentum"), bool) and isinstance(row.get("endgame
 check(1.9, not (_saved.get("DEAD/USD") or {}).get("guard_brk"),
       "the dead-ticker pair got NO breakdown — real silence stays silent")
 
+ring = row.get("ring") if row else None
+check(1.10, isinstance(ring, list) and len(ring) == 1
+      and isinstance(ring[0], (list, tuple)) and len(ring[0]) == 2
+      and t0 - 5 <= float(ring[0][0]) <= time.time() + 5
+      and isinstance(ring[0][1], (int, float)),
+      "the first check seeds the ring with one (ts, factor) sample")
+check(1.11, not ((_saved.get("DEAD/USD") or {}).get("guard_brk") or {}).get("ring"),
+      "the dead-ticker pair never rings — real silence stays silent")
+
+print("== 1b. the ring is bounded, throttled, and pruned (the scanner owns it) ==")
+# the meta-layers sandbox again: every repeat cycle stays hermetic
+ml.ROOT = TMP
+ml.STATE_FILE = TMP / "meta_layers_state.json"
+(TMP / "meta_layers_state.json").unlink(missing_ok=True)
+
+
+def _reseed():
+    """The stub loader hands back WATCH — copy the saved row in so the
+    next cycle sees the previous stamp (two checks in a row)."""
+    WATCH["FAKE/USD"]["guard_brk"] = json.loads(
+        json.dumps(_saved["FAKE/USD"]["guard_brk"]))
+
+
+_reseed()
+t1 = time.time()
+bs.contest_light(_Ex(), cfg)
+_row2 = _saved["FAKE/USD"]["guard_brk"]
+check(1.12, len(_row2.get("ring") or []) == 1,
+      "a check inside the 20-min throttle adds NO sample (the ring is not a firehose)")
+check(1.13, t1 - 5 <= float(_row2.get("ts") or 0) <= time.time() + 5,
+      "the head stamp stays fresh every check — only the ring is throttled")
+
+_reseed()
+WATCH["FAKE/USD"]["guard_brk"]["ring"][-1][0] -= 21 * 60
+t2 = time.time()
+bs.contest_light(_Ex(), cfg)
+_ring2 = _saved["FAKE/USD"]["guard_brk"].get("ring") or []
+check(1.14, len(_ring2) == 2 and t2 - 5 <= float(_ring2[-1][0]) <= time.time() + 5,
+      "past the throttle window the check appends exactly one sample")
+
+WATCH["FAKE/USD"]["guard_brk"]["ring"] = json.loads(json.dumps(_ring2))
+WATCH["FAKE/USD"]["guard_brk"]["ring"][0][0] -= 25 * 3600   # past the window
+WATCH["FAKE/USD"]["guard_brk"]["ring"][1][0] -= 21 * 60      # throttle eligible
+bs.contest_light(_Ex(), cfg)
+_ring3 = _saved["FAKE/USD"]["guard_brk"].get("ring") or []
+check(1.15, len(_ring3) == 2
+      and all(time.time() - float(s[0]) <= 24 * 3600 + 5 for s in _ring3),
+      "a sample older than 24h is pruned, never drawn")
+ml.ROOT, ml.STATE_FILE = _ml_root0, _ml_state0   # sandbox out
+
 print("== 2. the WATCHING plate renders the why (the REAL helper) ==")
 app = (HERE / "app.py").read_text(encoding="utf-8")
 _i = app.find("def _guard_breakdown_rows")
 _j = app.find("def _render_light_panel")
 check(2.0, 0 < _i < _j, "the breakdown renderer is extractable")
-_NS = {"__name__": "guardbrk"}
+_NS = {"__name__": "guardbrk", "time": time}   # the renderer ages the ring
 exec(app[_i:_j], _NS)
 _gb_rows = _NS["_guard_breakdown_rows"]
 
@@ -176,6 +233,28 @@ html = "\n".join(_gb_rows({"guard_brk": _row(rcl="NORMAL", rcl_mult=1.0,
 check(2.11, "RCL" not in html and "SAL" not in html and "END-GAME" not in html,
       "a NORMAL pass renders no meta noise — quiet when quiet")
 
+print("== 2b. the sparkline draws the ring's shape (never rebuilds it) ==")
+_tn = time.time()
+html = "\n".join(_gb_rows({"guard_brk": _row(gf=1.6, ring=[[_tn - 5 * 3600, 1.0],
+                                                           [_tn, 1.6]])}, 1.6))
+check(2.12, "<polyline" in html and "net, 24h" in html and "1.00–1.60" in html,
+      "a moving ring draws the polyline with the REAL sample extremes")
+html = "\n".join(_gb_rows({"guard_brk": _row(gf=1.0, ring=[[_tn - 7200, 1.0],
+                                                           [_tn - 3600, 1.0],
+                                                           [_tn, 1.0]])}, 1.0))
+check(2.13, "<polyline" in html and "1.00–1.00" in html,
+      "a flat ring still draws — padded geometry, REAL extremes printed")
+html = "\n".join(_gb_rows({"guard_brk": _row(ring=[[_tn, 1.2]])}, 1.2))
+check(2.14, "<polyline" not in html,
+      "one sample is no trend — no sparkline until there are two in-window points")
+html = "\n".join(_gb_rows({"guard_brk": _row(ring=[[_tn - 30 * 3600, 1.0],
+                                                   [_tn - 25 * 3600, 1.4]])}, 1.2))
+check(2.15, "<polyline" not in html,
+      "a fully stale ring (every sample past 24h) draws nothing")
+html = "\n".join(_gb_rows({"guard_brk": _row(ring=[[_tn, 1.0], ["x", 1.2], [1.3]])}, 1.1))
+check(2.16, "<polyline" not in html,
+      "malformed ring entries are ignored, never drawn as fake points")
+
 print("== 3. the wiring: page renders, never recomputes ==")
 _k = app.find("def _render_light_panel")
 _m = app.find("THE SEMANTIC-OPTIONS IDIOM", _k)
@@ -190,6 +269,9 @@ check(3.4, light.count("guard_factor") == 0,
       "the MY TRADES badge never recomputes the factor either")
 check(3.5, '"guard_brk"' in (HERE / "background_scanner.py").read_text(encoding="utf-8"),
       "the stamp writer exists in the scanner — the row is the only channel")
+check(3.6, '"ring"' in (HERE / "background_scanner.py").read_text(encoding="utf-8")
+      and "ring" in app[_i:_j],
+      "the ring is written by the scanner and drawn by the plate — same channel as the stamp")
 
 print(f"\n{len(P)} passed, {len(F)} failed")
 import shutil

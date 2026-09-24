@@ -3431,7 +3431,25 @@ def contest_light(exchange, cfg):
         # page renders the why, it never computes it (the one-brain
         # rule). Written on HOLD too: the breakdown is a heartbeat,
         # not an event.
+        # ── THE GUARD-FACTOR RING (Sep 24, user: "a 24-hour guard-factor
+        # sparkline per pair on the WATCHING plate — see how the net has
+        # moved across rotations"): the finalized factor is sampled onto
+        # the same heartbeat, bounded to 24h. The sample cadence is
+        # throttled to one per GUARD_RING_MIN_DT so the row stays small
+        # no matter how fast the checks run; a sample older than the
+        # window is dropped, never drawn. The ring lives on the row
+        # (restart-proof like the rest of the watch file); the page
+        # draws it and never rebuilds it (one-brain).
+        GUARD_RING_S = 24 * 3600       # the window the user asked for
+        GUARD_RING_MAX = 72            # 72 samples = the 24h at 20-min cadence
+        GUARD_RING_MIN_DT = 20 * 60    # one sample per rotation-window
         if _pgres is not None:
+            # the ring's history lives on the OLD stamp — capture it
+            # before the dict below is replaced (the new stamp is built
+            # fresh every check; only its ring inherits)
+            _prev_brk = w.get("guard_brk")
+            _prev_ring = (_prev_brk.get("ring") or []) \
+                if isinstance(_prev_brk, dict) else []
             w["guard_brk"] = {
                 "ts": time.time(),
                 "gf": _pgf,
@@ -3449,6 +3467,25 @@ def contest_light(exchange, cfg):
                 "gf_max": (_meta or {}).get("gf_max"),
                 "max_carve": (_meta or {}).get("max_carve"),
             }
+            # the ring: carry the previous stamp's samples forward, drop
+            # anything past the window, append THIS check's finalized
+            # factor only when the throttle allows (the live value is
+            # always the head line; the ring is the trend). An unreadable
+            # guard records NO sample — unreadable is not 1.0.
+            try:
+                _now_s = time.time()
+                _ring = [s for s in _prev_ring
+                         if isinstance(s, (list, tuple)) and len(s) == 2
+                         and isinstance(s[0], (int, float))
+                         and isinstance(s[1], (int, float))
+                         and 0 < _now_s - float(s[0]) <= GUARD_RING_S]
+                if isinstance(_pgf, (int, float)) and _pgf > 0 and (
+                        not _ring or _now_s - float(_ring[-1][0])
+                        >= GUARD_RING_MIN_DT):
+                    _ring.append((_now_s, round(float(_pgf), 3)))
+                w["guard_brk"]["ring"] = _ring[-GUARD_RING_MAX:]
+            except Exception as _ring_exc:
+                logger.debug("guard ring failed for %s: %s", pair, _ring_exc)
             # ── THE TRI-WATCH EXIT STAMP (user spec, Sep 23): the
             # ExitWatch read rides the same breakdown heartbeat — the
             # console renders the watch's why, it never computes it

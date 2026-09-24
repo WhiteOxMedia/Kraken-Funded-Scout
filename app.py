@@ -7265,6 +7265,43 @@ def _guard_breakdown_rows(w: dict, pct: float) -> list[str]:
             _band += f" · decay rail {_rail:.2f}"
         rows.append("<span class='dim' style='font-size:12px;margin-left:14px;'>"
                     f"<span style='color:{_bcol};'>{_band}</span></span>")
+    # THE GUARD-FACTOR SPARKLINE (Sep 24, user: "a 24-hour guard-factor
+    # sparkline per pair — see how the net has moved across rotations"):
+    # the scanner samples the finalized factor onto the row's bounded
+    # 24h ring; this DRAWS the shape and never rebuilds it (one-brain).
+    # Fewer than two in-window samples is no sparkline — one dot is a
+    # lie about a trend. The y-band is padded only when the samples are
+    # nearly flat so the shape stays readable; the printed lo–hi are the
+    # REAL sample extremes, never the padded ones.
+    ring = [s for s in (brk.get("ring") or [])
+            if isinstance(s, (list, tuple)) and len(s) == 2
+            and isinstance(s[0], (int, float)) and isinstance(s[1], (int, float))
+            and 0 <= time.time() - float(s[0]) <= 24 * 3600]
+    if len(ring) >= 2:
+        _W, _H, _PAD = 120, 18, 1.5
+        _ys = [float(v) for _, v in ring]
+        _rlo, _rhi = min(_ys), max(_ys)
+        _plo, _phi = _rlo, _rhi
+        if _phi - _plo < 0.20:          # nearly flat: pad to keep shape
+            _mid = (_phi + _plo) / 2.0
+            _plo, _phi = _mid - 0.10, _mid + 0.10
+        _n = len(ring)
+        _pts = " ".join(
+            f"{_PAD + i * (_W - 2 * _PAD) / (_n - 1):.1f},"
+            f"{(_H - _PAD) - (float(v) - _plo) / (_phi - _plo) * (_H - 2 * _PAD):.1f}"
+            for i, (_t, v) in enumerate(ring))
+        _sp_col = "#4be38a" if gf >= 1.2 else "#ff6b5e" if gf < 0.9 else "#ffc36b"
+        _age_s = time.time() - float(ring[-1][0])
+        _age_txt = (f"{_age_s / 3600.0:.1f}h ago" if _age_s >= 3600
+                    else f"{max(0, int(_age_s / 60))}m ago")
+        rows.append(
+            "<span class='dim' style='font-size:12px;margin-left:14px;'>"
+            f"net, 24h <svg width='{_W}' height='{_H}' viewBox='0 0 {_W} {_H}' "
+            "style='vertical-align:-4px;' role='img' aria-label='guard factor "
+            "sparkline, 24 hours'>"
+            f"<polyline fill='none' stroke='{_sp_col}' stroke-width='1.5' "
+            f"points='{_pts}'/></svg> "
+            f"{_rlo:.2f}–{_rhi:.2f} · last {_age_txt}</span>")
     return rows
 
 
