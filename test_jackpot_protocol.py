@@ -137,9 +137,10 @@ check(3.2, _c3.get("status") == "ok"
       f"the claimed earmark released — balance {_b3c:.2f} == the house tax "
       "remainder (the zeroing class is dead)")
 db.set_setting("jackpot_balance", "2.0")
-db.add_tickets(_m3["id"], "free", 4)
-_r3b = engine.run_drawing()
-_d3b = _r3b["drawing_id"]
+_m3b = db.get_or_create_miner(_W.format(7))   # a FRESH winner: the
+db.add_tickets(_m3b["id"], "free", 4)         # charter's 30-day limit
+_r3b = engine.run_drawing()                   # (Sep 25) forbids the
+_d3b = _r3b["drawing_id"]                     # same miner winning twice
 check(3.3, abs(engine.get_jackpot_balance()
                - round(2.0 - _r3b["payout"], 8)) < 1e-9
       and _settle_expired(_d3b)
@@ -151,8 +152,8 @@ print("== 4. the rollover event: both expiry paths log, once each ==")
 _rows = _audit_ids("jackpot_rollover")
 check(4.1, _r1["drawing_id"] in _rows and _d3b in _rows,
       "sweep-path expiries logged their rollover events")
-_m4 = db.get_or_create_miner(_W.format(4))
-db.add_tickets(_m4["id"], "free", 3)
+_m4 = db.get_or_create_miner(_W.format(8))    # a FRESH winner again:
+db.add_tickets(_m4["id"], "free", 3)          # the 30-day win limit
 _r5 = engine.run_drawing()
 check(4.2, _r5.get("status") == "drawn", "fresh draw for the race path")
 _d5 = _r5["drawing_id"]

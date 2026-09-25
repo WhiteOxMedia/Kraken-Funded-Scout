@@ -22,6 +22,18 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import database as db
 import jackpot_engine as engine
 
+# THE KRAKEN CHALLENGE (charter, Sep 25): the win -> challenge ->
+# referral-bonus -> bigger-jackpot loop, surfaced ONLY when there is a
+# live claim to point at. Both mandated phrases ride this module.
+try:
+    import kraken_challenge as _challenge
+except Exception:                          # headless fallback: phrases only
+    _challenge = None
+
+GETTING_STARTED = ("Not sure where to get started? "
+                   "Start here: xmrjackpot.com")
+FREE_PHRASE = "Start for free at: https://xmrjackpot.com"
+
 # the ONLY pool-stats fields Scout may render (community-facing numbers)
 SAFE_STATS_KEYS = {
     "jackpot_xmr", "jackpot_usd", "total_miners", "active_miners",
@@ -95,4 +107,28 @@ def miner_view(wallet: str) -> dict:
         out["claim"] = {"drawing_id": d["id"], "status": st,
                         "label": label,
                         "deadline": d["claim_deadline"]}
+        if st == "pending":
+            out["kraken_challenge"] = challenge_view()
+    return out
+
+
+def challenge_view() -> dict:
+    """THE KRAKEN CHALLENGE GUIDE — display data for Scout, shaped for
+    the visibility layer: public steps, the operator-configured
+    referral link, both mandated phrases, and the jackpot's own
+    funding facts (no wallet internals, no user identity, no secret)."""
+    out = {"steps": [], "referral_link": "", "funding": None,
+           "phrases": {"getting_started": GETTING_STARTED,
+                       "free": FREE_PHRASE}}
+    if _challenge is not None:
+        try:
+            out["steps"] = _challenge.guide_lines()
+            out["referral_link"] = _challenge.get_referral_link()
+        except Exception:
+            pass
+    try:
+        import jackpot_funding as _f
+        out["funding"] = _f.compute_daily_jackpot()
+    except Exception:
+        pass
     return out

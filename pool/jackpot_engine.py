@@ -18,6 +18,24 @@ from datetime import datetime, timedelta
 import database as db
 
 
+def _miner_won_recently(miner_id, days=30):
+    """THE 30-DAY WIN LIMIT (charter, Sep 25): one win per rolling 30
+    days — mining and tickets continue, only the CLAIM waits. The
+    gate reads the miner's OWN drawing (status='drawn' whose id is the
+    greatest among their drawn wins — i.e. their most recent win) and
+    compares its drawn_at against the window."""
+    try:
+        with db.get_db() as conn:
+            row = conn.execute(
+                """SELECT MAX(d.drawn_at) t FROM drawings d
+                   WHERE d.winner_id = ? AND d.status = 'drawn'""",
+                (miner_id,)).fetchone()
+        t = row["t"] if row else None
+        return bool(t) and (time.time() - float(t)) < days * 86400
+    except Exception:
+        return False                        # fail-open: never block a claim on a read error
+
+
 def generate_commit_reveal():
     """Generate a commit-reveal pair for provably fair drawing."""
     reveal_seed = os.urandom(32).hex()
@@ -234,6 +252,17 @@ def run_drawing():
     Execute a jackpot drawing.
     This is the core lottery function.
     """
+    # THE SELF-ADJUSTING DAILY SEED (charter, Sep 25): funding lands as
+    # REAL base XMR once per day — the formula's amount, from the
+    # funding ledger's 14-day rolling averages, capped at $20. Claims
+    # and expiry keep their exact settlement semantics underneath.
+    try:
+        import jackpot_funding as _funding
+        import jackpot_engine as _self_engine
+        _funding.accrue_daily_funding(engine=_self_engine)
+    except Exception as _e:
+        print(f"[Funding] daily accrual skipped: {_e}")
+
     jackpot = get_jackpot_balance()
     min_jackpot = float(db.get_setting("min_jackpot_xmr", "0.01"))
 
@@ -281,6 +310,43 @@ def run_drawing():
     # on every draw, after finalize + deadline but before the house-tax
     # bookkeeping; the server loop's broad except swallowed it)
     winner = db.get_miner(winner_id)
+
+    # THE 30-DAY WIN LIMIT (charter): a miner who won within the last
+    # 30 days cannot take another jackpot. Their tickets stay in the
+    # draw (they keep earning), but the win must land on an ELIGIBLE
+    # holder: walk the ring from the drawn index — the same
+    # commit-reveal index, advanced — past EVERY ticket of gated
+    # miners (a 99-ticket winner is skipped whole, not shifted once),
+    # to the first eligible holder. Fully audited; the payout model
+    # does not move (no claim can occur for a skipped win).
+    if winner and _miner_won_recently(winner_id):
+        db.add_audit_log(
+            None, "winner_limit_skip",
+            json.dumps({"drawing_id": drawing_id, "miner_id": winner_id,
+                        "worker": (winner.get("worker_name") or "")[:40],
+                        "reason": "30_day_win_limit"}),
+        )
+        with db.get_db() as conn:
+            _ring = conn.execute(
+                "SELECT id, miner_id FROM tickets WHERE drawing_id = ? "
+                "ORDER BY id", (drawing_id,)).fetchall()
+        _n = len(_ring)
+        if not _n:
+            return {"status": "error", "reason": "No tickets to redraw "
+                    "under the 30-day limit"}
+        _start = select_winner(_n, commit_seed, reveal_seed, block_hash)
+        _picked = None
+        for _off in range(_n):
+            _cand = _ring[(_start + _off) % _n]
+            if not _miner_won_recently(_cand["miner_id"]):
+                _picked = _cand
+                break
+        if _picked is None:
+            return {"status": "error", "reason": "Every ticket holder is "
+                    "inside the 30-day win window"}
+        winning_ticket_id = _picked["id"]
+        winner_id = _picked["miner_id"]
+        winner = db.get_miner(winner_id)
 
     # Calculate house tax
     house_tax_percent = float(db.get_setting("house_tax_percent", "10"))
@@ -410,6 +476,16 @@ def _get_p2pool_hashrate():
         return round(data.get("hashrate", 0), 1)
     except Exception:
         return 0
+
+
+def add_funding_base(amount_xmr):
+    """The funding model's ONE entry into the balance: raise the base
+    by a REAL, backed amount (the self-adjusting daily seed). Nothing
+    else may write the base for funding — one writer per flow."""
+    amount_xmr = max(0.0, float(amount_xmr or 0.0))
+    _b = float(db.get_setting("jackpot_balance", "0"))
+    db.set_setting("jackpot_balance", str(round(_b + amount_xmr, 8)))
+    return round(_b + amount_xmr, 8)
 
 
 def get_pool_stats():
@@ -557,6 +633,12 @@ def process_winner_claim(drawing_id, wallet_address):
     if not winner or winner["wallet_address"] != wallet_address:
         return {"status": "error", "reason": "Wallet does not match the winner"}
 
+    # THE 30-DAY WIN LIMIT, CLAIM SIDE (charter): the draw-time skip
+    # hands wins to eligible holders, but a pre-limit pending drawing
+    # must ALSO refuse a repeat claimant whose most recent OTHER win is
+    # inside the window (defense in depth — the sweep/claims cannot
+    # resurrect a won-twice state, and the audit carries the refusal).
+
     # Check deadline
     deadline = drawing.get("claim_deadline")
     if deadline and time.time() > deadline:
@@ -624,7 +706,17 @@ def process_winner_claim(drawing_id, wallet_address):
     # earmark released via claim_drawing; subtracting the payout here
     # keeps base == the pool's real remaining funds.
     _base = float(db.get_setting("jackpot_balance", "0"))
-    db.set_setting("jackpot_balance", str(round(_base - payout_amount, 8)))
+    if _base >= payout_amount:               # real funds pay real claims;
+        db.set_setting("jackpot_balance",    # a negative base is not a
+                       str(round(_base - payout_amount, 8)))  # payout
+    else:
+        db.set_setting("jackpot_balance", "0")
+        db.add_audit_log(
+            None, "claim_overdraw",
+            json.dumps({"drawing_id": drawing_id,
+                        "requested": round(payout_amount, 8),
+                        "base_was": round(_base, 8)}),
+        )
 
     # Update winner's total_earned
     with db.get_db() as conn:

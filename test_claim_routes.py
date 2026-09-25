@@ -247,7 +247,12 @@ check(3.4, _drawing(_d2)["claim_status"] == "claimed",
       "the drawing's state survived the second attempt untouched")
 
 print("== 4. THE EXPIRED claim is refused after production's sweep ==")
-_d3, _p3 = _run_one_draw(_W_B, 2, 1.1)          # bravo wins again
+# bravo won drawing 2 above (Sep 25 charter: a 30-day win limit now
+# stands), so this drawing goes to a FRESH winner — the limit must not
+# trip the fixture (his own drawing 2 is still PENDING, and the
+# claim-time gate reads the most recent OTHER win)
+_W_D = "4" + "d" * 95
+_d3, _p3 = _run_one_draw(_W_D, 2, 1.1)          # a fresh miner wins
 check(4.1, abs(engine.get_jackpot_balance() - (1.1 - _p3)) < 1e-9,
       f"the earmark holds before expiry: balance={engine.get_jackpot_balance()}")
 db.set_drawing_claim_deadline(_d3, time.time() - 10)
@@ -255,6 +260,17 @@ _expired = engine.check_expired_claims() or []
 check(4.2, any(e.get("drawing_id") == _d3 for e in _expired)
       and _drawing(_d3)["claim_status"] == "expired",
       "production's own sweep expires the past-deadline drawing")
+# the earmark pin now reads the FULL ledger: base 1.1 minus the OTHER
+# pending earmarks (alpha's drawing 4 below comes later, but drawing 1
+# was CLAIMED and drawing 2 is PENDING-bravo)
+with db.get_db() as conn:
+    _pend_others = conn.execute(
+        "SELECT COALESCE(SUM(jackpot_amount-house_tax),0) s FROM drawings "
+        "WHERE status='drawn' AND COALESCE(claim_status,'pending')='pending' "
+        "AND id != ?", (_d3,)).fetchone()["s"]
+check(4.3, abs(engine.get_jackpot_balance() - max(0, 1.1 - _pend_others)) < 1e-9,
+      f"expiry releases THE drawing's earmark (base {1.1 - _pend_others:.4f} "
+      f"holds; the settlement model: no phantom refund, no silent loss)")
 check(4.3, abs(engine.get_jackpot_balance() - 1.1) < 1e-9,
       "expiry releases the earmark and the base keeps its truth (the "
       "settlement model: no phantom refund, no silent loss)")
@@ -263,6 +279,10 @@ check(4.4, _r.status_code == 400,
       f"the expired win cannot be claimed: rc={_r.status_code}")
 check(4.5, _payout_rows(_d3) == [],
       "an expired drawing has NO jackpot payout row — nothing was sent")
+_W_E = "4" + "e" * 95
+_d3e, _p3e = _run_one_draw(_W_E, 2, 1.1)        # yet another fresh winner
+check(4.6, _d3e != _d3 and _drawing(_d3e)["claim_status"] == "pending",
+      "the post-charter sweep drill still lands a fresh pending winner")
 
 print("== 5. THE NON-WINNER is refused against a live pending drawing ==")
 _d4, _p4 = _run_one_draw(_W_A, 4, 1.11)         # alpha wins; it stays pending
