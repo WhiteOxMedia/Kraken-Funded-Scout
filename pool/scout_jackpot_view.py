@@ -71,6 +71,41 @@ def community_view() -> dict:
     return view
 
 
+# THE FUNDING MODEL, DISPLAY-SAFE (charter, Sep 25): the plate may
+# show HOW TODAY'S POT IS PLANNED — the two formula components, the
+# planned daily amount, the rate it converted at, and whether the
+# $20 charter cap bound — and nothing else about the funding ledger.
+# An explicit allowlist (not SAFE_STATS_KEYS, which governs
+# get_pool_stats()): a new funding field appearing in
+# compute_daily_jackpot() is NOT auto-exposed; someone must
+# consciously add it here (the drive pins this the same way it pins
+# the whitelist).
+FUNDING_VIEW_KEYS = {
+    "referral_velocity_usd", "miner_yield_usd", "raw_usd",
+    "daily_jackpot_usd", "daily_jackpot_xmr", "capped", "xmr_usd",
+}
+
+
+def funding_view() -> dict:
+    """Today's self-adjusting plan (the charter formula, live):
+
+        DailyJackpot = min(20 USD, ReferralVelocity + MinerYield)
+
+    Read-only and fail-soft: a funding-model problem degrades to an
+    empty dict, never a broken plate. The cap_usd field is dropped
+    from the display payload (internal constant; the boolean `capped`
+    carries the user-facing fact)."""
+    try:
+        import jackpot_funding as _funding
+        plan = _funding.compute_daily_jackpot()
+        if not isinstance(plan, dict):
+            return {}
+        return {k: plan[k] for k in FUNDING_VIEW_KEYS
+                if k in plan}
+    except Exception:
+        return {}
+
+
 def miner_view(wallet: str) -> dict:
     """One miner's own jackpot state, keyed by the wallet they present:
     active (unassigned) tickets, lifetime tickets, claim status of their
