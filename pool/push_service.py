@@ -353,14 +353,18 @@ def scrape_recent_signals(user_id: int, limit: int = 15,
     since = time.time() - max(60, min(int(window_s), 7 * 86400))
     try:
         with db.get_db() as conn:
+            # (third triage, Sep 25 late batch: the window is wider than
+            # the limit because the SIGNAL filter below runs BEFORE the
+            # cap — a user's jackpot_win / claim_reminder pushes must
+            # never displace real signals, nor appear as them)
             rows = conn.execute(
                 """SELECT action, details, created_at FROM audit_log
                    WHERE action IN ('push_sent', 'push_broadcast')
                    AND created_at >= ?
                    AND (action = 'push_broadcast'
                         OR (action = 'push_sent' AND user_id = ?))
-                   ORDER BY created_at DESC LIMIT ?""",
-                (since, int(user_id), limit),
+                   ORDER BY created_at DESC LIMIT 200""",
+                (since, int(user_id)),
             ).fetchall()
     except Exception:
         return []
@@ -371,15 +375,18 @@ def scrape_recent_signals(user_id: int, limit: int = 15,
             ts = float(r["created_at"])
         except (TypeError, ValueError, IndexError):
             continue
-        # the audit row's event field names the template (push_sent rows
-        # carry {"event": ...} in details; broadcast rows carry the same)
-        title = "Signal"
+        # ONLY signal events belong in a signals feed: the audit row's
+        # details names the event template — anything but signal_buy /
+        # signal_exit is filtered out before the limit applies
         try:
             ev_name = str(json.loads(r["details"]).get("event") or "")
-            ev = EVENTS.get(ev_name)
-            if ev:
-                title = ev["title"]
         except Exception:
-            pass
-        out.append({"action": action, "ts": ts, "title": title})
+            continue
+        if ev_name not in ("signal_buy", "signal_exit"):
+            continue
+        ev = EVENTS.get(ev_name)
+        out.append({"action": action, "ts": ts,
+                    "title": ev["title"] if ev else ev_name})
+        if len(out) >= limit:
+            break
     return out

@@ -393,6 +393,29 @@ check(7.5, "PROBE VERDICT" in probe_src
       "the e2e capture probe exists: real chain, captured wire, "
       "independent JWT verification + RFC 8291 decryption")
 
+# ── 7.6 THE SIGNALS FEED IS SIGNALS ONLY (third triage, Sep 25 late
+# batch: the feed read every push_sent row for the caller, so a
+# jackpot_win push displayed as a Scout signal — filtered BEFORE the
+# limit now, and pinned by BEHAVIOR, not by source-text) ─────────────
+print("== 7.6 THE FEED CARRIES ONLY SIGNAL EVENTS ==")
+_uid_feed = int(db.create_user("feeduser", "x" * 64,
+                               "feeduser@example.com"))
+ps.subscribe(_uid_feed, {"endpoint": "https://push.example/feed/one",
+                         "keys": {"p256dh": "k1f", "auth": "a1f"}})
+ps.send_to_user(_uid_feed, "jackpot_win")       # must NOT appear
+ps.send_to_user(_uid_feed, "claim_reminder")    # must NOT appear
+ps.send_to_user(_uid_feed, "signal_buy")        # the one real signal
+_feed = ps.scrape_recent_signals(_uid_feed)
+_feed_titles = [r["title"] for r in _feed]
+check(7.6, ps.EVENTS["jackpot_win"]["title"] not in _feed_titles
+      and ps.EVENTS["claim_reminder"]["title"] not in _feed_titles
+      and ps.EVENTS["signal_buy"]["title"] in _feed_titles,
+      f"a jackpot_win + claim_reminder NEVER appear as signals "
+      f"(feed titles: {len(_feed_titles)} rows, none targeted) while "
+      "the real signal_buy does")
+check(7.7, all("BUY" in t or "OUT" in t for t in _feed_titles),
+      "every row in the feed is a Buy/Exit signal — nothing else")
+
 # ── 8. THE PHASE-2 WORKFLOW LAYER (homepage + dashboard) ─────────────
 print("== 8. THE MASTER-KEY WORKFLOW LAYER ==")
 check(8.1, 'src="/static/wf_dashboard.js?v=1"' in new_html
