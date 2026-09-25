@@ -114,6 +114,50 @@ check(1.3, abs(float(_v["jackpot_xmr"]) - 2.5) < 1e-9
 check(1.4, _v["house_tax_percent"] == 10 and _v["drawing_interval_hours"] == 24,
       "the whitelist's settings fields round-trip")
 
+print("== 1b. THE FUNDING VIEW: an allowlist of its own ==")
+_fplan = sjv.funding_view()
+_fsanctioned = sjv.FUNDING_VIEW_KEYS
+check(1.5, set(_fplan) <= _fsanctioned and "cap_usd" not in _fplan,
+      f"funding_view carries only its allowlist ({sorted(_fplan)}) — the "
+      f"internal cap constant is dropped from the display payload")
+import jackpot_funding as _jf
+_real_compute = _jf.compute_daily_jackpot
+
+
+def _dirty_plan():
+    d = dict(_real_compute())
+    d["ledger_rows"] = 999
+    d["internal_note"] = "do-not-display"
+    return d
+
+
+_jf.compute_daily_jackpot = _dirty_plan
+try:
+    _fd = sjv.funding_view()
+finally:
+    _jf.compute_daily_jackpot = _real_compute
+check(1.6, "ledger_rows" not in _fd and "internal_note" not in _fd
+      and set(_fd) <= _fsanctioned,
+      "a new field appearing in compute_daily_jackpot is NOT auto-exposed "
+      "(same discipline as the pool whitelist)")
+check(1.7, float(_fplan.get("referral_velocity_usd") or 0) == 0.0
+      and float(_fplan.get("daily_jackpot_usd") or 0) == 0.0
+      and _fplan.get("capped") is False,
+      "an empty ledger plans $0.00 — the formula reads only real receipts")
+
+
+def _boom(*_a, **_k):
+    raise RuntimeError("boom")
+
+
+_jf.compute_daily_jackpot = _boom
+try:
+    _fb = sjv.funding_view()
+finally:
+    _jf.compute_daily_jackpot = _real_compute
+check(1.8, _fb == {},
+      "a funding-model problem degrades to {} — never a broken plate")
+
 print("== 2. THE COUNTDOWN: last drawing + interval, rolled forward ==")
 _now = time.time()
 check(2.1, abs(_v["next_drawing_at"] - (_now + 24 * 3600)) < 10
@@ -242,6 +286,27 @@ _html_blank = app_mod._jackpot_plate(
     dict(_view, next_drawing_at=0, seconds_remaining=0), _mvplate, _nowts)
 check(4.7, "--:--" in _html_blank and "0h 00m" in _html_blank,
       "a missing countdown reads --:-- instead of inventing a time")
+_fv = {"referral_velocity_usd": 1.79, "miner_yield_usd": 0.01,
+       "raw_usd": 1.80, "daily_jackpot_usd": 1.80,
+       "daily_jackpot_xmr": 0.00557, "capped": False, "xmr_usd": 323.0}
+_html_f = app_mod._jackpot_plate(_view, _mvplate, _nowts, _fv)
+check(4.8, "today's pot plan: $1.79 referrals + $0.01 mining "
+      "→ <b>$1.80</b> planned" in _html_f,
+      "the funding line speaks the charter formula from funding_view's "
+      "dict only")
+check(4.9, "the $20 charter cap bound"
+      in app_mod._jackpot_plate(_view, _mvplate, _nowts,
+                                dict(_fv, capped=True,
+                                     daily_jackpot_usd=20.0)),
+      "a capped day says so in plain English")
+check(4.10, "today's pot plan" not in _html,
+      "a missing funding view leaves the plate unchanged (no invented "
+      "zeros, no empty promise of a plan)")
+_fv_evil = dict(_fv, referral_velocity_usd="<script>alert(1)</script>")
+_html_evil = app_mod._jackpot_plate(_view, _mvplate, _nowts, _fv_evil)
+check(4.11, "<script>" not in _html_evil
+      and "&lt;script&gt;" in _html_evil,
+      "a DB-borne component value is entity-escaped before the plate's html")
 
 print("== 5. THE CONTRACT: committed sibling, one whitelist, fail-soft ==")
 _st = subprocess.run(["git", "-C", str(MONERO), "status", "--porcelain",

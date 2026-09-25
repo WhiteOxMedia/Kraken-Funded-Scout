@@ -2096,12 +2096,14 @@ try:
         SAFE_STATS_KEYS as _JP_SAFE_KEYS,
         community_view as _jp_community_view,
         miner_view as _jp_miner_view,
+        funding_view as _jp_funding_view,
     )
     _JP_VIEW_OK = True
 except Exception:
     _JP_SAFE_KEYS = frozenset()
     _jp_community_view = None
     _jp_miner_view = None
+    _jp_funding_view = None
     _JP_VIEW_OK = False
 
 _JP_TICKETS_FILE = Path(__file__).resolve().parent / "jackpot_tickets.txt"
@@ -2120,6 +2122,34 @@ def _jp_wallet() -> str:
 
 def _jp_fmt_xmr(v: float) -> str:
     return f"{float(v):,.4f}" if float(v) < 100 else f"{float(v):,.2f}"
+
+
+def _jp_usd_slot(v) -> str:
+    """A money slot that cannot be broken or weaponized: numbers
+    format, anything else is entity-escaped text (the slots are fed
+    from the funding ledger's values — defense in depth, same class
+    as the claim-label escape)."""
+    try:
+        return f"${float(v):,.2f}"
+    except (TypeError, ValueError):
+        from html import escape as _jp_esc
+        return _jp_esc(str(v))
+
+
+def _jp_funding_line(fv: dict) -> str:
+    """THE SELF-ADJUSTING POT, pure for the drive: one line from
+    funding_view's dict ONLY — the two formula components, the
+    planned daily amount, and whether the charter's $20 cap bound.
+    The charter formula, spoken in plain English:
+    DailyJackpot = min(20 USD, ReferralVelocity + MinerYield)."""
+    if not fv:
+        return ""
+    ref = _jp_usd_slot(fv.get("referral_velocity_usd"))
+    mng = _jp_usd_slot(fv.get("miner_yield_usd"))
+    daily = _jp_usd_slot(fv.get("daily_jackpot_usd"))
+    cap = " — the $20 charter cap bound" if fv.get("capped") else ""
+    return (f"🧮 today's pot plan: {ref} referrals + {mng} mining "
+            f"→ <b>{daily}</b> planned{cap}")
 
 
 def _jp_ticket_line(mv: dict) -> str:
@@ -2146,7 +2176,8 @@ def _jp_ticket_line(mv: dict) -> str:
     return line
 
 
-def _jackpot_plate(view: dict, mv: dict, now_ts: float) -> str:
+def _jackpot_plate(view: dict, mv: dict, now_ts: float,
+                   fv: dict | None = None) -> str:
     """THE PLATE, pure for the drive (state in, html out). Every pool
     number rides view, which the view module has ALREADY filtered to
     SAFE_STATS_KEYS — the plate renders only whitelist keys, and the
@@ -2169,17 +2200,21 @@ def _jackpot_plate(view: dict, mv: dict, now_ts: float) -> str:
     rows = [
         f"💰 the pool <b>{_jp_fmt_xmr(xmr_v)} XMR</b> "
         f"<span class='dim'>(≈ ${usd_v:,.0f})</span>",
+    ]
+    if fv:
+        rows.append(_jp_funding_line(fv))
+    rows.extend([
         f"⏱ next drawing in <b>{h}h {m:02d}m</b> — lands about {draw_at} MST",
         f"⛏ {active} of {miners} miners active — "
         f"{led('THE POOL IS MINING', 'g') if mining_on else led('the pool is quiet', 'off')}",
         "─" * 34,
         _jp_ticket_line(mv),
-    ]
+    ])
     return plate("🎰 THE XMR JACKPOT", lcd(rows))
 
 
 @st.cache_data(ttl=60)
-def _jp_views(bucket: int) -> tuple[dict, dict]:
+def _jp_views(bucket: int) -> tuple[dict, dict, dict]:
     """The safe view, fetched once a minute (the bucketed-cache
     pattern; ttl caps the two 3s-timeout probes to ~6s of local HTTP
     per minute worst case). _plate_touch rides inside so the cache
@@ -2187,10 +2222,11 @@ def _jp_views(bucket: int) -> tuple[dict, dict]:
     amber line, never a broken page."""
     _plate_touch("jackpot-plate", ttl=60)
     try:
-        return _jp_community_view(), _jp_miner_view(_jp_wallet())
+        return (_jp_community_view(), _jp_miner_view(_jp_wallet()),
+                _jp_funding_view())
     except Exception as exc:
         logger.debug("jackpot plate: pool view unavailable: %s", exc)
-        return {}, {}
+        return {}, {}, {}
 
 
 def _render_jackpot_plate():
@@ -2206,7 +2242,7 @@ def _render_jackpot_plate():
         ], tone="amber")), unsafe_allow_html=True)
         _plate_render("jackpot-plate")
         return
-    view, mv = _jp_views(int(_jp_now.timestamp() // 60))
+    view, mv, fv = _jp_views(int(_jp_now.timestamp() // 60))
     if not view:
         st.markdown(plate("🎰 THE XMR JACKPOT", lcd([
             "<span class='dim'>the pool is not answering right now — "
@@ -2214,7 +2250,7 @@ def _render_jackpot_plate():
             unsafe_allow_html=True)
         _plate_render("jackpot-plate")
         return
-    st.markdown(_jackpot_plate(view, mv, _jp_now.timestamp()),
+    st.markdown(_jackpot_plate(view, mv, _jp_now.timestamp(), fv),
                 unsafe_allow_html=True)
     _plate_render("jackpot-plate")
     st.caption(f"as of {_jp_now.strftime('%H:%M')} MST — the safe view "
