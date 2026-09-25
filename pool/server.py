@@ -1285,10 +1285,15 @@ async def api_push_event(request: Request):
     if not isinstance(extra, dict):
         extra = {}
     uid = body.get("user_id")
-    try:
-        uid = int(uid) if uid is not None else None
-    except (TypeError, ValueError):
-        uid = None
+    if uid is not None:
+        try:
+            uid = int(uid)
+        except (TypeError, ValueError):
+            # second triage (Sep 25 evening batch): a MALFORMED target
+            # must never degrade into a broadcast — targeted events go
+            # to their target or fail loudly
+            raise HTTPException(status_code=400,
+                                detail="invalid user_id")
     result = (push_svc.send_to_user(uid, event, extra) if uid is not None
               else push_svc.send_to_subscribers(event, extra))
     return JSONResponse({"ok": bool(result.get("sent")), "result": result})

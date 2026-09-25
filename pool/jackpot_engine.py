@@ -286,8 +286,13 @@ def run_drawing():
     if total_tickets == 0:
         # Cancel — no tickets. (Sep 24 audit: this executed a bare `conn`
         # with no enclosing context — NameError instead of a clean cancel.)
+        # (second triage, Sep 25 evening batch: STAMP drawn_at here too —
+        # same class as the all-gated cancel; an unstamped cancel re-fires
+        # every cycle on any fresh install with a funded pot but no miners)
         with db.get_db() as conn:
-            conn.execute("UPDATE drawings SET status = 'cancelled' WHERE id = ?", (drawing_id,))
+            conn.execute("UPDATE drawings SET status = 'cancelled', "
+                         "drawn_at = ? WHERE id = ?",
+                         (time.time(), drawing_id))
         return {"status": "cancelled", "reason": "No tickets in pool", "drawing_id": drawing_id}
 
     # Get block hash for randomness
@@ -349,14 +354,19 @@ def run_drawing():
             # THE ALL-GATED ROUND (review triage, Sep 25): the round is
             # CANCELLED, not left pending — an unfinished drawing kept
             # its tickets assigned forever, and because a cancelled
-            # round never writes drawn_at, the scheduler re-fired every
+            # round never wrote drawn_at, the scheduler re-fired every
             # cycle and created a fresh drawing each pass. Release the
             # ring, audit the cancellation, and let the scheduler's
             # clock (which now reads cancelled rounds too) wait a full
             # interval before the next attempt.
+            # (second triage, Sep 25 evening batch: the clock change was
+            # lost in a patch bounce — the UPDATE now STAMPS drawn_at,
+            # and check_drawing_schedule reads MAX(drawn_at) over
+            # drawn+cancelled. Drive-pinned both ways.)
             with db.get_db() as conn:
-                conn.execute("UPDATE drawings SET status = 'cancelled' "
-                             "WHERE id = ?", (drawing_id,))
+                conn.execute("UPDATE drawings SET status = 'cancelled', "
+                             "drawn_at = ? WHERE id = ?",
+                             (time.time(), drawing_id))
                 conn.execute("UPDATE tickets SET drawing_id = NULL "
                              "WHERE drawing_id = ?", (drawing_id,))
             db.add_audit_log(
@@ -418,7 +428,8 @@ def check_drawing_schedule():
 
     with db.get_db() as conn:
         row = conn.execute(
-            "SELECT MAX(drawn_at) as last_drawn FROM drawings WHERE status = 'drawn'"
+            "SELECT MAX(drawn_at) as last_drawn FROM drawings "
+            "WHERE status IN ('drawn', 'cancelled')"
         ).fetchone()
 
     last_drawn = row["last_drawn"] if row and row["last_drawn"] else 0

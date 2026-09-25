@@ -339,13 +339,16 @@ def handle_unsubscribe(user_id: int, body: dict):
     return unsubscribe(user_id, str((body or {}).get("endpoint") or ""))
 
 
-def scrape_recent_signals(limit: int = 15, window_s: int = 86400):
+def scrape_recent_signals(user_id: int, limit: int = 15,
+                          window_s: int = 86400):
     """User-scoped rows for the Scout Signals dashboard panel: the last
-    `limit` signal audits within the last `window_s` seconds, whitelisted
-    to exactly (action, timestamp, title). No endpoints, no keys, no
-    details JSON, no other user's rows — the whitelist is the guard.
-    (The sender's own per-send audit is the ledger this reads; rows are
-    never deleted or mutated here.)"""
+    `limit` signal audits within the last `window_s` seconds,
+    whitelisted to exactly (action, timestamp, title). Scoping (second
+    triage, Sep 25 evening batch): `push_sent` rows are filtered to
+    THIS caller's user_id; `push_broadcast` rows (user_id NULL) are the
+    signal events by nature and are the only cross-user rows shown —
+    and only their signal titles, never a targeted event's. No
+    endpoints, no keys, no details JSON beyond the event name."""
     limit = max(1, min(int(limit), 30))
     since = time.time() - max(60, min(int(window_s), 7 * 86400))
     try:
@@ -354,8 +357,10 @@ def scrape_recent_signals(limit: int = 15, window_s: int = 86400):
                 """SELECT action, details, created_at FROM audit_log
                    WHERE action IN ('push_sent', 'push_broadcast')
                    AND created_at >= ?
+                   AND (action = 'push_broadcast'
+                        OR (action = 'push_sent' AND user_id = ?))
                    ORDER BY created_at DESC LIMIT ?""",
-                (since, limit),
+                (since, int(user_id), limit),
             ).fetchall()
     except Exception:
         return []

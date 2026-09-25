@@ -240,6 +240,42 @@ check(3.7, _dg_state and _dg_state["claim_status"] == "pending",
       "the refused claim stays pending — retriable after the cooldown, "
       "never destroyed")
 
+# THE ALL-GATED ROUND, TIMED OUT OF EXISTENCE (second review triage,
+# Sep 25 evening batch: the clock fix was claimed in the morning's
+# commit message but lost in a patch bounce — and NO DRIVE EXERCISED
+# the refire, so the gap lived all day. This pin closes exactly that.)
+_all_gated = [m for m in (_m1, _m2)]   # both are now inside the window
+db.set_setting("jackpot_balance", "0.50")   # the earlier claims drained it;
+                                            # each pending drawn earmarks
+                                            # 0.0837, so 0.50 clears them all
+db.add_tickets(_m1, "free", 10)             # fresh tickets: the section's
+                                            # earlier ones settled already
+_d3 = engine.run_drawing()             # every holder gated -> cancelled
+check(3.8, _d3.get("status") == "skipped"
+      and "cancelled" in _d3.get("reason", ""),
+      f"the all-gated round is CANCELLED ({_d3.get('reason', '')[:60]})")
+with db.get_db() as conn:
+    _c = conn.execute("SELECT drawn_at FROM drawings "
+                      "WHERE status = 'cancelled' AND winner_id IS NULL "
+                      "ORDER BY id DESC LIMIT 1").fetchone()
+check(3.9, _c and _c["drawn_at"] is not None and _c["drawn_at"] > 0,
+      "the cancelled round IS STAMPED (drawn_at written) — the "
+      "scheduler's clock can read it")
+_sched = engine.check_drawing_schedule()
+check(3.10, _sched.get("status") == "waiting"
+      and 0 < _sched.get("next_drawing_in", -1) < 24 * 3600,
+      f"the scheduler WAITS after a cancellation ({_sched.get('status')}, "
+      f"{_sched.get('next_drawing_in', 0):.0f}s) — no refire loop, no "
+      "drawing-per-cycle")
+with db.get_db() as conn:
+    _nc = conn.execute("SELECT COUNT(*) c FROM drawings").fetchone()["c"]
+engine.check_drawing_schedule()
+with db.get_db() as conn:
+    _nc2 = conn.execute("SELECT COUNT(*) c FROM drawings").fetchone()["c"]
+check(3.11, _nc2 == _nc,
+      f"a second schedule tick creates NO drawing ({_nc} -> {_nc2}) — "
+      "the infinite-creation loop is dead, pinned by count")
+
 print("== 4. THE KRAKEN CHALLENGE LOOP ==")
 challenge.set_referral_link("")                      # not configured yet
 _g = challenge.guide_lines()

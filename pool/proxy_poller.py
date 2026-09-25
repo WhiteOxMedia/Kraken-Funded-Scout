@@ -52,8 +52,10 @@ def _token():
             return v
     except Exception:
         pass
-    PROXY_TOKEN = "xmrjackpot2026"   # legacy default, last resort
-    return PROXY_TOKEN
+    # (second triage, Sep 25 evening batch: the legacy literal is NOT
+    # cached — a transient failure at first resolution must not freeze
+    # it for the life of the process; the next call retries settings)
+    return "xmrjackpot2026"   # legacy default, last resort
 
 
 def _api_get(path):

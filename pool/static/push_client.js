@@ -82,7 +82,9 @@
     if (!btn) { return; }
     btn.addEventListener("click", enable);
     if (SUPPORTED && Notification.permission === "granted") {
-      navigator.serviceWorker.getRegistration("/static/push_sw.js")
+      /* second triage (Sep 25): the worker registers at /push_sw.js
+         with root scope now — look it up by scope, not old path */
+      navigator.serviceWorker.getRegistration("/")
         .then(function (reg) {
           setStatus(reg ? "Notifications are on for this device."
                         : "Notifications are granted but not yet registered — press Enable.");
