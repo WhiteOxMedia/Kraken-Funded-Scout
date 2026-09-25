@@ -2695,6 +2695,32 @@ _PUSH_SELL_RE = _re_mod.compile(r"\bget out\b|\bsell\b|\bstopped out\b")
 _PUSH_BUY_RE = _re_mod.compile(r"\bbuy\b|\bnew pick\b")
 
 
+def _charter_push(event: str):
+    """THE CHARTER'S NATIVE PUSH (Sep 25): every BUY NOW / GET OUT NOW
+    the trading brain fires ALSO rides xmrjackpot.com's own push
+    service (no more Ntfy dependency for the new surface). emit()
+    tries the pool's authenticated operator route first and otherwise
+    spools to monero_project/pool/push_events.jsonl, where the pool
+    side's wallet-independent loop (proxy_poller) drains it through
+    the rate-limited, audited, templated sender — one brain per layer:
+    this hook only NAMES the event, the service owns everything else.
+    Fail-soft by contract: a push problem can never touch the trade.
+    Called from _push_to_phone AFTER its 5-minute identical-text
+    throttle, so a repeating GET OUT emits at most once per throttle
+    window here too."""
+    try:
+        import sys as _cs
+        import pathlib as _cp
+        _scout_dir = str(_cp.Path(__file__).resolve().parent.parent
+                         / "monero_project" / "scout")
+        if _scout_dir not in _cs.path:
+            _cs.path.insert(0, _scout_dir)
+        import push_client as _pc
+        _pc.emit(event)
+    except Exception as exc:
+        logger.debug("charter push emit failed (%s): %s", event, exc)
+
+
 def _push_to_phone(text: str, wav_path: str | None = None):
     """BUY NOW / GET OUT NOW only on the phone (user rule, Aug 30: 'Just
     have the ntfy.sh do the buy now and sell now priority alerts only';
@@ -2730,6 +2756,11 @@ def _push_to_phone(text: str, wav_path: str | None = None):
             return
         _push_state["text"] = _t
         _push_state["ts"] = now
+        # THE CHARTER EMIT (Sep 25): the native xmrjackpot.com push —
+        # past the same throttle that governs ntfy, so one repeating
+        # GET OUT emits once per window here too. A signal event per
+        # class; the service's templates own the user-facing text.
+        _charter_push("signal_exit" if is_sell else "signal_buy")
         prio = "urgent" if is_sell else "high"
         _send_ntfy(str(text), prio, "attempt 1/2")
         if is_sell:
