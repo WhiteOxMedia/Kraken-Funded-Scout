@@ -812,3 +812,454 @@ input[type="email"], select, textarea {
   .balance-bar { flex-wrap: wrap; }
   .winner-row { align-items: flex-start; flex-direction: column; gap: 4px; }
 }
+
+/* ═══════════════════════════════════════════════════════════════════
+   THE MASTER-KEY WORKFLOW LAYER (Sep 25 redesign, phase 2)
+   Additive only: every class below is NEW (wf-* namespace), styled per
+   the getmonero-org design system — Page Gray canvas, white surfaces,
+   Monero Orange primaries, white secondaries with orange borders, slate
+   text, radius 0, hairline borders, informative motion only (with the
+   global prefers-reduced-motion kill-switch above still governing).
+   NO existing selector, token, or rule is modified or overridden.
+   ═══════════════════════════════════════════════════════════════════ */
+
+/* ── the hero workflow layer (rides INSIDE the existing hero) ─────── */
+.wf-hero-block { position: relative; }
+
+.wf-trust-seal {
+  position: absolute;
+  left: 0;
+  top: -28px;
+  width: 128px;
+  height: 128px;
+  background: var(--surface-white);
+  border: 2px solid var(--mono-orange);
+  box-shadow: var(--shadow-btn);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  z-index: 2;
+  padding: 10px;
+}
+
+.wf-trust-seal .wf-seal-icon { font-size: 1.4em; line-height: 1; }
+
+.wf-trust-seal .wf-seal-top {
+  font-size: 0.6em;
+  font-weight: 800;
+  color: var(--mono-orange);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.wf-trust-seal .wf-seal-sub {
+  font-size: 0.5em;
+  color: var(--text-mute);
+  font-weight: 600;
+  margin-top: 3px;
+}
+
+.wf-badge-row {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  flex-wrap: wrap;
+  margin: 14px auto 0;
+  max-width: 640px;
+}
+
+.wf-badge {
+  font-size: 0.68em;
+  font-weight: 600;
+  padding: 3px 9px;
+  border: 1px solid var(--hairline);
+  background: var(--surface-white);
+  color: var(--text-dim);
+}
+
+.wf-badge b { color: var(--mono-orange); }
+
+.wf-miner-cta {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  justify-content: center;
+  flex-wrap: wrap;
+  margin: 22px auto 0;
+  padding: 16px 20px;
+  background: var(--bg-deep);
+  border: 2px solid var(--gold-dark);
+  max-width: 560px;
+}
+
+.wf-miner-cta img {
+  width: 64px;
+  height: auto;
+  display: block;
+}
+
+/* ── the five workflow sections ───────────────────────────────────── */
+.wf-section {
+  margin: 0 auto 26px;
+  max-width: 980px;
+  background: var(--surface-white);
+  border: 1px solid var(--hairline);
+  box-shadow: var(--shadow-btn);
+  padding: 26px 28px;
+}
+
+.wf-section-head {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+
+.wf-kicker {
+  font-family: var(--font-head);
+  font-size: 0.62rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--mono-orange);
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.wf-section h2 {
+  margin: 0;
+  font-size: 1.35em;
+  color: var(--text);
+  border: 0;
+  padding: 0;
+}
+
+.wf-cols {
+  display: grid;
+  grid-template-columns: 1.4fr 1fr;
+  gap: 22px;
+  align-items: start;
+}
+
+.wf-cols p {
+  color: var(--text-dim);
+  line-height: 1.75;
+  margin: 0 0 12px;
+  font-size: 0.95em;
+}
+
+.wf-cols p b { color: var(--text); }
+
+.wf-list {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 16px;
+}
+
+.wf-list li {
+  color: var(--text-dim);
+  font-size: 0.9em;
+  line-height: 1.7;
+  padding: 7px 0 7px 22px;
+  position: relative;
+  border-bottom: 1px solid var(--hairline);
+}
+
+.wf-list li:last-child { border-bottom: 0; }
+
+.wf-list li::before {
+  content: "▸";
+  position: absolute;
+  left: 2px;
+  color: var(--mono-orange);
+  font-weight: 700;
+}
+
+.wf-list li b { color: var(--text); }
+
+.wf-visual {
+  background: var(--bg-deep);
+  border: 1px solid var(--hairline);
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  text-align: center;
+}
+
+.wf-visual img { width: 150px; height: auto; }
+
+.wf-scale {
+  font-family: var(--font-head);
+  font-size: 0.66rem;
+  color: var(--text-mute);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.wf-scale b { color: var(--mono-orange); }
+
+.wf-scale-bar {
+  width: 100%;
+  height: 10px;
+  background: var(--hairline);
+  position: relative;
+}
+
+.wf-scale-bar span {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 20%;
+  background: var(--mono-orange);
+}
+
+.wf-signal-demo {
+  font-family: var(--font-mono, monospace);
+  font-size: 0.8em;
+  width: 100%;
+  text-align: left;
+}
+
+.wf-signal-demo .wf-sig {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 10px;
+  border: 1px solid var(--hairline);
+  background: var(--surface-white);
+  margin-bottom: 8px;
+}
+
+.wf-signal-demo .wf-sig b { color: var(--mono-orange); }
+
+.wf-signal-demo .wf-sig time {
+  color: var(--text-mute);
+  font-size: 0.9em;
+}
+
+.wf-tiers {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  width: 100%;
+}
+
+.wf-tier {
+  background: var(--surface-white);
+  border: 1px solid var(--hairline);
+  padding: 14px 10px;
+  text-align: center;
+}
+
+.wf-tier .wf-tier-price {
+  font-size: 1.25em;
+  font-weight: 800;
+  color: var(--mono-orange);
+}
+
+.wf-tier .wf-tier-amt {
+  font-size: 1.05em;
+  font-weight: 700;
+  color: var(--text);
+  margin-top: 4px;
+}
+
+.wf-tier .wf-tier-note {
+  font-size: 0.66em;
+  color: var(--text-mute);
+  margin-top: 6px;
+}
+
+.wf-loop {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  font-size: 0.8em;
+  color: var(--text-dim);
+  width: 100%;
+}
+
+.wf-loop .wf-node {
+  background: var(--surface-white);
+  border: 1px solid var(--hairline);
+  padding: 8px 12px;
+  white-space: nowrap;
+}
+
+.wf-loop .wf-node b { color: var(--mono-orange); }
+
+.wf-loop .wf-arrow { color: var(--mono-orange); font-weight: 700; }
+
+.wf-meter {
+  width: 100%;
+}
+
+.wf-meter .wf-meter-top {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.72em;
+  color: var(--text-mute);
+  margin-bottom: 4px;
+}
+
+.wf-meter .wf-meter-top b { color: var(--text); }
+
+.wf-meter-bar {
+  height: 12px;
+  background: var(--hairline);
+  position: relative;
+  overflow: hidden;
+}
+
+.wf-meter-fill {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  background: var(--mono-orange);
+}
+
+/* ── the mandated phrases strip ───────────────────────────────────── */
+.wf-phrases {
+  margin: 0 auto 26px;
+  max-width: 980px;
+  padding: 12px 20px;
+  background: var(--surface-white);
+  border: 1px solid var(--hairline);
+  font-size: 0.78em;
+  color: var(--text-mute);
+  text-align: center;
+  line-height: 1.8;
+}
+
+.wf-phrases a { color: var(--mono-orange); font-weight: 700; }
+
+/* ── dashboard: the workflow status row + two new panels ──────────── */
+.wf-status-row {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.wf-status {
+  background: var(--surface-white);
+  border: 1px solid var(--hairline);
+  box-shadow: var(--shadow-btn);
+  padding: 12px 14px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.wf-status .wf-dot {
+  width: 10px;
+  height: 10px;
+  background: var(--text-mute);
+  flex: 0 0 auto;
+}
+
+.wf-status .wf-dot.on { background: var(--mono-orange); }
+
+.wf-status .wf-status-label {
+  font-size: 0.66rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-mute);
+  font-family: var(--font-head);
+}
+
+.wf-status .wf-status-value {
+  font-weight: 700;
+  color: var(--text);
+  font-size: 0.9em;
+}
+
+.wf-panel-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin-top: 16px;
+  align-items: start;
+}
+
+.wf-panel {
+  background: var(--surface-white);
+  border: 1px solid var(--hairline);
+  box-shadow: var(--shadow-btn);
+  padding: 18px 20px;
+}
+
+.wf-panel h3 {
+  margin: 0 0 4px;
+  font-size: 1.05em;
+  color: var(--text);
+}
+
+.wf-panel .wf-panel-sub {
+  font-size: 0.75em;
+  color: var(--text-mute);
+  margin-bottom: 12px;
+}
+
+.wf-panel .wf-feed {
+  font-size: 0.8em;
+  color: var(--text-dim);
+  border: 1px solid var(--hairline);
+  background: var(--bg-deep);
+  padding: 10px 12px;
+  max-height: 180px;
+  overflow-y: auto;
+  margin-bottom: 12px;
+}
+
+.wf-panel .wf-feed .wf-feed-empty {
+  color: var(--text-mute);
+}
+
+.wf-panel .wf-feed .wf-feed-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 4px 0;
+  border-bottom: 1px solid var(--hairline);
+}
+
+.wf-panel .wf-feed .wf-feed-row:last-child { border-bottom: 0; }
+
+.wf-panel .wf-feed b { color: var(--mono-orange); }
+
+.wf-panel .wf-feed time { color: var(--text-mute); font-size: 0.9em; }
+
+.wf-panel .wf-kv {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.85em;
+  color: var(--text-dim);
+  padding: 6px 0;
+  border-bottom: 1px solid var(--hairline);
+}
+
+.wf-panel .wf-kv:last-of-type { border-bottom: 0; }
+
+.wf-panel .wf-kv b { color: var(--text); }
+
+/* ── responsive: single column, seal restacks ─────────────── */
+@media (max-width: 860px) {
+  .wf-cols { grid-template-columns: 1fr; }
+  .wf-status-row { grid-template-columns: repeat(2, 1fr); }
+  .wf-panel-row { grid-template-columns: 1fr; }
+  .wf-tiers { grid-template-columns: 1fr; }
+  .wf-trust-seal {
+    position: static;
+    margin: 0 auto 12px;
+    transform: none;
+  }
+}
+

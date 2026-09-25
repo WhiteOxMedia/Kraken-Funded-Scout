@@ -111,6 +111,55 @@ old_links, new_links = links_of(old_html), links_of(new_html)
 check(1.2, set(old_links) <= set(new_links),
       f"all {len(old_links)} baseline links/routes survive; new: "
       f"{sorted(set(new_links) - set(old_links))}")
+
+# ── 1.5 THE MASTER-KEY WORKFLOW ADDITIONS (phase 2 redesign): the
+# charter's required new copy is PRESENT, additions stay bounded, and
+# the mandated phrases link to the real origin
+REQUIRED_NEW = [
+    # hero
+    "Start Free. Unlock the Master Key. Get Funded.",
+    "Kraken Scout is the Master Key to beating the Kraken Funded Challenge",
+    "The community jackpot is your free route in",
+    "Start For Free", "Get Kraken Scout", "How It Works",
+    "No deposit. No risk. Powered entirely by Kraken's referral bonus program.",
+    # section 2 — the free route in
+    "Start Free With the Community Jackpot",
+    "Daily prize seeded by Kraken referral bonuses", "Minimum ~$20",
+    "1000 bots", "10,000 bots", "~$300",
+    "Ticket value increases with active mining", "Better odds for active miners",
+    "Join Jackpot", "See Daily Prize",
+    # section 3 — the master key
+    "Kraken Scout = The Master Key", "LONG bullish signals",
+    "Buy Now", "Exit Now", "Helps pass the Kraken Funded Challenge",
+    "Delivered through your user account",
+    "Push notifications enabled in the dashboard", "See Signals",
+    # section 4 — get funded
+    "Pass the Challenge", "Enter the challenge using the jackpot prize",
+    "Pass with Scout signals", "Kraken funds your trading account",
+    "You keep all profits", "Enter Challenge", "Funded Account Tiers",
+    "$1,000 funded", "$5,000 funded", "$10,000 funded",
+    # section 5 — the loop
+    "Kraken Pays the Jackpot", "Kraken pays referral bonuses",
+    "Bonuses feed the jackpot", "Everything stays free",
+    "Use Referral Link", "See Jackpot Growth",
+    # section 6 — mining
+    "Turn On the Miner Bot", "Active mining increases ticket value",
+    "Higher-value tickets = better odds", "Mining is optional",
+    "controlled through the dashboard", "Turn Miner On", "Check Ticket Value",
+    # mandated phrases + the character
+    "Not sure where to get started? Start here:", "Start for free at:",
+    "/static/img/miner_character.svg",
+]
+missing_new = [s for s in REQUIRED_NEW if s not in new_html]
+check(1.5, not missing_new,
+      f"all {len(REQUIRED_NEW)} required phase-2 strings present "
+      + (f"- MISSING: {missing_new[:6]}" if missing_new else ""))
+added = new_text - old_text
+check(1.6, len(added) < 220,
+      f"the redesign stays additive-bounded ({len(added)} new strings "
+      f"on top of the {len(old_text)} preserved ones)")
+check(1.7, 'href="https://xmrjackpot.com"' in new_html,
+      "the mandated phrases link the real origin (https)")
 for needle in ("Legal in All 50 States", "No Gambling · No Purchase Needed",
                "A daily raffle that feels", "Create Your Free XMR Jackpot Account",
                "Your wallet is receive-only"):
@@ -343,6 +392,42 @@ check(7.5, "PROBE VERDICT" in probe_src
       and "Content-Encoding: aes128gcm" in probe_src,
       "the e2e capture probe exists: real chain, captured wire, "
       "independent JWT verification + RFC 8291 decryption")
+
+# ── 8. THE PHASE-2 WORKFLOW LAYER (homepage + dashboard) ─────────────
+print("== 8. THE MASTER-KEY WORKFLOW LAYER ==")
+check(8.1, 'src="/static/wf_dashboard.js?v=1"' in new_html
+      and 'id="btnHeroStartFree"' in new_html
+      and 'id="wf-jackpot"' in new_html and 'id="wf-scout"' in new_html
+      and 'id="wf-funded"' in new_html and 'id="wf-loop"' in new_html
+      and 'id="wf-mining"' in new_html
+      and 'id="wf-phrases"' in new_html,
+      "the five workflow sections, the phrases strip, the hero CTA, "
+      "and the additive wiring script are all in the template")
+wf_src = (HERE / "pool" / "static" / "wf_dashboard.js").read_text(
+    encoding="utf-8")
+check(8.2, "/api/push/signals" in wf_src
+      and "esc(" in wf_src and "dataset.wfWired" in wf_src
+      and "btnEnablePush" in wf_src
+      and "btnSignupCreate" not in wf_src
+      and "btnSignupLogin" not in wf_src,
+      "the wiring script owns only the wf-* elements: user-scoped "
+      "signals fetch, escape-before-HTML, idempotent binding, and "
+      "it never re-binds app.js's own hooks")
+check(8.3, '@app.get("/api/push/signals")' in server_src
+      and 'login required' in server_src,
+      "the signals feed is a logged-in route (no cross-user, no "
+      "anonymous reads)")
+svc_src = (HERE / "pool" / "push_service.py").read_text(encoding="utf-8")
+check(8.4, "def scrape_recent_signals" in svc_src
+      and "push_sent" in svc_src and "whitelist" in svc_src.lower(),
+      "the signals scraper is whitelisted to (action, timestamp, "
+      "title) over the push audits — no endpoints, no keys, no "
+      "details JSON")
+check(8.5, 'miner_character.svg' in (HERE / "pool" / "static" / "img" /
+      "miner_character.svg").read_text(encoding="utf-8")[:0] or
+      (HERE / "pool" / "static" / "img" / "miner_character.svg").exists(),
+      "the Miner Character asset exists (flat, slate + orange, "
+      "helmet lamp, antenna pickaxe, Scout device)")
 
 shutil.rmtree(SANDBOX, ignore_errors=True)
 print(f"RESULT: {passed} passed, {failed} failed")

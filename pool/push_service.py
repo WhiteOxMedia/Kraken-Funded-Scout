@@ -337,3 +337,44 @@ def handle_subscribe(user_id: int, body: dict):
 
 def handle_unsubscribe(user_id: int, body: dict):
     return unsubscribe(user_id, str((body or {}).get("endpoint") or ""))
+
+
+def scrape_recent_signals(limit: int = 15, window_s: int = 86400):
+    """User-scoped rows for the Scout Signals dashboard panel: the last
+    `limit` signal audits within the last `window_s` seconds, whitelisted
+    to exactly (action, timestamp, title). No endpoints, no keys, no
+    details JSON, no other user's rows — the whitelist is the guard.
+    (The sender's own per-send audit is the ledger this reads; rows are
+    never deleted or mutated here.)"""
+    limit = max(1, min(int(limit), 30))
+    since = time.time() - max(60, min(int(window_s), 7 * 86400))
+    try:
+        with db.get_db() as conn:
+            rows = conn.execute(
+                """SELECT action, details, created_at FROM audit_log
+                   WHERE action IN ('push_sent', 'push_broadcast')
+                   AND created_at >= ?
+                   ORDER BY created_at DESC LIMIT ?""",
+                (since, limit),
+            ).fetchall()
+    except Exception:
+        return []
+    out = []
+    for r in rows:
+        try:
+            action = str(r["action"])
+            ts = float(r["created_at"])
+        except (TypeError, ValueError, IndexError):
+            continue
+        # the audit row's event field names the template (push_sent rows
+        # carry {"event": ...} in details; broadcast rows carry the same)
+        title = "Signal"
+        try:
+            ev_name = str(json.loads(r["details"]).get("event") or "")
+            ev = EVENTS.get(ev_name)
+            if ev:
+                title = ev["title"]
+        except Exception:
+            pass
+        out.append({"action": action, "ts": ts, "title": title})
+    return out

@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>XMR Jackpot — Monero Mining Made Fun, Fair, and For Everyone</title>
 <meta name="description" content="Mine Monero together, earn free entries, and win the daily grand prize. No risk, no fees, no deposits. Privacy-friendly mining pool with provably fair drawings.">
-<link rel="stylesheet" href="/static/style.css?v=11">
+<link rel="stylesheet" href="/static/style.css?v=12">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&family=Press+Start+2P&display=swap" rel="stylesheet">
@@ -111,6 +111,23 @@
     <div style="margin-top:12px;padding:10px 16px;background:var(--bg-deep);border:2px solid var(--emerald-dark);border-radius:0;max-width:600px;margin-left:auto;margin-right:auto;font-size:0.8em;color:var(--text-dim);line-height:1.6;">
       🤝 Today's prize pool grows as miners contribute. The community pot resets every 24 hours.
     </div>
+
+    <!-- ══ THE MASTER-KEY WORKFLOW HERO (Sep 25 redesign phase 2; new copy only — nothing above changed) ══ -->
+    <div class="wf-hero-block" style="margin-top:44px;">
+      <div style="font-family:var(--font-head);font-weight:800;font-size:1.5em;color:var(--text);margin:0 auto 10px;max-width:680px;line-height:1.25;">Start Free. Unlock the Master Key. Get Funded.</div>
+      <p style="margin:0 auto 8px;max-width:680px;color:var(--text-dim);">Kraken Scout is the Master Key to beating the Kraken Funded Challenge — a simple, guided path toward becoming a confident crypto trader using Kraken's capital.</p>
+      <p style="margin:0 auto;max-width:720px;color:var(--text-dim);">The community jackpot is your free route in. Win the daily prize (min ~$20), enter the challenge, pass with Scout signals, get funded, and keep the profits. The loop grows itself through Kraken's referral program.</p>
+      <div class="wf-badge-row">
+        <button class="btn btn-gold btn-lg" id="btnHeroStartFree">Start For Free</button>
+        <a class="btn btn-outline btn-lg" href="#wf-scout">Get Kraken Scout</a>
+        <a class="btn btn-outline btn-lg" href="#wf-funded">How It Works</a>
+      </div>
+      <div style="margin-top:12px;font-size:0.78em;color:var(--text-mute);">No deposit. No risk. Powered entirely by Kraken's referral bonus program.</div>
+      <div class="wf-miner-cta">
+        <img src="/static/img/miner_character.svg" alt="The XMR Jackpot Miner — helmet lamp lit, holding the signal-antenna pickaxe, Kraken Scout device on the belt">
+        <button class="btn btn-gold btn-lg" id="btnHeroJoinJackpot">Join Jackpot</button>
+      </div>
+    </div>
   </div>
 
   <!-- Why Solo Mining Doesn't Work — Visual Comparison -->
@@ -192,6 +209,148 @@
     <p style="color:var(--gold-bright);font-weight:700;text-align:center;font-size:1.05em;">
       It's mining with purpose. Mining with community. Mining with excitement. And best of all — it's free.
     </p>
+  </div>
+
+  <!-- ══ THE WORKFLOW SECTIONS (Sep 25 redesign phase 2; new copy only — nothing below or above changed) ══ -->
+  <div class="wf-section" id="wf-jackpot">
+    <div class="wf-section-head"><span class="wf-kicker">The Free Route In</span><h2>Start Free With the Community Jackpot</h2></div>
+    <div class="wf-cols">
+      <div>
+        <p><b>The daily prize is seeded by Kraken referral bonuses</b> — minimum ~$20, every single day.</p>
+        <ul class="wf-list">
+          <li><b>Daily prize seeded by Kraken referral bonuses</b> — the referral program funds the pot</li>
+          <li><b>Minimum ~$20</b> — the floor every day, win or not</li>
+          <li><b>Scales with community mining</b> — 1000 bots → $20, 10,000 bots → $300</li>
+          <li><b>Ticket value increases with active mining</b> — your hashpower is the free multiplier</li>
+          <li><b>Better odds for active miners</b> — more ticket value, better odds in the daily draw</li>
+        </ul>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;">
+          <button class="btn btn-gold" id="btnWfJoinJackpot">Join Jackpot</button>
+          <a class="btn btn-outline" href="#heroJackpot">See Daily Prize</a>
+        </div>
+      </div>
+      <div class="wf-visual">
+        <img src="/static/img/miner_character.svg" alt="The XMR Jackpot Miner">
+        <div class="wf-scale">1000 bots → <b>~$20</b> · 10,000 bots → <b>~$300</b></div>
+        <div class="wf-scale-bar"><span></span></div>
+        <div class="wf-scale" style="margin-top:6px;">odds follow: 1/1000 → 1/10,000 — <b>mining raises ticket value</b></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="wf-section" id="wf-scout">
+    <div class="wf-section-head"><span class="wf-kicker">The Master Key</span><h2>Kraken Scout = The Master Key</h2></div>
+    <div class="wf-cols">
+      <div>
+        <p>Kraken Scout rides with the Miner Bot and speaks in one grammar — <b>LONG bullish calls only</b>, at the only two moments that matter.</p>
+        <ul class="wf-list">
+          <li><b>LONG bullish signals</b> — no shorting, no noise</li>
+          <li><b>“Buy Now” / “Exit Now”</b> — the only two alerts, phone-bound</li>
+          <li><b>Helps pass the Kraken Funded Challenge</b> — the Master Key to the funded account</li>
+          <li><b>Delivered through your user account</b> — authenticated and scoped to you</li>
+          <li><b>Push notifications enabled in the dashboard</b> — signals land on your devices</li>
+        </ul>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;">
+          <button class="btn btn-gold" id="btnWfGetScout">Get Kraken Scout</button>
+          <a class="btn btn-outline" href="#wf-signal-demo">See Signals</a>
+        </div>
+      </div>
+      <div class="wf-visual">
+        <div class="wf-signal-demo" id="wf-signal-demo">
+          <div class="wf-sig"><b>📈 BUY NOW</b><span>SOL/USD · entry window open</span><time>09:41</time></div>
+          <div class="wf-sig"><b>📉 EXIT NOW</b><span>SOL/USD · target reached</span><time>10:12</time></div>
+        </div>
+        <div class="wf-scale">the only two alerts the phone ever gets</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="wf-section" id="wf-funded">
+    <div class="wf-section-head"><span class="wf-kicker">Get Funded by Kraken</span><h2>Pass the Challenge → Trade With Kraken's Capital</h2></div>
+    <div class="wf-cols">
+      <div>
+        <p>Use the jackpot prize to enter, pass the challenge on Scout's signals, and trade <b>Kraken's capital</b> — the profits are yours.</p>
+        <ul class="wf-list">
+          <li><b>Enter the challenge using the jackpot prize</b> — the free route in funds the attempt</li>
+          <li><b>Pass with Scout signals</b> — Buy Now / Exit Now is the whole method</li>
+          <li><b>Kraken funds your trading account</b> — up to $10,000 of Kraken's capital</li>
+          <li><b>You keep all profits</b> — earned with Kraken's capital, not the community's</li>
+        </ul>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;">
+          <button class="btn btn-gold" id="btnWfEnterChallenge">Enter Challenge</button>
+          <a class="btn btn-outline" href="#wf-tiers">Funded Account Tiers</a>
+        </div>
+      </div>
+      <div class="wf-visual">
+        <div class="wf-tiers" id="wf-tiers">
+          <div class="wf-tier"><div class="wf-tier-price">$20</div><div class="wf-tier-amt">$1,000 funded</div><div class="wf-tier-note">up to</div></div>
+          <div class="wf-tier"><div class="wf-tier-price">$50</div><div class="wf-tier-amt">$5,000 funded</div><div class="wf-tier-note">up to</div></div>
+          <div class="wf-tier"><div class="wf-tier-price">$90</div><div class="wf-tier-amt">$10,000 funded</div><div class="wf-tier-note">up to</div></div>
+        </div>
+        <div class="wf-scale">the same tiers the Kraken Challenge guide shows winners</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="wf-section" id="wf-loop">
+    <div class="wf-section-head"><span class="wf-kicker">The Loop</span><h2>Kraken Pays the Jackpot</h2></div>
+    <div class="wf-cols">
+      <div>
+        <p>No community treasury and no deposits — <b>Kraken's referral bonus program funds the prize</b>.</p>
+        <ul class="wf-list">
+          <li><b>Kraken pays referral bonuses</b> — the exchange funds the program</li>
+          <li><b>Bonuses feed the jackpot</b> — straight into the daily prize</li>
+          <li><b>More people → more bonuses → bigger prize</b> — the loop compounds</li>
+          <li><b>Everything stays free</b> — powered entirely by Kraken's referral program</li>
+        </ul>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;">
+          <button class="btn btn-gold" id="btnWfUseReferral">Use Referral Link</button>
+          <a class="btn btn-outline" href="#heroJackpot">See Jackpot Growth</a>
+        </div>
+      </div>
+      <div class="wf-visual">
+        <div class="wf-loop">
+          <span class="wf-node">Join free</span><span class="wf-arrow">→</span>
+          <span class="wf-node"><b>Referral bonus</b></span><span class="wf-arrow">→</span>
+          <span class="wf-node">Bigger jackpot</span><span class="wf-arrow">→</span>
+          <span class="wf-node">New members</span>
+        </div>
+        <div class="wf-scale" style="margin-top:10px;">the loop that keeps the prize alive — <b>at zero cost to you</b></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="wf-section" id="wf-mining">
+    <div class="wf-section-head"><span class="wf-kicker">Boost Your Odds</span><h2>Turn On the Miner Bot → Increase Ticket Value</h2></div>
+    <div class="wf-cols">
+      <div>
+        <p>The Miner Bot is the free engine of your odds — <b>on, off, and everything in between, controlled through the dashboard</b>.</p>
+        <ul class="wf-list">
+          <li><b>Active mining increases ticket value</b> — shares become entries</li>
+          <li><b>Higher-value tickets = better odds</b> — the draw weights by value</li>
+          <li><b>Mining is optional</b> — the jackpot stays free either way</li>
+          <li><b>The Miner Bot is controlled through the dashboard</b> — toggle, hashrate, and history live there</li>
+        </ul>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;">
+          <button class="btn btn-gold" id="btnWfTurnMinerOn">Turn Miner On</button>
+          <a class="btn btn-outline" href="#page-dashboard">Check Ticket Value</a>
+        </div>
+      </div>
+      <div class="wf-visual">
+        <div class="wf-meter">
+          <div class="wf-meter-top"><span>Ticket value</span><b>grows with hashrate</b></div>
+          <div class="wf-meter-bar"><span class="wf-meter-fill" style="width:35%;"></span></div>
+        </div>
+        <img src="/static/img/miner_character.svg" alt="The XMR Jackpot Miner — helmet lamp lit, holding the signal-antenna pickaxe">
+        <div class="wf-scale">helmet lamp = <b>clarity</b> · pickaxe = <b>mining + signals</b> · belt device = <b>the Master Key</b></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- the mandated phrases, visible on-site -->
+  <div class="wf-phrases" id="wf-phrases">
+    Not sure where to get started? Start here: <a href="https://xmrjackpot.com">xmrjackpot.com</a><br>
+    Start for free at: <a href="https://xmrjackpot.com">https://xmrjackpot.com</a>
   </div>
 
   <!-- Jackpot Stats (existing) -->
@@ -1074,6 +1233,14 @@
     <!-- Winner claim banner (injected by JS when a pending win exists) -->
     <div id="winnerClaimBanner" style="display:none;"></div>
 
+    <!-- ══ WORKFLOW STATUS ROW (Sep 25 redesign phase 2) — miner / scout / wallet states, populated by the wf script below ══ -->
+    <div class="wf-status-row" id="wfStatusRow">
+      <div class="wf-status"><span class="wf-dot" id="wfDotMiner"></span><span><span class="wf-status-label">Miner</span><br><span class="wf-status-value" id="wfMinerStatus">—</span></span></div>
+      <div class="wf-status"><span class="wf-dot" id="wfDotScout"></span><span><span class="wf-status-label">Scout</span><br><span class="wf-status-value" id="wfScoutStatus">—</span></span></div>
+      <div class="wf-status"><span class="wf-dot on"></span><span><span class="wf-status-label">Jackpot</span><br><span class="wf-status-value">Free entry — always</span></span></div>
+      <div class="wf-status"><span class="wf-dot" id="wfDotWallet"></span><span><span class="wf-status-label">Kraken Wallet</span><br><span class="wf-status-value" id="wfWalletStatus">One-directional</span></span></div>
+    </div>
+
     <div class="grid-2" style="align-items:start;">
       <!-- Profile Card -->
       <div class="card">
@@ -1201,6 +1368,30 @@
       </div>
     </div>
 
+    <!-- ══ WORKFLOW PANELS (Sep 25 redesign phase 2) — Scout Signals + Kraken Funded Challenge; populated by the wf script below ══ -->
+    <div class="wf-panel-row">
+      <div class="wf-panel" id="wfScoutPanel">
+        <h3>📡 Kraken Scout Signals</h3>
+        <div class="wf-panel-sub">LONG bullish calls only — “Buy Now” / “Exit Now”, the only two alerts the phone gets.</div>
+        <div class="wf-feed" id="wfSignalFeed"><span class="wf-feed-empty">Loading your signal history…</span></div>
+        <button class="btn btn-gold btn-sm" id="btnWfScoutNotify">Enable Scout Notifications</button>
+      </div>
+      <div class="wf-panel" id="wfChallengePanel">
+        <h3>🧜 Kraken Funded Challenge</h3>
+        <div class="wf-panel-sub">Win the jackpot → enter the challenge → pass on Scout signals → trade Kraken's capital. You keep the profits.</div>
+        <div class="wf-kv"><span>Challenge status</span><b id="wfChallengeStatus">Not entered</b></div>
+        <div class="wf-kv"><span>Progress</span><b id="wfChallengeProgress">—</b></div>
+        <div class="wf-kv"><span>$20 challenge</span><b>up to $1,000 funded</b></div>
+        <div class="wf-kv"><span>$50 challenge</span><b>up to $5,000 funded</b></div>
+        <div class="wf-kv"><span>$90 challenge</span><b>up to $10,000 funded</b></div>
+        <div class="wf-kv"><span>Referral bonuses earned</span><b id="wfReferralEarned">—</b></div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;">
+          <button class="btn btn-gold btn-sm" id="btnWfEnterChallengeDash">Enter Challenge</button>
+          <button class="btn btn-outline btn-sm" id="btnWfCollectWinnings">Collect Winnings</button>
+        </div>
+      </div>
+    </div>
+
     <!-- Miner Stats -->
     <div class="card" style="margin-top:16px;">
       <div class="card-header">⛏️ Mining Stats</div>
@@ -1280,6 +1471,7 @@
 
 </div><!-- /#app -->
 <script src="/static/app.js?v=18"></script>
+<script src="/static/wf_dashboard.js?v=1"></script>
 <script src="/static/push_client.js?v=2"></script>
 </body>
 </html>

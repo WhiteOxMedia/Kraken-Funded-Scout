@@ -1294,6 +1294,18 @@ async def api_push_event(request: Request):
     return JSONResponse({"ok": bool(result.get("sent")), "result": result})
 
 
+@app.get("/api/push/signals")
+async def api_push_signals(request: Request):
+    """The Scout Signals dashboard panel's feed: the caller's own
+    signal push history, whitelisted to (action, timestamp, title)
+    by push_service.scrape_recent_signals — no endpoints, no keys,
+    no other user's rows. The whitelist is the guard."""
+    user = get_user_from_request(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="login required")
+    return JSONResponse({"signals": push_svc.scrape_recent_signals()})
+
+
 # ─────────────────────────────────────────────────────────────
 #  KRAKEN SCOUT CONSOLE PROXY (admin only)
 #  Reverse-proxies the local Streamlit trading console
