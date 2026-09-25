@@ -2073,6 +2073,154 @@ def _pick_card(cfg: TradingConfig, kraken):
     ], tone="amber")), unsafe_allow_html=True)
 
 
+# ══ THE JACKPOT PLATE (Sep 25) ═══════════════════════════════════════
+# The XMR Jackpot, ON the console: the pool, the countdown to the next
+# drawing, and HER OWN tickets — from monero_project's
+# scout_jackpot_view.py, THE SAFE PUBLIC VIEW. One brain: the plate
+# calls the sanctioned functions directly (the committed module across
+# the workspace boundary; server.py's dirty worktree is never touched
+# and there is no vendored copy to drift). The module imports clean —
+# no side effects, wallet bytes never leave this box, and the two
+# localhost probes inside get_pool_stats are try/except with a 3s
+# timeout, so the 60s bucket below is the freshness contract, not a
+# stall risk. The sibling repo's pool dir goes on sys.path (the
+# installer's own pattern) and the whole wiring is fail-soft — a
+# moved/missing sibling degrades to a quiet line, never a dead console.
+try:
+    import sys as _jp_sys
+    _MONERO_POOL = (Path(__file__).resolve().parent.parent
+                    / "monero_project" / "pool")
+    if str(_MONERO_POOL) not in _jp_sys.path:
+        _jp_sys.path.insert(0, str(_MONERO_POOL))
+    from scout_jackpot_view import (
+        SAFE_STATS_KEYS as _JP_SAFE_KEYS,
+        community_view as _jp_community_view,
+        miner_view as _jp_miner_view,
+    )
+    _JP_VIEW_OK = True
+except Exception:
+    _JP_SAFE_KEYS = frozenset()
+    _jp_community_view = None
+    _jp_miner_view = None
+    _JP_VIEW_OK = False
+
+_JP_TICKETS_FILE = Path(__file__).resolve().parent / "jackpot_tickets.txt"
+
+
+def _jp_wallet() -> str:
+    """The user's own Monero address for miner_view — pasted once into
+    jackpot_tickets.txt beside app.py (a wallet is a PUBLIC receive
+    address; never a seed, a key, or an RPC credential — but we store
+    it locally anyway, and it never appears in the plate)."""
+    try:
+        return _JP_TICKETS_FILE.read_text(encoding="utf-8").strip()
+    except OSError:
+        return ""
+
+
+def _jp_fmt_xmr(v: float) -> str:
+    return f"{float(v):,.4f}" if float(v) < 100 else f"{float(v):,.2f}"
+
+
+def _jp_ticket_line(mv: dict) -> str:
+    """HER OWN TICKETS, pure for the drive — values only from
+    miner_view's dict (pending_tickets, total_tickets, registered,
+    claim.label); the wallet is never echoed. Unregistered is named,
+    not hidden: the phrase is the installer's byte-exact line."""
+    if not mv.get("registered"):
+        return ("not registered yet — mine or register at "
+                "xmrjackpot.com to enter the drawing<br>"
+                "<span class='dim'>Not sure where to get started? "
+                "Start here: xmrjackpot.com</span>")
+    pend = int(mv.get("pending_tickets") or 0)
+    tot = int(mv.get("total_tickets") or 0)
+    from html import escape as _jp_esc
+    line = (f"tickets in the next drawing: <b>{pend}</b> — "
+            f"lifetime entries: {tot}")
+    c = mv.get("claim")
+    if c and c.get("label"):
+        # the label crosses from the pool DB — an unknown claim_status
+        # falls through the view's mapping as raw text, so it is
+        # entity-escaped here before it touches the plate's HTML
+        line += f"<br>🏆 latest draw: {_jp_esc(str(c['label']))}"
+    return line
+
+
+def _jackpot_plate(view: dict, mv: dict, now_ts: float) -> str:
+    """THE PLATE, pure for the drive (state in, html out). Every pool
+    number rides view, which the view module has ALREADY filtered to
+    SAFE_STATS_KEYS — the plate renders only whitelist keys, and the
+    drive proves the non-whitelisted fields (real_miners,
+    p2pool_hashrate) cannot leak by injecting them. She reads XMR and
+    USD; the computing stays on the far side of the wall."""
+    xmr_v = float(view.get("jackpot_xmr") or 0.0)
+    usd_v = float(view.get("jackpot_usd") or 0.0)
+    active = int(view.get("active_miners") or 0)
+    miners = int(view.get("total_miners") or 0)
+    mining_on = bool(view.get("mining_active"))
+    nxt = int(view.get("next_drawing_at") or 0)
+    rem = max(0, int(view.get("seconds_remaining") or 0))
+    if nxt:
+        draw_at = datetime.fromtimestamp(nxt, MST).strftime("%H:%M")
+    else:
+        draw_at, rem = "--:--", 0
+    h, r = divmod(rem, 3600)
+    m, _s = divmod(r, 60)
+    rows = [
+        f"💰 the pool <b>{_jp_fmt_xmr(xmr_v)} XMR</b> "
+        f"<span class='dim'>(≈ ${usd_v:,.0f})</span>",
+        f"⏱ next drawing in <b>{h}h {m:02d}m</b> — lands about {draw_at} MST",
+        f"⛏ {active} of {miners} miners active — "
+        f"{led('THE POOL IS MINING', 'g') if mining_on else led('the pool is quiet', 'off')}",
+        "─" * 34,
+        _jp_ticket_line(mv),
+    ]
+    return plate("🎰 THE XMR JACKPOT", lcd(rows))
+
+
+@st.cache_data(ttl=60)
+def _jp_views(bucket: int) -> tuple[dict, dict]:
+    """The safe view, fetched once a minute (the bucketed-cache
+    pattern; ttl caps the two 3s-timeout probes to ~6s of local HTTP
+    per minute worst case). _plate_touch rides inside so the cache
+    strip sees the compute. Fail-soft: a pool hiccup is a quiet
+    amber line, never a broken page."""
+    _plate_touch("jackpot-plate", ttl=60)
+    try:
+        return _jp_community_view(), _jp_miner_view(_jp_wallet())
+    except Exception as exc:
+        logger.debug("jackpot plate: pool view unavailable: %s", exc)
+        return {}, {}
+
+
+def _render_jackpot_plate():
+    """🎰 LIVE: the pool, the countdown, her own tickets — re-reads the
+    safe view once a minute; the clock on the caption stays fresh
+    every rerun (the fresh-stamp class)."""
+    _plate_call("jackpot-plate", ttl=60)
+    _jp_now = _now_mst()
+    if not _JP_VIEW_OK:
+        st.markdown(plate("🎰 THE XMR JACKPOT", lcd([
+            "<span class='dim'>the jackpot view is not wired — the "
+            "monero_project sibling is missing beside this console</span>",
+        ], tone="amber")), unsafe_allow_html=True)
+        _plate_render("jackpot-plate")
+        return
+    view, mv = _jp_views(int(_jp_now.timestamp() // 60))
+    if not view:
+        st.markdown(plate("🎰 THE XMR JACKPOT", lcd([
+            "<span class='dim'>the pool is not answering right now — "
+            "the plate wakes up when it is</span>", ], tone="amber")),
+            unsafe_allow_html=True)
+        _plate_render("jackpot-plate")
+        return
+    st.markdown(_jackpot_plate(view, mv, _jp_now.timestamp()),
+                unsafe_allow_html=True)
+    _plate_render("jackpot-plate")
+    st.caption(f"as of {_jp_now.strftime('%H:%M')} MST — the safe view "
+               f"refreshes every minute; this clock never freezes")
+
+
 def render_master(cfg: TradingConfig, kraken):
     # THE CARD — the flow itself. One card, nothing else on the main screen.
     # run_every is SECONDS in Streamlit (ints pass through raw —
@@ -2093,6 +2241,12 @@ def render_master(cfg: TradingConfig, kraken):
     # the stamp is naturally fresh (consistency, not cache)
     st.caption(f"as of {_now_mst().strftime('%H:%M')} MST — the discipline "
                f"grade re-reads its rotation close each rerun")
+
+    # 🎰 THE XMR JACKPOT (Sep 25): the pool, the countdown, her own
+    # tickets — read through monero_project's scout_jackpot_view.py,
+    # THE SAFE PUBLIC VIEW: whitelist fields only, no wallet internals,
+    # no keys, no RPC credentials. Sits beside the facts she grades.
+    _render_jackpot_plate()
 
     # 📞 TONIGHT'S REVIEW (Sep 21): the cooldown check's per-asset
     # verdicts on the page — read the review, don't wait for her to
