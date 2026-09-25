@@ -79,25 +79,40 @@ _tmp = tempfile.mkdtemp(prefix="claim_routes_sbx_")
 db.DB_PATH = Path(_tmp) / "jackpot.db"
 db.init_db()
 
+# tripwire teeth (review triage, Sep 25): the class guarded __getattr__
+# but instantiating it counted as `.touched` — so the assertion below
+# compared the stub MODULE's flag while the tripwire instance's own was
+# never read. The stub is bound as a MODULE; its namespace IS the
+# tripwire: rpc_available must be the only callable that can touch it.
+
 _LIVE_DB = HERE / "pool" / "jackpot.db"
 _LIVE_BEFORE = (hashlib.sha256(_LIVE_DB.read_bytes()).hexdigest(),
                 _LIVE_DB.stat().st_mtime) if _LIVE_DB.exists() else None
 
 # ── the wallet RPC stub: BLOCKED, and loud if ever touched ────────────
-class _BlockedWallet:
-    touched = False
+# A real MODULE (review triage, Sep 25: the class-as-module draft made
+# rpc_available an unbound call — TypeError before the tripwire body —
+# so `.touched` could never fire and check 6.2 passed vacuously).
+import types
+_BlockedWallet = types.ModuleType("monero_wallet")
+_BlockedWallet.touched = False
 
-    def rpc_available(self):
-        _BlockedWallet.touched = True
-        return False
 
-    def __getattr__(self, name):
+def _stub_rpc_available():
+    _BlockedWallet.touched = True
+    return False
+
+
+def _stub_any(name):
+    def _boom(*_a, **_k):
         _BlockedWallet.touched = True
         raise RuntimeError(f"wallet RPC method {name!r} must never be "
                            "called from the claim route drive")
+    return _boom
 
 
-import types
+_BlockedWallet.rpc_available = _stub_rpc_available
+_BlockedWallet.__getattr__ = lambda name: _stub_any(name)()
 sys.modules["monero_wallet"] = _BlockedWallet
 
 # NOW import the server: its import-time init_db lands in the sandbox,
@@ -271,12 +286,16 @@ with db.get_db() as conn:
 check(4.3, abs(engine.get_jackpot_balance() - max(0, 1.1 - _pend_others)) < 1e-9,
       f"expiry releases THE drawing's earmark (base {1.1 - _pend_others:.4f} "
       f"holds; the settlement model: no phantom refund, no silent loss)")
-check(4.3, abs(engine.get_jackpot_balance() - 1.1) < 1e-9,
+check("4.3b", abs(engine.get_jackpot_balance() - 1.1) < 1e-9,
       "expiry releases the earmark and the base keeps its truth (the "
       "settlement model: no phantom refund, no silent loss)")
 _r = tc_bravo.post("/api/winner/claim", json={"wallet_address": _W_B})
-check(4.4, _r.status_code == 400,
-      f"the expired win cannot be claimed: rc={_r.status_code}")
+_body = str((_r.json() or {})) + str(getattr(_r, "text", ""))
+check(4.4, _r.status_code == 400
+      and "no pending claim" in _body.lower(),
+      f"the expired win cannot be claimed — the route's pending-only "
+      f"filter makes an expired claim unreachable (rc={_r.status_code}; "
+      f"review triage, Sep 25: the old pin passed without naming why)")
 check(4.5, _payout_rows(_d3) == [],
       "an expired drawing has NO jackpot payout row — nothing was sent")
 _W_E = "4" + "e" * 95

@@ -45,6 +45,11 @@ import database as db
 
 DAILY_CAP_USD = 20.0          # the charter's ceiling, byte for byte
 WINDOW_DAYS = 14              # the charter's rolling window
+LEDGER_MAX_ROWS = 2000        # the receipt book is bounded (review
+                              # triage, Sep 25): the 14-day window only
+                              # ever reads ~30 days of rows, so the cap
+                              # keeps every compute O(1)-ish without
+                              # losing a day of history
 LEDGER_KEY = "jackpot_funding_ledger"
 RATE_KEY = "XMR_USD_RATE"
 DEFAULT_XMR_USD = 323.0       # jackpot_engine's own approximate rate
@@ -96,7 +101,7 @@ def record_funding(category, amount_usd, sponsor_id=None, source=""):
         "source": str(source or "")[:120],  # e.g. kraken challenge payout
         "ts": time.time(),
     })
-    _save_ledger(rows)
+    _save_ledger(rows[-LEDGER_MAX_ROWS:])
     return rid
 
 

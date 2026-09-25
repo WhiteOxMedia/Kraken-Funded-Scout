@@ -22,8 +22,38 @@ except Exception:                       # ticket/shares duties never depend
     miner_yield = None                  # on it)
 
 PROXY_API = "http://127.0.0.1:9090"
-PROXY_TOKEN = "xmrjackpot2026"
+# THE TOKEN (review triage, Sep 25): the bearer token is a LOCAL-only
+# shared secret for the loopback API, not a credential with reach —
+# but it still does not belong in source. Settings first, then the
+# proxy_config.json the proxy actually reads, then the legacy literal
+# as the last resort so an unconfigured box keeps working.
+PROXY_TOKEN = None  # resolved lazily by _token() below
 POLL_INTERVAL = 10  # seconds
+
+
+def _token():
+    global PROXY_TOKEN
+    if PROXY_TOKEN:
+        return PROXY_TOKEN
+    try:
+        import database as _db
+        v = str(_db.get_setting("PROXY_API_TOKEN", "") or "")
+        if v:
+            PROXY_TOKEN = v
+            return v
+    except Exception:
+        pass
+    try:
+        cfg = json.loads(Path(__file__).resolve().parent.parent.joinpath(
+            "monero", "proxy_config.json").read_text(encoding="utf-8"))
+        v = str(((cfg.get("http") or {}).get("access-token")) or "")
+        if v:
+            PROXY_TOKEN = v
+            return v
+    except Exception:
+        pass
+    PROXY_TOKEN = "xmrjackpot2026"   # legacy default, last resort
+    return PROXY_TOKEN
 
 
 def _api_get(path):
@@ -33,7 +63,7 @@ def _api_get(path):
             f"{PROXY_API}{path}",
             headers={
                 "User-Agent": "Mozilla/5.0",
-                "Authorization": f"Bearer {PROXY_TOKEN}",
+                "Authorization": f"Bearer {_token()}",
             },
         )
         with urllib.request.urlopen(req, timeout=5) as resp:
@@ -119,10 +149,22 @@ def update_workers(workers):
         # Ensure miner exists
         miner = db.get_or_create_miner(w["wallet_address"], w["worker_name"])
 
-        # Calculate delta shares since last update
-        prev_shares = miner["shares_valid"]
-        delta_valid = max(0, w["shares_valid"] - prev_shares)
-        delta_invalid = max(0, w["shares_invalid"] - miner["shares_invalid"])
+        # Calculate delta shares since last update. THE REBASE
+        # (review triage, Sep 25): lifetime counters reset to 0 when
+        # the proxy restarts — max(0, ...) then silently dropped every
+        # new share until the DB caught back up. When the report is a
+        # REBASE (below the stored count), treat it as the new zero
+        # point and credit everything above it.
+        prev_valid = int(miner["shares_valid"] or 0)
+        prev_invalid = int(miner["shares_invalid"] or 0)
+        if int(w["shares_valid"]) < prev_valid:
+            delta_valid = int(w["shares_valid"])
+        else:
+            delta_valid = int(w["shares_valid"]) - prev_valid
+        if int(w["shares_invalid"]) < prev_invalid:
+            delta_invalid = int(w["shares_invalid"])
+        else:
+            delta_invalid = int(w["shares_invalid"]) - prev_invalid
 
         if delta_valid > 0 or delta_invalid > 0:
             # Update stats

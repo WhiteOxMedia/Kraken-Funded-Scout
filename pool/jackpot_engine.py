@@ -18,18 +18,22 @@ from datetime import datetime, timedelta
 import database as db
 
 
-def _miner_won_recently(miner_id, days=30):
+def _miner_won_recently(miner_id, days=30, exclude_drawing_id=None):
     """THE 30-DAY WIN LIMIT (charter, Sep 25): one win per rolling 30
     days — mining and tickets continue, only the CLAIM waits. The
     gate reads the miner's OWN drawing (status='drawn' whose id is the
     greatest among their drawn wins — i.e. their most recent win) and
-    compares its drawn_at against the window."""
+    compares its drawn_at against the window. exclude_drawing_id lets
+    the claim-side gate exclude the drawing being claimed — the
+    claimant's OTHER wins are what the cooldown counts (claiming your
+    own pending prize is the normal first claim)."""
     try:
         with db.get_db() as conn:
             row = conn.execute(
                 """SELECT MAX(d.drawn_at) t FROM drawings d
-                   WHERE d.winner_id = ? AND d.status = 'drawn'""",
-                (miner_id,)).fetchone()
+                   WHERE d.winner_id = ? AND d.status = 'drawn'
+                   AND (? IS NULL OR d.id != ?)""",
+                (miner_id, exclude_drawing_id, exclude_drawing_id)).fetchone()
         t = row["t"] if row else None
         return bool(t) and (time.time() - float(t)) < days * 86400
     except Exception:
@@ -342,8 +346,28 @@ def run_drawing():
                 _picked = _cand
                 break
         if _picked is None:
-            return {"status": "error", "reason": "Every ticket holder is "
-                    "inside the 30-day win window"}
+            # THE ALL-GATED ROUND (review triage, Sep 25): the round is
+            # CANCELLED, not left pending — an unfinished drawing kept
+            # its tickets assigned forever, and because a cancelled
+            # round never writes drawn_at, the scheduler re-fired every
+            # cycle and created a fresh drawing each pass. Release the
+            # ring, audit the cancellation, and let the scheduler's
+            # clock (which now reads cancelled rounds too) wait a full
+            # interval before the next attempt.
+            with db.get_db() as conn:
+                conn.execute("UPDATE drawings SET status = 'cancelled' "
+                             "WHERE id = ?", (drawing_id,))
+                conn.execute("UPDATE tickets SET drawing_id = NULL "
+                             "WHERE drawing_id = ?", (drawing_id,))
+            db.add_audit_log(
+                None, "drawing_cancelled_all_gated",
+                json.dumps({"drawing_id": drawing_id,
+                            "tickets_released": _n,
+                            "reason": "30_day_win_limit"}),
+            )
+            return {"status": "skipped", "reason": "Every ticket holder "
+                    "is inside the 30-day win window — the round was "
+                    "cancelled and its tickets released"}
         winning_ticket_id = _picked["id"]
         winner_id = _picked["miner_id"]
         winner = db.get_miner(winner_id)
@@ -633,11 +657,29 @@ def process_winner_claim(drawing_id, wallet_address):
     if not winner or winner["wallet_address"] != wallet_address:
         return {"status": "error", "reason": "Wallet does not match the winner"}
 
-    # THE 30-DAY WIN LIMIT, CLAIM SIDE (charter): the draw-time skip
-    # hands wins to eligible holders, but a pre-limit pending drawing
-    # must ALSO refuse a repeat claimant whose most recent OTHER win is
-    # inside the window (defense in depth — the sweep/claims cannot
-    # resurrect a won-twice state, and the audit carries the refusal).
+    # THE 30-DAY WIN LIMIT, CLAIM SIDE (charter: "Reject claim if
+    # within 30-day cooldown") — implemented (review triage, Sep 25:
+    # the charter ordered a claim-time gate and the code carried only a
+    # comment; the drive masked it because every fixture claimed a
+    # miner whose only win was THIS drawing). The gate counts the
+    # claimant's OTHER wins only — excluding the drawing being claimed
+    # — because claiming your own pending prize is the normal first
+    # claim, and a payout after the draw-time skip already landed them
+    # an eligible win. A refused claim writes the audit row and is
+    # retriable after the window passes (the claim stays pending —
+    # only the cooldown holds it).
+    if _miner_won_recently(drawing["winner_id"], days=30,
+                           exclude_drawing_id=drawing_id):
+        db.add_audit_log(
+            None, "claim_refused_30_day_limit",
+            json.dumps({"drawing_id": drawing_id,
+                        "miner_id": drawing["winner_id"],
+                        "reason": "30_day_win_limit"}),
+        )
+        return {"status": "error",
+                "reason": "30-day win limit: you already won within the "
+                          "last 30 days — the claim unlocks when the "
+                          "cooldown passes"}
 
     # Check deadline
     deadline = drawing.get("claim_deadline")

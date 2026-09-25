@@ -90,6 +90,17 @@ if (Test-Path (Join-Path $PayDir "xmrig-6.26.0\xmrig.exe")) {
     Write-Host ("  fetching pinned xmrig 6.26.0 (official release) ...")
     try {
         Invoke-WebRequest -Uri $Url -OutFile $Zip -UseBasicParsing
+        # THE PINNED HASH (review triage, Sep 25): the downloaded miner
+        # payload is verified against the hash of the exact release the
+        # bundle ships — the same bytes the local payload's exe hashes
+        # to — before a single byte is extracted.
+        $WantHash = "6fa80698d7268f6e88aa88c06fb27ee99e1bcee747c2e76911e6206a5b1aeeb3"
+        $GotHash = (Get-FileHash -Path $Zip -Algorithm SHA256).Hash.ToLower()
+        if ($GotHash -ne $WantHash) {
+            Remove-Item $Zip -ErrorAction SilentlyContinue
+            throw "xmrig download failed its SHA256 pin ($($GotHash.Substring(0,16))...) - not extracting"
+        }
+        Write-Host "  sha256 verified against the pinned release hash"
         Expand-Archive -Path $Zip -DestinationPath (Join-Path $Target "xmrig") -Force
         Remove-Item -Force $Zip
         Write-Host "  fetched xmrig 6.26.0"

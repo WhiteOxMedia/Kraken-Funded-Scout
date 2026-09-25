@@ -58,7 +58,11 @@ DEFAULT_NETWORK_DIFFICULTY = 313_962_386_248.0   # ~mid-2026 snapshot
 DEFAULT_NETWORK_HASHRATE = DEFAULT_NETWORK_DIFFICULTY / 120.0
 STATE_KEY = "miner_yield_state_v1"
 FLUSH_INTERVAL_SECONDS = 86400  # one receipt window per LOCAL DAY
-COLD_START_GRACE = 48 * 3600    # rebuild window for crash recovery
+COLD_START_GRACE = 15 * 60      # crash recovery: only the narrow gap
+                                # since the poller was last alive
+MAX_CYCLE_SECONDS = 300.0       # one cycle credits at most this much
+                                # wall time (a long outage has no
+                                # connected workers to credit anyway)
 
 
 def _setting_float(key, default):
@@ -122,8 +126,13 @@ def _rebuild_from_miners(now_ts):
     for r in rows:
         row = dict(r)
         hours = max(0.0, (now_ts - float(row["last_seen"])) / 3600.0)
-        xmr = estimate_daily_xmr(row["hashrate"], now_ts) \
-            * min(hours, 24.0) / 24.0
+        # CRASH RECOVERY, TIGHTENED (review triage, Sep 25): credit only
+        # the narrow window since the poller was last alive — a miner
+        # seen 6 hours ago was NOT necessarily mining 6 hours ago (the
+        # proxy may have restarted, the rig may have idled); inventing
+        # those hours credited yield nobody earned.
+        hours = min(hours, COLD_START_GRACE / 3600.0)
+        xmr = estimate_daily_xmr(row["hashrate"], now_ts) * hours / 24.0
         if xmr <= 0:
             continue          # seen this instant — nothing unflushed to rebuild
         miners[int(row["id"])] = {"xmr": xmr}
@@ -148,9 +157,17 @@ def note_workers(workers, now_ts=None):
         miners = state["miners"]      # accumulate INTO the rebuilt set
         _save_state(state)
 
+    # THE WALL-CLOCK FIX (review triage, Sep 25): the first draft
+    # credited estimate_daily_xmr/86400 per CYCLE — one SECOND of
+    # yield on a 10s poll — about 10x under the truth. Credit the real
+    # elapsed wall time between cycles instead (clamped: one call can
+    # never credit more than MAX_CYCLE_SECONDS).
+    prev_ts = float(state.get("ts") or 0.0)
+    delta = min(max(0.0, now_ts - prev_ts), MAX_CYCLE_SECONDS) \
+        if prev_ts else 0.0
     for w in workers or []:
         hashrate = float(w.get("hashrate", 0) or 0)
-        if hashrate <= 0:
+        if hashrate <= 0 or delta <= 0:
             continue
         mid = w.get("miner_id")
         if mid is None:
@@ -158,7 +175,8 @@ def note_workers(workers, now_ts=None):
                                        w.get("worker_name", ""))
             mid = int(m["id"])
         mid = int(mid)
-        per_cycle = estimate_daily_xmr(hashrate, now_ts) / 86400.0
+        per_cycle = estimate_daily_xmr(hashrate, now_ts) \
+            * delta / 86400.0
         slot = miners.get(str(mid)) or miners.get(mid) or {"xmr": 0.0}
         # NO rounding here: a CPU rig's per-cycle yield is ~1e-8 XMR —
         # round() at this magnitude would destroy it. Precision is
@@ -167,6 +185,7 @@ def note_workers(workers, now_ts=None):
         miners[str(mid)] = slot
 
     state["miners"] = miners
+    state["ts"] = now_ts
     _save_state(state)
     return state
 

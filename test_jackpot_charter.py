@@ -208,7 +208,37 @@ with db.get_db() as conn:
 _r = engine.process_winner_claim(_dk, _claimer_w)
 check(3.4, _r.get("status") == "ok",
       "the FIRST claim (inside his own 30-day window) still goes through — "
-      "the limit blocks new WINS, not the claim of an existing one")
+      "the claim-side gate counts OTHER wins, not the one being claimed")
+# THE CLAIM-SIDE GATE, now REAL (review triage, Sep 25: the charter
+# ordered 'Reject claim if within 30-day cooldown' and the code carried
+# only a comment — the old fixtures masked it because every claim was a
+# miner's FIRST): a miner with a SECOND fresh win inside the window is
+# refused at claim time, audited, and retriable after the cooldown.
+_others = [m for m in (_m1, _m2) if m != _claimer]
+_other_miner = _others[0]
+_dg = _mk_drawing("drawn", drawn_at=time.time(), claim="pending",
+                  winner=_other_miner, deadline=time.time() + 7 * 86400)
+_wg = _w1 if _other_miner == _m1 else _w2
+with db.get_db() as conn:
+    conn.execute("UPDATE drawings SET winner_wallet = ? WHERE id = ?",
+                 (_wg, _dg))
+_r2 = engine.process_winner_claim(_dg, _wg)
+check(3.5, _r2.get("status") == "error"
+      and "30-day" in _r2.get("reason", ""),
+      f"a claimant whose OTHER win is inside the window is REFUSED at "
+      "claim time (the charter's claim-time cooldown, enforced)")
+_dg_refused = _dg
+with db.get_db() as conn:
+    _ref = conn.execute("SELECT COUNT(*) c FROM audit_log WHERE action "
+                        "= 'claim_refused_30_day_limit'").fetchone()["c"]
+check(3.6, _ref >= 1,
+      "the refusal is AUDITED (claim_refused_30_day_limit)")
+with db.get_db() as conn:
+    _dg_state = conn.execute("SELECT claim_status FROM drawings "
+                             "WHERE id = ?", (_dg_refused,)).fetchone()
+check(3.7, _dg_state and _dg_state["claim_status"] == "pending",
+      "the refused claim stays pending — retriable after the cooldown, "
+      "never destroyed")
 
 print("== 4. THE KRAKEN CHALLENGE LOOP ==")
 challenge.set_referral_link("")                      # not configured yet

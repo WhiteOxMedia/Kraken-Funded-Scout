@@ -104,31 +104,40 @@ check(1.5, abs(my.estimate_daily_xmr(my.DEFAULT_NETWORK_HASHRATE)
       "(half the difficulty = double the expected XMR)")
 db.set_setting("NETWORK_DIFFICULTY", "")
 
-print("== 2. PER-CYCLE ACCUMULATION ==")
+print("== 2. PER-CYCLE ACCUMULATION (wall-clock) ==")
 _reset()
 db.set_setting("XMR_USD_RATE", "323.0")
 m_a = db.get_or_create_miner("4" + "a" * 94, "rig-a")
 m_b = db.get_or_create_miner("4" + "b" * 94, "rig-b")
 id_a, id_b = int(m_a["id"]), int(m_b["id"])
 H_A, H_B = 12_000.0, 30_000.0
-per_cycle_a = my.estimate_daily_xmr(H_A) / 86400.0
-
+_T0 = time.time()
 state = my.note_workers([{"miner_id": id_a, "hashrate": H_A},
-                         {"miner_id": id_b, "hashrate": H_B},
                          {"miner_id": id_b, "hashrate": H_B}],
-                        now_ts=time.time())
+                        now_ts=_T0)
+check(2.0, state.get("ts") == _T0,
+      "the FIRST call stamps the clock and credits nothing — there is "
+      "no elapsed interval yet (review-triage contract)")
+state = my.note_workers([{"miner_id": id_a, "hashrate": H_A},
+                         {"miner_id": id_b, "hashrate": H_B}],
+                        now_ts=_T0 + 60.0)
+per_cycle_a = my.estimate_daily_xmr(H_A) * 60.0 / 86400.0
 got_a = state["miners"][str(id_a)]["xmr"]
 check(2.1, abs(got_a - per_cycle_a) < 1e-12,
-      f"one cycle accumulates exactly one cycle of expected XMR for rig-a "
-      f"({got_a:.3e})")
+      f"one 60s interval accumulates exactly 60s of expected XMR for "
+      f"rig-a ({got_a:.3e}) — wall-clock time, not one-second ticks")
 got_b = state["miners"][str(id_b)]["xmr"]
-check(2.2, abs(got_b - 2 * my.estimate_daily_xmr(H_B) / 86400.0) < 1e-12,
-      "two workers accumulate independently (rig-b reported twice in the "
-      "cycle list accrues twice — the caller owns the cadence)")
-my.note_workers([{"miner_id": id_a, "hashrate": 0.0}], now_ts=time.time())
-check(2.3, str(id_a) in state["miners"]
-      and abs(state["miners"][str(id_a)]["xmr"] - got_a) < 1e-15,
-      "a dead rig (hashrate 0) earns nothing — mining stops, yield stops")
+check(2.2, abs(got_b
+               - my.estimate_daily_xmr(H_B) * 60.0 / 86400.0) < 1e-12,
+      "rig-b accumulates its own 60s independently of rig-a (per-call "
+      "list entries are the caller's cadence, one here)")
+_state_fresh = my.note_workers([{"miner_id": id_a, "hashrate": 0.0}],
+                               now_ts=_T0 + 120.0)
+check(2.3, str(id_a) in _state_fresh.get("miners", {})
+      and abs(_state_fresh["miners"][str(id_a)]["xmr"] - got_a) < 1e-15,
+      "a dead rig (hashrate 0) earns nothing — the FRESH state carries "
+      "the accumulator unchanged (review triage, Sep 25: the old pin "
+      "asserted on the stale object and could never fail)")
 check(2.4, "4" + "a" * 94 not in json.dumps(my._load_state()),
       "the accumulator state carries miner IDS, never wallet addresses")
 
@@ -151,28 +160,35 @@ r = my.flush_daily(now_ts=time.time())
 check(3.2, r["flushed"] is False,
       f"flushing on the stamp day is a no-op ({r.get('reason')})")
 
-print("== 4. CRASH RECOVERY: REBUILT FROM OBSERVED ROWS, CAPPED ==")
+print("== 4. CRASH RECOVERY: REBUILT FROM OBSERVED ROWS, TIGHT ==")
 _reset(keep_miners=True)
+my._save_state({})   # back on the REAL clock (section 3's stamp uses it)
+_GRACE = my.COLD_START_GRACE
 with db.get_db() as conn:
     conn.execute("DELETE FROM miners")
     conn.execute("INSERT INTO miners (wallet_address, worker_name, "
                  "hashrate, last_seen) VALUES (?, ?, ?, ?)",
-                 ("4" + "d" * 94, "recover-6h", 24_000.0,
-                  int(time.time() - 6 * 3600)))
+                 ("4" + "d" * 94, "recover-gap", 24_000.0,
+                  int(time.time() - _GRACE * 0.8)))   # inside the window
 st = my.note_workers([], now_ts=time.time())
 rid6 = next(iter(st["miners"].values()))["xmr"]
-expect6 = my.estimate_daily_xmr(24_000.0) * 6 / 24
-check(4.1, abs(rid6 - expect6) <= 1e-4 * expect6,
-      f"recovery rebuilds the UNFLUSHED window from the miner row: "
-      f"6h since last_seen → {rid6:.3e} XMR (expected {expect6:.3e})")
+expect6 = my.estimate_daily_xmr(24_000.0) \
+    * (_GRACE * 0.8 / 3600.0) / 24.0
+check(4.1, abs(rid6 - expect6) <= 5e-3 * expect6,   # int-truncated
+      # last_seen gives ~1s of slop on a ~12min window
+      f"recovery rebuilds only the {int(_GRACE/60)}-minute window since "
+      f"the poller was last alive ({rid6:.3e} XMR) — never the whole "
+      f"gap since last_seen (review triage, Sep 25)")
 with db.get_db() as conn:
     conn.execute("UPDATE miners SET last_seen = ? WHERE worker_name = "
-                 "'recover-6h'", (int(time.time() - 40 * 3600),))
+                 "'recover-gap'", (int(time.time() - 40 * 3600),))
+my._save_state({})   # recovery runs on a COLD start only — that is the
+                      # crash being recovered from
 st = my.note_workers([], now_ts=time.time())
-rid40 = next(iter(st["miners"].values()))["xmr"]
-check(4.2, 0 < rid40 <= my.estimate_daily_xmr(24_000.0) * (1 + 1e-4),
-      "40h since last_seen rebuilds AT MOST one day (never a whole "
-      "extra day from lost state)")
+check(4.2, st["miners"] == {},
+      "a miner last seen 40h ago is OUTSIDE the recovery window — "
+      "nothing is credited from unobserved hours (the old code would "
+      "have granted a full day)")
 
 print("== 5. THE DAILY FLUSH: ONCE, IDEMPOTENT, NO DOUBLE-COUNT ==")
 _reset()
@@ -233,6 +249,8 @@ check(5.7, all(abs(y["amount_usd"]
 check(5.8, json.dumps(yields).find("4" + "f" * 94) == -1
       and json.dumps(yields).find("4" + "t" * 94) == -1,
       "no wallet string ever reaches the funding ledger")
+my._save_state({})   # the tomorrow-fiction ends here: back on the REAL
+                      # clock so section 7's live cycles accumulate
 
 print("== 6. FORMULA INTEGRATION: THE YIELD FEEDS THE POT ==")
 velocity = funding.referral_velocity_usd()
@@ -275,16 +293,21 @@ check(7.2, "miner_yield.note_workers(workers)" in src
 import proxy_poller                                     # noqa: E402
 check(7.3, proxy_poller.miner_yield is not None,
       "the fail-soft import resolves in a clean interpreter")
-_check_state_before = my._load_state()["miners"]
+_check_state_before = my._load_state().get("miners", {})
 proxy_poller.update_workers([{
     "wallet_address": "4" + "p" * 94, "worker_name": "poller-rig",
     "hashrate": 40_000.0, "shares_valid": 10, "shares_invalid": 0}])
-_check_state_after = my._load_state()["miners"]
+time.sleep(2)          # the wall-clock contract: credit needs elapsed time
+proxy_poller.update_workers([{
+    "wallet_address": "4" + "p" * 94, "worker_name": "poller-rig",
+    "hashrate": 40_000.0, "shares_valid": 11, "shares_invalid": 0}])
+_check_state_after = my._load_state().get("miners", {})
+
 new_ids = set(_check_state_after) - set(_check_state_before)
 check(7.4, len(new_ids) == 1
       and _check_state_after[list(new_ids)[0]]["xmr"] > 0,
-      "a real update_workers cycle accumulates the worker's hashrate "
-      "(the wiring is live, not just present)")
+      "two real update_workers cycles ~2s apart accumulate the worker's "
+      "yield (the wiring is live under the wall-clock contract)")
 
 print("== 8. HERMETIC: THE LIVE DB NEVER MOVED ==")
 if _live_before:

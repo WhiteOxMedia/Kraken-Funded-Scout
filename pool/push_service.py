@@ -218,6 +218,12 @@ def send_to_user(user_id: int, event: str, extra: dict = None) -> dict:
     except Exception:
         have_lib = False
     vapid_priv = db.get_setting("VAPID_PRIVATE_KEY", "")
+    if have_lib and not vapid_priv:
+        # review triage (Sep 25): a missing operator key is a CONFIG
+        # error, not a dead device — deleting subscriptions for it
+        # would have silently destroyed every registration on the
+        # first unprovisioned send
+        return {"sent": 0, "reason": "VAPID key not provisioned"}
     for r in subs:
         if not have_lib:
             break
@@ -230,9 +236,20 @@ def send_to_user(user_id: int, event: str, extra: dict = None) -> dict:
                 vapid_claims={"sub": "mailto:operator@xmrjackpot.com"},
             )
             sent += 1
+        except WebPushException as wexc:
+            # only a real endpoint death unsubscribes (410 Gone is the
+            # protocol's own signal); config/transport errors keep the
+            # registration and retry later
+            resp = getattr(wexc, "response", None)
+            status = getattr(resp, "status_code", None) or \
+                getattr(resp, "status", 0)
+            if status == 410 or "410" in str(wexc):
+                dead += 1
+                unsubscribe(user_id, r["endpoint"])
+            else:
+                dead += 1
         except Exception:
             dead += 1
-            unsubscribe(user_id, r["endpoint"])
     if have_lib and (sent or dead):
         _audit(user_id, "push_sent", {"event": event, "sent": sent,
                                       "dead": dead,

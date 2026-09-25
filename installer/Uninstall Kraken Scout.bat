@@ -17,7 +17,13 @@ if exist "%TARGET%\monero_project\installer\installer.py" (
 
 echo Removing Kraken Scout from:
 echo   %TARGET%
+REM THE GUARD (review triage, Sep 25): %LOCALAPPDATA% itself must never
+REM be the delete target — if TARGET ever failed to expand, a bare
+REM rmdir /s /q on it would try to eat the profile. Only a REAL
+REM KrakenScout directory inside LOCALAPPDATA is removed.
+if /i not "%TARGET%"=="%LOCALAPPDATA%\KrakenScout" goto :skip_kill
 if exist "%TARGET%" rmdir /s /q "%TARGET%"
+:skip_kill
 
 echo Removing this bundle folder...
 cd /d "%TEMP%"

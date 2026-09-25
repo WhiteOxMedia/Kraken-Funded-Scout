@@ -122,14 +122,14 @@ $Enc = New-Object System.Text.UTF8Encoding($false)
 $Readme = @"
 KRAKEN SCOUT BUNDLE (built from committed heads: scout $ScoutHead, monero $MoneroHead)
 
-INSTALL   double-click  Install Kraken Scout.bat
-          (or:  powershell -NoProfile -ExecutionPolicy Bypass -File payload\scout\install.ps1)
+INSTALL   double-click  Install Kraken Scout.bat  (here in the bundle folder)
+          (or:  powershell -NoProfile -ExecutionPolicy Bypass -File install.ps1)
           One flow: preflight uv, stage the two app trees into
           %LOCALAPPDATA%\KrakenScout, build the venv, then the setup
           window opens - the Miner Bot checkbox is the last step.
 
-RUN       payload\scout\Launch Kraken.bat   (console + scanner)
-          payload\scout\Kraken - STOP.bat   (stop both)
+RUN       %LOCALAPPDATA%\KrakenScout\scout\Launch Kraken.bat   (console + scanner)
+          %LOCALAPPDATA%\KrakenScout\scout\Kraken - STOP.bat   (stop both)
 
 UNINSTALL double-click  Uninstall Kraken Scout.bat  (here in the bundle folder)
           Self-deleting: removes %LOCALAPPDATA%\KrakenScout and this

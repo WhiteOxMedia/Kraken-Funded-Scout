@@ -58,18 +58,18 @@
         setStatus("Permission not granted — you can enable it later in the browser settings.", true);
         return;
       }
-      navigator.serviceWorker.ready.then(function (reg) {
-        return subscribe(reg);
-      }).catch(function () {
-        return navigator.serviceWorker.register("/static/push_sw.js?v=1")
-          .then(function (reg) {
-            return navigator.serviceWorker.ready;
-          }).then(function (reg) {
-            return subscribe(reg);
+      /* review triage (Sep 25): `navigator.serviceWorker.ready` never
+         resolves on a page whose origin has no active worker — the
+         Enable button hung forever on a first visit. REGISTER first,
+         then use the registration register() returns. */
+      navigator.serviceWorker.register("/static/push_sw.js?v=1")
+        .then(function (reg) {
+          return reg.pushManager.getSubscription().then(function (sub) {
+            return sub || subscribe(reg);
           });
-      }).catch(function () {
-        setStatus("Could not reach the push service — try again shortly.", true);
-      });
+        }).catch(function () {
+          setStatus("Could not reach the push service — try again shortly.", true);
+        });
     });
   }
 
