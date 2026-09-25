@@ -26,11 +26,11 @@ PROXY_TOKEN = "xmrjackpot2026"
 POLL_INTERVAL = 10  # seconds
 
 
-def fetch_proxy_stats():
-    """Fetch worker stats from xmrig-proxy API."""
+def _api_get(path):
+    """One HTTP brain for the proxy API (token, timeout, errors)."""
     try:
         req = urllib.request.Request(
-            f"{PROXY_API}/2/summary",
+            f"{PROXY_API}{path}",
             headers={
                 "User-Agent": "Mozilla/5.0",
                 "Authorization": f"Bearer {PROXY_TOKEN}",
@@ -39,35 +39,75 @@ def fetch_proxy_stats():
         with urllib.request.urlopen(req, timeout=5) as resp:
             return json.loads(resp.read())
     except Exception as e:
-        print(f"[ProxyPoller] Error fetching proxy stats: {e}")
+        print(f"[ProxyPoller] Error fetching {path}: {e}")
         return None
 
 
-def parse_workers(summary):
-    """
-    Extract per-worker stats from xmrig-proxy summary.
-    xmrig-proxy reports workers in the 'workers' array.
-    Each worker has: id, hashrate, shares_good, shares_total, etc.
-    """
-    workers = []
-    raw_workers = summary.get("workers", [])
+def fetch_proxy_stats():
+    """Fetch the proxy's aggregate summary (uptime, totals) — useful
+    for logs, NOT for per-miner data."""
+    return _api_get("/2/summary")
 
-    for w in raw_workers:
-        # Worker ID in xmrig-proxy is the username: wallet_address.worker_name
-        worker_id = w.get("id", "")
-        if not worker_id:
+
+def fetch_miners():
+    """The proxy's connected MINERS with identities: /1/miners rows
+    are self-describing (the 'format' field names the columns) and the
+    'user' column is 'wallet_address.worker_name' — the exact shape
+    the pool expects."""
+    return _api_get("/1/miners")
+
+
+def fetch_workers():
+    """The proxy's per-RIG stats: accepted/rejected/invalid share
+    counters (LIFETIME, monotonic) and hashrate buckets, keyed by
+    rig_id. /1/workers, NOT /2/summary — the v2 summary's 'workers'
+    is a COUNT on this proxy build, so the original draft (which
+    iterated it as a list) could never have parsed a single worker;
+    the live smoke caught it on first contact."""
+    return _api_get("/1/workers")
+
+
+def parse_workers(miners_doc, workers_doc=None):
+    """
+    Join the proxy's two views into the poller's worker dicts.
+
+    Identity comes from /1/miners (user = 'wallet_address.worker_name',
+    columns self-described by the doc's 'format' field); share
+    counters and hashrate come from /1/workers keyed by rig_id, with
+    a worker-name fallback for rigs whose rig_id is the worker name.
+    Counters are LIFETIME values — update_workers computes per-poll
+    deltas against the DB, so monotonic totals are exactly right.
+    """
+    stats = {}
+    for r in (workers_doc or {}).get("workers", []) or []:
+        if not isinstance(r, list) or len(r) < 6:
             continue
+        # observed row shape: [rig_id, ip, status, accepted, rejected,
+        # invalid, hashes_total, diff, h10s, h60s, h15m, h1h, h6h]
+        stats[str(r[0] or "")] = {
+            "accepted": int(r[3] or 0),
+            "invalid": int(r[5] or 0),
+            "hashrate": (max(float(x or 0) for x in r[8:14])
+                         if len(r) >= 9 else 0.0),
+        }
 
-        parts = worker_id.split(".", 1)
-        wallet_address = parts[0]
-        worker_name = parts[1] if len(parts) > 1 else ""
-
+    workers = []
+    for row in (miners_doc or {}).get("miners", []) or []:
+        if not isinstance(row, list):
+            continue
+        m = dict(zip((miners_doc or {}).get("format", []), row))
+        user = str(m.get("user", "") or "")
+        if not user:
+            continue
+        wallet, _, worker_name = user.partition(".")
+        rig_stats = (stats.get(str(m.get("rig_id", "")))
+                     or stats.get(worker_name) or {})
         workers.append({
-            "wallet_address": wallet_address,
+            "wallet_address": wallet,
             "worker_name": worker_name,
-            "hashrate": w.get("hashrate", 0),
-            "shares_valid": w.get("shares_good", 0),
-            "shares_invalid": w.get("shares_total", 0) - w.get("shares_good", 0),
+            "hashrate": rig_stats.get("hashrate", 0.0),
+            "shares_valid": rig_stats.get("accepted", 0),
+            "shares_invalid": rig_stats.get("invalid", 0),
         })
 
     return workers
@@ -127,16 +167,17 @@ def run_poller():
 
     while True:
         try:
-            summary = fetch_proxy_stats()
-            if summary:
-                workers = parse_workers(summary)
+            miners_doc = fetch_miners()
+            workers_doc = fetch_workers()
+            if miners_doc is None:
+                print(f"[ProxyPoller] Proxy not responding at {PROXY_API}")
+            else:
+                workers = parse_workers(miners_doc, workers_doc)
                 if workers:
-                    print(f"[ProxyPoller] {len(workers)} worker(s) active")
+                    print(f"[ProxyPoller] {len(workers)} miner row(s) parsed")
                     update_workers(workers)
                 else:
                     print(f"[ProxyPoller] No workers connected")
-            else:
-                print(f"[ProxyPoller] Proxy not responding at {PROXY_API}")
 
             time.sleep(POLL_INTERVAL)
 
