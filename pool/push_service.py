@@ -1,0 +1,322 @@
+"""push_service.py — THE NATIVE PUSH SERVICE (Sep 25, charter).
+
+xmrjackpot.com's own push notification system — replaces the old
+Ntfy path. One brain per layer:
+
+  - SUBSCRIPTIONS: one row per (user_id, endpoint), the user's own
+    browser registration — never a miner address, never a key, never
+    a third-party identity. Storage is settings-backed (the same
+    schema-owner discipline as jackpot_funding): no database.py edit
+    needed while that file belongs to another thread.
+  - EVENTS: the charter's event set — jackpot win, claim-window
+    reminder, challenge unlock, the two long-bullish signals
+    (Buy Now / Get Out Now), miner status, ticket update — each with
+    ONE template (title/body/tag/url). Templates are the only thing
+    that ever becomes notification text; free-form content never
+    enters a payload.
+  - SENDS: rate-limited per user per event class, audited in
+    audit_log (user-scoped, names and numbers only), and fail-soft —
+    a dead endpoint unsubscribes itself instead of erroring forever.
+  - SECRETS: the VAPID keys are settings the OPERATOR provisions
+    (py_vapid → VAPID_PRIVATE_KEY / VAPID_PUBLIC_KEY); this module
+    never generates, prints, or leaks them. The public key endpoint
+    serves the public key only.
+
+THE WIRING (deliberate): the HTTP routes (/api/push/public-key,
+/api/push/subscribe, /api/push/unsubscribe) belong in the server's
+route table — pool/server.py is another thread's file, so the routes
+are NOT added here. The handlers are exposed as three functions the
+server thread can wire verbatim when the file frees up; the client
+(push_client.js) already points at them and degrades quietly until
+they answer 404.
+"""
+import json
+import time
+from pathlib import Path
+
+import database as db
+
+# ── storage (settings-backed: no schema owner on this box) ───────────
+SUBS_KEY = "push_subscriptions"
+SPOOL_PATH = Path(__file__).resolve().parent / "push_events.jsonl"
+RATE_KEY = "push_send_rate"
+MAX_PER_HOUR = 20          # per user, per event class
+EVENTS = {
+    "jackpot_win": {
+        "title": "🎉 YOU WON THE JACKPOT",
+        "body": ("The daily prize is yours — open xmrjackpot.com to "
+                 "claim it before the window closes."),
+        "tag": "jackpot-win",
+        "url": "/",
+        "rate": 4,
+    },
+    "claim_reminder": {
+        "title": "⏳ Your claim window is closing",
+        "body": ("Your jackpot claim deadline is near — claim now so "
+                 "the prize rolls back to the pool."),
+        "tag": "claim-reminder",
+        "url": "/",
+        "rate": 2,
+    },
+    "challenge_unlock": {
+        "title": "🧜 The Kraken Challenge unlocked",
+        "body": ("Your win opened the challenge guide — the referral "
+                 "link is waiting on your jackpot plate."),
+        "tag": "challenge-unlock",
+        "url": "/",
+        "rate": 4,
+    },
+    "signal_buy": {
+        "title": "📈 BUY NOW",
+        "body": ("Kraken Funded long signal: the window is open. "
+                 "Details on your Scout console."),
+        "tag": "signal-buy",
+        "url": "/",
+        "rate": 6,
+    },
+    "signal_exit": {
+        "title": "📉 GET OUT NOW",
+        "body": ("Kraken Funded long signal: the exit is live. "
+                 "Details on your Scout console."),
+        "tag": "signal-exit",
+        "url": "/",
+        "rate": 6,
+    },
+    "miner_status": {
+        "title": "⛏ Miner Bot update",
+        "body": ("Your Miner Bot status changed — open the console "
+                 "for the details."),
+        "tag": "miner-status",
+        "url": "/",
+        "rate": 4,
+    },
+    "ticket_update": {
+        "title": "🎟 Ticket update",
+        "body": ("Your entry count changed — see the jackpot plate "
+                 "for your tickets in the next drawing."),
+        "tag": "ticket-update",
+        "url": "/",
+        "rate": 4,
+    },
+}
+
+
+def _load(key):
+    raw = db.get_setting(key, "[]")
+    try:
+        rows = json.loads(raw)
+        return rows if isinstance(rows, list) else []
+    except (ValueError, TypeError):
+        return []
+
+
+def _save(key, rows):
+    db.set_setting(key, json.dumps(rows, separators=(",", ":")))
+
+
+def public_key() -> str:
+    """The OPERATOR-provisioned VAPID public key (settings). Empty
+    until provisioned — the client degrades quietly."""
+    return str(db.get_setting("VAPID_PUBLIC_KEY", "") or "")
+
+
+def subscribe(user_id: int, subscription: dict) -> dict:
+    """Store one browser registration for one user. The subscription's
+    endpoint is the only identity it carries; it is stored per user
+    and never shared across users."""
+    if not isinstance(user_id, int) or user_id <= 0:
+        return {"ok": False, "reason": "bad user"}
+    if not isinstance(subscription, dict):
+        return {"ok": False, "reason": "bad subscription"}
+    endpoint = str(subscription.get("endpoint") or "")
+    if not endpoint.startswith("https://"):
+        return {"ok": False, "reason": "endpoint must be https"}
+    rows = _load(SUBS_KEY)
+    for r in rows:
+        if r.get("endpoint") == endpoint:
+            if int(r.get("user_id", -1)) == user_id:
+                r["keys"] = subscription.get("keys") or {}
+                r["ts"] = time.time()
+                _save(SUBS_KEY, rows)
+                return {"ok": True, "reason": "refreshed"}
+            return {"ok": False, "reason": "endpoint belongs to another user"}
+    rows.append({
+        "user_id": int(user_id),
+        "endpoint": endpoint,
+        "keys": subscription.get("keys") or {},
+        "ts": time.time(),
+    })
+    _save(SUBS_KEY, rows)
+    return {"ok": True, "reason": "subscribed"}
+
+
+def unsubscribe(user_id: int, endpoint: str) -> dict:
+    rows = _load(SUBS_KEY)
+    kept = [r for r in rows
+            if not (r.get("endpoint") == endpoint
+                    and int(r.get("user_id", -1)) == user_id)]
+    if len(kept) == len(rows):
+        return {"ok": False, "reason": "not found"}
+    _save(SUBS_KEY, kept)
+    return {"ok": True}
+
+
+def _rate_ok(user_id: int, event: str) -> bool:
+    """Per-user, per-event-class sliding hourly window."""
+    now = time.time()
+    hits = [(u, e, t) for (u, e, t) in
+            (x if isinstance(x, (list, tuple)) else (0, "", 0)
+             for x in _load(RATE_KEY))
+            if u == user_id and e == event and now - t < 3600]
+    limit = EVENTS.get(event, {}).get("rate", MAX_PER_HOUR)
+    if len(hits) >= limit:
+        return False
+    hits.append((user_id, event, now))
+    kept = [h for h in _load(RATE_KEY)
+            if isinstance(h, (list, tuple)) and len(h) == 3
+            and now - float(h[2]) < 3600]
+    kept.append((user_id, event, now))
+    _save(RATE_KEY, kept)
+    return True
+
+
+def _audit(user_id, action, details):
+    """Audit or die loudly: a push send is a logged event — if the
+    audit write fails, the failure must surface, not vanish (an
+    except:pass here would make every 'logged' claim unverifiable)."""
+    db.add_audit_log(user_id, action, json.dumps(details))
+
+
+def send_to_user(user_id: int, event: str, extra: dict = None) -> dict:
+    """Send one templated event to ONE user's devices. Never sends to
+    the wrong user: the subscription is looked up by the user_id the
+    caller is already authenticated as, and the payload carries only
+    the template's text plus optional whitelisted interpolations."""
+    ev = EVENTS.get(event)
+    if ev is None:
+        return {"sent": 0, "reason": "unknown event"}
+    subs = [r for r in _load(SUBS_KEY) if int(r.get("user_id", -1)) == user_id]
+    if not subs:
+        return {"sent": 0, "reason": "no subscription"}
+    if not _rate_ok(user_id, event):
+        _audit(user_id, "push_rate_limited",
+               {"event": event, "via": "push_service"})
+        return {"sent": 0, "reason": "rate limited"}
+    payload = {
+        "title": ev["title"],
+        "body": ev["body"],
+        "tag": ev["tag"],
+        "url": ev["url"],
+    }
+    if extra:
+        payload.update({k: str(v)[:120] for k, v in extra.items()
+                        if k in ("amount_xmr", "deadline", "signal")})
+    sent = dead = 0
+    try:
+        from pywebpush import webpush, WebPushException
+        have_lib = True
+    except Exception:
+        have_lib = False
+    vapid_priv = db.get_setting("VAPID_PRIVATE_KEY", "")
+    for r in subs:
+        if not have_lib:
+            break
+        try:
+            webpush(
+                subscription_info={"endpoint": r["endpoint"],
+                                   "keys": r.get("keys") or {}},
+                data=json.dumps(payload),
+                vapid_private_key=vapid_priv,
+                vapid_claims={"sub": "mailto:operator@xmrjackpot.com"},
+            )
+            sent += 1
+        except Exception:
+            dead += 1
+            unsubscribe(user_id, r["endpoint"])
+    if have_lib and (sent or dead):
+        _audit(user_id, "push_sent", {"event": event, "sent": sent,
+                                      "dead": dead,
+                                      "via": "push_service"})
+    return {"sent": sent, "dead": dead,
+            "reason": None if sent else
+            ("webpush library not installed" if not have_lib
+             else "no deliverable endpoint")}
+
+
+def send_to_subscribers(event: str, extra: dict = None) -> dict:
+    """Broadcast one templated event to EVERY subscriber (signal
+    events: the same signal is for everyone opted in). Per-user rate
+    limits still apply inside send_to_user; the broadcast itself has
+    its own limiter bucket (user_id 0) and one audit row."""
+    ev = EVENTS.get(event)
+    if ev is None:
+        return {"sent": 0, "reason": "unknown event"}
+    subs = [r for r in _load(SUBS_KEY) if int(r.get("user_id", -1)) > 0]
+    if not subs:
+        return {"sent": 0, "reason": "no subscription"}
+    if not _rate_ok(0, event):
+        return {"sent": 0, "reason": "rate limited"}
+    total = 0
+    for r in subs:
+        res = send_to_user(int(r["user_id"]), event, extra)
+        total += int(res.get("sent", 0))
+    _audit(None, "push_broadcast", {"event": event, "delivered": total,
+                                    "recipients": len(subs),
+                                    "via": "push_service"})
+    return {"sent": total}
+
+
+def drain_spool(spool_path=None) -> int:
+    """The pool side's reader: hand Scout's spooled events (written by
+    scout/push_client.py when the operator route is not yet wired)
+    through the rate-limited, audited sender. ONE reader — the
+    poller's loop calls this each cycle. A row that fails 50 drains
+    is dropped (a week-old signal is not a signal anymore); the spool
+    never grows past its writer's own cap."""
+    path = Path(spool_path) if spool_path else SPOOL_PATH
+    if not path.exists():
+        return 0
+    try:
+        rows = [json.loads(l) for l in
+                path.read_text(encoding="utf-8").splitlines() if l.strip()]
+    except (OSError, ValueError):
+        return 0
+    kept, handed = [], 0
+    for r in rows:
+        if not isinstance(r, dict) or "event" not in r:
+            continue
+        tries = int(r.get("tries", 0)) + 1
+        if tries > 50:
+            continue
+        target = r.get("user_id")
+        result = (send_to_user(int(target), r["event"], r.get("extra"))
+                  if isinstance(target, int) or
+                  (isinstance(target, str) and target.isdigit())
+                  else send_to_subscribers(r["event"], r.get("extra")))
+        if result.get("sent"):
+            handed += 1
+        elif result.get("reason") == "unknown event":
+            continue
+        else:
+            r["tries"] = tries
+            kept.append(r)
+    try:
+        path.write_text(
+            "\n".join(json.dumps(r, separators=(",", ":")) for r in kept)
+            + ("\n" if kept else ""), encoding="utf-8")
+    except OSError:
+        pass
+    return handed
+
+
+# ── route handlers (for the server thread to wire verbatim) ──────────
+def handle_public_key():
+    return {"public_key": public_key()}
+
+
+def handle_subscribe(user_id: int, body: dict):
+    return subscribe(user_id, (body or {}).get("subscription") or {})
+
+
+def handle_unsubscribe(user_id: int, body: dict):
+    return unsubscribe(user_id, str((body or {}).get("endpoint") or ""))

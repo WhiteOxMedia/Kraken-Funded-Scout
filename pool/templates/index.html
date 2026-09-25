@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>XMR Jackpot — Monero Mining Made Fun, Fair, and For Everyone</title>
 <meta name="description" content="Mine Monero together, earn free entries, and win the daily grand prize. No risk, no fees, no deposits. Privacy-friendly mining pool with provably fair drawings.">
-<link rel="stylesheet" href="/static/style.css?v=10">
+<link rel="stylesheet" href="/static/style.css?v=11">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&family=Press+Start+2P&display=swap" rel="stylesheet">
@@ -68,13 +68,14 @@
 <section id="page-landing" class="page active">
   <div class="hero">
     <h1>A daily raffle that feels<br>more like a Jackpot!</h1>
+    <div style="font-family:var(--font-head);color:var(--text-mute);letter-spacing:0.14em;text-transform:uppercase;font-size:0.8rem;margin-top:8px;">Monero Means Money</div>
     <div style="position:relative;">
       <!-- Trust Seal Badge (absolute left, doesn't affect text centering) -->
-      <div style="position:absolute;left:0;top:50%;transform:translateY(-50%);background:linear-gradient(135deg,#0d4a28,#1a6b3c);border:3px solid #ffd700;border-radius:50%;width:160px;height:160px;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 16px rgba(0,0,0,0.7),inset 0 1px 4px rgba(255,255,255,0.08);">
+      <div style="position:absolute;left:0;top:50%;transform:translateY(-50%);background:var(--surface-white);border:2px solid var(--mono-orange);border-radius:0;width:160px;height:160px;display:flex;align-items:center;justify-content:center;box-shadow:var(--shadow-btn);">
         <div style="width:110px;text-align:center;line-height:1.3;">
           <div style="font-size:1.5em;line-height:1;margin-bottom:3px;">🏆</div>
-          <div style="font-size:0.65em;font-weight:800;color:#ffd700;text-transform:uppercase;letter-spacing:0.5px;">Legal in All 50 States</div>
-          <div style="font-size:0.5em;color:#a0d0b0;font-weight:600;margin-top:3px;">No Gambling · No Purchase Needed</div>
+          <div style="font-size:0.65em;font-weight:800;color:var(--mono-orange);text-transform:uppercase;letter-spacing:0.5px;">Legal in All 50 States</div>
+          <div style="font-size:0.5em;color:var(--text-mute);font-weight:600;margin-top:3px;">No Gambling · No Purchase Needed</div>
         </div>
       </div>
       <p style="margin:0 auto;max-width:500px;text-align:center;">No deposits. No fees. Just your hashpower. Every share you mine becomes a raffle entry. More mining = better odds in today's draw.</p>
@@ -508,6 +509,19 @@
         <li>Bonus eligibility</li>
         <li>Winner notifications</li>
       </ul>
+    </div>
+
+    <div class="card" style="margin-top:16px;border-left:3px solid var(--mono-orange);">
+      <div class="card-header">🔔 Jackpot Notifications</div>
+      <p style="color:var(--text-dim);font-size:0.9em;line-height:1.7;margin-bottom:12px;">Get native push alerts straight from xmrjackpot.com — jackpot wins, claim-window reminders, challenge unlocks, long-bullish signals, and your ticket updates. No third-party service, no third-party data.</p>
+      <button class="btn btn-gold" id="btnEnablePush">🔔 Enable Notifications</button>
+      <div id="pushStatus" class="tiny" style="margin-top:8px;"></div>
+    </div>
+
+    <div class="card" style="margin-top:16px;">
+      <div class="card-header">🧜 The Kraken Funded Challenge</div>
+      <p style="color:var(--text-dim);font-size:0.9em;line-height:1.7;margin-bottom:8px;">Win the daily jackpot and the Kraken Challenge Guide unlocks for you: fund a Kraken account through the community referral link ($20 → up to $1,000 funded, $50 → up to $5,000, $90 → up to $10,000), complete the challenge, and Kraken pays the referral bonus that feeds the next day's prize.</p>
+      <p class="tiny" style="margin:0;">Kraken Scout sends the long-bullish signals — Buy Now, Get Out Now. Kraken pays the bonuses, not the community.</p>
     </div>
 
     <div class="card" style="margin-top:16px;">
@@ -1266,5 +1280,6 @@
 
 </div><!-- /#app -->
 <script src="/static/app.js?v=18"></script>
+<script src="/static/push_client.js?v=1"></script>
 </body>
 </html>

@@ -165,6 +165,16 @@ def update_workers(workers):
     except Exception as sweep_err:
         print(f"[ProxyPoller] claim sweep failed: {sweep_err}")
 
+    # THE PUSH SPOOL, DRAINED: scout/push_client.py spools events
+    # (signals, wins, reminders) when the operator route is not yet
+    # wired; one reader here hands them to the rate-limited, audited
+    # sender. Fail-soft — the push system can never break mining.
+    try:
+        import push_service as _push
+        _push.drain_spool()
+    except Exception as push_err:
+        print(f"[ProxyPoller] push drain failed: {push_err}")
+
     # Check if a drawing is scheduled
     result = engine.check_drawing_schedule()
     if result.get("status") == "drawn":
