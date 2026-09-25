@@ -2176,6 +2176,34 @@ def _jp_ticket_line(mv: dict) -> str:
     return line
 
 
+def _jp_challenge_lines(mv: dict) -> list:
+    """THE KRAKEN CHALLENGE GUIDE, pure for the drive — rendered ONLY
+    when miner_view carries kraken_challenge (the claimable shape:
+    the loop's entry is a win). Every string is entity-escaped — the
+    steps and phrases cross from the pool side, and the referral link
+    is operator configuration — and the link is anchored ONLY when it
+    is a clean http(s) URL, never a javascript: href. The phrases are
+    referenced, never quoted: they arrive in the dict from the view
+    module's own constants."""
+    kc = mv.get("kraken_challenge")
+    if not kc:
+        return []
+    from html import escape as _jp_esc
+    lines = ["─" * 34,
+             "🧜 <b>THE KRAKEN CHALLENGE</b> — your win opened it"]
+    for s in kc.get("steps") or []:
+        lines.append(_jp_esc(str(s)))
+    link = str(kc.get("referral_link") or "")
+    if link.startswith(("http://", "https://")):
+        safe = _jp_esc(link, quote=True)
+        lines.append(f"→ <a href='{safe}' target='_blank' "
+                     f"rel='noopener'>{safe}</a>")
+    free = (kc.get("phrases") or {}).get("free") or ""
+    if free:
+        lines.append(f"<span class='dim'>{_jp_esc(free)}</span>")
+    return lines
+
+
 def _jackpot_plate(view: dict, mv: dict, now_ts: float,
                    fv: dict | None = None) -> str:
     """THE PLATE, pure for the drive (state in, html out). Every pool
@@ -2210,6 +2238,7 @@ def _jackpot_plate(view: dict, mv: dict, now_ts: float,
         "─" * 34,
         _jp_ticket_line(mv),
     ])
+    rows.extend(_jp_challenge_lines(mv))
     return plate("🎰 THE XMR JACKPOT", lcd(rows))
 
 

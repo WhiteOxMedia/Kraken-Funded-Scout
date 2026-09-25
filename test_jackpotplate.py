@@ -231,6 +231,20 @@ db.add_tickets(_omid, "free", 9)
 check(3.5, sjv.miner_view(WALLET)["total_tickets"] == 4
       and sjv.miner_view(_other)["pending_tickets"] == 9,
       "another miner's nine tickets never cross into her view (no enumeration)")
+_d5 = _mk_drawing("drawn", drawn_at=_now, claim="pending", winner=_mid,
+                  deadline=_now + 7 * 86400)
+_mv3 = sjv.miner_view(WALLET)
+_kc = _mv3.get("kraken_challenge") or {}
+check(3.6, _mv3.get("claim", {}).get("status") == "pending"
+      and isinstance(_kc.get("steps"), list) and _kc.get("steps")
+      and (_kc.get("phrases") or {}).get("free", "").startswith(
+          "Start for free at: "),
+      "THE CLAIMABLE SHAPE: miner_view carries kraken_challenge (guide "
+      "steps + the charter's free phrase) exactly when the latest claim "
+      "is pending")
+check(3.7, "kraken_challenge" not in sjv.miner_view(""),
+      "an unregistered view carries no challenge — the loop's entry is "
+      "a win, nothing else opens it")
 
 print("== 4. THE PLATE: the builder renders the numbers, nothing else ==")
 _nowts = time.time()
@@ -307,6 +321,38 @@ _html_evil = app_mod._jackpot_plate(_view, _mvplate, _nowts, _fv_evil)
 check(4.11, "<script>" not in _html_evil
       and "&lt;script&gt;" in _html_evil,
       "a DB-borne component value is entity-escaped before the plate's html")
+_kcfix = {"steps": ["1. Open your Kraken account through the community "
+                    "referral link (shown below when configured).",
+                    "2. Complete the $1K Kraken Challenge — deposit and "
+                    "place the trades the challenge asks for."],
+          "referral_link": "https://kraken.example/r/community",
+          "phrases": {"getting_started":
+                      "Not sure where to get started? Start here: "
+                      "xmrjackpot.com",
+                      "free": "Start for free at: https://xmrjackpot.com"}}
+_html_kc = app_mod._jackpot_plate(_view, dict(_mvplate, kraken_challenge=_kcfix),
+                                  _nowts)
+check(4.12, "THE KRAKEN CHALLENGE" in _html_kc
+      and "Complete the $1K Kraken Challenge" in _html_kc
+      and "<a href='https://kraken.example/r/community'" in _html_kc
+      and "Start for free at: https://xmrjackpot.com" in _html_kc,
+      "the guide renders when miner_view carries kraken_challenge: "
+      "steps, an anchored referral link, the charter phrase")
+check(4.13, "THE KRAKEN CHALLENGE" not in _html,
+      "no claim, no challenge — the guide is absent from the plain plate")
+_html_js = app_mod._jackpot_plate(
+    _view, dict(_mvplate, kraken_challenge=dict(
+        _kcfix, referral_link="javascript:alert(1)")), _nowts)
+check(4.14, "javascript:" not in _html_js
+      and "javascript:alert(1)" not in _html_js.replace("&quot;", ""),
+      "a javascript: referral link is never anchored — only clean "
+      "http(s) URLs get an href")
+_html_evilstep = app_mod._jackpot_plate(
+    _view, dict(_mvplate, kraken_challenge=dict(
+        _kcfix, steps=["<script>alert(1)</script>"])), _nowts)
+check(4.15, "<script>" not in _html_evilstep
+      and "&lt;script&gt;" in _html_evilstep,
+      "DB-borne guide steps are entity-escaped before the plate's html")
 
 print("== 5. THE CONTRACT: committed sibling, one whitelist, fail-soft ==")
 _st = subprocess.run(["git", "-C", str(MONERO), "status", "--porcelain",
