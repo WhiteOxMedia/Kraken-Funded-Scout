@@ -22,13 +22,13 @@ Ntfy path. One brain per layer:
     never generates, prints, or leaks them. The public key endpoint
     serves the public key only.
 
-THE WIRING (deliberate): the HTTP routes (/api/push/public-key,
-/api/push/subscribe, /api/push/unsubscribe) belong in the server's
-route table — pool/server.py is another thread's file, so the routes
-are NOT added here. The handlers are exposed as three functions the
-server thread can wire verbatim when the file frees up; the client
-(push_client.js) already points at them and degrades quietly until
-they answer 404.
+THE WIRING (done, Sep 25): the HTTP routes (/api/push/public-key,
+/api/push/subscribe, /api/push/unsubscribe, /api/push/event) are LIVE
+in pool/server.py — wired verbatim from the handlers below (the server
+adds the auth: session cookie for the browser leg, X-Operator-Token
+for the machine leg), plus a /push_sw.js root-path route so the service
+worker scopes to / (the /static/ default scope could never control
+pages at / — caught by the live e2e proof).
 """
 import json
 import time

@@ -62,7 +62,11 @@
          resolves on a page whose origin has no active worker — the
          Enable button hung forever on a first visit. REGISTER first,
          then use the registration register() returns. */
-      navigator.serviceWorker.register("/static/push_sw.js?v=1")
+      /* e2e-proof fix (Sep 25): the worker MUST be registered from a
+         root-path URL — from /static/ its default scope was /static/,
+         which can never control pages at / (subscribed, then unable
+         to notify). Served at /push_sw.js by the server. */
+      navigator.serviceWorker.register("/push_sw.js?v=2")
         .then(function (reg) {
           return reg.pushManager.getSubscription().then(function (sub) {
             return sub || subscribe(reg);

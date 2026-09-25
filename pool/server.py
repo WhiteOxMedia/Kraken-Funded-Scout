@@ -1195,6 +1195,106 @@ async def api_admin_wallet_status(request: Request):
 
 
 # ─────────────────────────────────────────────────────────────
+#  NATIVE PUSH (xmrjackpot.com's own web push service)
+#  Thin route layer over pool/push_service.py — one brain per
+#  layer: the service owns subscriptions, templates, rate limits,
+#  audits and VAPID; these handlers only authenticate and forward.
+#  Browser leg: the session cookie — a user subscribes only their
+#  own devices. Machine leg: the operator token — Kraken Scout
+#  emits charter events (jackpot win, signals) from code.
+#  Wired Sep 25 when this file freed up; the handlers are the
+#  verbatim ones push_service.py exposed for exactly this moment.
+# ─────────────────────────────────────────────────────────────
+import push_service as push_svc
+
+
+async def _push_body(request: Request) -> dict:
+    try:
+        body = await request.json()
+    except Exception:
+        raise HTTPException(status_code=400, detail="invalid JSON body")
+    return body if isinstance(body, dict) else {}
+
+
+def _operator_or_401(request: Request):
+    """Machine auth for the event route: the operator token from
+    settings, compared with secrets.compare_digest (never ==)."""
+    supplied = request.headers.get("X-Operator-Token", "")
+    stored = str(db.get_setting("PUSH_OPERATOR_TOKEN", "") or "")
+    if not stored or not supplied or \
+            not secrets.compare_digest(supplied, stored):
+        raise HTTPException(status_code=401, detail="operator token required")
+    return True
+
+
+@app.get("/api/push/public-key")
+async def api_push_public_key():
+    """The VAPID public key for browser subscribe() calls. Empty
+    until provisioned (the browser client degrades quietly)."""
+    return JSONResponse(push_svc.handle_public_key())
+
+
+@app.get("/push_sw.js", include_in_schema=False)
+async def push_service_worker():
+    """The push service worker served from the ROOT path: a worker's
+    default scope is its script's directory, so /static/push_sw.js
+    scoped itself to /static/ and could never control pages at / —
+    the live end-to-end proof caught the Enable button subscribing
+    under a scope that could not notify (e2e proof, Sep 25). From
+    the root, the default scope is / — no Service-Worker-Allowed
+    dance needed; the header is set anyway for belt-and-suspenders.
+    (The file itself still lives in static/; only its URL moved.)"""
+    path = Path(__file__).parent / "static" / "push_sw.js"
+    return Response(content=path.read_text(encoding="utf-8"),
+                    media_type="text/javascript",
+                    headers={"Service-Worker-Allowed": "/",
+                             "Cache-Control": "no-cache"})
+
+
+@app.post("/api/push/subscribe")
+async def api_push_subscribe(request: Request):
+    user = get_user_from_request(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="login required")
+    return JSONResponse(
+        push_svc.handle_subscribe(int(user["id"]), await _push_body(request)))
+
+
+@app.post("/api/push/unsubscribe")
+async def api_push_unsubscribe(request: Request):
+    user = get_user_from_request(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="login required")
+    return JSONResponse(
+        push_svc.handle_unsubscribe(int(user["id"]), await _push_body(request)))
+
+
+@app.post("/api/push/event")
+async def api_push_event(request: Request):
+    """The machine leg: scout/push_client.py posts charter events
+    here (X-Operator-Token). Events must be one of the service's
+    templates; extras are whitelisted inside the sender. No user_id
+    rides -> broadcast to every subscriber (signals); a user_id ->
+    that user only (jackpot_win, claim reminders)."""
+    _operator_or_401(request)
+    body = await _push_body(request)
+    event = str(body.get("event") or "")
+    if event not in push_svc.EVENTS:
+        raise HTTPException(status_code=400, detail="unknown event")
+    extra = body.get("extra") or {}
+    if not isinstance(extra, dict):
+        extra = {}
+    uid = body.get("user_id")
+    try:
+        uid = int(uid) if uid is not None else None
+    except (TypeError, ValueError):
+        uid = None
+    result = (push_svc.send_to_user(uid, event, extra) if uid is not None
+              else push_svc.send_to_subscribers(event, extra))
+    return JSONResponse({"ok": bool(result.get("sent")), "result": result})
+
+
+# ─────────────────────────────────────────────────────────────
 #  KRAKEN SCOUT CONSOLE PROXY (admin only)
 #  Reverse-proxies the local Streamlit trading console
 #  (http://127.0.0.1:8501) under /scout/ so it can be viewed
