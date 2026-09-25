@@ -99,6 +99,10 @@ RESUME_FILE = SCOUT / "battery_resume.json"
 # sim-arc seeders) stay manual: listed as SKIP below.
 DIAG_RUN = {
     "diag_hygiene",        # root-litter gate (both repos)
+    "diag_cooldowncheck",  # THE MORNING CHECKLIST as one command: runs
+                           # the stalewatch/hygiene cycle in order and
+                           # grades all six agenda steps (routing, report
+                           # integrity, ledger health, RULE D alignment)
     "diag_cachesweep",     # cached-function staleness hazards
     "diag_stshadow",       # st-shadowing (swallowed widgets)
     "diag_widgetsweep",    # stateless widget sweep

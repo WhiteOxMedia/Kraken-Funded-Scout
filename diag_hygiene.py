@@ -616,13 +616,15 @@ def main() -> int:
             "or the name is not source-visible)"
         print(f"  RECURRING  {name}  x{cnt} in the trailing {LEDGER_KEEP}"
               f"  — writer: {wtxt}")
+    # the summary lands ONCE per run (Sep 24: this main used to call
+    # _write_summary twice — the rec-bearing one AND a trailing plain
+    # one — stamping a duplicate file every run)
     _write_summary(swept, strays, cens, _rec)
     if cens:
         print(f"  CENSUS: {len(cens)} drive(s) still write scratch at a "
               "root (scratch policy pending on those files):")
         for fname, ln, name, shape in cens:
             print(f"    {fname}:{ln}  {shape} -> {name}")
-    _write_summary(swept, strays, cens)
     if strays:
         for f, why in strays:
             print(f"  STRAY  {f}  [{why}]")
