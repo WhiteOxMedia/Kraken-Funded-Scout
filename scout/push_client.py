@@ -33,7 +33,7 @@ from pathlib import Path
 
 POOL_DIR = Path(__file__).resolve().parent
 SPOOL = POOL_DIR / "push_events.jsonl"
-SERVER = "http://127.0.0.1:8000"        # the pool server's local origin
+SERVER = "http://127.0.0.1:3094"        # the pool server's local origin
 ROUTE = "/api/push/event"
 SPOOL_MAX = 500
 DROP_AFTER_TRIES = 50
