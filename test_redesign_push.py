@@ -146,9 +146,9 @@ REQUIRED_NEW = [
     "Turn On the Miner Bot", "Active mining increases ticket value",
     "Higher-value tickets = better odds", "Mining is optional",
     "controlled through the dashboard", "Turn Miner On", "Check Ticket Value",
-    # mandated phrases + the character
+    # mandated phrases (the miner character was removed from the
+    # homepage per the Sep 25 follow-up — the asset stays, unused)
     "Not sure where to get started? Start here:", "Start for free at:",
-    "/static/img/miner_character.svg",
 ]
 missing_new = [s for s in REQUIRED_NEW if s not in new_html]
 check(1.5, not missing_new,
@@ -423,11 +423,11 @@ check(8.4, "def scrape_recent_signals" in svc_src
       "the signals scraper is whitelisted to (action, timestamp, "
       "title) over the push audits — no endpoints, no keys, no "
       "details JSON")
-check(8.5, 'miner_character.svg' in (HERE / "pool" / "static" / "img" /
-      "miner_character.svg").read_text(encoding="utf-8")[:0] or
-      (HERE / "pool" / "static" / "img" / "miner_character.svg").exists(),
-      "the Miner Character asset exists (flat, slate + orange, "
-      "helmet lamp, antenna pickaxe, Scout device)")
+check(8.5, not (HERE / "pool" / "templates" / "index.html")
+      .read_text(encoding="utf-8").count("miner_character.svg"),
+      "the miner character illustration is REMOVED from the homepage "
+      "(Sep 25 follow-up: zero template references; the asset file "
+      "remains in static/img for other uses)")
 
 shutil.rmtree(SANDBOX, ignore_errors=True)
 print(f"RESULT: {passed} passed, {failed} failed")
