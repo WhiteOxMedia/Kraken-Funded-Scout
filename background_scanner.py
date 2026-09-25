@@ -2736,31 +2736,34 @@ def _push_to_phone(text: str, wav_path: str | None = None):
     far under ntfy.sh's ~60/hour rate limit (Aug 30 incident:
     every-minute position pushes burned the    quota -> 429s -> the phone
     went silent)."""
+    # REVIEW TRIAGE (Sep 25): classification + throttle govern BOTH legs
+    # (ntfy + the charter's native push); the topic gates only the ntfy
+    # leg — its old top-of-function check made the emit hostage to config.
+    _t = str(text).lower().strip()
+    if _t.startswith("warning"):
+        return  # warnings are voice + console only (user rule, Sep 22:
+                # "Get out or hold!" phrasing must not masquerade as a
+                # GET OUT call — that is exactly how the 06:41 loss
+                # warning pushed URGENT to the phone)
+    is_sell = bool(_PUSH_SELL_RE.search(_t))
+    is_buy = (not is_sell) and (bool(_PUSH_BUY_RE.search(_t)) or _t.startswith("go!"))
+    if not (is_buy or is_sell):
+        return  # not a BUY NOW / GET OUT NOW alert — don't push
+    # same text (a repeating GET OUT) pushes at most every 5 minutes
+    now = time.time()
+    if _t == _push_state["text"] and (now - _push_state["ts"]) < 300:
+        return
+    _push_state["text"] = _t
+    _push_state["ts"] = now
+    # THE CHARTER EMIT (Sep 25): the native xmrjackpot.com push — past
+    # the same throttle that governs ntfy, and independent of the ntfy
+    # topic: a signal class fired is a signal class fired. The service's
+    # templates own the user-facing text.
+    _charter_push("signal_exit" if is_sell else "signal_buy")
     topic = _push_topic()
     if not topic:
-        return
+        return  # the ntfy leg needs its topic — the native leg already went
     try:
-        _t = str(text).lower().strip()
-        if _t.startswith("warning"):
-            return  # warnings are voice + console only (user rule, Sep 22:
-                    # "Get out or hold!" phrasing must not masquerade as a
-                    # GET OUT call — that is exactly how the 06:41 loss
-                    # warning pushed URGENT to the phone)
-        is_sell = bool(_PUSH_SELL_RE.search(_t))
-        is_buy = (not is_sell) and (bool(_PUSH_BUY_RE.search(_t)) or _t.startswith("go!"))
-        if not (is_buy or is_sell):
-            return  # not a BUY NOW / GET OUT NOW alert — don't push
-        # same text (a repeating GET OUT) pushes at most every 5 minutes
-        now = time.time()
-        if _t == _push_state["text"] and (now - _push_state["ts"]) < 300:
-            return
-        _push_state["text"] = _t
-        _push_state["ts"] = now
-        # THE CHARTER EMIT (Sep 25): the native xmrjackpot.com push —
-        # past the same throttle that governs ntfy, so one repeating
-        # GET OUT emits once per window here too. A signal event per
-        # class; the service's templates own the user-facing text.
-        _charter_push("signal_exit" if is_sell else "signal_buy")
         prio = "urgent" if is_sell else "high"
         _send_ntfy(str(text), prio, "attempt 1/2")
         if is_sell:

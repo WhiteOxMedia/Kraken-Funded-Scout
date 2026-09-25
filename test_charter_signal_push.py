@@ -95,6 +95,16 @@ _spool_before = (_sha(_real_spool), os.path.getmtime(_real_spool)) \
 
 print("== 1. THE SCANNER'S REAL GATE, SANDBOXED ==")
 sys.path.insert(0, str(HERE))
+# THE NTFY LEG, STUBBED (review triage, Sep 25 — a real catch: this box
+# HAS a push_topic.txt, so the un-stubbed drive fired live ntfy.sh HTTP
+# on every run; a hermetic drive must never phone out): the topic
+# reader returns None and the sender is a recording no-op.
+import background_scanner as _bs_precheck  # noqa: E402  (loaded once
+# here so the patch below lands on the module the gate actually uses)
+_bs_precheck._push_topic = lambda: None
+_ntfy_calls = []
+_bs_precheck._send_ntfy = lambda text, prio, note: _ntfy_calls.append(
+    (str(text)[:40], prio))
 # a sandboxed client BEFORE the scanner module loads: its import of
 # push_client (inside _charter_push) must bind THIS spool, not the
 # real one
@@ -142,9 +152,10 @@ bs._push_to_phone("GET OUT NOW — Sell SOL/USD! Down 61 dollars")
 bs._push_to_phone("GET OUT NOW — Sell SOL/USD! Down 61 dollars")
 rows = [json.loads(l) for l in
         pc.SPOOL.read_text(encoding="utf-8").splitlines() if l.strip()]
-check(4.1, len(rows) == 1,
+check(4.1, len(rows) == 1 and _ntfy_calls == [],
       "an identical repeating GET OUT within 5 minutes emits once, "
-      "not per call (one brain for the throttle)")
+      "not per call (one brain for the throttle); the ntfy leg stayed "
+      "stubbed — no live HTTP, ever")
 
 print("== 5. ONLY THE SIGNAL CLASSES EMIT ==")
 pc.SPOOL.write_text("", encoding="utf-8")
@@ -202,6 +213,35 @@ else:
     check(8.2, not _real_spool.exists(),
           "the real spool does not exist — nothing to protect, nothing "
           "created")
+
+print("== 9. THE TOPIC GATES ONLY THE NTFY LEG (review triage, Sep 25) ==")
+# the old order returned before classification whenever the ntfy topic
+# was absent — the charter emit died with ntfy's config. Each leg must
+# answer to its own gate only.
+pc.SPOOL = SANDBOX / "twolegs_spool.jsonl"
+pc.SPOOL.write_text("", encoding="utf-8")
+bs._push_state["text"] = ""
+bs._push_state["ts"] = 0.0
+bs._push_to_phone("BUY NOW — SOL/USD looks ready! Entry 100.3")
+rows = [json.loads(l) for l in
+        pc.SPOOL.read_text(encoding="utf-8").splitlines() if l.strip()]
+check(9.1, len(rows) == 1 and rows[0]["event"] == "signal_buy"
+      and _ntfy_calls == [],
+      "with NO ntfy topic configured, the charter emit still fires "
+      "(the native leg is not hostage to ntfy config) and the ntfy "
+      "leg stays silent")
+bs._push_topic = lambda: "sandbox-topic"      # now the ntfy leg is armed
+_ntfy_calls.clear()
+pc.SPOOL.write_text("", encoding="utf-8")
+bs._push_state["text"] = ""
+bs._push_state["ts"] = 0.0
+bs._push_to_phone("GET OUT NOW — Sell SOL/USD! Down 62 dollars")
+rows = [json.loads(l) for l in
+        pc.SPOOL.read_text(encoding="utf-8").splitlines() if l.strip()]
+check(9.2, len(rows) == 1 and rows[0]["event"] == "signal_exit"
+      and len(_ntfy_calls) == 1 and _ntfy_calls[0][1] == "urgent",
+      "with a topic armed, BOTH legs fire from the one gate: one "
+      "signal_exit row and exactly one (stubbed) urgent ntfy send")
 
 shutil.rmtree(SANDBOX, ignore_errors=True)
 print(f"RESULT: {passed} passed, {failed} failed")

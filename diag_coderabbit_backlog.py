@@ -95,8 +95,8 @@ def _batches_for(repo):
             meta = json.loads(git_json.read_text(encoding="utf-8"))
         except (OSError, ValueError):
             continue
-        wd = str(meta.get("workingDirectory", "")).replace("/", "\\").lower()
-        if wd == str(repo).lower():
+        wd = os.path.normpath(str(meta.get("workingDirectory", ""))).lower()
+        if wd == os.path.normpath(str(repo)).lower():
             found.append((int(meta.get("timestamp", 0)),
                           str(meta.get("head", ""))[:7], git_json.parent))
     return sorted(found, reverse=True)
