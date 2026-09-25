@@ -2695,7 +2695,7 @@ _PUSH_SELL_RE = _re_mod.compile(r"\bget out\b|\bsell\b|\bstopped out\b")
 _PUSH_BUY_RE = _re_mod.compile(r"\bbuy\b|\bnew pick\b")
 
 
-def _charter_push(event: str):
+def _charter_push(event: str) -> bool:
     """THE CHARTER'S NATIVE PUSH (Sep 25): every BUY NOW / GET OUT NOW
     the trading brain fires ALSO rides xmrjackpot.com's own push
     service (no more Ntfy dependency for the new surface). emit()
@@ -2706,8 +2706,8 @@ def _charter_push(event: str):
     this hook only NAMES the event, the service owns everything else.
     Fail-soft by contract: a push problem can never touch the trade.
     Called from _push_to_phone AFTER its 5-minute identical-text
-    throttle, so a repeating GET OUT emits at most once per throttle
-    window here too."""
+    throttle check; returns True when a destination accepted the event
+    (the gate un-arms the throttle when NOTHING got the alert)."""
     try:
         import sys as _cs
         import pathlib as _cp
@@ -2716,9 +2716,11 @@ def _charter_push(event: str):
         if _scout_dir not in _cs.path:
             _cs.path.insert(0, _scout_dir)
         import push_client as _pc
-        _pc.emit(event)
+        res = _pc.emit(event)
+        return bool(isinstance(res, dict) and res.get("ok"))
     except Exception as exc:
         logger.debug("charter push emit failed (%s): %s", event, exc)
+        return False
 
 
 def _push_to_phone(text: str, wav_path: str | None = None):
@@ -2736,9 +2738,7 @@ def _push_to_phone(text: str, wav_path: str | None = None):
     far under ntfy.sh's ~60/hour rate limit (Aug 30 incident:
     every-minute position pushes burned the    quota -> 429s -> the phone
     went silent)."""
-    # REVIEW TRIAGE (Sep 25): classification + throttle govern BOTH legs
-    # (ntfy + the charter's native push); the topic gates only the ntfy
-    # leg — its old top-of-function check made the emit hostage to config.
+    # REVIEW TRIAGE (Sep 25): classification+throttle govern both legs; the topic gates only ntfy's.
     _t = str(text).lower().strip()
     if _t.startswith("warning"):
         return  # warnings are voice + console only (user rule, Sep 22:
@@ -2755,13 +2755,14 @@ def _push_to_phone(text: str, wav_path: str | None = None):
         return
     _push_state["text"] = _t
     _push_state["ts"] = now
-    # THE CHARTER EMIT (Sep 25): the native xmrjackpot.com push — past
-    # the same throttle that governs ntfy, and independent of the ntfy
-    # topic: a signal class fired is a signal class fired. The service's
-    # templates own the user-facing text.
-    _charter_push("signal_exit" if is_sell else "signal_buy")
+    # charter emit (Sep 25): independent of ntfy config; returns whether
+    # a destination actually accepted the event
+    native_ok = _charter_push("signal_exit" if is_sell else "signal_buy")
     topic = _push_topic()
     if not topic:
+        if not native_ok:
+            _push_state["text"] = ""   # REVIEW TRIAGE (Sep 25, the hook's own major):
+            _push_state["ts"] = 0.0    # reached nowhere — un-arm the throttle, retry allowed
         return  # the ntfy leg needs its topic — the native leg already went
     try:
         prio = "urgent" if is_sell else "high"

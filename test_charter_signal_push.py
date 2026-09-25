@@ -243,6 +243,29 @@ check(9.2, len(rows) == 1 and rows[0]["event"] == "signal_exit"
       "with a topic armed, BOTH legs fire from the one gate: one "
       "signal_exit row and exactly one (stubbed) urgent ntfy send")
 
+print("== 10. REACHED NOWHERE, THROTTLE UN-ARMS (the hook's own major) ==")
+# the pre-commit hook's review flagged: with no topic AND a failed
+# native emit, the old code still armed the 5-minute throttle — a
+# repeated GET OUT would reach NOBODY for five minutes. The gate now
+# un-arms when nothing accepted the alert.
+bs._push_topic = lambda: None
+_emits = []
+_orig_emit = pc.emit
+pc.emit = (lambda event, extra=None, user_id=None:
+           (_emits.append(event), {"ok": False, "via": "spool"})[1])
+bs._push_state["text"] = ""
+bs._push_state["ts"] = 0.0
+bs._push_to_phone("GET OUT NOW — Sell SOL/USD! Down 63 dollars")
+check(10.1, len(_emits) == 1 and bs._push_state["ts"] == 0.0
+      and bs._push_state["text"] == "",
+      "no topic + native emit refused: the throttle is UN-ARMED — "
+      "an alert that reached nowhere may not silence its own retry")
+bs._push_to_phone("GET OUT NOW — Sell SOL/USD! Down 63 dollars")
+check(10.2, len(_emits) == 2,
+      "the identical repeat was NOT throttled — it emitted again "
+      "(throttling is for delivered alerts, not for silence)")
+pc.emit = _orig_emit
+
 shutil.rmtree(SANDBOX, ignore_errors=True)
 print(f"RESULT: {passed} passed, {failed} failed")
 sys.exit(1 if failed else 0)
