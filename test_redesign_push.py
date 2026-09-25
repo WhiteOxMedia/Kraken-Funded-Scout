@@ -312,6 +312,38 @@ else:
     check(6.4, not LIVE_DB.exists(),
           "no live jackpot.db - nothing to protect, nothing touched")
 
+# ── D. THE LIVE WIRING (wired Sep 25 when server.py freed up) ────────
+print("== 7. THE ROUTES ARE WIRED ==")
+server_src = (HERE / "pool" / "server.py").read_text(encoding="utf-8")
+check(7.1, '@app.get("/api/push/public-key")' in server_src
+      and '@app.post("/api/push/subscribe")' in server_src
+      and '@app.post("/api/push/unsubscribe")' in server_src
+      and '@app.post("/api/push/event")' in server_src
+      and "push_svc.handle_public_key()" in server_src
+      and "push_svc.handle_subscribe(" in server_src,
+      "all four routes wired verbatim over the service handlers "
+      "(public-key / subscribe / unsubscribe / the operator event route)")
+check(7.2, 'secrets.compare_digest(supplied, stored)' in server_src,
+      "the operator token compares in constant time")
+check(7.3, '@app.get("/push_sw.js"' in server_src
+      and '"Service-Worker-Allowed": "/"' in server_src,
+      "the worker is served from the ROOT path (a /static/ default "
+      "scope can never control pages at / - caught by the live e2e "
+      "proof)")
+prov_src = (HERE / "provision_push.py").read_text(encoding="utf-8")
+check(7.4, "der_b64url" in prov_src
+      and "vapid_key_format" in prov_src
+      and "load_der_private_key" in prov_src,
+      "the provisioner stores the key in the format the sender's "
+      "Vapid.from_string actually reads (a PEM key would make every "
+      "send fail-soft silent) and stamps the format")
+probe_src = (HERE / "_probe_e2e_capture.py").read_text(encoding="utf-8")
+check(7.5, "PROBE VERDICT" in probe_src
+      and "encode_dss_signature" in probe_src
+      and "Content-Encoding: aes128gcm" in probe_src,
+      "the e2e capture probe exists: real chain, captured wire, "
+      "independent JWT verification + RFC 8291 decryption")
+
 shutil.rmtree(SANDBOX, ignore_errors=True)
 print(f"RESULT: {passed} passed, {failed} failed")
 sys.exit(1 if failed else 0)
