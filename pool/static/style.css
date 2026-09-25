@@ -1263,3 +1263,107 @@ input[type="email"], select, textarea {
   }
 }
 
+
+/* ═══════════════════════════════════════════════════════════════════
+   THE PANEL-GRID LAYER (Sep 25 redesign phase 3 — the Hostinger comps'
+   design language, absorbed into the real files as style only)
+   Comp takeaways, applied through the wf-* namespace ONLY:
+     · status chips in a compact header strip (dot + label + value)
+     · uniform white panel cards in a responsive grid, hairline borders
+     · one consistent button row per panel (orange primary / white
+       secondary), full-width on narrow screens
+     · roomier panel padding and a slightly denser type scale inside
+       panels, per the comps' visual hierarchy
+   NO existing selector, token, string, or hook is modified.
+   ═══════════════════════════════════════════════════════════════════ */
+
+/* the dashboard shell becomes the comp's grid: the existing content
+   blocks are targeted by their OWN containers, restyled in place */
+#dashMain > .grid-2,
+#dashMain > .card {
+  border-radius: 0;
+}
+
+/* ── the status strip: chips like the comp's header row ───────────── */
+.wf-status-row {
+  gap: 10px;
+  margin-bottom: 18px;
+}
+
+.wf-status {
+  padding: 14px 16px;
+  border-left: 3px solid var(--hairline);
+  transition: border-color 160ms ease;
+}
+
+.wf-status:has(.wf-dot.on) {
+  border-left-color: var(--mono-orange);
+}
+
+.wf-status .wf-status-label {
+  letter-spacing: 0.14em;
+}
+
+/* ── the comp's uniform panel look for our workflow panels ────────── */
+.wf-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.wf-panel h3 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--hairline);
+  margin-bottom: 8px;
+}
+
+.wf-panel .wf-feed {
+  flex: 1 1 auto;
+}
+
+.wf-panel .btn {
+  width: 100%;
+  text-align: center;
+}
+
+/* the challenge panel's key-value rows tighten to the comp's rhythm */
+.wf-panel .wf-kv {
+  padding: 8px 0;
+}
+
+/* ── the homepage workflow sections adopt the comp's panel rhythm ── */
+.wf-section {
+  padding: 0;
+  overflow: hidden;
+}
+
+.wf-section .wf-section-head {
+  margin: 0;
+  padding: 18px 28px 14px;
+  border-bottom: 1px solid var(--hairline);
+  background: var(--surface-white);
+}
+
+.wf-section .wf-cols {
+  padding: 20px 28px 24px;
+}
+
+/* the CTA rows sit flush like the comp's cta-row */
+.wf-section .wf-cols > div > div:last-child {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+/* ── responsive ───────────────────────────────────────────────────── */
+@media (max-width: 860px) {
+  .wf-status {
+    border-left-width: 3px;
+  }
+  .wf-panel .btn {
+    width: 100%;
+  }
+}
