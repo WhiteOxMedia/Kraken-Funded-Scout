@@ -31,7 +31,9 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 
-POOL_DIR = Path(__file__).resolve().parent
+HERE = Path(__file__).resolve().parent
+POOL_DIR = HERE.parent / "pool"           # THE pool dir, wherever this
+                                           # module is imported from
 SPOOL = POOL_DIR / "push_events.jsonl"
 SERVER = "http://127.0.0.1:3094"        # the pool server's local origin
 ROUTE = "/api/push/event"
