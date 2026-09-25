@@ -424,10 +424,12 @@ check(8.4, "def scrape_recent_signals" in svc_src
       "title) over the push audits — no endpoints, no keys, no "
       "details JSON")
 check(8.5, not (HERE / "pool" / "templates" / "index.html")
-      .read_text(encoding="utf-8").count("miner_character.svg"),
+      .read_text(encoding="utf-8").count("miner_character")
+      and not (HERE / "pool" / "static" / "img" /
+               "miner_character.svg").exists(),
       "the miner character illustration is REMOVED from the homepage "
-      "(Sep 25 follow-up: zero template references; the asset file "
-      "remains in static/img for other uses)")
+      "AND the asset file is deleted from the repo (Sep 25 follow-up: "
+      "zero template references, no static/img/miner_character.svg)")
 
 shutil.rmtree(SANDBOX, ignore_errors=True)
 print(f"RESULT: {passed} passed, {failed} failed")
