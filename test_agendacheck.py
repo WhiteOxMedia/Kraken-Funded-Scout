@@ -56,7 +56,7 @@ check(1.3, "TOMORROW MORNING CHECKLIST" in _hy
       and "RULE D alignment" in _hy,
       "the agenda the diag executes still carries the six ordered steps")
 
-print("== 2. _fresh_purges: the recency window honors injected time ==")
+print("== 2. _fresh_reports: the recency window honors injected time ==")
 try:
     with tempfile.TemporaryDirectory(prefix="cooldown_purge_") as td:
         tdp = Path(td)
@@ -67,11 +67,13 @@ try:
         now = time.time()
         os.utime(tdp / "kraken_stale_purge_old.txt", (now - 3600,) * 2)
         os.utime(tdp / "kraken_stale_purge_new.txt", (now - 10,) * 2)
-        fresh = dcc._fresh_purges(reports_dir=tdp, now=now)
+        fresh = dcc._fresh_reports("kraken_stale_purge_*.txt",
+                                   reports_dir=tdp, now=now)
         check(2.1, fresh == ["kraken_stale_purge_new.txt"],
               "only the file inside the window is fresh")
-        check(2.2, len(dcc._fresh_purges(window_s=7200, reports_dir=tdp,
-                                         now=now)) == 2,
+        check(2.2, len(dcc._fresh_reports("kraken_stale_purge_*.txt",
+                                          window_s=7200, reports_dir=tdp,
+                                          now=now)) == 2,
               "a wider window admits both — the window is the dial")
 finally:
     pass
@@ -162,10 +164,20 @@ check(5.6, '"diag_cooldowncheck"' in _rb,
 check(5.7, "COMMITTED state" in _src and "outside this verdict" in _src,
       "the RULE D scope line (committed state; deferred files named) is "
       "part of the printed verdict")
+# 5.8 the Sep-24 review hardening: a timed-out step is a FAIL, not a
+# crash, and step 4 demands this run's hygiene summary actually LANDED
+check(5.8, "TimeoutExpired" in _src and "returncode=-3" in _src
+      and "TIMED OUT after" in _src,
+      "a hung child reports its step FAIL and the checklist continues to "
+      "the remaining steps")
+check(5.9, 'hygiene_summary_*.txt' in _src
+      and "this run's hygiene summary landed" in _src,
+      "step 4 grades the positive evidence of reporting, not just the "
+      "absence of root copies (rc 0 is not evidence of reporting)")
 
 print("== 6. LIVE: the real diag runs and its verdict agrees ==")
-_r = subprocess.run([str(HERE / ".venv" / "Scripts" / "python.exe"),
-                     "-X", "utf8", str(HERE / "diag_cooldowncheck.py")],
+_r = subprocess.run([str(dcc.PY), "-X", "utf8",
+                     str(HERE / "diag_cooldowncheck.py")],
                     cwd=str(HERE), capture_output=True, text=True,
                     encoding="utf-8", errors="replace", timeout=420)
 _live = _r.stdout or ""

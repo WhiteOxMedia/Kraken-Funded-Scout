@@ -68,20 +68,31 @@ def check(step, name, cond, detail=""):
 
 
 def _run(script, timeout):
-    return subprocess.run(
-        [str(PY), "-X", "utf8", str(SCOUT / script)],
-        cwd=str(SCOUT), capture_output=True, text=True,
-        encoding="utf-8", errors="replace", timeout=timeout)
+    """Spawn one checklist step. A timed-out child is a FAIL, not a
+    crash: the timeout is reported as the step's result and the checklist
+    carries on to the remaining steps (a dead step must not silence the
+    other five — the Sep-24 review finding)."""
+    try:
+        return subprocess.run(
+            [str(PY), "-X", "utf8", str(SCOUT / script)],
+            cwd=str(SCOUT), capture_output=True, text=True,
+            encoding="utf-8", errors="replace", timeout=timeout)
+    except subprocess.TimeoutExpired:
+        import types
+        return types.SimpleNamespace(
+            returncode=-3,
+            stdout=f"TIMED OUT after {timeout}s — step could not finish")
 
 
-def _fresh_purges(window_s: float = 300.0, now: float | None = None,
-                  reports_dir: Path | None = None) -> list[str]:
-    """Purge-summary names written within the last window_s seconds —
-    step 1's evidence that the sweep reported into reports/.
-    (reports_dir param: the drive's sandbox seam.)"""
+def _fresh_reports(pattern: str, window_s: float = 300.0,
+                   now: float | None = None,
+                   reports_dir: Path | None = None) -> list[str]:
+    """Summary-class files written within the last window_s seconds —
+    the evidence that a step's machinery REPORTED into reports/ and did
+    not merely exit 0. (reports_dir param: the drive's sandbox seam.)"""
     now = time.time() if now is None else now
     d = reports_dir or (SCOUT / "reports")
-    return [p.name for p in sorted(d.glob("kraken_stale_purge_*.txt"))
+    return [p.name for p in sorted(d.glob(pattern))
             if now - p.stat().st_mtime < window_s]
 
 
@@ -115,7 +126,7 @@ def main() -> int:
           f"rc={sw.returncode}")
     check(1, "stalewatch selftest green inside the run",
           "selftest" in out1 and not re.search(r"FAIL\s+selftest", out1))
-    purges = _fresh_purges()
+    purges = _fresh_reports("kraken_stale_purge_*.txt")
     check(1, "purge summaries land in reports/ (names/ages only)",
           bool(purges),
           f"{len(purges)} fresh purge summary file(s) in reports/")
@@ -139,9 +150,15 @@ def main() -> int:
           not strays, f"strays: {[f.name for f, _ in strays][:6]}")
 
     # ── step 4: report integrity — the summary classes live in reports/
+    # AND this run's hygiene summary actually LANDED (a silent write
+    # failure would otherwise pass a root-only check — rc 0 is not
+    # evidence of reporting)
     stray_reports = _root_report_violations()
     check(4, "audit summaries live in reports/, none at a root",
           not stray_reports, f"root copies: {stray_reports[:6]}")
+    fresh_sum = _fresh_reports("hygiene_summary_*.txt")
+    check(4, "this run's hygiene summary landed in reports/",
+          bool(fresh_sum), "no fresh hygiene summary after the step-2 run")
 
     # ── step 5: swept-ledger health ───────────────────────────────────
     rows = dh._ledger_load()
@@ -149,8 +166,6 @@ def main() -> int:
     check(5, "no recurring scratch class (nothing at RECUR_AT in the "
           "trailing window)", not rec, f"recurring: {rec}")
     reborn = _reborn_rule_d(rows)
-    check(5, "no RULE D row reborn at a root (no stuck loop)",
-          not reborn, f"reborn: {reborn}")
     check(5, "no RULE D row reborn at a root (no stuck loop)",
           not reborn, f"reborn: {reborn}")
 
