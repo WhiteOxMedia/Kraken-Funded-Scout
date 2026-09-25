@@ -768,7 +768,24 @@ def check_expired_claims():
             house_tax = drawing.get("house_tax", 0)
             returned = jackpot - house_tax
 
-            db.expire_drawing(drawing["id"])
+            # THE RACE GUARD (Sep 25 de-gate): expire ONLY if the
+            # claim is still pending AT THE WRITE. The old
+            # unconditional UPDATE would erase a claim that landed
+            # between this sweep's read and its write — and a sweep
+            # that runs from more than one loop (server + poller) runs
+            # against claimers, not just against silence. Compare-and-
+            # set, mirroring db.expire_drawing with the pending
+            # precondition; rowcount 0 means claimed (or expired)
+            # under us — hands off the winner's money.
+            with db.get_db() as conn:
+                cur = conn.execute(
+                    "UPDATE drawings SET claim_status = 'expired' "
+                    "WHERE id = ? AND status = 'drawn' "
+                    "AND COALESCE(claim_status, 'pending') = 'pending'",
+                    (drawing["id"],),
+                )
+                if cur.rowcount == 0:
+                    continue
             # THE ROLLOVER EVENT LOG (protocol: "Log the rollover event"):
             # an unclaimed jackpot returning to the pool is a money event —
             # it lands in audit_log like every other money action, with the

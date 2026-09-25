@@ -149,6 +149,22 @@ def update_workers(workers):
         except Exception as e:
             print(f"[ProxyPoller] miner-yield note failed: {e}")
 
+    # THE CLAIM-EXPIRY SWEEP, DE-GATED (Sep 25): the server loop runs
+    # this sweep only while the wallet RPC is up — a 48-day stale
+    # earmark proved what that gating costs. The poller's loop runs
+    # regardless of wallet state, so expiry never waits on the wallet
+    # again. Idempotent by state: already-expired/claimed drawings
+    # fall out of get_unclaimed_drawings, and the engine's compare-and-
+    # set expiry never clobbers a claim that lands mid-sweep.
+    try:
+        expired = engine.check_expired_claims()
+        if expired:
+            for e_row in expired:
+                print(f"[ProxyPoller] ⌛ drawing #{e_row['drawing_id']} "
+                      f"EXPIRED — {e_row['returned']} XMR rolled over")
+    except Exception as sweep_err:
+        print(f"[ProxyPoller] claim sweep failed: {sweep_err}")
+
     # Check if a drawing is scheduled
     result = engine.check_drawing_schedule()
     if result.get("status") == "drawn":
