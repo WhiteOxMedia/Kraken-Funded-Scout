@@ -103,6 +103,10 @@ DIAG_RUN = {
                            # the stalewatch/hygiene cycle in order and
                            # grades all six agenda steps (routing, report
                            # integrity, ledger health, RULE D alignment)
+    "diag_coderabbit_backlog",  # review-coverage watchdog: a commit with
+                           # no review batch after N hours (both repos,
+                           # CODERABBIT_BACKLOG_HOURS overrides) FAILS
+                           # - the silent review gap gets loud
     "diag_cachesweep",     # cached-function staleness hazards
     "diag_stshadow",       # st-shadowing (swallowed widgets)
     "diag_widgetsweep",    # stateless widget sweep
