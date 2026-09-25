@@ -453,6 +453,17 @@ check(8.5, not (HERE / "pool" / "templates" / "index.html")
       "the miner character illustration is REMOVED from the homepage "
       "AND the asset file is deleted from the repo (Sep 25 follow-up: "
       "zero template references, no static/img/miner_character.svg)")
+check(8.6, 'style="position:absolute;left:0;top:50%' not in new_html
+      and 'margin:0 auto 18px;background:var(--surface-white);'
+          'border:2px solid var(--mono-orange)' in new_html,
+      "the trust seal sits IN FLOW at every width (the absolute seal "
+      "covered the tagline and the primary CTA at desktop - user "
+      "report, Sep 25 evening)")
+check(8.7, new_html.count("miner_sprite") == 2
+      and 'id="realMinerSprite1"' in new_html,
+      "the pixel-art sprite remains ONLY in the app.js-wired realplay "
+      "scene (2 refs; the one-click box and the solo-vs-pool comparison "
+      "now carry flat design-system numerals - user report, Sep 25)")
 
 shutil.rmtree(SANDBOX, ignore_errors=True)
 print(f"RESULT: {passed} passed, {failed} failed")
