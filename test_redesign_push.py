@@ -336,7 +336,10 @@ check(4.1, ps.EVENTS["signal_buy"]["title"] == "📈 BUY NOW"
       and set(ps.EVENTS) == {"jackpot_win", "claim_reminder",
                              "challenge_unlock", "signal_buy",
                              "signal_exit", "miner_status",
-                             "ticket_update"},
+                             "ticket_update",
+                             # Sep 26 charter extension: the referral-
+                             # window expiry notice (user-mandated)
+                             "referral_window"},
       "the charter's event set with byte-exact signal titles")
 check(4.2, ps.send_to_user(7, "not_an_event")["reason"] == "unknown event",
       "an unknown event is refused")

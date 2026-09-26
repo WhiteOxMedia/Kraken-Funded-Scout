@@ -1289,6 +1289,70 @@ async def api_admin_wallet_status(request: Request):
 
 
 # ─────────────────────────────────────────────────────────────
+#  KRAKEN REFERRAL PROJECTION (Sep 26, user charter)
+#  Read model for the "Possible future jackpot" card. The worker
+#  lives in kraken_referral.py; these handlers only gate and read —
+#  except the operator trigger, which runs the pipeline inline and
+#  returns its run summary for the canary report.
+# ─────────────────────────────────────────────────────────────
+import kraken_referral as kr
+
+
+@app.get("/api/jackpot/projection")
+async def api_jackpot_projection():
+    """Public, read-only projection read: current jackpot (real,
+    unchanged), projected referral seed (estimate), and the sum.
+    TTL/staleness is surfaced, never hidden; when no projection has
+    been persisted yet the API answers 200 with source 'none' and
+    the card renders current-only."""
+    try:
+        proj = kr.latest_projection()
+    except Exception:
+        proj = None
+    current = engine.get_pool_stats()
+    cur_usd = round(float(current.get("jackpot_usd") or 0.0), 2)
+    if not proj:
+        return JSONResponse({
+            "possible_future_jackpot_usd": cur_usd,
+            "current_jackpot_usd": cur_usd,
+            "referral_seed_usd": 0.0,
+            "count_of_users_included": 0,
+            "updated_at": None, "source": "none",
+            "mode": kr.provider_mode(), "fresh": False, "anomaly": 0})
+    return JSONResponse({
+        "possible_future_jackpot_usd": round(
+            float(proj["possible_future_jackpot"]), 2),
+        "current_jackpot_usd": round(float(proj["current_jackpot"]), 2),
+        "referral_seed_usd": round(float(proj["referral_seed"]), 2),
+        "count_of_users_included": int(proj["count_of_users_included"]),
+        "updated_at": float(proj["updated_at"]),
+        "source": proj["source"], "mode": kr.provider_mode(),
+        "fresh": bool(proj.get("fresh")),
+        "anomaly": int(proj.get("anomaly") or 0)})
+
+
+@app.post("/api/admin/kraken-referral/run")
+async def api_admin_kraken_referral_run(request: Request):
+    """OPERATOR trigger for the referral-projection worker (admin
+    session required). In canary this is the only sanctioned live-mode
+    entry point; it refuses (503) when no provider is configured, so
+    the operator trigger never fabricates numbers. Optional JSON body:
+    {"subset_limit": N} caps the run at the first N mapped users."""
+    require_admin(request)
+    body = await _push_body(request)
+    subset = int(body.get("subset_limit") or 0) or None
+    if kr.provider_mode() == "unconfigured":
+        raise HTTPException(
+            status_code=503,
+            detail="Kraken referral API not configured: set KRAKEN_API_KEY, "
+                   "KRAKEN_API_SECRET and KRAKEN_REFERRAL_ENDPOINT in "
+                   "settings (or KRAKEN_REFERRAL_MODE=simulate for the "
+                   "clearly-labeled simulation)")
+    summary = kr.run_worker(subset_limit=subset)
+    return JSONResponse(summary)
+
+
+# ─────────────────────────────────────────────────────────────
 #  NATIVE PUSH (xmrjackpot.com's own web push service)
 #  Thin route layer over pool/push_service.py — one brain per
 #  layer: the service owns subscriptions, templates, rate limits,

@@ -100,6 +100,15 @@ EVENTS = {
         "url": "/",
         "rate": 4,
     },
+    "referral_window": {
+        "title": "⏳ Referral window closing",
+        "body": ("Your Kraken referral bonus window is about to "
+                 "expire — complete the challenge in time and the "
+                 "bonus is gifted to the jackpot pool."),
+        "tag": "referral-window",
+        "url": "/",
+        "rate": 2,
+    },
 }
 
 
@@ -112,6 +121,7 @@ CATEGORY = {
     "challenge_unlock": "jackpot",
     "ticket_update": "jackpot",
     "miner_status": "jackpot",
+    "referral_window": "jackpot",
     "signal_buy": "scout",
     "signal_exit": "scout",
 }
@@ -406,6 +416,11 @@ def send_to_subscribers(event: str, extra: dict = None) -> dict:
     if not subs:
         return {"sent": 0, "reason": "no subscription"}
     if not _rate_ok(0, event):
+        # the broadcast limiter's refusal is a logged decision too —
+        # an unaudited silent no-send would hide real suppression
+        _audit(None, "push_rate_limited",
+               {"event": event, "scope": "broadcast",
+                "via": "push_service"})
         return {"sent": 0, "reason": "rate limited"}
     total = 0
     # review triage (Sep 25 evening V): subs is one row PER ENDPOINT —

@@ -278,6 +278,44 @@ def init_db():
                 created_at REAL DEFAULT (strftime('%s','now'))
             )
         """)
+        # ─── Kraken referral projection (Sep 26) ───
+        # Per-user referral status snapshots (one row per fetch — the
+        # history IS the audit trail; money columns are USD, rounded
+        # to cents at write time by the worker).
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS kraken_referral_snapshot (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL,
+                referral_id TEXT,
+                kraken_status TEXT,
+                total_paid REAL DEFAULT 0,
+                pending_amount REAL DEFAULT 0,
+                expected_bonus_conservative REAL DEFAULT 0,
+                expected_bonus_best REAL DEFAULT 0,
+                seeded_equivalent REAL DEFAULT 0,
+                estimate_used INTEGER DEFAULT 0,
+                fetched_at REAL DEFAULT (strftime('%s','now')),
+                source TEXT DEFAULT 'kraken_referral_api_v1',
+                FOREIGN KEY (user_id) REFERENCES users(id)
+            )
+        """)
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_krs_user "
+            "ON kraken_referral_snapshot(user_id, fetched_at)")
+        # THE single source of truth for the displayed projection — one
+        # row per worker run (append-only history; latest row wins).
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS jackpot_projection (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                possible_future_jackpot REAL,
+                referral_seed REAL,
+                current_jackpot REAL,
+                count_of_users_included INTEGER,
+                anomaly INTEGER DEFAULT 0,
+                source TEXT,
+                updated_at REAL DEFAULT (strftime('%s','now'))
+            )
+        """)
 
 
 def get_setting(key, default=None):
