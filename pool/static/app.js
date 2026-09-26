@@ -1287,6 +1287,10 @@
       $('#dashLogin').style.display = '';
       $('#navAdmin').style.display = 'none';
       toast('Logged out', 'success');
+      // auth-state changed (logout): per-user surfaces must drop the
+      // session's state the moment it ends — prefs ETag, undo history,
+      // and the Scout panel's stamp all hang off this event
+      document.dispatchEvent(new CustomEvent('xmrjackpot:auth'));
     } catch(e) {}
   }
 

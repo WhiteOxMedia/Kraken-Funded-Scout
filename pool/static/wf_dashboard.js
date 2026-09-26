@@ -60,7 +60,18 @@
 
   function renderPrefsStamp(p) {
     var el = $("wfPrefsStamp");
-    if (!el || !p) return;
+    if (!el) return;
+    /* THE NULL ANSWER (Sep 26, logout hygiene): a null ANSWER (a
+       failed or 401 read) clears the stamp — the session's prefs are
+       gone, not "unchanged", and the previous user's stamp must not
+       linger until some future successful read overwrites it. A real
+       envelope WITHOUT updated_at is still a fresh account and keeps
+       saying so honestly. */
+    if (p === null || p === undefined) {
+      el.textContent = "";
+      el.title = "";
+      return;
+    }
     var iso = p.updated_at;
     el.textContent = iso
       ? "prefs updated " + rel(iso)

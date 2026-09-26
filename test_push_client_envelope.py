@@ -29,6 +29,10 @@ stubbed DOM + fetch and asserts the checkbox outcomes:
   7. a fresh write RE-POINTS the history (the redo of an older toggle
      is voided): the new undo replays the state the last write
      replaced, and it in turn offers "redo"
+  8. CROSS-ACCOUNT SAFETY: after xmrjackpot:auth (logout or switch),
+     the cleared history is INERT — a lingering undo link can no
+     longer replay the previous account's state, and the next write
+     rides the version the re-read captured
 
 No network, no browser: Node is required, everything else is stubbed.
 Prints "RESULT: N passed, M failed".
@@ -359,6 +363,46 @@ async function scenario(name) {
     return 'fresh_write_voids_redo ok';
   }
 
+  if (name === 'auth_clears_history') {
+    script = { status: 200, headers: { ETag: '"2026-09-26T10:00:00Z"' }, json: ENVELOPE };
+    loadClient();
+    await flushAll();
+    script = { status: 200, headers: {}, json: {
+      user_id: 'alice', preferences: { jackpot: false, scout: false },
+      updated_at: '2026-09-26T10:00:01Z' } };
+    fireChange('prefScout', false);
+    await flushAll();
+    const postsBefore = sentRequests.filter((r) => r.method === 'POST').length;
+    // ACCOUNT SWITCH (logout or login-as-other): the auth handler
+    // clears prevPrefs/lastConfirmed and re-reads. The re-read answers
+    // bob's fresh envelope (updated_at null, ETag "v0").
+    script = { status: 200, headers: { ETag: '"v0"' }, json: {
+      user_id: 'bob', preferences: { jackpot: true, scout: true },
+      updated_at: null } };
+    sandbox.document._listeners['xmrjackpot:auth'][
+      sandbox.document._listeners['xmrjackpot:auth'].length - 1]({});
+    await flushAll();
+    // any undo link still on screen is DEAD: clicking it must send
+    // nothing — alice's state must never replay into bob's session
+    if (els.prefSaved.children.length) {
+      els.prefSaved.children[els.prefSaved.children.length - 1]
+        .listeners.click[0]({ preventDefault: function () {} });
+      await flushAll();
+    }
+    assert.strictEqual(sentRequests.filter((r) => r.method === 'POST').length, postsBefore,
+                       'a stale undo link after an account switch is inert');
+    // bob's first toggle rides the version the re-read captured
+    script = { status: 200, headers: {}, json: {
+      user_id: 'bob', preferences: { jackpot: false, scout: true },
+      updated_at: '2026-09-27T10:00:00Z' } };
+    fireChange('prefScout', false);
+    await flushAll();
+    const posts = sentRequests.filter((r) => r.method === 'POST');
+    assert.strictEqual(posts[posts.length - 1].headers['If-Match'], '"v0"',
+                       "the next write rides the re-read version, not alice's last one");
+    return 'auth_clears_history ok';
+  }
+
   if (name === 'retry_after_412') {
     script = { status: 200, headers: { ETag: '"2026-09-26T10:00:00Z"' }, json: ENVELOPE };
     loadClient();
@@ -410,6 +454,8 @@ SCENARIOS = [
      "undo link applies the other state and becomes redo; redo applies again and becomes undo; each step rides its predecessor's version"),
     ("7", "fresh_write_voids_redo",
      "a fresh write re-points the history (no stale redo); its undo replays the last replaced state and offers redo"),
+    ("8", "auth_clears_history",
+     "after an account switch the cleared history is inert and the next write rides the re-read version"),
 ]
 
 
