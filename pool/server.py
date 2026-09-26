@@ -4,6 +4,7 @@ Serves the web dashboard, static assets, and JSON API endpoints.
 """
 import os
 import sys
+import json
 import time
 import secrets
 import hashlib
@@ -1350,6 +1351,122 @@ async def api_admin_kraken_referral_run(request: Request):
                    "clearly-labeled simulation)")
     summary = kr.run_worker(subset_limit=subset)
     return JSONResponse(summary)
+
+
+@app.get("/api/admin/kraken-referral/config")
+async def api_admin_kraken_referral_config(request: Request):
+    """Admin read of the referral-provider configuration. Secrets are
+    NEVER returned — only their last four characters and whether they
+    are set, so the form can show state without re-exposing material."""
+    require_admin(request)
+    def _tail(name):
+        v = str(db.get_setting(name, "") or "")
+        return {"set": bool(v), "tail": ("…" + v[-4:]) if v else ""}
+    return JSONResponse({
+        "api_key": _tail("KRAKEN_API_KEY"),
+        "api_secret": _tail("KRAKEN_API_SECRET"),
+        "endpoint": str(db.get_setting("KRAKEN_REFERRAL_ENDPOINT", "") or ""),
+        "mode": kr.provider_mode(),
+        "simulate_flag": (db.get_setting("KRAKEN_REFERRAL_MODE", "") or "")
+                         == "simulate",
+        "ttl_seconds": kr._ttl(),
+        "batch_size": kr._cfg(kr.PROJECTION_BATCH_KEY, 25, int),
+        "confidence": kr._confidence(),
+        "spike_pct": kr._cfg(kr.PROJECTION_SPIKE_KEY, 25.0, float),
+    })
+
+
+@app.post("/api/admin/kraken-referral/config")
+async def api_admin_kraken_referral_config_set(request: Request):
+    """Admin write of the provider config. Secrets are write-only:
+    a blank field leaves the stored value untouched; anything typed is
+    stored verbatim (the response only ever echoes masked tails)."""
+    require_admin(request)
+    body = await _push_body(request)
+    updates = []
+    for name in ("KRAKEN_API_KEY", "KRAKEN_API_SECRET"):
+        # Accept both the canonical (kraken_api_key) and short (api_key)
+        # field spellings so panel and API clients never diverge.
+        v = str(body.get(name.lower())
+                or body.get(name.split("_", 1)[1].lower()) or "").strip()
+        if v:
+            db.set_setting(name, v)
+            updates.append(name)
+    ep = str(body.get("endpoint") or "").strip()
+    if ep:
+        if not ep.startswith(("http://", "https://")) or len(ep) > 300:
+            raise HTTPException(status_code=400,
+                                detail="endpoint must be an http(s) URL")
+        db.set_setting("KRAKEN_REFERRAL_ENDPOINT", ep)
+        updates.append("KRAKEN_REFERRAL_ENDPOINT")
+    elif body.get("clear_endpoint"):
+        db.set_setting("KRAKEN_REFERRAL_ENDPOINT", "")
+        updates.append("KRAKEN_REFERRAL_ENDPOINT (cleared)")
+    sim = body.get("simulate")
+    if sim is not None:
+        db.set_setting("KRAKEN_REFERRAL_MODE",
+                       "simulate" if sim else "")
+        updates.append("KRAKEN_REFERRAL_MODE="
+                       + ("simulate" if sim else "live-or-unconfigured"))
+    kr.emit_audit(None, "kraken_referral.config_updated",
+                  updated=updates, by="admin_panel")
+    return JSONResponse({"ok": True, "updated": updates,
+                         "mode": kr.provider_mode()})
+
+
+@app.post("/api/admin/kraken-referral/test")
+async def api_admin_kraken_referral_test(request: Request):
+    """THE CONNECTION TEST: one live fetch through the configured
+    provider for the referral id the operator supplies, returning the
+    RAW provider response (truncated) so the operator sees exactly
+    what Kraken answers — no interpretation, no masking of Kraken's
+    own fields, secrets never included. Diagnoses the failure mode
+    (auth vs schema vs transport) instead of a bare error string."""
+    require_admin(request)
+    body = await _push_body(request)
+    rid = str(body.get("referral_id") or "").strip()
+    if not rid:
+        raise HTTPException(status_code=400,
+                            detail="referral_id required")
+    if kr.provider_mode() == "unconfigured":
+        return JSONResponse({"ok": False, "stage": "config",
+                             "error": "no KRAKEN_API_KEY / KRAKEN_API_SECRET "
+                                      "/ KRAKEN_REFERRAL_ENDPOINT provisioned"})
+    mode = kr.provider_mode()
+    res = kr.fetch_user_status(0, rid)          # user_id 0: read-only probe
+    out = {"ok": bool(res.get("ok")), "mode": mode,
+           "stage": "fetch" if res.get("ok") else "provider"}
+    if res.get("ok"):
+        raw = json.dumps(res.get("raw"), default=str)
+        out["raw_response"] = raw[:1200]
+        out["raw_truncated"] = len(raw) > 1200
+        rid_n, status, total_paid, pending, explicit, _lu = \
+            kr.normalize_kraken_response(res["raw"])
+        cons, best, est = kr.compute_expected_bonus(
+            status, total_paid, pending, explicit)
+        out["normalized"] = {"referral_id": rid_n, "status": status,
+                             "total_paid": total_paid,
+                             "pending_amount": pending,
+                             "expected_bonus_conservative": cons,
+                             "expected_bonus_best": best,
+                             "estimate_used": bool(est)}
+    else:
+        err = str(res.get("error") or "")
+        out["error"] = err
+        if mode == "simulate":
+            out["hint"] = ("provider is in SIMULATE mode — clear "
+                           "KRAKEN_REFERRAL_MODE to go live")
+        elif "InvalidKey" in err or "Invalid API" in err:
+            out["hint"] = "Kraken rejected the key — check API-Key/API-Secret"
+        elif "Rate" in err:
+            out["hint"] = "rate limited — wait a moment and retry"
+        elif res.get("reason") == "fetch_failed":
+            out["hint"] = ("transport/schema failure — verify the endpoint "
+                           "URL and that it accepts POST with "
+                           "API-Key/API-Sign headers")
+    kr.emit_audit(None, "kraken_referral.connection_test",
+                  referral_id=rid, ok=out["ok"], mode=mode)
+    return JSONResponse(out)
 
 
 # ─────────────────────────────────────────────────────────────

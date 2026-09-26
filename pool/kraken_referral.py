@@ -68,15 +68,17 @@ def _confidence():
 
 
 def provider_mode():
-    """'live' iff credentials AND a referral endpoint are provisioned;
-    'simulate' when explicitly requested; otherwise 'unconfigured'."""
+    """'simulate' when explicitly requested (the operator's labeled
+    dry-run ALWAYS wins — stale credentials must not trap the panel
+    in live mode); 'live' iff credentials AND endpoint provisioned;
+    otherwise 'unconfigured'."""
+    if (db.get_setting(PROJECTION_MODE_KEY, "") or "") == "simulate":
+        return "simulate"
     key = db.get_setting("KRAKEN_API_KEY", "")
     sec = db.get_setting("KRAKEN_API_SECRET", "")
     ep = db.get_setting("KRAKEN_REFERRAL_ENDPOINT", "")
     if key and sec and ep:
         return "live"
-    if (db.get_setting(PROJECTION_MODE_KEY, "") or "") == "simulate":
-        return "simulate"
     return "unconfigured"
 
 

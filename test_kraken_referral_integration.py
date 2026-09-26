@@ -218,6 +218,64 @@ check(7.3, blimited == 1, "broadcast rate-limit audited (scope=broadcast)")
 check(7.4, all(x.get("sent") == 0 for x in (r1, r2, r3, rb)),
       "sandbox terminal: dead endpoints, no fabricated delivery")
 
+print("== 8. ADMIN CONFIG + CONNECTION TEST ==")
+anon = TestClient(srv.app)
+r = anon.get("/api/admin/kraken-referral/config")
+check(8.1, r.status_code in (401, 403), f"config read admin-gated: {r.status_code}")
+r = client.get("/api/admin/kraken-referral/config")
+cfg = r.json()
+check(8.2, r.status_code == 200 and cfg["mode"] == "unconfigured"
+      and cfg["api_key"]["set"] is False and cfg["api_secret"]["tail"] == "",
+      f"config read reflects the clean state: {cfg['mode']}")
+r = client.post("/api/admin/kraken-referral/config", json={
+    "api_key": "ktest1234567890", "api_secret": "c2VjcmV0MTIzNDU2Nzg5MA==",
+    "endpoint": "https://api.kraken.localhost/0/private/ReferralStatus",
+    "simulate": False})
+check(8.3, r.status_code == 200 and r.json()["mode"] == "live"
+      and len(r.json()["updated"]) == 4, "save flips mode to live (2 secrets + endpoint + mode)")
+r = client.get("/api/admin/kraken-referral/config")
+cfg = r.json()
+check(8.4, cfg["api_key"]["set"] and cfg["api_key"]["tail"] == "…7890"
+      and "ktest1234567890" not in r.text and "c2VjcmV0MTIzNDU2Nzg5MA==" not in r.text,
+      f"secrets masked to tails: {cfg['api_key']['tail']}")
+r = client.post("/api/admin/kraken-referral/config", json={"api_key": "", "api_secret": ""})
+check(8.5, r.status_code == 200, "blank secrets keep stored values")
+r = client.post("/api/admin/kraken-referral/config",
+                json={"kraken_api_key": "kcanon99999999"})
+j = r.json()
+check("8.5b", r.status_code == 200 and j["mode"] == "live"
+      and "KRAKEN_API_KEY" in j["updated"],
+      f"canonical field names accepted too: {j['updated']}")
+kr._kraken_post = lambda ep, k, s, b: {"error": [], "result": {
+    "referral_id": b["referral_id"], "status": "pending",
+    "pending_amount": 10.0}}
+r = client.post("/api/admin/kraken-referral/test", json={"referral_id": "R-1"})
+j = r.json()
+check(8.6, r.status_code == 200 and j["ok"] is True and j["mode"] == "live"
+      and "raw_response" in j and j["normalized"]["status"] == "Pending",
+      f"connection test: raw + normalized shown: {j.get('raw_response', '')[:60]}")
+kr._kraken_post = _boom
+r = client.post("/api/admin/kraken-referral/test", json={"referral_id": "R-1"})
+j = r.json()
+check(8.7, r.status_code == 200 and j["ok"] is False and j.get("hint"),
+      f"failed test diagnoses: {j.get('hint', '')[:60]}")
+db.set_setting("KRAKEN_REFERRAL_MODE", "simulate")
+r = client.post("/api/admin/kraken-referral/test", json={"referral_id": "SIM-PAID-001"})
+j = r.json()
+check(8.8, j["ok"] is True and j["mode"] == "simulate" and j["stage"] == "fetch",
+      "simulate-mode test fetches fixtures honestly")
+with db.get_db() as conn:
+    n = conn.execute("SELECT COUNT(*) c FROM audit_log WHERE "
+                     "action='kraken_referral.connection_test'").fetchone()["c"]
+    n2 = conn.execute("SELECT COUNT(*) c FROM audit_log WHERE "
+                      "action='kraken_referral.config_updated'").fetchone()["c"]
+check(8.9, n >= 3 and n2 >= 2, f"audits: {n} tests, {n2} config updates")
+r = client.post("/api/admin/kraken-referral/test", json={})
+check(8.10, r.status_code == 400, "test without referral_id -> 400")
+# restore the clean posture the earlier sections expect
+db.set_setting("KRAKEN_API_KEY", ""); db.set_setting("KRAKEN_API_SECRET", "")
+db.set_setting("KRAKEN_REFERRAL_ENDPOINT", ""); db.set_setting("KRAKEN_REFERRAL_MODE", "")
+
 passed, failed = results.count(True), results.count(False)
 print(f"RESULT: {passed} passed, {failed} failed")
 sys.exit(1 if failed else 0)
