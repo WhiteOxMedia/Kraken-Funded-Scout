@@ -1180,6 +1180,76 @@ async def api_admin_update_payout(payout_id: int, status: str, tx_hash: str = ""
     return {"status": "ok"}
 
 
+@app.get("/api/admin/cold-wallet")
+async def api_admin_cold_wallet(request: Request):
+    """THE COLD-WALLET VIEW (user order, Sep 25 evening VI): the
+    operator's money picture on one admin card - the pool wallet's own
+    balance (monero-wallet-rpc), the Kraken total (every house-tax
+    payout sent to the Kraken deposit address, from the payouts
+    ledger), and the house fees collected (accumulated + paid
+    lifetime). Read-only, admin-gated, no secrets returned."""
+    require_admin(request)
+    # 1. the pool wallet's own balance (cold wallet on the dashboard)
+    rpc_ok = False
+    wallet_balance = 0.0
+    wallet_unlocked = 0.0
+    wallet_address_setting = db.get_setting("house_wallet", "")
+    try:
+        if xmr.rpc_available():
+            rpc_ok = True
+            bal = xmr.get_balance() or {}
+            wallet_balance = float(bal.get("balance", 0) or 0)
+            wallet_unlocked = float(bal.get("unlocked_balance", 0) or 0)
+    except Exception:
+        rpc_ok = False
+    # 2. the Kraken total: house-tax payouts actually sent to the
+    #    Kraken deposit address (ledger truth, not vibes)
+    kraken_sent = 0.0
+    kraken_pending = 0.0
+    with db.get_db() as conn:
+        rows = conn.execute(
+            "SELECT status, amount_xmr FROM payouts WHERE payout_type = 'house_tax'"
+        ).fetchall()
+    for r in rows:
+        if r["status"] == "sent":
+            kraken_sent += float(r["amount_xmr"] or 0)
+        else:
+            kraken_pending += float(r["amount_xmr"] or 0)
+    # 3. house fees collected: accumulated (not yet sent) + lifetime sent
+    accumulated = float(db.get_setting("house_tax_accumulated", "0") or 0)
+    house_fees_collected = round(accumulated + kraken_sent + kraken_pending, 12)
+    # on-chain confirmation of the Kraken total, when RPC is up: sum
+    # outgoing transfers to the configured Kraken deposit address
+    kraken_onchain = None
+    kraken_addr = db.get_setting("kraken_deposit_address", "")
+    if rpc_ok and kraken_addr:
+        try:
+            transfers = xmr.get_transfers(min_height=0, in_only=False) or {}
+            out = transfers.get("out", []) or []
+            kraken_onchain = round(sum(
+                float(t.get("amount", 0) or 0) / 1e12
+                for t in out
+                if any(
+                    str(d.get("address", "")) == kraken_addr
+                    for d in (t.get("destinations") or [])
+                )
+            ), 12) or 0.0
+        except Exception:
+            kraken_onchain = None
+    return {
+        "rpc_available": rpc_ok,
+        "wallet_address_masked": (wallet_address_setting[:8] + "..." + wallet_address_setting[-6:])
+                                 if len(wallet_address_setting) > 20 else wallet_address_setting,
+        "wallet_balance": round(wallet_balance, 12),
+        "wallet_unlocked": round(wallet_unlocked, 12),
+        "kraken_total_sent": round(kraken_sent, 12),
+        "kraken_pending": round(kraken_pending, 12),
+        "kraken_onchain_total": kraken_onchain,
+        "house_fees_accumulated": round(accumulated, 12),
+        "house_fees_collected_total": house_fees_collected,
+    }
+
+
 @app.get("/api/admin/wallet-status")
 async def api_admin_wallet_status(request: Request):
     """Check monero-wallet-rpc status (admin only)."""
@@ -1690,6 +1760,13 @@ if __name__ == "__main__":
                 hashrate_total = summary.get("hashrate", {}).get("total", 0) if isinstance(summary.get("hashrate"), dict) else 0
                 shares_accepted = summary.get("results", {}).get("accepted", 0) if isinstance(summary.get("results"), dict) else 0
 
+                # xmrig-proxy returns hashrate.total as a per-window
+                # LIST (10s/60s/15m/1h/6h/24h) — formatting the list
+                # itself crashed every cycle with "unsupported format
+                # string passed to list.__format__" (review, Sep 25
+                # evening VI). Sum the observed window buckets.
+                if isinstance(hashrate_total, (list, tuple)):
+                    hashrate_total = sum(float(x or 0) for x in hashrate_total)
                 if worker_count > 0:
                     print(f"[ProxyPoller] {worker_count} real miner(s) connected, {hashrate_total:.1f} H/s total, {shares_accepted} shares accepted")
 

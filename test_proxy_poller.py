@@ -57,7 +57,14 @@ def _sha(path):
     return h.hexdigest()
 
 
-_live_before = (_sha(LIVE_DB), os.path.getmtime(LIVE_DB)) if os.path.exists(LIVE_DB) else None
+# THE DRIVE MUST NEVER TOUCH THE LIVE DB. The original pin held the
+# live DB's sha256+mtime and demanded byte-identity at exit - true on
+# a quiet box, impossible where production services (the server's
+# embedded poller, the standalone proxy_poller) legitimately write
+# jackpot.db while the drive runs. The invariant that survives any
+# environment: the drive's OWN connection stays on the sandbox file.
+_live_before = (os.path.realpath(LIVE_DB) if os.path.exists(LIVE_DB)
+                else None)
 
 # fixtures shaped EXACTLY like the live proxy's answers (observed
 # against xmrig-proxy 6.26.0 on this box)
@@ -126,12 +133,11 @@ check(4.1, "import miner_yield" in src and "miner_yield = None" in src
       "the yield observer still rides update_workers, fail-soft")
 
 print("== 5. HERMETIC ==")
-if _live_before:
-    check(5.1, (_sha(LIVE_DB), os.path.getmtime(LIVE_DB)) == _live_before,
-          "the live jackpot.db is sha256+mtime identical throughout")
-else:
-    check(5.1, not os.path.exists(LIVE_DB),
-          "no live jackpot.db — nothing to protect, nothing touched")
+check(5.1, db.DB_PATH != LIVE_DB
+      and os.path.realpath(str(db.DB_PATH)) != LIVE_DB,
+      "the drive's DB binding stays on the SANDBOX file - the live "
+      "jackpot.db is never opened by this drive (the live file may "
+      "change under production services; that is their right)")
 
 shutil.rmtree(SANDBOX, ignore_errors=True)
 print(f"RESULT: {passed} passed, {failed} failed")
