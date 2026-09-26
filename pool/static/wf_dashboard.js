@@ -58,20 +58,35 @@
     return rel(d.toISOString());
   }
 
+  function renderPrefsStamp(p) {
+    var el = $("wfPrefsStamp");
+    if (!el || !p) return;
+    var iso = p.updated_at;
+    el.textContent = iso
+      ? "prefs updated " + rel(iso)
+      : "prefs never changed (defaults stand)";
+    el.title = iso || "";
+  }
+
   function refreshPrefsStamp() {
     var el = $("wfPrefsStamp");
     if (!el) return;
     fetch("/api/push/preferences", { credentials: "same-origin" })
       .then(function (r) { return r.ok ? r.json() : null; })
-      .then(function (p) {
-        var iso = p && p.updated_at;
-        el.textContent = iso
-          ? "prefs updated " + rel(iso)
-          : "prefs never changed (defaults stand)";
-        el.title = iso || "";
-      })
+      .then(renderPrefsStamp)
       .catch(function () { /* quiet — the card stays without a stamp */ });
   }
+
+  /* INSTANT STAMP (Sep 26): push_client announces every applied
+     envelope (toggle writes, 412 adoptions, the auth re-read) —
+     render from the event's detail the moment it lands instead of
+     waiting for the 60s poll. xmrjackpot:auth ALSO triggers a fresh
+     fetch so a subject switch to a fresh account clears the stamp
+     honestly (no updated_at on the new envelope yet). */
+  document.addEventListener("xmrjackpot:prefs", function (ev) {
+    if (ev && ev.detail) { renderPrefsStamp(ev.detail); }
+  });
+  document.addEventListener("xmrjackpot:auth", refreshPrefsStamp);
 
   /* the status row: miner / scout / wallet states from the endpoints
      app.js already uses — read-only, no mutation, no new calls */

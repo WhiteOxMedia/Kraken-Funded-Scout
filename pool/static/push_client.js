@@ -207,6 +207,14 @@
         lastConfirmed = { jackpot: pr.jackpot !== false,
                           scout: pr.scout !== false };
         noteStamp("saved", p.updated_at, false, "", !!prevPrefs);
+        /* ANNOUNCE (Sep 26): every applied envelope is broadcast so
+           other surfaces (the Scout panel's prefs stamp) update the
+           same instant — no waiting on their 60s poll. Carries the
+           full envelope; listeners render from it without a fetch. */
+        try {
+          document.dispatchEvent(new CustomEvent("xmrjackpot:prefs",
+                                                 { detail: p }));
+        } catch (e) { /* ancient browser: their poll still works */ }
       }
     }
     function readServer() {
