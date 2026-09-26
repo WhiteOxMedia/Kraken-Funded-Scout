@@ -1916,6 +1916,27 @@ async def api_push_prefs_set(request: Request):
     })
 
 
+@app.post("/api/push/test")
+async def api_push_test(request: Request):
+    """THE PIPE TEST (Sep 26, user request): one REAL push of the
+    calling user's chosen family — {"category": "jackpot"|"scout"} —
+    through the same sender path a live event takes (opt-out gate,
+    rate limiter, audit, VAPID delivery). The user's own toggles are
+    honored, not bypassed: an opted-out family answers
+    {'ok': False, 'reason': '<category> notifications opted out'} so
+    the client can explain WHY nothing landed. The subject is always
+    the authenticated session; the sender's verdict is passed through
+    verbatim."""
+    user = require_auth(request)
+    body = await _push_body(request)
+    category = str(body.get("category") or "")
+    res = push_svc.send_test(int(user["id"]), category)
+    if not res.get("ok") and res.get("reason") == "unknown category":
+        raise HTTPException(status_code=400,
+                            detail="category must be jackpot|scout")
+    return JSONResponse(res)
+
+
 @app.post("/api/push/event")
 async def api_push_event(request: Request):
     """The machine leg: scout/push_client.py posts charter events

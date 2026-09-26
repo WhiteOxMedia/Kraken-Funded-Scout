@@ -119,6 +119,14 @@ EVENTS = {
         "url": "/",
         "rate": 2,
     },
+    "push_test_signal": {
+        "title": "📡 Scout test from xmrjackpot",
+        "body": ("This is what a Scout signal alert looks like on "
+                 "this device — the pipe works."),
+        "tag": "scout-test",
+        "url": "/",
+        "rate": 2,
+    },
 }
 
 
@@ -135,6 +143,7 @@ CATEGORY = {
     "push_test": "jackpot",
     "signal_buy": "scout",
     "signal_exit": "scout",
+    "push_test_signal": "scout",
 }
 PREFS_KEY = "push_prefs"          # {"<user_id>": {"scout": bool, "jackpot": bool}}
 DEFAULT_PREFS = {"scout": True, "jackpot": True}
@@ -446,6 +455,29 @@ def _audit(user_id, action, details):
     audit write fails, the failure must surface, not vanish (an
     except:pass here would make every 'logged' claim unverifiable)."""
     db.add_audit_log(user_id, action, json.dumps(details))
+
+
+def send_test(user_id: int, category: str) -> dict:
+    """THE PIPE TEST (Sep 26, user request): fire ONE real templated
+    push of the chosen family (jackpot -> push_test, scout ->
+    push_test_signal) through the SAME path a real event takes —
+    subscription lookup, the opt-out gate, the rate limiter, the
+    audit, VAPID delivery. Never invents a verdict: the caller gets
+    the sender's own result ({sent, reason, dead}) and the category,
+    so the client can tell 'you opted out' from 'no device
+    registered' from 'sent'. The _test suffix keeps these probes out
+    of the signal feed and the report's traffic rollup (scrape_
+    recent_signals whitelists signal_buy/signal_exit only; the report
+    counts non-test templates)."""
+    # (the family set, NOT `category not in CATEGORY` - CATEGORY is
+    # keyed by EVENT names, its values are the families)
+    if category not in ("jackpot", "scout"):
+        return {"ok": False, "reason": "unknown category"}
+    event = "push_test" if category == "jackpot" else "push_test_signal"
+    res = send_to_user(user_id, event)
+    res["category"] = category
+    res["ok"] = bool(res.get("sent"))
+    return res
 
 
 def send_to_user(user_id: int, event: str, extra: dict = None) -> dict:

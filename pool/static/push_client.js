@@ -179,11 +179,80 @@
     s.addEventListener("change", postBulk);
   }
 
+  /* THE PIPE TEST (Sep 26, user request): each category box gets a
+     small "Test notification" button — one REAL push of that family
+     through the same path a live event takes (opt-out gate, rate
+     limiter, audit, VAPID). No fake success: the sender's verdict is
+     passed through verbatim and mapped to plain language — including
+     "your toggle is OFF", which is itself proof the gate works. The
+     verdict stays in #prefSaved until the next action uses it. */
+  var TEST_MSGS = {
+    "jackpot notifications opted out":
+      "your Jackpot toggle is OFF — this is the gate working; turn it back on to receive these",
+    "scout notifications opted out":
+      "your Scout toggle is OFF — this is the gate working; turn it back on to receive these",
+    "no subscription":
+      "no device registered yet — press Enable Notifications first",
+    "VAPID key not provisioned":
+      "push delivery is not provisioned yet — the operator must add the keys first",
+    "rate limited": "one just went out — try again in a minute",
+    "webpush library not installed":
+      "push delivery is not configured on the server — the operator must install it",
+    "no deliverable endpoint":
+      "your device did not accept it — press Enable Notifications and try again"
+  };
+
+  function wireTestButtons() {
+    var j = document.getElementById("btnTestJackpot");
+    var s = document.getElementById("btnTestScout");
+    if (!j || !s || j.dataset.wired) { return; }
+    j.dataset.wired = "1";
+    s.dataset.wired = "1";
+    function fire(btn, category) {
+      if (btn.disabled) { return; }
+      btn.disabled = true;
+      var prev = btn.textContent;
+      btn.textContent = "testing…";
+      noteSaved("sending a real " + category + " test push…", true);
+      fetch("/api/push/test", {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ category: category }),
+      }).then(function (r) {
+        return r.json().then(function (res) {
+          if (r.status === 401) {
+            noteSaved("log in first — then test the pipe", true);
+            return;
+          }
+          if (res && res.ok && res.sent) {
+            noteSaved("sent — check your device 🔔");
+            return;
+          }
+          var reason = res && res.reason;
+          noteSaved(TEST_MSGS[reason] ||
+                    ("could not send it — " + (reason || "http " + r.status)),
+                    true);
+        }, function () {
+          noteSaved("could not send it — http " + r.status, true);
+        });
+      }).catch(function () {
+        noteSaved("could not reach the server — try again", true);
+      }).then(function () {
+        btn.disabled = false;
+        btn.textContent = prev;
+      });
+    }
+    j.addEventListener("click", function () { fire(j, "jackpot"); });
+    s.addEventListener("click", function () { fire(s, "scout"); });
+  }
+
   function wire() {
     var btn = document.getElementById("btnEnablePush");
     if (!btn) { return; }
     btn.addEventListener("click", enable);
     wirePrefs();
+    wireTestButtons();
     if (SUPPORTED && Notification.permission === "granted") {
       /* second triage (Sep 25): the worker registers at /push_sw.js
          with root scope now — look it up by scope, not old path */

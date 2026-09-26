@@ -341,7 +341,11 @@ check(4.1, ps.EVENTS["signal_buy"]["title"] == "📈 BUY NOW"
                              "referral_window",
                              # Sep 26: the VAPID test-push event
                              # (admin 'send test to my devices')
-                             "push_test"},
+                             "push_test",
+                             # Sep 26: the user-facing pipe-test event
+                             # (Notifications card 'Test notification',
+                             # scout family)
+                             "push_test_signal"},
       "the charter's event set with byte-exact signal titles")
 check(4.2, ps.send_to_user(7, "not_an_event")["reason"] == "unknown event",
       "an unknown event is refused")

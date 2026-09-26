@@ -26,6 +26,9 @@ one pins what a browser actually experiences, end to end:
   9. wire user_id is IGNORED (mallory cannot write alice's prefs)
  10. hermeticity: the probe user's prefs are restored and the probe
      left as it was found (no other user's rows touched)
+ 11. the pipe test: POST /api/push/test fires ONE real templated
+     push per category through the live sender; the honest verdict
+     ("no subscription" for a fresh probe) comes back verbatim
 
 Requires the live server on APP_PORT (default 3094). Skips itself
 (RESULT: 0 passed, 0 failed + note) when the server is down, so the
@@ -194,6 +197,18 @@ s, _, j = c.post("/api/push/preferences", {"category": "scout",
                                            "enabled": False})
 check(6.5, s == 200 and j["preferences"]["scout"] is False,
       "legacy single-toggle shape still accepted (compat)")
+
+print("== 6b. THE PIPE TEST (POST /api/push/test, live) ==")
+# a FRESH probe user has no subscription - the honest verdict is
+# deterministic: the pipe ran and reported exactly that
+s, _, j = c.post("/api/push/test", {"category": "jackpot"})
+check(6.6, s == 200 and j.get("category") == "jackpot"
+      and j.get("ok") is False and j.get("reason") == "no subscription",
+      f"jackpot pipe test, honest verdict: {j}")
+s, _, j = anon.post("/api/push/test", {"category": "scout"})
+check(6.7, s == 401, f"pipe test requires the session: {s}")
+s, _, j = c.post("/api/push/test", {"category": "all"})
+check(6.8, s == 400, f"unknown category -> 400: {s}")
 
 print("== 7. HERMETICITY: restore the probe, touch nothing else ==")
 s, _, j = c.post("/api/push/preferences",
