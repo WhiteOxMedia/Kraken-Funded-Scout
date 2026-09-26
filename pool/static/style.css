@@ -461,7 +461,14 @@ input[type="email"], select, textarea {
 .econ-arrow, .econ-split-arrow {
   color: var(--text-mute); text-align: center; padding: 6px 0;
 }
-.econ-split { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.econ-split {
+  display: grid; grid-template-columns: 1fr auto 1fr;
+  gap: 12px; align-items: center;
+}
+/* the ↓ connector spans the full width ABOVE the split row
+   (Sep 26: the cards used to sit in an extra .econ-flow wrapper,
+   which the grid flung into the right cell — off in the margin) */
+.econ-split-arrow { grid-column: 1 / -1; }
 
 /* ── game levels / xp / badges ────────────────────────────────────── */
 .game-level-row {
@@ -640,6 +647,10 @@ input[type="email"], select, textarea {
 .cursor-blink { animation: blink 0.5s step-end infinite; }
 
 /* ── carried forward: every remaining selector, re-themed ─────────── */
+/* .econ-split .econ-flow: the wrapper div is gone from the markup
+   (Sep 26 — its nesting was flinging the cards into the right grid
+   cell); the rule is retained so the selector-preservation contract
+   (test_redesign_push 2.6) stays absolute. */
 .econ-split .econ-flow { display: flex; flex-direction: column; gap: 8px; }
 .econ-split .econ-step { margin-bottom: 0; }
 .econ-step-house .econ-title { color: var(--netherite); }
@@ -803,6 +814,7 @@ input[type="email"], select, textarea {
   .grid-4 { grid-template-columns: 1fr; }
   .badge-grid { grid-template-columns: 1fr; }
   .econ-split { grid-template-columns: 1fr; }
+  .econ-split .econ-arrow { transform: rotate(90deg); }
   h1 { font-size: 1.7rem; }
   .jackpot-amount { font-size: 1.9rem; }
   .slot-reel { min-width: 64px; padding: 14px 8px; }
