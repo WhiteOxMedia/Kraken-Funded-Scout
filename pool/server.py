@@ -1903,24 +1903,30 @@ async def api_push_prefs_set(request: Request):
     other (lost-update prevention, Sep 26 E2E acceptance)."""
     user = require_auth(request)
     if_match = request.headers.get("if-match")
-    if if_match:
-        current_etag = f'"{push_svc.get_prefs_updated(int(user["id"]))[1] or "v0"}"'
-        if if_match != current_etag:
-            prefs_now, upd_now = push_svc.get_prefs_updated(int(user["id"]))
-            return JSONResponse({
-                "user_id": user.get("username"),
-                "preferences": prefs_now,
-                "updated_at": upd_now,
-                "error": "version conflict - re-read and retry",
-            }, status_code=412, headers={"ETag": f'"{upd_now or "v0"}"'})
+    # ATOMIC CONCURRENCY (Sep 26, the simultaneous race): the version
+    # check moved INTO the store writers (set_prefs/set_pref accept
+    # if_match and hold the prefs lock across check + write), so two
+    # devices firing the same version at the same instant cannot both
+    # apply — the awaits between the old pre-check and the write are
+    # gone. The handler only shapes the store's conflict answer into
+    # the wire 412.
     body = await _push_body(request)
     if isinstance(body.get("preferences"), dict):
-        res = push_svc.set_prefs(int(user["id"]), body["preferences"])
+        res = push_svc.set_prefs(int(user["id"]), body["preferences"],
+                                 if_match=if_match)
     else:
         category = str(body.get("category") or "")
         enabled = body.get("enabled")
         res = push_svc.set_pref(int(user["id"]), category,
-                                bool(enabled) if enabled is not None else True)
+                                bool(enabled) if enabled is not None else True,
+                                if_match=if_match)
+    if res.get("conflict"):
+        return JSONResponse({
+            "user_id": user.get("username"),
+            "preferences": res.get("prefs"),
+            "updated_at": res.get("updated_at"),
+            "error": "version conflict - re-read and retry",
+        }, status_code=412, headers={"ETag": f'"{res.get("updated_at") or "v0"}"'})
     if not res.get("ok"):
         raise HTTPException(status_code=400, detail=res.get("reason"))
     return JSONResponse({

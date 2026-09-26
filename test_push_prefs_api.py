@@ -17,8 +17,11 @@ the TWO-DEVICE RACE, ported from the live drive's long-race section
 5b: two sessions interleaving writes, each adopting the version every
 response carries — exactly ONE 412, stamps strictly advancing (the
 stamp clock is strictly monotonic by contract), both devices converge
-on the identical final envelope (same preferences, updated_at, ETag).
-Prints "RESULT: N passed, M failed".
+on the identical final envelope (same preferences, updated_at, ETag);
+a THREADED simultaneous variant where both devices fire the SAME stale
+If-Match at the same instant and the store's atomic check+write yields
+exactly one 200 and one 412 with convergent state. Prints
+"RESULT: N passed, M failed".
 """
 import sys
 import tempfile
@@ -183,6 +186,80 @@ check("7.10", rFA.status_code == 200 and xFB.status_code == 200
       and fA["updated_at"] == fB["updated_at"] == t4
       and etagA == etagB,
       f"converged: both devices hold version {fA['updated_at']} with the same ETag")
+
+# 7b. THE SIMULTANEOUS RACE (threaded): both devices fire the SAME
+# stale If-Match at the same instant. The store's version check +
+# write are one atomic step under the prefs lock, so exactly one
+# thread's write applies (200) and the other gets the 412-shaped
+# conflict — never two 200s, never a doubled stamp, and the final
+# state is whichever write won, readable and consistent by both.
+print("== 7b. THE SIMULTANEOUS RACE (threaded same-version firing) ==")
+import threading
+
+_bar = TestClient(srv.app)
+r = _bar.post("/api/auth/login", json={
+    "username": "alice", "password": "correct horse battery"})
+check("7b.0", r.status_code == 200, "second device logged in for 7b")
+
+# both devices read the CURRENT version and will fire THAT SAME
+# version at the same instant — the canonical lost-update race
+rA = client.get("/api/push/preferences")
+rB = _bar.get("/api/push/preferences")
+v = rA.json()["updated_at"]
+check("7b.1", rA.status_code == 200 and rB.status_code == 200
+      and rB.json()["updated_at"] == v,
+      f"both devices hold the same current version ({v})")
+
+# THE FIRING: two threads, the SAME If-Match, at the same instant.
+# Without an atomic check+write both threads pass the version check
+# before either writes and BOTH get 200 (the lost update); with it,
+# exactly one write applies and the loser gets the 412-shaped
+# conflict carrying the winner's envelope.
+_wins, _conflicts, _lock = [], [], threading.Lock()
+
+
+def _simultaneous(device, payload):
+    r = device.post("/api/push/preferences", json={"preferences": payload},
+                    headers={"If-Match": f'"{v}"'})
+    with _lock:
+        if r.status_code == 200:
+            _wins.append(r)
+        elif r.status_code == 412:
+            _conflicts.append(r)
+
+
+t1 = threading.Thread(target=_simultaneous, args=(client, {"jackpot": True, "scout": False}))
+t2 = threading.Thread(target=_simultaneous, args=(_bar, {"jackpot": False, "scout": True}))
+t1.start(); t2.start(); t1.join(10); t2.join(10)
+
+check("7b.2", len(_wins) == 1 and len(_conflicts) == 1,
+      f"exactly one 200 and one 412 (wins={len(_wins)}, conflicts={len(_conflicts)})")
+_won = _wins[0].json() if _wins else {}
+if _conflicts and _wins:
+    _c = _conflicts[0].json()
+    check("7b.3", _c.get("error") == "version conflict - re-read and retry"
+          and _c.get("updated_at") == _won.get("updated_at"),
+          "the 412 carries the winner's version, not a doubled stamp")
+    check("7b.4", _c.get("preferences") == _won.get("preferences"),
+          f"the 412 body carries the applied state: {_c.get('preferences')}")
+else:
+    check("7b.3", False, f"missing a decisive pair to inspect (wins={len(_wins)}, conflicts={len(_conflicts)})")
+    check("7b.4", False, "no conflict body to inspect — check 7b.2")
+
+# CONVERGENT STATE: the winner's write is the whole story; both
+# devices now read the identical, consistent envelope
+final = client.get("/api/push/preferences")
+fb = _bar.get("/api/push/preferences")
+check("7b.5", final.status_code == 200 and fb.status_code == 200
+      and final.json()["updated_at"] == fb.json()["updated_at"]
+      and final.json()["updated_at"] == _won.get("updated_at")
+      and final.json()["updated_at"] > v,
+      f"both devices converge on the winner's version ({final.json()['updated_at']})")
+check("7b.6", final.json()["preferences"] == _won.get("preferences"),
+      f"state is the winner's payload: {final.json()['preferences']}")
+check("7b.7", final.json()["preferences"] in (
+          {"jackpot": True, "scout": False}, {"jackpot": False, "scout": True}),
+      "the surviving state is one of the two raced payloads (no blend, no lost blob)")
 
 passed, failed = results.count(True), results.count(False)
 print(f"RESULT: {passed} passed, {failed} failed")

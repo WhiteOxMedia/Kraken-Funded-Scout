@@ -214,51 +214,86 @@ def get_prefs_updated(user_id: int) -> tuple:
     return prefs, entry.get("updated_at")
 
 
-def set_prefs(user_id: int, prefs: dict) -> dict:
+# THE PREFS STORE LOCK (Sep 26, threaded race): the prefs store is a
+# read-modify-write over ONE blob holding EVERY user's prefs, so
+# concurrent writers — two devices firing the same version at once, or
+# writes for two different users — must serialize or whole rows can be
+# lost between one writer's _load_prefs and its _save. Every write
+# below happens under this lock; readers stay lock-free (the blob is
+# written as one atomic settings row, so readers see old or new,
+# never torn).
+_PREFS_LOCK = threading.RLock()
+
+
+def set_prefs(user_id: int, prefs: dict, if_match: str = None) -> dict:
     """BULK set from the API envelope: {"preferences": {"jackpot": b,
     "scout": b}}. Unknown category keys are ignored; known keys update;
-    updated_at stamps the change; one audit row names what moved."""
+    updated_at stamps the change; one audit row names what moved.
+    ATOMIC OPTIMISTIC CONCURRENCY (Sep 26, the simultaneous race): pass
+    the If-Match version and the version check + write happen under ONE
+    lock — two devices firing the same stale version at the same
+    instant get exactly one applied write and one 412-shaped conflict,
+    never two 200s and never a doubled stamp."""
     if not isinstance(prefs, dict):
         return {"ok": False, "reason": "preferences must be an object"}
-    rows = _load_prefs()
-    key = str(int(user_id))
-    current, _ = get_prefs_updated(user_id)
-    changed = []
-    for cat in ("scout", "jackpot"):
-        if cat in prefs and bool(prefs[cat]) != bool(current.get(cat, True)):
-            current[cat] = bool(prefs[cat])
-            changed.append(f"{cat}={'on' if current[cat] else 'off'}")
-        elif cat in prefs:
-            current[cat] = bool(prefs[cat])
-    if changed:
-        rows[key] = {"preferences": current,
-                     "updated_at": _now_iso()}
-        _save(PREFS_KEY, rows)
-        _audit(user_id, "push_pref_changed",
-               {"changed": changed, "via": "push_service"})
-    return {"ok": True, "prefs": current, "updated_at": rows.get(key, {}).get("updated_at")}
+    with _PREFS_LOCK:
+        if if_match is not None:
+            held = f'"{get_prefs_updated(user_id)[1] or "v0"}"'
+            if if_match != held:
+                prefs_now, upd_now = get_prefs_updated(user_id)
+                return {"ok": False, "conflict": True,
+                        "reason": "version conflict - re-read and retry",
+                        "prefs": prefs_now, "updated_at": upd_now}
+        rows = _load_prefs()
+        key = str(int(user_id))
+        current, _ = get_prefs_updated(user_id)
+        changed = []
+        for cat in ("scout", "jackpot"):
+            if cat in prefs and bool(prefs[cat]) != bool(current.get(cat, True)):
+                current[cat] = bool(prefs[cat])
+                changed.append(f"{cat}={'on' if current[cat] else 'off'}")
+            elif cat in prefs:
+                current[cat] = bool(prefs[cat])
+        if changed:
+            rows[key] = {"preferences": current,
+                         "updated_at": _now_iso()}
+            _save(PREFS_KEY, rows)
+            _audit(user_id, "push_pref_changed",
+                   {"changed": changed, "via": "push_service"})
+        return {"ok": True, "prefs": current, "updated_at": rows.get(key, {}).get("updated_at")}
 
 
-def set_pref(user_id: int, category: str, enabled: bool) -> dict:
+def set_pref(user_id: int, category: str, enabled: bool,
+             if_match: str = None) -> dict:
+    """Single-toggle write, same atomic If-Match contract as set_prefs
+    (check + write under one lock)."""
     if category not in ("scout", "jackpot"):
         return {"ok": False, "reason": "unknown category"}
-    rows = _load_prefs()
-    key = str(int(user_id))
-    # BUGFIX (Sep 26, live-server drive 7.1): rows[key] is the ENVELOPE
-    # {"preferences": ..., "updated_at": ...}, not the prefs dict —
-    # reading it here stored the envelope inside itself (double
-    # nesting) on every legacy single-toggle write, which then made
-    # later bulk writes/reads merge into a shape the contract never
-    # pinned. Read through the canonical accessor instead.
-    prefs = get_prefs_updated(user_id)[0]
-    prefs[category] = bool(enabled)
-    rows[key] = {"preferences": prefs, "updated_at": _now_iso()}
-    _save(PREFS_KEY, rows)
-    _audit(user_id, "push_pref_changed",
-           {"category": category, "enabled": bool(enabled),
-            "via": "push_service"})
-    return {"ok": True, "prefs": prefs,
-            "updated_at": rows[key]["updated_at"]}
+    with _PREFS_LOCK:
+        if if_match is not None:
+            held = f'"{get_prefs_updated(user_id)[1] or "v0"}"'
+            if if_match != held:
+                prefs_now, upd_now = get_prefs_updated(user_id)
+                return {"ok": False, "conflict": True,
+                        "reason": "version conflict - re-read and retry",
+                        "prefs": prefs_now, "updated_at": upd_now}
+        rows = _load_prefs()
+        key = str(int(user_id))
+        # BUGFIX (Sep 26, live-server drive 7.1): rows[key] is the ENVELOPE
+        # {"preferences": ..., "updated_at": ...}, not the prefs dict —
+        # reading it here stored the envelope inside itself (double
+        # nesting) on every legacy single-toggle write, which then made
+        # later bulk writes/reads merge into a shape the contract never
+        # pinned. Read through the canonical accessor instead.
+        prefs = get_prefs_updated(user_id)[0]
+        prefs[category] = bool(enabled)
+        rows[key] = {"preferences": prefs, "updated_at": _now_iso()}
+        _save(PREFS_KEY, rows)
+        _audit(user_id, "push_pref_changed",
+               {"category": category, "enabled": bool(enabled),
+                "via": "push_service"})
+        return {"ok": True, "prefs": prefs,
+                "updated_at": rows[key]["updated_at"]}
 
 
 def _open_blob(key, default):
