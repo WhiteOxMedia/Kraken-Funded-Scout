@@ -635,6 +635,41 @@ check(10.6, _pref_rows >= 2,
       "logged like every push decision")
 ps.set_pref(UID, "scout", True)
 
+print("== 11. THE PREFS ENVELOPE CONTRACT (user shape, Sep 25 evening VIII) ==")
+# GET shape: {"user_id": ..., "preferences": {...}, "updated_at": ...}
+# POST accepts the bulk envelope; unknown user_id on the wire is
+# IGNORED (the authenticated session is always the subject)
+_r11 = ps.set_prefs(_uid2, {"jackpot": False, "scout": True})
+check(11.1, _r11["ok"] and _r11["prefs"]["jackpot"] is False
+      and _r11["prefs"]["scout"] is True,
+      f"bulk set lands: {_r11['prefs']}")
+check(11.2, isinstance(_r11.get("updated_at"), str)
+      and _r11["updated_at"].endswith("Z") and "T" in _r11["updated_at"],
+      f"updated_at is a UTC Z stamp: {_r11.get('updated_at')}")
+_g11 = ps.get_prefs_updated(_uid2)
+check(11.3, _g11[0] == {"jackpot": False, "scout": True}
+      and _g11[1] == _r11["updated_at"],
+      "the store round-trips the envelope (prefs + stamp)")
+# unknown keys ignored, no corruption
+_r11b = ps.set_prefs(_uid2, {"jackpot": True, "nonsense": True})
+check(11.4, _r11b["ok"] and _r11b["prefs"] == {"jackpot": True, "scout": True},
+      f"unknown category keys ignored: {_r11b['prefs']}")
+# no-change writes do not bump the stamp
+_before = ps.get_prefs_updated(_uid2)[1]
+ps.set_prefs(_uid2, {"jackpot": True})
+_after = ps.get_prefs_updated(_uid2)[1]
+check(11.5, _before == _after,
+      "an idempotent write leaves updated_at untouched")
+# and the opt-out gate still bites through the bulk path
+_off11 = ps.send_to_user(_uid2, "signal_buy")
+ps.set_prefs(_uid2, {"jackpot": True, "scout": False})
+_off11b = ps.send_to_user(_uid2, "signal_buy")
+check(11.6, "opted out" not in (_off11.get("reason") or "")
+      and "opted out" in (_off11b.get("reason") or ""),
+      "the bulk path feeds the same send-time gate (scout off -> "
+      "signal_buy refused)")
+ps.set_prefs(_uid2, {"jackpot": True, "scout": True})
+
 shutil.rmtree(SANDBOX, ignore_errors=True)
 print(f"RESULT: {passed} passed, {failed} failed")
 sys.exit(1 if failed else 0)

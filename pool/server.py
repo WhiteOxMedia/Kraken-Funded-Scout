@@ -1342,23 +1342,41 @@ async def api_push_unsubscribe(request: Request):
 
 @app.get("/api/push/preferences")
 async def api_push_prefs_get(request: Request):
-    """The user's two notification opt-outs (Scout / Jackpot)."""
+    """The user's notification preferences, in the envelope contract:
+    {"user_id": "<username>", "preferences": {"jackpot": b, "scout": b},
+    "updated_at": "<UTC Z stamp>|null"}. user_id is ECHOED from the
+    authenticated session - never accepted from the wire."""
     user = require_auth(request)
-    return JSONResponse(push_svc.get_prefs(int(user["id"])))
+    prefs, updated = push_svc.get_prefs_updated(int(user["id"]))
+    return JSONResponse({
+        "user_id": user.get("username"),
+        "preferences": prefs,
+        "updated_at": updated,
+    })
 
 
 @app.post("/api/push/preferences")
 async def api_push_prefs_set(request: Request):
-    """Toggle one notification category from the dashboard panel."""
+    """Set notification preferences from the dashboard panel. Accepts
+    BOTH shapes: the bulk envelope {"preferences": {...}} and the
+    single toggle {"category": ..., "enabled": ...}. The authenticated
+    user is always the subject - a user_id on the wire is ignored."""
     user = require_auth(request)
     body = await _push_body(request)
-    category = str(body.get("category") or "")
-    enabled = body.get("enabled")
-    res = push_svc.set_pref(int(user["id"]), category,
-                            bool(enabled) if enabled is not None else True)
+    if isinstance(body.get("preferences"), dict):
+        res = push_svc.set_prefs(int(user["id"]), body["preferences"])
+    else:
+        category = str(body.get("category") or "")
+        enabled = body.get("enabled")
+        res = push_svc.set_pref(int(user["id"]), category,
+                                bool(enabled) if enabled is not None else True)
     if not res.get("ok"):
         raise HTTPException(status_code=400, detail=res.get("reason"))
-    return JSONResponse(res)
+    return JSONResponse({
+        "user_id": user.get("username"),
+        "preferences": res.get("prefs"),
+        "updated_at": res.get("updated_at"),
+    })
 
 
 @app.post("/api/push/event")

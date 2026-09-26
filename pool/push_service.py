@@ -129,8 +129,45 @@ def _load_prefs() -> dict:
 
 
 def get_prefs(user_id: int) -> dict:
+    return get_prefs_updated(user_id)[0]
+
+
+def _now_iso() -> str:
+    """The prefs envelope's updated_at: UTC, second precision, Z
+    suffix - e.g. 2026-09-25T21:00:00Z."""
+    return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+
+
+def get_prefs_updated(user_id: int) -> tuple:
     rows = _load_prefs()
-    return dict(rows.get(str(int(user_id)), DEFAULT_PREFS))
+    entry = rows.get(str(int(user_id))) or {}
+    prefs = dict(entry.get("preferences", DEFAULT_PREFS))
+    return prefs, entry.get("updated_at")
+
+
+def set_prefs(user_id: int, prefs: dict) -> dict:
+    """BULK set from the API envelope: {"preferences": {"jackpot": b,
+    "scout": b}}. Unknown category keys are ignored; known keys update;
+    updated_at stamps the change; one audit row names what moved."""
+    if not isinstance(prefs, dict):
+        return {"ok": False, "reason": "preferences must be an object"}
+    rows = _load_prefs()
+    key = str(int(user_id))
+    current, _ = get_prefs_updated(user_id)
+    changed = []
+    for cat in ("scout", "jackpot"):
+        if cat in prefs and bool(prefs[cat]) != bool(current.get(cat, True)):
+            current[cat] = bool(prefs[cat])
+            changed.append(f"{cat}={'on' if current[cat] else 'off'}")
+        elif cat in prefs:
+            current[cat] = bool(prefs[cat])
+    if changed:
+        rows[key] = {"preferences": current,
+                     "updated_at": _now_iso()}
+        _save(PREFS_KEY, rows)
+        _audit(user_id, "push_pref_changed",
+               {"changed": changed, "via": "push_service"})
+    return {"ok": True, "prefs": current, "updated_at": rows.get(key, {}).get("updated_at")}
 
 
 def set_pref(user_id: int, category: str, enabled: bool) -> dict:
@@ -140,12 +177,13 @@ def set_pref(user_id: int, category: str, enabled: bool) -> dict:
     key = str(int(user_id))
     prefs = dict(rows.get(key, DEFAULT_PREFS))
     prefs[category] = bool(enabled)
-    rows[key] = prefs
+    rows[key] = {"preferences": prefs, "updated_at": _now_iso()}
     _save(PREFS_KEY, rows)
     _audit(user_id, "push_pref_changed",
            {"category": category, "enabled": bool(enabled),
             "via": "push_service"})
-    return {"ok": True, "prefs": get_prefs(user_id)}
+    return {"ok": True, "prefs": prefs,
+            "updated_at": rows[key]["updated_at"]}
 
 
 def _load(key):
