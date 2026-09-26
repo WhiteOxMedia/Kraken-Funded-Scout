@@ -25,7 +25,9 @@ headless and hermetic:
   6. registration down the transport is CAUGHT by the UI guard
                        (_install_via_api): friendly=True guidance, no
                        exception, no crash — the KNOWN GAP is closed;
-                       genuine validation errors keep the popup path
+                       genuine validation errors keep the popup path;
+                       check 7.1 pins the CALL SITE (_install routes
+                       through the guard, never installer.opt_in)
   7. worker name       optional: blank and filled both produce a
                        registration record with the worker echoed
   8. double install    the second opt-in grants no second welcome
@@ -37,6 +39,7 @@ transport (the test_installer pattern), sandbox DB for the ticket
 grant. No tkinter window, no network, no live jackpot.db. Prints
 "RESULT: N passed, M failed".
 """
+import inspect
 import json
 import sys
 import tempfile
@@ -172,9 +175,16 @@ check(6.1, r2.get("ok") is True and r2.get("welcome_ticket_granted") == 0
 
 print("== 6b. THE TRANSPORT-DOWN GUARD (the KNOWN GAP, closed) ==")
 installer._post_register = _fake_transport_down(captured)
-check(7.1, hasattr(installer_ui, "_install_via_api"),
-      "the UI module carries the guard helper (pin the surface, not "
-      "the call site)")
+# 7.1 THE CALL SITE, not just the surface (the KNOWN GAP's last mile):
+# a guard helper existing proves nothing if _install still calls
+# installer.opt_in directly. tkinter cannot be spawned in the drive,
+# so the wiring is pinned the same way the proxy_poller drive pins its
+# loop wiring — the handler's own source:
+_ui_src = inspect.getsource(installer_ui._run_tk)
+check(7.1, "_install_via_api(" in _ui_src
+      and "installer.opt_in(" not in _ui_src,
+      "_install routes through the guard: the handler calls "
+      "_install_via_api and NEVER installer.opt_in directly")
 r = installer_ui._install_via_api(WALLET, "rig7")
 check("7.1b", r.get("ok") is False and r.get("friendly") is True
       and "NOT registered yet" in (r.get("error") or ""),
