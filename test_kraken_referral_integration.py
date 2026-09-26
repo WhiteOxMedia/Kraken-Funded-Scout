@@ -1,8 +1,8 @@
 """test_kraken_referral_integration.py — the pipeline through the REAL
 FastAPI app: simulate provider -> snapshot rows -> projection ->
 /api/jackpot/projection ->admin trigger (503 unconfigured / 200 simulate) -> stubbed live provider (success, rate-limit backoff,
-persistent 5xx) -> the referral-window notice rate limit -> the shared credential
-seam (src/kraken_client mirrors pool/kraken_referral's tiered accessor) ->the operator key-check (ONE signed read-only Balance call through that seam) ->
+persistent 5xx) -> the referral-window notice rate limit -> the shared credentialseam (src/kraken_client mirrors pool/kraken_referral's tiered accessor, then
+DELEGATES the pool posture so the miner reports the panel's facts) -> the operator key-check (ONE signed read-only Balance call through that seam) ->
 the posture's OPTIONAL self-test (stored last verdict at a glance; an
 explicit verify=true dials through the SAME shared 30s throttle) -> the
 config read EMBEDS that posture verbatim (the panel and setup_kraken.py
@@ -438,6 +438,50 @@ check("8c.10", ok is False and "No complete API key/secret pair" in txt
       and "OS keyring" in txt,
       "not-found names EVERY tier it checked (the old message said "
       "keyring only — factually stale since the seam grew tiers)")
+
+print("-- 8c.11-13: THE MINER LEG (the client delegates the pool posture) --")
+# kraken_client.posture() IS the pool's provider_posture — the same
+# dict the admin panel embeds and setup_kraken.py prints — so all
+# three surfaces report identical credential posture
+_post = kc.posture()
+check("8c.11", isinstance(_post, dict)
+      and {"mode", "credentials_tier", "missing", "credential_check",
+           "settings_partial_pair"} <= set(_post)
+      and _post == kr.provider_posture(),
+      "kc.posture() IS kr.provider_posture() (identical dict, same keys "
+      "the panel embeds)")
+_ep0 = db.get_setting("KRAKEN_REFERRAL_ENDPOINT", "")
+db.set_setting("KRAKEN_REFERRAL_ENDPOINT", "")
+db.set_setting("KRAKEN_REFERRAL_MODE", "")
+_os.environ["KRAKEN_API_KEY"] = "KC-KEY-DRIVE-1111"
+_os.environ["KRAKEN_API_SECRET"] = "c2VjcmV0MTIzNDU2Nzg5MA=="
+ok, txt = _tier_report()
+check("8c.12", ok is True and "tier: env" in txt
+      and "posture: mode=unconfigured" in txt
+      and "missing for live mode: KRAKEN_REFERRAL_ENDPOINT" in txt
+      and "key validity unproven yet" in txt,
+      f"the miner line carries the PANEL's facts — mode, missing-for-live, "
+      f"and the honest unproven-verdict (no check has run yet this "
+      f"process; the VALID pin lives in 8e): ok={ok} "
+      f"txt={txt.strip()[-200:]!r}")
+del _os.environ["KRAKEN_API_KEY"]
+del _os.environ["KRAKEN_API_SECRET"]
+_kr_real_keyring = kr._keyring_creds
+_pool_pair = {"key": "pool-only-key-42", "secret": "c2VjcmV0MTIzNDU2Nzg5MA=="}
+kr._keyring_creds = lambda: dict(_pool_pair)
+# the drive holds TWO instances of the module (top-level `kr` and the
+# package-imported `pool.kraken_referral` kc.posture() delegates to) —
+# patch the POSTURE'S instance or the divergence scenario is fictional
+_pkr._keyring_creds = lambda: dict(_pool_pair)
+ok, txt = _tier_report()
+check("8c.13", ok is False and "DIVERGENCE" in txt
+      and "tier: keyring" in txt,
+      f"client sees nothing while the panel resolves a pair -> a LOUD "
+      f"divergence warning: ok={ok} txt={txt.strip()[-200:]!r}")
+kr._keyring_creds = _kr_real_keyring
+_pkr._keyring_creds = _kr_real_keyring
+db.set_setting("KRAKEN_REFERRAL_ENDPOINT", _ep0)
+db.set_setting("KRAKEN_REFERRAL_MODE", "")
 
 sys.modules.pop("keyring", None)              # real keyring re-imports later
 for _k, _v in _saved_env.items():
