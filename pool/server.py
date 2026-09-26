@@ -1340,6 +1340,27 @@ async def api_push_unsubscribe(request: Request):
         push_svc.handle_unsubscribe(int(user["id"]), await _push_body(request)))
 
 
+@app.get("/api/push/preferences")
+async def api_push_prefs_get(request: Request):
+    """The user's two notification opt-outs (Scout / Jackpot)."""
+    user = require_auth(request)
+    return JSONResponse(push_svc.get_prefs(int(user["id"])))
+
+
+@app.post("/api/push/preferences")
+async def api_push_prefs_set(request: Request):
+    """Toggle one notification category from the dashboard panel."""
+    user = require_auth(request)
+    body = await _push_body(request)
+    category = str(body.get("category") or "")
+    enabled = body.get("enabled")
+    res = push_svc.set_pref(int(user["id"]), category,
+                            bool(enabled) if enabled is not None else True)
+    if not res.get("ok"):
+        raise HTTPException(status_code=400, detail=res.get("reason"))
+    return JSONResponse(res)
+
+
 @app.post("/api/push/event")
 async def api_push_event(request: Request):
     """The machine leg: scout/push_client.py posts charter events

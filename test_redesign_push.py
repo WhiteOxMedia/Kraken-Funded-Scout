@@ -592,6 +592,49 @@ check(9.1, _last_bc and _endpoints_now > len(_users_now)
       f"recipients={_last_bc} == the USER count - one fan-out per "
       "USER, not per endpoint")
 
+print("== 10. THE TWO NOTIFICATION OPT-OUTS (user order, Sep 25 evening VII) ==")
+# Scout Notifications and Jackpot Notifications: independent per-user
+# opt-outs, enforced by the service BEFORE any send, every event in
+# exactly one category, and the toggle audited.
+_cats = set()
+for _ev, _cat in ps.CATEGORY.items():
+    _cats.add(_cat)
+    assert _ev in ps.EVENTS, f"{_ev} categorized but not templated"
+check(10.1, _cats == {"scout", "jackpot"},
+      f"every event maps to exactly one of the two dashboard "
+      f"categories (mapped: {len(ps.CATEGORY)} events)")
+check(10.2, ps.get_prefs(999999) == {"scout": True, "jackpot": True},
+      "defaults are BOTH ON for a user with no saved prefs")
+_r10 = ps.set_pref(UID, "scout", False)
+check(10.3, _r10["ok"] and ps.get_prefs(UID)["scout"] is False,
+      "the scout opt-out saves and reads back")
+_uid2 = int(db.create_user("pushuser3",
+                           _hl.sha256(b"pushuser3").hexdigest(),
+                           "pushuser3@example.com"))
+_ps2.subscribe(_uid2, {"endpoint": "https://dev3.example/s",
+                       "keys": {"p256dh": "a", "auth": "b"}})
+# scout OFF for UID2: a signal event must be refused by category
+ps.set_pref(_uid2, "scout", False)
+_off = ps.send_to_user(_uid2, "signal_buy")
+check(10.4, _off["sent"] == 0 and "opted out" in (_off.get("reason") or ""),
+      f"scout OFF blocks signal_buy: {_off.get('reason')}")
+# jackpot still ON for UID2: a jackpot event still attempts (config-
+# error result here - no VAPID in the sandbox - but NOT the opt-out)
+_on = ps.send_to_user(_uid2, "ticket_update")
+check(10.5, "opted out" not in (_on.get("reason") or ""),
+      f"jackpot ON is unaffected by the scout opt-out: "
+      f"{_on.get('reason')!r} (no VAPID in the sandbox -> config-error "
+      "reason, anything but the opt-out gate)")
+# and the audit trail names the toggle
+with db.get_db() as conn:
+    _pref_rows = conn.execute(
+        "SELECT COUNT(*) c FROM audit_log WHERE action = 'push_pref_changed'"
+    ).fetchone()["c"]
+check(10.6, _pref_rows >= 2,
+      f"{_pref_rows} push_pref_changed audit rows - the toggles are "
+      "logged like every push decision")
+ps.set_pref(UID, "scout", True)
+
 shutil.rmtree(SANDBOX, ignore_errors=True)
 print(f"RESULT: {passed} passed, {failed} failed")
 sys.exit(1 if failed else 0)

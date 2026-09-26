@@ -101,6 +101,53 @@ EVENTS = {
 }
 
 
+# THE TWO DASHBOARD CATEGORIES (user order, Sep 25 evening VII):
+# every event belongs to one of the two notification families the
+# user can opt out of independently on their dashboard panel.
+CATEGORY = {
+    "jackpot_win": "jackpot",
+    "claim_reminder": "jackpot",
+    "challenge_unlock": "jackpot",
+    "ticket_update": "jackpot",
+    "miner_status": "jackpot",
+    "signal_buy": "scout",
+    "signal_exit": "scout",
+}
+PREFS_KEY = "push_prefs"          # {"<user_id>": {"scout": bool, "jackpot": bool}}
+DEFAULT_PREFS = {"scout": True, "jackpot": True}
+
+
+def _load_prefs() -> dict:
+    """The prefs store is a DICT keyed by user id (the subscription
+    store is a list; this one is per-user preferences)."""
+    raw = db.get_setting(PREFS_KEY, "{}")
+    try:
+        rows = json.loads(raw)
+        return rows if isinstance(rows, dict) else {}
+    except (ValueError, TypeError):
+        return {}
+
+
+def get_prefs(user_id: int) -> dict:
+    rows = _load_prefs()
+    return dict(rows.get(str(int(user_id)), DEFAULT_PREFS))
+
+
+def set_pref(user_id: int, category: str, enabled: bool) -> dict:
+    if category not in ("scout", "jackpot"):
+        return {"ok": False, "reason": "unknown category"}
+    rows = _load_prefs()
+    key = str(int(user_id))
+    prefs = dict(rows.get(key, DEFAULT_PREFS))
+    prefs[category] = bool(enabled)
+    rows[key] = prefs
+    _save(PREFS_KEY, rows)
+    _audit(user_id, "push_pref_changed",
+           {"category": category, "enabled": bool(enabled),
+            "via": "push_service"})
+    return {"ok": True, "prefs": get_prefs(user_id)}
+
+
 def _load(key):
     raw = db.get_setting(key, "[]")
     try:
@@ -198,6 +245,11 @@ def send_to_user(user_id: int, event: str, extra: dict = None) -> dict:
     subs = [r for r in _load(SUBS_KEY) if int(r.get("user_id", -1)) == user_id]
     if not subs:
         return {"sent": 0, "reason": "no subscription"}
+    # THE OPT-OUT GATE (user order, Sep 25 evening VII): the user's
+    # dashboard toggles decide, per category, before anything sends.
+    cat = CATEGORY.get(event)
+    if cat and not get_prefs(user_id).get(cat, True):
+        return {"sent": 0, "reason": f"{cat} notifications opted out"}
     if not _rate_ok(user_id, event):
         _audit(user_id, "push_rate_limited",
                {"event": event, "via": "push_service"})

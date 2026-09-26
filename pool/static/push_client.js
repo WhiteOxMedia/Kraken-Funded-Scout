@@ -77,10 +77,41 @@
     });
   }
 
+  /* THE TWO DASHBOARD TOGGLES (user order, Sep 25 evening VII):
+     Scout Notifications and Jackpot Notifications opt out
+     independently; the server enforces the choice at send time. */
+  function wirePrefs() {
+    var j = document.getElementById("prefJackpot");
+    var s = document.getElementById("prefScout");
+    if (!j || !s || j.dataset.wired) { return; }
+    j.dataset.wired = "1";
+    s.dataset.wired = "1";
+    fetch("/api/push/preferences", { credentials: "same-origin" })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (p) {
+        if (p) {
+          j.checked = p.jackpot !== false;
+          s.checked = p.scout !== false;
+        }
+      })
+      .catch(function () { /* defaults stand */ });
+    function post(cat, on) {
+      fetch("/api/push/preferences", {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ category: cat, enabled: on }),
+      }).catch(function () { /* the server is the truth anyway */ });
+    }
+    j.addEventListener("change", function () { post("jackpot", j.checked); });
+    s.addEventListener("change", function () { post("scout", s.checked); });
+  }
+
   function wire() {
     var btn = document.getElementById("btnEnablePush");
     if (!btn) { return; }
     btn.addEventListener("click", enable);
+    wirePrefs();
     if (SUPPORTED && Notification.permission === "granted") {
       /* second triage (Sep 25): the worker registers at /push_sw.js
          with root scope now — look it up by scope, not old path */
