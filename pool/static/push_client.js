@@ -125,6 +125,7 @@
     if (el) {
       el.textContent = text || "";
       el.style.color = warn ? "#c9a227" : "var(--text-mute)";
+      el.title = "";   // verdicts carry no stamp tooltip — never stale
     }
   }
 
@@ -147,6 +148,10 @@
   function renderStampLine() {
     var el = document.getElementById("prefSaved");
     if (!el || !stampNote) { return; }
+    /* HOVER = THE EXACT MOMENT (Sep 26): the relative text answers
+       "how old"; the title answers "when exactly" — the raw UTC ISO
+       stamp, same convention as the Scout panel's stamp. */
+    el.title = stampNote.iso || "";
     var label = stampNote.prefix + " " + relTime(stampNote.iso)
       + stampNote.suffix;
     if (stampNote.withUndo) {
