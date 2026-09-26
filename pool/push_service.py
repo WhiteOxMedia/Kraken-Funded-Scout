@@ -184,6 +184,20 @@ def get_prefs_updated(user_id: int) -> tuple:
     rows = _load_prefs()
     entry = rows.get(str(int(user_id))) or {}
     prefs = dict(entry.get("preferences", DEFAULT_PREFS))
+    # SELF-HEAL (Sep 26, live-server drive 7.1): pre-fix set_pref stored
+    # the whole envelope as the preferences value (double nesting), so
+    # later bulk writes merged into a shape the contract never pinned —
+    # the observed {'preferences': {...}, 'updated_at': ..., 'scout':
+    # True, 'jackpot': True} blob — and a restore write could no-op.
+    # Unwrap until the value is the plain {scout, jackpot} dict; the
+    # next write persists the repair. A clean dict never carries those
+    # two keys (set_prefs/set_pref only ever write scout/jackpot), so
+    # the condition cannot false-positive.
+    hops = 0
+    while (isinstance(prefs, dict) and hops < 3
+           and ("preferences" in prefs or "updated_at" in prefs)):
+        prefs = dict(prefs.get("preferences") or DEFAULT_PREFS)
+        hops += 1
     return prefs, entry.get("updated_at")
 
 
@@ -217,7 +231,13 @@ def set_pref(user_id: int, category: str, enabled: bool) -> dict:
         return {"ok": False, "reason": "unknown category"}
     rows = _load_prefs()
     key = str(int(user_id))
-    prefs = dict(rows.get(key, DEFAULT_PREFS))
+    # BUGFIX (Sep 26, live-server drive 7.1): rows[key] is the ENVELOPE
+    # {"preferences": ..., "updated_at": ...}, not the prefs dict —
+    # reading it here stored the envelope inside itself (double
+    # nesting) on every legacy single-toggle write, which then made
+    # later bulk writes/reads merge into a shape the contract never
+    # pinned. Read through the canonical accessor instead.
+    prefs = get_prefs_updated(user_id)[0]
     prefs[category] = bool(enabled)
     rows[key] = {"preferences": prefs, "updated_at": _now_iso()}
     _save(PREFS_KEY, rows)
