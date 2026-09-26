@@ -20,8 +20,9 @@ stamp clock is strictly monotonic by contract), both devices converge
 on the identical final envelope (same preferences, updated_at, ETag);
 a THREADED simultaneous variant where both devices fire the SAME stale
 If-Match at the same instant and the store's atomic check+write yields
-exactly one 200 and one 412 with convergent state. Prints
-"RESULT: N passed, M failed".
+exactly one 200 and one 412 with convergent state; a THREE-device
+firing where both losers' conflict bodies must agree with the single
+winner's envelope. Prints "RESULT: N passed, M failed".
 """
 import sys
 import tempfile
@@ -260,6 +261,85 @@ check("7b.6", final.json()["preferences"] == _won.get("preferences"),
 check("7b.7", final.json()["preferences"] in (
           {"jackpot": True, "scout": False}, {"jackpot": False, "scout": True}),
       "the surviving state is one of the two raced payloads (no blend, no lost blob)")
+
+# 7c. THE THREE-DEVICE SIMULTANEOUS RACE (multi-writer contract):
+# three sessions fire the SAME If-Match at the same instant, each with
+# a DIFFERENT payload. The atomic check+write must yield exactly one
+# applied write and two conflicts, and — the multi-writer twist — BOTH
+# losers' 412 bodies must carry the SAME winner envelope (no loser may
+# observe a torn or intermediate state).
+print("== 7c. THE THREE-DEVICE SIMULTANEOUS RACE ==")
+# Normalize to a known baseline first: the exactly-one-applies outcome
+# requires every raced write to be a REAL change — an idempotent no-op
+# write does not bump the version (documented contract), so a payload
+# equal to the stored state would legitimately let the next same-
+# version write apply. Baseline {T,T}; all three payloads differ.
+r = client.post("/api/push/preferences", json={"preferences": {"jackpot": True, "scout": True}})
+check("7c.0", r.status_code == 200, f"baseline write: {r.status_code}")
+
+_baz = TestClient(srv.app)                   # device C: third session
+r = _baz.post("/api/auth/login", json={
+    "username": "alice", "password": "correct horse battery"})
+check("7c.0b", r.status_code == 200, "third device logged in")
+
+rA3 = client.get("/api/push/preferences")
+rB3 = _bar.get("/api/push/preferences")
+rC3 = _baz.get("/api/push/preferences")
+v3 = rA3.json()["updated_at"]
+check("7c.1", rA3.status_code == 200 and rB3.status_code == 200
+      and rC3.status_code == 200
+      and rB3.json()["updated_at"] == v3 and rC3.json()["updated_at"] == v3,
+      f"all three devices open on the same version ({v3})")
+
+_w3, _c3, _l3 = [], [], threading.Lock()
+
+
+def _fire3(device, payload):
+    r = device.post("/api/push/preferences", json={"preferences": payload},
+                    headers={"If-Match": f'"{v3}"'})
+    with _l3:
+        if r.status_code == 200:
+            _w3.append(r)
+        elif r.status_code == 412:
+            _c3.append(r)
+
+
+_p3 = [{"jackpot": False, "scout": False},
+       {"jackpot": True, "scout": False},
+       {"jackpot": False, "scout": True}]
+_ts = [threading.Thread(target=_fire3, args=(dev, p))
+       for dev, p in zip((client, _bar, _baz), _p3)]
+for _t in _ts:
+    _t.start()
+for _t in _ts:
+    _t.join(15)
+
+check("7c.2", len(_w3) == 1 and len(_c3) == 2,
+      f"exactly one 200 and two 412s (wins={len(_w3)}, conflicts={len(_c3)})")
+_won3 = _w3[0].json() if _w3 else {}
+check("7c.3", _won3 and all(
+          c.json().get("updated_at") == _won3.get("updated_at")
+          and c.json().get("preferences") == _won3.get("preferences")
+          for c in _c3),
+      "both losers see the SAME winner envelope — no torn or intermediate view")
+check("7c.4", all(c.json().get("error") == "version conflict - re-read and retry"
+                  for c in _c3),
+      "every conflict body carries the canonical re-read-and-retry error")
+check("7c.5", _won3.get("updated_at", "") > v3,
+      f"the winner's stamp strictly advanced ({v3} -> {_won3.get('updated_at')})")
+
+# CONVERGENCE: all three devices read the identical winner's envelope
+fA3 = client.get("/api/push/preferences")
+fB3 = _bar.get("/api/push/preferences")
+fC3 = _baz.get("/api/push/preferences")
+check("7c.6", fA3.status_code == fB3.status_code == fC3.status_code == 200
+      and fA3.json()["updated_at"] == fB3.json()["updated_at"]
+      == fC3.json()["updated_at"] == _won3.get("updated_at"),
+      f"all three devices converge on the winner's version ({fA3.json()['updated_at']})")
+check("7c.7", fA3.json()["preferences"] == _won3.get("preferences")
+      and fA3.json()["preferences"] in _p3,
+      f"state is one of the three raced payloads, atomically applied: "
+      f"{fA3.json()['preferences']}")
 
 passed, failed = results.count(True), results.count(False)
 print(f"RESULT: {passed} passed, {failed} failed")
