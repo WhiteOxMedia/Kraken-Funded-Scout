@@ -65,7 +65,11 @@ def guide_lines() -> list:
     for n, txt in GUIDE_STEPS:
         out.append(f"{n}. {txt}")
     link = get_referral_link()
-    out.append(("referral link: " + link) if link else
+    out.append(("referral link: " + link + " "
+                "(why this link: it helps fund the jackpot — join Kraken "
+                "with it, pass the Funded Challenge with Kraken Scout, and "
+                "Kraken pays you and pays the jackpot when the terms are "
+                "met)") if link else
                "referral link: ask the community admin (not configured "
                "on this box)")
     return out
