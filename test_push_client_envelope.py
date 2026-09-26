@@ -35,8 +35,17 @@ stubbed DOM + fetch and asserts the checkbox outcomes:
      the cleared history is INERT — a lingering undo link can no
      longer replay the previous account's state, and the next write
      rides the version the re-read captured
+  9. THE UNDO WRITE ITSELF LOSING THE RACE: an undo that gets 412
+     adopts the OTHER device's state (never the undo target), offers
+     no link, and the next write rides the conflict's version
+ 10. the shared clock's buckets, including the older-than-a-week
+     absolute fallback
 
-No network, no browser: Node is required, everything else is stubbed.
+EVERY scenario's success is gated on the EXECUTED-SOURCE check: the
+harness proves the file it ran carries an in-source client marker, so
+a mutated or swapped copy fails the drive instead of green-checking a
+fiction. No network, no browser: Node is required, everything else is
+stubbed.
 Prints "RESULT: N passed, M failed".
 """
 import os
@@ -65,6 +74,12 @@ if not node or not CLIENT.exists():
     print("RESULT: 0 passed, 0 failed")
     sys.exit(0)
 
+# THE IN-SOURCE CLIENT MARKER: the harness refuses to green-check a
+# file that does not carry it (see the JS side of the harness). If a
+# deliberate edit ever removes that comment from push_client.js,
+# update BOTH this constant and the JS one in the same commit.
+CLIENT_MARKER = "SHAPE FIX (Sep 26"
+
 # ── THE HARNESS: minimal DOM + fetch stubs, then the REAL client ────
 # The client is an IIFE that wires #prefJackpot/#prefScout and calls
 # readServer() the moment it loads, so each scenario PRE-SCRIPTS the
@@ -84,7 +99,7 @@ let script = null;             // the currently scripted fetch response
 function el(id) {
   const e = {
     id,
-    textContent: '',
+    _text: '',
     title: '',
     style: {},
     dataset: {},
@@ -93,6 +108,14 @@ function el(id) {
     appendChild(c) { this.children.push(c); },
     addEventListener(t, fn) { (this.listeners[t] = this.listeners[t] || []).push(fn); },
   };
+  // DOM-faithful textContent: assigning it REPLACES all children (a
+  // plain data property would keep stale anchors around and lie
+  // about whether the undo/redo link is still on screen)
+  Object.defineProperty(e, 'textContent', {
+    get() { return this._text; },
+    set(v) { this._text = String(v); this.children.length = 0; },
+    configurable: true,
+  });
   Object.defineProperty(e, 'checked', {
     get() { return prefsBox[id === 'prefJackpot' ? 'jackpot' : 'scout']; },
     set(v) { prefsBox[id === 'prefJackpot' ? 'jackpot' : 'scout'] = !!v; },
@@ -151,6 +174,13 @@ sandbox.navigator = { serviceWorker: undefined, PushManager: undefined, Notifica
 
 const ctx = vm.createContext(sandbox);
 const src = fs.readFileSync(process.env.CLIENT_PATH, 'utf8');
+// THE EXECUTED-SOURCE CHECK: the drive must run the client the repo
+// ships. If this marker is missing from the loaded file, the harness
+// is executing a mutated or stale copy — fail loudly (exit 3), never
+// green-check a fiction. The Python side asserts the marker exists in
+// the repo file; update BOTH deliberately if adopt() is ever reworded.
+const CLIENT_MARKER = 'SHAPE FIX (Sep 26';
+const executedRealClient = src.includes(CLIENT_MARKER);
 function loadClient() {
   vm.runInContext(src, ctx, { filename: 'push_client.js' });
 }
@@ -433,6 +463,46 @@ async function scenario(name) {
     return 'reltime_buckets ok';
   }
 
+  if (name === 'undo_conflict') {
+    script = { status: 200, headers: { ETag: '"2026-09-26T10:00:00Z"' }, json: ENVELOPE };
+    loadClient();
+    await flushAll();
+    script = { status: 200, headers: {}, json: {
+      user_id: 'alice', preferences: { jackpot: false, scout: false },
+      updated_at: '2026-09-26T10:00:01Z' } };
+    fireChange('prefScout', false);
+    await flushAll();
+    assert.strictEqual(stampLink().textContent, 'undo',
+                       'undo offered after the write');
+    // ANOTHER DEVICE advances the server before our undo lands: the
+    // UNDO WRITE ITSELF loses the race
+    script = { status: 412, headers: { ETag: '"2026-09-26T10:00:07Z"' }, json: {
+      user_id: 'alice', preferences: { jackpot: true, scout: false },
+      updated_at: '2026-09-26T10:00:07Z',
+      error: 'version conflict - re-read and retry',
+    } };
+    clickStampLink();
+    await flushAll();
+    assert.deepStrictEqual(checkboxState(), { jackpot: true, scout: false },
+                           "the undo's 412 adopts the OTHER device's state, never the undo target");
+    assert.strictEqual(els.prefSaved.children.length, 0,
+                       'no undo/redo link after the conflict (our write never applied)');
+    assert.ok(els.prefSaved.textContent.indexOf('another device changed these') === 0,
+              'the conflict verdict renders: ' + els.prefSaved.textContent);
+    // and the next write rides the version the conflict adoption captured
+    script = { status: 200, headers: {}, json: {
+      user_id: 'alice', preferences: { jackpot: true, scout: true },
+      updated_at: '2026-09-27T10:00:00Z' } };
+    fireChange('prefScout', true);
+    await flushAll();
+    const posts = sentRequests.filter((r) => r.method === 'POST');
+    assert.strictEqual(posts[posts.length - 1].headers['If-Match'], '"2026-09-26T10:00:07Z"',
+                       'the next write rides the conflict version');
+    assert.deepStrictEqual(checkboxState(), { jackpot: true, scout: true },
+                           'the follow-up write adopts its 200 body');
+    return 'undo_conflict ok';
+  }
+
   if (name === 'retry_after_412') {
     script = { status: 200, headers: { ETag: '"2026-09-26T10:00:00Z"' }, json: ENVELOPE };
     loadClient();
@@ -463,7 +533,17 @@ async function scenario(name) {
 }
 
 scenario(process.argv[2]).then(
-  (ok) => { console.log(ok); process.exit(0); },
+  (ok) => {
+    if (!executedRealClient) {
+      console.error('EXECUTED-SOURCE CHECK FAILED: the loaded '
+        + 'push_client.js lacked the in-source client marker ('
+        + 'SHAPE FIX (Sep 26) — the drive is not running the '
+        + 'shipped client');
+      process.exit(3);
+    }
+    console.log(ok);
+    process.exit(0);
+  },
   (err) => { console.error(String(err && err.message || err)); process.exit(1); },
 );
 """
@@ -488,6 +568,8 @@ SCENARIOS = [
      "after an account switch the cleared history is inert and the next write rides the re-read version"),
     ("9", "reltime_buckets",
      "the shared clock's buckets, including the older-than-a-week absolute fallback"),
+    ("10", "undo_conflict",
+     "an undo that loses the race adopts the other device's state, offers no link, and the next write rides the conflict version"),
 ]
 
 
@@ -510,6 +592,10 @@ def run_scenario(name):
             pass
     return proc
 
+
+check("0", CLIENT_MARKER in CLIENT.read_text(encoding="utf-8"),
+      "the shipped client carries the executed-source marker — update "
+      "CLIENT_MARKER here and in the harness if adopt() was reworded")
 
 for label, scenario, why in SCENARIOS:
     proc = run_scenario(scenario)
