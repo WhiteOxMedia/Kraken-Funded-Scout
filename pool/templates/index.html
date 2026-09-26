@@ -1394,6 +1394,28 @@
       </div>
     </div>
 
+    <!-- THE KRAKEN SCOUT DOWNLOAD (acceptance condition 2, Sep 26):
+         stable URL + the published SHA256, filled from the manifest
+         the server itself serves at /api/downloads/bundle-info -->
+    <div class="card" style="margin-top:16px;">
+      <div class="card-header">📦 Kraken Scout Trading Console + Mining Bot</div>
+      <p style="font-size:0.85em;color:var(--text-dim);margin-bottom:10px;">
+        One bundle: the Scout console, the pool view, and the Mining Bot
+        (opt-out is a single checkbox, ON unless you uncheck it).
+      </p>
+      <div style="font-size:0.8em;color:var(--text-mute);margin-bottom:6px;">
+        SHA256 <span id="bundleSha" style="color:var(--text-dim);word-break:break-all;">loading…</span>
+      </div>
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+        <a id="bundleLink" class="btn btn-gold btn-sm" href="/downloads/KrakenScoutBundle.zip" download>
+          ⬇ Download Kraken Scout Bundle
+        </a>
+        <span id="bundleMeta" style="font-size:0.75em;color:var(--text-mute);"></span>
+        <a href="/downloads/KrakenScoutBundle.zip.sha256" target="_blank" rel="noopener"
+           style="font-size:0.75em;color:var(--lapis);margin-left:auto;">published checksum ↗</a>
+      </div>
+    </div>
+
     <!-- Referral Program -->
     <div class="card" style="margin-top:16px;border-color:var(--gold-dark);">
       <div class="card-header">🤝 Earn More Entries With Referrals</div>
@@ -1464,6 +1486,7 @@
 
 </div><!-- /#app -->
 <script src="/static/app.js?v=20"></script>
+<script src="/static/bundle_card.js?v=1"></script>
 <script src="/static/wf_dashboard.js?v=1"></script>
 <script src="/static/push_client.js?v=4"></script>
 <script src="/static/admin_cold_wallet.js?v=1"></script>

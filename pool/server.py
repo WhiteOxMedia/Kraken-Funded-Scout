@@ -14,7 +14,9 @@ import asyncio
 
 import aiohttp
 from fastapi import FastAPI, Request, HTTPException, Depends, WebSocket, WebSocketDisconnect
-from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
+from fastapi.responses import (HTMLResponse, JSONResponse,
+                               PlainTextResponse, RedirectResponse,
+                               FileResponse, Response)
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
@@ -30,6 +32,56 @@ app = FastAPI(title="XMR Jackpot Pool")
 # Mount static files
 static_dir = Path(__file__).parent / "static"
 app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
+
+# THE STABLE DOWNLOAD SURFACE (acceptance condition 2, Sep 26): the
+# built Kraken Scout bundle + published checksum manifest, served from
+# the pool itself so the URL never moves. Files live in dist/ (the
+# build script's output dir); the routes expose ONLY the artifacts,
+# with nosniff + attachment disposition. The manifest is generated at
+# build time; /api/downloads/bundle-info reads it for the dashboard.
+_dist_dir = Path(__file__).parent.parent / "dist"
+
+
+@app.get("/downloads/KrakenScoutBundle.zip")
+async def downloads_bundle():
+    f = _dist_dir / "KrakenScoutBundle.zip"
+    if not f.exists():
+        raise HTTPException(status_code=404, detail="bundle not built")
+    # no-cache: a checksum-pinned artifact must NEVER be served stale
+    # from an edge cache (Cloudflare proved this within the hour) —
+    # revalidate per request, 304 when the bytes are unchanged.
+    return FileResponse(str(f), media_type="application/zip",
+                        filename="KrakenScoutBundle.zip",
+                        headers={"X-Content-Type-Options": "nosniff",
+                                 "Cache-Control": "no-cache"})
+
+
+@app.get("/downloads/KrakenScoutBundle.zip.sha256")
+async def downloads_bundle_sha256():
+    f = _dist_dir / "KrakenScoutBundle.zip.sha256"
+    if not f.exists():
+        raise HTTPException(status_code=404, detail="checksum not published")
+    return PlainTextResponse(f.read_text(encoding="ascii"),
+                             headers={"X-Content-Type-Options": "nosniff",
+                                      "Cache-Control": "no-cache"})
+
+
+@app.get("/api/downloads/bundle-info")
+async def downloads_bundle_info():
+    """Public metadata for the dashboard download card: SHA256, size,
+    build time, repo heads. Parsed from the build-time manifest — the
+    dashboard must show the SAME hash the .sha256 file publishes."""
+    mf = _dist_dir / "KrakenScoutBundle.zip.json"
+    if not mf.exists():
+        raise HTTPException(status_code=404, detail="bundle not built")
+    try:
+        info = json.loads(mf.read_text(encoding="utf-8"))
+    except ValueError:
+        raise HTTPException(status_code=500, detail="corrupt manifest")
+    zip_path = _dist_dir / "KrakenScoutBundle.zip"
+    if zip_path.exists():
+        info["bytes_on_disk"] = zip_path.stat().st_size
+    return JSONResponse(info)
 
 # Initialize database
 db.init_db()
