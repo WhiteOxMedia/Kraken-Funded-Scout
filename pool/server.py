@@ -1628,6 +1628,74 @@ async def api_admin_push_vapid_act(request: Request):
     return JSONResponse(res)
 
 
+@app.get("/api/admin/push/decisions")
+async def api_admin_push_decisions(request: Request):
+    """THE SUPPRESSION/SEND LEDGER (user order, Sep 26): the raw
+    push decision rows — send_allowed / send_blocked / rate_limited /
+    broadcast / subscribe / unsubscribe — newest first, filterable.
+    Usernames only (never emails/phones); details JSON parsed server-
+    side so the client renders fixed fields."""
+    require_admin(request)
+    qp = request.query_params
+    try:
+        limit = max(1, min(200, int(qp.get("limit", "50"))))
+    except ValueError:
+        limit = 50
+    action = str(qp.get("action") or "")            # exact action or ""
+    category = str(qp.get("category") or "")        # jackpot|scout|""
+    try:
+        user_id = int(qp.get("user_id")) if qp.get("user_id") else None
+    except ValueError:
+        user_id = None
+    # user 0 is the BROADCAST pseudo-user in push_send rows; a filter
+    # value of 0 must mean "broadcast rows", not "no filter"
+    if qp.get("user_id") == "0":
+        user_id = 0
+    allowed_actions = {"push_send_allowed", "push_send_blocked",
+                       "push_rate_limited", "push_broadcast",
+                       "push_subscribe", "push_unsubscribe"}
+    where = ["a.action LIKE 'push_%'"]
+    params = []
+    if action in allowed_actions:
+        where.append("a.action = ?")
+        params.append(action)
+    if user_id is not None:
+        where.append("a.user_id = ?")
+        params.append(user_id)
+    where_sql = " AND ".join(where)
+    with db.get_db() as conn:
+        rows = conn.execute(
+            f"SELECT a.id, a.user_id, a.action, a.details, a.created_at, "
+            f"u.username FROM audit_log a "
+            f"LEFT JOIN users u ON a.user_id = u.id "
+            f"WHERE {where_sql} ORDER BY a.created_at DESC LIMIT ?",
+            (*params, limit)).fetchall()
+    out = []
+    for r in rows:
+        try:
+            d = json.loads(r["details"] or "{}")
+        except ValueError:
+            d = {}
+        item = {"id": r["id"], "username": r["username"] or
+                (str(r["user_id"]) if r["user_id"] else "broadcast"),
+                "action": r["action"], "ts": r["created_at"],
+                "event": str(d.get("event") or "")}
+        cat = d.get("category")
+        if cat:
+            item["category"] = cat
+        for k in ("reason", "sent", "dead", "scope", "endpoint_host"):
+            if d.get(k) is not None:
+                item[k] = d[k]
+        if category and item.get("category") != category:
+            continue
+        out.append(item)
+    return JSONResponse({"decisions": out, "count": len(out),
+                         "filters": {"action": action,
+                                     "category": category,
+                                     "user_id": user_id,
+                                     "limit": limit}})
+
+
 @app.get("/api/admin/push/report")
 async def api_admin_push_report(request: Request):
     """THE DAILY PUSH REPORT (user order, Sep 26): sends, blocks,
