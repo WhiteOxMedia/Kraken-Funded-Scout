@@ -36,6 +36,13 @@ USAGE
   .venv/Scripts/python.exe run_fleet.py --list          # show drives
   .venv/Scripts/python.exe run_fleet.py --only push prefs   # subset
   .venv/Scripts/python.exe run_fleet.py --timeout 600 --retries 1
+  .venv/Scripts/python.exe run_fleet.py --fail-fast         # debug loop
+
+--FAIL-FAST stops the fleet at the FIRST regression and prints that
+drive's full output (the confirming run's stdout+stderr), then lists
+every drive it did not run — the tight write-test loop. Flakes do NOT
+stop it (they are warnings). The pre-commit gate keeps the full-fleet
+default: a landing commit deserves the whole ledger.
 
 Exit code 0 = no regressions (flakes are warnings, listed loudly).
 Exit code 1 = at least one REGRESSION (or a drive that crashed both
@@ -151,7 +158,9 @@ def run_classified(path, args):
                    if r1["passed"] is not None else "no RESULT line"),
         "dur": r1["dur"],
         "note": "stable failure: " + (",".join(r1["fails"][:5])
-                                      or r1["why"] or r1["tail"][-90:])}
+                                      or r1["why"] or r1["tail"][-90:]),
+        # the confirming run's full output — --fail-fast prints it
+        "out": r1["out"]}
 
 
 def main():
@@ -166,6 +175,9 @@ def main():
     ap.add_argument("--skip-cooldown", type=int, default=65,
                     help="seconds to wait before retrying a skipped drive")
     ap.add_argument("--list", action="store_true", help="list and exit")
+    ap.add_argument("--fail-fast", action="store_true",
+                    help="stop at the first regression and print that "
+                         "drive's full output")
     args = ap.parse_args()
 
     drives = discover()
@@ -181,9 +193,12 @@ def main():
         print("no drives matched")
         return 1
 
-    print("THE FLEET: {} drives, rerun triage on, timeout {}s"
-          .format(len(drives), args.timeout))
+    print("THE FLEET: {} drives, rerun triage on{} timeout {}s"
+          .format(len(drives),
+                  ", FAIL-FAST on," if args.fail_fast else ",",
+                  args.timeout))
     rows = []
+    stopped_at = None
     for i, d in enumerate(drives, 1):
         print("[{}/{}] {} …".format(i, len(drives), d.name), flush=True)
         status, info = run_classified(d, args)
@@ -191,6 +206,22 @@ def main():
         print("    {}  {}  ({:.1f}s)  {}".format(
             status, info["checks"], info["dur"], info["note"] or "-"),
             flush=True)
+        if status == "REGRESSION" and args.fail_fast:
+            stopped_at = i          # flakes and skips never stop the run
+            break
+
+    if stopped_at is not None:
+        name, _st, info = rows[-1]
+        print("\n" + "=" * 100)
+        print("FAIL-FAST: {} REGRESSED — full output of the confirming run:"
+              .format(name))
+        print("=" * 100)
+        print(info.get("out") or "(no captured output)")
+        print("=" * 100)
+        rest = [d.name for d in drives[stopped_at:]]
+        if rest:
+            print("FAIL-FAST: {} drive(s) not run: {}".format(
+                len(rest), ", ".join(rest)))
 
     # THE COVERAGE TABLE
     print("\n{:<34} {:<11} {:<12} {:>7}  {}".format(
