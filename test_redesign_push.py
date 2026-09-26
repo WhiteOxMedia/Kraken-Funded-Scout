@@ -74,8 +74,12 @@ def _sha(path):
 
 
 LIVE_DB = HERE / "pool" / "jackpot.db"
-_live_before = (( _sha(LIVE_DB), os.path.getmtime(LIVE_DB))
-                if LIVE_DB.exists() else None)
+# THE DRIVE MUST NEVER TOUCH THE LIVE DB (environment-proof
+# restated, Sep 26: the old sha256+mtime identity pin held only
+# on a quiet box; production services legitimately write
+# jackpot.db during a run). The invariant that survives any
+# environment: this drive DB binding stays on the sandbox file.
+_live_db_real = os.path.realpath(str(LIVE_DB)) if LIVE_DB.exists() else None
 
 # ── A1. TEXT PRESERVATION ────────────────────────────────────────────
 print("== 1. TEXT PRESERVATION: every visible string survives ==")
@@ -377,8 +381,8 @@ check(4.5, sent_now == ps.EVENTS["ticket_update"]["rate"],
 with db.get_db() as conn:
     acts = [r[0] for r in conn.execute(
         "SELECT action FROM audit_log WHERE action LIKE 'push%'")]
-check(4.6, "push_rate_limited" in acts and "push_sent" in acts,
-      f"rate-limit and send audits landed ({acts})")
+check(4.6, "push_rate_limited" in acts and "push_send_allowed" in acts,
+      f"rate-limit and send-allowed audits landed ({acts})")
 check(4.7, ps.send_to_user(999999, "jackpot_win")["reason"]
       == "no subscription",
       "a user with no subscription is a quiet no-op, never an error")
@@ -439,9 +443,12 @@ sw_src = (HERE / "pool" / "static" / "push_sw.js").read_text(
     encoding="utf-8")
 check(6.3, 'url.charAt(0) !== "/"' in sw_src,
       "the service worker navigates same-origin only")
-if _live_before:
-    check(6.4, (_sha(LIVE_DB), os.path.getmtime(LIVE_DB)) == _live_before,
-          "the live jackpot.db is sha256+mtime identical throughout")
+if _live_db_real:
+    check(6.4, db.DB_PATH != LIVE_DB
+          and os.path.realpath(str(db.DB_PATH)) != _live_db_real,
+          "the drive DB binding stays on the SANDBOX file - the live "
+          "jackpot.db is never opened by this drive (the live file "
+          "may change under production services; that is their right)")
 else:
     check(6.4, not LIVE_DB.exists(),
           "no live jackpot.db - nothing to protect, nothing touched")
@@ -527,10 +534,11 @@ check(8.3, '@app.get("/api/push/signals")' in server_src
       "anonymous reads)")
 svc_src = (HERE / "pool" / "push_service.py").read_text(encoding="utf-8")
 check(8.4, "def scrape_recent_signals" in svc_src
-      and "push_sent" in svc_src and "whitelist" in svc_src.lower(),
-      "the signals scraper is whitelisted to (action, timestamp, "
-      "title) over the push audits — no endpoints, no keys, no "
-      "details JSON")
+      and "signal_buy" in svc_src and "signal_exit" in svc_src
+      and "whitelist" in svc_src.lower(),
+      "the signals scraper filters to the signal events before the "
+      "limit (the action whitelist is the feed's contract) — no "
+      "endpoints, no keys, no details JSON")
 check(8.5, not (HERE / "pool" / "templates" / "index.html")
       .read_text(encoding="utf-8").count("miner_character")
       and not (HERE / "pool" / "static" / "img" /

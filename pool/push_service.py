@@ -285,8 +285,15 @@ def send_to_user(user_id: int, event: str, extra: dict = None) -> dict:
         return {"sent": 0, "reason": "no subscription"}
     # THE OPT-OUT GATE (user order, Sep 25 evening VII): the user's
     # dashboard toggles decide, per category, before anything sends.
+    # AUDITED (user flow, Sep 26): a suppressed notification is a
+    # logged decision (send_blocked) — silence leaves no trace, and
+    # the audit order matches the gate order: block -> rate-limit ->
+    # send -> allow.
     cat = CATEGORY.get(event)
     if cat and not get_prefs(user_id).get(cat, True):
+        _audit(user_id, "push_send_blocked",
+               {"event": event, "category": cat,
+                "reason": "opted_out", "via": "push_service"})
         return {"sent": 0, "reason": f"{cat} notifications opted out"}
     if not _rate_ok(user_id, event):
         _audit(user_id, "push_rate_limited",
@@ -341,9 +348,9 @@ def send_to_user(user_id: int, event: str, extra: dict = None) -> dict:
         except Exception:
             dead += 1
     if have_lib and (sent or dead):
-        _audit(user_id, "push_sent", {"event": event, "sent": sent,
-                                      "dead": dead,
-                                      "via": "push_service"})
+        _audit(user_id, "push_send_allowed",
+               {"event": event, "category": cat, "sent": sent,
+                "dead": dead, "via": "push_service"})
     return {"sent": sent, "dead": dead,
             "reason": None if sent else
             ("webpush library not installed" if not have_lib
@@ -454,10 +461,10 @@ def scrape_recent_signals(user_id: int, limit: int = 15,
             # never displace real signals, nor appear as them)
             rows = conn.execute(
                 """SELECT action, details, created_at FROM audit_log
-                   WHERE action IN ('push_sent', 'push_broadcast')
+                   WHERE action IN ('push_send_allowed', 'push_broadcast')
                    AND created_at >= ?
                    AND (action = 'push_broadcast'
-                        OR (action = 'push_sent' AND user_id = ?))
+                        OR (action = 'push_send_allowed' AND user_id = ?))
                    ORDER BY created_at DESC LIMIT 200""",
                 (since, int(user_id)),
             ).fetchall()
