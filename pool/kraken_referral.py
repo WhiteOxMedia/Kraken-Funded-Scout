@@ -206,7 +206,124 @@ def provider_posture():
         "settings_key_tail": ("…" + key[-4:]) if key else "",
         "settings_secret_tail": ("…" + sec[-4:]) if sec else "",
         "missing": missing,
+        # the LAST credential self-test verdict (stored state — the
+        # posture is a read and never touches the network; only the
+        # operator's explicit key-check or a verify=True posture call
+        # spends Kraken's rate credit)
+        "credential_check": last_credential_check(),
     }
+
+
+# ── THE CREDENTIAL SELF-TEST (Sep 26): the ONE place a signed ─────────
+# read-only Balance call happens from, so the key-check endpoint and
+# the posture's optional verify share one throttle, one rate budget,
+# and one stored verdict. "Credentials exist" (the tier) is not
+# "credentials work" — this is the proof, and it is always opt-in.
+KC_BALANCE_ENDPOINT = "https://api.kraken.com/0/private/Balance"
+KC_LAST_KEY = "kraken_referral_key_check"
+KC_MIN_INTERVAL_S = 30.0     # one check per 30s per process — button
+KC_STATE = {"last": 0.0}     # mashing cannot burn Kraken's rate credit
+
+
+def credential_selftest(key=None, sec=None, tier=None):
+    """ONE signed read-only Balance call through the SAME credential
+    seam the projection runs under (kraken_credentials: env ->
+    settings -> keyring — the exact identity live mode will use), so
+    key validity is provable without touching the fleet or fabricating
+    referral rows. Four honest verdicts: valid / invalid (Kraken's own
+    EAPI error, verbatim truncated) / unreachable (transport, with the
+    error) / unconfigured (no complete pair in any tier). Tails only —
+    the secret never leaves the credential accessor. Throttled to one
+    call per 30s per process; the throttle is NOT consumed when
+    nothing was configured (retrying an unconfigured check is free).
+    The verdict is stored (KC_LAST_KEY) so every posture read can show
+    how fresh the proof is without re-dialing Kraken. Audited like
+    every operator action (valid/invalid/unreachable only)."""
+    if not (key and sec):
+        key, sec, tier = kraken_credentials()
+    now = time.time()
+    wait = KC_MIN_INTERVAL_S - (now - KC_STATE["last"])
+    if wait > 0:
+        # THE THROTTLE GATES EVERYTHING (the endpoint's pinned contract:
+        # button-mashing is refused even before configuration is read;
+        # a throttled answer consumes nothing)
+        return {"ok": False, "verdict": "throttled",
+                "credentials_tier": tier,
+                "retry_after_s": int(wait) + 1,
+                "detail": "key-check throttled - try again in {}s"
+                          .format(int(wait) + 1)}
+    if not (key and sec):
+        # unconfigured consumes NO throttle credit (retrying is free)
+        return {
+            "ok": False, "verdict": "unconfigured", "credentials_tier": "",
+            "detail": "no complete KRAKEN_API_KEY / KRAKEN_API_SECRET pair "
+                      "in env, settings, or the OS keyring",
+        }
+    KC_STATE["last"] = now
+    try:
+        resp = _kraken_post(KC_BALANCE_ENDPOINT, key, sec,
+                            {"nonce": int(time.time() * 1000)})
+    except Exception as exc:                      # transport-level
+        out = {"ok": False, "verdict": "unreachable", "credentials_tier": tier,
+               "detail": str(exc)[:200]}
+    else:
+        err = resp.get("error") if isinstance(resp, dict) else None
+        if err:                                   # Kraken answered: bad key
+            out = {"ok": False, "verdict": "invalid", "credentials_tier": tier,
+                   "kraken_error": str(err)[:200]}
+        else:
+            n_assets = 0
+            if isinstance(resp, dict) and isinstance(resp.get("result"), dict):
+                n_assets = len(resp["result"])
+            out = {"ok": True, "verdict": "valid", "credentials_tier": tier,
+                   "assets_visible": n_assets,
+                   "detail": "Balance answered with no error - the pair is "
+                             "valid for trading-data reads (Query Funds)"}
+    _persist_last_check(out)
+    if out["verdict"] == "invalid":
+        emit_audit(None, "kraken_referral.key_check",
+                   verdict="invalid", tier=tier,
+                   kraken_error=out.get("kraken_error", "")[:120])
+    elif out["verdict"] == "unreachable":
+        emit_audit(None, "kraken_referral.key_check",
+                   verdict="unreachable", tier=tier)
+    elif out["verdict"] == "valid":
+        emit_audit(None, "kraken_referral.key_check",
+                   verdict="valid", tier=tier,
+                   assets=out.get("assets_visible", 0))
+    return out
+
+
+def _persist_last_check(out):
+    """The last self-test verdict, stored tails-only (no secret
+    material, no response payload) so posture reads can show the
+    proof's age without re-dialing Kraken."""
+    db.set_setting(KC_LAST_KEY, json.dumps({
+        "verdict": out.get("verdict", ""),
+        "ok": bool(out.get("ok")),
+        "tier": out.get("credentials_tier", ""),
+        "assets_visible": out.get("assets_visible"),
+        "kraken_error": (out.get("kraken_error") or "")[:120],
+        "ts": time.time(),
+    }, separators=(",", ":")))
+
+
+def last_credential_check():
+    """The stored last self-test verdict (+ its age in seconds), or
+    None when no proof exists yet. Strictly read-only — never dials."""
+    raw = db.get_setting(KC_LAST_KEY, "") or ""
+    try:
+        rec = json.loads(raw)
+    except (ValueError, TypeError):
+        return None
+    if not isinstance(rec, dict) or not rec.get("verdict"):
+        return None
+    rec = dict(rec)
+    try:
+        rec["age_s"] = round(max(0.0, time.time() - float(rec.get("ts", 0))), 0)
+    except (TypeError, ValueError):
+        rec["age_s"] = None
+    return rec
 
 
 def sign_request(api_secret, path, nonce, body):

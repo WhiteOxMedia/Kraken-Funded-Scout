@@ -70,6 +70,17 @@ def _print_posture(p):
           f"({'projection is LIVE' if p['projection_live'] else 'projection FAIL-CLOSED'})")
     if p["missing"]:
         print("  missing for live mode: " + ", ".join(p["missing"]))
+    cc = p.get("credential_check")
+    if cc:
+        age = cc.get("age_s")
+        age_txt = f"{int(age)}s ago" if age is not None else "age unknown"
+        print(f"  last credential check: {cc.get('verdict', '?').upper()} "
+              f"({age_txt}) — the proof the pair WORKS, not just exists; "
+              "re-run the admin panel's key check to refresh")
+    else:
+        print("  last credential check: none yet — validity is unproven "
+              "(the admin panel's key check performs one read-only "
+              "Balance call)")
     if p["mode"] == "live":
         print("  Projection is LIVE — Kraken referral data will be "
               "fetched per-user and audited.")

@@ -1421,11 +1421,19 @@ async def api_admin_kraken_referral_run(request: Request):
 
 
 @app.get("/api/admin/kraken-referral/config")
-async def api_admin_kraken_referral_config(request: Request):
+async def api_admin_kraken_referral_config(request: Request, verify: bool = False):
     """Admin read of the referral-provider configuration. Secrets are
     NEVER returned — only their last four characters and whether they
     are set, so the form can show state without re-exposing material."""
     require_admin(request)
+    if verify:
+        # the operator's explicit one-shot proof: the SAME self-test the
+        # key-check endpoint runs (one 30s-throttled Budget call, verdict
+        # stored + audited) — 429-shaped, then echoed back below via
+        # last_credential_check(). A plain GET never touches the network.
+        v = kr.credential_selftest()
+        if v.get("verdict") == "throttled":
+            raise HTTPException(status_code=429, detail=v.get("detail", ""))
     def _tail(name):
         # TIER-AWARE MASK (Sep 26): the credential may live in settings
         # (sealed at rest) or in the OS keyring (Windows Credential
@@ -1451,6 +1459,11 @@ async def api_admin_kraken_referral_config(request: Request):
         "confidence": kr._confidence(),
         "spike_pct": kr._cfg(kr.PROJECTION_SPIKE_KEY, 25.0, float),
         "scheduler": kr_sched.status(),
+        # the stored LAST self-test verdict (no dial). verify=true is
+        # the operator's explicit one-shot proof: same 30s throttle as
+        # the key-check endpoint (429-shaped), one fresh Balance call,
+        # verdict stored + audited, then echoed back here.
+        "credential_check": kr.last_credential_check(),
     })
 
 
@@ -1795,65 +1808,30 @@ async def api_admin_kraken_referral_test(request: Request):
     return JSONResponse(out)
 
 
-_KC_MIN_INTERVAL_S = 30.0      # protect Kraken's rate credit: one check
-_KC_STATE = {"last": 0.0}      # per process (a restart resets it; fine)
+_KC_MIN_INTERVAL_S = kr.KC_MIN_INTERVAL_S
+                               # compatibility alias (the self-test owns
+                               # the real knob)
+_KC_STATE = kr.KC_STATE        # THE SHARED THROTTLE: the key-check endpoint
+                               # and any verify=True posture read budget the
+                               # same 30s — one probe site, one rate spend
 
 
 @app.post("/api/admin/kraken-referral/key-check")
 async def api_admin_kraken_referral_key_check(request: Request):
     """THE KEY CHECK (Sep 26, operator-only): ONE signed read-only
-    Balance call through the SAME credential seam the projection runs
-    under (kr.kraken_credentials: env -> settings -> keyring, the
-    exact identity live mode will use), so validity is one click away
-    without touching the fleet or fabricating referral rows. Four
-    honest verdicts: valid / invalid (Kraken's own EAPI error verbatim,
-    truncated) / unreachable (transport, with the error) / unconfigured
-    (no complete pair in any tier). Tails only; the secret NEVER leaves
-    the credential accessor. Throttled to one call per 30s per process
-    (429-shaped) so button-mashing cannot burn Kraken's rate credit.
-    Audited like every operator action."""
+    Balance call through kr.credential_selftest — the single probe
+    site shared with the posture's opt-in verify path, so the endpoint
+    and the posture spend the SAME throttle and store ONE verdict.
+    Four honest verdicts: valid / invalid (Kraken's own EAPI error
+    verbatim, truncated) / unreachable (transport, with the error) /
+    unconfigured (no complete pair in any tier). Tails only; the
+    secret NEVER leaves the credential accessor. Throttled to one call
+    per 30s per process (429-shaped) so button-mashing cannot burn
+    Kraken's rate credit. Audited like every operator action."""
     require_admin(request)
-    now = time.time()
-    wait = _KC_MIN_INTERVAL_S - (now - _KC_STATE["last"])
-    if wait > 0:
-        raise HTTPException(
-            status_code=429,
-            detail="key-check throttled - try again in {}s".format(int(wait) + 1))
-    key, sec, tier = kr.kraken_credentials()
-    if not (key and sec):
-        return JSONResponse({
-            "ok": False, "verdict": "unconfigured",
-            "detail": "no complete KRAKEN_API_KEY / KRAKEN_API_SECRET pair "
-                      "in env, settings, or the OS keyring",
-            "credentials_tier": ""})
-    _KC_STATE["last"] = now
-    try:
-        resp = kr._kraken_post(
-            "https://api.kraken.com/0/private/Balance",
-            key, sec, {"nonce": int(time.time() * 1000)})
-    except Exception as exc:                      # transport-level
-        out = {"ok": False, "verdict": "unreachable",
-               "detail": str(exc)[:200], "credentials_tier": tier}
-        kr.emit_audit(None, "kraken_referral.key_check",
-                      verdict="unreachable", tier=tier)
-        return JSONResponse(out)
-    err = resp.get("error") if isinstance(resp, dict) else None
-    if err:                                       # Kraken answered: auth problem
-        out = {"ok": False, "verdict": "invalid",
-               "kraken_error": str(err)[:200], "credentials_tier": tier}
-        kr.emit_audit(None, "kraken_referral.key_check",
-                      verdict="invalid", tier=tier,
-                      kraken_error=str(err)[:120])
-        return JSONResponse(out)
-    n_assets = 0
-    if isinstance(resp, dict) and isinstance(resp.get("result"), dict):
-        n_assets = len(resp["result"])
-    out = {"ok": True, "verdict": "valid", "credentials_tier": tier,
-           "assets_visible": n_assets,
-           "detail": "Balance answered with no error - the pair is valid "
-                     "for trading-data reads (Query Funds)"}
-    kr.emit_audit(None, "kraken_referral.key_check",
-                  verdict="valid", tier=tier, assets=n_assets)
+    out = kr.credential_selftest()
+    if out.get("verdict") == "throttled":
+        raise HTTPException(status_code=429, detail=out.get("detail", ""))
     return JSONResponse(out)
 
 

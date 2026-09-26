@@ -3,7 +3,9 @@ FastAPI app: simulate provider -> snapshot rows -> projection ->
 /api/jackpot/projection ->admin trigger (503 unconfigured / 200 simulate) -> stubbed live provider (success, rate-limit backoff,
 persistent 5xx) -> the referral-window notice rate limit -> the shared credential
 seam (src/kraken_client mirrors pool/kraken_referral's tiered accessor) -> the
-operator key-check (ONE signed read-only Balance call through that seam)."""
+operator key-check (ONE signed read-only Balance call through that seam) ->
+the posture's OPTIONAL self-test (stored last verdict at a glance; an
+explicit verify=true dials through the SAME shared 30s throttle)."""
 import sys, tempfile
 from pathlib import Path
 HERE = Path(__file__).resolve().parent
@@ -472,6 +474,49 @@ kr._kraken_post = _real_post
 sys.modules.pop("keyring", None)              # real keyring re-imports later
 for _k2, _v2 in _saved_env2.items():
     _os.environ[_k2] = _v2
+srv._KC_STATE["last"] = 0.0
+
+print("== 8e. THE POSTURE'S OPTIONAL SELF-TEST (stored proof, opt-in dial) ==")
+# hermetic like 8d: the env pair decides, the keyring is stubbed to
+# nothing (a dev box's real pair must never be load-bearing here)
+_kr_stub2 = _types.SimpleNamespace(get_password=lambda s, u: None,
+                                   set_password=_no_write)
+sys.modules["keyring"] = _kr_stub2
+_os.environ["KRAKEN_API_KEY"] = "KC-KEY-DRIVE-1111"
+_os.environ["KRAKEN_API_SECRET"] = "c2VjcmV0MTIzNDU2Nzg5MA=="
+# 8d's last dial was the transport failure, so THAT verdict is stored —
+# and the posture must show it WITHOUT touching the network.
+p = kr.provider_posture()
+cc = p["credential_check"]
+check("8e.1", isinstance(cc, dict) and cc["verdict"] == "unreachable"
+      and cc["tier"] == "env" and cc["age_s"] is not None,
+      f"posture carries the stored last proof: {cc}")
+_last_before = kr.KC_STATE["last"]
+kr.provider_posture()
+check("8e.2", kr.KC_STATE["last"] == _last_before,
+      "a plain posture read NEVER dials (throttle clock untouched)")
+r_anon = anon3.get("/api/admin/kraken-referral/config?verify=true")
+check("8e.3", r_anon.status_code == 401,
+      "verify=true is admin-gated like every config read")
+kr._kraken_post = _fake_post                  # same hermetic boundary as 8d
+srv._KC_STATE["last"] = 0.0
+r = client.get("/api/admin/kraken-referral/config?verify=true")
+check("8e.4", r.status_code == 200
+      and r.json()["credential_check"]["verdict"] == "valid"
+      and r.json()["credential_check"]["assets_visible"] == 2
+      and r.json()["mode"] in ("live", "simulate", "unconfigured"),
+      f"verify=true runs the ONE self-test and echoes the fresh verdict: "
+      f"{r.json().get('credential_check')}")
+check("8e.5", kr.KC_STATE["last"] > 0,
+      "the verify consumed the SHARED throttle (same budget as key-check)")
+r = client.post("/api/admin/kraken-referral/key-check", json={})
+check("8e.6", r.status_code == 429,
+      f"no double spend: key-check right after verify is throttled "
+      f"({r.status_code})")
+kr._kraken_post = _real_post
+del _os.environ["KRAKEN_API_KEY"]
+del _os.environ["KRAKEN_API_SECRET"]
+sys.modules.pop("keyring", None)              # real keyring re-imports later
 srv._KC_STATE["last"] = 0.0
 
 print("== 9. THE MAPPING SHEET: real kraken_referral_id column ==")

@@ -36,6 +36,29 @@
       "</div>";
   }
 
+  function credentialLine(cfg) {
+    // THE POSTURE LINE (Sep 26): the stored last self-test verdict —
+    // proof the credentials WORK, not just that they exist. The link
+    // is the operator's explicit re-verify (one throttled Balance
+    // call); a plain config read never touches the network.
+    var cc = cfg.credential_check;
+    var a = document.createElement("a");
+    a.href = "/api/admin/kraken-referral/config?verify=true";
+    a.setAttribute("data-reverify", "1");
+    a.style.color = "var(--text-mute,#9a9a9a)";
+    if (!cc) {
+      a.textContent = "credentials not proven yet — run the self-test";
+      return " · " + a.outerHTML;
+    }
+    var age = (cc.age_s != null)
+      ? (cc.age_s < 90 ? cc.age_s + "s" : Math.round(cc.age_s / 60) + "m")
+      : "?";
+    a.textContent = "last check: " + String(cc.verdict || "?").toUpperCase()
+      + (cc.tier ? " (" + cc.tier + ")" : "")
+      + ", " + age + " ago — re-verify";
+    return " · " + a.outerHTML;
+  }
+
   function render(cfg) {
     var modeBadge = {
       live: '<span style="color:var(--emerald-bright,#2ecc71);font-weight:700;">&#9679; LIVE provider</span>',
@@ -49,6 +72,7 @@
       modeBadge +
       (cfg.api_key.set ? " · key on file (" + esc(cfg.api_key.source || "settings") + ") " + esc(cfg.api_key.tail) : " · no key") +
       (cfg.api_secret.set ? " · secret on file (" + esc(cfg.api_secret.source || "settings") + ") " + esc(cfg.api_secret.tail) : " · no secret") +
+      credentialLine(cfg) +
       "</div>" +
       field("Kraken API key (blank = keep stored)", "krApiKey", "password",
             cfg.api_key.set ? "stored …" + cfg.api_key.tail : "paste API key") +
@@ -225,6 +249,16 @@
         show(out, "request failed: " + e);
         btn.disabled = false;
       });
+    });
+
+    // the posture line's re-verify link: the SAME proof through the
+    // SAME endpoint — reuse the key-check button's handler so the
+    // shared 30s throttle has exactly one client-side path
+    var reverify = document.querySelector("#" + CARD_ID + " a[data-reverify]");
+    if (reverify) reverify.addEventListener("click", function (ev) {
+      ev.preventDefault();
+      var btn = document.getElementById("krKeyCheck");
+      if (btn) btn.click();
     });
   }
 
