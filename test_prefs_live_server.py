@@ -21,6 +21,12 @@ one pins what a browser actually experiences, end to end:
   7. the two-device race, for real: session A and session B, B reads,
      A writes, B writes with B's stale token -> exactly one 412, and
      the surviving state is A's write until B re-reads + retries
+  7b. the LONG race: the same two devices keep writing in an
+     interleaved sequence, each adopting the version every response
+     carries (what push_client v6 does) — exactly ONE 412 across the
+     whole exercise, every stamp strictly advancing, and both devices
+     converge on the identical final envelope (same preferences,
+     same updated_at, same ETag)
   8. unknown category keys are ignored; non-dict preferences -> 400;
      server state survives what the wire tried
   9. wire user_id is IGNORED (mallory cannot write alice's prefs)
@@ -179,6 +185,73 @@ check(5.6, s == 200, "B's retry with the current version applies")
 s, _, final = c.get("/api/push/preferences")
 check(5.7, final["preferences"] == {"jackpot": False, "scout": False},
       f"final state is B's retried write: {final['preferences']}")
+
+print("== 5b. THE LONG RACE: two devices, interleaved writes ==")
+# The realistic device loop: every response's version is adopted
+# (200 body, 412 body, or a reconciliation read), so a stale write
+# happens exactly when a device bets on a version another device has
+# already superseded — and the loser re-reads and converges.
+statuses = []
+def _post(dev, prefs, etag):
+    s, h, j = dev.post("/api/push/preferences", {"preferences": prefs},
+                       {"If-Match": f'"{etag}"'})
+    statuses.append(s)
+    return s, j
+
+s, _, av = c.get("/api/push/preferences")
+s, _, bv = b.get("/api/push/preferences")
+t0 = av["updated_at"]
+check("5b.1", t0 and bv["updated_at"] == t0
+      and av["preferences"] == bv["preferences"],
+      f"both devices open on the same version ({t0})")
+
+s1, j1 = _post(c, {"jackpot": False, "scout": True}, t0)      # A writes
+t1 = j1.get("updated_at")
+check("5b.2", s1 == 200 and t1 and t1 > t0,
+      "A's write applies, the stamp strictly advances")
+
+s2, j2 = _post(b, {"jackpot": False, "scout": False}, t0)     # B writes stale
+check("5b.3", s2 == 412 and j2.get("updated_at") == t1,
+      f"B's stale write refused; the 412 carries A's version ({j2.get('updated_at')})")
+check("5b.4", j2.get("preferences") == {"jackpot": False, "scout": True},
+      "the 412 body carries A's applied state (no lost update)")
+
+s3, j3 = _post(b, {"jackpot": False, "scout": False}, t1)     # B adopts + retries
+t2 = j3.get("updated_at")
+check("5b.5", s3 == 200 and t2 > t1,
+      "B's retry with the adopted version applies")
+
+s4, _, j4 = c.get("/api/push/preferences")                     # A reconciles
+check("5b.6", s4 == 200
+      and j4["preferences"] == {"jackpot": False, "scout": False}
+      and j4["updated_at"] == t2,
+      "A's reconciliation read shows B's write before A's next bet")
+
+s5, j5 = _post(c, {"jackpot": True, "scout": False}, t2)      # A writes again
+t3 = j5.get("updated_at")
+check("5b.7", s5 == 200 and t3 > t2,
+      "A's next write applies after re-reading (no second collision)")
+
+s6, _, j6 = b.get("/api/push/preferences")                     # B reconciles
+s7, j7 = _post(b, {"jackpot": True, "scout": True}, j6["updated_at"])
+t4 = j7.get("updated_at")
+check("5b.8", s6 == 200 and s7 == 200 and t4 > t3,
+      "B's final write applies after re-reading")
+
+check("5b.9", statuses.count(412) == 1
+      and all(x == 200 for x in statuses if x != 412),
+      f"exactly one 412, everything else 200: {statuses}")
+
+# CONVERGENCE: both devices read the identical final envelope
+sA, hA, fA = c.get("/api/push/preferences")
+sB, hB, fB = b.get("/api/push/preferences")
+etagA = (hA.get("ETag") or hA.get("etag") or "").strip('"')
+etagB = (hB.get("ETag") or hB.get("etag") or "").strip('"')
+check("5b.10", sA == 200 and sB == 200
+      and fA["preferences"] == fB["preferences"] == {"jackpot": True, "scout": True}
+      and fA["updated_at"] == fB["updated_at"] == t4
+      and etagA == etagB,
+      f"converged: both devices hold version {fA['updated_at']} with the same ETag")
 
 print("== 6. WIRE DEFENSES ==")
 s, _, j = c.post("/api/push/preferences",
