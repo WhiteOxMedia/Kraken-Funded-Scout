@@ -12,3 +12,6 @@ wheels/
 # field_crypto at-rest encryption keys (NEVER commit)
 .keys/
 *.retired.*
+
+# fleet telemetry: churns on every run, including inside commit gates
+fleet_history.jsonl
