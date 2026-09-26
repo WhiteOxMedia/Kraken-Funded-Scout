@@ -33,6 +33,7 @@ pages at / — caught by the live e2e proof).
 import base64
 import calendar
 import json
+import threading
 import time
 from urllib.parse import urlparse
 from pathlib import Path
@@ -145,7 +146,10 @@ CATEGORY = {
     "signal_exit": "scout",
     "push_test_signal": "scout",
 }
-PREFS_KEY = "push_prefs"          # {"<user_id>": {"scout": bool, "jackpot": bool}}
+PREFS_KEY = "push_prefs"          # {"<uid>": {"preferences": {scout,jackpot},
+                                  #  "updated_at": stamp}} — THE ENVELOPE
+                                  # (the raw-dict comment here is what
+                                  # caused the set_pref nesting bug)
 DEFAULT_PREFS = {"scout": True, "jackpot": True}
 
 
@@ -282,6 +286,34 @@ def _load(key):
     return rows if isinstance(rows, list) else []
 
 
+def _load_subs() -> list:
+    """THE SUBSCRIPTION STORE'S ACCESSOR (Sep 26 audit): a list of
+    WELL-SHAPED rows ({user_id: int, endpoint: str, keys: dict,
+    ts: float}). Rows that lost their shape — a partial write, a hand
+    edit, an old migration — are DROPPED here, fail-soft: every
+    consumer used to call int(r.get("user_id")) directly on the raw
+    list, so one poisoned row raised inside a list comprehension and
+    crashed EVERY send (route 500s, the drain loop dead) instead of
+    one device going silent. Same discipline _rate_ok applies inline
+    to the rate store."""
+    out = []
+    for r in _load(SUBS_KEY):
+        if not isinstance(r, dict):
+            continue
+        uid = r.get("user_id")
+        if not isinstance(uid, int):
+            try:
+                uid = int(uid)
+            except (TypeError, ValueError):
+                continue
+        if not isinstance(r.get("endpoint"), str) or not r["endpoint"]:
+            continue
+        r = dict(r)
+        r["user_id"] = uid
+        out.append(r)
+    return out
+
+
 def _save(key, rows):
     blob = json.dumps(rows, separators=(",", ":"))
     if _fc.available():
@@ -387,7 +419,7 @@ def subscribe(user_id: int, subscription: dict) -> dict:
     endpoint = str(subscription.get("endpoint") or "")
     if not endpoint.startswith("https://"):
         return {"ok": False, "reason": "endpoint must be https"}
-    rows = _load(SUBS_KEY)
+    rows = _load_subs()
     for r in rows:
         if r.get("endpoint") == endpoint:
             if int(r.get("user_id", -1)) == user_id:
@@ -418,7 +450,7 @@ def subscribe(user_id: int, subscription: dict) -> dict:
 
 
 def unsubscribe(user_id: int, endpoint: str) -> dict:
-    rows = _load(SUBS_KEY)
+    rows = _load_subs()
     kept = [r for r in rows
             if not (r.get("endpoint") == endpoint
                     and int(r.get("user_id", -1)) == user_id)]
@@ -431,22 +463,32 @@ def unsubscribe(user_id: int, endpoint: str) -> dict:
     return {"ok": True}
 
 
+_rate_lock = threading.Lock()   # the rate store is read-modify-write;
+                                # scheduler threads + the async loop can
+                                # interleave without this (two same-user
+                                # sends both passing the limit check)
+
+
 def _rate_ok(user_id: int, event: str) -> bool:
-    """Per-user, per-event-class sliding hourly window."""
+    """Per-user, per-event-class sliding hourly window. The whole
+    check-then-append is one LOCKED step (Sep 26 audit): the store is
+    read-modify-write on a shared file, and an unlocked interleave let
+    two same-user sends both pass the limit check."""
     now = time.time()
-    hits = [(u, e, t) for (u, e, t) in
-            (x if isinstance(x, (list, tuple)) else (0, "", 0)
-             for x in _load(RATE_KEY))
-            if u == user_id and e == event and now - t < 3600]
-    limit = EVENTS.get(event, {}).get("rate", MAX_PER_HOUR)
-    if len(hits) >= limit:
-        return False
-    hits.append((user_id, event, now))
-    kept = [h for h in _load(RATE_KEY)
-            if isinstance(h, (list, tuple)) and len(h) == 3
-            and now - float(h[2]) < 3600]
-    kept.append((user_id, event, now))
-    _save(RATE_KEY, kept)
+    with _rate_lock:
+        hits = [(u, e, t) for (u, e, t) in
+                (x if isinstance(x, (list, tuple)) else (0, "", 0)
+                 for x in _load(RATE_KEY))
+                if u == user_id and e == event and now - t < 3600]
+        limit = EVENTS.get(event, {}).get("rate", MAX_PER_HOUR)
+        if len(hits) >= limit:
+            return False
+        hits.append((user_id, event, now))
+        kept = [h for h in _load(RATE_KEY)
+                if isinstance(h, (list, tuple)) and len(h) == 3
+                and now - float(h[2]) < 3600]
+        kept.append((user_id, event, now))
+        _save(RATE_KEY, kept)
     return True
 
 
@@ -488,7 +530,7 @@ def send_to_user(user_id: int, event: str, extra: dict = None) -> dict:
     ev = EVENTS.get(event)
     if ev is None:
         return {"sent": 0, "reason": "unknown event"}
-    subs = [r for r in _load(SUBS_KEY) if int(r.get("user_id", -1)) == user_id]
+    subs = [r for r in _load_subs() if r["user_id"] == user_id]
     if not subs:
         return {"sent": 0, "reason": "no subscription"}
     # THE OPT-OUT GATE (user order, Sep 25 evening VII): the user's
@@ -573,7 +615,7 @@ def send_to_subscribers(event: str, extra: dict = None) -> dict:
     ev = EVENTS.get(event)
     if ev is None:
         return {"sent": 0, "reason": "unknown event"}
-    subs = [r for r in _load(SUBS_KEY) if int(r.get("user_id", -1)) > 0]
+    subs = [r for r in _load_subs() if r["user_id"] > 0]
     if not subs:
         return {"sent": 0, "reason": "no subscription"}
     if not _rate_ok(0, event):
@@ -621,10 +663,15 @@ def drain_spool(spool_path=None) -> int:
         if tries > 50:
             continue
         target = r.get("user_id")
-        result = (send_to_user(int(target), r["event"], r.get("extra"))
-                  if isinstance(target, int) or
-                  (isinstance(target, str) and target.isdigit())
-                  else send_to_subscribers(r["event"], r.get("extra")))
+        # (Sep 26 audit) a hand-edited spool row can carry an unconvertible
+        # target (a 10k-digit 'int'); a raise here would kill the drain
+        try:
+            result = (send_to_user(int(target), r["event"], r.get("extra"))
+                      if isinstance(target, int) or
+                      (isinstance(target, str) and target.isdigit())
+                      else send_to_subscribers(r["event"], r.get("extra")))
+        except (TypeError, ValueError, OverflowError):
+            continue
         if result.get("sent"):
             handed += 1
         elif result.get("reason") == "unknown event":

@@ -349,6 +349,55 @@ check(4.1, ps.EVENTS["signal_buy"]["title"] == "📈 BUY NOW"
       "the charter's event set with byte-exact signal titles")
 check(4.2, ps.send_to_user(7, "not_an_event")["reason"] == "unknown event",
       "an unknown event is refused")
+
+# ── 4b. THE STORE-SHAPE AUDIT (Sep 26) ─────────────────────────
+print("== 4b. POISONED STORES: one bad row never kills the sender ==")
+import json as _json
+_poisoned = [
+    {"user_id": 7, "endpoint": "https://push.example/good",
+     "keys": {"p256dh": "a", "auth": "b"}, "ts": 1.0},
+    {"user_id": "not-a-number", "endpoint": "https://x/bad1"},
+    {"endpoint": "https://x/noid"},
+    {"user_id": 8, "endpoint": 42},
+    "not-even-a-dict",
+]
+ps._save(ps.SUBS_KEY, _poisoned)
+rows = ps._load_subs()
+check("4b.1", len(rows) == 1 and rows[0]["user_id"] == 7
+      and isinstance(rows[0]["user_id"], int),
+      f"_load_subs keeps only well-shaped rows ({len(rows)})")
+_res = ps.send_to_user(7, "push_test")
+check("4b.2", isinstance(_res, dict) and _res.get("sent") == 0
+      and "reason" in _res,
+      "a poisoned store degrades to a quiet no-send, never a raise")
+_res = ps.send_to_subscribers("push_test")
+check("4b.3", isinstance(_res, dict),
+      "the broadcast path survives the poisoned store too")
+# restore section 3.5's EXACT end state (the refreshed registration for
+# UID and NOTHING else — the poisoned fixture's user-7 row is
+# well-shaped, so subscribe() alone would leave it in and the section-5
+# broadcast would audit for a nonexistent user -> FK failure)
+ps._save(ps.SUBS_KEY, [{"user_id": UID,
+                        "endpoint": "https://push.example/s/abc",
+                        "keys": {"p256dh": "k1b", "auth": "a1"},
+                        "ts": time.time()}])
+
+# the rate limiter is thread-safe: concurrent same-user checks may not
+# both pass an exhausted bucket (the unlocked read-modify-write could)
+import threading as _th
+_rl = ps.RateBucket if hasattr(ps, "RateBucket") else None
+ps._save(ps.RATE_KEY, [])
+_verdicts = []
+def _hammer():
+    _verdicts.append(ps._rate_ok(99, "push_test"))   # rate=4
+_ts = [_th.Thread(target=_hammer) for _ in range(8)]
+for t in _ts: t.start()
+for t in _ts: t.join()
+check("4b.4", sum(1 for v in _verdicts if v) == 4
+      and sum(1 for v in _verdicts if not v) == 4,
+      f"8 concurrent checks against rate=4 -> exactly 4 pass "
+      f"({sum(1 for v in _verdicts if v)}) — the lock holds")
+ps._save(ps.RATE_KEY, [])
 _real_send = ps.send_to_user
 
 
