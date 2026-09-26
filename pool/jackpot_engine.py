@@ -126,6 +126,35 @@ def verify_drawing(drawing_id):
             expected_ticket_id = target_row["id"]
             expected_winner = target_row["miner_id"]
 
+    # THE 30-DAY SKIP IS PART OF THE DRAW (review triage, Sep 25
+    # evening V): a skipped round is still fair — the published winner
+    # is the drawn index ADVANCED past gated holders. When a
+    # winner_limit_skip audit exists for THIS drawing, re-walk the ring
+    # exactly as run_drawing did and grade against that walk; the raw
+    # index stays published for transparency either way.
+    with db.get_db() as conn:
+        _skip_rows = conn.execute(
+            "SELECT details FROM audit_log WHERE action = 'winner_limit_skip'"
+        ).fetchall()
+    _skip_miners = set()
+    for _sr in _skip_rows:
+        try:
+            _det = json.loads(_sr["details"] or "{}")
+        except (ValueError, TypeError):
+            continue
+        try:
+            if int(_det.get("drawing_id", -1)) == int(drawing_id):
+                _skip_miners.add(int(_det.get("miner_id", -1)))
+        except (TypeError, ValueError):
+            continue
+    if _skip_miners and ticket_rows:
+        _start = computed_index % len(ticket_rows)
+        for _off in range(len(ticket_rows)):
+            _cand = ticket_rows[(_start + _off) % len(ticket_rows)]
+            if int(_cand["miner_id"]) not in _skip_miners:
+                expected_ticket_id = _cand["id"]
+                expected_winner = _cand["miner_id"]
+                break
     index_verified = expected_ticket_id == winning_ticket_id
 
     return {
@@ -309,6 +338,21 @@ def run_drawing():
         ).fetchone()
 
         if not row:
+            # review triage (Sep 25 evening V): the drawing and its
+            # tickets EXIST by this point — a bare error return left the
+            # drawing unfinished and its tickets assigned forever. Cancel
+            # + release + stamp, exactly like the other exits.
+            with db.get_db() as conn:
+                conn.execute("UPDATE drawings SET status = 'cancelled', "
+                             "drawn_at = ? WHERE id = ?",
+                             (time.time(), drawing_id))
+                conn.execute("UPDATE tickets SET drawing_id = NULL "
+                             "WHERE drawing_id = ?", (drawing_id,))
+            db.add_audit_log(
+                None, "drawing_cancelled_select_failed",
+                json.dumps({"drawing_id": drawing_id,
+                            "reason": "winning ticket not found"}),
+            )
             return {"status": "error", "reason": "Could not find winning ticket"}
 
         winning_ticket_id = row["id"]

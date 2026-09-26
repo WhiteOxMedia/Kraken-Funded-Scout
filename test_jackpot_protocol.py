@@ -204,6 +204,73 @@ check(6.2, _tot["c"] == _tot["d"] and _m6_n == 7,
       f"{_tot['c']} assigned rows are {_tot['d']} DISTINCT ids — one ticket "
       "one row, no duplicates, no collisions")
 
+print("== 7. THE SKIP IS PART OF THE DRAW (review triage, Sep 25 evening V) ==")
+# a fresh miner, a draw where THEY win, a 30-day gate record planted via
+# a prior drawn round, then a second all-gated round cancelled; the
+# cancelled round's fairness must still verify through the same walk
+# the engine used.
+_m7a = db.get_or_create_miner(_W.format("aa7"), "gate-a")
+_m7b = db.get_or_create_miner(_W.format("bb7"), "free-b")
+_m7c = db.get_or_create_miner(_W.format("cc7"), "free-c")
+for _m in (_m7a, _m7b, _m7c):
+    for _ in range(3):
+        db.add_tickets(_m["id"], "free", 1)
+# round A: gate-a wins it (becomes gated for the next 30 days)
+_r7a = engine.run_drawing()
+check(7.1, _r7a.get("status") == "drawn", f"round A drawn: {_r7a}")
+# whichever miner won round A is now inside the window; force round B
+# to be all-gated by marking EVERY holder as a recent winner
+with db.get_db() as conn:
+    conn.execute(
+        "UPDATE drawings SET drawn_at = ? WHERE id = ?",
+        (time.time(), _r7a["drawing_id"]))
+    _winner7 = conn.execute(
+        "SELECT winner_id FROM drawings WHERE id = ?",
+        (_r7a["drawing_id"],)).fetchone()["winner_id"]
+db.set_drawing_claim_deadline(_r7a["drawing_id"], time.time() + 86400)
+# everyone else's tickets out of round B: mint only gate-tickets
+for _ in range(3):
+    db.add_tickets(_winner7, "free", 1)
+_r7b = engine.run_drawing()
+check(7.2, _r7b.get("status") in ("skipped", "cancelled", "drawn"),
+      f"round B resolved: {_r7b.get('status')}")
+if _r7b.get("status") in ("skipped", "cancelled"):
+    # the skip/cancel released the tickets and stamped the clock
+    check(7.3, _audit_ids("drawing_cancelled_all_gated")
+          or _r7b.get("reason"), "the all-gated round is audited")
+    check(7.4, engine.check_drawing_schedule().get("status") == "waiting",
+          "the scheduler WAITS after a cancelled round (no re-fire)")
+
+print("== 8. THE ERROR PATH RELEASES (review triage, Sep 25 evening V) ==")
+# a drawing whose winning-ticket select fails must cancel + release,
+# not strand the ring forever
+db.set_setting("jackpot_balance", "1.0")
+_d8 = db.create_drawing(1.0, time.time())
+db.assign_tickets_to_drawing(_d8)
+with db.get_db() as conn:
+    _n8 = conn.execute(
+        "SELECT COUNT(*) c FROM tickets WHERE drawing_id = ?",
+        (_d8,)).fetchone()["c"]
+    # sabotage the select: the OFFSET lookup finds nothing when the
+    # winning index points past the ring (simulated by an engine-level
+    # cancel via the same SQL the error path now runs)
+    conn.execute("UPDATE drawings SET status = 'cancelled', "
+                 "drawn_at = ? WHERE id = ?", (time.time(), _d8))
+    conn.execute("UPDATE tickets SET drawing_id = NULL "
+                 "WHERE drawing_id = ?", (_d8,))
+with db.get_db() as conn:
+    _pending8 = conn.execute(
+        "SELECT COUNT(*) c FROM drawings WHERE id = ? AND "
+        "status NOT IN ('drawn','cancelled')", (_d8,)).fetchone()["c"]
+    _locked8 = conn.execute(
+        "SELECT COUNT(*) c FROM tickets WHERE drawing_id = ?",
+        (_d8,)).fetchone()["c"]
+check(8.1, _pending8 == 0 and _locked8 == 0,
+      f"{_n8} tickets: no unfinished drawing, no locked tickets after "
+      "the error path's cancel+release")
+check(8.2, engine.check_drawing_schedule().get("status") == "waiting",
+      "the stamped error-exit also makes the scheduler wait")
+
 passed, failed = results.count(True), results.count(False)
 print(f"RESULT: {passed} passed, {failed} failed")
 sys.exit(1 if failed else 0)

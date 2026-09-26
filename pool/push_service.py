@@ -274,11 +274,16 @@ def send_to_subscribers(event: str, extra: dict = None) -> dict:
     if not _rate_ok(0, event):
         return {"sent": 0, "reason": "rate limited"}
     total = 0
-    for r in subs:
-        res = send_to_user(int(r["user_id"]), event, extra)
+    # review triage (Sep 25 evening V): subs is one row PER ENDPOINT —
+    # looping rows sent to every device of every user once per device.
+    # Fan out per UNIQUE user instead; send_to_user already covers all
+    # of a user's endpoints.
+    _unique_users = sorted({int(r["user_id"]) for r in subs})
+    for _uid in _unique_users:
+        res = send_to_user(_uid, event, extra)
         total += int(res.get("sent", 0))
     _audit(None, "push_broadcast", {"event": event, "delivered": total,
-                                    "recipients": len(subs),
+                                    "recipients": len(_unique_users),
                                     "via": "push_service"})
     return {"sent": total}
 

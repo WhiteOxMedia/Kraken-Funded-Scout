@@ -555,6 +555,43 @@ check(8.8, 'position:absolute' not in new_html
       "nothing is margin-pinned or absolutely positioned in the "
       "homepage - everything centers per user order, Sep 25 evening IV")
 
+print("== 9. THE BROADCAST FANS OUT PER USER (review triage, Sep 25 evening V) ==")
+# one user, TWO devices: a broadcast must deliver once per user, not
+# once per endpoint (duplicates + double rate-limit burn)
+import push_service as _ps2
+_ps2.SPOOL_PATH = SANDBOX / "spool2.jsonl"
+UID2 = int(db.create_user("pushuser2",
+                          _hl.sha256(b"pushuser2").hexdigest(),
+                          "pushuser2@example.com"))
+_ok1 = _ps2.subscribe(UID2, {"endpoint": "https://dev1.example/s",
+                             "keys": {"p256dh": "a", "auth": "b"}})
+_ok2 = _ps2.subscribe(UID2, {"endpoint": "https://dev2.example/s",
+                             "keys": {"p256dh": "a", "auth": "b"}})
+check(9.0, _ok1["ok"] and _ok2["ok"], "two devices registered for one user")
+# no VAPID key provisioned in the sandbox -> send_to_user returns the
+# config-error result, but the AUDIT row still counts the RECIPIENTS:
+# that is where the dedupe is observable without a real webpush lib
+_r9 = _ps2.send_to_subscribers("jackpot_win", {"amount_xmr": "1.0"})
+# shared sandbox: the expected recipient count is whatever distinct
+# users hold subscriptions RIGHT NOW - the invariant is that the
+# broadcast audited ONE fan-out per USER, never per endpoint
+_subs_now = _ps2._load(_ps2.SUBS_KEY)
+_users_now = {int(r["user_id"]) for r in _subs_now if int(r.get("user_id", -1)) > 0}
+_endpoints_now = len(_subs_now)
+_last_bc = None
+with db.get_db() as conn:
+    _last_bc = [json.loads(r["details"]).get("recipients")
+                for r in conn.execute(
+                    "SELECT details FROM audit_log WHERE "
+                    "action = 'push_broadcast' ORDER BY id DESC LIMIT 1"
+                ).fetchall() if r["details"]]
+check(9.1, _last_bc and _endpoints_now > len(_users_now)
+      and _last_bc[0] == len(_users_now),
+      f"multi-device state exists ({_endpoints_now} endpoints, "
+      f"{len(_users_now)} users) and the broadcast audited "
+      f"recipients={_last_bc} == the USER count - one fan-out per "
+      "USER, not per endpoint")
+
 shutil.rmtree(SANDBOX, ignore_errors=True)
 print(f"RESULT: {passed} passed, {failed} failed")
 sys.exit(1 if failed else 0)

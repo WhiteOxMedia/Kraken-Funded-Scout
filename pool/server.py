@@ -1598,13 +1598,18 @@ async def scout_ws_proxy(ws: WebSocket):
 # /static are never shadowed) and BEFORE the __main__ guard (so the
 # route registers before uvicorn.run blocks the interpreter).
 SPA_PAGES = ("dashboard", "admin", "signup", "howto", "realplay",
-             "leaderboard", "landing", "winners")
+             "leaderboard", "landing")
+# /winners is a synonym for the leaderboard (the Winners page) - map it
+# rather than serving the app with an unknown hash (review triage, Sep
+# 25 evening V)
+SPA_SYNONYMS = {"winners": "leaderboard"}
 
 
 @app.get("/{spa_page}", response_class=HTMLResponse)
 async def spa_path_fallback(spa_page: str):
-    if spa_page in SPA_PAGES:
-        return RedirectResponse(url=f"/#{spa_page}", status_code=302)
+    target = SPA_SYNONYMS.get(spa_page, spa_page if spa_page in SPA_PAGES else None)
+    if target:
+        return RedirectResponse(url=f"/#{target}", status_code=302)
     template_path = Path(__file__).parent / "templates" / "index.html"
     return HTMLResponse(content=template_path.read_text(encoding="utf-8"))
 

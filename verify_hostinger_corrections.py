@@ -54,9 +54,18 @@ def visible_strings(doc):
     return {ln.strip() for ln in text.splitlines() if len(ln.strip()) >= 3}
 
 
-def links_of(doc):
-    return sorted({re.sub(r"\?v=\d+", "", l)
-                   for l in re.findall(r'(?:href|src)="([^"]+)"', doc)})
+def links_of(doc, counts=False):
+    """The doc's links. As a SET (deduped, cache-busters stripped) for
+    display; as a COUNTER when counts=True - a correction that drops one
+    occurrence of a repeated link (a removed Kraken CTA) must fail the
+    route check even when the URL survives elsewhere (review triage,
+    Sep 25 evening V)."""
+    found = [re.sub(r"\?v=\d+", "", l)
+             for l in re.findall(r'(?:href|src)="([^"]+)"', doc)]
+    if counts:
+        import collections
+        return collections.Counter(found)
+    return sorted(set(found))
 
 
 def ids_of(doc):
@@ -93,11 +102,12 @@ def main() -> int:
           + (f"- MISSING {len(missing)}: {missing[:8]}" if missing else ""))
 
     print("== 2. LINK/ROUTE SAFETY ==")
-    old_links = set(links_of(cur_html))
-    new_links = set(links_of(new_html))
-    gone = sorted(old_links - new_links)
+    old_links = links_of(cur_html, counts=True)
+    new_links = links_of(new_html, counts=True)
+    gone = sorted((old_links - new_links).elements())
     check(2.1, not gone,
-          f"all {len(old_links)} production links/routes survive "
+          f"all {sum(old_links.values())} production link occurrences "
+          f"({len(old_links)} distinct) survive "
           + (f"- GONE: {gone[:8]}" if gone else ""))
     check(2.2, "/push_sw.js" in js_sources.get("push_client.js", "")
           and 'getRegistration("/")' in js_sources.get("push_client.js", ""),
@@ -111,18 +121,70 @@ def main() -> int:
                   if src != (PROD / "static" / j).read_text(encoding="utf-8")]
     check(3.1, True, f"corrected JS changed: {changed_js or 'none (byte-exact)'}")
     referenced = set()
+    created = set()
     for src in js_sources.values():
         referenced |= set(re.findall(r'getElementById\("([^"]+)"\)', src))
+        referenced |= set(re.findall(r"getElementById\('([^']+)'\)", src))
         referenced |= set(re.findall(r'\$\("#([A-Za-z0-9_-]+)"\)', src))
-    dangling = sorted(r for r in referenced if r not in new_ids
-                      and r in cur_ids)
+        referenced |= set(re.findall(r"\$\('#([A-Za-z0-9_-]+)'\)", src))
+        # ids the JS itself injects at runtime (template strings) are
+        # self-fulfilling - they answer to their creator, not the HTML
+        created |= set(re.findall(r'id="([A-Za-z0-9_-]+)"', src))
+        created |= set(re.findall(r"\.id\s*=\s*'([A-Za-z0-9_-]+)'", src))
+        created |= set(re.findall(r'\.id\s*=\s*"([A-Za-z0-9_-]+)"', src))
+    # review triage (Sep 25 evening V): grade EVERY referenced id against
+    # the corrected ids - a corrected JS may reference a hook the
+    # corrected HTML dropped, new or old alike. The id pool spans ALL
+    # corrected HTML: app.js legitimately references ids that live in
+    # the injected admin panel, not the index.
+    _admin_corr = corr / "admin_panel.html"
+    _all_corr_ids = set(new_ids) | created
+    if _admin_corr.exists():
+        _all_corr_ids |= ids_of(
+            _admin_corr.read_text(encoding="utf-8"))
+    # KNOWN-DEAD (review triage, Sep 25 evening V): #coinRain is a
+    # vestige - app.js guards its absence (if (!container) return) and
+    # no surface creates it, in production or in any correction. A
+    # correction cannot lose what never existed.
+    _known_dead = {"coinRain"}
+    dangling = sorted(r for r in referenced
+                      if r not in _all_corr_ids and r not in _known_dead)
     check(3.2, not dangling,
-          f"all {len(referenced)} JS-referenced ids still exist "
+          f"all {len(referenced)} JS-referenced ids exist in the "
+          f"corrected HTML "
           + (f"- DANGLING: {dangling[:10]}" if dangling else ""))
     lost_ids = sorted(cur_ids - new_ids)
     check(3.3, not lost_ids,
           f"no production id disappeared ({len(cur_ids)} ids) "
           + (f"- LOST: {lost_ids[:10]}" if lost_ids else ""))
+
+    print("== 3b. CORRECTED ADMIN PANEL ==")
+    admin_corr_path = corr / "admin_panel.html"
+    if admin_corr_path.exists():
+        cur_admin = (PROD / "templates" / "admin_panel.html").read_text(
+            encoding="utf-8")
+        new_admin = admin_corr_path.read_text(encoding="utf-8")
+        _miss = sorted(s for s in visible_strings(cur_admin)
+                       if s not in visible_strings(new_admin))
+        check(3.4, not _miss,
+              f"all {len(visible_strings(cur_admin))} admin-panel strings "
+              f"survive " + (f"- MISSING: {_miss[:6]}" if _miss else ""))
+        _al = set(links_of(cur_admin))
+        _nl = set(links_of(new_admin))
+        check(3.5, not (_al - _nl),
+              "all admin-panel links survive "
+              + (f"- GONE: {sorted(_al - _nl)[:6]}"
+                 if _al - _nl else ""))
+        check(3.6, not (ids_of(cur_admin) - ids_of(new_admin)),
+              f"no admin-panel id disappeared "
+              f"({len(ids_of(cur_admin))} ids) "
+              + (f"- LOST: {sorted(ids_of(cur_admin) - ids_of(new_admin))[:8]}"
+                 if ids_of(cur_admin) - ids_of(new_admin) else ""))
+    else:
+        check(3.4, False,
+              "corrected admin_panel.html MISSING - the file inventory "
+              "must stay unchanged (the corrected set ships every file "
+              "it corrects)")
 
     print("== 4. DESIGN-SYSTEM PINS (corrected CSS) ==")
     css_path = corr / "static" / "style.css"
