@@ -22,10 +22,10 @@ headless and hermetic:
                        rejected (ok False, error names the shape rule)
   5. empty wallet      the empty string is rejected the same way (a
                        blank field is not a valid address)
-  6. registration down the transport raises -> the handler would
-                       crash as _install has no guard; pinned as the
-                       KNOWN GAP with a marker check (documents, does
-                       not bless) - flagged for a surface fix
+  6. registration down the transport is CAUGHT by the UI guard
+                       (_install_via_api): friendly=True guidance, no
+                       exception, no crash — the KNOWN GAP is closed;
+                       genuine validation errors keep the popup path
   7. worker name       optional: blank and filled both produce a
                        registration record with the worker echoed
   8. double install    the second opt-in grants no second welcome
@@ -170,18 +170,31 @@ check(6.1, r2.get("ok") is True and r2.get("welcome_ticket_granted") == 0
       "the second install grants NO second ticket (server-side rule "
       "holds through the UI path)")
 
-print("== 7. THE TRANSPORT-DOWN GAP (documented, not blessed) ==")
+print("== 6b. THE TRANSPORT-DOWN GUARD (the KNOWN GAP, closed) ==")
 installer._post_register = _fake_transport_down(captured)
-raised = False
-try:
-    installer.opt_in(WALLET, worker="rig7", record_path=rec_path,
-                     config_path=cfg_path)
-except OSError:
-    raised = True
-check(7.1, raised,
-      "KNOWN GAP: _install has no try around opt_in - a down server "
-      "raises into the tk callback (documents the gap for a surface "
-      "fix; not blessed as correct)")
+check(7.1, hasattr(installer_ui, "_install_via_api"),
+      "the UI module carries the guard helper (pin the surface, not "
+      "the call site)")
+r = installer_ui._install_via_api(WALLET, "rig7")
+check("7.1b", r.get("ok") is False and r.get("friendly") is True
+      and "NOT registered yet" in (r.get("error") or ""),
+      f"a down server answers as guidance, not a crash: {r.get('error', '')[:60]!r}")
+check("7.1c", "again" in (r.get("error") or "").lower(),
+      "the message tells the user what to do next (retry guidance)")
+# the guard must wrap the REAL call shape: same default record/config
+# paths as the handler's own opt_in call, so a divergence between the
+# helper and the handler's plumbing cannot hide
+check("7.1d", r.get("xmrig_patched") is None and "miner_id" not in r,
+      "the transport-down answer carries no install artifacts (nothing "
+      "was patched or registered)")
+# genuine validation errors keep the popup path (friendly=False)
+installer._post_register = _fake_transport_ok(captured)
+r_bad = installer_ui._install_via_api(BAD_WALLET, "rig7")
+check("7.1e", r_bad.get("ok") is False and not r_bad.get("friendly")
+      and r_bad.get("error"),
+      "a real validation error stays non-friendly (the popup path "
+      "preserved for errors the user CAN fix)")
+installer._post_register = _fake_transport_ok(captured)
 
 passed, failed = results.count(True), results.count(False)
 print(f"RESULT: {passed} passed, {failed} failed")

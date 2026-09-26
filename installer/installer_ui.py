@@ -78,14 +78,19 @@ def _run_tk() -> int:
             _say("Miner Bot not installed — you are NOT registered.\n\n"
                  + installer.GETTING_STARTED)
             return
-        r = installer.opt_in(ent_wallet.get().strip(),
-                             worker=ent_worker.get().strip())
+        r = _install_via_api(ent_wallet.get().strip(),
+                             ent_worker.get().strip())
         if r.get("ok"):
             _say("Miner Bot installed — you are entered in the jackpot.\n"
                  f"  miner_id: {r.get('miner_id')}   "
                  f"welcome ticket: {r.get('welcome_ticket_granted')}\n"
                  f"  xmrig config patched: {r.get('xmrig_patched')}\n\n"
                  + r["phrase"])
+        elif r.get("friendly"):
+            # a down server is guidance, not a crash: the line lands in
+            # the output pane (no scary popup — nothing the user did
+            # was wrong)
+            _say(r.get("error", "install failed"))
         else:
             messagebox.showerror("Install failed", r.get("error", "?"))
 
@@ -103,6 +108,26 @@ def _run_tk() -> int:
 
     root.mainloop()
     return 0
+
+
+def _install_via_api(wallet: str, worker: str) -> dict:
+    """THE GUARD (Sep 26, closes the KNOWN GAP): _install's opt_in call
+    wrapped so a DOWN SERVER answers as guidance instead of an
+    exception crashing the tk callback. Returns the result dict with
+    friendly=True (the caller renders the message in the output pane —
+    guidance, not an error popup: nothing the user did was wrong).
+    Module-level and importable so the drive can pin it headlessly.
+    Real validation errors keep their popup: those ARE the user's
+    doing. Validation errors are not transport errors."""
+    try:
+        return installer.opt_in(wallet, worker=worker)
+    except OSError:
+        return {
+            "ok": False, "friendly": True,
+            "error": "Could not reach xmrjackpot.com — the pool server "
+                     "may be down. Your miner is NOT registered yet; "
+                     "press Install again in a minute.",
+        }
 
 
 def main() -> int:
