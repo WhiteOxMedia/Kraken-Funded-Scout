@@ -1367,3 +1367,147 @@ input[type="email"], select, textarea {
     width: 100%;
   }
 }
+
+/* ── THE LEGALITY AWARD (Sep 25): the old trust stamp becomes an
+   award-style news headline pinned to the hero's LEFT MARGIN, with a
+   "Why?" reveal carrying the raffle rationale and the transfer-fee
+   argument. Additive wf-* only; no existing rule is modified. At
+   ≤1500px the margin disappears and the award stacks in flow above
+   the headline — it never covers content at any width. ─────────── */
+.wf-award-hero {
+  position: relative;
+}
+
+.wf-award {
+  position: absolute;
+  left: -222px;
+  top: -120px;
+  width: 212px;
+  background: var(--surface-white);
+  border: 3px double var(--mono-orange);
+  box-shadow: var(--shadow-btn);
+  padding: 12px 10px;
+  text-align: center;
+}
+
+.wf-award-stars {
+  color: var(--mono-orange);
+  font-size: 0.7em;
+  letter-spacing: 4px;
+}
+
+.wf-award-rule {
+  height: 3px;
+  border-top: 1px solid var(--mono-orange);
+  border-bottom: 1px solid var(--mono-orange);
+  margin: 6px 0;
+}
+
+.wf-award-top {
+  font-family: var(--font-head);
+  font-weight: 800;
+  font-size: 0.95em;
+  line-height: 1.2;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text);
+}
+
+.wf-award-sub {
+  font-size: 0.58em;
+  font-weight: 600;
+  color: var(--text-mute);
+  margin-top: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+.wf-award-why { margin-top: 6px; }
+
+/* the expander header rides the Kraken Scout Settings console's
+   plate convention: ? glyph, caps title, dash description, chevron */
+.wf-award-why summary {
+  list-style: none;
+  cursor: pointer;
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  border: 1px solid var(--mono-orange);
+  background: var(--gold-glow);
+  padding: 5px 7px;
+  text-align: left;
+}
+.wf-award-why summary:hover { background: rgba(210, 110, 43, 0.16); }
+.wf-award-why summary::-webkit-details-marker { display: none; }
+
+.wf-award-q {
+  font-size: 1.15em;
+  line-height: 1;
+  font-weight: 800;
+  color: var(--mono-orange);
+}
+
+.wf-award-qtext { flex: 1; display: block; }
+
+.wf-award-qtitle {
+  display: block;
+  font-size: 0.62em;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text);
+}
+
+.wf-award-qsub {
+  display: block;
+  font-size: 0.55em;
+  color: var(--text-mute);
+  margin-top: 1px;
+}
+
+.wf-award-chevron {
+  font-size: 0.7em;
+  color: var(--mono-orange);
+  transition: transform 0.15s ease;
+}
+.wf-award-why[open] .wf-award-chevron { transform: rotate(90deg); }
+
+.wf-award-reveal {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--hairline);
+  text-align: left;
+  font-size: 0.66em;
+  line-height: 1.5;
+  color: var(--text-dim);
+}
+.wf-award-reveal p { margin: 0 0 6px; }
+.wf-award-reveal p:last-child { margin-bottom: 0; }
+
+.wf-award-key {
+  font-weight: 800;
+  color: var(--mono-orange);
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+.wf-award-caption {
+  font-size: 0.92em;
+  color: var(--text-mute);
+  border-top: 1px dashed var(--hairline);
+  padding-top: 5px;
+}
+
+@media (max-width: 1700px) {
+  .wf-award {
+    position: static;
+    width: 170px;
+    margin: 0 auto 14px;
+  }
+  /* with the reveal open, the plate widens so the disclosure reads
+     as paragraphs instead of a narrow tower (fallback for the
+     margin-less layout); % keeps it inside the hero box at any size */
+  .wf-award:has(.wf-award-why[open]) {
+    width: min(480px, 100%);
+  }
+}

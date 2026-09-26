@@ -170,6 +170,9 @@ TRUTH_AUDIT = {
         "Recorded Kraken referral bonuses for wallet-connected referrals",
     "Join the miners building the biggest Monero grand prize pool.":
         "Join the miners building the community's Monero grand prize pool.",
+    "🏆":
+        "(removed with the trust stamp - superseded by the Sep 25 "
+        "evening II legality award)",
 }
 unsanctioned = [s for s in missing if s not in TRUTH_AUDIT]
 check(1.1, not unsanctioned,
@@ -179,7 +182,8 @@ check(1.1, not unsanctioned,
          if unsanctioned else ""))
 _norm = re.sub(r"\s+", " ", html_mod.unescape(re.sub(r"<[^>]+>", " ", new_html)))
 not_landed = [new for new in TRUTH_AUDIT.values()
-              if re.sub(r"\s+", " ", new) not in _norm]
+              if not new.startswith("(removed")
+              and re.sub(r"\s+", " ", new) not in _norm]
 check(1.10, not not_landed,
       f"all {len(TRUTH_AUDIT)} audited rewordings are present "
       + (f"- NOT LANDED: {not_landed[:6]}" if not_landed else ""))
@@ -530,16 +534,26 @@ check(8.5, not (HERE / "pool" / "templates" / "index.html")
       "AND the asset file is deleted from the repo (Sep 25 follow-up: "
       "zero template references, no static/img/miner_character.svg)")
 check(8.6, 'style="position:absolute;left:0;top:50%' not in new_html
-      and 'margin:0 auto 18px;background:var(--surface-white);'
-          'border:2px solid var(--mono-orange)' in new_html,
-      "the trust seal sits IN FLOW at every width (the absolute seal "
-      "covered the tagline and the primary CTA at desktop - user "
-      "report, Sep 25 evening)")
+      and 'wf-award-hero' in new_html
+      and 'style="margin:0 auto 18px;background:var(--surface-white);'
+          'border:2px solid var(--mono-orange)' not in new_html,
+      "the old inline-styled trust stamp is GONE and the legality "
+      "award rides the wf-award-hero margin at desktop - user order, "
+      "Sep 25 evening II")
 check(8.7, new_html.count("miner_sprite") == 2
       and 'id="realMinerSprite1"' in new_html,
       "the pixel-art sprite remains ONLY in the app.js-wired realplay "
       "scene (2 refs; the one-click box and the solo-vs-pool comparison "
       "now carry flat design-system numerals - user report, Sep 25)")
+check(8.8, 'wf-award-top' in new_html and 'wf-award-why' in new_html
+      and 'Why this claim holds:' in new_html
+      and 'the miners do the work, so this is a raffle, not gambling' in new_html
+      and 'the transfer fee eats most of what you mined' in new_html
+      and '100 shares = 1 entry' in new_html,
+      "the award carries its ? reveal: the raffle rationale (miners do "
+      "the work, so it is a raffle, not gambling) and the transfer-fee "
+      "argument for why solo mining fails and the jackpot wins - user "
+      "order, Sep 25 evening II")
 
 shutil.rmtree(SANDBOX, ignore_errors=True)
 print(f"RESULT: {passed} passed, {failed} failed")
