@@ -1,0 +1,130 @@
+"""test_bundle_parity.py — THE DEPLOY-ARTIFACT DRIFT GUARD (Sep 26).
+
+dist_hostinger/xmrjackpot_review is the Hostinger review bundle: a
+verbatim copy of pool/templates (index + admin_panel) plus every
+pool/static file, a README, and a deterministic zip + sha256 sidecar.
+History has shown the bundle silently trailing the source (push_client
+v12 while the site shipped v13, then v14; app.js v21 vs v23; wf v4 vs
+v5) — nothing failed when it drifted. This drive pins the WHOLE chain
+so a stale bundle fails the fleet instead of shipping:
+
+  1. inventory parity: the bundle holds exactly index.html,
+     admin_panel.html, README.txt, and every pool/static file
+  2. byte parity: every source-mapped file is byte-identical
+  3. the bundle HTML's script version strings equal the template's
+  4. the zip is byte-reproducible from the bundle dir (deterministic
+     recipe: sorted entries, xmrjackpot_review/ prefix, fixed stamp)
+  5. the sha256 sidecar matches the zip bytes
+  6. the zip extracts to the exact bundle inventory, byte-identical
+
+Skips honestly when the bundle directory is absent (the artifact is
+untracked by design; fleet-only checkouts stay green).
+Prints "RESULT: N passed, M failed".
+"""
+import hashlib
+import re
+import sys
+import tempfile
+import zipfile
+from pathlib import Path
+
+HERE = Path(__file__).resolve().parent
+BUNDLE = HERE / "dist_hostinger" / "xmrjackpot_review"
+ZIP_PATH = HERE / "dist_hostinger" / "xmrjackpot_review.zip"
+SHA_PATH = HERE / "dist_hostinger" / "xmrjackpot_review.zip.sha256"
+
+results = []
+
+
+def check(n, cond, why=""):
+    results.append(bool(cond))
+    print(f"{'PASS' if cond else 'FAIL'}  {n}"
+          + (f"  ({why})" if why and not cond else ""))
+
+
+if not BUNDLE.is_dir():
+    print("SKIP: dist_hostinger/xmrjackpot_review not present — "
+          "the fleet stays green on checkouts without the deploy artifact")
+    print("RESULT: 0 passed, 0 failed")
+    sys.exit(0)
+
+
+def relset(root):
+    return {str(f.relative_to(root)).replace("\\", "/")
+            for f in root.rglob("*") if f.is_file()}
+
+
+TPL = HERE / "pool" / "templates"
+STAT = HERE / "pool" / "static"
+
+# 1. inventory parity
+expected = {"index.html", "admin_panel.html", "README.txt"} | {
+    "static/" + p for p in relset(STAT)}
+actual = relset(BUNDLE)
+missing, extra = sorted(expected - actual), sorted(actual - expected)
+check(1, not missing and not extra,
+      f"missing={missing} extra={extra}")
+
+# 2. byte parity for every source-mapped file
+pairs = [("index.html", TPL / "index.html"),
+         ("admin_panel.html", TPL / "admin_panel.html")]
+for f in sorted(STAT.rglob("*")):
+    if f.is_file():
+        pairs.append(("static/" + str(f.relative_to(STAT)).replace("\\", "/"), f))
+diffs = [rel for rel, src in pairs
+         if rel in actual and (BUNDLE / rel).read_bytes() != src.read_bytes()]
+check(2, not diffs, f"files differing from source: {diffs}")
+
+# 3. version strings in the bundle HTML equal the template's
+bh = (BUNDLE / "index.html").read_text(encoding="utf-8")
+th = (TPL / "index.html").read_text(encoding="utf-8")
+bv = sorted(re.findall(r'src="/static/([a-z_]+\.js)\?v=(\d+)"', bh))
+tv = sorted(re.findall(r'src="/static/([a-z_]+\.js)\?v=(\d+)"', th))
+check(3, bv == tv, f"bundle={bv} template={tv}")
+
+# 4+5. the zip is byte-reproducible and the sidecar matches
+if ZIP_PATH.exists():
+    files = sorted(p for p in BUNDLE.rglob("*") if p.is_file())
+    repro = Path(tempfile.mkdtemp(prefix="bundle_repro_")) / "repro.zip"
+    with zipfile.ZipFile(repro, "w", zipfile.ZIP_DEFLATED) as z:
+        for f in files:
+            zi = zipfile.ZipInfo(
+                "xmrjackpot_review/" + f.relative_to(BUNDLE).as_posix(),
+                date_time=(2026, 9, 26, 0, 0, 0))
+            zi.external_attr = 0o644 << 16
+            zi.compress_type = zipfile.ZIP_DEFLATED
+            z.writestr(zi, f.read_bytes())
+    check(4, repro.read_bytes() == ZIP_PATH.read_bytes(),
+          "the shipped zip is not the deterministic rebuild of the "
+          "current bundle dir — regenerate it")
+    digest = hashlib.sha256(ZIP_PATH.read_bytes()).hexdigest()
+    recorded = SHA_PATH.read_text().split()[0] if SHA_PATH.exists() else ""
+    check(5, digest == recorded,
+          f"sidecar says {recorded[:16]}… zip hashes {digest[:16]}…")
+else:
+    check(4, False, "xmrjackpot_review.zip missing — regenerate the bundle")
+    check(5, False, "no zip to hash")
+
+# 6. zip round-trip: extracts to the exact bundle inventory, byte-identical
+if ZIP_PATH.exists():
+    td = Path(tempfile.mkdtemp(prefix="bundle_zip_"))
+    with zipfile.ZipFile(ZIP_PATH) as z:
+        bad = z.testzip()
+        z.extractall(td)
+    ext_root = td / "xmrjackpot_review"
+    ext = relset(ext_root) if ext_root.is_dir() else set()
+    inv_ok = bad is None and ext == actual
+    bytes_bad = [str(f.relative_to(ext_root)).replace("\\", "/")
+                 for f in ext_root.rglob("*")
+                 if f.is_file() and f.read_bytes()
+                 != (BUNDLE / f.relative_to(ext_root)).read_bytes()] \
+        if ext_root.is_dir() else ["<no extraction>"]
+    check(6, inv_ok and not bytes_bad,
+          f"zip integrity={bad!r} inventory_ok={ext == actual} "
+          f"bytes differing={bytes_bad[:4]}")
+else:
+    check(6, False, "no zip to verify")
+
+passed, failed = results.count(True), results.count(False)
+print(f"RESULT: {passed} passed, {failed} failed")
+sys.exit(1 if failed else 0)
