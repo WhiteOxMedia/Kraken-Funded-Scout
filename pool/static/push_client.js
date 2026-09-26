@@ -69,7 +69,14 @@
       navigator.serviceWorker.register("/push_sw.js?v=2")
         .then(function (reg) {
           return reg.pushManager.getSubscription().then(function (sub) {
-            return sub || subscribe(reg);
+            if (sub) {
+              /* f5 receipt test (Sep 26): reusing a live subscription
+                 used to leave the status at "asking the browser…" —
+                 the device is ready, say so. */
+              setStatus("Notifications on — jackpot wins, claim reminders, and signals will land here.");
+              return sub;
+            }
+            return subscribe(reg);
           });
         }).catch(function () {
           setStatus("Could not reach the push service — try again shortly.", true);
