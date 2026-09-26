@@ -1,8 +1,8 @@
 """test_kraken_referral_integration.py — the pipeline through the REAL
 FastAPI app: simulate provider -> snapshot rows -> projection ->
-/api/jackpot/projection -> admin trigger (503 unconfigured / 200
-simulate) -> stubbed live provider (success, rate-limit backoff,
-persistent 5xx) -> the referral-window notice rate limit."""
+/api/jackpot/projection ->admin trigger (503 unconfigured / 200 simulate) -> stubbed live provider (success, rate-limit backoff,
+persistent 5xx) -> the referral-window notice rate limit -> the shared credential
+seam (src/kraken_client mirrors pool/kraken_referral's tiered accessor)."""
 import sys, tempfile
 from pathlib import Path
 HERE = Path(__file__).resolve().parent
@@ -353,6 +353,50 @@ check("8b.7", _res == ("kcanon99999999", "c2VjcmV0MTIzNDU2Nzg5MA==",
 check("8b.8", _set_calls == [],
       "the keyring was NEVER written by the server surface")
 db.set_setting("KRAKEN_REFERRAL_MODE", "")
+
+print("== 8c. THE SHARED SEAM (src/kraken_client mirrors the accessor) ==")
+import os as _os
+sys.path.insert(0, str(HERE / "src"))
+import kraken_client as kc
+from pool import kraken_referral as _pkr      # what the CLIENT binds to
+_saved_env = {k: _os.environ.pop(k) for k in ("KRAKEN_API_KEY", "KRAKEN_API_SECRET")
+              if k in _os.environ}
+_os.environ["KRAKEN_API_KEY"] = "env-seam-6666"
+_os.environ["KRAKEN_API_SECRET"] = "env-seam-7777"
+check("8c.1", kc._get_kraken_credentials() == ("env-seam-6666", "env-seam-7777")
+      and kr.kraken_credentials() == ("env-seam-6666", "env-seam-7777", "env"),
+      "env pair: BOTH halves resolve identically, tier 'env'")
+del _os.environ["KRAKEN_API_KEY"]
+del _os.environ["KRAKEN_API_SECRET"]
+db.set_setting("KRAKEN_API_KEY", "kseam-8888")
+db.set_setting("KRAKEN_API_SECRET", "c2VjcmV0MTIzNDU2Nzg5MA==")
+check("8c.2", kc._settings_creds() == ("kseam-8888", "c2VjcmV0MTIzNDU2Nzg5MA=="),
+      "settings tier: the client reads the pool settings through the shared db layer")
+check("8c.3", _pkr.db is db,
+      "the client's settings tier binds the SAME database module the server uses")
+sys.modules["keyring"] = _fake                # hermetic: fake backend back in place
+_asked = []
+def _rec_get(s, u):
+    _asked.append(s)
+    return ("KR-KEYRING-KEY-0001" if u == "kraken_api_key" else
+            "c2VjcmV0MTIzNDU2Nzg5MA==" if u == "kraken_api_secret" else None)
+_fake.get_password = _rec_get
+db.set_setting("KRAKEN_API_KEY", "")
+db.set_setting("KRAKEN_API_SECRET", "")
+check("8c.4", kc._keyring_creds() == ("KR-KEYRING-KEY-0001", "c2VjcmV0MTIzNDU2Nzg5MA==")
+      and set(_asked) == {"kraken"},
+      f"keyring tier: same fake pair, and ONLY service 'kraken' is asked ({set(_asked)})")
+check("8c.5", kc._get_kraken_credentials() == ("KR-KEYRING-KEY-0001",
+                                               "c2VjcmV0MTIzNDU2Nzg5MA=="),
+      "full parity: same pair, same tier order (env -> settings -> keyring)")
+_fake.get_password = lambda s, u: (
+    "KR-KEYRING-KEY-0001" if u == "kraken_api_key" else None)
+check("8c.6", kc._keyring_creds() == (None, None)
+      and kc._get_kraken_credentials() == (None, None),
+      "no mixing: the client refuses an incomplete keyring pair exactly like the accessor")
+sys.modules.pop("keyring", None)              # real keyring re-imports later
+for _k, _v in _saved_env.items():
+    _os.environ[_k] = _v
 
 print("== 9. THE MAPPING SHEET: real kraken_referral_id column ==")
 anon2 = TestClient(srv.app)

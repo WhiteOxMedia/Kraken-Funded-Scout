@@ -121,6 +121,28 @@ check("4.16", p["credentials_tier"] == "keyring" and p["keyring_pair"] is True
       "keyring tier resolves (settings empty) and still needs only the endpoint")
 kr._keyring_creds = lambda: None
 
+print("== 4c. THE ENV TIER (top of the shared seam) ==")
+import os as _os
+_saved_env = {k: _os.environ.pop(k) for k in ("KRAKEN_API_KEY", "KRAKEN_API_SECRET")
+              if k in _os.environ}
+_os.environ["KRAKEN_API_KEY"] = "env-key-4444"
+_os.environ["KRAKEN_API_SECRET"] = "env-sec-5555"
+p = kr.provider_posture()
+check("4.17", p["credentials_tier"] == "env" and p["env_pair"] is True
+      and p["mode"] == "unconfigured"
+      and p["missing"] == ["KRAKEN_REFERRAL_ENDPOINT"],
+      "complete env pair is the top tier; only the endpoint is missing")
+check("4.18", kr.kraken_credentials() == ("env-key-4444", "env-sec-5555", "env"),
+      "the accessor returns the env pair with source 'env'")
+del _os.environ["KRAKEN_API_SECRET"]          # lone key only
+p = kr.provider_posture()
+check("4.19", p["credentials_tier"] == "" and p["env_pair"] is False
+      and "KRAKEN_API_SECRET" in p["missing"],
+      "a lone env var is never half-adopted (same no-mix rule as keyring)")
+del _os.environ["KRAKEN_API_KEY"]
+for _k, _v in _saved_env.items():
+    _os.environ[_k] = _v
+
 print("== 5. THE NOTICE (referral_window) ==")
 ev = kr.push_svc.EVENTS["referral_window"]
 cat = kr.push_svc.CATEGORY["referral_window"]

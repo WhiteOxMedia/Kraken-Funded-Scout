@@ -7,10 +7,12 @@ equivalent, and maintains a self-adjusting "possible future jackpot"
 
 PROVIDER HONESTY: the Kraken referral API is only used when the
 operator has provisioned credentials — KRAKEN_API_KEY /
-KRAKEN_API_SECRET (settings first, then the OS keyring: Windows
-Credential Manager, where setup_kraken.py stores them — the secrets
-NEVER leave that store for the database) plus
-KRAKEN_REFERRAL_ENDPOINT (settings only), optionally
+KRAKEN_API_SECRET (resolved through ONE tiered seam shared with
+src/kraken_client.py: complete OS-environment pair first, then
+settings, then the OS keyring — Windows Credential Manager, where
+setup_kraken.py stores them — the secrets NEVER leave their store
+for the database) plus KRAKEN_REFERRAL_ENDPOINT (settings only),
+optionally
 KRAKEN_REFERRAL_TTL_SECONDS, KRAKEN_REFERRAL_BATCH_SIZE,
 KRAKEN_REFERRAL_MAX_RETRIES, KRAKEN_REFERRAL_CONFIDENCE,
 KRAKEN_PROJECTION_SPIKE_PCT. Without credentials the worker refuses
@@ -28,6 +30,7 @@ provisioned identity.
 import hashlib
 import hmac
 import json
+import os
 import time
 import urllib.parse
 import urllib.request
@@ -66,18 +69,32 @@ def _cfg(name, default, cast=str):
         return default
 
 
-# ── THE CREDENTIAL ACCESSOR (keyring fallback, Sep 26) ────────────
-# One way for this module to see the operator's Kraken identity:
-# settings first (explicit provisioning through the admin panel),
-# then the OS keyring (Windows Credential Manager — the store
-# setup_kraken.py writes and src/kraken_client.py reads). Read-only:
-# the keyring is never written, and the fallback never copies the
-# secret into the database — that is the entire point of the tiered
-# storage. Import-guarded so boxes without a keyring backend degrade
-# to settings-only behavior instead of erroring.
+# ── THE CREDENTIAL ACCESSOR (tiered, one seam for the project) ──────
+# Every half of the project sees the operator's Kraken identity the
+# SAME way, in tier order: the OS environment (a COMPLETE pair only),
+# then settings (explicit provisioning through the admin panel or
+# setup_kraken.py), then the OS keyring (Windows Credential Manager —
+# the store setup_kraken.py writes and src/kraken_client.py resolves
+# through the same order, so there is exactly one credential truth).
+# Read-only: neither the env nor the keyring is ever written, and no
+# tier ever copies a secret into another — that is the entire point
+# of tiered storage. Import-guarded so boxes without a keyring
+# backend degrade to settings-only behavior instead of erroring.
 KEYRING_SERVICE = "kraken"
 KEYRING_KEY_USER = "kraken_api_key"
 KEYRING_SEC_USER = "kraken_api_secret"
+
+
+def _env_creds():
+    """THE OS ENVIRONMENT tier (highest): KRAKEN_API_KEY and
+    KRAKEN_API_SECRET as a COMPLETE pair — a lone env var is never
+    half-adopted, the same no-mix rule the keyring tier follows.
+    This is the top of the seam src/kraken_client.py mirrors."""
+    key = str(os.environ.get("KRAKEN_API_KEY") or "").strip()
+    sec = str(os.environ.get("KRAKEN_API_SECRET") or "").strip()
+    if key and sec:
+        return {"key": key, "secret": sec}
+    return None
 
 
 def _keyring_creds():
@@ -100,9 +117,13 @@ def _keyring_creds():
 
 
 def kraken_credentials():
-    """(api_key, api_secret, source) with source in 'settings',
+    """(api_key, api_secret, source) with source in 'env', 'settings',
     'keyring', or '' (unconfigured). The pair must be COMPLETE from
-    ONE tier — no mixing a settings key with a keyring secret."""
+    ONE tier — no mixing a settings key with a keyring secret, and no
+    lone environment variable is half-adopted."""
+    env = _env_creds()
+    if env:
+        return env["key"], env["secret"], "env"
     key = str(db.get_setting("KRAKEN_API_KEY", "") or "").strip()
     sec = str(db.get_setting("KRAKEN_API_SECRET", "") or "").strip()
     if key and sec:
@@ -148,6 +169,7 @@ def provider_posture():
     key = str(db.get_setting("KRAKEN_API_KEY", "") or "").strip()
     sec = str(db.get_setting("KRAKEN_API_SECRET", "") or "").strip()
     kr_ = _keyring_creds()
+    env = _env_creds()
     eff_key, eff_sec, tier = kraken_credentials()
     ep = str(db.get_setting("KRAKEN_REFERRAL_ENDPOINT", "") or "").strip()
     mode = provider_mode()
@@ -172,6 +194,7 @@ def provider_posture():
         "settings_secret_set": bool(sec),
         "settings_partial_pair": bool(key) != bool(sec),
         "keyring_pair": bool(kr_),
+        "env_pair": bool(env),
         "endpoint_set": bool(ep),
         "endpoint": ep,
         # tails of the EFFECTIVE pair (the one provider_mode actually
