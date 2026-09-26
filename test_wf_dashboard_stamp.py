@@ -17,6 +17,15 @@ DOM + fetch and pins:
   5. a fresh account (updated_at null) keeps saying "never changed"
   6. the stamp renders through the SHARED relTime exporter
      (window.XMRJackpotPush.relTime), not a private renderer
+  7. a FLAT announcement re-renders too: push_client announces
+     WHATEVER envelope it applied and is shape-neutral (flat bodies
+     occur — the envelope drive's shape_neutral scenario); updated_at
+     is top-level in both real shapes, so the stamp must not care
+  8. the 412-conflict envelope (the server's current shape plus an
+     extra error field, announced after an auto-adoption) re-renders
+     the stamp and the extras are ignored
+  9. an envelope-less announcement is a NO-OP: the detail guard drops
+     it and the previous stamp survives (no clobber, no crash)
 
 No network, no browser: Node is required, everything else is stubbed.
 Prints "RESULT: N passed, M failed".
@@ -243,6 +252,74 @@ async function scenario(name) {
     return 'fresh_account_honest ok';
   }
 
+  if (name === 'announce_flat_shape') {
+    // push_client announces WHATEVER envelope it applied — and it is
+    // shape-neutral (flat bodies occur end to end). A flat envelope
+    // carries updated_at top-level exactly like the nested shape, so
+    // the Scout stamp must re-render from it with no fetch.
+    answers = { '/api/push/preferences': { status: 200, json: ENV_A },
+                '/api/auth/me': { status: 200, json: { authenticated: false } },
+                '/api/profile/stats': { status: 401, json: {} },
+                '/api/push/signals': { status: 200, json: { signals: [] } } };
+    loadNow();
+    await flushAll();
+    const afterBoot = gets.filter((p) => p === '/api/push/preferences').length;
+    dispatch('xmrjackpot:prefs', { jackpot: false, scout: true,
+                                   updated_at: '2026-09-26T13:00:00Z' });
+    assert.ok(stampText().indexOf('SHARED[2026-09-26T13:00:00Z]') >= 0,
+              'the FLAT announcement re-rendered the stamp: ' + stampText());
+    assert.strictEqual(stampTitle(), '2026-09-26T13:00:00Z',
+                       'the tooltip carries the flat envelope\'s stamp');
+    assert.strictEqual(gets.filter((p) => p === '/api/push/preferences').length,
+                       afterBoot, 'the flat render fired NO fetch');
+    return 'announce_flat_shape ok';
+  }
+
+  if (name === 'announce_conflict_envelope') {
+    // the 412 auto-adoption announces the SERVER's current envelope:
+    // the nested shape PLUS an extra error field. The stamp renders
+    // its two fields and ignores the rest.
+    answers = { '/api/push/preferences': { status: 200, json: ENV_A },
+                '/api/auth/me': { status: 200, json: { authenticated: false } },
+                '/api/profile/stats': { status: 401, json: {} },
+                '/api/push/signals': { status: 200, json: { signals: [] } } };
+    loadNow();
+    await flushAll();
+    dispatch('xmrjackpot:prefs', {
+      user_id: 'alice',
+      preferences: { jackpot: true, scout: true },
+      updated_at: '2026-09-26T14:00:00Z',
+      error: 'version conflict - re-read and retry',
+    });
+    assert.ok(stampText().indexOf('SHARED[2026-09-26T14:00:00Z]') >= 0,
+              'the conflict envelope re-rendered the stamp: ' + stampText());
+    assert.strictEqual(stampTitle(), '2026-09-26T14:00:00Z',
+                       'the conflict envelope\'s moment is the tooltip');
+    assert.ok(stampText().indexOf('version conflict') < 0,
+              'the error field never leaks into the stamp text');
+    return 'announce_conflict_envelope ok';
+  }
+
+  if (name === 'announce_without_detail') {
+    // a detail-less announcement (defensive: push_client wraps the
+    // dispatch in try/catch, but a malformed event must never clobber
+    // the card) is a NO-OP — the guard drops it, the stamp survives.
+    answers = { '/api/push/preferences': { status: 200, json: ENV_A },
+                '/api/auth/me': { status: 200, json: { authenticated: false } },
+                '/api/profile/stats': { status: 401, json: {} },
+                '/api/push/signals': { status: 200, json: { signals: [] } } };
+    loadNow();
+    await flushAll();
+    assert.ok(stampText().indexOf('SHARED[' + ENV_A.updated_at + ']') >= 0,
+              'stamp present before the malformed announcement');
+    dispatchNoDetail('xmrjackpot:prefs');
+    assert.ok(stampText().indexOf('SHARED[' + ENV_A.updated_at + ']') >= 0,
+              'the previous stamp SURVIVES an envelope-less announcement');
+    assert.strictEqual(stampTitle(), ENV_A.updated_at,
+                       'the tooltip survives with it');
+    return 'announce_without_detail ok';
+  }
+
   throw new Error('unknown scenario ' + name);
 }
 
@@ -262,6 +339,12 @@ SCENARIOS = [
      "a null answer (401 after logout, or network failure) clears the stamp and tooltip"),
     ("4", "fresh_account_honest",
      "a fresh account (updated_at null) keeps saying prefs never changed"),
+    ("5", "announce_flat_shape",
+     "a FLAT announcement (shape-neutral client) re-renders the stamp with no fetch"),
+    ("6", "announce_conflict_envelope",
+     "the 412-conflict envelope (extra error field) re-renders; extras ignored"),
+    ("7", "announce_without_detail",
+     "an envelope-less announcement is a no-op — the previous stamp survives"),
 ]
 
 
