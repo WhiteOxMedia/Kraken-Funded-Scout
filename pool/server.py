@@ -636,6 +636,11 @@ def require_admin(request: Request):
     return user
 
 
+# Monero address alphabet (base58, no 0OIl) - for registration
+# validation only; the authoritative check is always the network's.
+_B58 = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"
+
+
 class RegisterRequest(BaseModel):
     username: str
     password: str
@@ -643,6 +648,8 @@ class RegisterRequest(BaseModel):
     wallet_address: str = ""
     referral_code: str = ""
     security_question: str = ""
+    phone: str = ""          # the registration envelope (Sep 26 E2E)
+    full_name: str = ""
     security_answer: str = ""
 
 
@@ -666,10 +673,24 @@ class AdminSettingUpdate(BaseModel):
 @app.post("/api/auth/register")
 async def api_register(req: RegisterRequest, request: Request):
     """Register a new user account with optional referral. Minimal restrictions."""
+    # REGISTRATION RATE LIMIT (Sep 26 E2E acceptance): account creation
+    # is its own abuse surface, separate from login attempts.
+    ip = request.client.host if request.client else "unknown"
+    if not security.register_limiter.check(ip):
+        raise HTTPException(429, "Too many registration attempts. Try again soon.")
     if not req.username or not req.password:
         raise HTTPException(400, "Username and password are required")
     if db.get_user_by_username(req.username):
         raise HTTPException(409, "Username already taken")
+    # KRAKEN WALLET FORMAT (Sep 26 E2E acceptance): a provided wallet
+    # must LOOK like a Monero address (95 chars, 4/8 prefix, base58
+    # alphabet) - an empty value is fine (wallet optional).
+    if req.wallet_address:
+        _w = req.wallet_address.strip()
+        if (len(_w) != 95 or _w[0] not in "48"
+                or not all(c in _B58 for c in _w)):
+            raise HTTPException(400, "Wallet address does not look like a "
+                                     "valid Monero address")
 
     # First user becomes admin
     user_count = len(db.get_all_users())
@@ -683,6 +704,8 @@ async def api_register(req: RegisterRequest, request: Request):
         is_admin,
         security_question=req.security_question or None,
         security_answer=req.security_answer or None,
+        phone=(req.phone or "").strip() or None,
+        full_name=(req.full_name or "").strip() or None,
     )
 
     # Generate referral code for this user
@@ -1348,11 +1371,17 @@ async def api_push_prefs_get(request: Request):
     authenticated session - never accepted from the wire."""
     user = require_auth(request)
     prefs, updated = push_svc.get_prefs_updated(int(user["id"]))
+    # OPTIMISTIC CONCURRENCY (Sep 26 E2E acceptance): updated_at is the
+    # version - served as both the ETag header and the body field.
+    etag = f'"{updated or "v0"}"'
+    inm = request.headers.get("if-none-match")
+    if inm and inm == etag:
+        return Response(status_code=304, headers={"ETag": etag})
     return JSONResponse({
         "user_id": user.get("username"),
         "preferences": prefs,
         "updated_at": updated,
-    })
+    }, headers={"ETag": etag})
 
 
 @app.post("/api/push/preferences")
@@ -1360,8 +1389,23 @@ async def api_push_prefs_set(request: Request):
     """Set notification preferences from the dashboard panel. Accepts
     BOTH shapes: the bulk envelope {"preferences": {...}} and the
     single toggle {"category": ..., "enabled": ...}. The authenticated
-    user is always the subject - a user_id on the wire is ignored."""
+    user is always the subject - a user_id on the wire is ignored.
+    CONCURRENCY: send If-Match: "<updated_at>" to require the write to
+    apply to the version you read - a stale version answers 412 with
+    the current envelope, so two devices cannot silently clobber each
+    other (lost-update prevention, Sep 26 E2E acceptance)."""
     user = require_auth(request)
+    if_match = request.headers.get("if-match")
+    if if_match:
+        current_etag = f'"{push_svc.get_prefs_updated(int(user["id"]))[1] or "v0"}"'
+        if if_match != current_etag:
+            prefs_now, upd_now = push_svc.get_prefs_updated(int(user["id"]))
+            return JSONResponse({
+                "user_id": user.get("username"),
+                "preferences": prefs_now,
+                "updated_at": upd_now,
+                "error": "version conflict - re-read and retry",
+            }, status_code=412, headers={"ETag": f'"{upd_now or "v0"}"'})
     body = await _push_body(request)
     if isinstance(body.get("preferences"), dict):
         res = push_svc.set_prefs(int(user["id"]), body["preferences"])

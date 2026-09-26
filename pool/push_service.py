@@ -30,8 +30,10 @@ for the machine leg), plus a /push_sw.js root-path route so the service
 worker scopes to / (the /static/ default scope could never control
 pages at / — caught by the live e2e proof).
 """
+import calendar
 import json
 import time
+from urllib.parse import urlparse
 from pathlib import Path
 
 import database as db
@@ -132,10 +134,31 @@ def get_prefs(user_id: int) -> dict:
     return get_prefs_updated(user_id)[0]
 
 
+_last_stamp = {"v": ""}
+
+
+def _bump(stamp: str) -> str:
+    """One second past the given stamp, UTC (handles the :59 -> next
+    minute rollover via epoch arithmetic)."""
+    t = time.strptime(stamp, "%Y-%m-%dT%H:%M:%SZ")
+    return time.strftime("%Y-%m-%dT%H:%M:%SZ",
+                         time.gmtime(calendar.timegm(t) + 1))
+
+
 def _now_iso() -> str:
-    """The prefs envelope's updated_at: UTC, second precision, Z
-    suffix - e.g. 2026-09-25T21:00:00Z."""
-    return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+    """The prefs envelope's updated_at: UTC, Z suffix - e.g.
+    2026-09-25T21:00:00Z. Second precision, but STRICTLY MONOTONIC:
+    a write in the same wall-clock second as the previous one gets the
+    previous stamp + 1s, so no two real changes ever share a version -
+    the optimistic-concurrency ETag must move on every change, or two
+    same-second writes are indistinguishable and a stale If-Match is
+    accepted (same-second lost update, Sep 26 E2E acceptance 7.4).
+    Format, Z suffix and the idempotent-write contract are unchanged."""
+    stamp = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+    if stamp <= _last_stamp["v"]:
+        stamp = _bump(_last_stamp["v"])
+    _last_stamp["v"] = stamp
+    return stamp
 
 
 def get_prefs_updated(user_id: int) -> tuple:
@@ -223,6 +246,10 @@ def subscribe(user_id: int, subscription: dict) -> dict:
                 r["keys"] = subscription.get("keys") or {}
                 r["ts"] = time.time()
                 _save(SUBS_KEY, rows)
+                _audit(user_id, "push_subscribe",
+                       {"reason": "refreshed",
+                        "endpoint_host": urlparse(endpoint).netloc,
+                        "via": "push_service"})
                 return {"ok": True, "reason": "refreshed"}
             return {"ok": False, "reason": "endpoint belongs to another user"}
     rows.append({
@@ -232,6 +259,13 @@ def subscribe(user_id: int, subscription: dict) -> dict:
         "ts": time.time(),
     })
     _save(SUBS_KEY, rows)
+    # Sep 26 E2E acceptance: subscription creation is a key user action
+    # and must be auditable. Only the push-service HOST is logged - the
+    # full endpoint carries opaque device tokens and stays in the store.
+    _audit(user_id, "push_subscribe",
+           {"reason": "subscribed",
+            "endpoint_host": urlparse(endpoint).netloc,
+            "via": "push_service"})
     return {"ok": True, "reason": "subscribed"}
 
 
@@ -243,6 +277,9 @@ def unsubscribe(user_id: int, endpoint: str) -> dict:
     if len(kept) == len(rows):
         return {"ok": False, "reason": "not found"}
     _save(SUBS_KEY, kept)
+    _audit(user_id, "push_unsubscribe",
+           {"endpoint_host": urlparse(endpoint).netloc,
+            "via": "push_service"})
     return {"ok": True}
 
 
