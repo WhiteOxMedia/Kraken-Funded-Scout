@@ -128,22 +128,52 @@
     }
   }
 
-  function noteStamp(prefix, iso, warn, suffix) {
+  /* UNDO (Sep 26): when there IS a state to go back to, the saved
+     line renders "saved 2 min ago · undo" — the link replays the
+     previous values through the SAME conditional bulk write, so the
+     optimistic-concurrency machinery (If-Match / 412) protects the
+     undo exactly like a toggle, and undo-of-undo works. The server
+     keeps one version; the previous one lives here, client-side. */
+  var undoHandler = null;        // assigned by wirePrefs
+
+  function noteStamp(prefix, iso, warn, suffix, withUndo) {
     var el = document.getElementById("prefSaved");
     if (!el || !iso) { return; }
-    suffix = suffix || "";
-    stampNote = { prefix: prefix, iso: iso, warn: !!warn, suffix: suffix };
-    el.textContent = prefix + " " + relTime(iso) + suffix;
-    el.style.color = warn ? "#c9a227" : "var(--text-mute)";
+    stampNote = { prefix: prefix, iso: iso, warn: !!warn,
+                  suffix: suffix || "", withUndo: !!withUndo };
+    renderStampLine();
+  }
+
+  function renderStampLine() {
+    var el = document.getElementById("prefSaved");
+    if (!el || !stampNote) { return; }
+    var label = stampNote.prefix + " " + relTime(stampNote.iso)
+      + stampNote.suffix;
+    if (stampNote.withUndo) {
+      el.textContent = "";
+      el.appendChild(document.createTextNode(label + " \u00b7 "));
+      var a = document.createElement("a");
+      a.href = "#";
+      a.textContent = "undo";
+      a.style.color = "var(--gold-bright, #c9a227)";
+      a.addEventListener("click", function (ev) {
+        ev.preventDefault();
+        if (undoHandler) { undoHandler(); }
+      });
+      el.appendChild(a);
+    } else {
+      el.textContent = label;
+    }
+    el.style.color = stampNote.warn ? "#c9a227" : "var(--text-mute)";
   }
 
   setInterval(function () {
     if (!stampNote) { return; }
     var el = document.getElementById("prefSaved");
     // refresh only while this stamp message is still what's shown
-    if (el && el.textContent.indexOf(stampNote.prefix) === 0) {
-      el.textContent = stampNote.prefix + " " + relTime(stampNote.iso)
-        + stampNote.suffix;
+    if (el && (stampNote.withUndo ||
+               el.textContent.indexOf(stampNote.prefix) === 0)) {
+      renderStampLine();
     }
   }, 30000);
 
@@ -153,13 +183,30 @@
     if (!j || !s || j.dataset.wired) { return; }
     j.dataset.wired = "1";
     s.dataset.wired = "1";
+    // UNDO BOOKKEEPING (fixed after live verification): the screen
+    // already carries the user's change by the time a write applies,
+    // so the undo target must be snapshotted AT WRITE TIME from the
+    // state the server last CONFIRMED — never from the checkboxes.
+    var lastConfirmed = null;   // state as last confirmed by the server
+    var pendingPrev = null;     // undo target for the in-flight write
+    var prevPrefs = null;       // undo target once a write has applied
     function adopt(p) {
       if (!p) { return; }
-      j.checked = p.jackpot !== false;
-      s.checked = p.scout !== false;
+      /* SHAPE FIX (Sep 26, found by the undo live check): every
+         envelope — GET body, 200 body, 412 body — nests the values in
+         `preferences`; reading p.jackpot off the envelope returned
+         undefined !== false = true, so every adopt snapped BOTH
+         checkboxes to ON regardless of the server's real state (the
+         card showed both-ON after any sync). Normalize once. */
+      var pr = (p && p.preferences && typeof p.preferences === "object")
+        ? p.preferences : p;
+      j.checked = pr.jackpot !== false;
+      s.checked = pr.scout !== false;
       if (p.updated_at) {
         prefsEtag = '"' + p.updated_at + '"';   // the version we now hold
-        noteStamp("saved", p.updated_at);
+        lastConfirmed = { jackpot: pr.jackpot !== false,
+                          scout: pr.scout !== false };
+        noteStamp("saved", p.updated_at, false, "", !!prevPrefs);
       }
     }
     function readServer() {
@@ -173,26 +220,34 @@
     }
     readServer();
     // after login/register the subject changes — re-read so the ETag
-    // belongs to THIS user before the first toggle races on it
-    document.addEventListener("xmrjackpot:auth", readServer);
+    // belongs to THIS user before the first toggle races on it, and
+    // drop the undo target: one account's undo must never replay
+    // another account's values
+    document.addEventListener("xmrjackpot:auth", function () {
+      prevPrefs = null;
+      lastConfirmed = null;
+      readServer();
+    });
     var posting = false;
-    function postBulk() {
+    function sendPrefs(prefs, busyMsg) {
       if (posting) { return; }            // one in flight; last state wins
       posting = true;
+      pendingPrev = lastConfirmed;        // what this write will replace
       var headers = { "Content-Type": "application/json" };
       if (prefsEtag) { headers["If-Match"] = prefsEtag; }
-      noteSaved("saving…", true);
+      noteSaved(busyMsg || "saving…", true);
       fetch("/api/push/preferences", {
         method: "POST",
         credentials: "same-origin",
         headers: headers,
-        body: JSON.stringify({ preferences: {
-          jackpot: j.checked, scout: s.checked } }),
+        body: JSON.stringify({ preferences: prefs }),
       }).then(function (r) {
         posting = false;
         if (r.status === 412) {
           // lost the race: another device wrote first — take the
-          // server's version (its envelope + new ETag) and re-apply
+          // server's version (its envelope + new ETag) and re-apply;
+          // OUR write never applied, so there is nothing to undo
+          prevPrefs = null;
           return r.json().then(function (cur) {
             adopt(cur);
             noteStamp("another device changed these — showing its version (",
@@ -201,6 +256,7 @@
         }
         return r.json().then(function (res) {
           if (res && res.updated_at) {
+            prevPrefs = pendingPrev;       // the state this write replaced
             adopt(res);                   // 200 body IS the new version
           } else if (!r.ok) {
             noteSaved("save failed — will retry on next toggle", true);
@@ -211,6 +267,12 @@
         noteSaved("could not reach the server — try again", true);
       });
     }
+    function postBulk() {
+      sendPrefs({ jackpot: j.checked, scout: s.checked });
+    }
+    undoHandler = function () {
+      if (prevPrefs) { sendPrefs(prevPrefs, "restoring…"); }
+    };
     j.addEventListener("change", postBulk);
     s.addEventListener("change", postBulk);
   }
