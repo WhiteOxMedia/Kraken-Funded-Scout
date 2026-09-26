@@ -22,6 +22,13 @@ stubbed DOM + fetch and asserts the checkbox outcomes:
   4. the xmrjackpot:prefs announcement carries the full envelope
   5. after a 412, the next write rides the CONFLICT's version and its
      200 body is adopted
+  6. THE 2-STEP HISTORY: after a write the link is "undo"; clicking it
+     applies the other state and the link becomes "redo"; clicking
+     THAT applies again and the link is "undo" once more — every step
+     riding the version its predecessor applied
+  7. a fresh write RE-POINTS the history (the redo of an older toggle
+     is voided): the new undo replays the state the last write
+     replaced, and it in turn offers "redo"
 
 No network, no browser: Node is required, everything else is stubbed.
 Prints "RESULT: N passed, M failed".
@@ -162,6 +169,17 @@ function fireChange(box, value) {
   if (value !== undefined) { e.checked = value; }
   e.listeners.change[0]();
 }
+function stampLink() {
+  // the saved line renders [text node, anchor] — the history link is
+  // the LAST child; assert it exists and return it
+  const a = els.prefSaved.children[els.prefSaved.children.length - 1];
+  assert(a && a.listeners.click && a.listeners.click.length === 1,
+         'a history link is rendered on the saved line');
+  return a;
+}
+function clickStampLink() {
+  stampLink().listeners.click[0]({ preventDefault: function () {} });
+}
 
 const ENVELOPE = {
   user_id: 'alice',
@@ -257,6 +275,90 @@ async function scenario(name) {
     return 'announcement ok';
   }
 
+  if (name === 'undo_then_redo') {
+    script = { status: 200, headers: { ETag: '"2026-09-26T10:00:00Z"' }, json: ENVELOPE };
+    loadClient();
+    await flushAll();
+    // a toggle applies -> the saved line offers UNDO
+    script = { status: 200, headers: {}, json: {
+      user_id: 'alice', preferences: { jackpot: false, scout: false },
+      updated_at: '2026-09-26T10:00:01Z' } };
+    fireChange('prefScout', false);
+    await flushAll();
+    assert.deepStrictEqual(checkboxState(), { jackpot: false, scout: false },
+                           'toggle A applied');
+    assert.strictEqual(stampLink().textContent, 'undo',
+                       'after a fresh write the link is undo');
+    // UNDO: replays the state the write replaced, protected by the
+    // same If-Match machinery (it rides the version toggle A applied)
+    script = { status: 200, headers: {}, json: {
+      user_id: 'alice', preferences: { jackpot: false, scout: true },
+      updated_at: '2026-09-26T10:00:02Z' } };
+    clickStampLink();
+    await flushAll();
+    assert.deepStrictEqual(checkboxState(), { jackpot: false, scout: true },
+                           'the undo applied the other state');
+    assert.strictEqual(stampLink().textContent, 'redo',
+                       'after an undo the link is REDO (the 2-step history)');
+    // REDO: applies the undone state again -> the link flips back
+    script = { status: 200, headers: {}, json: {
+      user_id: 'alice', preferences: { jackpot: false, scout: false },
+      updated_at: '2026-09-26T10:00:03Z' } };
+    clickStampLink();
+    await flushAll();
+    assert.deepStrictEqual(checkboxState(), { jackpot: false, scout: false },
+                           'the redo applied the undone state');
+    assert.strictEqual(stampLink().textContent, 'undo',
+                       'after a redo the link is undo again (a redo write is not an undo)');
+    const posts = sentRequests.filter((r) => r.method === 'POST');
+    assert.deepStrictEqual(
+      posts.map((p) => p.headers['If-Match']),
+      ['"2026-09-26T10:00:00Z"', '"2026-09-26T10:00:01Z"', '"2026-09-26T10:00:02Z"'],
+      'toggle, undo, and redo each ride the version their predecessor applied');
+    assert.deepStrictEqual(posts[1].body, { preferences: { jackpot: false, scout: true } },
+                           'the undo POSTS the pre-toggle state');
+    assert.deepStrictEqual(posts[2].body, { preferences: { jackpot: false, scout: false } },
+                           'the redo POSTS the undone state');
+    return 'undo_then_redo ok';
+  }
+
+  if (name === 'fresh_write_voids_redo') {
+    script = { status: 200, headers: { ETag: '"2026-09-26T10:00:00Z"' }, json: ENVELOPE };
+    loadClient();
+    await flushAll();
+    script = { status: 200, headers: {}, json: {
+      user_id: 'alice', preferences: { jackpot: false, scout: false },
+      updated_at: '2026-09-26T10:00:01Z' } };
+    fireChange('prefScout', false);
+    await flushAll();
+    assert.strictEqual(stampLink().textContent, 'undo',
+                       'toggle A applied: undo offered');
+    // a FRESH write re-points the history: the target becomes the
+    // state THIS write replaced (toggle A's result), so there is no
+    // redo of anything older
+    script = { status: 200, headers: {}, json: {
+      user_id: 'alice', preferences: { jackpot: true, scout: false },
+      updated_at: '2026-09-26T10:00:02Z' } };
+    fireChange('prefJackpot', true);
+    await flushAll();
+    assert.strictEqual(stampLink().textContent, 'undo',
+                       'after a fresh write the link is undo, never a stale redo');
+    // its undo replays toggle A's state and offers REDO again
+    script = { status: 200, headers: {}, json: {
+      user_id: 'alice', preferences: { jackpot: false, scout: false },
+      updated_at: '2026-09-26T10:00:03Z' } };
+    clickStampLink();
+    await flushAll();
+    assert.deepStrictEqual(checkboxState(), { jackpot: false, scout: false },
+                           "the undo replayed the state the last write replaced");
+    assert.strictEqual(stampLink().textContent, 'redo',
+                       'that undo offers redo');
+    const posts = sentRequests.filter((r) => r.method === 'POST');
+    assert.deepStrictEqual(posts[2].body, { preferences: { jackpot: false, scout: false } },
+                           "the new undo targets the last write's replaced state, not an older step");
+    return 'fresh_write_voids_redo ok';
+  }
+
   if (name === 'retry_after_412') {
     script = { status: 200, headers: { ETag: '"2026-09-26T10:00:00Z"' }, json: ENVELOPE };
     loadClient();
@@ -304,6 +406,10 @@ SCENARIOS = [
      "the xmrjackpot:prefs announcement carries the full envelope"),
     ("5", "retry_after_412",
      "after a 412, the next write rides the CONFLICT's version and its 200 body is adopted"),
+    ("6", "undo_then_redo",
+     "undo link applies the other state and becomes redo; redo applies again and becomes undo; each step rides its predecessor's version"),
+    ("7", "fresh_write_voids_redo",
+     "a fresh write re-points the history (no stale redo); its undo replays the last replaced state and offers redo"),
 ]
 
 

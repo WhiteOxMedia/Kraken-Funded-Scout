@@ -129,19 +129,23 @@
     }
   }
 
-  /* UNDO (Sep 26): when there IS a state to go back to, the saved
-     line renders "saved 2 min ago · undo" — the link replays the
-     previous values through the SAME conditional bulk write, so the
-     optimistic-concurrency machinery (If-Match / 412) protects the
-     undo exactly like a toggle, and undo-of-undo works. The server
-     keeps one version; the previous one lives here, client-side. */
+  /* THE 2-STEP HISTORY (Sep 26, upgraded from plain undo): after a
+     write the saved line offers "undo"; after an undo it offers
+     "redo"; a fresh write or an account switch points the history
+     back and a conflict clears it. Both links replay the OTHER state
+     through the SAME conditional bulk write, so the optimistic-
+     concurrency machinery (If-Match / 412) protects undo and redo
+     exactly like a toggle. The server keeps one version; the other
+     step of the history lives here, client-side. */
   var undoHandler = null;        // assigned by wirePrefs
+  var redoHandler = null;        // assigned by wirePrefs
 
-  function noteStamp(prefix, iso, warn, suffix, withUndo) {
+  function noteStamp(prefix, iso, warn, suffix, withUndo, withRedo) {
     var el = document.getElementById("prefSaved");
     if (!el || !iso) { return; }
     stampNote = { prefix: prefix, iso: iso, warn: !!warn,
-                  suffix: suffix || "", withUndo: !!withUndo };
+                  suffix: suffix || "", withUndo: !!withUndo,
+                  withRedo: !!withRedo };
     renderStampLine();
   }
 
@@ -154,16 +158,18 @@
     el.title = stampNote.iso || "";
     var label = stampNote.prefix + " " + relTime(stampNote.iso)
       + stampNote.suffix;
-    if (stampNote.withUndo) {
+    if (stampNote.withUndo || stampNote.withRedo) {
       el.textContent = "";
       el.appendChild(document.createTextNode(label + " \u00b7 "));
+      var txt = stampNote.withUndo ? "undo" : "redo";
       var a = document.createElement("a");
       a.href = "#";
-      a.textContent = "undo";
+      a.textContent = txt;
       a.style.color = "var(--gold-bright, #c9a227)";
       a.addEventListener("click", function (ev) {
         ev.preventDefault();
-        if (undoHandler) { undoHandler(); }
+        if (txt === "undo" && undoHandler) { undoHandler(); }
+        if (txt === "redo" && redoHandler) { redoHandler(); }
       });
       el.appendChild(a);
     } else {
@@ -176,7 +182,7 @@
     if (!stampNote) { return; }
     var el = document.getElementById("prefSaved");
     // refresh only while this stamp message is still what's shown
-    if (el && (stampNote.withUndo ||
+    if (el && (stampNote.withUndo || stampNote.withRedo ||
                el.textContent.indexOf(stampNote.prefix) === 0)) {
       renderStampLine();
     }
@@ -193,8 +199,10 @@
     // so the undo target must be snapshotted AT WRITE TIME from the
     // state the server last CONFIRMED — never from the checkboxes.
     var lastConfirmed = null;   // state as last confirmed by the server
-    var pendingPrev = null;     // undo target for the in-flight write
-    var prevPrefs = null;       // undo target once a write has applied
+    var pendingPrev = null;     // history target for the in-flight write
+    var prevPrefs = null;       // history target once a write has applied
+    var pendingIsUndo = false;  // the in-flight write IS the undo step
+    var historyDir = "back";    // which way prevPrefs points once it lands
     function adopt(p) {
       if (!p) { return; }
       /* SHAPE FIX (Sep 26, found by the undo live check): every
@@ -211,7 +219,9 @@
         prefsEtag = '"' + p.updated_at + '"';   // the version we now hold
         lastConfirmed = { jackpot: pr.jackpot !== false,
                           scout: pr.scout !== false };
-        noteStamp("saved", p.updated_at, false, "", !!prevPrefs);
+        noteStamp("saved", p.updated_at, false, "",
+                  historyDir === "back" && !!prevPrefs,
+                  historyDir === "fwd" && !!prevPrefs);
         /* ANNOUNCE (Sep 26): every applied envelope is broadcast so
            other surfaces (the Scout panel's prefs stamp) update the
            same instant — no waiting on their 60s poll. Carries the
@@ -228,7 +238,7 @@
           prefsEtag = r.headers.get("ETag") || prefsEtag;
           return r.json();
         })
-        .then(adopt)
+        .then(function (p) { historyDir = "back"; adopt(p); })
         .catch(function () { /* defaults stand */ });
     }
     readServer();
@@ -239,13 +249,15 @@
     document.addEventListener("xmrjackpot:auth", function () {
       prevPrefs = null;
       lastConfirmed = null;
+      historyDir = "back";
       readServer();
     });
     var posting = false;
-    function sendPrefs(prefs, busyMsg) {
+    function sendPrefs(prefs, busyMsg, isUndo) {
       if (posting) { return; }            // one in flight; last state wins
       posting = true;
       pendingPrev = lastConfirmed;        // what this write will replace
+      pendingIsUndo = !!isUndo;           // an undo's success offers REDO
       var headers = { "Content-Type": "application/json" };
       if (prefsEtag) { headers["If-Match"] = prefsEtag; }
       noteSaved(busyMsg || "saving…", true);
@@ -270,6 +282,7 @@
         return r.json().then(function (res) {
           if (res && res.updated_at) {
             prevPrefs = pendingPrev;       // the state this write replaced
+            historyDir = pendingIsUndo ? "fwd" : "back";
             adopt(res);                   // 200 body IS the new version
           } else if (!r.ok) {
             noteSaved("save failed — will retry on next toggle", true);
@@ -284,7 +297,10 @@
       sendPrefs({ jackpot: j.checked, scout: s.checked });
     }
     undoHandler = function () {
-      if (prevPrefs) { sendPrefs(prevPrefs, "restoring…"); }
+      if (prevPrefs) { sendPrefs(prevPrefs, "restoring…", true); }
+    };
+    redoHandler = function () {
+      if (prevPrefs) { sendPrefs(prevPrefs, "restoring…", false); }
     };
     j.addEventListener("change", postBulk);
     s.addEventListener("change", postBulk);
