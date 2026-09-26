@@ -1795,6 +1795,68 @@ async def api_admin_kraken_referral_test(request: Request):
     return JSONResponse(out)
 
 
+_KC_MIN_INTERVAL_S = 30.0      # protect Kraken's rate credit: one check
+_KC_STATE = {"last": 0.0}      # per process (a restart resets it; fine)
+
+
+@app.post("/api/admin/kraken-referral/key-check")
+async def api_admin_kraken_referral_key_check(request: Request):
+    """THE KEY CHECK (Sep 26, operator-only): ONE signed read-only
+    Balance call through the SAME credential seam the projection runs
+    under (kr.kraken_credentials: env -> settings -> keyring, the
+    exact identity live mode will use), so validity is one click away
+    without touching the fleet or fabricating referral rows. Four
+    honest verdicts: valid / invalid (Kraken's own EAPI error verbatim,
+    truncated) / unreachable (transport, with the error) / unconfigured
+    (no complete pair in any tier). Tails only; the secret NEVER leaves
+    the credential accessor. Throttled to one call per 30s per process
+    (429-shaped) so button-mashing cannot burn Kraken's rate credit.
+    Audited like every operator action."""
+    require_admin(request)
+    now = time.time()
+    wait = _KC_MIN_INTERVAL_S - (now - _KC_STATE["last"])
+    if wait > 0:
+        raise HTTPException(
+            status_code=429,
+            detail="key-check throttled - try again in {}s".format(int(wait) + 1))
+    key, sec, tier = kr.kraken_credentials()
+    if not (key and sec):
+        return JSONResponse({
+            "ok": False, "verdict": "unconfigured",
+            "detail": "no complete KRAKEN_API_KEY / KRAKEN_API_SECRET pair "
+                      "in env, settings, or the OS keyring",
+            "credentials_tier": ""})
+    _KC_STATE["last"] = now
+    try:
+        resp = kr._kraken_post(
+            "https://api.kraken.com/0/private/Balance",
+            key, sec, {"nonce": int(time.time() * 1000)})
+    except Exception as exc:                      # transport-level
+        out = {"ok": False, "verdict": "unreachable",
+               "detail": str(exc)[:200], "credentials_tier": tier}
+        kr.emit_audit(None, "kraken_referral.key_check",
+                      verdict="unreachable", tier=tier)
+        return JSONResponse(out)
+    err = resp.get("error") if isinstance(resp, dict) else None
+    if err:                                       # Kraken answered: auth problem
+        out = {"ok": False, "verdict": "invalid",
+               "kraken_error": str(err)[:200], "credentials_tier": tier}
+        kr.emit_audit(None, "kraken_referral.key_check",
+                      verdict="invalid", tier=tier,
+                      kraken_error=str(err)[:120])
+        return JSONResponse(out)
+    n_assets = 0
+    if isinstance(resp, dict) and isinstance(resp.get("result"), dict):
+        n_assets = len(resp["result"])
+    out = {"ok": True, "verdict": "valid", "credentials_tier": tier,
+           "assets_visible": n_assets,
+           "detail": "Balance answered with no error - the pair is valid "
+                     "for trading-data reads (Query Funds)"}
+    kr.emit_audit(None, "kraken_referral.key_check",
+                  verdict="valid", tier=tier, assets=n_assets)
+    return JSONResponse(out)
+
+
 # ─────────────────────────────────────────────────────────────
 #  NATIVE PUSH (xmrjackpot.com's own web push service)
 #  Thin route layer over pool/push_service.py — one brain per

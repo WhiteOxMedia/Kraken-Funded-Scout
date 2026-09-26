@@ -2,7 +2,8 @@
 FastAPI app: simulate provider -> snapshot rows -> projection ->
 /api/jackpot/projection ->admin trigger (503 unconfigured / 200 simulate) -> stubbed live provider (success, rate-limit backoff,
 persistent 5xx) -> the referral-window notice rate limit -> the shared credential
-seam (src/kraken_client mirrors pool/kraken_referral's tiered accessor)."""
+seam (src/kraken_client mirrors pool/kraken_referral's tiered accessor) -> the
+operator key-check (ONE signed read-only Balance call through that seam)."""
 import sys, tempfile
 from pathlib import Path
 HERE = Path(__file__).resolve().parent
@@ -397,6 +398,81 @@ check("8c.6", kc._keyring_creds() == (None, None)
 sys.modules.pop("keyring", None)              # real keyring re-imports later
 for _k, _v in _saved_env.items():
     _os.environ[_k] = _v
+
+print("== 8d. THE KEY CHECK (one signed read-only Balance call, operator-only) ==")
+import time as _time
+import types as _types
+anon3 = TestClient(srv.app)
+check("8d.1", anon3.post("/api/admin/kraken-referral/key-check",
+                         json={}).status_code == 401,
+      "the key-check endpoint is admin-gated like every operator action")
+_kc_last0 = srv._KC_STATE["last"]
+srv._KC_STATE["last"] = _time.time()          # pretend a check just ran
+r = client.post("/api/admin/kraken-referral/key-check", json={})
+check("8d.2", r.status_code == 429 and "throttled" in r.text,
+      f"button-mashing is refused, never a second Balance call: {r.status_code}")
+srv._KC_STATE["last"] = _kc_last0             # restore the process clock
+_saved_env2 = {k: _os.environ.pop(k) for k in ("KRAKEN_API_KEY", "KRAKEN_API_SECRET")
+               if k in _os.environ}
+def _no_write(*a, **k):
+    raise AssertionError("the key-check NEVER writes the keyring")
+_kr_stub = _types.SimpleNamespace(get_password=lambda s, u: None,
+                                  set_password=_no_write)
+sys.modules["keyring"] = _kr_stub             # hermetic: no pair anywhere
+r = client.post("/api/admin/kraken-referral/key-check", json={})
+check("8d.3", r.status_code == 200 and r.json()["verdict"] == "unconfigured"
+      and r.json()["credentials_tier"] == "",
+      f"no pair in any tier -> honest unconfigured: {r.text[:80]}")
+check("8d.4", srv._KC_STATE["last"] == _kc_last0,
+      "an unconfigured check burns NO throttle credit (retrying is free)")
+_os.environ["KRAKEN_API_KEY"] = "KC-KEY-DRIVE-1111"
+_os.environ["KRAKEN_API_SECRET"] = "c2VjcmV0MTIzNDU2Nzg5MA=="
+_real_post = kr._kraken_post
+_seen = {}
+def _fake_post(ep, key, sec, body):
+    _seen.update(ep=ep, key=key, sec=sec, body=body)
+    return {"error": [], "result": {"XXMR": "1.0", "ZUSD": "5.0"}}
+kr._kraken_post = _fake_post                  # THE BOUNDARY: no real dial
+srv._KC_STATE["last"] = 0.0
+r = client.post("/api/admin/kraken-referral/key-check", json={})
+check("8d.5", r.status_code == 200 and r.json()["verdict"] == "valid"
+      and r.json()["assets_visible"] == 2
+      and r.json()["credentials_tier"] == "env",
+      f"Balance clean -> valid, 2 assets visible, tier resolved: {r.text[:80]}")
+check("8d.6", _seen["ep"].endswith("/0/private/Balance")
+      and isinstance(_seen["body"].get("nonce"), int)
+      and _seen["key"] == "KC-KEY-DRIVE-1111"
+      and "c2VjcmV0MTIzNDU2Nzg5MA==" not in r.text,
+      "the seam fed the real pair to the Balance endpoint; the secret never left it")
+kr._kraken_post = lambda ep, k, s, b: {"error": ["EAPI:Invalid key"]}
+srv._KC_STATE["last"] = 0.0
+r = client.post("/api/admin/kraken-referral/key-check", json={})
+check("8d.7", r.json()["verdict"] == "invalid"
+      and "EAPI:Invalid key" in r.json()["kraken_error"],
+      "Kraken's own rejection passes through verbatim (truncated)")
+def _boom(ep, k, s, b):
+    raise RuntimeError("connection refused by api.kraken.com:443")
+kr._kraken_post = _boom
+srv._KC_STATE["last"] = 0.0
+r = client.post("/api/admin/kraken-referral/key-check", json={})
+check("8d.8", r.json()["verdict"] == "unreachable"
+      and "refused" in r.json()["detail"]
+      and r.json()["credentials_tier"] == "env",
+      "transport failure is its own verdict, never mistaken for a bad key")
+with db.get_db() as conn:
+    n_kc = conn.execute("SELECT COUNT(*) c FROM audit_log WHERE "
+                        "action='kraken_referral.key_check'").fetchone()["c"]
+    n_eapi = conn.execute("SELECT COUNT(*) c FROM audit_log WHERE "
+                          "action='kraken_referral.key_check' AND details "
+                          "LIKE '%EAPI:Invalid key%'").fetchone()["c"]
+check("8d.9", n_kc == 3 and n_eapi == 1,
+      f"audited: exactly 3 (valid/invalid/unreachable), none for 401/429/"
+      f"unconfigured ({n_kc}, eapi={n_eapi})")
+kr._kraken_post = _real_post
+sys.modules.pop("keyring", None)              # real keyring re-imports later
+for _k2, _v2 in _saved_env2.items():
+    _os.environ[_k2] = _v2
+srv._KC_STATE["last"] = 0.0
 
 print("== 9. THE MAPPING SHEET: real kraken_referral_id column ==")
 anon2 = TestClient(srv.app)

@@ -69,6 +69,11 @@
       "Connection test — one live fetch, raw response shown</div>" +
       field("referral id to probe", "krTestId", "text", "e.g. the referral code on file") +
       '<button id="krTest" class="btn" style="width:100%;">Test connection</button>' +
+      '<button id="krKeyCheck" class="btn" style="width:100%;margin-top:6px;">Check API key validity (read-only Balance)</button>' +
+      '<pre id="krKeyCheckOut" style="display:none;margin-top:8px;padding:10px;' +
+      'background:var(--bg-deep,#0d1117);border:1px solid var(--hairline,' +
+      'rgba(255,255,255,.14));border-radius:6px;font-size:0.75em;' +
+      'white-space:pre-wrap;word-break:break-all;max-height:200px;overflow:auto;"></pre>' +
       '<pre id="krTestOut" style="display:none;margin-top:8px;padding:10px;' +
       'background:var(--bg-deep,#0d1117);border:1px solid var(--hairline,' +
       'rgba(255,255,255,.14));border-radius:6px;font-size:0.75em;' +
@@ -183,6 +188,43 @@
           show(out, "request failed: " + e);
           btn.disabled = false;
         });
+    });
+
+    // THE KEY CHECK (Sep 26): one read-only Balance call — the verdict
+    // is about the exact credential pair the projection will run under.
+    document.getElementById("krKeyCheck").addEventListener("click", function () {
+      var btn = this;
+      var out = document.getElementById("krKeyCheckOut");
+      btn.disabled = true;
+      show(out, "checking the API key (one read-only Balance call) …");
+      fetch("/api/admin/kraken-referral/key-check", {
+        method: "POST", credentials: "same-origin",
+        headers: { "Content-Type": "application/json" },
+        body: "{}"
+      }).then(function (r) { return r.json().then(function (j) {
+        return { ok: r.ok, status: r.status, j: j };
+      }); }).then(function (res) {
+        btn.disabled = false;
+        if (!res.ok) {
+          show(out, "key check refused: " + (res.j.detail || "http " + res.status));
+          return;
+        }
+        var j = res.j;
+        var line = "verdict: " + j.verdict.toUpperCase()
+          + (j.credentials_tier ? "  (tier: " + j.credentials_tier + ")" : "");
+        if (j.verdict === "valid") {
+          line += "\nassets visible: " + j.assets_visible
+            + "\n" + j.detail;
+        } else if (j.kraken_error) {
+          line += "\nKraken said: " + j.kraken_error;
+        } else if (j.detail) {
+          line += "\n" + j.detail;
+        }
+        show(out, line);
+      }).catch(function (e) {
+        show(out, "request failed: " + e);
+        btn.disabled = false;
+      });
     });
   }
 
