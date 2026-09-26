@@ -40,6 +40,12 @@ stubbed DOM + fetch and asserts the checkbox outcomes:
      no link, and the next write rides the conflict's version
  10. the shared clock's buckets, including the older-than-a-week
      absolute fallback
+ 11. THE SAVE-FAILURE PATH: a 500 on a toggle leaves the attempted
+     values on screen, offers NO undo (there is no new confirmed
+     state), says the save failed and will retry, and does not adopt
+     the error body
+ 12. THE REENTRANCY GUARD: two changes in one tick fire exactly ONE
+     write (one in flight; last state wins on screen)
 
 EVERY scenario's success is gated on the EXECUTED-SOURCE check: the
 harness proves the file it ran carries an in-source client marker, so
@@ -503,6 +509,57 @@ async function scenario(name) {
     return 'undo_conflict ok';
   }
 
+  if (name === 'save_failure') {
+    script = { status: 200, headers: { ETag: '"2026-09-26T10:00:00Z"' }, json: ENVELOPE };
+    loadClient();
+    await flushAll();
+    script = { status: 500, headers: {}, json: { detail: 'boom' } };
+    fireChange('prefScout', false);
+    await flushAll();
+    assert.deepStrictEqual(checkboxState(), { jackpot: false, scout: false },
+                           'the attempted values stand (the screen keeps the user\'s change)');
+    assert.strictEqual(els.prefSaved.children.length, 0,
+                       'no undo after a failed save (there is no new confirmed state)');
+    assert.ok(els.prefSaved.textContent.indexOf('save failed') === 0,
+              'the failure verdict renders: ' + els.prefSaved.textContent);
+    assert.strictEqual(els.prefSaved.title, '',
+                       'nothing was adopted: the failure message carries no stamp, '
+                       + 'the error body and the old version alike are gone from the line');
+    // the retry: the next toggle fires the write again with the SAME
+    // held version (the failed write consumed nothing)
+    script = { status: 200, headers: {}, json: {
+      user_id: 'alice', preferences: { jackpot: false, scout: true },
+      updated_at: '2026-09-26T10:00:09Z' } };
+    fireChange('prefScout', true);
+    await flushAll();
+    const posts = sentRequests.filter((r) => r.method === 'POST');
+    assert.strictEqual(posts[1].headers['If-Match'], '"2026-09-26T10:00:00Z"',
+                       'the retry rides the same version (a failed write never moved it)');
+    assert.deepStrictEqual(checkboxState(), { jackpot: false, scout: true },
+                           'the successful write adopts its 200 body');
+    return 'save_failure ok';
+  }
+
+  if (name === 'reentrancy_guard') {
+    script = { status: 200, headers: { ETag: '"2026-09-26T10:00:00Z"' }, json: ENVELOPE };
+    loadClient();
+    await flushAll();
+    script = { status: 200, headers: {}, json: {
+      user_id: 'alice', preferences: { jackpot: false, scout: false },
+      updated_at: '2026-09-26T10:00:01Z' } };
+    // two changes in ONE tick (the impatient double-click): the guard
+    // lets the first write fly and refuses the second until it lands
+    fireChange('prefScout', false);
+    fireChange('prefJackpot', false);
+    await flushAll();
+    const posts = sentRequests.filter((r) => r.method === 'POST');
+    assert.strictEqual(posts.length, 1,
+                       `exactly one write for two same-tick changes (got ${posts.length})`);
+    assert.deepStrictEqual(posts[0].body, { preferences: { jackpot: false, scout: false } },
+                           'the in-flight write carries the screen state at fire time');
+    return 'reentrancy_guard ok';
+  }
+
   if (name === 'retry_after_412') {
     script = { status: 200, headers: { ETag: '"2026-09-26T10:00:00Z"' }, json: ENVELOPE };
     loadClient();
@@ -570,6 +627,10 @@ SCENARIOS = [
      "the shared clock's buckets, including the older-than-a-week absolute fallback"),
     ("10", "undo_conflict",
      "an undo that loses the race adopts the other device's state, offers no link, and the next write rides the conflict version"),
+    ("11", "save_failure",
+     "a 500 leaves the attempted values, offers no undo, says it will retry, and never adopts the error body"),
+    ("12", "reentrancy_guard",
+     "two same-tick changes fire exactly one write; the in-flight payload is the first change"),
 ]
 
 
