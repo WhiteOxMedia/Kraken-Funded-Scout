@@ -1252,13 +1252,17 @@
     var pass = $('#dashRegPass').value;
     var email = $('#dashRegEmail').value.trim();
     var wallet = $('#dashRegWallet').value.trim();
+    var phoneEl = $('#dashRegPhone');
+    var nameEl = $('#dashRegName');
+    var phone = phoneEl ? phoneEl.value.trim() : '';
+    var fullName = nameEl ? nameEl.value.trim() : '';
     if (!user || !pass) { toast('Username and password required', 'error'); return; }
     var refCode = localStorage.getItem('xmrjackpot_ref') || '';
     try {
       var res = await fetch(API + '/auth/register', {
         method: 'POST',
         headers: {'Content-Type':'application/json'},
-        body: JSON.stringify({username: user, password: pass, email: email, wallet_address: wallet, referral_code: refCode}),
+        body: JSON.stringify({username: user, password: pass, email: email, wallet_address: wallet, referral_code: refCode, phone: phone, full_name: fullName}),
       });
       var d = await res.json();
       if (d.status === 'ok') {
@@ -1960,8 +1964,15 @@
     initHowTo();
     initSignup();
 
-    // Show landing by default
-    navigateTo('landing');
+    // Hash-based routing: /#admin, /#dashboard, /#signup, etc.
+    var hashPage = (window.location.hash || '').replace('#', '');
+    var validPages = ['landing', 'signup', 'howto', 'realplay', 'leaderboard', 'dashboard', 'admin'];
+    if (hashPage && validPages.indexOf(hashPage) !== -1) {
+      navigateTo(hashPage);
+    } else {
+      // Show landing by default
+      navigateTo('landing');
+    }
 
     // Update mode badge
     updateModeBadge();
