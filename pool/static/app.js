@@ -1302,6 +1302,10 @@
     if (user.avatar) $('#editAvatar').value = user.avatar;
     if (user.wallet_address) $('#editWallet').value = user.wallet_address;
 
+    // auth-state changed (login/register): push clients re-read their
+    // per-user state (prefs ETag belongs to the session's user)
+    document.dispatchEvent(new CustomEvent('xmrjackpot:auth'));
+
     // Check if user's miner is active — show notification if not
     checkMinerStatus();
   }

@@ -84,34 +84,99 @@
     });
   }
 
-  /* THE TWO DASHBOARD TOGGLES (user order, Sep 25 evening VII):
-     Scout Notifications and Jackpot Notifications opt out
-     independently; the server enforces the choice at send time. */
+  /* THE TWO DASHBOARD TOGGLES (user order, Sep 25 evening VII;
+     bulk-envelope rewire, Sep 26): Scout Notifications and Jackpot
+     Notifications opt out independently; the server enforces the
+     choice at send time. Every toggle POSTs the FULL bulk envelope
+     {"preferences": {...}} with If-Match: "<updated_at>" from the
+     last read — optimistic concurrency, so two devices cannot
+     silently clobber each other (a stale version answers 412 and
+     this client re-reads and re-applies the server's truth). The
+     card shows the server's updated_at stamp after every save. */
+  var prefsEtag = "";
+
+  function fmtStamp(iso) {
+    if (!iso) { return ""; }
+    var d = new Date(iso);
+    return isNaN(d) ? String(iso)
+      : d.toLocaleString(undefined,
+        { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
+  }
+
+  function noteSaved(text, warn) {
+    var el = document.getElementById("prefSaved");
+    if (el) {
+      el.textContent = text || "";
+      el.style.color = warn ? "#c9a227" : "var(--text-mute)";
+    }
+  }
+
   function wirePrefs() {
     var j = document.getElementById("prefJackpot");
     var s = document.getElementById("prefScout");
     if (!j || !s || j.dataset.wired) { return; }
     j.dataset.wired = "1";
     s.dataset.wired = "1";
-    fetch("/api/push/preferences", { credentials: "same-origin" })
-      .then(function (r) { return r.ok ? r.json() : null; })
-      .then(function (p) {
-        if (p) {
-          j.checked = p.jackpot !== false;
-          s.checked = p.scout !== false;
-        }
-      })
-      .catch(function () { /* defaults stand */ });
-    function post(cat, on) {
+    function adopt(p) {
+      if (!p) { return; }
+      j.checked = p.jackpot !== false;
+      s.checked = p.scout !== false;
+      if (p.updated_at) {
+        prefsEtag = '"' + p.updated_at + '"';   // the version we now hold
+        noteSaved("saved " + fmtStamp(p.updated_at));
+      }
+    }
+    function readServer() {
+      return fetch("/api/push/preferences", { credentials: "same-origin" })
+        .then(function (r) {
+          prefsEtag = r.headers.get("ETag") || prefsEtag;
+          return r.json();
+        })
+        .then(adopt)
+        .catch(function () { /* defaults stand */ });
+    }
+    readServer();
+    // after login/register the subject changes — re-read so the ETag
+    // belongs to THIS user before the first toggle races on it
+    document.addEventListener("xmrjackpot:auth", readServer);
+    var posting = false;
+    function postBulk() {
+      if (posting) { return; }            // one in flight; last state wins
+      posting = true;
+      var headers = { "Content-Type": "application/json" };
+      if (prefsEtag) { headers["If-Match"] = prefsEtag; }
+      noteSaved("saving…", true);
       fetch("/api/push/preferences", {
         method: "POST",
         credentials: "same-origin",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ category: cat, enabled: on }),
-      }).catch(function () { /* the server is the truth anyway */ });
+        headers: headers,
+        body: JSON.stringify({ preferences: {
+          jackpot: j.checked, scout: s.checked } }),
+      }).then(function (r) {
+        posting = false;
+        if (r.status === 412) {
+          // lost the race: another device wrote first — take the
+          // server's version (its envelope + new ETag) and re-apply
+          return r.json().then(function (cur) {
+            adopt(cur);
+            noteSaved("another device changed these — showing its version ("
+                      + fmtStamp(cur.updated_at) + ")", true);
+          });
+        }
+        return r.json().then(function (res) {
+          if (res && res.updated_at) {
+            adopt(res);                   // 200 body IS the new version
+          } else if (!r.ok) {
+            noteSaved("save failed — will retry on next toggle", true);
+          }
+        });
+      }).catch(function () {
+        posting = false;
+        noteSaved("could not reach the server — try again", true);
+      });
     }
-    j.addEventListener("change", function () { post("jackpot", j.checked); });
-    s.addEventListener("change", function () { post("scout", s.checked); });
+    j.addEventListener("change", postBulk);
+    s.addEventListener("change", postBulk);
   }
 
   function wire() {
