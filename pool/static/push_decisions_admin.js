@@ -27,6 +27,21 @@
     return d.toISOString().replace("T", " ").slice(5, 19) + "Z";
   }
 
+  /* SHARED RELTIME (Sep 26): the ledger's stamp cell ages with the
+     project's ONE renderer (push_client exports it) — same buckets
+     as the Notifications card and the Scout feed. The exact UTC
+     stamp stays on hover (title) — an audit ledger keeps precision. */
+  function relStamp(t) {
+    var d = new Date((t || 0) * 1000);
+    if (!d.getTime()) { return ts(t); }
+    try {
+      if (window.XMRJackpotPush && window.XMRJackpotPush.relTime) {
+        return window.XMRJackpotPush.relTime(d.toISOString());
+      }
+    } catch (e) { /* fall through */ }
+    return ts(t);
+  }
+
   function badge(item) {
     var color = { push_send_allowed: "var(--emerald-bright,#2ecc71)",
                   push_send_blocked: "#e05555",
@@ -47,7 +62,7 @@
     if (item.reason) { bits.push('<span style="color:#e05555;">' + esc(item.reason) + "</span>"); }
     if (item.sent != null) { bits.push("sent " + esc(item.sent) + (item.dead ? " · dead " + esc(item.dead) : "")); }
     return '<tr' + (fresh ? ' style="background:rgba(46,204,113,.08);"' : "") + ">" +
-      '<td style="padding:3px 6px;white-space:nowrap;font-size:0.72em;color:var(--text-mute,#9a9a9a);">' + ts(item.ts) + "</td>" +
+      '<td title="' + ts(item.ts) + '" style="padding:3px 6px;white-space:nowrap;font-size:0.72em;color:var(--text-mute,#9a9a9a);">' + relStamp(item.ts) + "</td>" +
       '<td style="padding:3px 6px;font-size:0.75em;">' + esc(item.username) + "</td>" +
       '<td style="padding:3px 6px;font-size:0.75em;">' + bits.join(" ") + "</td></tr>";
   }

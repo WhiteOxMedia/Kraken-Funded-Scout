@@ -49,6 +49,15 @@
     return isNaN(d) ? "" : timeAgo(d.getTime() / 1000);
   }
 
+  /* EPOCH rows (Sep 26): the signals feed ages its row stamps with
+     the SAME shared renderer as every other surface — epoch seconds
+     converted to ISO for the shared call, exact UTC stamp on hover. */
+  function relEpoch(ts) {
+    var d = new Date((Number(ts) || 0) * 1000);
+    if (!d.getTime()) { return ""; }
+    return rel(d.toISOString());
+  }
+
   function refreshPrefsStamp() {
     var el = $("wfPrefsStamp");
     if (!el) return;
@@ -114,8 +123,10 @@
           return;
         }
         feed.innerHTML = rows.map(function (s) {
+          var d = new Date((Number(s.ts) || 0) * 1000);
           return '<div class="wf-feed-row"><span>' + esc(s.title) +
-            '</span><time>' + esc(timeAgo(s.ts)) + '</time></div>';
+            '</span><time title="' + (d.getTime() ? d.toISOString() : "") +
+            '">' + esc(relEpoch(s.ts)) + '</time></div>';
         }).join("");
       })
       .catch(function () {
