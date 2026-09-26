@@ -2,10 +2,11 @@
 FastAPI app: simulate provider -> snapshot rows -> projection ->
 /api/jackpot/projection ->admin trigger (503 unconfigured / 200 simulate) -> stubbed live provider (success, rate-limit backoff,
 persistent 5xx) -> the referral-window notice rate limit -> the shared credential
-seam (src/kraken_client mirrors pool/kraken_referral's tiered accessor) -> the
-operator key-check (ONE signed read-only Balance call through that seam) ->
+seam (src/kraken_client mirrors pool/kraken_referral's tiered accessor) ->the operator key-check (ONE signed read-only Balance call through that seam) ->
 the posture's OPTIONAL self-test (stored last verdict at a glance; an
-explicit verify=true dials through the SAME shared 30s throttle)."""
+explicit verify=true dials through the SAME shared 30s throttle) -> the
+config read EMBEDS that posture verbatim (the panel and setup_kraken.py
+report identical state, printer-parity pinned)."""
 import sys, tempfile
 from pathlib import Path
 HERE = Path(__file__).resolve().parent
@@ -519,6 +520,70 @@ del _os.environ["KRAKEN_API_SECRET"]
 sys.modules.pop("keyring", None)              # real keyring re-imports later
 srv._KC_STATE["last"] = 0.0
 
+print("== 8f. THE POSTURE IS THE CONFIG READ (one source of truth) ==")
+# hermetic like 8d/8e: the env pair decides, the keyring is stubbed to
+# nothing; the endpoint's tail fields carry the URL it will ship.
+_kr_stub3 = _types.SimpleNamespace(get_password=lambda s, u: None,
+                                   set_password=_no_write)
+sys.modules["keyring"] = _kr_stub3
+_os.environ["KRAKEN_API_KEY"] = "KC-KEY-DRIVE-1111"
+_os.environ["KRAKEN_API_SECRET"] = "c2VjcmV0MTIzNDU2Nzg5MA=="
+# deterministic posture state for the asserts below (restored after):
+# operator simulate override wins, endpoint owed
+_ep_before = db.get_setting("KRAKEN_REFERRAL_ENDPOINT", "")
+db.set_setting("KRAKEN_REFERRAL_ENDPOINT", "")
+db.set_setting("KRAKEN_REFERRAL_MODE", "simulate")
+r = client.get("/api/admin/kraken-referral/config")
+cfg = r.json()
+p_api = kr.provider_posture()
+check("8f.1", r.status_code == 200 and "posture" in cfg,
+      "the config read embeds the provider posture")
+
+# the stored verdict's age moves with the clock — strip BOTH ages (and
+# the derived nothing-else) before comparing; everything else must be
+# byte-identical (age_s is None inside both anyway, handled by pop)
+_cfg_cc = dict(cfg["posture"].get("credential_check") or {})
+_api_cc = dict(p_api.get("credential_check") or {})
+for _d in (_cfg_cc, _api_cc):
+    _d.pop("age_s", None)
+check("8f.2", cfg["posture"] == p_api or
+      (_cfg_cc == _api_cc and
+       {k: v for k, v in cfg["posture"].items() if k != "credential_check"}
+       == {k: v for k, v in p_api.items() if k != "credential_check"}),
+      f"the embedded posture IS kr.provider_posture() (age stripped): "
+      f"mode={cfg['posture'].get('mode')} tier={cfg['posture'].get('credentials_tier')}")
+check("8f.3", cfg["posture"]["settings_partial_pair"] is False
+      and cfg["posture"]["missing"] == ["KRAKEN_REFERRAL_ENDPOINT"],
+      f"posture facts the card now shows verbatim: missing={cfg['posture']['missing']}")
+check("8f.4", cfg["posture"]["api_key_tail"] == "…1111"
+      and cfg["posture"]["api_secret_tail"] == "…MA==",
+      f"tails only: key={cfg['posture']['api_key_tail']!r} "
+      f"secret={cfg['posture']['api_secret_tail']!r} "
+      f"tier={cfg['posture']['credentials_tier']!r}")
+check("8f.5", cfg["posture"]["api_key_tail"] != cfg["posture"]["settings_key_tail"]
+      or cfg["posture"]["settings_key_tail"] == "",
+      "the EFFECTIVE (env-tier) tail is distinguishable from any settings fragment")
+
+# THE PRINTER-PARITY PIN: setup_kraken's human print runs on the SAME
+# dict the API returns — the installer tool and the panel cannot drift
+buf = __import__("io").StringIO()
+_old, sys.stdout = sys.stdout, buf
+try:
+    import setup_kraken
+    setup_kraken._print_posture(cfg["posture"])
+finally:
+    sys.stdout = _old
+_txt = buf.getvalue()
+check("8f.6", "credentials: env" in _txt and "mode: simulate" in _txt,
+      "setup_kraken._print_posture consumes the API's dict verbatim")
+check("8f.7", "None" not in _txt and "Traceback" not in _txt,
+      "the printer survives the API's real shape (no leaked None fields)")
+
+del _os.environ["KRAKEN_API_KEY"]
+del _os.environ["KRAKEN_API_SECRET"]
+db.set_setting("KRAKEN_REFERRAL_ENDPOINT", _ep_before)
+db.set_setting("KRAKEN_REFERRAL_MODE", "")
+sys.modules.pop("keyring", None)
 print("== 9. THE MAPPING SHEET: real kraken_referral_id column ==")
 anon2 = TestClient(srv.app)
 check(9.1, anon2.get("/api/admin/kraken-referral/mappings").status_code == 401,

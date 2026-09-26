@@ -1459,6 +1459,10 @@ async def api_admin_kraken_referral_config(request: Request, verify: bool = Fals
         "confidence": kr._confidence(),
         "spike_pct": kr._cfg(kr.PROJECTION_SPIKE_KEY, 25.0, float),
         "scheduler": kr_sched.status(),
+        # THE POSTURE, VERBATIM (Sep 26): the same dict setup_kraken.py
+        # prints — one source of truth, so the admin panel and the
+        # installer tool can never disagree about the provider state
+        "posture": kr.provider_posture(),
         # the stored LAST self-test verdict (no dial). verify=true is
         # the operator's explicit one-shot proof: same 30s throttle as
         # the key-check endpoint (429-shaped), one fresh Balance call,

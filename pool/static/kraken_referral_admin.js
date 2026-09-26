@@ -38,10 +38,13 @@
 
   function credentialLine(cfg) {
     // THE POSTURE LINE (Sep 26): the stored last self-test verdict —
+    // prefer the verbatim posture dict (the SAME source setup_kraken
+    // prints), fall back to the legacy top-level field.
     // proof the credentials WORK, not just that they exist. The link
     // is the operator's explicit re-verify (one throttled Balance
     // call); a plain config read never touches the network.
-    var cc = cfg.credential_check;
+    var cc = (cfg.posture && cfg.posture.credential_check)
+      ? cfg.posture.credential_check : cfg.credential_check;
     var a = document.createElement("a");
     a.href = "/api/admin/kraken-referral/config?verify=true";
     a.setAttribute("data-reverify", "1");
@@ -72,6 +75,19 @@
       modeBadge +
       (cfg.api_key.set ? " · key on file (" + esc(cfg.api_key.source || "settings") + ") " + esc(cfg.api_key.tail) : " · no key") +
       (cfg.api_secret.set ? " · secret on file (" + esc(cfg.api_secret.source || "settings") + ") " + esc(cfg.api_secret.tail) : " · no secret") +
+      (function () {
+        // the installer tool's honesty flags, verbatim from the posture:
+        // a HALF pair on file and anything still OWED for live mode
+        var p = cfg.posture || {};
+        var bits = [];
+        if (p.settings_partial_pair) {
+          bits.push("INCOMPLETE settings pair: half a key/secret on file");
+        }
+        if (p.missing && p.missing.length) {
+          bits.push("missing for live mode: " + p.missing.join(", "));
+        }
+        return bits.length ? "<br>" + esc(bits.join(" — ")) : "";
+      })() +
       credentialLine(cfg) +
       "</div>" +
       field("Kraken API key (blank = keep stored)", "krApiKey", "password",
