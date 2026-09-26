@@ -34,6 +34,12 @@ app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
 # Initialize database
 db.init_db()
 
+# THE ENCRYPTED-AT-REST MIGRATION (R2, Sep 26): seal existing plaintext
+# PII + the subscription blob. Idempotent — a no-op when already sealed
+# or when no key is configured (plaintext-compat mode).
+_enc = db.encrypt_existing_pii()
+print("[crypto] at-rest migration:", _enc)
+
 
 # ─── API Models ──────────────────────────────────────────────
 class MinerRegister(BaseModel):
@@ -683,6 +689,11 @@ async def api_register(req: RegisterRequest, request: Request):
         raise HTTPException(400, "Username and password are required")
     if db.get_user_by_username(req.username):
         raise HTTPException(409, "Username already taken")
+    # EMAIL UNIQUENESS under encryption-at-rest: the sealed column cannot
+    # be UNIQUE-constrained, so duplicates are caught via the keyed
+    # blind index (email_exists) — same 409 contract, no plaintext scan.
+    if req.email and db.email_exists(req.email):
+        raise HTTPException(409, "Email already registered")
     # KRAKEN WALLET FORMAT (Sep 26 E2E acceptance): a provided wallet
     # must LOOK like a Monero address (95 chars, 4/8 prefix, base58
     # alphabet) - an empty value is fine (wallet optional).

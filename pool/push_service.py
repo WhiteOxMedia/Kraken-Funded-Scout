@@ -38,6 +38,7 @@ from urllib.parse import urlparse
 from pathlib import Path
 
 import database as db
+import field_crypto as _fc
 
 # ── storage (settings-backed: no schema owner on this box) ───────────
 SUBS_KEY = "push_subscriptions"
@@ -141,13 +142,11 @@ DEFAULT_PREFS = {"scout": True, "jackpot": True}
 
 def _load_prefs() -> dict:
     """The prefs store is a DICT keyed by user id (the subscription
-    store is a list; this one is per-user preferences)."""
-    raw = db.get_setting(PREFS_KEY, "{}")
-    try:
-        rows = json.loads(raw)
-        return rows if isinstance(rows, dict) else {}
-    except (ValueError, TypeError):
-        return {}
+    store is a list; this one is per-user preferences). The blob is
+    sealed at rest like the subscription store — _open_blob handles
+    envelopes for both."""
+    rows = _open_blob(PREFS_KEY, "{}")
+    return rows if isinstance(rows, dict) else {}
 
 
 def get_prefs(user_id: int) -> dict:
@@ -229,17 +228,36 @@ def set_pref(user_id: int, category: str, enabled: bool) -> dict:
             "updated_at": rows[key]["updated_at"]}
 
 
-def _load(key):
-    raw = db.get_setting(key, "[]")
+def _open_blob(key, default):
+    """Read one settings blob, opening the at-rest envelope when
+    present (AES-256-GCM via field_crypto). Plaintext blobs —
+    pre-migration rows, or runs without a key — parse transparently.
+    A blob sealed under a key we do not have returns the DEFAULT view
+    (sends no-op safely, prefs fall back); the sealed bytes stay in
+    settings, so restoring the key restores the store — nothing is
+    zeroed by a missing key."""
+    raw = db.get_setting(key, default)
+    if isinstance(raw, str) and raw.startswith(_fc.PREFIX):
+        try:
+            raw = _fc.decrypt(raw)
+        except Exception:
+            return json.loads(default)
     try:
-        rows = json.loads(raw)
-        return rows if isinstance(rows, list) else []
+        return json.loads(raw)
     except (ValueError, TypeError):
-        return []
+        return json.loads(default)
+
+
+def _load(key):
+    rows = _open_blob(key, "[]")
+    return rows if isinstance(rows, list) else []
 
 
 def _save(key, rows):
-    db.set_setting(key, json.dumps(rows, separators=(",", ":")))
+    blob = json.dumps(rows, separators=(",", ":"))
+    if _fc.available():
+        blob = _fc.encrypt(blob)
+    db.set_setting(key, blob)
 
 
 def public_key() -> str:

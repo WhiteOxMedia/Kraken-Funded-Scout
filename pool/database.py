@@ -8,7 +8,14 @@ import json
 from pathlib import Path
 from contextlib import contextmanager
 
+import field_crypto as _fc
+
 DB_PATH = Path(__file__).parent.parent / "pool" / "jackpot.db"
+
+# THE ENCRYPTED-AT-REST SURFACE (R2, Sep 26): users PII columns and the
+# push-subscription store. All encryption lives behind field_crypto —
+# the DB never sees plaintext for these fields once migrated.
+ENCRYPTED_USER_COLS = ("email", "phone", "full_name", "wallet_address")
 
 
 @contextmanager
@@ -17,6 +24,10 @@ def get_db():
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA journal_mode=WAL")
     conn.execute("PRAGMA foreign_keys=ON")
+    # AT-REST HYGIENE (R2): scrub deleted content from the DB file —
+    # without this, pre-encryption page images linger in freelist
+    # pages even after the rows were rewritten as ciphertext
+    conn.execute("PRAGMA secure_delete=ON")
     try:
         yield conn
         conn.commit()
@@ -258,6 +269,19 @@ def init_db():
         # knows the user by. Reversible: a column drop is a one-liner.
         if "kraken_referral_id" not in ucols:
             conn.execute("ALTER TABLE users ADD COLUMN kraken_referral_id TEXT DEFAULT ''")
+        # THE BLIND INDEX (R2, Sep 26): equality lookups on the encrypted
+        # wallet column go through a keyed HMAC index instead of a
+        # plaintext column — deterministic for lookups, opaque at rest.
+        if "wallet_idx" not in ucols:
+            conn.execute("ALTER TABLE users ADD COLUMN wallet_idx TEXT DEFAULT ''")
+        if "email_idx" not in ucols:
+            conn.execute("ALTER TABLE users ADD COLUMN email_idx TEXT DEFAULT ''")
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_users_wallet_idx "
+            "ON users(wallet_idx)")
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_users_email_idx "
+            "ON users(email_idx)")
         if "avatar" not in ucols:
             conn.execute("ALTER TABLE users ADD COLUMN avatar TEXT DEFAULT '⛏️'")
         if "bio" not in ucols:
@@ -323,6 +347,106 @@ def init_db():
                 updated_at REAL DEFAULT (strftime('%s','now'))
             )
         """)
+
+
+def encrypt_existing_pii() -> dict:
+    """THE ONE-TIME MIGRATION (R2, Sep 26): seal every plaintext PII
+    value and the push-subscription blob under the ACTIVE key.
+    IDEMPOTENT — envelopes, empty strings and NULLs pass through — so
+    running it on boot is safe. Without a key it is a no-op and the
+    system runs in the documented plaintext-compat mode."""
+    counts = {"users_sealed": 0, "subs_blob_sealed": 0}
+    if not _fc.available():
+        return dict(counts, skipped="no key configured")
+    with get_db() as conn:
+        rows = conn.execute(
+            "SELECT id, email, phone, full_name, wallet_address, wallet_idx, "
+            "email_idx FROM users").fetchall()
+        for r in rows:
+            vals = {c: (r[c] if r[c] is not None else "") for c in ENCRYPTED_USER_COLS}
+            if any(v and not str(v).startswith(_fc.PREFIX)
+                   for v in vals.values()):
+                conn.execute(
+                    "UPDATE users SET email=?, phone=?, full_name=?, "
+                    "wallet_address=?, wallet_idx=?, email_idx=? WHERE id=?",
+                    (_fc.encrypt(vals["email"]), _fc.encrypt(vals["phone"]),
+                     _fc.encrypt(vals["full_name"]),
+                     _fc.encrypt(vals["wallet_address"]),
+                     _fc.blind_index(vals["wallet_address"]),
+                     _fc.blind_index(vals["email"].strip().lower(),
+                                     domain="email"),
+                     r["id"]))
+                counts["users_sealed"] += 1
+            elif not (r["wallet_idx"] or "") and vals["wallet_address"]:
+                conn.execute(
+                    "UPDATE users SET wallet_idx=?, email_idx=? WHERE id=?",
+                    (_fc.blind_index(vals["wallet_address"]),
+                     _fc.blind_index(vals["email"].strip().lower(),
+                                     domain="email"),
+                     r["id"]))
+                counts["users_sealed"] += 1
+        raw = get_setting("push_subscriptions", "")
+        if raw and not str(raw).startswith(_fc.PREFIX):
+            try:
+                import json as _json
+                _json.loads(raw)                      # only seal valid JSON
+                conn.execute("UPDATE settings SET value=? WHERE key='push_subscriptions'",
+                             (_fc.encrypt(raw),))
+                counts["subs_blob_sealed"] = 1
+            except ValueError:
+                pass
+    return counts
+
+
+def _seal_user_row(row: dict) -> dict:
+    """Row-shape read hook: decrypt the PII columns transparently.
+    Corrupt envelopes surface as row['<col>_error']='undecryptable'
+    instead of crashing a read path — the data is still there under a
+    repaired key."""
+    if not row:
+        return row
+    for col in ENCRYPTED_USER_COLS:
+        v = row.get(col)
+        if isinstance(v, str) and v.startswith(_fc.PREFIX):
+            try:
+                row[col] = _fc.decrypt(v)
+            except Exception:
+                row[col + "_error"] = "undecryptable"
+        row.setdefault(col, "")
+    return row
+
+
+def reencrypt_pii() -> dict:
+    """Rotation companion: re-seal every stored PII envelope under the
+    ACTIVE key. Idempotent, plain rows get sealed too. Run manually or
+    on boot when a rotation happened; cheap at this table size."""
+    resealed = 0
+    with get_db() as conn:
+        rows = conn.execute(
+            "SELECT id, email, phone, full_name, wallet_address, wallet_idx, "
+            "email_idx FROM users").fetchall()
+        for r in rows:
+            vals = {c: (r[c] if r[c] is not None else "") for c in ENCRYPTED_USER_COLS}
+            if not any(str(v).startswith(_fc.PREFIX) for v in vals.values()):
+                continue
+            new = {c: _fc.reencrypt(vals[c]) for c in ENCRYPTED_USER_COLS}
+            w_idx = _fc.blind_index(
+                _fc.decrypt(new["wallet_address"]) if str(
+                    new["wallet_address"]).startswith(_fc.PREFIX) else "")
+            e_idx = _fc.blind_index(
+                _fc.decrypt(new["email"]).strip().lower() if str(
+                    new["email"]).startswith(_fc.PREFIX) else "",
+                domain="email")
+            if any(new[c] != vals[c] for c in ENCRYPTED_USER_COLS) or \
+                    w_idx != (r["wallet_idx"] or "") or \
+                    e_idx != (r["email_idx"] or ""):
+                conn.execute(
+                    "UPDATE users SET email=?, phone=?, full_name=?, "
+                    "wallet_address=?, wallet_idx=?, email_idx=? WHERE id=?",
+                    (new["email"], new["phone"], new["full_name"],
+                     new["wallet_address"], w_idx, e_idx, r["id"]))
+                resealed += 1
+    return {"rows_resealed": resealed}
 
 
 def get_setting(key, default=None):
@@ -576,35 +700,75 @@ def get_pending_payouts():
 def create_user(username, password_hash, email=None, wallet_address=None, is_admin=False,
                 security_question=None, security_answer=None,
                 phone=None, full_name=None):
+    """PII columns are sealed at rest; email uniqueness is enforced via
+    the KEYED BLIND INDEX (email_idx) instead of the sealed column —
+    equality semantics preserved, ciphertext never compared (equal
+    plaintexts share an index value; different keys/index keys do not
+    collide meaningfully)."""
     with get_db() as conn:
         cur = conn.execute(
-            """INSERT INTO users (username, email, password_hash, wallet_address, is_admin,
-               security_question, security_answer, phone, full_name)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-            (username, email, password_hash, wallet_address, 1 if is_admin else 0,
-             security_question, security_answer, phone or "", full_name or ""),
+            """INSERT INTO users (username, email, password_hash, wallet_address,
+               wallet_idx, email_idx, is_admin, security_question,
+               security_answer, phone, full_name)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (username,
+             # absent email stays NULL: the column keeps its UNIQUE
+             # constraint, and '' would collide across no-email users
+             _fc.encrypt(email) if email else None,
+             password_hash,
+             _fc.encrypt(wallet_address or ""),
+             _fc.blind_index(wallet_address or ""),
+             _fc.blind_index((email or "").strip().lower(), domain="email"),
+             1 if is_admin else 0,
+             security_question, security_answer,
+             _fc.encrypt(phone or ""), _fc.encrypt(full_name or "")),
         )
         return cur.lastrowid
+
+
+def email_exists(email) -> bool:
+    """Duplicate-email check via the keyed blind index: deterministic
+    under the active key, opaque at rest, and case-insensitive on the
+    local part (matches the old UNIQUE column's practical behavior)."""
+    if not email:
+        return False
+    idx = _fc.blind_index(str(email).strip().lower(), domain="email")
+    if not idx:
+        return False
+    with get_db() as conn:
+        row = conn.execute(
+            "SELECT 1 FROM users WHERE email_idx = ? LIMIT 1",
+            (idx,)).fetchone()
+    return row is not None
 
 
 def get_user_by_username(username):
     with get_db() as conn:
         row = conn.execute("SELECT * FROM users WHERE username = ?", (username,)).fetchone()
-        return dict(row) if row else None
+    return _seal_user_row(dict(row)) if row else None
 
 
 def get_user(user_id):
+    """Row read with transparent PII decryption."""
     with get_db() as conn:
-        row = conn.execute("SELECT * FROM users WHERE id = ?", (user_id,)).fetchone()
-        return dict(row) if row else None
+        row = conn.execute("SELECT * FROM users WHERE id = ?",
+                           (user_id,)).fetchone()
+    return _seal_user_row(dict(row)) if row else None
 
 
 def get_user_by_wallet(wallet_address):
+    """Equality lookup on an encrypted column via the KEYED BLIND INDEX
+    (users.wallet_idx): deterministic under the active key, opaque at
+    rest. Empty/None wallets never match."""
+    if not wallet_address:
+        return None
+    idx = _fc.blind_index(str(wallet_address))
+    if not idx:
+        return None                                  # crypto unavailable
     with get_db() as conn:
         row = conn.execute(
-            "SELECT * FROM users WHERE wallet_address = ?", (wallet_address,)
-        ).fetchone()
-        return dict(row) if row else None
+            "SELECT * FROM users WHERE wallet_idx = ?", (idx,)).fetchone()
+    return _seal_user_row(dict(row)) if row else None
 
 
 def generate_referral_code(username):
@@ -619,7 +783,7 @@ def get_user_by_referral_code(code):
         row = conn.execute(
             "SELECT * FROM users WHERE referral_code = ?", (code,)
         ).fetchone()
-        return dict(row) if row else None
+    return _seal_user_row(dict(row)) if row else None
 
 
 def set_referral_code(user_id, code):
@@ -705,7 +869,7 @@ def get_all_users():
             "kraken_referral_id, "
             "total_earned, total_spins, total_jackpots, created_at, last_login FROM users ORDER BY created_at DESC"
         ).fetchall()
-        return [dict(r) for r in rows]
+        return [_seal_user_row(dict(r)) for r in rows]
 
 
 def update_user_profile(user_id, display_name=None, avatar=None, bio=None, wallet_address=None):
@@ -718,13 +882,17 @@ def update_user_profile(user_id, display_name=None, avatar=None, bio=None, walle
                 display_name = ?,
                 avatar = ?,
                 bio = ?,
-                wallet_address = ?
+                wallet_address = ?,
+                wallet_idx = ?
             WHERE id = ?""",
             (
                 display_name if display_name is not None else user["display_name"],
                 avatar if avatar is not None else user["avatar"],
                 bio if bio is not None else user["bio"],
-                wallet_address if wallet_address is not None else user["wallet_address"],
+                _fc.encrypt(wallet_address) if wallet_address is not None
+                else user["wallet_address"],
+                _fc.blind_index(wallet_address) if wallet_address is not None
+                else (user.get("wallet_idx") or ""),
                 user_id,
             ),
         )

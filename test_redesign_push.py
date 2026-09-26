@@ -319,8 +319,7 @@ check(3.3, ok["ok"] and len(ps._load(ps.SUBS_KEY)) == 1,
       "one https registration lands, keyed to its user")
 other = ps.subscribe(UID + 1, {"endpoint": "https://push.example/s/abc",
                                "keys": {"p256dh": "k2", "auth": "a2"}})
-check(3.4, not other["ok"] and json.loads(db.get_setting(
-        ps.SUBS_KEY, "[]"))[0]["user_id"] == UID,
+check(3.4, not other["ok"] and ps._load(ps.SUBS_KEY)[0]["user_id"] == UID,
       "another user CANNOT take over the endpoint (never send to the "
       "wrong user)")
 ps.subscribe(UID, {"endpoint": "https://push.example/s/abc",
