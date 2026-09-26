@@ -1,5 +1,7 @@
 """test_push_client_envelope.py — THE CLIENT ENVELOPE CONTRACT, EXECUTED
-(Sep 26).
+(Sep 26). Also pins the SHARED CLOCK: relTime (the project's one
+relative-time renderer) buckets, including the older-than-a-week
+absolute-date fallback.
 
 push_client.js is the only JS that turns server envelopes into UI
 state, and its history is the sync-shape bug class: adopt() once read
@@ -403,6 +405,34 @@ async function scenario(name) {
     return 'auth_clears_history ok';
   }
 
+  if (name === 'reltime_buckets') {
+    // THE SHARED CLOCK itself, executed: relTime is the one renderer
+    // every surface must route through after the sweep (Winners list,
+    // claim history, admin last-seen, audit log).
+    loadClient();                            // the export appears at load
+    await flushAll();
+    const rt = sandbox.window.XMRJackpotPush.relTime;
+    const now = Date.now();
+    const isoAgo = (s) => new Date(now - s * 1000).toISOString();
+    sandbox.Date.now = () => now;            // pin the clock for buckets
+    const cases = [
+      [isoAgo(2), 'just now'],
+      [isoAgo(30), '30s ago'],
+      [isoAgo(125), '2 min ago'],
+      [isoAgo(7200), '2 h ago'],
+      [isoAgo(3 * 86400), '3 d ago'],
+    ];
+    for (const [iso, want] of cases) {
+      assert.strictEqual(rt(iso), want, 'bucket for ' + iso);
+    }
+    // older than a week: absolute date, never "365 d ago"
+    const old = rt(isoAgo(365 * 86400));
+    assert.ok(!/\d+ d ago/.test(old), 'a year-old stamp never reads "365 d ago": ' + old);
+    assert.ok(old.length > 0, 'the absolute fallback renders something');
+    sandbox.Date.now = Date.now;             // restore
+    return 'reltime_buckets ok';
+  }
+
   if (name === 'retry_after_412') {
     script = { status: 200, headers: { ETag: '"2026-09-26T10:00:00Z"' }, json: ENVELOPE };
     loadClient();
@@ -456,6 +486,8 @@ SCENARIOS = [
      "a fresh write re-points the history (no stale redo); its undo replays the last replaced state and offers redo"),
     ("8", "auth_clears_history",
      "after an account switch the cleared history is inert and the next write rides the re-read version"),
+    ("9", "reltime_buckets",
+     "the shared clock's buckets, including the older-than-a-week absolute fallback"),
 ]
 
 

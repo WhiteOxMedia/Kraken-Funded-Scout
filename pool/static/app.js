@@ -53,8 +53,25 @@
       : a;
   }
 
+  /* THE ONE CLOCK (Sep 26, the shared-renderer sweep): every "ago"
+     stamp — Winners list, claim history, admin last-seen, audit log —
+     routes through the project's ONE relative-time renderer
+     (push_client exports it), so every card ages with the same
+     buckets ("2 min ago", never "2m ago" here and "2 min ago"
+     there) and older-than-a-week falls back to an absolute date
+     instead of "365 d ago". HOVER = THE EXACT MOMENT: call sites
+     carry the raw UTC ISO in the title. The local buckets below are
+     only the fallback for a render that races push_client's load. */
+  function isoOf(ts) {
+    try { return new Date(ts * 1000).toISOString(); } catch (e) { return ''; }
+  }
   function timeAgo(ts) {
     if (!ts) return '—';
+    try {
+      if (window.XMRJackpotPush && window.XMRJackpotPush.relTime) {
+        return window.XMRJackpotPush.relTime(isoOf(ts));
+      }
+    } catch (e) { /* fall through to the local buckets */ }
     const m = Math.floor((Date.now() / 1000 - ts) / 60);
     if (m < 1) return 'just now';
     if (m < 60) return m + 'm ago';
@@ -419,7 +436,7 @@
               return '<div class="winner-row">' +
                 '<span class="winner-wallet">' + shortAddr(w.winner_wallet) + '</span>' +
                 '<span class="winner-prize">' + fmt(w.prize_amount, 6) + ' XMR</span>' +
-                '<span class="winner-time">' + timeAgo(w.drawn_at) + '</span>' +
+                '<span class="winner-time" title="' + (w.drawn_at ? isoOf(w.drawn_at) : '') + '">' + timeAgo(w.drawn_at) + '</span>' +
                 '</div>';
             }).join('');
           } else {
@@ -1393,7 +1410,11 @@
       }
       $('#dashWallet').textContent = u.wallet_address ? shortAddr(u.wallet_address) : '—';
       $('#dashJoined').textContent = u.created_at ? new Date(u.created_at * 1000).toLocaleDateString() : '—';
-      $('#dashLastLogin').textContent = u.last_login ? new Date(u.last_login * 1000).toLocaleString() : '—';
+      // the last-login stamp joins the shared clock: relative text,
+      // exact UTC moment on hover (computed values only — no user input)
+      $('#dashLastLogin').innerHTML = u.last_login
+        ? '<span title="' + isoOf(u.last_login) + '">' + timeAgo(u.last_login) + '</span>'
+        : '—';
 
       var miner = d.miner || {};
       $('#dashMinerHashrate').textContent = fmtHash(miner.hashrate);
@@ -1405,7 +1426,7 @@
       var tb = $('#dashWinsTable');
       if (wins.length) {
         tb.innerHTML = wins.map(function(w) {
-          return '<tr><td>#' + w.id + '</td><td>' + fmt(w.jackpot_amount,6) + ' XMR</td><td>' + fmt(w.jackpot_amount - w.house_tax,6) + ' XMR</td><td>' + (w.drawn_at ? new Date(w.drawn_at*1000).toLocaleDateString() : '—') + '</td></tr>';
+          return '<tr><td>#' + w.id + '</td><td>' + fmt(w.jackpot_amount,6) + ' XMR</td><td>' + fmt(w.jackpot_amount - w.house_tax,6) + ' XMR</td><td title="' + (w.drawn_at ? isoOf(w.drawn_at) : '') + '">' + (w.drawn_at ? new Date(w.drawn_at*1000).toLocaleDateString() : '—') + '</td></tr>';
         }).join('');
       }
 
@@ -1637,7 +1658,7 @@
             '<div style="font-weight:700;color:var(--gold-bright);">' + escapeHtml(c.name) + '</div>' +
             emailLine +
             '<div style="margin-top:6px;color:var(--text);font-size:0.9em;">' + escapeHtml(c.message) + '</div>' +
-            '<div style="font-size:0.75em;color:var(--text-mute);margin-top:6px;">' + timeAgo(c.created_at) + (c.ip_address ? ' · IP: ' + escapeHtml(c.ip_address) : '') + '</div>' +
+            '<div style="font-size:0.75em;color:var(--text-mute);margin-top:6px;"><span title="' + (c.created_at ? isoOf(c.created_at) : '') + '">' + timeAgo(c.created_at) + '</span>' + (c.ip_address ? ' · IP: ' + escapeHtml(c.ip_address) : '') + '</div>' +
           '</div>' +
           '<div style="display:flex;flex-direction:column;gap:6px;align-items:flex-end;">' +
             '<span style="background:' + badgeColor + ';color:#fff;padding:2px 8px;font-size:0.7em;font-weight:700;">' + badgeText + '</span>' +
@@ -1742,7 +1763,7 @@
       var tb = $('#adminUsersTable');
       if (!tb || !d.length) return;
       tb.innerHTML = d.map(function(u) {
-        return '<tr><td>' + u.id + '</td><td>' + u.username + '</td><td>' + shortAddr(u.wallet_address||'') + '</td><td>' + (u.is_admin?'✅':'—') + '</td><td>' + fmt(u.total_earned||0,6) + '</td><td>' + (u.total_shares||0).toLocaleString() + '</td><td>' + (u.created_at?new Date(u.created_at*1000).toLocaleDateString():'—') + '</td></tr>';
+        return '<tr><td>' + u.id + '</td><td>' + u.username + '</td><td>' + shortAddr(u.wallet_address||'') + '</td><td>' + (u.is_admin?'✅':'—') + '</td><td>' + fmt(u.total_earned||0,6) + '</td><td>' + (u.total_shares||0).toLocaleString() + '</td><td title="' + (u.created_at ? isoOf(u.created_at) : '') + '">' + (u.created_at?new Date(u.created_at*1000).toLocaleDateString():'—') + '</td></tr>';
       }).join('');
     } catch(e) {}
   }
@@ -1755,7 +1776,7 @@
       var tb = $('#adminMinersTable');
       if (!tb || !d.length) return;
       tb.innerHTML = d.map(function(m) {
-        return '<tr><td>' + m.id + '</td><td>' + shortAddr(m.wallet_address) + '</td><td>' + (m.shares_valid||0).toLocaleString() + '</td><td>' + fmtHash(m.hashrate) + '</td><td>' + timeAgo(m.last_seen) + '</td></tr>';
+        return '<tr><td>' + m.id + '</td><td>' + shortAddr(m.wallet_address) + '</td><td>' + (m.shares_valid||0).toLocaleString() + '</td><td>' + fmtHash(m.hashrate) + '</td><td><span title="' + (m.last_seen ? isoOf(m.last_seen) : '') + '">' + timeAgo(m.last_seen) + '</span></td></tr>';
       }).join('');
     } catch(e) {}
   }
@@ -1783,7 +1804,7 @@
       if (!el) return;
       if (!d.length) { el.innerHTML = '<p style="color:var(--text-mute);">No activity logged</p>'; return; }
       el.innerHTML = d.map(function(a) {
-        return '<div style="padding:6px 0;border-bottom:1px solid var(--border);"><span style="color:var(--gold);">' + (a.username||'system') + '</span> — <span style="color:var(--text-dim);">' + a.action + '</span> <span style="color:var(--text-mute);font-size:0.85em;">' + (a.created_at?new Date(a.created_at*1000).toLocaleString():'') + '</span></div>';
+        return '<div style="padding:6px 0;border-bottom:1px solid var(--border);"><span style="color:var(--gold);">' + (a.username||'system') + '</span> — <span style="color:var(--text-dim);">' + a.action + '</span> <span style="color:var(--text-mute);font-size:0.85em;" title="' + (a.created_at ? isoOf(a.created_at) : '') + '">' + (a.created_at ? timeAgo(a.created_at) : '') + '</span></div>';
       }).join('');
     } catch(e) {}
   }
@@ -1917,7 +1938,7 @@
           '<td>' + shortAddr(m.wallet_address) + '</td>' +
           '<td>' + (m.shares_valid || 0).toLocaleString() + '</td>' +
           '<td>' + fmtHash(m.hashrate) + '</td>' +
-          '<td>' + timeAgo(m.last_seen) + '</td>' +
+          '<td><span title="' + (m.last_seen ? isoOf(m.last_seen) : '') + '">' + timeAgo(m.last_seen) + '</span></td>' +
           '</tr>';
       }).join('');
     } catch (e) {

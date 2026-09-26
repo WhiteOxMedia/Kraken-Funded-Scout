@@ -586,6 +586,16 @@ check(8.2, "/api/push/signals" in wf_src
       "the wiring script owns only the wf-* elements: user-scoped "
       "signals fetch, escape-before-HTML, idempotent binding, and "
       "it never re-binds app.js's own hooks")
+app_src = (HERE / "pool" / "static" / "app.js").read_text(
+    encoding="utf-8")
+check("8.2b", "window.XMRJackpotPush" in app_src
+      and "new Date(a.created_at*1000).toLocaleString()" not in app_src
+      and "new Date(u.last_login * 1000).toLocaleString()" not in app_src
+      and "timeAgo(a.created_at)" in app_src
+      and "timeAgo(u.last_login)" in app_src,
+      "the stamp sweep landed: the audit log and last-login raw "
+      "locale stamps are gone, and app.js's ago-stamps route through "
+      "the shared relTime exporter")
 check(8.3, '@app.get("/api/push/signals")' in server_src
       and 'login required' in server_src,
       "the signals feed is a logged-in route (no cross-user, no "
