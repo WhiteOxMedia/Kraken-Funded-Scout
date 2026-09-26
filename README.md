@@ -92,6 +92,47 @@ and a live surface has no place in it — and when the pool server is
 down, its honest self-skip surfaces as a SKIP row in the battery's
 ledger ("pool server down"), the same skip semantics both repos share.
 
+## Runtime operations
+
+**The pool server on :3094.** Restart it (bash on Windows — the PID
+comes from the listener, the server runs hidden and logs to a file):
+
+```bash
+taskkill //F //PID $(netstat -ano | grep ":3094" | grep LISTEN | awk '{print $5}' | head -1)
+powershell -NoProfile -Command "Start-Process cmd -ArgumentList '/c set APP_PORT=3094&& .venv\\Scripts\\python.exe pool\\server.py > logs_server_restart.txt 2>&1' -WorkingDirectory 'C:\\Users\\birds\\Workspace\\monero_project' -WindowStyle Hidden"
+sleep 9 && curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:3094/api/stats
+```
+
+The `curl` health check is the confirmation step — 200 means the fleet
+gate's live drive will run, 000 means it will self-skip (honestly).
+
+**Logs.** `logs/` carries `pool_stdout.log`, `pool_stderr.log`,
+`server_restart.log`, and `xmrig.log`; the restart command above
+tee's its own run to `logs_server_restart.txt` in the repo root. Log
+files are runtime state — gitignored, safe to delete while the server
+is stopped.
+
+**Shipping a frontend change.** Static files and templates are
+cache-busted by version query strings, so the workflow is:
+
+1. edit `pool/static/*` and/or `pool/templates/index.html`;
+2. bump the touched script's `?v=` in `pool/templates/index.html`
+   (the served HTML must reference a version the browser has not
+   seen — parity checks in the fleet are version-agnostic on
+   purpose);
+3. `python make_bundle.py` — regenerates the Hostinger bundle from
+   the new files and runs the parity gate itself;
+4. commit — the fleet gate re-proves bundle parity and the text/
+   contract drives.
+
+**Registering a live drive in the Scout battery.** When a pool drive
+becomes a battery live-contract entry, copy the fill-in template
+beside the Scout battery (`kraken_scout/LIVE_CONTRACT_TEMPLATE.py`) —
+it encodes the whole convention: execute through the pool venv,
+stream output verbatim, map the drive's honest self-skip signature
+(RESULT 0/0 **plus** a `SKIP:` line) to the battery's SKIP vocabulary,
+and add the wrapper to `LIVE_ENTRIES` so `--fast` stays hermetic.
+
 ## Related one-command tools
 
 - `python setup_dev.py` — new-clone setup: venv from `uv.lock` + the
