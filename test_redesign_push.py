@@ -104,9 +104,85 @@ def links_of(doc):
 old_text = visible_strings(old_html)
 new_text = visible_strings(new_html)
 missing = sorted(s for s in old_text if s not in new_text)
-check(1.1, not missing,
-      f"all {len(old_text)} baseline visible strings survive "
-      + (f"- MISSING: {missing[:6]}" if missing else ""))
+
+# THE TRUTH AUDIT (Sep 25, user order: "the words need to be based on
+# the reality re-word the web-content using the facts"): a closed,
+# enumerated set of baseline strings was REWORDED to match the code's
+# reality. Every deviation from the baseline must appear here, paired
+# with its replacement — anything else missing is a regression.
+TRUTH_AUDIT = {
+    "One grand prize is worth more than a single miner could mine alone in a year! The more miners, the bigger the pot.":
+        "One winner takes 90% of the pot in a single drawing. The more miners, the bigger the pot.",
+    "One grand prize is worth more than a single miner could mine alone in a year!":
+        "One winner takes 90% of the pot in a single drawing.",
+    "1 grand prize = 10+ years of solo mining":
+        "90% of the pot to one winner · every 24 hours",
+    "One grand prize is worth more than a solo miner could mine in 10 years.":
+        "One winner takes 90% of the pot in a single drawing — a payout that grows with the community.",
+    "One lucky winner takes 90% of the grand prize — that could be more XMR in a single drawing than you'd mine alone in a year.":
+        "One lucky winner takes 90% of the grand prize — a payout that grows as the community grows.",
+    "🤝 Today's prize pool grows as miners contribute. The community pot resets every 24 hours.":
+        "🤝 Today's prize pool grows as miners contribute — the pot carries over, and a new winner is drawn every 24 hours.",
+    "No deposit. No risk. Powered entirely by Kraken's referral bonus program.":
+        "No deposit. No risk. Free entries come from mining — Kraken referral bonuses add to the pot as they come in.",
+    "The community jackpot is your free route in. Win the daily prize (min ~$20), enter the challenge, pass with Scout signals, get funded, and keep the profits. The loop grows itself through Kraken's referral program.":
+        "The community jackpot is your free route in. Win the daily prize, enter the challenge, pass with Scout signals, get funded, and keep the profits. The loop grows itself through Kraken's referral program.",
+    "The daily prize is seeded by Kraken referral bonuses — minimum ~$20, every single day.":
+        "The daily prize is seeded by the community's mining — and grows as Kraken referral bonuses come in.",
+    "Daily prize seeded by Kraken referral bonuses — the referral program funds the pot":
+        "Daily prize seeded by community mining — referral bonuses add to it as they come in",
+    "Minimum ~$20 — the floor every day, win or not":
+        "Grows with the community — more miners and referrals mean a bigger prize",
+    "Scales with community mining — 1000 bots → $20, 10,000 bots → $300":
+        "Planned scale — community projection: ~$20/day near 1,000 bots, ~$300/day near 10,000",
+    "1000 bots → ~$20 · 10,000 bots → ~$300":
+        "projection: 1,000 bots → ~$20/day · 10,000 bots → ~$300/day",
+    "No community treasury and no deposits — Kraken's referral bonus program funds the prize.":
+        "No deposits and no community treasury — the prize is seeded by community mining, with",
+    "Kraken pays referral bonuses — the exchange funds the program":
+        "Kraken pays referral bonuses — the exchange pays them, the operator records them",
+    "Bonuses feed the jackpot — straight into the daily prize":
+        "Recorded bonuses feed the jackpot — into the daily prize via the funding ledger",
+    "Everything stays free — powered entirely by Kraken's referral program":
+        "Everything stays free — mining earns your entries; bonuses only grow the pot",
+    "The house retains 10% of all payouts (daily drawings). This covers server costs, development, and operations. House tax is auto-transferred when accumulated balance exceeds 0.01 XMR.":
+        "The house retains 10% of all payouts (daily drawings). This covers server costs, development, and operations. House tax stays in the pool and seeds the prize when the balance would fall below the drawing minimum.",
+    # (the surrounding legal <p> paragraphs containing the two lines
+    #  above also differ from baseline by exactly these fragments —
+    #  matched as substrings below by 1.1's fragment pass)
+    "We do not share data with third parties. Mining rewards are sent to your wallet via the Monero network. Kraken is used only for house tax transfers (affiliate link is optional).":
+        "We do not share data with third parties. Mining rewards are sent to your wallet via the Monero network. Kraken appears only through the optional referral link; house tax stays in the pool.",
+    "Goes to marketing to grow the community":
+        "Covers servers, development, and operations — and seeds the prize when the pot runs short",
+    "Used to facilitate marketing & community growth — bigger community = bigger pot, and so on":
+        "The community’s referral link — recorded bonuses from it grow the pot",
+    "— 10% of all payouts, sent to Kraken":
+        "— 10% of all payouts, held by the pool (seeds the prize when short)",
+    "Tax Sent to Kraken":
+        "Total Paid to Winners",
+    "Our mining pool receives periodic promotional credits and mining-related bonuses from partner exchanges like Kraken. When users connect a wallet, we can verify active miners and distribute these bonuses directly into the grand prize.":
+        "Kraken referral bonuses paid through the community's referral link are recorded by the operator and directed into the grand prize. Connecting a wallet helps verify active miners so those bonuses reach the prize.",
+    "Bonus drops": "Referral bonus eligibility",
+    "Stronger community rewards": "A stronger, verifiable community",
+    "A: Connected wallets let us verify active miners, which unlocks Kraken bonus credits that increase the grand prize.":
+        "A: Connected wallets let us verify active miners, so recorded Kraken referral bonuses can be directed into the grand prize.",
+    "Special Kraken bonus multipliers for verified (wallet-connected) referrals":
+        "Recorded Kraken referral bonuses for wallet-connected referrals",
+    "Join the miners building the biggest Monero grand prize pool.":
+        "Join the miners building the community's Monero grand prize pool.",
+}
+unsanctioned = [s for s in missing if s not in TRUTH_AUDIT]
+check(1.1, not unsanctioned,
+      f"all baseline strings survive except the {len(TRUTH_AUDIT)} "
+      f"enumerated truth-audit rewordings "
+      + (f"- UNSANCTIONED MISSING {len(unsanctioned)}: {unsanctioned[:6]}"
+         if unsanctioned else ""))
+_norm = re.sub(r"\s+", " ", html_mod.unescape(re.sub(r"<[^>]+>", " ", new_html)))
+not_landed = [new for new in TRUTH_AUDIT.values()
+              if re.sub(r"\s+", " ", new) not in _norm]
+check(1.10, not not_landed,
+      f"all {len(TRUTH_AUDIT)} audited rewordings are present "
+      + (f"- NOT LANDED: {not_landed[:6]}" if not_landed else ""))
 old_links, new_links = links_of(old_html), links_of(new_html)
 check(1.2, set(old_links) <= set(new_links),
       f"all {len(old_links)} baseline links/routes survive; new: "
@@ -121,11 +197,11 @@ REQUIRED_NEW = [
     "Kraken Scout is the Master Key to beating the Kraken Funded Challenge",
     "The community jackpot is your free route in",
     "Start For Free", "Get Kraken Scout", "How It Works",
-    "No deposit. No risk. Powered entirely by Kraken's referral bonus program.",
+    "No deposit. No risk. Free entries come from mining",
     # section 2 — the free route in
     "Start Free With the Community Jackpot",
-    "Daily prize seeded by Kraken referral bonuses", "Minimum ~$20",
-    "1000 bots", "10,000 bots", "~$300",
+    "Daily prize seeded by community mining", "Grows with the community",
+    "1,000 bots", "10,000 bots", "~$300/day",
     "Ticket value increases with active mining", "Better odds for active miners",
     "Join Jackpot", "See Daily Prize",
     # section 3 — the master key
@@ -140,7 +216,7 @@ REQUIRED_NEW = [
     "$1,000 funded", "$5,000 funded", "$10,000 funded",
     # section 5 — the loop
     "Kraken Pays the Jackpot", "Kraken pays referral bonuses",
-    "Bonuses feed the jackpot", "Everything stays free",
+    "Recorded bonuses feed the jackpot", "Everything stays free",
     "Use Referral Link", "See Jackpot Growth",
     # section 6 — mining
     "Turn On the Miner Bot", "Active mining increases ticket value",
