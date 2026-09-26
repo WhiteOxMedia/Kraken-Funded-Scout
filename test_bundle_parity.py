@@ -16,6 +16,11 @@ so a stale bundle fails the fleet instead of shipping:
      recipe: sorted entries, xmrjackpot_review/ prefix, fixed stamp)
   5. the sha256 sidecar matches the zip bytes
   6. the zip extracts to the exact bundle inventory, byte-identical
+  7. the README's human inventory mentions every versioned file with
+     the SAME version the template ships — make_bundle.py syncs these
+     mentions; this check verifies the sync's output afterwards, so a
+     hand-edit or a sync bug cannot trail the human-facing inventory
+     silently
 
 Skips honestly when the bundle directory is absent (the artifact is
 untracked by design; fleet-only checkouts stay green).
@@ -124,6 +129,24 @@ if ZIP_PATH.exists():
           f"bytes differing={bytes_bad[:4]}")
 else:
     check(6, False, "no zip to verify")
+
+# 7. the README inventory cannot trail the shipped versions
+readme_lines = (BUNDLE / "README.txt").read_text(encoding="utf-8").splitlines()
+readme_bad = []
+for name, ver in sorted(dict(tv).items()):
+    row = next((ln for ln in readme_lines
+                if "`static/" + name + "`" in ln), None)
+    if row is None:
+        readme_bad.append(name + ": no mention at all")
+        continue
+    m = re.search(r"\(v(\d+)\)", row)
+    if not m:
+        readme_bad.append(name + ": mention carries no (vN)")
+    elif m.group(1) != ver:
+        readme_bad.append(f"{name}: README says v{m.group(1)}, "
+                          f"template ships v{ver}")
+check(7, not readme_bad,
+      f"README inventory drift: {readme_bad}")
 
 passed, failed = results.count(True), results.count(False)
 print(f"RESULT: {passed} passed, {failed} failed")
