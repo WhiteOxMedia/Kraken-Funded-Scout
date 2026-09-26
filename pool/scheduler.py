@@ -23,6 +23,7 @@ import traceback
 
 import database as db
 import kraken_referral as kr
+import push_report
 import push_service as push_svc
 
 HEARTBEAT_KEY = "SCHEDULER_HEARTBEAT"        # epoch of last completed tick
@@ -138,6 +139,22 @@ def tick_once(reason: str = "manual") -> dict:
         kr.emit_audit(None, "scheduler.notice_idle",
                       configured=win.get("configured"),
                       expired=win.get("expired", False))
+    # 3. the daily push report: yesterday's completed day, recomputed
+    # idempotently (REPLACE semantics — never double-counts), plus the
+    # once-a-day retention prune
+    try:
+        yesterday = time.time() - 86400
+        push_report.compute_day(yesterday)
+        prune_marker = str(db.get_setting("PUSH_REPORT_PRUNED", "") or "")
+        today = time.strftime("%Y-%m-%d", time.gmtime())
+        if prune_marker != today:
+            removed = push_report.prune()
+            db.set_setting("PUSH_REPORT_PRUNED", today)
+            if removed:
+                kr.emit_audit(None, "push_report.pruned", rows=removed)
+        summary["push_report"] = "rolled up"
+    except Exception as exc:                           # noqa: BLE001
+        summary["push_report"] = f"error: {str(exc)[:80]}"
     db.set_setting(HEARTBEAT_KEY, str(time.time()))
     return summary
 

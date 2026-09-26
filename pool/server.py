@@ -1360,6 +1360,7 @@ async def api_admin_wallet_status(request: Request):
 #  returns its run summary for the canary report.
 # ─────────────────────────────────────────────────────────────
 import kraken_referral as kr
+import push_report
 import scheduler as kr_sched
 
 
@@ -1625,6 +1626,20 @@ async def api_admin_push_vapid_act(request: Request):
                   source=res.get("source"), sent=res.get("sent"),
                   reason=res.get("reason"))
     return JSONResponse(res)
+
+
+@app.get("/api/admin/push/report")
+async def api_admin_push_report(request: Request):
+    """THE DAILY PUSH REPORT (user order, Sep 26): sends, blocks,
+    rate-limits per category, from the audit trail. `days` (1-30)
+    controls history depth; today's unfinished day comes as a live
+    overlay that is never persisted."""
+    require_admin(request)
+    try:
+        days = max(1, min(30, int(request.query_params.get("days", "1"))))
+    except ValueError:
+        days = 1
+    return JSONResponse(push_report.get_range(days=days))
 
 
 @app.get("/api/admin/scheduler/status")
