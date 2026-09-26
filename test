@@ -1,0 +1,7 @@
+#!/bin/sh
+# THE ONE COMMAND (npm-test-style): ./test [--only push prefs] [--list]
+# Runs the full drive fleet and exits nonzero on any regression.
+ROOT="$(cd "$(dirname "$0")" && pwd)"
+PY="$ROOT/.venv/Scripts/python.exe"
+[ -x "$PY" ] || PY=python
+exec "$PY" -X utf8 "$ROOT/run_fleet.py" "$@"

@@ -1,0 +1,25 @@
+#!/bin/sh
+# THE FLEET GATE (run_fleet.py) — every commit must survive the drives.
+#
+#   Blocking:   any REGRESSION (exit 1 from run_fleet.py) blocks the commit.
+#   Flakes:     pass-on-rerun failures are warnings, listed loudly — they
+#               do NOT block (run_fleet's own classification).
+#   Bypass:     git commit --no-verify   (one commit, deliberately)
+#   Quick pass: FLEET_ARGS="--only push prefs" git commit ...   (subset)
+#
+# Versioned via core.hooksPath (set once per clone:
+#   git config core.hooksPath githooks
+ROOT="$(git rev-parse --show-toplevel)"
+PY="$ROOT/.venv/Scripts/python.exe"
+[ -x "$PY" ] || PY=python
+
+echo "FLEET GATE: running the drive fleet before this commit lands…"
+"$PY" -X utf8 "$ROOT/run_fleet.py" $FLEET_ARGS
+rc=$?
+if [ "$rc" -ne 0 ]; then
+  echo ""
+  echo "x FLEET GATE FAILED — a regression blocks this commit."
+  echo "  Fix the drive, or bypass once with: git commit --no-verify"
+  exit 1
+fi
+exit 0
