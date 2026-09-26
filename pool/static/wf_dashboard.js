@@ -33,6 +33,37 @@
     } catch (e) { return ""; }
   }
 
+  /* THE SHARED STAMP (Sep 26): the Scout panel shows the SAME
+     notification-preferences updated_at the Notifications card
+     shows, through the project's ONE relative-time renderer
+     (push_client exports it) so both cards agree word for word.
+     Fallback to the local timeAgo only if push_client failed to
+     load. A fresh account (updated_at null) says so honestly. */
+  function rel(iso) {
+    try {
+      if (window.XMRJackpotPush && window.XMRJackpotPush.relTime) {
+        return window.XMRJackpotPush.relTime(iso);
+      }
+    } catch (e) { /* fall through */ }
+    var d = new Date(iso);
+    return isNaN(d) ? "" : timeAgo(d.getTime() / 1000);
+  }
+
+  function refreshPrefsStamp() {
+    var el = $("wfPrefsStamp");
+    if (!el) return;
+    fetch("/api/push/preferences", { credentials: "same-origin" })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (p) {
+        var iso = p && p.updated_at;
+        el.textContent = iso
+          ? "prefs updated " + rel(iso)
+          : "prefs never changed (defaults stand)";
+        el.title = iso || "";
+      })
+      .catch(function () { /* quiet — the card stays without a stamp */ });
+  }
+
   /* the status row: miner / scout / wallet states from the endpoints
      app.js already uses — read-only, no mutation, no new calls */
   function refreshStatus() {
@@ -147,8 +178,10 @@
     wire();
     refreshStatus();
     refreshSignals();
+    refreshPrefsStamp();
     setInterval(refreshSignals, 60000);
     setInterval(refreshStatus, 60000);
+    setInterval(refreshPrefsStamp, 60000);
   }
 
   if (document.readyState === "loading") {

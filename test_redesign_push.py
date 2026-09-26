@@ -519,7 +519,7 @@ check(7.7, all("BUY" in t or "OUT" in t for t in _feed_titles),
 
 # ── 8. THE PHASE-2 WORKFLOW LAYER (homepage + dashboard) ─────────────
 print("== 8. THE MASTER-KEY WORKFLOW LAYER ==")
-check(8.1, 'src="/static/wf_dashboard.js?v=1"' in new_html
+check(8.1, 'src="/static/wf_dashboard.js?v=2"' in new_html
       and 'id="btnHeroStartFree"' in new_html
       and 'id="wf-jackpot"' in new_html and 'id="wf-scout"' in new_html
       and 'id="wf-funded"' in new_html and 'id="wf-loop"' in new_html

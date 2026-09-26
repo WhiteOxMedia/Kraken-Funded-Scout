@@ -305,4 +305,12 @@
   } else {
     wire();
   }
+
+  /* EXPORT (Sep 26): relTime is the project's ONE relative-time
+     renderer — the Scout signals panel reuses it so every card ages
+     stamps with the same buckets ("2 min ago", never "2m ago" here
+     and "2 min ago" there). Load order is safe: this IIFE runs
+     before wf_dashboard's boot (both classic scripts, DOMContentLoaded
+     fires after). */
+  window.XMRJackpotPush = { relTime: relTime };
 }());
