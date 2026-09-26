@@ -1973,6 +1973,17 @@
       // Show landing by default
       navigateTo('landing');
     }
+    // f5 landing cleanup (Sep 26): the initial load handled the deep
+    // link, but in-session hash changes (sharing /#dashboard links,
+    // browser back/forward) never re-routed — listen for them. The
+    // currentPage guard stops double-fires; admin stays gated in-page
+    // (initAdmin renders "Admin access required" for non-admins).
+    window.addEventListener('hashchange', function () {
+      var h = (window.location.hash || '').replace('#', '');
+      if (h && validPages.indexOf(h) !== -1 && h !== currentPage) {
+        navigateTo(h);
+      }
+    });
 
     // Update mode badge
     updateModeBadge();
