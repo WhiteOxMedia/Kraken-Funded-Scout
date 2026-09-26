@@ -14,6 +14,14 @@ Output: a streaming per-entry line (so a hang is visible live), then a
 summary table with pass-counts parsed from each suite's own final
 "N/M" line. Exit 0 only when every RUN entry passed.
 
+THE LIVE-CONTRACT ENTRY (Sep 26): test_pool_prefs_live.py is an
+explicit discovery wrapper that EXECUTES the sibling monero_project
+checkout's live prefs drive through the POOL's own venv. It never runs
+in --fast (fast is hermetic-by-construction; a live surface has no
+place there) and its honest self-skip (pool server down: the drive
+answers "RESULT: 0 passed, 0 failed") surfaces as a SKIP row in the
+ledger - visible, never a FAIL, never silently green.
+
 Run:  .venv\\Scripts\\python.exe -X utf8 run_battery.py
 
 THE LANES (Sep 22): the battery grew past what one shell window holds -
@@ -85,6 +93,13 @@ SCOUT = Path(__file__).resolve().parent
 PY = SCOUT / ".venv" / "Scripts" / "python.exe"
 if not PY.exists():
     PY = Path(sys.executable)
+
+# LIVE-CONTRACT ENTRIES (Sep 26): discovery-wrapper suites that execute
+# a sibling checkout's live drive through THAT repo's venv. Excluded
+# from --fast by name (fast stays hermetic-by-construction); run by the
+# full battery and --slow. Their honest self-skip (exit 42 + SKIP line,
+# see run_entry) ledgers as SKIP.
+LIVE_ENTRIES = {"test_pool_prefs_live"}
 
 LANES_MANIFEST = SCOUT / "battery_lanes.json"
 FAST_DEFAULT_BUDGET = 420    # the fast lane's total wall-clock ceiling
@@ -566,6 +581,12 @@ def run_entry(path: Path, cap: int | None = None):
     except subprocess.TimeoutExpired:
         return "TIMEOUT", time.monotonic() - t0, f">{b}s"
     dt = time.monotonic() - t0
+    if p.returncode == 42 and "SKIP:" in (p.stdout or ""):
+        # the live-contract wrapper's honest self-skip (the pool server
+        # is down): ledgered as SKIP - visible, never a FAIL. Requires
+        # the SKIP marker in the output so a crash that happens to exit
+        # 42 cannot masquerade as one.
+        return "SKIP", dt, "pool server down (wrapper self-skip)"
     if p.returncode != 0:
         tail = (p.stdout or "").strip().splitlines()[-3:]
         err = (p.stderr or "").strip().splitlines()[-2:]
@@ -774,6 +795,15 @@ def main(argv: list[str] | None = None) -> int:
         if _chunk_pause("test", t.stem):
             return 2
         _gs, _g_t0 = _guard_snap(), time.time()
+        if lane == "fast" and t.stem in LIVE_ENTRIES:
+            n_defer += 1
+            deferred.append(t.stem)
+            rows.append(("test", t.stem, "DEFER", 0.0,
+                         "live-contract entry: full/slow lanes only "
+                         "(--slow --rerun-deferred)"))
+            print(f"  [{i:3d}] - {t.stem:<34}      live: not in --fast",
+                  flush=True)
+            continue
         if lane == "fast":
             left = fast_budget - (time.monotonic() - lane_t0)
             if not _fits(t.stem, left):
