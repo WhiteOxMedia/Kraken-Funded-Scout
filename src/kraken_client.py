@@ -197,14 +197,41 @@ def get_balance(asset="XXMR"):
 
 
 def check_credentials():
-    """Check if Kraken API credentials are configured."""
-    api_key, api_secret = _get_kraken_credentials()
-    if not api_key or not api_secret:
-        print("\n  [Kraken] API credentials not found in keyring.")
-        print("  To enable Kraken integration, add your API keys:")
+    """THE TIER REPORT (Sep 26): WHICH credential tier actually serves
+    the pair — env, settings (the pool's jackpot.db), or keyring
+    (Windows Credential Manager) — instead of a generic found/not-found
+    line. Same tier order and complete-pair rule as
+    _get_kraken_credentials(); the FIRST complete tier in that order is
+    the one every authenticated call will use, so it is the one named.
+    A lower tier also holding a complete pair is called out as SHADOWED
+    (a rotated keyring pair silently outranked by a stale env var is
+    exactly the trap this report exists to expose). The key's last four
+    characters only — secret material never leaves the seam."""
+    served, shadowed, key_tail = None, [], ""
+    for name, fn in (("env", _env_creds), ("settings", _settings_creds),
+                     ("keyring", _keyring_creds)):
+        key, sec = fn()
+        if key and sec:
+            if served is None:
+                served, key_tail = name, "…" + key[-4:]
+            else:
+                shadowed.append(name)
+    if not served:
+        print("\n  [Kraken] No complete API key/secret pair found.")
+        print("  Checked, in order:")
+        print("    1. OS environment (KRAKEN_API_KEY + KRAKEN_API_SECRET)")
+        print("    2. Pool settings (the jackpot.db the pool server reads)")
+        print("    3. OS keyring (Windows Credential Manager, service 'kraken')")
+        print("  To enable Kraken integration:")
         print("    1. Go to https://www.kraken.com/u/security/api")
         print("    2. Create an API key with 'Query Funds' + 'Deposit Funds' permissions")
-        print("    3. Store them using keyring CLI or the setup script")
+        print("    3. Store the pair with: python setup_kraken.py (keyring),")
+        print("       or set both env vars, or use the admin panel.")
         return False
-    print("  [Kraken] API credentials found.")
+    line = f"  [Kraken] API credentials found (tier: {served}, key {key_tail})."
+    if shadowed:
+        line += ("\n  [Kraken] Note: tier(s) " + ", ".join(shadowed) +
+                 " also hold a complete pair — SHADOWED by " + served +
+                 " (the first complete tier wins).")
+    print(line)
     return True

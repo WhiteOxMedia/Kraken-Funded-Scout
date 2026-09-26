@@ -398,6 +398,47 @@ _fake.get_password = lambda s, u: (
 check("8c.6", kc._keyring_creds() == (None, None)
       and kc._get_kraken_credentials() == (None, None),
       "no mixing: the client refuses an incomplete keyring pair exactly like the accessor")
+
+print("-- 8c.7-10: THE TIER REPORT (which tier SERVES the pair) --")
+def _tier_report():
+    buf = __import__("io").StringIO()
+    _old = sys.stdout
+    sys.stdout = buf
+    try:
+        ok = kc.check_credentials()
+    finally:
+        sys.stdout = _old
+    return ok, buf.getvalue()
+
+_fake.get_password = lambda s, u: (
+    "KR-KEYRING-KEY-0001" if u == "kraken_api_key" else
+    "c2VjcmV0MTIzNDU2Nzg5MA==" if u == "kraken_api_secret" else None)
+ok, txt = _tier_report()
+check("8c.7", ok is True and "tier: keyring" in txt and "key …0001" in txt,
+      f"the report names the SERVING tier + the key's tail only: {txt.strip()[:70]!r}")
+_os.environ["KRAKEN_API_KEY"] = "KC-KEY-DRIVE-1111"
+_os.environ["KRAKEN_API_SECRET"] = "c2VjcmV0MTIzNDU2Nzg5MA=="
+ok, txt = _tier_report()
+check("8c.8", ok is True and "tier: env" in txt
+      and "SHADOWED by env" in txt and "keyring" in txt,
+      "a stale lower tier holding a pair is called out as SHADOWED, not hidden")
+del _os.environ["KRAKEN_API_KEY"]
+del _os.environ["KRAKEN_API_SECRET"]
+db.set_setting("KRAKEN_API_KEY", "kseam-8888")
+db.set_setting("KRAKEN_API_SECRET", "c2VjcmV0MTIzNDU2Nzg5MA==")
+_fake.get_password = lambda s, u: None
+ok, txt = _tier_report()
+check("8c.9", ok is True and "tier: settings" in txt,
+      "the middle tier is named too — pool settings serving the pair")
+db.set_setting("KRAKEN_API_KEY", "")
+db.set_setting("KRAKEN_API_SECRET", "")
+ok, txt = _tier_report()
+check("8c.10", ok is False and "No complete API key/secret pair" in txt
+      and "OS environment" in txt and "Pool settings" in txt
+      and "OS keyring" in txt,
+      "not-found names EVERY tier it checked (the old message said "
+      "keyring only — factually stale since the seam grew tiers)")
+
 sys.modules.pop("keyring", None)              # real keyring re-imports later
 for _k, _v in _saved_env.items():
     _os.environ[_k] = _v
