@@ -56,6 +56,7 @@ async def dashboard():
     return HTMLResponse(content=template_path.read_text(encoding="utf-8"))
 
 
+
 # ─── API Key Auth ────────────────────────────────────────────
 
 def check_api_key(request: Request):
@@ -1308,7 +1309,8 @@ async def api_push_signals(request: Request):
     user = get_user_from_request(request)
     if not user:
         raise HTTPException(status_code=401, detail="login required")
-    return JSONResponse({"signals": push_svc.scrape_recent_signals()})
+    return JSONResponse({"signals":
+                         push_svc.scrape_recent_signals(int(user["id"]))})
 
 
 # ─────────────────────────────────────────────────────────────
@@ -1337,11 +1339,43 @@ _SCOUT_DROP_RESP_HEADERS = {
 }
 
 
+_SCOUT_LOGIN_PAGE = """<!DOCTYPE html>
+<html><head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Kraken Scout — Login Required</title>
+<style>
+  body{font-family:system-ui,sans-serif;background:#11111e;color:#e0e0e0;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;padding:16px;}
+  .box{background:#1a1a2e;border:2px solid #ffd700;border-radius:12px;padding:32px;max-width:400px;text-align:center;}
+  h1{color:#ffd700;font-size:1.3em;margin:0 0 12px;}
+  p{font-size:0.95em;line-height:1.6;margin:0 0 20px;}
+  a.btn{display:inline-block;background:linear-gradient(135deg,#8B6914,#B8860B);color:#fff;text-decoration:none;font-weight:700;padding:12px 28px;border-radius:8px;border:2px solid #ffd700;}
+  .hint{font-size:0.8em;color:#888;margin-top:16px;}
+</style>
+</head><body>
+<div class="box">
+  <h1>⚡ Kraken Scout Console</h1>
+  <p>Admin login required to view the live trading console.</p>
+  <a class="btn" href="/#admin">Log in on the site →</a>
+  <div class="hint">Tap the button, log in with your admin account,<br>then come back to this page.</div>
+</div>
+</body></html>"""
+
+
 def _scout_admin_or_403(request: Request):
     """Admin gate for scout HTTP endpoints."""
     user = get_user_from_request(request)
     if not user or not user.get("is_admin"):
         raise HTTPException(status_code=403, detail="Admin access required")
+    return user
+
+
+def _scout_admin_or_login_page(request: Request):
+    """Admin gate for the scout console pages — shows a friendly login
+    redirect page instead of a raw 403, so mobile users can log in."""
+    user = get_user_from_request(request)
+    if not user or not user.get("is_admin"):
+        return None
     return user
 
 
@@ -1384,7 +1418,20 @@ async def scout_index_redirect():
 )
 async def scout_proxy(rest_of_path: str, request: Request):
     """Reverse-proxy the local Streamlit console behind admin auth."""
-    _scout_admin_or_403(request)
+    user = _scout_admin_or_login_page(request)
+    if user is None:
+        # Not logged in (or not admin) — show friendly login redirect page
+        return HTMLResponse(content=_SCOUT_LOGIN_PAGE, status_code=403)
+
+    # Static assets (js/css/fonts) load without an explicit page visit;
+    # only block them with the plain 403 to avoid HTML in asset requests.
+    is_asset = (
+        rest_of_path.startswith("static/")
+        or rest_of_path.startswith("_stcore/")
+        or rest_of_path.endswith((".js", ".css", ".png", ".woff2", ".ttf", ".map", ".ico"))
+    )
+    if is_asset:
+        _scout_admin_or_403(request)
 
     target = f"{SCOUT_UPSTREAM}/{rest_of_path}"
     if request.url.query:
@@ -1435,6 +1482,14 @@ async def scout_ws_proxy(ws: WebSocket):
     close-frames from Cloudflare don't always propagate. Without cleanup each
     retry leaked a live upstream session — 167 of them wedged the console.
     Now: idle timeout on both pumps + a hard cap on concurrent relays.
+
+    Subprotocol fix (Aug 27): Streamlit's browser client sends
+    'Sec-WebSocket-Protocol' and REQUIRES the server to echo one back —
+    without it every real browser failed the handshake with
+    "Sent non-empty 'Sec-WebSocket-Protocol' header but no response was
+    received" (grey blinking boxes on the phone). curl/aiohttp tests never
+    caught it because they don't request a subprotocol. We now forward the
+    client's offered protocols upstream and echo back Streamlit's choice.
     """
     if not _scout_admin_ws(ws):
         await ws.close(code=1008)
@@ -1443,7 +1498,10 @@ async def scout_ws_proxy(ws: WebSocket):
         await ws.close(code=1013)  # try again later
         return
     _scout_ws_live["n"] += 1
-    await ws.accept()
+
+    # Capture the subprotocols the browser offered (comma-separated)
+    raw_protos = ws.headers.get("sec-websocket-protocol", "")
+    client_protos = [p.strip() for p in raw_protos.split(",") if p.strip()]
 
     session = aiohttp.ClientSession()
     try:
@@ -1452,6 +1510,7 @@ async def scout_ws_proxy(ws: WebSocket):
             headers={"Host": "127.0.0.1:8501", "Origin": SCOUT_UPSTREAM},
             compress=0,
             max_msg_size=_SCOUT_MAX_WS_MSG,
+            protocols=client_protos,  # offer the same subprotocols upstream
         )
     except Exception:
         try:
@@ -1461,6 +1520,12 @@ async def scout_ws_proxy(ws: WebSocket):
         await session.close()
         _scout_ws_live["n"] -= 1
         return
+
+    # Echo back the subprotocol Streamlit chose (or the first offered)
+    chosen = getattr(upstream, "protocol", None) or (
+        client_protos[0] if client_protos else None
+    )
+    await ws.accept(subprotocol=chosen)
 
     async def pump_client_to_upstream():
         try:
@@ -1523,6 +1588,25 @@ async def scout_ws_proxy(ws: WebSocket):
         except Exception:
             pass
         _scout_ws_live["n"] -= 1
+
+
+
+
+# -- SPA PATH FALLBACK (Sep 25 evening IV) -- the app is hash-routed
+# (/#dashboard) but users and bookmarks type plain paths. This sits
+# AFTER every specific route (so /push_sw.js, /scout, /api/* and
+# /static are never shadowed) and BEFORE the __main__ guard (so the
+# route registers before uvicorn.run blocks the interpreter).
+SPA_PAGES = ("dashboard", "admin", "signup", "howto", "realplay",
+             "leaderboard", "landing", "winners")
+
+
+@app.get("/{spa_page}", response_class=HTMLResponse)
+async def spa_path_fallback(spa_page: str):
+    if spa_page in SPA_PAGES:
+        return RedirectResponse(url=f"/#{spa_page}", status_code=302)
+    template_path = Path(__file__).parent / "templates" / "index.html"
+    return HTMLResponse(content=template_path.read_text(encoding="utf-8"))
 
 
 if __name__ == "__main__":

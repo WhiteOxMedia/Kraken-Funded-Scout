@@ -173,6 +173,12 @@ TRUTH_AUDIT = {
     "🏆":
         "(removed with the trust stamp - superseded by the Sep 25 "
         "evening II legality award)",
+    "Legal in All 50 States":
+        "(sticker removed by user order, Sep 25 evening IV - the claim "
+        "lives on the How It Works page)",
+    "No Gambling · No Purchase Needed":
+        "(sticker removed by user order, Sep 25 evening IV - the claim "
+        "lives on the How It Works page)",
 }
 unsanctioned = [s for s in missing if s not in TRUTH_AUDIT]
 check(1.1, not unsanctioned,
@@ -182,7 +188,7 @@ check(1.1, not unsanctioned,
          if unsanctioned else ""))
 _norm = re.sub(r"\s+", " ", html_mod.unescape(re.sub(r"<[^>]+>", " ", new_html)))
 not_landed = [new for new in TRUTH_AUDIT.values()
-              if not new.startswith("(removed")
+              if not new.startswith("(")
               and re.sub(r"\s+", " ", new) not in _norm]
 check(1.10, not not_landed,
       f"all {len(TRUTH_AUDIT)} audited rewordings are present "
@@ -240,8 +246,7 @@ check(1.6, len(added) < 220,
       f"on top of the {len(old_text)} preserved ones)")
 check(1.7, 'href="https://xmrjackpot.com"' in new_html,
       "the mandated phrases link the real origin (https)")
-for needle in ("Legal in All 50 States", "No Gambling · No Purchase Needed",
-               "A daily raffle that feels", "Create Your Free XMR Jackpot Account",
+for needle in ("A daily raffle that feels", "Create Your Free XMR Jackpot Account",
                "Your wallet is receive-only"):
     check(1.3, needle in new_html and needle in old_html,
           f"spot check byte-exact: {needle[:40]!r}")
@@ -534,26 +539,21 @@ check(8.5, not (HERE / "pool" / "templates" / "index.html")
       "AND the asset file is deleted from the repo (Sep 25 follow-up: "
       "zero template references, no static/img/miner_character.svg)")
 check(8.6, 'style="position:absolute;left:0;top:50%' not in new_html
-      and 'wf-award-hero' in new_html
+      and 'wf-award' not in new_html
       and 'style="margin:0 auto 18px;background:var(--surface-white);'
           'border:2px solid var(--mono-orange)' not in new_html,
-      "the old inline-styled trust stamp is GONE and the legality "
-      "award rides the wf-award-hero margin at desktop - user order, "
-      "Sep 25 evening II")
+      "the legality sticker is FULLY removed per user order, Sep 25 "
+      "evening IV (no wf-award markup, no old inline stamp, no "
+      "margin-pinned element in the hero)")
 check(8.7, new_html.count("miner_sprite") == 2
       and 'id="realMinerSprite1"' in new_html,
       "the pixel-art sprite remains ONLY in the app.js-wired realplay "
       "scene (2 refs; the one-click box and the solo-vs-pool comparison "
       "now carry flat design-system numerals - user report, Sep 25)")
-check(8.8, 'wf-award-top' in new_html and 'wf-award-why' in new_html
-      and 'Why this claim holds:' in new_html
-      and 'the miners do the work, so this is a raffle, not gambling' in new_html
-      and 'the transfer fee eats most of what you mined' in new_html
-      and '100 shares = 1 entry' in new_html,
-      "the award carries its ? reveal: the raffle rationale (miners do "
-      "the work, so it is a raffle, not gambling) and the transfer-fee "
-      "argument for why solo mining fails and the jackpot wins - user "
-      "order, Sep 25 evening II")
+check(8.8, 'position:absolute' not in new_html
+      and 'position: absolute' not in new_html,
+      "nothing is margin-pinned or absolutely positioned in the "
+      "homepage - everything centers per user order, Sep 25 evening IV")
 
 shutil.rmtree(SANDBOX, ignore_errors=True)
 print(f"RESULT: {passed} passed, {failed} failed")
