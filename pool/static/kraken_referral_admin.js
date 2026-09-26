@@ -47,8 +47,8 @@
       '<div class="card-header">Kraken Referral Projection — Provider Config</div>' +
       '<div style="font-size:0.8em;color:var(--text-mute);margin-bottom:10px;">' +
       modeBadge +
-      (cfg.api_key.set ? " · key on file " + esc(cfg.api_key.tail) : " · no key") +
-      (cfg.api_secret.set ? " · secret on file " + esc(cfg.api_secret.tail) : " · no secret") +
+      (cfg.api_key.set ? " · key on file (" + esc(cfg.api_key.source || "settings") + ") " + esc(cfg.api_key.tail) : " · no key") +
+      (cfg.api_secret.set ? " · secret on file (" + esc(cfg.api_secret.source || "settings") + ") " + esc(cfg.api_secret.tail) : " · no secret") +
       "</div>" +
       field("Kraken API key (blank = keep stored)", "krApiKey", "password",
             cfg.api_key.set ? "stored …" + cfg.api_key.tail : "paste API key") +

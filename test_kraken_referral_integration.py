@@ -232,9 +232,16 @@ r = anon.get("/api/admin/kraken-referral/config")
 check(8.1, r.status_code in (401, 403), f"config read admin-gated: {r.status_code}")
 r = client.get("/api/admin/kraken-referral/config")
 cfg = r.json()
+# (on a box whose OS keyring holds the kraken pair — setup_kraken.py —
+# the tier-aware mask HONESTLY reports it; the pin is consistency,
+# not environment-specific absence)
 check(8.2, r.status_code == 200 and cfg["mode"] == "unconfigured"
-      and cfg["api_key"]["set"] is False and cfg["api_secret"]["tail"] == "",
-      f"config read reflects the clean state: {cfg['mode']}")
+      and (not cfg["api_key"]["set"]
+           or cfg["api_key"]["source"] == "keyring")
+      and (not cfg["api_secret"]["set"]
+           or cfg["api_secret"]["source"] == "keyring"),
+      f"config read reflects the unconfigured mode with honest tiers: "
+      f"{cfg['mode']}, key={cfg['api_key']}")
 r = client.post("/api/admin/kraken-referral/config", json={
     "api_key": "ktest1234567890", "api_secret": "c2VjcmV0MTIzNDU2Nzg5MA==",
     "endpoint": "https://api.kraken.localhost/0/private/ReferralStatus",
@@ -280,6 +287,72 @@ with db.get_db() as conn:
 check(8.9, n >= 3 and n2 >= 2, f"audits: {n} tests, {n2} config updates")
 r = client.post("/api/admin/kraken-referral/test", json={})
 check(8.10, r.status_code == 400, "test without referral_id -> 400")
+
+print("== 8b. THE KEYRING TIER (settings -> OS credential store) ==")
+# The accessor must see settings FIRST, then the OS keyring (Windows
+# Credential Manager, where setup_kraken.py stores the pair) — the
+# secret never copied into the database, the keyring never written.
+# (section 8.8 left KRAKEN_REFERRAL_MODE=simulate — clear it, the
+# operator's labeled dry-run would mask the tier checks below)
+db.set_setting("KRAKEN_REFERRAL_MODE", "")
+check("8b.1", kr.kraken_credentials() ==
+      ("kcanon99999999", "c2VjcmV0MTIzNDU2Nzg5MA==", "settings"),
+      "settings tier wins while both are populated")
+import types
+_fake = types.ModuleType("keyring")
+_set_calls = []
+_fake.set_password = lambda s, u, v: _set_calls.append((s, u, v))
+_fake.get_password = lambda s, u: (
+    "KR-KEYRING-KEY-0001" if u == "kraken_api_key" else
+    "c2VjcmV0MTIzNDU2Nzg5MA==" if u == "kraken_api_secret" else None)
+sys.modules["keyring"] = _fake
+db.set_setting("KRAKEN_API_KEY", "")
+db.set_setting("KRAKEN_API_SECRET", "")
+_k, _s, _src = kr.kraken_credentials()
+check("8b.2", (_k, _s, _src) == ("KR-KEYRING-KEY-0001",
+                                 "c2VjcmV0MTIzNDU2Nzg5MA==", "keyring")
+      and db.get_setting("KRAKEN_API_KEY", "") == "",
+      "keyring fallback serves the pair; nothing copied into settings")
+check("8b.3", kr.provider_mode() == "live",
+      "live mode is tier-agnostic (keyring creds + endpoint)")
+r = client.get("/api/admin/kraken-referral/config")
+_cfg = r.json()
+check("8b.4", _cfg["api_key"]["source"] == "keyring"
+      and _cfg["api_key"]["tail"] == "…0001"
+      and _cfg["api_secret"]["source"] == "keyring"
+      and _cfg["api_secret"]["tail"] == "…MA=="
+      and "KR-KEYRING-KEY-0001" not in r.text
+      and _cfg["mode"] == "live",
+      f"config card masks the keyring tier: {_cfg['api_key']}")
+_fake.get_password = lambda s, u: (
+    "KR-KEYRING-KEY-0001" if u == "kraken_api_key" else None)
+check("8b.5", kr.kraken_credentials() == ("", "", "")
+      and kr.provider_mode() == "unconfigured",
+      "no mixing: an incomplete keyring pair is not half-adopted")
+_fake.get_password = lambda s, u: (
+    "KR-KEYRING-KEY-0001" if u == "kraken_api_key" else
+    "c2VjcmV0MTIzNDU2Nzg5MA==" if u == "kraken_api_secret" else None)
+db.set_setting("KRAKEN_API_KEY", "kcanon99999999")
+db.set_setting("KRAKEN_API_SECRET", "c2VjcmV0MTIzNDU2Nzg5MA==")
+check("8b.6", kr.kraken_credentials()[2] == "settings",
+      "re-provisioned settings win again (tier preference)")
+sys.modules["keyring"] = None            # import of keyring raises
+
+sys.modules.pop("keyring")
+sys.modules["keyring"] = None
+try:
+    _res = kr.kraken_credentials()
+except Exception as _e:
+    _res = ("raised", str(_e))
+sys.modules.pop("keyring", None)         # real keyring re-imports later
+# settings were restored in 8b.6 — WITHOUT a keyring backend the
+# settings tier is exactly what must answer
+check("8b.7", _res == ("kcanon99999999", "c2VjcmV0MTIzNDU2Nzg5MA==",
+                       "settings"),
+      f"no keyring backend degrades to settings-only: {_res}")
+check("8b.8", _set_calls == [],
+      "the keyring was NEVER written by the server surface")
+db.set_setting("KRAKEN_REFERRAL_MODE", "")
 
 print("== 9. THE MAPPING SHEET: real kraken_referral_id column ==")
 anon2 = TestClient(srv.app)

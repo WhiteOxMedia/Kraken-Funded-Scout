@@ -6,17 +6,24 @@ equivalent, and maintains a self-adjusting "possible future jackpot"
 (jackpot_projection) that the UI shows as an ESTIMATE.
 
 PROVIDER HONESTY: the Kraken referral API is only used when the
-operator has provisioned settings (KRAKEN_API_KEY / KRAKEN_API_SECRET
-/ KRAKEN_REFERRAL_ENDPOINT, optionally KRAKEN_REFERRAL_TTL_SECONDS,
-KRAKEN_REFERRAL_BATCH_SIZE, KRAKEN_REFERRAL_MAX_RETRIES,
-KRAKEN_REFERRAL_CONFIDENCE, KRAKEN_PROJECTION_SPIKE_PCT). Without
-credentials the worker refuses the live provider and — only when
-mode="simulate" — runs the same pipeline against DETERMINISTIC test
-fixtures, clearly labeled source "kraken_referral_sim_v1". Nothing is
-ever presented as a live Kraken number when it is not one.
+operator has provisioned credentials — KRAKEN_API_KEY /
+KRAKEN_API_SECRET (settings first, then the OS keyring: Windows
+Credential Manager, where setup_kraken.py stores them — the secrets
+NEVER leave that store for the database) plus
+KRAKEN_REFERRAL_ENDPOINT (settings only), optionally
+KRAKEN_REFERRAL_TTL_SECONDS, KRAKEN_REFERRAL_BATCH_SIZE,
+KRAKEN_REFERRAL_MAX_RETRIES, KRAKEN_REFERRAL_CONFIDENCE,
+KRAKEN_PROJECTION_SPIKE_PCT. Without credentials the worker refuses
+the live provider and — only when mode="simulate" — runs the same
+pipeline against DETERMINISTIC test fixtures, clearly labeled source
+"kraken_referral_sim_v1". Nothing is ever presented as a live Kraken
+number when it is not one.
 
-CONFIG COMES FROM settings ONLY (the existing convention — no
-hardcoded keys, no hardcoded URLs, no env surprises).
+CONFIG COMES FROM settings (the existing convention — no hardcoded
+keys, no hardcoded URLs, no env surprises) with ONE read-only
+fallback: the OS keyring for the key/secret pair, shared with
+src/kraken_client.py so both halves of the project see the same
+provisioned identity.
 """
 import hashlib
 import hmac
@@ -59,6 +66,53 @@ def _cfg(name, default, cast=str):
         return default
 
 
+# ── THE CREDENTIAL ACCESSOR (keyring fallback, Sep 26) ────────────
+# One way for this module to see the operator's Kraken identity:
+# settings first (explicit provisioning through the admin panel),
+# then the OS keyring (Windows Credential Manager — the store
+# setup_kraken.py writes and src/kraken_client.py reads). Read-only:
+# the keyring is never written, and the fallback never copies the
+# secret into the database — that is the entire point of the tiered
+# storage. Import-guarded so boxes without a keyring backend degrade
+# to settings-only behavior instead of erroring.
+KEYRING_SERVICE = "kraken"
+KEYRING_KEY_USER = "kraken_api_key"
+KEYRING_SEC_USER = "kraken_api_secret"
+
+
+def _keyring_creds():
+    try:
+        import keyring
+    except Exception:
+        return None
+    try:
+        key = str(keyring.get_password(KEYRING_SERVICE,
+                                       KEYRING_KEY_USER) or "").strip()
+        sec = str(keyring.get_password(KEYRING_SERVICE,
+                                       KEYRING_SEC_USER) or "").strip()
+    except Exception:
+        # a locked/unavailable backend counts as "not provisioned
+        # there" — settings remain the source of truth
+        return None
+    if key and sec:
+        return {"key": key, "secret": sec}
+    return None
+
+
+def kraken_credentials():
+    """(api_key, api_secret, source) with source in 'settings',
+    'keyring', or '' (unconfigured). The pair must be COMPLETE from
+    ONE tier — no mixing a settings key with a keyring secret."""
+    key = str(db.get_setting("KRAKEN_API_KEY", "") or "").strip()
+    sec = str(db.get_setting("KRAKEN_API_SECRET", "") or "").strip()
+    if key and sec:
+        return key, sec, "settings"
+    kr = _keyring_creds()
+    if kr:
+        return kr["key"], kr["secret"], "keyring"
+    return "", "", ""
+
+
 def _ttl():
     return max(60, _cfg(PROJECTION_TTL_KEY, 3600, int))
 
@@ -74,8 +128,7 @@ def provider_mode():
     otherwise 'unconfigured'."""
     if (db.get_setting(PROJECTION_MODE_KEY, "") or "") == "simulate":
         return "simulate"
-    key = db.get_setting("KRAKEN_API_KEY", "")
-    sec = db.get_setting("KRAKEN_API_SECRET", "")
+    key, sec, _src = kraken_credentials()
     ep = db.get_setting("KRAKEN_REFERRAL_ENDPOINT", "")
     if key and sec and ep:
         return "live"
@@ -226,8 +279,7 @@ def fetch_user_status(user_id, referral_id):
             resp = {"referral_id": referral_id, "status": "active",
                     "last_updated": "sim"}
         return {"ok": True, "raw": resp, "mode": mode}
-    api_key = db.get_setting("KRAKEN_API_KEY", "")
-    api_secret = db.get_setting("KRAKEN_API_SECRET", "")
+    api_key, api_secret, _src = kraken_credentials()
     endpoint = db.get_setting("KRAKEN_REFERRAL_ENDPOINT", "")
     tries = _cfg(PROJECTION_RETRIES_KEY, 4, int)
     delay = 1.0

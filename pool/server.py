@@ -1410,9 +1410,11 @@ async def api_admin_kraken_referral_run(request: Request):
     if kr.provider_mode() == "unconfigured":
         raise HTTPException(
             status_code=503,
-            detail="Kraken referral API not configured: set KRAKEN_API_KEY, "
-                   "KRAKEN_API_SECRET and KRAKEN_REFERRAL_ENDPOINT in "
-                   "settings (or KRAKEN_REFERRAL_MODE=simulate for the "
+            detail="Kraken referral API not configured: provision "
+                   "KRAKEN_API_KEY / KRAKEN_API_SECRET (settings, or "
+                   "the OS keyring where setup_kraken.py stores them) "
+                   "AND KRAKEN_REFERRAL_ENDPOINT in settings (or "
+                   "KRAKEN_REFERRAL_MODE=simulate for the "
                    "clearly-labeled simulation)")
     summary = kr.run_worker(subset_limit=subset)
     return JSONResponse(summary)
@@ -1425,8 +1427,18 @@ async def api_admin_kraken_referral_config(request: Request):
     are set, so the form can show state without re-exposing material."""
     require_admin(request)
     def _tail(name):
-        v = str(db.get_setting(name, "") or "")
-        return {"set": bool(v), "tail": ("…" + v[-4:]) if v else ""}
+        # TIER-AWARE MASK (Sep 26): the credential may live in settings
+        # (sealed at rest) or in the OS keyring (Windows Credential
+        # Manager, via setup_kraken.py) — the card reports WHICH tier
+        # holds it and still only ever shows the last four characters.
+        v = str(db.get_setting(name, "") or "").strip()
+        if v:
+            return {"set": True, "tail": "…" + v[-4:], "source": "settings"}
+        key, sec, src = kr.kraken_credentials()
+        held = (key if name == "KRAKEN_API_KEY" else sec)
+        if held:
+            return {"set": True, "tail": "…" + held[-4:], "source": src}
+        return {"set": False, "tail": "", "source": ""}
     return JSONResponse({
         "api_key": _tail("KRAKEN_API_KEY"),
         "api_secret": _tail("KRAKEN_API_SECRET"),
@@ -1445,8 +1457,10 @@ async def api_admin_kraken_referral_config(request: Request):
 @app.post("/api/admin/kraken-referral/config")
 async def api_admin_kraken_referral_config_set(request: Request):
     """Admin write of the provider config. Secrets are write-only:
-    a blank field leaves the stored value untouched; anything typed is
-    stored verbatim (the response only ever echoes masked tails)."""
+    a blank field leaves the stored value untouched (the OS keyring
+    is NEVER written here — tiered storage stays where the operator
+    put it); anything typed is stored verbatim (the response only
+    ever echoes masked tails)."""
     require_admin(request)
     body = await _push_body(request)
     updates = []
