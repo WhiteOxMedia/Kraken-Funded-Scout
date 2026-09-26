@@ -78,6 +78,58 @@
       "Config lives in the settings table (write-only secrets). Every save " +
       "and every test is audited (kraken_referral.*). The projection worker " +
       "reads this config on its next run.</div>" +
+      schedSection(cfg) +
+      "</div>");
+  }
+
+  function schedSection(cfg) {
+    var s = cfg.scheduler || {};
+    var w = s.window || {};
+    var alive = s.thread_alive;
+    var hb = (s.heartbeat_age_s == null)
+      ? "no heartbeat yet"
+      : "heartbeat " + s.heartbeat_age_s + "s ago";
+    var lastW = s.last_worker || {};
+    var lastTxt = lastW.ts
+      ? (lastW.reason === "unconfigured"
+         ? "last cycle skipped: provider unconfigured"
+         : "worker last ran " + Math.round((Date.now() / 1000 - lastW.ts)) + "s ago")
+      : "never run";
+    var winTxt = w.configured
+      ? ("expires " + esc(w.expires_iso) + " (" +
+         (w.expired ? "EXPIRED" : Math.round(w.seconds_remaining / 3600) + "h left") + ")")
+      : "no expiry on the operator calendar";
+    return (
+      '<div style="margin-top:14px;padding-top:10px;' +
+      'border-top:1px solid var(--hairline,rgba(255,255,255,.12));">' +
+      '<div style="font-size:0.85em;font-weight:700;margin-bottom:6px;">' +
+      "Scheduler — hourly worker + expiry notice</div>" +
+      '<div style="font-size:0.78em;color:var(--text-mute);margin-bottom:8px;">' +
+      (alive ? '<span style="color:var(--emerald-bright,#2ecc71);">&#9679; thread alive</span> '
+             : '<span style="color:var(--text-mute,#9a9a9a);">&#9675; thread not running</span> ') +
+      esc(hb) + " · " + esc(lastTxt) + "</div>" +
+      '<label style="display:flex;gap:8px;align-items:center;margin:6px 0;' +
+      'font-size:0.85em;color:var(--text-dim,#bbb);">' +
+      '<input type="checkbox" id="krSchedEnabled"' +
+      (s.enabled ? " checked" : "") + "> run worker hourly + fire the " +
+      "expiry notice</label>" +
+      field("Interval seconds (min 300)", "krSchedInterval", "number",
+            "3600", String(s.interval_s || 3600)) +
+      field("Referral window expiry (local time — the notice fires " +
+            "once, inside the final 48h)", "krExpiry", "datetime-local", "", "") +
+      '<div style="font-size:0.78em;color:var(--text-mute);margin:4px 0 8px;">' +
+      winTxt + "</div>" +
+      '<div style="display:flex;gap:8px;">' +
+      '<button id="krSchedSave" class="btn btn-emerald" style="flex:1;">' +
+      "Save scheduler + window</button>" +
+      '<button id="krExpiryClear" class="btn" style="flex:0 0 auto;">' +
+      "Clear expiry</button></div>" +
+      '<button id="krTick" class="btn" style="width:100%;margin-top:8px;">' +
+      "Run one scheduler cycle now</button>" +
+      '<pre id="krSchedOut" style="display:none;margin-top:8px;padding:10px;' +
+      'background:var(--bg-deep,#0d1117);border:1px solid var(--hairline,' +
+      'rgba(255,255,255,.14));border-radius:6px;font-size:0.75em;' +
+      'white-space:pre-wrap;word-break:break-all;max-height:220px;overflow:auto;"></pre>' +
       "</div>");
   }
 
@@ -133,6 +185,51 @@
     });
   }
 
+  function wireSched() {
+    var out = document.getElementById("krSchedOut");
+    document.getElementById("krSchedSave").addEventListener("click", function () {
+      var btn = this;
+      btn.disabled = true;
+      var body = {
+        scheduler_enabled: document.getElementById("krSchedEnabled").checked,
+        interval_s: parseInt(document.getElementById("krSchedInterval").value, 10) || 3600
+      };
+      var lv = document.getElementById("krExpiry").value;
+      if (lv) { body.expires_at = new Date(lv).getTime() / 1000; }
+      fetch("/api/admin/kraken-referral/config", {
+        method: "POST", credentials: "same-origin",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body)
+      }).then(function (r) { return r.json().then(function (j) {
+        return { ok: r.ok, j: j };
+      }); }).then(function (res) {
+        btn.disabled = false;
+        show(out, res.ok ? "saved: " + (res.j.updated || []).join(", ")
+                         : { error: res.j.detail || "save failed" });
+        if (res.ok) { setTimeout(function () { location.reload(); }, 900); }
+      }).catch(function (e) { btn.disabled = false; show(out, "request failed: " + e); });
+    });
+    document.getElementById("krExpiryClear").addEventListener("click", function () {
+      fetch("/api/admin/kraken-referral/config", {
+        method: "POST", credentials: "same-origin",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ clear_window: true })
+      }).then(function (r) { return r.json(); })
+        .then(function (j) { show(out, j); setTimeout(function () { location.reload(); }, 900); });
+    });
+    document.getElementById("krTick").addEventListener("click", function () {
+      var btn = this;
+      btn.disabled = true;
+      show(out, "running one scheduler cycle …");
+      fetch("/api/admin/scheduler/tick", {
+        method: "POST", credentials: "same-origin",
+        headers: { "Content-Type": "application/json" }, body: "{}"
+      }).then(function (r) { return r.json(); })
+        .then(function (j) { show(out, j); btn.disabled = false; })
+        .catch(function (e) { show(out, "request failed: " + e); btn.disabled = false; });
+    });
+  }
+
   function mount() {
     if (document.getElementById(CARD_ID)) { return true; }
     var page = document.getElementById("page-admin");
@@ -149,6 +246,7 @@
         if (!cfg) { wrap.remove(); return; }   // 401/403: not an admin
         wrap.innerHTML = render(cfg);
         wire(cfg);
+        wireSched();
       })
       .catch(function () { wrap.remove(); });
     return true;

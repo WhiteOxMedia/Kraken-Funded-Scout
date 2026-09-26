@@ -30,6 +30,7 @@ for the machine leg), plus a /push_sw.js root-path route so the service
 worker scopes to / (the /static/ default scope could never control
 pages at / — caught by the live e2e proof).
 """
+import base64
 import calendar
 import json
 import time
@@ -100,6 +101,14 @@ EVENTS = {
         "url": "/",
         "rate": 4,
     },
+    "push_test": {
+        "title": "🔔 Push test from xmrjackpot",
+        "body": ("This is what a xmrjackpot notification looks like "
+                 "on this device — you are all set."),
+        "tag": "push-test",
+        "url": "/",
+        "rate": 4,
+    },
     "referral_window": {
         "title": "⏳ Referral window closing",
         "body": ("Your Kraken referral bonus window is about to "
@@ -122,6 +131,7 @@ CATEGORY = {
     "ticket_update": "jackpot",
     "miner_status": "jackpot",
     "referral_window": "jackpot",
+    "push_test": "jackpot",
     "signal_buy": "scout",
     "signal_exit": "scout",
 }
@@ -236,6 +246,87 @@ def public_key() -> str:
     """The OPERATOR-provisioned VAPID public key (settings). Empty
     until provisioned — the client degrades quietly."""
     return str(db.get_setting("VAPID_PUBLIC_KEY", "") or "")
+
+
+def vapid_status() -> dict:
+    """Read-only posture for the admin card: whether real delivery
+    can work, and which provision path produced the keys."""
+    priv = str(db.get_setting("VAPID_PRIVATE_KEY", "") or "")
+    pub = public_key()
+    return {
+        "provisioned": bool(priv and pub),
+        "source": str(db.get_setting("VAPID_SOURCE", "") or "") or
+                  ("operator" if priv and pub else ""),
+        "public_key_tail": ("…" + pub[-8:]) if pub else "",
+        "private_key_tail": ("…" + priv[-4:]) if priv else "",
+    }
+
+
+def vapid_ensure(generate: bool = False, _force: bool = False):
+    """Provision the VAPID pair so phones actually receive pushes.
+    py_vapid is OPTIONAL: without it the caller gets a precise error
+    instead of a half-written keypair. generate=True creates a fresh
+    pair ONLY when none is stored (never clobbers operator keys —
+    rotation is its own explicit call, which is the only path that
+    sets _force). Keys are stored as PEM: the private key is exactly
+    the PKCS8 string pywebpush accepts, and the public key is the
+    urlb64 P-256 point browsers need as applicationServerKey."""
+    try:
+        from py_vapid import Vapid
+    except Exception:
+        return {"ok": False,
+                "reason": "py_vapid not installed in the server venv"}
+    priv = str(db.get_setting("VAPID_PRIVATE_KEY", "") or "")
+    pub = public_key()
+    if priv and pub and not generate:
+        return {"ok": True, "created": False,
+                "mode": "already provisioned", "source":
+                str(db.get_setting("VAPID_SOURCE", "") or "") or "operator"}
+    if generate and (priv or pub) and not _force:
+        return {"ok": False,
+                "reason": "keys already exist — use rotate (this "
+                          "never overwrites silently)",
+                "source": str(db.get_setting("VAPID_SOURCE", "") or "")
+                          or "operator"}
+    v = Vapid()
+    v.generate_keys()
+    priv_pem = v.private_pem().decode("ascii")
+    pub_pem = v.public_pem().decode("ascii")
+    # applicationServerKey for pushManager.subscribe(): the raw 65-byte
+    # uncompressed EC point is the tail of the SPKI DER of the P-256
+    # public key.
+    der = base64.b64decode("".join(
+        l for l in pub_pem.splitlines() if "-----" not in l))
+    app_key = base64.urlsafe_b64encode(der[-65:]).decode("ascii").rstrip("=")
+    point = base64.urlsafe_b64decode(app_key + "==")
+    if len(app_key) != 87 or len(point) != 65 or point[0] != 0x04:
+        return {"ok": False, "reason": "generated key failed sanity check"}
+    db.set_setting("VAPID_PRIVATE_KEY", priv_pem)
+    db.set_setting("VAPID_PUBLIC_KEY", app_key)
+    db.set_setting("VAPID_SOURCE", "generated")
+    return {"ok": True, "created": True, "source": "generated",
+            "public_key": app_key}
+
+
+def vapid_rotate():
+    """Issue a NEW keypair, keeping the old one as VAPID_PREVIOUS just
+    long enough to re-subscribe devices: rotating invalidates every
+    existing subscription, so the honest contract is 'rotate only as
+    part of a re-subscribe campaign' — the operator trigger returns
+    the new public key and the count of subscriptions that will need
+    to re-enable."""
+    prior = str(db.get_setting("VAPID_PRIVATE_KEY", "") or "")
+    if not prior:
+        return {"ok": False, "reason": "no keys to rotate — ensure first"}
+    res = vapid_ensure(generate=True, _force=True)
+    if not res.get("ok"):
+        return res
+    db.set_setting("VAPID_PREVIOUS", prior)
+    subs = _load(SUBS_KEY)
+    db.set_setting("VAPID_SOURCE", "rotated")
+    return {"ok": True, "rotated": True, "source": "rotated",
+            "public_key": public_key(),
+            "subscriptions_needing_resubscribe": len(subs)}
 
 
 def subscribe(user_id: int, subscription: dict) -> dict:

@@ -1297,6 +1297,7 @@ async def api_admin_wallet_status(request: Request):
 #  returns its run summary for the canary report.
 # ─────────────────────────────────────────────────────────────
 import kraken_referral as kr
+import scheduler as kr_sched
 
 
 @app.get("/api/jackpot/projection")
@@ -1373,6 +1374,7 @@ async def api_admin_kraken_referral_config(request: Request):
         "batch_size": kr._cfg(kr.PROJECTION_BATCH_KEY, 25, int),
         "confidence": kr._confidence(),
         "spike_pct": kr._cfg(kr.PROJECTION_SPIKE_KEY, 25.0, float),
+        "scheduler": kr_sched.status(),
     })
 
 
@@ -1408,10 +1410,112 @@ async def api_admin_kraken_referral_config_set(request: Request):
                        "simulate" if sim else "")
         updates.append("KRAKEN_REFERRAL_MODE="
                        + ("simulate" if sim else "live-or-unconfigured"))
+    # THE SCHEDULER + EXPIRY CALENDAR (user flow, Sep 26): enable/disable
+    # and interval ride the same admin surface; the expiry is the
+    # operator-defined calendar the notice leg obeys.
+    if "scheduler_enabled" in body:
+        db.set_setting(kr_sched.ENABLED_KEY,
+                       "1" if body.get("scheduler_enabled") else "0")
+        updates.append("SCHEDULER_ENABLED="
+                       + ("1" if body.get("scheduler_enabled") else "0"))
+    if "interval_s" in body:
+        try:
+            iv = int(body.get("interval_s"))
+        except (TypeError, ValueError):
+            raise HTTPException(status_code=400,
+                                detail="interval_s must be an integer >= 300")
+        if iv < 300:
+            raise HTTPException(status_code=400,
+                                detail="interval_s must be an integer >= 300")
+        db.set_setting(kr_sched.INTERVAL_KEY, str(iv))
+        updates.append("SCHEDULER_INTERVAL_S=" + str(iv))
+    if "clear_window" in body and body.get("clear_window"):
+        db.set_setting(kr_sched.WINDOW_KEY, "")
+        updates.append("KRAKEN_REFERRAL_WINDOW (cleared)")
+    elif "expires_at" in body:
+        try:
+            exp = float(body.get("expires_at"))
+        except (TypeError, ValueError):
+            raise HTTPException(status_code=400,
+                                detail="expires_at must be epoch seconds")
+        if exp <= 0:
+            raise HTTPException(status_code=400,
+                                detail="expires_at must be in the future")
+        db.set_setting(kr_sched.WINDOW_KEY,
+                       json.dumps({"expires_at": exp}))
+        updates.append("KRAKEN_REFERRAL_WINDOW="
+                       + time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(exp)))
     kr.emit_audit(None, "kraken_referral.config_updated",
                   updated=updates, by="admin_panel")
+    if any(u.startswith("SCHEDULER_ENABLED=") for u in updates):
+        if kr_sched._enabled():
+            kr_sched.start()
+            updates.append("scheduler thread started")
+        else:
+            kr_sched.stop()
+            updates.append("scheduler thread stopped")
     return JSONResponse({"ok": True, "updated": updates,
                          "mode": kr.provider_mode()})
+
+
+@app.get("/api/admin/push/vapid")
+async def api_admin_push_vapid(request: Request):
+    """Admin read of the VAPID posture (no key material — tails only,
+    exactly like the referral secrets)."""
+    require_admin(request)
+    st = push_svc.vapid_status()
+    st["library_ok"] = True
+    try:
+        import py_vapid  # noqa: F401
+    except Exception:
+        st["library_ok"] = False
+    return JSONResponse(st)
+
+
+@app.post("/api/admin/push/vapid")
+async def api_admin_push_vapid_act(request: Request):
+    """THE PROVISIONING LEG (user flow, Sep 26): ensure (create the
+    pair when none exists), rotate (deliberate, audited, keeps the old
+    key for a re-subscribe campaign), or test (one real push through
+    the sender to the calling admin's own devices — the same path a
+    phone will see)."""
+    admin = require_admin(request)
+    body = await _push_body(request)
+    action = str(body.get("action") or "ensure")
+    if action == "ensure":
+        res = push_svc.vapid_ensure()
+    elif action == "rotate":
+        res = push_svc.vapid_rotate()
+    elif action == "test":
+        if not push_svc.vapid_status()["provisioned"]:
+            res = {"ok": False,
+                   "reason": "VAPID keys not provisioned — ensure first"}
+        else:
+            res = push_svc.send_to_user(int(admin["id"]), "push_test")
+    else:
+        raise HTTPException(status_code=400,
+                            detail="action must be ensure|rotate|test")
+    kr.emit_audit(None, "kraken_referral.vapid_action",
+                  vapid_action=action, ok=bool(res.get("ok")),
+                  source=res.get("source"), sent=res.get("sent"),
+                  reason=res.get("reason"))
+    return JSONResponse(res)
+
+
+@app.get("/api/admin/scheduler/status")
+async def api_admin_scheduler_status(request: Request):
+    require_admin(request)
+    return JSONResponse(kr_sched.status())
+
+
+@app.post("/api/admin/scheduler/tick")
+async def api_admin_scheduler_tick(request: Request):
+    """Operator trigger for ONE scheduler cycle (the exact code the
+    timer runs): worker leg per its interval/unconfigured gates, then
+    the notice leg per the expiry calendar. Tests use tick_once
+    directly; this route is the production-equivalent probe."""
+    require_admin(request)
+    return JSONResponse(kr_sched.tick_once(reason="admin_manual"))
 
 
 @app.post("/api/admin/kraken-referral/test")
@@ -2157,6 +2261,10 @@ if __name__ == "__main__":
 
     scanner = threading.Thread(target=payment_scanner_loop, daemon=True)
     scanner.start()
+
+    # THE RECURRING LEG: hourly referral worker + expiry-calendar notice,
+    # started only when SCHEDULER_ENABLED=1 (admin card flips it).
+    kr_sched.start()
 
     port = int(os.environ.get("APP_PORT", 80))
     uvicorn.run(app, host="0.0.0.0", port=port)

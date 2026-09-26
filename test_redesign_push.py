@@ -339,7 +339,10 @@ check(4.1, ps.EVENTS["signal_buy"]["title"] == "📈 BUY NOW"
                              "ticket_update",
                              # Sep 26 charter extension: the referral-
                              # window expiry notice (user-mandated)
-                             "referral_window"},
+                             "referral_window",
+                             # Sep 26: the VAPID test-push event
+                             # (admin 'send test to my devices')
+                             "push_test"},
       "the charter's event set with byte-exact signal titles")
 check(4.2, ps.send_to_user(7, "not_an_event")["reason"] == "unknown event",
       "an unknown event is refused")
