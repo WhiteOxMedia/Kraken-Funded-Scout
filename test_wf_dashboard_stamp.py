@@ -26,6 +26,17 @@ DOM + fetch and pins:
      the stamp and the extras are ignored
   9. an envelope-less announcement is a NO-OP: the detail guard drops
      it and the previous stamp survives (no clobber, no crash)
+ 10. THE SIGNALS FEED: rows render in order with titles escaped, the
+     epoch stamp routed through the SHARED relTime exporter, and the
+     <time> title attribute carrying the exact UTC moment
+ 11. THE ESC CONTRACT against an XSS payload: hostile titles land in
+     the feed ESCAPED (all five HTML-specials) — no raw <img/<script
+     markup can reach feed.innerHTML — and a garbage ts leaves the
+     unescaped time-title attribute EMPTY (its own guard)
+ 12. THE FEED'S THREE STATES: an empty list renders the honest
+     empty-state line, a NULL answer (the 401 after logout, fired
+     through the captured 60s poll) CLEARS the previous user's rows,
+     and a network rejection renders the failure line
 
 No network, no browser: Node is required, everything else is stubbed.
 Prints "RESULT: N passed, M failed".
@@ -300,6 +311,97 @@ async function scenario(name) {
     return 'announce_conflict_envelope ok';
   }
 
+  if (name === 'signals_rows_render') {
+    answers = { '/api/push/preferences': { status: 200, json: ENV_A },
+                '/api/auth/me': { status: 200, json: { authenticated: false } },
+                '/api/profile/stats': { status: 401, json: {} },
+                '/api/push/signals': { status: 200, json: { signals: [
+                  { title: 'Scout fired', ts: 1790000000 },
+                  { title: 'Second signal', ts: 1790000060 } ] } } };
+    loadNow();
+    await flushAll();
+    const html = els.wfSignalFeed.innerHTML;
+    assert.ok(html.indexOf('wf-feed-row') >= 0 && html.indexOf('<time ') >= 0,
+              'rows render as wf-feed-row markup with <time> elements');
+    assert.ok(html.indexOf('Scout fired') >= 0 && html.indexOf('Second signal') >= 0
+              && html.indexOf('Scout fired') < html.indexOf('Second signal'),
+              'both titles render, feed order preserved');
+    assert.ok(html.indexOf('SHARED[2026-09-21T14:13:20.000Z]') >= 0,
+              'the epoch stamp routes through the SHARED relTime exporter ' +
+              '(epoch seconds converted to ISO first): ' + html.slice(0, 160));
+    assert.ok(html.indexOf('title="2026-09-21T14:13:20.000Z"') >= 0,
+              'the <time> hover carries the exact UTC moment');
+    return 'signals_rows_render ok';
+  }
+
+  if (name === 'signals_xss_escaping') {
+    answers = { '/api/push/preferences': { status: 200, json: ENV_A },
+                '/api/auth/me': { status: 200, json: { authenticated: false } },
+                '/api/profile/stats': { status: 401, json: {} },
+                '/api/push/signals': { status: 200, json: { signals: [
+                  { title: '<img src=x onerror=alert(1)>', ts: 1790000000 },
+                  { title: '\"<script>alert(1)</script>', ts: 1790000060 },
+                  { title: "it's a & < test", ts: 'not-a-number' } ] } } };
+    loadNow();
+    await flushAll();
+    const html = els.wfSignalFeed.innerHTML;
+    assert.strictEqual(html.indexOf('<img'), -1, 'no raw <img reaches the feed');
+    assert.strictEqual(html.indexOf('<script'), -1, 'no raw <script reaches the feed');
+    assert.ok(html.indexOf('&lt;img src=x onerror=alert(1)&gt;') >= 0,
+              'the img payload lands ESCAPED');
+    assert.ok(html.indexOf('&quot;&lt;script&gt;alert(1)&lt;/script&gt;') >= 0,
+              'the quote-wrapped script payload lands ESCAPED (all five specials)');
+    assert.ok(html.indexOf("it&#39;s a &amp; &lt; test") >= 0,
+              'ampersand and single quote escape too, and a safe-ish string ' +
+              'still renders its text');
+    assert.ok(html.indexOf('title=""') >= 0,
+              'a garbage ts leaves the UNESCAPED time-title attribute EMPTY ' +
+              '(its own guard — toISOString is the only raw interpolation)');
+    assert.ok(html.indexOf('SHARED[') >= 0,
+              'escaped rows still route their stamps through the shared exporter');
+    return 'signals_xss_escaping ok';
+  }
+
+  if (name === 'signals_empty_and_failure') {
+    answers = { '/api/push/preferences': { status: 200, json: ENV_A },
+                '/api/auth/me': { status: 200, json: { authenticated: false } },
+                '/api/profile/stats': { status: 401, json: {} },
+                '/api/push/signals': { status: 200, json: { signals: [
+                  { title: 'old user signal', ts: 1790000000 } ] } } };
+    loadNow();
+    await flushAll();
+    assert.ok(els.wfSignalFeed.innerHTML.indexOf('old user signal') >= 0,
+              'rows present before the transitions');
+    // THE POLL: the harness captured boot's setIntervals — boot order
+    // is signals, status, prefs-stamp, so timers[0] fires refreshSignals
+    assert.ok(timers.length >= 3, 'the three 60s polls are captured');
+    const nGets = () => gets.filter((p) => p === '/api/push/signals').length;
+    const fire = () => { const b = nGets(); timers[0][0]();
+                         assert.ok(nGets() === b + 1, 'timers[0] IS the ' +
+                         'signals poll (boot-order drift would fail here)'); };
+    // 1. empty list -> the honest empty-state line
+    answers['/api/push/signals'] = { status: 200, json: { signals: [] } };
+    fire();
+    await flushAll();
+    assert.ok(els.wfSignalFeed.innerHTML.indexOf('No signals pushed yet') >= 0,
+              'an empty list renders the honest empty-state line');
+    // 2. NULL answer (the 401 after logout) CLEARS the previous user's rows
+    answers['/api/push/signals'] = { status: 401, json: {} };
+    fire();
+    await flushAll();
+    assert.ok(els.wfSignalFeed.innerHTML.indexOf('old user signal') === -1,
+              'a null answer CLEARS the previous user\'s rows (logout hygiene)');
+    assert.ok(els.wfSignalFeed.innerHTML.indexOf('No signals pushed yet') >= 0,
+              'the cleared feed shows the empty state, not the stale rows');
+    // 3. network rejection -> the failure line
+    answers['/api/push/signals'] = null;
+    fire();
+    await flushAll();
+    assert.ok(els.wfSignalFeed.innerHTML.indexOf('Could not load signal history.') >= 0,
+              'a network rejection renders the failure line');
+    return 'signals_empty_and_failure ok';
+  }
+
   if (name === 'announce_without_detail') {
     // a detail-less announcement (defensive: push_client wraps the
     // dispatch in try/catch, but a malformed event must never clobber
@@ -345,6 +447,12 @@ SCENARIOS = [
      "the 412-conflict envelope (extra error field) re-renders; extras ignored"),
     ("7", "announce_without_detail",
      "an envelope-less announcement is a no-op — the previous stamp survives"),
+    ("8", "signals_rows_render",
+     "feed rows render in order, epoch stamps through the SHARED exporter, exact UTC hover"),
+    ("9", "signals_xss_escaping",
+     "hostile titles land ESCAPED (five specials), no raw markup reaches innerHTML; garbage ts leaves the raw time-title empty"),
+    ("10", "signals_empty_and_failure",
+     "empty list renders the empty line; a null answer clears the prior user's rows; a network rejection renders the failure line"),
 ]
 
 
