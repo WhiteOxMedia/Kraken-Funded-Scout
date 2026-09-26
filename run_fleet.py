@@ -1,8 +1,9 @@
 """run_fleet.py — THE ONE-COMMAND FLEET (Sep 26).
 
 WHY THIS EXISTS: "run everything" was a remembered incantation — 23
-drives in three batches, then eyeballing which RESULT lines were
-green. This is the one command that runs every drive in one pass,
+drives in three batches at birth, then eyeballing which RESULT lines
+were green. This is the one command that runs every drive in one pass
+(the count is DISCOVERED, never stored — 28 today and growing),
 triages any failure by RERUNNING it (a failure that passes on the
 rerun is a flake; a failure that repeats is a regression), and prints
 the coverage table — so a green fleet is EVIDENCE, not recollection.
