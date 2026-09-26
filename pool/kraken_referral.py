@@ -278,17 +278,27 @@ def run_worker(subset_limit=None):
               else SOURCE_SIM if mode == "simulate" else SOURCE_NONE)
     with db.get_db() as conn:
         rows = conn.execute(
-            "SELECT id, referral_code FROM users ORDER BY id").fetchall()
+            "SELECT id, username, referral_code, kraken_referral_id "
+            "FROM users ORDER BY id").fetchall()
     if subset_limit:
         rows = rows[:int(subset_limit)]
     processed = unmapped = errors = 0
     seed_total = 0.0
     for r in rows:
-        user_id, rid = int(r["id"]), r["referral_code"]
+        user_id = int(r["id"])
+        # THE REAL KRAKEN ID (user order, Sep 26): discovery keys on
+        # kraken_referral_id ONLY — the operator-mapped id the provider
+        # actually knows. The internal referral_code is the site's own
+        # invite system and is NEVER sent to Kraken as an identity:
+        # a legacy fallback here would manufacture provider errors for
+        # ids Kraken has never seen.
+        rid = str(r["kraken_referral_id"] or "").strip()
         if not rid:
             unmapped += 1
             emit_audit(user_id, "kraken_referral.unmapped",
-                       reason="no referral id on file")
+                       username=r["username"],
+                       reason="no kraken_referral_id on file "
+                              "(operator mapping needed)")
             continue
         res = fetch_user_status(user_id, rid)
         if not res.get("ok"):

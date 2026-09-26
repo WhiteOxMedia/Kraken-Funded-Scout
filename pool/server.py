@@ -1458,6 +1458,68 @@ async def api_admin_kraken_referral_config_set(request: Request):
                          "mode": kr.provider_mode()})
 
 
+@app.get("/api/admin/kraken-referral/mappings")
+async def api_admin_kraken_referral_mappings(request: Request):
+    """THE MAPPING SHEET (user order, Sep 26): every account with its
+    attached Kraken referral id (or the gap the operator must fill).
+    Email is masked to its local-part tail — PII discipline."""
+    require_admin(request)
+    def _mask_mail(m):
+        m = str(m or "")
+        if "@" not in m:
+            return m[:4] + "…" if m else ""
+        local, _, dom = m.partition("@")
+        return (local[:2] + "…" + local[-2:] + "@" + dom) if len(local) > 4 \
+            else "…@" + dom
+    users = db.get_all_users()
+    mapped = sum(1 for u in users if (u.get("kraken_referral_id") or "").strip())
+    return JSONResponse({
+        "total": len(users),
+        "mapped": mapped,
+        "users": [{"id": u["id"], "username": u["username"],
+                   "email_masked": _mask_mail(u.get("email")),
+                   "kraken_referral_id": (u.get("kraken_referral_id") or "").strip()}
+                  for u in users]})
+
+
+@app.post("/api/admin/kraken-referral/mappings")
+async def api_admin_kraken_referral_mapping_set(request: Request):
+    """Attach, replace, or clear one account's Kraken referral id.
+    Refuses to orphan a stored id to a DIFFERENT user (Kraken ids are
+    unique per referred account), and every change is audited."""
+    admin = require_admin(request)
+    body = await _push_body(request)
+    try:
+        user_id = int(body.get("user_id"))
+    except (TypeError, ValueError):
+        raise HTTPException(status_code=400, detail="user_id required")
+    target = db.get_user(user_id)
+    if not target:
+        raise HTTPException(status_code=404, detail="no such user")
+    rid = str(body.get("kraken_referral_id") or "").strip().upper()
+    if len(rid) > 120:
+        raise HTTPException(status_code=400, detail="referral id too long")
+    if rid:
+        with db.get_db() as conn:
+            clash = conn.execute(
+                "SELECT id, username FROM users WHERE kraken_referral_id = ? "
+                "AND id != ?", (rid, user_id)).fetchone()
+        if clash:
+            raise HTTPException(
+                status_code=409,
+                detail=f"id already mapped to user '{clash['username']}' "
+                       f"(id {clash['id']}) — clear it there first")
+    db.set_kraken_referral_id(user_id, rid)
+    action = "kraken_referral.mapped" if rid else "kraken_referral.unmapped_manual"
+    kr.emit_audit(user_id, action,
+                  kraken_referral_id=rid or None,
+                  by="admin_panel", by_admin=str(admin["username"]))
+    return JSONResponse({"ok": True, "user_id": user_id,
+                         "username": target["username"],
+                         "kraken_referral_id": rid,
+                         "action": action})
+
+
 @app.get("/api/admin/push/vapid")
 async def api_admin_push_vapid(request: Request):
     """Admin read of the VAPID posture (no key material — tails only,

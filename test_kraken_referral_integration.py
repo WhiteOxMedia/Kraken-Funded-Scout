@@ -43,9 +43,17 @@ with db.get_db() as conn:
             ("u_elig", "SIM-ELIG-003"), ("u_expi", "SIM-EXPI-004"),
             ("u_odd", "SIM-ODD-005"), ("u_none", "")):
         conn.execute(
-            "INSERT INTO users (username, password_hash, referral_code,"
+            "INSERT INTO users (username, password_hash, kraken_referral_id,"
             " created_at) VALUES (?, ?, ?, strftime('%s','now'))",
             (uname, "x", code if code else None))
+# the operator maps the admin account through THE MAPPING API (the
+# same act the admin UI performs) — registration never invents a
+# Kraken id, so kr_admin starts unmapped like any other account
+r = client.post("/api/admin/kraken-referral/mappings",
+                json={"user_id": admin_id, "kraken_referral_id": "sim-admin-777"})
+check(1.1, r.status_code == 200
+      and r.json()["kraken_referral_id"] == "SIM-ADMIN-777",
+      f"operator attaches kr_admin's real id (normalized upper): {r.status_code}")
 
 print("== 2. OPERATOR TRIGGER: unconfigured -> 503 (never fabricates) ==")
 r = client.post("/api/admin/kraken-referral/run", json={})
@@ -272,6 +280,66 @@ with db.get_db() as conn:
 check(8.9, n >= 3 and n2 >= 2, f"audits: {n} tests, {n2} config updates")
 r = client.post("/api/admin/kraken-referral/test", json={})
 check(8.10, r.status_code == 400, "test without referral_id -> 400")
+
+print("== 9. THE MAPPING SHEET: real kraken_referral_id column ==")
+anon2 = TestClient(srv.app)
+check(9.1, anon2.get("/api/admin/kraken-referral/mappings").status_code == 401,
+      "mappings admin-gated")
+r = client.get("/api/admin/kraken-referral/mappings")
+m = r.json()
+check(9.2, r.status_code == 200 and m["total"] >= 7 and m["mapped"] == 6,
+      f"sheet: {m['mapped']}/{m['total']} mapped (5 seeded + the operator-mapped admin)")
+with db.get_db() as conn:
+    target_uid = conn.execute(
+        "SELECT id FROM users WHERE username='u_none'").fetchone()["id"]
+r = client.post("/api/admin/kraken-referral/mappings",
+                json={"user_id": target_uid,
+                      "kraken_referral_id": " kr-admin-live-01 "})
+check(9.3, r.status_code == 200
+      and r.json()["kraken_referral_id"] == "KR-ADMIN-LIVE-01"
+      and r.json()["action"] == "kraken_referral.mapped",
+      f"attach normalizes (trim+upper): {r.json().get('kraken_referral_id')}")
+r = client.post("/api/admin/kraken-referral/mappings",
+                json={"user_id": target_uid - 1,
+                      "kraken_referral_id": "KR-ADMIN-LIVE-01"})
+check(9.4, r.status_code == 409,
+      f"an id cannot be orphaned onto a second user: {r.status_code}")
+r = client.post("/api/admin/kraken-referral/mappings",
+                json={"user_id": target_uid, "kraken_referral_id": ""})
+check(9.5, r.status_code == 200
+      and r.json()["action"] == "kraken_referral.unmapped_manual",
+      "clear is its own audited action")
+with db.get_db() as conn:
+    n_map = conn.execute("SELECT COUNT(*) c FROM audit_log WHERE "
+                         "action='kraken_referral.mapped'").fetchone()["c"]
+    n_unm = conn.execute("SELECT COUNT(*) c FROM audit_log WHERE "
+                         "action='kraken_referral.unmapped_manual'").fetchone()["c"]
+check(9.6, n_map >= 1 and n_unm >= 1,
+      f"audits: {n_map} mapped, {n_unm} unmapped_manual")
+# THE ISOLATION PIN: a legacy internal invite code must never reach
+# the provider — a legacy-only user stays honestly unmapped
+with db.get_db() as conn:
+    conn.execute(
+        "INSERT INTO users (username, password_hash, referral_code,"
+        " created_at) VALUES ('u_legacy', 'x', 'INT-LEGACY-CODE',"
+        " strftime('%s','now'))")
+db.set_setting("KRAKEN_REFERRAL_MODE", "simulate")
+s9 = kr.run_worker()
+with db.get_db() as conn:
+    legacy_fetched = conn.execute(
+        "SELECT COUNT(*) c FROM kraken_referral_snapshot "
+        "WHERE referral_id = 'INT-LEGACY-CODE'").fetchone()["c"]
+    legacy_unmapped = conn.execute(
+        "SELECT COUNT(*) c FROM audit_log WHERE "
+        "action='kraken_referral.unmapped' AND details "
+        "LIKE '%u_legacy%'").fetchone()["c"]
+check(9.7, legacy_fetched == 0 and legacy_unmapped >= 1,
+      f"internal invite code NEVER sent to Kraken (fetched={legacy_fetched}, "
+      f"unmapped-audited={legacy_unmapped})")
+check(9.8, s9["processed"] >= 6 and s9["unmapped"] >= 2,
+      f"worker ran on the real column: {s9['processed']} fetched, "
+      f"{s9['unmapped']} unmapped")
+db.set_setting("KRAKEN_REFERRAL_MODE", "")
 # restore the clean posture the earlier sections expect
 db.set_setting("KRAKEN_API_KEY", ""); db.set_setting("KRAKEN_API_SECRET", "")
 db.set_setting("KRAKEN_REFERRAL_ENDPOINT", ""); db.set_setting("KRAKEN_REFERRAL_MODE", "")

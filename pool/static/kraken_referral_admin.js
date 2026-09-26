@@ -79,6 +79,7 @@
       "and every test is audited (kraken_referral.*). The projection worker " +
       "reads this config on its next run.</div>" +
       schedSection(cfg) +
+      '<div id="krMapMount"></div>' +
       "</div>");
   }
 
@@ -230,6 +231,92 @@
     });
   }
 
+  function mapSection(data) {
+    return (
+      '<div style="margin-top:14px;padding-top:10px;' +
+      'border-top:1px solid var(--hairline,rgba(255,255,255,.12));">' +
+      '<div style="font-size:0.85em;font-weight:700;margin-bottom:6px;">' +
+      "User mapping — attach real Kraken referral ids</div>" +
+      '<div style="font-size:0.78em;color:var(--text-mute);margin-bottom:8px;">' +
+      data.mapped + " of " + data.total + " accounts mapped — the worker " +
+      "fetches only mapped accounts; the site\u2019s own invite codes are " +
+      "never sent to Kraken.</div>" +
+      '<select id="krMapUser" style="width:100%;padding:7px 9px;margin-bottom:8px;' +
+      'background:var(--bg-deep,#0d1117);border:1px solid var(--hairline,' +
+      'rgba(255,255,255,.14));border-radius:6px;color:var(--text,#eee);">' +
+      data.users.map(function (u) {
+        return '<option value="' + u.id + '" data-rid="' + esc(u.kraken_referral_id) + '">' +
+          u.id + " \u2014 " + esc(u.username) +
+          (u.kraken_referral_id ? " \u00b7 " + esc(u.kraken_referral_id)
+                                : " \u00b7 (unmapped)") +
+          (u.email_masked ? " \u00b7 " + esc(u.email_masked) : "") +
+          "</option>";
+      }).join("") +
+      "</select>" +
+      field("Kraken referral id for the selected account", "krMapRid", "text",
+            "paste the id the operator source returns") +
+      '<div style="display:flex;gap:8px;">' +
+      '<button id="krMapSave" class="btn btn-emerald" style="flex:1;">' +
+      "Save mapping</button>" +
+      '<button id="krMapClear" class="btn" style="flex:0 0 auto;">' +
+      "Clear</button></div>" +
+      '<pre id="krMapOut" style="display:none;margin-top:8px;padding:10px;' +
+      'background:var(--bg-deep,#0d1117);border:1px solid var(--hairline,' +
+      'rgba(255,255,255,.14));border-radius:6px;font-size:0.75em;' +
+      'white-space:pre-wrap;word-break:break-all;max-height:200px;overflow:auto;"></pre>' +
+      "</div>");
+  }
+
+  function wireMap(data) {
+    var sel = document.getElementById("krMapUser");
+    var rid = document.getElementById("krMapRid");
+    var out = document.getElementById("krMapOut");
+    var count = sel.parentNode.querySelector("div[style*='margin-bottom:8px']");
+    function sync() {
+      var opt = sel.options[sel.selectedIndex];
+      rid.value = opt ? (opt.getAttribute("data-rid") || "") : "";
+    }
+    sel.addEventListener("change", sync);
+    sync();
+    function post(body, btn) {
+      btn.disabled = true;
+      fetch("/api/admin/kraken-referral/mappings", {
+        method: "POST", credentials: "same-origin",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body)
+      }).then(function (r) { return r.json().then(function (j) {
+        return { ok: r.ok, j: j };
+      }); }).then(function (res) {
+        btn.disabled = false;
+        show(out, res.ok ? res.j : { error: res.j.detail || "failed" });
+        if (res.ok) {
+          var opt = sel.options[sel.selectedIndex];
+          var v = res.j.kraken_referral_id || "";
+          opt.setAttribute("data-rid", v);
+          opt.text = opt.text.replace(/ \u00b7 (\(unmapped\)|[^\u00b7]+)$/, "") +
+            (v ? " \u00b7 " + v : " \u00b7 (unmapped)");
+          var mapped = 0;
+          for (var i = 0; i < sel.options.length; i++) {
+            if (sel.options[i].getAttribute("data-rid")) { mapped += 1; }
+          }
+          if (count) {
+            count.textContent = mapped + " of " + data.total +
+              " accounts mapped — the worker fetches only mapped accounts; " +
+              "the site\u2019s own invite codes are never sent to Kraken.";
+          }
+          sync();
+        }
+      }).catch(function (e) { btn.disabled = false; show(out, "request failed: " + e); });
+    }
+    document.getElementById("krMapSave").addEventListener("click", function () {
+      post({ user_id: parseInt(sel.value, 10),
+             kraken_referral_id: rid.value }, this);
+    });
+    document.getElementById("krMapClear").addEventListener("click", function () {
+      post({ user_id: parseInt(sel.value, 10), kraken_referral_id: "" }, this);
+    });
+  }
+
   function mount() {
     if (document.getElementById(CARD_ID)) { return true; }
     var page = document.getElementById("page-admin");
@@ -247,6 +334,14 @@
         wrap.innerHTML = render(cfg);
         wire(cfg);
         wireSched();
+        fetch("/api/admin/kraken-referral/mappings", { credentials: "same-origin" })
+          .then(function (r) { return r.ok ? r.json() : null; })
+          .then(function (data) {
+            if (!data) { return; }
+            document.getElementById("krMapMount").innerHTML = mapSection(data);
+            wireMap(data);
+          })
+          .catch(function () { /* mapping sheet optional */ });
       })
       .catch(function () { wrap.remove(); });
     return true;

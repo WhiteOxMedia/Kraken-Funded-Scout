@@ -251,6 +251,13 @@ def init_db():
             conn.execute("ALTER TABLE users ADD COLUMN phone TEXT DEFAULT ''")
         if "full_name" not in ucols:
             conn.execute("ALTER TABLE users ADD COLUMN full_name TEXT DEFAULT ''")
+        # THE KRAKEN REFERRAL ID (user order, Sep 26): the per-user id
+        # the OPERATOR's referral source returns, attached via the
+        # admin mapping UI. Distinct from the internal referral_code:
+        # this is the identity Kraken (or the operator's provider)
+        # knows the user by. Reversible: a column drop is a one-liner.
+        if "kraken_referral_id" not in ucols:
+            conn.execute("ALTER TABLE users ADD COLUMN kraken_referral_id TEXT DEFAULT ''")
         if "avatar" not in ucols:
             conn.execute("ALTER TABLE users ADD COLUMN avatar TEXT DEFAULT '⛏️'")
         if "bio" not in ucols:
@@ -622,6 +629,26 @@ def set_referral_code(user_id, code):
         )
 
 
+def set_kraken_referral_id(user_id, referral_id):
+    """Attach (or replace) the user's Kraken referral id — the value
+    the operator's source returns, mapped through the admin UI.
+    Normalized: trimmed, case-folded to upper (Kraken ids are upper),
+    empty string clears."""
+    rid = str(referral_id or "").strip().upper()
+    with get_db() as conn:
+        conn.execute(
+            "UPDATE users SET kraken_referral_id = ? WHERE id = ?",
+            (rid, user_id))
+    return rid
+
+
+def clear_kraken_referral_id(user_id):
+    with get_db() as conn:
+        conn.execute(
+            "UPDATE users SET kraken_referral_id = '' WHERE id = ?",
+            (user_id,))
+
+
 def set_referred_by(user_id, referrer_code):
     with get_db() as conn:
         conn.execute(
@@ -675,6 +702,7 @@ def get_all_users():
     with get_db() as conn:
         rows = conn.execute(
             "SELECT id, username, email, wallet_address, is_admin, display_name, avatar, "
+            "kraken_referral_id, "
             "total_earned, total_spins, total_jackpots, created_at, last_login FROM users ORDER BY created_at DESC"
         ).fetchall()
         return [dict(r) for r in rows]
