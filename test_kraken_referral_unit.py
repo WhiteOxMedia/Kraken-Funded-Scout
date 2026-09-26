@@ -1,5 +1,6 @@
 """test_kraken_referral_unit.py — normalization, formula, signing,
-provider honesty, the notification leg (sandbox, hermetic)."""
+provider honesty + posture (setup_kraken.py's read), the notification
+leg (sandbox, hermetic)."""
 import sys, tempfile
 from pathlib import Path
 HERE = Path(__file__).resolve().parent
@@ -62,6 +63,63 @@ db.set_setting("KRAKEN_REFERRAL_MODE", "")
 check(4.3, kr.fetch_user_status(1, "SIM-PAID-001")["ok"] is False
       and kr.fetch_user_status(1, "X")["reason"] == "unconfigured",
       "unconfigured refuses to fabricate")
+
+print("== 4b. PROVIDER POSTURE (setup_kraken.py's read) ==")
+# hermetic: the OS keyring must not leak into tier assertions on boxes
+# where a real pair is provisioned — the fake below replaces it
+kr._keyring_creds = lambda: None
+db.set_setting("KRAKEN_API_KEY", "")
+db.set_setting("KRAKEN_API_SECRET", "")
+db.set_setting("KRAKEN_REFERRAL_ENDPOINT", "")
+db.set_setting("KRAKEN_REFERRAL_MODE", "")
+p = kr.provider_posture()
+check("4.10", p["credentials_tier"] == "" and p["mode"] == "unconfigured"
+      and p["missing"] == ["KRAKEN_API_KEY", "KRAKEN_API_SECRET",
+                           "KRAKEN_REFERRAL_ENDPOINT"],
+      "fresh box: nothing provisioned, missing names all three")
+db.set_setting("KRAKEN_API_KEY", "abcd1234efgh")
+p = kr.provider_posture()
+check(4.11, p["credentials_tier"] == "" and p["settings_partial_pair"] is True
+      and p["missing"] == ["KRAKEN_API_SECRET", "KRAKEN_REFERRAL_ENDPOINT"]
+      and p["settings_key_tail"] == "…efgh" and p["api_key_tail"] == "",
+      "half a settings pair is flagged, not mixed; missing names the gap")
+SEC = "dGVzdC1zZWNyZXQ="
+db.set_setting("KRAKEN_API_SECRET", SEC)
+db.set_setting("KRAKEN_REFERRAL_ENDPOINT", "https://example.com/0/private/ReferralStatus")
+p = kr.provider_posture()
+check(4.12, p["credentials_tier"] == "settings" and p["mode"] == "live"
+      and p["projection_live"] is True and p["missing"] == []
+      and p["api_key_tail"] == "…efgh" and p["api_secret_tail"] == "…" + SEC[-4:],
+      "complete settings pair + endpoint -> live posture with tails")
+check(4.13, SEC not in str(p) and "abcd1234efgh" not in str(p),
+      "posture never carries secret material, tails only")
+db.set_setting("KRAKEN_REFERRAL_MODE", "simulate")
+p = kr.provider_posture()
+check(4.14, p["mode"] == "simulate" and p["projection_live"] is False,
+      "operator simulate override shows in the posture")
+db.set_setting("KRAKEN_REFERRAL_MODE", "")
+db.set_setting("KRAKEN_REFERRAL_ENDPOINT", "")
+p = kr.provider_posture()
+check(4.15, p["mode"] == "unconfigured"
+      and p["missing"] == ["KRAKEN_REFERRAL_ENDPOINT"],
+      "endpoint blanking flips back fail-closed, naming only the gap")
+# the settings pair from 4.12 must be out of the picture: settings
+# tier wins by design, so blank it to exercise the keyring fallback
+db.set_setting("KRAKEN_API_KEY", "")
+db.set_setting("KRAKEN_API_SECRET", "")
+_fake_store = {"kraken_api_key": "kring-key-9999",
+               "kraken_api_secret": "kring-sec-8888"}
+kr._keyring_creds = lambda: ({"key": _fake_store["kraken_api_key"],
+                              "secret": _fake_store["kraken_api_secret"]}
+                             if _fake_store.get("kraken_api_key")
+                             and _fake_store.get("kraken_api_secret") else None)
+p = kr.provider_posture()
+check("4.16", p["credentials_tier"] == "keyring" and p["keyring_pair"] is True
+      and p["mode"] == "unconfigured"
+      and p["missing"] == ["KRAKEN_REFERRAL_ENDPOINT"]
+      and p["api_key_tail"] == "…9999" and p["settings_key_tail"] == "",
+      "keyring tier resolves (settings empty) and still needs only the endpoint")
+kr._keyring_creds = lambda: None
 
 print("== 5. THE NOTICE (referral_window) ==")
 ev = kr.push_svc.EVENTS["referral_window"]

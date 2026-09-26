@@ -135,6 +135,57 @@ def provider_mode():
     return "unconfigured"
 
 
+def provider_posture():
+    """THE POSTURE READ (what setup_kraken.py prints after storing
+    anything, and any admin surface may reuse): where the credentials
+    live, whether the endpoint is provisioned, and whether the
+    projection is live — derived from real state only. Tails only:
+    the secret material itself never leaves the credential accessor.
+    The endpoint is settings-only by charter (the keyring never
+    stores URLs), and a settings tier holding exactly one half of the
+    pair is flagged, not mixed — the accessor's no-mix rule is the
+    single source of truth for what actually counts."""
+    key = str(db.get_setting("KRAKEN_API_KEY", "") or "").strip()
+    sec = str(db.get_setting("KRAKEN_API_SECRET", "") or "").strip()
+    kr_ = _keyring_creds()
+    eff_key, eff_sec, tier = kraken_credentials()
+    ep = str(db.get_setting("KRAKEN_REFERRAL_ENDPOINT", "") or "").strip()
+    mode = provider_mode()
+    missing = []
+    if not tier:
+        # no complete pair resolvable from any single tier — name the
+        # fragment(s) the operator still owes (half-pair -> the absent
+        # half; nothing -> both)
+        if key and not sec:
+            missing.append("KRAKEN_API_SECRET")
+        elif sec and not key:
+            missing.append("KRAKEN_API_KEY")
+        else:
+            missing.extend(["KRAKEN_API_KEY", "KRAKEN_API_SECRET"])
+    if not ep:
+        missing.append("KRAKEN_REFERRAL_ENDPOINT")
+    return {
+        "mode": mode,
+        "projection_live": mode == "live",
+        "credentials_tier": tier,
+        "settings_key_set": bool(key),
+        "settings_secret_set": bool(sec),
+        "settings_partial_pair": bool(key) != bool(sec),
+        "keyring_pair": bool(kr_),
+        "endpoint_set": bool(ep),
+        "endpoint": ep,
+        # tails of the EFFECTIVE pair (the one provider_mode actually
+        # resolves), labeled by tier at print time — plus the tails of
+        # any settings-side fragments so a stale half-pair can be
+        # identified without ever exposing the material
+        "api_key_tail": ("…" + eff_key[-4:]) if eff_key else "",
+        "api_secret_tail": ("…" + eff_sec[-4:]) if eff_sec else "",
+        "settings_key_tail": ("…" + key[-4:]) if key else "",
+        "settings_secret_tail": ("…" + sec[-4:]) if sec else "",
+        "missing": missing,
+    }
+
+
 def sign_request(api_secret, path, nonce, body):
     """Kraken's auth scheme (API-Key header, API-Sign =
     HMAC-SHA512(path + SHA256(nonce + body), b64secret))."""
