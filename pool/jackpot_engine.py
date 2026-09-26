@@ -665,10 +665,24 @@ def check_and_send_house_tax():
     except Exception as e:
         return {"action": "failed", "error": str(e), "amount": payout_amount}
 
-    # Record payout (miner_id=NULL for house tax, no foreign key issue)
+    # Record payout. SCHEMA-DRIFT FIX (Sep 26, found by the promoted
+    # payout drive): this insert used miner_id=NULL, which only worked
+    # against the OLD live schema - current init_db declares miner_id
+    # NOT NULL with an FK to miners, so the house-tax record crashed
+    # on any fresh deploy. miner_id=1 is the house convention the
+    # draw-side tax recording already uses (add_payout(1, ...) in the
+    # drawing finalize path); the house miner row is GUARANTEED here
+    # (a fresh sandbox DB has no miner 1 yet - the FK is real).
+    with db.get_db() as conn:
+        house = conn.execute(
+            "SELECT id FROM miners WHERE id = 1").fetchone()
+    if not house:
+        db.get_or_create_miner("HOUSE", worker_name="house_tax")
+        with db.get_db() as conn:
+            conn.execute("UPDATE miners SET id = 1 WHERE wallet_address = 'HOUSE'")
     with db.get_db() as conn:
         conn.execute(
-            "INSERT INTO payouts (miner_id, amount_xmr, payout_type, tx_hash, status) VALUES (NULL, ?, ?, ?, ?)",
+            "INSERT INTO payouts (miner_id, amount_xmr, payout_type, tx_hash, status) VALUES (1, ?, ?, ?, ?)",
             (payout_amount, "house_tax", tx_hash, "sent" if tx_hash and tx_hash != "pending_manual" else "pending"),
         )
 
