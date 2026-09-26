@@ -95,21 +95,57 @@
      card shows the server's updated_at stamp after every save. */
   var prefsEtag = "";
 
-  function fmtStamp(iso) {
-    if (!iso) { return ""; }
+  /* RELATIVE STAMPS (Sep 26): "saved 2 min ago" instead of a raw
+     clock reading, re-rendered every 30s while the message is still
+     the one displayed. The stamp IS the version — prefsEtag keeps
+     the ISO string; only the human-facing rendering ages. Older
+     than a week falls back to an absolute date: a year-old stamp
+     must not read "365 d ago". */
+  var stampNote = null;   // the stamp message currently displayed
+
+  function relTime(iso) {
     var d = new Date(iso);
-    return isNaN(d) ? String(iso)
-      : d.toLocaleString(undefined,
-        { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
+    if (isNaN(d)) { return String(iso); }
+    var s = Math.floor((Date.now() - d.getTime()) / 1000);
+    if (s < 5) { return "just now"; }
+    if (s < 60) { return s + "s ago"; }
+    var m = Math.floor(s / 60);
+    if (m < 60) { return m + " min ago"; }
+    var h = Math.floor(m / 60);
+    if (h < 24) { return h + " h ago"; }
+    var days = Math.floor(h / 24);
+    if (days < 7) { return days + " d ago"; }
+    return d.toLocaleDateString(undefined,
+      { month: "short", day: "numeric" });
   }
 
   function noteSaved(text, warn) {
+    stampNote = null;              // a non-stamp message takes over
     var el = document.getElementById("prefSaved");
     if (el) {
       el.textContent = text || "";
       el.style.color = warn ? "#c9a227" : "var(--text-mute)";
     }
   }
+
+  function noteStamp(prefix, iso, warn, suffix) {
+    var el = document.getElementById("prefSaved");
+    if (!el || !iso) { return; }
+    suffix = suffix || "";
+    stampNote = { prefix: prefix, iso: iso, warn: !!warn, suffix: suffix };
+    el.textContent = prefix + " " + relTime(iso) + suffix;
+    el.style.color = warn ? "#c9a227" : "var(--text-mute)";
+  }
+
+  setInterval(function () {
+    if (!stampNote) { return; }
+    var el = document.getElementById("prefSaved");
+    // refresh only while this stamp message is still what's shown
+    if (el && el.textContent.indexOf(stampNote.prefix) === 0) {
+      el.textContent = stampNote.prefix + " " + relTime(stampNote.iso)
+        + stampNote.suffix;
+    }
+  }, 30000);
 
   function wirePrefs() {
     var j = document.getElementById("prefJackpot");
@@ -123,7 +159,7 @@
       s.checked = p.scout !== false;
       if (p.updated_at) {
         prefsEtag = '"' + p.updated_at + '"';   // the version we now hold
-        noteSaved("saved " + fmtStamp(p.updated_at));
+        noteStamp("saved", p.updated_at);
       }
     }
     function readServer() {
@@ -159,8 +195,8 @@
           // server's version (its envelope + new ETag) and re-apply
           return r.json().then(function (cur) {
             adopt(cur);
-            noteSaved("another device changed these — showing its version ("
-                      + fmtStamp(cur.updated_at) + ")", true);
+            noteStamp("another device changed these — showing its version (",
+                      cur.updated_at, true, ")");
           });
         }
         return r.json().then(function (res) {
