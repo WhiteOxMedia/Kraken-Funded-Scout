@@ -887,14 +887,42 @@ def get_referral_stats(user_id):
         if not row:
             return None
 
-        # Count referred users who have active miners
-        active_referrals = conn.execute(
-            """SELECT COUNT(DISTINCT m.wallet_address) as cnt
-            FROM users u
-            JOIN miners m ON m.wallet_address = u.wallet_address
-            WHERE u.referred_by = ? AND m.shares_valid > 0""",
+        # Count referred users who have active miners. THE CIPHERTEXT
+        # JOIN FIX (review batch, Sep 27 major): users.wallet_address is
+        # SEALED at rest, so a SQL join against the miners' plaintext
+        # column can never match (active_referrals read 0 forever). The
+        # match now happens in Python via the same KEYED BLIND INDEX
+        # the wallet lookups use: resolve each referred user's
+        # ciphertext here, blind-index the plaintext, match the stored
+        # wallet_idx values.
+        referred = conn.execute(
+            """SELECT id, wallet_address FROM users
+            WHERE referred_by = ? AND wallet_address IS NOT NULL""",
             (row["referral_code"],)
-        ).fetchone()
+        ).fetchall()
+        referred_idx = set()
+        for ru in referred:
+            ct = ru["wallet_address"]
+            try:
+                plain = _fc.decrypt(ct) if str(ct).startswith(_fc.PREFIX) else ct
+            except Exception:
+                plain = ""                 # undecryptable: never counted
+            if plain:
+                referred_idx.add(_fc.blind_index(plain))
+        active_referrals = {"cnt": 0}
+        if referred_idx:
+            # the miners table has NO wallet_idx column (the blind index
+            # lives on users) - the miners' PLAINTEXT wallet addresses
+            # are matched in Python: blind-index each active miner's
+            # address and intersect with the referred users' indexes
+            _active = conn.execute(
+                """SELECT DISTINCT wallet_address FROM miners
+                WHERE shares_valid > 0 AND wallet_address IS NOT NULL""").fetchall()
+            hit = sum(
+                1 for r in _active
+                if _fc.blind_index(str(r["wallet_address"]))
+                in referred_idx)
+            active_referrals = {"cnt": hit}
 
         return {
             "referral_code": row["referral_code"],

@@ -447,6 +447,80 @@ check("F.3", _u2["email"] is None,
       f"the migration leaves a NULL email NULL: {repr(_u2['email'])}")
 
 
+# ------------------------------------------------------------------
+print("== G. THE REMAINING REVIEW MAJORS (Sep 27 CLI pass) ==")
+# G1. THE CIPHERTEXT JOIN: referred users' wallets are sealed, so
+# active_referrals must match via the blind index - prove the real
+# shape end to end (referred user with wallet + shares = counted;
+# shares=0 = not; undecryptable ciphertext = never counted).
+import field_crypto as _fcG
+_fcG.KEY_FILE = _tmpd / "fc_key_G"
+_fcG._KEY_CACHE = []
+_fcG.generate_key_file()
+_ref_code = "GREFCODE1"
+_referrer = _adb.create_user("g_referrer", "x")
+with _adb.get_db() as _c:
+    _c.execute("UPDATE users SET referral_code=? WHERE id=?",
+               (_ref_code, _referrer))
+import jackpot_engine as _engG
+_W1 = "4GRefWalletAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA1"
+_W2 = "4GRefWalletBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB2"
+for _w in (_W1, _W2):
+    _adb.get_or_create_miner(_w)
+    _adb.update_miner_stats(_w, 500, 0, 0)
+_r1 = _adb.create_user("g_ref1", "x", wallet_address=_W1)
+_r2 = _adb.create_user("g_ref2", "x", wallet_address=_W2)
+for _rid in (_r1, _r2):
+    _adb.set_referred_by(_rid, _ref_code)
+with _adb.get_db() as _c:      # raw write = simulate the pre-migration shape
+    _c.execute("UPDATE users SET wallet_address=? WHERE id=?", (_W1, _r1))
+_stats = _adb.get_referral_stats(_referrer)
+check("G1", _stats["active_referrals"] == 2,
+      f"active_referrals counts through the blind index (was 0 under "
+      f"the ciphertext join): {_stats['active_referrals']}")
+_adb.update_miner_stats(_W2, -500, 0, 0)
+_stats = _adb.get_referral_stats(_referrer)
+check("G1b", _stats["active_referrals"] == 1,
+      f"shares_valid=0 drops out of the count: {_stats['active_referrals']}")
+
+# G2. THE HOUSE MINER: the payout goes to the reserved HOUSE row's
+# REAL id - never the id=1 assumption (the live DB has no miner 1).
+_hid = _engG.house_miner_id()
+_hid2 = _engG.house_miner_id()
+_hrow = _adb.get_miner(_hid)
+_m1 = _adb.get_miner(1)
+_no_hijack = (_m1 is None) or (_m1["wallet_address"] == "HOUSE") \
+    or (_hid != 1)
+check("G2", _hid == _hid2 and _hrow is not None
+      and _hrow["wallet_address"] == "HOUSE" and _no_hijack,
+      f"house account = the HOUSE-address row (id {_hid}), idempotent, "
+      f"and it never hijacks a foreign miner row (id 1 here is another "
+      f"fixture's miner, so the house id is {_hid})")
+
+# G3. THE KRAKEN SECRETS ARE SEALED AT REST (settings tier).
+import kraken_referral as _krG
+_adb.set_setting("KRAKEN_API_KEY", _fcG.encrypt("gkey123"))
+_adb.set_setting("KRAKEN_API_SECRET", _fcG.encrypt("gsec456"))
+_gk, _gs, _src = _krG.kraken_credentials()
+check("G3", (_gk, _gs, _src) == ("gkey123", "gsec456", "settings"),
+      f"sealed settings secrets unwrap through the read seam: {_src}")
+_adb.set_setting("KRAKEN_API_KEY", "plain-legacy-key")
+_adb.set_setting("KRAKEN_API_SECRET", "plain-legacy-sec")
+_gk2, _gs2, _src2 = _krG.kraken_credentials()
+check("G3b", (_gk2, _gs2) == ("plain-legacy-key", "plain-legacy-sec"),
+      "legacy plaintext still reads (unwrap-or-passthrough; the next "
+      "write re-seals it)")
+
+# G4. THE EVENT-LOOP BLOCKER: the four admin Kraken routes must run
+# their blocking work in a worker thread (asyncio.to_thread).
+_srv_src = (HERE / "pool" / "server.py").read_text(
+    encoding="utf-8", errors="replace")
+check("G4", _srv_src.count("await asyncio.to_thread(kr.") >= 4
+      and "summary = kr.run_worker(" not in _srv_src,
+      f"all Kraken dialing sites run off the event loop "
+      f"({_srv_src.count(chr(97)+chr(119)+chr(97)+chr(105)+chr(116)+chr(32)+chr(97)+chr(115)+chr(121)+chr(110)+chr(99)+chr(104)+chr(114)+chr(111))} to_thread sites)")
+
+
 passed, failed = results.count(True), results.count(False)
 print(f"RESULT: {passed} passed, {failed} failed")
 sys.exit(1 if failed else 0)

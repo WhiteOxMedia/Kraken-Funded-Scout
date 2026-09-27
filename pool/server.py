@@ -24,6 +24,7 @@ from pydantic import BaseModel
 sys.path.insert(0, str(Path(__file__).parent))
 
 import database as db
+import field_crypto as _fc
 import jackpot_engine as engine
 import security
 import monero_wallet as xmr
@@ -1604,7 +1605,11 @@ async def api_admin_kraken_referral_run(request: Request):
                    "AND KRAKEN_REFERRAL_ENDPOINT in settings (or "
                    "KRAKEN_REFERRAL_MODE=simulate for the "
                    "clearly-labeled simulation)")
-    summary = kr.run_worker(subset_limit=subset)
+    # OFF THE EVENT LOOP (review batch, Sep 27 major): run_worker
+    # dials Kraken synchronously - an admin trigger must not freeze
+    # every other request for the duration of the HTTP call.
+    summary = await asyncio.to_thread(kr.run_worker,
+                                      subset_limit=subset)
     return JSONResponse(summary)
 
 
@@ -1619,15 +1624,21 @@ async def api_admin_kraken_referral_config(request: Request, verify: bool = Fals
         # key-check endpoint runs (one 30s-throttled Budget call, verdict
         # stored + audited) — 429-shaped, then echoed back below via
         # last_credential_check(). A plain GET never touches the network.
-        v = kr.credential_selftest()
+        # off the event loop (Sep 27 review major: one signed
+        # Budget call must not block the whole server)
+        v = await asyncio.to_thread(kr.credential_selftest)
         if v.get("verdict") == "throttled":
             raise HTTPException(status_code=429, detail=v.get("detail", ""))
     def _tail(name):
         # TIER-AWARE MASK (Sep 26): the credential may live in settings
-        # (sealed at rest) or in the OS keyring (Windows Credential
-        # Manager, via setup_kraken.py) — the card reports WHICH tier
-        # holds it and still only ever shows the last four characters.
-        v = str(db.get_setting(name, "") or "").strip()
+        # (SEALED at rest since the Sep 27 review fix - the raw setting
+        # is a field_crypto envelope) or in the OS keyring (Windows
+        # Credential Manager, via setup_kraken.py) — the card reports
+        # WHICH tier holds it and still only ever shows the last four
+        # characters. The tail comes from the UNWRAPPED value via the
+        # shared read seam (the raw envelope's tail is not the secret's
+        # tail - the fleet's 8.4 caught exactly that).
+        v = kr._read_secret(name)
         if v:
             return {"set": True, "tail": "…" + v[-4:], "source": "settings"}
         key, sec, src = kr.kraken_credentials()
@@ -1675,7 +1686,14 @@ async def api_admin_kraken_referral_config_set(request: Request):
         v = str(body.get(name.lower())
                 or body.get(name.split("_", 1)[1].lower()) or "").strip()
         if v:
-            db.set_setting(name, v)
+            # SEALED AT REST (review batch, Sep 27 major): settings-tier
+            # secrets are stored as field_crypto envelopes - the same
+            # AEAD-at-rest discipline as every other credential in the
+            # users table. The readers unwrap-or-passthrough, so legacy
+            # plaintext values stay readable until the next write
+            # re-seals them, and the keyring tier is untouched (it was
+            # never plaintext-at-rest in the DB).
+            db.set_setting(name, _fc.encrypt(v) if _fc.available() else v)
             updates.append(name)
     ep = str(body.get("endpoint") or "").strip()
     if ep:
@@ -1964,7 +1982,8 @@ async def api_admin_kraken_referral_test(request: Request):
                              "error": "no KRAKEN_API_KEY / KRAKEN_API_SECRET "
                                       "/ KRAKEN_REFERRAL_ENDPOINT provisioned"})
     mode = kr.provider_mode()
-    res = kr.fetch_user_status(0, rid)          # user_id 0: read-only probe
+    # off the event loop (Sep 27 review major)
+    res = await asyncio.to_thread(kr.fetch_user_status, 0, rid)  # user_id 0: read-only probe
     out = {"ok": bool(res.get("ok")), "mode": mode,
            "stage": "fetch" if res.get("ok") else "provider"}
     if res.get("ok"):
@@ -2021,7 +2040,8 @@ async def api_admin_kraken_referral_key_check(request: Request):
     per 30s per process (429-shaped) so button-mashing cannot burn
     Kraken's rate credit. Audited like every operator action."""
     require_admin(request)
-    out = kr.credential_selftest()
+    # off the event loop (Sep 27 review major)
+    out = await asyncio.to_thread(kr.credential_selftest)
     if out.get("verdict") == "throttled":
         raise HTTPException(status_code=429, detail=out.get("detail", ""))
     return JSONResponse(out)

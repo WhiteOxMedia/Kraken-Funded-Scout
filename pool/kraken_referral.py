@@ -36,6 +36,7 @@ import urllib.parse
 import urllib.request
 
 import database as db
+import field_crypto as _fc
 import jackpot_engine as engine
 import jackpot_funding as funding
 import push_service as push_svc
@@ -116,6 +117,22 @@ def _keyring_creds():
     return None
 
 
+def _read_secret(name):
+    """Settings-tier secret read (Sep 27, review major: plaintext
+    Kraken secrets in settings). Secrets written through the admin
+    surface are sealed with field_crypto; older plaintext values (and
+    the keyring/env tiers, which are out of this helper's scope) pass
+    through unchanged, so rotation of the at-rest key never strands a
+    stored secret - it re-seals on the next write."""
+    v = str(db.get_setting(name, "") or "").strip()
+    if v and str(v).startswith(_fc.PREFIX):
+        try:
+            return str(_fc.decrypt(v)).strip()
+        except Exception:
+            return ""                    # undecryptable = unreadable
+    return v
+
+
 def kraken_credentials():
     """(api_key, api_secret, source) with source in 'env', 'settings',
     'keyring', or '' (unconfigured). The pair must be COMPLETE from
@@ -124,8 +141,8 @@ def kraken_credentials():
     env = _env_creds()
     if env:
         return env["key"], env["secret"], "env"
-    key = str(db.get_setting("KRAKEN_API_KEY", "") or "").strip()
-    sec = str(db.get_setting("KRAKEN_API_SECRET", "") or "").strip()
+    key = _read_secret("KRAKEN_API_KEY")
+    sec = _read_secret("KRAKEN_API_SECRET")
     if key and sec:
         return key, sec, "settings"
     kr = _keyring_creds()
@@ -166,8 +183,8 @@ def provider_posture():
     stores URLs), and a settings tier holding exactly one half of the
     pair is flagged, not mixed — the accessor's no-mix rule is the
     single source of truth for what actually counts."""
-    key = str(db.get_setting("KRAKEN_API_KEY", "") or "").strip()
-    sec = str(db.get_setting("KRAKEN_API_SECRET", "") or "").strip()
+    key = _read_secret("KRAKEN_API_KEY")
+    sec = _read_secret("KRAKEN_API_SECRET")
     kr_ = _keyring_creds()
     env = _env_creds()
     eff_key, eff_sec, tier = kraken_credentials()

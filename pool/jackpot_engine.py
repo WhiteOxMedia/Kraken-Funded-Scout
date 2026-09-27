@@ -443,7 +443,10 @@ def run_drawing():
         db.set_drawing_winner_wallet(drawing_id, winner["wallet_address"])
 
     # Create payout record for house tax (sent immediately as before)
-    db.add_payout(1, house_tax, "house_tax", drawing_id)  # House is miner_id=1 or special
+    # to the HOUSE account's REAL id (review batch, Sep 27 - see
+    # house_miner_id; miners.id = 1 was an assumption the live DB
+    # already disproves)
+    db.add_payout(house_miner_id(), house_tax, "house_tax", drawing_id)
 
     # Accumulate house tax for Kraken payout
     accumulate_house_tax(house_tax)
@@ -621,6 +624,19 @@ def get_pool_stats():
 
 # ─── Kraken-Compliant Auto-Payout ────────────────────────────
 
+def house_miner_id():
+    """THE HOUSE ACCOUNT (review batch, Sep 27 major): the house tax
+    records used the hardcoded assumption miners.id = 1, which is
+    FALSE on any real database - the live box's miner ids start at 23
+    (autoincrement was consumed by deleted probe rows). The house
+    account is instead the miner row with the reserved HOUSE address,
+    bootstrapped idempotently on first use (get_or_create_miner) and
+    then looked up by that address - the ACTUAL id, whatever it is,
+    satisfying the payouts FK without touching real miners' ids."""
+    house = db.get_or_create_miner("HOUSE", worker_name="house_tax")
+    return house["id"]
+
+
 def accumulate_house_tax(amount_xmr):
     """Add house tax to the accumulated pool for Kraken payout."""
     current = float(db.get_setting("house_tax_accumulated", "0"))
@@ -665,25 +681,18 @@ def check_and_send_house_tax():
     except Exception as e:
         return {"action": "failed", "error": str(e), "amount": payout_amount}
 
-    # Record payout. SCHEMA-DRIFT FIX (Sep 26, found by the promoted
-    # payout drive): this insert used miner_id=NULL, which only worked
-    # against the OLD live schema - current init_db declares miner_id
-    # NOT NULL with an FK to miners, so the house-tax record crashed
-    # on any fresh deploy. miner_id=1 is the house convention the
-    # draw-side tax recording already uses (add_payout(1, ...) in the
-    # drawing finalize path); the house miner row is GUARANTEED here
-    # (a fresh sandbox DB has no miner 1 yet - the FK is real).
-    with db.get_db() as conn:
-        house = conn.execute(
-            "SELECT id FROM miners WHERE id = 1").fetchone()
-    if not house:
-        db.get_or_create_miner("HOUSE", worker_name="house_tax")
-        with db.get_db() as conn:
-            conn.execute("UPDATE miners SET id = 1 WHERE wallet_address = 'HOUSE'")
+    # Record payout. SCHEMA-DRIFT FIX (Sep 26) + HOUSE-ID FIX (review
+    # batch, Sep 27): the row goes to the HOUSE account's REAL id
+    # (reserved 'HOUSE' address, bootstrapped idempotently) - the old
+    # hardcoded id=1 was false on any real database and the manual
+    # "UPDATE miners SET id = 1" rewrite here could have clobbered a
+    # real miner row. With the reserved address there is nothing to
+    # rewrite and no real miner can ever be touched.
     with db.get_db() as conn:
         conn.execute(
-            "INSERT INTO payouts (miner_id, amount_xmr, payout_type, tx_hash, status) VALUES (1, ?, ?, ?, ?)",
-            (payout_amount, "house_tax", tx_hash, "sent" if tx_hash and tx_hash != "pending_manual" else "pending"),
+            "INSERT INTO payouts (miner_id, amount_xmr, payout_type, tx_hash, status) VALUES (?, ?, ?, ?, ?)",
+            (house_miner_id(), payout_amount, "house_tax", tx_hash,
+             "sent" if tx_hash and tx_hash != "pending_manual" else "pending"),
         )
 
     return {
