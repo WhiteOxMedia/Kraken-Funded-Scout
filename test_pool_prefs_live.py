@@ -18,8 +18,13 @@ onto the battery's vocabulary:
                       ledgers it as SKIP - visible, never a FAIL,
                       never silently green
 
-Anything else (real failures, a missing checkout, a broken pool venv)
-keeps the underlying exit code and output: FAIL, loudly.
+Anything else keeps the underlying exit code and output: FAIL, loudly
+- including the PREREQUISITES (a missing pool checkout or an
+unprovisioned venv fail the entry rather than skip it: SKIP is the
+DRIVE's own server-down verdict, never the wrapper refusing to run),
+and the skip mapping itself requires the drive to have EXITED 0 - a
+run that prints the skip signature and then crashes is a failure, not
+a skip (CodeRabbit triage, Sep 26).
 
 Sibling layout (both repos side by side in the workspace):
   ../monero_project/test_prefs_live_server.py
@@ -40,13 +45,18 @@ SKIP_EXIT = 42
 
 
 def main() -> int:
+    # PREREQUISITES FAIL, NOT SKIP (CodeRabbit triage, Sep 26): a
+    # missing checkout or venv means the live contract CANNOT run -
+    # the battery must show FAIL, never a green-adjacent SKIP that
+    # lets the full lane finish without the live contract (SKIP is
+    # reserved for the drive's own honest server-down verdict).
     if not DRIVE.exists():
-        print(f"SKIP: pool checkout not found at {POOL}")
-        return SKIP_EXIT
+        print(f"FAIL: pool checkout not found at {POOL}", file=sys.stderr)
+        return 1
     if not POOL_PY.exists():
-        print(f"SKIP: pool venv not provisioned ({POOL_PY.name} missing) - "
-              "run python setup_dev.py in the pool checkout")
-        return SKIP_EXIT
+        print(f"FAIL: pool venv not provisioned ({POOL_PY.name} missing) - "
+              "run python setup_dev.py in the pool checkout", file=sys.stderr)
+        return 1
     p = subprocess.run(
         [str(POOL_PY), "-X", "utf8", str(DRIVE)],
         capture_output=True, text=True, encoding="utf-8", errors="replace",
@@ -57,14 +67,17 @@ def main() -> int:
     err = (p.stderr or "").strip()
     if err:
         print(err, flush=True)
-    # THE SELF-SKIP SIGNATURE: the drive's honest skip exits 0 with
-    # "RESULT: 0 passed, 0 failed" AND a "SKIP:" note — both required,
-    # so a green-but-empty run can never be confused with a skip and
-    # vice versa. (Found by live test: gating on returncode != 0 let
-    # the skip through as a green PASS — the exact silently-green
-    # outcome this wrapper exists to prevent.)
+    # THE SELF-SKIP SIGNATURE (CodeRabbit triage, Sep 26): the drive's
+    # honest skip EXITS 0 with "RESULT: 0 passed, 0 failed" AND a
+    # "SKIP:" note - all three required, so a green-but-empty run can
+    # never be confused with a skip, and a run that prints the skip
+    # signature and then CRASHES propagates its failure instead of
+    # being rewritten into 42. (Found by live test: gating on
+    # returncode != 0 let the skip through as a green PASS - the exact
+    # silently-green outcome this wrapper exists to prevent.)
     last = [l for l in out.splitlines() if l.startswith("RESULT:")]
-    if (last and last[-1].strip() == "RESULT: 0 passed, 0 failed"
+    if (p.returncode == 0
+            and last and last[-1].strip() == "RESULT: 0 passed, 0 failed"
             and "SKIP:" in out):
         return SKIP_EXIT
     return p.returncode

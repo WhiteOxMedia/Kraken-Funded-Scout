@@ -11,12 +11,19 @@ THE CONVENTION THIS ENCODES (established by test_pool_prefs_live.py,
 the first entry): execute the REAL drive in ITS OWN repo through THAT
 repo's venv, stream its contract output verbatim, and map its honest
 self-skip onto the battery's SKIP vocabulary. The skip mapping MUST
-key on the full signature - a final "RESULT: 0 passed, 0 failed" line
-AND a "SKIP:" note in the output - because a green-but-empty run is
-not a skip, and a skip that exits 0 is not a PASS (the first wrapper
-version gated on the return code alone and turned a confirmed-down
-server into a green checkmark: the exact silently-green outcome this
-template exists to prevent).
+key on the full signature - the drive EXITED 0, a final
+"RESULT: 0 passed, 0 failed" line, AND a "SKIP:" note in the output -
+because a green-but-empty run is not a skip, a skip that exits 0 is
+not a PASS, and a run that prints the skip signature and then crashes
+is a FAILURE, never a rewritten 42 (the first wrapper version gated on
+the return code alone and turned a confirmed-down server into a green
+checkmark: the exact silently-green outcome this template exists to
+prevent). Prerequisites fail the entry too: a missing drive or venv
+returns 1 (SKIP is reserved for the drive's own server-down verdict).
+Paths are RESOLVED against the caller's working directory before the
+child runs - a sibling-relative POOL_DRIVE would otherwise break the
+moment the child chdir'd into its parent's folder (CodeRabbit triage,
+Sep 26).
 
 Fill in:
   POOL_DRIVE  - absolute-or-sibling-relative path to the target drive
@@ -35,25 +42,36 @@ SKIP_EXIT = 42          # run_battery maps exit 42 (+ SKIP: line) to SKIP
 
 
 def main() -> int:
-    if not POOL_DRIVE.exists():
-        print(f"SKIP: drive not found at {POOL_DRIVE}")
-        return SKIP_EXIT
-    if not POOL_PY.exists():
-        print(f"SKIP: venv not provisioned ({POOL_PY}) - run setup_dev.py there")
-        return SKIP_EXIT
+    # RESOLVE against the CALLER's cwd (CodeRabbit triage, Sep 26):
+    # the child chdirs to the drive's folder, so a sibling-relative
+    # path like 'pool/test_drive.py' would be re-based and break
+    drive = POOL_DRIVE.resolve()
+    pool_py = POOL_PY.resolve()
+    # PREREQUISITES FAIL, NOT SKIP: the battery must show FAIL when the
+    # live contract cannot run at all - SKIP stays the drive's own
+    # honest server-down verdict.
+    if not drive.exists():
+        print(f"FAIL: drive not found at {drive}", file=sys.stderr)
+        return 1
+    if not pool_py.exists():
+        print(f"FAIL: venv not provisioned ({pool_py}) - run setup_dev.py there",
+              file=sys.stderr)
+        return 1
     p = subprocess.run(
-        [str(POOL_PY), "-X", "utf8", str(POOL_DRIVE)],
+        [str(pool_py), "-X", "utf8", str(drive)],
         capture_output=True, text=True, encoding="utf-8", errors="replace",
-        timeout=300, cwd=str(POOL_DRIVE.parent))
+        timeout=300, cwd=str(drive.parent))
     out = (p.stdout or "")
     for line in out.splitlines():
         print(line, flush=True)          # the drive's contract, verbatim
     err = (p.stderr or "").strip()
     if err:
         print(err, flush=True)
-    # THE SKIP SIGNATURE (both required - see the docstring):
+    # THE SKIP SIGNATURE (all three required - see the docstring):
+    # exited 0, the 0/0 RESULT line, and a SKIP note in the output.
     last = [l for l in out.splitlines() if l.startswith("RESULT:")]
-    if (last and last[-1].strip() == "RESULT: 0 passed, 0 failed"
+    if (p.returncode == 0
+            and last and last[-1].strip() == "RESULT: 0 passed, 0 failed"
             and "SKIP:" in out):
         print(f"SKIP: {SKIP_NOTE}")
         return SKIP_EXIT
