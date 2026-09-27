@@ -58,6 +58,16 @@ CODE is the alert (0 all-clear, 1 violations found, 2 an edge is
 UNPLANNED), so cron/alerting reacts to the receipt itself.
 Pinned by `test_fk_regression` 3c and `test_sweep_cli` section 6.
 
+Scheduled alerting: the Windows task `CodebuffWeeklyOrphanReport`
+(Sundays 06:15, user-level) runs `run_sweep_report.cmd`, which
+appends the receipt to `logs_sweep_report.txt` and leaves the
+exit code (0/1/2 above) in Task Scheduler's Last Result -
+alerting reacts to the rc without parsing the log. Re-create the
+task after moving the checkout (the wrapper resolves its own
+directory, but the task's command line is absolute):
+`schtasks //Create //TN CodebuffWeeklyOrphanReport //TR
+"'<repo>un_sweep_report.cmd'" //SC WEEKLY //D SUN //ST 06:15 //F`.
+
 ```
 ./test                          # the whole fleet (run_fleet.py underneath)
 ./test --only push prefs        # substring subset
