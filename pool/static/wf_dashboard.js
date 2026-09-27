@@ -97,6 +97,11 @@
   document.addEventListener("xmrjackpot:prefs", function (ev) {
     if (ev && ev.detail) { renderPrefsStamp(ev.detail); }
   });
+  /* INSTANT STATUS ROWS (Sep 26): the auth event re-renders the
+     wallet/miner dots the moment the subject switches — the same
+     instant contract the prefs stamp has; without this they lagged
+     up to 60s showing the PREVIOUS user's row state. */
+  document.addEventListener("xmrjackpot:auth", refreshStatus);
   document.addEventListener("xmrjackpot:auth", refreshPrefsStamp);
 
   /* the status row: miner / scout / wallet states from the endpoints

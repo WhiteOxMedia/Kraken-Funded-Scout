@@ -164,12 +164,15 @@ function flushAll(times) {
 function dispatch(type, detail) {
   const ls = sandbox.document._listeners[type] || [];
   assert.ok(ls.length >= 1, 'a ' + type + ' listener is registered');
-  ls[ls.length - 1]({ detail });
+  // REAL DOM SEMANTICS: a dispatched event reaches EVERY listener of
+  // the type (the old last-listener-only firing hid exactly the
+  // multi-listener wiring this drive pins)
+  ls.forEach((fn) => fn({ detail }));
 }
 function dispatchNoDetail(type) {
   const ls = sandbox.document._listeners[type] || [];
   assert.ok(ls.length >= 1, 'a ' + type + ' listener is registered');
-  ls[ls.length - 1]({});
+  ls.forEach((fn) => fn({}));
 }
 function stampText() { return els.wfPrefsStamp.textContent; }
 function stampTitle() { return els.wfPrefsStamp.title; }
@@ -390,7 +393,7 @@ async function scenario(name) {
     fire();
     await flushAll();
     assert.ok(els.wfSignalFeed.innerHTML.indexOf('old user signal') === -1,
-              'a null answer CLEARS the previous user\'s rows (logout hygiene)');
+              "a null answer CLEARS the previous user's rows (logout hygiene)");
     assert.ok(els.wfSignalFeed.innerHTML.indexOf('No signals pushed yet') >= 0,
               'the cleared feed shows the empty state, not the stale rows');
     // 3. network rejection -> the failure line
@@ -400,6 +403,48 @@ async function scenario(name) {
     assert.ok(els.wfSignalFeed.innerHTML.indexOf('Could not load signal history.') >= 0,
               'a network rejection renders the failure line');
     return 'signals_empty_and_failure ok';
+  }
+
+  if (name === 'auth_refreshes_status') {
+    // THE STATUS ROWS ON AUTH (the 60s-lag fix): the wallet/miner
+    // dots must switch subjects the moment xmrjackpot:auth fires —
+    // same instant contract the prefs stamp already has.
+    answers = { '/api/push/preferences': { status: 200, json: ENV_A },
+                '/api/auth/me': { status: 200, json: {
+                  authenticated: true, wallet_address: '4' + 'a' * 94 } },
+                '/api/profile/stats': { status: 200, json: {
+                  miner: { hashrate: 123, shares_valid: 5 } } },
+                '/api/push/signals': { status: 200, json: { signals: [] } } };
+    loadNow();
+    await flushAll();
+    assert.strictEqual(els.wfWalletStatus.textContent,
+                       'Connected (read-only)',
+                       "boot rendered alice's wallet row");
+    assert.strictEqual(els.wfDotWallet.className, 'wf-dot on',
+                       'the wallet dot is ON for a connected wallet');
+    assert.ok(els.wfMinerStatus.textContent.indexOf('On') === 0,
+              'the miner row shows active for a hashing miner: '
+              + els.wfMinerStatus.textContent);
+    // THE SUBJECT SWITCH: the next auth/me answers bob (no wallet,
+    // not mining) — the auth event must refetch and re-render NOW
+    const nAuthMe = () => gets.filter((p) => p === '/api/auth/me').length;
+    const before = nAuthMe();
+    answers['/api/auth/me'] = { status: 200, json: {
+      authenticated: true, wallet_address: '' } };
+    answers['/api/profile/stats'] = { status: 200, json: {
+      miner: { hashrate: 0, shares_valid: 0 } } };
+    dispatchNoDetail('xmrjackpot:auth');
+    await flushAll();
+    assert.strictEqual(nAuthMe(), before + 1,
+                       'the auth event refetched /api/auth/me instantly');
+    assert.strictEqual(els.wfWalletStatus.textContent, 'One-directional',
+                       'the wallet row switched subjects INSTANTLY ' +
+                       '(no 60s lag)');
+    assert.strictEqual(els.wfDotWallet.className, 'wf-dot',
+                       'the wallet dot went OFF for the wallet-less subject');
+    assert.strictEqual(els.wfMinerStatus.textContent, 'Off',
+                       'the miner row switched too');
+    return 'auth_refreshes_status ok';
   }
 
   if (name === 'announce_without_detail') {
@@ -453,6 +498,8 @@ SCENARIOS = [
      "hostile titles land ESCAPED (five specials), no raw markup reaches innerHTML; garbage ts leaves the raw time-title empty"),
     ("10", "signals_empty_and_failure",
      "empty list renders the empty line; a null answer clears the prior user's rows; a network rejection renders the failure line"),
+    ("11", "auth_refreshes_status",
+     "xmrjackpot:auth refetches and re-renders the wallet/miner dots instantly — no 60s subject lag"),
 ]
 
 
