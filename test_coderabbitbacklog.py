@@ -18,6 +18,12 @@ both real repos are never touched by this drive.
      surface, so the next triage needs no manual JSON hunt; a body
      marker still never prints, a bodyless/broken finding is skipped,
      no majors means a clean line, and majors never change rc
+  4c. THE TRIAGE MEMORY (Sep 27): a commit LATER than the batch
+     whose message names a majored file retires it from the
+     surface - and a commit sitting in head..HEAD but predating
+     the batch does NOT (the timestamp gate), so the list
+     reflects reality after fixes land without re-serving
+     triaged work or trusting rebased ghosts
   5. output hygiene: names, hashes, ages, majors' file:line+title -
      review CONTENTS (bodies) are never printed (a marker inside a
      fake findings BODY must not surface)
@@ -211,8 +217,58 @@ check("4b.4", rc_m == 0,
 # the clean line: a fresh batch with NO majors
 _mk_batch(REPO_B, NOW + 1)
 _rcn, out_n = _run()
-check("4b.5", "records no majors" in out_n,
+check("4b.5", "records no untriaged majors" in out_n,
       "a batch with no majors gets its clean line")
+
+print("== 4c. THE TRIAGE MEMORY: a later commit naming the file retires it ==")
+# repoA's tip (the fresh, in-range commit) is AMENDED to carry the
+# fix's message naming the majored file. The 4b batch stays the
+# newest batch; only the commit's message and date change - so
+# whatever the surface does next is the memory's doing alone.
+_am = _git(REPO_A, "commit", "--amend", "--allow-empty", "-m",
+           "fix: retire the review major in src/trading.py", when=NOW + 10)
+check("4c.0", _am.returncode == 0,
+      "drive setup: the fix-message amend succeeded")
+_rc_a, out_a = _run()
+check("4c.1", "src/trading.py" not in out_a
+      and "repoA: the newest batch records no untriaged majors" in out_a,
+      "a commit NEWER than the batch whose message names "
+      "src/trading.py retires that major - repoA's list goes "
+      "clean instead of re-serving triaged work")
+check("4c.2", "1 open commit(s)" in out_a and _rc_a == 0,
+      "the SAME run still reports repoA's open amended commit - "
+      "the major was retired by the MEMORY, not by the commit "
+      "or the batch vanishing (and majors stay advisory: rc 0)")
+# the negative control: the SAME message on a commit whose
+# committer date PREdates the batch. It sits inside head..HEAD
+# (the amend/rebase shape) but it is not LATER - the memory
+# must not trust it, or a rebased ghost retires real work.
+_pre = _git(REPO_A, "commit", "--amend", "--allow-empty", "-m",
+            "fix: retire the review major in src/trading.py",
+            when=NOW - 10 * H)
+check("4c.3", _pre.returncode == 0,
+      "drive setup: the anti-dated amend succeeded")
+_rc_p, out_p = _run()
+check("4c.4", "src/trading.py:2754" in out_p
+      and "majors awaiting triage in the newest batch (1)" in out_p,
+      "the pre-batch-dated receipt does NOT retire the major - "
+      "head..HEAD membership alone is not `later`; the timestamp "
+      "gate keeps the memory honest")
+# the LIVE SHAPE: the receipt names the file only in its BODY - the
+# monero triage commit's shape (its subject names none of the four
+# files its body fixed). This doubles as the restore, so sections
+# 5-6 see the settled post-date receipt state.
+_am2 = _git(REPO_A, "commit", "--amend", "--allow-empty", "-m",
+            "triage: all four review majors" + chr(10) + chr(10)
+            + "fixed src/trading.py and two siblings", when=NOW + 10)
+check("4c.5", _am2.returncode == 0,
+      "drive setup: the body-only receipt amend succeeded")
+_rc_b, out_b = _run()
+check("4c.6", "src/trading.py" not in out_b
+      and "repoA: the newest batch records no untriaged majors" in out_b,
+      "a receipt naming the file ONLY in its body still retires the "
+      "major - the live shape where the subject names none of the "
+      "fixed files")
 
 print("== 5. OUTPUT HYGIENE: contents never print ==")
 # NOTE (4b): the body-marker batches for this section are already in

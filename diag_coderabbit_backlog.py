@@ -20,7 +20,11 @@ sibling, the same both-roots scope diag_hygiene uses):
                           surface (Sep 26): the newest batch's MAJOR
                           findings print as file:line + title - the
                           metadata an operator needs to triage without
-                          the manual JSON hunt. The reviewer's WORDS
+                          the manual JSON hunt. A finding whose file
+                          a LATER commit's message names is TRIAGED
+                          and stops surfacing (Sep 27) - the list
+                          reflects reality after fixes land. The
+                          reviewer's WORDS
                           (comment bodies) remain its own data: only
                           fileName/startLine/title/severity are read,
                           and a body never reaches the output
@@ -44,6 +48,7 @@ Run:  .venv\\Scripts\\python.exe -X utf8 diag_coderabbit_backlog.py
 """
 import json
 import os
+import re
 import subprocess
 import sys
 import time
@@ -107,16 +112,50 @@ def _batches_for(repo):
     return sorted(found, reverse=True)
 
 
-def _surface_majors(step, name, batches):
+def _triaged_files(repo, batch_ts, batch_head):
+    """Filenames a LATER commit's message names (the triage memory).
+
+    A major counts as TRIAGED once a commit NEWER than the batch that
+    reviewed it mentions its file by name - subject OR BODY, because
+    the triage commits that matter name their fixes in the body (the
+    live case's subject names none of the four it fixed), so the
+    list reflects reality after fixes land instead of re-serving
+    triaged work forever. Two gates, because `head..HEAD` is not
+    "later" by itself: a commit IN that range can still carry a
+    pre-batch committer date (amend/rebase), so it must also
+    postdate the batch's own timestamp. The log is NUL-framed so a
+    body line that merely LOOKS like "<epoch> subject" can never
+    parse as a commit of its own. Any git hiccup returns an empty
+    set and the majors surface unfiltered (fail-soft = fail-visible).
+    """
+    named = set()
+    log = _git(repo, "log", f"{batch_head}..HEAD",
+               "--format=%ct%x00%B%x00")
+    chunks = log.split(chr(0))
+    for i in range(0, len(chunks) - 1, 2):
+        ct, body = chunks[i].strip(), chunks[i + 1]
+        if not ct.isdigit() or int(ct) <= batch_ts:
+            continue
+        named |= {ln.split(":")[0].strip() for ln in
+                  re.findall(r"[\w./\\+-]+", body) if "." in ln}
+    return named
+
+
+def _surface_majors(step, name, batches, repo=None):
     """THE TRIAGE SURFACE (Sep 26): the newest batch is the review the
     operator may not have seen yet; its MAJOR findings are the triage
-    backlog. Prints file:line + title only (capped at 10, with a
-    count) - never the comment body. Malformed finding files are
+    backlog. With `repo` handed in (Sep 27) it is also a MEMORY: a
+    major whose fileName a later commit's message names counts as
+    TRIAGED (via _triaged_files) and stops surfacing, so the list
+    reflects reality after fixes land. Prints file:line + title
+    only (capped at 10, with a count) - never the comment body.
+    Malformed finding files are
     skipped, not crashed on; majors never change the exit code (they
     are advisory triage work; the gate is about review COVERAGE)."""
     if not batches:
         return
     _ts, _head, batch_dir = batches[0]
+    triaged = _triaged_files(repo, _ts, _head) if repo else set()
     majors = []
     total = 0
     for fj in sorted(batch_dir.glob("*.json")):
@@ -129,6 +168,8 @@ def _surface_majors(step, name, batches):
         if not isinstance(meta, dict):
             continue
         if str(meta.get("severity", "")).lower() == "major":
+            if str(meta.get("fileName", "")) in triaged:
+                continue
             total += 1
             if len(majors) < 10:
                 ln = meta.get("startLine")
@@ -136,7 +177,8 @@ def _surface_majors(step, name, batches):
                                ln if isinstance(ln, int) else None,
                                str(meta.get("title", "(untitled)"))))
     if total == 0:
-        check(step, f"{name}: the newest batch records no majors", True)
+        check(step, f"{name}: the newest batch records no untriaged "
+                    f"majors", True)
         return
     print(f"     majors awaiting triage in the newest batch ({total}):")
     for fn, ln, title in majors:
@@ -178,7 +220,7 @@ def _repo_report(step, repo):
     # fully covering (the gate green) and still carry majors the
     # operator has not triaged - coverage and triage are different
     # questions, and both belong in one run's output
-    _surface_majors(step, name, batches)
+    _surface_majors(step, name, batches, repo=repo)
     if not open_set:
         check(step, f"{name}: every commit in the window is covered", True)
         return
