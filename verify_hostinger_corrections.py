@@ -211,9 +211,35 @@ def main() -> int:
         check(4.1, bool(_tok) and _uses >= 10,
               f"flat corners survive (the --radius token is "
               f"{'0' if _tok else 'NOT zero'} and is used {_uses}x)")
-        check(4.2, "--mono-orange" in css and "--surface-white" in css
-              and "--text" in css,
-              "the token layer survives (names stable)")
+        # review triage (Sep 27): compare token VALUES, not names -
+        # a corrected stylesheet that redefines --mono-orange to an
+        # unrelated color kept every name and still passed the old
+        # name-only pin, defeating the stated orange/surface pins.
+        def _tok_vals(css_text, names):
+            out = {}
+            for name in names:
+                m = re.search(re.escape(name) + r"\s*:\s*([^;]+);",
+                              css_text)
+                if m:
+                    out[name] = m.group(1).strip().lower()
+            return out
+        _names = ("--mono-orange", "--surface-white", "--text")
+        _corr_vals = _tok_vals(css, _names)
+        _prod_vals = _tok_vals(
+            (PROD / "static" / "style.css").read_text(
+                encoding="utf-8"), _names)
+        _moved = [n for n in _names
+                  if _corr_vals.get(n) is not None
+                  and _prod_vals.get(n) is not None
+                  and _corr_vals[n] != _prod_vals[n]]
+        _missing = [n for n in _names if n not in _corr_vals]
+        check(4.2, not _moved and not _missing,
+              "the token layer survives (VALUES compared against "
+              "production, not just names)"
+              + (f" - REDEFINED: "
+                 + str([(n, _prod_vals.get(n), _corr_vals.get(n))
+                        for n in _moved]) if _moved else "")
+              + (f" - MISSING: {_missing}" if _missing else ""))
         check(4.3, "wf-section" in css and "wf-status" in css,
               "the wf-* workflow layer survives")
     else:

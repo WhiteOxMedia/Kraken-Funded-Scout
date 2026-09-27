@@ -102,6 +102,39 @@ if admin.count('href="/scout/"') >= 2:
 else:
     check("3.1", False, "fixture precondition lost: production admin "
           "panel no longer repeats /scout/ - rebuild this scenario")
+print("== 4. TOKEN VALUES, NOT NAMES (a redefinition fails 4.2) ==")
+# the review's shape (Sep 27): a corrected stylesheet keeps every
+# token NAME but redefines --mono-orange to an unrelated color - the
+# name-only pin passed it silently. The gate must compare the parsed
+# VALUES against production CSS.
+css = (PROD / "static" / "style.css").read_text(encoding="utf-8")
+import re as _re
+if _re.search(r"--mono-orange\s*:\s*#[0-9A-Fa-f]{3,8}", css):
+    _d4 = fresh_dir()
+    (_d4 / "static").mkdir()
+    redefined = _re.sub(r"(--mono-orange\s*:\s*)#[0-9A-Fa-f]{3,8}",
+                        r"\g<1>#00FF00", css, count=1)
+    (_d4 / "static" / "style.css").write_text(redefined, encoding="utf-8")
+    rc, out = run_gate(_d4)
+    check("4.1", rc == 1 and "FAIL  4.2" in out,
+          f"a corrected stylesheet that redefines --mono-orange's VALUE "
+          f"(names intact) fails the design pin (rc {rc})")
+    _d5 = fresh_dir()
+    (_d5 / "static").mkdir()
+    (_d5 / "static" / "style.css").write_text(css, encoding="utf-8")
+    # the inventory contract: a css correction still needs the other
+    # corrected files it must not regress (the id pool needs the
+    # admin panel for app.js's admin-card ids)
+    shutil.copy(PROD / "templates" / "admin_panel.html",
+                _d5 / "admin_panel.html")
+    rc, out = run_gate(_d5)
+    check("4.2", rc == 0,
+          f"a value-faithful corrected stylesheet passes the design pin "
+          f"(rc {rc})")
+else:
+    check("4.1", False, "fixture precondition lost: production "
+          "style.css no longer defines --mono-orange by value")
+
 
 passed, failed = results.count(True), results.count(False)
 print(f"RESULT: {passed} passed, {failed} failed")

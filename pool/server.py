@@ -2170,13 +2170,10 @@ async def scout_index_redirect():
 )
 async def scout_proxy(rest_of_path: str, request: Request):
     """Reverse-proxy the local Streamlit console behind admin auth."""
-    user = _scout_admin_or_login_page(request)
-    if user is None:
-        # Not logged in (or not admin) — show friendly login redirect page
-        return HTMLResponse(content=_SCOUT_LOGIN_PAGE, status_code=403)
-
-    # Static assets (js/css/fonts) load without an explicit page visit;
-    # only block them with the plain 403 to avoid HTML in asset requests.
+    # Static assets (js/css/fonts) are classified FIRST (review triage,
+    # Sep 27): the old order answered every non-admin request with the
+    # friendly login HTML, so an asset request got content-type
+    # text/html and the plain-403 branch below was dead code.
     is_asset = (
         rest_of_path.startswith("static/")
         or rest_of_path.startswith("_stcore/")
@@ -2184,6 +2181,11 @@ async def scout_proxy(rest_of_path: str, request: Request):
     )
     if is_asset:
         _scout_admin_or_403(request)
+
+    user = _scout_admin_or_login_page(request)
+    if user is None:
+        # Not logged in (or not admin) — show friendly login redirect page
+        return HTMLResponse(content=_SCOUT_LOGIN_PAGE, status_code=403)
 
     target = f"{SCOUT_UPSTREAM}/{rest_of_path}"
     if request.url.query:

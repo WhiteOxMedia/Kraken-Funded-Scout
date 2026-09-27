@@ -61,6 +61,11 @@ _uid = db.create_user("wsgate_admin", "x", is_admin=True)
 import time as _time                              # noqa: E402
 TOKEN = "wsgate-admin-session-token"
 db.create_session(TOKEN, _uid, _time.time() + 3600)
+# a NON-admin session: section 4 exercises the asset gate's
+# refusal shape, which only non-admin requests can reach
+_peer = db.create_user("wsgate_peer", "x")
+PEER_TOKEN = "wsgate-peer-session-token"
+db.create_session(PEER_TOKEN, _peer, _time.time() + 3600)
 
 # ── the stubbed upstream: ClientSession.ws_connect is the seam ───────
 class _FakeUpstream:
@@ -110,6 +115,7 @@ class _FakeSession:
 srv.aiohttp = types.SimpleNamespace(
     ClientSession=_FakeSession,
     WSMsgType=srv.aiohttp.WSMsgType,
+    ClientConnectorError=srv.aiohttp.ClientConnectorError,
 )
 srv._scout_ws_live["n"] = 0                        # clean relay ledger
 
@@ -164,6 +170,30 @@ except Exception as _e:                     # diagnostic, not a pin:
           f"unexpected refusal: {_e.__class__.__name__}: "
           f"code={getattr(_e, 'code', '?')} {_e} "
           f"offered_upstream={_FakeSession.last_protocols!r}")
+
+print("== 4. THE ASSET GATE: plain 403 BEFORE the login HTML (Sep 27 minor) ==")
+# review minor (batch ebf73e75, server.py:1422): the proxy answered
+# EVERY non-admin request with the login HTML before the is_asset
+# branch ran - a non-admin request for /scout/static/... or
+# /scout/_stcore/... got HTML with content-type text/html, making the
+# plain-403 asset branch dead code. The gate must classify the asset
+# FIRST and answer with the bare 403. (A non-admin session drives
+# this section - the admin one above rides the relay paths.)
+c = TestClient(srv.app)
+_peer_cookie = {"cookie": f"session={PEER_TOKEN}"}
+_r = c.get("/scout/static/app.js", headers=_peer_cookie)
+check("4.1", _r.status_code == 403 and "text/html" not in _r.headers.get("content-type", ""),
+      f"a NON-admin fetch of /scout/static/app.js gets the plain 403, "
+      f"not HTML (got {_r.status_code}, {_r.headers.get('content-type', '?')[:30]})")
+_r = c.get("/scout/_stcore/health", headers=_peer_cookie)
+check("4.2", _r.status_code == 403 and "text/html" not in _r.headers.get("content-type", ""),
+      f"same for the _stcore/ branch: {_r.status_code}, "
+      f"{_r.headers.get('content-type', '?')[:30]}")
+_html403 = c.get("/scout/", headers=_peer_cookie)
+check("4.3", _html403.status_code == 403 and "text/html" in _html403.headers.get("content-type", ""),
+      "the PAGE path keeps the friendly login HTML (only the asset "
+      "shape changed - mobile users still get the login redirect)")
+
 
 passed, failed = results.count(True), results.count(False)
 print(f"RESULT: {passed} passed, {failed} failed")
