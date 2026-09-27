@@ -36,6 +36,26 @@ manifest (`users.probe_swept`; `jackpot.orphans_swept` for the FK
 sweep). Pre-sweep backups land next to the DB as
 `_backup_jackpot_pre_*.db`.
 
+The discipline lives in `sweep_lib.py` and its operator face is
+`sweep_db.py`: a bare `python sweep_db.py` is a READ-ONLY dry run
+(it rehearses the labeled statements on a throwaway backup-API
+copy, prints the per-label counts and the gate verdict, and
+writes nothing), while `python sweep_db.py --apply` performs the
+sweep through `sweep_lib` - backup beside the DB, the
+`PRAGMA foreign_key_check` gate INSIDE the transaction (a
+violation rolls the whole sweep back), and the manifest audit
+row. New FK edges need a new labeled statement pair in
+`sweep_db.py`; the dry run flips to `would ROLLBACK` until one is
+added. Pinned by `test_sweep_cli.py`.
+
+The planning half is `python sweep_db.py --report` (backed by
+`sweep_lib.orphans()`): it reads every FK edge from the schema
+itself and reports per-edge violation counts with sample rowids
+and the disposition a sweep would take (delete / null /
+UNPLANNED) - all through a mode=ro connection, so a report can
+run against the live primary with zero write access. Pinned by
+`test_fk_regression` 3c and `test_sweep_cli` section 6.
+
 ```
 ./test                          # the whole fleet (run_fleet.py underneath)
 ./test --only push prefs        # substring subset

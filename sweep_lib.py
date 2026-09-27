@@ -117,3 +117,48 @@ def sweep(db_path, statements, *, audit_action="sweep.orphans",
         raw.close()
     return {"committed": committed, "backup": backup_path,
             "rowcounts": rowcounts, "fk_after_commit": fk_after}
+
+
+def orphans(db_path, *, sample_limit=5):
+    """THE ORPHAN DETECTOR (Sep 27): report FK-violating rows WITHOUT
+    sweeping - the planning half of the discipline, so a cleanup is
+    sized and ordered before anything opens the DB read-write.
+
+    Opens the file mode=ro (URI) - a detector that cannot run on a
+    read-only file (a live server's primary, a mounted snapshot) is no
+    detector at all. Every FK edge is read from the schema itself via
+    PRAGMA foreign_key_list (no hard-coded table list to rot), and
+    violations are counted PER EDGE - a whole-table count cannot tell
+    you which parent died or which statements the sweep needs first.
+    Up to `sample_limit` offending rowids ride along per edge for the
+    receipt.
+
+    Returns [{"child_table", "child_col", "parent_table",
+              "violations", "sample_rowids"}] (heaviest edge first).
+    """
+    db_path = Path(db_path)
+    conn = sqlite3.connect(f"file:{db_path.as_posix()}?mode=ro", uri=True)
+    found = []
+    try:
+        tables = [r[0] for r in conn.execute(
+            "SELECT name FROM sqlite_master WHERE type='table' "
+            "AND name NOT LIKE 'sqlite_%'")]
+        for table in tables:
+            for fk in conn.execute(f"PRAGMA foreign_key_list({table})"):
+                parent, child_col = fk[2], fk[3]
+                n = conn.execute(
+                    f"SELECT COUNT(*) FROM {table} WHERE {child_col} IS "
+                    f"NOT NULL AND {child_col} NOT IN "
+                    f"(SELECT id FROM {parent})").fetchone()[0]
+                if n:
+                    samples = [r[0] for r in conn.execute(
+                        f"SELECT rowid FROM {table} WHERE {child_col} IS "
+                        f"NOT NULL AND {child_col} NOT IN "
+                        f"(SELECT id FROM {parent}) LIMIT ?",
+                        (sample_limit,))]
+                    found.append({"child_table": table, "child_col": child_col,
+                                  "parent_table": parent, "violations": n,
+                                  "sample_rowids": samples})
+    finally:
+        conn.close()
+    return sorted(found, key=lambda e: -e["violations"])

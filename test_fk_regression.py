@@ -191,6 +191,53 @@ except sw.SweepError:
 check("3.7", _twice,
       "a sweep refuses to overwrite its own backup target")
 
+print("== 3c. THE ORPHAN DETECTOR (plan before you sweep) ==")
+_rep = sw.orphans(db.DB_PATH)
+check("3.8", _rep == [],
+      f"a healed DB reports NO violations at all: {_rep}")
+# rebuild the factory: a fresh miner+ticket and a fresh user, then
+# delete the parents raw so each edge owns a known violation count
+raw3 = sqlite3.connect(str(db.DB_PATH))
+_m2 = db.get_or_create_miner(WALLET, "rig-fkreg-report")
+db.add_tickets(_m2["id"], "free", 1)
+_uid3 = db.create_user("fkreg_report_user", "x")
+db.create_session("fkreg-report-token", _uid3, 9999999999)
+db.add_audit_log(_uid3, "fkreg_report_note", "{}")
+raw3.execute("DELETE FROM miners WHERE id = ?", (_m2["id"],))
+raw3.execute("DELETE FROM users WHERE id = ?", (_uid3,))
+raw3.commit()
+_rep = sw.orphans(db.DB_PATH)
+_edges = {(e["child_table"], e["child_col"], e["parent_table"]): e["violations"]
+          for e in _rep}
+check("3.9", _edges.get(("tickets", "miner_id", "miners")) == 1,
+      f"the detector names the EDGE, not just a table total: {_edges}")
+check("3.10", _edges.get(("sessions", "user_id", "users")) == 1
+      and _edges.get(("audit_log", "user_id", "users")) == 1,
+      "every violated edge is reported with its own count")
+_samples = {e["child_table"]: e["sample_rowids"] for e in _rep}
+check("3.11", len(_samples.get("tickets", [])) == 1,
+      f"sample rowids ride along for the receipt: {_samples}")
+# the detector is a READER: it must work on a filesystem read-only file
+_ro = Path(str(db.DB_PATH) + ".ro_copy")
+_src = sqlite3.connect(str(db.DB_PATH))
+_dst = sqlite3.connect(str(_ro))
+_src.backup(_dst)
+_src.close()
+_dst.close()
+_ro.chmod(0o444)
+try:
+    _rep_ro = sw.orphans(_ro)
+    check("3.12", _rep_ro == _rep,
+          "the detector runs on a READ-ONLY file (mode=ro) and agrees")
+finally:
+    _ro.chmod(0o644)
+    _ro.unlink(missing_ok=True)
+check("3.13", '?mode=ro", uri=True' in
+      Path(sw.__file__).read_text(encoding="utf-8"),
+      "the detector OPENS with the mode=ro URI idiom in source (not just "
+      "in a docstring) - SQLite itself then refuses every write, so a "
+      "hot journal can never be replayed through a read-only report")
+raw3.close()
 
 print("== 4. THE LIVE CANARIES (read-only) ==")
 live = sqlite3.connect(f"file:{(HERE / 'pool' / 'jackpot.db').as_posix()}"
