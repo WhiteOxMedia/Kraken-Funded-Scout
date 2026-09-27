@@ -669,6 +669,82 @@ del _os.environ["KRAKEN_API_SECRET"]
 db.set_setting("KRAKEN_REFERRAL_ENDPOINT", _ep_before)
 db.set_setting("KRAKEN_REFERRAL_MODE", "")
 sys.modules.pop("keyring", None)
+
+print("== 8g. SETUP'S CROSS-CHECK: local posture vs the RUNNING ==")
+print("==    server's projection mode (setup_kraken._crosscheck_server) ==")
+# The public projection GET echoes kr.provider_mode() evaluated in the
+# SERVER process — setup stores its pair and endpoint in the shared
+# settings DB, so if server and local modes ever diverge, something is
+# genuinely wrong (env-tier shadow, stale server process, foreign
+# DB_PATH). Pinned through the REAL handler: whatever the API returns
+# is exactly what a running deployment answers. The block runs in the
+# 8f world (the same hermetic env pair + keyring stub), and the local
+# mode inside setup_kraken sees that world too because setup imported
+# the SAME pool modules (both pin root/pool on sys.path, so 'import
+# kraken_referral' resolves to ONE cached module for both) — the box
+# the drive runs on may still hold an operator keyring pair or a real
+# endpoint; the simulate override wins over all of it on both sides.
+_kr_stub4 = _types.SimpleNamespace(get_password=lambda s, u: None,
+                                   set_password=lambda s, u, v: None)
+sys.modules["keyring"] = _kr_stub4
+_os.environ["KRAKEN_API_KEY"] = "KC-KEY-DRIVE-1111"
+_os.environ["KRAKEN_API_SECRET"] = "c2VjcmV0MTIzNDU2Nzg5MA=="
+db.set_setting("KRAKEN_REFERRAL_MODE", "simulate")
+import setup_kraken
+buf = __import__("io").StringIO()
+_old, sys.stdout = sys.stdout, buf
+try:
+    _div = setup_kraken._crosscheck_server()
+finally:
+    sys.stdout = _old
+_txt8g = buf.getvalue()
+r = client.get("/api/jackpot/projection")
+_mode8g = r.json().get("mode")
+check("8g.8", "server mode: simulate" in _txt8g
+      and _mode8g == kr.provider_mode() == "simulate"
+      and "OK: local and running server agree" in _txt8g,
+      f"server and local modes agree in the hermetic world "
+      f"(server={_mode8g} local={kr.provider_mode()})")
+check("8g.9", "DIVERGENT" not in _txt8g
+      and _div is False and "Traceback" not in _txt8g,
+      "agree verdict prints and returns False (divergence flag off)")
+
+# Divergence wire: patch ONLY the fetch seam — the local side runs the
+# real provider_mode through the shared modules.
+_real_fetch = setup_kraken._fetch_projection
+setup_kraken._fetch_projection = lambda base_url: {"mode": "live"}
+buf = __import__("io").StringIO()
+_old, sys.stdout = sys.stdout, buf
+try:
+    _div = setup_kraken._crosscheck_server()
+finally:
+    sys.stdout = _old
+_txt8g = buf.getvalue()
+setup_kraken._fetch_projection = _real_fetch
+check("8g.10", "DIVERGENT" in _txt8g and "server mode: live" in _txt8g
+      and _div is True and "agree" not in _txt8g,
+      f"divergent server mode is flagged and the call returns True "
+      f"(srv=live vs local={kr.provider_mode()})")
+
+# Server-down: fail-soft notice — the operator's run must not crash
+# just because the pool is not up yet; the fetch is proven against a
+# closed port, and the False rc keeps _crosscheck_server honest for
+# any caller that surfaces it.
+buf = __import__("io").StringIO()
+_old, sys.stdout = sys.stdout, buf
+try:
+    _div = setup_kraken._crosscheck_server("http://127.0.0.1:9")
+finally:
+    sys.stdout = _old
+_txt8g = buf.getvalue()
+check("8g.11", "not reachable" in _txt8g and _div is False
+      and "Traceback" not in _txt8g,
+      "server-down fails soft: friendly notice, no crash, rc False")
+del _os.environ["KRAKEN_API_KEY"]
+del _os.environ["KRAKEN_API_SECRET"]
+db.set_setting("KRAKEN_REFERRAL_MODE", "")
+sys.modules.pop("keyring", None)
+
 print("== 9. THE MAPPING SHEET: real kraken_referral_id column ==")
 anon2 = TestClient(srv.app)
 check(9.1, anon2.get("/api/admin/kraken-referral/mappings").status_code == 401,
