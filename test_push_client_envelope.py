@@ -24,13 +24,21 @@ stubbed DOM + fetch and asserts the checkbox outcomes:
   4. the xmrjackpot:prefs announcement carries the full envelope
   5. after a 412, the next write rides the CONFLICT's version and its
      200 body is adopted
-  6. THE 2-STEP HISTORY: after a write the link is "undo"; clicking it
+  6. THE N-STEP HISTORY: after a write the link is "undo"; clicking it
      applies the other state and the link becomes "redo"; clicking
      THAT applies again and the link is "undo" once more — every step
      riding the version its predecessor applied
   7. a fresh write RE-POINTS the history (the redo of an older toggle
      is voided): the new undo replays the state the last write
      replaced, and it in turn offers "redo"
+ 13. THE N-STEP WALK (Sep 26 upgrade): mid-walk BOTH links render
+     SIMULTANEOUSLY ('undo · redo'); the second undo walks DEEPER to
+     the state two writes back (the 2-step history could never); the
+     walk's bottom is INERT (no POST past empty); a redo restores
+     both links; all writes ride their predecessor versions
+ 14. THE CAP: MAX_HISTORY bounds the stack — after 22 fresh writes
+     exactly 20 undo steps may POST, then the link is gone (the two
+     oldest replaced states fell off the bottom)
   8. CROSS-ACCOUNT SAFETY: after xmrjackpot:auth (logout or switch),
      the cleared history is INERT — a lingering undo link can no
      longer replay the previous account's state, and the next write
@@ -212,8 +220,8 @@ function fireChange(box, value) {
   e.listeners.change[0]();
 }
 function stampLink() {
-  // the saved line renders [text node, anchor] — the history link is
-  // the LAST child; assert it exists and return it
+  // the saved line renders [text node, anchor(s)] — with a SINGLE
+  // history link it is the last child; assert it exists and return it
   const a = els.prefSaved.children[els.prefSaved.children.length - 1];
   assert(a && a.listeners.click && a.listeners.click.length === 1,
          'a history link is rendered on the saved line');
@@ -221,6 +229,17 @@ function stampLink() {
 }
 function clickStampLink() {
   stampLink().listeners.click[0]({ preventDefault: function () {} });
+}
+function linksText() {
+  // EVERY rendered history link, in DOM order — the N-step walk
+  // renders undo and redo SIMULTANEOUSLY, so the line is 'undo,redo'
+  return els.prefSaved.children
+    .map((c) => c.textContent).filter(Boolean).join(',');
+}
+function clickLinkNamed(txt) {
+  const a = els.prefSaved.children.find((c) => c.textContent === txt);
+  assert.ok(a, 'a "' + txt + '" link is rendered on the saved line');
+  a.listeners.click[0]({ preventDefault: function () {} });
 }
 
 const ENVELOPE = {
@@ -560,6 +579,116 @@ async function scenario(name) {
     return 'reentrancy_guard ok';
   }
 
+  if (name === 'nstep_walk') {
+    script = { status: 200, headers: { ETag: '"2026-09-26T10:00:00Z"' }, json: ENVELOPE };
+    loadClient();
+    await flushAll();
+    // two fresh writes build a 2-deep undo stack
+    script = { status: 200, headers: {}, json: {
+      user_id: 'alice', preferences: { jackpot: false, scout: false },
+      updated_at: '2026-09-26T10:00:01Z' } };
+    fireChange('prefScout', false);
+    await flushAll();
+    script = { status: 200, headers: {}, json: {
+      user_id: 'alice', preferences: { jackpot: true, scout: false },
+      updated_at: '2026-09-26T10:00:02Z' } };
+    fireChange('prefJackpot', true);
+    await flushAll();
+    assert.strictEqual(stampLink().textContent, 'undo',
+                       'after two fresh writes the newest link is undo');
+    // UNDO #1: walks back one step; BOTH links render simultaneously
+    script = { status: 200, headers: {}, json: {
+      user_id: 'alice', preferences: { jackpot: false, scout: false },
+      updated_at: '2026-09-26T10:00:03Z' } };
+    clickLinkNamed('undo');
+    await flushAll();
+    assert.strictEqual(linksText(), 'undo,redo',
+                       'mid-walk BOTH links render simultaneously: ' + linksText());
+    const posts = () => sentRequests.filter((r) => r.method === 'POST');
+    assert.deepStrictEqual(posts()[posts().length - 1].body,
+      { preferences: { jackpot: false, scout: false } },
+      'the first undo replayed the last replaced state');
+    // UNDO #2: walks DEEPER — the state TWO writes back (the GET
+    // state); the old 2-step history could never do this
+    script = { status: 200, headers: {}, json: {
+      user_id: 'alice', preferences: { jackpot: false, scout: true },
+      updated_at: '2026-09-26T10:00:04Z' } };
+    clickLinkNamed('undo');
+    await flushAll();
+    assert.deepStrictEqual(posts()[posts().length - 1].body,
+      { preferences: { jackpot: false, scout: true } },
+      'the second undo walks DEEPER to the GET state (N-step depth)');
+    assert.strictEqual(linksText(), 'redo',
+                       'the walk hit the bottom: only redo remains');
+    // an undo click at the bottom is INERT: no POST past empty
+    const before = posts().length;
+    const strayUndo = els.prefSaved.children.find(
+      (c) => c.textContent === 'undo');
+    if (strayUndo) {
+      strayUndo.listeners.click[0]({ preventDefault: function () {} });
+      await flushAll();
+    }
+    assert.strictEqual(posts().length, before, 'no undo POST past the bottom');
+    // REDO: walks forward again, and BOTH links return
+    script = { status: 200, headers: {}, json: {
+      user_id: 'alice', preferences: { jackpot: false, scout: false },
+      updated_at: '2026-09-26T10:00:05Z' } };
+    clickLinkNamed('redo');
+    await flushAll();
+    assert.strictEqual(linksText(), 'undo,redo',
+                       'after a redo both links render again');
+    assert.deepStrictEqual(posts()[posts().length - 1].body,
+      { preferences: { jackpot: false, scout: false } },
+      'the redo replayed the undone state');
+    // every write rode the version its predecessor applied
+    assert.deepStrictEqual(
+      posts().map((p) => p.headers['If-Match']),
+      ['"2026-09-26T10:00:00Z"', '"2026-09-26T10:00:01Z"', '"2026-09-26T10:00:02Z"',
+       '"2026-09-26T10:00:03Z"', '"2026-09-26T10:00:04Z"'],
+      'all five writes ride their predecessor versions in order');
+    return 'nstep_walk ok';
+  }
+
+  if (name === 'history_cap') {
+    script = { status: 200, headers: { ETag: '"2026-09-26T10:00:00Z"' }, json: ENVELOPE };
+    loadClient();
+    await flushAll();
+    // 22 fresh writes: the stack is capped at MAX_HISTORY — the two
+    // oldest replaced states fall off the bottom
+    for (let k = 0; k < 22; k++) {
+      const scoutNow = (k % 2 === 0) ? false : true;
+      script = { status: 200, headers: {}, json: {
+        user_id: 'alice', preferences: { jackpot: false, scout: scoutNow },
+        updated_at: '2026-09-26T11:00:' + String(k).padStart(2, '0') + 'Z' } };
+      fireChange('prefScout', scoutNow);
+      await flushAll(4);
+    }
+    const posts = () => sentRequests.filter((r) => r.method === 'POST');
+    assert.strictEqual(posts().length, 22, 'all 22 writes fired');
+    // walk back until the stack runs dry: exactly 20 undos may POST
+    let walked = 0;
+    for (let j = 0; j < 30; j++) {
+      const undoLink = els.prefSaved.children.find(
+        (c) => c.textContent === 'undo');
+      if (!undoLink) { break; }
+      const b = posts().length;
+      script = { status: 200, headers: {}, json: {
+        user_id: 'alice', preferences: { jackpot: false, scout: false },
+        updated_at: '2026-09-26T12:'
+          + String(Math.floor(walked / 60)).padStart(2, '0') + ':'
+          + String(walked % 60).padStart(2, '0') + 'Z' } };
+      undoLink.listeners.click[0]({ preventDefault: function () {} });
+      await flushAll(4);
+      if (posts().length === b) { break; }     // inert at the bottom
+      walked += 1;
+    }
+    assert.strictEqual(walked, 20,
+      'the walk goes exactly MAX_HISTORY deep (got ' + walked + ')');
+    assert.strictEqual(linksText(), 'redo',
+      'at the bottom the undo link is gone; redo still offers the way back');
+    return 'history_cap ok';
+  }
+
   if (name === 'retry_after_412') {
     script = { status: 200, headers: { ETag: '"2026-09-26T10:00:00Z"' }, json: ENVELOPE };
     loadClient();
@@ -631,6 +760,10 @@ SCENARIOS = [
      "a 500 leaves the attempted values, offers no undo, says it will retry, and never adopts the error body"),
     ("12", "reentrancy_guard",
      "two same-tick changes fire exactly one write; the in-flight payload is the first change"),
+    ("13", "nstep_walk",
+     "the N-step walk: simultaneous undo+redo links, depth past two, inert bottom, redo restores both"),
+    ("14", "history_cap",
+     "MAX_HISTORY caps the stack: 22 writes, exactly 20 undo steps, then inert"),
 ]
 
 

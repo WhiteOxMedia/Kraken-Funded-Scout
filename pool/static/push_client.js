@@ -129,14 +129,24 @@
     }
   }
 
-  /* THE 2-STEP HISTORY (Sep 26, upgraded from plain undo): after a
-     write the saved line offers "undo"; after an undo it offers
-     "redo"; a fresh write or an account switch points the history
-     back and a conflict clears it. Both links replay the OTHER state
-     through the SAME conditional bulk write, so the optimistic-
-     concurrency machinery (If-Match / 412) protects undo and redo
-     exactly like a toggle. The server keeps one version; the other
-     step of the history lives here, client-side. */
+  /* THE N-STEP HISTORY (Sep 26, upgraded from the 2-step walk): two
+     client-side stacks. undoStack holds the confirmed states to walk
+     BACK through (most recent last), redoStack the states to walk
+     FORWARD through. A fresh write pushes the state it replaced onto
+     undoStack and VOIDS the redo branch; an undo pops its own stack
+     and pushes the state it walked away from onto redoStack (a redo
+     mirrors it) — so MID-WALK BOTH LINKS RENDER SIMULTANEOUSLY and
+     the walk goes N deep (MAX_HISTORY caps it; the oldest state
+     falls off). Both links replay their target through the SAME
+     conditional bulk write, so If-Match / 412 protects every step
+     exactly like a toggle. Stacks mutate only at APPLY time (the
+     in-flight guard serializes writes, so the top of a stack is still
+     the target that was clicked); a 412 voids the whole walk (our
+     write never applied); an account switch clears both stacks — one
+     account's walk must never replay into another's. */
+  var MAX_HISTORY = 20;          // N: how deep the walk may go
+  var undoStack = [];
+  var redoStack = [];
   var undoHandler = null;        // assigned by wirePrefs
   var redoHandler = null;        // assigned by wirePrefs
 
@@ -161,17 +171,32 @@
     if (stampNote.withUndo || stampNote.withRedo) {
       el.textContent = "";
       el.appendChild(document.createTextNode(label + " \u00b7 "));
-      var txt = stampNote.withUndo ? "undo" : "redo";
-      var a = document.createElement("a");
-      a.href = "#";
-      a.textContent = txt;
-      a.style.color = "var(--gold-bright, #c9a227)";
-      a.addEventListener("click", function (ev) {
-        ev.preventDefault();
-        if (txt === "undo" && undoHandler) { undoHandler(); }
-        if (txt === "redo" && redoHandler) { redoHandler(); }
-      });
-      el.appendChild(a);
+      var mkLink = function (txt, fn) {
+        var a = document.createElement("a");
+        a.href = "#";
+        a.textContent = txt;
+        a.style.color = "var(--gold-bright, #c9a227)";
+        a.addEventListener("click", function (ev) {
+          ev.preventDefault();
+          fn();
+        });
+        return a;
+      };
+      /* SIMULTANEOUS LINKS (Sep 26, the N-step walk): mid-walk BOTH
+         render — "undo · redo" — each walking its own stack. */
+      if (stampNote.withUndo) {
+        el.appendChild(mkLink("undo", function () {
+          if (undoHandler) { undoHandler(); }
+        }));
+      }
+      if (stampNote.withUndo && stampNote.withRedo) {
+        el.appendChild(document.createTextNode(" \u00b7 "));
+      }
+      if (stampNote.withRedo) {
+        el.appendChild(mkLink("redo", function () {
+          if (redoHandler) { redoHandler(); }
+        }));
+      }
     } else {
       el.textContent = label;
     }
@@ -199,10 +224,9 @@
     // so the undo target must be snapshotted AT WRITE TIME from the
     // state the server last CONFIRMED — never from the checkboxes.
     var lastConfirmed = null;   // state as last confirmed by the server
-    var pendingPrev = null;     // history target for the in-flight write
-    var prevPrefs = null;       // history target once a write has applied
-    var pendingIsUndo = false;  // the in-flight write IS the undo step
-    var historyDir = "back";    // which way prevPrefs points once it lands
+    var pendingPrev = null;     // the state a FRESH write will replace
+    var pendingKind = null;     // fresh | undo | redo (the in-flight write)
+    var pendingReturn = null;   // the state an undo/redo walks away from
     function adopt(p) {
       if (!p) { return; }
       /* SHAPE FIX (Sep 26, found by the undo live check): every
@@ -220,8 +244,7 @@
         lastConfirmed = { jackpot: pr.jackpot !== false,
                           scout: pr.scout !== false };
         noteStamp("saved", p.updated_at, false, "",
-                  historyDir === "back" && !!prevPrefs,
-                  historyDir === "fwd" && !!prevPrefs);
+                  undoStack.length > 0, redoStack.length > 0);
         /* ANNOUNCE (Sep 26): every applied envelope is broadcast so
            other surfaces (the Scout panel's prefs stamp) update the
            same instant — no waiting on their 60s poll. Carries the
@@ -238,7 +261,7 @@
           prefsEtag = r.headers.get("ETag") || prefsEtag;
           return r.json();
         })
-        .then(function (p) { historyDir = "back"; adopt(p); })
+        .then(function (p) { adopt(p); })
         .catch(function () { /* defaults stand */ });
     }
     readServer();
@@ -247,17 +270,18 @@
     // drop the undo target: one account's undo must never replay
     // another account's values
     document.addEventListener("xmrjackpot:auth", function () {
-      prevPrefs = null;
+      undoStack = [];
+      redoStack = [];
       lastConfirmed = null;
-      historyDir = "back";
       readServer();
     });
     var posting = false;
-    function sendPrefs(prefs, busyMsg, isUndo) {
+    function sendPrefs(prefs, busyMsg, kind) {
       if (posting) { return; }            // one in flight; last state wins
       posting = true;
-      pendingPrev = lastConfirmed;        // what this write will replace
-      pendingIsUndo = !!isUndo;           // an undo's success offers REDO
+      pendingKind = kind || "fresh";
+      pendingPrev = lastConfirmed;        // what a fresh write will replace
+      pendingReturn = (pendingKind === "fresh") ? null : lastConfirmed;
       var headers = { "Content-Type": "application/json" };
       if (prefsEtag) { headers["If-Match"] = prefsEtag; }
       noteSaved(busyMsg || "saving…", true);
@@ -271,8 +295,9 @@
         if (r.status === 412) {
           // lost the race: another device wrote first — take the
           // server's version (its envelope + new ETag) and re-apply;
-          // OUR write never applied, so there is nothing to undo
-          prevPrefs = null;
+          // OUR write never applied, so the whole walk is void
+          undoStack = [];
+          redoStack = [];
           return r.json().then(function (cur) {
             adopt(cur);
             noteStamp("another device changed these — showing its version (",
@@ -281,8 +306,22 @@
         }
         return r.json().then(function (res) {
           if (res && res.updated_at) {
-            prevPrefs = pendingPrev;       // the state this write replaced
-            historyDir = pendingIsUndo ? "fwd" : "back";
+            // STACK MUTATIONS AT APPLY TIME ONLY (the posting guard
+            // serialized the writes: the top of the stack is still the
+            // target that was clicked)
+            if (pendingKind === "fresh") {
+              if (pendingPrev) {
+                undoStack.push(pendingPrev);
+                if (undoStack.length > MAX_HISTORY) { undoStack.shift(); }
+              }
+              redoStack = [];              // a fresh write voids the redo branch
+            } else if (pendingKind === "undo") {
+              undoStack.pop();
+              if (pendingReturn) { redoStack.push(pendingReturn); }
+            } else if (pendingKind === "redo") {
+              redoStack.pop();
+              if (pendingReturn) { undoStack.push(pendingReturn); }
+            }
             adopt(res);                   // 200 body IS the new version
           } else if (!r.ok) {
             noteSaved("save failed — will retry on next toggle", true);
@@ -297,10 +336,14 @@
       sendPrefs({ jackpot: j.checked, scout: s.checked });
     }
     undoHandler = function () {
-      if (prevPrefs) { sendPrefs(prevPrefs, "restoring…", true); }
+      if (undoStack.length) {
+        sendPrefs(undoStack[undoStack.length - 1], "restoring…", "undo");
+      }
     };
     redoHandler = function () {
-      if (prevPrefs) { sendPrefs(prevPrefs, "restoring…", false); }
+      if (redoStack.length) {
+        sendPrefs(redoStack[redoStack.length - 1], "restoring…", "redo");
+      }
     };
     j.addEventListener("change", postBulk);
     s.addEventListener("change", postBulk);
