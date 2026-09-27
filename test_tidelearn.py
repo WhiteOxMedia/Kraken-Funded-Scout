@@ -307,6 +307,41 @@ else:
               _dt < 60.0, f"{_dt:.1f}s")
 
 # ── RUN ──────────────────────────────────────────────────────────────
+# ── 1e. THE EV-LADDER BRANCH IS FAIL-CLOSED (Sep 27 review triage) ──
+# the review's shape: fewer than OUTCOME_MIN_FIRES (6) training fires
+# score >= 80, best_80 stays None, and the old `or best_80 is None`
+# arm shipped the below-80 best_low WITHOUT the ladder's own 15% EV
+# comparison. The pinned contract: an empty >=80 band returns NO fit
+# (the quantile fallback stays in force); the admission path needs a
+# qualifying >=80 bar to exist. Hermetic: the candidate records and
+# 5m candles are synthetic, so the join lands deterministic outcomes.
+import numpy as _np, pandas as _pd
+_orig_records, _orig_arrs = tl._outcome_records, tl._pair_5m_arrs
+try:
+    _ts0 = 1790000000
+    rows = []
+    # 60 joined candidates, all scored 70 (so the >=80 band is EMPTY);
+    # and every one pays within the 12-bar window (thick in-sample EV)
+    for i in range(60):
+        rows.append({"pair": "X/USD", "ts": _pd.Timestamp(_ts0 + i * 3600, unit="s", tz="UTC"),
+                     "state": "OUT", "quick": 70.0})
+    recs = _pd.DataFrame(rows)
+    tl._outcome_records = lambda: recs
+    # the synthetic candle: entry 100, then +2% highs -> every window pays;
+    # 60 rows so the 70/30 split leaves ~42 TRAINING rows (>= the 40 join
+    # floor) - a thinner fixture returns None at the EARLIER gate and the
+    # pin would pass vacuously on both code shapes
+    ts = _np.arange(_ts0 - 3600, _ts0 + 60 * 3600 + 12 * 300, 300, dtype=_np.int64)
+    high = _np.full(len(ts), 102.0)
+    close = _np.full(len(ts), 100.0)
+    tl._pair_5m_arrs = lambda pair: (ts, high, close)
+    _fit = tl._outcome_fit_bar("OUT", [70.0] * 200)
+    check("the empty >=80 band returns NO fit (fail-closed, quantile stays)",
+          _fit is None, _fit)
+finally:
+    tl._outcome_records, tl._pair_5m_arrs = _orig_records, _orig_arrs
+
+
 fails = [r for r in results if not r[1]]
 (scratch_space.report_temp('_tidelearn_check.txt')).write_text(
     "\n".join(f"{'PASS' if ok else 'FAIL'}  {name}" + (f"  [{d}]" if d and not ok else "")
