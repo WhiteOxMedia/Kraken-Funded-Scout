@@ -9,16 +9,20 @@ in the pool checkout. It runs HERE - through the POOL's own venv, in
 ITS own checkout - so the Scout battery carries the pool's
 documentation-honesty contract without ever importing across repos.
 
-Constants follow the template's absolute-path style: resolve() is
-against the CALLER's cwd, so sibling-relative constants would break
-the moment the battery ran from anywhere but the expected directory.
+Constants follow the FIRST ENTRY's sibling-discovery style (CodeRabbit
+triage, Sep 26: hardcoding this box's absolute paths would fail the
+entry on any other checkout location) - POOL is derived from THIS
+file's location, and the resolved paths keep their missing-prerequisite
+FAIL.
 """
 import subprocess
 import sys
 from pathlib import Path
 
-POOL_DRIVE = Path(r"C:\Users\birds\Workspace\monero_project\test_readme_docs.py")
-POOL_PY = Path(r"C:\Users\birds\Workspace\monero_project\.venv\Scripts\python.exe")
+HERE = Path(__file__).resolve().parent
+POOL = HERE.parent / "monero_project"
+DRIVE = POOL / "test_readme_docs.py"
+POOL_PY = POOL / ".venv" / "Scripts" / "python.exe"
 SKIP_NOTE = "pool docs-rot drive self-skipped (unexpected: it has no skip path)"
 
 SKIP_EXIT = 42          # run_battery maps exit 42 (+ SKIP: line) to SKIP
@@ -28,7 +32,7 @@ def main() -> int:
     # RESOLVE against the CALLER's cwd (CodeRabbit triage, Sep 26):
     # the child chdirs to the drive's folder, so a sibling-relative
     # path like 'pool/test_drive.py' would be re-based and break
-    drive = POOL_DRIVE.resolve()
+    drive = DRIVE.resolve()
     pool_py = POOL_PY.resolve()
     # PREREQUISITES FAIL, NOT SKIP: the battery must show FAIL when the
     # live contract cannot run at all - SKIP stays the drive's own
