@@ -44,11 +44,21 @@ HERE = Path(__file__).parent
 readme = (HERE / "README.md").read_text(encoding="utf-8")
 
 print("== 1. FILES: every backticked path exists ==")
-names = sorted(set(re.findall(r"`([A-Za-z_0-9]+\.(?:py|md|bat))`", readme)))
+# CODE RABBIT MINOR (Sep 27): the first pattern [A-Za-z_0-9]+ silently
+# skipped backticked names WITH SPACES - the README's own ops shims
+# ("Launch Scout.bat", "Kill Switch - FLATTEN.bat") were unpinned, so
+# deleting one would not turn 1.2 red. Match the FULL backticked
+# filename (spaces included); the space-free form is what the original
+# missed.
+names = sorted(set(re.findall(r"`([^`\n]+\.(?:py|md|bat))`", readme)))
 check("1.1", len(names) >= 15,
       f"the README names {len(names)} files (a collapse means the doc shrank)")
 _missing = [n for n in names if not (HERE / n).exists()]
 check("1.2", not _missing, f"missing: {_missing or 'none'}")
+_shims = [n for n in names if n.endswith(".bat")]
+check("1.2b", "Launch Scout.bat" in _shims
+      and "Kill Switch - FLATTEN.bat" in _shims,
+      f"the space-bearing .bat shims are CAPTURED, not skipped: {_shims}")
 for must in ("test_trailk_sweep.py", "test_trailstop.py",
              "test_exitsynthesis.py", "test_profitguard.py",
              "_trail_k_sweep.py", "_hybrid_trail_sweep.py",
