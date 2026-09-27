@@ -27,7 +27,16 @@ headless and hermetic:
                        exception, no crash — the KNOWN GAP is closed;
                        genuine validation errors keep the popup path;
                        check 7.1 pins the CALL SITE (_install routes
-                       through the guard, never installer.opt_in)
+                       through the guard, never installer.opt_in).
+                       Section 6b proves the failure CLASSES
+                       individually, each fake mirroring the exact
+                       shape urlopen raises: timeout (bare
+                       socket.timeout == TimeoutError), DNS failure
+                       (URLError wrapping socket.gaierror), connection
+                       refused (bare AND URLError-wrapped), all under
+                       one family-license check; a non-transport
+                       exception must stay loud (bugs are not
+                       guidance)
   7. worker name       optional: blank and filled both produce a
                        registration record with the worker echoed
   8. double install    the second opt-in grants no second welcome
@@ -204,6 +213,93 @@ check("7.1e", r_bad.get("ok") is False and not r_bad.get("friendly")
       and r_bad.get("error"),
       "a real validation error stays non-friendly (the popup path "
       "preserved for errors the user CAN fix)")
+installer._post_register = _fake_transport_ok(captured)
+
+print("== 6c. THE TRANSPORT FAILURE CLASSES, INDIVIDUALLY ==")
+# 6b proved ONE down shape. The real transport fails in distinct
+# classes and urlopen raises each with its own exact shape — the fakes
+# below mirror those shapes so the guard is proven against the
+# exceptions it will actually see, not a stand-in:
+#   timeout            -> socket.timeout == TimeoutError, raised BARE
+#                         (the read/write stall past the 15s timeout)
+#   DNS failure        -> URLError WRAPPING socket.gaierror (urlopen
+#                         wraps name-resolution errors, reason kept)
+#   connection refused -> ConnectionRefusedError, bare AND wrapped in
+#                         URLError (both occur across urllib stacks)
+import socket                                      # noqa: E402
+import urllib.error as _uerr                       # noqa: E402
+
+
+def _transport_raising(exc):
+    def _post(api_base, wallet, worker):
+        raise exc
+    return _post
+
+
+# 7.2a THE FAMILY LICENSE: the guard's single `except OSError` stands
+# on every transport class being an OSError. If a future Python
+# re-homes any of these, this check fails loudly and the guard must be
+# revisited — the window must never re-open the KNOWN GAP by accident.
+check("7.2a", socket.timeout is TimeoutError
+      and issubclass(TimeoutError, OSError)
+      and issubclass(ConnectionRefusedError, OSError)
+      and issubclass(_uerr.URLError, OSError),
+      "every transport class is an OSError — the guard's single "
+      "except holds the whole family")
+
+# 7.2b TIMEOUT: the 15s urlopen deadline blows with a bare
+# TimeoutError (socket.timeout) — the user's answer is guidance, not
+# a crash, even though this class hides under no URLError wrapper.
+installer._post_register = _transport_raising(
+    TimeoutError("The read operation timed out"))
+r = installer_ui._install_via_api(WALLET, "rig7")
+check("7.2b", r.get("ok") is False and r.get("friendly") is True
+      and "NOT registered yet" in (r.get("error") or ""),
+      "timeout -> friendly guidance, no crash")
+
+# 7.2c DNS FAILURE: name resolution dies inside urlopen as URLError
+# wrapping the gaierror (shape mirrors WinError 11001 getaddrinfo).
+installer._post_register = _transport_raising(
+    _uerr.URLError(socket.gaierror(11001, "getaddrinfo failed")))
+r = installer_ui._install_via_api(WALLET, "rig7")
+check("7.2c", r.get("ok") is False and r.get("friendly") is True
+      and "NOT registered yet" in (r.get("error") or ""),
+      "DNS failure (URLError[gaierror]) -> friendly guidance, no crash")
+
+# 7.2d CONNECTION REFUSED, BARE: the WinError 10061 class exactly.
+installer._post_register = _transport_raising(
+    ConnectionRefusedError(
+        10061, "No connection could be made because the target machine "
+               "actively refused it"))
+r = installer_ui._install_via_api(WALLET, "rig7")
+check("7.2d", r.get("ok") is False and r.get("friendly") is True
+      and "NOT registered yet" in (r.get("error") or ""),
+      "connection refused (bare) -> friendly guidance, no crash")
+
+# 7.2e CONNECTION REFUSED, WRAPPED: the same refusal as urlopen's own
+# URLError(reason=...) — the guard must not care which skin it wears.
+installer._post_register = _transport_raising(
+    _uerr.URLError(ConnectionRefusedError(10061, "refused")))
+r = installer_ui._install_via_api(WALLET, "rig7")
+check("7.2e", r.get("ok") is False and r.get("friendly") is True
+      and "NOT registered yet" in (r.get("error") or ""),
+      "connection refused (URLError-wrapped) -> friendly guidance, no crash")
+
+# 7.2f THE NEGATIVE CONTROL: a non-transport exception is NOT the
+# user's guidance problem — it must escape the guard (a bug stays
+# loud); masking it as friendly text would hide real defects behind
+# retry advice.
+installer._post_register = _transport_raising(
+    ValueError("not a transport failure"))
+_escaped = False
+try:
+    installer_ui._install_via_api(WALLET, "rig7")
+except ValueError:
+    _escaped = True
+check("7.2f", _escaped,
+      "a NON-transport exception escapes the guard (bugs stay loud, "
+      "only the transport family is masked)")
+
 installer._post_register = _fake_transport_ok(captured)
 
 passed, failed = results.count(True), results.count(False)
