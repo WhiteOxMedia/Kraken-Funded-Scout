@@ -385,7 +385,10 @@ ps._save(ps.SUBS_KEY, [{"user_id": UID,
 # the rate limiter is thread-safe: concurrent same-user checks may not
 # both pass an exhausted bucket (the unlocked read-modify-write could)
 import threading as _th
-_rl = ps.RateBucket if hasattr(ps, "RateBucket") else None
+# (the old `_rl = ps.RateBucket if hasattr(...)` line is gone: an
+# existence-only pin, assigned once and never read — push_service has
+# no RateBucket; the _rate_lock + _rate_ok below ARE the mechanism and
+# this section already drives them through the real call)
 ps._save(ps.RATE_KEY, [])
 _verdicts = []
 def _hammer():

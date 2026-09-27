@@ -9,8 +9,10 @@ exact call shapes _install/_remove make (the tkinter import is the
 module's own headless fallback, pinned separately), so this drive runs
 headless and hermetic:
 
-  1. module contract   main() without tkinter prints the CLI fallback
-                       and returns 1 (headless installs keep a road)
+  1. module contract   main() IS EXECUTED headless (the tkinter
+                       import is forced to fail): rc 1 + the three
+                       CLI flags; the tk-dispatch half is pinned at
+                       the call site (source), not by name
   2. checkbox OFF      the handler's exact call (opt_out, no wallet
                        validation first) records opt-out; the finish
                        text promises exist (GETTING_STARTED)
@@ -104,10 +106,33 @@ def _fake_transport_down(captured):
     return _post
 
 
-print("== 1. THE HEADLESS CONTRACT ==")
+print("== 1. THE HEADLESS CONTRACT (executed, not just named) ==")
 import installer_ui                                # noqa: E402
-check(1.1, hasattr(installer_ui, "main") and hasattr(installer_ui, "_run_tk"),
-      "module exposes main + the tk runner")
+# 1.1 was an existence-only hasattr pin — a surface check that proves
+# nothing about behavior. main() now RUNS in the drive: sys.modules
+# ["tkinter"] = None forces every `import tkinter` to raise ImportError
+# (on any box, tkinter present or not), so the headless fallback
+# executes for real and must print the CLI road and return 1.
+forced_out = __import__("io").StringIO()
+sys.modules["tkinter"] = None                      # the headless force
+_old_stdout, sys.stdout = sys.stdout, forced_out
+try:
+    _rc = installer_ui.main()
+finally:
+    sys.stdout = _old_stdout
+    del sys.modules["tkinter"]                     # restore the real module
+headless_txt = forced_out.getvalue()
+check(1.1, _rc == 1 and "--opt-in" in headless_txt
+      and "--opt-out" in headless_txt and "--status" in headless_txt,
+      f"main() headless: rc {_rc}, all three CLI flags printed")
+# the tk-dispatch half of the contract: main() routes to _run_tk when
+# tkinter imports (source-level — the same pin style as 7.1; the
+# window itself is never spawned in a drive)
+_main_src = inspect.getsource(installer_ui.main)
+check("1.1b", "import tkinter" in _main_src and "_run_tk()" in _main_src
+      and "return 1" in _main_src,
+      "main() dispatches to _run_tk on a real tkinter and returns 1 "
+      "headless — the two roads are wired, not just named")
 try:
     import tkinter                                 # noqa: F401
     HAVE_TK = True
