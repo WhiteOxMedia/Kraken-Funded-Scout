@@ -16,8 +16,7 @@ One daemon thread per server process that:
      604800s, operator-adjustable, floor one hour) so the stored
      posture verdict never goes stale: the proof the pair WORKS is
      refreshed by the same timer that runs the projection, through
-     the SAME shared 30s throttle and audit trail the operator's
-     button uses. Unconfigured burns no rate credit, so a bare box
+     the SAME shared 30s throttle and     audit trail the operator's button uses. Unconfigured burns no rate credit, so a bare box
      is checked weekly for free;
   5. prunes expired auth sessions DAILY (once per UTC day, the same
      marker pattern as the retention prune) — get_session already
@@ -30,7 +29,23 @@ One daemon thread per server process that:
      scheduler.orphans_report audit row per week (with the per-edge
      violations and sample rowids) and carries alert=true in the
      tick summary + admin status, and is fanned out to admin
-     web-push subscribers (push_service.send_admin_push, Sep 27).
+     web-push subscribers (push_service.send_admin_push, Sep 27);
+  7. sends the WEEKLY OPS DIGEST (its own SCHEDULER_DIGEST_* dial +
+     marker, Sep 27): ONE line — this week's orphan totals, the
+     prune counts (retention + sessions), and the Kraken weekly
+     verdict (count + last verdict) — pushed to the ADMIN
+     subscribers and receipted as ONE scheduler.ops_digest audit
+     row per week, clean weeks included (the all-clear IS the
+     value; a missing digest is what the dead-man pattern is for).
+     The digest window anchors to the SAME Sunday 06:15 local
+     boundary as the orphan scan, on purpose: it composes from the
+     audit LEDGER inside the window, so it reports the fresh scan
+     this week actually ran, not a stale one. No SMTP transport
+     exists in this stack, so "email or push" resolves to push —
+     the delivery target is the same proven WNS/web-push pipe the
+     orphan alert uses, with send_admin_push("ops_digest",
+     extra={"_digest_line": ...}) overriding the template body
+     for this send only.
 
 Every tick is usable synchronously (tick_once) so tests and the admin
 trigger exercise the exact code the timer runs.
@@ -76,6 +91,12 @@ ORPHAN_FLOOR_S = 3600                        # never scan more often
 ORPHAN_TASK_MARKER = _ROOT / "task_sweep_report_last.txt"
 ORPHAN_DEADMAN_MAX_AGE_S = 8 * 86400  # one week + a day of slack
 # (must match register_sweep_report_task.py DEADMAN_MAX_AGE_S)
+DIGEST_ENABLED_KEY = "SCHEDULER_DIGEST_ENABLED"    # "1" -> weekly digest
+DIGEST_INTERVAL_KEY = "SCHEDULER_DIGEST_INTERVAL_S"
+DIGEST_LAST_KEY = "SCHEDULER_LAST_DIGEST"   # {"ts", "line", "push"}
+DIGEST_DEFAULT_INTERVAL_S = 7 * 86400       # the weekly default
+DIGEST_FLOOR_S = 3600                       # never spam more often
+DIGEST_AUDIT_ACTION = "scheduler.ops_digest"  # ONE receipt row/week
 
 _state = {"thread": None, "stop": None}
 
@@ -178,6 +199,118 @@ def _orphan_window_index(epoch_s):
     if epoch_s < boundary:
         boundary -= 7 * 86400
     return boundary
+
+
+def _digest_enabled():
+    # the weekly digest defaults ON — the summary an operator never
+    # has to remember to ask for; flipping OFF is the explicit choice
+    return str(db.get_setting(DIGEST_ENABLED_KEY, "1") or "") == "1"
+
+
+def _digest_interval_s():
+    try:
+        v = int(float(db.get_setting(DIGEST_INTERVAL_KEY,
+                                     DIGEST_DEFAULT_INTERVAL_S)
+                      or DIGEST_DEFAULT_INTERVAL_S))
+    except (TypeError, ValueError):
+        return DIGEST_DEFAULT_INTERVAL_S
+    return max(DIGEST_FLOOR_S, v)
+
+
+def _digest_window_index(epoch_s):
+    """The digest window IS the scan window (the same Sunday 06:15
+    local boundary the orphan leg and the Task Scheduler job read).
+    One window, three readers: the digest must compose from THIS
+    window's fresh orphan scan, not last week's."""
+    return _orphan_window_index(epoch_s)
+
+
+def _digest_due(last):
+    """The orphan leg's due-shape: at the weekly dial the marker
+    predating the last window boundary is due (restart-proof, DST-
+    safe); sub-weekly operator dials keep pure interval semantics
+    (a fast dial must not silently skip a week)."""
+    interval = _digest_interval_s()
+    if interval < 7 * 86400:
+        try:
+            ts = float(last.get("ts") or 0.0)
+        except (TypeError, ValueError):
+            ts = 0.0
+        return (time.time() - ts) >= interval
+    try:
+        ts = float(last.get("ts") or 0.0)
+    except (TypeError, ValueError):
+        ts = 0.0
+    return _digest_window_index(time.time()) > _digest_window_index(ts)
+
+
+def _digest_compose():
+    """THE ONE LINE, from the audit LEDGER (not from leg state): the
+    orphan scan's receipt row inside this window, the prune rows,
+    and the weekly KC verdicts — the log is what actually ran, so
+    the digest cannot describe a week the legs did not have. Clean
+    sources print as 0/none; the line is the all-clear then."""
+    win = _digest_window_index(time.time())
+    orphans = "?"
+    edges = 0
+    try:
+        orl = json.loads(db.get_setting(ORPHAN_LAST_KEY, "{}") or "{}")
+        if isinstance(orl, dict) and \
+                _digest_window_index(float(orl.get("ts") or 0.0)) >= win \
+                and "total" in orl:
+            orphans = str(orl.get("total"))
+            edges = int(orl.get("edges") or 0)
+    except (TypeError, ValueError):
+        pass
+    pruned = 0
+    sessions = 0
+    kc_last = "none"
+    kc_n = 0
+    try:
+        with db.get_db() as conn:
+            for r in conn.execute(
+                    "SELECT action, details, created_at FROM audit_log "
+                    "WHERE action IN ('push_report.pruned', "
+                    "'scheduler.sessions_pruned', "
+                    "'scheduler.kc_ran') AND created_at >= ?",
+                    (win,)).fetchall():
+                try:
+                    d = json.loads(r["details"] or "{}")
+                except (TypeError, ValueError):
+                    d = {}
+                if r["action"] == "push_report.pruned":
+                    pruned += int(d.get("rows") or 0)
+                elif r["action"] == "scheduler.sessions_pruned":
+                    sessions += int(d.get("rows") or 0)
+                else:
+                    kc_n += 1
+                    kc_last = str(d.get("verdict") or "?")
+    except Exception:                              # noqa: BLE001
+        # a read failure degrades to unknown markers, never kills
+        # the tick (the orphan-leg rule)
+        pruned = sessions = "?"
+    return (f"orphans={orphans} ({edges} edges) | "
+            f"pruned={pruned}+{sessions} | "
+            f"kc={kc_last} (x{kc_n})"), {
+        "orphans": orphans, "edges": edges, "pruned": pruned,
+        "sessions": sessions, "kc": kc_last, "kc_count": kc_n,
+    }
+
+
+def _deliver_digest(line: str) -> int:
+    """Push the digest to the ADMIN subscribers through the same
+    proven sender the orphan alert uses. No SMTP transport exists in
+    this stack (smtplib appears nowhere), so 'email or push'
+    resolves to push. The dynamic line rides extra._digest_line —
+    a body override only this caller names. A failed send is
+    audited by the sender's own path and returned as sent:0; the
+    digest leg itself must never die on the pipe."""
+    try:
+        res = push_svc.send_admin_push("ops_digest",
+                                       extra={"_digest_line": line})
+        return int(res.get("sent", 0))
+    except Exception:                              # noqa: BLE001
+        return 0
 
 
 def window_status():
@@ -444,6 +577,44 @@ def tick_once(reason: str = "manual") -> dict:
                           error=str(exc)[:200])
         except Exception:                          # noqa: BLE001
             print("scheduler: deadman audit failed", file=sys.stderr)
+    # 7. THE WEEKLY OPS DIGEST: one line — orphans, prune counts,
+    # the Kraken weekly verdict — pushed to the ADMIN subscribers
+    # and receipted as ONE scheduler.ops_digest row per week, clean
+    # weeks included (the all-clear IS the value; a week with no
+    # digest row is the gap the dead-man pattern polices elsewhere).
+    # The window boundary shared with the orphan scan guarantees the
+    # digest composes from THIS window's fresh scan, and a compose/
+    # send failure leaves the marker unstamped so the digest is
+    # RETRIED next tick (the credential-leg rule).
+    try:
+        dig = json.loads(db.get_setting(DIGEST_LAST_KEY, "{}") or "{}")
+        if not isinstance(dig, dict):
+            dig = {}
+    except ValueError:
+        dig = {}
+    if _digest_enabled() and _digest_due(dig):
+        try:
+            line, parts = _digest_compose()
+            sent = _deliver_digest(line)
+            summary["ops_digest"] = {"line": line, "push": sent,
+                                     **parts}
+            kr.emit_audit(None, DIGEST_AUDIT_ACTION,
+                          line=line, parts=json.dumps(parts)[:400])
+            dig = {"ts": time.time(), "line": line, "push": sent}
+        except Exception as exc:                   # noqa: BLE001
+            # the leg must never kill the tick; the marker stays
+            # unstamped so the digest is RETRIED next tick
+            summary["ops_digest"] = f"error: {str(exc)[:80]}"
+            try:
+                kr.emit_audit(None, "scheduler.error",
+                              leg="ops_digest",
+                              error=str(exc)[:200])
+            except Exception:                      # noqa: BLE001
+                print("scheduler: digest audit failed",
+                      file=sys.stderr)
+    elif not _digest_enabled():
+        summary["ops_digest"] = {"skipped": "disabled"}
+    db.set_setting(DIGEST_LAST_KEY, json.dumps(dig))
     db.set_setting(HEARTBEAT_KEY, str(time.time()))
     return summary
 
@@ -518,6 +689,10 @@ def status() -> dict:
                     "interval_s": _orphan_interval_s(),
                     "last": json.loads(
                         db.get_setting(ORPHAN_LAST_KEY, "{}") or "{}")},
+        "digest": {"enabled": _digest_enabled(),
+                   "interval_s": _digest_interval_s(),
+                   "last": json.loads(
+                       db.get_setting(DIGEST_LAST_KEY, "{}") or "{}")},
         "window": window_status(),
         "last_notice_expiry":
             str(db.get_setting(LAST_NOTICE_KEY, "") or "") or None,

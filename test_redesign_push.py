@@ -348,7 +348,12 @@ check(4.1, ps.EVENTS["signal_buy"]["title"] == "📈 BUY NOW"
                              "push_test_signal",
                              # Sep 27: the operator's orphan alert (admin
                              # web-push from the scheduler's weekly leg)
-                             "orphans_alert"},
+                             "orphans_alert",
+                             # Sep 27: the weekly ops digest (leg 7) -
+                             # one line of orphans/prunes/KC-verdict
+                             # pushed to ADMIN subscribers, with the
+                             # scoped _digest_line body override
+                             "ops_digest"},
       "the charter's event set with byte-exact signal titles")
 check(4.2, ps.send_to_user(7, "not_an_event")["reason"] == "unknown event",
       "an unknown event is refused")

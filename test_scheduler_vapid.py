@@ -479,6 +479,190 @@ with db.get_db() as conn:
 check("9c.5", _nap >= 2,
       f"{_nap} push_admin_push receipt rows - one per admin fan-out")
 
+
+print("== 9d. THE WEEKLY OPS DIGEST (Sep 27): one line, one push, one receipt ==")
+# leg 7: orphans + prune counts + the Kraken weekly verdict, composed
+# from the audit LEDGER inside the scan window, pushed to ADMIN
+# subscribers, receipted as ONE scheduler.ops_digest row per week.
+_win_d = sched._digest_window_index(time.time())
+
+# 9d.0 the contract: the template exists, rides the scout family,
+# and the body override is scoped to the digest event in source
+_ev_d = ps.EVENTS["ops_digest"]
+_ps_src = open(HERE / "pool" / "push_service.py", encoding="utf-8").read()
+check("9d.0", _ev_d["tag"] == "ops-digest" and _ev_d["url"] == "/#admin"
+      and ps.CATEGORY.get("ops_digest") == "scout"
+      and "event == \"ops_digest\" and (extra or {}).get(\"_digest_line\")"
+      in _ps_src,
+      "ops_digest: scout-family template, /#admin deep-link, and the "
+      "body override is source-scoped to the digest event alone")
+
+# 9d.1 the due matrix: the orphan leg's window shape, restart-proof
+check("9d.1", sched._digest_due({"ts": _win_d + 1}) is False
+      and sched._digest_due({"ts": _win_d - 86400}) is True
+      and sched._digest_due({"ts": 0.0}) is True,
+      "in-window marker quiet; pre-boundary or none is due "
+      "(same window contract as the scan, so the digest composes "
+      "from THIS window's fresh orphan scan)")
+db.set_setting(sched.DIGEST_INTERVAL_KEY, "900")   # floor lifts to 3600
+_dg_fresh = sched._digest_due({"ts": time.time() - 60})
+_dg_stale = sched._digest_due({"ts": time.time() - 2 * 3600})
+db.set_setting(sched.DIGEST_INTERVAL_KEY, "")
+check("9d.1b", _dg_fresh is False and _dg_stale is True,
+      "a sub-weekly operator dial keeps pure interval semantics")
+
+# 9d.2 THE LINE IS THE LEDGER: seed one in-window and one pre-window
+# KC verdict with DISTINCT markers; only the in-window one may speak.
+# The STALE row is inserted LAST (rowid-last) but stamped BEFORE the
+# window: a compose that ignores the window prints the stale verdict
+# (last-row-wins), so this pin separates the window rule from
+# no-filter - the same vacuity trap as the scan-window mutant.
+with db.get_db() as conn:
+    conn.execute("INSERT INTO audit_log (user_id, action, details, "
+                 "created_at) VALUES (NULL, 'scheduler.kc_ran', ?, ?)",
+                 ('{"verdict": "drive-in-window-verdict", "tier": "k"}',
+                  time.time()))
+    conn.execute("INSERT INTO audit_log (user_id, action, details, "
+                 "created_at) VALUES (NULL, 'scheduler.kc_ran', ?, ?)",
+                 ('{"verdict": "stale-pre-window-marker", "tier": "k"}',
+                  _win_d - 100))
+    conn.commit()
+_line_d, _parts_d = sched._digest_compose()
+check("9d.2", "drive-in-window-verdict" in _line_d
+      and "stale-pre-window-marker" not in _line_d
+      and _line_d.startswith("orphans=") and "pruned=" in _line_d
+      and "kc=drive-in-window-verdict (x" in _line_d,
+      f"the line composes from the audit ledger INSIDE the window "
+      f"(stale verdict excluded): {_line_d}")
+# a stale orphan marker must print as unknown, never as an old total
+_omark = json.loads(db.get_setting(sched.ORPHAN_LAST_KEY, "{}") or "{}")
+db.set_setting(sched.ORPHAN_LAST_KEY, json.dumps(
+    {"ts": _win_d - 9000, "total": 999, "edges": 9}))
+_l2, _p2 = sched._digest_compose()
+check("9d.2b", _p2["orphans"] == "?" and _p2["edges"] == 0,
+      f"a pre-window orphan scan is NOT quoted as this week's "
+      f"number (unknown beats stale): {_l2}")
+db.set_setting(sched.ORPHAN_LAST_KEY, json.dumps(_omark))
+
+# 9d.3-9d.5 the tick fires the digest once per window, clean weeks
+# included, and stamps marker + receipt
+_n_d0 = 0
+with db.get_db() as conn:
+    _n_d0 = conn.execute("SELECT COUNT(*) c FROM audit_log WHERE "
+                         "action = 'scheduler.ops_digest'").fetchone()["c"]
+_sent_cap = []
+_real_fan = sched.push_svc.send_admin_push
+def _cap_fan(event, extra=None):
+    _sent_cap.append((event, dict(extra or {})))
+    return _real_fan(event, extra=extra)
+sched.push_svc.send_admin_push = _cap_fan
+db.set_setting(sched.DIGEST_LAST_KEY, "{}")        # force due
+_s_d = sched.tick_once(reason="drive")
+sched.push_svc.send_admin_push = _real_fan
+with db.get_db() as conn:
+    _n_d1 = conn.execute("SELECT COUNT(*) c FROM audit_log WHERE "
+                         "action = 'scheduler.ops_digest'").fetchone()["c"]
+_row = None
+with db.get_db() as conn:
+    _row = conn.execute("SELECT details FROM audit_log WHERE "
+                        "action = 'scheduler.ops_digest' "
+                        "ORDER BY id DESC LIMIT 1").fetchone()
+check("9d.3", isinstance(_s_d.get("ops_digest"), dict)
+      and _n_d1 == _n_d0 + 1
+      and _sent_cap and _sent_cap[-1][0] == "ops_digest"
+      and "_digest_line" in _sent_cap[-1][1]
+      and _sent_cap[-1][1]["_digest_line"] == _s_d["ops_digest"]["line"],
+      f"the tick fired the digest: summary carries the line, ONE "
+      f"receipt row ({_n_d0} -> {_n_d1}), and the dynamic line rode "
+      f"the scoped override to the real sender")
+check("9d.4", _row is not None
+      and _s_d["ops_digest"]["line"] in (_row["details"] or "")
+      and json.loads(db.get_setting(sched.DIGEST_LAST_KEY, "{}")
+                     ).get("ts", 0) > 0
+      and sched.status()["digest"]["last"].get("line")
+      == _s_d["ops_digest"]["line"],
+      "the receipt row carries the line; the marker is stamped and "
+      "surfaces in the admin status")
+_s_d2 = sched.tick_once(reason="drive")
+with db.get_db() as conn:
+    _n_d2 = conn.execute("SELECT COUNT(*) c FROM audit_log WHERE "
+                         "action = 'scheduler.ops_digest'").fetchone()["c"]
+check("9d.5", _n_d2 == _n_d1,
+      f"the same-window re-tick stays silent ({_n_d1} -> {_n_d2})")
+
+# 9d.6 the retry rule: a compose failure leaves the marker unstamped
+_real_comp = sched._digest_compose
+def _boom_comp():
+    raise RuntimeError("compose boom")
+sched._digest_compose = _boom_comp
+db.set_setting(sched.DIGEST_LAST_KEY, "{}")
+_s_de = sched.tick_once(reason="drive")
+sched._digest_compose = _real_comp
+_check_de = json.loads(db.get_setting(sched.DIGEST_LAST_KEY, "{}"))
+check("9d.6", isinstance(_s_de.get("ops_digest"), str)
+      and _s_de["ops_digest"].startswith("error:")
+      and not _check_de.get("ts"),
+      "a failed compose surfaces as an error summary and does NOT "
+      "stamp the marker - the digest is retried next tick")
+_s_dr = sched.tick_once(reason="drive")
+check("9d.7", isinstance(_s_dr.get("ops_digest"), dict),
+      "the next tick retries and fires the digest")
+
+# 9d.8 the operator dial: disabled means skipped, no receipt
+db.set_setting(sched.DIGEST_ENABLED_KEY, "0")
+db.set_setting(sched.DIGEST_LAST_KEY, "{}")
+with db.get_db() as conn:
+    _n_d3 = conn.execute("SELECT COUNT(*) c FROM audit_log WHERE "
+                         "action = 'scheduler.ops_digest'").fetchone()["c"]
+_s_dd = sched.tick_once(reason="drive")
+with db.get_db() as conn:
+    _n_d4 = conn.execute("SELECT COUNT(*) c FROM audit_log WHERE "
+                         "action = 'scheduler.ops_digest'").fetchone()["c"]
+db.set_setting(sched.DIGEST_ENABLED_KEY, "")
+check("9d.8", _s_dd.get("ops_digest") == {"skipped": "disabled"}
+      and _n_d4 == _n_d3,
+      "the OFF dial skips the leg loudly in the summary and writes "
+      "no receipt")
+
+# 9d.9 the override cannot leak: _digest_line on a NON-digest event
+# must never change that event's body (captured through a fake
+# pywebpush so no network sees the probe; rate gate patched hermetic)
+_real_rate = ps._rate_ok
+ps._rate_ok = lambda *a, **k: True
+class _FakePP(_types.SimpleNamespace):
+    pass
+_captured = []
+def _cap_webpush(**kw):
+    _captured.append(kw)
+    class _R: status_code = 201
+    return _R()
+_fake_mod = _FakePP(webpush=_cap_webpush, WebPushException=Exception)
+_real_mod = sys.modules.get("pywebpush")
+sys.modules["pywebpush"] = _fake_mod
+try:
+    ps.send_to_user(admin_id, "ops_digest",
+                    extra={"_digest_line": "DIGESTLINE-OK-123"})
+    ps.send_to_user(admin_id, "push_test",
+                    extra={"_digest_line": "EVILLINE-LEAK-999"})
+finally:
+    sys.modules.pop("pywebpush", None)
+    if _real_mod is not None:
+        sys.modules["pywebpush"] = _real_mod
+    ps._rate_ok = _real_rate
+_bodies = []
+for _kw in _captured:
+    try:
+        _bodies.append(_kw["data"].decode("utf-8")
+                       if isinstance(_kw["data"], bytes) else str(_kw["data"]))
+    except Exception:
+        _bodies.append(str(_kw))
+_ok_hit = any("DIGESTLINE-OK-123" in b for b in _bodies)
+_evil_hit = any("EVILLINE-LEAK-999" in b for b in _bodies)
+check("9d.9", len(_captured) >= 2 and _ok_hit and not _evil_hit,
+      f"the override carried the digest line on ops_digest but the "
+      f"same extra on push_test changed nothing ({len(_captured)} "
+      f"captures)")
+
 passed, failed = results.count(True), results.count(False)
 print(f"RESULT: {passed} passed, {failed} failed")
 sys.exit(1 if failed else 0)

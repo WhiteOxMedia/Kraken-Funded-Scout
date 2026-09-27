@@ -1,0 +1,72 @@
+# Reconciliation STOP report — agent-executed replay prompt (2026-09-27)
+
+**Verdict: STOPPED at Step A. No mutations performed. The prompt's environment,
+schema, tool interface, and input data do not match this system on any axis that
+could be verified, and the unverifiable remainder is a money-affecting write
+(share inflation + ticket minting) — the exact class the house rejects without
+human-verified ground truth.**
+
+## Environment verification (all read-only, evidence below)
+
+| Prompt claim | Verified reality | Evidence |
+|---|---|---|
+| DB at `/var/lib/xmrjackpot/jackpot.db` | path does not exist on this host | `ls /var/lib` -> No such file or directory |
+| `tools/sweep_db.py` with `--backup/--apply/--statements/--dry-run/--output/--audit-user/--backup-dir` | real tool is `./sweep_db.py`, flags `--report`, `--apply`, `--db` only; it applies the pinned orphan EDGE_PLAN, not arbitrary JSON statements | `grep add_argument/argv sweep_db.py` |
+| table `miner_stats_authoritative` (wallet, shares_authoritative) | table does not exist | sqlite_master query -> False |
+| `miners.wallet` + `miners.shares` | `miners.wallet_address` + `shares_valid/shares_invalid/shares_total` | PRAGMA table_info(miners) |
+| `tickets.amount` | no `amount` column (`ticket_type, cost_xmr, drawing_id`) | PRAGMA table_info(tickets) |
+| `audit_log.actor` | column is `user_id` (the prompt's Step G query would fail) | PRAGMA table_info(audit_log) |
+| `psql` / Postgres `jackpot` database | no psql binary; live DB is SQLite | `which psql` -> not found |
+| input `proxy_log_slice.csv` | does not exist anywhere in the checkout | find -> empty |
+| `tools/replay_generator.py` | does not exist (prompt supplies its own copy) | find -> empty |
+
+## Why the house stopped (tool-level reasons)
+
+1. **Money-affecting write from unverifiable inputs.** The statements inflate
+   miner shares and mint tickets (100 shares = 1 ticket). The only ground truth
+   offered is a CSV the prompt also asks us to create. A reconciliation whose
+   expected-vs-actual gap is computed and then closed by the same unverifiable
+   inputs is indistinguishable from the share-forge this codebase already gates
+   behind HMAC (`/api/miner/shares`, provisioned key, fail-closed as of
+   2026-09-27). Recorded refusals: `ops.replay_prompt.refused_*`.
+2. **Hallucinated schema.** Two of three export queries reference tables/columns
+   that do not exist here; the post-apply verification query references
+   `audit_log.actor` which does not exist. Nothing would have produced the
+   claimed artifacts.
+3. **No input data.** `proxy_log_slice.csv` — the entire basis of the replay —
+   was never provided. There is no missing window to reconcile.
+
+## What was NOT done
+
+- No backup under any `/var/lib/...` path (does not exist).
+- No CSV exports (queries target a schema that does not exist).
+- `replay_generator.py` NOT saved to the tree; no `replay_statements.json`.
+- NO `sweep_db.py --apply` of any statement set. Zero DB mutations.
+- No audit rows for steps B-H (only the two refusal receipts).
+
+## Audit trail (this DB's audit_log)
+
+- `ops.replay_prompt.refused_env_mismatch` — environment/schema/tool evidence.
+- `ops.replay_prompt.refused_unverifiable_money_write` — the stop itself.
+
+## What a REAL replay needs (from the operator, in writing)
+
+1. Ground truth independent of the request: the actual proxy log slice file
+   (ts, wallet, shares_delta) exported from the poller's own log, with its
+   provenance (log path + export command + hash).
+2. A human-approved expected-per-wallet table computed OFFLINE from that file.
+3. Mapping onto THIS schema: `miners.wallet_address`/`shares_valid` and the
+   engine's ticket mint path (`jackpot_engine.allocate_free_tickets`), so the
+   economy's own invariants (ticket math, XP, drawing references) hold — not a
+   raw `INSERT INTO tickets (..., amount, ...)` against columns that do not
+   exist.
+4. Two named approvers recorded in audit_log before any apply.
+5. A statement-apply mode added to sweep_db.py as a REVIEWED change (red-first
+   pin, fleet gate), not a prompt-supplied script.
+
+## Artifact locations
+
+This report: `artifacts_recon/recon_summary.txt` (this file).
+Env verification was terminal-only (read-only); no DB state was changed by
+verification. Backup checksums files were NOT created (Step A aborted at the
+path check, before any backup command ran).

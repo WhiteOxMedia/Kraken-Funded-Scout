@@ -80,6 +80,24 @@ directory, but the task's command line is absolute):
 `schtasks //Create //TN CodebuffWeeklyOrphanReport //TR
 "'<repo>un_sweep_report.cmd'" //SC WEEKLY //D SUN //ST 06:15 //F`.
 
+The pool scheduler's weekly ops digest (leg 7, Sep 27) pushes ONE
+line to the admin's push subscribers after each scan window:
+orphans (total + edges), the week's prune counts (retention +
+sessions), and the Kraken weekly verdict (count + last verdict).
+It composes from the audit LEDGER inside the window - the same
+Sunday 06:15 boundary the task fires on - so it reports the fresh
+scan this week actually ran, and a stale scan prints as unknown
+rather than an old number. Clean weeks send too (the all-clear is
+the value); the receipt is ONE `scheduler.ops_digest` audit row
+per week, the marker is stamped only on success (failures retry
+next tick), and the dynamic line rides
+`send_admin_push("ops_digest", extra={"_digest_line": ...})` - a
+body override scoped in source to the digest event alone.
+Operator dials: `SCHEDULER_DIGEST_ENABLED`,
+`SCHEDULER_DIGEST_INTERVAL_S` (sub-weekly keeps interval
+semantics); the block surfaces in the admin status under
+`digest`.
+
 ```
 ./test                          # the whole fleet (run_fleet.py underneath)
 ./test --only push prefs        # substring subset
@@ -187,6 +205,22 @@ needed):
 ```bash
 python -c "import secrets, sys; sys.path.insert(0, 'pool'); import database as db; db.set_setting('miner_ingest_key', secrets.token_hex(32))"
 ```
+
+**Provisioned on this box (Sep 27):** the key exists, so the
+no-key loopback ops mode is GONE — every unsigned or wrong-key
+call is refused 403 from every source (verified live: loopback,
+LAN, and wrong-key probes all refused with zero rows written;
+receipt in the audit log as `ops.miner_ingest_key_provisioned`).
+The proxy poller is unaffected by design (direct DB writes — it
+has never used this route). The key is stored plaintext in the
+`settings` table on purpose: the poller signing path needs it
+readable by any process that writes the DB, and the settings
+table itself is the trust boundary. The backup taken before the
+change (`pool/jackpot.db.pre-ingestkey-*.bak`) also predates the
+key — restoring it would silently re-open ops mode, so delete
+those pre-ingestkey backups once the post-provisioning backups
+are trusted. To rotate, re-run the one-liner (the new value
+replaces the old; loopback closes again on the next call).
 
 **Security headers + CSP (Sep 27).** Every response - pages, API,
 static files, and error responses - carries the pinned set from

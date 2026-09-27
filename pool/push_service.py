@@ -137,6 +137,15 @@ EVENTS = {
         "url": "/#admin",
         "rate": 2,
     },
+    "ops_digest": {
+        "title": "🗓 Weekly ops digest",
+        "body": ("Orphans, prune counts, and the Kraken weekly "
+                 "verdict, in one line - open the admin panel for "
+                 "the full receipt."),
+        "tag": "ops-digest",
+        "url": "/#admin",
+        "rate": 2,
+    },
 }
 
 
@@ -159,6 +168,9 @@ CATEGORY = {
     # pushes are honored, and members never see infrastructure
     # alerts (send_admin_push filters by is_admin anyway)
     "orphans_alert": "scout",
+    # the digest is the same family: operator-scale news, admin
+    # fan-out only, the opt-out gate still honored via the category
+    "ops_digest": "scout",
 }
 PREFS_KEY = "push_prefs"          # {"<uid>": {"preferences": {scout,jackpot},
                                   #  "updated_at": stamp}} — THE ENVELOPE
@@ -604,6 +616,14 @@ def send_to_user(user_id: int, event: str, extra: dict = None) -> dict:
         "tag": ev["tag"],
         "url": ev["url"],
     }
+    # THE SCOPED BODY OVERRIDE (Sep 27, the weekly ops digest): the
+    # template bodies are static, but the digest's whole value is its
+    # per-week LINE. Scoped twice over: only the ops_digest event on
+    # a send whose caller named _digest_line (scheduler leg 7) — no
+    # user-facing path can carry arbitrary text into any other event,
+    # and the width cap matches the extra-interpolation cap.
+    if event == "ops_digest" and (extra or {}).get("_digest_line"):
+        payload["body"] = str(extra["_digest_line"])[:200]
     if extra:
         payload.update({k: str(v)[:120] for k, v in extra.items()
                         if k in ("amount_xmr", "deadline", "signal")})
@@ -704,6 +724,8 @@ def send_admin_push(event: str, extra: dict = None) -> dict:
     through send_to_user (all of an admin's endpoints, the opt-out
     gate, per-user rate limits, and the 410-pruning all apply
     unchanged); one admin_push audit row records the delivery.
+    Pass extra={"_digest_line": str} to replace the template body
+    for THIS send only (the weekly ops digest's dynamic line).
     """
     if event not in EVENTS:
         return {"sent": 0, "reason": "unknown event"}
