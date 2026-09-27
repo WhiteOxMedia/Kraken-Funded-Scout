@@ -78,12 +78,25 @@ def main() -> int:
         print("usage: python verify_hostinger_corrections.py <corrected_dir>")
         return 1
 
+    # WHAT MAY BE CORRECTED (review triage, Sep 26): the docstring's
+    # contract is "corrected versions of ANY OF" the listed files - a
+    # correction that touches only the admin panel is legitimate. The
+    # old entry demanded index.html unconditionally, which refused such
+    # sets ungraded; with no corrected index, production index.html is
+    # graded against ITSELF (a structural no-op), and per-file sections
+    # skip what is not supplied.
     cur_html = (PROD / "templates" / "index.html").read_text(encoding="utf-8")
     new_path = corr / "index.html"
     if not new_path.exists():
-        print("no corrected index.html found — nothing to grade")
-        return 1
-    new_html = new_path.read_text(encoding="utf-8")
+        supplied = sorted(p.name for p in corr.rglob("*") if p.is_file())
+        if not supplied:
+            print("no corrected files found - nothing to grade")
+            return 1
+        print("no corrected index.html - grading index against itself "
+              f"(corrected set: {supplied})")
+    # no corrected index -> production graded against itself (no-op)
+    new_html = (new_path.read_text(encoding="utf-8")
+                if new_path.exists() else cur_html)
 
     # corrected-vs-production JS (built early: sections 2 and 3 both use it)
     js_sources = {}
@@ -169,12 +182,15 @@ def main() -> int:
         check(3.4, not _miss,
               f"all {len(visible_strings(cur_admin))} admin-panel strings "
               f"survive " + (f"- MISSING: {_miss[:6]}" if _miss else ""))
-        _al = set(links_of(cur_admin))
-        _nl = set(links_of(new_admin))
-        check(3.5, not (_al - _nl),
-              "all admin-panel links survive "
-              + (f"- GONE: {sorted(_al - _nl)[:6]}"
-                 if _al - _nl else ""))
+        # review triage (Sep 26): occurrences, not just distinct URLs -
+        # a correction that drops ONE occurrence of a repeated link
+        # (a removed Kraken CTA) must fail here too, exactly like 2.1.
+        _al = links_of(cur_admin, counts=True)
+        _nl = links_of(new_admin, counts=True)
+        _gone = sorted((_al - _nl).elements())
+        check(3.5, not _gone,
+              "all admin-panel link occurrences survive "
+              + (f"- GONE: {_gone[:6]}" if _gone else ""))
         check(3.6, not (ids_of(cur_admin) - ids_of(new_admin)),
               f"no admin-panel id disappeared "
               f"({len(ids_of(cur_admin))} ids) "
@@ -228,4 +244,6 @@ def main() -> int:
 if __name__ == "__main__":
     rc = main()
     print(f"RESULT: {passed} passed, {failed} failed")
-    sys.exit(0 if failed == 0 else 1)
+    # a refusal (nothing supplied / usage) must NEVER read as success:
+    # rc 1 means the gate graded nothing, and that is not a pass
+    sys.exit(rc or (0 if failed == 0 else 1))

@@ -2252,10 +2252,22 @@ async def scout_ws_proxy(ws: WebSocket):
         _scout_ws_live["n"] -= 1
         return
 
-    # Echo back the subprotocol Streamlit chose (or the first offered)
-    chosen = getattr(upstream, "protocol", None) or (
-        client_protos[0] if client_protos else None
-    )
+    # Echo back ONLY the subprotocol Streamlit actually selected
+    # (review triage, Sep 26: the old `or client_protos[0]` fallback
+    # claimed the browser's first offer even when the upstream rejected
+    # every offer - the two peers could then disagree about the wire
+    # protocol. aiohttp reports upstream.protocol as None when nothing
+    # was selected; if the client required one, we reject the
+    # downstream handshake cleanly instead of lying to it.)
+    chosen = getattr(upstream, "protocol", None)
+    if client_protos and not chosen:
+        try:
+            await ws.close(code=1002)   # protocol error
+        except Exception:
+            pass
+        await session.close()
+        _scout_ws_live["n"] -= 1
+        return
     await ws.accept(subprotocol=chosen)
 
     async def pump_client_to_upstream():
