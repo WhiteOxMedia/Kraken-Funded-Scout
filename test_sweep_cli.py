@@ -223,19 +223,21 @@ check(6.1, r.returncode == 0 and "0 violating row(s)" in r.stdout,
       f"a clean sandbox reports the all-clear (rc {r.returncode})")
 report_dirty = _mk_db("report_dirty.db", with_orphans=True)
 r = _run(["--report", "--db", str(report_dirty)])
-check(6.2, r.returncode == 0
+check(6.2, r.returncode == 1
       and "tickets.miner_id -> miners: 1 row(s), plan: delete" in r.stdout
       and "sessions.user_id -> users: 1 row(s), plan: delete" in r.stdout
       and "audit_log.user_id -> users: 1 row(s), "
           "plan: null (history kept)" in r.stdout
       and "sample rowids: [" in r.stdout
       and "every violated edge is planned" in r.stdout,
-      "the orphaned sandbox names every EDGE with its count, the "
-      "disposition (delete vs null), and sample rowids")
+      "the orphaned sandbox names every EDGE with its count and the "
+      "disposition, then exits 1 - cron/alerting reacts to the rc "
+      "(violations found, all planned)")
 r = _run(["--report", "--db", str(edge)])
-check(6.3, r.returncode == 0 and "UNPLANNED" in r.stdout
+check(6.3, r.returncode == 2 and "UNPLANNED" in r.stdout
       and "extend the statement set" in r.stdout,
-      "an edge outside EDGE_PLAN is flagged UNPLANNED with the extend hint")
+      "an edge outside EDGE_PLAN exits 2 - the plan needs a human, "
+      "which outranks the violations themselves")
 r = _run(["--report"])
 check(6.4, r.returncode == 0 and "jackpot.db" in r.stdout
       and "ORPHAN REPORT" in r.stdout and "0 violating row(s)" in r.stdout,

@@ -22,7 +22,14 @@ One daemon thread per server process that:
   5. prunes expired auth sessions DAILY (once per UTC day, the same
      marker pattern as the retention prune) — get_session already
      refuses expired tokens, so they are pure table growth; removed
-     rows are audited with their count, and a no-op day is silent.
+     rows are audited with their count, and a no-op day is silent;
+  6. runs sweep_lib.orphans() WEEKLY (default 604800s, floor one
+     hour, its own SCHEDULER_ORPHAN_* dial + marker) so orphan
+     build-up is reported by the timer, not the next manual sweep:
+     a clean week is silent, any violation count prints ONE
+     scheduler.orphans_report audit row per week (with the per-edge
+     violations and sample rowids) and carries alert=true in the
+     tick summary + admin status.
 
 Every tick is usable synchronously (tick_once) so tests and the admin
 trigger exercise the exact code the timer runs.
@@ -35,6 +42,13 @@ import traceback
 
 import database as db
 import kraken_referral as kr
+
+import sys as _sys
+from pathlib import Path as _Path
+_ROOT = _Path(__file__).resolve().parent.parent
+if str(_ROOT) not in _sys.path:
+    _sys.path.insert(0, str(_ROOT))
+import sweep_lib
 import push_report
 import push_service as push_svc
 
@@ -51,6 +65,11 @@ KC_INTERVAL_KEY = "SCHEDULER_KC_INTERVAL_S"  # seconds between self-tests
 KC_LAST_KEY = "SCHEDULER_LAST_KC"            # {"ts": epoch, "verdict": str}
 KC_DEFAULT_INTERVAL_S = 7 * 86400            # the weekly default
 KC_FLOOR_S = 3600                            # never dial Kraken more often
+ORPHAN_ENABLED_KEY = "SCHEDULER_ORPHAN_ENABLED"   # "1" -> weekly report
+ORPHAN_INTERVAL_KEY = "SCHEDULER_ORPHAN_INTERVAL_S"
+ORPHAN_LAST_KEY = "SCHEDULER_LAST_ORPHANS"   # {"ts", "total", "edges"}
+ORPHAN_DEFAULT_INTERVAL_S = 7 * 86400        # the weekly default
+ORPHAN_FLOOR_S = 3600                        # never scan more often
 
 _state = {"thread": None, "stop": None}
 
@@ -90,6 +109,31 @@ def _kc_due(last):
     except (TypeError, ValueError):
         ts = 0.0
     return (time.time() - ts) >= _kc_interval_s()
+
+
+def _orphan_enabled():
+    # the weekly orphan report defaults ON - an unreported orphan
+    # build-up is exactly how 287 rows pile up unnoticed again
+    return str(db.get_setting(ORPHAN_ENABLED_KEY, "1") or "") == "1"
+
+
+def _orphan_interval_s():
+    try:
+        v = int(float(db.get_setting(ORPHAN_INTERVAL_KEY,
+                                      ORPHAN_DEFAULT_INTERVAL_S)
+                      or ORPHAN_DEFAULT_INTERVAL_S))
+    except (TypeError, ValueError):
+        return ORPHAN_DEFAULT_INTERVAL_S
+    return max(ORPHAN_FLOOR_S, v)
+
+
+def _orphan_due(last):
+    ts = last.get("ts")
+    try:
+        ts = float(ts) if ts else 0.0
+    except (TypeError, ValueError):
+        ts = 0.0
+    return (time.time() - ts) >= _orphan_interval_s()
 
 
 def window_status():
@@ -264,6 +308,45 @@ def tick_once(reason: str = "manual") -> dict:
     elif not _kc_enabled():
         summary["kc"] = {"skipped": "disabled"}
     db.set_setting(KC_LAST_KEY, json.dumps(kcl))
+    # 6. the weekly orphan-report leg: sweep_lib.orphans() through a
+    # mode=ro connection - a READER the timer may run against the
+    # live primary with zero write access. Silence on a clean week
+    # (the prune no-op-day rule); any violation count speaks ONCE
+    # per interval and carries alert=true so the admin card can
+    # demand action instead of waiting for the next manual sweep.
+    try:
+        orl = json.loads(db.get_setting(ORPHAN_LAST_KEY, "{}") or "{}")
+        if not isinstance(orl, dict):
+            orl = {}
+    except ValueError:
+        orl = {}
+    if _orphan_enabled() and _orphan_due(orl):
+        try:
+            edges = sweep_lib.orphans(db.DB_PATH)
+            total = sum(e["violations"] for e in edges)
+            orl = {"ts": time.time(), "total": total,
+                   "edges": len(edges)}
+            summary["orphans"] = {"total": total, "edges": len(edges),
+                                  "alert": bool(total)}
+            if total:
+                kr.emit_audit(None, "scheduler.orphans_report",
+                              total=total,
+                              edges=json.dumps(edges)[:800])
+            # a clean week stamps its marker silently
+        except Exception as exc:                   # noqa: BLE001
+            # the leg must never kill the tick; the marker stays
+            # unstamped so the scan is RETRIED next tick
+            summary["orphans"] = f"error: {str(exc)[:80]}"
+            try:
+                kr.emit_audit(None, "scheduler.error",
+                              leg="orphan_report",
+                              error=str(exc)[:200])
+            except Exception:                      # noqa: BLE001
+                print("scheduler: orphan audit failed",
+                      file=sys.stderr)
+    elif not _orphan_enabled():
+        summary["orphans"] = {"skipped": "disabled"}
+    db.set_setting(ORPHAN_LAST_KEY, json.dumps(orl))
     db.set_setting(HEARTBEAT_KEY, str(time.time()))
     return summary
 
@@ -334,6 +417,10 @@ def status() -> dict:
         "last_worker": last,
         "kc": {"enabled": _kc_enabled(), "interval_s": _kc_interval_s(),
                "last": kcl},
+        "orphans": {"enabled": _orphan_enabled(),
+                    "interval_s": _orphan_interval_s(),
+                    "last": json.loads(
+                        db.get_setting(ORPHAN_LAST_KEY, "{}") or "{}")},
         "window": window_status(),
         "last_notice_expiry":
             str(db.get_setting(LAST_NOTICE_KEY, "") or "") or None,

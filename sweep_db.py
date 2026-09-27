@@ -25,9 +25,11 @@ is that discipline's operator face for pool/jackpot.db:
   --report  prints the orphan DETECTOR's receipt instead of the
             dry-run: every FK edge read from the schema itself,
             per-edge violation counts, sample rowids, and a
-            disposition per edge (delete / null / UNPLANNED). A
-            clean DB reports the all-clear. Read-only by
-            construction.
+            disposition per edge (delete / null / UNPLANNED). The
+            EXIT CODE is the alert: 0 all-clear, 1 violations
+            found, 2 an edge is UNPLANNED - cron/alerting reacts
+            to the receipt itself, and the receipt always prints
+            first. Read-only by construction.
 
   --db PATH targets another file (the default resolves from THIS
             script's location, so the CLI behaves identically from any
@@ -165,7 +167,13 @@ def apply_sweep(db_path):
 
 
 def report(db_path):
-    """The detector receipt: per-edge counts, samples, plan."""
+    """The detector receipt: per-edge counts, samples, plan.
+
+    The exit code is the alert for cron/alerting (the receipt
+    ALWAYS prints first): 0 = all-clear, 1 = violations found,
+    2 = an edge is UNPLANNED (the plan itself needs a human -
+    that outranks sweeping, so it takes precedence over rc 1).
+    """
     db_path = Path(db_path)
     if not db_path.exists():
         print(f"FAIL  no such database: {db_path}")
@@ -190,10 +198,10 @@ def report(db_path):
     if unplanned:
         print(f"  {unplanned} edge(s) UNPLANNED - extend the "
               f"statement set and EDGE_PLAN before --apply")
-    else:
-        print("  every violated edge is planned - a dry run will "
-              f"confirm, then --apply sweeps")
-    return 0
+        return 2        # the plan needs a human first
+    print("  every violated edge is planned - a dry run will "
+          f"confirm, then --apply sweeps")
+    return 1            # violations, all planned: sweepable
 
 
 def main(argv):

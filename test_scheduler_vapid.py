@@ -300,6 +300,68 @@ with db.get_db() as conn:
 check("8.5", _n8p2 == 1,
       "no extra audit from the no-op day — silence is the contract")
 
+print("== 9. THE WEEKLY ORPHAN-REPORT LEG ==")
+check("9.0", sched.status()["orphans"]["enabled"] is True
+      and sched.status()["orphans"]["interval_s"] == 7 * 86400,
+      "the leg defaults ON at the weekly cadence (an unreported build-up"
+      " is how 287 rows pile up unnoticed again)")
+db.set_setting(sched.ORPHAN_ENABLED_KEY, "0")
+s9d = sched.tick_once(reason="drive")
+check("9.1", s9d.get("orphans") == {"skipped": "disabled"},
+      f"the operator OFF dial silences the leg: {s9d.get('orphans')}")
+db.set_setting(sched.ORPHAN_ENABLED_KEY, "1")
+db.set_setting(sched.ORPHAN_LAST_KEY, "{}")          # force due
+s9c = sched.tick_once(reason="drive")
+check("9.2", s9c.get("orphans") == {"total": 0, "edges": 0, "alert": False},
+      f"a clean week reports silently in the summary: {s9c.get('orphans')}")
+_n9c = db.get_db() and 0
+with db.get_db() as conn:
+    _n9c = conn.execute("SELECT COUNT(*) c FROM audit_log WHERE "
+                        "action = 'scheduler.orphans_report'").fetchone()["c"]
+check("9.3", _n9c == 0,
+      "zero orphans -> ZERO audit rows (the prune no-op-day rule)")
+s9q = sched.tick_once(reason="drive")
+check("9.4", "orphans" not in s9q,
+      "an interval that has not elapsed stays quiet - once per week")
+# the alert: build real orphans (raw connection = the factory), then
+# let the due leg find them
+db.set_setting(sched.ORPHAN_LAST_KEY, "{}")          # force due again
+import sqlite3 as _sq3
+_ouid = db.create_user("sched_orphan_user", "x")
+db.create_session("sched-orphan-token", _ouid, 9999999999)
+db.add_audit_log(_ouid, "sched_orphan_note", "{}")
+_raw = _sq3.connect(str(db.DB_PATH))
+_raw.execute("DELETE FROM users WHERE id = ?", (_ouid,))
+_raw.commit()
+_raw.close()
+s9a = sched.tick_once(reason="drive")
+check("9.5", s9a.get("orphans") == {"total": 2, "edges": 2, "alert": True},
+      f"the dead user's session + audit row ALERT: {s9a.get('orphans')}")
+with db.get_db() as conn:
+    _n9a = conn.execute("SELECT COUNT(*) c FROM audit_log WHERE "
+                        "action = 'scheduler.orphans_report'").fetchone()["c"]
+check("9.6", _n9a == 1,
+      f"exactly ONE orphans_report receipt row for the week ({_n9a})")
+check("9.7", sched.status()["orphans"]["last"].get("total") == 2,
+      "the alert surfaces in the admin status (last.total carries it)")
+# the error path: a failed scan must NOT stamp its marker - the
+# scan is retried next tick (the credential-leg rule)
+db.set_setting(sched.ORPHAN_LAST_KEY, "{}")          # force due
+_orig = sched.sweep_lib.orphans
+def _boom(path, **kw):
+    raise RuntimeError("boom")
+sched.sweep_lib.orphans = _boom
+try:
+    s9e = sched.tick_once(reason="drive")
+finally:
+    sched.sweep_lib.orphans = _orig
+_mk = db.get_setting(sched.ORPHAN_LAST_KEY, "{}")
+check("9.8", str(s9e.get("orphans", "")).startswith("error:")
+      and "boom" in str(s9e.get("orphans"))
+      and (_mk == "{}" or not str(_mk).strip("{}")),
+      f"a failed scan reports the error and leaves the marker "
+      f"unstamped (retried next tick): marker={_mk}")
+
 passed, failed = results.count(True), results.count(False)
 print(f"RESULT: {passed} passed, {failed} failed")
 sys.exit(1 if failed else 0)

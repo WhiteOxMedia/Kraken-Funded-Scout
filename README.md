@@ -53,8 +53,10 @@ The planning half is `python sweep_db.py --report` (backed by
 itself and reports per-edge violation counts with sample rowids
 and the disposition a sweep would take (delete / null /
 UNPLANNED) - all through a mode=ro connection, so a report can
-run against the live primary with zero write access. Pinned by
-`test_fk_regression` 3c and `test_sweep_cli` section 6.
+run against the live primary with zero write access. Its EXIT
+CODE is the alert (0 all-clear, 1 violations found, 2 an edge is
+UNPLANNED), so cron/alerting reacts to the receipt itself.
+Pinned by `test_fk_regression` 3c and `test_sweep_cli` section 6.
 
 ```
 ./test                          # the whole fleet (run_fleet.py underneath)
