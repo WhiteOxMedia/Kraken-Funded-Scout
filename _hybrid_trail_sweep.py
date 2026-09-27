@@ -138,15 +138,17 @@ print(f"ratchet: trail x {_rn}, delta {_rt:+.2f} $ "
       f"({_rt / _rn if _rn else 0:+.2f}/trade), banks {_rb}, "
       f"ctrl {_rc:+.2f}, bank-delta {_rdb:+.2f}")
 
-print("\n== VERDICT (the hybrid must BEAT the ladder's actual ride on the "
-      "near-miss cohort, control untouched) ==")
-ok = {P: r for P, r in rows.items() if r[1] and r[2] > 0 and r[4] >= 0}
+print("\n== VERDICT (RELATIVE BAR, corrected accounting: a width must hold "
+      "a positive ride edge WITHOUT costing more control than the "
+      f"incumbent ratchet's own under the identical walk, {_rc:+.2f}) ==")
+ok = {P: r for P, r in rows.items()
+      if r[1] and r[2] > 0 and r[4] >= _rc - 1e-9}
 if not ok:
-    print("no width holds a positive edge on the trail cohort with the "
-          "control untouched; the incumbent ratchet stands")
+    print("no width holds a positive ride edge without a worse control "
+          "cost than the incumbent ratchet's own; the ratchet stands")
 else:
     best = max(ok, key=lambda P: ok[P][2])
     tot, n, per, banks, dc = ok[best]
     print(f"best hybrid width: {best:.1f} — +{per:.2f} $/trade over {n} "
           f"near-miss rides ({tot:.2f} $ total), {banks} goals banked, "
-          f"control {dc:+.2f}")
+          f"control {dc:+.2f} vs incumbent {_rc:+.2f}")

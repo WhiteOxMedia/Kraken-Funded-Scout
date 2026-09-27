@@ -82,7 +82,13 @@ anything.
 ## THE STUDIES (evidence, rerunnable)
 
 Root-level `_` studies, read-only, built on `_verdict_study.py`'s graded
-ledger (86 trades, Sep 3 → Sep 27, fees via `net()`).
+ledger (86 trades, Sep 3 → Sep 27, fees via `net()`). All study numbers
+below are snapshots frozen at Sep 27 — the live ledger grows daily, so
+the truth lives in the studies (rerunnable) and the drives; re-run them
+for today's numbers. Control accounting is the corrected form: every
+simulated exit (banks included) counts, the bar is a relative bar
+against the incumbent ratchet's own control cost (baseline -95.96 on
+the frozen cohort), not a naive zero.
 
 `_trail_k_sweep.py` — fixed armed-trail widths 1.0/1.5/2.0/3.0 vs actual:
 every width BROKE the took-the-goal control (−43.53 / −86.89 / −131.28 /
