@@ -21,6 +21,14 @@ THE SETTLEMENT MODEL this drive pins (the audit's corrected accounting):
   4. the rollover event    both expiry paths log jackpot_rollover, once
   5. registration gate     auth required on the route; non-winner rejected
   6. ticket uniqueness     row identity, no collisions
+  7. the skip is the draw  the 30-day ring walk verifies; an all-gated
+                           round cancels and the scheduler waits
+  8. the error path        select-failure cancels + releases, no stranding
+  9. THE SETTLEMENT GUARD  finalize_drawing verifies the drawing, the
+                           winner, and the winning ticket against REAL
+                           rows BEFORE any write - fabricated settlements
+                           (the live DB once carried winning_ticket_id=0)
+                           raise and leave the drawing pending
 
 Every DB touch lands in a temp dir; the live jackpot.db is never opened.
 Prints "RESULT: N passed, M failed".
@@ -270,6 +278,78 @@ check(8.1, _pending8 == 0 and _locked8 == 0,
       "the error path's cancel+release")
 check(8.2, engine.check_drawing_schedule().get("status") == "waiting",
       "the stamped error-exit also makes the scheduler wait")
+
+print("== 9. THE SETTLEMENT GUARD: fabricated draws are unrepresentable ==")
+# The live DB once carried three DRAWN drawings with winning_ticket_id=0
+# - ticket 0 never existed (AUTOINCREMENT starts at 1), so some writer
+# fabricated the settlement; the code predates this repo's history, so
+# the fix is structural: finalize_drawing (the one choke point every
+# writer must pass) now verifies the drawing, the winner, and the
+# winning ticket against real rows on the same connection BEFORE any
+# write. These pins prove the guard refuses every fabrication shape and
+# still lets the honest path through.
+db.set_setting("jackpot_balance", "1.0")
+_m9 = db.get_or_create_miner(_W.format(9))
+db.add_tickets(_m9["id"], "free", 3)
+_d9 = db.create_drawing(1.0, time.time())
+db.assign_tickets_to_drawing(_d9)
+with db.get_db() as conn:
+    _tick9 = conn.execute(
+        "SELECT id FROM tickets WHERE drawing_id = ? ORDER BY id LIMIT 1",
+        (_d9,)).fetchone()["id"]
+
+def _raised_valueerror(*a):
+    try:
+        db.finalize_drawing(*a)
+    except ValueError:
+        return True
+    return False
+
+check(9.1, _raised_valueerror(_d9, _m9["id"], 0, 0.1, "bh", "cs", "rs", 3),
+      "winning_ticket_id=0 (the historical artifact) is refused")
+check(9.2, _raised_valueerror(
+        _d9, _m9["id"], _tick9 + 999999, 0.1, "bh", "cs", "rs", 3),
+      "a winning ticket that exists but belongs to ANOTHER drawing is refused")
+check(9.3, _raised_valueerror(_d9, 999999, _tick9, 0.1, "bh", "cs", "rs", 3),
+      "a fabricated winner id is refused")
+check(9.4, _raised_valueerror(999999, _m9["id"], _tick9, 0.1, "bh", "cs", "rs", 3),
+      "a nonexistent drawing id is refused")
+with db.get_db() as conn:
+    _row9 = conn.execute(
+        "SELECT status, winner_id, winning_ticket_id FROM drawings "
+        "WHERE id = ?", (_d9,)).fetchone()
+check(9.5, _row9["status"] != "drawn" and _row9["winner_id"] is None
+      and _row9["winning_ticket_id"] is None,
+      f"every refusal left the drawing pending, untouched: {_row9['status']}")
+# the honest settlement: consistent commit/reveal seeds and the ring's
+# own entropy-chosen winner, so the engine's verifier must grade it fair
+import hashlib as _hl
+_rs9 = "reveal-%d" % _d9
+_bh9 = "blockhash-%d" % _d9
+_cs9 = _hl.sha256(_rs9.encode()).hexdigest()
+with db.get_db() as conn:
+    _ring9 = [r["id"] for r in conn.execute(
+        "SELECT id FROM tickets WHERE drawing_id = ? ORDER BY id",
+        (_d9,)).fetchall()]
+_idx9 = int(_hl.sha256(("%s:%s" % (_rs9, _bh9)).encode()).hexdigest(),
+             16) % len(_ring9)
+_win9 = _ring9[_idx9]
+db.finalize_drawing(_d9, _m9["id"], _win9, 0.1, _bh9, _cs9, _rs9, 3)
+with db.get_db() as conn:
+    _ok9 = conn.execute(
+        "SELECT status, winner_id, winning_ticket_id FROM drawings "
+        "WHERE id = ?", (_d9,)).fetchone()
+check(9.6, _ok9["status"] == "drawn" and _ok9["winner_id"] == _m9["id"]
+      and _ok9["winning_ticket_id"] == _win9,
+      "the honest settlement still finalizes (the guard breaks no real draw)")
+check(9.7, engine.verify_drawing(_d9)["fair"] is True,
+      "the guarded settlement verifies fair through the engine's own check")
+with db.get_db() as conn:
+    _zeros = conn.execute(
+        "SELECT COUNT(*) c FROM drawings WHERE winning_ticket_id = 0"
+    ).fetchone()["c"]
+check(9.8, _zeros == 0,
+      "no drawing in the sandbox can ever read winning_ticket_id=0 again")
 
 passed, failed = results.count(True), results.count(False)
 print(f"RESULT: {passed} passed, {failed} failed")

@@ -555,7 +555,35 @@ def assign_tickets_to_drawing(drawing_id):
 
 
 def finalize_drawing(drawing_id, winner_id, winning_ticket_id, house_tax, block_hash, commit_seed, reveal_seed, total_tickets=0):
+    """THE FINALIZATION CHOKE POINT, now self-defending (Sep 26): the
+    live DB once carried drawn drawings whose winning_ticket_id was 0
+    — impossible from any AUTOINCREMENT ring, so some writer fabricated
+    the settlement (the code predates this repo's history; no path in
+    git ever wrote the zero). The guard runs BEFORE any write, on the
+    same connection: a drawing id that does not exist, a winner that is
+    not a real miner, or a winning ticket that is not a real ticket of
+    THIS drawing aborts with ValueError and the drawing stays pending —
+    a fabricated settlement can never be persisted by any caller,
+    current or future."""
     with get_db() as conn:
+        if not conn.execute(
+                "SELECT 1 FROM drawings WHERE id = ?", (drawing_id,)
+        ).fetchone():
+            raise ValueError(
+                f"finalize_drawing: drawing {drawing_id} does not exist")
+        if not conn.execute(
+                "SELECT 1 FROM miners WHERE id = ?", (winner_id,)
+        ).fetchone():
+            raise ValueError(
+                f"finalize_drawing: winner_id {winner_id} is not a real miner")
+        if not conn.execute(
+                "SELECT 1 FROM tickets WHERE id = ? AND drawing_id = ?",
+                (winning_ticket_id, drawing_id),
+        ).fetchone():
+            raise ValueError(
+                f"finalize_drawing: winning_ticket_id {winning_ticket_id} is "
+                f"not a real ticket of drawing {drawing_id} "
+                f"(ticket 0 never exists)")
         conn.execute(
             """UPDATE drawings SET
                 winner_id = ?,
