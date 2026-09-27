@@ -99,7 +99,7 @@ if not PY.exists():
 # from --fast by name (fast stays hermetic-by-construction); run by the
 # full battery and --slow. Their honest self-skip (exit 42 + SKIP line,
 # see run_entry) ledgers as SKIP.
-LIVE_ENTRIES = {"test_pool_prefs_live"}
+LIVE_ENTRIES = {"test_pool_prefs_live", "test_pool_docsrot_live"}
 
 LANES_MANIFEST = SCOUT / "battery_lanes.json"
 FAST_DEFAULT_BUDGET = 420    # the fast lane's total wall-clock ceiling
