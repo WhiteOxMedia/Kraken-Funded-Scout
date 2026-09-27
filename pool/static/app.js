@@ -291,9 +291,23 @@
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
   // exposed for the injected-HTML inline handlers (the stale-miner
-  // banner's onclick="navigateTo('realplay')" resolves on window)
+  // banner's data-action="navigate-realplay" resolves via the delegated listener)
   // and for the executed-JS drive
   window.navigateTo = navigateTo;
+
+  // CSP (Sep 27 audit): no inline event handlers anywhere - injected
+  // markup carries data-action attributes instead, resolved by ONE
+  // delegated click listener at the document root.
+  document.addEventListener("click", function (ev) {
+    var el = ev.target.closest ? ev.target.closest("[data-action]") : null;
+    if (!el) return;
+    var action = el.getAttribute("data-action");
+    var id = parseInt(el.getAttribute("data-id") || "0", 10);
+    if (action === "navigate-realplay") { ev.preventDefault(); navigateTo("realplay"); }
+    else if (action === "mark-comment-read" && id > 0) { markCommentRead(id); }
+    else if (action === "archive-comment" && id > 0) { archiveComment(id); }
+    else if (action === "mark-paid" && id > 0) { markPaid(id); }
+  });
 
   function updateModeBadge() {
     const badge = $('#modeBadge');
@@ -1376,7 +1390,7 @@
         banner.id = 'minerStatusBanner';
         banner.className = 'winner-banner';
         banner.style.cssText = 'background:rgba(255,150,0,0.1);border-color:rgba(255,150,0,0.3);margin-bottom:16px;';
-        banner.innerHTML = '<span style="font-size:1.5em;">⚠️</span><div><b>Your miner is not running!</b> You need to run the XMR Jackpot miner to earn entries and win the daily grand prize. <a href="#" onclick="navigateTo(\'realplay\');return false;" style="color:var(--gold);">Download &amp; start mining →</a></div>';
+        banner.innerHTML = '<span style="font-size:1.5em;">⚠️</span><div><b>Your miner is not running!</b> You need to run the XMR Jackpot miner to earn entries and win the daily grand prize. <a href="#" data-action="navigate-realplay" style="color:var(--gold);">Download &amp; start mining →</a></div>';
         var dashMain = document.getElementById('dashMain');
         if (dashMain) dashMain.insertBefore(banner, dashMain.firstChild);
       } else if (isStale) {
@@ -1694,9 +1708,9 @@
       var badgeText = c.status === 'new' ? 'NEW' : c.status === 'read' ? 'READ' : 'ARCHIVED';
       var actions = '';
       if (c.status === 'new') {
-        actions = '<button class="btn btn-sm btn-emerald" onclick="markCommentRead(' + c.id + ')">Mark as Read</button>';
+        actions = '<button class="btn btn-sm btn-emerald" data-action="mark-comment-read" data-id="' + c.id + '">Mark as Read</button>';
       } else if (c.status === 'read') {
-        actions = '<button class="btn btn-sm" style="background:var(--netherite);color:var(--text-dim);" onclick="archiveComment(' + c.id + ')">Archive</button>';
+        actions = '<button class="btn btn-sm" style="background:var(--netherite);color:var(--text-dim);" data-action="archive-comment" data-id="' + c.id + '">Archive</button>';
       }
       var emailLine = c.email ? '<div style="font-size:0.8em;color:var(--text-mute);">✉️ ' + escapeHtml(c.email) + '</div>' : '';
       return '<div style="padding:12px;margin-bottom:8px;background:var(--bg-void);border:2px solid #000;border-radius:0;">' +
@@ -1882,7 +1896,7 @@
       var tb = $('#adminPayoutsTable');
       if (!tb || !d.length) return;
       tb.innerHTML = d.map(function(p) {
-        var action = p.status === 'pending' ? '<button class="btn btn-emerald btn-sm" onclick="markPaid('+p.id+')">Mark Sent</button>' : p.status;
+        var action = p.status === 'pending' ? '<button class="btn btn-emerald btn-sm" data-action="mark-paid" data-id="'+p.id+'">Mark Sent</button>' : p.status;
         return '<tr><td>' + p.id + '</td><td>' + shortAddr(p.wallet_address||'') + '</td><td>' + fmt(p.amount_xmr,6) + ' XMR</td><td>' + p.payout_type + '</td><td>' + p.status + '</td><td>' + action + '</td></tr>';
       }).join('');
     } catch(e) {}

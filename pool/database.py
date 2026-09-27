@@ -363,18 +363,30 @@ def encrypt_existing_pii() -> dict:
             "SELECT id, email, phone, full_name, wallet_address, wallet_idx, "
             "email_idx FROM users").fetchall()
         for r in rows:
-            vals = {c: (r[c] if r[c] is not None else "") for c in ENCRYPTED_USER_COLS}
-            if any(v and not str(v).startswith(_fc.PREFIX)
+            # NULL stays NULL (review batch, Sep 27 CRITICAL): coalescing
+            # five real NULL emails to "" would seal them into ONE shared
+            # empty-email identity on the first keyed boot. create_user's
+            # own convention: absent = NULL.
+            vals = {c: r[c] for c in ENCRYPTED_USER_COLS}
+            if any(v is not None and str(v) != ""
+                   and not str(v).startswith(_fc.PREFIX)
                    for v in vals.values()):
                 conn.execute(
                     "UPDATE users SET email=?, phone=?, full_name=?, "
                     "wallet_address=?, wallet_idx=?, email_idx=? WHERE id=?",
-                    (_fc.encrypt(vals["email"]), _fc.encrypt(vals["phone"]),
-                     _fc.encrypt(vals["full_name"]),
-                     _fc.encrypt(vals["wallet_address"]),
-                     _fc.blind_index(vals["wallet_address"]),
+                    (_fc.encrypt(vals["email"])
+                     if vals["email"] is not None else None,
+                     _fc.encrypt(vals["phone"])
+                     if vals["phone"] is not None else None,
+                     _fc.encrypt(vals["full_name"])
+                     if vals["full_name"] is not None else None,
+                     _fc.encrypt(vals["wallet_address"])
+                     if vals["wallet_address"] is not None else None,
+                     _fc.blind_index(vals["wallet_address"])
+                     if vals["wallet_address"] else None,
                      _fc.blind_index(vals["email"].strip().lower(),
-                                     domain="email"),
+                                     domain="email")
+                     if vals["email"] else None,
                      r["id"]))
                 counts["users_sealed"] += 1
             elif not (r["wallet_idx"] or "") and vals["wallet_address"]:
@@ -382,7 +394,8 @@ def encrypt_existing_pii() -> dict:
                     "UPDATE users SET wallet_idx=?, email_idx=? WHERE id=?",
                     (_fc.blind_index(vals["wallet_address"]),
                      _fc.blind_index(vals["email"].strip().lower(),
-                                     domain="email"),
+                                     domain="email")
+                     if vals["email"] else None,
                      r["id"]))
                 counts["users_sealed"] += 1
         raw = get_setting("push_subscriptions", "")
@@ -426,17 +439,25 @@ def reencrypt_pii() -> dict:
             "SELECT id, email, phone, full_name, wallet_address, wallet_idx, "
             "email_idx FROM users").fetchall()
         for r in rows:
-            vals = {c: (r[c] if r[c] is not None else "") for c in ENCRYPTED_USER_COLS}
+            # NULL stays NULL under rotation too (review batch, Sep 27):
+            # reencrypting a coalesced "" would mint a shared empty-email
+            # identity across every no-email user.
+            vals = {c: r[c] for c in ENCRYPTED_USER_COLS}
             if not any(str(v).startswith(_fc.PREFIX) for v in vals.values()):
                 continue
-            new = {c: _fc.reencrypt(vals[c]) for c in ENCRYPTED_USER_COLS}
-            w_idx = _fc.blind_index(
-                _fc.decrypt(new["wallet_address"]) if str(
-                    new["wallet_address"]).startswith(_fc.PREFIX) else "")
-            e_idx = _fc.blind_index(
-                _fc.decrypt(new["email"]).strip().lower() if str(
-                    new["email"]).startswith(_fc.PREFIX) else "",
-                domain="email")
+            new = {c: (_fc.reencrypt(vals[c]) if vals[c] is not None
+                       else None) for c in ENCRYPTED_USER_COLS}
+            w_idx = (
+                None if new["wallet_address"] is None else
+                _fc.blind_index(
+                    _fc.decrypt(new["wallet_address"]) if str(
+                        new["wallet_address"]).startswith(_fc.PREFIX) else ""))
+            e_idx = (
+                None if new["email"] is None else
+                _fc.blind_index(
+                    _fc.decrypt(new["email"]).strip().lower() if str(
+                        new["email"]).startswith(_fc.PREFIX) else "",
+                    domain="email"))
             if any(new[c] != vals[c] for c in ENCRYPTED_USER_COLS) or \
                     w_idx != (r["wallet_idx"] or "") or \
                     e_idx != (r["email_idx"] or ""):

@@ -630,6 +630,14 @@ def send_to_user(user_id: int, event: str, extra: dict = None) -> dict:
                 data=json.dumps(payload),
                 vapid_private_key=vapid_priv,
                 vapid_claims={"sub": "mailto:operator@xmrjackpot.com"},
+                # TTL is REQUIRED by WNS (every Edge/Windows device):
+                # without it the push service answers 400 Bad Request
+                # and the send dies as a false 'dead' endpoint (found
+                # live, Sep 27 - the real admin device subscribed and
+                # the test fire 400'd until this header existed; FCM
+                # tolerates the absence, which is why sandbox drives
+                # never saw it). 24h: alerts are day-scale.
+                headers={"TTL": "86400"},
             )
             sent += 1
         except WebPushException as wexc:

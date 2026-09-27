@@ -51,6 +51,10 @@ auth_limiter = RateLimiter(max_requests=20, window_seconds=60)
 # account CREATION is its own abuse surface (Sep 26 E2E):
 # 5 registrations / hour / IP
 register_limiter = RateLimiter(max_requests=5, window_seconds=3600)
+# the miner ingest gate (Sep 27): 12 signed share-delta calls per
+# minute per source is far above any real poller cadence and far
+# below forgery-flood territory
+shares_limiter = RateLimiter(max_requests=12, window_seconds=60)
 
 
 class NonceStore:

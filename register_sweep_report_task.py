@@ -51,6 +51,14 @@ MARKER = HERE / "task_sweep_report_last.txt"
 # the dead-man horizon (must match pool/scheduler.py's
 # ORPHAN_DEADMAN_MAX_AGE_S - the drive pins the equality)
 DEADMAN_MAX_AGE_S = 8 * 86400
+# THE SCAN WINDOW both surfaces share (Sep 27 alignment): the task
+# fires here and the pool scheduler's weekly orphan leg anchors its
+# due-decision to the SAME local boundary - one window, two readers,
+# so both surfaces scan the same day (the drive pins the constants
+# AND the trigger line below against them).
+SCAN_DOW = 6                    # Sunday (time.gmtime().tm_wday convention)
+SCAN_HOUR = 6                   # 06:15 local
+SCAN_MINUTE = 15
 
 PS_REGISTER = r"""
 $ErrorActionPreference = 'Stop'
@@ -78,7 +86,8 @@ def register():
         print(f"FAIL  Register-ScheduledTask refused: "
               f"{(r.stderr or r.stdout).strip()[:300]}")
         return 1
-    print(f"OK  task '{TASK_NAME}' registered (weekly SUN 06:15 "
+    print(f"OK  task '{TASK_NAME}' registered (weekly SUN "
+          f"{SCAN_HOUR:02d}:{SCAN_MINUTE:02d} "
           f"+ boot catch-up, StartWhenAvailable, 1h limit, "
           f"battery-safe)")
     return check()

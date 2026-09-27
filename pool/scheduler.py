@@ -134,12 +134,50 @@ def _orphan_interval_s():
 
 
 def _orphan_due(last):
-    ts = last.get("ts")
+    """THE SCAN-WINDOW CONTRACT (Sep 27 alignment): at the weekly dial
+    the leg is due when the marker predates the LAST local window
+    boundary the Task Scheduler job fires on
+    (register_sweep_report_task.SCAN_DOW/SCAN_HOUR/SCAN_MINUTE - one
+    window, two readers, both surfaces scan the same day even after a
+    mid-week server restart). Sub-weekly operator dials keep pure
+    interval semantics (a faster dial must not silently skip a week)."""
+    interval = _orphan_interval_s()
+    if interval < 7 * 86400:
+        try:
+            ts = float(last.get("ts") or 0.0)
+        except (TypeError, ValueError):
+            ts = 0.0
+        return (time.time() - ts) >= interval
+    import register_sweep_report_task as _reg
     try:
-        ts = float(ts) if ts else 0.0
+        ts = float(last.get("ts") or 0.0)
     except (TypeError, ValueError):
         ts = 0.0
-    return (time.time() - ts) >= _orphan_interval_s()
+    return _orphan_window_index(time.time()) > _orphan_window_index(ts)
+
+
+def _orphan_window_index(epoch_s):
+    """Epoch of the last SCAN window boundary that has fully passed by
+    epoch_s, computed from the LOCAL calendar (DST cannot move the
+    day: the boundary is rebuilt per call, never by fixed offsets).
+    Comparing the marker's window to now's window is the once-per-week
+    rule; a future-window-this-week case folds back one week."""
+    import datetime
+    import register_sweep_report_task as _reg
+    if epoch_s < 86400:
+        # no/unparseable marker: long before any real window (mktime
+        # cannot build pre-epoch local calendars on every platform)
+        return 0.0
+    lt = time.localtime(epoch_s)
+    days_since = (lt.tm_wday - _reg.SCAN_DOW) % 7
+    d = (datetime.date(lt.tm_year, lt.tm_mon, lt.tm_mday)
+         - datetime.timedelta(days=days_since))
+    boundary = time.mktime((d.year, d.month, d.day,
+                            _reg.SCAN_HOUR, _reg.SCAN_MINUTE,
+                            0, 0, 0, -1))
+    if epoch_s < boundary:
+        boundary -= 7 * 86400
+    return boundary
 
 
 def window_status():

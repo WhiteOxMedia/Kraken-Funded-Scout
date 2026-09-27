@@ -414,7 +414,8 @@ class _FakeResp:
 _sent_boxes = []
 
 
-def _fake_webpush(subscription_info, data, vapid_private_key, vapid_claims):
+def _fake_webpush(subscription_info, data, vapid_private_key, vapid_claims,
+                  headers=None):   # headers: the WNS-required TTL rides here
     _sent_boxes.append((subscription_info["endpoint"], json.loads(data)))
     return _FakeResp()
 
@@ -447,6 +448,17 @@ with db.get_db() as conn:
         "SELECT action FROM audit_log WHERE action LIKE 'push%'")]
 check(4.6, "push_rate_limited" in acts and "push_send_allowed" in acts,
       f"rate-limit and send-allowed audits landed ({acts})")
+# 4.8 THE WNS TTL REQUIREMENT (found live, Sep 27): Microsoft's push
+# service (every Edge/Windows device) answers 400 Bad Request without
+# a TTL header; FCM tolerates the absence, so dead-endpoint sandbox
+# drives can never see the difference - the sender's webpush call is
+# pinned the house source-idiom way (the mode=ro precedent).
+_src = (HERE / "pool" / "push_service.py").read_text(
+    encoding="utf-8", errors="replace")
+check(4.8, 'headers={"TTL":' in _src
+      and 'webpush(' in _src,
+      "the sender passes TTL to webpush (WNS requires it; FCM does not "
+      "care, which is why only a live device could expose this)")
 check(4.7, ps.send_to_user(999999, "jackpot_win")["reason"]
       == "no subscription",
       "a user with no subscription is a quiet no-op, never an error")

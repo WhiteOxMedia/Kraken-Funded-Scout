@@ -171,6 +171,45 @@ sleep 9 && curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:3094/api/stat
 The `curl` health check is the confirmation step — 200 means the fleet
 gate's live drive will run, 000 means it will self-skip (honestly).
 
+**Miner ingest key (Sep 27).** `/api/miner/shares` is an economy
+writer — its share deltas backfill free jackpot tickets (100 shares
+= 1 ticket) — so it is gated: a valid HMAC-SHA256 over
+`"{ts}.{wallet}.{shares_valid}.{shares_invalid}"` (header
+`x-miner-sig`, with `x-miner-ts` within ±300 s, signed with the
+`miner_ingest_key` setting) is accepted from any source, and a
+loopback caller is accepted ONLY while no key is provisioned
+(pre-provisioning ops mode — the gate is fail-closed once the key
+exists). Per-call deltas are capped at 500,000 shares, calls are
+rate-limited per source IP, and the wallet shape rule is enforced.
+Provision a key (the gate reads the setting per call — no restart
+needed):
+
+```bash
+python -c "import secrets, sys; sys.path.insert(0, 'pool'); import database as db; db.set_setting('miner_ingest_key', secrets.token_hex(32))"
+```
+
+**Security headers + CSP (Sep 27).** Every response - pages, API,
+static files, and error responses - carries the pinned set from
+`SecurityHeadersMiddleware` (pool/server.py): CSP
+(`default-src 'self'`, `script-src 'self'`, `style-src 'self'
+'unsafe-inline'` - the templates style through style attributes -
+`frame-ancestors 'none'`, `upgrade-insecure-requests`),
+`X-Content-Type-Options: nosniff`, `Referrer-Policy: no-referrer`,
+`X-Frame-Options: DENY`, `Permissions-Policy`, and COOP. Inline
+event handlers are forbidden by the CSP: app.js injects
+`data-action` attributes resolved by one delegated listener.
+Pinned by test_security.py section E; when editing app.js, keep it
+that way.
+
+**The TLS flip (when the Hostinger front terminates HTTPS).** Two
+things are deployment-gated and must move together: the session
+cookie's `Secure` flag (pool/server.py sets `secure=is_https`, so
+it happens automatically once requests arrive as HTTPS or with
+`X-Forwarded-Proto: https`) and HSTS, which the front must add
+(`Strict-Transport-Security: max-age=31536000; includeSubDomains`).
+test_security.py B1.2 pins the LOCAL absence of `Secure` - flip
+that pin only when the flip happens.
+
 **Logs.** `logs/` carries `pool_stdout.log`, `pool_stderr.log`,
 `server_restart.log`, and `xmrig.log`; the restart command above
 tee's its own run to `logs_server_restart.txt` in the repo root. Log
@@ -204,3 +243,13 @@ and add the wrapper to `LIVE_ENTRIES` so `--fast` stays hermetic.
   commit-gate hook, then verifies both (idempotent).
 - `python make_bundle.py` — regenerate the Hostinger review bundle from
   the live template + statics; runs the parity drive as its own gate.
+- `python ops_status.py` — the one-command health receipt: bundle
+  version, :3094 listener PID + `/api/stats` health, scheduler
+  heartbeat age, last orphan scan (age + totals), the scheduled
+  task's Last/Next Run + Last Result, and the dead-man marker age.
+  Strictly read-only (the DB opens `mode=ro`). Exit code is the
+  alert: 0 all-clear, 1 when any surface needs a human — server
+  down, stale heartbeat (the loop ticks hourly, so the threshold is
+  1.5x the cadence), orphan build-up, failed task run, or a stale
+  dead-man marker. `--json` for machines. Pinned by
+  `test_ops_status.py`.

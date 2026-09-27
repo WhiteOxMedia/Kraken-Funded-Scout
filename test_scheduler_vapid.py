@@ -365,6 +365,34 @@ check("9.8", str(s9e.get("orphans", "")).startswith("error:")
       f"a failed scan reports the error and leaves the marker "
       f"unstamped (retried next tick): marker={_mk}")
 
+print("== 9.9-9.11 THE SCAN-WINDOW ALIGNMENT (Sep 27) ==")
+# the Task Scheduler job fires Sunday 06:15 local; the weekly leg now
+# anchors its due-decision to the SAME boundary (one window, two
+# readers) so a mid-week server restart cannot drift the surfaces
+# apart. The constants live in the registrar; both sides read them.
+import register_sweep_report_task as _reg9
+check("9.9", (_reg9.SCAN_DOW, _reg9.SCAN_HOUR, _reg9.SCAN_MINUTE)
+      == (6, 6, 15)
+      and "-DaysOfWeek Sunday -At 06:15" in _reg9.__doc__ + open(
+          HERE / "register_sweep_report_task.py", encoding="utf-8").read(),
+      "the registrar owns the window shape and the PS trigger matches it")
+_win = sched._orphan_window_index(time.time())
+check("9.10", sched._orphan_due({"ts": _win + 1}) is False
+      and sched._orphan_due({"ts": _win - 86400}) is True
+      and sched._orphan_due({"ts": _win - 7 * 86400 + 3600}) is True
+      and sched._orphan_due({"ts": 0.0}) is True,
+      "marker inside this window stays quiet; a SATURDAY marker is due "
+      "(the interval rule alone would call it quiet - this is the case "
+      "that separates the window rule from the old elapsed-interval), "
+      "and last week's or none is due (restart-proof)")
+db.set_setting(sched.ORPHAN_INTERVAL_KEY, "900")   # floor lifts to 3600
+_fast_fresh = sched._orphan_due({"ts": time.time() - 60})
+_fast_stale = sched._orphan_due({"ts": time.time() - 2 * 3600})
+db.set_setting(sched.ORPHAN_INTERVAL_KEY, "")
+check("9.11", _fast_fresh is False and _fast_stale is True,
+      "a sub-weekly operator dial keeps pure interval semantics "
+      "(fresh marker quiet, stale due)")
+
 print("== 9b. THE DEAD-MAN: the scheduled task itself must stay alive ==")
 # the Task Scheduler job is the second alert surface; a task that
 # STOPS running is the one failure no report can reveal. The wrapper

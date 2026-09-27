@@ -183,6 +183,42 @@ check(6.2, u["email"] == "legacy@example.test"
 out2 = db2.encrypt_existing_pii()
 check(6.3, out2.get("users_sealed") == 0 and out2.get("subs_blob_sealed") == 0,
       "idempotent: second run changes nothing")
+
+# 6.6 THE NULL-EMAIL PRESERVATION (review batch, Sep 27 CRITICAL): the
+# live db carries five real NULL-email users, and the dangerous shape is
+# "plaintext in ANOTHER column + NULL email" - the old coalescing loop
+# wrote encrypt("") into the UNIQUE email column of EVERY such row, so
+# the second one IntegrityErrored the whole migration. Two such rows,
+# the migration must seal the wallet and leave the email NULL.
+null_a = db2.create_user("fc_null_a", "x")
+null_b = db2.create_user("fc_null_b", "x")
+import database as _dbmod6
+with _dbmod6.get_db() as conn:      # force the exact live-DB shape
+    conn.execute("UPDATE users SET wallet_address=?, wallet_idx='' "
+                 "WHERE id=?", ("4NullProbeWalletAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA1", null_a))
+    conn.execute("UPDATE users SET wallet_address=?, wallet_idx='' "
+                 "WHERE id=?", ("4NullProbeWalletBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB2", null_b))
+outn = db2.encrypt_existing_pii()
+ua = db2.get_user(null_a)
+ub = db2.get_user(null_b)
+# assertions at the right layers: get_user DECRYPTS transparently, so
+# the envelope check goes to the RAW row, and the sealed wallet is
+# proven by the blind-index lookup working
+import database as _raw6
+with _raw6.get_db() as conn:
+    raw_a = conn.execute("SELECT email, wallet_address FROM users WHERE id=?",
+                         (null_a,)).fetchone()
+    raw_b = conn.execute("SELECT email, wallet_address FROM users WHERE id=?",
+                         (null_b,)).fetchone()
+WA = "4NullProbeWalletAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA1"
+WB = "4NullProbeWalletBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB2"
+check(6.6, raw_a["email"] is None and raw_b["email"] is None
+      and str(raw_a["wallet_address"]).startswith("enc1:")
+      and str(raw_b["wallet_address"]).startswith("enc1:")
+      and db2.get_user_by_wallet(WA)["id"] == null_a
+      and db2.get_user_by_wallet(WB)["id"] == null_b,
+      f"wallets sealed + lookups work while NULL emails stay NULL "
+      f"(no shared empty-email identity): out={outn}")
 fc._KEY_CACHE = []
 fc.KEY_FILE = Path(tempfile.mkdtemp(prefix="fc_nokey_")) / "none"
 out3 = db2.encrypt_existing_pii()

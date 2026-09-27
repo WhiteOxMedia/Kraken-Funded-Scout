@@ -328,12 +328,24 @@ def last_credential_check():
 
 def sign_request(api_secret, path, nonce, body):
     """Kraken's auth scheme (API-Key header, API-Sign =
-    HMAC-SHA512(path + SHA256(nonce + body), b64secret))."""
+    HMAC-SHA512(path + SHA256(nonce + body), b64secret)).
+
+    `body` is the EXACT request payload bytes (urlencoded), not the
+    pre-encoding dict - the review batch's Sep 27 CRITICAL: passing the
+    dict made str(nonce) + body raise TypeError on every live call
+    (masked until now only because no credentials were ever
+    provisioned on this box; the KC leg always stopped at the keyring
+    tier). Callers now sign urlencode({**body, "nonce": nonce})."""
     api_secret = api_secret.strip()
     pad = len(api_secret) % 4
     if pad:
         api_secret += "=" * (4 - pad)
-    secret = hashlib.sha256((str(nonce) + body).encode()).digest()
+    # the scheme hashes BYTES: str(nonce) + the exact wire payload.
+    # str bodies (the unit fixtures) and bytes bodies (the real caller,
+    # which signs urlencode(...).encode()) both work; a dict still
+    # TypeErrors - the contract the F.1 pin enforces.
+    body_bytes = body.encode() if isinstance(body, str) else body
+    secret = hashlib.sha256(str(nonce).encode() + body_bytes).digest()
     return hmac.new(api_secret.encode(), path.encode() + secret,
                     hashlib.sha512).hexdigest()
 
@@ -342,10 +354,12 @@ def _kraken_post(endpoint, api_key, api_secret, body):
     nonce = int(time.time() * 1000)
     path = "/" + urllib.parse.urlparse(endpoint).path.lstrip("/")
     data = urllib.parse.urlencode({**body, "nonce": nonce}).encode()
+    # sign the EXACT bytes on the wire - dict gets str()-ified inside
+    # the old call and TypeError'd before ever reaching Kraken
     req = urllib.request.Request(
         endpoint, data=data, method="POST",
         headers={"API-Key": api_key, "API-Sign":
-                 sign_request(api_secret, path, nonce, body),
+                 sign_request(api_secret, path, nonce, data),
                  "Content-Type": "application/x-www-form-urlencoded"})
     with urllib.request.urlopen(req, timeout=15) as resp:
         return json.loads(resp.read().decode("utf-8"))

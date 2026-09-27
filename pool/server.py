@@ -8,6 +8,7 @@ import json
 import time
 import secrets
 import hashlib
+import hmac
 from pathlib import Path
 
 import asyncio
@@ -28,6 +29,87 @@ import security
 import monero_wallet as xmr
 
 app = FastAPI(title="XMR Jackpot Pool")
+
+
+# --- Security headers (Sep 27 audit MAJOR #2) -----------------------
+# Every response - pages, API, static files, AND error responses -
+# carries the pinned header set. The CSP forbids inline script
+# (app.js's injected onclick= handlers were removed for delegated
+# data-action listeners first) and forbids framing outright
+# (frame-ancestors 'none' + X-Frame-Options: DENY against
+# clickjacking on the claim/winner surfaces). style-src keeps
+# 'unsafe-inline' because the templates style through 400+
+# style attributes. WebSocket upgrades are NOT mutated: the scout
+# stream is admin-session-gated at the route, and its 101 response
+# headers belong to the route's own accept message.
+class SecurityHeadersMiddleware:
+    """Pure-ASGI wrapping middleware: threads both send() paths
+    (http.response.start and websocket.http.response.start) and
+    stamps the headers before the body ever flows."""
+
+    # /scout* is embedded by the admin panel (admin_panel.html
+    # iframe) - same-origin framing is the FEATURE there. Everything
+    # else is deny-all. (Review finding, Sep 27 batch: a blanket
+    # frame-ancestors 'none' blanked the console embed.)
+    _CSP_COMMON = (
+        b"default-src 'self'; "
+        b"script-src 'self'; "
+        b"style-src 'self' 'unsafe-inline'; "
+        b"img-src 'self' data:; "
+        b"font-src 'self' data:; "
+        b"connect-src 'self'; "
+        b"object-src 'none'; "
+        b"base-uri 'self'; "
+        b"form-action 'self'; ")
+    SECURITY_HEADERS = (
+        (b"content-security-policy",
+         _CSP_COMMON + b"frame-ancestors 'none'; "
+         b"upgrade-insecure-requests"),
+        (b"x-content-type-options", b"nosniff"),
+        (b"referrer-policy", b"no-referrer"),
+        (b"x-frame-options", b"DENY"),
+        (b"permissions-policy", b"geolocation=(), microphone=(), camera=()"),
+        (b"cross-origin-opener-policy", b"same-origin"),
+    )
+    SCOUT_FRAMING_HEADERS = (
+        (b"content-security-policy",
+         _CSP_COMMON + b"frame-ancestors 'self'; "
+         b"upgrade-insecure-requests"),
+        (b"x-content-type-options", b"nosniff"),
+        (b"referrer-policy", b"no-referrer"),
+        (b"x-frame-options", b"SAMEORIGIN"),
+        (b"permissions-policy", b"geolocation=(), microphone=(), camera=()"),
+        (b"cross-origin-opener-policy", b"same-origin"),
+    )
+
+    def __init__(self, app):
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] not in ("http", "websocket"):
+            await self.app(scope, receive, send)
+            return
+
+        hdr_set = (self.SCOUT_FRAMING_HEADERS
+                    if scope.get("path", "").startswith("/scout")
+                    else self.SECURITY_HEADERS)
+        async def send_with_headers(message):
+            if message["type"] in ("http.response.start",
+                                   "websocket.http.response.start"):
+                headers = list(message.get("headers") or [])
+                have = {k.lower() for k, _v in headers}
+                for hk, hv in hdr_set:
+                    if hk not in have:
+                        headers.append((hk, hv))
+                message = dict(message)
+                message["headers"] = headers
+            await send(message)
+
+        await self.app(scope, receive, send_with_headers)
+
+
+# registered FIRST so it wraps every other middleware/route
+app.add_middleware(SecurityHeadersMiddleware)
 
 # Mount static files
 static_dir = Path(__file__).parent / "static"
@@ -105,6 +187,80 @@ class UpdateShares(BaseModel):
     shares_valid: int = 0
     shares_invalid: int = 0
     hashrate: float = 0
+
+
+# --- Miner ingest gate (Sep 27 audit MAJOR) -------------------------
+# /api/miner/shares is an ECONOMY WRITER: its shares_valid input
+# backfills free jackpot tickets (100 shares = 1 ticket), so an
+# unauthenticated or forgeable call mints entries without mining
+# (the audit proved 50,000 tickets from two POSTs on a sandbox).
+# The gate: a valid HMAC-SHA256 over (ts, wallet, shares_valid,
+# shares_invalid) with the operator's miner_ingest_key is accepted
+# from ANY source; a loopback caller is accepted ONLY while no key
+# is provisioned (pre-provisioning ops mode) - once the key exists
+# the gate is FAIL-CLOSED everywhere. The proxy poller keeps its
+# direct DB write (it has never used this route).
+MINER_INGEST_KEY_NAME = "miner_ingest_key"
+MINER_SIG_MAX_AGE_S = 300        # replay window for the signed ts
+MINER_DELTA_CAP = 500_000        # max per-call delta (5k tickets)
+
+
+def _wallet_shape_ok(addr: str) -> bool:
+    """The house wallet shape rule (mirrors installer.valid_wallet):
+    starts 4 or 8, 90-120 chars. Junk rows like the live table's
+    'PENDING_*' never enter through an ingest gate."""
+    a = (addr or "").strip()
+    return (a.startswith("4") or a.startswith("8")) \
+        and 90 <= len(a) <= 120
+
+
+def _miner_sig_ok(key: str, ts: int, wallet: str, sv: int,
+                  si: int, sig: str) -> bool:
+    msg = f"{ts}.{wallet}.{sv}.{si}".encode()
+    good = hmac.new(key.encode(), msg, hashlib.sha256).hexdigest()
+    return hmac.compare_digest(good, sig or "")
+
+
+def _miner_ingest_authorized(request: Request, wallet: str,
+                             sv: int, si: int) -> bool:
+    """THE SHARE-FORGE GATE. Raises on EVERY refusal - 422 bad wallet
+    shape or over-cap delta, 429 rate-limited, 403 unauthorized (no
+    valid HMAC; loopback exempt only while no key exists) - and
+    returns True only when authorized. The first cut of this gate
+    RETURNED False on the 403 paths and the route ignored the return
+    value, silently authorizing everyone; the red pins caught it
+    (D.3/D.5/D.6/D.9) before it ever reached a commit."""
+    if not _wallet_shape_ok(wallet):
+        raise HTTPException(422, "invalid wallet address shape")
+    if sv < 0 or si < 0 or sv > MINER_DELTA_CAP or si > MINER_DELTA_CAP:
+        raise HTTPException(422, "share delta exceeds the per-call cap")
+    ip = request.client.host if request.client else "unknown"
+    if not security.shares_limiter.check(ip):
+        raise HTTPException(429, "Too many requests. Slow down.")
+    key = db.get_setting(MINER_INGEST_KEY_NAME, "")
+    if key:
+        if ip in ("127.0.0.1", "::1"):
+            # an ops signal, not a flood: local tooling that has not
+            # learned the key the operator already provisioned
+            try:
+                kr.emit_audit(None, "miner_ingest.loopback_denied")
+            except Exception:                      # noqa: BLE001
+                pass
+        ts_raw = request.headers.get("x-miner-ts", "")
+        sig = request.headers.get("x-miner-sig", "")
+        try:
+            ts = int(ts_raw)
+        except ValueError:
+            raise HTTPException(403, "miner ingest not authorized")
+        if abs(time.time() - ts) > MINER_SIG_MAX_AGE_S:
+            raise HTTPException(403, "miner ingest not authorized")
+        if not _miner_sig_ok(key, ts, wallet, sv, si, sig):
+            raise HTTPException(403, "miner ingest not authorized")
+        return True
+    # no key provisioned: loopback ops mode only
+    if ip in ("127.0.0.1", "::1"):
+        return True
+    raise HTTPException(403, "miner ingest not authorized")
 
 
 # ─── Frontend Route ──────────────────────────────────────────
@@ -390,16 +546,27 @@ async def api_miner(wallet_address: str):
 
 @app.post("/api/miner/register")
 async def api_register(miner: MinerRegister):
-    """Register a new miner."""
+    """Register a new miner (shape-gated Sep 27: junk rows like
+    'PENDING_*' are created elsewhere, never through this gate)."""
+    if not _wallet_shape_ok(miner.wallet_address):
+        raise HTTPException(422, "invalid wallet address shape")
     record = db.get_or_create_miner(miner.wallet_address, miner.worker_name)
     return {"status": "ok", "miner_id": record["id"]}
 
 
 @app.post("/api/miner/shares")
-async def api_update_shares(data: UpdateShares):
-    """Update miner share count (called by proxy poller)."""
-    db.update_miner_stats(data.wallet_address, data.shares_valid, data.shares_invalid, data.hashrate)
+async def api_update_shares(data: UpdateShares, request: Request):
+    """Update miner share deltas - INGEST-GATED (Sep 27): a signed
+    poller call (HMAC over ts+wallet+deltas with miner_ingest_key)
+    or a loopback caller while no key is provisioned. Every refusal
+    happens BEFORE any miner row is created or any ticket minted."""
+    _miner_ingest_authorized(request, data.wallet_address,
+                             data.shares_valid, data.shares_invalid)
+    # the miner row MUST exist before the delta UPDATE: the old order
+    # (update first) silently dropped a new wallet's first delta
+    # (0 rows matched) - the poller's first report was lost
     miner = db.get_or_create_miner(data.wallet_address)
+    db.update_miner_stats(data.wallet_address, data.shares_valid, data.shares_invalid, data.hashrate)
     new_tickets = engine.allocate_free_tickets(miner["id"], data.shares_valid)
     return {"status": "ok", "new_tickets": new_tickets}
 
