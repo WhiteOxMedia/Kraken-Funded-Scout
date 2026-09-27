@@ -106,6 +106,17 @@ check(2.5, pg.disc_mod_from_penalty(None) is None, "None -> None (neutral)")
 
 # ════════ 3. MLT_Corr + daily facts ════════
 print("== 3. MLT_Corr = MoneyLeftOnTable / DailyGoal ==")
+# HERMETICITY (Sep 27): discipline_penalty() composes the meta layers'
+# LIVE RCL/SAL extra (meta_layers.discipline_penalty_extra reads that
+# module's own production state file, which pg.ROOT does not redirect).
+# The live stamp (1.968 on Sep 27) made 3.4/3.5/8.x pass only while the
+# fleet was clean - the metalayers latent-bomb class, sibling of the
+# STATE_FILE fix (1f4bc7c). Sections 3-8 are PURE-MATH pins: the extra
+# is patched to zero here and restored before section 9 (whose LIVE
+# probes want the real state). The dock itself stays proven by 3.6.
+import meta_layers as _ml_fix
+_ML_EXTRA_REAL = _ml_fix.discipline_penalty_extra
+_ml_fix.discipline_penalty_extra = lambda: 0.0   # hermetic zero, sections 3-8
 pg.ROOT = TMP
 pg._daily_facts = lambda when=None: {"score": 80.0, "total_left": 30.0,
                                      "daily_pace": 60.0}
@@ -113,6 +124,20 @@ check(3.1, pg.money_left_on_table() == 30.0, "yesterday's left reads from the fa
 check(3.4, pg.discipline_penalty() == 2.0, "score 80 -> penalty 2.0")
 check(3.5, abs(pg.disc_mod_from_penalty(pg.discipline_penalty()) - 0.8) < 1e-9,
       "DiscMod composes from the same facts (0.8)")
+# 3.6 THE DOCK IS REAL (Sep 27): with the extra present and weight
+# active, the penalty MUST grow by exactly the dock - the composition
+# pin that keeps the hermetic zero above from hiding the feature.
+_ml_fix.discipline_penalty_extra = lambda: 0.5
+import carve_out as _co_fix
+_CO_PC_REAL = _co_fix.penalty_context
+_co_fix.penalty_context = lambda when=None: (1.0, True)
+try:
+    check(3.6, abs(pg.discipline_penalty() - 2.5) < 1e-9,
+          "the RCL/SAL dock composes: score 80 (2.0) + meta extra 0.5 "
+          "(weight 1.0, active) = 2.5 exactly")
+finally:
+    _co_fix.penalty_context = _CO_PC_REAL
+    _ml_fix.discipline_penalty_extra = lambda: 0.0   # back to the hermetic zero
 # THE ADAPTIVE GOAL (Sep 23): stubbed NEUTRAL for the raw pins above, then
 # pinned scaling explicitly — the context multiplier folds into the pace
 import carve_out as _co_pg
@@ -323,6 +348,7 @@ check(8.81, _herm["readable"] is False and _herm["factor"] == 1.0,
 
 # ════════ 9. the daily self-adjustment loop ════════
 print("== 9. step 10: the cooldown self-adjustment ==")
+_ml_fix.discipline_penalty_extra = _ML_EXTRA_REAL   # LIVE probes read the real state
 pg.ROOT = TMP
 # the state-path contract's other half: an EXPLICIT pin still wins over
 # the ROOT derivation (the LIVE probes' documented restore mechanism)
