@@ -1632,9 +1632,11 @@
     fetchAdminSettings();
     fetchAdminWalletStatus();
     fetchScoutStatus();
+    fetchAdminOrphans();
     loadAdminComments();
 
     pollingTimers.push(setInterval(fetchAdminStats, 15000));
+    pollingTimers.push(setInterval(fetchAdminOrphans, 60000));
 
     var saveSetting = $('#btnSaveSetting');
     if (saveSetting) saveSetting.addEventListener('click', saveAdminSetting);
@@ -1782,6 +1784,52 @@
       el.textContent = '● CONSOLE OFFLINE';
       el.style.color = 'var(--redstone)';
     }
+  }
+
+  async function fetchAdminOrphans() {
+    var el = $('#adminOrphansBody');
+    var stamp = $('#adminOrphansStamp');
+    if (!el || !stamp) return;
+    try {
+      var res = await fetch(API + '/admin/scheduler/status');
+      if (res.status === 401 || res.status === 403) return;
+      var d = await res.json();
+      var o = (d && d.orphans) || {};
+      var last = o.last || {};
+      var total = (typeof last.total === 'number') ? last.total : null;
+      if (o.enabled === false) {
+        el.innerHTML = '<p style="margin:4px 0;color:var(--text-mute);">Disabled by operator (SCHEDULER_ORPHAN_ENABLED=0).</p>';
+        stamp.textContent = '\u25cf disabled';
+        stamp.style.color = 'var(--text-mute)';
+        return;
+      }
+      stamp.textContent = (total === null) ? '\u25cf no scan yet'
+        : ('\u25cf last scan: ' + new Date(last.ts * 1000).toLocaleString());
+      stamp.style.color = 'var(--text-mute)';
+      if (total === null) {
+        el.innerHTML = '<p style="margin:4px 0;">No scan yet - the weekly leg '
+          + 'stamps its first report at the next due tick (or use the '
+          + 'scheduler tick button).</p>';
+        return;
+      }
+      if (total > 0) {
+        el.innerHTML = '<div style="padding:8px 10px;margin-bottom:8px;'
+          + 'border:1px solid var(--redstone);border-radius:6px;'
+          + 'background:rgba(255,0,0,0.08);color:var(--redstone);'
+          + 'font-weight:bold;">\u26a0\ufe0f ' + total + ' orphaned row(s) '
+          + 'detected - do not sweep blind: run '
+          + '<code>python sweep_db.py --report</code> to plan it '
+          + '(rc 1 = sweepable, rc 2 = UNPLANNED edge).</div>'
+          + '<p style="margin:4px 0;">The weekly scheduler leg reported '
+          + 'this (audit action scheduler.orphans_report). Review the '
+          + 'receipt, extend the statement set for any new edge, then '
+          + 'dry-run before --apply.</p>';
+      } else {
+        el.innerHTML = '<p style="margin:4px 0;color:var(--emerald);">\u2705 '
+          + 'All clear - 0 violating rows across the foreign keys at the '
+          + 'last weekly scan.</p>';
+      }
+    } catch(e) {}
   }
 
   async function fetchAdminStats() {

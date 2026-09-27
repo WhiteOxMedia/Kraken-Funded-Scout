@@ -29,7 +29,8 @@ One daemon thread per server process that:
      a clean week is silent, any violation count prints ONE
      scheduler.orphans_report audit row per week (with the per-edge
      violations and sample rowids) and carries alert=true in the
-     tick summary + admin status.
+     tick summary + admin status, and is fanned out to admin
+     web-push subscribers (push_service.send_admin_push, Sep 27).
 
 Every tick is usable synchronously (tick_once) so tests and the admin
 trigger exercise the exact code the timer runs.
@@ -70,6 +71,11 @@ ORPHAN_INTERVAL_KEY = "SCHEDULER_ORPHAN_INTERVAL_S"
 ORPHAN_LAST_KEY = "SCHEDULER_LAST_ORPHANS"   # {"ts", "total", "edges"}
 ORPHAN_DEFAULT_INTERVAL_S = 7 * 86400        # the weekly default
 ORPHAN_FLOOR_S = 3600                        # never scan more often
+# the scheduled task's own last-ACTUAL-run stamp (epoch; written
+# by run_sweep_report_task.ps1 only AFTER a real receipt lands)
+ORPHAN_TASK_MARKER = _ROOT / "task_sweep_report_last.txt"
+ORPHAN_DEADMAN_MAX_AGE_S = 8 * 86400  # one week + a day of slack
+# (must match register_sweep_report_task.py DEADMAN_MAX_AGE_S)
 
 _state = {"thread": None, "stop": None}
 
@@ -332,6 +338,24 @@ def tick_once(reason: str = "manual") -> dict:
                 kr.emit_audit(None, "scheduler.orphans_report",
                               total=total,
                               edges=json.dumps(edges)[:800])
+                # the web-push surface (Sep 27): the audit row sits in
+                # the DB until an admin looks; the push lands on the
+                # phone. ADMIN subscribers only (send_admin_push), and
+                # the leg must never die on the push - the alert
+                # already exists in the audit trail either way, and a
+                # failed send is audited, not swallowed.
+                try:
+                    pres = push_svc.send_admin_push("orphans_alert")
+                    summary["orphans"]["push"] = int(pres.get("sent", 0))
+                except Exception as pexc:          # noqa: BLE001
+                    summary["orphans"]["push"] = "error"
+                    try:
+                        kr.emit_audit(None, "scheduler.error",
+                                      leg="orphan_push",
+                                      error=str(pexc)[:200])
+                    except Exception:              # noqa: BLE001
+                        print("scheduler: orphan push audit failed",
+                              file=sys.stderr)
             # a clean week stamps its marker silently
         except Exception as exc:                   # noqa: BLE001
             # the leg must never kill the tick; the marker stays
@@ -347,6 +371,41 @@ def tick_once(reason: str = "manual") -> dict:
     elif not _orphan_enabled():
         summary["orphans"] = {"skipped": "disabled"}
     db.set_setting(ORPHAN_LAST_KEY, json.dumps(orl))
+    # 6b. THE DEAD-MAN: the out-of-process Task Scheduler job is
+    # the second alert surface, and a scheduled task that STOPS
+    # running is the one failure no report can reveal. The
+    # wrapper's marker file (stamped only after a real receipt)
+    # is policed every tick: missing, unreadable, or older than
+    # ORPHAN_DEADMAN_MAX_AGE_S -> alert=true in the summary and
+    # ONE scheduler.orphans_deadman audit row per day (the prune
+    # marker pattern). A fresh marker is silent.
+    try:
+        _today = time.strftime("%Y-%m-%d", time.gmtime())
+        _age = None
+        try:
+            _age = (time.time()
+                    - float(ORPHAN_TASK_MARKER.read_text(
+                        encoding="ascii").strip()))
+        except (OSError, ValueError):
+            _age = None
+        if _age is None or _age > ORPHAN_DEADMAN_MAX_AGE_S:
+            summary["orphans_deadman"] = {
+                "alert": True,
+                "marker_age_days": (round(_age / 86400, 1)
+                                    if _age is not None else None)}
+            if str(db.get_setting("ORPHAN_DEADMAN_ALERTED", "")
+                   or "") != _today:
+                kr.emit_audit(None, "scheduler.orphans_deadman",
+                              marker=("missing" if _age is None
+                                      else f"{_age / 86400:.1f}d"))
+                db.set_setting("ORPHAN_DEADMAN_ALERTED", _today)
+    except Exception as exc:                       # noqa: BLE001
+        try:
+            kr.emit_audit(None, "scheduler.error",
+                          leg="orphans_deadman",
+                          error=str(exc)[:200])
+        except Exception:                          # noqa: BLE001
+            print("scheduler: deadman audit failed", file=sys.stderr)
     db.set_setting(HEARTBEAT_KEY, str(time.time()))
     return summary
 

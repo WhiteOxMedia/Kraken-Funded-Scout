@@ -335,8 +335,11 @@ _raw.execute("DELETE FROM users WHERE id = ?", (_ouid,))
 _raw.commit()
 _raw.close()
 s9a = sched.tick_once(reason="drive")
-check("9.5", s9a.get("orphans") == {"total": 2, "edges": 2, "alert": True},
-      f"the dead user's session + audit row ALERT: {s9a.get('orphans')}")
+check("9.5", s9a.get("orphans") == {"total": 2, "edges": 2,
+                                    "alert": True, "push": 0},
+      f"the dead user's session + audit row ALERT (push:0 = the "
+      f"admin fan-out ran against the dead endpoint): "
+      f"{s9a.get('orphans')}")
 with db.get_db() as conn:
     _n9a = conn.execute("SELECT COUNT(*) c FROM audit_log WHERE "
                         "action = 'scheduler.orphans_report'").fetchone()["c"]
@@ -361,6 +364,92 @@ check("9.8", str(s9e.get("orphans", "")).startswith("error:")
       and (_mk == "{}" or not str(_mk).strip("{}")),
       f"a failed scan reports the error and leaves the marker "
       f"unstamped (retried next tick): marker={_mk}")
+
+print("== 9b. THE DEAD-MAN: the scheduled task itself must stay alive ==")
+# the Task Scheduler job is the second alert surface; a task that
+# STOPS running is the one failure no report can reveal. The wrapper
+# stamps task_sweep_report_last.txt only after a real receipt; the
+# scheduler polices that marker every tick.
+import register_sweep_report_task as _reg
+check("9b.0", sched.ORPHAN_DEADMAN_MAX_AGE_S == _reg.DEADMAN_MAX_AGE_S
+      and sched.ORPHAN_TASK_MARKER == _reg.MARKER,
+      "the scheduler and the task registrar agree on the horizon and "
+      "the marker file (one contract, two readers)")
+_mpath = sched.ORPHAN_TASK_MARKER
+_saved = _mpath.read_text(encoding="ascii") if _mpath.exists() else None
+try:
+    _mpath.write_text(str(time.time()), encoding="ascii")
+    s_f = sched.tick_once(reason="drive")
+    check("9b.1", "orphans_deadman" not in s_f,
+          "a fresh marker (a real run inside the week) is silent")
+    with db.get_db() as conn:
+        _n_f = conn.execute("SELECT COUNT(*) c FROM audit_log WHERE "
+                            "action = 'scheduler.orphans_deadman'").fetchone()["c"]
+    _mpath.write_text(str(time.time() - 9 * 86400), encoding="ascii")
+    s_s = sched.tick_once(reason="drive")
+    check("9b.2", s_s.get("orphans_deadman", {}).get("alert") is True,
+          f"a marker older than the 8d horizon ALERTS: {s_s.get('orphans_deadman')}")
+    with db.get_db() as conn:
+        _n_s = conn.execute("SELECT COUNT(*) c FROM audit_log WHERE "
+                            "action = 'scheduler.orphans_deadman'").fetchone()["c"]
+    check("9b.3", _n_s == _n_f + 1,
+          f"exactly ONE orphans_deadman receipt row for the day "
+          f"({_n_f} -> {_n_s})")
+    s_s2 = sched.tick_once(reason="drive")
+    with db.get_db() as conn:
+        _n_s2 = conn.execute("SELECT COUNT(*) c FROM audit_log WHERE "
+                             "action = 'scheduler.orphans_deadman'").fetchone()["c"]
+    check("9b.4", _n_s2 == _n_s,
+          "the same-day re-tick stays silent (the once-per-day marker)")
+    _mpath.unlink(missing_ok=True)
+    s_m = sched.tick_once(reason="drive")
+    check("9b.5", s_m.get("orphans_deadman", {}).get("alert") is True
+          and s_m["orphans_deadman"]["marker_age_days"] is None,
+          "a MISSING marker alerts too (the task never ran)")
+finally:
+    if _saved is None:
+        _mpath.unlink(missing_ok=True)
+    else:
+        _mpath.write_text(_saved, encoding="ascii")
+
+print("== 9c. THE WEB-PUSH SURFACE: the alert must reach a phone ==")
+# the audit row sits in the DB until an admin opens a dashboard; a
+# phone notification is the surface an operator actually sees. The
+# alert branch now fans the alert out through
+# push_service.send_admin_push - ADMIN subscribers only. Section 2
+# already subscribed the drive's ADMIN through the real
+# /api/push/subscribe route (dead endpoint), so the fan-out runs the
+# real VAPID sender and the member-exclusion needs no mocking.
+_ev = ps.EVENTS["orphans_alert"]
+check("9c.2", ps.CATEGORY.get("orphans_alert") == "scout"
+      and all(k in _ev for k in ("title", "body", "tag", "url", "rate"))
+      and _ev["tag"] == "orphans-alert" and _ev["url"] == "/#admin",
+      "orphans_alert: scout-family template, tagged, /#admin deep-link")
+check("9c.0", "push" in s9a.get("orphans", {}),
+      f"the alert branch attempted the push fan-out: {s9a.get('orphans')}")
+check("9c.1", s9a["orphans"].get("push") == 0,
+      f"the dead endpoint makes the admin leg sent:0, not an error: "
+      f"{s9a['orphans'].get('push')}")
+_ouid2 = db.create_user("sched_orphan_plain", "x")
+_res = ps.subscribe(_ouid2, {
+    "endpoint": "https://push.example/sched-member-device",
+    "keys": {"p256dh": "k", "auth": "a"}})
+assert _res.get("ok"), f"member sub refused: {_res}"
+res2 = ps.send_admin_push("orphans_alert")
+check("9c.3", res2.get("recipients") == 1 and res2.get("sent") == 0,
+      f"a subscribed MEMBER is excluded from the admin fan-out: {res2}")
+with db.get_db() as conn:
+    _nm = conn.execute("SELECT COUNT(*) c FROM audit_log WHERE "
+                       "action='push_send_allowed' AND user_id=?",
+                       (_ouid2,)).fetchone()["c"]
+check("9c.4", _nm == 0,
+      f"no push_send_allowed audit for the member ({_nm}) - their "
+      f"endpoint was never attempted")
+with db.get_db() as conn:
+    _nap = conn.execute("SELECT COUNT(*) c FROM audit_log WHERE "
+                        "action='push_admin_push'").fetchone()["c"]
+check("9c.5", _nap >= 2,
+      f"{_nap} push_admin_push receipt rows - one per admin fan-out")
 
 passed, failed = results.count(True), results.count(False)
 print(f"RESULT: {passed} passed, {failed} failed")

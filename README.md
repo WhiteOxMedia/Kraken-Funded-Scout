@@ -62,7 +62,19 @@ Scheduled alerting: the Windows task `CodebuffWeeklyOrphanReport`
 (Sundays 06:15, user-level) runs `run_sweep_report.cmd`, which
 appends the receipt to `logs_sweep_report.txt` and leaves the
 exit code (0/1/2 above) in Task Scheduler's Last Result -
-alerting reacts to the rc without parsing the log. Re-create the
+alerting reacts to the rc without parsing the log. The task is
+registered by the tracked `register_sweep_report_task.py` (which
+carries a `--check` self-audit: both alert properties, the 1h
+execution limit, battery-safety, and the dead-man marker) and
+runs `run_sweep_report_task.ps1`, a DUE-GATED wrapper - at most
+one actual report per 7d window, so a StartWhenAvailable
+catch-up (a missed Sunday fires at the next available start)
+can never double-report, and every firing is rc-safe. The
+pool scheduler polices the wrapper's last-ACTUAL-run marker
+(`task_sweep_report_last.txt`): missing or older than 8 days
+-> `alert=true` + one `scheduler.orphans_deadman` audit row per
+day, because a scheduled task that stops running is the one
+failure no report can reveal. Re-create the
 task after moving the checkout (the wrapper resolves its own
 directory, but the task's command line is absolute):
 `schtasks //Create //TN CodebuffWeeklyOrphanReport //TR

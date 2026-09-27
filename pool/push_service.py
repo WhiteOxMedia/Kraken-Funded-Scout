@@ -128,6 +128,15 @@ EVENTS = {
         "url": "/",
         "rate": 2,
     },
+    "orphans_alert": {
+        "title": "🧹 Orphaned rows detected",
+        "body": ("The weekly FK sweep detector found orphaned "
+                 "rows in the pool database - do not sweep blind: "
+                 "plan with sweep_db.py --report first."),
+        "tag": "orphans-alert",
+        "url": "/#admin",
+        "rate": 2,
+    },
 }
 
 
@@ -145,6 +154,11 @@ CATEGORY = {
     "signal_buy": "scout",
     "signal_exit": "scout",
     "push_test_signal": "scout",
+    # the orphan alert is an OPERATOR signal, not a member feature:
+    # it rides the scout category so admins who opted out of scout
+    # pushes are honored, and members never see infrastructure
+    # alerts (send_admin_push filters by is_admin anyway)
+    "orphans_alert": "scout",
 }
 PREFS_KEY = "push_prefs"          # {"<uid>": {"preferences": {scout,jackpot},
                                   #  "updated_at": stamp}} — THE ENVELOPE
@@ -673,6 +687,32 @@ def send_to_subscribers(event: str, extra: dict = None) -> dict:
                                     "recipients": len(_unique_users),
                                     "via": "push_service"})
     return {"sent": total}
+
+
+def send_admin_push(event: str, extra: dict = None) -> dict:
+    """Fan one event out to ADMIN subscribers only (Sep 27: the
+    orphan alert's surface - an infrastructure warning belongs to
+    the operators, not every member's phone). Per-USER fan-out
+    through send_to_user (all of an admin's endpoints, the opt-out
+    gate, per-user rate limits, and the 410-pruning all apply
+    unchanged); one admin_push audit row records the delivery.
+    """
+    if event not in EVENTS:
+        return {"sent": 0, "reason": "unknown event"}
+    admins = [u["id"] for u in db.get_all_users() if u.get("is_admin")]
+    subs = {int(r["user_id"]) for r in _load_subs()
+            if int(r.get("user_id") or 0) > 0}
+    targets = sorted(set(admins) & subs)
+    if not targets:
+        return {"sent": 0, "reason": "no admin subscriber"}
+    total = 0
+    for uid in targets:
+        res = send_to_user(uid, event, extra)
+        total += int(res.get("sent", 0))
+    _audit(None, "push_admin_push",
+           {"event": event, "delivered": total,
+            "recipients": len(targets), "via": "push_service"})
+    return {"sent": total, "recipients": len(targets)}
 
 
 def drain_spool(spool_path=None) -> int:

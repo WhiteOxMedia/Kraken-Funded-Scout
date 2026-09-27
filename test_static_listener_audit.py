@@ -168,6 +168,30 @@ check(4.2, "kraken_thanks" in _app and "krakenThanksBanner" in _app,
       "the banner reads the server's kraken_thanks payload and removes "
       "before insert (idempotent across profile refreshes)")
 
+print("== 5. THE ORPHANS ADMIN CARD RENDERS THE SCHEDULER'S BLOCK ==")
+# the weekly orphan leg's surface: app.js fetches the scheduler status
+# and renders the orphans block - an alert banner on any nonzero total,
+# the all-clear on zero, and the operator's OFF dial honored.
+_panel = (HERE / "pool" / "templates" / "admin_panel.html").read_text(
+    encoding="utf-8")
+check(5.1, "adminOrphansBody" in _panel and "adminOrphansStamp" in _panel
+      and "Orphan Report" in _panel,
+      "the admin panel carries the Orphan Report card (injected HTML, "
+      "admin-gated by the panel endpoint)")
+check(5.2, "/admin/scheduler/status" in _app
+      and "fetchAdminOrphans()" in _app
+      and "setInterval(fetchAdminOrphans, 60000)" in _app,
+      "app.js fetches the scheduler status for the card and polls it "
+      "(admin-gated cards self-heal through 401/403, per the audit table)")
+check(5.3, "last.total" in _app and "orphaned row(s)" in _app
+      and "sweep_db.py --report" in _app,
+      "any nonzero last.total renders the alert banner naming the "
+      "planning command - an admin acts on the receipt, not the count")
+check(5.4, "All clear - 0 violating rows" in _app
+      and "SCHEDULER_ORPHAN_ENABLED=0" in _app,
+      "zero renders the all-clear line and the operator OFF dial is "
+      "rendered, not hidden")
+
 passed, failed = results.count(True), results.count(False)
 print(f"RESULT: {passed} passed, {failed} failed")
 sys.exit(1 if failed else 0)
