@@ -101,9 +101,10 @@ check("4.1", "snapshots frozen at Sep 27" in readme,
 check("4.2", "relative bar" in readme and "-95.96" in readme,
       "the corrected control accounting (relative bar, incumbent "
       "baseline) is documented, not the pre-correction story")
-_r = subprocess.run([sys.executable, "test_trailk_sweep.py"],
+_r = subprocess.run([sys.executable, "-X", "utf8",
+                     "test_trailk_sweep.py"],
                     cwd=str(HERE), capture_output=True, text=True,
-                    timeout=300)
+                    encoding="utf-8", errors="replace", timeout=300)
 check("4.3", _r.returncode == 0 and "20 passed, 0 failed" in _r.stdout,
       f"the tripwire drive runs green from the docs drive "
       f"({_r.stdout.strip().splitlines()[-1] if _r.stdout else 'no output'})")

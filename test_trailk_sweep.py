@@ -3,25 +3,25 @@ study (_trail_k_sweep.py) and its TP-preserving hybrid
 (_hybrid_trail_sweep.py) are pinned here so the DIAL DECISION cannot
 drift silently. Three contracts:
 
-  1. THE SIM SHAPE — the widths swept are discipline.TRAIL_SIM_ABLE,
+  1. THE SIM SHAPE  --  the widths swept are discipline.TRAIL_SIM_ABLE,
      the armed trail arms at 90% of the trade's goal (the live
      machinery's shape), and fees enter through net()'s RT_COST.
-  2. THE GUARD SEMANTICS — trail_proposal may only propose a width
+  2. THE GUARD SEMANTICS  --  trail_proposal may only propose a width
      with a POSITIVE per-trade edge whose took-the-goal CONTROL is not
      made worse ("a good dial must not break the control"); she is
      fail-soft silent otherwise. The hybrid's bank-first bar ordering
      (goal fill beats the trail within one bar) is what makes that
-     control structurally satisfiable — the rule the first sweep
+     control structurally satisfiable  --  the rule the first sweep
      lacked (every width broke the control before the hybrid).
-  3. THE INCUMBENT DECISION RULE, EXECUTED ON FROZEN HISTORY — for
+  3. THE INCUMBENT DECISION RULE, EXECUTED ON FROZEN HISTORY  --  for
      every candidate width the hybrid walk must show no POSITIVE
      per-trade edge on the ride cohort with an UNTOUCHED control. The
      cohort is frozen AT LOAD (cutoff = newest exit present + 1 ms) so
-     a trade stamped mid-drive cannot flip the verdict mid-run — the
+     a trade stamped mid-drive cannot flip the verdict mid-run  --  the
      same mutant flipped 18/1 then 19/0 within minutes before this
      rule existed. While no width clears both bars the incumbent
      ratchet stands and this drive is green; the day one does, check
-     3.3 TURNS RED ON PURPOSE — that is the tripwire demanding a
+     3.3 TURNS RED ON PURPOSE  --  that is the tripwire demanding a
      human re-examine the dial with the numbers in hand, not a bug.
 
 Section 4 pins the incumbent's own ratchet behavior (the dial the rule
@@ -85,15 +85,15 @@ _hsrc = (HERE / "_hybrid_trail_sweep.py").read_text(encoding="utf-8")
 check("2.4", 0 < _hsrc.find('if hi >= goal:')
       < _hsrc.find("if hi > peak:"),
       "BANK-FIRST bar ordering in source: the goal fill is checked "
-      "before the trail update within each bar — the rule that makes "
+      "before the trail update within each bar  --  the rule that makes "
       "the control satisfiable (a banked trade can never trail out)")
 
 print("== 3. THE INCUMBENT DECISION RULE, EXECUTED ON FROZEN HISTORY ==")
 # REPRODUCIBILITY (Sep 27): the live ledger MOVES (the scanner stamps
-# trades mid-drive — observed: the same mutant run flipped 18/1 then
+# trades mid-drive  --  observed: the same mutant run flipped 18/1 then
 # 19/0 within minutes). The decision rule is therefore evaluated on
-# FROZEN history: the cohort is frozen AT LOAD — cutoff = the newest
-# exit present + 1 ms — so a trade stamped mid-drive cannot change the
+# FROZEN history: the cohort is frozen AT LOAD  --  cutoff = the newest
+# exit present + 1 ms  --  so a trade stamped mid-drive cannot change the
 # verdict mid-run, and the cohort can never be empty (it is always at
 # least the evidence the studies ruled on). The cohort grows only when
 # genuine new trades have landed, which is exactly when re-evaluating
@@ -120,7 +120,7 @@ for _P in disc.TRAIL_SIM_ABLE:
         _banks += _which == "bank"
         if "took the goal" in str(_g.get("verdict")):
             # CODE RABBIT MAJOR (Sep 27): EVERY simulated exit counts
-            # toward the control — a bank that fills BELOW the ladder's
+            # toward the control  --  a bank that fills BELOW the ladder's
             # actual exit (the ladder rode past goal on some books)
             # worsens the control too; only counting trail exits could
             # report a clean control for an ineligible width.
@@ -136,7 +136,7 @@ for _P in disc.TRAIL_SIM_ABLE:
         _eligible.append((_P, _per, _rc, _tot))
 
 # THE FAIR CONTROL BAR (CodeRabbit major, Sep 27, corrected accounting):
-# control deltas count EVERY simulated exit — banks included — and under
+# control deltas count EVERY simulated exit  --  banks included  --  and under
 # that honest accounting NO bank-heavy policy is at zero (the goal-fill
 # counterfactual alone is -54.24 vs the ladder's actual exits: the ladder
 # rides past goal on control books). The bar is therefore RELATIVE: a
@@ -183,14 +183,14 @@ check("3.3", not _eligible,
       "accounting): no width clears positive ride-edge WITHOUT a worse "
       "control cost than the incumbent ratchet's own under the same "
       f"walk (incumbent control baseline {_rc_base:+.2f}). IF THIS "
-      "FAILS THE DATA HAS CHANGED — re-examine the dial: "
+      "FAILS THE DATA HAS CHANGED  --  re-examine the dial: "
       f"{_eligible or 'no eligible width'}")
 _live_banks = sum(bool((hts.hybrid_exit(_g, 3.0) or (None, None))[1] == "bank")
                   for _g in graded_all)
 check("3.4", _live_banks > 0,
       f"LIVE ledger observation ({len(graded_all)} trades, "
       f"{_live_banks} banks at width 3.0): the walk executes on "
-      f"today's book too — observation only, the ruling cohort is frozen")
+      f"today's book too  --  observation only, the ruling cohort is frozen")
 
 print("== 4. THE INCUMBENT'S RATCHET (the dial the rule protects) ==")
 import background_scanner as bs        # noqa: E402
