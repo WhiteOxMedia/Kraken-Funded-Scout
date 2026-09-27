@@ -77,13 +77,15 @@ for name, fn in POLICIES:
         d = (vs.net(g["entry"], px, g["size"])
              - vs.net(g["entry"], g["exit"], g["size"]))
         banks += which == "bank"
+        if "took the goal" in str(g.get("verdict")):
+            # corrected control accounting (CodeRabbit major): every
+            # simulated exit counts — banks included
+            ctrl += d
         if which == "trail":
             tot += d
             rides += 1
             cn = str(g.get("verdict")).split(" - ")[0]
             cls[cn] += d
-            if "took the goal" in str(g.get("verdict")):
-                ctrl += d
     detail = "  ".join(f"{k}={v:+.2f}" for k, v in sorted(cls.items()))
     print(f"{name:<21} | {rides:>6d} | {tot:>9.2f} | {tot / rides if rides else 0:>9.2f} | "
           f"{banks:>5d} | {ctrl:>8.2f} | {detail}")

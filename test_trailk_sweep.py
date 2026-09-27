@@ -106,7 +106,7 @@ graded = [g for g in graded_all
 check("3.0", len(graded_all) >= 20 and len(graded) == len(graded_all),
       f"ledger readable ({len(graded_all)} trades; frozen cohort = the "
       f"full load, cutoff = newest exit + 1ms)")
-_eligible = []
+_eligible = []             # widths clearing positive edge + the control bar
 for _P in disc.TRAIL_SIM_ABLE:
     _rt = _banks = 0
     _tot = _rc = 0.0
@@ -118,22 +118,72 @@ for _P in disc.TRAIL_SIM_ABLE:
         _d = (vs.net(_g["entry"], _px, _g["size"])
               - vs.net(_g["entry"], _g["exit"], _g["size"]))
         _banks += _which == "bank"
+        if "took the goal" in str(_g.get("verdict")):
+            # CODE RABBIT MAJOR (Sep 27): EVERY simulated exit counts
+            # toward the control — a bank that fills BELOW the ladder's
+            # actual exit (the ladder rode past goal on some books)
+            # worsens the control too; only counting trail exits could
+            # report a clean control for an ineligible width.
+            _rc += _d
         if _which == "trail":
             _tot += _d
             _rt += 1
-            if "took the goal" in str(_g.get("verdict")):
-                _rc += _d
     check(f"3.2.{_P:g}", _banks > 0,
           f"width {_P:g}: the bank-first rule actually banks on the "
           f"frozen cohort ({_banks} goals banked, {_rt} ride exits)")
     _per = _tot / _rt if _rt else 0.0
-    if _rt and _per > 0 and _rc >= -1e-9:
+    if _rt and _per > 0:
         _eligible.append((_P, _per, _rc, _tot))
+
+# THE FAIR CONTROL BAR (CodeRabbit major, Sep 27, corrected accounting):
+# control deltas count EVERY simulated exit — banks included — and under
+# that honest accounting NO bank-heavy policy is at zero (the goal-fill
+# counterfactual alone is -54.24 vs the ladder's actual exits: the ladder
+# rides past goal on control books). The bar is therefore RELATIVE: a
+# candidate's control cost must not exceed the INCUMBENT RATCHET's own
+# control cost under the identical walk. Zero remains the tiebreak dream,
+# relative-no-worse is the enforceable contract.
+def _ratchet_width(entry, peak):
+    _pp = (peak / entry - 1.0) * 100.0
+    return 1.5 if _pp >= 2.0 else (2.0 if _pp >= 1.0 else 3.0)
+
+
+def _ratchet_exit_px(_g):
+    _goal = _g["entry"] * (1 + _g["goal"] / 100.0)
+    _arm = _g["entry"] * (1 + _g["goal"] * hts.ARM_FRAC / 100.0)
+    _peak, _stop = _g["entry"], None
+    for _ts, _hi, _lo in vs._db().execute(
+            "SELECT ts, high, low FROM ohlcv WHERE pair=? AND ts>=? "
+            "AND ts<=? ORDER BY ts",
+            (_g["pair"], int(_g["en_ms"]),
+             int(_g["ex_ms"] + vs.AFTER_MS))):
+        if _hi >= _goal:
+            return _goal
+        if _hi > _peak:
+            _peak = _hi
+            if _peak >= _arm:
+                _stop = _peak * (1 - _ratchet_width(_g["entry"], _peak) / 100.0)
+        if _stop is not None and _lo <= _stop:
+            return _stop
+    return None
+
+
+_rc_base = 0.0
+for _g in graded:
+    if "took the goal" not in str(_g.get("verdict")):
+        continue
+    _px = _ratchet_exit_px(_g)
+    if _px is None:
+        continue
+    _rc_base += (vs.net(_g["entry"], _px, _g["size"])
+                 - vs.net(_g["entry"], _g["exit"], _g["size"]))
+_eligible = [e for e in _eligible if e[2] >= _rc_base - 1e-9]
 check("3.3", not _eligible,
-      "INCUMBENT DECISION RULE (frozen cohort): no width clears "
-      "positive-edge + clean control, so the ratchet stands. IF THIS "
-      "FAILS THE DATA HAS CHANGED: a width now beats the ladder "
-      "through the fair hybrid walk — re-examine the dial: "
+      "INCUMBENT DECISION RULE (frozen cohort, corrected control "
+      "accounting): no width clears positive ride-edge WITHOUT a worse "
+      "control cost than the incumbent ratchet's own under the same "
+      f"walk (incumbent control baseline {_rc_base:+.2f}). IF THIS "
+      "FAILS THE DATA HAS CHANGED — re-examine the dial: "
       f"{_eligible or 'no eligible width'}")
 _live_banks = sum(bool((hts.hybrid_exit(_g, 3.0) or (None, None))[1] == "bank")
                   for _g in graded_all)

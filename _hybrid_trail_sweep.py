@@ -63,11 +63,12 @@ ctrl = [g for g in graded if "took the goal" in str(g.get("verdict"))]
 print(f"trades: {len(graded)} (control cohort: {len(ctrl)})   "
       f"horizon: exit+{vs.AFTER_MS // 3600000}h   fees: net() RT_COST")
 print(f"\n{'width':>6} | {'trail x':>7} | {'delta $':>9} | {'per-trade':>9} | "
-      f"{'banks left':>10} | {'ctrl $':>8}")
+      f"{'banks left':>10} | {'ctrl $':>8} | {'bank-delta $':>13}")
 rows = {}
 for P in (1.0, 1.5, 2.0, 3.0):
     tot, n = 0.0, 0
     banks = 0
+    dbank = 0.0
     dc = 0.0
     for g in graded:
         ex = hybrid_exit(g, P)
@@ -76,15 +77,22 @@ for P in (1.0, 1.5, 2.0, 3.0):
         px, which = ex
         d = vs.net(g["entry"], px, g["size"]) - vs.net(g["entry"], g["exit"], g["size"])
         banks += which == "bank"
+        # CODE RABBIT MAJOR (Sep 27): bank exits are policy exits too —
+        # a bank can fill BELOW the ladder's actual exit (the ladder
+        # rode past goal on some books). Report them separately AND
+        # count them in the control so a clean control cannot hide a
+        # bank-at-a-loss cohort.
+        if which == "bank":
+            dbank += d
+        if "took the goal" in str(g.get("verdict")):
+            dc += d
         if which == "trail":
             tot += d
             n += 1
-            if "took the goal" in str(g.get("verdict")):
-                dc += d
     per = tot / n if n else 0.0
     rows[P] = (tot, n, per, banks, dc)
     print(f"{P:>6.1f} | {n:>7d} | {tot:>9.2f} | {per:>9.2f} | "
-          f"{banks:>10d} | {dc:>8.2f}")
+          f"{banks:>10d} | {dc:>8.2f} | bank-delta {dbank:+.2f}")
 
 print("\n== THE INCUMBENT through the same hybrid walk: the LIVE RATCHET "
       "(3.0 base, 2.0 at peak >= +1%, 1.5 at +2%) ==")
@@ -110,7 +118,7 @@ def hybrid_ratchet(g):
             return stop, "trail"
     return None
 
-_rt, _rn, _rb, _rc = 0.0, 0, 0, 0.0
+_rt, _rn, _rb, _rc, _rdb = 0.0, 0, 0, 0.0, 0.0
 for g in graded:
     ex = hybrid_ratchet(g)
     if not ex:
@@ -118,13 +126,17 @@ for g in graded:
     px, which = ex
     d = vs.net(g["entry"], px, g["size"]) - vs.net(g["entry"], g["exit"], g["size"])
     _rb += which == "bank"
+    # corrected control accounting: EVERY simulated exit counts
+    if "took the goal" in str(g.get("verdict")):
+        _rc += d
+    if which == "bank":
+        _rdb += d
     if which == "trail":
         _rt += d
         _rn += 1
-        if "took the goal" in str(g.get("verdict")):
-            _rc += d
 print(f"ratchet: trail x {_rn}, delta {_rt:+.2f} $ "
-      f"({_rt / _rn if _rn else 0:+.2f}/trade), banks {_rb}, ctrl {_rc:+.2f}")
+      f"({_rt / _rn if _rn else 0:+.2f}/trade), banks {_rb}, "
+      f"ctrl {_rc:+.2f}, bank-delta {_rdb:+.2f}")
 
 print("\n== VERDICT (the hybrid must BEAT the ladder's actual ride on the "
       "near-miss cohort, control untouched) ==")
