@@ -76,7 +76,23 @@ BAR_MIN, BAR_MAX = 86.0, 97.0   # the quantile bar never leaves this band
 # quantile. Its floor is EVIDENCE (diag_tidebarrefit.py: the holdout
 # EV curve is positive 78-84, $0.00 at the old 86-97 regime in train),
 # so the clamp sits lower than the quantile's.
-OUTCOME_BAR_FLOOR = 80.0   # shared floor until a state's own EV curve moves it
+OUTCOME_BAR_FLOOR = 80.0   # the no-relief floor: a bar below this ships
+                           # only through the EV ladder below
+# THE EV LADDER (Sep 23, the burial-ledger tuning: the 08-12 class sat at
+# quick 57-72 — 15-30 pts under the shipped 88 — and the study's EV curve
+# peaked at bar 72, $4.87/fire vs the shipped regime's $3.30, while BOTH
+# proposed reliefs failed the same data: no flat relief reaches the class
+# (nothing fires between 76 and 89) and a lone-wolf move gate separates
+# nothing (payers at +0.13%, duds at +16.3%). The real lock was the
+# FLOOR: the fit could see the 72-band and was forbidden to ship it.
+# The ladder answers with evidence, not a moved constant: a bar below
+# 80 ships only when it beats the best >=80 bar by EV_LADDER_MARGIN
+# IN-SAMPLE on the state's own outcomes — mispriced-funnel evidence
+# opens the band, ordinary evidence keeps the 80 floor (fail-closed).
+OUTCOME_BAR_FLOOR_MIN = 68.0   # the ladder's absolute floor (the study's
+                               # EV curve was already declining below 68)
+EV_LADDER_MARGIN = 1.15        # the below-80 bar must beat the >=80 bar
+                               # by 15% EV to ship
 OUTCOME_MIN_JOIN = 40  # joined candidates IN THE STATE needed to fit it
 OUTCOME_MIN_FIRES = 6  # a candidate bar needs this many fires in-sample
 OUTCOME_WINDOW_BARS = 12   # the 60-min contract on 5m candles
@@ -264,6 +280,22 @@ def _pair_5m_arrs(pair):
         return None
 
 
+def _ev_ladder_floor(fit: dict | None) -> float:
+    """The floor the state's OWN evidence earns: OUTCOME_BAR_FLOOR_MIN
+    when a computed fit clears the ladder (positive EV beating the best
+    >=80 bar by EV_LADDER_MARGIN), else the static OUTCOME_BAR_FLOOR.
+    Called with a fit-shaped dict {"ev_o", "ev_q"} or None — never
+    raises, never returns a floor above OUTCOME_BAR_FLOOR."""
+    try:
+        if (fit and float(fit.get("ev_o") or 0.0) > 0.0
+                and float(fit.get("ev_o")) >= float(fit.get("ev_q") or 0.0)
+                * EV_LADDER_MARGIN):
+            return OUTCOME_BAR_FLOOR_MIN
+    except Exception:
+        pass
+    return OUTCOME_BAR_FLOOR
+
+
 def _outcome_fit_bar(state, scores, arr_cache=None):
     """The EV-max bar for ONE tide state, fitted on that state's own
     live-candidate outcomes, or None when the state's evidence is thin
@@ -328,22 +360,46 @@ def _outcome_fit_bar(state, scores, arr_cache=None):
             return usd / n, n
 
         rate_tr = float(y_tr.mean())
-        best = None
-        for B in range(int(OUTCOME_BAR_FLOOR), 98):
+        # THE EV LADDER: search the full band, then let the state's own
+        # evidence choose the floor — a below-80 bar ships only when it
+        # beats the best >=80 bar by EV_LADDER_MARGIN (mispriced funnel);
+        # otherwise the static 80 floor stands (or None if nothing there
+        # has enough fires — the quantile fallback, fail-closed).
+        best_low = None    # EV-max over the whole band (>= FLOOR_MIN)
+        best_80 = None     # EV-max over the static floor (>= 80)
+        for B in range(int(OUTCOME_BAR_FLOOR_MIN), 98):
             e, n_fire = ev(s_tr, y_tr, float(B))
             if n_fire < OUTCOME_MIN_FIRES:
                 continue
-            if best is None or e > best[1]:
-                best = (float(B), e)
-        if best is None:
+            if best_low is None or e > best_low[1]:
+                best_low = (float(B), e)
+            if B >= int(OUTCOME_BAR_FLOOR) and (best_80 is None or e > best_80[1]):
+                best_80 = (float(B), e)
+        if best_low is None:
             return None
-        bar_o = round(max(OUTCOME_BAR_FLOOR, min(97.0, best[0])), 1)
+        if best_low[0] >= OUTCOME_BAR_FLOOR:
+            chosen = best_low                       # old regime
+        if best_80 is None:
+            # review triage (Sep 27): fewer than six training fires
+            # scored at or above 80 - the >=80 band carries no
+            # evidence to compare against, so shipping a below-80
+            # bar here skipped the ladder's own EV comparison.
+            # Fail CLOSED: return no outcome fit and let the
+            # quantile fallback stay in force (the comment above
+            # always promised this; the code finally keeps it).
+            return None
+        elif best_low[1] >= best_80[1] * EV_LADDER_MARGIN:
+            chosen = best_low                       # the ladder ADMITS: mispriced
+        else:
+            chosen = best_80                        # the ladder DENIES: static floor
+        bar_o = round(max(OUTCOME_BAR_FLOOR_MIN, min(97.0, chosen[0])), 1)
         ev_o, _ = ev(s_tr, y_tr, bar_o)
         bar_q = round(max(BAR_MIN, min(BAR_MAX,
                       _quantile(scores, max(0.0, min(1.0, 1.0 - rate_tr))))), 1)
         ev_q, _ = ev(s_tr, y_tr, bar_q)
         return {"bar": bar_o, "ev_o": ev_o, "ev_q": ev_q, "n": len(O),
-                "payer_rate": rate_tr}
+                "payer_rate": rate_tr,
+                "ev_ladder": bar_o < OUTCOME_BAR_FLOOR}
     except Exception:
         return None
 
@@ -451,7 +507,8 @@ def learn(tide_class=None, now=None):
                     rec["outcome_fit"] = {"n": fits[st]["n"],
                                           "payer_rate": round(fits[st]["payer_rate"], 4),
                                           "ev_o": round(fits[st]["ev_o"], 3),
-                                          "ev_q": round(fits[st]["ev_q"], 3)}
+                                          "ev_q": round(fits[st]["ev_q"], 3),
+                                          "ev_ladder": bool(fits[st].get("ev_ladder"))}
                 out[st] = rec
             data = {"generated_ts": (now or pd.Timestamp.utcnow()).isoformat(),
                     "hours": int(states.shape[0]),
@@ -524,6 +581,26 @@ def tide_state_floor(state: str, max_age_s: float = CACHE_TTL_S):
                 f"(payers {st.get('payer_rate', 0) * 100:.1f}% over "
                 f"{st.get('hours')}h of deep history)")
     return float(bar), meta
+
+
+def state_bar_floor(state: str) -> float:
+    """The floor matching the state's SHIPPED bar source: BAR_MIN for a
+    quantile bar, OUTCOME_BAR_FLOOR for an outcome bar, and the ladder's
+    OUTCOME_BAR_FLOOR_MIN when that state's own evidence admitted a
+    below-80 bar (the fit's ev_ladder flag). The personalizer floors
+    with this instead of BAR_MIN so a ladder-admitted fleet bar is not
+    silently re-raised per coin. Fail-closed to BAR_MIN — never wider
+    than the old regime on any confusion."""
+    try:
+        d = ((snapshot().get("data") or {}).get("states") or {}).get(state) or {}
+        if d.get("bar") is None:
+            return BAR_MIN
+        if d.get("bar_src") == "outcomes":
+            fit = d.get("outcome_fit") or {}
+            return OUTCOME_BAR_FLOOR_MIN if fit.get("ev_ladder") else OUTCOME_BAR_FLOOR
+        return BAR_MIN
+    except Exception:
+        return BAR_MIN
 
 
 def tide_out_floor(max_age_s: float = CACHE_TTL_S):
