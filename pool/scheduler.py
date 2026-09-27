@@ -18,7 +18,11 @@ One daemon thread per server process that:
      refreshed by the same timer that runs the projection, through
      the SAME shared 30s throttle and audit trail the operator's
      button uses. Unconfigured burns no rate credit, so a bare box
-     is checked weekly for free.
+     is checked weekly for free;
+  5. prunes expired auth sessions DAILY (once per UTC day, the same
+     marker pattern as the retention prune) — get_session already
+     refuses expired tokens, so they are pure table growth; removed
+     rows are audited with their count, and a no-op day is silent.
 
 Every tick is usable synchronously (tick_once) so tests and the admin
 trigger exercise the exact code the timer runs.
@@ -204,6 +208,25 @@ def tick_once(reason: str = "manual") -> dict:
                           leg="push_report", error=str(exc)[:200])
         except Exception:                              # noqa: BLE001
             print("scheduler: push_report audit failed", file=sys.stderr)
+    # 5. the daily session prune: once per UTC day (the retention
+    # prune's marker pattern), silently no-op when nothing expired —
+    # the audit log hears about real work only.
+    try:
+        today = time.strftime("%Y-%m-%d", time.gmtime())
+        if str(db.get_setting("SESSIONS_PRUNED", "") or "") != today:
+            removed = db.delete_expired_sessions()
+            db.set_setting("SESSIONS_PRUNED", today)
+            if removed:
+                kr.emit_audit(None, "scheduler.sessions_pruned",
+                              rows=removed)
+            summary["sessions_pruned"] = removed
+    except Exception as exc:                           # noqa: BLE001
+        summary["sessions_pruned"] = f"error: {str(exc)[:80]}"
+        try:
+            kr.emit_audit(None, "scheduler.error",
+                          leg="sessions_prune", error=str(exc)[:200])
+        except Exception:                              # noqa: BLE001
+            print("scheduler: sessions audit failed", file=sys.stderr)
     # 4. the weekly credential self-test leg: the SAME call the admin
     # key-check button makes (one signed read-only Balance probe, the
     # shared KC throttle in kraken_referral, verdict persisted to the

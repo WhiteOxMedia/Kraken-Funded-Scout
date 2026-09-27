@@ -12,6 +12,9 @@ Proves the new pieces end-to-end on a hermetic sandbox DB:
      dials the SHARED selftest (unconfigured is free), the 30s KC
      throttle gates the scheduled call too, and the skip is audited
      once per gap — never per tick.
+  8. the daily session prune: expired auth rows swept once per UTC
+     day, live sessions spared, the count audited, a same-day re-tick
+     a silent no-op.
 The keyring is stubbed to NOTHING for the whole run: the box may hold
 a real operator pair, and no drive may ever dial Kraken. The weekly
 leg stays OFF until section 7 drives it explicitly, so the thread-
@@ -259,6 +262,43 @@ check(7.7, s14["kc"].get("verdict") == "throttled"
 kr.KC_STATE["last"] = 0.0
 db.set_setting(sched.KC_LAST_KEY, json.dumps(
     {"ts": time.time(), "verdict": "unconfigured"}))  # tail hygiene
+
+print("== 8. THE DAILY SESSION PRUNE ==")
+# expired sessions are pure table growth (get_session refuses them in
+# SQL) — the scheduler sweeps them once per UTC day with the retention
+# prune's marker pattern, audits real work, and stays silent on a
+# no-op day. The world: one live token, two expired (one long past).
+with db.get_db() as conn:
+    _uid8 = conn.execute(
+        "SELECT id FROM users WHERE username = 'schedadmin'").fetchone()["id"]
+db.create_session("prune-live-8", _uid8, time.time() + 3600)
+db.create_session("prune-dead-8", _uid8, time.time() - 10)
+db.create_session("prune-dead-8b", _uid8, time.time() - 999999)
+db.set_setting("SESSIONS_PRUNED", "")   # the earlier ticks already pruned
+                                         # today — reset to simulate a new day
+s15 = sched.tick_once(reason="drive")
+check("8.1", s15["sessions_pruned"] == 2,
+      f"the tick swept exactly the expired rows: {s15['sessions_pruned']}")
+check("8.2", db.get_session("prune-live-8") is not None
+      and db.get_session("prune-dead-8") is None
+      and db.get_session("prune-dead-8b") is None,
+      "live sessions are spared; expired tokens are gone")
+with db.get_db() as conn:
+    _n8p = conn.execute("SELECT COUNT(*) c FROM audit_log WHERE "
+                        "action = 'scheduler.sessions_pruned'").fetchone()["c"]
+check("8.3", _n8p == 1,
+      f"{_n8p} scheduler.sessions_pruned audit(s) — real work is audited")
+s16 = sched.tick_once(reason="drive")
+check("8.4", "sessions_pruned" not in s16
+      and db.get_setting("SESSIONS_PRUNED", "")
+      == time.strftime("%Y-%m-%d", time.gmtime()),
+      "the same-day re-tick is a SILENT no-op (no summary entry, "
+      "marker stamped) — the leg only speaks on days it sweeps")
+with db.get_db() as conn:
+    _n8p2 = conn.execute("SELECT COUNT(*) c FROM audit_log WHERE "
+                         "action = 'scheduler.sessions_pruned'").fetchone()["c"]
+check("8.5", _n8p2 == 1,
+      "no extra audit from the no-op day — silence is the contract")
 
 passed, failed = results.count(True), results.count(False)
 print(f"RESULT: {passed} passed, {failed} failed")

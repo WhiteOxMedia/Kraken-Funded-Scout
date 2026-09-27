@@ -1235,8 +1235,14 @@ def delete_session(token):
 
 
 def delete_expired_sessions():
+    """Sweep expired auth rows (get_session already refuses them —
+    they are pure table growth). Returns the number removed so the
+    scheduler's prune leg can audit real work and stay silent on a
+    no-op day."""
     with get_db() as conn:
-        conn.execute("DELETE FROM sessions WHERE expires_at < strftime('%s','now')")
+        cur = conn.execute(
+            "DELETE FROM sessions WHERE expires_at < strftime('%s','now')")
+        return cur.rowcount
 
 
 # ═══════════════════════════════════════════════════════════════
