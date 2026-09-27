@@ -18,7 +18,8 @@ contract that actually keeps the class dead:
      silently, orphaning their children — the factory is proven, not
      assumed (a regression that reverts get_db's PRAGMA fails 1.x;
      this section shows what such a revert would re-enable).
-  3. THE SWEEP DISCIPLINE HEALS   backup via the sqlite3 backup API,
+  3. THE SWEEP DISCIPLINE HEALS   through sweep_lib, the shared
+     module: backup via the sqlite3 backup API,
      one BEGIN IMMEDIATE transaction, dependency-ordered deletes +
      reference nulling, an in-transaction PRAGMA foreign_key_check
      gate (non-empty -> ROLLBACK), the manifest audit row — the exact
@@ -40,6 +41,7 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE / "pool"))
+sys.path.insert(0, str(HERE))
 
 import field_crypto as fc                          # noqa: E402
 fc.KEY_DIR = Path(tempfile.mkdtemp(prefix="fkreg_key_"))
@@ -51,6 +53,7 @@ _tmp = Path(tempfile.mkdtemp(prefix="fkreg_drive_"))
 import database as db                              # noqa: E402
 db.DB_PATH = _tmp / "jackpot.db"
 db.init_db()
+import sweep_lib as sw                              # noqa: E402
 
 results = []
 
@@ -125,48 +128,32 @@ check("2.3", _orphans >= 3,
       " — exactly how the live DB got its 287")
 raw.close()
 
-print("== 3. THE SWEEP DISCIPLINE HEALS (backup -> transaction -> gate) ==")
-src = sqlite3.connect(str(db.DB_PATH))
-bak = sqlite3.connect(str(_tmp / "backup.db"))
-src.backup(bak)
-check("3.1", _fk_violations(bak) >= 3,
-      "the backup API snapshot preserves the pre-state (the oracle)")
-bak.close()
-
-raw2 = sqlite3.connect(str(db.DB_PATH))
-_committed = False
-try:
-    raw2.execute("BEGIN IMMEDIATE")
-    _d_sessions = raw2.execute(
-        "DELETE FROM sessions WHERE user_id IS NOT NULL AND user_id NOT IN "
-        "(SELECT id FROM users)").rowcount
-    _d_tickets = raw2.execute(
-        "DELETE FROM tickets WHERE miner_id IS NOT NULL AND miner_id NOT IN "
-        "(SELECT id FROM miners)").rowcount
-    _n_audit = raw2.execute(
-        "UPDATE audit_log SET user_id = NULL WHERE user_id IS NOT NULL "
-        "AND user_id NOT IN (SELECT id FROM users)").rowcount
-    _fk_now = _fk_violations(raw2)
-    if _fk_now != 0:
-        raise RuntimeError(f"fk_check non-empty mid-transaction: {_fk_now}")
-    raw2.execute(
-        "INSERT INTO audit_log (user_id, action, details) VALUES (?, ?, ?)",
-        (None, "fkreg.orphans_swept", json.dumps({
-            "deleted": {"sessions": _d_sessions, "tickets": _d_tickets},
-            "nulled": {"audit_log.user_id": _n_audit},
-        })))
-    raw2.execute("COMMIT")
-    _committed = True
-except BaseException:
-    raw2.execute("ROLLBACK")
-    raise
-check("3.2", _committed and _d_tickets == 3 and _d_sessions == 1
-      and _n_audit == 1,
+print("== 3. THE SWEEP DISCIPLINE HEALS (sweep_lib owns the ritual) ==")
+_statements = [
+    ("sessions_of_dead_users",
+     "DELETE FROM sessions WHERE user_id IS NOT NULL AND user_id NOT IN "
+     "(SELECT id FROM users)", ()),
+    ("tickets_of_dead_miners",
+     "DELETE FROM tickets WHERE miner_id IS NOT NULL AND miner_id NOT IN "
+     "(SELECT id FROM miners)", ()),
+    ("null_dead_audit_user",
+     "UPDATE audit_log SET user_id = NULL WHERE user_id IS NOT NULL "
+     "AND user_id NOT IN (SELECT id FROM users)", ()),
+]
+_res = sw.sweep(db.DB_PATH, _statements, audit_action="fkreg.orphans_swept",
+                backup_dir=_tmp, backup_name="fkreg_pre_sweep.db")
+_bak = sqlite3.connect(str(_res["backup"]))
+check("3.1", _fk_violations(_bak) >= 3,
+      "the lib's backup API snapshot preserved the pre-state (the oracle)")
+_bak.close()
+check("3.2", _res["committed"]
+      and _res["rowcounts"]["sessions_of_dead_users"] == 1
+      and _res["rowcounts"]["tickets_of_dead_miners"] == 3
+      and _res["rowcounts"]["null_dead_audit_user"] == 1,
       f"the ordered sweep removed exactly the debris "
-      f"(tickets={_d_tickets}, sessions={_d_sessions}, nulled={_n_audit})")
-check("3.3", _fk_violations(raw2) == 0,
-      "foreign_key_check is EMPTY inside the same connection that swept")
-raw2.close()
+      f"(rowcounts={_res['rowcounts']})")
+check("3.3", _res["fk_after_commit"] == 0,
+      "foreign_key_check is EMPTY on the same connection after the commit")
 with db.get_db() as conn:
     check("3.4", _fk_violations(conn) == 0,
           "and the healed state is visible through the house seam")
@@ -175,6 +162,35 @@ with db.get_db() as conn:
     ).fetchone()["c"]
 check("3.5", _manifest == 1,
       "the sweep left its manifest audit row (the live convention)")
+
+print("== 3b. THE DISCIPLINE REFUSES (the lib's negative paths) ==")
+# the gate: a statement that WOULD orphan rolls back wholesale
+_uid2 = db.create_user("fkreg_gate_user", "x")
+db.create_session("fkreg-gate-token", _uid2, 9999999999)
+_refused = False
+try:
+    sw.sweep(db.DB_PATH,
+             [("hazard_probe", "DELETE FROM users WHERE id = ?", (_uid2,))],
+             audit_action="fkreg.gate_probe",
+             backup_dir=_tmp, backup_name="fkreg_gate_probe.db")
+except sw.SweepError:
+    _refused = True
+with db.get_db() as conn:
+    _alive = conn.execute(
+        "SELECT COUNT(*) c FROM users WHERE id=?", (_uid2,)).fetchone()["c"]
+check("3.6", _refused and _alive == 1,
+      f"an orphan-making statement raises SweepError and ROLLS BACK "
+      f"(the user survives: {_alive})")
+# the backup is never overwritten
+_twice = False
+try:
+    sw.sweep(db.DB_PATH, [], audit_action="fkreg.twice",
+             backup_dir=_tmp, backup_name="fkreg_pre_sweep.db")
+except sw.SweepError:
+    _twice = True
+check("3.7", _twice,
+      "a sweep refuses to overwrite its own backup target")
+
 
 print("== 4. THE LIVE CANARIES (read-only) ==")
 live = sqlite3.connect(f"file:{(HERE / 'pool' / 'jackpot.db').as_posix()}"

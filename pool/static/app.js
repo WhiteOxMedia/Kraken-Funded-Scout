@@ -239,6 +239,27 @@
   function navigateTo(page) {
     currentPage = page;
 
+    // Hash sync (review triage, Sep 27): the URL must agree with the
+    // visible page in BOTH directions - opening /#admin then picking
+    // Home used to leave #admin in the URL, so a reload resurrected
+    // the Admin page. replaceState (no history spam; the hashchange
+    // listener below owns back/forward) keeps every navigation
+    // deep-linkable; landing keeps the bare / URL clean instead of
+    // stamping #landing. Guarded: environments without a history API
+    // (executed-JS harnesses) keep working.
+    try {
+      if (window.history && window.history.replaceState) {
+        if (page === 'landing') {
+          if (window.location.hash) {
+            window.history.replaceState(null, '',
+              window.location.pathname + window.location.search);
+          }
+        } else {
+          window.history.replaceState(null, '', '#' + page);
+        }
+      }
+    } catch (e) { /* the page still navigates without the URL sync */ }
+
     // Hide all pages
     $$('.page').forEach(function (p) { p.classList.remove('active'); });
 
@@ -269,6 +290,10 @@
     // Scroll to top
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
+  // exposed for the injected-HTML inline handlers (the stale-miner
+  // banner's onclick="navigateTo('realplay')" resolves on window)
+  // and for the executed-JS drive
+  window.navigateTo = navigateTo;
 
   function updateModeBadge() {
     const badge = $('#modeBadge');

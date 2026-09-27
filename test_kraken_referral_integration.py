@@ -894,6 +894,70 @@ check("10.7", True,
       "the UI renders 'Thanks, you've contributed to the jackpot $' "
       "+ amount.toFixed(2) (pinned verbatim in test_static_listener_audit)")
 
+print("== 10.8 THE STATE MACHINE: Pending/Eligible stay quiet until Paid ==")
+# the honest lifecycle: Kraken first reports the referral as Pending or
+# Eligible (money owed, not money paid) - the greeting waits for the
+# actual Paid mark, then sticks once earned (a newer pending cycle
+# after a paid one does not un-greet; the read is the latest LIVE PAID
+# row, not the latest row).
+r = client.post("/api/auth/register",
+                json={"username": "u_lifecycle",
+                      "password": "cycle horse battery",
+                      "email": "cycle@example.test"})
+check(10.8, r.status_code == 200, "the lifecycle member registers (real auth path)")
+with db.get_db() as conn:
+    _lc_uid = conn.execute(
+        "SELECT id FROM users WHERE username='u_lifecycle'").fetchone()["id"]
+    conn.execute(
+        "INSERT INTO kraken_referral_snapshot (user_id, referral_id,"
+        " kraken_status, total_paid, pending_amount,"
+        " expected_bonus_conservative, expected_bonus_best,"
+        " seeded_equivalent, estimate_used, source)"
+        " VALUES (?, 'LIVE-STATE-006', 'Pending', 12.0, 9.0, 21.0, 21.0, 21.0, 0, ?)",
+        (_lc_uid, kr.SOURCE_LIVE))
+r = client.post("/api/auth/login",
+                json={"username": "u_lifecycle", "password": "cycle horse battery"})
+r = client.get("/api/profile/stats")
+_t = r.json().get("kraken_thanks")
+check(10.9, r.status_code == 200 and _t is None,
+      f"latest LIVE snapshot Pending (12.0 already paid, 9.0 accruing) greets nobody: {_t}")
+with db.get_db() as conn:
+    conn.execute(
+        "INSERT INTO kraken_referral_snapshot (user_id, referral_id,"
+        " kraken_status, total_paid, pending_amount,"
+        " expected_bonus_conservative, expected_bonus_best,"
+        " seeded_equivalent, estimate_used, source)"
+        " VALUES (?, 'LIVE-STATE-006', 'Eligible', 12.0, 9.0, 21.0, 21.0, 21.0, 0, ?)",
+        (_lc_uid, kr.SOURCE_LIVE))
+r = client.get("/api/profile/stats")
+_t = r.json().get("kraken_thanks")
+check(10.10, r.status_code == 200 and _t is None,
+      f"latest LIVE snapshot Eligible: {_t} - still nobody is greeted")
+with db.get_db() as conn:
+    conn.execute(
+        "INSERT INTO kraken_referral_snapshot (user_id, referral_id,"
+        " kraken_status, total_paid, pending_amount,"
+        " expected_bonus_conservative, expected_bonus_best,"
+        " seeded_equivalent, estimate_used, source)"
+        " VALUES (?, 'LIVE-STATE-006', 'Paid', 17.25, 0, 17.25, 17.25, 17.25, 0, ?)",
+        (_lc_uid, kr.SOURCE_LIVE))
+r = client.get("/api/profile/stats")
+_t = r.json().get("kraken_thanks")
+check(10.11, _t == {"amount": 17.25},
+      f"Kraken marks it Paid -> the greeting finally arrives: {_t}")
+with db.get_db() as conn:
+    conn.execute(
+        "INSERT INTO kraken_referral_snapshot (user_id, referral_id,"
+        " kraken_status, total_paid, pending_amount,"
+        " expected_bonus_conservative, expected_bonus_best,"
+        " seeded_equivalent, estimate_used, source)"
+        " VALUES (?, 'LIVE-STATE-006', 'Pending', 0, 9.0, 9.0, 9.0, 9.0, 0, ?)",
+        (_lc_uid, kr.SOURCE_LIVE))
+r = client.get("/api/profile/stats")
+_t = r.json().get("kraken_thanks")
+check(10.12, _t == {"amount": 17.25},
+      f"a NEWER pending cycle does NOT un-greet (the read is the latest LIVE "
+      f"PAID row, so an earned thanks sticks): {_t}")
 passed, failed = results.count(True), results.count(False)
 print(f"RESULT: {passed} passed, {failed} failed")
 sys.exit(1 if failed else 0)
