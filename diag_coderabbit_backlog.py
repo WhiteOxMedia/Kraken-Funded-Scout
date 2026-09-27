@@ -16,9 +16,14 @@ sibling, the same both-roots scope diag_hygiene uses):
                           has never been reviewed, which is itself the
                           finding, named in step 3)
   2. latest batch         the newest batch per repo: id, the head it
-                          reviewed, and its age (names/timestamps only -
-                          review CONTENTS are never read or printed;
-                          the reviewer's words are its own data)
+                          reviewed, and its age; PLUS the triage
+                          surface (Sep 26): the newest batch's MAJOR
+                          findings print as file:line + title - the
+                          metadata an operator needs to triage without
+                          the manual JSON hunt. The reviewer's WORDS
+                          (comment bodies) remain its own data: only
+                          fileName/startLine/title/severity are read,
+                          and a body never reaches the output
   3. the open set         commits newer than the newest batch that
                           reviewed them (approximated honestly: a
                           commit is covered when a batch's recorded
@@ -102,6 +107,46 @@ def _batches_for(repo):
     return sorted(found, reverse=True)
 
 
+def _surface_majors(step, name, batches):
+    """THE TRIAGE SURFACE (Sep 26): the newest batch is the review the
+    operator may not have seen yet; its MAJOR findings are the triage
+    backlog. Prints file:line + title only (capped at 10, with a
+    count) - never the comment body. Malformed finding files are
+    skipped, not crashed on; majors never change the exit code (they
+    are advisory triage work; the gate is about review COVERAGE)."""
+    if not batches:
+        return
+    _ts, _head, batch_dir = batches[0]
+    majors = []
+    total = 0
+    for fj in sorted(batch_dir.glob("*.json")):
+        if fj.name in SKIP_JSON:
+            continue
+        try:
+            meta = json.loads(fj.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            continue
+        if not isinstance(meta, dict):
+            continue
+        if str(meta.get("severity", "")).lower() == "major":
+            total += 1
+            if len(majors) < 10:
+                ln = meta.get("startLine")
+                majors.append((str(meta.get("fileName", "?")),
+                               ln if isinstance(ln, int) else None,
+                               str(meta.get("title", "(untitled)"))))
+    if total == 0:
+        check(step, f"{name}: the newest batch records no majors", True)
+        return
+    print(f"     majors awaiting triage in the newest batch ({total}):")
+    for fn, ln, title in majors:
+        print(f"       - {fn + ':' + str(ln) if ln else fn}  {title}")
+    if total > len(majors):
+        print(f"       ... and {total - len(majors)} more")
+    check(step, f"{name}: majors surfaced for triage "
+                f"({total} major(s), bodies never printed)", True)
+
+
 def _repo_report(step, repo):
     # the display name is DERIVED from the path, never hard-coded -
     # the drive repoints the repo and the label must follow
@@ -129,6 +174,11 @@ def _repo_report(step, repo):
     detail = (f"{len(open_set)} open commit(s), oldest {oldest_age_h:.1f}h: "
               + ", ".join(h for h, _t in sorted(open_set,
                                                key=lambda x: x[1])[:5]))
+    # the triage surface runs BEFORE the gate verdicts: a batch can be
+    # fully covering (the gate green) and still carry majors the
+    # operator has not triaged - coverage and triage are different
+    # questions, and both belong in one run's output
+    _surface_majors(step, name, batches)
     if not open_set:
         check(step, f"{name}: every commit in the window is covered", True)
         return

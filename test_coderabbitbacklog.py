@@ -13,8 +13,14 @@ both real repos are never touched by this drive.
   3. the N-hour gate: age over the threshold FAILS with names; under
      it passes; a never-reviewed repo fails at any threshold
   4. robustness: malformed git.json files are skipped, not crashed on
-  5. output hygiene: names, hashes, ages - review CONTENTS are never
-     printed (a marker inside a fake findings file must not surface)
+  4b. THE MAJORS SURFACE (Sep 26): the newest batch's MAJOR findings
+     print as file:line + title (capped, counted) - the triage
+     surface, so the next triage needs no manual JSON hunt; a body
+     marker still never prints, a bodyless/broken finding is skipped,
+     no majors means a clean line, and majors never change rc
+  5. output hygiene: names, hashes, ages, majors' file:line+title -
+     review CONTENTS (bodies) are never printed (a marker inside a
+     fake findings BODY must not surface)
   6. hermetic: the real reviews tree and both real repos are never
      opened (the sandbox paths are the only ones in the output)
 
@@ -161,13 +167,64 @@ check(4.1, rc5 == 0,
       "a broken git.json is skipped - the newest GOOD batch still "
       "governs, no crash")
 
+print("== 4b. THE MAJORS SURFACE: file:line + title, bodies never ==")
+_SECRET = "REVIEW-CONTENT-MARKER-do-not-print"   # defined here: 4b uses it
+# repoA's newest batch gets three findings: a major, a minor, and a
+# malformed file. repoB's newest batch (the one _mk_batch made at
+# NOW-1h in check 3.3) gets a body-only finding carrying the SECRET
+# marker of section 5 - its body must never surface even though its
+# file IS read now.
+_b = _mk_batch(REPO_A, NOW - 0.5 * H, head=commits_a[0][0])
+(_b / "m1.json").write_text(json.dumps({
+    "fileName": "src/trading.py", "startLine": 2754,
+    "title": "Keep the throttle independent of topic availability.",
+    "severity": "major", "comment": "body-of-m1-" + _SECRET,
+}), encoding="utf-8")
+(_b / "m2.json").write_text(json.dumps({
+    "fileName": "src/grade.py", "title": "a minor nit", "severity": "minor",
+    "comment": "minor body"}), encoding="utf-8")
+(_b / "broken.json").write_text("{not json", encoding="utf-8")
+(_b / "bodyless.json").write_text("[]", encoding="utf-8")
+_mk_batch(REPO_B, NOW - 0.5 * H, head=commits_b[0][0])
+# repoB's NEWEST batch dir via the module's own mapping (broken
+# git.json files are already skipped there - do not re-glob by hand)
+_rb = dcb._batches_for(REPO_B)[0][2]
+(_rb / "secret_major.json").write_text(json.dumps({
+    "fileName": "src/secret.py", "startLine": 1,
+    "title": "a titled major", "severity": "major",
+    "comment": "body-" + _SECRET}), encoding="utf-8")
+rc_m, out_m = _run()
+check("4b.1", "majors awaiting triage in the newest batch (1)" in out_m
+      and "src/trading.py:2754" in out_m
+      and "Keep the throttle independent of topic availability." in out_m,
+      "repoA's newest batch: exactly its 1 major surfaces as "
+      "file:line + title (the minor and the broken file do not)")
+check("4b.2", "a titled major" in out_m
+      and "src/secret.py" in out_m,
+      "repoB's newest batch major surfaces too (per-repo surface)")
+check("4b.3", _SECRET not in out_m,
+      "bodies are STILL never printed - only fileName/line/title "
+      "metadata is read")
+check("4b.4", rc_m == 0,
+      "majors are advisory triage work - the coverage gate's rc is "
+      "unchanged by their existence")
+# the clean line: a fresh batch with NO majors
+_mk_batch(REPO_B, NOW + 1)
+_rcn, out_n = _run()
+check("4b.5", "records no majors" in out_n,
+      "a batch with no majors gets its clean line")
+
 print("== 5. OUTPUT HYGIENE: contents never print ==")
-_SECRET = "REVIEW-CONTENT-MARKER-do-not-print"
+# NOTE (4b): the body-marker batches for this section are already in
+# place from 4b - m1.json and secret_major.json both carry _SECRET in
+# their comment bodies, and 4b.3 proved the bodies never print. Here
+# the legacy marker-file shape (a bare {comment: ...} finding) is
+# exercised again on top:
 _mk_batch(REPO_B, NOW - 70 * H, marker=_SECRET)
 _rc6, out6 = _run()
 check(5.1, _SECRET not in out6 and "finding.json" not in out6,
       "the fake findings file's contents never surface - names, "
-      "hashes, and ages only")
+      "hashes, ages, and majors' titles only")
 check(5.2, str(SANDBOX) in out6 and str(
     Path(os.environ.get("LOCALAPPDATA", "")) / "coderabbit") not in out6,
       "only sandbox paths appear - the live reviews tree was never read")
