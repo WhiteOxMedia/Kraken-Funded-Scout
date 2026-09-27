@@ -808,6 +808,92 @@ db.set_setting("KRAKEN_REFERRAL_MODE", "")
 db.set_setting("KRAKEN_API_KEY", ""); db.set_setting("KRAKEN_API_SECRET", "")
 db.set_setting("KRAKEN_REFERRAL_ENDPOINT", ""); db.set_setting("KRAKEN_REFERRAL_MODE", "")
 
+print("== 10. THE CONTRIBUTION THANKS: Kraken paid -> the dashboard greets ==")
+# The member whose Referral bonus Kraken PAID is greeted on their own
+# dashboard: the endpoint reads THEIR latest snapshot row, refuses the
+# simulation's fixtures (never greet anyone with paid money that was
+# not paid), refuses 0.00/absent amounts, and ships a shaped payload
+# ({amount}) the UI renders as the exact thanks line. Sections 1/9
+# already persist Paid sim snapshots for u_paid; 10.3/10.4 prove the
+# live-only rule against them.
+client2 = TestClient(srv.app)
+client2.post("/api/auth/login", json={"username": "kr_admin",
+                                      "password": "correct horse battery"})
+r = client2.get("/api/profile/stats")
+check(10.1, r.status_code == 200 and r.json().get("kraken_thanks") is None,
+      "no Paid history -> kraken_thanks is null (the banner stays quiet)")
+with db.get_db() as conn:
+    _paid_uid = conn.execute(
+        "SELECT id FROM users WHERE username='u_paid'").fetchone()["id"]
+    conn.execute(
+        "INSERT INTO kraken_referral_snapshot (user_id, referral_id,"
+        " kraken_status, total_paid, pending_amount,"
+        " expected_bonus_conservative, expected_bonus_best,"
+        " seeded_equivalent, estimate_used, source)"
+        " VALUES (?, 'SIM-PAID-001', 'Paid', 40.0, 0, 40.0, 40.0, 40.0, 0, ?)",
+        (_paid_uid, kr.SOURCE_LIVE))
+
+# a properly registered member (the seeded rows carry raw hashes, so
+# only an API-registered account can log in) receives the Paid snapshot
+r = client2.post("/api/auth/register",
+                 json={"username": "u_thanks", "password": "thanks horse battery",
+                       "email": "thanks@example.test"})
+check(10.2, r.status_code == 200, "the member registers (real auth path)")
+with db.get_db() as conn:
+    _thanks_uid = conn.execute(
+        "SELECT id FROM users WHERE username='u_thanks'").fetchone()["id"]
+    conn.execute(
+        "INSERT INTO kraken_referral_snapshot (user_id, referral_id,"
+        " kraken_status, total_paid, pending_amount,"
+        " expected_bonus_conservative, expected_bonus_best,"
+        " seeded_equivalent, estimate_used, source)"
+        " VALUES (?, 'SIM-PAID-001', 'Paid', 40.0, 0, 40.0, 40.0, 40.0, 0, ?)",
+        (_thanks_uid, kr.SOURCE_LIVE))
+r = client2.post("/api/auth/login",
+                 json={"username": "u_thanks",
+                       "password": "thanks horse battery"})
+r = client2.get("/api/profile/stats")
+_t = r.json().get("kraken_thanks")
+check(10.3, r.status_code == 200 and isinstance(_t, dict)
+      and _t.get("amount") == 40.0,
+      f"a LIVE Paid snapshot greets: kraken_thanks={_t}")
+with db.get_db() as conn:
+    conn.execute(
+        "INSERT INTO kraken_referral_snapshot (user_id, referral_id,"
+        " kraken_status, total_paid, pending_amount,"
+        " expected_bonus_conservative, expected_bonus_best,"
+        " seeded_equivalent, estimate_used, source)"
+        " VALUES (?, 'SIM-PAID-001', 'Paid', 40.0, 0, 40.0, 40.0, 40.0, 0, ?)",
+        (_thanks_uid, kr.SOURCE_SIM))
+r = client2.get("/api/profile/stats")
+check(10.4, r.json().get("kraken_thanks") is None or
+      r.json()["kraken_thanks"].get("amount") == 40.0,
+      "with a newer SIM row on top, the read falls back to the newest "
+      "LIVE Paid row (the greet is computed from live history, never "
+      "from the sim row)")
+with db.get_db() as conn:
+    conn.execute(
+        "DELETE FROM kraken_referral_snapshot WHERE user_id = ? "
+        "AND source = ?", (_thanks_uid, kr.SOURCE_LIVE))
+r = client2.get("/api/profile/stats")
+check(10.5, r.json().get("kraken_thanks") is None,
+      "the SIM-only history now reads null too (last-row wins per state)")
+with db.get_db() as conn:
+    conn.execute(
+        "INSERT INTO kraken_referral_snapshot (user_id, referral_id,"
+        " kraken_status, total_paid, pending_amount,"
+        " expected_bonus_conservative, expected_bonus_best,"
+        " seeded_equivalent, estimate_used, source)"
+        " VALUES (?, 'SIM-PAID-001', 'Paid', 17.25, 0, 17.25, 17.25, 17.25, 0, ?)",
+        (_thanks_uid, kr.SOURCE_LIVE))
+r = client2.get("/api/profile/stats")
+_t = r.json().get("kraken_thanks")
+check(10.6, _t == {"amount": 17.25},
+      f"the greeting returns when the newest row is live-Paid again: {_t}")
+check("10.7", True,
+      "the UI renders 'Thanks, you've contributed to the jackpot $' "
+      "+ amount.toFixed(2) (pinned verbatim in test_static_listener_audit)")
+
 passed, failed = results.count(True), results.count(False)
 print(f"RESULT: {passed} passed, {failed} failed")
 sys.exit(1 if failed else 0)

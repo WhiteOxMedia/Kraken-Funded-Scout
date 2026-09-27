@@ -155,6 +155,19 @@ check(3.4, not (set(facts) - set(IDENTITY_INDEPENDENT) - set(DISPATCHERS)
       "the service worker (no events, no session) — a NEW file "
       "fetching per-user data fails check 2.1 until it listens")
 
+print("== 4. THE CONTRIBUTION THANKS IS RENDERED VERBATIM ==")
+# the member dashboard greets a member whose Kraken Referral bonus was
+# PAID: the exact line (user's wording, Sep 26), the payload key the
+# server ships, and the banner id the dashboard manages idempotently.
+_app = facts.get("app.js", {}).get("src", "")
+check(4.1, "Thanks, you\\'ve contributed to the jackpot $" in _app
+      and "thanks.amount.toFixed(2)" in _app,
+      "the greeting line renders byte-exact with the amount (the JS "
+      "source carries the escaped apostrophe; rendered it is you've)")
+check(4.2, "kraken_thanks" in _app and "krakenThanksBanner" in _app,
+      "the banner reads the server's kraken_thanks payload and removes "
+      "before insert (idempotent across profile refreshes)")
+
 passed, failed = results.count(True), results.count(False)
 print(f"RESULT: {passed} passed, {failed} failed")
 sys.exit(1 if failed else 0)

@@ -994,6 +994,26 @@ async def api_profile_stats(request: Request):
     drawings = db.get_recent_drawings(10)
     user_drawings = [d for d in drawings if d.get("winner_wallet") == wallet]
 
+    # THE CONTRIBUTION THANKS (user request, Sep 26): once Kraken has
+    # actually PAID the Referral bonus, the member's dashboard greets
+    # them with "Thanks, you've contributed to the jackpot $X.XX". The
+    # read is the user's OWN latest snapshot row - the per-user history
+    # the referral worker persists - so nothing crosses user boundaries
+    # and nothing is invented: only a snapshot whose status is Paid
+    # from the LIVE provider (never the simulation's fixtures - the
+    # simulate world must never greet anyone with a paid bonus) carries
+    # the dollar amount, and an absent/none-Paid history ships null.
+    thanks = None
+    with db.get_db() as conn:
+        _snap = conn.execute(
+            "SELECT kraken_status, total_paid FROM kraken_referral_snapshot "
+            "WHERE user_id = ? AND source = ? AND kraken_status = 'Paid' "
+            "ORDER BY id DESC LIMIT 1",
+            (user["id"], kr.SOURCE_LIVE),
+        ).fetchone()
+    if _snap and (_snap["total_paid"] or 0) > 0:
+        thanks = {"amount": round(float(_snap["total_paid"]), 2)}
+
     return {
         "user": {
             "id": user["id"],
@@ -1014,6 +1034,7 @@ async def api_profile_stats(request: Request):
         "total_entries": total_entries,
         "win_chance": win_chance,
         "recent_wins": user_drawings,
+        "kraken_thanks": thanks,
     }
 
 

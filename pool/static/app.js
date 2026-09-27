@@ -1389,6 +1389,26 @@
       var dashWinChance = $('#dashWinChance');
       if (dashWinChance) dashWinChance.textContent = fmt(d.win_chance || 0, 2) + '%';
 
+      // THE CONTRIBUTION THANKS (Sep 26): once Kraken has PAID the
+      // member's Referral bonus, their dashboard greets them. The
+      // server decides from the member's own latest LIVE Paid
+      // snapshot (never the simulation); the banner lands at the top
+      // of the dashboard like the winner banner and disappears on a
+      // later no-snapshot read (idempotent: remove before insert).
+      var existingThanks = document.getElementById('krakenThanksBanner');
+      if (existingThanks) existingThanks.remove();
+      var thanks = d.kraken_thanks;
+      if (thanks && typeof thanks.amount === 'number' && thanks.amount > 0) {
+        var tBanner = document.createElement('div');
+        tBanner.id = 'krakenThanksBanner';
+        tBanner.className = 'winner-banner';
+        tBanner.style.cssText = 'background:rgba(16,185,129,0.12);border-color:rgba(16,185,129,0.35);margin-bottom:16px;';
+        tBanner.innerHTML = '<span style="font-size:1.5em;">🎉</span><div><b>Thanks, you\'ve contributed to the jackpot $' +
+          thanks.amount.toFixed(2) + '</b></div>';
+        var dashMainThanks = document.getElementById('dashMain');
+        if (dashMainThanks) dashMainThanks.insertBefore(tBanner, dashMainThanks.firstChild);
+      }
+
       // Show house tax stats only for admin
       if (u.is_admin) {
         var taxCard = $('#dashHouseTaxCard');
