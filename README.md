@@ -15,6 +15,27 @@ is never written by a drive, and external legs (wallet RPC, Kraken, the
 push library) are stubbed at their boundaries so a drive is hermetic by
 construction.
 
+### Standing fleet fixtures (must survive DB sweeps)
+
+Two probe accounts live in the live `pool/jackpot.db` on purpose. The
+live-server drives never touch the DB file — they go through the API
+like real clients — but they re-register-or-login these accounts every
+run, so deleting them makes the next fleet run fail or re-bootstrap
+into the 5/hour register limiter. Database cleanups must PRESERVE:
+
+- `security_probe` — owned by `test_security.py` (cookie-hardening
+  checks ride a real login).
+- `prefs_live_probe_fleet` — owned by `test_prefs_live_server.py`.
+  A unique suffix per run exhausted the register limiter under
+  repeated fleet runs; the fixed name registers once, logs in every
+  run after, and restores its own state at the end.
+
+The rule the completed sweeps follow: fix the fixtures, remove the
+probe debris around them, and leave an audit row with the full
+manifest (`users.probe_swept`; `jackpot.orphans_swept` for the FK
+sweep). Pre-sweep backups land next to the DB as
+`_backup_jackpot_pre_*.db`.
+
 ```
 ./test                          # the whole fleet (run_fleet.py underneath)
 ./test --only push prefs        # substring subset

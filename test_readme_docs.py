@@ -9,7 +9,10 @@ checked against PATH plus the repo; ```-blocks with a filename header
 reference repo files, checked for existence); inline mentions of
 known repo files (make_bundle.py, setup_dev.py, run_battery.py …)
 are checked too. A renamed or deleted tool fails this drive before
-the README lies to the next reader.
+the README lies to the next reader. The standing fleet fixtures
+(security_probe, prefs_live_probe_fleet) are pinned the same way:
+dropping them from the README — or renaming them in the drives that
+own them — fails this drive.
 
 Skips honestly if README.md is missing (a checkout without docs has
 nothing to rot). Prints "RESULT: N passed, M failed".
@@ -111,6 +114,18 @@ if scout.is_dir():
 else:
     check(7, True, "no sibling scout checkout — cross-repo names unchecked")
     check(8, True, "template unchecked (no sibling scout checkout)")
+
+# ── 5. the standing fleet fixtures stay documented ──────────────────
+# The two probe accounts that must survive DB sweeps are named in the
+# README's fixtures section; a cleanup crew that has never read it is
+# exactly the failure mode this section exists to prevent. The names
+# are ALSO asserted against the drives that own them, so a rename on
+# either side forces the doc and the code to re-sync.
+check(9, "`security_probe`" in text and "`prefs_live_probe_fleet`" in text,
+      "README documents the standing fleet fixtures (must survive sweeps)")
+check(10, '"security_probe"' in (HERE / "test_security.py").read_text(encoding="utf-8")
+      and 'PROBE + "_fleet"' in (HERE / "test_prefs_live_server.py").read_text(encoding="utf-8"),
+      "the documented fixture names match the drives that own them")
 
 passed, failed = results.count(True), results.count(False)
 print(f"RESULT: {passed} passed, {failed} failed")
