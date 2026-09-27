@@ -96,15 +96,34 @@ re-simmed as a TP-preserving hybrid — the goal bank stays LIVE inside the
 sim (guard-first bar ordering), so the control becomes structurally
 satisfiable, and only the post-goal RIDE leg is replaced. The cohort that
 rules is the armed near-miss rides (trails legitimately have a say only
-there). Result: the incumbent ratchet itself, walked through the same
-hybrid, is the only policy with a positive ride edge (+5.92 $ over 4 rides,
-+1.48/trade) and a PERFECTLY clean control; the tight widths earn more per
-ride (+5.11/trade at 1.0%) but leak −3.01/−3.88 from the control — the
-exact failure mode the half-goal arm exists to prevent — and wide widths
-lose outright (−0.83, −14.10/trade). Verdict: the incumbent wins a fair
-fight, on the record. Methodology note: a ruling cohort must be FROZEN —
+there). CORRECTED CONTROL ACCOUNTING (CodeRabbit major, Sep 27): every
+simulated exit — banks included — counts toward the control, because the
+ladder rides past goal on many took-the-goal books and banking them at
+goal is a real loss; the goal-fill counterfactual alone is −54.24 and the
+incumbent ratchet's own control cost is −95.96. The bar is therefore
+RELATIVE: a candidate's control cost must not exceed the incumbent's own
+under the identical walk. Under that bar the tight widths are excluded
+(−102.57 / −99.84) and the incumbent stands — verdict unchanged, now on
+defensible arithmetic. Methodology note: a ruling cohort must be FROZEN —
 the live ledger flipped a mutant run 18/1 → 19/0 within minutes before
 the freeze rule existed (now pinned in `test_trailk_sweep.py` 3.3).
+
+`_preset_tierscaled.py` — the presets re-mapped to the scout's real scale:
+guard AT the trade's own goal (the fixed-guard poison gone by
+construction), trails 1.5/2.0/3.0 running FROM ENTRY (preset semantics
+kept — no arm bar). At the scout's own 4h horizon, from-entry presets are
+catastrophic (−219 to −297 vs actual): the ladder's synthesis is worth
+that spread. At 24h the aggressive variant beat the ladder's TOTAL
+(+20.14) riding entirely on `bought the top` — and was DISQUALIFIED by
+the control (−142.68, corrected accounting). Five studies, five defense
+wins, the same guard each time.
+
+`_guardfree_trail.py` — decomposed the conservative preset's "medicine":
+with the guard gone and the full-goal bank live, `stayed too long` keeps
+only +0.60 of its claimed +114.16 — the savings WERE the poison operating
+on another cohort. The flat 1.0% trail's real gain (+38.16 on
+`exited too soon`) costs −102.57 of control (worse than the incumbent's
+−95.96): disqualified under the relative bar.
 
 `_preset_backtest.py` — the three presets as complete exit policies
 (guard limit + trailing stop) over the same ledger, actual ladder as
