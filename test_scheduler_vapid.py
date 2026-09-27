@@ -1,12 +1,21 @@
 """test_scheduler_vapid.py — THE RECURRING LEG + VAPID PROVISIONING (Sep 26).
 
-Proves the three new pieces end-to-end on a hermetic sandbox DB:
+Proves the new pieces end-to-end on a hermetic sandbox DB:
   1. VAPID ensure/rotate/status (real py_vapid keys, no clobber)
   2. push_test through the REAL sender with generated keys
   3. scheduler tick: worker leg (interval + unconfigured gates)
   4. scheduler tick: notice leg against the operator expiry calendar
   5. admin routes + auth gates + config surface
   6. thread lifecycle (started last so its audits never pollute counts)
+  7. the weekly credential self-test leg: default-ON cadence on the
+     status read, quiet on a fresh marker, disabled = quiet, due-now
+     dials the SHARED selftest (unconfigured is free), the 30s KC
+     throttle gates the scheduled call too, and the skip is audited
+     once per gap — never per tick.
+The keyring is stubbed to NOTHING for the whole run: the box may hold
+a real operator pair, and no drive may ever dial Kraken. The weekly
+leg stays OFF until section 7 drives it explicitly, so the thread-
+lifecycle tick neither dials nor stamps a verdict.
 """
 import json
 import sys
@@ -34,6 +43,10 @@ def check(n, cond, msg=""):
     print(("PASS  " if cond else "FAIL  ") + str(n) + ("  " + str(msg) if msg else ""))
 
 client = TestClient(srv.app)
+import types as _types
+sys.modules["keyring"] = _types.SimpleNamespace(   # hermetic: no pair
+    get_password=lambda s, u: None, set_password=lambda s, u, v: None)
+db.set_setting(sched.KC_ENABLED_KEY, "0")  # weekly leg OFF until section 7
 r = client.post("/api/auth/register", json={"username": "schedadmin", "password": "pw"})
 admin_id = 1
 
@@ -197,6 +210,55 @@ sched.stop()
 check(6.4, sched.status()["thread_alive"] is False, "stop joins the thread")
 db.set_setting(sched.ENABLED_KEY, "0")
 check(6.5, sched.start() is False, "disabled -> start refuses")
+
+print("== 7. THE WEEKLY CREDENTIAL SELF-TEST LEG ==")
+db.set_setting(sched.KC_ENABLED_KEY, "1")   # the thread window closed in 6.4
+st7 = sched.status()
+check(7.1, st7["kc"]["enabled"] is True
+      and st7["kc"]["interval_s"] == 7 * 86400 and st7["kc"]["last"] == {},
+      f"weekly leg defaults ON at the weekly cadence: {st7['kc']}")
+# a fresh marker defers the probe: the leg is quiet, no dial, no audit
+db.set_setting(sched.KC_LAST_KEY, json.dumps(
+    {"ts": time.time(), "verdict": "unconfigured"}))
+s10 = sched.tick_once(reason="drive")
+check(7.2, "kc" not in s10
+      and db.get_setting(sched.KC_LAST_KEY, "").startswith('{"ts":'),
+      f"fresh marker -> quiet (no dial, no stamp churn): {s10.get('kc')}")
+# disabled = the explicit skip summary, and no throttle credit spent
+db.set_setting(sched.KC_ENABLED_KEY, "0")
+s11 = sched.tick_once(reason="drive")
+check(7.3, s11["kc"] == {"skipped": "disabled"}
+      and kr.KC_STATE["last"] == 0.0,
+      f"disabled leg stays quiet and free: {s11['kc']}")
+# due NOW with nothing configured: the SHARED selftest answers
+# 'unconfigured' (free — unconfigured burns no rate credit), the
+# verdict is stamped, and the skip is audited once per gap
+db.set_setting(sched.KC_ENABLED_KEY, "1")
+db.set_setting(sched.KC_LAST_KEY, json.dumps(
+    {"ts": 0.0, "verdict": "unconfigured"}))     # marker says: overdue
+s12 = sched.tick_once(reason="drive")
+check(7.4, s12["kc"] == {"verdict": "unconfigured", "tier": ""},
+      f"due + unconfigured -> the shared selftest's free verdict: {s12['kc']}")
+s13 = sched.tick_once(reason="drive")
+check(7.5, "kc" not in s13, "the stamped verdict defers the next probe")
+with db.get_db() as conn:
+    n_kcs = conn.execute("SELECT COUNT(*) c FROM audit_log WHERE "
+                         "action='scheduler.kc_skipped'").fetchone()["c"]
+check(7.6, n_kcs == 1, f"{n_kcs} scheduler.kc_skipped audit(s) — once per gap")
+# THE SHARED THROTTLE: a due scheduled leg meets the operator button's
+# fresh 30s stamp and must yield, never bypass or double-dial
+_real_fetch_guard = kr.KC_STATE["last"]
+db.set_setting(sched.KC_LAST_KEY, json.dumps(
+    {"ts": 0.0, "verdict": "valid"}))            # marker says: overdue
+kr.KC_STATE["last"] = time.time()                # the button just checked
+s14 = sched.tick_once(reason="drive")
+check(7.7, s14["kc"].get("verdict") == "throttled"
+      and s14["kc"].get("retry_after_s", 0) > 0
+      and s14["kc"].get("tier") == "",
+      f"the 30s KC throttle gates the scheduled call too: {s14['kc']}")
+kr.KC_STATE["last"] = 0.0
+db.set_setting(sched.KC_LAST_KEY, json.dumps(
+    {"ts": time.time(), "verdict": "unconfigured"}))  # tail hygiene
 
 passed, failed = results.count(True), results.count(False)
 print(f"RESULT: {passed} passed, {failed} failed")

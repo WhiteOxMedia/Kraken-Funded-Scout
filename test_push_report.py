@@ -34,6 +34,10 @@ import push_service as ps
 import scheduler as sched
 import server as srv
 from fastapi.testclient import TestClient
+import types as _types
+sys.modules["keyring"] = _types.SimpleNamespace(   # hermetic: no pair, no dial
+    get_password=lambda s, u: None, set_password=lambda s, u, v: None)
+db.set_setting(sched.KC_ENABLED_KEY, "0")  # this drive pins the report legs only
 
 results = []
 def check(n, cond, msg=""):

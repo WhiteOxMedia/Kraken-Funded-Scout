@@ -11,12 +11,20 @@ One daemon thread per server process that:
      notifying ONCE per expiry inside the final 48h — "send the user a
      notice before the window expires and no Referral bonus is gifted";
   3. stamps a heartbeat (SCHEDULER_HEARTBEAT) so the admin card can
-     distinguish "alive" from "silently dead".
+     distinguish "alive" from "silently dead";
+  4. runs kr.credential_selftest() on a WEEKLY cadence (default
+     604800s, operator-adjustable, floor one hour) so the stored
+     posture verdict never goes stale: the proof the pair WORKS is
+     refreshed by the same timer that runs the projection, through
+     the SAME shared 30s throttle and audit trail the operator's
+     button uses. Unconfigured burns no rate credit, so a bare box
+     is checked weekly for free.
 
 Every tick is usable synchronously (tick_once) so tests and the admin
 trigger exercise the exact code the timer runs.
 """
 import json
+import sys
 import threading
 import time
 import traceback
@@ -34,6 +42,11 @@ ENABLED_KEY = "SCHEDULER_ENABLED"            # "1" -> thread runs
 INTERVAL_KEY = "SCHEDULER_INTERVAL_S"        # seconds between worker runs
 DEFAULT_INTERVAL_S = 3600
 NOTICE_WINDOW_S = 48 * 3600                  # notify inside the final 48h
+KC_ENABLED_KEY = "SCHEDULER_KC_ENABLED"      # "1" -> weekly self-test leg
+KC_INTERVAL_KEY = "SCHEDULER_KC_INTERVAL_S"  # seconds between self-tests
+KC_LAST_KEY = "SCHEDULER_LAST_KC"            # {"ts": epoch, "verdict": str}
+KC_DEFAULT_INTERVAL_S = 7 * 86400            # the weekly default
+KC_FLOOR_S = 3600                            # never dial Kraken more often
 
 _state = {"thread": None, "stop": None}
 
@@ -49,6 +62,30 @@ def _interval():
 
 def _enabled():
     return str(db.get_setting(ENABLED_KEY, "0") or "") == "1"
+
+
+def _kc_enabled():
+    # the weekly self-test defaults ON — an unattended verdict is how
+    # a dead key hides; flipping OFF is the operator's explicit choice
+    return str(db.get_setting(KC_ENABLED_KEY, "1") or "") == "1"
+
+
+def _kc_interval_s():
+    try:
+        v = int(float(db.get_setting(KC_INTERVAL_KEY, KC_DEFAULT_INTERVAL_S)
+                      or KC_DEFAULT_INTERVAL_S))
+    except (TypeError, ValueError):
+        return KC_DEFAULT_INTERVAL_S
+    return max(KC_FLOOR_S, v)
+
+
+def _kc_due(last):
+    ts = last.get("ts")
+    try:
+        ts = float(ts) if ts else 0.0
+    except (TypeError, ValueError):
+        ts = 0.0
+    return (time.time() - ts) >= _kc_interval_s()
 
 
 def window_status():
@@ -117,6 +154,13 @@ def tick_once(reason: str = "manual") -> dict:
                       trigger=reason)
         summary["worker"] = res
     db.set_setting(LAST_WORKER_KEY, json.dumps(last))
+    # the weekly self-test's own marker, loaded with the others
+    try:
+        kcl = json.loads(db.get_setting(KC_LAST_KEY, "{}") or "{}")
+        if not isinstance(kcl, dict):
+            kcl = {}
+    except ValueError:
+        kcl = {}
     # 2. the notice leg — the operator's calendar decides; a window is
     # notified at most ONCE per expiry (marker), no matter how many
     # ticks land inside the final 48h
@@ -155,6 +199,48 @@ def tick_once(reason: str = "manual") -> dict:
         summary["push_report"] = "rolled up"
     except Exception as exc:                           # noqa: BLE001
         summary["push_report"] = f"error: {str(exc)[:80]}"
+        try:
+            kr.emit_audit(None, "scheduler.error",
+                          leg="push_report", error=str(exc)[:200])
+        except Exception:                              # noqa: BLE001
+            print("scheduler: push_report audit failed", file=sys.stderr)
+    # 4. the weekly credential self-test leg: the SAME call the admin
+    # key-check button makes (one signed read-only Balance probe, the
+    # shared KC throttle in kraken_referral, verdict persisted to the
+    # KC_LAST_KEY posture store, audited there) — its own interval
+    # marker and cadence so the verdict the posture prints is never
+    # stale. A throttled or unconfigured answer still stamps (both are
+    # free) and is audited only once per gap, like the worker's skip.
+    if _kc_enabled() and _kc_due(kcl):
+        try:
+            res = kr.credential_selftest()
+            verdict = str(res.get("verdict") or "unknown")
+            kcl = {"ts": time.time(), "verdict": verdict}
+            summary["kc"] = {"verdict": verdict,
+                              "tier": res.get("credentials_tier") or ""}
+            if res.get("retry_after_s") is not None:
+                summary["kc"]["retry_after_s"] = res["retry_after_s"]
+            if verdict in ("throttled", "unconfigured"):
+                # nothing was proven either way — the once-per-gap skip
+                # audit, not a per-attempt result row
+                kr.emit_audit(None, "scheduler.kc_skipped",
+                              reason=verdict, interval_s=_kc_interval_s())
+            else:
+                kr.emit_audit(None, "scheduler.kc_ran",
+                              verdict=verdict,
+                              tier=res.get("credentials_tier") or "")
+        except Exception as exc:                       # noqa: BLE001
+            # the leg must never kill the tick (the worker leg's rule)
+            summary["kc"] = f"error: {str(exc)[:80]}"
+            try:
+                kr.emit_audit(None, "scheduler.error",
+                              leg="credential_selftest",
+                              error=str(exc)[:200])
+            except Exception:                          # noqa: BLE001
+                print("scheduler: kc audit failed", file=sys.stderr)
+    elif not _kc_enabled():
+        summary["kc"] = {"skipped": "disabled"}
+    db.set_setting(KC_LAST_KEY, json.dumps(kcl))
     db.set_setting(HEARTBEAT_KEY, str(time.time()))
     return summary
 
@@ -211,12 +297,20 @@ def status() -> dict:
             last = {}
     except ValueError:
         last = {}
+    try:
+        kcl = json.loads(db.get_setting(KC_LAST_KEY, "{}") or "{}")
+        if not isinstance(kcl, dict):
+            kcl = {}
+    except ValueError:
+        kcl = {}
     return {
         "enabled": _enabled(),
         "thread_alive": bool(_state["thread"] and _state["thread"].is_alive()),
         "interval_s": _interval(),
         "heartbeat_age_s": (round(time.time() - hb, 1) if hb else None),
         "last_worker": last,
+        "kc": {"enabled": _kc_enabled(), "interval_s": _kc_interval_s(),
+               "last": kcl},
         "window": window_status(),
         "last_notice_expiry":
             str(db.get_setting(LAST_NOTICE_KEY, "") or "") or None,
