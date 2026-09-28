@@ -515,10 +515,7 @@ if not records:
     else:
         print("RAWFALLBACK") # never parsed at all: eyes on
     sys.exit(0)
-n = 0
-sevs = []
-for o in records:
-    f = o.get("fileName") or o.get("file") or o.get("path") or "?"
+def _line_of(o):
     l = o.get("startLine")
     if l is None:
         l = o.get("line")
@@ -532,21 +529,107 @@ for o in records:
         if m:
             l = m.group(1)
     if l is None:
-        l = o.get("endLine") or "?"
-    s = str(o.get("severity") or "?")
-    # title fallbacks: null fields appear in the live stream even when
-    # the local store later fills them — never print ? while any
-    # descriptive text survives in the record
-    t = (o.get("title") or o.get("comment") or o.get("type")
-         or o.get("commentCategory") or "")
+        l = o.get("endLine")
+    return l
+
+
+def _text_of(o):
+    t = (o.get("title") or o.get("comment") or "")
+    if not t:
+        ty = str(o.get("type") or "")
+        if ty and ty.lower() != "finding":   # 0.8.1's stream type IS the literal
+            t = ty   # "finding" — text-shaped noise that would defeat the
+                     # skeletal detector; a real type name still counts
+    if not t:
+        cat = o.get("commentCategory")
+        t = str(cat) if cat else ""
     if not t and o.get("indicatorTypes"):
         t = ", ".join(str(x) for x in o["indicatorTypes"])
-    if (not t or t == "finding") and o.get("codegenInstructions"):
+    if not t and o.get("codegenInstructions"):
         m = re.search(r"Review comment at @[^\s]+ at line \d+:\s*(.+)",
                       str(o["codegenInstructions"]), re.S)
         if m:
             t = m.group(1)   # 0.8.1: the real comment text rides after that prefix
-    t = str(t).strip().splitlines()[0][:100] if str(t).strip() else "(no title text in stream)"
+    t = str(t).strip()
+    return t or None
+
+
+def _store_records():
+    """The 0.8.1 LIVE STREAM can emit skeletal finding records (type
+    fileName severity and nothing else) while the CLI's own local
+    review store fills title/lines/comment afterwards. When the stream
+    is skeletal, join against the FRESHEST store review dir - but only
+    when its epoch is recent (the dir name is the review's epoch ms),
+    so a stale store can never dress up a different review's findings."""
+    import os, glob, time
+    out = []
+    try:
+        root = os.path.join(
+            os.environ.get("LOCALAPPDATA")
+            or os.path.expanduser("~/AppData/Local"),
+            "CodeRabbit", "reviews")
+        dirs = [d for d in glob.glob(
+            os.path.join(root, "*", "*", "reviews", "*"))
+            if os.path.isdir(d)]
+        if not dirs:
+            return out
+        newest = max(dirs, key=os.path.getmtime)
+        try:
+            if abs(int(time.time() * 1000)
+                   - int(os.path.basename(newest))) > 30 * 60 * 1000:
+                return out   # stale: not this review, never join it
+        except ValueError:
+            pass
+        for p in glob.glob(os.path.join(newest, "*.json")):
+            try:
+                with open(p, encoding="utf-8") as fh:
+                    val = json.load(fh)
+            except Exception:
+                continue
+            if isinstance(val, dict) and val.get("fileName") \
+                    and val.get("severity"):
+                out.append(val)
+    except Exception:
+        pass
+    return out
+
+
+# a record is SKELETAL when neither a line nor any text is extractable:
+# the stream gave file+severity only (the 0.8.1 live shape)
+_skeletal = [o for o in records
+             if _line_of(o) is None and _text_of(o) is None]
+if _skeletal:
+    _store = _store_records()   # fetched ONCE - id-dedup needs stable objects
+    _used = set()
+    for o in _skeletal:
+        for sr in _store:
+            if id(sr) in _used:
+                continue
+            if sr.get("fileName") == o.get("fileName") \
+                    and str(sr.get("severity")) == str(o.get("severity")):
+                _used.add(id(sr))
+                for k in ("startLine", "endLine", "lineRange", "title",
+                          "comment", "codegenInstructions"):
+                    if o.get(k) is None and sr.get(k) is not None:
+                        o[k] = sr[k]
+                break
+
+n = 0
+sevs = []
+for o in records:
+    f = o.get("fileName") or o.get("file") or o.get("path") or "?"
+    l = _line_of(o)
+    if l is None:
+        l = "?"
+    s = str(o.get("severity") or "?")
+    t = _text_of(o)
+    if t:
+        t = t.splitlines()[0][:100]
+    elif _line_of(o) is not None:
+        t = "(no title text in stream)"     # has a line, no text: the old
+                                            # honest message still applies
+    else:
+        t = "(stream gave no line/text - full record in the local store)"
     n += 1
     sevs.append(s)
     print("- %s:%s [%s] %s" % (f, l, s, t))
