@@ -56,12 +56,26 @@ def main() -> int:
         print(err, flush=True)
     # THE SKIP SIGNATURE (all three required - see the docstring):
     # exited 0, the 0/0 RESULT line, and a SKIP note in the output.
+    # Checked FIRST: a skip IS a 0/0 RESULT, so the honest-skip branch
+    # must answer before the empty-contract refusal below.
     last = [l for l in out.splitlines() if l.startswith("RESULT:")]
     if (p.returncode == 0
             and last and last[-1].strip() == "RESULT: 0 passed, 0 failed"
             and "SKIP:" in out):
         print(f"SKIP: {SKIP_NOTE}")
         return SKIP_EXIT
+    # THE EMPTY-CONTRACT REFUSAL (CodeRabbit major, Sep 28, fixed same
+    # day): exit 0 with a 0/0 RESULT and NO skip note is not a pass —
+    # a drive that ran nothing just certified nothing. That shape is
+    # FAILed loudly (the wrapper's own nonzero, the reason on stderr)
+    # instead of masquerading as the child's success via a bare
+    # `return p.returncode`.
+    if (p.returncode == 0 and last
+            and last[-1].strip() == "RESULT: 0 passed, 0 failed"):
+        print("FAIL: the drive certified nothing - a 0/0 RESULT with no "
+              "SKIP note is an empty contract, not a pass",
+              file=sys.stderr)
+        return 1
     return p.returncode
 
 

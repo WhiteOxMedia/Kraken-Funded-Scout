@@ -16,7 +16,8 @@ the job with real data and an honest bracket:
      preserved. So the referee's single GF is a point estimate on a
      hidden time series. The honest closure is a SENSITIVITY BRACKET:
      the referee's two policies re-simmed across the clamp's full
-     meaningful range (0.7, 1.0, 1.5, 2.0) - if the ordering
+     meaningful range: the guard's own GUARD_CLAMP band edges plus
+     the interior points (0.7, 1.0, 1.5) — if the ordering
      (which policy wins) is stable across the bracket, the verdict is
      robust to the unknown history; if it flips, the referee's verdict
      was an artifact of one number.
@@ -152,11 +153,28 @@ def walk(g, policy, gf):
 
 print(f"\n== 2. THE SENSITIVITY BRACKET ({len(graded)}-trade book, 5m data, "
       f"actual +{act:.2f}) ==")
+# THE BRACKET READS THE MACHINE'S OWN CLAMP (CodeRabbit major, Sep 28,
+# fixed same day): the sweep started at the DECAY_FLOOR 0.7, but the
+# guard's final factor clamps to GUARD_CLAMP = (0.5, 2.0) — the hard
+# band every live factor lives inside. A 0.6 world is real machinery
+# the bracket never measured. The sweep imports profit_guard's
+# constants (no retyped literals): band edges ALWAYS swept, inner
+# points (0.7, 1.0, 1.5) show the ordering story, and the header
+# prints the clamp so the bracket and the machine can never drift
+# apart silently.
+try:
+    import profit_guard as _pgb
+    _lo, _hi = (float(x) for x in _pgb.GUARD_CLAMP)
+except Exception:
+    _lo, _hi = 0.5, 2.0        # fail-open to the committed band (Sep 27)
+_bracket = sorted({round(_lo, 4), 0.7, 1.0, 1.5, round(_hi, 4)})
+print(f"live factor clamp: GUARD_CLAMP = ({_lo}, {_hi}) — the bracket "
+      f"covers the band's edges + the interior points")
 print(f"{'GF':>5} | {'live total':>10} | {'hybrid total':>12} | "
       f"{'live ctrl':>10} | {'hyb ctrl':>9} | winner")
 print("-" * 74)
 rows = {}
-for gf in (0.7, 1.0, 1.5, 2.0):
+for gf in _bracket:
     tot = {"live": 0.0, "hybrid": 0.0}
     ctrl = {"live": 0.0, "hybrid": 0.0}
     for g in graded:
