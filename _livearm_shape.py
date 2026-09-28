@@ -56,6 +56,7 @@ def walk_live(g):
         if not armed and goal > 0 and (peak / entry - 1.0) * 100.0 >= arm_at:
             armed = True                         # LATCHED: stays armed
         w = ratchet_w(entry, peak)
+        floored = False
         if armed:
             cap = max(goal * ARM_FRAC, 1.0)      # the 1.0% floor
             lock_w = max(0.0, (1.0 - floor_px / peak) * 100.0)
@@ -63,11 +64,19 @@ def walk_live(g):
                 cap = min(cap, lock_w)           # the PRICE floor
             w = min(w, cap)
         stop = peak * (1 - w / 100.0)
-        floored = False
-        if stop < floor_px:
-            stop = floor_px                      # never below entry + 2xRT
+        if armed and stop < floor_px <= peak:
+            # CODE RABBIT MAJOR (Sep 27): the floor binds ONLY once armed
+            # (the pre-arm ratchet was never floor-locked) and ONLY when
+            # the peak has actually reached the floor level - a clamp on
+            # an unreachable peak placed fills at prices the market
+            # never traded (entry 100, hi 100.10, stop "100.16").
+            stop = floor_px
             floored = True
         if peak > entry and lo <= stop:
+            if stop > hi:
+                # the floor put the stop above THIS bar's traded range:
+                # no fill at an untraded price; the trail stands
+                continue
             return stop, "trail", floored
     return None
 
@@ -137,9 +146,10 @@ print(f"{'ACTUAL (the ladder)':<22} | {'-':>5} | {'-':>9} | {'-':>5} | "
 print("\n== FIDELITY LIMITS (what this bar-granularity sim CANNOT see) ==")
 print("  1. INTRABAR ORDER: on a 1h bar the walk cannot order a goal "
       "touch against a stop touch; bank-first is assumed. Real-time "
-      "sampling (seconds) resolves touches in true order and favors "
-      "BANKS - the live shape's 11 banks vs the ledger's real 25 "
-      "took-the-goal exits is partly this artifact.")
+      "sampling resolves touches in true order, which moves outcomes "
+      "BOTH ways - a stop-first touch turns a sim bank into a trail "
+      "exit, a goal-first touch preserves it. Ordering is NOT a "
+      "systematic rescue for either policy.")
 print("  2. THE GUARD FACTOR IS OMITTED: the live trail is multiplied by "
       "_pgf (often ~2, 'let it run') and _eg_m before the cap binds, so "
       "the REAL armed width is looser than this sim's; the floor then "
@@ -151,11 +161,13 @@ tot_ok = a["total"] > b["total"]
 print("\n== VERDICT (relative bar, WITH the fidelity caveats above) ==")
 print(f"control: live {a['ctrl']:+.2f} vs hybrid {b['ctrl']:+.2f} -> "
       f"{'PASSES the relative bar' if bar_ok else 'worse than the comparator'}")
-print(f"totals vs actual: live {a['total']:+.2f}, hybrid {b['total']:+.2f} -> "
+print(f"totals vs actual: live {a['total']:+.2f}, hybrid {b['total']:+.2f}, "
+      f"actual +{act:.2f} -> "
       f"{'the live shape realizes more' if tot_ok else 'the hybrid realizes more'}")
-print(f"price floor engaged on {a['floor']} armed exits - at bar granularity "
-      "the half-goal arm + floor is a breakeven-locking machine (rides "
-      f"average {a['ride'] / a['rides'] if a['rides'] else 0:+.2f} $)")
+print(f"price floor engaged on {a['floor']} armed exits (after the "
+      f"scoping fix; pre-fix it clamped 50 fills at prices the market "
+      f"never traded) - rides average "
+      f"{a['ride'] / a['rides'] if a['rides'] else 0:+.2f} $")
 if bar_ok and tot_ok:
     print("VERDICT: the exact live shape beats its own abstraction at this "
           "granularity")
@@ -163,9 +175,9 @@ else:
     print("VERDICT: NOT ADJUDICABLE AT CANDLE GRANULARITY. The bar-level "
           "sim makes the live shape look weaker than its abstraction "
           "(totals -67.70 vs +42.38, control -196.15 vs -95.96), but both "
-          "fidelity gaps point the same way: real-time sampling and the "
-          "guard-factor widening - the pieces the sim omits - are exactly "
-          "what would rescue it, and the ledger's REAL 25 goal-banks under "
-          "the true machinery already prove the sim understates the live "
-          "shape. A tick-level replay is the only honest referee; the "
-          "incumbent stands, uncondemned.")
+          "fidelity gaps both bias this sim AGAINST the live shape in "
+          "specific, stated ways (stop-first ordering reduces banks; "
+          "the omitted guard widening tightens the sim's widths), yet "
+          "ordering can also cut the other way - the net direction is "
+          "unknown. A tick-level replay is the only honest referee; "
+          "the incumbent stands, uncondemned and un-crowned.")

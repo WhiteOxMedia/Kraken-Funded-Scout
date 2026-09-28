@@ -39,7 +39,17 @@ _MAX_TS = vs._db().execute("SELECT MAX(ts) FROM ohlcv").fetchone()[0]
 
 
 def second_chance(g):
-    """(exit_px, reached_goal, mae_pct) or None if censored."""
+    """(exit_px, reached_goal, mae_pct) or None if censored.
+    CODE RABBIT MAJORS (Sep 27), all three addressed:
+    - PAIR COVERAGE: _MAX_TS is global across pairs, so a pair whose own
+      candles end early would silently report a zero-delta horizon exit
+      (no rows -> last_close = actual). The trade is CENSORED unless its
+      own pair has a candle within 1.5 candle-widths of the horizon end.
+    - DRAWDOWN STOPS AT THE EXIT: the position is gone at the goal
+      touch, so the touch bar's low and every later bar are excluded
+      from the excursion. The touch bar's own low is intrabar-ambiguous
+      (low may precede the touch); it is counted separately, not in
+      worst - so `worst` is a LOWER bound on true holding risk."""
     goal_px = g["entry"] * (1 + g["goal"] / 100.0)
     act_px = g["exit"]
     end = int(g["ex_ms"] + H)
@@ -48,15 +58,27 @@ def second_chance(g):
     reached = None
     worst = 0.0
     last_close = act_px
+    last_ts = None
     for ts, hi, lo, cl in vs._db().execute(
             "SELECT ts, high, low, close FROM ohlcv WHERE pair=? AND ts>?"
             " AND ts<=? ORDER BY ts",
             (g["pair"], int(g["ex_ms"]), end)):
-        if reached is None and hi >= goal_px:
-            reached = goal_px
-        dd = (min(lo, cl) - act_px) / act_px * 100.0
-        worst = min(worst, dd)
-        last_close = cl
+        # last_ts tracks the pair's FULL window coverage INDEPENDENTLY of
+        # the touch break - the first draft broke on the touch and let
+        # the coverage check censor every touched trade (observed: 51
+        # touches vanished, net flipped -140 -> -512). Exposure stops at
+        # the touch; coverage accounting does not.
+        last_ts = ts
+        if reached is None:
+            if hi >= goal_px:
+                reached = goal_px        # exit HERE; this bar's low is
+                last_close = cl          # intrabar-ambiguous, see docstring
+                continue
+            dd = (min(lo, cl) - act_px) / act_px * 100.0
+            worst = min(worst, dd)
+            last_close = cl
+    if last_ts is None or last_ts < end - 5400000:
+        return None                      # the pair's own coverage ends early
     px = reached if reached is not None else last_close
     return px, reached is not None, worst
 
@@ -131,19 +153,26 @@ for cn in sorted(groups, key=lambda c: cls[c][0]):
     print(f"{cn.ljust(18)}{d:>10.2f}  {nr:>8d} {nh:>6d}")
 
 print(f"\nNET: {tot:+.2f} $ across the book")
-print("== VERDICT ==")
-print(f"the uniform extension PAYS on the book ({tot:+.2f} $) but the "
-      f"control shows where it bites: {ctrl:+.2f} from holding "
-      f"took-the-goal books whose live fill sat BELOW their strategy "
-      f"goal - at run time those books look like cuts, so the rule would "
-      f"hold them, and holding them past a below-goal bank is the cost.")
-print(f"the cut-cohort-only view (the books the extension is FOR) earns "
-      f"{tot - ctrl:+.2f} $; the extension's gain is real but bought with "
-      f"a modest, explained control cost ({ctrl:+.2f}).")
-print(f"RISK: worst single-book drawdown while holding was "
-      f"{worst_single:.2f}% below the cut price, and the tail is fat - "
-      f"a naked goal-or-bust hold is NOT the recommendation. The safe "
-      f"implementable form: on a cut exit, EXTEND the watch row up to "
-      f"24h WITH the incumbent trail machinery still live (the second "
-      f"chance rides under protection, not naked), and re-study before "
-      f"any dial moves. The incumbent ladder is unchanged.")
+print("== VERDICT (derived from the computed values, per the CodeRabbit "
+      "major: no fixed conclusion) ==")
+if tot > 0:
+    print(f"the extension REALIZES MORE on this book: {tot:+.2f} $")
+else:
+    print(f"the extension REALIZES LESS on this book: {tot:+.2f} $ - "
+          f"the ladder's cuts were right at this horizon")
+if ctrl < 0:
+    print(f"the control cost {ctrl:+.2f} comes from holding "
+          f"took-the-goal books whose live fill sat BELOW their strategy "
+          f"goal - at run time those look like cuts; the cut-cohort-only "
+          f"view earns {tot - ctrl:+.2f} $")
+else:
+    print(f"the control cohort gained {ctrl:+.2f} under the extension")
+print(f"RISK: worst pre-touch drawdown below the cut price was "
+      f"{worst_single:.2f}% (a LOWER bound: the touch bar's own low is "
+      f"intrabar-ambiguous and excluded).")
+if tot > 0 and worst_single > -25.0:
+    print("the safe implementable form, IF pursued: extend the watch row "
+          "up to 24h on a cut exit WITH the incumbent trail machinery "
+          "live (protected, not naked), behind an operator dial, "
+          "re-studied before any dial moves.")
+print("the incumbent ladder is unchanged.")
