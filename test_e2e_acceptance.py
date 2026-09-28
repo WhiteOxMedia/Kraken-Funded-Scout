@@ -30,8 +30,14 @@ def check(n, cond, why=""):
           + (f"  ({why})" if why and not cond else ""))
 
 
-WALLET = ("4AoPP7szGLmG9qG1HQg6fXH84nyprSP4tbUTiCXmCoagWqAKZYGerv63kradK"
-          "AqpufNZ5H3PGMNeDfrAUa9iZtiyCUMcCms")
+# Sep 28: the payout gate runs the OFFLINE mainnet validation (decode,
+# netbyte, Keccak checksum), so the fixture wallet is CONSTRUCTED-VALID
+# through pool/address_check's own encoder — not a remembered constant.
+import hashlib  # noqa: E402
+from address_check import b58encode as _b58e, keccak256 as _k256  # noqa: E402
+_sp = hashlib.sha256(b"e2e-acceptance spend fixture").digest()
+_vw = hashlib.sha256(b"e2e-acceptance view fixture").digest()
+WALLET = _b58e(b"\x12" + _sp + _vw + _k256(b"\x12" + _sp + _vw)[:4])
 assert len(WALLET) == 95
 
 client = TestClient(srv.app)

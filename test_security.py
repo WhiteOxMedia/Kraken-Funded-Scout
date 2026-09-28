@@ -198,9 +198,20 @@ _adb.init_db()
 import server as _srv
 _cl = _TC(_srv.app)
 
-WGOOD = "4" + "9" * 94          # 95 chars, house shape
-WGOOD2 = "4" + "8" * 94
-WGOOD3 = "4" + "7" * 94
+# Sep 28: the ingest gate runs the OFFLINE mainnet validation (decode,
+# netbyte, Keccak checksum), so the good-wallet fixtures are
+# CONSTRUCTED-VALID through pool/address_check's own encoder.
+_sysp = ("spend-a", "spend-b", "spend-c")
+VGOOD = []
+for _i, _nm in enumerate(_sysp):     # _t is this drive's time alias —
+    _fsp = _hashlib.sha256(          # never shadow it (fleet-caught)
+        f"security-drive-{_nm}".encode()).digest()
+    _fvw = _hashlib.sha256(
+        f"security-drive-view-{_nm}".encode()).digest()
+    VGOOD.append(_srv._addr.b58encode(
+        b"\x12" + _fsp + _fvw
+        + _srv._addr.keccak256(b"\x12" + _fsp + _fvw)[:4]))
+WGOOD, WGOOD2, WGOOD3 = VGOOD
 WBAD = "PENDING_AuditJunk"      # the junk shape seen in the live table
 assert _srv._wallet_shape_ok(WGOOD) and not _srv._wallet_shape_ok(WBAD)
 

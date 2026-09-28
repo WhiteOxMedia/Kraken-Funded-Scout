@@ -28,6 +28,7 @@ import field_crypto as _fc
 import jackpot_engine as engine
 import security
 import monero_wallet as xmr
+import address_check as _addr   # offline mainnet payout-address gate
 
 app = FastAPI(title="XMR Jackpot Pool")
 
@@ -207,12 +208,13 @@ MINER_DELTA_CAP = 500_000        # max per-call delta (5k tickets)
 
 
 def _wallet_shape_ok(addr: str) -> bool:
-    """The house wallet shape rule (mirrors installer.valid_wallet):
-    starts 4 or 8, 90-120 chars. Junk rows like the live table's
-    'PENDING_*' never enter through an ingest gate."""
-    a = (addr or "").strip()
-    return (a.startswith("4") or a.startswith("8")) \
-        and 90 <= len(a) <= 120
+    """The house wallet gate (Sep 28): an OFFLINE mainnet-standard
+    validation — CN-Base58 decode, netbyte 0x12, Keccak-256 checksum
+    — replacing the old prefix/length shape rule that could pass a
+    testnet/stagenet/integrated or corrupt address into the payout
+    queue. Fail-closed with named reasons in address_check.validate();
+    junk rows like the live table's 'PENDING_*' still never enter."""
+    return _addr.is_valid(addr)
 
 
 def _miner_sig_ok(key: str, ts: int, wallet: str, sv: int,
@@ -914,15 +916,15 @@ async def api_register(req: RegisterRequest, request: Request):
     # blind index (email_exists) — same 409 contract, no plaintext scan.
     if req.email and db.email_exists(req.email):
         raise HTTPException(409, "Email already registered")
-    # KRAKEN WALLET FORMAT (Sep 26 E2E acceptance): a provided wallet
-    # must LOOK like a Monero address (95 chars, 4/8 prefix, base58
-    # alphabet) - an empty value is fine (wallet optional).
+    # KRAKEN WALLET FORMAT (Sep 26 E2E; UPGRADED Sep 28): a provided
+    # wallet must survive the OFFLINE mainnet validation — decode,
+    # netbyte, Keccak checksum — not just look Monero-shaped. An empty
+    # value stays fine (wallet optional).
     if req.wallet_address:
-        _w = req.wallet_address.strip()
-        if (len(_w) != 95 or _w[0] not in "48"
-                or not all(c in _B58 for c in _w)):
+        _ok, _why = _addr.validate(req.wallet_address.strip())
+        if not _ok:
             raise HTTPException(400, "Wallet address does not look like a "
-                                     "valid Monero address")
+                                     f"valid Monero address — {_why}")
 
     # First user becomes admin
     user_count = len(db.get_all_users())
@@ -1285,11 +1287,12 @@ async def api_winner_claim(req: ClaimRequest, request: Request):
     if not wallet:
         raise HTTPException(400, "Wallet address required")
 
-    # Basic Monero address validation: starts with 4 or 8, length 90-120
-    if not (wallet.startswith("4") or wallet.startswith("8")):
-        raise HTTPException(400, "Invalid Monero address — must start with 4 or 8")
-    if len(wallet) < 90 or len(wallet) > 120:
-        raise HTTPException(400, "Invalid Monero address length")
+    # THE PAYOUT GATE (Sep 28): offline mainnet validation — decode,
+    # netbyte, Keccak checksum — before the address can enter the
+    # payout queue; the loose prefix/length rule is gone.
+    _ok, _why = _addr.validate(wallet)
+    if not _ok:
+        raise HTTPException(400, f"Invalid Monero address — {_why}")
 
     # Update user's wallet
     db.update_user_profile(user["id"], wallet_address=wallet)

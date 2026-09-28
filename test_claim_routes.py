@@ -131,10 +131,25 @@ def check(n, cond, why=""):
     print(f"{'PASS' if cond else 'FAIL'}  {n}  {why}".rstrip())
 
 
-# shape helpers (the 4/8 prefix, 90-120 chars rule)
-_W_A = "4" + "a" * 95
-_W_B = "4" + "b" * 95
-_CLAIM_WALLET = "8" + "c" * 95        # what the winner claims WITH
+# wallet fixtures (Sep 28: the payout gate now runs the OFFLINE
+# mainnet validation — decode, netbyte, Keccak checksum — so every
+# fixture here is a CONSTRUCTED-VALID mainnet address, built through
+# pool/address_check's own encoder; the junk '4aaa…' shapes of the
+# loose-gate era no longer reach the routes)
+sys.path.insert(0, str(HERE / "pool"))
+import address_check as _ac  # noqa: E402
+
+
+def _mkwallet(tag: str) -> str:
+    spend = hashlib.sha256(f"claim-fixtures-spend-{tag}".encode()).digest()
+    view = hashlib.sha256(f"claim-fixtures-view-{tag}".encode()).digest()
+    return _ac.b58encode(b"\x12" + spend + view
+                         + _ac.keccak256(b"\x12" + spend + view)[:4])
+
+
+_W_A = _mkwallet("alpha")
+_W_B = _mkwallet("bravo")
+_CLAIM_WALLET = _mkwallet("claim")    # what the winner claims WITH
 
 print("== 0. the sandbox stage: one miner per winner-username ==")
 # miners are matched to users by worker_name == username (the route's
