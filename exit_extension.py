@@ -147,14 +147,24 @@ def read_dials() -> dict:
 
 
 # ── the cut-class gate ───────────────────────────────────────────────
-_CUT_MARKS = ("PROFIT GUARD FIRED", "STOPPED OUT", "Trend broke",
+_CUT_MARKS = ("PROFIT GUARD FIRED", "Trend broke",
               "Climax candle")
-_NEVER_MARKS = ("THESIS DEAD",)          # deliberate no-reentry: never a cut
+_NEVER_MARKS = ("THESIS DEAD",           # deliberate no-reentry: never a cut
+                "STOPPED OUT")           # the hard stop (the platform
+                                         # death-line) always wins — the
+                                         # critical the isolated review
+                                         # caught Sep 28: an active window
+                                         # used to suppress the account-
+                                         # killer stop itself (bf9c8da-era
+                                         # classification, not the study's
+                                         # measured population)
 
 
 def is_cut_reason(reason: str) -> bool:
     """TRUE only for the cut-class exits the study measured. THESIS DEAD
-    is a strategy verdict, not a dip — it always exits."""
+    is a strategy verdict and STOPPED OUT is the hard stop (the platform
+    death-line, URGENT push, 'get out and wait for the next one') — both
+    always exit; neither is ever a dip to ride."""
     r = str(reason or "")
     if any(m in r for m in _NEVER_MARKS):
         return False
@@ -204,7 +214,8 @@ def exit_verdict(pair: str, w: dict, reason: str,
 
     The precedence order IS the safety story:
       1. dial OFF            -> exit (fail-safe to the incumbent)
-      2. THESIS DEAD / non-cut -> exit (the gate never holds these)
+      2. THESIS DEAD / hard stop / non-cut -> exit (the gate never
+         holds these — the account-killer stop outranks every window)
       3. active extension    -> suppress (the ride continues; it was
          armed under the same precondition, so no re-judgement — the
          ride must be allowed to approach its goal)

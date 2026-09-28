@@ -133,7 +133,15 @@ try:
     # ── 2. the cut-class gate ─────────────────────────────────────────
     check("2.1 the profit guard IS a cut (the study's measured class)",
           ex.is_cut_reason("PROFIT GUARD FIRED — dropped 3.4% from the peak"))
-    check("2.2 the hard stop IS a cut", ex.is_cut_reason("STOPPED OUT — down $100"))
+    # 2.2 INVERTED (CodeRabbit CRITICAL on the b79fcc2 review, Sep 28):
+    # "STOPPED OUT" lived in _CUT_MARKS, so an active window suppressed
+    # the hard stop itself — the account-killer exit, at half the
+    # platform death-line buffer, was holdable under an extension. The
+    # stop is final machinery (URGENT push, "get out and wait for the
+    # next one"); it joins THESIS DEAD in the NEVER class.
+    check("2.2 the hard stop is NEVER a cut (the account-killer exit "
+          "outranks every window)",
+          ex.is_cut_reason("STOPPED OUT — down $100") is False)
     check("2.3 the trend bar IS a cut",
           ex.is_cut_reason("Trend broke — 59% bearish, past the 50% bar"))
     check("2.4 the climax IS a cut",
@@ -289,11 +297,21 @@ try:
     w_deep = {"pair": "FIL/USD", "entry": 1.2674, "goal_pct": 3.0,
               "added": (datetime.now().astimezone()
                         - timedelta(hours=2)).isoformat()}
+    # 11.3 REBUILT (the b79fcc2 critical): the STOPPED OUT shape now
+    # verifies the hard stop WINS even in the deep-under-goal case that
+    # used to arm — the precedence docstring's rule 2 beats rule 3.
     v, why = ex.exit_verdict("FIL/USD", w_deep,
                              "STOPPED OUT — down $100",
                              live=1.2674 * 1.03 * 0.3)   # ~30% of the way, well under the 98% line
-    check("11.3 a genuinely below-goal cut still arms (the extension "
-          "lives for the books with room left to reach)",
+    check("11.3 the hard stop wins even deep under goal (the case that "
+          "used to arm; the stop outranks every window)",
+          v == "exit" and "not a cut-class exit" in why
+          and "exit_extension" not in w_deep)
+    v, why = ex.exit_verdict("FIL/USD", w_deep,
+                             "PROFIT GUARD FIRED — dropped 2.2%",
+                             live=1.2674 * 1.03 * 0.3)   # ~30% of the way, well under the 98% line
+    check("11.3b a genuinely below-goal cut still arms (the extension "
+          "lives for the measured dip-class; the hard stop is out of it)",
           v == "suppress" and "exit_extension" in w_deep)
     w_nog = {"pair": "OP/USD", "entry": 0.1478,
              "added": (datetime.now().astimezone()
@@ -357,6 +375,17 @@ try:
           "safety gate, not a dial: no operator knob can relax it)",
           "ARM_FILL_SLACK = 0.98" in exx_src
           and exx_src.find("ARM_FILL_SLACK = 0.98") < exx_src.find("def _arm("))
+    # THE HARD STOP CLASSIFICATION (the b79fcc2 critical, frozen in
+    # stone): STOPPED OUT must stay in _NEVER_MARKS — a future edit that
+    # drifts it back into the cut class re-opens the account-killer
+    # suppression the review caught.
+    _cut_seg = exx_src[exx_src.find("_CUT_MARKS = ("):
+                      exx_src.find(")", exx_src.find("_CUT_MARKS = ("))]
+    _nev_seg = exx_src[exx_src.find("_NEVER_MARKS = ("):
+                       exx_src.find(")", exx_src.find("_NEVER_MARKS = ("))]
+    check("11.12 the hard stop is a NEVER mark in the source (the "
+          "critical class must stay dead)",
+          "STOPPED OUT" in _nev_seg and "STOPPED OUT" not in _cut_seg)
     _env(ex.ENABLED_KEY, "0")
 finally:
     # restore the operator's world exactly (leak-audit: env + files)
