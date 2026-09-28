@@ -2330,6 +2330,12 @@ def render_master(cfg: TradingConfig, kraken):
     # the all-time record.
     _render_funnel_plate()
 
+    # 🪦 BURIAL HINDSIGHT (Sep 28, user ask): did the gates' refusals
+    # cost money? — the recent suppression ledger priced through the
+    # verdict study's join (n, payer-rate, per-gate, top payers).
+    # Read-only; sits after the funnel as its all-time companion.
+    _render_burial_hindsight()
+
     # 🚫 WHAT THE FUNNEL BURIED (user rule, Sep 4, the POPCAT lesson: the
     # scanner's suppression verdicts used to print to the console window
     # only — a buried payer took three forensics scripts to name its
@@ -2501,6 +2507,151 @@ def _band_txt() -> str:
         logging.getLogger(__name__).debug(
             "carve-out night-band text skipped: %s", _exc)
     return ""
+
+
+# ═══ THE BURIAL HINDSIGHT PANEL (Sep 28, user ask): did the gates'
+# refusals cost money? ═══
+# THE SAME JOIN THE VERDICT STUDY USES (_verdict_study's burial side):
+# every suppression row is joined to the OHLCV cache — the price before
+# the refusal (the entry approximation) and the highest price in the
+# 7 hours after it — and measured: did the pair reach a goal-size run?
+# READ-ONLY everywhere: sqlite opens mode=ro via a URI (a repo-relative
+# path can never break the query), the journal is read_text only,
+# nothing is written, the scanner's live cache is never locked out.
+# Deduped to DISTINCT candidates (first refusal per pair per rotation —
+# the funnel re-records the same refusal every scan).
+def _burial_hindsight(
+        limit: int = 400) -> dict:
+    """The burial hindsight over recent suppressed candidates, through
+    the verdict study's join. Returns the aggregate (n, payer-rate,
+    per-gate stats, top buried payers) — never raises. The top list
+    carries PAYERS ONLY (run >= the 1.5% goal): a dud never headlines
+    the ones that ran."""
+    out = {"n": 0, "payers15": 0, "payers30": 0, "rate15": 0.0,
+           "by_gate": [], "top": [], "hours": 7, "goal": 1.5}
+    try:
+        import json
+        import sqlite3
+        from pathlib import Path as _P
+        db_path = _P(__file__).resolve().parent / "ohlcv_cache.db"
+        if not db_path.exists():
+            return out
+        con = sqlite3.connect(db_path.as_uri() + "?mode=ro", uri=True,
+                              timeout=2.0)
+        try:
+            sup_path = _P(__file__).resolve().parent \
+                / "popup_suppressions.jsonl"
+            rows = [json.loads(l) for l in
+                    sup_path.read_text(encoding="utf-8").splitlines()
+                    if l.strip()]
+            rows = [r for r in rows if r.get("pair")][-limit:]
+            first: dict[tuple, dict] = {}
+            for r in rows:
+                first.setdefault(
+                    (str(r.get("pair")), str(r.get("rot") or "day")), r)
+            stats = []
+            for r in first.values():
+                t = datetime.fromisoformat(str(r.get("ts", "")))
+                if t.tzinfo is None:
+                    t = t.replace(tzinfo=MST)
+                t_ms = int(t.timestamp() * 1000)
+                end_ms = t_ms + out["hours"] * 3_600_000
+                pre = con.execute(
+                    "SELECT close FROM ohlcv WHERE pair=? AND ts<? "
+                    "ORDER BY ts DESC LIMIT 1", (r["pair"], t_ms)).fetchone()
+                hi = con.execute(
+                    "SELECT MAX(high) FROM ohlcv WHERE pair=? AND ts>=? "
+                    "AND ts<=?", (r["pair"], t_ms, end_ms)).fetchone()
+                if not pre or not pre[0] or not hi or not hi[0]:
+                    continue
+                stats.append({
+                    "pair": str(r["pair"]), "gate": str(r.get("gate") or "?"),
+                    "quick": r.get("quick"),
+                    "run": (float(hi[0]) / float(pre[0]) - 1.0) * 100.0,
+                    "at": r["ts"][11:16] if isinstance(r.get("ts"), str)
+                          else ""})
+            n = len(stats)
+            out["n"] = n
+            if n:
+                out["payers15"] = sum(1 for s in stats if s["run"] >= 1.5)
+                out["payers30"] = sum(1 for s in stats if s["run"] >= 3.0)
+                out["rate15"] = out["payers15"] / n
+                by_gate: dict[str, dict] = {}
+                for s in stats:
+                    g = by_gate.setdefault(s["gate"], {"gate": s["gate"],
+                                                       "n": 0, "pay": 0,
+                                                       "runs": []})
+                    g["n"] += 1
+                    g["pay"] += s["run"] >= 1.5
+                    g["runs"].append(s["run"])
+                for g in by_gate.values():
+                    g["runs"].sort()
+                    g["med"] = g["runs"][len(g["runs"]) // 2]
+                    g["rate"] = g["pay"] / g["n"]
+                    del g["runs"]
+                out["by_gate"] = sorted(by_gate.values(),
+                                        key=lambda g: (-g["pay"], -g["rate"]))
+                out["top"] = sorted((s for s in stats if s["run"] >= 1.5),
+                                    key=lambda s: -s["run"])[:5]
+        finally:
+            con.close()
+    except Exception as exc:
+        logger.debug("burial hindsight aggregate skipped: %s", exc)
+    return out
+
+
+@st.cache_data(ttl=120)
+def _cached_burial_hindsight(limit: int = 400) -> dict:
+    return _burial_hindsight(limit=limit)
+
+
+def _render_burial_hindsight() -> None:
+    """The read-only hindsight expander — sits after the funnel plate as
+    its all-time companion (the funnel shows THIS rotation's refusals;
+    this panel prices the ledger's recent refusals)."""
+    try:
+        h = _cached_burial_hindsight()
+        if not h.get("n"):
+            return
+        n = h["n"]
+        with st.expander(
+                f"🪦 BURIAL HINDSIGHT — did the gates' refusals cost money? "
+                f"({n} recent candidates priced against the next 7h)",
+                key="burial_hindsight_expander"):
+            st.markdown(
+                f"<div style='font-family:Share Tech Mono,monospace;"
+                f"font-size:13px;color:#d8ccb4;padding:4px 2px;'>"
+                f"<b>{h['payers15']}</b> of <b>{n}</b> reached +1.5% within "
+                f"7h (<b>{h['rate15']:.0%}</b> payer-rate); "
+                f"<b>{h['payers30']}</b> reached +3%.</div>",
+                unsafe_allow_html=True)
+            if h["by_gate"]:
+                rows = "".join(
+                    f"<div style='font-family:Share Tech Mono,monospace;"
+                    f"font-size:12px;color:#bfae8f;'>"
+                    f"{g['gate']:<18} n={g['n']:<4} payers={g['pay']:<3} "
+                    f"rate={g['rate']:.0%}  median {g['med']:+.1f}%</div>"
+                    for g in h["by_gate"][:6])
+                st.markdown("<div style='padding:2px 0 6px;'>" + rows
+                            + "</div>", unsafe_allow_html=True)
+            if h["top"]:
+                tops = "".join(
+                    f"<div style='font-family:Share Tech Mono,monospace;"
+                    f"font-size:12px;color:#d8ccb4;'>"
+                    f"{s['at']} {s['pair']:<12} {s['gate']:<18} "
+                    f"quick {s['quick']} → +{s['run']:.1f}% in 7h</div>"
+                    for s in h["top"])
+                st.markdown(
+                    "<div style='padding:2px 0;'><span class='dim' "
+                    "style='font-size:11px;'>the ones the gates buried "
+                    "that ran:</span></div>" + tops,
+                    unsafe_allow_html=True)
+            st.caption("read-only: the same join the verdict study uses "
+                       "(entry = last close before the refusal, run = max "
+                       "high within 7h; a max-run peak, not a fill; top "
+                       "rows are payers only) — refreshes every 2 min")
+    except Exception as exc:
+        logger.debug("burial hindsight panel skipped: %s", exc)
 
 
 def _render_funnel_plate():

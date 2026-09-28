@@ -3164,6 +3164,123 @@ except Exception as exc:
     lines.append(f"APPTEST FAILED: {exc}")
     check("the app still boots clean (no exception)", False, exc)
 
+# ═══ THE BURIAL HINDSIGHT PANEL (Sep 28) — behavioral through the REAL
+# helpers, with a sandboxed OHLCV db + suppression journal. The same
+# join the verdict study uses, proven end-to-end: a constructed candidate
+# buried at a known entry must surface with its run; a journal-less
+# sandbox must fail-closed (the panel has nothing to say); a dud never
+# headlines the top list. The seam is app_mod.__file__: the join derives
+# BOTH files from it, so re-pointing the module moves db + journal
+# wholesale (no Path patching — app.py's Path import is function-local).
+try:
+    import sqlite3 as _sq3
+    _bh_sbx = Path(tempfile.mkdtemp())
+    _bh_db = _bh_sbx / "ohlcv_cache.db"
+    _con = _sq3.connect(_bh_db)
+    _con.execute("CREATE TABLE ohlcv (pair TEXT, ts INTEGER, open REAL, "
+                 "high REAL, low REAL, close REAL)")
+    _bh_now = datetime.now().astimezone()
+    _bh_t0 = int(_bh_now.timestamp() * 1000)
+    # CAGE: buried at close 1.00, runs to 1.08 within the window (a payer)
+    # DEEP (deep-veto): buried at 2.00, runs to 2.04 (also a payer)
+    # MOOD: buried at 1.00, never moves after the refusal (a dud — and
+    # MEASURABLE, its post-refusal bars exist with high == entry)
+    _rows = [
+        ("CAGE/USD", _bh_t0 - 3_600_000, 1.00, 1.00, 1.00, 1.00),
+        ("CAGE/USD", _bh_t0, 1.00, 1.02, 1.00, 1.01),
+        ("CAGE/USD", _bh_t0 + 2 * 3_600_000, 1.01, 1.08, 1.01, 1.05),
+        ("DEEP/USD", _bh_t0 - 3_600_000, 2.00, 2.00, 2.00, 2.00),
+        ("DEEP/USD", _bh_t0 + 3_600_000, 2.00, 2.04, 2.00, 2.02),
+        ("MOOD/USD", _bh_t0 - 3_600_000, 1.00, 1.00, 1.00, 1.00),
+        ("MOOD/USD", _bh_t0, 1.00, 1.00, 1.00, 1.00),
+        ("MOOD/USD", _bh_t0 + 1_800_000, 1.00, 1.00, 0.999, 1.00),
+    ]
+    _con.executemany("INSERT INTO ohlcv VALUES (?,?,?,?,?,?)", _rows)
+    _con.commit()
+    _con.close()
+    _bh_sup = _bh_sbx / "popup_suppressions.jsonl"
+    _rot = "12-16"
+    _bh_sup.write_text("\n".join(json.dumps(r) for r in ({
+        "ts": _bh_now.isoformat(), "pair": "CAGE/USD", "gate": "tide-out",
+        "quick": 71.0, "rot": _rot}, {
+        "ts": (_bh_now + timedelta(minutes=1)).isoformat(),
+        "pair": "DEEP/USD", "gate": "deep-veto", "quick": 94.0,
+        "rot": _rot}, {
+        "ts": (_bh_now + timedelta(minutes=2)).isoformat(),
+        "pair": "MOOD/USD", "gate": "tide-out", "quick": 55.0,
+        "rot": _rot})), encoding="utf-8")
+    # the REAL path seam re-pointed at the sandbox: app.py's join
+    # derives both files from __file__, so the whole module moves
+    # wholesale (no Path patching — its Path import is function-local,
+    # a module-level patch would never reach it)
+    real_file = app_mod.__file__
+
+    app_mod.__file__ = str(_bh_sbx / "app.py")
+    try:
+        app_mod._cached_burial_hindsight.clear()
+        h = app_mod._burial_hindsight()
+        check("the hindsight join prices the constructed burials (3 "
+              "measurable)", h.get("n") == 3, h)
+        check("the payer-rate is measured (2 of 3 reached +1.5%)",
+              h.get("payers15") == 2 and abs(h.get("rate15", 0) - 2 / 3)
+              < 0.01, h)
+        check("the by-gate plate sorts best-first (payers desc, rate "
+              "tiebreak): deep-veto leads at 1 payer / rate 1.0, "
+              "tide-out rides at 1 payer / rate 0.5 (its other burial "
+              "was the dud)",
+              h["by_gate"][0]["gate"] == "deep-veto"
+              and h["by_gate"][0]["pay"] == 1
+              and h["by_gate"][0]["rate"] == 1.0
+              and any(g["gate"] == "tide-out" and g["pay"] == 1
+                      and abs(g["rate"] - 0.5) < 0.01
+                      for g in h["by_gate"]), h.get("by_gate"))
+        check("the top buried payer is CAGE at +8% (max high within 7h)",
+              h["top"] and h["top"][0]["pair"] == "CAGE/USD"
+              and abs(h["top"][0]["run"] - 8.0) < 0.01, h.get("top"))
+        check("the dud (MOOD, never moved) is not in the top list",
+              all(s["pair"] != "MOOD/USD" for s in h.get("top", [])),
+              h.get("top"))
+        # the render: the expander builds through the sandbox too (the
+        # cached wrapper pointed at the same fake module file)
+        app_mod._cached_burial_hindsight.clear()
+        _bh_calls = []
+        _real_exp = app_mod.st.expander
+        class _BHExp:
+            def __init__(self, label, key=None):
+                _bh_calls.append(label)
+            def __enter__(self):
+                return self
+            def __exit__(self, *a):
+                return False
+        app_mod.st.expander = _BHExp
+        try:
+            app_mod._render_burial_hindsight()
+            check("the panel renders (the expander label names the count "
+                  "and the horizon)",
+                  _bh_calls and "BURIAL HINDSIGHT" in _bh_calls[0]
+                  and "3 recent candidates" in _bh_calls[0], _bh_calls)
+        finally:
+            app_mod.st.expander = _real_exp
+        # the honest-silence path: a journal-less sandbox fail-closes
+        _bh_sbx2 = Path(tempfile.mkdtemp())
+        app_mod.__file__ = str(_bh_sbx2 / "app.py")
+        _bh_sb2_path = Path(_bh_sbx2)
+        app_mod._cached_burial_hindsight.clear()
+        check("the aggregate fail-closes to silence (a journal-less "
+              "sandbox returns n=0, the renderer returns early)",
+              isinstance(app_mod._burial_hindsight(), dict)
+              and app_mod._burial_hindsight().get("n") == 0
+              and not _bh_sb2_path.joinpath("popup_suppressions.jsonl")
+              .exists())
+    finally:
+        app_mod.__file__ = real_file
+        app_mod._cached_burial_hindsight.clear()
+        import shutil as _shutil_bh
+        _shutil_bh.rmtree(_bh_sbx, ignore_errors=True)
+        _shutil_bh.rmtree(_bh_sbx2, ignore_errors=True)
+except Exception as exc:
+    check("the burial-hindsight pins ran", False, exc)
+
 try:
     out = BASE / "apptest_check.txt"
     out.write_text("\n".join(lines)
