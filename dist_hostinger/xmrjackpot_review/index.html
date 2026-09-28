@@ -1,0 +1,1505 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>XMR Jackpot — Monero Mining Made Fun, Fair, and For Everyone</title>
+<meta name="description" content="Mine Monero together, earn free entries, and win the daily grand prize. No risk, no fees, no deposits. Privacy-friendly mining pool with provably fair drawings.">  <link rel="stylesheet" href="/static/style.css?v=20">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&family=Press+Start+2P&display=swap" rel="stylesheet">
+</head>
+<body>
+<div id="app">
+
+<!-- ═══════════ WALLET CONNECT MODAL ═══════════ -->
+<div id="walletConnectModal" style="display:none;position:fixed;inset:0;z-index:9998;background:rgba(0,0,0,0.92);align-items:center;justify-content:center;">
+  <div style="background:var(--bg-deep);border:3px solid var(--gold);border-radius:12px;padding:32px;max-width:520px;text-align:left;margin:16px;box-shadow:0 0 40px rgba(255,210,63,0.15);">
+    <h2 style="color:var(--gold);margin-bottom:12px;text-align:center;">🔗 Connect Your Monero Wallet (Optional)</h2>
+    <p style="color:var(--text-dim);margin-bottom:16px;font-size:0.9em;line-height:1.6;">
+      Connecting a wallet unlocks community bonuses from partner exchanges like Kraken. These bonuses help boost the daily grand prize for everyone.
+    </p>
+
+    <div style="font-weight:700;color:var(--gold-bright);margin-bottom:6px;font-size:0.9em;">Why connect?</div>
+    <ul style="color:var(--text-dim);font-size:0.85em;line-height:1.8;padding-left:20px;margin-bottom:16px;">
+      <li>Bigger grand prizes</li>
+      <li>Referral bonus eligibility</li>
+      <li>Faster payouts if you win</li>
+      <li>Verified participant status</li>
+    </ul>
+
+    <div style="background:rgba(34,197,94,0.06);border:2px solid rgba(34,197,94,0.25);border-radius:8px;padding:12px;margin-bottom:20px;">
+      <div style="font-weight:700;color:var(--emerald-bright);margin-bottom:6px;font-size:0.85em;">Important:</div>
+      <p style="font-size:0.8em;color:var(--text-dim);line-height:1.6;margin:0;">
+        Your wallet is receive-only. We cannot access your funds. We cannot send from your wallet. We cannot view your keys.
+      </p>
+    </div>
+
+    <div style="display:flex;gap:12px;justify-content:center;flex-wrap:wrap;">
+      <button class="btn btn-gold" id="btnModalConnectWallet" style="min-width:160px;">🔗 Connect Wallet</button>
+      <button class="btn btn-outline" id="btnModalSkipWallet" style="min-width:140px;">Skip for Now</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════ ANNOUNCEMENT BANNER ═══════════ -->
+<div id="announcementBanner" style="display:none;background:linear-gradient(90deg,#8B0000,#CC3300);border-bottom:2px solid #ff6b6b;padding:10px 16px;text-align:center;font-size:0.9em;color:#fff;font-weight:600;cursor:pointer;" onclick="this.style.display='none';localStorage.setItem('xmr_announcement_dismissed','1');">
+</div>
+
+<!-- ═══════════ NAVIGATION ═══════════ -->
+<nav class="navbar">
+  <div class="nav-logo">
+    <span style="font-size:1.6em;">⛏️</span> XMR JACKPOT
+  </div>
+  <div class="nav-links">
+    <button data-page="landing" class="active">Home</button>
+    <button data-page="signup">✨ Sign Up</button>
+    <button data-page="howto">How to Play</button>
+    <button data-page="realplay">💰 Play for XMR</button>
+    <button data-page="leaderboard">🏆 Winners</button>
+    <button data-page="dashboard">📊 Dashboard</button>
+    <button data-page="admin" id="navAdmin" style="display:none;">🛡️ Admin</button>
+  </div>
+  <div id="modeBadge" class="mode-badge" style="display:none;"></div>
+</nav>
+
+<!-- ═══════════ LANDING PAGE ═══════════ -->
+<section id="page-landing" class="page active">
+  <div class="hero" style="text-align:center;">
+    <span class="wf-kicker" style="font-size:0.7rem;">Monero Means Money</span>
+    <h1>A daily raffle that feels<br>more like a Jackpot!</h1>
+    <p class="sub" style="max-width:560px;margin:0 auto;">No deposits. No fees. Just your hashpower. Every share you mine becomes a raffle entry. More mining = better odds in today's draw.</p>
+
+    <!-- CTAs: the one-click miner is the primary action, the plain
+         miner download rides beside it as the quieter twin -->
+    <div class="hero-buttons" style="justify-content:center;">
+      <button class="btn btn-gold btn-lg" id="btnOneClickMine">⛏️ Download One-Click Miner &amp; Start Earning Entries</button>
+      <button class="btn btn-outline btn-lg" id="btnPlayReal">💰 Download Miner</button>
+    </div>
+
+    <!-- assurance chips: the same flat badge grammar the workflow
+         sections use (wf-badge-row) — one hairline chip each, no
+         per-pill colors -->
+    <div class="wf-badge-row">
+      <span class="wf-badge">✅ No Purchase Required</span>
+      <span class="wf-badge">📊 Dashboard Tracking</span>
+      <span class="wf-badge">🤝 Community Grand Prize</span>
+      <span class="wf-badge">🚫 No Gambling</span>
+    </div>
+
+    <!-- the pot panel: the same flat CTA box the master-key block
+         uses (wf-miner-cta) — carries the carryover rule and the
+         community motto as its footer -->
+    <div class="wf-miner-cta" style="flex-direction:column;gap:8px;">
+      <div style="font-size:0.85em;color:var(--text-dim);line-height:1.6;">🤝 Today's prize pool grows as miners contribute — the pot carries over, and a new winner is drawn every 24 hours.</div>
+      <div style="font-family:var(--font-head);font-size:0.78em;color:var(--text-mute);line-height:1.6;">
+        ⛏️ <b style="color:var(--gold);">Together we conquer. Divided we fall.</b> — One winner takes 90% of the pot in a single drawing. The more miners, the bigger the pot.
+      </div>
+    </div>
+
+    <div style="margin-top:18px;font-size:0.85em;color:var(--text-dim);">
+      Don't have XMR? <a href="https://invite.kraken.com/JDNW/29bygijw" target="_blank" rel="nofollow sponsored" style="color:var(--link-orange);font-weight:700;">Get it on Kraken →</a><br>
+      <span style="font-size:0.85em;color:var(--text-mute);">Why this link: it helps fund the jackpot — join Kraken with it, pass the Funded Challenge with Kraken Scout, and Kraken pays you and pays the jackpot when the terms are met.</span>
+    </div>
+
+    <!-- ══ THE MASTER-KEY WORKFLOW HERO (Sep 27 restyle on the workflow
+         grammar: kicker + section-rule headline + badge-row CTAs + the
+         flat CTA box, matching the wf-sections below; every string and
+         button ID kept byte-exact) ══ -->
+    <div class="wf-hero-block" style="margin-top:44px;">
+      <span class="wf-kicker" style="font-size:0.7rem;">The Master Key</span>
+      <div style="font-family:var(--font-head);font-weight:700;font-size:1.35em;color:var(--text);margin:6px auto 12px;max-width:680px;line-height:1.25;">Start Free. Unlock the Master Key. Get Funded.</div>
+      <p style="margin:0 auto 8px;max-width:680px;color:var(--text-dim);">Kraken Scout is the Master Key to beating the Kraken Funded Challenge — a simple, guided path toward becoming a confident crypto trader using Kraken's capital.</p>
+      <p style="margin:0 auto 14px;max-width:720px;color:var(--text-dim);">The community jackpot is your free route in. Win the daily prize, enter the challenge, pass with Scout signals, get funded, and keep the profits. The loop grows itself through Kraken's referral program.</p>
+      <div class="wf-badge-row" style="margin-bottom:14px;">
+        <button class="btn btn-gold btn-lg" id="btnHeroStartFree">Start For Free</button>
+        <a class="btn btn-outline btn-lg" href="#wf-scout">Get Kraken Scout</a>
+        <a class="btn btn-outline btn-lg" href="#wf-funded">How It Works</a>
+      </div>
+      <div class="wf-scale" style="margin-bottom:14px;">No deposit. No risk. Free entries come from mining — Kraken referral bonuses add to the pot as they come in.</div>
+      <div class="wf-miner-cta">
+        <button class="btn btn-gold" id="btnHeroJoinJackpot">Join Jackpot</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Why Solo Mining Doesn't Work — Visual Comparison -->
+  <div class="card" style="margin-bottom:24px;">
+    <div class="card-header">🚶 Why Solo Mining Doesn't Work Anymore</div>
+    <p style="color:var(--text-dim);line-height:1.7;margin-bottom:16px;">
+      Mining Monero alone is like trying to win a marathon by walking. The network is too large, the difficulty too high, and the rewards too slow. Even if you mine for weeks, you might never find a block. But when we mine together, everything changes.
+    </p>
+
+    <!-- Solo vs Pool Visual -->
+    <div class="miner-compare">
+      <!-- Solo Miner Side -->
+      <div class="miner-compare-side solo">
+        <div class="miner-compare-label">😕 Solo Mining</div>
+        <div style="min-height:90px;display:flex;align-items:center;justify-content:center;">
+          <span style="font-size:3em;font-weight:800;color:var(--text-mute);line-height:1;">1</span>
+        </div>
+        <div style="font-size:0.8em;color:var(--text-dim);line-height:1.6;">
+          1 miner · ~1 kH/s<br>
+          ~0.0003 XMR per day<br>
+          <b style="color:var(--redstone);">300+ days to reach payout threshold</b>
+        </div>
+        <div class="miner-compare-result">
+          1 year ≈ 0.11 XMR
+        </div>
+      </div>
+
+      <!-- VS Divider -->
+      <div style="display:flex;align-items:center;justify-content:center;">
+        <div class="miner-compare-vs">VS</div>
+      </div>
+
+      <!-- Pool Miner Side -->
+      <div class="miner-compare-side pool">
+        <div class="miner-compare-label">🚀 XMR Jackpot Pool</div>
+        <div style="min-height:90px;display:flex;align-items:center;justify-content:center;">
+          <span style="font-size:3em;font-weight:800;color:var(--mono-orange);line-height:1;">100+</span>
+        </div>
+        <div style="font-size:0.8em;color:var(--text-dim);line-height:1.6;">
+          100+ miners · combined hashrate<br>
+          Pool finds blocks together<br>
+          <b style="color:var(--emerald-bright);">Every miner earns entries for the daily drawing</b>
+        </div>
+        <div class="miner-compare-result">
+          90% of the pot to one winner · every 24 hours
+        </div>
+      </div>
+    </div>
+
+    <p style="text-align:center;color:var(--gold-bright);font-weight:700;font-size:1.05em;margin-top:16px;">
+      One winner takes 90% of the pot in a single drawing — a payout that grows with the community.<br>
+      <span style="font-size:0.85em;color:var(--gold);">Together we conquer. Divided we fall.</span>
+    </p>
+  </div>
+
+  <!-- The XMR Jackpot Solution -->
+  <div class="card" style="margin-bottom:24px;border:3px solid var(--gold);background:var(--gradient-jackpot);">
+    <div class="card-header" style="color:var(--gold-bright);">✨ The XMR Jackpot Solution</div>
+    <ul style="color:var(--text);line-height:2;font-size:1.05em;padding-left:24px;margin-bottom:16px;">
+      <li><b style="color:var(--gold);">You mine Monero</b> → You earn entries</li>
+      <li><b style="color:var(--gold);">The pool finds blocks</b> → The Monero goes into the grand prize</li>
+      <li><b style="color:var(--gold);">A winner is drawn</b> → Someone gets the entire pot</li>
+    </ul>
+    <p style="color:var(--gold-bright);font-weight:700;text-align:center;font-size:1.05em;">
+      It's mining with purpose. Mining with community. Mining with excitement. And best of all — it's free.
+    </p>
+  </div>
+
+  <!-- ══ THE WORKFLOW SECTIONS (Sep 25 redesign phase 2; new copy only — nothing below or above changed) ══ -->
+  <div class="wf-section" id="wf-jackpot">
+    <div class="wf-section-head"><span class="wf-kicker">The Free Route In</span><h2>Start Free With the Community Jackpot</h2></div>
+    <div class="wf-cols">
+      <div>
+        <p><b>The daily prize is seeded by the community's mining</b> — and grows as Kraken referral bonuses come in.</p>
+        <ul class="wf-list">
+          <li><b>Daily prize seeded by community mining</b> — referral bonuses add to it as they come in</li>
+          <li><b>Grows with the community</b> — more miners and referrals mean a bigger prize</li>
+          <li><b>Planned scale</b> — community projection: ~$20/day near 1,000 bots, ~$300/day near 10,000</li>
+          <li><b>Ticket value increases with active mining</b> — your hashpower is the free multiplier</li>
+          <li><b>Better odds for active miners</b> — more ticket value, better odds in the daily draw</li>
+        </ul>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;">
+          <button class="btn btn-gold" id="btnWfJoinJackpot">Join Jackpot</button>
+          <a class="btn btn-outline" href="#heroJackpot">See Daily Prize</a>
+        </div>
+      </div>
+      <div class="wf-visual">
+        <div class="wf-scale">projection: 1,000 bots → <b>~$20/day</b> · 10,000 bots → <b>~$300/day</b></div>
+        <div class="wf-scale-bar"><span></span></div>
+        <div class="wf-scale" style="margin-top:6px;">odds follow: 1/1000 → 1/10,000 — <b>mining raises ticket value</b></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="wf-section" id="wf-scout">
+    <div class="wf-section-head"><span class="wf-kicker">The Master Key</span><h2>Kraken Scout = The Master Key</h2></div>
+    <div class="wf-cols">
+      <div>
+        <p>Kraken Scout rides with the Miner Bot and speaks in one grammar — <b>LONG bullish calls only</b>, at the only two moments that matter.</p>
+        <ul class="wf-list">
+          <li><b>LONG bullish signals</b> — no shorting, no noise</li>
+          <li><b>“Buy Now” / “Exit Now”</b> — the only two alerts, phone-bound</li>
+          <li><b>Helps pass the Kraken Funded Challenge</b> — the Master Key to the funded account</li>
+          <li><b>Delivered through your user account</b> — authenticated and scoped to you</li>
+          <li><b>Push notifications enabled in the dashboard</b> — signals land on your devices</li>
+        </ul>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;">
+          <button class="btn btn-gold" id="btnWfGetScout">Get Kraken Scout</button>
+          <a class="btn btn-outline" href="#wf-signal-demo">See Signals</a>
+        </div>
+      </div>
+      <div class="wf-visual">
+        <div class="wf-signal-demo" id="wf-signal-demo">
+          <div class="wf-sig"><b>📈 BUY NOW</b><span>SOL/USD · entry window open</span><time>09:41</time></div>
+          <div class="wf-sig"><b>📉 EXIT NOW</b><span>SOL/USD · target reached</span><time>10:12</time></div>
+        </div>
+        <div class="wf-scale">the only two alerts the phone ever gets</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="wf-section" id="wf-funded">
+    <div class="wf-section-head"><span class="wf-kicker">Get Funded by Kraken</span><h2>Pass the Challenge → Trade With Kraken's Capital</h2></div>
+    <div class="wf-cols">
+      <div>
+        <p>Use the jackpot prize to enter, pass the challenge on Scout's signals, and trade <b>Kraken's capital</b> — the profits are yours.</p>
+        <ul class="wf-list">
+          <li><b>Enter the challenge using the jackpot prize</b> — the free route in funds the attempt</li>
+          <li><b>Pass with Scout signals</b> — Buy Now / Exit Now is the whole method</li>
+          <li><b>Kraken funds your trading account</b> — up to $10,000 of Kraken's capital</li>
+          <li><b>You keep all profits</b> — earned with Kraken's capital, not the community's</li>
+        </ul>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;">
+          <button class="btn btn-gold" id="btnWfEnterChallenge">Enter Challenge</button>
+          <a class="btn btn-outline" href="#wf-tiers">Funded Account Tiers</a>
+        </div>
+      </div>
+      <div class="wf-visual">
+        <div class="wf-tiers" id="wf-tiers">
+          <div class="wf-tier"><div class="wf-tier-price">$20</div><div class="wf-tier-amt">$1,000 funded</div><div class="wf-tier-note">up to</div></div>
+          <div class="wf-tier"><div class="wf-tier-price">$50</div><div class="wf-tier-amt">$5,000 funded</div><div class="wf-tier-note">up to</div></div>
+          <div class="wf-tier"><div class="wf-tier-price">$90</div><div class="wf-tier-amt">$10,000 funded</div><div class="wf-tier-note">up to</div></div>
+        </div>
+        <div class="wf-scale">the same tiers the Kraken Challenge guide shows winners</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="wf-section" id="wf-loop">
+    <div class="wf-section-head"><span class="wf-kicker">The Loop</span><h2>Kraken Pays the Jackpot</h2></div>
+    <div class="wf-cols">
+      <div>
+        <p>No deposits and no community treasury — the prize is seeded by community mining, with <b>Kraken referral bonuses adding to it as they come in</b>.</p>
+        <ul class="wf-list">
+          <li><b>Kraken pays referral bonuses</b> — the exchange pays them, the operator records them</li>
+          <li><b>Recorded bonuses feed the jackpot</b> — into the daily prize via the funding ledger</li>
+          <li><b>More people → more bonuses → bigger prize</b> — the loop compounds</li>
+          <li><b>Everything stays free</b> — mining earns your entries; bonuses only grow the pot</li>
+        </ul>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;">
+          <button class="btn btn-gold" id="btnWfUseReferral">Use Referral Link</button>
+          <a class="btn btn-outline" href="#heroJackpot">See Jackpot Growth</a>
+        </div>
+      </div>
+      <div class="wf-visual">
+        <div class="wf-loop">
+          <span class="wf-node">Join free</span><span class="wf-arrow">→</span>
+          <span class="wf-node"><b>Referral bonus</b></span><span class="wf-arrow">→</span>
+          <span class="wf-node">Bigger jackpot</span><span class="wf-arrow">→</span>
+          <span class="wf-node">New members</span>
+        </div>
+        <div class="wf-scale" style="margin-top:10px;">the loop that keeps the prize alive — <b>at zero cost to you</b></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="wf-section" id="wf-mining">
+    <div class="wf-section-head"><span class="wf-kicker">Boost Your Odds</span><h2>Turn On the Miner Bot → Increase Ticket Value</h2></div>
+    <div class="wf-cols">
+      <div>
+        <p>The Miner Bot is the free engine of your odds — <b>on, off, and everything in between, controlled through the dashboard</b>.</p>
+        <ul class="wf-list">
+          <li><b>Active mining increases ticket value</b> — shares become entries</li>
+          <li><b>Higher-value tickets = better odds</b> — the draw weights by value</li>
+          <li><b>Mining is optional</b> — the jackpot stays free either way</li>
+          <li><b>The Miner Bot is controlled through the dashboard</b> — toggle, hashrate, and history live there</li>
+        </ul>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;">
+          <button class="btn btn-gold" id="btnWfTurnMinerOn">Turn Miner On</button>
+          <a class="btn btn-outline" href="#page-dashboard">Check Ticket Value</a>
+        </div>
+      </div>
+      <div class="wf-visual">
+        <div class="wf-meter">
+          <div class="wf-meter-top"><span>Ticket value</span><b>grows with hashrate</b></div>
+          <div class="wf-meter-bar"><span class="wf-meter-fill" style="width:35%;"></span></div>
+        </div>
+        <div class="wf-scale">mining raises <b>ticket value</b> — the meter follows your hashrate</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- the mandated phrases, visible on-site -->
+  <div class="wf-phrases" id="wf-phrases">
+    Not sure where to get started? Start here: <a href="https://xmrjackpot.com">xmrjackpot.com</a><br>
+    Start for free at: <a href="https://xmrjackpot.com">https://xmrjackpot.com</a>
+  </div>
+
+  <!-- Jackpot Stats (existing) -->
+  <div class="jackpot-hero" style="margin-bottom:30px;">
+    <div class="jackpot-label">🏆 Current Grand Prize</div>
+    <div class="jackpot-amount" id="heroJackpot">0.000000 XMR</div>
+    <div class="jackpot-usd" id="heroJackpotUsd">≈ $0.00 USD</div>
+    <div class="jackpot-detail">
+      <div>Pool Hashrate: <span id="heroHashrate">—</span></div>
+      <div>Active Miners: <span id="heroMiners">—</span></div>
+      <div>Next Drawing: <span id="heroNextDraw">—</span></div>
+    </div>
+    <div id="heroPlayerProgress"></div>
+  </div>
+
+  <!-- 📊 Social Proof & Pool Stats -->
+  <div class="card" style="margin-bottom:30px;border-color:var(--gold-dark);background:linear-gradient(135deg,var(--bg-deep),var(--obsidian));">
+    <div class="card-header" style="color:var(--gold-bright);">📊 Pool Stats &amp; Social Proof</div>
+    <div class="grid-4" style="margin-bottom:18px;">
+      <div class="stat-card" style="padding:16px;">
+        <div style="font-size:1.6em;">💰</div>
+        <div class="stat-value gold" id="spTotalPaid">0.000000</div>
+        <div class="stat-label">Total Paid Out (XMR)</div>
+        <div style="font-size:0.72em;color:var(--text-mute);margin-top:4px;">to winners since launch</div>
+      </div>
+      <div class="stat-card" style="padding:16px;">
+        <div style="font-size:1.6em;">🏆</div>
+        <div class="stat-value diamond" id="spWinnerAddr" style="font-size:0.85em;">—</div>
+        <div class="stat-label">Recent Winner</div>
+        <div style="font-size:0.72em;color:var(--text-mute);margin-top:4px;" id="spWinnerDetail">First drawing coming soon!</div>
+      </div>
+      <div class="stat-card" style="padding:16px;">
+        <div style="font-size:1.6em;">⛏️</div>
+        <div class="stat-value blue" id="spTopMinerAddr" style="font-size:0.85em;">—</div>
+        <div class="stat-label">Top Miner</div>
+        <div style="font-size:0.72em;color:var(--text-mute);margin-top:4px;" id="spTopMinerDetail">Be the first!</div>
+      </div>
+      <div class="stat-card" style="padding:16px;">
+        <div style="font-size:1.6em;">⛏️</div>
+        <div class="stat-value green" id="spTotalDrawings">0</div>
+        <div class="stat-label">Total Drawings</div>
+        <div style="font-size:0.72em;color:var(--text-mute);margin-top:4px;">daily drawings completed</div>
+      </div>
+    </div>
+    <div class="countdown-bar">
+      <span class="countdown-label">⏰ Next Drawing In:</span>
+      <span class="countdown-timer" id="spCountdown">—</span>
+    </div>
+  </div>
+
+  <!-- 🏆 Recent Grand Prize Winners -->
+  <div class="card" style="margin-bottom:30px;border-color:var(--gold-dark);background:linear-gradient(135deg,var(--bg-deep),var(--obsidian));">
+    <div class="card-header" style="color:var(--gold-bright);">🏆 Recent Grand Prize Winners</div>
+    <div id="recentWinnersFeed">
+      <p style="color:var(--text-mute);text-align:center;padding:16px 0;">First drawing coming soon!</p>
+    </div>
+  </div>
+
+  <div class="grid-3" style="margin-bottom:30px;">
+    <div class="stat-card">
+      <div>🎫</div>
+      <div class="stat-value gold" id="heroTickets">0</div>
+      <div class="stat-label">Pending Entries</div>
+    </div>
+    <div class="stat-card">
+      <div>⛏️</div>
+      <div class="stat-value blue" id="heroTotalPoolHashrate">—</div>
+      <div class="stat-label">Pool Hashrate</div>
+    </div>
+    <div class="stat-card">
+      <div>👥</div>
+      <div class="stat-value green" id="heroTotalMiners">0</div>
+      <div class="stat-label">Total Miners</div>
+    </div>
+  </div>
+
+  <!-- Why XMR Jackpot Is Different -->
+  <div class="card" style="margin-bottom:24px;">
+    <div class="card-header">💎 Why XMR Jackpot Is Different</div>
+    <p style="color:var(--text-dim);line-height:1.7;margin-bottom:20px;">
+      Most mining pools pay tiny fractions of Monero. Most raffles require deposits or fees. Most crypto projects ask you to risk something. XMR Jackpot flips the script:
+    </p>
+    <div class="grid-3" style="grid-template-columns:repeat(4,1fr);gap:12px;">
+      <div class="stat-card" style="padding:16px;">
+        <div style="font-size:1.8em;">🛡️</div>
+        <div style="color:var(--gold);font-weight:700;font-size:1.05em;margin:6px 0;">No Risk</div>
+        <div style="color:var(--text-dim);font-size:0.85em;">You never deposit money</div>
+      </div>
+      <div class="stat-card" style="padding:16px;">
+        <div style="font-size:1.8em;">🆓</div>
+        <div style="color:var(--gold);font-weight:700;font-size:1.05em;margin:6px 0;">No Fees</div>
+        <div style="color:var(--text-dim);font-size:0.85em;">Mining is free</div>
+      </div>
+      <div class="stat-card" style="padding:16px;">
+        <div style="font-size:1.8em;">🔒</div>
+        <div style="color:var(--gold);font-weight:700;font-size:1.05em;margin:6px 0;">No Downside</div>
+        <div style="color:var(--text-dim);font-size:0.85em;">You keep your privacy</div>
+      </div>
+      <div class="stat-card" style="padding:16px;">
+        <div style="font-size:1.8em;">🚀</div>
+        <div style="color:var(--gold);font-weight:700;font-size:1.05em;margin:6px 0;">Real Upside</div>
+        <div style="color:var(--text-dim);font-size:0.85em;">You can win a full Monero grand prize</div>
+      </div>
+    </div>
+    <p style="color:var(--gold-bright);font-weight:700;text-align:center;margin-top:20px;font-size:1.1em;">
+      It's the most fun you can have mining Monero.
+    </p>
+  </div>
+
+  <!-- 🎁 Community Bonus: Kraken Rewards -->
+  <div class="card" style="margin-bottom:24px;border-color:var(--gold-dark);background:linear-gradient(135deg,var(--bg-deep),var(--obsidian));">
+    <div class="card-header" style="color:var(--gold-bright);">🎁 Community Bonus: Kraken Rewards</div>
+    <p style="color:var(--text-dim);line-height:1.7;margin-bottom:16px;">
+      Kraken referral bonuses paid through the community's referral link are recorded by the operator and directed into the grand prize. Connecting a wallet helps verify active miners so those bonuses reach the prize.
+    </p>
+    <div style="font-weight:700;color:var(--gold);margin-bottom:8px;">What this means for you:</div>
+    <ul style="color:var(--text);line-height:1.9;padding-left:24px;margin-bottom:16px;">
+      <li>Larger grand prizes</li>
+      <li>More frequent bonus drops</li>
+      <li>A stronger, verifiable community</li>
+      <li>Still no deposits, no fees, no payments</li>
+    </ul>
+    <p style="font-size:0.85em;color:var(--text-mute);font-style:italic;border-top:2px solid #000;padding-top:12px;">
+      Wallet connection is optional, but it helps grow the grand prize for everyone.
+    </p>
+    <div style="text-align:center;margin-top:12px;">
+      <button class="btn btn-gold btn-sm" id="btnLandingWalletConnect">🔗 Connect Wallet</button>
+    </div>
+  </div>
+
+  <!-- Mining Together. Winning Together. -->
+  <div class="card" style="margin-bottom:24px;border-color:var(--gold-dark);">
+    <div class="card-header">🤝 Mining Together. Winning Together.</div>
+    <p style="color:var(--text-dim);line-height:1.7;">
+      XMR Jackpot isn't just a pool — it's a community. Every miner helps build the grand prize. Every miner gets a chance to win. Every miner contributes to a stronger, more decentralized Monero network.
+    </p>
+    <p style="color:var(--gold-bright);font-weight:700;text-align:center;font-size:1.15em;margin-top:16px;line-height:1.6;">
+      This is Monero mining reimagined.<br>
+      This is privacy-friendly excitement.<br>
+      This is XMR Jackpot.
+    </p>
+    <p style="text-align:center;margin-top:16px;font-size:0.9em;color:var(--text-mute);">
+      ⛏️ <b style="color:var(--gold);">Together we conquer. Divided we fall.</b>
+    </p>
+  </div>
+
+  <!-- How It Works (4 steps) -->
+  <div class="card" style="margin-bottom:24px;">
+    <div class="card-header">⚙️ How It Works</div>
+    <div class="grid-2" style="gap:16px;">
+      <div class="stat-card" style="padding:18px;text-align:left;">
+        <div style="font-size:1.6em;margin-bottom:6px;">1️⃣</div>
+        <div style="color:var(--gold);font-weight:700;margin-bottom:4px;">Download the Miner</div>
+        <div style="color:var(--text-dim);font-size:0.85em;">Lightweight, safe, one-way access.</div>
+      </div>
+      <div class="stat-card" style="padding:18px;text-align:left;">
+        <div style="font-size:1.6em;margin-bottom:6px;">2️⃣</div>
+        <div style="color:var(--gold);font-weight:700;margin-bottom:4px;">Mine Monero Automatically</div>
+        <div style="color:var(--text-dim);font-size:0.85em;">Your miner contributes hashpower to the pool.</div>
+      </div>
+      <div class="stat-card" style="padding:18px;text-align:left;">
+        <div style="font-size:1.6em;margin-bottom:6px;">3️⃣</div>
+        <div style="color:var(--gold);font-weight:700;margin-bottom:4px;">Earn Entries</div>
+        <div style="color:var(--text-dim);font-size:0.85em;">More hashpower = more entries in the daily raffle.</div>
+      </div>
+      <div class="stat-card" style="padding:18px;text-align:left;">
+        <div style="font-size:1.6em;margin-bottom:6px;">4️⃣</div>
+        <div style="color:var(--gold);font-weight:700;margin-bottom:4px;">Win the Daily Grand Prize</div>
+        <div style="color:var(--text-dim);font-size:0.85em;">A winner is chosen every 24 hours.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 💎 Economic Model Infographic -->
+  <div class="card" style="margin-bottom:24px;border-color:var(--gold-dark);background:linear-gradient(160deg,var(--bg-deep),var(--bg-void));">
+    <div class="card-header" style="color:var(--gold-bright);">💎 How The Economics Work</div>
+    <p style="color:var(--text-dim);font-size:0.9em;line-height:1.6;margin-bottom:18px;">
+      Every Monero mined flows through a transparent, provably fair system. No hidden fees, no house edge on the draw — just a clean 90/10 split.
+    </p>
+    <div class="econ-flow">
+      <div class="econ-step">
+        <div class="econ-icon">⛏️</div>
+        <div class="econ-title">Mine Monero</div>
+        <div class="econ-desc">Your CPU contributes hashpower to the pool</div>
+      </div>
+      <div class="econ-arrow">→</div>
+      <div class="econ-step">
+        <div class="econ-icon">🎫</div>
+        <div class="econ-title">Earn Entries</div>
+        <div class="econ-desc">1 free entry per 100 shares mined</div>
+      </div>
+      <div class="econ-arrow">→</div>
+      <div class="econ-step">
+        <div class="econ-icon">🏆</div>
+        <div class="econ-title">Daily Raffle</div>
+        <div class="econ-desc">Provably fair, every 24 hours</div>
+      </div>
+      <div class="econ-arrow">→</div>
+      <div class="econ-step econ-step-winner">
+        <div class="econ-icon">💰</div>
+        <div class="econ-title">Winner Gets 90% of the Grand Prize</div>
+        <div class="econ-desc">Paid directly to your Monero wallet</div>
+      </div>
+    </div>
+    <div class="econ-split">
+      <div class="econ-split-arrow">↓</div>
+      <div class="econ-step econ-step-house">
+        <div class="econ-icon">🏠</div>
+        <div class="econ-title">10% House Tax</div>
+        <div class="econ-desc">Covers servers, development, and operations — and seeds the prize when the pot runs short</div>
+      </div>
+      <div class="econ-arrow">→</div>
+      <div class="econ-step econ-step-kraken">
+        <div class="econ-icon">📤</div>
+        <div class="econ-title">Kraken</div>
+        <div class="econ-desc">The community’s referral link — recorded bonuses from it grow the pot</div>
+      </div>
+    </div>
+    <div style="text-align:center;margin-top:16px;font-size:0.8em;color:var(--text-mute);">
+      🔍 Every drawing verifiable at <code style="color:var(--diamond-bright);">/api/verify/&#123;id&#125;</code> · Commit-reveal seeded by Monero block hashes
+    </div>
+  </div>
+
+  <!-- Trust & Safety -->
+  <div class="card" style="margin-bottom:24px;border-color:rgba(34,197,94,0.3);">
+    <div class="card-header" style="color:var(--emerald-bright);">🛡️ Trust &amp; Safety</div>
+    <p style="color:var(--text-dim);line-height:1.7;margin-bottom:12px;">
+      The miner has <b style="color:var(--emerald-bright);">one-way access only</b> — it sends hashpower out, never touches your wallet, keys, or funds.
+    </p>
+    <p style="color:var(--text-dim);line-height:1.7;margin-bottom:16px;">
+      Wallets are only used to <b style="color:var(--gold);">receive payouts</b>. We cannot access, move, or view your funds.
+    </p>
+    <div style="background:rgba(255,200,0,0.06);border:2px solid rgba(255,200,0,0.2);border-radius:8px;padding:14px;font-size:0.85em;line-height:1.7;color:var(--text-dim);">
+      ⏰ <b style="color:var(--gold);">7-Day Claim Deadline</b><br>
+      If you win the grand prize, you have <b>7 days</b> to log in, connect a wallet, and claim your payout. After 7 days, the grand prize returns to the pool for the next drawing.<br><br>
+      <b style="color:var(--gold-bright);">Why seven days?</b> It gives everyone a fair chance without creating pressure. A full week is plenty of time to check in and claim a prize, and most miners pop in regularly anyway. Keeping the window reasonable helps the community stay active and ensures grand prizes don't sit unclaimed forever. If a prize isn't picked up, it simply returns to the pool and continues supporting the miners who are here and participating.
+    </div>
+  </div>
+
+  <!-- Wallet Connection Bonus (brief) -->
+  <div class="card" style="margin-bottom:24px;border-color:var(--gold-dark);">
+    <div class="card-header">🔗 Wallet Connection Bonus</div>
+    <p style="color:var(--text-dim);line-height:1.7;margin-bottom:12px;">
+      Connecting a wallet unlocks <b style="color:var(--gold);">Kraken-powered community bonuses</b> that increase the grand prize.
+    </p>
+    <p style="color:var(--gold-bright);font-weight:700;margin-bottom:16px;">Optional, but rewarding.</p>
+    <div style="text-align:center;">
+      <button class="btn btn-gold btn-sm" id="btnLandingWalletConnect2">🔗 Connect Wallet</button>
+    </div>
+  </div>
+
+  <!-- FAQ (brief) -->
+  <div class="card" style="margin-bottom:24px;">
+    <div class="card-header">❓ FAQ</div>
+    <div style="font-size:0.9em;color:var(--text-dim);line-height:1.9;">
+      <p>✅ <b>Free to use</b> — no cost to mine and earn entries.</p>
+      <p>✅ <b>No deposits</b> — you never send us money.</p>
+      <p>✅ <b>No wallet needed to mine</b> — mining works right away.</p>
+      <p>✅ <b>Wallet needed to receive winnings</b> — add one to claim prizes.</p>
+      <p>✅ <b>Winner contacted in-account</b> if wallet not connected.</p>
+      <p>✅ <b>Uninstall anytime</b> — close the miner and you're done.</p>
+    </div>
+  </div>
+
+  <!-- Community -->
+  <div class="card" style="margin-bottom:24px;border-color:var(--lapis);">
+    <div class="card-header" style="color:var(--diamond-bright);">🌐 Community</div>
+    <p style="color:var(--text-dim);line-height:1.7;margin-bottom:16px;">
+      Join the miners building the community's Monero grand prize pool.
+    </p>
+    <div style="display:flex;gap:12px;justify-content:center;flex-wrap:wrap;">
+      <a href="#" class="btn btn-blue btn-sm">💬 Discord</a>
+      <a href="#" class="btn btn-blue btn-sm">✈️ Telegram</a>
+      <a href="#" class="btn btn-blue btn-sm">🐦 Twitter/X</a>
+    </div>
+  </div>
+
+  <!-- Final CTA -->
+  <div class="card" style="margin-bottom:24px;border:3px solid var(--gold);background:var(--gradient-jackpot);text-align:center;">
+    <div style="font-size:1.4em;color:var(--gold-bright);font-weight:700;margin-bottom:16px;line-height:1.4;">
+      Start Mining. Earn Entries. Win Monero.
+    </div>
+    <button class="btn btn-gold btn-lg" id="btnLandingFinalCta">💰 Download Miner</button>
+  </div>
+
+  <!-- Comments / Contact -->
+  <div class="card" style="margin-bottom:24px;border-color:var(--lapis);">
+    <div class="card-header" style="color:var(--diamond-bright);">💬 Leave a Comment</div>
+    <p style="color:var(--text-dim);line-height:1.7;margin-bottom:16px;font-size:0.9em;">
+      Have a question, suggestion, or just want to say hi? Drop us a message.
+    </p>
+    <input class="spin-input" id="commentName" placeholder="Your name">
+    <input class="spin-input" id="commentEmail" type="email" placeholder="Your email (optional)">
+    <textarea class="spin-input" id="commentMessage" placeholder="Your message" rows="3" style="resize:vertical;"></textarea>
+    <button class="btn btn-gold" id="btnSubmitComment" style="width:100%;">Send Message</button>
+  </div>
+</section>
+
+<!-- ═══════════ SIGNUP PAGE ═══════════ -->
+<section id="page-signup" class="page">
+  <div class="hero" style="padding-bottom:20px;">
+    <h1 style="font-size:1.8em;">Create Your Free XMR Jackpot Account</h1>
+    <p>Start mining, earn entries, and enter the daily Monero grand prize — all for free.</p>
+  </div>
+
+  <div style="max-width:560px;margin:0 auto;">
+    <div class="card" style="border-color:var(--gold-dark);">
+      <div class="card-header" style="color:var(--gold-bright);">✨ What you get:</div>
+      <ul style="color:var(--text-dim);line-height:1.9;padding-left:24px;font-size:0.9em;margin-bottom:16px;">
+        <li>Access to the 24/7 mining bot</li>
+        <li>Daily grand prize entries</li>
+        <li>Referral rewards</li>
+        <li>Bonus eligibility</li>
+        <li>Winner notifications</li>
+      </ul>
+    </div>
+
+    <div class="card" style="margin-top:16px;border-left:3px solid var(--mono-orange);">
+      <div class="card-header">🔔 Notifications</div>
+      <p style="color:var(--text-dim);font-size:0.9em;line-height:1.7;margin-bottom:12px;">Get native push alerts straight from xmrjackpot.com — no third-party service, no third-party data. Two kinds, each with its own opt-out:</p>
+      <div style="border:1px solid var(--hairline);padding:10px 12px;margin-bottom:10px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;">
+          <b style="color:var(--text);">🎉 Jackpot Notifications</b>
+          <label style="display:flex;align-items:center;gap:6px;font-size:0.85em;color:var(--text-dim);cursor:pointer;"><input type="checkbox" id="prefJackpot" checked> On</label>
+        </div>
+        <p class="tiny" style="margin:6px 0 0;color:var(--text-mute);">Jackpot wins · claim-window reminders · challenge unlocks · ticket updates · Miner Bot status.</p>
+        <button class="btn" id="btnTestJackpot" style="margin-top:8px;font-size:0.8em;padding:4px 10px;">Test notification</button>
+      </div>
+      <div style="border:1px solid var(--hairline);padding:10px 12px;margin-bottom:12px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;">
+          <b style="color:var(--text);">📡 Scout Notifications</b>
+          <label style="display:flex;align-items:center;gap:6px;font-size:0.85em;color:var(--text-dim);cursor:pointer;"><input type="checkbox" id="prefScout" checked> On</label>
+        </div>
+        <p class="tiny" style="margin:6px 0 0;color:var(--text-mute);">Kraken Scout trading signals — “Buy Now” / “Get Out Now”, the only two alerts the phone gets.</p>
+        <button class="btn" id="btnTestScout" style="margin-top:8px;font-size:0.8em;padding:4px 10px;">Test notification</button>
+      </div>
+      <div id="prefSaved" class="tiny" style="color:var(--text-mute);margin-bottom:8px;"></div>
+      <button class="btn btn-gold" id="btnEnablePush">🔔 Enable Notifications on This Device</button>
+      <div id="pushStatus" class="tiny" style="margin-top:8px;"></div>
+    </div>
+
+    <div class="card" style="margin-top:16px;">
+      <div class="card-header">🧜 The Kraken Funded Challenge</div>
+      <p style="color:var(--text-dim);font-size:0.9em;line-height:1.7;margin-bottom:8px;">Win the daily jackpot and the Kraken Challenge Guide unlocks for you: fund a Kraken account through the community referral link ($20 → up to $1,000 funded, $50 → up to $5,000, $90 → up to $10,000), complete the challenge, and Kraken pays the referral bonus that feeds the next day's prize.</p>
+      <p class="tiny" style="margin:0;">Kraken Scout sends the long-bullish signals — Buy Now, Get Out Now. Kraken pays the bonuses, not the community.</p>
+    </div>
+
+    <div class="card" style="margin-top:16px;">
+      <div class="card-header">📝 Create Account</div>
+
+      <label style="font-size:0.8em;color:var(--text-mute);">Username</label>
+      <input class="spin-input" id="signupUser" placeholder="Choose a username">
+      <label style="font-size:0.8em;color:var(--text-mute);">Password</label>
+      <input class="spin-input" id="signupPass" type="password" placeholder="Choose a password">
+      <label style="font-size:0.8em;color:var(--text-mute);">Email (optional)</label>
+      <input class="spin-input" id="signupEmail" type="email" placeholder="you@example.com">
+      <label style="font-size:0.8em;color:var(--text-mute);">Monero wallet address (optional, receive-only)</label>
+      <input class="spin-input" id="signupWallet" placeholder="Your XMR wallet address (starts with 4 or 8)">
+
+      <div style="margin-top:16px;padding-top:12px;border-top:2px solid var(--bg-cobble);">
+        <label style="font-size:0.8em;color:var(--text-mute);">🔒 Choose a security question — you'll need this to recover your account if you forget your password.</label>
+        <select class="spin-input" id="signupSecurityQ">
+          <option value="">Choose a security question...</option>
+          <option value="What was the name of your first pet?">What was the name of your first pet?</option>
+          <option value="What city were you born in?">What city were you born in?</option>
+          <option value="What is your mother's maiden name?">What is your mother's maiden name?</option>
+          <option value="What was the make of your first car?">What was the make of your first car?</option>
+          <option value="What is your favorite book?">What is your favorite book?</option>
+          <option value="What was the name of your first school?">What was the name of your first school?</option>
+        </select>
+        <input class="spin-input" id="signupSecurityA" placeholder="Your answer">
+      </div>
+
+      <button class="btn btn-gold btn-lg" id="btnSignupCreate" style="width:100%;margin-top:16px;">✨ Create Account</button>
+      <p style="text-align:center;margin-top:12px;color:var(--text-mute);font-size:0.8em;">
+        Already have an account? <a href="#" id="btnSignupLogin" style="color:var(--gold);">Login</a>
+      </p>
+    </div>
+
+    <div style="margin-top:16px;padding:14px;background:var(--bg-void);border:2px solid var(--emerald-dark);border-radius:8px;font-size:0.8em;color:var(--text-dim);line-height:1.6;">
+      💡 <b style="color:var(--emerald-bright);">Free forever.</b> No deposits, no fees, no credit card. Just mine Monero and earn entries for the daily drawing.
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════ HOW TO PLAY ═══════════ -->
+<section id="page-howto" class="page">
+  <div class="hero">
+    <h1 style="font-size:2em;">How It Works</h1>
+    <p>Five simple steps to start winning XMR</p>
+
+    <div class="card" style="margin-bottom:16px;border-color:var(--gold-dark);background:var(--gradient-jackpot);text-align:center;">
+      <p style="font-size:0.95em;color:var(--gold-bright);font-weight:700;margin-bottom:8px;">
+        ⛏️ Together we conquer. Divided we fall!
+      </p>
+      <p style="font-size:0.85em;color:var(--text-dim);">
+        One winner takes 90% of the pot in a single drawing.<br>
+        Mining alone at 1 kH/s earns ~0.0003 XMR/day — it would take 300+ days to reach SupportXMR's 0.1 XMR payout threshold.<br>
+        But together, every miner contributes shares to the pool. The grand prize grows from everyone's combined effort.<br>
+        One lucky winner takes 90% of the grand prize — a payout that grows as the community grows.<br>
+        <b style="color:var(--gold);">Mine together. Win together. The more miners, the bigger the grand prize.</b>
+      </p>
+    </div>
+  </div>
+
+  <div class="tutorial-step">
+    <div class="tutorial-step-num">1</div>
+    <div>
+      <h3>⛏️ You Mine Monero</h3>
+      <p>Use your computer, your laptop, or even your spare hardware. Every hash you contribute helps the pool find blocks faster.</p>
+      <div style="font-size:0.85em;color:var(--text-mute);margin-top:8px;">
+        <b>Don't have an XMR wallet? Get one free on Kraken:</b><br>
+        <span>Why this link: it helps fund the jackpot — join Kraken with it, pass the Funded Challenge with Kraken Scout, and Kraken pays you and pays the jackpot when the terms are met.</span><br>
+        1. <a href="https://invite.kraken.com/JDNW/29bygijw" target="_blank" rel="nofollow sponsored" style="color:#7c7cff;font-weight:700;">Sign up for Kraken →</a><br>
+        2. Verify your account (email + ID)<br>
+        3. Go to <b>Funding</b> → search <b>XMR</b> → click <b>Deposit</b><br>
+        4. Select <b>Monero Network</b> → copy your deposit address<br>
+        5. Paste that address here when you register
+      </div>
+      <div style="font-size:0.8em;color:var(--text-dim);margin-top:6px;">
+        💡 Your Kraken deposit address is your XMR wallet address. It starts with "4" or "8" and is ~95 characters long. Any XMR sent there appears in your Kraken account balance.
+      </div>
+      <div style="margin-top:8px;">
+        <a href="https://invite.kraken.com/JDNW/29bygijw" target="_blank" rel="nofollow sponsored" class="btn btn-blue btn-sm">🛒 Open Kraken Account →</a>
+        <div style="font-size:0.8em;color:var(--text-dim);margin-top:4px;">Why this link: joining Kraken through it helps fund the jackpot — pass the Funded Challenge with Kraken Scout, and Kraken pays you and pays the jackpot when the terms are met.</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="tutorial-step">
+    <div class="tutorial-step-num">2</div>
+    <div>
+      <h3>🎫 You Earn Entries</h3>
+      <p>For every amount of mining you contribute, you earn raffle entries. More mining = more entries = better odds to win.</p>
+      <div style="font-size:0.85em;color:var(--text-mute);margin-top:6px;">
+        💡 Every <b>100 valid shares</b> earns you <b>1 free entry</b> for the daily drawing. No cost to you. Mine 24/7 for maximum entries.
+      </div>
+    </div>
+  </div>
+
+  <div class="tutorial-step">
+    <div class="tutorial-step-num">3</div>
+    <div>
+      <h3>👥 You Refer Friends</h3>
+      <p>Every friend you bring earns you bonus entries. More miners = faster blocks = bigger grand prizes.</p>
+      <div style="font-size:0.85em;color:var(--text-mute);margin-top:6px;">
+        💡 Share your unique referral link. When someone signs up with your link and starts mining, you get <b>100 bonus entries</b> per active referral. Together we conquer.
+      </div>
+    </div>
+  </div>
+
+  <div class="tutorial-step">
+    <div class="tutorial-step-num">4</div>
+    <div>
+      <h3>💰 The Grand Prize Grows</h3>
+      <p>When the pool finds a block, the Monero reward goes straight into the grand prize pot. The more miners, the faster blocks are found, the bigger the grand prize grows.</p>
+    </div>
+  </div>
+
+  <div class="tutorial-step">
+    <div class="tutorial-step-num">5</div>
+    <div>
+      <h3>🏆 A Winner Is Drawn</h3>
+      <p>One miner wins <b>90% of the grand prize</b> — instantly, privately, securely. House takes 10% for server costs.</p>
+      <div style="margin-top:8px;font-size:0.85em;color:var(--text-mute);">
+        <b>Provably fair:</b> commit-reveal scheme seeded by Monero block hashes<br>
+        <b>Verify:</b> anyone can verify any drawing at <code>/api/verify/{id}</code><br>
+        <b>No one — not even the house — can cheat the outcome</b>
+      </div>
+      <div style="margin-top:8px;font-size:0.9em;color:var(--gold-bright);font-weight:700;">
+        It's like a free raffle powered by Monero mining.
+      </div>
+    </div>
+  </div>
+
+  <!-- Cyber-Secure and Privacy-Friendly -->
+  <div class="card" style="margin-top:24px;border-color:rgba(59,130,246,0.3);">
+    <div class="card-header">🔒 Cyber-Secure and Privacy-Friendly</div>
+    <p style="color:var(--text-dim);line-height:1.7;margin-bottom:12px;">
+      XMR Jackpot is built on Monero's world-class privacy technology:
+    </p>
+    <ul style="color:var(--text);line-height:2;padding-left:24px;">
+      <li><b>Stealth addresses</b> hide your identity</li>
+      <li><b>Ring signatures</b> hide your transaction source</li>
+      <li><b>RingCT</b> hides the amount</li>
+      <li><b>One-time keys</b> prevent linking</li>
+      <li><b>Decentralized mining</b> keeps the network fair</li>
+      <li><b>Encrypted payouts</b> protect your financial privacy</li>
+    </ul>
+    <p style="color:var(--gold-bright);font-weight:700;text-align:center;margin-top:16px;">
+      You get all the benefits of Monero's advanced cryptography — without needing to understand any of it.
+    </p>
+  </div>
+
+  <!-- 🔐 Security & Fairness -->
+  <div class="card" style="margin-top:24px;border-color:var(--gold-dark);background:linear-gradient(135deg,var(--bg-deep),var(--obsidian));">
+    <div class="card-header" style="color:var(--gold-bright);">🔐 Security &amp; Fairness</div>
+
+    <div class="security-item">
+      <div class="security-item-title">⚖️ Provably Fair</div>
+      <p>Every drawing uses a commit-reveal scheme seeded by Monero block hashes. Anyone can verify any drawing at <code style="color:var(--diamond-bright);">/api/verify/&#123;id&#125;</code>. The house cannot predetermine winners.</p>
+    </div>
+
+    <div class="security-item">
+      <div class="security-item-title">📦 Open Source Miner</div>
+      <p>The miner downloads xmrig from the official GitHub (<a href="https://github.com/xmrig/xmrig" target="_blank" rel="noopener" style="color:var(--lapis);">github.com/xmrig/xmrig</a>) and verifies the SHA256 hash. View the source: <a href="https://github.com/xmrig/xmrig" target="_blank" rel="noopener" style="color:var(--lapis);">github.com/xmrig/xmrig</a></p>
+    </div>
+
+    <div class="security-item">
+      <div class="security-item-title">#️⃣ Hash Verification</div>
+      <p>The installer checks the SHA256 hash after download. If it doesn't match, installation aborts. A <code style="color:var(--gold);">verify.bat</code> script is included for re-checking the binary integrity at any time.</p>
+    </div>
+
+    <div class="security-item">
+      <div class="security-item-title">🚫 No Hidden Access</div>
+      <p>The miner has one-way access only — it sends hashpower out. It cannot access your wallet, private keys, or make transfers.</p>
+    </div>
+
+    <div class="security-item">
+      <div class="security-item-title">⚙️ Config Preview</div>
+      <p>Here's exactly what the miner config looks like — nothing hidden, no surprise endpoints:</p>
+      <pre class="code-block"><code>{
+  "cpu": { "enabled": true, "max-threads-hint": 75 },
+  "pools": [
+    {
+      "url": "mine.xmrjackpot.com:3333",
+      "user": "YOUR_WALLET",
+      "pass": "x"
+    }
+  ]
+}</code></pre>
+    </div>
+  </div>
+
+  <!-- Terms of Service & Disclaimer -->
+  <div class="card" style="margin-top:24px;border-color:rgba(255,200,0,0.3);">
+    <div class="card-header">📜 Terms of Service &amp; Disclaimer</div>
+    <div style="font-size:0.8em;color:var(--text-dim);line-height:1.7;max-height:300px;overflow-y:auto;padding-right:8px;">
+      <p><b>Last updated:</b> July 2026</p>
+
+      <p><b>1. Eligibility.</b> You must be at least 18 years old and legally able to enter into contracts in your jurisdiction. This service is not available in jurisdictions where cryptocurrency raffles, mining pools, or gambling are prohibited. It is your responsibility to ensure compliance with local laws.</p>
+
+      <p><b>2. Not Gambling.</b> This service operates as a Monero mining pool with a prize-drawing reward system. Free entries are earned through mining activity at no cost. The provably fair system uses commit-reveal cryptography seeded by Monero block hashes — outcomes are deterministic and verifiable.</p>
+
+      <p><b>3. No Guarantee of Profit.</b> Cryptocurrency values are volatile. Mining electricity costs may exceed rewards. The grand prize amount fluctuates based on pool activity. Past drawings do not influence future outcomes. You may lose money.</p>
+
+      <p><b>4. Provably Fair.</b> All drawings use a commit-reveal scheme: (1) the commit hash is published before the drawing, (2) the reveal seed + Monero block hash determine the winner, (3) anyone can verify at /api/verify/{id}. The house cannot predetermine winners.</p>
+
+      <p><b>5. Fees.</b> The house retains 10% of all payouts (daily drawings). This covers server costs, development, and operations. House tax stays in the pool and seeds the prize when the balance would fall below the drawing minimum.</p>
+
+      <p><b>6. Mining Software.</b> The installer downloads xmrig from the official GitHub repository (github.com/xmrig/xmrig) and verifies the SHA256 hash. We do not modify the binary. xmrig is open-source under the MIT license. You are responsible for any electricity costs, hardware wear, or antivirus configuration on your device.</p>
+
+      <p><b>7. Privacy.</b> Monero transactions are private by design. We do not collect personal information beyond your username and wallet address. Session cookies are used for authentication only. No KYC is performed.</p>
+
+      <p><b>8. Limitation of Liability.</b> The service is provided "as is" without warranties. We are not liable for: network outages, Monero blockchain forks, remote node downtime, exchange rate fluctuations, software bugs, or force majeure events. Maximum liability is limited to the XMR balance in your pool account.</p>
+
+      <p><b>9. Account Security.</b> You are responsible for safeguarding your account credentials. We are not liable for unauthorized access. Report suspicious activity immediately.</p>
+
+      <p><b>10. Changes to Terms.</b> We reserve the right to update these terms. Continued use after changes constitutes acceptance. Material changes will be announced on the homepage.</p>
+
+      <p><b>11. Contact.</b> For questions about these terms, use the admin contact form on the dashboard.</p>
+
+      <p style="color:var(--text-mute);font-style:italic;margin-top:12px;">This is not legal advice. If you are unsure whether this service is legal in your jurisdiction, consult a qualified attorney before participating.</p>
+    </div>
+  </div>
+
+  <!-- Privacy Policy -->
+  <div class="card" style="margin-top:16px;border-color:rgba(59,130,246,0.2);">
+    <div class="card-header">🔐 Privacy Policy</div>
+    <div style="font-size:0.8em;color:var(--text-dim);line-height:1.7;">
+      <p><b>Data collected:</b> Username, wallet address, mining shares, entry counts, and session cookies. Email is optional.</p>
+      <p><b>How we use it:</b> Account management, entry allocation, payout processing, and pool statistics.</p>
+      <p><b>Monero privacy:</b> All transactions use Monero, which provides privacy by design. We cannot trace funds after they leave the pool. We do not perform KYC or identity verification.</p>
+      <p><b>Cookies:</b> A single HttpOnly session cookie for authentication. No tracking cookies, no analytics, no third-party scripts.</p>
+      <p><b>Data retention:</b> Account data is retained while the account is active. Mining data is aggregated for pool statistics. You may request account deletion at any time.</p>
+      <p><b>Third parties:</b> We do not share data with third parties. Mining rewards are sent to your wallet via the Monero network. Kraken appears only through the optional referral link; house tax stays in the pool.</p>
+    </div>
+  </div>
+
+  <!-- Responsible Play -->
+  <div class="card" style="margin-top:16px;border-color:rgba(255,100,100,0.2);">
+    <div class="card-header">⚠️ Responsible Play</div>
+    <div style="font-size:0.8em;color:var(--text-dim);line-height:1.7;">
+      <p>This is a mining pool with a prize-drawing system. Participation is free via mining — there is nothing to purchase.</p>
+      <p>• <b>Free mining is always available</b> — you never need to pay to participate in the daily drawing.</p>
+      <p>• <b>Mining electricity costs are real.</b> Your CPU power consumption increases while mining. Monitor your electricity costs.</p>
+      <p>• If you feel you may have a gambling problem, visit <a href="https://www.begambleaware.org" target="_blank" style="color:#7c7cff;">begambleaware.org</a> or call 1-800-522-4700 (US National Problem Gambling Helpline).</p>
+    </div>
+  </div>
+
+  <!-- Wallet FAQ -->
+  <div class="card" style="margin-top:16px;border-color:var(--gold-dark);">
+    <div class="card-header">👛 Wallet FAQ</div>
+    <div style="font-size:0.9em;line-height:1.7;">
+      <div class="faq-item">
+        <p style="color:var(--gold-bright);font-weight:700;margin-bottom:4px;">Q: Do I need a wallet to mine?</p>
+        <p style="color:var(--text-dim);margin-bottom:16px;">A: No. Mining works without a wallet.</p>
+      </div>
+      <div class="faq-item">
+        <p style="color:var(--gold-bright);font-weight:700;margin-bottom:4px;">Q: Do I need a wallet to win?</p>
+        <p style="color:var(--text-dim);margin-bottom:16px;">A: Yes — you'll need a wallet to receive your payout.</p>
+      </div>
+      <div class="faq-item">
+        <p style="color:var(--gold-bright);font-weight:700;margin-bottom:4px;">Q: What if I win without a wallet connected?</p>
+        <p style="color:var(--text-dim);margin-bottom:16px;">A: We'll notify you in your account. You log in, add a wallet, and receive your payout. You have <b style="color:var(--gold);">7 days to claim</b> before the grand prize returns to the pool.</p>
+      </div>
+      <div class="faq-item">
+        <p style="color:var(--gold-bright);font-weight:700;margin-bottom:4px;">Q: Why connect early?</p>
+        <p style="color:var(--text-dim);margin-bottom:0;">A: Connected wallets let us verify active miners, so recorded Kraken referral bonuses can be directed into the grand prize.</p>
+      </div>
+    </div>
+  </div>
+
+  <div style="text-align:center;margin-top:20px;">
+    <button class="btn btn-gold btn-lg" id="btnHowToDownload">⬇ Download Miner &amp; Start Mining</button>
+  </div>
+</section>
+
+<!-- ═══════════ REAL MONEY MODE ═══════════ -->
+<section id="page-realplay" class="page">
+  <!-- Wallet Connect (shown first) -->
+  <div id="realWalletSection" class="card" style="text-align:center;max-width:500px;margin:0 auto 20px;">
+    <div class="card-header">🔑 Enter Your XMR Wallet</div>
+    <p style="color:var(--text-secondary);font-size:0.9em;margin-bottom:12px;">This is how we identify your shares and send grand prize payouts.</p>
+    <input class="spin-input" id="realWalletInput" placeholder="Your XMR wallet address">
+    <button class="btn btn-gold" id="btnConnectWallet">Connect Wallet</button>
+    <div style="font-size:0.8em;color:var(--text-mute);margin-top:12px;text-align:left;padding:0 10px;">
+      <b>How to find your XMR address on Kraken:</b><br>
+      <span>Why this link: it helps fund the jackpot — join Kraken with it, pass the Funded Challenge with Kraken Scout, and Kraken pays you and pays the jackpot when the terms are met.</span><br>
+      1. <a href="https://invite.kraken.com/JDNW/29bygijw" target="_blank" rel="nofollow sponsored" style="color:#7c7cff;">Open a Kraken account →</a><br>
+      2. Go to <b>Funding</b> → search <b>XMR</b> → click <b>Deposit</b><br>
+      3. Select <b>Monero Network</b> → copy the deposit address<br>
+      4. Paste it in the box above<br><br>
+      💡 Address starts with "4" or "8", ~95 characters. This is where your grand prize winnings go.
+    </div>
+  </div>
+
+  <!-- Main Game (shown after wallet connected) -->
+  <div id="realMainSection" style="display:none;">
+
+    <div class="jackpot-hero" style="margin-bottom:20px;">
+      <div class="jackpot-label">🏆 Live Grand Prize</div>
+      <div class="jackpot-amount" id="realJackpotXmr">0.000000 XMR</div>
+      <div class="jackpot-usd" id="realJackpotUsd">≈ $0.00</div>
+      <div style="color:var(--text-muted);font-size:0.8em;">Wallet: <span id="realWalletDisplay">—</span></div>
+    <div style="margin-top:8px;font-size:0.8em;color:var(--text-dim);">
+      🔑 Deposit Subaddress: <br><span id="realSubaddress" style="color:var(--diamond-bright);font-family:monospace;word-break:break-all;">Login to get your unique subaddress</span>
+      <button class="btn btn-sm btn-blue" id="btnGetSubaddress" style="margin-left:8px;display:none;">Get Subaddress</button>
+    </div>
+    <div style="font-size:0.75em;color:var(--text-mute);margin-top:4px;">
+      ⚠️ Send XMR to your subaddress. Requires <b>10 confirmations</b> (~20 min) before entries are credited.
+    </div>
+    </div>
+
+    <div class="grid-4" style="margin-bottom:20px;">
+      <div class="stat-card"><div class="stat-value green" id="realActiveMiners">0</div><div class="stat-label">Active Miners</div></div>
+      <div class="stat-card"><div class="stat-value blue" id="realPoolHashrate">0 H/s</div><div class="stat-label">Pool Hashrate</div></div>
+      <div class="stat-card"><div class="stat-value gold" id="realPendingTickets">0</div><div class="stat-label">Pending Entries</div></div>
+      <div class="stat-card"><div class="stat-value" id="realTotalShares">0</div><div class="stat-label">Total Pool Shares</div></div>
+    </div>
+
+    <!-- Your Miner Character Display -->
+    <div class="card" style="margin-bottom:20px;text-align:center;" id="realMinerSection">
+      <div class="card-header">⛏️ Your Miner</div>
+      <div class="miner-display" id="mineScene">
+        <img src="/static/img/miner_sprite.png" alt="Miner" class="miner-sprite-big" id="realMinerSprite1">
+        <img src="/static/img/miner_sprite.png" alt="Miner 2" class="miner-sprite-big miner-sprite-2" id="realMinerSprite2" style="display:none;">
+      </div>
+      <div style="margin-top:4px;">
+        <span class="mine-status" id="mineStatusText">⚠️ MINER NOT DEPLOYED</span>
+      </div>
+      <div style="text-align:center;margin-top:6px;font-size:0.75em;color:var(--text-mute);">
+        Speed Level: <span id="speedLevel">1x</span> · Miners: <span id="minerCount">1</span>
+      </div>
+
+      <!-- Miner Upgrades -->
+      <div style="display:flex;gap:10px;justify-content:center;margin-top:12px;flex-wrap:wrap;">
+        <button class="btn btn-blue btn-sm" id="btnBoostSpeed">⚡ Boost Speed (0.5 XMR)</button>
+        <button class="btn btn-emerald btn-sm" id="btnHireMiner2">👷 Hire Miner 2 (2.0 XMR)</button>
+      </div>
+
+      <div class="grid-3" id="minerStats" style="margin-top:16px;">
+        <div class="stat-card"><div class="stat-value blue" id="minerHashrate">—</div><div class="stat-label">Your Hashrate</div></div>
+        <div class="stat-card"><div class="stat-value green" id="minerShares">0</div><div class="stat-label">Your Shares</div></div>
+        <div class="stat-card"><div class="stat-value gold" id="minerTickets">0</div><div class="stat-label">Your Entries</div></div>
+      </div>
+      <div id="realNoMiner" style="text-align:center;padding:20px;color:var(--text-muted);">
+        <p>Miner not detected yet. Connect using the command below.</p>
+      </div>
+    </div>
+
+    <!-- Info Banner (replaces slot machine) -->
+    <div class="card" style="margin-bottom:16px;text-align:center;background:var(--bg-deep);border:2px solid var(--gold-dark);">
+      <div style="padding:20px 16px;">
+        <div style="font-size:2em;margin-bottom:8px;">⛏️🎫</div>
+        <p style="color:var(--gold-bright);font-weight:700;font-size:1.05em;margin-bottom:6px;">Mine XMR to earn free entries. Every 100 shares = 1 entry for the daily drawing.</p>
+        <div style="font-size:0.8em;color:var(--text-dim);margin-top:10px;line-height:1.7;">
+          • <b>Daily Drawing</b> — free entries from mining, winner takes 90% of the grand prize every 24h<br>
+          • <b>House tax</b> — 10% of all payouts, held by the pool (seeds the prize when short)<br>
+          • <b>Provably fair</b> — every drawing verifiable via 🔍 link
+        </div>
+        <p style="font-size:0.75em;margin-top:12px;margin-bottom:0;"><a href="https://invite.kraken.com/JDNW/29bygijw" target="_blank" rel="nofollow sponsored" style="color:#7c7cff;">🛒 Need XMR? Get it on Kraken →</a><br>
+        Why this link: it helps fund the jackpot — join Kraken with it, pass the Funded Challenge with Kraken Scout, and Kraken pays you and pays the jackpot when the terms are met.</p>
+      </div>
+    </div>
+
+    <!-- Miner Setup Wizard -->
+    <div class="card" style="margin-top:20px;">
+      <div class="card-header">⬇️ Download the XMR Jackpot Miner</div>
+      <div id="minerWizard" style="text-align:left;">
+        <p style="font-size:1.05em;color:var(--gold-bright);font-weight:700;margin-bottom:8px;">Lightweight. Safe. One-way access. Runs 24/7.</p>
+        <p style="font-size:0.9em;color:var(--text-dim);margin-bottom:16px;">Download the installer, double-click it, and you're mining. It automatically downloads xmrig from the official GitHub, verifies the SHA256 hash, creates a folder on your desktop, configures everything, and starts.</p>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px;">
+          <div style="background:rgba(34,197,94,0.06);border:2px solid rgba(34,197,94,0.2);border-radius:8px;padding:14px;">
+            <div style="font-weight:700;color:var(--emerald-bright);margin-bottom:8px;">✅ What it does:</div>
+            <ul style="font-size:0.85em;color:var(--text-dim);line-height:1.8;padding-left:18px;margin:0;">
+              <li>Uses your CPU/GPU to mine Monero</li>
+              <li>Sends hashpower to the jackpot pool</li>
+              <li>Earns entries automatically</li>
+              <li>Can be paused or uninstalled anytime</li>
+            </ul>
+          </div>
+          <div style="background:rgba(255,68,68,0.06);border:2px solid rgba(255,68,68,0.2);border-radius:8px;padding:14px;">
+            <div style="font-weight:700;color:var(--redstone);margin-bottom:8px;">🚫 What it NEVER does:</div>
+            <ul style="font-size:0.85em;color:var(--text-dim);line-height:1.8;padding-left:18px;margin:0;">
+              <li>No wallet access</li>
+              <li>No private keys</li>
+              <li>No deposits</li>
+              <li>No transfers</li>
+              <li>No hidden tasks</li>
+            </ul>
+          </div>
+        </div>
+
+        <div style="text-align:center;margin:16px 0;">
+          <button class="btn btn-gold btn-lg" id="btnDownloadInstaller">⬇ Download Miner</button>
+        </div>
+
+        <!-- Security Explainer -->
+        <div style="background:rgba(34,197,94,0.06);border:2px solid rgba(34,197,94,0.2);border-radius:8px;padding:12px;margin-top:16px;">
+          <div style="font-weight:700;color:var(--green);margin-bottom:8px;">🔒 Security &amp; Transparency</div>
+          <div style="font-size:0.8em;color:var(--text-dim);line-height:1.6;">
+            <b>What is xmrig?</b> An open-source Monero CPU miner (MIT license). Source code: <a href="https://github.com/xmrig/xmrig" target="_blank" style="color:#7c7cff;">github.com/xmrig/xmrig</a>. It's the standard mining software used by thousands of pools worldwide.<br><br>
+            <b>Where does it come from?</b> The installer downloads <b>only</b> from the official GitHub releases page — never from a third-party mirror.<br><br>
+            <b>How is it verified?</b> After download, the installer checks the SHA256 hash. If it doesn't match, the installer <b>aborts immediately</b> and warns you. A <code style="color:var(--diamond-bright);">verify.bat</code> script is included to re-check integrity at any time.<br><br>
+            <b>What does it do to my computer?</b> Uses up to 75% of your CPU at low priority. No hidden processes. Auto-starts on Windows reboot (can be removed by deleting XMR_Jackpot_AutoStart.bat from your Startup folder). Close the window to stop mining.<br><br>
+            <b>Why does antivirus flag it?</b> xmrig is sometimes flagged as "riskware" because it can be abused by malware. This is a false positive — the binary is from the official source and hash-verified. Add the folder as a Windows Defender exclusion if needed.
+          </div>
+        </div>
+
+        <div style="font-size:0.8em;color:var(--text-mute);margin-top:12px;">
+          <b>What the installer does:</b><br>
+          1. Creates "XMR Jackpot Miner" folder on your Desktop<br>
+          2. Downloads xmrig v6.26.0 from <b>github.com/xmrig/xmrig/releases</b><br>
+          3. Verifies SHA256 hash — aborts if mismatch<br>
+          4. Writes config.json with your wallet + pool address<br>
+          5. Creates start.bat + verify.bat for easy restarts<br>
+          6. Launches the miner immediately<br><br>
+          <b>⚠️ Windows Defender:</b> May block xmrig (false positive). If it does:<br>
+          → Windows Security → Virus &amp; threat protection → Exclusions → Add folder → select "XMR Jackpot Miner" on your Desktop<br><br>
+          <b>Manual option:</b> If the installer doesn't work, download xmrig manually:<br>
+          → <a href="https://github.com/xmrig/xmrig/releases/latest" target="_blank" style="color:#7c7cff;">github.com/xmrig/xmrig/releases</a><br>
+          → Run with: <code style="color:var(--diamond-bright);">xmrig -o mine.xmrjackpot.com:3333 -u YOUR_WALLET.worker -p x</code>
+        </div>
+      </div>
+    </div>
+
+    <!-- Entry Stats -->
+    <div class="card" style="margin-bottom:16px;border-color:var(--gold-dark);background:linear-gradient(135deg,var(--bg-deep),var(--obsidian));">
+      <div class="card-header" style="color:var(--gold-bright);">🎫 Entry Stats</div>
+      <div class="grid-3">
+        <div class="stat-card">
+          <div style="font-size:1.6em;">🎫</div>
+          <div class="stat-value gold" id="realYourEntries">0</div>
+          <div class="stat-label">Your Entries</div>
+          <div style="font-size:0.72em;color:var(--text-mute);margin-top:4px;">in today's draw</div>
+        </div>
+        <div class="stat-card">
+          <div style="font-size:1.6em;">📊</div>
+          <div class="stat-value blue" id="realTotalEntries">0</div>
+          <div class="stat-label">Total Entries</div>
+          <div style="font-size:0.72em;color:var(--text-mute);margin-top:4px;">in the pot</div>
+        </div>
+        <div class="stat-card">
+          <div style="font-size:1.6em;">🎯</div>
+          <div class="stat-value diamond" id="realWinChance">0%</div>
+          <div class="stat-label">Your Chance</div>
+          <div style="font-size:0.72em;color:var(--text-mute);margin-top:4px;">odds of winning</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Recent Drawings -->
+    <div class="card" style="margin-top:20px;">
+      <div class="card-header">📜 Recent Drawings</div>
+      <table>
+        <thead><tr><th>#</th><th>Grand Prize</th><th>Winner</th><th>Tax</th><th>Status</th></tr></thead>
+        <tbody id="realDrawingsTable"><tr><td colspan="5" style="text-align:center;color:var(--text-mute);">🚀 Beta — first drawing coming soon!</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════ LEADERBOARD ═══════════ -->
+<section id="page-leaderboard" class="page">
+  <div class="hero">
+    <h1 style="font-size:2em;">🏆 Winners &amp; Leaderboard</h1>
+    <p>Recent grand prize winners and top miners</p>
+  </div>
+
+  <div class="card" style="margin-bottom:20px;">
+    <div class="card-header">🎉 Recent Grand Prize Winners</div>
+    <table>
+      <thead><tr><th>Drawing #</th><th>Grand Prize</th><th>Winner Wallet</th><th>House Tax</th><th>Date</th></tr></thead>
+      <tbody id="lbDrawingsTable"><tr><td colspan="5" style="text-align:center;color:var(--text-mute);">🚀 Beta — first drawing coming soon!</td></tr></tbody>
+    </table>
+  </div>
+
+  <div class="card">
+    <div class="card-header">👥 Top Miners</div>
+    <table>
+      <thead><tr><th>#</th><th>Wallet</th><th>Shares</th><th>Hashrate</th><th>Last Seen</th></tr></thead>
+      <tbody id="lbMinersTable"><tr><td colspan="5" style="text-align:center;color:var(--text-mute);">⛏️ Be the first to mine!</td></tr></tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ═══════════ PLAYER DASHBOARD ═══════════ -->
+<section id="page-dashboard" class="page">
+  <!-- Not logged in -->
+  <div id="dashLogin" class="card" style="max-width:450px;margin:0 auto;">
+    <div class="card-header">🔑 Account Access</div>
+    <div id="dashLoginForm">
+      <input class="spin-input" id="dashLoginUser" placeholder="Username">
+      <input class="spin-input" id="dashLoginPass" type="password" placeholder="Password">
+      <button class="btn btn-gold" id="btnDashLogin" style="width:100%;">Login</button>
+      <p style="text-align:center;margin-top:10px;color:var(--text-mute);font-size:0.85em;">
+        No account? <a href="#" id="btnDashShowReg" style="color:var(--gold);">Register</a>
+      </p>
+      <p style="text-align:center;margin-top:4px;color:var(--text-mute);font-size:0.85em;">
+        <a href="#" id="btnDashForgotPass" style="color:var(--lapis);">Forgot password?</a>
+      </p>
+    </div>
+    <div id="dashRegForm" style="display:none;">
+      <input class="spin-input" id="dashRegUser" placeholder="Choose username">
+      <input class="spin-input" id="dashRegPass" type="password" placeholder="Choose password">
+      <input class="spin-input" id="dashRegName" placeholder="Full name">
+      <input class="spin-input" id="dashRegEmail" placeholder="Email">
+      <input class="spin-input" id="dashRegPhone" placeholder="Phone number (for alerts)">
+      <input class="spin-input" id="dashRegWallet" placeholder="Kraken XMR wallet address (optional)">
+      <button class="btn btn-emerald" id="btnDashReg" style="width:100%;">Register</button>
+      <p style="text-align:center;margin-top:10px;color:var(--text-mute);font-size:0.85em;">
+        Have an account? <a href="#" id="btnDashShowLogin" style="color:var(--gold);">Login</a>
+      </p>
+    </div>
+    <div id="dashResetForm" style="display:none;">
+      <div class="card-header" style="color:var(--lapis);">🔑 Password Recovery</div>
+
+      <!-- Step 1: Username -->
+      <div id="resetStep1">
+        <label style="font-size:0.8em;color:var(--text-mute);">Enter your username to retrieve your security question.</label>
+        <input class="spin-input" id="resetUsername" placeholder="Your username">
+        <button class="btn btn-blue" id="btnResetGetQuestion" style="width:100%;">Get Security Question</button>
+      </div>
+
+      <!-- Step 2: Answer -->
+      <div id="resetStep2" style="display:none;">
+        <div id="resetQuestionText" style="padding:12px;background:var(--bg-void);border:2px solid var(--lapis);border-radius:0;margin:8px 0;font-size:0.9em;color:var(--text);"></div>
+        <input class="spin-input" id="resetAnswer" placeholder="Your answer">
+        <button class="btn btn-blue" id="btnResetVerify" style="width:100%;">Verify</button>
+      </div>
+
+      <!-- Step 3: New Password -->
+      <div id="resetStep3" style="display:none;">
+        <label style="font-size:0.8em;color:var(--text-mute);">Enter your new password.</label>
+        <input class="spin-input" id="resetNewPass" type="password" placeholder="New password">
+        <button class="btn btn-gold" id="btnResetPassword" style="width:100%;">Reset Password</button>
+      </div>
+
+      <p style="text-align:center;margin-top:10px;color:var(--text-mute);font-size:0.85em;">
+        <a href="#" id="btnResetBackToLogin" style="color:var(--gold);">← Back to login</a>
+      </p>
+    </div>
+
+    <!-- 24/7 Mining Note -->
+    <div style="margin-top:16px;padding:16px;background:var(--bg-void);border:2px solid var(--emerald-dark);border-radius:8px;">
+      <div style="font-weight:700;color:var(--emerald-bright);margin-bottom:8px;">⛏️ Mining That Never Sleeps — XMR Jackpot Keeps You Earning 24/7</div>
+      <div style="font-size:0.82em;line-height:1.7;color:var(--text);">
+        <p style="margin-bottom:8px;">Once you start the XMR Jackpot Miner, your computer becomes a nonstop Monero-earning machine. The miner (powered by XMRig) runs continuously, day and night, quietly contributing hashes to the jackpot pool.</p>
+        <p style="margin-bottom:8px;">And here's the best part: It's built to stay connected automatically.</p>
+        <p style="margin-bottom:0;">If the mining pool ever drops offline — maybe your Wi-Fi hiccups or your ISP blinks — XMRig instantly retries the connection every few seconds. No stress. No babysitting. No technical knowledge required. Your miner just keeps going.</p>
+        <p style="margin-top:8px;margin-bottom:0;color:var(--gold-bright);">📱 Perfect for cell phones too. Monero was designed to protect your identity on the blockchain and be safer for mobile devices — so you can mine with confidence, anywhere.</p>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Logged in: Dashboard -->
+  <div id="dashMain" style="display:none;">
+    <!-- Winner claim banner (injected by JS when a pending win exists) -->
+    <div id="winnerClaimBanner" style="display:none;"></div>
+
+    <!-- ══ WORKFLOW STATUS ROW (Sep 25 redesign phase 2) — miner / scout / wallet states, populated by the wf script below ══ -->
+    <div class="wf-status-row" id="wfStatusRow">
+      <div class="wf-status"><span class="wf-dot" id="wfDotMiner"></span><span><span class="wf-status-label">Miner</span><br><span class="wf-status-value" id="wfMinerStatus">—</span></span></div>
+      <div class="wf-status"><span class="wf-dot" id="wfDotScout"></span><span><span class="wf-status-label">Scout</span><br><span class="wf-status-value" id="wfScoutStatus">—</span></span></div>
+      <div class="wf-status"><span class="wf-dot on"></span><span><span class="wf-status-label">Jackpot</span><br><span class="wf-status-value">Free entry — always</span></span></div>
+      <div class="wf-status"><span class="wf-dot" id="wfDotWallet"></span><span><span class="wf-status-label">Kraken Wallet</span><br><span class="wf-status-value" id="wfWalletStatus">One-directional</span></span></div>
+    </div>
+
+    <div class="grid-2" style="align-items:start;">
+      <!-- Profile Card -->
+      <div class="card">
+        <div class="card-header">👤 Profile</div>
+        <div style="display:flex;align-items:center;gap:16px;margin-bottom:16px;">
+          <div id="dashAvatar" style="font-size:3em;">⛏️</div>
+          <div>
+            <div id="dashDisplayName" style="font-size:1.3em;font-weight:700;">Player</div>
+            <div id="dashUsername" style="color:var(--text-mute);font-size:0.9em;">@user</div>
+          </div>
+        </div>
+        <div class="grid-2" style="gap:12px;">
+          <div class="stat-card"><div class="stat-value gold" id="dashTotalEarned">0</div><div class="stat-label">Total Earned (XMR)</div></div>
+          <div class="stat-card"><div class="stat-value green" id="dashTotalShares">0</div><div class="stat-label">Total Shares</div></div>
+          <div class="stat-card"><div class="stat-value blue" id="dashTotalJackpots">0</div><div class="stat-label">Grand Prizes Won</div></div>
+          <div class="stat-card"><div class="stat-value diamond" id="dashTickets">0</div><div class="stat-label">Current Entries</div></div>
+          <div class="stat-card" id="dashHouseTaxCard" style="display:none;"><div class="stat-value gold" id="dashHouseTax">0</div><div class="stat-label">House Tax Earned</div></div>
+          <div class="stat-card" id="dashHouseTaxSentCard" style="display:none;"><div class="stat-value green" id="dashHouseTaxSent">0</div><div class="stat-label">Total Paid to Winners</div></div>
+        </div>
+        <div style="margin-top:12px;padding-top:12px;border-top:2px solid #000;">
+          <div style="font-size:0.8em;color:var(--text-mute);margin-bottom:6px;">Wallet: <span id="dashWallet">—</span></div>
+          <div style="font-size:0.8em;color:var(--text-mute);">Member since: <span id="dashJoined">—</span></div>
+          <div style="font-size:0.8em;color:var(--text-mute);">Last login: <span id="dashLastLogin">—</span></div>
+        </div>
+        <button class="btn btn-outline btn-sm" id="btnDashLogout" style="margin-top:12px;width:100%;">Logout</button>
+      </div>
+
+      <!-- Profile Editor -->
+      <div class="card">
+        <div class="card-header">✏️ Edit Profile</div>
+        <label style="font-size:0.8em;color:var(--text-mute);">Display Name</label>
+        <input class="spin-input" id="editDisplayName" placeholder="Your name">
+        <label style="font-size:0.8em;color:var(--text-mute);">Avatar (emoji)</label>
+        <input class="spin-input" id="editAvatar" placeholder="⛏️" maxlength="4">
+        <label style="font-size:0.8em;color:var(--text-mute);">Bio</label>
+        <input class="spin-input" id="editBio" placeholder="Tell us about yourself">
+        <label style="font-size:0.8em;color:var(--text-mute);">XMR Wallet Address</label>
+        <input class="spin-input" id="editWallet" placeholder="Your XMR wallet">
+        <button class="btn btn-gold btn-sm" id="btnSaveProfile" style="width:100%;margin-top:8px;">Save Changes</button>
+      </div>
+    </div>
+
+    <!-- 🎮 Miner Level & Achievements -->
+    <div class="card" style="margin-top:16px;border-color:var(--gold-dark);background:linear-gradient(135deg,var(--bg-deep),var(--obsidian));">
+      <div class="card-header" style="color:var(--gold-bright);">🎮 Miner Level &amp; Achievements</div>
+      <div id="gameContent">
+        <div class="game-loading" id="gameLoading">
+          <p style="color:var(--text-mute);text-align:center;padding:20px 0;">Loading achievements…</p>
+        </div>
+        <div id="gameMain" style="display:none;">
+          <!-- Level + XP bar -->
+          <div class="game-level-row">
+            <div class="game-level-badge">
+              <div class="game-level-emoji" id="gameLevelEmoji">⛏️</div>
+              <div class="game-level-num" id="gameLevelNum">Level 1</div>
+            </div>
+            <div class="game-xp-wrap">
+              <div class="game-xp-bar">
+                <div class="game-xp-fill" id="gameXpFill" style="width:0%;"></div>
+              </div>
+              <div class="game-xp-text" id="gameXpText">0 / 0 XP to Level 2</div>
+            </div>
+          </div>
+          <!-- Stat tiles -->
+          <div class="grid-4" style="margin:18px 0;">
+            <div class="stat-card" style="padding:14px;">
+              <div style="font-size:1.5em;">🔥</div>
+              <div class="stat-value gold" id="gameStreak">0 days</div>
+              <div class="stat-label">Mining Streak</div>
+              <div style="font-size:0.7em;color:var(--text-mute);margin-top:3px;">consecutive days mining</div>
+            </div>
+            <div class="stat-card" style="padding:14px;">
+              <div style="font-size:1.5em;">⛏️</div>
+              <div class="stat-value blue" id="gameLifetimeShares">0</div>
+              <div class="stat-label">Lifetime Shares</div>
+              <div style="font-size:0.7em;color:var(--text-mute);margin-top:3px;">all-time shares mined</div>
+            </div>
+            <div class="stat-card" style="padding:14px;">
+              <div style="font-size:1.5em;">🌟</div>
+              <div class="stat-value diamond" id="gameSuperTickets">0</div>
+              <div class="stat-label">Super Entries</div>
+              <div style="font-size:0.7em;color:var(--text-mute);margin-top:3px;">milestone bonus entries</div>
+            </div>
+            <div class="stat-card" style="padding:14px;">
+              <div style="font-size:1.5em;">🏅</div>
+              <div class="stat-value green" id="gameBadgesCount">0 / 12</div>
+              <div class="stat-label">Badges Earned</div>
+              <div style="font-size:0.7em;color:var(--text-mute);margin-top:3px;">achievements unlocked</div>
+            </div>
+          </div>
+          <!-- Badge showcase -->
+          <div style="font-size:0.8em;color:var(--gold);font-weight:700;margin-bottom:10px;text-transform:uppercase;letter-spacing:1px;">Badge Showcase</div>
+          <div class="badge-grid" id="gameBadgeGrid"></div>
+        </div>
+        <div id="gameNoMiner" style="display:none;text-align:center;padding:24px 0;">
+          <div style="font-size:2.5em;margin-bottom:10px;">⛏️</div>
+          <p style="color:var(--gold-bright);font-weight:700;font-size:1.05em;margin-bottom:6px;">No miner connected yet</p>
+          <p style="color:var(--text-mute);font-size:0.9em;">Start mining to earn XP, level up, and unlock badges!</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Entry Stats -->
+    <div class="card" style="margin-top:16px;border-color:var(--gold-dark);background:linear-gradient(135deg,var(--bg-deep),var(--obsidian));">
+      <div class="card-header" style="color:var(--gold-bright);">🎫 Entry Stats</div>
+      <div class="grid-3">
+        <div class="stat-card">
+          <div style="font-size:1.6em;">🎫</div>
+          <div class="stat-value gold" id="dashYourEntries">0</div>
+          <div class="stat-label">Your Entries</div>
+          <div style="font-size:0.72em;color:var(--text-mute);margin-top:4px;">in today's draw</div>
+        </div>
+        <div class="stat-card">
+          <div style="font-size:1.6em;">📊</div>
+          <div class="stat-value blue" id="dashTotalEntries">0</div>
+          <div class="stat-label">Total Entries</div>
+          <div style="font-size:0.72em;color:var(--text-mute);margin-top:4px;">in the pot</div>
+        </div>
+        <div class="stat-card">
+          <div style="font-size:1.6em;">🎯</div>
+          <div class="stat-value diamond" id="dashWinChance">0%</div>
+          <div class="stat-label">Your Chance</div>
+          <div style="font-size:0.72em;color:var(--text-mute);margin-top:4px;">odds of winning</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══ WORKFLOW PANELS (Sep 25 redesign phase 2) — Scout Signals + Kraken Funded Challenge; populated by the wf script below ══ -->
+    <div class="wf-panel-row">
+      <div class="wf-panel" id="wfScoutPanel">
+        <h3>📡 Kraken Scout Signals</h3>
+        <div class="wf-panel-sub">LONG bullish calls only — “Buy Now” / “Exit Now”, the only two alerts the phone gets.</div>
+        <div class="wf-feed" id="wfSignalFeed"><span class="wf-feed-empty">Loading your signal history…</span></div>
+        <button class="btn btn-gold btn-sm" id="btnWfScoutNotify">Enable Scout Notifications</button>
+        <div class="wf-panel-sub" id="wfPrefsStamp" style="margin-top:6px;"></div>
+      </div>
+      <div class="wf-panel" id="wfChallengePanel">
+        <h3>🧜 Kraken Funded Challenge</h3>
+        <div class="wf-panel-sub">Win the jackpot → enter the challenge → pass on Scout signals → trade Kraken's capital. You keep the profits.</div>
+        <div class="wf-kv"><span>Challenge status</span><b id="wfChallengeStatus">Not entered</b></div>
+        <div class="wf-kv"><span>Progress</span><b id="wfChallengeProgress">—</b></div>
+        <div class="wf-kv"><span>$20 challenge</span><b>up to $1,000 funded</b></div>
+        <div class="wf-kv"><span>$50 challenge</span><b>up to $5,000 funded</b></div>
+        <div class="wf-kv"><span>$90 challenge</span><b>up to $10,000 funded</b></div>
+        <div class="wf-kv"><span>Referral bonuses earned</span><b id="wfReferralEarned">—</b></div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;">
+          <button class="btn btn-gold btn-sm" id="btnWfEnterChallengeDash">Enter Challenge</button>
+          <button class="btn btn-outline btn-sm" id="btnWfCollectWinnings">Collect Winnings</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Miner Stats -->
+    <div class="card" style="margin-top:16px;">
+      <div class="card-header">⛏️ Mining Stats</div>
+      <div class="grid-3">
+        <div class="stat-card"><div class="stat-value blue" id="dashMinerHashrate">—</div><div class="stat-label">Hashrate</div></div>
+        <div class="stat-card"><div class="stat-value green" id="dashMinerShares">0</div><div class="stat-label">Shares</div></div>
+        <div class="stat-card"><div class="stat-value gold" id="dashMinerTickets">0</div><div class="stat-label">Entries</div></div>
+      </div>
+    </div>
+
+    <!-- THE KRAKEN SCOUT DOWNLOAD (acceptance condition 2, Sep 26):
+         stable URL + the published SHA256, filled from the manifest
+         the server itself serves at /api/downloads/bundle-info -->
+    <div class="card" style="margin-top:16px;">
+      <div class="card-header">📦 Kraken Scout Trading Console + Mining Bot</div>
+      <p style="font-size:0.85em;color:var(--text-dim);margin-bottom:10px;">
+        One bundle: the Scout console, the pool view, and the Mining Bot
+        (opt-out is a single checkbox, ON unless you uncheck it).
+      </p>
+      <div style="font-size:0.8em;color:var(--text-mute);margin-bottom:6px;">
+        SHA256 <span id="bundleSha" style="color:var(--text-dim);word-break:break-all;">loading…</span>
+      </div>
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+        <a id="bundleLink" class="btn btn-gold btn-sm" href="/downloads/KrakenScoutBundle.zip" download>
+          ⬇ Download Kraken Scout Bundle
+        </a>
+        <span id="bundleMeta" style="font-size:0.75em;color:var(--text-mute);"></span>
+        <a href="/downloads/KrakenScoutBundle.zip.sha256" target="_blank" rel="noopener"
+           style="font-size:0.75em;color:var(--lapis);margin-left:auto;">published checksum ↗</a>
+      </div>
+    </div>
+
+    <!-- Referral Program -->
+    <div class="card" style="margin-top:16px;border-color:var(--gold-dark);">
+      <div class="card-header">🤝 Earn More Entries With Referrals</div>
+      <p style="font-size:0.95em;color:var(--gold-bright);font-weight:700;margin-bottom:8px;">
+        Invite friends → grow the pool → increase the grand prize → boost your odds.
+      </p>
+      <div style="font-weight:700;color:var(--gold);margin-bottom:6px;font-size:0.9em;">Rewards:</div>
+      <ul style="font-size:0.85em;color:var(--text-dim);line-height:1.8;padding-left:24px;margin-bottom:12px;">
+        <li>Each referral = bonus entries</li>
+        <li>Referral streak bonuses</li>
+        <li>Weekly leaderboard</li>
+        <li>Recorded Kraken referral bonuses for wallet-connected referrals</li>
+      </ul>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:12px;">
+        <input class="spin-input" id="referralLink" readonly style="flex:1;min-width:200px;font-size:0.85em;" value="Login to get your link">
+        <button class="btn btn-gold btn-sm" id="btnCopyReferral">📋 Copy</button>
+      </div>
+      <div class="grid-3" style="gap:8px;">
+        <div class="stat-card"><div class="stat-value gold" id="referralCount">0</div><div class="stat-label">Referrals</div></div>
+        <div class="stat-card"><div class="stat-value green" id="activeReferrals">0</div><div class="stat-label">Active Miners</div></div>
+        <div class="stat-card"><div class="stat-value diamond" id="referralTickets">0</div><div class="stat-label">Entries Earned</div></div>
+      </div>
+      <div style="font-size:0.75em;color:var(--text-mute);margin-top:8px;">
+        💡 Signup bonus: 0.003 XMR in free entries. Kraken withdrawal fee is 0.0027 XMR — keep mining for bigger payouts!
+      </div>
+    </div>
+
+    <!-- Recent Wins -->
+    <div class="card" style="margin-top:16px;">
+      <div class="card-header">🏆 Your Recent Wins</div>
+      <table>
+        <thead><tr><th>Drawing</th><th>Grand Prize</th><th>Payout</th><th>Date</th></tr></thead>
+        <tbody id="dashWinsTable"><tr><td colspan="4" style="text-align:center;color:var(--text-mute);">No wins yet — keep mining!</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════ ADMIN DASHBOARD (loaded dynamically for admins only) ═══════════ -->
+<section id="page-admin" class="page">
+  <!-- Admin panel HTML is injected here via /api/admin/panel after auth check -->
+  <div id="adminContent" style="text-align:center;padding:40px;">
+    <p style="color:var(--text-mute);">Loading admin panel...</p>
+  </div>
+</section>
+
+<!-- ═══════════ FOOTER ═══════════ -->
+<footer>
+  <p>⛏️ XMR Jackpot — Monero Mining Made Fun, Fair, and For Everyone.</p>
+  <p>Mine together · Win together · Free entry via mining · Provably fair · 90% payout · 10% house tax · <a href="/api/stats">API</a></p>
+  <p style="margin-top:8px;font-size:0.8em;">
+    <a href="#" onclick="navigateTo('howto');return false;" style="color:var(--text-mute);">📜 Terms of Service</a>
+    <span style="color:var(--text-mute);"> · </span>
+    <a href="https://github.com/xmrig/xmrig" target="_blank" rel="noopener" style="color:var(--text-mute);">📦 xmrig source</a>
+    <span style="color:var(--text-mute);"> · </span>
+    <a href="https://github.com/xmrig/xmrig" target="_blank" rel="noopener" style="color:var(--text-mute);">🔍 Verify the miner</a>
+  </p>
+  <div style="margin-top:10px;padding:8px 14px;background:var(--bg-deep);border:2px solid #4444cc;display:inline-block;">
+    <span style="color:var(--text-dim);font-size:0.8em;">Need XMR? Get it on Kraken —</span>
+    <a href="https://invite.kraken.com/JDNW/29bygijw" target="_blank" rel="nofollow sponsored" style="color:#7c7cff;font-weight:700;text-decoration:none;font-size:0.85em;">Sign Up &amp; Trade →</a>
+    <div style="font-size:0.75em;color:var(--text-mute);max-width:520px;margin-top:4px;">Why this link: it helps fund the jackpot — join Kraken with it, pass the Funded Challenge with Kraken Scout, and Kraken pays you and pays the jackpot when the terms are met.</div>
+  </div>
+  <p style="margin-top:10px;font-size:0.7em;color:var(--text-mute);">By using this service you agree to the Terms of Service. Cryptocurrency values are volatile. Mining costs may exceed rewards. Not financial advice.</p>
+</footer>
+
+<!-- Confetti container -->
+<div class="confetti-container" id="confettiContainer"></div>
+
+</div><!-- /#app -->
+<script src="/static/app.js?v=27"></script>
+<script src="/static/bundle_card.js?v=1"></script>
+<script src="/static/push_report_admin.js?v=1"></script>
+<script src="/static/push_decisions_admin.js?v=2"></script>
+<script src="/static/wf_dashboard.js?v=6"></script>
+<script src="/static/push_client.js?v=15"></script>
+<script src="/static/admin_cold_wallet.js?v=1"></script>
+<script src="/static/kraken_referral_admin.js?v=6"></script>
+<script src="/static/push_vapid_admin.js?v=1"></script>
+<script src="/static/referral_projection.js?v=1"></script>
+</body>
+</html>
