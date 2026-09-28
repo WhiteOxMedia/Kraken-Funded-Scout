@@ -558,11 +558,16 @@ def _store_records():
     """The 0.8.1 LIVE STREAM can emit skeletal finding records (type
     fileName severity and nothing else) while the CLI's own local
     review store fills title/lines/comment afterwards. When the stream
-    is skeletal, join against the FRESHEST store review dir - but only
-    when its epoch is recent (the dir name is the review's epoch ms),
-    so a stale store can never dress up a different review's findings."""
+    is skeletal, join against the store review dir that matches THIS
+    review and nothing else: the hook passes its snapshot hash in
+    CR_SNAPSHOT and the store's git.json records the reviewed head -
+    a dir whose head disagrees (another thread's review through the
+    same hook, a stale epoch) is never joined, no matter how fresh."""
     import os, glob, time
     out = []
+    snap = os.environ.get("CR_SNAPSHOT") or ""
+    if not snap:
+        return out   # no snapshot identity (fallback review): no join
     try:
         root = os.path.join(
             os.environ.get("LOCALAPPDATA")
@@ -577,9 +582,18 @@ def _store_records():
         try:
             if abs(int(time.time() * 1000)
                    - int(os.path.basename(newest))) > 30 * 60 * 1000:
-                return out   # stale: not this review, never join it
+                return out   # stale epoch: not this review
         except ValueError:
             pass
+        try:
+            with open(os.path.join(newest, "git.json"),
+                      encoding="utf-8") as fh:
+                gitmeta = json.load(fh)
+            if str(gitmeta.get("head") or "") != snap:
+                return out   # not THIS snapshot's review (cross-repo or
+                             # another thread's run): never dress ours
+        except Exception:
+            return out
         for p in glob.glob(os.path.join(newest, "*.json")):
             try:
                 with open(p, encoding="utf-8") as fh:
@@ -640,7 +654,8 @@ for e in sorted(set(errors)):
     print("ERRORTYPE " + e)
 CRPYEOF
 )"
-PARSER_OUT="$(printf '%s\n' "$review_json" | "$PY" -c "$PYCODE" 2>/dev/null)"
+PARSER_OUT="$(printf '%s\n' "$review_json" \
+    | CR_SNAPSHOT="${SNAPSHOT:-}" "$PY" -c "$PYCODE" 2>/dev/null)"
 n="$(printf '%s\n' "$PARSER_OUT" | sed -n 's/^COUNT //p' | tail -1)"
 sev="$(printf '%s\n' "$PARSER_OUT" | sed -n 's/^SEV //p' | tr '\n' ' ' | sed 's/ $//')"
 errtypes="$(printf '%s\n' "$PARSER_OUT" | sed -n 's/^ERRORTYPE //p' | sort -u | tr '\n' ' ' | sed 's/ $//')"
