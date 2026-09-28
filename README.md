@@ -280,7 +280,10 @@ and add the wrapper to `LIVE_ENTRIES` so `--fast` stays hermetic.
 - `python ops_status.py` — the one-command health receipt: bundle
   version, :3094 listener PID + `/api/stats` health, scheduler
   heartbeat age, last orphan scan (age + totals), the scheduled
-  task's Last/Next Run + Last Result, and the dead-man marker age.
+  task's Last/Next Run + Last Result, the dead-man marker age, and
+  the scout sibling's guard factor (latest value + history day-span —
+  a read-only peek so the sizing brain's series stays visible on the
+  receipt; absence is an honest NONE, never an alert).
   Strictly read-only (the DB opens `mode=ro`). Exit code is the
   alert: 0 all-clear, 1 when any surface needs a human — server
   down, stale heartbeat (the loop ticks hourly, so the threshold is

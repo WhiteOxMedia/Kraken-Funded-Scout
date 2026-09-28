@@ -90,6 +90,39 @@ check("2.4", st["scheduler_enabled"] == "1"
       and 3500 < st["orphan_scan_age_s"] < 3700,
       f"mode=ro sandbox read: {st}")
 
+print("== 2.5 THE GUARD-FACTOR PEEK (the scout sibling's GF series) ==")
+gs = ops.guard_series(_tmp / "no_state.json")
+check("2.5.1", gs == {"gf_latest": None, "gf_span": None, "gf_days": 0},
+      f"a missing sibling state file is an honest NONE, never an alert: {gs}")
+_state = _tmp / "pg_state.json"
+_state.write_text(json.dumps({
+    "factor": 1.8,
+    "history": [
+        {"day": "2026-09-26", "factor": 1.4},
+        {"day": "2026-09-27", "factor": 1.8},
+        {"day": "2026-09-27", "factor": 1.8},   # a same-day re-adjust: deduped
+    ]}), encoding="utf-8")
+gs2 = ops.guard_series(_state)
+check("2.5.2", gs2["gf_latest"] == 1.8 and gs2["gf_days"] == 2
+      and gs2["gf_span"] == "2026-09-26..2026-09-27",
+      f"latest + deduped day-span read from the series: {gs2}")
+check("2.5.3", ops._short_day("2026-09-27") == "0927"
+      and ops._short_day("odd") == "odd",
+      "the one-line span shrinks to MMDD; odd shapes pass through")
+_receipt = {"listener_pid": "123", "http_health": "200",
+            "scheduler_enabled": "1", "heartbeat_age_s": 60.0,
+            "orphan_scan_age_s": 3600.0, "orphan_total": 0,
+            "orphan_edges": 0, "task_last_result": 0,
+            "task_last_run": "x", "task_next_run": "y",
+            "deadman_age_s": 3600.0, "bundle_version": "27"}
+_l4 = ops.one_line(_receipt)
+check("2.5.4", "gf=NONE span=NONE" in _l4,
+      f"absent series prints gf=NONE span=NONE, never crashes: {_l4}")
+_l5 = ops.one_line(dict(_receipt, gf_latest=1.8,
+                        gf_span="2026-09-26..2026-09-27"))
+check("2.5.5", "gf=1.8 span=0926-0927" in _l5,
+      f"the tiny daily-report fields render on the receipt line: {_l5}")
+
 
 print("== 3. THE ALERT MATRIX (each surface alone) ==")
 BASE = {"listener_pid": "123", "http_health": "200",
