@@ -6261,9 +6261,11 @@ def main():
                                  f"(penalty {_sdock['penalty']:.2f})"
                                  if _sdock.get("docked")
                                  else f" — {_sdock.get('reason', 'no dock')}")
-                    logger.warning("🔇 SILENT ROTATION %s: %s%s",
+                    _pay_txt = (f", {_dres.get('empty_payers')} reached goal"
+                                if _dres.get("empty_payers") else "")
+                    logger.warning("🔇 SILENT ROTATION %s: %s%s%s",
                                    _prev_key, _dres.get("empty_why")
-                                   or "no popups fired", _dock_txt)
+                                   or "no popups fired", _pay_txt, _dock_txt)
             except Exception as _exc:
                 logger.debug("discipline evaluation failed: %s", _exc)
 

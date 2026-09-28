@@ -433,21 +433,39 @@ def discipline_penalty_extra() -> float:
     return float(_state().get("discipline_penalty_extra", 0.0))
 
 
-def dock_silent_rotation(n_buried: int, when: datetime | None = None) -> dict:
+def dock_silent_rotation(n_buried: int, when: datetime | None = None,
+                         n_payers: int = 0) -> dict:
     """THE SILENT-ROTATION DOCK (user ask, Sep 28: "when a rotation
-    happens but no popups fired it should ask why + self adjust"): a
-    rotation that closed with ZERO fired popups while the evaluation
-    shows rail-worthy candidates the funnel BURIED docks +0.5 here —
-    the SAME channel SAL docks, the same 3.0 cap, the same x0.9
-    cooldown decay, so the guard's widths self-adjust without a new
-    learning plane. Deduped per rotation key (a restart at the
-    boundary cannot double-sting); an honest drought (nothing buried)
-    docks NOTHING — the market said no, not the funnel. Returns the
-    dock summary for the drive; never raises."""
+    happens but no popups fired it should ask why + self adjust"),
+    PROPORTIONAL (user ask, Sep 28: "dock proportional to the measured
+    opportunity cost"): the flat +0.5 was a FLAG, not a size — a day
+    burying one candidate stung exactly like a day burying 27 payers.
+    The dock is now measured: 0.5 per payer x the burial side's own
+    PAYER-RATE (payers / buried), rounded to 0.1, so the magnitude
+    follows the opportunity cost; the honest drought still docks
+    NOTHING; burials that didn't pay are the gate being RIGHT and dock
+    nothing beyond the drought. Same SAL channel, same 3.0 lifetime
+    cap, same x0.9 cooldown decay. Per-rotation cap 2.0 keeps a "docked
+    penalty" from equaling a "fired and lost" in one sting (payers
+    > 4). Deduped per rotation key (a restart at the boundary cannot
+    double-sting). Returns the dock summary for the drive; never
+    raises.
+
+    DEFAULT SEMANTICS (Sep 28): n_payers=0 means "the burials were
+    duds — the gate was right" and docks NOTHING. That is the
+    conservative direction for live money: a boundary whose candle
+    reads failed (the coin test fails closed to False) under-docks —
+    it never false-loosens the funnel on unmeasured data. Callers
+    that MEASURED must pass what they measured — discipline's
+    boundary always does."""
     when = when or _now_mst()
     try:
         if not n_buried or int(n_buried) <= 0:
-            return {"docked": 0.0, "reason": "honest drought — nothing docked"}
+            return {"docked": 0.0,
+                    "reason": "honest drought — nothing docked"}
+        n_payers = max(0, min(int(n_payers), int(n_buried)))
+        dock = round(0.5 * n_payers * (n_payers / int(n_buried)), 1)
+        dock = min(dock, 2.0)
         st = _state()
         # the dedup key carries the DATE (CodeRabbit, Sep 28): the bare
         # rotation key repeats every day, so a bare-key dedup would let
@@ -456,13 +474,23 @@ def dock_silent_rotation(n_buried: int, when: datetime | None = None) -> dict:
         sr = st.get("silent_docks") or {}
         if sr.get("rot") == key:
             return {"docked": 0.0, "reason": f"already docked for {key}"}
-        pen = min(float(st.get("discipline_penalty_extra", 0.0)) + 0.5, 3.0)
+        if dock <= 0:
+            st["silent_docks"] = {"rot": key, "buried": int(n_buried),
+                                  "payers": n_payers, "docked": 0.0,
+                                  "ts": when.isoformat(timespec="seconds")}
+            _save(st)
+            return {"docked": 0.0, "penalty":
+                    float(st.get("discipline_penalty_extra", 0.0)), "rot": key,
+                    "buried": int(n_buried), "payers": n_payers,
+                    "reason": "burials were duds — the gate was right; no dock"}
+        pen = min(float(st.get("discipline_penalty_extra", 0.0)) + dock, 3.0)
         st["discipline_penalty_extra"] = round(pen, 2)
         st["silent_docks"] = {"rot": key, "buried": int(n_buried),
+                              "payers": n_payers, "docked": dock,
                               "ts": when.isoformat(timespec="seconds")}
         _save(st)
-        return {"docked": 0.5, "penalty": pen, "rot": key,
-                "buried": int(n_buried)}
+        return {"docked": dock, "penalty": pen, "rot": key,
+                "buried": int(n_buried), "payers": n_payers}
     except Exception:
         return {"docked": 0.0, "reason": "dock failed soft"}
 

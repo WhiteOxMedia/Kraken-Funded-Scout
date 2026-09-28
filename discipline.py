@@ -597,14 +597,23 @@ def evaluate_rotation(exchange, rot_key: str, when=None, speak=True,
     # ask-why self-adjusts the widths instead of just narrating.
     empty_why = ""
     empty_buried = 0
+    empty_payers = 0
     _silent_dock = {}
     if empty_fire:
         gates = sorted({str((supp.get(p) or {}).get("gate") or "?")
                         for p in supp})
         empty_buried = len(supp)
+        # THE MEASURED COST (user ask, Sep 28: "dock proportional to the
+        # measured opportunity cost"): the evaluation ALREADY ran every
+        # suppressed pair through the coin test — system_burial holds
+        # the ones that reached goal (the machine's fault), system_duds
+        # the ones that didn't (the gate being RIGHT). The dock's size
+        # follows that measurement: payers x payer-rate, not a flag.
+        empty_payers = len(system_burial)
         if empty_buried:
             empty_why = (f"{empty_buried} rail-worthy candidate(s) were "
-                         f"buried (gates: {', '.join(gates)})")
+                         f"buried, {empty_payers} of them reached goal "
+                         f"(gates: {', '.join(gates)})")
         elif popups:
             empty_why = ("candidates existed but none fired — a drought in "
                          "the funnel, not the market")
@@ -612,7 +621,8 @@ def evaluate_rotation(exchange, rot_key: str, when=None, speak=True,
             empty_why = "the funnel offered nothing rail-worthy — the market's honest no"
         try:
             import meta_layers as _mlp
-            _silent_dock = _mlp.dock_silent_rotation(empty_buried, when=when)
+            _silent_dock = _mlp.dock_silent_rotation(empty_buried, when=when,
+                                                     n_payers=empty_payers)
         except Exception:
             _silent_dock = {}
     realized_pnl = sum(float(t.get("pnl_net") or 0) for t in sold)
@@ -637,6 +647,7 @@ def evaluate_rotation(exchange, rot_key: str, when=None, speak=True,
         "empty_fire": empty_fire,
         "empty_why": empty_why,
         "empty_buried": empty_buried,
+        "empty_payers": empty_payers,
         "silent_dock": _silent_dock,
         "bonuses": bonuses, "weights": dict(weights),
         "ts": _now().isoformat(),

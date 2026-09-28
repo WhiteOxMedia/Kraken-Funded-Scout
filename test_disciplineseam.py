@@ -193,41 +193,69 @@ with tempfile.TemporaryDirectory() as _td7:
     _real_state = ml.STATE_FILE
     ml.STATE_FILE = Path(_td7) / "meta_state.json"   # testleaks idiom:
     try:                                             # sandbox, restore in finally
-        # 7.1 the burial case: +0.5 docked, recorded per rotation
-        d1 = ml.dock_silent_rotation(3, when=dc._now())
-        check("7.1 a buried-candidates silence docks +0.5 through the SAL "
-              "channel",
-              d1.get("docked") == 0.5 and d1.get("buried") == 3
-              and ml.discipline_penalty_extra() == 0.5, d1)
+        # 7.1 the burial case, MEASURED (Sep 28: proportional dock —
+        # 0.5 per payer x payer-rate; one payer of three burials = 0.2)
+        d1 = ml.dock_silent_rotation(3, when=dc._now(), n_payers=1)
+        check("7.1 a burial docks the guard by its MEASURED cost (one "
+              "payer of three = 0.5*1*(1/3) = 0.2)",
+              d1.get("docked") == 0.2 and d1.get("buried") == 3
+              and d1.get("payers") == 1
+              and ml.discipline_penalty_extra() == 0.2, d1)
         # 7.2 the dedup: the same rotation cannot sting twice
         d2 = ml.dock_silent_rotation(2, when=dc._now())
         check("7.2 the dock is deduped per rotation (a restart cannot "
               "double-sting)",
-              d2.get("docked") == 0.0 and ml.discipline_penalty_extra() == 0.5,
+              d2.get("docked") == 0.0 and ml.discipline_penalty_extra() == 0.2,
               d2)
         # 7.2b the cross-day case (CodeRabbit, Sep 28): the bare rotation
         # key repeats daily — YESTERDAY's dock must not silence TODAY's
         # same rotation. The key carries the date; a day-earlier when
-        # docks again (+0.5 more).
+        # docks again (its own full-sting: 1 payer of 1 = 0.5).
         import datetime as _dt72
         _yesterday = dc._now() - _dt72.timedelta(days=1)
-        d2b = ml.dock_silent_rotation(1, when=_yesterday)
+        d2b = ml.dock_silent_rotation(1, when=_yesterday, n_payers=1)
         check("7.2b the dedup key carries the DATE: yesterday's same "
               "rotation docks again (the bare-key dedup would have "
               "silenced every future day)",
               d2b.get("docked") == 0.5
-              and ml.discipline_penalty_extra() == 1.0, d2b)
+              and ml.discipline_penalty_extra() == 0.7, d2b)
+        # 7.2c the dock SCALES with the payer count (the flag era is over:
+        # 4 payers of 5 -> 0.5*4*(4/5) = 1.6)
+        ml.STATE_FILE = Path(_td7) / "meta_state2c.json"   # fresh state
+        d2c = ml.dock_silent_rotation(5, when=dc._now(), n_payers=4)
+        check("7.2c the dock scales with payers (4 of 5 = 1.6, not the "
+              "old flat 0.5)",
+              d2c.get("docked") == 1.6 and d2c.get("payers") == 4
+              and ml.discipline_penalty_extra() == 1.6, d2c)
+        # 7.2d the per-rotation cap: payers > 4 cannot dock beyond 2.0 —
+        # a docked penalty must not equal a fired-and-lost trade
+        ml.STATE_FILE = Path(_td7) / "meta_state2d.json"   # fresh state
+        d2d = ml.dock_silent_rotation(9, when=dc._now(), n_payers=9)
+        check("7.2d the per-rotation dock is CAPPED at 2.0 (9 payers "
+              "cannot dock 2.25 — the dock is a lesson, not the loss)",
+              d2d.get("docked") == 2.0
+              and ml.discipline_penalty_extra() == 2.0, d2d)
+        # 7.2e the duds: burials that never reached goal are the gate
+        # being RIGHT — the payer-rate drives them to zero
+        ml.STATE_FILE = Path(_td7) / "meta_state2e.json"   # fresh state
+        d2e = ml.dock_silent_rotation(6, when=dc._now(), n_payers=0)
+        check("7.2e burials that were all DUDS dock nothing (the gate "
+              "was right — payer-rate 0 -> 0.0, on the record)",
+              d2e.get("docked") == 0.0 and d2e.get("payers") == 0
+              and "duds" in (d2e.get("reason") or "")
+              and ml.discipline_penalty_extra() == 0.0, d2e)
         # 7.3 the honest drought: nothing docked
         ml.STATE_FILE = Path(_td7) / "meta_state2.json"   # fresh state
         d3 = ml.dock_silent_rotation(0, when=dc._now())
         check("7.3 an honest drought (nothing buried) docks NOTHING",
               d3.get("docked") == 0.0
               and ml.discipline_penalty_extra() == 0.0, d3)
-        # 7.4 the cap: the shared 3.0 ceiling holds
+        # 7.4 the cap: the shared 3.0 ceiling holds (a full-sting 0.5
+        # added to a 2.8 accumulated penalty lands exactly at 3.0)
         st4 = ml._state()
         st4["discipline_penalty_extra"] = 2.8
         ml._save(st4)
-        d4 = ml.dock_silent_rotation(1, when=dc._now())
+        d4 = ml.dock_silent_rotation(1, when=dc._now(), n_payers=1)
         check("7.4 the dock rides the shared 3.0 cap (never above)",
               d4.get("docked") == 0.5
               and ml.discipline_penalty_extra() == 3.0,
@@ -244,9 +272,20 @@ check("7.5 evaluate_rotation diagnoses WHY it was silent (buried / "
 check("7.6 the silent voice line ASKS WHY (the all-good line checks "
       "itself)",
       "Because: {result['empty_why']}" in src)
+src_ml = Path("meta_layers.py").read_text(encoding="utf-8")
 check("7.7 the boundary docks through meta_layers (the self-adjust "
-      "rides the existing SAL channel, no new learning plane)",
-      "dock_silent_rotation(empty_buried" in src)
+      "rides the existing SAL channel, no new learning plane), and it "
+      "is MEASURED — payers x payer-rate, per-rotation 2.0 cap",
+      "dock_silent_rotation(empty_buried" in src
+      and "n_payers=empty_payers" in src
+      and "0.5 * n_payers * (n_payers / int(n_buried))" in src_ml)
+check("7.7b the payer measurement is the evaluation's OWN hindsight "
+      "(system_burial = suppressed pairs the coin test says reached "
+      "goal; duds are the gate being right)",
+      "empty_payers = len(system_burial)" in src
+      and "empty_payers" in src[src.index("def evaluate_rotation"):
+                                src.index("def evaluate_rotation") + 14000]
+      and "system_duds" in src)
 src_ml = Path("meta_layers.py").read_text(encoding="utf-8")
 src_bs = Path("background_scanner.py").read_text(encoding="utf-8")
 check("7.8 the scanner boundary speaks the silent-rotation WHY on the "
