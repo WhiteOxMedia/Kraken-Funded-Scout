@@ -73,7 +73,10 @@ def main() -> int:
         # rides along as evidence.
         print(f"FAIL: drive exceeded its 300s timeout - {drive}",
               file=sys.stderr)
-        partial = e.stdout if isinstance(e.stdout, str) else ""
+        partial = e.stdout or ""
+        if isinstance(partial, bytes):   # TimeoutExpired can carry the
+            partial = partial.decode(    # raw bytes even under text=True
+                "utf-8", errors="replace")   # (CodeRabbit minor, Sep 28)
         for line in (partial or "").splitlines():
             print(line, flush=True)
         return 1

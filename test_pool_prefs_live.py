@@ -67,7 +67,10 @@ def main() -> int:
         # (CodeRabbit minor, bf9c8da, Sep 28; template contract).
         print(f"FAIL: drive exceeded its 300s timeout - {DRIVE}",
               file=sys.stderr)
-        partial = e.stdout if isinstance(e.stdout, str) else ""
+        partial = e.stdout or ""
+        if isinstance(partial, bytes):   # TimeoutExpired can carry the
+            partial = partial.decode(    # raw bytes even under text=True
+                "utf-8", errors="replace")   # (CodeRabbit minor, Sep 28)
         for line in (partial or "").splitlines():
             print(line, flush=True)
         return 1
@@ -90,6 +93,16 @@ def main() -> int:
             and last and last[-1].strip() == "RESULT: 0 passed, 0 failed"
             and "SKIP:" in out):
         return SKIP_EXIT
+    # THE EMPTY-CONTRACT REFUSAL (CodeRabbit minor on f3868a3's isolated
+    # review, Sep 28; the docsrot sibling has refused this since
+    # ae7937d): exit 0 with a 0/0 RESULT and NO skip note is not a pass
+    # — a drive that ran nothing certified nothing. Checked AFTER the
+    # skip signature (a skip IS a 0/0 + note).
+    if (p.returncode == 0 and last
+            and last[-1].strip() == "RESULT: 0 passed, 0 failed"):
+        print("FAIL: the drive certified nothing - a 0/0 RESULT with no "
+              "SKIP note is not a pass", file=sys.stderr)
+        return 1
     return p.returncode
 
 

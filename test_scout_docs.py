@@ -18,6 +18,9 @@ the exit-ladder documentation cannot silently rot. Four contract layers:
      numbers are Sep 27 snapshots; the drives and studies are the live
      truth — pinning live ledger outputs would rot BY DESIGN), and the
      tripwire drive itself runs green from here.
+  5. THE LIVE-CONTRACT WRAPPERS — the template and both registered
+     copies keep the timeout catch (with bytes decode) and the
+     empty-0/0 refusal; the copies cannot drift from the template.
 
 Read-only beyond running the one subprocess drive."""
 import re
@@ -133,6 +136,21 @@ for _w in ("LIVE_CONTRACT_TEMPLATE.py", "test_pool_docsrot_live.py",
           "except subprocess.TimeoutExpired" in _t and "timeout=300" in _t,
           f"{_w} lost the TimeoutExpired catch - a hung pool drive would "
           f"traceback the battery ledger instead of a named FAIL")
+    # the timeout's partial output can arrive as BYTES (TimeoutExpired
+    # keeps raw bytes on some Python versions even under text=True) -
+    # the str-only guard silently dropped the evidence (f3868a3 review)
+    check(f"5.2.{_w[:24]}",
+          "isinstance(partial, bytes)" in _t and 'decode(' in _t,
+          f"{_w} lost the bytes decode for the timeout's partial output")
+# the prefs wrapper must refuse the empty 0/0 exactly like its docsrot
+# sibling (the f3868a3 review: 'An empty 0/0 run passes here as green')
+_t = (HERE / "test_pool_prefs_live.py").read_text(encoding="utf-8")
+_docs_t = (HERE / "test_pool_docsrot_live.py").read_text(encoding="utf-8")
+check("5.3.prefs-empty-contract",
+      "the drive certified nothing" in _t
+      and "the drive certified nothing" in _docs_t,
+      "the prefs wrapper lost the empty-0/0 refusal its docsrot sibling "
+      "carries - a drive that ran nothing would pass as green again")
 
 print("\n".join(lines))
 print(f"RESULT: {PASS} passed, {FAIL} failed")
