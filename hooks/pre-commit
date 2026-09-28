@@ -366,11 +366,28 @@ TIMEOUT="${CODERABBIT_TIMEOUT_SEC:-300}"
 # fallback is indistinguishable from a leak, so the chain records WHERE
 # it failed and the worktree-add stderr rides the fallback banner.
 WT=""; WT_REF=""; _isol_err=""; _isol_step=""
+# THE REAL-COMMIT POISON (Sep 28, found by the banner): a real commit
+# exports GIT_DIR/GIT_WORK_TREE/GIT_INDEX_FILE to its hooks, and
+# `git worktree add` resolves those (relative) paths against ITS OWN
+# cwd — the probe proved GIT_DIR=. kills worktree add outright ("not a
+# git repository"), and the real-commit stderr died mid-prepare
+# ("Preparing worktree…" then fatal on the LAST line). Every manual
+# `bash -x` run has a clean env, which is why the trace always passed
+# while real commits fell back. The snapshot steps deliberately KEEP
+# the env (write-tree must read THE staged index); worktree add, the
+# in-worktree review, and the cleanup run with it stripped.
+run_clean_git() {
+    ( unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE \
+             GIT_OBJECT_DIRECTORY GIT_ALTERNATE_OBJECT_DIRECTORIES
+      exec "$@" )   # callers pass the FULL command (git included) — an
+                    # exec git "$@" here would double the git and turn
+                    # every wrapped call into 'git git …' (drilled Sep 28)
+}
 cleanup_wt() {
     [ -n "$WT" ] || return 0
-    git worktree remove --force "$WT" >/dev/null 2>&1
-    git worktree prune >/dev/null 2>&1
-    git update-ref -d "${WT_REF:-}" 2>/dev/null
+    run_clean_git git worktree remove --force "$WT" >/dev/null 2>&1
+    run_clean_git git worktree prune >/dev/null 2>&1
+    run_clean_git git update-ref -d "${WT_REF:-}" 2>/dev/null
     rm -rf "$WT" 2>/dev/null
     WT=""
 }
@@ -396,18 +413,20 @@ if [ "${CODERABBIT_ISOLATED:-1}" = "1" ] \
         && WT_REF="refs/cr-snapshot-$$" \
         && git update-ref "$WT_REF" "$SNAPSHOT" 2>/dev/null \
         && _isol_step="worktree-add" \
-        && { _isol_err="$(git worktree add --detach "$WT" "$SNAPSHOT" 2>&1)"; }; then
+        && { _isol_err="$(run_clean_git git worktree add --detach "$WT" "$SNAPSHOT" 2>&1)"; }; then
     echo "  🐇 CodeRabbit: reviewing the STAGED content in an isolated" >&2
     echo "     worktree (the dirty tree and runtime churn are out of scope)." >&2
     review_json="$(
-        cd "$WT" && timeout "$TIMEOUT" "$BIN" review --committed \
+        cd "$WT" && unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE \
+                         GIT_OBJECT_DIRECTORY GIT_ALTERNATE_OBJECT_DIRECTORIES \
+        && timeout "$TIMEOUT" "$BIN" review --committed \
             --agent 2>/dev/null | tr -d '\r'
     )" 2>/dev/null
     rc=$?
     cleanup_wt
 else
     _isol_err="$(printf '%s' "$_isol_err" | tr -d '\r')"
-    _isol_line="$(printf '%s' "$_isol_err" | head -1)"   # first line only:
+    _isol_line="$(printf '%s' "$_isol_err" | tail -1)"   # the fatal lives on the LAST line (git prints its progress first)
     echo "  🐇 CodeRabbit: worktree isolation unavailable (failed at:" >&2
     echo "     ${_isol_step:-?}${_isol_line:+; git said: $_isol_line}) —" >&2
     echo "     falling back to an in-tree review (the working tree may color" >&2
