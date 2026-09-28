@@ -35,6 +35,19 @@ from pathlib import Path
 from typing import Any
 
 from zoneinfo import ZoneInfo
+
+# ── THE PROTECTED 24H EXTENSION (Sep 27, exit_extension.py): the seam the
+# exit branch consults before closing a cut-class book. The DIAL is
+# SCHEDULER-style — env keys read LIVE on every verdict (no import-time
+# freeze), default OFF: flipping EXIT_EXTENSION_ENABLED=1 arms it, 0 (or
+# absence) reverts every stamp to the incumbent machinery. The wiring is
+# dial-neutral: the machinery always ASKS, the module answers.
+import exit_extension as _exx   # noqa: E402  (deliberate stdlib-lazy import)
+
+# the drive asserts these exist on the scanner module (0.1): the seam
+# callable + the guard marker that says the wiring is live
+exit_verdict = _exx.exit_verdict
+exit_extension_guard = True
 MST = ZoneInfo("America/Denver")  # Auto DST: MDT (UTC-6) summer, MST (UTC-7) winter
 
 # ── THE LOG FLOOD GUARD (rebuilt Sep 23 — the machinery was lost in the
@@ -3372,6 +3385,19 @@ def contest_light(exchange, cfg):
         return
     voice = _voice_enabled()
 
+    # ── THE DIAL-OFF SWEEP (6.1): when the operator has the extension
+    # OFF, no row may carry a stale stamp — revert is mechanical. A
+    # dirty set re-saves once; the next cycle sees the clean book.
+    try:
+        _dropped = _exx.expire_sweep(watch)
+        if _dropped:
+            _save_contest_watch(watch)
+            logger.info("EXIT EXTENSION: dial off — dropped %d stamp(s), "
+                        "the book reverts to the incumbent ladder", _dropped)
+    except Exception as _es_exc:
+        logger.warning("exit-extension sweep failed (%s) — proceeding on "
+                       "the current book", _es_exc)
+
     # ── THE TIDE: fleet-wide warning (user rule, Aug 26) — when the tide
     # goes OUT, every ship sinks together; that warning applies to ALL
     # watched positions at once, once per transition.
@@ -3674,6 +3700,36 @@ def contest_light(exchange, cfg):
         # belongs to the profit guard, the hard stop, the trend sell bar
         # and the climax — never to the clock.
         if should_exit:
+            # ── THE PROTECTED-EXTENSION SEAM (Sep 27, exit_extension.py):
+            # the machinery always ASKS before it closes — the module
+            # answers per the operator's dial. "suppress" sets the call
+            # aside THIS cycle: the book rides UNDER the incumbent trail
+            # (the ratchet + the half-goal armed cap + the price floor,
+            # never naked) until the window lapses or the dial flips off.
+            # Any seam failure degrades to the incumbent exit — the
+            # extension can never trap a position the machinery wants out.
+            _had_stamp = isinstance(w.get("exit_extension"), dict)
+            try:
+                v_ext, why_ext = _exx.exit_verdict(pair, w, str(reason))
+            except Exception as _exv_exc:
+                v_ext, why_ext = "exit", f"seam failed ({_exv_exc}) — incumbent exit"
+                logger.warning("exit-extension seam failed for %s: %s",
+                               pair, _exv_exc)
+            if v_ext == "suppress":
+                if not _had_stamp:
+                    # the arm just landed — persist the stamp once so
+                    # the window and the daily cap are real across ticks
+                    _save_contest_watch(watch)
+                logger.info("EXIT EXTENSION: %s — %s (the ride continues "
+                            "under the incumbent trail; the next exit "
+                            "verdict fires when the window lapses)",
+                            pair, why_ext)
+                _last_exit_voice.pop(pair, None)   # the real exit shouts instantly later
+                continue
+            if _had_stamp and "exit_extension" not in w:
+                # the window lapsed and the seam cleared the stamp —
+                # persist the revert before the exit machinery proceeds
+                _save_contest_watch(watch)
             exited_pairs.append(pair)
             # GET OUT PERSISTS + ALWAYS FIRES (user rule, Sep 21: "don't
             # ever clear an asset from the watch without firing a popup
@@ -3748,6 +3804,10 @@ def contest_light(exchange, cfg):
             # — the ledger the discipline learner and the hindsight
             # studies read.
             _closed_note = ""
+            _journaled = False   # (Sep 27) the pop permission: only a close
+            # that actually wrote its ledger receipt may remove the row —
+            # a vanished row with no receipt is the leak class the
+            # battery's contest_watch prod-guard caught (OP/ONDO)
             try:
                 import json as _jx
                 import contest_account as _ca_x
@@ -3783,6 +3843,7 @@ def contest_light(exchange, cfg):
                             "closed_by": "getout",
                             "exit_reason": reason[:200],
                         }) + "\n")
+                    _journaled = True   # the receipt is on disk — the row may go
                     # ── THE SELF-AUDIT LAYER (user spec, Sep 22): after
                     # every close, count the rule violations the row can
                     # prove, feed tomorrow's guard (>=3 -> x0.85 + the
@@ -3845,8 +3906,15 @@ def contest_light(exchange, cfg):
                 _closed_note = "close failed — watch row kept for SOLD"
                 logger.warning("GET OUT auto-close failed for %s (%s) — "
                                "the SOLD button remains the way out", pair, exc)
-            watch.pop(pair, None)
-            _save_contest_watch(watch)
+            if _journaled:
+                watch.pop(pair, None)
+                _save_contest_watch(watch)
+            else:
+                # the row STAYS — the SOLD button remains the way out
+                # (the close promise, now enforced: skipped-close and
+                # failed-close can no longer silently delete the row)
+                logger.warning("GET OUT kept the %s watch row — no close "
+                               "receipt (journal skipped or failed)", pair)
             logger.info("🚨 CONTEST LIGHT: SELL %s — %s · %s",
                         pair, reason, _closed_note or "watch row removed")
             continue

@@ -121,6 +121,25 @@ st["hail_mary_until"] = datetime.now(ca.MST).isoformat()
 st["hail_mary_count"] = 2
 ca._write_state(st)
 
+# (Sep 27 ledger-leak fix) the WIPE must follow the SANDBOX: seed a canary
+# row in the sandbox watch file. Before the fix, new_contest's wipe was
+# hardcoded to the repo root, so this suite's new_contest() calls wiped
+# the LIVE watch ledger — the OP/ONDO rows the battery's prod-guard
+# caught vanishing with no close receipts.
+_watch_sb = ca.STATE_FILE.parent / "contest_watch.json"
+_watch_sb.write_text(json.dumps({"CANARY/USD": {"entry": 1.0}}),
+                     encoding="utf-8")
+# snapshot the live repo watch (ms window — a legitimate concurrent close
+# could remove a row in principle; the drive's runtime makes that a
+# coin-flip at worst, and the canary check below is the deterministic pin)
+_repo_watch = BASE / "contest_watch.json"
+_repo_before = None
+if _repo_watch.exists():
+    try:
+        _repo_before = _repo_watch.read_text(encoding="utf-8")
+    except OSError:
+        _repo_before = None
+
 s2 = ca.new_contest(10000)
 check("new_contest(10000) resets to the FULL 10k start",
       s2["current_balance"] == 10000.0 and s2["start_balance"] == 10000.0)
@@ -131,6 +150,18 @@ check("the new window clears the old Hail Mary state",
       not st.get("hail_mary_until") and not st.get("hail_mary_count"))
 check("the old window's trades are now foreign (refused)",
       ca.apply_pnl(-1.0, here)[0] is False)
+check("new_contest's wipe follows the SANDBOX state file (canary wiped)",
+      json.loads(_watch_sb.read_text(encoding="utf-8")) == {})
+_repo_after = None
+if _repo_watch.exists():
+    try:
+        _repo_after = _repo_watch.read_text(encoding="utf-8")
+    except OSError:
+        _repo_after = None
+_bw = json.loads(_repo_before) if _repo_before else {}
+_aw = json.loads(_repo_after) if _repo_after else {}
+check("the LIVE repo watch lost no rows while the suite ran (no leak)",
+      not (set(_bw) - set(_aw)))
 
 # ── 7. the death line follows the WINDOW, not a stale console ─────────
 
@@ -178,6 +209,12 @@ check("the scanner's auto-track add stamps the window (legacy-degrade)",
       and '"contest_id": _ca_stamp' in bs_src_cw)
 check("a foreign-window sale speaks honestly (balance untouched)",
       "OLD-CONTEST trade" in app_src)
+# (Sep 27) the wipe must resolve beside the CURRENT state file — the
+# repo-root hardcode was the live-ledger leak (see section 6's canary)
+ca_src_l = (BASE / "contest_account.py").read_text(encoding="utf-8")
+check("the watch wipe resolves beside the CURRENT state file (no repo-root hardcode)",
+      'STATE_FILE.parent / "contest_watch.json"' in ca_src_l
+      and 'Path(__file__).parent / "contest_watch.json"' not in ca_src_l)
 
 # ── 10. THE STATE LOCK (Copilot round 3, Sep 9) ───────────────────────
 

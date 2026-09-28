@@ -1,0 +1,291 @@
+"""exit_extension.py — THE PROTECTED 24H EXTENSION (Sep 27).
+
+The goal-reach study (_goalreach_24h.py, committed 2a100c6) found the one
+result in the exit stack that points TOWARD a change: cut books held to
+goal-or-24h net +140.16 (cut cohort +173.09) — but the NAKED hold the
+study simulated has a fat tail (worst book -14.25% below the cut price).
+So the implementable form is NOT the study's rule; it is this module:
+
+  A cut-class exit (profit guard / hard stop / trend bar / climax) does
+  not close the book when the operator's dial is ON. Instead the watch
+  row is STAMPED with an extension window (default 24h) and the position
+  keeps riding UNDER THE INCUMBENT TRAIL — the same ratchet, the same
+  half-goal armed cap, the same price floor the scanner already enforces
+  every tick. When the window lapses, the stamp is removed and the NEXT
+  exit verdict fires through the normal machinery with a full receipt.
+
+What this module deliberately does NOT do:
+  - it never exits anything (the clock never exits — Sep 21 rule); it
+    only delays and stamps. Expiry REVERTS to the incumbent machinery.
+  - it never widens protection. The trail functions here exist to prove
+    parity with background_scanner's shapes and to let tests assert the
+    guard survives; the scanner keeps using its own code path.
+  - it never touches THESIS DEAD (a deliberate no-reentry signal is not
+    a "cut" — holding past it would contradict the entry-control layer).
+
+THE DIAL (SCHEDULER-style, the pool's pattern): settings live in the
+environment, read LIVE on every decision (no import-time freeze — the
+profit_guard._state_file lesson), default OFF. The operator flips
+EXIT_EXTENSION_ENABLED=1 to arm; flipping it back to 0 expires every
+active extension on the next scanner cycle (fail-safe to incumbent
+behavior). No restart needed, no hidden state.
+
+THE STATE (sandbox-safe): counters live in exit_extension_state.json
+resolved beside the CURRENT state-file root at every access, never
+frozen at import — a suite that rebinds EXIT_EXTENSION_STATE_FILE (or
+sets it to a tempdir path) carries this module's writes with it. The
+Sep 27 ledger-leak fix in contest_account.new_contest is the cautionary
+tale this file was written under.
+
+Run the drive:  PYTHONIOENCODING=utf-8 .venv/Scripts/python.exe test_exit_extension.py
+"""
+import json
+import os
+import time
+from datetime import datetime, timedelta
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent
+
+# ── the dials (LIVE reads, SCHEDULER-style) ──────────────────────────
+ENABLED_KEY = "EXIT_EXTENSION_ENABLED"
+HOURS_KEY = "EXIT_EXTENSION_HOURS"
+DAILY_CAP_KEY = "EXIT_EXTENSION_MAX_PER_DAY"
+AGE_GATE_KEY = "EXIT_EXTENSION_MIN_AGE_MIN"
+
+DEFAULT_HOURS = 24.0
+HOURS_MIN, HOURS_MAX = 1.0, 72.0        # the study's horizon, bracketed
+DEFAULT_DAILY_CAP = 3                   # a runaway dial cannot blanket the book
+DEFAULT_AGE_GATE_MIN = 30.0             # never extend a book cut minutes after add
+
+STATE_ENV = "EXIT_EXTENSION_STATE_FILE"  # explicit sandbox hook
+
+# THE OPERATOR SURFACE: the pool's SCHEDULER dials live in DB settings
+# read live per tick — the operator flips them WITHOUT a restart. The
+# scanner is a long-lived process with a fixed environment, so the same
+# parity here needs a file: exit_extension.dial.json beside the state
+# file, a flat {"EXIT_EXTENSION_ENABLED": "1", ...} map, read LIVE on
+# every decision. Precedence: env var (tests/sandbox) > dial file
+# (the operator) > defaults (OFF). No restart, no hidden state.
+DIAL_FILE_NAME = "exit_extension.dial.json"
+
+
+def dial_file() -> Path:
+    return state_file().parent / DIAL_FILE_NAME
+
+
+def _file_dials() -> dict:
+    try:
+        doc = json.loads(dial_file().read_text(encoding="utf-8"))
+        return doc if isinstance(doc, dict) else {}
+    except (OSError, ValueError):
+        return {}
+
+
+def state_file() -> Path:
+    """Resolved NOW, never at import (the profit_guard lesson): an env
+    rebind moves the state file for every writer and reader that asks
+    after the rebind — the sandbox carries the module's writes."""
+    explicit = os.environ.get(STATE_ENV)
+    if explicit:
+        return Path(explicit)
+    return ROOT / "exit_extension_state.json"
+
+
+def _dial(key: str, default: str | None = None) -> str | None:
+    """One dial lookup: env first (explicit, sandbox-safe), then the
+    operator's dial file (live), then the default. Absence is meaning:
+    the master ENABLED key absent everywhere = OFF."""
+    if key in os.environ:
+        return os.environ.get(key)
+    fd = _file_dials()
+    if key in fd:
+        return str(fd.get(key))
+    return default
+
+
+def read_dials() -> dict:
+    """The operator's knobs, read live and clamped. enabled is the
+    fail-safe master: anything but exactly '1' means OFF."""
+    enabled = str(_dial(ENABLED_KEY, "") or "").strip() == "1"
+    try:
+        hours = float(_dial(HOURS_KEY, "") or DEFAULT_HOURS)
+    except (TypeError, ValueError):
+        hours = DEFAULT_HOURS
+    hours = max(HOURS_MIN, min(HOURS_MAX, hours))
+    try:
+        cap = int(float(_dial(DAILY_CAP_KEY, "") or DEFAULT_DAILY_CAP))
+    except (TypeError, ValueError):
+        cap = DEFAULT_DAILY_CAP
+    cap = max(0, cap)
+    try:
+        age_gate = float(_dial(AGE_GATE_KEY, "") or DEFAULT_AGE_GATE_MIN)
+    except (TypeError, ValueError):
+        age_gate = DEFAULT_AGE_GATE_MIN
+    age_gate = max(0.0, age_gate)
+    return {"enabled": enabled, "hours": hours, "daily_cap": cap,
+            "age_gate_min": age_gate}
+
+
+# ── the cut-class gate ───────────────────────────────────────────────
+_CUT_MARKS = ("PROFIT GUARD FIRED", "STOPPED OUT", "Trend broke",
+              "Climax candle")
+_NEVER_MARKS = ("THESIS DEAD",)          # deliberate no-reentry: never a cut
+
+
+def is_cut_reason(reason: str) -> bool:
+    """TRUE only for the cut-class exits the study measured. THESIS DEAD
+    is a strategy verdict, not a dip — it always exits."""
+    r = str(reason or "")
+    if any(m in r for m in _NEVER_MARKS):
+        return False
+    return any(m in r for m in _CUT_MARKS)
+
+
+# ── the state (day counter for the cap) ──────────────────────────────
+def _load_state() -> dict:
+    try:
+        doc = json.loads(state_file().read_text(encoding="utf-8"))
+        return doc if isinstance(doc, dict) else {}
+    except (OSError, ValueError):
+        return {}
+
+
+def _save_state(st: dict) -> None:
+    try:
+        tmp = str(state_file()) + ".tmp"
+        with open(tmp, "w", encoding="utf-8") as fh:
+            json.dump(st, fh, indent=2)
+        os.replace(tmp, state_file())
+    except OSError as exc:
+        # counters are a safety dial, not a ledger — degrade loudly to
+        # the in-memory answer (cap enforcement errs toward MORE exits,
+        # i.e. toward the incumbent behavior, which is the safe side)
+        print(f"[exit_extension] state save failed ({exc}) — "
+              f"daily cap degrades open", flush=True)
+
+
+def _day_key(now: datetime) -> str:
+    return now.strftime("%Y-%m-%d")
+
+
+def _count_today(st: dict, now: datetime) -> int:
+    return int((st.get("days") or {}).get(_day_key(now)) or 0)
+
+
+# ── the one scanner seam ─────────────────────────────────────────────
+def exit_verdict(pair: str, w: dict, reason: str,
+                 now: datetime | None = None) -> tuple[str, str]:
+    """THE SEAM the scanner calls when should_exit is True.
+
+    Returns ("exit", why) — run the incumbent exit machinery untouched —
+    or ("suppress", why) — the exit call is set aside, the row rides
+    under the incumbent trail inside the extension window.
+
+    The precedence order IS the safety story:
+      1. dial OFF            -> exit (fail-safe to the incumbent)
+      2. THESIS DEAD / non-cut -> exit (the gate never holds these)
+      3. active extension    -> suppress (the ride continues)
+      4. window lapse        -> exit (revert; the stamp is cleaned here)
+      5. cut-class + gates   -> suppress + ARM (stamp the row)
+    """
+    now = now or datetime.now().astimezone()
+    dials = read_dials()
+    if not dials["enabled"]:
+        return "exit", "dial off"
+    if not is_cut_reason(reason):
+        return "exit", "not a cut-class exit"
+
+    ext = w.get("exit_extension") or {}
+    if ext.get("until"):
+        try:
+            until = datetime.fromisoformat(str(ext["until"]))
+            if now < until:
+                return "suppress", "extension active until " + str(ext["until"])
+            # the window lapsed: drop the stamp, revert to the machinery.
+            # The row pops its own flag; the exit then proceeds and the
+            # close journal becomes the receipt the study never had.
+            _clear_stamp(w)
+            return "exit", "extension window lapsed — incumbent machinery resumes"
+        except (TypeError, ValueError):
+            _clear_stamp(w)
+            return "exit", "corrupt extension stamp — incumbent machinery resumes"
+
+    # ── the arm path: gates before the stamp ────────────────────────
+    if not str(w.get("entry") or 0):
+        return "exit", "watch row carries no entry price"
+    added = str(w.get("added") or "")
+    if added:
+        try:
+            age_min = (now - datetime.fromisoformat(added)).total_seconds() / 60.0
+            if age_min < dials["age_gate_min"]:
+                return "exit", f"book only {age_min:.0f}m old (age gate " \
+                               f"{dials['age_gate_min']:.0f}m)"
+        except (TypeError, ValueError):
+            pass
+    st = _load_state()
+    if _count_today(st, now) >= dials["daily_cap"]:
+        return "exit", f"daily extension cap {dials['daily_cap']} reached"
+    if not str(w.get("pair") or pair):
+        return "exit", "unnamed watch row"
+
+    _arm(pair, w, reason, now, dials, st)
+    return "suppress", (f"armed {dials['hours']:.0f}h protected ride "
+                        f"until {w['exit_extension']['until']}")
+
+
+def _arm(pair: str, w: dict, reason: str, now: datetime,
+         dials: dict, st: dict) -> None:
+    until = (now + timedelta(hours=dials["hours"])).isoformat()
+    w["exit_extension"] = {
+        "extended_at": now.isoformat(),
+        "until": until,
+        "hours": dials["hours"],
+        "reason": str(reason)[:160],
+        "pair": str(w.get("pair") or pair),
+    }
+    days = st.setdefault("days", {})
+    key = _day_key(now)
+    days[key] = int(days.get(key) or 0) + 1
+    _save_state(st)
+
+
+def _clear_stamp(w: dict) -> None:
+    w.pop("exit_extension", None)
+
+
+def expire_sweep(watch: dict, now: datetime | None = None) -> int:
+    """Dial-OFF cleanup: drop every active stamp so the book reverts to
+    the incumbent behavior on the next cycle. Rows are mutated in place
+    (the scanner owns persistence); the return is the count dropped."""
+    now = now or datetime.now().astimezone()
+    dials = read_dials()
+    if dials["enabled"]:
+        return 0
+    n = 0
+    for w in (watch or {}).values():
+        if isinstance(w, dict) and w.pop("exit_extension", None) is not None:
+            n += 1
+    return n
+
+
+# ── trail parity (proof shims — the scanner keeps its own math) ──────
+def extension_trail_pct(entry: float, high: float,
+                        goal_pct: float, armed: bool) -> float:
+    """The width the EXTENDED book is guarded with — asserted equal to
+    the incumbent shapes: the ratchet while unarmed; once armed, the
+    live half-goal cap max(goal/2, 1.0) — never wider, never naked."""
+    import background_scanner as bs   # the incumbent, imported late + lazy
+    ratchet = bs._ratchet_trail_pct(entry, high, 0.0)
+    if not armed:
+        return ratchet
+    half_goal_cap = max((goal_pct or 0.0) * bs.GOAL_TRAIL_ARM_FRAC, 1.0)
+    return min(ratchet, half_goal_cap)
+
+
+def armed_stop_level(entry: float, high: float, goal_pct: float) -> float:
+    """The armed stop PRICE the parity width implies (peak-percent under
+    the high) — the number the naked-hold mutant test asserts is ABOVE
+    the entry-protective floor. Percent off the peak, like the scanner."""
+    width = extension_trail_pct(entry, high, goal_pct, armed=True)
+    return high * (1.0 - width / 100.0)

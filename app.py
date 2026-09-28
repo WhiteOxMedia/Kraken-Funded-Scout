@@ -865,9 +865,15 @@ def _load_watch() -> dict:
     return {}
 
 def _save_watch(watch: dict):
-    import json
+    import json, os
     try:
-        WATCH_FILE.write_text(json.dumps(watch, indent=2))
+        # (Sep 27) atomic tmp+replace, same shape as the scanner's
+        # _save_contest_watch: a reader (scanner tick, SOLD render) can
+        # never see a truncated half-written ledger mid-write
+        tmp = str(WATCH_FILE) + ".tmp"
+        with open(tmp, "w", encoding="utf-8") as fh:
+            json.dump(watch, fh, indent=2)
+        os.replace(tmp, WATCH_FILE)
     except Exception as exc:
         logger.debug("watch save failed: %s", exc)
 

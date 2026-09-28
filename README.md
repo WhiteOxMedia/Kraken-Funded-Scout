@@ -152,6 +152,52 @@ wide enough to give back the run.
 Same-bar ambiguity note: on 1h candles a bar can touch both guard and
 trail; the studies assume guard-first (conservative ordering).
 
+## THE PROTECTED 24H EXTENSION (Sep 27, dial-gated, default OFF)
+
+The goal-reach study (`_goalreach_24h.py`, commit 2a100c6) found the one
+result in this stack pointing TOWARD a change: a uniform goal-or-24h hold
+on CUT books nets +140.16 $ (cut cohort +173.09 $) — but the NAKED hold
+it simulated has a fat tail (worst book −14.25 % below the cut price), so
+the study's own verdict was "extend, but only under protection". The
+implementable form is now in the tree as `exit_extension.py`, wired into
+`contest_light`'s exit branch through a seam the machinery ALWAYS asks:
+
+- The gate: only CUT-class exits (profit guard, hard stop, trend bar,
+  climax) may arm the extension. THESIS DEAD is never a cut — a
+  deliberate no-reentry signal stays final. A naked hold is impossible by
+  construction: an extended book keeps riding under the INCUMBENT trail
+  (the same ratchet, the same half-goal armed cap, the same price floor
+  — parity pinned by the drive's mutant check 7.x).
+- The dials (SCHEDULER-style, the pool's pattern): read LIVE on every
+  verdict — no restart, no import-time freeze. Precedence: env var
+  (tests/sandbox) > `exit_extension.dial.json` beside the state file
+  (the operator: `{"EXIT_EXTENSION_ENABLED": "1"}` flips it on; delete
+  or "0" flips it off) > defaults (OFF). `EXIT_EXTENSION_HOURS` clamps
+  to 1–72 (default 24), `EXIT_EXTENSION_MAX_PER_DAY` caps the arms per
+  day (default 3), `EXIT_EXTENSION_MIN_AGE_MIN` refuses to extend a book
+  cut minutes after add (default 30). The master is fail-safe: anything
+  but exactly "1" means every verdict exits and the dial-off sweep drops
+  every stamp on the next scanner cycle — revert is mechanical.
+- The receipts: an armed cycle logs `EXIT EXTENSION: <pair> — armed ...
+  until <stamp>` and persists the stamp ON the watch row; when the
+  window lapses, the stamp clears, the next exit verdict fires through
+  the normal machinery, and the close journal is the receipt the study's
+  counterfactual never had (the `_journaled` gate — same session —
+  guarantees no row is ever popped without its ledger row).
+- The drive: `test_exit_extension.py` (37 checks) ran RED-FIRST — the
+  seam-existence, wiring-order, and revert-sweep pins failed against the
+  unwired tree before the splice, then went green with it. It also pins
+  the cap/age brakes, the env-beats-file precedence, and the sandbox
+  convention (state resolved LIVE from `EXIT_EXTENSION_STATE_FILE`,
+  never at import — the `1f4bc7c`/ledger-leak lesson applied).
+
+The operator's runbook: to ARM, write `{"EXIT_EXTENSION_ENABLED": "1"}`
+into `exit_extension.dial.json` — the next scanner tick starts asking
+the seam; to REVERT, delete the file (or set "0") — the next tick sweeps
+every stamp and the incumbent ladder stands alone again. The ladder is
+unchanged while the dial is OFF; this is the first exit-side change the
+studies ever voted FOR, shipped behind a gate the operator owns.
+
 ## DRIVES
 
 `test_trailk_sweep.py` (20 checks — THE WIDTH CONTRACT: the sweep set

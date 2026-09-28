@@ -163,7 +163,12 @@ def new_contest(tier: int) -> dict:
     # this window's business. The TIA ghost (Sep 6 position shouting GET
     # OUT into the Sep 9 contest) is what this kills.
     try:
-        (Path(__file__).parent / "contest_watch.json").write_text(
+        # (Sep 27 ledger-leak fix) resolve beside the CURRENT state file:
+        # a sandbox that rebinds STATE_FILE carries the wipe with it. The
+        # hardcoded repo root let a suite running new_contest() inside a
+        # tempdir wipe the LIVE watch ledger — the OP/ONDO rows the
+        # battery's prod-guard caught vanishing with no receipts.
+        (STATE_FILE.parent / "contest_watch.json").write_text(
             "{}", encoding="utf-8")
     except Exception:
         pass  # the watch panel would still show the ghost card -- tappable SOLD
