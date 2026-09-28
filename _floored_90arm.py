@@ -47,6 +47,7 @@ import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).parent))
 import _verdict_study as vs  # noqa: E402
+from _gf_series import GFSeries  # noqa: E402  (the shared per-day seam)
 
 HERE = Path(__file__).parent
 ARM_FRAC_LIVE = 0.5
@@ -55,8 +56,10 @@ RT_PCT = 0.08
 GF = float(json.loads(
     (HERE / "profit_guard_state.json").read_text(encoding="utf-8")
 ).get("factor") or 1.0)
+GFS = GFSeries(frozen=GF)     # the per-day refinement's seam (shared)
 
-print(f"guard factor (live): {GF}   data: 5m feathers   horizon: exit+4h")
+print(f"guard factor (live): {GF}   data: 5m feathers   horizon: exit+4h"
+      f"   series: {GFS.span_days} day(s)")
 
 
 def ratchet_w(entry, peak):
@@ -73,10 +76,12 @@ def _bars(pair, en_ms, ex_ms):
     return w
 
 
-def walk(g, policy):
+def walk(g, policy, gf_fn=None):
     """policy in {'live','hybrid','cand'}. The referee's EXACT branch
     structure, extended by one policy: 'cand' arms at 90% like the
     hybrid but keeps the live machinery's armed cap + price floor.
+    gf_fn: None (the frozen state factor - the committed baseline) or
+    a callable ts -> factor (the per-day refinement, _gf_series.at).
     Returns (exit_px, which, amb, floored) or None (censored/no data)."""
     entry, goal = g["entry"], g["goal"]
     bank_px = entry * (1 + goal / 100.0)
@@ -92,7 +97,9 @@ def walk(g, policy):
         return None
     if w.empty:
         return None
-    for hi, lo, op in zip(w["high"], w["low"], w["open"]):
+    for hi, lo, op, hi_date in zip(w["high"], w["low"], w["open"],
+                                   w["date"]):
+        gf = gf_fn(hi_date) if gf_fn is not None else GF
         touch_goal = hi >= bank_px
         touch_stop = stop is not None and lo <= stop
         if touch_goal and touch_stop:
@@ -107,11 +114,11 @@ def walk(g, policy):
                 armed = True
         elif not armed and peak >= entry * (1 + arm_at / 100.0):
             armed = True         # hybrid & cand: the 90% latch, REAL
-        wdt = ratchet_w(entry, peak) * GF
+        wdt = ratchet_w(entry, peak) * gf
         wdt_c = wdt                          # default: the raw width
         if policy == "live" and armed:
-            cap = max(goal * ARM_FRAC_LIVE, 1.0) * GF
-            lock_w = max(0.0, (1.0 - floor_px / peak) * 100.0) * GF
+            cap = max(goal * ARM_FRAC_LIVE, 1.0) * gf
+            lock_w = max(0.0, (1.0 - floor_px / peak) * 100.0) * gf
             cap = min(cap, lock_w) if lock_w > 0 else cap
             wdt = min(wdt, cap)
         if policy in ("live", "cand") and armed:
@@ -119,8 +126,8 @@ def walk(g, policy):
             if policy == "cand":
                 # the CANDIDATE's add-on: the 90%-width cap (never wider
                 # than goal*0.9, GF-scaled like every width) + the floor
-                cap = max(goal * ARM_FRAC_CAND, 1.0) * GF
-                lock_w = max(0.0, (1.0 - floor_px / peak) * 100.0) * GF
+                cap = max(goal * ARM_FRAC_CAND, 1.0) * gf
+                lock_w = max(0.0, (1.0 - floor_px / peak) * 100.0) * gf
                 cap = min(cap, lock_w) if lock_w > 0 else cap
                 wdt_c = min(wdt, cap)
         if policy == "hybrid":
@@ -189,6 +196,40 @@ ok_live = abs(lv["total"] - 39.50) < 0.5 and abs(lv["ctrl"] + 126.67) < 0.5
 ok_hyb = abs(hy["total"] - 138.96) < 0.5 and abs(hy["ctrl"] + 68.59) < 0.5
 print(f"live reproduces:  {'OK' if ok_live else 'DRIFT'}   "
       f"hybrid reproduces: {'OK' if ok_hyb else 'DRIFT'}")
+
+# -- the per-day GF refinement (the shared seam's span gate) ----------
+NOTYET_NOTE = (chr(10) + GFS.notyet_line() +
+               ": this study's per-day refinement waits for the "
+               "series (the frozen rows above remain the committed "
+               "answer; the bracket bound stands).")
+PERDAY_HEADER = (chr(10) + chr(61) * 2 +
+                 " PER-DAY GF (series " + str(GFS.span) + ", " +
+                 str(GFS.span_days) + " days) " + chr(61) * 2)
+if GFS.ready():
+    print(PERDAY_HEADER)
+
+    print(f"{'policy':<24} | {'ride $':>9} | {'ctrl $':>9}")
+    for name, pol in (("CANDIDATE floored-90", "cand"),
+                      ("LIVE half-goal arm", "live"),
+                      ("HYBRID 90% no-floor", "hybrid")):
+        dride = ctrl = 0.0
+        for g in graded:
+            r = walk(g, pol, gf_fn=GFS.at)
+            if r is None:
+                continue
+            px, which, _a, _f = r
+            d = (vs.net(g["entry"], px, g["size"])
+                 - vs.net(g["entry"], g["exit"], g["size"]))
+            if "took the goal" in str(g.get("verdict")):
+                ctrl += d
+            if which == "trail":
+                dride += d
+        print(f"{name:<24} | {dride:>9.2f} | {ctrl:>9.2f}")
+    c0 = res["CANDIDATE floored-90"]
+    print(f"candidate per-day deltas (vs frozen): ride/ctrl re-derived "
+          f"above; the verdict re-derives from the same bar")
+else:
+    print(NOTYET_NOTE)
 
 # -- the ladder's own control baseline (goal-fill counterfactual) -----
 ctrl_base = 0.0

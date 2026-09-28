@@ -237,8 +237,46 @@ PRECONDITIONED FORM (arm only when the cut fill sits below 98% of the
 goal level) PASSES at exactly +0.00 control over the cut+banked cohort,
 with the best measured net of any extension variant (+144.44 on 16 of
 40 cuts; recoveries +216.37, leaks −71.93; 3 of 40 protected cuts
-censor as unknown). The shipped dial should adopt the precondition
-before anyone arms it.
+censor as unknown). The precondition is IN the shipped machinery (Sep
+28: the arm path refuses any fill at/above 98% of the goal level — the
+gate's passing form made mechanical; see the extension section below).
+
+`_referee_gfdelta.py` — THE REFEREE, RE-RUN AT PER-DAY GF (Sep 28,
+armed for the accrual): the half-goal-arm thread's one deferred
+refinement now has its instrument. Every referee-arc study priced its
+simulated widths at ONE frozen factor — the state file's current
+value — while the machinery actually runs each day at that day's
+factor; the bracket (b57aed4) bounded that error, this study measures
+it once the series is long enough to matter. The walk is the referee's
+exact branch structure with every GF site inside the bar loop (ratchet
+width, armed cap, lock_w) reading the factor live on THAT bar's MST
+day from `factor_history()` — bar-level, because a ride feels whatever
+factor stands while it rides (chain-back: pre-series bars carry the
+newest known factor; the 1.0 floor only when no series exists at all).
+Two gates: the frozen rows must reproduce the committed referee
+exactly (drift aborts exit 3 — a drift indicts the copy, not the
+refinement, the `_floored_90arm.py` lesson) and the series must span
+≥ 14 distinct days (~2 weeks, the operator's accrual ask) before the
+delta prints; before that the study reports NOT YET with the current
+span and exits 0. Today: parity OK, span 1 day, the per-day rows are
+the chain-back preview (308 of 6,911 bars on the series day).
+`test_referee_gfdelta.py` (19 checks) pins the chain-back rule, the
+MST day key (the writer's calendar — 02:00 UTC is the previous MST
+day), both gates hermetically, the real tree's parity, and the shared
+seam itself. THE SWEEP (Sep 28, same session): the mapping left the
+study and became `_gf_series.py` — `GFSeries`, the arc's single source
+for the day→factor contract (chain-back, dedupe, MST bar key, span
+gate, NOT-YET text) — and the rest of the referee arc now accepts the
+same refinement behind the same gate: `_floored_90arm.py`'s walk takes
+`gf_fn` (frozen rows + parity untouched, a span-gated per-day section
+appended after the parity check) and `_protected_extension_gate.py`'s
+walk does too (frozen-factor rows remain the committed gate; the
+preconditioned variant re-derives at per-day GF only once the series
+is ready — the precondition is the shipped machinery's form either
+way). `_goalreach_24h.py` has no GF site — it never widens a stop — so
+there is nothing to refine there. Frozen-factor outputs are
+byte-identical to the committed rows everywhere; the per-day sections
+wake up automatically when the history clears 14 days.
 
 Half-goal-arm thread, closed end to end: the 1h study declined to
 adjudicate, the referee adjudicated at 5m (the incumbent stands, the
@@ -250,7 +288,9 @@ re-runnable; every verdict was derived from the artifacts' own printed
 numbers and pinned by a drive where it mattered — and the CodeRabbit
 advisory pass earned its keep the same day, catching the candidate's
 symbolic arm latch and the gate's fabricated horizon exits before the
-numbers were relied on.
+numbers were relied on. The one refinement the thread deferred — the
+per-day real GF re-run — is armed behind its own parity + span gates
+and prints the measured delta the moment the history clears two weeks.
 
 ## THE PROTECTED 24H EXTENSION (Sep 27, dial-gated, default OFF)
 
@@ -284,12 +324,26 @@ implementable form is now in the tree as `exit_extension.py`, wired into
   the normal machinery, and the close journal is the receipt the study's
   counterfactual never had (the `_journaled` gate — same session —
   guarantees no row is ever popped without its ledger row).
-- The drive: `test_exit_extension.py` (37 checks) ran RED-FIRST — the
+- The below-goal arm precondition (Sep 28, the gate's PASSING form in
+  the shipped machinery): the seam judges every arm on the fill the
+  machinery SAW — a cut whose fill sits at/above 98% of the goal level
+  exits (arming a PAID book is the leak the gate measured: raw ctrl
+  −15.08), and an unverifiable fill or goal level also exits fail-safe.
+  A row already riding its window is NOT re-judged (it armed under this
+  gate, and a ride must be allowed to approach its goal). The 0.98
+  slack is HARDCODED — a safety gate like THESIS DEAD, deliberately not
+  a dial; no operator knob can relax it. Numeric edge kept honestly:
+  for goals under ~2.04% the 98% line sits below entry itself, so a
+  fill at entry fails (less room than the slack band).
+- The drive: `test_exit_extension.py` (44 checks) ran RED-FIRST — the
   seam-existence, wiring-order, and revert-sweep pins failed against the
-  unwired tree before the splice, then went green with it. It also pins
-  the cap/age brakes, the env-beats-file precedence, and the sandbox
-  convention (state resolved LIVE from `EXIT_EXTENSION_STATE_FILE`,
-  never at import — the `1f4bc7c`/ledger-leak lesson applied).
+  unwired tree before the splice, then went green with it; the Sep 28
+  batch (4.4 + 11.1–11.6) failed red-first against the pre-gate seam —
+  unpaid cuts arm, paid-at-goal cuts exit at the strict boundary, and
+  the 0.98 constant is pinned in source. It also pins the cap/age
+  brakes, the env-beats-file precedence, and the sandbox convention
+  (state resolved LIVE from `EXIT_EXTENSION_STATE_FILE`, never at
+  import — the `1f4bc7c`/ledger-leak lesson applied).
 
 The operator's runbook: to ARM, write `{"EXIT_EXTENSION_ENABLED": "1"}`
 into `exit_extension.dial.json` — the next scanner tick starts asking

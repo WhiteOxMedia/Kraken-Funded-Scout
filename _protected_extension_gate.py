@@ -47,6 +47,7 @@ import pandas as pd
 sys.path.insert(0, str(Path(__file__).parent))
 import _verdict_study as vs          # noqa: E402
 from exit_extension import is_cut_reason   # the single source of truth
+from _gf_series import GFSeries     # noqa: E402  (the shared per-day seam)
 
 import datetime as _dt
 import json as _json
@@ -80,6 +81,7 @@ H_MS = 24 * 3600000
 GF = float(json.loads(
     (HERE / "profit_guard_state.json").read_text(encoding="utf-8")
 ).get("factor") or 1.0)
+GFS = GFSeries(frozen=GF)     # the per-day refinement's seam (shared)
 
 print(f"guard factor (live): {GF}   horizon: 24h   data: 5m feathers")
 
@@ -114,7 +116,7 @@ def _pair_max_ts(pair):
     return _PAIR_MAX[pair]
 
 
-def walk(g, policy):
+def walk(g, policy, gf_fn=None):
     """The extension walk from a trade's ACTUAL exit.
     Returns (exit_px, how, floored) or None (censored / no data).
     policy 'protected' carries the incumbent trail; 'naked' holds with
@@ -136,6 +138,7 @@ def walk(g, policy):
         return None
     for ts, hi, lo, op, cl in zip(w["date"], w["high"], w["low"],
                                   w["open"], w["close"]):
+        gf = gf_fn(ts) if gf_fn is not None else GF
         if hi >= bank_px:                  # bank-first: the touch ends it
             return bank_px, "goal", floored
         if hi > peak:
@@ -147,10 +150,10 @@ def walk(g, policy):
             if not armed and goal > 0 and \
                     (peak / entry - 1.0) * 100.0 >= goal * ARM_FRAC:
                 armed = True
-            wdt = ratchet_w(entry, peak) * GF
+            wdt = ratchet_w(entry, peak) * gf
             if armed:
-                cap = max(goal * ARM_FRAC, 1.0) * GF
-                lock_w = max(0.0, (1.0 - floor_px / peak) * 100.0) * GF
+                cap = max(goal * ARM_FRAC, 1.0) * gf
+                lock_w = max(0.0, (1.0 - floor_px / peak) * 100.0) * gf
                 cap = min(cap, lock_w) if lock_w > 0 else cap
                 wdt = min(wdt, cap)
             stop = peak * (1 - wdt / 100.0)
@@ -334,4 +337,46 @@ print(f"preconditioned net {pre_rec + pre_leak:+.2f} with control "
       f"{pre_ctrl:+.2f} - the implementable form if the raw gate fails")
 print(f"censored: {p['censored']} of {len(cuts)} cut books run past "
       f"their pair's data window - unknown, not zero")
+
+# -- the per-day GF refinement (the shared seam's span gate) ----------
+# Same walk, same cohort, same corrected bar - only the widths' factor
+# becomes the bar's own MST-day value. Reports only when the series is
+# long enough to matter (~2 weeks); before that this block stays an
+# honest refusal and the frozen rows above remain the committed gate.
+if GFS.ready():
+    pre_rec_d = pre_leak_d = 0.0
+    pre_ctrl_d = 0.0
+    for g in controls:
+        if not _is_cut(g) or g not in pre_cuts:
+            continue
+        r = walk(g, "protected", gf_fn=GFS.at)
+        if r is None:
+            continue
+        px, _how, _fl = r
+        pre_ctrl_d += (vs.net(g["entry"], px, g["size"])
+                       - vs.net(g["entry"], g["exit"], g["size"]))
+    for g in pre_cuts:
+        r = walk(g, "protected", gf_fn=GFS.at)
+        if r is None:
+            continue
+        px, _how, _fl = r
+        d = (vs.net(g["entry"], px, g["size"])
+             - vs.net(g["entry"], g["exit"], g["size"]))
+        if d > 0:
+            pre_rec_d += d
+        else:
+            pre_leak_d += d
+    print(f"\n== PER-DAY GF (series {GFS.span}, {GFS.span_days} days) ==")
+    print(f"preconditioned variant at the bars' own day factors: "
+          f"recoveries +{pre_rec_d:.2f} | leaks {pre_leak_d:.2f} | "
+          f"NET {pre_rec_d + pre_leak_d:+.2f}")
+    print(f"control over the preconditioned cut+banked cohort: "
+          f"{pre_ctrl_d:+.2f} "
+          f"({'still' if pre_ctrl_d >= 0.0 else 'NO LONGER'} at or "
+          f"above the zero baseline)")
+else:
+    print(f"\n{GFS.notyet_line()}: this gate's per-day refinement "
+          f"waits for the series (the frozen-factor rows above remain "
+          f"the committed gate; the precondition is the shipped "
+          f"machinery's own form either way).")
 sys.exit(0 if decision == "PASS" else 2)

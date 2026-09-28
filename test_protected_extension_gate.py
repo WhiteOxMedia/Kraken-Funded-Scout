@@ -65,13 +65,17 @@ ref = REFEREE.read_text(encoding="utf-8").replace("\r\n", "\n") \
 
 
 def _cap_shape(text):
-    m = re.search(r"cap = max\(goal \* [A-Z_0-9.]+, 1\.0\) \* GF", text)
+    # the SHAPE is the pinned thing: max(goal * FRAC, 1.0) - the factor
+    # multiplying it is the walk's own variable (the frozen GF in the
+    # referee, the per-bar gf once the shared seam's refinement rides)
+    m = re.search(r"cap = max\(goal \* [A-Za-z_0-9.]+, 1\.0\)", text)
     return m.group(0) if m else None
 
 
-check("1.4 the armed cap is byte-equivalent to the referee's "
-      "(max(goal * FRAC, 1.0) * GF) — one protection shape, two "
-      "artifacts",
+check("1.4 the armed cap SHAPE is byte-equivalent to the referee's "
+      "(max(goal * FRAC, 1.0)) — one protection shape, two "
+      "artifacts; the width's factor is the walk's variable (frozen "
+      "GF, or the per-bar gf the shared seam supplies)",
       _cap_shape(src) is not None and _cap_shape(ref) is not None
       and _cap_shape(src).split("goal * ")[1] ==
       _cap_shape(ref).split("goal * ")[1])
@@ -126,6 +130,12 @@ if m_cens:
           "(one cohort, two shapes, the same honesty in both places)",
           m_prot_cens is not None
           and m_prot_cens.group(1) == m_cens.group(1))
+check("2.9 the per-day GF refinement rides the shared seam behind its "
+      "span gate (the walk accepts gf_fn, the per-day section prints "
+      "only once GFS.ready() - the frozen-factor rows stay the "
+      "committed gate until ~2 weeks accrue)",
+      "gf_fn" in src and "GFS.ready()" in src and "GFS.at" in src
+      and src.index("GFS.ready()") < src.index("PER-DAY GF"))
 
 # ── 3. LF purity + parse (the drive's own smoke) ─────────────────────
 if STUDY.exists():
