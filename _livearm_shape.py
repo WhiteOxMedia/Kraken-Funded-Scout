@@ -72,11 +72,15 @@ def walk_live(g):
             # never traded (entry 100, hi 100.10, stop "100.16").
             stop = floor_px
             floored = True
+        if peak > entry and stop > hi:
+            # CODE RABBIT MAJOR (Sep 27): the whole bar traded BELOW the
+            # stop - a gap through it. The position is DONE: resolve at
+            # the best price the bar actually traded (hi); a later bank
+            # after a missed stop would be fiction.
+            return hi, "trail", floored
         if peak > entry and lo <= stop:
             if stop > hi:
-                # the floor put the stop above THIS bar's traded range:
-                # no fill at an untraded price; the trail stands
-                continue
+                continue              # unreachable here (handled above)
             return stop, "trail", floored
     return None
 
@@ -172,12 +176,11 @@ if bar_ok and tot_ok:
     print("VERDICT: the exact live shape beats its own abstraction at this "
           "granularity")
 else:
-    print("VERDICT: NOT ADJUDICABLE AT CANDLE GRANULARITY. The bar-level "
-          "sim makes the live shape look weaker than its abstraction "
-          "(totals -67.70 vs +42.38, control -196.15 vs -95.96), but both "
-          "fidelity gaps both bias this sim AGAINST the live shape in "
-          "specific, stated ways (stop-first ordering reduces banks; "
-          "the omitted guard widening tightens the sim's widths), yet "
-          "ordering can also cut the other way - the net direction is "
-          "unknown. A tick-level replay is the only honest referee; "
-          "the incumbent stands, uncondemned and un-crowned.")
+    print(f"VERDICT: NOT ADJUDICABLE AT CANDLE GRANULARITY. The bar-level "
+          f"sim makes the live shape look weaker than its abstraction "
+          f"(totals {a['total']:+.2f} vs {b['total']:+.2f}, control "
+          f"{a['ctrl']:+.2f} vs {b['ctrl']:+.2f}), and the fidelity gaps "
+          f"cut both ways - stop-first ordering reduces banks, the "
+          f"omitted guard widening tightens the sim's widths, so the net "
+          f"direction is unknown. A tick-level replay is the only honest "
+          f"referee; the incumbent stands, uncondemned and un-crowned.")

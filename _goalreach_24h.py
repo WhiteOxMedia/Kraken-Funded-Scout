@@ -77,7 +77,10 @@ def second_chance(g):
             dd = (min(lo, cl) - act_px) / act_px * 100.0
             worst = min(worst, dd)
             last_close = cl
-    if last_ts is None or last_ts < end - 5400000:
+    # CODE RABBIT MAJOR (Sep 27): a TOUCHED trade needs coverage only
+    # through its touch - candles stopping right after a goal fill is
+    # still a valid goal exit. Only untouched walks need the full window.
+    if last_ts is None or (reached is None and last_ts < end - 5400000):
         return None                      # the pair's own coverage ends early
     px = reached if reached is not None else last_close
     return px, reached is not None, worst
@@ -157,9 +160,11 @@ print("== VERDICT (derived from the computed values, per the CodeRabbit "
       "major: no fixed conclusion) ==")
 if tot > 0:
     print(f"the extension REALIZES MORE on this book: {tot:+.2f} $")
-else:
+elif tot < 0:
     print(f"the extension REALIZES LESS on this book: {tot:+.2f} $ - "
           f"the ladder's cuts were right at this horizon")
+else:
+    print(f"the extension is a WASH on this book: {tot:+.2f} $")
 if ctrl < 0:
     print(f"the control cost {ctrl:+.2f} comes from holding "
           f"took-the-goal books whose live fill sat BELOW their strategy "
