@@ -433,6 +433,37 @@ def discipline_penalty_extra() -> float:
     return float(_state().get("discipline_penalty_extra", 0.0))
 
 
+def dock_silent_rotation(n_buried: int, when: datetime | None = None) -> dict:
+    """THE SILENT-ROTATION DOCK (user ask, Sep 28: "when a rotation
+    happens but no popups fired it should ask why + self adjust"): a
+    rotation that closed with ZERO fired popups while the evaluation
+    shows rail-worthy candidates the funnel BURIED docks +0.5 here —
+    the SAME channel SAL docks, the same 3.0 cap, the same x0.9
+    cooldown decay, so the guard's widths self-adjust without a new
+    learning plane. Deduped per rotation key (a restart at the
+    boundary cannot double-sting); an honest drought (nothing buried)
+    docks NOTHING — the market said no, not the funnel. Returns the
+    dock summary for the drive; never raises."""
+    when = when or _now_mst()
+    try:
+        if not n_buried or int(n_buried) <= 0:
+            return {"docked": 0.0, "reason": "honest drought — nothing docked"}
+        st = _state()
+        key = _rot_key_of(when)
+        sr = st.get("silent_docks") or {}
+        if sr.get("rot") == key:
+            return {"docked": 0.0, "reason": f"already docked for {key}"}
+        pen = min(float(st.get("discipline_penalty_extra", 0.0)) + 0.5, 3.0)
+        st["discipline_penalty_extra"] = round(pen, 2)
+        st["silent_docks"] = {"rot": key, "buried": int(n_buried),
+                              "ts": when.isoformat(timespec="seconds")}
+        _save(st)
+        return {"docked": 0.5, "penalty": pen, "rot": key,
+                "buried": int(n_buried)}
+    except Exception:
+        return {"docked": 0.0, "reason": "dock failed soft"}
+
+
 # ═══════════════ SECTION 3 — THE DAILY NARRATIVE LAYER ═══════════════
 def dnl_report(when: datetime | None = None) -> dict | None:
     """Collect the day, answer the seven questions, store the report,

@@ -576,6 +576,36 @@ def evaluate_rotation(exchange, rot_key: str, when=None, speak=True) -> dict:
     empty_fire = not fired
     if empty_fire and score > EMPTY_FIRE_CAP:
         score = EMPTY_FIRE_CAP
+    # WHY WAS IT SILENT (user ask, Sep 28: "when a rotation happens but
+    # no popups fired it should ask why + self adjust — she says 'all
+    # good' but doesn't check if it is"): the voice already said "no
+    # popups fired" without saying WHY. The diagnosis reads the
+    # evaluation's own data: rail-worthy candidates the funnel BURIED
+    # (the gates strangled the rotation — the machine's fault), a
+    # candidates-but-no-fire drought, or the honest no (nothing
+    # rail-worthy existed at all). A burial docks the guard through the
+    # SAL penalty channel (same key, shared cap, one decay) — the
+    # ask-why self-adjusts the widths instead of just narrating.
+    empty_why = ""
+    empty_buried = 0
+    _silent_dock = {}
+    if empty_fire:
+        gates = sorted({str((supp.get(p) or {}).get("gate") or "?")
+                        for p in supp})
+        empty_buried = len(supp)
+        if empty_buried:
+            empty_why = (f"{empty_buried} rail-worthy candidate(s) were "
+                         f"buried (gates: {', '.join(gates)})")
+        elif popups:
+            empty_why = ("candidates existed but none fired — a drought in "
+                         "the funnel, not the market")
+        else:
+            empty_why = "the funnel offered nothing rail-worthy — the market's honest no"
+        try:
+            import meta_layers as _mlp
+            _silent_dock = _mlp.dock_silent_rotation(empty_buried, when=when)
+        except Exception:
+            _silent_dock = {}
     realized_pnl = sum(float(t.get("pnl_net") or 0) for t in sold)
 
     result = {
@@ -596,6 +626,9 @@ def evaluate_rotation(exchange, rot_key: str, when=None, speak=True) -> dict:
         "realized_pnl": round(realized_pnl, 2),
         "balance_after": balance,
         "empty_fire": empty_fire,
+        "empty_why": empty_why,
+        "empty_buried": empty_buried,
+        "silent_dock": _silent_dock,
         "bonuses": bonuses, "weights": dict(weights),
         "ts": _now().isoformat(),
     }
@@ -717,6 +750,8 @@ def _speak_result(result: dict, missed: list, missed_exit: list):
         if result.get("empty_fire"):
             line = (f"Rotation closed! No popups fired — score {s:.0f}, "
                     f"capped: a silent rotation can't grade perfect. ")
+            if result.get("empty_why"):
+                line += f"Because: {result['empty_why']}. "
         else:
             grade = ("SNIPER!" if s >= 85 else "SOLID!" if s >= 65 else
                      "CAREFUL!" if s >= 40 else "UNDISCIPLINED!")

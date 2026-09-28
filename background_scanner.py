@@ -6247,6 +6247,23 @@ def main():
                                 float(_dres["usd_left"].get("giveback") or 0),
                                 float(_dres["usd_left"].get("missed_exit") or 0))
                     logger.info("   lesson: %s", _dres.get("lesson"))
+                # THE SILENT ROTATION ASKS WHY (user ask, Sep 28: "she
+                # says 'all good' but doesn't check if it is"): a rotation
+                # that closed with zero fired popups gets its WHY on the
+                # record — buried candidates name the gates (and the
+                # guard docked through the SAL channel), a drought or an
+                # honest no says so plainly. The self-adjust lives in the
+                # dock (meta_layers.dock_silent_rotation); the log is
+                # the ask.
+                if _dres.get("empty_fire"):
+                    _sdock = _dres.get("silent_dock") or {}
+                    _dock_txt = (f" — guard docked +{_sdock['docked']:.1f} "
+                                 f"(penalty {_sdock['penalty']:.2f})"
+                                 if _sdock.get("docked")
+                                 else f" — {_sdock.get('reason', 'no dock')}")
+                    logger.warning("🔇 SILENT ROTATION %s: %s%s",
+                                   _prev_key, _dres.get("empty_why")
+                                   or "no popups fired", _dock_txt)
             except Exception as _exc:
                 logger.debug("discipline evaluation failed: %s", _exc)
 

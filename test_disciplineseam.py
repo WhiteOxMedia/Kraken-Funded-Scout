@@ -183,6 +183,68 @@ check("evaluate_rotation records the ledger BEFORE the save",
 check("the ledger rides the SAME save as the history (no clobber window)",
       "record_burial_ledger(state, result)" in src)
 
+# ── 7. THE SILENT ROTATION ASKS WHY + SELF-ADJUSTS (user ask, Sep 28) ─
+# "She says 'all good' but doesn't check if it is": the empty-fire voice
+# line gains its WHY, and a buried-candidates silence docks the guard
+# through the SAL penalty channel (same key, shared cap, one decay).
+import meta_layers as ml
+
+with tempfile.TemporaryDirectory() as _td7:
+    _real_state = ml.STATE_FILE
+    ml.STATE_FILE = Path(_td7) / "meta_state.json"   # testleaks idiom:
+    try:                                             # sandbox, restore in finally
+        # 7.1 the burial case: +0.5 docked, recorded per rotation
+        d1 = ml.dock_silent_rotation(3, when=dc._now())
+        check("7.1 a buried-candidates silence docks +0.5 through the SAL "
+              "channel",
+              d1.get("docked") == 0.5 and d1.get("buried") == 3
+              and ml.discipline_penalty_extra() == 0.5, d1)
+        # 7.2 the dedup: the same rotation cannot sting twice
+        d2 = ml.dock_silent_rotation(2, when=dc._now())
+        check("7.2 the dock is deduped per rotation (a restart cannot "
+              "double-sting)",
+              d2.get("docked") == 0.0 and ml.discipline_penalty_extra() == 0.5,
+              d2)
+        # 7.3 the honest drought: nothing docked
+        ml.STATE_FILE = Path(_td7) / "meta_state2.json"   # fresh state
+        d3 = ml.dock_silent_rotation(0, when=dc._now())
+        check("7.3 an honest drought (nothing buried) docks NOTHING",
+              d3.get("docked") == 0.0
+              and ml.discipline_penalty_extra() == 0.0, d3)
+        # 7.4 the cap: the shared 3.0 ceiling holds
+        st4 = ml._state()
+        st4["discipline_penalty_extra"] = 2.8
+        ml._save(st4)
+        d4 = ml.dock_silent_rotation(1, when=dc._now())
+        check("7.4 the dock rides the shared 3.0 cap (never above)",
+              d4.get("docked") == 0.5
+              and ml.discipline_penalty_extra() == 3.0,
+              ml.discipline_penalty_extra())
+    finally:
+        ml.STATE_FILE = _real_state
+
+# 7.5-7.7 the source contract: the WHY is computed from the evaluation's
+# own data, the voice asks it, the boundary logs it
+check("7.5 evaluate_rotation diagnoses WHY it was silent (buried / "
+      "drought / honest no) from its own supp+popups data",
+      "empty_why" in src and "empty_buried = len(supp)" in src
+      and "the funnel offered nothing rail-worthy" in src)
+check("7.6 the silent voice line ASKS WHY (the all-good line checks "
+      "itself)",
+      "Because: {result['empty_why']}" in src)
+check("7.7 the boundary docks through meta_layers (the self-adjust "
+      "rides the existing SAL channel, no new learning plane)",
+      "dock_silent_rotation(empty_buried" in src)
+src_ml = Path("meta_layers.py").read_text(encoding="utf-8")
+src_bs = Path("background_scanner.py").read_text(encoding="utf-8")
+check("7.8 the scanner boundary speaks the silent-rotation WHY on the "
+      "record",
+      "SILENT ROTATION" in src_bs
+      and src_bs.index("dock_silent_rotation") < src_bs.index("COOLDOWN REVIEW"))
+check("7.9 the decay contract survives: the cooldown x0.9 decay still "
+      "owns the penalty key (one plane, one decay)",
+      "discipline_penalty_extra\"] = round(prev_pen * 0.9" in src_ml)
+
 lines.append(f"\nRESULT: {PASS} passed, {FAIL} failed")
 out = Path("_disciplineseam_test.txt")
 out.write_text("\n".join(lines), encoding="utf-8")
