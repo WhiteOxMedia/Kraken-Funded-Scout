@@ -53,6 +53,18 @@ def _sold_ms(raw):
         ts = ts.replace(tzinfo=ZoneInfo("America/Denver"))
     return int(ts.timestamp() * 1000)
 
+
+def _supp_run_ms(raw):
+    """suppressions.ts -> epoch ms through the SAME naive-stamp rule
+    (Sep 28, the burial side was the last bare fromisoformat().
+    timestamp() instance): the suppression writer emits aware Denver
+    stamps, so a naive ts is legacy/foreign and normalizes to DENVER
+    wall time — never the machine's local zone. Same machine-proof
+    reasoning as _sold_ms: identical code on both sides keeps the
+    study self-consistent everywhere; machine-local would key the
+    reach windows a whole hour off across DST eras."""
+    return _sold_ms(raw)
+
 # ── THE NIGHTLY DIAGNOSTIC LAYER (Sep 21): the study is no longer a
 # scratch script — the cooldown review cites it, the scanner writes its
 # report to logs/ at the 20:00 boundary, and the console reads the
@@ -443,14 +455,13 @@ def main():
             continue
         ts = s.get("ts", "")
         try:
-            t = datetime.datetime.fromisoformat(ts)
+            t_ms = _supp_run_ms(ts)
         except Exception:
             continue
-        t_ms = int(t.timestamp() * 1000)
         end_ms = t_ms + 7 * 3600 * 1000
         pre = _db().execute("SELECT close FROM ohlcv WHERE pair=? AND ts<? "
                            "ORDER BY ts DESC LIMIT 1", (pair, t_ms)).fetchone()
-        hi = peak_in(pair, t_ms, end_ms)
+        hi = peak_in(pair, t_ms, end_ms) if t_ms else None
         if not hi or not pre or not pre[0]:
             continue
         entry = pre[0]
