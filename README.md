@@ -152,6 +152,106 @@ wide enough to give back the run.
 Same-bar ambiguity note: on 1h candles a bar can touch both guard and
 trail; the studies assume guard-first (conservative ordering).
 
+`_livearm_shape.py` — the EXACT live half-goal arm simulated on 1h bars
+(latch at GOAL_TRAIL_ARM_FRAC × goal, armed cap max(goal/2, 1.0), price
+floor at entry + 2×RT): the result (banks collapsing 34 → 11, rides 68,
+net −212.39 vs hybrid +42.38) was DECLINED as a verdict — both fidelity
+gaps (intrabar ordering, the omitted guard-factor widening) bias the
+1h walk against the live machinery, and a bar-level number would have
+condemned the dial on an artifact. The study's contribution is the
+refusal, stated in the artifact itself.
+
+`_livearm_referee.py` — THE TICK-LEVEL REFEREE (Sep 27, commit 459c02b):
+the half-goal arm question is CLOSED on the record at the resolution the
+machinery actually runs at. Data: the deep 5m store (108 pair feathers,
+Aug 9 → today) — 12× the 1h studies' resolution; guard factor: the LIVE
+value from `profit_guard_state.json` (2.0), folded into the trail width
+and the armed cap exactly as `background_scanner` does — both 1h fidelity
+gaps closed with real assets, and the intrabar-ambiguity question is
+MEASURED away (zero same-bar goal+stop conflicts on the whole book, not
+assumed). Fresh reruns on the grown 87-trade ledger reproduce every
+number to the cent. The verdict: LIVE +39.50 (ctrl −126.67, floor ×62) |
+HYBRID +138.96 (ctrl −68.59) | ladder +80.69 — the hybrid idealization
+beats the ladder's total but the REAL live shape does not, and under the
+relative control bar the ladder is the only policy that pairs its total
+with its control discipline. The referee's finding is structural: the
+live cap is GF-scaled, so the same guard factor that loosens the trail
+also loosens the cap and strangles rides (40 rides at −15.41 total).
+
+`_gf_sensitivity.py` — THE BRACKET (commit b57aed4): is the referee's
+verdict robust to the hidden historical guard-factor time series? The
+state file recomputes self-consistent from its own parts (twice-verified
+across drift: raw composites 15.86 and 8.97 both clamp to 2.000 — the
+0.5–2.0 clamp absorbs even a near-halving of the raw factor), and the
+GF 0.7/1.0/1.5/2.0 sensitivity matrix keeps the ordering at every rung:
+the hybrid beats the ladder's total at every GF, the live shape never
+does, and the relative bar disqualifies the hybrid at every GF. The
+verdict rests on a bracket, not a point estimate. GOING FORWARD the
+series is no longer hidden: `profit_guard.self_adjust` preserves every
+day's adjusted factor + parts in the state file's `history` array
+(`factor_history()` is the studies' seam; `test_profitguard.py` 9b.1–9b.8
+pin the append/dedupe/prune/degrade semantics; the live file was seeded
+with Sep 27's row so the series starts now) — future studies map each
+trade to its actual day's GF and the bracket becomes a robustness bonus,
+not a necessity.
+
+`_floored_90arm.py` — THE REFEREE'S CANDIDATE, ANSWERED (Sep 27, revised
+same day: the CodeRabbit review caught the candidate's arm latch as
+symbolic — armed never flipped, so the first draft's +47.43 row and its
+"cap IS the floor, floor ×0" story were a dead-code artifact; the latch
+is real now and the parity rows are untouched): the one variant the
+referee made askable — the hybrid's 90%-arm fused with the live
+machinery's price floor and GF scaling, on the referee's exact walk
+(live and hybrid rows reproduce the committed numbers exactly).
+Result: +69.73 total (46 banks +162.59, 15 rides −92.86, ctrl −81.51,
+floor ×18 — at GF=2 the lock_w width overshoots below the floor and the
+clamp fires for real). GATE: FAIL — control-safe (−81.51 vs the
+ladder's own −126.67) but still short of the ladder's +80.69: the
+protected 90%-arm keeps most of the hybrid's banks (46 of 49) at less
+protection cost than the live shape (−81.51 vs −126.67), yet the
+cap+floor break the hybrid's 2 big late rides into 15 earlier, smaller
+ride exits (−92.86) and the fusion never catches the ladder. The
+structural conclusion stands: the hybrid's edge is inseparable from
+running UNPROTECTED — the referee's question is closed, no 90%-arm
+variant with the machinery's protection beats the ladder at 5m. The
+candidate stack on record: live +39.50, candidate +69.73, ladder
++80.69, hybrid +138.96 (disqualified).
+
+`_protected_extension_gate.py` — THE EXTENSION'S ACCEPTANCE GATE (Sep 27,
+revised same day: the CodeRabbit review caught the walk fabricating a
+last-close horizon exit for books whose pair's feather ends inside the
+24h window — censorship is pair-local now, touches/trails observed
+before the data end still count, the verdicts are unchanged and the
+measured nets move). With `test_protected_extension_gate.py` red-first,
+15 checks: the protected 24h extension (below) shipped on parity
+constraints alone; this study supplies the measured gate — the
+CORRECTED CONTROL BAR as a mechanical PASS/FAIL on the real ledger (one
+87-trade cohort, the referee's 5m walk, journal-keyed cut classes). The
+raw dial FAILED its own gate honestly: a cut whose TP fill sat a hair
+below the goal level gets re-held, the goal never re-touches, and the
+GF-loosened trail bleeds it out (control −15.08, not the required 0.00
+— arming a PAID book is a leak, the bar caught it). Above-goal
+blow-throughs (4 books, −136.75 phantom rebank delta) are counted
+separately, never gated — closed rows the dial never touches. THE
+PRECONDITIONED FORM (arm only when the cut fill sits below 98% of the
+goal level) PASSES at exactly +0.00 control over the cut+banked cohort,
+with the best measured net of any extension variant (+144.44 on 16 of
+40 cuts; recoveries +216.37, leaks −71.93; 3 of 40 protected cuts
+censor as unknown). The shipped dial should adopt the precondition
+before anyone arms it.
+
+Half-goal-arm thread, closed end to end: the 1h study declined to
+adjudicate, the referee adjudicated at 5m (the incumbent stands, the
+unprotected hybrid is disqualified by the bar), the bracket made the
+verdict GF-robust, the floored candidate closed the referee's one open
+question negatively, and the extension gate turned the same corrected
+bar into a shipped-mechanism acceptance test. Every claim above is
+re-runnable; every verdict was derived from the artifacts' own printed
+numbers and pinned by a drive where it mattered — and the CodeRabbit
+advisory pass earned its keep the same day, catching the candidate's
+symbolic arm latch and the gate's fabricated horizon exits before the
+numbers were relied on.
+
 ## THE PROTECTED 24H EXTENSION (Sep 27, dial-gated, default OFF)
 
 The goal-reach study (`_goalreach_24h.py`, commit 2a100c6) found the one

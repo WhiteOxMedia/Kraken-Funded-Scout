@@ -404,6 +404,57 @@ _adj2 = pg.self_adjust(now=_ADJ_NOW)
 check(9.7, _adj2 is not None,
       "corrupted state does not block a fresh adjustment (restart-proof)")
 
+# ── 9b. THE GUARD-FACTOR HISTORY (Sep 27): each day's adjustment is
+# preserved as an append-only, day-deduped, pruned `history` array in
+# the same state file — the time series the Sep 27 studies had to
+# bracket (_gf_sensitivity) is on the record going forward.
+_st2 = json.loads((TMP / "profit_guard_state.json").read_text(encoding="utf-8"))
+_hist2 = _st2.get("history")
+check("9b.1", isinstance(_hist2, list) and len(_hist2) == 1,
+      "the first adjustment appends exactly one history row")
+check("9b.2", _hist2 and _hist2[0].get("day") == "2026-09-22"
+      and isinstance(_hist2[0].get("factor"), (int, float))
+      and isinstance(_hist2[0].get("parts"), dict),
+      "the history row is day-keyed and carries factor + parts")
+check("9b.3", _adj2.get("history_len") == 1,
+      "the adjust summary reports the history length (log-visible)")
+check("9b.4", pg.factor_history() == _hist2,
+      "factor_history() reads back the preserved series (the studies' seam)")
+# a second day appends; a same-day re-run replaces its own row
+_DAY2 = _dt(2026, 9, 23, 21, 0, tzinfo=_tz.utc)
+pg.self_adjust(now=_DAY2)
+_hist3 = json.loads((TMP / "profit_guard_state.json").read_text(
+    encoding="utf-8")).get("history")
+check("9b.5", isinstance(_hist3, list) and len(_hist3) == 2
+      and [h.get("day") for h in _hist3] == ["2026-09-22", "2026-09-23"],
+      "a second day APPENDS (the series grows, sorted by day)")
+pg.self_adjust(now=_DAY2)
+_hist4 = json.loads((TMP / "profit_guard_state.json").read_text(
+    encoding="utf-8")).get("history")
+check("9b.6", isinstance(_hist4, list) and len(_hist4) == 2,
+      "a same-day re-run REPLACES its row (no stacking)")
+# pruning: HISTORY_KEEP bounds the array
+pg.HISTORY_KEEP = 2
+_DAY3 = _dt(2026, 9, 24, 21, 0, tzinfo=_tz.utc)
+pg.self_adjust(now=_DAY3)
+_hist5 = json.loads((TMP / "profit_guard_state.json").read_text(
+    encoding="utf-8")).get("history")
+check("9b.7", isinstance(_hist5, list) and len(_hist5) == 2
+      and _hist5[0].get("day") == "2026-09-23",
+      "pruning keeps the newest HISTORY_KEEP rows (oldest dropped)")
+pg.HISTORY_KEEP = 400
+# a malformed history degrades, never blocks the day's adjust
+(TMP / "profit_guard_state.json").write_text(
+    json.dumps({"adjusted_on": "2026-09-01", "history": "garbage"}),
+    encoding="utf-8")
+_DAY4 = _dt(2026, 9, 25, 21, 0, tzinfo=_tz.utc)
+_adj4 = pg.self_adjust(now=_DAY4)
+_hist6 = json.loads((TMP / "profit_guard_state.json").read_text(
+    encoding="utf-8")).get("history")
+check("9b.8", _adj4 is not None and isinstance(_hist6, list)
+      and len(_hist6) == 1 and _hist6[0].get("day") == "2026-09-25",
+      "a garbage history degrades to a fresh series (never blocks the day)")
+
 # ════════ 10. wiring census + LIVE probes ════════
 print("== 10. wiring census + LIVE probes on the real book ==")
 SRC = (HERE / "background_scanner.py").read_text(encoding="utf-8")

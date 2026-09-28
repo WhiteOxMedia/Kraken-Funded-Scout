@@ -574,6 +574,48 @@ def _save(st: dict) -> None:
     _state_file().write_text(json.dumps(st, indent=2), encoding="utf-8")
 
 
+# ── THE GUARD-FACTOR HISTORY (Sep 27): every day's adjusted factor is
+# preserved in the daily state file as `history` — an append-only,
+# date-keyed array pruned to HISTORY_KEEP days. Before this, each
+# self_adjust OVERWROTE the previous {factor, parts}, so the September
+# studies had to bracket the hidden time series (_gf_sensitivity.py's
+# sensitivity matrix) instead of reading it. Going forward the series
+# is on the record: one row per adjusted MST day, oldest-pruned.
+HISTORY_KEEP = 400                      # ~13 months of daily rows
+
+
+def _append_history(st: dict, row: dict) -> dict:
+    """Append one day's adjustment to st['history'], pruned. Dedupe on
+    the day stamp (a re-run must replace its own row, never stack).
+    Fail-soft by construction: the caller already built the row from a
+    successful adjustment, and a malformed history degrades to a fresh
+    list rather than blocking the day's adjust."""
+    hist = st.get("history")
+    if not isinstance(hist, list):
+        hist = []
+    day = row.get("day")
+    hist = [h for h in hist
+            if isinstance(h, dict) and h.get("day") != day]
+    hist.append(row)
+    hist.sort(key=lambda h: str(h.get("day") or ""))
+    st["history"] = hist[-HISTORY_KEEP:]
+    return st
+
+
+def factor_history() -> list:
+    """The preserved time series for studies: [{day, factor, parts?, ts?}]
+    sorted by day ascending. Read-only; malformed entries are skipped
+    (the writer never produces them, but a hand edit must not crash a
+    study)."""
+    st = _state()
+    hist = st.get("history")
+    if not isinstance(hist, list):
+        return []
+    return sorted((h for h in hist if isinstance(h, dict)
+                   and isinstance(h.get("factor"), (int, float))),
+                  key=lambda h: str(h.get("day") or ""))
+
+
 def stored_factor() -> float | None:
     st = _state()
     v = st.get("factor")
@@ -598,10 +640,21 @@ def self_adjust(now: datetime | None = None) -> dict | None:
     # every night, and the 2-day freshness check could never expire.
     if not res.get("readable") or res.get("carried_from"):
         return None    # nothing freshly computed — try again next cycle, no stamp
-    _save({"adjusted_on": today, "factor": res["factor"], "parts": {
+    row = {"adjusted_on": today, "factor": res["factor"], "parts": {
         k: res.get(k) for k in ("env", "disc_mod", "mlt_corr", "vol_mod",
                                 "asset_mem", "funding_mod", "decay_mod")},
-        "ts": now.isoformat(timespec="seconds")})
+        "ts": now.isoformat(timespec="seconds")}
+    # THE HISTORY APPEND (Sep 27): the daily factor joins the preserved
+    # time series in the same file — tomorrow's learning row AND the
+    # studies' future ground truth land in one atomic write.
+    st = _append_history(st, {"day": today,
+                              "factor": res["factor"],
+                              "parts": row["parts"],
+                              "ts": row["ts"]})
+    row["history_len"] = len(st["history"])
+    _save(row | {"history": st["history"]})
+    res = dict(res)
+    res["history_len"] = len(st["history"])   # log-visible series growth
     return res
 
 

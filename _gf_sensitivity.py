@@ -60,6 +60,27 @@ consistent = abs(clamped - float(st.get("factor") or 0)) < 1e-6
 print(f"self-consistency: {'OK - the state file matches its own parts' if consistent else 'MISMATCH - investigate before trusting anything downstream'}")
 print(f"(the (1+mlt) term alone is {1 + mlt:.2f}x - the clamp is the whole show)")
 
+# ── 1b. THE PRESERVED TIME SERIES (Sep 27): profit_guard now keeps
+# every day's adjusted factor in the state file's `history` array. When
+# the series exists, THIS is the ground truth for the trades' actual
+# GF values (each trade ran under its day's row) and the bracket below
+# degrades to a robustness bonus, not a necessity.
+try:
+    import profit_guard as _pg
+    _hist = _pg.factor_history()
+except Exception as _he:
+    _hist = []
+    print(f"(history read failed: {_he} - bracketing stands alone)")
+if _hist:
+    _first, _last = _hist[0], _hist[-1]
+    print(f"preserved history: {len(_hist)} days "
+          f"({_first.get('day')} .. {_last.get('day')}) - the time "
+          f"series is ON THE RECORD; each trade maps to its day's row")
+else:
+    print("preserved history: none yet (the series starts accruing "
+          "with the first post-Sep-27 adjustment - the bracket below "
+          "remains the honest stand-in until it exists)")
+
 # ── 2. the sensitivity bracket ──
 graded_all = vs.grade_trades()
 _newest = max((float(g.get("ex_ms") or 0) for g in graded_all), default=0.0)
@@ -129,7 +150,7 @@ def walk(g, policy, gf):
     return None
 
 
-print(f"\n== 2. THE SENSITIVITY BRACKET (86-trade book, 5m data, "
+print(f"\n== 2. THE SENSITIVITY BRACKET ({len(graded)}-trade book, 5m data, "
       f"actual +{act:.2f}) ==")
 print(f"{'GF':>5} | {'live total':>10} | {'hybrid total':>12} | "
       f"{'live ctrl':>10} | {'hyb ctrl':>9} | winner")
