@@ -180,9 +180,15 @@ with redirect_stdout(buf):
     rc = _main_rc()
 out = buf.getvalue()
 check("4.1 the real tree passes its own parity gate (both frozen "
-      "rows reproduce the committed referee)",
+      "rows reproduce the referee ARTIFACT re-run on the same data "
+      "- copy-vs-copy, immune to data movement)",
       rc != 3 and "live reproduces:  OK" in out
       and "hybrid reproduces: OK" in out)
+check("4.5 the committed record rides along as history (printed with "
+      "its commit id; an honest note explains whenever today's rows "
+      "sit off it - the Sep 28 backfill moved live +39.50 -> +40.68 "
+      "while artifact and copy matched to the cent)",
+      "committed record (459c02b)" in out)
 check("4.2 the real run exits 0 in whichever honest world the series "
       "spans (NOT YET now; DELTA once 14 days accrue)",
       rc == 0 and ("NOT YET" in out) != ("THE DELTA" in out))

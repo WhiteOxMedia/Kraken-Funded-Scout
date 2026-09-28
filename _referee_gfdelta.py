@@ -20,23 +20,30 @@ refinement is bar-level, not per-trade.
 ROWS:
   LIVE / hybrid          the referee's frozen-GF baseline (the state's
                          factor on every bar) - MUST reproduce the
-                         committed numbers (+39.50 / +138.96); any
-                         drift aborts the study before it reports.
+                         REFEREE ARTIFACT re-run on the same data;
+                         the COMMITTED constants are the historical
+                         record, printed with an honest note when the
+                         data has moved under them.
   LIVE per-day GF /
   hybrid per-day GF      the same walks at each bar's real day factor,
                          chained backward before the series starts.
 
 THE GATES:
-  parity   live/hybrid frozen rows within +-0.5 of the committed
-           referee numbers, else ABORT (exit 3) - a drift here would
-           indict the copy, not the refinement.
+  parity   copy-vs-copy: the frozen rows are compared to the referee
+           artifact (_livearm_referee.py) re-run on THIS data - the
+           only comparison that survives data movement (the Sep 28
+           backfill lesson: the restarted scanner's feather refresh
+           moved live +39.50 -> +40.68 while artifact and copy matched
+           to the cent). Drift vs the artifact aborts (exit 3) - that
+           indicts the copy.
   span     the series must cover >= MIN_DAYS distinct days (14, ~2
            weeks). Before that the study prints NOT-YET with the
            current span and exits 0 - the ask was to re-run "once ~2
            weeks accrue", so running early is honest refusal, not
            failure.
 
-Read-only; pandas + the scout venv. ASCII-pure output.
+Read-only over the ledger (the referee subprocess is read-only too);
+pandas + the scout venv. ASCII-pure output.
 """
 import json
 import sys
@@ -54,6 +61,9 @@ from _gf_series import GFSeries  # noqa: E402  (THE seam, shared)
 HERE = Path(__file__).parent
 ARM_FRAC = 0.5
 RT_PCT = 0.08
+REF_COMMIT = "459c02b"        # the referee's committed record
+REF_LIVE = (39.50, -126.67, 62)   # (total, ctrl, floor) as of REF_COMMIT
+REF_HYB = (138.96, -68.59, 0)
 
 GF_FROZEN = float(json.loads(
     (HERE / "profit_guard_state.json").read_text(encoding="utf-8")
@@ -134,6 +144,49 @@ def walk(g, policy, gf_mode):
     return None
 
 
+def _referee_rows(out: str):
+    """Parse the referee artifact's printed table into
+    {'live': (total, ctrl, floor), 'hybrid': (...)} - None when the
+    expected rows are absent or unparseable (the caller fails loud)."""
+    rows = {}
+    for line in out.splitlines():
+        if "|" not in line:
+            continue
+        f = [p.strip() for p in line.split("|")]
+        if len(f) != 9:
+            continue
+        try:
+            nums = [float(x) for x in f[1:]]
+        except ValueError:
+            continue
+        if f[0].startswith("LIVE half-goal"):
+            rows["live"] = (nums[-1], nums[-4], int(nums[-2]))
+        elif f[0].startswith("hybrid 90%"):
+            rows["hybrid"] = (nums[-1], nums[-4], int(nums[-2]))
+    return rows if ("live" in rows and "hybrid" in rows) else None
+
+
+def referee_rows_now():
+    """Run the referee artifact on THIS data; its rows are the parity
+    reference. Copy-vs-copy is the only comparison that survives data
+    movement: the cohort's bars move under any frozen constant (the
+    Sep 28 backfill lesson), while two faithful copies of the same
+    walk agree with each other on whatever the data now is.
+    Unparseable referee output aborts LOUD (exit 3) - parity cannot be
+    certified soft."""
+    import subprocess
+    r = subprocess.run(
+        [sys.executable, str(HERE / "_livearm_referee.py")],
+        capture_output=True, text=True, encoding="utf-8",
+        errors="replace", cwd=str(HERE), timeout=600)
+    rows = _referee_rows((r.stdout or "") + (r.stderr or ""))
+    if rows is None:
+        print("ABORT: the referee artifact produced no parseable rows "
+              "- parity cannot be certified against it (fail loud)")
+        sys.exit(3)
+    return rows
+
+
 def main():
     """The executable study: rows, parity gate, span gate, delta.
     Exit 0 (report / NOT-YET), 3 (parity drift -> fix the copy)."""
@@ -188,20 +241,32 @@ def main():
     print(f"\nbar-level GF mapping: {GFS.n_series} bars on a series "
           f"day, {GFS.n_fallback} chained/fallback")
 
-    # -- gate 1: the frozen rows must BE the referee ---------------------
-    print("\n== PARITY vs the committed referee (459c02b) ==")
-    print("referee: LIVE +39.50 (ctrl -126.67, floor 62) | "
-          "HYBRID +138.96 (ctrl -68.59, floor 0)")
+    # -- gate 1: the copy vs the referee artifact on THIS data ----------
+    print("\n== PARITY: the copy vs the referee artifact re-run on the "
+          "same data ==")
+    ref = referee_rows_now()
     lv, hy = res[("live", "frozen")], res[("hybrid", "frozen")]
-    ok_live = abs(lv["total"] - 39.50) < 0.5 and abs(lv["ctrl"] + 126.67) < 0.5
-    ok_hyb = abs(hy["total"] - 138.96) < 0.5 and abs(hy["ctrl"] + 68.59) < 0.5
+    ok_live = (abs(lv["total"] - ref["live"][0]) < 0.5
+               and abs(lv["ctrl"] - ref["live"][1]) < 0.5)
+    ok_hyb = (abs(hy["total"] - ref["hybrid"][0]) < 0.5
+              and abs(hy["ctrl"] - ref["hybrid"][1]) < 0.5)
     print(f"live reproduces:  {'OK' if ok_live else 'DRIFT'}   "
           f"hybrid reproduces: {'OK' if ok_hyb else 'DRIFT'}")
     if not (ok_live and ok_hyb):
-        print("ABORT: the copy drifts from the committed referee - the "
-              "delta below would indict the copy, not the refinement. "
-              "Fix the walk first (see _floored_90arm.py's Sep 27 lesson).")
+        print("ABORT: the copy drifts from the referee artifact ON THE "
+              "SAME DATA - the delta below would indict the copy, not "
+              "the refinement. Fix the walk first (see _floored_90arm's "
+              "Sep 27 lesson).")
         return 3
+    print(f"committed record ({REF_COMMIT}): LIVE +39.50 (ctrl -126.67, "
+          f"floor 62) | HYBRID +138.96 (ctrl -68.59, floor 0)")
+    for pol, mine, rec in (("live", lv, REF_LIVE), ("hybrid", hy, REF_HYB)):
+        if abs(mine["total"] - rec[0]) >= 0.5:
+            print(f"note: the {pol} row sits off the committed record "
+                  f"({rec[0]:+.2f} -> {mine['total']:+.2f}): the cohort's "
+                  f"bars moved under the constants (feather backfill). "
+                  f"The artifacts agree with each other - that is the "
+                  f"contract; the record stays as of {REF_COMMIT}.")
 
     # -- gate 2: the series span -----------------------------------------
     lv_d, hy_d = res[("live", "day")], res[("hybrid", "day")]
