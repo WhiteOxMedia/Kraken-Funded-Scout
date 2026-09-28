@@ -338,15 +338,60 @@ fi
 
 TIMEOUT="${CODERABBIT_TIMEOUT_SEC:-300}"
 
-# Disabled: auto-stash of runtime state can hide live positions.
-# (2026-09-21: the old dance reset the live watch ledger to empty twice,
-# left a position unwatched mid-session, and its silent pop failure leaked
-# 17 stashes. The review now runs against the tree as-is — runtime churn
-# seen by the reviewer is noise. See RUNTIME_INVARIANTS.md.)
-review_json="$(
-  timeout "$TIMEOUT" "$BIN" review --agent --uncommitted 2>/dev/null | tr -d '\r'
-)" 2>/dev/null
-rc=$?
+# ── THE ISOLATED REVIEW (Sep 28): the reviewer reads a WORKTREE OF THE
+# STAGED CONTENT, never this working tree. History that forced this:
+# the reviewer repeatedly cross-read the dirty worktree (or the CLI read
+# disk beyond the diff) and served majors about code the commit did not
+# contain — an uncommitted later turn's exit_extension signature judged
+# against the committed diff, and vice versa. Five advisories were
+# triaged false for exactly that; the committed world was verifiably
+# self-consistent every time (git grep at HEAD). Fix: build a snapshot
+# commit FROM THE INDEX in a detached TEMP worktree and run the review
+# THERE — its disk carries staged+HEAD content and nothing else; the
+# dirty tree, the runtime churn, and the untracked files are
+# unreachable. THE RUNTIME-STATE RULES SURVIVE INTACT: no stash (the
+# snapshot is built from the index in a separate directory — the live
+# tree is never touched, RUNTIME_INVARIANTS.md holds), no worktree-file
+# writes by us (git builds it; the reviewer only reads), the live
+# scanner's ledgers stay owned by the running scanner. The CLI runs
+# `review --committed` against the snapshot's HEAD (the staged diff is
+# its last commit) — untracked files are unreachable in it by
+# construction, so no --include-untracked either. CODERABBIT_ISOLATED=0
+# restores the old in-tree review; every failure mode fails OPEN to a
+# plain in-tree review, then to commit-proceeds (the standing policy).
+WT=""
+cleanup_wt() {
+    [ -n "$WT" ] || return 0
+    git worktree remove --force "$WT" >/dev/null 2>&1
+    git worktree prune >/dev/null 2>&1
+    git update-ref -d "${WT_REF:-}" 2>/dev/null
+    rm -rf "$WT" 2>/dev/null
+    WT=""
+}
+if [ "${CODERABBIT_ISOLATED:-1}" = "1" ] \
+        && WT_REF="refs/cr-snapshot-$$" \
+        && WT="$(mktemp -d "${TMPDIR:-/tmp}/cr-worktree.XXXXXX")" \
+        && SNAPSHOT="$(git commit-tree "$(git write-tree)" -p HEAD \
+            -m "cr advisory snapshot (staged index)")" \
+        && git update-ref "$WT_REF" "$SNAPSHOT" 2>/dev/null \
+        && git worktree add --detach "$WT" "$SNAPSHOT" >/dev/null 2>&1; then
+    echo "  🐇 CodeRabbit: reviewing the STAGED content in an isolated" >&2
+    echo "     worktree (the dirty tree and runtime churn are out of scope)." >&2
+    review_json="$(
+        cd "$WT" && timeout "$TIMEOUT" "$BIN" review --committed \
+            --agent 2>/dev/null | tr -d '\r'
+    )" 2>/dev/null
+    rc=$?
+    cleanup_wt
+else
+    echo "  🐇 CodeRabbit: worktree isolation unavailable — falling back to" >&2
+    echo "     an in-tree review (the working tree may color the findings)." >&2
+    cleanup_wt
+    review_json="$(
+      timeout "$TIMEOUT" "$BIN" review --agent --uncommitted 2>/dev/null | tr -d '\r'
+    )" 2>/dev/null
+    rc=$?
+fi
 
 if [ $rc -ne 0 ]; then
     echo "  🐇 CodeRabbit: review didn't finish (rc=$rc; timeout ${TIMEOUT}s) — commit proceeds (fail-open)." >&2
