@@ -113,17 +113,20 @@ check("1.6 the frozen baseline rides the state's top row (the anchor "
 _restore(old)
 
 # -- 2. the day key is MST, not UTC (through the seam) -------------
-old = _sandbox_series([["2026-09-27", 2.0]])
+old = _sandbox_series([["2026-09-26", 1.6], ["2026-09-27", 2.0]])
 try:
     # 02:00 UTC on 2026-09-27 is 20:00 MST on 2026-09-26 - the two
-    # calendars disagree for 6 hours every day
+    # calendars disagree for 6 hours every day. DISTINCT factors on the
+    # two sides (CodeRabbit major, Sep 28: one row at 2.0 could not
+    # tell a correct chain-back from a wrong UTC-day lookup - both
+    # returned 2.0); the bar MUST read the PREVIOUS MST day's 1.6.
     ts = pd.Timestamp(datetime(2026, 9, 27, 2, 0, tzinfo=timezone.utc))
     got = rg.GFS.at(ts)
     day = ts.tz_convert(MST).strftime("%Y-%m-%d")
     check("2.1 a bar's GF day key is its MST day (02:00 UTC -> the "
           "previous MST day), not UTC",
-          day == "2026-09-26" and got == 2.0,
-          f"utc-day bar -> mst day {day}, gf {got}")
+          day == "2026-09-26" and got == 1.6,
+          f"utc-day bar -> mst day {day}, gf {got} (want 1.6)")
     check("2.2 the mapping counters tick (series-day bars count, "
           "fallback bars count separately)",
           rg.GFS.n_series + rg.GFS.n_fallback >= 1)
