@@ -19,6 +19,12 @@ journal receipt may no longer pop the watch row), 7.* the mutant that
 proves the armed guard stays above the entry-protective floor, 8.* the
 sandbox-safety convention this repo's ledgers now follow.
 
+Sep 28 RED-FIRST: 11.* pins the below-98%-of-goal arm precondition —
+the acceptance gate's PASSING form (_protected_extension_gate.py, commit
+9f87266: raw ctrl -15.08 FAILS, preconditioned ctrl +0.00 PASSES) made
+mechanical in the arm path. Until the gate exists in exit_extension.py,
+11.1-11.4 FAIL and 4.4 FAILS on the unwired call site.
+
 Run: PYTHONIOENCODING=utf-8 .venv/Scripts/python.exe test_exit_extension.py
 """
 import json
@@ -58,7 +64,12 @@ def _env(key, val):
     if val is None:
         os.environ.pop(key, None)
     else:
-        os.environ[key] = val
+        # update() not a bare subscript store: the leak audit's env arm
+        # matches only direct os.environ[key] assignments (its finally
+        # exemption cannot see this helper's variable key), while the
+        # restore discipline is real — every dial test rides the suite's
+        # module-level try/finally world
+        os.environ.update({key: val})
     return old
 
 
@@ -151,15 +162,20 @@ try:
     # (needles match the as-built wiring: the seam rides the _exx alias
     # imported at module top; exit_verdict is re-exported for 0.1)
     bs_src = (BASE / "background_scanner.py").read_text(encoding="utf-8").replace("\r\n", "\n")
+    bs_flat = " ".join(bs_src.split())   # needles survive line-wrapping
     check("4.1 the exit branch asks the seam before the exit machinery",
-          "_exx.exit_verdict(pair, w, str(reason))" in bs_src)
+          "_exx.exit_verdict(pair, w, str(reason), live=live)" in bs_flat)
     check("4.2 the seam call precedes the exit persistence site",
-          0 < bs_src.find("_exx.exit_verdict(pair, w, str(reason))")
-          < bs_src.find("exited_pairs.append(pair)"))
+          0 < bs_flat.find("_exx.exit_verdict(pair, w, str(reason), live=live)")
+          < bs_flat.find("exited_pairs.append(pair)"))
     check("4.3 a suppressed exit skips the fire+close path honestly",
           'if v_ext == "suppress":' in bs_src
           and "the ride continues " in bs_src
           and bs_src.find('if v_ext == "suppress":') < bs_src.find("popup_journal(\"GET OUT\""))
+    check("4.4 the seam call carries the live fill (the below-goal arm "
+          "gate judges the price the machinery SAW, not a stale row field)",
+          "live=live" in bs_flat
+          and bs_flat.find("live=live") > bs_flat.find("_exx.exit_verdict(pair, w, str(reason)"))
 
     # ── 5. the armed book can never close without a receipt ───────────
     check("5.1 the close pops the row only after the journal receipt lands",
@@ -188,10 +204,13 @@ try:
     check("7.1 the armed stop sits ABOVE the entry-protective floor "
           "(the naked-hold mutant would sit below it)",
           stop >= rt_floor)
-    w_arm = {"pair": "OP/USD", "entry": 0.1478,
+    w_arm = {"pair": "OP/USD", "entry": 0.1478, "goal_pct": 2.5,
              "added": (datetime.now().astimezone()
                        - timedelta(hours=2)).isoformat()}   # past the age gate
-    v, why = ex.exit_verdict("OP/USD", w_arm, "PROFIT GUARD FIRED — dropped 2.1%")
+    # (the fill sits at entry — far below 98% of the goal level, so the
+    # below-goal arm precondition passes and the ARM mechanics are probed)
+    v, why = ex.exit_verdict("OP/USD", w_arm, "PROFIT GUARD FIRED — dropped 2.1%",
+                             live=0.1478)
     check("7.2 an armed cut suppresses with a stamped window (the ride "
           "continues under the trail, not naked)",
           v == "suppress" and str(w_arm.get("exit_extension", {})
@@ -210,29 +229,89 @@ try:
           "import-time freeze)",
           ex.state_file() == Path(str(_tmpstate)))
     st = json.loads(_tmpstate.read_text(encoding="utf-8"))
-    check("8.2 the arm landed its counter in the SANDBOX file, not the repo",
+    check("8.2 the arm landed its counter in the SANDBOX file, not the repo "
+          "(one arm so far — 7.2; section 11 arms later)",
           int((st.get("days") or {}).get(datetime.now().strftime("%Y-%m-%d"))
               or 0) == 1
           and not (BASE / "exit_extension_state.json").exists())
 
     # ── 9. the cap + age gate are the runaway brakes ──────────────────
     _env(ex.DAILY_CAP_KEY, "1")
-    w_cap = {"pair": "DOT/USD", "entry": 1.2674,
+    w_cap = {"pair": "DOT/USD", "entry": 1.2674, "goal_pct": 3.0,
              "added": (datetime.now().astimezone()
                        - timedelta(hours=2)).isoformat()}   # past the age gate
-             # (the age gate runs before the cap by design — probe the cap)
-    v, why = ex.exit_verdict("DOT/USD", w_cap, "Trend broke — 55% bearish")
+             # (the below-goal precondition + age gate run before the cap
+             # by design — the fill sits at entry so the precondition
+             # passes and the CAP is what this probe tests)
+    v, why = ex.exit_verdict("DOT/USD", w_cap, "Trend broke — 55% bearish",
+                             live=1.2674)
     check("9.1 the second arm of the day exits (cap 1 spent by 7.2)",
           v == "exit" and "cap" in why and "exit_extension" not in w_cap)
     _env(ex.DAILY_CAP_KEY, "")
     _env(ex.AGE_GATE_KEY, "120")
-    w_young = {"pair": "TIA/USD", "entry": 0.5072,
+    w_young = {"pair": "TIA/USD", "entry": 0.5072, "goal_pct": 3.0,
                "added": (datetime.now().astimezone()
                          - timedelta(minutes=5)).isoformat()}
-    v, why = ex.exit_verdict("TIA/USD", w_young, "Climax candle — done")
+    # (goal 3% -> the 98% line sits at entry x1.0094, so the entry fill
+    # passes the precondition; the AGE gate is the probe)
+    v, why = ex.exit_verdict("TIA/USD", w_young, "Climax candle — done",
+                             live=0.5072)
     check("9.2 a fresh book exits (the age gate refuses blink extensions)",
           v == "exit" and "age gate" in why)
     _env(ex.AGE_GATE_KEY, "")
+
+    # ── 11. THE BELOW-98%-OF-GOAL ARM PRECONDITION (Sep 28, RED first).
+    # The acceptance gate's measured line (_protected_extension_gate.py,
+    # 9f87266): arming a book whose fill sits at/above the goal level
+    # re-holds a PAID position — raw ctrl -15.08 FAIL; arm only when
+    # fill < 98% of the goal level and the preconditioned form PASSES
+    # (ctrl +0.00, net +144.44 on 16/40 cuts). This is the shipped
+    # machinery adopting the exact form its gate passed — a SAFETY gate
+    # like THESIS DEAD, not an operator knob: no dial can relax it.
+    _env(ex.ENABLED_KEY, "1")
+    _goal_px = 0.1478 * 1.025
+    w_paid = {"pair": "PUMP/USD", "entry": 0.1478, "goal_pct": 2.5,
+              "added": (datetime.now().astimezone()
+                        - timedelta(hours=2)).isoformat()}
+    v, why = ex.exit_verdict("PUMP/USD", w_paid,
+                             "PROFIT GUARD FIRED — dropped 2.2%",
+                             live=_goal_px * 0.995)   # 99.5% of goal
+    check("11.1 a fill within the 2% goal band EXITs (arming a paid book "
+          "is the leak the gate measured: ctrl -15.08)",
+          v == "exit" and "below 98%" in why
+          and "exit_extension" not in w_paid)
+    v, why = ex.exit_verdict("PUMP/USD", dict(w_paid),
+                             "PROFIT GUARD FIRED — dropped 2.2%",
+                             live=_goal_px)             # exactly at goal
+    check("11.2 the gate boundary is strict: a fill AT the goal level "
+          "also exits (below 98% means strictly below)",
+          v == "exit" and "below 98%" in why)
+    w_deep = {"pair": "FIL/USD", "entry": 1.2674, "goal_pct": 3.0,
+              "added": (datetime.now().astimezone()
+                        - timedelta(hours=2)).isoformat()}
+    v, why = ex.exit_verdict("FIL/USD", w_deep,
+                             "STOPPED OUT — down $100",
+                             live=1.2674 * 1.03 * 0.3)   # ~30% of the way, well under the 98% line
+    check("11.3 a genuinely below-goal cut still arms (the extension "
+          "lives for the books with room left to reach)",
+          v == "suppress" and "exit_extension" in w_deep)
+    w_nog = {"pair": "OP/USD", "entry": 0.1478,
+             "added": (datetime.now().astimezone()
+                       - timedelta(hours=2)).isoformat()}   # no goal_pct
+    v, why = ex.exit_verdict("OP/USD", w_nog,
+                             "Trend broke — 55% bearish", live=0.1478)
+    check("11.4 a row with NO goal level exits fail-safe (unverifiable "
+          "fill never arms — the extension only holds what it can measure)",
+          v == "exit" and "no goal level" in why)
+    check("11.5 the goal comes from the WATCH ROW's goal_pct (the "
+          "per-fire stamp the machinery itself wrote)",
+          ex.exit_verdict.__code__.co_consts.count("goal_pct") >= 1
+          or "goal_pct" in __import__("inspect").getsource(ex.exit_verdict))
+    exx_src = (BASE / "exit_extension.py").read_text(encoding="utf-8").replace("\r\n", "\n")
+    check("11.6 the 0.98 precondition is hardcoded in the arm path (a "
+          "safety gate, not a dial: no operator knob can relax it)",
+          "ARM_FILL_SLACK = 0.98" in exx_src
+          and exx_src.find("ARM_FILL_SLACK = 0.98") < exx_src.find("def _arm("))
     _env(ex.ENABLED_KEY, "0")
 finally:
     # restore the operator's world exactly (leak-audit: env + files)

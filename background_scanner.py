@@ -3710,7 +3710,8 @@ def contest_light(exchange, cfg):
             # extension can never trap a position the machinery wants out.
             _had_stamp = isinstance(w.get("exit_extension"), dict)
             try:
-                v_ext, why_ext = _exx.exit_verdict(pair, w, str(reason))
+                v_ext, why_ext = _exx.exit_verdict(pair, w, str(reason),
+                                                    live=live)
             except Exception as _exv_exc:
                 v_ext, why_ext = "exit", f"seam failed ({_exv_exc}) — incumbent exit"
                 logger.warning("exit-extension seam failed for %s: %s",

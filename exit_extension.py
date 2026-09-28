@@ -17,6 +17,11 @@ So the implementable form is NOT the study's rule; it is this module:
 What this module deliberately does NOT do:
   - it never exits anything (the clock never exits — Sep 21 rule); it
     only delays and stamps. Expiry REVERTS to the incumbent machinery.
+  - it never arms a book whose fill sits at/above 98% of the goal level
+    (Sep 28, the acceptance gate's measured precondition: arming a PAID
+    book re-holds a position that already reached its net — the leak the
+    gate caught at ctrl -15.08). A cut with room left to reach the goal
+    is the only thing this module ever holds.
   - it never widens protection. The trail functions here exist to prove
     parity with background_scanner's shapes and to let tests assert the
     guard survives; the scanner keeps using its own code path.
@@ -57,6 +62,20 @@ DEFAULT_HOURS = 24.0
 HOURS_MIN, HOURS_MAX = 1.0, 72.0        # the study's horizon, bracketed
 DEFAULT_DAILY_CAP = 3                   # a runaway dial cannot blanket the book
 DEFAULT_AGE_GATE_MIN = 30.0             # never extend a book cut minutes after add
+
+# THE ARM PRECONDITION (Sep 28, hardcoded — a SAFETY gate like THESIS
+# DEAD, deliberately NOT an operator dial): arm only when the live fill
+# sits strictly below 98% of the goal level. Measured by the acceptance
+# gate (_protected_extension_gate.py, commit 9f87266): the raw dial that
+# re-holds paid books FAILS its bar (ctrl -15.08), the preconditioned
+# form PASSES (ctrl +0.00, net +144.44 on 16/40 cuts). 2% of slack
+# absorbs the TP-fill-vs-goal-level gap; at/above the line the book is
+# already paid and the machinery's exit stands. Unverifiable fill or
+# goal -> exit (fail-safe to the incumbent). Numeric edge, kept because
+# it is the formula's honest shape: for goals under ~2.04% the 98% line
+# sits BELOW entry itself, so a fill at entry fails — those books have
+# less room than the slack band, and the incumbent exit stands.
+ARM_FILL_SLACK = 0.98
 
 STATE_ENV = "EXIT_EXTENSION_STATE_FILE"  # explicit sandbox hook
 
@@ -175,7 +194,8 @@ def _count_today(st: dict, now: datetime) -> int:
 
 # ── the one scanner seam ─────────────────────────────────────────────
 def exit_verdict(pair: str, w: dict, reason: str,
-                 now: datetime | None = None) -> tuple[str, str]:
+                 now: datetime | None = None,
+                 live: float | None = None) -> tuple[str, str]:
     """THE SEAM the scanner calls when should_exit is True.
 
     Returns ("exit", why) — run the incumbent exit machinery untouched —
@@ -185,9 +205,13 @@ def exit_verdict(pair: str, w: dict, reason: str,
     The precedence order IS the safety story:
       1. dial OFF            -> exit (fail-safe to the incumbent)
       2. THESIS DEAD / non-cut -> exit (the gate never holds these)
-      3. active extension    -> suppress (the ride continues)
-      4. window lapse        -> exit (revert; the stamp is cleaned here)
-      5. cut-class + gates   -> suppress + ARM (stamp the row)
+      3. active extension    -> suppress (the ride continues; it was
+         armed under the same precondition, so no re-judgement — the
+         ride must be allowed to approach its goal)
+      4. fill at/above 98% of goal -> exit (arming a paid book is the
+         measured leak; unverifiable fill/goal also exits)
+      5. window lapse        -> exit (revert; the stamp is cleaned here)
+      6. cut-class + gates   -> suppress + ARM (stamp the row)
     """
     now = now or datetime.now().astimezone()
     dials = read_dials()
@@ -212,8 +236,20 @@ def exit_verdict(pair: str, w: dict, reason: str,
             return "exit", "corrupt extension stamp — incumbent machinery resumes"
 
     # ── the arm path: gates before the stamp ────────────────────────
-    if not str(w.get("entry") or 0):
-        return "exit", "watch row carries no entry price"
+    # THE BELOW-GOAL PRECONDITION first (Sep 28, the gate's PASSING
+    # form, hardcoded): judged on the ARM path only — a row already
+    # riding its window was armed under this same gate, so it cannot be
+    # a paid-at-goal book, and the ride needs no re-check (a ride must
+    # be allowed to approach its goal).
+    goal_pct = float(w.get("goal_pct") or 0.0)
+    if live is None or goal_pct <= 0.0 or not str(w.get("entry") or 0):
+        return "exit", ("no goal level / no live fill to judge the arm "
+                        "precondition — incumbent machinery resumes")
+    goal_px = float(w["entry"]) * (1.0 + goal_pct / 100.0)
+    if live >= goal_px * ARM_FILL_SLACK:
+        return "exit", (f"fill {live:.6g} is not below 98% of the goal "
+                        f"level {goal_px * ARM_FILL_SLACK:.6g} — arming a "
+                        "paid book is the leak the gate measured")
     added = str(w.get("added") or "")
     if added:
         try:
