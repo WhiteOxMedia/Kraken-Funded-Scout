@@ -51,6 +51,24 @@ from _gf_series import GFSeries     # noqa: E402  (the shared per-day seam)
 
 import datetime as _dt
 import json as _json
+from zoneinfo import ZoneInfo
+
+
+def _sold_ms(raw):
+    """sold_at string -> epoch ms with the naive-stamp rule (Sep 28).
+    The live writer emits AWARE Denver stamps (_now_mst().isoformat(),
+    ZoneInfo America/Denver); a naive stamp (no tz suffix) is legacy or
+    foreign and used to be read in the machine's local zone - a winter
+    stamp on a summer machine keyed a whole hour off (MDT vs MST) and
+    the journal join silently missed rows. The house rule applies (the
+    decay guard's legacy-naive handling, the engine-wide 'never
+    hardcode an offset'): naive means Denver wall time. NOTE: the
+    grader's ex_ms key (_verdict_study) normalizes the SAME way - the
+    join stays comparable by construction on any machine."""
+    ts = _dt.datetime.fromisoformat(str(raw))
+    if ts.tzinfo is None:
+        ts = ts.replace(tzinfo=ZoneInfo("America/Denver"))
+    return int(ts.timestamp() * 1000)
 
 
 def _journal_reasons():
@@ -66,8 +84,7 @@ def _journal_reasons():
                 continue
             try:
                 r = _json.loads(line)
-                ms = int(_dt.datetime.fromisoformat(
-                    r["sold_at"]).timestamp() * 1000)
+                ms = _sold_ms(r["sold_at"])
                 out[ms] = str(r.get("exit_reason") or
                               r.get("note") or "")
             except (ValueError, KeyError, TypeError):

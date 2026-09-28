@@ -13,6 +13,9 @@ RED-FIRST at authoring time (against the tree with the study absent):
   1.1  _protected_extension_gate.py does not exist yet -> fails
   1.2  its guard-parity source pins cannot match -> fail
   2.x  the gate cannot run -> fail
+  1.6+ the naive-stamp rule: the journal join's ms keys normalize
+       tz-naive stamps to the house zone (Denver) on BOTH sides, with
+       executed teeth (the drive runs the extracted _sold_ms).
 Everything here is derived, never hardcoded: the drive re-derives the
 GATE decision from the study's own printed numbers and fails if the
 printed verdict disagrees with the arithmetic (the stale-hardcode class
@@ -29,6 +32,7 @@ from pathlib import Path
 BASE = Path(__file__).resolve().parent
 STUDY = BASE / "_protected_extension_gate.py"
 REFEREE = BASE / "_livearm_referee.py"
+VS = BASE / "_verdict_study.py"      # the join's other side: ex_ms keys
 
 lines = []
 PASS = FAIL = 0
@@ -83,6 +87,89 @@ check("1.5 the cut class comes from exit_extension (single source of "
       "truth), not a re-typed list",
       "is_cut_reason" in src or "_CUT_MARKS" in src
       or "exit_extension" in src)
+
+# ── 1b. the naive-stamp rule on the journal join (Sep 28) ────────────
+# The join keys _journal_reasons rows by sold_at-ms against the
+# grader's ex_ms. A naive stamp (no tz suffix) used to be read in the
+# MACHINE'S local zone: identical code on both sides kept the join
+# self-consistent, but a winter stamp on a summer machine keyed a
+# whole hour off (MDT vs MST), and the rule was never written down.
+# House rule (the decay guard's legacy-naive handling, the engine-wide
+# 'never hardcode an offset'): naive means DENVER wall time. Both join
+# sides normalize the same way, and the drive EXECUTES the rule.
+vsrc = VS.read_text(encoding="utf-8").replace("\r\n", "\n") \
+    if VS.exists() else ""
+
+check("1.6 the study's journal key normalizes naive stamps to the "
+      "house zone: _sold_ms attaches ZoneInfo America/Denver for "
+      "tz-naive rows and _journal_reasons keys through it",
+      "_sold_ms" in src and "tzinfo is None" in src
+      and 'ZoneInfo("America/Denver")' in src
+      and "ms = _sold_ms(" in src)
+check("1.7 the grader's ex_ms key normalizes the SAME way (the join "
+      "stays comparable by construction — fixing one side alone "
+      "would break it for naive rows)",
+      "_sold_ms" in vsrc and 'ZoneInfo("America/Denver")' in vsrc
+      and "tzinfo is None" in vsrc
+      and "ex_ms = _sold_ms(" in vsrc)
+check("1.8 the bare fromisoformat().timestamp() idiom is GONE from "
+      "both join sites (the machine-local regression cannot return)",
+      not [ln for ln in (src + vsrc).splitlines()
+           if "fromisoformat" in ln and ".timestamp(" in ln])
+
+
+def _exec_fn(path, name):
+    """Extract ONE function from a study's AST and exec it - the
+    behavioral pin runs the real code without importing the module
+    (the studies execute their whole analysis at module level).
+    The namespace carries the imports the extracted functions use
+    (both datetime spellings + ZoneInfo); the compile filename is a
+    placeholder so a traceback cannot mislead by reading the REAL
+    file at the segment's mapped line."""
+    import ast
+    text = path.read_text(encoding="utf-8")
+    for node in ast.walk(ast.parse(text)):
+        if isinstance(node, ast.FunctionDef) and node.name == name:
+            ns = {}
+            exec("import datetime\nimport datetime as _dt\n"
+                 "from zoneinfo import ZoneInfo", ns)
+            exec(compile(ast.get_source_segment(text, node),
+                         "<extracted>", "exec"), ns)
+            return ns.get(name)
+    return None
+
+
+_f_study = _exec_fn(STUDY, "_sold_ms") if STUDY.exists() else None
+_f_vs = _exec_fn(VS, "_sold_ms") if VS.exists() else None
+if _f_study is not None:
+    from zoneinfo import ZoneInfo
+    import datetime as _dt
+
+    def _expect(s):
+        t = _dt.datetime.fromisoformat(s)
+        if t.tzinfo is None:
+            t = t.replace(tzinfo=ZoneInfo("America/Denver"))
+        return int(t.timestamp() * 1000)
+
+    _naive_winter = _expect("2026-01-15T10:00:00")   # MST side: UTC-7
+    _naive_summer = _expect("2026-07-15T10:00:00")   # MDT side: UTC-6
+    _aware = _expect("2026-01-15T10:00:00-06:00")    # aware: untouched
+    check("1.9 the naive-stamp rule has TEETH (executed, not just "
+          "text): naive winter wall time -> Denver UTC-7, naive "
+          "summer -> UTC-6, aware stamps untouched — study side",
+          _f_study("2026-01-15T10:00:00") == _naive_winter
+          and _f_study("2026-07-15T10:00:00") == _naive_summer
+          and _f_study("2026-01-15T10:00:00-06:00") == _aware)
+    check("1.10 the grader's key normalizes identically (the join "
+          "cannot split between its two sides)",
+          _f_vs is not None
+          and _f_vs("2026-01-15T10:00:00") == _naive_winter
+          and _f_vs("2026-01-15T10:00:00-06:00") == _aware)
+else:
+    check("1.9 the naive-stamp rule has TEETH (executed, not just "
+          "text) — study side", False)
+    check("1.10 the grader's key normalizes identically (the join "
+          "cannot split between its two sides)", False)
 
 # ── 2. the gate runs and its verdict is mechanical (RED until written) ─
 gate_out = ""

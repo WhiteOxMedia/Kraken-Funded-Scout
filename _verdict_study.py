@@ -17,6 +17,7 @@ import re
 import sqlite3
 import datetime
 from collections import defaultdict
+from zoneinfo import ZoneInfo
 
 import discipline as dc
 
@@ -37,6 +38,20 @@ def _db():
     return sqlite3.connect(f"{_DB_URI}?mode=ro", uri=True, timeout=2.0)
 LOOKBACK_MS = 120 * 60 * 1000        # if entry time unknown: 2h before exit
 AFTER_MS = 240 * 60 * 1000           # post-exit run window (4h)
+
+
+def _sold_ms(raw):
+    """sold_at string -> epoch ms with the naive-stamp rule (Sep 28):
+    the writer emits aware Denver stamps; a naive stamp is legacy or
+    foreign and normalizes to DENVER wall time (ZoneInfo America/
+    Denver), never the machine's local zone. _protected_extension_gate's
+    journal key normalizes the same way - the ex_ms->reason join stays
+    machine-proof by construction (fixing one side alone would break
+    the join for naive rows)."""
+    ts = datetime.datetime.fromisoformat(str(raw))
+    if ts.tzinfo is None:
+        ts = ts.replace(tzinfo=ZoneInfo("America/Denver"))
+    return int(ts.timestamp() * 1000)
 
 # ── THE NIGHTLY DIAGNOSTIC LAYER (Sep 21): the study is no longer a
 # scratch script — the cooldown review cites it, the scanner writes its
@@ -310,8 +325,7 @@ def grade_trades():
             (sorted(applied_sizes.get(r["sold_at"][:10], [med_all]))[len(applied_sizes.get(r["sold_at"][:10], [med_all])) // 2])
         goal = float(r.get("goal_pct") or 1.5)
         realized = float(r.get("pnl_net") or 0.0)
-        sold_at = datetime.datetime.fromisoformat(r["sold_at"])
-        ex_ms = int(sold_at.timestamp() * 1000)
+        ex_ms = _sold_ms(r["sold_at"])
         sold_min = parse_sold_min(r.get("note")) or parse_sold_min(r.get("exit_reason"))
         if sold_min is not None:
             en_ms = ex_ms - (60 + sold_min) * 60 * 1000
