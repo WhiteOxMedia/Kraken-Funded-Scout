@@ -393,6 +393,41 @@ def _sold_in_rotation(start, end) -> list[dict]:
     return out
 
 
+def _worst_burial_gate(system_pairs: list, system_duds: list) -> dict | None:
+    """THE PER-GATE PAYER RATIO (user ask, Sep 28: the boundary names
+    WHICH gate buried the most payers and by how much): count payers
+    and duds per gate from the evaluation's own attribution and pick
+    the worst — payers PRIMARY (which gate cost the most), payer-rate
+    the tiebreak. None when nothing paid (no gate to blame).
+    Module-level so the drive can execute it on synthetic data."""
+    pay: dict[str, int] = {}
+    dud: dict[str, int] = {}
+    for p in system_pairs or []:
+        g = str(p.get("gate") or "?")
+        pay[g] = pay.get(g, 0) + 1
+    for d in system_duds or []:
+        g = str(d.get("gate") or "?")
+        dud[g] = dud.get(g, 0) + 1
+    worst = None
+    for g, n in pay.items():
+        buried = n + dud.get(g, 0)
+        rate = n / buried if buried else 0.0
+        if worst is None or (n, rate) > (worst["payers"], worst["rate"]):
+            worst = {"gate": g, "payers": n, "buried": buried,
+                     "rate": round(rate, 2)}
+    return worst
+
+
+def _worst_gate_txt(wg: dict | None) -> str:
+    """The worst-gate clause the boundary, the voice, and the lesson
+    all speak (empty string when there is no gate to blame)."""
+    if not wg:
+        return ""
+    return (f" Worst: the '{wg['gate']}' gate buried "
+            f"{wg['payers']} payer(s) of {wg['buried']} "
+            f"({wg['rate']:.0%} payer-rate).")
+
+
 def _coin_paid(exchange, pair: str, entry: float, goal_pct: float,
                alert: datetime, window_end: datetime) -> bool:
     """Did the coin reach entry x (1 + goal) inside the window? (the
@@ -610,10 +645,12 @@ def evaluate_rotation(exchange, rot_key: str, when=None, speak=True,
         # the ones that didn't (the gate being RIGHT). The dock's size
         # follows that measurement: payers x payer-rate, not a flag.
         empty_payers = len(system_burial)
+        worst_gate = _worst_burial_gate(system_burial, system_duds)
         if empty_buried:
             empty_why = (f"{empty_buried} rail-worthy candidate(s) were "
                          f"buried, {empty_payers} of them reached goal "
-                         f"(gates: {', '.join(gates)})")
+                         f"(gates: {', '.join(gates)})"
+                         + _worst_gate_txt(worst_gate))
         elif popups:
             empty_why = ("candidates existed but none fired — a drought in "
                          "the funnel, not the market")
@@ -648,6 +685,7 @@ def evaluate_rotation(exchange, rot_key: str, when=None, speak=True,
         "empty_why": empty_why,
         "empty_buried": empty_buried,
         "empty_payers": empty_payers,
+        "worst_gate": worst_gate,
         "silent_dock": _silent_dock,
         "bonuses": bonuses, "weights": dict(weights),
         "ts": _now().isoformat(),
@@ -713,14 +751,16 @@ def _learn(state: dict, result: dict) -> str:
         # lost money — the funnel surfaced nothing while the account
         # bled. That is the gates' leave, whatever the suppression log
         # says: the system_burial weight rises (the carve-out data
-        # builds) and the lesson names the silence.
+        # builds) and the lesson names the silence — WITH the worst
+        # gate named (the per-gate payer ratio, Sep 28).
         old = w.get("system_burial", 1.0)
         w["system_burial"] = round(min(W_MAX, old * (1.0 + NUDGE)), 3)
         lesson = (f"No popups fired and the rotation lost ${abs(pnl):.0f} — "
                   f"the funnel surfaced nothing worth taking while the "
                   f"account bled. The system_burial weight rises "
                   f"{old:.2f} → {w['system_burial']:.2f}: a silent funnel "
-                  f"is not a disciplined one.")
+                  f"is not a disciplined one."
+                  + _worst_gate_txt(result.get("worst_gate")))
     elif score >= 80 and pnl < 0 and dominant:
         # high score but the money went backwards — the score is
         # over-crediting; make the dominant component sting more
@@ -752,7 +792,8 @@ def _learn(state: dict, result: dict) -> str:
     elif result.get("empty_fire"):
         lesson = (f"No popups fired — score capped at {score:.0f} (the "
                   f"opportunity cost: a silent rotation cannot grade "
-                  f"perfect). Realized ${pnl:+.0f}; weights hold.")
+                  f"perfect). Realized ${pnl:+.0f}; weights hold."
+                  + _worst_gate_txt(result.get("worst_gate")))
     else:
         lesson = (f"Score and money agree (score {score:.0f}, realized "
                   f"${pnl:+.0f}) — weights hold; the calibration stands.")

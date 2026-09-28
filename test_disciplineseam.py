@@ -296,6 +296,46 @@ check("7.9 the decay contract survives: the cooldown x0.9 decay still "
       "owns the penalty key (one plane, one decay)",
       "discipline_penalty_extra\"] = round(prev_pen * 0.9" in src_ml)
 
+# ── 7.10-7.13 THE PER-GATE BURIED-PAYER RATIO (Sep 28, user ask: the
+# boundary names WHICH gate buried the most payers and by how much) ──
+# behavioral: the counter executed on synthetic attribution data
+_wg = dc._worst_burial_gate(
+    [{"gate": "tide-out"}, {"gate": "tide-out"}, {"gate": "tide-out"},
+     {"gate": "tide-out"}, {"gate": "tide-out"},
+     {"gate": "deep-veto"}],
+    [])
+check("7.10 the worst gate is the one with the MOST PAYERS (5 tide-out "
+      "beat 1 deep-veto — primary sort)",
+      _wg and _wg["gate"] == "tide-out" and _wg["payers"] == 5
+      and _wg["buried"] == 5 and _wg["rate"] == 1.0, _wg)
+_wg2 = dc._worst_burial_gate(
+    [{"gate": "stale-move"}, {"gate": "stale-move"},
+     {"gate": "tide-out"}, {"gate": "tide-out"}],
+    [{"gate": "stale-move"}] * 6 + [{"gate": "tide-out"}] * 2)
+check("7.11 the payer-rate is the tiebreak (2 payers each: stale-move "
+      "0.25 rate loses to tide-out 0.5)",
+      _wg2 and _wg2["gate"] == "tide-out" and _wg2["rate"] == 0.5, _wg2)
+check("7.12 no gate to blame: no payers at all -> None (duds are the "
+      "gates being RIGHT; a drought blames nobody)",
+      dc._worst_burial_gate([], []) is None
+      and dc._worst_burial_gate([], [{"gate": "tide-out"}]) is None
+      and dc._worst_burial_gate(None, None) is None)
+check("7.13 the clause is human-shaped and rideable",
+      _worst_txt := dc._worst_gate_txt(
+          {"gate": "tide-out", "payers": 14, "buried": 27, "rate": 0.52}),
+      _worst_txt)
+check("7.13b the clause text names gate, payers, buried, and rate",
+      "tide-out" in _worst_txt and "14" in _worst_txt
+      and "27" in _worst_txt and "52%" in _worst_txt, _worst_txt)
+# census: all three surfaces speak it, from ONE computation
+check("7.14 the worst-gate clause rides the WHY line, both silent "
+      "lesson branches, and the result (the boundary + voice inherit "
+      "it through empty_why)",
+      "empty_why = (" in src and "_worst_gate_txt(worst_gate)" in src
+      and src.count("_worst_gate_txt(result.get(\"worst_gate\"))") >= 2
+      and '"worst_gate": worst_gate' in src
+      and "def _worst_burial_gate" in src)
+
 lines.append(f"\nRESULT: {PASS} passed, {FAIL} failed")
 out = Path("_disciplineseam_test.txt")
 out.write_text("\n".join(lines), encoding="utf-8")
