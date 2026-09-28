@@ -510,6 +510,17 @@ if not records:
         except Exception:
             pass
 if not records:
+    if errors:
+        # (Sep 28, found while pinning the 0.8.1 shapes) a PURE error
+        # stream ({"errorType": ...} and nothing else) used to parse as
+        # valid JSON with zero records and print CLEANJSON - the hook
+        # claimed a clean review while the CLI had bounced. COUNT 0 +
+        # ERRORTYPE keeps the advisory fail-open shape and fires the
+        # hook's "review errors" banner honestly.
+        print("COUNT 0")
+        for e in sorted(set(errors)):
+            print("ERRORTYPE " + e)
+        sys.exit(0)
     if parsed_any:
         print("CLEANJSON")   # valid JSON, zero records: explicitly empty
     else:

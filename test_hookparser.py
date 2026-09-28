@@ -13,6 +13,14 @@ Sep 23 (second guard): the null-field fallbacks are pinned the same way
 startLine→line→lineRange.start→endLine, each proven alive through the
 real parser, because the live stream leaves those fields null and a
 dropped fallback renders real findings as bare ?.
+Sep 28 (third guard): the 0.8.1 stream shapes are pinned — the errorType
+record (mixed rides ERRORTYPE; PURE is COUNT 0 + ERRORTYPE, never the
+CLEANJSON masquerade, which this guard caught while pinning), the
+skeletal record (honest store message, never fabricated text), and the
+codegenInstructions extraction (line + comment text from the
+"Review comment at @file at line N:" string, beating the skeletal
+message on hybrid records). The CR_SNAPSHOT store-join identity is
+pinned in source.
 
 Run:  python test_hookparser.py   (exit 0 = all pass)
 Reads hooks/pre-commit RELATIVE to the cwd: in the repo that is the
@@ -184,6 +192,75 @@ out = run_parser(json.dumps({"findings": [
     {"fileName": "c.py", "startLine": 3, "severity": "major", "title": "C"}]}) + "\n")
 check("a wrapped envelope parses (nested records found)",
       "- c.py:3 [major] C" in out, out.strip().splitlines()[:1])
+
+# ── 3d. THE 0.8.1 STREAM SHAPES (guard, Sep 28): the live CLI stream
+# carries three shapes the older generations never sent. Each is pinned
+# BEHAVIORALLY through the real parser so a future CLI update that
+# breaks one fails here by name, not in a live commit's stderr.
+#
+# (1) the ERROR RECORD: the CLI streams {"errorType": ...} for a
+# bounced review (rate_limit was hit live Sep 28, twice). MIXED with
+# findings it must ride the ERRORTYPE line; PURE it must NOT print
+# CLEANJSON — a pure-error stream used to masquerade as a clean review
+# (found by this very pinning turn, fixed in the hook same day).
+out = run_parser(json.dumps({"errorType": "rate_limit"}) + "\n"
+                + json.dumps({"fileName": "m.py", "startLine": 6,
+                              "severity": "major", "title": "M"}) + "\n")
+check("0.8.1: an errorType record rides ERRORTYPE next to its findings",
+      "COUNT 1" in out and "ERRORTYPE rate_limit" in out
+      and "- m.py:6 [major] M" in out, out.strip().splitlines()[-3:])
+out = run_parser(json.dumps({"errorType": "rate_limit"}) + "\n")
+check("0.8.1: a PURE error stream is COUNT 0 + ERRORTYPE, never CLEANJSON",
+      "COUNT 0" in out and "ERRORTYPE rate_limit" in out
+      and "CLEANJSON" not in out, out.strip()[:60])
+check("the hook fires the review-errors banner (never silence) on ERRORTYPE",
+      "review errors:" in src and "advisories may be incomplete" in src)
+#
+# (2) the SKELETAL RECORD: fileName + severity and NOTHING else (the
+# live stream fills title/lines late, from the local review store). The
+# parser must name the store honestly, never fabricate a ?-title.
+out = run_parser(json.dumps({"fileName": "s.py", "severity": "minor",
+                             "type": "finding"}) + "\n")
+check("0.8.1: a skeletal record renders the honest store message",
+      "- s.py:? [minor] (stream gave no line/text - full record in the "
+      "local store)" in out, out.strip().splitlines()[:1])
+#
+# (3) codegenInstructions: the 0.8.1 stream sometimes carries BOTH the
+# line number and the comment text ONLY inside that string —
+# "Review comment at @file at line N: <text>". Both extractions are
+# pinned, and the hybrid (skeletal + codegen) proves codegen wins.
+out = run_parser(json.dumps({"fileName": "g.py", "severity": "major",
+                             "codegenInstructions":
+                             "Review comment at @g.py at line 33: The "
+                             "goal-price calc repeats the raw entry "
+                             "read. Wrap it."}) + "\n")
+check("0.8.1: the line rides in codegenInstructions and is extracted",
+      "- g.py:33 [major] The goal-price calc repeats the raw entry "
+      "read. Wrap it." in out, out.strip().splitlines()[:1])
+out = run_parser(json.dumps({"fileName": "h.py", "severity": "minor",
+                             "codegenInstructions":
+                             "Review comment at @h.py at line 8: Guard "
+                             "the JSON parse."}) + "\n")
+check("0.8.1: codegen text beats the skeletal (stream gave no line/text) "
+      "message on a hybrid record",
+      "- h.py:8 [minor] Guard the JSON parse." in out
+      and "stream gave no line/text" not in out,
+      out.strip().splitlines()[:1])
+# the extraction idiom survives in source (belt to the suspenders)
+check("0.8.1: the codegen extraction is the contracted regex shapes",
+      're.search(r"at line (\\d+)"' in PYCODE
+      and "Review comment at @" in PYCODE)
+# the walk collects errorType records and the envelope stays understood
+check("0.8.1: the walker collects errorType and walks wrapped envelopes",
+      '"errorType" in o' in PYCODE and "has_file" in PYCODE
+      and "has_body" in PYCODE)
+# the store-join identity: the hook passes CR_SNAPSHOT so the skeletal
+# join reads ONLY the review dir that matches THIS snapshot's head
+check("0.8.1: the store join is snapshot-locked (CR_SNAPSHOT in, "
+      "git.json head compared)",
+      "CR_SNAPSHOT=\"${SNAPSHOT:-}\"" in src
+      and 'os.environ.get("CR_SNAPSHOT")' in PYCODE
+      and 'gitmeta.get("head")' in PYCODE)
 
 # ── 4. the wiring: parser output feeds the findings renderer ─────────
 check("the renderer consumes COUNT/SEV and prints the finding list",
