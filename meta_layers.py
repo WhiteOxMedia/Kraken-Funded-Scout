@@ -449,7 +449,10 @@ def dock_silent_rotation(n_buried: int, when: datetime | None = None) -> dict:
         if not n_buried or int(n_buried) <= 0:
             return {"docked": 0.0, "reason": "honest drought — nothing docked"}
         st = _state()
-        key = _rot_key_of(when)
+        # the dedup key carries the DATE (CodeRabbit, Sep 28): the bare
+        # rotation key repeats every day, so a bare-key dedup would let
+        # today's dock silence every future day's same rotation
+        key = f"{when.strftime('%Y-%m-%d')} {_rot_key_of(when)}"
         sr = st.get("silent_docks") or {}
         if sr.get("rot") == key:
             return {"docked": 0.0, "reason": f"already docked for {key}"}

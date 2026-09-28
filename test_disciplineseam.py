@@ -205,6 +205,18 @@ with tempfile.TemporaryDirectory() as _td7:
               "double-sting)",
               d2.get("docked") == 0.0 and ml.discipline_penalty_extra() == 0.5,
               d2)
+        # 7.2b the cross-day case (CodeRabbit, Sep 28): the bare rotation
+        # key repeats daily — YESTERDAY's dock must not silence TODAY's
+        # same rotation. The key carries the date; a day-earlier when
+        # docks again (+0.5 more).
+        import datetime as _dt72
+        _yesterday = dc._now() - _dt72.timedelta(days=1)
+        d2b = ml.dock_silent_rotation(1, when=_yesterday)
+        check("7.2b the dedup key carries the DATE: yesterday's same "
+              "rotation docks again (the bare-key dedup would have "
+              "silenced every future day)",
+              d2b.get("docked") == 0.5
+              and ml.discipline_penalty_extra() == 1.0, d2b)
         # 7.3 the honest drought: nothing docked
         ml.STATE_FILE = Path(_td7) / "meta_state2.json"   # fresh state
         d3 = ml.dock_silent_rotation(0, when=dc._now())
