@@ -570,6 +570,19 @@ def _state() -> dict:
         return {}
 
 
+def _read_state(path) -> dict:
+    """A PURE READ of one explicit state file — the module default is
+    never consulted, never assigned (the hermeticity sweep, Sep 28):
+    cross-repo readers (_gf_series.GFSeries's sandbox hook) use this to
+    open a specific file WITHOUT the old constructor dance of assigning
+    the module-global STATE_FILE and never restoring it. Fail-soft like
+    _state(): an unreadable path is an empty dict, not a crash."""
+    try:
+        return json.loads(Path(path).read_text(encoding="utf-8"))
+    except Exception:
+        return {}
+
+
 def _save(st: dict) -> None:
     _state_file().write_text(json.dumps(st, indent=2), encoding="utf-8")
 

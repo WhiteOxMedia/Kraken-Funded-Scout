@@ -64,6 +64,8 @@ except Exception as exc:
 # execution state
 try:
     import json
+    # clock-audit: ok — LIVE-PROBE (status display: the diag's job is to
+    # report what the live file holds right now) (hermeticity sweep)
     ex = json.loads((BASE / "execution_state.json").read_text())
     lines.append(f"\nexecution: blacklist={list(ex.get('blacklist', {}).keys())} "
                  f"strikes={list(ex.get('strikes', {}).keys())} "

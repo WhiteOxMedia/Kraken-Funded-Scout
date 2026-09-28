@@ -410,7 +410,8 @@ def _coin_paid(exchange, pair: str, entry: float, goal_pct: float,
         return False
 
 
-def evaluate_rotation(exchange, rot_key: str, when=None, speak=True) -> dict:
+def evaluate_rotation(exchange, rot_key: str, when=None, speak=True,
+                      watch_file=None) -> dict:
     """The full per-rotation evaluation. Returns the structured result
     (also logged + spoken). Safe to call at the rollover."""
     when = when or _now()
@@ -452,9 +453,15 @@ def evaluate_rotation(exchange, rot_key: str, when=None, speak=True) -> dict:
         p["goal_pct"] = goal
         taken = p["pair"] in sold_pairs
         if not taken:
-            # still held from this window? the watch's added timestamp
+            # still held from this window? the watch's added timestamp.
+            # THE INJECTION SEAM (the hermeticity sweep, Sep 28): the
+            # watch file is a LIVE runtime file the scanner owns — a
+            # default-path read inside an evaluation a drive can pull
+            # is the prose-backfill class, so the path is injectable.
             try:
-                wdoc = json.loads((Path(__file__).parent / "contest_watch.json").read_text())
+                _wf = Path(watch_file) if watch_file \
+                    else Path(__file__).parent / "contest_watch.json"
+                wdoc = json.loads(_wf.read_text())
                 wr = wdoc.get(p["pair"]) or {}
                 ad = datetime.fromisoformat(wr["added"]) if wr.get("added") else None
                 if ad is not None:
@@ -518,7 +525,9 @@ def evaluate_rotation(exchange, rot_key: str, when=None, speak=True) -> dict:
 
     # still-held: the goal reached with no exit at all (the harshest)
     try:
-        wdoc = json.loads((Path(__file__).parent / "contest_watch.json").read_text())
+        _wf = Path(watch_file) if watch_file \
+            else Path(__file__).parent / "contest_watch.json"
+        wdoc = json.loads(_wf.read_text())
         for pair, wr in wdoc.items():
             try:
                 ad = datetime.fromisoformat(wr.get("added") or "")
@@ -775,7 +784,8 @@ def _speak_result(result: dict, missed: list, missed_exit: list):
         pass
 
 
-def cooldown_review(exchange=None, when=None, speak=True, dry_run=False) -> dict:
+def cooldown_review(exchange=None, when=None, speak=True, dry_run=False,
+                    watch_file=None) -> dict:
     """THE COOLDOWN REVIEW (user spec, Sep 21) — "What did I learn today,
     and how do I increase the PnL when this setup appears again?"
 
@@ -887,7 +897,7 @@ def cooldown_review(exchange=None, when=None, speak=True, dry_run=False) -> dict
     # on the table?"): every asset the day touched — sold, still held,
     # and what the funnel buried — each with one factual verdict using
     # the SAME component arithmetic the rotation score uses.
-    assets = _day_assets(exchange, _today, state)
+    assets = _day_assets(exchange, _today, state, watch_file=watch_file)
 
     # ── 6c. THE BOOK-WIDE VERDICT COST (user, Sep 21): the study's
     # ranking rides the nightly line — the top verdict class across ALL
@@ -1238,7 +1248,7 @@ def _asset_verdict(entry, exit_px, peak, goal_pct, realized, size):
     return ("still holding under the goal", 0.0)
 
 
-def _day_assets(exchange, today, state):
+def _day_assets(exchange, today, state, watch_file=None):
     """Every asset the day touched, factually: sold trades (their real
     numbers), still-held watch rows (live price), and the funnel's
     buried candidates (the rotation evaluations' system_pairs). Returns
@@ -1272,10 +1282,13 @@ def _day_assets(exchange, today, state):
     except Exception:
         pass
     # still-held: the watch rows added today (the live price closes them)
+    # watch_file rides the same injection seam as evaluate_rotation (the
+    # hermeticity sweep, Sep 28).
     try:
         import json as _j
-        wdoc = _j.loads((Path(__file__).parent / "contest_watch.json")
-                        .read_text(encoding="utf-8"))
+        _wf = Path(watch_file) if watch_file \
+            else Path(__file__).parent / "contest_watch.json"
+        wdoc = _j.loads(_wf.read_text(encoding="utf-8"))
         for pair, wr in (wdoc or {}).items():
             try:
                 ad = str(wr.get("added") or "")

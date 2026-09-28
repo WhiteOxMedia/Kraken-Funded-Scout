@@ -679,6 +679,9 @@ app._render_tidebar_history(max_bytes=100000, rf_path=r"%s")
           not (BASE / "_sbx_tidebar_history.txt").exists()
           and not (BASE / "_sbx_tidebar_picker.txt").exists())
     check("the production report file carries no fixture text",
+          # clock-audit: ok — LIVE-PROBE (negative cleanliness: the file
+          # must carry NO fixture text; the read is the assertion, the
+          # injected-path pins above own the sandbox) (hermeticity sweep)
           "untagged trailing text" not in (BASE / "_tidebarweekly.txt")
           .read_text(encoding="utf-8"))
     check("the history renderer accepts an injected sandbox path",

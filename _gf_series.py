@@ -46,8 +46,17 @@ class GFSeries:
         if rows is None:
             import profit_guard as _pg
             if state_file is not None:
-                _pg.STATE_FILE = Path(state_file)
-            hist = _pg.factor_history()
+                # THE POISONED CONSTRUCTOR (CodeRabbit major, Sep 28,
+                # fixed same day): this used to ASSIGN profit_guard's
+                # module-global STATE_FILE and never restore it — every
+                # later _save() in the importing process would land in
+                # the sandbox (profitguard 9b: save follows STATE_FILE).
+                # THE READER IS THE CONTRACT: _read_state(path) opens a
+                # specific file and NEVER touches the module default —
+                # the live scanner's state is untouched by construction.
+                hist = _pg._read_state(Path(state_file)).get("history") or []
+            else:
+                hist = _pg.factor_history()
         else:
             hist = [{"day": r[0], "factor": r[1]} if isinstance(r, (list, tuple))
                     else r for r in rows]

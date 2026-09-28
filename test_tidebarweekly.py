@@ -103,6 +103,9 @@ try:
     import json as _json
     # the PRODUCTION ledger grows as real weeks land — pick the W37 row
     # by week tag, never assume the file is one line long
+    # clock-audit: ok — LIVE-PROBE (the week picker is tagged, so the
+    # read is stable under ledger growth; the row is copied into the
+    # sandbox below) (hermeticity sweep)
     _w37 = next(r for r in (_json.loads(l) for l in
                             (BASE / "_tidebarweekly_history.jsonl")
                             .read_text(encoding="utf-8").splitlines()

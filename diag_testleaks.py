@@ -302,6 +302,43 @@ def audit_file(py, prod_names):
                 and isinstance(node.func.value, ast.Name) \
                 and node.func.value.id == "os":
             hits.append((node.lineno, "os.chdir (unguarded audit note)"))
+        # 3b) THE DEFAULT-PATH READ ARM (the hermeticity sweep, Sep 28):
+        # the prose-backfill class — a suite reading a PRODUCTION data
+        # file at its repo-root default path (open/read_text with a
+        # literal production basename and no directory component). The
+        # live file MOVES under such a read (the weekly writer regener
+        # erates its prose mid-day), so pins reading it are silently
+        # un-hermetic even when the assertions pass. Write-shape hits
+        # are already covered by arm 1; this arm is the READ side.
+        if isinstance(node, ast.Call):
+            fname = getattr(node.func, "id", None) or \
+                getattr(node.func, "attr", None)
+            if fname in ("open", "read_text", "read_bytes"):
+                if fname == "open" and node.args:
+                    rnode = node.args[0]
+                elif isinstance(node.func, ast.Attribute):
+                    rnode = node.func.value
+                else:
+                    rnode = None
+                # an ATTRIBUTE-CHAIN receiver (rb.HISTORY_DIR / "latest.json")
+                # is out of this arm's static reach: the suite typically
+                # pins that attribute to a sandbox, and the audit cannot
+                # resolve it — only literal/Name-rooted paths are flagged
+                if rnode is not None and any(
+                        isinstance(n, ast.Attribute) for n in ast.walk(rnode)):
+                    rnode = None
+                name = target_name(rnode) if rnode is not None else None
+                if name and not is_sandbox(name) and name in prod_names \
+                        and "/" not in name and "\\" not in name \
+                        and not (free_names(node) & sbx):
+                    near = "\n".join(src_lines[max(node.lineno - 5, 0):
+                                               node.lineno])
+                    if "clock-audit: ok" not in near:
+                        hits.append((node.lineno,
+                                     f"DEFAULT-PATH READ: {name} — a "
+                                     f"live production file moves under "
+                                     f"the pin; seed the data or point the "
+                                     f"reader at a sandbox"))
         if isinstance(node, ast.Assign) and len(node.targets) == 1 \
                 and isinstance(node.targets[0], ast.Subscript) \
                 and "environ" in ast.unparse(node.targets[0].value):
@@ -365,6 +402,25 @@ def audit_selfcheck(prod_names):
             "TRACKED_HOOKS_DIR = \"hooks\"\n"
             "LOCAL_HOOKS_DIR = OTHER_DIR\n"
         ),
+        # THE READ ARM'S PROBES (the hermeticity sweep, Sep 28): the
+        # default-path READ class gets the same permanent treatment.
+        "probe_read": (
+            "from pathlib import Path\n"
+            "BASE = Path(__file__).parent\n"
+            "x = (BASE / 'scanner_pulse.json').read_text()\n"
+        ),
+        "probe_read_ok": (
+            "from pathlib import Path\n"
+            "BASE = Path(__file__).parent\n"
+            "# clock-audit: ok — LIVE-PROBE (deliberate)\n"
+            "x = (BASE / 'scanner_pulse.json').read_text()\n"
+        ),
+        "probe_read_sbx": (
+            "import tempfile\n"
+            "from pathlib import Path\n"
+            "TMP = Path(tempfile.mkdtemp())\n"
+            "x = (TMP / 'scanner_pulse.json').read_text()\n"
+        ),
     }
     with tempfile.TemporaryDirectory(prefix="_testleaks_probe_") as td:
         tdp = Path(td)
@@ -390,11 +446,20 @@ def audit_selfcheck(prod_names):
                 "immunization is exempting the restore-swap again, "
                 "scoring 1) or the sandbox-local arm over-tightened "
                 "(flagging the sandbox swap)")
-        for name in ("probe_sbx", "probe_fin", "probe_sent", "probe_def"):
+        for name in ("probe_sbx", "probe_fin", "probe_sent", "probe_def",
+                     "probe_read_ok", "probe_read_sbx"):
             if hits[name]:
                 failures.append(
                     f"{name} must stay clean but was flagged: "
                     f"{hits[name]} — a legitimate arm regressed")
+        read_hits = _lines(hits["probe_read"])
+        if read_hits != [3]:
+            failures.append(
+                f"probe_read scored L{read_hits}, expected L[3] — the "
+                "default-path READ arm has drifted: either the live-file "
+                "read is no longer flagged (the prose-backfill class "
+                "re-entered) or the arm's sandbox/sentinel exemptions "
+                "over-tightened")
 
     # source pins. TWO anti-vacuity disciplines, learned the hard way in
     # this very file: a pin that searches for a literal which also appears
