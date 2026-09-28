@@ -368,6 +368,18 @@ cleanup_wt() {
     rm -rf "$WT" 2>/dev/null
     WT=""
 }
+# Airtight cleanup (Sep 28, second pass): the explicit cleanup_wt calls
+# below cover the normal path and the isolation-fallback path, but a hard
+# interrupt mid-review (Ctrl-C inside the up-to-300s review window, a
+# kill) bypasses BOTH and would leak the temp worktree and its
+# refs/cr-snapshot-* ref — the one exit path "cleanup runs on every path"
+# didn't yet own. ONE chained EXIT trap runs the cleanup on every exit
+# and also finishes the gate's scratch exports: bash allows a single EXIT
+# trap, so an unchained second trap would silently REPLACE the gate's own
+# rm -rf "$SCRATCH" and move the leak instead of closing it. The explicit
+# calls stay — cleanup must happen before the renderer runs, not only at
+# script exit.
+trap 'cleanup_wt; rm -rf "${SCRATCH:-}" 2>/dev/null' EXIT
 if [ "${CODERABBIT_ISOLATED:-1}" = "1" ] \
         && WT_REF="refs/cr-snapshot-$$" \
         && WT="$(mktemp -d "${TMPDIR:-/tmp}/cr-worktree.XXXXXX")" \
