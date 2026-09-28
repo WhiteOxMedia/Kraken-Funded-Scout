@@ -50,9 +50,18 @@ def check(name, ok, detail=""):
         lines.append(f"FAIL  {name}  [{detail}]")
 
 
-def mk_store(path: Path, highs, closes):
+def mk_store(path: Path, highs, closes, end=None):
+    """The synthetic 1h store. Default start is the ANCHORED Sep-19
+    grid the graded worlds' FIRE is pinned to; the PENDING world passes
+    end= so its last bar is the current hour — the store must be as
+    clock-relative as the fire it prices, or coverage ages out (the
+    anchored store walked past its own last bar on Sep 26 and left the
+    pending check red: a one-day time bomb, the same class as the old
+    hard-coded 08:30 stamp this suite already caught once)."""
     n = len(closes)
-    ts = pd.date_range("2026-09-19", periods=n, freq="h", tz="UTC")
+    ts = (pd.date_range(end=end, periods=n, freq="h", tz="UTC")
+          if end is not None
+          else pd.date_range("2026-09-19", periods=n, freq="h", tz="UTC"))
     df = pd.DataFrame({"date": ts, "open": closes, "high": highs,
                        "low": [c * 0.99 for c in closes],
                        "close": closes, "volume": [1000.0] * n})
@@ -166,9 +175,17 @@ try:
     _dol_fires.write_text(json.dumps(
         {**FIRE, "ts": _pending_ts,
          "remaining_min": 240}) + "\n", encoding="utf-8")
+    # the store rides the same clock: its LAST bar is the fire's hour,
+    # so the fresh fire always lands inside coverage (grade_fire's
+    # 1h-bar tolerance) while its 240-min boundary stays in the future
+    mk_store(_dol_stores / "ZEC_USD-1h.feather", highs, closes,
+             end=_dtu.fromisoformat(_pending_ts).replace(
+                 minute=0, second=0, microsecond=0))
     s3 = dol.run_study()
     check("study: the PENDING world — a fire whose judged boundary has "
-          "not closed waits honestly (never priced before it exists)",
+          "not closed waits honestly (never priced before it exists; "
+          "fire AND store are clock-relative — the anchored store aged "
+          "out of coverage on Sep 26 and left this red)",
           s3["pending"] == 1 and s3["graded"] == 0, json.dumps(s3)[:160])
     _dol_ledger.write_text("", encoding="utf-8")
     _dol_fires.write_text(json.dumps(FIRE) + "\n", encoding="utf-8")

@@ -418,9 +418,20 @@ finally:
 print("== 3. live: the real manifest speaks when it exists ==")
 _live = rb._lanes_load().get("test_costdrivers")
 if _live and _live.get("secs"):
+    # 3.1 pins the FORMULA, not yesterday's number: a measured entry's
+    # budget is max(flat, MULT x its own fresh measurement, capped). A
+    # fast machine makes costdrivers genuinely cheap (117.3s measured
+    # Sep 28) and MULT x secs can then sit UNDER the flat floor — that
+    # is the mechanism working, not a lost guard. The old check demanded
+    # budget > flat unconditionally and went red the moment the
+    # measurement improved; the contract is the scaling, so it is what
+    # the pin reads.
     check(3.1, rb.budget_for("test_costdrivers")
-          > rb.PER_ENTRY_TIMEOUT,
-          "costdrivers is measured — its budget must exceed the flat 420")
+          == max(rb.PER_ENTRY_TIMEOUT,
+                 min(int(float(_live["secs"]) * rb.MEASURED_BUDGET_MULT),
+                     rb.MAX_MEASURED_BUDGET)),
+          "costdrivers' budget is the measured formula (max(flat, "
+          "MULT x measurement, capped) — however fast it ran)")
     check(3.2, _live["secs"] < 0.5 * rb.budget_for("test_costdrivers"),
           "the live mean must sit under the WARN band (the original sin)")
 else:

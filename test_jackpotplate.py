@@ -69,7 +69,8 @@ import scout_jackpot_view as sjv
 
 # app.py import, prefs sandboxed (the test_apptest pattern)
 _prefs_dir = tempfile.mkdtemp(prefix="jp_plate_prefs_")
-os.environ["SCOUT_PREFS_FILE"] = str(Path(_prefs_dir) / "prefs.json")
+_scout_prefs_real = os.environ.get("SCOUT_PREFS_FILE")
+os.environ["SCOUT_PREFS_FILE"] = str(Path(_prefs_dir) / "prefs.json")   # leak-audit: ok — restored in the suite's tail finally
 import app as app_mod
 
 WALLET = "4" + "x" * 95          # well-formed-shaped local sandbox wallet
@@ -404,6 +405,15 @@ check(6.2, isinstance(_lv.get("seconds_remaining"), int)
       f"the countdown is a real non-negative int against the live pool: "
       f"jackpot_xmr={_lv.get('jackpot_xmr')}")
 
-passed, failed = results.count(True), results.count(False)
-print(f"RESULT: {passed} passed, {failed} failed")
-sys.exit(1 if failed else 0)
+# leak-audit: ok — the suite's one honest env restore: the prefs seam
+# (set at import, before app.py read it once) is handed back so the
+# process ends on the operator's real environment, not a sandbox
+_passed, _failed = results.count(True), results.count(False)
+try:
+    print(f"RESULT: {_passed} passed, {_failed} failed")
+finally:
+    if _scout_prefs_real is None:
+        os.environ.pop("SCOUT_PREFS_FILE", None)
+    else:
+        os.environ["SCOUT_PREFS_FILE"] = _scout_prefs_real
+sys.exit(1 if _failed else 0)
