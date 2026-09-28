@@ -303,6 +303,51 @@ try:
     check("11.4 a row with NO goal level exits fail-safe (unverifiable "
           "fill never arms — the extension only holds what it can measure)",
           v == "exit" and "no goal level" in why)
+    # ── 11b. THE ENTRY GUARD (CodeRabbit minor, Sep 28, red-first) ──
+    # the old check `not str(w.get("entry") or 0)` was always False, so
+    # missing/garbage/negative entries reached float(w["entry"]) and only
+    # the seam's outer except saved the trade (an exception verdict, not
+    # a named one). The guard validates the entry AS A NUMBER and the
+    # parsed value rides the goal-price calc.
+    _w_missing = {"pair": "OP/USD", "goal_pct": 3.0,
+                  "added": (datetime.now().astimezone()
+                            - timedelta(hours=2)).isoformat()}   # no entry key
+    v, why = ex.exit_verdict("OP/USD", _w_missing,
+                             "Trend broke — 55% bearish", live=0.14)
+    check("11.7 a row with NO entry key exits fail-safe (the named "
+          "verdict, not a seam exception)",
+          v == "exit" and "no goal level" in why)
+    _w_garbage = {"pair": "OP/USD", "entry": "not-a-number", "goal_pct": 3.0,
+                  "added": (datetime.now().astimezone()
+                            - timedelta(hours=2)).isoformat()}
+    v, why = ex.exit_verdict("OP/USD", _w_garbage,
+                             "Trend broke — 55% bearish", live=0.14)
+    check("11.8 a NON-NUMERIC entry exits fail-safe (the guard rejects "
+          "it instead of float() raising)",
+          v == "exit" and "no goal level" in why)
+    _w_zero = {"pair": "OP/USD", "entry": 0, "goal_pct": 3.0,
+               "added": (datetime.now().astimezone()
+                         - timedelta(hours=2)).isoformat()}
+    v, why = ex.exit_verdict("OP/USD", _w_zero,
+                             "Trend broke — 55% bearish", live=0.14)
+    check("11.9 a ZERO entry exits fail-safe (a zero price computes a "
+          "meaningless goal level)",
+          v == "exit" and "no goal level" in why)
+    _w_neg = {"pair": "OP/USD", "entry": -0.1478, "goal_pct": 3.0,
+              "added": (datetime.now().astimezone()
+                        - timedelta(hours=2)).isoformat()}
+    v, why = ex.exit_verdict("OP/USD", _w_neg,
+                             "Trend broke — 55% bearish", live=0.14)
+    check("11.10 a NEGATIVE entry exits fail-safe (the precondition can "
+          "not be judged on a negative price)",
+          v == "exit" and "no goal level" in why)
+    _eg_src = (BASE / "exit_extension.py").read_text(
+        encoding="utf-8").replace("\r\n", "\n")
+    check("11.11 the guard parses ONCE and reuses the value (no "
+          "re-read of w['entry'] after the validation)",
+          "entry = float(w.get(\"entry\"))" in _eg_src
+          and "goal_px = entry *" in _eg_src
+          and 'goal_px = float(w["entry"])' not in _eg_src)
     check("11.5 the goal comes from the WATCH ROW's goal_pct (the "
           "per-fire stamp the machinery itself wrote)",
           ex.exit_verdict.__code__.co_consts.count("goal_pct") >= 1

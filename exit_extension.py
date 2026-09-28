@@ -242,10 +242,23 @@ def exit_verdict(pair: str, w: dict, reason: str,
     # a paid-at-goal book, and the ride needs no re-check (a ride must
     # be allowed to approach its goal).
     goal_pct = float(w.get("goal_pct") or 0.0)
-    if live is None or goal_pct <= 0.0 or not str(w.get("entry") or 0):
+    # THE ENTRY GUARD (CodeRabbit minor on the isolated review, Sep 28,
+    # fixed same day): the old check `not str(w.get("entry") or 0)` was
+    # ALWAYS False — missing, None, and "" all became the string "0" —
+    # so garbage reached float(w["entry"]) below and only the seam's
+    # outer except made it fail safe (an exception verdict instead of a
+    # named one). The entry is validated AS A NUMBER here: missing,
+    # non-numeric, or non-positive rows cannot arm (goal_px would be
+    # meaningless), and the ONE parsed value rides the goal-price calc
+    # — no re-read, no second chance to disagree.
+    try:
+        entry = float(w.get("entry"))
+    except (TypeError, ValueError):
+        entry = 0.0
+    if live is None or goal_pct <= 0.0 or entry <= 0.0:
         return "exit", ("no goal level / no live fill to judge the arm "
                         "precondition — incumbent machinery resumes")
-    goal_px = float(w["entry"]) * (1.0 + goal_pct / 100.0)
+    goal_px = entry * (1.0 + goal_pct / 100.0)
     if live >= goal_px * ARM_FILL_SLACK:
         return "exit", (f"fill {live:.6g} is not below 98% of the goal "
                         f"level {goal_px * ARM_FILL_SLACK:.6g} — arming a "
