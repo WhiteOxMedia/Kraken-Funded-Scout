@@ -44,10 +44,20 @@ def main() -> int:
         print(f"FAIL: venv not provisioned ({pool_py}) - run setup_dev.py there",
               file=sys.stderr)
         return 1
-    p = subprocess.run(
-        [str(pool_py), "-X", "utf8", str(drive)],
-        capture_output=True, text=True, encoding="utf-8", errors="replace",
-        timeout=300, cwd=str(drive.parent))
+    try:
+        p = subprocess.run(
+            [str(pool_py), "-X", "utf8", str(drive)],
+            capture_output=True, text=True, encoding="utf-8", errors="replace",
+            timeout=300, cwd=str(drive.parent))
+    except subprocess.TimeoutExpired as e:
+        # A hung pool drive is a FAIL DETAIL, never a bare traceback
+        # (CodeRabbit minor, bf9c8da, Sep 28; template contract).
+        print(f"FAIL: drive exceeded its 300s timeout - {drive}",
+              file=sys.stderr)
+        partial = e.stdout if isinstance(e.stdout, str) else ""
+        for line in (partial or "").splitlines():
+            print(line, flush=True)
+        return 1
     out = (p.stdout or "")
     for line in out.splitlines():
         print(line, flush=True)          # the drive's contract, verbatim

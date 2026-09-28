@@ -119,6 +119,21 @@ check("4.3", _r.returncode == 0 and "20 passed, 0 failed" in _r.stdout,
       f"the tripwire drive runs green from the docs drive "
       f"({_r.stdout.strip().splitlines()[-1] if _r.stdout else 'no output'})")
 
+print("== 5. THE LIVE-CONTRACT WRAPPERS: the template's timeout contract ==")
+# CODE RABBIT MINOR (bf9c8da, Sep 28): the pool-drive wrappers run the
+# child with timeout=300 but never caught subprocess.TimeoutExpired -
+# a hung drive crashed the battery entry with a bare traceback instead
+# of the wrapper's own named FAIL (with the partial output as evidence).
+# The catch lives in the template AND both registered copies; this
+# census keeps the three from drifting apart again.
+for _w in ("LIVE_CONTRACT_TEMPLATE.py", "test_pool_docsrot_live.py",
+           "test_pool_prefs_live.py"):
+    _t = (HERE / _w).read_text(encoding="utf-8")
+    check(f"5.1.{_w[:24]}",
+          "except subprocess.TimeoutExpired" in _t and "timeout=300" in _t,
+          f"{_w} lost the TimeoutExpired catch - a hung pool drive would "
+          f"traceback the battery ledger instead of a named FAIL")
+
 print("\n".join(lines))
 print(f"RESULT: {PASS} passed, {FAIL} failed")
 sys.exit(1 if FAIL else 0)

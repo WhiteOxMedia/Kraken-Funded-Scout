@@ -20,6 +20,10 @@ the return code alone and turned a confirmed-down server into a green
 checkmark: the exact silently-green outcome this template exists to
 prevent). Prerequisites fail the entry too: a missing drive or venv
 returns 1 (SKIP is reserved for the drive's own server-down verdict).
+A hung drive is the same: subprocess.TimeoutExpired maps to rc 1 with
+a named FAIL line and whatever the drive printed before it hung - a
+bare traceback in the battery ledger is a contract violation
+(CodeRabbit minor on the bf9c8da review, Sep 28).
 Paths are RESOLVED against the caller's working directory before the
 child runs - a sibling-relative POOL_DRIVE would otherwise break the
 moment the child chdir'd into its parent's folder (CodeRabbit triage,
@@ -57,10 +61,22 @@ def main() -> int:
         print(f"FAIL: venv not provisioned ({pool_py}) - run setup_dev.py there",
               file=sys.stderr)
         return 1
-    p = subprocess.run(
-        [str(pool_py), "-X", "utf8", str(drive)],
-        capture_output=True, text=True, encoding="utf-8", errors="replace",
-        timeout=300, cwd=str(drive.parent))
+    try:
+        p = subprocess.run(
+            [str(pool_py), "-X", "utf8", str(drive)],
+            capture_output=True, text=True, encoding="utf-8",
+            errors="replace", timeout=300, cwd=str(drive.parent))
+    except subprocess.TimeoutExpired as e:
+        # A hung pool drive is a FAIL DETAIL, never a bare traceback: the
+        # battery ledger must show a named verdict (CodeRabbit minor,
+        # bf9c8da, Sep 28). Whatever the drive printed before it hung
+        # rides along as evidence.
+        print(f"FAIL: drive exceeded its 300s timeout - {drive}",
+              file=sys.stderr)
+        partial = e.stdout if isinstance(e.stdout, str) else ""
+        for line in (partial or "").splitlines():
+            print(line, flush=True)
+        return 1
     out = (p.stdout or "")
     for line in out.splitlines():
         print(line, flush=True)          # the drive's contract, verbatim
