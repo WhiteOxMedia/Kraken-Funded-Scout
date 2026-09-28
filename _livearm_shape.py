@@ -45,8 +45,8 @@ def walk_live(g):
     floor_px = entry * (1 + 2 * RT_PCT / 100.0)
     armed = False
     peak, stop = entry, None
-    for ts, hi, lo in vs._db().execute(
-            "SELECT ts, high, low FROM ohlcv WHERE pair=? AND ts>=? "
+    for ts, hi, lo, op in vs._db().execute(
+            "SELECT ts, high, low, open FROM ohlcv WHERE pair=? AND ts>=? "
             "AND ts<=? ORDER BY ts",
             (g["pair"], int(g["en_ms"]), int(g["ex_ms"] + vs.AFTER_MS))):
         if hi >= bank_px:                        # bank-first: the TP is live
@@ -73,11 +73,12 @@ def walk_live(g):
             stop = floor_px
             floored = True
         if peak > entry and stop > hi:
-            # CODE RABBIT MAJOR (Sep 27): the whole bar traded BELOW the
-            # stop - a gap through it. The position is DONE: resolve at
-            # the best price the bar actually traded (hi); a later bank
-            # after a missed stop would be fiction.
-            return hi, "trail", floored
+            # CODE RABBIT MAJOR x2 (Sep 27): the whole bar traded BELOW
+            # the stop - a gap through it. The position is DONE, and the
+            # only price the candle ESTABLISHES for the gap fill is its
+            # open (hi was reached after the trigger; filling there
+            # credits a price the stop could never have got).
+            return op, "trail", floored
         if peak > entry and lo <= stop:
             if stop > hi:
                 continue              # unreachable here (handled above)
@@ -92,8 +93,8 @@ def walk_incumbent(g):
     bank_px = entry * (1 + goal / 100.0)
     arm = goal * 0.9
     peak, stop = entry, None
-    for ts, hi, lo in vs._db().execute(
-            "SELECT ts, high, low FROM ohlcv WHERE pair=? AND ts>=? "
+    for ts, hi, lo, op in vs._db().execute(
+            "SELECT ts, high, low, open FROM ohlcv WHERE pair=? AND ts>=? "
             "AND ts<=? ORDER BY ts",
             (g["pair"], int(g["en_ms"]), int(g["ex_ms"] + vs.AFTER_MS))):
         if hi >= bank_px:
