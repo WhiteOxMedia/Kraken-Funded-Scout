@@ -359,7 +359,13 @@ TIMEOUT="${CODERABBIT_TIMEOUT_SEC:-300}"
 # construction, so no --include-untracked either. CODERABBIT_ISOLATED=0
 # restores the old in-tree review; every failure mode fails OPEN to a
 # plain in-tree review, then to commit-proceeds (the standing policy).
-WT=""
+# OBSERVABLE (same day, second pass): the very next real commit fell back
+# again while the bash -x trace had run the whole chain clean — and the
+# fallback served a major on a runtime-churn file the staged diff never
+# touched, the exact leak class this isolation exists to kill. A silent
+# fallback is indistinguishable from a leak, so the chain records WHERE
+# it failed and the worktree-add stderr rides the fallback banner.
+WT=""; WT_REF=""; _isol_err=""; _isol_step=""
 cleanup_wt() {
     [ -n "$WT" ] || return 0
     git worktree remove --force "$WT" >/dev/null 2>&1
@@ -381,12 +387,16 @@ cleanup_wt() {
 # script exit.
 trap 'cleanup_wt; rm -rf "${SCRATCH:-}" 2>/dev/null' EXIT
 if [ "${CODERABBIT_ISOLATED:-1}" = "1" ] \
-        && WT_REF="refs/cr-snapshot-$$" \
+        && _isol_step="mktemp" \
         && WT="$(mktemp -d "${TMPDIR:-/tmp}/cr-worktree.XXXXXX")" \
+        && _isol_step="snapshot (write-tree/commit-tree)" \
         && SNAPSHOT="$(git commit-tree "$(git write-tree)" -p HEAD \
             -m "cr advisory snapshot (staged index)")" \
+        && _isol_step="ref (update-ref)" \
+        && WT_REF="refs/cr-snapshot-$$" \
         && git update-ref "$WT_REF" "$SNAPSHOT" 2>/dev/null \
-        && git worktree add --detach "$WT" "$SNAPSHOT" >/dev/null 2>&1; then
+        && _isol_step="worktree-add" \
+        && { _isol_err="$(git worktree add --detach "$WT" "$SNAPSHOT" 2>&1)"; }; then
     echo "  🐇 CodeRabbit: reviewing the STAGED content in an isolated" >&2
     echo "     worktree (the dirty tree and runtime churn are out of scope)." >&2
     review_json="$(
@@ -396,8 +406,12 @@ if [ "${CODERABBIT_ISOLATED:-1}" = "1" ] \
     rc=$?
     cleanup_wt
 else
-    echo "  🐇 CodeRabbit: worktree isolation unavailable — falling back to" >&2
-    echo "     an in-tree review (the working tree may color the findings)." >&2
+    _isol_err="$(printf '%s' "$_isol_err" | tr -d '\r')"
+    _isol_line="$(printf '%s' "$_isol_err" | head -1)"   # first line only:
+    echo "  🐇 CodeRabbit: worktree isolation unavailable (failed at:" >&2
+    echo "     ${_isol_step:-?}${_isol_line:+; git said: $_isol_line}) —" >&2
+    echo "     falling back to an in-tree review (the working tree may color" >&2
+    echo "     the findings)." >&2
     cleanup_wt
     review_json="$(
       timeout "$TIMEOUT" "$BIN" review --agent --uncommitted 2>/dev/null | tr -d '\r'
