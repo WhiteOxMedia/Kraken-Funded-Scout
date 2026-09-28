@@ -3214,6 +3214,7 @@ try:
     # wholesale (no Path patching — its Path import is function-local,
     # a module-level patch would never reach it)
     real_file = app_mod.__file__
+    _bh_sbx2: Path | None = None
 
     app_mod.__file__ = str(_bh_sbx / "app.py")
     try:
@@ -3277,7 +3278,8 @@ try:
         app_mod._cached_burial_hindsight.clear()
         import shutil as _shutil_bh
         _shutil_bh.rmtree(_bh_sbx, ignore_errors=True)
-        _shutil_bh.rmtree(_bh_sbx2, ignore_errors=True)
+        if _bh_sbx2 is not None:
+            _shutil_bh.rmtree(_bh_sbx2, ignore_errors=True)
 except Exception as exc:
     check("the burial-hindsight pins ran", False, exc)
 
