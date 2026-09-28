@@ -461,13 +461,17 @@ fi
 # dump is reserved for streams that never parsed at all, so a clean
 # commit speaks findings only when it has findings.
 PYCODE="$(cat <<'CRPYEOF'
-import sys, json
+import sys, json, re
+
+errors = []   # 0.8.1 streams review errors (rate_limit et al.) as records
 
 def walk(o, out):
     if isinstance(o, list):
         for i in o:
             walk(i, out)
     elif isinstance(o, dict):
+        if "errorType" in o:
+            errors.append(str(o["errorType"]))
         has_file = any(k in o for k in ("fileName", "file", "path"))
         has_body = any(k in o for k in ("severity", "title", "comment"))
         if has_file and has_body:
@@ -522,6 +526,12 @@ for o in records:
         lr = o.get("lineRange") or {}
         l = lr.get("start") if isinstance(lr, dict) else None
     if l is None:
+        ci = o.get("codegenInstructions") or ""
+        m = re.search(r"at line (\d+)", ci)   # 0.8.1: line lives only inside
+                                              # "Review comment at @file at line N:"
+        if m:
+            l = m.group(1)
+    if l is None:
         l = o.get("endLine") or "?"
     s = str(o.get("severity") or "?")
     # title fallbacks: null fields appear in the live stream even when
@@ -531,6 +541,11 @@ for o in records:
          or o.get("commentCategory") or "")
     if not t and o.get("indicatorTypes"):
         t = ", ".join(str(x) for x in o["indicatorTypes"])
+    if (not t or t == "finding") and o.get("codegenInstructions"):
+        m = re.search(r"Review comment at @[^\s]+ at line \d+:\s*(.+)",
+                      str(o["codegenInstructions"]), re.S)
+        if m:
+            t = m.group(1)   # 0.8.1: the real comment text rides after that prefix
     t = str(t).strip().splitlines()[0][:100] if str(t).strip() else "(no title text in stream)"
     n += 1
     sevs.append(s)
@@ -538,11 +553,14 @@ for o in records:
 print("COUNT %d" % n)
 for s in sevs:
     print("SEV " + s)
+for e in sorted(set(errors)):
+    print("ERRORTYPE " + e)
 CRPYEOF
 )"
 PARSER_OUT="$(printf '%s\n' "$review_json" | "$PY" -c "$PYCODE" 2>/dev/null)"
 n="$(printf '%s\n' "$PARSER_OUT" | sed -n 's/^COUNT //p' | tail -1)"
 sev="$(printf '%s\n' "$PARSER_OUT" | sed -n 's/^SEV //p' | tr '\n' ' ' | sed 's/ $//')"
+errtypes="$(printf '%s\n' "$PARSER_OUT" | sed -n 's/^ERRORTYPE //p' | sort -u | tr '\n' ' ' | sed 's/ $//')"
 if [ -z "$n" ]; then
     if printf '%s\n' "$PARSER_OUT" | grep -q '^CLEANJSON$'; then
         echo "  🐇 CodeRabbit: zero findings — clean JSON review." >&2
@@ -560,5 +578,9 @@ fi
 
 echo "  🐇 CodeRabbit: $n finding(s). Advisory only — commit proceeds." >&2
 echo "    (blockers seen:${sev:+ $sev})" >&2
+if [ -n "$errtypes" ]; then
+    echo "    ⚠ review errors: $errtypes — advisories may be incomplete" >&2
+    echo "    (fail-open, never silence — the review did not fully run)." >&2
+fi
 echo "    skip anytime: git commit --no-verify" >&2
 exit 0
