@@ -9,6 +9,7 @@ a silent gate → no relief. Fail-closed everywhere.
 
 Run: .venv\\Scripts\\python.exe test_disciplineseam.py
 """
+import re
 import sys
 from pathlib import Path
 
@@ -335,6 +336,71 @@ check("7.14 the worst-gate clause rides the WHY line, both silent "
       and src.count("_worst_gate_txt(result.get(\"worst_gate\"))") >= 2
       and '"worst_gate": worst_gate' in src
       and "def _worst_burial_gate" in src)
+
+# ── 7.15 THE FIRING-ROTATION COVERAGE (the isolated review's critical
+# on 1ea87fd, Sep 28: worst_gate was assigned only inside the empty
+# branch but read unconditionally in the result dict — a FIRING
+# rotation would have NameError'd the whole evaluation into the
+# scanner's debug-swallow. The drive's earlier calls all exercised the
+# silent branch, so the crash class survived the first landing.)
+# Hermetic shape: module file-constants re-pinned to the sandbox, a
+# stubbed winners db + contest account, a NULL exchange (the mover
+# path fail-closes to duds), and a rotation window holding a FIRED
+# voice line so empty_fire is False.
+with tempfile.TemporaryDirectory() as _td7f:
+    _keep = (dc.STATE_FILE, dc.SUPPRESSION_FILE, dc.VOICE_FILE)
+    _sv, _sp, _sf = (Path(_td7f) / "voice.jsonl",
+                     Path(_td7f) / "supp.jsonl",
+                     Path(_td7f) / "trades.jsonl")
+    try:
+        dc.STATE_FILE = Path(_td7f) / "disc.json"
+        dc.save_state({"weights": dict(dc.DEFAULT_WEIGHTS),
+                       "history": [], "lessons": []})
+        dc.SUPPRESSION_FILE = _sp
+        _sp.write_text("", encoding="utf-8")
+        dc.VOICE_FILE = _sv
+        _now = dc._now()
+        _win_start = _now.replace(hour=12, minute=0, second=0, microsecond=0)
+        _sv.write_text(json.dumps({
+            "ts": (_win_start + __import__("datetime").timedelta(minutes=30)
+                   ).isoformat(), "text": "Buy STX! 91 percent sure!"})
+            + "\n", encoding="utf-8")
+        _sold_fake = _win_start + __import__("datetime").timedelta(hours=1)
+        _sf.write_text(json.dumps({
+            "pair": "STX/USD", "closed_at": _sold_fake.isoformat(),
+            "entry": 1.0, "exit": 1.02, "size": 100.0, "pnl_net": 2.0,
+            "goal_pct": 1.5, "high": 1.025}) + "\n", encoding="utf-8")
+        _sold_real = dc._sold_in_rotation
+        dc._sold_in_rotation = lambda s, e: json.loads(
+            _sf.read_text(encoding="utf-8").splitlines()[0]) and \
+            [json.loads(_sf.read_text(encoding="utf-8").splitlines()[0])]
+        _ca = __import__("contest_account")
+        _ca_real = _ca.load_state
+        _ca.load_state = lambda: {"current_balance": 10000.0,
+                                  "start_balance": 10000.0}
+        _db = __import__("db")
+        _db_real = _db.get_tournament_winners
+        _db.get_tournament_winners = lambda limit=200: []
+        try:
+            _res = dc.evaluate_rotation(None, "12-16", when=_now,
+                                        speak=False,
+                                        watch_file=str(_td7f + "/watch.json"))
+            check("7.15 a FIRING rotation evaluates without crashing and "
+                  "carries worst_gate=None (the unbound-name critical "
+                  "cannot return)",
+                  _res.get("score") is not None
+                  and _res.get("empty_fire") is False
+                  and _res.get("worst_gate", "MISSING") is None
+                  and "worst_gate" in _res, _res.get("error"))
+        finally:
+            dc._sold_in_rotation = _sold_real
+            _ca.load_state = _ca_real
+            _db.get_tournament_winners = _db_real
+    finally:
+        dc.STATE_FILE, dc.SUPPRESSION_FILE, dc.VOICE_FILE = _keep
+check("7.16 the init is OUTSIDE the empty branch (the source freeze)",
+      re.search(r"worst_gate = None\s*#", src) is not None
+      and src.index("worst_gate = None") < src.index("if empty_fire:"))
 
 lines.append(f"\nRESULT: {PASS} passed, {FAIL} failed")
 out = Path("_disciplineseam_test.txt")

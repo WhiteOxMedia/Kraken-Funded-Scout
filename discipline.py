@@ -633,6 +633,11 @@ def evaluate_rotation(exchange, rot_key: str, when=None, speak=True,
     empty_why = ""
     empty_buried = 0
     empty_payers = 0
+    worst_gate = None   # initialized OUTSIDE the empty branch (the
+                        # isolated review's critical, Sep 28): a FIRING
+                        # rotation constructs the same result dict — an
+                        # unbound name here would NameError the whole
+                        # evaluation into the scanner's debug-swallow
     _silent_dock = {}
     if empty_fire:
         gates = sorted({str((supp.get(p) or {}).get("gate") or "?")
