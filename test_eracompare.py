@@ -110,7 +110,11 @@ check("the report says it records, not compares",
 
 # ── 3. the report: newest-first, never consumes the one-shot ───────────
 with tempfile.TemporaryDirectory() as td:
-    ec.REPORT_PATH = Path(td) / "era_compare_report.md"
+    # sandbox swaps (testleaks triage, Sep 23): REPORT_PATH is a pure
+    # report sink and STATE_PATH a one-shot marker — nothing production
+    # is read or written through either, and each with-block rebinds
+    # fresh; bounded by suite-per-process.
+    ec.REPORT_PATH = Path(td) / "era_compare_report.md"  # leak-audit: ok (tempfile-derived, per-with-block rebind; see the triage note above)
     ec.vs.grade_trades = lambda: (lambda pr, po: pr + po)(*_book(6, 46, 3, 12,
                                                                  pre_left=50.0,
                                                                  post_left=9.0))
@@ -132,13 +136,13 @@ with tempfile.TemporaryDirectory() as td:
           not (Path(td) / "era_compare_state.json").exists()
           and not ec.STATE_PATH.exists())
     # a DIRECTORY at the report path -> the write fails -> None, never raises
-    ec.REPORT_PATH = Path(td) / "adir"
+    ec.REPORT_PATH = Path(td) / "adir"  # leak-audit: ok (tempfile-derived unwritable-path probe)
     ec.REPORT_PATH.mkdir()
     check("unwritable path -> write_report returns None", ec.write_report() is None)
 
 # ── 4. the scheduler: date-gated, restart-proof, one-shot ──────────────
 with tempfile.TemporaryDirectory() as td:
-    ec.STATE_PATH = Path(td) / "era_compare_state.json"
+    ec.STATE_PATH = Path(td) / "era_compare_state.json"  # leak-audit: ok (tempfile-derived one-shot marker)
     import datetime as _dt
     check("not due before the target date",
           not ec.due(_dt.datetime(2026, 9, 27, 20, 0)))

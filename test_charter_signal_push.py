@@ -65,7 +65,12 @@ ps.subscribe(UID, {"endpoint": "https://push.example/s/sig",
 _boxes = []
 
 
-def _fake_webpush(subscription_info, data, vapid_private_key, vapid_claims):
+def _fake_webpush(subscription_info, data, vapid_private_key,
+                  vapid_claims, headers=None):
+    # headers= (the Sep 27 TTL fix in pool/push_service.send_to_user)
+    # must be accepted or every send raises TypeError and the drain
+    # honestly reports dead endpoints - a fixture-staleness regression,
+    # same class as test_redesign_push's stub fix in 3935b33.
     _boxes.append((subscription_info["endpoint"], json.loads(data)))
     return types.SimpleNamespace(status=200)
 

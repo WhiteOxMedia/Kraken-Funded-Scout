@@ -126,10 +126,12 @@ check("2% store-vs-fresh close gap -> close_diff ~1.96% (relative to the store)"
 sandbox = Path("_test_5mstore_dir")
 sandbox.mkdir(exist_ok=True)
 real_dir, real_prov, real_report = fk.DEEP_DIR, fk.PROVENANCE, fk.REPORT
-fk.DEEP_DIR = sandbox
-fk.PROVENANCE = sandbox / "_prov.json"
-fk.REPORT = sandbox / "_report.txt"
 try:
+    # GUARDED SWAPS (testleaks, Sep 23): inside the try whose finally
+    # restores all three — a crash mid-extend never strands the sandbox.
+    fk.DEEP_DIR = sandbox
+    fk.PROVENANCE = sandbox / "_prov.json"
+    fk.REPORT = sandbox / "_report.txt"
     # native volume unit is 100x the spot feed's (the seam flag); the
     # fake fetch re-covers the last 100 store candles + 600 new ones
     nat = native.copy()

@@ -29,11 +29,15 @@ import diag_surething as dg
 # OVER-AIM evidence in the production file, and the next run backed up that
 # residue as its baseline -- self-perpetuating. Redirect-leak-class-proof.)
 _TILT_SANDBOX = Path(tempfile.mkdtemp(prefix="_sbx_surethingdiag_"))
-_TILT_FILE = _TILT_SANDBOX / "surething_goal_tilt.json"
-dg._TILT_PATH = _TILT_FILE
-dg._TILT_LOCK = _TILT_SANDBOX / "surething_goal_tilt.json.lock"
+_TILT_FILE = _TILT_SANDBOX / "surething_goal_tilt.json"  # leak-audit: ok (a sandbox local — the mkdtemp file itself, not a module swap)
+# testleaks triage (Sep 23): DELIBERATE redirect-everything, restore-never —
+# every reference (module + path constant) is pointed into the sandbox for
+# the whole suite life; a restore would only re-open the old backup/
+# residue window this design exists to kill. Bounded by suite-per-process.
+dg._TILT_PATH = _TILT_FILE  # leak-audit: ok (deliberate redirect-everything into the mkdtemp sandbox, restore-never — a restore would re-open the backup/residue window this design kills)
+dg._TILT_LOCK = _TILT_SANDBOX / "surething_goal_tilt.json.lock"  # leak-audit: ok (same deliberate redirect)
 import background_scanner as _bs0
-_bs0.ST_GOAL_TILT_FILE = str(_TILT_FILE)
+_bs0.ST_GOAL_TILT_FILE = str(_TILT_FILE)  # leak-audit: ok (same deliberate redirect)
 _real_tilt_path = _bs0.ST_GOAL_TILT_FILE
 
 PASS, FAIL = 0, 0

@@ -24,7 +24,7 @@ def check(name: str, cond: bool, detail: str = ""):
 
 # ── Isolate state + volatility from the real project files ───────────────
 _tmpdir = tempfile.mkdtemp()
-et.STATE_JSON = Path(_tmpdir) / "execution_state.json"
+et.STATE_JSON = Path(_tmpdir) / "execution_state.json"  # leak-audit: ok (tempfile-derived sandbox; suite-per-process)
 et._current_vol_std = lambda pair: None          # neutral volatility (10 pts)
 et.STABILITY_WINDOW_S = 0                        # no sleeps in tests
 et.LADDER_POLL_S = 0

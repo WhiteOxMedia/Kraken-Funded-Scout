@@ -29,8 +29,12 @@ def check(name, ok, detail=""):
         FAIL += 1
 
 
-# isolate: use a scratch lockout file
-bs.ROTATION_LOCKOUT_FILE = str(Path(__file__).parent / "_test_rotation_lockout.json")
+# isolate: the lockout pointer lives in a mkdtemp sandbox (testleaks
+# triage, Sep 23) — a crash mid-suite must never leave scratch files in
+# the production repo dir; suite-per-process means restore-never.
+import tempfile as _tempfile  # noqa: E402
+_ROT_SANDBOX = Path(_tempfile.mkdtemp(prefix="_sbx_rotation_"))
+bs.ROTATION_LOCKOUT_FILE = str(_ROT_SANDBOX / "test_rotation_lockout.json")  # leak-audit: ok (suite-long redirect into mkdtemp; restore-never)
 try:
     os.unlink(bs.ROTATION_LOCKOUT_FILE)
 except FileNotFoundError:
@@ -112,7 +116,7 @@ check("no record: re-arm is a clean no-op",
 
 
 # ── 3. YESTERDAY CONTEXT on a synthetic cache ─────────────────────────
-tmp_db = str(Path(__file__).parent / "_test_ohlcv_cache.db")
+tmp_db = str(_ROT_SANDBOX / "test_ohlcv_cache.db")
 try:
     os.unlink(tmp_db)
 except FileNotFoundError:
@@ -120,7 +124,7 @@ except FileNotFoundError:
 conn = sqlite3.connect(tmp_db)
 conn.execute("CREATE TABLE ohlcv (pair TEXT, ts INTEGER, open REAL, high REAL, low REAL, close REAL, volume REAL)")
 real_cache = bs._OHLCV_CACHE_PATH
-bs._OHLCV_CACHE_PATH = tmp_db
+bs._OHLCV_CACHE_PATH = tmp_db  # leak-audit: ok (suite-long redirect into the mkdtemp world; restored in place at section 3's tail)
 
 
 def put_window(days_back, rot_start, o, hi, cl, pair="TEST/USD"):
@@ -168,7 +172,7 @@ ctx = bs.rotation_yesterday_context("NOPE/USD")
 check("no data -> None (fail-open)", ctx is None)
 
 conn.close()
-bs._OHLCV_CACHE_PATH = real_cache  # restored to the pre-suite value
+bs._OHLCV_CACHE_PATH = real_cache  # leak-audit: ok (the restore itself; restored to the pre-suite value)
 
 # ── 4. LIVE cache sanity: BTC has data for the current rotation window ──
 ctx = bs.rotation_yesterday_context("BTC/USD")
@@ -215,6 +219,8 @@ for f in (bs.ROTATION_LOCKOUT_FILE, tmp_db):
         os.unlink(f)
     except FileNotFoundError:
         pass
+import shutil as _shutil_rot
+_shutil_rot.rmtree(_ROT_SANDBOX, ignore_errors=True)
 
 lines.append(f"\nRESULT: {PASS} passed, {FAIL} failed")
 open("_rotation_check.txt", "w", encoding="utf-8").write("\n".join(lines))

@@ -46,6 +46,7 @@ MST = ZoneInfo("America/Denver")
 today = datetime.now(MST).strftime("%Y-%m-%d")
 
 # ── 0. the live day (READ-ONLY, non-brittle): the fix shipped live ────
+# clock-audit: ok — LIVE-PROBE (read-only, existence-gated pin — documented non-brittle) (clockbombs census 4)
 _live = Path("signals.db")
 if _live.exists():
     _lc = sqlite3.connect(str(_live))
@@ -60,9 +61,9 @@ check("the live kill switch is clear", not sb.is_kill_switch_active())
 
 # ── the hermetic seam: scratch DB + lock + bot log ────────────────────
 SCRATCH = Path(tempfile.mkdtemp(prefix="resetrebaseline_"))
-DB = SCRATCH / "signals.db"
+DB = SCRATCH / "signals.db"  # leak-audit: ok (a sandbox local — SCRATCH is mkdtemp — not a module swap)
 LOCK = SCRATCH / "kill_switch.lock"
-LOG = SCRATCH / "bot.log"
+LOG = SCRATCH / "bot.log"  # leak-audit: ok (a sandbox local, not a module swap)
 _sb_db, _sb_ks = sb.DB_PATH, sb.KILL_SWITCH_FILE
 _rr_db, _rr_log = rr.DB_PATH, rr.BOT_LOG
 sb.DB_PATH, sb.KILL_SWITCH_FILE = DB, LOCK

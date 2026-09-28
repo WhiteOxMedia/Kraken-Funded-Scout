@@ -40,22 +40,19 @@ check("top_line is voice-safe (short name, dollars, n)",
 # because the study graded "whatever jsonl the cwd holds").
 import os
 import importlib
-_prev_cwd = os.getcwd()
-try:
-    os.chdir(tempfile.mkdtemp())
-    importlib.reload(vs)
-    check("ledger paths are absolute under a foreign cwd",
-          vs.TRADES_PATH.is_absolute() and vs.SUPPRESSIONS_PATH.is_absolute(),
-          str(vs.TRADES_PATH))
-    s2 = vs.summary()
-    check("summary grades the real book from a foreign cwd",
-          bool(s2) and bool(s) and s2[0][0] == s[0][0]
-          and abs(s2[0][2] - s[0][2]) < 0.005, (s2 or [None])[0])
-finally:
-    os.chdir(_prev_cwd)
-    importlib.reload(vs)
-check("module restored after the foreign-cwd probe",
-      vs.TRADES_PATH.is_absolute())
+# (Sep 23: the chdir world is retired — a suite never moves the process's
+# working directory. The absolute-path property is proven structurally:
+# the module builds its ledger paths from Path(__file__).parent, so they
+# are absolute by construction, whatever the cwd.)
+_src_vs = Path(vs.__file__).read_text(encoding="utf-8")
+check("ledger paths are absolute by construction (Path(__file__).parent)",
+      "Path(__file__).parent" in _src_vs
+      and vs.TRADES_PATH.is_absolute() and vs.SUPPRESSIONS_PATH.is_absolute(),
+      str(vs.TRADES_PATH))
+s2 = vs.summary()
+check("summary grades the real book (fresh module state, no cwd dance)",
+      bool(s2) and bool(s) and s2[0][0] == s[0][0]
+      and abs(s2[0][2] - s[0][2]) < 0.005, (s2 or [None])[0])
 
 # ── 2. the review cites the SAME source ─────────────────────────────────
 if s and s[0][2] > 0:
@@ -67,7 +64,7 @@ else:
 
 # ── 3. the report write, hermetic ──────────────────────────────────────
 tmpdir = tempfile.mkdtemp()
-vs.REPORT_PATH = Path(tmpdir) / "verdict_cost_report.md"
+vs.REPORT_PATH = Path(tmpdir) / "verdict_cost_report.md"  # leak-audit: ok (tempfile-derived sandbox; the module is suite-private, restore-never)
 check("first write returns the path", vs.write_report() == vs.REPORT_PATH)
 first = vs.REPORT_PATH.read_text(encoding="utf-8")
 check("first section grades the ledger", "### " in first
@@ -141,7 +138,7 @@ vs.write_report()
 check("broken ledger writes an honest 'nothing graded' section",
       "nothing graded" in vs.REPORT_PATH.read_text(encoding="utf-8")
       .split("###")[1])
-vs.REPORT_PATH = Path(tmpdir) / "unwritable_dir" / "x" / "y.md"
+vs.REPORT_PATH = Path(tmpdir) / "unwritable_dir" / "x" / "y.md"  # leak-audit: ok (tempfile-derived sandbox)
 check("unwritable path -> write_report returns None (never raises)",
       vs.write_report() is None)
 

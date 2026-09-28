@@ -428,6 +428,7 @@ _CreatedByProbe = _RealBytes is None   # fresh clone: the probe's writes would
 # leak-audit: ok — the probe wants the REAL module state, and the tail
 # restores it byte-exact (or scrubs what this run created)
 ml.STATE_FILE = _RealState             # CREATE the production-named file
+
 _lr = ml.rcl_measure("ZEC/USD")
 check(7.1, isinstance(_lr["verdict"], str) and _lr["verdict"] in
       ("NORMAL", "MILD DRIFT", "MAJOR DRIFT", "UNKNOWN"),

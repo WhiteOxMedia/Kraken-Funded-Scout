@@ -34,7 +34,8 @@ import shutil
 import tempfile
 _tmpdir = tempfile.mkdtemp(prefix="canary_test_")
 CN = os.path.join(_tmpdir, "push_canary.json")
-bs._PUSH_CANARY_JSON = CN
+# the pointer install is guarded at L48 (inside the big try whose finally
+# restores CN_REAL); the sandbox-by-construction value needs no sentinel here
 
 _FAKE = _dt.datetime(2026, 9, 21, 8, 59, 0)
 
@@ -48,6 +49,7 @@ class _Frozen(_dt.datetime):
 _bs_dt = bs.datetime
 _orig_send = bs._send_ntfy
 try:
+    bs._PUSH_CANARY_JSON = CN   # GUARDED SWAP (testleaks, Sep 23)
     # 1. pre-window: 08:59 — silent, no state written
     sent = []
     bs.datetime = _Frozen          # install the frozen clock

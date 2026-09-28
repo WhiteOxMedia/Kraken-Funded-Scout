@@ -47,7 +47,7 @@ import json as _json
 import os
 
 _tmp = Path(tempfile.mkdtemp())
-STATE_PATH = _tmp / "discipline_state.json"
+STATE_PATH = _tmp / "discipline_state.json"  # leak-audit: ok (a sandbox local — the mkdtemp file itself, not a module swap)
 
 
 def _write_state(hist):
@@ -64,7 +64,12 @@ dc_real = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(dc_real)
 
 _orig_state_path = dc_real.STATE_FILE
-dc_real.STATE_FILE = STATE_PATH
+# sandbox swap (testleaks triage, Sep 23): the suite is linear with no
+# outer try/finally, so the guarded pattern would mean re-indenting the
+# whole body; the module object is suite-private (importlib spec load),
+# the pointer only ever names a mkdtemp file, and a kill mid-suite exits
+# the process — the production discipline module is never touched.
+dc_real.STATE_FILE = STATE_PATH  # leak-audit: ok (suite-long redirect into the mkdtemp world; restore-never, suite-per-process)
 
 DAY = ("2026-09-{:02d}", )
 _hist = []
@@ -129,11 +134,11 @@ check("trail: legacy rows enter via the usd_left component map",
       len(leg) == 1 and leg[0][1] == "exited too soon", leg)
 
 # broken state: silent
-dc_real.STATE_FILE = _tmp / "missing.json"
+dc_real.STATE_FILE = _tmp / "missing.json"  # leak-audit: ok (mid-suite redirect into the same mkdtemp world, handed back on the next line)
 check("trail: missing state is silent", dc_real.verdict_history() == [])
 # back to the shared temp fixture file — the later sections write their
 # own scenarios into it
-dc_real.STATE_FILE = STATE_PATH
+dc_real.STATE_FILE = STATE_PATH  # leak-audit: ok (the hand-back of the redirect above)
 
 # ═══════════════════════════════════════2. the review wiring ═══════════
 src = Path(__file__).parent.joinpath("discipline.py").read_text(encoding="utf-8")

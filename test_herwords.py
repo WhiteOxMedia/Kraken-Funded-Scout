@@ -20,8 +20,13 @@ def check(name, ok, detail=""):
 
 import background_scanner as bs
 
-# isolate: scratch log file
-bs.VOICE_LOG_FILE = str(Path(__file__).parent / "_test_voice_log.jsonl")
+# isolate: the voice log lives in a mkdtemp sandbox (testleaks triage,
+# Sep 23) — the old repo-dir scratch file is retired; suite-per-process
+# bounds the window and the live scanner's own pointer was bound at its
+# import, long before this suite ran.
+import tempfile as _tempfile_hw  # noqa: E402
+_HW_SANDBOX = Path(_tempfile_hw.mkdtemp(prefix="_sbx_herwords_"))
+bs.VOICE_LOG_FILE = str(_HW_SANDBOX / "test_voice_log.jsonl")  # leak-audit: ok (suite-long redirect into mkdtemp; handed back at suite end)
 try:
     import os
     os.unlink(bs.VOICE_LOG_FILE)
@@ -63,9 +68,12 @@ check("feed placed with the light panel",
       '_render_light_panel(f"{interval // 60} min")\n        _render_her_words()' in app_src)
 check("latest line in the title", "HER WORDS" in app_src and "tap to read all" in app_src)
 
-# cleanup
+# cleanup: hand the voice log back to production + scrub the sandbox
 import os
-os.unlink(bs.VOICE_LOG_FILE)
+# clock-audit: ok — SANDBOXED (deliberate hand-back to production after the sandbox; leak-audit documented) (clockbombs census 4)
+bs.VOICE_LOG_FILE = str(Path("voice_log.jsonl"))  # leak-audit: ok (the deliberate hand-back to production)
+import shutil as _shutil_hw
+_shutil_hw.rmtree(_HW_SANDBOX, ignore_errors=True)
 
 lines.append(f"\nRESULT: {PASS} passed, {FAIL} failed")
 open("_herwords_check.txt", "w", encoding="utf-8").write("\n".join(lines))

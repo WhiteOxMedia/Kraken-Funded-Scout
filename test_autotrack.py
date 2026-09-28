@@ -133,9 +133,13 @@ check("push success is logged (never a silent maybe)", "PUSHED (" in bs)
 check("push failure is logged (never silent)", "phone push failed" in bs)
 
 # ── 5. functional: the writer against a tempdir watch file ──────────────
+# (the PULSE_JSON pattern: capture BEFORE the try, restore in finally —
+# a crash inside the functional block must never leave the scanner
+# module pointing at the tempdir for the rest of the process)
+import background_scanner as bsm
+_cw_real = bsm.CONTEST_WATCH_JSON
 try:
     tmp = Path(tempfile.mkdtemp())
-    import background_scanner as bsm
     bsm.CONTEST_WATCH_JSON = str(tmp / "contest_watch.json")
     ok1 = bsm.auto_track_popup("XYZ/USD", 1.23, 45.0, 1.5, 60,
                                "BUY 90% (champion)", "champion")
@@ -159,8 +163,12 @@ try:
           bsm._popup_already_watched("WWW/USD") is True)
     check("functional: one-watch guard passes an unwatched pair",
           bsm._popup_already_watched("QQQ/USD") is False)
+    # the last sandbox-dependent check is done: hand back immediately
+    bsm.CONTEST_WATCH_JSON = _cw_real
 except Exception as exc:  # noqa: BLE001 — the functional block reports itself
     check(f"functional writer block crashed: {exc}", False)
+finally:
+    bsm.CONTEST_WATCH_JSON = _cw_real
 
 out = ["POPUP AUTO-TRACK / GET OUT AUTO-CLOSE", "=" * 60]
 fails = 0

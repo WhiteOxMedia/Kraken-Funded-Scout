@@ -95,7 +95,7 @@ def with_pivots(rows, ceiling=110.0, floor=90.0, times=4):
 
 
 def fresh_map():
-    co.MAP_FILE = str(Path(tempfile.mkdtemp()) / "climb_levels.json")
+    co.MAP_FILE = str(Path(tempfile.mkdtemp()) / "climb_levels.json")  # leak-audit: ok (tempfile-derived sandbox, fresh per scenario; suite-per-process)
 
 
 # ── 1. THE LEVEL MAP ─────────────────────────────────────────────────

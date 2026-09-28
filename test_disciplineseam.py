@@ -33,6 +33,9 @@ import tempfile, json, os
 
 # ── 1. the ledger: payers and duds recorded PER GATE ──────────────────
 with tempfile.TemporaryDirectory() as _td:
+    # sandbox swap (testleaks triage, Sep 23): nothing production is ever
+    # written through this pointer — the block's only save goes to the
+    # sandbox, so the suite-per-process exit already bounds the window.
     dc.STATE_FILE = Path(_td) / "discipline_state.json"
     st = {"weights": dict(dc.DEFAULT_WEIGHTS), "history": [], "lessons": []}
     # the ts is NOW (the floor's relief read uses the real clock — a
@@ -164,12 +167,14 @@ with tempfile.TemporaryDirectory() as _td:
     _bad = Path(_td) / "broken.json"
     _bad.write_text("{not json", encoding="utf-8")
     _real = dc.STATE_FILE
-    dc.STATE_FILE = _bad
-    check("a broken journal → gate_relief 0 (fail-closed)",
-          dc.gate_relief("tide-out") == 0.0)
-    check("a broken journal → the release refuses",
-          not bs._seam_releases_tide_out(100.0, _Deep(), "X/USD")[0])
-    dc.STATE_FILE = _real
+    try:
+        dc.STATE_FILE = _bad
+        check("a broken journal → gate_relief 0 (fail-closed)",
+              dc.gate_relief("tide-out") == 0.0)
+        check("a broken journal → the release refuses",
+              not bs._seam_releases_tide_out(100.0, _Deep(), "X/USD")[0])
+    finally:
+        dc.STATE_FILE = _real
 
 # ── 6. the result contract: the ledger rides the persisted state ──────
 src = Path("discipline.py").read_text(encoding="utf-8")

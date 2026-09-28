@@ -17,12 +17,16 @@ def check(name, ok, detail=""):
     results.append((name, ok, detail))
 
 # ── patches ────────────────────────────────────────────────────────
+# (Sep 23: the production helpers went hermetic — they now take an
+# explicit `now` so no wall-clock read leaks into a cached render. The
+# stubs follow the signatures; the plate derives every clock from the
+# bucketed now_ts it passes, so no clock is pinned twice.)
 _orig_assets = app.ASSETS
 _orig_pace, _orig_cap = bs._hours_to_scalp, bs._max_resolve_hours
 app.ASSETS = list(_orig_assets) + ["TESTA", "TESTB", "TESTC", "TESTD", "TESTE"]
 PACE = {"TESTA/USD": 0.8, "TESTB/USD": 1.2, "TESTC/USD": 1.0, "TESTD/USD": 0.5, "TESTE/USD": 1.4}
-bs._hours_to_scalp = lambda pair, entry: PACE.get(pair)
-bs._max_resolve_hours = lambda: 6.0
+bs._hours_to_scalp = lambda pair, entry, now=None: PACE.get(pair)
+bs._max_resolve_hours = lambda now=None: 6.0
 
 class FakeEx:
     def __init__(self, prices):
@@ -59,7 +63,7 @@ conn.close()
 
 try:
     ex = FakeEx({p: live for p, _, _, _, live in rows})
-    ranked, total = app._scalp_headline(ex, "12-16", "weekday")
+    ranked, total = app._scalp_headline(ex, "12-16", "weekday", int(_bucket_start))
 
     # the pool's guaranteed floor is the 3 QUALIFYING synthetics (TESTA/B/E);
     # the live DB may add recent signals but the count must never DEPEND on it
@@ -81,7 +85,7 @@ try:
     # signal still shows on the board, with its ran % displayed on the card
     app._scalp_headline.clear()   # ttl cache would serve the first call's data
     ex2 = FakeEx({p: (1.03 if p == "TESTE/USD" else live) for p, _, _, _, live in rows})
-    ranked2, _ = app._scalp_headline(ex2, "12-16", "weekday")
+    ranked2, _ = app._scalp_headline(ex2, "12-16", "weekday", int(_bucket_start))
     te2 = next((c for c in ranked2 if c["asset"] == "TESTE"), None)
     check("ran +3% since signal -> still shown (warning, not a block)",
           te2 is not None and abs(te2["ran"] - 3.0) < 0.2,

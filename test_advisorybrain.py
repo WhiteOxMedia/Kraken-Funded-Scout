@@ -129,8 +129,11 @@ check("_popup_cap reads the live dial (int >= 1)", isinstance(_cap, int) and _ca
 tmp = Path(tempfile.mkdtemp())
 snapfile = tmp / "signal_snapshots.jsonl"
 old_snap = bs.SIGNAL_SNAPSHOTS_FILE
-bs.SIGNAL_SNAPSHOTS_FILE = str(snapfile)
+# GUARDED SWAP (testleaks, Sep 23): the swap lives inside the try whose
+# finally hands the production path back — a crash mid-suite can never
+# strand the sandbox pointer (the PULSE_JSON pattern).
 try:
+    bs.SIGNAL_SNAPSHOTS_FILE = str(snapfile)
     now = datetime.now().astimezone()
     recs = [
         {"ts": (now - timedelta(minutes=10)).isoformat(), "pair": "A/USD", "kind": "fired"},

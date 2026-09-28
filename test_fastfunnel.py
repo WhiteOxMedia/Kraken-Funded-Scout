@@ -59,8 +59,8 @@ check("a non-dict features payload stays SLOW, never raises",
 tmp = Path(tempfile.mkdtemp())
 rules_path = tmp / "rules.json"
 old_rules = hs.RULES_FILE
-hs.RULES_FILE = str(rules_path)
 try:
+    hs.RULES_FILE = str(rules_path)
     rules_path.write_text(json.dumps({"fast_route": {
         "vol_burst": {"min": 2.0, "support": 20, "winner_rate": 0.8}}}))
     ok, why = hs.fast_route({"momentum_1h": 5.0, "vol_burst": 1.0})

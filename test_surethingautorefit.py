@@ -65,14 +65,17 @@ real_ledger = ar.WEIGHTS_FILE
 real_report = ar.OUT_FILE
 sandbox = BASE / "_test_autorefit_dir"
 sandbox.mkdir(exist_ok=True)
-ar.WEIGHTS_FILE = sandbox / "weights.json"
-ar.OUT_FILE = sandbox / "report.txt"
 
 _refit_w_orig = dict(st.REFIT_W)
 _real_replay = ar._replay_rows
 _real_ridge = None
 
 try:
+    # sandbox swaps INSIDE the try (the PULSE_JSON pattern): the finally
+    # below restores them even on a mid-suite crash
+    ar.WEIGHTS_FILE = sandbox / "weights.json"
+    ar.OUT_FILE = sandbox / "report.txt"
+
     import diag_surething_refit as dg
     _real_ridge = dg.ridge_fit
 
@@ -225,6 +228,7 @@ check("the shipped REFIT_W source stands (the refit swaps at runtime, "
       "the file is the cold-start truth)",
       '"hist": 56.3' in src and "SURE_THING_USE_REFIT = True" in src)
 check("the production ledger was never written by a test",
+      # clock-audit: ok — LIVE-PROBE (read-only verdict-shape assertion on the production ledger) (clockbombs census 4)
       not Path("sure_thing_autoweights.json").exists()
       or json.loads(Path("sure_thing_autoweights.json").read_text(encoding="utf-8"))
       .get("verdict", "").startswith(("SHIPPED", "kept", "DEGRADED")))
