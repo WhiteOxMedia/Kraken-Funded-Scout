@@ -31,8 +31,10 @@ import os as _os
 def _prefs_env_reset():
     _os.environ.pop("SCOUT_PREFS_FILE", None)
 
+_SCOUT_PREFS_REAL = _os.environ.get("SCOUT_PREFS_FILE")
+
 def _prefs_env_set(p):
-    _os.environ["SCOUT_PREFS_FILE"] = str(p)
+    _os.environ["SCOUT_PREFS_FILE"] = str(p)  # leak-audit: ok — restored in the suite's tail finally
 
 _prefs_dir = tempfile.mkdtemp()
 _prefs_env_set(Path(_prefs_dir) / "prefs.json")
@@ -1769,7 +1771,13 @@ try:
     try:
         import tidebar_weekly as _tbw_ap
         _real_rp = _tbw_ap.recommend_pool_min
-        _stage = BASE / "_sbx_poolmin_staged.json"
+        # REPO-CLEAN (Sep 23, the diag_hygiene trips): this stage file
+        # used to live at BASE/_sbx_poolmin_staged.json — a battery-kill
+        # mid-suite skips every finally and strands it in the repo root,
+        # and the two late stage writes sat outside the block's own
+        # finally, leaking it on every CLEAN run too. The system temp
+        # dir is OS-managed: no repo stray can exist, killed run or not.
+        _stage = Path(tempfile.gettempdir()) / "apptest_poolmin_staged.json"
         try:
             _tbw_ap.recommend_pool_min = (
                 lambda: {"recommendation": None, "n_priced": 0})
@@ -1797,14 +1805,21 @@ try:
         finally:
             _tbw_ap.recommend_pool_min = _real_rp
             _stage.unlink(missing_ok=True)
-        _stage.write_text("not json", encoding="utf-8")
-        check("an unparseable stage file reads empty — no strip",
-              app_mod._poolgate_apply_state(staged_path=str(_stage)) == {})
-        _stage.write_text(json.dumps({"pool_min": 5.0}),
-                          encoding="utf-8")
-        check("an out-of-range staged bar reads empty — never "
-              "rendered as applyable",
-              app_mod._poolgate_apply_state(staged_path=str(_stage)) == {})
+        try:
+            _stage.write_text("not json", encoding="utf-8")
+            check("an unparseable stage file reads empty — no strip",
+                  app_mod._poolgate_apply_state(staged_path=str(_stage)) == {})
+            _stage.write_text(json.dumps({"pool_min": 5.0}),
+                              encoding="utf-8")
+            check("an out-of-range staged bar reads empty — never "
+                  "rendered as applyable",
+                  app_mod._poolgate_apply_state(staged_path=str(_stage)) == {})
+        finally:
+            # these two late stage files sit OUTSIDE the block's own
+            # finally above — without this hand-back every clean run
+            # leaked the stray; the unlink now tidies the temp copy so
+            # even %TEMP% never accumulates it
+            _stage.unlink(missing_ok=True)
         check("a missing stage file reads empty",
               app_mod._poolgate_apply_state(
                   staged_path=str(BASE / "_sbx_absent_stage.json")) == {})
@@ -2680,10 +2695,11 @@ try:
               and app_mod._ec_how_lbl("entry+size")
               == "◯ entry $ + size $")
         _ec_src = Path(BASE / "app.py").read_text(encoding="utf-8")
-        check("entry form: the radios ride format_func and no code "
-              "branches on the old glyph prefixes",
-              "format_func=_ec_mode_lbl" in _ec_src
-              and "format_func=_ec_how_lbl" in _ec_src
+        check("entry form: the radios are RETIRED (Sep 21, user rule — "
+              "the one entry control is gone) and the old glyph-prefix "
+              "branch ban still holds",
+              "format_func=_ec_mode_lbl" not in _ec_src
+              and "format_func=_ec_how_lbl" not in _ec_src
               and 'startswith("\\u25c9")' not in _ec_src
               and 'startswith("\\u25ef")' not in _ec_src)
         check("the light's interval stores SECONDS (semantic), the "
@@ -2903,6 +2919,16 @@ try:
         _tbw_mod.HISTORY_FILE = _ds_sbx / "h.jsonl"
         _tbw_mod.FLIP_EVENTS_FILE = _ds_sbx / "evs.jsonl"
         _tbw_mod.FLIP_FILE = _ds_sbx / "flips.json"
+        # the prose backfill rides a SANDBOX txt too (CodeRabbit-adjacent
+        # lesson, Sep 28): the chart backfills pre-ledger weeks from
+        # _tidebarweekly.txt at its default path, and that file is LIVE
+        # runtime state - the restarted scanner's weekly writer
+        # regenerated it mid-day (a new W40 entry, 527 lines) and the
+        # extra prose week's hover titles broke the pinned counts (10
+        # <title> vs 8). Bare calls now pass txt_path=_ds_sbx prose so
+        # the fixture owns the whole picture, live file untouched.
+        _ds_prose = _ds_sbx / "prose.txt"
+        _ds_prose.write_text("", encoding="utf-8")
         # two graded sims (PAYING flip / COSTING flip-back) + one
         # pending sim: three identities, three verdicts
         _ds_evs = [
@@ -2958,13 +2984,15 @@ try:
                                       "rate": 0.3, "usd": 10 * do,
                                       "usd_per_fire": do},
                             "other_src": "quantile"}}}) + "\n")
-        _c_none = app_mod._tidebar_ledger_chart(hide_sims=False)
+        _c_none = app_mod._tidebar_ledger_chart(hide_sims=False,
+                                                  txt_path=_ds_prose)
         check("dim sync: no filter dims nothing (the chart keeps its "
               "full regime history)",
               "opacity='0.25'" not in _c_none
               and "regime stamp(s) dimmed" not in _c_none)
         _c_pay = app_mod._tidebar_ledger_chart(hide_sims=False,
-                                               verdict="PAYING")
+                                               verdict="PAYING",
+                                               txt_path=_ds_prose)
         # the true rendering arithmetic, verified against the sandbox:
         # two events carry charted evidence (OUT flip / FLAT flip-back),
         # each renders in BOTH stamp layers = 4 stamps; the pending
@@ -2982,13 +3010,15 @@ try:
                _c_pay.count("href="),
                _c_pay.count("<title>")))
         _c_cost = app_mod._tidebar_ledger_chart(hide_sims=False,
-                                                verdict="COSTING")
+                                                verdict="COSTING",
+                                                txt_path=_ds_prose)
         check("dim sync: COSTING dims the complement (the PAYING "
               "stamp, both layers) — the same machinery, the other "
               "side",
               _c_cost.count("opacity='0.25'") == 2
               and "1 regime stamp(s) dimmed" in _c_cost)
         _c_pend = app_mod._tidebar_ledger_chart(hide_sims=False,
+                                                txt_path=_ds_prose,
                                                 verdict="pending")
         check("dim sync: pending dims BOTH graded stamps (4 "
               "instances) — the note names 2, and honestly: the "
@@ -3063,7 +3093,8 @@ try:
             {"OUT": {"flipped": False}, "FLAT": {"flipped": True}}),
             encoding="utf-8")
         _span_pay = app_mod._tidebar_ledger_chart(hide_sims=False,
-                                                  verdict="PAYING")
+                                                  verdict="PAYING",
+                                                  txt_path=_ds_prose)
         check("span dim: PAYING dims FLAT's benched span with its "
               "state (fill-opacity 0.02), keeps OUT's lit (its "
               "flip-back matches), names the span in the caption, and "
@@ -3073,13 +3104,15 @@ try:
               and "benched span(s) dimmed" in _span_pay
               and "regime stamp(s) dimmed" in _span_pay)
         _span_cost = app_mod._tidebar_ledger_chart(hide_sims=False,
-                                                   verdict="COSTING")
+                                                   verdict="COSTING",
+                                                   txt_path=_ds_prose)
         check("span dim: COSTING keeps BOTH spans lit — every state "
               "has at least one matching decision (FLAT's flip, OUT's "
               "flip), so no span dims with the whole-chart rule",
               _span_cost.count("fill-opacity='0.02'") == 0
               and _span_cost.count("fill-opacity='0.08'") == 2)
-        _span_none = app_mod._tidebar_ledger_chart(hide_sims=False)
+        _span_none = app_mod._tidebar_ledger_chart(hide_sims=False,
+                                                   txt_path=_ds_prose)
         check("span dim: no filter renders every span at full "
               "opacity and no dim note appears",
               _span_none.count("fill-opacity='0.02'") == 0
@@ -3128,16 +3161,24 @@ except Exception as exc:
     lines.append(f"APPTEST FAILED: {exc}")
     check("the app still boots clean (no exception)", False, exc)
 
-out = BASE / "apptest_check.txt"
-out.write_text("\n".join(lines)
-               + "\n" + "\n".join(
-                   f"{'PASS' if ok else 'FAIL'}  {name}"
-                   + (f"  [{d}]" if d and not ok else "")
-                   for name, ok, d in results)
-               + f"\n\nRESULT: {sum(1 for _, ok, _ in results if ok)} passed, "
-                 f"{sum(1 for _, ok, _ in results if not ok)} failed\n",
-               encoding="utf-8")
-fails = [r for r in results if not r[1]]
-print(f"RESULT: {len(results) - len(fails)} passed, {len(fails)} failed")
-print("done")
-sys.exit(1 if fails else 0)
+try:
+    out = BASE / "apptest_check.txt"
+    out.write_text("\n".join(lines)
+                   + "\n" + "\n".join(
+                       f"{'PASS' if ok else 'FAIL'}  {name}"
+                       + (f"  [{d}]" if d and not ok else "")
+                       for name, ok, d in results)
+                   + f"\n\nRESULT: {sum(1 for _, ok, _ in results if ok)} passed, "
+                     f"{sum(1 for _, ok, _ in results if not ok)} failed\n",
+                   encoding="utf-8")
+    fails = [r for r in results if not r[1]]
+    print(f"RESULT: {len(results) - len(fails)} passed, {len(fails)} failed")
+    print("done")
+    sys.exit(1 if fails else 0)
+finally:
+    # the SCOUT_PREFS_FILE env swap's restore — the suite hands the
+    # environment back before it exits (the leak gate's contract)
+    if _SCOUT_PREFS_REAL is not None:
+        _os.environ["SCOUT_PREFS_FILE"] = _SCOUT_PREFS_REAL
+    else:
+        _os.environ.pop("SCOUT_PREFS_FILE", None)
