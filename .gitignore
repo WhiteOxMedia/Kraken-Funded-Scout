@@ -18,6 +18,8 @@ _bt_download_summary.json
 # the goal-tilt evidence the weekly diag writes for the fire seam
 surething_goal_tilt.json
 surething_goal_tilt.json.tmp*
+exit_extension.dial.json
+exit_extension.dial.json.tmp*
 # the single-instance guard's pid file
 .scanner.pid
 # sqlite WAL sidecars of the live bridge db (the db itself is committed
