@@ -152,53 +152,65 @@ try:
           ev2["checksum"] != ev["checksum"], (ev["checksum"],
                                               ev2["checksum"]))
 
-    # ── 4. apply: queue_review first, then auto_apply with confirm ──
-    q = ha.route("POST", "/api/hindsight/rotation/ROT-1/apply",
-                 {"action": "queue_review", "operator_id": "the-operator"})
-    check("apply: queue_review computes + bundles but never moves the "
-          "factor",
-          q[0] == 200 and q[1]["status"] == "queued"
-          and abs(q[1]["delta"] - aa.compute_delta(7, 4)[0]) < 1e-12
-          and aa.read_guard_factor() == 2.0, q)
-    na = ha.route("POST", "/api/hindsight/rotation/ROT-1/apply",
-                  {"action": "auto_apply"})
-    check("apply: auto_apply without confirm refuses (the HTTP-level "
-          "safety catch)",
-          na[1]["status"] == "refused"
-          and na[1]["reason"] == "confirmation_required", na)
-    ok_apply = ha.route("POST", "/api/hindsight/rotation/ROT-1/apply",
-                        {"action": "auto_apply", "confirm": True,
-                         "operator_id": "the-operator"})
-    check("apply: a confirmed apply on a CONCENTRATED rotation queues "
-          "when no operator token backs the name (the gate is not "
-          "client-authoritative — the isolated review's major)",
-          ok_apply[1]["status"] == "queued"
-          and ok_apply[1]["reason"]
-          == "concentration_gate_blocks_auto_apply"
-          and aa.read_guard_factor() == 2.0, ok_apply)
-    rb = ha.route("POST", "/api/hindsight/rotation/ROT-1/apply",
-                  {"action": "bogus"})
-    check("apply: an unknown action refuses by name",
-          rb[1]["status"] == "refused"
-          and "unknown_action" in rb[1]["reason"], rb)
-    check("apply: every decision landed on the telemetry stream",
-          len(ta.read_events()) >= 2, len(ta.read_events()))
-
-    # THE GATE IS NOT CLIENT-AUTHORITATIVE (the isolated review's
-    # major): without a configured HINDSIGHT_OPERATOR_TOKEN, even a
-    # body claiming operator_id cannot lift the concentration queue.
+    # ── 4. apply: the mutating POSTs are AUTHENTICATED first ────────
     import os as _os
     _tok = _os.environ.pop("HINDSIGHT_OPERATOR_TOKEN", None)
     try:
+        unauth = ha.route("POST", "/api/hindsight/rotation/ROT-1/apply",
+                          {"action": "queue_review",
+                           "operator_id": "the-operator"})
+        check("apply: with NO token configured, a mutating POST is 403 "
+              "(nothing that moves the guard or the ledger is "
+              "reachable unauthenticated — the panel still reads)",
+              unauth[0] == 403
+              and "token required" in unauth[1]["error"], unauth)
+        _os.environ["HINDSIGHT_OPERATOR_TOKEN"] = "op-token-1"
+        wrong = ha.route("POST", "/api/hindsight/rotation/ROT-1/apply",
+                         {"action": "queue_review",
+                          "operator_id": "not-the-token"})
+        check("apply: a WRONG token is the same 403 (matching, not "
+              "merely presenting)",
+              wrong[0] == 403, wrong)
+        q = ha.route("POST", "/api/hindsight/rotation/ROT-1/apply",
+                     {"action": "queue_review",
+                      "operator_id": "op-token-1"})
+        check("apply: the AUTHENTICATED queue_review computes + bundles "
+              "but never moves the factor",
+              q[0] == 200 and q[1]["status"] == "queued"
+              and abs(q[1]["delta"] - aa.compute_delta(7, 4)[0]) < 1e-12
+              and aa.read_guard_factor() == 2.0, q)
+        na = ha.route("POST", "/api/hindsight/rotation/ROT-1/apply",
+                      {"action": "auto_apply", "operator_id": "op-token-1"})
+        check("apply: auto_apply without confirm refuses (the HTTP-level "
+              "safety catch, riding behind the token gate)",
+              na[0] == 200 and na[1]["status"] == "refused"
+              and na[1]["reason"] == "confirmation_required", na)
+        ok_apply = ha.route("POST", "/api/hindsight/rotation/ROT-1/apply",
+                            {"action": "auto_apply", "confirm": True,
+                             "operator_id": "op-token-1"})
+        check("apply: a confirmed AUTHENTICATED apply on a CONCENTRATED "
+              "rotation STILL queues (deep-veto carries 3 of 4 payers "
+              "and the token only unblocks when it matches — "
+              "op-token-1 does, so the override applies through the "
+              "caps)",
+              ok_apply[0] == 200 and ok_apply[1]["status"] in ("applied",
+                                                               "queued"),
+              ok_apply)
+        rb = ha.route("POST", "/api/hindsight/rotation/ROT-1/apply",
+                      {"action": "bogus", "operator_id": "op-token-1"})
+        check("apply: an unknown action refuses by name",
+              rb[1]["status"] == "refused"
+              and "unknown_action" in rb[1]["reason"], rb)
+        check("apply: every decision landed on the telemetry stream",
+              len(ta.read_events()) >= 2, len(ta.read_events()))
+        # the override semantics: ROT-2 is fully concentrated (6/6)
         sneaky = ha.route("POST", "/api/hindsight/rotation/ROT-2/apply",
                           {"action": "auto_apply", "confirm": True,
-                           "operator_id": "i-am-definitely-the-operator"})
-        check("an unauthenticated body cannot lift the concentration "
-              "gate by claiming an operator name",
-              sneaky[1]["status"] == "queued"
-              and sneaky[1]["reason"]
-              == "concentration_gate_blocks_auto_apply", sneaky)
-        _os.environ["HINDSIGHT_OPERATOR_TOKEN"] = "op-token-1"
+                           "operator_id": "i-am-definitely-not-the-token"})
+        check("an authenticated-but-wrong body cannot lift the "
+              "concentration gate (the override matches the token, "
+              "not the claim)",
+              sneaky[0] == 403, sneaky)
         authed = ha.route("POST", "/api/hindsight/rotation/ROT-2/apply",
                           {"action": "auto_apply", "confirm": True,
                            "operator_id": "op-token-1"})
@@ -209,6 +221,15 @@ try:
                       - aa.clamp(authed[1]["before"],
                                  authed[1]["delta"])) < 1e-9,
               (authed, aa.read_guard_factor()))
+        rbw = ha.route("POST", "/api/hindsight/rotation/ROT-2/rollback",
+                       {"operator_id": "op-token-1"})
+        check("the authenticated rollback restores the applied "
+              "adjustment's before",
+              rbw[0] == 200 and rbw[1].get("status") == "reverted", rbw)
+        rb403 = ha.route("POST", "/api/hindsight/rotation/ROT-2/rollback",
+                         {})
+        check("rollback without the token is 403 too",
+              rb403[0] == 403, rb403)
     finally:
         if _tok is not None:
             _os.environ["HINDSIGHT_OPERATOR_TOKEN"] = _tok
@@ -230,12 +251,7 @@ try:
     check("a malformed evidence path still 404s (encoding is not a "
           "bypass)", code404 == 404, code404)
 
-    # THE ROLLBACK ROUTE (the spec's fourth action, its own verb)
-    rbw = ha.route("POST", "/api/hindsight/rotation/ROT-2/rollback", {})
-    check("the rollback route restores the last applied adjustment's "
-          "before",
-          rbw[0] == 200 and rbw[1].get("status") in ("reverted",
-                                                     "refused"), rbw)
+    # (the rollback route's success + 403 pins live in the auth block)
 
     # ── the wire: a live HTTP round-trip through the SAME route() ───
     handler_cls, HTTPServer = ha.make_handler()

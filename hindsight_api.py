@@ -47,6 +47,17 @@ def _sha256_obj(obj) -> str:
     return "sha256:" + hashlib.sha256(blob).hexdigest()
 
 
+def _authenticated(operator_id) -> bool:
+    """The mutating-POST gate: the request's operator_id must match the
+    deployment's HINDSIGHT_OPERATOR_TOKEN (the machine's env-dial
+    pattern). No token configured = nothing that changes state is
+    reachable over the wire — the panel still reads everything, and
+    the concentration gate always queues."""
+    import os
+    token = os.environ.get("HINDSIGHT_OPERATOR_TOKEN", "")
+    return bool(token) and str(operator_id or "") == token
+
+
 # ── the aggregate underneath all routes ─────────────────────────────
 def _rotation_aggregate(rotation_id: str, goal_pct: float,
                         supp_path: Path, cache_path: Path) -> dict:
@@ -133,9 +144,22 @@ def candidate_evidence(rotation_id: str, candidate_id: str,
     import per_gate_export as pge
     cache, supp = _paths(supp_path, cache_path)[1], _paths(supp_path, None)[0]
     log_path = log_path or ROOT / "logs" / "scanner_console.log"
-    pair, rot, gate = candidate_id.split("|", 2)
+    parts = candidate_id.split("|")
+    if len(parts) != 3 or not all(p.strip() for p in parts):
+        # VALIDATED BEFORE USE (the isolated review's follow-up): a
+        # malformed id is a named 404-shape refusal, not a ValueError
+        # from the unpack, and never a silent wrong-candidate read.
+        return {"rotation_id": rotation_id, "candidate_id": candidate_id,
+                "error": "malformed candidate_id (want pair|rot|gate)",
+                "ohlcv_snippet": [], "log_excerpt": [], "trace_id": "",
+                "checksum": ""}
+    pair, row_rot, gate = parts
+    # THE EVIDENCE ROW IS SCOPED BY THE FULL ROTATION ID (the isolated
+    # review's major): the candidate id's rot half may be the journal's
+    # bare window — the lookup asks for THE rotation's rows, never
+    # every day's same window.
     ts = ""
-    for r in pge.load_rotation_rows(supp, rot):
+    for r in pge.load_rotation_rows(supp, rotation_id):
         if r.get("pair") == pair and (r.get("gate") or "?") == gate:
             ts = str(r.get("ts") or "")
             break
@@ -236,22 +260,27 @@ def route(method: str, path: str, body: dict | None = None,
             # into extra path parts and 404
             return 200, candidate_evidence(rid, unquote(tail[1]))
         if method == "POST" and tail == ["rollback"]:
+            b = body or {}
+            if not _authenticated(b.get("operator_id")):
+                return 403, {"error": "operator token required for "
+                                       "state-changing POSTs"}
             return 200, rollback(rid)
         if method == "POST" and tail == ["apply"]:
             b = body or {}
             action = str(b.get("action") or "")
             operator_id = b.get("operator_id")
-            # THE CONCENTRATION GATE IS NOT CLIENT-AUTHORITATIVE (the
-            # isolated review's major): a bare unauthenticated request
-            # cannot lift the queue by typing an operator name. The
-            # override is honored ONLY when the operator token matches
-            # the deployment's OPERATOR_TOKEN env (the same env-dial
-            # pattern the machine already runs); no token configured =
-            # nobody can override, the gate always queues.
-            import os
-            token = os.environ.get("HINDSIGHT_OPERATOR_TOKEN", "")
-            override = bool(operator_id) and bool(token) \
-                and str(operator_id) == token
+            # THE MUTATING POSTS ARE AUTHENTICATED (the isolated
+            # review's major): every POST that can move the guard or
+            # the ledger requires the operator token — queue_review
+            # too, not only the concentration override. auto_apply
+            # carries its own confirm catch on top.
+            if not _authenticated(operator_id):
+                return 403, {"error": "operator token required for "
+                                       "state-changing POSTs"}
+            # THE CONCENTRATION OVERRIDE: the token-matching operator
+            # lifts ONLY the queue. No token configured = nobody can
+            # override, the gate always queues.
+            override = _authenticated(operator_id)
             if override:
                 operator_id = "operator"
             return 200, apply_action(
