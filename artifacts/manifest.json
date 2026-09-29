@@ -858,6 +858,20 @@
     "background_scanner.py": "sha256:0f14b86df43d251bb14bc3763a0d2afdcf8ae4dea9c1b414da6e575304d66a22",
     "test_allgoodlead.py": "sha256:fa9d0d877201842c811d9a96b8ec9a62062c1535070e9d77911632fd977521cb"
    }
+  },
+  "32-panel-escaping": {
+   "commits": [
+    "<this commit>"
+   ],
+   "branch_name": "master",
+   "date": "2026-09-29",
+   "title": "THE HINDSIGHT PANEL ESCAPES ITS PAYLOADS: A HOSTILE LEDGER ROW RENDERS AS INERT TEXT, PROVEN RED-FIRST (Sep 29, panel-escaping)",
+   "detail": "The round-5 review's XSS-class finding on the zones-4/5 wire slice, fixed and pinned. app.py grows _esc (html.escape with quote=True, None-safe) and EVERY payload-derived value in the API panel now passes through it: the rotation summary's proposed_reason, the gates' gate names and top-candidate pairs, the ledger's day/rotation_id/status/reason, the telemetry's rotation_id/status/applied_by/commit_sha/evidence_checksum/reason. The panel's own chrome (layout divs) stays raw \u2014 escaping is scoped to values. PINS (apptest 306/0): a hostile-payload matrix (script/img/svg/u/b/i tags across rotation_id, status, reason, applied_by, commit_sha, candidate pair) rides the existing stub-API harness and proves (a) no raw payload tag appears in any rendered markdown or expander label, (b) the values still render ESCAPED and readable (&lt;script&gt; visible \u2014 the operator sees the hostile row without it executing), (c) the panel chrome still renders raw. Red-first: the raw f-string interpolation failed the inert-text pin with verbatim <img onerror>. BONUS: the exception-handler census caught two bare except:pass left by the giveback edit \u2014 now named debug logs (scanner-state merge read, giveback telemetry skip). Also caught and fixed during this change: the _esc insertion had stolen _cached_api_path's @st.cache_data decorator (the pins' cache.clear() blew up \u2014 the census of my own harness worked). Drives: apptest 306/0, allgoodlead 26/0, stateclobber 21/0, statewriters 9/0.",
+   "checksums": {
+    "app.py": "sha256:dff4540e739d779c8c2de90d44f8594b0c4b3b0a845bef0789c85e2f3c58d8cb",
+    "background_scanner.py": "sha256:c30b91bb3057de252f722f20e6d37cc1a803a8e13ed2e0473bbd9977c7aff776",
+    "test_apptest.py": "sha256:3e3a69c97750a8ae6a25ef8f4748aaad85b4697d32103516a1eae057d29a813f"
+   }
   }
  }
 }

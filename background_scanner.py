@@ -3007,8 +3007,9 @@ def _save_scanner_state(state: dict, path: str | None = None) -> None:
             if isinstance(cur, dict):
                 cur.update(state or {})
                 merged = cur
-        except Exception:
-            pass   # no file yet / unreadable: `state` stands alone
+        except Exception as _mrg_exc:
+            logger.debug("scanner-state merge read skipped (%s) — the "
+                         "writer's own keys stand alone", _mrg_exc)
         tmp = p + ".tmp"
         with open(tmp, "w", encoding="utf-8") as fh:
             json.dump(merged, fh, indent=1)
@@ -3469,8 +3470,9 @@ def _track_day_giveback(unrealized: float) -> dict:
                 from telemetry_adjust import emit_adjustment as _ea_gb
                 _ea_gb(f"giveback-{_day}", _rec, 0, 0, [],
                        cohort="giveback", applied_by="giveback-watch")
-            except Exception:
-                pass   # telemetry is never the story; the ledger is
+            except Exception as _tel_exc:
+                logger.debug("give-back telemetry skipped (%s) — the "
+                             "ledger row is the record", _tel_exc)
         _pg_gb._save({"giveback": gb})
         return gb
     except Exception as exc:

@@ -2750,6 +2750,18 @@ def _render_burial_hindsight() -> None:
 # construction: GETs only, and the API's mutating POSTs stay token-
 # gated behind the operator layer regardless of what any client asks.
 
+def _esc(v) -> str:
+    """THE PAYLOAD-VALUE ESCAPER (the round-5 review): every string that
+    originates OUTSIDE the console — the ledger's rotation ids, statuses    and reasons, the telemetry's applied_by/commit/checksum fields, the
+    gate names and candidate pairs — rides unsafe_allow_html into the
+    browser and MUST be inert. html.escape maps < > & " ' to entities,
+    so a hostile '<img onerror=...>' in a ledger row renders as visible
+    text, never as markup. The panel's own chrome (layout divs, spans)
+    does NOT pass through this — only payload values do."""
+    import html as _html
+    return _html.escape(str(v if v is not None else ""), quote=True)
+
+
 @st.cache_data(ttl=60)
 def _cached_api_path(base: str, tail: str) -> tuple[int, dict] | None:
     """One cached GET against the hindsight API. Returns (status,
@@ -2793,17 +2805,18 @@ def _render_burial_hindsight_api() -> None:
                 f"{(s.get('r') or 0) * 100:.0f}% · GF "
                 f"{s.get('current_GF')} · proposed "
                 f"{(s.get('proposed_delta') or 0):+.2f} "
-                f"({s.get('proposed_reason') or '—'})",
+                f"({_esc(s.get('proposed_reason') or '—')})",
                 key="burial_hindsight_api_expander"):
             def _tops(g) -> str:
                 cands = g.get("top_candidates") or []
-                names = [f"{c.get('pair', '?')} +{c.get('run') or 0:.1f}%"
+                names = [f"{_esc(c.get('pair', '?'))} "
+                         f"+{c.get('run') or 0:.1f}%"
                          for c in cands[:2]]
                 return ", ".join(names) or "—"
             rows = "".join(
                 f"<div style='font-family:Share Tech Mono,monospace;"
                 f"font-size:12px;color:#bfae8f;'>"
-                f"{g.get('gate', '?'):<16} B={g.get('B_g', 0):<3} "
+                f"{_esc(g.get('gate', '?')):<16} B={g.get('B_g', 0):<3} "
                 f"P={g.get('P_g', 0):<3} "
                 f"r={(g.get('r_g') or 0) * 100:.0f}%  top: "
                 f"{_tops(g)}</div>"
@@ -2838,13 +2851,13 @@ def _render_burial_hindsight_api() -> None:
             led_rows = "".join(
                 f"<div style='font-family:Share Tech Mono,monospace;"
                 f"font-size:12px;color:#bfae8f;'>"
-                f"{str(r.get('day') or '—'):<10} "
-                f"{str(r.get('rotation_id') or '—'):<20} "
-                f"{str(r.get('status') or '—').upper():<8} "
+                f"{_esc(r.get('day') or '—'):<10} "
+                f"{_esc(r.get('rotation_id') or '—'):<20} "
+                f"{_esc(r.get('status') or '—').upper():<8} "
                 f"{(r.get('before') if r.get('before') is not None else 0):.2f}"
                 f" → {(r.get('after') if r.get('after') is not None else 0):.2f} "
                 f"Δ{(r.get('delta') or 0):+.3f} "
-                f"{('· ' + str(r.get('reason'))) if r.get('reason') and r.get('reason') != 'ok' else ''}"
+                f"{('· ' + _esc(r.get('reason'))) if r.get('reason') and r.get('reason') != 'ok' else ''}"
                 f"</div>"
                 for r in led[1]["rows"][:10])
             st.markdown("<div style='padding:2px 0;'>" + led_rows
@@ -2867,20 +2880,20 @@ def _render_burial_hindsight_api() -> None:
                 f"<div style='font-family:Share Tech Mono,monospace;"
                 f"font-size:12px;color:#bfae8f;'>"
                 f"{(e.get('timestamp') or '—')[:16].replace('T', ' ')}  "
-                f"{str(e.get('rotation_id') or '—'):<20} "
-                f"{str(e.get('status') or '—').upper():<8} "
+                f"{_esc(e.get('rotation_id') or '—'):<20} "
+                f"{_esc(e.get('status') or '—').upper():<8} "
                 f"{(e.get('before_gf') if e.get('before_gf') is not None else 0):.2f}"
                 f" → {(e.get('after_gf') if e.get('after_gf') is not None else 0):.2f} "
                 f"B{e.get('B', 0)} P{e.get('P', 0)} "
                 f"r={(e.get('r') * 100 if e.get('r') is not None else None)}%".replace(
                     "r=None%", "r=—")
-                + (f"  by {e.get('applied_by') or 'system'}"
+                + (f"  by {_esc(e.get('applied_by') or 'system')}"
                    if e.get("applied_by") else "")
-                + (f"  commit {str(e.get('commit_sha'))[:7]}"
+                + (f"  commit {_esc(str(e.get('commit_sha'))[:7])}"
                    if e.get("commit_sha") else "")
-                + (f"  ev {str(e.get('evidence_checksum'))[:20]}…"
+                + (f"  ev {_esc(str(e.get('evidence_checksum'))[:20])}…"
                    if e.get("evidence_checksum") else "")
-                + (f"  ({e.get('reason')})"
+                + (f"  ({_esc(e.get('reason'))})"
                    if e.get("reason") and e.get("reason") != "ok" else "")
                 + "</div>"
                 for e in tel[1]["events"][:8])

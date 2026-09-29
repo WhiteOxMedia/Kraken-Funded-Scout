@@ -3417,6 +3417,68 @@ try:
                       and "B20 P7" in m for m in _md),
               [m[:120] for m in _md if "AUDIT" in m
                or "rotation_boundary" in m][:3])
+        # ── THE ESCAPING PINS (round-5): the ledger/telemetry payloads
+        # are operator-hostile DATA — a malicious reason string or an
+        # injected rotation id must render as INERT TEXT, never as
+        # markup through unsafe_allow_html. Red-first: the raw f-string
+        # interpolation renders <img onerror=...> verbatim and these
+        # pins read it straight out of the captured markdown.
+        _summ_evil = dict(_summ, proposed_reason="<script>p()</script>")
+        _gates_evil = [{"gate": "<u>g</u>", "B_g": 1, "P_g": 0,
+                        "r_g": 0.0,
+                        "top_candidates": [
+                            {"pair": "<svg onload=alert(3)>",
+                             "run": 1.0}]}]
+        _ledger_evil = {"rows": [
+            {"day": "<img src=x>",
+             "rotation_id": "<script>a()</script>",
+             "status": "applied", "before": 2.0, "after": 1.95,
+             "delta": -0.05, "reason": "<b>inj</b>"}]}
+        _tel_evil = {"events": [
+            {"event": "auto_adjust",
+             "rotation_id": "<script>b()</script>",
+             "before_gf": 2.0, "after_gf": 1.95, "delta": -0.05,
+             "B": 1, "P": 0, "r": None, "status": "applied",
+             "applied_by": "<img src=x onerror=alert(2)>",
+             "commit_sha": "<script>c()</script>",
+             "evidence_checksum": "sha256:<b>x</b>",
+             "reason": "<i>y</i>",
+             "timestamp": "2026-09-29T18:02:00-06:00"}]}
+
+        def _evil_urlopen(url, timeout=None):
+            _reqs.append(str(url))
+            payload = (_gates_evil if "/gates" in str(url)
+                       else _ledger_evil if "/ledger" in str(url)
+                       else _tel_evil if "/telemetry" in str(url)
+                       else _summ_evil)
+            return _APIResp(json.dumps(payload).encode("utf-8"))
+
+        _ureq.urlopen = _evil_urlopen
+        _md.clear()
+        _exp_labels.clear()
+        app_mod._cached_api_path.clear()
+        app_mod._render_burial_hindsight_api()
+        _evil_body = "\n".join(_md + list(_exp_labels))
+        check("hostile payload: every payload-derived tag renders "
+              "INERT (no raw <script>/<img>/<svg> anywhere in the "
+              "panel's markdown or labels — the injection cannot fire)",
+              "<script" not in _evil_body and "<img" not in _evil_body
+              and "<svg" not in _evil_body and "<u>" not in _evil_body,
+              [m[:100] for m in _md
+               if "<script" in m or "<img" in m or "<svg" in m][:2])
+        check("hostile payload: the values still RENDER escaped and "
+              "readable — the operator sees the hostile row without it "
+              "executing (and the zones' own chrome survives)",
+              "&lt;script&gt;" in _evil_body and "&lt;img" in _evil_body
+              and "ADJUSTMENTS LEDGER" in _evil_body
+              and "AUDIT TRAIL" in _evil_body,
+              [m[:120] for m in _md if "&lt;" in m][:2])
+        check("hostile payload: the panel's own chrome divs still "
+              "render raw (the escaping is scoped to payload values, "
+              "not the panel itself)",
+              "<div style=" in _evil_body)
+        _ureq.urlopen = _fake_urlopen
+
         # the deployment seam: HINDSIGHT_API_BASE moves the wire
         _os.environ["HINDSIGHT_API_BASE"] = "http://127.0.0.1:9999"
         _reqs.clear()
