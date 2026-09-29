@@ -277,6 +277,33 @@ try:
           "starts the moment the extension arms)",
           abs(ratchet - 1.5) < 1e-9)     # peak +4% -> the >=+2% rung (1.5)
 
+    # ── 7b. GF PARITY (the window-vs-trail residue, closed Sep 29): the
+    # shim must follow the machine's FINALIZED guard factor — the
+    # scanner scales the ratchet AND the armed cap by it (and the
+    # end-game multiplier on the ratchet) before enforcing. The
+    # factor-neutral default keeps the studies honest only where they
+    # cannot read the machine's context.
+    gf2_stop = ex.armed_stop_level(entry, high, goal, gf=2.0)
+    check("7.5 the armed stop follows the machine's guard factor — at "
+          "GF=2 the enforced width is the scaled ratchet/cap 3.0 "
+          "(stop 100.88 — the UNSCALED lock-window min() keeps it "
+          "ABOVE entry + 2x RT under every factor), while the neutral "
+          "shim proves 1.5 (stop 102.44, 1.56 ABOVE the enforced "
+          "one); at GF=0.9168 the width tightens to the scaled "
+          "ratchet 1.375",
+          abs(gf2_stop - high * (1.0 - 3.0 / 100.0)) < 1e-9
+          and gf2_stop < stop
+          and stop >= rt_floor and gf2_stop >= rt_floor
+          and abs(ex.extension_trail_pct(entry, high, goal, armed=True,
+                                         gf=0.9168) - 1.375) < 1e-9)
+    eg_neutral = ex.extension_trail_pct(entry, high, goal, armed=False)
+    eg_half = ex.extension_trail_pct(entry, high, goal, armed=False,
+                                     endgame=0.5)
+    check("7.6 the end-game multiplier scales the RATCHET (and only "
+          "the ratchet) exactly like the enforced block",
+          abs(eg_neutral - 1.5) < 1e-9
+          and abs(eg_half - 0.75) < 1e-9)
+
     # ── 8. state sandbox safety (the Sep 27 ledger-leak convention) ───
     check("8.1 the state file resolves LIVE from the env hook (no "
           "import-time freeze)",

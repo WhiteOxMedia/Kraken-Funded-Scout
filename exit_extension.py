@@ -472,19 +472,37 @@ def expire_sweep(watch: dict, now: datetime | None = None) -> int:
 
 
 # ── trail parity (proof shims — the scanner keeps its own math) ──────
-def extension_trail_pct(entry: float, high: float,
-                        goal_pct: float, armed: bool) -> float:
+def extension_trail_pct(entry: float, high: float, goal_pct: float,
+                        armed: bool, gf: float | None = None,
+                        endgame: float | None = None) -> float:
     """The width the EXTENDED book is guarded with — asserted equal to
-    the incumbent shapes: the ratchet while unarmed; once armed, the
-    live half-goal cap NOTCHED so the implied stop never dips below
-    the entry-protective floor (the round-3 review: the absolute
-    1.0%-wide cap let an armed, barely-run position guard with a stop
-    BELOW its entry — paying the ~0.16% round-trip to lose money)."""
+    the incumbent ENFORCED shape (the scanner's trail block, not the
+    bare shape): the ratchet SCALED BY THE FINALIZED GUARD FACTOR (and
+    the end-game multiplier on the ratchet) while unarmed; once armed,
+    the half-goal cap scaled by the SAME factor and the ratchet-and-cap
+    min() then narrowed by the UNSCALED lock-window width whose implied
+    stop sits at entry + 2x RT — the floor binds under EVERY factor,
+    and the factor decides WHERE the width binds (at GF=2 the enforced
+    width is 2x the neutral one, stop 100.88 vs 102.44 at entry 100 /
+    peak 104 — the neutral shim proved a stop the machine never
+    enforced; the factor ran 0.9168-2.0 across Sep 29's rotations).
+
+    gf/endgame ride the machine's OWN finalized values; None keeps the
+    factor-neutral 1.0 posture for callers that cannot read the
+    machine's context (the studies)."""
     import background_scanner as bs   # the incumbent, imported late + lazy
+    _gf = 1.0 if gf is None else float(gf)
+    _eg = 1.0 if endgame is None else float(endgame)
     ratchet = bs._ratchet_trail_pct(entry, high, 0.0)
+    if _gf != 1.0:
+        ratchet = round(ratchet * _gf, 3)
+    if _eg != 1.0:
+        ratchet = round(ratchet * _eg, 3)
     if not armed:
         return ratchet
     half_goal_cap = max((goal_pct or 0.0) * bs.GOAL_TRAIL_ARM_FRAC, 1.0)
+    if _gf != 1.0:
+        half_goal_cap = round(half_goal_cap * _gf, 3)
     # THE LOCK-WINDOW CAP (the round-5 review: my round-3 notch was
     # ineffective — min(ratchet, wider-cap) keeps the violating ratchet
     # width). The scanner's own shape: the cap narrows to the width
@@ -502,9 +520,15 @@ def extension_trail_pct(entry: float, high: float,
     return min(ratchet, half_goal_cap)
 
 
-def armed_stop_level(entry: float, high: float, goal_pct: float) -> float:
+def armed_stop_level(entry: float, high: float, goal_pct: float,
+                     gf: float | None = None,
+                     endgame: float | None = None) -> float:
     """The armed stop PRICE the parity width implies (peak-percent under
     the high) — the number the naked-hold mutant test asserts is ABOVE
-    the entry-protective floor. Percent off the peak, like the scanner."""
-    width = extension_trail_pct(entry, high, goal_pct, armed=True)
+    the entry-protective floor. Percent off the peak, like the scanner.
+    gf/endgame pass through for the ENFORCED shape (see
+    extension_trail_pct); the assertion is honest only under the factor
+    the machine actually rides."""
+    width = extension_trail_pct(entry, high, goal_pct, armed=True,
+                                gf=gf, endgame=endgame)
     return high * (1.0 - width / 100.0)

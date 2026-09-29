@@ -31,6 +31,20 @@ ROOT = Path(__file__).resolve().parent
 DIAL_FILE = ROOT / "exit_extension.dial.json"
 RUNS_DIR = ROOT / "artifacts" / "canary"
 
+# THE REPORT-DIR SEAM (the review's canary minor, landed with the
+# simulated-runs major): a what-if that reports into the REPO's real
+# artifacts/canary/ leaks synthetic run reports into live-machine
+# territory — the signoff tooling and the operator both read that
+# directory. The env override resolves LIVE (the STATE_ENV / COHORT_ENV
+# pattern), so a sandbox moves the reports with the rest of its state.
+RUNS_ENV = "CANARY_RUNS_DIR"
+
+
+def runs_dir() -> Path:
+    """The run-report directory, resolved NOW (never import-frozen)."""
+    explicit = os.environ.get(RUNS_ENV)
+    return Path(explicit) if explicit else RUNS_DIR
+
 CYCLES = 50
 WORST_LOSS_CAP = -0.10       # the loosening cap — a breach is a breach
 HIT_RATE_DRIFT = 0.10        # |rate2 - rate1| tolerance
@@ -299,8 +313,9 @@ def run_canary(cohort: list[str], rotation_seed: dict,
         record["status"] = "pass_continue" if arm else "pass_simulated"
         record["next"] = ("collect 24-72h, then request Ops + Product "
                           "sign-off (governance/adjustment_policy.md)")
-    RUNS_DIR.mkdir(parents=True, exist_ok=True)
-    rp = RUNS_DIR / f"{run_id}.json"
+    out_dir = runs_dir()
+    out_dir.mkdir(parents=True, exist_ok=True)
+    rp = out_dir / f"{run_id}.json"
     rp.write_text(json.dumps(record, indent=2), encoding="utf-8")
     record["report"] = str(rp)
     return record

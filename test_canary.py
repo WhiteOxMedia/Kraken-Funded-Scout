@@ -32,8 +32,11 @@ def check(name, ok, detail=""):
 _sbx = Path(tempfile.mkdtemp())
 _dial = _sbx / "exit_extension.dial.json"
 _cohort = _sbx / "auto_adjust_canary.json"
+_runs = _sbx / "runs"
 _real_dial_file = cr.DIAL_FILE
 _real_cohort_file = cr.COHORT_FILE
+_real_runs_env = os.environ.get(cr.RUNS_ENV)
+os.environ[cr.RUNS_ENV] = str(_runs)   # the reports ride the sandbox too
 cr.DIAL_FILE = _dial          # the module reads the module global
 cr.COHORT_FILE = _cohort      # the cohort rides its own file
 
@@ -122,7 +125,10 @@ try:
           and _cohort.read_text(encoding="utf-8") == _live_before
           and _cohort_doc().get("params", {}).get("alpha") == 0.03
           and _dial_doc() == {"EXIT_EXTENSION_ENABLED": "1"}
-          and rp.exists() and "sign-off" in rec.get("next", ""),
+          and rp.exists() and "sign-off" in rec.get("next", "")
+          and rp.is_relative_to(_runs)
+          and not (BASE / "artifacts" / "canary"
+                   / f"{rec['run_id']}.json").exists(),
           (rec["status"], rec.get("dial")))
 
     # THE SIMULATED BREACH: the cohort's payer-rate collapses in the
@@ -209,6 +215,10 @@ try:
 finally:
     cr.DIAL_FILE = _real_dial_file
     cr.COHORT_FILE = _real_cohort_file
+    if _real_runs_env is None:
+        os.environ.pop(cr.RUNS_ENV, None)
+    else:
+        os.environ[cr.RUNS_ENV] = _real_runs_env
     shutil.rmtree(_sbx, ignore_errors=True)
 
 fails = [r for r in results if not r[1]]

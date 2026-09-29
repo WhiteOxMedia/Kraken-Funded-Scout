@@ -939,6 +939,21 @@
         "canary_runner.py": "sha256:769c449841b4052dd9f476d9ae673cb1c7347a9a8c108096e99ccc87aa29c798",
         "test_canary.py": "sha256:b481b03da96373bd1d6c411373793e52765a8b844afe5ae2f6d8bcf9718c2a7c"
       }
+    },
+    "38-trail-parity-runsdir": {
+      "commits": [
+        "<this commit>"
+      ],
+      "branch_name": "master",
+      "date": "2026-09-29",
+      "title": "THE PARITY SHIM RIDES THE MACHINE FACTOR: EXTENSION_TRAIL_PCT SCALES WITH THE FINALIZED GUARD FACTOR, THE CANARY SANDBOX CARRIES ITS OWN REPORTS (Sep 29, trail-parity-runsdir)",
+      "detail": "The two recurring review families triaged against the code. (1) WINDOW-VS-TRAIL: the round-3/round-5 stop-height complaints were already closed (the seam suppresses the exit ACTION; the incumbent trail is the enforced stop), but the residual was real — extension_trail_pct, the parity shim the mutant test and the acceptance gate prove protection with, applied NO guard factor while the scanner enforced block scales the ratchet AND the armed cap by the finalized factor (plus the endgame multiplier on the ratchet): at GF=2 the machine enforced width 3.0 (stop 100.88) where the shim proved 1.5 (stop 102.44 — a stop the machine never enforces). The shim now takes gf/endgame (None = the factor-neutral studies posture), mirrors the enforced scaling exactly — the UNSCALED lock-window min() keeps the stop above entry + 2x RT under every factor, the factor decides WHERE the width binds — and pins 7.5/7.6 prove the GF=0.9168 tightening and the GF=2 stop delta. (2) CANARY SYNTHETIC-DATA ISOLATION: the state seam closed in 88ab18d (sim-only default, the live cohort doc byte-exact); the surviving leak was OUTPUT — RUNS_DIR was import-frozen, so every simulated and drive run littered the repo real artifacts/canary/ (the signoff tooling and the operator read that directory). runs_dir() resolves CANARY_RUNS_DIR live (the STATE_ENV/COHORT_ENV pattern), the drive carries its own reports dir, and the pin asserts the repo dir stays untouched. Drives: exit_extension 58 -> 60/0, canary 15/0, gate 22/0, hindsightapi 41/0, boundaryexam 35/0, trailstop 27/0.",
+      "checksums": {
+        "canary_runner.py": "sha256:d96d3093dd5cb2548e98d13a6034117f84ed994cd090c8101ee7964c2d912e9a",
+        "exit_extension.py": "sha256:4a3e861157ddf12121593827a1ace646e94348c06861f1218b62b75133deee2c",
+        "test_canary.py": "sha256:aba1c02ea4382de78a0e91a79a20c71e38ff4e46fcf51339061ed9b966f27b28",
+        "test_exit_extension.py": "sha256:59147bb69489a2100853471de81450eeb8c45b2e9a868a8d55e1809a2e5aa2c1"
+      }
     }
   }
 }
