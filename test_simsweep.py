@@ -111,6 +111,22 @@ for r in hist2:
 check("the grouping key dates bare windows (two days, two rotations — "
       "never merged)", len(_by) == 2, _by)
 
+# THE FOCUSED EXTRACT (the Sep-28 late checklist): 2x2 alpha/dmax at
+# the standing cap, worst single-book loss per cell — the enablement
+# read.
+fc = ss.focused_sweep(hist)
+check("the focused extract returns the 4 cells (2 alphas x 2 dmaxes) "
+      "at the standing cap",
+      len(fc) == 4
+      and {c["alpha"] for c in fc} == set(ss.FOCUSED_ALPHAS)
+      and {c["delta_max"] for c in fc} == set(ss.FOCUSED_DELTAS)
+      and all(c["daily_cap"] == ss.FOCUSED_CAP for c in fc), fc)
+check("the focused worst single-book loss is monotone in delta_max "
+      "(a wider cap never shrinks the worst loosening)",
+      [c for c in fc if c["alpha"] == 0.05][0]["worst_single_book_loss"]
+      <= [c for c in fc if c["alpha"] == 0.05 and c["delta_max"] == 0.05][0]
+      ["worst_single_book_loss"], fc)
+
 # the REAL history: the harness runs end-to-end on the live journals
 try:
     real_hist = ss.load_history(30)

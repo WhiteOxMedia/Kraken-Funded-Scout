@@ -46,6 +46,13 @@ R_MIN = 0.25
 BOX_ROTATIONS = 3
 BOOTSTRAP_N = 500
 
+# THE FOCUSED 24h EXTRACT (the Sep-28 late ask): alpha {0.03, 0.05} x
+# delta_max {0.05, 0.10}, daily cap at the standing default — the four
+# cells the operator reads before arming the canary.
+FOCUSED_ALPHAS = [0.03, 0.05]
+FOCUSED_DELTAS = [0.05, 0.10]
+FOCUSED_CAP = 0.20
+
 RECOMMENDED = {"alpha": 0.05, "delta_max": 0.10, "daily_cap": 0.20}
 
 
@@ -267,15 +274,52 @@ conservative defaults exist to stay out of both.</p>
     return out
 
 
+def focused_sweep(history: list[dict]) -> list[dict]:
+    """The 2x2 focused extract, worst single-book loss per cell — the
+    enablement read the checklist asks for before arming the canary."""
+    out = []
+    for alpha, dmax in itertools.product(FOCUSED_ALPHAS, FOCUSED_DELTAS):
+        res = replay(history, alpha, dmax, FOCUSED_CAP)
+        lo, hi = bootstrap_ci(res["applied"])
+        out.append({
+            "alpha": alpha, "delta_max": dmax,
+            "daily_cap": FOCUSED_CAP,
+            "net_delta": round(res["net_delta"], 4),
+            "ci_p5": round(lo, 4), "ci_p95": round(hi, 4),
+            "worst_single_book_loss": round(res["worst"], 4),
+            "applied_count": res["applied_count"],
+        })
+    return out
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--rotations", type=int, default=30)
     ap.add_argument("--out", default=str(ROOT / "artifacts" / "sim"
                                          / "reports"))
+    ap.add_argument("--focused", action="store_true",
+                    help="the 2x2 alpha/delta_max extract only")
     args = ap.parse_args()
     history = load_history(args.rotations)
-    cells = sweep(history)
     stamp = datetime.now().strftime("%Y-%m-%d")
+    if args.focused:
+        cells = focused_sweep(history)
+        payload = {"focused": True, "history": history,
+                   "cells": cells}
+        out = Path(args.out) / f"sensitivity_focused_{stamp}.json"
+        out.parent.mkdir(parents=True, exist_ok=True)
+        out.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+        print(f"focused extract: {len(cells)} cells, "
+              f"{sum(h['B'] for h in history)} burials")
+        for c in cells:
+            print(f"  alpha={c['alpha']} dmax={c['delta_max']}: "
+                  f"net {c['net_delta']:+.4f}, "
+                  f"worst single-book "
+                  f"{c['worst_single_book_loss']:+.4f}, "
+                  f"{c['applied_count']} applies")
+        print(f"json: {out}")
+        return 0
+    cells = sweep(history)
     out = Path(args.out) / f"sensitivity_{stamp}.html"
     write_report(cells, history, out)
     (out.parent / f"sensitivity_{stamp}.json").write_text(

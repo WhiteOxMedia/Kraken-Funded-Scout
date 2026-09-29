@@ -2520,6 +2520,19 @@ def _band_txt() -> str:
 # nothing is written, the scanner's live cache is never locked out.
 # Deduped to DISTINCT candidates (first refusal per pair per rotation —
 # the funnel re-records the same refusal every scan).
+#
+# THE FILL MODEL (Sep 28 late ask: peaks overstate realized P&L —
+# they ignore spread, fees, and fill probability). The panel prices
+# BOTH and shows the gap: the entry pays half the spread above the
+# pre-refusal close, the peak sale gives back half below, the
+# round-trip fee comes off the top, and a candidate whose peak never
+# clears the round-trip cost captures ZERO. ALPHA then scales by the
+# modeled capture ratio (auto_adjust.scale_alpha_for_fills) — the
+# rule learns from fills, not from chart highs.
+SPREAD = 0.001           # 10 bps full spread, half paid on each side
+FEE_RT_PCT = 0.26        # taker round trip in % (2 x 0.13%)
+FILL_CAPTURE_FLOOR = 0.10
+
 def _burial_hindsight(
         limit: int = 400) -> dict:
     """The burial hindsight over recent suppressed candidates, through
@@ -2528,7 +2541,9 @@ def _burial_hindsight(
     carries PAYERS ONLY (run >= the 1.5% goal): a dud never headlines
     the ones that ran."""
     out = {"n": 0, "payers15": 0, "payers30": 0, "rate15": 0.0,
-           "by_gate": [], "top": [], "hours": 7, "goal": 1.5}
+           "by_gate": [], "top": [], "hours": 7, "goal": 1.5,
+           "fill_model": {"spread": SPREAD, "fee_rt_pct": FEE_RT_PCT,
+                          "capture_floor": FILL_CAPTURE_FLOOR}}
     try:
         import json
         import sqlite3
@@ -2564,10 +2579,17 @@ def _burial_hindsight(
                     "AND ts<=?", (r["pair"], t_ms, end_ms)).fetchone()
                 if not pre or not pre[0] or not hi or not hi[0]:
                     continue
+                peak = (float(hi[0]) / float(pre[0]) - 1.0) * 100.0
+                fill_entry = float(pre[0]) * (1.0 + SPREAD * 0.5)
+                fill_exit = float(hi[0]) * (1.0 - SPREAD * 0.5)
+                fill = (fill_exit / fill_entry - 1.0) * 100.0 - FEE_RT_PCT
                 stats.append({
                     "pair": str(r["pair"]), "gate": str(r.get("gate") or "?"),
                     "quick": r.get("quick"),
-                    "run": (float(hi[0]) / float(pre[0]) - 1.0) * 100.0,
+                    "run": peak,
+                    "fill_run": round(max(fill, 0.0), 2),
+                    "capture": round(max(fill, 0.0) / peak, 2)
+                    if peak > 0 else 0.0,
                     "at": r["ts"][11:16] if isinstance(r.get("ts"), str)
                           else ""})
             n = len(stats)
@@ -2591,8 +2613,19 @@ def _burial_hindsight(
                     del g["runs"]
                 out["by_gate"] = sorted(by_gate.values(),
                                         key=lambda g: (-g["pay"], -g["rate"]))
+                # THE TOP 10 (the Sep-28 late ask: Ops decides targeted
+                # manual replays from the worst missed opportunities,
+                # not the top 5): payers only, fill-adjusted — spread
+                # and fees priced in, a round-trip-to-nowhere shows 0.
                 out["top"] = sorted((s for s in stats if s["run"] >= 1.5),
-                                    key=lambda s: -s["run"])[:5]
+                                    key=lambda s: -s["run"])[:10]
+                out["fill_model"] = {
+                    "median_capture": round(sum(
+                        s["capture"] for s in stats if s["run"] >= 1.5)
+                        / max(1, sum(1 for s in stats
+                                     if s["run"] >= 1.5)), 2),
+                    "spread": SPREAD, "fee_rt_pct": FEE_RT_PCT,
+                    "capture_floor": FILL_CAPTURE_FLOOR}
         finally:
             con.close()
     except Exception as exc:
@@ -2615,8 +2648,9 @@ def _render_burial_hindsight() -> None:
             return
         n = h["n"]
         with st.expander(
-                f"🪦 BURIAL HINDSIGHT — did the gates' refusals cost money? "
-                f"({n} recent candidates priced against the next 7h)",
+                f"🪦 BURIAL HINDSIGHT — did the gates' refusals cost "
+                f"money? ({n} recent candidates priced against the next "
+                f"7h) — these 10 cost the most (fill-adjusted)",
                 key="burial_hindsight_expander"):
             st.markdown(
                 f"<div style='font-family:Share Tech Mono,monospace;"
@@ -2639,17 +2673,21 @@ def _render_burial_hindsight() -> None:
                     f"<div style='font-family:Share Tech Mono,monospace;"
                     f"font-size:12px;color:#d8ccb4;'>"
                     f"{s['at']} {s['pair']:<12} {s['gate']:<18} "
-                    f"quick {s['quick']} → +{s['run']:.1f}% in 7h</div>"
+                    f"quick {s['quick']} → +{s['run']:.1f}% in 7h "
+                    f"(fill {s['fill_run']:+.1f}% captured)</div>"
                     for s in h["top"])
                 st.markdown(
                     "<div style='padding:2px 0;'><span class='dim' "
                     "style='font-size:11px;'>the ones the gates buried "
                     "that ran:</span></div>" + tops,
                     unsafe_allow_html=True)
-            st.caption("read-only: the same join the verdict study uses "
-                       "(entry = last close before the refusal, run = max "
-                       "high within 7h; a max-run peak, not a fill; top "
-                       "rows are payers only) — refreshes every 2 min")
+            st.caption(
+                "read-only: the same join the verdict study uses (entry = "
+                "last close before the refusal, run = max high within 7h; "
+                "a max-run peak, not a fill) — top rows are PAYERS ONLY, "
+                "fill-adjusted: spread, round-trip fee, and zero capture "
+                "under the floor priced in (alpha scales by the modeled "
+                "capture ratio) — refreshes every 2 min")
     except Exception as exc:
         logger.debug("burial hindsight panel skipped: %s", exc)
 

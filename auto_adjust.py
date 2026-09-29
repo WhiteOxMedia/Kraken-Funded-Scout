@@ -48,6 +48,20 @@ CONCENTRATION_MAX = 0.5
 
 MIN_GF, MAX_GF = 0.5, 2.0   # profit_guard.GUARD_CLAMP, restated for the clamp
 
+# THE FILL-HONESTY COUPLING (Sep 28 late ask: peaks overstate realized
+# P&L). The console panel prices both (app.SPREAD/FEE_RT_PCT) and this
+# module scales ALPHA by the modeled capture ratio, floored — a rotation
+# whose payers were chart highs the book could never have filled learns
+# proportionally LESS.
+FILL_CAPTURE_FLOOR = 0.10
+
+def scale_alpha_for_fills(alpha: float, capture_ratio: float) -> float:
+    """The fill-adjusted alpha: peaks that are 60% real pay 60% of the
+    nudge. The floor keeps a terrible-model rotation from widening the
+    guard to zero — conservative direction, always."""
+    c = max(FILL_CAPTURE_FLOOR, min(1.0, float(capture_ratio or 0.0)))
+    return alpha * c
+
 EVIDENCE_DIR = ROOT / "artifacts" / "auto_adjust"
 
 
