@@ -505,6 +505,23 @@
       "results": "the clobber class is a PERMANENT TRIPWIRE: every production writer of a governed state file is inventoried by AST (both repos), frozen in a registry, and enforced",
       "acceptance": true,
       "notes": "THE TRIPWIRE (the cross-writer sweep's endgame): diag_statewriters inventories every production writer of every governed state file (kraken_scout + bot sibling) by AST - module constants, one-hop derivation helpers, unit-local tmp bindings at any depth, with-bindings, positional path attribution (a data payload never drags a helper file into the attribution), read-mode opens never writers, full paths normalized to basenames - and FAILS on: R1 an unregistered (file, writer) pair (new writer: join the registry with a note, or the repo refuses), R1b a registry ghost (a rename must update it), R2 a non-atomic save (tmp + os.replace missing), R3 a merge-file writer that pops the dict it saves with no None-guard (pop-then-merge resurrects deleted rows). SELF-TESTS FIRST: fixtures (good writer / bypasser / popper / clean merger) prove the scanner judges itself - a tripwire that cannot trip is decoration. THE INVENTORY EXPOSED FOUR REAL BYPASSERS, ALL FIXED: add_xrp_watch and set_bnb_size (whole-file non-atomic contest_watch writes - now merge-read + tombstone-aware + atomic), clean_expired_blacklist (non-atomic execution_state write - now atomic + .bak), app._save_console_state and the payout-track write (both non-atomic - now atomic). The frozen census: 14 production writers across 9 governed files, ALL ATOMIC, zero unregistered, zero poppers. Drive 9/0; apptest 301/0."
+    },
+    "17-two-file-canary": {
+      "commits": ["<this commit>"],
+      "branch_name": "master (gated commits)",
+      "commands_run": ["uv run python -X utf8 test_canary.py", "uv run python -X utf8 test_hindsightapi.py", "uv run python -X utf8 test_exit_extension.py", "uv run python -X utf8 diag_statewriters.py", "live migration: cr.rollback() then cr.flip_canary(canary-20260928_225950)"],
+      "artifacts": [
+        {"path": "canary_runner.py", "sha256": "sha256:aa9f6194f9494fa0e3fe90a06fbbed34721b71e94b71078cd3769f2c7cffc036"},
+        {"path": "exit_extension.py", "sha256": "sha256:ee4b31d6dc4d1b4435f5963af931884075d839b580d0e8f41edd5ef39e92c8eb"},
+        {"path": "test_canary.py", "sha256": "sha256:6ca1de78b82656b1bfec68c156848a3d8968fd6cba54b89954312483e4c9b7cd"},
+        {"path": "test_hindsightapi.py", "sha256": "sha256:107db3ad94037ff377eff86bd6b29a3ee3e994744cfbe1484744571072909c53"},
+        {"path": "diag_statewriters.py", "sha256": "sha256:be95bc99ae009b9a3bad6ad92aa5e5e83edb608f73aaeac8f7e225620beaca26"},
+        {"path": "governance/adjustment_policy.md", "sha256": "sha256:029e2e9ff2f03a3bd68c9da41724c30b2a3ab08d99c393bcde694c8448e50f7b"}
+      ],
+      "tests_run": ["canary 13/0", "hindsightapi 36/0", "exit_extension 55/0", "diag_statewriters 9/0"],
+      "results": "the canary cohort arms on ITS OWN state file - arming or rolling back the cohort can never silently disable the exit-extension feature",
+      "acceptance": true,
+      "notes": "THE TWO-FILE DESIGN (the structural fix the reviews kept circling): canary_runner gains COHORT_FILE = auto_adjust_canary.json - flip_canary arms the cohort THERE (the exit-extension dial file is never opened for writing: a flip cannot clobber the feature master because it cannot touch the file at all); rollback stops the cohort on its own file (disarmed + cleared_cohort) and strips the legacy parked keys from the dial WITHOUT rewriting the master value; read_dial is the compat reader (canary when the cohort file is armed, else the master's own value); the hook reads the cohort file through the AUTO_ADJUST_CANARY_FILE env seam - exit-extension dials are NEVER consulted, so the boundary path is structurally independent of the feature master. The drive proves the sharpest consequence: after a cohort rollback, an operator's own master arm '1' SURVIVES byte-exact. LIVE MIGRATION executed on the machine: rollback de-contaminated the parked keys (dial file now holds ONLY the master key, value untouched), flip re-armed cohort canary-20260928_225950 on the new file - the boundary hook is live again via the cohort file. The cohort file is gitignored (live machine state, not a deployment). The state-writer tripwire registers both new writers (flip/rollback, inline IO so the census sees them) and the governance policy names the two-file rule. canary 13/0, hindsightapi 36/0, exit_extension 55/0, diag 9/0."
     }
   }
 }

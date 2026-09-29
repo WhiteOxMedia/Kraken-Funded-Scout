@@ -323,22 +323,30 @@ try:
               _r0 == {"evaluated": False, "reason": "canary_dial_off"}
               and not _hook_tel.exists()
               and not (_sbx / "scanner_state.json").exists(), _r0)
-        # arm the cohort via the runner's flip (the seam-moved dial)
+        # arm the cohort via the runner's flip — the cohort's OWN file
+        # (the two-file design): the dial file is never created or
+        # written, and the hook reads the cohort file through the env seam
         import canary_runner as _cr2
-        _real_cr_dial = _cr2.DIAL_FILE
+        _sbx_cohort = _sbx / "auto_adjust_canary.json"
+        _real_cr_dial, _real_cr_cohort = _cr2.DIAL_FILE, _cr2.COHORT_FILE
+        _real_env_cohort = _os_hook.environ.get("AUTO_ADJUST_CANARY_FILE")
         _cr2.DIAL_FILE = _sbx_dial
+        _cr2.COHORT_FILE = _sbx_cohort
+        _os_hook.environ["AUTO_ADJUST_CANARY_FILE"] = str(_sbx_cohort)
         try:
             _flip = _cr2.flip_canary("canary-boundary-1")
-            _dial_doc = json.loads(_sbx_dial.read_text(encoding="utf-8"))
-            check("the flip sets the DEDICATED canary key (the feature "
-                  "master EXIT_EXTENSION_ENABLED is never clobbered — "
-                  "the reuse major stays closed)",
+            _cohort_doc = json.loads(_sbx_cohort.read_text(encoding="utf-8"))
+            check("the flip arms the cohort's OWN file and never touches "
+                  "the exit-extension dial file (two controls, two files)",
                   _flip["dial"] == "canary"
-                  and _dial_doc.get("AUTO_ADJUST_CANARY")
-                  == "canary-boundary-1"
-                  and "EXIT_EXTENSION_ENABLED" not in _dial_doc, _dial_doc)
+                  and _cohort_doc.get("cohort_id") == "canary-boundary-1"
+                  and not _sbx_dial.exists(), _cohort_doc)
         finally:
-            _cr2.DIAL_FILE = _real_cr_dial
+            _cr2.DIAL_FILE, _cr2.COHORT_FILE = _real_cr_dial, _real_cr_cohort
+            if _real_env_cohort is None:
+                _os_hook.environ.pop("AUTO_ADJUST_CANARY_FILE", None)
+            else:
+                _os_hook.environ["AUTO_ADJUST_CANARY_FILE"] = _real_env_cohort
         # THE BOUNDARY: the completed rotation evaluates with every
         # rail live (concentration gate, cap, evidence, ledger)
         _r1 = _exx_mod.aa_apply_silent_rotation("ROT-1", supp_path=sup,
@@ -386,25 +394,36 @@ try:
         check("the scanner calls the hook per tick (every tick self-heals "
           "a missed boundary — the dedupe is by stamp, not by cadence)",
               "_exx.aa_apply_silent_rotation(_wk)" in _bs_src_hook, "")
-        # the rollback leg: legacy junk on the feature master is
-        # de-contaminated to the documented OFF (the reuse major's tail)
+        # the rollback leg: the cohort's own stop — the dial file's
+        # master value is NEVER rewritten; only the legacy parked keys
+        # are stripped (one migration window)
         import canary_runner as _cr3
-        _real_cr3_dial = _cr3.DIAL_FILE
+        _real_cr3_dial, _real_cr3_cohort = _cr3.DIAL_FILE, _cr3.COHORT_FILE
         _cr3.DIAL_FILE = _sbx_dial
+        _cr3.COHORT_FILE = _sbx_cohort
+        _os_hook.environ["AUTO_ADJUST_CANARY_FILE"] = str(_sbx_cohort)
         try:
             _sbx_dial.write_text(json.dumps(
-                {"EXIT_EXTENSION_ENABLED": "canary"}), encoding="utf-8")
+                {"EXIT_EXTENSION_ENABLED": "canary",
+                 "AUTO_ADJUST_CANARY": "legacy-junk",
+                 "cohort_id": "legacy-junk"}), encoding="utf-8")
             _r3 = _cr3.rollback()
             _after = json.loads(_sbx_dial.read_text(encoding="utf-8"))
-            check("the rollback clears the cohort key and stops the "
-                  "machine (a legacy 'canary' junk on the master is "
-                  "de-contaminated to the documented OFF)",
+            _cdoc = json.loads(_sbx_cohort.read_text(encoding="utf-8"))
+            check("the rollback stops the COHORT on its own file and "
+                  "strips the legacy parked keys from the dial WITHOUT "
+                  "rewriting the master value (the feature is never "
+                  "silently disabled by a cohort rollback)",
                   _r3["rolled_back"] is True
-                  and _after.get("AUTO_ADJUST_CANARY") is None
-                  and _after.get("EXIT_EXTENSION_ENABLED") == "0",
-                  _after)
+                  and _cdoc.get("disarmed") is True
+                  and _cr3.read_cohort() == ""
+                  and "AUTO_ADJUST_CANARY" not in _after
+                  and "cohort_id" not in _after
+                  and _after.get("EXIT_EXTENSION_ENABLED") == "canary",
+                  (_r3, _cdoc, _after))
         finally:
-            _cr3.DIAL_FILE = _real_cr3_dial
+            _cr3.DIAL_FILE, _cr3.COHORT_FILE = _real_cr3_dial, _real_cr3_cohort
+            _os_hook.environ.pop("AUTO_ADJUST_CANARY_FILE", None)
     finally:
         _ta_mod.TELEMETRY_PATH = _real_hook[1]
         _bs_hook.__file__ = _real_hook[2]

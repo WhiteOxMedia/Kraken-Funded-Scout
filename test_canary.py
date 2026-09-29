@@ -22,11 +22,15 @@ def check(name, ok, detail=""):
     results.append((name, bool(ok), detail))
 
 
-# ── the sandbox: the dial file moved via the machine's env override ──
+# ── the sandbox: BOTH files moved (the two-file design) — the dial
+# file via the module global, the cohort file beside it ──────────────
 _sbx = Path(tempfile.mkdtemp())
 _dial = _sbx / "exit_extension.dial.json"
+_cohort = _sbx / "auto_adjust_canary.json"
 _real_dial_file = cr.DIAL_FILE
+_real_cohort_file = cr.COHORT_FILE
 cr.DIAL_FILE = _dial          # the module reads the module global
+cr.COHORT_FILE = _cohort      # the cohort rides its own file
 
 
 def _dial_doc():
@@ -36,17 +40,40 @@ def _dial_doc():
         return {}
 
 
+def _cohort_doc():
+    try:
+        return json.loads(_cohort.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+
+
 try:
-    # the flip: canary mode announces the cohort
+    # THE TWO-FILE CONTRACT (the structural fix): the flip arms the
+    # cohort file; the exit-extension dial file is NEVER created or
+    # written — arming the canary cannot silently disable the feature
+    # because the controls no longer share a file.
     flipped = cr.flip_canary("canary-1")
-    doc = _dial_doc()
-    check("the flip writes the DEDICATED canary key with the cohort id "
-          "(the feature master EXIT_EXTENSION_ENABLED is never clobbered "
-          "— the reuse major stays closed)",
+    cdoc = _cohort_doc()
+    check("the flip arms the cohort on ITS OWN file (cohort id + armed "
+          "at), and the exit-extension dial file is NEVER touched",
           flipped["dial"] == "canary"
-          and doc.get("AUTO_ADJUST_CANARY") == "canary-1"
-          and doc.get("cohort_id") == "canary-1"
-          and "EXIT_EXTENSION_ENABLED" not in doc, doc)
+          and cdoc.get("cohort_id") == "canary-1"
+          and cdoc.get("armed_at")
+          and not _dial.exists(), (cdoc, _dial.exists()))
+    check("read_dial reports canary from the cohort file while the "
+          "dial file stays untouched",
+          cr.read_dial() == "canary" and not _dial.exists(),
+          (cr.read_dial(), _dial.exists()))
+    # an operator arm on the feature master coexists: the flip preserves
+    # the dial file byte-exact (nothing writes it)
+    _dial.write_text(json.dumps({"EXIT_EXTENSION_ENABLED": "1"}),
+                     encoding="utf-8")
+    cr.flip_canary("canary-2")
+    check("an operator '1' on the feature master survives a cohort flip "
+          "byte-exact (two controls, two files)",
+          _dial_doc() == {"EXIT_EXTENSION_ENABLED": "1"}
+          and _cohort_doc().get("cohort_id") == "canary-2",
+          (_dial_doc(), _cohort_doc()))
     check("the dial reads back through the machine's reader",
           cr.read_dial() == "canary", cr.read_dial())
 
@@ -82,11 +109,13 @@ try:
     rec2 = cr.run_canary(cohort, {"B": 12, "r": 0.45}, cycles=30,
                          seed=11,
                          breach_injection={"second_half_P": 0})
-    check("the breach run rolls the dial back OFF (the spec's rollback "
-          "command, in the machine's form)",
+    check("the breach run stops the COHORT (the operator's own master "
+          "arm '1' SURVIVES — a cohort rollback never silently disables "
+          "the exit-extension feature; that is the two-file point)",
           rec2["status"] == "rolled_back"
           and rec2["rollback"]["rolled_back"] is True
-          and cr.read_dial() == "0", (rec2["status"], cr.read_dial()))
+          and cr.read_cohort() == ""
+          and cr.read_dial() == "1", (rec2["status"], cr.read_dial()))
     check("the breach evaluation names its reasons (a breach is never "
           "a bare boolean)",
           rec2["evaluation"]["breach"]
@@ -99,12 +128,20 @@ try:
 
     # a fresh flip after the rollback (the operator re-arms cleanly)
     cr.flip_canary("canary-2")
-    check("the operator re-arms a new cohort after a rollback",
-          _dial_doc().get("cohort_id") == "canary-2"
-          and cr.read_dial() == "canary", _dial_doc())
+    check("the operator re-arms a new cohort after a rollback (on the "
+          "cohort file — the dial file still byte-exact)",
+          _cohort_doc().get("cohort_id") == "canary-2"
+          and cr.read_dial() == "canary"
+          and _dial_doc() == {"EXIT_EXTENSION_ENABLED": "1"},
+          (_cohort_doc(), _dial_doc()))
     rb = cr.rollback()
-    check("the explicit rollback command works standalone",
-          rb["rolled_back"] and cr.read_dial() == "0", rb)
+    check("the explicit rollback stops the COHORT (the dial file and "
+          "the operator's own master arm are never touched)",
+          rb["rolled_back"] and rb.get("cohort") == "disarmed"
+          and cr.read_cohort() == ""
+          and cr.read_dial() == "1"
+          and _dial_doc() == {"EXIT_EXTENSION_ENABLED": "1"},
+          (rb, cr.read_dial(), _dial_doc()))
 
     # the evaluate honors the worst-loss cap independently
     ev_cap = cr.evaluate(cyc, prior_band=(0.0, 0.0), worst_cap=-0.001)
@@ -115,6 +152,7 @@ try:
           ev_cap["reasons"])
 finally:
     cr.DIAL_FILE = _real_dial_file
+    cr.COHORT_FILE = _real_cohort_file
     shutil.rmtree(_sbx, ignore_errors=True)
 
 fails = [r for r in results if not r[1]]

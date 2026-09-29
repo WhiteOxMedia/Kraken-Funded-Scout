@@ -25,7 +25,10 @@ task-5 sweep's recommended cell) and not to be tuned by feel.
 2. CANARY — the change rides a cohort (`canary_runner.flip_canary`),
    minimum 24h AND >= 50 cycles, thresholds per the canary runner.
    A breach auto-rolls back and returns to PROPOSED with the run
-   report attached.
+   report attached. The cohort arms on ITS OWN file
+   (`auto_adjust_canary.json`) — a cohort arm or rollback can never
+   silently disable (or re-enable) the exit-extension feature;
+   stopping the feature stays the operator's own dial action.
 3. SIGN-OFF — Ops AND Product (one human each, named in the ticket).
    No sign-off, no full fleet; the dial (`exit_extension.dial.json`)
    is the gate between canary and full.

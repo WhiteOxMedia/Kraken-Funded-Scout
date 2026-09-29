@@ -54,11 +54,28 @@ ROOT = Path(__file__).resolve().parent
 
 # ── the dials (LIVE reads, SCHEDULER-style) ──────────────────────────
 ENABLED_KEY = "EXIT_EXTENSION_ENABLED"
-# THE AUTO-ADJUST CANARY'S OWN DIAL KEY (the review's reuse major,
-# closed): the cohort marker rides its own key — the feature master is
-# never clobbered by a flip and 'canary' on the master never arms this
-# path. Must match canary_runner.AA_CANARY_KEY (pinned in the drive).
-AA_CANARY_DIAL_KEY = "AUTO_ADJUST_CANARY"
+# THE AUTO-ADJUST CANARY READS ITS OWN FILE (the two-file design, Sep
+# 28): the cohort marker lives in auto_adjust_canary.json — arming or
+# rolling back the cohort never touches the exit-extension dial file,
+# so a cohort operation can never silently disable (or re-enable) the
+# feature. COHORT_ENV is the sandbox seam (the STATE_ENV pattern). Must
+# match canary_runner.COHORT_FILE (pinned in the drive).
+AA_COHORT_ENV = "AUTO_ADJUST_CANARY_FILE"
+AA_COHORT_FILE = "auto_adjust_canary.json"
+
+
+def _aa_cohort() -> str:
+    """The armed cohort id, '' = disarmed: env first (sandbox-safe),
+    then the cohort file. Exit-extension dials are NEVER consulted."""
+    explicit = os.environ.get(AA_COHORT_ENV)
+    path = Path(explicit) if explicit else dial_file().parent / AA_COHORT_FILE
+    try:
+        doc = json.loads(path.read_text(encoding="utf-8"))
+        if isinstance(doc, dict) and str(doc.get("cohort_id", "") or ""):
+            return str(doc["cohort_id"])
+    except (OSError, ValueError):
+        pass
+    return ""
 HOURS_KEY = "EXIT_EXTENSION_HOURS"
 DAILY_CAP_KEY = "EXIT_EXTENSION_MAX_PER_DAY"
 AGE_GATE_KEY = "EXIT_EXTENSION_MIN_AGE_MIN"
@@ -163,10 +180,11 @@ def aa_apply_silent_rotation(
     from per_gate_export import DEFAULT_GOAL_PCT as _DP
     if goal_pct is None:
         goal_pct = float(_DP)
-    # THE GATE (the canary runner's own dial key — the machine stays
-    # OFF for the book while the cohort is announced; a bare 'canary'
-    # on the feature master NEVER arms this path)
-    cohort = str(_dial(AA_CANARY_DIAL_KEY, "") or "")
+    # THE GATE (the cohort's OWN file — the machine stays OFF for the
+    # book while the cohort is armed; the exit-extension dials are
+    # never consulted, so this path is structurally independent of the
+    # feature master)
+    cohort = _aa_cohort()
     if not cohort:
         return {"evaluated": False, "reason": "canary_dial_off"}
     # THE WATERMARK: scanner_state.json carries the last EVALUATED

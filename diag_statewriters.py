@@ -50,6 +50,12 @@ REGISTRY: dict[tuple[str, str], dict] = {
         "note": "operator one-shot; merge-read, atomic, tombstone-aware"},
     ("profit_guard_state.json", "profit_guard._save"): {
         "merge": True, "note": "owner-keys merge-save + atomic"},
+    ("auto_adjust_canary.json", "canary_runner.flip_canary"): {
+        "note": "THE COHORT'S OWN FILE (the two-file design): arming the "
+                "canary never touches the exit-extension dial"},
+    ("auto_adjust_canary.json", "canary_runner.rollback"): {
+        "note": "the cohort's own stop; strips legacy parked keys from "
+                "the dial WITHOUT rewriting the master value"},
     ("meta_layers_state.json", "meta_layers._save"): {
         "merge": True, "note": "merge-save with _SAVE_DROPS + atomic"},
     ("scanner_state.json", "background_scanner._save_scanner_state"): {

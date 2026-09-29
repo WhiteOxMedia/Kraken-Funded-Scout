@@ -48,75 +48,106 @@ def _commit_sha() -> str:
     return "unknown"
 
 
-# ── the dial (the machine's real operator surface) ──────────────────
-def read_dial(doc: dict | None = None) -> str:
-    """The canary-state reader: the DEDICATED cohort key set = 'canary'
-    (the feature master is never consulted for the cohort); otherwise
-    the master's own value. A bare 'canary' left on the master by the
-    old reuse reads as junk, not as a cohort."""
+# ── THE TWO-FILE DESIGN (the structural fix, Sep 28): the canary
+# cohort gets its OWN state file — arming or rolling back the cohort
+# can NEVER touch the exit-extension feature master, because the two
+# controls no longer share a file (or a key, or a write). The dial
+# remains the operator's feature surface alone.
+COHORT_FILE = ROOT / "auto_adjust_canary.json"
+
+
+def _read_json(path: Path) -> dict:
+    try:
+        doc = json.loads(path.read_text(encoding="utf-8"))
+        return doc if isinstance(doc, dict) else {}
+    except (OSError, ValueError):
+        return {}
+
+
+def _write_atomic(path: Path, doc: dict) -> None:
+    """ATOMIC (the round-2 cross-writer sweep): tmp + os.replace — a
+    torn write is never readable by the live readers. NOTE: the
+    state-writer tripwire attributes writes per-unit, so the cohort's
+    writers (flip/rollback) inline their IO — a write hidden behind a
+    path parameter is a write the census cannot see."""
+    import os
+    tmp = str(path) + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as fh:
+        json.dump(doc, fh, indent=2)
+    os.replace(tmp, path)
+
+
+def read_cohort(doc: dict | None = None) -> str:
+    """The armed cohort id from the cohort's OWN file; '' = disarmed."""
     if doc is None:
-        try:
-            doc = json.loads(DIAL_FILE.read_text(encoding="utf-8"))
-        except (OSError, ValueError):
-            doc = {}
-    if str(doc.get(AA_CANARY_KEY, "") or ""):
+        doc = _read_json(COHORT_FILE)
+    return str(doc.get("cohort_id", "") or "")
+
+
+def read_dial(doc: dict | None = None) -> str:
+    """Compat reader: 'canary' when the cohort file is armed; otherwise
+    the exit-extension master's own value, read (never written) from
+    the dial file."""
+    if read_cohort():
         return "canary"
-    return str(doc.get("EXIT_EXTENSION_ENABLED", "0"))
+    dial = doc if doc is not None else _read_json(DIAL_FILE)
+    return str(dial.get("EXIT_EXTENSION_ENABLED", "0"))
 
 
 def _write_dial(doc: dict) -> None:
-    """ATOMIC (the round-2 cross-writer sweep): the dial file was a
-    bare write_text — a torn write lands between the ticks that read
-    it live, and the reader degrades a half-file to defaults while an
-    arm or a ROLLBACK is mid-flight. tmp + os.replace: the scanner's
-    live read always sees whole old or whole new."""
-    import os
-    tmp = str(DIAL_FILE) + ".tmp"
-    with open(tmp, "w", encoding="utf-8") as fh:
-        json.dump(doc, fh, indent=2)
-    os.replace(tmp, DIAL_FILE)
+    """ATOMIC; LEGACY USE ONLY — the cohort never rides the dial file
+    anymore, so the only dial write left is rollback's one-window
+    de-contamination of the old parked keys (master preserved)."""
+    _write_atomic(DIAL_FILE, doc)
 
 
-# THE DEDICATED CANARY DIAL KEY (the isolated review's major, closed):
-# the feature master (EXIT_EXTENSION_ENABLED) is the machine's own arm
-# switch and is NEVER reused as a cohort marker — 'canary' meant OFF to
-# the reader but silently clobbered the operator's real value on flip.
-# The cohort rides its own key; the master is preserved byte-exact.
+# THE LEGACY KEY NAME (one migration window): the old single-file
+# design parked the cohort on the dial file — the de-contamination pass
+# in rollback strips these leftovers WITHOUT ever writing the master.
 AA_CANARY_KEY = "AUTO_ADJUST_CANARY"
 
 
 def flip_canary(cohort_id: str, doc: dict | None = None) -> dict:
-    """watch_extension.enabled = canary: the machine stays OFF for the
-    book but announces the cohort the runner is watching."""
-    if doc is None:
-        doc = {}
-    if DIAL_FILE.exists() and doc == {}:
-        try:
-            doc = json.loads(DIAL_FILE.read_text(encoding="utf-8"))
-        except (OSError, ValueError):
-            doc = {}
-    doc.update({AA_CANARY_KEY: cohort_id,   # the machine key — the
-                "cohort_id": cohort_id})    # master is NEVER touched
-    _write_dial(doc)
+    """Arm the cohort on ITS OWN file. The exit-extension dial file is
+    never opened for writing here — a flip cannot clobber the feature
+    master because it cannot touch the file at all. The IO is INLINE
+    (the state-writer tripwire attributes writes per-unit; a write
+    behind a path parameter is invisible to the census)."""
+    cur = doc if doc is not None else _read_json(COHORT_FILE)
+    cur.update({"cohort_id": cohort_id,
+                "armed_at": datetime.now().astimezone().isoformat()})
+    import os
+    tmp = str(COHORT_FILE) + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as fh:
+        json.dump(cur, fh, indent=2)
+    os.replace(tmp, COHORT_FILE)
     return {"dial": "canary", "cohort_id": cohort_id}
 
 
 def rollback(feature_doc: dict | None = None) -> dict:
-    """THE ROLLBACK: the dial OFF. Live-read per tick — no restart, no
-    pids. Returns the event for the run report."""
-    if feature_doc is None:
-        feature_doc = {}
-    if DIAL_FILE.exists() and feature_doc == {}:
-        try:
-            feature_doc = json.loads(
-                DIAL_FILE.read_text(encoding="utf-8"))
-        except (OSError, ValueError):
-            feature_doc = {}
-    feature_doc["EXIT_EXTENSION_ENABLED"] = "0"
-    feature_doc.pop("cohort_id", None)
-    feature_doc.pop(AA_CANARY_KEY, None)   # the cohort rides its own key
-    _write_dial(feature_doc)
-    return {"rolled_back": True, "dial": "0",
+    """THE ROLLBACK — the cohort's own stop: the cohort file goes to
+    disarmed and NOTHING else is written. The exit-extension feature
+    master lives on ITS OWN file and is never touched (a cohort
+    rollback can never silently disable the exit extension; stopping
+    the extension stays the operator's own dial action). One migration
+    window: legacy cohort keys parked on the old dial file are stripped
+    WITHOUT writing the master value."""
+    cleared = read_cohort(feature_doc) if feature_doc is not None \
+        else read_cohort()
+    import os
+    tmp = str(COHORT_FILE) + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as fh:
+        json.dump({"disarmed": True,
+                   "cleared_cohort": cleared,
+                   "at": datetime.now().astimezone().isoformat()},
+                  fh, indent=2)
+    os.replace(tmp, COHORT_FILE)
+    dial = _read_json(DIAL_FILE)
+    if AA_CANARY_KEY in dial or "cohort_id" in dial:
+        dial.pop(AA_CANARY_KEY, None)
+        dial.pop("cohort_id", None)     # the master key is untouched
+        _write_dial(dial)
+    return {"rolled_back": True, "dial": "0", "cohort": "disarmed",
             "at": datetime.now().astimezone().isoformat()}
 
 
