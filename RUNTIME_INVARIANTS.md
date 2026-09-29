@@ -76,6 +76,26 @@ fifth joined).
   drift this convention prevents. Both exist because pins rot quietly —
   see manifest task 35 for the precedent.
 
+## The canary cohort guard (the three-review family, closed)
+
+`auto_adjust_canary.json` is the RUNNING MACHINE's armed cohort — the
+auto-adjust gate reads it live per rotation boundary. It is runtime
+state: never committed, never stashed, and never written by a drill.
+The guard, in `canary_runner.run_canary`:
+
+- **Default is simulation** (`arm=False`): no flip, no rollback — a
+  what-if touches nothing (the four-review major, closed 88ab18d).
+- **`arm=True` REFUSES the live cohort** (`CanaryArmRefused`) unless
+  `arm_confirm=True`: the guard compares `cohort_file().resolve()`
+  (the `AUTO_ADJUST_CANARY_FILE` seam) against
+  `RUNTIME_COHORT_FILE.resolve()` — a staging sandbox moves the seam
+  and sails through; a deliberate live re-arm must say so and is
+  stamped `armed_live_cohort: true` in the run report (45dd456+).
+- Production arming stays `ops/canary_enable` → `flip_canary(params=…)`.
+
+Pinned red-first-in-spirit in `test_canary.py` (the refusal leg runs
+BEFORE any sandbox rebinding).
+
 ## Arming the hook (fresh clones)
 
 The pre-commit hook is **versioned at `hooks/pre-commit`** and survives

@@ -70,6 +70,20 @@ def _commit_sha() -> str:
 # remains the operator's feature surface alone.
 COHORT_FILE = ROOT / "auto_adjust_canary.json"
 
+# THE LIVE COHORT, RESOLVED AT IMPORT (the three-review family's last
+# door, closed): this is the file the RUNNING MACHINE arms — the path
+# every accidental arm must be compared against. cohort_file() may
+# point elsewhere (the env seam), but THIS path is the production
+# cohort, and arm=True against it is a live re-arm, never a drill.
+RUNTIME_COHORT_FILE = ROOT / "auto_adjust_canary.json"
+
+
+class CanaryArmRefused(RuntimeError):
+    """arm=True aimed at the LIVE cohort file without arm_confirm.
+    The drill is refused, not degraded: production state is never
+    touched by a what-if, and a deliberate live re-arm must say so
+    (or move the cohort file with AUTO_ADJUST_CANARY_FILE first)."""
+
 # THE COHORT FILE RESOLVES LIVE (the round-7 major): the env seam FIRST
 # — AUTO_ADJUST_CANARY_FILE, the same seam exit_extension._aa_cohort has
 # honored since the two-file design — then the module path. An
@@ -289,21 +303,40 @@ def run_canary(cohort: list[str], rotation_seed: dict,
                prior_band: tuple[float, float] | None = None,
                cycles: int = CYCLES, seed: int = SEED,
                breach_injection: dict | None = None,
-               arm: bool = False) -> dict:
+               arm: bool = False,
+               arm_confirm: bool = False) -> dict:
     """The spec's canary job. BY DEFAULT A PURE SIMULATION (the four-
     review major): no flip, no rollback — production state is never
     touched, because a what-if that silently re-arms the live cohort
     would also STRIP the live params cell (flip_canary writes a fresh
     doc) and a simulated breach would roll the LIVE cohort off.
-    arm=True is the staging exercise: real flip, and a breach executes
-    the    real rollback — run it only against a sandboxed cohort file (the
-    env seam or a rebound module path) or
-    when a live re-arm is actually intended. breach_injection forces a
-    distribution past the thresholds (the rollback must be proven, not
-    assumed). Writes the run report either way."""
+
+    arm=True is the staging exercise — real flip, and a breach executes
+    the real rollback — and it is REFUSED when the cohort file in play
+    resolves to the LIVE machine's cohort (RUNTIME_COHORT_FILE) unless
+    arm_confirm=True: the three-review family (a drill flipping the
+    live cohort, stripping its params cell, or rolling it off) dies
+    here at the last door. Staging sandboxes stay one env away
+    (AUTO_ADJUST_CANARY_FILE — cohort_file() resolves it live), and a
+    confirmed live re-arm is stamped in the run report for the audit
+    trail. breach_injection forces a distribution past the thresholds
+    (the rollback must be proven, not assumed). Writes the run report
+    either way."""
     import auto_adjust as aa
     run_id = datetime.now().strftime("%Y%m%d_%H%M%S")
-    flipped = flip_canary(f"canary-{run_id}") if arm else None
+    flipped = None
+    armed_live = False
+    if arm:
+        if cohort_file().resolve() == RUNTIME_COHORT_FILE.resolve() \
+                and not arm_confirm:
+            raise CanaryArmRefused(
+                "arm=True targets the LIVE cohort file "
+                f"({RUNTIME_COHORT_FILE}) — a drill must sandbox it "
+                f"first: set {COHORT_ENV} to a temp path, or pass "
+                "arm_confirm=True if a live re-arm is actually meant")
+        armed_live = cohort_file().resolve() \
+            == RUNTIME_COHORT_FILE.resolve()
+        flipped = flip_canary(f"canary-{run_id}")
     cyc = collect_cycles(cohort, cycles, rotation_seed, seed=seed)
     if breach_injection:
         # the staging drill: the cohort's payer-rate collapses in the
@@ -320,7 +353,8 @@ def run_canary(cohort: list[str], rotation_seed: dict,
               "dial": flipped, "cycles": len(cyc),
               "evaluation": ev,
               "commit_sha": _commit_sha(),
-              "rollback": None}
+              "rollback": None,
+              "armed_live_cohort": armed_live}
     if ev["breach"]:
         if arm:
             record["rollback"] = rollback()

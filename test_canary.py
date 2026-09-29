@@ -6,7 +6,10 @@ flip, no rollback — production state (the live cohort doc with its
 params cell, the operator's dial) survives a simulated run byte-exact,
 and a simulated breach only REPORTS the required rollback. arm=True is
 the staging exercise proven in-sandbox: real flip, and a breach executes
-the machine's real rollback. The run report lands in artifacts/canary/.
+the machine's real rollback — and it REFUSES the LIVE cohort file (the
+three-review family's last door) unless arm_confirm=True, hermetically
+pinned via the resolved-path guard. The run report lands in
+artifacts/canary/ (the CANARY_RUNS_DIR seam).
 """
 import json
 import os
@@ -26,6 +29,77 @@ results = []
 def check(name, ok, detail=""):
     results.append((name, bool(ok), detail))
 
+
+# ── THE LIVE-COHORT GUARD (the three-review family's last door, the
+# once-and-for-all fix): BEFORE any sandbox rebinding, with the module
+# pointed at the REAL paths, arm=True against the LIVE cohort must
+# REFUSE — a named exception, production untouched, nothing armed, and
+# the refusal names the escape hatches (the env seam, arm_confirm).
+# On the live machine the real cohort file exists (gitignored); in the
+# gate's worktree it does not — the guard fires on the RESOLVED PATH
+# comparison either way, which is exactly the contract.
+try:
+    cr.run_canary(["BTC"], {"B": 12, "r": 0.45}, cycles=2, arm=True)
+    _refused = False
+    _ref_exc = ""
+except cr.CanaryArmRefused as _exc:
+    _refused = True
+    _ref_exc = str(_exc)
+check("arm=True REFUSES the live cohort (a named CanaryArmRefused — "
+      "the three-review family dies here, not in production)",
+      _refused
+      and "LIVE cohort file" in _ref_exc
+      and "AUTO_ADJUST_CANARY_FILE" in _ref_exc
+      and "arm_confirm" in _ref_exc, _ref_exc)
+_live_bytes_pre = (cr.RUNTIME_COHORT_FILE.read_bytes()
+                   if cr.RUNTIME_COHORT_FILE.exists() else None)
+check("the refusal touches nothing: the live cohort file is "
+      "byte-unchanged (or still absent) after the refused arm — the "
+      "drill died at the guard, not in production",
+      (cr.RUNTIME_COHORT_FILE.read_bytes()
+       if cr.RUNTIME_COHORT_FILE.exists() else None) == _live_bytes_pre,
+      _live_bytes_pre is not None)
+# THE CONFIRM DOOR (hermetic): with RUNTIME_COHORT_FILE rebound to a
+# temp twin, the guard fires on the RESOLVED-PATH comparison (not the
+# ROOT path — a sandbox cannot dodge it by rebinding the module
+# constant alone), and arm_confirm=True is the only way through.
+_twin_dir = Path(tempfile.mkdtemp())
+_twin = _twin_dir / "auto_adjust_canary.json"
+_real_runtime_path = cr.RUNTIME_COHORT_FILE
+_real_cohort_file_saved = cr.COHORT_FILE
+# the confirm-door run writes a REAL report — keep it in the leg's own
+# sandbox (this leg runs before the drive's main runs-dir setup)
+_runs_env_real = os.environ.get(cr.RUNS_ENV)
+os.environ[cr.RUNS_ENV] = str(_twin_dir)
+try:
+    cr.RUNTIME_COHORT_FILE = _twin
+    cr.COHORT_FILE = _twin
+    _refused2 = False
+    try:
+        cr.run_canary(["BTC"], {"B": 12, "r": 0.45}, cycles=2, arm=True)
+    except cr.CanaryArmRefused:
+        _refused2 = True
+    check("the guard compares RESOLVED PATHS: rebinding the runtime "
+          "path re-arms the guard even for a sandboxed module path",
+          _refused2)
+    rec_live = cr.run_canary(["BTC"], {"B": 12, "r": 0.45}, cycles=2,
+                             arm=True, arm_confirm=True)
+    check("arm_confirm=True is the DELIBERATE live re-arm — the only "
+          "door past the guard: the flip lands and the run report "
+          "stamps armed_live_cohort=True for the audit trail",
+          rec_live["status"] in ("rolled_back", "pass_continue")
+          and rec_live.get("armed_live_cohort") is True
+          and rec_live.get("dial") == {"dial": "canary", "cohort_id":
+                                       f"canary-{rec_live['run_id']}"},
+          (rec_live["status"], rec_live.get("armed_live_cohort")))
+finally:
+    cr.RUNTIME_COHORT_FILE = _real_runtime_path
+    cr.COHORT_FILE = _real_cohort_file_saved
+    if _runs_env_real is None:
+        os.environ.pop(cr.RUNS_ENV, None)
+    else:
+        os.environ[cr.RUNS_ENV] = _runs_env_real
+    shutil.rmtree(_twin_dir, ignore_errors=True)
 
 # ── the sandbox: BOTH files moved (the two-file design) — the dial
 # file via the module global, the cohort file beside it ──────────────

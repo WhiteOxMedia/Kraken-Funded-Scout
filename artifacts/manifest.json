@@ -1018,6 +1018,20 @@
         "test_stateclobber.py": "sha256:f8c2e3c7d3b2f4437eb3ff13371786703e591802f804d5cbe8bcf22604becdb5",
         "test_rebootsurv.py": "sha256:166b814802819cc20f5904ba08bfc4b805ae0d546cfe1571251defeb3fa16d5e"
       }
+    },
+    "43-canary-arm-guard": {
+      "commits": [
+        "<this commit>"
+      ],
+      "branch_name": "master",
+      "date": "2026-09-29",
+      "title": "THE CANARY DRILL CAN NEVER ARM THE LIVE COHORT AGAIN: RUN_CANARY REFUSES THE RUNTIME COHORT PATH UNLESS ARM_CONFIRM SAYS SO (Sep 29, canary-arm-guard)",
+      "detail": "The three-review family (a drill flipping the live cohort, stripping its gate-selected params cell, or rolling it off) is closed at the LAST door: run_canary(arm=True) compares cohort_file().resolve() — the AUTO_ADJUST_CANARY_FILE seam — against RUNTIME_COHORT_FILE.resolve() and raises CanaryArmRefused on a live-cohort hit without arm_confirm=True. The refusal names both escape hatches (the env seam for staging sandboxes, the confirm for a deliberate live re-arm), and a confirmed re-arm stamps armed_live_cohort: true into the run report for the audit trail. The guard is hermetically pinned two ways: the refusal leg runs BEFORE the drive sandboxes anything (real paths, the resolved-path comparison fires on the live machine and in the gate worktree alike), and the confirm-door leg rebinds RUNTIME_COHORT_FILE to a temp twin proving the comparison is by RESOLVED PATH (a sandbox cannot dodge it by rebinding the module constant alone). RUNTIME_INVARIANTS.md gains the cohort-guard section: the cohort file is runtime state, drills never write it, production arming stays ops/canary_enable. The default simulation posture (88ab18d), the env seam (45dd456), and the report-dir seam are untouched and still pinned. canary 18 -> 22 checks; hindsightapi 41/0, boundaryexam 35/0.",
+      "checksums": {
+        "canary_runner.py": "sha256:968ab5300a9ad0d92478fded2f96902c6fbd8ae5e4d6cb022eb075baaeebbc6c",
+        "test_canary.py": "sha256:6c6ac0c2397a1d4974851ea998572f36cbb90f8b130895dd38308c6febee6221",
+        "RUNTIME_INVARIANTS.md": "sha256:cea82ec8210c2935a5f55d586936c6fac4c22984967b940d835703a900d63017"
+      }
     }
   }
 }
