@@ -3284,6 +3284,121 @@ except Exception as exc:
     check("the burial-hindsight pins ran", False, exc)
 
 try:
+    # ── THE HINDSIGHT API-FED PANEL (Sep 28): the console's wire slice —
+    # summary + gates GETs only, dead-API silent, per the panel spec's
+    # data contract (the panel reads ONLY the endpoints).
+    _src = (BASE / "app.py").read_text(encoding="utf-8").replace("\r\n", "\n")
+    _api_sec = _src.split("def _cached_api_path")[1].split("def _render_funnel_plate")[0]
+    check("the API-fed section reads ONLY the summary + gates GETs "
+          "through ONE fetch funnel (route tails live in the section, "
+          "a single urlopen ride — nothing else touches the wire)",
+          "/summary" in _api_sec and "/gates" in _api_sec
+          and _api_sec.count("urlopen(") == 1, _api_sec.count("urlopen("))
+    _fetcher = _src.split("def _cached_api_path")[1].split("def _render_burial_hindsight_api")[0]
+    check("the fetcher can never mutate (no POST anywhere in it — the "
+          "API's mutating routes stay token-gated server-side regardless)",
+          "POST" not in _fetcher, _fetcher[:120])
+    _mount_ledger = _src.find("    _render_burial_hindsight()\n    # 📡")
+    _mount_api = _src.find("    _render_burial_hindsight_api()")
+    check("the mount sits after the ledger-fed panel (the wire companion "
+          "renders second, its definition after the mount)",
+          0 < _mount_ledger < _mount_api
+          and _src.find("def _render_burial_hindsight_api()") > _mount_api,
+          (_mount_ledger, _mount_api))
+
+    # the wire round-trip through the REAL dispatcher-shaped payloads:
+    # urlopen is function-local (from urllib.request import urlopen), so
+    # the module attribute is the seam — the stub answers exactly what
+    # rotation_summary/rotation_gates return.
+    import os as _os
+    import re as _re
+    import urllib.request as _ureq
+    _summ = {"rotation_id": "12-16", "B": 20, "P": 7, "r": 0.35,
+             "proposed_delta": -0.05, "proposed_reason": "ok",
+             "current_GF": 2.0}
+    _gates = [{"gate": "tide-out", "B_g": 12, "P_g": 3, "r_g": 0.25,
+               "top_candidates": [{"pair": "CAGE/USD", "run": 8.0,
+                                   "gate": "tide-out", "ts": "x"}]}]
+    _reqs: list = []
+
+    class _APIResp:
+        status = 200
+        def __init__(self, body):
+            self._b = body
+        def read(self):
+            return self._b
+        def __enter__(self):
+            return self
+        def __exit__(self, *a):
+            return False
+
+    def _fake_urlopen(url, timeout=None):
+        _reqs.append(str(url))
+        payload = _gates if "/gates" in str(url) else _summ
+        return _APIResp(json.dumps(payload).encode("utf-8"))
+
+    _real_urlopen = _ureq.urlopen
+    _ureq.urlopen = _fake_urlopen
+    _real_exp2 = app_mod.st.expander
+
+    class _APIExp:
+        def __init__(self, label, key=None):
+            _exp_labels.append(label)
+        def __enter__(self):
+            return self
+        def __exit__(self, *a):
+            return False
+
+    _exp_labels: list = []
+    app_mod.st.expander = _APIExp
+    try:
+        app_mod._cached_api_path.clear()
+        app_mod._render_burial_hindsight_api()
+        check("the section GETs the current rotation's summary + gates "
+              "— exactly two bare-window routes, nothing else",
+              len(_reqs) == 2
+              and any(_re.search(r"/\d{2}-\d{2}/summary$", u) for u in _reqs)
+              and any(_re.search(r"/\d{2}-\d{2}/gates$", u) for u in _reqs)
+              and all(u.startswith("http://127.0.0.1:8785/api/hindsight/rotation/")
+                      for u in _reqs)
+              and not any(m in " ".join(_reqs) for m in ("apply", "rollback")),
+              _reqs)
+        check("the API feed renders the summary headline (B/P/r/GF and "
+              "the proposed delta with its reason)",
+              _exp_labels and "API FEED" in _exp_labels[0]
+              and "B 20" in _exp_labels[0] and "P 7" in _exp_labels[0]
+              and "r 35%" in _exp_labels[0]
+              and "GF 2.0" in _exp_labels[0]
+              and "proposed -0.05" in _exp_labels[0], _exp_labels)
+        # the deployment seam: HINDSIGHT_API_BASE moves the wire
+        _os.environ["HINDSIGHT_API_BASE"] = "http://127.0.0.1:9999"
+        _reqs.clear()
+        app_mod._cached_api_path.clear()
+        app_mod._render_burial_hindsight_api()
+        check("HINDSIGHT_API_BASE moves the wire (the deployment's port "
+              "seam — no hardcoded-only endpoint)",
+              _reqs and all(u.startswith("http://127.0.0.1:9999/")
+                            for u in _reqs), _reqs)
+        # the dead-API path: silence, never a disturbed console
+        def _dead_urlopen(url, timeout=None):
+            raise OSError("connection refused")
+        _ureq.urlopen = _dead_urlopen
+        _os.environ.pop("HINDSIGHT_API_BASE", None)
+        app_mod._cached_api_path.clear()
+        _exp_labels.clear()
+        app_mod._render_burial_hindsight_api()
+        check("a dead API fail-closes to silence (no expander, no "
+              "traceback — the ledger-fed panel stands alone)",
+              not _exp_labels, _exp_labels)
+    finally:
+        _ureq.urlopen = _real_urlopen
+        app_mod.st.expander = _real_exp2
+        _os.environ.pop("HINDSIGHT_API_BASE", None)
+        app_mod._cached_api_path.clear()
+except Exception as exc:
+    check("the API-fed panel pins ran", False, exc)
+
+try:
     out = BASE / "apptest_check.txt"
     out.write_text("\n".join(lines)
                    + "\n" + "\n".join(

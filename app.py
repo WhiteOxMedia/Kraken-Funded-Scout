@@ -2365,6 +2365,9 @@ def render_master(cfg: TradingConfig, kraken):
     # verdict study's join (n, payer-rate, per-gate, top payers).
     # Read-only; sits after the funnel as its all-time companion.
     _render_burial_hindsight()
+    # 📡 THE WIRE-FED COMPANION (Sep 28): the same hindsight through the
+    # API's summary + gates endpoints — read-only, dead-API silent.
+    _render_burial_hindsight_api()
 
     # 🚫 WHAT THE FUNNEL BURIED (user rule, Sep 4, the POPCAT lesson: the
     # scanner's suppression verdicts used to print to the console window
@@ -2726,6 +2729,87 @@ def _render_burial_hindsight() -> None:
                 "capture ratio) — refreshes every 2 min")
     except Exception as exc:
         logger.debug("burial hindsight panel skipped: %s", exc)
+
+
+# ── THE HINDSIGHT API FEED (Sep 28, the panel spec's zones 1–3 on the
+# console): the same burial hindsight through the wire contract —
+# hindsight_api's summary + gates endpoints, nothing else. THE SPEC'S
+# DATA-CONTRACT RULE (ui/hindsight_panel_spec.md): the panel reads ONLY
+# the endpoints — no direct file reads, no second brain. Read-only by
+# construction: GETs only, and the API's mutating POSTs stay token-
+# gated behind the operator layer regardless of what any client asks.
+
+@st.cache_data(ttl=60)
+def _cached_api_path(base: str, tail: str) -> tuple[int, dict] | None:
+    """One cached GET against the hindsight API. Returns (status,
+    payload) or None — a dead API is a silent skip: a read-only panel
+    must never disturb the console (no traceback, no empty expander)."""
+    import json as _json
+    from urllib.request import urlopen
+    try:
+        with urlopen(f"{base.rstrip('/')}/{tail.lstrip('/')}",
+                     timeout=3.0) as _resp:
+            return int(_resp.status), _json.loads(
+                _resp.read().decode("utf-8"))
+    except Exception:
+        return None
+
+
+def _render_burial_hindsight_api() -> None:
+    """The wire-fed companion: per-gate ratios + top candidates for the
+    CURRENT rotation through the API (the ledger-fed panel above reads
+    the recent journal directly; this one proves the API's own join
+    answers on the same question — the two disagree only when the
+    journal or the db drifted, which is exactly what the operator
+    wants to see)."""
+    try:
+        from urllib.parse import quote as _q
+        from per_gate_export import default_rotation_id as _dri
+        base = os.environ.get("HINDSIGHT_API_BASE",
+                              "http://127.0.0.1:8785")
+        rot = _dri()
+        summ = _cached_api_path(
+            base, f"api/hindsight/rotation/{_q(rot)}/summary")
+        gates = _cached_api_path(
+            base, f"api/hindsight/rotation/{_q(rot)}/gates")
+        if not (isinstance(summ, tuple) and summ[0] == 200
+                and isinstance(gates, tuple) and gates[0] == 200):
+            return    # the API is not up — the ledger panel stands alone
+        s = summ[1]
+        with st.expander(
+                f"📡 BURIAL HINDSIGHT — API FEED (read-only): rotation "
+                f"{rot} — B {s.get('B')} · P {s.get('P')} · r "
+                f"{(s.get('r') or 0) * 100:.0f}% · GF "
+                f"{s.get('current_GF')} · proposed "
+                f"{(s.get('proposed_delta') or 0):+.2f} "
+                f"({s.get('proposed_reason') or '—'})",
+                key="burial_hindsight_api_expander"):
+            def _tops(g) -> str:
+                cands = g.get("top_candidates") or []
+                names = [f"{c.get('pair', '?')} +{c.get('run') or 0:.1f}%"
+                         for c in cands[:2]]
+                return ", ".join(names) or "—"
+            rows = "".join(
+                f"<div style='font-family:Share Tech Mono,monospace;"
+                f"font-size:12px;color:#bfae8f;'>"
+                f"{g.get('gate', '?'):<16} B={g.get('B_g', 0):<3} "
+                f"P={g.get('P_g', 0):<3} "
+                f"r={(g.get('r_g') or 0) * 100:.0f}%  top: "
+                f"{_tops(g)}</div>"
+                for g in (gates[1] if isinstance(gates[1], list)
+                          else [])[:6])
+            st.markdown(
+                "<div style='padding:2px 0;'>"
+                + (rows or "<span class='dim' style='font-size:11px;'>"
+                           "no measurable gates this rotation</span>")
+                + "</div>", unsafe_allow_html=True)
+            st.caption(
+                "fed by hindsight_api's summary + gates endpoints for the "
+                "current rotation (GET only — the mutating POSTs stay "
+                "token-gated; a dead API stays silent and the ledger-fed "
+                "panel above stands alone) — refreshes every 1 min")
+    except Exception as exc:
+        logger.debug("burial hindsight api panel skipped: %s", exc)
 
 
 def _render_funnel_plate():
