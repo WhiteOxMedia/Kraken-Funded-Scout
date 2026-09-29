@@ -827,6 +827,24 @@
     "hooks/pre-commit": "sha256:0be0a30e71625ee51c03bd96df7b18478436550a26764c5746ecabcc2265fa5d",
     "playbooks/state_file_recovery.md": "sha256:fbb7b561c1e06a1479163c55f777ceac36b9c3557375e7022d37a1fc7c698105"
    }
+  },
+  "28-round4-triage": {
+   "commits": [
+    "<this commit>"
+   ],
+   "branch_name": "master",
+   "date": "2026-09-29",
+   "title": "ROUND 4 TRIAGED: THE WIPE TOMBSTONES, THE WRAP IS DEAD, THE RESTORE LEDGER IS COMPLETE, AND THE CLOCK IS SELF-RELIANT (Sep 29, round4-triage)",
+   "detail": "The 004e2cc post-commit review's 12 findings, triaged. FIXED: (1) contest_account.new_contest's wipe lands TOMBSTONES read from the SAME file it writes (beside STATE_FILE \u2014 the round-3-style scanner-loader shortcut would leak foreign rows into a sandbox's wipe; my own first fix had this bug and the probe caught it), so a writer mid-RMW can no longer overlay stale rows back over the wipe (contest_window 38/1 -> 39/0). (2) per_gate_export's rotation ids WRAP, NEVER MODULO-24: the scanner stamps '20-24', a '%24' renders '20-00' which matches zero journal rows \u2014 default_rotation_id and full_rotation_id both corrected, pins updated (the review's major). (3) restore_state's replayed ledger rows carry rotation_id/status/day (the round-3 finding's field set) so the daily cap and the zone-4 wire read them. (4) atomic_io.TELEMETRY_PATH resolves from the module's directory, not the process cwd (a headless job started elsewhere would silently split the telemetry). (5) per_gate_export's clock is ZONEINFO-FIRST \u2014 reaching into app._now_mst pulled Streamlit into headless jobs and circular-imports. (6) the runbook's chaos-cadence section now matches the hook's real trigger mapping (no phantom Tuesday scheduler). TRIAGED, NOT FIXED: exit_extension:339 'active window suppresses the trail' is STALE \u2014 the seam suppresses the exit ACTION while the incumbent trail keeps re-firing each tick and remains the enforced stop (the docstring's contract, exit_extension 58/0 pins it); the launch_stack hindsight-failure semantics and app.py's capture median need operator decisions, recorded here as open. Drives: pergate 17/0, contest_window 39/0, resilience 15/0, tidelearn 11/0, topfill 13/0, statewriters 9/0.",
+   "checksums": {
+    "restore_state.py": "sha256:043c1d78385732fcb354aaadd2701ab1521e618ff83016b7220220d407f809ef",
+    "atomic_io.py": "sha256:659379a3f888060096d381dd1943df2620667d0d42b4f773651d5555ab944745",
+    "per_gate_export.py": "sha256:6386306ee91eb5a2308f6100ce0d14540695f8229f1bcb2303ab677b77a562de",
+    "contest_account.py": "sha256:f9673d4ddbfa9218da397d04808decf597fc7b7d8e3ec65cfa11b0eb599b8e99",
+    "test_pergate.py": "sha256:643461c5b5535a38ffacd7000722b0bb680d2b408748719eb2474024c4f1985d",
+    "test_contest_window.py": "sha256:faca699c574ba9a71ddf8327836354a948b86484c6262e55948e48f2292ce314",
+    "playbooks/state_file_recovery.md": "sha256:fc952273bf97fe05d3b4e84c1ee720814ecc6d2a1f4d32bd1b38751b11f3b399"
+   }
   }
  }
 }

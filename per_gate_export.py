@@ -33,20 +33,18 @@ MST = None  # resolved lazily via the machine's own tz helper
 def _now_mst():
     global MST
     if MST is None:
+        # ZONEINFO FIRST (the round-4 review): the machine is Denver and
+        # zoneinfo resolves MST/MDT correctly on its own — reaching into
+        # `app` for the clock pulled the whole Streamlit world into every
+        # headless job (and circular-imports, since app imports THIS
+        # module). The bare -7 lambda remains only as a zoneinfo-less
+        # last resort.
         try:
-            from app import _now_mst as _f
-            MST = _f
+            from zoneinfo import ZoneInfo
+            MST = lambda: datetime.now(ZoneInfo("America/Denver"))
         except Exception:
-            # the fallback clock (round-3 review): the machine is Denver
-            # — MST/MDT is UTC-7/UTC-6; zoneinfo resolves which, with a
-            # fixed -7 last resort. (The old bare `app` import could
-            # pull the whole Streamlit world into a headless job.)
-            try:
-                from zoneinfo import ZoneInfo
-                MST = lambda: datetime.now(ZoneInfo("America/Denver"))
-            except Exception:
-                from datetime import timezone, timedelta
-                MST = lambda: datetime.now(timezone(timedelta(hours=-7)))
+            from datetime import timezone, timedelta
+            MST = lambda: datetime.now(timezone(timedelta(hours=-7)))
     return MST()
 
 
@@ -223,10 +221,17 @@ def rotation_summary(rows: list[dict]) -> dict:
 
 def default_rotation_id(now: datetime | None = None) -> str:
     """The journal's rot stamp for the rotation holding `now` — 4h
-    windows, the same shape the scanner stamps (e.g. '12-16')."""
+    windows, the same shape the scanner stamps (e.g. '12-16'). THE
+    COOLDOWN WRAPS, NEVER MODULO-24 (the round-4 review): the
+    scanner's canonical stamp for the 20:00 hour is '20-24' (see its
+    R5 window table), so the end hour only ever renders 00 for the
+    00:00 START of the next day's first rotation ('00-04') — a
+    modulo wrap would render '20-00', which matches ZERO journal
+    rows."""
     now = now or _now_mst()
     start = (now.hour // 4) * 4
-    return f"{start:02d}-{(start + 4) % 24:02d}"
+    end = start + 4
+    return f"{start:02d}-{end:02d}"
 
 
 def full_rotation_id(now: datetime | None = None) -> str:

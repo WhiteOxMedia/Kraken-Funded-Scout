@@ -158,7 +158,12 @@ check("the default rotation id is the scanner's 4h window stamp (the "
       "journal rot)",
       pge.default_rotation_id(datetime(2026, 9, 28, 16, 1)) == "16-20"
       and pge.default_rotation_id(datetime(2026, 9, 28, 0, 7)) == "00-04"
-      and pge.default_rotation_id(datetime(2026, 9, 28, 23, 59)) == "20-00",
+      # THE COOLDOWN WRAPS, NEVER MODULO-24 (the round-4 review): the
+      # scanner stamps the 20:00 hour '20-24' — a modulo wrap would
+      # render '20-00', matching zero journal rows
+      and pge.default_rotation_id(datetime(2026, 9, 28, 23, 59)) == "20-24"
+      and pge.full_rotation_id(datetime(2026, 9, 28, 23, 59))
+      == "2026-09-28-20-24",
       pge.default_rotation_id())
 
 # THE BARE-WINDOW SCOPING (the isolated review's major, Sep 28): a

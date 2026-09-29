@@ -42,7 +42,7 @@ DEFAULT_BASE_DELAY = 0.05          # seconds; 50ms doubling → ≤0.75s total
 # backoff budget and the early-warning signal for systemic pressure).
 # Append-only jsonl, one line per try; every write is fail-soft —
 # telemetry must never break a state save.
-TELEMETRY_PATH = Path("artifacts") / "io_events.jsonl"
+TELEMETRY_PATH = Path(__file__).resolve().parent / "artifacts" / "io_events.jsonl"
 
 
 def _note(event: dict, path: Path | None = None) -> None:

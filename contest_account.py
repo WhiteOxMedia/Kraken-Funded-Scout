@@ -173,9 +173,24 @@ def new_contest(tier: int) -> dict:
         # os.replace keeps the wipe all-or-nothing like every other
         # writer of this file.
         _cw_path = STATE_FILE.parent / "contest_watch.json"
+        # THE TOMBSTONE WIPE (the round-4 review): a bare "{}" replace
+        # lets a writer already mid-RMW (it read the OLD book) overlay
+        # its stale rows right back over the wipe — the ghost row
+        # resurrects. None-markers are the fleet's deletion convention;
+        # the next merge-save consumes them and the wipe sticks. The
+        # read is the SAME file the wipe writes (beside STATE_FILE —
+        # the scanner's loader would resolve the scanner's own root and
+        # leak foreign rows into a sandbox's wipe), raw json, fail-soft.
+        try:
+            _cw_cur = json.loads(
+                _cw_path.read_text(encoding="utf-8"))
+            _cw_wipe = ({k: None for k in _cw_cur}
+                        if isinstance(_cw_cur, dict) else {})
+        except Exception:
+            _cw_wipe = {}
         _cw_tmp = str(_cw_path) + ".tmp"
         with open(_cw_tmp, "w", encoding="utf-8") as _cw_fh:
-            _cw_fh.write("{}")
+            json.dump(_cw_wipe, _cw_fh)
         os.replace(_cw_tmp, str(_cw_path))
     except Exception:
         pass  # the watch panel would still show the ghost card -- tappable SOLD

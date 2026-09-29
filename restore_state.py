@@ -74,7 +74,10 @@ def plan_restore(telemetry_path: Path,
     anchor = float(newest.get("before_gf") or 0.0)
     if anchor <= 0:
         anchor = DEFAULT_FACTORS[0]
-    ledger = [{"delta": float(e.get("delta") or 0.0),
+    ledger = [{"rotation_id": str(e.get("rotation_id") or ""),
+               "status": "restored",
+               "day": str(e.get("timestamp") or "")[:10],
+               "delta": float(e.get("delta") or 0.0),
                "before": float(e.get("before_gf") or 0.0),
                "after": float(e.get("after_gf") or 0.0),
                "reason": RESTORE_NOTE,

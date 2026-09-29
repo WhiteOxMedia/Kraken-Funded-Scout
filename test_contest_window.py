@@ -150,8 +150,15 @@ check("the new window clears the old Hail Mary state",
       not st.get("hail_mary_until") and not st.get("hail_mary_count"))
 check("the old window's trades are now foreign (refused)",
       ca.apply_pnl(-1.0, here)[0] is False)
-check("new_contest's wipe follows the SANDBOX state file (canary wiped)",
-      json.loads(_watch_sb.read_text(encoding="utf-8")) == {})
+_cw_after = json.loads(_watch_sb.read_text(encoding="utf-8"))
+check("new_contest's wipe follows the SANDBOX state file and lands "
+      "TOMBSTONES, not a bare empty book — the canary is GONE from the "
+      "book (a writer mid-RMW can no longer overlay its stale rows "
+      "back over the wipe; None is the deletion convention the "
+      "merge-save consumes)",
+      bool(_cw_after)
+      and all(v is None for v in _cw_after.values())
+      and _cw_after.get("CANARY/USD", "MISSING") is None)
 _repo_after = None
 if _repo_watch.exists():
     try:
