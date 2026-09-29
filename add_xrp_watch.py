@@ -4,6 +4,8 @@ cross-writer convention): the book is RE-READ at the last moment and
 only the XRP row is handed to background_scanner's production
 _save_contest_watch — tombstones stay deleted, foreign rows survive,
 the write is atomic (tmp + os.replace) inside the production writer.
+The print tells the truth: added only when the save landed, already-
+on-watch when the idempotent no-op ran.
 """
 import sys
 from datetime import datetime
@@ -25,10 +27,15 @@ px = float(ex.fetch_ticker("XRP/USD")["last"])
 # is created fresh, at the live price.
 w = _load_contest_watch()
 _row = w.get("XRP/USD")
+_added = False
 if not isinstance(_row, dict) or _row.get("entry") is None:
     w["XRP/USD"] = {"entry": px, "high": px,
                     "added": datetime.now(MST).isoformat()}
-_save_contest_watch(w)
-print(f"XRP added to watch @ ${px:.4f} (live price)")
+    _added = _save_contest_watch(w)
+if _added:
+    print(f"XRP added to watch @ ${px:.4f} (live price)")
+else:
+    print("XRP already on the watch (a valid row stays untouched — "
+          "idempotent re-run)")
 w2 = _load_contest_watch()
 print("watch list now:", ", ".join(k for k, v in w2.items() if v is not None))

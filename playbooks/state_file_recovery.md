@@ -153,12 +153,11 @@ a week, after the environmental causes in §1 are excluded.
 The destructive concurrent replay is `test_stateclobber.py` — real
 subprocess writer storms against sandboxed state files. It runs:
 
-- **Every commit** touching `background_scanner.py`,
-  `meta_layers.py`, `profit_guard.py`, `carve_out.py`,
-  `atomic_io.py`, `restore_state.py`, `diag_statewriters.py` or the
-  drive itself (the gate's `_BS`/`_ML`/`_CO`/`_SW` trigger lines,
-  budget 60s) — the cheap, high-signal cadence. CHECK THE LIVE
-  MAPPING, not this list: `grep maybe_run hooks/pre-commit`.
+- **Every commit** touching `background_scanner.py` or the drive
+  itself (the gate's `_BS` trigger line only — budget 60s; the
+  `_ML`/`_CO`/`_SW` triggers run OTHER drives: metalayers, carveout,
+  profitguard, statewriters, resilience — CHECK THE LIVE MAPPING,
+  not this list: `grep maybe_run hooks/pre-commit`).
 - **On demand by the operator** (there is no calendar scheduler in
   this stack — do not invent one): after ANY windows update, storage
   change, Python upgrade, or any real `exhausted` telemetry line

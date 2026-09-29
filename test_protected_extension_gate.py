@@ -250,14 +250,27 @@ else:
 # ── 2. the gate runs and its verdict is mechanical (RED until written) ─
 gate_out = ""
 gate_pass = gate_fail = None
+gate_rc = None
 if STUDY.exists():
     r = subprocess.run(
         [sys.executable, str(STUDY)], capture_output=True, text=True,
         encoding="utf-8", errors="replace", cwd=str(BASE),
         timeout=900)
     gate_out = (r.stdout or "") + (r.stderr or "")
-check("2.1 the gate runs clean (exit 0)",
-      bool(gate_out) and "Traceback" not in gate_out)
+    gate_rc = r.returncode
+# 2.1 THE HONEST EXIT PIN (the round-6 minor: the label claimed exit 0
+# but only looked for a traceback): the study exits 0 PASS / 2
+# FAIL-by-design (the raw dial is SUPPOSED to fail the bar — that IS
+# the demonstration), so the check asserts rc matches the printed
+# verdict and a crash (traceback, rc 1) fails it — not a blind == 0.
+check("2.1 the gate's exit code matches its printed verdict "
+      "(0 on PASS, 2 on the by-design FAIL — a crash fails)",
+      bool(gate_out) and "Traceback" not in gate_out
+      and gate_rc is not None
+      and ((gate_rc == 0) if (m21 := re.search(r"^GATE:\s*(PASS|FAIL)\b",
+                                               gate_out, flags=re.M))
+            and m21.group(1) == "PASS" else
+           (gate_rc == 2) if m21 else False))
 m_gate = re.search(r"^GATE:\s*(PASS|FAIL)\b(.*)$", gate_out, flags=re.M)
 check("2.2 the gate prints a derived GATE verdict line",
       m_gate is not None)

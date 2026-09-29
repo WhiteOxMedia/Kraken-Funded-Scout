@@ -227,7 +227,7 @@ def _chart(cells: list[dict], history: list[dict]) -> str:
     hist_rows = "".join(
         f"<div>{h['rot']}: B={h['B']} P={h['P']}</div>"
         for h in history)
-    return (f"<h3>worst single-book loss across the sweep</b></h3>{hdr}"
+    return (f"<h3>worst single-book loss across the sweep</h3>{hdr}"
             f"<h3>the replayed history</h3>{hist_rows}")
 
 

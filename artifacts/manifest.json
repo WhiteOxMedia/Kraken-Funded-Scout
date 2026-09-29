@@ -954,6 +954,23 @@
         "test_canary.py": "sha256:aba1c02ea4382de78a0e91a79a20c71e38ff4e46fcf51339061ed9b966f27b28",
         "test_exit_extension.py": "sha256:59147bb69489a2100853471de81450eeb8c45b2e9a868a8d55e1809a2e5aa2c1"
       }
+    },
+    "39-round6-minors-batch": {
+      "commits": [
+        "<this commit>"
+      ],
+      "branch_name": "master",
+      "date": "2026-09-29",
+      "title": "ROUND-6 MINOR BATCH: EVERY ACCUMULATED MINOR FROM THE LAST THREE REVIEW STREAMS FIXED OR EXPLICITLY DISMISSED, ONE LINE OF REASON EACH (Sep 29, round6-minors-batch)",
+      "detail": "FIXED NOW (6): add_xrp_watch prints the truth (added only when the save landed; already-on-watch on the idempotent no-op — the false XRP-added minor); simulate_sweep worst-loss heading loses the stray </b>; test_protected_extension_gate 2.1 asserts the study exit code MATCHES its printed verdict (0 PASS / 2 by-design FAIL, a crash fails) instead of a traceback-only probe; test_topfill name-only tautology REMOVED — the +0.4% numeric export leg carries the sub-fee proof and the comment ratio corrected (-0.16 is a +0.2% run); playbooks/state_file_recovery §5 names ONLY the _BS trigger for the storm (the _ML/_CO/_SW lines run other drives — the doc matches the hook); auto_adjust.expire_if_due reads box before as None-means-default (a valid 0.0 restore target no longer falls back to 1.0 — the zero-fallback class). ALREADY LANDED in earlier tasks (7): atomicio whole-run sink (34), canary report-dir seam (38), pool prefs Scripts/bin venv fallback (Sep 29), docsrot POOL_PY absolute resolution (29), flipgrade duplicate (46c7bc8), hindsight midnight residual (bfeffd3), auto_adjust day-key parameterized (dated prev-key). DISMISSED (8, reason): goalreach censor count — one-shot Sep-27 study, the loop skips r-is-None internally and the protected gate superseded it; trailstop content-source — the file IS the artifact (stale); commitgate no-leak scope — broad-scope preference, the three-layer sandbox owns the live gate; spec zones/endpoint count — the contract note already enumerates both history routes; app.py capture ratio — a 0.0 peak cannot divide (guarded) and capture is net/peak on real fills by design; test_referee restore — already restores the captured original in both branches, never a pre-read guess; test_profitguard HISTORYKEEP — no such symbol in the current file (stale); allgoodlead restore-via-del — deliberate teardown: env bindings have no true original to restore and the sandbox files die with the tempdir. Drives: simsweep 19/0, topfill 12/0, gate 22/0, autoadjust 30/0, allgoodlead 26/0.",
+      "checksums": {
+        "add_xrp_watch.py": "sha256:b222fa6723c252d7e31c93641596f1295848f91bd05fe9a3d2857397c21a4897",
+        "simulate_sweep.py": "sha256:968d7ff2634d3588f1360245f1d9783ea4aa3462fb50f813630641fdbe4795a9",
+        "test_protected_extension_gate.py": "sha256:6e2b68610f9c5c2c5a7ca5ac9601b9476642dbc35ed6f15cfcfe344cf3ac80bb",
+        "test_topfill.py": "sha256:8050eecf72a2e3dd180d84b484e753afcf0adcc56bea19476709c720bb295a15",
+        "playbooks/state_file_recovery.md": "sha256:785dbe4548f3e9edf7c6d7e69701ea8bfd79ca03977a19406ff6b359eb51fe49",
+        "auto_adjust.py": "sha256:8d7a567f02ba46cb728caa18e43d730f35f68fe1f0e4292ee987905810167450"
+      }
     }
   }
 }

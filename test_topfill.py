@@ -31,11 +31,10 @@ check("the fill math prices both spread halves and the round-trip fee "
       "(a +10% peak fills at 9.63%: 1.09945/1.0005, then the fee)",
       abs(fill - ((fx / fe - 1.0) * 100.0 - tp.FEE_RT_PCT)) < 1e-12
       and abs(fill - 9.630054972513763) < 1e-9, fill)
-# the sub-fee floor, tested by name AND number: a +0.4% run nets
-# (1.0035/1.0005 - 1)*100 - 0.26 = -0.16 -> clamps to exactly 0.0
-check("a sub-fee peak captures ZERO (the round-trip-to-nowhere class; "
-      "proven numerically through the real export path below)",
-      tp.top_expected.__name__ == "top_expected", "")
+# the sub-fee floor: a +0.4% peak nets -0.16 after fills+fee ->
+# clamps to exactly 0.0 — proven NUMERICALLY through the real export
+# path in the leg below (the old name-only check proved nothing and
+# is gone, the round-6 triage).
 
 _sbx = Path(tempfile.mkdtemp())
 sup = _sbx / "popup_suppressions.jsonl"

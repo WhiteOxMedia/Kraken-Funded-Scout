@@ -229,7 +229,9 @@ def expire_if_due() -> dict | None:
         return None
     if int(box.get("rotations_left") or 0) > 0:
         return {"rotations_left": int(box["rotations_left"])}
-    before = float(box.get("before") or 1.0)
+    before = box.get("before")
+    before = 1.0 if before is None else float(before)   # a valid 0.0
+    # peak must not read as missing (the zero-fallback class, round 6)
     st["factor"] = before
     st.pop("auto_adjust_box", None)
     st["auto_adjust_box"] = None   # the merge-save's None-means-delete:
