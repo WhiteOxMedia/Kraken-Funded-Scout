@@ -213,9 +213,12 @@ def expire_if_due() -> dict | None:
 def apply_adjustment(delta: float, rotation_id: str,
                      evidence_checksum: str,
                      per_gate: list[dict] | None = None,
-                     auto: bool = True) -> dict:
+                     auto: bool = True,
+                     override_concentration: bool = False) -> dict:
     """Enforce every rail, then move the factor. Never raises: the
-    returned dict carries status applied / queued / refused + reason."""
+    returned dict carries status applied / queued / refused + reason.
+    override_concentration=True lifts ONLY the concentration queue
+    (the operator's named review) — the caps and floors still bite."""
     pg = _pg()
     now = datetime.now().astimezone()
     st = pg._state()
@@ -229,7 +232,8 @@ def apply_adjustment(delta: float, rotation_id: str,
             rec["reason"] = "non_negative_delta_is_not_self_adjust"
         elif daily_delta_sum(st, now) + abs(delta) > DAILY_CAP + 1e-9:
             rec["reason"] = "daily_cap_exceeded"
-        elif auto and per_gate and concentration(per_gate) > CONCENTRATION_MAX:
+        elif (auto and per_gate and not override_concentration
+              and concentration(per_gate) > CONCENTRATION_MAX):
             rec["status"] = "queued"
             rec["reason"] = "concentration_gate_blocks_auto_apply"
             _ledger(st).append(rec)
@@ -292,10 +296,14 @@ def rollback(rotation_id: str) -> dict:
 
 
 def propose_from_aggregate(rotation_id: str, B: int, P: int,
-                           per_gate: list[dict]) -> dict:
+                           per_gate: list[dict],
+                           operator_override: bool = False) -> dict:
     """The full path for one rotation: evidence bundle, delta, verdict.
     Applies ONLY when every rail passes; else queues/refuses with the
-    bundle still written (the evidence outlives the decision)."""
+    bundle still written (the evidence outlives the decision).
+    operator_override=True is the operator's queue_review decision
+    arriving with a name on it: the concentration gate's queue is
+    lifted (the review HAPPENED) — every other rail still bites."""
     delta, reason = compute_delta(B, P)
     cks, d = write_evidence_bundle(
         rotation_id, per_gate, B, P, (P / B) if B else None)
@@ -303,8 +311,10 @@ def propose_from_aggregate(rotation_id: str, B: int, P: int,
         return {"status": "refused", "reason": reason, "delta": 0.0,
                 "evidence": cks, "bundle": str(d)}
     conc = concentration(per_gate)
-    rec = apply_adjustment(delta, rotation_id, cks, per_gate=per_gate,
-                           auto=conc <= CONCENTRATION_MAX)
+    rec = apply_adjustment(
+        delta, rotation_id, cks, per_gate=per_gate,
+        auto=conc <= CONCENTRATION_MAX,
+        override_concentration=operator_override)
     rec["bundle"] = str(d)
     rec["concentration"] = round(conc, 4)
     return rec
