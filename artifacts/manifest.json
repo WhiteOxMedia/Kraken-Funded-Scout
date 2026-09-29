@@ -899,6 +899,20 @@
     "exit_extension.py": "sha256:a13ed2f328e63e61f821e786df517ebd9e65e9eb7d7d2d78e12263771b20ed54",
     "test_atomicio.py": "sha256:e5ce5edabe202643af3429fe374a96435327290bc4f99b2d264a2fe9486bd2a8"
    }
+  },
+  "35-sweep-157": {
+   "commits": [
+    "<this commit>"
+   ],
+   "branch_name": "master",
+   "date": "2026-09-29",
+   "title": "THE FULL-FLEET SWEEP READS 157/157: TWO STALE PINS UPDATED TO THE NEW TRUTH, THE BOOK-HEAL LEG GETS ITS CONVERGENCE POLL (Sep 29, sweep-157)",
+   "detail": "The first full sweep (157 drives, sequential, ~14 min) read 153 green, 2 flakes, 2 stale pins, 0 real failures. All four closed: (1) test_entry_control SOLD-clearer pin asserts the TOMBSTONE convention (_cw_sold[_sp] = None) instead of the pre-round-3 .pop shape. (2) test_lifecycle counts FIVE components (hindsight_service joined Sep 29) in both the Start-Verified census and the -ShowWin switch count. (3) test_stateclobber book-heal leg gets the same bounded 30s convergence poll its guard-state sibling already had \u2014 the last instant-re-read flake dies. Post-fix: entry_control 32/32, lifecycle 43/43, stateclobber 21/0 x3.",
+   "checksums": {
+    "test_entry_control.py": "sha256:19088b8bdd945fe66c59b612b883c5ca4535c063916afc5c13af9444b7cf6b23",
+    "test_lifecycle.py": "sha256:7b44a85aeea170862a88c46bddd21574a63cc642e7fd1bc4830b7dfce89f4814",
+    "test_stateclobber.py": "sha256:e04272df37b59be2397483a7ce76e7b8ff8b86ee1c227697a7d004600a42b112"
+   }
   }
  }
 }

@@ -342,7 +342,17 @@ try:
               (_SCAN_BODY.replace("PAIR", f"'STR{_i}/USD'"),
                _SCAN_SETUP)) for _i in _missing]
     _heal_res = _run_wave(_heal, timeout_s=90) if _heal else {}
-    doc = json.loads(_cw_proc.read_text(encoding="utf-8"))
+    # THE CONVERGENCE POLL ("the next tick", the same fix the guard-
+    # state heal leg got): a bounded re-read window — stragglers from
+    # the wave converging mid-read count as healed; a hard absence at
+    # the deadline is the failure. The old instant re-read flaked under
+    # sweep load (a slow process wrote after the check read).
+    _cw_deadline = time.time() + 30.0
+    while time.time() < _cw_deadline:
+        doc = json.loads(_cw_proc.read_text(encoding="utf-8"))
+        if all(f"STR{i}/USD" in doc for i in range(6)):
+            break
+        time.sleep(0.5)
     _heal_starved = _import_starved or _starved(_heal_res)
     check("the book HEALS: one scanner tick per starved row restores "
           "every storm write (fail-soft + retry beats fail-stop; an "

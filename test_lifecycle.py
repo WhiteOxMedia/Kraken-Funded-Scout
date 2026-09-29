@@ -24,7 +24,8 @@ regress to the boot-opener / double-console bugs:
 
 Also pins the launcher's sync-safety contracts (Sep 14): no foreground
 console, no Read-Host trap, no -RedirectStandardOutput (the inherited-
-pipe hold), all four components through Start-Verified.
+pipe hold), all five components through Start-Verified (the stack grew
+to five when hindsight_service joined, Sep 29).
 
 Style: test_floodguard section 10 - source-pins, cheap, hermetic.
 """
@@ -127,10 +128,11 @@ check("no foreground console (the old 'this window is the dashboard')",
       'streamlit.exe" run app.py' not in ls and "& '.\\app.py'" not in ls)
 check("no -RedirectStandardOutput (the inherited-pipe hold)",
       "-RedirectStandardOutput" not in ls)
-check("all four components spawn through Start-Verified",
+check("all five components spawn through Start-Verified (the stack "
+      "grew to five when hindsight_service joined, Sep 29)",
       all(f'Start-Verified "{c}"' in ls
           for c in ("volatility_engine", "background_scanner",
-                    "bot_runner", "streamlit")))
+                    "bot_runner", "streamlit", "hindsight_service")))
 check("VISIBLE is the default mode (visible_stack.off = hidden)",
       "visible_stack.off" in lsc and "$showWin = -not" in lsc,
       "her preference: windows she can see, not a background fleet")
@@ -139,8 +141,8 @@ check("-Hidden is a one-run override and never flips the preference",
       and "visible_stack.on" not in lsc
       and "Set-Content" not in lsc.split("if ($Hidden)")[0],
       "an override that writes the marker would steal her choice")
-check("all four components receive the -ShowWin switch",
-      lsc.count("-ShowWin:$showWin") == 4,
+check("all five components receive the -ShowWin switch",
+      lsc.count("-ShowWin:$showWin") == 5,
       f"got {lsc.count('-ShowWin:$showWin')}")
 check("visible mode verifies the CONSOLE shape, not the tee wrapper",
       "streamlit run app.py" in lsc)

@@ -76,8 +76,10 @@ check("bridge exit check seeds the live price", 'df.loc[_rt_idx, "close"] = _rt_
 check("bridge trailing stop uses ticker price", "live_price = _rt_live" in bs)
 
 # ── invariants ──────────────────────────────────────────────────────────
-check("SOLD stays the only console clearer (pop lives in sold handler)",
-      "cw_sold.pop" in ap or "_cw_sold.pop" in ap)
+check("SOLD clears by TOMBSTONE (None), never a pop — the merge-save "
+      "consumes the marker and the raw tombstone read keeps a stale "
+      "carrier from resurrecting the row (the round-3/5 convention)",
+      "_cw_sold[_sp] = None" in ap or "cw_sold[_sp] = None" in ap)
 check("the fire-time writer never writes the bridge from the console",
       "from signal_bridge" not in ap[ap.find("def auto_track_popup") if "def auto_track_popup" in ap else 0:])
 
