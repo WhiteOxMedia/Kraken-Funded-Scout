@@ -1,0 +1,4 @@
+{
+  "_readme": "Reviewed failure classifications for ops/fleet_sweep.py. A drive failing WITHOUT an entry here renders RED (unclassified). Add an entry ONLY after triage: status (FLAKY | STALE PIN), a one-line note, and the verified date so stale classifications are visible as stale. Delete an entry when the underlying issue is fixed.",
+  "classes": {}
+}

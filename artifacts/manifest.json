@@ -913,6 +913,19 @@
     "test_lifecycle.py": "sha256:7b44a85aeea170862a88c46bddd21574a63cc642e7fd1bc4830b7dfce89f4814",
     "test_stateclobber.py": "sha256:e04272df37b59be2397483a7ce76e7b8ff8b86ee1c227697a7d004600a42b112"
    }
+  },
+  "36-fleet-sweep-tool": {
+   "commits": [
+    "<this commit>"
+   ],
+   "branch_name": "master",
+   "date": "2026-09-29",
+   "title": "THE FLEET SWEEP IS A TOOL: ops/fleet_sweep.py RUNS EVERY DRIVE AND WRITES THE HTML HEALTH REPORT (Sep 29, fleet-sweep-tool)",
+   "detail": "The Sep-29 manual sweep (157 drives, the first 157->153+4 read) is now a repeatable operator tool. ops/fleet_sweep.py: discovers test_*.py in the root, runs sequentially (-X utf8, per-drive --timeout, default 240s), parses the house verdict conventions (RESULT N/M, x/y passed, ALL PASS, DONE), classifies failures against ops/fleet_sweep_classes.json (a reviewed file: status FLAKY|STALE_PIN + note + verified date; a failing drive WITHOUT an entry is RED \u2014 the tool never masks new failures), and writes artifacts/fleet_sweep/fleet_sweep_<stamp>.html + fleet_sweep_latest.html (self-contained dark report: GREEN/CLASSIFIED/RED cards, checks-passed count, per-drive table with failing-check excerpts) + fleet_sweep_last.json (machine-readable for trend diffs). Subset mode: ops/fleet_sweep.py test_tide canary. Exit 0 unless an UNCLASSIFIED failure exists \u2014 the commit gate stays the enforcement layer, this is the operators eyes. Classification debt renders AMBER with its verified date so stale classifications are visible as stale.",
+   "checksums": {
+    "ops/fleet_sweep.py": "sha256:d5f939b144899685bbf76f6dd928604bcce6821644a1e78c18326771487edbb1",
+    "ops/fleet_sweep_classes.json": "sha256:272c499f1c2291b74a45a2cc1e83b9857557c9b2d26d1e00801af72a64d75bad"
+   }
   }
  }
 }
