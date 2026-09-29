@@ -254,13 +254,21 @@ def evaluate(cycles: list[dict], prior_band: tuple[float, float] | None,
 def run_canary(cohort: list[str], rotation_seed: dict,
                prior_band: tuple[float, float] | None = None,
                cycles: int = CYCLES, seed: int = SEED,
-               breach_injection: dict | None = None) -> dict:
-    """The spec's canary job, end to end. breach_injection forces a
-    distribution past the thresholds (the staging drill: the rollback
-    must be proven, not assumed). Writes the run report."""
+               breach_injection: dict | None = None,
+               arm: bool = False) -> dict:
+    """The spec's canary job. BY DEFAULT A PURE SIMULATION (the four-
+    review major): no flip, no rollback — production state is never
+    touched, because a what-if that silently re-arms the live cohort
+    would also STRIP the live params cell (flip_canary writes a fresh
+    doc) and a simulated breach would roll the LIVE cohort off.
+    arm=True is the staging exercise: real flip, and a breach executes
+    the real rollback — run it only against a sandboxed COHORT_FILE or
+    when a live re-arm is actually intended. breach_injection forces a
+    distribution past the thresholds (the rollback must be proven, not
+    assumed). Writes the run report either way."""
     import auto_adjust as aa
     run_id = datetime.now().strftime("%Y%m%d_%H%M%S")
-    flipped = flip_canary(f"canary-{run_id}")
+    flipped = flip_canary(f"canary-{run_id}") if arm else None
     cyc = collect_cycles(cohort, cycles, rotation_seed, seed=seed)
     if breach_injection:
         # the staging drill: the cohort's payer-rate collapses in the
@@ -279,10 +287,16 @@ def run_canary(cohort: list[str], rotation_seed: dict,
               "commit_sha": _commit_sha(),
               "rollback": None}
     if ev["breach"]:
-        record["rollback"] = rollback()
-        record["status"] = "rolled_back"
+        if arm:
+            record["rollback"] = rollback()
+            record["status"] = "rolled_back"
+        else:
+            # a simulated breach REPORTS the required rollback; it must
+            # never execute it against whatever cohort is live
+            record["status"] = "breach_simulated"
+            record["rollback_required"] = True
     else:
-        record["status"] = "pass_continue"
+        record["status"] = "pass_continue" if arm else "pass_simulated"
         record["next"] = ("collect 24-72h, then request Ops + Product "
                           "sign-off (governance/adjustment_policy.md)")
     RUNS_DIR.mkdir(parents=True, exist_ok=True)

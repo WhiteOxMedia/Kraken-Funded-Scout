@@ -1,8 +1,13 @@
 """THE CANARY DRIVE (task 6): the dial flips to canary and back on the
-machine's REAL dial file seam (the sandbox moves it via the env override
-the module already honors), the spec's thresholds evaluate honestly, a
-simulated breach TRIGGERS the rollback, and the run report lands in
-artifacts/canary/ — the rollback proven, not assumed."""
+machine's REAL dial file seam (the sandbox moves it via the module
+globals the drive swaps), the spec's thresholds evaluate honestly, and
+run_canary DEFAULTS TO A PURE SIMULATION (the four-review major): no
+flip, no rollback — production state (the live cohort doc with its
+params cell, the operator's dial) survives a simulated run byte-exact,
+and a simulated breach only REPORTS the required rollback. arm=True is
+the staging exercise proven in-sandbox: real flip, and a breach executes
+the machine's real rollback. The run report lands in artifacts/canary/.
+"""
 import json
 import os
 import shutil
@@ -92,41 +97,92 @@ try:
           and ev["worst_single_book_loss"] >= cr.WORST_LOSS_CAP
           and ev["hit_rate_stable"], ev)
 
-    # the run: pass path writes the report, dial stays canary
+    # the run: pass path writes the report — and BY DEFAULT A PURE
+    # SIMULATION (the four-review major): production state is never
+    # touched. A pre-seeded live-style cohort (armed_at + a params cell
+    # the gate selected) must survive the run BYTE-EXACT: a simulated
+    # run that flipped would both re-arm the live cohort AND strip the
+    # params cell (flip_canary writes a fresh doc). Note the seeded
+    # cohort uses a stable id — the pin proves the id did not rotate.
+    _dial.write_text(json.dumps({"EXIT_EXTENSION_ENABLED": "1"}),
+                     encoding="utf-8")
+    cr.flip_canary("live-cohort-do-not-touch",
+                   params={"alpha": 0.03, "delta_max": 0.05,
+                           "daily_cap": 0.2})
+    _live_before = _cohort.read_text(encoding="utf-8")
     rec = cr.run_canary(cohort, seed, cycles=30, seed=11)
     rp = Path(rec["report"])
-    check("a passing run keeps the dial in canary and writes its "
-          "report with the sign-off next step",
-          rec["status"] == "pass_continue" and rp.exists()
-          and cr.read_dial() == "canary"
-          and "sign-off" in rec.get("next", ""), rec["status"])
+    check("a simulated run (default arm=False) touches NO production "
+          "state: no flip (dial None), the live-style cohort doc "
+          "survives byte-exact (id, armed_at, AND the params cell the "
+          "gate selected), the operator's dial '1' survives, and the "
+          "report still lands with the sign-off next step",
+          rec["status"] == "pass_simulated" and rec["dial"] is None
+          and rec["rollback"] is None
+          and _cohort.read_text(encoding="utf-8") == _live_before
+          and _cohort_doc().get("params", {}).get("alpha") == 0.03
+          and _dial_doc() == {"EXIT_EXTENSION_ENABLED": "1"}
+          and rp.exists() and "sign-off" in rec.get("next", ""),
+          (rec["status"], rec.get("dial")))
 
-    # THE BREACH: the cohort's payer-rate collapses in the second half
-    # (the regime shift) -> the runner rolls the dial back OFF. The
-    # rollback is the machine's real one. Forcing duds EVERYWHERE can't
-    # breach (the rule refuses to loosen on a low-ratio stream — the
-    # machine being right), so the drill poisons the back half only.
+    # THE SIMULATED BREACH: the cohort's payer-rate collapses in the
+    # second half (the regime shift). SIMULATED, so the rollback is
+    # only REQUIRED, never executed — the live cohort stays untouched.
+    # Forcing duds EVERYWHERE can't breach (the rule refuses to loosen
+    # on a low-ratio stream — the machine being right), so the drill
+    # poisons the back half only.
     rec2 = cr.run_canary(cohort, {"B": 12, "r": 0.45}, cycles=30,
                          seed=11,
                          breach_injection={"second_half_P": 0})
-    check("the breach run stops the COHORT (the operator's own master "
-          "arm '1' SURVIVES — a cohort rollback never silently disables "
-          "the exit-extension feature; that is the two-file point)",
-          rec2["status"] == "rolled_back"
-          and rec2["rollback"]["rolled_back"] is True
-          and cr.read_cohort() == ""
-          and cr.read_dial() == "1", (rec2["status"], cr.read_dial()))
+    check("a simulated breach REPORTS the required rollback but never "
+          "executes it: status breach_simulated, rollback_required, "
+          "record['rollback'] None, the live cohort STILL armed and "
+          "byte-exact, the operator's master arm '1' untouched",
+          rec2["status"] == "breach_simulated"
+          and rec2.get("rollback_required") is True
+          and rec2["rollback"] is None
+          and cr.read_cohort() == "live-cohort-do-not-touch"
+          and _cohort.read_text(encoding="utf-8") == _live_before
+          and cr.read_dial() == "canary"
+          and _dial_doc() == {"EXIT_EXTENSION_ENABLED": "1"},
+          (rec2["status"], cr.read_cohort(), cr.read_dial()))
     check("the breach evaluation names its reasons (a breach is never "
           "a bare boolean)",
           rec2["evaluation"]["breach"]
           and len(rec2["evaluation"]["reasons"]) >= 1,
           rec2["evaluation"]["reasons"])
-    check("the breach report records the rollback event with the "
-          "commit sha (auditable)",
-          Path(rec2["report"]).exists()
-          and rec2["commit_sha"], rec2["commit_sha"])
+    check("the breach report records the run with the commit sha "
+          "(auditable)",
+          Path(rec2["report"]).exists() and rec2["commit_sha"],
+          rec2["commit_sha"])
 
-    # a fresh flip after the rollback (the operator re-arms cleanly)
+    # THE STAGING LEG (arm=True in the sandbox): a REAL arm — flip, and
+    # a breach executes the machine's real rollback. The drill re-arms
+    # AFTER the simulation legs, so the simulated breach above provably
+    # never touched the cohort this leg flips.
+    rec3 = cr.run_canary(cohort, {"B": 12, "r": 0.45}, cycles=30,
+                         seed=11, arm=True,
+                         breach_injection={"second_half_P": 0})
+    check("arm=True is the staging exercise: a REAL flip arms the "
+          "sandbox cohort (dial canary, id rotated) and a breach "
+          "executes the REAL rollback — the cohort disarms, the "
+          "operator's own master arm '1' SURVIVES (a cohort rollback "
+          "never silently disables the exit-extension feature)",
+          rec3["status"] == "rolled_back"
+          and rec3["dial"] == {"dial": "canary",
+                               "cohort_id": f"canary-{rec3['run_id']}"}
+          and rec3["rollback"]["rolled_back"] is True
+          and cr.read_cohort() == ""
+          and cr.read_dial() == "1"
+          and _dial_doc() == {"EXIT_EXTENSION_ENABLED": "1"},
+          (rec3["status"], cr.read_cohort(), cr.read_dial()))
+    check("the armed breach report records the rollback event with the "
+          "commit sha (auditable)",
+          Path(rec3["report"]).exists() and rec3["commit_sha"],
+          rec3["commit_sha"])
+
+    # a fresh flip after the staging rollback (the operator re-arms
+    # cleanly)
     cr.flip_canary("canary-2")
     check("the operator re-arms a new cohort after a rollback (on the "
           "cohort file — the dial file still byte-exact)",
