@@ -143,15 +143,26 @@ def run_ratios_sql(con: sqlite3.Connection,
 
 
 # ── the CSV artifact ────────────────────────────────────────────────
+def _num(r: dict, *keys) -> int:
+    """First present, non-None value among the spec's and the SQL's
+    key shapes (B_g vs measurable_B_g) — the exporter accepts both."""
+    for k in keys:
+        if r.get(k) is not None:
+            return r[k]
+    return 0
+
+
 def export_csv(rows: list[dict], out_path: Path) -> Path:
     out_path.parent.mkdir(parents=True, exist_ok=True)
     with out_path.open("w", newline="", encoding="utf-8") as f:
         w = csv.writer(f)
         w.writerow(["gate", "measurable_B_g", "P_g", "r_g"])
         for r in rows:
-            w.writerow([r["gate"], r["measurable_B_g"],
-                        r["P_g"] if r["P_g"] is not None else 0,
-                        "" if r["r_g"] is None else f"{r['r_g']:.4f}"])
+            B = _num(r, "measurable_B_g", "B_g")
+            P = _num(r, "P_g")
+            rg = r.get("r_g")
+            w.writerow([r.get("gate") or "?", B, P,
+                        "" if rg is None else f"{float(rg):.4f}"])
     return out_path
 
 
