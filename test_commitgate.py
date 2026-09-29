@@ -254,8 +254,28 @@ if not RERUN:
     import re as _re
     _hook_txt = (sandbox / "hooks" / "pre-commit").read_text(
         encoding="utf-8", errors="replace")
-    _drives = set(_re.findall(
-        r'maybe_run "\$_(?:APP|BS)"\s+(\S+\.py)', _hook_txt))
+
+    # THE EXPECTED DRIVES FOR A STAGED SET: parse the hook's own trigger
+    # matrix (flag -> file patterns, maybe_run flag -> drive) and compute
+    # which drives run when the scenario's files are staged. A frozen
+    # count drifts out of truth every time the matrix grows (Sep 29:
+    # _TL the EV ladder, _SW the state-writer linter + resilience).
+    _trigger = {}   # flag -> [file regex, ...]
+    for _m in _re.finditer(
+            r"grep -qxE? '([^']+)' && _([A-Z]{1,3})=yes", _hook_txt):
+        _trigger.setdefault("_" + _m.group(2), []).append(_m.group(1))
+
+    def _expected_drives_for(stage_files):
+        fired = set()
+        for _fl, _pats in _trigger.items():
+            if any(_re.fullmatch(_p, _f)
+                   for _f in stage_files for _p in _pats):
+                fired.add(_fl)
+        return {_m.group(2) for _m in _re.finditer(
+                    r'maybe_run "\$(_[A-Z]{1,3})"\s+(\S+\.py)', _hook_txt)
+                if _m.group(1) in fired}
+
+    _drives = _expected_drives_for(("app.py", "background_scanner.py"))
     _n_expected = len(_drives)
     check(2.01, _n_expected >= 7,
           f"the matrix census reads {_n_expected} app/scanner drives "

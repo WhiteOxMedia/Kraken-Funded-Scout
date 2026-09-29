@@ -45,9 +45,11 @@ REGISTRY: dict[tuple[str, str], dict] = {
     ("contest_watch.json", "contest_account.new_contest"): {
         "note": "the new-contest wipe; atomic {}"},
     ("contest_watch.json", "add_xrp_watch.<module>"): {
-        "note": "operator one-shot; merge-read, atomic, tombstone-aware"},
+        "note": "operator one-shot; merge-read, delegates the write",
+        "delegates_to": "background_scanner._save_contest_watch"},
     ("contest_watch.json", "set_bnb_size.<module>"): {
-        "note": "operator one-shot; merge-read, atomic, tombstone-aware"},
+        "note": "operator one-shot; merge-read, delegates the write",
+        "delegates_to": "background_scanner._save_contest_watch"},
     ("profit_guard_state.json", "profit_guard._save"): {
         "merge": True, "note": "owner-keys merge-save + atomic"},
     ("auto_adjust_canary.json", "canary_runner.flip_canary"): {
@@ -163,7 +165,9 @@ def _call_paths(n: ast.Call, files: dict[str, str],
         attr = n.func.id
         if attr == "open" and n.args:
             return _resolve(n.args[0], files, helpers)
-        if attr == "replace":
+        if attr in ("replace", "replace_atomic"):
+            # replace_atomic: the fleet's shared retry wrapper — its
+            # (tmp, target) pair maps exactly like os.replace
             out: set[str] = set()
             for a in n.args[:2]:
                 out |= _resolve(a, files, helpers)
@@ -282,7 +286,10 @@ def scan_module(path: Path, label: str) -> tuple[set[tuple[str, str, bool]],
                     if _open_writes(n) and n.args:
                         unit_targets |= _resolve(n.args[0], files,
                                                  helper_files)
-                elif attr == "replace":
+                elif attr in ("replace", "replace_atomic"):
+                    # "replace_atomic" is the fleet's shared retry
+                    # wrapper (atomic_io) — a call to it IS the rename
+                    # (the linter must not flag the helper's adopters)
                     unit_replaces |= _call_paths(n, files, helper_files)
                 elif attr in WRITE_ATTRS:
                     unit_targets |= _call_paths(n, files, helper_files)
@@ -422,6 +429,17 @@ def main() -> int:
     found, bad_pops = scan_fleet()
     reg_pairs = set(REGISTRY)
 
+    # THE ABSENT SIBLING (the honest-skip convention, mirroring the
+    # stateclobber drive): the bot repo lives at BASE.parent — sandboxes
+    # (commitgate drills, foreign clones) have no sibling, and flagging
+    # its registered writers as ghosts there would be a LIE about the
+    # fleet. Their checks become environment-conditional skips.
+    bot_absent = not BOT.exists()
+    _bot_writer = lambda w: w.startswith("bot_")
+    if bot_absent:
+        print("SKIP  sibling bot repo absent — bot writers are "
+              "environment-conditional (R1b/R2 skip them here)")
+
     unreg = sorted(f"{f} <- {w}" for f, w, _a in sorted(found)
                    if (f, w) not in reg_pairs)
     check("R1 every production writer of a governed state file is "
@@ -431,17 +449,36 @@ def main() -> int:
 
     ghost = sorted(f"{f} <- {w}" for (f, w) in sorted(reg_pairs)
                    if "<module>" not in w
-                   and not any(ff == f and ww == w for ff, ww, _a in found))
+                   and not (bot_absent and _bot_writer(w))
+                   and not any(ff == f and ww == w
+                               for ff, ww, _a in found))
     check("R1b the registry names no ghost writers (a rename updates it)",
           not ghost, ghost)
+
+    # DELEGATION (documented in the registry, never guessed): a writer
+    # that performs no local IO but hands the write to another
+    # registered ATOMIC writer of the same file inherits its atomicity.
+    found = set(found)
+    for (f, w), meta in REGISTRY.items():
+        if any(ff == f and ww == w for ff, ww, _a in found):
+            continue
+        d = meta.get("delegates_to")
+        if not d or "." not in d:
+            continue
+        _mod, _func = d.split(".", 1)
+        if any(ff == f and ww == d and aa
+               for ff, ww, aa in found):
+            found.add((f, w, True))
 
     non_atomic = sorted(
         f"{f} <- {w}" for (f, w), meta in sorted(REGISTRY.items())
         if not meta.get("allow_non_atomic")
+        and not (bot_absent and _bot_writer(w))
         and not any(ff == f and ww == w and atomic
                     for ff, ww, atomic in found))
     check("R2 every registered writer saves ATOMICALLY (tmp + "
-          "os.replace) unless allow_non_atomic with a reason",
+          "replace/replace_atomic) unless allow_non_atomic with a "
+          "reason — or delegates_to a registered atomic writer",
           not non_atomic, non_atomic)
 
     check("R3 no merge-file writer POPS the dict it saves without a "

@@ -808,6 +808,25 @@
     "test_tidelearn.py": "sha256:fec3a757f1ed7df047f2c71e8a45495b2d03beeeb2e2ecc4dc3bb27724a61da3",
     "hooks/pre-commit": "sha256:2ffa9f13d343fd268b5757e778bc8931cbbcc775d70454cf45d6ac2d412d40a1"
    }
+  },
+  "27-ops-resilience": {
+   "commits": [
+    "<this commit>"
+   ],
+   "branch_name": "master",
+   "date": "2026-09-29",
+   "title": "OPS RESILIENCE: RETRY TELEMETRY, A TESTED RESTORE PATH, THE STATE-WRITER LINTER IN THE GATE, AND THE RECOVERY RUNBOOK (Sep 29, ops-resilience)",
+   "detail": "The ten-item ops gap list, triaged and closed where real. RETRY TELEMETRY: atomic_io.replace_atomic emits one structured jsonl line per try (op/target/attempt/outcome/error/elapsed_ms/ts) to artifacts/io_events.jsonl \u2014 clean first-try successes stay silent, every retry/exhaustion/non-contention raises a line; the sink never breaks a state save. EMERGENCY RESTORE: restore_state.py replays applied auto_adjust telemetry events into the guard state \u2014 factor anchored at the newest before_gf (the ledger's own restore-target convention), ledger rows land as DATA through profit_guard._save (no apply_adjustment call, no multiplication), idempotent under replay; the drive's MUTATION pin proves the double-apply shape (anchor after_gf) reads 0.8336 and fails. LINTER IN THE GATE: diag_statewriters (R1 unregistered / R2 non-atomic / R3 resurrection) runs as test_statewriters.py on every commit touching the writer surface; the diag now recognizes atomic_io.replace_atomic as the rename, documents delegation (the op one-shots delegate to _save_contest_watch), and environment-skips bot writers when the sibling repo is absent (sandboxes). test_commitgate's expected-drive census now DERIVES from the hook's trigger matrix for the staged set instead of a frozen count. RUNBOOK: playbooks/state_file_recovery.md \u2014 named-contention and torn-JSON procedures with exact commands, the cross-platform rename-semantics matrix (NFS/SBM verdict: never host the tree on a network mount), the advisory-lock DECISION (rejected, with the revisit trigger), chaos cadence (every commit + Tuesdays + after environment drift), gate budget rules (split, never widen), and secrets handling. Explicitly NOT done: LockFileEx/fcntl (decision in the runbook) and NFS support (out of contract). Drives: statewriters 9/0, resilience 15/0, atomicio 8/0, profitguard 77/0, tidelearn 11/0, stateclobber 21/0, commitgate 70/0 x7.",
+   "checksums": {
+    "atomic_io.py": "sha256:5c1bf4d644824af2e3c439894ad40da28d235a232aa0adcb4e39d78f72adea62",
+    "restore_state.py": "sha256:7adaa7372125524caec9160a22f575bfd69721e8b0630dc5cd3f92a09df8f49a",
+    "diag_statewriters.py": "sha256:9fa2224c80b9d44be6708e2765d172935117142b1042bf81d0eab175c020a0cd",
+    "test_statewriters.py": "sha256:8fd7984b10679865807b1d534009478cefedf3df5fa649603edceac7879f33e0",
+    "test_resilience.py": "sha256:e0429eaa5e59c0ace41a098944c22255f12dc643761d88db1a17d4c869b67685",
+    "test_commitgate.py": "sha256:ed882754e928bfb4c153303c9233d47e33c0136edca1252e36e9cde1bc946b8a",
+    "hooks/pre-commit": "sha256:0be0a30e71625ee51c03bd96df7b18478436550a26764c5746ecabcc2265fa5d",
+    "playbooks/state_file_recovery.md": "sha256:fbb7b561c1e06a1479163c55f777ceac36b9c3557375e7022d37a1fc7c698105"
+   }
   }
  }
 }
