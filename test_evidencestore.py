@@ -56,8 +56,8 @@ try:
           man)
     check("the manifest names the commit sha (the code that read them "
           "is part of the evidence)",
-          man["commit_sha"] and man["commit_sha"] != "unknown"
-          or man["commit_sha"] == "unknown", man["commit_sha"])
+          isinstance(man["commit_sha"], str) and man["commit_sha"],
+          man["commit_sha"])
     check("the bundle checksum covers the manifest itself",
           man["bundle_checksum"].startswith("sha256:"),
           man["bundle_checksum"])

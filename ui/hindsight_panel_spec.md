@@ -23,15 +23,17 @@ proposed delta −0.08 (loosens the guard; time-boxed 3 rotations)
 
 | Gate | B_g | P_g | r_g | expected payoff | action |
 |---|---|---|---|---|---|
-| deep-veto | 8 | 4 | 50% | +0.5 payers/rotation | [inspect] |
-| tide-out | 4 | 2 | 50% | +0.2 payers/rotation | [inspect] |
-| stale-move | 1 | 0 | 0% | — | [inspect] |
+| deep-veto | 8 | 4 | 50% | +2.0 | [inspect] |
+| tide-out | 4 | 2 | 50% | +1.0 | [inspect] |
+| stale-move | 1 | 0 | 0% | 0 | [inspect] |
 | popup-floor | 0 | 0 | — | — | [inspect] |
 
 - Sorted payers-desc, rate tiebreak (the API's order — the UI never
   re-sorts; one brain).
-- `expected payoff = P_g × (1 − r_g)`: the payers this gate would stop
-  burying at the proposed width.
+- `expected payoff = P_g × (1 − r_g)`: the duds this gate would have
+  correctly caught at the proposed width (per the example rows:
+  deep-veto 4 × 0.5 = +2.0, tide-out 2 × 0.5 = +1.0, stale-move
+  0 × 1.0 = 0 — rendered +2.0/+1.0/—, never a bare 0).
 - `[inspect]` scrolls to the candidate list pre-filtered to the gate.
 
 ## Zone 3 — the candidate list (per gate, from `gates[].top_candidates`)

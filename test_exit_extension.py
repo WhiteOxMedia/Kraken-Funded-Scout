@@ -74,7 +74,15 @@ def _env(key, val):
 
 
 # ── sandbox the state file BEFORE anything counts ────────────────────
-_tmpstate = BASE / "_extext_state.json"
+# THE DIAL FILE TOO (the isolated review's major, Sep 28): the drive's
+# finally unlinks the dial file it wrote — resolved through the module,
+# which reads the env — so if the env rebind ever failed to apply, that
+# unlink would hit the OPERATOR'S LIVE dial. Both files now live in the
+# system temp dir; the repo root is never written.
+import tempfile as _tempfile_extext
+_extext_tmp = Path(_tempfile_extext.mkdtemp())
+_tmpstate = _extext_tmp / "_extext_state.json"
+_dial_tmp = _extext_tmp / "exit_extension.dial.json"
 if _tmpstate.exists():
     _tmpstate.unlink()
 _old_state_env = _env(ex.STATE_ENV, str(_tmpstate))
@@ -438,10 +446,16 @@ finally:
         else:
             os.environ[k] = old
     _df = ex.dial_file()
+    if _df.exists() and _df.parent == _extext_tmp:
+        _df.unlink()     # only ever the SANDBOX dial — a live dial at
+                         # the resolved path is left alone, loudly
     if _df.exists():
-        _df.unlink()
+        print(f"[test_exit_extension] REFUSING to unlink non-sandbox "
+              f"dial file: {_df}", flush=True)
     if _tmpstate.exists():
         _tmpstate.unlink()
+    import shutil as _shutil_ex
+    _shutil_ex.rmtree(_extext_tmp, ignore_errors=True)
 
 # ── 10. the whole tree still parses (the drive's own smoke) ──────────
 import ast

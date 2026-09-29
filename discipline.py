@@ -663,8 +663,12 @@ def evaluate_rotation(exchange, rot_key: str, when=None, speak=True,
             empty_why = "the funnel offered nothing rail-worthy — the market's honest no"
         try:
             import meta_layers as _mlp
-            _silent_dock = _mlp.dock_silent_rotation(empty_buried, when=when,
-                                                     n_payers=empty_payers)
+            _silent_dock = _mlp.dock_silent_rotation(
+                empty_buried, when=when, n_payers=empty_payers,
+                rot_key=rot_key)   # the EVALUATED window (the boundary
+                                   # fires at 16:00 ABOUT 12-16 — the
+                                   # dedup key must name the window
+                                   # judged, not the one beginning)
         except Exception:
             _silent_dock = {}
     realized_pnl = sum(float(t.get("pnl_net") or 0) for t in sold)

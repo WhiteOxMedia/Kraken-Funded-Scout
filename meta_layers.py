@@ -434,7 +434,8 @@ def discipline_penalty_extra() -> float:
 
 
 def dock_silent_rotation(n_buried: int, when: datetime | None = None,
-                         n_payers: int = 0) -> dict:
+                         n_payers: int = 0,
+                         rot_key: str | None = None) -> dict:
     """THE SILENT-ROTATION DOCK (user ask, Sep 28: "when a rotation
     happens but no popups fired it should ask why + self adjust"),
     PROPORTIONAL (user ask, Sep 28: "dock proportional to the measured
@@ -467,10 +468,14 @@ def dock_silent_rotation(n_buried: int, when: datetime | None = None,
         dock = round(0.5 * n_payers * (n_payers / int(n_buried)), 1)
         dock = min(dock, 2.0)
         st = _state()
-        # the dedup key carries the DATE (CodeRabbit, Sep 28): the bare
-        # rotation key repeats every day, so a bare-key dedup would let
-        # today's dock silence every future day's same rotation
-        key = f"{when.strftime('%Y-%m-%d')} {_rot_key_of(when)}"
+        # the dedup key carries the DATE (CodeRabbit, Sep 28) and the
+        # EVALUATED rotation (the isolated review's follow-up, Sep 28):
+        # the boundary fires AT 16:00 ABOUT 12-16 — deriving the key
+        # from `when`'s hour labels the dock with the window that is
+        # BEGINNING, not the one being judged. discipline passes the
+        # rot it evaluated; `when` stays the fallback.
+        key = f"{when.strftime('%Y-%m-%d')} " \
+              f"{rot_key or _rot_key_of(when)}"
         sr = st.get("silent_docks") or {}
         if sr.get("rot") == key:
             return {"docked": 0.0, "reason": f"already docked for {key}"}

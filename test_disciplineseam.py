@@ -276,9 +276,14 @@ check("7.6 the silent voice line ASKS WHY (the all-good line checks "
 src_ml = Path("meta_layers.py").read_text(encoding="utf-8")
 check("7.7 the boundary docks through meta_layers (the self-adjust "
       "rides the existing SAL channel, no new learning plane), and it "
-      "is MEASURED — payers x payer-rate, per-rotation 2.0 cap",
-      "dock_silent_rotation(empty_buried" in src
+      "is MEASURED — payers x payer-rate, per-rotation 2.0 cap — and "
+      "the dock is keyed by the EVALUATED rotation (the boundary "
+      "fires at 16:00 ABOUT 12-16; the review's follow-up)",
+      "dock_silent_rotation(" in src
       and "n_payers=empty_payers" in src
+      and "rot_key=rot_key" in src
+      and "rot_key: str | None = None" in src_ml
+      and "rot_key or _rot_key_of(when)" in src_ml
       and "0.5 * n_payers * (n_payers / int(n_buried))" in src_ml)
 check("7.7b the payer measurement is the evaluation's OWN hindsight "
       "(system_burial = suppressed pairs the coin test says reached "

@@ -291,7 +291,16 @@ def exit_verdict(pair: str, w: dict, reason: str,
     added = str(w.get("added") or "")
     if added:
         try:
-            age_min = (now - datetime.fromisoformat(added)).total_seconds() / 60.0
+            stamp = datetime.fromisoformat(added)
+            # THE NAIVE STAMP IS HOUSE TIME (the recurring review minor,
+            # closed Sep 28): the writer stamps naive-local, so judging
+            # it against aware `now` raises TypeError (aware - naive)
+            # and the row SKIPPED the age gate on the exception path —
+            # a fresh book could arm. A naive stamp is assumed to be
+            # the machine's own zone; only then is the age judged.
+            if stamp.tzinfo is None:
+                stamp = stamp.replace(tzinfo=now.tzinfo)
+            age_min = (now - stamp).total_seconds() / 60.0
             if age_min < dials["age_gate_min"]:
                 return "exit", f"book only {age_min:.0f}m old (age gate " \
                                f"{dials['age_gate_min']:.0f}m)"

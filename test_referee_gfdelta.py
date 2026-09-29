@@ -155,6 +155,7 @@ finally:
 old = _sandbox_series([["2026-09-27", 1.0]])
 try:
     rg.GF_FROZEN = 1.0          # the drifted baseline (real state: 2.0)
+_gf_old = getattr(rg, "GF_FROZEN", None)
     buf = io.StringIO()
     with redirect_stdout(buf):
         rc = _main_rc()
@@ -219,6 +220,14 @@ check("5.2 the span gate boundary: 13 days refuses, 14 reports",
 check("5.3 the notyet line names the span and the ask",
       "0 day(s)" in _G(rows=[]).notyet_line()
       and ">= 14" in _G(rows=[]).notyet_line())
+
+# the frozen baseline is RESTORED, not hardcoded (the isolated
+# review's minor: `rg.GF_FROZEN = 2.0` in a finally would silently
+# bless 2.0 as 'the original' if the real state ever moves)
+if _gf_old is not None:
+    rg.GF_FROZEN = _gf_old
+else:
+    del rg.GF_FROZEN
 
 print(chr(10).join(lines))
 print()
