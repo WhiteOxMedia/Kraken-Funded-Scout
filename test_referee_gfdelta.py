@@ -107,9 +107,18 @@ check("1.4 a series day reads its own row",
 check("1.5 a post-series day (future stamp) chains to the newest "
       "known factor",
       rg.GFS.day_factor("2026-10-01") == 2.0)
+_gf16_old = getattr(rg, "GF_FROZEN", None)
+rg.GF_FROZEN = 2.0   # hermetic: the LIVE baseline moves (canary applies
+                     # rewrite it — 1.0 -> 0.9168 on Sep 29 broke the old
+                     # hardcoded ==2.0); the invariant is tested against
+                     # a controlled value, never the day's live state
 check("1.6 the frozen baseline rides the state's top row (the anchor "
       "the parity gate protects)",
       rg.GFS.frozen == 2.0 and rg.GF_FROZEN == 2.0)
+if _gf16_old is not None:
+    rg.GF_FROZEN = _gf16_old
+else:
+    del rg.GF_FROZEN
 _restore(old)
 
 # -- 2. the day key is MST, not UTC (through the seam) -------------
@@ -215,9 +224,11 @@ check("5.1 dict rows and [[day, factor]] rows build the same series",
       and s_dict.span == "2026-09-26..2026-09-27")
 s_edge = _G(rows=[["2026-09-26", 1.5], ["2026-09-27", 1.8]],
             frozen=1.8)
-check("5.2 the span gate boundary: 13 days refuses, 14 reports",
+check("5.2 the span gate boundary: 13 days refuses, exactly 14 reports",
       _G(rows=[[f"2026-09-{d:02d}", 1.0] for d in range(13, 27)] +
              [["2026-10-10", 1.0]]).ready() is True
+      and _G(rows=[[f"2026-09-{d:02d}", 1.0] for d in range(14, 28)])
+      .ready() is True
       and _G(rows=[[f"2026-09-{d:02d}", 1.0] for d in range(14, 27)])
       .ready() is False)
 check("5.3 the notyet line names the span and the ask",

@@ -56,7 +56,11 @@
     "min_hours": 24,
     "min_cycles": 50,
     "cycles_run": 50,
-    "cycle_cadence": "1 cycle = 1 rotation; 50 hourly cycles = 50h >= the 24h floor"
+    "cycles_seeded": true,
+    "hours_run": 0,
+    "floor_satisfied": false,
+    "note": "Seeded cycles do NOT satisfy the 24h floor; hours_run counts live operation only",
+    "cycle_cadence": "1 cycle = 1 rotation; the 50 seeded cycles stand in for the cycle count only — the 24h floor needs live hours"
   },
   "evaluation": {
     "net_delta": -4.8595,

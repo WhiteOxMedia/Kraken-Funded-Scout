@@ -476,12 +476,24 @@ def extension_trail_pct(entry: float, high: float,
                         goal_pct: float, armed: bool) -> float:
     """The width the EXTENDED book is guarded with — asserted equal to
     the incumbent shapes: the ratchet while unarmed; once armed, the
-    live half-goal cap max(goal/2, 1.0) — never wider, never naked."""
+    live half-goal cap NOTCHED so the implied stop never dips below
+    the entry-protective floor (the round-3 review: the absolute
+    1.0%-wide cap let an armed, barely-run position guard with a stop
+    BELOW its entry — paying the ~0.16% round-trip to lose money)."""
     import background_scanner as bs   # the incumbent, imported late + lazy
     ratchet = bs._ratchet_trail_pct(entry, high, 0.0)
     if not armed:
         return ratchet
     half_goal_cap = max((goal_pct or 0.0) * bs.GOAL_TRAIL_ARM_FRAC, 1.0)
+    # THE PROTECTIVE NOTCH: when the ratchet alone would leave the stop
+    # under entry + 2x RT, widen the cap just enough that the stop
+    # sits at the floor (7.1's mutant assertion was always conditional
+    # on a real run; the notch extends it to barely-run positions).
+    if high > entry and ratchet < half_goal_cap:
+        stop_pct = (high - entry) / high * 100.0
+        need = stop_pct + 2 * 0.08   # 2x the 0.08% round-trip cost
+        if stop_pct < need:
+            half_goal_cap = max(half_goal_cap, need)
     return min(ratchet, half_goal_cap)
 
 

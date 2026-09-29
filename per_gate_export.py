@@ -37,8 +37,16 @@ def _now_mst():
             from app import _now_mst as _f
             MST = _f
         except Exception:
-            from datetime import timezone, timedelta
-            MST = lambda: datetime.now(timezone(timedelta(hours=-7)))
+            # the fallback clock (round-3 review): the machine is Denver
+            # — MST/MDT is UTC-7/UTC-6; zoneinfo resolves which, with a
+            # fixed -7 last resort. (The old bare `app` import could
+            # pull the whole Streamlit world into a headless job.)
+            try:
+                from zoneinfo import ZoneInfo
+                MST = lambda: datetime.now(ZoneInfo("America/Denver"))
+            except Exception:
+                from datetime import timezone, timedelta
+                MST = lambda: datetime.now(timezone(timedelta(hours=-7)))
     return MST()
 
 
@@ -219,6 +227,17 @@ def default_rotation_id(now: datetime | None = None) -> str:
     now = now or _now_mst()
     start = (now.hour // 4) * 4
     return f"{start:02d}-{(start + 4) % 24:02d}"
+
+
+def full_rotation_id(now: datetime | None = None) -> str:
+    """The DATED rot id ('2026-09-29-00-04') for the rotation holding
+    `now` — the cross-day-safe shape (the round-3 review's top_payers
+    major): a bare-window default merges every day's same window into
+    one export; the full id scopes to the day via the loader's date
+    half. default_rotation_id stays bare (the journal's own stamp
+    shape); consumers that AGGREGATE history default to this one."""
+    now = now or _now_mst()
+    return f"{now:%Y-%m-%d}-{default_rotation_id(now)}"
 
 
 def main() -> int:

@@ -623,7 +623,13 @@ def _save(st: dict) -> None:
     try:
         with open(tmp, "w", encoding="utf-8") as fh:
             json.dump(merged, fh, indent=2)
-        os.replace(tmp, sf)
+        # THE RETRY-ON-CONTENTION CONTRACT (the fleet's cross-writer
+        # convention): a lost rename retries IN-PROCESS on the named
+        # contention family (WinError 5/32, errno-13 shapes) instead of
+        # waiting for the next tick; the last contention error still
+        # raises so fail-soft callers keep their named-failure rule.
+        from atomic_io import replace_atomic
+        replace_atomic(tmp, sf)
     except BaseException:
         try:
             os.unlink(tmp)

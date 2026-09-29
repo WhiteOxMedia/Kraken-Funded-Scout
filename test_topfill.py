@@ -31,7 +31,10 @@ check("the fill math prices both spread halves and the round-trip fee "
       "(a +10% peak fills at 9.63%: 1.09945/1.0005, then the fee)",
       abs(fill - ((fx / fe - 1.0) * 100.0 - tp.FEE_RT_PCT)) < 1e-12
       and abs(fill - 9.630054972513763) < 1e-9, fill)
-check("a sub-fee peak captures ZERO (the round-trip-to-nowhere class)",
+# the sub-fee floor, tested by name AND number: a +0.4% run nets
+# (1.0035/1.0005 - 1)*100 - 0.26 = -0.16 -> clamps to exactly 0.0
+check("a sub-fee peak captures ZERO (the round-trip-to-nowhere class; "
+      "proven numerically through the real export path below)",
       tp.top_expected.__name__ == "top_expected", "")
 
 _sbx = Path(tempfile.mkdtemp())
@@ -48,6 +51,8 @@ sup.write_text("\n".join(json.dumps(r) for r in (
      "gate": "tide-out", "quick": 70.0, "rot": "ROT"},      # sub-fee run
     {"ts": (t0 + timedelta(minutes=7)).isoformat(), "pair": "DUD/USD",
      "gate": "tide-out", "quick": 60.0, "rot": "ROT"},      # never moves
+    {"ts": (t0 + timedelta(minutes=8)).isoformat(), "pair": "FEE2/USD",
+     "gate": "tide-out", "quick": 55.0, "rot": "ROT"},      # sub-fee @ low goal
 )), encoding="utf-8")
 db = _sbx / "ohlcv_cache.db"
 con = sqlite3.connect(db)
@@ -60,6 +65,8 @@ con.executemany("INSERT INTO ohlcv VALUES (?,?,?,?,?,?)", [
     ("MID/USD", ms0 + 3_600_000, 2.0, 2.10, 2.0, 2.05),  # +5% peak
     ("FEE/USD", ms0 - 600_000, 1.0, 1.0, 1.0, 1.0),
     ("FEE/USD", ms0 + 3_600_000, 1.0, 1.004, 1.0, 1.0),  # +0.4% < fee
+    ("FEE2/USD", ms0 - 600_000, 1.0, 1.0, 1.0, 1.0),
+    ("FEE2/USD", ms0 + 3_600_000, 1.0, 1.003, 1.0, 1.0),  # +0.3%: net-negative
     ("DUD/USD", ms0 - 600_000, 1.0, 1.0, 1.0, 1.0),
     ("DUD/USD", ms0 + 3_600_000, 1.0, 1.0, 1.0, 1.0),    # 0%
 ])
@@ -77,6 +84,19 @@ check("the export sorts by expected payoff, best first (BIG leads)",
 check("the fill-adjusted column is BELOW the peak (honest gap shown)",
       all(r["fill_adjusted_pct"] < r["expected_payoff_pct"]
           for r in rows if r["pair"] in ("BIG/USD", "MID/USD")), rows)
+# THE SUB-FEE FLOOR, numerically (the round-3 review: the old check
+# asserted a function name, not the floor): with the goal lowered below
+# the fee so the row survives the goal filter, a +0.3% peak nets
+# (1.0024985/1.0005 - 1)*100 - 0.26 = -0.06 -> the row ships with the
+# fill clamped to exactly 0.0
+rows_fee = tp.top_expected("ROT", supp_path=sup, cache_path=db,
+                           goal_pct=0.2)
+_fee_row = [r for r in rows_fee if r["pair"] == "FEE2/USD"]
+check("a sub-fee peak captures ZERO (fill clamped to 0.0, the floor "
+      "class)",
+      len(_fee_row) == 1
+      and _fee_row[0]["fill_adjusted_pct"] == 0.0
+      and _fee_row[0]["expected_payoff_pct"] == 0.3, _fee_row)
 check("the sub-fee run captures ZERO (the floor class)",
       [r for r in rows if r["pair"] == "FEE/USD"] == []
       or [r for r in rows if r["pair"] == "FEE/USD"][0]

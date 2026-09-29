@@ -91,8 +91,11 @@ def export_csv(rows: list[dict], path: Path) -> Path:
 
 def main() -> int:
     import sys
+    # THE DATED DEFAULT (the round-3 review's cross-day major): the old
+    # bare-window default merged every day's same window into one
+    # export. The full id scopes to the day via the loader's date half.
     rot = sys.argv[1] if len(sys.argv) > 1 else \
-        __import__("per_gate_export").default_rotation_id()
+        __import__("per_gate_export").full_rotation_id()
     rows = top_expected(rot)
     stamp = rot.replace(":", "").replace(" ", "_")
     art = export_csv(rows, OUT_DIR / f"top_payers_{stamp}.csv")

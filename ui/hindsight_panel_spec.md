@@ -51,7 +51,7 @@ proposed delta −0.08 (loosens the guard; time-boxed 3 rotations)
 
 | button | body | guard |
 |---|---|---|
-| Auto Apply | `{action:"auto_apply", confirm:true, operator_id:<HINDSIGHT_OPERATOR_TOKEN>, override_concentration:true}` | every state-changing POST requires operator_id to match the token; the EXPLICIT override field is what lifts the concentration queue (auth alone never does); `override_concentration` omitted = the queue wins |
+| Auto Apply | `{action:"auto_apply", confirm:true, operator_id:<HINDSIGHT_OPERATOR_TOKEN>}` — `override_concentration` is NOT sent by default: omitting it means the concentration queue wins; the field is only added by an explicit operator choice at the confirm step (auth alone never lifts the queue) | every state-changing POST requires operator_id to match the token; the EXPLICIT override field is what lifts the concentration queue |
 | Queue for Review | `{action:"queue_review", operator_id:<token>}` | authenticated too; computes + bundles, never touches GF |
 | Reject | client-side | closes the panel; the bundle stays (evidence outlives the decision) |
 | Rollback | POST `/api/hindsight/rotation/:id/rollback` `{operator_id:<token>}` | restores the ledger row's `before` (its own route — a rollback is not an apply; authenticated like every POST) |
@@ -60,10 +60,12 @@ proposed delta −0.08 (loosens the guard; time-boxed 3 rotations)
   (`confirmation_required`) — the UI still sends the confirm only from
   a two-step click (press → summary of what will change → confirm).
 
-## Zone 5 — the audit trail (telemetry stream)
+## Zone 5 — the audit trail (GET /api/hindsight/telemetry)
 
 The last 20 `auto_adjust` events from
-`artifacts/auto_adjust/telemetry.jsonl`, rendered as:
+`artifacts/auto_adjust/telemetry.jsonl`, read by the console through
+the API's history route (zone 5 of the wire slice; the file is never
+touched by the panel directly), rendered as:
 
 ```
 18:02  2026-09-28-16  APPLIED   2.00 → 1.92  B14 P6 r42.9%  by system  ev sha256:ab12…  commit d5fd30f
@@ -76,8 +78,12 @@ stream is append-only.
 
 ## Data contract notes
 
-- The panel reads ONLY the four endpoints (plus the telemetry stream
-  for zone 5) — no direct file reads, no second brain.
+- The panel reads ONLY the four endpoints — zones 1–3 through the
+  rotation slice, zone 4's ledger and zone 5's audit trail through the
+  history routes `GET /api/hindsight/ledger` and
+  `GET /api/hindsight/telemetry` — no direct file reads, no second
+  brain. A POST to either history route is a named 404: no mutation
+  can ride a history URL.
 - All payloads are JSON; the checksums are `sha256:…` strings.
 - The wireframe ships as text (this file) by design: the console's
   streamlit panels (the funnel plate, the burial-hindsight expander)

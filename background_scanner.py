@@ -2865,11 +2865,27 @@ def _save_contest_watch(watch: dict):
     import json
     drops = {k for k, v in (watch or {}).items() if v is None}
     try:
-        cur = _load_contest_watch()
+        # THE RAW TOMBSTONE READ (the round-3 review's resurrection
+        # window): the filtered loader HIDES another writer's deletion
+        # marker, so a stale writer still carrying the row in its own
+        # view would overlay it right back over the None on disk. The
+        # marker WINS while it lives (it is consumed by the first save
+        # that no longer carries the key); a genuine fresh re-add after
+        # that still lands.
+        try:
+            with open(CONTEST_WATCH_JSON, "r", encoding="utf-8") as fh:
+                _raw = json.load(fh)
+            _raw = _raw if isinstance(_raw, dict) else {}
+            raw_tombs = {k for k, v in _raw.items() if v is None}
+            cur = {k: v for k, v in _raw.items() if v is not None}
+        except Exception:
+            raw_tombs = set()
+            cur = _load_contest_watch()
         merged = {k: v for k, v in cur.items()
                   if k not in drops and k not in watch}
         merged.update({k: v for k, v in (watch or {}).items()
-                       if v is not None})   # the DELETION wins: a None
+                       if v is not None and k not in raw_tombs})
+                                            # the DELETION wins: a None
                                             # value re-added by update
                                             # would resurrect the row
                                             # it exists to remove
@@ -2971,13 +2987,31 @@ def _load_scanner_state() -> dict:
         return {}
 
 
-def _save_scanner_state(state: dict) -> None:
+def _save_scanner_state(state: dict, path: str | None = None) -> None:
+    """MERGE-SAVE (the round-3 review): this file carries independent
+    keys written at different times — the morning flatten date, the
+    sure-thing armed-coil memory, the exit-extension canary watermark.
+    The old whole-file replace let the 20:00 flatten's one-key write
+    ERASE the canary watermark (the next boundary tick re-evaluated the
+    rotation) and the armed-coil memory (a restart re-announced it).
+    Overlaying `state` onto the file's CURRENT contents keeps every
+    writer's keys; tmp + os.replace keeps it torn-write-proof."""
     import json
-    p = os.path.join(os.path.dirname(os.path.abspath(__file__)), "scanner_state.json")
+    p = path or os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                             "scanner_state.json")
     try:
+        merged = dict(state or {})
+        try:
+            with open(p, "r", encoding="utf-8") as fh:
+                cur = json.load(fh)
+            if isinstance(cur, dict):
+                cur.update(state or {})
+                merged = cur
+        except Exception:
+            pass   # no file yet / unreadable: `state` stands alone
         tmp = p + ".tmp"
         with open(tmp, "w", encoding="utf-8") as fh:
-            json.dump(state, fh, indent=1)
+            json.dump(merged, fh, indent=1)
         os.replace(tmp, p)
     except Exception as exc:
         logger.warning("scanner state save failed: %s", exc)

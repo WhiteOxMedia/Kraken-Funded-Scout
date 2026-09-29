@@ -774,6 +774,26 @@
     "background_scanner.py": "sha256:07f6ba0fe3874885787561dd29b4d886b0aa8ef296496ff5e1085b82eb24b66f",
     "test_dangerzone.py": "sha256:d13f58f8100edb6aa539163dc0643b6134a079d801d6220f528e086c86b0a058"
    }
+  },
+  "25-coderabbit-round3": {
+   "commits": [
+    "<this commit>"
+   ],
+   "branch_name": "master",
+   "date": "2026-09-29",
+   "title": "CODERABBIT ROUND 3 TRIAGED: 15/15 FIXED \u2014 BOTH MERGE-SAVES CLOSED, THE TRAIL NOTCHED, THE EV LADDER HONEST, THE EXPORTS DATED, THE VACUOUS PINS SHARPENED (Sep 29, coderabbit-round3)",
+   "detail": "The b926e6d review's 15 findings, all fixed. MAJORS: (1) background_scanner._save_contest_watch now reads the RAW tombstones \u2014 a stale writer's overlay can no longer resurrect a row another writer deleted (the filtered loader hid the None). (2) _save_scanner_state is a MERGE-SAVE \u2014 the 20:00 flatten's one-key whole-file write no longer erases the canary watermark or the armed-coil memory. (3) exit_extension.extension_trail_pct notches the half-goal cap so an armed, barely-run position's stop never sits below entry + 2x RT (shared by the :3452 enforcement path). (4) tide_learn's EV ladder demands POSITIVE EV before admitting a below-80 bar (0-vs-0 denied). (5) top_payers defaults to the DATED full_rotation_id (per_gate_export.full_rotation_id) \u2014 no more cross-day window merging. MINORS: the gf-delta 14-day boundary feeds exactly 14; check 1.6 is hermetic (the live frozen GF moved to 0.9168); the simsweep tautology demands a real applying; pergate's leak proof is the B_g-sum arithmetic and the goal boundary got its 1.49 leg (1.49 scores 1.0 < 1.5); topfill proves the sub-fee floor numerically through the real export (a +0.3% peak clamps to 0.0); per_gate_export's fallback clock is Denver zoneinfo; the signoff states SEEDED cycles never satisfy the 24h floor (floor_satisfied: false); the spec's zones 4/5 point at the history routes with override_concentration opt-in. BONUS: start_detached.ps1 accepts the launcher's hindsight_service key (the old bare 'hindsight' label never matched \u2014 the stack's hindsight leg died in default); profit_guard._save inherits atomic_io.replace_atomic (the retry-on-contention contract); test_atomicio's exhaustion leg repaired (the half-landed conversion crashed on a None sleeper). Drives: exit_extension 58/0, referee_gfdelta 20/0, simsweep 19/0, pergate 17/0, topfill 13/0, atomicio 8/0, stateclobber 21/0 x2, profitguard 77/0, boundaryexam 35/0, rebootsurv 25/0, tide ALL, hindsightapi 41/0, commitgate 70/0.",
+   "checksums": {
+    "background_scanner.py": "sha256:37fe5bd20fb05ca10b428da8fe2f93666459fd380ebda3a788609964fe8602ed",
+    "exit_extension.py": "sha256:8fb659a4094f609733c3283bebb1cba4e852a7293ccd136ad84d5ee5c1036e5b",
+    "tide_learn.py": "sha256:d474d403e93e89ac474cd0e27ab88f024ded6d8fdf321f446ad925741dfa8cc2",
+    "top_payers.py": "sha256:cb5827f3988190e5eedde53599c046d12d538f4e67971ffe7d90106d1cf02a11",
+    "per_gate_export.py": "sha256:e4af75f02c2704b7c6c5fe0be87cb9fdddf46ffee96c66641be2c2029a985bc5",
+    "start_detached.ps1": "sha256:4cbdbb56a05e80e260c9efa1879ebb1d9e57e45d64ef28af7f86ffe1344782d9",
+    "profit_guard.py": "sha256:1437cc1bcd94f7b5f7a5bb70b8395005bbf724f466583b86dd74edcc0f078da5",
+    "test_stateclobber.py": "sha256:03549b34723415cc72c935185cc92ffd0f9a8d772ab8df30eb56bcdc1f797fad",
+    "test_atomicio.py": "sha256:e64d8bffcdea53d1734eed50b89d667bd0b8995b2da4d0b5dd3bb93134bc63a7"
+   }
   }
  }
 }

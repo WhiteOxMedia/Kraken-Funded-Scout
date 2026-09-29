@@ -357,14 +357,22 @@ try:
                           .replace("VALUE", f"'v{_i}'"), _PG_SETUP))
                 for _i in _st_missing]
     _heal_pg_res = _run_wave(_heal_pg, timeout_s=90) if _heal_pg else {}
-    _st_pg = json.loads(_pg_proc.read_text(encoding="utf-8"))
+    # THE CONVERGENCE POLL ("the next tick"): a bounded re-read window —
+    # stragglers converging mid-read count as healed, hard absence at
+    # the deadline is the failure. The wave's evidence rides the detail.
+    _pg_deadline = time.time() + 30.0
+    while time.time() < _pg_deadline:
+        _st_pg = json.loads(_pg_proc.read_text(encoding="utf-8"))
+        if all(_st_pg.get(f"stormkey{i}") == f"v{i}" for i in range(6)):
+            break
+        time.sleep(0.5)
     _pg_starved = _import_starved or _starved(_heal_pg_res)
     check("the guard state HEALS the same way: concurrent owner-key "
           "saves retry to completeness (the owner-keys rule under real "
           "scheduling)",
           _pg_starved
           or all(_st_pg.get(f"stormkey{i}") == f"v{i}" for i in range(6)),
-          sorted(_st_pg))
+          f"wave={_heal_pg_res} state={sorted(_st_pg)}")
 
     # ── WAVE 2: the fill between the reads — the bot's row lands while
     # scanner writers are in flight; the merge must keep it ───────────

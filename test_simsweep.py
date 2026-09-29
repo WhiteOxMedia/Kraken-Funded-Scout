@@ -39,9 +39,10 @@ check("the replay applies only where the rails pass (6 rich rotations "
       res["applied_count"] == 6
       and all(d == 0.0 for d in res["applied"] if d == 0.0), res)
 check("every applied delta is negative and within the per-adjustment "
-      "cap (loosening only)",
+      "cap (loosening only; the drought never fakes a revert)",
       all(-ss.DELTAS[-1] <= d <= 0 for d in res["applied"] if d < 0)
-      and res["worst"] <= 0, res["worst"])
+      and any(d < 0 for d in res["applied"]) and res["worst"] < 0,
+      res["worst"])
 check("the daily cap binds per rotation-day (the rich rotations each "
       "took exactly one -0.08, never two)",
       abs(res["applied"][0] - (-(0.05 * 0.5) * ss.__dict__["math"].log(11)))

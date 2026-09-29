@@ -84,6 +84,11 @@ function Say([string]$m) {
 }
 
 # ── component table ────────────────────────────────────────────────────
+# (the round-3 review: the launcher sends the SCRIPT name
+# "hindsight_service"; the old bare "hindsight" label never matched it
+# — the stack's hindsight leg died in the default branch. The script
+# name is now the key; the bare alias stays accepted.)
+if ($Component -eq "hindsight") { $Component = "hindsight_service" }
 $script = ""; $cwd = $Base; $py = ""; $extra = ""; $lockFile = ""
 switch ($Component) {
     "background_scanner" {
@@ -116,7 +121,7 @@ switch ($Component) {
         $extra = "streamlit run app.py --server.port 8501 --server.runOnSave false --server.headless true"
         $lockFile = ""
     }
-    "hindsight" {
+    "hindsight_service" {
         # the hindsight API service (Sep 29): a stdlib server on
         # 127.0.0.1:8785 feeding the console's API-fed panel. It runs
         # its OWN single-instance contract (hindsight_service's pid

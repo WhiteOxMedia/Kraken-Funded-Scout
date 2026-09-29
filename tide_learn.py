@@ -388,8 +388,11 @@ def _outcome_fit_bar(state, scores, arr_cache=None):
             # quantile fallback stay in force (the comment above
             # always promised this; the code finally keeps it).
             return None
-        elif best_low[1] >= best_80[1] * EV_LADDER_MARGIN:
+        elif best_low[1] > 0.0 and best_low[1] >= best_80[1] * EV_LADDER_MARGIN:
             chosen = best_low                       # the ladder ADMITS: mispriced
+            # (round-3 review: admission also demands POSITIVE EV — a
+            # 0-vs-0 tie admitted a below-80 bar whose fires pay
+            # NOTHING; zero evidence of mispricing is the DENY case)
         else:
             chosen = best_80                        # the ladder DENIES: static floor
         bar_o = round(max(OUTCOME_BAR_FLOOR_MIN, min(97.0, chosen[0])), 1)

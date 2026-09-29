@@ -81,8 +81,9 @@ try:
           by["popup-floor"]["measurable_B_g"] == 0
           and by["popup-floor"]["P_g"] in (0, None)
           and by["popup-floor"]["r_g"] is None, by["popup-floor"])
-    check("another rotation's rows never leak into the window",
-          all(r["gate"] != "ghost" for r in out), out)
+    check("a different rotation's rows never leak into the window "
+          "(R2's X|1 is measurable — a leak would inflate the B_g sum)",
+          sum(r["measurable_B_g"] for r in out) == 7, out)
     check("the goal boundary is >= (1.5 counts, 1.49 does not)",
           by["tide-out"]["P_g"] == 3, by["tide-out"])
 finally:
