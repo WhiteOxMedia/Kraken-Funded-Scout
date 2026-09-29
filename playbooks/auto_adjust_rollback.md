@@ -25,7 +25,6 @@ The CANARY cohort is a separate control on its OWN file
 (`auto_adjust_canary.json`) — `cr.rollback()` stops the cohort only
 and never touches the feature master (the two-file rule,
 governance/adjustment_policy.md step 2).
-writes `EXIT_EXTENSION_ENABLED: "0"` to `exit_extension.dial.json`.
 
 ## Revert path (if the CODE is wrong, not the data)
 The adjustment rides commit `<sha>` (every telemetry event carries
