@@ -886,6 +886,19 @@
     "app.py": "sha256:2ffe7ae1789f70e77a609f52bceec70969673bc88676229d2c93abebd1f99c92",
     "test_allgoodlead.py": "sha256:c94f6601df7fd6c9c7689b26a404803f0323b6819919d2d3f37c0e390e1c1db2"
    }
+  },
+  "34-round5-minors": {
+   "commits": [
+    "<this commit>"
+   ],
+   "branch_name": "master",
+   "date": "2026-09-29",
+   "title": "ROUND 5 MINORS: THE TRAIL CAP PARITIES THE SCANNER, THE ATOMICIO DRIVE STOPS POLLUTING THE IO JOURNAL (Sep 29, round5-minors)",
+   "detail": "Two verified minors from the 3f85484 review stream. (1) exit_extension.extension_trail_pct replaces the ineffective round-3 notch with the scanner parity shape: the half-goal cap NARROWS to the lock-window width (the stop sits at entry + 2x RT, contest_account.COST_ROUNDTRIP_PCT) instead of a min() that kept the violating ratchet width \u2014 the armed stop can no longer sit net-negative on a barely-run position. (2) test_atomicio redirects TELEMETRY_PATH into a tempdir for the whole run (21 fake contention rows purged from the live artifacts/io_events.jsonl) and restores it in finally.",
+   "checksums": {
+    "exit_extension.py": "sha256:a13ed2f328e63e61f821e786df517ebd9e65e9eb7d7d2d78e12263771b20ed54",
+    "test_atomicio.py": "sha256:e5ce5edabe202643af3429fe374a96435327290bc4f99b2d264a2fe9486bd2a8"
+   }
   }
  }
 }

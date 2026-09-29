@@ -10,6 +10,13 @@ from pathlib import Path
 
 import atomic_io as aio
 
+# THE SINK SEAM (the round-5 review's minor): every leg below fires
+# the telemetry note — redirect it to a tempdir file so the retry-math
+# tests never write fake contention rows into the LIVE journal.
+_tl = Path(tempfile.mkdtemp()) / "io_events_test.jsonl"
+_real_path = aio.TELEMETRY_PATH
+aio.TELEMETRY_PATH = _tl
+
 BASE = Path(__file__).resolve().parent
 sys.path.insert(0, str(BASE))
 
@@ -126,6 +133,7 @@ try:
           "is a drop-in, not a simulation)",
           (_d / "target").read_text(encoding="utf-8") == "hello")
 finally:
+    aio.TELEMETRY_PATH = _real_path
     fails = [r for r in results if not r[1]]
 rep = BASE / "artifacts" / "atomicio" / "_atomicio_drive.txt"
 rep.parent.mkdir(parents=True, exist_ok=True)

@@ -485,15 +485,20 @@ def extension_trail_pct(entry: float, high: float,
     if not armed:
         return ratchet
     half_goal_cap = max((goal_pct or 0.0) * bs.GOAL_TRAIL_ARM_FRAC, 1.0)
-    # THE PROTECTIVE NOTCH: when the ratchet alone would leave the stop
-    # under entry + 2x RT, widen the cap just enough that the stop
-    # sits at the floor (7.1's mutant assertion was always conditional
-    # on a real run; the notch extends it to barely-run positions).
-    if high > entry and ratchet < half_goal_cap:
-        stop_pct = (high - entry) / high * 100.0
-        need = stop_pct + 2 * 0.08   # 2x the 0.08% round-trip cost
-        if stop_pct < need:
-            half_goal_cap = max(half_goal_cap, need)
+    # THE LOCK-WINDOW CAP (the round-5 review: my round-3 notch was
+    # ineffective — min(ratchet, wider-cap) keeps the violating ratchet
+    # width). The scanner's own shape: the cap narrows to the width
+    # whose implied stop sits at entry + 2x RT — the net-positive floor
+    # — exactly like background_scanner's goal-armed trail does.
+    if high > entry:
+        try:
+            from contest_account import COST_ROUNDTRIP_PCT as _rt
+            _lock_w = max(0.0, (1.0 - entry * (1.0 + 2.0 * _rt / 100.0)
+                                / high) * 100.0)
+            if _lock_w > 0:
+                half_goal_cap = min(half_goal_cap, round(_lock_w, 3))
+        except Exception:
+            pass   # the cost constant is unavailable — cap stays as-is
     return min(ratchet, half_goal_cap)
 
 
