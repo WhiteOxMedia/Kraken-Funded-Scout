@@ -242,12 +242,44 @@ def rollback(rotation_id: str) -> dict:
     return aa.rollback(rotation_id)
 
 
+# ── 4. the ledger (the adjustments' authoritative history) ──────────
+def adjustment_ledger(limit: int = 50) -> dict:
+    """The auto_adjust_ledger, NEWEST FIRST, capped — the guard state's
+    own record of every apply/queue/refuse (day, rotation_id, status,
+    before → after, reason, evidence checksum). Read-only over the
+    wire; the panel's zone-4 companion renders it verbatim."""
+    import profit_guard as pg
+    st = pg._state()
+    rows = list(st.get("auto_adjust_ledger") or [])
+    rows.reverse()                          # newest first
+    return {"rows": rows[:max(0, int(limit))]}
+
+
+# ── 5. the audit trail (telemetry stream, newest first) ─────────────
+def telemetry_events(limit: int = 20) -> dict:
+    """The last N auto_adjust telemetry events — the spec's zone-5
+    stream (applied_by, cohort, commit_sha, evidence checksum ride the
+    event; nothing is ever deleted, the file is append-only)."""
+    import telemetry_adjust as ta
+    evs = list(ta.read_events())
+    evs.reverse()                           # newest first
+    return {"events": evs[:max(0, int(limit))]}
+
+
 # ── the wire: one dispatcher, HTTP or tests ─────────────────────────
 def route(method: str, path: str, body: dict | None = None,
           goal_pct: float = 1.5) -> tuple[int, dict]:
     """The routing table both the http.server stub and the contract
     tests call. Returns (status_code, payload)."""
     parts = [p for p in path.split("/") if p]
+    # the global history endpoints (NOT rotation-scoped — the ledger is
+    # the guard state's whole record, the telemetry stream is the whole
+    # audit trail; both GET-only, both read-only)
+    if len(parts) == 3 and parts[:2] == ["api", "hindsight"]:
+        if method == "GET" and parts[2] == "ledger":
+            return 200, adjustment_ledger()
+        if method == "GET" and parts[2] == "telemetry":
+            return 200, telemetry_events()
     # api / hindsight / rotation / :id / ...
     if len(parts) >= 4 and parts[:3] == ["api", "hindsight", "rotation"]:
         from urllib.parse import unquote

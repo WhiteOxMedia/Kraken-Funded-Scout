@@ -709,6 +709,21 @@
         "test_hindightservice.py": "sha256:bbd39f8c55d7ca3afed59c2e44e40281f13e68ec4ac0e5d5d4e64887509626d7",
         "test_hindsightapi.py": "sha256:0ae88801c8ab24b0697ccec889eebd4ccb9916af0cce3dad6c097243633a8ad9"
       }
+    },
+    "21-zones-45-wire": {
+      "commits": [
+        "<this commit>"
+      ],
+      "branch_name": "master",
+      "date": "2026-09-29",
+      "title": "THE CONSOLE'S WIRE SLICE EXTENDS TO THE SPEC'S ZONES 4-5: THE ADJUSTMENTS LEDGER AND THE TELEMETRY PLATE, READ-ONLY FROM THE API (Sep 29, zones-45-wire)",
+      "detail": "Two new GET-only history routes on hindsight_api (NOT rotation-scoped): /api/hindsight/ledger (the guard state's auto_adjust_ledger, newest first, capped) and /api/hindsight/telemetry (the last N auto_adjust events, newest first — the spec's append-only audit trail). A POST to either is a named 404: no mutation can ride a history URL. The console's API-fed section renders both zones read-only from the payload shapes (zone 4: day/rotation/status/before -> after/delta/reason; zone 5: timestamp/rotation/status/GF path/B/P/r/applied_by/commit sha/evidence checksum), keeping the spec's data-contract rule — four GETs through ONE fetch funnel, no direct file reads, no second brain; the zone-4 ACTIONS stay off the console (the operator layer rides the wire once the canary graduates). Verified live on 127.0.0.1: 8785 after a service restart — ledger 200 (0 rows until the machine's first recorded adjustment; the zone hides honestly), telemetry 200 with the canary boundary hook's real events. Drives: hindsightapi 39/0 (route pins + POST-404 pin), apptest 303/0 (four-route fetch census, rendered zone pins, dead-API silence, port seam).",
+      "checksums": {
+        "app.py": "sha256:b948709cabad220b67f98c6d0cd3daba6775f2dcfceca292fdee6f531c62feaa",
+        "hindsight_api.py": "sha256:57cc64d10808ec7f3c2efc12cc333d62d22c7c4ec8b6a810ce363ea10278204b",
+        "test_apptest.py": "sha256:80056f63b4b5a701f9b6366ba88a539f7928b1eec9d5bda842faa4e2c9f69dbd",
+        "test_hindsightapi.py": "sha256:352d4ba39a417e5b5f232eb498b7485ebc6a9f96f20b2a25e4af11f4a1e418cc"
+      }
     }
   }
 }

@@ -2819,6 +2819,76 @@ def _render_burial_hindsight_api() -> None:
                 "current rotation (GET only — the mutating POSTs stay "
                 "token-gated; a dead API stays silent and the ledger-fed "
                 "panel above stands alone) — refreshes every 1 min")
+
+        # ── ZONE 4 (spec 4): the adjustments LEDGER, rendered read-only
+        # from the API's /api/hindsight/ledger payload — the guard
+        # state's own record (day, rotation, status, before → after,
+        # reason, evidence checksum). The ACTIONS stay off the console
+        # (the operator layer rides the wire once the canary
+        # graduates); the ledger is the history an operator reads
+        # BEFORE acting.
+        led = _cached_api_path(base, "api/hindsight/ledger")
+        if isinstance(led, tuple) and led[0] == 200 \
+                and isinstance(led[1], dict) and led[1].get("rows"):
+            st.markdown(
+                "<div style='font-family:Share Tech Mono,monospace;"
+                "font-size:12px;color:#8fa3bf;margin-top:8px;'>"
+                "ADJUSTMENTS LEDGER (read-only)</div>",
+                unsafe_allow_html=True)
+            led_rows = "".join(
+                f"<div style='font-family:Share Tech Mono,monospace;"
+                f"font-size:12px;color:#bfae8f;'>"
+                f"{str(r.get('day') or '—'):<10} "
+                f"{str(r.get('rotation_id') or '—'):<20} "
+                f"{str(r.get('status') or '—').upper():<8} "
+                f"{(r.get('before') if r.get('before') is not None else 0):.2f}"
+                f" → {(r.get('after') if r.get('after') is not None else 0):.2f} "
+                f"Δ{(r.get('delta') or 0):+.3f} "
+                f"{('· ' + str(r.get('reason'))) if r.get('reason') and r.get('reason') != 'ok' else ''}"
+                f"</div>"
+                for r in led[1]["rows"][:10])
+            st.markdown("<div style='padding:2px 0;'>" + led_rows
+                        + "</div>", unsafe_allow_html=True)
+            st.caption("the guard state's own ledger through the API "
+                       "(GET only) — newest first, capped at 10 here")
+
+        # ── ZONE 5 (spec 5): the audit trail — the telemetry stream's
+        # last events (applied_by, cohort, commit_sha, evidence
+        # checksum), read-only from /api/hindsight/telemetry.
+        tel = _cached_api_path(base, "api/hindsight/telemetry")
+        if isinstance(tel, tuple) and tel[0] == 200 \
+                and isinstance(tel[1], dict) and tel[1].get("events"):
+            st.markdown(
+                "<div style='font-family:Share Tech Mono,monospace;"
+                "font-size:12px;color:#8fa3bf;margin-top:8px;'>"
+                "AUDIT TRAIL (telemetry, read-only)</div>",
+                unsafe_allow_html=True)
+            tel_rows = "".join(
+                f"<div style='font-family:Share Tech Mono,monospace;"
+                f"font-size:12px;color:#bfae8f;'>"
+                f"{(e.get('timestamp') or '—')[:16].replace('T', ' ')}  "
+                f"{str(e.get('rotation_id') or '—'):<20} "
+                f"{str(e.get('status') or '—').upper():<8} "
+                f"{(e.get('before_gf') if e.get('before_gf') is not None else 0):.2f}"
+                f" → {(e.get('after_gf') if e.get('after_gf') is not None else 0):.2f} "
+                f"B{e.get('B', 0)} P{e.get('P', 0)} "
+                f"r={(e.get('r') * 100 if e.get('r') is not None else None)}%".replace(
+                    "r=None%", "r=—")
+                + (f"  by {e.get('applied_by') or 'system'}"
+                   if e.get("applied_by") else "")
+                + (f"  commit {str(e.get('commit_sha'))[:7]}"
+                   if e.get("commit_sha") else "")
+                + (f"  ev {str(e.get('evidence_checksum'))[:20]}…"
+                   if e.get("evidence_checksum") else "")
+                + (f"  ({e.get('reason')})"
+                   if e.get("reason") and e.get("reason") != "ok" else "")
+                + "</div>"
+                for e in tel[1]["events"][:8])
+            st.markdown("<div style='padding:2px 0;'>" + tel_rows
+                        + "</div>", unsafe_allow_html=True)
+            st.caption("the append-only telemetry stream through the API "
+                       "(GET only) — newest first, capped at 8 here; "
+                       "nothing on this trail is ever deleted")
     except Exception as exc:
         logger.debug("burial hindsight api panel skipped: %s", exc)
 

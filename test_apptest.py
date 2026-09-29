@@ -3289,10 +3289,12 @@ try:
     # data contract (the panel reads ONLY the endpoints).
     _src = (BASE / "app.py").read_text(encoding="utf-8").replace("\r\n", "\n")
     _api_sec = _src.split("def _cached_api_path")[1].split("def _render_funnel_plate")[0]
-    check("the API-fed section reads ONLY the summary + gates GETs "
-          "through ONE fetch funnel (route tails live in the section, "
-          "a single urlopen ride — nothing else touches the wire)",
+    check("the API-fed section reads ONLY the four GET routes "
+          "(summary + gates for the rotation, ledger + telemetry for "
+          "the zones-4/5 history) through ONE fetch funnel — a single "
+          "urlopen ride, nothing else touches the wire",
           "/summary" in _api_sec and "/gates" in _api_sec
+          and "/ledger" in _api_sec and "/telemetry" in _api_sec
           and _api_sec.count("urlopen(") == 1, _api_sec.count("urlopen("))
     _fetcher = _src.split("def _cached_api_path")[1].split("def _render_burial_hindsight_api")[0]
     check("the fetcher can never mutate (no POST anywhere in it — the "
@@ -3319,6 +3321,21 @@ try:
     _gates = [{"gate": "tide-out", "B_g": 12, "P_g": 3, "r_g": 0.25,
                "top_candidates": [{"pair": "CAGE/USD", "run": 8.0,
                                    "gate": "tide-out", "ts": "x"}]}]
+    _ledger = {"rows": [
+        {"day": "2026-09-29", "rotation_id": "2026-09-29-12-16",
+         "status": "applied", "before": 2.0, "after": 1.95,
+         "delta": -0.05, "reason": "ok",
+         "evidence": "sha256:abc"},
+        {"day": "2026-09-29", "rotation_id": "2026-09-29-08-12",
+         "status": "queued", "before": 2.0, "after": 2.0,
+         "delta": -0.08, "reason": "concentration_gate_blocks_auto_apply"}]}
+    _tel = {"events": [
+        {"event": "auto_adjust", "rotation_id": "2026-09-29-12-16",
+         "before_gf": 2.0, "after_gf": 1.95, "delta": -0.05,
+         "B": 20, "P": 7, "r": 0.35, "status": "applied",
+         "applied_by": "rotation_boundary", "commit_sha": "d5fd30f",
+         "evidence_checksum": "sha256:abc", "timestamp":
+         "2026-09-29T18:02:00-06:00"}]}
     _reqs: list = []
 
     class _APIResp:
@@ -3334,7 +3351,10 @@ try:
 
     def _fake_urlopen(url, timeout=None):
         _reqs.append(str(url))
-        payload = _gates if "/gates" in str(url) else _summ
+        payload = (_gates if "/gates" in str(url)
+                   else _ledger if "/ledger" in str(url)
+                   else _tel if "/telemetry" in str(url)
+                   else _summ)
         return _APIResp(json.dumps(payload).encode("utf-8"))
 
     _real_urlopen = _ureq.urlopen
@@ -3351,16 +3371,21 @@ try:
 
     _exp_labels: list = []
     app_mod.st.expander = _APIExp
+    _md: list = []
+    _real_md = app_mod.st.markdown
+    app_mod.st.markdown = lambda body=None, **k: _md.append(str(body))
     try:
         app_mod._cached_api_path.clear()
         app_mod._render_burial_hindsight_api()
         check("the section GETs the current rotation's summary + gates "
-              "— exactly two bare-window routes, nothing else",
-              len(_reqs) == 2
+              "PLUS the ledger + telemetry history — the zones-1-3 "
+              "routes stay rotation-scoped, zones-4/5 ride the global "
+              "history endpoints, and NO mutating route is ever asked",
+              len(_reqs) == 4
               and any(_re.search(r"/\d{2}-\d{2}/summary$", u) for u in _reqs)
               and any(_re.search(r"/\d{2}-\d{2}/gates$", u) for u in _reqs)
-              and all(u.startswith("http://127.0.0.1:8785/api/hindsight/rotation/")
-                      for u in _reqs)
+              and any(u.endswith("/api/hindsight/ledger") for u in _reqs)
+              and any(u.endswith("/api/hindsight/telemetry") for u in _reqs)
               and not any(m in " ".join(_reqs) for m in ("apply", "rollback")),
               _reqs)
         check("the API feed renders the summary headline (B/P/r/GF and "
@@ -3370,6 +3395,28 @@ try:
               and "r 35%" in _exp_labels[0]
               and "GF 2.0" in _exp_labels[0]
               and "proposed -0.05" in _exp_labels[0], _exp_labels)
+        # ── ZONES 4-5 (spec, Sep 29): the ledger + the audit trail
+        check("ZONE 4 renders the adjustments ledger read-only: "
+              "day/rotation/status/before→after/Δ/reason from the API's "
+              "ledger payload",
+              any("ADJUSTMENTS LEDGER" in m for m in _md)
+              and any("2026-09-29-12-16" in m and "APPLIED" in m
+                      and "2.00 → 1.95" in m for m in _md)
+              and any("QUEUED" in m
+                      and "concentration_gate_blocks_auto_apply" in m
+                      for m in _md),
+              [m[:120] for m in _md if "LEDGER" in m
+               or "2026-09-29-12-16" in m][:3])
+        check("ZONE 5 renders the audit trail read-only: timestamp, "
+              "rotation, status, GF path, B/P/r, applied_by, commit "
+              "sha, evidence checksum — from the API's telemetry "
+              "payload",
+              any("AUDIT TRAIL" in m for m in _md)
+              and any("by rotation_boundary" in m and "commit d5fd30f"
+                      in m and "ev sha256:abc" in m
+                      and "B20 P7" in m for m in _md),
+              [m[:120] for m in _md if "AUDIT" in m
+               or "rotation_boundary" in m][:3])
         # the deployment seam: HINDSIGHT_API_BASE moves the wire
         _os.environ["HINDSIGHT_API_BASE"] = "http://127.0.0.1:9999"
         _reqs.clear()
@@ -3393,6 +3440,7 @@ try:
     finally:
         _ureq.urlopen = _real_urlopen
         app_mod.st.expander = _real_exp2
+        app_mod.st.markdown = _real_md
         _os.environ.pop("HINDSIGHT_API_BASE", None)
         app_mod._cached_api_path.clear()
 except Exception as exc:

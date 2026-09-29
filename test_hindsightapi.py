@@ -254,6 +254,28 @@ try:
         else:
             _os.environ.pop("HINDSIGHT_OPERATOR_TOKEN", None)
 
+    # THE HISTORY ROUTES (the panel spec's zones 4-5, Sep 29): the
+    # ledger and the telemetry stream, GET-only and read-only — a POST
+    # to either is a named 404 (no mutation can ride a history URL).
+    code, led = ha.route("GET", "/api/hindsight/ledger")
+    check("the ledger route answers 200 with rows from the guard "
+          "state's own record (zone 4)",
+          code == 200 and isinstance(led.get("rows"), list)
+          and all(isinstance(r, dict) and "status" in r
+                  for r in led["rows"]),
+          (code, led))
+    code, tel = ha.route("GET", "/api/hindsight/telemetry")
+    check("the telemetry route answers 200 with newest-first events "
+          "carrying applied_by/cohort/commit_sha (the audit trail, "
+          "zone 5)",
+          code == 200 and isinstance(tel.get("events"), list)
+          and all(isinstance(e, dict) and "status" in e for e in tel["events"]),
+          (code, tel))
+    post404 = ha.route("POST", "/api/hindsight/ledger", {})
+    check("a POST to a history route is a named 404 (read-only by "
+          "construction — no mutation can ride a history URL)",
+          post404[0] == 404, post404)
+
     # THE EVIDENCE ROUTE (the isolated review's major): a pair id with
     # a slash must arrive INTACT through one encoded path segment.
     code, ev_wire = ha.route(
