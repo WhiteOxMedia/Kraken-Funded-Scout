@@ -697,12 +697,17 @@ def self_adjust(now: datetime | None = None) -> dict | None:
                               "parts": row["parts"],
                               "ts": row["ts"]})
     row["history_len"] = len(st["history"])
-    # MERGE, not replace (the isolated review, Sep 28): the state file
-    # carries other writers' keys now (the auto-adjust's time box and
-    # ledger) — writing `row | history` alone would silently drop them
-    # and the box's auto-revert would revert into a file that forgot it
-    # ever loosened. The existing state survives; this row rides on top.
-    _save(st | row | {"history": st["history"]})
+    # OWNER-KEYS-ONLY MERGE-SAVE (the review's recurring major, closed:
+    # 91907f2 → cf60cf7 → cb47bc5 → afb430d → this): the merge-save
+    # overlays onto the file's CURRENT contents, so a FULL STALE
+    # snapshot passed here degenerates it into a whole-file rewrite —
+    # every key the snapshot carries overwrites the file's newer value
+    # (the drive's mid-flight writer replayed it). This writer owns its
+    # daily row and the history series and NOTHING else: the box, the
+    # ledger, and any future writer's keys ride untouched on top.
+    _save({k: row[k] for k in ("adjusted_on", "factor", "parts", "ts",
+                               "history_len")}
+          | {"history": st["history"]})
     res = dict(res)
     res["history_len"] = len(st["history"])   # log-visible series growth
     return res

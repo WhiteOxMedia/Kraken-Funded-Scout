@@ -384,6 +384,40 @@ check(9.3, isinstance(_st.get("factor"), (int, float)),
       "GuardFactor stored for tomorrow's learning")
 check(9.4, pg.self_adjust(now=_ADJ_NOW) is None,
       "second call same day -> None (idempotent)")
+# THE DEGENERATION PIN (the review's recurring major, closed RED-first):
+# a FULL STALE snapshot passed to the merge-save degenerates it into a
+# whole-file rewrite — every key the snapshot carries overwrites the
+# file's CURRENT value. self_adjust owns exactly its daily row + the
+# history series; a foreign writer's key that lands (or changes)
+# between the read and the save must survive untouched.
+(TMP / "profit_guard_state.json").write_text(json.dumps(
+    {"self_adjust_parts": {"env": 0.98}}), encoding="utf-8")
+_captured = {}
+_real_save = pg._save
+def _midflight_writer(st):
+    _captured.update(st)
+    cur = json.loads((TMP / "profit_guard_state.json")
+                     .read_text(encoding="utf-8"))
+    cur["self_adjust_parts"] = {"env": 1.02}   # a newer value lands
+    (TMP / "profit_guard_state.json").write_text(
+        json.dumps(cur), encoding="utf-8")     # mid-flight
+    _real_save(st)
+pg._save = _midflight_writer
+try:
+    _adjF = pg.self_adjust(now=_ADJ_NOW)
+finally:
+    pg._save = _real_save
+_stF = json.loads((TMP / "profit_guard_state.json")
+                  .read_text(encoding="utf-8"))
+check("9.4b", _adjF is not None
+      and _stF.get("self_adjust_parts") == {"env": 1.02}
+      and _stF.get("adjusted_on") == "2026-09-22",
+      "the adjustment rides ON TOP of the foreign writer's NEWER value "
+      "(a stale full snapshot would have rewritten it to the old one)")
+check("9.4c", set(_captured) <= {"adjusted_on", "factor", "parts",
+                                  "ts", "history_len", "history"},
+      "self_adjust saves OWNER KEYS ONLY — never a full stale snapshot "
+      f"[saved: {sorted(_captured)}]")
 (TMP / "profit_guard_state.json").unlink(missing_ok=True)
 pg._daily_facts = lambda when=None: None
 pg.rotation_strength = _ORIG_RS      # real fn — the stub must not leak in

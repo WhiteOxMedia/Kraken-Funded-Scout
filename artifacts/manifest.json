@@ -475,6 +475,19 @@
       "results": "the propose path rides the live rotation boundary, gated + watermarked + one telemetry event per rotation",
       "acceptance": true,
       "notes": "THE BOUNDARY PROPOSES ITSELF (Sep 28): background_scanner's contest_light calls exit_extension.aa_apply_silent_rotation(current_window) per tick - gated behind the canary DIAL, evaluated ONCE per rotation (watermark aa_canary_last_rotation in scanner_state.json, read-re-read + atomic save, dedupe by stamp so every tick self-heals a missed boundary), the journal's own rot id rides hindsight_api.apply_action(auto_apply) with EVERY rail live (concentration gate, daily cap, evidence bundle, ledger) and ONE spec-shaped telemetry event per rotation (applied_by=rotation_boundary, the non-secret label; apply_action is the single emit funnel - no double events). THE DIAL KEY IS DEDICATED (the recurring reuse major, closed): canary_runner.AA_CANARY_KEY = AUTO_ADJUST_CANARY rides the cohort; the feature master EXIT_EXTENSION_ENABLED is never clobbered by a flip (byte-exact preserved), rollback keeps its documented stop-everything semantic and de-contaminates legacy 'canary' junk on the master to OFF; read_dial reports canary from the dedicated key. THE LIVE DIAL WAS RE-ARMED into the new shape: master 0, AUTO_ADJUST_CANARY=canary-20260928_225950 (the sign-off cohort) - the boundary hook is LIVE on the machine: each completed rotation now evaluates itself. Drive pins: dial-off refusal (nothing touched), flip key shape, full-path evaluation with named status, one event (rot id + cohort + applied_by + real B/P/per-gate), watermark no-rewrite, stamp in scanner_state, per-tick call shape, rollback de-contamination."
+    },
+    "15-self-adjust-owner-keys": {
+      "commits": ["<this commit>"],
+      "branch_name": "master (gated commits)",
+      "commands_run": ["uv run python -X utf8 test_profitguard.py (RED: 9.4b+9.4c failed on the stale-snapshot shape)", "fix, then GREEN: profitguard 77/0", "regressions: stateclobber 13/0, autoadjust 24/0, rebootsurv 25/0, hindsightapi 36/0", "git add profit_guard.py test_profitguard.py artifacts/manifest.json && git commit (gated)"],
+      "artifacts": [
+        {"path": "profit_guard.py", "sha256": "sha256:4570d81647b25222c346f993c054d80c200f25de581817f3333036d062d475f7"},
+        {"path": "test_profitguard.py", "sha256": "sha256:7945f2c2e335bf7031ea76a3fc43305e59bc752debc92dd7789bd49c08229221"}
+      ],
+      "tests_run": ["test_profitguard.py", "test_stateclobber.py", "test_autoadjust.py", "test_rebootsurv.py", "test_hindsightapi.py"],
+      "results": "profitguard 77/0 (2 new pins, red-first); regressions 13/0, 24/0, 25/0, 36/0",
+      "acceptance": true,
+      "notes": "THE RECURRING MAJOR IS CLOSED (91907f2 -> cf60cf7 -> cb47bc5 -> afb430d -> this): self_adjust merge-saved a FULL STALE snapshot (st | row | history) - under the merge-save every key the snapshot carries overwrites the file's CURRENT value, so the scanner's self_adjust keys rode stale into every save and any writer whose key changed mid-flight was rewritten backwards. The writer now saves OWNER KEYS ONLY (adjusted_on, factor, parts, ts, history_len, history); the box, the ledger, and any future writer's keys ride untouched on top. THE DRIVE PIN IS RED-FIRST: a mid-flight writer monkeypatch replays the degeneration against a foreign key that CHANGES between the read and the save (plant stale, capture the saved dict, mutate newer, save) - 9.4b proves the newer value survives, 9.4c proves the saved dict carries owner keys only. Was 75/2 RED, now 77/0 GREEN."
     }
   }
 }
