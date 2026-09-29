@@ -794,6 +794,20 @@
     "test_stateclobber.py": "sha256:03549b34723415cc72c935185cc92ffd0f9a8d772ab8df30eb56bcdc1f797fad",
     "test_atomicio.py": "sha256:e64d8bffcdea53d1734eed50b89d667bd0b8995b2da4d0b5dd3bb93134bc63a7"
    }
+  },
+  "26-ev-ladder-pinned": {
+   "commits": [
+    "<this commit>"
+   ],
+   "branch_name": "master",
+   "date": "2026-09-29",
+   "title": "THE EV LADDER'S ADMISSION POLICY EXTRACTED AND GATE-PROTECTED: _ladder_admits IS THE SEAM, THE ZERO-EV DENY IS RED-FIRST PINNED, THE RECURRING FINDING DIES (Sep 29, ev-ladder-pinned)",
+   "detail": "The longest-recurring CodeRabbit finding (the Sep 27 exhaustion hole 0f48047 reopened in round 3 as a 0-vs-0 admission) kept coming back because the admission policy lived mid-function in _outcome_fit_bar with no drive over it. Fixed structurally: tide_learn._ladder_admits(ev_low, ev_80) is now the pure single seam the fit's elif calls \u2014 positive low-band EV AND EV_LADDER_MARGIN over the >=80 band, None unbeatable. test_tidelearn.py pins the whole contract: the pure-branch matrix (0-vs-0 deny, negative-EV deny, exact-margin admit, parity deny, None refuse), the wiring census (the branch calls the seam, not an inline comparison), and two INTEGRATION legs through the real _outcome_fit_bar on constructed evidence (30+30 never-paying rows: the zero-EV >=80 band DENIES with bar 80 \u2014 the pre-round-3 shape ships 68 and fails this leg; 20 non-payers @90 + 40 payers @70: the genuinely mispriced low band ADMITS). RED-FIRST proven by mutation: reverting the seam to the inline pre-round-3 comparison fails the tripwire with exactly bar 68.0 / ev_o 0.0 / ev_ladder True. Gate-protected: hooks/pre-commit grows the _TL trigger (tide_learn.py|test_tidelearn.py) -> test_tidelearn.py result 15, and the drive exits honestly on failure. Drives: tidelearn 11/0, tide ALL, stateclobber 21/0, commitgate 70/0.",
+   "checksums": {
+    "tide_learn.py": "sha256:5a6f07badd9731d6dd63c5fad6d0045463950d410ec55b0a1a2af580f3cf089e",
+    "test_tidelearn.py": "sha256:fec3a757f1ed7df047f2c71e8a45495b2d03beeeb2e2ecc4dc3bb27724a61da3",
+    "hooks/pre-commit": "sha256:2ffa9f13d343fd268b5757e778bc8931cbbcc775d70454cf45d6ac2d412d40a1"
+   }
   }
  }
 }

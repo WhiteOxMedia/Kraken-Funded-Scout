@@ -296,6 +296,21 @@ def _ev_ladder_floor(fit: dict | None) -> float:
     return OUTCOME_BAR_FLOOR
 
 
+# ── THE EV LADDER'S ADMISSION POLICY (extracted Sep 29, the longest-
+# recurring review finding: the policy lived mid-function and kept
+# regressing because no drive pinned the whole contract) ─────────────
+def _ladder_admits(ev_low: float, ev_80: float) -> bool:
+    """May a below-80 bar ship? True only when the low band carries
+    POSITIVE evidence AND it beats the >=80 band by EV_LADDER_MARGIN:
+    a 0-vs-0 tie is the DENY case (zero evidence of mispricing — the
+    Sep 27 exhaustion hole reopened as a 0/0 admission before this
+    became the pinned contract), and a merely-equal band never widens
+    the funnel. Pure so the drive can pin every branch."""
+    return (ev_low > 0.0
+            and ev_80 is not None
+            and ev_low >= ev_80 * EV_LADDER_MARGIN)
+
+
 def _outcome_fit_bar(state, scores, arr_cache=None):
     """The EV-max bar for ONE tide state, fitted on that state's own
     live-candidate outcomes, or None when the state's evidence is thin
@@ -388,11 +403,8 @@ def _outcome_fit_bar(state, scores, arr_cache=None):
             # quantile fallback stay in force (the comment above
             # always promised this; the code finally keeps it).
             return None
-        elif best_low[1] > 0.0 and best_low[1] >= best_80[1] * EV_LADDER_MARGIN:
+        elif _ladder_admits(best_low[1], best_80[1]):
             chosen = best_low                       # the ladder ADMITS: mispriced
-            # (round-3 review: admission also demands POSITIVE EV — a
-            # 0-vs-0 tie admitted a below-80 bar whose fires pay
-            # NOTHING; zero evidence of mispricing is the DENY case)
         else:
             chosen = best_80                        # the ladder DENIES: static floor
         bar_o = round(max(OUTCOME_BAR_FLOOR_MIN, min(97.0, chosen[0])), 1)

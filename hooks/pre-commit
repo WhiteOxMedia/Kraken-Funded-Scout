@@ -148,6 +148,10 @@ done
 #   test_commitgate    exit code + RESULT (the gate's own quiet-mode
 #                      census + live sandbox drills — a failure echo
 #                      gone quiet fails the drive that guards it)
+#   test_tidelearn     exit code + RESULT (the EV-ladder admission
+#                      policy: pure-branch matrix + integration legs
+#                      through the real fit — the longest-recurring
+#                      review finding is now gate-protected)
 # Measured cold runtimes (2026-09-22, HEAD): persistexit 0.4s, autotrack
 # 0.7s, trailstop 0.4s, metalayers 2.9s, watchliveness 3.3s — the budgets
 # below are ~5x those. Each drive runs at most ONCE per commit even when
@@ -254,7 +258,7 @@ if git diff --cached --name-only | grep -qxE 'app\.py|background_scanner\.py|met
             [ "$GATE_QUIET" = "1" ] || echo "  🧠 gate: $t — $res (${dt}ms, budget ${budget}s)" >&2
         fi
     }
-    _APP=no; _BS=no; _ML=no; _CO=no; _TW=no; _HK=no; _HS=no
+    _APP=no; _BS=no; _ML=no; _CO=no; _TW=no; _HK=no; _HS=no; _TL=no
     printf '%s\n' "$(git diff --cached --name-only)" | grep -qx 'app.py' && _APP=yes
     printf '%s\n' "$(git diff --cached --name-only)" | grep -qx 'background_scanner.py' && _BS=yes
     printf '%s\n' "$(git diff --cached --name-only)" | grep -qxE 'meta_layers\.py|profit_guard\.py' && _ML=yes
@@ -262,6 +266,7 @@ if git diff --cached --name-only | grep -qxE 'app\.py|background_scanner\.py|met
     printf '%s\n' "$(git diff --cached --name-only)" | grep -qx 'tri_watch.py' && _TW=yes
     printf '%s\n' "$(git diff --cached --name-only)" | grep -qx 'hooks/pre-commit' && _HK=yes
     printf '%s\n' "$(git diff --cached --name-only)" | grep -qxE 'hindsight_service\.py|test_hindightservice\.py' && _HS=yes
+    printf '%s\n' "$(git diff --cached --name-only)" | grep -qxE 'tide_learn\.py|test_tidelearn\.py' && _TL=yes
     # Trigger → drive map, deduped: when app.py AND background_scanner.py
     # are staged together (the f5ad99d shape), watchliveness and metalayers
     # would run twice under a naive per-source block — maybe_run keys on
@@ -324,6 +329,10 @@ if git diff --cached --name-only | grep -qxE 'app\.py|background_scanner\.py|met
     maybe_run "$_HK"  test_commitgate.py result  180   # the gate's own guard:
                                                         # the quiet census +
                                                         # live sandbox drills
+    maybe_run "$_TL"  test_tidelearn.py   result   15   # the EV ladder's
+                                                        # admission policy
+                                                        # (zero-EV deny),
+                                                        # gate-protected
     if [ -n "$FAILS" ]; then
         echo "  ⛔ COMMIT GATE: failed drives:${FAILS}" >&2
         echo "     Fix them (run the drive in the repo root) or bypass with" >&2
