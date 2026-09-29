@@ -277,12 +277,14 @@ def route(method: str, path: str, body: dict | None = None,
             if not _authenticated(operator_id):
                 return 403, {"error": "operator token required for "
                                        "state-changing POSTs"}
-            # THE CONCENTRATION OVERRIDE: the token-matching operator
-            # lifts ONLY the queue. No token configured = nobody can
-            # override, the gate always queues.
-            override = _authenticated(operator_id)
-            if override:
-                operator_id = "operator"
+            # THE CONCENTRATION OVERRIDE rides an EXPLICIT request
+            # field, never a side effect of authentication (the
+            # follow-up review's major): an authenticated operator who
+            # does not ask for the override still gets the queue
+            # (review-then-act, not act-on-auth). The token itself is
+            # never echoed back - the ledger carries the non-secret
+            # identifier the body sent.
+            override = bool(b.get("override_concentration"))
             return 200, apply_action(
                 rid, action, operator_id=operator_id,
                 confirm=bool(b.get("confirm")), goal_pct=goal_pct,

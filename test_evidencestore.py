@@ -24,6 +24,7 @@ def check(name, ok, detail=""):
 
 
 _sbx = Path(tempfile.mkdtemp())
+_sbx2 = Path(tempfile.mkdtemp())   # the live-input probe's own store
 store = _sbx / "rotations"
 # the fixtures are REAL sqlite dbs (the snapshot routes .db through the
 # backup API) written INTO the repo-root names the module reads? No —
@@ -111,21 +112,32 @@ finally:
     es.STORE = _real_store
     es.ROOT = _real_root
     shutil.rmtree(_sbx, ignore_errors=True)
+    shutil.rmtree(_sbx2, ignore_errors=True)
 
-# the LIVE machine: snapshot the current rotation, read-only sources
+# the LIVE machine's INPUTS, sandboxed store (the review's major: the
+# drive must never write to or verify production evidence — the live
+# bundle directory is reserved for the store's own scheduled runs)
 try:
-    live = es.snapshot()
-    check("the LIVE machine snapshots its current rotation (files "
-          "pinned, the db among them)",
+    live_store = _sbx2 / "rotations"
+    probe_id = f"probe-{datetime.now().astimezone():%Y%m%d%H%M%S}"
+    es.STORE = live_store
+    live = es.snapshot(probe_id)
+    check("the LIVE machine's inputs snapshot into a sandbox store "
+          "(files pinned, the db among them, production evidence "
+          "untouched)",
           live["bundle_checksum"].startswith("sha256:")
           and "ohlcv_cache.db" in live["files"],
           (live["rotation_id"], sorted(live["files"])[:4]))
-    lv = es.verify(live["rotation_id"])
-    check("the live bundle verifies (the referee could replay from it)",
+    lv = es.verify(probe_id, store=live_store)
+    check("the sandboxed live-input bundle verifies (the referee "
+          "could replay from it)",
           lv["ok"], lv)
+    es.STORE = _real_store
 except Exception as exc:
-    check("the LIVE machine snapshots its current rotation", False,
-          repr(exc))
+    check("the LIVE machine's inputs snapshot into a sandbox store",
+          False, repr(exc))
+finally:
+    es.STORE = _real_store
 
 fails = [r for r in results if not r[1]]
 rep = BASE / "artifacts" / "evidence" / "_evidencestore_drive.txt"

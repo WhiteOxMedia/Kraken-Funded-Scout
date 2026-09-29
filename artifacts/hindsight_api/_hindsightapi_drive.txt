@@ -12,10 +12,11 @@ PASS  apply: with NO token configured, a mutating POST is 403 (nothing that move
 PASS  apply: a WRONG token is the same 403 (matching, not merely presenting)
 PASS  apply: the AUTHENTICATED queue_review computes + bundles but never moves the factor
 PASS  apply: auto_apply without confirm refuses (the HTTP-level safety catch, riding behind the token gate)
-PASS  apply: a confirmed AUTHENTICATED apply on a CONCENTRATED rotation STILL queues (deep-veto carries 3 of 4 payers and the token only unblocks when it matches — op-token-1 does, so the override applies through the caps)
+PASS  apply: a confirmed AUTHENTICATED apply with the EXPLICIT override field proceeds through the concentration gate (review-then-act: auth alone never lifts it)
 PASS  apply: an unknown action refuses by name
 PASS  apply: every decision landed on the telemetry stream
 PASS  an authenticated-but-wrong body cannot lift the concentration gate (the override matches the token, not the claim)
+PASS  an authenticated apply WITHOUT the explicit override field still queues (auth is not the override — the review's major; runs BEFORE the override consumes the daily cap)
 PASS  the AUTHENTICATED operator override lifts ONLY the queue (the apply proceeds through the caps)
 PASS  the authenticated rollback restores the applied adjustment's before
 PASS  rollback without the token is 403 too
@@ -24,4 +25,4 @@ PASS  a malformed evidence path still 404s (encoding is not a bypass)
 PASS  the wire speaks the same brain: HTTP summary matches the dispatcher's payload
 PASS  an unknown route answers 404 over the wire
 
-RESULT: 25 passed, 0 failed
+RESULT: 26 passed, 0 failed

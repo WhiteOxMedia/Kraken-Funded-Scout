@@ -121,11 +121,19 @@ check("the focused extract returns the 4 cells (2 alphas x 2 dmaxes) "
       and {c["alpha"] for c in fc} == set(ss.FOCUSED_ALPHAS)
       and {c["delta_max"] for c in fc} == set(ss.FOCUSED_DELTAS)
       and all(c["daily_cap"] == ss.FOCUSED_CAP for c in fc), fc)
-check("the focused worst single-book loss is monotone in delta_max "
-      "(a wider cap never shrinks the worst loosening)",
-      [c for c in fc if c["alpha"] == 0.05][0]["worst_single_book_loss"]
-      <= [c for c in fc if c["alpha"] == 0.05 and c["delta_max"] == 0.05][0]
-      ["worst_single_book_loss"], fc)
+check("the focused worst single-book loss grows or holds in MAGNITUDE "
+      "as delta_max widens (|0.10 cell| >= |0.05 cell|; they can tie "
+      "where the per-rotation cap binds — the reviewer's tautology "
+      "fix, with the sign handled: the loss is stored signed)",
+      abs([c for c in fc if c["alpha"] == 0.05 and c["delta_max"] == 0.10][0]
+          ["worst_single_book_loss"])
+      >= abs([c for c in fc if c["alpha"] == 0.05
+              and c["delta_max"] == 0.05][0]["worst_single_book_loss"]),
+      fc)
+check("net loosen never exceeds the standing daily cap x applies (the "
+      "focused grid stays inside the guard's risk envelope)",
+      all(abs(c["net_delta"]) <= ss.FOCUSED_CAP
+          * c["applied_count"] + 1e-9 for c in fc), fc)
 
 # the REAL history: the harness runs end-to-end on the live journals
 try:

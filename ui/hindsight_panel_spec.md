@@ -51,10 +51,10 @@ proposed delta −0.08 (loosens the guard; time-boxed 3 rotations)
 
 | button | body | guard |
 |---|---|---|
-| Auto Apply | `{action:"auto_apply", confirm:true}` | requires an operator id in the session; concentration > 0.5 still forces Queue |
-| Queue for Review | `{action:"queue_review"}` | computes + bundles, never touches GF |
+| Auto Apply | `{action:"auto_apply", confirm:true, operator_id:<HINDSIGHT_OPERATOR_TOKEN>, override_concentration:true}` | every state-changing POST requires operator_id to match the token; the EXPLICIT override field is what lifts the concentration queue (auth alone never does); `override_concentration` omitted = the queue wins |
+| Queue for Review | `{action:"queue_review", operator_id:<token>}` | authenticated too; computes + bundles, never touches GF |
 | Reject | client-side | closes the panel; the bundle stays (evidence outlives the decision) |
-| Rollback | POST `/api/hindsight/rotation/:id/rollback` | restores the ledger row's `before` (its own route — a rollback is not an apply) |
+| Rollback | POST `/api/hindsight/rotation/:id/rollback` `{operator_id:<token>}` | restores the ledger row's `before` (its own route — a rollback is not an apply; authenticated like every POST) |
 
 - Auto Apply without `confirm` is refused by the API
   (`confirmation_required`) — the UI still sends the confirm only from

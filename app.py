@@ -2566,7 +2566,13 @@ def _burial_hindsight(
                     (str(r.get("pair")), str(r.get("rot") or "day")), r)
             stats = []
             for r in first.values():
-                t = datetime.fromisoformat(str(r.get("ts", "")))
+                try:
+                    t = datetime.fromisoformat(str(r.get("ts", "")))
+                except (TypeError, ValueError):
+                    continue    # one corrupt stamp skips ITS row, never
+                                # the whole aggregate (the review's minor:
+                                # the loop-level guard the outer except
+                                # could not provide)
                 if t.tzinfo is None:
                     t = t.replace(tzinfo=MST)
                 t_ms = int(t.timestamp() * 1000)

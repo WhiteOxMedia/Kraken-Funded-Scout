@@ -33,8 +33,10 @@ The adjustment rides commit `<sha>` (every telemetry event carries
    `uv run python -X utf8 -c "import evidence_store as es; print(es.snapshot()['bundle_checksum'])"`
 2. File the postmortem (`playbooks/postmortem_template.md`) within 48h.
 3. Check the time box did not leave a dangling factor:
-   `meta_layers_state.json` → `auto_adjust_box` must be ABSENT after a
-   rollback; if present, re-run the fast path.
+   `profit_guard_state.json` → `auto_adjust_box` must be ABSENT after a
+   rollback (the box lives in profit_guard's state — that is the file
+   `set_guard_factor_temporarily` writes); if present, re-run the fast
+   path.
 
 ## Never
 - Never hand-edit `profit_guard_state.json`'s `factor` in place —

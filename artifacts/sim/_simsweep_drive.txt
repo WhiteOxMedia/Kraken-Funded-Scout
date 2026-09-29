@@ -13,6 +13,9 @@ PASS  the report renders the grid (18 body rows) and the recommended row is clas
 PASS  the report NAMES the conservative defaults and the worst single-book loss column (the spec's acceptance)
 PASS  the charts are inline SVG with a per-cell tooltip
 PASS  the grouping key dates bare windows (two days, two rotations — never merged)
+PASS  the focused extract returns the 4 cells (2 alphas x 2 dmaxes) at the standing cap
+PASS  the focused worst single-book loss grows or holds in MAGNITUDE as delta_max widens (|0.10 cell| >= |0.05 cell|; they can tie where the per-rotation cap binds — the reviewer's tautology fix, with the sign handled: the loss is stored signed)
+PASS  net loosen never exceeds the standing daily cap x applies (the focused grid stays inside the guard's risk envelope)
 PASS  the real-history replay runs read-only end to end (rotations parsed, sweep complete, report written)
 
-RESULT: 16 passed, 0 failed
+RESULT: 19 passed, 0 failed

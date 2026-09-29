@@ -187,12 +187,11 @@ try:
               and na[1]["reason"] == "confirmation_required", na)
         ok_apply = ha.route("POST", "/api/hindsight/rotation/ROT-1/apply",
                             {"action": "auto_apply", "confirm": True,
-                             "operator_id": "op-token-1"})
-        check("apply: a confirmed AUTHENTICATED apply on a CONCENTRATED "
-              "rotation STILL queues (deep-veto carries 3 of 4 payers "
-              "and the token only unblocks when it matches — "
-              "op-token-1 does, so the override applies through the "
-              "caps)",
+                             "operator_id": "op-token-1",
+                             "override_concentration": True})
+        check("apply: a confirmed AUTHENTICATED apply with the EXPLICIT "
+              "override field proceeds through the concentration gate "
+              "(review-then-act: auth alone never lifts it)",
               ok_apply[0] == 200 and ok_apply[1]["status"] in ("applied",
                                                                "queued"),
               ok_apply)
@@ -211,9 +210,22 @@ try:
               "concentration gate (the override matches the token, "
               "not the claim)",
               sneaky[0] == 403, sneaky)
+        authed_no_override = ha.route(
+            "POST", "/api/hindsight/rotation/ROT-2/apply",
+            {"action": "auto_apply", "confirm": True,
+             "operator_id": "op-token-1"})
+        check("an authenticated apply WITHOUT the explicit override "
+              "field still queues (auth is not the override — the "
+              "review's major; runs BEFORE the override consumes the "
+              "daily cap)",
+              authed_no_override[1]["status"] == "queued"
+              and authed_no_override[1]["reason"]
+              == "concentration_gate_blocks_auto_apply",
+              authed_no_override)
         authed = ha.route("POST", "/api/hindsight/rotation/ROT-2/apply",
                           {"action": "auto_apply", "confirm": True,
-                           "operator_id": "op-token-1"})
+                           "operator_id": "op-token-1",
+                           "override_concentration": True})
         check("the AUTHENTICATED operator override lifts ONLY the queue "
               "(the apply proceeds through the caps)",
               authed[1]["status"] == "applied"

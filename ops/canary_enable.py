@@ -18,7 +18,10 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
 WORST_LOSS_LIMIT = 0.10   # the standing DELTA_MAX — a focused cell whose
-                          # worst single-book loss exceeds it is not safe
+                          # worst single-book loss EXCEEDS it is not safe
+                          # (a cell AT the limit is its own cap echoed
+                          # back — not evidence of safety, so the pick
+                          # below demands strictly inside)
 
 
 def main() -> int:
@@ -40,30 +43,40 @@ def main() -> int:
 
     history = ss.load_history(30)
     cells = ss.focused_sweep(history)
+    # STRICTLY inside the limit: a cell whose worst loss EQUALS the cap
+    # is just its own dmax echoed back (dmax=0.10 always shows -0.10) —
+    # that is not evidence of safety (the review's major). The pick is
+    # the most conservative safe cell: smallest alpha, then smallest
+    # dmax — arming parameters come from the EVIDENCE, not the defaults.
     safe = [c for c in cells
-            if abs(c["worst_single_book_loss"]) <= WORST_LOSS_LIMIT]
+            if abs(c["worst_single_book_loss"]) < WORST_LOSS_LIMIT]
     print("focused extract:")
     for c in cells:
-        mark = "SAFE" if abs(c["worst_single_book_loss"]) \
-            <= WORST_LOSS_LIMIT else "OVER CAP"
+        mark = ("SAFE" if abs(c["worst_single_book_loss"])
+                < WORST_LOSS_LIMIT else "AT/OVER CAP")
         print(f"  alpha={c['alpha']} dmax={c['delta_max']}: "
               f"worst single-book {c['worst_single_book_loss']:+.4f} "
               f"[{mark}], {c['applied_count']} applies")
     if not safe:
-        print("REFUSING to arm: no focused cell sits inside the "
-              f"{WORST_LOSS_LIMIT} worst-loss cap — run the full sweep "
-              "and re-read the governance policy.")
+        print("REFUSING to arm: no focused cell sits strictly inside "
+              f"the {WORST_LOSS_LIMIT} worst-loss cap — run the full "
+              "sweep and re-read the governance policy.")
         return 1
+    pick = min(safe, key=lambda c: (c["alpha"], c["delta_max"]))
 
     if not args.yes:
-        print("dry run — re-run with --yes to arm the cohort "
-              "(alpha=0.05, delta_max=0.10, daily_cap=0.20 defaults, "
-              "time-boxed, auto-rollback armed).")
+        print(f"dry run — would arm with the most conservative safe "
+              f"cell: alpha={pick['alpha']}, delta_max={pick['delta_max']}, "
+              f"daily_cap={pick['daily_cap']}. Re-run with --yes to arm "
+              "(time-boxed, auto-rollback armed).")
         return 0
 
     flipped = cr.flip_canary(
         f"canary-{datetime.now().strftime('%Y%m%d_%H%M%S')}")
-    print("ARMED:", json.dumps(flipped))
+    print("ARMED:", json.dumps({**flipped,
+                                "alpha": pick["alpha"],
+                                "delta_max": pick["delta_max"],
+                                "daily_cap": pick["daily_cap"]}))
     print("rollback anytime: uv run python -X utf8 ops/canary_enable.py --off")
     return 0
 
