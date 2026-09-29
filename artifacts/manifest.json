@@ -845,6 +845,19 @@
     "test_contest_window.py": "sha256:faca699c574ba9a71ddf8327836354a948b86484c6262e55948e48f2292ce314",
     "playbooks/state_file_recovery.md": "sha256:fc952273bf97fe05d3b4e84c1ee720814ecc6d2a1f4d32bd1b38751b11f3b399"
    }
+  },
+  "29-giveback-ledger": {
+   "commits": [
+    "<this commit>"
+   ],
+   "branch_name": "master",
+   "date": "2026-09-29",
+   "title": "THE GIVE-BACK LEDGER: THE DAY'S PEAK IS WATERMARKED, THE EROSION LEADS THE VOICE, AND A REALIZED SWING TIGHTENS THE GUARD ONCE (Sep 29, giveback-ledger)",
+   "detail": "The user report: \"Gave back $100 but doesn't count it? We were up $100 today, now we are back to +$2 \u2014 nothing adjusted. Says 'All Good' without checking what we gave back first.\" TRIAGE: the swing was REALIZED (the account went negative intraday and recovered); the ground truth showed +$39.44 banked total with only +$4.62 in applied journal rows \u2014 the gap is the open book's swing plus the window's prior carries \u2014 and NOTHING in the stack measured a day's peak-to-trough: the gauges sum realized rows, the danger machinery only reacts to losses vs the START balance, and the per-pair give-back warning (GIVEBACK_WARN_PCT_OF_SIZE, Sep 1) dies with each row's close. THE FIX, four layers: (1) _today_realized_pnl \u2014 the shared realized sum. (2) _track_day_giveback \u2014 a day-peak watermark (realized + unrealized, fed the exit cycle's per-row usd sum every tick, BEFORE the exit early-return so a full-exit tick updates the give-back) persisted in profit_guard_state under 'giveback'; past the $50 trigger it tightens the guard ONCE through auto_adjust.apply_adjustment \u2014 the PROTECTIVE direction (negative delta = factor down = tighter trail; the only direction the machine admits, verified against its non_negative_delta_is_not_self_adjust rail) \u2014 one attempt per day whatever the outcome (applied/queued/refused all land a ledger row; refusals never re-fire), telemetry emitted, rotation_id giveback-<day>. (3) _all_good_lead rewritten: the erosion LEADS (\"Gave back 95 dollars from the day's peak \u2014 we were up 100, now plus 5\") and 'All good' never prefixes it; the realized pace clause rides after; under the $25 speak floor the line stays All good. (4) PINS in test_allgoodlead (now 26 checks): the lead shape, the never-lie rule, the small-erosion silence, the tracker's protective direction, and the no-refire \u2014 with the guard state SANDBOXED via STATE_FILE and apply_adjustment mocked (the live scanner's state was never touched). Drives: allgoodlead 26/0, persistexit DONE, autotrack 43/43, trailstop 27/0, rebootsurv 25/0, profitguard 77/0, boundaryexam 35/0. PENDING: the running scanner (pid from scanner_pulse.json) picks the ledger up on its next restart.",
+   "checksums": {
+    "background_scanner.py": "sha256:0f14b86df43d251bb14bc3763a0d2afdcf8ae4dea9c1b414da6e575304d66a22",
+    "test_allgoodlead.py": "sha256:fa9d0d877201842c811d9a96b8ec9a62062c1535070e9d77911632fd977521cb"
+   }
   }
  }
 }

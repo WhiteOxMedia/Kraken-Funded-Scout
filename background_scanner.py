@@ -3388,6 +3388,96 @@ _last_exit_voice: dict[str, float] = {}
 _last_lock_floor_usd = 0.0   # RETIRED (Sep 5): the daily lock's voice pacing — kept per don't-delete, nothing writes it now
 
 
+# ── THE GIVE-BACK LEDGER (user, Sep 29: "Gave back $100 but doesn't
+# count it? … nothing adjusted … 'All Good' without checking what we
+# gave back first"): realized-only accounting never sees a round-trip
+# erosion — the day can give back $95 of unrealized peak and every
+# gauge still says "plus 4 dollars today", because the banked rows
+# never held the peak and the drawdown machinery only reacts to losses
+# vs the START balance. One watermark per day: the peak (realized +
+# unrealized) the account ever held today, the give-back since, a
+# voiced lead that checks it FIRST, and a once-per-day guard tighten
+# through auto_adjust's own rails (the ledger counts it — the
+# rotation_already_applied dedupe makes once-per-day structural).
+GIVEBACK_SPEAK_MIN_USD = 25.0    # below this the give-back isn't worth the lead
+GIVEBACK_TIGHTEN_TRIGGER_USD = 50.0
+GIVEBACK_TIGHTEN_FRAC = 0.10     # tighten the guard factor 10%
+
+
+def _today_realized_pnl() -> float:
+    """Today's banked journal total — the sum _all_good_lead already
+    speaks. Fail-soft to 0.0."""
+    try:
+        import json as _j_rp
+        _day = _now_mst().strftime("%Y-%m-%d")
+        _tot = 0.0
+        for _l in (Path(__file__).parent / "contest_trades.jsonl") \
+                .read_text(encoding="utf-8").splitlines():
+            if not _l.strip():
+                continue
+            _r = _j_rp.loads(_l)
+            if str(_r.get("sold_at", "")).startswith(_day) \
+                    and _r.get("applied"):
+                _tot += float(_r.get("pnl_net") or 0.0)
+        return _tot
+    except Exception:
+        return 0.0
+
+
+def _track_day_giveback(unrealized: float) -> dict:
+    """One tick of the give-back watermark. `unrealized` is the open
+    watch's live P&L in dollars (the caller sums (live−entry)×units
+    across the rows it just priced). Updates the day's peak, computes
+    the give-back, and — when the erosion crosses the trigger and the
+    day hasn't been tightened yet — tightens the guard factor through
+    auto_adjust.apply_adjustment (rails, ledger, telemetry, dedupe).
+    Every read/write fail-soft; the exit cycle must never stall here."""
+    try:
+        import profit_guard as _pg_gb
+        import auto_adjust as _aa_gb
+        _day = _now_mst().strftime("%Y-%m-%d")
+        _total = _today_realized_pnl() + float(unrealized or 0.0)
+        _now = _now_mst().isoformat()
+        gb = (_pg_gb._state() or {}).get("giveback") or {}
+        if gb.get("day") != _day:
+            gb = {"day": _day, "peak_total": _total, "peak_ts": _now,
+                  "tightened": False}
+        if _total > float(gb.get("peak_total") or _total):
+            gb["peak_total"] = _total
+            gb["peak_ts"] = _now
+        gb["now_total"] = round(_total, 2)
+        gb["give_back"] = round(float(gb.get("peak_total") or _total)
+                                - _total, 2)
+        if (gb["give_back"] >= GIVEBACK_TIGHTEN_TRIGGER_USD
+                and not gb.get("tightened")):
+            _before = _aa_gb.read_guard_factor()
+            _rec = _aa_gb.apply_adjustment(
+                -(_before * GIVEBACK_TIGHTEN_FRAC),
+                rotation_id=f"giveback-{_day}",
+                evidence_checksum="giveback-day-peak",
+                auto=True)
+            # ONE ATTEMPT PER DAY whatever the outcome: applied, queued
+            # or refused all land a ledger row (the count the user asked
+            # for); retrying a refusal every tick would flood the ledger
+            # with refused rows. A crashed attempt leaves tightened=False
+            # and retries next tick.
+            gb["tightened"] = True
+            gb["tighten"] = {"before": round(_before, 4),
+                             "status": _rec.get("status"),
+                             "reason": _rec.get("reason")}
+            try:
+                from telemetry_adjust import emit_adjustment as _ea_gb
+                _ea_gb(f"giveback-{_day}", _rec, 0, 0, [],
+                       cohort="giveback", applied_by="giveback-watch")
+            except Exception:
+                pass   # telemetry is never the story; the ledger is
+        _pg_gb._save({"giveback": gb})
+        return gb
+    except Exception as exc:
+        logger.debug("give-back tracking skipped: %s", exc)
+        return {}
+
+
 def _all_good_lead() -> str:
     """The pace-and-clock lead for the all-good line (Sep 21, user ask):
     \"All good — plus 13 dollars today, 8 minutes left in this rotation.\"
@@ -3397,21 +3487,27 @@ def _all_good_lead() -> str:
     either read comes up empty — a missing gauge must never stall the
     voice, and never lie."""
     lead = "All good"
+    # THE GIVE-BACK CHECK COMES FIRST (user, Sep 29: "'All Good' without
+    # checking what we gave back first"): the day's erosion from its own
+    # peak — realized + unrealized — LEADS the line when it's worth
+    # hearing, and "All good" never prefixes it. A $95 round-trip used
+    # to be invisible: realized-only accounting said "plus 4 dollars
+    # today" while the account sat $95 under its morning high.
     try:
-        import json as _j_ag
-        from pathlib import Path as _P_ag
-        _day = _now_mst().strftime("%Y-%m-%d")
-        _today = 0.0
-        _n = 0
-        for _l in (_P_ag(__file__).parent / "contest_trades.jsonl") \
-                .read_text(encoding="utf-8").splitlines():
-            if not _l.strip():
-                continue
-            _r = _j_ag.loads(_l)
-            if str(_r.get("sold_at", "")).startswith(_day) and _r.get("applied"):
-                _today += float(_r.get("pnl_net") or 0.0)
-                _n += 1
-        if _n:
+        import profit_guard as _pg_ag
+        _gb = (_pg_ag._state() or {}).get("giveback") or {}
+        _give = float(_gb.get("give_back") or 0.0)
+        _peak = float(_gb.get("peak_total") or 0.0)
+        _nowt = float(_gb.get("now_total") or 0.0)
+        if _give >= GIVEBACK_SPEAK_MIN_USD and _peak > 0:
+            lead = (f"Gave back {_give:.0f} dollars from the day's peak — "
+                    f"we were up {_peak:.0f}, now "
+                    f"{'plus' if _nowt >= 0 else 'minus'} {abs(_nowt):.0f}")
+    except Exception as exc:
+        logger.debug("give-back lead skipped: %s", exc)
+    try:
+        _today = _today_realized_pnl()
+        if _today:
             lead += f" — {'plus' if _today >= 0 else 'minus'} " \
                     f"{abs(_today):.0f} dollars today"
     except Exception as exc:
@@ -3561,6 +3657,9 @@ def contest_light(exchange, cfg):
         _mlt.endgame_trigger_check()
     except Exception as exc:
         logger.debug("shadow/endgame tick skipped: %s", exc)
+    _unrealized_sum = 0.0   # THE GIVE-BACK LEDGER's live leg: summed
+                            # across this tick's rows, fed to the
+                            # day-peak watermark after the loop
     for pair, w in list(watch.items()):
         if w is None:
             # a tombstone rides in `watch` only when the remover saved
@@ -4077,6 +4176,7 @@ def contest_light(exchange, cfg):
         # level-counting is retired with the scalp game.
         pct = (live / entry - 1) * 100
         usd = pct / 100.0 * size
+        _unrealized_sum += usd
         _goal = float(w.get("goal_pct") or 0) or _window_goal_pct(pair)
         if "goal_pct" not in w:
             w["goal_pct"] = _goal
@@ -4219,6 +4319,13 @@ def contest_light(exchange, cfg):
                                  f"{_climb:.1f} percent to go before the "
                                  f"{_goal:.1f} percent goal{_tail}")
 
+    # THE GIVE-BACK LEDGER (user, Sep 29): every tick prices the open
+    # book — the watermark tracks the day's peak total (realized +
+    # unrealized) and, past the trigger, tightens the guard ONCE through
+    # auto_adjust's own rails so the ledger counts the erosion. Runs
+    # BEFORE the exit early-return: a full-exit tick is exactly when the
+    # unrealized leg goes to zero and the give-back must update.
+    _track_day_giveback(_unrealized_sum)
     if exited_pairs:
         # (Sep 21 comment fix — the code changed under this comment long
         # ago: the GET OUT path AUTO-CLOSES the trade and REMOVES the watch
