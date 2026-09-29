@@ -233,6 +233,12 @@ try:
                       - aa.clamp(authed[1]["before"],
                                  authed[1]["delta"])) < 1e-9,
               (authed, aa.read_guard_factor()))
+        last_ev = ta.read_events()[-1]
+        check("the TOKEN NEVER LANDS IN TELEMETRY (applied_by carries a "
+              "non-secret identifier, not the credential)",
+              last_ev["applied_by"] == "operator"
+              and "op-token-1" not in json.dumps(last_ev),
+              last_ev["applied_by"])
         rbw = ha.route("POST", "/api/hindsight/rotation/ROT-2/rollback",
                        {"operator_id": "op-token-1"})
         check("the authenticated rollback restores the applied "

@@ -244,10 +244,12 @@ def apply_adjustment(delta: float, rotation_id: str,
     try:
         if delta >= 0:
             rec["reason"] = "non_negative_delta_is_not_self_adjust"
-        elif daily_delta_sum(st, now) + abs(delta) > DAILY_CAP + 1e-9:
-            rec["reason"] = "daily_cap_exceeded"
         elif (per_gate and not override_concentration
               and concentration(per_gate) > CONCENTRATION_MAX):
+            # THE CONCENTRATION GATE EVALUATES FIRST (the review's
+            # ordering minor): the operator is offered the review while
+            # the day still has cap budget — by the time the cap has
+            # burned, queueing is moot. The cap check follows unchanged.
             # THE QUEUE DECISION RIDES ONLY THE CONCENTRATION AND THE
             # OVERRIDE (the isolated review's major, restated as a
             # rule): never which caller asked. `auto` stays in the
@@ -259,6 +261,8 @@ def apply_adjustment(delta: float, rotation_id: str,
             _ledger(st).append(rec)
             pg._save(st)
             return rec
+        elif daily_delta_sum(st, now) + abs(delta) > DAILY_CAP + 1e-9:
+            rec["reason"] = "daily_cap_exceeded"
         else:
             after = clamp(before, delta)
             rec.update({"status": "applied", "after": after,

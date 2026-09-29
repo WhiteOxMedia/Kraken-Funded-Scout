@@ -116,11 +116,13 @@ finally:
 
 # the LIVE machine's INPUTS, sandboxed store (the review's major: the
 # drive must never write to or verify production evidence — the live
-# bundle directory is reserved for the store's own scheduled runs)
+# bundle directory is reserved for the store's own scheduled runs).
+# The sandbox is created here and swept in the module finally below —
+# never inside a try whose except path has already removed it.
+live_store = _sbx2 / "rotations"
+es.STORE = live_store
+probe_id = f"probe-{datetime.now().astimezone():%Y%m%d%H%M%S}"
 try:
-    live_store = _sbx2 / "rotations"
-    probe_id = f"probe-{datetime.now().astimezone():%Y%m%d%H%M%S}"
-    es.STORE = live_store
     live = es.snapshot(probe_id)
     check("the LIVE machine's inputs snapshot into a sandbox store "
           "(files pinned, the db among them, production evidence "
@@ -132,7 +134,6 @@ try:
     check("the sandboxed live-input bundle verifies (the referee "
           "could replay from it)",
           lv["ok"], lv)
-    es.STORE = _real_store
 except Exception as exc:
     check("the LIVE machine's inputs snapshot into a sandbox store",
           False, repr(exc))

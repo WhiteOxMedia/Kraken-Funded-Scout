@@ -27,8 +27,10 @@ not believe.
 4. **Should the guard move?**
    The rule moves it automatically ONLY when every rail passes
    (B >= 5 measurable, r >= 0.25, concentration <= 0.5, daily cap).
-   A queued adjustment waits in `meta_layers_state.json` →
-   `auto_adjust_ledger` with status `queued`. To apply a queued one:
+   A queued adjustment waits in `profit_guard_state.json` →
+   `auto_adjust_ledger` with status `queued` (the ledger lives in
+   profit_guard's state — the file the factor itself is written to).
+   To apply a queued one:
    `hindsight_api.apply_action(...)` with the operator token
    (HINDSIGHT_OPERATOR_TOKEN); to refuse it, do nothing — it expires
    with the rotation and the ledger keeps the row.

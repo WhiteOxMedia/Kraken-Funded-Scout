@@ -165,7 +165,10 @@ try:
           rc == 3 and "ABORT" in out and "DRIFT" in out)
 finally:
     _restore(old)
-    rg.GF_FROZEN = 2.0          # the real state value, restored
+    if _gf_old is not None:
+        rg.GF_FROZEN = _gf_old   # the captured original, not a guess
+    else:
+        del rg.GF_FROZEN
 
 # the delta arithmetic on SYNTHETIC rows, no walk needed
 _res = {("live", "frozen"): {"total": 39.50, "ctrl": -126.67, "floor": 62},

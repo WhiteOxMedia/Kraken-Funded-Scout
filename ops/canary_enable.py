@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 from datetime import datetime
 from pathlib import Path
@@ -17,11 +18,15 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-WORST_LOSS_LIMIT = 0.10   # the standing DELTA_MAX — a focused cell whose
-                          # worst single-book loss EXCEEDS it is not safe
-                          # (a cell AT the limit is its own cap echoed
-                          # back — not evidence of safety, so the pick
-                          # below demands strictly inside)
+WORST_LOSS_LIMIT = float(os.environ.get("CANARY_WORST_LOSS_LIMIT", "0.10"))
+# the standing DELTA_MAX — a focused cell whose worst single-book loss
+# EXCEEDS it is not safe (a cell AT the limit is its own cap echoed
+# back — not evidence of safety, so the pick below demands strictly
+# inside). CANARY_WORST_LOSS_LIMIT makes the gate TUNEABLE — the
+# operator can tighten (0.05) or loosen; the refusal branch is
+# reachable whenever the evidence says so, which the old hardcoded
+# equality-with-DELTA_MAX made unreachable in practice (the review's
+# major).
 
 
 def main() -> int:
