@@ -2879,7 +2879,7 @@ def _render_burial_hindsight_api() -> None:
             tel_rows = "".join(
                 f"<div style='font-family:Share Tech Mono,monospace;"
                 f"font-size:12px;color:#bfae8f;'>"
-                f"{(e.get('timestamp') or '—')[:16].replace('T', ' ')}  "
+                f"{_esc(str(e.get('timestamp') or '—')[:16].replace('T', ' '))}  "
                 f"{_esc(e.get('rotation_id') or '—'):<20} "
                 f"{_esc(e.get('status') or '—').upper():<8} "
                 f"{(e.get('before_gf') if e.get('before_gf') is not None else 0):.2f}"

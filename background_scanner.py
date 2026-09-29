@@ -2849,7 +2849,7 @@ def _load_contest_watch() -> dict:
         return {}
 
 
-def _save_contest_watch(watch: dict):
+def _save_contest_watch(watch: dict, fresh_keys=None):
     """MERGE-SAVE (the cross-writer sweep, Sep 28): the scanner and the
     bot both read-modify-write this file — the bot's _upsert_bot_watch_row
     lands a row between the scanner's read and its save, and the old
@@ -2860,18 +2860,25 @@ def _save_contest_watch(watch: dict):
     marked with watch[pair] = None by the remover — under merge-save an
     absent key is indistinguishable from 'never seen', and pop-then-save
     would resurrect the row. None-means-delete; every other key absent
-    from `watch` is preserved. Still tmp + os.replace: a torn write can
-    never be read."""
+    from `watch` is preserved. fresh_keys (the round-5 review): keys
+    the caller DELIBERATELY (re)adds this tick — a fresh value lands
+    even if an on-disk tombstone for the same pair exists, because the
+    re-add is the caller's own intent, not a stale carry. Still tmp +
+    os.replace: a torn write can never be read."""
     import json
+    fresh = {str(k) for k in (fresh_keys or [])}
     drops = {k for k, v in (watch or {}).items() if v is None}
     try:
         # THE RAW TOMBSTONE READ (the round-3 review's resurrection
         # window): the filtered loader HIDES another writer's deletion
         # marker, so a stale writer still carrying the row in its own
         # view would overlay it right back over the None on disk. The
-        # marker WINS while it lives (it is consumed by the first save
-        # that no longer carries the key); a genuine fresh re-add after
-        # that still lands.
+        # marker wins against stale carried rows — UNLESS the caller
+        # names the key in fresh_keys: a deliberate re-add (the popup's
+        # auto-track after a SOLD, the op scripts after a wipe) must
+        # land on the first attempt, not silently vanish under a marker
+        # it never saw (the round-5 review's INJ finding). Intent comes
+        # from the CALLER — the file cannot infer it.
         try:
             with open(CONTEST_WATCH_JSON, "r", encoding="utf-8") as fh:
                 _raw = json.load(fh)
@@ -2884,11 +2891,12 @@ def _save_contest_watch(watch: dict):
         merged = {k: v for k, v in cur.items()
                   if k not in drops and k not in watch}
         merged.update({k: v for k, v in (watch or {}).items()
-                       if v is not None and k not in raw_tombs})
-                                            # the DELETION wins: a None
-                                            # value re-added by update
-                                            # would resurrect the row
-                                            # it exists to remove
+                       if v is not None
+                       and (k not in raw_tombs or k in fresh)})
+                                            # the DELETION wins for stale
+                                            # carriers: a None re-added by
+                                            # update would resurrect the
+                                            # row it exists to remove
     except Exception:
         merged = {k: v for k, v in (watch or {}).items() if v is not None}
     try:
@@ -2961,7 +2969,11 @@ def auto_track_popup(pair: str, entry: float, size: float, goal_pct: float,
                    "window_min": float(window_min or 0.0),
                    "why": [why],
                    "source": source}
-        _save_contest_watch(w)
+        # FRESH-KEY INTENT (the round-5 INJ finding): the auto-track IS
+        # the deliberate re-add — name the pair so a tombstone left by a
+        # SOLD (or a new-contest wipe racing this fire) cannot silently
+        # swallow the very entry the popup just promised the user.
+        _save_contest_watch(w, fresh_keys=[pair])
         logger.info("AUTO-TRACK: %s watched at fire time (entry $%.4f, "
                     "goal %.1f%%, window %.0fm, %s)",
                     pair.split("/")[0], float(entry or 0.0),
@@ -3443,6 +3455,12 @@ def _track_day_giveback(unrealized: float) -> dict:
         if gb.get("day") != _day:
             gb = {"day": _day, "peak_total": _total, "peak_ts": _now,
                   "tightened": False}
+        else:
+            # a day that opens AT zero is a valid baseline — only an
+            # absent key counts as 'no peak yet' (the round-5 review)
+            if "peak_total" not in gb:
+                gb["peak_total"] = _total
+                gb["peak_ts"] = _now
         if _total > float(gb.get("peak_total") or _total):
             gb["peak_total"] = _total
             gb["peak_ts"] = _now

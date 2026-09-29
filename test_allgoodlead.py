@@ -172,11 +172,17 @@ finally:
 # profit_guard_state.json is never touched).
 import profit_guard as _pg7
 import auto_adjust as _aa7
+import telemetry_adjust as _ta7
 import tempfile as _t7
 _sbx7 = Path(_t7.mkdtemp())
 _pg7.STATE_FILE = _sbx7 / "profit_guard_state.json"
+_ta7.TELEMETRY_PATH = _sbx7 / "telemetry_test.jsonl"   # THE SINK SEAM (the
+# round-5 review's major): without this, the tracker's emit_adjustment
+# writes a FAKE applied giveback event into the LIVE journal — which
+# restore_state's replay consumes as truth. The sink dies with the
+# tempdir; the live journal is never touched.
+_pg7.STATE_FILE = _sbx7 / "profit_guard_state.json"
 _orig_aa_apply = _aa7.apply_adjustment
-_orig_ta_emit = None
 tf = Path("contest_trades.jsonl")
 backup = tf.read_bytes() if tf.exists() else None
 _today = bs._now_mst().strftime("%Y-%m-%d")
@@ -236,17 +242,18 @@ try:
           len(calls) == 1 and gb2.get("tightened") is True)
 finally:
     _aa7.apply_adjustment = _orig_aa_apply
-    if _orig_ta_emit is not None:
-        pass
     if backup is not None:
         tf.write_bytes(backup)
     elif tf.exists():
         tf.unlink()
-    # restore the LIVE guard-state binding (the sandbox file dies with
-    # the tempdir; the live scanner's state was never written)
+    # restore the LIVE bindings (the sandbox files die with the
+    # tempdir; the live scanner's state and journal were never written)
     import profit_guard as _pg_restore
     if hasattr(_pg_restore, "STATE_FILE"):
         del _pg_restore.STATE_FILE
+    import telemetry_adjust as _ta_restore
+    if hasattr(_ta_restore, "TELEMETRY_PATH"):
+        del _ta_restore.TELEMETRY_PATH
 
 print(f"RESULT: {ok} passed, {fail} failed")
 raise SystemExit(1 if fail else 0)

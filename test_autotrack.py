@@ -49,8 +49,11 @@ check("Sure Thing/breakout route delegates to the writer",
 mv_i = bs.find("the mover\n                                    # popup tracks too")
 check("mover route delegates to the writer",
       mv_i > 0 and "float(signal.price or 0.0)" in bs[mv_i:mv_i + 300])
-check("writer keeps the user's own row authoritative (merge intact)",
-      "_load_contest_watch()" in bs and "_save_contest_watch(w)" in bs)
+check("writer keeps the user's own row authoritative (merge intact) "
+      "— and names the re-added pair as a FRESH key so a tombstone "
+      "cannot swallow the popup-promised entry (the round-5 INJ fix)",
+      "_load_contest_watch()" in bs
+      and "_save_contest_watch(w, fresh_keys=[pair])" in bs)
 
 # ── 2. the GET OUT auto-close ────────────────────────────────────────────
 gi = bs.find("AUTO-CLOSE AT FIRE TIME")

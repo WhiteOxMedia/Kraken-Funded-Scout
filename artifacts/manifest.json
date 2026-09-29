@@ -872,6 +872,20 @@
     "background_scanner.py": "sha256:c30b91bb3057de252f722f20e6d37cc1a803a8e13ed2e0473bbd9977c7aff776",
     "test_apptest.py": "sha256:3e3a69c97750a8ae6a25ef8f4748aaad85b4697d32103516a1eae057d29a813f"
    }
+  },
+  "33-round5-triage": {
+   "commits": [
+    "<this commit>"
+   ],
+   "branch_name": "master",
+   "date": "2026-09-29",
+   "title": "ROUND 5 TRIAGED: THE RE-ADD HOLE, THE TELEMETRY TIMESTAMP, THE ZERO-PEAK EDGE, AND THE DRIVE'S OWN SINK SEAM (Sep 29, round5-triage)",
+   "detail": "The 87565a7 post-commit review's 11 findings, triaged. FIXED: (1) MAJOR background_scanner._save_contest_watch \u2014 the raw tombstone rule silently dropped the FIRST deliberate re-add of a wiped pair (the exact SOLD-then-never-re-entered INJ scenario): _save_contest_watch grows fresh_keys, and the auto-track names the pair it is deliberately adding, so a popup-promised re-add lands on the first attempt while stale carriers stay suppressed \u2014 intent comes from the caller, the file cannot infer it. (2) MAJOR test_allgoodlead \u2014 the tracker legs wrote a fake applied giveback event into the LIVE telemetry journal (3 polluted rows found and purged); the drive now redirects telemetry_adjust.TELEMETRY_PATH into its tempdir and restores it in finally. (3) app.py \u2014 the telemetry TIMESTAMP (the one field missed by 32-panel-escaping) is escaped too. (4) MINOR background_scanner \u2014 a day opening AT peak 0.0 no longer freezes the give-back watermark (only an ABSENT peak counts as 'no peak yet'). SKIPPED, already-closed or by-design: the older ledger-fed panel's fields come from the machine's own journal (not the API wire; the API panel is the hostile-data surface); _flipgrade is the Sep-27-stale ledger line; the remaining drive-hygiene minors (simsweep grouping copy, commitgate no-leak scope, protected-extension exit-code, spec contradictions) are real but cosmetic and queue behind the majors. Drives: allgoodlead 26/0, apptest 306/0, stateclobber 21/0, statewriters 9/0.",
+   "checksums": {
+    "background_scanner.py": "sha256:cb9545e7188c6a336c032ed7317e0bff220bea5b47eaf300ef9ee23346444f1d",
+    "app.py": "sha256:2ffe7ae1789f70e77a609f52bceec70969673bc88676229d2c93abebd1f99c92",
+    "test_allgoodlead.py": "sha256:c94f6601df7fd6c9c7689b26a404803f0323b6819919d2d3f37c0e390e1c1db2"
+   }
   }
  }
 }
