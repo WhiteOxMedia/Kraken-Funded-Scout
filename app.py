@@ -1062,7 +1062,13 @@ def _load_console_state() -> dict:
 def _save_console_state(state: dict):
     import json
     try:
-        STATE_FILE.write_text(json.dumps(state, indent=1))
+        # ATOMIC (the state-writer tripwire's convention): the scanner
+        # reads this file too — a torn half-file degrades to defaults
+        tmp = str(STATE_FILE) + ".tmp"
+        with open(tmp, "w", encoding="utf-8") as fh:
+            json.dump(state, fh, indent=1)
+        import os
+        os.replace(tmp, str(STATE_FILE))
     except Exception as exc:
         logger.debug("console state save failed: %s", exc)
 
@@ -1133,7 +1139,12 @@ def track_payouts(ledger_payouts: list[dict]) -> tuple[str | None, list[dict]]:
                                                      if p["id"] and p["id"] not in payouts]
         for p in incoming:
             payouts[p["id"]] = {"amount": p["amount"], "ts": p["ts"]}
-        PAYOUT_TRACK_FILE.write_text(json.dumps(store, indent=1))
+        # ATOMIC (the state-writer tripwire's convention)
+        import os as _os_pt
+        _pt_tmp = str(PAYOUT_TRACK_FILE) + ".tmp"
+        with open(_pt_tmp, "w", encoding="utf-8") as _pt_fh:
+            _pt_fh.write(json.dumps(store, indent=1))
+        _os_pt.replace(_pt_tmp, str(PAYOUT_TRACK_FILE))
         banner = None
         if not first_run and incoming:
             total = sum(p["amount"] for p in incoming)

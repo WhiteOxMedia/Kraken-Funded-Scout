@@ -488,6 +488,23 @@
       "results": "profitguard 77/0 (2 new pins, red-first); regressions 13/0, 24/0, 25/0, 36/0",
       "acceptance": true,
       "notes": "THE RECURRING MAJOR IS CLOSED (91907f2 -> cf60cf7 -> cb47bc5 -> afb430d -> this): self_adjust merge-saved a FULL STALE snapshot (st | row | history) - under the merge-save every key the snapshot carries overwrites the file's CURRENT value, so the scanner's self_adjust keys rode stale into every save and any writer whose key changed mid-flight was rewritten backwards. The writer now saves OWNER KEYS ONLY (adjusted_on, factor, parts, ts, history_len, history); the box, the ledger, and any future writer's keys ride untouched on top. THE DRIVE PIN IS RED-FIRST: a mid-flight writer monkeypatch replays the degeneration against a foreign key that CHANGES between the read and the save (plant stale, capture the saved dict, mutate newer, save) - 9.4b proves the newer value survives, 9.4c proves the saved dict carries owner keys only. Was 75/2 RED, now 77/0 GREEN."
+    },
+    "16-state-writer-tripwire": {
+      "commits": ["<this commit>"],
+      "branch_name": "master (gated commits)",
+      "commands_run": ["uv run python -X utf8 diag_statewriters.py", "uv run python -X utf8 test_apptest.py", "git add ... && git commit (gated)"],
+      "artifacts": [
+        {"path": "diag_statewriters.py", "sha256": "sha256:b0a320af91d610761a35242b701f3aa1f6d1fccb4fd21584d4426e7c0893b460"},
+        {"path": "app.py", "sha256": "sha256:a91d91e8c92c7872a39551b871a4906127501246d2a31459c191716065712b1c"},
+        {"path": "add_xrp_watch.py", "sha256": "sha256:60d178687ddb1b7251bba41066493d6431e0b995275d4c2197975c7455ac7711"},
+        {"path": "set_bnb_size.py", "sha256": "sha256:1662c35cdee967fd15bb56562dd12d414e3363ab71304681f1da3d0771169f6b"},
+        {"path": "clean_expired_blacklist.py", "sha256": "sha256:dc98c4ff266ce49dc6d94aa5ccf991cdca1bf4f2de3647e677f5fe3e08574c4e"},
+        {"path": "artifacts/statewriters/diag_statewriters.txt", "sha256": "sha256:ed3ef1f4a5237daacfaf962eea589033e21e00339df4e0ea66364ddcaa904deb"}
+      ],
+      "tests_run": ["diag_statewriters.py 9/0", "test_apptest.py 301/0"],
+      "results": "the clobber class is a PERMANENT TRIPWIRE: every production writer of a governed state file is inventoried by AST (both repos), frozen in a registry, and enforced",
+      "acceptance": true,
+      "notes": "THE TRIPWIRE (the cross-writer sweep's endgame): diag_statewriters inventories every production writer of every governed state file (kraken_scout + bot sibling) by AST - module constants, one-hop derivation helpers, unit-local tmp bindings at any depth, with-bindings, positional path attribution (a data payload never drags a helper file into the attribution), read-mode opens never writers, full paths normalized to basenames - and FAILS on: R1 an unregistered (file, writer) pair (new writer: join the registry with a note, or the repo refuses), R1b a registry ghost (a rename must update it), R2 a non-atomic save (tmp + os.replace missing), R3 a merge-file writer that pops the dict it saves with no None-guard (pop-then-merge resurrects deleted rows). SELF-TESTS FIRST: fixtures (good writer / bypasser / popper / clean merger) prove the scanner judges itself - a tripwire that cannot trip is decoration. THE INVENTORY EXPOSED FOUR REAL BYPASSERS, ALL FIXED: add_xrp_watch and set_bnb_size (whole-file non-atomic contest_watch writes - now merge-read + tombstone-aware + atomic), clean_expired_blacklist (non-atomic execution_state write - now atomic + .bak), app._save_console_state and the payout-track write (both non-atomic - now atomic). The frozen census: 14 production writers across 9 governed files, ALL ATOMIC, zero unregistered, zero poppers. Drive 9/0; apptest 301/0."
     }
   }
 }

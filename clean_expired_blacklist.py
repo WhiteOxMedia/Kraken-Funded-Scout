@@ -6,7 +6,8 @@ from zoneinfo import ZoneInfo
 
 BASE = Path(__file__).resolve().parent
 MST = ZoneInfo("America/Denver")
-p = BASE / "execution_state.json"
+EXECUTION_STATE = "execution_state.json"
+p = BASE / EXECUTION_STATE
 doc = json.loads(p.read_text())
 now = datetime.now(MST)
 removed = []
@@ -22,5 +23,11 @@ for pair, rec in list(bl.items()):
 if removed:
     shutil.copy2(p, BASE / "execution_state.json.bak-expired")
     doc["blacklist"] = bl
-    p.write_text(json.dumps(doc, indent=1))
+    # ATOMIC (the state-writer tripwire's convention): the bookkeeping
+    # one-shot never leaves a torn half-file for the bot's reader
+    tmp = str(p) + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as fh:
+        json.dump(doc, fh, indent=1)
+    import os
+    os.replace(tmp, str(p))
 print("removed:", removed or "nothing expired")
