@@ -2808,11 +2808,33 @@ def _load_contest_watch() -> dict:
 
 
 def _save_contest_watch(watch: dict):
+    """MERGE-SAVE (the cross-writer sweep, Sep 28): the scanner and the
+    bot both read-modify-write this file — the bot's _upsert_bot_watch_row
+    lands a row between the scanner's read and its save, and the old
+    whole-file rewrite erased that row (the paper book never noticed the
+    real fill; the real side's tombstone vanished). Overlaying `watch`
+    onto the file's CURRENT contents keeps both sides' keys. Deletions
+    (watch.pop(pair)) are legitimized explicitly: a key ABSENT from
+    `watch` AND in _SAVE_DROPS means removed, not resurrected; every
+    other key absent from `watch` is preserved from the current file.
+    Still tmp + os.replace: a torn write can never be read."""
     import json
+    drops = {k for k, v in (watch or {}).items() if v is None}
+    try:
+        cur = _load_contest_watch()
+        merged = {k: v for k, v in cur.items()
+                  if k not in drops and k not in watch}
+        merged.update({k: v for k, v in (watch or {}).items()
+                       if v is not None})   # the DELETION wins: a None
+                                            # value re-added by update
+                                            # would resurrect the row
+                                            # it exists to remove
+    except Exception:
+        merged = {k: v for k, v in (watch or {}).items() if v is not None}
     try:
         tmp = CONTEST_WATCH_JSON + ".tmp"
         with open(tmp, "w", encoding="utf-8") as fh:
-            json.dump(watch, fh, indent=2)
+            json.dump(merged, fh, indent=2)
         os.replace(tmp, CONTEST_WATCH_JSON)
     except Exception as exc:
         logger.warning("contest watch save failed: %s", exc)

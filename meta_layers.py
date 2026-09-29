@@ -28,6 +28,7 @@ silent mismatch; an unreadable layer is absent, never a crash.
 """
 import json
 import math
+import os
 import time
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -83,7 +84,14 @@ def _save(st: dict) -> None:
         cur = {}
     merged = {k: v for k, v in cur.items() if k not in _SAVE_DROPS}
     merged.update(st)
-    STATE_FILE.write_text(json.dumps(merged, indent=2), encoding="utf-8")
+    # ATOMIC (the cross-writer sweep, Sep 28): the merge-save already
+    # closed the clobber door; this closes the torn-write door — the
+    # fail-soft readers would read a half-written file as {} and the
+    # whole learning state would vanish without a trace.
+    tmp = str(STATE_FILE) + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as fh:
+        json.dump(merged, fh, indent=2)
+    os.replace(tmp, STATE_FILE)
 
 
 # ═══════════════ SECTION 1 — THE REALITY CHECK LAYER ═══════════════

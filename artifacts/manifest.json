@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-09-28T20:36:29.879080-06:00",
+  "generated_at": "2026-09-28T21:12:29.621188-06:00",
   "head_commit": "794973b",
   "machine": "kraken_scout (C:/Users/birds/Workspace/kraken_scout)",
   "delivery": "gated master commits (no git remote configured); isolated CodeRabbit review on every commit",
@@ -409,6 +409,42 @@
       "results": "9 agent-recovered findings: 7 fixed, 2 deferred with reasons",
       "acceptance": true,
       "notes": "FIXED: app.py row-level ts guard (corrupt stamp skips its row, not the aggregate); override_concentration is an explicit request field, never an auth side effect, token never echoed (+ drive pin for auth-without-override still queues, ordered before cap consumption); canary_enable demands STRICTLY-inside cap and picks the most conservative safe cell instead of defaults; evidence drive live-probe moved to sandbox store + probe id; simsweep monotonicity de-tautologized (signed magnitudes, cap-tie named); playbook points at profit_guard_state.json; UI spec documents token fields on every POST. DEFERRED: diag_coderabbit_backlog matcher minor (its own subject - self-triaging tool); diag_testleaks AST enhancement (detector improvement, not a defect)."
+    },
+    "12-cross-writer-sweep": {
+      "commits": [
+        "<this commit>"
+      ],
+      "branch_name": "master (gated commits)",
+      "commands_run": [
+        "inventory: ls state files + grep all save implementations",
+        "classification: nested-writer / cross-process / append-only / atomicity",
+        "uv run python -X utf8 test_stateclobber.py",
+        "regressions: profitguard, metalayers, autoadjust, apptest, funnelplate, disciplineseam, topfill"
+      ],
+      "artifacts": [
+        {
+          "path": "test_stateclobber.py",
+          "sha256": "sha256:039a7c01e58e6447ab2a7c5cb0cfd1e42a12ac9c6c5d5f522fbfcdab21e43a6c"
+        },
+        {
+          "path": "artifacts/stateclobber/_stateclobber_drive.txt",
+          "sha256": "sha256:3ed54a487685900eeb828cb0281973c351efa00916af6931b7d3212dd6ea4605"
+        }
+      ],
+      "tests_run": [
+        "stateclobber 9/0 (new)",
+        "profitguard 75/0",
+        "metalayers 72/0",
+        "autoadjust 24/0",
+        "apptest 294/0",
+        "funnelplate 24/0",
+        "disciplineseam 47/0",
+        "topfill 12/0",
+        "referee 20/0"
+      ],
+      "results": "2 torn-write doors closed, 1 cross-process clobber closed, 1 deletion-under-merge class found and pinned",
+      "acceptance": true,
+      "notes": "FINDINGS: profit_guard._save and meta_layers._save wrote NON-ATOMICALLY (torn write + fail-soft readers = silent total state loss) - both now tmp+os.replace; profit_guard._save is also MERGE-SAVED (scanner's self_adjust and the auto-adjust box/ledger share the file - the auto_adjust clobber's home ground); contest_watch.json is the one true CROSS-PROCESS file (scanner + bot both RMW the whole file) - scanner side now merge-saves with None-means-delete (bot-side tombstone respect unchanged); the drive replays the exact interleavings and CAUGHT the new saver's own resurrection bug (update re-adding a None-deleted key) before it shipped. VERDICT: append-only jsonl ledgers (popups, suppressions, snapshots, trades, voice) safe by construction; already-atomic writers (discipline, exit_extension, contest_account, tidebar_weekly, carve_out, climb_out) untouched; diagnostics write scratch only. Residual risk documented: last-writer-wins per KEY on contest_watch under a true same-instant race - acceptable at 4s scanner cadence."
     }
   }
 }

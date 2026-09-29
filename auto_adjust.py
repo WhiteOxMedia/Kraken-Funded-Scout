@@ -211,6 +211,9 @@ def expire_if_due() -> dict | None:
     before = float(box.get("before") or 1.0)
     st["factor"] = before
     st.pop("auto_adjust_box", None)
+    st["auto_adjust_box"] = None   # the merge-save's None-means-delete:
+                                    # the box must be REMOVED from the
+                                    # file, not resurrected from it
     _ledger(st).append({
         "day": _today_key(datetime.now().astimezone()),
         "rotation_id": str(box.get("rotation_id") or ""),
@@ -308,6 +311,7 @@ def rollback(rotation_id: str) -> dict:
     before = float(row["before"])
     st["factor"] = before
     st.pop("auto_adjust_box", None)
+    st["auto_adjust_box"] = None   # None-means-delete under merge-save
     _ledger(st).append({
         "day": _today_key(now), "rotation_id": rotation_id,
         "status": "reverted", "before": float(row["after"]),

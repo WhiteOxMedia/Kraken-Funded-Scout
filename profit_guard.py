@@ -45,6 +45,7 @@ a context. One readable half still yields a readable factor.
 """
 import json
 import math
+import os
 import time
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -584,7 +585,38 @@ def _read_state(path) -> dict:
 
 
 def _save(st: dict) -> None:
-    _state_file().write_text(json.dumps(st, indent=2), encoding="utf-8")
+    # ATOMIC + MERGE-SAVED (the cross-writer sweep, Sep 28): two writers
+    # share this file — the scanner's daily self_adjust loop AND the
+    # auto-adjust's apply/revert/tick — and both read-modify-write, so
+    # a whole-file rewrite from a stale snapshot erases the other's key
+    # (the proven clobber class: the ledger survived only because its
+    # caller re-read first). Overlay st onto the file's CURRENT contents
+    # (top-level keys are independent: factor, history, auto_adjust_box,
+    # auto_adjust_ledger, adjusted_on) and write tmp + os.replace so a
+    # torn write is never readable by the fail-soft readers (a torn
+    # state file previously read as {} — the whole factor, history, box,
+    # and ledger gone without a trace).
+    sf = _state_file()
+    try:
+        cur = json.loads(sf.read_text(encoding="utf-8"))
+        if not isinstance(cur, dict):
+            cur = {}
+    except Exception:
+        cur = {}
+    merged = dict(cur)
+    merged.update(st)
+    # THE NONE-MEANS-DELETE convention (the mirror of the scanner's
+    # contest_watch merge): expire_if_due and rollback must REMOVE the
+    # box, and a plain update would resurrect it from the current file.
+    # A key set to None in `st` is deleted from the merged result —
+    # intentional deletion stays possible under merge-save.
+    for k, v in list(st.items()):
+        if v is None:
+            merged.pop(k, None)
+    tmp = str(sf) + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as fh:
+        json.dump(merged, fh, indent=2)
+    os.replace(tmp, sf)
 
 
 # ── THE GUARD-FACTOR HISTORY (Sep 27): every day's adjusted factor is

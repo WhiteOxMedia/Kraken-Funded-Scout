@@ -1,0 +1,11 @@
+PASS  the box and the ledger coexist after apply (the original clobber erased one)
+PASS  a foreign writer's key survives the next auto-adjust write (merge-save, not whole-file rewrite)
+PASS  the revert restores the before factor and keeps the ledger
+PASS  the state file has no .tmp residue after normal saves (atomic rename, in-place write would leave none either — the next check proves the atomic path directly)
+PASS  the tmp-residue scenario cannot corrupt the live file (the rename replaces atomically)
+PASS  meta_layers merge keeps foreign keys and honors _SAVE_DROPS (rcl_last dropped, silent_docks + tomorrow_goal_factor kept)
+PASS  the scanner's save keeps the bot's row (the interleaving that erased the paper book's view of the real fill)
+PASS  a bot-side row (SOL) survives the scanner's next stale save
+PASS  the GET-OUT pop (None value) deletes the row — intentional deletion still works under merge-save
+
+RESULT: 9 passed, 0 failed
