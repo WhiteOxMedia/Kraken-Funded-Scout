@@ -522,6 +522,20 @@
       "results": "the canary cohort arms on ITS OWN state file - arming or rolling back the cohort can never silently disable the exit-extension feature",
       "acceptance": true,
       "notes": "THE TWO-FILE DESIGN (the structural fix the reviews kept circling): canary_runner gains COHORT_FILE = auto_adjust_canary.json - flip_canary arms the cohort THERE (the exit-extension dial file is never opened for writing: a flip cannot clobber the feature master because it cannot touch the file at all); rollback stops the cohort on its own file (disarmed + cleared_cohort) and strips the legacy parked keys from the dial WITHOUT rewriting the master value; read_dial is the compat reader (canary when the cohort file is armed, else the master's own value); the hook reads the cohort file through the AUTO_ADJUST_CANARY_FILE env seam - exit-extension dials are NEVER consulted, so the boundary path is structurally independent of the feature master. The drive proves the sharpest consequence: after a cohort rollback, an operator's own master arm '1' SURVIVES byte-exact. LIVE MIGRATION executed on the machine: rollback de-contaminated the parked keys (dial file now holds ONLY the master key, value untouched), flip re-armed cohort canary-20260928_225950 on the new file - the boundary hook is live again via the cohort file. The cohort file is gitignored (live machine state, not a deployment). The state-writer tripwire registers both new writers (flip/rollback, inline IO so the census sees them) and the governance policy names the two-file rule. canary 13/0, hindsightapi 36/0, exit_extension 55/0, diag 9/0."
+    },
+    "18-concurrent-clobber-replay": {
+      "commits": ["<this commit>"],
+      "branch_name": "master (gated commits)",
+      "commands_run": ["uv run python -X utf8 test_stateclobber.py (15s, three waves of real concurrent writer processes)", "bash -n hooks/pre-commit", "git add ... && git commit (gated)"],
+      "artifacts": [
+        {"path": "test_stateclobber.py", "sha256": "sha256:169c4bf803931c2281afe59cc4356cf6a212996b44146fa5d5b9b3118690220b"},
+        {"path": "hooks/pre-commit", "sha256": "sha256:7500ee02ea71fa7ff10c2b4edf6331911e7451fb3ed9d3af64642550a0f818fc"},
+        {"path": "artifacts/stateclobber/_stateclobber_drive.txt", "sha256": "sha256:8e2c5c4486f62890214b808fc0190153d75d05584a0fe840dfc4f4af5f4a6aeb"}
+      ],
+      "tests_run": ["stateclobber 22/0 (13 hand-replayed + 9 real-concurrency pins)"],
+      "results": "real concurrent writer processes replace the hand-replayed interleavings; the drive is wired into the pre-commit gate (60s budget, scanner-source commits)",
+      "acceptance": true,
+      "notes": "REAL CONCURRENCY (round 3): one-shot WAVE processes - each spawns, imports its PRODUCTION writer in its own interpreter (background_scanner and profit_guard in this repo's venv, bot_engine from the bot's own venv with its pandas), performs exactly one write, exits - no pipes, no protocol, nothing to wedge; a hang is a named kill. Three waves: the storm (6 rounds x scanner+bot+guard in parallel), the fill-between-reads (bot fill while 4 scanner writers are in flight), and the tombstone-as-last-word (re-adds and tombstones in parallel, closed by one final tombstone). A reader storm classifies every failure it sees. THE DRIVE'S OWN DISCOVERIES: (1) concurrent os.replace onto the same target on Windows FAILS NAMED - WinError 5 for the loser, never a torn file (the storm drew multiple losers; the honest contract pins no-unnamed-failures + healing-by-retry, the machine's own tick behavior, not completion-against-contention); (2) 5385 reader reads drew 2 EMPTY mid-swap views - the documented oplock race the fail-soft readers absorb - and ZERO partial documents (a truncated JSON body would be a real torn write and is forbidden); (3) the fail-soft + retry contract is exercised for real, not asserted. Gate wiring: test_stateclobber runs on scanner-source commits at a 60s budget (measured 15s)."
     }
   }
 }

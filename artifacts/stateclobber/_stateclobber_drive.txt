@@ -1,11 +1,22 @@
 PASS  the box and the ledger coexist after apply (the original clobber erased one)
 PASS  a foreign writer's key survives the next auto-adjust write (merge-save, not whole-file rewrite)
 PASS  the revert restores the before factor and keeps the ledger
+PASS  the revert's owner-key save keeps the other writer's key (a stale full snapshot would have rewritten it away)
 PASS  the state file has no .tmp residue after normal saves (atomic rename, in-place write would leave none either — the next check proves the atomic path directly)
 PASS  the tmp-residue scenario cannot corrupt the live file (the rename replaces atomically)
 PASS  meta_layers merge keeps foreign keys and honors _SAVE_DROPS (rcl_last dropped, silent_docks + tomorrow_goal_factor kept)
 PASS  the scanner's save keeps the bot's row (the interleaving that erased the paper book's view of the real fill)
 PASS  a bot-side row (SOL) survives the scanner's next stale save
 PASS  the GET-OUT pop (None value) deletes the row — intentional deletion still works under merge-save
+PASS  the close path TOMBSTONES the row (a pop would resurrect it under merge-save — an absent key means never-seen)
+PASS  a remover's dict carrying a tombstone keeps the row dead across a later save (drop AND no re-add)
+PASS  the console writer merge-saves too (three writers share the file — the round-1 sweep counted two)
+PASS  the storm wave: no unnamed writer failure (a concurrent rename loser fails with the NAMED contention family — WinError 5 access-denied or WinError 32 sharing-violation — never silent, never a torn file; an import-starved environment skips honestly)
+PASS  the post-storm book parses (merge-saves across real process scheduling — losers were named, never torn)
+PASS  the book HEALS: one scanner tick per starved row restores every storm write (fail-soft + retry beats fail-stop; an import-starved environment skips honestly)
+PASS  the guard state HEALS the same way: concurrent owner-key saves retry to completeness (the owner-keys rule under real scheduling)
+PASS  under parallel scanner writers a bot fill survives every merge (the round-1 casualty, process-scheduled; an import-starved environment skips honestly)
+PASS  the tombstone is the last word across parallel re-adds (None-means-delete under real scheduling)
+PASS  the reader storm: thousands of reads under concurrent fire, and NOT ONE partial document (an empty mid-swap view is the documented OS race the fail-soft readers absorb; a truncated JSON body would be a real torn write and is forbidden)
 
-RESULT: 9 passed, 0 failed
+RESULT: 20 passed, 0 failed

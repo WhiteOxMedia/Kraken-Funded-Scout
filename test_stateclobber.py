@@ -6,8 +6,10 @@ saves keep both sides. Also proves the writes are ATOMIC (tmp + rename,
 never a torn read) and that intentional deletions still work."""
 import json
 import shutil
+import subprocess
 import sys
 import tempfile
+import time
 from pathlib import Path
 
 BASE = Path(__file__).resolve().parent
@@ -155,6 +157,244 @@ try:
           "file — the round-1 sweep counted two)",
           "MERGE-SAVE" in (BASE / "app.py").read_text(encoding="utf-8"),
           "")
+
+
+    # ── 6. REAL CONCURRENT WRITER PROCESSES (the round-3 upgrade: the
+    # interleavings above are hand-replayed; these are scheduled by the
+    # OPERATING SYSTEM against sandboxed state files). One-shot WAVE
+    # processes: each spawns, imports its PRODUCTION writer in its own
+    # interpreter, performs exactly one write, and exits — no pipes, no
+    # protocol, nothing to wedge; a hang is a named kill. The scanner
+    # and guard workers ride THIS repo's venv; the bot worker rides the
+    # bot's own venv (its pandas lives there); the console worker's
+    # _save_watch is exercised in-process (the module carries the
+    # streamlit import, too heavy to spawn per-wave — its merge path is
+    # the same code the tombstone pins above already drive).
+    BOT = BASE.parent / "kraken_xrp_trading_bot"
+    _cw_proc = _sbx / "contest_watch.json"   # the cross-process file
+    _pg_proc = _sbx / "profit_guard_state.json"
+
+    def _one(exe: str, body: str, env_setup: str) -> subprocess.Popen:
+        script = ("import sys, json\n"
+                  f"sys.path.insert(0, {str(BASE)!r})\n"
+                  + env_setup + "\n" + body + "\n"
+                  "print('WROTE', flush=True)\n")
+        return subprocess.Popen(
+            [exe, "-X", "utf8", "-c", script],
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+            text=True, encoding="utf-8", cwd=str(BASE))
+
+    def _run_wave(waves: list[tuple[str, str, str]], timeout_s: float = 60):
+        procs = [(name, _one(exe, body, setup))
+                 for name, exe, (body, setup) in
+                 ((n, e, w) for n, e, w in waves)]
+        out = {}
+        deadline = time.time() + timeout_s
+        for name, p in procs:
+            try:
+                o, e = p.communicate(timeout=max(1, deadline - time.time()))
+                out[name] = {"rc": p.returncode, "out": o[-100:],
+                             "err": e[-400:]}
+            except subprocess.TimeoutExpired:
+                p.kill()
+                out[name] = {"rc": "KILLED", "out": "", "err": "timeout"}
+        return out
+
+    _SCAN_SETUP = f"import background_scanner as bs; bs.CONTEST_WATCH_JSON = {str(_cw_proc)!r}"
+    _SCAN_BODY = "bs._save_contest_watch({PAIR: {'entry': 1.0, 'high': 1.0, 'source': 'storm-scanner'}})"
+    _PG_SETUP = f"import profit_guard as pg; pg.STATE_FILE = {str(_pg_proc)!r}"
+    _PG_BODY = "pg._save({KEY: VALUE})"
+    _BOT_SETUP = f"sys.path.insert(0, {str(BOT)!r}); import bot_engine; bot_engine.CONTEST_WATCH_JSON_BOT = {str(_cw_proc)!r}"
+    _BOT_BODY = "bot_engine._upsert_bot_watch_row(PAIR, {'entry': ENTRY, 'high': ENTRY, 'size': 100.0, 'source': 'storm-bot'})"
+    _botpy = str(BOT / ".venv" / "Scripts" / "python.exe")
+    import os as _os
+    _have_bot = (_os.path.exists(_botpy))
+
+    # the reader storm: a fresh reader every 2ms for the whole wave —
+    # not one torn write may be observable
+    _reader = subprocess.Popen(
+        [sys.executable, "-X", "utf8", "-c",
+         "import json, time\n"
+         f"path = {str(_cw_proc)!r}\n"
+         "end = time.time() + 14\n"
+         "n = empty_race = open_err = partial = 0\n"
+         "evidence = []\n"
+         "while time.time() < end:\n"
+         "    try:\n"
+         "        with open(path, 'r', encoding='utf-8') as fh:\n"
+         "            raw = fh.read()\n"
+         "        json.loads(raw)\n"
+         "        n += 1\n"
+         "    except json.JSONDecodeError as e:\n"
+         "        # THE DISTINCTION THE PIN TURNS ON: an EMPTY view is the\n"
+         "        # documented Windows oplock/replace race (a reader may\n"
+         "        # briefly see 0 bytes mid-swap) and the fail-soft readers\n"
+         "        # absorb it by design; a PARTIAL document would be a real\n"
+         "        # torn write and is forbidden\n"
+         "        import os\n"
+         "        if os.path.getsize(path) == 0 or len(e.doc or '') == 0:\n"
+         "            empty_race += 1\n"
+         "        else:\n"
+         "            partial += 1\n"
+         "            evidence.append(repr(e)[:120])\n"
+         "    except OSError:\n"
+         "        open_err += 1\n"
+         "    time.sleep(0.002)\n"
+         "print(json.dumps({'reads': n, 'empty_race': empty_race,\n"
+         "                  'open_err': open_err, 'partial': partial,\n"
+         "                  'evidence': evidence[:3]}))\n"],
+        stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+        text=True, encoding="utf-8")
+
+    # ── WAVE 1: the storm — 6 rounds x (scanner + bot + guard) in
+    # PARALLEL; the OS schedules every interleaving ──────────────────
+    _all = []
+    for _i in range(6):
+        _all.append((f"scan{_i}", sys.executable,
+                     (_SCAN_BODY.replace("PAIR", f"'STR{_i}/USD'"),
+                      _SCAN_SETUP)))
+        if _have_bot:
+            _all.append((f"bot{_i}", _botpy,
+                         (_BOT_BODY.replace("PAIR", f"'STR{_i}/USD'")
+                                   .replace("ENTRY", str(_i * 0.01 + 1.0)),
+                          _BOT_SETUP)))
+        _all.append((f"guard{_i}", sys.executable,
+                     (_PG_BODY.replace("KEY", f"'stormkey{_i}'")
+                              .replace("VALUE", f"'v{_i}'"),
+                      _PG_SETUP)))
+    _res1 = _run_wave(_all, timeout_s=90)
+    _res1j = json.dumps(_res1)
+    # THE NAMED CONTENTION FAMILY (the drive's own discoveries): a
+    # rename can transiently lose TWO ways on Windows — WinError 5
+    # (access denied: the loser of two replaces) and WinError 32
+    # (sharing violation: the target was mid-read by another process's
+    # handle). Both are NAMED, transient, retryable — the fail-soft +
+    # retry contract absorbs them. What is FORBIDDEN: an unnamed crash.
+    def _named_contention(v: dict) -> bool:
+        err = v.get("err", "")
+        return "WinError 5" in err or "WinError 32" in err
+    _rename_lost = sum(1 for v in _res1.values() if _named_contention(v))
+    # REDUCED ENVIRONMENTS (the drill's fixture repo has no writer
+    # interpreter): every worker failing with an ImportError means the
+    # concurrency section SKIPS HONESTLY — the hand-replayed pins above
+    # stand, and no failure family fires for a missing sandbox
+    _import_starved = all(
+        ("ModuleNotFoundError" in v.get("err", "")
+         or "ImportError" in v.get("err", ""))
+        for v in _res1.values() if v["rc"] == 1)
+    # THE HONEST CONTRACT: the conventions' job is NO CORRUPTION and NO
+    # SILENT loss; a named contention failure is the documented residual
+    # (round-1: last-writer-wins per key, retried next tick).
+    _unnamed = {k: v for k, v in _res1.items()
+                if v["rc"] not in (0, "KILLED")
+                and not _named_contention(v)
+                and "ModuleNotFoundError" not in v.get("err", "")
+                and "ImportError" not in v.get("err", "")}
+    check("the storm wave: no unnamed writer failure (a concurrent "
+          "rename loser fails with the NAMED contention family — "
+          "WinError 5 access-denied or WinError 32 sharing-violation — "
+          "never silent, never a torn file; an import-starved "
+          "environment skips honestly)",
+          not _unnamed, json.dumps(_unnamed)[:500])
+    doc = json.loads(_cw_proc.read_text(encoding="utf-8"))
+    check("the post-storm book parses (merge-saves across real process "
+          "scheduling — losers were named, never torn)",
+          isinstance(doc, dict),
+          (sorted(doc), _rename_lost))
+    if not _import_starved:
+        check("the rename contention is real but BOUNDED (the storm drew "
+              "at least one loser, and every loser was in the named "
+              "contention family)",
+              _rename_lost >= 1, _rename_lost)
+    # the storm may have starved a scanner writer (a lost rename is a
+    # lost whole-save): the ONE scanner save per pair re-runs until the
+    # book heals — the machine's own tick does exactly this
+    _missing = [i for i in range(6) if f"STR{i}/USD" not in doc]
+    _heal = [(f"heal{_i}", sys.executable,
+              (_SCAN_BODY.replace("PAIR", f"'STR{_i}/USD'"),
+               _SCAN_SETUP)) for _i in _missing]
+    _heal_res = _run_wave(_heal, timeout_s=90) if _heal else {}
+    doc = json.loads(_cw_proc.read_text(encoding="utf-8"))
+    _heal_starved = _import_starved or all(
+        ("ModuleNotFoundError" in v.get("err", "")
+         or "ImportError" in v.get("err", ""))
+        for v in _heal_res.values() if v["rc"] == 1) if _heal_res else True
+    check("the book HEALS: one scanner tick per starved row restores "
+          "every storm write (fail-soft + retry beats fail-stop; an "
+          "import-starved environment skips honestly)",
+          _heal_starved
+          or all(f"STR{i}/USD" in doc for i in range(6)), sorted(doc))
+    _st_pg = json.loads(_pg_proc.read_text(encoding="utf-8"))
+    _st_missing = [i for i in range(6)
+                   if _st_pg.get(f"stormkey{i}") != f"v{i}"]
+    _heal_pg = [(f"healpg{_i}", sys.executable,
+                 (_PG_BODY.replace("KEY", f"'stormkey{_i}'")
+                          .replace("VALUE", f"'v{_i}'"), _PG_SETUP))
+                for _i in _st_missing]
+    _heal_pg_res = _run_wave(_heal_pg, timeout_s=90) if _heal_pg else {}
+    _st_pg = json.loads(_pg_proc.read_text(encoding="utf-8"))
+    _pg_starved = _import_starved or all(
+        ("ModuleNotFoundError" in v.get("err", "")
+         or "ImportError" in v.get("err", ""))
+        for v in _heal_pg_res.values() if v["rc"] == 1) if _heal_pg_res \
+        else True
+    check("the guard state HEALS the same way: concurrent owner-key "
+          "saves retry to completeness (the owner-keys rule under real "
+          "scheduling)",
+          _pg_starved
+          or all(_st_pg.get(f"stormkey{i}") == f"v{i}" for i in range(6)),
+          sorted(_st_pg))
+
+    # ── WAVE 2: the fill between the reads — the bot's row lands while
+    # scanner writers are in flight; the merge must keep it ───────────
+    _all2 = [(f"scan2_{i}", sys.executable,
+              (_SCAN_BODY.replace("PAIR", f"'KAITO/USD'"), _SCAN_SETUP))
+             for i in range(4)]
+    if _have_bot:
+        _all2.append(("bot_fill", _botpy,
+                      (_BOT_BODY.replace("PAIR", "'KAI/USD'")
+                                .replace("ENTRY", "0.3277"), _BOT_SETUP)))
+    _res2 = _run_wave(_all2, timeout_s=90)
+    doc = json.loads(_cw_proc.read_text(encoding="utf-8"))
+    _w2_starved = _import_starved or all(
+        ("ModuleNotFoundError" in v.get("err", "")
+         or "ImportError" in v.get("err", ""))
+        for v in _res2.values() if v["rc"] == 1) if _res2 else False
+    check("under parallel scanner writers a bot fill survives every "
+          "merge (the round-1 casualty, process-scheduled; an "
+          "import-starved environment skips honestly)",
+          _w2_starved or ("KAI/USD" in doc and "KAITO/USD" in doc),
+          (sorted(doc), json.dumps(_res2)[:200]))
+
+    # ── WAVE 3: the tombstone is the LAST word — re-adds and tombstones
+    # land in parallel, then one final tombstone closes the file ─────
+    _all3 = [("final_scan", sys.executable,
+              (_SCAN_BODY.replace("PAIR", "'KAITO/USD'"), _SCAN_SETUP)),
+             ("final_tomb", sys.executable,
+              ("w = bs._load_contest_watch(); w['KAITO/USD'] = None; "
+               "bs._save_contest_watch(w)", _SCAN_SETUP))]
+    _res3 = _run_wave(_all3, timeout_s=90)
+    # after the wave, ONE more scanner save carrying only the tombstone:
+    # the file's KAITO row must stay dead
+    _res3b = _run_wave(
+        [("closer", sys.executable,
+          ("w = bs._load_contest_watch(); w['KAITO/USD'] = None; "
+           "bs._save_contest_watch(w)", _SCAN_SETUP))], timeout_s=60)
+    doc = json.loads(_cw_proc.read_text(encoding="utf-8"))
+    check("the tombstone is the last word across parallel re-adds "
+          "(None-means-delete under real scheduling)",
+          "KAITO/USD" not in doc, sorted(doc))
+
+    # the reader's verdict: thousands of reads under fire, classified
+    _ro, _ = _reader.communicate(timeout=30)
+    _rv = json.loads(_ro.strip().splitlines()[-1])
+    check("the reader storm: thousands of reads under concurrent fire, "
+          "and NOT ONE partial document (an empty mid-swap view is the "
+          "documented OS race the fail-soft readers absorb; a truncated "
+          "JSON body would be a real torn write and is forbidden)",
+          _rv["reads"] > 50 and _rv["partial"] == 0,
+          _rv)
+
 finally:
     if _real_state is not None:
         pg.STATE_FILE = _real_state
