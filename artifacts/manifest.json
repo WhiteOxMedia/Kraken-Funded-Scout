@@ -536,6 +536,17 @@
       "results": "real concurrent writer processes replace the hand-replayed interleavings; the drive is wired into the pre-commit gate (60s budget, scanner-source commits)",
       "acceptance": true,
       "notes": "REAL CONCURRENCY (round 3): one-shot WAVE processes - each spawns, imports its PRODUCTION writer in its own interpreter (background_scanner and profit_guard in this repo's venv, bot_engine from the bot's own venv with its pandas), performs exactly one write, exits - no pipes, no protocol, nothing to wedge; a hang is a named kill. Three waves: the storm (6 rounds x scanner+bot+guard in parallel), the fill-between-reads (bot fill while 4 scanner writers are in flight), and the tombstone-as-last-word (re-adds and tombstones in parallel, closed by one final tombstone). A reader storm classifies every failure it sees. THE DRIVE'S OWN DISCOVERIES: (1) concurrent os.replace onto the same target on Windows FAILS NAMED - WinError 5 for the loser, never a torn file (the storm drew multiple losers; the honest contract pins no-unnamed-failures + healing-by-retry, the machine's own tick behavior, not completion-against-contention); (2) 5385 reader reads drew 2 EMPTY mid-swap views - the documented oplock race the fail-soft readers absorb - and ZERO partial documents (a truncated JSON body would be a real torn write and is forbidden); (3) the fail-soft + retry contract is exercised for real, not asserted. Gate wiring: test_stateclobber runs on scanner-source commits at a 60s budget (measured 15s)."
+    },
+    "19-hindsight-service": {
+      "commits": ["<this commit>"],
+      "branch_name": "master",
+      "date": "2026-09-29",
+      "title": "HINDSIGHT API AS A REAL LOCAL SERVICE ON 127.0.0.1:8785 (Sep 29, hindsight-service)"
+      , "detail": "The console's API-fed panel gets a live feed: hindsight_service.py stands the stdlib API up as a stack component with a runner CLI (start/stop/status/serve), a .hindsight.pid contract with stale-pid cleanup, port-based ownership (netstat listener + python check + body-is-ours), and data-path env seams (HINDSIGHT_SUPP/CACHE) so the drive sandboxes its server. Two drive lessons landed as design: strict bind (allow_reuse_address=False) because Windows SO_REUSEADDR lets two stdlib servers silently share a port; ownership is port+body+python, never the spawner. Wired beside the scanner's: start_detached.ps1 hindsight entry, launch_stack.ps1 section 4b (port-verified), stop_stack.ps1 hindsight_service shape, gitignore .hindsight.pid. Drive test_hindightservice 15/0 x3 (real subprocesses, three concurrent serve processes, seeded-sandbox seams pin, foreign-HTTP-server refusal pin, 403-over-wire, corrupted/stale pid pins); wired into the gate on hindsight-source commits ($_HS, 90s budget, measured ~25s). commitgate 70/0 after fixing its own env-leak (the banner drills now own CODERABBIT_OFF, the same flag-ownership contract run_gate already applied to GATE_QUIET), hindsightapi 36/0. Live service verified: 00-04 B=19 P=17 r=0.895, gates endpoint 9 gates at 0.1s."
+      , "checksums": {
+        "hindsight_service.py": "sha256:ee5ea268ba90",
+        "test_hindightservice.py": "sha256:b12f5a98bcb3"
+      }
     }
   }
 }

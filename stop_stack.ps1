@@ -40,8 +40,9 @@ if (-not $mutex.WaitOne(0)) {
 
 function Test-StackProc {
     # A live python whose command line matches a stack component shape:
-    # scanner, bot, volatility engines, console. Matches BOTH halves of
-    # every shim pair (their command lines are identical by design).
+    # scanner, bot, volatility engines, console, hindsight API. Matches
+    # BOTH halves of every shim pair (their command lines are identical
+    # by design).
     $found = @{}
     Get-CimInstance Win32_Process -Filter "Name='python.exe'" | ForEach-Object {
         $cl = "$($_.CommandLine)"
@@ -49,7 +50,8 @@ function Test-StackProc {
         if ($cl -match "background_scanner" -or
             $cl -match "bot_runner" -or
             $cl -match "volatility_engine" -or
-            $cl -match "streamlit run app\.py") {
+            $cl -match "streamlit run app\.py" -or
+            $cl -match "hindsight_service\.py") {
             $found[[int]$_.ProcessId] = $cl
         }
     }

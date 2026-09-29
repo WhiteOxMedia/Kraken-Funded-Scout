@@ -200,8 +200,7 @@ Start-Sleep -Seconds 2
 $consoleUp = $false
 foreach ($line in (netstat -an)) {
     if ($line -match ":8501\s.*LISTENING") { $consoleUp = $true; break }
-}
-if ($consoleUp) {
+}if ($consoleUp) {
     Write-Host "[OK]  Console already running - skipping"
     # every click lands on the dashboard, even when nothing needed
     # starting - and the LAUNCHER is the single browser-opener    # (streamlit runs headless, so it never opens its own tab)
@@ -214,6 +213,43 @@ if ($consoleUp) {
         # the dashboard is detached now, so the browser IS the window
     } else {
         Write-Host "[FAIL] Console did not come up - see logs\console_stderr.log"
+        $okAll = $false
+    }
+}
+
+# -- 4b. Hindsight API (the console panel's live feed) ---------------
+# Sep 29: the panel reads 127.0.0.1:8785, so the service joins the
+# stack: verified by the PORT (netstat LISTENING, the launcher's own
+# console pattern), spawned through the hardened helper. Its pid file
+# and single-instance contract live inside hindsight_service itself.
+$hindsightUp = $false
+foreach ($line in (netstat -an)) {
+    if ($line -match ":8785\s.*LISTENING") { $hindsightUp = $true; break }
+}
+if ($hindsightUp) {
+    Write-Host "[OK]  Hindsight API already running - skipping"
+} else {
+    Write-Host "[NEW] Starting Hindsight API (detached, hidden, verified)..."
+    if ((Start-Verified "hindsight_service" "hindsight" "" -ShowWin:$showWin) -and
+        # the cmdline probe proves a live python; the PORT proves a
+        # serving API (a cmdline match alone could be a dying bind)
+        -not $false) {
+        $bound = $false
+        $deadline = (Get-Date).AddSeconds(15)
+        while ((Get-Date) -lt $deadline -and -not $bound) {
+            foreach ($line in (netstat -an)) {
+                if ($line -match ":8785\s.*LISTENING") { $bound = $true; break }
+            }
+            if (-not $bound) { Start-Sleep -Seconds 1 }
+        }
+        if ($bound) {
+            Write-Host "[UP]  Hindsight API is alive on :8785."
+        } else {
+            Write-Host "[FAIL] Hindsight API process ran but never bound :8785 - see logs\hindsight_stderr.log"
+            $okAll = $false
+        }
+    } else {
+        Write-Host "[FAIL] Hindsight API did not come up - see logs\hindsight_stderr.log"
         $okAll = $false
     }
 }

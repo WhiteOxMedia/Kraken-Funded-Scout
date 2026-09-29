@@ -20,8 +20,13 @@ surething_goal_tilt.json
 surething_goal_tilt.json.tmp*
 exit_extension.dial.json
 exit_extension.dial.json.tmp*
+auto_adjust_canary.json
+auto_adjust_canary.json.tmp*
 # the single-instance guard's pid file
 .scanner.pid
+# the hindsight service's pid file (runner CLI bookkeeping; the live
+# ownership contract is the port)
+.hindsight.pid
 # sqlite WAL sidecars of the live bridge db (the db itself is committed
 # after a checkpoint) + the backfill's safety copy
 signals.db-shm

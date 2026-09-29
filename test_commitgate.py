@@ -336,6 +336,14 @@ if not RERUN:
             "# isolation drill canary\n", encoding="utf-8")
         _git("add", "-f", "_review_canary.py")
         env = dict(os.environ)
+        # (Sep 29, the hindsight-service commit's lesson) the drills OWN
+        # the review-section flags, exactly as run_gate owns the quiet
+        # flag: a caller-set CODERABBIT_OFF=1 (any commitgate run BY the
+        # gate itself) leaks through os.environ and silently skips the
+        # sandbox's review section -- the banner drills would grade a
+        # hook that never spoke. Force the section ON; per-scenario
+        # overrides still ride extra_env below.
+        env["CODERABBIT_OFF"] = "0"
         env["PATH"] = ((path_prefix + os.pathsep) if path_prefix else "") \
             + str(_bin_dir) + os.pathsep + env.get("PATH", "")
         env["CR_STUB_LOG"] = str(sandbox / "_stub_calls.txt")

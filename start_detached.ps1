@@ -116,6 +116,17 @@ switch ($Component) {
         $extra = "streamlit run app.py --server.port 8501 --server.runOnSave false --server.headless true"
         $lockFile = ""
     }
+    "hindsight" {
+        # the hindsight API service (Sep 29): a stdlib server on
+        # 127.0.0.1:8785 feeding the console's API-fed panel. It runs
+        # its OWN single-instance contract (hindsight_service's pid
+        # file + already-up probe + strict bind), so the helper just
+        # spawns `serve` and leaves the pid bookkeeping to the
+        # service itself. Verified by the launcher via the :8785
+        # LISTENING probe (the port, not the pid - uv's shim pair).
+        $script = "hindsight_service.py"; $py = "$Base\.venv\Scripts\python.exe"
+        $extra = "serve"; $lockFile = "$Base\.hindsight.pid"
+    }
     default { Say "[helper] unknown component '$Component'"; exit 2 }
 }
 

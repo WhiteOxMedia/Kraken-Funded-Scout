@@ -254,13 +254,14 @@ if git diff --cached --name-only | grep -qxE 'app\.py|background_scanner\.py|met
             [ "$GATE_QUIET" = "1" ] || echo "  🧠 gate: $t — $res (${dt}ms, budget ${budget}s)" >&2
         fi
     }
-    _APP=no; _BS=no; _ML=no; _CO=no; _TW=no; _HK=no
+    _APP=no; _BS=no; _ML=no; _CO=no; _TW=no; _HK=no; _HS=no
     printf '%s\n' "$(git diff --cached --name-only)" | grep -qx 'app.py' && _APP=yes
     printf '%s\n' "$(git diff --cached --name-only)" | grep -qx 'background_scanner.py' && _BS=yes
     printf '%s\n' "$(git diff --cached --name-only)" | grep -qxE 'meta_layers\.py|profit_guard\.py' && _ML=yes
     printf '%s\n' "$(git diff --cached --name-only)" | grep -qxE 'carve_out\.py|meta_layers\.py|profit_guard\.py' && _CO=yes
     printf '%s\n' "$(git diff --cached --name-only)" | grep -qx 'tri_watch.py' && _TW=yes
     printf '%s\n' "$(git diff --cached --name-only)" | grep -qx 'hooks/pre-commit' && _HK=yes
+    printf '%s\n' "$(git diff --cached --name-only)" | grep -qxE 'hindsight_service\.py|test_hindightservice\.py' && _HS=yes
     # Trigger → drive map, deduped: when app.py AND background_scanner.py
     # are staged together (the f5ad99d shape), watchliveness and metalayers
     # would run twice under a naive per-source block — maybe_run keys on
@@ -313,6 +314,10 @@ if git diff --cached --name-only | grep -qxE 'app\.py|background_scanner\.py|met
     maybe_run "$_TW"  test_triwatch.py     result  30   # the tri-watch stack
     maybe_run "$_TW"  test_metalayers.py   result   15   # deduped; the shared
                                                         # candle read
+    maybe_run "$_HS"  test_hindightservice.py result 90  # the service runner's
+                                                        # lifecycle/ownership
+                                                        # contract (real ports,
+                                                        # real subprocesses)
     maybe_run "$_HK"  test_hookparser.py  result   10   # the parser's key
                                                         # contract, against
                                                         # the staged hook
