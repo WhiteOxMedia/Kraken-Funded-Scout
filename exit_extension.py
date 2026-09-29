@@ -252,7 +252,16 @@ def exit_verdict(pair: str, w: dict, reason: str,
     # riding its window was armed under this same gate, so it cannot be
     # a paid-at-goal book, and the ride needs no re-check (a ride must
     # be allowed to approach its goal).
-    goal_pct = float(w.get("goal_pct") or 0.0)
+    # THE GOAL GUARD (the entry guard's sibling, task 9B, Sep 28, red
+    # first in the drive): the goal_pct side parsed with a RAW float() —
+    # a non-numeric goal raised OUT of exit_verdict (an exception to the
+    # caller, not a named verdict), and a NaN goal slipped every <= 0.0
+    # comparison (NaN compares False) into goal_px = nan and an ARMED
+    # window priced at nonsense. Positive-FINITE or refuse.
+    try:
+        goal_pct = float(w.get("goal_pct") or 0.0)
+    except (TypeError, ValueError):
+        goal_pct = 0.0
     # THE ENTRY GUARD (CodeRabbit minor on the isolated review, Sep 28,
     # fixed same day): the old check `not str(w.get("entry") or 0)` was
     # ALWAYS False — missing, None, and "" all became the string "0" —
@@ -266,7 +275,11 @@ def exit_verdict(pair: str, w: dict, reason: str,
         entry = float(w.get("entry"))
     except (TypeError, ValueError):
         entry = 0.0
-    if live is None or goal_pct <= 0.0 or entry <= 0.0:
+    # the chained positive-finite form: NaN fails `0.0 < x` (every
+    # comparison with NaN is False), inf fails `x < inf` — both refuse
+    # with the same named verdict as missing/garbage/negative
+    if live is None or not (0.0 < goal_pct < float("inf")
+                            and 0.0 < entry < float("inf")):
         return "exit", ("no goal level / no live fill to judge the arm "
                         "precondition — incumbent machinery resumes")
     goal_px = entry * (1.0 + goal_pct / 100.0)

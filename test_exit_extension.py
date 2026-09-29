@@ -359,6 +359,49 @@ try:
     check("11.10 a NEGATIVE entry exits fail-safe (the precondition can "
           "not be judged on a negative price)",
           v == "exit" and "no goal level" in why)
+    # ── 11.13+ THE GOAL GUARD, the entry guard's sibling (task 9B, Sep
+    # 28, red-first): the goal_pct side parsed with a RAW float() — a
+    # non-numeric goal raised into the seam's outer except (an exception
+    # verdict, not a named one), and a NaN goal or entry slipped EVERY
+    # <= 0.0 comparison (NaN compares False) straight into goal_px =
+    # nan and an ARMED window priced at nonsense. Positive-finite or
+    # refuse, same named verdict as the entry guard.
+    _w_ggoal = {"pair": "OP/USD", "entry": 0.1478, "goal_pct": "2.5x",
+                "added": (datetime.now().astimezone()
+                          - timedelta(hours=2)).isoformat()}
+    v, why = ex.exit_verdict("OP/USD", _w_ggoal,
+                             "Trend broke — 55% bearish", live=0.14)
+    check("11.13 a NON-NUMERIC goal_pct exits fail-safe (the named "
+          "verdict, not a seam exception)",
+          v == "exit" and "no goal level" in why)
+    _w_nan_entry = {"pair": "OP/USD", "entry": float("nan"),
+                    "goal_pct": 3.0,
+                    "added": (datetime.now().astimezone()
+                              - timedelta(hours=2)).isoformat()}
+    v, why = ex.exit_verdict("OP/USD", _w_nan_entry,
+                             "Trend broke — 55% bearish", live=0.14)
+    check("11.14 a NaN entry exits fail-safe (NaN compares False against "
+          "every bound — only a positive-FINITE number arms)",
+          v == "exit" and "no goal level" in why
+          and "exit_extension" not in _w_nan_entry)
+    _w_nan_goal = {"pair": "OP/USD", "entry": 0.1478,
+                   "goal_pct": float("nan"),
+                   "added": (datetime.now().astimezone()
+                             - timedelta(hours=2)).isoformat()}
+    v, why = ex.exit_verdict("OP/USD", _w_nan_goal,
+                             "Trend broke — 55% bearish", live=0.14)
+    check("11.15 a NaN goal_pct exits fail-safe (a NaN goal level must "
+          "never arm a ride)",
+          v == "exit" and "no goal level" in why
+          and "exit_extension" not in _w_nan_goal)
+    _w_negg = {"pair": "OP/USD", "entry": 0.1478, "goal_pct": -2.5,
+               "added": (datetime.now().astimezone()
+                         - timedelta(hours=2)).isoformat()}
+    v, why = ex.exit_verdict("OP/USD", _w_negg,
+                             "Trend broke — 55% bearish", live=0.14)
+    check("11.16 a NEGATIVE goal_pct exits fail-safe (the guard's "
+          "positive-finite rule covers the sign, not just the digits)",
+          v == "exit" and "no goal level" in why)
     _eg_src = (BASE / "exit_extension.py").read_text(
         encoding="utf-8").replace("\r\n", "\n")
     check("11.11 the guard parses ONCE and reuses the value (no "
