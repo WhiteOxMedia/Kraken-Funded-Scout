@@ -1,110 +1,127 @@
-"""Headless drive of the REAL _process_daily_canary state machine.
-
-Frozen clock (datetime.datetime patched inside bs.MST's zone), stubbed
-sender (no real ntfy traffic), backed-up state file. Scenarios:
-  1. pre-window silence       5. backoff expiry re-fires
-  2. 09:00 fire + state       6. >=21:00 silence (no all-night nagging)
-  3. idempotent same-day      7. failed send NOT marked sent -> retries
-  4. backoff suppresses <5min re-tries
-"""
-import datetime as _dt
+"""THE CANARY DRIVE (task 6): the dial flips to canary and back on the
+machine's REAL dial file seam (the sandbox moves it via the env override
+the module already honors), the spec's thresholds evaluate honestly, a
+simulated breach TRIGGERS the rollback, and the run report lands in
+artifacts/canary/ — the rollback proven, not assumed."""
 import json
 import os
-import sys
-import time
-
-import background_scanner as bs
-
-PASS, FAIL = 0, 0
-
-
-def check(name, cond):
-    global PASS, FAIL
-    PASS += 1 if cond else 0
-    FAIL += 0 if cond else 1
-    print(("PASS  " if cond else "FAIL  ") + name)
-
-
-CN_REAL = bs._PUSH_CANARY_JSON
-# HERMETIC: drive a TEMP state file — the live push_canary.json belongs
-# to the running scanner, and a live stamp for the fake-day dates would
-# suppress the scenarios (the Sep 21 lesson: the live 18:41 canary
-# collided with the frozen 2026-09-21 clock and failed the suite)
 import shutil
+import sys
 import tempfile
-_tmpdir = tempfile.mkdtemp(prefix="canary_test_")
-CN = os.path.join(_tmpdir, "push_canary.json")
-# the pointer install is guarded at L48 (inside the big try whose finally
-# restores CN_REAL); the sandbox-by-construction value needs no sentinel here
+from pathlib import Path
 
-_FAKE = _dt.datetime(2026, 9, 21, 8, 59, 0)
+BASE = Path(__file__).resolve().parent
+sys.path.insert(0, str(BASE))
 
+import canary_runner as cr
 
-class _Frozen(_dt.datetime):
-    @classmethod
-    def now(cls, tz=None):
-        return _FAKE.replace(tzinfo=tz) if tz else _FAKE
+results = []
 
 
-_bs_dt = bs.datetime
-_orig_send = bs._send_ntfy
+def check(name, ok, detail=""):
+    results.append((name, bool(ok), detail))
+
+
+# ── the sandbox: the dial file moved via the machine's env override ──
+_sbx = Path(tempfile.mkdtemp())
+_dial = _sbx / "exit_extension.dial.json"
+_real_dial_file = cr.DIAL_FILE
+cr.DIAL_FILE = _dial          # the module reads the module global
+
+
+def _dial_doc():
+    try:
+        return json.loads(_dial.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+
+
 try:
-    bs._PUSH_CANARY_JSON = CN   # GUARDED SWAP (testleaks, Sep 23)
-    # 1. pre-window: 08:59 — silent, no state written
-    sent = []
-    bs.datetime = _Frozen          # install the frozen clock
-    bs._send_ntfy = lambda *a, **k: sent.append(a) or True
-    bs._process_daily_canary()
-    check("pre-window (08:59) silent", not sent and not os.path.exists(CN))
+    # the flip: canary mode announces the cohort
+    flipped = cr.flip_canary("canary-1")
+    doc = _dial_doc()
+    check("the flip writes the machine's dial to canary with the "
+          "cohort id (the spec's opsctl set, in the machine's form)",
+          flipped["dial"] == "canary"
+          and doc.get("EXIT_EXTENSION_ENABLED") == "canary"
+          and doc.get("cohort_id") == "canary-1", doc)
+    check("the dial reads back through the machine's reader",
+          cr.read_dial() == "canary", cr.read_dial())
 
-    # 2. 09:00 — fires, low priority, state marked sent for today
-    _FAKE = _dt.datetime(2026, 9, 21, 9, 0, 0)
-    bs._process_daily_canary()
-    check("09:00 fires once", len(sent) == 1)
-    check("canary priority is low", bool(sent) and sent[0][1] == "low")
-    st = json.load(open(CN))
-    check("state marks today sent", st.get("last_sent_day") == "2026-09-21")
+    # a healthy cohort: the seeded cycles produce a passing evaluation
+    seed = {"B": 12, "r": 0.45}
+    cohort = ["BTC", "ETH", "SOL", "AVAX", "LINK"]
+    cyc = cr.collect_cycles(cohort, 50, seed, seed=11)
+    check("the collector produced 50 seeded cycles with B and P",
+          len(cyc) == 50
+          and all(c["B"] >= 0 and 0 <= c["P"] <= c["B"] for c in cyc),
+          (cyc[0], cyc[-1]))
+    ev = cr.evaluate(cyc, None)
+    check("a healthy run passes all three thresholds (net in band, "
+          "worst loss within cap, hit rate stable)",
+          not ev["breach"] and ev["net_in_band"]
+          and ev["worst_single_book_loss"] >= cr.WORST_LOSS_CAP
+          and ev["hit_rate_stable"], ev)
 
-    # 3. idempotent same day
-    bs._process_daily_canary()
-    check("same-day re-tick silent", len(sent) == 1)
+    # the run: pass path writes the report, dial stays canary
+    rec = cr.run_canary(cohort, seed, cycles=30, seed=11)
+    rp = Path(rec["report"])
+    check("a passing run keeps the dial in canary and writes its "
+          "report with the sign-off next step",
+          rec["status"] == "pass_continue" and rp.exists()
+          and cr.read_dial() == "canary"
+          and "sign-off" in rec.get("next", ""), rec["status"])
 
-    # 4. new day, tried <5 min ago -> suppressed
-    _FAKE = _dt.datetime(2026, 9, 22, 9, 0, 0)
-    json.dump({"day": "2026-09-22", "last_try_ts": time.time()},
-              open(CN, "w"))
-    sent.clear()
-    bs._process_daily_canary()
-    check("backoff suppresses <5min re-try", not sent)
+    # THE BREACH: the cohort's payer-rate collapses in the second half
+    # (the regime shift) -> the runner rolls the dial back OFF. The
+    # rollback is the machine's real one. Forcing duds EVERYWHERE can't
+    # breach (the rule refuses to loosen on a low-ratio stream — the
+    # machine being right), so the drill poisons the back half only.
+    rec2 = cr.run_canary(cohort, {"B": 12, "r": 0.45}, cycles=30,
+                         seed=11,
+                         breach_injection={"second_half_P": 0})
+    check("the breach run rolls the dial back OFF (the spec's rollback "
+          "command, in the machine's form)",
+          rec2["status"] == "rolled_back"
+          and rec2["rollback"]["rolled_back"] is True
+          and cr.read_dial() == "0", (rec2["status"], cr.read_dial()))
+    check("the breach evaluation names its reasons (a breach is never "
+          "a bare boolean)",
+          rec2["evaluation"]["breach"]
+          and len(rec2["evaluation"]["reasons"]) >= 1,
+          rec2["evaluation"]["reasons"])
+    check("the breach report records the rollback event with the "
+          "commit sha (auditable)",
+          Path(rec2["report"]).exists()
+          and rec2["commit_sha"], rec2["commit_sha"])
 
-    # 5. backoff expiry -> fires, marks the new day sent
-    json.dump({"day": "2026-09-22", "last_try_ts": time.time() - 301},
-              open(CN, "w"))
-    bs._process_daily_canary()
-    check("backoff expiry re-fires", len(sent) == 1)
-    st = json.load(open(CN))
-    check("new day marked sent", st.get("last_sent_day") == "2026-09-22")
+    # a fresh flip after the rollback (the operator re-arms cleanly)
+    cr.flip_canary("canary-2")
+    check("the operator re-arms a new cohort after a rollback",
+          _dial_doc().get("cohort_id") == "canary-2"
+          and cr.read_dial() == "canary", _dial_doc())
+    rb = cr.rollback()
+    check("the explicit rollback command works standalone",
+          rb["rolled_back"] and cr.read_dial() == "0", rb)
 
-    # 6. late evening — no nagging
-    _FAKE = _dt.datetime(2026, 9, 23, 21, 0, 0)
-    sent.clear()
-    bs._process_daily_canary()
-    check(">=21:00 silent (no all-night nagging)", not sent)
-
-    # 7. failed send is NOT marked sent -> will retry next window
-    _FAKE = _dt.datetime(2026, 9, 23, 10, 0, 0)
-    json.dump({"day": "2026-09-23", "last_try_ts": time.time() - 301},
-              open(CN, "w"))
-    bs._send_ntfy = lambda *a, **k: False
-    bs._process_daily_canary()
-    st = json.load(open(CN))
-    check("failed send not marked sent", st.get("last_sent_day") != "2026-09-23")
-    check("failed send logged a try (backoff armed)", st.get("day") == "2026-09-23")
+    # the evaluate honors the worst-loss cap independently
+    ev_cap = cr.evaluate(cyc, prior_band=(0.0, 0.0), worst_cap=-0.001)
+    check("a too-tight worst-loss cap breaches by itself (the "
+          "threshold is real, not decorative)",
+          ev_cap["breach"]
+          and any("single_book_loss" in r for r in ev_cap["reasons"]),
+          ev_cap["reasons"])
 finally:
-    bs.datetime = _bs_dt
-    bs._send_ntfy = _orig_send
-    bs._PUSH_CANARY_JSON = CN_REAL   # the live pointer back
-    shutil.rmtree(_tmpdir, ignore_errors=True)
+    cr.DIAL_FILE = _real_dial_file
+    shutil.rmtree(_sbx, ignore_errors=True)
 
-print(f"RESULT: {PASS} passed, {FAIL} failed")
-sys.exit(1 if FAIL else 0)
+fails = [r for r in results if not r[1]]
+rep = BASE / "artifacts" / "canary" / "_canary_drive.txt"
+rep.parent.mkdir(parents=True, exist_ok=True)
+rep.write_text("\n".join(f"{'PASS' if ok else 'FAIL'}  {n}" +
+                         (f"  [{d}]" if d and not ok else "")
+                         for n, ok, d in results)
+               + f"\n\nRESULT: {len(results) - len(fails)} passed, "
+                 f"{len(fails)} failed\n", encoding="utf-8")
+print(f"RESULT: {len(results) - len(fails)} passed, {len(fails)} failed")
+sys.exit(1 if fails else 0)
