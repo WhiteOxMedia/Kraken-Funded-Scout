@@ -30,11 +30,14 @@ task-5 sweep's recommended cell) and not to be tuned by feel.
    silently disable (or re-enable) the exit-extension feature;
    stopping the feature stays the operator's own dial action.
 3. SIGN-OFF — Ops AND Product (one human each, named in the ticket).
-   No sign-off, no full fleet; the dial (`exit_extension.dial.json`)
-   is the gate between canary and full.
-4. FULL — the dial flips for the book; the change is permanent only
-   when its gated commit is on master. A temporary dial state is NOT
-   a deployment.
+   No sign-off, no full fleet; auto-adjust's promotion from canary to the full book is
+   controlled by the cohort configuration in
+   `auto_adjust_canary.json` (the two-file design); the
+   exit-extension dial file is the FEATURE master, never the
+   auto-adjust gate.
+4. FULL — the cohort configuration moves for the book; the change is
+   permanent only when its gated commit is on master. A temporary
+   cohort or dial state is NOT a deployment.
 
 ## Rollback authority
 Anyone on call may roll back (the runbook's one-liner) WITHOUT

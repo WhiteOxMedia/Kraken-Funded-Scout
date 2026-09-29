@@ -391,9 +391,24 @@ try:
               _bs_hook._load_scanner_state())
         _bs_src_hook = (BASE / "background_scanner.py").read_text(
             encoding="utf-8").replace("\r\n", "\n")
-        check("the scanner calls the hook per tick (every tick self-heals "
-          "a missed boundary — the dedupe is by stamp, not by cadence)",
-              "_exx.aa_apply_silent_rotation(_wk)" in _bs_src_hook, "")
+        # THE HOOK'S SHAPE (upgraded Sep 29, the review's two majors):
+        # it calls with the PREVIOUS, JUST-CLOSED rotation's DATED key
+        # (a bare window id would merge cross-day rows), and it lives
+        # ABOVE the empty-book early return (a silent rotation with no
+        # open rows is exactly when the propose path must still run).
+        _cl_src = _bs_src_hook[_bs_src_hook.find("def contest_light"):
+              ]
+        _early = _cl_src.find("if not watch:")
+        _hook_pos = _cl_src.find("aa_apply_silent_rotation")
+        check("the scanner calls the hook per tick with the previous "
+          "rotation's dated key, above the empty-book early return "
+          "(every tick self-heals a missed boundary; the dedupe is by "
+          "stamp; a silent rotation is never skipped for an empty watch)",
+              "_exx.aa_apply_silent_rotation(_aar_key)" in _bs_src_hook
+              and "_prev_start" in _bs_src_hook
+              and "_now_m:%Y-%m-%d" in _bs_src_hook
+              and _hook_pos != -1
+              and (_early == -1 or _hook_pos < _early), "")
         # the rollback leg: the cohort's own stop — the dial file's
         # master value is NEVER rewritten; only the legacy parked keys
         # are stripped (one migration window)

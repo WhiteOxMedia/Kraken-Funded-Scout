@@ -613,10 +613,23 @@ def _save(st: dict) -> None:
     for k, v in list(st.items()):
         if v is None:
             merged.pop(k, None)
-    tmp = str(sf) + ".tmp"
-    with open(tmp, "w", encoding="utf-8") as fh:
-        json.dump(merged, fh, indent=2)
-    os.replace(tmp, sf)
+    # THE PER-WRITER TMP NAME (Sep 29, the review's recurring hardening):
+    # a pid-suffixed temp keeps two concurrent writers of the SAME file
+    # from colliding inside the tmp window (writer A's replace could
+    # otherwise move writer B's half-written tmp). Same-directory keep
+    # (os.replace is atomic only on one volume); a failed write cleans
+    # its own temp instead of leaving a stray.
+    tmp = f"{sf}.tmp.{os.getpid()}"
+    try:
+        with open(tmp, "w", encoding="utf-8") as fh:
+            json.dump(merged, fh, indent=2)
+        os.replace(tmp, sf)
+    except BaseException:
+        try:
+            os.unlink(tmp)
+        except OSError:
+            pass
+        raise
 
 
 # ── THE GUARD-FACTOR HISTORY (Sep 27): every day's adjusted factor is

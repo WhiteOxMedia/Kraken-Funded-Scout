@@ -448,104 +448,266 @@
       "notes": "FINDINGS: profit_guard._save and meta_layers._save wrote NON-ATOMICALLY (torn write + fail-soft readers = silent total state loss) - both now tmp+os.replace; profit_guard._save is also MERGE-SAVED (scanner's self_adjust and the auto-adjust box/ledger share the file - the auto_adjust clobber's home ground); contest_watch.json is the one true CROSS-PROCESS file (scanner + bot both RMW the whole file) - scanner side now merge-saves with None-means-delete (bot-side tombstone respect unchanged); the drive replays the exact interleavings and CAUGHT the new saver's own resurrection bug (update re-adding a None-deleted key) before it shipped. VERDICT: append-only jsonl ledgers (popups, suppressions, snapshots, trades, voice) safe by construction; already-atomic writers (discipline, exit_extension, contest_account, tidebar_weekly, carve_out, climb_out) untouched; diagnostics write scratch only. Residual risk documented: last-writer-wins per KEY on contest_watch under a true same-instant race - acceptable at 4s scanner cadence. ROUND-2 (same day, the 91907f2 review's six findings + a fresh fleet pass): the GET-OUT close TOMBSTONES now (watch[pair]=None) - pop-then-save resurrected the row the journal just closed under merge-save; the scanner loader returns tombstone-free books and the exit loop skips a tombstone riding its raw dict. app.py's _save_watch was a THIRD contest_watch writer the round-1 count missed - it merge-saves now (SOLD tap and score-reset wipe send tombstones). Owner-keys-only saves in auto_adjust (set/tick/apply/expire/rollback never pass full stale snapshots - the degeneration major). hindsight_api always stamps applied_by='operator' (the no-override path leaked the raw token). Evidence drive cleanup order fixed (the live-probe sandbox swept by its own finally). Canary gate posture documented (default 0.10 qualifies only the dmax=0.05 cell by construction; refusal reachable via env, proven at 0.03) and the rollback playbook snapshots the ROLLED-BACK rotation. Fleet round-2: canary_runner's dial writes and contest_account's new-contest watch wipe are ATOMIC (torn-write doors). Pins: stateclobber replays the degeneration + the tombstone contract; rebootsurv pins the tombstone round-trip; structure pins follow the tombstone shape (autotrack 43/43, persistexit, exit_extension 55/0)."
     },
     "13-hindsight-api-panel": {
-      "commits": ["<this commit>"],
-      "branch_name": "master (gated commits)",
-      "commands_run": ["uv run python -X utf8 test_apptest.py", "uv run python -X utf8 test_hindsightapi.py", "git add app.py test_apptest.py artifacts/manifest.json && git commit (gated)"],
-      "artifacts": [
-        {"path": "app.py", "sha256": "sha256:84b4d25b603415731d2886b5aacf5a5cbed10d88093923e22aa705ba02357ed7"},
-        {"path": "test_apptest.py", "sha256": "sha256:500d3b7329a054b199aa486aea7864cf588132aa52634b6574ea59c75bb62924"}
+      "commits": [
+        "<this commit>"
       ],
-      "tests_run": ["test_apptest.py", "test_hindsightapi.py"],
+      "branch_name": "master (gated commits)",
+      "commands_run": [
+        "uv run python -X utf8 test_apptest.py",
+        "uv run python -X utf8 test_hindsightapi.py",
+        "git add app.py test_apptest.py artifacts/manifest.json && git commit (gated)"
+      ],
+      "artifacts": [
+        {
+          "path": "app.py",
+          "sha256": "sha256:84b4d25b603415731d2886b5aacf5a5cbed10d88093923e22aa705ba02357ed7"
+        },
+        {
+          "path": "test_apptest.py",
+          "sha256": "sha256:500d3b7329a054b199aa486aea7864cf588132aa52634b6574ea59c75bb62924"
+        }
+      ],
+      "tests_run": [
+        "test_apptest.py",
+        "test_hindsightapi.py"
+      ],
       "results": "apptest 301/0 (6 new wire-level pins), hindsightapi 27/0 (backend untouched)",
       "acceptance": true,
       "notes": "THE CONSOLE READS THE WIRE (the panel spec's zones 1-3 per its data contract): a read-only section under the ledger-fed burial panel renders hindsight_api's summary + gates endpoints for the CURRENT rotation - B/P/r/GF and the proposed delta with its reason in the headline, the per-gate table (the API's payers-first order) with the top-2 candidates per gate. READ-ONLY BY CONSTRUCTION: GETs only through ONE cached fetch funnel (60s TTL, HINDSIGHT_API_BASE env seam, default 127.0.0.1:8785); no direct file reads - no second brain; a dead API fail-closes to silence so the ledger-fed panel stands alone (proven with a connection-refused stub). Pins pin the wire: exactly two bare-window routes per render, never apply/rollback, the env seam moves the wire, the mount after the ledger panel. No backend changes."
     },
     "14-boundary-propose-wire": {
-      "commits": ["<this commit>"],
-      "branch_name": "master (gated commits)",
-      "commands_run": ["uv run python -X utf8 test_hindsightapi.py", "uv run python -X utf8 test_canary.py", "uv run python -X utf8 test_exit_extension.py", "uv run python -X utf8 test_apptest.py", "uv run python -X utf8 test_persistexit.py", "live re-arm: canary_runner.rollback() then flip_canary('canary-20260928_225950') onto the dedicated key"],
-      "artifacts": [
-        {"path": "background_scanner.py", "sha256": "sha256:2eda1475236f3c88c6b9610cf72401ffbb1cea16061bfeac4ac4198bf22fd602"},
-        {"path": "canary_runner.py", "sha256": "sha256:6fb1f33c766ad5c3b095ad716e977ec62cd197ec64bcef952cb6170b508ea028"},
-        {"path": "exit_extension.py", "sha256": "sha256:792d984470722f40f370a7e89036139f0759ad95f06a65cd7a2b23f5ac7deda8"},
-        {"path": "test_hindsightapi.py", "sha256": "sha256:be54f7119a1d5074ec1e2407636e07ac2b71e77a880cd43d24b55cf79ccaf727"},
-        {"path": "test_canary.py", "sha256": "sha256:18c584bb69a960422349b3bfb05e48cfe40cbe5015a036ee01f448961b169424"}
+      "commits": [
+        "<this commit>"
       ],
-      "tests_run": ["hindsightapi 36/0 (9 new boundary pins)", "canary 11/0", "exit_extension 55/0", "apptest 301/0", "persistexit (green)"],
+      "branch_name": "master (gated commits)",
+      "commands_run": [
+        "uv run python -X utf8 test_hindsightapi.py",
+        "uv run python -X utf8 test_canary.py",
+        "uv run python -X utf8 test_exit_extension.py",
+        "uv run python -X utf8 test_apptest.py",
+        "uv run python -X utf8 test_persistexit.py",
+        "live re-arm: canary_runner.rollback() then flip_canary('canary-20260928_225950') onto the dedicated key"
+      ],
+      "artifacts": [
+        {
+          "path": "background_scanner.py",
+          "sha256": "sha256:2eda1475236f3c88c6b9610cf72401ffbb1cea16061bfeac4ac4198bf22fd602"
+        },
+        {
+          "path": "canary_runner.py",
+          "sha256": "sha256:6fb1f33c766ad5c3b095ad716e977ec62cd197ec64bcef952cb6170b508ea028"
+        },
+        {
+          "path": "exit_extension.py",
+          "sha256": "sha256:792d984470722f40f370a7e89036139f0759ad95f06a65cd7a2b23f5ac7deda8"
+        },
+        {
+          "path": "test_hindsightapi.py",
+          "sha256": "sha256:be54f7119a1d5074ec1e2407636e07ac2b71e77a880cd43d24b55cf79ccaf727"
+        },
+        {
+          "path": "test_canary.py",
+          "sha256": "sha256:18c584bb69a960422349b3bfb05e48cfe40cbe5015a036ee01f448961b169424"
+        }
+      ],
+      "tests_run": [
+        "hindsightapi 36/0 (9 new boundary pins)",
+        "canary 11/0",
+        "exit_extension 55/0",
+        "apptest 301/0",
+        "persistexit (green)"
+      ],
       "results": "the propose path rides the live rotation boundary, gated + watermarked + one telemetry event per rotation",
       "acceptance": true,
       "notes": "THE BOUNDARY PROPOSES ITSELF (Sep 28): background_scanner's contest_light calls exit_extension.aa_apply_silent_rotation(current_window) per tick - gated behind the canary DIAL, evaluated ONCE per rotation (watermark aa_canary_last_rotation in scanner_state.json, read-re-read + atomic save, dedupe by stamp so every tick self-heals a missed boundary), the journal's own rot id rides hindsight_api.apply_action(auto_apply) with EVERY rail live (concentration gate, daily cap, evidence bundle, ledger) and ONE spec-shaped telemetry event per rotation (applied_by=rotation_boundary, the non-secret label; apply_action is the single emit funnel - no double events). THE DIAL KEY IS DEDICATED (the recurring reuse major, closed): canary_runner.AA_CANARY_KEY = AUTO_ADJUST_CANARY rides the cohort; the feature master EXIT_EXTENSION_ENABLED is never clobbered by a flip (byte-exact preserved), rollback keeps its documented stop-everything semantic and de-contaminates legacy 'canary' junk on the master to OFF; read_dial reports canary from the dedicated key. THE LIVE DIAL WAS RE-ARMED into the new shape: master 0, AUTO_ADJUST_CANARY=canary-20260928_225950 (the sign-off cohort) - the boundary hook is LIVE on the machine: each completed rotation now evaluates itself. Drive pins: dial-off refusal (nothing touched), flip key shape, full-path evaluation with named status, one event (rot id + cohort + applied_by + real B/P/per-gate), watermark no-rewrite, stamp in scanner_state, per-tick call shape, rollback de-contamination."
     },
     "15-self-adjust-owner-keys": {
-      "commits": ["<this commit>"],
-      "branch_name": "master (gated commits)",
-      "commands_run": ["uv run python -X utf8 test_profitguard.py (RED: 9.4b+9.4c failed on the stale-snapshot shape)", "fix, then GREEN: profitguard 77/0", "regressions: stateclobber 13/0, autoadjust 24/0, rebootsurv 25/0, hindsightapi 36/0", "git add profit_guard.py test_profitguard.py artifacts/manifest.json && git commit (gated)"],
-      "artifacts": [
-        {"path": "profit_guard.py", "sha256": "sha256:4570d81647b25222c346f993c054d80c200f25de581817f3333036d062d475f7"},
-        {"path": "test_profitguard.py", "sha256": "sha256:7945f2c2e335bf7031ea76a3fc43305e59bc752debc92dd7789bd49c08229221"}
+      "commits": [
+        "<this commit>"
       ],
-      "tests_run": ["test_profitguard.py", "test_stateclobber.py", "test_autoadjust.py", "test_rebootsurv.py", "test_hindsightapi.py"],
+      "branch_name": "master (gated commits)",
+      "commands_run": [
+        "uv run python -X utf8 test_profitguard.py (RED: 9.4b+9.4c failed on the stale-snapshot shape)",
+        "fix, then GREEN: profitguard 77/0",
+        "regressions: stateclobber 13/0, autoadjust 24/0, rebootsurv 25/0, hindsightapi 36/0",
+        "git add profit_guard.py test_profitguard.py artifacts/manifest.json && git commit (gated)"
+      ],
+      "artifacts": [
+        {
+          "path": "profit_guard.py",
+          "sha256": "sha256:4570d81647b25222c346f993c054d80c200f25de581817f3333036d062d475f7"
+        },
+        {
+          "path": "test_profitguard.py",
+          "sha256": "sha256:7945f2c2e335bf7031ea76a3fc43305e59bc752debc92dd7789bd49c08229221"
+        }
+      ],
+      "tests_run": [
+        "test_profitguard.py",
+        "test_stateclobber.py",
+        "test_autoadjust.py",
+        "test_rebootsurv.py",
+        "test_hindsightapi.py"
+      ],
       "results": "profitguard 77/0 (2 new pins, red-first); regressions 13/0, 24/0, 25/0, 36/0",
       "acceptance": true,
       "notes": "THE RECURRING MAJOR IS CLOSED (91907f2 -> cf60cf7 -> cb47bc5 -> afb430d -> this): self_adjust merge-saved a FULL STALE snapshot (st | row | history) - under the merge-save every key the snapshot carries overwrites the file's CURRENT value, so the scanner's self_adjust keys rode stale into every save and any writer whose key changed mid-flight was rewritten backwards. The writer now saves OWNER KEYS ONLY (adjusted_on, factor, parts, ts, history_len, history); the box, the ledger, and any future writer's keys ride untouched on top. THE DRIVE PIN IS RED-FIRST: a mid-flight writer monkeypatch replays the degeneration against a foreign key that CHANGES between the read and the save (plant stale, capture the saved dict, mutate newer, save) - 9.4b proves the newer value survives, 9.4c proves the saved dict carries owner keys only. Was 75/2 RED, now 77/0 GREEN."
     },
     "16-state-writer-tripwire": {
-      "commits": ["<this commit>"],
-      "branch_name": "master (gated commits)",
-      "commands_run": ["uv run python -X utf8 diag_statewriters.py", "uv run python -X utf8 test_apptest.py", "git add ... && git commit (gated)"],
-      "artifacts": [
-        {"path": "diag_statewriters.py", "sha256": "sha256:b0a320af91d610761a35242b701f3aa1f6d1fccb4fd21584d4426e7c0893b460"},
-        {"path": "app.py", "sha256": "sha256:a91d91e8c92c7872a39551b871a4906127501246d2a31459c191716065712b1c"},
-        {"path": "add_xrp_watch.py", "sha256": "sha256:60d178687ddb1b7251bba41066493d6431e0b995275d4c2197975c7455ac7711"},
-        {"path": "set_bnb_size.py", "sha256": "sha256:1662c35cdee967fd15bb56562dd12d414e3363ab71304681f1da3d0771169f6b"},
-        {"path": "clean_expired_blacklist.py", "sha256": "sha256:dc98c4ff266ce49dc6d94aa5ccf991cdca1bf4f2de3647e677f5fe3e08574c4e"},
-        {"path": "artifacts/statewriters/diag_statewriters.txt", "sha256": "sha256:ed3ef1f4a5237daacfaf962eea589033e21e00339df4e0ea66364ddcaa904deb"}
+      "commits": [
+        "<this commit>"
       ],
-      "tests_run": ["diag_statewriters.py 9/0", "test_apptest.py 301/0"],
+      "branch_name": "master (gated commits)",
+      "commands_run": [
+        "uv run python -X utf8 diag_statewriters.py",
+        "uv run python -X utf8 test_apptest.py",
+        "git add ... && git commit (gated)"
+      ],
+      "artifacts": [
+        {
+          "path": "diag_statewriters.py",
+          "sha256": "sha256:b0a320af91d610761a35242b701f3aa1f6d1fccb4fd21584d4426e7c0893b460"
+        },
+        {
+          "path": "app.py",
+          "sha256": "sha256:a91d91e8c92c7872a39551b871a4906127501246d2a31459c191716065712b1c"
+        },
+        {
+          "path": "add_xrp_watch.py",
+          "sha256": "sha256:60d178687ddb1b7251bba41066493d6431e0b995275d4c2197975c7455ac7711"
+        },
+        {
+          "path": "set_bnb_size.py",
+          "sha256": "sha256:1662c35cdee967fd15bb56562dd12d414e3363ab71304681f1da3d0771169f6b"
+        },
+        {
+          "path": "clean_expired_blacklist.py",
+          "sha256": "sha256:dc98c4ff266ce49dc6d94aa5ccf991cdca1bf4f2de3647e677f5fe3e08574c4e"
+        },
+        {
+          "path": "artifacts/statewriters/diag_statewriters.txt",
+          "sha256": "sha256:ed3ef1f4a5237daacfaf962eea589033e21e00339df4e0ea66364ddcaa904deb"
+        }
+      ],
+      "tests_run": [
+        "diag_statewriters.py 9/0",
+        "test_apptest.py 301/0"
+      ],
       "results": "the clobber class is a PERMANENT TRIPWIRE: every production writer of a governed state file is inventoried by AST (both repos), frozen in a registry, and enforced",
       "acceptance": true,
       "notes": "THE TRIPWIRE (the cross-writer sweep's endgame): diag_statewriters inventories every production writer of every governed state file (kraken_scout + bot sibling) by AST - module constants, one-hop derivation helpers, unit-local tmp bindings at any depth, with-bindings, positional path attribution (a data payload never drags a helper file into the attribution), read-mode opens never writers, full paths normalized to basenames - and FAILS on: R1 an unregistered (file, writer) pair (new writer: join the registry with a note, or the repo refuses), R1b a registry ghost (a rename must update it), R2 a non-atomic save (tmp + os.replace missing), R3 a merge-file writer that pops the dict it saves with no None-guard (pop-then-merge resurrects deleted rows). SELF-TESTS FIRST: fixtures (good writer / bypasser / popper / clean merger) prove the scanner judges itself - a tripwire that cannot trip is decoration. THE INVENTORY EXPOSED FOUR REAL BYPASSERS, ALL FIXED: add_xrp_watch and set_bnb_size (whole-file non-atomic contest_watch writes - now merge-read + tombstone-aware + atomic), clean_expired_blacklist (non-atomic execution_state write - now atomic + .bak), app._save_console_state and the payout-track write (both non-atomic - now atomic). The frozen census: 14 production writers across 9 governed files, ALL ATOMIC, zero unregistered, zero poppers. Drive 9/0; apptest 301/0."
     },
     "17-two-file-canary": {
-      "commits": ["<this commit>"],
-      "branch_name": "master (gated commits)",
-      "commands_run": ["uv run python -X utf8 test_canary.py", "uv run python -X utf8 test_hindsightapi.py", "uv run python -X utf8 test_exit_extension.py", "uv run python -X utf8 diag_statewriters.py", "live migration: cr.rollback() then cr.flip_canary(canary-20260928_225950)"],
-      "artifacts": [
-        {"path": "canary_runner.py", "sha256": "sha256:aa9f6194f9494fa0e3fe90a06fbbed34721b71e94b71078cd3769f2c7cffc036"},
-        {"path": "exit_extension.py", "sha256": "sha256:ee4b31d6dc4d1b4435f5963af931884075d839b580d0e8f41edd5ef39e92c8eb"},
-        {"path": "test_canary.py", "sha256": "sha256:6ca1de78b82656b1bfec68c156848a3d8968fd6cba54b89954312483e4c9b7cd"},
-        {"path": "test_hindsightapi.py", "sha256": "sha256:107db3ad94037ff377eff86bd6b29a3ee3e994744cfbe1484744571072909c53"},
-        {"path": "diag_statewriters.py", "sha256": "sha256:be95bc99ae009b9a3bad6ad92aa5e5e83edb608f73aaeac8f7e225620beaca26"},
-        {"path": "governance/adjustment_policy.md", "sha256": "sha256:029e2e9ff2f03a3bd68c9da41724c30b2a3ab08d99c393bcde694c8448e50f7b"}
+      "commits": [
+        "<this commit>"
       ],
-      "tests_run": ["canary 13/0", "hindsightapi 36/0", "exit_extension 55/0", "diag_statewriters 9/0"],
+      "branch_name": "master (gated commits)",
+      "commands_run": [
+        "uv run python -X utf8 test_canary.py",
+        "uv run python -X utf8 test_hindsightapi.py",
+        "uv run python -X utf8 test_exit_extension.py",
+        "uv run python -X utf8 diag_statewriters.py",
+        "live migration: cr.rollback() then cr.flip_canary(canary-20260928_225950)"
+      ],
+      "artifacts": [
+        {
+          "path": "canary_runner.py",
+          "sha256": "sha256:aa9f6194f9494fa0e3fe90a06fbbed34721b71e94b71078cd3769f2c7cffc036"
+        },
+        {
+          "path": "exit_extension.py",
+          "sha256": "sha256:ee4b31d6dc4d1b4435f5963af931884075d839b580d0e8f41edd5ef39e92c8eb"
+        },
+        {
+          "path": "test_canary.py",
+          "sha256": "sha256:6ca1de78b82656b1bfec68c156848a3d8968fd6cba54b89954312483e4c9b7cd"
+        },
+        {
+          "path": "test_hindsightapi.py",
+          "sha256": "sha256:107db3ad94037ff377eff86bd6b29a3ee3e994744cfbe1484744571072909c53"
+        },
+        {
+          "path": "diag_statewriters.py",
+          "sha256": "sha256:be95bc99ae009b9a3bad6ad92aa5e5e83edb608f73aaeac8f7e225620beaca26"
+        },
+        {
+          "path": "governance/adjustment_policy.md",
+          "sha256": "sha256:029e2e9ff2f03a3bd68c9da41724c30b2a3ab08d99c393bcde694c8448e50f7b"
+        }
+      ],
+      "tests_run": [
+        "canary 13/0",
+        "hindsightapi 36/0",
+        "exit_extension 55/0",
+        "diag_statewriters 9/0"
+      ],
       "results": "the canary cohort arms on ITS OWN state file - arming or rolling back the cohort can never silently disable the exit-extension feature",
       "acceptance": true,
       "notes": "THE TWO-FILE DESIGN (the structural fix the reviews kept circling): canary_runner gains COHORT_FILE = auto_adjust_canary.json - flip_canary arms the cohort THERE (the exit-extension dial file is never opened for writing: a flip cannot clobber the feature master because it cannot touch the file at all); rollback stops the cohort on its own file (disarmed + cleared_cohort) and strips the legacy parked keys from the dial WITHOUT rewriting the master value; read_dial is the compat reader (canary when the cohort file is armed, else the master's own value); the hook reads the cohort file through the AUTO_ADJUST_CANARY_FILE env seam - exit-extension dials are NEVER consulted, so the boundary path is structurally independent of the feature master. The drive proves the sharpest consequence: after a cohort rollback, an operator's own master arm '1' SURVIVES byte-exact. LIVE MIGRATION executed on the machine: rollback de-contaminated the parked keys (dial file now holds ONLY the master key, value untouched), flip re-armed cohort canary-20260928_225950 on the new file - the boundary hook is live again via the cohort file. The cohort file is gitignored (live machine state, not a deployment). The state-writer tripwire registers both new writers (flip/rollback, inline IO so the census sees them) and the governance policy names the two-file rule. canary 13/0, hindsightapi 36/0, exit_extension 55/0, diag 9/0."
     },
     "18-concurrent-clobber-replay": {
-      "commits": ["<this commit>"],
-      "branch_name": "master (gated commits)",
-      "commands_run": ["uv run python -X utf8 test_stateclobber.py (15s, three waves of real concurrent writer processes)", "bash -n hooks/pre-commit", "git add ... && git commit (gated)"],
-      "artifacts": [
-        {"path": "test_stateclobber.py", "sha256": "sha256:169c4bf803931c2281afe59cc4356cf6a212996b44146fa5d5b9b3118690220b"},
-        {"path": "hooks/pre-commit", "sha256": "sha256:7500ee02ea71fa7ff10c2b4edf6331911e7451fb3ed9d3af64642550a0f818fc"},
-        {"path": "artifacts/stateclobber/_stateclobber_drive.txt", "sha256": "sha256:8e2c5c4486f62890214b808fc0190153d75d05584a0fe840dfc4f4af5f4a6aeb"}
+      "commits": [
+        "<this commit>"
       ],
-      "tests_run": ["stateclobber 22/0 (13 hand-replayed + 9 real-concurrency pins)"],
+      "branch_name": "master (gated commits)",
+      "commands_run": [
+        "uv run python -X utf8 test_stateclobber.py (15s, three waves of real concurrent writer processes)",
+        "bash -n hooks/pre-commit",
+        "git add ... && git commit (gated)"
+      ],
+      "artifacts": [
+        {
+          "path": "test_stateclobber.py",
+          "sha256": "sha256:169c4bf803931c2281afe59cc4356cf6a212996b44146fa5d5b9b3118690220b"
+        },
+        {
+          "path": "hooks/pre-commit",
+          "sha256": "sha256:7500ee02ea71fa7ff10c2b4edf6331911e7451fb3ed9d3af64642550a0f818fc"
+        },
+        {
+          "path": "artifacts/stateclobber/_stateclobber_drive.txt",
+          "sha256": "sha256:8e2c5c4486f62890214b808fc0190153d75d05584a0fe840dfc4f4af5f4a6aeb"
+        }
+      ],
+      "tests_run": [
+        "stateclobber 22/0 (13 hand-replayed + 9 real-concurrency pins)"
+      ],
       "results": "real concurrent writer processes replace the hand-replayed interleavings; the drive is wired into the pre-commit gate (60s budget, scanner-source commits)",
       "acceptance": true,
       "notes": "REAL CONCURRENCY (round 3): one-shot WAVE processes - each spawns, imports its PRODUCTION writer in its own interpreter (background_scanner and profit_guard in this repo's venv, bot_engine from the bot's own venv with its pandas), performs exactly one write, exits - no pipes, no protocol, nothing to wedge; a hang is a named kill. Three waves: the storm (6 rounds x scanner+bot+guard in parallel), the fill-between-reads (bot fill while 4 scanner writers are in flight), and the tombstone-as-last-word (re-adds and tombstones in parallel, closed by one final tombstone). A reader storm classifies every failure it sees. THE DRIVE'S OWN DISCOVERIES: (1) concurrent os.replace onto the same target on Windows FAILS NAMED - WinError 5 for the loser, never a torn file (the storm drew multiple losers; the honest contract pins no-unnamed-failures + healing-by-retry, the machine's own tick behavior, not completion-against-contention); (2) 5385 reader reads drew 2 EMPTY mid-swap views - the documented oplock race the fail-soft readers absorb - and ZERO partial documents (a truncated JSON body would be a real torn write and is forbidden); (3) the fail-soft + retry contract is exercised for real, not asserted. Gate wiring: test_stateclobber runs on scanner-source commits at a 60s budget (measured 15s)."
     },
     "19-hindsight-service": {
-      "commits": ["<this commit>"],
+      "commits": [
+        "<this commit>"
+      ],
       "branch_name": "master",
       "date": "2026-09-29",
-      "title": "HINDSIGHT API AS A REAL LOCAL SERVICE ON 127.0.0.1:8785 (Sep 29, hindsight-service)"
-      , "detail": "The console's API-fed panel gets a live feed: hindsight_service.py stands the stdlib API up as a stack component with a runner CLI (start/stop/status/serve), a .hindsight.pid contract with stale-pid cleanup, port-based ownership (netstat listener + python check + body-is-ours), and data-path env seams (HINDSIGHT_SUPP/CACHE) so the drive sandboxes its server. Two drive lessons landed as design: strict bind (allow_reuse_address=False) because Windows SO_REUSEADDR lets two stdlib servers silently share a port; ownership is port+body+python, never the spawner. Wired beside the scanner's: start_detached.ps1 hindsight entry, launch_stack.ps1 section 4b (port-verified), stop_stack.ps1 hindsight_service shape, gitignore .hindsight.pid. Drive test_hindightservice 15/0 x3 (real subprocesses, three concurrent serve processes, seeded-sandbox seams pin, foreign-HTTP-server refusal pin, 403-over-wire, corrupted/stale pid pins); wired into the gate on hindsight-source commits ($_HS, 90s budget, measured ~25s). commitgate 70/0 after fixing its own env-leak (the banner drills now own CODERABBIT_OFF, the same flag-ownership contract run_gate already applied to GATE_QUIET), hindsightapi 36/0. Live service verified: 00-04 B=19 P=17 r=0.895, gates endpoint 9 gates at 0.1s."
-      , "checksums": {
-        "hindsight_service.py": "sha256:ee5ea268ba90",
-        "test_hindightservice.py": "sha256:b12f5a98bcb3"
+      "title": "HINDSIGHT API AS A REAL LOCAL SERVICE ON 127.0.0.1:8785 (Sep 29, hindsight-service)",
+      "detail": "The console's API-fed panel gets a live feed: hindsight_service.py stands the stdlib API up as a stack component with a runner CLI (start/stop/status/serve), a .hindsight.pid contract with stale-pid cleanup, port-based ownership (netstat listener + python check + body-is-ours), and data-path env seams (HINDSIGHT_SUPP/CACHE) so the drive sandboxes its server. Two drive lessons landed as design: strict bind (allow_reuse_address=False) because Windows SO_REUSEADDR lets two stdlib servers silently share a port; ownership is port+body+python, never the spawner. Wired beside the scanner's: start_detached.ps1 hindsight entry, launch_stack.ps1 section 4b (port-verified), stop_stack.ps1 hindsight_service shape, gitignore .hindsight.pid. Drive test_hindightservice 15/0 x3 (real subprocesses, three concurrent serve processes, seeded-sandbox seams pin, foreign-HTTP-server refusal pin, 403-over-wire, corrupted/stale pid pins); wired into the gate on hindsight-source commits ($_HS, 90s budget, measured ~25s). commitgate 70/0 after fixing its own env-leak (the banner drills now own CODERABBIT_OFF, the same flag-ownership contract run_gate already applied to GATE_QUIET), hindsightapi 36/0. Live service verified: 00-04 B=19 P=17 r=0.895, gates endpoint 9 gates at 0.1s.",
+      "checksums": {
+        "hindsight_service.py": "sha256:3b9827f6d030fa4e5f8f9596cc3effd9d9ddf961a2e28fb097e4f9c98571fdaa",
+        "test_hindightservice.py": "sha256:bbd39f8c55d7ca3afed59c2e44e40281f13e68ec4ac0e5d5d4e64887509626d7"
+      }
+    },
+    "20-hs-review-triage": {
+      "commits": [
+        "<this commit>"
+      ],
+      "branch_name": "master",
+      "date": "2026-09-29",
+      "title": "TRIAGE THE HINDSIGHT-SERVICE REVIEW: 15 FIXED, 2 SKIPPED AS STALE (Sep 29, hs-review-triage)",
+      "detail": "coderabbit review --agent --committed recovered 17 full-text findings on 9caefcb; triaged against code. FIXED: the canary params seam (compute_delta alpha/delta_max, propose_from_aggregate/apply_action params thread-through, flip_canary persists the selected cell, the boundary hook reads it via _aa_params); the boundary hook takes the previous rotation's DATED key (the discipline (start-4h)%24 precedent) and moved above the empty-book early return; the signoff artifact states the 24h floor is unmet until a LIVE canary; hindsight_service urlsplit-parses the API base; per-writer pid-suffixed tmp names in profit_guard._save AND the bot's _upsert_bot_watch_row (the stateclobber storm caught two parallel bot writers colliding on the shared fixed .bot.tmp); the op scripts delegate to the production merge-save; stateclobber's starvation tests are strict, the fill wave retries named contention (bounded heal-to-completion), the bot row is demanded only when the bot ran, the contention pin is conditional (a clean storm is the tmp fix working), and every check echoes to stdout; manifest checksums are full digests; the backlog memory matches basenames; the runbook documents env-beats-file and dial_file(); the policy names the cohort config as the auto-adjust gate; exit_extension pins house time via ZoneInfo; the runner docstring states the pid/port split. SKIPPED AS STALE: _flipgrade.txt duplicate (fixed by 46c7bc8), trailstop content-source (the file IS the artifact). The commitgate sandbox drill also earned its keep: stateclobber's bot-less composition is an honest skip, not a red.",
+      "checksums": {
+        "background_scanner.py": "sha256:8118ef6313d3fece7274083e2ef3e18f4aff76d325f82a86c1c573f4eb95ee8c",
+        "canary_runner.py": "sha256:b5440f73b6e60cb5b1c72f77b60d16c101e4f75c594e876308fadc86cad827ab",
+        "exit_extension.py": "sha256:7642b482d148d04a7767fef1cb96d70ebc1a14b1f7ba2a4b3e660fc4d11e4b0d",
+        "auto_adjust.py": "sha256:eb61c4499707ac97ccb2011929a2179f02d87f0da64c03c5152b7183676b393c",
+        "hindsight_api.py": "sha256:a0fdd83183f9b275611cb3f7afcbc8ce4fe11de48770e3b8a5a79bc6c9e4d3f5",
+        "hindsight_service.py": "sha256:3b9827f6d030fa4e5f8f9596cc3effd9d9ddf961a2e28fb097e4f9c98571fdaa",
+        "profit_guard.py": "sha256:a1412a3b5a30aea0d8af96950f64414033b84e97f03d11e182f12da3e46592b8",
+        "test_stateclobber.py": "sha256:d255d806dc8ec4efd893ea20bf0d5038b8a7b0596de98682d43166fd175295a7",
+        "test_hindightservice.py": "sha256:bbd39f8c55d7ca3afed59c2e44e40281f13e68ec4ac0e5d5d4e64887509626d7",
+        "test_hindsightapi.py": "sha256:0ae88801c8ab24b0697ccec889eebd4ccb9916af0cce3dad6c097243633a8ad9"
       }
     }
   }

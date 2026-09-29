@@ -195,14 +195,17 @@ def apply_action(rotation_id: str, action: str,
                  goal_pct: float = 1.5, cohort: str = "canary-1",
                  operator_override: bool = False,
                  supp_path: Path | None = None,
-                 cache_path: Path | None = None) -> dict:
+                 cache_path: Path | None = None,
+                 params: dict | None = None) -> dict:
     """auto_apply runs the full proportional path (every rail live);
     queue_review computes and bundles but does NOT touch the factor.
     auto_apply demands confirm=True — the HTTP-level safety catch.
     operator_override=True is the AUTHENTICATED human-in-the-loop (the
     route checks the operator token; an unauthenticated body can never
     lift the concentration queue): only the queue lifts — every other
-    rail still bites."""
+    rail still bites. params (Sep 29): the canary's selected cell
+    (alpha, delta_max) overriding the module defaults for THIS call —
+    the boundary hook threads the cohort's armed params through."""
     import auto_adjust as aa
     import telemetry_adjust as ta
     supp, cache = _paths(supp_path, cache_path)
@@ -227,7 +230,8 @@ def apply_action(rotation_id: str, action: str,
         return {"status": "refused", "reason": "confirmation_required",
                 "evidence": cks, "bundle": str(d)}
     rec = aa.propose_from_aggregate(rotation_id, B, P, gate_rows,
-                                    operator_override=operator_override)
+                                    operator_override=operator_override,
+                                    params=params)
     ta.emit_adjustment(rotation_id, rec, B, P, gate_rows, cohort=cohort,
                        applied_by=operator_id or "system")
     return rec

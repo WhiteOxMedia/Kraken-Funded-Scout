@@ -76,6 +76,25 @@ def _aa_cohort() -> str:
     except (OSError, ValueError):
         pass
     return ""
+
+
+def _aa_params() -> dict:
+    """The armed cohort's SELECTED CELL (Sep 29, the review's major):
+    alpha/delta_max the gate picked and flip_canary persisted. Empty
+    dict = the module defaults ride (a legacy cohort without params —
+    the pre-seam armed cohort keeps evaluating as it always has).
+    Env-first like the cohort id (the drive's sandbox seam)."""
+    explicit = os.environ.get(AA_COHORT_ENV)
+    path = Path(explicit) if explicit else dial_file().parent / AA_COHORT_FILE
+    try:
+        doc = json.loads(path.read_text(encoding="utf-8"))
+        p = doc.get("params") if isinstance(doc, dict) else None
+        if isinstance(p, dict):
+            return {k: float(v) for k, v in p.items()
+                    if k in ("alpha", "delta_max") and isinstance(v, (int, float))}
+    except (OSError, ValueError, TypeError):
+        pass
+    return {}
 HOURS_KEY = "EXIT_EXTENSION_HOURS"
 DAILY_CAP_KEY = "EXIT_EXTENSION_MAX_PER_DAY"
 AGE_GATE_KEY = "EXIT_EXTENSION_MIN_AGE_MIN"
@@ -210,7 +229,8 @@ def aa_apply_silent_rotation(
         rec = _ha.apply_action(
             rot_key, "auto_apply", confirm=True, goal_pct=goal_pct,
             cohort=cohort, operator_id="rotation_boundary",
-            supp_path=supp_path, cache_path=cache_path)
+            supp_path=supp_path, cache_path=cache_path,
+            params=_aa_params())
     except Exception as exc:
         return {"evaluated": False, "reason": f"propose_error: {exc!r}"}
     # THE WATERMARK LANDS LAST — a failed evaluation leaves no stamp
@@ -379,7 +399,12 @@ def exit_verdict(pair: str, w: dict, reason: str,
             # a fresh book could arm. A naive stamp is assumed to be
             # the machine's own zone; only then is the age judged.
             if stamp.tzinfo is None:
-                stamp = stamp.replace(tzinfo=now.tzinfo)
+                # house time is America/Denver (the journal and every
+                # dial writer stamp MST); ZoneInfo names it explicitly
+                # instead of inheriting now.tzinfo (the review's minor:
+                # an imaginary `now` would poison the age math)
+                from zoneinfo import ZoneInfo
+                stamp = stamp.replace(tzinfo=ZoneInfo("America/Denver"))
             age_min = (now - stamp).total_seconds() / 60.0
             if age_min < dials["age_gate_min"]:
                 return "exit", f"book only {age_min:.0f}m old (age gate " \

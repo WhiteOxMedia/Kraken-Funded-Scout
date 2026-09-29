@@ -21,6 +21,7 @@ The spec's thresholds, evaluated from the telemetry stream
 from __future__ import annotations
 
 import json
+import os
 import random
 import subprocess
 from datetime import datetime, timedelta
@@ -107,21 +108,31 @@ def _write_dial(doc: dict) -> None:
 AA_CANARY_KEY = "AUTO_ADJUST_CANARY"
 
 
-def flip_canary(cohort_id: str, doc: dict | None = None) -> dict:
+def flip_canary(cohort_id: str, doc: dict | None = None,
+                params: dict | None = None) -> dict:
     """Arm the cohort on ITS OWN file. The exit-extension dial file is
     never opened for writing here — a flip cannot clobber the feature
     master because it cannot touch the file at all. The IO is INLINE
     (the state-writer tripwire attributes writes per-unit; a write
-    behind a path parameter is invisible to the census)."""
+    behind a path parameter is invisible to the census).
+
+    `params` (Sep 29, the review's long-standing major) persists the
+    CELL THE GATE SELECTED — alpha, delta_max, daily_cap — alongside
+    the cohort id, so arming is no longer a print: the boundary hook
+    reads these from the cohort file and evaluates the propose path
+    with the selected cell instead of the module defaults."""
     cur = doc if doc is not None else _read_json(COHORT_FILE)
     cur.update({"cohort_id": cohort_id,
                 "armed_at": datetime.now().astimezone().isoformat()})
-    import os
+    if params:
+        cur["params"] = {str(k): float(v) for k, v in params.items()
+                         if k in ("alpha", "delta_max", "daily_cap")}
     tmp = str(COHORT_FILE) + ".tmp"
     with open(tmp, "w", encoding="utf-8") as fh:
         json.dump(cur, fh, indent=2)
     os.replace(tmp, COHORT_FILE)
-    return {"dial": "canary", "cohort_id": cohort_id}
+    return {"dial": "canary", "cohort_id": cohort_id,
+            **({"params": cur["params"]} if "params" in cur else {})}
 
 
 def rollback(feature_doc: dict | None = None) -> dict:

@@ -51,6 +51,7 @@ import os
 import re
 import subprocess
 import sys
+from pathlib import Path
 import time
 from pathlib import Path
 
@@ -136,7 +137,7 @@ def _triaged_files(repo, batch_ts, batch_head):
         ct, body = chunks[i].strip(), chunks[i + 1]
         if not ct.isdigit() or int(ct) <= batch_ts:
             continue
-        named |= {ln.split(":")[0].strip() for ln in
+        named |= {Path(ln.split(":")[0].strip()).name for ln in
                   re.findall(r"[\w./\\+-]+", body) if "." in ln}
     return named
 
@@ -156,6 +157,15 @@ def _surface_majors(step, name, batches, repo=None):
         return
     _ts, _head, batch_dir = batches[0]
     triaged = _triaged_files(repo, _ts, _head) if repo else set()
+    # BASENAME MATCHING (Sep 29 review minor): commit messages name
+    # files inconsistently — a bare `canary_enable.py` versus the
+    # finding's path-shaped `ops/canary_enable.py` — so the memory
+    # matches on the basename either way. Granularity is PER-FILE by
+    # design: naming a file clears ALL of that file's untriaged majors
+    # (a fix commit for a file is read as closing its backlog; a
+    # mention-only false positive just hides advisory text, never
+    # changes the gate's exit code).
+    triaged_base = {Path(t).name for t in triaged}
     majors = []
     total = 0
     for fj in sorted(batch_dir.glob("*.json")):
@@ -168,7 +178,7 @@ def _surface_majors(step, name, batches, repo=None):
         if not isinstance(meta, dict):
             continue
         if str(meta.get("severity", "")).lower() == "major":
-            if str(meta.get("fileName", "")) in triaged:
+            if Path(str(meta.get("fileName", ""))).name in triaged_base:
                 continue
             total += 1
             if len(majors) < 10:

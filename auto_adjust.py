@@ -66,16 +66,22 @@ EVIDENCE_DIR = ROOT / "artifacts" / "auto_adjust"
 
 
 # ── the rule, pure ──────────────────────────────────────────────────
-def compute_delta(B: int, P: int) -> tuple[float, str]:
+def compute_delta(B: int, P: int, alpha: float | None = None,
+                  delta_max: float | None = None) -> tuple[float, str]:
     """The conservative delta for B measurable burials / P payers.
     Returns (delta, reason); delta is 0.0 with a named reason whenever
-    the rule refuses."""
+    the rule refuses. alpha/delta_max (Sep 29, the review's major):
+    the CANARY'S SELECTED CELL overrides the module defaults, so the
+    boundary hook evaluates the parameters the gate actually armed —
+    a None keeps each module default (every legacy caller)."""
     if B < B_MIN:
         return 0.0, "insufficient_samples"
     r = P / B if B > 0 else 0.0
     if r < R_MIN:
         return 0.0, "low_ratio"
-    delta = min(DELTA_MAX, ALPHA * r * math.log(1 + B))
+    _a = ALPHA if alpha is None else float(alpha)
+    _dm = DELTA_MAX if delta_max is None else float(delta_max)
+    delta = min(_dm, _a * r * math.log(1 + B))
     # negative delta loosens guard
     return -delta, "ok"
 
@@ -346,14 +352,17 @@ def rollback(rotation_id: str) -> dict:
 
 def propose_from_aggregate(rotation_id: str, B: int, P: int,
                            per_gate: list[dict],
-                           operator_override: bool = False) -> dict:
+                           operator_override: bool = False,
+                           params: dict | None = None) -> dict:
     """The full path for one rotation: evidence bundle, delta, verdict.
     Applies ONLY when every rail passes; else queues/refuses with the
     bundle still written (the evidence outlives the decision).
     operator_override=True is the operator's queue_review decision
     arriving with a name on it: the concentration gate's queue is
     lifted (the review HAPPENED) — every other rail still bites."""
-    delta, reason = compute_delta(B, P)
+    delta, reason = compute_delta(
+        B, P, alpha=(params or {}).get("alpha"),
+        delta_max=(params or {}).get("delta_max"))
     cks, d = write_evidence_bundle(
         rotation_id, per_gate, B, P, (P / B) if B else None)
     if reason != "ok":

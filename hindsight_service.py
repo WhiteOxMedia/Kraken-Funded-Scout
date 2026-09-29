@@ -4,6 +4,10 @@ API-fed panel reads this endpoint for its live feed.
 
 The stdlib-only runner beside the scanner's own helpers:
     python hindsight_service.py start     # detached spawn + pid file
+    #                                          (the pid file is CLI
+    #                                          bookkeeping; the live
+    #                                          ownership contract is
+    #                                          the port)
     python hindsight_service.py stop      # kill by pid, verify by cmdline
     python hindsight_service.py status    # live probe + pid liveness
     python hindsight_service.py serve     # foreground (what start spawns)
@@ -86,7 +90,14 @@ def serve() -> int:
         allow_reuse_address = False
 
     try:
-        httpd = _Srv((_base().replace("http://", ""), port), handler)
+        # THE HOST COMES FROM _url'S OWN PARSING (the review's major):
+        # _url builds f"{base}:{port}/..." — a base carrying a scheme
+        # and/or an embedded port double-punches the colon there. The
+        # bind parses the base the same way (urlsplit: scheme-stripped,
+        # embedded port dropped, bare host/IP/empty = default).
+        from urllib.parse import urlsplit
+        _host = urlsplit(_base()).hostname or "127.0.0.1"
+        httpd = _Srv((_host, port), handler)
     except OSError as exc:
         print(json.dumps({"error": f"bind refused: {exc}",
                           "port": port}), flush=True)

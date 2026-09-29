@@ -83,7 +83,13 @@ def main() -> int:
         return 0
 
     flipped = cr.flip_canary(
-        f"canary-{datetime.now().strftime('%Y%m%d_%H%M%S')}")
+        f"canary-{datetime.now().strftime('%Y%m%d_%H%M%S')}",
+        # THE SELECTED CELL IS PERSISTED (Sep 29, the review's major):
+        # the gate's pick rides the cohort file (cr.params), and the
+        # boundary hook reads it from there — arming is no longer a
+        # print, the machine evaluates the cell the gate chose.
+        params={"alpha": pick["alpha"], "delta_max": pick["delta_max"],
+                "daily_cap": pick["daily_cap"]})
     print("ARMED:", json.dumps({**flipped,
                                 "alpha": pick["alpha"],
                                 "delta_max": pick["delta_max"],
