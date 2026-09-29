@@ -198,7 +198,8 @@ try:
           "_journaled = False" in bs_src.replace("\r\n", "\n")
           and "if _journaled:" in bs_src.replace("\r\n", "\n"))
     jrn = bs_src.replace("\r\n", "\n").find('"closed_by": "getout"')
-    pop = bs_src.replace("\r\n", "\n").find("watch.pop(")
+    pop = bs_src.replace("\r\n", "\n").find("watch[pair] = None",
+                                               jrn)   # the close path's tombstone, AFTER the journal — the saver's docstring mentions it too
     check("5.2 the journal write precedes any row removal in the close path",
           0 < jrn < pop)
     app_src = (BASE / "app.py").read_text(encoding="utf-8")

@@ -75,9 +75,9 @@ def _save(st: dict) -> None:
     mutates a fresh `_state()` read, but a NESTED writer (note_endgame
     inside the drift branch, a graduation inside a tick) can land between
     this function's read and its write — the old whole-file rewrite
-    erased exactly such a key twice (the drive's Sep-22 findings). Keys
-    in _SAVE_DROPS are intentional deletions: absent from `st` means
-    removed, not resurrected."""
+    erased exactly such a key twice (the drive's Sep-22 findings).
+    Keys in _SAVE_DROPS are intentional deletions: absent from `st`
+    means removed, not resurrected."""
     try:
         cur = _state()
     except Exception:

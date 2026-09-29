@@ -183,7 +183,12 @@ def set_guard_factor_temporarily(after: float,
         "rotations_left": int(rotations),
         "set_at": datetime.now().astimezone().isoformat(),
     }
-    pg._save(st)
+    # OWNER-KEY SAVE (the round-2 review's degeneration major): the
+    # merge-save overlays onto the file's CURRENT contents — a full
+    # stale snapshot passed here would overwrite every other writer's
+    # key with old values. Only this module's keys ride.
+    pg._save({"factor": st["factor"],
+              "auto_adjust_box": st["auto_adjust_box"]})
 
 
 def tick_rotation() -> int:
@@ -194,7 +199,7 @@ def tick_rotation() -> int:
     if not box:
         return 0
     box["rotations_left"] = int(box.get("rotations_left") or 0) - 1
-    pg._save(st)
+    pg._save({"auto_adjust_box": box})   # owner-key only (round-2)
     return int(box["rotations_left"])
 
 
@@ -223,7 +228,12 @@ def expire_if_due() -> dict | None:
         "evidence": str(box.get("evidence") or ""),
         "applied_at": datetime.now().astimezone().isoformat(),
     })
-    pg._save(st)
+    # OWNER-KEY SAVE (round-2): factor + ledger + the tombstone — the
+    # None-means-delete contract removes the box from the FILE without
+    # a stale full snapshot riding along.
+    pg._save({"factor": st["factor"],
+              "auto_adjust_ledger": st["auto_adjust_ledger"],
+              "auto_adjust_box": None})
     return {"reverted_to": before}
 
 
@@ -262,7 +272,13 @@ def apply_adjustment(delta: float, rotation_id: str,
             rec["status"] = "queued"
             rec["reason"] = "concentration_gate_blocks_auto_apply"
             _ledger(st).append(rec)
-            pg._save(st)
+            # OWNER-KEY SAVE (the round-2 review's degeneration major):
+            # a full stale `st` merged over the file degenerates the
+            # merge-save into a whole-file rewrite — every key it
+            # carries overwrites the merge with an old value. Each
+            # write carries ONLY its owner keys; the merge keeps the
+            # other writer's (self_adjust's) live state.
+            pg._save({"auto_adjust_ledger": _ledger(st)})
             return rec
         elif daily_delta_sum(st, now) + abs(delta) > DAILY_CAP + 1e-9:
             rec["reason"] = "daily_cap_exceeded"
@@ -273,24 +289,26 @@ def apply_adjustment(delta: float, rotation_id: str,
                         "expires_after_rotations":
                             ADJUST_DURATION_ROTATIONS})
             _ledger(st).append(rec)
-            pg._save(st)          # land the ledger FIRST — the setter
-                                  # re-reads, two writers never clobber
+            # OWNER-KEY SAVES (round-2): land the ledger FIRST — the
+            # setter re-reads, two writers never clobber — then the
+            # setter writes its own fresh view, then only the box rides
+            # the last save. Never a full stale snapshot.
+            pg._save({"auto_adjust_ledger": _ledger(st)})
             set_guard_factor_temporarily(after, ADJUST_DURATION_ROTATIONS,
                                          before=before)
-            st = pg._state()      # re-read: the setter wrote its own view
-            box = st.get("auto_adjust_box") or {}
-            box.update({"rotation_id": rotation_id,
-                        "evidence": evidence_checksum})
-            pg._save(st)
+            box = pg._state().get("auto_adjust_box") or {}   # re-read:
+            box.update({"rotation_id": rotation_id,          # the setter
+                        "evidence": evidence_checksum})      # wrote its own
+            pg._save({"auto_adjust_box": box})
             return rec
         _ledger(st).append(rec)
-        pg._save(st)
+        pg._save({"auto_adjust_ledger": _ledger(st)})   # owner-key only
         return rec
     except Exception as exc:                       # never break the caller
         rec["reason"] = f"apply_error: {exc!r}"
         try:
             _ledger(st).append(rec)
-            pg._save(st)
+            pg._save({"auto_adjust_ledger": _ledger(st)})
         except Exception:
             pass
         return rec
@@ -319,7 +337,10 @@ def rollback(rotation_id: str) -> dict:
         "evidence": str(row.get("evidence") or ""),
         "applied_at": now.isoformat(),
     })
-    pg._save(st)
+    # OWNER-KEY SAVE (round-2): factor + ledger + the box tombstone.
+    pg._save({"factor": st["factor"],
+              "auto_adjust_ledger": st["auto_adjust_ledger"],
+              "auto_adjust_box": None})
     return {"status": "reverted", "restored_to": before}
 
 

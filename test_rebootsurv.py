@@ -112,10 +112,9 @@ try:
     # ── 2. THE STAMPS SURVIVE ────────────────────────────────────────
     rows = {"ADA/USD": {"entry": 0.42, "high": 0.45, "size": 2500.0,
                         "added": "2026-09-22T10:00:00-06:00",
-                        "opened_ts": "2026-09-22T10:00:00-06:00",
-                        "checked_ts": "2026-09-22T21:59:00-06:00",
-                        "contest_id": "c-2026-09-08", "goal_pct": 1.5,
-                        "window_min": 120},
+                        "opened_ts": "2026-09-22T10:00:00-06:00",        "checked_ts": "2026-09-22T21:59:00-06:00",
+        "contest_id": "c-2026-09-08", "goal_pct": 1.5,
+        "window_min": 120},
             "KAITO/USD": {"entry": 1.10, "high": 1.14, "size": 1800.0,
                           "added": "2026-09-22T12:00:00-06:00",
                           "checked_ts": "2026-09-22T21:59:30-06:00",
@@ -146,6 +145,20 @@ try:
         WATCH.unlink()
     check("stamps: a missing watch boots empty",
           bs._load_contest_watch() == {})
+
+    # THE TOMBSTONE ROUND-TRIP (the round-2 cross-writer sweep): a None
+    # value is the writers' deletion marker — it must survive on disk
+    # (a concurrent writer's whole-file view cannot resurrect it) and
+    # the loader must hide it from every reader.
+    WATCH.write_text("{}", encoding="utf-8")
+    bs._save_contest_watch({"AAA/USD": dict(rows["ADA/USD"]),
+                            "BBB/USD": None})
+    got = bs._load_contest_watch()
+    check("stamps: a tombstoned row is hidden from the reader and gone "
+          "from the disk (None-means-delete round-trips)",
+          "BBB/USD" not in got and "AAA/USD" in got
+          and "BBB/USD" not in json.loads(WATCH.read_text(encoding="utf-8")),
+          (sorted(got), WATCH.read_text(encoding="utf-8")[:80]))
 
     _sv = _pbs.replace("\r\n", "\n")
     check("stamps: the watch save is atomic (.tmp + os.replace — a "

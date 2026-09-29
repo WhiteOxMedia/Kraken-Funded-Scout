@@ -2802,7 +2802,14 @@ def _load_contest_watch() -> dict:
     try:
         with open(CONTEST_WATCH_JSON, "r", encoding="utf-8") as fh:
             doc = json.load(fh)
-        return doc if isinstance(doc, dict) else {}
+        if not isinstance(doc, dict):
+            return {}
+        # THE TOMBSTONE-FREE READ (the round-2 cross-writer sweep): a
+        # None value is the merge-save's deletion marker, never a live
+        # watch — every reader through this loader gets a clean book
+        # instead of iterating a tombstone (w.get on None would kill
+        # the exit cycle).
+        return {k: v for k, v in doc.items() if v is not None}
     except Exception:
         return {}
 
@@ -2813,11 +2820,13 @@ def _save_contest_watch(watch: dict):
     lands a row between the scanner's read and its save, and the old
     whole-file rewrite erased that row (the paper book never noticed the
     real fill; the real side's tombstone vanished). Overlaying `watch`
-    onto the file's CURRENT contents keeps both sides' keys. Deletions
-    (watch.pop(pair)) are legitimized explicitly: a key ABSENT from
-    `watch` AND in _SAVE_DROPS means removed, not resurrected; every
-    other key absent from `watch` is preserved from the current file.
-    Still tmp + os.replace: a torn write can never be read."""
+    onto the file's CURRENT contents keeps both sides' keys.
+    DELETIONS: a row the scanner REMOVED (the GET-OUT pop) must be
+    marked with watch[pair] = None by the remover — under merge-save an
+    absent key is indistinguishable from 'never seen', and pop-then-save
+    would resurrect the row. None-means-delete; every other key absent
+    from `watch` is preserved. Still tmp + os.replace: a torn write can
+    never be read."""
     import json
     drops = {k for k, v in (watch or {}).items() if v is None}
     try:
@@ -3451,6 +3460,12 @@ def contest_light(exchange, cfg):
     except Exception as exc:
         logger.debug("shadow/endgame tick skipped: %s", exc)
     for pair, w in list(watch.items()):
+        if w is None:
+            # a tombstone rides in `watch` only when the remover saved
+            # its raw dict (this loop bypasses the loader's filter):
+            # the GET-OUT close tombstoned it this tick — nothing left
+            # to watch, and w.get below sits OUTSIDE the try
+            continue
         asset = pair.split("/")[0]
         try:
             live = float(exchange.fetch_ticker(pair)["last"])
@@ -3930,7 +3945,13 @@ def contest_light(exchange, cfg):
                 logger.warning("GET OUT auto-close failed for %s (%s) — "
                                "the SOLD button remains the way out", pair, exc)
             if _journaled:
-                watch.pop(pair, None)
+                # THE TOMBSTONE, NOT A POP (the round-2 review's
+                # resurrection bug): under merge-save an ABSENT key
+                # means "never seen" and the save would resurrect the
+                # row the journal just closed — None is the deletion
+                # marker the merge-save honors (dropped AND never
+                # re-added by the update pass).
+                watch[pair] = None
                 _save_contest_watch(watch)
             else:
                 # the row STAYS — the SOLD button remains the way out
@@ -4099,8 +4120,8 @@ def contest_light(exchange, cfg):
     if exited_pairs:
         # (Sep 21 comment fix — the code changed under this comment long
         # ago: the GET OUT path AUTO-CLOSES the trade and REMOVES the watch
-        # row itself — watch.pop(pair) above. The watch auto-stops when GET
-        # OUT fires; SOLD is only for the user's own early take.)
+        # row itself — the None tombstone above. The watch auto-stops when
+        # GET OUT fires; SOLD is only for the user's own early take.)
         if dirty:
             _save_contest_watch(watch)
         return

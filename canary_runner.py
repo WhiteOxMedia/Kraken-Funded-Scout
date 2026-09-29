@@ -58,6 +58,19 @@ def read_dial(doc: dict | None = None) -> str:
     return str(doc.get("EXIT_EXTENSION_ENABLED", "0"))
 
 
+def _write_dial(doc: dict) -> None:
+    """ATOMIC (the round-2 cross-writer sweep): the dial file was a
+    bare write_text — a torn write lands between the ticks that read
+    it live, and the reader degrades a half-file to defaults while an
+    arm or a ROLLBACK is mid-flight. tmp + os.replace: the scanner's
+    live read always sees whole old or whole new."""
+    import os
+    tmp = str(DIAL_FILE) + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as fh:
+        json.dump(doc, fh, indent=2)
+    os.replace(tmp, DIAL_FILE)
+
+
 def flip_canary(cohort_id: str, doc: dict | None = None) -> dict:
     """watch_extension.enabled = canary: the machine stays OFF for the
     book but announces the cohort the runner is watching."""
@@ -70,7 +83,7 @@ def flip_canary(cohort_id: str, doc: dict | None = None) -> dict:
             doc = {}
     doc.update({"EXIT_EXTENSION_ENABLED": "canary",
                 "cohort_id": cohort_id})
-    DIAL_FILE.write_text(json.dumps(doc, indent=2), encoding="utf-8")
+    _write_dial(doc)
     return {"dial": "canary", "cohort_id": cohort_id}
 
 
@@ -87,8 +100,7 @@ def rollback(feature_doc: dict | None = None) -> dict:
             feature_doc = {}
     feature_doc["EXIT_EXTENSION_ENABLED"] = "0"
     feature_doc.pop("cohort_id", None)
-    DIAL_FILE.write_text(json.dumps(feature_doc, indent=2),
-                         encoding="utf-8")
+    _write_dial(feature_doc)
     return {"rolled_back": True, "dial": "0",
             "at": datetime.now().astimezone().isoformat()}
 

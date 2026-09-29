@@ -55,7 +55,7 @@ check("writer keeps the user's own row authoritative (merge intact)",
 # ── 2. the GET OUT auto-close ────────────────────────────────────────────
 gi = bs.find("AUTO-CLOSE AT FIRE TIME")
 check("GET OUT auto-close block present", gi > 0)
-gx = bs[gi:bs.find("watch.pop(pair, None)", gi) + 200]
+gx = bs[gi:bs.find("watch[pair] = None", gi) + 200]
 check("close grades with the SOLD arithmetic (pnl_net_usd)",
       "pnl_net_usd(" in gx)
 check("close applies to the trade's OWN contest window",
@@ -65,8 +65,8 @@ check("close journals to contest_trades.jsonl (the brain's record)",
 check("close journal carries closed_by=getout + the exit reason",
       '"closed_by": "getout"' in gx and '"exit_reason": reason[:200]' in gx)
 check("close removes the watch row itself (no user action)",
-      "watch.pop(pair, None)" in bs[gi:gi + 8000]   # widened Sep 22: the SAL audit block joined the close path
-      and bs.find("watch.pop(pair, None)", gi) < bs.find("# exit condition cleared", gi))
+      "watch[pair] = None" in bs[gi:gi + 8000]   # widened Sep 22: the SAL audit block joined the close path; Sep 28: the close TOMBSTONES (None) under merge-save — a pop would resurrect the row
+      and bs.find("watch[pair] = None", gi) < bs.find("# exit condition cleared", gi))
 check("close speaks once, then the row is gone (no repeat ladder on a dead row)",
       '_speak_server(f"Get out now! Sell {asset}! {_why}"' in bs)
 check("close failure keeps the row for the SOLD override",
@@ -121,7 +121,7 @@ check("GET OUT push carries the FULL reasons (why + position facts)",
       "push_text=_push_txt" in bs and "WHY: {reason}" in bs)
 check("clear only AFTER the call (a cleared row always got its popup)",
       0 < bs.find('_speak_server(f"Get out now!')
-      < bs.find("watch.pop(pair, None)"))
+      < bs.find("watch[pair] = None", gi))   # scoped AFTER the close block: the saver's docstring mentions the tombstone too
 push_i = bs.find("def _push_to_phone")
 send_i = bs.find("def _send_ntfy")
 check("push actually SENDS (attempt 1/2 rides _send_ntfy — the one pipe "

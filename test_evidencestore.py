@@ -112,12 +112,14 @@ finally:
     es.STORE = _real_store
     es.ROOT = _real_root
     shutil.rmtree(_sbx, ignore_errors=True)
-    shutil.rmtree(_sbx2, ignore_errors=True)
+    # (_sbx2 — the live-probe's store — is NOT swept here: its probe
+    # runs below, and an earlier sweep deleted it mid-file. Its own
+    # finally beneath the probe owns it.)
 
 # the LIVE machine's INPUTS, sandboxed store (the review's major: the
 # drive must never write to or verify production evidence — the live
 # bundle directory is reserved for the store's own scheduled runs).
-# The sandbox is created here and swept in the module finally below —
+# The sandbox is created here and swept in ITS own finally below —
 # never inside a try whose except path has already removed it.
 live_store = _sbx2 / "rotations"
 es.STORE = live_store
@@ -139,6 +141,11 @@ except Exception as exc:
           False, repr(exc))
 finally:
     es.STORE = _real_store
+    # the live-probe's OWN store goes with it (the round-2 review's
+    # cleanup-order minor): the module finally below owns only _sbx —
+    # _sbx2's last use is above, so it is swept HERE, where an except
+    # path can no longer outrun it.
+    shutil.rmtree(_sbx2, ignore_errors=True)
 
 fails = [r for r in results if not r[1]]
 rep = BASE / "artifacts" / "evidence" / "_evidencestore_drive.txt"

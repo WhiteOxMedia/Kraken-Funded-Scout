@@ -168,8 +168,15 @@ def new_contest(tier: int) -> dict:
         # hardcoded repo root let a suite running new_contest() inside a
         # tempdir wipe the LIVE watch ledger — the OP/ONDO rows the
         # battery's prod-guard caught vanishing with no receipts.
-        (STATE_FILE.parent / "contest_watch.json").write_text(
-            "{}", encoding="utf-8")
+        # ATOMIC (the round-2 cross-writer sweep): a torn half-file
+        # would fail-soft to {} in every reader anyway — tmp +
+        # os.replace keeps the wipe all-or-nothing like every other
+        # writer of this file.
+        _cw_path = STATE_FILE.parent / "contest_watch.json"
+        _cw_tmp = str(_cw_path) + ".tmp"
+        with open(_cw_tmp, "w", encoding="utf-8") as _cw_fh:
+            _cw_fh.write("{}")
+        os.replace(_cw_tmp, str(_cw_path))
     except Exception:
         pass  # the watch panel would still show the ghost card -- tappable SOLD
     return s

@@ -19,14 +19,20 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
 WORST_LOSS_LIMIT = float(os.environ.get("CANARY_WORST_LOSS_LIMIT", "0.10"))
+# NOTE (the round-2 review): 0.10 is the standing DELTA_MAX, and the
+# dmax=0.10 cell's worst loss ECHOES its own cap — so the default limit
+# can only ever qualify the dmax=0.05 cell (strict `<`). That is the
+# intended posture: at the default, only the conservative cell may arm.
+# The refusal branch is REACHABLE whenever the evidence says so: tighten
+# the env (0.03 refuses every focused cell — pinned in the review run)
+# or let a future focused extract widen beyond the cap.
 # the standing DELTA_MAX — a focused cell whose worst single-book loss
 # EXCEEDS it is not safe (a cell AT the limit is its own cap echoed
 # back — not evidence of safety, so the pick below demands strictly
 # inside). CANARY_WORST_LOSS_LIMIT makes the gate TUNEABLE — the
 # operator can tighten (0.05) or loosen; the refusal branch is
-# reachable whenever the evidence says so, which the old hardcoded
-# equality-with-DELTA_MAX made unreachable in practice (the review's
-# major).
+# reachable whenever the evidence says so (see the NOTE above — at the
+# default only the dmax=0.05 cell can qualify, by construction).
 
 
 def main() -> int:

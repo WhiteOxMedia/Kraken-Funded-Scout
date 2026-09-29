@@ -21,8 +21,10 @@ app_src = open("app.py", encoding="utf-8").read()
 #    watch (auto-close removes the row) — the row NEVER silently lingers.
 check("scanner: GET OUT auto-closes the trade (pnl_net_usd)",
       "pnl_net_usd(" in bs_src.split("AUTO-CLOSE AT FIRE TIME")[1][:4000])
-check("scanner: GET OUT removes the watch row itself (auto-stop)",
-      "watch.pop(pair, None)" in bs_src.split("AUTO-CLOSE AT FIRE TIME")[1][:8000])
+check("scanner: GET OUT removes the watch row itself (auto-stop; the "
+      "close tombstones None — merge-save deletes it, a pop would "
+      "resurrect the closed row)",
+      "watch[pair] = None" in bs_src.split("AUTO-CLOSE AT FIRE TIME")[1][:8000])
 check("scanner: exit voice gated to 60s repeat",
       "_last_exit_voice.get(pair, 0)) >= 60" in bs_src)
 check("scanner: exit-voice re-arm when condition clears",
@@ -32,8 +34,10 @@ check("scanner: close failure keeps the row for the SOLD override",
 
 # 2. Console never drops a position on exit
 light_section = app_src.split("def _light_check")[1].split("def _render_light_panel")[0]
-check("console: no contest_watch.pop on exit",
-      "contest_watch.pop(p, None)" not in light_section)
+check("console: no contest_watch.pop on exit (the SOLD tombstone "
+      "writes None — the merge-save deletes it)",
+      "contest_watch.pop(p, None)" not in light_section
+      and "_cw_sold[_sp] = None" in app_src)
 check("console: SOLD is the only clear",
       "flow_exit_at" in app_src.split("def render_auto_watch")[1].split("def _time_to_goal")[0])
 

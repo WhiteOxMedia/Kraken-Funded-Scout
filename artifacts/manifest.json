@@ -432,7 +432,8 @@
         }
       ],
       "tests_run": [
-        "stateclobber 9/0 (new)",
+        "stateclobber 13/0 (new; 9 round-1 + 4 round-2 pins)",
+        "rebootsurv 25/0",
         "profitguard 75/0",
         "metalayers 72/0",
         "autoadjust 24/0",
@@ -442,9 +443,9 @@
         "topfill 12/0",
         "referee 20/0"
       ],
-      "results": "2 torn-write doors closed, 1 cross-process clobber closed, 1 deletion-under-merge class found and pinned",
+      "results": "2 torn-write doors closed, 1 cross-process clobber closed, 1 deletion-under-merge class found and pinned; round-2: 3 more writers fenced, the pop-resurrection bug dead, owner-key saves everywhere",
       "acceptance": true,
-      "notes": "FINDINGS: profit_guard._save and meta_layers._save wrote NON-ATOMICALLY (torn write + fail-soft readers = silent total state loss) - both now tmp+os.replace; profit_guard._save is also MERGE-SAVED (scanner's self_adjust and the auto-adjust box/ledger share the file - the auto_adjust clobber's home ground); contest_watch.json is the one true CROSS-PROCESS file (scanner + bot both RMW the whole file) - scanner side now merge-saves with None-means-delete (bot-side tombstone respect unchanged); the drive replays the exact interleavings and CAUGHT the new saver's own resurrection bug (update re-adding a None-deleted key) before it shipped. VERDICT: append-only jsonl ledgers (popups, suppressions, snapshots, trades, voice) safe by construction; already-atomic writers (discipline, exit_extension, contest_account, tidebar_weekly, carve_out, climb_out) untouched; diagnostics write scratch only. Residual risk documented: last-writer-wins per KEY on contest_watch under a true same-instant race - acceptable at 4s scanner cadence."
+      "notes": "FINDINGS: profit_guard._save and meta_layers._save wrote NON-ATOMICALLY (torn write + fail-soft readers = silent total state loss) - both now tmp+os.replace; profit_guard._save is also MERGE-SAVED (scanner's self_adjust and the auto-adjust box/ledger share the file - the auto_adjust clobber's home ground); contest_watch.json is the one true CROSS-PROCESS file (scanner + bot both RMW the whole file) - scanner side now merge-saves with None-means-delete (bot-side tombstone respect unchanged); the drive replays the exact interleavings and CAUGHT the new saver's own resurrection bug (update re-adding a None-deleted key) before it shipped. VERDICT: append-only jsonl ledgers (popups, suppressions, snapshots, trades, voice) safe by construction; already-atomic writers (discipline, exit_extension, contest_account, tidebar_weekly, carve_out, climb_out) untouched; diagnostics write scratch only. Residual risk documented: last-writer-wins per KEY on contest_watch under a true same-instant race - acceptable at 4s scanner cadence. ROUND-2 (same day, the 91907f2 review's six findings + a fresh fleet pass): the GET-OUT close TOMBSTONES now (watch[pair]=None) - pop-then-save resurrected the row the journal just closed under merge-save; the scanner loader returns tombstone-free books and the exit loop skips a tombstone riding its raw dict. app.py's _save_watch was a THIRD contest_watch writer the round-1 count missed - it merge-saves now (SOLD tap and score-reset wipe send tombstones). Owner-keys-only saves in auto_adjust (set/tick/apply/expire/rollback never pass full stale snapshots - the degeneration major). hindsight_api always stamps applied_by='operator' (the no-override path leaked the raw token). Evidence drive cleanup order fixed (the live-probe sandbox swept by its own finally). Canary gate posture documented (default 0.10 qualifies only the dmax=0.05 cell by construction; refusal reachable via env, proven at 0.03) and the rollback playbook snapshots the ROLLED-BACK rotation. Fleet round-2: canary_runner's dial writes and contest_account's new-contest watch wipe are ATOMIC (torn-write doors). Pins: stateclobber replays the degeneration + the tombstone contract; rebootsurv pins the tombstone round-trip; structure pins follow the tombstone shape (autotrack 43/43, persistexit, exit_extension 55/0).
     }
   }
 }

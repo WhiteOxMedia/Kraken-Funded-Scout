@@ -858,7 +858,16 @@ def _load_watch() -> dict:
     try:
         import json
         if WATCH_FILE.exists():
-            return json.loads(WATCH_FILE.read_text())
+            doc = json.loads(WATCH_FILE.read_text())
+            if not isinstance(doc, dict):
+                return {}
+            # THE TOMBSTONE-FREE READ (the round-2 cross-writer sweep):
+            # a None value is the writers' deletion marker (the
+            # scanner's GET-OUT tombstone, the SOLD wipe) — never a
+            # live watch. Every consumer reads through this loader, so
+            # the filter keeps tombstones out of every iteration and
+            # every `pair in watch` check.
+            return {k: v for k, v in doc.items() if v is not None}
     except (OSError, ValueError) as exc:
         logger.warning("contest watch file unreadable — "
                        "scoreboard restored empty: %s", exc)
@@ -867,12 +876,33 @@ def _load_watch() -> dict:
 def _save_watch(watch: dict):
     import json, os
     try:
-        # (Sep 27) atomic tmp+replace, same shape as the scanner's
-        # _save_contest_watch: a reader (scanner tick, SOLD render) can
-        # never see a truncated half-written ledger mid-write
+        # MERGE-SAVE (the round-2 cross-writer sweep, Sep 28): THREE
+        # writers share this file — the scanner process, the bot
+        # process, and THIS console — and the old whole-file rewrite
+        # from a stale read erased exactly the rows another writer
+        # landed between this read and its save (the bot's fill row is
+        # the proven round-1 casualty). Overlay `watch` onto the
+        # file's CURRENT contents.
+        # DELETIONS: a None value means REMOVE the key (the tombstone
+        # convention — the scanner's GET-OUT close, the SOLD tap, the
+        # reset wipe all send {pair: None}); every key absent from
+        # `watch` is preserved, and a None key is dropped from the
+        # merge and never re-added by it.
+        drops = {k for k, v in (watch or {}).items() if v is None}
+        try:
+            cur = json.loads(WATCH_FILE.read_text())
+            cur = cur if isinstance(cur, dict) else {}
+        except (OSError, ValueError):
+            cur = {}
+        merged = {k: v for k, v in cur.items()
+                  if k not in drops and k not in watch}
+        merged.update({k: v for k, v in (watch or {}).items()
+                       if v is not None})   # the DELETION wins
+        # atomic tmp+replace (Sep 27): a reader (scanner tick, SOLD
+        # render) can never see a truncated half-written ledger
         tmp = str(WATCH_FILE) + ".tmp"
         with open(tmp, "w", encoding="utf-8") as fh:
-            json.dump(watch, fh, indent=2)
+            json.dump(merged, fh, indent=2)
         os.replace(tmp, WATCH_FILE)
     except Exception as exc:
         logger.debug("watch save failed: %s", exc)
@@ -5422,7 +5452,10 @@ def render_master_bones(cfg: TradingConfig, kraken):
             st.caption(f"Wipes all {n_pos} watched position{'s' if n_pos != 1 else ''} "
                        f"and starts the score fresh. Can't be undone.")
             if st.button("🧹 WIPE IT — start fresh", type="primary", key="score_reset_btn"):
-                _save_watch({})
+                # THE WIPE AS TOMBSTONES (round-2): None-means-delete
+                # under the merge-save — a bare {} would overlay onto
+                # the file and preserve every live row
+                _save_watch({p: None for p in list(_load_watch())})
                 try:
                     st.toast("↺ Score reset — board is clean for the next run", icon="↺", duration=8)
                     _speak("Score reset! The board is clean for the next run!")
@@ -7990,7 +8023,11 @@ def render_auto_watch(cfg: TradingConfig, kraken):
                     # trade just executed — the bot book + the QC's
                     # book read refresh on the next read
                     ac_invalidate("bot_positions", "qc_liquidity")
-                    _sw = _cw_sold.pop(_sp) or {}
+                    # THE TOMBSTONE, NOT A POP (round-2): merge-save
+                    # deletes the None-marked row — popping the key
+                    # would leave the stale row on disk forever
+                    _sw = _cw_sold.get(_sp) or {}
+                    _cw_sold[_sp] = None
                     _save_watch(_cw_sold)
                     # the re-entered expander follows right below
                     st.session_state.get("take_level", {}).pop(_sp, None)

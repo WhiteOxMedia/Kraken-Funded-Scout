@@ -74,6 +74,23 @@ try:
                   for r in st.get("auto_adjust_ledger", [])),
           (st["factor"], box_before))
 
+    # THE DEGENERATION (the round-2 review's major): a writer that
+    # passes a FULL STALE snapshot to the merge-save degenerates it
+    # into a whole-file rewrite — every stale key overwrites the
+    # merge. The revert path must save OWNER KEYS ONLY.
+    aa.set_guard_factor_temporarily(1.88, 2, before=1.95)
+    aa.tick_rotation()
+    aa.tick_rotation()                      # drain the box: 2 left
+    cur = json.loads((_sbx / "profit_guard_state.json").read_text())
+    cur["self_adjust_factor"] = 1.234       # the scanner's live key
+    (_sbx / "profit_guard_state.json").write_text(json.dumps(cur))
+    aa.expire_if_due()
+    st = json.loads((_sbx / "profit_guard_state.json").read_text())
+    check("the revert's owner-key save keeps the other writer's key "
+          "(a stale full snapshot would have rewritten it away)",
+          st.get("self_adjust_factor") == 1.234
+          and "auto_adjust_box" not in st, sorted(st))
+
     # ── 2. atomicity: a torn write is never readable ─────────────────
     check("the state file has no .tmp residue after normal saves "
           "(atomic rename, in-place write would leave none either — "
@@ -116,6 +133,28 @@ try:
     check("the GET-OUT pop (None value) deletes the row — intentional "
           "deletion still works under merge-save",
           "SOL/USD" not in doc and "KAITO/USD" in doc, sorted(doc))
+
+    # ── 5. the deletion sites are TOMBSTONES, not pops (the round-2
+    # review's resurrection bug) ────────────────────────────────────
+    bs_src = (BASE / "background_scanner.py").read_text(encoding="utf-8")
+    check("the close path TOMBSTONES the row (a pop would resurrect "
+          "it under merge-save — an absent key means never-seen)",
+          "watch[pair] = None" in bs_src
+          and "watch.pop(pair" not in bs_src, "")
+    # the remover's own working dict (carrying the None) saved again
+    # must keep the row dead — the merge drops it and never re-adds it
+    bs._save_contest_watch({"KAITO/USD": {"entry": 0.3277,
+                                          "high": 0.3290,
+                                          "source": "scout-signal"},
+                            "SOL/USD": None})
+    doc = json.loads((_sbx / "contest_watch.json").read_text())
+    check("a remover's dict carrying a tombstone keeps the row dead "
+          "across a later save (drop AND no re-add)",
+          "SOL/USD" not in doc and "KAITO/USD" in doc, sorted(doc))
+    check("the console writer merge-saves too (three writers share the "
+          "file — the round-1 sweep counted two)",
+          "MERGE-SAVE" in (BASE / "app.py").read_text(encoding="utf-8"),
+          "")
 finally:
     if _real_state is not None:
         pg.STATE_FILE = _real_state

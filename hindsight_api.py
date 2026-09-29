@@ -285,11 +285,13 @@ def route(method: str, path: str, body: dict | None = None,
             # never echoed back - the ledger carries the non-secret
             # identifier the body sent.
             override = bool(b.get("override_concentration"))
-            if override:
-                operator_id = "operator"   # THE TOKEN IS NEVER ECHOED:
-                                           # telemetry's applied_by carries
-                                           # a non-secret identifier, the
-                                           # secret stays in the env
+            # THE TOKEN IS NEVER ECHOED (round-2 major, the
+            # no-override path): the body's operator_id IS the credential
+            # — passing it raw leaked it into telemetry's applied_by on
+            # every authenticated POST, override or not. Telemetry
+            # always carries the non-secret identifier; the secret
+            # stays in the env where _authenticated read it.
+            operator_id = "operator"
             return 200, apply_action(
                 rid, action, operator_id=operator_id,
                 confirm=bool(b.get("confirm")), goal_pct=goal_pct,

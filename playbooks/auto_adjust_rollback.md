@@ -29,8 +29,10 @@ The adjustment rides commit `<sha>` (every telemetry event carries
 `git revert <sha>` — the gate re-runs the drives on the reverted tree.
 
 ## After
-1. Snapshot the rotation's evidence if not already:
-   `uv run python -X utf8 -c "import evidence_store as es; print(es.snapshot()['bundle_checksum'])"`
+1. Snapshot THE ROLLED-BACK ROTATION's evidence if not already — pass
+   its id explicitly (a bare `snapshot()` bundles the CURRENT rotation,
+   not the one just reverted):
+   `uv run python -X utf8 -c "import evidence_store as es; print(es.snapshot('<rotation_id>')['bundle_checksum'])"`
 2. File the postmortem (`playbooks/postmortem_template.md`) within 48h.
 3. Check the time box did not leave a dangling factor:
    `profit_guard_state.json` → `auto_adjust_box` must be ABSENT after a
