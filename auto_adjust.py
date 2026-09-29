@@ -183,9 +183,19 @@ def set_guard_factor_temporarily(after: float,
     pg = _pg()
     st = pg._state()
     st["factor"] = float(after)
+    _prior = st.get("auto_adjust_box")
+    if isinstance(_prior, dict) and _prior.get("before") is not None \
+            and before is None:
+        # THE STACKED BOX (Sep 29 review major): a second adjustment on
+        # a live box keeps the ORIGINAL before — the box's before is
+        # the restore target, and rewriting it to the already-loosened
+        # factor would strand the first loosening forever.
+        _before = float(_prior["before"])
+    else:
+        _before = float(pg.stored_factor() if before is None else before)
     st["auto_adjust_box"] = {
         "after": float(after),
-        "before": float(pg.stored_factor() if before is None else before),
+        "before": _before,
         "rotations_left": int(rotations),
         "set_at": datetime.now().astimezone().isoformat(),
     }
@@ -263,6 +273,21 @@ def apply_adjustment(delta: float, rotation_id: str,
     try:
         if delta >= 0:
             rec["reason"] = "non_negative_delta_is_not_self_adjust"
+        elif any(r.get("status") == "applied"
+                 and str(r.get("rotation_id") or "") == rotation_id
+                 for r in _ledger(st)):
+            # THE DOUBLE-APPLY GUARD (Sep 29 review major): an `applied`
+            # row for the SAME rotation refuses a second apply — the
+            # boundary hook self-heals per tick and a cadence/restart
+            # retry must never double-loosen the guard. Evaluated after
+            # the concentration gate (that ordering is the earlier
+            # review's own fix) and before the daily cap: the dedupe is
+            # about THIS rotation, not the day's budget.
+            rec["status"] = "refused"
+            rec["reason"] = "rotation_already_applied"
+            _ledger(st).append(rec)
+            pg._save({"auto_adjust_ledger": _ledger(st)})
+            return rec
         elif (per_gate and not override_concentration
               and concentration(per_gate) > CONCENTRATION_MAX):
             # THE CONCENTRATION GATE EVALUATES FIRST (the review's

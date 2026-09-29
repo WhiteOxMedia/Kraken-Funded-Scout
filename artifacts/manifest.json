@@ -724,6 +724,26 @@
         "test_apptest.py": "sha256:80056f63b4b5a701f9b6366ba88a539f7928b1eec9d5bda842faa4e2c9f69dbd",
         "test_hindsightapi.py": "sha256:352d4ba39a417e5b5f232eb498b7485ebc6a9f96f20b2a25e4af11f4a1e418cc"
       }
+    },
+    "22-hs-triage-2": {
+      "commits": [
+        "<this commit>"
+      ],
+      "branch_name": "master",
+      "date": "2026-09-29",
+      "title": "SECOND TRIAGE OF THE HINDSIGHT REVIEW: 9/9 FIXED — THE DOUBLE-APPLY GUARD, THE STACKED BOX, THE FULL-BASE URL (Sep 29, hs-triage-2)",
+      "detail": "coderabbit --agent --committed recovered 9 full-text findings (3 major, 6 minor); all 9 triaged real and fixed. MAJORS: (1) the double-apply guard — apply_adjustment refuses a second apply for a rotation_id that already has an applied ledger row (rotation_already_applied; after the concentration gate, before the daily cap; the boundary hook self-heals per tick and a retry must never double-loosen the guard); (2) the stacked box — set_guard_factor_temporarily keeps the ORIGINAL before when a second adjustment stacks onto a live box (the restore target is the pre-adjustment factor; rewriting it strands the first loosening forever); (3) hindsight_service._url builds the probe from the base OWN scheme+host (urlsplit) and appends the runner port — the console contract (HINDSIGHT_API_BASE is a FULL base) no longer double-punches the colon, matching app.py already-full-base behavior. MINORS: the boundary-hook prev key derives its date from the rotation ACTUAL start (now minus 4h; a midnight-crossing boundary stamps yesterday on the 20-24 key); flip_canary arms a FRESH cohort doc (a disarmed tombstone or stale params never ride into a new arm); add_xrp_watch is idempotent (an existing valid XRP row is left untouched with its size/goal/trail state); LIVE_CONTRACT_TEMPLATE fails a 0/0 RESULT without a SKIP note (a vacuous run is a failure); test_pool_prefs_live resolves the venv interpreter per platform (Scripts/ on Windows, bin/ on POSIX). Both auto_adjust majors landed red-first (drive 24/4 -> 28/0). Note: the carried critical from the e3cd158-era review (the boundary hook merging cross-day rotations) was already fixed by bfeffd3 dated prev-key; this run finding is its midnight residual. Drives: autoadjust 28/0, hindsightapi 39/0, canary 13/0, hindightservice 15/0, rebootsurv 25/0, boundaryexam 35/0, profitguard 77/0, pool_prefs 38/0, pool_docsrot 10/0.",
+      "checksums": {
+        "auto_adjust.py": "sha256:09448980fd787d1f6e3fc388b330e69edb8def22fd2cd3a09321b232243ee29b",
+        "background_scanner.py": "sha256:fca7eb1738df8afc0a13f2f86cd5d553a81440fc166fec37280e74a7e39a012b",
+        "hindsight_service.py": "sha256:41498d20952b655a5fff68037b46629773adcde3f7ee95d54f6ed0b873a09388",
+        "canary_runner.py": "sha256:86b1f8948b32adddb3afbd74909f76abbc643b06fb7aed36a49b6268a8d8c83c",
+        "add_xrp_watch.py": "sha256:5a4d2f55fbdcd0dfdb94efcd4491c8008d53030eb41efd66bd6423028523aa05",
+        "LIVE_CONTRACT_TEMPLATE.py": "sha256:7519a9c042cbeff6a9b2aa1b79196dedb8d6c642683d8003dcf43578b4799cec",
+        "test_autoadjust.py": "sha256:6e6458e51c231a7f70b4bdde1f85f5396c103962a663ef1554f26f94de5eb375",
+        "test_hindsightapi.py": "sha256:c09cb53fd0c66eff96350dd2d7d2c4fe78e802a2ae4f3f2eb703f1f85371ec42",
+        "test_pool_prefs_live.py": "sha256:0c460ee94b941f4621904b0e12a2d871c0b94f94b1daa4bf9577e7d3bc7a1602"
+      }
     }
   }
 }

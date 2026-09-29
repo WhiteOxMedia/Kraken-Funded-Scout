@@ -121,9 +121,13 @@ def flip_canary(cohort_id: str, doc: dict | None = None,
     the cohort id, so arming is no longer a print: the boundary hook
     reads these from the cohort file and evaluates the propose path
     with the selected cell instead of the module defaults."""
-    cur = doc if doc is not None else _read_json(COHORT_FILE)
-    cur.update({"cohort_id": cohort_id,
-                "armed_at": datetime.now().astimezone().isoformat()})
+    # A FRESH COHORT DOC PER ARM (Sep 29 review minor): the previous
+    # cohort file's fields (a disarmed tombstone, stale params, an old
+    # cohort_id) must never ride into the new arm — arming is a new
+    # cohort, not an update of the old one.
+    cur = dict(doc) if doc is not None else {}
+    cur["cohort_id"] = cohort_id
+    cur["armed_at"] = datetime.now().astimezone().isoformat()
     if params:
         cur["params"] = {str(k): float(v) for k, v in params.items()
                          if k in ("alpha", "delta_max", "daily_cap")}

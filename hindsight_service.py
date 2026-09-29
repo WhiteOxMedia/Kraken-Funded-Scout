@@ -51,7 +51,15 @@ def _pid_file() -> Path:
 
 
 def _url(tail: str) -> str:
-    return f"{_base().rstrip('/')}:{_port()}/{tail.lstrip('/')}"
+    """The probe URL built from the base's OWN scheme + host, with the
+    runner's port appended (Sep 29 review major): a base that already
+    carries a port (the console's contract — HINDSIGHT_API_BASE is a
+    FULL base, e.g. http://127.0.0.1:8785) must never get a second
+    port double-punched after its colon."""
+    from urllib.parse import urlsplit
+    parts = urlsplit(_base())
+    return (f"{parts.scheme or 'http'}://{parts.hostname or '127.0.0.1'}"
+            f":{_port()}/{tail.lstrip('/')}")
 
 
 def _http_get(url: str, timeout: float = 2.0):

@@ -136,6 +136,44 @@ try:
           == {"rotations_left": 1}, aa.expire_if_due())
     aa.expire_if_due()   # the cleanup revert (to 2.0)
 
+    # THE STACKED-BOX BEFORE (Sep 29 review major, red-first): a second
+    # adjustment stacking onto a LIVE box must preserve the ORIGINAL
+    # before — the box's `before` is the restore target, and replacing
+    # it with the already-loosened factor would strand the first
+    # loosening forever (two boxes = never fully restored).
+    aa.set_guard_factor_temporarily(1.9, 2, before=2.0)   # box #1: 2.0 → 1.9
+    aa.set_guard_factor_temporarily(1.8, 2)               # box #2 stacks
+    _box2 = pg._state().get("auto_adjust_box") or {}
+    check("a stacked adjustment preserves the ORIGINAL before in the "
+          "box (the restore target is the pre-adjustment factor, not "
+          "the already-loosened one)",
+          abs(float(_box2.get("before") or 0) - 2.0) < 1e-9
+          and abs(float(_box2.get("after") or 0) - 1.8) < 1e-9, _box2)
+    for _ in range(2):
+        aa.tick_rotation()   # run the stacked box to its expiry
+    aa.expire_if_due()   # restores 2.0 through the stacked box
+    check("the stacked box's expiry restores the ORIGINAL factor (2.0, "
+          "not the intermediate)",
+          abs(aa.read_guard_factor() - 2.0) < 1e-9, aa.read_guard_factor())
+
+    # THE DOUBLE-APPLY GUARD (Sep 29 review major, red-first): an
+    # `applied` row for the SAME rotation refuses a second apply —
+    # the boundary hook self-heals per tick and a cadence retry must
+    # never double-loosen the guard. (The cap is widened FIRST so the
+    # pin exercises the dedupe, not the cap.)
+    aa.DAILY_CAP = 10.0
+    rec_d1 = aa.apply_adjustment(-0.05, "SIM-DOUBLE", "sha256:dbl")
+    check("the first apply for a rotation lands (applied)",
+          rec_d1["status"] == "applied", rec_d1)
+    rec_d2 = aa.apply_adjustment(-0.05, "SIM-DOUBLE", "sha256:dbl")
+    check("a second apply for the SAME rotation refuses by name "
+          "(rotation_already_applied — one adjustment per rotation, "
+          "ever)",
+          rec_d2["status"] == "refused"
+          and rec_d2["reason"] == "rotation_already_applied", rec_d2)
+    aa.rollback("SIM-DOUBLE")
+    aa.DAILY_CAP = 0.20
+
     # non-negative deltas are not self-adjust
     rec6 = aa.apply_adjustment(0.05, "SIM-5", "sha256:sim5")
     check("a tightening delta is refused by name (self-adjust only "

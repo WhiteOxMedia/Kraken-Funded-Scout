@@ -423,12 +423,14 @@ try:
         _early = _cl_src.find("if not watch:")
         _hook_pos = _cl_src.find("aa_apply_silent_rotation")
         check("the scanner calls the hook per tick with the previous "
-          "rotation's dated key, above the empty-book early return "
-          "(every tick self-heals a missed boundary; the dedupe is by "
-          "stamp; a silent rotation is never skipped for an empty watch)",
+          "rotation's dated key (from the rotation's OWN start "
+          "datetime — a midnight-crossing boundary stamps yesterday's "
+          "date), above the empty-book early return (every tick "
+          "self-heals a missed boundary; the dedupe is by stamp; a "
+          "silent rotation is never skipped for an empty watch)",
               "_exx.aa_apply_silent_rotation(_aar_key)" in _bs_src_hook
-              and "_prev_start" in _bs_src_hook
-              and "_now_m:%Y-%m-%d" in _bs_src_hook
+              and "_prev_dt = _now_m - timedelta(hours=4)" in _bs_src_hook
+              and "_prev_dt:%Y-%m-%d" in _bs_src_hook
               and _hook_pos != -1
               and (_early == -1 or _hook_pos < _early), "")
         # the rollback leg: the cohort's own stop — the dial file's

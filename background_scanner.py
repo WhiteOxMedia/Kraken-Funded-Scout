@@ -3427,8 +3427,14 @@ def contest_light(exchange, cfg):
             # % 24 and stamps it with TODAY's Denver date: one
             # evaluation per real rotation, never a cross-day merge.
             _now_m = _now_mst()
-            _prev_start = ((_now_m.hour // 4) * 4 - 4) % 24
-            _aar_key = f"{_now_m:%Y-%m-%d}-{rotation_key_for_hour(_prev_start)}"
+            # THE PREV ROTATION'S OWN START DATETIME (Sep 29 review
+            # minor): subtract 4h from now — the date comes from the
+            # rotation's actual start, so a boundary just after
+            # midnight stamps YESTERDAY's date on the 20-24 key
+            # instead of merging yesterday's rows into today's stamp.
+            _prev_dt = _now_m - timedelta(hours=4)
+            _aar_key = (f"{_prev_dt:%Y-%m-%d}-"
+                        f"{rotation_key_for_hour(_prev_dt.hour)}")
             _aar = _exx.aa_apply_silent_rotation(_aar_key)
             if _aar.get("evaluated"):
                 logger.info(

@@ -88,12 +88,20 @@ def main() -> int:
         print(err, flush=True)
     # THE SKIP SIGNATURE (all three required - see the docstring):
     # exited 0, the 0/0 RESULT line, and a SKIP note in the output.
+    # A 0/0 WITHOUT the note is a VACUOUS PASS, never a skip and
+    # never a success (Sep 29 review minor): a drive that ran
+    # nothing and asserted nothing fails loudly here.
     last = [l for l in out.splitlines() if l.startswith("RESULT:")]
     if (p.returncode == 0
             and last and last[-1].strip() == "RESULT: 0 passed, 0 failed"
             and "SKIP:" in out):
         print(f"SKIP: {SKIP_NOTE}")
         return SKIP_EXIT
+    if p.returncode == 0 and last \
+            and last[-1].strip() == "RESULT: 0 passed, 0 failed":
+        print("FAIL: the drive reported 0 passed, 0 failed with no "
+              "SKIP note — a vacuous run is a failure, not a pass")
+        return 1
     return p.returncode
 
 

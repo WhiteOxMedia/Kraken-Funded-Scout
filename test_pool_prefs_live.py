@@ -37,7 +37,13 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 POOL = HERE.parent / "monero_project"
 DRIVE = POOL / "test_prefs_live_server.py"
-POOL_PY = POOL / ".venv" / "Scripts" / "python.exe"
+# THE VENV INTERPRETER, BOTH PLATFORMS (Sep 29 review minor): Windows
+# keeps Scripts/, POSIX keeps bin/ — and a missing venv must fail the
+# pool drive honestly (a bare `python` would import the WRONG world).
+_pool_py = POOL / ".venv" / "Scripts" / "python.exe"
+if not _pool_py.exists():
+    _pool_py = POOL / ".venv" / "bin" / "python"
+POOL_PY = _pool_py
 
 # the wrapper's only exit code of its own: 42 == "the target skipped
 # itself" (the battery maps it to SKIP). Every other exit propagates.

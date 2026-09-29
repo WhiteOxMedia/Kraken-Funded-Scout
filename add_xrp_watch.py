@@ -17,13 +17,17 @@ MST = __import__("zoneinfo").ZoneInfo("America/Denver")
 ex = ccxt.kraken({"enableRateLimit": True})
 px = float(ex.fetch_ticker("XRP/USD")["last"])
 
-# RE-READ AT THE LAST MOMENT (the review's minor): between the top-of-
-# file read and the write, the scanner and the bot keep RMW-ing the
-# book — a stale snapshot here would resurrect tombstones. The entry
-# row is merged into the FRESH book via the production merge-save.
+# RE-READ AT THE LAST MOMENT + IDEMPOTENT (the reviews' minors):
+# between the top-of-file read and the write, the scanner and the bot
+# keep RMW-ing the book — a stale snapshot here would resurrect
+# tombstones. An EXISTING valid XRP row is left exactly as it is (its
+# entry/size/goal/trail state stay); only a missing or malformed row
+# is created fresh, at the live price.
 w = _load_contest_watch()
-w["XRP/USD"] = {"entry": px, "high": px,
-                "added": datetime.now(MST).isoformat()}
+_row = w.get("XRP/USD")
+if not isinstance(_row, dict) or _row.get("entry") is None:
+    w["XRP/USD"] = {"entry": px, "high": px,
+                    "added": datetime.now(MST).isoformat()}
 _save_contest_watch(w)
 print(f"XRP added to watch @ ${px:.4f} (live price)")
 w2 = _load_contest_watch()
