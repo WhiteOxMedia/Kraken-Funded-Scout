@@ -52,28 +52,36 @@ RECOMMENDED = {"alpha": 0.05, "delta_max": 0.10, "daily_cap": 0.20}
 def load_history(limit_rotations: int) -> list[dict]:
     """One record per rotation: its measured burials with peaks (the
     task-1 join) + the payer count. Rotations with zero measurable
-    burials carry [] — they are real replay steps (the rule idles)."""
+    burials carry [] — they are real replay steps (the rule idles).
+    The grouping key is the FULL rotation: a bare window ('12-16') is
+    dated by the row's own ts — a bare-window journal never collapses
+    into six ever-merged buckets (the isolated review's major)."""
     import per_gate_export as pge
     supp = ROOT / "popup_suppressions.jsonl"
     cache = ROOT / "ohlcv_cache.db"
-    rows = pge.load_rotation_rows(supp, "*")  # loader filters below
-    if not rows:   # the loader needs the real rot filter; do it here
-        rows = []
-        if supp.exists():
-            for line in supp.read_text(encoding="utf-8").splitlines():
-                line = line.strip()
-                if not line:
-                    continue
-                try:
-                    d = json.loads(line)
-                except Exception:
-                    continue
-                if d.get("pair"):
-                    rows.append(d)
-    # group by the scanner's rot stamp, oldest first
+    rows = []
+    if supp.exists():
+        for line in supp.read_text(encoding="utf-8").splitlines():
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                d = json.loads(line)
+            except Exception:
+                continue
+            if d.get("pair"):
+                rows.append(d)
+
+    def _full_stamp(rot: str) -> bool:
+        p = rot.split("-")
+        return len(p) >= 5 and pge._is_date("-".join(p[:3]))
+
     by_rot: dict[str, list] = {}
     for r in rows:
-        by_rot.setdefault(str(r.get("rot") or "?"), []).append(r)
+        rot = str(r.get("rot") or "?")
+        t_day = str(r.get("ts") or "")[:10]
+        key = rot if _full_stamp(rot) else f"{t_day}-{rot}"
+        by_rot.setdefault(key, []).append(r)
     rotations = sorted(by_rot)[-limit_rotations:]
     deduped = {rot: pge.dedup_first(by_rot[rot]) for rot in rotations}
     # peaks for every distinct candidate across the window

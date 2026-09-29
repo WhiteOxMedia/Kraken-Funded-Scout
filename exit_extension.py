@@ -180,18 +180,19 @@ def _load_state() -> dict:
         return {}
 
 
-def _save_state(st: dict) -> None:
+def _save_state(st: dict) -> bool:
     try:
         tmp = str(state_file()) + ".tmp"
         with open(tmp, "w", encoding="utf-8") as fh:
             json.dump(st, fh, indent=2)
         os.replace(tmp, state_file())
+        return True
     except OSError as exc:
-        # counters are a safety dial, not a ledger — degrade loudly to
-        # the in-memory answer (cap enforcement errs toward MORE exits,
-        # i.e. toward the incumbent behavior, which is the safe side)
+        # counters are a safety dial, not a ledger — the CALLER decides
+        # which side failure degrades to (the arm path fails CLOSED)
         print(f"[exit_extension] state save failed ({exc}) — "
-              f"daily cap degrades open", flush=True)
+              f"the caller fails closed", flush=True)
+        return False
 
 
 def _day_key(now: datetime) -> str:
@@ -320,7 +321,14 @@ def _arm(pair: str, w: dict, reason: str, now: datetime,
     days = st.setdefault("days", {})
     key = _day_key(now)
     days[key] = int(days.get(key) or 0) + 1
-    _save_state(st)
+    if not _save_state(st):
+        # THE CAP FAILS CLOSED (the isolated review, Sep 28): a save
+        # that silently lost the counter would read 0 forever and let
+        # the dial blanket the book. Roll the count back and raise —
+        # the seam's outer except turns it into the fail-safe EXIT
+        # verdict: no arm, the book keeps the incumbent machinery.
+        days[key] = int(days.get(key) or 1) - 1
+        raise OSError("extension counter save failed — cap fails closed")
 
 
 def _clear_stamp(w: dict) -> None:

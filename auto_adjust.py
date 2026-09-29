@@ -232,8 +232,14 @@ def apply_adjustment(delta: float, rotation_id: str,
             rec["reason"] = "non_negative_delta_is_not_self_adjust"
         elif daily_delta_sum(st, now) + abs(delta) > DAILY_CAP + 1e-9:
             rec["reason"] = "daily_cap_exceeded"
-        elif (auto and per_gate and not override_concentration
+        elif (per_gate and not override_concentration
               and concentration(per_gate) > CONCENTRATION_MAX):
+            # THE QUEUE DECISION RIDES ONLY THE CONCENTRATION AND THE
+            # OVERRIDE (the isolated review's major, restated as a
+            # rule): never which caller asked. `auto` stays in the
+            # signature for compatibility but cannot lift the gate —
+            # only override_concentration, the authenticated operator,
+            # can. auto=False is a REQUEST for review, not a bypass.
             rec["status"] = "queued"
             rec["reason"] = "concentration_gate_blocks_auto_apply"
             _ledger(st).append(rec)

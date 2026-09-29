@@ -90,8 +90,28 @@ def snapshot(rotation_id: str | None = None,
         if not src.exists():
             missing.append(name)
             continue
-        shutil.copy2(src, store / src.name)
-        copied[src.name] = _sha256_file(store / src.name)
+        dest = store / src.name
+        if src.suffix == ".db":
+            # THE LIVE DB IS COPIED THROUGH SQLITE'S BACKUP API (the
+            # isolated review's major): shutil.copy2 on a hot database
+            # can tear a WAL mid-checkpoint — the copy could verify
+            # against bytes that never existed as a consistent db. The
+            # backup API takes a consistent page image; the sha is
+            # computed over THAT.
+            import sqlite3
+            src_con = sqlite3.connect(src.as_uri() + "?mode=ro",
+                                      uri=True, timeout=5.0)
+            try:
+                dst_con = sqlite3.connect(dest)
+                try:
+                    src_con.backup(dst_con)
+                finally:
+                    dst_con.close()
+            finally:
+                src_con.close()
+        else:
+            shutil.copy2(src, dest)
+        copied[dest.name] = _sha256_file(dest)
     for extra in (extra_files or []):
         if extra.exists():
             shutil.copy2(extra, store / extra.name)

@@ -665,7 +665,12 @@ def self_adjust(now: datetime | None = None) -> dict | None:
                               "parts": row["parts"],
                               "ts": row["ts"]})
     row["history_len"] = len(st["history"])
-    _save(row | {"history": st["history"]})
+    # MERGE, not replace (the isolated review, Sep 28): the state file
+    # carries other writers' keys now (the auto-adjust's time box and
+    # ledger) — writing `row | history` alone would silently drop them
+    # and the box's auto-revert would revert into a file that forgot it
+    # ever loosened. The existing state survives; this row rides on top.
+    _save(st | row | {"history": st["history"]})
     res = dict(res)
     res["history_len"] = len(st["history"])   # log-visible series growth
     return res

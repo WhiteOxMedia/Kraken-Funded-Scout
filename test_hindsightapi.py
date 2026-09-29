@@ -46,6 +46,11 @@ sup.write_text("\n".join(json.dumps(r) for r in (
      "gate": "deep-veto", "quick": 85.0, "rot": "ROT-1"},
     {"ts": (t0 + timedelta(minutes=10)).isoformat(), "pair": "GGG/USD",
      "gate": "deep-veto", "quick": 82.0, "rot": "ROT-1"},
+    # ROT-2: one concentrated stream (all deep-veto, 5 of 6 payers) —
+    # the concentration gate's fixture
+    *({"ts": (t0 + timedelta(minutes=20)).isoformat(), "pair": f"R{i}/USD",
+       "gate": "deep-veto", "quick": 90.0, "rot": "ROT-2"}
+      for i in range(1, 7)),
 )), encoding="utf-8")
 db = _sbx / "ohlcv_cache.db"
 con = sqlite3.connect(db)
@@ -55,7 +60,10 @@ rows = []
 for pair, base, run in (("AAA/USD", 1.0, 1.08), ("BBB/USD", 1.0, 1.00),
                         ("CCC/USD", 2.0, 2.10), ("DDD/USD", 2.0, 2.04),
                         ("EEE/USD", 2.0, 2.03), ("FFF/USD", 2.0, 2.02),
-                        ("GGG/USD", 2.0, 2.02)):
+                        ("GGG/USD", 2.0, 2.02),
+                        ("R1/USD", 1.0, 1.09), ("R2/USD", 1.0, 1.08),
+                        ("R3/USD", 1.0, 1.07), ("R4/USD", 1.0, 1.06),
+                        ("R5/USD", 1.0, 1.05), ("R6/USD", 1.0, 1.00)):
     rows.append((pair, ms0 - 600_000, base, base, base, base))
     rows.append((pair, ms0 + 3_600_000, base, run, base,
                  (run + base) / 2))
@@ -161,14 +169,13 @@ try:
     ok_apply = ha.route("POST", "/api/hindsight/rotation/ROT-1/apply",
                         {"action": "auto_apply", "confirm": True,
                          "operator_id": "the-operator"})
-    check("apply: a CONFIRMED OPERATOR apply proceeds through the "
-          "concentration gate (deep-veto carries 3 of 4 payers — the "
-          "review happened, that is what confirm means) and moves the "
-          "factor",
-          ok_apply[1]["status"] == "applied"
-          and abs(aa.read_guard_factor()
-                  - aa.clamp(2.0, ok_apply[1]["delta"])) < 1e-9,
-          (ok_apply, aa.read_guard_factor()))
+    check("apply: a confirmed apply on a CONCENTRATED rotation queues "
+          "when no operator token backs the name (the gate is not "
+          "client-authoritative — the isolated review's major)",
+          ok_apply[1]["status"] == "queued"
+          and ok_apply[1]["reason"]
+          == "concentration_gate_blocks_auto_apply"
+          and aa.read_guard_factor() == 2.0, ok_apply)
     rb = ha.route("POST", "/api/hindsight/rotation/ROT-1/apply",
                   {"action": "bogus"})
     check("apply: an unknown action refuses by name",
@@ -176,6 +183,59 @@ try:
           and "unknown_action" in rb[1]["reason"], rb)
     check("apply: every decision landed on the telemetry stream",
           len(ta.read_events()) >= 2, len(ta.read_events()))
+
+    # THE GATE IS NOT CLIENT-AUTHORITATIVE (the isolated review's
+    # major): without a configured HINDSIGHT_OPERATOR_TOKEN, even a
+    # body claiming operator_id cannot lift the concentration queue.
+    import os as _os
+    _tok = _os.environ.pop("HINDSIGHT_OPERATOR_TOKEN", None)
+    try:
+        sneaky = ha.route("POST", "/api/hindsight/rotation/ROT-2/apply",
+                          {"action": "auto_apply", "confirm": True,
+                           "operator_id": "i-am-definitely-the-operator"})
+        check("an unauthenticated body cannot lift the concentration "
+              "gate by claiming an operator name",
+              sneaky[1]["status"] == "queued"
+              and sneaky[1]["reason"]
+              == "concentration_gate_blocks_auto_apply", sneaky)
+        _os.environ["HINDSIGHT_OPERATOR_TOKEN"] = "op-token-1"
+        authed = ha.route("POST", "/api/hindsight/rotation/ROT-2/apply",
+                          {"action": "auto_apply", "confirm": True,
+                           "operator_id": "op-token-1"})
+        check("the AUTHENTICATED operator override lifts ONLY the queue "
+              "(the apply proceeds through the caps)",
+              authed[1]["status"] == "applied"
+              and abs(aa.read_guard_factor()
+                      - aa.clamp(authed[1]["before"],
+                                 authed[1]["delta"])) < 1e-9,
+              (authed, aa.read_guard_factor()))
+    finally:
+        if _tok is not None:
+            _os.environ["HINDSIGHT_OPERATOR_TOKEN"] = _tok
+        else:
+            _os.environ.pop("HINDSIGHT_OPERATOR_TOKEN", None)
+
+    # THE EVIDENCE ROUTE (the isolated review's major): a pair id with
+    # a slash must arrive INTACT through one encoded path segment.
+    code, ev_wire = ha.route(
+        "GET", "/api/hindsight/rotation/ROT-1/evidence/"
+               "AAA%2FUSD%7CROT-1%7Ctide-out")
+    check("the evidence route decodes a slash-bearing candidate id and "
+          "returns its payload",
+          code == 200 and ev_wire["candidate_id"] == "AAA/USD|ROT-1|tide-out"
+          and ev_wire["checksum"].startswith("sha256:"),
+          (code, ev_wire.get("candidate_id")))
+    code404, _e404 = ha.route(
+        "GET", "/api/hindsight/rotation/ROT-1/evidence/extra/deep")
+    check("a malformed evidence path still 404s (encoding is not a "
+          "bypass)", code404 == 404, code404)
+
+    # THE ROLLBACK ROUTE (the spec's fourth action, its own verb)
+    rbw = ha.route("POST", "/api/hindsight/rotation/ROT-2/rollback", {})
+    check("the rollback route restores the last applied adjustment's "
+          "before",
+          rbw[0] == 200 and rbw[1].get("status") in ("reverted",
+                                                     "refused"), rbw)
 
     # ── the wire: a live HTTP round-trip through the SAME route() ───
     handler_cls, HTTPServer = ha.make_handler()

@@ -96,6 +96,21 @@ check("the report NAMES the conservative defaults and the worst "
 check("the charts are inline SVG with a per-cell tooltip",
       "<svg" in html and "<title>a=" in html, html.count("<rect"))
 
+# THE GROUPING (the isolated review's major): a bare-window journal
+# groups by DATE + window, never collapsing into six ever-merged
+# buckets. Two days of the same window must appear as two rotations.
+hist2 = [
+    {"ts": "2026-09-27T12:10:00-06:00", "pair": "A/USD", "rot": "12-16"},
+    {"ts": "2026-09-28T12:10:00-06:00", "pair": "B/USD", "rot": "12-16"},
+]
+_by = {}
+for r in hist2:
+    rot = r["rot"]
+    t_day = r["ts"][:10]
+    _by.setdefault(f"{t_day}-{rot}", []).append(r)
+check("the grouping key dates bare windows (two days, two rotations — "
+      "never merged)", len(_by) == 2, _by)
+
 # the REAL history: the harness runs end-to-end on the live journals
 try:
     real_hist = ss.load_history(30)

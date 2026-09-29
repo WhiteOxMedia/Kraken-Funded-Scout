@@ -168,15 +168,16 @@ def candidate_evidence(rotation_id: str, candidate_id: str,
 def apply_action(rotation_id: str, action: str,
                  operator_id: str | None = None, confirm: bool = False,
                  goal_pct: float = 1.5, cohort: str = "canary-1",
+                 operator_override: bool = False,
                  supp_path: Path | None = None,
                  cache_path: Path | None = None) -> dict:
     """auto_apply runs the full proportional path (every rail live);
     queue_review computes and bundles but does NOT touch the factor.
-    auto_apply demands confirm=True — the HTTP-level safety catch. A
-    NAMED operator riding the request is the human-in-the-loop: the
-    concentration gate still queues a bare system apply, but an
-    operator-confirmed apply may proceed through it (the review
-    happened; that is what confirm means)."""
+    auto_apply demands confirm=True — the HTTP-level safety catch.
+    operator_override=True is the AUTHENTICATED human-in-the-loop (the
+    route checks the operator token; an unauthenticated body can never
+    lift the concentration queue): only the queue lifts — every other
+    rail still bites."""
     import auto_adjust as aa
     import telemetry_adjust as ta
     supp, cache = _paths(supp_path, cache_path)
@@ -201,7 +202,7 @@ def apply_action(rotation_id: str, action: str,
         return {"status": "refused", "reason": "confirmation_required",
                 "evidence": cks, "bundle": str(d)}
     rec = aa.propose_from_aggregate(rotation_id, B, P, gate_rows,
-                                    operator_override=bool(operator_id))
+                                    operator_override=operator_override)
     ta.emit_adjustment(rotation_id, rec, B, P, gate_rows, cohort=cohort,
                        applied_by=operator_id or "system")
     return rec
@@ -220,7 +221,8 @@ def route(method: str, path: str, body: dict | None = None,
     parts = [p for p in path.split("/") if p]
     # api / hindsight / rotation / :id / ...
     if len(parts) >= 4 and parts[:3] == ["api", "hindsight", "rotation"]:
-        rid = parts[3]
+        from urllib.parse import unquote
+        rid = unquote(parts[3])
         tail = parts[4:]
         if method == "GET" and tail == ["summary"]:
             return 200, rotation_summary(rid, goal_pct)
@@ -228,13 +230,33 @@ def route(method: str, path: str, body: dict | None = None,
             return 200, {"rotation_id": rid,
                          "gates": rotation_gates(rid, goal_pct)}
         if method == "GET" and len(tail) == 2 and tail[0] == "evidence":
-            return 200, candidate_evidence(rid, tail[1])
+            # the candidate id is a single encoded segment: pairs carry
+            # slashes (AAA/USD|ROT|gate) and a raw slash would split
+            # into extra path parts and 404
+            return 200, candidate_evidence(rid, unquote(tail[1]))
+        if method == "POST" and tail == ["rollback"]:
+            return 200, rollback(rid)
         if method == "POST" and tail == ["apply"]:
             b = body or {}
-            return 200, apply_action(rid, str(b.get("action") or ""),
-                                     operator_id=b.get("operator_id"),
-                                     confirm=bool(b.get("confirm")),
-                                     goal_pct=goal_pct)
+            action = str(b.get("action") or "")
+            operator_id = b.get("operator_id")
+            # THE CONCENTRATION GATE IS NOT CLIENT-AUTHORITATIVE (the
+            # isolated review's major): a bare unauthenticated request
+            # cannot lift the queue by typing an operator name. The
+            # override is honored ONLY when the operator token matches
+            # the deployment's OPERATOR_TOKEN env (the same env-dial
+            # pattern the machine already runs); no token configured =
+            # nobody can override, the gate always queues.
+            import os
+            token = os.environ.get("HINDSIGHT_OPERATOR_TOKEN", "")
+            override = bool(operator_id) and bool(token) \
+                and str(operator_id) == token
+            if override:
+                operator_id = "operator"
+            return 200, apply_action(
+                rid, action, operator_id=operator_id,
+                confirm=bool(b.get("confirm")), goal_pct=goal_pct,
+                operator_override=override)
     return 404, {"error": f"no route {method} {path}"}
 
 

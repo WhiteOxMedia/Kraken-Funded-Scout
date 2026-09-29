@@ -52,7 +52,7 @@ proposed delta −0.08 (loosens the guard; time-boxed 3 rotations)
 | Auto Apply | `{action:"auto_apply", confirm:true}` | requires an operator id in the session; concentration > 0.5 still forces Queue |
 | Queue for Review | `{action:"queue_review"}` | computes + bundles, never touches GF |
 | Reject | client-side | closes the panel; the bundle stays (evidence outlives the decision) |
-| Rollback | POST .../apply `{action:"rollback"}` | restores the ledger row's `before` |
+| Rollback | POST `/api/hindsight/rotation/:id/rollback` | restores the ledger row's `before` (its own route — a rollback is not an apply) |
 
 - Auto Apply without `confirm` is refused by the API
   (`confirmation_required`) — the UI still sends the confirm only from

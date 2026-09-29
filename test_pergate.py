@@ -160,6 +160,29 @@ check("the default rotation id is the scanner's 4h window stamp (the "
       and pge.default_rotation_id(datetime(2026, 9, 28, 23, 59)) == "20-00",
       pge.default_rotation_id())
 
+# THE BARE-WINDOW SCOPING (the isolated review's major, Sep 28): a
+# full rotation id scopes a bare-window journal ('12-16') to the id's
+# DATE half via the row's own ts — yesterday's 12-16 never merges into
+# today's.
+_sup2 = _sbx / "sup2.jsonl"
+d_yest = (datetime.now().astimezone() - timedelta(days=1))
+sup2 = [
+    {"ts": d_yest.isoformat(), "pair": "OLD/USD", "gate": "tide-out",
+     "quick": 50.0, "rot": "12-16"},
+    {"ts": t0.isoformat(), "pair": "NEW/USD", "gate": "tide-out",
+     "quick": 60.0, "rot": "12-16"},
+]
+_sup2.write_text("\n".join(json.dumps(r) for r in sup2), encoding="utf-8")
+_full_id = f"{datetime.now().astimezone():%Y-%m-%d}-12-16"
+rows_full = pge.load_rotation_rows(_sup2, _full_id)
+check("a full rotation id scopes the bare-window journal to ITS day "
+      "(yesterday's same window excluded)",
+      [r["pair"] for r in rows_full] == ["NEW/USD"], rows_full)
+check("a bare window id still matches undated (the loader's original "
+      "contract)",
+      len(pge.load_rotation_rows(_sup2, "12-16")) == 2,
+      pge.load_rotation_rows(_sup2, "12-16"))
+
 # the LIVE path: real journals, read-only, no exception
 try:
     live_rows = pge.dedup_first(pge.load_rotation_rows(

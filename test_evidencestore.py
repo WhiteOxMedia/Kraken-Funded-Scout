@@ -25,10 +25,22 @@ def check(name, ok, detail=""):
 
 _sbx = Path(tempfile.mkdtemp())
 store = _sbx / "rotations"
-# a mini machine: two real-ish inputs
-(BASE / "ohlcv_cache.db").exists() or None      # the real one may exist
+# the fixtures are REAL sqlite dbs (the snapshot routes .db through the
+# backup API) written INTO the repo-root names the module reads? No —
+# the sandbox principle: the drive points the module at fixture files
+# by passing explicit input names resolved under ROOT. To keep the live
+# repo untouched, the db fixture lives in the sandbox and the module's
+# ROOT is re-pointed for the duration.
+import per_gate_export  # noqa: F401  (already imported by the module)
+_real_root = es.ROOT
+es.ROOT = _sbx            # the sandbox carries the module's reads
 src1 = _sbx / "ohlcv_cache.db"
-src1.write_bytes(b"sqlite-fixture-bytes-1")
+_c = __import__("sqlite3").connect(src1)
+_c.execute("CREATE TABLE ohlcv (pair TEXT, ts INTEGER, open REAL, "
+           "high REAL, low REAL, close REAL)")
+_c.execute("INSERT INTO ohlcv VALUES ('X/USD', 0, 1, 1, 1, 1)")
+_c.commit()
+_c.close()
 src2 = _sbx / "_tidebarweekly.txt"
 src2.write_text("the prose the fixtures grade\n", encoding="utf-8")
 _real_store = es.STORE
@@ -97,6 +109,7 @@ try:
           and "ohlcv_cache.db" in man3["files"], man3)
 finally:
     es.STORE = _real_store
+    es.ROOT = _real_root
     shutil.rmtree(_sbx, ignore_errors=True)
 
 # the LIVE machine: snapshot the current rotation, read-only sources

@@ -43,10 +43,34 @@ def _now_mst():
 
 
 # ── the journal side ────────────────────────────────────────────────
+def _is_date(s: str) -> bool:
+    try:
+        datetime.strptime(s, "%Y-%m-%d")
+        return True
+    except ValueError:
+        return False
+
+
+def _iso_date(s: str) -> bool:
+    return len(s) == 10 and s[4] == "-" and s[7] == "-" and _is_date(s)
+
+
 def load_rotation_rows(supp_path: Path, rotation_id: str) -> list[dict]:
-    """Every suppression row stamped with this rotation id. Read-only."""
+    """Every suppression row stamped with this rotation id.
+
+    A FULL id ('2026-09-28-12-16') matches rows whose rot is the full
+    stamp OR the bare window ('12-16') dated by the row's own ts to the
+    id's date half — a bare-window journal never merges across days
+    (the isolated review's major). A BARE id ('12-16') matches the bare
+    window only, undated, exactly as before. Read-only."""
     if not supp_path.exists():
         return []
+    # split a full id into its date half and window half
+    parts = rotation_id.split("-")
+    date_half = "-".join(parts[:3]) if len(parts) >= 5 else None
+    window_half = "-".join(parts[-2:]) if len(parts) >= 5 else rotation_id
+    if date_half and not _is_date(date_half):
+        date_half, window_half = None, rotation_id
     rows = []
     for line in supp_path.read_text(encoding="utf-8").splitlines():
         line = line.strip()
@@ -56,7 +80,15 @@ def load_rotation_rows(supp_path: Path, rotation_id: str) -> list[dict]:
             d = json.loads(line)
         except Exception:
             continue
-        if str(d.get("rot") or "") == rotation_id and d.get("pair"):
+        rot = str(d.get("rot") or "")
+        if not d.get("pair"):
+            continue
+        if rot == rotation_id or rot == window_half:
+            if rot == window_half and date_half:
+                t_day = str(d.get("ts") or "")[:10]
+                if not _iso_date(t_day) or t_day != date_half:
+                    continue   # not THIS day's window (or undatable):
+                               # a bare window never merges across days
             rows.append(d)
     return rows
 

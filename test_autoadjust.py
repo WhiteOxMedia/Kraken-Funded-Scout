@@ -100,9 +100,12 @@ try:
           rec4["status"] == "queued"
           and rec4["reason"] == "concentration_gate_blocks_auto_apply"
           and aa.read_guard_factor() == 1.84, (rec4, aa.read_guard_factor()))
-    # queue_review override: the operator can force it through the rails
+    # queue_review override: the AUTHENTICATED operator can force it
+    # through the rails (auto=False is a review request, NOT a bypass —
+    # the isolated review's major, restated as the rule)
     rec5 = aa.apply_adjustment(-0.05, "SIM-4", "sha256:sim4",
-                               per_gate=conc_gate, auto=False)
+                               per_gate=conc_gate, auto=False,
+                               override_concentration=True)
     aa.DAILY_CAP = 0.20
     check("the operator's queue_review override applies through the "
           "same caps (1.84 -> 1.79)",
