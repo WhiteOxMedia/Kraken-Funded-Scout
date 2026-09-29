@@ -49,6 +49,33 @@ with no exit checks. That incident is the reason every rule below exists.
    CodeRabbit review runs against the tree as-is. Churn is noise; noise is
    never an excuse to move files under a live trading system.
 
+## THE PIN-DRIFT CONVENTION (Sep 29, the sweep's lesson)
+
+Every drive pin is a promise about a shape somewhere else in the fleet —
+a call signature, a component count, a file convention, a threshold. When
+a commit LEGITIMATELY changes that shape, the pin is part of the change:
+
+**Any commit that changes a pinned shape updates the pin in the SAME
+commit.** Never "fix the tests later", never leave a red drive for the
+next session to decode — a stale pin is a lie the next sweep reads as a
+production failure (the Sep-29 sweep: 2 of its 4 reds were exactly this,
+including a lifecycle pin still counting four components after the
+fifth joined).
+
+- **Legitimate shape change** → update the pin's assertion AND its
+  label to name the new truth and WHY it changed ("counts five
+  components — hindsight_service joined Sep 29"). The label is the
+  changelog.
+- **Regression, not evolution** (the new shape is a bug) → fix the
+  production code, keep the pin.
+- **Can't tell which?** The pin wins the argument: revert the shape
+  change and re-decide deliberately. A drive failing is information;
+  silencing it without a decision is how the fleet stops noticing.
+- The commit-gate catches honest misses (a same-commit pin update that
+  doesn't match the new code still blocks); the SWEEP catches the
+  drift this convention prevents. Both exist because pins rot quietly —
+  see manifest task 35 for the precedent.
+
 ## Arming the hook (fresh clones)
 
 The pre-commit hook is **versioned at `hooks/pre-commit`** and survives
