@@ -16,11 +16,15 @@ uv run python -X utf8 -c "import auto_adjust as aa, sys; r = aa.rollback('<rotat
   must show the pre-adjust factor.
 
 ## Dial path (if the whole feature should stop)
-The canary/feature kill-switch is the exit_extension dial — read live
-per tick, no restart:
+The feature kill-switch is the exit_extension dial — read live per
+tick, no restart. Set the dial yourself (the operator's own action):
 ```
-uv run python -X utf8 -c "import canary_runner as cr; print(cr.rollback())"
+uv run python -X utf8 -c "import json, os; p='exit_extension.dial.json'; d=json.load(open(p)); d['EXIT_EXTENSION_ENABLED']='0'; json.dump(d, open(p+'.tmp','w'), indent=2); os.replace(p+'.tmp', p)"
 ```
+The CANARY cohort is a separate control on its OWN file
+(`auto_adjust_canary.json`) — `cr.rollback()` stops the cohort only
+and never touches the feature master (the two-file rule,
+governance/adjustment_policy.md step 2).
 writes `EXIT_EXTENSION_ENABLED: "0"` to `exit_extension.dial.json`.
 
 ## Revert path (if the CODE is wrong, not the data)
