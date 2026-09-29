@@ -411,6 +411,94 @@ try:
               _bs_hook._load_scanner_state()
                   .get("aa_canary_last_rotation") == "ROT-1",
               _bs_hook._load_scanner_state())
+
+        # ── THE ARMED-CELL PROOF (Sep 29, the params seam's end-to-end): 
+        #    a fresh rotation whose delta math DIFFERS between the armed
+        #    cell and the module defaults; the emitted event's delta
+        #    must match the CELL, not the defaults — arming is provably
+        #    live through the whole wire path.
+        import math as _math
+        _B_p, _P_p, _r_p = 4, 4, 1.0
+        _mod_delta = min(0.10, 0.05 * _r_p * _math.log(1 + _B_p))
+        _cell_delta = min(0.05, 0.03 * _r_p * _math.log(1 + _B_p))
+        assert abs(_mod_delta - _cell_delta) > 0.01   # the cells differ
+        # THE APPEND-NEWLINE GUARD (the trap this pin caught): the
+        # fixture's original write_text ends WITHOUT a trailing newline,
+        # so an append's first row would concatenate onto the last line
+        # and die silently in the loader's json.loads (P1 was being
+        # swallowed — B measured 3 instead of 4). Guard the append.
+        _sup_tail = sup.read_text(encoding="utf-8") if sup.exists() else ""
+        with open(sup, "a", encoding="utf-8") as _f:
+            if _sup_tail and not _sup_tail.endswith("\n"):
+                _f.write("\n")
+            for _i, (_pair, _gate, _quick) in enumerate((
+                    ("P1/USD", "tide-out", 71.0), ("P2/USD", "tide-out", 66.0),
+                    ("P3/USD", "stale-move", 82.0), ("P4/USD", "stale-move", 77.0),
+                    ("D1/USD", "tide-out", 55.0), ("D2/USD", "tide-out", 51.0),
+                    ("D3/USD", "stale-move", 58.0), ("D4/USD", "stale-move", 49.0))):
+                _f.write(json.dumps({
+                    # anchored INSIDE the fixture's hour (the same shape
+                    # every measured leg uses — the ts edge is where
+                    # nondeterminism lived)
+                    "ts": (t0 + timedelta(minutes=20 + _i)).isoformat(),
+                    "pair": _pair, "gate": _gate, "quick": _quick,
+                    "rot": "ROT-P"}) + "\n")
+        _con_p = sqlite3.connect(db)
+        _orows_p = []
+        for _pair in ("P1/USD", "P2/USD", "P3/USD", "P4/USD"):
+            _orows_p.append((_pair, ms0 - 600_000, 1.0, 1.0, 1.0, 1.0))
+            _orows_p.append((_pair, ms0 + 3_600_000, 1.0, 1.08, 1.0, 1.04))
+        _con_p.executemany("INSERT INTO ohlcv VALUES (?,?,?,?,?,?)", _orows_p)
+        _con_p.commit(); _con_p.close()
+        import canary_runner as _cr4
+        _real4 = (_cr4.DIAL_FILE, _cr4.COHORT_FILE)
+        _cr4.DIAL_FILE = _sbx_dial
+        _cr4.COHORT_FILE = _sbx_cohort
+        _os_hook.environ["AUTO_ADJUST_CANARY_FILE"] = str(_sbx_cohort)
+        try:
+            _flip4 = _cr4.flip_canary(
+                "canary-params-proof",
+                params={"alpha": 0.03, "delta_max": 0.05,
+                        "daily_cap": 5.0})
+            _cell_doc = json.loads(
+                _sbx_cohort.read_text(encoding="utf-8"))
+            check("flip_canary persists the gate-selected cell on the "
+                  "cohort file (alpha/delta_max/daily_cap all three)",
+                  _cell_doc.get("params") == {"alpha": 0.03,
+                                              "delta_max": 0.05,
+                                              "daily_cap": 5.0}, _cell_doc)
+            # B_MIN is patched to 4 for this leg (the drive's own
+            # constant-patch precedent, DAILY_CAP): the pin's target is
+            # the params seam, not the sample floor, and B=4/P=4 keeps
+            # concentration at exactly 0.5 (the gate's edge).
+            _real_bmin = aa.B_MIN
+            aa.B_MIN = 4
+            try:
+                _rp = _exx_mod.aa_apply_silent_rotation(
+                    "ROT-P", supp_path=sup, cache_path=db)
+            finally:
+                aa.B_MIN = _real_bmin
+            _events_p = [json.loads(l) for l in
+                         _hook_tel.read_text(encoding="utf-8").splitlines()
+                         if l.strip()]
+            _ev_p = _events_p[-1]
+            _led_p = [r for r in json.loads(
+                pg.STATE_FILE.read_text(encoding="utf-8")).get(
+                "auto_adjust_ledger", [])
+                if r.get("rotation_id") == "ROT-P"]
+            check("THE PROOF: the boundary hook's emitted delta matches "
+                  "the ARMED cell's math (min(dmax, a·r·ln(1+B)) with "
+                  "a=0.03/dmax=0.05), NOT the module defaults — the "
+                  "armed params are live through the whole wire path",
+                  _rp.get("evaluated") is True and _rp.get("status") == "applied"
+                  and abs(_ev_p["delta"] - (-_cell_delta)) < 1e-6
+                  and abs(_ev_p["delta"] - (-_mod_delta)) > 0.01
+                  and _led_p and _led_p[-1].get("params") == {
+                      "alpha": 0.03, "delta_max": 0.05, "daily_cap": 5.0},
+                  (_rp, _ev_p.get("delta"), _mod_delta, _cell_delta,
+                   _led_p[-1].get("params") if _led_p else None))
+        finally:
+            _cr4.DIAL_FILE, _cr4.COHORT_FILE = _real4
         _bs_src_hook = (BASE / "background_scanner.py").read_text(
             encoding="utf-8").replace("\r\n", "\n")
         # THE HOOK'S SHAPE (upgraded Sep 29, the review's two majors):

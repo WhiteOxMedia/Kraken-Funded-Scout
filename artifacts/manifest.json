@@ -744,6 +744,23 @@
         "test_hindsightapi.py": "sha256:c09cb53fd0c66eff96350dd2d7d2c4fe78e802a2ae4f3f2eb703f1f85371ec42",
         "test_pool_prefs_live.py": "sha256:0c460ee94b941f4621904b0e12a2d871c0b94f94b1daa4bf9577e7d3bc7a1602"
       }
+    },
+    "23-params-seam-proof": {
+      "commits": [
+        "<this commit>"
+      ],
+      "branch_name": "master",
+      "date": "2026-09-29",
+      "title": "THE PARAMS SEAM COMPLETED AND PROVEN: THE ARMED CELL GOVERNS THE CAP, RIDES THE WHOLE PATH, AND THE MACHINE WEARS IT (Sep 29, params-seam-proof)",
+      "detail": "The remaining half of the canary params seam, closed red-first with a live proof. auto_adjust.apply_adjustment takes params (alpha/delta_max/daily_cap, key-by-key fallback to module defaults) — the cap check enforces the ARMED daily_cap, not the module global, and every record carries the params dict it evaluated under (the proof field). propose_from_aggregate now passes params through to apply_adjustment (the wire hole: it computed with the cell but capped with the defaults). exit_extension._aa_params forwards all three keys from the cohort file. Drive pins: the armed 0.02 daily cap refuses where the module default 10.0 would apply (red-first, the cell governs), the full cell lands in the record (all three keys), _aa_params reads all three / drops unknowns / reads empty for a legacy cohort (exit_extension 58/0), and the END-TO-END PROOF in hindsightapi: a seeded rotation evaluated through the real hook under an armed cell a=0.03/dmax=0.05 emits delta min(0.05, 0.03*1.0*ln(5))=0.0483 — NOT the module-default 0.0805 — with the ledger row carrying the exact cell (hindsightapi 41/0). The pin hunt also caught a real fixture trap: the journal write_text without a trailing newline silently concatenated an appended first row (P1 swallowed, B=3 instead of 4) — the loader json.loads continue ate it; the append-newline guard is pinned in the drive. LIVE PROOF on the machine: ops/canary_enable --symbols BTC,ETH,SOL --yes re-armed from the focused extract (4 cells printed, 3 safe, the 0.05/0.10 cell correctly AT/OVER CAP) and the cohort file now carries the SELECTED cell {alpha 0.03, delta_max 0.05, daily_cap 0.2}; the live _aa_params() returns exactly that cell, and the boundary hook will evaluate rotation 04-08 (B=40, P=18) under it. hindsight service restarted on the full-base URL fix (8785 verified). Drives: autoadjust 30/0, exit_extension 58/0, hindsightapi 41/0, canary 13/0, apptest 303/0.",
+      "checksums": {
+        "auto_adjust.py": "sha256:b27bbbfc6d2f55f8162289492ae17a6cbcb1a880d24a6001da178acf542e424b",
+        "exit_extension.py": "sha256:8491aa01a3b367acf4d9651284cfeded9aedb956395cc7c4a62fd579b06558f5",
+        "test_autoadjust.py": "sha256:1bf4d5cb7ba046d06ad265f474b66333d391a5f196b53383b729066af524d827",
+        "test_exit_extension.py": "sha256:d59eb75773d3d9baa6426eb76a5761ad94a1b598d043da249972c8f7dc5f6e8b",
+        "test_hindsightapi.py": "sha256:52d68d0b38c03ae06cc029fbacf47d6266955fb1eb772b0c801b5d8a3eec2ac5",
+        "ops/canary_enable.py": "sha256:5f1304460c386600c6baab9e66cd6d38968864ec57dcc0a9d23da356d700b223"
+      }
     }
   }
 }

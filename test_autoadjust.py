@@ -174,6 +174,34 @@ try:
     aa.rollback("SIM-DOUBLE")
     aa.DAILY_CAP = 0.20
 
+    # ── THE PARAMS SEAM (Sep 29, red-first): the armed cell governs the
+    #    CAP for real — a tiny armed daily_cap refuses where the module
+    #    default (0.20) would apply, and the record carries the cell it
+    #    evaluated under.
+    aa.DAILY_CAP = 10.0   # the module default is NOT the guard here
+    rec_p = aa.apply_adjustment(-0.05, "SIM-CELL", "sha256:cell",
+                                params={"daily_cap": 0.02})
+    check("the ARMED daily_cap bites: a 0.05 delta refuses under a "
+          "0.02 armed cap even though the module default is 10.0 (the "
+          "cell governs, not the module global)",
+          rec_p["status"] == "refused"
+          and rec_p["reason"] == "daily_cap_exceeded"
+          and rec_p["params"]["daily_cap"] == 0.02
+          and rec_p["params"]["alpha"] == aa.ALPHA, rec_p)
+    # (the full-cell leg's armed cap is generous on purpose: the day's
+    # ledger already carries the earlier pins' |deltas| — this leg
+    # proves the record, the refusal leg above proved the cap's teeth)
+    rec_q = aa.apply_adjustment(-0.05, "SIM-CELL2", "sha256:cell2",
+                                params={"alpha": 0.03, "delta_max": 0.05,
+                                        "daily_cap": 5.0})
+    check("a full armed cell applies and the record carries ALL THREE "
+          "keys (the proof the armed params are live)",
+          rec_q["status"] == "applied"
+          and rec_q["params"] == {"alpha": 0.03, "delta_max": 0.05,
+                                  "daily_cap": 5.0}, rec_q)
+    aa.rollback("SIM-CELL2")
+    aa.DAILY_CAP = 0.20
+
     # non-negative deltas are not self-adjust
     rec6 = aa.apply_adjustment(0.05, "SIM-5", "sha256:sim5")
     check("a tightening delta is refused by name (self-adjust only "

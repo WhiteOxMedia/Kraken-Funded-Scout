@@ -80,10 +80,12 @@ def _aa_cohort() -> str:
 
 def _aa_params() -> dict:
     """The armed cohort's SELECTED CELL (Sep 29, the review's major):
-    alpha/delta_max the gate picked and flip_canary persisted. Empty
-    dict = the module defaults ride (a legacy cohort without params —
-    the pre-seam armed cohort keeps evaluating as it always has).
-    Env-first like the cohort id (the drive's sandbox seam)."""
+    alpha/delta_max/daily_cap the gate picked and flip_canary
+    persisted — ALL THREE ride (the cap is part of the cell: an armed
+    0.02 daily cap must bite, not fall back to the module default).
+    Empty dict = the module defaults ride (a legacy cohort without
+    params — the pre-seam armed cohort keeps evaluating as it always
+    has). Env-first like the cohort id (the drive's sandbox seam)."""
     explicit = os.environ.get(AA_COHORT_ENV)
     path = Path(explicit) if explicit else dial_file().parent / AA_COHORT_FILE
     try:
@@ -91,7 +93,8 @@ def _aa_params() -> dict:
         p = doc.get("params") if isinstance(doc, dict) else None
         if isinstance(p, dict):
             return {k: float(v) for k, v in p.items()
-                    if k in ("alpha", "delta_max") and isinstance(v, (int, float))}
+                    if k in ("alpha", "delta_max", "daily_cap")
+                    and isinstance(v, (int, float))}
     except (OSError, ValueError, TypeError):
         pass
     return {}

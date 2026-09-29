@@ -257,19 +257,36 @@ def apply_adjustment(delta: float, rotation_id: str,
                      evidence_checksum: str,
                      per_gate: list[dict] | None = None,
                      auto: bool = True,
-                     override_concentration: bool = False) -> dict:
+                     override_concentration: bool = False,
+                     params: dict | None = None) -> dict:
     """Enforce every rail, then move the factor. Never raises: the
     returned dict carries status applied / queued / refused + reason.
     override_concentration=True lifts ONLY the concentration queue
-    (the operator's named review) — the caps and floors still bite."""
+    (the operator's named review) — the caps and floors still bite.
+    params (Sep 29, THE CANARY PARAMS SEAM): the armed cell's
+    alpha/delta_max/daily_cap override the module defaults FOR THIS
+    CALL — ops/canary_enable arms the gate-selected cell and the
+    boundary hook threads it through; every record carries the cell
+    it evaluated under (the armed params are provably live)."""
     pg = _pg()
     now = datetime.now().astimezone()
     st = pg._state()
     before = read_guard_factor()
+    # THE EFFECTIVE CELL (the params seam): each key falls back to the
+    # module default when the armed cell omits it — a partial cell is
+    # honored key-by-key, never all-or-nothing.
+    _p = params or {}
+    _cap = DAILY_CAP if _p.get("daily_cap") is None else float(_p["daily_cap"])
     rec = {"day": _today_key(now), "rotation_id": rotation_id,
            "status": "refused", "before": before, "after": before,
            "delta": float(delta), "reason": "",
-           "evidence": evidence_checksum, "applied_at": now.isoformat()}
+           "evidence": evidence_checksum,
+           "params": {"alpha": (ALPHA if _p.get("alpha") is None
+                                else float(_p["alpha"])),
+                      "delta_max": (DELTA_MAX if _p.get("delta_max") is None
+                                    else float(_p["delta_max"])),
+                      "daily_cap": _cap},
+           "applied_at": now.isoformat()}
     try:
         if delta >= 0:
             rec["reason"] = "non_negative_delta_is_not_self_adjust"
@@ -311,7 +328,7 @@ def apply_adjustment(delta: float, rotation_id: str,
             # other writer's (self_adjust's) live state.
             pg._save({"auto_adjust_ledger": _ledger(st)})
             return rec
-        elif daily_delta_sum(st, now) + abs(delta) > DAILY_CAP + 1e-9:
+        elif daily_delta_sum(st, now) + abs(delta) > _cap + 1e-9:
             rec["reason"] = "daily_cap_exceeded"
         else:
             after = clamp(before, delta)
@@ -394,10 +411,13 @@ def propose_from_aggregate(rotation_id: str, B: int, P: int,
         return {"status": "refused", "reason": reason, "delta": 0.0,
                 "evidence": cks, "bundle": str(d)}
     conc = concentration(per_gate)
+    # THE CELL RIDES THE WHOLE PATH (the params seam, completed): the
+    # same params the delta was computed under govern the caps inside
+    # apply_adjustment — and land in its record for the proof.
     rec = apply_adjustment(
         delta, rotation_id, cks, per_gate=per_gate,
         auto=conc <= CONCENTRATION_MAX,
-        override_concentration=operator_override)
+        override_concentration=operator_override, params=params)
     rec["bundle"] = str(d)
     rec["concentration"] = round(conc, 4)
     return rec

@@ -138,6 +138,42 @@ try:
     os.environ.pop(ex.ENABLED_KEY, None)
     _dialfile.unlink()
 
+    # ── 1.9 THE PARAMS SEAM READ (Sep 29): _aa_params returns the
+    #    armed cell's ALL THREE keys from the cohort file, empty when
+    #    absent or malformed — the boundary hook's proof that arming
+    #    is live (the canary params ride, not the module defaults).
+    try:
+        _params_file = _extext_tmp / "params_cohort.json"
+        _params_file.write_text(json.dumps({
+            "cohort_id": "canary-params", "params": {
+                "alpha": 0.03, "delta_max": 0.05, "daily_cap": 0.06}}),
+            encoding="utf-8")
+        _old_cohort_env = os.environ.get(ex.AA_COHORT_ENV)
+        os.environ[ex.AA_COHORT_ENV] = str(_params_file)
+        _p = ex._aa_params()
+        check("1.9a _aa_params reads the armed cell's ALL THREE keys "
+              "from the cohort file (the cap rides with the cell) "
+              f"[{_p}]",
+              _p == {"alpha": 0.03, "delta_max": 0.05,
+                     "daily_cap": 0.06})
+        _params_file.write_text(json.dumps(
+            {"cohort_id": "canary-partial", "params": {
+                "alpha": 0.04, "bogus": 1.0}}), encoding="utf-8")
+        check("1.9b _aa_params keeps only the cell keys, dropping "
+              f"unknown ones [{ex._aa_params()}]",
+              ex._aa_params() == {"alpha": 0.04})
+        (_extext_tmp / "empty_cohort.json").write_text(
+            json.dumps({"cohort_id": "canary-bare"}), encoding="utf-8")
+        os.environ[ex.AA_COHORT_ENV] = str(_extext_tmp / "empty_cohort.json")
+        check("1.9c a legacy cohort without params reads EMPTY (the "
+              f"module defaults ride) [{ex._aa_params()}]",
+              ex._aa_params() == {})
+    finally:
+        if _old_cohort_env is not None:
+            os.environ[ex.AA_COHORT_ENV] = _old_cohort_env
+        else:
+            os.environ.pop(ex.AA_COHORT_ENV, None)
+
     # ── 2. the cut-class gate ─────────────────────────────────────────
     check("2.1 the profit guard IS a cut (the study's measured class)",
           ex.is_cut_reason("PROFIT GUARD FIRED — dropped 3.4% from the peak"))
