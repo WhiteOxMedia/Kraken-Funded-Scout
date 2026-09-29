@@ -2447,17 +2447,51 @@ def _danger_zone_panel(exchange, pair: str, spend: float, goal_pct: float,
         # 3. purchase power: full 25% flat vs reduced in-trade
         _full25 = 0.25 * _bal
         _red25 = 0.25 * _avail
+        _units = None
+        _ask = 0.0
+        _consumed = 0.0
         _carry = None
+        _eff = min(spend, _red25 if _committed > 0 else _full25)
         try:
             from execution_tiers import measure_book
-            _tob = float((measure_book(exchange, pair) or {}).get("ask_tob") or 0.0)
+            _ob = measure_book(exchange, pair) or {}
+            _tob = float(_ob.get("ask_tob") or 0.0)
             if _tob > 0:
                 _carry = _tob * 0.20
-        except Exception:
-            _carry = None
-        _eff = min(spend, _red25 if _committed > 0 else _full25)
-        if _carry is not None:
-            _eff = min(_eff, _carry)
+                _eff = min(_eff, _carry)
+            _ask = float(_ob.get("best_ask") or 0.0)
+            if _ask > 0 and _eff > 0:
+                _budget = _eff
+                _carry_units = 0.0
+                for _p, _s in (_ob.get("asks") or [])[:25]:
+                    if _budget <= 0:
+                        break
+                    _take = min(_budget, _p * _s)
+                    _carry_units += _take / _p
+                    _budget -= _take
+                _units = min(_eff / _ask, _carry_units)
+                _consumed = _eff - max(0.0, _budget)
+        except Exception as _exc:
+            logger.debug("book read for buying power / recommended "
+                         "entry failed (%s) — the popup degrades honestly",
+                         _exc)
+
+        # 3b. THE RECOMMENDED ENTRY (user rule, Sep 29: "the popups still
+        # need to include the recommended amount to enter with based on
+        # the real current market size"): the effective spend translated
+        # into UNITS at the live best ask — the real market size — and
+        # clipped so the ask book actually carries those units (a 25%
+        # slice deeper than the book is fiction; the book's real carry
+        # wins). Unknown ask → an honest SKIP line, never a guess.
+        _asset_unit = pair.split("/")[0] if "/" in pair else pair
+        if _units is not None and _units > 0:
+            _enter_line = (f"  ENTER: ~{_units:,.2f} {_asset_unit} at "
+                           f"${_ask:,.4f} ≈ ${_consumed:,.0f} "
+                           f"(recommended entry — sized to what the "
+                           f"book actually carries)\n")
+        else:
+            _enter_line = ("  ENTER: — (live ask unreadable; size at "
+                           "your own risk)\n")
 
         # 4. danger zone + this trade's impact
         _dd_pct = max(0.0, (_start - _bal) / _start * 100.0) if _start > 0 else 0.0
@@ -2512,6 +2546,7 @@ def _danger_zone_panel(exchange, pair: str, spend: float, goal_pct: float,
             f"  {_pos_line}\n"
             f"  Buying power: full 25% ${_full25:,.0f} · "
             f"reduced ${_red25:,.0f} · effective ${_eff:,.0f}\n"
+            f"{_enter_line}"
             f"  Drawdown: {_dd_pct:.1f}% · distance to line: "
             f"{_dist_pct:.1f}% (${_buf:,.0f})\n"
             f"  This trade: {_impact} (goal +${_goal_gain:,.0f} vs "

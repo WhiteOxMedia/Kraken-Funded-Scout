@@ -156,6 +156,50 @@ check("the panel INFORMS, never gates (no return on its output)",
       "def _danger_zone_panel" in src and
       src.count("_danger_zone_panel(") >= 4)
 
+# ── 8. THE RECOMMENDED ENTRY (user rule, Sep 29: "the popups still
+# need to include the recommended amount to enter with based on the
+# real current market size") ──────────────────────────────────────────
+# deep book at a known ask: units = effective spend / live ask
+ex = _setup()
+et.measure_book = lambda ex2, pair: {"ask_tob": 200000.0, "best_ask": 100.0,
+                                     "asks": [[100.0, 500.0]]}
+p = bs._danger_zone_panel(ex, "BTC/USD", 1800.0, 1.5, 60.0, 0.75)
+# flat: full25 $2,479, carry $40,000 -> eff $1,800 -> 18.00 units
+check("entry: units = effective spend / live ask",
+      "ENTER: ~18.00 BTC at $100.0000 ≈ $1,800" in p, "")
+check("entry: the line is labeled the recommended entry",
+      "recommended entry" in p and "book actually carries" in p, "")
+
+# the walk crosses an ask level: units reflect the REAL market size,
+# not a naive best-ask division (flat full-25% caps at $2,479.25;
+# L1 $2,000 buys 20, L2 $479.25 at $110 buys 4.3568 -> 24.36 total)
+et.measure_book = lambda ex2, pair: {"ask_tob": 35000.0, "best_ask": 100.0,
+                                     "asks": [[100.0, 20.0], [110.0, 300.0]]}
+p = bs._danger_zone_panel(ex, "BTC/USD", 2500.0, 1.5, 60.0, 0.75)
+check("entry: crossing ask levels walks the real book (not naive /ask)",
+      "ENTER: ~24.36 BTC at $100.0000 ≈ $2,479" in p, "")
+
+# unreadable ask: the honest SKIP line, never a guess
+et.measure_book = lambda ex2, pair: {"ask_tob": 200000.0}
+p = bs._danger_zone_panel(ex, "BTC/USD", 1800.0, 1.5, 60.0, 0.75)
+check("entry: unreadable ask ships the honest SKIP line",
+      "ENTER: —" in p and "unreadable" in p, "")
+
+# empty asks with a quoted ask: zero carry -> SKIP, not 0 units
+et.measure_book = lambda ex2, pair: {"ask_tob": 200000.0, "best_ask": 100.0,
+                                     "asks": []}
+p = bs._danger_zone_panel(ex, "BTC/USD", 1800.0, 1.5, 60.0, 0.75)
+check("entry: an empty ask book degrades to the SKIP line too",
+      "ENTER: —" in p, "")
+
+# the unit symbol comes from the pair (FIL/USD -> FIL — the Sep-29
+# "FIL at $0" confusion is why this line exists)
+et.measure_book = lambda ex2, pair: {"ask_tob": 200000.0, "best_ask": 1.075,
+                                     "asks": [[1.075, 5000.0]]}
+p = bs._danger_zone_panel(ex, "FIL/USD", 34.58, 1.5, 60.0, 0.75)
+check("entry: the unit symbol comes from the pair (FIL regression)",
+      "ENTER: ~32.17 FIL at $1.0750 ≈ $35" in p, "")
+
 out = "\n".join(lines) + f"\n\n{PASS} passed, {FAIL} failed\n"
 open(scratch_space.report_temp('_dangerzone_check.txt'), "w", encoding="ascii", errors="replace").write(out)
 print(out)
