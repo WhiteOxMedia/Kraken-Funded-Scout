@@ -22,7 +22,14 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 POOL = HERE.parent / "monero_project"
 DRIVE = POOL / "test_readme_docs.py"
-POOL_PY = POOL / ".venv" / "Scripts" / "python.exe"
+# PER-PLATFORM VENV RESOLUTION (the pool-prefs wrapper's fix, mirrored:
+# the round-3 review's minor — Windows keeps Scripts/, POSIX keeps
+# bin/; a missing venv fails the pool drive honestly, a bare `python`
+# would import the WRONG world)
+_pool_py = POOL / ".venv" / "Scripts" / "python.exe"
+if not _pool_py.exists():
+    _pool_py = POOL / ".venv" / "bin" / "python"
+POOL_PY = _pool_py
 SKIP_NOTE = "pool docs-rot drive self-skipped (unexpected: it has no skip path)"
 
 SKIP_EXIT = 42          # run_battery maps exit 42 (+ SKIP: line) to SKIP
