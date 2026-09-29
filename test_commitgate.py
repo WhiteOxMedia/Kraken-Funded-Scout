@@ -27,6 +27,7 @@ import stat
 import subprocess
 import sys
 import tempfile
+import time
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
@@ -395,6 +396,9 @@ if not RERUN:
     # not exist — a broken passthrough would silently break EVERY git
     # call in the hook (its own `git diff --cached` goes empty and the
     # hook exits at nothing-staged before the banner ever speaks).
+    # the drill's clock (set BEFORE its first hook run): the no-leak
+    # sweep only owes worktrees created from here on
+    _drill_t0 = time.time()
     _real_git = (shutil.which("git") or "git").replace("\\", "/")
     shim_git.write_text(
         '#!/usr/bin/env bash\n'
@@ -432,10 +436,8 @@ if not RERUN:
     #       temp dir created by THIS drill's hook runs must be gone.
     import glob as _glob
     def _wt_sweep():
-        _live = set(_glob.glob(
+        _cands = set(_glob.glob(
             str(Path(tempfile.gettempdir()) / "cr-worktree.*")))
-        if _live:
-            return _live                       # hot: a leak
         # cold sweep: MSYS /tmp and the user Temp dir can be different
         # roots on Windows — a leak in either must be seen
         _roots = {tempfile.gettempdir()}
@@ -447,10 +449,15 @@ if not RERUN:
                 _roots.add(_mt.stdout.strip())
         except Exception:
             pass
-        _found = set()
         for r in _roots:
-            _found |= set(_glob.glob(str(Path(r) / "cr-worktree.*")))
-        return _found
+            _cands |= set(_glob.glob(str(Path(r) / "cr-worktree.*")))
+        # TIME-SCOPED (the round-6 minor): only dirs MODIFIED during
+        # this drill count — an older session's live cr-worktree (a
+        # concurrent review on this shared box) is not this drill's
+        # leak, and claiming it flakes the drive for an hour.
+        import os as _os
+        return {c for c in _cands
+                if _os.path.getmtime(c) >= _drill_t0 - 5}
     _wt_left = _wt_sweep()
     _ref_left = _git("for-each-ref", "refs/cr-snapshot-*").stdout.strip()
     check(2.46, not _wt_left and not _ref_left,

@@ -3457,16 +3457,20 @@ def _track_day_giveback(unrealized: float) -> dict:
                   "tightened": False}
         else:
             # a day that opens AT zero is a valid baseline — only an
-            # absent key counts as 'no peak yet' (the round-5 review)
+            # absent key counts as 'no peak yet' (the round-5 review,
+            # now in the UPDATE too: a stored 0.0 is a peak, not a
+            # missing one — the round-6 line-precise minor)
             if "peak_total" not in gb:
                 gb["peak_total"] = _total
                 gb["peak_ts"] = _now
-        if _total > float(gb.get("peak_total") or _total):
+        _peak = gb.get("peak_total")
+        _peak = _total if _peak is None else float(_peak)
+        if _total > _peak:
             gb["peak_total"] = _total
             gb["peak_ts"] = _now
+            _peak = _total
         gb["now_total"] = round(_total, 2)
-        gb["give_back"] = round(float(gb.get("peak_total") or _total)
-                                - _total, 2)
+        gb["give_back"] = round(_peak - _total, 2)
         if (gb["give_back"] >= GIVEBACK_TIGHTEN_TRIGGER_USD
                 and not gb.get("tightened")):
             _before = _aa_gb.read_guard_factor()
@@ -3984,6 +3988,20 @@ def contest_light(exchange, cfg):
                             "verdict fires when the window lapses)",
                             pair, why_ext)
                 _last_exit_voice.pop(pair, None)   # the real exit shouts instantly later
+                # THE RIDE PRICES (the round-6 major): the goal call —
+                # where _unrealized_sum += usd lives — sits AFTER this
+                # continue, so a suppressed book's unrealized leg never
+                # reached the give-back watermark: the ledger would
+                # tighten on a phantom drawdown and MISS the ride's
+                # recovery. Accumulate the extended book's live P&L
+                # right here, exactly as the goal call would.
+                try:
+                    _usd_ext = ((float(live) / float(entry) - 1.0)
+                                * float(w.get("size") or 0.0))
+                    _unrealized_sum += _usd_ext
+                except Exception as _ug_exc:
+                    logger.debug("give-back extended-book pricing skipped "
+                                 "for %s (%s)", pair, _ug_exc)
                 continue
             if _had_stamp and "exit_extension" not in w:
                 # the window lapsed and the seam cleared the stamp —

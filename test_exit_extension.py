@@ -501,6 +501,28 @@ try:
     check("11.12 the hard stop is a NEVER mark in the source (the "
           "critical class must stay dead)",
           "STOPPED OUT" in _nev_seg and "STOPPED OUT" not in _cut_seg)
+    # THE HARD-STOP PRECEDENCE (the round-6 gate stream's major): even
+    # with an ACTIVE window stamp, a STOPPED OUT verdict must EXIT —
+    # is_cut_reason consults _NEVER_MARKS BEFORE the active-window
+    # block, so the account-killer can never be suppressed by a ride.
+    # The stamp SURVIVING the verdict proves the never-cut path ran
+    # (a window lapse would have cleared it).
+    _w_stop = {"pair": "OP/USD", "entry": 0.1478, "goal_pct": 2.5,
+               "exit_extension": {"until": (datetime.now().astimezone()
+                                            + timedelta(hours=4)
+                                            ).isoformat()},
+               "added": (datetime.now().astimezone()
+                         - timedelta(hours=2)).isoformat()}
+    v, why = ex.exit_verdict("OP/USD", _w_stop,
+                             "STOPPED OUT — down $120 (the stop is "
+                             "-$75 — half the death-line). The trade "
+                             "failed — get out, wait for the next one.",
+                             live=0.14)
+    check("11.17 an ACTIVE window never suppresses the hard stop "
+          "(STOPPED OUT exits through the ride; the account-killer "
+          "outranks every window)",
+          v == "exit" and "not a cut-class exit" in why
+          and isinstance(_w_stop.get("exit_extension"), dict))
     _env(ex.ENABLED_KEY, "0")
 finally:
     # restore the operator's world exactly (leak-audit: env + files)

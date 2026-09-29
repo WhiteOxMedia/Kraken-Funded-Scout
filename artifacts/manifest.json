@@ -985,6 +985,22 @@
         "test_fleetsweep.py": "sha256:3e8149fb87e1eae1724d5a7b176d72783a85404b0d4e8c8fe51cf82b6ce44848",
         "hooks/pre-commit": "sha256:4f5dc242a242f056c17a7d5c0b5628f5a87c83dac3d4f75229ccb78cf8b29b77"
       }
+    },
+    "41-lineprecise-round6": {
+      "commits": [
+        "<this commit>"
+      ],
+      "branch_name": "master",
+      "date": "2026-09-29",
+      "title": "THE LINE-PRECISE STREAM LANDS: THE GIVE-BACK WATERMARK FREEZE CLOSES FOR GOOD, THE RIDE PRICES INTO THE LEDGER, THE HARD-STOP PRECEDENCE IS PROVEN NOT TRUSTED (Sep 29, lineprecise-round6)",
+      "detail": "The first fully line-precise gate stream (9 findings) triaged and adjudicated. FIXED (5): (1) the give-back UPDATE comparison still used the 'or _total' fallback — a stored 0.0 peak froze the watermark forever (round-5 fixed only the day-roll branch; the surviving half of the major); None-means-missing now, 0.0 is a baseline. (2) THE RIDE PRICES: the seam suppress path continue-skipped the goal call where _unrealized_sum += usd lives, so an EXTENDED book never fed the give-back ledger — the ledger would tighten on a phantom drawdown and miss the ride recovery; the suppressed tick now accumulates the book live P&L exactly as the goal call would (scanner-side: live after the restart). (3) ui/hindsight_panel_spec expected-payoff note said P_g x (1 - r_g) while its own example table computes B_g - P_g; the note now derives the missed-pays form (stale-move 1-0=+1.0, rendered, never a bare 0). (4) test_commitgate no-leak sweep is mtime-scoped to the drill (an older session live cr-worktree on this shared box is not this drill leak — observed 3 flakes while the previous commit post-commit review ran). (5) test_exit_extension 11.17: the hard-stop major (seam suppresses STOPPED OUT during a window) DISMISSED on precedence — is_cut_reason consults _NEVER_MARKS before the active-window block — and proven behaviorally: an active-window row receives STOPPED OUT and EXITS with the stamp surviving. Also pinned: the giveback zero-peak contract in test_giveback (sandboxed guard state + telemetry sink, the tracker fires ONCE through the machine rails). DISMISSED (3): fleet_sweep load_classes whole-doc — matches the tool doc (direct drive->entry map), the fix would break the format; simsweep grouping check — the real enforcement lives in per_gate_export.full_rotation_id, the drive documents the convention. Drives: giveback ALL PASS, extext 61/0, commitgate 70/0 x2, allgoodlead 26/0, autotrack 0, trailstop 0, rebootsurv 25/0, boundaryexam 35/0, fleetsweep 10/0.",
+      "checksums": {
+        "background_scanner.py": "sha256:80fad4d5c273fa557c5c86260a9a44a36162f6193af77e8c75b0d0ca35f20f18",
+        "test_giveback.py": "sha256:41337ada287b513177a06c00ca6c84f174452fe4de41789fdb61dc551fe83f8a",
+        "test_exit_extension.py": "sha256:a555990d645e7e553a576cc18fa24b84210a2d2a76b2bfaee9b75551f8069068",
+        "test_commitgate.py": "sha256:2c2dba874d506636e0675a4fc7084f1b54d87bb54c26515668f9fd57f3f60a34",
+        "ui/hindsight_panel_spec.md": "sha256:c56367540bf8fea67012e8ba32f0c26438676a320355bb8828d14bda0ccab957"
+      }
     }
   }
 }
