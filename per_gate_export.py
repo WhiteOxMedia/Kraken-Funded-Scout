@@ -162,12 +162,17 @@ def rotation_summary(rows: list[dict]) -> dict:
     return {"B": B, "P": P, "r": (P / B) if B else None}
 
 
+def default_rotation_id(now: datetime | None = None) -> str:
+    """The journal's rot stamp for the rotation holding `now` — 4h
+    windows, the same shape the scanner stamps (e.g. '12-16')."""
+    now = now or _now_mst()
+    start = (now.hour // 4) * 4
+    return f"{start:02d}-{(start + 4) % 24:02d}"
+
+
 def main() -> int:
     import sys
-    rot = sys.argv[1] if len(sys.argv) > 1 else \
-        _now_mst().strftime("%Y-%m-%d") + "-" + \
-        _now_mst().strftime("%H")[:-1] + \
-        f"{int(_now_mst().strftime('%H')) // 4 * 4:02d}-{(int(_now_mst().strftime('%H')) // 4 * 4 + 4) % 24:02d}"
+    rot = sys.argv[1] if len(sys.argv) > 1 else default_rotation_id()
     goal = float(sys.argv[2]) if len(sys.argv) > 2 else DEFAULT_GOAL_PCT
     rows = dedup_first(load_rotation_rows(
         ROOT / "popup_suppressions.jsonl", rot))

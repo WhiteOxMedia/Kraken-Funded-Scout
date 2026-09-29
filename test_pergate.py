@@ -152,6 +152,14 @@ check("the CSV artifact carries the header, both gates, and 4-place "
       and "deep-veto,1,1,1.0000" in content
       and "tide-out,2,1,0.5000" in content, content)
 
+check("the default rotation id is the scanner's 4h window stamp (the "
+      "isolated review's major: the old default could never match a "
+      "journal rot)",
+      pge.default_rotation_id(datetime(2026, 9, 28, 16, 1)) == "16-20"
+      and pge.default_rotation_id(datetime(2026, 9, 28, 0, 7)) == "00-04"
+      and pge.default_rotation_id(datetime(2026, 9, 28, 23, 59)) == "20-00",
+      pge.default_rotation_id())
+
 # the LIVE path: real journals, read-only, no exception
 try:
     live_rows = pge.dedup_first(pge.load_rotation_rows(
