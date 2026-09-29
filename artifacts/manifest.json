@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-09-28T19:47:01.581907-06:00",
+  "generated_at": "2026-09-28T20:17:03.569978-06:00",
   "head_commit": "794973b",
   "machine": "kraken_scout (C:/Users/birds/Workspace/kraken_scout)",
   "delivery": "gated master commits (no git remote configured); isolated CodeRabbit review on every commit",
@@ -316,6 +316,59 @@
       "results": "121 checks, 0 failed",
       "acceptance": true,
       "notes": ""
+    },
+    "10-analyst-deltas": {
+      "commits": [
+        "feb62c6",
+        "bd20678"
+      ],
+      "branch_name": "master (gated commits)",
+      "commands_run": [
+        "uv run python -X utf8 test_topfill.py",
+        "uv run python -X utf8 top_payers.py 2026-09-28-16-20",
+        "uv run python -X utf8 simulate_sweep.py --focused --rotations 30",
+        "uv run python -X utf8 ops/canary_enable.py --symbols BTC,ETH,SOL  (dry run; NOT armed)"
+      ],
+      "artifacts": [
+        {
+          "path": "top_payers.py",
+          "sha256": "sha256:64bfe3a7b9484ee99253b4d09e4008061e11302c6921ba4261a6fc1528432f3d"
+        },
+        {
+          "path": "test_topfill.py",
+          "sha256": "sha256:db7967f4b762e211befa2fc3d62a8537321154e5d3649a13139d3c6171bdd0ab"
+        },
+        {
+          "path": "ops/canary_enable.py",
+          "sha256": "sha256:b195bc3b8c4cd14848eaf407f6230ba0b9d5b31a1f671944bcd8f432e0a14558"
+        },
+        {
+          "path": "artifacts/top_payers/top_payers_2026-09-28-16-20.csv",
+          "sha256": "sha256:f9966a2dddd65dc4ba48d9beaf8d7627b29bf4fc32dde8b734515c6faf6a5b92"
+        },
+        {
+          "path": "artifacts/top_payers/top_payers_2026-09-28-16-20.json",
+          "sha256": "sha256:c30f0ca7a05f0c496299f7287a98d6c334c2bc11b7805ab04e278c1fc3881ed4"
+        },
+        {
+          "path": "artifacts/top_payers/_topfill_drive.txt",
+          "sha256": "sha256:c71554693651b6cce9ce21bc6c7da2ed5aa53ce10b9983721097ac1a928176d9"
+        },
+        {
+          "path": "artifacts/sim/reports/sensitivity_focused_2026-09-28.json",
+          "sha256": "sha256:20c5f811205790305364345eef23602ffc490e585951ec59a2fdbeefca0301d0"
+        }
+      ],
+      "tests_run": [
+        "test_topfill.py",
+        "test_simsweep.py",
+        "test_apptest.py",
+        "test_autoadjust.py",
+        "test_referee_gfdelta.py"
+      ],
+      "results": "topfill 12/0, sweep 18/0, apptest 294/0, autoadjust 24/0, referee 20/0",
+      "acceptance": true,
+      "notes": "fill model priced BOTH peak and realistic fill (spread/fee/zero-capture floor) with alpha scaling; top-10 payers on the console + CSV export (LINK +3.2% peak/+2.8% fill leads 16-20); focused 2x2 extract all cells inside the 0.10 cap; canary enable gate built and left DRY - arming live behavior is the operator's --yes"
     }
   }
 }
