@@ -3450,6 +3450,24 @@ def contest_light(exchange, cfg):
     exited_pairs = []
     voice_updates = []
     dirty = False
+    # ── THE AUTO-ADJUST CANARY HOOK (Sep 28): each rotation evaluates
+    # ITSELF at the boundary — the propose path rides the journal's own
+    # rot stamp, gated behind the canary dial, watermarked against
+    # restarts. B_MIN/R_MIN refuse on a thin window (the machine being
+    # right); the box/ledger merge-save is owner-keys-only (the
+    # round-2 sweep), so self_adjust's keys can never be erased here.
+    try:
+        _wk = (_rotation_window() or (None, None, None))[2]
+        if _wk:
+            _aar = _exx.aa_apply_silent_rotation(_wk)
+            if _aar.get("evaluated"):
+                logger.info(
+                    "AUTO-ADJUST CANARY: %s evaluated — %s%s",
+                    _wk, _aar.get("status"),
+                    f" ({_aar.get('reason')})" if _aar.get("reason") else "")
+    except Exception as _aa_exc:
+        logger.warning("auto-adjust canary hook failed (%s) — the "
+                       "rotation boundary proceeds without it", _aa_exc)
     # ── THE META LAYERS' TICKERS (user spec, Sep 22): the shadow trails
     # follow their exits and the end-game triggers watch the rotation
     # roll — both cadence-gated inside, fail-soft like everything here.

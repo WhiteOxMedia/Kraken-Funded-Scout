@@ -459,6 +459,22 @@
       "results": "apptest 301/0 (6 new wire-level pins), hindsightapi 27/0 (backend untouched)",
       "acceptance": true,
       "notes": "THE CONSOLE READS THE WIRE (the panel spec's zones 1-3 per its data contract): a read-only section under the ledger-fed burial panel renders hindsight_api's summary + gates endpoints for the CURRENT rotation - B/P/r/GF and the proposed delta with its reason in the headline, the per-gate table (the API's payers-first order) with the top-2 candidates per gate. READ-ONLY BY CONSTRUCTION: GETs only through ONE cached fetch funnel (60s TTL, HINDSIGHT_API_BASE env seam, default 127.0.0.1:8785); no direct file reads - no second brain; a dead API fail-closes to silence so the ledger-fed panel stands alone (proven with a connection-refused stub). Pins pin the wire: exactly two bare-window routes per render, never apply/rollback, the env seam moves the wire, the mount after the ledger panel. No backend changes."
+    },
+    "14-boundary-propose-wire": {
+      "commits": ["<this commit>"],
+      "branch_name": "master (gated commits)",
+      "commands_run": ["uv run python -X utf8 test_hindsightapi.py", "uv run python -X utf8 test_canary.py", "uv run python -X utf8 test_exit_extension.py", "uv run python -X utf8 test_apptest.py", "uv run python -X utf8 test_persistexit.py", "live re-arm: canary_runner.rollback() then flip_canary('canary-20260928_225950') onto the dedicated key"],
+      "artifacts": [
+        {"path": "background_scanner.py", "sha256": "sha256:2eda1475236f3c88c6b9610cf72401ffbb1cea16061bfeac4ac4198bf22fd602"},
+        {"path": "canary_runner.py", "sha256": "sha256:6fb1f33c766ad5c3b095ad716e977ec62cd197ec64bcef952cb6170b508ea028"},
+        {"path": "exit_extension.py", "sha256": "sha256:792d984470722f40f370a7e89036139f0759ad95f06a65cd7a2b23f5ac7deda8"},
+        {"path": "test_hindsightapi.py", "sha256": "sha256:be54f7119a1d5074ec1e2407636e07ac2b71e77a880cd43d24b55cf79ccaf727"},
+        {"path": "test_canary.py", "sha256": "sha256:18c584bb69a960422349b3bfb05e48cfe40cbe5015a036ee01f448961b169424"}
+      ],
+      "tests_run": ["hindsightapi 36/0 (9 new boundary pins)", "canary 11/0", "exit_extension 55/0", "apptest 301/0", "persistexit (green)"],
+      "results": "the propose path rides the live rotation boundary, gated + watermarked + one telemetry event per rotation",
+      "acceptance": true,
+      "notes": "THE BOUNDARY PROPOSES ITSELF (Sep 28): background_scanner's contest_light calls exit_extension.aa_apply_silent_rotation(current_window) per tick - gated behind the canary DIAL, evaluated ONCE per rotation (watermark aa_canary_last_rotation in scanner_state.json, read-re-read + atomic save, dedupe by stamp so every tick self-heals a missed boundary), the journal's own rot id rides hindsight_api.apply_action(auto_apply) with EVERY rail live (concentration gate, daily cap, evidence bundle, ledger) and ONE spec-shaped telemetry event per rotation (applied_by=rotation_boundary, the non-secret label; apply_action is the single emit funnel - no double events). THE DIAL KEY IS DEDICATED (the recurring reuse major, closed): canary_runner.AA_CANARY_KEY = AUTO_ADJUST_CANARY rides the cohort; the feature master EXIT_EXTENSION_ENABLED is never clobbered by a flip (byte-exact preserved), rollback keeps its documented stop-everything semantic and de-contaminates legacy 'canary' junk on the master to OFF; read_dial reports canary from the dedicated key. THE LIVE DIAL WAS RE-ARMED into the new shape: master 0, AUTO_ADJUST_CANARY=canary-20260928_225950 (the sign-off cohort) - the boundary hook is LIVE on the machine: each completed rotation now evaluates itself. Drive pins: dial-off refusal (nothing touched), flip key shape, full-path evaluation with named status, one event (rot id + cohort + applied_by + real B/P/per-gate), watermark no-rewrite, stamp in scanner_state, per-tick call shape, rollback de-contamination."
     }
   }
 }

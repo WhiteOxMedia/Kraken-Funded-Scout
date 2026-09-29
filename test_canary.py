@@ -40,11 +40,13 @@ try:
     # the flip: canary mode announces the cohort
     flipped = cr.flip_canary("canary-1")
     doc = _dial_doc()
-    check("the flip writes the machine's dial to canary with the "
-          "cohort id (the spec's opsctl set, in the machine's form)",
+    check("the flip writes the DEDICATED canary key with the cohort id "
+          "(the feature master EXIT_EXTENSION_ENABLED is never clobbered "
+          "— the reuse major stays closed)",
           flipped["dial"] == "canary"
-          and doc.get("EXIT_EXTENSION_ENABLED") == "canary"
-          and doc.get("cohort_id") == "canary-1", doc)
+          and doc.get("AUTO_ADJUST_CANARY") == "canary-1"
+          and doc.get("cohort_id") == "canary-1"
+          and "EXIT_EXTENSION_ENABLED" not in doc, doc)
     check("the dial reads back through the machine's reader",
           cr.read_dial() == "canary", cr.read_dial())
 

@@ -50,11 +50,17 @@ def _commit_sha() -> str:
 
 # ── the dial (the machine's real operator surface) ──────────────────
 def read_dial(doc: dict | None = None) -> str:
+    """The canary-state reader: the DEDICATED cohort key set = 'canary'
+    (the feature master is never consulted for the cohort); otherwise
+    the master's own value. A bare 'canary' left on the master by the
+    old reuse reads as junk, not as a cohort."""
     if doc is None:
         try:
             doc = json.loads(DIAL_FILE.read_text(encoding="utf-8"))
         except (OSError, ValueError):
             doc = {}
+    if str(doc.get(AA_CANARY_KEY, "") or ""):
+        return "canary"
     return str(doc.get("EXIT_EXTENSION_ENABLED", "0"))
 
 
@@ -71,6 +77,14 @@ def _write_dial(doc: dict) -> None:
     os.replace(tmp, DIAL_FILE)
 
 
+# THE DEDICATED CANARY DIAL KEY (the isolated review's major, closed):
+# the feature master (EXIT_EXTENSION_ENABLED) is the machine's own arm
+# switch and is NEVER reused as a cohort marker — 'canary' meant OFF to
+# the reader but silently clobbered the operator's real value on flip.
+# The cohort rides its own key; the master is preserved byte-exact.
+AA_CANARY_KEY = "AUTO_ADJUST_CANARY"
+
+
 def flip_canary(cohort_id: str, doc: dict | None = None) -> dict:
     """watch_extension.enabled = canary: the machine stays OFF for the
     book but announces the cohort the runner is watching."""
@@ -81,8 +95,8 @@ def flip_canary(cohort_id: str, doc: dict | None = None) -> dict:
             doc = json.loads(DIAL_FILE.read_text(encoding="utf-8"))
         except (OSError, ValueError):
             doc = {}
-    doc.update({"EXIT_EXTENSION_ENABLED": "canary",
-                "cohort_id": cohort_id})
+    doc.update({AA_CANARY_KEY: cohort_id,   # the machine key — the
+                "cohort_id": cohort_id})    # master is NEVER touched
     _write_dial(doc)
     return {"dial": "canary", "cohort_id": cohort_id}
 
@@ -100,6 +114,7 @@ def rollback(feature_doc: dict | None = None) -> dict:
             feature_doc = {}
     feature_doc["EXIT_EXTENSION_ENABLED"] = "0"
     feature_doc.pop("cohort_id", None)
+    feature_doc.pop(AA_CANARY_KEY, None)   # the cohort rides its own key
     _write_dial(feature_doc)
     return {"rolled_back": True, "dial": "0",
             "at": datetime.now().astimezone().isoformat()}

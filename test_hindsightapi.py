@@ -296,6 +296,122 @@ try:
     finally:
         srv.shutdown()
         srv.server_close()
+
+    # ── THE ROTATION-BOUNDARY HOOK (Sep 28): the propose path rides the
+    # boundary — gated behind the canary's OWN dial key, one evaluation
+    # per rotation (watermark in scanner_state), one telemetry event.
+    import os as _os_hook
+    import background_scanner as _bs_hook
+    import exit_extension as _exx_mod
+    import telemetry_adjust as _ta_mod
+    _real_hook = (_os_hook.environ.get("EXIT_EXTENSION_STATE_FILE"),
+                  _ta_mod.TELEMETRY_PATH, _bs_hook.__file__)
+    _sbx_dial = _sbx / "exit_extension.dial.json"
+    _hook_tel = _sbx / "boundary_telemetry.jsonl"
+    _os_hook.environ["EXIT_EXTENSION_STATE_FILE"] = str(
+        _sbx / "exit_extension_state.json")
+    _ta_mod.TELEMETRY_PATH = _hook_tel
+    _bs_hook.__file__ = str(_sbx / "background_scanner.py")   # the
+        # watermark store derives from __file__ (the apptest trick) —
+        # the drive's stamp lands in the sandbox, never the live state
+    try:
+        # dial off: the boundary answers honestly and touches nothing
+        _r0 = _exx_mod.aa_apply_silent_rotation("ROT-1", supp_path=sup,
+                                                cache_path=db)
+        check("the boundary hook refuses when the canary dial is off "
+              "(gated by name, nothing evaluated, no watermark)",
+              _r0 == {"evaluated": False, "reason": "canary_dial_off"}
+              and not _hook_tel.exists()
+              and not (_sbx / "scanner_state.json").exists(), _r0)
+        # arm the cohort via the runner's flip (the seam-moved dial)
+        import canary_runner as _cr2
+        _real_cr_dial = _cr2.DIAL_FILE
+        _cr2.DIAL_FILE = _sbx_dial
+        try:
+            _flip = _cr2.flip_canary("canary-boundary-1")
+            _dial_doc = json.loads(_sbx_dial.read_text(encoding="utf-8"))
+            check("the flip sets the DEDICATED canary key (the feature "
+                  "master EXIT_EXTENSION_ENABLED is never clobbered — "
+                  "the reuse major stays closed)",
+                  _flip["dial"] == "canary"
+                  and _dial_doc.get("AUTO_ADJUST_CANARY")
+                  == "canary-boundary-1"
+                  and "EXIT_EXTENSION_ENABLED" not in _dial_doc, _dial_doc)
+        finally:
+            _cr2.DIAL_FILE = _real_cr_dial
+        # THE BOUNDARY: the completed rotation evaluates with every
+        # rail live (concentration gate, cap, evidence, ledger)
+        _r1 = _exx_mod.aa_apply_silent_rotation("ROT-1", supp_path=sup,
+                                                cache_path=db)
+        check("the boundary hook evaluates the completed rotation "
+              "through the FULL propose path (a named status rides the "
+              "decision)",
+              _r1.get("evaluated") is True
+              and _r1.get("status") in ("applied", "queued", "refused"),
+              _r1)
+        _events = [json.loads(l) for l in
+                   _hook_tel.read_text(encoding="utf-8").splitlines()
+                   if l.strip()]
+        check("the boundary emitted ONE spec-shaped telemetry event "
+              "(the journal's own rot id, the cohort, the non-secret "
+              "applied_by)",
+              len(_events) == 1
+              and _events[0]["rotation_id"] == "ROT-1"
+              and _events[0]["cohort"] == "canary-boundary-1"
+              and _events[0]["applied_by"] == "rotation_boundary",
+              _events[0] if _events else None)
+        check("the boundary event carries the machine's numbers (B/P "
+              "and per-gate rows computed from the rot id, not zeros)",
+              isinstance(_events[0]["B"], int)
+              and _events[0]["B"] >= 5
+              and isinstance(_events[0]["per_gate"], list)
+              and _events[0]["per_gate"],
+              (_events[0]["B"], _events[0]["per_gate"]))
+        # the watermark: a second call is a nameable no
+        _r2 = _exx_mod.aa_apply_silent_rotation("ROT-1", supp_path=sup,
+                                                cache_path=db)
+        check("the watermark holds: the same rotation is never "
+              "evaluated twice (one event per rotation, ever)",
+              _r2.get("evaluated") is False
+              and _r2.get("reason") == "already_evaluated"
+              and len(_hook_tel.read_text(encoding="utf-8")
+                      .splitlines()) == 1, _r2)
+        check("the watermark lives in scanner_state (restart-proof: "
+              "the stamp rides the file the scanner already persists)",
+              _bs_hook._load_scanner_state()
+                  .get("aa_canary_last_rotation") == "ROT-1",
+              _bs_hook._load_scanner_state())
+        _bs_src_hook = (BASE / "background_scanner.py").read_text(
+            encoding="utf-8").replace("\r\n", "\n")
+        check("the scanner calls the hook per tick (every tick self-heals "
+          "a missed boundary — the dedupe is by stamp, not by cadence)",
+              "_exx.aa_apply_silent_rotation(_wk)" in _bs_src_hook, "")
+        # the rollback leg: legacy junk on the feature master is
+        # de-contaminated to the documented OFF (the reuse major's tail)
+        import canary_runner as _cr3
+        _real_cr3_dial = _cr3.DIAL_FILE
+        _cr3.DIAL_FILE = _sbx_dial
+        try:
+            _sbx_dial.write_text(json.dumps(
+                {"EXIT_EXTENSION_ENABLED": "canary"}), encoding="utf-8")
+            _r3 = _cr3.rollback()
+            _after = json.loads(_sbx_dial.read_text(encoding="utf-8"))
+            check("the rollback clears the cohort key and stops the "
+                  "machine (a legacy 'canary' junk on the master is "
+                  "de-contaminated to the documented OFF)",
+                  _r3["rolled_back"] is True
+                  and _after.get("AUTO_ADJUST_CANARY") is None
+                  and _after.get("EXIT_EXTENSION_ENABLED") == "0",
+                  _after)
+        finally:
+            _cr3.DIAL_FILE = _real_cr3_dial
+    finally:
+        _ta_mod.TELEMETRY_PATH = _real_hook[1]
+        _bs_hook.__file__ = _real_hook[2]
+        if _real_hook[0] is None:
+            _os_hook.environ.pop("EXIT_EXTENSION_STATE_FILE", None)
+        else:
+            _os_hook.environ["EXIT_EXTENSION_STATE_FILE"] = _real_hook[0]
 finally:
     if _real_state is not None:
         pg.STATE_FILE = _real_state

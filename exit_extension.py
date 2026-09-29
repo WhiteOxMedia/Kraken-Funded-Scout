@@ -54,6 +54,11 @@ ROOT = Path(__file__).resolve().parent
 
 # ── the dials (LIVE reads, SCHEDULER-style) ──────────────────────────
 ENABLED_KEY = "EXIT_EXTENSION_ENABLED"
+# THE AUTO-ADJUST CANARY'S OWN DIAL KEY (the review's reuse major,
+# closed): the cohort marker rides its own key — the feature master is
+# never clobbered by a flip and 'canary' on the master never arms this
+# path. Must match canary_runner.AA_CANARY_KEY (pinned in the drive).
+AA_CANARY_DIAL_KEY = "AUTO_ADJUST_CANARY"
 HOURS_KEY = "EXIT_EXTENSION_HOURS"
 DAILY_CAP_KEY = "EXIT_EXTENSION_MAX_PER_DAY"
 AGE_GATE_KEY = "EXIT_EXTENSION_MIN_AGE_MIN"
@@ -144,6 +149,63 @@ def read_dials() -> dict:
     age_gate = max(0.0, age_gate)
     return {"enabled": enabled, "hours": hours, "daily_cap": cap,
             "age_gate_min": age_gate}
+
+
+# ── THE AUTO-ADJUST CANARY HOOK (Sep 28): the propose path rides the
+# rotation boundary — each SILENT rotation evaluates itself through
+# hindsight_api's full rails (concentration gate, daily cap, evidence
+# bundle, ledger) and lands ONE spec-shaped telemetry event. Gated
+# behind the canary dial (the runner's own AA_CANARY_KEY — never the
+# feature master), watermarked so a restart cannot double-evaluate.
+def aa_apply_silent_rotation(
+        rot_key: str, goal_pct: float | None = None,
+        supp_path=None, cache_path=None) -> dict:
+    from per_gate_export import DEFAULT_GOAL_PCT as _DP
+    if goal_pct is None:
+        goal_pct = float(_DP)
+    # THE GATE (the canary runner's own dial key — the machine stays
+    # OFF for the book while the cohort is announced; a bare 'canary'
+    # on the feature master NEVER arms this path)
+    cohort = str(_dial(AA_CANARY_DIAL_KEY, "") or "")
+    if not cohort:
+        return {"evaluated": False, "reason": "canary_dial_off"}
+    # THE WATERMARK: scanner_state.json carries the last EVALUATED
+    # rotation stamp (bare window, matching the journal's own shape) —
+    # one evaluation per rotation across restarts and cadence ticks.
+    import background_scanner as _bs
+    _st = _bs._load_scanner_state()
+    if _st.get("aa_canary_last_rotation") == rot_key:
+        return {"evaluated": False, "reason": "already_evaluated"}
+    # THE EVALUATION (task 3's propose path, the journal's own rot id):
+    # every rail live — the concentration gate, the daily cap, the
+    # evidence bundle, the append-only ledger — and ONE telemetry event
+    # (apply_action emits it; the hook NEVER double-emits). The hook
+    # calls the propose path DIRECTLY: machine-internal, gated by the
+    # canary dial — the operator token gates the WIRE, not the
+    # machine's own boundary. applied_by rides the non-secret
+    # 'rotation_boundary' label so telemetry can tell a boundary
+    # decision from an operator or wire one.
+    import hindsight_api as _ha
+    try:
+        supp, cache = _ha._paths(supp_path, cache_path)
+        agg = _ha._rotation_aggregate(rot_key, goal_pct, supp, cache)
+        rec = _ha.apply_action(
+            rot_key, "auto_apply", confirm=True, goal_pct=goal_pct,
+            cohort=cohort, operator_id="rotation_boundary",
+            supp_path=supp_path, cache_path=cache_path)
+    except Exception as exc:
+        return {"evaluated": False, "reason": f"propose_error: {exc!r}"}
+    # THE WATERMARK LANDS LAST — a failed evaluation leaves no stamp
+    # and the next tick retries the whole path.
+    try:
+        _st2 = _bs._load_scanner_state()   # re-read: never clobber keys
+        _st2["aa_canary_last_rotation"] = rot_key
+        _bs._save_scanner_state(_st2)
+    except Exception:
+        pass
+    return {"evaluated": True, "status": rec.get("status"),
+            "reason": rec.get("reason"), "cohort": cohort,
+            "B": agg["B"], "P": agg["P"]}
 
 
 # ── the cut-class gate ───────────────────────────────────────────────
