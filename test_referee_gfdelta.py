@@ -153,9 +153,9 @@ finally:
 
 # the parity gate: a drifting frozen baseline aborts exit 3
 old = _sandbox_series([["2026-09-27", 1.0]])
+_gf_old = getattr(rg, "GF_FROZEN", None)   # captured BEFORE the override
 try:
     rg.GF_FROZEN = 1.0          # the drifted baseline (real state: 2.0)
-_gf_old = getattr(rg, "GF_FROZEN", None)
     buf = io.StringIO()
     with redirect_stdout(buf):
         rc = _main_rc()
