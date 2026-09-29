@@ -61,9 +61,17 @@ def discover_drives(only: list[str]) -> list[Path]:
 
 
 def load_classes() -> dict:
+    """THE NESTED SHAPE (the round-6 minor — the file's own structure):
+    entries live under the top-level "classes" object; the whole doc
+    (with its _readme) is never the lookup map. A broken or absent
+    file degrades to empty — the report still renders, everything
+    unclassified is RED."""
     try:
         data = json.loads(CLASSES_FILE.read_text(encoding="utf-8"))
-        return data if isinstance(data, dict) else {}
+        if not isinstance(data, dict):
+            return {}
+        nested = data.get("classes")
+        return nested if isinstance(nested, dict) else {}
     except Exception:
         return {}
 

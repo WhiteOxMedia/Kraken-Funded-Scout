@@ -18,6 +18,7 @@ contract, hermetically — NO subprocesses, NO repo state written. Pins:
      (bare/prefixed/suffixed names), classification file load (a
      broken file degrades to {}, never raises).
 """
+import json
 import sys
 from pathlib import Path
 
@@ -100,15 +101,41 @@ import tempfile as _tf
 _sbx_fs = Path(_tf.mkdtemp())
 _broken = _sbx_fs / "broken.json"
 _broken.write_text("{not json at all", encoding="utf-8")
+# THE NESTED SHAPE (the file's own structure — the round-6 minor I
+# first dismissed, re-verified against the file before the sweep): the
+# entries live under "classes"; returning the WHOLE doc made every
+# real classification invisible (lookup by 'drive' hit the _readme
+# level, classified debt rendered RED, exit 1). A flat legacy doc
+# still degrades gracefully to nothing-to-classify.
+_nested = _sbx_fs / "nested.json"
+_nested.write_text(json.dumps({
+    "_readme": "doc",
+    "classes": {"test_flaky.py": {"status": "FLAKY",
+                                 "note": "races the watchdog",
+                                 "verified": "2026-09-28"}},
+}), encoding="utf-8")
+_flat = _sbx_fs / "flat.json"
+_flat.write_text(json.dumps({"test_flaky.py": {"status": "FLAKY"}}),
+                 encoding="utf-8")
 _real_cls_file = fs.CLASSES_FILE
 try:
     fs.CLASSES_FILE = _broken
     degraded = fs.load_classes()
+    fs.CLASSES_FILE = _nested
+    nested = fs.load_classes()
+    fs.CLASSES_FILE = _flat
+    flat = fs.load_classes()
 finally:
     fs.CLASSES_FILE = _real_cls_file
 check("3.4 a broken classification file degrades to empty (never "
       "raises — the report still renders)",
       isinstance(degraded, dict) and degraded == {}, "")
+check("3.5 the NESTED classes object is the lookup map (the file's "
+      "own shape — _readme never rides as an entry); a flat legacy "
+      "doc degrades to empty rather than half-working",
+      set(nested) == {"test_flaky.py"}
+      and nested["test_flaky.py"]["status"] == "FLAKY"
+      and flat == {}, (nested, flat))
 
 fails = [r for r in results if not r[1]]
 print(f"RESULT: {len(results) - len(fails)} passed, {len(fails)} failed")
