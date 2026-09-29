@@ -146,18 +146,21 @@ try:
     check("stamps: a missing watch boots empty",
           bs._load_contest_watch() == {})
 
-    # THE TOMBSTONE ROUND-TRIP (the round-2 cross-writer sweep): a None
-    # value is the writers' deletion marker — it must survive on disk
-    # (a concurrent writer's whole-file view cannot resurrect it) and
-    # the loader must hide it from every reader.
+    # THE TOMBSTONE ROUND-TRIP (round 2, persisted round 7): a None
+    # value is the writers' deletion marker — it SURVIVES ON DISK as
+    # {"pair": null} (a concurrent writer's stale view cannot
+    # resurrect it: every save carries markers forward), and the
+    # loader hides it from every reader.
     WATCH.write_text("{}", encoding="utf-8")
     bs._save_contest_watch({"AAA/USD": dict(rows["ADA/USD"]),
                             "BBB/USD": None})
     got = bs._load_contest_watch()
-    check("stamps: a tombstoned row is hidden from the reader and gone "
-          "from the disk (None-means-delete round-trips)",
+    check("stamps: a tombstoned row is hidden from the reader and "
+          "PERSISTED as {\"BBB/USD\": null} on the disk (the marker "
+          "is the machine's last word — the round-7 answer)",
           "BBB/USD" not in got and "AAA/USD" in got
-          and "BBB/USD" not in json.loads(WATCH.read_text(encoding="utf-8")),
+          and json.loads(WATCH.read_text(encoding="utf-8"))
+          .get("BBB/USD", "missing") is None,
           (sorted(got), WATCH.read_text(encoding="utf-8")[:80]))
 
     _sv = _pbs.replace("\r\n", "\n")

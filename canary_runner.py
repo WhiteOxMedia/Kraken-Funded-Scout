@@ -70,6 +70,23 @@ def _commit_sha() -> str:
 # remains the operator's feature surface alone.
 COHORT_FILE = ROOT / "auto_adjust_canary.json"
 
+# THE COHORT FILE RESOLVES LIVE (the round-7 major): the env seam FIRST
+# — AUTO_ADJUST_CANARY_FILE, the same seam exit_extension._aa_cohort has
+# honored since the two-file design — then the module path. An
+# import-frozen path made the runner's flip/rollback blind to the seam:
+# a sandbox that set the env moved the HOOK's read but not the RUNNER's
+# write, so an armed or simulated run in that sandbox still flipped the
+# LIVE cohort file (the isolation break), and a rollback could not stop
+# a cohort the env pointed at. One env move now sandboxes the whole
+# two-module pair.
+COHORT_ENV = "AUTO_ADJUST_CANARY_FILE"
+
+
+def cohort_file() -> Path:
+    """Resolved NOW, never import-frozen (the STATE_ENV pattern)."""
+    explicit = os.environ.get(COHORT_ENV)
+    return Path(explicit) if explicit else COHORT_FILE
+
 
 def _read_json(path: Path) -> dict:
     try:
@@ -93,9 +110,10 @@ def _write_atomic(path: Path, doc: dict) -> None:
 
 
 def read_cohort(doc: dict | None = None) -> str:
-    """The armed cohort id from the cohort's OWN file; '' = disarmed."""
+    """The armed cohort id from the cohort's OWN file; '' = disarmed.
+    The file resolves LIVE: the env seam first, then the module path."""
     if doc is None:
-        doc = _read_json(COHORT_FILE)
+        doc = _read_json(cohort_file())
     return str(doc.get("cohort_id", "") or "")
 
 
@@ -145,10 +163,11 @@ def flip_canary(cohort_id: str, doc: dict | None = None,
     if params:
         cur["params"] = {str(k): float(v) for k, v in params.items()
                          if k in ("alpha", "delta_max", "daily_cap")}
-    tmp = str(COHORT_FILE) + ".tmp"
+    _cf = cohort_file()
+    tmp = str(_cf) + ".tmp"
     with open(tmp, "w", encoding="utf-8") as fh:
         json.dump(cur, fh, indent=2)
-    os.replace(tmp, COHORT_FILE)
+    os.replace(tmp, _cf)
     return {"dial": "canary", "cohort_id": cohort_id,
             **({"params": cur["params"]} if "params" in cur else {})}
 
@@ -164,13 +183,14 @@ def rollback(feature_doc: dict | None = None) -> dict:
     cleared = read_cohort(feature_doc) if feature_doc is not None \
         else read_cohort()
     import os
-    tmp = str(COHORT_FILE) + ".tmp"
+    _cf = cohort_file()
+    tmp = str(_cf) + ".tmp"
     with open(tmp, "w", encoding="utf-8") as fh:
         json.dump({"disarmed": True,
                    "cleared_cohort": cleared,
                    "at": datetime.now().astimezone().isoformat()},
                   fh, indent=2)
-    os.replace(tmp, COHORT_FILE)
+    os.replace(tmp, _cf)
     dial = _read_json(DIAL_FILE)
     if AA_CANARY_KEY in dial or "cohort_id" in dial:
         dial.pop(AA_CANARY_KEY, None)
@@ -276,7 +296,8 @@ def run_canary(cohort: list[str], rotation_seed: dict,
     would also STRIP the live params cell (flip_canary writes a fresh
     doc) and a simulated breach would roll the LIVE cohort off.
     arm=True is the staging exercise: real flip, and a breach executes
-    the real rollback — run it only against a sandboxed COHORT_FILE or
+    the    real rollback — run it only against a sandboxed cohort file (the
+    env seam or a rebound module path) or
     when a live re-arm is actually intended. breach_injection forces a
     distribution past the thresholds (the rollback must be proven, not
     assumed). Writes the run report either way."""

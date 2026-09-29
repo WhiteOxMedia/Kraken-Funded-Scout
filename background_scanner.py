@@ -2899,6 +2899,25 @@ def _save_contest_watch(watch: dict, fresh_keys=None):
                                             # row it exists to remove
     except Exception:
         merged = {k: v for k, v in (watch or {}).items() if v is not None}
+    # THE MARKER PERSISTS (the round-7 question, answered): a None in
+    # the caller's dict is WRITTEN BACK to the file as {"pair": null}
+    # — under the old shape the merged dict FILTERED the None out, so
+    # the marker lived exactly one save: the next writer (console tick,
+    # bot fill, op script) saw no marker, treated the closed pair as
+    # re-addable, and one stale overlay resurrected the GET-OUT-closed
+    # row. Markers also RIDE FORWARD: every marker on disk that this
+    # save does not clear (a fresh re-add lands the live value in its
+    # place) carries into the merged doc, so the file always holds the
+    # machine's last word and raw_tombs guards real deletions, not a
+    # one-save echo of them. The loaders' tombstone-free reads are
+    # untouched — no reader ever iterates a marker; only the raw reads
+    # do. app.py's merge-save already writes markers; contest_account's
+    # wipe ships {k: None} and now lands as true persistence.
+    for _k in raw_tombs:
+        if _k not in merged and _k not in drops:
+            merged[_k] = None
+    for _k in drops:
+        merged[_k] = None
     try:
         tmp = CONTEST_WATCH_JSON + ".tmp"
         with open(tmp, "w", encoding="utf-8") as fh:

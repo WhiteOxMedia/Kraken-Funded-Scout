@@ -1001,6 +1001,23 @@
         "test_commitgate.py": "sha256:2c2dba874d506636e0675a4fc7084f1b54d87bb54c26515668f9fd57f3f60a34",
         "ui/hindsight_panel_spec.md": "sha256:c56367540bf8fea67012e8ba32f0c26438676a320355bb8828d14bda0ccab957"
       }
+    },
+    "42-tombstone-durability-cohort-seam": {
+      "commits": [
+        "<this commit>"
+      ],
+      "branch_name": "master",
+      "date": "2026-09-29",
+      "title": "THE DELETION MARKER PERSISTS AND THE COHORT SEAM MOVES THE RUNNER: TWO REAL MAJORS FIXED, THE THIRD ALREADY LANDED (Sep 29, tombstone-durability-cohort-seam)",
+      "detail": "The round-7 stream three majors triaged. (1) background_scanner:3464 zero-peak — ALREADY LANDED in 4df2a1a and pinned in test_giveback (the stream reviewed the pre-commit tree): the update comparison is None-means-missing, 0.0 is a baseline. (2) :2891 marker persistence — REAL, the sharpest of the day: the close-save WROTE ABSENCE (the merged dict filtered caller Nones out), so the deletion marker lived exactly one save — the next writer (console tick, bot fill, op script) saw no marker and one stale overlay resurrected the GET-OUT-closed row; raw_tombs only ever saw markers a NON-scanner writer had written. Now caller Nones PERSIST as {pair: null} AND every on-disk marker RIDES FORWARD through every save until a deliberate fresh_keys re-add lands the live value in its place; app.py merge-save made symmetric; the deletion is the machines last word, durably. Pins: three drifted assertions updated to the durable truth (rebootsurv round-trip, stateclobber pop/last-word), NEW stale-overlay-resurrection-closed and fresh_keys-over-marker pins. (3) canary cohort isolation — REAL: the runner flip/rollback followed the import-frozen COHORT_FILE while the boundary hook read AUTO_ADJUST_CANARY_FILE, so a sandbox that set the env moved the HOOKS read but not the RUNNERS write (an armed or simulated run in that sandbox still flipped the LIVE cohort file — the isolation break, now three reviews old). cohort_file() resolves the env seam FIRST (the STATE_ENV pattern, one seam for the two-module pair); canary 15 -> 18 with the write/read/rollback env legs byte-pinned against the live cohort. Scanner-side changes live after the restart. Drives: stateclobber 23/0, canary 18/0, rebootsurv 25/0, autotrack 43/43, persistexit, watchliveness, carveout, guardbreakdown, metalayers, boundaryexam, statewriters, resilience, trailstop, allgoodlead ALL.",
+      "checksums": {
+        "background_scanner.py": "sha256:b67c0b454fd205586c42f2e741169613b0e7e29ecafe4cf76936cca8fa00176e",
+        "app.py": "sha256:661b6e5d24a1def7ff8dcf5a72fc73a178cf5211fd742d954dbfd5f67ef3c448",
+        "canary_runner.py": "sha256:5ab83916134a70960fdba584aea957974e020f63bda5c43ab785c52735183746",
+        "test_canary.py": "sha256:1c5ace7a26242b27e493ec068dfa6647f4b5565303a563ae2030141360be67d1",
+        "test_stateclobber.py": "sha256:f8c2e3c7d3b2f4437eb3ff13371786703e591802f804d5cbe8bcf22604becdb5",
+        "test_rebootsurv.py": "sha256:166b814802819cc20f5904ba08bfc4b805ae0d546cfe1571251defeb3fa16d5e"
+      }
     }
   }
 }

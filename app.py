@@ -898,6 +898,16 @@ def _save_watch(watch: dict):
                   if k not in drops and k not in watch}
         merged.update({k: v for k, v in (watch or {}).items()
                        if v is not None})   # the DELETION wins
+        # THE MARKER PERSISTS + RIDES FORWARD (the round-7 answer, the
+        # scanner's same shape): caller Nones land as {"pair": null}
+        # and every on-disk marker this save does not clear carries
+        # forward — a SOLD/GEO-out deletion is the file's last word
+        # until a deliberate re-add lands, not a one-save echo.
+        for _k in {k for k, v in cur.items() if v is None}:
+            if _k not in merged and _k not in drops:
+                merged[_k] = None
+        for _k in drops:
+            merged[_k] = None
         # atomic tmp+replace (Sep 27): a reader (scanner tick, SOLD
         # render) can never see a truncated half-written ledger
         tmp = str(WATCH_FILE) + ".tmp"

@@ -55,6 +55,51 @@ def _cohort_doc():
         return {}
 
 
+# THE COHORT SEAM (the round-7 major): AUTO_ADJUST_CANARY_FILE — the
+# env exit_extension has honored since the two-file design — must move
+# the RUNNER's reads AND writes too. The old import-frozen path made a
+# sandbox that set the env flip the LIVE cohort file anyway (the write
+# followed the module constant, the HOOK's read followed the env): the
+# isolation break. One env move now sandboxes the whole two-module pair.
+_sbx_env = Path(tempfile.mkdtemp())
+_env_cohort = _sbx_env / "auto_adjust_canary.json"
+_real_cohort_env = os.environ.get(cr.COHORT_ENV)
+# the LIVE machine carries the real armed cohort file (gitignored, so
+# the gate's staged worktree does not) — the pin is byte-exact either way
+_live_bytes = (_real_cohort_file.read_bytes()
+               if _real_cohort_file.exists() else None)
+try:
+    os.environ[cr.COHORT_ENV] = str(_env_cohort)
+    _flipped_env = cr.flip_canary("env-cohort", params={"alpha": 0.03})
+    check("the cohort env seam moves the runner's WRITE: flip_canary "
+          "arms the env-pointed file and NEVER touches the module-path "
+          "cohort (a sandboxed runner cannot flip the live cohort)",
+          _flipped_env["dial"] == "canary"
+          and json.loads(_env_cohort.read_text(encoding="utf-8"))
+          .get("cohort_id") == "env-cohort"
+          and json.loads(_env_cohort.read_text(encoding="utf-8"))
+          .get("params", {}).get("alpha") == 0.03
+          and (_real_cohort_file.read_bytes()
+               if _real_cohort_file.exists() else None) == _live_bytes)
+    check("the cohort env seam moves the runner's READ: read_cohort "
+          "answers from the env-pointed file (rollback can stop what "
+          "the env points at)",
+          cr.read_cohort() == "env-cohort")
+    _rb_env = cr.rollback()
+    check("the seam rollback lands on the env-pointed file (the "
+          "sandbox cohort disarms; the module path still untouched)",
+          _rb_env["rolled_back"] is True
+          and json.loads(_env_cohort.read_text(encoding="utf-8"))
+          .get("disarmed") is True
+          and (_real_cohort_file.read_bytes()
+               if _real_cohort_file.exists() else None) == _live_bytes)
+finally:
+    if _real_cohort_env is None:
+        os.environ.pop(cr.COHORT_ENV, None)
+    else:
+        os.environ[cr.COHORT_ENV] = _real_cohort_env
+    shutil.rmtree(_sbx_env, ignore_errors=True)
+
 try:
     # THE TWO-FILE CONTRACT (the structural fix): the flip arms the
     # cohort file; the exit-extension dial file is NEVER created or

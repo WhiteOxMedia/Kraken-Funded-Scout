@@ -134,12 +134,15 @@ try:
     doc = json.loads((_sbx / "contest_watch.json").read_text())
     check("a bot-side row (SOL) survives the scanner's next stale save",
           "SOL/USD" in doc and "KAITO/USD" in doc, sorted(doc))
-    # the scanner's GET-OUT pop (deletion) must still delete
+    # the scanner's GET-OUT pop (deletion) must still delete — and
+    # PERSIST the marker (round 7): the loader reads the pair gone AND
+    # the raw disk carries the {"SOL/USD": null} last word.
     bs._save_contest_watch({"SOL/USD": None})
     doc = json.loads((_sbx / "contest_watch.json").read_text())
-    check("the GET-OUT pop (None value) deletes the row — intentional "
-          "deletion still works under merge-save",
-          "SOL/USD" not in doc and "KAITO/USD" in doc, sorted(doc))
+    check("the GET-OUT pop (None value) deletes the row and PERSISTS "
+          "the marker (deletion still works, now durably)",
+          "SOL/USD" not in bs._load_contest_watch()
+          and doc.get("SOL/USD", "missing") is None, sorted(doc))
 
     # ── 5. the deletion sites are TOMBSTONES, not pops (the round-2
     # review's resurrection bug) ────────────────────────────────────
@@ -156,8 +159,35 @@ try:
                             "SOL/USD": None})
     doc = json.loads((_sbx / "contest_watch.json").read_text())
     check("a remover's dict carrying a tombstone keeps the row dead "
-          "across a later save (drop AND no re-add)",
-          "SOL/USD" not in doc and "KAITO/USD" in doc, sorted(doc))
+          "across a later save (drop AND no re-add, marker re-written)",
+          "SOL/USD" not in bs._load_contest_watch()
+          and "KAITO/USD" in doc
+          and doc.get("SOL/USD", "missing") is None, sorted(doc))
+
+    # ── 5b. THE MARKER PERSISTS (the round-7 answer): the STALE-OVERLAY
+    # resurrection is now closed FOREVER, not for one save. A later
+    # scanner save CARRYING the closed pair's old value must NOT re-add
+    # it (the persisted marker is on disk for raw_tombs to see), and a
+    # DELIBERATE re-add rides fresh_keys over the marker.
+    bs._save_contest_watch({"SOL/USD": {"entry": 0.3277,
+                                        "high": 0.3290,
+                                        "source": "stale-console-view"}})
+    doc = json.loads((_sbx / "contest_watch.json").read_text())
+    check("a STALE overlay carrying the closed pair's value cannot "
+          "resurrect it — the persisted marker wins and is re-written "
+          "(the round-2 defense, now durable)",
+          doc.get("SOL/USD", "missing") is None
+          and "KAITO/USD" in doc, sorted(doc))
+    bs._save_contest_watch({"SOL/USD": {"entry": 0.3277,
+                                        "high": 0.3290,
+                                        "source": "deliberate-re-add"}},
+                           fresh_keys=["SOL/USD"])
+    doc = json.loads((_sbx / "contest_watch.json").read_text())
+    check("a DELIBERATE re-add lands over the persisted marker via "
+          "fresh_keys (the popup auto-track's first attempt wins)",
+          isinstance(doc.get("SOL/USD"), dict)
+          and doc["SOL/USD"].get("source") == "deliberate-re-add",
+          sorted(doc))
     check("the console writer merge-saves too (three writers share the "
           "file — the round-1 sweep counted two)",
           "MERGE-SAVE" in (BASE / "app.py").read_text(encoding="utf-8"),
@@ -442,8 +472,10 @@ try:
            "bs._save_contest_watch(w)", _SCAN_SETUP))], timeout_s=60)
     doc = json.loads(_cw_proc.read_text(encoding="utf-8"))
     check("the tombstone is the last word across parallel re-adds "
-          "(None-means-delete under real scheduling)",
-          "KAITO/USD" not in doc, sorted(doc))
+          "(None-means-delete under real scheduling; round 7: the "
+          "marker PERSISTS on disk and the loader reads the pair gone)",
+          doc.get("KAITO/USD", "missing") is None
+          and "KAITO/USD" not in bs._load_contest_watch(), sorted(doc))
 
     # the reader's verdict: thousands of reads under fire, classified
     _ro, _ = _reader.communicate(timeout=30)
