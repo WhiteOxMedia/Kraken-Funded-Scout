@@ -52,7 +52,8 @@ def _rotation_aggregate(rotation_id: str, goal_pct: float,
                         supp_path: Path, cache_path: Path) -> dict:
     import per_gate_export as pge
     rows = pge.dedup_first(pge.load_rotation_rows(supp_path, rotation_id))
-    con = pge.build_fixture_db(rows, cache_path, goal_pct)
+    con = pge.build_fixture_db(rows, cache_path, goal_pct,
+                               rotation_id=rotation_id)
     try:
         gate_rows = pge.run_ratios_sql(con, rotation_id, goal_pct)
     finally:

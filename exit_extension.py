@@ -322,12 +322,16 @@ def _arm(pair: str, w: dict, reason: str, now: datetime,
     key = _day_key(now)
     days[key] = int(days.get(key) or 0) + 1
     if not _save_state(st):
-        # THE CAP FAILS CLOSED (the isolated review, Sep 28): a save
-        # that silently lost the counter would read 0 forever and let
-        # the dial blanket the book. Roll the count back and raise —
-        # the seam's outer except turns it into the fail-safe EXIT
-        # verdict: no arm, the book keeps the incumbent machinery.
+        # THE CAP FAILS CLOSED AND THE STAMP GOES WITH IT (the isolated
+        # review's follow-up, Sep 28): a save that lost the counter
+        # would read 0 forever and let the dial blanket the book — and
+        # a stamp left on the row would let the NEXT verdict ride a
+        # window the state no longer remembers. Roll the count back,
+        # strip the half-written stamp, and raise — the seam's outer
+        # except turns it into the fail-safe EXIT verdict: no arm, no
+        # stamp, the book keeps the incumbent machinery.
         days[key] = int(days.get(key) or 1) - 1
+        w.pop("exit_extension", None)
         raise OSError("extension counter save failed — cap fails closed")
 
 

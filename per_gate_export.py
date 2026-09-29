@@ -127,9 +127,12 @@ def _cache_ro(db_path: Path) -> sqlite3.Connection | None:
 
 # ── the loader: journals + cache -> fixture db -> the real SQL ──────
 def build_fixture_db(rows: list[dict], cache_path: Path,
-                     goal_pct: float = DEFAULT_GOAL_PCT) -> sqlite3.Connection:
+                     goal_pct: float = DEFAULT_GOAL_PCT,
+                     rotation_id: str | None = None) -> sqlite3.Connection:
     """Materialize rotation + peaks into an in-memory db shaped for
-    sql/per_gate_ratios.sql. The candidate_id is the dedup key."""
+    sql/per_gate_ratios.sql. The candidate_id is the dedup key; the
+    rotation_id is the FULL id the caller asked for (the SQL filters
+    on it — journal bare stamps would match nothing)."""
     con = sqlite3.connect(":memory:")
     con.execute("CREATE TABLE popup_suppressions (rotation_id TEXT, "
                 "candidate_id TEXT, gate TEXT, ts TEXT, score REAL)")
@@ -139,8 +142,13 @@ def build_fixture_db(rows: list[dict], cache_path: Path,
     try:
         for r in rows:
             cid = f"{r.get('pair')}|{r.get('rot')}|{r.get('gate') or '?'}"
+            # THE FULL ID GOES IN (the isolated review's major): the
+            # SQL filters WHERE rotation_id = :rotation_id, so the
+            # fixture rows must carry the ID THE CALLER ASKED FOR —
+            # the journal's bare '12-16' stamp would match nothing.
             con.execute("INSERT INTO popup_suppressions VALUES (?,?,?,?,?)",
-                        (r.get("rot"), cid, str(r.get("gate") or "?"),
+                        (rotation_id or r.get("rot"), cid,
+                         str(r.get("gate") or "?"),
                          str(r.get("ts") or ""),
                          float(r.get("quick") or 0.0)))
             if cache is not None:
@@ -219,7 +227,8 @@ def main() -> int:
     goal = float(sys.argv[2]) if len(sys.argv) > 2 else DEFAULT_GOAL_PCT
     rows = dedup_first(load_rotation_rows(
         ROOT / "popup_suppressions.jsonl", rot))
-    con = build_fixture_db(rows, ROOT / "ohlcv_cache.db", goal)
+    con = build_fixture_db(rows, ROOT / "ohlcv_cache.db", goal,
+                           rotation_id=rot)
     try:
         out = run_ratios_sql(con, rot, goal)
     finally:

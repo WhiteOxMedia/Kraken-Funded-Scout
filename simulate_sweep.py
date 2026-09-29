@@ -140,7 +140,11 @@ def replay(history: list[dict], alpha: float, delta_max: float,
             applied.append(0.0)
             continue
         delta = -min(delta_max, alpha * r * math.log(1 + B))
-        day = str(h["rot"])
+        # THE CAP IS PER WALL-CLOCK DAY (the isolated review's major):
+        # a full stamp carries the date in its first 10 chars; a dated
+        # bare-window key ('2026-09-28-12-16') too. The window half
+        # would let the same day's four rotations spend 4x the cap.
+        day = str(h["rot"])[:10]
         if day_used.get(day, 0.0) + abs(delta) > daily_cap + 1e-9:
             applied.append(0.0)
             continue

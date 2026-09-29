@@ -128,7 +128,7 @@ check("the journal loads one rotation only and dedups to FIRST refusal "
       and {r["pair"] for r in rows} == {"AAA/USD", "BBB/USD", "CCC/USD"},
       rows)
 
-con3 = pge.build_fixture_db(rows, db, 1.5)
+con3 = pge.build_fixture_db(rows, db, 1.5, rotation_id="R")
 try:
     out3 = pge.run_ratios_sql(con3, "R", 1.5)
     check("the machine loader computes real peaks from the cache "
