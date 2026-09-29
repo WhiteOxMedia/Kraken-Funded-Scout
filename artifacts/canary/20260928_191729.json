@@ -1,0 +1,39 @@
+{
+  "run_id": "20260928_191729",
+  "cohort": [
+    "BTC",
+    "ETH",
+    "SOL",
+    "AVAX",
+    "LINK"
+  ],
+  "dial": {
+    "dial": "canary",
+    "cohort_id": "canary-20260928_191729"
+  },
+  "cycles": 30,
+  "evaluation": {
+    "net_delta": -0.842,
+    "worst_single_book_loss": -0.068,
+    "net_in_band": true,
+    "band": [
+      -0.896,
+      -0.7827
+    ],
+    "hit_rate_1": 0.4471,
+    "hit_rate_2": 0.0,
+    "hit_rate_stable": false,
+    "applied_cycles": 15,
+    "breach": true,
+    "reasons": [
+      "hit rate drift -0.447 > 0.1"
+    ]
+  },
+  "commit_sha": "f5fe1a0",
+  "rollback": {
+    "rolled_back": true,
+    "dial": "0",
+    "at": "2026-09-28T19:17:29.733226-06:00"
+  },
+  "status": "rolled_back"
+}

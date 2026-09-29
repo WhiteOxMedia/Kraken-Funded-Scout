@@ -1,0 +1,27 @@
+PASS  summary: B 7, P 4, r 4/7, current GF read from the sandbox state
+PASS  summary: the proposed delta is the rule's own output (0.05 x 4/7 x ln 8, under the cap)
+PASS  gates: deep-veto carries 3 payers of 5 (r 0.6) and sorts FIRST (payers desc, rate tiebreak)
+PASS  gates: the top-candidate list carries the payers with their runs, best first (AAA +8% leads tide-out)
+PASS  gates: the dud (BBB, never moved) never rides the top list
+PASS  evidence: the OHLCV snippet covers the 7h window AFTER the refusal (the pre-refusal entry bar sits before it)
+PASS  evidence: an absent log yields an empty excerpt, never a crash
+PASS  evidence: the trace id and checksum ride (checksum covers the payload)
+PASS  evidence: the log excerpt is the LAST 30 lines
+PASS  evidence: a different payload yields a different checksum
+PASS  apply: with NO token configured, a mutating POST is 403 (nothing that moves the guard or the ledger is reachable unauthenticated — the panel still reads)
+PASS  apply: a WRONG token is the same 403 (matching, not merely presenting)
+PASS  apply: the AUTHENTICATED queue_review computes + bundles but never moves the factor
+PASS  apply: auto_apply without confirm refuses (the HTTP-level safety catch, riding behind the token gate)
+PASS  apply: a confirmed AUTHENTICATED apply on a CONCENTRATED rotation STILL queues (deep-veto carries 3 of 4 payers and the token only unblocks when it matches — op-token-1 does, so the override applies through the caps)
+PASS  apply: an unknown action refuses by name
+PASS  apply: every decision landed on the telemetry stream
+PASS  an authenticated-but-wrong body cannot lift the concentration gate (the override matches the token, not the claim)
+PASS  the AUTHENTICATED operator override lifts ONLY the queue (the apply proceeds through the caps)
+PASS  the authenticated rollback restores the applied adjustment's before
+PASS  rollback without the token is 403 too
+PASS  the evidence route decodes a slash-bearing candidate id and returns its payload
+PASS  a malformed evidence path still 404s (encoding is not a bypass)
+PASS  the wire speaks the same brain: HTTP summary matches the dispatcher's payload
+PASS  an unknown route answers 404 over the wire
+
+RESULT: 25 passed, 0 failed

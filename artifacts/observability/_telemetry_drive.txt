@@ -1,0 +1,14 @@
+PASS  the event carries every schema-required field
+PASS  the per-gate rows carry the schema's per-gate fields
+PASS  the payer-rate rides as r (6/14)
+PASS  the negative delta is preserved (loosening is the story)
+PASS  the evidence checksum matches the sha256: shape
+PASS  cohort and applied_by default to the canary posture
+PASS  the spec's example values reproduce (2.0 -> 1.92, B 14, P 6, deep-veto 8/4/0.5)
+PASS  the stream appends in order and replays both events
+PASS  the file is line-delimited json with no rewrite marker
+PASS  the alert payload is the spec's four fields
+PASS  the bridge emits the record as a schema-shaped event with its alert attached
+PASS  the replay now carries three events (two direct, one bridged)
+
+RESULT: 12 passed, 0 failed

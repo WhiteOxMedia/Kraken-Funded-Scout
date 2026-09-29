@@ -1,0 +1,26 @@
+PASS  below the sample floor the rule refuses (named, not silent)
+PASS  below the ratio floor the rule refuses (the gates were RIGHT)
+PASS  B_MIN boundary passes and the delta is proportional (0.05 x 0.4 x ln 6)
+PASS  the per-adjustment cap binds (r=1.0, B=200 would beg -0.265, it gets -0.10)
+PASS  the cap holds at absurd sample counts
+PASS  the clamp honors the machine's guard bounds (2.0 -> 1.92)
+PASS  the clamp floors at GUARD_CLAMP's low end (0.6 - 0.2 -> 0.5)
+PASS  concentration: one gate carrying 8 of 10 payers reads 0.8
+PASS  concentration of no payers is 0.0, never a division error
+PASS  a clean rotation APPLIES (conc 3/8 < 0.5, factor 2.0 -> 1.92)
+PASS  the time box rides the state (3 rotations, before recorded)
+PASS  the daily cumulative cap refuses the third same-day adjust (0.16 + 0.08 > 0.20)
+PASS  the refusals are LEDGERED, not dropped (three rows, named)
+PASS  a single-gate story cannot auto-apply — it queues for review and the factor does not move
+PASS  the operator's queue_review override applies through the same caps (1.84 -> 1.79)
+PASS  the operator rollback restores the pre-adjust factor
+PASS  rolling back a rotation with no applied row refuses honestly
+PASS  after 3 rotations the box expires and ITS before factor is restored (the auto-revert)
+PASS  a live box reports its remaining rotations instead of expiring
+PASS  a tightening delta is refused by name (self-adjust only refunds)
+PASS  a refused rotation still leaves its evidence bundle (insufficient_samples, checksummed)
+PASS  the bundle is immutable — re-proposing never rewrites it
+PASS  the bundle carries the per-gate CSV
+PASS  a passing rotation applies through propose_from_aggregate with the bundle attached
+
+RESULT: 24 passed, 0 failed

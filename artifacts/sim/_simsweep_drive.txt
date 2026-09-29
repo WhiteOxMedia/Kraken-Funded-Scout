@@ -1,0 +1,18 @@
+PASS  the sweep grid is the spec's (3 x 3 x 2 = 18 cells)
+PASS  the recommended defaults are the spec's example (0.05/0.10/0.20)
+PASS  the replay applies only where the rails pass (6 rich rotations apply; drought/thin/low-ratio idle)
+PASS  every applied delta is negative and within the per-adjustment cap (loosening only)
+PASS  the daily cap binds per rotation-day (the rich rotations each took exactly one -0.08, never two)
+PASS  the time box produces auto-reverts (one continuous applying streak, one revert when it expires)
+PASS  a tighter daily cap applies no more than the looser one
+PASS  the sweep returns 18 cells (3x3x2), all metrics finite
+PASS  exactly one cell carries the recommended flag
+PASS  the recommended cell is the conservative middle (a fatter alpha or delta_max cannot produce a smaller worst loss)
+PASS  the bootstrap CI is seeded and reproducible
+PASS  the report renders the grid (18 body rows) and the recommended row is classed
+PASS  the report NAMES the conservative defaults and the worst single-book loss column (the spec's acceptance)
+PASS  the charts are inline SVG with a per-cell tooltip
+PASS  the grouping key dates bare windows (two days, two rotations — never merged)
+PASS  the real-history replay runs read-only end to end (rotations parsed, sweep complete, report written)
+
+RESULT: 16 passed, 0 failed

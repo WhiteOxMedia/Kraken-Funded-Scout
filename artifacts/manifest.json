@@ -1,0 +1,321 @@
+{
+  "generated_at": "2026-09-28T19:47:01.581907-06:00",
+  "head_commit": "794973b",
+  "machine": "kraken_scout (C:/Users/birds/Workspace/kraken_scout)",
+  "delivery": "gated master commits (no git remote configured); isolated CodeRabbit review on every commit",
+  "tasks": {
+    "1-per-gate-sql": {
+      "branch_name": "master (gated commits; no remote configured)",
+      "commands_run": [
+        "uv run python -X utf8 test_pergate.py",
+        "uv run python -X utf8 per_gate_export.py 2026-09-28-16-20",
+        "git add <task files> && git commit (gated; drives + isolated CodeRabbit review on staged content)"
+      ],
+      "artifacts": [
+        {
+          "path": "sql/per_gate_ratios.sql",
+          "sha256": "sha256:55d1d0351550d50b601e89361d8b4f081336babda841790a7f560c3f8bdceb4a"
+        },
+        {
+          "path": "per_gate_export.py",
+          "sha256": "sha256:61291552a506cab3b99cc3cc52de0f56b88f2314e0183c2f4320176abd5e3d75"
+        },
+        {
+          "path": "test_pergate.py",
+          "sha256": "sha256:a70db0dd1b01be7c564a1a7481688eefe8b0f5e0bbc37986259a2adcf9da63d3"
+        },
+        {
+          "path": "artifacts/per_gate_ratios/rotation_16-20.csv",
+          "sha256": "sha256:a303aefb469c3ae35bc2a9348c7dfadad477bbb4d678afe4088450946c0d81ec"
+        },
+        {
+          "path": "artifacts/per_gate_ratios/_pergate_drive.txt",
+          "sha256": "sha256:9a427952de431c92fa17930d5243300b33ec1ab8d47f601e3ed97c7d83a12c2d"
+        }
+      ],
+      "tests_run": [
+        "test_pergate.py"
+      ],
+      "results": "17 passed, 0 failed",
+      "acceptance": true,
+      "notes": "LIVE rotation 16-20: B=20 P=7 r=0.35; stale-move owns payers (3 of 5), tide-out the volume (12 B, r 0.17)"
+    },
+    "2-proportional-rule": {
+      "branch_name": "master (gated commits; no remote configured)",
+      "commands_run": [
+        "uv run python -X utf8 test_autoadjust.py",
+        "git add <task files> && git commit (gated; drives + isolated CodeRabbit review on staged content)"
+      ],
+      "artifacts": [
+        {
+          "path": "auto_adjust.py",
+          "sha256": "sha256:d02fec195268bddb278a7d7ec2ff259c4778948d6c1928b2e82014421d0ccb99"
+        },
+        {
+          "path": "test_autoadjust.py",
+          "sha256": "sha256:a23e1e39a2fb8e9f8c5a297c24b196cb758a8bb90c1d514c3a463ec0b84ba35f"
+        },
+        {
+          "path": "artifacts/auto_adjust/_autoadjust_drive.txt",
+          "sha256": "sha256:b8635608a24ed086078e495315f6eec0b1f324bb21af8f6c3d207206d2c139b1"
+        }
+      ],
+      "tests_run": [
+        "test_autoadjust.py"
+      ],
+      "results": "24 passed, 0 failed",
+      "acceptance": true,
+      "notes": ""
+    },
+    "3-hindsight-api": {
+      "branch_name": "master (gated commits; no remote configured)",
+      "commands_run": [
+        "uv run python -X utf8 test_hindsightapi.py",
+        "git add <task files> && git commit (gated; drives + isolated CodeRabbit review on staged content)"
+      ],
+      "artifacts": [
+        {
+          "path": "hindsight_api.py",
+          "sha256": "sha256:66b0cb132d67407bdf473c96459d3db2d433081a99d09f466acdb604cabc927f"
+        },
+        {
+          "path": "test_hindsightapi.py",
+          "sha256": "sha256:adfdaf2fe2e08bbd6094f9523bfae4cdd93b5875f38d000b92833a6295f92e05"
+        },
+        {
+          "path": "ui/hindsight_panel_spec.md",
+          "sha256": "sha256:0c3d2e538bac6385323678bb14f594fa5fdce24b7af445471850aee2e2569436"
+        },
+        {
+          "path": "artifacts/hindsight_api/_hindsightapi_drive.txt",
+          "sha256": "sha256:37ed65b8838ba84e3c7a286705ac6b7de5dbb65713b8fd65610e04519339c0a1"
+        }
+      ],
+      "tests_run": [
+        "test_hindsightapi.py"
+      ],
+      "results": "25 passed, 0 failed",
+      "acceptance": true,
+      "notes": ""
+    },
+    "4-observability": {
+      "branch_name": "master (gated commits; no remote configured)",
+      "commands_run": [
+        "uv run python -X utf8 test_telemetry.py",
+        "git add <task files> && git commit (gated; drives + isolated CodeRabbit review on staged content)"
+      ],
+      "artifacts": [
+        {
+          "path": "observability/auto_adjust_schema.json",
+          "sha256": "sha256:8200b4b829050d93c0564f6443b949476a966cab6f366e295f30c8a2ad0878bd"
+        },
+        {
+          "path": "telemetry_adjust.py",
+          "sha256": "sha256:ac4651aa5e950f646c5a1f9b651d76d828bd2e8415db67da154f305746972a8e"
+        },
+        {
+          "path": "test_telemetry.py",
+          "sha256": "sha256:0adb3fdb2ae1e3eab6ab3eb8ff3c247018e743bc2598c6692c7dcca9951372cc"
+        },
+        {
+          "path": "artifacts/observability/_telemetry_drive.txt",
+          "sha256": "sha256:2b78466b525e871cf6bf2680dfa099d2f3795d1da8c0f3f1dc56e2a87dba9ca3"
+        }
+      ],
+      "tests_run": [
+        "test_telemetry.py"
+      ],
+      "results": "12 passed, 0 failed",
+      "acceptance": true,
+      "notes": ""
+    },
+    "5-simulation": {
+      "branch_name": "master (gated commits; no remote configured)",
+      "commands_run": [
+        "uv run python -X utf8 test_simsweep.py",
+        "uv run python -X utf8 simulate_sweep.py --rotations 30",
+        "git add <task files> && git commit (gated; drives + isolated CodeRabbit review on staged content)"
+      ],
+      "artifacts": [
+        {
+          "path": "simulate_sweep.py",
+          "sha256": "sha256:0f37eebff00beee079e7eb8f7452501040599c093b0145b504f062db567db8d9"
+        },
+        {
+          "path": "test_simsweep.py",
+          "sha256": "sha256:cd9685e7d40b45cce93633187d7b3272d5438e589f6de94a2eb924fd3ccf2ddd"
+        },
+        {
+          "path": "artifacts/sim/reports/sensitivity_2026-09-28.html",
+          "sha256": "sha256:4dd2a9a146097bb5b689a5d9f2d5d97c4eb956544588174044039c5380b081dc"
+        },
+        {
+          "path": "artifacts/sim/reports/sensitivity_2026-09-28.json",
+          "sha256": "sha256:1e659920af4bc75e806e720eff2d4ae90abf5f498c479a9fe224563ad3d4e158"
+        },
+        {
+          "path": "artifacts/sim/_simsweep_drive.txt",
+          "sha256": "sha256:29dd795bd83a94ac0a0ca03808359e9193e769440c382f3d86f08ba1e3613ef1"
+        }
+      ],
+      "tests_run": [
+        "test_simsweep.py"
+      ],
+      "results": "16 passed, 0 failed",
+      "acceptance": true,
+      "notes": "real replay: 6 rotations, 124 measurable burials across 18 cells; recommended cell alpha=0.05 delta_max=0.10 daily_cap=0.20"
+    },
+    "6-canary": {
+      "branch_name": "master (gated commits; no remote configured)",
+      "commands_run": [
+        "uv run python -X utf8 test_canary.py",
+        "git add <task files> && git commit (gated; drives + isolated CodeRabbit review on staged content)"
+      ],
+      "artifacts": [
+        {
+          "path": "canary_runner.py",
+          "sha256": "sha256:b6af91e7dc9fc7aacd5e7b1b55487a288bf2d54cdeca60719ba874ca4ca645d3"
+        },
+        {
+          "path": "test_canary.py",
+          "sha256": "sha256:6392bfcc3e4c29df834a659f0d39d04d7190b7bec961543330d7c0aad77423be"
+        },
+        {
+          "path": "artifacts/canary/_canary_drive.txt",
+          "sha256": "sha256:012816de470d96c1dd92704197481f507988a82f57583debc8732434f7a27337"
+        }
+      ],
+      "tests_run": [
+        "test_canary.py"
+      ],
+      "results": "11 passed, 0 failed",
+      "acceptance": true,
+      "notes": ""
+    },
+    "7-playbooks": {
+      "branch_name": "master (gated commits; no remote configured)",
+      "commands_run": [
+        "git add <task files> && git commit (gated; drives + isolated CodeRabbit review on staged content)"
+      ],
+      "artifacts": [
+        {
+          "path": "playbooks/auto_adjust_rollback.md",
+          "sha256": "sha256:c98efc0c9ebbf4160fd1527db1cebf7f2a93a61a20f4a46e8c6eff1c0619aaa0"
+        },
+        {
+          "path": "playbooks/silent_rotation_investigation.md",
+          "sha256": "sha256:3b9599663dabae0e6b0717a1ab058b47564cbf22143c879f5fb6fa8f4a3ee591"
+        },
+        {
+          "path": "playbooks/parser_cli_error.md",
+          "sha256": "sha256:07758093f67ae20ea48ca5c9fe5d1719ce88644b492d474c2ded73eee622489a"
+        },
+        {
+          "path": "playbooks/postmortem_template.md",
+          "sha256": "sha256:1abbc4e365df8dfb64c0eaf7b52bb30419639ab44d0684bc37941a3f8e9bcac0"
+        },
+        {
+          "path": "governance/adjustment_policy.md",
+          "sha256": "sha256:d950ed3c59710189e58aac63405835f0b3b218c0d75d5f3ba3695d18a3793838"
+        }
+      ],
+      "tests_run": [
+        "tabletop: walkthrough against live seams"
+      ],
+      "results": "docs; command paths verified executable",
+      "acceptance": true,
+      "notes": ""
+    },
+    "8-data-hygiene": {
+      "branch_name": "master (gated commits; no remote configured)",
+      "commands_run": [
+        "uv run python -X utf8 test_evidencestore.py",
+        "snapshot + verify of the live rotation",
+        "git add <task files> && git commit (gated; drives + isolated CodeRabbit review on staged content)"
+      ],
+      "artifacts": [
+        {
+          "path": "evidence_store.py",
+          "sha256": "sha256:eda009370e012a17902c7ad7a8211552a0915c11cb82ff5c22aebe6776d9c590"
+        },
+        {
+          "path": "test_evidencestore.py",
+          "sha256": "sha256:1ad2b6dc59d4b609fa608c6f4441c1d113d657213d11b0b82e18b81248226058"
+        },
+        {
+          "path": "artifacts/evidence/_evidencestore_drive.txt",
+          "sha256": "sha256:68049575f50e09b96aa0c9d146c19ca93b4f2be56a561fddfde8cacc99c1efa4"
+        }
+      ],
+      "tests_run": [
+        "test_evidencestore.py"
+      ],
+      "results": "12 passed, 0 failed",
+      "acceptance": true,
+      "notes": "live bundle artifacts/evidence/rotations/2026-09-28-16-20/ (9 files incl. ohlcv_cache.db via sqlite backup API) verifies clean; bundles stay on disk (retention 90d) and are gitignored for weight; the manifest pins their checksums"
+    },
+    "9a-parser-fixtures": {
+      "branch_name": "master (gated commits; no remote configured)",
+      "commands_run": [
+        "uv run python -X utf8 tests/hookparser_test.py",
+        "git add <task files> && git commit (gated; drives + isolated CodeRabbit review on staged content)"
+      ],
+      "artifacts": [
+        {
+          "path": "tests/fixtures/coderabbit_0_8_1.json",
+          "sha256": "sha256:77d3f94cd963d6cb89d94a8b181b3c7960a710173a9fee62af65bb1fef786ac6"
+        },
+        {
+          "path": "tests/hookparser_test.py",
+          "sha256": "sha256:e205d2e81985f6b91d470f839fb0406fcd2050061f1a52896f3cb09da6ec3153"
+        },
+        {
+          "path": "artifacts/parser_fixtures/_hookparser_fixture_drive.txt",
+          "sha256": "sha256:104adb07ca39582303f9ea4e43c8ef01308542280c5d35139945c28e3e443e9d"
+        }
+      ],
+      "tests_run": [
+        "tests/hookparser_test.py"
+      ],
+      "results": "7 passed, 0 failed",
+      "acceptance": true,
+      "notes": ""
+    },
+    "9b-numeric-guard": {
+      "branch_name": "master (gated commits; no remote configured)",
+      "commands_run": [
+        "uv run python -X utf8 test_exit_extension.py",
+        "git add <task files> && git commit (gated; drives + isolated CodeRabbit review on staged content)"
+      ],
+      "artifacts": [
+        {
+          "path": "exit_extension.py",
+          "sha256": "sha256:420209c7fb22a5b9335005167c21601fd251acefccd8bc4b644a2a03cf9494be"
+        },
+        {
+          "path": "test_exit_extension.py",
+          "sha256": "sha256:1a0cc62424b8c3ce10886b6565e36b05200e60e30cdd400923f46f8f870585d0"
+        }
+      ],
+      "tests_run": [
+        "test_exit_extension.py"
+      ],
+      "results": "55 passed, 0 failed",
+      "acceptance": true,
+      "notes": ""
+    },
+    "review-fix-batches": {
+      "branch_name": "master (gated commits; no remote configured)",
+      "commands_run": [
+        "git add <task files> && git commit (gated; drives + isolated CodeRabbit review on staged content)"
+      ],
+      "artifacts": [],
+      "tests_run": [
+        "all eight drives re-run"
+      ],
+      "results": "121 checks, 0 failed",
+      "acceptance": true,
+      "notes": ""
+    }
+  }
+}

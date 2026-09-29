@@ -95,3 +95,7 @@ scratch/
 
 # policy summaries (stale purges, hygiene) are runtime state, like battery_history
 reports/
+
+# task 8: rotation evidence bundles stay on disk (15MB+ db images,
+# retention 90d) — the manifest pins their checksums
+artifacts/evidence/rotations/
