@@ -971,6 +971,20 @@
         "playbooks/state_file_recovery.md": "sha256:785dbe4548f3e9edf7c6d7e69701ea8bfd79ca03977a19406ff6b359eb51fe49",
         "auto_adjust.py": "sha256:8d7a567f02ba46cb728caa18e43d730f35f68fe1f0e4292ee987905810167450"
       }
+    },
+    "40-fleetsweep-contract": {
+      "commits": [
+        "<this commit>"
+      ],
+      "branch_name": "master",
+      "date": "2026-09-29",
+      "title": "THE SWEEP TOOL RENDERS ITS FIRST CLASSIFICATION: THE _row NameError THE GATE STREAM CAUGHT TWICE IS FIXED AND HERMETICALLY PINNED, THE DRIVE JOINS THE GATE (Sep 29, fleetsweep-contract)",
+      "detail": "ops/fleet_sweep._row read the classes mapping that only existed as render parameter — the first real sweep with a classified failure would have died in NameError and written NO report; it survived verification because the 5-drive subset was all green, so the classification branch never executed (the crash class the round-6 gate stream flagged twice, confirmed real by code read). Fixed: _row takes classes; render passes it. classify also loses two dead duplicate bad = lines left from b8fad5d. NEW test_fleetsweep.py (10 checks, no subprocesses, no repo writes): classification contract (unclassified RED with empty cls fields — the exit-1 honesty; the class status stored VERBATIM, AMBER is a render bucket; GREEN never consults the file), THE RENDER CRASH CLASS (the whole table renders green + RED + classified AMBER together without raising, statuses/notes/verified dates in the HTML, stamp + drive count + maker present), and units (verdict shapes incl. x/y and banner words, discovery name forms, a broken classes file degrades to empty). Wired into the gate: _FS trigger on ops/fleet_sweep.py, ops/fleet_sweep_classes.json, test_fleetsweep.py; budget 10s. Drives: fleetsweep 10/0.",
+      "checksums": {
+        "ops/fleet_sweep.py": "sha256:4f00143a07e2fe4d5a8382a22b09602adefab0cb4dea5f8c95f626fd54ddcdef",
+        "test_fleetsweep.py": "sha256:3e8149fb87e1eae1724d5a7b176d72783a85404b0d4e8c8fe51cf82b6ce44848",
+        "hooks/pre-commit": "sha256:4f5dc242a242f056c17a7d5c0b5628f5a87c83dac3d4f75229ccb78cf8b29b77"
+      }
     }
   }
 }

@@ -104,9 +104,6 @@ def classify(res: dict, classes: dict) -> dict:
     """RED when the drive failed and no reviewed classification covers
     it; the class renders AMBER with its note (and its verified date,
     so stale classifications are visible as stale)."""
-    bad = (res["rc"] != 0) or (res["failed"] not in (0, -1)
-                              and res["failed"] != 0)
-    bad = (res["rc"] != 0) or (res["failed"] not in (0,))
     bad = res["rc"] != 0 or (0 <= res["failed"] != 0)
     cls = classes.get(res["drive"], {})
     res["cls_status"] = str(cls.get("status") or "")
@@ -142,7 +139,7 @@ tr.AMBER td:first-child{color:#d9b96a}
 """
 
 
-def _row(i, r) -> str:
+def _row(i, r, classes: dict) -> str:
     name = html.escape(r["drive"].replace(".py", ""))
     verdict = html.escape(r["verdict"])
     fails = ""
@@ -170,7 +167,8 @@ def render(results: list[dict], wall_s: float, when: str,
     checks = sum(int(m.group(1)) for r in results
                  if r["status"] == "GREEN"
                  for m in [re.search(r"(\d+) passed", r["verdict"])] if m)
-    rows = "".join(_row(i, r) for i, r in enumerate(results, 1))
+    rows = "".join(_row(i, r, classes)
+                   for i, r in enumerate(results, 1))
     return f"""<!doctype html><html><head><meta charset='utf-8'>
 <title>Fleet health — {when}</title><style>{_CSS}</style></head><body>
 <h1>⚡ FLEET HEALTH — {html.escape(when)}</h1>

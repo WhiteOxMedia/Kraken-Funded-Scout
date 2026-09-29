@@ -258,7 +258,7 @@ if git diff --cached --name-only | grep -qxE 'app\.py|background_scanner\.py|met
             [ "$GATE_QUIET" = "1" ] || echo "  🧠 gate: $t — $res (${dt}ms, budget ${budget}s)" >&2
         fi
     }
-    _APP=no; _BS=no; _ML=no; _CO=no; _TW=no; _HK=no; _HS=no; _TL=no; _SW=no
+    _APP=no; _BS=no; _ML=no; _CO=no; _TW=no; _HK=no; _HS=no; _TL=no; _SW=no; _FS=no
     printf '%s\n' "$(git diff --cached --name-only)" | grep -qx 'app.py' && _APP=yes
     printf '%s\n' "$(git diff --cached --name-only)" | grep -qx 'background_scanner.py' && _BS=yes
     printf '%s\n' "$(git diff --cached --name-only)" | grep -qxE 'meta_layers\.py|profit_guard\.py' && _ML=yes
@@ -267,6 +267,7 @@ if git diff --cached --name-only | grep -qxE 'app\.py|background_scanner\.py|met
     printf '%s\n' "$(git diff --cached --name-only)" | grep -qx 'hooks/pre-commit' && _HK=yes
     printf '%s\n' "$(git diff --cached --name-only)" | grep -qxE 'hindsight_service\.py|test_hindightservice\.py' && _HS=yes
     printf '%s\n' "$(git diff --cached --name-only)" | grep -qxE 'tide_learn\.py|test_tidelearn\.py' && _TL=yes
+    printf '%s\n' "$(git diff --cached --name-only)" | grep -qxE 'ops/fleet_sweep\.py|ops/fleet_sweep_classes\.json|test_fleetsweep\.py' && _FS=yes
     printf '%s\n' "$(git diff --cached --name-only)" | grep -qxE 'atomic_io\.py|profit_guard\.py|restore_state\.py|test_resilience\.py|diag_statewriters\.py|meta_layers\.py|background_scanner\.py' && _SW=yes
     # Trigger → drive map, deduped: when app.py AND background_scanner.py
     # are staged together (the f5ad99d shape), watchliveness and metalayers
@@ -343,6 +344,12 @@ if git diff --cached --name-only | grep -qxE 'app\.py|background_scanner\.py|met
                                                         # the tested restore
                                                         # path (no
                                                         # double-apply)
+    maybe_run "$_FS"  test_fleetsweep.py result   10   # the sweep tool's
+                                                        # own contract:
+                                                        # classification +
+                                                        # render hermetic
+                                                        # (the _row crash
+                                                        # class, round 6)
     if [ -n "$FAILS" ]; then
         echo "  ⛔ COMMIT GATE: failed drives:${FAILS}" >&2
         echo "     Fix them (run the drive in the repo root) or bypass with" >&2
