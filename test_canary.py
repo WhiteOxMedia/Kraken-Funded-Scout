@@ -22,6 +22,7 @@ BASE = Path(__file__).resolve().parent
 sys.path.insert(0, str(BASE))
 
 import canary_runner as cr
+import auto_adjust as cr_aa
 
 results = []
 
@@ -331,6 +332,105 @@ try:
           ev_cap["breach"]
           and any("single_book_loss" in r for r in ev_cap["reasons"]),
           ev_cap["reasons"])
+
+    # ── THE GUARD-FACTOR VALIDATION (Sep 30, "the bot follows the
+    # factor now — drills that cannot fail validate nothing"):
+    # (a) the band must be certified by EXTERNAL evidence — a prior
+    # band supplied by the caller; a self-derived CI proves nothing
+    # (the canary grading its own homework, the recovered CR major);
+    # (b) the worst cap comes from the CELL the gate armed (a cell AT
+    # its own dmax is the cap echoed back — canary_enable's doctrine —
+    # so the cell cap sits strictly inside at 0.8×dmax);
+    # (c) the run WALKS the guard factor the bot actually follows —
+    # per-cycle deltas through the machine's own clamp [MIN_GF, MAX_GF]
+    # and the daily-cap rail — and breaches when the cell would drive
+    # the bot's calibration to the floor.
+    big = {"cycle": 99, "rot": "canary-big", "B": 200, "P": 90,
+           "buried": [], "paid": []}          # r=0.45, ln(201): the
+    # delta reaches the cell's dmax — the shape the cap must answer
+    runaway = [dict(big, cycle=i) for i in range(50)]
+
+    ev_noband = cr.evaluate(cyc, None)
+    check("a self-derived CI can never certify the run: with no prior "
+          "band supplied the verdict is INCONCLUSIVE (outside_band "
+          "False, band_certified False, the stale-certification hole "
+          "closed) and the reason is named",
+          ev_noband["outside_band"] is False
+          and ev_noband["band_certified"] is False
+          and any("band not certified" in r for r in ev_noband["reasons"]),
+          ev_noband)
+    ev_bad = cr.evaluate(cyc, prior_band=(0.0, 0.0))
+    check("a supplied band the run falls OUTSIDE of is a hard breach "
+          "even when every other threshold is quiet (the certifier has "
+          "teeth)",
+          ev_bad["outside_band"] is True and ev_bad["band_certified"]
+          and ev_bad["breach"]
+          and any("outside band" in r for r in ev_bad["reasons"]),
+          ev_bad)
+    ev_good = cr.evaluate(cyc, prior_band=(-0.2, 0.0))
+    check("a supplied band the run sits inside certifies cleanly (and "
+          "net_in_band stays the honest report field)",
+          ev_good["outside_band"] is False and ev_good["band_certified"]
+          and not any("outside band" in r for r in ev_good["reasons"]),
+          ev_good)
+
+    ev_cell = cr.evaluate([big], prior_band=(-5.0, 5.0),
+                          params={"alpha": 0.03, "delta_max": 0.05,
+                                  "daily_cap": 0.2})
+    check("the worst cap comes from the CELL the gate selected, "
+          "strictly inside its own dmax (0.8x — a cell AT its dmax is "
+          "the cap echoed back, not evidence): the cap can actually "
+          "fire for a 0.05 cell",
+          ev_cell["worst_cap"] == 0.04 and ev_cell["breach"]
+          and any("single_book_loss" in r for r in ev_cell["reasons"]),
+          (ev_cell.get("worst_cap"), ev_cell.get("reasons")))
+    check("the evaluation records the cell it judged (the armed "
+          "parameters are provably live in the verdict)",
+          ev_cell["params_cell"] == {"alpha": 0.03, "delta_max": 0.05,
+                                     "daily_cap": 0.2},
+          ev_cell.get("params_cell"))
+
+    ev_floor = cr.evaluate(runaway, prior_band=(-5.0, 5.0),
+                           params={"alpha": 0.10, "delta_max": 0.10,
+                                   "daily_cap": 2.0})
+    check("the guard-factor walk BREACHES when the cell would drive "
+          "the bot's calibration to the floor (pinned live factor, "
+          "the daily cap deliberately unconstrained so the CLAMP rail "
+          "is what stops the walk at MIN_GF)",
+          ev_floor["guard_factor_breach"] is True
+          and ev_floor["guard_factor"]["end"] == cr_aa.MIN_GF
+          and ev_floor["guard_factor"]["applied"] == 15
+          and any("guard factor" in r for r in ev_floor["reasons"]),
+          (ev_floor.get("guard_factor"), ev_floor.get("reasons")))
+    ev_walk = cr.evaluate(cyc, prior_band=(-5.0, 5.0))
+    check("the healthy walk reports the factor the bot follows: start "
+          "inside the machine's clamp, end never above start (the "
+          "rule only loosens), applies bounded by the rule-firing "
+          "cycles AND by the daily-cap rail (the cap refuses rotations "
+          "once the day's budget is spent), and the healthy run never "
+          "drives the factor to the floor",
+          0.5 <= ev_walk["guard_factor"]["start"] <= 2.0
+          and ev_walk["guard_factor"]["end"] <= ev_walk["guard_factor"]["start"]
+          and 0 < ev_walk["guard_factor"]["applied"]
+          <= ev_walk["applied_cycles"]
+          and ev_walk["guard_factor"]["end"] > cr_aa.MIN_GF
+          and ev_walk["guard_factor_breach"] is False,
+          (ev_walk.get("guard_factor"), ev_walk.get("applied_cycles")))
+    ev_caprail = cr.evaluate([big], prior_band=(-5.0, 5.0),
+                             params={"alpha": 0.03, "delta_max": 0.10,
+                                     "daily_cap": 0.01})
+    check("the walk rides the DAILY-CAP rail (a 0.01 cap refuses the "
+          "cycle's loosening entirely — the machine refuses, it never "
+          "truncates behind the caller's back)",
+          ev_caprail["guard_factor"]["applied"] == 0
+          and ev_caprail["guard_factor"]["end"]
+          == ev_caprail["guard_factor"]["start"],
+          ev_caprail.get("guard_factor"))
+    check("a breaching walk fails the run even with a certified band "
+          "and quiet caps (the factor verdict is its own threshold)",
+          ev_floor["band_certified"] and ev_floor["breach"]
+          and any("guard factor" in r for r in ev_floor["reasons"]),
+          ev_floor["reasons"])
 finally:
     cr.DIAL_FILE = _real_dial_file
     cr.COHORT_FILE = _real_cohort_file

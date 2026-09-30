@@ -1199,6 +1199,19 @@
         "test_lifecycle.py": "sha256:40fdbf8f72abe2962b6e25d99d5e095b5d26c8af035cefd8ceed8e4aea31c937",
         "test_topfill.py": "sha256:6842e40a07611fbf6707d46f33dec8698a54abc4689ef9c60f17fbec0335d71d"
       }
+    },
+    "55-canary-guardfactor-validation": {
+      "commits": [
+        "<this commit>"
+      ],
+      "branch_name": "master",
+      "date": "2026-09-30",
+      "title": "THE CANARY VALIDATES ITS OWN GUARD FACTOR: PRIOR-BAND CERTIFICATION, THE ARMED CELL'S WORST-CAP RAIL, A JUDGED PER-CYCLE WALK, AND A DRILL KNOB FOR THE START FACTOR (Sep 30, canary-guardfactor-validation)",
+      "detail": "One gated commit carrying the canary's guard-factor validation. (1) THE BAND IS CERTIFIED OR NOTHING IS CLAIMED: evaluate() no longer infers the outside-band verdict from a missing prior band — no band means band_certified False with the named 'band not certified' reason and the run reads INCONCLUSIVE, instead of silently pretending the worst band held. (2) THE ARMED CELL PRICES ITS OWN WORST LOSS: when cohort params are supplied the worst cap derives from the armed cell (0.8 x its delta_max, params_cell recorded) instead of the global WORST_LOSS_CAP (-0.10), so a cell tuned for a wider drawdown walks its own rail. (3) THE GUARD FACTOR WALKS AND IS JUDGED: per-cycle the factor moves through aa.clamp [0.5, 2.0] under a daily cap that refuses whole rotations (consumed keyed by the stamp's day), with the breach pinned at the MIN_GF floor. (4) THE START FACTOR IS A DRILL KNOB: start_factor (start_source pinned/live) lets a rehearsal begin from a stressed factor, and run_canary(params=...) threads the cohort cell into both evaluate and flip_canary. Signature: evaluate(cycles, prior_band, worst_cap=WORST_LOSS_CAP, params=None, start_factor=None); hit-rate drift tolerance 0.10. Pins: test_canary 31/0 (8 new, red-first — the KeyError-shaped absence of the old behavior proven before the rewrite); regressions autoadjust 30/0, resilience 15/0, sink_hygiene 3/0.",
+      "checksums": {
+        "canary_runner.py": "sha256:10a8b202e97456b24757b8b9f45e418c23b23ed9486aa5322f093c0e56193a42",
+        "test_canary.py": "sha256:1973b91d287ab7b9e0fb85dfa92198d1685cf52a3ad97282d671b59052f820b0"
+      }
     }
   }
 }

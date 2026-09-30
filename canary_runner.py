@@ -246,54 +246,153 @@ def collect_cycles(cohort: list[str], cycles: int, rotation_seed: dict,
 
 # ── the evaluation (the spec's thresholds, machine-real) ────────────
 def evaluate(cycles: list[dict], prior_band: tuple[float, float] | None,
-             worst_cap: float = WORST_LOSS_CAP) -> dict:
+             worst_cap: float = WORST_LOSS_CAP, params: dict | None = None,
+             start_factor: float | None = None) -> dict:
     """Apply the machine's rule per cycle (the task-2 compute_delta,
-    B_MIN/R_MIN live), then the spec's three thresholds."""
+    B_MIN/R_MIN live), then the spec's thresholds — JUDGED AS ARMED
+    (Sep 30, the bot follows the factor now: drills that cannot fail
+    validate nothing).
+
+    The band must be CERTIFIED: `prior_band` is the caller's external
+    evidence (the sweep's expected band, the incumbent factor's own
+    history). A self-derived CI grades the run with the run's own
+    distribution — it can never fail, so it certifies nothing (the
+    recovered CR major). No band → the net threshold reports
+    INCONCLUSIVE (named in reasons), never a quiet pass.
+
+    `params` is the CELL the gate armed (ops/canary_enable persists it
+    on the cohort file): alpha/delta_max/daily_cap, each optional (the
+    module default stands). The worst cap rides the cell — a cell AT
+    its own dmax is the cap echoed back (canary_enable's doctrine), so
+    the armed verdict demands strictly inside: 0.8 × dmax. Without
+    `params` the legacy `worst_cap` argument stands unchanged.
+
+    THE GUARD-FACTOR WALK: the bot now FOLLOWS the factor these deltas
+    drive (fills.trail_geometry), so the run walks the factor per
+    applied cycle through the machine's own rails — aa.clamp's guard
+    clamp [MIN_GF, MAX_GF] and the daily cap (the machine REFUSES an
+    over-cap rotation, it never truncates behind the caller's back).
+    It breaches when the cell would drive the bot's calibration to the
+    MIN_GF floor. Cycles carry hourly ts (the collector stamps them);
+    the daily rail groups on the ts day, an unstamped cycle rides its
+    own day. `start_factor` pins the drill's starting calibration (a
+    drill controls its variables); production walks from the LIVE
+    factor (aa.read_guard_factor).
+    """
     import auto_adjust as aa
     import simulate_sweep as ss
     net = 0.0
     worst = 0.0
-    deltas = []
     rates = []
+    verdicts = []          # (delta, reason) per cycle — ONE rule verdict,
+                           # reused by the thresholds AND the walk
     for c in cycles:
         delta, reason = aa.compute_delta(c["B"], c["P"])
+        verdicts.append((delta, reason))
         if reason == "ok":
-            deltas.append(delta)
             net += delta
             worst = min(worst, delta)
         if c["B"]:
             rates.append(c["P"] / c["B"])
+    deltas = [d for d, r in verdicts if r == "ok"]
     ci = ss.bootstrap_ci(deltas) if deltas else (0.0, 0.0)
-    band = prior_band or ci
-    net_in_band = band[0] <= net <= band[1]
-    # the machine's twist on the spec's 'net within CI': the CI of the
-    # applied deltas is the per-rotation shape; the NET over the run
-    # must sit inside the band scaled by the streak length. A canary
-    # that applied nothing idles INSIDE any band (refusing is safe).
+    # THE CERTIFIED BAND: supplied externally or the verdict is
+    # inconclusive on this threshold — the self-derived CI stays in the
+    # report (the shape of the applied deltas) but certifies nothing.
+    band_certified = prior_band is not None
+    band = tuple(prior_band) if band_certified else ci
     n_applied = max(1, len(deltas))
-    net_ok = (band[0] * n_applied) <= net <= (band[1] * n_applied)
-    if not deltas:
-        net_ok = True
+    outside_band = (band_certified
+                    and not (band[0] * n_applied <= net <= band[1] * n_applied))
+    net_ok = not outside_band
     half = max(1, len(rates) // 2)
     r1 = sum(rates[:half]) / half if rates else 0.0
     r2 = (sum(rates[half:]) / (len(rates) - half)) if len(rates) > half \
         else r1
     stable = abs(r2 - r1) <= HIT_RATE_DRIFT
-    breach = (not net_ok) or worst < worst_cap or (not stable)
+    # THE ARMED CELL (the canary evaluates the machine AS ARMED, never
+    # as defaulted): the gate's selected cell overrides the module
+    # defaults key-by-key — the same seam the boundary hook honors.
+    _p = params or {}
+    try:
+        _alpha = aa.ALPHA if _p.get("alpha") is None else float(_p["alpha"])
+        _dmax = (aa.DELTA_MAX if _p.get("delta_max") is None
+                 else float(_p["delta_max"]))
+        _dcap = (aa.DAILY_CAP if _p.get("daily_cap") is None
+                 else float(_p["daily_cap"]))
+        cell_cap = (0.8 * _dmax
+                    if (params is not None and _dmax > 0) else worst_cap)
+        params_cell = ({"alpha": _alpha, "delta_max": _dmax,
+                        "daily_cap": _dcap}
+                       if params is not None else None)
+    except (TypeError, ValueError):
+        _alpha, _dmax, _dcap = aa.ALPHA, aa.DELTA_MAX, aa.DAILY_CAP
+        cell_cap = worst_cap
+        params_cell = None
+    # THE WALK — the factor the bot follows, under the machine's own
+    # rails: the guard clamp (aa.clamp) and the daily cap (REFUSED, not
+    # truncated — apply_adjustment's real posture).
+    try:
+        before = (aa.read_guard_factor() if start_factor is None
+                  else float(start_factor))
+    except Exception:
+        before = aa.read_guard_factor()
+    start = before
+    gf_min = before
+    walk_applied = 0
+    consumed: dict = {}
+    for c, (delta, reason) in zip(cycles, verdicts):
+        if reason != "ok":
+            continue
+        ts = c.get("ts")
+        day = str(ts)[:10] if ts else f"cycle-{c.get('cycle')}"
+        used = consumed.get(day, 0.0)
+        if used + abs(delta) > _dcap:
+            continue          # daily_cap_exceeded — the rotation is
+                              # refused whole, never shrunk
+        after = aa.clamp(before, delta)
+        if after < before:    # the rule only loosens; the clamp floors it
+            consumed[day] = used + abs(delta)
+            before = after
+            walk_applied += 1
+            gf_min = min(gf_min, before)
+    gf_breach = before <= aa.MIN_GF + 1e-9
+    breach = outside_band or worst < cell_cap or (not stable) or gf_breach
     reasons = []
-    if not net_ok:
+    if outside_band:
         reasons.append(f"net_delta {net:.4f} outside band "
                        f"[{band[0] * n_applied:.4f}, "
-                       f"{band[1] * n_applied:.4f}]")
-    if worst < worst_cap:
-        reasons.append(f"single_book_loss {worst:.4f} < {worst_cap}")
+                       f"{band[1] * n_applied:.4f}] (certified)")
+    elif not band_certified:
+        reasons.append("band not certified by external evidence — "
+                       "verdict inconclusive on the net threshold "
+                       "(the self-derived CI is not a certification)")
+    if worst < cell_cap:
+        reasons.append(f"single_book_loss {worst:.4f} < {cell_cap:.4f}"
+                       + (" (the armed cell's cap, 0.8x its dmax)"
+                          if params_cell is not None else ""))
     if not stable:
         reasons.append(f"hit rate drift {r2 - r1:+.3f} > "
                        f"{HIT_RATE_DRIFT}")
+    if gf_breach:
+        reasons.append(f"guard factor driven to the floor: end "
+                       f"{before:.4f} at MIN_GF after {walk_applied} "
+                       f"applied cycles (the bot follows this factor)")
     return {"net_delta": round(net, 4), "worst_single_book_loss":
             round(worst, 4), "net_in_band": net_ok,
             "band": [round(band[0] * n_applied, 4),
                      round(band[1] * n_applied, 4)],
+            "outside_band": outside_band,
+            "band_certified": band_certified,
+            "worst_cap": round(cell_cap, 4),
+            "params_cell": params_cell,
+            "guard_factor": {"start": round(start, 4),
+                             "min": round(gf_min, 4),
+                             "end": round(before, 4),
+                             "applied": walk_applied,
+                             "start_source": ("pinned" if start_factor
+                                              is not None else "live")},
+            "guard_factor_breach": gf_breach,
             "hit_rate_1": round(r1, 4), "hit_rate_2": round(r2, 4),
             "hit_rate_stable": stable, "applied_cycles": len(deltas),
             "breach": breach, "reasons": reasons}
@@ -304,12 +403,21 @@ def run_canary(cohort: list[str], rotation_seed: dict,
                cycles: int = CYCLES, seed: int = SEED,
                breach_injection: dict | None = None,
                arm: bool = False,
-               arm_confirm: bool = False) -> dict:
+               arm_confirm: bool = False,
+               params: dict | None = None) -> dict:
     """The spec's canary job. BY DEFAULT A PURE SIMULATION (the four-
     review major): no flip, no rollback — production state is never
     touched, because a what-if that silently re-arms the live cohort
     would also STRIP the live params cell (flip_canary writes a fresh
     doc) and a simulated breach would roll the LIVE cohort off.
+
+    `params` (Sep 30, the guard-factor validation) is the CELL the gate
+    armed: the evaluation judges the machine AS ARMED (cell-resolved
+    worst cap, cell-recorded verdict, the guard-factor walk the bot's
+    trail actually rides), and an ARMED run flips the cohort WITH that
+    cell — the staging exercise rehearses the exact parameters it
+    graded. `prior_band` supplies the external certification; without
+    it the run reports band-inconclusive (see evaluate).
 
     arm=True is the staging exercise — real flip, and a breach executes
     the real rollback — and it is REFUSED when the cohort file in play
@@ -336,7 +444,7 @@ def run_canary(cohort: list[str], rotation_seed: dict,
                 "arm_confirm=True if a live re-arm is actually meant")
         armed_live = cohort_file().resolve() \
             == RUNTIME_COHORT_FILE.resolve()
-        flipped = flip_canary(f"canary-{run_id}")
+        flipped = flip_canary(f"canary-{run_id}", params=params)
     cyc = collect_cycles(cohort, cycles, rotation_seed, seed=seed)
     if breach_injection:
         # the staging drill: the cohort's payer-rate collapses in the
@@ -348,7 +456,7 @@ def run_canary(cohort: list[str], rotation_seed: dict,
         for c in cyc[half:]:
             if c["B"]:
                 c["P"] = breach_injection.get("second_half_P", 0)
-    ev = evaluate(cyc, prior_band)
+    ev = evaluate(cyc, prior_band, params=params)
     record = {"run_id": run_id, "cohort": list(cohort),
               "dial": flipped, "cycles": len(cyc),
               "evaluation": ev,
