@@ -243,6 +243,15 @@ check("a pure bot-strategy book still closes through the seam (the "
                 sb.mark_closed_by_pair("TIA/USD", 0.25),
                 _row("botown1")["status"] == "closed"))())
 
+# ── 6. the scanner's auto-close closes the book (the INJ ghost) ──────
+bs_src = (Path(__file__).parent / "background_scanner.py").read_text(encoding="utf-8")
+check("the GET OUT auto-close closes the bridge book when the sale "
+      "receipt is journaled (the book follows the ledger — INJ sold at "
+      "08:27 while its bridge row rode every rotation voice line until "
+      "the 20:00 reset, 12h of ghost)",
+      "THE BOOK FOLLOWS THE LEDGER" in bs_src
+      and "mark_closed_by_pair as _mcbp" in bs_src)
+
 fails = [r for r in lines if r.startswith("FAIL")]
 out = scratch_space.report_temp("phantommirror_check.txt")
 out.write_text("\n".join(lines)

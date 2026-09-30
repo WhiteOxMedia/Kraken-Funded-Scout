@@ -1079,6 +1079,19 @@
         "signal_bridge.py": "sha256:40b9a5a2cdfb38ba8df9366a46de27e07cd26c50835b1e5f5af456a700f2df6c",
         "test_phantommirror.py": "sha256:0b70aedf5d6e482243b95010c2dc3b709b0b0ba8e280128307c9c899992538b9"
       }
+    },
+    "47-book-follows-ledger": {
+      "commits": [
+        "<this commit>"
+      ],
+      "branch_name": "master",
+      "date": "2026-09-29",
+      "title": "THE AUTO-CLOSE THAT SELLS REAL COINS MUST CLOSE THE BOOK: THE GET OUT CLOSE NOW CALLS MARK_CLOSED_BY_PAIR (Sep 29, book-follows-ledger)",
+      "detail": "The INJ ghost timeline, completed: the scanner auto-close sold the real INJ at 08:27 (entry 7.727 -> exit 7.742, +0.04 net applied, receipt journaled, watch row tombstoned) but never told the signal bridge — both bridge rows kept saying holding, rode every rotation-boundary voice line (the tracking-2-INJ task 45 surfaced), until the 20:00 rotation reset finally closed the last one with a pnl=0 stamp 12 hours after the sale. The journal receipt IS the close: the auto-close journaled branch now calls signal_bridge.mark_closed_by_pair(pair, net) — the book follows the ledger the moment the receipt is on disk, fail-soft (a bridge hiccup can never unbook a closed trade; the CLEAN GHOSTS button remains the net). This is the third door of the phantom class: 7c6624c closed the ack-window double-book and the mirror twin, and retired the live phantom; this door wires the scanner close path into the same book. Live state after: the bridge book is empty (correct — INJ was sold at 08:27), the phantom row retired, the real row closed by the reset with its sale already journaled. Pin: test_phantommirror check 32 (the journaled branch carries the book-close call). Drives: phantommirror 32/0, persistexit, rebootsurv, allgoodlead, sink_hygiene ALL.",
+      "checksums": {
+        "background_scanner.py": "sha256:b70229727d8ab95ef86dc5f66d7636b95f49eb0ba65e7eee7a3376ac12586d7c",
+        "test_phantommirror.py": "sha256:ac55344333480ecd7c9d83486f733d4a350ed14f02f9dd25b5323c6516634cdd"
+      }
     }
   }
 }

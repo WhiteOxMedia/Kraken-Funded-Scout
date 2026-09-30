@@ -4223,6 +4223,23 @@ def contest_light(exchange, cfg):
                 # re-added by the update pass).
                 watch[pair] = None
                 _save_contest_watch(watch)
+                # ── THE BOOK FOLLOWS THE LEDGER (Sep 29, the INJ ghost):
+                # this auto-close sold REAL coins but only journaled the
+                # sale — the signal bridge's filled row kept saying
+                # "holding" (INJ sold 08:27 yet its bridge row rode every
+                # rotation-boundary voice line until the 20:00 reset
+                # finally closed it 12h later; the console's CLEAN GHOSTS
+                # button exists for exactly this class). Close the pair's
+                # filled row here, so the book and the ledger agree the
+                # moment the receipt is on disk. Fail-soft: a bridge
+                # hiccup can never unbook a closed trade.
+                try:
+                    from signal_bridge import mark_closed_by_pair as _mcbp
+                    _mcbp(pair, _net)
+                except Exception as _bg_exc:
+                    logger.warning("bridge book-close failed for %s (the "
+                                   "CLEAN GHOSTS button remains the net): %s",
+                                   pair, _bg_exc)
             else:
                 # the row STAYS — the SOLD button remains the way out
                 # (the close promise, now enforced: skipped-close and
