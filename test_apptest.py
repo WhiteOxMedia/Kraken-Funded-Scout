@@ -3508,6 +3508,54 @@ try:
 except Exception as exc:
     check("the API-fed panel pins ran", False, exc)
 
+# ═══ THE TRACKED-POSITIONS MERGE (Sep 29, her name for the INJ day: "I
+# was told still tracking INJ and nothing on the page shows it"): the
+# rotation-boundary voice reads the BRIDGE book; the panel counted the
+# BOT DB only — a bridge fill missing from the bot DB was spoken but
+# invisible. The merge is pinned behavioral: bot book is truth where
+# both agree (one row, tagged bot), a bridge-only fill rides tagged
+# bridge, and the NOW strip NAMES the tracked pairs.
+try:
+    import asyncio as _aio_tp
+    _loop = _aio_tp.new_event_loop()
+    _aio_tp.set_event_loop(_loop)
+    _real_bot_positions = app_mod.bot_positions
+    _real_bridge_positions = app_mod.bridge_positions
+
+    # an empty bridge read must not raise where the bridge is down —
+    # the merge degrades to the bot book alone
+    app_mod.bot_positions = lambda: [
+        {"id": 1, "pair": "BTC/USD", "base": "BTC", "vol": 0.01,
+         "entry": 50000.0, "ts": "t", "source": "bot"}]
+    app_mod.bridge_positions = lambda: [
+        {"id": "sig-inj", "pair": "INJ/USD", "base": "INJ",
+         "entry": 7.727, "ts": "t", "source": "bridge"},
+        {"id": "sig-btc", "pair": "BTC/USD", "base": "BTC",
+         "entry": 49000.0, "ts": "t", "source": "bridge"}]
+    merged = app_mod.tracked_positions()
+    _bases = [p["base"] for p in merged]
+    _inj = [p for p in merged if p["base"] == "INJ"]
+    check("the merge counts EVERY voice-named pair: the bridge-only "
+          "INJ fill rides (the spoken-but-invisible class is dead)",
+          "INJ" in _bases and len(merged) == 2, _bases)
+    check("the bot book is the truth where both agree: BTC appears "
+          "ONCE, tagged bot (no double-count, no bridge shadow)",
+          _bases.count("BTC") == 1
+          and [p for p in merged if p["base"] == "BTC"][0]["source"]
+          == "bot", _bases)
+    check("a bridge-only row carries source=bridge (the reconcile "
+          "section can classify it)",
+          bool(_inj) and _inj[0].get("source") == "bridge")
+    check("the NOW strip NAMES the tracked pairs (she sees INJ where "
+          "she watches)",
+          "tracking 2 positions: BTC, INJ" in app_mod.now_strip(
+              "x", False, 5, 61) or
+          "tracking 2 positions: INJ, BTC" in app_mod.now_strip(
+              "x", False, 5, 61))
+finally:
+    app_mod.bot_positions = _real_bot_positions
+    app_mod.bridge_positions = _real_bridge_positions
+
 try:
     out = BASE / "apptest_check.txt"
     out.write_text("\n".join(lines)

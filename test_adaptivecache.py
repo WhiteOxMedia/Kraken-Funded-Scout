@@ -43,13 +43,15 @@ spec_want = {
     "scanner_status": (60, 20, 120, True),
     "fetch_payouts": (180, 180, 600, False),
     "bot_positions": (30, 10, 45, True),
+    "bridge_positions": (30, 10, 45, True),   # the still-tracking source joins the registry (Sep 29, the INJ visibility fix)
 }
 for k, want in spec_want.items():
     got = ac.SPEC[k]
     check(f"spec {k}: base={want[0]} min={want[1]} max={want[2]} adaptive={want[3]}",
           got == want, got)
-check("exactly the seven spec'd fetchers", set(ac.SPEC) == set(spec_want),
-      sorted(ac.SPEC))
+check("exactly the eight spec'd fetchers (bridge_positions joined Sep "
+      "29 — the still-tracking source rides the adaptive cadence)",
+      set(ac.SPEC) == set(spec_want), sorted(ac.SPEC))
 
 # ── 2. THE VOLATILITY MODEL ───────────────────────────────────────────
 reset()

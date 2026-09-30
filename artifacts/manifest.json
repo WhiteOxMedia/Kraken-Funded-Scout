@@ -1051,6 +1051,21 @@
         "test_autoadjust.py": "sha256:ce10b72a6e251a1018536ccec3ef36170d1414967e193b08e8959f04a96bf7c4",
         "hooks/pre-commit": "sha256:d1ef17be597c98dc8feea59e8436ebe3149d43ec5e1fa4860887de84480c2d18"
       }
+    },
+    "45-tracked-positions-visibility": {
+      "commits": [
+        "<this commit>"
+      ],
+      "branch_name": "master",
+      "date": "2026-09-29",
+      "title": "EVERY PAIR THE VOICE NAMES IS ON THE PAGE: TRACKED_POSITIONS MERGES THE BOT BOOK WITH THE SIGNAL BRIDGE, THE NOW STRIP SPEAKS THE NAMES (Sep 29, tracked-positions-visibility)",
+      "detail": "Her INJ-day finding closed at the surface: the rotation-boundary voice reads the SIGNAL BRIDGE (signal_bridge.get_open_positions), but the console NOW strip counted bot_positions() (the Neon DB) — a bridge fill missing from the bot DB (the two INJ fills 50385ce5/e9292c32 @ 7.727, filled 07:00/08:00, never closed) was SPOKEN but INVISIBLE. New: app.bridge_positions_core/bridge_positions (the bridge book normalized to the bot shape through the adaptive cache — SPEC entry bridge_positions (30,10,45,True), the same cadence family) and app.tracked_positions (the merge by BASE: the bot book is truth where both agree — one row tagged bot; a bridge-only fill rides tagged bridge for the reconcile section to classify). The NOW strip now NAMES the tracked pairs: tracking 2 positions: INJ, INJ — live-verified against the real ghost before commit. Pins in test_apptest (the merge behavioral: bridge-only rides, no double-count, source tags, the NOW strip names; her class is dead) and the adaptivecache census follows the registry (seven -> eight). Drives: apptest 310/0, adaptivecache, watchliveness, botdb ALL.",
+      "checksums": {
+        "app.py": "sha256:2d632543cbfc0c28f73b53b7d65d816fdbd3a24c1cc4dbf90d54d6ad3394d815",
+        "adaptive_cache.py": "sha256:af6cc5a64d5694bc849c9e64dc8018e3a98e28a444134e02db49f8c14008c5df",
+        "test_apptest.py": "sha256:02002429d2fc909be32ad8e9062bd36120d122c39eb4c308d73e77993a704a22",
+        "test_adaptivecache.py": "sha256:505f527892ecfa45ba3fcb5f5b7b680f0e7119f5f5ee6550d73b88f3ef9f19cd"
+      }
     }
   }
 }

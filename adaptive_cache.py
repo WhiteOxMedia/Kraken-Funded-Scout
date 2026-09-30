@@ -42,6 +42,10 @@ SPEC = {
     "scanner_status": (60, 20,  120, True),
     "fetch_payouts": (180, 180, 600, False),
     "bot_positions": (30,  10,  45,  True),
+    # the SIGNAL BRIDGE book (the still-tracking source, the round-8
+    # visibility fix): same cadence family as the bot book — local
+    # sqlite read, cross-invalidated on position enter/exit
+    "bridge_positions": (30, 10, 45, True),
 }
 
 # (vol_pct_above, multiplier, name) — first match wins; None = no ceiling

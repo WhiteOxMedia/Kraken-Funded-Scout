@@ -720,6 +720,57 @@ def bot_positions() -> list[dict]:
                      bot_positions_core, copy_result=True)
 
 
+@st.cache_data(ttl=10)
+def bridge_positions_core() -> list[dict]:
+    """THE SIGNAL BRIDGE BOOK (the still-tracking source, the round-8
+    visibility fix): filled-but-not-closed signals from signals.db —
+    the SAME read the scanner's rotation-boundary voice speaks —
+    normalized to the bot-position shape. ttl=10 = the bot book's
+    adaptive-min cadence."""
+    try:
+        rows = _bridge().get_open_positions() or []
+    except Exception:
+        return []
+    out = []
+    for r in rows:
+        pair = str(r.get("pair") or "")
+        if not pair:
+            continue
+        out.append(dict(
+            id=r.get("signal_id") or r.get("id"),
+            pair=pair,
+            base=_asset(pair),
+            entry=(r.get("execution_price") or r.get("entry_price")
+                   or r.get("price")),
+            ts=str(r.get("executed_at") or ""),
+            source="bridge",
+        ))
+    return out
+
+
+def bridge_positions() -> list[dict]:
+    """The bridge book through the adaptive cache (same cadence family
+    as the bot book)."""
+    return ac_cached("bridge_positions", "open",
+                     bridge_positions_core, copy_result=True)
+
+
+def tracked_positions() -> list[dict]:
+    """EVERYTHING the 'still tracking' voice can name (the round-8 fix:
+    the voice reads the BRIDGE at the rotation boundary, the panel read
+    the BOT DB — a bridge fill missing from the bot DB (the INJ class)
+    was spoken but invisible). The merge is by BASE: the bot book is
+    the truth where both agree; a bridge-only fill rides tagged so the
+    operator sees it and the reconcile section can classify it."""
+    bot = bot_positions()
+    bot_bases = {p["base"] for p in bot}
+    merged = [dict(p, source="bot") for p in bot]
+    for p in bridge_positions():
+        if p["base"] not in bot_bases:
+            merged.append(p)
+    return merged
+
+
 # ── Dopamine layer: scoreboard + win feed + fresh-win celebration ──────
 
 @st.cache_data(ttl=30)
@@ -835,9 +886,10 @@ def win_feed() -> str:
 def now_strip(block: str, no_buy: bool, interval: int, thr: int) -> str:
     """Plain-English one-liner: what is the system doing right now."""
     try:
-        n_pos = len(bot_positions())
+        _tp = tracked_positions()
     except Exception:
-        n_pos = 0
+        _tp = []
+    n_pos = len(_tp)
     sc = scanner_status()
     if no_buy:
         doing = "🌙 cooldown — no new buys until midnight, exits still watched"
@@ -845,7 +897,13 @@ def now_strip(block: str, no_buy: bool, interval: int, thr: int) -> str:
         doing = "⚠️ scanner is OFFLINE — double-click the Kraken shortcut"
     else:
         doing = f"🔭 scanner hunting every {interval} min (bar {thr}%)"
-    holding = (f" · holding {n_pos} position{'s' if n_pos != 1 else ''}" if n_pos else " · wallet flat, waiting for the next signal")
+    # THE NAMES RIDE (the round-8 fix): the rotation-boundary voice says
+    # "still tracking INJ, SUI" — the NOW strip says the same pairs, so
+    # every spoken pair is visible where she watches (a bridge-only fill
+    # is named exactly as the voice names it).
+    _names = ", ".join(str(p["base"]) for p in _tp)
+    holding = (f" · tracking {n_pos} position{'s' if n_pos != 1 else ''}: {_names}"
+               if n_pos else " · wallet flat, waiting for the next signal")
     return (f'<div class="now-strip"><b>NOW:</b> {doing}{holding}'
             f' · exits checked every 5 min — you don\'t have to do anything</div>')
 
