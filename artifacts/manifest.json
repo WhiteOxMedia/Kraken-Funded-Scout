@@ -1032,6 +1032,25 @@
         "test_canary.py": "sha256:6c6ac0c2397a1d4974851ea998572f36cbb90f8b130895dd38308c6febee6221",
         "RUNTIME_INVARIANTS.md": "sha256:cea82ec8210c2935a5f55d586936c6fac4c22984967b940d835703a900d63017"
       }
+    },
+    "44-sink-hygiene-sweep": {
+      "commits": [
+        "<this commit>"
+      ],
+      "branch_name": "master",
+      "date": "2026-09-29",
+      "title": "THE SINK-HYGIENE SWEEP: NO DRIVE WRITES A PRODUCTION FILE ANYMORE — THE FLEET AUDIT IS REPAIRED AND WIRED INTO THE GATE, AND THE CLASS PROVED ITSELF LIVE AT 16:55 (Sep 29, sink-hygiene-sweep)",
+      "detail": "THE INCIDENT, first: mid-sweep, an ordering slip in the allgoodlead conversion captured the live watch path BEFORE the sink rebind — the seeded phantom PUMP row hit the LIVE contest_watch.json, the RUNNING scanner watched it, auto-closed it, banked +257.20 of nothing (balance 10015.54 -> 10272.74, dedupe key PUMP/USD|None|getout), and pushed the ghost GET OUT popup to the operators phone (her question caught it). CORRECTED LIVE: balance restored to 10015.5376 via the scanners own chain arithmetic (the phantom close balance_after minus its pnl_net), the fake dedupe entry dropped (49 entries), the journal row purged (97 kept), the watch tombstoned via the merge-save, backups in %TEMP%/phantom_pump_repair_go75w10f. THE SWEEP: census of all 54 drives touching live-state names — direct writes were already tempdir-sealed; the REAL unsealed class was backup/restore-by-name (test_allgoodlead x4 windows, test_giveback x2). SEALED: background_scanner gains CONTEST_TRADES_FILE + TRADES_ENV (the reader _today_realized_pnl and the auto-close append resolve it live; default unchanged) and drives rebind the constant to tempdir sinks instead of opening live files — windows retired in allgoodlead (journal x3, watch x1) and giveback (journal, take_payouts via the TAKE_PAYOUTS_JSON rebind). THE AUDIT: diag_testleaks was CRASHING on AnnAssign (the whole audit blind whenever run directly) — fixed, plus three rule gaps closed (pop-with-default finally restores, sentinel arms honored on the write and read branches) and the sbx naming miss. NEW test_sink_hygiene runs the AST audit in-process across every suite + pins the seam (gate _SH trigger, 15s). RUNTIME_INVARIANTS: the cohort file is runtime state (task 43). Drives: sink_hygiene 3/0, allgoodlead 26/0, giveback ALL PASS, hindightservice, autoadjust, apptest, metalayers, profitguard ALL.",
+      "checksums": {
+        "background_scanner.py": "sha256:5e42d1069604eda495c9b81170c8e920838306e772a8de65c5b8bfe5f9dfec2d",
+        "test_allgoodlead.py": "sha256:56ce24d479eca4db6853de8801a63455aaaa0c700adf3dd00e7fa25ec02c5374",
+        "test_giveback.py": "sha256:967f0b122450631974474541c0120fead8311d820f36aaea2ec45e19d396481e",
+        "test_sink_hygiene.py": "sha256:052a03dec0f5c96a8362c20897bea188f6ed9412c10bac4cbfca41a71e1843a9",
+        "diag_testleaks.py": "sha256:20eff619a063c5b7942a559645ed1a239140a5acf78a2dd01d1ffb0905194143",
+        "test_hindightservice.py": "sha256:86f5be4b3c6d14398d297d9215abbaf126f75ccaa3c6a493b2adfa127011f904",
+        "test_autoadjust.py": "sha256:ce10b72a6e251a1018536ccec3ef36170d1414967e193b08e8959f04a96bf7c4",
+        "hooks/pre-commit": "sha256:d1ef17be597c98dc8feea59e8436ebe3149d43ec5e1fa4860887de84480c2d18"
+      }
     }
   }
 }

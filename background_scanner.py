@@ -874,6 +874,14 @@ def champion_vs_champion(momentum_champion, bounce_champion) -> tuple[Any, str]:
 #    dollars / GET OUT NOW on exits / scalp alerts. The console visual
 #    popups are separate; this is the voice that never sleeps.
 CONTEST_WATCH_JSON = os.path.join(os.path.dirname(os.path.abspath(__file__)), "contest_watch.json")
+# THE TRADES JOURNAL, RESOLVABLE (the test-pollutes-live-state sweep,
+# Sep 29): the realized-P&L readers and the auto-close append go through
+# this constant, so a drive rebinds ONE name to a tempdir sink instead
+# of opening the LIVE journal by relative name (the last unsealed
+# backup/restore windows). Default = the module dir, unchanged in
+# production; the env seam is the sandbox shortcut.
+CONTEST_TRADES_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "contest_trades.jsonl")
+TRADES_ENV = "CONTEST_TRADES_FILE"
 POPUPS_JSONL = os.path.join(os.path.dirname(os.path.abspath(__file__)), "popups.jsonl")
 
 
@@ -3438,13 +3446,17 @@ GIVEBACK_TIGHTEN_FRAC = 0.10     # tighten the guard factor 10%
 
 def _today_realized_pnl() -> float:
     """Today's banked journal total — the sum _all_good_lead already
-    speaks. Fail-soft to 0.0."""
+    speaks. Fail-soft to 0.0. The journal resolves LIVE from
+    CONTEST_TRADES_FILE (the STATE_ENV pattern): a drive rebinds it to
+    a tempdir sink instead of backing up the live bytes — a killed
+    battery can no longer strand a fixture where the machine banks.
+    The default is the module dir, exactly as before."""
     try:
         import json as _j_rp
         _day = _now_mst().strftime("%Y-%m-%d")
         _tot = 0.0
-        for _l in (Path(__file__).parent / "contest_trades.jsonl") \
-                .read_text(encoding="utf-8").splitlines():
+        for _l in (Path(CONTEST_TRADES_FILE)
+                .read_text(encoding="utf-8").splitlines()):
             if not _l.strip():
                 continue
             _r = _j_rp.loads(_l)
@@ -4123,7 +4135,7 @@ def contest_light(exchange, cfg):
                             _held_min = f"{(_now_mst() - datetime.fromisoformat(_added)).total_seconds() / 60.0:.0f}"
                     except (TypeError, ValueError):
                         pass  # cosmetic held-minutes only — the trade row is already booked
-                    with open("contest_trades.jsonl", "a", encoding="utf-8") as _fx:
+                    with open(CONTEST_TRADES_FILE, "a", encoding="utf-8") as _fx:
                         _fx.write(_jx.dumps({
                             "sold_at": _now_mst().isoformat(),
                             "pair": pair, "entry": _entry_x, "exit": _live_x,

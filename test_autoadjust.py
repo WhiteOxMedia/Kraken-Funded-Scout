@@ -214,7 +214,7 @@ try:
     aa.EVIDENCE_DIR = _sbx / "artifacts" / "auto_adjust"
     prop = aa.propose_from_aggregate("SIM-ROT-1", 3, 3, per_gate_ok)
     man = json.loads((Path(prop["bundle"]) / "manifest.json")
-                     .read_text(encoding="utf-8"))
+                     .read_text(encoding="utf-8"))   # leak-audit: ok (the bundle path is EVIDENCE_DIR-sandboxed above; the receiver carries the sandbox)
     check("a refused rotation still leaves its evidence bundle "
           "(insufficient_samples, checksummed)",
           prop["status"] == "refused"
@@ -224,7 +224,7 @@ try:
     before_manifest = man["bundle_checksum"]
     prop2 = aa.propose_from_aggregate("SIM-ROT-1", 3, 3, per_gate_ok)
     man2 = json.loads((Path(prop2["bundle"]) / "manifest.json")
-                      .read_text(encoding="utf-8"))
+                      .read_text(encoding="utf-8"))   # leak-audit: ok (same sandboxed bundle path)
     check("the bundle is immutable — re-proposing never rewrites it",
           man2["bundle_checksum"] == before_manifest
           and prop2.get("evidence") == before_manifest,

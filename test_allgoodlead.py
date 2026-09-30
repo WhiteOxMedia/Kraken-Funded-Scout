@@ -10,6 +10,11 @@ import background_scanner as bs
 ok = 0
 fail = 0
 
+# the LIVE bindings, captured once — every window below runs against
+# tempdir sinks and the restore lands here, at process exit
+_real_cw = bs.CONTEST_WATCH_JSON
+_real_ctf = bs.CONTEST_TRADES_FILE
+
 
 def check(name, cond):
     global ok, fail
@@ -17,15 +22,26 @@ def check(name, cond):
     ok, fail = ok + (1 if cond else 0), fail + (0 if cond else 1)
 
 
+# ── THE JOURNAL SINK (the test-pollutes-live-state sweep, Sep 29):
+# every trades-journal window below rebinds CONTEST_TRADES_FILE to a
+# tempdir sink instead of opening the LIVE journal by name (the old
+# backup/restore shape died with the process mid-window — the apptest
+# history lesson). The reader (_today_realized_pnl) and the tracker
+# resolve the constant live; the sink dies with the process.
+import tempfile as _tf_sink
+_sink_dir = Path(_tf_sink.mkdtemp())
+bs.CONTEST_TRADES_FILE = str(_sink_dir / "contest_trades.jsonl")
+
+
 # ── 1. live data: an applied trade for today → the pace clause speaks it
 # (hermetic since Sep 22: the live day's applied count changes under the
 # test — a seeded applied trade makes the clause deterministic)
-# clock-audit: ok — LIVE-PROBE (backup/seed/restore — determinism comes from the seed, not the book) (clockbombs census 4)
-tf = Path("contest_trades.jsonl")
-backup = tf.read_bytes() if tf.exists() else None
+# clock-audit: ok — SANDBOXED (CONTEST_TRADES_FILE sink rebind, Sep 29; the
+# old LIVE-PROBE backup/restore shape is retired with the sweep)
+_tf = Path(bs.CONTEST_TRADES_FILE)
 _today = bs._now_mst().strftime("%Y-%m-%d")
 try:
-    tf.write_text(json.dumps({"sold_at": f"{_today}T10:00:00-06:00",
+    _tf.write_text(json.dumps({"sold_at": f"{_today}T10:00:00-06:00",
                               "pnl_net": 12.75, "applied": True}) + "\n",
                   encoding="utf-8")
     lead = bs._all_good_lead()
@@ -39,17 +55,12 @@ try:
     m = re.search(r"(plus|minus) (\d+) dollars today", lead)
     check("pace number is a whole dollar figure", m is not None)
 finally:
-    if backup is not None:
-        tf.write_bytes(backup)
-    elif tf.exists():
-        tf.unlink()
+    _tf.unlink(missing_ok=True)
 
 # ── 2. no trades today → pace clause dropped, clock stays
-# clock-audit: ok — SANDBOXED (backup/restore byte-for-byte in the try/finally below) (clockbombs census 4)
-tf = Path("contest_trades.jsonl")
-backup = tf.read_bytes() if tf.exists() else None
+# clock-audit: ok — SANDBOXED (CONTEST_TRADES_FILE sink rebind, Sep 29)
 try:
-    tf.write_bytes(b"")
+    _tf.write_bytes(b"")
     lead2 = bs._all_good_lead()
     print("NO-TRADES:", repr(lead2))
     check("no-trades: pace clause dropped", "dollars today" not in lead2)
@@ -58,26 +69,18 @@ try:
     check("no-trades: still a valid all-good line",
           lead2.startswith("All good"))
 finally:
-    # restore the real ledger byte-for-byte; a file this test created
-    # (backup None) is removed, not left behind for the live scanner
-    if backup is not None:
-        tf.write_bytes(backup)
-    elif tf.exists():
-        tf.unlink()
+    _tf.unlink(missing_ok=True)
 
 # ── 3. trades present but unapplied → dropped (applied gate respected)
 try:
-    tf.write_text(json.dumps({"sold_at": "2026-09-21T10:00:00-06:00",
+    _tf.write_text(json.dumps({"sold_at": "2026-09-21T10:00:00-06:00",
                               "pnl_net": 50.0, "applied": False}) + "\n",
                   encoding="utf-8")
     lead3 = bs._all_good_lead()
     print("UNAPPLIED:", repr(lead3))
     check("unapplied trade: pace clause dropped", "dollars today" not in lead3)
 finally:
-    if backup is not None:
-        tf.write_bytes(backup)
-    elif tf.exists():
-        tf.unlink()
+    _tf.unlink(missing_ok=True)
 
 # ── 4. unreadable rotation schedule → clock clause dropped gracefully
 # (every hour is covered by ROTATIONS — 20-24 IS the cooldown rotation —
@@ -103,8 +106,13 @@ check("voice words are plus/minus, never symbols",
 # sandbox the watch file — backup/restore byte-for-byte, removed if this
 # test created it (the live scanner must never see a stray file)
 # clock-audit: ok — SANDBOXED (backup/restore byte-for-byte in the try/finally below) (clockbombs census 4)
-wf = Path("contest_watch.json")
-wbackup = wf.read_bytes() if wf.exists() else None
+# THE REBIND COMES FIRST (the 16:55 incident, task 44): capturing the
+# path before the rebind aimed the seeded rows at the LIVE book — the
+# running scanner auto-closed the phantom and banked +$257.20 of
+# nothing. Rebind, THEN resolve the path.
+wsink = _sink_dir / "contest_watch.json"
+bs.CONTEST_WATCH_JSON = str(wsink)
+wf = Path(bs.CONTEST_WATCH_JSON)
 _orig_ratchet = bs._ratchet_trail_pct
 try:
     # PUMP's real ratchet math (1.5% at peak ≥ +2%): peak +6.5% → trail 1.5%,
@@ -159,10 +167,7 @@ try:
           "trail armed" not in lead8 and "locking" not in lead8)
 finally:
     bs._ratchet_trail_pct = _orig_ratchet
-    if wbackup is not None:
-        wf.write_bytes(wbackup)
-    elif wf.exists():
-        wf.unlink()
+    wsink.unlink(missing_ok=True)   # the sink dies; the live book never saw it
 
 # ── 7. THE GIVE-BACK LEAD (user, Sep 29: "Gave back $100 but doesn't
 # count it? … 'All Good' without checking what we gave back first"):
@@ -183,12 +188,11 @@ _ta7.TELEMETRY_PATH = _sbx7 / "telemetry_test.jsonl"   # THE SINK SEAM (the
 # tempdir; the live journal is never touched.
 _pg7.STATE_FILE = _sbx7 / "profit_guard_state.json"
 _orig_aa_apply = _aa7.apply_adjustment
-tf = Path("contest_trades.jsonl")
-backup = tf.read_bytes() if tf.exists() else None
+_tf = Path(bs.CONTEST_TRADES_FILE)   # already the sink (the sweep, Sep 29)
 _today = bs._now_mst().strftime("%Y-%m-%d")
 try:
     # the realized leg: one banked +$13 row (the familiar pace clause)
-    tf.write_text(json.dumps({"sold_at": f"{_today}T10:00:00-06:00",
+    _tf.write_text(json.dumps({"sold_at": f"{_today}T10:00:00-06:00",
                               "pnl_net": 13.0, "applied": True}) + "\n",
                   encoding="utf-8")
     _pg7._save({"giveback": {"day": _today, "peak_total": 100.0,
@@ -242,10 +246,7 @@ try:
           len(calls) == 1 and gb2.get("tightened") is True)
 finally:
     _aa7.apply_adjustment = _orig_aa_apply
-    if backup is not None:
-        tf.write_bytes(backup)
-    elif tf.exists():
-        tf.unlink()
+    _tf.unlink(missing_ok=True)   # the sink again; the live journal was never touched
     # restore the LIVE bindings (the sandbox files die with the
     # tempdir; the live scanner's state and journal were never written)
     import profit_guard as _pg_restore
@@ -254,6 +255,9 @@ finally:
     import telemetry_adjust as _ta_restore
     if hasattr(_ta_restore, "TELEMETRY_PATH"):
         del _ta_restore.TELEMETRY_PATH
+    bs.CONTEST_WATCH_JSON = _real_cw   # the watch sink un-rebound last
+    bs.CONTEST_TRADES_FILE = _real_ctf
+    shutil.rmtree(_sink_dir, ignore_errors=True)
 
 print(f"RESULT: {ok} passed, {fail} failed")
 raise SystemExit(1 if fail else 0)

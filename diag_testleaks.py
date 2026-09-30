@@ -159,6 +159,17 @@ def finally_targets(tree):
                     elif isinstance(sub, ast.Delete):
                         for t in sub.targets:
                             restored.add(f"del {ast.unparse(t)}")
+                    elif isinstance(sub, ast.Expr) and isinstance(sub.value, ast.Call) \
+                            and isinstance(sub.value.func, ast.Attribute) \
+                            and sub.value.func.attr == "pop" \
+                            and "environ" in ast.unparse(sub.value.func.value):
+                        # os.environ.pop("KEY", None) in a finally IS a
+                        # restore (the round-8 audit gap: the env arm knew
+                        # assignment and del, not the semantically correct
+                        # pop-with-default that env restores actually use)
+                        for a in sub.value.args:
+                            restored.add(f"del {ast.unparse(sub.value.func.value)}"
+                                         f"[{ast.unparse(a)}]")
     return restored
 
 
@@ -194,11 +205,18 @@ def audit_file(py, prod_names):
     # sandbox local, or a sentinel) cannot apply to it
     assign_counts = {}
     for node in ast.walk(tree):
-        if isinstance(node, (ast.Assign, ast.AnnAssign)):
+        if isinstance(node, ast.Assign):
             for t in node.targets:
                 if isinstance(t, (ast.Attribute, ast.Name)):
                     key = ast.unparse(t)
                     assign_counts[key] = assign_counts.get(key, 0) + 1
+        elif isinstance(node, ast.AnnAssign):
+            # AnnAssign carries ONE .target (no .targets list) — the
+            # crash that blinded the whole audit (the round-8 sweep)
+            t = node.target
+            if isinstance(t, (ast.Attribute, ast.Name)):
+                key = ast.unparse(t)
+                assign_counts[key] = assign_counts.get(key, 0) + 1
 
     def value_is_sandbox(val):
         if val is None:
@@ -226,6 +244,16 @@ def audit_file(py, prod_names):
             if tnode is not None and (free_names(tnode) & sbx):
                 continue
             if name and not is_sandbox(name):
+                # the SENTINEL arm, honored on the write branch too (the
+                # round-8 inconsistency fix): a line tagged 'leak-audit: ok'
+                # carries its reviewer's justification — the SAME arm the
+                # swap branch already honors, instead of the write branch
+                # forcing parameter renames through the naming regex
+                _near = "\n".join(src_lines[max(0, node.lineno - 3):
+                                             min(len(src_lines),
+                                                 node.lineno + 2)])
+                if "leak-audit: ok" in _near:
+                    continue
                 if name in prod_names:
                     hits.append((node.lineno,
                                  f"PRODUCTION-PATH WRITE: {name}"))
@@ -332,8 +360,10 @@ def audit_file(py, prod_names):
                         and "/" not in name and "\\" not in name \
                         and not (free_names(node) & sbx):
                     near = "\n".join(src_lines[max(node.lineno - 5, 0):
-                                               node.lineno])
-                    if "clock-audit: ok" not in near:
+                                               min(len(src_lines),
+                                                   node.lineno + 2)])
+                    if "clock-audit: ok" not in near \
+                            and "leak-audit: ok" not in near:
                         hits.append((node.lineno,
                                      f"DEFAULT-PATH READ: {name} — a "
                                      f"live production file moves under "

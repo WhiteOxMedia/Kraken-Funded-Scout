@@ -63,8 +63,10 @@ check("close grades with the SOLD arithmetic (pnl_net_usd)",
       "pnl_net_usd(" in gx)
 check("close applies to the trade's OWN contest window",
       "apply_pnl(" in gx and '|getout")' in gx)
-check("close journals to contest_trades.jsonl (the brain's record)",
-      'open("contest_trades.jsonl", "a", encoding="utf-8")' in gx)
+check("close journals to contest_trades.jsonl (the brain's record) "
+      "through the CONTEST_TRADES_FILE seam (the sink-hygiene sweep: "
+      "a drive rebinds the constant, never the live file)",
+      'open(CONTEST_TRADES_FILE, "a", encoding="utf-8")' in gx)
 check("close journal carries closed_by=getout + the exit reason",
       '"closed_by": "getout"' in gx and '"exit_reason": reason[:200]' in gx)
 check("close removes the watch row itself (no user action)",

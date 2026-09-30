@@ -1,6 +1,9 @@
 """Test the giveback/loss warning math + the big-payout re-entry guard.
-Payout file test is backed up and restored (round-trip, no residue)."""
+Every live-state window rides a tempdir SINK rebind (the sweep, Sep 29:
+the old backup/restore-by-name shape is retired — the running machine
+never sees a test row)."""
 import sys, json, shutil
+import background_scanner as bs
 from pathlib import Path
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
@@ -33,16 +36,21 @@ check("big payout threshold = 100", BIG_PAYOUT_USD == 100)
 # ── 1b. THE DAY-PEAK WATERMARK (the live scanner math, fully
 # sandboxed: the guard state rides STATE_FILE, the tracker's telemetry
 # lands in a tempdir sink (the allgoodlead lesson — no fake applied
-# rows in the live journal), and the realized leg is a neutral 0.0
-# row): a stored 0.0 peak must UPDATE, and the tighten must fire ONCE.
-import tempfile as _t1b
+# rows in the live journal), and the journal itself is a SINK REBIND
+# (CONTEST_TRADES_FILE, the test-pollutes-live-state sweep — no live
+# backup/restore anymore)): a stored 0.0 peak must UPDATE, and the
+# tighten must fire ONCE.
+import tempfile as _t1b   # noqa: F811 — kept for the tempdir below
 import profit_guard as _pg1b
 import auto_adjust as _aa1b
 import telemetry_adjust as _ta1b
+import background_scanner as _bs1b
 from background_scanner import _track_day_giveback
 _sbx1b = Path(_t1b.mkdtemp())
 _pg1b.STATE_FILE = _sbx1b / "pg_state.json"
 _ta1b.TELEMETRY_PATH = _sbx1b / "telemetry.jsonl"
+_real_ctf_g = _bs1b.CONTEST_TRADES_FILE
+_bs1b.CONTEST_TRADES_FILE = str(_sbx1b / "contest_trades.jsonl")
 _calls1b = []
 
 
@@ -57,12 +65,11 @@ def _stub_apply(delta, rotation_id="", evidence_checksum="",
 _real_apply1b = _aa1b.apply_adjustment
 _aa1b.apply_adjustment = _stub_apply
 _today1b = datetime.now(MST).strftime("%Y-%m-%d")
-_tf1b = BASE / "contest_trades.jsonl"
-_bak1b = _tf1b.read_bytes() if _tf1b.exists() else None
 try:
-    _tf1b.write_text(json.dumps({"sold_at": f"{_today1b}T10:00:00-06:00",
-                                 "pnl_net": 0.0, "applied": True}) + "\n",
-                     encoding="utf-8")
+    Path(_bs1b.CONTEST_TRADES_FILE).write_text(
+        json.dumps({"sold_at": f"{_today1b}T10:00:00-06:00",
+                    "pnl_net": 0.0, "applied": True}) + "\n",
+        encoding="utf-8")
     # THE ZERO-PEAK FREEZE (the round-5 major's surviving half, closed
     # round 6): the first tick of a flat day stores peak 0.0 — the old
     # `or _total` update read that as MISSING and froze the watermark
@@ -82,42 +89,37 @@ try:
           and len(_calls1b) == 1 and _calls1b[0] < 0, gb2)
 finally:
     _aa1b.apply_adjustment = _real_apply1b
-    if _bak1b is not None:
-        _tf1b.write_bytes(_bak1b)
-    elif _tf1b.exists():
-        _tf1b.unlink()
+    _bs1b.CONTEST_TRADES_FILE = _real_ctf_g   # the sink dies with the tempdir
 
-# ── 2. payout round-trip: scanner writes, console reads ────────────
+# ── 2. payout round-trip: scanner writes, console reads — the ledger
+# rides the TAKE_PAYOUTS_JSON sink rebind (the sweep, Sep 29: no live
+# backup/restore; the sink dies with the tempdir)
 from background_scanner import _save_take_payout
-pf = BASE / "take_payouts.json"
-bak = None
-if pf.exists():
-    bak = BASE / "take_payouts.json.testbak"
-    shutil.copy2(pf, bak)
+_real_tp = bs.TAKE_PAYOUTS_JSON
+try:
+    bs.TAKE_PAYOUTS_JSON = str(_sbx1b / "take_payouts.json")   # the sink
+    pf = Path(bs.TAKE_PAYOUTS_JSON)
+    _save_take_payout("TESTPAIR/USD", 140)
+    import app
+    import scratch_space   # scratch policy: nothing volatile lands in the repo root
+    got = app._recent_big_payout("TESTPAIR/USD", now_ts=0.0)
+    check("guard retired: a fresh $140 payout blocks nothing (Sep 21: "
+          "replaced with real data)", got is None, f"got {got}")
+    check("guard retired: any pair reads as clean",
+          app._recent_big_payout("NOPE/USD", now_ts=0.0) is None)
 
-_save_take_payout("TESTPAIR/USD", 140)
-import app
-import scratch_space   # scratch policy: nothing volatile lands in the repo root
-got = app._recent_big_payout("TESTPAIR/USD", now_ts=0.0)
-check("guard retired: a fresh $140 payout blocks nothing (Sep 21: "
-      "replaced with real data)", got is None, f"got {got}")
-check("guard retired: any pair reads as clean",
-      app._recent_big_payout("NOPE/USD", now_ts=0.0) is None)
-
-# the ledger record persists — display/history only, never a gate
-doc = json.loads(pf.read_text())
-check("payout ledger keeps the record for history",
-      int(doc["TESTPAIR/USD"].get("amount") or 0) == 140)
-
-# ── 3. cleanup: restore ────────────────────────────────────────────
-if bak and bak.exists():
-    shutil.move(str(bak), str(pf))
-elif pf.exists():
+    # the ledger record persists — display/history only, never a gate
     doc = json.loads(pf.read_text())
-    doc.pop("TESTPAIR/USD", None)
-    pf.write_text(json.dumps(doc))
-check("payout file restored (no residue)",
-      not (BASE / "take_payouts.json.testbak").exists())
+    check("payout ledger keeps the record for history",
+          int(doc["TESTPAIR/USD"].get("amount") or 0) == 140)
+finally:
+    bs.TAKE_PAYOUTS_JSON = _real_tp   # the sink dies with the tempdir
+
+# ── 3. cleanup: the live ledger was never touched (finally-restored
+# above, the audit's own rule)
+check("payout sink restored (no residue — the live ledger unbound, "
+      "the tempdir carries the test rows)",
+      bs.TAKE_PAYOUTS_JSON == _real_tp)
 
 fails = [r for r in results if not r[1]]
 out = BASE / "giveback_check.txt"

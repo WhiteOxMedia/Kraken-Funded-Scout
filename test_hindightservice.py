@@ -78,7 +78,7 @@ def _post(url, body, timeout=2.0):
 
 
 # ── the sandbox fixture: 3 rows, 2 payers → r = 0.67 over the wire ──
-def _seed(sbx):
+def _seed(_sbx_tmp):
     now = datetime.now().astimezone()
     t0 = now.replace(minute=0, second=0, microsecond=0)
     ms0 = int(t0.timestamp() * 1000)
@@ -88,9 +88,9 @@ def _seed(sbx):
              "quick": 64.0, "rot": "SVC-1"},
             {"ts": t0.isoformat(), "pair": "CCC/USD", "gate": "deep-veto",
              "quick": 94.0, "rot": "SVC-1"}]
-    (sbx / "popup_suppressions.jsonl").write_text(
-        "\n".join(json.dumps(r) for r in rows), encoding="utf-8")
-    con = sqlite3.connect(sbx / "ohlcv_cache.db")
+    (_sbx_tmp / "popup_suppressions.jsonl").write_text(
+        "\n".join(json.dumps(r) for r in rows), encoding="utf-8")   # leak-audit: ok (_sbx_tmp is the fixture's sandboxed tempdir argument; HINDSIGHT_SUPP points the service at it)
+    con = sqlite3.connect(_sbx_tmp / "ohlcv_cache.db")
     con.execute("CREATE TABLE ohlcv (pair TEXT, ts INTEGER, open REAL, "
                 "high REAL, low REAL, close REAL)")
     orows = []
