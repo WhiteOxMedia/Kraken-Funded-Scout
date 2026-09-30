@@ -307,6 +307,31 @@ def _count_today(st: dict, now: datetime) -> int:
 
 
 # ── the one scanner seam ─────────────────────────────────────────────
+# THE LOCK-WINDOW FLOOR ON THE ACTIVE WINDOW (Sep 29, the textless
+# major from the review stream, VERIFIED + CLOSED): the ACTIVE-WINDOW
+# branch used to suppress unconditionally — precedence said "the ride
+# must be allowed to approach its goal". But the trail the ride hides
+# under is price-floored at entry + 2x RT only on the ARM path's goal
+# guard; on the ACTIVE path a book whose PEAK ran past the armed cap's
+# lock window had a trailing stop ABOVE its window floor — the breach
+# (a PROFIT GUARD FIRED reason) arrived with real-profit protection
+# in hand and was suppressed anyway, bouncing the exit until the
+# window lapsed. THE FIX: a breach that carries net-positive
+# protection in hand (peak above the entry + 2x RT lock level, entry
+# and peak readable) EXITS NOW — the window keeps riding approaches
+# that never locked profit (the peak still under the lock level:
+# nothing to protect yet, exactly the ride the study measured) and
+# loses only the power to hold a book PAST its own locked floor.
+# Below the line it is the same triangle as the study's floor guard:
+# a verified or corrupt stamp both revert to the machinery.
+def _lock_level(entry: float) -> float:
+    """entry + 2x the round-trip cost — the net-positive floor the
+    goal-armed trail prices its stops against (the scanner's own
+    shape; the constant is the platform's)."""
+    from contest_account import COST_ROUNDTRIP_PCT as _rt
+    return entry * (1.0 + 2.0 * _rt / 100.0)
+
+
 def exit_verdict(pair: str, w: dict, reason: str,
                  now: datetime | None = None,
                  live: float | None = None) -> tuple[str, str]:
@@ -340,6 +365,35 @@ def exit_verdict(pair: str, w: dict, reason: str,
         try:
             until = datetime.fromisoformat(str(ext["until"]))
             if now < until:
+                # THE LOCK-WINDOW FLOOR ON THE ACTIVE WINDOW (the textless
+                # major, closed Sep 29): an exit arriving while the window
+                # rides is suppressed UNLESS the reason is a trail breach
+                # with net-positive protection already locked in. The
+                # breach facts ride the reason string (peak % and live %
+                # off entry — the scanner's own PROFIT GUARD shape); the
+                # guard fires only when the PEAK is above the entry + 2x
+                # RT lock level, i.e. the armed cap's price floor is
+                # above the window floor and the suppression would hold
+                # a book PAST its own locked profit. An unreadable
+                # reason (any parse failure) suppresses: the active
+                # window stays the ride it was armed to be, and the
+                # lapse path reverts to the machinery with the full
+                # receipt — fail toward the FEATURE, never silently
+                # toward the exit.
+                _pk, _lv = _breach_facts(str(reason), w)
+                if _pk is not None and _lv is not None and _lv < _pk:
+                    try:
+                        entry = float(w.get("entry"))
+                        if 0.0 < entry < float("inf") \
+                                and _pk / 100.0 >= _lock_level(entry) / entry - 1.0:
+                            _clear_stamp(w)
+                            return "exit", (
+                                "trail breach below the locked floor — the "
+                                "window cannot hold a book past its own "
+                                "net-positive stop (incumbent machinery "
+                                "resumes)")
+                    except (TypeError, ValueError):
+                        pass   # unreadable entry: suppress, as armed
                 return "suppress", "extension active until " + str(ext["until"])
             # the window lapsed: drop the stamp, revert to the machinery.
             # The row pops its own flag; the exit then proceeds and the
@@ -454,6 +508,34 @@ def _arm(pair: str, w: dict, reason: str, now: datetime,
 
 def _clear_stamp(w: dict) -> None:
     w.pop("exit_extension", None)
+
+
+import re as _re_mod2
+_BREACH_RE = _re_mod2.compile(
+    r"dropped\s+([0-9]+(?:\.[0-9]+)?)%\s+from the peak")
+
+
+def _breach_facts(reason: str, w: dict):
+    """(peak_gain_pct, live_gain_pct) from a PROFIT GUARD breach reason —
+    peak % from the reason's own stamp, live % derived from the peak
+    and the trail width the reason itself reports (the scanner writes
+    both numbers into the sentence). Returns (None, None) when the
+    reason is not a priced trail breach — every non-breach exit and
+    every malformed sentence reads as (None, None) and the active
+    window suppresses as it always has."""
+    r = str(reason or "")
+    m = _BREACH_RE.search(r)
+    if not m:
+        return None, None
+    try:
+        dropped = float(m.group(1))          # peak minus live, in % of peak
+        trail_m = _re_mod2.search(r"trail ratcheted to ([0-9]+(?:\.[0-9]+)?)%", r)
+        trail = float(trail_m.group(1)) if trail_m else dropped
+        peak_pct = dropped + trail           # the peak's % gain over entry
+        live_pct = peak_pct - dropped        # == trail, by the same sentence
+        return peak_pct, live_pct
+    except (TypeError, ValueError):
+        return None, None
 
 
 def expire_sweep(watch: dict, now: datetime | None = None) -> int:

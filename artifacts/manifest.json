@@ -1147,6 +1147,19 @@
         "background_scanner.py": "sha256:3ca16d25cdca55180afbdbcd22daf1e5351c610bb56730a1f7464f90befa1244",
         "test_giveback.py": "sha256:fc269f0d3f605ff27bb331877068464faa8fd43d5999644f3fcfded4c4e4dd7b"
       }
+    },
+    "52-extension-lock-floor": {
+      "commits": [
+        "<this commit>"
+      ],
+      "branch_name": "master",
+      "date": "2026-09-29",
+      "title": "THE TEXTLESS MAJOR TRIAGED AND CLOSED: AN ACTIVE EXTENSION WINDOW CAN NO LONGER HOLD A BOOK PAST ITS OWN LOCKED PROFIT (Sep 29, extension-lock-floor)",
+      "detail": "RECOVERY: the review-stream finding (exit_extension active window / trail protection, recovered from the queue after the _cr_full2.json stream proved to carry no test_exit_extension major) VERIFIED REAL against the code: the ACTIVE-WINDOW branch of exit_verdict suppressed UNCONDITIONALLY — precedence said the ride must be allowed to approach its goal — but the trail the ride hides under is price-floored at entry + 2x RT only on the ARM path; a book whose PEAK ran past the armed cap lock window had a trailing stop ABOVE the window floor, and the breach (the PROFIT GUARD reason itself) was suppressed, bouncing the exit until the window lapsed. THE FIX: a breach that carries net-positive protection in hand exits NOW — the reason string already prices the facts (peak % and live % off entry, the scanner own PROFIT GUARD shape); _breach_facts parses them (None on any non-breach or malformed reason), and the floor arms only when the PEAK is above the entry + 2x RT lock level (_lock_level, the platform constant). An approach that never locked profit still suppresses (the ride the study measured); an unreadable reason fails toward the FEATURE (suppress, the window stays the ride it was armed to be) — the lapse path reverts to the machinery with the full receipt as before. The dial is OFF in production, so live exposure was nil; the posture is corrected before the dial is ever flipped. Pins: test_exit_extension 7.7/7.8/7.9 (locked-peak breach exits mid-window and clears the stamp; never-locked approach keeps the window; non-priced reason suppresses) — 64/0, up from 55.",
+      "checksums": {
+        "exit_extension.py": "sha256:2c46c288dcf9a822729a1713618fb645c4b9fb4fdac5a5a86d93fcfed7505400",
+        "test_exit_extension.py": "sha256:f2c51c78b9ecc2998e6613b660c3a4fe327c240227d45bc058a37f2bb7a6a896"
+      }
     }
   }
 }

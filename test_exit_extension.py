@@ -304,6 +304,57 @@ try:
           abs(eg_neutral - 1.5) < 1e-9
           and abs(eg_half - 0.75) < 1e-9)
 
+    # ── 7c. THE LOCK-WINDOW FLOOR ON THE ACTIVE WINDOW (Sep 29, the
+    # textless major from the review stream, RED-FIRST here): the
+    # active-window branch used to suppress UNCONDITIONALLY — a book
+    # whose peak ran past the armed cap's lock window had a trailing
+    # stop ABOVE the window floor, and the breach (the PROFIT GUARD
+    # reason itself) was suppressed, bouncing the exit until the
+    # window lapsed. Now: a breach whose PEAK sits above the entry +
+    # 2x RT lock level exits NOW; an approach that never locked
+    # profit still suppresses (the ride the study measured); an
+    # unreadable reason fails toward the FEATURE (suppress).
+    _w_locked = {"pair": "OP/USD", "entry": 0.1478, "goal_pct": 2.5,
+                 "added": (datetime.now().astimezone()
+                           - timedelta(hours=2)).isoformat()}
+    _w_locked["exit_extension"] = {
+        "extended_at": datetime.now().astimezone().isoformat(),
+        "until": (datetime.now().astimezone() + timedelta(hours=20)).isoformat(),
+        "hours": 24.0, "reason": "armed", "pair": "OP/USD"}
+    v_lock, why_lock = ex.exit_verdict(
+        "OP/USD", _w_locked,
+        "PROFIT GUARD FIRED — dropped 1.6% from the peak (trail ratcheted "
+        "to 1.9% — the run reached +$61)", live=0.1478)
+    check("7.7 a trail breach whose peak locked net-positive profit EXITS "
+          "mid-window (the window cannot hold a book past its own "
+          "floor) — and the stamp is cleared",
+          v_lock == "exit" and "locked floor" in why_lock
+          and "exit_extension" not in _w_locked)
+    _w_ride = dict(_w_locked)
+    _w_ride["exit_extension"] = {
+        "extended_at": datetime.now().astimezone().isoformat(),
+        "until": (datetime.now().astimezone() + timedelta(hours=20)).isoformat(),
+        "hours": 24.0, "reason": "armed", "pair": "OP/USD"}
+    v_ride, why_ride = ex.exit_verdict(
+        "OP/USD", _w_ride,
+        "PROFIT GUARD FIRED — dropped 0.05% from the peak (trail ratcheted "
+        "to 0.1% — the run reached +$61)", live=0.1478)
+    check("7.8 a breach whose peak NEVER locked profit (peak 0.15% under "
+          "the 0.16% entry + 2x RT lock level) still SUPPRESSES — the "
+          "ride the study measured keeps its window",
+          v_ride == "suppress" and "extension active" in why_ride)
+    _w_amb = dict(_w_locked)
+    _w_amb["exit_extension"] = {
+        "extended_at": datetime.now().astimezone().isoformat(),
+        "until": (datetime.now().astimezone() + timedelta(hours=20)).isoformat(),
+        "hours": 24.0, "reason": "armed", "pair": "OP/USD"}
+    v_amb, why_amb = ex.exit_verdict("OP/USD", _w_amb, "Trend broke — 71% bearish",
+                                     live=0.1478)
+    check("7.9 a non-priced breach reason (the trend sell bar) during the "
+          "window SUPPRESSES — the floor arms only on the priced trail "
+          "breach, fail toward the feature on unreadable reasons",
+          v_amb == "suppress")
+
     # ── 8. state sandbox safety (the Sep 27 ledger-leak convention) ───
     check("8.1 the state file resolves LIVE from the env hook (no "
           "import-time freeze)",
