@@ -1,69 +1,71 @@
-THE MUTATION SWEEP — 2026-09-30 02:02
+THE MUTATION SWEEP — 2026-09-30 12:48
 ==============================================================================
 
-VACUOUS (52):
+VACUOUS (39):
   test_balancepop.py  [stayed green under every mutation]
   test_bot_day.py  [stayed green under every mutation]
   test_botdb.py  [stayed green under every mutation]
   test_bracket_click.py  [stayed green under every mutation]
   test_carry.py  [stayed green under every mutation]
   test_chase.py  [stayed green under every mutation]
-  test_contest_mode.py  [stayed green under every mutation]
   test_cooldowncheck.py  [stayed green under every mutation]
   test_dcagate.py  [stayed green under every mutation]
-  test_depthcheck.py  [stayed green under every mutation]
   test_dopamine.py  [stayed green under every mutation]
   test_entry_control.py  [stayed green under every mutation]
-  test_eth_gap.py  [stayed green under every mutation]
+  test_eth_gap.py  [LIVE-MARKET: verdict keyed to live ccxt prices (a why-did diagnostic) — genuinely untestab]
   test_exitsynthesis.py  [stayed green under every mutation]
   test_funnelplate.py  [stayed green under every mutation]
   test_goalgame.py  [stayed green under every mutation]
   test_hersize.py  [stayed green under every mutation]
-  test_herwords.py  [stayed green under every mutation]
   test_hookparser.py  [stayed green under every mutation]
-  test_hype_now.py  [stayed green under every mutation]
-  test_kii.py  [stayed green under every mutation]
-  test_kii_woulda.py  [stayed green under every mutation]
-  test_liq_filter.py  [stayed green under every mutation]
-  test_longonly.py  [stayed green under every mutation]
-  test_nearmiss.py  [stayed green under every mutation]
-  test_night.py  [stayed green under every mutation]
+  test_hype_now.py  [LIVE-MARKET: the exact should-I-sell verdict at live prices — genuinely untestable by this]
+  test_kii.py  [LIVE-MARKET: deep-scan live pair now — genuinely untestable by this harness]
+  test_kii_woulda.py  [LIVE-MARKET: live OHLCV replay of a historical pump — genuinely untestable by this harness]
+  test_night.py  [LIVE-STATE: walks the live signals.db trail; guarded-module calls exist but no verdict rid]
   test_night_pnl.py  [stayed green under every mutation]
-  test_no_alerts.py  [stayed green under every mutation]
-  test_one_asset.py  [stayed green under every mutation]
+  test_no_alerts.py  [LIVE-STATE: traces live alert dispatch since 8:45 — untestable by this harness by design]
+  test_one_asset.py  [LIVE-STATE: live positions/bridge/buying-power via keyring+db — untestable by this harness]
   test_payouts.py  [stayed green under every mutation]
-  test_payouts_e2e.py  [stayed green under every mutation]
+  test_payouts_e2e.py  [LIVE-STATE: end-to-end real Kraken payouts fetch (keyring) — untestable by this harness by]
   test_persistexit.py  [stayed green under every mutation]
-  test_popupbrain.py  [stayed green under every mutation]
-  test_positionscale.py  [stayed green under every mutation]
   test_qclonewolf.py  [stayed green under every mutation]
-  test_scansethonesty.py  [stayed green under every mutation]
-  test_sink_hygiene.py  [stayed green under every mutation]
-  test_soldpnl.py  [stayed green under every mutation]
+  test_sink_hygiene.py  [STATIC-AUDIT: runs diag_testleaks's AST audit as text; behavior mutants of the guarded mod]
   test_sunday.py  [stayed green under every mutation]
   test_thinbrain.py  [stayed green under every mutation]
   test_tidefloor.py  [stayed green under every mutation]
-  test_tierauto.py  [stayed green under every mutation]
   test_toggleguard.py  [stayed green under every mutation]
   test_tour_state.py  [stayed green under every mutation]
-  test_trendbridge.py  [stayed green under every mutation]
-  test_trump_render.py  [stayed green under every mutation]
   test_uismooth.py  [stayed green under every mutation]
   test_winnerlock.py  [stayed green under every mutation]
   test_winners.py  [stayed green under every mutation]
-  test_xrp_scan.py  [stayed green under every mutation]
-  test_xrp_signals.py  [stayed green under every mutation]
+  test_xrp_scan.py  [LIVE-STATE: live deep-scan of XRP (keyring/ccxt) — untestable by this harness by design]
+  test_xrp_signals.py  [LIVE-STATE: today's live db rows — untestable by this harness by design]
   test_zec_trace.py  [stayed green under every mutation]
 
-BASELINE-RED (1):
-  test_takeit.py  [EXIT-CODE-BLIND at baseline: prints failures, exits 0]
-
-KILLED (5):
+KILLED (23):
   test_advisorybrain.py
+  test_contest_mode.py
   test_dangerzone.py
+  test_depthcheck.py
+  test_eracompare.py
   test_fastfunnel.py
   test_giveback.py
+  test_herwords.py
+  test_liq_filter.py
+  test_lonewolf.py
+  test_longonly.py
+  test_marketgoal.py
+  test_nearmiss.py
+  test_popupbrain.py
+  test_positionscale.py
+  test_scansethonesty.py
+  test_soldpnl.py
+  test_takeit.py
+  test_tierauto.py
   test_trend.py
+  test_trendbridge.py
+  test_trump_render.py
+  test_worthdial.py
 
 ==============================================================================
-total 58: killed 5, VACUOUS 52, baseline-red 1, unmapped 0, timeout 0
+total 62: killed 23, VACUOUS 39, baseline-red 0, unmapped 0, timeout 0

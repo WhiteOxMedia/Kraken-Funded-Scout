@@ -34,12 +34,12 @@ HERE = Path(__file__).resolve().parent
 HOOK = HERE / "hooks" / "pre-commit"
 RERUN = os.environ.get("GUARD_RERUN") == "1"
 sys.path.insert(0, str(HERE))
-
 results = []
-
+_RESULTS_LEDGER = []   # (label, ok, why) — the report artifact reads it
 
 def check(n, cond, why=""):
     results.append(bool(cond))
+    _RESULTS_LEDGER.append((n, bool(cond), why))
     mark = "PASS" if cond else "FAIL"
     print(f"{mark}  {n}" + (f"  ({why})" if why and not cond else ""))
 
@@ -285,7 +285,7 @@ if not RERUN:
     # 2.1 GATE_QUIET=1: passes stay silent, the counted summary speaks
     print("== 2.1 quiet: GATE_QUIET=1, all drives pass ==")
     rc, out = run_gate({"GATE_QUIET": "1"})
-    check(2.1, rc == 0, f"gate rc={rc}")
+    check(2.1, rc == 0, f"gate rc={rc}; tail: {out[-500:]}")
     check(2.11, f"commit gate (quiet): {_n_expected} drive(s) green" in out,
           f"quiet summary missing or count wrong (expected {_n_expected}: "
           f"{sorted(_drives)})")
@@ -538,7 +538,75 @@ if not RERUN:
         # on Windows and break the machine-local mirror's byte-identity
         HOOK.write_bytes(src.encode("utf-8"))
 
+# ════════ the FLEET-HONESTY AUDITOR (Sep 30, the mutation sweep's
+# fleet flaw): a drive that PRINTS a pass/fail summary must also EXIT
+# nonzero on failure — rc-only classifiers (run_battery historically,
+# any tool tomorrow) read exit-blind tails as green. Checked
+# statically, right here, for the whole fleet: the tripwire lives on
+# the gate's own drive so a new blind tail blocks the next commit.
+_fleet_blind = []
+import re as _re_fh
+for _p in sorted(Path(__file__).resolve().parent.glob("test_*.py")):
+    _t = _p.read_text(encoding="utf-8", errors="replace")
+    _has_verdict = (_re_fh.search(r"passed, \d+ failed|failed", _t,
+                                   _re_fh.I)
+                     and _re_fh.search(r"passed", _t, _re_fh.I))
+    _has_exit = _re_fh.search(
+        r"sys\.exit\s*\(|^\s*exit\s*\(|SystemExit", _t, _re_fh.M)
+    if _has_verdict and not _has_exit:
+        _fleet_blind.append(_p.name)
+check("the fleet-honesty tripwire: every drive that prints a "
+      "pass/fail summary also exits on it (no exit-blind tails — "
+      "the Sep-30 fleet flaw stays fixed; the exit probe ignores "
+      "should_exit-shaped names)",
+      not _fleet_blind, f"exit-blind: {_fleet_blind}")
+
+# ════════ the NO-AGGREGATE probe (Sep 30, the vacuous-triage second
+# flaw class): a drive that renders per-check PASS/FAIL into text but
+# aggregates through no recognized idiom (counters, results lists,
+# RESULT/FAILURES verdicts) can NEVER fail — its verdicts are prose,
+# and the mutation sweep proved that shape reads VACUOUS forever
+# (test_longonly/test_contest_mode, repaired same day). A tail that
+# still prints a bare pass/fail verdict with no aggregation behind it
+# blocks the next commit.
+_agg_pat = _re_fh.compile(
+    r"RESULT: |passed, \d+ failed|FAILURES|results\.count|\.count\(False\)"
+    r"|fails\s*\+=|FAIL\s*=\s*0|fails\s*=\s*\[")
+_no_agg = []
+for _p in sorted(Path(__file__).resolve().parent.glob("test_*.py")):
+    _t = _p.read_text(encoding="utf-8", errors="replace")
+    _prints = _re_fh.findall(r"print\([^\n]*(?:PASS|FAIL)[^\n]*\)", _t)
+    if not _prints:
+        continue
+    _last = _prints[-1]
+    _final_verdict = ("PASS" in _last or "FAIL" in _last) \
+        and not (_agg_pat.search(_last))
+    _has_agg = bool(_agg_pat.search(_t))
+    _has_exit = _re_fh.search(
+        r"sys\.exit\s*\(|^\s*exit\s*\(|SystemExit", _t, _re_fh.M)
+    if _final_verdict and not _has_agg and not _has_exit:
+        _no_agg.append(_p.name)
+check("the no-aggregate tripwire: every drive that renders PASS/FAIL "
+      "verdicts aggregates them (counters / RESULT / exit) — the "
+      "verdict-less shape the vacuous triage found can't regrow",
+      not _no_agg, f"no-aggregate: {_no_agg}")
+
 # ════════ summary ════════
 passed, failed = results.count(True), results.count(False)
 print(f"RESULT: {passed} passed, {failed} failed")
+# THE FULL REPORT, ALWAYS (the gate-vs-local debug gap): the gate only
+# echoes a failed drive's last 4 lines — a locally-green drive failing
+# under the gate was undebuggable. The verdict, the failures with their
+# labels, and the check ledger land in scratch where the gate's own
+# mirror tripwire and the operator can read them.
+import scratch_space as _ss
+_fails = [r for r in _RESULTS_LEDGER if not r[1]]
+(_ss.report_temp("_commitgate_check.txt").write_text(
+    "\n".join([f"{'PASS' if ok else 'FAIL'}  {n}"
+               + (f"  [{d}]" if d and not ok else "")
+               for n, ok, d in _RESULTS_LEDGER]
+              + [f"\nRESULT: {passed} passed, {failed} failed"
+                 + ("" if not _fails else
+                    f"\nFAILED: {[n for n, ok, d in _RESULTS_LEDGER if not ok]}")]),
+ encoding="utf-8"))
 sys.exit(1 if failed else 0)

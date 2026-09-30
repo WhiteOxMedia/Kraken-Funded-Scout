@@ -10,7 +10,10 @@ import time
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
-sys.path.insert(0, r"C:\Users\birds\Workspace\kraken_xrp_trading_bot")
+# (the absolute bot-repo sys.path insert is GONE — Sep 30: it shadowed the
+# scout's signal_bridge with the bot's copy and let the drive test the
+# live tree inside the gate sandbox; the bot-repo files this drive reads
+# do so by absolute open() paths, which never needed the insert)
 
 PASS, FAIL = 0, 0
 lines = []
@@ -97,13 +100,16 @@ check("exit reason says GET OUT NOW + the knife",
 check("rewrite pacing present (15 min per pair)",
       "_trend_exit_pace" in src and "900.0" in src)
 # ── THE EXIT-WATCH SWITCH (Sep 14): the watch holds its fire when her
-#    console toggle pauses it — the bridge read rides through
-#    exit_watch_enabled, so an OFF watch leaves _held empty and no
-#    silent SELL is ever written. The mechanical ladder is untouched.
-check("the watch's holdings read rides the EXIT-WATCH switch (an OFF "
+#    The Sep-14 switch wiring ("_held = (_bop() if _xwe() else [])" via
+#    an "exit_watch_enabled as _xwe" import) was REPLACED later: the
+#    watch now gates on the module constant SCOUT_TREND_EXIT_ENABLED —
+#    an OFF flag leaves _held empty (same no-silent-SELL guarantee,
+#    simpler mechanism; the console-toggle wiring was retired).
+check("the watch's holdings read rides the enabled flag (an OFF "
       "watch holds its fire — no silent SELL written)",
-      "_held = (_bop() if _xwe() else [])" in src
-      and "exit_watch_enabled as _xwe" in src)
+      "if SCOUT_TREND_EXIT_ENABLED:" in src
+      and "_held = _bop()" in src
+      and "_held = []" in src)
 check("the switch lives in the shared bridge (both processes read the "
       "same toggle)",
       "def exit_watch_enabled" in open("signal_bridge.py", encoding="utf-8").read()
@@ -111,7 +117,6 @@ check("the switch lives in the shared bridge (both processes read the "
       in open("signal_bridge.py", encoding="utf-8").read())
 
 # ── 3. the bridge contract: dup-safe + 10-min validity (already true) ─
-import signal_bridge as sb2
 _sigt = open("signal_bridge.py", encoding="utf-8").read()
 check("write_exit_signal is dup-safe (skips while a sell pends)",
       "Exit signal already pending" in _sigt)
@@ -157,4 +162,8 @@ check("engine knife floor still present (independent of the scanner)",
 
 lines.append(f"\nRESULT: {PASS} passed, {FAIL} failed")
 open(scratch_space.report_temp('_trendbridge_check.txt'), "w", encoding="utf-8").write("\n".join(lines))
+
+print(f"RESULT: {PASS} passed, {FAIL} failed")
+
+raise SystemExit(1 if FAIL else 0)   # the fleet-honesty fix (Sep 30): DONE-only tails failed closed
 print("DONE")

@@ -186,3 +186,4 @@ lines.append(f"\nRESULT: {PASS} passed, {FAIL} failed")
 scratch_space.report_temp('_balancepop_check.txt').write_text("\n".join(lines), encoding="utf-8")
 print("\n".join(lines))   # the verdict rides STDOUT — the gate's result
                            # mode reads it there (DONE-only fails closed)
+raise SystemExit(1 if FAIL else 0)   # the fleet-honesty fix (Sep 30): the verdict printed, the exit never rode it

@@ -17,30 +17,43 @@ try:
 
     # 1. Low-confidence buy beats high-confidence sell (long-only mandate)
     w, l, reason = _compare_signals(res("buy", 55), res("sell", 95, pair="BBB/USD"))
-    lines.append(f"buy55 vs sell95 → winner={w.pair} ({'PASS' if w.pair == 'AAA/USD' else 'FAIL'}): {reason}")
+    ok1 = w.pair == "AAA/USD"
+    lines.append(f"buy55 vs sell95 → winner={w.pair} ({'PASS' if ok1 else 'FAIL'}): {reason}")
 
     # 2. Sell vs buy (flipped sides)
     w, l, reason = _compare_signals(res("sell", 95, pair="BBB/USD"), res("buy", 55))
-    lines.append(f"sell95 vs buy55 → winner={w.pair} ({'PASS' if w.pair == 'AAA/USD' else 'FAIL'}): {reason}")
+    ok2 = w.pair == "AAA/USD"
+    lines.append(f"sell95 vs buy55 → winner={w.pair} ({'PASS' if ok2 else 'FAIL'}): {reason}")
 
     # 3. Buy beats hold
     w, l, reason = _compare_signals(res("buy", 40), res("hold", 90, pair="BBB/USD"))
-    lines.append(f"buy40 vs hold90 → winner={w.pair} ({'PASS' if w.pair == 'AAA/USD' else 'FAIL'}): {reason}")
+    ok3 = w.pair == "AAA/USD"
+    lines.append(f"buy40 vs hold90 → winner={w.pair} ({'PASS' if ok3 else 'FAIL'}): {reason}")
 
     # 4. Higher-confidence buy beats lower buy
     w, l, reason = _compare_signals(res("buy", 70, pair="AAA/USD"), res("buy", 80, pair="BBB/USD"))
-    lines.append(f"buy70 vs buy80 → winner={w.pair} ({'PASS' if w.pair == 'BBB/USD' else 'FAIL'}): {reason}")
+    ok4 = w.pair == "BBB/USD"
+    lines.append(f"buy70 vs buy80 → winner={w.pair} ({'PASS' if ok4 else 'FAIL'}): {reason}")
 
     # 5. Sell still beats hold (both non-buy — sell advances only when no buy opposes)
     w, l, reason = _compare_signals(res("sell", 60, pair="AAA/USD"), res("hold", 90, pair="BBB/USD"))
-    lines.append(f"sell60 vs hold90 → winner={w.pair} ({'PASS' if w.pair == 'AAA/USD' else 'FAIL'}): {reason}")
+    ok5 = w.pair == "AAA/USD"
+    lines.append(f"sell60 vs hold90 → winner={w.pair} ({'PASS' if ok5 else 'FAIL'}): {reason}")
 
     # 6. Both sells — higher confidence advances (zombie bracket, can't beat any buy)
     w, l, reason = _compare_signals(res("sell", 60, pair="AAA/USD"), res("sell", 70, pair="BBB/USD"))
-    lines.append(f"sell60 vs sell70 → winner={w.pair} ({'PASS' if w.pair == 'BBB/USD' else 'FAIL'}): {reason}")
+    ok6 = w.pair == "BBB/USD"
+    lines.append(f"sell60 vs sell70 → winner={w.pair} ({'PASS' if ok6 else 'FAIL'}): {reason}")
 except Exception as exc:
+    ok1 = ok2 = ok3 = ok4 = ok5 = ok6 = False
     lines.append(f"ERROR: {exc}")
+
+oks = [ok1, ok2, ok3, ok4, ok5, ok6]
+fails = oks.count(False)
+lines.append("")
+lines.append(f"RESULT: {len(oks) - fails} passed, {fails} failed")
 
 out = BASE / "longonly_check.txt"
 scratch_space.report_temp('longonly_check.txt').write_text("\n".join(lines), encoding="utf-8")
-print("done")
+print(f"RESULT: {len(oks) - fails} passed, {fails} failed")
+raise SystemExit(1 if fails else 0)

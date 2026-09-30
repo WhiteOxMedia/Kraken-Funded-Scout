@@ -19,12 +19,20 @@ def res(action, conf, rr=2.0, pair="AAA/USD"):
 
 # CONTEST mode (long_only=False): sell 95% beats buy 55% — honest bracket
 w, l, reason = _compare_signals(res("buy", 55), res("sell", 95, pair="BBB/USD"), long_only=False)
-lines.append(f"contest buy55 vs sell95 → {w.pair} ({'PASS' if w.pair == 'BBB/USD' else 'FAIL'}): {reason}")
+ok1 = w.pair == "BBB/USD"
+lines.append(f"contest buy55 vs sell95 → {w.pair} ({'PASS' if ok1 else 'FAIL'}): {reason}")
 
 # BOT mode (long_only=True default): buy still beats sell
 w, l, reason = _compare_signals(res("buy", 55), res("sell", 95, pair="BBB/USD"))
-lines.append(f"bot buy55 vs sell95 → {w.pair} ({'PASS' if w.pair == 'AAA/USD' else 'FAIL'}): {reason}")
+ok2 = w.pair == "AAA/USD"
+lines.append(f"bot buy55 vs sell95 → {w.pair} ({'PASS' if ok2 else 'FAIL'}): {reason}")
+
+oks = [ok1, ok2]
+fails = oks.count(False)
+lines.append("")
+lines.append(f"RESULT: {len(oks) - fails} passed, {fails} failed")
 
 out = BASE / "contest_mode_check.txt"
 scratch_space.report_temp('contest_mode_check.txt').write_text("\n".join(lines), encoding="utf-8")
-print("done")
+print(f"RESULT: {len(oks) - fails} passed, {fails} failed")
+raise SystemExit(1 if fails else 0)

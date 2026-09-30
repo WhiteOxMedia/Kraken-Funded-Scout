@@ -10,6 +10,31 @@ sys.path.insert(0, str(Path(__file__).parent))
 import background_scanner as bs
 import scratch_space   # scratch policy: nothing volatile lands in the repo root
 
+# ── THE SEP-23 ADAPTIVE CARVE-OUT, STUBBED DETERMINISTICALLY ─────────
+# lone_wolf_discount no longer reads the fixed +5/+8% tiers (Sep 23):
+# the required own move and the point scale are carve_out.py's regime-
+# aware reading, which is environment-dependent. The pins below hold the
+# DOCUMENTED values (5.0% req, scale 1.0, hatch open), so the drive is
+# deterministic again; section 13 re-stubs to pin the adaptive behavior
+# itself. Restored before the tail (the section-8 restore convention).
+import carve_out as _real_carve
+
+
+class _FakeCarve:
+    """Neutral carve reading: req 5.0 (the old MOVE_MIN), scale 1.0,
+    permission granted."""
+
+    @staticmethod
+    def gate(pair=None, **_kw):
+        return {"carve": 0.03, "lone_wolf": True, "lw_scale": 1.0}
+
+    @staticmethod
+    def required_own_move(res=None):
+        return 5.0
+
+
+sys.modules["carve_out"] = _FakeCarve
+
 PASS, FAIL = 0, 0
 lines = []
 
@@ -142,10 +167,63 @@ check("big move > min move", bs.LONE_WOLF_MOVE_BIG > bs.LONE_WOLF_MOVE_MIN)
 check("big pts > pts", bs.LONE_WOLF_PTS_BIG > bs.LONE_WOLF_PTS)
 check("bar floor below desktop floor", bs.LONE_WOLF_BAR_FLOOR < bs.LONE_WOLF_DESKTOP_FLOOR)
 
-# cleanup
+# ── 13. THE ADAPTIVE SEMANTICS THEMSELVES (Sep 23 retune, pinned) ────
+# a different stub flavor: tightened req (out-tide mod), scale 1.5
+
+
+class _TightCarve:
+    @staticmethod
+    def gate(pair=None, **_kw):
+        return {"carve": 0.02, "lone_wolf": True, "lw_scale": 1.5}
+
+    @staticmethod
+    def required_own_move(res=None):
+        return 2.0
+
+
+bs._tide_cache.update(ts=time.time(), pct=37.0, state="FLAT")
+sys.modules["carve_out"] = _TightCarve
+fx = reset(pct=2.0)
+pts, note = bs.lone_wolf_discount(fx, "BTC/USD")
+check("tight req 2.0 -> +2% now earns the small tier, scaled 1.5",
+      pts == 38, f"pts={pts}")   # int(round(25 * 1.5))
+fx = reset(pct=11.2)
+pts, note = bs.lone_wolf_discount(fx, "XMR/USD")
+check("scaled big tier: 35 x 1.5 -> 52 (banker's rounding)",
+      pts == 52, f"pts={pts}")   # int(round(35 * 1.5)); round(52.5) -> 52
+sys.modules["carve_out"] = _FakeCarve
+
+# the permission gate: OUT tide + permission DENIED -> hatch closed
+# even for a big solo runner (a dead tide stops buying solo runners)
+
+
+class _DeniedCarve:
+    @staticmethod
+    def gate(pair=None, **_kw):
+        return {"carve": 0.03, "lone_wolf": False, "lw_scale": 1.0}
+
+    @staticmethod
+    def required_own_move(res=None):
+        return 5.0
+
+
+sys.modules["carve_out"] = _DeniedCarve
+bs._tide_cache.update(ts=time.time(), pct=20.0, state="OUT")
+fx = reset(pct=11.2)
+pts, note = bs.lone_wolf_discount(fx, "XMR/USD")
+check("OUT + big move with permission DENIED -> no discount",
+      pts == 0 and note == "", f"pts={pts} note={note!r}")
+sys.modules["carve_out"] = _FakeCarve
+
+# cleanup + restore the real carve module before the verdict
 bs._lone_wolf_cache.update(pair=None, pct=0.0, ts=0.0)
 bs._tide_cache.update(ts=0.0, pct=None, state=None)
+sys.modules["carve_out"] = _real_carve
 
 lines.append(f"\nRESULT: {PASS} passed, {FAIL} failed")
 open(scratch_space.report_temp('_lonewolf_check.txt'), "w", encoding="utf-8").write("\n".join(lines))
+
+print(f"RESULT: {PASS} passed, {FAIL} failed")
+
+raise SystemExit(1 if FAIL else 0)   # the fleet-honesty fix (Sep 30): DONE-only tails failed closed
 print("DONE")

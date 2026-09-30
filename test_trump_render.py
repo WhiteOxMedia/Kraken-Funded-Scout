@@ -1,7 +1,8 @@
 """Replay the TRUMP/RENDER conditions through the FIXED breakout detector.
 The exact values from yesterday's bad signals, per the bridge records."""
 import sys
-sys.path.insert(0, r"C:\Users\birds\Workspace\kraken_scout")
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from config import TradingConfig
 from strategy import _detect_breakout
@@ -101,4 +102,5 @@ fails += 0 if veto_fired else 1
 lines.append(f"TOTAL: {len(results) + 1 - fails}/{len(results) + 1}")
 
 open(scratch_space.report_temp('_trump_fix_check.txt'), "w", encoding="utf-8").write("\n".join(lines))
-print("written")
+print(f"RESULT: {len(results) + 1 - fails} passed, {fails} failed")
+raise SystemExit(1 if fails else 0)

@@ -105,4 +105,8 @@ check("no '$20'/'twenties' text left in the live card/watch/QC voice",
 
 lines.append(f"\nRESULT: {PASS} passed, {FAIL} failed")
 open(scratch_space.report_temp('_tierauto_check.txt'), "w", encoding="utf-8").write("\n".join(lines))
+
+print(f"RESULT: {PASS} passed, {FAIL} failed")
+
+raise SystemExit(1 if FAIL else 0)   # the fleet-honesty fix (Sep 30): DONE-only tails failed closed
 print("DONE")

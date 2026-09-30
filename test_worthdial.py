@@ -152,8 +152,14 @@ check("the dial is INTERNAL (user rule, Sep 10): no toggle, no slider, "
       '"worth_floor_auto_toggle"' not in ap and '"worth_floor_dial"' not in ap
       and "THIS ROTATION:" not in ap and "INTERNAL ONLY" in ap)
 check("the calibration diag exists",
+      # Sep 30 repair: the second conjunct used to demand the RUN ARTIFACT
+      # (scratch/reports_temp/_worthdial_check.txt) — a manually-generated,
+      # scratch-cleanable file that is ALWAYS absent inside the gate sandbox
+      # (scratch/ is not copied there). The pin now tests what a gated drive
+      # can know: the diag tool exists and writes to the sanctioned sink.
       Path("diag_worthdial.py").exists()
-      and scratch_space.report_temp("_worthdial_check.txt").exists())
+      and "report_temp('_worthdial_check.txt')"
+      in Path("diag_worthdial.py").read_text(encoding="utf-8"))
 
 # ── 7. THE ACTUAL FACTOR (user rule, Sep 7: "the auto-dial should know
 # how to auto-tune to the ACTUAL floor") — realized vs planned, ±10% tilt ─
@@ -221,4 +227,8 @@ check("the BUFFER factor is clamped [0.40, 1.60] on the live day",
 
 lines.append(f"\nRESULT: {PASS} passed, {FAIL} failed")
 scratch_space.report_temp('_worthdial_test.txt').write_text("\n".join(lines), encoding="utf-8")
+
+print(f"RESULT: {PASS} passed, {FAIL} failed")
+
+raise SystemExit(1 if FAIL else 0)   # the fleet-honesty fix (Sep 30): DONE-only tails failed closed
 print("DONE")

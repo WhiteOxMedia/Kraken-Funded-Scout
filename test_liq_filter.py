@@ -74,4 +74,6 @@ run("recently-died coin blocked by daily backstop",
 
 out = BASE / "liq_filter_check.txt"
 scratch_space.report_temp('liq_filter_check.txt').write_text("\n".join(lines), encoding="utf-8")
-print(f"{'ALL PASS' if all(results) else 'FAILURES'}")
+fails = results.count(False)
+print(f"RESULT: {len(results) - fails} passed, {fails} failed")
+raise SystemExit(1 if fails else 0)

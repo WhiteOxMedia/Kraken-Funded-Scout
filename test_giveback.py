@@ -290,3 +290,4 @@ scratch_space.report_temp('giveback_check.txt').write_text("\n".join(
     [f"{'PASS' if ok else 'FAIL'}  {name}" + (f"  [{d}]" if d and not ok else "")
      for name, ok, d in results] + [""] + lines), encoding="utf-8")
 print(f"{'ALL PASS' if not fails else str(len(fails)) + ' FAILURES'}")
+raise SystemExit(1 if fails else 0)   # the fleet-honesty tail (Sep 30 triage)

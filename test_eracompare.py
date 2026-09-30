@@ -115,6 +115,12 @@ with tempfile.TemporaryDirectory() as td:
     # is read or written through either, and each with-block rebinds
     # fresh; bounded by suite-per-process.
     ec.REPORT_PATH = Path(td) / "era_compare_report.md"  # leak-audit: ok (tempfile-derived, per-with-block rebind; see the triage note above)
+    # Sep 30 repair: STATE_PATH is sandboxed here too — the pin must
+    # never look at the repo root, where the live one-shot marker now
+    # EXISTS (the scheduler's mark_done fired Sep 28 20:00, after this
+    # drive was written; an unsandboxed conjunct read that success as
+    # a failure). write_report itself still never touches the marker.
+    ec.STATE_PATH = Path(td) / "era_compare_state.json"  # leak-audit: ok (tempfile-derived, per-with-block rebind)
     ec.vs.grade_trades = lambda: (lambda pr, po: pr + po)(*_book(6, 46, 3, 12,
                                                                  pre_left=50.0,
                                                                  post_left=9.0))
@@ -230,4 +236,8 @@ finally:
 
 lines.append(f"\nRESULT: {PASS} passed, {FAIL} failed")
 Path("_eracompare_check.txt").write_text("\n".join(lines), encoding="utf-8")
+
+print(f"RESULT: {PASS} passed, {FAIL} failed")
+
+raise SystemExit(1 if FAIL else 0)   # the fleet-honesty fix (Sep 30): DONE-only tails failed closed
 print("DONE")

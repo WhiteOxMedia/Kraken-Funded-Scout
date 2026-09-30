@@ -422,6 +422,17 @@ def lane_of(stem: str, fastmax: float) -> str:
 
 
 PASS_RE = re.compile(r"(\d+)/(\d+)\s*$")
+VERDICT_RE = re.compile(r"(?:RESULT:\s*)?(\d+) passed, (\d+) failed")
+
+# THE FLEET-HONESTY FIX (Sep 30, the mutation sweep's fleet flaw): a
+# drive that PRINTS failures but EXITS 0 used to read as a battery PASS
+# — the return code alone was the verdict, the printed verdict line was
+# only decoration. The classifier now reads BOTH: rc != 0 is a FAIL,
+# and a green rc with a printed verdict whose failed count is nonzero,
+# or with NO verdict line at all where the drive's family prints one,
+# fails loud too. (exit-blind shapes catalogued by the sweep:
+# "RESULT: N passed, M failed", the bare "N passed, M failed", and
+# takeit's "M FAILURES".)
 
 # THE PRODUCTION-LEDGER GUARD (Sep 17): the battery's contest-window
 # suite wiped the LIVE watch mid-window (INJ/ATOM erased at 13:54 while
@@ -592,12 +603,54 @@ def run_entry(path: Path, cap: int | None = None):
         err = (p.stderr or "").strip().splitlines()[-2:]
         detail = " | ".join(tail + err)[:160]
         return "FAIL", dt, detail
+    out = p.stdout or ""
+    # THE OUTPUT-AWARE VERDICT (the fleet-honesty fix above): the exit
+    # code alone can no longer produce a PASS.
+    verdict = None
+    for line in out.splitlines():
+        m2 = VERDICT_RE.search(line.strip())
+        if m2:
+            verdict = m2
+    if verdict is not None:
+        failed = int(verdict.group(2))
+        if failed:
+            return ("FAIL", dt,
+                    f"EXIT-CODE-BLIND: prints {failed} failed, exits 0")
+        detail = f"{verdict.group(1)}/{int(verdict.group(1)) + failed}"
+    else:
+        # no RESULT-style verdict: honor the family's own shapes —
+        # takeit's "M FAILURES" (0 -> ALL PASS) and the N/M passed
+        # ratio (5mstore-style DONE drives). A drive with NEITHER shape
+        # keeps the rc-only contract (the 'done'-printers with check
+        # files the hook judges by path).
+        fails_m = re.findall(r"^\s*(\d+) FAILURES\b", out, re.M)
+        ratio_m = None
+        for line in out.splitlines():
+            r2 = PASS_RE.search(line.strip())
+            if r2:
+                ratio_m = r2
+        if fails_m:
+            failed = int(fails_m[-1])
+            if failed:
+                return ("FAIL", dt,
+                        f"EXIT-CODE-BLIND: prints {failed} FAILURES, "
+                        "exits 0")
+            detail = "ALL PASS (takeit-shape)"
+        elif ratio_m:
+            p_, tot = int(ratio_m.group(1)), int(ratio_m.group(2))
+            if tot - p_:
+                return ("FAIL", dt,
+                        f"EXIT-CODE-BLIND: prints {p_}/{tot} passed, "
+                        "exits 0")
+            detail = f"{p_}/{tot}"
+        else:
+            detail = ""
     m = None
-    for line in (p.stdout or "").splitlines():
+    for line in out.splitlines():
         m2 = PASS_RE.search(line.strip())
         if m2:
             m = m2
-    det = f"{m.group(1)}/{m.group(2)}" if m else ""
+    det = detail or (f"{m.group(1)}/{m.group(2)}" if m else "")
     if dt > b * WARN_FRACTION:
         det = (det + f"  WARN: {dt:.0f}s of {b}s budget").strip()
     return "PASS", dt, det

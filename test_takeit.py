@@ -79,7 +79,11 @@ check("HYPE-style slow coin → ~33h → blocked", h > 3.0, f"{h:.0f}h")
 try:
     from background_scanner import _max_resolve_hours
     from datetime import datetime
-    cap = _max_resolve_hours()
+    # the Sep-13 fresh-stamp standard: the caller's clock rides in —
+    # zero wall-clock reads inside the machinery (this drive's exit-0
+    # flaw had been swallowing this drift since the kwarg landed)
+    _NOW = datetime.now().astimezone()
+    cap = _max_resolve_hours(now=_NOW)
     check("cap is 3-6h and never past midnight", 1.0 <= cap <= 6.0, f"{cap}h")
     lines.append(f"  current cap: {cap:.1f}h")
 except Exception as exc:
@@ -96,8 +100,8 @@ try:
     check("sanity: 1.24% pace → ~1.3h to $20 (passes cap)",
           1.0 < _sanity < 1.7, f"{_sanity:.2f}h")
     for pair in ["BTC/USD", "HYPE/USD", "NEAR/USD"]:
-        h = _hours_to_scalp(pair, 100.0)
-        status = "blocked" if (h is not None and h > _max_resolve_hours()) else "passes"
+        h = _hours_to_scalp(pair, 100.0, now=_NOW)
+        status = "blocked" if (h is not None and h > _max_resolve_hours(now=_NOW)) else "passes"
         lines.append(f"  {pair}: $20 pace → {f'{h:.1f}h' if h is not None else 'no data'} → {status}")
 except Exception as exc:
     check("_hours_to_scalp import", False, str(exc))
@@ -109,7 +113,7 @@ try:
     from background_scanner import _hours_to_goal
     for pair in ["BTC/USD", "HYPE/USD", "NEAR/USD"]:
         h = _hours_to_goal(pair, 100.0, 102.0)  # 2% away synthetic
-        status = "blocked" if (h is not None and h > _max_resolve_hours()) else "passes"
+        status = "blocked" if (h is not None and h > _max_resolve_hours(now=_NOW)) else "passes"
         lines.append(f"  {pair}: 2% away → {f'{h:.1f}h' if h is not None else 'no data'} → {status}")
 except Exception as exc:
     check("_hours_to_goal import", False, str(exc))
@@ -123,3 +127,4 @@ lines_out = [f"{'PASS' if ok else 'FAIL'}  {name}" + (f"  [{detail}]" if detail 
 out = BASE / "takeit_check.txt"
 scratch_space.report_temp('takeit_check.txt').write_text("\n".join(lines_out), encoding="utf-8")
 print(f"{'ALL PASS' if not fails else str(len(fails)) + ' FAILURES'}")
+raise SystemExit(1 if fails else 0)   # the fleet-honesty fix (Sep 30): printed FAILURES, exited 0
