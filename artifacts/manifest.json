@@ -1092,6 +1092,19 @@
         "background_scanner.py": "sha256:b70229727d8ab95ef86dc5f66d7636b95f49eb0ba65e7eee7a3376ac12586d7c",
         "test_phantommirror.py": "sha256:ac55344333480ecd7c9d83486f733d4a350ed14f02f9dd25b5323c6516634cdd"
       }
+    },
+    "48-recovery-scenarios-desk": {
+      "commits": [
+        "<this commit>"
+      ],
+      "branch_name": "master",
+      "date": "2026-09-29",
+      "title": "THE OPS WHAT-IF DESK: HOLD/ADD/EXIT SCENARIOS FOR ANY WATCH PAIR FROM LIVE PRICES, READ-ONLY, ANY TIME (Sep 29, recovery-scenarios-desk)",
+      "detail": "She asked for a what-if desk in the same session that proved the cost of an unpriced guess (the INJ ghost: the position everyone could SEE had been sold at 08:27 — ops/recovery_scenarios.py prices hold/add/exit for any watch row from the LIVE ticker (public, no keys, no order endpoint) any time: HOLD shows net, % from entry, minutes held, the goal gap and the coin profiled worst-window exit; EXIT prices the live price and any --targets into balance_if_booked arithmetic; ADD rides the platform OWN guard chain (window_drawdown_pct -> max_entry_usd -> entry_size_usd), prices an --add-usd against the cap, blends the entry and prices the whole blended book out at the original goal, and repeats the 3% truth (below the death line the add is ZERO). READ-ONLY BY CONSTRUCTION: the watch book rides the scanner tombstone-free loader, the balance is load_state, the bridge re-entry verdict is the REAL is_in_cooldown gate (fail-open with a named reason); no save_state, no apply_pnl, no place_market, no file writes — the SOLD button and the auto-close remain the only paths that book a trade. --prices pins numbers for offline/repro runs (labelled SIMULATED PRICE); unpriced rows print UNPRICED rather than inventing decimals; --json for machines; the empty book and a named-but-unwatched pair both say so. Pins test_recoveryscenarios 26/0 hermetic: HOLD/EXIT reproduce the real 08:27 INJ journal row to the cent (gross 0.07 / cost 0.03 / net 0.04), the guard arithmetic is pinned to the cent (buffer 315.54 -> cap 3576.12), the over-cap and buffer-gone verdicts, the blended-entry bounds, the gate tri-state, the UNPRICED guard rail, the SIMULATED label, and the structural read-only sweep. Live smoke: empty-book path, --json, named-unwatched pair all verified against the real book.",
+      "checksums": {
+        "ops/recovery_scenarios.py": "sha256:6b34bc8c12eaa1b262ed1a3956a70e23cdae728a0ad1af78f58383f1621c9b22",
+        "test_recoveryscenarios.py": "sha256:87c4609500a681d01ba70cf84d40e35534a4bbeb05cdd8aa9d72176bdcd8b6c3"
+      }
     }
   }
 }
