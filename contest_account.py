@@ -496,6 +496,43 @@ def pnl_net_usd(entry_price: float, exit_price: float, size_usd: float) -> tuple
     return gross, cost, gross - cost
 
 
+# ── THE SEPTEMBER GIVE-BACK TUNING, TIER-SCALED (Sep 29) ────────────
+# The journal study (scratch/giveback_tier_study.py, 54 applied
+# September closes) showed the fixed $50 tighten caught only the
+# blowoff (Sep 26, -118) and missed BOTH real erosion days that closed
+# negative after being positive (Sep 22 -26.0, Sep 29 -23.9); the
+# crossing-day median was $11.40, so the fixed $25 speak floor spoke
+# almost nothing. The thresholds scale with the tier as % of start —
+# the Sep 1 "everything auto-adjusts with the tier" rule:
+#   tighten 0.20% of start  ($20 @ 10k, $10 @ 5k, $2 @ 1k)
+#   speak   0.10% of start  ($10 @ 10k, $5 @ 5k, $1 @ 1k)
+# 0.20% is the calibration the study justifies: at the $20 line the
+# crossing table keeps its PERFECT separation (every crossing day
+# closed >= $10 under its own peak — 2.0x the base rate) AND both
+# missed days now arm. The helper lives HERE because the thresholds
+# are contest-account math (tier-scaled) — the scanner's tracker, the
+# voice lead, and the console's gauge all read this one function.
+GIVEBACK_TIGHTEN_PCT_OF_START = 0.0020
+GIVEBACK_SPEAK_PCT_OF_START = 0.0010
+
+
+def giveback_thresholds() -> tuple[float, float]:
+    """(tighten_usd, speak_usd) for the LIVE contest tier. Fail-soft to
+    the 10k default: a broken account read degrades to the calibrated
+    10k numbers, NEVER to zero — a zero trigger would tighten on any
+    red tick and speak every scratch trade."""
+    try:
+        _meta = TIERS.get(int(load_state().get("tier") or 0))
+        _start = float((_meta or {}).get("start") or 0.0)
+        if _start > 0:
+            return (_start * GIVEBACK_TIGHTEN_PCT_OF_START,
+                    _start * GIVEBACK_SPEAK_PCT_OF_START)
+    except Exception:
+        pass
+    return (10_000.0 * GIVEBACK_TIGHTEN_PCT_OF_START,
+            10_000.0 * GIVEBACK_SPEAK_PCT_OF_START)
+
+
 def window_drawdown_pct(pair: str, rot_key: str | None = None,
                         schedule: str | None = None) -> float:
     """The coin's profiled worst-window drawdown from the Volatility

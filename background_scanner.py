@@ -3439,9 +3439,18 @@ _last_lock_floor_usd = 0.0   # RETIRED (Sep 5): the daily lock's voice pacing �
 # voiced lead that checks it FIRST, and a once-per-day guard tighten
 # through auto_adjust's own rails (the ledger counts it — the
 # rotation_already_applied dedupe makes once-per-day structural).
-GIVEBACK_SPEAK_MIN_USD = 25.0    # below this the give-back isn't worth the lead
-GIVEBACK_TIGHTEN_TRIGGER_USD = 50.0
-GIVEBACK_TIGHTEN_FRAC = 0.10     # tighten the guard factor 10%
+# ── THE SEPTEMBER TUNING, TIER-SCALED (Sep 29): the tighten trigger
+# and speak floor are contest-account math now — the calibration
+# (tighten 0.20% of start, speak 0.10% of start; the study at
+# scratch/giveback_tier_study.py: the fixed $50 caught only the blowoff
+# and missed BOTH real erosion days, Sep 22 -26.0 and Sep 29 -23.9,
+# both closed negative after being positive; the crossing-day median
+# was 11.40 so the fixed $25 speak floor spoke almost nothing) and the
+# tier-scaled resolver live in contest_account.giveback_thresholds() —
+# ONE function for the tracker, the voice lead, and the console's
+# gauge. GIVEBACK_TIGHTEN_FRAC stays the guard-delta knob (how hard,
+# not when).
+GIVEBACK_TIGHTEN_FRAC = 0.10     # tighten the guard factor 10% (unchanged)
 
 
 def _today_realized_pnl() -> float:
@@ -3479,6 +3488,7 @@ def _track_day_giveback(unrealized: float) -> dict:
     try:
         import profit_guard as _pg_gb
         import auto_adjust as _aa_gb
+        import contest_account as _ca_gb
         _day = _now_mst().strftime("%Y-%m-%d")
         _total = _today_realized_pnl() + float(unrealized or 0.0)
         _now = _now_mst().isoformat()
@@ -3502,7 +3512,8 @@ def _track_day_giveback(unrealized: float) -> dict:
             _peak = _total
         gb["now_total"] = round(_total, 2)
         gb["give_back"] = round(_peak - _total, 2)
-        if (gb["give_back"] >= GIVEBACK_TIGHTEN_TRIGGER_USD
+        _gb_tighten_usd, _ = _ca_gb.giveback_thresholds()
+        if (gb["give_back"] >= _gb_tighten_usd
                 and not gb.get("tightened")):
             _before = _aa_gb.read_guard_factor()
             _rec = _aa_gb.apply_adjustment(
@@ -3550,11 +3561,12 @@ def _all_good_lead() -> str:
     # today" while the account sat $95 under its morning high.
     try:
         import profit_guard as _pg_ag
+        import contest_account as _ca_ag
         _gb = (_pg_ag._state() or {}).get("giveback") or {}
         _give = float(_gb.get("give_back") or 0.0)
         _peak = float(_gb.get("peak_total") or 0.0)
         _nowt = float(_gb.get("now_total") or 0.0)
-        if _give >= GIVEBACK_SPEAK_MIN_USD and _peak > 0:
+        if _give >= _ca_ag.giveback_thresholds()[1] and _peak > 0:
             lead = (f"Gave back {_give:.0f} dollars from the day's peak — "
                     f"we were up {_peak:.0f}, now "
                     f"{'plus' if _nowt >= 0 else 'minus'} {abs(_nowt):.0f}")

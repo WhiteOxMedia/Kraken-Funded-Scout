@@ -1133,6 +1133,20 @@
         "app.py": "sha256:35c0e1c297b63a2274e8a5d13c9c57490e63a269cffe4f001162f2f61b2fe4be",
         "test_giveback.py": "sha256:6a1eee7af92c4ea908eef49c038f75eff284d4664dc71ae00330404043f1c690"
       }
+    },
+    "51-giveback-tier-tuning": {
+      "commits": [
+        "<this commit>"
+      ],
+      "branch_name": "master",
+      "date": "2026-09-29",
+      "title": "THE GIVE-BACK THRESHOLDS LEARN SEPTEMBER AND SCALE WITH THE TIER: TIGHTEN 0.20% OF START, SPEAK 0.10% (Sep 29, giveback-tier-tuning)",
+      "detail": "The study (scratch/giveback_tier_study.py, 54 applied September closes, 10 trading days): the fixed 50 tighten caught only the blowoff (Sep 26, erosion 118.35) and missed BOTH real erosion days that closed negative after being positive (Sep 22 -26.0, Sep 29 -23.9); the crossing-day median was 11.40, so the fixed 25 speak floor spoke almost nothing. The trigger table: crossing >= 10 ran 2.0x the base rate of a bad close (every crossing day failed) with perfect separation at every tested line. THE CALIBRATION: tighten 0.20% of start, speak 0.10% of start — 10k: 20/10, 5k: 10/5, 1k: 2/1. 0.20% reaches both missed days (23.90 and 26.01 clear the 20.0 line) while keeping the perfect separation; 0.10% makes the median crossing day hearable without speaking the noise. THE RESOLVER IS CONTEST-ACCOUNT MATH: contest_account.giveback_thresholds() (fail-soft to the calibrated 10k defaults, NEVER zero — a zero trigger would tighten on any red tick), one function for all three consumers: the tracker (background_scanner._track_day_giveback), the all-good voice lead, and the console gauge amber boundary. GIVEBACK_TIGHTEN_FRAC stays the guard-delta knob (how hard, not when). Pins in test_giveback section 5: the tier table (10k/5k/1k), the broken-read fail-soft, and the SEPTEMBER REPLAY through the real _track_day_giveback (both missed day-shapes now arm the tighten; the median crossing clears the speak floor). Drives: giveback ALL (22 pins), allgoodlead 26/0, apptest 310/0, autoadjust, sink_hygiene, rebootsurv ALL. The study probe is scratch (read-only, uncommitted by policy).",
+      "checksums": {
+        "contest_account.py": "sha256:42ad06e01d31fde07d46a299863c002c555390cfe15a6aa50b4676f83288a8c6",
+        "background_scanner.py": "sha256:3ca16d25cdca55180afbdbcd22daf1e5351c610bb56730a1f7464f90befa1244",
+        "test_giveback.py": "sha256:fc269f0d3f605ff27bb331877068464faa8fd43d5999644f3fcfded4c4e4dd7b"
+      }
     }
   }
 }

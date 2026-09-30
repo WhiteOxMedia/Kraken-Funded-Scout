@@ -122,6 +122,9 @@ check("payout sink restored (no residue — the live ledger unbound, "
       "the tempdir carries the test rows)",
       bs.TAKE_PAYOUTS_JSON == _real_tp)
 
+bssrc_g = (BASE / "background_scanner.py").read_text(encoding="utf-8")
+casrc_g = (BASE / "contest_account.py").read_text(encoding="utf-8")
+
 # ── 4. THE CONSOLE GAUGE READS THE SAME WATERMARK (Sep 29, her ask:
 # the day's peak/current/erosion always VISIBLE on the danger plate,
 # not just voiced). The gauge rides profit_guard's giveback block in a
@@ -160,11 +163,11 @@ try:
           and "GIVE-BACK" in _asrc
           and "guard tightened" in _asrc and "guard normal" in _asrc)
     check("the erosion colors at the machine's own triggers "
-          "(green < 1, amber < the 50 tighten trigger, red at/over)",
+          "(green < 1, amber < the tuned 0.20%-of-start tighten trigger, red at/over)",
           "if _ero < 1.0" in _asrc and "if _ero < 50.0" in _asrc
           and "#4be38a" in _asrc and "#ffc36b" in _asrc
           and "#ff6b5e" in _asrc
-          and "GIVEBACK_TIGHTEN_TRIGGER_USD = 50.0" in (BASE / "background_scanner.py").read_text(encoding="utf-8"))
+          and "GIVEBACK_TIGHTEN_PCT_OF_START = 0.0020" in casrc_g)
     check("a stale-dated or absent block renders DORMANT (the "
           "cross-process stamp: no invented peak-of-zero), naming the "
           "day and the reason",
@@ -179,6 +182,107 @@ try:
           "datetime.fromtimestamp(now_ts, MST).strftime" in _asrc)
 finally:
     bs.CONTEST_TRADES_FILE = _real_ctf_gg
+
+# ── 5. THE SEPTEMBER TUNING, TIER-SCALED (Sep 29): the tighten trigger
+# and speak floor scale with the contest tier as % of start — the study
+# (scratch/giveback_tier_study.py, 54 applied closes) showed the fixed
+# $50 caught only the blowoff and missed both real erosion days (Sep 22
+# -26.0, Sep 29 -23.9, both closed negative after being positive); the
+# crossing-day median was 11.40, so the fixed $25 speak floor spoke
+# almost nothing. Calibration: tighten 0.20% of start, speak 0.10% —
+# the resolver lives in contest_account (one function for the tracker,
+# the voice, and the gauge).
+import contest_account as _ca_g
+
+
+def _thr(tier):
+    """giveback_thresholds() under a patched account read (None = broken)."""
+    _real_ls = _ca_g.load_state
+    try:
+        if tier is None:
+            def _boom():
+                raise RuntimeError("account unreadable")
+            _ca_g.load_state = _boom
+        else:
+            _ca_g.load_state = lambda: {"tier": tier}
+        return _ca_g.giveback_thresholds()
+    finally:
+        _ca_g.load_state = _real_ls
+
+
+check("the calibration constants live in the contest-account module "
+      "(0.20% tighten, 0.10% speak of start — one function, three consumers)",
+      "GIVEBACK_TIGHTEN_PCT_OF_START = 0.0020" in casrc_g
+      and "GIVEBACK_SPEAK_PCT_OF_START = 0.0010" in casrc_g
+      and "def giveback_thresholds" in casrc_g)
+check("the tier table maps the study: 10k -> tighten 20 / speak 10; "
+      "5k -> 10 / 5; 1k -> 2 / 1",
+      _thr(10000) == (20.0, 10.0)
+      and _thr(5000) == (10.0, 5.0)
+      and _thr(1000) == (2.0, 1.0),
+      (_thr(10000), _thr(5000), _thr(1000)))
+check("a broken account read fails soft to the 10k defaults, NEVER to "
+      "zero (a zero trigger would tighten on any red tick)",
+      _thr(None) == (20.0, 10.0), _thr(None))
+
+
+# THE SEPTEMBER REPLAY: the same tracker ticks, the new calibration —
+# the two missed days must now arm the tighten (reuses section 1b's
+# sandboxed guard/telemetry/auto_adjust handles).
+_sbx5 = Path(tempfile.mkdtemp())
+_pg1b.STATE_FILE = _sbx5 / "pg_state.json"
+_ta1b.TELEMETRY_PATH = _sbx5 / "telemetry.jsonl"
+_real_ctf5 = bs.CONTEST_TRADES_FILE
+bs.CONTEST_TRADES_FILE = str(_sbx5 / "contest_trades.jsonl")
+_calls5 = []
+
+
+def _stub_apply5(delta, rotation_id="", evidence_checksum="",
+                 per_gate=None, auto=True, override_concentration=False,
+                 params=None):
+    _calls5.append(delta)
+    return {"status": "applied", "reason": "ok", "delta": delta,
+            "before": 1.0, "after": 1.0 + delta}
+
+
+_real_apply5 = _aa1b.apply_adjustment
+_aa1b.apply_adjustment = _stub_apply5
+_today5 = datetime.now(MST).strftime("%Y-%m-%d")
+try:
+    from background_scanner import _track_day_giveback as _tgd5
+    Path(bs.CONTEST_TRADES_FILE).write_text(
+        json.dumps({"sold_at": f"{_today5}T10:00:00-06:00",
+                    "pnl_net": 0.0, "applied": True}) + "\n",
+        encoding="utf-8")
+    # Sep 22's shape: peak +15.80, closed -10.21 -> erosion 26.01
+    _pg1b._save({"giveback": {"day": _today5, "peak_total": 0.0,
+                              "now_total": 0.0, "give_back": 0.0,
+                              "tightened": False}})
+    _tgd5(15.80)
+    _gb22 = _tgd5(-10.21)
+    check("the September replay: Sep 22's shape (erosion 26.01) ARMS "
+          "the tighten under the tier-scaled trigger (the fixed $50 "
+          "missed it)",
+          _gb22.get("tightened") is True and len(_calls5) == 1, _gb22)
+    # Sep 29's shape: peak +4.62, closed -19.28 -> erosion 23.90 (a
+    # different day key so the one-attempt-per-day rail stays out of
+    # the way — each replay shape gets its own fresh watermark)
+    _pg1b._save({"giveback": {"day": _today5 + "x", "peak_total": 0.0,
+                              "now_total": 0.0, "give_back": 0.0,
+                              "tightened": False}})
+    _tgd5(4.62)
+    _gb29 = _tgd5(-19.28)
+    check("the September replay: Sep 29's shape (erosion 23.90) also "
+          "arms — both real erosion days are inside the guard's reach now",
+          _gb29.get("tightened") is True, _gb29)
+    # the speak floor: the study's median crossing (11.40) must now be
+    # HEARD (the old $25 floor silenced it)
+    check("the speak floor: the crossing-day median 11.40 clears the "
+          "tier-scaled 10.0 floor (the old 25.0 silenced it)",
+          11.40 >= _thr(10000)[1], _thr(10000))
+finally:
+    _aa1b.apply_adjustment = _real_apply5
+    bs.CONTEST_TRADES_FILE = _real_ctf5
 
 fails = [r for r in results if not r[1]]
 out = BASE / "giveback_check.txt"
