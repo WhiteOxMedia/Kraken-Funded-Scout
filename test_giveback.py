@@ -3,6 +3,7 @@ Every live-state window rides a tempdir SINK rebind (the sweep, Sep 29:
 the old backup/restore-by-name shape is retired — the running machine
 never sees a test row)."""
 import sys, json, shutil
+import tempfile
 import background_scanner as bs
 from pathlib import Path
 from datetime import datetime, timedelta
@@ -120,6 +121,64 @@ finally:
 check("payout sink restored (no residue — the live ledger unbound, "
       "the tempdir carries the test rows)",
       bs.TAKE_PAYOUTS_JSON == _real_tp)
+
+# ── 4. THE CONSOLE GAUGE READS THE SAME WATERMARK (Sep 29, her ask:
+# the day's peak/current/erosion always VISIBLE on the danger plate,
+# not just voiced). The gauge rides profit_guard's giveback block in a
+# sandboxed STATE_FILE, and the plate lines are exercised through the
+# same _today_facts body the console renders — via a bound Exec able
+# to inject the st-free fixture rows (the full app import needs
+# streamlit; the GAUGE is arithmetic + dict reads, and THAT is what
+# we pin).
+import profit_guard as _pg_gauge
+_sbx_g = Path(tempfile.mkdtemp())
+_pg_gauge.STATE_FILE = _sbx_g / "pg_state.json"   # sink: dies with the tempdir
+_real_ctf_gg = bs.CONTEST_TRADES_FILE
+bs.CONTEST_TRADES_FILE = str(_sbx_g / "contest_trades.jsonl")
+_today_g = datetime.now(MST).strftime("%Y-%m-%d")
+try:
+    from background_scanner import _track_day_giveback as _tgd_g
+    _pg_gauge._save({"giveback": {"day": _today_g, "peak_total": 0.0,
+                                  "now_total": 0.0, "give_back": 0.0,
+                                  "tightened": False}})
+    _tgd_g(120.0)    # the day peaks at +120
+    _tgd_g(45.0)     # then erodes 75
+    _gb_blk = (_pg_gauge._state() or {}).get("giveback") or {}
+    check("gauge fixture: the watermark says peak 120.0, current 45.0, "
+          "erosion 75.0",
+          _gb_blk.get("peak_total") == 120.0
+          and _gb_blk.get("now_total") == 45.0
+          and _gb_blk.get("give_back") == 75.0, _gb_blk)
+    _asrc = (BASE / "app.py").read_text(encoding="utf-8")
+    check("the console gauge reads the scanner's OWN watermark "
+          "(profit_guard giveback block — one writer, one truth; the "
+          "gauge and the voice can never disagree)",
+          "_pg_facts._state()" in _asrc
+          and '_gb.get("day") == _gb_day' in _asrc)
+    check("the gauge renders all three numbers plus the guard stamp",
+          "DAY PEAK" in _asrc and "CURRENT" in _asrc
+          and "GIVE-BACK" in _asrc
+          and "guard tightened" in _asrc and "guard normal" in _asrc)
+    check("the erosion colors at the machine's own triggers "
+          "(green < 1, amber < the 50 tighten trigger, red at/over)",
+          "if _ero < 1.0" in _asrc and "if _ero < 50.0" in _asrc
+          and "#4be38a" in _asrc and "#ffc36b" in _asrc
+          and "#ff6b5e" in _asrc
+          and "GIVEBACK_TIGHTEN_TRIGGER_USD = 50.0" in (BASE / "background_scanner.py").read_text(encoding="utf-8"))
+    check("a stale-dated or absent block renders DORMANT (the "
+          "cross-process stamp: no invented peak-of-zero), naming the "
+          "day and the reason",
+          "no watermark yet today" in _asrc
+          and "_gb.get('peak_ts', '')[:14]" in _asrc)
+    check("a dead guard file degrades the gauge, never the plate "
+          "(fail-soft, logged at debug)",
+          "watermark unreadable" in _asrc
+          and "give-back gauge read failed" in _asrc)
+    check("the gauge's clock is DATA (the day key derives from the "
+          "plate's bucketed now_ts, not a fresh wall-clock read)",
+          "datetime.fromtimestamp(now_ts, MST).strftime" in _asrc)
+finally:
+    bs.CONTEST_TRADES_FILE = _real_ctf_gg
 
 fails = [r for r in results if not r[1]]
 out = BASE / "giveback_check.txt"

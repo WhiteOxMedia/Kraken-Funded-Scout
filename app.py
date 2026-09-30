@@ -5611,11 +5611,51 @@ def _today_facts(now_ts: int) -> list[str]:
     except Exception:
         _line, _buf, _pace, _tier = 0.0, 0.0, 0.0, "?"
     _pace_col = "#4be38a" if banked >= _pace else "#ffc36b"
+    # ── THE GIVE-BACK GAUGE (Sep 29, her ask: the day's peak, current
+    #    and erosion always VISIBLE on the danger plate, not just
+    #    voiced). Reads the scanner's OWN watermark — profit_guard's
+    #    giveback block, the exact dict _track_day_giveback writes
+    #    (peak_total / now_total / give_back, day-keyed MST) — so the
+    #    gauge and the voice can never disagree. THE CROSS-PROCESS
+    #    STAMP: the scanner may not have ticked since the day rolled
+    #    (or be down) — an absent or stale-dated block renders the
+    #    gauge DORMANT (dim, stating the stamp) instead of inventing a
+    #    peak of zero. Fail-soft: a dead guard file degrades the
+    #    gauge, never the plate.
+    _gb_line = ""
+    try:
+        import profit_guard as _pg_facts
+        _gb_day = datetime.fromtimestamp(now_ts, MST).strftime("%Y-%m-%d")
+        _gb = (_pg_facts._state() or {}).get("giveback") or {}
+        if _gb.get("day") == _gb_day and "peak_total" in _gb:
+            _peak = float(_gb.get("peak_total") or 0.0)
+            _now_t = float(_gb.get("now_total") or 0.0)
+            _ero = float(_gb.get("give_back") or 0.0)   # peak minus current, >= 0
+            _ero_col = "#4be38a" if _ero < 1.0 else "#ffc36b" if _ero < 50.0 else "#ff6b5e"
+            _ero_txt = f"-{_ero:,.0f}" if _ero >= 0.5 else "0"
+            _gb_line = (
+                f"DAY PEAK <span class='dim'>..........</span> {_peak:+,.0f}"
+                f"   CURRENT <span class='dim'>.........</span> {_now_t:+,.0f}"
+                f"   GIVE-BACK <span class='dim'>.......</span> "
+                f"<span style='color:{_ero_col};'>{_ero_txt}</span>"
+                f"<span class='dim'> (peak {_gb.get('peak_ts', '')[:14]}, "
+                f"{'guard tightened' if _gb.get('tightened') else 'guard normal'})</span>")
+        else:
+            _gb_line = (f"DAY PEAK <span class='dim'>..........</span> "
+                        f"<span class='dim'>— no watermark yet today "
+                        f"(the exit cycle has not priced an open book "
+                        f"since {_gb_day} 00:00 MST)</span>")
+    except Exception as exc:
+        logger.debug("give-back gauge read failed (%s) — the plate "
+                     "renders without the gauge", exc)
+        _gb_line = (f"DAY PEAK <span class='dim'>..........</span> "
+                    f"<span class='dim'>— watermark unreadable</span>")
     return [
         f"SIGNALS FIRED <span class='dim'>......</span> {n_sig}"
         f"   BOT PASSED ON <span class='dim'>.....</span> {n_rej}"
         f"   GOALS BANKED <span class='dim'>......</span> "
         f"<span style='color:#4be38a;'>{goals_n} (${banked:,.0f})</span>",
+        _gb_line,
         f"☠ {_tier} LINE <span class='dim'>......</span> ${_line:,.0f}"
         f"   BUFFER <span class='dim'>..........</span> ${_buf:,.0f}"
         f"   PACE <span class='dim'>............</span> "

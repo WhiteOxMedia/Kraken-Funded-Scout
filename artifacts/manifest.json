@@ -1120,6 +1120,19 @@
         "start_detached.ps1": "sha256:a21b4af8d78286d4e983c577a34e5004b3b74325e48ebdd2b8a66da843b2641b",
         ".gitignore": "sha256:db670bd70312fe0566870c7f807a400f245fbfb7154d5a74834cb516e248ecd7"
       }
+    },
+    "50-giveback-gauge-on-plate": {
+      "commits": [
+        "<this commit>"
+      ],
+      "branch_name": "master",
+      "date": "2026-09-29",
+      "title": "THE GIVE-BACK GAUGE GOES ON THE DANGER PLATE: PEAK, CURRENT AND EROSION ALWAYS VISIBLE, THE SAME WATERMARK THE VOICE READS (Sep 29, giveback-gauge-on-plate)",
+      "detail": "Her ask: the give-back machinery has been VOICED since Sep 21 (the all-good lead and the erosion warnings) but never SHOWN — the danger plate (master self-correction) now carries a DAY PEAK / CURRENT / GIVE-BACK line riding the scanner OWN watermark (profit_guard giveback block, the exact dict _track_day_giveback writes: peak_total / now_total / give_back / tightened) — one writer, one truth, the gauge and the voice can never disagree. THE CROSS-PROCESS STAMP: the scanner may not have ticked since the day rolled (or be down) — an absent or stale-dated block renders DORMANT (dim, naming the day and the reason: the exit cycle has not priced an open book since 00:00 MST) instead of inventing a peak of zero; a dead guard file degrades the gauge, never the plate. Erosion colors at the machine OWN triggers (green < 1, amber < the 50 tighten trigger, red at/over) and the stamp names the guard state (tightened/normal). Clock discipline: the day key derives from the plate bucketed now_ts (the Sep 13 fresh-stamp contract, pinned in apptest), no fresh wall-clock read. Live-verified: the real plate renders DAY PEAK -18 / CURRENT -18 / GIVE-BACK 0 (green, guard normal) — matching the -18 watermark the voice carries. Pins in test_giveback section 4 (the watermark fixture through the real _track_day_giveback: peak 120 -> erosion 75; single-writer read; all three numbers + guard stamp; the trigger-keyed colors; the dormant rail; the fail-soft rail; the clock-is-data pin) + the full apptest suite 310/0 and sink_hygiene re-run green. Drives: giveback ALL, apptest 310/0, sink_hygiene 3/0.",
+      "checksums": {
+        "app.py": "sha256:35c0e1c297b63a2274e8a5d13c9c57490e63a269cffe4f001162f2f61b2fe4be",
+        "test_giveback.py": "sha256:6a1eee7af92c4ea908eef49c038f75eff284d4664dc71ae00330404043f1c690"
+      }
     }
   }
 }
