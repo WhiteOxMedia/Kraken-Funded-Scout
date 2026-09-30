@@ -1105,6 +1105,21 @@
         "ops/recovery_scenarios.py": "sha256:6b34bc8c12eaa1b262ed1a3956a70e23cdae728a0ad1af78f58383f1621c9b22",
         "test_recoveryscenarios.py": "sha256:87c4609500a681d01ba70cf84d40e35534a4bbeb05cdd8aa9d72176bdcd8b6c3"
       }
+    },
+    "49-price-alert-tripwire": {
+      "commits": [
+        "<this commit>"
+      ],
+      "branch_name": "master",
+      "date": "2026-09-29",
+      "title": "THE RECOVERY TRIPWIRE: ONE PAIR, ONE LINE, ONE PHONE PING THROUGH THE NTFY PIPE THE MOMENT THE LEVEL IS TOUCHED (Sep 29, price-alert-tripwire)",
+      "detail": "Her FIL alert, built as an ops tool instead of a one-off hack: ops/price_alert.py --pair FIL/USD --above 1.085 polls the Kraken PUBLIC ticker every 30s and the moment price >= the line it pushes ONE high-priority ping through the SAME private ntfy pipe the GET OUTs use (push_topic.txt, the Title/Priority/Tags wire shape), naming the pair, the line, the crossed price and the recovery_scenarios desk command for the next move — then fires ONE automatic attempt 2/2 ~60s later (the 16:05 lesson: an ntfy 200 is not a delivery receipt; the duplicate is the cheap failure) and DISCHARGES: the fired record lands, a re-boot refuses to re-arm (one alert, one job). Honesty rails: a failed fetch NEVER fires (a stale price is a lie with decimals), ~15 min of dead feed sends the degradation note exactly ONCE and keeps trying, a failed send keeps the alert ARMED and retries with the cap then giving up LOUDLY (exit 3, level and price in the log); the lock refuses a live-python double and retakes a dead lock (the recycled-pid trap). Read-only on the firm: no watch file, no account state, no bridge DB, no order endpoint; price_alert.lock/_state gitignored. The start_detached component table gained price_alert (ExtraArgs param; one-shot — no watchdog respawn wanted) and the alert is LIVE NOW: spawned 20:49 pid 48048 (shim 43904), ARMED FIL/USD >= 1.085, breathing on the real tape (last_price 1.068, cycles advancing) — no stack restart needed, because the running scanner still predates today fixes and its push classifier only carries BUY/SELL calls. Pins: test_pricealert 27/0 hermetic (fake clock + scripted tape: at-the-line counts, both senses, the fire text, the dead-feed rails note-once, the trip ceremony, the discharge, the failed-send rails, the cap exit 3, the lock tri-state). Drives: recoveryscenarios, phantommirror ALL.",
+      "checksums": {
+        "ops/price_alert.py": "sha256:1c3de5d0b847071a1d5fd15987dbf0a00c89cbe242a5f85d6a9c49a2f93d5952",
+        "test_pricealert.py": "sha256:16571c9ba8e5da42d3307c328c510089fa67e569aab69c22d9cccdc118d99861",
+        "start_detached.ps1": "sha256:a21b4af8d78286d4e983c577a34e5004b3b74325e48ebdd2b8a66da843b2641b",
+        ".gitignore": "sha256:db670bd70312fe0566870c7f807a400f245fbfb7154d5a74834cb516e248ecd7"
+      }
     }
   }
 }

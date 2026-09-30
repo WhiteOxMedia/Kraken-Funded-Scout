@@ -32,6 +32,7 @@ param(
     [Parameter(Mandatory = $true)][string]$LogStem,
     [Parameter(Mandatory = $true)][string]$Base,
     [string]$BotDir = "",
+    [string]$ExtraArgs = "",
     [switch]$RetakeStalePid,
     [switch]$ShowWin
 )
@@ -131,6 +132,17 @@ switch ($Component) {
         # LISTENING probe (the port, not the pid - uv's shim pair).
         $script = "hindsight_service.py"; $py = "$Base\.venv\Scripts\python.exe"
         $extra = "serve"; $lockFile = "$Base\.hindsight.pid"
+    }
+    "price_alert" {
+        # the price-alert tripwire (Sep 29): one pair, one level, one
+        # phone ping through the ntfy pipe, then the process EXITS
+        # (one-shot by design — no watchdog respawn wanted). It runs
+        # its OWN single-instance contract (price_alert.lock: refuses
+        # a live python double, retakes a dead lock), so the helper
+        # spawns it directly with the alert args in $extra and leaves
+        # the pid bookkeeping to the tool.
+        $script = "ops/price_alert.py"; $py = "$Base\.venv\Scripts\python.exe"
+        $extra = $ExtraArgs; $lockFile = ""
     }
     default { Say "[helper] unknown component '$Component'"; exit 2 }
 }

@@ -62,6 +62,9 @@ _test_*/
 contest_account.json
 push_canary.json
 push_canary.json.tmp*
+price_alert.lock
+price_alert_state.json
+price_alert_state.json.tmp*
 console_state.json
 contest_watch.json
 discipline_state.json
