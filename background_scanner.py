@@ -48,6 +48,35 @@ import exit_extension as _exx   # noqa: E402  (deliberate stdlib-lazy import)
 # callable + the guard marker that says the wiring is live
 exit_verdict = _exx.exit_verdict
 exit_extension_guard = True
+
+
+def _hard_stop_breached(w: dict, live: float) -> tuple[bool, str]:
+    """THE HARD-STOP INDEPENDENT JUDGE (the recovered ordering majors,
+    Sep 29: CR 09:52 on :3842 and 15:18 on :3969): the gate chain runs
+    `if not should_exit`, so a book past its peak carries PROFIT GUARD
+    FIRED while price sinks through the death line — gate 1b never
+    evaluates and the reason never becomes STOPPED OUT. This judges
+    the death line directly from entry/size/live and the platform
+    buffer's own half (the gate 1b math, uncached, fail-soft False on
+    any unreadable input — the gates above remain the first net).
+    Returns (breached, the STOPPED OUT reason)."""
+    try:
+        entry = float(w.get("entry") or 0.0)
+        size = float(w.get("size") or 0.0)
+        if entry <= 0 or size <= 0 or live is None or float(live) <= 0:
+            return False, ""
+        import contest_account as _ca_hs
+        _acct = _ca_hs.load_state()
+        _stop = max(_ca_hs.buffer(_acct) * 0.5, 5.0)
+        _usd = (float(live) / entry - 1.0) * size
+        if _usd <= -_stop:
+            return True, (
+                f"STOPPED OUT — down ${abs(_usd):.0f} (the stop is "
+                f"-${_stop:.0f} — half the platform death-line buffer). "
+                f"The trade failed — get out, wait for the next one.")
+        return False, ""
+    except Exception:
+        return False, ""
 MST = ZoneInfo("America/Denver")  # Auto DST: MDT (UTC-6) summer, MST (UTC-7) winter
 
 # ── THE LOG FLOOD GUARD (rebuilt Sep 23 — the machinery was lost in the
@@ -2938,8 +2967,12 @@ def _save_contest_watch(watch: dict, fresh_keys=None):
         with open(tmp, "w", encoding="utf-8") as fh:
             json.dump(merged, fh, indent=2)
         os.replace(tmp, CONTEST_WATCH_JSON)
+        return True    # THE REPORT (the re-add triage, Sep 29): the
+                       # caller can tell 'landed' from 'lost the
+                       # race' — a truth-print needs a truth to print
     except Exception as exc:
         logger.warning("contest watch save failed: %s", exc)
+        return False
 
 
 def _popup_already_watched(pair: str) -> bool:
@@ -4012,6 +4045,19 @@ def contest_light(exchange, cfg):
         # belongs to the profit guard, the hard stop, the trend sell bar
         # and the climax — never to the clock.
         if should_exit:
+            # ── THE HARD-STOP INDEPENDENT JUDGE (the recovered ordering
+            # majors, Sep 29: CR 09:52 on :3842 and 15:18 on :3969): the
+            # gates above run `if not should_exit`, so on a book past its
+            # peak the PROFIT GUARD reason is already set while price
+            # sinks through the death line — gate 1b never evaluates and
+            # the reason never becomes STOPPED OUT. Judged here
+            # INDEPENDENTLY: if the death line is breached, the reason
+            # IS the hard stop, whatever fired first, and the seam below
+            # is bypassed outright (the account-killer outranks every
+            # window and every arm gate).
+            _hs_breach, _hs_reason = _hard_stop_breached(w, live)
+            if _hs_breach:
+                reason = _hs_reason   # the reason IS the hard stop
             # ── THE PROTECTED-EXTENSION SEAM (Sep 27, exit_extension.py):
             # the machinery always ASKS before it closes — the module
             # answers per the operator's dial. "suppress" sets the call
@@ -4020,14 +4066,21 @@ def contest_light(exchange, cfg):
             # never naked) until the window lapses or the dial flips off.
             # Any seam failure degrades to the incumbent exit — the
             # extension can never trap a position the machinery wants out.
+            # BYPASS (the 09:52 major): a breached death line never asks.
             _had_stamp = isinstance(w.get("exit_extension"), dict)
-            try:
-                v_ext, why_ext = _exx.exit_verdict(pair, w, str(reason),
-                                                    live=live)
-            except Exception as _exv_exc:
-                v_ext, why_ext = "exit", f"seam failed ({_exv_exc}) — incumbent exit"
-                logger.warning("exit-extension seam failed for %s: %s",
-                               pair, _exv_exc)
+            if _hs_breach:
+                v_ext, why_ext = "exit", (
+                    "hard-stop bypass — the death line outranks every window")
+                logger.info("EXIT EXTENSION bypassed for %s: %s", pair,
+                            why_ext)
+            else:
+                try:
+                    v_ext, why_ext = _exx.exit_verdict(pair, w, str(reason),
+                                                       live=live)
+                except Exception as _exv_exc:
+                    v_ext, why_ext = "exit", f"seam failed ({_exv_exc}) — incumbent exit"
+                    logger.warning("exit-extension seam failed for %s: %s",
+                                   pair, _exv_exc)
             if v_ext == "suppress":
                 if not _had_stamp:
                     # the arm just landed — persist the stamp once so

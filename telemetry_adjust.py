@@ -12,11 +12,83 @@ from __future__ import annotations
 
 import json
 import subprocess
+import sys
 from datetime import datetime
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
 TELEMETRY_PATH = ROOT / "artifacts" / "auto_adjust" / "telemetry.jsonl"
+
+# ── THE CONSUMER CONTRACT (the audit's table, Sep 29): every field a
+# consumer READS from an event, keyed by consumer with the reason it
+# is needed. The producers' obligation is not just the schema — it is
+# every downstream read. contract_report() turns a dropped field into
+# a NAMED breach; emit() announces one loudly instead of appending a
+# half-event nobody can consume. Adding a consumer read means adding
+# its field here — the drives cross-check the table against the
+# consumers' sources, so a new read with no contract row goes red.
+CONSUMERS = {
+    "restore_state": {
+        "event": "the replay filter selects only event=auto_adjust",
+        "status": "only applied rows rehydrate the guard factor",
+        "before_gf": "the factor ANCHOR — a missing one silently "
+                     "restores 1.0 and resizes every gate",
+        "after_gf": "the restored ledger row's after value",
+        "delta": "the restored ledger row's delta",
+        "timestamp": "the ledger row's day and the plan's ts",
+        "evidence_checksum": "the restored row's evidence chain",
+        "rotation_id": "the restored row's identity",
+    },
+    "console_zone5": {
+        "timestamp": "the audit row's stamp (rendered to the minute)",
+        "rotation_id": "the audit row's identity",
+        "status": "APPLIED/REFUSED/QUEUED badge",
+        "before_gf": "the before → after factor render",
+        "after_gf": "the before → after factor render",
+        "B": "the buried count",
+        "P": "the payer count",
+        "r": "the payer rate (None renders as —)",
+        "applied_by": "who/what applied it (system/operator/rotation_boundary)",
+        "commit_sha": "the event → commit walk",
+        "evidence_checksum": "the event → evidence-bundle walk",
+        "reason": "the non-ok reason line",
+    },
+    "hindsight_api": {
+        # the API is a pass-through (zone-5 wire: read_events → /telemetry
+        # unchanged) — its contract is the SCHEMA: every required field
+        # rides the wire because the docstring promises them.
+        "event": "schema required",
+        "rotation_id": "schema required",
+        "before_gf": "schema required",
+        "after_gf": "schema required",
+        "delta": "schema required",
+        "B": "schema required",
+        "P": "schema required",
+        "r": "schema required",
+        "per_gate": "schema required",
+        "evidence_checksum": "schema required + the docstring's promise",
+        "commit_sha": "schema required + the docstring's promise",
+        "cohort": "schema required + the docstring's promise",
+        "applied_by": "schema required + the docstring's promise",
+        "status": "schema required",
+        "reason": "schema required",
+        "timestamp": "schema required",
+    },
+}
+
+
+def contract_report(event: dict) -> list[str]:
+    """Every consumer-contract breach in one event, named. [] means
+    the event feeds every consumer complete."""
+    breaches = []
+    if not isinstance(event, dict):
+        return ["event is not a dict — no consumer can read it"]
+    for _consumer, _fields in CONSUMERS.items():
+        for _field, _why in _fields.items():
+            if _field not in event:
+                breaches.append(f"{_consumer}: missing '{_field}' "
+                                f"({_why})")
+    return breaches
 
 
 def _commit_sha() -> str:
@@ -65,7 +137,16 @@ def make_event(rotation_id: str, before: float, after: float,
 
 def emit(event: dict, path: Path | None = None) -> Path:
     """Append one event; the file is created on first write. Returns
-    the path so a caller can hand it to the alert payload."""
+    the path so a caller can hand it to the alert payload. THE SCHEMA
+    PIN AT THE WIRE: a dropped consumer field is announced loudly on
+    stderr (the scanner/API stderr logs carry it) — but the append
+    still happens, because a half-documented event beats a missing one
+    and telemetry must never stall a trade."""
+    _breaches = contract_report(event)
+    if _breaches:
+        print(f"⚠️ TELEMETRY SCHEMA BREACH ({len(_breaches)} consumer "
+              f"fields missing): {'; '.join(_breaches)}",
+              file=sys.stderr)
     p = path or TELEMETRY_PATH
     p.parent.mkdir(parents=True, exist_ok=True)
     with p.open("a", encoding="utf-8") as f:

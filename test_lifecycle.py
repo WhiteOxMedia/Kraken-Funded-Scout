@@ -154,6 +154,24 @@ check("the launcher is the single opener on BOTH console paths",
       "fresh start AND already-running must each open exactly one tab")
 
 # ── 3. the stop path ────────────────────────────────────────────────────
+# ── 2b. the hindsight-failure policy (the operator's decision, Sep 29) ──
+# The hindsight API is INFORMATIVE: the console panel fail-closes to
+# silence on a dead feed (its own data contract), so a missing service
+# degrades one panel, never the desk's trading. Its failure must NOT
+# flip $okAll — no watchdog de-arm, exit stays 0 — and the summary
+# must still name it so the operator sees the degradation.
+ls_4b = ls[ls.index("-- 4b."):ls.index("# -- 5.")]
+check("a hindsight-start failure flips $hindsightOk, never $okAll",
+      "$hindsightOk = $false" in ls_4b
+      and "$okAll = $false" not in ls_4b,
+      "the watchdog de-arm rides $okAll; an informative failure must "
+      "never disarm it")
+check("hindsight failures WARN loudly instead of FAIL",
+      "[WARN] Hindsight API" in ls_4b
+      and "[FAIL] Hindsight API" not in ls_4b)
+check("the summary names a down hindsight API",
+      "Hindsight API is DOWN" in lsc)
+
 check("stop script exists", bool(ss), SS.name)
 check("STOP disarms the watchdog BEFORE the first kill pass",
       ordered(ss, "Remove-Item $marker", "Stop-Process"),

@@ -332,6 +332,28 @@ def _lock_level(entry: float) -> float:
     return entry * (1.0 + 2.0 * _rt / 100.0)
 
 
+def _hard_stop_live(w: dict, live: float | None) -> tuple[bool, float]:
+    """THE DEATH-LINE JUDGE (the recovered 15:18 ordering major): the
+    window can never hold a book past its hard stop — computed HERE
+    from entry/size/live and the platform buffer's own half (the gate
+    1b shape), independent of any reason string. Fail-soft toward the
+    ride: an unreadable buffer keeps the window (the scanner's own
+    independent judge is the second net; a seam failure degrades to
+    the incumbent exit anyway)."""
+    try:
+        entry = float(w.get("entry") or 0.0)
+        size = float(w.get("size") or 0.0)
+        lv = float(live or 0.0)
+        if entry <= 0 or size <= 0 or lv <= 0:
+            return False, 0.0
+        import contest_account as _ca_hs
+        _stop = max(_ca_hs.buffer(_ca_hs.load_state()) * 0.5, 5.0)
+        _usd = (lv / entry - 1.0) * size
+        return ((True, _usd) if _usd <= -_stop else (False, _usd))
+    except Exception:
+        return False, 0.0
+
+
 def exit_verdict(pair: str, w: dict, reason: str,
                  now: datetime | None = None,
                  live: float | None = None) -> tuple[str, str]:
@@ -365,6 +387,20 @@ def exit_verdict(pair: str, w: dict, reason: str,
         try:
             until = datetime.fromisoformat(str(ext["until"]))
             if now < until:
+                # THE DEATH-LINE JUDGE (the 15:18 ordering major): gate
+                # 1b runs only `if not should_exit`, so on a book past
+                # its peak the PROFIT GUARD reason is already set while
+                # price sinks through the stop — the reason never
+                # becomes STOPPED OUT and _NEVER_MARKS never applies.
+                # The judge rides no reason: the window cannot hold a
+                # book past its hard stop, whatever the caller says.
+                _hs_b, _hs_usd = _hard_stop_live(w, live)
+                if _hs_b:
+                    _clear_stamp(w)
+                    return "exit", (
+                        f"STOPPED OUT — down ${abs(_hs_usd):.0f} past the "
+                        "death line — the hard stop outranks every window "
+                        "(bypassed — the death line outranks every window)")
                 # THE LOCK-WINDOW FLOOR ON THE ACTIVE WINDOW (the textless
                 # major, closed Sep 29): an exit arriving while the window
                 # rides is suppressed UNLESS the reason is a trail breach

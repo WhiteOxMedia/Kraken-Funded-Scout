@@ -31,11 +31,21 @@ _added = False
 if not isinstance(_row, dict) or _row.get("entry") is None:
     w["XRP/USD"] = {"entry": px, "high": px,
                     "added": datetime.now(MST).isoformat()}
-    _added = _save_contest_watch(w)
+    # FRESH-KEY INTENT (the re-add triage, Sep 29 — the recovered CR
+    # major's named site): the operator's hand IS the deliberate
+    # re-add; without fresh_keys a tombstone left by the SOLD tap or
+    # the GET-OUT auto-close silently swallowed this add — the exact
+    # scenario a re-add happens in. The writer's True/False report
+    # makes the print the truth (it used to return None, so the
+    # print could never say 'added').
+    _added = _save_contest_watch(w, fresh_keys=["XRP/USD"])
 if _added:
     print(f"XRP added to watch @ ${px:.4f} (live price)")
-else:
+elif "XRP/USD" in w:
     print("XRP already on the watch (a valid row stays untouched — "
           "idempotent re-run)")
+else:
+    print("XRP NOT added — the save lost a write race (named "
+          "contention in the log); re-run in a moment")
 w2 = _load_contest_watch()
 print("watch list now:", ", ".join(k for k, v in w2.items() if v is not None))

@@ -2646,28 +2646,34 @@ FEE_RT_PCT = 0.26        # taker round trip in % (2 x 0.13%)
 FILL_CAPTURE_FLOOR = 0.10
 
 def _burial_hindsight(
-        limit: int = 400) -> dict:
+        limit: int = 400, supp_path=None, cache_path=None) -> dict:
     """The burial hindsight over recent suppressed candidates, through
     the verdict study's join. Returns the aggregate (n, payer-rate,
     per-gate stats, top buried payers) — never raises. The top list
     carries PAYERS ONLY (run >= the 1.5% goal): a dud never headlines
-    the ones that ran."""
+    the ones that ran. The optional paths are the drives' sandbox seam
+    (same shape as top_payers.top_expected); the defaults are the live
+    repo files."""
     out = {"n": 0, "payers15": 0, "payers30": 0, "rate15": 0.0,
            "by_gate": [], "top": [], "hours": 7, "goal": 1.5,
-           "fill_model": {"spread": SPREAD, "fee_rt_pct": FEE_RT_PCT,
+           "fill_model": {"n_payers": 0, "median_capture": 0.0,
+                          "median_run": 0.0, "median_fill_run": 0.0,
+                          "spread": SPREAD, "fee_rt_pct": FEE_RT_PCT,
                           "capture_floor": FILL_CAPTURE_FLOOR}}
     try:
         import json
         import sqlite3
         from pathlib import Path as _P
-        db_path = _P(__file__).resolve().parent / "ohlcv_cache.db"
+        db_path = _P(cache_path) if cache_path else \
+            _P(__file__).resolve().parent / "ohlcv_cache.db"
         if not db_path.exists():
             return out
         con = sqlite3.connect(db_path.as_uri() + "?mode=ro", uri=True,
                               timeout=2.0)
         try:
-            sup_path = _P(__file__).resolve().parent \
-                / "popup_suppressions.jsonl"
+            sup_path = (_P(supp_path) if supp_path
+                        else _P(__file__).resolve().parent
+                        / "popup_suppressions.jsonl")
             rows = [json.loads(l) for l in
                     sup_path.read_text(encoding="utf-8").splitlines()
                     if l.strip()]
@@ -2737,11 +2743,28 @@ def _burial_hindsight(
                 # and fees priced in, a round-trip-to-nowhere shows 0.
                 out["top"] = sorted((s for s in stats if s["run"] >= 1.5),
                                     key=lambda s: -s["run"])[:10]
+                # THE PANEL MEDIAN (the operator's decision, Sep 29): the
+                # capture the panel reports — and the ratio alpha's fill
+                # scaling is modelled from — is the MEDIAN payer's, not
+                # the mean. The mean lets one +50% monster run inflate
+                # the ratio the rule scales by; the median payer is the
+                # typical payer's realizable share. The representative
+                # is chosen BY CAPTURE (lower-middle on an even count —
+                # the conservative read for a risk ratio), and its OWN
+                # run and fill ride with it: three numbers about ONE
+                # payer, never a mix of two. Payers only: the fill-floor
+                # zeros below goal are the duds, not the capture the
+                # rule learns from.
+                _pays = sorted((s for s in stats if s["run"] >= 1.5),
+                               key=lambda s: s["capture"])
+                _rep = _pays[(len(_pays) - 1) // 2] if _pays else None
                 out["fill_model"] = {
-                    "median_capture": round(sum(
-                        s["capture"] for s in stats if s["run"] >= 1.5)
-                        / max(1, sum(1 for s in stats
-                                     if s["run"] >= 1.5)), 2),
+                    "n_payers": len(_pays),
+                    "median_capture": round(_rep["capture"], 2)
+                    if _rep else 0.0,
+                    "median_run": round(_rep["run"], 2) if _rep else 0.0,
+                    "median_fill_run": round(_rep["fill_run"], 2)
+                    if _rep else 0.0,
                     "spread": SPREAD, "fee_rt_pct": FEE_RT_PCT,
                     "capture_floor": FILL_CAPTURE_FLOOR}
         finally:
@@ -2777,6 +2800,18 @@ def _render_burial_hindsight() -> None:
                 f"7h (<b>{h['rate15']:.0%}</b> payer-rate); "
                 f"<b>{h['payers30']}</b> reached +3%.</div>",
                 unsafe_allow_html=True)
+            if h.get("fill_model", {}).get("n_payers"):
+                _fm = h["fill_model"]
+                st.markdown(
+                    f"<div style='font-family:Share Tech Mono,monospace;"
+                    f"font-size:12px;color:#bfae8f;padding:2px 2px 0;'>"
+                    f"fill model — the median payer captured "
+                    f"{_fm['median_fill_run']:+.1f}% of a "
+                    f"{_fm['median_run']:+.1f}% peak "
+                    f"(<b>{_fm['median_capture']:.0%}</b> of the run, "
+                    f"after spread and the round-trip fee) — alpha "
+                    f"scales by this ratio, not the peak.</div>",
+                    unsafe_allow_html=True)
             if h["by_gate"]:
                 rows = "".join(
                     f"<div style='font-family:Share Tech Mono,monospace;"
@@ -2804,8 +2839,9 @@ def _render_burial_hindsight() -> None:
                 "last close before the refusal, run = max high within 7h; "
                 "a max-run peak, not a fill) — top rows are PAYERS ONLY, "
                 "fill-adjusted: spread, round-trip fee, and zero capture "
-                "under the floor priced in (alpha scales by the modeled "
-                "capture ratio) — refreshes every 2 min")
+                "under the floor priced in (alpha scales by the MEDIAN "
+                "payer's capture ratio — the panel median, Sep 29) — "
+                "refreshes every 2 min")
     except Exception as exc:
         logger.debug("burial hindsight panel skipped: %s", exc)
 

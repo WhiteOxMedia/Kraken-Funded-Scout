@@ -126,6 +126,34 @@ check("the console aggregate's model block names spread, fee, and "
       and h.get("fill_model", {}).get("capture_floor")
       == app_mod.FILL_CAPTURE_FLOOR, h.get("fill_model"))
 
+# THE PANEL MEDIAN (the operator's decision, Sep 29): the aggregate's
+# capture ratio is the MEDIAN payer's, not the mean — one monster run
+# must not inflate the ratio alpha scales by. Pinned through the real
+# aggregate on the drive's own fixture (the sandbox seam the function
+# now shares with top_payers.top_expected): payers are BIG (+50% peak,
+# ~47.4% fill) and MID (+5% peak, ~2.7% fill); the mean capture sits
+# between, the median is the SMALLER payer's ratio.
+_fm = app_mod._burial_hindsight(limit=400, supp_path=sup,
+                                cache_path=db)["fill_model"]
+check("the fill-model capture is the MEDIAN payer's, not the mean",
+      _fm.get("n_payers") == 2
+      and _fm["median_run"] == 5.0
+      and 0.0 < _fm["median_capture"] < _fm["median_run"], _fm)
+check("the median payer's fill is numeric and below its peak",
+      _fm["median_capture"] > 0.0
+      and _fm["median_fill_run"] > 0.0
+      and _fm["median_fill_run"] < _fm["median_run"], _fm)
+check("an aggregate with NO candidates ships the zeroed block, never "
+      "a crash",
+      app_mod._burial_hindsight(limit=400, supp_path=_sbx / "none.jsonl",
+                                cache_path=db)["fill_model"]
+      == {"n_payers": 0, "median_capture": 0.0, "median_run": 0.0,
+          "median_fill_run": 0.0, "spread": app_mod.SPREAD,
+          "fee_rt_pct": app_mod.FEE_RT_PCT,
+          "capture_floor": app_mod.FILL_CAPTURE_FLOOR},
+      app_mod._burial_hindsight(limit=400, supp_path=_sbx / "none.jsonl",
+                                cache_path=db)["fill_model"])
+
 # the LIVE export (read-only)
 try:
     live_rot = __import__("per_gate_export").default_rotation_id()

@@ -79,17 +79,124 @@ check("the alert payload is the spec's four fields",
 rec = {"status": "applied", "before": 2.0, "after": 1.92, "delta": -0.08,
        "reason": "ok", "evidence": "sha256:" + "c" * 64,
        "bundle": str(_sbx / "bundle")}
-# emit_adjustment writes to the module default; pin the path instead
+# emit_adjustment writes to the module default; the seam swap is
+# SCOPED to exactly the two bridge calls inside try/finally (the
+# sink-hygiene contract) — the live-stream audit below always sees
+# the REAL stream, whatever the bridge legs did.
+_real_tel = ta.TELEMETRY_PATH
 ta.TELEMETRY_PATH = tp
-brec = ta.emit_adjustment("2026-09-28-12-16", rec, 14, 6,
-                          [{"gate": "tide-out", "B_g": 6, "P_g": 2}])
+try:
+    brec = ta.emit_adjustment("2026-09-28-12-16", rec, 14, 6,
+                              [{"gate": "tide-out", "B_g": 6, "P_g": 2}])
+    _ref = ta.emit_adjustment(
+        "2026-09-28-12-17",
+        {"status": "refused", "before": 2.0, "after": 2.0,
+         "delta": -0.08, "reason": "rotation_already_applied",
+         "evidence": ""}, 14, 6, [])
+finally:
+    ta.TELEMETRY_PATH = _real_tel
 check("the bridge emits the record as a schema-shaped event with its "
       "alert attached",
       brec["status"] == "applied" and brec["evidence_checksum"] == rec["evidence"]
       and brec["alert"]["alert_type"] == "rotation_silent_auto_adjust"
       and brec["alert"]["evidence_url"] == str(_sbx / "bundle"), brec)
-check("the replay now carries three events (two direct, one bridged)",
-      len(ta.read_events(tp)) == 3, len(ta.read_events(tp)))
+check("the replay now carries four events (two direct, one bridged "
+      "applied, one bridged refused)",
+      len(ta.read_events(tp)) == 4, len(ta.read_events(tp)))
+
+# ── THE CONSUMER-CONTRACT PINS (the audit, Sep 29): the schema pins
+# the producer's shape; these pins make the CONSUMERS table the live
+# contract — a producer that drops a field any consumer reads goes
+# red here, at the wire (emit announces it) and in the drive.
+import io
+from contextlib import redirect_stderr
+
+# 1. the union obligation: every field any consumer names is one the
+# producer actually emits (otherwise contract_report could never pass).
+_all_consumer_fields = {f for _c in ta.CONSUMERS.values() for f in _c}
+check("every consumer-contract field is a field the producer emits "
+      "(the union obligation)",
+      _all_consumer_fields <= set(ev),
+      sorted(_all_consumer_fields - set(ev)))
+
+# 2. every emitted family satisfies the whole table: the applied
+# bridge (above) and a REFUSED record (the gate's most common row).
+check("the bridged applied event feeds every consumer complete",
+      ta.contract_report(brec) == [], ta.contract_report(brec))
+check("a REFUSED record also feeds every consumer complete (the "
+      "refused row is the stream's most common shape)",
+      ta.contract_report(_ref) == [], ta.contract_report(_ref))
+
+# 3. a dropped field is a NAMED breach, per consumer, with the reason.
+for _drop, _want in (("before_gf", {"restore_state", "console_zone5",
+                                    "hindsight_api"}),
+                     ("timestamp", {"restore_state", "console_zone5",
+                                    "hindsight_api"}),
+                     ("applied_by", {"console_zone5", "hindsight_api"})):
+    _broken = {k: v for k, v in ev.items() if k != _drop}
+    _rep = ta.contract_report(_broken)
+    _who = {r.split(":")[0] for r in _rep}
+    check(f"dropping '{_drop}' breaches exactly the consumers that "
+          f"read it",
+          _who == _want and all(_drop in r for r in _rep),
+          (_who, _rep))
+check("a complete event breaches nothing",
+      ta.contract_report(ev) == [], ta.contract_report(ev))
+
+# 4. THE WIRE PIN: emit() announces a breach loudly on stderr and
+# STILL appends — a half-documented event beats a missing one, and
+# telemetry must never stall a trade.
+_err = io.StringIO()
+with redirect_stderr(_err):
+    ta.emit(_broken, tp)
+check("emit announces the breach on stderr (the scanner/API logs "
+      "carry it)",
+      "TELEMETRY SCHEMA BREACH" in _err.getvalue()
+      and _drop in _err.getvalue(), _err.getvalue()[:200])
+check("the breached event is STILL appended (telemetry never stalls "
+      "a trade)",
+      len(ta.read_events(tp)) == 5, len(ta.read_events(tp)))
+
+# THE SEAM RESTORES HERE (before the live audit below reads the real
+# stream — the sink-hygiene contract, learned twice now)
+ta.TELEMETRY_PATH = _real_tel
+
+# 5. THE CROSS-CHECK: the table names what the sources actually read.
+_rs_src = (BASE / "restore_state.py").read_text(encoding="utf-8")
+_app_src = (BASE / "app.py").read_text(encoding="utf-8")
+_schema = json.loads((BASE / "observability" / "auto_adjust_schema.json")
+                     .read_text(encoding="utf-8"))
+check("every restore_state contract field is really read by "
+      "restore_state's source",
+      all(f'.get("{f}")' in _rs_src
+          for f in ta.CONSUMERS["restore_state"]),
+      [f for f in ta.CONSUMERS["restore_state"]
+       if f'.get("{f}")' not in _rs_src])
+check("every console zone-5 contract field is really read by "
+      "app.py's audit-trail render",
+      all((f'.get("{f}")' in _app_src or f".get('{f}')" in _app_src)
+          for f in ta.CONSUMERS["console_zone5"]),
+      [f for f in ta.CONSUMERS["console_zone5"]
+       if not (f'.get("{f}")' in _app_src or f".get('{f}')" in _app_src)])
+check("the API's pass-through contract covers the whole schema "
+      "(zone 5 promises applied_by, cohort, commit_sha, evidence "
+      "ride the event)",
+      set(_schema["required"]) <= set(ta.CONSUMERS["hindsight_api"]),
+      sorted(set(_schema["required"]) - set(ta.CONSUMERS["hindsight_api"])))
+
+# 6. THE LIVE-STREAM AUDIT: the real stream feeds every consumer
+# complete — the audit itself, executable. (Information when this
+# environment has no live stream; a REAL row that breaches is red.)
+_live = ta.read_events()
+if _live:
+    _bad = [(i, ta.contract_report(e)) for i, e in enumerate(_live[-200:])
+            if ta.contract_report(e)]
+    check(f"the LIVE stream ({len(_live)} rows) feeds every consumer "
+          "complete",
+          not _bad, _bad[:2])
+else:
+    check("no live telemetry stream in this environment (the live "
+          "audit is information here)", True, "information")
 
 import shutil
 shutil.rmtree(_sbx, ignore_errors=True)

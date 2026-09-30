@@ -32,6 +32,7 @@ from __future__ import annotations
 
 import json
 import os
+import time
 from datetime import datetime, timedelta
 from pathlib import Path
 from zoneinfo import ZoneInfo
@@ -191,8 +192,66 @@ def new_contest(tier: int) -> dict:
         _cw_tmp = str(_cw_path) + ".tmp"
         with open(_cw_tmp, "w", encoding="utf-8") as _cw_fh:
             json.dump(_cw_wipe, _cw_fh)
-        os.replace(_cw_tmp, str(_cw_path))
-    except Exception:
+        # THE RETRYING REPLACE (the stateclobber storm's second
+        # verdict): a rename colliding with a concurrent READER (the
+        # console tick, the scanner's every-cycle load — Python's
+        # Windows open() does not share delete) fails with the named
+        # contention family (WinError 5/32, [Errno 13]) — transient,
+        # retryable. The old single attempt, swallowed by this
+        # function's fail-soft pass, could leave the wipe SILENTLY
+        # undone: the ghosts it exists to kill survive. Bounded
+        # backoff; a wipe that loses every attempt stays silent (the
+        # next tick / the operator's re-wipe), never crashes.
+        for _att in range(6):
+            try:
+                os.replace(_cw_tmp, str(_cw_path))
+                break
+            except OSError:
+                if _att == 5:
+                    break
+                time.sleep(0.05 * (_att + 1))
+        # THE SETTLE LOOP (the stateclobber storm's verdict, Sep 29): a
+        # stale carrier whose read predated the wipe's replace re-reads
+        # a marker-free file and merges the old book right back — the
+        # raw_tombs defense never sees the markers (they lived exactly
+        # one save). So the wipe VERIFIES: briefly re-read and, if an
+        # old book's row reappeared as a live dict, re-tombstone ONLY
+        # those keys. New rows written after the wipe (the popup's
+        # fresh_keys auto-track, a bot fill) are NEVER touched — their
+        # pairs were not in the old book, or a marker for them was
+        # already cleared by their own fresh re-add. Bounded, small
+        # sleeps; the next tick's merge-save consumes whatever
+        # survives. Inspired by the storm's heal-to-completion shape —
+        # the operator's real next action is "wipe again anyway".
+        for _ in range(5):
+            time.sleep(0.08)
+            try:
+                _re = json.loads(_cw_path.read_text(encoding="utf-8"))
+                _re = _re if isinstance(_re, dict) else {}
+                _regress = {k: None for k, v in _re.items()
+                            if v is not None and k in _cw_wipe}
+                if not _regress:
+                    break
+                _re_t = str(_cw_path) + ".tmp"
+                with open(_re_t, "w", encoding="utf-8") as _cw_fh2:
+                    json.dump({**_re, **_regress}, _cw_fh2)
+                for _att2 in range(6):
+                    try:
+                        os.replace(_re_t, str(_cw_path))
+                        break
+                    except OSError:
+                        if _att2 == 5:
+                            break
+                        time.sleep(0.05 * (_att2 + 1))
+            except Exception:
+                break   # a contention loss here is the next tick's job
+    except (OSError, ValueError):
+        # fail-soft for the ENVIRONMENT only (missing/unreadable file,
+        # a corrupt half-document): the next tick or the operator's
+        # re-wipe heals it. Programmer errors (wrong STATE_FILE type,
+        # bad key types) are NOT swallowed — the stateclobber wave
+        # caught a whole wipe silently skipped behind this bare pass,
+        # and the skip was undiagnosable. Loud beats silent here.
         pass  # the watch panel would still show the ghost card -- tappable SOLD
     return s
 

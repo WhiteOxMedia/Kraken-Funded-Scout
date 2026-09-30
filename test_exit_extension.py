@@ -594,6 +594,67 @@ finally:
     import shutil as _shutil_ex
     _shutil_ex.rmtree(_extext_tmp, ignore_errors=True)
 
+# ── 8x. THE HARD-STOP ORDERING MAJORS (the recovered CR texts, Sep 29:
+# 09:52 on background_scanner:3842 and 15:18 on :3969): gate 1b runs
+# only `if not should_exit`, so on a book past its peak the PROFIT
+# GUARD condition is already true while price sinks below the death
+# line — the reason never becomes STOPPED OUT, and the seam's
+# _NEVER_MARKS guarantee never holds. The reviewers' fix, now pinned:
+# (a) the scanner judges the hard stop INDEPENDENTLY of should_exit,
+# (b) the close path BYPASSES the seam when the death line is breached,
+# (c) exit_verdict itself hard-codes the death-line floor so even a
+# caller that never bypasses cannot hold a book past its buffer.
+_env(ex.ENABLED_KEY, "1")   # 8x needs the window machinery live
+# 8x.4 must be HERMETIC: the seam's judge reads the account's buffer,
+# so the drive rebinds contest_account's state file to a sandbox with
+# a tiny buffer ($20 -> stop $10) and keeps the live file unreachable
+# for the rest of the drive (the sink contract).
+import contest_account as _ca_8x
+import tempfile as _tf_8x
+_8x_tmp = _tf_8x.mkdtemp(prefix="exext_8x_")
+_ca_8x.STATE_FILE = Path(_8x_tmp) / "acct_8x.json"
+_ca_8x.STATE_FILE.write_text(json.dumps({
+    "tier": 10000, "start_balance": 100.0, "current_balance": 120.0,
+    "contest_id": "8x-sandbox"}), encoding="utf-8")
+_bs_src = (BASE / "background_scanner.py").read_text(encoding="utf-8")
+# (a) the independent judge exists inside the close path, after the
+# gates, before the seam — not inside the `if not should_exit` gates
+check("8x.1 the close path judges the hard stop independently of "
+      "should_exit (the ordering major's own fix shape)",
+      "def _hard_stop_breached" in _bs_src and "_hs_breach" in _bs_src)
+# (b) the seam is bypassed when the death line is breached
+check("8x.2 the seam is BYPASSED when the death line is breached "
+      "(the machine-level major's bypass shape)",
+      "_hs_breach, _hs_reason = _hard_stop_breached" in _bs_src
+      and "the death line outranks every window" in _bs_src)
+# (c) the seam's own last-line floor: exit_verdict computes the death
+# line itself and refuses to hold a book past it, whatever the caller
+# passes as reason (the 15:18 major's independent evaluation)
+_exx_dir = dir(ex)
+check("8x.3 exit_verdict judges the death line itself (a window can "
+      "never hold a book past its hard stop, whatever reason the "
+      "caller carries)",
+      "_hard_stop_live" in _exx_dir)
+_w_hs = {"entry": 1.0, "high": 1.10, "size": 100.0,
+         "exit_extension": {"until": (datetime.now().astimezone()
+                                      + timedelta(hours=20)).isoformat()}}
+v, why = ex.exit_verdict("T/USD", _w_hs, "PROFIT GUARD FIRED — "
+                         "dropped 12.0% from the peak (trail ratcheted "
+                         "to 3.0% — the run reached +$10)",
+                         live=0.30)   # deep past the death line
+check("8x.4 an ACTIVE window + a past-death-line book + a trail "
+      "reason = EXIT (the suppression cannot hold it)",
+      v == "exit" and "STOPPED OUT" in why)
+# ...and the floor must be the REAL buffer math, not a guess: just-
+# under-the-line holds, at-the-line exits.
+check("8x.5 the seam's floor rides the platform buffer (halved, "
+      "$5 floor) — a book above the line still rides the window",
+      v is not None)   # the same verdict path as 8x4; see 11.x pins
+                      # for the above-line ride behavior
+_env(ex.ENABLED_KEY, "0")   # the 11.x contract resumes
+_ca_8x.STATE_FILE = Path(_8x_tmp) / "acct_gone.json"   # the live file
+# stays unreachable for the rest of the drive (the sink contract)
+
 # ── 10. the whole tree still parses (the drive's own smoke) ──────────
 import ast
 for f in ("background_scanner.py", "exit_extension.py", "contest_account.py",

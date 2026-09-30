@@ -169,7 +169,15 @@ if git diff --cached --name-only | grep -qxE 'app\.py|background_scanner\.py|met
     fi
     SCRATCH="$(mktemp -d "${TMPDIR:-/tmp}/commitgate.XXXXXX")"
     trap 'rm -rf "$SCRATCH"' EXIT
-    for src in app.py background_scanner.py meta_layers.py profit_guard.py carve_out.py tri_watch.py hooks/pre-commit; do
+    # SUPPORT-FILE LANE (Sep 30, the stateclobber sandbox crash): some
+    # drives read NON-guarded sources as files — test_stateclobber's
+    # section-7 pins read contest_account.py and add_xrp_watch.py as
+    # siblings (BASE / name). They ride the same staged-first copy as
+    # the guarded sources so a source pin audits the commit's content,
+    # never a stale HEAD layer or an absent sibling (the gate ran the
+    # drive on a sandbox that lacked the file and the pin crashed with
+    # FileNotFoundError — red for the wrong reason).
+    for src in app.py background_scanner.py meta_layers.py profit_guard.py carve_out.py tri_watch.py contest_account.py add_xrp_watch.py hooks/pre-commit; do
         mkdir -p "$SCRATCH/$(dirname "$src")"   # nested guarded paths (hooks/)
         git show ":$src" > "$SCRATCH/$src" 2>/dev/null || cp "$src" "$SCRATCH/$src" \
             || { echo "  ⛔ GATE: cannot stage $src for the gate" >&2; exit 1; }
@@ -203,6 +211,7 @@ if git diff --cached --name-only | grep -qxE 'app\.py|background_scanner\.py|met
             ':(exclude)app.py' ':(exclude)background_scanner.py' \
             ':(exclude)meta_layers.py' ':(exclude)profit_guard.py' \
             ':(exclude)carve_out.py' ':(exclude)tri_watch.py' \
+            ':(exclude)contest_account.py' ':(exclude)add_xrp_watch.py' \
             ':(exclude)hooks/*' > /dev/null 2>&1 \
             && tar -xf "$SCRATCH/head.tar" -C "$SCRATCH/HEAD" 2>/dev/null; then
         rm -f "$SCRATCH/head.tar"

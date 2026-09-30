@@ -73,7 +73,14 @@ def plan_restore(telemetry_path: Path,
     newest = evs[-1]
     anchor = float(newest.get("before_gf") or 0.0)
     if anchor <= 0:
+        # THE NAMED FALLBACK (the consumer audit, Sep 29): a missing or
+        # zero before_gf no longer silently restores 1.0 — the fallback
+        # is real information (it resizes every gate) and is now
+        # carried on the plan, on the note, and into the ledger row.
         anchor = DEFAULT_FACTORS[0]
+        _fallback = True
+    else:
+        _fallback = False
     ledger = [{"rotation_id": str(e.get("rotation_id") or ""),
                "status": "restored",
                "day": str(e.get("timestamp") or "")[:10],
@@ -85,7 +92,8 @@ def plan_restore(telemetry_path: Path,
                "ts": str(e.get("timestamp") or "")}
               for e in evs]
     return {"factor": anchor, "ledger": ledger,
-            "ts": newest.get("timestamp"), "kept": False}
+            "ts": newest.get("timestamp"), "kept": False,
+            "anchor_fallback": _fallback}
 
 
 def build_restore_state(plan: dict) -> dict:
@@ -118,15 +126,20 @@ def restore(telemetry_path: Path, commit: bool = False,
                 "note": "journal empty; current state preserved"}
     st = build_restore_state(plan)
     pg._save(st)
+    _fb_note = ("; ANCHOR FALLBACK — the newest applied event carried "
+                "no usable before_gf, 1.0 assumed (verify manually)"
+                if plan.get("anchor_fallback") else "")
     if note:
         try:
             note({"op": "restore_guard_state", "target":
                   str(pg._state_file()),
                   "factor": plan["factor"], "rows": len(plan["ledger"]),
                   "ts": plan["ts"],
+                  "anchor_fallback": bool(plan.get("anchor_fallback")),
                   "ts_run": datetime.now().astimezone().isoformat()})
         except Exception:
             pass
     return {"status": "rehydrated", "factor": plan["factor"],
             "rows": len(plan["ledger"]),
-            "note": f"anchor {plan['factor']} from {plan['ts']}"}
+            "anchor_fallback": bool(plan.get("anchor_fallback")),
+            "note": f"anchor {plan['factor']} from {plan['ts']}" + _fb_note}

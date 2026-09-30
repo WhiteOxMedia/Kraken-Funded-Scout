@@ -147,7 +147,17 @@ if ($showWin) {
 }
 Write-Host "============================================================"
 
+# ── STACK = THE FOUR TRADING PIECES (the operator's decision, Sep 29) ──
+# $okAll is now the TRADING stack: engine, scanner, bot, console. The
+# hindsight API is INFORMATIVE, not critical — the console's panel
+# fail-closes to silence on a dead feed (its own data contract), so a
+# missing hindsight service degrades one panel, never the desk's
+# trading. A hindsight failure is reported loudly ([WARN], named in
+# the summary, exit stays 0) but does NOT flip $okAll — so it must
+# never de-arm the console watchdog, and 'STACK INCOMPLETE' stays
+# reserved for a piece the desk cannot trade without.
 $okAll = $true
+$hindsightOk = $true
 
 # -- 1. Volatility Engine ------------------------------------------
 if (Test-Component "volatility_engine") {
@@ -222,7 +232,10 @@ foreach ($line in (netstat -an)) {
 # stack: verified by the PORT (netstat LISTENING, the launcher's own
 # console pattern), spawned through the hardened helper. Its pid file
 # and single-instance contract live inside hindsight_service itself.
-$hindsightUp = $false
+# Sep 29 policy: an informative component — a failure warns and is
+# named in the summary, but the trading stack is still UP (the panel
+# fail-closes; exit 0; the watchdog stays armed).
+$hindsightOk = $true
 foreach ($line in (netstat -an)) {
     if ($line -match ":8785\s.*LISTENING") { $hindsightUp = $true; break }
 }
@@ -245,12 +258,14 @@ if ($hindsightUp) {
         if ($bound) {
             Write-Host "[UP]  Hindsight API is alive on :8785."
         } else {
-            Write-Host "[FAIL] Hindsight API process ran but never bound :8785 - see logs\hindsight_stderr.log"
-            $okAll = $false
+            Write-Host "[WARN] Hindsight API process ran but never bound :8785 - see logs\hindsight_stderr.log"
+            Write-Host "       (informative: the console panel fail-closes; the trading stack is unaffected)"
+            $hindsightOk = $false
         }
     } else {
-        Write-Host "[FAIL] Hindsight API did not come up - see logs\hindsight_stderr.log"
-        $okAll = $false
+        Write-Host "[WARN] Hindsight API did not come up - see logs\hindsight_stderr.log"
+        Write-Host "       (informative: the console panel fail-closes; the trading stack is unaffected)"
+        $hindsightOk = $false
     }
 }
 
@@ -268,6 +283,10 @@ if ($okAll) {
 Write-Host "============================================================"
 if ($okAll) {
     Write-Host "  Stack is up. Voice = scanner (speaks detached). Logs in logs\."
+    if (-not $hindsightOk) {
+        Write-Host "  Hindsight API is DOWN (informative only): the console's"
+        Write-Host "  hindsight panel fail-closes until it is back."
+    }
 } else {
     Write-Host "  STACK INCOMPLETE -- a piece failed its liveness check."
     Write-Host "  Check the logs\ folder before re-running."

@@ -487,6 +487,233 @@ try:
           _rv["reads"] > 50 and _rv["partial"] == 0,
           _rv)
 
+    # ── WAVE 4: the TOMBSTONE WIPE under fire (the round-4/5 family,
+    # process-scheduled): new_contest's wipe writes {k: None} for every
+    # row it saw. A stale writer mid-RMW must not overlay the old book
+    # back over the wipe, and the popup's fresh re-add (fresh_keys) must
+    # land over a wipe marker on the FIRST attempt — the recovered CR
+    # major: wipe marker + no fresh-keys re-add = a fired popup that sat
+    # unwatched. The OS picks the interleaving: a carrier may land
+    # before the wipe's read (then the wipe tombstones it), after the
+    # wipe's replace (then raw_tombs suppresses it and the marker is
+    # re-written), or lose the rename entirely (then its row is simply
+    # gone) — EVERY ordering must end with the old rows dead, and the
+    # fresh re-add must land regardless of whether its marker survived.
+    _sbx4 = Path(tempfile.mkdtemp())
+    _w4_cw = _sbx4 / "contest_watch.json"   # the name new_contest resolves
+    _w4_acct = _sbx4 / "account_state.json"
+    _w4_cw.write_text(json.dumps({
+        "TIA/USD": {"entry": 4.20, "source": "old-contest-ghost"},
+        "POP/USD": {"entry": 0.55, "source": "old-contest"},
+        "ATOM/USD": {"entry": 6.10, "source": "old-contest"},
+    }), encoding="utf-8")
+    _WIPE_SETUP = (f"from pathlib import Path; "
+                   f"import contest_account as ca; "
+                   f"ca.STATE_FILE = Path({str(_w4_acct)!r})")
+    _WIPE_BODY = "ca.new_contest(1000)"
+    _W4_SETUP = (f"import background_scanner as bs; "
+                 f"bs.CONTEST_WATCH_JSON = {str(_w4_cw)!r}")
+    _W4_STALE = ("bs._save_contest_watch({'TIA/USD': {'entry': 4.20, "
+                 "'source': 'stale-carrier'}, 'ATOM/USD': {'entry': 6.10, "
+                 "'source': 'stale-carrier'}, 'STRX/USD': {'entry': 1.0, "
+                 "'source': 'stale-carrier'}})")
+    _W4_READD = ("bs._save_contest_watch({'POP/USD': {'entry': 0.5512, "
+                 "'source': 'fresh-auto-track'}}, fresh_keys=['POP/USD'])")
+    _reader4 = subprocess.Popen(
+        [sys.executable, "-X", "utf8", "-c",
+         "import json, time, os\n"
+         f"path = {str(_w4_cw)!r}\n"
+         "end = time.time() + 10\n"
+         "n = partial = open_err = 0\n"
+         "while time.time() < end:\n"
+         "    try:\n"
+         "        with open(path, 'r', encoding='utf-8') as fh:\n"
+         "            raw = fh.read()\n"
+         "        json.loads(raw)\n"
+         "        n += 1\n"
+         "    except json.JSONDecodeError as e:\n"
+         "        if os.path.getsize(path) == 0 or len(e.doc or '') == 0:\n"
+         "            pass          # the documented empty mid-swap view\n"
+         "        else:\n"
+         "            partial += 1\n"
+         "    except OSError:\n"
+         "        open_err += 1\n"
+         "    time.sleep(0.002)\n"
+         "print(json.dumps({'reads': n, 'partial': partial, "
+         "'open_err': open_err}))\n"],
+        stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+        text=True, encoding="utf-8")
+    _res4 = _run_wave([
+        ("wipe", sys.executable, (_WIPE_BODY, _WIPE_SETUP)),
+        ("stale_a", sys.executable, (_W4_STALE, _W4_SETUP)),
+        ("stale_b", sys.executable, (_W4_STALE, _W4_SETUP)),
+        ("stale_c", sys.executable, (_W4_STALE, _W4_SETUP)),
+    ], timeout_s=90)
+
+    def _w4_doc():
+        return json.loads(_w4_cw.read_text(encoding="utf-8"))
+
+    def _w4_old_live(doc):
+        return [k for k in ("TIA/USD", "ATOM/USD")
+                if isinstance(doc.get(k), dict)]
+
+    # THE WIPE HEAL LOOP (the storm's own next-tick contract): a wipe
+    # worker that lost the rename (named contention) re-runs — the
+    # operator's real next action is exactly this. Bounded; the old
+    # rows' death is the target, not one worker's survival.
+    _w4_deadline = time.time() + 45.0
+    _w4_round = 0
+    while time.time() < _w4_deadline and _w4_round < 3:
+        _doc4 = _w4_doc()
+        _wipe_failed = (_res4.get("wipe", {}).get("rc") == 1
+                        and _named_contention(_res4.get("wipe", {})))
+        if not _w4_old_live(_doc4) and not _wipe_failed:
+            break
+        _res4.update(_run_wave(
+            [(f"wipe_h{_w4_round}", sys.executable,
+              (_WIPE_BODY, _WIPE_SETUP))], timeout_s=90))
+        _w4_round += 1
+        time.sleep(0.5)
+    _doc4 = _w4_doc()
+    _w4_starved = _starved(_res4)
+    check("the WIPE wave: new_contest's tombstone wipe lands under "
+          "parallel stale carriers — the old rows end DEAD whatever "
+          "the interleaving (before-read -> tombstoned, after-replace "
+          "-> suppressed by raw_tombs, rename-lost -> gone; an "
+          "import-starved environment skips honestly)",
+          _w4_starved or not _w4_old_live(_doc4),
+          (sorted(_doc4), json.dumps(_res4)[:300]))
+    check("the wipe is a REAL new_contest (the account file carries "
+          "the tier and a fresh contest_id — the wipe is the production "
+          "path, not a synthetic dict write)",
+          _w4_starved
+          or (lambda a: isinstance(a, dict) and a.get("tier") == 1000
+              and bool(a.get("contest_id")))(
+              json.loads(_w4_acct.read_text(encoding="utf-8"))
+              if _w4_acct.exists() else None),
+          _w4_acct.read_text(encoding="utf-8")[:200]
+          if _w4_acct.exists() else "account file missing")
+    # THE FRESH RE-ADD: after the wave settles, the popup's auto-track
+    # shape — fresh_keys names the caller's intent — must land over any
+    # wipe marker. RETRY LEG (the storm waves' own contract): a re-add
+    # that lost a NAMED contention race re-runs until the row lands —
+    # the machine's next-tick heal; contention is the documented
+    # residual family, silent loss is not.
+    _readd_res = _run_wave([("readd", sys.executable,
+                             (_W4_READD, _W4_SETUP))], timeout_s=60)
+    _w4_readd_deadline = time.time() + 30.0
+    while time.time() < _w4_readd_deadline:
+        _doc4 = _w4_doc()
+        if isinstance(_doc4.get("POP/USD"), dict) \
+                and _doc4["POP/USD"].get("source") == "fresh-auto-track":
+            break
+        if _res4.get("readd", {}).get("rc") == 1 \
+                and _named_contention(_res4.get("readd", {})):
+            _res4.update(_run_wave(
+                [(f"readd_h{time.time()}", sys.executable,
+                  (_W4_READD, _W4_SETUP))], timeout_s=60))
+        time.sleep(0.5)
+    _doc4 = _w4_doc()
+    _readd_starved = _w4_starved or _starved(_readd_res)
+    check("the popup's fresh re-add lands over the wipe's marker "
+          "(fresh_keys is the caller's intent — the "
+          "fired-popup-sat-unwatched shape is closed under real "
+          "scheduling; contention losses retry, silence never)",
+          _readd_starved
+          or (isinstance(_doc4.get("POP/USD"), dict)
+              and _doc4["POP/USD"].get("source") == "fresh-auto-track"),
+          (sorted(_doc4), json.dumps(_readd_res)[:200]))
+    check("the fresh re-add clears ONLY its own marker — the old "
+          "rows' markers ride forward (or were rename-lost: dead "
+          "either way)",
+          _readd_starved
+          or (not isinstance(_doc4.get("TIA/USD"), dict)
+              and not isinstance(_doc4.get("ATOM/USD"), dict)
+              and isinstance(_doc4.get("POP/USD"), dict)),
+          sorted(_doc4))
+    _ro4, _ = _reader4.communicate(timeout=30)
+    _rv4 = json.loads(_ro4.strip().splitlines()[-1])
+    check("the wipe wave's reader: reads under wipe+carrier fire, and "
+          "NOT ONE partial document",
+          _rv4["reads"] > 20 and _rv4["partial"] == 0, _rv4)
+    shutil.rmtree(_sbx4, ignore_errors=True)
+    # THE PRODUCTION ROUTE (source pin riding the wave): the wave
+    # proves the mechanism end-to-end (a real new_contest plus real
+    # merge-saves); this pins that the production re-add — the popup's
+    # auto-track save — is the fresh_keys shape, and that the wipe
+    # verifies its own landing (the settle loop) instead of trusting
+    # one replace (a future wipe that trusts the replace goes red).
+    check("the popup auto-track's save names fresh_keys and the wipe "
+          "carries the settle loop (the production re-add carries "
+          "caller intent; the wipe verifies its own landing)",
+          "fresh_keys=[pair]" in bs_src
+          and "THE SETTLE LOOP" in (BASE / "contest_account.py")
+          .read_text(encoding="utf-8"), "")
+
+    # ── 7. THE TOMBSTONE RE-ADD TRIAGE (the recovered CR major's claim:
+    # "the raw-tombstone merge-save drops fresh re-adds — add_xrp_watch
+    # prints 'XRP added' but writes nothing"). VERDICT SPLIT: the
+    # MECHANISM is fixed (fresh_keys, wave 4 above), but the CLAIM'S
+    # NAMED SITE (the operator script) really does drop the re-add —
+    # it never names fresh_keys — and the writer returns None, so its
+    # truth-print is structurally impossible. These pins hold both
+    # halves of the verdict forever.
+    _ax = (BASE / "add_xrp_watch.py").read_text(encoding="utf-8")
+    check("the operator re-add script names fresh_keys (operator "
+          "intent — a tombstoned pair re-added BY HAND must land, "
+          "the claim's named site)",
+          "fresh_keys" in _ax, "")
+    check("the re-add script consumes the writer's REPORTED landing "
+          "(a truth-print needs a truth to print)",
+          "_added = _save_contest_watch" in _ax and "return True" in
+          (BASE / "background_scanner.py").read_text(encoding="utf-8")
+          .split("def _save_contest_watch")[1]
+          .split("\ndef ")[0], "")
+    # THE MECHANISM, one more time at the writer level: tombstone on
+    # disk + fresh_keys re-add = row lands; WITHOUT fresh_keys = row
+    # stays dead (the stale-carry defense is the feature, not the bug).
+    _tri_sbx = Path(tempfile.mkdtemp())
+    import os as _os
+    _tri_real = bs.CONTEST_WATCH_JSON
+    bs.CONTEST_WATCH_JSON = str(_tri_sbx / "cw.json")
+    try:
+        bs._save_contest_watch({"XRP/USD": {"entry": 0.55,
+                                            "source": "t"}})
+        bs._save_contest_watch({"XRP/USD": None})   # the SOLD
+        check("the tombstone holds against an UNNAMED re-add (the "
+              "stale-carry defense working as designed)",
+              "XRP/USD" not in bs._load_contest_watch(), "")
+        bs._save_contest_watch(
+            {"XRP/USD": {"entry": 0.5512, "source": "operator-re-add"}},
+            fresh_keys=["XRP/USD"])
+        check("the SAME re-add lands once the caller names its intent "
+              "(fresh_keys — the deliberate re-add is the caller's, "
+              "never the file's, to infer)",
+              bs._load_contest_watch().get("XRP/USD", {})
+              .get("source") == "operator-re-add", "")
+        # THE REPORT: the writer returns whether the replace landed —
+        # a contention loser is a False, not a silent None.
+        _rep_real = _os.replace
+        def _contend(a, b):
+            raise OSError(5, "Access is denied")
+        _os.replace = _contend
+        try:
+            _reported = bs._save_contest_watch(
+                {"W4T/USD": {"entry": 1.0, "source": "t"}})
+        finally:
+            _os.replace = _rep_real
+        check("a contention-losing save REPORTS False (the truth-print "
+              "contract: the caller can tell 'lost the race' from "
+              "'landed')",
+              _reported is False, _reported)
+        check("a clean save REPORTS True",
+              bs._save_contest_watch(
+                  {"W4T/USD": {"entry": 1.0, "source": "t"}}) is True,
+              "")
+    finally:
+        bs.CONTEST_WATCH_JSON = _tri_real
+        shutil.rmtree(_tri_sbx, ignore_errors=True)
+
 finally:
     if _real_state is not None:
         pg.STATE_FILE = _real_state
