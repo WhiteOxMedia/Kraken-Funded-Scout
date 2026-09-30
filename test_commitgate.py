@@ -591,6 +591,41 @@ check("the no-aggregate tripwire: every drive that renders PASS/FAIL "
       "verdict-less shape the vacuous triage found can't regrow",
       not _no_agg, f"no-aggregate: {_no_agg}")
 
+# ════════ the DRIVE-CLASS MANIFEST probe (Sep 30, vacuity as policy):
+# diag_mutation_sweep's UNTESTABLE_CLASSES pre-judges the genuinely
+# untestable drives so future sweeps skip them instead of manufacturing
+# VACUOUS verdicts. Statically audited here: every classed drive must
+# still exist (a deleted drive's class entry is stale), the class
+# strings must come from the sealed set, and the manifest must exist
+# at all — a sweep without it would silently return to manufacturing.
+_manifest_ok = False
+_manifest_bad = []
+_dms = Path("diag_mutation_sweep.py")
+if _dms.exists():
+    _dms_txt = _dms.read_text(encoding="utf-8", errors="replace")
+    _manifest_ok = "UNTESTABLE_CLASSES" in _dms_txt
+    _m = _re_fh.search(
+        r"UNTESTABLE_CLASSES[^=]*=\s*\{(.*?)\n\}", _dms_txt, _re_fh.S)
+    if _m:
+        _SEALED = {"LIVE-MARKET", "LIVE-STATE", "SOURCE-TEXT",
+                   "STATIC-AUDIT", "SIBLING-CHECKOUT", "HOST-BOUND",
+                   "STANDALONE"}
+        for _dm in _re_fh.findall(r'"(test_\w+\.py)":\s*"(\w+-?\w*)"',
+                                  _m.group(1)):
+            if not (_dm[0].startswith("test_") and _dm[0].endswith(".py")):
+                _manifest_bad.append(f"{_dm[0]}: not a drive name")
+            elif not Path(_dm[0]).exists():
+                _manifest_bad.append(f"{_dm[0]}: drive gone — stale class")
+            elif _dm[1] not in _SEALED:
+                _manifest_bad.append(f"{_dm[0]}: class '{_dm[1]}' not sealed")
+    else:
+        _manifest_bad.append("UNTESTABLE_CLASSES block not parseable")
+check("the drive-class manifest: diag_mutation_sweep pre-judges the "
+      "genuinely untestable drives (classes sealed, entries alive) — "
+      "future sweeps skip them instead of manufacturing VACUOUS",
+      _manifest_ok and not _manifest_bad,
+      f"manifest={_manifest_ok} bad={_manifest_bad}")
+
 # ════════ summary ════════
 passed, failed = results.count(True), results.count(False)
 print(f"RESULT: {passed} passed, {failed} failed")

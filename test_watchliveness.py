@@ -184,6 +184,14 @@ else:
     try:
         real = json.loads(_RealWatch.read_text(encoding="utf-8"))
         for pair, row in real.items():
+            # THE TOMBSTONE SHAPE (the fleet-run lesson, Sep 30): cleared
+            # books are stored as null rows (the tombstone cleanup), and a
+            # tombstone has no heartbeat to render — it must not fail the
+            # probe (production legitimately ships nulls; the drive red
+            # was data shape, not a contract breach).
+            if not isinstance(row, dict):
+                print(f"      {pair}: tombstone (cleared)")
+                continue
             ts = float(row.get("checked_ts") or 0)
             age = time.time() - ts if ts else None
             state = ("NEVER" if age is None else

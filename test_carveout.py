@@ -82,6 +82,16 @@ check("1.13 the DNL data carries the carve record (meta)",
       '"carve_out"' in ml_src and "carve_mods" in ml_src)
 
 # ═══ 2. the five-mod math ════════════════════════════════════════════
+# THE CONTEST-PHASE SINK (the fleet-run lesson, Sep 30): compute_carve_out
+# reads meta_layers.endgame_active(when) LIVE, and the end-game window
+# suppresses x0.5 with mode OFF — every neutral/expansion pin below would
+# read half its value and "suppressed" on a real end-game day (the fleet
+# battery caught exactly that). Section 2 pins the MODS math, so the
+# contest phase is stubbed OUT here; the end-game truth gets its own
+# window after 2.10 (stubbed IN, restore before section 3).
+_orig_endgame = ml.endgame_active
+ml.endgame_active = lambda when=None: False
+
 NOW = co._now_mst()
 
 def _carve(mods, drift=False, sal=1.0):
@@ -138,7 +148,34 @@ check("2.10 the discount scale clamps 0.5-1.5",
       r7["lw_scale"] <= 1.5 and r3["lw_scale"] >= 0.5,
       (r7["lw_scale"], r3["lw_scale"]))
 
+# ── 2E. the end-game truth (the fleet-run lesson, pinned): IN the
+# end-game window the suppression fires on NEUTRAL mods (x0.5, mode OFF,
+# lw clamped to the 0.5 floor) and it OUTRANKS an expansion-shaped mod
+# set — a dying contest never widens the hatch.
+ml.endgame_active = lambda when=None: True
+re_n = _carve(NEUTRAL)
+check("2E.1 end-game: neutral mods suppress x0.5, mode OFF",
+      abs(re_n["carve"] - (0.05 * 0.5)) < 1e-9 and re_n["endgame"] is True
+      and re_n["lone_wolf"] is False and re_n["suppressed"] is True,
+      re_n)
+re_x = _carve({"fleet": 1.2, "book": 0.7, "tide": 1.2, "vol": 1.2,
+               "rot": 1.2})
+check("2E.2 end-game outranks expansion (never widens while dying)",
+      re_x["expanded"] is False and re_x["suppressed"] is True
+      and abs(re_x["carve"] - (0.05 * 1.2 * 0.7 * 1.2 * 1.2 * 1.2
+                               * 0.5)) < 2e-4,
+      re_x["carve"])
+ml.endgame_active = lambda when=None: False   # back to the section-2 regime
+# (3.1-3.2 compare pure relationships between section-2 results — every
+# side must read the SAME regime; the live phase leaked in once and
+# flipped 3.2 when the real contest clock crossed the window — the
+# fleet-run lesson, twice over)
+
 # ═══ 3. the entry hatch ══════════════════════════════════════════════
+# (3.1-3.2 compare pure relationships between section-2 results — the
+# endgame stub stays IN so both sides of each comparison read the same
+# regime; the live phase leaked in once and flipped 3.2 when the real
+# contest clock crossed the window — the fleet-run lesson, twice over)
 check("3.1 the hatch never leaves its regime's band (a dead tide's floor sinks to 2 x TideMod; the old static 2% is the neutral case)",
       co.required_own_move(r7) <= co.hatch_bounds(res=r7)[1]
       and co.required_own_move(r) >= co.hatch_bounds(res=r)[0],
@@ -150,6 +187,7 @@ check("3.2 a strong regime RAISES the bar (a solo move means less there)",
 r9 = _carve({"fleet": 0.7, "book": None, "tide": 1.0, "vol": None, "rot": 1.0})
 check("3.3 a weak fleet suppresses and closes the hatch",
       r9["suppressed"] is True and r9["lone_wolf"] is False)
+ml.endgame_active = _orig_endgame   # restored after section 3
 
 # ═══ 4. the context engines ══════════════════════════════════════════
 def _with_res(mods, readable=True):

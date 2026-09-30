@@ -19,6 +19,7 @@ from __future__ import annotations
 import argparse
 import ast
 import json
+import os
 import re
 import shutil
 import subprocess
@@ -105,9 +106,125 @@ import mutation_ops
 mutation_ops.self_test()   # an inert engine
                            # would label healthy drives VACUOUS
 
+# ── the drive-class manifest (Sep 30, the vacuous triage ENCODED) ────
+# The triage of the vacuous 52 proved a fleet of drives that can NEVER
+# be judged by behavior mutation by design: verdicts keyed to live
+# market prices, walks of live state, pins that read guarded source as
+# TEXT (file bytes are immune to runtime mutants), a static AST audit,
+# and maps whose only guarded module is test scaffolding. Running them
+# manufactures VACUOUS verdicts and drowns the signal (52 of them, once).
+# A drive classed here is SKIPPED with an UNTESTABLE verdict — no
+# baseline, no sandbox, no mutation — and its class is named. Anything
+# NOT listed still runs and can still be VACUOUS: the manifest never
+# vacuities a drive by omission, and a classed drive that later grows
+# real runtime pins is re-judged by removing it from this manifest (the
+# per-drive reasoning lives in artifacts/mutation_sweep/vacuous_triage.md).
+UNTESTABLE_CLASSES: dict[str, str] = {
+    # LIVE-MARKET: the verdict is keyed to live ccxt prices / OHLCV
+    "test_eth_gap.py": "LIVE-MARKET",
+    "test_hype_now.py": "LIVE-MARKET",
+    "test_kii.py": "LIVE-MARKET",
+    "test_kii_woulda.py": "LIVE-MARKET",
+    "test_chase.py": "LIVE-MARKET",
+    "test_xrp_scan.py": "LIVE-MARKET",
+    # LIVE-STATE: walks live db / keyring / account / console state
+    "test_bot_day.py": "LIVE-STATE",
+    "test_botdb.py": "LIVE-STATE",
+    "test_bracket_click.py": "LIVE-STATE",
+    "test_dopamine.py": "LIVE-STATE",
+    "test_night.py": "LIVE-STATE",
+    "test_night_pnl.py": "LIVE-STATE",
+    "test_no_alerts.py": "LIVE-STATE",
+    "test_one_asset.py": "LIVE-STATE",
+    "test_payouts.py": "LIVE-STATE",
+    "test_payouts_e2e.py": "LIVE-STATE",
+    "test_sunday.py": "LIVE-STATE",
+    "test_tour_state.py": "LIVE-STATE",
+    "test_winners.py": "LIVE-STATE",
+    "test_xrp_signals.py": "LIVE-STATE",
+    "test_zec_trace.py": "LIVE-STATE",
+    # SOURCE-TEXT: pins guarded code by reading its source as text
+    "test_balancepop.py": "SOURCE-TEXT",
+    "test_carry.py": "SOURCE-TEXT",
+    "test_cooldowncheck.py": "SOURCE-TEXT",
+    "test_dcagate.py": "SOURCE-TEXT",
+    "test_entry_control.py": "SOURCE-TEXT",
+    "test_exitsynthesis.py": "SOURCE-TEXT",
+    "test_funnelplate.py": "SOURCE-TEXT",
+    "test_goalgame.py": "SOURCE-TEXT",
+    "test_hersize.py": "SOURCE-TEXT",
+    "test_hookparser.py": "SOURCE-TEXT",
+    "test_persistexit.py": "SOURCE-TEXT",
+    "test_qclonewolf.py": "SOURCE-TEXT",
+    "test_thinbrain.py": "SOURCE-TEXT",
+    "test_tidefloor.py": "SOURCE-TEXT",
+    "test_toggleguard.py": "SOURCE-TEXT",
+    "test_uismooth.py": "SOURCE-TEXT",
+    "test_winnerlock.py": "SOURCE-TEXT",
+    # STATIC-AUDIT: the verdict is a static AST audit, not runtime behavior
+    "test_sink_hygiene.py": "STATIC-AUDIT",
+    # SIBLING-CHECKOUT (the fleet battery's Sep-30 full run): the verdict
+    # imports or demands a SIBLING CHECKOUT outside this repo — the pool's
+    # database module and the pool _live probes need ../monero_project —
+    # so a sandbox copy can never satisfy them. Green from the real repo,
+    # structurally red in a copy: environment, not regression.
+    "test_charter_signal_push.py": "SIBLING-CHECKOUT",
+    "test_jackpotplate.py": "SIBLING-CHECKOUT",
+    "test_pool_docsrot_live.py": "SIBLING-CHECKOUT",
+    "test_pool_prefs_live.py": "SIBLING-CHECKOUT",
+    # HOST-BOUND (probe-classified, Sep 30): test_hooks_ignore_runtime_state
+    # audits the HOST's live git identity — the machine-local .git/hooks
+    # mirror and core.hooksPath — which the sandbox copy cannot contain
+    # (.git is excluded by SKIP_COPY). The dedicated three-shape probe
+    # proved the mechanism: git+armed-mirror copy -> 4/0 GREEN (the drive
+    # is satisfiable when the identity is faithfully reproduced), git+no-
+    # mirror -> 2/2 (fails as designed: missing fallback copies), no-git
+    # (the mutation-sandbox shape) -> 2/1. Behavior mutation can never
+    # flip its verdict either way — it reads the host, not the sources.
+    "test_hooks_ignore_runtime_state.py": "HOST-BOUND",
+    # STANDALONE (Sep 30): the drive imports NO guarded repo module at all
+    # (AST-verified per drive) — its verdict rides subprocesses, source
+    # text, or live artifacts, so there is nothing for a behavior mutant
+    # to flow through. build_map produces no mapping for these; UNMAPPED
+    # is deliberately NOT dead — it stays the triage queue that surfaces
+    # a NEW unmapped drive for a human look. STANDALONE is the ADJUDICATED
+    # verdict after that look (pre-verified: zero repo imports each).
+    "test_dupcheck.py": "STANDALONE",
+    "test_find_eth.py": "STANDALONE",
+    "test_fleetsweep.py": "STANDALONE",
+    "test_gatestrips.py": "STANDALONE",
+    "test_lifecycle.py": "STANDALONE",
+    "test_liq_cal.py": "STANDALONE",
+    "test_no_runtime_stash.py": "STANDALONE",
+    "test_pending.py": "STANDALONE",
+    "test_protected_extension_gate.py": "STANDALONE",
+    "test_reviewplate.py": "STANDALONE",
+    "test_trailstop.py": "STANDALONE",
+    "test_verdicttrail.py": "STANDALONE",
+    "test_why_rejected.py": "STANDALONE",
+}
+
+
+def untestable_class(drive: str) -> str | None:
+    """The drive's class if the manifest says behavior mutation can
+    never judge it, else None (the drive runs and may read VACUOUS)."""
+    return UNTESTABLE_CLASSES.get(drive)
+
+
 # ── the sandbox ──────────────────────────────────────────────────────
 
 def make_sandbox() -> Path:
+    # SWEEP_REUSE_SBX (Sep 30, the 600s-window lesson): a HEAVY drive
+    # (360-480s baseline + mutated reruns) cannot fit one terminal window
+    # behind a fresh copytree. With the env set and a sandbox already
+    # present, the copy is REUSED — a window that died mid-drive is
+    # followed by a window that spends its whole budget on the drive.
+    # Default behavior is unchanged: without the env the sandbox is
+    # always rebuilt (the mutation run must see the CURRENT tree).
+    if SBX_ROOT.exists() and os.environ.get("SWEEP_REUSE_SBX"):
+        dst = SBX_ROOT / "repo"
+        if (dst / "diag_mutation_sweep.py").exists():
+            return dst
     if SBX_ROOT.exists():
         shutil.rmtree(SBX_ROOT, ignore_errors=True)
     SBX_ROOT.mkdir(parents=True)
@@ -214,6 +331,40 @@ def main() -> int:
         for name in want:
             if name in results:
                 continue
+            # the drive-class manifest (Sep 30): pre-judged UNTESTABLE
+            # drives are skipped entirely — no baseline, no sandbox, no
+            # mutation — so the sweep can never manufacture another
+            # VACUOUS verdict for a drive that cannot fail by design.
+            cls = untestable_class(name)
+            if cls is not None:
+                results[name] = {
+                    "verdict": "UNTESTABLE",
+                    "drive_class": cls,
+                    "detail": (f"{cls}: behavior mutation cannot judge this "
+                               "drive by design (the drive-class manifest; "
+                               "see artifacts/mutation_sweep/vacuous_triage.md)"),
+                }
+                journal_save({"results": results, "at": time.time()})
+                print(f"[{len(results)}/{len(want)}] {name}: UNTESTABLE  {cls}",
+                      flush=True)
+                continue
+            # scaffold auto-detect: a drive whose ONLY mapped guarded
+            # module is test scaffolding has no verdict-bearing code to
+            # mutate — VACUOUS would be manufactured, not measured.
+            _mods_all = sorted(m for m, ds in imap.items() if name in ds)
+            if _mods_all and all(m.endswith("scratch_space.py")
+                                 for m in _mods_all):
+                results[name] = {
+                    "verdict": "UNTESTABLE",
+                    "drive_class": "SCAFFOLD-ONLY",
+                    "detail": ("auto: the only mapped guarded module is "
+                               "scratch_space.py (test scaffolding) — no "
+                               "verdict-bearing logic to mutate"),
+                }
+                journal_save({"results": results, "at": time.time()})
+                print(f"[{len(results)}/{len(want)}] {name}: UNTESTABLE  "
+                      "SCAFFOLD-ONLY (auto)", flush=True)
+                continue
             if sbx is None:
                 print("building sandbox copy...", flush=True)
                 sbx = make_sandbox()
@@ -281,23 +432,26 @@ def main() -> int:
     counts = {v: sum(1 for e in results.values()
                      if e.get("verdict") == v)
               for v in ("VACUOUS", "TIMEOUT", "BASELINE-RED", "UNMAPPED",
-                        "KILLED")}
+                        "UNTESTABLE", "KILLED")}
     lines = [f"THE MUTATION SWEEP — {time.strftime('%Y-%m-%d %H:%M')}",
              "=" * 78]
-    for v in ("VACUOUS", "TIMEOUT", "BASELINE-RED", "UNMAPPED"):
+    for v in ("UNTESTABLE", "VACUOUS", "TIMEOUT", "BASELINE-RED", "UNMAPPED"):
         rows = sorted(k for k, e in results.items()
                       if e.get("verdict") == v)
         if rows:
             lines.append(f"\n{v} ({len(rows)}):")
             for r in rows:
-                lines.append(f"  {r}  [{results[r].get('detail', '')[:90]}]")
+                _cls = results[r].get("drive_class", "")
+                _tag = f"  <{_cls}>" if _cls else ""
+                lines.append(f"  {r}{_tag}  [{results[r].get('detail', '')[:90]}]")
     killed = sorted(k for k, e in results.items()
                     if e.get("verdict") == "KILLED")
     lines.append(f"\nKILLED ({len(killed)}):")
     lines += [f"  {r}" for r in killed]
     lines.append("\n" + "=" * 78)
     lines.append(f"total {len(results)}: killed {counts['KILLED']}, "
-                 f"VACUOUS {counts['VACUOUS']}, baseline-red "
+                 f"VACUOUS {counts['VACUOUS']}, untestable "
+                 f"{counts['UNTESTABLE']}, baseline-red "
                  f"{counts['BASELINE-RED']}, unmapped {counts['UNMAPPED']}, "
                  f"timeout {counts['TIMEOUT']}")
     SWEEP_DIR.mkdir(parents=True, exist_ok=True)

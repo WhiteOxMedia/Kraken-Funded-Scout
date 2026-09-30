@@ -32,6 +32,23 @@ import tempfile as _tf_sink
 _sink_dir = Path(_tf_sink.mkdtemp())
 bs.CONTEST_TRADES_FILE = str(_sink_dir / "contest_trades.jsonl")
 
+# ── THE GUARD-STATE SINK, FLEET-RUN LESSON (Sep 30): the give-back lead
+# (Sep 29) reads profit_guard's giveback FIRST and leads the line with it
+# when the day's erosion crosses the speak floor — so sections 1-4 below
+# are environment-dependent unless the guard state is sandboxed too (the
+# fleet battery caught this: a real $55 give-back day made three pins
+# fail while the PRODUCTION behavior was correct). The sandbox ships an
+# all-good state; section 7 re-ships its own values per window; the
+# restore lands in the same finally that restores the journal sink.
+import profit_guard as _pg_sink
+import telemetry_adjust as _ta_sink
+_pg_sink.STATE_FILE = _sink_dir / "profit_guard_state.json"
+_ta_sink.TELEMETRY_PATH = _sink_dir / "telemetry_sink.jsonl"   # the sink seam:
+# the tracker's emit_adjustment must never write a FAKE event into the
+# live journal (section 7's lesson, now covering every window)
+_pg_sink._save({"giveback": {"give_back": 0.0, "peak_total": 0.0,
+                             "now_total": 0.0}})
+
 
 # ── 1. live data: an applied trade for today → the pace clause speaks it
 # (hermetic since Sep 22: the live day's applied count changes under the
@@ -178,15 +195,10 @@ finally:
 import profit_guard as _pg7
 import auto_adjust as _aa7
 import telemetry_adjust as _ta7
-import tempfile as _t7
-_sbx7 = Path(_t7.mkdtemp())
-_pg7.STATE_FILE = _sbx7 / "profit_guard_state.json"
-_ta7.TELEMETRY_PATH = _sbx7 / "telemetry_test.jsonl"   # THE SINK SEAM (the
-# round-5 review's major): without this, the tracker's emit_adjustment
-# writes a FAKE applied giveback event into the LIVE journal — which
-# restore_state's replay consumes as truth. The sink dies with the
-# tempdir; the live journal is never touched.
-_pg7.STATE_FILE = _sbx7 / "profit_guard_state.json"
+# (the guard-state sink now ships UP TOP — the fleet-run lesson: sections
+# 1-4 need the all-good sandbox as much as section 7 needs its own values;
+# the separate section-7 tempdir is gone, the shared sink is re-shipped
+# per window below)
 _orig_aa_apply = _aa7.apply_adjustment
 _tf = Path(bs.CONTEST_TRADES_FILE)   # already the sink (the sweep, Sep 29)
 _today = bs._now_mst().strftime("%Y-%m-%d")
@@ -252,6 +264,9 @@ finally:
     import profit_guard as _pg_restore
     if hasattr(_pg_restore, "STATE_FILE"):
         del _pg_restore.STATE_FILE
+    # (the guard-state sink from the fleet-run lesson is the same
+    # _pg_restore.STATE_FILE deletion — sections 1-4 and section 7
+    # shared the sandbox; nothing extra to restore)
     import telemetry_adjust as _ta_restore
     if hasattr(_ta_restore, "TELEMETRY_PATH"):
         del _ta_restore.TELEMETRY_PATH

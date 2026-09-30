@@ -1,71 +1,171 @@
-THE MUTATION SWEEP — 2026-09-30 12:48
+THE MUTATION SWEEP — 2026-09-30 16:07
 ==============================================================================
 
-VACUOUS (39):
-  test_balancepop.py  [stayed green under every mutation]
-  test_bot_day.py  [stayed green under every mutation]
-  test_botdb.py  [stayed green under every mutation]
-  test_bracket_click.py  [stayed green under every mutation]
-  test_carry.py  [stayed green under every mutation]
-  test_chase.py  [stayed green under every mutation]
-  test_cooldowncheck.py  [stayed green under every mutation]
-  test_dcagate.py  [stayed green under every mutation]
-  test_dopamine.py  [stayed green under every mutation]
-  test_entry_control.py  [stayed green under every mutation]
-  test_eth_gap.py  [LIVE-MARKET: verdict keyed to live ccxt prices (a why-did diagnostic) — genuinely untestab]
-  test_exitsynthesis.py  [stayed green under every mutation]
-  test_funnelplate.py  [stayed green under every mutation]
-  test_goalgame.py  [stayed green under every mutation]
-  test_hersize.py  [stayed green under every mutation]
-  test_hookparser.py  [stayed green under every mutation]
-  test_hype_now.py  [LIVE-MARKET: the exact should-I-sell verdict at live prices — genuinely untestable by this]
-  test_kii.py  [LIVE-MARKET: deep-scan live pair now — genuinely untestable by this harness]
-  test_kii_woulda.py  [LIVE-MARKET: live OHLCV replay of a historical pump — genuinely untestable by this harness]
-  test_night.py  [LIVE-STATE: walks the live signals.db trail; guarded-module calls exist but no verdict rid]
-  test_night_pnl.py  [stayed green under every mutation]
-  test_no_alerts.py  [LIVE-STATE: traces live alert dispatch since 8:45 — untestable by this harness by design]
-  test_one_asset.py  [LIVE-STATE: live positions/bridge/buying-power via keyring+db — untestable by this harness]
-  test_payouts.py  [stayed green under every mutation]
-  test_payouts_e2e.py  [LIVE-STATE: end-to-end real Kraken payouts fetch (keyring) — untestable by this harness by]
-  test_persistexit.py  [stayed green under every mutation]
-  test_qclonewolf.py  [stayed green under every mutation]
-  test_sink_hygiene.py  [STATIC-AUDIT: runs diag_testleaks's AST audit as text; behavior mutants of the guarded mod]
-  test_sunday.py  [stayed green under every mutation]
-  test_thinbrain.py  [stayed green under every mutation]
-  test_tidefloor.py  [stayed green under every mutation]
-  test_toggleguard.py  [stayed green under every mutation]
-  test_tour_state.py  [stayed green under every mutation]
-  test_uismooth.py  [stayed green under every mutation]
-  test_winnerlock.py  [stayed green under every mutation]
-  test_winners.py  [stayed green under every mutation]
-  test_xrp_scan.py  [LIVE-STATE: live deep-scan of XRP (keyring/ccxt) — untestable by this harness by design]
-  test_xrp_signals.py  [LIVE-STATE: today's live db rows — untestable by this harness by design]
-  test_zec_trace.py  [stayed green under every mutation]
+UNTESTABLE (59):
+  test_balancepop.py  <SOURCE-TEXT>  [SOURCE-TEXT: the verdict imports or demands a sibling checkout outside this repo — the san]
+  test_bot_day.py  <LIVE-STATE>  [LIVE-STATE: the verdict imports or demands a sibling checkout outside this repo — the sand]
+  test_botdb.py  <LIVE-STATE>  [LIVE-STATE: the verdict imports or demands a sibling checkout outside this repo — the sand]
+  test_bracket_click.py  <LIVE-STATE>  [LIVE-STATE: the verdict imports or demands a sibling checkout outside this repo — the sand]
+  test_carry.py  <SOURCE-TEXT>  [SOURCE-TEXT: the verdict imports or demands a sibling checkout outside this repo — the san]
+  test_charter_signal_push.py  <SIBLING-CHECKOUT>  [SIBLING-CHECKOUT: the verdict imports or demands a sibling checkout outside this repo — th]
+  test_chase.py  <LIVE-MARKET>  [LIVE-MARKET: the verdict imports or demands a sibling checkout outside this repo — the san]
+  test_commitgate.py  <SCAFFOLD-ONLY>  [auto: the only mapped guarded module is scratch_space.py (test scaffolding) — no verdict-b]
+  test_cooldowncheck.py  <SOURCE-TEXT>  [SOURCE-TEXT: the verdict imports or demands a sibling checkout outside this repo — the san]
+  test_dcagate.py  <SOURCE-TEXT>  [SOURCE-TEXT: the verdict imports or demands a sibling checkout outside this repo — the san]
+  test_dopamine.py  <LIVE-STATE>  [LIVE-STATE: the verdict imports or demands a sibling checkout outside this repo — the sand]
+  test_dupcheck.py  <STANDALONE>  [STANDALONE: imports no guarded repo module (AST-verified) — the verdict rides subprocesses]
+  test_dupfinal.py  <SCAFFOLD-ONLY>  [auto: the only mapped guarded module is scratch_space.py (test scaffolding) — no verdict-b]
+  test_entry_control.py  <SOURCE-TEXT>  [SOURCE-TEXT: the verdict imports or demands a sibling checkout outside this repo — the san]
+  test_eth_gap.py  <LIVE-MARKET>  [LIVE-MARKET: the verdict imports or demands a sibling checkout outside this repo — the san]
+  test_exitsynthesis.py  <SOURCE-TEXT>  [SOURCE-TEXT: the verdict imports or demands a sibling checkout outside this repo — the san]
+  test_find_eth.py  <STANDALONE>  [STANDALONE: imports no guarded repo module (AST-verified) — the verdict rides subprocesses]
+  test_fleetsweep.py  <STANDALONE>  [STANDALONE: imports no guarded repo module (AST-verified) — the verdict rides subprocesses]
+  test_funnelplate.py  <SOURCE-TEXT>  [SOURCE-TEXT: the verdict imports or demands a sibling checkout outside this repo — the san]
+  test_gatestrips.py  <STANDALONE>  [STANDALONE: imports no guarded repo module (AST-verified) — the verdict rides subprocesses]
+  test_goalgame.py  <SOURCE-TEXT>  [SOURCE-TEXT: the verdict imports or demands a sibling checkout outside this repo — the san]
+  test_hersize.py  <SOURCE-TEXT>  [SOURCE-TEXT: the verdict imports or demands a sibling checkout outside this repo — the san]
+  test_hookparser.py  <SOURCE-TEXT>  [SOURCE-TEXT: the verdict imports or demands a sibling checkout outside this repo — the san]
+  test_hooks_ignore_runtime_state.py  <HOST-BOUND>  [HOST-BOUND: audits the host's live git identity (the machine-local .git/hooks mirror + cor]
+  test_hype_now.py  <LIVE-MARKET>  [LIVE-MARKET: the verdict imports or demands a sibling checkout outside this repo — the san]
+  test_jackpotplate.py  <SIBLING-CHECKOUT>  [SIBLING-CHECKOUT: the verdict imports or demands a sibling checkout outside this repo — th]
+  test_kii.py  <LIVE-MARKET>  [LIVE-MARKET: the verdict imports or demands a sibling checkout outside this repo — the san]
+  test_kii_woulda.py  <LIVE-MARKET>  [LIVE-MARKET: the verdict imports or demands a sibling checkout outside this repo — the san]
+  test_lifecycle.py  <STANDALONE>  [STANDALONE: imports no guarded repo module (AST-verified) — the verdict rides subprocesses]
+  test_liq_cal.py  <STANDALONE>  [STANDALONE: imports no guarded repo module (AST-verified) — the verdict rides subprocesses]
+  test_night.py  <LIVE-STATE>  [LIVE-STATE: the verdict imports or demands a sibling checkout outside this repo — the sand]
+  test_night_pnl.py  <LIVE-STATE>  [LIVE-STATE: the verdict imports or demands a sibling checkout outside this repo — the sand]
+  test_no_alerts.py  <LIVE-STATE>  [LIVE-STATE: the verdict imports or demands a sibling checkout outside this repo — the sand]
+  test_no_runtime_stash.py  <STANDALONE>  [STANDALONE: imports no guarded repo module (AST-verified) — the verdict rides subprocesses]
+  test_one_asset.py  <LIVE-STATE>  [LIVE-STATE: the verdict imports or demands a sibling checkout outside this repo — the sand]
+  test_payouts.py  <LIVE-STATE>  [LIVE-STATE: the verdict imports or demands a sibling checkout outside this repo — the sand]
+  test_payouts_e2e.py  <LIVE-STATE>  [LIVE-STATE: the verdict imports or demands a sibling checkout outside this repo — the sand]
+  test_pending.py  <STANDALONE>  [STANDALONE: imports no guarded repo module (AST-verified) — the verdict rides subprocesses]
+  test_persistexit.py  <SOURCE-TEXT>  [SOURCE-TEXT: the verdict imports or demands a sibling checkout outside this repo — the san]
+  test_pool_docsrot_live.py  <SIBLING-CHECKOUT>  [SIBLING-CHECKOUT: the verdict imports or demands a sibling checkout outside this repo — th]
+  test_pool_prefs_live.py  <SIBLING-CHECKOUT>  [SIBLING-CHECKOUT: the verdict imports or demands a sibling checkout outside this repo — th]
+  test_protected_extension_gate.py  <STANDALONE>  [STANDALONE: imports no guarded repo module (AST-verified) — the verdict rides subprocesses]
+  test_qclonewolf.py  <SOURCE-TEXT>  [SOURCE-TEXT: the verdict imports or demands a sibling checkout outside this repo — the san]
+  test_reviewplate.py  <STANDALONE>  [STANDALONE: imports no guarded repo module (AST-verified) — the verdict rides subprocesses]
+  test_sink_hygiene.py  <STATIC-AUDIT>  [STATIC-AUDIT: the verdict imports or demands a sibling checkout outside this repo — the sa]
+  test_sunday.py  <LIVE-STATE>  [LIVE-STATE: the verdict imports or demands a sibling checkout outside this repo — the sand]
+  test_thinbrain.py  <SOURCE-TEXT>  [SOURCE-TEXT: the verdict imports or demands a sibling checkout outside this repo — the san]
+  test_tidefloor.py  <SOURCE-TEXT>  [SOURCE-TEXT: the verdict imports or demands a sibling checkout outside this repo — the san]
+  test_toggleguard.py  <SOURCE-TEXT>  [SOURCE-TEXT: the verdict imports or demands a sibling checkout outside this repo — the san]
+  test_tour_state.py  <LIVE-STATE>  [LIVE-STATE: the verdict imports or demands a sibling checkout outside this repo — the sand]
+  test_trailstop.py  <STANDALONE>  [STANDALONE: imports no guarded repo module (AST-verified) — the verdict rides subprocesses]
+  test_uismooth.py  <SOURCE-TEXT>  [SOURCE-TEXT: the verdict imports or demands a sibling checkout outside this repo — the san]
+  test_verdicttrail.py  <STANDALONE>  [STANDALONE: imports no guarded repo module (AST-verified) — the verdict rides subprocesses]
+  test_why_rejected.py  <STANDALONE>  [STANDALONE: imports no guarded repo module (AST-verified) — the verdict rides subprocesses]
+  test_winnerlock.py  <SOURCE-TEXT>  [SOURCE-TEXT: the verdict imports or demands a sibling checkout outside this repo — the san]
+  test_winners.py  <LIVE-STATE>  [LIVE-STATE: the verdict imports or demands a sibling checkout outside this repo — the sand]
+  test_xrp_scan.py  <LIVE-MARKET>  [LIVE-MARKET: the verdict imports or demands a sibling checkout outside this repo — the san]
+  test_xrp_signals.py  <LIVE-STATE>  [LIVE-STATE: the verdict imports or demands a sibling checkout outside this repo — the sand]
+  test_zec_trace.py  <LIVE-STATE>  [LIVE-STATE: the verdict imports or demands a sibling checkout outside this repo — the sand]
 
-KILLED (23):
+KILLED (103):
+  test_5mstore.py
+  test_adaptivecache.py
   test_advisorybrain.py
+  test_agendacheck.py
+  test_allgoodlead.py
+  test_apptest.py
+  test_atomicio.py
+  test_autoadjust.py
+  test_autotrack.py
+  test_basegrade.py
+  test_batterybudget.py
+  test_bootfacts.py
+  test_boundaryexam.py
+  test_canary.py
+  test_carveout.py
+  test_clampcost.py
+  test_climbout.py
+  test_climbouthindsight.py
+  test_coderabbitbacklog.py
+  test_confirmwindow.py
   test_contest_mode.py
+  test_contest_window.py
+  test_contestline.py
+  test_cooldownreview.py
+  test_costdrivers.py
+  test_dailylock.py
   test_dangerzone.py
   test_depthcheck.py
+  test_discipline.py
+  test_disciplineseam.py
+  test_disciplinesew.py
+  test_dropdownstability.py
   test_eracompare.py
+  test_evidencestore.py
+  test_execution_tiers.py
+  test_exit_extension.py
+  test_extfade.py
+  test_fast20.py
   test_fastfunnel.py
+  test_floodguard.py
   test_giveback.py
+  test_guardbreakdown.py
+  test_hailmary.py
+  test_headline.py
   test_herwords.py
+  test_hindightservice.py
+  test_hindsight.py
+  test_hindsightapi.py
+  test_journalrelease.py
+  test_light_once.py
   test_liq_filter.py
   test_lonewolf.py
   test_longonly.py
   test_marketgoal.py
+  test_metalayers.py
+  test_moverfunnel.py
   test_nearmiss.py
+  test_option23.py
+  test_outliverhindsight.py
+  test_pergate.py
+  test_phantommirror.py
   test_popupbrain.py
+  test_popupfloor.py
   test_positionscale.py
+  test_pricealert.py
+  test_profitguard.py
+  test_pushfilter.py
+  test_ratchet.py
+  test_rebootsurv.py
+  test_recoveryscenarios.py
+  test_referee_gfdelta.py
+  test_releaseprov.py
+  test_replaylive.py
+  test_resetrebaseline.py
+  test_resilience.py
+  test_rotation.py
+  test_runnertether.py
   test_scansethonesty.py
+  test_scout_docs.py
+  test_simsweep.py
   test_soldpnl.py
+  test_stateclobber.py
+  test_statewriters.py
+  test_surething.py
+  test_surethingautorefit.py
+  test_surethingdiag.py
   test_takeit.py
+  test_telemetry.py
+  test_tide.py
+  test_tidebarweekly.py
+  test_tidelearn.py
+  test_tidememory.py
+  test_tidestamp.py
   test_tierauto.py
+  test_topfill.py
+  test_trailk_sweep.py
   test_trend.py
   test_trendbridge.py
+  test_triwatch.py
   test_trump_render.py
+  test_verdictnightly.py
+  test_watchliveness.py
   test_worthdial.py
 
 ==============================================================================
-total 62: killed 23, VACUOUS 39, baseline-red 0, unmapped 0, timeout 0
+total 162: killed 103, VACUOUS 0, untestable 59, baseline-red 0, unmapped 0, timeout 0
