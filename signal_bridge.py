@@ -306,11 +306,25 @@ def is_in_cooldown(pair: str) -> bool:
 
 
 def is_already_holding(pair: str) -> bool:
-    """Check if we already have an open (filled, not closed) buy for this pair."""
+    """Check if we already have an open (filled, not closed) buy for this pair.
+
+    THE ACKNOWLEDGED WINDOW (Sep 29, the INJ double-book): a signal the bot
+    has ACKNOWLEDGED but not yet filled is a position in progress — the fill
+    lands seconds later. Gating on 'filled' alone let writers inside that
+    window believe the pair was free: the bot's own-strategy mirror
+    (bot_engine._execute_buy) runs DURING execution while the scout row is
+    still 'acknowledged', so every scout-executed buy got a mirrored
+    source='bot_strategy' phantom with the SAME order_id (49 of 83
+    bot_strategy rows; INJ e9292c32/50385ce5 shared OFIAMG-R3GDY-C7RW3F
+    and double-booked the book). Counting 'acknowledged' closes the race
+    for both callers (this gate and the readers' take-time gate). DCA
+    callers skip this gate entirely by design.
+    """
     init_db()
     with _get_db() as conn:
         row = conn.execute(
-            "SELECT 1 FROM signals WHERE pair=? AND action='buy' AND status='filled' LIMIT 1",
+            "SELECT 1 FROM signals WHERE pair=? AND action='buy' "
+            "AND status IN ('filled','acknowledged') LIMIT 1",
             (pair,),
         ).fetchone()
         return row is not None
@@ -687,6 +701,38 @@ def acknowledge(signal_id: str):
         conn.commit()
 
 
+def _retire_order_phantoms(order_id: str, keep_signal_id: str, pnl: float) -> int:
+    """Close any source='bot_strategy' phantom sharing this order_id.
+
+    THE PHANTOM-MIRROR SWEEP (Sep 29, the INJ double-book): the bot's
+    own-strategy mirror fired on is_already_holding DURING execution — the
+    scout row was still 'acknowledged' then — so every scout-executed buy
+    also got a source='bot_strategy' phantom with the SAME order_id (49 of
+    83 bot_strategy rows). The upgraded holding gate stops NEW phantoms;
+    this sweep retires any still alive the moment the truth lands (a fill
+    stamp or a close report), wherever the call came from. pnl rides the
+    caller's number (0 at fill time — the phantom holds no coins of its
+    own); no cooldown is set here, the real row owns its own cooldown.
+    """
+    if not order_id:
+        return 0
+    with _get_db() as conn:
+        cur = conn.execute(
+            "UPDATE signals SET status='closed', closed_at=?, pnl=?, cooldown_until=NULL "
+            "WHERE source='bot_strategy' AND status='filled' AND order_id=? AND signal_id != ?",
+            (_now_iso(), pnl, order_id, keep_signal_id),
+        )
+        retired = cur.rowcount or 0
+        conn.commit()
+    if retired:
+        logger.info(
+            "Phantom-mirror sweep: %d bot_strategy row(s) sharing order %s retired "
+            "(same order, double-booked by the mirror's filled-only gate)",
+            retired, order_id,
+        )
+    return retired
+
+
 def mark_executed(signal_id: str, order_id: str, fill_price: float):
     """Mark a signal as filled (order executed on Kraken)."""
     init_db()
@@ -696,6 +742,9 @@ def mark_executed(signal_id: str, order_id: str, fill_price: float):
             (_now_iso(), fill_price, order_id, signal_id),
         )
         conn.commit()
+    # The fill stamp is the truth landing: retire any same-order phantom
+    # (the mirror may have double-booked this very order seconds ago).
+    _retire_order_phantoms(order_id, signal_id, 0)
     logger.info("Signal %s filled @ %s (order %s)", signal_id, fill_price, order_id)
 
 
@@ -749,12 +798,31 @@ def mark_closed_by_pair(pair: str, pnl: float):
     """Close the most recent filled signal for a pair."""
     init_db()
     with _get_db() as conn:
+        # THE MIRROR-FIRST TRAP (Sep 29): the phantom mirror minted its row
+        # microseconds AFTER the real fill, so "most recent filled" could
+        # pick the PHANTOM and close it while the real position stayed
+        # open (the live INJ rows carry exactly that shape). Prefer the
+        # non-phantom owner; fall back to any filled row so true
+        # bot-strategy buys still close through this seam.
         row = conn.execute(
-            "SELECT signal_id FROM signals WHERE pair=? AND status='filled' ORDER BY executed_at DESC LIMIT 1",
+            "SELECT signal_id, order_id FROM signals WHERE pair=? AND status='filled' "
+            "AND source != 'bot_strategy' ORDER BY executed_at DESC LIMIT 1",
             (pair,),
         ).fetchone()
-        if row:
-            mark_closed(row["signal_id"], pnl)
+        if not row:
+            row = conn.execute(
+                "SELECT signal_id, order_id FROM signals WHERE pair=? AND status='filled' "
+                "ORDER BY executed_at DESC LIMIT 1",
+                (pair,),
+            ).fetchone()
+    if not row:
+        return
+    mark_closed(row["signal_id"], pnl)
+    # The bot engine reports closes BY PAIR through this seam: the
+    # same-order phantom is the same position double-booked, so it
+    # closes with the book (its own pnl rides along; no cooldown —
+    # mark_closed's loser cooldown belongs to the real row only).
+    _retire_order_phantoms(row["order_id"] or "", row["signal_id"], pnl)
 
 
 def get_recent_signals(limit: int = 20) -> list[dict]:

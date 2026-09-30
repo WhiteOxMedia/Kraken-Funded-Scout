@@ -1066,6 +1066,19 @@
         "test_apptest.py": "sha256:02002429d2fc909be32ad8e9062bd36120d122c39eb4c308d73e77993a704a22",
         "test_adaptivecache.py": "sha256:505f527892ecfa45ba3fcb5f5b7b680f0e7119f5f5ee6550d73b88f3ef9f19cd"
       }
+    },
+    "46-phantom-mirror-gate": {
+      "commits": [
+        "<this commit>"
+      ],
+      "branch_name": "master",
+      "date": "2026-09-29",
+      "title": "THE 07:00/08:00 INJ DOUBLE BUY WAS ONE ORDER BOOKED TWICE: THE MIRROR FILLED-ONLY GATE IS DEAD AND SAME-ORDER PHANTOMS RETIRE THEMSELVES (Sep 29, phantom-mirror-gate)",
+      "detail": "The forensic: e9292c32 (scout_auto, 13:58:55 UTC) and 50385ce5 (bot_strategy, stamped 07:00:01-07:00 = 14:00:01 UTC, the dual-clock signature) share Kraken order OFIAMG-R3GDY-C7RW3F — ONE market order, two rows, 21ms apart. The bot executes scout buys through bot_engine._execute_buy, whose bridge mirror asked is_already_holding — status=filled ONLY — while the scout row was still acknowledged (mark_executed runs after the mirror), so EVERY scout-executed buy got a phantom twin: 49 of 83 bot_strategy rows share an order_id with a scout row. THREE fixes, one per door: (1) signal_bridge.is_already_holding counts acknowledged (the ack window is a position in progress) — closes the write-time gate and both readers take-time gates (one module, two repos); (2) the self-healing sweep _retire_order_phantoms, wired into mark_executed (the truth landing) and mark_closed_by_pair (the bot pair-close seam), retires same-order phantoms wherever the call came from — healing works even while a not-yet-restarted bot still runs old code; mark_closed_by_pair also prefers the non-phantom owner (the live DB proved the phantom can BE the newest filled row and get closed while the real position stayed open), and swept rows lose their mirror cooldown (a phantom cooldown gated is_in_cooldown through closed); (3) the mirror dedupes by order_id, sweeps instead of twinning when a scout row owns the pair, keeps the true own-strategy write, and rides the bridge auto-DST MST (the hardcoded hours=-7 dead in the mirror; _build_bot_watch_row added-stamp moved to America/Denver too). LIVE REPAIR: 50385ce5 retired (closed, pnl 0, no cooldown) through the bridge own seam; backup %TEMP%/kraken_scout/inj_phantom_repair/signals_pre_repair.db (3.7MB, sqlite backup API); the open book is ONE INJ fill (e9292c32 @ 7.727) — the tracking-2-INJ double-book that put the ghost on the console NOW strip is dead; the two INJ fills still await her close/hold call. Pins: test_phantommirror 31/0 hermetic (scratch/sbx world: the incident shape reproduced, pending-vs-acknowledged challenger semantics, sweep precision, the mirror-first close trap, twin byte-identity) + rearmmirror 16/0 in the bot repo (the twin-sync tripwire moved in-house). Drives: tidestamp, positionscale, trendbridge, lockguard, scoreboard ALL.",
+      "checksums": {
+        "signal_bridge.py": "sha256:40b9a5a2cdfb38ba8df9366a46de27e07cd26c50835b1e5f5af456a700f2df6c",
+        "test_phantommirror.py": "sha256:0b70aedf5d6e482243b95010c2dc3b709b0b0ba8e280128307c9c899992538b9"
+      }
     }
   }
 }
