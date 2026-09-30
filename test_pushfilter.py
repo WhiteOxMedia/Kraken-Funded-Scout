@@ -36,6 +36,14 @@ urllib.request.urlopen = fake_urlopen
 
 # pretend we have a topic
 bs._push_topic = lambda: "test-topic"
+# THE CHARTER LEG IS ANOTHER URLLIB CONSUMER (Sep 29): _charter_push's
+# route posts its own JSON through urllib.request.urlopen, which the
+# fake below would capture and double every count — environment-
+# dependently (the pool route only HTTPs when reachable). The filter
+# is this suite's subject and the charter emission mechanics have
+# their own drive (test_charter_signal_push); neutralize the leg here
+# so the counts measure the ntfy wire and the retry queue only.
+bs._charter_push = lambda event: True
 
 def sent_texts():
     out = []
@@ -88,6 +96,49 @@ sent.clear()
 bs._push_state = {"text": "", "ts": 0.0}
 bs._push_to_phone("Trade done! Let's find the next one!")
 check("trade done NOT pushed", len(sent) == 0)
+
+import time as _time
+
+# 7. BUY retries: the in-doubt queue carries BOTH call classes now
+# (Sep 29: a missed BUY is the missed entry — the one call the desk
+# can least afford to never hear). One second attempt ~60s later,
+# armed whether or not ntfy accepted attempt 1.
+sent.clear()
+bs._push_retry_q.clear()
+bs._push_state = {"text": "", "ts": 0.0}
+bs._push_to_phone("Buy FIL! 91 percent sure! The recovery leg is on!")
+check("a BUY arms exactly ONE retry in the queue",
+      len(bs._push_retry_q) == 1, len(bs._push_retry_q))
+_r = bs._push_retry_q[0]
+check("the BUY retry rides ~60s out at HIGH priority (a second shot, "
+      "not a second campaign)",
+      59.0 <= _r["due"] - _r["why"] <= 61.0 and _r["prio"] == "high", _r)
+sent.clear()
+bs._push_retry_q.clear()
+bs._push_state = {"text": "", "ts": 0.0}
+bs._push_to_phone("Get out now! Sell ARB! It gave back too much!")
+check("a GET OUT still arms its retry at URGENT (the Sep 21 contract "
+      "intact, one queue, both classes)",
+      len(bs._push_retry_q) == 1 and bs._push_retry_q[0]["prio"] == "urgent")
+# the processor fires a DUE retry through the same wire
+sent.clear()
+bs._push_retry_q.clear()
+bs._push_retry_q.append({"text": "Buy FIL! 91 percent sure!", "prio": "high",
+                         "due": 0.0, "why": 0.0})   # long overdue
+bs._process_push_retries()
+check("a due retry FIRES through the wire and drains the queue",
+      len(sent) == 1 and len(bs._push_retry_q) == 0, (len(sent), sent_texts()))
+check("the fired retry keeps the call's priority on the wire",
+      sent and sent[0].headers.get("Priority") == "high")
+# the 8-deep cap bounds a pathological burst
+bs._push_retry_q.clear()
+for _i in range(12):
+    bs._push_retry_q.append({"text": f"x{_i}", "prio": "high",
+                             "due": _time.time() + 3600.0, "why": _time.time()})
+bs._process_push_retries()   # nothing due; the cap trims the armory
+check("the queue cap holds at 8 (a burst can't grow the armory unbounded)",
+      len(bs._push_retry_q) == 8, len(bs._push_retry_q))
+bs._push_retry_q.clear()
 
 # 7. identical GET OUT repeats throttle to 5 min
 import time as _time

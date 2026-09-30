@@ -1160,6 +1160,19 @@
         "exit_extension.py": "sha256:2c46c288dcf9a822729a1713618fb645c4b9fb4fdac5a5a86d93fcfed7505400",
         "test_exit_extension.py": "sha256:f2c51c78b9ecc2998e6613b660c3a4fe327c240227d45bc058a37f2bb7a6a896"
       }
+    },
+    "53-buy-retry-parity": {
+      "commits": [
+        "<this commit>"
+      ],
+      "branch_name": "master",
+      "date": "2026-09-29",
+      "title": "THE BUY GETS THE SAME DOUBT: EVERY CLASSIFIED PHONE CALL NOW ARMS ONE SECOND ATTEMPT ~60S LATER (Sep 29, buy-retry-parity)",
+      "detail": "Her ask: the in-doubt retry queue was GET-OUT-only since Sep 21, but a missed BUY is the missed entry — the one call the desk can least afford to never hear; a missed GET OUT is a position held too long, a missed BUY is the whole trade. _push_to_phone now arms the one-shot retry for EVERY classified call (BUY and GET OUT alike): one second attempt ~60s later through the 8-deep queue, armed whether or not ntfy accepted attempt 1 (a 200 says nothing about the phone), not deduped (a duplicate alert is the cheap failure), priority rides the call class (high for BUY, urgent for GET OUT). The processor (_process_push_retries) was already class-agnostic — only the docstrings and the arm site changed. DRIVE REPAIR along the way: test_pushfilter counts were environment-dependent — the charter leg posts its own JSON through the same urllib.request.urlopen the fake captures, so counts showed n=2 or n=1 depending on pool reachability (23 failed in this sandbox). The charter emission mechanics have their own drive; the filter suite neutralizes the leg now and counts the ntfy wire plus the retry queue only. Pins in test_pushfilter: BUY arms exactly one retry, ~60s at high; GET OUT still arms at urgent (one queue, both classes); a due retry fires through the wire at the call priority and drains; the 8-deep cap holds under a burst. pushfilter 46/0 (from 23/23-mixed); charter_signal_push, autotrack, allgoodlead, apptest ALL. Note: the retry lives in the RUNNING scanner memory only after a restart.",
+      "checksums": {
+        "background_scanner.py": "sha256:edbaca498258c82f62e494406e0127d88390ca36efd2e80117f1db1dca88cc3b",
+        "test_pushfilter.py": "sha256:b2d912a5b08a488fc142408bdd4f7d1f656301b7281b10d0363f28cd850e5dde"
+      }
     }
   }
 }

@@ -2619,7 +2619,8 @@ _push_state = {"text": "", "ts": 0.0}
 # receipt, so every GET OUT is "in doubt" and gets exactly one second
 # attempt ~60s later. A dropped phone connection is discovered by a
 # retry, not by a silence). Processed by _process_push_retries() on the
-# main cycle; survives the watch emptying, dies with the process.
+# main cycle; survives the watch emptying, dies with the process. Since
+# Sep 29 it carries BOTH call classes (GET OUT and BUY).
 _push_retry_q = []  # [{"text":…, "prio":…, "due": epoch, "why":…}]
 
 
@@ -2649,8 +2650,10 @@ def _send_ntfy(text: str, prio: str, attempt: str, tag: str | None = None) -> bo
 
 
 def _process_push_retries():
-    """Called once per main cycle (30s tick): fires due GET OUT retries.
-    Queue capped at 8 so a pathological burst can't grow it unbounded."""
+    """Called once per main cycle (30s tick): fires due retries — every
+    classified call gets ONE second attempt ~60s later (GET OUT since
+    Sep 21; BUY since Sep 29 — a missed BUY is the missed entry). Queue
+    capped at 8 so a pathological burst can't grow it unbounded."""
     if not _push_retry_q:
         return
     now = time.time()
@@ -2823,16 +2826,20 @@ def _push_to_phone(text: str, wav_path: str | None = None):
     try:
         prio = "urgent" if is_sell else "high"
         _send_ntfy(str(text), prio, "attempt 1/2")
-        if is_sell:
-            # the ONLY delivery guarantee we can buy: a second shot ~60s
-            # later, armed whether attempt 1 was accepted OR failed (a
-            # failed send is the most doubt of all). Not deduped (attempt
-            # 2 must survive even when the phone DID get attempt 1 — a
-            # duplicate GET OUT is the cheap failure); bounded by the
-            # 8-deep queue cap.
-            _push_retry_q.append({"text": str(text), "prio": prio,
-                                  "due": now + 60.0,
-                                  "why": now})
+        # THE BUY GETS THE SAME DOUBT (Sep 29, her ask): the retry queue
+        # used to be GET-OUT-only, but a missed BUY is the missed entry —
+        # the one call the desk can least afford to never hear. A missed
+        # GET OUT is a position held too long; a missed BUY is the whole
+        # trade. From tonight, EVERY classified phone call (BUY and GET
+        # OUT alike) arms ONE second attempt ~60s later, whether or not
+        # ntfy accepted attempt 1 (a 200 says nothing about the phone;
+        # a failed send is the most doubt of all). Not deduped (attempt 2
+        # must survive even when the phone DID get attempt 1 — a
+        # duplicate alert is the cheap failure); bounded by the 8-deep
+        # queue cap.
+        _push_retry_q.append({"text": str(text), "prio": prio,
+                              "due": now + 60.0,
+                              "why": now})
     except Exception as exc:
         # push is best-effort — the PC voice already spoke — but it is
         # never SILENT: the scanner log carries every failure
