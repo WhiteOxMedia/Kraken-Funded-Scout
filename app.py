@@ -2439,6 +2439,16 @@ def render_master(cfg: TradingConfig, kraken):
     # the all-time record.
     _render_funnel_plate()
 
+    # 📖 THE LEARNING PLATE, MIRRORED (Sep 30): the bot console's
+    # learning plate — fee drag, the panel's median-payer capture, the
+    # guard factor (with the walk projection the boundary hook
+    # persists) — in one plate HERE too. The scout holds every input:
+    # the fill model the study priced, _cached_burial_hindsight's
+    # median-payer block, the machine factor, profit_guard_state's
+    # gf_projection. Fail-soft like every plate: a broken line
+    # degrades, the plate stands.
+    _render_learning_plate()
+
     # 🪦 BURIAL HINDSIGHT (Sep 28, user ask): did the gates' refusals
     # cost money? — the recent suppression ledger priced through the
     # verdict study's join (n, payer-rate, per-gate, top payers).
@@ -2645,6 +2655,40 @@ SPREAD = 0.001           # 10 bps full spread, half paid on each side
 FEE_RT_PCT = 0.26        # taker round trip in % (2 x 0.13%)
 FILL_CAPTURE_FLOOR = 0.10
 
+# THE QUICK AXIS (Sep 30, the per-gate calibration study's ask): each
+# gate's priced refusals also bucket by the quick score the gate read
+# at refusal time — the study's whole point was that the separation
+# lives BELOW the champion seam (tide-out payers sat at quick 64-87,
+# the 92 seam missed every one), and seeing that month to month must
+# not require rerunning a study. Bands are the decade buckets
+# ('<60', '60s', '70s', '80s', '90+', '?' for the un-scored),
+# inclusive-lower so a 70 reads '70s' — the study's mined floor (66)
+# sits inside the band that priced it. Each bucket carries the same
+# n / payers / rate as the gate row above it, but the median is the
+# FILL-MODELED run (spread + round-trip fee priced in) — the same
+# currency the top-10 list and the capture ratio speak.
+def _quick_bucket(quick) -> str:
+    """The decade band for a refusal's quick score, inclusive-lower
+    (70 -> '70s'): a candidate belongs to the band whose floor it
+    reached. Anything unscorable — missing, garbage, NaN — lands in
+    '?' and is KEPT: a gate's un-scored refusals are part of its
+    shape, never dropped from the month's picture."""
+    try:
+        q = float(quick)
+    except (TypeError, ValueError):
+        return "?"
+    if q != q or q in (float("inf"), float("-inf")):
+        return "?"
+    if q >= 90:
+        return "90+"
+    if q >= 80:
+        return "80s"
+    if q >= 70:
+        return "70s"
+    if q >= 60:
+        return "60s"
+    return "<60"
+
 def _burial_hindsight(
         limit: int = 400, supp_path=None, cache_path=None) -> dict:
     """The burial hindsight over recent suppressed candidates, through
@@ -2737,6 +2781,36 @@ def _burial_hindsight(
                     del g["runs"]
                 out["by_gate"] = sorted(by_gate.values(),
                                         key=lambda g: (-g["pay"], -g["rate"]))
+                # THE QUICK AXIS (the study's ask, Sep 30): the same
+                # stats, sliced by the score at refusal time. Buckets
+                # stay sparse — only the bands the gate actually
+                # buried in (the month's picture, not the full
+                # lattice) — ordered low band first. medfill is the
+                # bucket's MEDIAN fill-modeled run, duds and payers
+                # together: the study's medfill/meddud lens at
+                # monthly resolution, no rerun required.
+                by_quick: dict[tuple, dict] = {}
+                for s in stats:
+                    _qb = _quick_bucket(s["quick"])
+                    b = by_quick.setdefault(
+                        (s["gate"], _qb),
+                        {"gate": s["gate"], "bucket": _qb,
+                         "n": 0, "pay": 0, "fills": []})
+                    b["n"] += 1
+                    b["pay"] += s["run"] >= 1.5
+                    b["fills"].append(s["fill_run"])
+                for b in by_quick.values():
+                    b["fills"].sort()
+                    b["medfill"] = b["fills"][len(b["fills"]) // 2]
+                    b["rate"] = b["pay"] / b["n"]
+                    del b["fills"]
+                _band = {"<60": 0, "60s": 1, "70s": 2, "80s": 3, "90+": 4}
+                _qrows = sorted(
+                    by_quick.values(),
+                    key=lambda b: (_band.get(b["bucket"], 9), b["gate"]))
+                for g in out["by_gate"]:
+                    g["buckets"] = [b for b in _qrows
+                                    if b["gate"] == g["gate"]]
                 # THE TOP 10 (the Sep-28 late ask: Ops decides targeted
                 # manual replays from the worst missed opportunities,
                 # not the top 5): payers only, fill-adjusted — spread
@@ -2777,6 +2851,175 @@ def _burial_hindsight(
 @st.cache_data(ttl=120)
 def _cached_burial_hindsight(limit: int = 400) -> dict:
     return _burial_hindsight(limit=limit)
+
+
+def _learning_factor() -> float:
+    """The machine's live guard factor (the seam the drives patch —
+    the plate never hardcodes a number)."""
+    import auto_adjust as _aa
+    return float(_aa.read_guard_factor())
+
+
+def _learning_projection() -> dict | None:
+    """The walk projection the rotation-boundary hook persists into
+    profit_guard_state.json (gf_projection) — a plain read, never a
+    computation: one walk, two consumers, zero drift."""
+    import json as _json
+    from pathlib import Path as _P
+    p = _P(__file__).resolve().parent / "profit_guard_state.json"
+    try:
+        d = _json.loads(p.read_text(encoding="utf-8"))
+    except Exception:
+        return None
+    proj = d.get("gf_projection") if isinstance(d, dict) else None
+    return proj if isinstance(proj, dict) else None
+
+
+def _learning_history(weeks: int = 8) -> list:
+    """The machine factor sampled by the nightly self_adjust rows
+    (profit_guard_state.json:history — one row per adjusted MST day,
+    oldest-pruned by the writer): ascending by day, bounded to the
+    last `weeks` weeks of rows, malformed rows dropped. The sparkline
+    reads this seam and derives nothing else."""
+    import json as _json
+    from pathlib import Path as _P
+    p = _P(__file__).resolve().parent / "profit_guard_state.json"
+    try:
+        d = _json.loads(p.read_text(encoding="utf-8"))
+        hist = d.get("history") if isinstance(d, dict) else None
+        rows = [h for h in hist
+                if isinstance(h, dict)
+                and isinstance(h.get("factor"), (int, float))
+                and h.get("day")] if isinstance(hist, list) else []
+    except Exception:
+        return []
+    rows.sort(key=lambda h: str(h["day"]))
+    return rows[-max(1, int(weeks)) * 7:]
+
+
+def _render_learning_plate() -> None:
+    """THE LEARNING PLATE, MIRRORED (Sep 30): the bot console's
+    learning plate rendered here too — the scout holds every input.
+    Three lines: the fee drag (the fill model's own constants, the
+    same literals the bot's plate speaks so the two can never quietly
+    disagree), the panel's MEDIAN-payer capture (the same block the
+    burial panel renders — alpha scales by this ratio, not the peak),
+    and the guard factor with the walk projection the boundary hook
+    persists (dormant until the hook arms, stale named stale)."""
+    try:
+        st.subheader("📖 Learning — fee drag, capture, and the guard "
+                     "factor", divider="gray")
+        # 1. THE FEE DRAG — the bot's fill model verbatim (SPREAD
+        #    0.001, FEE_RT 0.52%, CAPTURE_FLOOR 0.35, MIN_RIDE 1.8).
+        fee_rt = 0.52
+        capture_floor = 0.35
+        min_ride = 1.8
+        break_even = fee_rt / capture_floor
+        net_floor = min_ride - fee_rt
+        st.caption(
+            f"fee drag — ${fee_rt:.2f} per $100 trade (taker both "
+            f"sides); breakeven ride ≈{break_even:.2f}% at the "
+            f"{capture_floor:.0%} capture floor; the entry floor "
+            f"refuses scouts under {min_ride:.1f}% promised "
+            f"(≈ ${net_floor:.2f} net at capture floor on the "
+            f"minimum).")
+        # 2. THE PANEL-MEDIAN CAPTURE — the aggregate's median payer:
+        #    one number about ONE payer, never a mean a monster run
+        #    could inflate (the Sep-29 panel doctrine).
+        try:
+            fm = _cached_burial_hindsight().get("fill_model", {})
+        except Exception:
+            fm = {}
+        if fm.get("n_payers"):
+            st.caption(
+                f"capture — the panel's median payer kept "
+                f"{fm['median_capture']:.0%} of a "
+                f"{fm['median_run']:+.1f}% peak "
+                f"({fm['median_fill_run']:+.1f}% after spread and the "
+                f"round-trip fee, {fm['n_payers']} payers) — alpha "
+                f"scales by this ratio, not the peak.")
+        else:
+            st.caption("capture — dormant: no priced payers in the "
+                       "recent window yet.")
+        # 3. THE GF LINE — the live factor and the persisted walk
+        #    projection (the plate renders the scout's walk, never
+        #    computes one).
+        try:
+            gf = _learning_factor()
+        except Exception:
+            gf = None
+        if gf is None:
+            st.caption("guard factor — unreadable: the fixed geometry "
+                       "(1.00×) stands fail-soft.")
+            return
+        _head = f"guard factor — the machine's calibration: {gf:.2f}× "
+        try:
+            proj = _learning_projection()
+        except Exception:
+            proj = None
+        if not isinstance(proj, dict) or not proj:
+            _head += ("GF projection: dormant — the walk arms with the "
+                      "rotation-boundary hook (each silent rotation "
+                      "walks its own B/P under the armed cell).")
+        else:
+            try:
+                _t = datetime.fromisoformat(
+                    str(proj.get("computed_at") or ""))
+                if _t.tzinfo is None:
+                    _t = _t.astimezone()
+                _age = int(max(0.0, (datetime.now().astimezone() - _t)
+                               .total_seconds() / 3600.0))
+            except Exception:
+                _age = None
+            _n = int(proj.get("applied") or 0)
+            _head += (f"GF projection: "
+                      f"{float(proj.get('start') or 1.0):.2f}× → "
+                      f"{float(proj.get('end') or 1.0):.2f}× "
+                      f"({_n} {'apply' if _n == 1 else 'applies'}"
+                      + (f", computed {_age}h ago"
+                         if _age is not None else "") + ")")
+            if proj.get("at_floor"):
+                _head += (" — at the MIN_GF floor: the calibration "
+                          "cannot loosen further.")
+            elif _age is not None and _age > 48:
+                _head += (" — stale beyond 48h: history, not a "
+                          "forecast.")
+        st.caption(_head)
+        # THE GF TREND SPARKLINE (Sep 30): the machine factor sampled
+        # by the nightly self_adjust rows — the TREND beside the
+        # current value. Render-only: the series comes from the seam
+        # (_learning_history), the plate never derives one; a broken
+        # read degrades only this line.
+        try:
+            hist = _learning_history(weeks=8)
+        except Exception:
+            hist = None
+        if hist is None:
+            pass          # a broken history read degrades the trend
+                          # line only — the plate stands
+        elif not hist:
+            st.caption(
+                "GF trend: collecting — the nightly self_adjust rows "
+                "accumulate one factor per day; the sparkline arms as "
+                "the series grows.")
+        else:
+            _blocks = "▁▂▃▄▅▆▇█"
+            _vals = [float(r["factor"]) for r in hist]
+            _lo, _hi = min(_vals), max(_vals)
+            _span = (_hi - _lo) or 1.0
+            _bar = "".join(_blocks[min(7, int((v - _lo) / _span * 7.999))]
+                           for v in _vals)
+            if _hi - _lo < 1e-9:
+                st.caption(
+                    f"GF trend ({len(_vals)}d): {_bar} flat at "
+                    f"{_vals[-1]:.2f}×")
+            else:
+                st.caption(
+                    f"GF trend ({len(_vals)}d): {_bar} "
+                    f"{_lo:.2f}–{_hi:.2f}× → {_vals[-1]:.2f}× "
+                    f"({_vals[-1] - _vals[0]:+.2f})")
+    except Exception as exc:
+        logger.debug("learning plate skipped: %s", exc)
 
 
 def _render_burial_hindsight() -> None:
@@ -2821,6 +3064,23 @@ def _render_burial_hindsight() -> None:
                     for g in h["by_gate"][:6])
                 st.markdown("<div style='padding:2px 0 6px;'>" + rows
                             + "</div>", unsafe_allow_html=True)
+            if any(g.get("buckets") for g in h["by_gate"]):
+                _qflat = [b for g in h["by_gate"]
+                          for b in g.get("buckets", [])][:12]
+                _qrows = "".join(
+                    f"<div style='font-family:Share Tech Mono,monospace;"
+                    f"font-size:12px;color:#bfae8f;'>"
+                    f"{b['gate']:<18} quick {b['bucket']:<4} n={b['n']:<4} "
+                    f"payers={b['pay']:<3} rate={b['rate']:.0%}  "
+                    f"medfill {b['medfill']:+.1f}%</div>"
+                    for b in _qflat)
+                st.markdown(
+                    "<div style='padding:0 0 6px;'><span class='dim' "
+                    "style='font-size:11px;'>the quick axis — each gate's "
+                    "refusals by the score it refused at (medfill = median "
+                    "fill-modeled run after spread + fee; '?' = "
+                    "un-scored):</span></div>" + _qrows,
+                    unsafe_allow_html=True)
             if h["top"]:
                 tops = "".join(
                     f"<div style='font-family:Share Tech Mono,monospace;"

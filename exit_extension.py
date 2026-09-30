@@ -244,6 +244,24 @@ def aa_apply_silent_rotation(
         _bs._save_scanner_state(_st2)
     except Exception:
         pass
+    # THE OPERATOR'S PROJECTION (Sep 30): where the machine's
+    # calibration is heading. The hook evaluates the live rotation's
+    # own B/P anyway — the same aggregate feeds the walk projection the
+    # bot's learning plate renders beside the GF line (one walk, two
+    # consumers: the projection is evaluate()'s own mechanics via the
+    # shared _walk_factor). Merge-saved through profit_guard._save:
+    # two writers share the state file and the overlay must never
+    # erase the factor, the history, or the ledger. Fail-soft: a broken
+    # projection never un-books an evaluated rotation.
+    try:
+        from canary_runner import gf_walk_projection as _gfwp
+        import profit_guard as _pg_proj
+        _pg_proj._save({"gf_projection": _gfwp(
+            [{"B": agg["B"], "P": agg["P"], "cycle": 0,
+              "rot": rot_key}],
+            params=_aa_params())})
+    except Exception:
+        pass
     return {"evaluated": True, "status": rec.get("status"),
             "reason": rec.get("reason"), "cohort": cohort,
             "B": agg["B"], "P": agg["P"]}

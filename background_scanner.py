@@ -1221,6 +1221,80 @@ def popup_floor(tide_state: str | None = None, lw_pts: float = 0,
 SEAM_TIDE_RELEASE_QUICK = 92.0
 SEAM_TIDE_RELEASE_DEEP = 84.0
 
+# ── THE TIDE-OUT CALIBRATED RETUNE (Sep 30, the per-gate study):
+# September's refusals, joined to the OHLCV window and priced through
+# the bot's fill model (scratch/pergate_calibration.py), said the
+# OUT-tide wall was burying its own money: tide-out n=8, 6 payers,
+# median payer +$2.11/$100, median dud −$0.09 — the gate's whole dud
+# cost a rounding error — and the payers sat at quick 64–87, UNDER the
+# champion seam's 92 (the existing valve missed every one of them).
+# THE RETUNE: a dial-gated second valve that admits tide-out
+# refusals at quick >= 66 (the study's EV-mining), scaled by the fill
+# model's floor (ride x CAPTURE_FLOOR must clear the round trip — a
+# 66 quick read prices a ~3% ride; the floor demands the same fee
+# clearance the bot's entry floor demands at the door). The DEEP READ
+# still owes its verdict on both paths — the retune opens the TIDE
+# gate, never the brain's. Dial: TIDE_RETUNE_ENABLED=1 in
+# exit_extension.dial.json (env first — the _dial seam), read LIVE,
+# absence = OFF: the blanket wall stands exactly as before until the
+# operator arms it, and flipping it back expires it on the next tick
+# (the exit-extension posture: no restart, no hidden state).
+TIDE_RETUNE_ENABLED_KEY = "TIDE_RETUNE_ENABLED"
+TIDE_RETUNE_QUICK_MIN = 66.0
+TIDE_RETUNE_CAP = 3          # popups per day while armed (dial: TIDE_RETUNE_DAILY_CAP)
+TIDE_RETUNE_DAY_CAP_KEY = "TIDE_RETUNE_DAILY_CAP"
+_TIDE_RETUNE_DAYS: dict[str, list[str]] = {}   # day -> released pairs (memory, resets on restart)
+
+
+def _tide_retune_dial() -> dict:
+    """The retune's knobs, read LIVE (the _dial seam: env first, then
+    exit_extension.dial.json, then defaults). Anything but exactly '1'
+    on the master key is OFF — the fail-safe read, never a truthy parse."""
+    try:
+        from exit_extension import _dial as _exx_dial
+        armed = str(_exx_dial(TIDE_RETUNE_ENABLED_KEY, "") or "").strip() == "1"
+        try:
+            qmin = float(_exx_dial("TIDE_RETUNE_QUICK_MIN", "")
+                         or TIDE_RETUNE_QUICK_MIN)
+        except (TypeError, ValueError):
+            qmin = TIDE_RETUNE_QUICK_MIN
+        try:
+            cap = int(float(_exx_dial(TIDE_RETUNE_DAY_CAP_KEY, "")
+                            or TIDE_RETUNE_CAP))
+        except (TypeError, ValueError):
+            cap = TIDE_RETUNE_CAP
+        return {"armed": armed, "quick_min": qmin, "cap": max(0, cap)}
+    except Exception:
+        return {"armed": False, "quick_min": TIDE_RETUNE_QUICK_MIN,
+                "cap": TIDE_RETUNE_CAP}
+
+
+def _tide_retune_releases(quick, pair: str = "") -> tuple[bool, str]:
+    """(released, why) — the calibrated tide-out valve (the Sep-30
+    per-gate study). FAIL-CLOSED at every door: the dial OFF or the
+    module unreadable -> the blanket block stands; quick under the
+    study's floor -> no release; the pair already released today (or
+    the day's cap spent) -> the study priced ONE admission per pair,
+    not a flood. This opens the TIDE gate only — every caller keeps
+    the deep read's own veto downstream."""
+    d = _tide_retune_dial()
+    if not d["armed"]:
+        return False, "the retune dial is OFF"
+    if float(quick or 0) < d["quick_min"]:
+        return False, (f"quick {float(quick or 0):.1f} < the study's "
+                       f"{d['quick_min']:.0f} floor")
+    day = datetime.now().astimezone().strftime("%Y-%m-%d")
+    today = _TIDE_RETUNE_DAYS.setdefault(day, [])
+    if pair and pair in today:
+        return False, "already released today"
+    if len(today) >= d["cap"]:
+        return False, f"the day's {d['cap']} release cap is spent"
+    if pair:
+        today.append(pair)
+    return True, (f"the calibration study opened the tide gate "
+                  f"(quick {float(quick or 0):.0f} >= {d['quick_min']:.0f}, "
+                  f"{len(today)}/{d['cap']} today)")
+
 
 def tide_memory_states() -> tuple:
     """The tide states the per-coin memory adjusts on the FLOOR and the
@@ -5053,14 +5127,31 @@ def main():
                                         "the bot's ledger prices the tide (the deep read still owes its verdict)",
                                         asset, float(signal.confidence), _bot_out_pbar, _bot_lmeta)
                         else:
-                            _bot_why = (f"the OUT tide's price on the bot's ledger: quick "
-                                        f"{float(signal.confidence):.1f} vs personal bar "
-                                        f"{_bot_out_pbar:.0f} ({_bot_lmeta})"
-                                        if _bot_out_pbar is not None else
-                                        f"fleet {_tp0:.0f}% up — all ships sink together; no solo move "
-                                        f"(the carve-out needs ≥+{LONE_WOLF_MOVE_MIN:.0f}% own 24h move); "
-                                        f"the learner is cold — the wall stands")
-                            logger.info("  TIDE OUT (fleet %.0f%%) — no bridge write; %s", _tp0, _bot_why)
+                            # ── THE CALIBRATED RETUNE (Sep 30, the
+                            # per-gate study): dial-gated, quick >= the
+                            # study's floor, capped, fail-closed. The
+                            # fill model's floor rides in the number
+                            # itself: 66 quick prices a ~3% ride, and
+                            # 3% x the 0.35 capture floor clears the
+                            # 0.52% round trip. Opens the TIDE gate
+                            # only — the deep read still owes its
+                            # verdict downstream.
+                            _rrel, _rrel_why = _tide_retune_releases(
+                                signal.confidence, pair)
+                            if _rrel:
+                                _bot_out_priced_pass = True
+                                _bot_out_pbar = _tide_retune_dial()["quick_min"]
+                                logger.info("  OUT-TIDE RETUNE PASS: %s — quick %.1f — %s (the deep read still owes its verdict)",
+                                            asset, float(signal.confidence), _rrel_why)
+                            else:
+                                _bot_why = (f"the OUT tide's price on the bot's ledger: quick "
+                                            f"{float(signal.confidence):.1f} vs personal bar "
+                                            f"{_bot_out_pbar:.0f} ({_bot_lmeta})"
+                                            if _bot_out_pbar is not None else
+                                            f"fleet {_tp0:.0f}% up — all ships sink together; no solo move "
+                                            f"(the carve-out needs ≥+{LONE_WOLF_MOVE_MIN:.0f}% own 24h move); "
+                                            f"the learner is cold — the wall stands")
+                                logger.info("  TIDE OUT (fleet %.0f%%) — no bridge write; %s", _tp0, _bot_why)
                             _log_suppression(pair, "tide-out", _bot_why,
                                              quick=float(signal.confidence),
                                              brain=(float(_deep.confidence) if _deep is not None else None),
@@ -5475,28 +5566,42 @@ def main():
                                             asset, float(signal.confidence),
                                             float(getattr(_deep, "confidence", 0) or 0), _rel_why)
                             else:
-                                _bar_txt = (f"personal bar {_pbar:.0f} ({_lmeta})"
-                                            if _pbar is not None
-                                            else f"no learned bar ({_lmeta})")
-                                try:
-                                    import carve_out as _co_t
-                                    _lw_req_txt = (f"lone wolf needs >= "
-                                                   f"+{_co_t.required_own_move(_co_t.gate(pair=pair)):.0f}% "
-                                                   f"own 24h move")
-                                except Exception:
-                                    _lw_req_txt = (f"lone wolf needs >= "
-                                                   f"+{LONE_WOLF_MOVE_MIN:.0f}% own 24h move")
-                                _log_suppression(pair, "tide-out",
-                                                 f"fleet {_tp2:.0f}% up — the OUT tide's price: "
-                                                 f"quick {float(signal.confidence):.1f} vs {_bar_txt}; "
-                                                 f"{_lw_req_txt}; journal: {_rel_why}",
-                                                 quick=float(signal.confidence),
-                                                 brain=(float(_deep.confidence) if _deep is not None else None),
-                                                 floor=float(DESKTOP_ALERT_MIN),
-                                                 tide=f"OUT {_tp2:.0f}%", rot=_rot_now_key)
-                                logger.info("  TIDE OUT (fleet %.0f%%) — desktop suppressed (%s; journal: %s)",
-                                            _tp2, _bar_txt, _rel_why)
-                                return
+                                # ── THE CALIBRATED RETUNE (the same
+                                # valve the bot path rides): the study
+                                # said the wall buried quick-66+ payers
+                                # the champion seam's 92 never reached;
+                                # the dial decides, the cap bounds it,
+                                # the brain still rules downstream.
+                                _rrel, _rrel_why = _tide_retune_releases(
+                                    signal.confidence, pair)
+                                if _rrel:
+                                    _out_tide_learned = True  # rides the marked 'against the tide' path
+                                    _mark_release(pair, "tide-out-retune")
+                                    logger.info("  OUT-TIDE RETUNE RELEASE: %s — quick %.0f — %s (the brain still owes its verdict)",
+                                                asset, float(signal.confidence), _rrel_why)
+                                else:
+                                    _bar_txt = (f"personal bar {_pbar:.0f} ({_lmeta})"
+                                                if _pbar is not None
+                                                else f"no learned bar ({_lmeta})")
+                                    try:
+                                        import carve_out as _co_t
+                                        _lw_req_txt = (f"lone wolf needs >= "
+                                                       f"+{_co_t.required_own_move(_co_t.gate(pair=pair)):.0f}% "
+                                                       f"own 24h move")
+                                    except Exception:
+                                        _lw_req_txt = (f"lone wolf needs >= "
+                                                       f"+{LONE_WOLF_MOVE_MIN:.0f}% own 24h move")
+                                    _log_suppression(pair, "tide-out",
+                                                     f"fleet {_tp2:.0f}% up — the OUT tide's price: "
+                                                     f"quick {float(signal.confidence):.1f} vs {_bar_txt}; "
+                                                     f"{_lw_req_txt}; journal: {_rel_why}; retune: {_rrel_why}",
+                                                     quick=float(signal.confidence),
+                                                     brain=(float(_deep.confidence) if _deep is not None else None),
+                                                     floor=float(DESKTOP_ALERT_MIN),
+                                                     tide=f"OUT {_tp2:.0f}%", rot=_rot_now_key)
+                                    logger.info("  TIDE OUT (fleet %.0f%%) — desktop suppressed (%s; journal: %s; retune: %s)",
+                                                _tp2, _bar_txt, _rel_why, _rrel_why)
+                                    return
                 # The brain rules EVERY alert — whether this stage read it
                 # or the near-miss consult already did (one read, cached).
                 if _deep is None:

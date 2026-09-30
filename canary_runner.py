@@ -245,6 +245,105 @@ def collect_cycles(cohort: list[str], cycles: int, rotation_seed: dict,
 
 
 # ── the evaluation (the spec's thresholds, machine-real) ────────────
+def _walk_factor(cycles: list[dict], verdicts: list,
+                 daily_cap: float,
+                 start_factor: float | None = None) -> dict:
+    """THE ONE WALK (Sep 30): the factor per applied cycle under the
+    machine's own rails — aa.clamp's guard clamp and the daily cap
+    (REFUSED whole, never truncated — apply_adjustment's real
+    posture). Shared by evaluate()'s guard-factor verdict and
+    gf_walk_projection()'s operator projection, so the projection the
+    bot's plate renders IS this evaluation's walk, never a second
+    implementation that could drift. Cycles carry hourly ts (the
+    collector stamps them); the daily rail groups on the ts day, an
+    unstamped cycle rides its own day. start_factor pins the walk's
+    start (a drill controls its variables); production walks from the
+    LIVE factor (aa.read_guard_factor)."""
+    import auto_adjust as aa
+    try:
+        before = (aa.read_guard_factor() if start_factor is None
+                  else float(start_factor))
+    except Exception:
+        before = aa.read_guard_factor()
+    start = before
+    gf_min = before
+    applied = 0
+    cap_refused = 0
+    consumed: dict = {}
+    for c, (delta, reason) in zip(cycles, verdicts):
+        if reason != "ok":
+            continue
+        ts = c.get("ts")
+        day = str(ts)[:10] if ts else f"cycle-{c.get('cycle')}"
+        used = consumed.get(day, 0.0)
+        if used + abs(delta) > daily_cap:
+            cap_refused += 1
+            continue          # daily_cap_exceeded — the rotation is
+                              # refused whole, never shrunk
+        after = aa.clamp(before, delta)
+        if after < before:    # the rule only loosens; the clamp floors it
+            consumed[day] = used + abs(delta)
+            before = after
+            applied += 1
+            gf_min = min(gf_min, before)
+    return {"start": start, "end": before, "min": gf_min,
+            "applied": applied, "cap_refused": cap_refused}
+
+
+def gf_walk_projection(cycles: list[dict], params: dict | None = None,
+                       start_factor: float | None = None) -> dict:
+    """THE OPERATOR'S PROJECTION (Sep 30): where the machine's
+    calibration is HEADING — the same walk evaluate() judges, run over
+    the caller's cycles (the boundary hook feeds it the live rotation's
+    own B/P under the armed cell) and persisted into
+    profit_guard_state.json:gf_projection for the bot's learning plate
+    to render beside the GF line. Same rails, same clamp, same daily
+    cap — one walk, two consumers, zero drift between the verdict and
+    the projection. Never raises: a projection that cannot be computed
+    must never break the rotation boundary that computes it."""
+    import auto_adjust as aa
+    try:
+        return _gf_walk_projection(cycles, params, start_factor)
+    except Exception:
+        return {"start": 0.0, "end": 0.0, "delta": 0.0, "applied": 0,
+                "rotations": len(cycles), "m_fail": 0,
+                "cap_refused": 0, "at_floor": False, "params": None,
+                "source": "live", "computed_at":
+                datetime.now().astimezone().isoformat(), "error": True}
+
+
+def _gf_walk_projection(cycles: list[dict], params: dict | None,
+                        start_factor: float | None) -> dict:
+    import auto_adjust as aa
+    _p = params or {}
+    try:
+        _dcap = (aa.DAILY_CAP if _p.get("daily_cap") is None
+                 else float(_p["daily_cap"]))
+    except (TypeError, ValueError):
+        _dcap = aa.DAILY_CAP
+    verdicts = [aa.compute_delta(c["B"], c["P"]) for c in cycles]
+    w = _walk_factor(cycles, verdicts, _dcap, start_factor=start_factor)
+    cell = None
+    if params is not None:
+        try:
+            cell = {"alpha": (aa.ALPHA if _p.get("alpha") is None
+                              else float(_p["alpha"])),
+                    "delta_max": (aa.DELTA_MAX if _p.get("delta_max") is None
+                                  else float(_p["delta_max"])),
+                    "daily_cap": _dcap}
+        except (TypeError, ValueError):
+            cell = None
+    return {"start": round(w["start"], 4), "end": round(w["end"], 4),
+            "delta": round(w["end"] - w["start"], 4),
+            "applied": w["applied"], "rotations": len(cycles),
+            "m_fail": sum(1 for _, r in verdicts if r != "ok"),
+            "cap_refused": w["cap_refused"],
+            "at_floor": w["end"] <= aa.MIN_GF + 1e-9,
+            "params": cell,
+            "source": "pinned" if start_factor is not None else "live",
+            "computed_at": datetime.now().astimezone().isoformat()}
+
+
 def evaluate(cycles: list[dict], prior_band: tuple[float, float] | None,
              worst_cap: float = WORST_LOSS_CAP, params: dict | None = None,
              start_factor: float | None = None) -> dict:
@@ -330,32 +429,14 @@ def evaluate(cycles: list[dict], prior_band: tuple[float, float] | None,
         cell_cap = worst_cap
         params_cell = None
     # THE WALK — the factor the bot follows, under the machine's own
-    # rails: the guard clamp (aa.clamp) and the daily cap (REFUSED, not
-    # truncated — apply_adjustment's real posture).
-    try:
-        before = (aa.read_guard_factor() if start_factor is None
-                  else float(start_factor))
-    except Exception:
-        before = aa.read_guard_factor()
-    start = before
-    gf_min = before
-    walk_applied = 0
-    consumed: dict = {}
-    for c, (delta, reason) in zip(cycles, verdicts):
-        if reason != "ok":
-            continue
-        ts = c.get("ts")
-        day = str(ts)[:10] if ts else f"cycle-{c.get('cycle')}"
-        used = consumed.get(day, 0.0)
-        if used + abs(delta) > _dcap:
-            continue          # daily_cap_exceeded — the rotation is
-                              # refused whole, never shrunk
-        after = aa.clamp(before, delta)
-        if after < before:    # the rule only loosens; the clamp floors it
-            consumed[day] = used + abs(delta)
-            before = after
-            walk_applied += 1
-            gf_min = min(gf_min, before)
+    # rails. THE ONE WALK (Sep 30): the mechanics live in _walk_factor,
+    # shared with gf_walk_projection — the projection the bot's plate
+    # renders is THIS walk, never a second implementation.
+    w = _walk_factor(cycles, verdicts, _dcap, start_factor=start_factor)
+    start = w["start"]
+    before = w["end"]
+    gf_min = w["min"]
+    walk_applied = w["applied"]
     gf_breach = before <= aa.MIN_GF + 1e-9
     breach = outside_band or worst < cell_cap or (not stable) or gf_breach
     reasons = []

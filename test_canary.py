@@ -392,11 +392,15 @@ try:
 
     ev_floor = cr.evaluate(runaway, prior_band=(-5.0, 5.0),
                            params={"alpha": 0.10, "delta_max": 0.10,
-                                   "daily_cap": 2.0})
+                                   "daily_cap": 2.0},
+                           start_factor=2.0)
     check("the guard-factor walk BREACHES when the cell would drive "
-          "the bot's calibration to the floor (pinned live factor, "
-          "the daily cap deliberately unconstrained so the CLAMP rail "
-          "is what stops the walk at MIN_GF)",
+          "the bot's calibration to the floor (start_factor PINNED at "
+          "2.0 — a drill controls its variables; the live factor moves "
+          "under the running scanner and an exact applied-count pin "
+          "must never ride it — the daily cap is deliberately "
+          "unconstrained so the CLAMP rail is what stops the walk at "
+          "MIN_GF)",
           ev_floor["guard_factor_breach"] is True
           and ev_floor["guard_factor"]["end"] == cr_aa.MIN_GF
           and ev_floor["guard_factor"]["applied"] == 15
@@ -431,6 +435,214 @@ try:
           ev_floor["band_certified"] and ev_floor["breach"]
           and any("guard factor" in r for r in ev_floor["reasons"]),
           ev_floor["reasons"])
+
+    # ── THE OPERATOR'S PROJECTION (Sep 30): the same walk, persisted —
+    # gf_walk_projection over the caller's cycles under the armed cell
+    # lands the heading the bot's learning plate renders beside the GF
+    # line. One walk, two consumers: the projection IS evaluate()'s
+    # mechanics (the shared _walk_factor), never a second
+    # implementation that could drift from the verdict.
+    proj = cr.gf_walk_projection(runaway, params={"alpha": 0.10,
+                                                  "delta_max": 0.10,
+                                                  "daily_cap": 2.0},
+                                 start_factor=2.0)
+    check("the projection is the SAME WALK as the evaluation's: the "
+          "runaway cell ends at the floor, the pinned start rides, the "
+          "applied count matches the verdict's walk exactly",
+          proj["source"] == "pinned" and proj["start"] == 2.0
+          and proj["end"] == cr_aa.MIN_GF and proj["at_floor"] is True
+          and proj["applied"] == ev_floor["guard_factor"]["applied"],
+          (proj, ev_floor.get("guard_factor")))
+    proj2 = cr.gf_walk_projection([], params=None, start_factor=1.0)
+    check("an empty cycle list projects honestly: delta 0, applied 0, "
+          "never a made-up heading",
+          proj2["delta"] == 0.0 and proj2["applied"] == 0
+          and proj2["rotations"] == 0 and proj2["source"] == "pinned",
+          proj2)
+    check("a projection over the healthy cycles rides the LIVE factor "
+          "(source live) and never claims the floor",
+          cr.gf_walk_projection(cyc)["source"] == "live", None)
+    check("a poisoned projection fails SOFT (the error-shaped dict, "
+          "never a raise — the boundary hook computes this mid-rotation)",
+          cr.gf_walk_projection([{"B": "x", "P": 1}])["error"] is True,
+          None)
+    _bs_src_2 = (BASE / "exit_extension.py").read_text(
+        encoding="utf-8").replace("\r\n", "\n")
+    _hook = _bs_src_2.split("def aa_apply_silent_rotation")[1].split(
+        "\ndef ")[0]
+    check("the boundary hook projects the walk and persists it through "
+          "profit_guard's merge-safe save (gf_projection in the state "
+          "file the bot's plate already reads)",
+          "gf_walk_projection" in _hook and "gf_projection" in _hook
+          and "_save(" in _hook, _hook[:200])
+
+    # ── THE PRODUCTION ARM WIRE (Sep 30): ops/canary_enable arms a
+    # CERTIFIED band, not an inconclusive verdict — the task-55 verdict
+    # made a band-less evaluation INCONCLUSIVE, so the gate must now
+    # DERIVE the band from the sweep evidence it already holds and
+    # carry it through the arm rehearsal (run_canary arm=True) into the
+    # flip. Loaded by PATH (importlib) so the battery's module set is
+    # untouched; the sweep, the rehearsal and the report dir all ride
+    # fakes/sandboxes — no live cohort, no live flip, no wire.
+    import contextlib
+    import importlib.util as _ilu
+    import io as _io
+    import simulate_sweep as _ss
+
+    def _load_canary_enable():
+        _spec = _ilu.spec_from_file_location(
+            "_canary_enable_probe", BASE / "ops" / "canary_enable.py")
+        _mod = _ilu.module_from_spec(_spec)
+        _spec.loader.exec_module(_mod)
+        return _mod
+
+    _ce = _load_canary_enable()
+    check("the wire resolves the band from the CHOSEN CELL's own "
+          "sweep evidence (ci_p5/ci_p95 — the replayed-delta band), "
+          "not module defaults and not a self-derived CI",
+          _ce.prior_band_for_cell({"ci_p5": -0.031, "ci_p95": -0.004})
+          == (-0.031, -0.004)
+          and _ce.prior_band_for_cell({"ci_p5": "-0.02"}) == (-0.02, 0.0)
+          and _ce.prior_band_for_cell({}) == (0.0, 0.0),
+          {"picked": _ce.prior_band_for_cell({"ci_p5": -0.031,
+                                              "ci_p95": -0.004}),
+           "empty": _ce.prior_band_for_cell({})})
+
+    _ce_sbx = Path(tempfile.mkdtemp())
+    _ce_runs_real = os.environ.get(cr.RUNS_ENV)
+    os.environ[cr.RUNS_ENV] = str(_ce_sbx / "runs")
+    _real_run_canary = cr.run_canary
+    _real_lh, _real_fs = _ss.load_history, _ss.focused_sweep
+    _rehearsal_calls: list[dict] = []
+
+    def _fake_rehearsal(cohort, rotation_seed, **kw):
+        _rehearsal_calls.append({"cohort": list(cohort),
+                                 "seed": dict(rotation_seed), **kw})
+        return {"run_id": "rehearsal-probe", "status": _ce_status[0],
+                "dial": {"dial": "canary",
+                         "cohort_id": "canary-rehearsal-probe"},
+                "evaluation": {"band_certified": True, "worst": -0.02,
+                               "worst_cap": 0.04, "reasons": []},
+                "report": str(_ce_sbx / "rehearsal.json")}
+
+    def _fake_history(n):
+        return [{"rot": f"probe-{i}", "B": 10, "P": 4}
+                for i in range(6)]
+
+    def _fake_focused(history):
+        # the real focused extract's shape: the dmax=0.10 cell sits AT
+        # the cap (echoed back — not strictly inside), the dmax=0.05
+        # cell is the conservative safe one the gate must pick
+        return [
+            {"alpha": 0.05, "delta_max": 0.10, "daily_cap": 0.20,
+             "net_delta": -0.30, "ci_p5": -0.060, "ci_p95": -0.020,
+             "worst_single_book_loss": -0.10, "applied_count": 5},
+            {"alpha": 0.03, "delta_max": 0.05, "daily_cap": 0.20,
+             "net_delta": -0.15, "ci_p5": -0.031, "ci_p95": -0.004,
+             "worst_single_book_loss": -0.05, "applied_count": 5},
+        ]
+
+    _ce_status = ["pass_continue"]
+    try:
+        cr.run_canary = _fake_rehearsal
+        _ss.load_history = _fake_history
+        _ss.focused_sweep = _fake_focused
+
+        # the DRY RUN: no rehearsal, no flip — and the operator SEES
+        # the certification band before arming
+        _out = _io.StringIO()
+        _argv_real = sys.argv
+        sys.argv = ["canary_enable.py", "--symbols", "BTC,ETH,SOL"]
+        try:
+            with contextlib.redirect_stdout(_out):
+                _rc = _ce.main()
+        finally:
+            sys.argv = _argv_real
+        check("the dry run names the certified band (the operator "
+              "reads the certification BEFORE arming) and rehearses "
+              "nothing",
+              _rc == 0 and not _rehearsal_calls
+              and "certified band" in _out.getvalue()
+              and "-0.0310" in _out.getvalue(),
+              _out.getvalue()[-200:])
+
+        # the ARM: the rehearsal receives the PICK's band as
+        # prior_band, the selected cell as params, arm=True — and the
+        # ARMED line reports the band in the wire's own json
+        sys.argv = ["canary_enable.py", "--symbols", "BTC,ETH,SOL",
+                    "--yes"]
+        _out2 = _io.StringIO()
+        try:
+            with contextlib.redirect_stdout(_out2):
+                _rc2 = _ce.main()
+        finally:
+            sys.argv = _argv_real
+        _arm = _rehearsal_calls[-1] if _rehearsal_calls else {}
+        check("the arm rehearses THROUGH the certification: the "
+              "sweep-derived band rides prior_band, the selected cell "
+              "rides params, arm=True — production arms a certified "
+              "band, never an inconclusive verdict",
+              _rc2 == 0 and len(_rehearsal_calls) == 1
+              and tuple(_arm.get("prior_band") or ()) == (-0.031, -0.004)
+              and _arm.get("params") == {"alpha": 0.03,
+                                         "delta_max": 0.05,
+                                         "daily_cap": 0.20}
+              and _arm.get("arm") is True
+              and _arm.get("cycles") == _ce.REHEARSAL_CYCLES
+              and _arm.get("cohort") == ["BTC", "ETH", "SOL"]
+              and _arm.get("seed") == {"B": 12, "r": 0.45},
+              _arm)
+        check("the ARMED line reports the band and the rehearsal "
+              "status (the wire's own audit trail)",
+              _rc2 == 0 and "ARMED:" in _out2.getvalue()
+              and "certified_band" in _out2.getvalue()
+              and "-0.031" in _out2.getvalue()
+              and "pass_continue" in _out2.getvalue(),
+              _out2.getvalue()[-260:])
+
+        # the rehearsal FAILED: no ARMED line, the gate refuses loudly
+        _rehearsal_calls.clear()
+        _ce_status[0] = "breach_simulated"
+        sys.argv = ["canary_enable.py", "--yes"]
+        _out3 = _io.StringIO()
+        try:
+            with contextlib.redirect_stdout(_out3):
+                _rc3 = _ce.main()
+        finally:
+            sys.argv = _argv_real
+        check("a failed rehearsal refuses the arm (nonzero exit, no "
+              "ARMED line — production never rides a cell the "
+              "rehearsal did not pass)",
+              _rc3 == 1 and "ARMED:" not in _out3.getvalue()
+              and "REFUSING" in _out3.getvalue(),
+              _out3.getvalue()[-200:])
+
+        # the honest refusal: no safe cell -> no rehearsal at all
+        _rehearsal_calls.clear()
+        _ss.focused_sweep = lambda history: [
+            {"alpha": 0.03, "delta_max": 0.10, "daily_cap": 0.20,
+             "net_delta": -0.3, "ci_p5": -0.06, "ci_p95": -0.02,
+             "worst_single_book_loss": -0.10, "applied_count": 5}]
+        sys.argv = ["canary_enable.py", "--yes"]
+        _out4 = _io.StringIO()
+        try:
+            with contextlib.redirect_stdout(_out4):
+                _rc4 = _ce.main()
+        finally:
+            sys.argv = _argv_real
+        check("no safe cell refuses BEFORE any rehearsal (the "
+              "worst-loss gate stays the first door)",
+              _rc4 == 1 and not _rehearsal_calls
+              and "REFUSING to arm" in _out4.getvalue(),
+              _out4.getvalue()[-200:])
+    finally:
+        cr.run_canary = _real_run_canary
+        _ss.load_history, _ss.focused_sweep = _real_lh, _real_fs
+        if _ce_runs_real is None:
+            os.environ.pop(cr.RUNS_ENV, None)
+        else:
+            os.environ[cr.RUNS_ENV] = _ce_runs_real
+        shutil.rmtree(_ce_sbx, ignore_errors=True)
 finally:
     cr.DIAL_FILE = _real_dial_file
     cr.COHORT_FILE = _real_cohort_file

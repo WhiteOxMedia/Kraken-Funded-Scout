@@ -655,6 +655,131 @@ _env(ex.ENABLED_KEY, "0")   # the 11.x contract resumes
 _ca_8x.STATE_FILE = Path(_8x_tmp) / "acct_gone.json"   # the live file
 # stays unreachable for the rest of the drive (the sink contract)
 
+# ── 12. THE TIDE-OUT CALIBRATED RETUNE (Sep 30, the per-gate study):
+# September's refusals priced through the bot's fill model said the
+# OUT-tide wall was burying its own money (n=8, 6 payers, median dud
+# −$0.09) at quick 64–87 — UNDER the champion seam's 92, so the
+# existing valve missed every one. The retune valve: dial-gated
+# (absence = OFF), quick >= the study floor, per-pair dedupe, a daily
+# cap, live reads, fail-closed at every door — the exit-extension
+# posture on a NEW gate. This section carries its OWN dial sandbox:
+# the 8x section runs after the drive's main sandbox restore, so the
+# env points at the LIVE dial file here — writing it is forbidden.
+import tempfile as _tf_12
+def _ck12(label, ok, detail=""):
+    check(label + ("" if ok else f"  [{detail}]"), bool(ok))
+
+_12_tmp = Path(_tf_12.mkdtemp())
+_old_state_env_12 = _env(ex.STATE_ENV, str(_12_tmp / "state.json"))
+_12_dial = _12_tmp / "exit_extension.dial.json"
+_old_retune_env = os.environ.pop(bs.TIDE_RETUNE_ENABLED_KEY, None)
+_12_bad = False
+try:
+    # 12.1 the seam exists on the scanner (RED until wired)
+    _ck12("12.1 background_scanner exposes the retune valve + dial key",
+          hasattr(bs, "_tide_retune_releases")
+          and hasattr(bs, "TIDE_RETUNE_ENABLED_KEY")
+          and bs.TIDE_RETUNE_QUICK_MIN == 66.0)   # the study's number,
+          # pinned: a floor drift must be a conscious re-pin
+
+    # 12.2 default OFF: no env, no dial file — the wall stands
+    _ck12("12.2 the retune defaults OFF (absence is meaning, the "
+          "fail-safe read)",
+          bs._tide_retune_releases(70.0, "TEST/USD")[0] is False
+          and "OFF" in bs._tide_retune_releases(70.0, "TEST/USD")[1])
+
+    # 12.3 the env arms it live: a quick-70 candidate releases (the
+    # study's band — payers sat at 64-87, the champion 92 missed them)
+    os.environ[bs.TIDE_RETUNE_ENABLED_KEY] = "1"
+    _rel, _why = bs._tide_retune_releases(70.0, "TEST/USD")
+    _ck12("12.3 the env dial arms the valve live and a quick-70 "
+          "candidate releases with the study's why",
+          _rel is True and "calibration study" in _why
+          and "1/3 today" in _why,   # one slot consumed of the 3 cap
+          _why)
+
+    # 12.4 per-pair dedupe: one admission per pair per day
+    _rel2, _why2 = bs._tide_retune_releases(88.0, "TEST/USD")
+    _ck12("12.4 the same pair cannot release twice in a day (the "
+          "study priced ONE admission, not a flood)",
+          _rel2 is False and "already" in _why2, _why2)
+
+    # 12.5 the study floor holds: quick 51 is the dud shape
+    _rel3, _why3 = bs._tide_retune_releases(51.0, "OTHER/USD")
+    _ck12("12.5 a quick-51 candidate stays refused (the floor is "
+          "the study's EV-mining, not decoration)",
+          _rel3 is False and "floor" in _why3, _why3)
+
+    # 12.6 the daily cap refuses whole rotations once spent
+    bs._TIDE_RETUNE_DAYS.clear()
+    os.environ[bs.TIDE_RETUNE_DAY_CAP_KEY] = "1"
+    _relA, _ = bs._tide_retune_releases(70.0, "A/USD")
+    _relB, _whyB = bs._tide_retune_releases(70.0, "B/USD")
+    os.environ.pop(bs.TIDE_RETUNE_DAY_CAP_KEY, None)
+    bs._TIDE_RETUNE_DAYS.clear()
+    _ck12("12.6 the day cap bounds the valve (1-slot cap: the first "
+          "pair releases, the second is refused until tomorrow)",
+          _relA is True and _relB is False and "cap" in _whyB, _whyB)
+
+    # 12.7 the dial FILE arms and disarms it LIVE (no restart) — the
+    # exit-extension posture on the file seam, sandboxed here
+    os.environ.pop(bs.TIDE_RETUNE_ENABLED_KEY, None)
+    _12_dial.write_text(json.dumps({"TIDE_RETUNE_ENABLED": "1"}),
+                        encoding="utf-8")
+    _relF, _ = bs._tide_retune_releases(70.0, "FILE/USD")
+    _12_dial.write_text(json.dumps({"TIDE_RETUNE_ENABLED": "0"}),
+                        encoding="utf-8")
+    _relF2, _whyF2 = bs._tide_retune_releases(70.0, "FILE2/USD")
+    _ck12("12.7 the dial file arms and disarms the valve on the NEXT "
+          "read (no restart, the operator's flip expires it)",
+          _relF is True and _relF2 is False and "OFF" in _whyF2,
+          (_relF, _whyF2))
+
+    # 12.8 fail-closed: an unreachable dial file opens nothing
+    _old_env_12b = os.environ.get(ex.STATE_ENV)
+    os.environ[ex.STATE_ENV] = str(_12_tmp / "no_such_dir" / "state.json")
+    try:
+        _relX, _whyX = bs._tide_retune_releases(99.0, "X/USD")
+    finally:
+        if _old_env_12b is None:
+            os.environ.pop(ex.STATE_ENV, None)
+        else:
+            os.environ[ex.STATE_ENV] = _old_env_12b
+    _ck12("12.8 a broken dial path fails CLOSED (the wall stands when "
+          "the knob cannot be read)",
+          _relX is False and "OFF" in _whyX, _whyX)
+
+    # 12.9 the wiring: both production paths ride the valve, the
+    # popup release is marked as its own provenance, and the
+    # suppression text names the retune's why (the journal stays the
+    # calibration evidence)
+    _src12 = (BASE / "background_scanner.py").read_text(encoding="utf-8")
+    _ck12("12.9 both production paths call the valve; the popup "
+          "release marks 'tide-out-retune' and the suppression names "
+          "the retune why (the journal keeps calibrating)",
+          _src12.count("_tide_retune_releases(") >= 3   # def + 2 sites
+          and '_mark_release(pair, "tide-out-retune")' in _src12
+          and "retune: {_rrel_why}" in _src12
+          and "OUT-TIDE RETUNE PASS" in _src12
+          and "OUT-TIDE RETUNE RELEASE" in _src12)
+except Exception as _e12:
+    _12_bad = True
+    check(f"12.x the retune section ran clean ({_e12!r})", False)
+finally:
+    if _old_retune_env is None:
+        os.environ.pop(bs.TIDE_RETUNE_ENABLED_KEY, None)
+    else:
+        os.environ[bs.TIDE_RETUNE_ENABLED_KEY] = _old_retune_env
+    os.environ.pop(bs.TIDE_RETUNE_DAY_CAP_KEY, None)
+    if _old_state_env_12 is None:
+        os.environ.pop(ex.STATE_ENV, None)
+    else:
+        os.environ[ex.STATE_ENV] = _old_state_env_12
+    import shutil as _sh_12
+    _sh_12.rmtree(_12_tmp, ignore_errors=True)
+if _12_bad:
+    pass  # the section's own failure is pinned above
+
 # ── 10. the whole tree still parses (the drive's own smoke) ──────────
 import ast
 for f in ("background_scanner.py", "exit_extension.py", "contest_account.py",

@@ -1245,6 +1245,47 @@
         "artifacts/mutation_sweep/journal.json": "sha256:6224fd2a1964761bdfded8b87531c218b22116cf635b899b0545188be19424f4",
         "artifacts/mutation_sweep/mutation_sweep_report.txt": "sha256:3b4af0524c29fb356ba6c9065dd035e11fd858a102441b981c622917c02889c5"
       }
+    },
+    "58-plate-axis-wire": {
+      "commits": [
+        "<this commit>"
+      ],
+      "branch_name": "master",
+      "date": "2026-09-30",
+      "title": "THE LEARNING BECOMES SURFACE: THE SCOUT'S PLATE, THE QUICK AXIS ON THE BURIAL PANEL, AND THE GF PROJECTION THE HOOK PERSISTS (Sep 30, plate-axis-wire)",
+      "detail": "One gated commit carrying three surfaces that read what the session built. (1) THE SCOUT'S LEARNING PLATE: app.py renders the same three lines the bot's plate speaks — the fee drag in the bot's fill-model literals (0.52% RT, the 1.49% breakeven at the 35% capture floor, the 1.8% entry floor / ~$1.28 net), the panel's MEDIAN-payer capture from _cached_burial_hindsight's own aggregate (dormant when no priced payers exist), and the machine factor with its GF projection — a plain read of profit_guard_state.json:gf_projection with the honest rails (age, at the MIN_GF floor, stale beyond 48h, dormant until the boundary hook arms); one walk, two consumers — the plate never computes a walk of its own. Mounted in the MASTER flow after the funnel plate, before the burial hindsight; fail-soft per line. (2) THE QUICK AXIS: _quick_bucket (decade bands, '?' kept — unscorable refusals are part of a gate's shape) slices the burial panel's refusal stats into sparse per-(gate, band) buckets — medfill/meddud/payers at monthly resolution, the per-gate study's lens without a rerun. (3) THE GF PROJECTION: exit_extension's rotation-boundary hook evaluates the live rotation's own B/P under _aa_params() and merge-saves gf_projection through profit_guard._save (two writers, one state file — the overlay never erases the factor/history/ledger; fail-soft on break). Pins: apptest 324/0 (the red-first block: plate lines, fee literals, the fixture's median math, projection age/dormant rails, mount order, the quick-axis buckets).",
+      "checksums": {
+        "app.py": "sha256:39c13ffa701587ad73ad6ac0b610aeebe6db39a92d5d34282a87bee533a2ef23",
+        "exit_extension.py": "sha256:0404b99d48fd889a18dbd9d9456a7204ffa290de1770567a0b86fd46562c2724",
+        "test_apptest.py": "sha256:d2d8448c503f91d12c14f9812858dd434212e0e45a782ecf5272086c10f28411"
+      }
+    },
+    "59-tide-out-retune": {
+      "commits": [
+        "<this commit>"
+      ],
+      "branch_name": "master",
+      "date": "2026-09-30",
+      "title": "THE STUDY OPENS THE TIDE GATE — A DIAL, A CAP, AND FAIL-CLOSED DOORS ON THE OUT-TIDE WALL (Sep 30, tide-out-retune)",
+      "detail": "One gated commit carrying the tide-out retune (the per-gate calibration study's mined rule). The study said the OUT-tide wall buried its own money: tide-out n=8, 6 payers, median payer +$2.11/$100, median dud -$0.09, and the payers sat at quick 64-87 UNDER the champion seam's SEAM_TIDE_RELEASE_QUICK=92 — the existing valve missed every one. THE RETUNE: a second valve in background_scanner — TIDE_RETUNE_ENABLED (the _dial seam: env first, then exit_extension.dial.json, anything but exactly '1' is OFF), TIDE_RETUNE_QUICK_MIN=66 (the study's EV-mining floor; 66 quick prices a ~3% ride whose 0.35-capture-floor share clears the 0.52% round trip), TIDE_RETUNE_CAP=3/day with per-pair dedupe (_tide_retune_days). _tide_retune_releases(quick, pair) is FAIL-CLOSED at every door: OFF -> no; quick under the floor -> no; already released today -> no; the cap spent -> no; the dial unreadable -> no. The release opens ONLY the tide gate — the deep read still owes its verdict downstream. Wired on both paths (the bot-priced pass _bot_out_priced_pass and the desktop path _out_tide_learned via _mark_release(pair, 'tide-out-retune')), the suppression text names the retune's verdict ('retune: {why}'). Same rollback posture as the exit extension: dial off = the wall stands exactly as before. Pins: test_exit_extension section 12 (12.1-12.9) with its own sandbox — the seam constant, default OFF, env-arm release with the study's why text, per-pair dedupe, floor refusal, the day cap, the dial-file arm/disarm, a broken dial path failing closed, and the source pins (>=3 valve calls, _mark_release marker, both log strings) — 78/0 (was 69/0, red-first).",
+      "checksums": {
+        "background_scanner.py": "sha256:8ada39bfd755967608354b91b4df5baed0591139538be50e550626a8a493c56a",
+        "test_exit_extension.py": "sha256:05588ff11b31f1a9792a3ebd2a75a3b7805e4ece9060584deedca8aaf0384c0d"
+      }
+    },
+    "60-canary-band-wire": {
+      "commits": [
+        "<this commit>"
+      ],
+      "branch_name": "master",
+      "date": "2026-09-30",
+      "title": "THE ARM REHEARSES AGAINST EVIDENCE: THE SWEEP-DERIVED CERTIFICATION BAND FLOWS INTO RUN_CANARY (Sep 30, canary-band-wire)",
+      "detail": "One gated commit carrying the guard-factor validation's last wire (ops/canary_enable.py). The arm rehearsal (run_canary arm=True) rehearses the arm THROUGH evaluate()'s thresholds, and evaluate() refuses to certify the net threshold from a self-derived CI — a missing prior band reads band_certified False and the verdict INCONCLUSIVE (the stale-certification hole closed in task 55). So the gate now derives the band from the sweep evidence it already holds: the CHOSEN CELL's own bootstrap band (ci_p5/ci_p95) of the deltas its replay applied — the distribution the replay actually produced — carried into run_canary(params=...) as the external prior band, scaled to the rehearsal's cycle count by evaluate() itself (the band is per-cycle; the threshold multiplies by n_applied). The rehearsal then grades the arm against evidence, not against nothing: production arms a CERTIFIED band or the arm is not performed at all. prior_band_for_cell(cell): a cell with no applied deltas certifies nothing ((0,0) is the honest empty band — band_certified stays False, INCONCLUSIVE by design). Dry run verified against the live sweep evidence (would arm with the most conservative safe cell). Pins: test_canary 42/0 (task 55's 31 + the band-wire pins — prior_band_for_cell's evidence derivation, the empty-cell honesty, the flow into run_canary).",
+      "checksums": {
+        "canary_runner.py": "sha256:a2163d95d20fc752bbc7f2e0fc62114b56e1048b8798c07f4207220caa06617c",
+        "ops/canary_enable.py": "sha256:282b5cc17fdbe4f8f18133ccc15b21956c106b579785e7e02bff491b9892c5eb",
+        "test_canary.py": "sha256:49b9c9aa2d48b4ceb8657154a0b009b71bc5e51ac668c882989429cbcb6d5d3f"
+      }
     }
   }
 }

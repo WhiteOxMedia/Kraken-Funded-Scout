@@ -3241,6 +3241,50 @@ try:
         check("the dud (MOOD, never moved) is not in the top list",
               all(s["pair"] != "MOOD/USD" for s in h.get("top", [])),
               h.get("top"))
+        # ── THE QUICK AXIS (Sep 30, the per-gate calibration study):
+        # each gate's refusals bucketed by the quick score the gate
+        # refused at — the study's separation, visible monthly without
+        # rerunning the study. The fixture was BUILT for this: tide-out's
+        # payer (CAGE) sits at quick 71, its dud (MOOD) at 55, and
+        # deep-veto's payer (DEEP) at 94.
+        _tg = next(g for g in h["by_gate"] if g["gate"] == "tide-out")
+        _dl = next(g for g in h["by_gate"] if g["gate"] == "deep-veto")
+        _t7 = next((b for b in _tg.get("buckets", [])
+                    if b.get("bucket") == "70s"), None)
+        _t6 = next((b for b in _tg.get("buckets", [])
+                    if b.get("bucket") == "<60"), None)
+        _d9 = next((b for b in _dl.get("buckets", [])
+                    if b.get("bucket") == "90+"), None)
+        check("the quick axis buckets each gate's refusals (tide-out: "
+              "the quick-71 payer lands in '70s', the quick-55 dud in "
+              "'<60'; deep-veto: the quick-94 payer in '90+')",
+              _t7 and _t7["n"] == 1 and _t7["pay"] == 1
+              and _t6 and _t6["n"] == 1 and _t6["pay"] == 0
+              and _d9 and _d9["n"] == 1 and _d9["pay"] == 1,
+              {"tide-out": _tg.get("buckets"),
+               "deep-veto": _dl.get("buckets")})
+        check("each bucket carries the fill-modeled median run (the "
+              "payer's ~7.6% after spread+fee, the dud's 0.0 — never a "
+              "raw peak)",
+              _t7 and abs(_t7["medfill"] - 7.63) < 0.05
+              and _t6 and _t6["medfill"] == 0.0
+              and _d9 and abs(_d9["medfill"] - 1.64) < 0.05,
+              {"t7": _t7, "t6": _t6, "d9": _d9})
+        check("the quick labeler is inclusive-lower (60 -> '60s', 70 -> "
+              "'70s', 90 -> '90+') and a missing/garbage/NaN quick "
+              "lands in '?' (kept, never dropped)",
+              app_mod._quick_bucket(60) == "60s"
+              and app_mod._quick_bucket(70) == "70s"
+              and app_mod._quick_bucket(90) == "90+"
+              and app_mod._quick_bucket(59.9) == "<60"
+              and app_mod._quick_bucket(None) == "?"
+              and app_mod._quick_bucket("n/a") == "?"
+              and app_mod._quick_bucket(float("nan")) == "?",
+              {60: app_mod._quick_bucket(60),
+               70: app_mod._quick_bucket(70),
+               90: app_mod._quick_bucket(90),
+               "none": app_mod._quick_bucket(None),
+               "nan": app_mod._quick_bucket(float("nan"))})
         # the render: the expander builds through the sandbox too (the
         # cached wrapper pointed at the same fake module file)
         app_mod._cached_burial_hindsight.clear()
@@ -3262,6 +3306,158 @@ try:
                   and "3 recent candidates" in _bh_calls[0], _bh_calls)
         finally:
             app_mod.st.expander = _real_exp
+        # the axis is DRAWN from the aggregate's own by-gate buckets —
+        # the panel never re-joins the journal (one brain, the house
+        # data-contract rule)
+        _bh_src = (BASE / "app.py").read_text(
+            encoding="utf-8").replace("\r\n", "\n")
+        _bh_render = _bh_src.split("def _render_burial_hindsight()")[1].split(
+            "def _render_burial_hindsight_api")[0]
+        check("the panel draws the quick axis straight from the "
+              "aggregate's by-gate buckets (no second join, no second "
+              "read of the journal)",
+              "the quick axis" in _bh_render
+              and "by_gate" in _bh_render and "medfill" in _bh_render,
+              _bh_render[:160])
+        # ── THE LEARNING PLATE, MIRRORED (Sep 30): the bot console's
+        # learning plate rendered HERE too — fee drag, the panel's
+        # MEDIAN-payer capture, the guard factor (with the walk
+        # projection the boundary hook persists), and the GF trend
+        # sparkline (the nightly self_adjust samples). The sandbox is
+        # already live: the aggregate reads the fixture journal, the
+        # factor/projection/history ride patched seams. run_lp = one
+        # render, one capture — no state bleeds between renders.
+        _real_sub, _real_cap = app_mod.st.subheader, app_mod.st.caption
+        _real_lf = getattr(app_mod, "_learning_factor", None)
+        _real_lpr = getattr(app_mod, "_learning_projection", None)
+        _real_lhist = getattr(app_mod, "_learning_history", None)
+        _lp_fresh = {"start": 1.96, "end": 1.91, "delta": -0.05,
+                     "applied": 1, "rotations": 1, "m_fail": 0,
+                     "cap_refused": 0, "at_floor": False,
+                     "params": {"alpha": 0.03}, "source": "live",
+                     "computed_at": _bh_now.isoformat()}
+        _old_proj = dict(_lp_fresh, computed_at=(
+            _bh_now - timedelta(days=3)).isoformat())
+        _hist_rows = [{"day": f"2026-09-{d:02d}",
+                       "factor": 2.0 - d * 0.01} for d in range(1, 30)]
+        _lp_calls = []
+
+        def run_lp(proj=_lp_fresh, hist=_hist_rows):
+            _lp_calls.clear()
+            app_mod.st.subheader = lambda t, **k: _lp_calls.append(
+                ("sub", t))
+            app_mod.st.caption = lambda t, **k: _lp_calls.append(
+                ("cap", t))
+            app_mod._learning_factor = lambda: 1.9647
+            app_mod._learning_projection = lambda: proj
+            app_mod._learning_history = hist if callable(hist) \
+                else (lambda weeks=8: hist)
+            try:
+                app_mod._render_learning_plate()
+            finally:
+                app_mod.st.subheader, app_mod.st.caption = \
+                    _real_sub, _real_cap
+
+        def _boom_hist(weeks=8):
+            raise RuntimeError("history probe")
+
+        try:
+            run_lp()
+            _lp_caps = [t for k, t in _lp_calls if k == "cap"]
+            _lp_subs = [t for k, t in _lp_calls if k == "sub"]
+            check("the learning plate renders ONE plate with four "
+                  "lines (subheader + fee / capture / calibration / "
+                  "trend caps)",
+                  len(_lp_subs) == 1 and len(_lp_caps) == 4
+                  and any("Learning" in s for s in _lp_subs),
+                  (_lp_subs, len(_lp_caps)))
+            _fee_cap = next((c for c in _lp_caps if "$0.52" in c), "")
+            check("the fee-drag line mirrors the bot's fill model "
+                  "exactly ($0.52 per $100, the ≈1.49% breakeven at "
+                  "the 35% capture floor, the 1.8% entry floor, $1.28 "
+                  "net)",
+                  "$0.52 per $100" in _fee_cap and "≈1.49%" in _fee_cap
+                  and "35%" in _fee_cap and "1.8%" in _fee_cap
+                  and "$1.28" in _fee_cap, _fee_cap)
+            _med_cap = next((c for c in _lp_caps
+                             if "median payer" in c), "")
+            check("the capture line is the PANEL'S OWN median payer "
+                  "(the fixture's conservative representative: DEEP at "
+                  "82% of a +2.0% peak, +1.6% after spread and fee — "
+                  "one number about ONE payer, CAGE's fat 95% never "
+                  "inflates it)",
+                  "82%" in _med_cap and "+2.0%" in _med_cap
+                  and "+1.6%" in _med_cap, _med_cap)
+            _gf_cap = next((c for c in _lp_caps
+                            if "GF projection" in c), "")
+            check("the GF line renders the live factor AND the "
+                  "persisted walk projection with its honest age "
+                  "(1.96× → 1.91×, 1 apply, computed 0h ago)",
+                  "1.96×" in _gf_cap and "1.96× → 1.91×" in _gf_cap
+                  and "1 apply" in _gf_cap
+                  and "computed 0h ago" in _gf_cap, _gf_cap)
+            run_lp(proj=None)
+            _gf2 = [t for k, t in _lp_calls
+                    if k == "cap" and "GF projection" in t][-1]
+            check("a missing projection renders DORMANT (the honest "
+                  "absence — the walk arms with the rotation-boundary "
+                  "hook), never a made-up heading",
+                  "dormant" in _gf2 and "rotation-boundary hook" in _gf2,
+                  _gf2)
+            run_lp(proj=_old_proj)
+            _gf3 = [t for k, t in _lp_calls
+                    if k == "cap" and "GF projection" in t][-1]
+            check("a stale projection is NAMED stale (beyond 48h it "
+                  "is history, not a forecast)",
+                  "stale" in _gf3 and "72h ago" in _gf3, _gf3)
+            # ── THE GF TREND SPARKLINE (Sep 30): the machine factor
+            # sampled by the nightly self_adjust rows — the TREND
+            # beside the current value, drawn from the seam, never
+            # derived in the plate.
+            run_lp()
+            _tr1 = [t for k, t in _lp_calls
+                    if k == "cap" and "GF trend" in t]
+            check("the trend sparkline draws the daily series (blocks, "
+                  "the day count, the lo–hi band, the last value and "
+                  "drift)",
+                  len(_tr1) == 1 and "29d" in _tr1[0] and "▁" in _tr1[0]
+                  and "1.71–1.99×" in _tr1[0] and "→ 1.71×" in _tr1[0]
+                  and "-0.28" in _tr1[0], _tr1)
+            run_lp(hist=[])
+            _tr2 = [t for k, t in _lp_calls
+                    if k == "cap" and "GF trend" in t][-1]
+            check("an empty series renders collecting (the nightly "
+                  "rows must accumulate first)",
+                  "collecting" in _tr2 and "nightly self_adjust" in _tr2,
+                  _tr2)
+            run_lp(hist=_boom_hist)
+            _tr3 = [t for k, t in _lp_calls
+                    if k == "cap" and "GF trend" in t]
+            check("a broken history read degrades the trend line only "
+                  "(no trend caption, the plate stands)",
+                  len(_tr3) == 0, len(_tr3))
+        finally:
+            if _real_lf is not None:
+                app_mod._learning_factor = _real_lf
+            else:
+                app_mod.__dict__.pop("_learning_factor", None)
+            if _real_lpr is not None:
+                app_mod._learning_projection = _real_lpr
+            else:
+                app_mod.__dict__.pop("_learning_projection", None)
+            if _real_lhist is not None:
+                app_mod._learning_history = _real_lhist
+            else:
+                app_mod.__dict__.pop("_learning_history", None)
+        _m_src = (BASE / "app.py").read_text(
+            encoding="utf-8").replace("\r\n", "\n")
+        _i_lp = _m_src.find("\n    _render_learning_plate()")
+        _i_fp = _m_src.find("\n    _render_funnel_plate()")
+        _i_bh = _m_src.find("\n    _render_burial_hindsight()")
+        check("the plate mounts in the MASTER flow after the funnel "
+              "plate and before the burial strip (the learning sits "
+              "above the forensics)",
+              0 < _i_fp < _i_lp < _i_bh, (_i_fp, _i_lp, _i_bh))
         # the honest-silence path: a journal-less sandbox fail-closes
         _bh_sbx2 = Path(tempfile.mkdtemp())
         app_mod.__file__ = str(_bh_sbx2 / "app.py")
