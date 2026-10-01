@@ -268,8 +268,11 @@ rc-only consumers). All patched with `raise SystemExit(1 if fails else
   test_stateclobber 480s; everything else 300s. A HEAVY drive's
   baseline+mutation cannot fit one fresh-sandbox window — chain windows
   with `--resume`.
-- **This file must stay consistent with the journal.** Class counts,
-  member lists, and repair numbers here are checked against
-  `journal.json` / `mutation_sweep_report.txt` whenever the manifest
-  changes; commitgate's manifest-consistency probe
-  (`_SEALED` seven-class set, 73/0) guards the code side.
+- **This file must stay consistent with the journal — automatically.**
+  The doc-journal consistency probe (commitgate, Sep 30) re-derives the
+  ledger table and every class count from the STAGED `journal.json` at
+  commit time; any drift between this document's numbers and the
+  journal blocks the gate. Update the numbers here in the same commit
+  that changes the journal. The manifest-consistency probe
+  (`_SEALED` seven-class set) guards the code side; member lists and
+  repair numbers are still checked by hand when the manifest changes.

@@ -205,7 +205,7 @@ check(1.111, 'run_clean_git git -C "$SCRATCH" init' in src
 #      would ship ungated.
 check(1.12, "grep -qxE 'hooks/[^/]+|test_hooks_ignore_runtime_state\\.py' && _HH=yes" in src
       and 'maybe_run "$_HH"  test_hooks_ignore_runtime_state.py result  10' in src
-      and "|hooks/[^/]+|test_hooks_ignore_runtime_state\\.py'; then" in src,
+      and "|hooks/[^/]+|test_hooks_ignore_runtime_state\\.py" in src,
       "the hooks census drive is not wired into the trigger matrix (_HH) "
       "or the gate block's own condition")
 # 1.13 the drive RUN strips the poison env — UNCONDITIONALLY (the
@@ -223,8 +223,11 @@ check(1.13, 'timeout "$budget" env -u GIT_DIR -u GIT_WORK_TREE '
 #      scratch index and the drive would red on it (missing tracked twin).
 check(1.14, "for src in app.py background_scanner.py meta_layers.py "
       "profit_guard.py carve_out.py tri_watch.py contest_account.py "
-      "add_xrp_watch.py $(git ls-files 'hooks/*'" in src,
-      "the support lane no longer stages every tracked hook for the census")
+      "add_xrp_watch.py diag_mutation_sweep.py" in src
+      and "artifacts/mutation_sweep/vacuous_triage.md "
+          "artifacts/mutation_sweep/journal.json $(git ls-files " in src,
+      "the support lane no longer stages every tracked hook + the "
+      "doc-probe's inputs (diag_mutation_sweep, the doc, the journal)")
 
 if not RERUN:
     # ════════ 2. behavioral sandbox: the gate body, run for real ════════
@@ -745,6 +748,22 @@ _manifest_bad = []
 # cwd-relative check would mass-report "drive gone" for drives the
 # scratch simply never staged.
 _dms_path = None
+# THE EXISTENCE BASE (task 62 lesson): read the manifest from the
+# staged-first importlib resolution below (the gate judges the index),
+# but check drive existence against the REAL REPO — when the support
+# lane stages diag_mutation_sweep.py into the scratch, the scratch copy
+# wins sys.path and its siblings are only the staged files, so a
+# sibling-relative check would mass-report "drive gone" for all 57
+# classed drives (the real repo is the LAST PYTHONPATH entry holding
+# the sweep tool; validated against test_5mstore.py, which the lane
+# never stages).
+_repo_base = None
+for _entry in reversed(
+        [p for p in os.environ.get("PYTHONPATH", "").split(";") if p]):
+    _cand = Path(_entry) / "diag_mutation_sweep.py"
+    if _cand.exists() and (_cand.parent / "test_5mstore.py").exists():
+        _repo_base = _cand.parent
+        break
 try:
     import importlib.util as _ilu
     _spec = _ilu.find_spec("diag_mutation_sweep")
@@ -754,6 +773,8 @@ except (ImportError, ValueError):
     pass
 if _dms_path is None or not _dms_path.exists():
     _dms_path = Path("diag_mutation_sweep.py")   # legacy cwd fallback
+if _repo_base is None:
+    _repo_base = _dms_path.parent
 _dms = _dms_path
 if _dms.exists():
     _dms_txt = _dms.read_text(encoding="utf-8", errors="replace")
@@ -768,7 +789,7 @@ if _dms.exists():
                                   _m.group(1)):
             if not (_dm[0].startswith("test_") and _dm[0].endswith(".py")):
                 _manifest_bad.append(f"{_dm[0]}: not a drive name")
-            elif not (_dms.parent / _dm[0]).exists():
+            elif not (_repo_base / _dm[0]).exists():
                 _manifest_bad.append(f"{_dm[0]}: drive gone — stale class")
             elif _dm[1] not in _SEALED:
                 _manifest_bad.append(f"{_dm[0]}: class '{_dm[1]}' not sealed")
@@ -779,6 +800,88 @@ check("the drive-class manifest: diag_mutation_sweep pre-judges the "
       "future sweeps skip them instead of manufacturing VACUOUS",
       _manifest_ok and not _manifest_bad,
       f"manifest={_manifest_ok} bad={_manifest_bad}")
+
+# ════════ the DOC-JOURNAL consistency probe (Sep 30, task 62): the
+# fleet-verdict document is a VERDICT RECORD, so its numbers are checked
+# against the journal they describe — parsed from the STAGED content
+# (git show :path, the gate's own ground truth), never the worktree: a
+# half-staged doc/journal pair must be judged as it will land, and the
+# probe must work in the gate's scratch cwd (the hook exports the doc,
+# the journal, and diag_mutation_sweep.py beside the drive). Any doc
+# claim that drifts from the journal blocks the commit.
+_doc_bad = []
+_doc_ok = False
+import collections
+import json
+import subprocess as _sp
+
+
+def _staged(path: str) -> bytes:
+    """The file as it will land: the staged blob, worktree fallback."""
+    r = _sp.run(["git", "show", f":{path}"], capture_output=True)
+    return r.stdout if r.stdout else open(path, "rb").read()
+
+
+try:
+    _doc = _staged("artifacts/mutation_sweep/vacuous_triage.md") \
+        .decode("utf-8")
+    _jdoc = json.loads(_staged("artifacts/mutation_sweep/journal.json")
+                       .decode("utf-8"))
+    _jres = _jdoc.get("results", {})
+    _ledger = collections.Counter(
+        e.get("verdict") for e in _jres.values())
+
+    # 1. the ledger table: | KILLED | 103 | ... — every verdict row's
+    #    count must equal the journal's
+    for _v in ("KILLED", "UNTESTABLE", "VACUOUS", "BASELINE-RED",
+               "UNMAPPED"):
+        _m2 = _re_fh.search(rf"\| {_v} \| (\d+) \|", _doc)
+        if _m2 is None:
+            _doc_bad.append(f"{_v}: ledger row missing from the doc")
+        elif int(_m2.group(1)) != _ledger.get(_v, 0):
+            _doc_bad.append(f"{_v}: doc says {_m2.group(1)}, "
+                            f"journal says {_ledger.get(_v, 0)}")
+    if "timeout" not in _doc:
+        _doc_bad.append("the timeout verdict is not in the ledger")
+
+    # 2. the class headings: '### 3.1 LIVE-MARKET (6)' — every sealed
+    #    class's count must equal the journal's drive_class mix, every
+    #    journal class must have a heading
+    _cls = collections.Counter(
+        e.get("drive_class") for e in _jres.values()
+        if e.get("verdict") == "UNTESTABLE")
+    _doc_classes = dict(_re_fh.findall(
+        r"### 3\.\d+ ([A-Z-]+) \((\d+)\)", _doc))
+    for _c, _n in _cls.items():
+        if _c not in _doc_classes:
+            _doc_bad.append(f"class {_c}: no section in the doc")
+        elif int(_doc_classes[_c]) != _n:
+            _doc_bad.append(f"class {_c}: doc says "
+                            f"{_doc_classes[_c]}, journal says {_n}")
+    for _c in _doc_classes:
+        if _c not in _cls:
+            _doc_bad.append(f"class {_c}: in the doc, not in the journal")
+    if "SCAFFOLD-ONLY" not in _doc_classes and \
+            _cls.get("SCAFFOLD-ONLY", 0) != 2:
+        _doc_bad.append("SCAFFOLD-ONLY section missing")
+    if _cls.get("SCAFFOLD-ONLY", 0) != int(
+            _doc_classes.get("SCAFFOLD-ONLY", -1)):
+        _doc_bad.append("SCAFFOLD-ONLY count mismatch")
+
+    # 3. (the ledger table above already pins every current number; the
+    #    doc's HISTORICAL notes — the superseded task-56 snapshot — are
+    #    deliberately not matched: they describe a past journal by
+    #    design, and pinning them to today's journal would falsify
+    #    history.)
+
+    _doc_ok = not _doc_bad
+except Exception as _exc:
+    _doc_bad.append(f"probe crashed: {_exc!r}")
+check("the doc-journal consistency probe: vacuous_triage.md's ledger "
+      "and class counts are re-derived from the STAGED journal — "
+      "the verdict record cannot drift from the record it describes",
+      _doc_ok,
+      f"doc_ok={_doc_ok} bad={_doc_bad}")
 
 # ════════ summary ════════
 passed, failed = results.count(True), results.count(False)

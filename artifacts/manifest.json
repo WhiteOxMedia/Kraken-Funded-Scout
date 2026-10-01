@@ -1273,6 +1273,19 @@
         "test_exit_extension.py": "sha256:05588ff11b31f1a9792a3ebd2a75a3b7805e4ece9060584deedca8aaf0384c0d"
       }
     },
+    "62-doc-journal-probe": {
+      "commits": [
+        "<this commit>"
+      ],
+      "branch_name": "master",
+      "date": "2026-09-30",
+      "title": "THE DOC-JOURNAL CONSISTENCY PROBE (Sep 30, doc-journal-probe): commitgate re-derives the fleet-verdict document's numbers from the STAGED journal at commit time — vacuous_triage.md's ledger table (KILLED/UNTESTABLE/VACUOUS/BASELINE-RED/UNMAPPED rows) and every sealed-class heading (### 3.N CLASS (n)) must equal the journal's verdict counts and drive_class mix, and a journal class with no doc section (or a doc section with no journal class) blocks the gate; the record cannot drift from the record it describes. The probe parses the STAGED blobs (git show :path, worktree fallback) so a half-staged doc/journal pair is judged as it will land and the check works in the gate's scratch cwd; the doc's HISTORICAL notes (the superseded task-56 snapshot) are deliberately unmatched — they describe a past journal by design. Wired end to end: the gate block fires on the doc, the journal, or test_commitgate itself (_HD), the support lane stages the probe's three inputs beside the drive, and census 1.12/1.14 were re-aimed at the widened wiring (the first draft of the probe caught its own snapshot-note check matching the doc's historical killed 23 / VACUOUS 39 — removed by design argument, not silenced). TEETH DRILLED: a staged doc with KILLED 102 vs the journal's 103 failed the gate with the exact drift named, then restored. Local 88/0 (49+1 rerun legs); doc section 5's consistency bullet now documents the automatic enforcement.",
+      "checksums": {
+        "test_commitgate.py": "sha256:8652da537056dcc5e2790215d41367c0001ecf56d51b04543a66f95fcb4bcf32",
+        "hooks/pre-commit": "sha256:b4db67134bc391105bb771887f71a57ce8445bda0848a126e714e6a3da9731a6",
+        "artifacts/mutation_sweep/vacuous_triage.md": "sha256:9623160d5ad50b5426f19ba24278c13a940c859a20a134bcfbec31e1d0b372b4"
+      }
+    },
     "61-fleet-verdict-doc": {
       "commits": [
         "<this commit>"

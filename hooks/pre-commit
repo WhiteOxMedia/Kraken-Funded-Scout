@@ -177,7 +177,7 @@ run_clean_git() {
 # red), and the green summary counts the drives so quiet output still
 # proves the gate ran.
 # Emergency bypass stays available: git commit --no-verify — deliberately.
-if git diff --cached --name-only | grep -qxE 'app\.py|background_scanner\.py|meta_layers\.py|profit_guard\.py|carve_out\.py|tri_watch\.py|hooks/[^/]+|test_hooks_ignore_runtime_state\.py'; then
+if git diff --cached --name-only | grep -qxE 'app\.py|background_scanner\.py|meta_layers\.py|profit_guard\.py|carve_out\.py|tri_watch\.py|hooks/[^/]+|test_hooks_ignore_runtime_state\.py|test_commitgate\.py|artifacts/mutation_sweep/vacuous_triage\.md|artifacts/mutation_sweep/journal\.json'; then
     if [ -z "$PY" ]; then
         echo "  ⛔ GATE: guarded source staged but no python found — commit blocked." >&2
         exit 1
@@ -192,7 +192,7 @@ if git diff --cached --name-only | grep -qxE 'app\.py|background_scanner\.py|met
     # never a stale HEAD layer or an absent sibling (the gate ran the
     # drive on a sandbox that lacked the file and the pin crashed with
     # FileNotFoundError — red for the wrong reason).
-    for src in app.py background_scanner.py meta_layers.py profit_guard.py carve_out.py tri_watch.py contest_account.py add_xrp_watch.py $(git ls-files 'hooks/*' | grep -v '\.sample$'); do
+    for src in app.py background_scanner.py meta_layers.py profit_guard.py carve_out.py tri_watch.py contest_account.py add_xrp_watch.py diag_mutation_sweep.py artifacts/mutation_sweep/vacuous_triage.md artifacts/mutation_sweep/journal.json $(git ls-files 'hooks/*' | grep -v '\.sample$'); do
         mkdir -p "$SCRATCH/$(dirname "$src")"   # nested guarded paths (hooks/)
         git show ":$src" > "$SCRATCH/$src" 2>/dev/null || cp "$src" "$SCRATCH/$src" \
             || { echo "  ⛔ GATE: cannot stage $src for the gate" >&2; exit 1; }
@@ -310,7 +310,7 @@ if git diff --cached --name-only | grep -qxE 'app\.py|background_scanner\.py|met
             [ "$GATE_QUIET" = "1" ] || echo "  🧠 gate: $t — $res (${dt}ms, budget ${budget}s)" >&2
         fi
     }
-    _APP=no; _BS=no; _ML=no; _CO=no; _TW=no; _HK=no; _HH=no; _HS=no; _TL=no; _SW=no; _FS=no; _SH=no
+    _APP=no; _BS=no; _ML=no; _CO=no; _TW=no; _HK=no; _HH=no; _HD=no; _HS=no; _TL=no; _SW=no; _FS=no; _SH=no
     printf '%s\n' "$(git diff --cached --name-only)" | grep -qx 'app.py' && _APP=yes
     printf '%s\n' "$(git diff --cached --name-only)" | grep -qx 'background_scanner.py' && _BS=yes
     printf '%s\n' "$(git diff --cached --name-only)" | grep -qxE 'meta_layers\.py|profit_guard\.py' && _ML=yes
@@ -318,6 +318,7 @@ if git diff --cached --name-only | grep -qxE 'app\.py|background_scanner\.py|met
     printf '%s\n' "$(git diff --cached --name-only)" | grep -qx 'tri_watch.py' && _TW=yes
     printf '%s\n' "$(git diff --cached --name-only)" | grep -qx 'hooks/pre-commit' && _HK=yes
     printf '%s\n' "$(git diff --cached --name-only)" | grep -qxE 'hooks/[^/]+|test_hooks_ignore_runtime_state\.py' && _HH=yes
+    printf '%s\n' "$(git diff --cached --name-only)" | grep -qxE 'artifacts/mutation_sweep/vacuous_triage\.md|artifacts/mutation_sweep/journal\.json|test_commitgate\.py' && _HD=yes
     printf '%s\n' "$(git diff --cached --name-only)" | grep -qxE 'hindsight_service\.py|test_hindightservice\.py' && _HS=yes
     printf '%s\n' "$(git diff --cached --name-only)" | grep -qxE 'tide_learn\.py|test_tidelearn\.py' && _TL=yes
     printf '%s\n' "$(git diff --cached --name-only)" | grep -qxE 'ops/fleet_sweep\.py|ops/fleet_sweep_classes\.json|test_fleetsweep\.py' && _FS=yes
@@ -393,6 +394,11 @@ if git diff --cached --name-only | grep -qxE 'app\.py|background_scanner\.py|met
     # on the drive's own file and on ANY tracked hook (hooks/[^/]+), so a
     # future third hook is censused by construction.
     maybe_run "$_HH"  test_hooks_ignore_runtime_state.py result  10
+    # THE DOC-JOURNAL CONSISTENCY CHECK (Sep 30, task 62): the fleet-
+    # verdict document's ledger and class counts are re-derived from the
+    # STAGED journal every time the doc, the journal, or this drive is
+    # staged — a doc that drifts from the record blocks the commit.
+    maybe_run "$_HD"  test_commitgate.py result  180
     maybe_run "$_TL"  test_tidelearn.py   result   15   # the EV ladder's
                                                         # admission policy
                                                         # (zero-EV deny),
