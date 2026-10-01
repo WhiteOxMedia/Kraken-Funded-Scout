@@ -1,0 +1,25 @@
+THE GATE EV TABLE — 2026-10-01 09:22
+==============================================================================
+window: 117 first-seen candidates (7d) from popup_suppressions.jsonl, outcome horizon 7h
+fill model: entry mid+0.050%, exit peak-0.050%, fee 0.52% round trip netted (the bot's real cost; the panel models 0.26), floor 0 — capture floor 10%
+candidates scored: 60 | payers (run>=1.5%): 23 (38%)
+censored (horizon still open, held out): 0
+median capture of payers: 79% | median fill-modeled run (all): +0.59%
+
+GATE                     n  pay   rate medfill* dud-med    cap    EV%
+------------------------------------------------------------------------------
+too-thin                 1    1   100%    3.31   0.00    84%   3.31
+climb-clearance          2    1    50%    3.31   0.60    84%   1.96
+climb-floor              2    1    50%    3.31   0.00    84%   1.66
+deep-veto                6    3    50%    1.83   0.30    75%   1.06
+tide-out                11    6    55%    1.77   0.06    74%   0.99
+sure-thing-deep-veto    21    8    38%    2.29   0.00    79%   0.87
+stale-move              11    3    27%    1.67   0.01    73%   0.46
+rcl-drift-reentry        2    0     0%    0.00   0.38     0%   0.38
+deep-direction           4    0     0%    0.00   0.00     0%   0.00
+------------------------------------------------------------------------------
+* medfill = median fill-modeled run of the gate's PAYERS only (duds separately);
+  EV% = rate × medfill_pay + (1−rate) × dud-med — the worth of one buried
+  candidate if taken, net of fees, per $100. Ranked by EV.
+  EV ≤ 0: the burial was right (the run never beat the drag).
+  EV > 0 with low rate: selective relaxation territory (canary cohort first).
