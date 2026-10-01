@@ -1273,6 +1273,22 @@
         "test_exit_extension.py": "sha256:05588ff11b31f1a9792a3ebd2a75a3b7805e4ece9060584deedca8aaf0384c0d"
       }
     },
+    "63-bot-audit": {
+      "commits": [
+        "<this commit>"
+      ],
+      "branch_name": "master",
+      "date": "2026-09-30",
+      "title": "THE CROSS-REPO VERDICT LANDS IN THE DOC + THE AUDIT TOOLING IS VERSIONED (Sep 30, bot-audit): vacuous_triage.md section 6 records the sibling bot's fleet audit — the scout's mutation protocol (mutation_ops all-sites-at-once, output-aware judge, sandbox copytree) carried to kraken_xrp_trading_bot via scratch/bot_mutation_audit.py, with the bot's honest hook-matrix equivalent (AST runtime imports PLUS the drives' source-slice consumption): killed 4 of 5 — fills (44+232+263 sites red), learningplate (285), lockguard (49), rearmmirror (127+263+232) — zero VACUOUS, zero BASELINE-RED, scoreboard LIVE (no verdict contract: keyring + real Kraken API). Same-day follow-through recorded: the scoreboard grew the fleet contract (bot 2432d92 — hermetic fixture-exchange seams, cent-exact accounting pins, RESULT + honest exit) and is kill-proven (the 285-site app.py mutant turns it red); the bot ledger is now 5 judged / 5 killed, zero unexplained, with the drive-contract upgrade documented as the template for future LIVE-class drives and test_lockguard's untracked status named as the open item. VERSIONED: the audit tooling and the fleet re-verification evidence leave scratch/'s volatile exile — bot_mutation_audit.py, its journal + report, both scout re-verified journals (killed 103 / UNTESTABLE 59 reproduced exactly twice), and the four committed-tree runner tools (apptest phase runner, duration-sized batch packer, sandbox integrity check, the DETACHED launcher lesson) — .gitignore switches to scratch/* with explicit negations instead of the dir-wide exclude git cannot re-include from.",
+      "checksums": {
+        "artifacts/mutation_sweep/vacuous_triage.md": "sha256:87f427d9533bdb72679b4bebbc37771c3b0d897484ab5d459dcabcbc9804ea76",
+        "scratch/bot_mutation_audit.py": "sha256:ac77d282256fb9a79100565df0bfee3e1b16eb43516ecc85e7c5b7ce5ef76090",
+        "scratch/bot_mutation_journal.json": "sha256:e8cecefbd590aefeed1a74414c51829b1839bc5daa8bb50f58e1317314562f34",
+        "scratch/apptest_phase.py": "sha256:6a80563de5a7ccba0365a3b5c2904e02c2bc46e0a9128583bec33a2fd7a11cb9",
+        "scratch/sweep_batches.py": "sha256:3fa69ea82ccf8791b319bb463a6377ba43d4ff7f113c366b1c1a21f892809e82",
+        "scratch/sbx_integrity.py": "sha256:4a2fed04b01e82d648d3b529ce19e49e4f880438eedd557d46bfae3600f34d94"
+      }
+    },
     "62-doc-journal-probe": {
       "commits": [
         "<this commit>"

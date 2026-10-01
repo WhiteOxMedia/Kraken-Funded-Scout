@@ -276,3 +276,38 @@ rc-only consumers). All patched with `raise SystemExit(1 if fails else
   that changes the journal. The manifest-consistency probe
   (`_SEALED` seven-class set) guards the code side; member lists and
   repair numbers are still checked by hand when the manifest changes.
+
+## 6. The cross-repo verdict — the sibling bot's fleet (Sep 30)
+
+The scout's mutation standard was carried to `kraken_xrp_trading_bot` by
+`scratch/bot_mutation_audit.py` — the same protocol (sandbox copytree,
+`mutation_ops` all-sites-at-once per guarded module, the output-aware
+judge), with the bot's honest equivalent of the hook matrix: AST-verified
+runtime imports **plus** the drives' source-slice consumption
+(learningplate exec-extracts app.py, lockguard exec-runs bot_runner's
+guard block, the scoreboard exec-extracts the fills fetcher). Scout-side
+artifacts, bot repo untouched: `scratch/bot_mutation_journal.json` +
+`scratch/bot_mutation_report.txt`.
+
+**The bot ledger: total 5 — killed 4, VACUOUS 0, BASELINE-RED 0, LIVE 1.**
+
+| drive | verdict | kills (mutation sites -> red) |
+|---|---|---|
+| test_fills | KILLED | fills 44, scout_signal_reader 232, bot_engine 263 — genuine pin failures (15/12) |
+| test_learningplate | KILLED | app 285 — the literal-string pins bite (20/10) |
+| test_lockguard | KILLED | bot_runner 49 — the exec-slice itself fails on mutated source |
+| test_rearmmirror | KILLED | signal_bridge 127 (15/1), bot_engine 263, scout_signal_reader 232 |
+| test_scoreboard | LIVE | no verdict contract: keyring + real Kraken API, an accounting summary, no RESULT/exit — structurally unkillable |
+
+Same-day follow-through: **test_scoreboard grew the fleet contract**
+(bot `2432d92`) — hermetic fixture-exchange seams (KrakenAPI never
+constructed; the fake rides `kraken.exchange`), convert pairing +
+fallbacks + cent-exact accounting pinned, RESULT + honest exit — and is
+**kill-proven** (the 285-site all-sites mutant of app.py turns it red on
+the convert-pairing pin). The bot ledger is now **5 judged: 5 killed**,
+zero unexplained. Note: `test_lockguard.py` is still UNTRACKED in the
+bot repo — four of the five audited drives are versioned; tracking it is
+the open bookkeeping item. The scoreboard's upgrade is the template for
+any future LIVE-class drive: a live diagnostic becomes judgeable by
+replacing its live inputs with fixtures at the seams the production code
+already exposes — no production change required.

@@ -99,9 +99,17 @@ zec_trace.txt
 # battery health reports: machine-written run history (never committed)
 battery_history/
 
-# scratch policy (Sep 24): volatile artifacts live in scratch/, swept
+# scratch policy (Sep 24): volatile artifacts live in scratch/*
+!scratch/bot_mutation_audit.py
+!scratch/bot_mutation_journal.json
+!scratch/bot_mutation_report.txt
+!scratch/journal_reverified_20260930.json
+!scratch/journal_reverified_20260930_run2.json
+!scratch/apptest_phase.py
+!scratch/sweep_batches.py
+!scratch/sbx_integrity.py
+!scratch/launch_committed_sweep.py, swept
 # by kraken_stalewatch; the repo root stops being a scratch destination
-scratch/
 
 # policy summaries (stale purges, hygiene) are runtime state, like battery_history
 reports/
