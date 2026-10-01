@@ -171,6 +171,10 @@ run_clean_git() {
 #                      contract: the yaml subset parser fails closed,
 #                      EV-table pricing, first-seen candidates, the
 #                      closed-candle + book trip, at-most-once fire)
+#   test_whyecon       exit code + RESULT (the burial banner's
+#                      why-blocked economics: the EV artifact's medfill
+#                      + payer rate joined at render time — fail-soft,
+#                      one source of truth, the money path untouched)
 # Measured cold runtimes (2026-09-22, HEAD): persistexit 0.4s, autotrack
 # 0.7s, trailstop 0.4s, metalayers 2.9s, watchliveness 3.3s — the budgets
 # below are ~5x those. Each drive runs at most ONCE per commit even when
@@ -351,6 +355,13 @@ if git diff --cached --name-only | grep -qxE 'app\.py|background_scanner\.py|met
     maybe_run "$_APP" test_funnelplate.py  result   10   # the funnel plate's
                                                         # builder + wiring
     maybe_run "$_APP" test_guardbreakdown.py result 20 # the guard badge
+    maybe_run "$_APP" test_whyecon.py     result 10   # the burial banner's
+                                                        # why-blocked econ:
+                                                        # medfill + payer
+                                                        # rate from the EV
+                                                        # artifact, render-
+                                                        # time join (money
+                                                        # path untouched)
     maybe_run "$_APP" test_metalayers.py   result   15
     maybe_run "$_BS"  test_persistexit.py checkfile 5   # the MIRROR tripwire:
                                                         # scanner never reads a
