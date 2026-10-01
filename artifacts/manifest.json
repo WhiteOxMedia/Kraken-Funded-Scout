@@ -1273,6 +1273,17 @@
         "test_exit_extension.py": "sha256:05588ff11b31f1a9792a3ebd2a75a3b7805e4ece9060584deedca8aaf0384c0d"
       }
     },
+    "61-fleet-verdict-doc": {
+      "commits": [
+        "<this commit>"
+      ],
+      "branch_name": "master",
+      "date": "2026-09-30",
+      "title": "THE FLEET VERDICT DOCUMENT (Sep 30, fleet-verdict-doc): vacuous_triage.md is rewritten as the PERMANENT fleet-verdict record — the 162-drive ledger (killed 103, UNTESTABLE 59, VACUOUS 0, BASELINE-RED 0, UNMAPPED 0, timeout 0: every drive holds a kill or a sealed, reasoned class; nothing unexplained), the verdict vocabulary (VACUOUS stays a live triage obligation, UNMAPPED deliberately alive as the queue, STANDALONE the adjudicated verdict), all eight sealed classes with member lists machine-checked against the manifest and journal (LIVE-MARKET 6, LIVE-STATE 15, SOURCE-TEXT 17, STATIC-AUDIT 1, SIBLING-CHECKOUT 4, HOST-BOUND 1, STANDALONE 13, SCAFFOLD-ONLY 2), the full repair history that earned the killed 103 (the exit-blind seven, the four missing-coverage repairs, the red six, tail #2, the task-57 trio), and the maintenance rules (never vacuity by omission, delist-to-re-judge, commitgate judges the INDEX, the 2.2 trio flake, SWEEP_REUSE_SBX, HEAVY budgets, this-file-stays-consistent-with-the-journal). The task-56 snapshot is marked superseded. THE LEDGER RE-VERIFIED FROM SCRATCH the same day: the full 162-drive battery re-judged against the committed tree (HEAD blobs overlaid in the sandbox; a bare worktree proved environment-red for 22 drives — the fleet is judged in the real on-disk environment) and reproduced EXACTLY: same totals, same per-drive verdicts, same class mix; evidence archived at scratch/journal_reverified_20260930.json. Corrected bookkeeping: the manifest is 57 entries + 2 auto-detected = 59 UNTESTABLE (not 65).",
+      "checksums": {
+        "artifacts/mutation_sweep/vacuous_triage.md": "sha256:69d8c543616bb13db0aaa4ac665f2f54eb62e61967bd04bde930c5135e7b4a3d"
+      }
+    },
     "60-canary-band-wire": {
       "commits": [
         "<this commit>"

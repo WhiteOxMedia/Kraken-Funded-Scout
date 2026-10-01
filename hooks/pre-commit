@@ -113,6 +113,21 @@ for _h in $(git ls-files 'hooks/*'); do
     check_mirror "$(basename "$_h")"
 done
 
+# ── THE POISON-ENV STRIP (Sep 28, hoisted Sep 30 to serve the gate's
+# host-asset staging too): a real commit exports GIT_DIR/GIT_WORK_TREE/
+# GIT_INDEX_FILE to its hooks, and any git call that must address a
+# DIFFERENT repository — the gate's scratch identity repo below, the
+# review's snapshot worktree — resolves those against the OUTER repo
+# instead (the probe proved GIT_DIR=. kills worktree add outright, and
+# GIT_INDEX_FILE would silently redirect an index read). Callers pass
+# the FULL command (git included) — an exec git "$@" here would double
+# the git and turn every wrapped call into 'git git …' (drilled Sep 28).
+run_clean_git() {
+    ( unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE \
+             GIT_OBJECT_DIRECTORY GIT_ALTERNATE_OBJECT_DIRECTORIES
+      exec "$@" )
+}
+
 # ── THE COMMIT GATE (Sep 22, generalized from the one-brain tripwire) ──
 # Every staged change to a guarded source file runs that source's check
 # drives against the STAGED content: the index exports into a scratch dir
@@ -162,7 +177,7 @@ done
 # red), and the green summary counts the drives so quiet output still
 # proves the gate ran.
 # Emergency bypass stays available: git commit --no-verify — deliberately.
-if git diff --cached --name-only | grep -qxE 'app\.py|background_scanner\.py|meta_layers\.py|profit_guard\.py|carve_out\.py|tri_watch\.py|hooks/pre-commit'; then
+if git diff --cached --name-only | grep -qxE 'app\.py|background_scanner\.py|meta_layers\.py|profit_guard\.py|carve_out\.py|tri_watch\.py|hooks/[^/]+|test_hooks_ignore_runtime_state\.py'; then
     if [ -z "$PY" ]; then
         echo "  ⛔ GATE: guarded source staged but no python found — commit blocked." >&2
         exit 1
@@ -177,10 +192,31 @@ if git diff --cached --name-only | grep -qxE 'app\.py|background_scanner\.py|met
     # never a stale HEAD layer or an absent sibling (the gate ran the
     # drive on a sandbox that lacked the file and the pin crashed with
     # FileNotFoundError — red for the wrong reason).
-    for src in app.py background_scanner.py meta_layers.py profit_guard.py carve_out.py tri_watch.py contest_account.py add_xrp_watch.py hooks/pre-commit; do
+    for src in app.py background_scanner.py meta_layers.py profit_guard.py carve_out.py tri_watch.py contest_account.py add_xrp_watch.py $(git ls-files 'hooks/*' | grep -v '\.sample$'); do
         mkdir -p "$SCRATCH/$(dirname "$src")"   # nested guarded paths (hooks/)
         git show ":$src" > "$SCRATCH/$src" 2>/dev/null || cp "$src" "$SCRATCH/$src" \
             || { echo "  ⛔ GATE: cannot stage $src for the gate" >&2; exit 1; }
+    done
+    # STAGE THE HOST ASSETS (Sep 30, the HOST-BOUND drive un-classed from
+    # the gate): test_hooks_ignore_runtime_state audits the machine-local
+    # .git/hooks mirror — an asset the scratch never had, so the drive read
+    # the sandbox probe's shape-C red (no-git 2/1) for ENVIRONMENT reasons
+    # and was classed out of the gate entirely. The scratch becomes the
+    # probe's shape A: a git repo whose index carries the staged hooks
+    # (git ls-files must list them — the drive's tracked-hook census reads
+    # it) with the .git/hooks mirror ARMED FROM THE STAGED HOOKS — the same
+    # bytes check_mirror just verified against the host mirror, so arming
+    # from the staged content (not the host copy) is faithful AND puts the
+    # drive's no-runtime-state scan on the STAGED hook: a staged hook that
+    # names runtime state or mutates files fails here, before it can land.
+    # A staging failure (init/add/cp) does not block the gate by itself —
+    # the drive then reads its shape-C/B red with the reason in its own
+    # output: fail-closed through the drive, never through a silent skip.
+    run_clean_git git -C "$SCRATCH" init -q
+    run_clean_git git -C "$SCRATCH" add hooks
+    for h in $(run_clean_git git -C "$SCRATCH" ls-files 'hooks/*'); do
+        case "$h" in *.sample) continue ;; esac
+        cp "$SCRATCH/$h" "$SCRATCH/.git/hooks/$(basename "$h")"
     done
     # Windows Python cannot consume MSYS-style paths (/tmp, /c/...);
     # cygpath -w renders the paths natively. THE THREE-LAYER RESOLUTION
@@ -229,7 +265,14 @@ if git diff --cached --name-only | grep -qxE 'app\.py|background_scanner\.py|met
         local out rc res failed p tot t0 t1 dt
         git show ":$t" > "$SCRATCH/$t" 2>/dev/null || cp "$t" "$SCRATCH/$t"
         t0="$(date +%s%N)"
-        out="$(cd "$SCRATCH" && timeout "$budget" "$PY" -X utf8 "$t" 2>&1)"; rc=$?
+        # EVERY drive child runs with the real-commit poison env stripped
+        # (Sep 30, the task-61 commit lesson): a commit exports GIT_DIR/
+        # GIT_WORK_TREE/GIT_INDEX_FILE and a drive that itself runs git
+        # drills (commitgate's sandbox) would address the OUTER repo and
+        # die for environment reasons. No drive ever legitimately wants
+        # the outer git identity; the hook's own index-reading calls
+        # above KEEP the env. Unconditional strip, not per-row.
+        out="$(cd "$SCRATCH" && timeout "$budget" env -u GIT_DIR -u GIT_WORK_TREE -u GIT_INDEX_FILE -u GIT_OBJECT_DIRECTORY -u GIT_ALTERNATE_OBJECT_DIRECTORIES "$PY" -X utf8 "$t" 2>&1)"; rc=$?
         t1="$(date +%s%N)"; dt=$(( (t1 - t0) / 1000000 ))
         res=""; failed=""
         case "$mode" in
@@ -267,13 +310,14 @@ if git diff --cached --name-only | grep -qxE 'app\.py|background_scanner\.py|met
             [ "$GATE_QUIET" = "1" ] || echo "  🧠 gate: $t — $res (${dt}ms, budget ${budget}s)" >&2
         fi
     }
-    _APP=no; _BS=no; _ML=no; _CO=no; _TW=no; _HK=no; _HS=no; _TL=no; _SW=no; _FS=no; _SH=no
+    _APP=no; _BS=no; _ML=no; _CO=no; _TW=no; _HK=no; _HH=no; _HS=no; _TL=no; _SW=no; _FS=no; _SH=no
     printf '%s\n' "$(git diff --cached --name-only)" | grep -qx 'app.py' && _APP=yes
     printf '%s\n' "$(git diff --cached --name-only)" | grep -qx 'background_scanner.py' && _BS=yes
     printf '%s\n' "$(git diff --cached --name-only)" | grep -qxE 'meta_layers\.py|profit_guard\.py' && _ML=yes
     printf '%s\n' "$(git diff --cached --name-only)" | grep -qxE 'carve_out\.py|meta_layers\.py|profit_guard\.py' && _CO=yes
     printf '%s\n' "$(git diff --cached --name-only)" | grep -qx 'tri_watch.py' && _TW=yes
     printf '%s\n' "$(git diff --cached --name-only)" | grep -qx 'hooks/pre-commit' && _HK=yes
+    printf '%s\n' "$(git diff --cached --name-only)" | grep -qxE 'hooks/[^/]+|test_hooks_ignore_runtime_state\.py' && _HH=yes
     printf '%s\n' "$(git diff --cached --name-only)" | grep -qxE 'hindsight_service\.py|test_hindightservice\.py' && _HS=yes
     printf '%s\n' "$(git diff --cached --name-only)" | grep -qxE 'tide_learn\.py|test_tidelearn\.py' && _TL=yes
     printf '%s\n' "$(git diff --cached --name-only)" | grep -qxE 'ops/fleet_sweep\.py|ops/fleet_sweep_classes\.json|test_fleetsweep\.py' && _FS=yes
@@ -341,6 +385,14 @@ if git diff --cached --name-only | grep -qxE 'app\.py|background_scanner\.py|met
     maybe_run "$_HK"  test_commitgate.py result  180   # the gate's own guard:
                                                         # the quiet census +
                                                         # live sandbox drills
+    # THE HOST ASSETS ARE STAGED, SO THE CENSUS RUNS GATED (Sep 30): the
+    # identity drive reads GIT IDENTITY — with the real-commit poison env
+    # leaking in, its git subprocesses would point at the OUTER repo and
+    # manufacture orphan-mirror failures inside the sandbox (every drive
+    # child runs stripped now — see run_drive above). The row also fires
+    # on the drive's own file and on ANY tracked hook (hooks/[^/]+), so a
+    # future third hook is censused by construction.
+    maybe_run "$_HH"  test_hooks_ignore_runtime_state.py result  10
     maybe_run "$_TL"  test_tidelearn.py   result   15   # the EV ladder's
                                                         # admission policy
                                                         # (zero-EV deny),
@@ -431,13 +483,8 @@ WT=""; WT_REF=""; _isol_err=""; _isol_step=""
 # while real commits fell back. The snapshot steps deliberately KEEP
 # the env (write-tree must read THE staged index); worktree add, the
 # in-worktree review, and the cleanup run with it stripped.
-run_clean_git() {
-    ( unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE \
-             GIT_OBJECT_DIRECTORY GIT_ALTERNATE_OBJECT_DIRECTORIES
-      exec "$@" )   # callers pass the FULL command (git included) — an
-                    # exec git "$@" here would double the git and turn
-                    # every wrapped call into 'git git …' (drilled Sep 28)
-}
+# (run_clean_git — the poison-env strip — is defined above the gate,
+# hoisted Sep 30 to serve the scratch's host-asset staging too.)
 cleanup_wt() {
     [ -n "$WT" ] || return 0
     run_clean_git git worktree remove --force "$WT" >/dev/null 2>&1

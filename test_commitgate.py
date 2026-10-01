@@ -163,16 +163,68 @@ check(1.951, iso.count("cleanup_wt") >= 5 and n_isolated_cleanup >= 2,
       f"and explicit calls on the success + fallback paths "
       f"(found {n_isolated_cleanup} explicit call sites)")
 # 1.96 THE REAL-COMMIT POISON GUARD: hook-exported GIT_DIR/GIT_WORK_TREE
-#      kill `git worktree add` outright — every isolation step outside the
-#      index readers must run with the poison env stripped.
-rg_start = iso.find('run_clean_git() {')
+#      kill `git worktree add` outright — every git call that must address
+#      a DIFFERENT repo (the isolation worktree, the gate's scratch
+#      identity repo) must run with the poison env stripped. The
+#      definition lives above the gate (hoisted Sep 30 to serve the
+#      host-asset staging too), so the census reads the full source.
+rg_start = src.find('run_clean_git() {')
 check(1.96, rg_start != -1, "run_clean_git() (the poison-env strip) is missing")
-rg_end = iso.find("\n}", rg_start)
-rg = iso[rg_start:rg_end if rg_end != -1 else len(iso)]
+rg_end = src.find("\n}", rg_start)
+rg = src[rg_start:rg_end if rg_end != -1 else len(src)]
 check(1.961, 'GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE' in rg,
       "run_clean_git no longer strips the hook's poison git env")
 check(1.962, 'run_clean_git git worktree add' in iso,
       "worktree add no longer runs with the hook-env stripped")
+
+# 1.10 THE HOST ASSETS (Sep 30): the hooks census drive — HOST-BOUND in
+#      the mutation sweep — runs GATED. The scratch never had the git
+#      identity the drive audits, so the drive read the sandbox probe's
+#      shape-C red (no-git 2/1) for environment reasons and was classed
+#      out of the gate entirely; now the scratch stages it: a git repo
+#      with the staged hooks in the index and the .git/hooks mirror
+#      armed FROM THE STAGED HOOKS, so the drive's no-runtime-state scan
+#      judges the STAGED hook at commit time, fail-closed.
+check(1.10, 'run_clean_git git -C "$SCRATCH" init -q' in src
+      and 'run_clean_git git -C "$SCRATCH" add hooks' in src,
+      "the gate sandbox no longer stages a git repo with the staged hooks")
+check(1.11, 'cp "$SCRATCH/$h" "$SCRATCH/.git/hooks/$(basename "$h")"' in src,
+      "the .git/hooks mirror is no longer armed from the staged hooks "
+      "(the drive's scan must judge the STAGED hook, not a stale copy)")
+# 1.11.1 the staging is poison-env-safe: a real commit exports GIT_DIR
+#        et al., and an unstripped init/add would address the OUTER repo.
+check(1.111, 'run_clean_git git -C "$SCRATCH" init' in src
+      and 'run_clean_git git -C "$SCRATCH" ls-files' in src,
+      "the host-asset staging lost its run_clean_git poison-env strip")
+# 1.12 the census drive is wired into the trigger matrix: fired by ANY
+#      tracked hook (hooks/[^/]+ — a future third hook is censused by
+#      construction) and by its own file, mode result, its own budget —
+#      and its own file is in the GATE BLOCK's guarded-source condition,
+#      or staging the drive alone would skip the gate section entirely
+#      (the 2.35 drill would pass vacuously) and a drive-only commit
+#      would ship ungated.
+check(1.12, "grep -qxE 'hooks/[^/]+|test_hooks_ignore_runtime_state\\.py' && _HH=yes" in src
+      and 'maybe_run "$_HH"  test_hooks_ignore_runtime_state.py result  10' in src
+      and "|hooks/[^/]+|test_hooks_ignore_runtime_state\\.py'; then" in src,
+      "the hooks census drive is not wired into the trigger matrix (_HH) "
+      "or the gate block's own condition")
+# 1.13 the drive RUN strips the poison env — UNCONDITIONALLY (the
+#      task-61 commit lesson: a real commit exports GIT_DIR/GIT_WORK_TREE/
+#      GIT_INDEX_FILE and ANY drive that itself runs git drills
+#      (commitgate's sandbox) would address the OUTER repo and die for
+#      environment reasons; a per-row strip fixed the census and left
+#      commitgate dying). No drive legitimately wants the outer git
+#      identity; the hook's own index-reading calls keep the env.
+check(1.13, 'timeout "$budget" env -u GIT_DIR -u GIT_WORK_TREE '
+      '-u GIT_INDEX_FILE' in src,
+      "drive runs lost the unconditional poison-env strip")
+# 1.14 the support lane stages EVERY tracked hook — a static
+#      hooks/pre-commit entry would leave post-commit absent from the
+#      scratch index and the drive would red on it (missing tracked twin).
+check(1.14, "for src in app.py background_scanner.py meta_layers.py "
+      "profit_guard.py carve_out.py tri_watch.py contest_account.py "
+      "add_xrp_watch.py $(git ls-files 'hooks/*'" in src,
+      "the support lane no longer stages every tracked hook for the census")
 
 if not RERUN:
     # ════════ 2. behavioral sandbox: the gate body, run for real ════════
@@ -226,13 +278,22 @@ if not RERUN:
     hook_mode = hook_exe.stat().st_mode
     hook_exe.chmod(hook_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
 
-    def run_gate(extra_env=None, stage=("app.py", "background_scanner.py")):
-        """Touch the triggers, stage REAL diffs, run the REAL hook."""
+    def run_gate(extra_env=None, stage=("app.py", "background_scanner.py"),
+                 mirror_sync=()):
+        """Touch the triggers, stage REAL diffs, run the REAL hook.
+        mirror_sync: worktree -> sandbox .git/hooks copies made AFTER
+        staging (the teeth drill arms the mirror with the drill's bad
+        bytes — the worktree hook is check_mirror's reference, and the
+        touch means the mirror must be synced post-stage or the mirror
+        check blocks on drift before the census ever runs)."""
         for f in stage:
             p = sandbox / f
             p.write_text(p.read_text(encoding="utf-8", errors="replace")
                          + "\n# quiet-guard touch\n", encoding="utf-8")
             _git("add", "-f", f)
+        for f in mirror_sync:
+            shutil.copyfile(sandbox / f,
+                            sandbox / ".git" / f)
         env = dict(os.environ)
         env["CODERABBIT_OFF"] = "1"   # sandbox isolation: gate only
         # (Sep 23, the gate's own first quiet commit) the scenarios OWN the
@@ -318,6 +379,79 @@ if not RERUN:
           "the fail summary is missing under quiet")
     check(2.33, '🧠 gate: ' not in out,
           "pass chatter leaked through quiet on a red run")
+
+    # ════════ 2.35 THE HOST-ASSETS DRILL (Sep 30): the hooks census ════
+    # runs GATED. Staging the drive alone fires _HH and nothing else, so
+    # this drill pays ONE fast drive, not the full matrix: the gate must
+    # export the drive into a scratch that carries a git repo (the staged
+    # hooks in its index) with the .git/hooks mirror armed from the
+    # staged hooks — the sandbox probe's shape A (git+armed-mirror reads
+    # 4/0 GREEN; git+no-mirror 2/2; no-git 2/1) — and the drive must come
+    # out green on the staged content. The passed-count depends on the
+    # tracked-hook count (4 with today's two); the CONTRACT is zero
+    # failed.
+    print("== 2.35 host assets: the hooks census drive runs gated ==")
+    for f in ("app.py", "background_scanner.py", "test_autotrack.py"):
+        _git("restore", "--staged", f)   # 2.3 left app/bs staged + autotrack
+                                         # broken: _HH must fire ALONE here
+    rc, out = run_gate({}, stage=("test_hooks_ignore_runtime_state.py",))
+    check(2.35, rc == 0, f"gate rc={rc}; tail: {out[-400:]}")
+    _m = _re.search(r"test_hooks_ignore_runtime_state\.py — "
+                    r"RESULT: (\d+) passed, (\d+) failed", out)
+    check(2.36, bool(_m) and _m.group(2) == "0",
+          f"the hooks census must run green in the gate sandbox (the host "
+          f"assets are not staged), got "
+          f"{_m.groups() if _m else 'no verdict line'}")
+    _expected_hh = _expected_drives_for(("test_hooks_ignore_runtime_state.py",))
+    check(2.37, _expected_hh == {"test_hooks_ignore_runtime_state.py"},
+          f"the _HH row must fire alone for its own drive, got {_expected_hh}")
+    check(2.38, "commit gate: every triggered drive green" in out,
+          "the verbose green summary is missing on the host-assets run")
+    _git("restore", "--staged", "test_hooks_ignore_runtime_state.py")
+
+    # ════════ 2.39 THE TEETH (Sep 30): the gated census judges the ════
+    # STAGED hook — the mirror is armed FROM THE STAGED HOOKS, so a
+    # staged hook that names runtime state fails the gate at commit time
+    # (the 2026-09-21 hook-dance class, now caught before landing). A bad
+    # post-commit is the cheapest carrier: hooks/[^/]+ fires the gate
+    # block and _HH without paying hookparser/commitgate (_HK is
+    # pre-commit-only), so this drill costs one red drive. The sandbox
+    # mirror must carry the drill's bad bytes too — the worktree hook is
+    # check_mirror's reference, and a stale clean mirror would block at
+    # the mirror check before the census ever ran.
+    print("== 2.39 teeth: a staged hook naming runtime state blocks ==")
+    (sandbox / "hooks" / "post-commit").write_text(
+        (sandbox / "hooks" / "post-commit").read_text(
+            encoding="utf-8", errors="replace")
+        + '\nBAD_DRILL="contest_watch.json"\n', encoding="utf-8")
+    shutil.copyfile(sandbox / "hooks" / "post-commit",
+                    sandbox / ".git" / "hooks" / "post-commit")
+    rc, out = run_gate({}, stage=("hooks/post-commit",),
+                       mirror_sync=("hooks/post-commit",))
+    check(2.39, rc == 1,
+          f"a staged hook naming runtime state must block (rc={rc})")
+    check(2.391, "⛔ GATE: test_hooks_ignore_runtime_state.py FAILED" in out,
+          "the census drive did not fail the gate on the staged bad hook")
+    # the gate echoes a failed drive's LAST 4 lines — the census's FAIL
+    # line (which names the literal) is the drive's FIRST line, pushed out
+    # by the mirror PASSes — so the observable is the verdict SHAPE in the
+    # gate's FAILED line: exactly the runtime-state scan red (3/1), with
+    # both mirror censuses green (the mirror matches the staged bytes).
+    check(2.392, "⛔ GATE: test_hooks_ignore_runtime_state.py FAILED "
+          "(RESULT: 3 passed, 1 failed" in out,
+          "the census must fail on exactly the runtime-state scan (3/1 — "
+          "both mirror censuses pass against the staged bytes)")
+    _expected_pc = _expected_drives_for(("hooks/post-commit",))
+    check(2.393, _expected_pc == {"test_hooks_ignore_runtime_state.py"},
+          f"a hook-only staged set must run the census alone, got {_expected_pc}")
+    _git("restore", "--staged", "hooks/post-commit")
+    _git("checkout", "--", "hooks/post-commit")   # worktree back to HEAD's
+                                                  # clean bytes
+    # re-arm the sandbox mirror with the clean bytes: the 2.4 isolation
+    # drills run the hook's mirror check at the top — a stale bad-byte
+    # mirror would block every one of them with a phantom drift red.
+    shutil.copyfile(sandbox / "hooks" / "post-commit",
+                    sandbox / ".git" / "hooks" / "post-commit")
 
     # ════════ 2.4 THE ISOLATION DRILLS (Sep 28, session history made ════
     # permanent): the fallback banner contract and the no-leak cleanup
@@ -600,7 +734,27 @@ check("the no-aggregate tripwire: every drive that renders PASS/FAIL "
 # at all — a sweep without it would silently return to manufacturing.
 _manifest_ok = False
 _manifest_bad = []
-_dms = Path("diag_mutation_sweep.py")
+# THE MANIFEST'S CWD-INDEPENDENT RESOLUTION (Sep 30 — the first gate run
+# that ever exercised this probe IN the gate: _HK needs hooks/pre-commit
+# staged, and the probe passed locally while reading cwd-relative paths
+# that do not exist in the scratch). Under the gate the drive runs from
+# the scratch (staged files only), so the manifest is resolved through
+# the import path — PYTHONPATH's HEAD layer carries every tracked .py —
+# and each classed drive's existence is checked as a SIBLING of the
+# manifest file: a classed drive missing THERE is truly gone, while a
+# cwd-relative check would mass-report "drive gone" for drives the
+# scratch simply never staged.
+_dms_path = None
+try:
+    import importlib.util as _ilu
+    _spec = _ilu.find_spec("diag_mutation_sweep")
+    if _spec and _spec.origin:
+        _dms_path = Path(_spec.origin)
+except (ImportError, ValueError):
+    pass
+if _dms_path is None or not _dms_path.exists():
+    _dms_path = Path("diag_mutation_sweep.py")   # legacy cwd fallback
+_dms = _dms_path
 if _dms.exists():
     _dms_txt = _dms.read_text(encoding="utf-8", errors="replace")
     _manifest_ok = "UNTESTABLE_CLASSES" in _dms_txt
@@ -614,7 +768,7 @@ if _dms.exists():
                                   _m.group(1)):
             if not (_dm[0].startswith("test_") and _dm[0].endswith(".py")):
                 _manifest_bad.append(f"{_dm[0]}: not a drive name")
-            elif not Path(_dm[0]).exists():
+            elif not (_dms.parent / _dm[0]).exists():
                 _manifest_bad.append(f"{_dm[0]}: drive gone — stale class")
             elif _dm[1] not in _SEALED:
                 _manifest_bad.append(f"{_dm[0]}: class '{_dm[1]}' not sealed")

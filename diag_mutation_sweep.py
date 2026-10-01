@@ -181,6 +181,15 @@ UNTESTABLE_CLASSES: dict[str, str] = {
     # mirror -> 2/2 (fails as designed: missing fallback copies), no-git
     # (the mutation-sandbox shape) -> 2/1. Behavior mutation can never
     # flip its verdict either way — it reads the host, not the sources.
+    # GATED SINCE SEP 30 (the class sharpens, it does not lift): the
+    # commit gate now stages the host assets in its own sandbox — a
+    # scratch git repo with the staged hooks in the index and the
+    # .git/hooks mirror armed FROM THE STAGED HOOKS — so the drive runs
+    # gated on every staged-hook commit, fail-closed, and its no-runtime-
+    # state scan judges the STAGED hook. The SWEEP class remains: the
+    # drive imports no guarded module, so behavior mutation has nothing
+    # to flow through, and arming THIS sandbox too would only manufacture
+    # the VACUOUS verdict the manifest exists to prevent.
     "test_hooks_ignore_runtime_state.py": "HOST-BOUND",
     # STANDALONE (Sep 30): the drive imports NO guarded repo module at all
     # (AST-verified per drive) — its verdict rides subprocesses, source
