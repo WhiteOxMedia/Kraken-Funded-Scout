@@ -1944,9 +1944,13 @@ def lone_wolf_discount(exchange, pair: str, max_age_s: float = 900.0) -> tuple[i
     drift, no end-game, no suppression — a dead tide stops buying solo
     runners with a static number). The 24h move is cached per pair
     (15 min) — one ticker fetch per signal, not one per gate. Fail-open:
-    an unreadable carve module falls back to the OLD fixed tiers; a
+    an unreadable carve module falls back to the OLD fixed tiers IN FLAT
+    (in OUT an unreadable reading keeps the hatch CLOSED — a broken
+    regime reader never opens the against-the-fleet gate); a
     broken tide or ticker read means NO discount (the normal thresholds
-    stand)."""
+    stand). (Oct 1 audit: the hatch's own-cause fix — carve_out no
+    longer requires a healthy tide to open the OUT hatch; the tide
+    taxes the SIZE through the product and MinHatch, one tax.)"""
     import time as _time
     _tp, _ts = _fleet_tide()
     if _tp is None or _ts not in ("FLAT", "OUT"):

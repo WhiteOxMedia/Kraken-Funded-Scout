@@ -252,13 +252,20 @@ def compute_carve_out(pair: str | None = None,
         carve *= SAL_GOOD_MULT
 
     # ── Section 6: suppression and expansion ──────────────────────────
+    # THE ONE-TAX RULE (Oct 1 audit): OUT's TideMod IS the clamp floor
+    # (TIDEMOD_CLAMP[0] = 0.5) — the hatch's OWN regime. The tide prices
+    # the allowance ONCE through the product; the suppression's tide leg
+    # only bites the regimes ABOVE the floor (the dying tides, tm in
+    # (0.5, 0.8)). The other legs — weak fleet, pressured book, drift,
+    # end-game — suppress everywhere, exactly as the Sep-23 spec pinned.
     endgame = False
     try:
         import meta_layers as _ml
         endgame = bool(_ml.endgame_active(when))
     except Exception:
         endgame = False
-    suppress = (tm < TIDE_THRESHOLD or fm < FLEET_HEALTH_THRESHOLD
+    suppress = ((TIDEMOD_CLAMP[0] < tm < TIDE_THRESHOLD)
+                or fm < FLEET_HEALTH_THRESHOLD
                 or bm > BOOKMOD_PRESSURE or drift_detected or endgame)
     expand = (fm >= 1.0 and tm >= 1.0 and rm >= 1.0 and bm <= 0.8
               and vm >= 1.0)
@@ -277,11 +284,19 @@ def compute_carve_out(pair: str | None = None,
     permission = (
         carve >= CARVEOUT_THRESHOLD
         and fm >= FLEET_HEALTH_THRESHOLD
-        and tm >= TIDE_THRESHOLD
         and rm >= ROTATION_THRESHOLD
         and not drift_detected
         and not endgame
         and not suppress
+        # THE HATCH'S OWN CAUSE (Oct 1 audit): the OLD gate demanded a
+        # healthy tide (tm >= 0.8) to open the OUT hatch — circular three
+        # ways (the clamp floor trips the suppression, the threshold
+        # demands the opposite regime, and the suppressed allowance sat
+        # under the static 2%) — so the Aug-31 XMR rule and the Sep-4
+        # POPCAT extension were silently dead since 50cf9f5. A hatch
+        # opens in its own floor regime on the OTHER legs; the tide
+        # still taxes the size through the product and MinHatch.
+        and (tm >= TIDE_THRESHOLD or tm <= TIDEMOD_CLAMP[0])
     )
     readable = any(v is not None for v in live.values())
     # THE CONFIDENCE-DISCOUNT SCALE: the fixed LONE_WOLF_PTS scales with

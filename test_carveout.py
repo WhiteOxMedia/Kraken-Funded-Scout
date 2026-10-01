@@ -166,6 +166,52 @@ check("2E.2 end-game outranks expansion (never widens while dying)",
                                * 0.5)) < 2e-4,
       re_x["carve"])
 ml.endgame_active = lambda when=None: False   # back to the section-2 regime
+
+# ═══ 2H. THE HATCH'S OWN CAUSE (Oct 1 audit, the lone-wolf OUT leak) ═══
+# The Sep-23 permission gate required a HEALTHY tide (tm >= 0.8) to open
+# the OUT hatch — but OUT's TideMod is 0.5 by definition (the clamp
+# floor), tm < 0.8 also trips the suppression the permission reads, and
+# the suppressed allowance (~1%) sat under the static 2% threshold. The
+# carve-out was circular three ways: only a healthy tide could open a
+# hatch whose entire purpose is a dead one — the Aug-31 XMR rule and the
+# Sep-4 POPCAT extension were silently dead since 50cf9f5.
+OUT_MODS = {"fleet": 1.0, "book": 0.8, "tide": 0.5, "vol": 1.0, "rot": 1.0}
+r_out = _carve(OUT_MODS)
+check("2H.1 ONE TAX: the tide prices ONCE through the product (tm=0.5 "
+      "halves the allowance) — the suppression's tide leg does not "
+      "double-price it in the hatch's own regime",
+      r_out["suppressed"] is False
+      and abs(r_out["carve"] - (0.05 * 1.0 * 0.8 * 0.5)) < 1e-9,
+      r_out["carve"])
+check("2H.2 the hatch OPENS in OUT when the OTHER legs stand (fleet "
+      "healthy, book unpressured, rotation strong, no drift/endgame) — "
+      "the carve-out is not circular",
+      r_out["lone_wolf"] is True, r_out)
+check("2H.3 the required move is the allowance in its band: 2.0% here — "
+      "the spec's dead-tide ~2% (MinHatch = 2 x TideMod = 1.0 is the "
+      "band floor, not the number)",
+      abs(co.required_own_move(r_out) - 2.0) < 1e-9,
+      co.required_own_move(r_out))
+check("2H.4 a dead tide + a WEAK fleet still closes the hatch (the "
+      "other legs protect — this is no blanket reopen)",
+      _carve({"fleet": 0.8, "book": 0.9, "tide": 0.5, "vol": 1.0,
+              "rot": 1.0})["lone_wolf"] is False)
+check("2H.5 a dead tide + drift still closes it",
+      _carve(OUT_MODS, drift=True)["lone_wolf"] is False)
+check("2H.6 a dead tide + a pressured book still closes it (the book "
+      "leg lives)",
+      _carve({"fleet": 1.0, "book": 1.1, "tide": 0.5, "vol": 1.0,
+              "rot": 1.0})["lone_wolf"] is False)
+check("2H.7 a sub-threshold NON-floor tide (tm 0.7) still suppresses "
+      "and closes — only the hatch's own floor regime changed, the "
+      "FLAT/dying regimes read exactly as the Sep-23 spec",
+      _carve({"fleet": 1.0, "book": 0.8, "tide": 0.7, "vol": 1.0,
+              "rot": 1.0})["lone_wolf"] is False
+      and _carve({"fleet": 1.0, "book": 0.8, "tide": 0.7, "vol": 1.0,
+                  "rot": 1.0})["suppressed"] is True)
+check("2H.8 the discount scale reads the regime (the 0.5 floor here — "
+      "a dead tide's hatch stays humble)",
+      abs(r_out["lw_scale"] - 0.5) < 1e-9, r_out["lw_scale"])
 # (3.1-3.2 compare pure relationships between section-2 results — every
 # side must read the SAME regime; the live phase leaked in once and
 # flipped 3.2 when the real contest clock crossed the window — the
