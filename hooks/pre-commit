@@ -167,6 +167,10 @@ run_clean_git() {
 #                      policy: pure-branch matrix + integration legs
 #                      through the real fit — the longest-recurring
 #                      review finding is now gate-protected)
+#   test_payeralert    exit code + RESULT (the payer-recovery watcher's
+#                      contract: the yaml subset parser fails closed,
+#                      EV-table pricing, first-seen candidates, the
+#                      closed-candle + book trip, at-most-once fire)
 # Measured cold runtimes (2026-09-22, HEAD): persistexit 0.4s, autotrack
 # 0.7s, trailstop 0.4s, metalayers 2.9s, watchliveness 3.3s — the budgets
 # below are ~5x those. Each drive runs at most ONCE per commit even when
@@ -310,7 +314,7 @@ if git diff --cached --name-only | grep -qxE 'app\.py|background_scanner\.py|met
             [ "$GATE_QUIET" = "1" ] || echo "  🧠 gate: $t — $res (${dt}ms, budget ${budget}s)" >&2
         fi
     }
-    _APP=no; _BS=no; _ML=no; _CO=no; _TW=no; _HK=no; _HH=no; _HD=no; _HS=no; _TL=no; _SW=no; _FS=no; _SH=no
+    _APP=no; _BS=no; _ML=no; _CO=no; _TW=no; _HK=no; _HH=no; _HD=no; _HS=no; _TL=no; _SW=no; _FS=no; _SH=no; _PA=no
     printf '%s\n' "$(git diff --cached --name-only)" | grep -qx 'app.py' && _APP=yes
     printf '%s\n' "$(git diff --cached --name-only)" | grep -qx 'background_scanner.py' && _BS=yes
     printf '%s\n' "$(git diff --cached --name-only)" | grep -qxE 'meta_layers\.py|profit_guard\.py' && _ML=yes
@@ -323,6 +327,7 @@ if git diff --cached --name-only | grep -qxE 'app\.py|background_scanner\.py|met
     printf '%s\n' "$(git diff --cached --name-only)" | grep -qxE 'tide_learn\.py|test_tidelearn\.py' && _TL=yes
     printf '%s\n' "$(git diff --cached --name-only)" | grep -qxE 'ops/fleet_sweep\.py|ops/fleet_sweep_classes\.json|test_fleetsweep\.py' && _FS=yes
     printf '%s\n' "$(git diff --cached --name-only)" | grep -qxE 'diag_testleaks\.py|test_sink_hygiene\.py' && _SH=yes
+    printf '%s\n' "$(git diff --cached --name-only)" | grep -qxE 'ops/payer_alert\.py|ops/payer_alert\.yaml|test_payeralert\.py' && _PA=yes
     printf '%s\n' "$(git diff --cached --name-only)" | grep -qxE 'atomic_io\.py|profit_guard\.py|restore_state\.py|test_resilience\.py|diag_statewriters\.py|meta_layers\.py|background_scanner\.py' && _SW=yes
     # Trigger → drive map, deduped: when app.py AND background_scanner.py
     # are staged together (the f5ad99d shape), watchliveness and metalayers
@@ -424,6 +429,15 @@ if git diff --cached --name-only | grep -qxE 'app\.py|background_scanner\.py|met
                                                         # in-process; no
                                                         # drive writes a
                                                         # production file
+    maybe_run "$_PA"  test_payeralert.py result  15   # the payer-recovery
+                                                        # watcher's contract:
+                                                        # spec parser (fails
+                                                        # closed), medfill
+                                                        # pricing, first-seen
+                                                        # candidates, the
+                                                        # closed-candle +
+                                                        # book trip, the
+                                                        # at-most-once fire
                                                         # (the 16:55 PUMP
                                                         # phantom class)
     if [ -n "$FAILS" ]; then

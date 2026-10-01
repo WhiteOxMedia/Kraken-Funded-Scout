@@ -65,6 +65,11 @@ push_canary.json.tmp*
 price_alert.lock
 price_alert_state.json
 price_alert_state.json.tmp*
+# the payer-recovery watcher's runtime state (same idiom as price_alert)
+payer_alert.lock
+payer_alert_state.json
+payer_alert_state.json.tmp*
+payer_alert_metrics.csv
 console_state.json
 contest_watch.json
 discipline_state.json
