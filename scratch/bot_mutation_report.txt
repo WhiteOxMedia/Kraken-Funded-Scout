@@ -1,20 +1,19 @@
-THE BOT FLEET MUTATION AUDIT — 2026-09-30 18:38
+THE BOT FLEET MUTATION AUDIT (full fleet) — 2026-10-01 01:52
 ======================================================================
 
-LIVE (1):
-  test_scoreboard.py  [no verdict contract (prints an accounting summary; live keyring + Kraken API) — baseline-o]
-
-KILLED (4):
+KILLED (5):
   test_fills.py  [fills.py: rc=1 (44 mutations); scout_signal_reader.py: rc=1 (232 mutations); bot_engine.py: rc=1 (263 mutation]
   test_learningplate.py  [app.py: rc=1 (285 mutations)]
   test_lockguard.py  [bot_runner.py: rc=1 (49 mutations)]
-  test_rearmmirror.py  [signal_bridge.py: rc=1 (127 mutations); bot_engine.py: rc=1 (263 mutations); scout_signal_reader.py: rc=1 (232]
+  test_rearmmirror.py  [signal_bridge.py: rc=1 (136 mutations); bot_engine.py: rc=1 (263 mutations); scout_signal_reader.py: rc=1 (232]
+  test_scoreboard.py  [app.py: rc=1 (285 mutations)]
 
 per-drive module matrix (mutation sites -> red?):
   test_fills.py: fills:44->RED  scout_signal_reader:232->RED  bot_engine:263->RED
   test_learningplate.py: app:285->RED
   test_lockguard.py: bot_runner:49->RED
-  test_rearmmirror.py: signal_bridge:127->RED  bot_engine:263->RED  scout_signal_reader:232->RED
+  test_rearmmirror.py: signal_bridge:136->RED  bot_engine:263->RED  scout_signal_reader:232->RED
+  test_scoreboard.py: app:285->RED
 
 ======================================================================
-total 5: killed 4, VACUOUS 0, baseline-red 0, live 1
+total 5: killed 5, VACUOUS 0, baseline-red 0, live 0

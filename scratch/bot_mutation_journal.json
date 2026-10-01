@@ -8,7 +8,7 @@
   "baseline": {
    "rc": 0,
    "red": false,
-   "secs": 0.3,
+   "secs": 0.2,
    "exit_blind": false
   },
   "mutation": {
@@ -44,7 +44,7 @@
   "baseline": {
    "rc": 0,
    "red": false,
-   "secs": 0.1,
+   "secs": 0.2,
    "exit_blind": false
   },
   "mutation": {
@@ -53,7 +53,7 @@
     "red": true,
     "secs": 0.1,
     "mutations": 285,
-    "evidence": "line only (the GF metric stands, no trend caption)\nPASS  the trend is read from the seam (gf_history), never derived in the plate\n\nRESULT: 20 passed, 10 failed\n"
+    "evidence": "line only (the GF metric stands, no trend caption)\nPASS  the trend is read from the seam (gf_history), never derived in the plate\n\nRESULT: 24 passed, 10 failed\n"
    }
   },
   "verdict": "KILLED",
@@ -66,16 +66,16 @@
   "baseline": {
    "rc": 0,
    "red": false,
-   "secs": 1.1,
+   "secs": 2.7,
    "exit_blind": false
   },
   "mutation": {
    "bot_runner.py": {
     "rc": 1,
     "red": true,
-    "secs": 0.1,
+    "secs": 2.1,
     "mutations": 49,
-    "evidence": "_a = _src.index(\"# \u2500\u2500 PID lock: prevent duplicate instances\")\n         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nValueError: substring not found\n"
+    "evidence": "\nFAIL  a probe TOOL failure refuses (fail-safe down)  [[]]\nPASS  an EMPTY lock file takes over\nPASS  an CORRUPT lock file takes over\nRESULT: 4 passed, 6 failed\n"
    }
   },
   "verdict": "KILLED",
@@ -90,33 +90,55 @@
   "baseline": {
    "rc": 0,
    "red": false,
-   "secs": 3.5,
+   "secs": 2.1,
    "exit_blind": false
   },
   "mutation": {
    "signal_bridge.py": {
     "rc": 1,
     "red": true,
-    "secs": 1.8,
-    "mutations": 127,
-    "evidence": "RESULT: 15 passed, 1 failed\n"
+    "secs": 1.9,
+    "mutations": 136,
+    "evidence": "RESULT: 21 passed, 1 failed\n"
    },
    "bot_engine.py": {
     "rc": 1,
     "red": true,
-    "secs": 1.7,
+    "secs": 2.1,
     "mutations": 263,
-    "evidence": "RESULT: 14 passed, 2 failed\n"
+    "evidence": "RESULT: 20 passed, 2 failed\n"
    },
    "scout_signal_reader.py": {
     "rc": 1,
     "red": true,
-    "secs": 0.2,
+    "secs": 0.1,
     "mutations": 232,
     "evidence": "turn (False, str(gate.get('meta') or 'the machinery keeps the bench'))\n                       ^^^^^^^^\nAttributeError: 'NoneType' object has no attribute 'get'\n"
    }
   },
   "verdict": "KILLED",
-  "detail": "signal_bridge.py: rc=1 (127 mutations); bot_engine.py: rc=1 (263 mutations); scout_signal_reader.py: rc=1 (232 mutations)"
+  "detail": "signal_bridge.py: rc=1 (136 mutations); bot_engine.py: rc=1 (263 mutations); scout_signal_reader.py: rc=1 (232 mutations)"
+ },
+ "test_scoreboard.py": {
+  "modules": [
+   "app.py"
+  ],
+  "baseline": {
+   "rc": 0,
+   "red": false,
+   "secs": 0.1,
+   "exit_blind": false
+  },
+  "mutation": {
+   "app.py": {
+    "rc": 1,
+    "red": true,
+    "secs": 0.1,
+    "mutations": 285,
+    "evidence": "t float, kind=order)\nFAIL  the ledger's spend/receive pair becomes ONE buy fill with fee 0.0 (the spread is embedded in the price) and price = cost/amount \u2014 []\n"
+   }
+  },
+  "verdict": "KILLED",
+  "detail": "app.py: rc=1 (285 mutations)"
  }
 }

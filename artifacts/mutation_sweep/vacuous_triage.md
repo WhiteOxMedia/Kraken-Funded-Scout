@@ -311,3 +311,32 @@ the open bookkeeping item. The scoreboard's upgrade is the template for
 any future LIVE-class drive: a live diagnostic becomes judgeable by
 replacing its live inputs with fixtures at the seams the production code
 already exposes — no production change required.
+
+**Oct 1 follow-up wave — the ledger claim above is now tool-verified,
+not just asserted.** The scoreboard drive is MAPPED
+(`DRIVE_MODULES["test_scoreboard.py"] = ["app.py"]`: the 2432d92 fixture
+seams let the 285-site app.py mutant bite it exactly like learningplate's),
+and the full-fleet re-run reproduces **5 judged: 5 KILLED** in
+`scratch/bot_mutation_journal.json` — 1,789 mutation sites across 9
+drive-module pairs, all red; zero VACUOUS, zero BASELINE-RED, zero LIVE.
+Repairs riding the same wave: `signal_bridge.py` gained `_sql_retry`
+(transient-lock-only bounded retries) and idempotent
+acknowledge/mark_executed — first REAL truth wins (a placeholder 0/''
+from the callers' .get fallbacks never cements itself and is repaired by
+the real price), closed/rejected stay terminal against stale claims, but
+a confirmed fill records over a cancelled/expired intent the world raced
+(the Copilot-caught pair; the phantom sweep reconciles downstream) —
+synced byte-identical to both repos, pinned by rearmmirror section 5's
+real-sqlite duplicate/resurrection/race/repair pins (26/0);
+`bot_runner.py`'s guard is
+extracted to a testable `lock_guard()` and test_lockguard drives it
+directly instead of exec-slicing source (10/0) — both files are
+currently user-dirty with the uncommitted recycled-pid hardening the
+drive pins, so guard+drive land together in the bot's next commit.
+`test_lockguard.py` remains UNTRACKED — still the open bookkeeping item.
+The audit tool itself gained a `--drive/--module` per-module mode
+(journal row merge, separate per-module report, mapped-module
+validation) and a `BOT_MUTATION_AUDIT_BOT` env override; ready-to-use
+CI workflows sit in the bot repo's `.github/workflows/` (bot-drives on
+push/PR, nightly bot-mutation-audit with journal/report artifacts) —
+dormant until the bot repo has a git remote, which it has never had.

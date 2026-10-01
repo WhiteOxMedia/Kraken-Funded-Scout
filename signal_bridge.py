@@ -482,6 +482,27 @@ def bot_tide_rearm_gate(tide_state: str = "OUT") -> dict:
         return out
 
 
+def _sql_retry(fn, attempts: int = 3):
+    """Run one DB write with bounded retries on TRANSIENT contention only
+    (Sep 30, the audit hardening): OperationalError 'database is locked'
+    / 'unable to open database file' with backoff 0.1/0.2/0.4s. The
+    timeout=10 in _get_db already serializes writers; these retries catch
+    the lock arriving between the timeout's expiry and the statement.
+    Real bugs (IntegrityError, OperationalError 'no such table') RE-RAISE
+    immediately — a bounded retry must never paper over a broken shape.
+    """
+    import time as _rt
+    for i in range(max(1, attempts)):
+        try:
+            return fn()
+        except sqlite3.OperationalError as exc:
+            transient = ("locked" in str(exc).lower()
+                         or "unable to open database file" in str(exc).lower())
+            if not transient or i == attempts - 1:
+                raise
+            _rt.sleep(0.1 * (2 ** i))
+
+
 def write_buy_signal(
     pair: str,
     action: str,
@@ -561,23 +582,26 @@ def write_buy_signal(
     if not reason_summary:
         reason_summary = "; ".join(reasons[:3])[:200]
 
-    with _get_db() as conn:
-        conn.execute("""
-            INSERT INTO signals (
-                signal_id, pair, action, confidence, reason,
-                timestamp, valid_until, cooldown_until,
-                price_at_signal, entry_price, stop_loss, take_profit,
-                risk_reward, position_size_usd, source, status,
-                tide_state, tide_pct, tide_bar
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?)
-        """, (
-            signal_id, pair, action, confidence, reason_summary,
-            now.isoformat(), valid_until, cooldown_until,
-            entry_price, entry_price, stop_loss, take_profit,
-            risk_reward, position_size_usd, source,
-            tide_state, tide_pct, tide_bar,
-        ))
-        conn.commit()
+    def _insert():
+        with _get_db() as conn:
+            conn.execute("""
+                INSERT INTO signals (
+                    signal_id, pair, action, confidence, reason,
+                    timestamp, valid_until, cooldown_until,
+                    price_at_signal, entry_price, stop_loss, take_profit,
+                    risk_reward, position_size_usd, source, status,
+                    tide_state, tide_pct, tide_bar
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?)
+            """, (
+                signal_id, pair, action, confidence, reason_summary,
+                now.isoformat(), valid_until, cooldown_until,
+                entry_price, entry_price, stop_loss, take_profit,
+                risk_reward, position_size_usd, source,
+                tide_state, tide_pct, tide_bar,
+            ))
+            conn.commit()
+
+    _sql_retry(_insert)
 
     logger.info("Signal written: %s %s (%.0f%%) [%s] valid_until=%s",
                 action.upper(), pair, confidence, signal_id, valid_until)
@@ -602,17 +626,20 @@ def write_exit_signal(pair: str, reason: str, source: str = "scout_exit_check") 
     signal_id = str(uuid.uuid4())[:8]
     valid_until = (now + timedelta(minutes=10)).isoformat()
 
-    with _get_db() as conn:
-        conn.execute("""
-            INSERT INTO signals (
-                signal_id, pair, action, confidence, reason,
-                timestamp, valid_until, source, status
-            ) VALUES (?, ?, 'sell', 0, ?, ?, ?, ?, 'pending')
-        """, (
-            signal_id, pair, reason,
-            now.isoformat(), valid_until, source,
-        ))
-        conn.commit()
+    def _insert():
+        with _get_db() as conn:
+            conn.execute("""
+                INSERT INTO signals (
+                    signal_id, pair, action, confidence, reason,
+                    timestamp, valid_until, source, status
+                ) VALUES (?, ?, 'sell', 0, ?, ?, ?, ?, 'pending')
+            """, (
+                signal_id, pair, reason,
+                now.isoformat(), valid_until, source,
+            ))
+            conn.commit()
+
+    _sql_retry(_insert)
 
     logger.info("Exit signal written: SELL %s [%s]", pair, signal_id)
     return signal_id
@@ -691,14 +718,26 @@ def reset_all_positions(keep_pairs: list[str] | None = None) -> dict:
 
 
 def acknowledge(signal_id: str):
-    """Bot acknowledges it has received the signal and is about to execute."""
+    """Bot acknowledges it has received the signal and is about to execute.
+
+    IDEMPOTENT (Sep 30, the audit hardening): the WHERE pins status=
+    'pending', so an ack that arrives twice (a scanner retry, a replayed
+    message, two processes) leaves the first stamp intact — the ack time
+    is the first time the bot owned the signal, not the last time anyone
+    saw it. Returns nothing; a signal_id that never existed stays a no-op
+    (the caller learned of it from a listing that has since changed).
+    """
     init_db()
-    with _get_db() as conn:
-        conn.execute(
-            "UPDATE signals SET status='acknowledged', acknowledged_at=? WHERE signal_id=? AND status='pending'",
-            (_now_iso(), signal_id),
-        )
-        conn.commit()
+
+    def _ack():
+        with _get_db() as conn:
+            conn.execute(
+                "UPDATE signals SET status='acknowledged', acknowledged_at=? WHERE signal_id=? AND status='pending'",
+                (_now_iso(), signal_id),
+            )
+            conn.commit()
+
+    _sql_retry(_ack)
 
 
 def _retire_order_phantoms(order_id: str, keep_signal_id: str, pnl: float) -> int:
@@ -734,14 +773,45 @@ def _retire_order_phantoms(order_id: str, keep_signal_id: str, pnl: float) -> in
 
 
 def mark_executed(signal_id: str, order_id: str, fill_price: float):
-    """Mark a signal as filled (order executed on Kraken)."""
+    """Mark a signal as filled (order executed on Kraken).
+
+    IDEMPOTENT (Sep 30, the audit hardening; WHERE retuned Oct 1 through
+    two review catches): the WHERE pins the LIVE-OR-RACED set —
+    pending/acknowledged (the normal flow) plus cancelled/expired (an
+    intent record the WORLD raced: reset_all_positions cancels in-flight
+    signals whose order may already be filling, and a confirmed exchange
+    fill must be recorded, never dropped — the phantom sweep and the
+    close-by-pair logic reconcile the position downstream) — plus the
+    REPAIR branch: a filled row still wearing placeholder stamps (a 0
+    price or empty order id, the .get(...) fallbacks callers pass) can
+    be upgraded by the real truth; a fully-stamped filled row matches
+    nothing, so duplicates keep the first REAL price/order. closed and
+    rejected stay terminal: closed presupposes this signal's own fill
+    history (a second mark is a stale duplicate), rejected presupposes
+    no order ever existed. The phantom sweep still runs on every call
+    (idempotent by its own WHERE).
+    """
     init_db()
-    with _get_db() as conn:
-        conn.execute(
-            "UPDATE signals SET status='filled', executed_at=?, execution_price=?, order_id=? WHERE signal_id=?",
-            (_now_iso(), fill_price, order_id, signal_id),
-        )
-        conn.commit()
+
+    def _mark():
+        with _get_db() as conn:
+            conn.execute(
+                "UPDATE signals SET status='filled', "
+                "executed_at=COALESCE(executed_at, ?), "
+                "execution_price=CASE WHEN execution_price IS NULL "
+                "OR execution_price=0 THEN ? ELSE execution_price END, "
+                "order_id=CASE WHEN order_id IS NULL OR order_id='' "
+                "THEN ? ELSE order_id END "
+                "WHERE signal_id=? AND ("
+                "status IN ('pending', 'acknowledged', 'cancelled', "
+                "'expired') OR (status='filled' AND "
+                "(execution_price IS NULL OR execution_price=0 OR "
+                "order_id IS NULL OR order_id='')))",
+                (_now_iso(), fill_price, order_id, signal_id),
+            )
+            conn.commit()
+
+    _sql_retry(_mark)
     # The fill stamp is the truth landing: retire any same-order phantom
     # (the mirror may have double-booked this very order seconds ago).
     _retire_order_phantoms(order_id, signal_id, 0)

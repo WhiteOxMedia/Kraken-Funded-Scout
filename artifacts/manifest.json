@@ -1273,6 +1273,21 @@
         "test_exit_extension.py": "sha256:05588ff11b31f1a9792a3ebd2a75a3b7805e4ece9060584deedca8aaf0384c0d"
       }
     },
+    "64-bot-audit-followup": {
+      "commits": [
+        "<this commit>"
+      ],
+      "branch_name": "master",
+      "date": "2026-10-01",
+      "title": "THE BOT AUDIT'S FOLLOW-UP CLOSES: THE FLEET 5-FOR-5 KILL-PROVEN, THE TWINS IDEMPOTENT, THE AUDIT ITERABLE (Oct 1, bot-audit-followup): section 6's 5-judged/5-killed ledger claim becomes tool-verified — the scoreboard drive is MAPPED to app.py (the 2432d92 hermetic fixture seams let the 285-site mutant bite it like learningplate's) and the full-fleet re-run reads 5 judged: 5 KILLED (1,789 mutation sites across 9 drive-module pairs all red; zero VACUOUS, zero BASELINE-RED, zero LIVE). The twin signal_bridge.py hardens in both repos byte-identically: _sql_retry bounds transient sqlite lock failures only (real bugs re-raise immediately), acknowledge/mark_executed go idempotent — first REAL truth wins (a placeholder 0/'' from the callers' .get fallbacks never cements itself and is repaired by the real price), closed/rejected stay terminal against stale claims, but a confirmed fill records over a cancelled/expired intent the world raced — semantics retuned through two Copilot review catches (the not-filled guard resurrecting terminal rows, then the live-set guard dropping a confirmed late fill after a panic reset), each catch pinned red-first in the bot drive's real-sqlite section 5 (26/0) and regression-clean on all ten scout drives importing the bridge. The bot's lock guard becomes a testable lock_guard() with byte-compatible messages; test_lockguard drops its exec-slice fragility to drive it directly (10/0, all five bot drives green) — guard+drive ride the user's uncommitted recycled-pid hardening into the bot's next commit, test_lockguard still untracked. The audit tool gains --drive/--module per-module iteration (journal row merge, per-module report, mapped-module validation) and a BOT_MUTATION_AUDIT_BOT env override; ready-to-use CI workflows sit in the bot repo (.github/workflows/bot-drives.yml, bot-mutation-audit.yml) documented dormant until the remote-less bot repo gains a remote.",
+      "checksums": {
+        "signal_bridge.py": "sha256:f6f0b96003e75974ff9d838b76592fc73f6224a88b09049503c8a315123f0e98",
+        "scratch/bot_mutation_audit.py": "sha256:9a6f9cc5c1ed990d12d2a70e6136568f34725999cc0f338fa4d0ac5e2d4fded6",
+        "scratch/bot_mutation_journal.json": "sha256:0694c52921676856b4a48bfb47a5c309e005813285a9d80174269005e29efdb5",
+        "scratch/bot_mutation_report.txt": "sha256:d517d387b6e5a314f6074515bc161af698957ab82af04fba5a7f1ed02a649a5e",
+        "artifacts/mutation_sweep/vacuous_triage.md": "sha256:23e1da744856c0f902d59626016282228491247c151d788533bf404cb93e0da1"
+      }
+    },
     "63-bot-audit": {
       "commits": [
         "<this commit>"

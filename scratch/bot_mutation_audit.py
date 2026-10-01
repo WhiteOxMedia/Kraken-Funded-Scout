@@ -19,12 +19,21 @@ Scout-side artifacts (never touches the bot repo):
   scratch/bot_mutation_journal.json
   scratch/bot_mutation_report.txt
 
-Usage: python scratch/bot_mutation_audit.py [--keep-sbx]
+Usage:
+  python scratch/bot_mutation_audit.py [--keep-sbx]            # full fleet
+  python scratch/bot_mutation_audit.py --drive test_rearmmirror.py
+  python scratch/bot_mutation_audit.py --drive test_fills.py --module fills.py
+
+Per-module mode merges its row into scratch/bot_mutation_journal.json
+(never clobbers the other drives' ledger rows) and writes
+scratch/bot_mutation_report_permodule.txt — fast iteration on one
+drive/module between full-fleet runs.
 """
 from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import shutil
 import subprocess
@@ -33,23 +42,32 @@ import tempfile
 import time
 from pathlib import Path
 
-import mutation_ops
-
 SCOUT = Path(__file__).resolve().parent.parent
-BOT = Path(r"C:\Users\birds\Workspace\kraken_xrp_trading_bot")
+if str(SCOUT) not in sys.path:
+    sys.path.insert(0, str(SCOUT))   # mutation_ops.py lives at the root
+
+import mutation_ops
+# BOT is overridable so CI can point the audit at a fresh checkout (the
+# bot repo's audit workflow sets BOT_MUTATION_AUDIT_BOT); locally the
+# default stays the sibling path.
+BOT = Path(os.environ.get(
+    "BOT_MUTATION_AUDIT_BOT", r"C:\Users\birds\Workspace\kraken_xrp_trading_bot"))
 DRIVES = ["test_fills.py", "test_learningplate.py", "test_lockguard.py",
           "test_rearmmirror.py", "test_scoreboard.py"]
 
 # the guarded-module map: runtime imports first (AST-verified against
 # the drives below), then the source-slice reads the exec-shape drives
-# consume. test_scoreboard maps to nothing: it is a live diagnostic.
+# consume. test_scoreboard rides app.py too: since the drive-contract
+# upgrade (bot 2432d92) its fetcher slice is hermetic — a fixture
+# exchange object rides the exact seam, KrakenAPI is never constructed,
+# so the 285-site app.py mutant turns it RED like learningplate's.
 DRIVE_MODULES = {
     "test_fills.py": ["fills.py", "scout_signal_reader.py", "bot_engine.py"],
     "test_learningplate.py": ["app.py"],
     "test_lockguard.py": ["bot_runner.py"],
     "test_rearmmirror.py": ["signal_bridge.py", "bot_engine.py",
                             "scout_signal_reader.py"],
-    "test_scoreboard.py": [],
+    "test_scoreboard.py": ["app.py"],
 }
 
 SKIP_COPY = shutil.ignore_patterns(
@@ -91,7 +109,25 @@ def run_drive(sbx: Path, drive: str, timeout: int) -> dict:
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--keep-sbx", action="store_true")
+    ap.add_argument("--drive", choices=sorted(DRIVE_MODULES), default=None,
+                    help="per-module mode: audit one drive only")
+    ap.add_argument("--module", default=None,
+                    help="with --drive: mutate only this one module")
     args = ap.parse_args()
+
+    per_module = args.drive is not None
+    if per_module:
+        drive_mods = {args.drive: list(DRIVE_MODULES[args.drive])}
+        if args.module:
+            if args.module not in drive_mods[args.drive]:
+                ap.error(f"--module {args.module} is not mapped to "
+                         f"{args.drive}: {drive_mods[args.drive]}")
+            drive_mods[args.drive] = [args.module]
+        if not drive_mods[args.drive]:
+            ap.error(f"{args.drive} has no mapped modules (live "
+                     f"diagnostic) — nothing to mutate")
+    else:
+        drive_mods = {d: DRIVE_MODULES[d] for d in DRIVES}
 
     mutation_ops.self_test()   # an inert engine would label drives VACUOUS
     SBX_PARENT.mkdir(exist_ok=True)
@@ -111,20 +147,20 @@ def main() -> int:
                            capture_output=True, text=True)
         print(f"sandbox ready in {time.strftime('%H:%M:%S')}", flush=True)
 
-        for drive in DRIVES:
+        for drive in drive_mods:
             timeout = 300
-            entry: dict = {"modules": DRIVE_MODULES[drive]}
+            entry: dict = {"modules": drive_mods[drive]}
             b = run_drive(sbx, drive, timeout)
             entry["baseline"] = {k: b[k] for k in ("rc", "red", "secs",
                                                    "exit_blind")}
             print(f"[baseline] {drive}: rc={b['rc']} red={b['red']} "
                   f"({b['secs']}s)", flush=True)
-            if DRIVE_MODULES[drive] == []:
+            if drive_mods[drive] == []:
                 entry["verdict"] = "LIVE"
-                entry["detail"] = ("no verdict contract (prints an "
-                                   "accounting summary; live keyring + "
-                                   "Kraken API) — baseline-only, the "
-                                   "mutation sweep would class it")
+                entry["detail"] = ("exit-code contract present (12 pins) "
+                                   "but no mapped modules: asserts against "
+                                   "live keyring + Kraken state — "
+                                   "baseline-only until hermetized")
                 results[drive] = entry
                 continue
             if b["red"]:
@@ -136,7 +172,7 @@ def main() -> int:
                 results[drive] = entry
                 continue
             mres = {}
-            for mod in DRIVE_MODULES[drive]:
+            for mod in drive_mods[drive]:
                 sp = sbx / mod
                 if not sp.exists():
                     mres[mod] = {"rc": "ABSENT", "red": False, "secs": 0.0}
@@ -166,8 +202,16 @@ def main() -> int:
                 entry["verdict"] = "VACUOUS"
                 entry["detail"] = "stayed green under every mutation"
             results[drive] = entry
-            (SCOUT / "scratch" / "bot_mutation_journal.json").write_text(
-                json.dumps(results, indent=1), encoding="utf-8")
+            jp = SCOUT / "scratch" / "bot_mutation_journal.json"
+            if per_module:
+                try:   # merge: refresh only this drive's row
+                    merged = json.loads(jp.read_text(encoding="utf-8"))
+                except (OSError, json.JSONDecodeError):
+                    merged = {}
+                merged.update(results)
+            else:
+                merged = results
+            jp.write_text(json.dumps(merged, indent=1), encoding="utf-8")
     finally:
         if not args.keep_sbx:
             shutil.rmtree(SBX_PARENT, ignore_errors=True)
@@ -175,7 +219,9 @@ def main() -> int:
     # ── the report ──────────────────────────────────────────────────
     counts = {v: sum(1 for e in results.values() if e["verdict"] == v)
               for v in ("KILLED", "VACUOUS", "BASELINE-RED", "LIVE")}
-    lines = [f"THE BOT FLEET MUTATION AUDIT — "
+    scope = (args.drive + (f" / {args.module}" if args.module else "")
+             if per_module else "full fleet")
+    lines = [f"THE BOT FLEET MUTATION AUDIT ({scope}) — "
              f"{time.strftime('%Y-%m-%d %H:%M')}",
              "=" * 70]
     for v in ("LIVE", "VACUOUS", "BASELINE-RED"):
@@ -200,8 +246,9 @@ def main() -> int:
                  f"VACUOUS {counts['VACUOUS']}, baseline-red "
                  f"{counts['BASELINE-RED']}, live {counts['LIVE']}")
     report = "\n".join(lines) + "\n"
-    (SCOUT / "scratch" / "bot_mutation_report.txt").write_text(
-        report, encoding="utf-8")
+    rpt = (SCOUT / "scratch" / ("bot_mutation_report_permodule.txt"
+                                if per_module else "bot_mutation_report.txt"))
+    rpt.write_text(report, encoding="utf-8")
     print(report)
     return 0
 
