@@ -82,6 +82,12 @@ BONUS_MAX = 10.0         # good-behavior bonus cap (points)
 # read as discipline perfection, or the self-learning weights drift
 # toward "suppress everything" (the exact wrong lesson).
 EMPTY_FIRE_CAP = 60.0     # a zero-fire rotation tops out here (CAREFUL band)
+# THE PAYER HORIZON (Oct 1, the right-censoring rule): the window a
+# burial needs to prove itself before the boundary judges it. Burials
+# closer to the boundary than this are UNJUDGED (system_pending) —
+# never duds, never docked; the 1h-candle coin test otherwise read
+# censoring as "the gate was right" and the dock acquitted itself.
+BURIAL_HORIZON_HOURS = 3.0
 ROTATIONS = [("00-04", 0, 4), ("04-08", 4, 8), ("08-12", 8, 12),
              ("12-16", 12, 16), ("16-20", 16, 20), ("20-24", 20, 24)]
 
@@ -525,16 +531,35 @@ def evaluate_rotation(exchange, rot_key: str, when=None, speak=True,
     # become system_duds and claw the relief back down)
     popup_pairs = {p["pair"] for p in popups}
     system_duds = []
+    # THE RIGHT-CENSORING RULE (Oct 1, the operator's confirm): a burial
+    # evaluated with less than the payer horizon left in its window had
+    # almost no chance to prove itself — the 1h-candle coin test read
+    # censoring as acquittal and the dock's payer-rate math and the
+    # honest-drought reason both followed. Unjudged, never a dud, no
+    # dock: the machine never acquits itself on right-censored evidence.
+    system_pending = []
     for pair, s in supp.items():
         if pair in popup_pairs or pair in fired:
             continue
         goal = _rotation_goal_pct(pair, rot_key, sched)
+        # DETECT FIRST (the review's refinement, Oct 1): censoring makes
+        # NO-evidence unjudgable — it never discounts DETECTED evidence.
+        # The coin test runs BEFORE the horizon classifies: a payer the
+        # candles saw still docks, whatever its horizon.
         entry = _entry_at(exchange, pair, s["ts"])
-        if entry > 0 and _coin_paid(exchange, pair, entry, goal, s["ts"], end):
+        paid = (entry > 0
+                and _coin_paid(exchange, pair, entry, goal, s["ts"], end))
+        if paid:
             system_burial.append({"pair": pair, "gate": s["gate"],
                                   "usd": balance * goal / 100.0,
                                   "goal_pct": goal, "paid": True,
                                   "taken": False})
+        elif (end - s["ts"]).total_seconds() < BURIAL_HORIZON_HOURS * 3600:
+            # no evidence AND almost no horizon to find any — unjudged
+            system_pending.append(
+                {"pair": pair, "gate": s["gate"],
+                 "horizon_left_h": round((end - s["ts"]).total_seconds()
+                                         / 3600.0, 2)})
         else:
             system_duds.append({"pair": pair, "gate": s["gate"]})
     for t in sold:
@@ -638,6 +663,8 @@ def evaluate_rotation(exchange, rot_key: str, when=None, speak=True,
                         # rotation constructs the same result dict — an
                         # unbound name here would NameError the whole
                         # evaluation into the scanner's debug-swallow
+    empty_pending = 0   # (Oct 1) same class: the censoring count rides
+                        # the result dict on FIRING rotations too
     _silent_dock = {}
     if empty_fire:
         gates = sorted({str((supp.get(p) or {}).get("gate") or "?")
@@ -650,12 +677,25 @@ def evaluate_rotation(exchange, rot_key: str, when=None, speak=True,
         # the ones that didn't (the gate being RIGHT). The dock's size
         # follows that measurement: payers x payer-rate, not a flag.
         empty_payers = len(system_burial)
+        empty_pending = len(system_pending)
         worst_gate = _worst_burial_gate(system_burial, system_duds)
-        if empty_buried:
+        # the why carries the unjudged rows too — censoring never
+        # vanishes into "the gate was right"
+        _pend_txt = ""
+        if empty_pending:
+            _pend_txt = (f"; {empty_pending} more burial(s) too close to "
+                         f"the boundary to judge (under the "
+                         f"{BURIAL_HORIZON_HOURS:.0f}h payer horizon) — "
+                         f"unjudged, no dock")
+        if empty_buried > empty_pending:
             empty_why = (f"{empty_buried} rail-worthy candidate(s) were "
                          f"buried, {empty_payers} of them reached goal "
                          f"(gates: {', '.join(gates)})"
-                         + _worst_gate_txt(worst_gate))
+                         + _worst_gate_txt(worst_gate) + _pend_txt)
+        elif empty_pending:
+            empty_why = (f"{empty_pending} rail-worthy candidate(s) were "
+                         f"buried too close to the boundary to judge — "
+                         f"unjudged, no dock")
         elif popups:
             empty_why = ("candidates existed but none fired — a drought in "
                          "the funnel, not the market")
@@ -664,7 +704,8 @@ def evaluate_rotation(exchange, rot_key: str, when=None, speak=True,
         try:
             import meta_layers as _mlp
             _silent_dock = _mlp.dock_silent_rotation(
-                empty_buried, when=when, n_payers=empty_payers,
+                empty_buried - empty_pending, when=when,
+                n_payers=empty_payers,
                 rot_key=rot_key)   # the EVALUATED window (the boundary
                                    # fires at 16:00 ABOUT 12-16 — the
                                    # dedup key must name the window
@@ -685,6 +726,8 @@ def evaluate_rotation(exchange, rot_key: str, when=None, speak=True,
                          for p in system_burial],
         "system_duds": [{"pair": p["pair"], "gate": p.get("gate")}
                         for p in system_duds],
+        "system_pending": system_pending,
+        "empty_pending": empty_pending,
         "popups": [{"pair": p["pair"], "paid": p.get("paid"),
                     "taken": p.get("taken"), "goal_pct": round(p.get("goal_pct", 0), 2)}
                    for p in popups],
@@ -707,7 +750,11 @@ def evaluate_rotation(exchange, rot_key: str, when=None, speak=True,
     _entry = {k: result[k] for k in
               ("date", "rot", "score", "total_left", "system_left",
                "top_gate", "realized_pnl", "balance_after", "ts",
-               "system_pairs", "system_duds")}   # the per-pair burials
+               "system_pairs", "system_duds",
+               "system_pending", "empty_pending")}   # the per-pair burials
+    # (+ the unjudged rows: the censoring evidence must outlive the
+    # call — the review's medium, Oct 1: a result field the _entry
+    # never copied died at the boundary)
     # persist too (Sep 21): the cooldown review's per-asset layer and the
     # console's review plate read them — a burial with no pair named is
     # money the review can never attribute

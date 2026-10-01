@@ -407,6 +407,159 @@ check("7.16 the init is OUTSIDE the empty branch (the source freeze)",
       re.search(r"worst_gate = None\s*#", src) is not None
       and src.index("worst_gate = None") < src.index("if empty_fire:"))
 
+# ── 7.17-7.19 THE RIGHT-CENSORING RULE (Oct 1, the operator's confirm:
+# a burial evaluated MINUTES before the boundary — the coin test's 1h
+# candles gave it almost no horizon — was counted as a DUD ("the gate
+# was right"), docking NOTHING on the day the machine buried its own
+# money: the dock's payer-rate math and the honest-drought reason both
+# read censoring as acquittal. The rule: a burial with LESS than the
+# payer horizon (3h, the payers' own median time-to-goal band) in the
+# window is UNJUDGED — it rides system_pending (visible in the why, kept
+# in the record), never a dud, and the dock prices only the MEASURED
+# burials. Conservative direction: the machine never acquits itself on
+# right-censored evidence; the info surfaces instead of docking.
+def _silent_eval(supp_rows):
+    """evaluate_rotation over a silent window with the given burial rows
+    (ts-aware, in-window); returns (result, dock_calls)."""
+    _keep2 = (dc.STATE_FILE, dc.SUPPRESSION_FILE, dc.VOICE_FILE)
+    with tempfile.TemporaryDirectory() as _td7g:
+        _sv2, _sp2 = (Path(_td7g) / "voice.jsonl",
+                      Path(_td7g) / "supp.jsonl")
+        try:
+            dc.STATE_FILE = Path(_td7g) / "disc.json"
+            dc.save_state({"weights": dict(dc.DEFAULT_WEIGHTS),
+                           "history": [], "lessons": []})
+            dc.SUPPRESSION_FILE = _sp2
+            _sp2.write_text(
+                "\n".join(json.dumps(r) for r in supp_rows) + "\n",
+                encoding="utf-8")
+            dc.VOICE_FILE = _sv2
+            _sv2.write_text("", encoding="utf-8")
+            _now2 = dc._now()
+            _ws = _now2.replace(hour=12, minute=0, second=0, microsecond=0)
+            _we = _ws + __import__("datetime").timedelta(hours=4)
+            _ca2 = __import__("contest_account")
+            _ca2_real = _ca2.load_state
+            _ca2.load_state = lambda: {"current_balance": 10000.0,
+                                       "start_balance": 10000.0}
+            _db2 = __import__("db")
+            _db2_real = _db2.get_tournament_winners
+            _db2.get_tournament_winners = lambda limit=200: []
+            import meta_layers as _ml7
+            _dock_real = _ml7.dock_silent_rotation
+            _dock_calls = []
+            _ml7.dock_silent_rotation = (
+                lambda n, when=None, n_payers=0, rot_key=None:
+                (_dock_calls.append((n, n_payers, rot_key))
+                 or {"docked": 0.0, "reason": "spy"}))
+            try:
+                _r = dc.evaluate_rotation(None, "12-16", when=_now2,
+                                          speak=False,
+                                          watch_file=str(_td7g + "/w.json"))
+                _st_persisted = json.loads(
+                    dc.STATE_FILE.read_text(encoding="utf-8"))
+            finally:
+                _ml7.dock_silent_rotation = _dock_real
+                _ca2.load_state = _ca2_real
+                _db2.get_tournament_winners = _db2_real
+            return _r, _dock_calls, _st_persisted
+    # (finally blocks above restore every rebind)
+        finally:
+            dc.STATE_FILE, dc.SUPPRESSION_FILE, dc.VOICE_FILE = _keep2
+
+_ts_a = None   # the CENSORED burial: 1h of horizon at the boundary
+_ts_b = None   # the JUDGED burial: 3.5h of horizon
+with tempfile.TemporaryDirectory():
+    pass
+_now7 = dc._now()
+_ws7 = _now7.replace(hour=12, minute=0, second=0, microsecond=0)
+_we7 = _ws7 + __import__("datetime").timedelta(hours=4)
+from datetime import timedelta as _td7
+_ts_a = (_we7 - _td7(hours=1)).isoformat()
+_ts_b = (_we7 - _td7(hours=3, minutes=30)).isoformat()
+_res7, _calls7, _st7 = _silent_eval([
+    {"ts": _ts_a, "pair": "LDO/USD", "gate": "tide-out",
+     "quick": 69.0},
+    {"ts": _ts_b, "pair": "ARB/USD", "gate": "deep-veto",
+     "quick": 55.0},
+])
+check("7.17 the censored burial is PENDING, not a dud (1h of horizon "
+      "cannot acquit the gate); the 3.5h burial stays judged",
+      _res7.get("empty_fire") is True
+      and {d["pair"] for d in _res7.get("system_duds") or []} == {"ARB/USD"}
+      and {d["pair"] for d in _res7.get("system_pending") or []} == {"LDO/USD"}
+      and _res7.get("empty_pending") == 1, _res7.get("empty_why"))
+check("7.18 the dock prices only the MEASURED burials (the spy saw "
+      "n_buried=1, not 2 — the censored row never feeds the payer-rate "
+      "math)",
+      len(_calls7) == 1 and _calls7[0][0] == 1, _calls7)
+check("7.19 the WHY names the unjudged row (the operator sees the "
+      "censoring, it never vanishes into 'the gate was right')",
+      "unjudged" in str(_res7.get("empty_why"))
+      and "3h" in str(_res7.get("empty_why")), _res7.get("empty_why"))
+_res8, _calls8, _st8 = _silent_eval([   # 7.20's call (the all-pending case)
+    {"ts": (_we7 - _td7(minutes=30)).isoformat(), "pair": "S/USD",
+     "gate": "tide-out", "quick": 66.0},
+])
+check("7.20 an ALL-PENDING silent rotation docks NOTHING (the honest "
+      "drought reason is for MEASURED burials only — 0 measured = 0 "
+      "dock) and says so plainly",
+      _res8.get("empty_pending") == 1
+      and len(_calls8) == 1 and _calls8[0][0] == 0
+      and "unjudged" in str(_res8.get("empty_why")),
+      (_calls8, _res8.get("empty_why")))
+check("7.21 the horizon constant is code and the record keeps the "
+      "pendings (the history entry cannot drop them)",
+      "BURIAL_HORIZON_HOURS = 3.0" in src
+      and '"system_pending": system_pending' in src
+      and '"empty_pending": empty_pending' in src
+      and 'empty_buried - empty_pending' in src)
+_h7 = (_st7.get("history") or [{}])[-1]
+check("7.22 the PERSISTED history keeps the unjudged rows (the review's "
+      "medium: a result-dict field the _entry never copied dies at the "
+      "boundary — the censoring evidence must outlive the call)",
+      _h7.get("empty_pending") == 1
+      and [p.get("pair") for p in _h7.get("system_pending") or []]
+      == ["LDO/USD"], _h7.get("system_pending"))
+check("7.23 the all-pending case persists its single unjudged row "
+      "(S/USD rides the saved history too)",
+      _st8 and ([p.get("pair") for p in
+                 ((_st8.get("history") or [{}])[-1]
+                  .get("system_pending") or [])] == ["S/USD"]))
+# 7.24 (the review's medium, the DETECT-FIRST refinement): censoring
+# makes NO-evidence unjudgable — it never discounts DETECTED evidence.
+# A near-boundary burial whose candles DID reach goal must dock (it is
+# a payer the machine buried), never hide behind pending; the test
+# runs BEFORE the horizon classifies.
+_res9, _calls9, _st9 = None, None, None
+class _PayExchange:
+    """The 1h candles say the goal high happened within the burial's
+    own hour (a DETECTED payer despite the tiny horizon)."""
+    def fetch_ohlcv(self, pair, timeframe="1h", since=None, limit=10):
+        _t = _we7 - _td7(hours=0, minutes=30)
+        return [[int(_t.timestamp() * 1000), 1.0, 1.02, 0.99, 1.01, 1.0]]
+    def fetch_ohlcv_ms(self, *a, **k):
+        return []
+import types as _types
+_entry_at_real = dc._entry_at
+dc._entry_at = lambda ex, pair, ts: 1.0
+_coin_real = dc._coin_paid
+dc._coin_paid = lambda ex, pair, entry, goal, alert, wend: True
+try:
+    _res9, _calls9, _st9 = _silent_eval([
+        {"ts": _ts_a, "pair": "NEAR/USD", "gate": "tide-out",
+         "quick": 69.0},
+    ])
+finally:
+    dc._entry_at = _entry_at_real
+    dc._coin_paid = _coin_real
+check("7.24 a DETECTED near-boundary payer DOCKS (test first, classify "
+      "second — censoring never discounts real evidence)",
+      len(_calls9) == 1 and _calls9[0] == (1, 1, "12-16")
+      and {p["pair"] for p in _res9.get("system_pairs") or []}
+      == {"NEAR/USD"} and not (_res9.get("system_pending") or []),
+      (_calls9, _res9.get("system_pending")))
+
 lines.append(f"\nRESULT: {PASS} passed, {FAIL} failed")
 out = Path("_disciplineseam_test.txt")
 out.write_text("\n".join(lines), encoding="utf-8")
