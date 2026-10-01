@@ -4872,7 +4872,13 @@ def main():
         if _is_reentry:
             try:
                 import meta_layers as _mlr
-                if _mlr.reentry_blocked():
+                # The candidate's PAIR is bound for the bounded re-ask
+                # (the Oct 1 quick-fix: a stale MILD re-measures reality
+                # on the asset asking to re-enter, not on a default).
+                _blocked = (_mlr.reentry_blocked_for(pair)
+                            if hasattr(_mlr, "reentry_blocked_for")
+                            else _mlr.reentry_blocked())
+                if _blocked:
                     _mlr.note_reentry_block()
                     logger.info("  RCL DRIFT: %s re-entry suppressed — "
                                 "reality moved, the calibration is behind",
@@ -4882,6 +4888,16 @@ def main():
                                      quick=float(signal.confidence),
                                      rot=rotation_key_for_hour(_now_mst().hour))
                     return
+                if getattr(_mlr, "reentry_override_pair", lambda: None)() == pair:
+                    # The override covers this pass (kept for its window:
+                    # BOTH downstream paths — the popup gate AND the mover
+                    # route's re-check — must stay allowed for the same
+                    # signal, so clear-on-first-use would let the second
+                    # check suppress what the first allowed; the override
+                    # still dies with its rotation / 4h cap, and every
+                    # allowed pass is logged).
+                    logger.info("  RCL OVERRIDE: %s re-entry allowed by "
+                                "operator override (recorded)", pair)
             except Exception as exc:
                 logger.debug("re-entry gate check skipped: %s", exc)
         if not _allowed:  # dead since the Sep 10 retirement — kept honest
@@ -5947,12 +5963,18 @@ def main():
                 # mover route): no popup while reality disagrees (fail-open)
                 try:
                     import meta_layers as _mlr2
-                    if _mlr2.reentry_blocked():
+                    _blocked = (_mlr2.reentry_blocked_for(pair)
+                                if hasattr(_mlr2, "reentry_blocked_for")
+                                else _mlr2.reentry_blocked())
+                    if _blocked:
                         _mlr2.note_reentry_block()
                         logger.info("  RCL DRIFT: %s re-entry suppressed "
                                     "(mover route) — no popup while reality "
                                     "drifts", pair)
                         return
+                    if getattr(_mlr2, "reentry_override_pair", lambda: None)() == pair:
+                        logger.info("  RCL OVERRIDE: %s re-entry allowed by "
+                                    "operator override (recorded, mover route)", pair)
                 except Exception as exc:
                     logger.debug("re-entry suppression check skipped: %s", exc)
                 # display only — the fine is retired (Sep 21): the same

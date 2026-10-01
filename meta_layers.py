@@ -29,6 +29,7 @@ silent mismatch; an unreadable layer is absent, never a crash.
 import json
 import math
 import os
+import threading
 import time
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -48,6 +49,12 @@ ENDGAME_TRAIL_MULT = 0.7
 ENDGAME_LOCKIN_MULT = 1.3
 DNL_GOAL_FACTOR_CAP = 0.5     # the learning factor's clamp
 DRIFT_TTL_MIN = 240           # a drift verdict goes stale after 4 hours
+# RCL-DRIFT QUICK-FIX (Oct 1, the gate-EV finding: rcl-drift buries a
+# BINARY outcome — payers 2.17% medfill, duds exactly 0.00): a MILD
+# verdict re-asks reality after 90 min instead of freezing the full
+# 4h on evidence that may have re-aligned (bounded re-calibration).
+# MAJOR keeps the full freeze — the tight net protects profits.
+DRIFT_TTL_MILD_MIN = 90
 SLOPE_WINDOW_MIN = 15         # liquidity-slope sample window
 ROTATION_PROBE_MIN = 30       # the realized-move probe window (minutes)
 ROTATION_LEN_MIN = 240        # the calibration's expected move is per 4h
@@ -324,15 +331,145 @@ def _rot_key_of(when: datetime) -> str:
         return ""
 
 
+# The candidate pair currently asking (reentry_blocked_for binds it):
+# the bounded re-measure is pair-scoped (rcl_measure's volatility and
+# funding gaps are pair-specific), so the drift question must be asked
+# about the asset asking to re-enter.
+pair_hint: str | None = None
+
+
 def reentry_blocked(when: datetime | None = None) -> bool:
+    # (NOTE: reentry_blocked_for below is the scanner's entry point; it
+    # binds the candidate's pair AND defaults `when` INSIDE the locked
+    # section, so the override's rotation match and the re-measure both
+    # see one consistent snapshot.)
     """TRUE while a fresh drift verdict stands (spec: ReEntryCandidate
-    = FALSE). Stale verdicts expire."""
+    = FALSE). Stale verdicts expire — and a MILD verdict past
+    DRIFT_TTL_MILD_MIN re-asks reality ONCE (the Oct 1 bounded
+    re-calibration): a calm reading lifts the suppression and refreshes
+    the stored verdict, a still-drifting reading continues the freeze
+    on fresh evidence. MAJOR keeps the full DRIFT_TTL_MIN freeze. The
+    operator override (reentry_override_set) can open the gate under
+    its own sign-off; the RCL being DOWN never blocks (fail-open, the
+    scanner's long-standing rule)."""
     r = _state().get("rcl_last") or {}
     if not r:
         return False
-    if time.time() - float(r.get("ts") or 0) > DRIFT_TTL_MIN * 60:
+    age_s = time.time() - float(r.get("ts") or 0)
+    if age_s > DRIFT_TTL_MIN * 60:
         return False
-    return r.get("verdict") in ("MILD DRIFT", "MAJOR DRIFT")
+    if r.get("verdict") not in ("MILD DRIFT", "MAJOR DRIFT"):
+        return False
+    if (r.get("verdict") == "MILD DRIFT"
+            and age_s > DRIFT_TTL_MILD_MIN * 60):
+        # BOUNDED RE-CALIBRATION: one fresh measure decides — ask about
+        # the candidate's pair (XBT as the market-wide fallback when
+        # unbound, e.g. the exit cycle's generic probe).
+        try:
+            fresh = rcl_measure(pair_hint or "XBT/USD", when)
+        except Exception:
+            return False     # the layer being down never blocks
+        if fresh.get("verdict") == "NORMAL":
+            st = _state()
+            st["rcl_last"] = dict(r, verdict="NORMAL",
+                                  score=fresh.get("score"),
+                                  reask_pair=pair_hint or "XBT/USD")
+            _save(st)
+            return False
+        if fresh.get("verdict") == "UNKNOWN":
+            # A dataless re-read is NO verdict — the layer being up but
+            # blind cannot re-earn the freeze: no ts refresh (a no-data
+            # answer must never extend the block indefinitely — the
+            # bounded in bounded re-calibration) and no block (fail-open,
+            # the layer's long-standing rule; the Copilot HIGH: the old
+            # fall-through treated UNKNOWN as still-drifting).
+            return False
+        # STILL DRIFTING: refresh the stored verdict's ts so the
+        # freeze continues on FRESH evidence (the Copilot HIGH: the
+        # original verdict would hit its 4h TTL and expire silently
+        # even though the re-measure just confirmed the drift). The
+        # re-ask's OWN verdict rides along as reask_verdict (the
+        # Copilot MEDIUM: state must represent the latest measurement)
+        # while the verdict field keeps its MILD cadence — storing a
+        # verbatim MAJOR would hand one boundary-crossing reading a
+        # full silent 4h freeze with no re-ask ever again.
+        st = _state()
+        st["rcl_last"] = dict(r, score=fresh.get("score"),
+                              ts=time.time(),
+                              reask_verdict=fresh.get("verdict"),
+                              reask_pair=pair_hint or "XBT/USD")
+        _save(st)
+    if (reentry_override_active(when)
+            and pair_hint is not None
+            and pair_hint == reentry_override_pair()):
+        return False        # the override opens ITS pair only
+    return True
+
+
+_REENTRY_LOCK = threading.Lock()   # pair_hint is shared state; the bind
+# + measure + override check must be one atomic decision (the Copilot
+# MEDIUM: concurrent candidate checks could rebind it mid-flight)
+
+
+def reentry_blocked_for(pair: str | None,
+                        when: datetime | None = None) -> bool:
+    """reentry_blocked with the candidate's pair bound (the scanner's
+    candidate path calls THIS): the bounded re-measure is pair-scoped.
+    `when` defaults INSIDE the lock so the override's rotation match
+    uses the live clock (the Copilot HIGH: _rot_key_of(None) returned
+    '' and the override could never match), and the whole decision is
+    atomic against concurrent candidate checks."""
+    with _REENTRY_LOCK:
+        global pair_hint
+        pair_hint = pair
+        try:
+            return reentry_blocked(when or _now_mst())
+        finally:
+            pair_hint = None
+
+
+def reentry_override_active(when: datetime | None = None) -> bool:
+    """The MANUAL OVERRIDE (Oct 1 quick-fix): an operator-signed gate
+    opening. Stands for one rotation window max (4h cap), one pair
+    only, and NEVER auto-fires — reentry_override_set is called from
+    the console button (the two-person rule and the liquidity gate live
+    there), and the scanner logs every allowed pass through it."""
+    when = when or _now_mst()   # _rot_key_of(None) is '' — a no-when
+    # probe must ask the LIVE rotation (same Copilot catch class as
+    # reentry_blocked_for's when-defaulting)
+    ov = _state().get("reentry_override") or {}
+    if not ov or time.time() - float(ov.get("ts") or 0) > 4 * 3600:
+        return False
+    return _rot_key_of(when) == ov.get("rot")
+
+
+def reentry_override_pair() -> str | None:
+    ov = _state().get("reentry_override") or {}
+    return ov.get("pair")
+
+
+def reentry_override_set(pair: str, when: datetime | None = None) -> dict:
+    """Set the override. Liquidity gating (book_imbalance > 0.6,
+    ask_tob > 5 x tranche) is enforced at the CALLER before sign-off —
+    this function is the record, not the judgment."""
+    st = _state()
+    st["reentry_override"] = {"pair": pair, "ts": time.time(),
+                              "rot": _rot_key_of(when or _now_mst())}
+    _save(st)
+    return st["reentry_override"]
+
+
+def reentry_override_clear() -> None:
+    # Write a FALSY TOMBSTONE, never pop: _save merges onto the file's
+    # current contents, so a popped key is resurrected by the very save
+    # meant to delete it (the clear was a no-op on disk — pin 2.19's
+    # drive-only failure exposed it), and putting the key in _SAVE_DROPS
+    # would let ANY concurrent writer erase a live operator override.
+    # {} reads as absent to every reader (the `or {}` idiom) without
+    # handing the merge a key to resurrect.
+    st = _state()
+    st["reentry_override"] = {}
+    _save(st)
 
 
 def endgame_active(when: datetime | None = None) -> bool:
@@ -1081,9 +1218,16 @@ def reentry_candidate_check(pair: str,
     # verdict voids the candidate outright — no lone-wolf behavior in an
     # unstable market (reentry_blocked already expires stale verdicts)
     try:
-        drift = reentry_blocked(when)
+        drift = reentry_blocked_for(pair, when)
     except Exception:
         drift = False
+    # (reentry_blocked_for, not the unbound reentry_blocked: the drift
+    # question is about the CANDIDATE'S OWN pair — the old call re-measured
+    # the XBT fallback, so an XBT calm reading could clear the shared
+    # verdict and wave a genuinely-drifting pair through its later gate;
+    # the Copilot HIGH, pinned by 2.22)
+    if not drift:
+        conds.pop("rcl_drift", None)   # an expired/overridden verdict stops naming itself
     if drift:
         conds["rcl_drift"] = True
         return {"eligible": False, "conditions": conds,

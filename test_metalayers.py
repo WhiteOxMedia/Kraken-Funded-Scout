@@ -164,6 +164,162 @@ check(2.10, gf5 == 1.5 and not ml.reentry_blocked(_w())
 gf6, act_f = ml.rcl_apply({"verdict": "UNKNOWN", "score": None}, 1.2, _w())
 check(2.11, gf6 == 1.2 and act_f["mult"] == 1.0,
       "UNKNOWN: no adjustment — silence is never a mismatch")
+
+# ════════ 2b. THE RCL-DRIFT QUICK-FIX (bounded re-calibration + the ══
+# manual override — Oct 1, the gate-EV finding: rcl-drift buries a
+# BINARY outcome, payers 2.17% medfill, duds exactly 0.00, so a stale
+# MILD verdict must re-ask reality instead of freezing the full 4h.
+print("== 2b. RCL quick-fix: bounded re-calibration + override ==")
+_ORIG_RCLM = ml.rcl_measure
+_meas = {"n": 0}
+
+def _fake_measure(verdict):
+    def _m(pair, when=None):
+        _meas["n"] += 1
+        return {"verdict": verdict,
+                "score": 0.05 if verdict == "NORMAL" else 0.45,
+                "known": 3,
+                "ts": (when or _w()).isoformat(timespec="seconds")}
+    return _m
+
+def _set_rcl(verdict, age_min):
+    st = json.loads(ml.STATE_FILE.read_text(encoding="utf-8"))
+    st["rcl_last"] = {"verdict": verdict, "score": 0.45,
+                      "ts": time.time() - age_min * 60,
+                      "rot": _ROT_STUB["key"]}
+    ml.STATE_FILE.write_text(json.dumps(st), encoding="utf-8")
+
+# 2.13 premise: a FRESH mild verdict blocks on the stored verdict alone
+_set_rcl("MILD DRIFT", 30)
+ml.rcl_measure = _fake_measure("NORMAL")
+check(2.13, ml.reentry_blocked(_w()) and _meas["n"] == 0,
+      "a FRESH MILD (<90min) blocks on the stored verdict — no re-measure spent")
+
+# 2.14 RED until the quick-fix lands: a STALE mild must re-ask reality
+_set_rcl("MILD DRIFT", 120)
+ml.rcl_measure = _fake_measure("NORMAL")
+_blocked = ml.reentry_blocked(_w())
+_st = json.loads(ml.STATE_FILE.read_text(encoding="utf-8"))
+check(2.14, not _blocked and _st["rcl_last"]["verdict"] == "NORMAL",
+      "a STALE MILD (90-240min) re-asks reality ONCE: calm -> the block "
+      "lifts and the verdict refreshes (bounded re-calibration)")
+
+# 2.15 the other half of the bound: still drifting -> still frozen
+_set_rcl("MILD DRIFT", 120)
+ml.rcl_measure = _fake_measure("MILD DRIFT")
+check(2.15, ml.reentry_blocked(_w()),
+      "a STALE MILD whose fresh re-measure still reads MILD keeps the "
+      "freeze (bounded, not naive)")
+
+# 2.16/2.17: the manual override (pair-pinned, rotation-scoped, 4h cap)
+if hasattr(ml, "reentry_override_set"):
+    _set_rcl("MAJOR DRIFT", 30)
+    ml.rcl_measure = _fake_measure("NORMAL")   # MAJOR never re-asks
+    ml.reentry_override_set("ZEC/USD", _w())
+    check(2.16, not ml.reentry_blocked_for("ZEC/USD", _w())
+          and ml.reentry_blocked_for("XMR/USD", _w())
+          and ml.reentry_override_pair() == "ZEC/USD",
+          "the override opens the gate for ITS pair only (MAJOR stays "
+          "frozen everywhere else)")
+    _st = json.loads(ml.STATE_FILE.read_text(encoding="utf-8"))
+    _st["reentry_override"]["ts"] = time.time() - 5 * 3600
+    ml.STATE_FILE.write_text(json.dumps(_st), encoding="utf-8")
+    check(2.17, ml.reentry_blocked_for("ZEC/USD", _w()),
+          "an override past its 4h cap is dead — the MAJOR freeze stands again")
+    ml.reentry_override_clear()
+    # 2.18 (Copilot HIGH, post-commit): the scanner's REAL call shape is
+    # reentry_blocked_for(pair) with NO when — the override must match
+    # the LIVE rotation (when defaults inside), never _rot_key_of(None).
+    _set_rcl("MAJOR DRIFT", 30)
+    ml.rcl_measure = _fake_measure("NORMAL")   # MAJOR never re-asks
+    ml.reentry_override_set("ZEC/USD")          # no when
+    check(2.18, not ml.reentry_blocked_for("ZEC/USD"),
+          "the override matches the LIVE rotation even when the caller "
+          "passes no when (the scanner's real call shape)")
+    ml.reentry_override_clear()
+    # 2.19 (Copilot HIGH, post-commit): a still-drifting re-measure must
+    # REFRESH rcl_last (fresh ts) — the freeze continues on fresh
+    # evidence and can never silently expire a verdict it just confirmed.
+    _set_rcl("MILD DRIFT", 120)
+    ml.rcl_measure = _fake_measure("MILD DRIFT")
+    ml.reentry_blocked_for("ZEC/USD", _w())   # the re-ask fires (age 120 > 90)
+    _st = json.loads(ml.STATE_FILE.read_text(encoding="utf-8"))
+    check(2.19, float(_st["rcl_last"]["ts"]) > time.time() - 120,
+          "a still-drifting re-measure REFRESHES the stored verdict (fresh "
+          "ts) — never silent expiry")
+    # 2.20 (the 2.19 drive-only failure's REAL root): the clear must
+    # STICK — the merge-save resurrected the popped key, so clear was a
+    # no-op on disk and a retired override lived on in state (which is
+    # exactly what poisoned 2.19's sandbox: 2.18's override never died).
+    ml.reentry_override_set("ZEC/USD", _w())
+    ml.reentry_override_clear()
+    check(2.20, not json.loads(ml.STATE_FILE.read_text(encoding="utf-8")).get("reentry_override")
+          and ml.reentry_override_pair() is None,
+          "clearing the override STICKS on disk (the merge-save must not "
+          "resurrect a retired gate opening)")
+    # 2.21 (Copilot HIGH, post-commit): an UNKNOWN re-measure (the layer
+    # up, the data absent) is NO verdict — it cannot re-earn the freeze.
+    # Fail-open: no ts refresh (a dataless read must never extend the
+    # block indefinitely), no block.
+    _set_rcl("MILD DRIFT", 120)
+    ml.rcl_measure = _fake_measure("UNKNOWN")
+    _ts_before = json.loads(ml.STATE_FILE.read_text(encoding="utf-8"))["rcl_last"]["ts"]
+    check(2.21, not ml.reentry_blocked_for("ZEC/USD", _w())
+          and json.loads(ml.STATE_FILE.read_text(encoding="utf-8"))["rcl_last"]["ts"] == _ts_before,
+          "an UNKNOWN re-measure fails OPEN — no data cannot refresh the "
+          "verdict nor keep the freeze (bounded means bounded)")
+    # 2.23 (Copilot MEDIUM, post-amend #2): a re-ask that reads WORSE
+    # than stored (MAJOR under a stored MILD) must RECORD the re-ask's
+    # own verdict — state represents the latest measurement — while the
+    # verdict field keeps its MILD cadence (the bounded re-ask survives;
+    # a verbatim MAJOR store would hand one boundary-crossing reading a
+    # full silent 4h freeze with no re-ask ever again).
+    _set_rcl("MILD DRIFT", 120)
+    ml.rcl_measure = _fake_measure("MAJOR DRIFT")
+    ml.reentry_blocked_for("ZEC/USD", _w())
+    _st23 = json.loads(ml.STATE_FILE.read_text(encoding="utf-8"))["rcl_last"]
+    check(2.23, _st23.get("reask_verdict") == "MAJOR DRIFT"
+          and _st23["verdict"] == "MILD DRIFT",
+          "a MAJOR re-ask under a stored MILD is RECORDED (reask_verdict) "
+          "but the verdict keeps its bounded cadence")
+    # 2.24 (Copilot HIGH, post-amend #3 — the DESIGNED seam, made
+    # auditable): the drift verdict is ONE GLOBAL state — the candidate's
+    # own-pair re-ask that reads calm lifts the gate for every pair,
+    # because 3 of the 5 RCL signals are market-wide and each pair's
+    # five-condition check independently gates its own re-entry (the
+    # EV finding favors more releases, not fewer). The lift records
+    # WHICH pair's evidence cleared it (reask_pair).
+    _set_rcl("MILD DRIFT", 120)
+    ml.rcl_measure = _fake_measure("NORMAL")
+    check(2.24, not ml.reentry_blocked_for("XMR/USD", _w())
+          and not ml.reentry_blocked_for("ZEC/USD", _w())
+          and json.loads(ml.STATE_FILE.read_text(encoding="utf-8"))["rcl_last"].get("reask_pair") == "XMR/USD",
+          "a calm OWN-pair re-ask lifts the GLOBAL gate and records whose "
+          "evidence did (market-wide majority; per-pair conditions still gate)")
+    # 2.22 (Copilot HIGH, post-commit): the five-condition candidate
+    # check must ask the drift question about the CANDIDATE'S OWN pair —
+    # the unbound reentry_blocked() call re-measured XBT, so an XBT calm
+    # reading could clear the shared verdict for a drifting pair.
+    _set_rcl("MILD DRIFT", 120)
+    _seen = {}
+    def _spy(pair, when=None):
+        _seen["pair"] = pair
+        return {"verdict": "NORMAL", "score": 0.1, "known": 5,
+                "ts": _w().isoformat(timespec="seconds")}
+    ml.rcl_measure = _spy
+    ml.reentry_candidate_check("XMR/USD", _w())
+    check(2.22, _seen.get("pair") == "XMR/USD",
+          "the candidate check re-measures the CANDIDATE'S OWN pair "
+          "(an XBT fallback reading can never clear another pair's gate)")
+else:
+    check(2.16, False, "the manual override does not exist yet (quick-fix pending)")
+    check(2.17, False, "the override expiry pin cannot run (quick-fix pending)")
+
+ml.rcl_measure = _ORIG_RCLM
+st = json.loads(ml.STATE_FILE.read_text(encoding="utf-8"))
+st.pop("rcl_last", None)          # leave the sandbox tidy for the sections below
+ml.STATE_FILE.write_text(json.dumps(st), encoding="utf-8")
+
 ml._liquidity_slope_gap = _ORIG_SLOPE_F
 ml._signal_quality_gap = _ORIG_SQ_F
 
@@ -395,8 +551,10 @@ check(6.2, SRC.index("_ml.finalize") < SRC.index("_trail = _ratchet_trail_pct"),
       "RCL runs BEFORE the factor lands on the trail (spec section 4.1)")
 check(6.3, "_mla.audit_close(" in SRC,
       "SAL runs at the auto-close (after trades close)")
-check(6.4, SRC.count("reentry_blocked()") >= 2 and "rcl-drift-reentry" in SRC,
-      "both fire routes suppress re-entry candidates under drift")
+check(6.4, SRC.count("reentry_blocked()") >= 2 and "rcl-drift-reentry" in SRC
+      and SRC.count("reentry_blocked_for(pair)") >= 2,
+      "both fire routes suppress re-entry candidates under drift — and "
+      "bind the candidate's pair for the Oct 1 bounded re-ask")
 check(6.5, "_mlf.endgame_active()" in SRC and "RCL END-GAME" in SRC,
       "major drift suppresses borderline signals (the popup floor rises)")
 check(6.6, "END-GAME MODE: the net tightens" in SRC,
