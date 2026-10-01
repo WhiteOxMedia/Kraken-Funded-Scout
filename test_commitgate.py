@@ -832,17 +832,30 @@ try:
         e.get("verdict") for e in _jres.values())
 
     # 1. the ledger table: | KILLED | 103 | ... — every verdict row's
-    #    count must equal the journal's
-    for _v in ("KILLED", "UNTESTABLE", "VACUOUS", "BASELINE-RED",
-               "UNMAPPED"):
+    #    count must equal the journal's, the rows must SUM to the
+    #    journal's total (no verdict hides between the rows), and every
+    #    journal verdict must be one of the six named rows (an unknown
+    #    verdict is drift the doc cannot represent). (Task 62 same-day
+    #    triage of the CR [low]: TIMEOUT was only substring-checked and
+    #    the total was never derived.)
+    _VERDICTS = ("KILLED", "UNTESTABLE", "VACUOUS", "BASELINE-RED",
+                 "UNMAPPED", "TIMEOUT")
+    _row_sum = 0
+    for _v in _VERDICTS:
         _m2 = _re_fh.search(rf"\| {_v} \| (\d+) \|", _doc)
         if _m2 is None:
             _doc_bad.append(f"{_v}: ledger row missing from the doc")
-        elif int(_m2.group(1)) != _ledger.get(_v, 0):
+            continue
+        _row_sum += int(_m2.group(1))
+        if int(_m2.group(1)) != _ledger.get(_v, 0):
             _doc_bad.append(f"{_v}: doc says {_m2.group(1)}, "
                             f"journal says {_ledger.get(_v, 0)}")
-    if "timeout" not in _doc:
-        _doc_bad.append("the timeout verdict is not in the ledger")
+    if _row_sum != len(_jres):
+        _doc_bad.append(f"ledger rows sum to {_row_sum}, "
+                        f"journal has {len(_jres)} entries")
+    _unknown = sorted(set(_ledger) - set(_VERDICTS))
+    if _unknown:
+        _doc_bad.append(f"unknown verdict(s) in the journal: {_unknown}")
 
     # 2. the class headings: '### 3.1 LIVE-MARKET (6)' — every sealed
     #    class's count must equal the journal's drive_class mix, every
@@ -861,12 +874,9 @@ try:
     for _c in _doc_classes:
         if _c not in _cls:
             _doc_bad.append(f"class {_c}: in the doc, not in the journal")
-    if "SCAFFOLD-ONLY" not in _doc_classes and \
-            _cls.get("SCAFFOLD-ONLY", 0) != 2:
-        _doc_bad.append("SCAFFOLD-ONLY section missing")
-    if _cls.get("SCAFFOLD-ONLY", 0) != int(
-            _doc_classes.get("SCAFFOLD-ONLY", -1)):
-        _doc_bad.append("SCAFFOLD-ONLY count mismatch")
+    # (SCAFFOLD-ONLY needs no special case: the generic both-directions
+    # loop above already demands the section iff the journal carries the
+    # class — an empty class legitimately has no section.)
 
     # 3. (the ledger table above already pins every current number; the
     #    doc's HISTORICAL notes — the superseded task-56 snapshot — are
