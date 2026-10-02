@@ -1,22 +1,26 @@
-THE GATE EV TABLE — 2026-10-01 09:22
+THE GATE EV TABLE — 2026-10-02 11:28
 ==============================================================================
-window: 117 first-seen candidates (7d) from popup_suppressions.jsonl, outcome horizon 7h
+window: 186 first-seen candidates (7d) from the rotation-aware union (live + archives) — ledger coverage: 6 days (2026-09-04..2026-10-02), outcome horizon 7h
 fill model: entry mid+0.050%, exit peak-0.050%, fee 0.52% round trip netted (the bot's real cost; the panel models 0.26), floor 0 — capture floor 10%
-candidates scored: 60 | payers (run>=1.5%): 23 (38%)
+candidates scored: 105 | payers (run>=1.5%): 62 (59%)
 censored (horizon still open, held out): 0
-median capture of payers: 79% | median fill-modeled run (all): +0.59%
+median capture of payers: 78% | median fill-modeled run (all): +1.17%
 
 GATE                     n  pay   rate medfill* dud-med    cap    EV%
 ------------------------------------------------------------------------------
-too-thin                 1    1   100%    3.31   0.00    84%   3.31
-climb-clearance          2    1    50%    3.31   0.60    84%   1.96
-climb-floor              2    1    50%    3.31   0.00    84%   1.66
-deep-veto                6    3    50%    1.83   0.30    75%   1.06
-tide-out                11    6    55%    1.77   0.06    74%   0.99
-sure-thing-deep-veto    21    8    38%    2.29   0.00    79%   0.87
-stale-move              11    3    27%    1.67   0.01    73%   0.46
-rcl-drift-reentry        2    0     0%    0.00   0.38     0%   0.38
-deep-direction           4    0     0%    0.00   0.00     0%   0.00
+rcl-drift-reentry        1    1   100%    4.67   0.00    88%   4.67
+climb-er                 1    1   100%    2.16   0.00    78%   2.16
+tide-out                24   19    79%    2.44   0.55    80%   2.05
+climb-floor              5    5   100%    1.96   0.00    76%   1.96
+worth-floor              5    3    60%    2.69   0.60    81%   1.86
+downward-trend           5    3    60%    2.40   0.43    79%   1.61
+climb-clearance         19    9    47%    2.16   0.43    78%   1.25
+deep-veto                9    5    56%    1.48   0.56    70%   1.07
+deep-direction           1    1   100%    0.95   0.00    61%   0.95
+stale-move              13    7    54%    1.64   0.10    73%   0.93
+sure-thing-deep-veto    12    5    42%    1.43   0.32    70%   0.78
+too-thin                 9    3    33%    1.23   0.00    66%   0.41
+blowoff-yesterday        1    0     0%    0.00   0.22     0%   0.22
 ------------------------------------------------------------------------------
 * medfill = median fill-modeled run of the gate's PAYERS only (duds separately);
   EV% = rate × medfill_pay + (1−rate) × dud-med — the worth of one buried
