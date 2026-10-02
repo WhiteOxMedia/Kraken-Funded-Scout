@@ -6736,11 +6736,45 @@ def render_quick_check(cfg: TradingConfig, kraken):
                                 _acct = _ca.activate_hail_mary(_acct)
                                 _qc_hm = True
                             else:
-                                _hm_why = ("Hail Mary available but this read doesn't qualify — "
-                                           "it needs a champion-grade brain read "
-                                           f"(≥{_hm_floor:.0f}%) in a VERIFIED uptrend on a "
-                                           "book that carries the full balance")
-                                st.session_state["qc_result"]["hail_mary_why"] = _hm_why
+                                # ── THE OPPORTUNISTIC DOOR (user ask, Oct 1;
+                                #    the QC JOINS it — the alert and the QC
+                                #    agree on BOTH doors, never disagree):
+                                #    the champion bar declined, the account
+                                #    still sits under break-even — the QC
+                                #    opens the same strict-cap window: the
+                                #    deep-scan buy read IS the entry
+                                #    authority, the $300 hard cap rides under
+                                #    the guard's cap, and the activated
+                                #    state's mode stamp routes the exit
+                                #    watch's 2% hard stop exactly as the
+                                #    alert's activation does. Classic first;
+                                #    opp opens ONLY here, on classic's
+                                #    decline. One window per rotation, shared.
+                                try:
+                                    import background_scanner as _bs_opp
+                                    # the QC's OWN read IS the deep read
+                                    # (enable_deep_analysis wrapped this
+                                    # evaluate_strategy call) — the same
+                                    # authority the alert feeds its door.
+                                    _op_q, _op_why = _bs_opp._hail_mary_opp_qualifies(
+                                        deep=sig,
+                                        floor=float(_ca.HAIL_MARY_OPP_FLOOR))
+                                except Exception:
+                                    _op_q, _op_why = False, "fail-closed"
+                                if _op_q:
+                                    _acct = _ca.activate_hail_mary(_acct, mode="opportunistic")
+                                    _qc_hm = True
+                                    _spend_usd = min(float(_spend_usd), float(_risk_cap), float(_ca.OPP_HARD_SPEND_USD))
+                                    st.session_state["qc_result"]["hail_mary_mode"] = "opportunistic"
+                                else:
+                                    _hm_why = ("Hail Mary available but this read doesn't qualify — "
+                                               "it needs a champion-grade brain read "
+                                               f"(≥{_hm_floor:.0f}%) in a VERIFIED uptrend on a "
+                                               "book that carries the full balance; "
+                                               "or an opportunistic deep-scan buy "
+                                               f"clearing {_ca.HAIL_MARY_OPP_FLOOR:.0f}% "
+                                               f"({_op_why})")
+                                    st.session_state["qc_result"]["hail_mary_why"] = _hm_why
                     st.session_state["qc_result"]["hail_mary"] = _qc_hm
                     st.session_state["qc_result"]["risk_cap"] = _risk_cap
                     st.session_state["qc_result"]["window_dd"] = _wdd
@@ -7031,7 +7065,19 @@ def render_quick_check(cfg: TradingConfig, kraken):
                                        "why": [f"{sig.action.upper()} {sig.confidence:.0f}% "
                                                f"(green light)",
                                                *sig.reasons[:4]],
-                                       "source": "green_light"}
+                                       "source": "green_light",
+                                       # THE HM MODE STAMP (the QC joins the
+                                       # opp door, Oct 1): the row carries
+                                       # the ACTIVE window's own mode — an
+                                       # opportunistic window's entry is
+                                       # judged by the exit watch's 2% hard
+                                       # stop (8.18), exactly as the alert's
+                                       # auto_track_popup stamp routes it.
+                                       # No window -> no stamp (a normal
+                                       # entry keeps the half-buffer stop).
+                                       **({"hm_mode": str(st.session_state.get(
+                                           "qc_result", {}).get("hail_mary_mode")
+                                           or "classic")} if _champ_hm_win else {})}
                             _save_watch(w)
                             # EVENT-DRIVEN INVALIDATION (the adaptive spec):
                             # a trade just entered — the book + bot reads
@@ -7356,6 +7402,11 @@ def render_quick_check(cfg: TradingConfig, kraken):
         green; the daily lock removed — the platform line is the only
         floor; the Hail Mary KEPT — the account-in-danger exception.)"""
         if passes and result.get("hail_mary"):
+            if result.get("hail_mary_mode") == "opportunistic":
+                return ("SCALP GREEN LIGHT — 💪 "
+                        "OPPORTUNISTIC HAIL MARY (the emergency hour is open; "
+                        "the death line stands; a strict-cap opportunistic shot — "
+                        "$300 hard cap, the 2% stop rides the row)")
             return ("SCALP GREEN LIGHT — 💪 HAIL MARY (the emergency hour is open; "
                     "the death line stands; full allocation = the guard's cap)")
         if passes and tide_learned_pass:
@@ -9593,7 +9644,10 @@ def main():
           if _hm_left > 0:
               st.sidebar.markdown(plate("💪 HAIL MARY", (
                   led(f"WINDOW {max(_hm_left, 0):.0f} MIN LEFT", "a") + "<br>" +
-                  led("THE EMERGENCY HOUR — ACCOUNT IN DANGER, CHAMPION SHOT", "a") + "<br>" +
+                  led(("THE EMERGENCY HOUR — ACCOUNT IN DANGER, "
+                   + ("STRICT-CAP OPPORTUNISTIC SHOT — $300 CAP, 2% STOP"
+                      if str(_acct_l.get("hail_mary_mode") or "classic") == "opportunistic"
+                      else "CHAMPION-GRADE SHOT")), "a") + "<br>" +
                   led("THE DEATH LINE STANDS — NEVER YIELDS", "r") + "<br>" +
                   led(f"WINDOWS USED: {int(_acct_l.get('hail_mary_count') or 0)} · "
                       f"ONE PER ROTATION", "off")

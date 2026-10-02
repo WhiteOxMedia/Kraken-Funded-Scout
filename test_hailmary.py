@@ -283,6 +283,35 @@ check("8.19 the mode stamp rides save_state's carried keys (a balance "
       "write mid-window never closes it)",
       '"hail_mary_mode"' in ca_src
       and '"hail_mary_mode", "contest_id"' in ca_src)
+# (Oct 1 evening — THE QC JOINS THE OPP DOOR: the console's Quick Check
+# mirrored the alert's CLASSIC door only; the opportunistic window was
+# invisible to the QC. The alert and the QC now agree on BOTH doors.)
+check("8.23 the QC mirrors the alert's candidate order: the champion bar "
+      "FIRST, the opp door ONLY on its decline",
+      ap_src.count('_hail_mary_opp_qualifies(') == 1
+      and 0 < ap_src.find('_op_q, _op_why = _bs_opp._hail_mary_opp_qualifies(')
+      and ap_src.find('_op_q, _op_why = _bs_opp._hail_mary_opp_qualifies(')
+          > ap_src.find("_hm_ok, _hm_why = _ca.hail_mary_available(_acct)"))
+check("8.24 the QC's opp read feeds the same floor constant the alert uses "
+      "(no private number) and fail-closes when the scanner is unreadable",
+      "floor=float(_ca.HAIL_MARY_OPP_FLOOR))" in ap_src
+      and "fail-closed" in ap_src)
+check("8.25 the QC's opp activation stamps the mode (the exit watch's "
+      "2% stop follows the row, alert or QC — never disagree)",
+      '_ca.activate_hail_mary(_acct, mode="opportunistic")' in ap_src)
+check("8.26 the QC's opp spend is capped by the guard AND the $300 hard "
+      "cap (min wins — the death line still rules)",
+      "min(float(_spend_usd), float(_risk_cap)," in ap_src
+      and "float(_ca.OPP_HARD_SPEND_USD))" in ap_src)
+check("8.27 the QC verdict line speaks the STRICT CAP when the window is "
+      "opportunistic (the classic line keeps its full-allocation truth)",
+      'result.get("hail_mary_mode") == "opportunistic"' in ap_src
+      and "strict-cap opportunistic shot" in ap_src
+      and "OPPORTUNISTIC HAIL MARY (the emergency hour" in ap_src)
+check("8.28 the light plate names the window's own mode (the classic "
+      "CHAMPION SHOT line is no longer told for an opp window)",
+      "CHAMPION-GRADE SHOT" in ap_src
+      and "STRICT-CAP OPPORTUNISTIC SHOT" in ap_src)
 with tempfile.TemporaryDirectory() as _td2:
     _old2 = ca.STATE_FILE
     try:
