@@ -1344,13 +1344,15 @@ class _TideRetuneFileLock:
             try:
                 import msvcrt as _ms
                 _ms.locking(self._fd, _ms.LK_UNLCK, 1)
-            except Exception:
-                pass
+            except OSError:
+                pass  # best-effort unlock: the close below drops the
+                       # byte range with the handle either way
         if self._fd is not None:
             try:
                 os.close(self._fd)
-            except Exception:
-                pass
+            except OSError:
+                pass  # already-closed fd — the kernel released the
+                       # byte range at close; nothing is left held
             self._fd = None
         self.held = False
         return False
