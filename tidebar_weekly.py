@@ -34,6 +34,8 @@ Run: .venv\\Scripts\\python.exe -X utf8 tidebar_weekly.py
 """
 import json
 import logging
+import subprocess
+import sys
 import threading
 import time
 from datetime import datetime, timedelta
@@ -1366,6 +1368,111 @@ def report_now():
         logger.info("TIDE BAR WEEKLY: pass failed (%s) — the previous "
                     "report stands", exc)
         return {"err": str(exc)}
+
+
+# ── THE OPP VERDICT CADENCE (Oct 2, the accumulation window's
+# scheduled read): scratch/opp_hindsight.py grades the
+# champion-opportunistic class under rules PRE-REGISTERED before its
+# first fire (<10 graded = KEEP-PROVISIONAL; EV<=0 or 0-payers-at-n>=20
+# = KILL; EV>0 but <50% of classic's = RETAIN-TIGHTEN; else KEEP) —
+# but only when someone remembers to run it. The verdict now prints ON
+# SCHEDULE: the driver runs the grader as a SUBPROCESS (zero API
+# coupling — the untracked tool owns its method and ships its own
+# bytes; the wiring never imports it), parses the verdict line + the
+# opp census for the log, and PREPENDS the section to
+# opp_hindsight_report.txt (the tide-bar convention: newest verdict
+# always at the top, rotated at the family cap). A gone or broken
+# grader fails SAFE — no section, the last report stands, never a
+# fake verdict.
+OPP_TOOL = ROOT / "scratch" / "opp_hindsight.py"
+OPP_REPORT_FILE = ROOT / "opp_hindsight_report.txt"
+OPP_SNAP_FILE = ROOT / "signal_snapshots.jsonl"      # the grader's own ledger read
+OPP_CACHE_DB = ROOT / "ohlcv_cache.db"               # the grader's own candle read
+OPP_VERDICT_FIRST_DELAY_S = 1200.0    # first read ~20 min after boot
+OPP_VERDICT_PERIOD_S = 7 * 86_400.0   # weekly — the re-run clause the verdict itself states
+
+
+def _parse_opp_verdict(out: str) -> dict:
+    """Lift the pre-registered verdict and the opp census out of the
+    grader's own stdout: the verdict is the '>>> ' line, the census is
+    the champion-opportunistic class row's n=. Anything else parses as
+    None — the caller writes no section without a verdict."""
+    verdict = None
+    n = None
+    for line in out.splitlines():
+        s = line.strip()
+        if s.startswith(">>> ") and verdict is None:
+            verdict = s[4:].strip()
+        elif "champion-opportunistic" in s and "n=" in s and n is None:
+            try:
+                n = int(s.split("n=")[1].split()[0].strip())
+            except (IndexError, ValueError):
+                pass
+    return {"verdict": verdict, "n": n}
+
+
+def _append_opp_section(body: str = "") -> tuple[bool, str]:
+    """One scheduled read of the opp verdict. When body is empty the
+    untracked grader is RUN as a subprocess and its stdout is the
+    section body (zero API coupling); a given body (tests, replays) is
+    used verbatim. The section PREPENDS — the newest verdict is always
+    at the top — and the file rotates at the family cap. Fail-safe at
+    every door: a missing or failing grader, or output with no verdict
+    line, writes NOTHING and the last report stands."""
+    try:
+        if not body:
+            if not OPP_TOOL.exists():
+                logger.info("OPP VERDICT: grader absent (untracked "
+                            "scratch) — no section, the last report stands")
+                return False, ""
+            proc = subprocess.run(
+                [sys.executable, "-X", "utf8", str(OPP_TOOL)],
+                capture_output=True, text=True, timeout=180, cwd=str(ROOT))
+            if proc.returncode != 0:
+                logger.info("OPP VERDICT: grader exited %d — no section",
+                            proc.returncode)
+                return False, ""
+            body = proc.stdout
+        parsed = _parse_opp_verdict(body)
+        if not parsed.get("verdict"):
+            logger.info("OPP VERDICT: no verdict line in the grader's "
+                        "output — no section (never a fake verdict)")
+            return False, ""
+        stamp = datetime.now().strftime("%Y-%m-%d %H:%M")
+        section = (f"=== THE OPP VERDICT — {stamp} ===\n"
+                   f"verdict: {parsed['verdict']} (n={parsed.get('n')})\n"
+                   + body.rstrip() + "\n\n")
+        old = ""
+        if OPP_REPORT_FILE.exists():
+            try:
+                old = OPP_REPORT_FILE.read_text(encoding="utf-8")
+            except Exception:
+                old = ""
+        blob = section + old
+        if len(blob.encode("utf-8")) > REPORT_MAX_BYTES:
+            blob = blob[:REPORT_MAX_BYTES]
+        OPP_REPORT_FILE.write_text(blob, encoding="utf-8")
+        logger.info("OPP VERDICT: %s (n=%s) — section prepended",
+                    parsed["verdict"], parsed.get("n"))
+        return True, section
+    except Exception as exc:
+        logger.info("OPP VERDICT: pass failed (%s)", exc)
+        return False, ""
+
+
+def opp_verdict_driver_loop(stop: threading.Event,
+                            first_delay_s: float = OPP_VERDICT_FIRST_DELAY_S,
+                            period_s: float = OPP_VERDICT_PERIOD_S):
+    """The daemon loop: one read shortly after boot, then weekly (the
+    cadence the verdict's own re-run clause states). Never raises; dies
+    with the scanner — a broken pass never takes the funnel down."""
+    stop.wait(first_delay_s)
+    while not stop.is_set():
+        try:
+            _append_opp_section()
+        except Exception as exc:
+            logger.info("OPP VERDICT: loop pass failed (%s)", exc)
+        stop.wait(period_s)
 
 
 def weekly_driver_loop(stop: threading.Event,

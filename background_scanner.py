@@ -4877,6 +4877,18 @@ def main():
                     "shortly after each weekly tide-bar pass; first pass "
                     "in %d min)",
                     int(_tbw.FLIPGRADE_FIRST_DELAY_S // 60))
+        # ── THE OPP VERDICT DRIVER (Oct 2): the accumulation window's
+        # keep/kill on a schedule — scratch/opp_hindsight.py run as a
+        # subprocess (the untracked tool owns its method), the verdict
+        # prepended to opp_hindsight_report.txt weekly. A gone grader
+        # fails safe; a broken pass never takes the funnel down.
+        threading.Thread(target=_tbw.opp_verdict_driver_loop,
+                         args=(_tbw_stop,), daemon=True,
+                         name="opp-verdict-driver").start()
+        logger.info("  Opp verdict driver: ON (the champion-opportunistic "
+                    "keep/kill on schedule — weekly; first read in "
+                    "%d min)",
+                    int(_tbw.OPP_VERDICT_FIRST_DELAY_S // 60))
     except Exception as _tbw_exc:
         logger.info("  Tide bar weekly driver: OFF (%s)", _tbw_exc)
 

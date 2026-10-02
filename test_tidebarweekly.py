@@ -12,6 +12,7 @@ sandboxed so no test ever touches them):
 Run: .venv\\Scripts\\python.exe -X utf8 test_tidebarweekly.py
 """
 import sys
+import tempfile
 import threading
 import time
 from pathlib import Path
@@ -523,6 +524,98 @@ try:
                                    "bar": None, "bar_src": "quantile",
                                    "why": "thin"}}}
     tl.learn = lambda *a, **k: MODEL
+
+    # ── 1b. THE OPP VERDICT CADENCE (Oct 2, the accumulation window's
+    #    scheduled read): scratch/opp_hindsight.py grades the opp class
+    #    under rules PRE-REGISTERED before its first fire (<10 graded =
+    #    KEEP-PROVISIONAL; EV<=0 or 0-payers-at-n>=20 = KILL; EV>0 but
+    #    <50% of classic's = RETAIN-TIGHTEN; else KEEP). The verdict now
+    #    prints ON SCHEDULE — subprocess-invoked (zero API coupling: the
+    #    grader owns its method and ships its own bytes), parsed for the
+    #    machine sidecar, prepended to the report. The tool is UNTRACKED
+    #    scratch — the wiring never imports it and fail-safes when gone.
+    check("1b.1 the verdict is read as a SUBPROCESS of the untracked "
+          "grader (zero API coupling — the tool owns its method), the "
+          "wiring never imports it",
+          hasattr(tbw, "opp_verdict_driver_loop")
+          and hasattr(tbw, "OPP_TOOL")
+          and "scratch" in str(tbw.OPP_TOOL)
+          and "opp_hindsight" in str(tbw.OPP_TOOL)
+          and "import opp_hindsight" not in
+          (BASE / "tidebar_weekly.py").read_text(encoding="utf-8"))
+    check("1b.2 the runner parses the PRE-REGISTERED verdict and the "
+          "opp census from the grader's own bytes (no verdict line, "
+          "no census — nothing trusted)",
+          hasattr(tbw, "_parse_opp_verdict")
+          and ">>> " in tbw._parse_opp_verdict.__doc__
+          and "champion-opportunistic" in tbw._parse_opp_verdict.__doc__)
+    check("1b.3 the verdict section PREPENDS to the opp report (the "
+          "newest verdict is always at the top — the tide-bar "
+          "convention) and rotates at the family cap",
+          hasattr(tbw, "_append_opp_section")
+          and "newest" in tbw._append_opp_section.__doc__
+          and hasattr(tbw, "OPP_REPORT_FILE")
+          and "opp_hindsight_report.txt" in str(tbw.OPP_REPORT_FILE))
+    check("1b.4 the scanner runs the driver (the family wiring: own "
+          "thread, daemon, a broken pass never takes the funnel down)",
+          "opp_verdict_driver_loop" in
+          (BASE / "background_scanner.py").read_text(encoding="utf-8"))
+    with tempfile.TemporaryDirectory() as _opp_sbx:
+        _old_opp = (tbw.OPP_TOOL, tbw.OPP_REPORT_FILE,
+                    tbw.OPP_SNAP_FILE, tbw.OPP_CACHE_DB)
+        try:
+            tbw.OPP_TOOL = Path(_opp_sbx) / "opp_hindsight.py"
+            tbw.OPP_REPORT_FILE = Path(_opp_sbx) / "opp_hindsight_report.txt"
+            tbw.OPP_SNAP_FILE = Path(_opp_sbx) / "signal_snapshots.jsonl"
+            tbw.OPP_CACHE_DB = Path(_opp_sbx) / "ohlcv_cache.db"
+            tbw.OPP_TOOL.write_text(
+                "import sys\n"
+                "print('fire census (all routes, ledger-wide): '"
+                " + sys.argv[1])\n"
+                "print('  >>> KEEP-PROVISIONAL')\n"
+                "print('  champion-opportunistic   n=0   payers=0')\n",
+                encoding="utf-8")
+            parsed = tbw._parse_opp_verdict(
+                "THE OPP HINDSIGHT\n  >>> RETAIN-TIGHTEN\n"
+                "  champion-opportunistic   n=12   payers=7\n")
+            check("1b.5 the parse lifts the verdict text and the opp "
+                  "census out of the grader's bytes",
+                  parsed.get("verdict") == "RETAIN-TIGHTEN"
+                  and parsed.get("n") == 12)
+            ok1, _s1 = tbw._append_opp_section(
+                "  >>> KEEP-PROVISIONAL\nfirst graded body")
+            ok2, _s2 = tbw._append_opp_section(
+                "  >>> RETAIN-TIGHTEN\nsecond graded body")
+            _txt = tbw.OPP_REPORT_FILE.read_text(encoding="utf-8")
+            check("1b.6 two passes prepend (second on top), each "
+                  "section carrying its verdict line and the grader's "
+                  "own body",
+                  ok1 and ok2
+                  and _txt.index("second graded body")
+                  < _txt.index("first graded body")
+                  and "verdict: RETAIN-TIGHTEN" in _txt
+                  and "verdict: KEEP-PROVISIONAL" in _txt)
+            tbw.OPP_TOOL.unlink()
+            ok3, _sec3 = tbw._append_opp_section()
+            check("1b.7 the grader GONE (untracked scratch swept) fails "
+                  "SAFE: the run returns not-ok, no section is written, "
+                  "the last report stands",
+                  ok3 is False and _sec3 == ""
+                  and "never lands" not in
+                  tbw.OPP_REPORT_FILE.read_text(encoding="utf-8"))
+            tbw.OPP_TOOL.write_text(
+                "import sys\nprint('broken output, no verdict')\n",
+                encoding="utf-8")
+            ok4, _sec4 = tbw._append_opp_section()
+            check("1b.8 a grader that runs but prints no verdict line "
+                  "writes nothing (no parse, no section — never a "
+                  "fake verdict)",
+                  ok4 is False and _sec4 == ""
+                  and "no parse no write" not in
+                  tbw.OPP_REPORT_FILE.read_text(encoding="utf-8"))
+        finally:
+            (tbw.OPP_TOOL, tbw.OPP_REPORT_FILE,
+             tbw.OPP_SNAP_FILE, tbw.OPP_CACHE_DB) = _old_opp
 
     # ── 2. the grading math ──────────────────────────────────────────
     g = tbw._grade([(80.0, True), (85.0, False), (60.0, True), (95.0, True)],
