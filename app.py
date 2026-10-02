@@ -6834,7 +6834,17 @@ def render_quick_check(cfg: TradingConfig, kraken):
                 #    tonight's number and never a static +5% again.
                 try:
                     import carve_out as _co6
-                    _lw_bar = float(_co6.required_own_move(_co6.gate(pair=pair)))
+                    # THE PAIR-EXACT READ (the gate's Copilot medium, closed):
+                    # gate() is ONE GLOBAL 120s cache keyed by nothing — a
+                    # second coin's QC inside the window would show another
+                    # coin's vol-dependent bar as this coin's threshold
+                    # (vol_mod(pair) is the one pair-dependent mod: it feeds
+                    # the product, MaxHatch and the expand leg).
+                    # compute_carve_out is the PURE read — no cache, and no
+                    # _save (the app process never writes carve_out state;
+                    # gate() would stamp the scanner's continuity record).
+                    _lw_bar = float(_co6.required_own_move(
+                        _co6.compute_carve_out(pair=pair)))
                 except Exception:
                     _lw_bar = None
                 _lw_bar_txt = (f"+{_lw_bar:.1f}% or more on her own"

@@ -164,8 +164,10 @@ check("the QC toast explains the exception",
 # tonight's weak fleet keeps it shut whatever the move. The toast now
 # reads the LIVE bar and names both truths.)
 check("the QC toast states the LIVE adaptive bar (required_own_move, "
-      "not a retired tier)",
+      "not a retired tier) — the PAIR-EXACT read, never the gate's "
+      "pair-blind 120s cache",
       "required_own_move" in app_src and "_lw_bar_txt" in app_src
+      and "_co6.compute_carve_out(pair=pair)" in app_src
       and "over the regime's own adaptive bar" in app_src)
 check("the retired static +5% tier is gone from the QC copy",
       "+5% or more" not in app_src)
