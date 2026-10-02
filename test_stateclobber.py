@@ -171,7 +171,11 @@ try:
           and doc.get("KAI/USD", {}).get("source") == "drill",
           (_calls, doc.get("KAI/USD")))
     check("4a.2 the save's tmp is PER-WRITER (pid-suffixed — two "
-          "writers can never collide on one shared .tmp)",
+          "PROCESSES can never collide on one shared .tmp; within one "
+          "process the writer holds no lock across the write so the "
+          "scanner's own save sites are serialized by design — each "
+          "runs on the single scan thread and the QC/bridge paths never "
+          "save concurrently with it)",
           any(".tmp." in t.split("contest_watch.json")[-1]
               for t in _calls["tmp_names"]), _calls["tmp_names"])
 
