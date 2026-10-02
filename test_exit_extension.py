@@ -930,6 +930,43 @@ try:
           and _relFl is False and "floor" in _whyFl
           and _relU is False and "unreadable" in _whyU,
           (_whyOff, _whyFl, _whyU))
+
+    # 12.17 the consuming path is SERIALIZED in-process (the reviewer
+    # minor on the backfill, Oct 2): the load-check-save sequence runs
+    # under a module lock, so two scanner threads can never interleave
+    # the sequence and double-spend the cap. Proven at the mutation
+    # itself: the save is wrapped to test the lock — under the lock a
+    # non-blocking re-acquire FAILS (threading.Lock is not reentrant),
+    # outside it succeeds. Deterministic, no timing races.
+    import threading as _th_12
+    _ck12("12.17 the consuming path is serialized: a module lock wraps "
+          "the ledger sequence (save runs UNDER it — proven at the "
+          "mutation, not by timing)",
+          hasattr(bs, "_TIDE_RETUNE_LOCK")
+          and isinstance(bs._TIDE_RETUNE_LOCK, type(_th_12.Lock()))
+          and "with _TIDE_RETUNE_LOCK:" in _src13)
+    _12_fresh_day()
+    _lock_seen = []
+    _real_save = bs._tide_retune_save_day
+
+    # the spy tries a NON-BLOCKING acquire at the save: if it SUCCEEDS,
+    # the lock was free at that moment — the save ran OUTSIDE the
+    # critical section (bad); if it FAILS, the sequence holds it (good)
+    def _spy_save2(day, pairs):
+        got = bs._TIDE_RETUNE_LOCK.acquire(False)
+        _lock_seen.append(not got)   # True = already held (good)
+        if got:
+            bs._TIDE_RETUNE_LOCK.release()
+        return _real_save(day, pairs)
+
+    bs._tide_retune_save_day = _spy_save2
+    try:
+        _relL, _ = bs._tide_retune_releases(70.0, "LOCK/USD")
+    finally:
+        bs._tide_retune_save_day = _real_save
+    _ck12("12.17b the save ran while the lock was held (the sequence is "
+          "one critical section, not three races)",
+          _relL is True and _lock_seen == [True], _lock_seen)
 except Exception as _e12:
     _12_bad = True
     check(f"12.x the retune section ran clean ({_e12!r})", False)

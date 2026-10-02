@@ -618,6 +618,20 @@ try:
                   and ok5 is False and _sec5 == ""
                   and "no parse no write" not in
                   tbw.OPP_REPORT_FILE.read_text(encoding="utf-8"))
+            # (the reviewer minor, Oct 2 backfill: the cap was measured
+            # in BYTES but the truncation sliced CHARACTERS — multibyte
+            # content could exceed the byte cap on disk. The truncation
+            # now cuts the ENCODED bytes and decodes with invalid
+            # trailing bytes ignored — the file never exceeds the cap.)
+            _big = "  >>> KEEP\n" + ("\u2014\u00fc\u00ef\u2014" * 60_000)
+            okT, _ = tbw._append_opp_section(_big)
+            _tbytes = tbw.OPP_REPORT_FILE.read_bytes()
+            check("1b.9 the rotation is BYTE-exact (a multibyte body "
+                  "heavy enough to blow the cap still leaves the file "
+                  "at or under it)",
+                  okT is True
+                  and len(_big.encode("utf-8")) > tbw.REPORT_MAX_BYTES
+                  and len(_tbytes) <= tbw.REPORT_MAX_BYTES)
         finally:
             (tbw.OPP_TOOL, tbw.OPP_REPORT_FILE,
              tbw.OPP_SNAP_FILE, tbw.OPP_CACHE_DB) = _old_opp

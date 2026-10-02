@@ -1458,8 +1458,17 @@ def _append_opp_section(body: str = "") -> tuple[bool, str]:
                 old = ""
         blob = section + old
         if len(blob.encode("utf-8")) > REPORT_MAX_BYTES:
-            blob = blob[:REPORT_MAX_BYTES]
-        OPP_REPORT_FILE.write_text(blob, encoding="utf-8")
+            # BYTE-exact rotation (the reviewer minor, Oct 2): the cap is
+            # measured in bytes, so the truncation ENCODES first, cuts
+            # the BYTES, then decodes with invalid trailing bytes
+            # ignored — a multibyte body can never leave the file over
+            # the cap (slicing the STRING at the byte count cuts
+            # characters, which encode back OVER the cap)
+            blob = blob.encode("utf-8")[:REPORT_MAX_BYTES].decode(
+                "utf-8", errors="ignore")
+        # write BYTES, not text: write_text translates \n -> os.linesep
+        # on Windows and would add bytes BACK after the byte-exact cut
+        OPP_REPORT_FILE.write_bytes(blob.encode("utf-8"))
         logger.info("OPP VERDICT: %s (n=%s) — section prepended",
                     parsed["verdict"], parsed.get("n"))
         return True, section

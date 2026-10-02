@@ -1279,6 +1279,11 @@ TIDE_RETUNE_DAY_CAP_KEY = "TIDE_RETUNE_DAILY_CAP"
 # never guesses.
 TIDE_RETUNE_STATE_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)),
                                       "tide_retune_state.json")
+# serializes the ledger's read-check-write IN-PROCESS (two scanner
+# threads must never interleave load-check-save and double-spend the
+# cap); the cross-process half is the scanner/bot single-writer
+# convention + the lockfile idiom, documented at the state file
+_TIDE_RETUNE_LOCK = threading.Lock()
 
 
 def _tide_retune_dial() -> dict:
@@ -1374,26 +1379,27 @@ def _tide_retune_releases(quick, pair: str = "",
     if float(quick or 0) < d["quick_min"]:
         return False, (f"quick {float(quick or 0):.1f} < the study's "
                        f"{d['quick_min']:.0f} floor")
-    day = datetime.now().astimezone().strftime("%Y-%m-%d")
-    today = _tide_retune_load_day(day)
-    if today is None:
-        return False, ("the retune day ledger is unreadable — failing "
-                       "CLOSED until the operator clears it")
-    if pair and pair in today:
-        if consume:
-            return False, "already released today"
-        return True, (f"the pair already holds today's retune admission "
-                      f"({len(today)}/{d['cap']} today)")
-    if len(today) >= d["cap"]:
-        return False, f"the day's {d['cap']} release cap is spent"
-    if pair and consume:
-        if not _tide_retune_save_day(day, today + [str(pair)]):
-            return False, ("the retune day ledger would not persist — "
-                           "failing CLOSED (a restart must not refill "
-                           "the cap)")
-    return True, (f"the calibration study opened the tide gate "
-                  f"(quick {float(quick or 0):.0f} >= {d['quick_min']:.0f}, "
-                  f"{len(today) + (1 if pair and consume else 0)}/{d['cap']} today)")
+    with _TIDE_RETUNE_LOCK:
+        day = datetime.now().astimezone().strftime("%Y-%m-%d")
+        today = _tide_retune_load_day(day)
+        if today is None:
+            return False, ("the retune day ledger is unreadable — failing "
+                           "CLOSED until the operator clears it")
+        if pair and pair in today:
+            if consume:
+                return False, "already released today"
+            return True, (f"the pair already holds today's retune admission "
+                          f"({len(today)}/{d['cap']} today)")
+        if len(today) >= d["cap"]:
+            return False, f"the day's {d['cap']} release cap is spent"
+        if pair and consume:
+            if not _tide_retune_save_day(day, today + [str(pair)]):
+                return False, ("the retune day ledger would not persist — "
+                               "failing CLOSED (a restart must not refill "
+                               "the cap)")
+        return True, (f"the calibration study opened the tide gate "
+                      f"(quick {float(quick or 0):.0f} >= {d['quick_min']:.0f}, "
+                      f"{len(today) + (1 if pair and consume else 0)}/{d['cap']} today)")
 
 
 def tide_memory_states() -> tuple:

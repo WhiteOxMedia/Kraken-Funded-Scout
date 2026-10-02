@@ -88,9 +88,13 @@ REL_KEEP = 0.5        # opp EV must clear half the classic EV to KEEP
 
 def load_fires() -> tuple[list[dict], dict[str, int]]:
     """Fired snapshots by route, timestamps parsed (never compared as
-    strings — mixed offsets misorder)."""
+    strings — mixed offsets misorder). A missing ledger is a cold
+    start, not a crash: empty census, no fires — the verdict machinery
+    then speaks its honest KEEP-PROVISIONAL."""
     rows: list[dict] = []
     census: dict[str, int] = defaultdict(int)
+    if not SNAPS.exists():
+        return rows, census
     for line in SNAPS.read_text(encoding="utf-8").splitlines():
         line = line.strip()
         if not line:
