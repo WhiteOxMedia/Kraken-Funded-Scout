@@ -69,9 +69,11 @@ check("the scanner wires the weekly driver beside its siblings",
 check("the report prepends and rotates (the family convention)",
       tbw.REPORT_MAX_BYTES == 500_000
       and "blob_new + prev" in (BASE / "tidebar_weekly.py").read_text(encoding="utf-8"))
-check("the ledgers the report reads are written atomically (no empty-read race)",
-      "os.replace(_tmp, SUPPRESSION_LOG_FILE)" in bs_src
-      and "os.replace(_tmp, SIGNAL_SNAPSHOTS_FILE)" in bs_src)
+check("the ledgers the report reads are written atomically (no "
+      "empty-read race; the rename rides the retry contract — a "
+      "concurrent reader cannot lose a writer its row)",
+      "replace_atomic(_tmp, SUPPRESSION_LOG_FILE)" in bs_src
+      and "replace_atomic(_tmp, SIGNAL_SNAPSHOTS_FILE)" in bs_src)
 check("the flip grade runs MONTHLY beside its driver siblings",
       "flipgrade_driver_loop" in bs_src
       and abs(tbw.FLIPGRADE_PERIOD_S - 30 * 86400) < 1

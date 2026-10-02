@@ -141,6 +141,13 @@ exec(_extract_fn("_fmt_price"), NS)
 # ONE (sliced like everything else) or the block NameErrors mid-call
 # and every trail-row check below silently proves nothing.
 exec(_extract_fn("_guard_breakdown_rows"), NS)
+# THE MISSING BADGE, AGAIN (battery triage, Oct 2): the strip body grew
+# the gate-econ badge (_econ_badge + _load_gate_econ, e0c2375) — the
+# rows loop NameErrors into the body's fail-soft swallow and the whole
+# relief block vanishes (zero renderings). Slice the REAL ones, the
+# same medicine as _guard_breakdown_rows.
+exec(_extract_fn("_econ_badge"), NS)
+exec(_extract_fn("_load_gate_econ"), NS)
 _pick_card = NS["_pick_card"]
 _render_suppression_strip = NS["_render_suppression_strip"]
 
