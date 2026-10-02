@@ -6313,13 +6313,19 @@ def main():
             # fires lands in the scorer's dataset with its full fire-time
             # features — the positive class the suppression records are
             # graded against.
+            # the route is ONE local, computed once — the snapshot stamp
+            # and the first-fire reminder must never disagree (the
+            # CodeRabbit critical, Oct 2: the reminder first read a bare
+            # `route`, a dict key, not a local — a NameError on every BUY
+            # popup past this line)
+            _opp_route = ("champion-fast" if _fast_route
+                          else "champion-opportunistic"
+                          if _hail_mary and _hail_mary_mode == "opportunistic"
+                          else "champion")
             try:
                 _fsnap = dict(_SNAPSHOT_CTX.get("ctx") or {})
                 _fsnap.update({"kind": "fired",
-                               "route": ("champion-fast" if _fast_route
-                                         else "champion-opportunistic"
-                                         if _hail_mary and _hail_mary_mode == "opportunistic"
-                                         else "champion"),
+                               "route": _opp_route,
                                "release": _take_release_prov(pair),
                                "tide": (f"{_df_state} {_df_pct:.0f}%"
                                         if _df_state and _df_pct is not None else None),
@@ -6352,7 +6358,7 @@ def main():
             # point — the provisionality is the opp class's), and the
             # marker write happens FIRST so a crash between can only
             # lose the toast, never repeat it forever.
-            if route == "champion-opportunistic" and not _opp_reminder_done():
+            if _opp_route == "champion-opportunistic" and not _opp_reminder_done():
                 _opp_reminder_mark()
                 try:
                     notify_big(

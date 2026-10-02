@@ -275,7 +275,7 @@ check("8.15 the fired snapshot routes the class (champion-opportunistic)",
 # the trigger, not a date. The OTHER classes stay silent.)
 check("8.31 the first opp fire fires the one-shot reminder (the event is "
       "the trigger, not a date — the reminders/ marker idiom)",
-      "if route == \"champion-opportunistic\" and not _opp_reminder_done():" in bs_src
+      "if _opp_route == \"champion-opportunistic\" and not _opp_reminder_done():" in bs_src
       and "_opp_reminder_mark()" in bs_src
       and "OPPORTUNISTIC HAIL MARY: FIRST FIRE" in bs_src
       and "accumulation window is now being watched" in bs_src
@@ -289,15 +289,36 @@ check("8.32 the reminder is one-shot across restarts (a marker FILE, not "
 check("8.33 the OTHER classes stay silent — no champion or champion-fast "
       "popup ever spends the reminder (the provisionality is the opp "
       "class's: one decision, one mark)",
-      bs_src.count('if route == "champion-opportunistic" and not _opp_reminder_done():') == 1
+      bs_src.count('if _opp_route == "champion-opportunistic" and not _opp_reminder_done():') == 1
       and bs_src.count("_opp_reminder_mark()") == 2   # the def + the one call
       and bs_src.count("not _opp_reminder_done()") == 1)
 check("8.34 the reminder rides the fired-popup block (it fires only on a "
       "POPUP, never on a bridge write alone — the console reads the "
       "same event)",
-      0 < bs_src.find('if route == "champion-opportunistic" and not _opp_reminder_done():')
-      and bs_src.find('if route == "champion-opportunistic" and not _opp_reminder_done():')
+      0 < bs_src.find('if _opp_route == "champion-opportunistic" and not _opp_reminder_done():')
+      and bs_src.find('if _opp_route == "champion-opportunistic" and not _opp_reminder_done():')
       > bs_src.find("_log_signal_snapshot(_fsnap)"))
+# (the CodeRabbit CRITICAL, Oct 2: the reminder condition first read a
+# bare `route` — a dict KEY in the snapshot literal, never a local — and
+# would have NameError'd every BUY popup past the snapshot block. The
+# route is now computed ONCE as a local and reused by both the snapshot
+# stamp and the reminder; this pin parses send_alert's AST and demands
+# every name the reminder reads actually be ASSIGNED in the function.)
+import ast as _ast_hm
+_fn_hm = {n.name: n for n in _ast_hm.walk(
+    _ast_hm.parse(Path("background_scanner.py").read_text(encoding="utf-8")))
+    if isinstance(n, _ast_hm.FunctionDef)}.get("send_alert")
+_assigned_hm = ({n.id for n in _ast_hm.walk(_fn_hm)
+                 if isinstance(n, _ast_hm.Name) and isinstance(n.ctx,
+                                                               _ast_hm.Store)}
+                if _fn_hm else set())
+check("8.36 the route local exists and is assigned ONCE in send_alert "
+      "(the dict-key-is-not-a-local class dies here — a bare `route` "
+      "can never again ride the popup path; the module-level reminder "
+      "helpers are loads by design)",
+      bool(_fn_hm) and "_opp_route" in _assigned_hm
+      and '"route": _opp_route' in bs_src
+      and bs_src.count('_opp_route = (') == 1)
 check("8.16 auto_track_popup carries the hm_mode stamp into the watch row",
       'w[pair]["hm_mode"] = str(hm_mode)' in bs_src)
 check("8.17 the light's exit watch judges the 2% stop on the stamp "
