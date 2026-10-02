@@ -659,10 +659,30 @@ try:
     qbar = tbw._quantile_bar_as_learn("OUT", MODEL)
     rate = MODEL["states"]["OUT"]["payer_rate"]
     scores = _tl._funnel_score_quantiles()
-    expect = round(max(_tl.OUTCOME_BAR_FLOOR_MIN, min(_tl.BAR_MAX,
+    expect = round(max(_tl.BAR_MIN, min(_tl.BAR_MAX,
                     _tl._quantile(scores, 1.0 - rate))), 1)
     check("the quantile counterfactual equals learn()'s own bar",
           qbar == expect, (qbar, expect))
+    # THE DISCRIMINATING HALF (the Copilot [high] on b850e3e): the
+    # counterfactual models the QUANTILE recipe, whose ship band is
+    # [BAR_MIN, BAR_MAX] = [86, 97] — a different band than the outcome
+    # ladder's 68 floor. A state whose raw quantile lands under 86 must
+    # clamp to BAR_MIN: the outcome floor would show a bar the quantile
+    # recipe could never ship, flattering the live outcome bar and
+    # distorting the flip comparison. (The main fixture's quantile sits
+    # above 86, where both floors agree — vacuous on the floor question
+    # — hence this sub-band fixture.)
+    _m_lo = {"states": {"OUT": dict(MODEL["states"]["OUT"],
+                                    payer_rate=0.97)}}
+    qbar_lo = tbw._quantile_bar_as_learn("OUT", _m_lo)
+    raw_lo = _tl._quantile(scores, 1.0 - 0.97)
+    expect_lo = round(max(_tl.BAR_MIN, min(_tl.BAR_MAX, raw_lo)), 1)
+    check("a sub-band quantile clamps to the QUANTILE recipe's floor "
+          "(BAR_MIN 86, not the outcome ladder's 68 — the recipes ship "
+          "different bands)",
+          qbar_lo == expect_lo and qbar_lo >= _tl.BAR_MIN
+          and raw_lo < _tl.BAR_MIN,
+          (qbar_lo, expect_lo, round(raw_lo, 1)))
 
     # ── 4. a full pass: both bars, the delta, the fail-safes ─────────
     real_week = tbw._week_candidates

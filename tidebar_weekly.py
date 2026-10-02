@@ -302,10 +302,13 @@ def _grade(cands, bar):
 def _quantile_bar_as_learn(state, model):
     """The quantile bar recomputed EXACTLY as learn() computes it: the
     (1 - payer_rate) quantile of the funnel's score history, clamped
-    [OUTCOME_BAR_FLOOR_MIN, BAR_MAX] — the outcome bar's evidence-gated
-    floor, learn()'s own ship contract — with payer_rate = the model's
-    deep-history rate for the state. None when the model lacks the rate
-    or the scores."""
+    [BAR_MIN, BAR_MAX] — the QUANTILE recipe's own ship band (86..97;
+    a different recipe ships a different band than the outcome ladder's
+    68 floor — the outcome-floor clamp let this counterfactual show a
+    bar the quantile recipe could never produce, flattering the live
+    outcome bar; the Copilot [high] on b850e3e) — with payer_rate = the
+    model's deep-history rate for the state. None when the model lacks
+    the rate or the scores."""
     import tide_learn as tl
     st = (model.get("states") or {}).get(state) or {}
     rate = st.get("payer_rate")
@@ -313,7 +316,7 @@ def _quantile_bar_as_learn(state, model):
     if rate is None or scores is None:
         return None
     raw = tl._quantile(scores, max(0.0, min(1.0, 1.0 - rate)))
-    return round(max(tl.OUTCOME_BAR_FLOOR_MIN, min(tl.BAR_MAX, raw)), 1)
+    return round(max(tl.BAR_MIN, min(tl.BAR_MAX, raw)), 1)
 
 
 def _week_candidates():
