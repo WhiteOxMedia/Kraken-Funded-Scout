@@ -95,10 +95,16 @@ def _save(st: dict) -> None:
     # closed the clobber door; this closes the torn-write door — the
     # fail-soft readers would read a half-written file as {} and the
     # whole learning state would vanish without a trace.
-    tmp = str(STATE_FILE) + ".tmp"
+    # THE RETRY CONTRACT (Oct 2, the last storm-shape writer): a
+    # pid-suffixed per-writer tmp + atomic_io's bounded backoff — a
+    # reader holding the target at the replace instant (the console's
+    # guard read via carve_out) is the WinError 5/32 family, and the
+    # old single raw replace lost the whole learning state silently.
+    from atomic_io import replace_atomic
+    tmp = str(STATE_FILE) + f".tmp.{os.getpid()}"
     with open(tmp, "w", encoding="utf-8") as fh:
         json.dump(merged, fh, indent=2)
-    os.replace(tmp, STATE_FILE)
+    replace_atomic(tmp, STATE_FILE)
 
 
 # ═══════════════ SECTION 1 — THE REALITY CHECK LAYER ═══════════════

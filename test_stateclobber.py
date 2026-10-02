@@ -119,6 +119,45 @@ try:
           "silent_docks" in st and "rcl_last" not in st
           and st.get("tomorrow_goal_factor") == 1.1, sorted(st))
 
+    # ── 3b. THE LAST STORM-SHAPE WRITER JOINS THE CONTRACT (Oct 2):
+    # ml._save still ended fixed .tmp + one raw os.replace — a reader
+    # (the console's guard read via carve_out) holding the target at
+    # the replace instant loses the whole learning state save silently
+    # (the caller's fail-soft swallow). Same drill as 4a: one injected
+    # WinError 5, then pass-through — the save must still LAND.
+    import atomic_io as _aio_ml
+    _real_ra_ml = _aio_ml.replace_atomic
+    _real_osrep_ml = _aio_ml.os.replace
+    _ml_calls = {"n": 0, "tmp": ""}
+
+    def _contend_ml(src, dst, *a, **k):
+        _ml_calls["n"] += 1
+        _ml_calls["tmp"] = str(src)
+        if _ml_calls["n"] == 1:
+            err = OSError("drill3b: access denied")
+            err.winerror = 5
+            raise err
+        return _real_osrep_ml(src, dst, *a, **k)
+
+    def _ra_drill_ml(tmp, target, **kw):
+        kw.setdefault("replace", _contend_ml)
+        return _real_ra_ml(tmp, target, **kw)
+
+    _patcher_ml = mock.patch.object(_aio_ml, "replace_atomic", _ra_drill_ml)
+    _patcher_ml.start()
+    try:
+        ml._save({"drill3b": {"ok": True}})
+    finally:
+        _patcher_ml.stop()
+    st = json.loads((_sbx / "meta_layers_state.json").read_text())
+    check("3b.1 meta_layers._save survives a WinError-5 rename injection "
+          "(the bounded retry heals in-process — the last storm-shape "
+          "writer joined)",
+          _ml_calls["n"] >= 2 and st.get("drill3b", {}).get("ok") is True,
+          (_ml_calls, st.get("drill3b")))
+    check("3b.2 the save's tmp is PER-WRITER (pid-suffixed)",
+          ".tmp." in _ml_calls["tmp"], _ml_calls["tmp"])
+
     # ── 4. contest_watch: the cross-process interleaving ─────────────
     # ── 4a. THE CONTENTION-PROOF SAVE (Oct 2, the de-flake): the storm
     # runs showed the scanner's save loses the rename race to a
