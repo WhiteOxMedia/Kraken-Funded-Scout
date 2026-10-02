@@ -324,6 +324,86 @@ check("8.4 the goal baseline is now context-scaled",
 check("8.5 the console's breakdown can never import the carve (one-brain)",
       "_guard_breakdown_rows" in ap_src)
 
+# ── 9. THE PAIR-EXACT GATE CACHE (Oct 2, the grant-side seam closes) ──
+#    gate()'s cache was ONE GLOBAL slot keyed by nothing: every caller
+#    passes pair= (lone_wolf_discount's grant bar, the popup toasts,
+#    the mover path, meta_layers' guard read), but the second pair
+#    inside CACHE_S inherited the FIRST pair's computed allowance —
+#    vol_mod is the one pair-dependent mod, so a hot pair's vol regime
+#    priced another coin's carve. The copy-truth fix (4321007) made the
+#    QC's read pure; this makes the CACHED read pair-exact too.
+check("9.1 the cache is keyed by pair (a dict of slots, not one global "
+      "slot) and CACHE_S is unchanged",
+      "_GATE: dict[str, dict] = {}" in co_src
+      and "_GATE.get(key)" in co_src
+      and "CACHE_S = 120" in co_src
+      and '{"ts": 0.0, "res": None}' not in co_src)
+check("9.2 every scanner caller still names the pair (the key is only "
+      "as honest as the callers)",
+      bs_src.count(".gate(pair=pair)") >= 4
+      and "_co.gate(pair=pair)" in bs_src
+      and "_co.gate(pair=pair, when=when)" in ml_src)
+
+import tempfile
+import carve_out as _co_mod
+
+with tempfile.TemporaryDirectory() as _co9:
+    _old_state9 = co.STATE_FILE
+    _old_vol9 = co.vol_mod
+    try:
+        co.STATE_FILE = Path(_co9) / "carve_state.json"
+        # the pair-dependent mod, scripted: A reads HOT (1.5), B reads
+        # COLD (0.8) — the carve difference the old single-slot cache
+        # made impossible to observe
+        co.vol_mod = lambda pair, when=None: (
+            1.5 if str(pair) == "A/USD" else 0.8)
+        resA = co.gate(pair="A/USD", force=True)
+        resB = co.gate(pair="B/USD")          # NO force: the cache decides
+        check("9.3 the second pair inside CACHE_S computes ITS OWN "
+              "allowance (vol 1.5 vs 0.8 must price two different "
+              "carves — under the old single slot B inherited A's)",
+              resA["mods"]["vol_mod"] == 1.5
+              and resB["mods"]["vol_mod"] == 0.8
+              and resB["carve"] != resA["carve"])
+        resA2 = co.gate(pair="A/USD")          # still inside CACHE_S
+        check("9.4 the pair's own slot serves its cache (A's re-read "
+              "returns A's stored result, never B's)",
+              resA2 is resA and resA2["carve"] == resA["carve"])
+        # the fleet slot: pair=None is its own key, counted through the
+        # compute wrapper (a hit never recomputes)
+        _calls = {"n": 0}
+        _real_compute = co.compute_carve_out
+
+        def _counting(pair=None, when=None, **kw):
+            _calls["n"] += 1
+            return _real_compute(pair=pair, when=when, **kw)
+
+        co.compute_carve_out = _counting
+        try:
+            co.gate(pair="A/USD")            # A hit: no compute
+            _n_hit = _calls["n"]
+            co.gate()                         # fleet first: computes
+            _n_fleet = _calls["n"]
+            co.gate()                         # fleet hit: no compute
+            _n_fleet2 = _calls["n"]
+            check("9.5 the fleet slot is its own key (a pair hit does "
+                  "not compute, the fleet's first read does, its "
+                  "second does not)",
+                  _n_hit == 0 and _n_fleet == 1 and _n_fleet2 == 1,
+                  _calls)
+        finally:
+            co.compute_carve_out = _real_compute
+        for i in range(40):
+            co.gate(pair=f"P{i}/USD", force=True)
+        check("9.6 the cache is bounded (40 distinct pairs cannot grow "
+              "the slots past the cap — a scanner's rotation memory "
+              "never leaks)",
+              len(co._GATE) <= 32, len(co._GATE))
+    finally:
+        co.STATE_FILE = _old_state9
+        co.vol_mod = _old_vol9
+        co._GATE.clear()
+
 fails = [r for r in results if not r[1]]
 (scratch_space.report_temp('_carveout_check.txt')).write_text(
     "\n".join(f"{'PASS' if ok else 'FAIL'}  {name}" + (f"  [{d}]" if d and not ok else "")

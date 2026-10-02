@@ -316,19 +316,32 @@ def compute_carve_out(pair: str | None = None,
             "max_carve": max_carve}
 
 
-# ═══ THE GATE (cached) ════════════════════════════════════════════════
-_GATE = {"ts": 0.0, "res": None}
+# ═══ THE GATE (cached, PAIR-EXACT) ═══════════════════════════════════
+# The cache is keyed BY PAIR (Oct 2, the grant-side seam closes): it was
+# ONE GLOBAL slot keyed by nothing, and every caller passes pair= —
+# lone_wolf_discount's grant bar, the popup toasts, the mover path,
+# meta_layers' guard read — so the second pair inside CACHE_S inherited
+# the FIRST pair's computed allowance (vol_mod is the one pair-dependent
+# mod: a hot pair's vol regime priced another coin's carve). Pair-exact
+# slots, bounded — a scanner's rotation memory never leaks.
+_GATE: dict[str, dict] = {}
+_GATE_MAX = 32
 
 
 def gate(pair: str | None = None, when: datetime | None = None,
          force: bool = False) -> dict:
-    """The scanner's one call (cached CACHE_S, force=True for drives).
-    Stores the last result for DNL's nightly record."""
+    """The scanner's one call (cached CACHE_S per pair, force=True for
+    drives). Stores the last result for DNL's nightly record."""
+    key = str(pair or "_fleet")
     now = time.time()
-    if not force and _GATE["res"] is not None and now - _GATE["ts"] < CACHE_S:
-        return _GATE["res"]
+    slot = _GATE.get(key)
+    if not force and slot is not None and now - slot["ts"] < CACHE_S:
+        return slot["res"]
     res = compute_carve_out(pair=pair, when=when)
-    _GATE.update(ts=now, res=res)
+    if len(_GATE) >= _GATE_MAX and key not in _GATE:
+        oldest = min(_GATE, key=lambda k: _GATE[k]["ts"])
+        del _GATE[oldest]
+    _GATE[key] = {"ts": now, "res": res}
     st = _state()
     st["last"] = {"carve": res["carve"], "lone_wolf": res["lone_wolf"],
                   "mods": res["mods"], "ts": res["when"],

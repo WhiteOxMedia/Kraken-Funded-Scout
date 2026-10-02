@@ -6872,20 +6872,17 @@ def render_quick_check(cfg: TradingConfig, kraken):
                     if not hasattr(_bs6, "lone_wolf_discount"):
                         import importlib
                         _bs6 = importlib.reload(_bs6)
-                    # THE KNOWN SEAM (Copilot medium on b2d8e31 — documented,
-                    # NOT fixed, scope): the GRANT rides lone_wolf_discount,
-                    # whose bar reads carve_out.gate()'s ONE GLOBAL 120s
-                    # cache — pair-blind by the scanner's design (every gate
-                    # shares the one read; per-pair reads would multiply
-                    # fetches and _save stamps). The toast's bar below is
-                    # PAIR-EXACT (compute_carve_out), so a second coin's QC
-                    # inside the same 120s window can show a threshold that
-                    # disagrees with the grant this stamp carries — rare
-                    # (one operator, two pairs, one window) and second-order
-                    # (both coins share the hour's regime mods; only the
-                    # clamped per-pair vol ratio differs). The honest fix is
-                    # keying gate()'s cache by pair — scanner-wide machinery,
-                    # deliberately untouched in the copy-truth scope.
+                    # THE FORMER SEAM (Copilot medium on b2d8e31) — CLOSED
+                    # Oct 2: the grant rides lone_wolf_discount, whose bar
+                    # reads carve_out.gate(), and gate()'s cache used to be
+                    # ONE GLOBAL slot keyed by nothing — the second pair
+                    # inside the window inherited the first pair's computed
+                    # allowance. The cache is now keyed BY PAIR (bounded),
+                    # so the grant bar is pair-exact scanner-wide and this
+                    # toast can no longer disagree with the stamp it
+                    # carries. (The QC's own bar below still reads
+                    # compute_carve_out directly — see the copy-truth note
+                    # there: the app process never writes carve state.)
                     _lw_pts, _lw_note = _bs6.lone_wolf_discount(kraken, pair)
                 except Exception:
                     _lw_pts, _lw_note = 0, ""
@@ -6896,15 +6893,12 @@ def render_quick_check(cfg: TradingConfig, kraken):
                 #    tonight's number and never a static +5% again.
                 try:
                     import carve_out as _co6
-                    # THE PAIR-EXACT READ (the gate's Copilot medium, closed):
-                    # gate() is ONE GLOBAL 120s cache keyed by nothing — a
-                    # second coin's QC inside the window would show another
-                    # coin's vol-dependent bar as this coin's threshold
-                    # (vol_mod(pair) is the one pair-dependent mod: it feeds
-                    # the product, MaxHatch and the expand leg).
-                    # compute_carve_out is the PURE read — no cache, and no
-                    # _save (the app process never writes carve_out state;
-                    # gate() would stamp the scanner's continuity record).
+                    # THE PAIR-EXACT READ (the gate's Copilot medium,
+                    # closed Oct 2 — and the cache itself is pair-keyed now):
+                    # compute_carve_out is the PURE read — no cache and no
+                    # _save, because the app process never writes
+                    # carve_out state (gate() would stamp the scanner's
+                    # continuity record with the console's reads).
                     _lw_bar = float(_co6.required_own_move(
                         _co6.compute_carve_out(pair=pair)))
                 except Exception:

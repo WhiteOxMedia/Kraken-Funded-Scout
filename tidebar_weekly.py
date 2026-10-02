@@ -1415,7 +1415,7 @@ def _parse_opp_verdict(out: str) -> dict:
             try:
                 n = int(s.split("n=")[1].split()[0].strip())
             except (IndexError, ValueError):
-                pass
+                pass  # junk census row: the verdict line alone carries the trust
     return {"verdict": verdict, "n": n}
 
 
