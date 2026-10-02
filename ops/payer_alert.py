@@ -348,13 +348,15 @@ def record_fire(cand: dict, why: dict, spec: dict, metrics_path,
     """Persist the retire-on-fire tombstone (pair|gate in state.fired +
     the pair cooldown) and append the metrics csv row — peak_after_pct
     stays EMPTY at fire time (hindsight fills it; fire-time peaks are
-    fiction)."""
+    fiction). fired_at carries the iso instant the WINDOW counts from
+    and crossed_price rides the row as the peak's BASE (the hindsight
+    backfill measures the recovery leg over the crossed price)."""
     now = now or _now()
     rec = {"pair": cand["pair"], "gate": cand["gate"],
            "threshold": cand.get("threshold"), "fired_at": now.isoformat(),
            "crossed_at": why.get("crossed_at"),
            "crossed_price": why.get("crossed_price"),
-           "ask_tob_usd": why.get("ask_tob_usd"),
+            "ask_tob_usd": why.get("ask_tob_usd"),
            "spread_bps": why.get("spread_bps")}
     try:
         st = json.loads(Path(state_path).read_text(encoding="utf-8"))
@@ -381,6 +383,117 @@ def record_fire(cand: dict, why: dict, spec: dict, metrics_path,
         except Exception as exc:
             _log(f"metrics row failed (non-fatal): {exc}")
     return rec
+
+
+# ── the hindsight backfill: the horizon-closed peak, measured ───────
+
+def _parse_mst(v: str, ref: datetime) -> datetime:
+    """A row's iso instant, normalized like the ledger rows: a naive
+    stamp is the house MST; anything unreadable raises (the caller
+    decides fail-soft)."""
+    dt = datetime.fromisoformat(str(v))
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=MST)
+    return dt
+
+
+def read_metrics(path) -> tuple[list, list]:
+    """The metrics csv as (header, rows) — header is the comma list,
+    each row a dict of column->string ('' when absent). Unreadable or
+    empty -> ([], [])."""
+    try:
+        lines = Path(path).read_text(encoding="utf-8").splitlines()
+    except Exception:
+        return [], []
+    if not lines:
+        return [], []
+    header = [c.strip() for c in lines[0].split(",")]
+    rows = []
+    for ln in lines[1:]:
+        if not ln.strip():
+            continue
+        vals = ln.split(",")
+        rows.append({c: (vals[i] if i < len(vals) else "")
+                     for i, c in enumerate(header)})
+    return header, rows
+
+
+def backfill_metrics(spec: dict, metrics_path, now: datetime,
+                     fetch_candles_fn) -> int:
+    """THE HINDSIGHT BACKFILL (user ask, Oct 1): fill the metrics csv's
+    empty peak_after_pct once each fired watch's 7h horizon closes, and
+    record whether the alert beat the funnel.
+
+    For every row with a parseable fired_at whose horizon window
+    [fired_at, fired_at + horizon_hours] is CLOSED, the highest 5m close
+    INSIDE the window is measured as a percent over the row's
+    crossed_price — the same honesty as the fire itself: pre-fire and
+    post-horizon closes never inflate it, and a failed feed leaves the
+    row EMPTY for the next cycle (fire-time peaks are fiction; so are
+    hindsight peaks measured on a stale feed). beat_funnel is true when
+    the peak reached funnel_entry_floor_pct (the funnel's own entry
+    floor — could the funnel have re-entered this leg?). Rows are
+    rewritten atomically (tmp + os.replace, the _write_state idiom);
+    ANY error leaves the csv untouched and returns 0 fills — the
+    backfill never kills the watch loop."""
+    try:
+        header, rows = read_metrics(metrics_path)
+        if "fired_at" not in header or "peak_after_pct" not in header:
+            return 0                        # legacy schema: nothing to fill
+        horizon_h = float(spec.get("horizon_hours", 7))
+        floor_pct = float(spec.get("funnel_entry_floor_pct", 1.8))
+        fills = 0
+        for r in rows:
+            if r.get("peak_after_pct", "").strip() != "":
+                continue                    # already measured
+            try:
+                fired = _parse_mst(r["fired_at"], now)
+            except Exception:
+                continue                    # unreadable stamp: unfilled
+            end = fired + timedelta(hours=horizon_h)
+            if now < end:
+                continue                    # horizon still open
+            try:
+                base = float(r["crossed_price"])
+            except Exception:
+                continue                    # no base: an honest % is impossible
+            try:
+                candles = fetch_candles_fn(r.get("pair"), "5m", 30,
+                                           since=fired)
+            except Exception:
+                candles = None
+            if not candles:
+                continue                    # failed feed: stays empty
+            peak_px = None
+            peak_ts = None
+            for c in candles:
+                try:
+                    cts = datetime.fromtimestamp(float(c["ts"]) / 1000.0,
+                                                 tz=MST)
+                    close = float(c["close"])
+                except Exception:
+                    continue
+                if fired <= cts < end and close > 0:
+                    if peak_px is None or close > peak_px:
+                        peak_px, peak_ts = close, cts
+            if peak_px is None or base <= 0:
+                continue                    # no in-window data: stays empty
+            pct = (peak_px / base - 1.0) * 100.0
+            r["peak_after_pct"] = f"{round(pct, 3)}"
+            r["peak_at"] = peak_ts.strftime("%Y-%m-%d %H:%M:%S")
+            r["beat_funnel"] = "true" if pct >= floor_pct else "false"
+            fills += 1
+        if fills:
+            tmp = str(metrics_path) + ".tmp"
+            with open(tmp, "w", encoding="utf-8", newline="") as fh:
+                fh.write(",".join(header) + "\n")
+                for r in rows:
+                    fh.write(",".join(r.get(c, "") for c in header) + "\n")
+            os.replace(tmp, str(metrics_path))
+        return fills
+    except Exception as exc:
+        _log(f"hindsight backfill skipped this cycle (non-fatal): {exc}")
+        return 0
 
 
 # ── the lock: one watcher, dead locks are retaken ─────────────────────
@@ -451,10 +564,16 @@ def send(text: str, prio: str, tag: str) -> bool:
 
 # ── the feeds: Kraken public, no keys, fail-honest ────────────────────
 
-def fetch_candles(pair: str, timeframe: str = "5m", limit: int = 30):
+def fetch_candles(pair: str, timeframe: str = "5m", limit: int = 30,
+                  since=None):
+    """The 5m feed. since (aware datetime, the hindsight backfill's
+    window start) narrows the pull so the backfill measures the horizon
+    window, not the last 30 candles on the clock."""
     import ccxt
     ex = ccxt.kraken({"enableRateLimit": True})
-    o = ex.fetch_ohlcv(pair, timeframe=timeframe, limit=limit)
+    since_ms = int(since.timestamp() * 1000) if since is not None else None
+    o = ex.fetch_ohlcv(pair, timeframe=timeframe, limit=limit,
+                       since=since_ms)
     return [{"ts": r[0], "close": r[4]} for r in (o or [])] or None
 
 
@@ -475,12 +594,22 @@ def _load_state(state_path) -> dict:
 
 
 def _tick(spec: dict, ledger_path, medfills, state_path, metrics_path,
-          now: datetime | None, _trip, _force_send_fail: bool) -> int:
+          now: datetime | None, _trip, _force_send_fail: bool,
+          _fetch_candles_fn=None, backfill: bool = False) -> int:
     state = _load_state(state_path)
     mf = medfills if medfills is not None else load_medfills(EV_FILE)
     cands = build_candidates(ledger_path, mf, spec, now or _now(),
                              state=state)
     if not cands:
+        # no watches this cycle — but the HINDSIGHT BACKFILL (opt-in by
+        # spec) still runs: a horizon-closed metrics row must not wait
+        # for the next burial to be measured
+        if backfill:
+            try:
+                _tick_backfill(spec, metrics_path, now or _now(),
+                               _fetch_candles_fn)
+            except Exception as _exc:
+                _log(f"backfill pass failed (non-fatal): {_exc}")
         return 0
     confirm = int(spec.get("confirm_candles", 1))
     book_on = spec.get("book_required", True)
@@ -510,13 +639,35 @@ def _tick(spec: dict, ledger_path, medfills, state_path, metrics_path,
         record_fire(cand, why, spec, metrics_path, state_path, now=now)
         _log(f"FIRED: {cand['pair']} buried by {cand['gate']} — crossed "
              f"at {why.get('crossed_price')}; the watch is retired")
+    # THE HINDSIGHT BACKFILL (opt-in by spec): AFTER the watch loop, fill
+    # any horizon-closed metrics rows — the same cycle that watches for
+    # the next recovery leg measures the last one. Fail-soft by design:
+    # a backfill problem can never kill the watch loop (backfill_metrics
+    # catches its own; this guard catches the wiring).
+    try:
+        _tick_backfill(spec, metrics_path, now or _now(),
+                       _fetch_candles_fn)
+    except Exception as _exc:
+        _log(f"backfill pass failed (non-fatal): {_exc}")
     return 0
+
+
+def _tick_backfill(spec: dict, metrics_path, now: datetime,
+                   _fetch_candles_fn):
+    """Run the hindsight backfill when the spec opts in (the yaml is
+    the dial — absent/false and the csv is never rewritten). Returns
+    the fill count (0 when off)."""
+    if not spec.get("hindsight_backfill"):
+        return 0
+    return backfill_metrics(spec, metrics_path, now,
+                            _fetch_candles_fn or fetch_candles)
 
 
 def run(spec_path=None, ledger_path=None, medfills=None, state_path=None,
         metrics_path=None, once=False, interval: float = 60.0,
         now: datetime | None = None, _no_lock: bool = False,
-        _trip=None, _force_send_fail: bool = False) -> int:
+        _trip=None, _force_send_fail: bool = False,
+        _fetch_candles=None) -> int:
     """One cycle (--once) or the standing loop. Exit codes: 0 ran (or
     nothing to do), 2 spec broken/refused, 4 a send failed (the watch
     stays armed)."""
@@ -547,7 +698,9 @@ def run(spec_path=None, ledger_path=None, medfills=None, state_path=None,
         while True:
             rc = _tick(spec, ledger_path or LEDGER_FILE, medfills,
                        state_path or STATE_FILE, metrics_path or METRICS_FILE,
-                       now, _trip, _force_send_fail)
+                       now, _trip, _force_send_fail,
+                       _fetch_candles_fn=_fetch_candles,
+                       backfill=bool(spec.get("hindsight_backfill")))
             if once or rc:
                 return rc
             time.sleep(interval)

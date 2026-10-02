@@ -93,8 +93,13 @@ check(1.4, spec_doc.get("fraction_sure_thing_deep_veto") == 0.70
       and spec_doc.get("fraction_tide_out") == 0.70
       and spec_doc.get("fraction_stale_move") == 0.60
       and spec_doc.get("metrics_csv")
-      == "pair,gate,threshold,crossed_at,peak_after_pct,ask_tob_usd,spread_bps",
-      "the per-gate override keys and the csv header parse")
+      == "pair,gate,threshold,crossed_at,crossed_price,fired_at,"
+         "peak_after_pct,peak_at,beat_funnel,ask_tob_usd,spread_bps"
+      and spec_doc.get("hindsight_backfill") is True
+      and spec_doc.get("funnel_entry_floor_pct") == 1.8,
+      "the per-gate override keys and the csv header parse — the header "
+      "carries the hindsight columns (fired_at, peak_after_pct, peak_at, "
+      "beat_funnel) and the backfill is ON by spec")
 nested = pa.parse_spec(
     "top: 1\n"
     "# a comment line\n"
@@ -277,9 +282,11 @@ check(4.8, rec["fired_at"]
       ["fired"]["FIL/USD|tide-out"]["threshold"] == 1.239
       and (TMP / "st.json").exists()
       and _mcsv.read_text(encoding="utf-8").splitlines()[0]
-      == "pair,gate,threshold,crossed_at,peak_after_pct,ask_tob_usd,spread_bps"
+      == "pair,gate,threshold,crossed_at,crossed_price,fired_at,"
+         "peak_after_pct,peak_at,beat_funnel,ask_tob_usd,spread_bps"
       and _mcsv.read_text(encoding="utf-8").splitlines()[1]
-      == "FIL/USD,tide-out,1.239,2026-10-01 11:31:00,,1.081,9.3",
+      == f"FIL/USD,tide-out,1.239,2026-10-01 11:31:00,1.09,"
+         f"{NOW.isoformat()},,,,1.081,9.3",
       "the fire RECORDS: state gets the pair|gate tombstone (retire-on-"
       "fire is PERSISTED), the csv header lands once + one row — "
       "peak_after_pct empty at fire time (hindsight fills it; fire-time "
@@ -373,6 +380,170 @@ STATE4 = {"fired": {"FIL/USD|tide-out": {"fired_at": "x"}},
 check(5.6, pa.build_candidates(_ledf, mf2, spec2, NOW, state=STATE4) == [],
       "a naive cooldown ts still honors the 240min window (naive -> MST, "
       "same rule as the ledger rows)")
+
+# ════════ 6. THE HINDSIGHT BACKFILL ════════
+# (user ask, Oct 1: fill the metrics csv's empty peak_after_pct once
+# each fired watch's 7h horizon closes, and record whether the alert
+# beat the funnel — the recovery leg's realized peak vs the funnel's
+# own 1.8% entry floor.)
+print("== 6. the hindsight backfill: horizon-closed peaks + the "
+      "beat-the-funnel verdict ==")
+
+HORIZON_H = 7
+OPEN_AT = datetime(2026, 9, 30, 20, 0, tzinfo=MST)       # horizon still OPEN
+FIRED_AT = datetime(2026, 9, 30, 10, 0, tzinfo=MST)      # 26h before NOW
+LATER = datetime(2026, 10, 1, 5, 0, tzinfo=MST)          # horizon CLOSED
+_HDR = ("pair,gate,threshold,crossed_at,crossed_price,fired_at,"
+        "peak_after_pct,peak_at,beat_funnel,ask_tob_usd,spread_bps")
+
+
+def _csv_with(rows: str) -> Path:
+    p = TMP / f"m6_{abs(hash(rows)) % 99999}.csv"
+    p.write_text(_HDR + "\n" + rows, encoding="utf-8")
+    return p
+
+
+def _candle(ts: datetime, close: float) -> dict:
+    return {"ts": int(ts.timestamp() * 1000), "close": close}
+
+
+# a feed that knows FIL: closes inside the 7h window post-fire; the
+# 2.2 close = +2.5% over the 1.09 crossed price; a pre-fire 1.0 close
+# and a post-horizon 3.0 close must NEVER inflate the peak
+_C6 = [_candle(FIRED_AT - timedelta(minutes=5), 1.0),
+       _candle(FIRED_AT + timedelta(minutes=30), 1.10),
+       _candle(FIRED_AT + timedelta(hours=2), 1.1173),
+       _candle(FIRED_AT + timedelta(hours=8), 3.0),
+       # a fresh close inside the OPEN window of the 6.1 row (fired 2h
+       # ago): the horizon gate is what keeps this candle unmeasured
+       _candle(NOW - timedelta(minutes=90), 1.12)]
+
+
+def _feed6(pairs):
+    def f(pair, tf, limit, since=None):
+        if pair not in pairs:
+            return None
+        return list(pairs[pair])
+    return f
+
+
+# 6.1 the empty fill: horizon still OPEN -> the row is left EMPTY
+# (fired 2h ago — the feed even carries an in-window close, so the
+# horizon gate itself is what keeps the row unfilled)
+_m61 = _csv_with(
+    "FIL/USD,tide-out,1.239,2026-09-30 20:00:00,1.09,"
+    f"{(NOW - timedelta(hours=2)).isoformat()},,,,,\n")
+n = pa.backfill_metrics(spec2, _m61, NOW, _feed6({"FIL/USD": _C6}))
+_rows61 = pa.read_metrics(_m61)[1]
+check(6.1, n == 0 and len(_rows61) == 1
+      and _rows61[0]["peak_after_pct"] == ""
+      and _rows61[0]["beat_funnel"] == "",
+      "a fired watch whose 7h horizon is still OPEN stays empty — "
+      "fire-time peaks are fiction, hindsight waits for the close")
+# 6.2 the fill: horizon CLOSED -> peak measured in the window only
+_m62 = _csv_with(
+    "FIL/USD,tide-out,1.239,2026-09-30 20:00:00,1.09,"
+    f"{FIRED_AT.isoformat()},,,,,\n")
+n = pa.backfill_metrics(spec2, _m62, LATER, _feed6({"FIL/USD": _C6}))
+_rows62 = pa.read_metrics(_m62)[1]
+_r = _rows62[0]
+check(6.2, n == 1
+      and abs(float(_r["peak_after_pct"]) - 2.5) < 0.06
+      and _r["beat_funnel"] == "true"
+      and _r["peak_at"].startswith("2026-09-30"),
+      "horizon CLOSED: peak = max window close vs the crossed price "
+      "+2.5% (the pre-fire 1.0 and the post-horizon 3.0 never inflate "
+      "it), beat_funnel true (2.5 >= the 1.8 funnel floor), peak_at "
+      "carries the peak candle's instant")
+# 6.3 the miss: peak below the funnel floor
+_C6b = [_candle(FIRED_AT + timedelta(hours=1), 1.10)]
+_m63 = _csv_with(
+    "QNT/USD,stale-move,0.9,2026-09-30 20:05:00,1.09,"
+    f"{FIRED_AT.isoformat()},,,,,\n")
+pa.backfill_metrics(spec2, _m63, LATER, _feed6({"QNT/USD": _C6b}))
+_r3 = pa.read_metrics(_m63)[1][0]
+check(6.3, _r3["beat_funnel"] == "false"
+      and abs(float(_r3["peak_after_pct"]) - 0.917) < 0.01,
+      "a leg that never reaches the funnel's entry floor records "
+      "beat_funnel false — the honest miss is the measurement")
+# 6.4 the failed feed NEVER invents a peak
+_m64 = _csv_with(
+    "XMR/USD,tide-out,1.15,2026-09-30 20:00:00,1.09,"
+    f"{FIRED_AT.isoformat()},,,,,\n")
+n = pa.backfill_metrics(spec2, _m64, LATER, _feed6({}))
+_r4 = pa.read_metrics(_m64)[1][0]
+check(6.4, n == 0 and _r4["peak_after_pct"] == ""
+      and _r4["beat_funnel"] == "",
+      "a failed feed leaves the row EMPTY for the next cycle — a stale "
+      "candle is a lie with decimals, the same honesty as the trip")
+# 6.5 a legacy csv without the hindsight columns degrades to nothing
+_m65 = TMP / "m6_legacy.csv"
+_m65.write_text("pair,gate,threshold,crossed_at,peak_after_pct,"
+                "ask_tob_usd,spread_bps\n"
+                "FIL/USD,tide-out,1.239,2026-09-30 20:00:00,,1.081,9.3\n",
+                encoding="utf-8")
+n = pa.backfill_metrics(spec2, _m65, LATER, _feed6({"FIL/USD": _C6}))
+check(6.5, n == 0
+      and "fired_at" not in pa.read_metrics(_m65)[0],
+      "a legacy csv (no fired_at column) is skipped fail-soft — the "
+      "backfill never rewrites a schema it cannot fill honestly")
+# 6.6 the integration: run() backfills a closed row through the REAL
+# cycle path (stubbed feed) and the watch loop still stands
+_m66 = TMP / "m6_run.csv"
+_st6 = TMP / "st6.json"
+_st6.write_text(json.dumps(
+    {"fired": {"FIL/USD|tide-out": {"fired_at": FIRED_AT.isoformat()}},
+     "pair_cooldown": {}}), encoding="utf-8")
+_m66.write_text(_HDR + "\n"
+                "FIL/USD,tide-out,1.239,2026-09-30 20:00:00,1.09,"
+                f"{FIRED_AT.isoformat()},,,,,\n", encoding="utf-8")
+_spec6 = TMP / "spec6.yaml"
+_spec6.write_text(
+    "enabled: true\nhindsight_backfill: true\nhorizon_hours: 7\n"
+    "funnel_entry_floor_pct: 1.8\nmax_parallel: 6\n"
+    "per_pair_cooldown_min: 240\nfraction_of_medfill: 0.65\n"
+    "min_threshold_pct: 0.55\nconfirm_candles: 1\nbook_required: true\n"
+    "book_max_spread_bps: 30\npriority: high\ntag: recovery\n"
+    "title: '{pair} crossed'\nbody: 'b'\n"
+    "metrics_csv: 'pair,gate,threshold,crossed_at,crossed_price,"
+    "fired_at,peak_after_pct,peak_at,beat_funnel,ask_tob_usd,"
+    "spread_bps'\n"
+    "topic_file: push_topic.txt\n", encoding="utf-8")
+pa.run(spec_path=_spec6, ledger_path=TMP / "led6.jsonl",
+       medfills={"tide-out": 1.77}, state_path=_st6, metrics_path=_m66,
+       once=True, now=LATER, _no_lock=True,
+       _trip=lambda pair, thr, cc: (False, {"reason": "armed"}),
+       _fetch_candles=_feed6({"FIL/USD": _C6}))
+_r6 = pa.read_metrics(_m66)[1][0]
+check(6.6, abs(float(_r6["peak_after_pct"]) - 2.5) < 0.06
+      and _r6["beat_funnel"] == "true",
+      "run() backfills the horizon-closed row through the REAL cycle "
+      "(the tripwire itself ran and stayed armed on the stubbed trip — "
+      "backfill and watch share one tick)")
+# 6.7 the off switch: hindsight_backfill absent -> run() never touches
+# the csv (the backfill is opt-in by spec)
+_m67 = _csv_with(
+    "FIL/USD,tide-out,1.239,2026-09-30 20:00:00,"
+    f"{FIRED_AT.isoformat()},,,,,\n")
+_spec67 = TMP / "spec67.yaml"
+_spec67.write_text(
+    "enabled: true\nhorizon_hours: 7\nmax_parallel: 6\n"
+    "per_pair_cooldown_min: 240\nfraction_of_medfill: 0.65\n"
+    "min_threshold_pct: 0.55\nconfirm_candles: 1\nbook_required: true\n"
+    "book_max_spread_bps: 30\npriority: high\ntag: recovery\n"
+    "title: '{pair} crossed'\nbody: 'b'\n"
+    "metrics_csv: 'pair,gate,threshold,crossed_at,crossed_price,"
+    "fired_at,peak_after_pct,peak_at,beat_funnel,ask_tob_usd,"
+    "spread_bps'\n"
+    "topic_file: push_topic.txt\n", encoding="utf-8")
+pa.run(spec_path=_spec67, ledger_path=TMP / "led6.jsonl",
+       medfills={"tide-out": 1.77}, state_path=TMP / "st7.json",
+       metrics_path=_m67, once=True, now=LATER, _no_lock=True,
+       _trip=lambda pair, thr, cc: (False, {"reason": "armed"}),
+       _fetch_candles=_feed6({"FIL/USD": _C6}))
+check(6.7, pa.read_metrics(_m67)[1][0]["peak_after_pct"] == "",
+      "the off switch: no hindsight_backfill in the spec -> the csv is "
+      "never rewritten (opt-in by spec, the yaml is the dial)")
 
 print()
 fails = [r for r in results if not r[1]]

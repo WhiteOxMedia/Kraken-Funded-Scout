@@ -44,7 +44,26 @@ tag: recovery
 title: '{pair} recovery leg — {threshold:.3f}% crossed ({gate})'
 body: 'buried {hours_ago:.1f}h ago by {gate} (quick {quick}) - medfill {medfill:.2f}% - alert at {threshold:.3f}% ({fraction:.0%} of medfill) - crossed {crossed_at} @ {crossed_price} - book: tob {ask_tob_usd:.0f} ask / {spread_bps:.1f} bps'
 retry_on_send_fail: true
-metrics_csv: 'pair,gate,threshold,crossed_at,peak_after_pct,ask_tob_usd,spread_bps'
+metrics_csv: 'pair,gate,threshold,crossed_at,crossed_price,fired_at,peak_after_pct,peak_at,beat_funnel,ask_tob_usd,spread_bps'
+
+# THE HINDSIGHT BACKFILL (user ask, Oct 1: fill the metrics csv's empty
+# peak_after_pct once each fired watch's 7h horizon closes, and record
+# whether the alert beat the funnel). Each cycle, AFTER the watch loop,
+# the backfill measures the fired watch's realized peak: the highest 5m
+# close inside the window [fired_at, fired_at + horizon_hours] as a
+# percent over the fire's crossed_price (the SAME honesty as the fire:
+# pre-fire and post-horizon closes never inflate it, a failed feed
+# leaves the row empty for the next cycle — fire-time peaks are
+# fiction, so are hindsight peaks measured on a stale feed).
+#   peak_after_pct: the measured peak, 3 decimals
+#   peak_at:        the peak candle's MST instant
+#   beat_funnel:    true when the peak reached the funnel's own entry
+#                   floor (funnel_entry_floor_pct) — did the alert beat
+#                   the funnel? A leg that never reached the floor could
+#                   not have been re-entered by the funnel anyway; the
+#                   honest miss is the measurement.
+hindsight_backfill: true
+funnel_entry_floor_pct: 1.8
 
 # per-gate overrides (flat keys, one per family; missing = the global
 # fraction_of_medfill above)
