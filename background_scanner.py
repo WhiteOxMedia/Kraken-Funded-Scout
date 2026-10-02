@@ -1243,7 +1243,16 @@ TIDE_RETUNE_ENABLED_KEY = "TIDE_RETUNE_ENABLED"
 TIDE_RETUNE_QUICK_MIN = 66.0
 TIDE_RETUNE_CAP = 3          # popups per day while armed (dial: TIDE_RETUNE_DAILY_CAP)
 TIDE_RETUNE_DAY_CAP_KEY = "TIDE_RETUNE_DAILY_CAP"
-_TIDE_RETUNE_DAYS: dict[str, list[str]] = {}   # day -> released pairs (memory, resets on restart)
+# The day ledger is DISK, not memory (runtime-state convention: repo
+# root, gitignored, never committed — the RUNTIME_INVARIANTS lesson):
+# a scanner relaunch rereads the file and finds the day's releases
+# still counted, so a restart cannot refill the cap the study priced.
+# Reads are live per call (the dial's own posture); writes are atomic
+# (.tmp then os.replace, the signal-snapshot idiom); a MISSING file is
+# a fresh day, an UNREADABLE one fails CLOSED — an admission valve
+# never guesses.
+TIDE_RETUNE_STATE_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                                      "tide_retune_state.json")
 
 
 def _tide_retune_dial() -> dict:
@@ -1269,14 +1278,65 @@ def _tide_retune_dial() -> dict:
                 "cap": TIDE_RETUNE_CAP}
 
 
+def _tide_retune_load_day(day: str) -> list[str] | None:
+    """Today's released pairs from the state file — live per call. A
+    missing file, or one stamped with an older day, reads as a fresh
+    day (the rollover REPLACES the map — old days never bind). A file
+    that exists but cannot be trusted — corrupt json, a non-dict, or
+    today's stamp with a pairs field that is not a list — returns None
+    and the caller fails CLOSED: a broken ledger must never read as an
+    empty day, or a crash would refill the cap by destroying the
+    evidence."""
+    try:
+        import json as _json
+        with open(TIDE_RETUNE_STATE_FILE, "r", encoding="utf-8") as f:
+            raw = _json.loads(f.read())
+        if not isinstance(raw, dict):
+            return None
+        if raw.get("day") != day:
+            return []          # a file from an older day: the rollover
+        pairs = raw.get("pairs")
+        if not isinstance(pairs, list):
+            return None
+        return [str(p) for p in pairs]
+    except FileNotFoundError:
+        return []
+    except Exception as exc:
+        logger.warning("tide retune day ledger unreadable — failing "
+                       "CLOSED (clear %s to re-arm): %s",
+                       TIDE_RETUNE_STATE_FILE, exc)
+        return None
+
+
+def _tide_retune_save_day(day: str, pairs: list[str]) -> bool:
+    """Persist today's ledger ATOMICALLY (.tmp then os.replace — the
+    signal-snapshot idiom: readers never see a partial day). Returns
+    False on any failure: the caller refuses the release rather than
+    admit a pair a restart could double-count."""
+    try:
+        import json as _json
+        _tmp = TIDE_RETUNE_STATE_FILE + ".tmp"
+        with open(_tmp, "w", encoding="utf-8") as f:
+            f.write(_json.dumps({"day": day, "pairs": list(pairs)}))
+        os.replace(_tmp, TIDE_RETUNE_STATE_FILE)
+        return True
+    except Exception as exc:
+        logger.warning("tide retune day ledger write failed — failing "
+                       "CLOSED: %s", exc)
+        return False
+
+
 def _tide_retune_releases(quick, pair: str = "") -> tuple[bool, str]:
     """(released, why) — the calibrated tide-out valve (the Sep-30
     per-gate study). FAIL-CLOSED at every door: the dial OFF or the
     module unreadable -> the blanket block stands; quick under the
     study's floor -> no release; the pair already released today (or
     the day's cap spent) -> the study priced ONE admission per pair,
-    not a flood. This opens the TIDE gate only — every caller keeps
-    the deep read's own veto downstream."""
+    not a flood. The day ledger persists to DISK (tide_retune_state.json)
+    so a restart cannot refill the cap, and a ledger that cannot be
+    read or written refuses the release — fail-closed. This opens the
+    TIDE gate only — every caller keeps the deep read's own veto
+    downstream."""
     d = _tide_retune_dial()
     if not d["armed"]:
         return False, "the retune dial is OFF"
@@ -1284,16 +1344,22 @@ def _tide_retune_releases(quick, pair: str = "") -> tuple[bool, str]:
         return False, (f"quick {float(quick or 0):.1f} < the study's "
                        f"{d['quick_min']:.0f} floor")
     day = datetime.now().astimezone().strftime("%Y-%m-%d")
-    today = _TIDE_RETUNE_DAYS.setdefault(day, [])
+    today = _tide_retune_load_day(day)
+    if today is None:
+        return False, ("the retune day ledger is unreadable — failing "
+                       "CLOSED until the operator clears it")
     if pair and pair in today:
         return False, "already released today"
     if len(today) >= d["cap"]:
         return False, f"the day's {d['cap']} release cap is spent"
     if pair:
-        today.append(pair)
+        if not _tide_retune_save_day(day, today + [str(pair)]):
+            return False, ("the retune day ledger would not persist — "
+                           "failing CLOSED (a restart must not refill "
+                           "the cap)")
     return True, (f"the calibration study opened the tide gate "
                   f"(quick {float(quick or 0):.0f} >= {d['quick_min']:.0f}, "
-                  f"{len(today)}/{d['cap']} today)")
+                  f"{len(today) + (1 if pair else 0)}/{d['cap']} today)")
 
 
 def tide_memory_states() -> tuple:

@@ -86,6 +86,10 @@ signal_snapshots.jsonl
 snapshot_outcomes.jsonl
 tide_bar_flip_events.jsonl
 tide_bar_reckoning_window.jsonl
+# the tide-retune valve's persisted day ledger (a restart must not
+# refill the daily cap)
+tide_retune_state.json
+tide_retune_state.json.tmp*
 voice_log.jsonl
 *.db
 scanner.log

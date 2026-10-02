@@ -18,7 +18,8 @@ Any file the running stack *writes while trading*:
 - **Scanner memory & caches:** `signals.db`, `ohlcv_cache.db`,
   `rotation_thresholds.json`, `rotation_lockout.json`, `climb_levels.json`,
   `volatility_universe.json`, `sure_thing_autoweights.json`, `coin_floors.json`,
-  `tide_bar_*`, `discipline_state.json`, `scanner_state.json`, `scanner.lock`
+  `tide_bar_*`, `tide_retune_state.json`, `discipline_state.json`,
+  `scanner_state.json`, `scanner.lock`
 - **Voice & logs:** `voice_log.jsonl`, `speech_queue/`, `scanner.log`,
   `logs/`, every `*.log`
 - **Console state:** `console_state.json`, `console_prefs.json`,

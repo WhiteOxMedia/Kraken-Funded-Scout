@@ -664,7 +664,10 @@ _ca_8x.STATE_FILE = Path(_8x_tmp) / "acct_gone.json"   # the live file
 # cap, live reads, fail-closed at every door — the exit-extension
 # posture on a NEW gate. This section carries its OWN dial sandbox:
 # the 8x section runs after the drive's main sandbox restore, so the
-# env points at the LIVE dial file here — writing it is forbidden.
+# env points at the LIVE dial file here — writing it is forbidden. The
+# day ledger is sandboxed the same way (bs.TIDE_RETUNE_STATE_FILE
+# repointed into the tempdir): the drive must never write the live
+# ledger either.
 import tempfile as _tf_12
 def _ck12(label, ok, detail=""):
     check(label + ("" if ok else f"  [{detail}]"), bool(ok))
@@ -673,6 +676,22 @@ _12_tmp = Path(_tf_12.mkdtemp())
 _old_state_env_12 = _env(ex.STATE_ENV, str(_12_tmp / "state.json"))
 _12_dial = _12_tmp / "exit_extension.dial.json"
 _old_retune_env = os.environ.pop(bs.TIDE_RETUNE_ENABLED_KEY, None)
+_12_old_statefile = getattr(bs, "TIDE_RETUNE_STATE_FILE", None)
+if _12_old_statefile is not None:   # the day ledger is sandboxed too
+    bs.TIDE_RETUNE_STATE_FILE = str(_12_tmp / "tide_retune_state.json")
+
+
+def _12_fresh_day():
+    """Scenario reset: clear the day ledger wherever the build keeps it
+    (the sandboxed disk file once the persistence pins land; the
+    pre-persistence memory map until it is deleted)."""
+    _p = getattr(bs, "TIDE_RETUNE_STATE_FILE", None)
+    if _p and os.path.exists(_p):
+        os.remove(_p)
+    if hasattr(bs, "_TIDE_RETUNE_DAYS"):
+        bs._TIDE_RETUNE_DAYS.clear()
+
+
 _12_bad = False
 try:
     # 12.1 the seam exists on the scanner (RED until wired)
@@ -711,12 +730,12 @@ try:
           _rel3 is False and "floor" in _why3, _why3)
 
     # 12.6 the daily cap refuses whole rotations once spent
-    bs._TIDE_RETUNE_DAYS.clear()
+    _12_fresh_day()
     os.environ[bs.TIDE_RETUNE_DAY_CAP_KEY] = "1"
     _relA, _ = bs._tide_retune_releases(70.0, "A/USD")
     _relB, _whyB = bs._tide_retune_releases(70.0, "B/USD")
     os.environ.pop(bs.TIDE_RETUNE_DAY_CAP_KEY, None)
-    bs._TIDE_RETUNE_DAYS.clear()
+    _12_fresh_day()
     _ck12("12.6 the day cap bounds the valve (1-slot cap: the first "
           "pair releases, the second is refused until tomorrow)",
           _relA is True and _relB is False and "cap" in _whyB, _whyB)
@@ -762,6 +781,101 @@ try:
           and "retune: {_rrel_why}" in _src12
           and "OUT-TIDE RETUNE PASS" in _src12
           and "OUT-TIDE RETUNE RELEASE" in _src12)
+
+    # 12.10 THE RESTART (the persistence pins): the day ledger lives on
+    # DISK, so a scanner relaunch rereads it and finds the day's
+    # releases still counted — the cap CANNOT be refilled by a restart.
+    # Proven with a fresh interpreter: the child imports the scanner
+    # cold (no memory but the file), repoints only the sandbox
+    # constant, and must refuse the pair the parent already released
+    # ("already") while a never-released pair still gets a slot —
+    # persistence must not over-refuse either.
+    import subprocess as _sp_12
+    os.environ[bs.TIDE_RETUNE_ENABLED_KEY] = "1"   # re-arm (12.7 disarmed)
+    _12_fresh_day()
+    _relP, _ = bs._tide_retune_releases(70.0, "PERSIST/USD")
+    _persist_file = Path(bs.TIDE_RETUNE_STATE_FILE)
+    _disk = (json.loads(_persist_file.read_text(encoding="utf-8"))
+             if _persist_file.exists() else {})
+    _today = datetime.now().astimezone().strftime("%Y-%m-%d")
+    _sp_env = dict(os.environ)
+    _sp_env[bs.TIDE_RETUNE_ENABLED_KEY] = "1"
+    _prog = (
+        "import background_scanner as bs\n"
+        f"bs.TIDE_RETUNE_STATE_FILE = {json.dumps(str(_persist_file))}\n"
+        "a = bs._tide_retune_releases(70.0, 'PERSIST/USD')\n"
+        "b = bs._tide_retune_releases(70.0, 'FRESH/USD')\n"
+        "print('RESULT', a[0], 'already' in a[1], b[0], 'cap' not in b[1])\n"
+    )
+    _sp_run = _sp_12.run([sys.executable, "-X", "utf8", "-c", _prog],
+                         cwd=str(BASE), env=_sp_env, capture_output=True,
+                         text=True, timeout=180)
+    _tok = _sp_run.stdout.split("RESULT")[-1].split()
+    _ck12("12.10 the day ledger survives a restart: a fresh interpreter "
+          "refuses the pair already released today and the cap does "
+          "not refill",
+          _relP is True
+          and _disk.get("day") == _today
+          and _disk.get("pairs") == ["PERSIST/USD"]
+          and _sp_run.returncode == 0
+          and _tok == ["False", "True", "True", "True"],
+          (_relP, _disk, _sp_run.returncode, _sp_run.stdout[-300:],
+           _sp_run.stderr[-300:]))
+
+    # 12.11 day rollover: a ledger stamped with an older day reads as a
+    # fresh day and is REPLACED on the next release — old days never
+    # bind, and yesterday's pairs never spend today's cap.
+    _yday = (datetime.now().astimezone() - timedelta(days=1)
+             ).strftime("%Y-%m-%d")
+    Path(bs.TIDE_RETUNE_STATE_FILE).write_text(
+        json.dumps({"day": _yday,
+                    "pairs": ["OLD/USD", "OLD2/USD", "OLD3/USD"]}),
+        encoding="utf-8")
+    _relY, _ = bs._tide_retune_releases(70.0, "NEW/USD")
+    _diskY = json.loads(Path(bs.TIDE_RETUNE_STATE_FILE).read_text(
+        encoding="utf-8"))
+    _ck12("12.11 an old day's ledger reads as a fresh day and the "
+          "rollover replaces it (yesterday's pairs never bind today)",
+          _relY is True
+          and _diskY.get("day") == _today
+          and _diskY.get("pairs") == ["NEW/USD"],
+          (_relY, _diskY))
+
+    # 12.12 a ledger that exists but cannot be trusted fails CLOSED —
+    # an admission valve never guesses. Corrupt json, or today's stamp
+    # with a pairs field that is not a list, refuses the release (a
+    # crash or a broken disk cannot refill the cap by destroying the
+    # evidence) and the why names the ledger for the operator.
+    Path(bs.TIDE_RETUNE_STATE_FILE).write_text("{not json",
+                                               encoding="utf-8")
+    _relC1, _whyC1 = bs._tide_retune_releases(70.0, "CORRUPT/USD")
+    Path(bs.TIDE_RETUNE_STATE_FILE).write_text(
+        json.dumps({"day": _today, "pairs": "not-a-list"}),
+        encoding="utf-8")
+    _relC2, _whyC2 = bs._tide_retune_releases(70.0, "CORRUPT/USD")
+    _ck12("12.12 an unreadable ledger fails CLOSED (corrupt json or a "
+          "malformed day entry refuses the release — never reads as an "
+          "empty day)",
+          _relC1 is False and "unreadable" in _whyC1
+          and _relC2 is False and "unreadable" in _whyC2,
+          (_whyC1, _whyC2))
+
+    # 12.13 the write is ATOMIC (the repo's ledger idiom: .tmp then
+    # os.replace, the signal-snapshot posture — a reader, the other
+    # scanner thread or a restart, never sees a partial day) and the
+    # file sits at the runtime-state convention (repo root, never
+    # committed).
+    _src13 = (BASE / "background_scanner.py").read_text(encoding="utf-8")
+    _save13 = ("" if "def _tide_retune_save_day" not in _src13 else
+               _src13.split("def _tide_retune_save_day", 1)[1].split(
+                   "\ndef ", 1)[0])
+    _ck12("12.13 the ledger write is atomic (.tmp then os.replace — "
+          "readers never see a partial day) and the file is the "
+          "runtime-state convention",
+          hasattr(bs, "TIDE_RETUNE_STATE_FILE")
+          and "def _tide_retune_save_day" in _src13
+          and ".tmp" in _save13 and "os.replace" in _save13
+          and '"tide_retune_state.json"' in _src13)
 except Exception as _e12:
     _12_bad = True
     check(f"12.x the retune section ran clean ({_e12!r})", False)
@@ -775,6 +889,8 @@ finally:
         os.environ.pop(ex.STATE_ENV, None)
     else:
         os.environ[ex.STATE_ENV] = _old_state_env_12
+    if _12_old_statefile is not None:
+        bs.TIDE_RETUNE_STATE_FILE = _12_old_statefile
     import shutil as _sh_12
     _sh_12.rmtree(_12_tmp, ignore_errors=True)
 if _12_bad:
