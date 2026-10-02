@@ -415,6 +415,20 @@ check("9.7 the eviction is race-safe (pop-with-default, never a bare "
       "_GATE.pop(oldest, None)" in co_src
       and "del _GATE[" not in co_src)
 
+# 9.8 the miss path's evict+insert is ONE locked critical section (the
+#     reviewer medium+low on 86a220b): pop-with-default alone still
+#     lets another thread mutate _GATE during min()'s iteration
+#     (RuntimeError/KeyError), and concurrent misses can each insert
+#     after one eviction — an overshoot that never self-corrects. Under
+#     the module lock both are structurally impossible: iteration never
+#     sees a mutation, and check-evict-insert is atomic so the dict
+#     never exceeds the cap. The hit path stays lock-free.
+check("9.8 the miss path's evict+insert runs under the module lock "
+      "(one critical section — no mutation during min() iteration, "
+      "no permanent overshoot)",
+      "_GATE_LOCK = threading.Lock()" in co_src
+      and "with _GATE_LOCK:" in co_src)
+
 fails = [r for r in results if not r[1]]
 (scratch_space.report_temp('_carveout_check.txt')).write_text(
     "\n".join(f"{'PASS' if ok else 'FAIL'}  {name}" + (f"  [{d}]" if d and not ok else "")

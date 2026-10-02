@@ -33,6 +33,7 @@ tighten or widen).
 from __future__ import annotations
 
 import json
+import threading
 import time
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -326,6 +327,11 @@ def compute_carve_out(pair: str | None = None,
 # slots, bounded — a scanner's rotation memory never leaks.
 _GATE: dict[str, dict] = {}
 _GATE_MAX = 32
+# guards the miss path's evict+insert (the hit path reads without it —
+# dict.get is atomic enough under the GIL and a torn hit costs one
+# recompute, never a wrong answer: the slot's result is immutable once
+# stored)
+_GATE_LOCK = threading.Lock()
 
 
 def gate(pair: str | None = None, when: datetime | None = None,
@@ -338,14 +344,16 @@ def gate(pair: str | None = None, when: datetime | None = None,
     if not force and slot is not None and now - slot["ts"] < CACHE_S:
         return slot["res"]
     res = compute_carve_out(pair=pair, when=when)
-    if len(_GATE) >= _GATE_MAX and key not in _GATE:
-        oldest = min(_GATE, key=lambda k: _GATE[k]["ts"])
-        # pop-with-default, never a bare del (the reviewer medium on
-        # 02936c2): two threads missing at capacity can select the same
-        # oldest key — the loser of the race must not KeyError and abort
-        # gate(); a transient overshoot self-corrects on the next insert
-        _GATE.pop(oldest, None)
-    _GATE[key] = {"ts": now, "res": res}
+    # the miss path's evict+insert is ONE critical section (the
+    # reviewer medium+low on 86a220b): under the lock, min()'s iteration
+    # can never see a concurrent mutation, and check-evict-insert is
+    # atomic — the dict never exceeds the cap (the lock is held only on
+    # a miss, never on the cache-hit fast path)
+    with _GATE_LOCK:
+        if len(_GATE) >= _GATE_MAX and key not in _GATE:
+            oldest = min(_GATE, key=lambda k: _GATE[k]["ts"])
+            _GATE.pop(oldest, None)
+        _GATE[key] = {"ts": now, "res": res}
     st = _state()
     st["last"] = {"carve": res["carve"], "lone_wolf": res["lone_wolf"],
                   "mods": res["mods"], "ts": res["when"],
