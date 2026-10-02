@@ -185,9 +185,10 @@ check("5.4 the full ratio stays 0 and the house shapes stand",
       and _pfc("DONE") == 0)
 check("5.5 the counts are VALIDATED (the unvalidated-counts major: "
       "0/0 passed and 99/27 passed blessed GREEN through string "
-      "equality — nonsense is now unknown)",
-      callable(_pfc) and _pfc("0/0 passed") == -1
-      and _pfc("99/27 passed") == -1
+      "equality — a NONSENSE verdict is its own sentinel, -2, distinct "
+      "from an ABSENT verdict's -1)",
+      callable(_pfc) and _pfc("0/0 passed") == -2
+      and _pfc("99/27 passed") == -2
       and _pfc("") == -1
       and _pfc("no verdict here") == -1)
 check("5.6 the classifier treats a partial ratio as a REAL failure "
@@ -197,6 +198,21 @@ check("5.6 the classifier treats a partial ratio as a REAL failure "
                    "failed": (_pfc("40/43 passed") if callable(_pfc) else -1),
                    "secs": 1.0, "fails": [], "status": "",
                    "cls_status": "", "cls_note": ""}, {})["status"] == "RED")
+check("5.6b a NONSENSE verdict is never GREEN (the Copilot medium: "
+      "0/0 passed at rc=0 rode the rc contract GREEN — but a verdict "
+      "that EXISTS and lies is not an absent verdict; only a truly "
+      "absent verdict rides the rc contract)",
+      fs.classify({"drive": "test_nonsense.py", "rc": 0,
+                   "verdict": "0/0 passed",
+                   "failed": (_pfc("0/0 passed") if callable(_pfc) else -1),
+                   "secs": 1.0, "fails": [], "status": "",
+                   "cls_status": "", "cls_note": ""}, {})["status"] == "RED")
+check("5.6c an ABSENT verdict at rc=0 still rides the rc contract "
+      "(the checkfile-drive population — pin 3.2's standing rule)",
+      fs.classify({"drive": "test_silent.py", "rc": 0,
+                   "verdict": "",
+                   "failed": -1, "secs": 1.0, "fails": [], "status": "",
+                   "cls_status": "", "cls_note": ""}, {})["status"] == "GREEN")
 check("5.7 run_one parses through the validated helper (the wiring — "
       "the standalone regex block must not survive beside it)",
       "failed = _parse_failed_count(verdict)"

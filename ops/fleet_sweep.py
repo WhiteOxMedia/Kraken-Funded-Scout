@@ -58,9 +58,13 @@ def _parse_failed_count(verdict: str) -> int:
         passed' (division-shaped nonsense) and '99/27 passed' (more
         passed than ran) both read as full passes. Counts are ints and
         must be self-consistent: total > 0 and 0 <= passed <= total.
-    Returns the failed count, or -1 (UNKNOWN — the rc contract governs,
-    exactly as before) when the verdict carries no parseable,
-    self-consistent counts."""
+    Returns the failed count; -2 (NONSENSE — a verdict EXISTS but its
+    counts are impossible: 0/0, 99/27) when a verdict-shaped string
+    carries invalid counts — a lying verdict is not an absent verdict
+    and must never ride the rc contract to GREEN (the Copilot medium,
+    Oct 1); -1 (UNKNOWN — no parseable verdict at all, the
+    checkfile-drive population) when the verdict carries nothing, where
+    the rc contract governs exactly as before."""
     try:
         v = str(verdict or "").strip()
         m = _RESULT_FAIL_RE.fullmatch(v)
@@ -70,7 +74,7 @@ def _parse_failed_count(verdict: str) -> int:
         if m:
             passed, total = int(m.group(1)), int(m.group(2))
             if total <= 0 or passed < 0 or passed > total:
-                return -1   # 0/0 or 99/27 — nonsense is UNKNOWN, never GREEN
+                return -2   # 0/0 or 99/27 — a lying verdict, never GREEN
             return total - passed
         if v in ("ALL PASS", "DONE"):
             return 0
@@ -138,8 +142,12 @@ def run_one(drive: Path, timeout: int) -> dict:
 def classify(res: dict, classes: dict) -> dict:
     """RED when the drive failed and no reviewed classification covers
     it; the class renders AMBER with its note (and its verified date,
-    so stale classifications are visible as stale)."""
-    bad = res["rc"] != 0 or (0 <= res["failed"] != 0)
+    so stale classifications are visible as stale). failed == -2 (a
+    NONSENSE verdict — counts that cannot be true) is bad on its own:
+    a verdict that exists and lies never rides the rc contract to
+    GREEN; only a truly ABSENT verdict (-1, the checkfile drives)
+    does."""
+    bad = res["rc"] != 0 or res["failed"] == -2 or (0 <= res["failed"] != 0)
     cls = classes.get(res["drive"], {})
     res["cls_status"] = str(cls.get("status") or "")
     res["cls_note"] = str(cls.get("note") or "")
