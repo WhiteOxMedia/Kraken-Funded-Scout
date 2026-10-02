@@ -9035,6 +9035,16 @@ def render_exit_check(cfg: TradingConfig, kraken):
             import contest_account as _ca_ec
             _acct_ec = _ca_ec.load_state()
             _stop_usd = max(_ca_ec.buffer(_acct_ec) * 0.5, 5.0)
+            if _wr.get("hm_mode") == "opportunistic" and entry:
+                # THE OPPORTUNISTIC HARD STOP (user ask, Oct 1): the exit
+                # watch is the authoritative exit and judges an
+                # opportunistic position against the fixed 2% stop — the
+                # strict control the lower candidate bar pays for. Only
+                # ever TIGHTENS the classic half-buffer stop.
+                _hm_stop = max(float(entry)
+                               * float(_ca_ec.HAIL_MARY_OPP_HARD_STOP_PCT) / 100.0, 5.0)
+                if _hm_stop < _stop_usd:
+                    _stop_usd = _hm_stop
         except Exception:
             _stop_usd = None
     _hard_stop_hit = bool(_pnl_usd is not None and _stop_usd and _pnl_usd <= -_stop_usd)

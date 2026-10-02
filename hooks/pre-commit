@@ -175,6 +175,11 @@ run_clean_git() {
 #                      why-blocked economics: the EV artifact's medfill
 #                      + payer rate joined at render time — fail-soft,
 #                      one source of truth, the money path untouched)
+#   test_hailmary      exit code + RESULT (the Hail Mary exception: the
+#                      classic one-hour window AND the opportunistic
+#                      mode — the deep-scan exit watch as the entry/
+#                      exit authority, the $300 hard cap, the 2% stop
+#                      on the hm_mode watch-row stamp)
 # Measured cold runtimes (2026-09-22, HEAD): persistexit 0.4s, autotrack
 # 0.7s, trailstop 0.4s, metalayers 2.9s, watchliveness 3.3s — the budgets
 # below are ~5x those. Each drive runs at most ONCE per commit even when
@@ -318,7 +323,7 @@ if git diff --cached --name-only | grep -qxE 'app\.py|background_scanner\.py|met
             [ "$GATE_QUIET" = "1" ] || echo "  🧠 gate: $t — $res (${dt}ms, budget ${budget}s)" >&2
         fi
     }
-    _APP=no; _BS=no; _ML=no; _CO=no; _TW=no; _HK=no; _HH=no; _HD=no; _HS=no; _TL=no; _SW=no; _FS=no; _SH=no; _PA=no
+    _APP=no; _BS=no; _ML=no; _CO=no; _TW=no; _HK=no; _HH=no; _HD=no; _HS=no; _TL=no; _SW=no; _FS=no; _SH=no; _PA=no; _HA=no
     printf '%s\n' "$(git diff --cached --name-only)" | grep -qx 'app.py' && _APP=yes
     printf '%s\n' "$(git diff --cached --name-only)" | grep -qx 'background_scanner.py' && _BS=yes
     printf '%s\n' "$(git diff --cached --name-only)" | grep -qxE 'meta_layers\.py|profit_guard\.py' && _ML=yes
@@ -332,6 +337,7 @@ if git diff --cached --name-only | grep -qxE 'app\.py|background_scanner\.py|met
     printf '%s\n' "$(git diff --cached --name-only)" | grep -qxE 'ops/fleet_sweep\.py|ops/fleet_sweep_classes\.json|test_fleetsweep\.py' && _FS=yes
     printf '%s\n' "$(git diff --cached --name-only)" | grep -qxE 'diag_testleaks\.py|test_sink_hygiene\.py' && _SH=yes
     printf '%s\n' "$(git diff --cached --name-only)" | grep -qxE 'ops/payer_alert\.py|ops/payer_alert\.yaml|test_payeralert\.py' && _PA=yes
+    printf '%s\n' "$(git diff --cached --name-only)" | grep -qxE 'test_hailmary\.py|contest_account\.py|background_scanner\.py|app\.py' && _HA=yes
     printf '%s\n' "$(git diff --cached --name-only)" | grep -qxE 'atomic_io\.py|profit_guard\.py|restore_state\.py|test_resilience\.py|diag_statewriters\.py|meta_layers\.py|background_scanner\.py' && _SW=yes
     # Trigger → drive map, deduped: when app.py AND background_scanner.py
     # are staged together (the f5ad99d shape), watchliveness and metalayers
@@ -451,6 +457,16 @@ if git diff --cached --name-only | grep -qxE 'app\.py|background_scanner\.py|met
                                                         # at-most-once fire
                                                         # (the 16:55 PUMP
                                                         # phantom class)
+    maybe_run "$_HA"  test_hailmary.py result  30   # the Hail Mary
+                                                        # exception: the
+                                                        # classic window
+                                                        # + the opportunistic
+                                                        # mode (the deep-scan
+                                                        # exit watch is the
+                                                        # authority, the
+                                                        # $300 hard cap,
+                                                        # the 2% stop on the
+                                                        # hm_mode stamp)
     if [ -n "$FAILS" ]; then
         echo "  ⛔ COMMIT GATE: failed drives:${FAILS}" >&2
         echo "     Fix them (run the drive in the repo root) or bypass with" >&2

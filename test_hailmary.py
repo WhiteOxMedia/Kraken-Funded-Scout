@@ -7,11 +7,20 @@ gone; the Hail Mary re-anchors: when the contest sits UNDER break-even
 (no profits to protect, the account needs the shot) with platform room
 left and no window used this rotation, a CHAMPION-grade setup —
 verified uptrend on a major book, never a challenger — opens the
-ONE-HOUR window: the popup is marked "— HAIL MARY", the trade clock
-bounds by the hour, one window per rotation. Sizing inside the window
+ONE-HOUR window: the popup is marked "— HAIL MARY", the trade clockbounds by the hour, one window per rotation. Sizing inside the window
 is the guard's full platform cap (0.34/dd) — the same cap every trade
 gets now that the lock is gone; the exception adds the champion-only
-bar, the hour clock, and the loud mark. THE DEATH LINE NEVER YIELDS."""
+bar, the hour clock, and the loud mark. THE DEATH LINE NEVER YIELDS.
+
+OCT 1 — THE OPPORTUNISTIC MODE (user ask): the same account-in-danger
+door with a LOWER candidate bar — any VIABLE deep-scan buy (>= 62, not
+champion-grade) — under STRICTER risk: a $300 hard spend cap on top of
+the 3% guard and a 2% hard stop the exit watch judges on the
+hm_mode-stamped watch row. The deep-scan exit watch is the
+authoritative ENTRY (its read opens the door) and EXIT (its stack —
+trend sell, profit guard, hard stop — closes it). The classic window
+is tried FIRST; the opp door opens only when the champion bar declines;
+one window per rotation, shared."""
 import sys
 import tempfile
 import json
@@ -171,7 +180,8 @@ check("a challenger never gets the window (the bar is champion-grade)",
 check("the window bounds the trade clock (one hour, not the rotation)",
       "min(_win_min, float(_ca.HAIL_MARY_WINDOW_MIN))" in bs_src)
 check("the popup title carries the mark",
-      '(" — HAIL MARY" if _hail_mary else "")' in bs_src)
+      '" — OPPORTUNISTIC HAIL MARY" if _hail_mary' in bs_src
+      and '" — HAIL MARY" if _hail_mary else ""' in bs_src)
 check("the voice announces the emergency hour",
       "Hail Mary! The emergency hour is open! " in bs_src)
 check("the message line explains full allocation = the guard's cap vs "
@@ -198,6 +208,103 @@ check("the light panel header carries the window",
       "_hm_note" in ap_src and "the emergency hour" in ap_src)
 check("the watch clock bounds by the hour when the window is open",
       "_champ_hm_win" in ap_src)
+
+# ── 8. THE OPPORTUNISTIC HAIL MARY (user ask, Oct 1: "add an
+#    opportunistic mode to the 'Hail Mary' that seeks any viable
+#    upside; use the deep-scan exit watch as the authoritative
+#    entry/exit signal and enforce strict risk controls") ──────────────
+_opp_ok = SimpleNamespace(action="buy", confidence=70.0)
+q, why = bs._hail_mary_opp_qualifies(_opp_ok, ca.HAIL_MARY_OPP_FLOOR)
+check("8.1 the opp door takes a viable buy the champion bar would decline",
+      q, why)
+q, why = bs._hail_mary_opp_qualifies(
+    SimpleNamespace(action="buy", confidence=55.0), ca.HAIL_MARY_OPP_FLOOR)
+check("8.2 below the opp floor = declined (62 is the viable line; the "
+      "challenger band below 67 never gets a window)",
+      not q, why)
+q, why = bs._hail_mary_opp_qualifies(
+    SimpleNamespace(action="buy", confidence=93.0), ca.HAIL_MARY_OPP_FLOOR)
+check("8.3 champion-grade also clears the opp bar (the door is order-safe "
+      "— the consumer tries classic first)", q, why)
+q, why = bs._hail_mary_opp_qualifies(
+    SimpleNamespace(action="hold", confidence=70.0), ca.HAIL_MARY_OPP_FLOOR)
+check("8.4 a non-buy deep read never opens the opp door (the exit watch's "
+      "own brain IS the entry authority)",
+      not q and "not buy" in why, why)
+q, why = bs._hail_mary_opp_qualifies(None, ca.HAIL_MARY_OPP_FLOOR)
+check("8.5 no deep read = fail-closed", not q, why)
+check("8.6 the strict constants stand ($300 cap, 2% hard stop)",
+      ca.OPP_HARD_SPEND_USD == 300.0
+      and ca.HAIL_MARY_OPP_HARD_STOP_PCT == 2.0)
+check("8.7 the opp window shares the rotation slot with the classic door "
+      "(no second window per rotation)",
+      ca.hail_mary_opp_available(state(9990.0, hail_mary_rot=_now_rot,
+                                      hail_mary_date=TODAY))[0] is False)
+check("8.8 the opp door IS the account-in-danger door (over break-even, "
+      "no emergency)",
+      ca.hail_mary_opp_available(state(10100.0))[0] is False
+      and ca.hail_mary_opp_available(state(9990.0))[0] is True)
+check("8.9 the consumer tries the champion bar FIRST and the opp door "
+      "only when it declines",
+      bs_src.find("_hm_q, _hm_qwhy = _hail_mary_qualifies(") > 0
+      and 0 < bs_src.find("_op_q, _op_why = _hail_mary_opp_qualifies(")
+      and bs_src.find("_op_q, _op_why = _hail_mary_opp_qualifies(")
+          > bs_src.find("if _hm_q:"))
+check("8.10 the opp activation stamps the OPPORTUNISTIC mode",
+      '_ca.activate_hail_mary(_acct, mode="opportunistic")' in bs_src)
+check("8.11 the opp spend is capped by the guard AND the $300 hard cap "
+      "(min wins — the death line still rules)",
+      "min(float(_spend), float(_risk_cap)," in bs_src
+      and "float(_ca.OPP_HARD_SPEND_USD))" in bs_src)
+check("8.12 the opp spend line is spoken (the operator sees the strict cap)",
+      'HAIL MARY: ${_ca.OPP_HARD_SPEND_USD:,.0f} hard' in bs_src)
+check("8.13 the classic activation keeps its unambiguous mode stamp",
+      '_hail_mary_mode = "classic"' in bs_src)
+check("8.14 the marks: the title, the message line and the voice all "
+      "carry the OPPORTUNISTIC mark",
+      '" — OPPORTUNISTIC HAIL MARY"' in bs_src
+      and "OPPORTUNISTIC HAIL MARY: the window runs" in bs_src
+      and "Opportunistic hail mary! Small shot, tight stop!" in bs_src)
+check("8.15 the fired snapshot routes the class (champion-opportunistic)",
+      '"champion-opportunistic"' in bs_src)
+check("8.16 auto_track_popup carries the hm_mode stamp into the watch row",
+      'w[pair]["hm_mode"] = str(hm_mode)' in bs_src)
+check("8.17 the light's exit watch judges the 2% stop on the stamp "
+      "(only ever TIGHTENS the half-buffer stop)",
+      'w.get("hm_mode") == "opportunistic"' in bs_src
+      and "HAIL_MARY_OPP_HARD_STOP_PCT" in bs_src
+      and "if _hm_stop < _stop_usd:" in bs_src)
+check("8.18 the console's manual exit check judges the same stop (the two "
+      "halves of the exit watch never disagree)",
+      '_wr.get("hm_mode") == "opportunistic"' in ap_src
+      and "HAIL_MARY_OPP_HARD_STOP_PCT" in ap_src
+      and "if _hm_stop < _stop_usd:" in ap_src)
+check("8.19 the mode stamp rides save_state's carried keys (a balance "
+      "write mid-window never closes it)",
+      '"hail_mary_mode"' in ca_src
+      and '"hail_mary_mode", "contest_id"' in ca_src)
+with tempfile.TemporaryDirectory() as _td2:
+    _old2 = ca.STATE_FILE
+    try:
+        ca.STATE_FILE = Path(_td2) / "contest_account.json"
+        ca.STATE_FILE.write_text(json.dumps(state(9990.0)), encoding="utf-8")
+        s4 = ca.activate_hail_mary(mode="opportunistic")
+        check("8.20 the opp activation stamps the mode on disk (active + "
+      "opportunistic + count 1)",
+              ca.hail_mary_active(s4)
+              and s4.get("hail_mary_mode") == "opportunistic"
+              and s4.get("hail_mary_count") == 1)
+        s5 = ca.save_state(10000, 9985.0)
+        check("8.21 the mode stamp rides a mid-window balance write "
+      "(save_state never closes the window)",
+              s5.get("hail_mary_mode") == "opportunistic"
+              and ca.hail_mary_active(s5))
+        s6 = ca.activate_hail_mary()   # the classic default
+        check("8.22 a classic activation stamps classic (the default mode)",
+              s6.get("hail_mary_mode") == "classic"
+              and s6.get("hail_mary_count") == 2)
+    finally:
+        ca.STATE_FILE = _old2
 
 lines.append(f"\nRESULT: {PASS} passed, {FAIL} failed")
 scratch_space.report_temp('_hailmary_check.txt').write_text("\n".join(lines), encoding="utf-8")

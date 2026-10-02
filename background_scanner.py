@@ -2030,6 +2030,47 @@ def _hail_mary_qualifies(deep, df, carry, balance, floor,
         return False, f"qualify check failed ({exc}) — fail-closed"
 
 
+def _hail_mary_opp_qualifies(deep, floor) -> tuple[bool, str]:
+    """The candidate side of THE OPPORTUNISTIC HAIL MARY (user ask, Oct 1:
+    "add an opportunistic mode that seeks any viable upside; use the
+    deep-scan exit watch as the authoritative entry/exit signal and
+    enforce strict risk controls"). The champion-grade bar declined a
+    setup while the account sits under break-even — the mode still takes
+    ANY VIABLE UPSIDE, with the strictness moved from the candidate bar
+    to the RISK:
+      1. DEEP-SCAN BUY: the deep read (the exit watch's own brain, the
+         same read that will judge the exit) must read buy — its
+         direction IS the entry authority here, not the tournament bar
+      2. VIABLE: the read clears the OPPORTUNISTIC floor
+         (HAIL_MARY_OPP_FLOOR, 62 — champion-grade is 89+; a challenger
+         never gets any window, so this floor sits above that bar too)
+    Deliberately ABSENT: the verified-uptrend bar and the major-book bar
+    — the tide, the knife, the book sizing and every other gate already
+    judged upstream; this mode does not re-ask what the funnel asked.
+    THE STRICT CONTROLS: a $300 hard spend cap (OPP_HARD_SPEND_USD) on
+    top of the 3% guard, and the position's watch row carries
+    hm_mode="opportunistic" so the exit watch judges a 2% hard stop
+    (HAIL_MARY_OPP_HARD_STOP_PCT) — the exit watch's trend-sell /
+    profit-guard / hard-stop stack is the authoritative EXIT. One window
+    per rotation, shared with the classic door. Fail-closed on all
+    reads. Returns (qualifies, why)."""
+    try:
+        if deep is None:
+            return False, "no deep read — fail-closed"
+        if str(deep.action) != "buy":
+            return False, f"the brain reads {deep.action}, not buy"
+        _bc = float(deep.confidence)
+        if _bc < float(floor):
+            return False, (f"brain {_bc:.0f}% < the opportunistic floor "
+                           f"{float(floor):.0f}% (not viable enough for the "
+                           f"strict-cap shot)")
+        return True, (f"viable upside — deep-scan buy {_bc:.0f}% ≥ "
+                      f"{float(floor):.0f}% (opportunistic; the exit watch "
+                      f"is the authority)")
+    except Exception as exc:
+        return False, f"opportunistic qualify failed ({exc}) — fail-closed"
+
+
 def _save_take_payout(pair: str, amount: int):
     """Persist big TAKE IT payouts so the console's QC can block re-entries
     while the move is exhausted (atomic write, survives restarts)."""
@@ -3081,7 +3122,8 @@ def _popup_already_watched(pair: str) -> bool:
 
 
 def auto_track_popup(pair: str, entry: float, size: float, goal_pct: float,
-                     window_min: float, why: str, source: str) -> bool:
+                     window_min: float, why: str, source: str,
+                     hm_mode: str | None = None) -> bool:
     """THE POPUP IS THE CONTRACT (Sep 21): every popup that fires —
     champion, Sure Thing, mover, DCA — auto-tracks at fire time. One
     writer for every route: never displaces an entry the user already
@@ -3114,6 +3156,11 @@ def auto_track_popup(pair: str, entry: float, size: float, goal_pct: float,
                    "window_min": float(window_min or 0.0),
                    "why": [why],
                    "source": source}
+        if hm_mode:
+            # THE OPPORTUNISTIC STAMP (user ask, Oct 1): the exit watch
+            # reads this key to judge the 2% hard stop — without it the
+            # row would ride the classic half-buffer stop.
+            w[pair]["hm_mode"] = str(hm_mode)
         # FRESH-KEY INTENT (the round-5 INJ finding): the auto-track IS
         # the deliberate re-add — name the pair so a tombstone left by a
         # SOLD (or a new-contest wipe racing this fire) cannot silently
@@ -4062,12 +4109,25 @@ def contest_light(exchange, cfg):
                 import contest_account as _ca_l
                 _acct_l = _ca_l.load_state()
                 _stop_usd = max(_ca_l.buffer(_acct_l) * 0.5, 5.0)
+                if w.get("hm_mode") == "opportunistic":
+                    # THE OPPORTUNISTIC HARD STOP (user ask, Oct 1): the
+                    # exit watch IS the authority and judges this position
+                    # against a 2% fixed stop — tighter than the half-buffer
+                    # rule (the strict risk control the opportunistic mode's
+                    # lower bar pays for). Only ever TIGHTENS: the classic
+                    # stop stands when the buffer is the smaller number.
+                    _hm_stop = max(float(entry) * float(_ca_l.HAIL_MARY_OPP_HARD_STOP_PCT) / 100.0, 5.0)
+                    if _hm_stop < _stop_usd:
+                        _stop_usd = _hm_stop
             except Exception:
                 _stop_usd = max((float(cfg.challenge_balance) * 0.03) * 0.5, 5.0)
             if _usd_now <= -_stop_usd:
                 should_exit = True
+                _hm_stop_why = ("the opportunistic hard stop"
+                                if w.get("hm_mode") == "opportunistic"
+                                else "half the platform death-line buffer")
                 reason = (f"STOPPED OUT — down ${abs(_usd_now):.0f} (the stop is "
-                          f"-${_stop_usd:.0f} — half the platform death-line buffer). "
+                          f"-${_stop_usd:.0f} — {_hm_stop_why}). "
                           f"The trade failed — get out, wait for the next one.")
 
         # ── 2. strategy sell bar (contest profile: 50%) ────────────────
@@ -5773,6 +5833,7 @@ def main():
         # most ~1/3 of the remaining buffer. Buffer gone → NO buy popup
         # at all — the account is at the line and any trade can close it.
         _hail_mary = False   # set inside the guard below (safe default)
+        _hail_mary_mode = ""   # "" until a window opens (mode-aware marks)
         try:
             import contest_account as _ca
             _acct = _ca.load_state()
@@ -5792,17 +5853,21 @@ def main():
             #    STANDS ("no uncontrolled exposure"); THE DEATH LINE NEVER
             #    YIELDS. One window per rotation.
             _hail_mary = _ca.hail_mary_active(_acct)
+            _hail_mary_mode = (str(_acct.get("hail_mary_mode") or "classic")
+                               if _hail_mary else "")
             if not _hail_mary and _risk_cap > 0:
                 _hm_ok, _hm_why = _ca.hail_mary_available(_acct)
+                _hm_bal = (float(_bal) if _bal > 0 else float(DEFAULT_CONFIG.challenge_balance))
                 if _hm_ok and not _challenger:
                     _hm_q, _hm_qwhy = _hail_mary_qualifies(
                         deep=_deep, df=_df, carry=_carry,
-                        balance=(float(_bal) if _bal > 0 else float(DEFAULT_CONFIG.challenge_balance)),
+                        balance=_hm_bal,
                         floor=float(DESKTOP_ALERT_MIN),
                         ema_short=cfg.ema_short, ema_long=cfg.ema_long)
                     if _hm_q:
                         _acct = _ca.activate_hail_mary(_acct)
                         _hail_mary = True
+                        _hail_mary_mode = "classic"
                         # the trade window: one hour, not the rotation
                         _win_min = min(_win_min, float(_ca.HAIL_MARY_WINDOW_MIN))
                         _out_by = (_now_mst() + timedelta(
@@ -5813,7 +5878,41 @@ def main():
                                     "runs; the death line stands; cap $%.0f",
                                     _hm_qwhy, _risk_cap)
                     else:
-                        logger.info("  Hail Mary declined — %s", _hm_qwhy)
+                        # ── THE OPPORTUNISTIC DOOR (user ask, Oct 1): the
+                        # champion-grade bar declined this setup, but the
+                        # account still sits under break-even — the mode
+                        # seeks ANY VIABLE UPSIDE under STRICTER risk: the
+                        # deep-scan buy read IS the entry authority (this
+                        # very read feeds the exit watch), a $300 hard
+                        # spend cap rides under the guard's cap, and the
+                        # watch row stamps hm_mode="opportunistic" so the
+                        # exit watch judges a 2% hard stop. Classic first;
+                        # the opp door opens ONLY when the champion bar
+                        # says no. One window per rotation, shared.
+                        _op_q, _op_why = _hail_mary_opp_qualifies(
+                            deep=_deep,
+                            floor=_ca.HAIL_MARY_OPP_FLOOR)
+                        if _op_q:
+                            _acct = _ca.activate_hail_mary(_acct, mode="opportunistic")
+                            _hail_mary = True
+                            _hail_mary_mode = "opportunistic"
+                            _spend = min(float(_spend), float(_risk_cap),
+                                         float(_ca.OPP_HARD_SPEND_USD))
+                            contest_msg = (f"  SPEND: ${_spend:,.0f} — OPPORTUNISTIC "
+                                           f"HAIL MARY: ${_ca.OPP_HARD_SPEND_USD:,.0f} hard "
+                                           f"cap under the guard's ${_risk_cap:,.0f}\n")
+                            # the trade window: one hour, not the rotation
+                            _win_min = min(_win_min, float(_ca.HAIL_MARY_WINDOW_MIN))
+                            _out_by = (_now_mst() + timedelta(
+                                minutes=round(_win_min / 5.0) * 5)).strftime("%I:%M").lstrip("0")
+                            _how_long = (f"goal +{_goal_pct:.1f}% by {_out_by} — stay "
+                                         f"close after that; the exit is hers, never the clock.")
+                            logger.info("  💪 OPPORTUNISTIC HAIL MARY ACTIVATED: %s — "
+                                        "cap $%.0f, hard stop %.1f%%, the exit watch judges",
+                                        _op_why, _spend, _ca.HAIL_MARY_OPP_HARD_STOP_PCT)
+                        else:
+                            logger.info("  Hail Mary declined — %s; opportunistic "
+                                        "declined — %s", _hm_qwhy, _op_why)
                 elif _hm_ok and _challenger:
                     logger.info("  Hail Mary declined — a challenger never "
                                 "gets the emergency window")
@@ -5992,6 +6091,7 @@ def main():
             _hm_line = ""
             _hm_say = ""
             if _hail_mary:
+                _hm_opp = (_hail_mary_mode == "opportunistic")
                 try:
                     import contest_account as _ca_hm
                     _hm_left = _ca_hm.hail_mary_minutes_left(_acct)
@@ -6000,6 +6100,13 @@ def main():
                                 f"guard's cap vs the DEATH LINE (never the whole balance); "
                                 f"the clock ends with the hour\n")
                     _hm_say = "Hail Mary! The emergency hour is open! "
+                    if _hm_opp:
+                        _hm_line = (f"  💪 OPPORTUNISTIC HAIL MARY: the window runs for "
+                                    f"{max(_hm_left, 0):.0f} more min — capped at "
+                                    f"${_ca_hm.OPP_HARD_SPEND_USD:,.0f}; the exit watch is "
+                                    f"the authority and judges a "
+                                    f"{_ca_hm.HAIL_MARY_OPP_HARD_STOP_PCT:.0f}% hard stop\n")
+                        _hm_say = "Opportunistic hail mary! Small shot, tight stop! "
                 except Exception:
                     _hm_line = ("  💪 HAIL MARY: the emergency hour runs — "
                                 "the death line stands\n")
@@ -6010,7 +6117,8 @@ def main():
                      + (" — CHALLENGER" if _challenger else "")
                      + (" — AGAINST THE TIDE" if _out_tide_learned else "")
                      + (" — LONE WOLF (OUT TIDE)" if _out_tide_lw else "")
-                     + (" — HAIL MARY" if _hail_mary else ""))
+                     + (" — OPPORTUNISTIC HAIL MARY" if _hail_mary and _hail_mary_mode == "opportunistic"
+                        else " — HAIL MARY" if _hail_mary else ""))
             _small_coin = _carry is not None and _spend < (float(_bal) if _bal > 0 else float(DEFAULT_CONFIG.challenge_balance))
             _challenger_say = (f"A challenger — just under the {DESKTOP_ALERT_MIN:.0f} percent floor! "
                                if _challenger else "")
@@ -6108,7 +6216,10 @@ def main():
             try:
                 _fsnap = dict(_SNAPSHOT_CTX.get("ctx") or {})
                 _fsnap.update({"kind": "fired",
-                               "route": ("champion-fast" if _fast_route else "champion"),
+                               "route": ("champion-fast" if _fast_route
+                                         else "champion-opportunistic"
+                                         if _hail_mary and _hail_mary_mode == "opportunistic"
+                                         else "champion"),
                                "release": _take_release_prov(pair),
                                "tide": (f"{_df_state} {_df_pct:.0f}%"
                                         if _df_state and _df_pct is not None else None),
@@ -6141,8 +6252,14 @@ def main():
             auto_track_popup(pair, float(signal.entry_price or 0.0),
                              float(_spend or 0.0), float(_goal_pct or 0.0),
                              float(_win_min or 0.0),
-                             f"BUY {signal.confidence:.0f}% (champion)",
-                             "champion")
+                             f"BUY {signal.confidence:.0f}% "
+                             + ("(opportunistic hail mary)"
+                                if _hail_mary and _hail_mary_mode == "opportunistic"
+                                else "(champion)"),
+                             "champion",
+                             hm_mode=(_hail_mary_mode
+                                      if _hail_mary and _hail_mary_mode == "opportunistic"
+                                      else None))
         logger.info("🚀 BIG ALERT: %s %s — %.0f%% — entry $%.4f — TP $%.4f",
                     signal.action.upper(), asset, signal.confidence, signal.entry_price, signal.take_profit)
 

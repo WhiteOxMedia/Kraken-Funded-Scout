@@ -74,6 +74,33 @@ COST_ROUNDTRIP_PCT = 0.08     # the platform spread: 0.04% each side
 # there is no exception, ever.
 HAIL_MARY_WINDOW_MIN = 60      # the one-hour full-allocation window
 
+# ── THE HAIL MARY OPPORTUNISTIC MODE (user ask, Oct 1: "add an
+# opportunistic mode to the 'Hail Mary' that seeks any viable upside;
+# use the deep-scan exit watch as the authoritative entry/exit signal
+# and enforce strict risk controls"): the SAME account-in-danger door
+# (under break-even, platform room, one window per rotation) with a
+# LOWER candidate bar — the deep read must read buy and clear the
+# OPPORTUNISTIC floor — while the RISK gets STRICTER, never looser:
+# a $300 hard spend cap ( OPP_HARD_SPEND_USD ) on top of the guard's
+# cap, and the position's watch row carries hm_mode="opportunistic"
+# so the exit watch judges it against a 2% hard stop ( the classic
+# window keeps its half-buffer stop ). The exit watch — the deep
+# scan's own trend-sell / profit-guard / hard-stop stack — is THE
+# entry AND exit authority: it says when the upside is still viable
+# and it says when out. The classic Hail Mary is tried FIRST; the
+# opportunistic door only opens when the champion-grade bar declines.
+HAIL_MARY_OPP_FLOOR = 62.0     # viable, not champion-grade: the deep read
+                               # must clear this to fire the opportunistic
+                               # window (a buy under the champion floor is
+                               # exactly the population this mode exists for)
+HAIL_MARY_OPP_HARD_STOP_PCT = 2.0   # the exit watch's hard stop for an
+                                    # opportunistic position (vs the classic
+                                    # window's half-buffer stop) — the strict
+                                    # risk control the lower bar pays for
+OPP_HARD_SPEND_USD = 300.0     # the opportunistic window's hard spend cap —
+                               # a fixed ceiling on top of the 3% guard's cap
+                               # (min wins; the death line still rules both)
+
 # ── The guard's dials ──────────────────────────────────────────────────
 RISK_PER_TRADE_FRAC = 0.34    # a trade's worst case may eat at most ~1/3
                               # of the remaining buffer (3 worst-cases to die)
@@ -115,7 +142,7 @@ def save_state(tier: int, current_balance: float) -> dict:
     }
     prev = load_state()
     for _k in ("hail_mary_until", "hail_mary_date", "hail_mary_rot",
-               "hail_mary_count", "contest_id"):
+               "hail_mary_count", "hail_mary_mode", "contest_id"):
         if prev.get(_k) is not None:
             s[_k] = prev[_k]
     # a USER action never drops silently (Sep 9, the phantom-1k lesson):
@@ -467,17 +494,32 @@ def hail_mary_available(state: dict | None = None) -> tuple[bool, str]:
     return True, "under break-even, platform room, no window this rotation"
 
 
-def activate_hail_mary(state: dict | None = None) -> dict:
+def hail_mary_opp_available(state: dict | None = None) -> tuple[bool, str]:
+    """(available, why_not) — the OPPORTUNISTIC mode's account side: the
+    SAME account-in-danger door as the classic window (under break-even
+    with platform room, one window per rotation — the modes SHARE the
+    rotation slot, never stack a second window). Strict caps live with
+    the callers' candidate check; this is the door. Pure read;
+    fail-closed on any doubt."""
+    return hail_mary_available(state)
+
+
+def activate_hail_mary(state: dict | None = None,
+                       mode: str = "classic") -> dict:
     """Open the one-hour window: the emergency hour runs, the platform
     death line + every risk control stand. Stamps the rotation (one
     window per rotation) + the count. The QUALIFYING SETUP is the
-    callers' check — this only opens the door."""
+    callers' check — this only opens the door. mode stamps the
+    window's own mode on the state (the console plate and the QC read
+    it) — the candidate bars and the risk caps differ by mode; the
+    window and the rotation slot do not."""
     s = state or load_state()
     now = datetime.now(MST)
     s["hail_mary_until"] = (now + timedelta(minutes=HAIL_MARY_WINDOW_MIN)).isoformat()
     s["hail_mary_date"] = _today_str()
     s["hail_mary_rot"] = f"{now.hour // 4 * 4:02d}-{now.hour // 4 * 4 + 4:02d}"
     s["hail_mary_count"] = int(s.get("hail_mary_count") or 0) + 1
+    s["hail_mary_mode"] = "opportunistic" if mode == "opportunistic" else "classic"
     _write_state(s)
     return s
 
