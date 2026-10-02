@@ -56,6 +56,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import os
 import re
 import subprocess
@@ -486,7 +487,7 @@ def backfill_metrics(spec: dict, metrics_path, now: datetime,
                     n_in_window += 1
                     if peak_px is None or close > peak_px:
                         peak_px, peak_ts = close, cts
-            if n_in_window < int(horizon_h * 12):
+            if n_in_window < math.ceil(horizon_h * 12):
                 # THE COVERAGE GUARD, IN-WINDOW (the Copilot LOW then its
                 # own follow-up medium, Oct 1): the coverage that matters
                 # is the candles INSIDE the window, never the returned

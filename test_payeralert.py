@@ -616,6 +616,26 @@ check(6.12, n == 0 and _r12["peak_after_pct"] == "",
       "70 in-window candles < the 84 the horizon needs — the total "
       "count (96) must not masquerade as coverage; the partial-window "
       "peak stays unfilled")
+# 6.13 THE REQUIRED COUNT CEILS (the Copilot low, Oct 1): int() floors —
+# a 7.99h horizon needs ceil(95.88) = 96 in-window candles, but a floor
+# asked only 95 and let a 7.92h partial window pass as complete. A
+# 5-minute-spaced feed with exactly 95 in-window candles (a 1.15 peak
+# among them) must stay UNFILLED under a 7.99h horizon.
+_spec_799 = dict(spec2)
+_spec_799["horizon_hours"] = 7.99
+_C613 = [_candle(FIRED_AT + timedelta(minutes=5 * i),
+                 1.15 if i == 80 else 1.0)
+         for i in range(95)]                  # 95 in-window, no more
+_m613 = _csv_with(
+    "FIL/USD,tide-out,1.239,2026-09-30 20:00:00,1.09,"
+    f"{FIRED_AT.isoformat()},,,,,\n")
+n = pa.backfill_metrics(_spec_799, _m613, LATER, _feed6({"FIL/USD": _C613}))
+_r13 = pa.read_metrics(_m613)[1][0]
+check(6.13, n == 0 and _r13["peak_after_pct"] == ""
+      and _r13["beat_funnel"] == "",
+      "95 in-window candles < ceil(7.99h x 12) = 96 — the floored "
+      "requirement let a 7.92h window pass as complete; the required "
+      "count CEILS")
 
 print()
 fails = [r for r in results if not r[1]]
