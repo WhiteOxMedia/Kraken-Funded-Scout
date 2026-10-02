@@ -17,6 +17,12 @@ contract, hermetically — NO subprocesses, NO repo state written. Pins:
   4. units: verdict parsing (the house shapes), drive discovery
      (bare/prefixed/suffixed names), classification file load (a
      broken file degrades to {}, never raises).
+  5. THE ROUND-7 MAJORS (CodeRabbit, Oct 1): the CSS class mismatch
+     (rows emitted class='GREEN' against a tr.G selector — green
+     colored nothing), the negative failed-count parse (a PARTIAL
+     pass ratio rendered failed=-1 and classify then blessed it
+     GREEN), and the unvalidated pass-ratio counts (0/0 and 99/27
+     blessed GREEN by string equality).
 """
 import json
 import sys
@@ -136,6 +142,65 @@ check("3.5 the NESTED classes object is the lookup map (the file's "
       set(nested) == {"test_flaky.py"}
       and nested["test_flaky.py"]["status"] == "FLAKY"
       and flat == {}, (nested, flat))
+
+# ── 5. THE ROUND-7 MAJORS (CodeRabbit, Oct 1) ────────────────────────
+# 5.1 THE CSS CLASS MISMATCH: _row emits a CANONICAL class (g/r/a) the
+# stylesheet actually selects — the status CELL keeps the verbatim
+# status, the class is for color only.
+row_g = fs._row(1, dict(GREEN), {})
+row_r = fs._row(2, dict(RED_UNCLASS), {})
+row_a = fs._row(3, dict(AMBER), {})
+check("5.1 the row class matches the stylesheet's selector — GREEN "
+      "renders green, RED red, the classified family amber (rows "
+      "emitted class='GREEN' against a tr.G selector: nothing colored)",
+      "class='g'" in row_g and "class='r'" in row_r
+      and "class='a'" in row_a
+      and "tr.g" in fs._CSS and "tr.r" in fs._CSS and "tr.a" in fs._CSS,
+      (row_g[:40], row_r[:40], fs._CSS[fs._CSS.find("tr.g"):
+                                       fs._CSS.find("tr.g") + 40]))
+check("5.1b the status cell keeps the VERBATIM status (a classified "
+      "row still says its own status — here the fixture's AMBER — in "
+      "the cell while the class rides 'a')",
+      ">GREEN<" in row_g and ">RED<" in row_r and ">AMBER<" in row_a
+      and "class='a'" in row_a,
+      row_a[:80])
+# 5.2 + 5.3 THE PARTIAL-RATIO PARSE: a validated helper — failed = t-p,
+# nonsense counts are UNKNOWN (-1), never silently GREEN. (The helper is
+# getattr-guarded so a pre-fix module FAILS these pins instead of
+# crashing the drive — a red verdict, not a red traceback.)
+_pfc = getattr(fs, "_parse_failed_count", None)
+check("5.2 the validated failed-count helper EXISTS",
+      callable(_pfc), "no _parse_failed_count on ops.fleet_sweep")
+check("5.3 a PARTIAL pass ratio parses as t-p failed (40/43 = 3 — the "
+      "negative failed-count major rendered it -1 and classify's "
+      "0 <= failed guard then blessed it GREEN)",
+      callable(_pfc) and _pfc("40/43 passed") == 3,
+      _pfc("40/43 passed") if callable(_pfc) else "n/a")
+check("5.4 the full ratio stays 0 and the house shapes stand",
+      callable(_pfc) and _pfc("43/43 passed") == 0
+      and _pfc("27/27 passed") == 0
+      and _pfc("RESULT: 5 passed, 0 failed") == 0
+      and _pfc("RESULT: 3 passed, 2 failed") == 2
+      and _pfc("ALL PASS") == 0
+      and _pfc("DONE") == 0)
+check("5.5 the counts are VALIDATED (the unvalidated-counts major: "
+      "0/0 passed and 99/27 passed blessed GREEN through string "
+      "equality — nonsense is now unknown)",
+      callable(_pfc) and _pfc("0/0 passed") == -1
+      and _pfc("99/27 passed") == -1
+      and _pfc("") == -1
+      and _pfc("no verdict here") == -1)
+check("5.6 the classifier treats a partial ratio as a REAL failure "
+      "(40/43 through classify = RED — the exit-1 contract holds)",
+      fs.classify({"drive": "test_ratio.py", "rc": 0,
+                   "verdict": "40/43 passed",
+                   "failed": (_pfc("40/43 passed") if callable(_pfc) else -1),
+                   "secs": 1.0, "fails": [], "status": "",
+                   "cls_status": "", "cls_note": ""}, {})["status"] == "RED")
+check("5.7 run_one parses through the validated helper (the wiring — "
+      "the standalone regex block must not survive beside it)",
+      "failed = _parse_failed_count(verdict)"
+      in Path("ops/fleet_sweep.py").read_text(encoding="utf-8"))
 
 fails = [r for r in results if not r[1]]
 print(f"RESULT: {len(results) - len(fails)} passed, {len(fails)} failed")

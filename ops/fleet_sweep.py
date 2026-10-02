@@ -42,6 +42,41 @@ CLASSES_FILE = Path(__file__).resolve().parent / "fleet_sweep_classes.json"
 _VERDICT_RE = re.compile(
     r"RESULT: \d+ passed, \d+ failed|\d+/\d+ passed|ALL PASS|DONE")
 _FAIL_LINE_RE = re.compile(r"^\s*(FAIL\b.*)$", re.MULTILINE)
+_RESULT_FAIL_RE = re.compile(r"RESULT: (\d+) passed, (\d+) failed")
+_RATIO_RE = re.compile(r"(\d+)/(\d+) passed")
+
+
+def _parse_failed_count(verdict: str) -> int:
+    """The VALIDATED failed count from a verdict string (the round-7
+    majors, Oct 1):
+      · the negative failed-count major — a PARTIAL pass ratio like
+        '40/43 passed' fell through the old ratio branch to failed=-1,
+        and classify's `0 <= failed != 0` guard then blessed the run
+        GREEN. A partial ratio is t-p failures, period.
+      · the unvalidated-counts major — the old parse checked the ratio
+        by STRING EQUALITY (verdict.split('/')[0] == total), so '0/0
+        passed' (division-shaped nonsense) and '99/27 passed' (more
+        passed than ran) both read as full passes. Counts are ints and
+        must be self-consistent: total > 0 and 0 <= passed <= total.
+    Returns the failed count, or -1 (UNKNOWN — the rc contract governs,
+    exactly as before) when the verdict carries no parseable,
+    self-consistent counts."""
+    try:
+        v = str(verdict or "").strip()
+        m = _RESULT_FAIL_RE.fullmatch(v)
+        if m:
+            return int(m.group(2))
+        m = _RATIO_RE.fullmatch(v)
+        if m:
+            passed, total = int(m.group(1)), int(m.group(2))
+            if total <= 0 or passed < 0 or passed > total:
+                return -1   # 0/0 or 99/27 — nonsense is UNKNOWN, never GREEN
+            return total - passed
+        if v in ("ALL PASS", "DONE"):
+            return 0
+    except Exception:
+        pass
+    return -1
 
 
 def discover_drives(only: list[str]) -> list[Path]:
@@ -92,15 +127,7 @@ def run_one(drive: Path, timeout: int) -> dict:
     secs = round(time.time() - t0, 1)
     verdict = _VERDICT_RE.findall(out)
     verdict = verdict[-1] if verdict else ""
-    failed = -1
-    m = re.search(r"(\d+) failed", verdict)
-    if m:
-        failed = int(m.group(1))
-    elif "/" in verdict:
-        m2 = re.search(r"/(\d+) passed", verdict)
-        failed = 0 if (m2 and verdict.split("/")[0] == m2.group(1)) else -1
-    elif verdict in ("ALL PASS", "DONE"):
-        failed = 0
+    failed = _parse_failed_count(verdict)
     fails = [l.strip()[:110]
              for l in _FAIL_LINE_RE.findall(out)[:6]]
     return {"drive": drive.name, "rc": rc, "verdict": verdict or "no-verdict",
@@ -140,8 +167,8 @@ table{border-collapse:collapse;width:100%;font-size:12px}
 th{color:#8fa3bf;text-align:left;border-bottom:1px solid #232b33;
  padding:6px 8px}
 td{padding:4px 8px;border-bottom:1px solid #1a2129;vertical-align:top}
-tr.G td:first-child{color:#7fc97f}tr.RED td:first-child{color:#e07b7b}
-tr.AMBER td:first-child{color:#d9b96a}
+tr.g td:first-child{color:#7fc97f}tr.r td:first-child{color:#e07b7b}
+tr.a td:first-child{color:#d9b96a}
 .f{color:#e07b7b;font-size:11px;display:block;margin-top:2px}
 .legend{margin-top:16px;font-size:11px;color:#7a8a99}
 """
@@ -150,6 +177,13 @@ tr.AMBER td:first-child{color:#d9b96a}
 def _row(i, r, classes: dict) -> str:
     name = html.escape(r["drive"].replace(".py", ""))
     verdict = html.escape(r["verdict"])
+    # THE CANONICAL CLASS (the round-7 CSS major): rows used to emit
+    # class='GREEN'/'RED'/'AMBER' while the stylesheet selected tr.G /
+    # tr.RED / tr.AMBER — nothing ever matched and green rows rendered
+    # uncolored. The class is the CANONICAL color key (g/r/a — every
+    # classified family rides 'a', since statuses are free-form strings
+    # like FLAKY); the status CELL keeps the verbatim status.
+    cls = {"GREEN": "g", "RED": "r"}.get(r["status"], "a")
     fails = ""
     if r["status"] != "GREEN" and r["fails"]:
         fails = "<span class='f'>" + "<br>".join(
@@ -160,7 +194,7 @@ def _row(i, r, classes: dict) -> str:
         note = (f"[{html.escape(r['cls_status'])}"
                 + (f", verified {html.escape(verified)}" if verified else "")
                 + f"] {note}")
-    return (f"<tr class='{r['status']}'>"
+    return (f"<tr class='{cls}'>"
             f"<td>{i}</td><td>{name}</td><td>{r['status']}</td>"
             f"<td>{verdict}{fails}</td><td>{r['secs']}s</td>"
             f"<td>{note}</td></tr>")
