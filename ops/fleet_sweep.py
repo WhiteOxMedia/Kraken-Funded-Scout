@@ -39,11 +39,17 @@ ROOT = Path(__file__).resolve().parent.parent
 OUT_DIR = ROOT / "artifacts" / "fleet_sweep"
 CLASSES_FILE = Path(__file__).resolve().parent / "fleet_sweep_classes.json"
 
+# THE SIGNED SHAPES (the Copilot P2, Oct 1): the extractor and the
+# parser both accept an optional sign on every count — digit-only
+# regexes made a signed lying verdict ('-1/5 passed') look ABSENT, and
+# an absent verdict rides the rc contract to GREEN. A verdict that
+# exists and lies must reach _parse_failed_count's invalid-count path
+# (-2), never the absent path (-1).
 _VERDICT_RE = re.compile(
-    r"RESULT: \d+ passed, \d+ failed|\d+/\d+ passed|ALL PASS|DONE")
+    r"RESULT: -?\d+ passed, -?\d+ failed|-?\d+/-?\d+ passed|ALL PASS|DONE")
 _FAIL_LINE_RE = re.compile(r"^\s*(FAIL\b.*)$", re.MULTILINE)
-_RESULT_FAIL_RE = re.compile(r"RESULT: (\d+) passed, (\d+) failed")
-_RATIO_RE = re.compile(r"(\d+)/(\d+) passed")
+_RESULT_FAIL_RE = re.compile(r"RESULT: (-?\d+) passed, (-?\d+) failed")
+_RATIO_RE = re.compile(r"(-?\d+)/(-?\d+) passed")
 
 
 def _parse_failed_count(verdict: str) -> int:
@@ -69,12 +75,15 @@ def _parse_failed_count(verdict: str) -> int:
         v = str(verdict or "").strip()
         m = _RESULT_FAIL_RE.fullmatch(v)
         if m:
-            return int(m.group(2))
+            passed, failed = int(m.group(1)), int(m.group(2))
+            if passed < 0 or failed < 0:
+                return -2   # a signed lying verdict, never GREEN
+            return failed
         m = _RATIO_RE.fullmatch(v)
         if m:
             passed, total = int(m.group(1)), int(m.group(2))
             if total <= 0 or passed < 0 or passed > total:
-                return -2   # 0/0 or 99/27 — a lying verdict, never GREEN
+                return -2   # 0/0, 99/27, -1/5 — a lying verdict, never GREEN
             return total - passed
         if v in ("ALL PASS", "DONE"):
             return 0

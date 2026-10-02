@@ -213,6 +213,24 @@ check("5.6c an ABSENT verdict at rc=0 still rides the rc contract "
                    "verdict": "",
                    "failed": -1, "secs": 1.0, "fails": [], "status": "",
                    "cls_status": "", "cls_note": ""}, {})["status"] == "GREEN")
+check("5.6d SIGNED lying verdicts reach the invalid-count path (the "
+      "Copilot P2: digit-only regexes made '-1/5 passed' look ABSENT "
+      "— it is a verdict that exists and lies)",
+      callable(_pfc) and _pfc("-1/5 passed") == -2
+      and _pfc("1/-5 passed") == -2
+      and _pfc("RESULT: 5 passed, -2 failed") == -2
+      and _pfc("RESULT: -3 passed, 0 failed") == -2)
+check("5.6e the EXTRACTOR sees signed verdicts (the verdict reaches "
+      "the parser at all) and classify reddens the run at rc=0",
+      fs._VERDICT_RE.findall("43/43 passed\n-1/5 passed")[-1]
+          == "-1/5 passed"
+      and fs.classify({"drive": "test_signed.py", "rc": 0,
+                       "verdict": "-1/5 passed",
+                       "failed": (_pfc("-1/5 passed")
+                                  if callable(_pfc) else -1),
+                       "secs": 1.0, "fails": [], "status": "",
+                       "cls_status": "", "cls_note": ""},
+                      {})["status"] == "RED")
 check("5.7 run_one parses through the validated helper (the wiring — "
       "the standalone regex block must not survive beside it)",
       "failed = _parse_failed_count(verdict)"
