@@ -3188,10 +3188,22 @@ def _save_contest_watch(watch: dict, fresh_keys=None):
     for _k in drops:
         merged[_k] = None
     try:
-        tmp = CONTEST_WATCH_JSON + ".tmp"
+        # THE PER-WRITER TMP + THE RETRYING REPLACE (Oct 2, the
+        # de-flake): the storm runs proved this save loses the rename
+        # race to a concurrent reader/writer — WinError 5 on the FIXED
+        # shared .tmp — and a single raw os.replace turned each loss
+        # into a silently-dropped row ("contest watch save failed" in
+        # the storm's stderr). The tmp is pid-suffixed (two writers
+        # never collide on one temp — the bot engine's own convention)
+        # and the rename rides atomic_io.replace_atomic's bounded
+        # backoff (WinError 5/32/Errno13 heal in-process; anything else
+        # raises immediately). The report contract is unchanged: True
+        # landed, False lost-for-real — the caller's truth-print stands.
+        from atomic_io import replace_atomic
+        tmp = CONTEST_WATCH_JSON + f".tmp.{os.getpid()}"
         with open(tmp, "w", encoding="utf-8") as fh:
             json.dump(merged, fh, indent=2)
-        os.replace(tmp, CONTEST_WATCH_JSON)
+        replace_atomic(tmp, CONTEST_WATCH_JSON)
         return True    # THE REPORT (the re-add triage, Sep 29): the
                        # caller can tell 'landed' from 'lost the
                        # race' — a truth-print needs a truth to print

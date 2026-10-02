@@ -164,9 +164,13 @@ try:
           (sorted(got), WATCH.read_text(encoding="utf-8")[:80]))
 
     _sv = _pbs.replace("\r\n", "\n")
-    check("stamps: the watch save is atomic (.tmp + os.replace — a "
-          "reboot mid-write leaves old or new, never a half-file)",
-          "os.replace(tmp, CONTEST_WATCH_JSON)" in _sv)
+    check("stamps: the watch save is atomic (a per-writer tmp + the "
+          "retrying replace — a reboot mid-write leaves old or new, "
+          "never a half-file; the rename rides atomic_io's bounded "
+          "backoff, the Oct-2 de-flake)",
+          'tmp = CONTEST_WATCH_JSON + f".tmp.{os.getpid()}"' in _sv
+          and "from atomic_io import replace_atomic" in _sv
+          and "replace_atomic(tmp, CONTEST_WATCH_JSON)" in _sv)
 
     # ── 3. THE GUARD SURVIVES ────────────────────────────────────────
     import datetime as _dt

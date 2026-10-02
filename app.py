@@ -967,11 +967,16 @@ def _save_watch(watch: dict):
         for _k in drops:
             merged[_k] = None
         # atomic tmp+replace (Sep 27): a reader (scanner tick, SOLD
-        # render) can never see a truncated half-written ledger
-        tmp = str(WATCH_FILE) + ".tmp"
+        # render) can never see a truncated half-written ledger.
+        # (Oct 2, the de-flake adoption): per-writer pid-suffixed tmp +
+        # atomic_io's bounded backoff — the console's tick used to lose
+        # the rename race to a concurrent reader/writer and silently
+        # drop the merge (the stateclobber storm's stderr shape)
+        from atomic_io import replace_atomic
+        tmp = str(WATCH_FILE) + f".tmp.{os.getpid()}"
         with open(tmp, "w", encoding="utf-8") as fh:
             json.dump(merged, fh, indent=2)
-        os.replace(tmp, WATCH_FILE)
+        replace_atomic(tmp, WATCH_FILE)
     except Exception as exc:
         logger.debug("watch save failed: %s", exc)
 

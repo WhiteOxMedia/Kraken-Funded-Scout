@@ -7,6 +7,7 @@ never a torn read) and that intentional deletions still work."""
 import json
 import shutil
 import subprocess
+from unittest import mock
 import sys
 import tempfile
 import time
@@ -119,6 +120,61 @@ try:
           and st.get("tomorrow_goal_factor") == 1.1, sorted(st))
 
     # ── 4. contest_watch: the cross-process interleaving ─────────────
+    # ── 4a. THE CONTENTION-PROOF SAVE (Oct 2, the de-flake): the storm
+    # runs showed the scanner's save loses the rename race to a
+    # concurrent reader/writer — WinError 5 on the fixed .tmp — and a
+    # single raw os.replace means a LOST SAVE ("contest watch save
+    # failed" in the storm's own stderr; the popup's auto-track row
+    # vanishes). The save must (a) use a PER-WRITER tmp (two writers
+    # sharing one tmp name kill each other's temp, not just the
+    # rename), and (b) ride atomic_io.replace_atomic's bounded backoff
+    # so a transient contention heals IN-PROCESS. Proven by injection:
+    # the real os.replace is wrapped to raise WinError 5 ONCE, then
+    # pass through — the save must still land.
+    import atomic_io as _aio_mod
+    _real_replace = _aio_mod.os.replace
+    _calls = {"n": 0, "tmp_names": set()}
+
+    def _contending_replace(src, dst, *a, **k):
+        _calls["n"] += 1
+        _calls["tmp_names"].add(str(src))
+        if _calls["n"] == 1:
+            err = OSError("drill: access denied")
+            err.winerror = 5
+            raise err
+        return _real_replace(src, dst, *a, **k)
+
+    # the injection wraps atomic_io.replace_atomic itself (passing the
+    # contending replace INTO the real helper): the helper's default
+    # parameter bound os.replace at DEFINITION time, so a module-level
+    # patch would be invisible to it — the wrapper exercises the REAL
+    # retry loop with the injected rename, and bs's in-function import
+    # resolves the patched symbol at call time
+    _real_ra = _aio_mod.replace_atomic
+
+    def _ra_drill(tmp, target, **kw):
+        kw.setdefault("replace", _contending_replace)
+        return _real_ra(tmp, target, **kw)
+
+    _patcher = mock.patch.object(_aio_mod, "replace_atomic", _ra_drill)
+    _patcher.start()
+    try:
+        _ok_c = bs._save_contest_watch(
+            {"KAI/USD": {"entry": 1.0, "high": 1.0, "source": "drill"}})
+    finally:
+        _patcher.stop()
+    doc = json.loads((_sbx / "contest_watch.json").read_text())
+    check("4a.1 the save survives a WinError-5 rename injection (the "
+          "bounded retry heals in-process — a single raw replace "
+          "loses the row)",
+          _ok_c is True and _calls["n"] >= 2
+          and doc.get("KAI/USD", {}).get("source") == "drill",
+          (_calls, doc.get("KAI/USD")))
+    check("4a.2 the save's tmp is PER-WRITER (pid-suffixed — two "
+          "writers can never collide on one shared .tmp)",
+          any(".tmp." in t.split("contest_watch.json")[-1]
+              for t in _calls["tmp_names"]), _calls["tmp_names"])
+
     # the scanner saves its view (stale: it never saw the bot's row)
     bs._save_contest_watch({"KAITO/USD": {"entry": 0.3277,
                                           "high": 0.3300,
@@ -691,21 +747,37 @@ try:
               "never the file's, to infer)",
               bs._load_contest_watch().get("XRP/USD", {})
               .get("source") == "operator-re-add", "")
+        import atomic_io as _aio2
         # THE REPORT: the writer returns whether the replace landed —
         # a contention loser is a False, not a silent None.
-        _rep_real = _os.replace
-        def _contend(a, b):
-            raise OSError(5, "Access is denied")
-        _os.replace = _contend
-        try:
+        # the exhausted-retry injection: the helper wraps the REAL
+        # replace_atomic with an always-contending rename — the bounded
+        # backoff must exhaust (5 attempts) and the save REPORT False,
+        # not crash and not lie
+        _rep_real = _aio2.replace_atomic
+        _contend_calls = {"n": 0}
+
+        def _contend(a, b, **kw):
+            _contend_calls["n"] += 1
+            # the REAL Windows shape: the exception carries winerror=5
+            # (a 2-arg OSError(5, ...) has no winerror and is correctly
+            # classified by errno — 5 alone is not the retry family)
+            err = OSError(13, "Access is denied")
+            err.winerror = 5
+            raise err
+
+        def _ra_contend(tmp, target, **kw):
+            kw.setdefault("replace", _contend)
+            return _rep_real(tmp, target, **kw)
+
+        with mock.patch.object(_aio2, "replace_atomic", _ra_contend):
             _reported = bs._save_contest_watch(
                 {"W4T/USD": {"entry": 1.0, "source": "t"}})
-        finally:
-            _os.replace = _rep_real
-        check("a contention-losing save REPORTS False (the truth-print "
-              "contract: the caller can tell 'lost the race' from "
-              "'landed')",
-              _reported is False, _reported)
+        check("a save that loses EVERY retry (5 bounded attempts) "
+              "REPORTS False (the truth-print contract: the caller can "
+              "tell 'lost the race' from 'landed')",
+              _reported is False and _contend_calls["n"] == 5,
+              (_reported, _contend_calls))
         check("a clean save REPORTS True",
               bs._save_contest_watch(
                   {"W4T/USD": {"entry": 1.0, "source": "t"}}) is True,
