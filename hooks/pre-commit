@@ -565,10 +565,19 @@ if [ "${CODERABBIT_ISOLATED:-1}" = "1" ] \
         && { _isol_err="$(run_clean_git git worktree add --detach "$WT" "$SNAPSHOT" 2>&1)"; }; then
     echo "  🐇 CodeRabbit: reviewing the STAGED content in an isolated" >&2
     echo "     worktree (the dirty tree and runtime churn are out of scope)." >&2
+    # --base HEAD (Oct 2, the silent-coverage fix): the CLI's default
+    # isolated review reads the whole tree as context, and a 628-file
+    # repo exceeds its 150-file analysis cap — the review then dies or
+    # returns no findings and the fail-open below prints "no findings"
+    # indistinguishable from a CLEAN review. --base HEAD pins the
+    # review to the snapshot's own diff (always small by construction:
+    # one commit against its parent). The fallback's --uncommitted
+    # stays baseless — no single base scopes an in-tree review.
     review_json="$(
         cd "$WT" && unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE \
                          GIT_OBJECT_DIRECTORY GIT_ALTERNATE_OBJECT_DIRECTORIES \
         && timeout "$TIMEOUT" "$BIN" review --committed \
+            --base HEAD \
             --agent 2>/dev/null | tr -d '\r'
     )" 2>/dev/null
     rc=$?
