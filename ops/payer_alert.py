@@ -56,7 +56,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import math
 import os
 import re
 import subprocess
@@ -475,7 +474,7 @@ def backfill_metrics(spec: dict, metrics_path, now: datetime,
                 continue                    # failed feed: stays empty
             peak_px = None
             peak_ts = None
-            n_in_window = 0
+            in_ts = []
             for c in candles:
                 try:
                     cts = datetime.fromtimestamp(float(c["ts"]) / 1000.0,
@@ -484,10 +483,26 @@ def backfill_metrics(spec: dict, metrics_path, now: datetime,
                 except Exception:
                     continue
                 if fired <= cts < end and close > 0:
-                    n_in_window += 1
+                    in_ts.append(cts)
                     if peak_px is None or close > peak_px:
                         peak_px, peak_ts = close, cts
-            if n_in_window < math.ceil(horizon_h * 12):
+            # THE COVERAGE GUARD, SPACING-AWARE (the Copilot chain, Oct 1:
+            # the LOW that found the truncation, the MEDIUM that found the
+            # total-count hole, then the MEDIUM that killed every fixed
+            # count — real exchange candles align to the WALL CLOCK, not
+            # to fired_at, so an honest gap-free feed yields floor(h x 12)
+            # in-window candles and a ceil guard leaves completed rows
+            # unfilled forever). Coverage is judged by the candles' OWN
+            # spacing: the first candle within one interval of the window
+            # start (the head), no gap between consecutive candles larger
+            # than one interval (the body — a hole is never coverage), and
+            # the last candle reaching into the final interval (the tail).
+            _iv = timedelta(minutes=5)
+            covered = bool(in_ts) \
+                and (in_ts[0] - fired) <= _iv \
+                and (end - in_ts[-1]) <= _iv \
+                and all((b - a) <= _iv for a, b in zip(in_ts, in_ts[1:] or [in_ts[:1]]))
+            if not covered:
                 # THE COVERAGE GUARD, IN-WINDOW (the Copilot LOW then its
                 # own follow-up medium, Oct 1): the coverage that matters
                 # is the candles INSIDE the window, never the returned

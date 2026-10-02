@@ -598,24 +598,21 @@ check(6.11, n == 0 and _r10["peak_after_pct"] == ""
       "a horizon the pull cannot fully cover (200h >> the 1000-candle "
       "ceiling) is NEVER measured partially — the row stays empty and "
       "the broken spec shows as an unfilled column, not as a fake peak")
-# 6.12 THE COVERAGE IS IN-WINDOW (the Copilot medium, Oct 1): a thin or
-# odd-spaced feed can return enough TOTAL candles to pass a total-count
-# guard while carrying fewer than the horizon's worth INSIDE the window
-# — the guard must count candles in [fired_at, horizon end), not the
-# returned total. A 6-minute-spaced feed: 96 candles total, only 70
-# inside the 7h window, a tempting 1.15 peak in there.
-_C612 = [_candle(FIRED_AT + timedelta(minutes=6 * i),
+# 6.12 THE COVERAGE IS REAL (the Copilot chain, Oct 1): a feed with a
+# HOLE — an 8-candle, 40-minute gap in the 5m record — is never
+# coverage, however many candles ride around it. A tempting 1.15 peak
+# sits before the hole.
+_C612 = [_candle(FIRED_AT + timedelta(minutes=5 * i),
                  1.15 if i == 30 else 1.0)
-         for i in range(96)]
+         for i in range(96) if not (40 <= i <= 47)]
 _m612 = _csv_with(
     "FIL/USD,tide-out,1.239,2026-09-30 20:00:00,1.09,"
     f"{FIRED_AT.isoformat()},,,,,\n")
 n = pa.backfill_metrics(spec2, _m612, LATER, _feed6({"FIL/USD": _C612}))
 _r12 = pa.read_metrics(_m612)[1][0]
 check(6.12, n == 0 and _r12["peak_after_pct"] == "",
-      "70 in-window candles < the 84 the horizon needs — the total "
-      "count (96) must not masquerade as coverage; the partial-window "
-      "peak stays unfilled")
+      "a 40-minute hole in the feed is never coverage — the window's "
+      "own spacing must fill it, the partial-window peak stays unfilled")
 # 6.13 THE REQUIRED COUNT CEILS (the Copilot low, Oct 1): int() floors —
 # a 7.99h horizon needs ceil(95.88) = 96 in-window candles, but a floor
 # asked only 95 and let a 7.92h partial window pass as complete. A
@@ -633,9 +630,45 @@ n = pa.backfill_metrics(_spec_799, _m613, LATER, _feed6({"FIL/USD": _C613}))
 _r13 = pa.read_metrics(_m613)[1][0]
 check(6.13, n == 0 and _r13["peak_after_pct"] == ""
       and _r13["beat_funnel"] == "",
-      "95 in-window candles < ceil(7.99h x 12) = 96 — the floored "
-      "requirement let a 7.92h window pass as complete; the required "
-      "count CEILS")
+      "95 in-window candles cannot cover a 7.99h window's TAIL (the "
+      "last 9.4 minutes carry no candle) — the window stays unfilled")
+# 6.14 THE WALL-ALIGNED FEED IS HONORABLE (the Copilot medium that
+# killed the fixed counts, Oct 1): exchange candles align to the WALL
+# CLOCK, not to fired_at — an honest, gap-free 5m feed under a 7.99h
+# horizon yields 95 in-window candles (floor, not ceil) and MUST fill.
+# The fixed-count guards (floor or ceil) either pass holes or fail
+# honest feeds; the spacing-aware coverage is the only honest judge.
+_FIRED_WALL = FIRED_AT + timedelta(seconds=7)          # off the 5m grid
+_C614 = [_candle(_FIRED_WALL.replace(minute=0 if _FIRED_WALL.minute < 5
+                                     else 5, second=0)
+                 + timedelta(minutes=5 * i),
+                 1.10 if i == 40 else 1.0)
+         for i in range(110)]
+_m614 = _csv_with(
+    "FIL/USD,tide-out,1.239,2026-09-30 20:00:00,1.09,"
+    f"{_FIRED_WALL.isoformat()},,,,,\n")
+n = pa.backfill_metrics(_spec_799, _m614, LATER, _feed6({"FIL/USD": _C614}))
+_r14 = pa.read_metrics(_m614)[1][0]
+check(6.14, n == 1 and _r14["peak_after_pct"] != ""
+      and abs(float(_r14["peak_after_pct"]) - 0.917) < 0.01,
+      "a gap-free wall-aligned 5m feed under a 7.99h horizon (95 "
+      "in-window candles — floor, not ceil) FILLS: the spacing-aware "
+      "coverage judges the candles' own spacing, never a fixed count")
+# 6.15 THE HEAD IS COVERED TOO: a feed that starts 10 minutes into the
+# window (two intervals late) leaves the first 10 minutes unmeasured —
+# a peak hiding in there would never be seen. The row stays unfilled.
+_C615 = [_candle(FIRED_AT + timedelta(minutes=10 + 5 * i),
+                 1.20 if i == 50 else 1.0)
+         for i in range(90)]
+_m615 = _csv_with(
+    "FIL/USD,tide-out,1.239,2026-09-30 20:00:00,1.09,"
+    f"{FIRED_AT.isoformat()},,,,,\n")
+n = pa.backfill_metrics(spec2, _m615, LATER, _feed6({"FIL/USD": _C615}))
+_r15 = pa.read_metrics(_m615)[1][0]
+check(6.15, n == 0 and _r15["peak_after_pct"] == "",
+      "the first candle 10 minutes into the window = the head is "
+      "uncovered — the row stays unfilled (the 1.20 peak rides an "
+      "incomplete window and must not record)")
 
 print()
 fails = [r for r in results if not r[1]]
