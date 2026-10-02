@@ -23,7 +23,7 @@ Any file the running stack *writes while trading*:
 - **Voice & logs:** `voice_log.jsonl`, `speech_queue/`, `scanner.log`,
   `logs/`, every `*.log`
 - **Console state:** `console_state.json`, `console_prefs.json`,
-  `popup_suppressions.jsonl`
+  `popup_suppressions.jsonl`, `.last_boot_greet`
 
 Live **positions** (the rows in `contest_watch.json`) are real money in
 flight. On 2026-09-21 the old pre-commit hook's stash dance reset this file

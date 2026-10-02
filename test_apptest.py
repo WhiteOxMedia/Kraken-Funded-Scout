@@ -2749,6 +2749,65 @@ try:
             "keyring fallback drifted silent")
     except Exception as exc:
         check("the silent-swallow gate pins ran", False, exc)
+    # ── THE MACHINE-WIDE BOOT GREET (Oct 2, the tab-chorus closes): the
+    #    boot greeting used to speak once per SESSION — and a tab-restore
+    #    burst (browser restart, duplicated tabs, two browsers) is four
+    #    NEW sessions: 'Systems check' chorused four times in a minute.
+    #    The VOICE is now guarded machine-wide by a marker file (the
+    #    reminders/ idiom); the silent toast stays per-tab.
+    try:
+        import tempfile as _tempfile_greet
+        check("boot-greet 1: the greeting voice is machine-wide (a "
+              "marker file guards it, not session state — the toast "
+              "stays per-tab)",
+              "if _may_speak_greet:" in _wsrc
+              and "_may_speak_greet = _greet_allowed()" in _wsrc
+              and "if not st.session_state.get(\"boot_check_done\"):" in _wsrc
+              and "_speak(\"Systems check. " in _wsrc)
+        check("boot-greet 2: the throttle is real (a 30-min window "
+              "constant, fail-open read, mark-before-spend)",
+              "GREET_MIN_INTERVAL_S = 1800.0" in _wsrc
+              and "except (OSError, ValueError):" in _wsrc.split(
+                  "def _greet_allowed")[1].split("def ")[0]
+              and "def _greet_mark" in _wsrc)
+        with _tempfile_greet.TemporaryDirectory() as _gtd:
+            # the functions are lifted AST-wise (importing app.py would
+            # RUN the console); Path/logger come from the harness
+            import ast as _ast_greet
+            import types as _types_greet
+            _gtree = _ast_greet.parse(_wsrc)
+            _want_fns = {"_greet_marker_path", "_greet_allowed",
+                         "_greet_mark"}
+            _greet_body = [
+                n for n in _gtree.body
+                if (isinstance(n, _ast_greet.FunctionDef)
+                    and n.name in _want_fns)
+                or (isinstance(n, _ast_greet.Assign)
+                    and any(getattr(t, "id", "") == "GREET_MIN_INTERVAL_S"
+                            for t in n.targets))]
+            _G2 = {"Path": Path,
+                   "logger": _types_greet.SimpleNamespace(
+                       debug=lambda *a, **k: None)}
+            exec(compile(_ast_greet.Module(
+                body=_greet_body, type_ignores=[]), "<greet>", "exec"), _G2)
+            _G2["_greet_marker_path"] = (
+                lambda: Path(_gtd) / ".last_boot_greet")
+            _now = 1_000_000.0
+            _fresh = _G2["_greet_allowed"](_now)          # no marker: speak
+            _G2["_greet_mark"](_now)
+            _held = not _G2["_greet_allowed"](_now + 60)  # 1 min later: held
+            _released = _G2["_greet_allowed"](
+                _now + _G2["GREET_MIN_INTERVAL_S"])       # 30 min later: speak
+            Path(_gtd, ".last_boot_greet").write_text(
+                "junk", encoding="utf-8")
+            _corrupt = _G2["_greet_allowed"](_now + 2)    # fail-OPEN
+            check("boot-greet 3: the marker round-trip (fresh speaks, "
+                  "1-min-later held, 30-min-later released, a corrupt "
+                  "marker fails OPEN to speak)",
+                  _fresh and _held and _released and _corrupt,
+                  (_fresh, _held, _released, _corrupt))
+    except Exception as _greet_exc:
+        check("the boot-greet pins ran", False, _greet_exc)
     # ── THE APP-EDIT METAGATE (Sep 13): any future edit to app.py runs
     #    all four analyzers in ONE battery entry — the four structural
     #    classes that silently killed her widgets, her cache freshness,

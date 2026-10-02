@@ -27,6 +27,9 @@ auto_adjust_canary.json.tmp*
 # the hindsight service's pid file (runner CLI bookkeeping; the live
 # ownership contract is the port)
 .hindsight.pid
+# the console boot-greeting's machine-wide marker (one spoken greeting
+# per 30 min — duplicate browser tabs can never chorus)
+.last_boot_greet
 # sqlite WAL sidecars of the live bridge db (the db itself is committed
 # after a checkpoint) + the backfill's safety copy
 signals.db-shm

@@ -1096,6 +1096,43 @@ def _her_volume() -> int:
 
 
 
+def _greet_marker_path() -> Path:
+    """The machine-wide boot-greeting marker (the reminders/ idiom): the
+    console may speak ONE 'Systems check' greeting per window, per
+    MACHINE — not per browser tab. Session state guards once per TAB,
+    and a tab-restore burst (browser restart, duplicated tabs, two
+    browsers) restores each tab as a NEW session — the Oct-2 chorus:
+    four tabs, four spoken greetings in one minute."""
+    return Path(__file__).parent / ".last_boot_greet"
+
+
+GREET_MIN_INTERVAL_S = 1800.0   # one spoken greeting per 30 min, machine-wide
+
+
+def _greet_allowed(now: float | None = None) -> bool:
+    """True = this session may SPEAK the boot greeting. FAIL-OPEN: an
+    unreadable marker means speak (a lost greeting is the worse
+    failure — the boot facts are the operator's readiness read)."""
+    import time as _t
+    now = _t.time() if now is None else now
+    try:
+        ts = float(_greet_marker_path().read_text(encoding="utf-8").strip())
+        return (now - ts) >= GREET_MIN_INTERVAL_S
+    except (OSError, ValueError):
+        return True
+
+
+def _greet_mark(now: float | None = None) -> None:
+    """Stamp the marker BEFORE the speak is queued (the first-fire
+    idiom: a crash between can only lose the greeting, never chorus it)."""
+    import time as _t
+    now = _t.time() if now is None else now
+    try:
+        _greet_marker_path().write_text(f"{now}\n", encoding="utf-8")
+    except OSError as exc:
+        logger.debug("boot-greet marker write failed: %s", exc)
+
+
 def _speak(text: str, rate: int = 2):
     """Queue Zira's line for the SCANNER to speak — the one engine that
     works with the browser closed. Fire-and-forget, never blocks, never
@@ -9832,13 +9869,23 @@ def main():
         _ks_on = False
     if not st.session_state.get("boot_check_done"):
         st.session_state["boot_check_done"] = True
+        # THE MACHINE-WIDE GREET (Oct 2, the tab-chorus closes): the
+        # session-level check stays (every tab still gets its SILENT
+        # toast — the page answers 'am I ready?' visually), but the
+        # VOICE speaks once per GREET_MIN_INTERVAL_S per MACHINE, guarded
+        # by a marker file. Duplicate tabs / a restored-tab burst can
+        # never chorus 'Systems check' four times in a minute again.
+        _may_speak_greet = _greet_allowed()
+        if _may_speak_greet:
+            _greet_mark()
         if _ks_on:
             try:
                 st.toast("⛔ WAIT — the kill switch is TRIGGERED. "
                          "No buys will fire until you reset it (desktop RESET shortcut).",
                          icon="⛔", duration=20)
                 _play_sound("alarm")
-                _speak("Wait! The kill switch is triggered! No buys until you reset it!", rate=1)
+                _speak("Wait! The kill switch is triggered! No buys until you reset it!",
+                       rate=1)   # the warning ALWAYS speaks (safety over quiet); the marker stays unspent
             except Exception as exc:
                 logger.debug("kill-switch toast/voice failed: %s", exc)
         else:
@@ -9847,7 +9894,8 @@ def main():
                 st.toast("✅ ALL SYSTEMS GO — "
                          + (_facts.split(". ")[0] if _facts else "watcher armed"),
                          icon="✅", duration=15)
-                _speak("Systems check. " + _facts)
+                if _may_speak_greet:   # the VOICE is machine-wide once; the toast is every tab
+                    _speak("Systems check. " + _facts)
             except Exception as exc:
                 logger.debug("systems-go toast/voice failed: %s", exc)
     if _ks_on:
