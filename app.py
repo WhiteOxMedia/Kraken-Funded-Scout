@@ -6824,6 +6824,20 @@ def render_quick_check(cfg: TradingConfig, kraken):
                     if not hasattr(_bs6, "lone_wolf_discount"):
                         import importlib
                         _bs6 = importlib.reload(_bs6)
+                    # THE KNOWN SEAM (Copilot medium on b2d8e31 — documented,
+                    # NOT fixed, scope): the GRANT rides lone_wolf_discount,
+                    # whose bar reads carve_out.gate()'s ONE GLOBAL 120s
+                    # cache — pair-blind by the scanner's design (every gate
+                    # shares the one read; per-pair reads would multiply
+                    # fetches and _save stamps). The toast's bar below is
+                    # PAIR-EXACT (compute_carve_out), so a second coin's QC
+                    # inside the same 120s window can show a threshold that
+                    # disagrees with the grant this stamp carries — rare
+                    # (one operator, two pairs, one window) and second-order
+                    # (both coins share the hour's regime mods; only the
+                    # clamped per-pair vol ratio differs). The honest fix is
+                    # keying gate()'s cache by pair — scanner-wide machinery,
+                    # deliberately untouched in the copy-truth scope.
                     _lw_pts, _lw_note = _bs6.lone_wolf_discount(kraken, pair)
                 except Exception:
                     _lw_pts, _lw_note = 0, ""
