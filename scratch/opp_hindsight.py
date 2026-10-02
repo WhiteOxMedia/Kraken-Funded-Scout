@@ -121,14 +121,16 @@ def outcomes(fires: list[dict], fee_rt: float) -> list[dict]:
     that open strictly after the entry AND CLOSE WITHIN the window
     (win_min, used in minutes — the Copilot P2 catch: rounding up to
     whole hours graded a 90-min fire on a second candle whose HIGH
-    could land past the window's promise; a candle that has not closed
-    inside the window is invisible at this resolution, the SAME
-    blindness for every class, so the comparison stays fair and
-    conservative)."""
+    could land past the window's promise). EVERY full candle the
+    window contains must be cached — one hole and the fire is
+    no-coverage, never half-scored (the EV tool's own rule, restored
+    on the Copilot medium; a window shorter than one full hour is
+    ungradeable at this resolution and reads no-coverage too)."""
     con = sqlite3.connect(DB.as_uri() + "?mode=ro", uri=True, timeout=2.0)
     try:
         for f in fires:
             win_ms = int(round(float(f.get("win_min") or 60.0) * 60_000))
+            expected_full = win_ms // 3_600_000   # candles that close in-window
             t_c = f["_t"].replace(minute=0, second=0, microsecond=0)
             entry_ms = int(t_c.timestamp() * 1000) + 3_600_000
             end_ms = entry_ms + win_ms
@@ -145,7 +147,8 @@ def outcomes(fires: list[dict], fee_rt: float) -> list[dict]:
             n_c = con.execute(
                 "SELECT COUNT(*) FROM ohlcv WHERE pair=? AND ts>=? AND ts<=?",
                 (f.get("pair"), entry_ms, last_full_ms)).fetchone()[0]
-            if not hi or not hi[0] or n_c < 1:
+            if expected_full < 1 or not hi or not hi[0] \
+                    or n_c != expected_full:
                 f["fill"] = None
                 continue
             entry = float(pre[0])
@@ -252,7 +255,8 @@ def main() -> int:
         "=" * 78,
         f"ledger: signal_snapshots.jsonl (fired popups) | fill model: entry "
         f"fire-candle close, peak over the full candles INSIDE the fire's "
-        f"own win_min (a candle counts only if it CLOSES within the window), "
+        f"own win_min (graded only when EVERY full candle in the window is "
+        f"cached — a hole is no-coverage), "
         f"spread "
         f"±{SPREAD / 2:.3%}, fee {args.fee:.2f}% RT netted, floor 0 | payer "
         f"= the fire's own goal_pct",
