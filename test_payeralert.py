@@ -393,6 +393,7 @@ HORIZON_H = 7
 OPEN_AT = datetime(2026, 9, 30, 20, 0, tzinfo=MST)       # horizon still OPEN
 FIRED_AT = datetime(2026, 9, 30, 10, 0, tzinfo=MST)      # 26h before NOW
 LATER = datetime(2026, 10, 1, 5, 0, tzinfo=MST)          # horizon CLOSED
+MUCH_LATER = datetime(2026, 10, 9, 0, 0, tzinfo=MST)     # a 200h horizon CLOSED
 _HDR = ("pair,gate,threshold,crossed_at,crossed_price,fired_at,"
         "peak_after_pct,peak_at,beat_funnel,ask_tob_usd,spread_bps")
 
@@ -410,20 +411,21 @@ def _candle(ts: datetime, close: float) -> dict:
 # a feed that knows FIL: closes inside the 7h window post-fire; the
 # 2.2 close = +2.5% over the 1.09 crossed price; a pre-fire 1.0 close
 # and a post-horizon 3.0 close must NEVER inflate the peak
-_C6 = [_candle(FIRED_AT - timedelta(minutes=5), 1.0),
-       _candle(FIRED_AT + timedelta(minutes=30), 1.10),
-       _candle(FIRED_AT + timedelta(hours=2), 1.1173),
-       _candle(FIRED_AT + timedelta(hours=8), 3.0),
-       # a fresh close inside the OPEN window of the 6.1 row (fired 2h
-       # ago): the horizon gate is what keeps this candle unmeasured
-       _candle(NOW - timedelta(minutes=90), 1.12)]
+_C6 = ([_candle(FIRED_AT - timedelta(minutes=5), 1.0)]
+       + [_candle(FIRED_AT + timedelta(minutes=5 * i),
+                  1.10 if i == 6 else
+                  1.1173 if i == 24 else
+                  3.0 if i == 96 else 1.0)
+           for i in range(97)])   # a WINDOW'S worth of closes: the +30m
+                                  # 1.10, the +2h 1.1173 peak, the +8h 3.0
+                                  # OUTSIDE the horizon (also beyond the
+                                  # pull's limit cut), baseline 1.0 between
 
 
 def _feed6(pairs):
     def f(pair, tf, limit, since=None):
-        if pair not in pairs:
-            return None
-        return list(pairs[pair])
+        got = list(pairs.get(pair) or [])
+        return got[:limit] if limit else got   # respects the pull size
     return f
 
 
@@ -456,7 +458,9 @@ check(6.2, n == 1
       "it), beat_funnel true (2.5 >= the 1.8 funnel floor), peak_at "
       "carries the peak candle's instant")
 # 6.3 the miss: peak below the funnel floor
-_C6b = [_candle(FIRED_AT + timedelta(hours=1), 1.10)]
+_C6b = [_candle(FIRED_AT + timedelta(minutes=5 * i),
+                1.10 if i == 12 else 1.09)       # the whole leg: +0.917%
+        for i in range(96)]
 _m63 = _csv_with(
     "QNT/USD,stale-move,0.9,2026-09-30 20:05:00,1.09,"
     f"{FIRED_AT.isoformat()},,,,,\n")
@@ -577,6 +581,23 @@ check(6.9, _seen_limits and max(_seen_limits) >= HORIZON_H * 12,
       "the pull's candle limit covers the horizon (7h x 12 five-minute "
       "candles = 84, plus margin) — pinned on the captured request, "
       "not the happy feed")
+# 6.10 THE CAP-HONESTY (the Copilot LOW, Oct 1): a corrupted spec whose
+# horizon needs more candles than the pull's 1000 ceiling CANNOT be
+# measured completely — a partial-window peak saved as complete is
+# fiction, so the row stays empty (the same honesty as the failed feed).
+_spec_big = dict(spec2)
+_spec_big["horizon_hours"] = 200
+_m610 = _csv_with(
+    "FIL/USD,tide-out,1.239,2026-09-30 20:00:00,1.09,"
+    f"{FIRED_AT.isoformat()},,,,,\n")
+n = pa.backfill_metrics(_spec_big, _m610, MUCH_LATER,
+                        _feed6({"FIL/USD": _C6}))
+_r10 = pa.read_metrics(_m610)[1][0]
+check(6.11, n == 0 and _r10["peak_after_pct"] == ""
+      and _r10["beat_funnel"] == "",
+      "a horizon the pull cannot fully cover (200h >> the 1000-candle "
+      "ceiling) is NEVER measured partially — the row stays empty and "
+      "the broken spec shows as an unfilled column, not as a fake peak")
 
 print()
 fails = [r for r in results if not r[1]]

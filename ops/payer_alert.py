@@ -470,6 +470,14 @@ def backfill_metrics(spec: dict, metrics_path, now: datetime,
                                            since=fired)
             except Exception:
                 candles = None
+            if candles is not None and len(candles) < int(horizon_h * 12):
+                # THE CAP-HONESTY GUARD (the Copilot LOW, Oct 1): the pull
+                # could not cover the whole window (a corrupted spec whose
+                # horizon outruns the 1000-candle ceiling, a thin feed) —
+                # a partial-window peak saved as complete is fiction. The
+                # row stays empty and the broken spec shows as an unfilled
+                # column, never as a fake peak.
+                continue
             if not candles:
                 continue                    # failed feed: stays empty
             peak_px = None
