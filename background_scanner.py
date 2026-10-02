@@ -1153,6 +1153,32 @@ def popup_floor_for_rotation(rot_key: str | None = None, now=None) -> int:
     return int(ROTATION_POPUP_FLOOR.get(key, 89))
 
 
+def _opp_first_fire_reminder_file() -> str:
+    """The one-shot marker for the opp class's first-fire reminder (the
+    reminders/ idiom: the event fires once, ever). Runtime state — the
+    RUNTIME_INVARIANTS lesson — so it rides gitignore's runtime rule
+    and a repo operation can never un-fire the reminder."""
+    return os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                        "_opp_first_fire_reminder.done")
+
+
+def _opp_reminder_done() -> bool:
+    try:
+        return os.path.exists(_opp_first_fire_reminder_file())
+    except Exception:
+        return False   # fail OPEN to re-remind: a lost toast is the worse
+                       # failure for an accumulation window nobody watches
+
+
+def _opp_reminder_mark() -> None:
+    try:
+        with open(_opp_first_fire_reminder_file(), "w",
+                  encoding="utf-8") as f:
+            f.write(datetime.now().astimezone().isoformat())
+    except Exception as exc:
+        logger.warning("opp first-fire reminder mark failed: %s", exc)
+
+
 def popup_floor(tide_state: str | None = None, lw_pts: float = 0,
                 rot_key: str | None = None,
                 pair: str | None = None) -> float:
@@ -6314,6 +6340,33 @@ def main():
                 # hindsight ledger — say so
                 logger.warning("fired snapshot failed for %s (%s) — this "
                                "fire's hindsight row is lost", asset, exc)
+            # ── THE FIRST-FIRE REMINDER (Oct 2, the accumulation
+            # window's watch begins): the opp class was born
+            # KEEP-PROVISIONAL — zero graded fires, the hindsight grader
+            # re-runs at 10 fires or 7 days. The FIRST
+            # champion-opportunistic popup ever is the moment the
+            # operator must know the clock started: one Zira line, one
+            # popup, written into the reminders' one-shot marker (the
+            # tide_reminder idiom — the event is the trigger, not a
+            # date). The OTHER classes stay silent (that's the whole
+            # point — the provisionality is the opp class's), and the
+            # marker write happens FIRST so a crash between can only
+            # lose the toast, never repeat it forever.
+            if route == "champion-opportunistic" and not _opp_reminder_done():
+                _opp_reminder_mark()
+                try:
+                    notify_big(
+                        "Kraken Scout - OPPORTUNISTIC HAIL MARY: FIRST FIRE",
+                        "The first opportunistic fire just landed.\n\n"
+                        "The accumulation window is now being watched:\n"
+                        ".venv\\Scripts\\python.exe scratch\\opp_hindsight.py\n"
+                        "verdict: KEEP-PROVISIONAL until 10 graded fires.",
+                        spoken="The first opportunistic hail mary just "
+                               "fired. The accumulation window is now "
+                               "being watched.")
+                except Exception as _rem_exc:
+                    logger.warning("opp first-fire reminder failed: %s",
+                                   _rem_exc)
             # ── AUTO-TRACK AT FIRE TIME (Sep 21, the ATOM gap): the popup
             # is the contract — "if it pops up it should be auto tracking."
             # Tracking used to ride the browser's next rerun, and a signal

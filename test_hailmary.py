@@ -267,6 +267,37 @@ check("8.14 the marks: the title, the message line and the voice all "
       and "Opportunistic hail mary! Small shot, tight stop!" in bs_src)
 check("8.15 the fired snapshot routes the class (champion-opportunistic)",
       '"champion-opportunistic"' in bs_src)
+# (Oct 2 — THE FIRST-FIRE REMINDER: the opp class was born
+# KEEP-PROVISIONAL — zero graded fires, the hindsight grader re-runs at
+# 10 fires or 7 days. The first champion-opportunistic popup ever is the
+# moment the accumulation window starts being watched: one Zira line,
+# one popup, one-shot via the reminders' marker idiom — the event is
+# the trigger, not a date. The OTHER classes stay silent.)
+check("8.31 the first opp fire fires the one-shot reminder (the event is "
+      "the trigger, not a date — the reminders/ marker idiom)",
+      "if route == \"champion-opportunistic\" and not _opp_reminder_done():" in bs_src
+      and "_opp_reminder_mark()" in bs_src
+      and "OPPORTUNISTIC HAIL MARY: FIRST FIRE" in bs_src
+      and "accumulation window is now being watched" in bs_src
+      and "scratch\\\\opp_hindsight.py" in bs_src)
+check("8.32 the reminder is one-shot across restarts (a marker FILE, not "
+      "memory) and runtime state, never committed",
+      "_opp_first_fire_reminder_file" in bs_src
+      and "_opp_first_fire_reminder.done" in bs_src
+      and "fail OPEN to re-remind" in bs_src
+      and "f.write(datetime.now().astimezone().isoformat())" in bs_src)
+check("8.33 the OTHER classes stay silent — no champion or champion-fast "
+      "popup ever spends the reminder (the provisionality is the opp "
+      "class's: one decision, one mark)",
+      bs_src.count('if route == "champion-opportunistic" and not _opp_reminder_done():') == 1
+      and bs_src.count("_opp_reminder_mark()") == 2   # the def + the one call
+      and bs_src.count("not _opp_reminder_done()") == 1)
+check("8.34 the reminder rides the fired-popup block (it fires only on a "
+      "POPUP, never on a bridge write alone — the console reads the "
+      "same event)",
+      0 < bs_src.find('if route == "champion-opportunistic" and not _opp_reminder_done():')
+      and bs_src.find('if route == "champion-opportunistic" and not _opp_reminder_done():')
+      > bs_src.find("_log_signal_snapshot(_fsnap)"))
 check("8.16 auto_track_popup carries the hm_mode stamp into the watch row",
       'w[pair]["hm_mode"] = str(hm_mode)' in bs_src)
 check("8.17 the light's exit watch judges the 2% stop on the stamp "
@@ -323,6 +354,30 @@ check("8.30 the opp activation's mode SURVIVES the block (the tail is the "
       "single writer — the activation sets the local, never a stale clobber)",
       '_qc_hm_mode = "opportunistic"' in ap_src
       and ap_src.count('st.session_state["qc_result"]["hail_mary_mode"] =') == 1)
+with tempfile.TemporaryDirectory() as _td3:
+    # the one-shot proven where it lives: the marker path repointed into
+    # the sandbox (the state-file repointing idiom), then the helpers'
+    # round-trip — fresh reads not-done, the mark writes a durable iso
+    # stamp, the next read is done. The production decision itself
+    # (route + not-done, one mark) is pinned by shape at 8.31/8.33;
+    # this proves the FILE half a restart would re-read.
+    _old_marker = bs._opp_first_fire_reminder_file
+    try:
+        bs._opp_first_fire_reminder_file = (
+            lambda: str(Path(_td3) / "_opp_first_fire_reminder.done"))
+        _fresh = bs._opp_reminder_done()
+        bs._opp_reminder_mark()
+        _after = bs._opp_reminder_done()
+        _stamp = (Path(_td3) / "_opp_first_fire_reminder.done").read_text(
+            encoding="utf-8")
+        check("8.35 the one-shot round-trip on a sandbox marker: fresh "
+              "reads not-done, the mark writes a durable iso stamp, "
+              "the next read is done (a restart re-reads the file — "
+              "never re-fires)",
+              _fresh is False and _after is True and "T" in _stamp)
+    finally:
+        bs._opp_first_fire_reminder_file = _old_marker
+
 with tempfile.TemporaryDirectory() as _td2:
     _old2 = ca.STATE_FILE
     try:

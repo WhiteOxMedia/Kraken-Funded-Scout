@@ -90,6 +90,9 @@ tide_bar_reckoning_window.jsonl
 # refill the daily cap)
 tide_retune_state.json
 tide_retune_state.json.tmp*
+# the opp class's first-fire reminder marker (one-shot, the reminders/
+# idiom — a repo operation must never re-fire the toast)
+_opp_first_fire_reminder.done
 voice_log.jsonl
 *.db
 scanner.log
