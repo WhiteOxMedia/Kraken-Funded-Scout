@@ -68,27 +68,89 @@ DEFAULT_FEE_RT_PCT = 0.52   # the bot's real taker RT (fills.py); panel models 0
 SUPP = SCOUT / "popup_suppressions.jsonl"
 DB = SCOUT / "ohlcv_cache.db"
 OUT = SCOUT / "scratch" / "gate_ev_table.txt"
+# THE ROTATION-AWARE LEDGER (Oct 3, the silent re-baseline closes): the
+# live file rotates ~daily (SUPPRESSION_LOG_MAX lines), so a 7d window
+# that read ONLY the live ledger was silently a ~1-day study that
+# re-baselined on every rotation (test_whyecon's Oct-1 re-aim is the
+# witness). The time windows read the UNION — live + the commit-era
+# archives the Sep-30 session left in scratch/ (the pergate pattern) —
+# and the report states its COVERAGE, never an unearned "the week".
+ARCH_DIR = SCOUT / "scratch"
+ARCH_PAT = "_supp_*.jsonl"
 GOAL = 1.5          # the study's payer goal (run >= 1.5% peaks)
 DUD_ASSUMED = 0.0   # dud medfill floor — real duds rarely beat fees
 
 
+def _ledger_rows() -> list[dict]:
+    """Every suppression row the repo still holds: the LIVE ledger plus
+    every commit-era archive (scratch/_supp_*.jsonl). Identical raw
+    lines collapse (the archives overlap heavily); rows sort by PARSED
+    ts — never lexically (mixed UTC offsets misorder, the Copilot
+    catch) and never by file order (a union has no file order). Rows
+    without a parseable ts or a pair drop."""
+    rows: list[dict] = []
+    seen: set[str] = set()
+    paths = sorted(ARCH_DIR.glob(ARCH_PAT))
+    if SUPP.exists():
+        paths.append(SUPP)
+    for p in paths:
+        try:
+            raw = p.read_text(encoding="utf-8").splitlines()
+        except OSError:
+            continue
+        for line in raw:
+            line = line.strip()
+            if not line or line in seen:
+                continue
+            seen.add(line)
+            try:
+                r = json.loads(line)
+            except ValueError:
+                continue
+            if not r.get("pair"):
+                continue
+            try:
+                r["_t"] = datetime.fromisoformat(str(r.get("ts")))
+            except (TypeError, ValueError):
+                continue
+            rows.append(r)
+    rows.sort(key=lambda r: r["_t"])
+    return rows
+
+
+def _coverage(rows) -> str:
+    """The days the surviving rows ACTUALLY span — the coverage truth
+    that replaces an unearned 'the week'."""
+    days = sorted({r["_t"].astimezone().strftime("%Y-%m-%d")
+                   for r in rows})
+    if not days:
+        return "no rows"
+    return f"{len(days)} days ({days[0]}..{days[-1]})"
+
+
 def load_candidates(window: str) -> tuple[list[dict], str]:
-    """First-seen candidates from the burial ledger.
+    """First-seen candidates from the ROTATION-AWARE burial ledger.
 
     Windows: '48h' (the live funnel, default), '7d' (the week),
-    'panel400' (the panel's exact recipe: last 400 ledger lines,
-    first-seen per PAIR — one candidate per pair regardless of gate).
-    The time windows dedup per PAIR+GATE (first-seen per tuple): each
-    gate family is charged for ITS OWN burials of a pair, not the
-    first gate that happened to speak — the panel's by_gate join makes
-    the same choice. Timestamps are PARSED, never lexically compared
-    (ISO strings with mixed UTC offsets misorder — the Copilot catch;
-    here the scanner writes a fixed -06:00 offset, but parse anyway
-    so the convention does not depend on it).
+    'panel400' (the panel's exact recipe: last 400 LIVE ledger lines,
+    first-seen per PAIR — unchanged: the panel defines its own
+    population).
+
+    The time windows read the UNION (live + archives): the live file
+    rotates ~daily, so a live-only window silently re-baselined on
+    every rotation. Rows dedup per (PAIR, GATE), first-seen in the
+    union's CHRONOLOGICAL order — the EARLIEST refusal of the tuple
+    stands for it, whatever file carried it (file order is dead in a
+    union); each gate family is charged for ITS OWN burials of a pair
+    (the panel's by_gate join makes the same choice). Timestamps are
+    PARSED, never lexically compared (mixed UTC offsets misorder — the
+    Copilot catch). The scope states the COVERAGE (the days the
+    surviving rows span) — a two-day survivor can never masquerade as
+    a week.
     """
-    lines = [l for l in SUPP.read_text(encoding="utf-8").splitlines()
-             if l.strip()]
     if window == "panel400":
+        lines = [l for l in SUPP.read_text(encoding="utf-8").splitlines()
+                 if l.strip()]
         rows = [json.loads(l) for l in lines][-400:]
         rows = [r for r in rows if r.get("pair")]
         first: dict = {}
@@ -99,23 +161,21 @@ def load_candidates(window: str) -> tuple[list[dict], str]:
         # string keys flowed into tuple unpacking as one-char pairs)
         first = {(k, str(v.get("gate") or "?")): v
                  for k, v in first.items()}
+        scope = (f"{len(first)} first-seen candidates (panel400, live "
+                 f"ledger only)")
     else:
         cutoff = (datetime.now().astimezone()
                   - (timedelta(hours=48) if window == "48h"
                      else timedelta(days=7)))
-        rows = [json.loads(l) for l in lines if l.strip()]
+        all_rows = _ledger_rows()
         first = {}
-        for r in rows:
-            ts = r.get("ts")
-            if not r.get("pair") or not isinstance(ts, str):
-                continue
-            try:
-                r["_t"] = datetime.fromisoformat(ts)   # parsed, not compared
-            except ValueError:
-                continue
+        for r in all_rows:            # chronological: earliest wins
             if r["_t"] < cutoff:
                 continue
             first.setdefault((str(r["pair"]), str(r.get("gate") or "?")), r)
+        scope = (f"{len(first)} first-seen candidates ({window}) from the "
+                 f"rotation-aware union (live + archives) — ledger "
+                 f"coverage: {_coverage(all_rows)}")
     out = []
     for key, r in first.items():
         t = r.get("_t")
@@ -126,7 +186,7 @@ def load_candidates(window: str) -> tuple[list[dict], str]:
                 continue
         out.append({"pair": key[0], "gate": key[1],
                     "ts": r.get("ts"), "quick": r.get("quick"), "t": t})
-    return out, f"{len(first)} first-seen candidates ({window})"
+    return out, scope
 
 
 def outcomes(cands: list[dict], hours: int, fee_rt: float) -> list[dict]:
@@ -249,8 +309,7 @@ def main() -> int:
     lines = [
         f"THE GATE EV TABLE — {datetime.now():%Y-%m-%d %H:%M}",
         "=" * 78,
-        f"window: {scope} from popup_suppressions.jsonl, "
-        f"outcome horizon {args.hours}h",
+        f"window: {scope}, outcome horizon {args.hours}h",
         f"fill model: entry mid+{SPREAD/2:.3%}, exit peak-{SPREAD/2:.3%}, "
         f"fee {args.fee:.2f}% round trip netted (the bot's real cost; "
         f"the panel models 0.26), floor 0 — capture floor "
