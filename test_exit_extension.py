@@ -1042,25 +1042,118 @@ try:
     _total = sum(_succ)
     _today2 = bs._tide_retune_load_day(
         datetime.now().astimezone().strftime("%Y-%m-%d"))
-    # THE SHAPE LEG (the deterministic half of the red): the valve's
-    # source must hold the cross-process lockfile — create-if-absent
-    # (os.link, the contest_account idiom — never os.replace, which
-    # would clobber a holder and break mutual exclusion), a pid token
-    # for stale takeover, and the release-must-match-token discipline.
+    # THE SHAPE LEG (the deterministic half of the red; re-aimed in
+    # round 2 — the contract moved from an os.link unlink-takeover
+    # lockfile to a kernel-owned byte-range lock, see 12.19): the
+    # valve's source must hold a lock bound to the ledger's path.
     _src18 = (BASE / "background_scanner.py").read_text(encoding="utf-8")
-    _shape18 = ("_TIDE_RETUNE_LOCKFILE" in _src18
-                and "os.link" in _src18
-                and "stale" in _src18)
-    _ck12("12.18 two racing processes spend AT MOST one cap-1 slot "
-          "(the lockfile serializes the read-check-write across "
-          "processes: shape — os.link lockfile + stale takeover — and "
-          "behavior — one winner, one cap-refused loser, the ledger "
-          "holding exactly the winner's pair)",
+    _shape18 = ("_retune_lockfile_path" in _src18
+                and "LK_NBLCK" in _src18)
+    _ck12("12.18 two racing processes spend EXACTLY one cap-1 slot "
+          "(the lock serializes the read-check-write across processes; "
+          "zero winners would mean the valve locked ITSELF out — also a "
+          "failure; the ledger holds exactly the winner's pair)",
           _shape18
-          and len(_succ) == 2 and _total <= 1
+          and len(_succ) == 2 and _total == 1
           and isinstance(_today2, list) and len(_today2) == _total,
           (_shape18, _succ, _total, _today2))
     _12_fresh_day()
+
+    # 12.19 THE LOCK IS STEAL-PROOF AND FOLLOWS THE LEDGER'S CURRENT
+    # PATH (round 2, the Copilot [high] on 272e283): the unlink-based
+    # takeover could strip a LIVE holder's lock (age alone decided) and
+    # the check-then-unlink could remove another contender's
+    # REPLACEMENT — either race re-opens the double-spend 12.18 closed.
+    # The contract: a kernel-owned byte-range lock (msvcrt.locking —
+    # the lock lives in the OS per HANDLE, a dead holder's lock
+    # evaporates with the process, and there is nothing to steal or
+    # unlink), bound to the state file's path AT CALL TIME (a sandboxed
+    # ledger must never contend on a repo-root lock).
+    _src19 = (BASE / "background_scanner.py").read_text(encoding="utf-8")
+    _i_cls = _src19.find("class _TideRetuneFileLock")
+    _i_end = _src19.find("\ndef ", _i_cls) if _i_cls >= 0 else -1
+    _cls19 = (_src19[_i_cls:_i_end]
+              if _i_cls >= 0 and _i_end > _i_cls else "")
+    _19_a = ("msvcrt" in _cls19 and "LK_NBLCK" in _cls19
+             and ".unlink(" not in _cls19 and "os.link" not in _cls19)
+    _ck12("12.19a the lock class is kernel-owned (msvcrt byte-range — "
+          "no unlink takeover, no link dance, nothing to steal)",
+          _19_a,
+          ("msvcrt" in _cls19, "LK_NBLCK" in _cls19,
+           ".unlink(" not in _cls19, "os.link" not in _cls19))
+    # (b) call-site binding: a release under a REBOUND state file must
+    # leave its lock beside the rebound ledger — never at the repo root
+    _19_dir = Path(_12_tmp) / "lockbind"
+    _19_dir.mkdir(exist_ok=True)
+    _19_old_sf = bs.TIDE_RETUNE_STATE_FILE
+    bs.TIDE_RETUNE_STATE_FILE = str(_19_dir / "tide_retune_state.json")
+    Path(bs.TIDE_RETUNE_STATE_FILE).write_text(json.dumps(
+        {"day": datetime.now().astimezone().strftime("%Y-%m-%d"),
+         "pairs": []}), encoding="utf-8")
+    _rel19, _why19 = bs._tide_retune_releases(70.0, "LOCKBIND/USD")
+    _ck12("12.19b the lockfile follows the ledger's CURRENT path (call-"
+          "time derivation — a sandboxed release locks in its sandbox, "
+          "the repo root stays clean)",
+          _rel19 is True
+          and any(_19_dir.glob("*.lock"))
+          and not (BASE / "tide_retune_state.json.lock").exists(),
+          (_rel19, sorted(p.name for p in _19_dir.glob("*"))))
+    # (c) the behavioral contract, deterministic: a HELD lock cannot be
+    # taken by metadata trickery (rewriting the file to look ancient
+    # must not help — the kernel owns the lock, not the file's
+    # content); the valve refuses BUSY while a live process holds it
+    # (a FRESH ledger — the cap door must not be what refuses); and a
+    # dropped handle (closing the fd is exactly what process death
+    # does) frees the lock for the next acquirer
+    _19_lk_path = _19_dir / "tide_retune_state.json.lock"
+    _lk1 = bs._TideRetuneFileLock(_19_lk_path)
+    _lk1.__enter__()
+    _19_held1 = _lk1.held
+    # the trickery attempt: rewrite the anchor to look ancient — the
+    # kernel REFUSES the write itself (Windows byte-range locks are
+    # mandatory: a foreign write to the locked byte gets
+    # PermissionError 13), so the forgery cannot even land, let alone
+    # unlock anything
+    _19_trickery_refused = False
+    try:
+        _19_lk_path.write_text("999999|2020-01-01T00:00:00-07:00|deadbeef",
+                               encoding="utf-8")
+    except OSError:
+        _19_trickery_refused = True
+    _lk2 = bs._TideRetuneFileLock(_19_lk_path)
+    _lk2.__enter__()
+    _19_stolen = _lk2.held
+    _lk2.__exit__()
+    # fresh ledger + rebound path: the ONLY door that can refuse now
+    # is the busy one
+    Path(bs.TIDE_RETUNE_STATE_FILE).write_text(json.dumps(
+        {"day": datetime.now().astimezone().strftime("%Y-%m-%d"),
+         "pairs": []}), encoding="utf-8")
+    _rel19b, _why19b = bs._tide_retune_releases(70.0, "LOCKBUSY/USD")
+    _lk1.__exit__()
+    _lk3 = bs._TideRetuneFileLock(_19_lk_path)
+    _lk3.__enter__()
+    _19_held3 = _lk3.held
+    _19_recovered = False
+    try:
+        import os as _os19
+        _os19.close(_lk3._fd)          # the death simulation: the
+                                       # kernel drops the byte range
+    finally:
+        _lk3.held = False              # __exit__ would double-close
+        _lk4 = bs._TideRetuneFileLock(_19_lk_path)
+        _lk4.__enter__()
+        _19_recovered = _lk4.held
+        _lk4.__exit__()
+    _ck12("12.19c a held lock survives metadata trickery (the kernel "
+          "refuses a foreign write to the locked byte outright) and a "
+          "busy valve refuses CLOSED; a dropped handle frees it "
+          "(kernel-owned: steal-proof AND crash-recovering)",
+          _19_held1 and _19_trickery_refused and not _19_stolen
+          and _rel19b is False and "busy" in _why19b
+          and _19_held3 and _19_recovered,
+          (_19_held1, _19_trickery_refused, _19_stolen, _rel19b,
+           _why19b, _19_held3, _19_recovered))
 except Exception as _e12:
     _12_bad = True
     check(f"12.x the retune section ran clean ({_e12!r})", False)

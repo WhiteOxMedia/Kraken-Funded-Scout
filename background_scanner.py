@@ -1285,111 +1285,74 @@ TIDE_RETUNE_STATE_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__))
 # module and both consume the valve) is the lockfile below, wrapped
 # around the same critical section
 _TIDE_RETUNE_LOCK = threading.Lock()
-# the cross-process lockfile: create-IF-ABSENT (atomic os.link) so a
-# second process ACQUIRES rather than clobbers the holder, a
-# pid|iso|uuid token so release only ever removes OUR lock and a dead
-# holder is provably stale (the contest_account._StateLock idiom,
-# adapted — the mirror consult never needs the disk lock, so the busy
-# posture is the admission valve's own: fail CLOSED, never skip)
-_TIDE_RETUNE_LOCKFILE = Path(TIDE_RETUNE_STATE_FILE).with_suffix(
-    ".json.lock")
+# the cross-process lock: a kernel-owned byte-range lock (msvcrt
+# .locking on the first byte of a .lock file beside the ledger). The
+# lock lives in the OS per HANDLE, not in the file: a contender's
+# acquire gets a locking error and retries, nothing can be stolen by
+# rewriting or removing the file, and a dead holder's lock evaporates
+# with its process — steal-proof AND crash-recovering, with no
+# check-then-unlink anywhere (an unlink-takeover lockfile could strip
+# a LIVE holder's lock on age alone, and could delete another
+# contender's replacement — either race re-opens the double-spend;
+# round 2, the 272e283 review)
 _TIDE_RETUNE_LK_RETRIES = 8
 _TIDE_RETUNE_LK_RETRY_S = 0.05
-_TIDE_RETUNE_LK_STALE_S = 10.0
 
 
-def _pid_alive(pid: int) -> bool:
-    """Windows liveness probe (OpenProcess SYNCHRONIZE) — a dead holder
-    is stale NOW; a broken probe assumes alive and lets staleness
-    decide. Same contract as contest_account._pid_alive."""
-    try:
-        import ctypes
-        k32 = ctypes.windll.kernel32
-        SYNCHRONIZE = 0x00100000
-        h = k32.OpenProcess(SYNCHRONIZE, False, int(pid))
-        if h:
-            k32.CloseHandle(h)
-            return True
-        return False
-    except Exception:
-        return True
+def _retune_lockfile_path(state_file) -> Path:
+    """The lock lives BESIDE the ledger, derived at CALL time — a
+    sandboxed (rebound) TIDE_RETUNE_STATE_FILE locks in its own
+    sandbox, never at the repo root."""
+    return Path(state_file).with_suffix(".json.lock")
 
 
 class _TideRetuneFileLock:
     """The cross-process gate around the ledger's read-check-write:
-    acquire = create the lockfile if absent (os.link is atomic — the
-    loser of the race gets FileExistsError and retries, never
-    overwrites), bounded backoff, stale/dead-pid takeover. `.held`
-    says whether it was won; release deletes only if the file still
-    carries OUR token (pid|iso|uuid — same-pid threads each get their
-    own uuid, so the in-process lock and this one compose).
+    open the .lock file, then win the kernel's byte-range lock on it
+    (msvcrt.locking, non-blocking, bounded backoff). `.held` says
+    whether it was won; release = unlock + close. The file PERSISTS —
+    only the kernel-owned byte range is the lock; the file is just the
+    handle's anchor and may sit beside the ledger forever."""
 
-    NOTE (honest): mutual exclusion is per-machine-local files, the
-    same scope the ledger itself has — scanner and bot run on this
-    host, which is the only concurrency that exists."""
-
-    def __init__(self, path: Path):
-        self._path = path
+    def __init__(self, path):
+        self._path = Path(path)
+        self._fd = None
         self.held = False
-        self._token = ""
 
     def __enter__(self):
         import time as _t
-        import uuid as _uuid
-        # the iso stamp STAYS in the payload (the staleness parse reads
-        # field 2 — a bare pid|uuid token parses as stale-forever and
-        # every lock would be stolen instantly); the uuid makes
-        # ownership unique per acquisition
-        self._token = (f"{os.getpid()}|"
-                       f"{datetime.now().astimezone().isoformat()}|"
-                       f"{_uuid.uuid4().hex}")
-        tmp = self._path.with_name(
-            self._path.name + f".tmp{os.getpid()}.{_uuid.uuid4().hex[:8]}")
+        import msvcrt as _ms
         for _attempt in range(_TIDE_RETUNE_LK_RETRIES + 1):
             try:
-                # payload FIRST at a private temp path, then os.link —
-                # no observer ever sees a young half-written lock it
-                # could mistake for stale and steal
-                fd = os.open(str(tmp), os.O_CREAT | os.O_TRUNC | os.O_WRONLY)
-                os.write(fd, self._token.encode())
-                os.close(fd)
-                os.link(str(tmp), str(self._path))
+                if self._fd is None:
+                    self._fd = os.open(str(self._path),
+                                       os.O_CREAT | os.O_RDWR)
+                _ms.locking(self._fd, _ms.LK_NBLCK, 1)
                 self.held = True
                 return self
-            except FileExistsError:
-                try:
-                    _parts = str(self._path.read_text(
-                        encoding="utf-8")).split("|")
-                    _pid = int(_parts[0])
-                    _ts = datetime.fromisoformat(
-                        _parts[1]).timestamp() if len(_parts) > 1 else None
-                except Exception:
-                    _pid, _ts = None, None
-                _age = (datetime.now().astimezone().timestamp()
-                        - _ts) if _ts else 999.0
-                if (_age > _TIDE_RETUNE_LK_STALE_S
-                        or (_pid is not None and _pid != os.getpid()
-                            and not _pid_alive(_pid))):
-                    try:
-                        self._path.unlink()   # stale / dead-holder takeover
-                    except Exception:
-                        pass
-                _t.sleep(_TIDE_RETUNE_LK_RETRY_S)
             except OSError:
+                # contended (or the open itself failed) — back off and
+                # retry on the SAME handle; the holder's critical
+                # section is microseconds, so a live contention wins a
+                # retry almost immediately, while a dead holder needs
+                # no retry at all (the kernel already freed the range)
                 _t.sleep(_TIDE_RETUNE_LK_RETRY_S)
-            finally:
-                tmp.unlink(missing_ok=True)
         return self            # NOT held — caller MUST check .held
 
     def __exit__(self, *exc):
-        if self.held:
+        if self.held and self._fd is not None:
             try:
-                if str(self._path.read_text(
-                        encoding="utf-8")).strip() == self._token:
-                    self._path.unlink()
+                import msvcrt as _ms
+                _ms.locking(self._fd, _ms.LK_UNLCK, 1)
             except Exception:
                 pass
-            self.held = False
+        if self._fd is not None:
+            try:
+                os.close(self._fd)
+            except Exception:
+                pass
+            self._fd = None
+        self.held = False
         return False
 
 
@@ -1491,7 +1454,8 @@ def _tide_retune_releases(quick, pair: str = "",
         return False, (f"quick {float(quick or 0):.1f} < the study's "
                        f"{d['quick_min']:.0f} floor")
     with _TIDE_RETUNE_LOCK, \
-            _TideRetuneFileLock(_TIDE_RETUNE_LOCKFILE) as _lk:
+            _TideRetuneFileLock(_retune_lockfile_path(
+                TIDE_RETUNE_STATE_FILE)) as _lk:
         if not _lk.held:
             # the admission valve's busy posture: fail CLOSED — refusing
             # a genuinely passing candidate costs one missed release;

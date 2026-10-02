@@ -92,9 +92,12 @@ tide_bar_reckoning_window.jsonl
 # the opp verdict's scheduled report (the prepended keep/kill sections)
 opp_hindsight_report.txt
 # the tide-retune valve's persisted day ledger (a restart must not
-# refill the daily cap)
+# refill the daily cap) + its lock anchor (PERSISTS — only the
+# kernel's byte-range on it is the lock; the file itself is just the
+# handle's anchor and stays beside the ledger)
 tide_retune_state.json
 tide_retune_state.json.tmp*
+tide_retune_state.json.lock
 # the opp class's first-fire reminder marker (one-shot, the reminders/
 # idiom — a repo operation must never re-fire the toast)
 _opp_first_fire_reminder.done
