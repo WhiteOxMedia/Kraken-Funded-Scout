@@ -876,6 +876,60 @@ try:
           and "def _tide_retune_save_day" in _src13
           and ".tmp" in _save13 and "os.replace" in _save13
           and '"tide_retune_state.json"' in _src13)
+
+    # 12.14 the QC's mirror consult (Oct 2, the QC agrees — never
+    # disagree): consume=False reads the SAME doors and the SAME ledger
+    # but spends NOTHING — a would-release leaves the ledger untouched,
+    # so the alert's later fire still gets its own slot.
+    _12_fresh_day()
+    _relW, _whyW = bs._tide_retune_releases(70.0, "MIRROR/USD",
+                                            consume=False)
+    _left = Path(bs.TIDE_RETUNE_STATE_FILE).exists()
+    _relC, _whyC = bs._tide_retune_releases(70.0, "MIRROR/USD")
+    _ck12("12.14 the QC's consult is read-only: the same valve passes "
+          "the mirror without spending the slot (the alert's fire "
+          "still gets its own)",
+          _relW is True and _left is False
+          and _relC is True and "1/3" in _whyC,
+          (_relW, _whyW, _left, _relC, _whyC))
+
+    # 12.15 the mirror AGREES with a fired alert: a pair that already
+    # holds today's admission passes the consult (never a double-spend,
+    # never a contradiction) — and a spent cap still refuses a pair
+    # that holds nothing.
+    _relH, _whyH = bs._tide_retune_releases(70.0, "MIRROR/USD",
+                                            consume=False)
+    _rel2, _ = bs._tide_retune_releases(70.0, "SLOT2/USD")
+    _rel3, _ = bs._tide_retune_releases(70.0, "SLOT3/USD")
+    _relS, _whyS = bs._tide_retune_releases(70.0, "FOURTH/USD",
+                                            consume=False)
+    _ck12("12.15 the consult agrees with the alert's already-released "
+          "pair (it holds its admission) and still honors the spent cap",
+          _relH is True and "holds" in _whyH
+          and _rel2 is True and _rel3 is True
+          and _relS is False and "cap" in _whyS,
+          (_relH, _whyH, _relS, _whyS))
+
+    # 12.16 every door stays fail-closed in consult mode: the dial OFF,
+    # the study floor, an untrustworthy ledger — the QC's mirror can
+    # never open what the alert's valve would refuse.
+    os.environ.pop(bs.TIDE_RETUNE_ENABLED_KEY, None)   # dial file says 0
+    _relOff, _whyOff = bs._tide_retune_releases(70.0, "Z/USD",
+                                                consume=False)
+    os.environ[bs.TIDE_RETUNE_ENABLED_KEY] = "1"
+    _relFl, _whyFl = bs._tide_retune_releases(51.0, "Z/USD",
+                                              consume=False)
+    Path(bs.TIDE_RETUNE_STATE_FILE).write_text("{broken",
+                                               encoding="utf-8")
+    _relU, _whyU = bs._tide_retune_releases(70.0, "Z/USD",
+                                            consume=False)
+    _ck12("12.16 the consult mode keeps every door fail-closed (OFF, "
+          "floor, untrustworthy ledger — the mirror can never open "
+          "what the valve would refuse)",
+          _relOff is False and "OFF" in _whyOff
+          and _relFl is False and "floor" in _whyFl
+          and _relU is False and "unreadable" in _whyU,
+          (_whyOff, _whyFl, _whyU))
 except Exception as _e12:
     _12_bad = True
     check(f"12.x the retune section ran clean ({_e12!r})", False)

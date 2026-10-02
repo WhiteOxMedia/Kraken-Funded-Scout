@@ -176,6 +176,31 @@ check("the QC toast names BOTH truths — the bar adapts to the regime "
       "adapts to the regime" in app_src
       and "the carve-out's hatch " in app_src)
 
+# ── 5b. the QC mirrors the CALIBRATED RETUNE (Oct 2, the same valve ──
+#    the alert path rides — while the dial is armed the console and
+#    the alert can never disagree on the OUT tide. The consult is
+#    READ-ONLY: the QC never consumes an admission (the journal-
+#    release precedent stays alert-side), and a pair the alert
+#    already released today passes as its holder, not a double-spend.
+check("the QC consults the SAME retune valve, read-only (consume=False "
+      "— the QC never spends an admission)",
+      "_bs4._tide_retune_releases(" in app_src
+      and "consume=False" in app_src
+      and "consume=True" not in app_src)
+check("the consult rides the buy gate like the personal-bar pass "
+      "(no_buy candidates never ride the mirror)",
+      'if not _tl_pass and sig.action == "buy" and not no_buy:' in app_src)
+check("the QC's pass carries the retune's why and a refusal names it "
+      "(the suppression shape: retune: {...})",
+      "_tl_why = _rrel_why" in app_src
+      and "retune: {_rrel_why}" in app_src)
+check("the mirror survives a cold learner (the consult runs AFTER the "
+      "learner's except — a cold learner is exactly the shape the "
+      "study mined)",
+      0 <= app_src.find("_bs4._tide_retune_releases(")
+      and app_src.find("_bs4._tide_retune_releases(")
+      > app_src.find('"tide learner unavailable"'))
+
 # ── 6. functional: the log writes what it's told ─────────────────────
 try:
     import background_scanner as bs

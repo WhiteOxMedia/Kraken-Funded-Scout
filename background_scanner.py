@@ -1326,7 +1326,8 @@ def _tide_retune_save_day(day: str, pairs: list[str]) -> bool:
         return False
 
 
-def _tide_retune_releases(quick, pair: str = "") -> tuple[bool, str]:
+def _tide_retune_releases(quick, pair: str = "",
+                          consume: bool = True) -> tuple[bool, str]:
     """(released, why) — the calibrated tide-out valve (the Sep-30
     per-gate study). FAIL-CLOSED at every door: the dial OFF or the
     module unreadable -> the blanket block stands; quick under the
@@ -1334,9 +1335,13 @@ def _tide_retune_releases(quick, pair: str = "") -> tuple[bool, str]:
     the day's cap spent) -> the study priced ONE admission per pair,
     not a flood. The day ledger persists to DISK (tide_retune_state.json)
     so a restart cannot refill the cap, and a ledger that cannot be
-    read or written refuses the release — fail-closed. This opens the
-    TIDE gate only — every caller keeps the deep read's own veto
-    downstream."""
+    read or written refuses the release — fail-closed. THE QC'S MIRROR
+    (Oct 2) consults with consume=False: the same doors, the same
+    ledger, but nothing is spent — the console never burns the alert's
+    slot, and a pair that ALREADY holds today's admission passes the
+    consult (the alert released it; the mirror must agree, never
+    contradict or double-spend). This opens the TIDE gate only — every
+    caller keeps the deep read's own veto downstream."""
     d = _tide_retune_dial()
     if not d["armed"]:
         return False, "the retune dial is OFF"
@@ -1349,17 +1354,20 @@ def _tide_retune_releases(quick, pair: str = "") -> tuple[bool, str]:
         return False, ("the retune day ledger is unreadable — failing "
                        "CLOSED until the operator clears it")
     if pair and pair in today:
-        return False, "already released today"
+        if consume:
+            return False, "already released today"
+        return True, (f"the pair already holds today's retune admission "
+                      f"({len(today)}/{d['cap']} today)")
     if len(today) >= d["cap"]:
         return False, f"the day's {d['cap']} release cap is spent"
-    if pair:
+    if pair and consume:
         if not _tide_retune_save_day(day, today + [str(pair)]):
             return False, ("the retune day ledger would not persist — "
                            "failing CLOSED (a restart must not refill "
                            "the cap)")
     return True, (f"the calibration study opened the tide gate "
                   f"(quick {float(quick or 0):.0f} >= {d['quick_min']:.0f}, "
-                  f"{len(today) + (1 if pair else 0)}/{d['cap']} today)")
+                  f"{len(today) + (1 if pair and consume else 0)}/{d['cap']} today)")
 
 
 def tide_memory_states() -> tuple:

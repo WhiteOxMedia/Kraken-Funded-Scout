@@ -6947,6 +6947,32 @@ def render_quick_check(cfg: TradingConfig, kraken):
                             _tl_why = _tl_meta
                     except Exception as _tle:
                         _tl_why = f"tide learner unavailable ({_tle})"
+                    # ── THE CALIBRATED RETUNE MIRROR (Oct 2, the same
+                    #    valve the alert path rides — while the dial is
+                    #    armed the console and the alert can never
+                    #    disagree on the OUT tide): consulted WITHOUT
+                    #    spending — the QC never consumes an admission
+                    #    (the journal-release precedent stays alert-side),
+                    #    so the alert's later fire still gets its slot; a
+                    #    pair the alert ALREADY released today passes as
+                    #    its holder, not a double-spend. The consult runs
+                    #    even when the learner read above failed — a cold
+                    #    learner is exactly the shape the study mined; the
+                    #    shared ledger answers, not the learner.
+                    if not _tl_pass and sig.action == "buy" and not no_buy:
+                        try:
+                            _rrel, _rrel_why = _bs4._tide_retune_releases(
+                                sig.confidence, pair, consume=False)
+                            if _rrel:
+                                _tl_pass = True
+                                _tl_why = _rrel_why
+                            else:
+                                _tl_why = (f"{_tl_why}; retune: {_rrel_why}"
+                                           if _tl_why else _rrel_why)
+                        except Exception as _rre:
+                            _tl_why = (f"{_tl_why}; retune unavailable "
+                                       f"({_rre})" if _tl_why
+                                       else f"retune unavailable ({_rre})")
                 st.session_state["qc_result"]["tide_learned_pass"] = _tl_pass
                 st.session_state["qc_result"]["tide_learned_why"] = _tl_why
                 st.session_state["qc_result"]["rotation_ok"] = _rot_ok
