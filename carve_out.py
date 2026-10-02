@@ -340,7 +340,11 @@ def gate(pair: str | None = None, when: datetime | None = None,
     res = compute_carve_out(pair=pair, when=when)
     if len(_GATE) >= _GATE_MAX and key not in _GATE:
         oldest = min(_GATE, key=lambda k: _GATE[k]["ts"])
-        del _GATE[oldest]
+        # pop-with-default, never a bare del (the reviewer medium on
+        # 02936c2): two threads missing at capacity can select the same
+        # oldest key — the loser of the race must not KeyError and abort
+        # gate(); a transient overshoot self-corrects on the next insert
+        _GATE.pop(oldest, None)
     _GATE[key] = {"ts": now, "res": res}
     st = _state()
     st["last"] = {"carve": res["carve"], "lone_wolf": res["lone_wolf"],

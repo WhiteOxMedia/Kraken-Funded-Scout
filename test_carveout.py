@@ -404,6 +404,17 @@ with tempfile.TemporaryDirectory() as _co9:
         co.vol_mod = _old_vol9
         co._GATE.clear()
 
+# 9.7 the eviction cannot race-raise (the reviewer medium on 02936c2):
+#     two threads missing at capacity can both select the same oldest
+#     key — a bare `del` then raises KeyError in the loser and aborts
+#     gate() (a cache eviction must never break the read). The removal
+#     must be the idempotent pop-with-default; the transient overshoot
+#     self-corrects on the next insert.
+check("9.7 the eviction is race-safe (pop-with-default, never a bare "
+      "del — a loser's KeyError must be structurally impossible)",
+      "_GATE.pop(oldest, None)" in co_src
+      and "del _GATE[" not in co_src)
+
 fails = [r for r in results if not r[1]]
 (scratch_space.report_temp('_carveout_check.txt')).write_text(
     "\n".join(f"{'PASS' if ok else 'FAIL'}  {name}" + (f"  [{d}]" if d and not ok else "")
