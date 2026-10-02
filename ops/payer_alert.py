@@ -470,18 +470,11 @@ def backfill_metrics(spec: dict, metrics_path, now: datetime,
                                            since=fired)
             except Exception:
                 candles = None
-            if candles is not None and len(candles) < int(horizon_h * 12):
-                # THE CAP-HONESTY GUARD (the Copilot LOW, Oct 1): the pull
-                # could not cover the whole window (a corrupted spec whose
-                # horizon outruns the 1000-candle ceiling, a thin feed) —
-                # a partial-window peak saved as complete is fiction. The
-                # row stays empty and the broken spec shows as an unfilled
-                # column, never as a fake peak.
-                continue
             if not candles:
                 continue                    # failed feed: stays empty
             peak_px = None
             peak_ts = None
+            n_in_window = 0
             for c in candles:
                 try:
                     cts = datetime.fromtimestamp(float(c["ts"]) / 1000.0,
@@ -490,8 +483,20 @@ def backfill_metrics(spec: dict, metrics_path, now: datetime,
                 except Exception:
                     continue
                 if fired <= cts < end and close > 0:
+                    n_in_window += 1
                     if peak_px is None or close > peak_px:
                         peak_px, peak_ts = close, cts
+            if n_in_window < int(horizon_h * 12):
+                # THE COVERAGE GUARD, IN-WINDOW (the Copilot LOW then its
+                # own follow-up medium, Oct 1): the coverage that matters
+                # is the candles INSIDE the window, never the returned
+                # total — a thin or odd-spaced feed can pass a total-count
+                # guard while carrying fewer than the horizon's worth
+                # in-window (and a corrupted spec truncates the pull
+                # outright). A partial-window peak saved as complete is
+                # fiction: the row stays empty, the gap shows as an
+                # unfilled column, never a fake peak.
+                continue
             if peak_px is None or base <= 0:
                 continue                    # no in-window data: stays empty
             pct = (peak_px / base - 1.0) * 100.0

@@ -598,6 +598,24 @@ check(6.11, n == 0 and _r10["peak_after_pct"] == ""
       "a horizon the pull cannot fully cover (200h >> the 1000-candle "
       "ceiling) is NEVER measured partially — the row stays empty and "
       "the broken spec shows as an unfilled column, not as a fake peak")
+# 6.12 THE COVERAGE IS IN-WINDOW (the Copilot medium, Oct 1): a thin or
+# odd-spaced feed can return enough TOTAL candles to pass a total-count
+# guard while carrying fewer than the horizon's worth INSIDE the window
+# — the guard must count candles in [fired_at, horizon end), not the
+# returned total. A 6-minute-spaced feed: 96 candles total, only 70
+# inside the 7h window, a tempting 1.15 peak in there.
+_C612 = [_candle(FIRED_AT + timedelta(minutes=6 * i),
+                 1.15 if i == 30 else 1.0)
+         for i in range(96)]
+_m612 = _csv_with(
+    "FIL/USD,tide-out,1.239,2026-09-30 20:00:00,1.09,"
+    f"{FIRED_AT.isoformat()},,,,,\n")
+n = pa.backfill_metrics(spec2, _m612, LATER, _feed6({"FIL/USD": _C612}))
+_r12 = pa.read_metrics(_m612)[1][0]
+check(6.12, n == 0 and _r12["peak_after_pct"] == "",
+      "70 in-window candles < the 84 the horizon needs — the total "
+      "count (96) must not masquerade as coverage; the partial-window "
+      "peak stays unfilled")
 
 print()
 fails = [r for r in results if not r[1]]
