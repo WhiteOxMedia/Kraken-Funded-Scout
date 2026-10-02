@@ -312,6 +312,13 @@ check("8.28 the light plate names the window's own mode (the classic "
       "CHAMPION SHOT line is no longer told for an opp window)",
       "CHAMPION-GRADE SHOT" in ap_src
       and "STRICT-CAP OPPORTUNISTIC SHOT" in ap_src)
+check("8.29 an ALREADY-ACTIVE window reads its mode and caps the QC entry "
+      "(the $300 cap follows the WINDOW, not just the activation — an "
+      "opp window's later QC entry keeps the cap AND the 2% stop)",
+      "_qc_hm_mode = (str(_acct.get(\"hail_mary_mode\")" in ap_src
+      and ap_src.count(
+          "min(float(_spend_usd), float(_risk_cap), float(_ca.OPP_HARD_SPEND_USD))") == 2
+      and 'st.session_state["qc_result"]["hail_mary_mode"] = _qc_hm_mode' in ap_src)
 with tempfile.TemporaryDirectory() as _td2:
     _old2 = ca.STATE_FILE
     try:

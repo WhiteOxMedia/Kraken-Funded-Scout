@@ -6710,6 +6710,18 @@ def render_quick_check(cfg: TradingConfig, kraken):
                     #    knife, the exits all stand; the death line never
                     #    yields.
                     _qc_hm = _ca.hail_mary_active(_acct)
+                    # THE WINDOW'S OWN MODE (the Copilot high on 11b6824):
+                    # an ALREADY-ACTIVE window is read, not assumed — the
+                    # mode rides the state, so an opp window's later QC
+                    # entry keeps BOTH strict controls: the $300 hard cap
+                    # bites here exactly as it bit the activation, and the
+                    # mode rides qc_result into the verdict line AND the
+                    # watch row's hm_mode stamp (the exit watch's 2% stop
+                    # follows the row, alert or QC, first entry or later).
+                    _qc_hm_mode = (str(_acct.get("hail_mary_mode") or "classic")
+                                   if _qc_hm else "")
+                    if _qc_hm and _qc_hm_mode == "opportunistic" and _risk_cap:
+                        _spend_usd = min(float(_spend_usd), float(_risk_cap), float(_ca.OPP_HARD_SPEND_USD))
                     if not _qc_hm and _risk_cap is not None and _risk_cap > 0:
                         _hm_ok, _hm_why = _ca.hail_mary_available(_acct)
                         if _hm_ok:
@@ -6776,6 +6788,7 @@ def render_quick_check(cfg: TradingConfig, kraken):
                                                f"({_op_why})")
                                     st.session_state["qc_result"]["hail_mary_why"] = _hm_why
                     st.session_state["qc_result"]["hail_mary"] = _qc_hm
+                    st.session_state["qc_result"]["hail_mary_mode"] = _qc_hm_mode
                     st.session_state["qc_result"]["risk_cap"] = _risk_cap
                     st.session_state["qc_result"]["window_dd"] = _wdd
                     if _risk_cap <= 0:
