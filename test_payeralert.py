@@ -544,6 +544,39 @@ pa.run(spec_path=_spec67, ledger_path=TMP / "led6.jsonl",
 check(6.7, pa.read_metrics(_m67)[1][0]["peak_after_pct"] == "",
       "the off switch: no hindsight_backfill in the spec -> the csv is "
       "never rewritten (opt-in by spec, the yaml is the dial)")
+# 6.8 THE FULL-HORIZON PULL (the Copilot HIGH, Oct 1): 30 candles is
+# 2.5h of a 7h window — a peak in hour 6.5 must still be measured, and
+# the base's own sub-base closes must never masquerade as it.
+_C68 = [_candle(FIRED_AT + timedelta(minutes=5 * i),
+                1.15 if i == 78 else 1.0)     # the only peak: hour 6.5
+        for i in range(90)]
+_seen_limits = []
+
+
+def _feed68(pairs):
+    def f(pair, tf, limit, since=None):
+        _seen_limits.append(limit)
+        got = list(pairs.get(pair) or [])
+        return got[:limit] if limit else got   # respects the pull size
+    return f
+
+
+_m68 = _csv_with(
+    "FIL/USD,tide-out,1.239,2026-09-30 20:00:00,1.09,"
+    f"{FIRED_AT.isoformat()},,,,,\n")
+n = pa.backfill_metrics(spec2, _m68, LATER, _feed68({"FIL/USD": _C68}))
+_r8 = pa.read_metrics(_m68)[1][0]
+check(6.8, n == 1
+      and abs(float(_r8["peak_after_pct"]) - 5.505) < 0.01
+      and _r8["beat_funnel"] == "true",
+      "a peak in hour 6.5 of the 7h window IS measured (the pull must "
+      "cover the WHOLE horizon — 30 candles = 2.5h and the late peak "
+      "was silently missed; the first 2.5h's 1.0 closes never "
+      "masquerade as the peak)")
+check(6.9, _seen_limits and max(_seen_limits) >= HORIZON_H * 12,
+      "the pull's candle limit covers the horizon (7h x 12 five-minute "
+      "candles = 84, plus margin) — pinned on the captured request, "
+      "not the happy feed")
 
 print()
 fails = [r for r in results if not r[1]]

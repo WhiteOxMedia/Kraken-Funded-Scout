@@ -457,8 +457,16 @@ def backfill_metrics(spec: dict, metrics_path, now: datetime,
                 base = float(r["crossed_price"])
             except Exception:
                 continue                    # no base: an honest % is impossible
+            # THE FULL-HORIZON PULL (the Copilot HIGH, Oct 1): the pull
+            # must cover the WHOLE horizon window — a fixed 30 candles is
+            # 2.5h of a 7h horizon and a peak in hour 6.5 was silently
+            # missed. The limit is horizon_hours x 12 five-minute candles,
+            # +1 hour of margin, floored at 30 (the trip's own pull),
+            # CEILINGED at 1000 (a corrupted horizon_hours spec can never
+            # ask the exchange for an unbounded pull).
             try:
-                candles = fetch_candles_fn(r.get("pair"), "5m", 30,
+                pull_n = min(1000, max(30, int(horizon_h * 12) + 12))
+                candles = fetch_candles_fn(r.get("pair"), "5m", pull_n,
                                            since=fired)
             except Exception:
                 candles = None
