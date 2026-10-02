@@ -6776,8 +6776,9 @@ def render_quick_check(cfg: TradingConfig, kraken):
                                 if _op_q:
                                     _acct = _ca.activate_hail_mary(_acct, mode="opportunistic")
                                     _qc_hm = True
+                                    _qc_hm_mode = "opportunistic"
                                     _spend_usd = min(float(_spend_usd), float(_risk_cap), float(_ca.OPP_HARD_SPEND_USD))
-                                    st.session_state["qc_result"]["hail_mary_mode"] = "opportunistic"
+                                    _qc_hm_mode = "opportunistic"
                                 else:
                                     _hm_why = ("Hail Mary available but this read doesn't qualify — "
                                                "it needs a champion-grade brain read "
