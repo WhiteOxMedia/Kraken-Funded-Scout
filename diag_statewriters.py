@@ -72,7 +72,30 @@ REGISTRY: dict[tuple[str, str], dict] = {
         "note": "console-owned payout ledger; atomic"},
     ("scanner_pulse.json", "background_scanner._pulse_beat"): {
         "note": "the heartbeat; atomic"},
+    ("rotation_lockout.json", "background_scanner.rotation_mark_fired"): {
+        "note": "scanner side of the two-writer file; atomic + retry"},
+    ("rotation_lockout.json", "background_scanner.rotation_rearm_on_profit"): {
+        "note": "console side (called from app.py:8933) of the "
+                "two-writer file; atomic + retry"},
+    ("take_payouts.json", "background_scanner._save_take_payout"): {
+        "note": "the re-entry-protection map; merge-read, atomic + retry"},
+    ("popup_suppressions.jsonl", "background_scanner._log_suppression"): {
+        "note": "one scanner writer, ~10 production readers; atomic + "
+                "retry (a reader holding the target is the contention "
+                "family — a lost rename silently dropped a row)"},
+    ("signal_snapshots.jsonl", "background_scanner._log_signal_snapshot"): {
+        "note": "the hindsight seam's ledger; atomic + retry"},
 }
+
+# THE GOVERNANCE FLOOR (Oct 2): a registry entry deleted is governance
+# silently withdrawn — the scanner's writers of these files would drop
+# out of the census with no check noticing. The files of record stay
+# governed, always.
+REQUIRED_GOVERNED = (
+    "contest_watch.json", "profit_guard_state.json",
+    "rotation_lockout.json", "take_payouts.json",
+    "popup_suppressions.jsonl", "signal_snapshots.jsonl",
+)
 
 EXCLUDE_PREFIX = ("test_", "diag_", "_")
 EXCLUDE_NAMES = {"health_check.py", "ready_check.py"}
@@ -131,9 +154,14 @@ def _resolve(val, files: dict[str, str],
         if not name:
             continue
         name = _basename(name)
-        if name.endswith(".json.tmp"):
+        if name.endswith(".tmp") and ".json.tmp." not in name:
+            # a bare fixed .tmp constant normalizes to its base
             out.add(name[:-4])
-        elif name.endswith(".json"):
+        # the pid-suffixed per-writer tmp (STATE + f".tmp.{pid}") is an
+        # f-join, so its base name arrives via the Name node — nothing
+        # to strip here; .json AND .jsonl ledgers both govern (the
+        # suppression/snapshot ledgers are state files like any other)
+        if name.endswith(".json") or name.endswith(".jsonl"):
             out.add(name)
     return out
 
@@ -442,6 +470,12 @@ def main() -> int:
 
     unreg = sorted(f"{f} <- {w}" for f, w, _a in sorted(found)
                    if (f, w) not in reg_pairs)
+
+    missing_gov = [f for f in REQUIRED_GOVERNED
+                   if not any(fp == f for (fp, _w) in reg_pairs)]
+    check("R0 the files of record stay governed (a registry deletion "
+          "silently withdraws governance — the census floor holds)",
+          not missing_gov, missing_gov)
     check("R1 every production writer of a governed state file is "
           "REGISTERED (new writer: join the registry with a note, or "
           "the repo refuses)",

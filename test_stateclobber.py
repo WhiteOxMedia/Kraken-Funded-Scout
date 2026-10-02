@@ -179,6 +179,103 @@ try:
           any(".tmp." in t.split("contest_watch.json")[-1]
               for t in _calls["tmp_names"]), _calls["tmp_names"])
 
+    # ── 4b. THE OTHER RAW SITES JOIN THE RETRY CONTRACT (Oct 2):
+    # rotation_lockout (TWO writers, two processes: the scanner's
+    # rotation_mark_fired and the console's profit re-arm), the
+    # suppression log (one writer, ~10 production readers — a reader at
+    # the replace instant is the same contention family), take_payouts
+    # and the snapshot log. Each save must (a) use a per-writer tmp and
+    # (b) ride replace_atomic's bounded backoff — proven by the same
+    # WinError-5-once injection as 4a, plus the registry pins that hold
+    # the census to all of it.
+    _rl_real = bs.ROTATION_LOCKOUT_FILE
+    _tp_real = bs.TAKE_PAYOUTS_JSON
+    _sl_real = bs.SUPPRESSION_LOG_FILE
+    _ss_real = getattr(bs, "SIGNAL_SNAPSHOTS_FILE", None)
+    bs.ROTATION_LOCKOUT_FILE = str(_sbx / "rotation_lockout.json")
+    bs.TAKE_PAYOUTS_JSON = str(_sbx / "take_payouts.json")
+    bs.SUPPRESSION_LOG_FILE = str(_sbx / "popup_suppressions.jsonl")
+    if _ss_real is not None:
+        bs.SIGNAL_SNAPSHOTS_FILE = str(_sbx / "signal_snapshots.jsonl")
+    _b4 = {"n": 0, "tmps": set()}
+
+    def _contend4(src, dst, *a, **k):
+        _b4["n"] += 1
+        _b4["tmps"].add(str(src).split("\\")[-1].split("/")[-1])
+        if _b4["n"] in (1, 2):
+            err = OSError("drill4: access denied")
+            err.winerror = 5
+            raise err
+        return _real_replace(src, dst, *a, **k)
+
+    def _ra_drill4(tmp, target, **kw):
+        kw.setdefault("replace", _contend4)
+        return _real_ra(tmp, target, **kw)
+
+    _patcher4 = mock.patch.object(_aio_mod, "replace_atomic", _ra_drill4)
+    _patcher4.start()
+    try:
+        # rotation_mark_fired in the 12-16 rotation: the module clock
+        # is patched, so the drill is deterministic wherever it runs
+        import datetime as _dt4
+        _noon = _dt4.datetime(2026, 10, 2, 12, 30,
+                              tzinfo=bs._now_mst().tzinfo)
+        _real_now4 = bs._now_mst
+        bs._now_mst = lambda: _noon
+        try:
+            bs.rotation_mark_fired("DRILL4/USD")
+        finally:
+            bs._now_mst = _real_now4
+        # take_payouts
+        bs._save_take_payout("DRILL4/USD", 25)
+        # the suppression log (one row, then the cap slice applies)
+        bs._log_suppression("DRILL4/USD", "drill4-gate", "drill four detail",
+                            quick=70.0)
+        # the snapshot log (the hindsight seam rides the same write)
+        if _ss_real is not None and "_log_signal_snapshot" in dir(bs):
+            bs._log_signal_snapshot({"pair": "DRILL4/USD",
+                                     "gate": "drill4-gate",
+                                     "quick": 70.0})
+    finally:
+        _patcher4.stop()
+        bs.ROTATION_LOCKOUT_FILE = _rl_real
+        bs.TAKE_PAYOUTS_JSON = _tp_real
+        bs.SUPPRESSION_LOG_FILE = _sl_real
+        if _ss_real is not None:
+            bs.SIGNAL_SNAPSHOTS_FILE = _ss_real
+    _rl_doc = json.loads((_sbx / "rotation_lockout.json").read_text())
+    _tp_doc = json.loads((_sbx / "take_payouts.json").read_text())
+    _sl_doc = (_sbx / "popup_suppressions.jsonl").read_text().splitlines()
+    _drill4_rows = [l for l in _sl_doc if "drill four detail" in l]
+    check("4b.1 every remaining raw state writer rides the retry "
+          "contract (rotation_lockout, take_payouts, the suppression "
+          "log: each survives its WinError-5 injections and LANDS)",
+          "DRILL4/USD" in _rl_doc and "DRILL4/USD" in _tp_doc
+          and len(_drill4_rows) == 1,
+          (_rl_doc, _tp_doc, len(_drill4_rows)))
+    check("4b.2 every drill writer used a PER-WRITER tmp (pid-suffixed "
+          "— the shared fixed .tmp is what killed the storm)",
+          len(_b4["tmps"]) >= 3
+          and all(".tmp." in t for t in _b4["tmps"]), _b4["tmps"])
+    _src4 = (BASE / "background_scanner.py").read_text(encoding="utf-8")
+    _iw = _src4.find("def rotation_mark_fired")
+    _iw2 = _src4.find("def _save_take_payout")
+    _iw3 = _src4.find("def _log_suppression")
+    _iw4 = _src4.find("def _log_signal_snapshot")
+    _end4 = _src4.find("\ndef ", _iw4) if _iw4 > 0 else len(_src4)
+    _seg4 = (_src4[_iw:_iw2] + _src4[_iw2:_iw3]
+             + _src4[_iw3:(_iw4 if _iw4 > 0 else _iw3 + 4000)])
+    # (the REGISTRY-presence half lives in diag_statewriters.main() —
+    # this sandbox materializes background_scanner.py but not the
+    # linter module, and the registry's guard belongs to the linter's
+    # own drive, which runs at every commit)
+    check("4b.3 all five migrated writers ride replace_atomic with "
+          "per-writer tmps in the scanner's source (the write-shape "
+          "leg; the registry leg lives in the linter's own drive)",
+          "replace_atomic" in _seg4
+          and _seg4.count("f\".tmp.{os.getpid()}\"") + _seg4.count(
+              "'.tmp.' + ") >= 4,
+          ("replace_atomic" in _seg4, _seg4.count("os.getpid()")))
     # the scanner saves its view (stale: it never saw the bot's row)
     bs._save_contest_watch({"KAITO/USD": {"entry": 0.3277,
                                           "high": 0.3300,

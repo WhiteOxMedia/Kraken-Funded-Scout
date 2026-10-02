@@ -398,10 +398,15 @@ def rotation_mark_fired(asset: str):
         state = {a: r for a, r in state.items() if r.get("date") == today}
         state[asset] = {"date": today, "rotation": rot_key,
                         "fired_at": now.isoformat()}
-        tmp = ROTATION_LOCKOUT_FILE + ".tmp"
+        # THE RETRY CONTRACT (Oct 2): per-writer tmp (pid-suffixed —
+        # the console's re-arm writes this file from another process)
+        # + atomic_io's bounded backoff; the fail-soft except below
+        # keeps the never-raise posture either way
+        from atomic_io import replace_atomic
+        tmp = ROTATION_LOCKOUT_FILE + f".tmp.{os.getpid()}"
         with open(tmp, "w", encoding="utf-8") as f:
             f.write(_json.dumps(state, indent=1))
-        os.replace(tmp, ROTATION_LOCKOUT_FILE)
+        replace_atomic(tmp, ROTATION_LOCKOUT_FILE)
     except Exception as exc:
         logger.debug("rotation mark failed: %s", exc)
 
@@ -437,10 +442,11 @@ def rotation_rearm_on_profit(asset: str) -> bool:
         if not rec or rec.get("date") != today or rec.get("rotation") != rot_key:
             return False  # not locked for THIS rotation — nothing to disarm
         del state[asset]
-        tmp = ROTATION_LOCKOUT_FILE + ".tmp"
+        from atomic_io import replace_atomic
+        tmp = ROTATION_LOCKOUT_FILE + f".tmp.{os.getpid()}"
         with open(tmp, "w", encoding="utf-8") as f:
             f.write(_json.dumps(state, indent=1))
-        os.replace(tmp, ROTATION_LOCKOUT_FILE)
+        replace_atomic(tmp, ROTATION_LOCKOUT_FILE)
         logger.info("🔄 PROFIT RE-ARM: %s — profit collected, the rotation "
                     "lock is disarmed (every gate still applies to the "
                     "next fire)", asset)
@@ -2279,10 +2285,13 @@ def _save_take_payout(pair: str, amount: int):
             logger.warning("TAKE payouts map unreadable (%s) — prior "
                            "payout blocks are lost for this write", exc)
         doc[pair] = {"amount": amount, "ts": _now_mst().isoformat()}
-        tmp = TAKE_PAYOUTS_JSON + ".tmp"
+        # THE RETRY CONTRACT (Oct 2): per-writer tmp + bounded backoff —
+        # the prior-blocks loss is visible either way (the warning above)
+        from atomic_io import replace_atomic
+        tmp = TAKE_PAYOUTS_JSON + f".tmp.{os.getpid()}"
         with open(tmp, "w", encoding="utf-8") as fh:
             json.dump(doc, fh, indent=1)
-        os.replace(tmp, TAKE_PAYOUTS_JSON)
+        replace_atomic(tmp, TAKE_PAYOUTS_JSON)
     except Exception as exc:
         logger.warning("take payout save failed: %s", exc)
 
@@ -2363,15 +2372,18 @@ def _log_suppression(pair: str, gate: str, detail: str, **ctx):
             with open(SUPPRESSION_LOG_FILE, "r", encoding="utf-8") as f:
                 lines = [l for l in f.read().splitlines() if l.strip()]
         lines.append(_json.dumps(entry, ensure_ascii=False, default=str))
-        # ATOMIC SWAP (Sep 11): truncate-and-write left a window where a
-        # reader (the tide learner's fit, the weekly hindsight report)
-        # saw an EMPTY ledger and silently fit on nothing. Write .tmp,
-        # then os.replace — readers see old-complete or new-complete,
-        # never empty.
-        _tmp = SUPPRESSION_LOG_FILE + ".tmp"
+        # ATOMIC SWAP (Sep 11) + THE RETRY CONTRACT (Oct 2): truncate-
+        # and-write left a window where a reader (the tide learner's
+        # fit, the weekly hindsight report) saw an EMPTY ledger and
+        # silently fit on nothing; the swap fixed the torn read, and a
+        # reader HOLDING the file at the replace instant is the same
+        # contention family — per-writer tmp + bounded backoff heals it
+        # in-process instead of silently dropping a suppression row.
+        from atomic_io import replace_atomic
+        _tmp = SUPPRESSION_LOG_FILE + f".tmp.{os.getpid()}"
         with open(_tmp, "w", encoding="utf-8") as f:
             f.write("\n".join(lines[-SUPPRESSION_LOG_MAX:]))
-        os.replace(_tmp, SUPPRESSION_LOG_FILE)
+        replace_atomic(_tmp, SUPPRESSION_LOG_FILE)
     except Exception as exc:
         logger.debug("suppression log write failed: %s", exc)
     # ── THE HINDSIGHT SEAM (user spec, Sep 5): every suppression ALSO
@@ -2425,11 +2437,14 @@ def _log_signal_snapshot(rec: dict):
         rec.setdefault("contest_size", _contest_size())
         lines.append(_json.dumps(rec, ensure_ascii=False, default=str))
         # ATOMIC SWAP (Sep 11): same race as the suppression ledger —
-        # .tmp then os.replace, readers never see a partial file.
-        _tmp = SIGNAL_SNAPSHOTS_FILE + ".tmp"
+        # .tmp then replace_atomic (the Oct 2 contract): readers never
+        # see a partial file, and the rename retries past a concurrent
+        # reader holding the target.
+        from atomic_io import replace_atomic
+        _tmp = SIGNAL_SNAPSHOTS_FILE + f".tmp.{os.getpid()}"
         with open(_tmp, "w", encoding="utf-8") as f:
             f.write("\n".join(lines[-SIGNAL_SNAPSHOTS_MAX:]))
-        os.replace(_tmp, SIGNAL_SNAPSHOTS_FILE)
+        replace_atomic(_tmp, SIGNAL_SNAPSHOTS_FILE)
     except Exception as exc:
         logger.debug("signal snapshot write failed: %s", exc)
 
