@@ -501,7 +501,7 @@ def backfill_metrics(spec: dict, metrics_path, now: datetime,
             covered = bool(in_ts) \
                 and (in_ts[0] - fired) <= _iv \
                 and (end - in_ts[-1]) <= _iv \
-                and all((b - a) <= _iv for a, b in zip(in_ts, in_ts[1:] or [in_ts[:1]]))
+                and all((b - a) <= _iv for a, b in zip(in_ts, in_ts[1:]))
             if not covered:
                 # THE COVERAGE GUARD, IN-WINDOW (the Copilot LOW then its
                 # own follow-up medium, Oct 1): the coverage that matters

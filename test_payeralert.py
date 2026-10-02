@@ -669,6 +669,25 @@ check(6.15, n == 0 and _r15["peak_after_pct"] == "",
       "the first candle 10 minutes into the window = the head is "
       "uncovered — the row stays unfilled (the 1.20 peak rides an "
       "incomplete window and must not record)")
+# 6.16 THE SINGLE-CANDLE WINDOW (the Copilot low, Oct 1): a short 6-min
+# horizon with exactly ONE in-window candle — the body clause is
+# VACUOUSLY true (there are no consecutive pairs) and the row must FILL;
+# a nested-list fallback in the zip made `b - a` raise TypeError and the
+# outer catch abort the WHOLE cycle's backfill.
+_spec_short = dict(spec2)
+_spec_short["horizon_hours"] = 0.1            # a 6-minute window
+_m616 = _csv_with(
+    "FIL/USD,tide-out,1.239,2026-09-30 20:00:00,1.09,"
+    f"{FIRED_AT.isoformat()},,,,,\n")
+n = pa.backfill_metrics(_spec_short, _m616, LATER,
+                        _feed6({"FIL/USD": [_candle(
+                            FIRED_AT + timedelta(minutes=1), 1.09)]}))
+_r16 = pa.read_metrics(_m616)[1][0]
+check(6.16, n == 1 and _r16["peak_after_pct"] == "0.0"
+      and _r16["beat_funnel"] == "false",
+      "one in-window candle in a 6-minute window FILLS (head ok, tail "
+      "ok, body vacuous — peak 0.0% over the crossed base, beat_funnel "
+      "false): the vacuous body never crashes the cycle's backfill")
 
 print()
 fails = [r for r in results if not r[1]]
