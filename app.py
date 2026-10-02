@@ -9875,9 +9875,14 @@ def main():
         # VOICE speaks once per GREET_MIN_INTERVAL_S per MACHINE, guarded
         # by a marker file. Duplicate tabs / a restored-tab burst can
         # never chorus 'Systems check' four times in a minute again.
+        # THE MARKER IS SPENT ONLY BY THE ALL-CLEAR SPEAK (the reviewer
+        # low on d133381): a kill-switch boot warning speaks instead of
+        # the greeting and must NOT consume the 30-min window — the next
+        # healthy boot still greets. (Accepted race: two sessions
+        # starting in the same instant can both pass the read before
+        # either stamps — the chorus is bounded at ~2, the marker write
+        # is the throttle, not a mutex.)
         _may_speak_greet = _greet_allowed()
-        if _may_speak_greet:
-            _greet_mark()
         if _ks_on:
             try:
                 st.toast("⛔ WAIT — the kill switch is TRIGGERED. "
@@ -9895,6 +9900,7 @@ def main():
                          + (_facts.split(". ")[0] if _facts else "watcher armed"),
                          icon="✅", duration=15)
                 if _may_speak_greet:   # the VOICE is machine-wide once; the toast is every tab
+                    _greet_mark()      # mark-before-spend: a crash can only lose one greeting
                     _speak("Systems check. " + _facts)
             except Exception as exc:
                 logger.debug("systems-go toast/voice failed: %s", exc)

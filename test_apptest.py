@@ -2806,6 +2806,14 @@ try:
                   "marker fails OPEN to speak)",
                   _fresh and _held and _released and _corrupt,
                   (_fresh, _held, _released, _corrupt))
+        check("boot-greet 4: the marker is spent ONLY by the all-clear "
+              "speak (a kill-switch boot warning must never consume "
+              "the 30-min greeting window — the next healthy boot "
+              "still greets)",
+              _wsrc.count("_greet_mark()") == 1
+              and 0 < _wsrc.find("_greet_mark()")
+              and _wsrc.find("_greet_mark()")
+              > _wsrc.find('_facts = _boot_facts_voice'))
     except Exception as _greet_exc:
         check("the boot-greet pins ran", False, _greet_exc)
     # ── THE APP-EDIT METAGATE (Sep 13): any future edit to app.py runs
