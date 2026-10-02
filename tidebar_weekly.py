@@ -1392,17 +1392,25 @@ OPP_VERDICT_FIRST_DELAY_S = 1200.0    # first read ~20 min after boot
 OPP_VERDICT_PERIOD_S = 7 * 86_400.0   # weekly — the re-run clause the verdict itself states
 
 
+OPP_VERDICTS = ("KEEP-PROVISIONAL", "KILL", "RETAIN-TIGHTEN", "KEEP")
+
+
 def _parse_opp_verdict(out: str) -> dict:
     """Lift the pre-registered verdict and the opp census out of the
-    grader's own stdout: the verdict is the '>>> ' line, the census is
-    the champion-opportunistic class row's n=. Anything else parses as
-    None — the caller writes no section without a verdict."""
+    grader's own stdout: the verdict is the '>>> ' line, and ONLY the
+    four pre-registered verdicts count — any other '>>>' text is not
+    the contract's verdict and parses as None (never saved as
+    authoritative). The census is the champion-opportunistic class
+    row's n= (optional — a changed row format costs the n, not the
+    verdict's trust)."""
     verdict = None
     n = None
     for line in out.splitlines():
         s = line.strip()
         if s.startswith(">>> ") and verdict is None:
-            verdict = s[4:].strip()
+            tok = s[4:].strip().split()[0] if s[4:].strip() else ""
+            if tok in OPP_VERDICTS:
+                verdict = tok
         elif "champion-opportunistic" in s and "n=" in s and n is None:
             try:
                 n = int(s.split("n=")[1].split()[0].strip())

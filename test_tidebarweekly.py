@@ -604,13 +604,18 @@ try:
                   and "never lands" not in
                   tbw.OPP_REPORT_FILE.read_text(encoding="utf-8"))
             tbw.OPP_TOOL.write_text(
-                "import sys\nprint('broken output, no verdict')\n",
+                "import sys\nprint('broken')\n"
+                "print('  >>> SOMETHING-ELSE')\nsys.exit(0)\n",
                 encoding="utf-8")
             ok4, _sec4 = tbw._append_opp_section()
-            check("1b.8 a grader that runs but prints no verdict line "
-                  "writes nothing (no parse, no section — never a "
+            ok5, _sec5 = tbw._append_opp_section(
+                "  >>> KEEP-PROVISIONAL-TYPO\nbody")
+            check("1b.8 only the FOUR PRE-REGISTERED verdicts parse "
+                  "(a '>>>' line that is not the contract's verdict — "
+                  "or no verdict line at all — writes nothing, never a "
                   "fake verdict)",
                   ok4 is False and _sec4 == ""
+                  and ok5 is False and _sec5 == ""
                   and "no parse no write" not in
                   tbw.OPP_REPORT_FILE.read_text(encoding="utf-8"))
         finally:
