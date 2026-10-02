@@ -30,6 +30,7 @@ Run: PYTHONIOENCODING=utf-8 .venv/Scripts/python.exe test_exit_extension.py
 import json
 import os
 import sys
+import time as _time_mod
 import types
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -944,7 +945,9 @@ try:
           "mutation, not by timing)",
           hasattr(bs, "_TIDE_RETUNE_LOCK")
           and isinstance(bs._TIDE_RETUNE_LOCK, type(_th_12.Lock()))
-          and "with _TIDE_RETUNE_LOCK:" in _src13)
+          and "with _TIDE_RETUNE_LOCK," in _src13
+          and "_TideRetuneFileLock(" in _src13)   # composed with the
+    # cross-process lockfile (12.18): one with, both serialization layers
     _12_fresh_day()
     _lock_seen = []
     _real_save = bs._tide_retune_save_day
@@ -967,6 +970,97 @@ try:
     _ck12("12.17b the save ran while the lock was held (the sequence is "
           "one critical section, not three races)",
           _relL is True and _lock_seen == [True], _lock_seen)
+
+    # 12.18 THE CAP IS CROSS-PROCESS ATOMIC (Oct 2, the finding's
+    # second half closes): the in-process lock (12.17) cannot stop two
+    # PROCESSES — the QC consult already reads from the console
+    # process, and any second releaser (a bot-side door, an op script)
+    # could read the same near-empty ledger and both pass the cap
+    # check: two admissions on a 1-slot cap, one write clobbering the
+    # other. The consuming path now holds a create-if-absent LOCKFILE
+    # (the contest_account idiom: os.link, pid|iso|uuid token, stale
+    # takeover, bounded retry, exhaustion = fail-closed refusal) around
+    # the whole read-check-write. Proven with two real child processes
+    # racing a cap-1 valve: the TOTAL successful releases across both
+    # must be exactly 1 (the loser re-reads under the lock and is
+    # refused by the spent cap) — never 2, and never a clobbered
+    # ledger showing one pair while two popups fired.
+    import subprocess as _sp3
+    os.environ[bs.TIDE_RETUNE_ENABLED_KEY] = "1"
+    os.environ[bs.TIDE_RETUNE_DAY_CAP_KEY] = "1"
+    _12_fresh_day()
+    # the sandbox MUST flow into the child by value (the state-file
+    # path formatted into the child source): children import the module
+    # fresh, so the parent's in-memory rebind is invisible — and the
+    # drive must never race the LIVE repo-root ledger. The children
+    # RENDEZVOUS on a go-file (each writes its ready marker, then polls
+    # for the parent's go) so their first attempts truly overlap —
+    # without it, interpreter-import skew alone decides the race and a
+    # pin could pass by luck (it did, once — the honest red needs the
+    # shape leg below).
+    _race_dir = Path(_12_tmp) / "race"
+    _race_dir.mkdir(exist_ok=True)
+    _go = _race_dir / "go"
+    _child_src = (
+        "import sys, time\n"
+        "sys.path.insert(0, {base!r})\n"
+        "import background_scanner as bs\n"
+        "bs.TIDE_RETUNE_STATE_FILE = {sf!r}\n"
+        "from pathlib import Path as _P\n"
+        "_rd = _P({rd!r})\n"
+        "(_rd / 'ready_{{t}}').write_text('1')\n"
+        "for _ in range(500):\n"
+        "    if (_rd / 'go').exists():\n"
+        "        break\n"
+        "    time.sleep(0.01)\n"
+        "succ = 0\n"
+        "for i in range(30):\n"
+        "    rel, why = bs._tide_retune_releases(70.0, '{{t}}-' + str(i) + '/USD')\n"
+        "    succ += 1 if rel else 0\n"
+        "    time.sleep(0.02)\n"
+        "print('SUCC', succ)\n"
+    ).format(base=str(BASE), sf=str(bs.TIDE_RETUNE_STATE_FILE),
+             rd=str(_race_dir))
+    _procs, _succ = [], []
+    for _tag in ("XA", "XB"):
+        _procs.append(_sp3.Popen(
+            [sys.executable, "-X", "utf8", "-c",
+             _child_src.replace("{t}", _tag)],
+            cwd=str(BASE), env=dict(os.environ),
+            stdout=_sp3.PIPE, stderr=_sp3.PIPE, text=True))
+    for _ in range(500):                       # both ready -> release
+        if (_race_dir / "ready_XA").exists() \
+                and (_race_dir / "ready_XB").exists():
+            _go.write_text("1")
+            break
+        _time_mod.sleep(0.01)
+    for _p in _procs:
+        _out, _err = _p.communicate(timeout=120)
+        for _ln in _out.splitlines():
+            if _ln.startswith("SUCC"):
+                _succ.append(int(_ln.split()[1]))
+    _total = sum(_succ)
+    _today2 = bs._tide_retune_load_day(
+        datetime.now().astimezone().strftime("%Y-%m-%d"))
+    # THE SHAPE LEG (the deterministic half of the red): the valve's
+    # source must hold the cross-process lockfile — create-if-absent
+    # (os.link, the contest_account idiom — never os.replace, which
+    # would clobber a holder and break mutual exclusion), a pid token
+    # for stale takeover, and the release-must-match-token discipline.
+    _src18 = (BASE / "background_scanner.py").read_text(encoding="utf-8")
+    _shape18 = ("_TIDE_RETUNE_LOCKFILE" in _src18
+                and "os.link" in _src18
+                and "stale" in _src18)
+    _ck12("12.18 two racing processes spend AT MOST one cap-1 slot "
+          "(the lockfile serializes the read-check-write across "
+          "processes: shape — os.link lockfile + stale takeover — and "
+          "behavior — one winner, one cap-refused loser, the ledger "
+          "holding exactly the winner's pair)",
+          _shape18
+          and len(_succ) == 2 and _total <= 1
+          and isinstance(_today2, list) and len(_today2) == _total,
+          (_shape18, _succ, _total, _today2))
+    _12_fresh_day()
 except Exception as _e12:
     _12_bad = True
     check(f"12.x the retune section ran clean ({_e12!r})", False)

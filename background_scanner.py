@@ -1281,9 +1281,116 @@ TIDE_RETUNE_STATE_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__))
                                       "tide_retune_state.json")
 # serializes the ledger's read-check-write IN-PROCESS (two scanner
 # threads must never interleave load-check-save and double-spend the
-# cap); the cross-process half is the scanner/bot single-writer
-# convention + the lockfile idiom, documented at the state file
+# cap); the CROSS-PROCESS half (scanner and the bot both import this
+# module and both consume the valve) is the lockfile below, wrapped
+# around the same critical section
 _TIDE_RETUNE_LOCK = threading.Lock()
+# the cross-process lockfile: create-IF-ABSENT (atomic os.link) so a
+# second process ACQUIRES rather than clobbers the holder, a
+# pid|iso|uuid token so release only ever removes OUR lock and a dead
+# holder is provably stale (the contest_account._StateLock idiom,
+# adapted — the mirror consult never needs the disk lock, so the busy
+# posture is the admission valve's own: fail CLOSED, never skip)
+_TIDE_RETUNE_LOCKFILE = Path(TIDE_RETUNE_STATE_FILE).with_suffix(
+    ".json.lock")
+_TIDE_RETUNE_LK_RETRIES = 8
+_TIDE_RETUNE_LK_RETRY_S = 0.05
+_TIDE_RETUNE_LK_STALE_S = 10.0
+
+
+def _pid_alive(pid: int) -> bool:
+    """Windows liveness probe (OpenProcess SYNCHRONIZE) — a dead holder
+    is stale NOW; a broken probe assumes alive and lets staleness
+    decide. Same contract as contest_account._pid_alive."""
+    try:
+        import ctypes
+        k32 = ctypes.windll.kernel32
+        SYNCHRONIZE = 0x00100000
+        h = k32.OpenProcess(SYNCHRONIZE, False, int(pid))
+        if h:
+            k32.CloseHandle(h)
+            return True
+        return False
+    except Exception:
+        return True
+
+
+class _TideRetuneFileLock:
+    """The cross-process gate around the ledger's read-check-write:
+    acquire = create the lockfile if absent (os.link is atomic — the
+    loser of the race gets FileExistsError and retries, never
+    overwrites), bounded backoff, stale/dead-pid takeover. `.held`
+    says whether it was won; release deletes only if the file still
+    carries OUR token (pid|iso|uuid — same-pid threads each get their
+    own uuid, so the in-process lock and this one compose).
+
+    NOTE (honest): mutual exclusion is per-machine-local files, the
+    same scope the ledger itself has — scanner and bot run on this
+    host, which is the only concurrency that exists."""
+
+    def __init__(self, path: Path):
+        self._path = path
+        self.held = False
+        self._token = ""
+
+    def __enter__(self):
+        import time as _t
+        import uuid as _uuid
+        # the iso stamp STAYS in the payload (the staleness parse reads
+        # field 2 — a bare pid|uuid token parses as stale-forever and
+        # every lock would be stolen instantly); the uuid makes
+        # ownership unique per acquisition
+        self._token = (f"{os.getpid()}|"
+                       f"{datetime.now().astimezone().isoformat()}|"
+                       f"{_uuid.uuid4().hex}")
+        tmp = self._path.with_name(
+            self._path.name + f".tmp{os.getpid()}.{_uuid.uuid4().hex[:8]}")
+        for _attempt in range(_TIDE_RETUNE_LK_RETRIES + 1):
+            try:
+                # payload FIRST at a private temp path, then os.link —
+                # no observer ever sees a young half-written lock it
+                # could mistake for stale and steal
+                fd = os.open(str(tmp), os.O_CREAT | os.O_TRUNC | os.O_WRONLY)
+                os.write(fd, self._token.encode())
+                os.close(fd)
+                os.link(str(tmp), str(self._path))
+                self.held = True
+                return self
+            except FileExistsError:
+                try:
+                    _parts = str(self._path.read_text(
+                        encoding="utf-8")).split("|")
+                    _pid = int(_parts[0])
+                    _ts = datetime.fromisoformat(
+                        _parts[1]).timestamp() if len(_parts) > 1 else None
+                except Exception:
+                    _pid, _ts = None, None
+                _age = (datetime.now().astimezone().timestamp()
+                        - _ts) if _ts else 999.0
+                if (_age > _TIDE_RETUNE_LK_STALE_S
+                        or (_pid is not None and _pid != os.getpid()
+                            and not _pid_alive(_pid))):
+                    try:
+                        self._path.unlink()   # stale / dead-holder takeover
+                    except Exception:
+                        pass
+                _t.sleep(_TIDE_RETUNE_LK_RETRY_S)
+            except OSError:
+                _t.sleep(_TIDE_RETUNE_LK_RETRY_S)
+            finally:
+                tmp.unlink(missing_ok=True)
+        return self            # NOT held — caller MUST check .held
+
+    def __exit__(self, *exc):
+        if self.held:
+            try:
+                if str(self._path.read_text(
+                        encoding="utf-8")).strip() == self._token:
+                    self._path.unlink()
+            except Exception:
+                pass
+            self.held = False
+        return False
 
 
 def _tide_retune_dial() -> dict:
@@ -1364,7 +1471,11 @@ def _tide_retune_releases(quick, pair: str = "",
     module unreadable -> the blanket block stands; quick under the
     study's floor -> no release; the pair already released today (or
     the day's cap spent) -> the study priced ONE admission per pair,
-    not a flood. The day ledger persists to DISK (tide_retune_state.json)
+    not a flood. The in-process AND cross-process critical section
+    (scanner + bot both import this module) is serialized: the
+    threading lock inside, an os.link lockfile wrapping the whole
+    read-check-write, so two processes can never both spend the last
+    slot. The day ledger persists to DISK (tide_retune_state.json)
     so a restart cannot refill the cap, and a ledger that cannot be
     read or written refuses the release — fail-closed. THE QC'S MIRROR
     (Oct 2) consults with consume=False: the same doors, the same
@@ -1379,7 +1490,15 @@ def _tide_retune_releases(quick, pair: str = "",
     if float(quick or 0) < d["quick_min"]:
         return False, (f"quick {float(quick or 0):.1f} < the study's "
                        f"{d['quick_min']:.0f} floor")
-    with _TIDE_RETUNE_LOCK:
+    with _TIDE_RETUNE_LOCK, \
+            _TideRetuneFileLock(_TIDE_RETUNE_LOCKFILE) as _lk:
+        if not _lk.held:
+            # the admission valve's busy posture: fail CLOSED — refusing
+            # a genuinely passing candidate costs one missed release;
+            # deciding the cap on an unlocked ledger could double-spend
+            # it across processes (the exact bug class this lock kills)
+            return False, ("the retune ledger is busy — failing CLOSED, "
+                           "the cap is never decided unlocked")
         day = datetime.now().astimezone().strftime("%Y-%m-%d")
         today = _tide_retune_load_day(day)
         if today is None:
