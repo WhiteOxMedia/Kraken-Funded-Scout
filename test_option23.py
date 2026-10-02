@@ -157,6 +157,22 @@ check("the QC's OUT LED turns amber on the carve (red otherwise)",
       '"a" if (tide_state == "OUT" and (lw_pts or tide_learned_pass))' in app_src)
 check("the QC toast explains the exception",
       "lone-wolf exception — this one isn't" in app_src)
+# (Oct 1, user rule — COPY-TRUTH: the toast quoted the RETIRED static
+# "+5%" tier as if it were still the law. The Sep-23 retune made the
+# own-move bar carve_out's adaptive allowance (~1-2% in a dead tide,
+# up to ~8%), and the OUT hatch ALSO needs carve_out's permission —
+# tonight's weak fleet keeps it shut whatever the move. The toast now
+# reads the LIVE bar and names both truths.)
+check("the QC toast states the LIVE adaptive bar (required_own_move, "
+      "not a retired tier)",
+      "required_own_move" in app_src and "_lw_bar_txt" in app_src
+      and "over the regime's own adaptive bar" in app_src)
+check("the retired static +5% tier is gone from the QC copy",
+      "+5% or more" not in app_src)
+check("the QC toast names BOTH truths — the bar adapts to the regime "
+      "AND the carve-out's hatch must be open",
+      "adapts to the regime" in app_src
+      and "the carve-out's hatch " in app_src)
 
 # ── 6. functional: the log writes what it's told ─────────────────────
 try:

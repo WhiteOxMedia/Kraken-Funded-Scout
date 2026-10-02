@@ -6827,6 +6827,19 @@ def render_quick_check(cfg: TradingConfig, kraken):
                     _lw_pts, _lw_note = _bs6.lone_wolf_discount(kraken, pair)
                 except Exception:
                     _lw_pts, _lw_note = 0, ""
+                # ── THE COPY-TRUTH BAR (Oct 1, user rule: the tide-out
+                #    toast must quote the regime's REAL bar, not a retired
+                #    tier): the carve's own-move requirement is carve_out's
+                #    ADAPTIVE allowance — read it live so the toast states
+                #    tonight's number and never a static +5% again.
+                try:
+                    import carve_out as _co6
+                    _lw_bar = float(_co6.required_own_move(_co6.gate(pair=pair)))
+                except Exception:
+                    _lw_bar = None
+                _lw_bar_txt = (f"+{_lw_bar:.1f}% or more on her own"
+                               if _lw_bar is not None
+                               else "over the regime's own adaptive bar")
                 st.session_state["qc_result"]["lone_wolf_pts"] = _lw_pts
                 st.session_state["qc_result"]["lone_wolf_note"] = _lw_note
                 st.session_state["qc_result"]["pace_h"] = _s_h
@@ -7122,8 +7135,10 @@ def render_quick_check(cfg: TradingConfig, kraken):
                             st.toast(f"🌊 TIDE'S OUT — only {_tide_pct:.0f}% of the market is rising. "
                                      f"All ships sink together — don't enter anything right now. "
                                      f"Wait for the tide to turn. "
-                                     f"(A coin moving +5% or more on her own still gets the "
-                                     f"lone-wolf exception — this one isn't. A score clearing "
+                                     f"(A coin moving {_lw_bar_txt} still gets the "
+                                     f"lone-wolf exception — this one isn't. The bar "
+                                     f"adapts to the regime, and the carve-out's hatch "
+                                     f"must be open too. A score clearing "
                                      f"the tide's learned bar passes — {_tl_why or 'the bar is not priced yet'}.)",
                                      icon="🌊", duration=20)
                             _play_sound("alarm")

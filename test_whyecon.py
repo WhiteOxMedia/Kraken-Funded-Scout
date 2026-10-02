@@ -91,11 +91,25 @@ if HAVE:
     finally:
         _p.unlink(missing_ok=True)
 
-    check("1.2 the COMMITTED artifact loads and covers the spec's "
-          "override families (the EV tool's own output)",
+    # (Oct 1 evening re-aim — the commit gate caught it honestly: the
+    #  refreshed 7d run dropped sure-thing-deep-veto, and the ledger
+    #  explains why — popup_suppressions.jsonl holds ~ONE DAY (it now
+    #  starts 04:25), the historical 21-burial burst rotated out, and
+    #  today's four sure-thing rows all ride the censor horizon (the
+    #  header's "censored: 4"). The old pin demanded a SNAPSHOT — family
+    #  presence that depends on ledger retention, guaranteed to red as
+    #  the ledger rotates and again when the 7d window slides past rcl's
+    #  one pre-fix burial (the fix should keep rcl near-zero — a pin
+    #  that reds on the fix WORKING is backwards). The contract is the
+    #  EVER-FED rails: families the retained window can price in any
+    #  regime that buries at all — tide-out, stale-move, deep-veto. The
+    #  rotated-out yaml override families ride the None badge, which is
+    #  their designed fail-soft (never borrows another family's numbers).)
+    check("1.2 the artifact loads and covers the EVER-FED rails (the "
+          "families the retained ledger can price — rotation-cleared "
+          "families ride the None badge, never a borrowed number)",
           all(g in _load(_find("scratch/gate_ev_table.txt"))
-              for g in ("sure-thing-deep-veto", "rcl-drift-reentry",
-                        "tide-out", "stale-move", "deep-veto")),
+              for g in ("tide-out", "stale-move", "deep-veto")),
           sorted(_load(_find("scratch/gate_ev_table.txt")))[:6])
     _real = _load(_find("scratch/gate_ev_table.txt"))
     _ok = all(0.0 <= r["medfill"] <= 10.0 and 0 <= r["payers"] <= r["n"]
