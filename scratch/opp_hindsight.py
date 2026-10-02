@@ -42,7 +42,7 @@ CENSORED, never half-scored.
 Read-only: opens ohlcv_cache.db in URI readonly mode, never writes
 anything but its own report. Scout-side only.
 
-Usage: python scratch/opp_hindsight.py [--fee 0.52] [--min-goal 1.0]
+Usage: python scratch/opp_hindsight.py [--fee 0.52]
 """
 from __future__ import annotations
 
@@ -118,15 +118,21 @@ def outcomes(fires: list[dict], fee_rt: float) -> list[dict]:
 
     The cache is HOURLY: entry at the fire candle's CLOSE (strictly
     post-fire — no pre-fire movement leaks in), peak over the candles
-    that open strictly after the entry and close within the window.
-    win_min <= 60 grades on ONE candle (the honest coarse read)."""
+    that open strictly after the entry AND CLOSE WITHIN the window
+    (win_min, used in minutes — the Copilot P2 catch: rounding up to
+    whole hours graded a 90-min fire on a second candle whose HIGH
+    could land past the window's promise; a candle that has not closed
+    inside the window is invisible at this resolution, the SAME
+    blindness for every class, so the comparison stays fair and
+    conservative)."""
     con = sqlite3.connect(DB.as_uri() + "?mode=ro", uri=True, timeout=2.0)
     try:
         for f in fires:
-            hours = max(1, int(round((float(f.get("win_min") or 60.0)) / 60.0)))
+            win_ms = int(round(float(f.get("win_min") or 60.0) * 60_000))
             t_c = f["_t"].replace(minute=0, second=0, microsecond=0)
             entry_ms = int(t_c.timestamp() * 1000) + 3_600_000
-            end_ms = entry_ms + hours * 3_600_000
+            end_ms = entry_ms + win_ms
+            last_full_ms = end_ms - 3_600_000   # a candle here closes by end_ms
             pre = con.execute(
                 "SELECT close FROM ohlcv WHERE pair=? AND ts=?",
                 (f.get("pair"), entry_ms - 3_600_000)).fetchone()
@@ -134,12 +140,12 @@ def outcomes(fires: list[dict], fee_rt: float) -> list[dict]:
                 f["fill"] = None
                 continue
             hi = con.execute(
-                "SELECT MAX(high) FROM ohlcv WHERE pair=? AND ts>=? AND ts<?",
-                (f.get("pair"), entry_ms, end_ms)).fetchone()
+                "SELECT MAX(high) FROM ohlcv WHERE pair=? AND ts>=? AND ts<=?",
+                (f.get("pair"), entry_ms, last_full_ms)).fetchone()
             n_c = con.execute(
-                "SELECT COUNT(*) FROM ohlcv WHERE pair=? AND ts>=? AND ts<?",
-                (f.get("pair"), entry_ms, end_ms)).fetchone()[0]
-            if not hi or not hi[0] or n_c < hours:
+                "SELECT COUNT(*) FROM ohlcv WHERE pair=? AND ts>=? AND ts<=?",
+                (f.get("pair"), entry_ms, last_full_ms)).fetchone()[0]
+            if not hi or not hi[0] or n_c < 1:
                 f["fill"] = None
                 continue
             entry = float(pre[0])
@@ -223,9 +229,11 @@ def main() -> int:
         if f.get("fill") is None:
             nocov += 1
             continue
-        hours = max(1, int(round((float(f.get("win_min") or 60.0)) / 60.0)))
-        if now < f["_t"].replace(minute=0, second=0, microsecond=0) \
-                + timedelta(hours=hours + 1):
+        # CENSOR: the last full candle inside the window closes at most
+        # one hour past the window's end — until then the grade could
+        # still change (the EV tool's never-half-scored rule).
+        if now < f["_t"] + timedelta(
+                minutes=float(f.get("win_min") or 60.0), hours=1):
             censored += 1
             continue
         scored.append(f)
@@ -243,7 +251,9 @@ def main() -> int:
         f"THE CHAMPION-OPPORTUNISTIC HINDSIGHT — {datetime.now():%Y-%m-%d %H:%M}",
         "=" * 78,
         f"ledger: signal_snapshots.jsonl (fired popups) | fill model: entry "
-        f"fire-candle close, peak within the fire's OWN win_min, spread "
+        f"fire-candle close, peak over the full candles INSIDE the fire's "
+        f"own win_min (a candle counts only if it CLOSES within the window), "
+        f"spread "
         f"±{SPREAD / 2:.3%}, fee {args.fee:.2f}% RT netted, floor 0 | payer "
         f"= the fire's own goal_pct",
         f"fire census (all routes, ledger-wide): " + ", ".join(
