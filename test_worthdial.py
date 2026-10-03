@@ -235,28 +235,36 @@ import copy as _copy
 
 _h = ca.load_state()
 _a_bak = _copy.deepcopy(_h)
-_ledger_bak_src = Path("signals.db")
-_have_db = _ledger_bak_src.exists()
-_db_bak = _ledger_bak_src.read_bytes() if _have_db else None
 _cache_bak = dict(bs._CONTEST_SIZE_CACHE)   # _contest_size caches 30s — bust between fixtures
+_cs_path_bak = ca.STATE_FILE
+_realized_bak = ca.realized_pnl_today
+_sbx = Path("scratch/sbx/_worthdial_actual_sbx.json")
+_sbx.parent.mkdir(parents=True, exist_ok=True)
 _now_a = datetime(2026, 10, 1, 9, 15, tzinfo=ZoneInfo("America/Denver"))
 try:
-    ca.STATE_FILE.write_text(json.dumps({"tier": _a_bak["tier"],
-                                         "start_balance": _a_bak["start_balance"],
-                                         "current_balance": _a_bak["start_balance"]}),
-                             encoding="utf-8")   # healthy 10k: halflife = max(120, 10000*0.12) = 1200
+    # THE SEAM, SANDBOXED (the gate's [HIGH]/[MEDIUM] on the first cut): the
+    # drive never opens the live account state or signals.db — STATE_FILE is
+    # repointed into scratch/sbx and realized is stubbed to 0.0 (the retired
+    # body resolves it through the module object, so the stub intercepts),
+    # making the fixtures deterministic AND immune to clobbering concurrent
+    # fleet writes with a backup/restore race.
+    ca.STATE_FILE = _sbx
+    ca.realized_pnl_today = lambda *_a, **_k: 0.0
+    _sbx.write_text(json.dumps({"tier": _a_bak["tier"],
+                                 "start_balance": _a_bak["start_balance"],
+                                 "current_balance": _a_bak["start_balance"]}),
+                    encoding="utf-8")   # healthy 10k: halflife = max(120, 10000*0.12) = 1200
     bs._CONTEST_SIZE_CACHE["size"] = 0.0
     _f_h = bs._worth_actual_factor(now=_now_a)
-    _pace_h = float(ca.daily_pace_usd(_h))
-    _real_h = float(ca.realized_pnl_today(now=_now_a))
-    _hl_h = max(bs.WORTH_ACTUAL_HALFLIFE_USD, _a_bak["start_balance"] * 0.12)
-    _exp_h = max(0.85, min(1.15, 1.0 + bs.WORTH_ACTUAL_SWING * ((_pace_h - _real_h) / _hl_h)))
+    _pace_h = float(ca.daily_pace_usd(_a_bak))
+    _hl_h = max(bs.WORTH_ACTUAL_HALFLIFE_USD, float(_a_bak["start_balance"]) * 0.12)
+    _exp_h = max(0.85, min(1.15, 1.0 + bs.WORTH_ACTUAL_SWING * (_pace_h / _hl_h)))
     check("RETIRED actual factor COMPUTES on a healthy 10k (the size-aware halflife tilt, NOT the silent 1.0)",
           abs(_f_h - _exp_h) < 1e-9 and _f_h != 1.0, (_f_h, _exp_h))
-    ca.STATE_FILE.write_text(json.dumps({"tier": _a_bak["tier"],
-                                         "start_balance": _a_bak["start_balance"],
-                                         "current_balance": 500.0}),
-                             encoding="utf-8")   # small contest: halflife = max(120, 60) = 120 -> the same deficit clamps
+    _sbx.write_text(json.dumps({"tier": _a_bak["tier"],
+                                 "start_balance": _a_bak["start_balance"],
+                                 "current_balance": 500.0}),
+                    encoding="utf-8")   # small contest: halflife = max(120, 60) = 120 -> the same deficit clamps
     bs._CONTEST_SIZE_CACHE["size"] = 0.0
     _f_s = bs._worth_actual_factor(now=_now_a)
     check("RETIRED actual factor: the small contest's halflife clamps the same deficit to the full 1.15",
@@ -264,11 +272,8 @@ try:
     check("RETIRED actual factor is a TILT, never a quota (clamped [0.85, 1.15])",
           0.85 <= _f_h <= 1.15 and 0.85 <= _f_s <= 1.15)
 finally:
-    if _have_db:
-        _ledger_bak_src.write_bytes(_db_bak)
-    elif _ledger_bak_src.exists():
-        _ledger_bak_src.unlink()
-    ca.STATE_FILE.write_text(json.dumps(_a_bak), encoding="utf-8")
+    ca.realized_pnl_today = _realized_bak
+    ca.STATE_FILE = _cs_path_bak
     bs._CONTEST_SIZE_CACHE.clear()
     bs._CONTEST_SIZE_CACHE.update(_cache_bak)
 
