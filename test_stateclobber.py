@@ -315,6 +315,54 @@ try:
           and _seg4.count("f\".tmp.{os.getpid()}\"") + _seg4.count(
               "'.tmp.' + ") >= 4,
           ("replace_atomic" in _seg4, _seg4.count("os.getpid()")))
+    # ── 4c THE ARCHIVE-ON-TRIM (Oct 3, red-first): the cap keeps the
+    # LEDGER fast for its ~10 readers, but the trim used to DESTROY the
+    # dropped prefix silently — a rotation's burial burst erased the
+    # funnel's own history (the Oct 2 incident: 2 rows gone live at
+    # 999/999). The dropped rows must land in the append-only archive
+    # BEFORE the ledger's atomic replace: no write can lose a row, and
+    # the readers' contract never changes.
+    _sl_real4c = bs.SUPPRESSION_LOG_FILE
+    _ar_real4c = getattr(bs, "SUPPRESSION_ARCHIVE_FILE", None)
+    _max_real4c = bs.SUPPRESSION_LOG_MAX
+    bs.SUPPRESSION_LOG_FILE = str(_sbx / "popup_suppressions.jsonl")
+    bs.SUPPRESSION_ARCHIVE_FILE = str(
+        _sbx / "popup_suppressions.archive.jsonl")
+    bs.SUPPRESSION_LOG_MAX = 5   # a small cap: the fixture fits the drill
+    try:
+        # a clean slate: the 4b drill's row rides in the same sandbox
+        # file — the fixture's arithmetic owns exactly its own writes
+        (_sbx / "popup_suppressions.jsonl").unlink(missing_ok=True)
+        (_sbx / "popup_suppressions.archive.jsonl").unlink(missing_ok=True)
+        for _i in range(5):
+            bs._log_suppression(f"CAP{_i}/USD", "cap-gate",
+                                f"cap fill {_i}", quick=70.0)
+        bs._log_suppression("CAP5/USD", "cap-gate", "cap burst five",
+                            quick=70.0)
+        bs._log_suppression("CAP6/USD", "cap-gate", "cap burst six",
+                            quick=70.0)
+    finally:
+        bs.SUPPRESSION_LOG_FILE = _sl_real4c
+        bs.SUPPRESSION_LOG_MAX = _max_real4c
+        if _ar_real4c is not None:
+            bs.SUPPRESSION_ARCHIVE_FILE = _ar_real4c
+        else:
+            del bs.SUPPRESSION_ARCHIVE_FILE   # the pin was never there
+    _live4c = (_sbx / "popup_suppressions.jsonl").read_text().splitlines()
+    _arc4c = (_sbx / "popup_suppressions.archive.jsonl")
+    _arows = _arc4c.read_text().splitlines() if _arc4c.exists() else []
+    check("4c.1 the cap still governs the LIVE ledger (5 rows, the "
+          "newest five — the readers' contract never changes)",
+          len(_live4c) == 5
+          and all(f"CAP{i + 2}/USD" in _live4c[i] for i in range(5)),
+          len(_live4c))
+    check("4c.2 the trimmed rows land in the APPEND-ONLY archive in "
+          "order (CAP0, CAP1 — the rotation burst's oldest rows are on "
+          "the record, never destroyed again)",
+          len(_arows) == 2 and "CAP0/USD" in _arows[0]
+          and "CAP1/USD" in _arows[1], _arows)
+    check("4c.3 no loss, ever: written == live + archived (7 == 5 + 2)",
+          len(_live4c) + len(_arows) == 7, (len(_live4c), len(_arows)))
     # the scanner saves its view (stale: it never saw the bot's row)
     bs._save_contest_watch({"KAITO/USD": {"entry": 0.3277,
                                           "high": 0.3300,

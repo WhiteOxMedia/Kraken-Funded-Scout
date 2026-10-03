@@ -83,6 +83,14 @@ REGISTRY: dict[tuple[str, str], dict] = {
         "note": "one scanner writer, ~10 production readers; atomic + "
                 "retry (a reader holding the target is the contention "
                 "family — a lost rename silently dropped a row)"},
+    ("popup_suppressions.archive.jsonl",
+     "background_scanner._log_suppression"): {
+        "note": "ARCHIVE-ON-TRIM (Oct 3): the append-only archive of the "
+                "rows the cap drops — written BEFORE the ledger's atomic "
+                "replace, same per-writer tmp + replace_atomic contract "
+                "(a torn append line would poison the archive's future "
+                "readers); a rotation's burial burst never destroys the "
+                "funnel's history again"},
     ("signal_snapshots.jsonl", "background_scanner._log_signal_snapshot"): {
         "note": "the hindsight seam's ledger; atomic + retry"},
 }
@@ -94,7 +102,8 @@ REGISTRY: dict[tuple[str, str], dict] = {
 REQUIRED_GOVERNED = (
     "contest_watch.json", "profit_guard_state.json",
     "rotation_lockout.json", "take_payouts.json",
-    "popup_suppressions.jsonl", "signal_snapshots.jsonl",
+    "popup_suppressions.jsonl", "popup_suppressions.archive.jsonl",
+    "signal_snapshots.jsonl",
 )
 
 EXCLUDE_PREFIX = ("test_", "diag_", "_")

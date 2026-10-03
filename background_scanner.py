@@ -2343,6 +2343,11 @@ SUPPRESSION_LOG_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)),
 SUPPRESSION_LOG_MAX = 1000  # lines kept on disk (raised for the discipline seam —
                             # a busy rotation can bury 40+ candidates; 400 didn't
                             # reliably span the window)
+SUPPRESSION_ARCHIVE_FILE = os.path.join(
+    os.path.dirname(os.path.abspath(__file__)),
+    "popup_suppressions.archive.jsonl")   # ARCHIVE-ON-TRIM (Oct 3): the
+    # rows the cap drops land here (append-only, same atomic contract)
+    # instead of vanishing — the funnel's history outlives the cap.
 
 
 def _log_suppression(pair: str, gate: str, detail: str, **ctx):
@@ -2372,6 +2377,27 @@ def _log_suppression(pair: str, gate: str, detail: str, **ctx):
             with open(SUPPRESSION_LOG_FILE, "r", encoding="utf-8") as f:
                 lines = [l for l in f.read().splitlines() if l.strip()]
         lines.append(_json.dumps(entry, ensure_ascii=False, default=str))
+        # ARCHIVE-ON-TRIM (Oct 3, red-first): the cap keeps the LEDGER
+        # fast for its ~10 readers, but the trim used to DESTROY the
+        # dropped prefix silently — a rotation's burial burst erased the
+        # funnel's own history (the Oct 2 incident: 2 rows gone live at
+        # 999/999). The dropped rows land in the append-only archive
+        # FIRST, riding the same durability contract (per-writer tmp +
+        # replace_atomic — a torn append line would poison the archive's
+        # future readers): the rows are durable in the archive before
+        # the ledger's trim becomes visible, so no write can lose a
+        # row, and the readers' contract never changes.
+        _dropped = (lines[:-SUPPRESSION_LOG_MAX]
+                    if len(lines) > SUPPRESSION_LOG_MAX else [])
+        if _dropped:
+            _hist = ""
+            if os.path.exists(SUPPRESSION_ARCHIVE_FILE):
+                with open(SUPPRESSION_ARCHIVE_FILE, "r",
+                          encoding="utf-8") as _af:
+                    _hist = _af.read()
+            _atmp = SUPPRESSION_ARCHIVE_FILE + f".tmp.{os.getpid()}"
+            with open(_atmp, "w", encoding="utf-8") as _af:
+                _af.write(_hist + "\n".join(_dropped) + "\n")
         # ATOMIC SWAP (Sep 11) + THE RETRY CONTRACT (Oct 2): truncate-
         # and-write left a window where a reader (the tide learner's
         # fit, the weekly hindsight report) saw an EMPTY ledger and
@@ -2380,6 +2406,12 @@ def _log_suppression(pair: str, gate: str, detail: str, **ctx):
         # contention family — per-writer tmp + bounded backoff heals it
         # in-process instead of silently dropping a suppression row.
         from atomic_io import replace_atomic
+        if _dropped:
+            replace_atomic(_atmp, SUPPRESSION_ARCHIVE_FILE)
+        _tmp = SUPPRESSION_LOG_FILE + f".tmp.{os.getpid()}"
+        with open(_tmp, "w", encoding="utf-8") as f:
+            f.write("\n".join(lines[-SUPPRESSION_LOG_MAX:]))
+        replace_atomic(_tmp, SUPPRESSION_LOG_FILE)
         _tmp = SUPPRESSION_LOG_FILE + f".tmp.{os.getpid()}"
         with open(_tmp, "w", encoding="utf-8") as f:
             f.write("\n".join(lines[-SUPPRESSION_LOG_MAX:]))
