@@ -248,6 +248,53 @@ try:
                          {})
         check("rollback without the token is 403 too",
               rb403[0] == 403, rb403)
+        # THE STACKED-BOX WIRE CASE (Oct 3): rbw undid the TOP of a
+        # two-deep stack — the seam must carry the anchor semantics, not
+        # just the status: the box SURVIVES under its ORIGINAL anchor
+        # with the lineage rewound to the surviving rotation.
+        _wbox = pg._state().get("auto_adjust_box") or {}
+        check("the wire rollback of a stack's TOP keeps the box alive "
+              "under its ORIGINAL anchor, lineage rewound to the "
+              "surviving rotation (the stacked-box semantics ride the "
+              "seam verbatim)",
+              _wbox.get("rotation_id") == "ROT-1"
+              and abs(float(_wbox.get("before") or 0) - 2.0) < 1e-9
+              and abs(float(_wbox.get("after") or 0)
+                      - float(ok_apply[1]["after"])) < 1e-9
+              and abs(aa.read_guard_factor()
+                      - float(ok_apply[1]["after"])) < 1e-9,
+              (_wbox, ok_apply[1].get("after")))
+        # THE LINEAGE-GATE WIRE CASES: the stale-undo and boxless guards
+        # ride the same seam — the refusals' NAMES surface over the wire
+        # and no refusal ever moves state.
+        dbl = ha.route("POST", "/api/hindsight/rotation/ROT-2/rollback",
+                       {"operator_id": "op-token-1"})
+        check("a SECOND wire rollback of the already-undone stacked row "
+              "refuses by name (rotation_not_in_live_box — the row is "
+              "stale: the surviving box's chain is ROT-1's; shape never "
+              "decided ownership)",
+              dbl[0] == 200 and dbl[1].get("status") == "refused"
+              and dbl[1].get("reason") == "rotation_not_in_live_box"
+              and abs(aa.read_guard_factor()
+                      - float(ok_apply[1]["after"])) < 1e-9
+              and (pg._state().get("auto_adjust_box") or {})
+              .get("rotation_id") == "ROT-1", dbl)
+        full = ha.route("POST", "/api/hindsight/rotation/ROT-1/rollback",
+                        {"operator_id": "op-token-1"})
+        check("the wire full undo of the LIVE opener collapses the box "
+              "(200 reverted to 2.0, boxless)",
+              full[0] == 200 and full[1].get("status") == "reverted"
+              and full[1].get("restored_to") == 2.0
+              and abs(aa.read_guard_factor() - 2.0) < 1e-9
+              and not (pg._state().get("auto_adjust_box") or {}), full)
+        ghost = ha.route("POST", "/api/hindsight/rotation/ROT-2/rollback",
+                         {"operator_id": "op-token-1"})
+        check("a wire rollback on the BOXLESS slate refuses by name "
+              "(time_box_already_cleared — no stale intermediate factor "
+              "resurrects outside any box)",
+              ghost[0] == 200 and ghost[1].get("status") == "refused"
+              and ghost[1].get("reason") == "time_box_already_cleared"
+              and abs(aa.read_guard_factor() - 2.0) < 1e-9, ghost)
     finally:
         if _tok is not None:
             _os.environ["HINDSIGHT_OPERATOR_TOKEN"] = _tok

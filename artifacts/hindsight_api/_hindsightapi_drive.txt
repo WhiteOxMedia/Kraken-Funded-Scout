@@ -18,11 +18,30 @@ PASS  apply: every decision landed on the telemetry stream
 PASS  an authenticated-but-wrong body cannot lift the concentration gate (the override matches the token, not the claim)
 PASS  an authenticated apply WITHOUT the explicit override field still queues (auth is not the override — the review's major; runs BEFORE the override consumes the daily cap)
 PASS  the AUTHENTICATED operator override lifts ONLY the queue (the apply proceeds through the caps)
+PASS  the TOKEN NEVER LANDS IN TELEMETRY (applied_by carries a non-secret identifier, not the credential)
 PASS  the authenticated rollback restores the applied adjustment's before
 PASS  rollback without the token is 403 too
+PASS  the wire rollback of a stack's TOP keeps the box alive under its ORIGINAL anchor, lineage rewound to the surviving rotation (the stacked-box semantics ride the seam verbatim)
+PASS  a SECOND wire rollback of the already-undone stacked row refuses by name (rotation_not_in_live_box — the row is stale: the surviving box's chain is ROT-1's; shape never decided ownership)
+PASS  the wire full undo of the LIVE opener collapses the box (200 reverted to 2.0, boxless)
+PASS  a wire rollback on the BOXLESS slate refuses by name (time_box_already_cleared — no stale intermediate factor resurrects outside any box)
+PASS  the ledger route answers 200 with rows from the guard state's own record (zone 4)
+PASS  the telemetry route answers 200 with newest-first events carrying applied_by/cohort/commit_sha (the audit trail, zone 5)
+PASS  a POST to a history route is a named 404 (read-only by construction — no mutation can ride a history URL)
 PASS  the evidence route decodes a slash-bearing candidate id and returns its payload
 PASS  a malformed evidence path still 404s (encoding is not a bypass)
 PASS  the wire speaks the same brain: HTTP summary matches the dispatcher's payload
 PASS  an unknown route answers 404 over the wire
+PASS  the boundary hook refuses when the canary dial is off (gated by name, nothing evaluated, no watermark)
+PASS  the flip arms the cohort's OWN file and never touches the exit-extension dial file (two controls, two files)
+PASS  the boundary hook evaluates the completed rotation through the FULL propose path (a named status rides the decision)
+PASS  the boundary emitted ONE spec-shaped telemetry event (the journal's own rot id, the cohort, the non-secret applied_by)
+PASS  the boundary event carries the machine's numbers (B/P and per-gate rows computed from the rot id, not zeros)
+PASS  the watermark holds: the same rotation is never evaluated twice (one event per rotation, ever)
+PASS  the watermark lives in scanner_state (restart-proof: the stamp rides the file the scanner already persists)
+PASS  flip_canary persists the gate-selected cell on the cohort file (alpha/delta_max/daily_cap all three)
+PASS  THE PROOF: the boundary hook's emitted delta matches the ARMED cell's math (min(dmax, a·r·ln(1+B)) with a=0.03/dmax=0.05), NOT the module defaults — the armed params are live through the whole wire path
+PASS  the scanner calls the hook per tick with the previous rotation's dated key (from the rotation's OWN start datetime — a midnight-crossing boundary stamps yesterday's date), above the empty-book early return (every tick self-heals a missed boundary; the dedupe is by stamp; a silent rotation is never skipped for an empty watch)
+PASS  the rollback stops the COHORT on its own file and strips the legacy parked keys from the dial WITHOUT rewriting the master value (the feature is never silently disabled by a cohort rollback)
 
-RESULT: 26 passed, 0 failed
+RESULT: 45 passed, 0 failed
