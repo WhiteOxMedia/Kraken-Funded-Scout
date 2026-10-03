@@ -500,6 +500,88 @@ try:
     aa.rollback("SIM-ROT-2")
     aa.DAILY_CAP = 0.20
 
+    # ── THE RE-ARM DECISION (Oct 3, expire_due_on_apply): an apply used
+    #    to RE-ARM the box — rotations_left reset to 3 on every stack, so
+    #    every loosening extended every earlier one and the bundle lived
+    #    as long as applies kept landing (the Oct 3 08:00 race: the apply
+    #    beat the heartbeat's tick and a box one boundary from death got
+    #    three fresh rotations). The contract is CARRY: the countdown is
+    #    the BOX's, fixed at birth; a stack rides the same remaining
+    #    rotations, and an apply landing on a DUE box expires it FIRST
+    #    (the same drift-aware expiry the heartbeat runs — whichever
+    #    fires first wins, both converge), so no loosening ever stacks
+    #    onto a dead guarantee.
+    _ra_cap = aa.DAILY_CAP
+    aa.DAILY_CAP = 10.0
+    try:
+        pg._save({"factor": 2.0, "auto_adjust_box": None})   # own the slate
+        aa.apply_adjustment(-0.05, "RA-A", "ev:ra-a")
+        _b1 = pg._state()["auto_adjust_box"]
+        check("re-arm: a FRESH box still arms the full 3 (the birth contract)",
+              _b1["rotations_left"] == 3 and _b1["before"] == 2.0, _b1)
+        aa.tick_rotation()                                   # 3 -> 2
+        r_a2 = aa.apply_adjustment(-0.05, "RA-B", "ev:ra-b")
+        _b2 = pg._state()["auto_adjust_box"]
+        check("re-arm: a STACK CARRIES the countdown (rotations_left is "
+              "the box's remaining life, never the apply's reset)",
+              _b2["rotations_left"] == 2 and _b2["before"] == 2.0, _b2)
+        check("re-arm: the stacked row records its TRUE expiry window "
+              "(the rec's promise matches the carried box)",
+              r_a2.get("expires_after_rotations") == 2, r_a2)
+        aa.tick_rotation()
+        aa.tick_rotation()               # 2 -> 1 -> 0 (due, unexpired — the race window)
+        r_a3 = aa.apply_adjustment(-0.05, "RA-C", "ev:ra-c")
+        _exp3 = [r for r in pg._state()["auto_adjust_ledger"]
+                 if str(r.get("reason", "")).startswith("time_box_expired")
+                 and r.get("rotation_id") == "RA-B"]
+        check("re-arm: an apply on a DUE box expires it FIRST (the same "
+              "drift-aware expiry the heartbeat runs — no loosening "
+              "stacks onto a dead guarantee)",
+              len(_exp3) == 1 and _exp3[0]["status"] == "reverted"
+              and _exp3[0]["after"] == 2.0, _exp3)
+        _b3 = pg._state().get("auto_adjust_box") or {}
+        check("re-arm: the post-expiry apply opens a FRESH box from the "
+              "restored anchor (before 2.0, full 3 rotations)",
+              r_a3["status"] == "applied" and r_a3["before"] == 2.0
+              and _b3.get("rotations_left") == 3
+              and _b3.get("before") == 2.0, (r_a3, _b3))
+        # the drifted due-box: expiry retires WITHOUT the restore (the
+        # recompute's factor stands) and the apply evaluates from IT
+        pg._save({"factor": 1.7})        # the recompute's value (a foreign writer)
+        aa.tick_rotation()
+        aa.tick_rotation()
+        aa.tick_rotation()               # 3 -> 0
+        r_a4 = aa.apply_adjustment(-0.05, "RA-D", "ev:ra-d")
+        _exp4 = [r for r in pg._state()["auto_adjust_ledger"]
+                 if r.get("reason") == "time_box_expired_stale_anchor"
+                 and r.get("rotation_id") == "RA-C"]
+        _b4 = pg._state().get("auto_adjust_box") or {}
+        check("re-arm: a DUE box under a DRIFTED factor retires stale (no "
+              "restore yank) and the apply evaluates from the recompute's "
+              "factor — the foreign writer is never clobbered",
+              len(_exp4) == 1 and _exp4[0]["status"] == "expired"
+              and r_a4["before"] == 1.7 and _b4.get("before") == 1.7,
+              (_exp4, r_a4.get("before"), _b4))
+        # a REFUSED apply still runs the box's business first: the due
+        # box expires even when the new loosening is denied
+        aa.DAILY_CAP = 0.10              # today's ledger already carries this block's 0.20
+        aa.tick_rotation()
+        aa.tick_rotation()
+        aa.tick_rotation()               # 3 -> 0
+        r_a5 = aa.apply_adjustment(-0.05, "RA-E", "ev:ra-e")
+        _exp5 = [r for r in pg._state()["auto_adjust_ledger"]
+                 if str(r.get("reason", "")).startswith("time_box_expired")
+                 and r.get("rotation_id") == "RA-D"]
+        check("re-arm: a REFUSED apply still expires the due box (the "
+              "guarantee's death is the box's business, not the cap's)",
+              r_a5["status"] == "refused" and len(_exp5) == 1
+              and pg._state().get("auto_adjust_box") is None
+              and abs(pg._state()["factor"] - 1.7) < 1e-9,
+              (r_a5, _exp5, pg._state().get("auto_adjust_box"),
+               pg._state().get("factor")))
+    finally:
+        aa.DAILY_CAP = _ra_cap
+
 finally:
     if _real_state_file is not None:
         pg.STATE_FILE = _real_state_file

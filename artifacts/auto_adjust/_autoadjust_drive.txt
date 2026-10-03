@@ -63,5 +63,12 @@ PASS  a refused rotation still leaves its evidence bundle (insufficient_samples,
 PASS  the bundle is immutable — re-proposing never rewrites it
 PASS  the bundle carries the per-gate CSV
 PASS  a passing rotation applies through propose_from_aggregate with the bundle attached
+PASS  re-arm: a FRESH box still arms the full 3 (the birth contract)
+PASS  re-arm: a STACK CARRIES the countdown (rotations_left is the box's remaining life, never the apply's reset)
+PASS  re-arm: the stacked row records its TRUE expiry window (the rec's promise matches the carried box)
+PASS  re-arm: an apply on a DUE box expires it FIRST (the same drift-aware expiry the heartbeat runs — no loosening stacks onto a dead guarantee)
+PASS  re-arm: the post-expiry apply opens a FRESH box from the restored anchor (before 2.0, full 3 rotations)
+PASS  re-arm: a DUE box under a DRIFTED factor retires stale (no restore yank) and the apply evaluates from the recompute's factor — the foreign writer is never clobbered
+PASS  re-arm: a REFUSED apply still expires the due box (the guarantee's death is the box's business, not the cap's)
 
-RESULT: 65 passed, 0 failed
+RESULT: 72 passed, 0 failed

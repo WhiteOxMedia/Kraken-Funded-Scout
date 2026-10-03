@@ -304,6 +304,21 @@ def apply_adjustment(delta: float, rotation_id: str,
     now = datetime.now().astimezone()
     st = pg._state()
     before = read_guard_factor()
+    # THE RE-ARM DECISION (Oct 3, expire_due_on_apply): an apply landing
+    # on a DUE box used to re-arm it — three fresh rotations for a spent
+    # guarantee (the Oct 3 08:00 race: the apply beat the heartbeat's
+    # tick by moments and a box one boundary from death got three more).
+    # The box's business runs FIRST: a due box expires right here — the
+    # SAME drift-aware expiry the heartbeat runs, so whichever fires
+    # first wins and both converge — and the apply then evaluates
+    # against the post-expiry factor, never stacking onto a dead
+    # guarantee. Runs before the guards: the guarantee's death is the
+    # box's business, not the cap's or the dedupe's.
+    _due = st.get("auto_adjust_box")
+    if isinstance(_due, dict) and int(_due.get("rotations_left") or 0) <= 0:
+        expire_if_due()
+        st = pg._state()
+        before = read_guard_factor()
     # THE EFFECTIVE CELL (the params seam): each key falls back to the
     # module default when the armed cell omits it — a partial cell is
     # honored key-by-key, never all-or-nothing.
@@ -364,17 +379,26 @@ def apply_adjustment(delta: float, rotation_id: str,
             rec["reason"] = "daily_cap_exceeded"
         else:
             after = clamp(before, delta)
+            # THE CARRY (Oct 3, the re-arm decision's other half): a stack
+            # rides the box's REMAINING countdown — rotations_left is the
+            # box's life, fixed at birth, never the apply's reset. A fresh
+            # box (none prior) arms the full ADJUST_DURATION_ROTATIONS.
+            _prior_box = st.get("auto_adjust_box")
+            _carry = (int(_prior_box["rotations_left"])
+                      if isinstance(_prior_box, dict)
+                      and _prior_box.get("rotations_left") is not None
+                      else ADJUST_DURATION_ROTATIONS)
+            _carry = max(1, _carry)
             rec.update({"status": "applied", "after": after,
                         "reason": "ok",
-                        "expires_after_rotations":
-                            ADJUST_DURATION_ROTATIONS})
+                        "expires_after_rotations": _carry})
             _ledger(st).append(rec)
             # OWNER-KEY SAVES (round-2): land the ledger FIRST — the
             # setter re-reads, two writers never clobber — then the
             # setter writes its own fresh view, then only the box rides
             # the last save. Never a full stale snapshot.
             pg._save({"auto_adjust_ledger": _ledger(st)})
-            set_guard_factor_temporarily(after, ADJUST_DURATION_ROTATIONS,
+            set_guard_factor_temporarily(after, _carry,
                                          before=before)
             box = pg._state().get("auto_adjust_box") or {}   # re-read:
             box.update({"rotation_id": rotation_id,          # the setter
