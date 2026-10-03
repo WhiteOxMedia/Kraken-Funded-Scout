@@ -120,6 +120,17 @@ try:
     check("rolling back a rotation with no applied row refuses honestly",
           aa.rollback("NO-SUCH")["status"] == "refused", aa.rollback("NO-SUCH"))
 
+    # the stacked-box undo above PRESERVES the box (the Oct 3 fix), so
+    # the setter's own pin needs a boxless sandbox: the operator's full
+    # undo — the box-OPENING rotation, whose before IS the anchor —
+    # collapses it (the collapse path, exercised early)
+    _rb1 = aa.rollback("SIM-1")
+    check("the full undo (the box-opening rotation) collapses the box "
+          "and restores 2.0",
+          _rb1["status"] == "reverted" and _rb1.get("restored_to") == 2.0
+          and abs(aa.read_guard_factor() - 2.0) < 1e-9
+          and not (pg._state().get("auto_adjust_box") or {}), _rb1)
+
     # the time-box auto-revert: a FRESH box, its own before, its own revert
     aa.set_guard_factor_temporarily(1.76, 3, before=1.84)
     for _ in range(3):
@@ -156,6 +167,100 @@ try:
           "not the intermediate)",
           abs(aa.read_guard_factor() - 2.0) < 1e-9, aa.read_guard_factor())
 
+    # THE PRODUCTION SHAPE (Oct 2 review major, red-first): the pin
+    # above feeds the setter explicitly — production NEVER does. The
+    # real caller is apply_adjustment, and it always passes before=the
+    # LIVE factor, which is already the box's after whenever a box is
+    # up — so the stacked-box branch (which demanded before=None) was
+    # dead code on the production path, and a second applied rotation
+    # rewrote the box's ORIGINAL before to the already-adjusted
+    # factor. Two stacked PRODUCTION applies must still expire to the
+    # ORIGINAL factor, not the first box's after.
+    aa.DAILY_CAP = 10.0   # the day's ledger is fat from the pins above
+    _rs1 = aa.apply_adjustment(-0.05, "SIM-STACK1", "sha256:stack1")
+    check("the first production apply lands (applied, 2.0 -> 1.95)",
+          _rs1["status"] == "applied"
+          and abs(aa.read_guard_factor() - 1.95) < 1e-9, _rs1)
+    _rs2 = aa.apply_adjustment(-0.05, "SIM-STACK2", "sha256:stack2")
+    check("the second production apply lands ON the live box (applied, "
+          "1.95 -> 1.90 — the stack is real, never a refusal masquerading "
+          "as a pass)",
+          _rs2["status"] == "applied"
+          and abs(aa.read_guard_factor() - 1.90) < 1e-9, _rs2)
+    _pbox = pg._state().get("auto_adjust_box") or {}
+    check("the production stack keeps the ORIGINAL before in the box "
+          "(2.0 — the restore target is the pre-adjustment factor, not "
+          "the first box's 1.95)",
+          abs(float(_pbox.get("before") or 0) - 2.0) < 1e-9
+          and abs(float(_pbox.get("after") or 0) - 1.90) < 1e-9, _pbox)
+    for _ in range(3):
+        aa.tick_rotation()   # run the stacked box to its expiry
+    aa.expire_if_due()   # the stacked box's own revert
+    check("the production stack's expiry restores the ORIGINAL factor "
+          "(2.0, not the intermediate 1.95)",
+          abs(aa.read_guard_factor() - 2.0) < 1e-9, aa.read_guard_factor())
+
+    # THE LIFECYCLE (Oct 2 behavioral verify, folded in as permanent
+    # drive legs): FOUR production-shape stacks — the real Sep-30 chain
+    # depth — drained to expiry, then a post-expiry restart. The box's
+    # whole life against the only caller production has. The cap stays
+    # widened until the block's end (the day's ledger is already fat).
+    aa.DAILY_CAP = 10.0
+    _lf = 2.0
+    for _i, _rid in enumerate(["LIFE-A", "LIFE-B", "LIFE-C", "LIFE-D"]):
+        _rec = aa.apply_adjustment(-0.05, _rid, f"sha256:{_rid}")
+        _lf = round(_lf - 0.05, 4)
+        check(f"lifecycle stack #{_i + 1} ({_rid}) applies, factor {_lf}",
+              _rec["status"] == "applied"
+              and abs(aa.read_guard_factor() - _lf) < 1e-9, _rec)
+        check(f"lifecycle stack #{_i + 1}: the box's anchor is still the "
+              "ORIGINAL 2.0 (deep stacks never rewrite the restore target)",
+              abs(float((pg._state().get("auto_adjust_box") or {})
+                        .get("before") or 0) - 2.0) < 1e-9,
+              pg._state().get("auto_adjust_box"))
+    check("after FOUR stacks the box's after is the last apply (1.80)",
+          abs(float((pg._state().get("auto_adjust_box") or {}).get("after")
+                    or 0) - 1.80) < 1e-9,
+          pg._state().get("auto_adjust_box"))
+
+    for _ in range(3):
+        aa.tick_rotation()   # drain the 4-stack box
+    _lexp = aa.expire_if_due()
+    check("the 4-stack box's expiry restores the ORIGINAL 2.0",
+          bool(_lexp) and _lexp.get("reverted_to") == 2.0
+          and abs(aa.read_guard_factor() - 2.0) < 1e-9,
+          (_lexp, aa.read_guard_factor()))
+    check("the expiry LEDGERS its revert (a time_box_expired row: "
+          "1.80 -> 2.0, LIFE-D's rotation_id carried)",
+          any(r.get("reason") == "time_box_expired"
+              and r.get("status") == "reverted"
+              and abs(float(r.get("before") or 0) - 1.80) < 1e-9
+              and abs(float(r.get("after") or 0) - 2.0) < 1e-9
+              and r.get("rotation_id") == "LIFE-D"
+              for r in pg._state().get("auto_adjust_ledger") or []),
+          [r for r in pg._state().get("auto_adjust_ledger") or []
+           if r.get("reason") == "time_box_expired"])
+    check("expiry removes the box from the state (the tombstone held)",
+          not (pg._state().get("auto_adjust_box") or {}),
+          pg._state().get("auto_adjust_box"))
+
+    _lfresh = aa.apply_adjustment(-0.05, "LIFE-E", "sha256:LIFE-E")
+    _lbox = pg._state().get("auto_adjust_box") or {}
+    check("the post-expiry apply opens a FRESH box anchored at 2.0 "
+          "(no stale carry; its own rotation_id and evidence)",
+          _lfresh["status"] == "applied"
+          and abs(float(_lbox.get("before") or 0) - 2.0) < 1e-9
+          and _lbox.get("rotation_id") == "LIFE-E"
+          and _lbox.get("evidence") == "sha256:LIFE-E", (_lfresh, _lbox))
+    for _ in range(3):
+        aa.tick_rotation()   # drain the fresh box
+    aa.expire_if_due()   # the fresh box reverts on its own terms
+    check("the post-expiry box reverts to 2.0 and leaves no box behind",
+          abs(aa.read_guard_factor() - 2.0) < 1e-9
+          and not (pg._state().get("auto_adjust_box") or {}),
+          (aa.read_guard_factor(), pg._state().get("auto_adjust_box")))
+    aa.DAILY_CAP = 0.20
+
     # THE DOUBLE-APPLY GUARD (Sep 29 review major, red-first): an
     # `applied` row for the SAME rotation refuses a second apply —
     # the boundary hook self-heals per tick and a cadence retry must
@@ -172,6 +277,66 @@ try:
           rec_d2["status"] == "refused"
           and rec_d2["reason"] == "rotation_already_applied", rec_d2)
     aa.rollback("SIM-DOUBLE")
+    aa.DAILY_CAP = 0.20
+
+    # THE ROLLBACK-STRANDING HOLE (Oct 3 review, red-first): the
+    # operator's rollback popped the box UNCONDITIONALLY — undoing the
+    # top of a stack silently destroyed the ORIGINAL anchor, stranding
+    # every earlier loosening forever. The path is dormant in the
+    # scanner but one hop from the live hindsight API's POST /rollback,
+    # so the inconsistency is pinned here: a rollback of a STACKED
+    # rotation must keep the box alive under its ORIGINAL anchor; only
+    # undoing the BASE rotation collapses the whole box.
+    aa.DAILY_CAP = 10.0   # the day's ledger is fat from the pins above
+    _rbA = aa.apply_adjustment(-0.05, "STACK-A", "sha256:stacka")
+    check("the base rotation opens its box (applied, 2.0 -> 1.95)",
+          _rbA["status"] == "applied"
+          and abs(aa.read_guard_factor() - 1.95) < 1e-9, _rbA)
+    _rbB = aa.apply_adjustment(-0.05, "STACK-B", "sha256:stackb")
+    check("the stacked rotation lands on the base box (applied, "
+          "1.95 -> 1.90)",
+          _rbB["status"] == "applied"
+          and abs(aa.read_guard_factor() - 1.90) < 1e-9, _rbB)
+    _rb2 = aa.rollback("STACK-B")
+    check("rolling back the SECOND stacked rotation lands (reverted, "
+          "1.90 -> 1.95 — the first adjustment's loosening legitimately "
+          "stands)",
+          _rb2["status"] == "reverted"
+          and _rb2.get("restored_to") == 1.95
+          and abs(aa.read_guard_factor() - 1.95) < 1e-9, _rb2)
+    _rbbox = pg._state().get("auto_adjust_box") or {}
+    check("the rollback of a STACKED rotation keeps the box alive with "
+          "the ORIGINAL anchor (2.0) — undoing the top never strands "
+          "the first adjustment's restore target",
+          abs(float(_rbbox.get("before") or 0) - 2.0) < 1e-9
+          and int(_rbbox.get("rotations_left") or 0)
+          == aa.ADJUST_DURATION_ROTATIONS
+          and abs(float(_rbbox.get("after") or 0) - 1.95) < 1e-9
+          and _rbbox.get("rotation_id") == "STACK-A", _rbbox)
+    for _ in range(aa.ADJUST_DURATION_ROTATIONS):
+        aa.tick_rotation()   # drain the surviving box
+    _rbexp = aa.expire_if_due()
+    check("the surviving loosening is still temporary by construction: "
+          "the drained box's expiry restores the ORIGINAL 2.0 and the "
+          "expiry row names the box's lineage (STACK-A)",
+          bool(_rbexp) and _rbexp.get("reverted_to") == 2.0
+          and abs(aa.read_guard_factor() - 2.0) < 1e-9
+          and any(r.get("reason") == "time_box_expired"
+                  and r.get("rotation_id") == "STACK-A"
+                  for r in pg._state().get("auto_adjust_ledger") or []),
+          (_rbexp, aa.read_guard_factor()))
+    _rbC = aa.apply_adjustment(-0.05, "STACK-C", "sha256:stackc")
+    check("the base rotation opens its own box for the collapse leg "
+          "(applied, 2.0 -> 1.95)",
+          _rbC["status"] == "applied"
+          and abs(aa.read_guard_factor() - 1.95) < 1e-9, _rbC)
+    _rb3 = aa.rollback("STACK-C")   # the BASE rotation: the full undo
+    check("rolling back the BASE rotation collapses the whole box "
+          "(factor 2.0, no box left — the operator's full undo)",
+          _rb3["status"] == "reverted"
+          and _rb3.get("restored_to") == 2.0
+          and abs(aa.read_guard_factor() - 2.0) < 1e-9
+          and not (pg._state().get("auto_adjust_box") or {}), _rb3)
     aa.DAILY_CAP = 0.20
 
     # ── THE PARAMS SEAM (Sep 29, red-first): the armed cell governs the

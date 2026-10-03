@@ -184,12 +184,17 @@ def set_guard_factor_temporarily(after: float,
     st = pg._state()
     st["factor"] = float(after)
     _prior = st.get("auto_adjust_box")
-    if isinstance(_prior, dict) and _prior.get("before") is not None \
-            and before is None:
-        # THE STACKED BOX (Sep 29 review major): a second adjustment on
-        # a live box keeps the ORIGINAL before — the box's before is
-        # the restore target, and rewriting it to the already-loosened
-        # factor would strand the first loosening forever.
+    if isinstance(_prior, dict) and _prior.get("before") is not None:
+        # THE STACKED BOX (Sep 29 review major; Oct 2 production-shape
+        # fix): a second adjustment stacking onto a LIVE box keeps the
+        # ORIGINAL before — the box's before is the restore target, and
+        # rewriting it to the already-adjusted factor would strand the
+        # first adjustment forever. The live box's before wins WHENEVER
+        # A BOX EXISTS: apply_adjustment (the only production caller)
+        # always passes before=the LIVE factor, which is already the
+        # box's after whenever a box is up, so the old `before is None`
+        # side-condition made this branch dead code on the production
+        # path — only the drive's direct-setter pin ever ran it.
         _before = float(_prior["before"])
     else:
         _before = float(pg.stored_factor() if before is None else before)
@@ -366,7 +371,10 @@ def apply_adjustment(delta: float, rotation_id: str,
 
 def rollback(rotation_id: str) -> dict:
     """The operator's undo: restore the last applied adjustment's
-    `before` and mark the row reverted."""
+    `before` and mark the row reverted. Undoing the rotation that OWNS
+    the live box collapses it (the full undo); undoing a rotation that
+    STACKED onto a live box leaves the box alive under its ORIGINAL
+    anchor — popping it would strand every earlier loosening forever."""
     pg = _pg()
     now = datetime.now().astimezone()
     st = pg._state()
@@ -378,8 +386,39 @@ def rollback(rotation_id: str) -> dict:
     row = rows[-1]
     before = float(row["before"])
     st["factor"] = before
-    st.pop("auto_adjust_box", None)
-    st["auto_adjust_box"] = None   # None-means-delete under merge-save
+    # THE ROLLBACK-STRANDING HOLE (Oct 3 review): the box used to be
+    # popped UNCONDITIONALLY — undoing the top of a stack destroyed the
+    # ORIGINAL anchor and stranded every earlier loosening forever
+    # (dormant in the scanner, one hop from the hindsight API's POST
+    # /rollback). Ownership is decided by the ANCHOR, never by the box's
+    # rotation_id (every stacked apply re-stamps it): a row's before
+    # equals the box's before only when that row opened the box (or the
+    # box's loosening was already healed), so only that undo collapses
+    # it; a stacked undo leaves the box alive and rewinds its lineage
+    # to the rotation the undo lands on.
+    box = st.get("auto_adjust_box") or None
+    _collapses = (box is not None
+                  and abs(float(box.get("before") or 0.0) - before) < 1e-9)
+    if _collapses:
+        st.pop("auto_adjust_box", None)
+        st["auto_adjust_box"] = None   # None-means-delete under merge-save
+        _save_box = None
+    else:
+        _save_box = box
+        if box is not None:
+            # the surviving loosening: the latest applied row that BOTH
+            # opened at the box's anchor AND landed at the factor this
+            # undo just restored (anchor + after — an after-match alone
+            # would name some earlier day's same-shaped rotation)
+            _anchor = float(box.get("before") or 0.0)
+            _prev = [r for r in _ledger(st)
+                     if r.get("status") == "applied"
+                     and abs(float(r.get("before") or 0.0) - _anchor) < 1e-9
+                     and abs(float(r.get("after") or 0.0) - before) < 1e-9]
+            if _prev:
+                box["after"] = before
+                box["rotation_id"] = str(_prev[-1].get("rotation_id") or "")
+                box["evidence"] = str(_prev[-1].get("evidence") or "")
     _ledger(st).append({
         "day": _today_key(now), "rotation_id": rotation_id,
         "status": "reverted", "before": float(row["after"]),
@@ -387,10 +426,11 @@ def rollback(rotation_id: str) -> dict:
         "evidence": str(row.get("evidence") or ""),
         "applied_at": now.isoformat(),
     })
-    # OWNER-KEY SAVE (round-2): factor + ledger + the box tombstone.
+    # OWNER-KEY SAVE (round-2): factor + ledger + the box (the
+    # tombstone on a collapse, the surviving box on a stacked undo).
     pg._save({"factor": st["factor"],
               "auto_adjust_ledger": st["auto_adjust_ledger"],
-              "auto_adjust_box": None})
+              "auto_adjust_box": _save_box})
     return {"status": "reverted", "restored_to": before}
 
 
