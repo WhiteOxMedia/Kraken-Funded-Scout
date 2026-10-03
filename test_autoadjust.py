@@ -337,6 +337,13 @@ try:
           and _rb3.get("restored_to") == 2.0
           and abs(aa.read_guard_factor() - 2.0) < 1e-9
           and not (pg._state().get("auto_adjust_box") or {}), _rb3)
+    _rb4 = aa.rollback("STACK-B")   # the stale offer: the box is GONE
+    check("a stacked rotation's undo REFUSES after the full undo cleared "
+          "the box (time_box_already_cleared — no stale intermediate "
+          "factor resurrects outside any box; the factor stays 2.0)",
+          _rb4["status"] == "refused"
+          and _rb4.get("reason") == "time_box_already_cleared"
+          and abs(aa.read_guard_factor() - 2.0) < 1e-9, _rb4)
     aa.DAILY_CAP = 0.20
 
     # ── THE PARAMS SEAM (Sep 29, red-first): the armed cell governs the

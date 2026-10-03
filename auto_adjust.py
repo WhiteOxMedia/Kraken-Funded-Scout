@@ -374,7 +374,10 @@ def rollback(rotation_id: str) -> dict:
     `before` and mark the row reverted. Undoing the rotation that OWNS
     the live box collapses it (the full undo); undoing a rotation that
     STACKED onto a live box leaves the box alive under its ORIGINAL
-    anchor — popping it would strand every earlier loosening forever."""
+    anchor — popping it would strand every earlier loosening forever.
+    A rollback with NO live box refuses (time_box_already_cleared):
+    after the full undo, a stacked rotation's stale undo must not
+    resurrect its intermediate factor outside any box."""
     pg = _pg()
     now = datetime.now().astimezone()
     st = pg._state()
@@ -385,6 +388,15 @@ def rollback(rotation_id: str) -> dict:
         return {"status": "refused", "reason": "no_applied_adjustment"}
     row = rows[-1]
     before = float(row["before"])
+    # THE BOXLESS SLATE (Copilot [high] on 8820eb4, verified red): after
+    # the full undo collapsed the box, a later stale undo of one of its
+    # stacked rows would still "revert" — parking a stale intermediate
+    # factor forever outside any box (and only half-saved, ledger
+    # logicless). Rollback is a time-box operation: with no live box
+    # there is nothing to undo an adjust into — refuse by name.
+    box = st.get("auto_adjust_box") or None
+    if box is None:
+        return {"status": "refused", "reason": "time_box_already_cleared"}
     st["factor"] = before
     # THE ROLLBACK-STRANDING HOLE (Oct 3 review): the box used to be
     # popped UNCONDITIONALLY — undoing the top of a stack destroyed the
@@ -396,9 +408,7 @@ def rollback(rotation_id: str) -> dict:
     # box's loosening was already healed), so only that undo collapses
     # it; a stacked undo leaves the box alive and rewinds its lineage
     # to the rotation the undo lands on.
-    box = st.get("auto_adjust_box") or None
-    _collapses = (box is not None
-                  and abs(float(box.get("before") or 0.0) - before) < 1e-9)
+    _collapses = abs(float(box.get("before") or 0.0) - before) < 1e-9
     if _collapses:
         st.pop("auto_adjust_box", None)
         st["auto_adjust_box"] = None   # None-means-delete under merge-save
