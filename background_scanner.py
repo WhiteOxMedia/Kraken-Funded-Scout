@@ -2050,7 +2050,15 @@ def _sure_thing_goal(exchange, pair: str) -> float:
     except Exception as exc:
         logger.warning("Sure Thing goal read failed for %s (%s) — "
                        "shipping the constant", pair, exc)
-    return st.SURE_THING_GOAL_PCT
+    # THE ENGINE CONSTANT (the rot census, Oct 3): the old line read
+    # the constant THROUGH the unbound alias `st` — no such module-level
+    # binding existed anywhere in this file, so the documented fail-open
+    # path (a broken read, or a 0.0 market goal) died into the caller's
+    # broad except instead of shipping the constant it named. The
+    # constant lives in sure_thing (83d5b69); the function-local import
+    # is the fleet convention.
+    from sure_thing import SURE_THING_GOAL_PCT
+    return SURE_THING_GOAL_PCT
 
 
 MARKET_GOAL_TTL_S = 900.0
@@ -4924,7 +4932,7 @@ def contest_light(exchange, cfg):
 def main():
     import ccxt
     import pandas as pd
-    from config import TradingConfig
+    from config import DEFAULT_CONFIG, TradingConfig   # DEFAULT_CONFIG: the fire path's unreadable-balance fallbacks (the rot census, Oct 3) — the module imports nothing at top level (the fleet convention) so the constant rides the main() locals
     from strategy import evaluate_strategy, enable_deep_analysis, disable_deep_analysis
     from scanner import compute_position_sizing
 

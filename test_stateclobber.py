@@ -482,7 +482,22 @@ try:
     _SCAN_SETUP = f"import background_scanner as bs; bs.CONTEST_WATCH_JSON = {str(_cw_proc)!r}"
     _SCAN_BODY = "bs._save_contest_watch({PAIR: {'entry': 1.0, 'high': 1.0, 'source': 'storm-scanner'}})"
     _PG_SETUP = f"import profit_guard as pg; pg.STATE_FILE = {str(_pg_proc)!r}"
-    _PG_BODY = "pg._save({KEY: VALUE})"
+    # THE HEAL WRITER ENACTS THE PIN'S OWN PROMISE (Oct 3, two gate runs
+    # lost the wave to it): a single unverified _save is exactly the
+    # silent-lost-update the drive polices elsewhere — two heal writers
+    # interleaving read-modify-write can erase the first landing and the
+    # writer never knows. The writer now verifies its own write and
+    # rewrites on a miss (bounded retries), the convergence poll moved
+    # into the writer; 'LOST' prints if every retry missed, and the
+    # parent's poll still judges the file.
+    _PG_BODY = ("import time as _t\n"
+                "for _i in range(10):\n"
+                "    pg._save({KEY: VALUE})\n"
+                "    if pg._state().get(KEY) == VALUE:\n"
+                "        print('WROTE'); break\n"
+                "    _t.sleep(0.05)\n"
+                "else:\n"
+                "    print('LOST')\n")
     _BOT_SETUP = f"sys.path.insert(0, {str(BOT)!r}); import bot_engine; bot_engine.CONTEST_WATCH_JSON_BOT = {str(_cw_proc)!r}"
     _BOT_BODY = "bot_engine._upsert_bot_watch_row(PAIR, {'entry': ENTRY, 'high': ENTRY, 'size': 100.0, 'source': 'storm-bot'})"
     _botpy = str(BOT / ".venv" / "Scripts" / "python.exe")

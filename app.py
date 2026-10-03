@@ -1094,7 +1094,11 @@ def _her_volume() -> int:
     loudness only. Never raises; an unreadable dial is full volume."""
     try:
         import json as _j
-        return max(0, min(100, int(json.loads(STATE_FILE.read_text())
+        # THE DIAL'S ACTUAL READ (the rot census, Oct 3): the original
+        # line parsed with a bare `json` the module never binds — the
+        # except swallowed the NameError and the VOLUME dial was
+        # permanently, silently pinned at full volume.
+        return max(0, min(100, int(_j.loads(STATE_FILE.read_text())
                                   .get("voice_volume", 100))))
     except Exception:
         return 100

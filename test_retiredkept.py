@@ -23,8 +23,10 @@ This drive fences the whole class, four ways:
      — the markers themselves are not callers). A silent revival —
      re-arming a retired lever without a governance decision — fails
      loudly.
-  4. THE ROT CENSUS: fleet-wide, every bare Name load must bind
-     somewhere in its module (globals(), stores, imports, params).
+  4. THE ROT CENSUS: fleet-wide (root AND nested modules), every bare
+     Name load must bind on its LEXICAL CHAIN — scope-honest (a Store
+     in one function never binds a Load in another; class scopes do
+     not nest into methods; comprehensions resolve their own targets).
      Zero hits is the theorem dcd7007 proved by repair; this pin keeps
      it proved every run.
 """
@@ -76,22 +78,33 @@ ZERO_CALLER = set(REGISTRY) - {("background_scanner", "rotation_gate")}
 
 
 def _tracked():
-    """The gate sandbox has no .git — fall back to the root glob."""
+    """Every tracked production module — ROOT AND NESTED (ops/, trend/,
+    ui/: the gate's [medium] on the first cut dropped every path with a
+    separator, silently excluding them from the registry and the census
+    despite the fleet-wide claim). The gate sandbox has no .git — fall
+    back to a recursive glob with the same exclusions."""
     try:
         out = subprocess.run(["git", "ls-files", "*.py"], cwd=str(BASE),
                              capture_output=True, text=True, timeout=30)
         if out.returncode == 0:
             names = [l.strip() for l in out.stdout.splitlines()
-                     if l.strip() and "/" not in l
+                     if l.strip()
+                     and "scratch/" not in l and "/tests/" not in l
                      and not Path(l).name.startswith(("test_", "diag_"))
+                     and not Path(l).name.endswith("_test.py")
                      and Path(l).name != "scratch_space.py"]
             if names:
                 return names
     except Exception:
         pass
-    return sorted(p.name for p in BASE.glob("*.py")
-                  if not p.name.startswith(("test_", "diag_"))
-                  and p.name != "scratch_space.py")
+    return sorted(
+        str(p.relative_to(BASE)).replace("\\", "/")
+        for p in BASE.rglob("*.py")
+        if "scratch" not in p.parts and "tests" not in p.parts
+        and "__pycache__" not in p.parts
+        and not p.name.startswith(("test_", "diag_"))
+        and not p.name.endswith("_test.py")
+        and p.name != "scratch_space.py")
 
 
 def _marker_scan():
@@ -267,43 +280,255 @@ for mod, fn in sorted(ZERO_CALLER):
           not hits, hits)
 
 # ── 4. THE FLEET ROT CENSUS (dcd7007's class, fenced forever) ───────
-rot = []
+# SCOPE-HONEST (the gate's [medium] on the pooled version): a Store in
+# one function never binds a Load in another. Python's real rules,
+# deliberately: functions chain past CLASS scopes (a method cannot see
+# the class body's names); comprehensions are their own scope with the
+# FIRST iterable evaluated in the ENCLOSING scope and a walrus bound in
+# the nearest enclosing non-comprehension scope; global/nonlocal
+# re-binds resolve on the chain; a load may legally precede the store
+# that binds it (the deferred single-pass resolution — the census fails
+# OPEN, the safe direction); `import *` blinds the chain and the
+# blinded module is surfaced in the detail, never silently ignored.
+_MATCH_NODES = tuple(
+    getattr(ast, n) for n in ("MatchAs", "MatchStar", "MatchMapping")
+    if hasattr(ast, n))
+
+
+def _rot_census(relname, tree):
+    """Returns (rot_hits, blinded) — the unbindable bare loads and
+    whether a star import made any scope's chain unverifiable."""
+    loads = []   # (scope, lineno, name)
+
+    def _child(scope, kind):
+        return {"kind": kind, "stores": set(), "global_decl": set(),
+                "nonlocal_decl": set(), "star": False, "parent": scope}
+
+    def _store(scope, name):
+        tgt = scope
+        while tgt["kind"] == "comp":     # the walrus-in-comprehension rule
+            tgt = tgt["parent"]
+        tgt["stores"].add(name)
+
+    def _params(a, ch):
+        for p in [*a.posonlyargs, *a.args, *a.kwonlyargs] + \
+                 ([a.vararg] if a.vararg else []) + \
+                 ([a.kwarg] if a.kwarg else []):
+            ch["stores"].add(p.arg)
+
+    def visit(node, scope):
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            _store(scope, node.name)
+            for d in node.decorator_list:
+                visit(d, scope)
+            for d in (node.args.defaults
+                      + [d for d in node.args.kw_defaults if d is not None]):
+                visit(d, scope)          # def-time: the enclosing scope
+            if node.returns:
+                visit(node.returns, scope)
+            ch = _child(scope, "function")
+            _params(node.args, ch)
+            for s in node.body:
+                visit(s, ch)
+            return
+        if isinstance(node, ast.Lambda):
+            for d in (node.args.defaults
+                      + [d for d in node.args.kw_defaults if d is not None]):
+                visit(d, scope)
+            ch = _child(scope, "function")
+            _params(node.args, ch)
+            visit(node.body, ch)
+            return
+        if isinstance(node, ast.ClassDef):
+            _store(scope, node.name)
+            for d in (node.decorator_list + node.bases
+                      + [k.value for k in node.keywords]):
+                visit(d, scope)
+            ch = _child(scope, "class")
+            for s in node.body:
+                visit(s, ch)
+            return
+        if isinstance(node, (ast.ListComp, ast.SetComp, ast.DictComp,
+                             ast.GeneratorExp)):
+            gens = node.generators
+            visit(gens[0].iter, scope)   # the first iterable LEAKS out
+            ch = _child(scope, "comp")
+            for i, g in enumerate(gens):
+                if i:
+                    visit(g.iter, ch)
+                for t in ast.walk(g.target):
+                    if isinstance(t, ast.Name):
+                        ch["stores"].add(t.id)
+                for cond in g.ifs:
+                    visit(cond, ch)
+            if isinstance(node, ast.DictComp):
+                visit(node.key, ch)
+                visit(node.value, ch)
+            else:
+                visit(node.elt, ch)
+            return
+        if isinstance(node, ast.Global):
+            scope["global_decl"].update(node.names)
+            return
+        if isinstance(node, ast.Nonlocal):
+            scope["nonlocal_decl"].update(node.names)
+            return
+        if isinstance(node, (ast.Import, ast.ImportFrom)):
+            for al in node.names:
+                if al.name == "*":
+                    scope["star"] = True   # the chain goes blind past here
+                else:
+                    scope["stores"].add(
+                        (al.asname or al.name).split(".")[0])
+            return
+        if isinstance(node, ast.Name):
+            if isinstance(node.ctx, ast.Store):
+                _store(scope, node.id)
+            elif isinstance(node.ctx, ast.Load):
+                loads.append((scope, node.lineno, node.id))
+            return
+        if isinstance(node, ast.ExceptHandler) and node.name:
+            scope["stores"].add(node.name)
+        if _MATCH_NODES and isinstance(node, _MATCH_NODES):
+            for attr in ("name", "name", "rest"):
+                v = getattr(node, attr, None)
+                if v:
+                    scope["stores"].add(v)
+                break
+        for child in ast.iter_child_nodes(node):
+            visit(child, scope)
+
+    mods = _child(None, "module")
+    visit(tree, mods)
+
+    def _chain(scope):
+        names = (set(BUILTINS) | scope["stores"] | scope["global_decl"]
+                 | scope["nonlocal_decl"])
+        p = scope["parent"]
+        while p is not None:
+            if p["kind"] == "class":    # class scopes do not nest
+                p = p["parent"]
+                continue
+            if p["star"]:
+                return None             # blinded — fail open, surface it
+            names |= p["stores"] | p["global_decl"] | p["nonlocal_decl"]
+            p = p["parent"]
+        return names
+
+    rot, blinded = [], False
+    for scope, ln, nm in loads:
+        names = _chain(scope)
+        if names is None:
+            blinded = True
+            continue
+        if nm not in names:
+            rot.append(f"{relname}:{ln} {nm}")
+    return rot, blinded
+
+
+rot, _blinded = [], False
 for name in _tracked():
     p = BASE / name
     try:
-        src = p.read_text(encoding="utf-8")
-        tree = ast.parse(src)
+        tree = ast.parse(p.read_text(encoding="utf-8"))
     except Exception:
         continue
-    ns = set(BUILTINS)
-    for n in ast.walk(tree):
-        if isinstance(n, ast.Name) and isinstance(n.ctx, ast.Store):
-            ns.add(n.id)
-        elif isinstance(n, ast.arg):
-            ns.add(n.arg)
-        elif isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef,
-                            ast.ClassDef)):
-            ns.add(n.name)
-        elif isinstance(n, ast.alias):
-            ns.add((n.asname or n.name).split(".")[0])
-        elif isinstance(n, ast.ExceptHandler) and n.name:
-            ns.add(n.name)
-        elif isinstance(n, ast.comprehension):
-            for t in ast.walk(n.target):
-                if isinstance(t, ast.Name):
-                    ns.add(t.id)
-        elif isinstance(n, ast.withitem) and n.optional_vars:
-            for t in ast.walk(n.optional_vars):
-                if isinstance(t, ast.Name):
-                    ns.add(t.id)
-    for n in ast.walk(tree):
-        if (isinstance(n, ast.Name) and isinstance(n.ctx, ast.Load)
-                and n.id not in ns):
-            rot.append(f"{name}:{n.lineno} {n.id}")
-check("the fleet's bare-load rot census is ZERO (every bare Name load "
-      "binds somewhere in its module — the _worth_actual_factor class "
-      "cannot recur silently)",
-      not rot, rot)
+    r, bl = _rot_census(name, tree)
+    rot.extend(r)
+    _blinded = _blinded or bl
+check("the fleet's bare-load rot census is ZERO, scope-honest (a "
+      "Store in one function never binds a Load in another — the "
+      "_worth_actual_factor class cannot recur silently; a star-import "
+      "module would surface here as blinded, never silently)",
+      not rot, rot or ("blinded-by-import-* (unverifiable, disclosed): "
+                       + str(_blinded)))
+
+# THE CENSUS'S OWN SEMANTICS, PINNED (the gate's [medium] on the pooled
+# first cut: pooled Store bags masked exactly the shapes below). A
+# synthetic module proves each scoping rule the census implements.
+import textwrap
+
+
+def _census_of(src):
+    return _rot_census("<synthetic>",
+                       ast.parse(textwrap.dedent(src)))
+
+_r, _b = _census_of("""
+    def a():
+        x = 1
+    def b():
+        return x            # a's store must NOT bind b's load
+    """)
+check("census semantics: a Store in one function never binds a Load "
+      "in another (the pooled-mask shape, planted)",
+      _r == ["<synthetic>:5 x"], _r)
+
+_r, _b = _census_of("""
+    class C:
+        attr = 1
+        def m(self):
+            return attr     # class-body names do not reach methods
+    """)
+check("census semantics: a class body's name never binds inside its "
+      "methods (class scopes do not nest)",
+      _r == ["<synthetic>:5 attr"], _r)
+
+_r, _b = _census_of("""
+    def f(xs):
+        y = 1
+        return [z for z in xs] + [y]   # y binds in; z stays in the comp
+    """)
+check("census semantics: comprehension targets stay in the "
+      "comprehension; the enclosing function's names still reach in",
+      not _r and not _b, (_r, _b))
+
+_r, _b = _census_of("""
+    def f():
+        return [i for i in xs]      # the FIRST iterable evaluates OUTSIDE
+    """)
+check("census semantics: the first iterable resolves in the ENCLOSING "
+      "scope (an unbound one is rot, even though the comp's own target "
+      "binds fine)",
+      _r == ["<synthetic>:3 xs"], _r)
+
+_r, _b = _census_of("""
+    def f(xs):
+        return [n for x in xs if (n := x)]   # walrus binds OUT of the comp
+    """)
+check("census semantics: a walrus inside a comprehension binds in the "
+      "nearest enclosing non-comprehension scope",
+      not _r and not _b, (_r, _b))
+
+_r, _b = _census_of("""
+    counter = 0
+    def bump():
+        global counter
+        counter = counter + 1
+        return counter
+    """)
+check("census semantics: a global declaration re-binds on the chain "
+      "(loads resolve through it)",
+      not _r and not _b, (_r, _b))
+
+_r, _b = _census_of("""
+    def f():
+        return later()         # the deferred single-pass load is LEGAL
+    def later():
+        return 1
+    """)
+check("census semantics: a load may legally precede the store that "
+      "binds it (the census fails OPEN, the safe direction)",
+      not _r and not _b, (_r, _b))
+
+_r, _b = _census_of("""
+    from os import *           # the chain goes blind past this line
+    def f():
+        return definitely_not_a_real_name
+    """)
+check("census semantics: a star import BLINDS the chain and is "
+      "surfaced as unverifiable — never silently ignored, never "
+      "silently passed",
+      not _r and _b is True, (_r, _b))
 
 lines.append(f"\nRESULT: {PASS} passed, {FAIL} failed")
 import scratch_space

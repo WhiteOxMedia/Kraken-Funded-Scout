@@ -278,8 +278,30 @@ check("the fire aims at the LIVE market goal (the champion machinery), not a fla
       "def _sure_thing_goal" in bs
       and "_market_goal_pct(exchange, pair)" in bs
       and "_st_goal = _sure_thing_goal(exchange, pair)" in bs)
-check("a broken goal read fails open to the engine constant (the fire never stalls)",
-      "return st.SURE_THING_GOAL_PCT" in bs)
+# THE FAIL-OPEN, BEHAVIORAL (the rot census, Oct 3): the old pin froze
+# the ROTTED token itself (`return st.SURE_THING_GOAL_PCT` — no `st` was
+# ever bound in the scanner module, so the documented fail-open path
+# died into the caller's except instead of shipping the constant). Both
+# fall-through causes are pinned for real: the read RAISING and the
+# read returning a non-positive goal — each must ship the engine
+# constant, and the rotted token must stay gone.
+import background_scanner as _bs
+
+_mgp_bak = _bs._market_goal_pct
+class _BrokenGoal:
+    def __call__(self, *a, **k):
+        raise RuntimeError("the broken goal read")
+try:
+    _bs._market_goal_pct = _BrokenGoal()
+    _r1 = _bs._sure_thing_goal(object(), "ZEC/USD")
+    _bs._market_goal_pct = lambda *a, **k: 0.0   # a useless goal read
+    _r0 = _bs._sure_thing_goal(object(), "ZEC/USD")
+finally:
+    _bs._market_goal_pct = _mgp_bak
+check("a broken goal read fails open to the engine constant (the fire "
+      "never stalls — the path actually works now, raise and 0.0 both)",
+      _r1 == st.SURE_THING_GOAL_PCT and _r0 == st.SURE_THING_GOAL_PCT
+      and "st.SURE_THING_GOAL_PCT" not in bs, (_r1, _r0))
 check("the goal the fire picked is stamped into the snapshot (the diag grades it)",
       '"goal_pct": _st_goal' in bs)
 
