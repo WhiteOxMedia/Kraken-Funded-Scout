@@ -226,7 +226,15 @@ def tick_rotation() -> int:
 
 def expire_if_due() -> dict | None:
     """Restore the pre-adjust factor when the box ran out. The
-    auto-revert: the loosening was temporary by construction."""
+    auto-revert: the loosening was temporary by construction. THE
+    STALE-ANCHOR GUARD (Oct 3, the wiring decision): the factor's other
+    writer — the nightly cooldown recompute — may have moved the factor
+    since the chain last landed it, and restoring a stale anchor over a
+    fresher recompute would yank the guard against newer data; a
+    drifted box retires WITHOUT the restore (the recompute owns the
+    factor), ledgered by name. Production wiring: the boundary
+    heartbeat (background_scanner's contest_light hook) ticks once per
+    closed rotation, canary-independent."""
     pg = _pg()
     st = pg._state()
     box = st.get("auto_adjust_box")
@@ -237,19 +245,36 @@ def expire_if_due() -> dict | None:
     before = box.get("before")
     before = 1.0 if before is None else float(before)   # a valid 0.0
     # peak must not read as missing (the zero-fallback class, round 6)
-    st["factor"] = before
-    st.pop("auto_adjust_box", None)
+    _now = datetime.now().astimezone()
+    _cur = float(st.get("factor") or 0.0)
+    _after = float(box.get("after") or 0.0)
     st["auto_adjust_box"] = None   # the merge-save's None-means-delete:
                                     # the box must be REMOVED from the
                                     # file, not resurrected from it
+    if abs(_cur - _after) > 1e-9:
+        # THE DRIFTED BOX: the world moved on — the recompute's factor
+        # is fresher than this chain's landing. Retire WITHOUT the
+        # restore; the anchor's story already lives in the chain's rows.
+        _ledger(st).append({
+            "day": _today_key(_now),
+            "rotation_id": str(box.get("rotation_id") or ""),
+            "status": "expired", "before": _after, "after": _cur,
+            "delta": 0.0, "reason": "time_box_expired_stale_anchor",
+            "evidence": str(box.get("evidence") or ""),
+            "applied_at": _now.isoformat(),
+        })
+        pg._save({"auto_adjust_ledger": st["auto_adjust_ledger"],
+                  "auto_adjust_box": None})
+        return {"superseded": True, "factor": _cur}
+    st["factor"] = before
     _ledger(st).append({
-        "day": _today_key(datetime.now().astimezone()),
+        "day": _today_key(_now),
         "rotation_id": str(box.get("rotation_id") or ""),
-        "status": "reverted", "before": float(box.get("after") or 0),
+        "status": "reverted", "before": _after,
         "after": before, "delta": 0.0,
         "reason": "time_box_expired",
         "evidence": str(box.get("evidence") or ""),
-        "applied_at": datetime.now().astimezone().isoformat(),
+        "applied_at": _now.isoformat(),
     })
     # OWNER-KEY SAVE (round-2): factor + ledger + the tombstone — the
     # None-means-delete contract removes the box from the FILE without

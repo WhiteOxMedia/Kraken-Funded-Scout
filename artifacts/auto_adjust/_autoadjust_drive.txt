@@ -52,6 +52,10 @@ PASS  a fresh chain's box opens on the cleared slate (applied, 2.0 -> 1.95)
 PASS  a cleared chain's row CANNOT undo into the live box even when its before equals the live anchor (rotation_not_in_live_box — the stale undo must not collapse the live box)
 PASS  a cleared chain's row refuses even when its before matches the live box's after (shape is not lineage — the box stays intact under its own chain)
 PASS  the live chain's own base undo still collapses its box (reverted 2.0, boxless — lineage passes, shape governs)
+PASS  the scanner's boundary hook carries the box heartbeat (one tick per closed rotation + expire, watermarked aa_box_last_rotation — the wiring is fenced in source)
+PASS  the DRIFTED box retires WITHOUT the restore (the recompute's 1.7 stands — a stale anchor never yanks the guard against newer data)
+PASS  the drifted expiry LEDGERS its retirement (status expired, 1.95 -> 1.7 — the no-restore is on the record)
+PASS  the UNDRIFTED box still restores its anchor (the clean auto-revert, unchanged by the guard)
 PASS  the ARMED daily_cap bites: a 0.05 delta refuses under a 0.02 armed cap even though the module default is 10.0 (the cell governs, not the module global)
 PASS  a full armed cell applies and the record carries ALL THREE keys (the proof the armed params are live)
 PASS  a tightening delta is refused by name (self-adjust only refunds)
@@ -60,4 +64,4 @@ PASS  the bundle is immutable — re-proposing never rewrites it
 PASS  the bundle carries the per-gate CSV
 PASS  a passing rotation applies through propose_from_aggregate with the bundle attached
 
-RESULT: 61 passed, 0 failed
+RESULT: 65 passed, 0 failed

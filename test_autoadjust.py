@@ -381,6 +381,55 @@ try:
           and not (pg._state().get("auto_adjust_box") or {}), _rb7)
     aa.DAILY_CAP = 0.20
 
+    # THE TIME-BOX GOES LIVE (Oct 3, the wiring decision): the box's
+    # heartbeat — one tick per closed rotation — is wired into the
+    # scanner's boundary hook, CANARY-INDEPENDENT (the box's lifecycle
+    # must not ride the cohort's arm state), watermarked in
+    # scanner_state. And expiry is DRIFT-AWARE: the nightly cooldown
+    # recompute may move the factor while a box is live, and restoring
+    # a stale anchor over a fresher recompute would yank the guard
+    # against newer data — a drifted box retires WITHOUT the restore,
+    # ledgered by name.
+    _bs_src = (BASE / "background_scanner.py").read_text(
+        encoding="utf-8").replace("\r\n", "\n")
+    check("the scanner's boundary hook carries the box heartbeat (one "
+          "tick per closed rotation + expire, watermarked "
+          "aa_box_last_rotation — the wiring is fenced in source)",
+          "aa_box_last_rotation" in _bs_src
+          and "_aa_hb.tick_rotation()" in _bs_src
+          and "_aa_hb.expire_if_due()" in _bs_src, "")
+    aa.DAILY_CAP = 10.0
+    aa.apply_adjustment(-0.05, "WIRE-1", "sha256:wire1")   # box: 2.0 -> 1.95
+    pg._save({"factor": 1.7})   # the recompute's move: a foreign writer
+    for _ in range(3):
+        aa.tick_rotation()
+    _wexp = aa.expire_if_due()
+    check("the DRIFTED box retires WITHOUT the restore (the recompute's "
+          "1.7 stands — a stale anchor never yanks the guard against "
+          "newer data)",
+          bool(_wexp) and _wexp.get("superseded") is True
+          and abs(float(_wexp.get("factor") or 0) - 1.7) < 1e-9
+          and abs(aa.read_guard_factor() - 1.7) < 1e-9
+          and not (pg._state().get("auto_adjust_box") or {}), _wexp)
+    _wrows = [r for r in pg._state().get("auto_adjust_ledger") or []
+              if r.get("reason") == "time_box_expired_stale_anchor"]
+    check("the drifted expiry LEDGERS its retirement (status expired, "
+          "1.95 -> 1.7 — the no-restore is on the record)",
+          len(_wrows) == 1 and _wrows[0].get("status") == "expired"
+          and abs(float(_wrows[0].get("before") or 0) - 1.95) < 1e-9
+          and abs(float(_wrows[0].get("after") or 0) - 1.7) < 1e-9
+          and _wrows[0].get("rotation_id") == "WIRE-1", _wrows)
+    aa.apply_adjustment(-0.05, "WIRE-2", "sha256:wire2")   # 1.7 -> 1.65
+    for _ in range(3):
+        aa.tick_rotation()
+    _cexp = aa.expire_if_due()
+    check("the UNDRIFTED box still restores its anchor (the clean "
+          "auto-revert, unchanged by the guard)",
+          bool(_cexp) and _cexp.get("reverted_to") == 1.7
+          and abs(aa.read_guard_factor() - 1.7) < 1e-9
+          and not (pg._state().get("auto_adjust_box") or {}), _cexp)
+    aa.DAILY_CAP = 0.20
+
     # ── THE PARAMS SEAM (Sep 29, red-first): the armed cell governs the
     #    CAP for real — a tiny armed daily_cap refuses where the module
     #    default (0.20) would apply, and the record carries the cell it

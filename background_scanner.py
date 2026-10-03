@@ -4050,6 +4050,27 @@ def contest_light(exchange, cfg):
             _prev_dt = _now_m - timedelta(hours=4)
             _aar_key = (f"{_prev_dt:%Y-%m-%d}-"
                         f"{rotation_key_for_hour(_prev_dt.hour)}")
+            # THE BOX'S ROTATION HEARTBEAT (Oct 3, the wiring decision):
+            # tick once per CLOSED rotation, canary-independent — the
+            # box's lifecycle must not ride the cohort's arm state.
+            # expire_if_due is drift-aware: it restores the anchor only
+            # while the factor still sits where the chain left it; the
+            # nightly recompute's factor retires the box without the
+            # restore (auto_adjust owns the semantics, the drives own
+            # the proof). Watermark lands last — the evaluation's own
+            # retry-on-crash precedent.
+            try:
+                import auto_adjust as _aa_hb
+                _hb_st = _load_scanner_state()
+                if _hb_st.get("aa_box_last_rotation") != _aar_key:
+                    _aa_hb.tick_rotation()
+                    _aa_hb.expire_if_due()
+                    _hb_st = _load_scanner_state()   # re-read: never clobber
+                    _hb_st["aa_box_last_rotation"] = _aar_key
+                    _save_scanner_state(_hb_st)
+            except Exception as _hb_exc:
+                logger.debug("auto-adjust box heartbeat skipped: %s",
+                             _hb_exc)
             _aar = _exx.aa_apply_silent_rotation(_aar_key)
             if _aar.get("evaluated"):
                 logger.info(
