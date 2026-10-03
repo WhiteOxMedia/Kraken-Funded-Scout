@@ -1769,7 +1769,11 @@ WORTH_ACTUAL_MAX = 1.15
 WORTH_ACTUAL_SWING = 0.10     # ±10% around 1.0 at the extremes
 WORTH_ACTUAL_HALFLIFE_USD = 120.0   # the deficit at which the tilt maxes
                               # ($120 = half the 10k tier's daily pace:
-                              # $120 behind -> full +10% tilt)
+                              # $120 behind -> full +10% tilt) — ALSO the
+                              # retired factor's halflife FLOOR (Oct 3: its
+                              # body referenced two constants that never
+                              # existed, so every call died into the
+                              # fail-soft except and returned a silent 1.0)
 # (RETIRED Sep 9 from the gate — see the BUFFER LEVER below: the buffer
 # is the bar; PnL is not an entry factor, it stays a learning signal.)
 
@@ -1832,9 +1836,14 @@ def _worth_actual_factor(now=None) -> float:
     (worthier popups); ahead -> <1.0 (smaller pays count).
 
     The halflife is size-aware (Sep 9):
-      halflife = max(WORTH_ACTUAL_HALFLIFE_MIN_USD, contest_size x 0.12)
+      halflife = max(WORTH_ACTUAL_HALFLIFE_USD, contest_size x 0.12)
     so a $1k contest doesn't tilt on a $120 deficit it can't afford, and a
-    $10k contest doesn't need a $120 deficit to max out. Fail-open to 1.0
+    $10k contest doesn't need a $120 deficit to max out. (Oct 3: the body
+    referenced WORTH_ACTUAL_HALFLIFE_MIN_USD/FRAC — never defined anywhere —
+    so every call hit the fail-soft except and returned a silent 1.0, a dead
+    lever indistinguishable from a live one sitting at neutral; the floor is
+    THE $120 constant, the 0.12 inline per this docstring. test_worthdial
+    section 9 pins the computed tilt.) Fail-open to 1.0
     (the dial stands on pace x tide alone). Open positions carry no realized
     outcome yet: the ledger counts what's banked, which is the point.'''
     try:
@@ -1846,7 +1855,7 @@ def _worth_actual_factor(now=None) -> float:
         _real = float(_ca_a.realized_pnl_today(_acct, now=now))
         _deficit = _pace - _real
         _size = _contest_size(now)
-        _halflife = max(WORTH_ACTUAL_HALFLIFE_MIN_USD, _size * WORTH_ACTUAL_HALFLIFE_FRAC)
+        _halflife = max(WORTH_ACTUAL_HALFLIFE_USD, _size * 0.12)
         _raw = 1.0 + WORTH_ACTUAL_SWING * (_deficit / _halflife)
         return max(WORTH_ACTUAL_MIN, min(WORTH_ACTUAL_MAX, _raw))
     except Exception:

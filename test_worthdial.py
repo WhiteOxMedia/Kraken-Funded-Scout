@@ -225,6 +225,53 @@ check("the BUFFER factor matches the formula on the live ledger (buffer vs 3% of
 check("the BUFFER factor is clamped [0.40, 1.60] on the live day",
       0.40 <= bs._worth_buffer_factor() <= 1.60)
 
+# ── 9. THE RETIRED ACTUAL FACTOR (Oct 3 red-first) — kept per the
+#    don't-delete rule, its body must COMPUTE: the halflife referenced
+#    two constants no one ever defined, so any call hit the fail-soft
+#    except and returned 1.0 — a silent 1.0 indistinguishable from a
+#    live lever sitting exactly at neutral. A future revival would ship
+#    the tilt OFF with no error anywhere.
+import copy as _copy
+
+_h = ca.load_state()
+_a_bak = _copy.deepcopy(_h)
+_ledger_bak_src = Path("signals.db")
+_have_db = _ledger_bak_src.exists()
+_db_bak = _ledger_bak_src.read_bytes() if _have_db else None
+_cache_bak = dict(bs._CONTEST_SIZE_CACHE)   # _contest_size caches 30s — bust between fixtures
+_now_a = datetime(2026, 10, 1, 9, 15, tzinfo=ZoneInfo("America/Denver"))
+try:
+    ca.STATE_FILE.write_text(json.dumps({"tier": _a_bak["tier"],
+                                         "start_balance": _a_bak["start_balance"],
+                                         "current_balance": _a_bak["start_balance"]}),
+                             encoding="utf-8")   # healthy 10k: halflife = max(120, 10000*0.12) = 1200
+    bs._CONTEST_SIZE_CACHE["size"] = 0.0
+    _f_h = bs._worth_actual_factor(now=_now_a)
+    _pace_h = float(ca.daily_pace_usd(_h))
+    _real_h = float(ca.realized_pnl_today(now=_now_a))
+    _hl_h = max(bs.WORTH_ACTUAL_HALFLIFE_USD, _a_bak["start_balance"] * 0.12)
+    _exp_h = max(0.85, min(1.15, 1.0 + bs.WORTH_ACTUAL_SWING * ((_pace_h - _real_h) / _hl_h)))
+    check("RETIRED actual factor COMPUTES on a healthy 10k (the size-aware halflife tilt, NOT the silent 1.0)",
+          abs(_f_h - _exp_h) < 1e-9 and _f_h != 1.0, (_f_h, _exp_h))
+    ca.STATE_FILE.write_text(json.dumps({"tier": _a_bak["tier"],
+                                         "start_balance": _a_bak["start_balance"],
+                                         "current_balance": 500.0}),
+                             encoding="utf-8")   # small contest: halflife = max(120, 60) = 120 -> the same deficit clamps
+    bs._CONTEST_SIZE_CACHE["size"] = 0.0
+    _f_s = bs._worth_actual_factor(now=_now_a)
+    check("RETIRED actual factor: the small contest's halflife clamps the same deficit to the full 1.15",
+          abs(_f_s - 1.15) < 1e-9, _f_s)
+    check("RETIRED actual factor is a TILT, never a quota (clamped [0.85, 1.15])",
+          0.85 <= _f_h <= 1.15 and 0.85 <= _f_s <= 1.15)
+finally:
+    if _have_db:
+        _ledger_bak_src.write_bytes(_db_bak)
+    elif _ledger_bak_src.exists():
+        _ledger_bak_src.unlink()
+    ca.STATE_FILE.write_text(json.dumps(_a_bak), encoding="utf-8")
+    bs._CONTEST_SIZE_CACHE.clear()
+    bs._CONTEST_SIZE_CACHE.update(_cache_bak)
+
 lines.append(f"\nRESULT: {PASS} passed, {FAIL} failed")
 scratch_space.report_temp('_worthdial_test.txt').write_text("\n".join(lines), encoding="utf-8")
 
