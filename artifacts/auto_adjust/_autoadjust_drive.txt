@@ -70,5 +70,8 @@ PASS  re-arm: an apply on a DUE box expires it FIRST (the same drift-aware expir
 PASS  re-arm: the post-expiry apply opens a FRESH box from the restored anchor (before 2.0, full 3 rotations)
 PASS  re-arm: a DUE box under a DRIFTED factor retires stale (no restore yank) and the apply evaluates from the recompute's factor — the foreign writer is never clobbered
 PASS  re-arm: a REFUSED apply still expires the due box (the guarantee's death is the box's business, not the cap's)
+PASS  re-arm: a box that EXPIRED inside the apply's window stays dead — the write-back births a fresh box from the live factor, never resurrects the closed guarantee
+PASS  re-arm: a TICK inside the apply's window is not written back over — the box's remaining rotations at write time win
+PASS  re-arm: a factor MOVED inside the apply's window re-clamps the stack from the live value (the rec and the written factor tell the truth about their base)
 
-RESULT: 72 passed, 0 failed
+RESULT: 75 passed, 0 failed

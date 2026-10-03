@@ -579,6 +579,84 @@ try:
               and abs(pg._state()["factor"] - 1.7) < 1e-9,
               (r_a5, _exp5, pg._state().get("auto_adjust_box"),
                pg._state().get("factor")))
+        aa.DAILY_CAP = 10.0    # P5's refusal cap must not leak into the R legs
+        # ── THE WRITE-BACK REVALIDATION (the gate's [high] on the re-arm
+        #    decision): the HTTP apply runs beside the scan thread, so the
+        #    snapshot the decision was built on can be outdated at write
+        #    time by a concurrent heartbeat tick/expiry. Each pin lands
+        #    the concurrent write INSIDE the window (a _state stub whose
+        #    second call performs it) and demands the FRESH state decide.
+        #    R1: the box expired in the window — the apply is a BIRTH.
+        pg._save({"factor": 2.0, "auto_adjust_box": None})
+        aa.apply_adjustment(-0.05, "RA-F", "ev:ra-f")
+        aa.tick_rotation()
+        aa.tick_rotation()               # rot 1 — alive at snapshot, gone by write
+        _rs1 = pg._state
+        _c1 = {"n": 0}
+        def _stale_state_r1():
+            _c1["n"] += 1
+            if _c1["n"] == 2:
+                pg._save({"factor": 2.0, "auto_adjust_box": None})   # the heartbeat lands
+            return _rs1()
+        pg._state = _stale_state_r1
+        try:
+            r_r1 = aa.apply_adjustment(-0.05, "RA-R1", "ev:ra-r1")
+        finally:
+            pg._state = _rs1
+        _br1 = pg._state().get("auto_adjust_box") or {}
+        check("re-arm: a box that EXPIRED inside the apply's window stays "
+              "dead — the write-back births a fresh box from the live "
+              "factor, never resurrects the closed guarantee",
+              r_r1["before"] == 2.0 and _br1.get("rotations_left") == 3
+              and _br1.get("before") == 2.0, (r_r1, _br1))
+        #    R2: a TICK landed in the window — the fresh countdown wins.
+        pg._save({"factor": 2.0, "auto_adjust_box": None})
+        aa.apply_adjustment(-0.05, "RA-G", "ev:ra-g")
+        aa.tick_rotation()               # rot 2 at snapshot; 1 by write
+        _rs2 = pg._state
+        _c2 = {"n": 0}
+        def _stale_state_r2():
+            _c2["n"] += 1
+            if _c2["n"] == 2:
+                _b = pg._state().get("auto_adjust_box")
+                if _b:   # the heartbeat ticks a LIVE box — never a boxless slate
+                    _b["rotations_left"] = 1
+                    pg._save({"auto_adjust_box": _b})   # the tick lands
+            return _rs2()
+        pg._state = _stale_state_r2
+        try:
+            r_r2 = aa.apply_adjustment(-0.05, "RA-R2", "ev:ra-r2")
+        finally:
+            pg._state = _rs2
+        _br2 = pg._state().get("auto_adjust_box") or {}
+        check("re-arm: a TICK inside the apply's window is not written "
+              "back over — the box's remaining rotations at write time win",
+              _br2.get("rotations_left") == 1, (r_r2, _br2))
+        #    R3: a FOREIGN writer moved the factor in the window — the
+        #    stack re-clamps from the live value (the rails' base is the
+        #    truth; the box's birth anchor stays the stale guard's call).
+        pg._save({"factor": 2.0, "auto_adjust_box": None})
+        aa.apply_adjustment(-0.05, "RA-H", "ev:ra-h")
+        aa.tick_rotation()               # rot 2, factor 1.95 at snapshot
+        _rs3 = pg._state
+        _c3 = {"n": 0}
+        def _stale_state_r3():
+            _c3["n"] += 1
+            if _c3["n"] == 3:   # after the entry reads, at the write's own read
+                pg._save({"factor": 1.7})   # the recompute lands mid-window
+            return _rs3()
+        pg._state = _stale_state_r3
+        try:
+            r_r3 = aa.apply_adjustment(-0.05, "RA-R3", "ev:ra-r3")
+        finally:
+            pg._state = _rs3
+        _br3 = pg._state().get("auto_adjust_box") or {}
+        check("re-arm: a factor MOVED inside the apply's window re-clamps "
+              "the stack from the live value (the rec and the written "
+              "factor tell the truth about their base)",
+              r_r3["before"] == 1.7 and r_r3["after"] == 1.65
+              and abs(pg._state()["factor"] - 1.65) < 1e-9,
+              (r_r3, _br3, pg._state().get("factor")))
     finally:
         aa.DAILY_CAP = _ra_cap
 

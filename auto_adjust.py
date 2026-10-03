@@ -389,6 +389,27 @@ def apply_adjustment(delta: float, rotation_id: str,
                       and _prior_box.get("rotations_left") is not None
                       else ADJUST_DURATION_ROTATIONS)
             _carry = max(1, _carry)
+            # THE WRITE-BACK REVALIDATION (the gate's [high] on the re-arm
+            # decision): the HTTP apply runs beside the scan thread, so the
+            # snapshot above can be outdated at write time by a concurrent
+            # heartbeat tick/expiry or a foreign factor writer. The FRESH
+            # state decides: the box's remaining rotations at write time
+            # win; a box that died in the window makes this a BIRTH; a
+            # factor that moved re-clamps the stack from the live value —
+            # the rails' base is the truth, never the snapshot.
+            _now_box = pg._state().get("auto_adjust_box")
+            if isinstance(_now_box, dict) and _now_box.get("rotations_left") is not None:
+                _carry = max(1, int(_now_box["rotations_left"]))
+                _live = read_guard_factor()
+                if abs(float(_now_box.get("after") or 0.0) - float(_live)) > 1e-9:
+                    before = _live
+                    after = clamp(before, delta)
+                    rec.update({"before": before, "after": after})
+            else:
+                _carry = ADJUST_DURATION_ROTATIONS
+                before = read_guard_factor()
+                after = clamp(before, delta)
+                rec.update({"before": before, "after": after})
             rec.update({"status": "applied", "after": after,
                         "reason": "ok",
                         "expires_after_rotations": _carry})
