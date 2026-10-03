@@ -176,15 +176,42 @@ def write_evidence_bundle(rotation_id: str, per_gate: list[dict],
 # ── apply / revert ──────────────────────────────────────────────────
 def set_guard_factor_temporarily(after: float,
                                  rotations: int = ADJUST_DURATION_ROTATIONS,
-                                 before: float | None = None) -> None:
+                                 before: float | None = None) -> dict:
     """Write the time-boxed factor into profit_guard's state. The box
     rides the state (rotations_left), ticked down per rotation by
-    tick_rotation(); expire_if_due() restores `before` when it empties."""
+    tick_rotation(); expire_if_due() restores `before` when it empties.
+    THE WRITE-TIME TRUTH (the gate's non-atomic-revalidation [high] on
+    the re-arm decision): the countdown is the box's OWN state as it
+    stands at the WRITE — a stack carries the box's remaining rotations
+    read HERE, never the caller's snapshot, so a heartbeat tick landing
+    inside the write's window is never written back over; the caller's
+    `rotations` arms only a BIRTH. A box DUE at the write expires first
+    (the same drift-aware expiry the heartbeat runs) and the write
+    births from the POST-expiry anchor. Returns {"box": <the box
+    written>, "expired_due_box": bool} so the caller can reconcile its
+    record when the write had to bury a box first."""
     pg = _pg()
     st = pg._state()
-    st["factor"] = float(after)
     _prior = st.get("auto_adjust_box")
-    if isinstance(_prior, dict) and _prior.get("before") is not None:
+    _prior_rot = (int(_prior["rotations_left"])
+                  if isinstance(_prior, dict)
+                  and _prior.get("rotations_left") is not None else None)
+    _expired_due = False
+    if _prior_rot is not None and _prior_rot <= 0:
+        # THE DUE BOX AT THE WRITE (the third-order window the write-time
+        # rule opens): max(1, 0) here would re-arm a spent guarantee one
+        # rotation at a time. The box's business runs where the write
+        # lands — expire (drift-aware, ledgered), then birth from the
+        # POST-expiry truth: the caller's `before` is a pre-expiry
+        # snapshot and never anchors a fresh guarantee.
+        expire_if_due()
+        st = pg._state()
+        _prior = st.get("auto_adjust_box")
+        _prior_rot = (int(_prior["rotations_left"])
+                      if isinstance(_prior, dict)
+                      and _prior.get("rotations_left") is not None else None)
+        _expired_due = True
+    if _prior_rot is not None:
         # THE STACKED BOX (Sep 29 review major; Oct 2 production-shape
         # fix): a second adjustment stacking onto a LIVE box keeps the
         # ORIGINAL before — the box's before is the restore target, and
@@ -194,14 +221,29 @@ def set_guard_factor_temporarily(after: float,
         # always passes before=the LIVE factor, which is already the
         # box's after whenever a box is up, so the old `before is None`
         # side-condition made this branch dead code on the production
-        # path — only the drive's direct-setter pin ever ran it.
-        _before = float(_prior["before"])
+        # path — only the drive's direct-setter pin ever ran it. AND THE
+        # WRITE-TIME RULE (this [high]'s cure): the carried countdown is
+        # read HERE, at the write — the caller's number is a snapshot.
+        _rot = max(1, _prior_rot)
+        if isinstance(_prior, dict) and _prior.get("before") is not None:
+            _before = float(_prior["before"])
+        else:
+            _before = float(pg.stored_factor() if before is None else before)
+    elif _expired_due:
+        # THE POST-EXPIRY BIRTH: the restored anchor (or, under drift,
+        # the recompute's standing factor) is the birth's base — the
+        # guarantee that died at this write is gone; the new one starts
+        # clean with the caller's full window.
+        _before = float(st.get("factor") or 0.0)
+        _rot = int(rotations)
     else:
         _before = float(pg.stored_factor() if before is None else before)
+        _rot = int(rotations)
+    st["factor"] = float(after)
     st["auto_adjust_box"] = {
         "after": float(after),
         "before": _before,
-        "rotations_left": int(rotations),
+        "rotations_left": _rot,
         "set_at": datetime.now().astimezone().isoformat(),
     }
     # OWNER-KEY SAVE (the round-2 review's degeneration major): the
@@ -210,6 +252,8 @@ def set_guard_factor_temporarily(after: float,
     # key with old values. Only this module's keys ride.
     pg._save({"factor": st["factor"],
               "auto_adjust_box": st["auto_adjust_box"]})
+    return {"box": dict(st["auto_adjust_box"]),
+            "expired_due_box": _expired_due}
 
 
 def tick_rotation() -> int:
@@ -398,6 +442,21 @@ def apply_adjustment(delta: float, rotation_id: str,
             # factor that moved re-clamps the stack from the live value —
             # the rails' base is the truth, never the snapshot.
             _now_box = pg._state().get("auto_adjust_box")
+            if (isinstance(_now_box, dict)
+                    and _now_box.get("rotations_left") is not None
+                    and int(_now_box["rotations_left"] or 0) <= 0):
+                # THE DUE BOX AT THE REVALIDATION (the gate's rot-0 [high]
+                # on 1b31271): the max(1, rot) clamp turned a box TICKED
+                # TO 0 inside the window back into a live one-rotation
+                # guarantee — stacking onto a dead box. The box's
+                # business runs here: the same drift-aware expiry the
+                # heartbeat runs, then the apply evaluates as a birth
+                # from the POST-expiry factor. `st` is re-read — the
+                # expiry's ledger row must ride the live list, never a
+                # stale snapshot's.
+                expire_if_due()
+                st = pg._state()
+                _now_box = st.get("auto_adjust_box")
             if isinstance(_now_box, dict) and _now_box.get("rotations_left") is not None:
                 _carry = max(1, int(_now_box["rotations_left"]))
                 _live = read_guard_factor()
@@ -419,9 +478,41 @@ def apply_adjustment(delta: float, rotation_id: str,
             # setter writes its own fresh view, then only the box rides
             # the last save. Never a full stale snapshot.
             pg._save({"auto_adjust_ledger": _ledger(st)})
-            set_guard_factor_temporarily(after, _carry,
-                                         before=before)
+            # THE WRITE-TIME WINDOW (the gate's non-atomic-revalidation
+            # [high]): the setter's own read decides the countdown now —
+            # the number passed here is only a BIRTH's window, so a tick
+            # landing inside the write's window can never be overwritten
+            # with this snapshot's carry.
+            _wrote = set_guard_factor_temporarily(
+                after, ADJUST_DURATION_ROTATIONS, before=before)
             box = pg._state().get("auto_adjust_box") or {}   # re-read:
+            if _wrote.get("expired_due_box"):
+                # THE SETTER BURIED A DUE BOX AT THE WRITE (the
+                # third-order window): the rec's story was built on the
+                # pre-expiry base — the post-expiry anchor is the truth.
+                # Re-clamp from it so the rec, the box and the factor
+                # tell one story (R3's rule, at the write); the ledger
+                # row is corrected IN the file's live list — the expiry
+                # landed in the setter's own read, and overlaying this
+                # call's stale ledger would erase it.
+                before = float(box.get("before") or before)
+                after = clamp(before, delta)
+                _win = int(box.get("rotations_left")
+                           or ADJUST_DURATION_ROTATIONS)
+                box.update({"after": after, "rotations_left": _win})
+                rec.update({"before": before, "after": after,
+                            "expires_after_rotations": _win})
+                _fresh = pg._state()
+                for _r in _ledger(_fresh):
+                    if (_r.get("rotation_id") == rotation_id
+                            and _r.get("status") == "applied"):
+                        _r.update(rec)
+                        break
+                box.update({"rotation_id": rotation_id,
+                            "evidence": evidence_checksum})
+                pg._save({"factor": after, "auto_adjust_box": box,
+                          "auto_adjust_ledger": _ledger(_fresh)})
+                return rec
             box.update({"rotation_id": rotation_id,          # the setter
                         "evidence": evidence_checksum})      # wrote its own
             pg._save({"auto_adjust_box": box})

@@ -73,5 +73,8 @@ PASS  re-arm: a REFUSED apply still expires the due box (the guarantee's death i
 PASS  re-arm: a box that EXPIRED inside the apply's window stays dead — the write-back births a fresh box from the live factor, never resurrects the closed guarantee
 PASS  re-arm: a TICK inside the apply's window is not written back over — the box's remaining rotations at write time win
 PASS  re-arm: a factor MOVED inside the apply's window re-clamps the stack from the live value (the rec and the written factor tell the truth about their base)
+PASS  re-arm: a box TICKED TO 0 inside the window stays dead — the apply expires it (the heartbeat's own expiry, ledgered) and births fresh from the restored anchor, never clamps 0 -> 1 onto a spent guarantee
+PASS  re-arm: a tick landing INSIDE the write's own window is never written back over — the setter's read-time rotations win, not the caller's snapshot
+PASS  re-arm: a box due AT THE WRITE dies there — the setter expires it (ledgered) and births from the restored anchor, and the rec re-clamps to the post-expiry truth (the rec, the box and the factor tell one story)
 
-RESULT: 75 passed, 0 failed
+RESULT: 78 passed, 0 failed

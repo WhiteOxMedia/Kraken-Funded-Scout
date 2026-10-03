@@ -657,6 +657,123 @@ try:
               r_r3["before"] == 1.7 and r_r3["after"] == 1.65
               and abs(pg._state()["factor"] - 1.65) < 1e-9,
               (r_r3, _br3, pg._state().get("factor")))
+        #    R4 (the gate's rot-0 [high] on 1b31271): the revalidation's
+        #    max(1, rot) clamp turned a box TICKED TO 0 inside the window
+        #    back into a live one-rotation guarantee — stacking onto a
+        #    spent box. The tick lands at the revalidation's own read;
+        #    the apply must run the box's business (the drift-aware
+        #    expiry, ledgered) and BIRTH from the restored anchor —
+        #    never clamp 0 -> 1.
+        pg._save({"factor": 2.0, "auto_adjust_box": None})
+        aa.apply_adjustment(-0.05, "RA-J", "ev:ra-j")
+        aa.tick_rotation()               # 3 -> 2
+        aa.apply_adjustment(-0.05, "RA-K", "ev:ra-k")
+        aa.tick_rotation()               # 2 -> 1 — one boundary from due
+        _rs4 = pg._state
+        _c4 = {"n": 0}
+        def _stale_state_r4():
+            _c4["n"] += 1
+            if _c4["n"] == 3:   # the revalidation's own read — the tick lands
+                _b = pg._state().get("auto_adjust_box")
+                if _b:   # the heartbeat ticks a LIVE box — never a boxless slate
+                    _b["rotations_left"] = 0
+                    pg._save({"auto_adjust_box": _b})   # the tick lands
+            return _rs4()
+        pg._state = _stale_state_r4
+        try:
+            r_r4 = aa.apply_adjustment(-0.05, "RA-R4", "ev:ra-r4")
+        finally:
+            pg._state = _rs4
+        _exp_r4 = [r for r in pg._state()["auto_adjust_ledger"]
+                   if str(r.get("reason", "")).startswith("time_box_expired")
+                   and r.get("rotation_id") == "RA-K"]
+        _br4 = pg._state().get("auto_adjust_box") or {}
+        check("re-arm: a box TICKED TO 0 inside the window stays dead — "
+              "the apply expires it (the heartbeat's own expiry, ledgered) "
+              "and births fresh from the restored anchor, never clamps "
+              "0 -> 1 onto a spent guarantee",
+              len(_exp_r4) == 1 and _exp_r4[0]["status"] == "reverted"
+              and _exp_r4[0]["after"] == 2.0
+              and r_r4["before"] == 2.0 and r_r4["after"] == 1.95
+              and r_r4.get("expires_after_rotations") == 3
+              and _br4.get("rotations_left") == 3
+              and _br4.get("before") == 2.0
+              and abs(pg._state()["factor"] - 1.95) < 1e-9,
+              (r_r4, _exp_r4, _br4, pg._state().get("factor")))
+        #    R5 (the gate's non-atomic-revalidation [high]): a tick landing
+        #    BETWEEN the revalidation read and the setter's save can still
+        #    be written back over — the countdown must come from the
+        #    setter's OWN read (write-time truth), not the caller's
+        #    snapshot. The tick lands at the setter's read; the written
+        #    box carries the ticked value.
+        pg._save({"factor": 2.0, "auto_adjust_box": None})
+        aa.apply_adjustment(-0.05, "RA-L", "ev:ra-l")
+        aa.tick_rotation()               # rot 2 at the revalidation; 1 by the write
+        _rs5 = pg._state
+        _c5 = {"n": 0}
+        def _stale_state_r5():
+            _c5["n"] += 1
+            if _c5["n"] == 5:   # the setter's own write-time read
+                _b = pg._state().get("auto_adjust_box")
+                if _b:   # the heartbeat ticks a LIVE box — never a boxless slate
+                    _b["rotations_left"] = 1
+                    pg._save({"auto_adjust_box": _b})   # the tick lands
+            return _rs5()
+        pg._state = _stale_state_r5
+        try:
+            r_r5 = aa.apply_adjustment(-0.05, "RA-R5", "ev:ra-r5")
+        finally:
+            pg._state = _rs5
+        _br5 = pg._state().get("auto_adjust_box") or {}
+        check("re-arm: a tick landing INSIDE the write's own window is "
+              "never written back over — the setter's read-time rotations "
+              "win, not the caller's snapshot",
+              _br5.get("rotations_left") == 1 and _br5.get("before") == 2.0
+              and abs(pg._state()["factor"] - 1.90) < 1e-9,
+              (r_r5, _br5, pg._state().get("factor")))
+        #    R6 (the third-order window the write-time rule opens): a box
+        #    one boundary from due at the revalidation can be TICKED TO 0
+        #    inside the SETTER's own read — the old setter wrote the
+        #    passed carry and re-armed a spent guarantee. The write-time
+        #    rule runs the box's business right there: expire (ledgered,
+        #    drift-aware), birth from the POST-expiry anchor, and the rec
+        #    re-clamped to tell the same story.
+        pg._save({"factor": 2.0, "auto_adjust_box": None})
+        aa.apply_adjustment(-0.05, "RA-M", "ev:ra-m")
+        aa.tick_rotation()               # 3 -> 2
+        aa.apply_adjustment(-0.05, "RA-N", "ev:ra-n")
+        aa.tick_rotation()               # 2 -> 1 — due by the write
+        _rs6 = pg._state
+        _c6 = {"n": 0}
+        def _stale_state_r6():
+            _c6["n"] += 1
+            if _c6["n"] == 5:   # the setter's own write-time read — the tick lands
+                _b = pg._state().get("auto_adjust_box")
+                if _b:   # the heartbeat ticks a LIVE box — never a boxless slate
+                    _b["rotations_left"] = 0
+                    pg._save({"auto_adjust_box": _b})   # the tick lands
+            return _rs6()
+        pg._state = _stale_state_r6
+        try:
+            r_r6 = aa.apply_adjustment(-0.05, "RA-R6", "ev:ra-r6")
+        finally:
+            pg._state = _rs6
+        _exp_r6 = [r for r in pg._state()["auto_adjust_ledger"]
+                   if str(r.get("reason", "")).startswith("time_box_expired")
+                   and r.get("rotation_id") == "RA-N"]
+        _br6 = pg._state().get("auto_adjust_box") or {}
+        check("re-arm: a box due AT THE WRITE dies there — the setter "
+              "expires it (ledgered) and births from the restored anchor, "
+              "and the rec re-clamps to the post-expiry truth (the rec, "
+              "the box and the factor tell one story)",
+              len(_exp_r6) == 1 and _exp_r6[0]["status"] == "reverted"
+              and _exp_r6[0]["after"] == 2.0
+              and r_r6["before"] == 2.0 and r_r6["after"] == 1.95
+              and r_r6.get("expires_after_rotations") == 3
+              and _br6.get("rotations_left") == 3
+              and _br6.get("before") == 2.0
+              and abs(pg._state()["factor"] - 1.95) < 1e-9,
+              (r_r6, _exp_r6, _br6, pg._state().get("factor")))
     finally:
         aa.DAILY_CAP = _ra_cap
 
