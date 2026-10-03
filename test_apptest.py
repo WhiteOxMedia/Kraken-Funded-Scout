@@ -3819,6 +3819,55 @@ finally:
     app_mod.bot_positions = _real_bot_positions
     app_mod.bridge_positions = _real_bridge_positions
 
+# ── THE ARCHIVE STRIP (Oct 3): 210f395 made the suppression ledger's
+#    trim evictions DURABLE but INVISIBLE — the operator watching the
+#    MONEY LEFT ON THE TABLE expander never saw what a rotation's
+#    burial burst retired. The archive renders beside the live ledger.
+_asrc3 = Path("app.py").read_text(encoding="utf-8")
+_asup3 = _asrc3[_asrc3.index("def _render_suppression_strip"):
+                _asrc3.index("def _no_pick_advice")]
+check("archive strip: the strip reads the suppression ARCHIVE beside the "
+      "live ledger (the graded helper names the archive file)",
+      "_load_archive_rows" in _asup3
+      and "popup_suppressions.archive.jsonl" in _asrc3)
+check("archive strip: archived burials render BESIDE the live rows (a "
+      "titled 🗄 section inside the same expander, newest first)",
+      "🗄 ARCHIVED BURIALS" in _asup3)
+_real_arch_fn = getattr(app_mod, "_load_archive_rows", None)
+check("archive strip: the graded helper exists (the render's feed)",
+      _real_arch_fn is not None)
+if _real_arch_fn is not None:
+    _sbx3 = Path("scratch/sbx")
+    _sbx3.mkdir(parents=True, exist_ok=True)
+    _arch_sbx = _sbx3 / f"_apptest_archive_sbx.{_os.getpid()}.jsonl"
+    _arch_gone = _sbx3 / f"_apptest_archive_missing.{_os.getpid()}.jsonl"
+    _real_arch_path = getattr(app_mod, "SUPPRESSION_ARCHIVE_PATH", None)
+    _now3 = datetime.now().astimezone()
+    _arch_sbx.write_text(
+        json.dumps({"ts": (_now3 - timedelta(minutes=10)).isoformat(),
+                    "pair": "TIA/USD", "gate": "brain-floor", "quick": 91.0,
+                    "detail": "evicted oldest — the cap archived this row"}) + "\n"
+        + "{torn line the archive-first race may leave" + "\n"
+        + json.dumps({"ts": (_now3 - timedelta(minutes=30)).isoformat(),
+                      "pair": "POL/USD", "gate": "worth-floor", "quick": 88.0,
+                      "detail": "older archived burial"}),
+        encoding="utf-8")
+    try:
+        app_mod.SUPPRESSION_ARCHIVE_PATH = _arch_sbx
+        _arch_rows = app_mod._load_archive_rows()
+        check("archive strip: the helper grades REAL rows newest-first and "
+              "skips torn lines (the archive-first race's residue)",
+              [r.get("pair") for r in _arch_rows] == ["TIA/USD", "POL/USD"],
+              _arch_rows)
+        app_mod.SUPPRESSION_ARCHIVE_PATH = _arch_gone
+        check("archive strip: a missing/empty archive fails soft to a quiet "
+              "absence (the strip never blocks the page)",
+              app_mod._load_archive_rows() == [])
+    finally:
+        if _real_arch_path is not None:
+            app_mod.SUPPRESSION_ARCHIVE_PATH = _real_arch_path
+        _arch_sbx.unlink(missing_ok=True)
+
 try:
     out = BASE / "apptest_check.txt"
     out.write_text("\n".join(lines)

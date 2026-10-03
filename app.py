@@ -3425,6 +3425,40 @@ def _econ_badge(gate: str, econ: dict) -> str | None:
             f"payers {rate:.0f}% ({payers}/{n})")
 
 
+# the suppression archive (210f395): the trim evictions' append-only
+# ledger, read by the strip's archive section (per-pid tmp writers, R2)
+SUPPRESSION_ARCHIVE_PATH = Path(__file__).parent / "popup_suppressions.archive.jsonl"
+
+
+def _load_archive_rows(limit: int = 14) -> list:
+    """The ARCHIVE STRIP's feed (Oct 3): the most recent archived burials,
+    newest first. Rows land here when a write crosses the live ledger's
+    1000-row cap — the rows a rotation's burial burst would once have
+    destroyed (210f395 keeps them; this helper shows them). Sorts by ts
+    (archive-first ordering means duplicates and re-appends can leave
+    file order slightly out of chronology), skips torn lines (the
+    documented crash-duplication residue), fails soft to [] — the strip
+    must never block the page on an archive problem."""
+    try:
+        import json as _json_a
+        f = SUPPRESSION_ARCHIVE_PATH
+        if not f.exists():
+            return []
+        _lines = [l for l in f.read_text(encoding="utf-8").splitlines()
+                  if l.strip()]
+        rows = []
+        for l in _lines[-200:]:
+            try:
+                rows.append(_json_a.loads(l))
+            except Exception:
+                continue
+        rows.sort(key=lambda d: str(d.get("ts", "")), reverse=True)
+        return rows[:limit]
+    except Exception as exc:
+        logger.debug("suppression archive read failed: %s", exc)
+        return []
+
+
 def _render_suppression_strip():
     """🚫 MONEY LEFT ON THE TABLE — the popups the funnel buried, newest
     first (popup_suppressions.jsonl, written by the scanner at every
@@ -3552,6 +3586,32 @@ def _render_suppression_strip():
                             + "".join(_rel_rows), unsafe_allow_html=True)
                 except Exception as exc:
                     logger.debug("release fuel points skipped: %s", exc)
+                # THE ARCHIVE STRIP (Oct 3): what the cap retired, on the
+                # page — the archive's newest burials beside the live
+                # ledger, so a rotation's eviction burst is visible, not
+                # just durable. Fail-soft: an unreadable archive renders
+                # nothing.
+                _arch = _load_archive_rows()
+                if _arch:
+                    _arch_rows = []
+                    for d in _arch:
+                        _ats = str(d.get("ts", ""))[11:16]
+                        _agate = str(d.get("gate", "?"))
+                        _agcol = ("#ff6b5e" if _agate in ("tide-out", "death-line")
+                                  else "#ffc36b")
+                        _arch_rows.append(
+                            f"<div style='padding:3px 0;border-bottom:1px solid rgba(255,255,255,0.08);"
+                            f"font-family:Share Tech Mono,monospace;font-size:12px;color:#a89a82;'>"
+                            f"<span class='dim'>{_ats}</span>&nbsp;&nbsp;<b>{_asset(str(d.get('pair', '?')))}</b>"
+                            f"&nbsp;&nbsp;<span style='color:{_agcol};'>{_agate}</span><br>"
+                            f"<span class='dim'>{str(d.get('detail', ''))[:130]}</span></div>")
+                    st.markdown(
+                        "<div style='padding:10px 2px 2px;font-family:Share Tech Mono,"
+                        "monospace;font-size:12px;color:#8a8171;'>🗄 ARCHIVED BURIALS — "
+                        f"what the cap retired (newest {len(_arch_rows)} of "
+                        "the append-only archive; rows land here when the live "
+                        "ledger crosses its 1000-row cap):</div>"
+                        + "".join(_arch_rows), unsafe_allow_html=True)
                 # THE FRESH STAMP (Sep 13): every MASTER plate carries a
                 # visible clock — this strip re-reads its file each rerun,
                 # so the stamp is naturally fresh (consistency, not cache)
