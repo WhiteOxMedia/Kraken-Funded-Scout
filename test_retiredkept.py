@@ -286,10 +286,14 @@ for mod, fn in sorted(ZERO_CALLER):
 # the class body's names); comprehensions are their own scope with the
 # FIRST iterable evaluated in the ENCLOSING scope and a walrus bound in
 # the nearest enclosing non-comprehension scope; global/nonlocal
-# re-binds resolve on the chain; a load may legally precede the store
-# that binds it (the deferred single-pass resolution — the census fails
-# OPEN, the safe direction); `import *` blinds the chain and the
-# blinded module is surfaced in the detail, never silently ignored.
+# declarations route ASSIGNMENTS, never loads (a global-decl'd load
+# resolves in the MODULE NAMESPACE — bound only if a store actually
+# reached it); a def-time annotation is visited in its enclosing scope
+# (unless the module defers annotations, PEP 563); a load may legally
+# precede the store that binds it (the deferred single-pass resolution
+# — the census fails OPEN, the safe direction); `import *` blinds the
+# chain — its OWN scope included — and the blinded module is surfaced
+# in the detail, never silently ignored.
 _MATCH_NODES = tuple(
     getattr(ast, n) for n in ("MatchAs", "MatchStar", "MatchMapping")
     if hasattr(ast, n))
@@ -309,6 +313,8 @@ def _rot_census(relname, tree):
         while tgt["kind"] == "comp":     # the walrus-in-comprehension rule
             tgt = tgt["parent"]
         tgt["stores"].add(name)
+        if tgt["kind"] == "module":      # a store that reached the module namespace
+            mods["gstores"].add(name)
 
     def _params(a, ch):
         for p in [*a.posonlyargs, *a.args, *a.kwonlyargs] + \
@@ -324,8 +330,19 @@ def _rot_census(relname, tree):
             for d in (node.args.defaults
                       + [d for d in node.args.kw_defaults if d is not None]):
                 visit(d, scope)          # def-time: the enclosing scope
-            if node.returns:
-                visit(node.returns, scope)
+            if not mods["future"]:
+                # annotations evaluate AT the def — the Oct 3 review's
+                # hole: an undefined name there raises on import, in a
+                # body that never runs. Deferred (PEP 563) they are
+                # strings and nothing evaluates.
+                for a in (node.args.posonlyargs + node.args.args
+                          + node.args.kwonlyargs
+                          + ([node.args.vararg] if node.args.vararg else [])
+                          + ([node.args.kwarg] if node.args.kwarg else [])):
+                    if a.annotation is not None:
+                        visit(a.annotation, scope)
+                if node.returns:
+                    visit(node.returns, scope)
             ch = _child(scope, "function")
             _params(node.args, ch)
             for s in node.body:
@@ -380,10 +397,15 @@ def _rot_census(relname, tree):
                 else:
                     scope["stores"].add(
                         (al.asname or al.name).split(".")[0])
+            if (isinstance(node, ast.ImportFrom) and node.module == "__future__"
+                    and any(al.name == "annotations" for al in node.names)):
+                mods["future"] = True
             return
         if isinstance(node, ast.Name):
             if isinstance(node.ctx, ast.Store):
                 _store(scope, node.id)
+                if node.id in scope["global_decl"]:
+                    mods["gstores"].add(node.id)   # the store lands in the module namespace
             elif isinstance(node.ctx, ast.Load):
                 loads.append((scope, node.lineno, node.id))
             return
@@ -399,11 +421,15 @@ def _rot_census(relname, tree):
             visit(child, scope)
 
     mods = _child(None, "module")
+    mods["future"] = False    # PEP 563: annotations become strings
+    mods["gstores"] = set()   # names with a store that REACHED the module namespace
     visit(tree, mods)
 
     def _chain(scope):
-        names = (set(BUILTINS) | scope["stores"] | scope["global_decl"]
-                 | scope["nonlocal_decl"])
+        if scope["star"]:
+            return None             # blinded — fail open, surface it
+        names = set(BUILTINS) | scope["stores"]
+        gdecl = set(scope["global_decl"])   # assignment routing, not a binding
         p = scope["parent"]
         while p is not None:
             if p["kind"] == "class":    # class scopes do not nest
@@ -411,18 +437,23 @@ def _rot_census(relname, tree):
                 continue
             if p["star"]:
                 return None             # blinded — fail open, surface it
-            names |= p["stores"] | p["global_decl"] | p["nonlocal_decl"]
+            names |= p["stores"]
+            gdecl |= p["global_decl"]
             p = p["parent"]
-        return names
+        return names, gdecl
 
     rot, blinded = [], False
     for scope, ln, nm in loads:
-        names = _chain(scope)
-        if names is None:
+        got = _chain(scope)
+        if got is None:
             blinded = True
             continue
-        if nm not in names:
-            rot.append(f"{relname}:{ln} {nm}")
+        names, gdecl = got
+        if nm in names:
+            continue
+        if nm in gdecl and nm in mods["gstores"]:
+            continue    # a global-decl'd load: bound only if a store reached the module namespace
+        rot.append(f"{relname}:{ln} {nm}")
     return rot, blinded
 
 
@@ -528,6 +559,36 @@ _r, _b = _census_of("""
 check("census semantics: a star import BLINDS the chain and is "
       "surfaced as unverifiable — never silently ignored, never "
       "silently passed",
+      not _r and _b is True, (_r, _b))
+
+# the Oct 3 review's three holes in the hardened census, each pinned
+# red-first against the b48f858 version
+_r, _b = _census_of("""
+    def f():
+        global q
+        return q            # the decl governs ASSIGNMENTS, not loads
+    """)
+check("census semantics: `global q` alone binds NOTHING — a bare load "
+      "of a declared-but-never-stored-anywhere name still raises "
+      "NameError at runtime (LOAD_GLOBAL finds no module binding)",
+      _r == ["<synthetic>:4 q"], _r)
+
+_r, _b = _census_of("""
+    def f(x: Undefined) -> AlsoMissing:
+        return x
+    """)
+check("census semantics: argument and return annotations evaluate AT "
+      "THE def — undefined names there are rot even though the body "
+      "never runs",
+      _r == ["<synthetic>:2 Undefined", "<synthetic>:2 AlsoMissing"], _r)
+
+_r, _b = _census_of("""
+    from os import *
+    result = definitely_not_a_real_name
+    """)
+check("census semantics: a star import blinds its OWN scope too — the "
+      "module-level load is unverifiable (blinded, disclosed), never "
+      "flagged as rot",
       not _r and _b is True, (_r, _b))
 
 lines.append(f"\nRESULT: {PASS} passed, {FAIL} failed")
