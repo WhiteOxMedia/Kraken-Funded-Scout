@@ -428,8 +428,9 @@ def _rot_census(relname, tree):
     def _chain(scope):
         if scope["star"]:
             return None             # blinded — fail open, surface it
+        own = set(scope["global_decl"])
         names = set(BUILTINS) | scope["stores"]
-        gdecl = set(scope["global_decl"])   # assignment routing, not a binding
+        gdecl = set(own)            # assignment routing, not a binding
         p = scope["parent"]
         while p is not None:
             if p["kind"] == "class":    # class scopes do not nest
@@ -437,7 +438,11 @@ def _rot_census(relname, tree):
                 continue
             if p["star"]:
                 return None             # blinded — fail open, surface it
-            names |= p["stores"]
+            # the scope's OWN global declaration bypasses the lexical
+            # chain for its names (LOAD_GLOBAL reads only the module
+            # namespace, then builtins) — enclosing locals of the same
+            # name stay OUT of the resolution
+            names |= p["stores"] - own
             gdecl |= p["global_decl"]
             p = p["parent"]
         return names, gdecl
@@ -590,6 +595,48 @@ check("census semantics: a star import blinds its OWN scope too — the "
       "module-level load is unverifiable (blinded, disclosed), never "
       "flagged as rot",
       not _r and _b is True, (_r, _b))
+
+# the commit review's hole in the global cure: the DECLARATION in the
+# load's own scope OVERRIDES the lexical chain for that name — an
+# enclosing function's local of the same name never binds it, because
+# the compiler emits LOAD_GLOBAL, which reads only the module
+# namespace (then builtins)
+_r, _b = _census_of("""
+    def outer():
+        q = 1
+        def inner():
+            global q
+            return q
+        return inner
+    """)
+check("census semantics: a scope's OWN global declaration bypasses the "
+      "lexical chain — outer's local q never binds inner's "
+      "global-decl'd load (LOAD_GLOBAL finds no module binding: "
+      "NameError)",
+      _r == ["<synthetic>:6 q"], _r)
+
+_r, _b = _census_of("""
+    q = 0
+    def outer():
+        q = 1
+        def inner():
+            global q
+            return q
+        return inner
+    """)
+check("census semantics: ...but a real module-namespace binding does "
+      "reach a global-decl'd load (LOAD_GLOBAL finds it)",
+      not _r and not _b, (_r, _b))
+
+_r, _b = _census_of("""
+    def f():
+        global print
+        return print
+    """)
+check("census semantics: a global-decl'd load still falls through to "
+      "BUILTINS (LOAD_GLOBAL checks the module namespace, then "
+      "builtins)",
+      not _r and not _b, (_r, _b))
 
 lines.append(f"\nRESULT: {PASS} passed, {FAIL} failed")
 import scratch_space
