@@ -1098,14 +1098,12 @@ try:
         {"day": datetime.now().astimezone().strftime("%Y-%m-%d"),
          "pairs": []}), encoding="utf-8")
     _19_root = BASE / "tide_retune_state.json.lock"
-    _19_root_before = (_19_root.read_text(encoding="utf-8",
-                                          errors="replace")
+    _19_root_before = (_19_root.read_bytes()
                        if _19_root.exists() else None)
     _19_root_size0 = (_19_root.stat().st_size
                       if _19_root.exists() else None)
     _rel19, _why19 = bs._tide_retune_releases(70.0, "LOCKBIND/USD")
-    _19_root_after = (_19_root.read_text(encoding="utf-8",
-                                         errors="replace")
+    _19_root_after = (_19_root.read_bytes()
                       if _19_root.exists() else None)
     _19_root_ok = ((_19_root_after is None and _19_root_before is None)
                    or _19_root_after == _19_root_before)
