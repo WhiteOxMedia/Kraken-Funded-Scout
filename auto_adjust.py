@@ -397,6 +397,29 @@ def rollback(rotation_id: str) -> dict:
     box = st.get("auto_adjust_box") or None
     if box is None:
         return {"status": "refused", "reason": "time_box_already_cleared"}
+    # THE LINEAGE GATE (Copilot [high] on dca35ae, verified red): the
+    # ledger outlives boxes, so shape alone is never ownership — a
+    # cleared chain's row can share the live box's anchor or after
+    # EXACTLY. Membership is the live box's own FACTOR-CONTIGUOUS
+    # chain: walk the applied rows backwards from the box's after,
+    # each row's before becoming the next factor, until the anchor —
+    # ledger order IS lineage (stacks land in order). A cleared
+    # chain's same-shaped row sits BELOW that walk and never enters
+    # it; anything outside the walk refuses by name.
+    _chain: list[dict] = []
+    _cur = float(box.get("after") or 0.0)
+    _anchor = float(box.get("before") or 0.0)
+    for _r in reversed(_ledger(st)):
+        if _r.get("status") != "applied":
+            continue
+        if abs(float(_r.get("after") or 0.0) - _cur) < 1e-9:
+            _chain.append(_r)
+            _cur = float(_r.get("before") or 0.0)
+            if abs(_cur - _anchor) < 1e-9:
+                break
+    if not any(str(r.get("rotation_id") or "") == rotation_id
+               for r in _chain):
+        return {"status": "refused", "reason": "rotation_not_in_live_box"}
     st["factor"] = before
     # THE ROLLBACK-STRANDING HOLE (Oct 3 review): the box used to be
     # popped UNCONDITIONALLY — undoing the top of a stack destroyed the
@@ -416,15 +439,13 @@ def rollback(rotation_id: str) -> dict:
     else:
         _save_box = box
         if box is not None:
-            # the surviving loosening: the latest applied row that BOTH
-            # opened at the box's anchor AND landed at the factor this
-            # undo just restored (anchor + after — an after-match alone
-            # would name some earlier day's same-shaped rotation)
-            _anchor = float(box.get("before") or 0.0)
-            _prev = [r for r in _ledger(st)
-                     if r.get("status") == "applied"
-                     and abs(float(r.get("before") or 0.0) - _anchor) < 1e-9
-                     and abs(float(r.get("after") or 0.0) - before) < 1e-9]
+            # the surviving loosening: the chain row that LANDED at the
+            # factor this undo just restored (inside the live chain the
+            # walk just proved this rotation belongs to — an after-match
+            # over the whole ledger would name some earlier day's
+            # same-shaped rotation)
+            _prev = [r for r in _chain
+                     if abs(float(r.get("after") or 0.0) - before) < 1e-9]
             if _prev:
                 box["after"] = before
                 box["rotation_id"] = str(_prev[-1].get("rotation_id") or "")

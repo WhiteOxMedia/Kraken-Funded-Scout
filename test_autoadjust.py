@@ -344,6 +344,41 @@ try:
           _rb4["status"] == "refused"
           and _rb4.get("reason") == "time_box_already_cleared"
           and abs(aa.read_guard_factor() - 2.0) < 1e-9, _rb4)
+    # THE STALE-ROW GATE (Copilot [high] on dca35ae, red-first): a same-
+    # shaped applied row from the CLEARED chain still sits in the ledger
+    # — rollback must decide by LINEAGE (the live box's contiguous
+    # chain), never by factor shape, or a dead rotation's undo collapses
+    # the live box or rewires it to a foreign chain.
+    _rbD = aa.apply_adjustment(-0.05, "STACK-D", "sha256:stackd")
+    check("a fresh chain's box opens on the cleared slate (applied, "
+          "2.0 -> 1.95)",
+          _rbD["status"] == "applied"
+          and abs(aa.read_guard_factor() - 1.95) < 1e-9, _rbD)
+    _rb5 = aa.rollback("STACK-A")   # cleared chain's BASE: before == the LIVE anchor
+    _rbd = pg._state().get("auto_adjust_box") or {}
+    check("a cleared chain's row CANNOT undo into the live box even when "
+          "its before equals the live anchor (rotation_not_in_live_box — "
+          "the stale undo must not collapse the live box)",
+          _rb5["status"] == "refused"
+          and _rb5.get("reason") == "rotation_not_in_live_box"
+          and abs(aa.read_guard_factor() - 1.95) < 1e-9
+          and _rbd.get("rotation_id") == "STACK-D"
+          and abs(float(_rbd.get("before") or 0) - 2.0) < 1e-9, _rb5)
+    _rb6 = aa.rollback("STACK-B")   # cleared chain's stack: before == the LIVE after
+    check("a cleared chain's row refuses even when its before matches "
+          "the live box's after (shape is not lineage — the box stays "
+          "intact under its own chain)",
+          _rb6["status"] == "refused"
+          and _rb6.get("reason") == "rotation_not_in_live_box"
+          and (pg._state().get("auto_adjust_box") or {}).get("rotation_id")
+          == "STACK-D", _rb6)
+    _rb7 = aa.rollback("STACK-D")   # the live chain's own full undo
+    check("the live chain's own base undo still collapses its box "
+          "(reverted 2.0, boxless — lineage passes, shape governs)",
+          _rb7["status"] == "reverted"
+          and _rb7.get("restored_to") == 2.0
+          and abs(aa.read_guard_factor() - 2.0) < 1e-9
+          and not (pg._state().get("auto_adjust_box") or {}), _rb7)
     aa.DAILY_CAP = 0.20
 
     # ── THE PARAMS SEAM (Sep 29, red-first): the armed cell governs the

@@ -48,6 +48,10 @@ PASS  the surviving loosening is still temporary by construction: the drained bo
 PASS  the base rotation opens its own box for the collapse leg (applied, 2.0 -> 1.95)
 PASS  rolling back the BASE rotation collapses the whole box (factor 2.0, no box left — the operator's full undo)
 PASS  a stacked rotation's undo REFUSES after the full undo cleared the box (time_box_already_cleared — no stale intermediate factor resurrects outside any box; the factor stays 2.0)
+PASS  a fresh chain's box opens on the cleared slate (applied, 2.0 -> 1.95)
+PASS  a cleared chain's row CANNOT undo into the live box even when its before equals the live anchor (rotation_not_in_live_box — the stale undo must not collapse the live box)
+PASS  a cleared chain's row refuses even when its before matches the live box's after (shape is not lineage — the box stays intact under its own chain)
+PASS  the live chain's own base undo still collapses its box (reverted 2.0, boxless — lineage passes, shape governs)
 PASS  the ARMED daily_cap bites: a 0.05 delta refuses under a 0.02 armed cap even though the module default is 10.0 (the cell governs, not the module global)
 PASS  a full armed cell applies and the record carries ALL THREE keys (the proof the armed params are live)
 PASS  a tightening delta is refused by name (self-adjust only refunds)
@@ -56,4 +60,4 @@ PASS  the bundle is immutable — re-proposing never rewrites it
 PASS  the bundle carries the per-gate CSV
 PASS  a passing rotation applies through propose_from_aggregate with the bundle attached
 
-RESULT: 57 passed, 0 failed
+RESULT: 61 passed, 0 failed
