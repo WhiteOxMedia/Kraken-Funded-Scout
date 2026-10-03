@@ -238,7 +238,7 @@ _a_bak = _copy.deepcopy(_h)
 _cache_bak = dict(bs._CONTEST_SIZE_CACHE)   # _contest_size caches 30s — bust between fixtures
 _cs_path_bak = ca.STATE_FILE
 _realized_bak = ca.realized_pnl_today
-_sbx = Path("scratch/sbx/_worthdial_actual_sbx.json")
+_sbx = Path("scratch/sbx/_worthdial_actual_sbx.%d.json" % __import__('os').getpid())   # per-pid: parallel runs never share the fixture
 _sbx.parent.mkdir(parents=True, exist_ok=True)
 _now_a = datetime(2026, 10, 1, 9, 15, tzinfo=ZoneInfo("America/Denver"))
 try:
@@ -274,6 +274,7 @@ try:
 finally:
     ca.realized_pnl_today = _realized_bak
     ca.STATE_FILE = _cs_path_bak
+    _sbx.unlink(missing_ok=True)   # the sandbox shape leaves with the run
     bs._CONTEST_SIZE_CACHE.clear()
     bs._CONTEST_SIZE_CACHE.update(_cache_bak)
 
