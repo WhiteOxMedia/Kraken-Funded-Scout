@@ -1082,7 +1082,14 @@ try:
           ("msvcrt" in _cls19, "LK_NBLCK" in _cls19,
            ".unlink(" not in _cls19, "os.link" not in _cls19))
     # (b) call-site binding: a release under a REBOUND state file must
-    # leave its lock beside the rebound ledger — never at the repo root
+    # leave its lock beside the rebound ledger — and never touch the
+    # repo-root anchor. (Oct 3 re-aim: the third conjunct used to assert
+    # the root anchor's ABSENCE, but the armed retune canary's first live
+    # lock legitimately created it (Oct 2 18:10) and the kernel-owned
+    # class never unlinks on release — absence is permanently false in
+    # production. The enforceable contract is IMMUTABILITY: the
+    # sandboxed release must leave the root anchor's bytes exactly as it
+    # found them, whoever owns them.)
     _19_dir = Path(_12_tmp) / "lockbind"
     _19_dir.mkdir(exist_ok=True)
     _19_old_sf = bs.TIDE_RETUNE_STATE_FILE
@@ -1090,14 +1097,27 @@ try:
     Path(bs.TIDE_RETUNE_STATE_FILE).write_text(json.dumps(
         {"day": datetime.now().astimezone().strftime("%Y-%m-%d"),
          "pairs": []}), encoding="utf-8")
+    _19_root = BASE / "tide_retune_state.json.lock"
+    _19_root_before = (_19_root.read_text(encoding="utf-8",
+                                          errors="replace")
+                       if _19_root.exists() else None)
+    _19_root_size0 = (_19_root.stat().st_size
+                      if _19_root.exists() else None)
     _rel19, _why19 = bs._tide_retune_releases(70.0, "LOCKBIND/USD")
+    _19_root_after = (_19_root.read_text(encoding="utf-8",
+                                         errors="replace")
+                      if _19_root.exists() else None)
+    _19_root_ok = ((_19_root_after is None and _19_root_before is None)
+                   or _19_root_after == _19_root_before)
     _ck12("12.19b the lockfile follows the ledger's CURRENT path (call-"
-          "time derivation — a sandboxed release locks in its sandbox, "
-          "the repo root stays clean)",
+          "time derivation — a sandboxed release locks in its sandbox "
+          "and leaves the repo-root anchor byte-identical, never "
+          "writing the production canary's lock)",
           _rel19 is True
           and any(_19_dir.glob("*.lock"))
-          and not (BASE / "tide_retune_state.json.lock").exists(),
-          (_rel19, sorted(p.name for p in _19_dir.glob("*"))))
+          and _19_root_ok,
+          (_rel19, sorted(p.name for p in _19_dir.glob("*")),
+           _19_root_before, _19_root_after, _19_root_size0))
     # (c) the behavioral contract, deterministic: a HELD lock cannot be
     # taken by metadata trickery (rewriting the file to look ancient
     # must not help — the kernel owns the lock, not the file's
