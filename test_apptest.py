@@ -3826,6 +3826,8 @@ finally:
 _asrc3 = Path("app.py").read_text(encoding="utf-8")
 _asup3 = _asrc3[_asrc3.index("def _render_suppression_strip"):
                 _asrc3.index("def _no_pick_advice")]
+_ahelp3 = _asrc3[_asrc3.index("def _load_archive_rows"):
+                 _asrc3.index("def _render_suppression_strip")]
 check("archive strip: the strip reads the suppression ARCHIVE beside the "
       "live ledger (the graded helper names the archive file)",
       "_load_archive_rows" in _asup3
@@ -3836,6 +3838,10 @@ check("archive strip: archived burials render BESIDE the live rows (a "
 _real_arch_fn = getattr(app_mod, "_load_archive_rows", None)
 check("archive strip: the graded helper exists (the render's feed)",
       _real_arch_fn is not None)
+check("archive strip: the helper reads a BOUNDED tail, not the whole "
+      "append-only archive (the file is unbounded by design — a "
+      "whole-file read on every rerun grows without limit)",
+      "seek(" in _ahelp3 and "_TAIL_BYTES" in _ahelp3)
 if _real_arch_fn is not None:
     _sbx3 = Path("scratch/sbx")
     _sbx3.mkdir(parents=True, exist_ok=True)

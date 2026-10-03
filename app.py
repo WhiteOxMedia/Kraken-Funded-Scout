@@ -3437,17 +3437,29 @@ def _load_archive_rows(limit: int = 14) -> list:
     destroyed (210f395 keeps them; this helper shows them). Sorts by ts
     (archive-first ordering means duplicates and re-appends can leave
     file order slightly out of chronology), skips torn lines (the
-    documented crash-duplication residue), fails soft to [] — the strip
-    must never block the page on an archive problem."""
+    documented crash-duplication residue, and the tail read's seek
+    boundary — a partial line never parses), fails soft to [] — the
+    strip must never block the page on an archive problem."""
     try:
         import json as _json_a
         f = SUPPRESSION_ARCHIVE_PATH
         if not f.exists():
             return []
-        _lines = [l for l in f.read_text(encoding="utf-8").splitlines()
-                  if l.strip()]
+        # A BOUNDED TAIL (Copilot [medium] on cfe56c6): the archive is
+        # append-only and UNBOUNDED — the whole-file read this replaces
+        # grew without limit on every rerun. 64KB carries hundreds of
+        # rows (~300B each); the strip renders at most the newest 14.
+        _TAIL_BYTES = 65536
+        with f.open("rb") as _fh:
+            _fh.seek(0, 2)
+            _size = _fh.tell()
+            _fh.seek(max(0, _size - _TAIL_BYTES))
+            _raw = _fh.read().decode("utf-8", errors="replace")
         rows = []
-        for l in _lines[-200:]:
+        for l in _raw.splitlines():
+            l = l.strip()
+            if not l:
+                continue
             try:
                 rows.append(_json_a.loads(l))
             except Exception:
