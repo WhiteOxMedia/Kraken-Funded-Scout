@@ -379,6 +379,56 @@ try:
           and _rb7.get("restored_to") == 2.0
           and abs(aa.read_guard_factor() - 2.0) < 1e-9
           and not (pg._state().get("auto_adjust_box") or {}), _rb7)
+    # THE MIDDLE-UNDO GATE (the range review's major, Oct 3, red-first):
+    # a middle chain row's undo silently erased every stack ABOVE it —
+    # the factor jumped down past their rows while their ledger rows
+    # stayed applied, the reverted row recorded the wrong before, and
+    # the erased rows' own undos became unreachable forever (after the
+    # rewind the lineage walk can never reach them). Only the chain TOP
+    # (the newest landing) or the OPENER (the collapse) is a coherent
+    # undo; and the reverted row records the LIVE factor, never the
+    # undone row's after (the collapse's row must tell 1.85 -> 2.0,
+    # not 1.95 -> 2.0).
+    aa.DAILY_CAP = 10.0
+    for _mid in ("MID-A", "MID-B", "MID-C"):
+        aa.apply_adjustment(-0.05, _mid, f"sha256:{_mid.lower()}")
+    # live stack: MID-A (2.0->1.95), MID-B (1.95->1.90), MID-C (1.90->1.85)
+    _rbm = aa.rollback("MID-B")   # the middle row: the silent eraser
+    check("a MIDDLE chain row's undo refuses by name "
+          "(rotation_not_top_of_box — undoing it would erase every "
+          "stack above it and strand their undos forever)",
+          _rbm["status"] == "refused"
+          and _rbm.get("reason") == "rotation_not_top_of_box"
+          and abs(aa.read_guard_factor() - 1.85) < 1e-9
+          and (pg._state().get("auto_adjust_box") or {}).get("after")
+          and abs(float(pg._state()["auto_adjust_box"]["after"]) - 1.85)
+          < 1e-9, _rbm)
+    _rbtop = aa.rollback("MID-C")   # the TOP: the coherent undo
+    check("the chain TOP's undo still lands (reverted 1.85 -> 1.90 — "
+          "MID-C's before is MID-B's landing; the box alive under it)",
+          _rbtop["status"] == "reverted"
+          and _rbtop.get("restored_to") == 1.90
+          and abs(aa.read_guard_factor() - 1.90) < 1e-9
+          and (pg._state().get("auto_adjust_box") or {}).get("rotation_id")
+          == "MID-B", _rbtop)
+    for _mid2 in ("MID-D", "MID-E"):
+        aa.apply_adjustment(-0.05, _mid2, f"sha256:{_mid2.lower()}")
+    # live stack: MID-A opener, MID-B, MID-D, MID-E (factor 1.80)
+    _rbcol = aa.rollback("MID-A")   # the OPENER: the collapse case
+    _col_row = [r for r in pg._state()["auto_adjust_ledger"]
+                if r.get("rotation_id") == "MID-A"
+                and r.get("status") == "reverted"]
+    check("the OPENER's undo collapses the box and the reverted row "
+          "records the LIVE factor (1.80 -> 2.0 — the row tells the "
+          "truth the whole stack came down from 1.80, not from the "
+          "opener's own landing)",
+          _rbcol["status"] == "reverted"
+          and _rbcol.get("restored_to") == 2.0
+          and not (pg._state().get("auto_adjust_box") or {})
+          and len(_col_row) == 1
+          and abs(float(_col_row[0]["before"]) - 1.80) < 1e-9
+          and abs(aa.read_guard_factor() - 2.0) < 1e-9,
+          (_rbcol, _col_row, aa.read_guard_factor()))
     aa.DAILY_CAP = 0.20
 
     # THE TIME-BOX GOES LIVE (Oct 3, the wiring decision): the box's

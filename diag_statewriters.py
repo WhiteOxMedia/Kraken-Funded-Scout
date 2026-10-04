@@ -87,12 +87,15 @@ REGISTRY: dict[tuple[str, str], dict] = {
                 "family — a lost rename silently dropped a row)"},
     ("popup_suppressions.archive.jsonl",
      "background_scanner._log_suppression"): {
+        "allow_non_atomic": True,
         "note": "ARCHIVE-ON-TRIM (Oct 3): the append-only archive of the "
                 "rows the cap drops — written BEFORE the ledger's atomic "
-                "replace, same per-writer tmp + replace_atomic contract "
-                "(a torn append line would poison the archive's future "
-                "readers); a rotation's burial burst never destroys the "
-                "funnel's history again"},
+                "replace; APPEND + fsync, never read-and-rewritten (the "
+                "whole-file rewrite was O(archive) per burial on the scan "
+                "thread's hot path, growing for the file's life); the "
+                "archive reader skips torn lines, so a torn append costs "
+                "one bad line, never the history; a rotation's burial "
+                "burst never destroys the funnel's history again"},
     ("signal_snapshots.jsonl", "background_scanner._log_signal_snapshot"): {
         "note": "the hindsight seam's ledger; atomic + retry"},
 }

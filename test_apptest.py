@@ -3835,6 +3835,23 @@ check("archive strip: the strip reads the suppression ARCHIVE beside the "
 check("archive strip: archived burials render BESIDE the live rows (a "
       "titled 🗄 section inside the same expander, newest first)",
       "🗄 ARCHIVED BURIALS" in _asup3)
+# THE TRIM'S APPEND (the range review's major on bs:2409, red-first):
+# the trim used to read the WHOLE archive and rewrite it per burial —
+# O(archive) on the scan thread, growing for the file's life. The cure
+# appends the evictions (the reader's torn-line tolerance makes appends
+# safe) and fsyncs (the durability contract holds: the rows are durable
+# in the archive before the trim is visible).
+_asrc_bs = (BASE / "background_scanner.py").read_text(encoding="utf-8")
+_trim_seg = (_asrc_bs.split("ARCHIVE-ON-TRIM", 1)[-1]
+             .split("ATOMIC SWAP", 1)[0])
+check("archive strip: the trim APPENDS evictions to the archive and "
+      "fsyncs — it never reads and rewrites the whole archive (that "
+      "was O(archive) per burial on the scan thread's hot path)",
+      'open(SUPPRESSION_ARCHIVE_FILE, "a"' in _trim_seg
+      and "os.fsync" in _trim_seg
+      and "_hist" not in _trim_seg
+      and "replace_atomic(_atmp" not in _trim_seg,
+      _trim_seg[:200])
 _real_arch_fn = getattr(app_mod, "_load_archive_rows", None)
 check("archive strip: the graded helper exists (the render's feed)",
       _real_arch_fn is not None)

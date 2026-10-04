@@ -646,7 +646,11 @@ def rollback(rotation_id: str) -> dict:
     anchor — popping it would strand every earlier loosening forever.
     A rollback with NO live box refuses (time_box_already_cleared):
     after the full undo, a stacked rotation's stale undo must not
-    resurrect its intermediate factor outside any box."""
+    resurrect its intermediate factor outside any box. THE MIDDLE-UNDO
+    GATE (the range review's major, Oct 3): only the chain TOP or the
+    OPENER undoes — a middle row's undo would erase every stack above
+    it and strand their undos forever; and the reverted row records the
+    LIVE factor, never the undone row's after."""
     pg = _pg()
     now = datetime.now().astimezone()
     st = pg._state()
@@ -686,9 +690,20 @@ def rollback(rotation_id: str) -> dict:
             _cur = float(_r.get("before") or 0.0)
             if abs(_cur - _anchor) < 1e-9:
                 break
-    if not any(str(r.get("rotation_id") or "") == rotation_id
-               for r in _chain):
+    _ids = [str(r.get("rotation_id") or "") for r in _chain]
+    if rotation_id not in _ids:
         return {"status": "refused", "reason": "rotation_not_in_live_box"}
+    if rotation_id not in (_ids[0], _ids[-1]):
+        # THE MIDDLE-UNDO GATE (the range review's major, Oct 3, red-
+        # first): a middle row's undo would silently erase every stack
+        # ABOVE it — the factor jumps down past their rows while their
+        # ledger rows stay applied, the reverted row records a before
+        # that never lived, and the erased rows' own undos become
+        # unreachable forever (after the rewind the lineage walk can
+        # never reach them). Only the chain TOP (the newest landing) or
+        # the OPENER (the collapse) is a coherent undo.
+        return {"status": "refused", "reason": "rotation_not_top_of_box"}
+    _live_before = float(st.get("factor") or row["after"])
     st["factor"] = before
     # THE ROLLBACK-STRANDING HOLE (Oct 3 review): the box used to be
     # popped UNCONDITIONALLY — undoing the top of a stack destroyed the
@@ -721,7 +736,7 @@ def rollback(rotation_id: str) -> dict:
                 box["evidence"] = str(_prev[-1].get("evidence") or "")
     _ledger(st).append({
         "day": _today_key(now), "rotation_id": rotation_id,
-        "status": "reverted", "before": float(row["after"]),
+        "status": "reverted", "before": _live_before,
         "after": before, "delta": 0.0, "reason": "operator_rollback",
         "evidence": str(row.get("evidence") or ""),
         "applied_at": now.isoformat(),
