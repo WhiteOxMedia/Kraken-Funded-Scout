@@ -654,6 +654,16 @@ if callable(_w9):
     _out_m, _st_m = _run9("garbage", _bnd + _td9(seconds=700), [])
     check(9.11, _out_m is None and "aa_box_stale_paged" not in _st_m,
           "a malformed watermark fails open (the box guardrails own that shape)")
+    # THE COPilot MEDIUM ON f3d2fdb, red-first: a HEALTHY heartbeat stamps
+    # the NEW key at the boundary (~30s after it), while any probe-key
+    # arithmetic stays on the OLD key until boundary+grace — the window
+    # between must read FRESH (the stamp's own END, not the probe key,
+    # is the staleness clock). now = boundary + 5min, stored = the new key
+    # a healthy scanner already wrote: no page, no stamp.
+    _out_h, _st_h = _run9("2026-10-03-16-20", _bnd + _td9(minutes=5), [])
+    check(9.13, _out_h is None and "aa_box_stale_paged" not in _st_h,
+          "a freshly-advanced watermark never pages (the healthy boundary "
+          "window — the old probe-key rule false-paged here every 4h)")
     # midnight rollover: the probe's DATE carries the key
     _out_o, _ = _run9("2026-10-03-12-16", _dt9(2026, 10, 4, 0, 12, 0), [])
     check(9.12, isinstance(_out_o, str) and "2026-10-03-20-24" in _out_o,

@@ -3294,9 +3294,22 @@ def _aa_box_watermark_watch(now=None, state=None, push=None):
             r"\d{4}-\d{2}-\d{2}-\d{2}-\d{2}", stored.strip()):
         return None                      # fail open
     stored = stored.strip()
-    _probe = now_dt - _td(hours=4) - _td(seconds=_AA_BOX_STALE_GRACE_S)
+    # THE STALENESS CLOCK IS THE STAMP'S OWN END, not a probe key
+    # (Copilot medium on f3d2fdb, drill 9.13): the watermark names the
+    # window that contains now-4h, so it ADVANCES at every boundary —
+    # a healthy scanner holds the NEW key within ~30s of the boundary
+    # while any probe-key arithmetic lags until boundary+grace; in that
+    # window probe != stored and the old rule false-paged every 4h.
+    # Honest shape: the stamp freezes when the heartbeat dies, so the
+    # deadline is the stored window's end + one full window (the next
+    # boundary, where the advance was due) + grace. 24h-safe via
+    # timedelta (the 20-24 key's end is hour 24 = next-day 00:00).
+    _y, _mo, _dd, _h1, _h2 = (int(_x) for _x in stored.split("-"))
+    _end = _dt(_y, _mo, _dd) + _td(hours=_h2)
+    _deadline = _end + _td(hours=4) + _td(seconds=_AA_BOX_STALE_GRACE_S)
+    _probe = now_dt - _td(hours=4)
     expected = f"{_probe:%Y-%m-%d}-{rotation_key_for_hour(_probe.hour)}"
-    if stored == expected:
+    if now_dt < _deadline:
         if "aa_box_stale_paged" in st:
             st.pop("aa_box_stale_paged", None)   # re-arm: the watermark moved
             if state is None:
