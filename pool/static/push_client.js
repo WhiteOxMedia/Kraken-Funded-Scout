@@ -73,8 +73,24 @@
               /* f5 receipt test (Sep 26): reusing a live subscription
                  used to leave the status at "asking the browser…" —
                  the device is ready, say so. */
-              setStatus("Notifications on — jackpot wins, claim reminders, and signals will land here.");
-              return sub;
+              /* Oct 3 review major: an EXISTING subscription must be
+                 re-POSTed before the status reports success — an
+                 account switch on this browser, a server-side prune,
+                 or a VAPID rotation can leave the server without this
+                 endpoint's row while the browser still holds the
+                 subscription ("Notifications on" that notifies no
+                 one). The write is idempotent per endpoint, so
+                 re-POSTing is always safe; failure surfaces exactly
+                 like a fresh subscribe (the shared catch below). */
+              return fetch("/api/push/subscribe", {
+                method: "POST",
+                credentials: "same-origin",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ subscription: sub.toJSON() }),
+              }).then(function (r) {
+                if (!r.ok) { throw new Error("subscribe http " + r.status); }
+                setStatus("Notifications on — jackpot wins, claim reminders, and signals will land here.");
+              });
             }
             return subscribe(reg);
           });

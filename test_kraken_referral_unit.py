@@ -51,9 +51,16 @@ check(2.5, est == 1 and cons == 0.0 and abs(best - 5.0) < 0.01,
 print("== 3. KRAKEN SIGNING ==")
 sig = kr.sign_request("ab" * 43 + "k=", "/0/private/ReferralStatus", 1727000000, "referral_id=R1")
 sig2 = kr.sign_request("ab" * 43 + "k=", "/0/private/ReferralStatus", 1727000000, "referral_id=R2")
-check(3.1, len(sig) == 128 and sig != sig2, "HMAC-SHA512 hex, body-sensitive")
-check(3.2, kr.sign_request("short", "/p", 1, "b") == kr.sign_request("short===", "/p", 1, "b"),
-      "b64 padding tolerance is deterministic")
+check(3.1, len(sig) == 88 and sig != sig2, "HMAC-SHA512 base64, body-sensitive")
+check("3.2a", kr.sign_request("ab" * 5, "/p", 1, "b") == kr.sign_request("ab" * 5 + "==", "/p", 1, "b"),
+      "b64 padding tolerance is deterministic (canonical normalization: "
+      "strip =s, re-pad; missing/extra = decode identically)")
+try:
+    kr.sign_request("short", "/p", 1, "b")
+    check("3.2b", False, "unreachable — a corrupt secret must raise")
+except ValueError as _ve:
+    check("3.2b", "not valid base64" in str(_ve),
+          f"a secret that cannot decode raises a NAMED ValueError: {_ve}")
 
 print("== 4. PROVIDER HONESTY ==")
 check(4.1, kr.provider_mode() == "unconfigured", "no creds -> unconfigured")

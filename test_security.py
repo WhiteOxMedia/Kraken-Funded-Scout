@@ -354,6 +354,8 @@ check("E.2", "frame-ancestors 'none'" in csp
       and "default-src 'self'" in csp
       and "script-src 'self'" in csp
       and "style-src 'self' 'unsafe-inline'" in csp
+      and "https://fonts.googleapis.com" in csp
+      and "https://fonts.gstatic.com" in csp
       and "base-uri 'self'" in csp
       and "object-src 'none'" in csp
       and "form-action 'self'" in csp
@@ -390,13 +392,22 @@ check("E.7", r.status_code == 200
       f"{h5.get('content-type')}")
 _js = (HERE / "pool" / "static" / "app.js").read_text(
     encoding="utf-8", errors="replace")
+_tpl = (HERE / "pool" / "templates" / "index.html").read_text(
+    encoding="utf-8", errors="replace")
 check("E.8", "onclick=" not in _js and "onerror=" not in _js
       and "onload=" not in _js
+      and "onclick=" not in _tpl and "onerror=" not in _tpl
+      and "onload=" not in _tpl
       and 'data-action="navigate-realplay"' in _js
       and 'data-action="mark-comment-read"' in _js
       and 'data-action="archive-comment"' in _js
-      and 'data-action="mark-paid"' in _js,
-      "no inline handlers in app.js; the four delegated actions wired")
+      and 'data-action="mark-paid"' in _js
+      and 'data-action="navigate-howto"' in _tpl
+      and 'data-action="dismiss-announcement"' in _tpl
+      and 'action === "navigate-howto"' in _js
+      and 'action === "dismiss-announcement"' in _js,
+      "no inline handlers in app.js OR index.html (script-src 'self' "
+      "blocks them); the six delegated actions wired")
 
 # E.9 THE SCOUT EMBED (review finding, Sep 27 batch): the admin
 # panel frames /scout/ from the same origin, so scout responses
@@ -414,6 +425,22 @@ r = _cl.get("/")
 check("E.10", "frame-ancestors 'none'" in _hdrs(r).get(
     "content-security-policy", ""),
       "app pages stay deny-all")
+
+# E.11 THE PUSH RE-SUBSCRIBE (Oct 3 review major): an EXISTING
+# service-worker subscription must be re-POSTed to the server before
+# the client reports "Notifications on" — account switch, a
+# server-side prune, or a VAPID rotation can leave the server
+# without this endpoint's row while the browser still holds the
+# subscription (the write is idempotent per endpoint, so re-POSTing
+# is always safe). The old early-return said "on" and notified no one.
+_pc = (HERE / "pool" / "static" / "push_client.js").read_text(
+    encoding="utf-8", errors="replace")
+_pc_seg = (_pc.split("getSubscription()", 1)[1]
+           .split("return subscribe(reg)", 1)[0]
+           if "getSubscription()" in _pc else "")
+check("E.11", 'fetch("/api/push/subscribe"' in _pc_seg,
+      "push: an EXISTING subscription is re-POSTed to the server "
+      "before the status reports Notifications on")
 # ------------------------------------------------------------------
 print("== F. THE REVIEW-BATCH CRITICALS (Sep 27 CLI pass) ==")
 # F.1: sign_request now signs the EXACT wire bytes; a dict body
@@ -434,8 +461,21 @@ _s1 = _kr.sign_request("ab" * 43 + "k=", "/0/private/ReferralStatus",
                        1727000000, _wire)
 _s2 = _kr.sign_request("ab" * 43 + "k=", "/0/private/ReferralStatus",
                        1727000000, _wire)
-check("F.1", _sig_ok and _s1 == _s2 and len(_s1) == 128,
+check("F.1", _sig_ok and _s1 == _s2 and len(_s1) == 88,
       "sign_request: dict refused (TypeError), bytes sign deterministically")
+# F.1c THE KNOWN-ANSWER VECTOR (Oct 3 review major): the signature
+# rides Kraken's documented scheme — API-Sign =
+# base64(HMAC-SHA512(base64decode(secret), path + SHA256(nonce+body))).
+# The old code keyed the HMAC with the secret's ASCII text and
+# returned hexdigest(): a signature Kraken could never accept
+# (EAPI:Invalid key on every live call). The vector was computed
+# from the scheme directly, independent of sign_request.
+check("F.1c", _kr.sign_request(
+        "ab" * 43 + "k=", "/0/private/ReferralStatus", 1727000000,
+        b"referral_id=R1&nonce=1727000000")
+      == "mVxOmjbQSoFWzvWRuTdHrcLLvddfwRzx9mpT94CDiS+FIJFtffvSqYRIkjgqagD4Q+R1gmhaBD/5qIME563nGg==",
+      "sign_request: known-answer vector matches Kraken's documented "
+      "scheme (b64decode the secret, b64encode the digest)")
 # F.1b: _kraken_post must sign the WIRE BYTES (data), never the pre-
 # encoding dict - the call argument cannot be observed without dialing
 # Kraken, so it is pinned the house source-idiom way (the mode=ro

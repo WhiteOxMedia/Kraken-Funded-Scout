@@ -43,7 +43,7 @@
 </div>
 
 <!-- ═══════════ ANNOUNCEMENT BANNER ═══════════ -->
-<div id="announcementBanner" style="display:none;background:linear-gradient(90deg,#8B0000,#CC3300);border-bottom:2px solid #ff6b6b;padding:10px 16px;text-align:center;font-size:0.9em;color:#fff;font-weight:600;cursor:pointer;" onclick="this.style.display='none';localStorage.setItem('xmr_announcement_dismissed','1');">
+<div id="announcementBanner" style="display:none;background:linear-gradient(90deg,#8B0000,#CC3300);border-bottom:2px solid #ff6b6b;padding:10px 16px;text-align:center;font-size:0.9em;color:#fff;font-weight:600;cursor:pointer;" data-action="dismiss-announcement">
 </div>
 
 <!-- ═══════════ NAVIGATION ═══════════ -->
@@ -1473,7 +1473,7 @@
   <p>⛏️ XMR Jackpot — Monero Mining Made Fun, Fair, and For Everyone.</p>
   <p>Mine together · Win together · Free entry via mining · Provably fair · 90% payout · 10% house tax · <a href="/api/stats">API</a></p>
   <p style="margin-top:8px;font-size:0.8em;">
-    <a href="#" onclick="navigateTo('howto');return false;" style="color:var(--text-mute);">📜 Terms of Service</a>
+    <a href="#" data-action="navigate-howto" style="color:var(--text-mute);">📜 Terms of Service</a>
     <span style="color:var(--text-mute);"> · </span>
     <a href="https://github.com/xmrig/xmrig" target="_blank" rel="noopener" style="color:var(--text-mute);">📦 xmrig source</a>
     <span style="color:var(--text-mute);"> · </span>
@@ -1491,12 +1491,12 @@
 <div class="confetti-container" id="confettiContainer"></div>
 
 </div><!-- /#app -->
-<script src="/static/app.js?v=27"></script>
+<script src="/static/app.js?v=28"></script>
 <script src="/static/bundle_card.js?v=1"></script>
 <script src="/static/push_report_admin.js?v=1"></script>
 <script src="/static/push_decisions_admin.js?v=2"></script>
 <script src="/static/wf_dashboard.js?v=6"></script>
-<script src="/static/push_client.js?v=15"></script>
+<script src="/static/push_client.js?v=16"></script>
 <script src="/static/admin_cold_wallet.js?v=1"></script>
 <script src="/static/kraken_referral_admin.js?v=6"></script>
 <script src="/static/push_vapid_admin.js?v=1"></script>

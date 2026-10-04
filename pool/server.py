@@ -56,9 +56,13 @@ class SecurityHeadersMiddleware:
     _CSP_COMMON = (
         b"default-src 'self'; "
         b"script-src 'self'; "
-        b"style-src 'self' 'unsafe-inline'; "
+        # the template's Google Fonts (fonts.googleapis.com stylesheet,
+        # fonts.gstatic.com files) are load-bearing: without them the
+        # Oct 3 review major notes the Open Sans/Press Start faces
+        # silently fall back (style-src/font-src 'self' block both)
+        b"style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
         b"img-src 'self' data:; "
-        b"font-src 'self' data:; "
+        b"font-src 'self' data: https://fonts.gstatic.com; "
         b"connect-src 'self'; "
         b"object-src 'none'; "
         b"base-uri 'self'; "

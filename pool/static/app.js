@@ -304,6 +304,13 @@
     var action = el.getAttribute("data-action");
     var id = parseInt(el.getAttribute("data-id") || "0", 10);
     if (action === "navigate-realplay") { ev.preventDefault(); navigateTo("realplay"); }
+    else if (action === "navigate-howto") { ev.preventDefault(); navigateTo("howto"); }
+    else if (action === "dismiss-announcement") {
+      ev.preventDefault();
+      el.style.display = "none";
+      try { localStorage.setItem("xmr_announcement_dismissed", "1"); }
+      catch (e) { /* private mode: the banner just returns next load */ }
+    }
     else if (action === "mark-comment-read" && id > 0) { markCommentRead(id); }
     else if (action === "archive-comment" && id > 0) { archiveComment(id); }
     else if (action === "mark-paid" && id > 0) { markPaid(id); }

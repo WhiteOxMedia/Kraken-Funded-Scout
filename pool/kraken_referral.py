@@ -27,6 +27,7 @@ fallback: the OS keyring for the key/secret pair, shared with
 src/kraken_client.py so both halves of the project see the same
 provisioned identity.
 """
+import base64
 import hashlib
 import hmac
 import json
@@ -353,18 +354,28 @@ def sign_request(api_secret, path, nonce, body):
     (masked until now only because no credentials were ever
     provisioned on this box; the KC leg always stopped at the keyring
     tier). Callers now sign urlencode({**body, "nonce": nonce})."""
-    api_secret = api_secret.strip()
-    pad = len(api_secret) % 4
-    if pad:
-        api_secret += "=" * (4 - pad)
+    api_secret = api_secret.strip().rstrip("=")
+    api_secret += "=" * ((-len(api_secret)) % 4)
+    try:
+        _key = base64.b64decode(api_secret)
+    except ValueError as exc:
+        raise ValueError(
+            "KRAKEN_API_SECRET is not valid base64 — re-provision the "
+            "secret from Kraken's API settings page") from exc
     # the scheme hashes BYTES: str(nonce) + the exact wire payload.
     # str bodies (the unit fixtures) and bytes bodies (the real caller,
     # which signs urlencode(...).encode()) both work; a dict still
     # TypeErrors - the contract the F.1 pin enforces.
     body_bytes = body.encode() if isinstance(body, str) else body
     secret = hashlib.sha256(str(nonce).encode() + body_bytes).digest()
-    return hmac.new(api_secret.encode(), path.encode() + secret,
-                    hashlib.sha512).hexdigest()
+    # Kraken's documented scheme: API-Sign = base64(HMAC-SHA512(
+    # base64decode(secret), path + SHA256(nonce + postdata))). The
+    # Oct 3 review major: keying the HMAC with the secret's ASCII
+    # text and returning hexdigest() produced a signature Kraken
+    # could never accept — EAPI:Invalid key on every live call.
+    mac = hmac.new(_key, path.encode() + secret,
+                   hashlib.sha512)
+    return base64.b64encode(mac.digest()).decode()
 
 
 def _kraken_post(endpoint, api_key, api_secret, body):
