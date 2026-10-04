@@ -343,6 +343,24 @@ def set_guard_factor_temporarily(after: float,
             "expired_due_box": _expired_due}
 
 
+def _box_locked(fn):
+    """THE BOX MUTATORS' LOCK (Copilot's third [high], the mirror
+    window of the save-time guard): tick/expire/rollback each
+    read-modify-write the box, and apply reads-appends-writes the
+    ledger — the setter's save is locked, so an unlocked tick reading
+    before it and writing after replaces the NEW box with its stale
+    read (the expiry then sees a mismatch and retires anchorless). The
+    whole read-modify-write holds pg's save lock: the lock serializes,
+    and the read happening INSIDE it is the re-read. RLock — rollback
+    re-expires internally, the heartbeat's tick→expire re-acquires on
+    the same thread, and the apply re-enters through the setter."""
+    def _w(*a, **k):
+        with _pg()._SAVE_LOCK:
+            return fn(*a, **k)
+    return _w
+
+
+@_box_locked
 def tick_rotation() -> int:
     """One rotation elapsed: decrement the box. Returns rotations left."""
     pg = _pg()
@@ -355,6 +373,7 @@ def tick_rotation() -> int:
     return int(box["rotations_left"])
 
 
+@_box_locked
 def expire_if_due() -> dict | None:
     """Restore the pre-adjust factor when the box ran out. The
     auto-revert: the loosening was temporary by construction. THE
@@ -416,6 +435,7 @@ def expire_if_due() -> dict | None:
     return {"reverted_to": before}
 
 
+@_box_locked
 def apply_adjustment(delta: float, rotation_id: str,
                      evidence_checksum: str,
                      per_gate: list[dict] | None = None,
@@ -617,6 +637,7 @@ def apply_adjustment(delta: float, rotation_id: str,
         return rec
 
 
+@_box_locked
 def rollback(rotation_id: str) -> dict:
     """The operator's undo: restore the last applied adjustment's
     `before` and mark the row reverted. Undoing the rotation that OWNS

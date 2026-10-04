@@ -592,9 +592,13 @@ def _read_state(path) -> dict:
 # lock serializes the whole body: the heartbeat thread and the HTTP
 # apply thread can no longer interleave inside _save (and the
 # pid-suffixed tmp name stops being a same-process collision — two
-# threads share the pid). The cross-process residual stays the standing
-# merge-save contract (owner keys + os.replace + the retry convention).
-_SAVE_LOCK = threading.Lock()
+# threads share the pid). RLock, not Lock: the box mutators hold it
+# across their whole read-modify-write and re-acquire it through their
+# internal pg._save calls (rollback re-expires internally; the
+# heartbeat's tick→expire re-acquires on the same thread). The
+# cross-process residual stays the standing merge-save contract
+# (owner keys + os.replace + the retry convention).
+_SAVE_LOCK = threading.RLock()
 
 
 def _save(st: dict, guard=None) -> None:

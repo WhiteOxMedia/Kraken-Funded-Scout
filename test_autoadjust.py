@@ -878,6 +878,32 @@ try:
               and r_r9.get("expired_due_box") is True
               and abs(pg._state()["factor"] - 1.90) < 1e-9,
               (r_r9, _exp_r9, _br9, pg._state().get("factor")))
+        #    R10 (Copilot's third [high] — the MIRROR window): the
+        #    mutators themselves. tick_rotation reads-decrements-saves
+        #    OUTSIDE the save lock: a tick reading before the setter's
+        #    save and writing after replaces the NEW box with its stale
+        #    read — the expiry then sees a mismatch and retires
+        #    anchorless. The mutators hold the save lock across their
+        #    whole read-modify-write (the read happens INSIDE it — the
+        #    lock serializes, the read-inside is the re-read), as does
+        #    the apply (two applies would clobber each other's ledger
+        #    rows through the same gap). RLock: rollback re-expires
+        #    internally and the heartbeat's tick→expire re-acquires on
+        #    the same thread.
+        _aa_src = (BASE / "auto_adjust.py").read_text(encoding="utf-8")
+        check("re-arm: the box mutators (tick, expire, rollback) and the "
+              "apply hold the save lock across their whole "
+              "read-modify-write — an unlocked tick writes its stale box "
+              "over the setter's new one",
+              _aa_src.count("@_box_locked") >= 4
+              and "with _pg()._SAVE_LOCK:" in _aa_src
+              and "threading.RLock" in (BASE / "profit_guard.py").read_text(encoding="utf-8")
+              and all(f"@_box_locked\ndef {m}(" in _aa_src
+                      for m in ("tick_rotation", "expire_if_due",
+                                "rollback", "apply_adjustment")),
+              [m for m in ("tick_rotation", "expire_if_due", "rollback",
+                           "apply_adjustment")
+               if f"@_box_locked\ndef {m}(" not in _aa_src])
     finally:
         aa.DAILY_CAP = _ra_cap
 
