@@ -3290,10 +3290,44 @@ def _aa_box_watermark_watch(now=None, state=None, push=None):
     now_dt = now if isinstance(now, _dt) else _dt.now()
     st = _load_scanner_state() if state is None else state
     stored = st.get("aa_box_last_rotation")
-    if not isinstance(stored, str) or not _re_mod.fullmatch(
-            r"\d{4}-\d{2}-\d{2}-\d{2}-\d{2}", stored.strip()):
-        return None                      # fail open
+    if not isinstance(stored, str):
+        return None                      # MISSING: a fresh/wiped state
+                                         # before box birth is legitimate
+                                         # — absence is not corruption
     stored = stored.strip()
+    # PRESENT BUT UNPARSEABLE (Copilot HIGH on 1e0139b): the healthy
+    # writer builds keys from real datetimes and can never produce a
+    # garbage or calendar-invalid value — corruption is not silence.
+    # Page ONCE per value (the same episode stamp; re-arms when the
+    # value heals), because a watermark we cannot read is a heartbeat
+    # we cannot verify, and this watch exists to end that silence.
+    _bad = not _re_mod.fullmatch(r"\d{4}-\d{2}-\d{2}-\d{2}-\d{2}", stored)
+    if not _bad:
+        try:
+            _y, _mo, _dd, _h1, _h2 = (int(_x) for _x in stored.split("-"))
+            _dt(_y, _mo, _dd)          # calendar-invalid: month 99 parses
+                                       # no date — same corruption class
+        except ValueError:
+            _bad = True
+    if _bad:
+        if st.get("aa_box_stale_paged") == stored:
+            return None                  # this episode already paged
+        text = (f"🛠 SCOUT OPS: aa-box watermark UNPARSEABLE "
+                f"(aa_box_last_rotation={stored!r}) — the box heartbeat "
+                f"cannot be verified until the value is repaired.")
+        if push is not None:
+            push(text)
+        else:
+            _send_ntfy(text, "high", "ops 1/2")
+            _push_retry_q.append({"text": text, "prio": "high",
+                                  "due": time.time() + 60.0,
+                                  "why": time.time()})
+        st["aa_box_stale_paged"] = stored
+        if state is None:
+            _fresh = _load_scanner_state()
+            _fresh["aa_box_stale_paged"] = stored
+            _save_scanner_state(_fresh)
+        return text
     # THE STALENESS CLOCK IS THE STAMP'S OWN END, not a probe key
     # (Copilot medium on f3d2fdb, drill 9.13): the watermark names the
     # window that contains now-4h, so it ADVANCES at every boundary —
@@ -3304,12 +3338,8 @@ def _aa_box_watermark_watch(now=None, state=None, push=None):
     # deadline is the stored window's end + one full window (the next
     # boundary, where the advance was due) + grace. 24h-safe via
     # timedelta (the 20-24 key's end is hour 24 = next-day 00:00).
-    try:
-        _y, _mo, _dd, _h1, _h2 = (int(_x) for _x in stored.split("-"))
-        _end = _dt(_y, _mo, _dd) + _td(hours=_h2)
-    except ValueError:
-        return None                      # regex-valid, calendar-invalid:
-                                         # fail open like any other malform
+    _y, _mo, _dd, _h1, _h2 = (int(_x) for _x in stored.split("-"))
+    _end = _dt(_y, _mo, _dd) + _td(hours=_h2)
     _deadline = _end + _td(hours=4) + _td(seconds=_AA_BOX_STALE_GRACE_S)
     _probe = now_dt - _td(hours=4)
     expected = f"{_probe:%Y-%m-%d}-{rotation_key_for_hour(_probe.hour)}"

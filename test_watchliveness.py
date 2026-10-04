@@ -650,15 +650,36 @@ if callable(_w9):
                       _plog, stamp="2026-10-03-12-16")
     check(9.10, isinstance(_out_n, str) and len(_plog) == 2,
           "a further-degraded watermark is a NEW episode and pages again")
-    # malformed: fail open, never crash, never page — including the
-    # regex-valid calendar-invalid shape (2026-99-99 parses no date;
-    # Copilot low on bc3ad9e)
-    _out_m, _st_m = _run9("garbage", _bnd + _td9(seconds=700), [])
-    _out_m2, _st_m2 = _run9("2026-99-99-12-16", _bnd + _td9(seconds=700), [])
-    check(9.11, _out_m is None and "aa_box_stale_paged" not in _st_m
-          and _out_m2 is None and "aa_box_stale_paged" not in _st_m2,
-          "a malformed watermark fails open, garbage or calendar-invalid "
-          "(the box guardrails own that shape)")
+    # MISSING key: fail open (a fresh/wiped state before box birth is
+    # legitimate — absence is not corruption)
+    _st_x = {"aa_box_stale_paged": "2026-10-03-12-16"}
+    _out_x = _w9(now=_bnd + _td9(seconds=700), state=_st_x, push=[])
+    check(9.11, _out_x is None and "aa_box_stale_paged" in _st_x,
+          "a missing watermark fails open (pre-birth/wipe states are real)")
+    # PRESENT BUT UNPARSEABLE (garbage or regex-valid calendar-invalid,
+    # Copilot HIGH on 1e0139b): the healthy writer can never produce it,
+    # and silence here blinds the watch to the exact state it owns —
+    # page ONCE per value, dedup on repeat, re-arm when it heals
+    _plog_m = []
+    _out_m, _st_m = _run9("garbage", _bnd + _td9(seconds=700), _plog_m)
+    check(9.14, isinstance(_out_m, str) and len(_plog_m) == 1
+          and _st_m.get("aa_box_stale_paged") == "garbage"
+          and "unparseable" in _out_m.lower(),
+          "an unparseable watermark pages once (corruption is not silence)")
+    _out_m3, _ = _run9("garbage", _bnd + _td9(seconds=800), [],
+                       stamp="garbage")
+    check(9.15, _out_m3 is None,
+          "the malformed episode dedups (no storm while the value is frozen)")
+    _out_m4, _st_m4 = _run9("2026-99-99-12-16", _bnd + _td9(seconds=700),
+                            _plog_m)
+    check(9.16, isinstance(_out_m4, str) and len(_plog_m) == 2
+          and "2026-99-99-12-16" in _out_m4,
+          "a calendar-invalid watermark pages too (2026-99-99 parses no date)")
+    _out_m5, _st_m5 = _run9(_aar9(_bnd - _td9(hours=8)),
+                            _bnd + _td9(seconds=30), [],
+                            stamp="2026-99-99-12-16")
+    check(9.17, _out_m5 is None and "aa_box_stale_paged" not in _st_m5,
+          "a healed watermark clears the malformed episode stamp (re-armed)")
     # THE COPilot MEDIUM ON f3d2fdb, red-first: a HEALTHY heartbeat stamps
     # the NEW key at the boundary (~30s after it), while any probe-key
     # arithmetic stays on the OLD key until boundary+grace — the window
