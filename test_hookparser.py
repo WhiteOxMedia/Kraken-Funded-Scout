@@ -301,6 +301,12 @@ check("every review exit records its outcome "
 check("the receipt is repo-rooted and epoch-stamped",
       "git rev-parse --show-toplevel" in src.split("RECEIPTS=", 1)[1][:200]
       and "date +%s" in src)
+check("the review rc is the CLI's own (raw capture, THEN tr) — a blown"
+      " budget can never masquerade as a clean receipt",
+      src.count('_cr_raw="$(') == 2
+      and src.count("review_json=\"$(printf '%s' \"$_cr_raw\" | tr -d '\\r')\"") == 2,
+      f"raw-captures={src.count('_cr_raw="$(')}, "
+      f"post-tr captures={src.count('printf %s')}")
 
 lines.append(f"\nRESULT: {PASS} passed, {FAIL} failed")
 scratch_space.report_temp('_hookparser_check.txt').write_text("\n".join(lines), encoding="utf-8")

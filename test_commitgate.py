@@ -443,6 +443,34 @@ if not RERUN:
           f"the receipt names its review mode (isolated worktree; "
           f"receipt={_rec_txt.strip()[:160]}; banners={_banner[:200]})")
 
+    # 2.27 THE TIMEOUT-RECEIPT DRILL (Oct 3, Copilot medium on 9eb36b8):
+    # a review that BLOWS its budget must never file a clean receipt.
+    # The old capture piped the CLI through tr INSIDE the command
+    # substitution, so rc was tr's (0) and a timed-out empty stream fell
+    # into the no-findings branch — receipt said CLEAN, the watchdog
+    # counted coverage that never happened. The cure captures the CLI's
+    # own rc (the pipe moved OUT of the substitution). Red-first: under
+    # the pre-cure hook this check fails with outcome=clean.
+    _slowdir = sandbox / "_shim_slow"
+    _slowdir.mkdir(exist_ok=True)
+    _slow = _slowdir / "coderabbit"
+    _slow.write_text("#!/bin/sh\nsleep 25\n", encoding="utf-8")
+    os.chmod(_slow, 0o755)
+    (_sandbox_rec := sandbox / "scratch" / "reviews_receipts.jsonl").unlink(
+        missing_ok=True)   # 2.25's clean receipt must not poison the not-in
+    rc2, out2 = run_gate({"GATE_QUIET": "0", "CODERABBIT_OFF": "0",
+                          "CODERABBIT_TIMEOUT_SEC": "20",
+                          "PATH": str(_slowdir) + os.pathsep
+                          + os.environ.get("PATH", "")},
+                         stage=("app.py",),
+                         mirror_sync=("hooks/pre-commit",))
+    _rec2 = sandbox / "scratch" / "reviews_receipts.jsonl"
+    _rec2_txt = _rec2.read_text(encoding="utf-8") if _rec2.exists() else ""
+    check(2.27, rc2 == 0 and '"outcome": "timeout"' in _rec2_txt
+          and '"outcome": "clean"' not in _rec2_txt,
+          f"a blown-budget review files a timeout receipt, never clean "
+          f"(rc={rc2}; receipt={_rec2_txt.strip()[-160:]})")
+
     # 2.3 quiet + a BROKEN drive: the red MUST print even under quiet
     print("== 2.3 failure under quiet: GATE_QUIET=1, autotrack broken ==")
     (sandbox / "test_autotrack.py").write_text(

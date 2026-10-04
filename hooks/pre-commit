@@ -612,14 +612,20 @@ if [ "${CODERABBIT_ISOLATED:-1}" = "1" ] \
     # review to the snapshot's own diff (always small by construction:
     # one commit against its parent). The fallback's --uncommitted
     # stays baseless — no single base scopes an in-tree review.
-    review_json="$(
+    # rc must be the CLI's OWN, not tr's: the old capture piped through
+    # tr INSIDE the substitution, so a blown-budget review (empty stream,
+    # tr rc=0) fell into the no-findings branch and filed a CLEAN receipt
+    # — the watchdog counted coverage that never happened (Copilot
+    # medium on 9eb36b8, drill 2.27). Capture raw, take rc, THEN tr.
+    _cr_raw="$(
         cd "$WT" && unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE \
                          GIT_OBJECT_DIRECTORY GIT_ALTERNATE_OBJECT_DIRECTORIES \
         && timeout "$TIMEOUT" "$BIN" review --committed \
             --base HEAD \
-            --agent 2>/dev/null | tr -d '\r'
+            --agent 2>/dev/null
     )" 2>/dev/null
     rc=$?
+    review_json="$(printf '%s' "$_cr_raw" | tr -d '\r')"
     cleanup_wt
 else
     _isol_err="$(printf '%s' "$_isol_err" | tr -d '\r')"
@@ -629,10 +635,9 @@ else
     echo "     falling back to an in-tree review (the working tree may color" >&2
     echo "     the findings)." >&2
     cleanup_wt
-    review_json="$(
-      timeout "$TIMEOUT" "$BIN" review --agent --uncommitted 2>/dev/null | tr -d '\r'
-    )" 2>/dev/null
+    _cr_raw="$(timeout "$TIMEOUT" "$BIN" review --agent --uncommitted 2>/dev/null)" 2>/dev/null
     rc=$?
+    review_json="$(printf '%s' "$_cr_raw" | tr -d '\r')"
 fi
 
 if [ $rc -ne 0 ]; then
