@@ -3309,6 +3309,13 @@ def _aa_box_watermark_watch(now=None, state=None, push=None):
                                        # no date — same corruption class
         except ValueError:
             _bad = True
+    if not _bad and f"{_h1:02d}-{_h2:02d}" not in ROTATION_KEYS:
+        _bad = True                      # calendar-valid, rotation-invalid
+                                         # (00-99): an hour-99 end would
+                                         # shove the deadline days out and
+                                         # defer the alert (Copilot medium
+                                         # on 716edd9) — the key must be a
+                                         # canonical rotation pair
     if _bad:
         if st.get("aa_box_stale_paged") == stored:
             return None                  # this episode already paged

@@ -680,6 +680,14 @@ if callable(_w9):
                             stamp="2026-99-99-12-16")
     check(9.17, _out_m5 is None and "aa_box_stale_paged" not in _st_m5,
           "a healed watermark clears the malformed episode stamp (re-armed)")
+    # a calendar-VALID but rotation-INVALID key (Copilot medium on
+    # 716edd9): 2026-10-03-00-99 parses fine and its hour-99 end would
+    # shove the deadline days out, deferring the alert — the key must
+    # be one of the canonical rotation pairs
+    _out_k, _ = _run9("2026-10-03-00-99", _bnd + _td9(seconds=700), _plog_m)
+    check(9.18, isinstance(_out_k, str) and len(_plog_m) == 3
+          and "2026-10-03-00-99" in _out_k,
+          "a non-canonical rotation key pages too (00-99 is no window)")
     # THE COPilot MEDIUM ON f3d2fdb, red-first: a HEALTHY heartbeat stamps
     # the NEW key at the boundary (~30s after it), while any probe-key
     # arithmetic stays on the OLD key until boundary+grace — the window
