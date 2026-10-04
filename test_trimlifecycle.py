@@ -39,6 +39,14 @@ _archive = sbx / f"_trimlife_archive.{__import__('os').getpid()}.jsonl"
 _REAL_MAX = bs.SUPPRESSION_LOG_MAX
 _REAL_LOG = bs.SUPPRESSION_LOG_FILE
 _REAL_ARCH = bs.SUPPRESSION_ARCHIVE_FILE
+# PID-reuse hardening (Copilot low, Oct 4): Windows can hand this PID
+# to a later run — a stale ledger/archive from that run would poison
+# T2's eviction-order assertion with rows this run never wrote. Own-PID
+# residue is unlinked BEFORE the lifecycle starts (other PIDs' files
+# are left alone: concurrent runs stay isolated).
+for _stale in (list(sbx.glob(f"_trimlife_ledger.{__import__('os').getpid()}.*"))
+               + list(sbx.glob(f"_trimlife_archive.{__import__('os').getpid()}.*"))):
+    _stale.unlink(missing_ok=True)
 try:
     bs.SUPPRESSION_LOG_FILE = str(_ledger)
     bs.SUPPRESSION_ARCHIVE_FILE = str(_archive)
@@ -77,6 +85,8 @@ finally:
     bs.SUPPRESSION_LOG_FILE = _REAL_LOG
     bs.SUPPRESSION_ARCHIVE_FILE = _REAL_ARCH
     bs.SUPPRESSION_LOG_MAX = _REAL_MAX
+    _ledger.unlink(missing_ok=True)
+    _archive.unlink(missing_ok=True)
 
 fails = [r for r in results if not r]
 print(f"RESULT: {len(results) - len(fails)} passed, {len(fails)} failed")
