@@ -317,6 +317,7 @@ if git diff --cached --name-only | grep -qxE 'app\.py|background_scanner\.py|met
             FAILS="$FAILS $t(timeout)"
         elif [ "$rc" -ne 0 ] || [ -z "$res" ] || [ "${failed:-1}" != "0" ]; then
             echo "  ⛔ GATE: $t FAILED (${res:-no verdict — crashed or truncated}; rc=$rc)" >&2
+            printf '%s\n' "$out" | grep -E '^FAIL' | head -8 >&2
             printf '%s\n' "$out" | tail -4 >&2
             FAILS="$FAILS $t"
         else
@@ -405,7 +406,13 @@ if git diff --cached --name-only | grep -qxE 'app\.py|background_scanner\.py|met
     maybe_run "$_HK"  test_hookparser.py  result   10   # the parser's key
                                                         # contract, against
                                                         # the staged hook
-    maybe_run "$_HK"  test_commitgate.py result  180   # the gate's own guard:
+    # budget 600 (Oct 3): the receipt drill added a full gate run — the
+    # suite measures ~370s in-gate; the old 180s budget blocked the very
+    # commit that carried the drill (the gate rejected its own cure).
+    # ONE variable for BOTH call sites (_HK above, _HD below) — two
+    # literals drifted within a single commit attempt.
+    _CG_BUDGET=600
+    maybe_run "$_HK"  test_commitgate.py result  "$_CG_BUDGET"   # the gate's own guard:
                                                         # the quiet census +
                                                         # live sandbox drills
     # THE HOST ASSETS ARE STAGED, SO THE CENSUS RUNS GATED (Sep 30): the
@@ -420,7 +427,10 @@ if git diff --cached --name-only | grep -qxE 'app\.py|background_scanner\.py|met
     # verdict document's ledger and class counts are re-derived from the
     # STAGED journal every time the doc, the journal, or this drive is
     # staged — a doc that drifts from the record blocks the commit.
-    maybe_run "$_HD"  test_commitgate.py result  180
+    # budget 600 (Oct 3): the receipt drill added a full gate run — the
+    # suite measures ~370s in-gate; the old 180s budget blocked the very
+    # commit that carried the drill (the gate rejected its own cure).
+    maybe_run "$_HD"  test_commitgate.py result  "$_CG_BUDGET"
     maybe_run "$_TL"  test_tidelearn.py   result   15   # the EV ladder's
                                                         # admission policy
                                                         # (zero-EV deny),
@@ -552,6 +562,34 @@ cleanup_wt() {
 # calls stay — cleanup must happen before the renderer runs, not only at
 # script exit.
 trap 'cleanup_wt; rm -rf "${SCRATCH:-}" 2>/dev/null' EXIT
+
+# ── THE COVERAGE RECEIPT (Oct 3): the CLI records a review batch ONLY
+# when findings exist — a clean review lands nothing — so the backlog
+# watchdog could not tell a clean review from a review that never ran
+# (a week of clean isolated reviews read as an ever-growing open set).
+# Every completed review appends one receipt into the REPO's
+# scratch/reviews_receipts.jsonl (the isolated snapshot covers the
+# staged truth; the receipt's ts postdates every commit it reviewed).
+# The watchdog merges the CLEAN receipts into its coverage ledger; a
+# bounced review (timeout / unparsed / review errors) records its
+# outcome for forensics and covers nothing. Findings-carrying reviews
+# need no receipt — the CLI's own batch IS their record. Append-only,
+# best-effort: a receipt failure never blocks the commit.
+RECEIPTS="$(git rev-parse --show-toplevel 2>/dev/null)/scratch/reviews_receipts.jsonl"
+# The mode is CAPTURED AT THE BRANCH, not derived from $WT at receipt
+# time: cleanup_wt clears WT before the CLEANJSON/timeout receipts fire,
+# and deriving there would file every isolated review as in-tree
+# (found by the receipt drill, Oct 3).
+_cr_mode="in-tree"
+cr_receipt() {   # $1 = outcome: clean | unparsed | errors | timeout
+    [ -n "${RECEIPTS:-}" ] || return 0
+    mkdir -p "$(dirname "$RECEIPTS")" 2>/dev/null
+    printf '{"ts": %s, "head": "%s", "mode": "%s", "outcome": "%s"}\n' \
+        "$(date +%s)" \
+        "${SNAPSHOT:-$(git rev-parse --short HEAD 2>/dev/null || echo unknown)}" \
+        "${_cr_mode:-in-tree}" "$1" \
+        >> "$RECEIPTS" 2>/dev/null || true
+}
 if [ "${CODERABBIT_ISOLATED:-1}" = "1" ] \
         && _isol_step="mktemp" \
         && WT="$(mktemp -d "${TMPDIR:-/tmp}/cr-worktree.XXXXXX")" \
@@ -565,6 +603,7 @@ if [ "${CODERABBIT_ISOLATED:-1}" = "1" ] \
         && { _isol_err="$(run_clean_git git worktree add --detach "$WT" "$SNAPSHOT" 2>&1)"; }; then
     echo "  🐇 CodeRabbit: reviewing the STAGED content in an isolated" >&2
     echo "     worktree (the dirty tree and runtime churn are out of scope)." >&2
+    _cr_mode="isolated"
     # --base HEAD (Oct 2, the silent-coverage fix): the CLI's default
     # isolated review reads the whole tree as context, and a 628-file
     # repo exceeds its 150-file analysis cap — the review then dies or
@@ -597,11 +636,13 @@ else
 fi
 
 if [ $rc -ne 0 ]; then
+    cr_receipt timeout
     echo "  🐇 CodeRabbit: review didn't finish (rc=$rc; timeout ${TIMEOUT}s) — commit proceeds (fail-open)." >&2
     exit 0
 fi
 
 if [ -z "$review_json" ]; then
+    cr_receipt clean
     echo "  🐇 CodeRabbit: no findings — clean review." >&2
     exit 0
 fi
@@ -830,9 +871,11 @@ sev="$(printf '%s\n' "$PARSER_OUT" | sed -n 's/^SEV //p' | tr '\n' ' ' | sed 's/
 errtypes="$(printf '%s\n' "$PARSER_OUT" | sed -n 's/^ERRORTYPE //p' | sort -u | tr '\n' ' ' | sed 's/ $//')"
 if [ -z "$n" ]; then
     if printf '%s\n' "$PARSER_OUT" | grep -q '^CLEANJSON$'; then
+        cr_receipt clean
         echo "  🐇 CodeRabbit: zero findings — clean JSON review." >&2
         exit 0
     fi
+    cr_receipt unparsed
     echo "  🐇 CodeRabbit findings (unparsed stream — eyes on, commit proceeds):" >&2
     printf '%s' "$review_json" | head -c 600 >&2
     echo >&2
@@ -846,6 +889,7 @@ fi
 echo "  🐇 CodeRabbit: $n finding(s). Advisory only — commit proceeds." >&2
 echo "    (blockers seen:${sev:+ $sev})" >&2
 if [ -n "$errtypes" ]; then
+    cr_receipt errors
     echo "    ⚠ review errors: $errtypes — advisories may be incomplete" >&2
     echo "    (fail-open, never silence — the review did not fully run)." >&2
 fi

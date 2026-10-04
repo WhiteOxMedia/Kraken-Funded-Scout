@@ -29,12 +29,20 @@ both real repos are never touched by this drive.
      fake findings BODY must not surface)
   6. hermetic: the real reviews tree and both real repos are never
      opened (the sandbox paths are the only ones in the output)
+  7. THE RECEIPT LEDGER (Oct 3): the hook's per-review receipts merge
+     into the coverage ledger - a clean receipt covers, a bounced one
+     does not, torn lines are skipped
+  8. THE WORKTREE ATTRIBUTION (Oct 3): an isolated review's batch names
+     a temp worktree as its workingDirectory; its reviewed head is a
+     snapshot commit of the repo's own object database, and that
+     membership attributes it
 
 House conventions: check(n, cond, why), RESULT line, sys.exit(1).
 """
 import io
 import json
 import os
+import re
 import subprocess
 import sys
 import tempfile
@@ -269,6 +277,84 @@ check("4c.6", "src/trading.py" not in out_b
       "a receipt naming the file ONLY in its body still retires the "
       "major - the live shape where the subject names none of the "
       "fixed files")
+
+print("== 7. THE RECEIPT LEDGER: clean reviews cover too ==")
+# THE OCT 3 FINDING: the CLI records a batch ONLY when findings exist —
+# a clean review leaves nothing — so a repo whose reviews all come back
+# clean reads as perpetually unreviewed. The hook now appends a receipt
+# per completed review into the repo's scratch/, and the diag merges
+# them into the coverage ledger (coverage outcomes only).
+REPO_D = SANDBOX / "repoD"
+commits_d = _mk_repo(REPO_D, [NOW - 30 * H, NOW - 1 * H])
+(REPO_D / "scratch").mkdir(exist_ok=True)
+_saved_mono = dcb.MONERO          # section 7 grades repoD THROUGH the
+                                  # MONERO seat; restored before section 8
+dcb.MONERO = REPO_D
+# 7.2 (armor): a receipt that names a NON-coverage outcome must not
+# cover — repoD has no batches, so only receipts could cover it
+(REPO_D / "scratch" / "reviews_receipts.jsonl").write_text(
+    json.dumps({"ts": NOW - int(0.5 * H), "head": commits_d[1][0],
+                "mode": "isolated", "outcome": "timeout"}) + "\n",
+    encoding="utf-8")
+_rc7a, out7a = _run()
+check("7.2", re.search(r"repoD:.*\[2 open commit\(s\)", out7a) is not None,
+      "a timeout receipt is NOT coverage - repoD's commits stay open "
+      "(a bounced review covered nothing)")
+# 7.1 (red-first): a CLEAN receipt IS coverage - the same repoD with a
+# clean receipt at -0.5h must read fully covered (both commits predate it)
+with open(REPO_D / "scratch" / "reviews_receipts.jsonl", "a",
+          encoding="utf-8") as fh:
+    fh.write(json.dumps({"ts": NOW - 600, "head": commits_d[1][0],
+                         "mode": "isolated", "outcome": "clean"}) + "\n")
+_rc7b, out7b = _run()
+check("7.1", _rc7b == 0 and "repoD: every commit in the window is covered"
+      in out7b,
+      "a clean-review receipt covers the commits that predate it - the "
+      "repo whose reviews come back clean is no longer perpetually open")
+# 7.3 (armor): torn/garbage receipt lines are skipped, never crash
+with open(REPO_D / "scratch" / "reviews_receipts.jsonl", "a",
+          encoding="utf-8") as fh:
+    fh.write("{not json\n")
+    fh.write("[]\n")
+_rc7c, out7c = _run()
+check("7.3", "Traceback" not in out7c and "RESULT: " in out7c,
+      "torn or non-object receipt lines never crash the ledger reader "
+      "(the run ends in a clean RESULT line either way)")
+dcb.MONERO = _saved_mono   # restore the seat before section 8
+
+print("== 8. THE WORKTREE ATTRIBUTION: ODB membership is the repo ==")
+# The isolated review's batches name a temp cr-worktree as their
+# workingDirectory - unattributable by path. But its reviewed head is a
+# SNAPSHOT COMMIT BUILT IN THE REPO'S OWN OBJECT DATABASE, so head
+# membership in the repo's ODB is the honest attribution.
+def _mk_wt_batch(ts, head):
+    bid = f"wt-{ts}"
+    bdir = FAKE_ROOT / "session" / "wt" / "reviews" / bid
+    bdir.mkdir(parents=True, exist_ok=True)
+    (bdir / "git.json").write_text(json.dumps({
+        "workingDirectory": str(SANDBOX / "cr-worktree.XXXX"),
+        "head": head, "timestamp": ts}), encoding="utf-8")
+    return bdir
+
+# 8.2 (armor): a worktree batch whose head resolves NOWHERE must not
+# attribute - a foreign snapshot (or garbage hash) stays foreign, so
+# repoA's amended tip stays open (the amended tip is seconds old, so
+# the age gate alone cannot fail; the OPEN detail is the assertion)
+_mk_wt_batch(NOW + 5, "deadbeef000")
+_rc8a, out8a = _run()
+check("8.2", re.search(r"repoA:.*\(1 open commit\(s\)", out8a) is not None,
+      "an unresolvable worktree batch attributes to neither repo - "
+      "repoA's amended tip stays open, attributed to nothing")
+# 8.1 (red-first): the SAME shape with a head that IS one of repoA's
+# real commits attributes to repoA - its timestamp postdates the
+# amended tip (NOW+10), so attribution covers the whole window
+_wtb = _mk_wt_batch(NOW + 15, commits_a[1][0])
+_rc8b, out8b = _run()
+check("8.1", _rc8b == 0
+      and "repoA: every commit in the window is covered" in out8b,
+      "a cr-worktree batch whose reviewed head lives in repoA's object "
+      "database IS repoA's review - the week of isolated reviews stops "
+      "reading as an open backlog")
 
 print("== 5. OUTPUT HYGIENE: contents never print ==")
 # NOTE (4b): the body-marker batches for this section are already in

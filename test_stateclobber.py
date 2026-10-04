@@ -630,7 +630,18 @@ try:
     _heal = [(f"heal{_i}", sys.executable,
               (_SCAN_BODY.replace("PAIR", f"'STR{_i}/USD'"),
                _SCAN_SETUP)) for _i in _missing]
-    _heal_res = _run_wave(_heal, timeout_s=90) if _heal else {}
+    # THE HEALS ARE TICKS, NOT A STORM (Oct 3, the load-repro lesson):
+    # parallel heal writers read-merge-write against EACH OTHER — a
+    # writer that read before its neighbor's write erases that neighbor
+    # on landing (the file-level lost update, manufactured between the
+    # heals themselves; the Oct 3 retry-verify loop inside each writer
+    # cannot see a LATER interleaved overwrite). Production heals are
+    # SEQUENTIAL ticks — one writer settles before the next reads — and
+    # the heal leg now runs the same way: one worker at a time.
+    _heal_res = {}
+    for _hname, _hexe, _hargs in _heal:
+        _heal_res.update(_run_wave([(_hname, _hexe, _hargs)],
+                                   timeout_s=90))
     # THE CONVERGENCE POLL ("the next tick", the same fix the guard-
     # state heal leg got): a bounded re-read window — stragglers from
     # the wave converging mid-read count as healed; a hard absence at
@@ -655,7 +666,12 @@ try:
                  (_PG_BODY.replace("KEY", f"'stormkey{_i}'")
                           .replace("VALUE", f"'v{_i}'"), _PG_SETUP))
                 for _i in _st_missing]
-    _heal_pg_res = _run_wave(_heal_pg, timeout_s=90) if _heal_pg else {}
+    # SAME SEQUENTIAL-TICK SHAPE as the scanner heal above: parallel
+    # heals erase one another; serial ticks converge.
+    _heal_pg_res = {}
+    for _hname, _hexe, _hargs in _heal_pg:
+        _heal_pg_res.update(_run_wave([(_hname, _hexe, _hargs)],
+                                      timeout_s=90))
     # THE CONVERGENCE POLL ("the next tick"): a bounded re-read window —
     # stragglers converging mid-read count as healed, hard absence at
     # the deadline is the failure. The wave's evidence rides the detail.

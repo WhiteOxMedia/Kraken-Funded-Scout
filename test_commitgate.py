@@ -73,7 +73,7 @@ check(1.5, "QUIET MODE (Sep 23): GATE_QUIET=1 (env, default 0)" in src,
       "the header lost the quiet-mode contract")
 # 1.6 the gate guards ITSELF: the trigger matrix runs this drive when the
 # hook is staged — a future edit cannot silently drop the gate's own guard
-check(1.6, 'maybe_run "$_HK"  test_commitgate.py result  180' in src,
+check(1.6, 'maybe_run "$_HK"  test_commitgate.py result  "$_CG_BUDGET"' in src,
       "the self-arming trigger line is missing from the matrix")
 
 # 1.7 the MIRROR CHECK (user, Sep 23: "verify the machine-local mirror
@@ -331,7 +331,18 @@ if not RERUN:
         p = subprocess.run(["bash", str(hook_exe)], cwd=str(sandbox),
                            capture_output=True, text=True, encoding="utf-8",
                            errors="replace", env=env, timeout=240)
-        return p.returncode, (p.stdout or "") + (p.stderr or "")
+        out = (p.stdout or "") + (p.stderr or "")
+        if p.returncode != 0:
+            # THE FORENSICS MIRROR (Oct 3, the moving-flake morning): a
+            # red gate's full output lands on disk — a flake whose
+            # identity changes between runs must not cost a repro
+            # iteration to name the failing check.
+            try:
+                (HERE / "scratch" / "_gate_last_red.txt").write_text(
+                    out, encoding="utf-8")
+            except Exception:
+                pass
+        return p.returncode, out
 
     # THE EXPECTED COUNT derives from the hook's own matrix — the distinct
     # drive names across the $_APP/$_BS trigger lines (deduped the way
@@ -371,7 +382,10 @@ if not RERUN:
     # 2.1 GATE_QUIET=1: passes stay silent, the counted summary speaks
     print("== 2.1 quiet: GATE_QUIET=1, all drives pass ==")
     rc, out = run_gate({"GATE_QUIET": "1"})
-    check(2.1, rc == 0, f"gate rc={rc}; tail: {out[-500:]}")
+    _red_lines = [l for l in out.splitlines()
+                  if l.startswith("FAIL") or "⛔ GATE:" in l]
+    check(2.1, rc == 0, f"gate rc={rc}; tail: {out[-500:]}; reds: "
+          + " | ".join(_red_lines[-8:]))
     check(2.11, f"commit gate (quiet): {_n_expected} drive(s) green" in out,
           f"quiet summary missing or count wrong (expected {_n_expected}: "
           f"{sorted(_drives)})")
@@ -387,6 +401,47 @@ if not RERUN:
           f"expected {_n_expected} pass lines, got {n_pass}")
     check(2.22, "commit gate: every triggered drive green" in out,
           "the verbose green summary is gone")
+    if rc != 0:
+        _reds2 = [l for l in out.splitlines()
+                  if l.startswith("FAIL") or "⛔ GATE:" in l]
+        check(2.2, False, f"gate rc={rc}; reds: "
+              + " | ".join(_reds2[-8:]))
+
+    # ══ 2.25 THE COVERAGE RECEIPT DRILL (Oct 3): a clean review leaves a record ══
+    # run_gate sets CODERABBIT_OFF=1 for sandbox isolation, so the review
+    # leg never ran in here. This drill arms it back WITH a fake
+    # coderabbit shim leading PATH (extra_env lands after the flag, so
+    # the OFF flag is overridden) — the review leg takes its isolated
+    # path against the shim's clean JSON, and the receipt must land in
+    # the sandbox repo's scratch/ — the record the backlog watchdog
+    # reads to tell a clean review from a review that never ran.
+    shimdir = sandbox / "_shim"
+    shimdir.mkdir(exist_ok=True)
+    _shim = shimdir / "coderabbit"
+    _shim.write_text("#!/bin/sh\necho '[]'\n", encoding="utf-8")
+    os.chmod(_shim, 0o755)
+    # stage the CODE triggers only: staging hooks/pre-commit itself
+    # classifies _HK -> the gate runs test_commitgate INSIDE this suite
+    # (recursion; it blew its 180s budget and the gate died before the
+    # review leg ever ran — found by the forensics mirror, Oct 3).
+    # The sandbox's ARMED hook is the new receipt-bearing one via
+    # mirror_sync — that is the hook the gate executes.
+    rc, out = run_gate({"GATE_QUIET": "0", "CODERABBIT_OFF": "0",
+                        "CODERABBIT_TIMEOUT_SEC": "20",
+                        "PATH": str(shimdir) + os.pathsep
+                        + os.environ.get("PATH", "")},
+                       stage=("app.py", "background_scanner.py"),
+                       mirror_sync=("hooks/pre-commit",))
+    _rec = sandbox / "scratch" / "reviews_receipts.jsonl"
+    _rec_txt = _rec.read_text(encoding="utf-8") if _rec.exists() else ""
+    check(2.25, rc == 0 and '"outcome": "clean"' in _rec_txt,
+          f"a clean isolated review appends its receipt (rc={rc}, "
+          f"receipt exists={_rec.exists()}; gate tail: {out[-300:]})")
+    _banner = "\n".join(l for l in out.splitlines()
+                        if "isolat" in l.lower() or "falling back" in l.lower())
+    check(2.26, rc == 0 and '"mode": "isolated"' in _rec_txt,
+          f"the receipt names its review mode (isolated worktree; "
+          f"receipt={_rec_txt.strip()[:160]}; banners={_banner[:200]})")
 
     # 2.3 quiet + a BROKEN drive: the red MUST print even under quiet
     print("== 2.3 failure under quiet: GATE_QUIET=1, autotrack broken ==")

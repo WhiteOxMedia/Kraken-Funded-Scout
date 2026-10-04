@@ -283,6 +283,25 @@ check("the clean-JSON answer precedes the raw dump and exits quietly",
 check("the review stays advisory (findings never block the commit)",
       "Advisory only — commit proceeds" in src)
 
+# ── 5. THE COVERAGE RECEIPT (Oct 3): clean reviews must leave a record ──
+# The CLI records a batch only when findings exist; the watchdog reads
+# the hook's own receipts to tell a clean review from a review that
+# never ran. The writer exists, every review exit records its outcome,
+# and the receipt is append-only best-effort (never blocks the commit).
+check("the receipt writer exists (repo scratch JSONL, best-effort)",
+      "scratch/reviews_receipts.jsonl" in src and "cr_receipt()" in src
+      and "|| true" in src)
+check("every review exit records its outcome "
+      "(clean / unparsed / errors / timeout)",
+      all(f"cr_receipt {o}" in src for o in
+          ("clean", "unparsed", "errors", "timeout"))
+      and src.count("cr_receipt clean") >= 2,
+      [o for o in ("clean", "unparsed", "errors", "timeout")
+       if f"cr_receipt {o}" not in src])
+check("the receipt is repo-rooted and epoch-stamped",
+      "git rev-parse --show-toplevel" in src.split("RECEIPTS=", 1)[1][:200]
+      and "date +%s" in src)
+
 lines.append(f"\nRESULT: {PASS} passed, {FAIL} failed")
 scratch_space.report_temp('_hookparser_check.txt').write_text("\n".join(lines), encoding="utf-8")
 print("\n".join(lines))   # the verdict rides STDOUT — the gate's result

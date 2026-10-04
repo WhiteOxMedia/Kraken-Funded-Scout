@@ -53,7 +53,6 @@ import subprocess
 import sys
 from pathlib import Path
 import time
-from pathlib import Path
 
 SCOUT = Path(__file__).resolve().parent
 MONERO = SCOUT.parent / "monero_project"
@@ -111,6 +110,75 @@ def _batches_for(repo):
             found.append((int(meta.get("timestamp", 0)),
                           str(meta.get("head", ""))[:7], git_json.parent))
     return sorted(found, reverse=True)
+
+
+def _receipts_for(repo):
+    """THE RECEIPT LEDGER (Oct 3): the hook appends one receipt per
+    COMPLETED review into the repo's scratch/reviews_receipts.jsonl —
+    the CLI itself records a batch only when findings exist, so a repo
+    whose reviews all come back clean would otherwise read as
+    perpetually unreviewed. Returns [(ts, outcome)] for THIS repo;
+    torn or non-object lines are skipped, a missing file is an empty
+    ledger (the receipt is a coverage SURFACE, never a requirement —
+    a repo reviewed without the receipt-writing hook still grades on
+    its batches alone)."""
+    found = []
+    f = Path(repo) / "scratch" / "reviews_receipts.jsonl"
+    try:
+        lines = f.read_text(encoding="utf-8").splitlines()
+    except OSError:
+        return found
+    for ln in lines:
+        ln = ln.strip()
+        if not ln:
+            continue
+        try:
+            r = json.loads(ln)
+        except ValueError:
+            continue
+        if not isinstance(r, dict):
+            continue
+        ts = r.get("ts")
+        if not isinstance(ts, (int, float)):
+            continue
+        found.append((int(ts), str(r.get("outcome", "?"))))
+    return found
+
+
+def _worktree_batches(repo):
+    """THE WORKTREE ATTRIBUTION (Oct 3): the hook's isolated review runs
+    in a temp cr-worktree, so the CLI records the batch's
+    workingDirectory as that temp dir — unattributable by path. But the
+    reviewed head is a SNAPSHOT COMMIT BUILT IN THE REPO'S OWN OBJECT
+    DATABASE (commit-tree against the staged index), so head membership
+    in the repo's ODB is the honest attribution: `git cat-file -t <head>`
+    answering `commit` inside THIS repo means THIS repo's review.
+    Returns the same [(timestamp, head, batch_path)] shape as
+    _batches_for; unresolvable or foreign heads attribute to nothing."""
+    found = []
+    if not REVIEW_ROOT.exists():
+        return found
+    for git_json in REVIEW_ROOT.glob("*/*/reviews/*/git.json"):
+        try:
+            meta = json.loads(git_json.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            continue
+        wd = os.path.normpath(str(meta.get("workingDirectory", ""))).lower()
+        if "cr-worktree" not in wd:
+            continue
+        head = str(meta.get("head", ""))
+        if not head or not re.fullmatch(r"[0-9a-f]{7,40}", head):
+            continue
+        try:
+            probe = subprocess.run(
+                ["git", "cat-file", "-t", head], cwd=str(repo),
+                capture_output=True, text=True, timeout=30)
+        except (OSError, ValueError):
+            continue
+        if probe.returncode == 0 and probe.stdout.strip() == "commit":
+            found.append((int(meta.get("timestamp", 0)), head[:7],
+                          git_json.parent))
+    return found
 
 
 def _triaged_files(repo, batch_ts, batch_head):
@@ -209,17 +277,45 @@ def _repo_report(step, repo):
         check(step, f"{name}: git history readable", False,
               "git log returned nothing")
         return
-    batches = _batches_for(repo)
+    batches = _batches_for(repo) + _worktree_batches(repo)
     if not batches:
-        check(step, f"{name}: at least one review batch recorded", False,
-              f"no batch's workingDirectory names this repo "
-              f"({len(commits)} commits in the window)")
+        # THE RECEIPT RECORD (Oct 3): a repo whose reviews all come back
+        # clean never earns a finding-batch (the CLI records findings
+        # only) — its receipts ARE the review record, and the latest one
+        # is reported instead of a batch. No receipts either: the
+        # original finding stands.
+        receipts = sorted(_receipts_for(repo), reverse=True)
+        if receipts:
+            ts = receipts[0][0]
+            oc = receipts[0][1]
+            check(step, f"{name}: latest clean receipt (no batch ever — "
+                        f"clean reviews record no findings) "
+                        f"{int((time.time() - ts) / 3600)}h old, "
+                        f"outcome {oc}", True)
+        else:
+            _oldest = ((time.time()
+                        - min(t for _h, t in commits)) / 3600)
+            check(step, f"{name}: at least one review batch recorded", False,
+                  f"no batch's workingDirectory names this repo "
+                  f"({len(commits)} commits in the window)")
+            check(step, f"{name}: no commit waits more than "
+                        f"{BACKLOG_HOURS:g}h for review", False,
+                  f"{len(commits)} open commit(s), oldest {_oldest:.1f}h")
+            return
     else:
+        batches = sorted(batches, reverse=True)
         ts, head, _p = batches[0]
         check(step, f"{name}: latest batch {Path(_p).name} "
                     f"(head {head}, {int((time.time() - ts) / 3600)}h old)",
               True)
     covered_before = max((ts for ts, _h, _p in batches), default=0)
+    # THE RECEIPT MERGE (Oct 3): a CLEAN review covers everything that
+    # predates it, batch or no batch — a bounced one (timeout, unparsed
+    # stream) covers nothing. Outcomes other than clean are coverage
+    # outcomes the receipt records for forensics, never for coverage.
+    clean_receipt_ts = max((ts for ts, oc in _receipts_for(repo)
+                            if oc == "clean"), default=0)
+    covered_before = max(covered_before, clean_receipt_ts)
     open_set = [(h, t) for h, t in commits if t > covered_before]
     oldest_age_h = ((time.time() - min((t for _h, t in open_set),
                                        default=time.time())) / 3600)
