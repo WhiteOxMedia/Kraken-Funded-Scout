@@ -234,6 +234,20 @@ check(4.5, pg.VOL_WINDOW == 100 and "LIMIT ?" in (HERE / "profit_guard.py").read
       and "LIMIT 20" not in (HERE / "profit_guard.py").read_text(encoding="utf-8"),
       "the window is the VOL_WINDOW dial (100), bound as a parameter — "
       "no LIMIT 20 literal survives to drift apart from the floor")
+# 4.6 THE SAVE LOCK (Copilot's second [high] on 39079b5): the merge-
+# save's read → guard → write → replace sequence is the one place a
+# save-time guard's verdict can still be raced — a concurrent writer
+# landing between the guard and the replace overwrites it. The whole
+# body serializes under one process-wide lock: the heartbeat thread and
+# the HTTP apply thread can no longer interleave inside _save (and the
+# pid-suffixed tmp name stops being a same-process collision). The
+# cross-process residual stays the standing merge-save contract.
+_pg_src = (HERE / "profit_guard.py").read_text(encoding="utf-8")
+check(4.6, "_SAVE_LOCK" in _pg_src
+      and "with _SAVE_LOCK:" in _pg_src
+      and "threading" in _pg_src,
+      "the merge-save serializes read-guard-write under one process-wide "
+      "lock — the save-time guard's verdict survives to the replace")
 _db.unlink(missing_ok=True)
 (TMP / "rotation_thresholds.json").unlink(missing_ok=True)
 

@@ -273,7 +273,38 @@ def set_guard_factor_temporarily(after: float,
                     if isinstance(_cur_box, dict)
                     and _cur_box.get("rotations_left") is not None else None)
         if _cur_rot is not None and _cur_rot <= 0:
-            merged["auto_adjust_box"] = _cur_box
+            # THE EXPIRY RUNS HERE, inline (Copilot's second [high] on
+            # 39079b5): keeping cur's rot-0 box under the setter's new
+            # factor hands the in-flight heartbeat expiry a drift and
+            # loses the anchor. The heartbeat's own three moves, landed
+            # in THIS write instead of a second one — minus the nested
+            # save an expire_if_due call here would make: the drift check
+            # against the FILE's factor, the row ledgered at the anchor's
+            # truth, the birth from the post-expiry anchor.
+            _bx_after = float(_cur_box.get("after") or 0.0)
+            _bf = _cur_box.get("before")
+            _bf = 1.0 if _bf is None else float(_bf)
+            _cur_f = float(cur.get("factor") or 0.0)
+            _intact = abs(_cur_f - _bx_after) <= 1e-9
+            _now = datetime.now().astimezone()
+            merged.setdefault("auto_adjust_ledger", []).append({
+                "day": _today_key(_now),
+                "rotation_id": str(_cur_box.get("rotation_id") or ""),
+                "status": "reverted" if _intact else "expired",
+                "before": _bx_after,
+                "after": _bf if _intact else _cur_f,
+                "delta": 0.0,
+                "reason": ("time_box_expired" if _intact
+                           else "time_box_expired_stale_anchor"),
+                "evidence": str(_cur_box.get("evidence") or ""),
+                "applied_at": _now.isoformat(),
+            })
+            merged["auto_adjust_box"] = {
+                "after": float(after),
+                "before": _bf if _intact else _cur_f,
+                "rotations_left": max(1, int(rotations)),
+                "set_at": _now.isoformat(),
+            }
             _raced["expired"] = True
             return
         if _prior_rot is not None and _cur_box is None:

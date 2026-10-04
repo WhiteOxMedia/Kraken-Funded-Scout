@@ -838,6 +838,46 @@ try:
               and r_r8.get("expired_due_box") is True
               and abs(pg._state()["factor"] - 1.90) < 1e-9,
               (r_r8, _exp_r8, _br8, pg._state().get("factor")))
+        #    R9 (Copilot's second [high] on 39079b5): the DUE-AT-SAVE
+        #    case — the tick landed (rot 0) but the heartbeat's expiry has
+        #    NOT run when the guard looks. Keeping cur's rot-0 box under
+        #    the setter's new factor hands the in-flight expiry a drift
+        #    (after != factor) and loses the anchor; the guard must
+        #    perform the expiry ITSELF, inline: ledgered at the anchor's
+        #    truth (reverted / after == the anchor) and the new box births
+        #    from that anchor — a rot-0 zombie under a new factor is the
+        #    spent guarantee re-arming itself by accident.
+        pg._save({"factor": 2.0, "auto_adjust_box": None})
+        aa.apply_adjustment(-0.05, "RA-R", "ev:ra-r")
+        aa.tick_rotation()
+        aa.tick_rotation()                              # 3 -> 1
+        _real_save_r9 = pg._save
+        _armed9 = {"on": True}
+        def _save9(*a, **k):
+            if _armed9["on"]:
+                _armed9["on"] = False
+                aa.tick_rotation()      # 1 -> 0: due AT the save, the
+                                        # expiry NOT yet run
+            return _real_save_r9(*a, **k)
+        pg._save = _save9
+        try:
+            r_r9 = aa.set_guard_factor_temporarily(1.90, 2, before=1.95)
+        finally:
+            pg._save = _real_save_r9
+        _exp_r9 = [r for r in pg._state()["auto_adjust_ledger"]
+                   if str(r.get("reason", "")).startswith("time_box_expired")
+                   and r.get("rotation_id") == "RA-R"]
+        _br9 = pg._state().get("auto_adjust_box") or {}
+        check("re-arm: a box due AT THE SAVE expires in the guard — "
+              "ledgered at the anchor's truth and birthed from it, never "
+              "kept alive as a rot-0 zombie under the new factor",
+              len(_exp_r9) == 1 and _exp_r9[0]["status"] == "reverted"
+              and _exp_r9[0]["after"] == 2.0
+              and _br9.get("rotations_left") == 2
+              and _br9.get("before") == 2.0
+              and r_r9.get("expired_due_box") is True
+              and abs(pg._state()["factor"] - 1.90) < 1e-9,
+              (r_r9, _exp_r9, _br9, pg._state().get("factor")))
     finally:
         aa.DAILY_CAP = _ra_cap
 

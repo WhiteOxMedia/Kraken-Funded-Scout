@@ -50,8 +50,10 @@ REGISTRY: dict[tuple[str, str], dict] = {
     ("contest_watch.json", "set_bnb_size.<module>"): {
         "note": "operator one-shot; merge-read, delegates the write",
         "delegates_to": "background_scanner._save_contest_watch"},
-    ("profit_guard_state.json", "profit_guard._save"): {
-        "merge": True, "note": "owner-keys merge-save + atomic"},
+    ("profit_guard_state.json", "profit_guard._save_locked"): {
+        "merge": True,
+        "note": "owner-keys merge-save + atomic; _save is the locked "
+                "wrapper (the save-time guard hook, Oct 3)"},
     ("auto_adjust_canary.json", "canary_runner.flip_canary"): {
         "note": "THE COHORT'S OWN FILE (the two-file design): arming the "
                 "canary never touches the exit-extension dial"},

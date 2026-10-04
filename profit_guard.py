@@ -46,6 +46,7 @@ a context. One readable half still yields a readable factor.
 import json
 import math
 import os
+import threading
 import time
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -584,7 +585,25 @@ def _read_state(path) -> dict:
         return {}
 
 
+# THE SAVE LOCK (Copilot's second [high] on 39079b5): the merge-save's
+# read → guard → write → replace sequence is the one place a save-time
+# guard's verdict can still be raced — a concurrent writer landing
+# between the guard and the replace overwrites it. One process-wide
+# lock serializes the whole body: the heartbeat thread and the HTTP
+# apply thread can no longer interleave inside _save (and the
+# pid-suffixed tmp name stops being a same-process collision — two
+# threads share the pid). The cross-process residual stays the standing
+# merge-save contract (owner keys + os.replace + the retry convention).
+_SAVE_LOCK = threading.Lock()
+
+
 def _save(st: dict, guard=None) -> None:
+    """Serialize the merge-save (see _save_locked for the contract)."""
+    with _SAVE_LOCK:
+        return _save_locked(st, guard)
+
+
+def _save_locked(st: dict, guard=None) -> None:
     # ATOMIC + MERGE-SAVED (the cross-writer sweep, Sep 28): two writers
     # share this file — the scanner's daily self_adjust loop AND the
     # auto-adjust's apply/revert/tick — and both read-modify-write, so
