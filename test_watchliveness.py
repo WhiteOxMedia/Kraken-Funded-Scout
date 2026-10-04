@@ -573,6 +573,95 @@ check(8.11, "scan_grace_s" in app and "600 <=" in app
       "the console renders the scanner's grace (with a sanity band) and "
       "never recomputes the durations memory (one-brain)")
 
+print("== 9. the aa-box watermark watch — a silent box heartbeat pages, once ==")
+# THE BLIND SPOT (Oct 3): the box's rotation heartbeat stamps
+# aa_box_last_rotation inside the canary hook whose except swallows to
+# logger.debug — the scanner can be ALIVE (the pulse beats) while its
+# box heartbeat is DEAD: tick/expire never run again, the factor drifts
+# unattended, nothing notices. The watermark is the witness: it re-stamps
+# within one pass of each 4h boundary (the stamp is key(now-4h), so it
+# advances at every boundary), so a watermark still stale past its
+# advancement boundary + GRACE means the heartbeat died. The watch rides
+# the completed-cycle pass AFTER contest_light (the stamp advances inside
+# it — a pre-pass call would page one pass early), pages HIGH through its
+# OWN ntfy leg (NOT _push_to_phone: the trade-push rule admits only
+# BUY NOW / GET OUT NOW), fires ONCE per stale episode (a state stamp
+# re-arms when the watermark finally moves), and fails open on a
+# missing/malformed watermark (the box's guardrails own that shape).
+_w9 = getattr(bs, "_aa_box_watermark_watch", None)
+check(9.1, callable(_w9),
+      "the watermark watch function exists on the scanner")
+check(9.2, src_bs.count("_AA_BOX_STALE_GRACE_S = 600") == 1,
+      "the grace is a named 600s constant (a few minutes past the boundary)")
+_split9 = src_bs.split("def _aa_box_watermark_watch", 1)
+_src9 = (_split9[1].split("\ndef ", 1)[0]
+         if len(_split9) > 1 else "")   # bounded to the function's own body
+check(9.3, bool(_src9) and "_push_to_phone" not in _src9
+      and "_send_ntfy" in _src9,
+      "the ops page rides its own ntfy leg — the trade-push rule admits "
+      "only BUY NOW / GET OUT NOW and stays untouched")
+check(9.4, src_bs.count("_aa_box_watermark_watch()") == 1
+      and src_bs.find("_aa_box_watermark_watch()") > src_bs.find("_pulse_beat()"),
+      "the watch is called once per completed pass, after the beat (the "
+      "stamp advances inside contest_light — a pre-pass call would page "
+      "one pass early)")
+if callable(_w9):
+    from datetime import datetime as _dt9, timedelta as _td9
+
+    def _aar9(dt):
+        return f"{dt:%Y-%m-%d}-{bs.rotation_key_for_hour(dt.hour)}"
+
+    def _run9(stored, now, push_log, stamp=None):
+        st = {"aa_box_last_rotation": stored}
+        if stamp is not None:
+            st["aa_box_stale_paged"] = stamp
+        return _w9(now=now, state=st, push=push_log.append), st
+
+    _bnd = _dt9(2026, 10, 3, 20, 0, 0)          # the 16-20 boundary
+    # fresh: a healthy heartbeat's stamp names key(now-4h)
+    _now_f = _bnd - _td9(minutes=31)
+    _out_f, _st_f = _run9(_aar9(_now_f - _td9(hours=4)), _now_f, [])
+    check(9.5, _out_f is None and "aa_box_stale_paged" not in _st_f,
+          "a fresh watermark pages nothing and writes no stamp")
+    # grace: 30s past the boundary the old stamp is not yet stale
+    _out_g, _ = _run9(_aar9(_bnd - _td9(hours=8)),
+                      _bnd + _td9(seconds=30), [])
+    check(9.6, _out_g is None,
+          "the grace holds: 30s past the boundary is not yet stale")
+    # stale: past boundary + grace the probe has moved on
+    _plog = []
+    _out_s, _st_s = _run9("2026-10-03-12-16", _bnd + _td9(seconds=700), _plog)
+    check(9.7, isinstance(_out_s, str) and len(_plog) == 1
+          and _st_s.get("aa_box_stale_paged") == "2026-10-03-12-16"
+          and "2026-10-03-12-16" in _out_s and "2026-10-03-16-20" in _out_s,
+          "a stale watermark pages HIGH once, names both keys, stamps the episode")
+    # one-shot: the same episode never pages twice
+    _out_d, _ = _run9("2026-10-03-12-16", _bnd + _td9(seconds=800), [],
+                      stamp="2026-10-03-12-16")
+    check(9.8, _out_d is None,
+          "the episode stamp dedups: no second page while the watermark is frozen")
+    # re-arm: the watermark advanced -> the stamp clears
+    _out_r, _st_r = _run9(_aar9(_now_f - _td9(hours=4)), _now_f, [],
+                          stamp="2026-10-03-04-08")
+    check(9.9, _out_r is None and "aa_box_stale_paged" not in _st_r,
+          "an advanced watermark clears the episode stamp (re-armed)")
+    # a NEW stale value pages again even while an old stamp lingers
+    _out_n, _ = _run9("2026-10-03-16-20", _dt9(2026, 10, 4, 0, 12, 0),
+                      _plog, stamp="2026-10-03-12-16")
+    check(9.10, isinstance(_out_n, str) and len(_plog) == 2,
+          "a further-degraded watermark is a NEW episode and pages again")
+    # malformed: fail open, never crash, never page
+    _out_m, _st_m = _run9("garbage", _bnd + _td9(seconds=700), [])
+    check(9.11, _out_m is None and "aa_box_stale_paged" not in _st_m,
+          "a malformed watermark fails open (the box guardrails own that shape)")
+    # midnight rollover: the probe's DATE carries the key
+    _out_o, _ = _run9("2026-10-03-12-16", _dt9(2026, 10, 4, 0, 12, 0), [])
+    check(9.12, isinstance(_out_o, str) and "2026-10-03-20-24" in _out_o,
+          "the rollover stamps yesterday's date on the 20-24 key (the writer's own rule)")
+else:
+    for _n in (9.5, 9.6, 9.7, 9.8, 9.9, 9.10, 9.11, 9.12):
+        check(_n, False, "the watch function is missing — the pin cannot run")
+
 import shutil
 shutil.rmtree(TMP, ignore_errors=True)
 print(f"\nRESULT: {len(P)} passed, {len(F)} failed")

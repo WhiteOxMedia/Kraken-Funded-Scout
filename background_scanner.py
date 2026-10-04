@@ -3250,6 +3250,81 @@ def _push_to_phone(text: str, wav_path: str | None = None):
                        exc, str(text)[:90])
 
 
+# THE AA-BOX WATERMARK WATCH (Oct 3): grace past the watermark's
+# advancement boundary before a silent box heartbeat counts as dead.
+# The stamp advances within one ~30s pass of each 4h boundary; the
+# grace covers a pass that straddles it. "A few minutes", on the
+# record.
+_AA_BOX_STALE_GRACE_S = 600
+
+
+def _aa_box_watermark_watch(now=None, state=None, push=None):
+    """Page once when the box's rotation heartbeat dies silently.
+
+    The watermark aa_box_last_rotation is stamped inside the canary
+    hook whose except swallows to logger.debug — the scanner can be
+    ALIVE (the pulse beats) while its box heartbeat is DEAD: tick and
+    expire never run again, the factor drifts unattended, and nothing
+    notices. The watermark is the witness: it re-stamps within one
+    pass of each 4h boundary (the stamp is key(now-4h), so it advances
+    at every boundary), so a watermark still _AA_BOX_STALE_GRACE_S
+    stale past its advancement boundary means the heartbeat died.
+
+    Pages HIGH through the OPS leg — _send_ntfy directly plus the retry
+    queue, NEVER through the classified trade push (the trade-push rule
+    admits only BUY NOW / GET OUT NOW to the phone; this is machinery,
+    not a trade, and it must not burn the classification or the rate
+    budget).
+    ONCE per stale episode: the episode stamp aa_box_stale_paged holds
+    the watermark value we paged about and re-arms when the watermark
+    finally moves; a further-degraded value is a NEW episode and pages
+    again. Fails open on a missing/malformed watermark (the box's own
+    guardrails own that shape).
+
+    Seams (the drive pins run this pure): now = a synthetic datetime;
+    state = an injected scanner-state dict mutated in place with NO
+    disk IO; push = an injected sink. Production defaults read the
+    real clock and scanner_state and save any stamp change through the
+    re-read-merge writer (never clobber a concurrent watermark write)."""
+    from datetime import datetime as _dt, timedelta as _td
+    now_dt = now if isinstance(now, _dt) else _dt.now()
+    st = _load_scanner_state() if state is None else state
+    stored = st.get("aa_box_last_rotation")
+    if not isinstance(stored, str) or not _re_mod.fullmatch(
+            r"\d{4}-\d{2}-\d{2}-\d{2}-\d{2}", stored.strip()):
+        return None                      # fail open
+    stored = stored.strip()
+    _probe = now_dt - _td(hours=4) - _td(seconds=_AA_BOX_STALE_GRACE_S)
+    expected = f"{_probe:%Y-%m-%d}-{rotation_key_for_hour(_probe.hour)}"
+    if stored == expected:
+        if "aa_box_stale_paged" in st:
+            st.pop("aa_box_stale_paged", None)   # re-arm: the watermark moved
+            if state is None:
+                _fresh = _load_scanner_state()
+                _fresh.pop("aa_box_stale_paged", None)
+                _save_scanner_state(_fresh)
+        return None
+    if st.get("aa_box_stale_paged") == stored:
+        return None                      # this episode already paged
+    text = (f"🛠 SCOUT OPS: aa-box watermark stale — "
+            f"aa_box_last_rotation={stored}, expected {expected} "
+            f"{_AA_BOX_STALE_GRACE_S}s past its boundary. The box "
+            f"heartbeat died silently: tick/expire are not running and "
+            f"the factor drifts unattended.")
+    if push is not None:
+        push(text)
+    else:
+        _send_ntfy(text, "high", "ops 1/2")
+        _push_retry_q.append({"text": text, "prio": "high",
+                              "due": time.time() + 60.0, "why": time.time()})
+    st["aa_box_stale_paged"] = stored
+    if state is None:
+        _fresh = _load_scanner_state()
+        _fresh["aa_box_stale_paged"] = stored
+        _save_scanner_state(_fresh)
+    return text
+
+
 def _load_contest_watch() -> dict:
     import json
     try:
@@ -7998,6 +8073,17 @@ def main():
                 logger.debug("contest light error: %s", exc)
             finally:
                 _slow_episode.update(start=0.0, announced=False, scan=False)
+
+            # ── THE AA-BOX WATERMARK WATCH (Oct 3): a silent box
+            #    heartbeat pages once per episode — the stamp's own except
+            #    swallows to debug, so this is the alarm the dead heartbeat
+            #    could never raise for itself. AFTER contest_light: the
+            #    stamp advances inside it, and a pre-pass call would page
+            #    one pass early. A watch must never kill the cycle.
+            try:
+                _aa_box_watermark_watch()
+            except Exception as _wb_exc:
+                logger.debug("aa box watermark watch skipped: %s", _wb_exc)
 
         # ── THE SURE THING (every 5 minutes): the fleet-wide breakout
         #    scan — coils announced once, cracks fired at the moment
