@@ -3846,9 +3846,14 @@ _trim_seg = (_asrc_bs.split("ARCHIVE-ON-TRIM", 1)[-1]
              .split("ATOMIC SWAP", 1)[0])
 check("archive strip: the trim APPENDS evictions to the archive and "
       "fsyncs — it never reads and rewrites the whole archive (that "
-      "was O(archive) per burial on the scan thread's hot path)",
+      "was O(archive) per burial on the scan thread's hot path), and "
+      "the buffer is FLUSHED before the fsync (an fsync that misses "
+      "bytes still in Python's userspace buffer is not durability — "
+      "Copilot medium, Oct 3)",
       'open(SUPPRESSION_ARCHIVE_FILE, "a"' in _trim_seg
       and "os.fsync" in _trim_seg
+      and "_af.flush()" in _trim_seg
+      and -1 < _trim_seg.find("_af.flush()") < _trim_seg.find("os.fsync")
       and "_hist" not in _trim_seg
       and "replace_atomic(_atmp" not in _trim_seg,
       _trim_seg[:200])

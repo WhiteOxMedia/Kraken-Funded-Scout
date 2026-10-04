@@ -2399,18 +2399,21 @@ def _log_suppression(pair: str, gate: str, detail: str, **ctx):
         # dropped prefix silently — a rotation's burial burst erased the
         # funnel's own history (the Oct 2 incident: 2 rows gone live at
         # 999/999). The dropped rows land in the append-only archive
-        # FIRST: one O(dropped) append + fsync — the rows are durable
-        # in the archive before the ledger's trim becomes visible, so
-        # no write can lose a row. The archive is never read-and-
-        # rewritten here (that cure was O(archive) per burial on the
-        # scan thread's hot path, growing for the file's life): appends
-        # are safe because the archive reader skips torn lines, so a
-        # crash mid-append costs one bad line, never the history.
+        # FIRST: one O(dropped) append, FLUSHED then fsynced — the rows
+        # are durable in the archive before the ledger's trim becomes
+        # visible, so no write can lose a row (the flush matters: an
+        # fsync that misses bytes still in Python's userspace buffer is
+        # not durability — Copilot medium, Oct 3). The archive is never
+        # read-and-rewritten here (that cure was O(archive) per burial
+        # on the scan thread's hot path, growing for the file's life):
+        # appends are safe because the archive reader skips torn lines,
+        # so a crash mid-append costs one bad line, never the history.
         _dropped = (lines[:-SUPPRESSION_LOG_MAX]
                     if len(lines) > SUPPRESSION_LOG_MAX else [])
         if _dropped:
             with open(SUPPRESSION_ARCHIVE_FILE, "a", encoding="utf-8") as _af:
                 _af.write("\n".join(_dropped) + "\n")
+                _af.flush()
                 os.fsync(_af.fileno())
         # ATOMIC SWAP (Sep 11) + THE RETRY CONTRACT (Oct 2): truncate-
         # and-write left a window where a reader (the tide learner's
