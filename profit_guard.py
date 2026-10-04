@@ -584,7 +584,7 @@ def _read_state(path) -> dict:
         return {}
 
 
-def _save(st: dict) -> None:
+def _save(st: dict, guard=None) -> None:
     # ATOMIC + MERGE-SAVED (the cross-writer sweep, Sep 28): two writers
     # share this file — the scanner's daily self_adjust loop AND the
     # auto-adjust's apply/revert/tick — and both read-modify-write, so
@@ -596,6 +596,16 @@ def _save(st: dict) -> None:
     # torn write is never readable by the fail-soft readers (a torn
     # state file previously read as {} — the whole factor, history, box,
     # and ledger gone without a trace).
+    # THE GUARD HOOK (Oct 3, the gate's [high] on 393ba92 — the
+    # save-time window): a read-then-save writer races the heartbeat's
+    # tick/expiry in the gap between its read and this call, and its
+    # stale payload would overwrite the tick's truth (auto_adjust_box is
+    # an owner key — the dead box resurrects). A caller holding a stale
+    # snapshot passes guard(merged, cur): it runs HERE, against the
+    # file's CURRENT contents after the overlay, before anything is
+    # written — the last point where the fresh truth is visible and
+    # amendable. The guard amends `merged` in place (including setting a
+    # key to None: the deletion below is merge-wide for exactly that).
     sf = _state_file()
     try:
         cur = json.loads(sf.read_text(encoding="utf-8"))
@@ -605,12 +615,18 @@ def _save(st: dict) -> None:
         cur = {}
     merged = dict(cur)
     merged.update(st)
+    # THE SAVE-TIME GUARD runs here — after the overlay, before the
+    # deletion and the write: the freshest state this write will ever
+    # see.
+    if guard is not None:
+        guard(merged, cur)
     # THE NONE-MEANS-DELETE convention (the mirror of the scanner's
     # contest_watch merge): expire_if_due and rollback must REMOVE the
     # box, and a plain update would resurrect it from the current file.
-    # A key set to None in `st` is deleted from the merged result —
-    # intentional deletion stays possible under merge-save.
-    for k, v in list(st.items()):
+    # A key set to None — in `st` or BY THE GUARD — is deleted from the
+    # merged result; the sweep is merge-wide so a guard's deliberate
+    # deletion lands exactly like a caller's.
+    for k, v in list(merged.items()):
         if v is None:
             merged.pop(k, None)
     # THE PER-WRITER TMP NAME (Sep 29, the review's recurring hardening):

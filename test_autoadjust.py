@@ -774,6 +774,70 @@ try:
               and _br6.get("before") == 2.0
               and abs(pg._state()["factor"] - 1.95) < 1e-9,
               (r_r6, _exp_r6, _br6, pg._state().get("factor")))
+        #    R7/R8 (the gate's [high] on 393ba92 — THE SAVE-TIME WINDOW):
+        #    R5's seam lands the tick at the setter's READ; the last open
+        #    window is BETWEEN that read and the setter's pg._save — the
+        #    seam below lands the heartbeat INSIDE the save call itself
+        #    (first _save after arming disarms, runs the heartbeat, then
+        #    the real save), red-first against a setter whose
+        #    revalidation is read-time only: the stale built snapshot
+        #    would resurrect the dead box and clobber the post-expiry
+        #    factor truth, because auto_adjust_box is an owner key.
+        pg._save({"factor": 2.0, "auto_adjust_box": None})
+        aa.apply_adjustment(-0.05, "RA-P", "ev:ra-p")   # box: 1.95, before 2.0, rot 3
+        aa.tick_rotation()                              # 3 -> 2
+        _real_save_r7 = pg._save
+        _armed7 = {"on": True}
+        def _save7(*a, **k):
+            if _armed7["on"]:
+                _armed7["on"] = False
+                aa.tick_rotation()      # 2 -> 1: the tick lands IN the window
+            return _real_save_r7(*a, **k)
+        pg._save = _save7
+        try:
+            r_r7 = aa.set_guard_factor_temporarily(1.90, 2, before=1.95)
+        finally:
+            pg._save = _real_save_r7
+        _br7 = pg._state().get("auto_adjust_box") or {}
+        check("re-arm: a tick landing between the setter's read and its "
+              "save is never written back over — the save-time guard "
+              "carries the fresh countdown",
+              _br7.get("rotations_left") == 1 and _br7.get("before") == 2.0
+              and abs(pg._state()["factor"] - 1.90) < 1e-9,
+              (r_r7, _br7, pg._state()["factor"]))
+        pg._save({"factor": 2.0, "auto_adjust_box": None})
+        aa.apply_adjustment(-0.05, "RA-Q", "ev:ra-q")
+        aa.tick_rotation()
+        aa.tick_rotation()                              # 3 -> 1: due by the save
+        _real_save_r8 = pg._save
+        _armed8 = {"on": True}
+        def _save8(*a, **k):
+            if _armed8["on"]:
+                _armed8["on"] = False
+                aa.tick_rotation()      # 1 -> 0: the tick lands...
+                aa.expire_if_due()      # ...and the expiry with it (the
+                                        # heartbeat's own back-to-back)
+            return _real_save_r8(*a, **k)
+        pg._save = _save8
+        try:
+            r_r8 = aa.set_guard_factor_temporarily(1.90, 2, before=1.95)
+        finally:
+            pg._save = _real_save_r8
+        _exp_r8 = [r for r in pg._state()["auto_adjust_ledger"]
+                   if str(r.get("reason", "")).startswith("time_box_expired")
+                   and r.get("rotation_id") == "RA-Q"]
+        _br8 = pg._state().get("auto_adjust_box") or {}
+        check("re-arm: an expiry landing between the setter's read and "
+              "its save holds — the save-time guard buries the box first "
+              "(ledgered) and births from the restored anchor, and "
+              "expired_due_box tells the caller",
+              len(_exp_r8) == 1 and _exp_r8[0]["status"] == "reverted"
+              and _exp_r8[0]["after"] == 2.0
+              and _br8.get("rotations_left") == 2
+              and _br8.get("before") == 2.0
+              and r_r8.get("expired_due_box") is True
+              and abs(pg._state()["factor"] - 1.90) < 1e-9,
+              (r_r8, _exp_r8, _br8, pg._state().get("factor")))
     finally:
         aa.DAILY_CAP = _ra_cap
 

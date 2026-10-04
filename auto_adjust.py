@@ -246,13 +246,69 @@ def set_guard_factor_temporarily(after: float,
         "rotations_left": _rot,
         "set_at": datetime.now().astimezone().isoformat(),
     }
+    # THE SAVE-TIME GUARD (the gate's [high] on 393ba92 — the last open
+    # window, R7/R8): the read-time divert above only sees a box already
+    # due at the read; a heartbeat tick/expiry landing between that read
+    # and this save would be overwritten by the snapshot just built —
+    # auto_adjust_box is an owner key, so the merge-save would resurrect
+    # the dead box and clobber the post-expiry factor truth. The guard
+    # runs INSIDE the merge-save against the file's CURRENT contents —
+    # the last point where the fresh truth is visible — and amends the
+    # merged write in place:
+    #   · the cur box is DUE (the tick landed, the heartbeat's expiry is
+    #     in flight): cur's box stands — the payload's stale live box
+    #     must not re-arm it; the in-flight expiry owns the ledger and
+    #     the tombstone, and expired_due_box tells the caller.
+    #   · the cur box is GONE (the expiry landed in the window): birth
+    #     in the merge from the restored anchor — the guarantee that
+    #     died here is buried by the heartbeat's own ledgered expiry.
+    #   · the cur box TICKED (rot < the read's): carry the FRESH
+    #     countdown and the original before — the write-time rule,
+    #     enforced one last time at the write.
+    _raced = {"expired": False}
+
+    def _save_guard(merged, cur):
+        _cur_box = cur.get("auto_adjust_box")
+        _cur_rot = (int(_cur_box["rotations_left"])
+                    if isinstance(_cur_box, dict)
+                    and _cur_box.get("rotations_left") is not None else None)
+        if _cur_rot is not None and _cur_rot <= 0:
+            merged["auto_adjust_box"] = _cur_box
+            _raced["expired"] = True
+            return
+        if _prior_rot is not None and _cur_box is None:
+            merged["auto_adjust_box"] = {
+                "after": float(after),
+                "before": float(cur.get("factor") or 0.0),
+                "rotations_left": max(1, int(rotations)),
+                "set_at": datetime.now().astimezone().isoformat(),
+            }
+            _raced["expired"] = True
+            return
+        if (_prior_rot is not None and _cur_rot is not None
+                and _cur_rot < _prior_rot):
+            _sb = _cur_box.get("before")
+            merged["auto_adjust_box"] = {
+                "after": float(after),
+                "before": (float(_sb) if _sb is not None
+                           else float(cur.get("factor") or 0.0)),
+                "rotations_left": max(1, _cur_rot),
+                "set_at": datetime.now().astimezone().isoformat(),
+            }
+
     # OWNER-KEY SAVE (the round-2 review's degeneration major): the
     # merge-save overlays onto the file's CURRENT contents — a full
     # stale snapshot passed here would overwrite every other writer's
-    # key with old values. Only this module's keys ride.
+    # key with old values. Only this module's keys ride — and the guard
+    # above corrects them one last time against the fresh file.
     pg._save({"factor": st["factor"],
-              "auto_adjust_box": st["auto_adjust_box"]})
-    return {"box": dict(st["auto_adjust_box"]),
+              "auto_adjust_box": st["auto_adjust_box"]},
+             guard=_save_guard)
+    if _raced["expired"]:
+        st["auto_adjust_box"] = pg._state().get("auto_adjust_box")
+        _expired_due = True
+    return {"box": (dict(st["auto_adjust_box"])
+                    if isinstance(st.get("auto_adjust_box"), dict) else None),
             "expired_due_box": _expired_due}
 
 
