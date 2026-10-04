@@ -2922,6 +2922,24 @@ def _learning_projection() -> dict | None:
     return proj if isinstance(proj, dict) else None
 
 
+def _learning_box() -> dict | None:
+    """The live time-box (auto_adjust_box) read from the state file —
+    the seam the drives patch; the plate renders the box's OWN promise
+    (rotations_left / before / set_at, the box's native fields), never
+    derives one. A malformed or absent box is an honest None."""
+    import json as _json
+    from pathlib import Path as _P
+    p = _P(__file__).resolve().parent / "profit_guard_state.json"
+    try:
+        d = _json.loads(p.read_text(encoding="utf-8"))
+    except Exception:
+        return None
+    box = d.get("auto_adjust_box") if isinstance(d, dict) else None
+    if not isinstance(box, dict) or not box.get("set_at"):
+        return None
+    return box
+
+
 def _learning_history(weeks: int = 8) -> list:
     """The machine factor sampled by the nightly self_adjust rows
     (profit_guard_state.json:history — one row per adjusted MST day,
@@ -2947,12 +2965,14 @@ def _learning_history(weeks: int = 8) -> list:
 def _render_learning_plate() -> None:
     """THE LEARNING PLATE, MIRRORED (Sep 30): the bot console's
     learning plate rendered here too — the scout holds every input.
-    Three lines: the fee drag (the fill model's own constants, the
+    Four lines: the fee drag (the fill model's own constants, the
     same literals the bot's plate speaks so the two can never quietly
     disagree), the panel's MEDIAN-payer capture (the same block the
     burial panel renders — alpha scales by this ratio, not the peak),
-    and the guard factor with the walk projection the boundary hook
-    persists (dormant until the hook arms, stale named stale)."""
+    the guard factor with the walk projection the boundary hook
+    persists (dormant until the hook arms, stale named stale), and
+    the live time-box's PROMISE — remaining rotations, anchor, set_at
+    straight from the box, a dormant line when no box stands."""
     try:
         st.subheader("📖 Learning — fee drag, capture, and the guard "
                      "factor", divider="gray")
@@ -3032,6 +3052,44 @@ def _render_learning_plate() -> None:
                 _head += (" — stale beyond 48h: history, not a "
                           "forecast.")
         st.caption(_head)
+        # THE BOX PROMISE (Oct 4): the live time-box's own guarantee —
+        # remaining rotations, the anchor, and set_at, straight from
+        # the box's native fields (rotations_left / before / set_at),
+        # rendered beside the guard factor it constrains. A dormant
+        # line when no box stands: the factor IS the standing
+        # calibration until the next adjustment births a box.
+        try:
+            _lbox = _learning_box()
+        except Exception:
+            _lbox = None
+        if _lbox:
+            try:
+                _rot_left = int(_lbox.get("rotations_left"))
+            except Exception:
+                _rot_left = None
+            try:
+                _anchor_s = f"{float(_lbox.get('before')):.2f}×"
+            except Exception:
+                _anchor_s = "?"
+            try:
+                _set_t = datetime.fromisoformat(
+                    str(_lbox.get("set_at") or ""))
+                if _set_t.tzinfo is None:
+                    _set_t = _set_t.astimezone()
+                _set_s = _set_t.strftime("%b %d %H:%M")
+            except Exception:
+                _set_s = "?"
+            st.caption(
+                f"box promise — the guard factor holds for "
+                f"{_rot_left if _rot_left is not None else '?'} more "
+                f"rotation{'' if _rot_left == 1 else 's'}, anchored at "
+                f"{_anchor_s} (set {_set_s}); expiry restores the "
+                f"anchor.")
+        else:
+            st.caption(
+                "box promise — dormant: no live time-box stands; the "
+                "guard factor is the standing calibration until the "
+                "next adjustment births one.")
         # THE GF TREND SPARKLINE (Sep 30): the machine factor sampled
         # by the nightly self_adjust rows — the TREND beside the
         # current value. Render-only: the series comes from the seam

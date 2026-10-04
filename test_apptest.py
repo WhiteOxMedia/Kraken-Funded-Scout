@@ -3409,7 +3409,7 @@ try:
                        "factor": 2.0 - d * 0.01} for d in range(1, 30)]
         _lp_calls = []
 
-        def run_lp(proj=_lp_fresh, hist=_hist_rows):
+        def run_lp(proj=_lp_fresh, hist=_hist_rows, box=None):
             _lp_calls.clear()
             app_mod.st.subheader = lambda t, **k: _lp_calls.append(
                 ("sub", t))
@@ -3419,6 +3419,7 @@ try:
             app_mod._learning_projection = lambda: proj
             app_mod._learning_history = hist if callable(hist) \
                 else (lambda weeks=8: hist)
+            app_mod._learning_box = lambda: box
             try:
                 app_mod._render_learning_plate()
             finally:
@@ -3432,10 +3433,10 @@ try:
             run_lp()
             _lp_caps = [t for k, t in _lp_calls if k == "cap"]
             _lp_subs = [t for k, t in _lp_calls if k == "sub"]
-            check("the learning plate renders ONE plate with four "
+            check("the learning plate renders ONE plate with five "
                   "lines (subheader + fee / capture / calibration / "
-                  "trend caps)",
-                  len(_lp_subs) == 1 and len(_lp_caps) == 4
+                  "box promise / trend caps)",
+                  len(_lp_subs) == 1 and len(_lp_caps) == 5
                   and any("Learning" in s for s in _lp_subs),
                   (_lp_subs, len(_lp_caps)))
             _fee_cap = next((c for c in _lp_caps if "$0.52" in c), "")
@@ -3477,6 +3478,44 @@ try:
             check("a stale projection is NAMED stale (beyond 48h it "
                   "is history, not a forecast)",
                   "stale" in _gf3 and "72h ago" in _gf3, _gf3)
+            # ── THE BOX PROMISE (Oct 4, red-first): the live time-box's
+            # own guarantee rendered beside the guard factor — remaining
+            # rotations, the anchor, and set_at straight from the box
+            # (rotations_left / before / set_at, the box's native
+            # fields), and a DORMANT line when no box stands. The box
+            # fixture mirrors the production shape (auto_adjust's
+            # apply_adjustment box dict) — a real anchor 2.00×, 2
+            # rotations left, set_at the Oct 3 20:01 expiry's birth.
+            _lp_box = {"after": 1.85, "before": 2.0, "rotations_left": 2,
+                       "set_at": "2026-10-03T20:01:44-06:00"}
+            run_lp(box=_lp_box)
+            _bx_cap = next((t for kk, t in _lp_calls
+                            if kk == "cap" and "box promise" in t), "")
+            check("a live box renders the BOX PROMISE: remaining "
+                  "rotations (2 more), the anchor (2.00×), and set_at "
+                  "(Oct 03 20:01) — rendered from the box's native "
+                  "fields, never recomputed",
+                  "box promise" in _bx_cap and "2 more rotations" in _bx_cap
+                  and "2.00×" in _bx_cap and "Oct 03 20:01" in _bx_cap
+                  and "expiry restores the anchor" in _bx_cap, _bx_cap)
+            run_lp(box={"after": 1.9, "before": 1.95, "rotations_left": 1,
+                        "set_at": "2026-10-03T20:01:44-06:00"})
+            _bx1 = next((t for kk, t in _lp_calls
+                         if kk == "cap" and "box promise" in t), "")
+            check("a single remaining rotation reads SINGULAR (1 more "
+                  "rotation, not rotations — the promise counts what "
+                  "is truly left)",
+                  "1 more rotation" in _bx1
+                  and "1 more rotations" not in _bx1, _bx1)
+            run_lp(box=None)
+            _bxd = next((t for kk, t in _lp_calls
+                         if kk == "cap" and "box promise" in t), "")
+            check("a boxless plate renders the DORMANT promise (no "
+                  "live time-box stands — the guard factor is the "
+                  "standing calibration until the next birth), never "
+                  "a fabricated box",
+                  "box promise — dormant" in _bxd
+                  and "no live time-box stands" in _bxd, _bxd)
             # ── THE GF TREND SPARKLINE (Sep 30): the machine factor
             # sampled by the nightly self_adjust rows — the TREND
             # beside the current value, drawn from the seam, never
