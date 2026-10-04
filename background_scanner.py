@@ -3304,8 +3304,12 @@ def _aa_box_watermark_watch(now=None, state=None, push=None):
     # deadline is the stored window's end + one full window (the next
     # boundary, where the advance was due) + grace. 24h-safe via
     # timedelta (the 20-24 key's end is hour 24 = next-day 00:00).
-    _y, _mo, _dd, _h1, _h2 = (int(_x) for _x in stored.split("-"))
-    _end = _dt(_y, _mo, _dd) + _td(hours=_h2)
+    try:
+        _y, _mo, _dd, _h1, _h2 = (int(_x) for _x in stored.split("-"))
+        _end = _dt(_y, _mo, _dd) + _td(hours=_h2)
+    except ValueError:
+        return None                      # regex-valid, calendar-invalid:
+                                         # fail open like any other malform
     _deadline = _end + _td(hours=4) + _td(seconds=_AA_BOX_STALE_GRACE_S)
     _probe = now_dt - _td(hours=4)
     expected = f"{_probe:%Y-%m-%d}-{rotation_key_for_hour(_probe.hour)}"

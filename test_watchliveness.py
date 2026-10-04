@@ -650,10 +650,15 @@ if callable(_w9):
                       _plog, stamp="2026-10-03-12-16")
     check(9.10, isinstance(_out_n, str) and len(_plog) == 2,
           "a further-degraded watermark is a NEW episode and pages again")
-    # malformed: fail open, never crash, never page
+    # malformed: fail open, never crash, never page — including the
+    # regex-valid calendar-invalid shape (2026-99-99 parses no date;
+    # Copilot low on bc3ad9e)
     _out_m, _st_m = _run9("garbage", _bnd + _td9(seconds=700), [])
-    check(9.11, _out_m is None and "aa_box_stale_paged" not in _st_m,
-          "a malformed watermark fails open (the box guardrails own that shape)")
+    _out_m2, _st_m2 = _run9("2026-99-99-12-16", _bnd + _td9(seconds=700), [])
+    check(9.11, _out_m is None and "aa_box_stale_paged" not in _st_m
+          and _out_m2 is None and "aa_box_stale_paged" not in _st_m2,
+          "a malformed watermark fails open, garbage or calendar-invalid "
+          "(the box guardrails own that shape)")
     # THE COPilot MEDIUM ON f3d2fdb, red-first: a HEALTHY heartbeat stamps
     # the NEW key at the boundary (~30s after it), while any probe-key
     # arithmetic stays on the OLD key until boundary+grace — the window
