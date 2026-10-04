@@ -643,7 +643,8 @@ def get_kraken_client():
 def _bridge():
     """signal_bridge module handle (sqlite, stdlib-only)."""
     import sys
-    sys.path.insert(0, r"C:\Users\birds\Workspace\kraken_scout")
+    from pathlib import Path
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
     import signal_bridge
     return signal_bridge
 

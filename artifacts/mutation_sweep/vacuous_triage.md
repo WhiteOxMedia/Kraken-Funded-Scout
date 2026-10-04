@@ -1,6 +1,6 @@
 # THE FLEET VERDICT — every mutation-sweep drive adjudicated (2026-09-30)
 
-The mutation sweep judges 162 test drives. As of the Sep-30 full fleet
+The mutation sweep judges 163 test drives. As of the Sep-30 full fleet
 battery, **every drive holds either a mutant-kill or a sealed, reasoned
 untestable class — there are zero unexplained verdicts**: VACUOUS 0,
 BASELINE-RED 0, UNMAPPED 0, timeout 0. No drive in this fleet is green
@@ -16,11 +16,11 @@ retained verbatim-in-spirit because it records *how* the fleet reached
 zero unexplained, and the killed drives' pins are only as trustworthy
 as the reasoning behind their repairs.
 
-## 1. The ledger — 162 drives, nothing manufactured
+## 1. The ledger — 163 drives, nothing manufactured
 
 | verdict | n | meaning |
 |---|---|---|
-| KILLED | 103 | baseline green; ≥1 behavior mutant turned the drive red |
+| KILLED | 104 | baseline green; ≥1 behavior mutant turned the drive red |
 | UNTESTABLE | 59 | sealed class: behavior mutation cannot judge it by design (section 3) |
 | VACUOUS | 0 | stayed green under every mutation, no class — **none left** |
 | BASELINE-RED | 0 | fails before mutation — **none left** |
@@ -336,7 +336,34 @@ drive pins, so guard+drive land together in the bot's next commit.
 `test_lockguard.py` remains UNTRACKED — still the open bookkeeping item.
 The audit tool itself gained a `--drive/--module` per-module mode
 (journal row merge, separate per-module report, mapped-module
-validation) and a `BOT_MUTATION_AUDIT_BOT` env override; ready-to-use
-CI workflows sit in the bot repo's `.github/workflows/` (bot-drives on
-push/PR, nightly bot-mutation-audit with journal/report artifacts) —
-dormant until the bot repo has a git remote, which it has never had.
+validation) and a `BOT_MUTATION_AUDIT_BOT` env override;ready-to-use CI workflows sit in the bot repo's `.github/workflows/`
+(bot-drives on push/PR, nightly bot-mutation-audit with journal/report
+artifacts) — dormant until the bot repo has a git remote, which it has
+never had.
+
+**Oct 4 wave — the survivor and the mask that hid it.** The targeted
+sweep over the Oct-3 review pins (test_autoadjust.py, test_apptest.py)
+killed autoadjust's module mutant, but the surgical M1-c revert (the
+suppression-trim's archive write silently dead, every pinned string
+intact) passed apptest 335/0: a TEXT census pin can never see a runtime
+kill, and the behavioral drive first placed inside test_apptest was
+MASKED — app.py's `_bridge` hardcoded
+`sys.path.insert(r"C:\Users\birds\Workspace\kraken_scout")`, so inside
+the sandbox every later import resolved from the REAL tree and the
+mutant never executed (proven by printing the imported module's
+`__file__`). The path now rides the `Path(__file__)` idiom (the
+trump_render precedent), and the trim's lifecycle moved to its own
+STANDALONE drive: `test_trimlifecycle.py` imports ONLY
+background_scanner and drives the real `_log_suppression` — the cap
+holds the LAST rows, every eviction lands in the archive in order,
+pre-existing archive content survives the append, no tmp residue.
+Official verdicts re-judged with the current tree: test_autoadjust.py
+KILLED (re-judged — replaces its Sep-30 KILLED entry),
+test_trimlifecycle.py KILLED (surgical dead-write
+mutant turns T2 red with a seed-only archive; green restored). Ledger:
+163 drives, KILLED 104. The masking hole class is new to the doc:
+a drive can be perfectly behavioral and still vacuous-in-fact if the
+sandbox cannot make it execute the mutated bytes — hence STANDALONE
+drives (no repo imports beyond the guarded module) are the sweep's
+preferred shape, and absolute-path sys.path inserts in production
+modules are gate-worthy defects even when every drive is green.

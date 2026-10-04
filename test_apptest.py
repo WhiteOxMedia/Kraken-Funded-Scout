@@ -3896,6 +3896,14 @@ if _real_arch_fn is not None:
             app_mod.SUPPRESSION_ARCHIVE_PATH = _real_arch_path
         _arch_sbx.unlink(missing_ok=True)
 
+# THE TRIM'S LIFECYCLE lives in test_trimlifecycle.py (Oct 4): a
+# behavioral pin here would judge the REAL background_scanner, not the
+# sandbox copy — app.py's hardcoded sys.path insert imported the real
+# tree into every suite that imports app (the masking root cause, now
+# fixed to the Path(__file__) idiom). The standalone drive imports ONLY
+# background_scanner, so the mutation sweep can judge it: baseline
+# green, mutants KILLED.
+
 try:
     out = BASE / "apptest_check.txt"
     out.write_text("\n".join(lines)

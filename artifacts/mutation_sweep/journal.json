@@ -1005,28 +1005,24 @@
    "detail": "atomic_io.py: rc=1 (27 mutations)"
   },
   "test_autoadjust.py": {
-   "baseline": {
-    "rc": 0,
-    "red": false,
-    "secs": 0.8,
-    "exit_blind": false
-   },
+   "verdict": "KILLED",
+   "detail": "auto_adjust.py: rc=1 (137 mutations); profit_guard.py: rc=1 (211 mutations)",
    "mutation": {
     "auto_adjust.py": {
      "rc": 1,
      "red": true,
-     "secs": 0.1,
-     "mutations": 63
+     "mutations": 137
     },
     "profit_guard.py": {
      "rc": 1,
      "red": true,
-     "secs": 0.2,
-     "mutations": 209
+     "mutations": 211
     }
    },
-   "verdict": "KILLED",
-   "detail": "auto_adjust.py: rc=1 (63 mutations); profit_guard.py: rc=1 (209 mutations)"
+   "baseline": {
+    "rc": 0,
+    "red": false
+   }
   },
   "test_autotrack.py": {
    "baseline": {
@@ -3095,6 +3091,21 @@
    },
    "verdict": "KILLED",
    "detail": "background_scanner.py: rc=1 (1851 mutations)"
+  },
+  "test_trimlifecycle.py": {
+   "verdict": "KILLED",
+   "detail": "background_scanner.py: rc=1 (1940 mutations)",
+   "mutation": {
+    "background_scanner.py": {
+     "rc": 1,
+     "red": true,
+     "mutations": 1940
+    }
+   },
+   "baseline": {
+    "rc": 0,
+    "red": false
+   }
   }
  },
  "at": 1790805061.4661028
