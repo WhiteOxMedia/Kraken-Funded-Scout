@@ -1379,12 +1379,59 @@ def _tide_retune_dial() -> dict:
         try:
             cap = int(float(_exx_dial(TIDE_RETUNE_DAY_CAP_KEY, "")
                             or TIDE_RETUNE_CAP))
-        except (TypeError, ValueError):
+        except (TypeError, ValueError, OverflowError):
+            # OverflowError rides ValueError's cure (the commit review's
+            # medium): int(float('inf')) is NOT a ValueError — left
+            # uncaught it reached the OUTER fallback and DISARMED the
+            # whole valve on one junk dial value. A junk knob falls to
+            # the documented default, never to OFF.
             cap = TIDE_RETUNE_CAP
-        return {"armed": armed, "quick_min": qmin, "cap": max(0, cap)}
+        # THE CAP CANARY (Oct 5, the operator's scoped trial): named
+        # low-risk pairs may spend up to canary_cap slots/day while the
+        # whole funnel stays at the base cap. THREE FAIL-CLOSED DOORS on
+        # an expansion knob: an unparseable/empty pair list = no canary;
+        # a canary cap under 1 = no canary; an UNTIL time box in the
+        # past or unparseable = expired. Rollback is the dial's own
+        # posture: flip or remove the TIDE_RETUNE_CANARY_* keys and the
+        # widening expires on the next tick — no restart, no hidden
+        # state. A base cap of 0 (operator OFF) can never be widened.
+        _raw_pairs = str(_exx_dial("TIDE_RETUNE_CANARY_PAIRS", "") or "")
+        canary_pairs = frozenset(
+            p.strip().upper() for p in _raw_pairs.split(",") if p.strip())
+        try:
+            canary_cap = int(float(
+                _exx_dial("TIDE_RETUNE_CANARY_CAP", "") or 0))
+        except (TypeError, ValueError, OverflowError):
+            canary_cap = 0    # 'inf' and friends: the canary is inert
+        canary_until = str(
+            _exx_dial("TIDE_RETUNE_CANARY_UNTIL", "") or "").strip()
+        try:
+            # AN OMITTED BOX IS AN EXPIRED ONE (the commit review's
+            # medium): a canary without a mandate end-date could widen
+            # indefinitely — a canary IS its time box, so the box is
+            # MANDATORY and fail-closed (absent = expired, like junk).
+            _expired = (not canary_until)
+            if not _expired:
+                _expired = (datetime.now().astimezone().date()
+                            > datetime.strptime(canary_until,
+                                                "%Y-%m-%d").date())
+        except ValueError:
+            _expired = True
+        if (not canary_pairs or canary_cap < 1 or _expired
+                or cap < 1 or canary_cap <= cap):
+            # THE DIAL IS THE SINGLE POSTURE (the commit review's
+            # medium): a canary that adds nothing (base cap 0, or a
+            # canary cap at/under the base) is CLEARED here, so the
+            # report and the release logic can never disagree about
+            # whether a widening is armed.
+            canary_pairs, canary_cap, canary_until = frozenset(), None, None
+        return {"armed": armed, "quick_min": qmin, "cap": max(0, cap),
+                "canary_pairs": canary_pairs,
+                "canary_cap": canary_cap, "canary_until": canary_until}
     except Exception:
         return {"armed": False, "quick_min": TIDE_RETUNE_QUICK_MIN,
-                "cap": TIDE_RETUNE_CAP}
+                "cap": TIDE_RETUNE_CAP, "canary_pairs": frozenset(),
+                "canary_cap": None, "canary_until": None}
 
 
 def _tide_retune_load_day(day: str) -> list[str] | None:
@@ -1407,7 +1454,12 @@ def _tide_retune_load_day(day: str) -> list[str] | None:
         pairs = raw.get("pairs")
         if not isinstance(pairs, list):
             return None
-        return [str(p) for p in pairs]
+        # THE CASING BOUNDARY IS THE LOADER (the commit review's
+        # medium): entries persisted before the normalization (or by a
+        # careless writer) normalize at READ, so a lowercase ledger row
+        # dedupes exactly like its uppercase self — old ledgers can
+        # never double-spend across the boundary.
+        return [str(p).strip().upper() for p in pairs]
     except FileNotFoundError:
         return []
     except Exception as exc:
@@ -1476,21 +1528,39 @@ def _tide_retune_releases(quick, pair: str = "",
         if today is None:
             return False, ("the retune day ledger is unreadable — failing "
                            "CLOSED until the operator clears it")
-        if pair and pair in today:
+        # THE PAIR IS NORMALIZED AT THE LEDGER BOUNDARY (the commit
+        # review's medium): the dedup compares and the ledger stores the
+        # UPPERCASED pair, so a casing variant of a released pair can
+        # never bypass once-per-pair and spend another canary slot.
+        _p = str(pair or "").strip().upper()
+        if _p and _p in today:
             if consume:
                 return False, "already released today"
             return True, (f"the pair already holds today's retune admission "
                           f"({len(today)}/{d['cap']} today)")
-        if len(today) >= d["cap"]:
-            return False, f"the day's {d['cap']} release cap is spent"
-        if pair and consume:
-            if not _tide_retune_save_day(day, today + [str(pair)]):
+        # THE CAP CANARY'S SCOPE (Oct 5): a canary pair may spend the
+        # day's extra slot (base cap + the canary's own), everyone else
+        # lives at the base cap. The widening only ever applies to a
+        # LIVE base cap (>= 1 — an operator OFF at 0 stays off), and a
+        # canary cap at or under the base is inert.
+        cap = d["cap"]
+        _can = ""
+        if (_p and cap >= 1 and _p in d.get("canary_pairs", ())
+                and d.get("canary_cap") is not None
+                and d["canary_cap"] > cap):
+            cap = d["canary_cap"]
+            _can = " (the cap canary's pair)"
+        if len(today) >= cap:
+            return False, f"the day's {cap} release cap is spent{_can}"
+        if _p and consume:
+            if not _tide_retune_save_day(day, today + [_p]):
                 return False, ("the retune day ledger would not persist — "
                                "failing CLOSED (a restart must not refill "
                                "the cap)")
         return True, (f"the calibration study opened the tide gate "
                       f"(quick {float(quick or 0):.0f} >= {d['quick_min']:.0f}, "
-                      f"{len(today) + (1 if pair and consume else 0)}/{d['cap']} today)")
+                      f"{len(today) + (1 if pair and consume else 0)}/{cap} today"
+                      f"{_can})")
 
 
 def tide_memory_states() -> tuple:

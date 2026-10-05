@@ -347,6 +347,9 @@ def _retune_dial() -> dict:
         d.setdefault("quick_min", 66.0)
         d.setdefault("cap", 3)
         d.setdefault("spent_today", None)
+        d.setdefault("canary_pairs", frozenset())
+        d.setdefault("canary_cap", None)
+        d.setdefault("canary_until", None)
         return d
     try:
         import background_scanner as _bs
@@ -355,7 +358,8 @@ def _retune_dial() -> dict:
         return d
     except Exception:
         return {"armed": False, "quick_min": 66.0, "cap": 3,
-                "spent_today": None}
+                "spent_today": None, "canary_pairs": frozenset(),
+                "canary_cap": None, "canary_until": None}
 
 
 def _retune_slots_spent() -> int | None:
@@ -450,10 +454,21 @@ def _retune_reckoning(cands, bar_live, week_tag: str) -> dict | None:
         n_dates = len(by_date)
         slots = max(0, cap) * WINDOW_DAYS   # kept as the NAIVE bound
         spent = _retune_slots_spent()
+        # THE CANARY'S DASHBOARD LINE (Oct 5): when the scoped cap
+        # canary is armed, the reckoning names it — pairs, cap, time
+        # box — so the weekly report is the canary's monitoring surface
+        # (the reconciliation reads this line; the dial's live posture
+        # is the rollback trigger).
+        _can = ""
+        if dial.get("canary_pairs"):
+            _until = dial.get("canary_until")
+            _can = (f" (+canary {dial.get('canary_cap')}/day for "
+                    f"{', '.join(sorted(dial['canary_pairs']))}"
+                    + (f" until {_until}" if _until else "") + ")")
         lines = [
             "── THE RETUNE VALVE'S RECKONING (the gate-quality audit's "
             "recalibration) ──",
-            f"  dial: armed, quick_min {qmin:.0f}, cap {cap}/day (the "
+            f"  dial: armed, quick_min {qmin:.0f}, cap {cap}/day{_can} (the "
             f"code default cap is {_retune_default_cap()}) — naive "
             f"week budget {slots}, releasable bound {releasable} "
             f"({n_dates} date(s) in the band; the per-day cap is not "
@@ -490,6 +505,16 @@ def _retune_reckoning(cands, bar_live, week_tag: str) -> dict | None:
                        "house convention (payers only, gross of costs); "
                        "no evidence to widen the cap")
         lines.append(f"  verdict: {verdict}")
+        if dial.get("canary_pairs"):
+            # THE BOUND'S NAMED LIMITATION (the commit review's medium):
+            # releasable prices the BASE cap only — the week join carries
+            # no pair identity, so the canary's allowance is additional
+            # and unpriced here. The day ledger reconciles the canary.
+            lines.append(
+                "  canary note: the bound above prices the BASE cap; the "
+                "canary's allowance is additional and unpriced by this "
+                "join (no pair identity — the canary's own day ledger is "
+                "its reconciliation).")
         return {"lines": lines,
                 "summary": {"dial": dial, "band": g_band,
                             "band_offered": len(offered), "slots": slots,
