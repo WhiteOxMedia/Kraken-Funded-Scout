@@ -546,6 +546,131 @@ try:
                    _led_p[-1].get("params") if _led_p else None))
         finally:
             _cr4.DIAL_FILE, _cr4.COHORT_FILE = _real4
+
+        # ── THE BAR FIRES END-TO-END (Oct 4, the freeze guard): the
+        #    user rule — r >= 0.25 with B >= 5 — must BIRTH a box
+        #    through the full wire (journal rows -> compute_delta ->
+        #    the rails -> the box + the ledger), and the pin carries
+        #    its own bite-proof: freeze the bar (R_MIN 0.9) and the
+        #    SAME healthy world refuses with no box and no ledger row —
+        #    a future regression that quietly freezes the boundary
+        #    hook flips 4d.1 red by name instead of passing vacuously.
+        import math as _math_bar
+        _B_bar, _P_bar = 12, 6
+        _delta_bar = min(0.10, 0.05 * (_P_bar / _B_bar)
+                         * _math_bar.log(1 + _B_bar))
+        _sup_bar_tail = sup.read_text(encoding="utf-8") if sup.exists() else ""
+        with open(sup, "a", encoding="utf-8") as _f:
+            if _sup_bar_tail and not _sup_bar_tail.endswith("\n"):
+                _f.write("\n")
+            for _i, (_pair, _gate, _quick) in enumerate((
+                    ("PB1/USD", "tide-out", 74.0), ("PB2/USD", "tide-out", 71.0),
+                    ("PB3/USD", "stale-move", 77.0), ("PB4/USD", "stale-move", 73.0),
+                    ("PB5/USD", "climb-floor", 69.0), ("PB6/USD", "climb-floor", 66.0),
+                    ("DB1/USD", "tide-out", 52.0), ("DB2/USD", "tide-out", 49.0),
+                    ("DB3/USD", "stale-move", 55.0), ("DB4/USD", "stale-move", 48.0),
+                    ("DB5/USD", "climb-floor", 51.0), ("DB6/USD", "climb-floor", 47.0))):
+                _f.write(json.dumps({
+                    "ts": (t0 + timedelta(minutes=30 + _i)).isoformat(),
+                    "pair": _pair, "gate": _gate, "quick": _quick,
+                    "rot": "ROT-BAR"}) + "\n")
+        _con_bar = sqlite3.connect(db)
+        _orows_bar = []
+        for _pair, _run in (("PB1/USD", 1.03), ("PB2/USD", 1.03),
+                            ("PB3/USD", 1.03), ("PB4/USD", 1.03),
+                            ("PB5/USD", 1.03), ("PB6/USD", 1.03),
+                            ("DB1/USD", 1.01), ("DB2/USD", 1.01),
+                            ("DB3/USD", 1.01), ("DB4/USD", 1.01),
+                            ("DB5/USD", 1.01), ("DB6/USD", 1.01)):
+            _orows_bar.append((_pair, ms0 - 600_000, 1.0, 1.0, 1.0, 1.0))
+            _orows_bar.append((_pair, ms0 + 3_600_000, 1.0, _run, 1.0, 1.0))
+        _con_bar.executemany("INSERT INTO ohlcv VALUES (?,?,?,?,?,?)",
+                             _orows_bar)
+        _con_bar.commit(); _con_bar.close()
+        import canary_runner as _cr5
+        _real5 = (_cr5.DIAL_FILE, _cr5.COHORT_FILE)
+        _cr5.DIAL_FILE = _sbx_dial
+        _cr5.COHORT_FILE = _sbx_cohort
+        _os_hook.environ["AUTO_ADJUST_CANARY_FILE"] = str(_sbx_cohort)
+        try:
+            _cr5.flip_canary("canary-bar-fire",
+                             params={"alpha": 0.05, "delta_max": 0.10,
+                                     "daily_cap": 5.0})
+            # the day's earlier legs already moved the sandbox factor —
+            # the expectation reads the LIVE pre-call factor, never an
+            # assumed 2.0
+            _gf_before = float(aa.read_guard_factor())
+            _rb = _exx_mod.aa_apply_silent_rotation(
+                "ROT-BAR", supp_path=sup, cache_path=db)
+            _st_bar = json.loads(
+                pg.STATE_FILE.read_text(encoding="utf-8"))
+            _box_bar = _st_bar.get("auto_adjust_box")
+            _led_bar = [r for r in (_st_bar.get("auto_adjust_ledger") or [])
+                        if r.get("rotation_id") == "ROT-BAR"]
+            check("4d.1 THE BAR FIRES END-TO-END: B 12 / P 6 (r 0.5) "
+                  "births a box through the full wire — status applied, "
+                  "the ledger row reason ok, the box standing on the "
+                  "guard state",
+                  _rb.get("evaluated") is True
+                  and _rb.get("status") == "applied"
+                  and _led_bar
+                  and _led_bar[-1].get("status") == "applied"
+                  and _led_bar[-1].get("reason") == "ok"
+                  and isinstance(_box_bar, dict)
+                  and abs(float(_box_bar.get("before") or 0) - 2.0) < 1e-9,
+                  (_rb, _box_bar, _led_bar[-1] if _led_bar else None))
+            check("4d.2 the birth's math is the rule's own output "
+                  "(delta -0.05 x 0.5 x ln 13, the factor moved by it "
+                  "from its live pre-call value)",
+                  _led_bar
+                  and abs(_led_bar[-1].get("delta", 0) - (-_delta_bar)) < 1e-6
+                  and abs(float(_led_bar[-1].get("after") or 0)
+                          - aa.clamp(_gf_before, -_delta_bar)) < 1e-6,
+                  (_gf_before, _delta_bar, _led_bar[-1] if _led_bar else None))
+            # THE BITE-PROOF: freeze the bar (R_MIN 0.9) — the SAME
+            # healthy world now refuses low_ratio, no ledger row, the
+            # standing box untouched: the freeze demonstrably flips
+            # 4d.1's assertion red, so the pin can never pass vacuously.
+            # the freeze world needs its OWN seeded rotation (the
+            # aggregate is per-rot: an unseeded rot id reads B 0 and
+            # refuses insufficient_samples, never reaching the ratio)
+            with open(sup, "a", encoding="utf-8") as _f:
+                for _i, (_pair, _gate, _quick) in enumerate((
+                        ("PB1/USD", "tide-out", 74.0), ("PB2/USD", "tide-out", 71.0),
+                        ("PB3/USD", "stale-move", 77.0), ("PB4/USD", "stale-move", 73.0),
+                        ("PB5/USD", "climb-floor", 69.0), ("PB6/USD", "climb-floor", 66.0),
+                        ("DB1/USD", "tide-out", 52.0), ("DB2/USD", "tide-out", 49.0),
+                        ("DB3/USD", "stale-move", 55.0), ("DB4/USD", "stale-move", 48.0),
+                        ("DB5/USD", "climb-floor", 51.0), ("DB6/USD", "climb-floor", 47.0))):
+                    _f.write(json.dumps({
+                        "ts": (t0 + timedelta(minutes=50 + _i)).isoformat(),
+                        "pair": _pair, "gate": _gate, "quick": _quick,
+                        "rot": "ROT-BAR-2"}) + "\n")
+            _real_rmin = aa.R_MIN
+            aa.R_MIN = 0.9
+            try:
+                _rf = _exx_mod.aa_apply_silent_rotation(
+                    "ROT-BAR-2", supp_path=sup, cache_path=db)
+            finally:
+                aa.R_MIN = _real_rmin
+            _st_frozen = json.loads(
+                pg.STATE_FILE.read_text(encoding="utf-8"))
+            _led_f = [r for r in (_st_frozen.get("auto_adjust_ledger") or [])
+                      if r.get("rotation_id") == "ROT-BAR-2"]
+            _box_f = _st_frozen.get("auto_adjust_box")
+            check("4d.3 THE BITE-PROOF: with the bar frozen (R_MIN 0.9) "
+                  "the same healthy world refuses low_ratio — no ledger "
+                  "row, the standing box untouched — a quiet freeze of "
+                  "the boundary hook flips 4d.1 red by name",
+                  _rf.get("evaluated") is True
+                  and _rf.get("status") == "refused"
+                  and _rf.get("reason") == "low_ratio"
+                  and not _led_f
+                  and isinstance(_box_f, dict)
+                  and _box_f.get("set_at") == (_box_bar or {}).get("set_at"),
+                  (_rf, _led_f, _box_f))
+        finally:
+            _cr5.DIAL_FILE, _cr5.COHORT_FILE = _real5
         _bs_src_hook = (BASE / "background_scanner.py").read_text(
             encoding="utf-8").replace("\r\n", "\n")
         # THE HOOK'S SHAPE (upgraded Sep 29, the review's two majors):
