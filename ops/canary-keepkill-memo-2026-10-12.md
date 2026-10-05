@@ -12,7 +12,7 @@
 | Scope | `TIDE_RETUNE_CANARY_PAIRS = BTC/USD, ETH/USD, UNI/USD` |
 | Canary cap | `TIDE_RETUNE_CANARY_CAP = 2` — the DAY'S TOTAL release cap rises 1→2 **when a canary pair spends the extra slot** (the +1/day is SHARED by the canary pool, first-come-first-served; each pair still max once/day). Base cap stays **1** for everyone else. |
 | Time box | `TIDE_RETUNE_CANARY_UNTIL = 2026-10-12` — **the canary dies by itself on this date** |
-| Worst-case exposure | **+1 extra deep read/day, shared by the canary pool → ≤ +7 total** over the window (the commit review's medium: NOT +1/day *per pair* — the day ledger counts all releases against the one raised cap) |
+| Worst-case exposure | **+1 extra deep read/day, shared by the canary pool → ≤ +8 total** over Oct 5–12 inclusive (the gate expires when now.date() moves PAST the box, so Oct 12 itself is live — the commit review's second arithmetic medium; NOT +1/day *per pair* — the day ledger counts all releases against the one raised cap) |
 | Rollback (any time) | delete/flip the 3 `TIDE_RETUNE_CANARY_*` keys in `exit_extension.dial.json` — live next tick, no restart |
 | Guardrails on record | once-per-pair/day outranks the canary; QC mirror never spends; fail-closed doors (junk pairs, cap<1, base OFF, cap≤base, omitted/expired box); journal leak gate pinned |
 
