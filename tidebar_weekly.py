@@ -419,7 +419,8 @@ def _retune_reckoning(cands, bar_live, week_tag: str) -> dict | None:
         # cap) and merged two Denver cap days into one UTC date
         # (falsely binding it). The grouping converts each ts with the
         # scanner's own convention: ZoneInfo Denver first, fixed -7
-        # fallback (the per_gate_export house shape). Unparseable ts =
+        # fallback (the house MST shape, the per_gate_export
+        # convention). Unparseable ts =
         # unknown (the dateless posture).
         def _cap_day(ts):
             if ts is None:
@@ -437,7 +438,7 @@ def _retune_reckoning(cands, bar_live, week_tag: str) -> dict | None:
                         .strftime("%Y-%m-%d")
                 except Exception:
                     from datetime import timedelta as _td
-                    return t.astimezone(_tz(_td(hours=-6)))\
+                    return t.astimezone(_tz(_td(hours=-7)))\
                         .strftime("%Y-%m-%d")
             except Exception:
                 return "unknown"

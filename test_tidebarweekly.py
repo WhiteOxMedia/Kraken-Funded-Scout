@@ -1002,6 +1002,42 @@ try:
               and _dst["summary"].get("dates") == 2
               and _dst["summary"]["verdict"].startswith("CAP SUFFICES"),
               _dst["summary"] if _dst else None)
+        # ── the follow-up [medium]: the ZoneInfo-less fallback used a
+        # fixed -6 (October's MDT) where the house fallback is -7 (the
+        # per_gate_export shape) — a zone-data-less machine would split
+        # or merge cap days at midnight. Behavioral: poison zoneinfo,
+        # then 06:00Z must land Oct 1 (-7) not Oct 2 (-6) while 07:30Z
+        # lands Oct 2 — two dates proves the -7 fallback ran.
+        import sys as _sys_mst
+        _real_zi = _sys_mst.modules.get("zoneinfo")
+        try:
+            _sys_mst.modules["zoneinfo"] = None   # 'from zoneinfo import' dies
+            _mst = tbw._retune_reckoning(
+                [(70.0, True, "2026-10-02T06:00:00+00:00"),
+                 (75.0, True, "2026-10-02T07:30:00+00:00")], 86.0, "t-mst")
+            check("4d.18 the zone-less fallback is MST (-7, the house "
+                  "shape): with zoneinfo poisoned, 06:00Z lands Oct 1 "
+                  "23:00 and 07:30Z lands Oct 2 00:30 — two cap days, "
+                  "never the -6 read that merges them into one",
+                  _mst is not None
+                  and _mst["summary"].get("dates") == 2
+                  and _mst["summary"].get("releasable") == 2,
+                  _mst["summary"] if _mst else None)
+        finally:
+            if _real_zi is not None:
+                _sys_mst.modules["zoneinfo"] = _real_zi
+            else:
+                _sys_mst.modules.pop("zoneinfo", None)
+        _capday_src = (BASE / "tidebar_weekly.py").read_text(
+            encoding="utf-8").replace("\r\n", "\n")
+        _i_capday = _capday_src.find("def _cap_day")
+        _capday_body = _capday_src[_i_capday:_capday_src.find(
+            "\ndef ", _i_capday + 1)]
+        check("4d.19 the fallback ships the documented -7 (MST) in the "
+              "source — the -6 literal is gone from _cap_day",
+              _i_capday > 0 and "hours=-7" in _capday_body
+              and "hours=-6" not in _capday_body,
+              _capday_body[-200:])
     finally:
         # THE DARK-VALVE POSTURE: the rest of this suite runs with the
         # dial override OFF — no later leg ever reads the production
