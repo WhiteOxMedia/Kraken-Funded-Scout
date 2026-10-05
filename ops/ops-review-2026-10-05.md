@@ -67,10 +67,10 @@
 
 > **Operator sign-off (required):** the canary plan above — 3 pairs, cap 2/day, expires 2026-10-12, dial-native rollback — is acknowledged and authorized to run live. The base cap remains 1. The reckoning re-litigates weekly.
 
-- [ ] **APPROVED** — the canary runs as scoped; rollback triggers understood (delete/flip the 3 dial keys; automatic expiry Oct 12).
+- [x] **APPROVED** — the canary runs as scoped; rollback triggers understood (delete/flip the 3 dial keys; automatic expiry Oct 12).
 - [ ] **APPROVED WITH CHANGES** — noted below, applied before the next scanner tick (the dial reads live).
 - [ ] **HELD** — the canary keys come out of the dial now (rollback = remove the 3 keys; no restart needed).
 
-**Operator:** ______________  **Date/Time:** ______________
+**Operator:** APPROVED via the ops-review session (Codebuff client, this thread)  **Date/Time:** 2026-10-05 ~09:45 MDT
 
 *Filed by Buffy (Codebuff) — this packet is the ops record; the reckoning report regenerates weekly with the canary line.*
