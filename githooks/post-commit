@@ -1,0 +1,206 @@
+#!/bin/sh
+# ─────────────────────────────────────────────────────────────────────────
+# POST-COMMIT: the coverage receipt (Oct 5) — monero_project's port of
+# kraken_scout's CodeRabbit review idiom (house shape, same ledger).
+#
+# WHY THIS EXISTS: the CodeRabbit CLI records a review batch ONLY when
+# findings exist — a clean review lands nothing in the review store.
+# kraken_scout's backlog watchdog (diag_coderabbit_backlog.py) grades
+# this repo on every run; until now this repo's reviews were run by
+# hand, so clean ones left no record and the watchdog read a week of
+# clean reviews as an ever-growing open backlog. Every completed review
+# appends one receipt into THIS repo's scratch/reviews_receipts.jsonl
+# (gitignored runtime state): the watchdog merges CLEAN receipts into
+# its coverage ledger — a clean review covers everything that predates
+# it; a bounced one (timeout / unparsed / review errors) records its
+# outcome for forensics and covers nothing.
+#
+# WHAT IT REVIEWS: the commit that JUST landed (`git show`), code only —
+# runtime churn (the RUNTIME_INVARIANTS class list: state, logs, test
+# output, binaries) is filtered out before the reviewer sees it.
+#
+# POLICY (mirrors kraken_scout's post-commit Copilot gate):
+#   · WARN-ONLY — findings print to the terminal; nothing is blocked
+#     (the commit exists; this speaks for the NEXT decision).
+#   · FAIL-OPEN — no auth, CLI missing, timeout, error: one line of
+#     reason and exit 0. A post-commit hook MUST never fail a commit
+#     that already happened, and must never leave a torn ledger.
+#
+# ENV OVERRIDES:
+#   CODERABBIT_OFF=1          skip entirely (no receipt — skip is not clean)
+#   CODERABBIT_TIMEOUT_SEC    review max seconds (default 300)
+# ─────────────────────────────────────────────────────────────────────────
+set -u
+
+[ "${CODERABBIT_OFF:-0}" = "1" ] && exit 0
+
+BIN="$(command -v coderabbit || command -v cr || true)"
+if [ -z "$BIN" ]; then
+    # the npm global bin is not always on the hook's PATH
+    for c in "$HOME/AppData/Roaming/npm/coderabbit" \
+             "$HOME/.npm-global/bin/coderabbit"; do
+        [ -x "$c" ] && BIN="$c" && break
+    done
+fi
+[ -z "$BIN" ] && exit 0   # not installed — silently nothing to review
+
+TIMEOUT="${CODERABBIT_TIMEOUT_SEC:-300}"
+ROOT="$(git rev-parse --show-toplevel 2>/dev/null)"
+[ -n "$ROOT" ] || exit 0
+PY="$ROOT/.venv/Scripts/python.exe"
+[ -x "$PY" ] || PY="$(command -v python || command -v py || true)"
+
+# ── THE COVERAGE RECEIPT (the watchdog's parse shape: {"ts": epoch,
+#    "head": <short sha>, "mode": ..., "outcome": ...} — a torn or
+#    non-object line is skipped by every reader, so the writer is
+#    append-only best-effort and never blocks on itself) ────────────────
+RECEIPTS="$ROOT/scratch/reviews_receipts.jsonl"
+HEAD_SHORT="$(git rev-parse --short=7 HEAD 2>/dev/null || echo unknown)"
+cr_receipt() {   # $1 = outcome: clean | unparsed | errors | timeout
+    [ -n "${RECEIPTS:-}" ] || return 0
+    mkdir -p "$(dirname "$RECEIPTS")" 2>/dev/null
+    printf '{"ts": %s, "head": "%s", "mode": "post-commit", "outcome": "%s"}\n' \
+        "$(date +%s)" "${HEAD_SHORT:-unknown}" "$1" \
+        >> "$RECEIPTS" 2>/dev/null || true
+}
+
+DIFF="$(git show --format= --unified=3 HEAD 2>/dev/null | tr -d '\r')"
+[ -z "$DIFF" ] && exit 0
+
+# the churn filter (kraken_scout's class-based idiom): runtime state,
+# logs, test-output txt, binaries. Its ONLY job here is the skip gate —
+# the CLI reads the repo itself, so the filtered text is never piped
+# anywhere (the scout's post-commit Copilot hook pipes it into a
+# prompt; this hook does not — and that hook's size truncation is
+# therefore dead code, removed at the live review's own minor).
+FILTERED="$(printf '%s\n' "$DIFF" | awk '
+    /^diff --git/ {
+        keep = 1
+        if ($0 ~ /\.(jsonl|json|db|db-wal|db-shm|wav|lock|pid|bak|prev|tmp|log|txt)("|$|[ ])/ ||
+            $0 ~ /(^|\/|"| )(logs|speech_queue)\// ||
+            $0 ~ /(^|\/|"| )(_check|_test|_run|_out|_woulda)[-.]/ ||
+            $0 ~ /\.freebuff\//) keep = 0
+    }
+    keep { print }
+')"
+[ -z "$FILTERED" ] && exit 0          # a churn-only commit — nothing to review
+
+# THE BASE IS PINNED (the first live run's lesson, 2ea9bcc): bare
+# --committed diffs HEAD against HEAD — an empty diff the CLI can hang
+# on (rc=124 at the timeout) — so the review is pinned to the LANDING
+# COMMIT explicitly: --base HEAD~1. A repo's very first commit has no
+# parent to diff against: skip quietly (no receipt — nothing was
+# reviewed), the edge never recurs in a mature repo.
+if ! git rev-parse -q --verify HEAD~1 >/dev/null 2>&1; then
+    exit 0
+fi
+# rc must be the CLI's OWN, not tr's (the scout hook's documented
+# drill): a piped capture inside the substitution would let a
+# blown-budget review (empty stream, tr rc=0) file a CLEAN receipt —
+# the watchdog would count coverage that never happened. Capture raw,
+# take rc, THEN strip the CRs.
+rc=0
+RAW="$(timeout "$TIMEOUT" "$BIN" review --agent --committed \
+        --base HEAD~1 2>/dev/null)" || rc=$?
+RAW="$(printf '%s' "$RAW" | tr -d '\r')"
+if [ $rc -ne 0 ]; then
+    cr_receipt timeout
+    echo "  🐇 CodeRabbit (post-commit): review didn't finish (rc=$rc; timeout ${TIMEOUT}s) — noted, nothing blocked." >&2
+    exit 0
+fi
+[ -z "$RAW" ] && cr_receipt clean
+
+# the field-tolerant parser (kraken_scout's idiom): JSON records with
+# fileName/severity/title/comment across key generations, JSONL or
+# pretty-printed; an explicitly-empty review is CLEAN, a stream that
+# never parses is RAWFALLBACK (eyes on, receipt unparsed).
+PYCODE='
+import sys, json
+raw = sys.stdin.read().replace("\r", "")
+records, parsed_any, errors = [], False, []
+def walk(o, out):
+    if isinstance(o, list):
+        for i in o: walk(i, out)
+    elif isinstance(o, dict):
+        if "errorType" in o: errors.append(str(o["errorType"]))
+        if any(k in o for k in ("fileName", "file", "path")) and \
+           any(k in o for k in ("severity", "title", "comment")):
+            out.append(o)
+        else:
+            for v in o.values():
+                if isinstance(v, (list, dict)): walk(v, out)
+try:
+    val = json.loads(raw); parsed_any = True; walk(val, records)
+except Exception:
+    pass
+if not records:
+    buf = ""
+    for ln in raw.splitlines():
+        buf += ln + "\n"
+        if buf.count("{") <= buf.count("}"):
+            try:
+                val = json.loads(buf); parsed_any = True; walk(val, records)
+            except Exception:
+                pass
+            buf = ""
+    if buf.strip():
+        try:
+            val = json.loads(buf); parsed_any = True; walk(val, records)
+        except Exception:
+            pass
+if not records:
+    if errors:
+        # (the scout drill of Sep 28, ported) a PURE error stream must
+        # never read as CLEANJSON — COUNT 0 + ERRORTYPE keeps the shape
+        # honest and the hook files an errors receipt, never coverage
+        print("COUNT 0")
+        for e in sorted(set(errors)):
+            print("ERRORTYPE " + e)
+        sys.exit(0)
+    print("CLEANJSON" if parsed_any else "RAWFALLBACK")
+    sys.exit(0)
+def line_of(o):
+    for k in ("startLine", "line", "endLine"):
+        if o.get(k) is not None: return o[k]
+    return "?"
+for o in records:
+    f = o.get("fileName") or o.get("file") or o.get("path") or "?"
+    s = str(o.get("severity") or "?")
+    t = str(o.get("title") or o.get("comment") or "(no text)").splitlines()[0][:100]
+    print("- %s:%s [%s] %s" % (f, line_of(o), s, t))
+print("COUNT %d" % len(records))
+for e in sorted(set(errors)):
+    print("ERRORTYPE " + e)
+'
+if [ -z "$RAW" ]; then
+    echo "  🐇 CodeRabbit (post-commit): zero findings — clean review." >&2
+    exit 0
+fi
+PARSER_OUT="$(printf '%s\n' "$RAW" | "$PY" -c "$PYCODE" 2>/dev/null)"
+n="$(printf '%s\n' "$PARSER_OUT" | sed -n 's/^COUNT //p' | tail -1)"
+if [ -z "$n" ]; then
+    if printf '%s\n' "$PARSER_OUT" | grep -q '^CLEANJSON$'; then
+        cr_receipt clean
+        echo "  🐇 CodeRabbit (post-commit): zero findings — clean JSON review." >&2
+        exit 0
+    fi
+    cr_receipt unparsed
+    echo "  🐇 CodeRabbit (post-commit): unparsed stream — eyes on, commit stands:" >&2
+    printf '%s' "$RAW" | head -c 600 >&2
+    echo >&2
+    exit 0
+fi
+echo "  🐇 CodeRabbit (post-commit) findings:" >&2
+printf '%s\n' "$PARSER_OUT" | grep '^-' | sed 's/^/    /' >&2
+echo "  🐇 CodeRabbit: $n finding(s). Advisory only — the commit already landed." >&2
+# THE ERRORS RECEIPT IS CONDITIONAL (the scout's shape): findings alone
+# need NO receipt — the CLI's own batch IS their record. Only review
+# ERRORS (rate_limit et al., possibly alongside findings) mint one —
+# the review did not fully run, and the ledger must say so.
+errtypes="$(printf '%s\n' "$PARSER_OUT" | sed -n 's/^ERRORTYPE //p' | sort -u | tr '\n' ' ' | sed 's/ $//')"
+if [ -n "$errtypes" ]; then
+    cr_receipt errors
+    echo "    ⚠ review errors: $errtypes — advisories may be incomplete" >&2
+    echo "    (receipt: errors — forensics only, never coverage)" >&2
+fi
+exit 0

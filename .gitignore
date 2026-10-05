@@ -15,3 +15,8 @@ wheels/
 
 # fleet telemetry: churns on every run, including inside commit gates
 fleet_history.jsonl
+
+# runtime state (RUNTIME_INVARIANTS idiom): the review-receipt ledger
+# is live coverage state — never committed (a committed ledger would
+# lie about coverage after a clone)
+scratch/
