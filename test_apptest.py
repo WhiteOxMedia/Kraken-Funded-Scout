@@ -3498,6 +3498,18 @@ try:
                   "box promise" in _bx_cap and "2 more rotations" in _bx_cap
                   and "2.00×" in _bx_cap and "Oct 03 20:01" in _bx_cap
                   and "expiry restores the anchor" in _bx_cap, _bx_cap)
+            check("the promise stays honest about WHO holds (the Oct-4 "
+                  "[medium]): the BOX stands — the nightly recompute "
+                  "owns the factor and may move it mid-box — and a "
+                  "stale-anchor expiry retires to the live truth "
+                  "instead of restoring (the ledger's own "
+                  "time_box_expired_stale_anchor story, row 18)",
+                  "the box stands for" in _bx_cap
+                  and "the guard factor holds" not in _bx_cap
+                  and "expiry restores the anchor" in _bx_cap
+                  and "nightly recompute" in _bx_cap
+                  and "retires" in _bx_cap and "live truth" in _bx_cap,
+                  _bx_cap)
             run_lp(box={"after": 1.9, "before": 1.95, "rotations_left": 1,
                         "set_at": "2026-10-03T20:01:44-06:00"})
             _bx1 = next((t for kk, t in _lp_calls
