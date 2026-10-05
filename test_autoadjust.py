@@ -48,6 +48,87 @@ try:
     dB, _ = aa.compute_delta(10 ** 6, 10 ** 6)
     check("the cap holds at absurd sample counts", dB == -aa.DELTA_MAX, dB)
 
+    # ── 1b. THE PAYER-WEIGHTED MAGNITUDE (Oct 5, red-first): the
+    #    boundary hook's delta now acts on the gates that actually
+    #    BURY PAYERS. The aggregate P/B keeps pricing the BIRTHS bar
+    #    (a mean over burials is what the r >= 0.25 promise IS); the
+    #    MAGNITUDE prices the burial mix: r_eff = SUM(P_g x r_g) /
+    #    SUM(P_g) — payer-weighted by necessity, because a B-weighted
+    #    mean of the per-gate ratios IS the aggregate (the collapse
+    #    that makes any 'both-weighted' design a no-op). One-directional
+    #    by Cauchy-Schwarz (r_eff >= r for every consistent per_gate):
+    #    the machine can only act MORE on the gates that buried the
+    #    money, never less — and never on gates that buried nothing.
+    _pg1 = [{"gate": "tide-out", "B_g": 10, "P_g": 6},
+            {"gate": "stale-move", "B_g": 10, "P_g": 2}]
+    _r_agg1 = 8 / 20
+    _r_eff1 = (6 * 0.6 + 2 * 0.2) / 8          # 0.5 — the payer-weighted mean
+    _d_agg1 = min(0.10, 0.05 * _r_agg1 * aa.__dict__["math"].log(21))
+    _d_eff1 = min(0.10, 0.05 * _r_eff1 * aa.__dict__["math"].log(21))
+    dw1, whyw1 = aa.compute_delta(20, 8, per_gate=_pg1)
+    check("1b.1 the magnitude prices the burial mix (same births bar "
+          "r 0.4 passes; the delta is the rule's own math at r_eff "
+          "0.5 — tide-out's 10/6 dominates the payers)",
+          whyw1 == "ok" and abs(dw1 - (-_d_eff1)) < 1e-9
+          and abs(dw1 - (-_d_agg1)) > 1e-9, (dw1, whyw1, _d_eff1, _d_agg1))
+    check("1b.2 the weighting only TIGHTENS (|weighted| > |aggregate| "
+          "here — one-directional, never looser than the old rule)",
+          abs(dw1) > abs(_d_agg1), (abs(dw1), abs(_d_agg1)))
+    _pg_swap = [{"gate": "tide-out", "B_g": 16, "P_g": 4},
+                {"gate": "stale-move", "B_g": 4, "P_g": 4}]
+    dw2, _ = aa.compute_delta(20, 8, per_gate=_pg_swap)
+    _r_eff2 = (4 * 0.25 + 4 * 1.0) / 8         # 0.625 — the payers sit
+                                               # in the all-payer gate
+    _d_eff2 = min(0.10, 0.05 * _r_eff2 * aa.__dict__["math"].log(21))
+    check("1b.3 the mix DEEPER prices bigger (the same aggregate "
+          "20/8, the payers concentrated in the gate that buried ONLY "
+          "payers: r_eff 0.625 — the weighting follows WHERE the "
+          "payers were buried, the exact gates-that-bury-payers "
+          "semantics)",
+          abs(dw2 - (-_d_eff2)) < 1e-9 and abs(dw2) > abs(_d_agg1)
+          and abs(dw2) > abs(dw1), (dw2, _d_eff2))
+    _pg_sym = [{"gate": "a", "B_g": 10, "P_g": 4},
+               {"gate": "b", "B_g": 10, "P_g": 4}]
+    dw3, _ = aa.compute_delta(20, 8, per_gate=_pg_sym)
+    check("1b.4 the degenerate guard: a SYMMETRIC mix (equal r_g) "
+          "returns exactly the aggregate delta (r_eff == r — the "
+          "weighting must never drift from the rule it refines)",
+          abs(dw3 - (-_d_agg1)) < 1e-9, (dw3, _d_agg1))
+    dw4, _ = aa.compute_delta(20, 8)
+    dw5, _ = aa.compute_delta(20, 8, per_gate=[])
+    dw6, _ = aa.compute_delta(20, 8, per_gate=[{"gate": "x"}])
+    check("1b.5 no per_gate, an empty list, or junk rows all return "
+          "exactly the aggregate (every legacy caller unchanged)",
+          abs(dw4 - (-_d_agg1)) < 1e-9 and abs(dw5 - (-_d_agg1)) < 1e-9
+          and abs(dw6 - (-_d_agg1)) < 1e-9, (dw4, dw5, dw6))
+    dw7, _ = aa.compute_delta(20, 8, per_gate=[{"gate": "x", "B_g": 20,
+                                                "P_g": 8}])
+    check("1b.6 the one-gate world IS the aggregate (r_g == r)",
+          abs(dw7 - (-_d_agg1)) < 1e-9, dw7)
+    dw8, whyw8 = aa.compute_delta(20, 8, per_gate=[{"gate": "x",
+                                                    "B_g": 20,
+                                                    "P_g": 9}])
+    check("1b.7 an INCONSISTENT per_gate (P_g sum != P) falls back to "
+          "the aggregate — a half-updated pair never prices a made-up "
+          "mix",
+          whyw8 == "ok" and abs(dw8 - (-_d_agg1)) < 1e-9, (dw8, whyw8))
+    dw9, _ = aa.compute_delta(20, 8, per_gate=[
+        {"gate": "t", "measurable_B_g": 16, "P_g": 4},
+        {"gate": "s", "measurable_B_g": 4, "P_g": 4}])
+    check("1b.9 the WIRE'S OWN KEY SHAPE prices the mix (the SQL ships "
+          "measurable_B_g, not B_g — the same deep world reads r_eff "
+          "0.625 through the API's rows instead of falling back to the "
+          "aggregate)",
+          abs(dw9 - (-_d_eff2)) < 1e-9, dw9)
+    _, why9 = aa.compute_delta(20, 4, per_gate=_pg1)
+    _, why10 = aa.compute_delta(4, 4, per_gate=_pg1)
+    check("1b.8 the births bar is untouched by the weighting (the "
+          "low_ratio and insufficient_samples refusals answer the "
+          "AGGREGATE first — the mix never opens a gate the promise "
+          "closed)",
+          why9 == "low_ratio" and why10 == "insufficient_samples",
+          (why9, why10))
+
     check("the clamp honors the machine's guard bounds (2.0 -> 1.92)",
           aa.clamp(2.0, -0.08) == 1.92, aa.clamp(2.0, -0.08))
     check("the clamp floors at GUARD_CLAMP's low end (0.6 - 0.2 -> 0.5)",

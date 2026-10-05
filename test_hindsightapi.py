@@ -102,9 +102,19 @@ try:
           "state",
           s["B"] == 7 and s["P"] == 4 and abs(s["r"] - 4 / 7) < 1e-9
           and s["current_GF"] == 2.0, s)
-    check("summary: the proposed delta is the rule's own output "
-          "(0.05 x 4/7 x ln 8, under the cap)",
-          abs(s["proposed_delta"] - aa.compute_delta(7, 4)[0]) < 1e-12
+    # THE PREVIEW PRICES THE MIX (Oct 5): the rotation's own shape is
+    # asymmetric (deep-veto 3/5, tide-out 1/2), so the wire preview
+    # carries the payer-weighted magnitude — r_eff = (3x0.6 + 1x0.5)/4
+    # = 0.575 vs the aggregate 4/7 ≈ 0.5714 — exactly what apply_action
+    # would apply.
+    import math as _math_prev
+    _delta_prev = min(0.10, 0.05 * 0.575 * _math_prev.log(8))
+    check("summary: the proposed delta is the weighted rule's own "
+          "output (the mix is asymmetric: deep-veto 3/5 + tide-out "
+          "1/2 -> r_eff 0.575, NOT the aggregate 4/7 — the preview "
+          "prices what the machine would do)",
+          abs(s["proposed_delta"] - (-_delta_prev)) < 1e-9
+          and abs(s["proposed_delta"] - aa.compute_delta(7, 4)[0]) > 1e-9
           and s["proposed_reason"] == "ok", s)
 
     # ── 2. the gates ────────────────────────────────────────────────
@@ -671,6 +681,85 @@ try:
                   (_rf, _led_f, _box_f))
         finally:
             _cr5.DIAL_FILE, _cr5.COHORT_FILE = _real5
+
+        # ── 4d.4 THE WEIGHTED WIRE (Oct 5, red-first): an ASYMMETRIC
+        #    world through the full boundary hook — the aggregate is
+        #    the same healthy 12/6 (r 0.5), but the payers sit only in
+        #    tide-out (3/4) and stale-move (3/4); climb-floor buried
+        #    four and paid nothing. The rule's magnitude prices the
+        #    burial mix (r_eff = (3x0.75 + 3x0.75 + 0)/6 = 0.75), so
+        #    the ledger's delta is the rule's own math at 0.75 — NOT
+        #    the aggregate's 0.5 nudge. Concentration sits exactly at
+        #    0.5 (tide-out's 3 of 6 payers) so the auto path runs.
+        import math as _math_w
+        _r_eff_w = 0.75
+        _delta_w = min(0.10, 0.05 * _r_eff_w * _math_w.log(13))
+        _delta_agg_w = min(0.10, 0.05 * 0.5 * _math_w.log(13))
+        _sup_w_tail = sup.read_text(encoding="utf-8") if sup.exists() else ""
+        with open(sup, "a", encoding="utf-8") as _f:
+            if _sup_w_tail and not _sup_w_tail.endswith("\n"):
+                _f.write("\n")
+            for _i, (_pair, _gate, _quick) in enumerate((
+                    ("PB1/USD", "tide-out", 74.0), ("PB2/USD", "tide-out", 71.0),
+                    ("PB3/USD", "tide-out", 68.0), ("DB6/USD", "tide-out", 46.0),
+                    ("PB4/USD", "stale-move", 73.0), ("PB5/USD", "stale-move", 69.0),
+                    ("PB6/USD", "stale-move", 66.0), ("DB1/USD", "stale-move", 52.0),
+                    ("DB2/USD", "climb-floor", 51.0), ("DB3/USD", "climb-floor", 55.0),
+                    ("DB4/USD", "climb-floor", 48.0), ("DB5/USD", "climb-floor", 47.0))):
+                _f.write(json.dumps({
+                    "ts": (t0 + timedelta(minutes=70 + _i)).isoformat(),
+                    "pair": _pair, "gate": _gate, "quick": _quick,
+                    "rot": "ROT-BAR-3"}) + "\n")
+        # the candles the 7h forward window prices: base BEFORE the
+        # candidates, the run-peak AFTER them (the shared fixture's
+        # rows sit at t0-10m/t0+60m — before this rotation's ts)
+        _con_w = sqlite3.connect(db)
+        _orows_w = []
+        for _pair, _run in (("PB1/USD", 1.03), ("PB2/USD", 1.03),
+                            ("PB3/USD", 1.03), ("DB6/USD", 1.01),
+                            ("PB4/USD", 1.03), ("PB5/USD", 1.03),
+                            ("PB6/USD", 1.03), ("DB1/USD", 1.01),
+                            ("DB2/USD", 1.01), ("DB3/USD", 1.01),
+                            ("DB4/USD", 1.01), ("DB5/USD", 1.01)):
+            _orows_w.append((_pair, ms0 + 65 * 60_000, 1.0, 1.0, 1.0, 1.0))
+            _orows_w.append((_pair, ms0 + 120 * 60_000, 1.0, _run, 1.0,
+                             (_run + 1.0) / 2))
+        _con_w.executemany("INSERT INTO ohlcv VALUES (?,?,?,?,?,?)",
+                           _orows_w)
+        _con_w.commit(); _con_w.close()
+        import canary_runner as _cr6
+        _real6 = (_cr6.DIAL_FILE, _cr6.COHORT_FILE)
+        _cr6.DIAL_FILE = _sbx_dial
+        _cr6.COHORT_FILE = _sbx_cohort
+        _os_hook.environ["AUTO_ADJUST_CANARY_FILE"] = str(_sbx_cohort)
+        try:
+            _cr6.flip_canary("canary-bar-fire",
+                             params={"alpha": 0.05, "delta_max": 0.10,
+                                     "daily_cap": 5.0})
+            _gf_w = float(aa.read_guard_factor())
+            _rw = _exx_mod.aa_apply_silent_rotation(
+                "ROT-BAR-3", supp_path=sup, cache_path=db)
+            _st_w = json.loads(
+                pg.STATE_FILE.read_text(encoding="utf-8"))
+            _led_w = [r for r in (_st_w.get("auto_adjust_ledger") or [])
+                      if r.get("rotation_id") == "ROT-BAR-3"]
+            check("4d.4 THE WEIGHTED WIRE: the asymmetric world applies "
+                  "the burial-mix math end-to-end (tide-out 3/4 + "
+                  "stale-move 3/4 + climb-floor 4/0 -> r_eff 0.75, the "
+                  "ledger delta is -alpha x 0.75 x ln 13 from the live "
+                  "factor — the gate that buried zero payers says "
+                  "nothing, the gates that buried the money speak)",
+                  _rw.get("evaluated") is True
+                  and _rw.get("status") == "applied"
+                  and _led_w
+                  and abs(_led_w[-1].get("delta", 0) - (-_delta_w)) < 1e-6
+                  and abs(_led_w[-1].get("delta", 0) - (-_delta_agg_w)) > 1e-4
+                  and abs(float(_led_w[-1].get("after") or 0)
+                          - aa.clamp(_gf_w, -_delta_w)) < 1e-6,
+                  (_rw, _gf_w, _delta_w, _delta_agg_w,
+                   _led_w[-1] if _led_w else None))
+        finally:
+            _cr6.DIAL_FILE, _cr6.COHORT_FILE = _real6
         _bs_src_hook = (BASE / "background_scanner.py").read_text(
             encoding="utf-8").replace("\r\n", "\n")
         # THE HOOK'S SHAPE (upgraded Sep 29, the review's two majors):

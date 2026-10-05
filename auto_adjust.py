@@ -66,22 +66,67 @@ EVIDENCE_DIR = ROOT / "artifacts" / "auto_adjust"
 
 
 # ── the rule, pure ──────────────────────────────────────────────────
+def effective_ratio(B: int, P: int, per_gate: list[dict] | None) -> float:
+    """THE BURIAL MIX for the delta's magnitude (Oct 5): the
+    PAYER-WEIGHTED mean of the per-gate ratios, SUM(P_g x r_g) / SUM(P_g)
+    — the gates that buried the payers set how hard the adjustment acts.
+    Payer weighting is by necessity, not taste: a B-weighted mean of the
+    per-gate ratios IS the aggregate (SUM B_g x (P_g/B_g) / SUM B_g =
+    P/B), so 'both-weighted' would be a no-op; the payer-weighted mean
+    is >= the aggregate for any consistent per_gate (Cauchy-Schwarz over
+    the (sqrt(P_g), sqrt(B_g x P_g)) pairs), one-directional and
+    conservative — the machine can only act MORE on the gates that
+    buried the money, never less. Falls back to the aggregate P/B
+    whenever the rows are absent, empty, junk, INCONSISTENT with the
+    totals (a half-updated pair never prices a made-up mix), or
+    degenerate (no measurable payers): the weighting refines the
+    aggregate, never replaces it."""
+    try:
+        _rows = [g for g in (per_gate or []) if isinstance(g, dict)]
+        # THE WIRE'S KEY SHAPE: the SQL ships measurable_B_g (the API
+        # remaps it to B_g for the panel) — accept both, prefer the
+        # wire's own.
+        _Bg = lambda g: int(g.get("B_g") if g.get("B_g") is not None
+                            else g.get("measurable_B_g") or 0)
+        _P = sum(int(g.get("P_g") or 0) for g in _rows)
+        _B = sum(_Bg(g) for g in _rows)
+        if (_rows and _P == int(P or 0) and _B == int(B or 0)
+                and _P > 0):
+            _num = sum(int(g["P_g"]) * (int(g["P_g"]) / _Bg(g))
+                       for g in _rows if _Bg(g) > 0)
+            return float(_num / _P)
+    except Exception:
+        pass
+    return (P / B) if B else 0.0
+
+
 def compute_delta(B: int, P: int, alpha: float | None = None,
-                  delta_max: float | None = None) -> tuple[float, str]:
+                  delta_max: float | None = None,
+                  per_gate: list[dict] | None = None) -> tuple[float, str]:
     """The conservative delta for B measurable burials / P payers.
     Returns (delta, reason); delta is 0.0 with a named reason whenever
     the rule refuses. alpha/delta_max (Sep 29, the review's major):
     the CANARY'S SELECTED CELL overrides the module defaults, so the
     boundary hook evaluates the parameters the gate actually armed —
-    a None keeps each module default (every legacy caller)."""
+    a None keeps each module default (every legacy caller).
+
+    THE PAYER-WEIGHTED MAGNITUDE (Oct 5): the aggregate P/B prices the
+    BIRTHS bar (the r >= R_MIN promise is a mean over burials); the
+    MAGNITUDE prices the burial mix through effective_ratio —
+    r_eff = SUM(P_g x r_g) / SUM(P_g) — so the adjustment acts on the
+    gates that actually buried payers instead of the aggregate alone.
+    The refusals answer the AGGREGATE first: the mix never opens a
+    gate the promise closed, and a consistent-but-symmetric mix
+    degrades exactly to the aggregate delta (the drift guard)."""
     if B < B_MIN:
         return 0.0, "insufficient_samples"
     r = P / B if B > 0 else 0.0
     if r < R_MIN:
         return 0.0, "low_ratio"
+    r_eff = effective_ratio(B, P, per_gate)
     _a = ALPHA if alpha is None else float(alpha)
     _dm = DELTA_MAX if delta_max is None else float(delta_max)
-    delta = min(_dm, _a * r * math.log(1 + B))
+    delta = min(_dm, _a * r_eff * math.log(1 + B))
     # negative delta loosens guard
     return -delta, "ok"
 
@@ -761,7 +806,7 @@ def propose_from_aggregate(rotation_id: str, B: int, P: int,
     lifted (the review HAPPENED) — every other rail still bites."""
     delta, reason = compute_delta(
         B, P, alpha=(params or {}).get("alpha"),
-        delta_max=(params or {}).get("delta_max"))
+        delta_max=(params or {}).get("delta_max"), per_gate=per_gate)
     cks, d = write_evidence_bundle(
         rotation_id, per_gate, B, P, (P / B) if B else None)
     if reason != "ok":

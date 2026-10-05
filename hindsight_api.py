@@ -81,7 +81,11 @@ def rotation_summary(rotation_id: str, goal_pct: float = 1.5,
     import auto_adjust as aa
     supp, cache = _paths(supp_path, cache_path)
     agg = _rotation_aggregate(rotation_id, goal_pct, supp, cache)
-    delta, reason = aa.compute_delta(agg["B"], agg["P"])
+    # THE PREVIEW PRICES WHAT THE MACHINE WOULD DO (Oct 5): the
+    # weighted magnitude, same as apply_action's real path — the
+    # panel's proposed_delta can never disagree with the ledger.
+    delta, reason = aa.compute_delta(agg["B"], agg["P"],
+                                     per_gate=agg["gate_rows"])
     return {"rotation_id": rotation_id, "B": agg["B"], "P": agg["P"],
             "r": agg["r"], "proposed_delta": delta,
             "proposed_reason": reason,
