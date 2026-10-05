@@ -188,6 +188,10 @@ check("3.4 a neutral window passes vacuously (no spurious WARN)",
 check("3.5 the vacuous answers say so honestly",
       "never arose" in str((exn or {}).get("families", {})
                            .get("carve_out", {}).get("evidence")))
+_dnl_e = str((exn or {}).get("families", {}).get("dnl", {}).get("evidence") or "")
+check("3.6 a vacuous whipsaw answer NAMES its vacuousness "
+      "(the audit, Oct 5), not a bare yes",
+      "whipsaw evidence never arose (vacuous)" in _dnl_e, _dnl_e)
 
 # ═══ 4. the FAIL path ════════════════════════════════════════════════
 _reset()

@@ -691,7 +691,8 @@ def dnl_report(when: datetime | None = None) -> dict | None:
             "What worked?": _worked(day_trades, gf_now),
             "What didn't?": _didnt(day_trades, sal),
             "What adjustments were made?": _adjustments(gf_now, rcl, sal),
-            "How do I make more next time?": _more_next_time(mlt, pace, rcl),
+            "How do I make more next time?": _more_next_time(
+                mlt, pace, rcl, sys_left=(facts or {}).get("system_left")),
             "What is tomorrow's focus?": _focus(rcl, sal, mlt),
             "_data": {"money_left": mlt, "daily_pace": pace,
                       "guard_factor": gf_prev, "realized": round(pnl, 2),
@@ -848,8 +849,27 @@ def _adjustments(gf, rcl, sal) -> str:
     return "; ".join(bits) or "no dials moved"
 
 
-def _more_next_time(mlt, pace, rcl) -> str:
+def _more_next_time(mlt, pace, rcl, sys_left=None) -> str:
+    # THE ATTRIBUTION HONESTY CURE (Oct 5, the overclaim audit): the old
+    # answer attributed the WHOLE leave to the exits — but the leave
+    # includes system_burial, the burials of the funnel itself, which no
+    # exit tuning can recover. The cause now follows the split: a
+    # majority-burial leave names the gates, a majority-exit leave keeps
+    # the trail truth, a mixed one says the mixed truth.
     if isinstance(mlt, (int, float)) and mlt and mlt > 0:
+        try:
+            _sys = float(sys_left or 0.0)
+        except Exception:
+            _sys = 0.0
+        if _sys > mlt / 2.0:
+            return (f"${mlt:.0f} was left on the table — ${_sys:.0f} of it "
+                    f"is the burials of the funnel itself (open the gates "
+                    f"where they keep burying payers); the exits only owe "
+                    f"the rest")
+        if _sys > 1.0:
+            return (f"${mlt:.0f} was left on the table — ${mlt - _sys:.0f} "
+                    f"of it after the burials of the funnel itself: the "
+                    f"exits were tighter than the market deserved")
         return (f"${mlt:.0f} was left on the table — the exits were tighter "
                 f"than the market deserved")
     if rcl and rcl.get("verdict") in ("MILD DRIFT", "MAJOR DRIFT"):

@@ -1045,7 +1045,8 @@ def cross_examine(when: datetime | None = None) -> dict | None:
             if prev and (mcv > prev * 3.0 or mcv < prev / 3.0):
                 whipsaw += 1
             prev = float(mcv)
-    _vy, _vs = _vac(whipsaw == 0, True, "")
+    _vy, _vs = _vac(whipsaw == 0, whipsaw > 0,
+                    "whipsaw evidence")
     qs.append(("dnl", [
         "Did adaptive boundaries stabilize?",
         "Did clamps converge?",

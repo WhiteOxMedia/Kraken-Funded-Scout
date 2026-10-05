@@ -398,6 +398,18 @@ check(4.4, abs(ml.tomorrow_goal_multiplier() - 1.10) < 0.001,
       "tomorrow's DailyGoal multiplier = 1 + learning_factor")
 check(4.5, ml.dnl_last() is rep or ml.dnl_last() == rep,
       "the report is stored and retrievable")
+# THE ATTRIBUTION HONESTY (Oct 5, the overclaim audit): the leave
+# includes the burials of the funnel itself — the DNL answer stops
+# attributing the whole leave to the exits once the split says so
+_mn = ml._more_next_time
+check(4.6, "burials of the funnel itself" in _mn(100.0, 60.0, None, sys_left=70.0)
+      and "the exits only owe the rest" in _mn(100.0, 60.0, None, sys_left=70.0),
+      _mn(100.0, 60.0, None, sys_left=70.0))
+check(4.7, "after the burials of the funnel itself" in _mn(100.0, 60.0, None, sys_left=20.0),
+      _mn(100.0, 60.0, None, sys_left=20.0))
+check(4.8, "exits were tighter than the market deserved" in _mn(100.0, 60.0, None, sys_left=0.0)
+      and "funnel" not in _mn(100.0, 60.0, None, sys_left=0.0),
+      _mn(100.0, 60.0, None, sys_left=0.0))
 dnl_stub.cooldown_review = lambda *a, **k: {
     "date": "2026-09-21", "total_left": -20.0, "daily_pace": 60.0}
 rep2 = ml.dnl_report(_w())

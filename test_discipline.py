@@ -135,6 +135,180 @@ lesson3c = dc._learn(state3c, res_left)
 check("realized $40 but $60 still on the table -> not agreement yet",
       state3c["weights"] == dc.DEFAULT_WEIGHTS
       and "not agreement" in lesson3c, lesson3c[:100])
+# ── 4b. THE SELF-RESOLVING VERDICT (user rule, Oct 5): an unproven
+# lesson is not the end — the money has not spoken YET. A later
+# evaluation re-joins the window's PAIR-NAMED leave to the applied SOLD
+# journal and upgrades the lesson the money proved. ──
+_sold_file = Path(__file__).parent / "contest_trades.jsonl"
+_sold_backup = _sold_file.read_text(encoding="utf-8") if _sold_file.exists() else None
+try:
+    _day = (datetime.now(MST) - timedelta(days=1)).date()
+    _iso = lambda h: _day.strftime("%Y-%m-%d") + f"T{h:02d}:00:00-06:00"
+    def _row(pair, pnl, sold_h=11, applied=True, entry=1.0):
+        return json.dumps({"sold_at": _iso(sold_h), "pair": pair,
+                           "pnl_net": pnl, "entry": entry, "exit": 1.02,
+                           "size": 1000.0, "applied": applied}) + chr(10)
+    _mk = lambda: {"weights": dict(dc.DEFAULT_WEIGHTS), "history": [], "lessons": []}
+    _verdict = ("Score 50, realized $+0 — $505 left on the table: the "
+                "money hasn't confirmed the score, so this is not "
+                "agreement. Weights hold unproven — the calibration "
+                "stands only when the leave realizes and the money "
+                "left on the table becomes $0.")
+    _hist = {"date": _day.isoformat(), "rot": "08-12", "score": 50.0,
+             "verdict": _verdict,
+             "usd_left": {"missed": 505.0, "giveback": 0.0, "missed_exit": 0.0,
+                          "early_exit": 0.0, "system_burial": 0.0},
+             "left_pairs": {"missed": ["T/USD"], "giveback": [],
+                            "missed_exit": [], "early_exit": [],
+                            "system_burial": []},
+             "left_entries": {"missed": {"T/USD": 1.0}, "giveback": {},
+                              "missed_exit": {}, "early_exit": {},
+                              "system_burial": {}},
+             "system_pairs": []}
+    _sold_file.write_text(_row("T/USD", 520.0), encoding="utf-8")
+    st_r = _mk(); st_r["history"].append(dict(_hist))
+    n1 = dc._resolve_prior_verdict(st_r)
+    check("the window's own pair, sold inside the window, upgrades the lesson",
+          n1 == 1 and "proven after the fact" in st_r["history"][0]["verdict"],
+          st_r["history"][0]["verdict"][:80])
+    check("the resolver speaks the upgrade in the lessons log",
+          any("PROVEN after the fact" in l["lesson"] for l in st_r["lessons"]))
+    n1b = dc._resolve_prior_verdict(st_r)
+    check("re-reviewing a graded window appends NO duplicate lesson",
+          n1b == 0 and len(st_r["lessons"]) == 1)
+    _sold_file.write_text(_row("UNRELATED/USD", 520.0), encoding="utf-8")
+    st_r2 = _mk(); st_r2["history"].append(dict(_hist))
+    n2 = dc._resolve_prior_verdict(st_r2)
+    check("an unrelated pair's profit proves NOTHING (pair-matched)",
+          n2 == 0 and st_r2["history"][0]["verdict"] == _hist["verdict"])
+    st_r2b = _mk(); st_r2b["history"].append(dict(_hist))
+    _sold_file.write_text(_row("T/USD", 520.0, entry=1.5), encoding="utf-8")
+    n2b = dc._resolve_prior_verdict(st_r2b)
+    check("an unrelated ENTRY (not THE opportunity) proves nothing too",
+          n2b == 0 and st_r2b["history"][0]["verdict"] == _hist["verdict"])
+    _sold_file.write_text(_row("T/USD", 300.0), encoding="utf-8")
+    st_r3 = _mk(); st_r3["history"].append(dict(_hist))
+    n3 = dc._resolve_prior_verdict(st_r3)
+    check("a partial landing renders partially resolved, still unproven",
+          n3 == 1 and "partially resolved" in st_r3["history"][0]["verdict"]
+          and "unproven" in st_r3["history"][0]["verdict"],
+          st_r3["history"][0]["verdict"][:80])
+    n3b = dc._resolve_prior_verdict(st_r3)
+    check("a re-graded partial moves no words and appends no lesson",
+          n3b == 0 and len(st_r3["lessons"]) == 1)
+    _sold_file.write_text(_row("T/USD", 3.0), encoding="utf-8")
+    st_r4 = _mk(); st_r4["history"].append(dict(_hist))
+    n4 = dc._resolve_prior_verdict(st_r4)
+    check("a too-thin realized sale never upgrades the verdict",
+          n4 == 0 and st_r4["history"][0]["verdict"] == _hist["verdict"])
+    _sold_file.write_text(_row("T/USD", -40.0), encoding="utf-8")
+    st_r5 = _mk(); st_r5["history"].append(dict(_hist))
+    n5 = dc._resolve_prior_verdict(st_r5)
+    check("a LOSS is not a landing: only realized profit drains the leave",
+          n5 == 0 and st_r5["history"][0]["verdict"] == _hist["verdict"])
+    st_r6 = _mk(); st_r6["history"].append(dict(_hist))
+    _sold_file.write_text(_row("T/USD", 520.0, applied=False), encoding="utf-8")
+    n6 = dc._resolve_prior_verdict(st_r6)
+    check("an UNAPPLIED sale never proves anything (counted money only)",
+          n6 == 0 and st_r6["history"][0]["verdict"] == _hist["verdict"])
+    _sold_file.unlink()
+    st_r7 = _mk(); st_r7["history"].append(dict(_hist))
+    n7 = dc._resolve_prior_verdict(st_r7)
+    check("no journal evidence leaves the lesson exactly as it was",
+          n7 == 0 and st_r7["history"][0]["verdict"] == _hist["verdict"])
+    _buried = dict(_hist)
+    _buried["usd_left"] = {"missed": 0.0, "giveback": 0.0, "missed_exit": 0.0,
+                           "early_exit": 0.0, "system_burial": 505.0}
+    _buried["left_pairs"] = {"missed": [], "giveback": [], "missed_exit": [],
+                             "early_exit": [], "system_burial": ["X/USD"]}
+    _buried["left_entries"] = {"missed": {}, "giveback": {},
+                               "missed_exit": {}, "early_exit": {},
+                               "system_burial": {"X/USD": 1.0}}
+    _buried["system_pairs"] = [{"pair": "X/USD", "gate": "tide-out"}]
+    _sold_file.write_text(_row("X/USD", 600.0, sold_h=13), encoding="utf-8")
+    st_r8 = _mk(); st_r8["history"].append(dict(_buried))
+    n8 = dc._resolve_prior_verdict(st_r8)
+    check("a MARKED burial's own later sale lands the machine's leave",
+          n8 == 1 and "proven after the fact" in st_r8["history"][0]["verdict"],
+          st_r8["history"][0]["verdict"][:80])
+    _sold_file.write_text(_row("X/USD", 300.0, sold_h=13)
+                          + _row("X/USD", 300.0, sold_h=15), encoding="utf-8")
+    st_r10 = _mk(); st_r10["history"].append(dict(_buried))
+    n10 = dc._resolve_prior_verdict(st_r10)
+    check("stacked re-entry sales never outrun the leave (one sale per pair)",
+          n10 == 1 and "partially resolved" in st_r10["history"][0]["verdict"],
+          st_r10["history"][0]["verdict"][:80])
+    # ONE SALE PROVES ONE VERDICT (the fifth-round medium): the same
+    # pair buried on TWO days does not turn one later sale into two
+    # proofs — the winning sale is consumed on use
+    _b1 = dict(_buried); _b1["date"] = _day.isoformat()
+    _b2 = dict(_buried)
+    _b2["date"] = (_day - timedelta(days=1)).isoformat()
+    _sold_file.write_text(_row("X/USD", 600.0, sold_h=13), encoding="utf-8")
+    st_r11 = _mk()
+    st_r11["history"] = [dict(_b2), dict(_b1)]   # older first
+    n11 = dc._resolve_prior_verdict(st_r11)
+    check("one sale proves the most recent burial (consumed on use)",
+          n11 == 1 and "proven after the fact"
+          in st_r11["history"][1]["verdict"])
+    n11b = dc._resolve_prior_verdict(st_r11)
+    check("the consumed sale never proves the OLDER burial of the pair",
+          n11b == 0
+          and st_r11["history"][0]["verdict"] == _buried["verdict"]
+          and len(st_r11["lessons"]) == 1)
+    _sold_file.write_text(_row("X/USD", 600.0, sold_h=11), encoding="utf-8")
+    st_r9 = _mk(); st_r9["history"].append(dict(_buried))
+    n9 = dc._resolve_prior_verdict(st_r9)
+    check("a burial-pair sale INSIDE the window is not the burial's landing",
+          n9 == 0 and st_r9["history"][0]["verdict"] == _buried["verdict"])
+    # SMALLER SALES COMBINE (sixth-round medium): the running credit
+    # accumulates across passes — two $300 landings resolve a $505
+    _two = dict(_hist)
+    _two["left_pairs"] = {"missed": ["T/USD", "ETH/USD"], "giveback": [],
+                          "missed_exit": [], "early_exit": [],
+                          "system_burial": []}
+    _two["left_entries"] = {"missed": {"T/USD": 1.0, "ETH/USD": 1.0},
+                            "giveback": {}, "missed_exit": {},
+                            "early_exit": {}, "system_burial": {}}
+    _sold_file.write_text(_row("T/USD", 300.0), encoding="utf-8")
+    st_r12 = _mk(); st_r12["history"].append(dict(_two))
+    n12 = dc._resolve_prior_verdict(st_r12)
+    _sold_file.write_text(_row("T/USD", 300.0)
+                          + _row("ETH/USD", 300.0), encoding="utf-8")
+    n12b = dc._resolve_prior_verdict(st_r12)
+    check("smaller sales COMBINE across passes to resolve the leave",
+          n12 == 1 and n12b == 1
+          and "proven after the fact" in st_r12["history"][0]["verdict"]
+          and st_r12["history"][0]["verdict_credit"]["missed"] == 600.0,
+          st_r12["history"][0]["verdict"][:80])
+    # PER-COMPONENT DRAINAGE (sixth-round medium): one oversized sale
+    # proves only ITS OWN component — another pair leave waits
+    _split = dict(_hist)
+    _split["usd_left"] = {"missed": 305.0, "giveback": 200.0,
+                          "missed_exit": 0.0, "early_exit": 0.0,
+                          "system_burial": 0.0}
+    _split["left_pairs"] = {"missed": ["T/USD"], "giveback": ["OTHER/USD"],
+                            "missed_exit": [], "early_exit": [],
+                            "system_burial": []}
+    _split["left_entries"] = {"missed": {"T/USD": 1.0},
+                              "giveback": {"OTHER/USD": 1.0},
+                              "missed_exit": {}, "early_exit": {},
+                              "system_burial": {}}
+    _sold_file.write_text(_row("T/USD", 520.0), encoding="utf-8")
+    st_r13 = _mk(); st_r13["history"].append(dict(_split))
+    n13 = dc._resolve_prior_verdict(st_r13)
+    check("one oversized sale proves only its own component",
+          n13 == 1 and "proven after the fact"
+          not in st_r13["history"][0]["verdict"]
+          and "giveback" in st_r13["history"][0]["verdict"],
+          st_r13["history"][0]["verdict"][:90])
+finally:
+    if _sold_backup is None:
+        if _sold_file.exists():
+            _sold_file.unlink()
+    else:
+        _sold_file.write_text(_sold_backup, encoding="utf-8")
+
 # the bounds hold across many nudges
 state4 = {"weights": {"missed": 2.4}, "history": [], "lessons": []}
 for _ in range(5):

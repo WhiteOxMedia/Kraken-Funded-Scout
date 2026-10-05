@@ -59,6 +59,24 @@ STATE_FILE = Path(__file__).parent / "discipline_state.json"
 SUPPRESSION_FILE = Path(__file__).parent / "popup_suppressions.jsonl"
 VOICE_FILE = Path(__file__).parent / "voice_log.jsonl"
 
+# ── THE SELF-RESOLVING VERDICT (user rule, Oct 5: "we want the number
+# to be gave back $0 ... the calibration can hold"): an UNPROVEN lesson
+# is not the end — the money has not spoken YET. When a later
+# evaluation (the next rollover, the cooldown review) finds the prior
+# rotation's left-on-table money REALIZED — pairs that paid inside the
+# window later SOLD for real profit in the journal — and the window's
+# remaining leave has drained to dust, the stored lesson upgrades from
+# "unproven" to "stands": the verdict a day can earn retroactively.
+# CONSERVATIVE BY CONSTRUCTION: no journal evidence leaves every lesson
+# exactly as it was; a no-trade window can only resolve when realized
+# money OUTSIDE it PROVES the leave landed (buried payers are the
+# machine's leave — their own later sale proves the leave landed, not
+# the user's discipline).
+RESOLVE_DUST_USD = 1.0    # the same crumb the voice itself ignores
+RESOLVE_MIN_PROFIT_USD = 5.0   # the leave must land as REAL profit
+RESOLVE_MAX_LOOKBACK_DAYS = 3  # evidence older than this never joins
+RESOLVE_ENTRY_TOL = 0.10 # a sale proves THE opportunity only when its
+                        # entry is this close to the opportunity entry
 # the learned component weights (bounded; nudged by learn())
 DEFAULT_WEIGHTS = {
     "missed": 1.0,        # a paying popup never taken
@@ -553,7 +571,7 @@ def evaluate_rotation(exchange, rot_key: str, when=None, speak=True,
             system_burial.append({"pair": pair, "gate": s["gate"],
                                   "usd": balance * goal / 100.0,
                                   "goal_pct": goal, "paid": True,
-                                  "taken": False})
+                                  "taken": False, "entry": entry})
         elif (end - s["ts"]).total_seconds() < BURIAL_HORIZON_HOURS * 3600:
             # no evidence AND almost no horizon to find any — unjudged
             system_pending.append(
@@ -744,6 +762,10 @@ def evaluate_rotation(exchange, rot_key: str, when=None, speak=True,
     }
 
     # ── self-learning: when the score and the money disagree, adjust ──
+    # THE RESOLVER RUNS FIRST (the most recent unproven lesson gets
+    # first claim on the fresh evidence; this window's own result is
+    # not in the history yet, so it is never its own resolver)
+    _resolve_prior_verdict(state, start, end)
     record_burial_ledger(state, result)   # the seam's ledger: WHICH gate buried, how much
     lesson = _learn(state, result)
     result["lesson"] = lesson
@@ -758,6 +780,31 @@ def evaluate_rotation(exchange, rot_key: str, when=None, speak=True,
     # persist too (Sep 21): the cooldown review's per-asset layer and the
     # console's review plate read them — a burial with no pair named is
     # money the review can never attribute
+    # THE VERDICT RIDES THE ROW (the resolver’s inbox: the exact
+    # unproven language _learn rendered, so a later evaluation can
+    # upgrade the one lesson it proved) — and so does the PAIR
+    # EVIDENCE (the resolver’s join keys: which pairs the window
+    # itself left on the table, per component — a sale proves the
+    # leave only when it sells one of THESE)
+    _entry["verdict"] = lesson
+    _entry["left_pairs"] = {
+        "missed": [p.get("pair") for p in missed],
+        "giveback": [t.get("pair") for t in giveback],
+        "missed_exit": [t.get("pair") for t in missed_exit],
+        "early_exit": [],
+        "system_burial": [p.get("pair") for p in system_burial],
+    }
+    _entry["left_entries"] = {
+        "missed": {p.get("pair"): float(p.get("entry") or 0.0)
+                   for p in missed},
+        "giveback": {t.get("pair"): float(t.get("entry") or 0.0)
+                     for t in giveback},
+        "missed_exit": {t.get("pair"): float(t.get("entry") or 0.0)
+                        for t in missed_exit},
+        "early_exit": {},
+        "system_burial": {p.get("pair"): float(p.get("entry") or 0.0)
+                          for p in system_burial},
+    }
     _entry["usd_left"] = dict(result["usd_left"])   # the component map:
     # the cooldown review aggregates the DAY from these rows (Sep 21)
     # one entry per (date, rot) — re-evaluations replace (the plate shows
@@ -772,6 +819,189 @@ def evaluate_rotation(exchange, rot_key: str, when=None, speak=True,
     if speak:
         _speak_result(result, missed, missed_exit)
     return result
+
+
+def _resolve_prior_verdict(state: dict, current_start=None,
+                           current_end=None) -> int:
+    """The verdict resolver (Oct 5): find the most recent UNPROVEN
+    rotation lesson in the history, re-join its leave to the SOLD
+    journal as of NOW, and upgrade the lesson when the money has
+    spoken. Returns 0 (nothing changed) or 1 (a verdict moved).
+
+    THE PAIR-MATCHED JOIN (the second opinion medium, cured): a sale
+    proves a window leave only when the sold PAIR is one the window
+    itself named (left_pairs, the missed / giveback / missed_exit /
+    system_burial pairs the evaluation stored). Unrelated profit
+    proves nothing; a legacy row without the map never resolves. A
+    user-leave sale must sit INSIDE the window (the late-journaled
+    exit); a MARKED burial pair proves the leave wherever AFTER the
+    window it finally sold (the leave of the machine lands when the
+    pair pays, not when the journal writes). Each sale credits its
+    realized PROFIT (a fresh round-trip loss after the leave landed
+    is not this window leave), the credit debits the stored leave,
+    and the verdict moves only when its WORDS change (idempotent:
+    a re-review of an already graded window appends no duplicate
+    lesson).
+    ONE SALE PROVES ONE VERDICT (the fifth-round medium, cured): a
+    sale row is CONSUMED on use — its signature lands in the
+    state’s resolver-used ledger, and no later call may credit it
+    for ANOTHER verdict (the same pair buried on three days does not
+    turn one sale into three proofs).
+    Fail-soft: any broken read leaves the lesson untouched (0)."""
+    try:
+        rows = []
+        try:
+            _p = Path(__file__).parent / "contest_trades.jsonl"
+            for _line in _p.read_text(encoding="utf-8").splitlines():
+                if not _line.strip():
+                    continue
+                try:
+                    _t = json.loads(_line)
+                    if not _t.get("applied"):
+                        continue   # only a sale that COUNTED proves money
+                    _ts = datetime.fromisoformat(str(_t.get("sold_at", "")))
+                    if _ts.tzinfo is None:
+                        _ts = _ts.replace(tzinfo=MST)
+                    rows.append((_ts.astimezone(MST),
+                                 float(_t.get("pnl_net") or 0.0),
+                                 str(_t.get("pair") or ""),
+                                 float(_t.get("entry") or 0.0),
+                                 str(_t.get("pair") or "") + "|"
+                                 + str(_t.get("sold_at") or "")))
+                except Exception:
+                    continue
+        except Exception:
+            return 0
+        if not rows:
+            return 0
+        _floor = (_now() - timedelta(days=RESOLVE_MAX_LOOKBACK_DAYS))
+        _used_set = set(state.get("resolver_used_sales") or [])
+        for h in reversed(state.get("history") or []):
+            if h.get("rot") in (None, "", "DAY"):
+                continue
+            verdict = str(h.get("verdict") or "")
+            if "unproven" not in verdict:
+                continue
+            _d = h.get("date")
+            if not _d:
+                continue
+            try:
+                _s, _e = _rot_window(str(h.get("rot")),
+                                     datetime.strptime(_d, "%Y-%m-%d")
+                                     .replace(tzinfo=MST))
+            except Exception:
+                continue
+            if _s is None or _s < _floor:
+                continue   # unparseable, or older than the lookback
+            if current_start and _e >= current_start:
+                continue   # the window under evaluation now, not yet closed
+            usd = h.get("usd_left")
+            pairs_map = h.get("left_pairs")
+            if not (isinstance(usd, dict) and usd):
+                continue   # legacy row, no component map: never resolves
+            if not (isinstance(pairs_map, dict)
+                    and any(bool(v) for v in pairs_map.values())):
+                continue   # no pair evidence possible: never resolves
+            entries_map = (h.get("left_entries")
+                           if isinstance(h.get("left_entries"), dict)
+                           else {})   # opportunity entries: the join
+                                      # key for THE sale (a row written
+                                      # before this map keeps the
+                                      # pair-only semantics)
+            _left = round(sum(float(v) or 0.0 for v in usd.values()), 2)
+            if _left <= RESOLVE_DUST_USD:
+                continue   # nothing left to prove: not the resolver case
+            # ONE OPPORTUNITY-SALE PER (PAIR, COMPONENT), DRAINED
+            # PER-COMPONENT, ACCUMULATED ACROSS PASSES — the review
+            # mediums through six rounds: the leave is one missed move
+            # per pair, proven by THE sale that took it (entry within
+            # RESOLVE_ENTRY_TOL — an unrelated same-pair round trip
+            # entered elsewhere proves nothing), the pair's best
+            # qualifying sale (later round trips never stack past the
+            # pair's own drainage), the credit drains ONLY the
+            # components its pairs belong to (one oversized sale cannot
+            # prove another pair's unrealized leave), the running
+            # credit ACCUMULATES on the row (several smaller sales can
+            # combine to fully resolve a window), and the winning
+            # sales are CONSUMED (one sale proves one verdict, never
+            # the same-pair burial of another day).
+            _vc = (dict(h.get("verdict_credit"))
+                   if isinstance(h.get("verdict_credit"), dict) else {})
+            _credit = 0.0
+            _claimed = set()   # a pair already credited in one component
+            _used = []         # signatures this upgrade consumes
+            for _c, _pairs in pairs_map.items():
+                for _pair in (_pairs or []):
+                    if _pair in _claimed:
+                        continue
+                    _op = (entries_map or {}).get(_c, {}).get(_pair)
+                    _best = 0.0
+                    _best_sig = None
+                    for _ts, _pnl, _rp, _re, _sig in rows:
+                        if _rp != _pair or _pnl <= 0 or _sig in _used_set:
+                            continue
+                        if _op and not (
+                                abs(_re - _op) <= RESOLVE_ENTRY_TOL * _op):
+                            continue   # not THE opportunity
+                        if _c == "system_burial":
+                            if _ts >= _e and _pnl > _best:
+                                _best = _pnl
+                                _best_sig = _sig
+                        elif _s <= _ts < _e and _pnl > _best:
+                            _best = _pnl
+                            _best_sig = _sig
+                    if _best > 0:
+                        _credit = round(_credit + _best, 2)
+                        _vc[_c] = round(float(_vc.get(_c) or 0.0) + _best, 2)
+                        _claimed.add(_pair)
+                        _used.append(_best_sig)
+            if _credit < RESOLVE_MIN_PROFIT_USD:
+                continue   # no new evidence this pass: the words stay
+            # the credit drains only its own components; the verdict is
+            # proven when EVERY component's remainder is dust
+            _rem_map = {c: max(0.0, round(float(usd.get(c) or 0.0)
+                                          - float(_vc.get(c) or 0.0), 2))
+                        for c in pairs_map}
+            _rem = round(sum(_rem_map.values()), 2)
+            _run = round(sum(float(v) or 0.0 for v in _vc.values()), 2)
+            if _rem > RESOLVE_DUST_USD:
+                _stuck = ", ".join(f"{c} ${v:,.0f}"
+                                   for c, v in sorted(_rem_map.items())
+                                   if v > RESOLVE_DUST_USD)
+                _new = (f"unproven (partially resolved: ${_run:,.0f} of its "
+                        f"${_left:,.0f} realized, ${_rem:,.0f} still unproven "
+                        f"[{_stuck}] — the money is landing)")
+            else:
+                _new = (f"proven after the fact (score {h.get('score'):.0f}, "
+                        f"leave ${_left:,.0f} realized — the money "
+                        f"landed, the calibration stands)")
+            if _new == verdict:
+                continue   # already graded exactly this: no duplicate
+                           # lesson, and the embodied sale credit stays
+                           # live for the next better evidence
+            h["verdict"] = _new
+            h["verdict_ts"] = _now().isoformat()
+            h["verdict_credit"] = _vc   # the running credit:
+                                         # smaller sales COMBINE
+                                         # across passes
+            # the winning sales are CONSUMED: one sale proves one
+            # verdict, never the same-pair burial of another day
+            _ledger = state.setdefault("resolver_used_sales", [])
+            _ledger.extend(_used)
+            state["resolver_used_sales"] = _ledger[-200:]
+            _kind = ("partially proven" if _rem > RESOLVE_DUST_USD
+                     else "PROVEN after the fact")
+            _tail = ("the money is landing." if _rem > RESOLVE_DUST_USD
+                     else "the money landed, the calibration stands.")
+            state.setdefault("lessons", []).append(
+                {"ts": h["verdict_ts"],
+                 "lesson": f"Rotation {_d} {h.get('rot')} {_kind}: "
+                           f"${_credit:,.0f} of its ${_left:,.0f} leave "
+                           f"realized — {_tail}"})
+            return 1
+        return 0
+    except Exception:
+        return 0
 
 
 def _learn(state: dict, result: dict) -> str:
@@ -1019,6 +1249,10 @@ def cooldown_review(exchange=None, when=None, speak=True, dry_run=False,
     # ── 5. the adjustments ACTUALLY made today: the weight deltas from
     # the day's rotation lessons (the real calibration, not a wish)
     _deltas = _day_weight_deltas(state, _today)
+    # THE RESOLVER AT COOLDOWN (the night’s last look at today’s
+    # unproven lessons — the day’s own window no longer shadows them)
+    _resolve_prior_verdict(state)
+    state.setdefault("lessons", [])
 
     # ── 6b. THE PER-ASSET REVIEW (user spec, Sep 21: "review all the
     # assets and how they actually performed ... did we buy the top,
