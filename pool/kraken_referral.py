@@ -356,12 +356,25 @@ def sign_request(api_secret, path, nonce, body):
     tier). Callers now sign urlencode({**body, "nonce": nonce})."""
     api_secret = api_secret.strip().rstrip("=")
     api_secret += "=" * ((-len(api_secret)) % 4)
+    # THE OCT 5 REVIEW MINOR (strict decode + the empty key): b64decode
+    # without validate silently DROPS non-alphabet characters — a
+    # mangled secret decodes into a WRONG key and only fails at Kraken
+    # with a confusing EAPI:Invalid key — and an empty secret "signs"
+    # with an empty HMAC key. Both fail HERE, named, before any wire.
+    if not api_secret:
+        raise ValueError(
+            "KRAKEN_API_SECRET is empty — re-provision the secret from "
+            "Kraken's API settings page")
     try:
-        _key = base64.b64decode(api_secret)
+        _key = base64.b64decode(api_secret, validate=True)
     except ValueError as exc:
         raise ValueError(
             "KRAKEN_API_SECRET is not valid base64 — re-provision the "
             "secret from Kraken's API settings page") from exc
+    if not _key:
+        raise ValueError(
+            "KRAKEN_API_SECRET decodes to zero bytes — re-provision the "
+            "secret from Kraken's API settings page")
     # the scheme hashes BYTES: str(nonce) + the exact wire payload.
     # str bodies (the unit fixtures) and bytes bodies (the real caller,
     # which signs urlencode(...).encode()) both work; a dict still

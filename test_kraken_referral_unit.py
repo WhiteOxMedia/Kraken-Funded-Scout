@@ -61,6 +61,26 @@ try:
 except ValueError as _ve:
     check("3.2b", "not valid base64" in str(_ve),
           f"a secret that cannot decode raises a NAMED ValueError: {_ve}")
+# ── THE OCT 5 REVIEW MINOR (strict decode + the empty key): b64decode
+# without validate silently DROPS non-alphabet characters — a mangled
+# secret decodes into a WRONG key and only fails at Kraken with a
+# confusing EAPI:Invalid key; and an empty secret "signs" with an
+# empty HMAC key. Both must raise the NAMED config ValueError here.
+try:
+    kr.sign_request("ab" * 21 + "!!" + "ab" * 22 + "k=", "/p", 1, "b")
+    check("3.2c", False, "unreachable — invalid base64 chars must raise")
+except ValueError as _ve:
+    check("3.2c", "not valid base64" in str(_ve),
+          f"a secret with non-alphabet characters raises NAMED (strict "
+          f"decode, never a silently-dropped wrong key): {_ve}")
+for _empty in ("", "   ", "===="):
+    try:
+        kr.sign_request(_empty, "/p", 1, "b")
+        check("3.2d", False, f"unreachable for {repr(_empty)}")
+    except ValueError as _ve:
+        check("3.2d", "empty" in str(_ve).lower(),
+              f"an empty secret ({repr(_empty)}) raises NAMED — never an "
+              f"empty-HMAC-key signature: {_ve}")
 
 print("== 4. PROVIDER HONESTY ==")
 check(4.1, kr.provider_mode() == "unconfigured", "no creds -> unconfigured")
