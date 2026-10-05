@@ -3241,8 +3241,12 @@ def _render_gate_quality() -> None:
         _mr = r["payers"] / r["burials"]
         _tone = ("#ff5c5c" if _mr >= 0.40
                  else ("#e8b34b" if _mr >= 0.25 else "#3ddc84"))
+        # the gate name is TELEMETRY-FED payload (the commit-review
+        # [medium]): it rides unsafe_allow_html, so it goes through the
+        # house escaper like every other outside-the-console string —
+        # a hostile value renders as text, never as markup.
         _lines.append(
-            f"<span style='color:{_tone}'>{r['gate']}</span> "
+            f"<span style='color:{_tone}'>{_esc(r['gate'])}</span> "
             f"— {r['burials']} burials · {r['payers']} would-be payers "
             f"· <b style='color:{_tone}'>{_mr:.1%}</b> miss")
     st.markdown(

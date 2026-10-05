@@ -4114,6 +4114,22 @@ try:
               "then the gates' report card, then the forensics)",
               0 < _i_lp_gq < _i_gq < _i_bh_gq,
               (_i_lp_gq, _i_gq, _i_bh_gq))
+        # ── the escaper (the commit-review [medium]): a telemetry-fed
+        #    gate name is PAYLOAD — it rides unsafe_allow_html into the
+        #    browser and must be inert (the _esc contract: ledger ids,
+        #    statuses, gate names — every string from OUTSIDE the
+        #    console renders as text, never as markup)
+        _gq_tel.write_text(json.dumps(_gq_ev(
+            "2026-10-04-00-04", 12,
+            [("<img onerror=alert(1)>", 6, 0)])) + "\n",
+            encoding="utf-8")
+        _run_gq()
+        _gq_esc_md = "\n".join(_gq_md_calls)
+        check("a hostile gate name renders INERT (html-escaped payload, "
+              "never markup — the gate name comes from OUTSIDE the "
+              "console)",
+              "&lt;img" in _gq_esc_md and "<img" not in _gq_esc_md,
+              _gq_esc_md[:200])
     finally:
         if _real_tel_gq is not None:
             _ta_gq.TELEMETRY_PATH = _real_tel_gq
