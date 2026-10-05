@@ -323,6 +323,42 @@ check("the dial never breaks the trapdoor rail (2.0x tightens the "
       _air_strict["fail_gate"] == "floor"
       and "20.0% below" in _air_strict["fail_reason"],
       (_air_strict["fail_gate"], _air_strict["fail_reason"]))
+
+# ── 4c. THE CLIFF CAP (Oct 4 review on the dial's third hand): the
+#    scaled cushion can demand MORE room than the cliff allows — at
+#    dial-max the DEFAULT sinking cushion already lands exactly ON the
+#    cliff (1.5 x 2.0 == 3.0) and the band [cushion_req, floor_max]
+#    degenerates to a single point; a custom cushion above 1.5 empties
+#    it outright and the floor gate refuses every entry in a world with
+#    no satisfiable floor. The cap keeps a tenth-of-goal of band open
+#    under the cliff and names itself in the adjustments.
+fresh_map()
+_rules_old = co.RULES_FILE
+_rules_tmp = Path(tempfile.mkdtemp()) / "climb_rules.json"
+_rules_tmp.write_text(json.dumps(
+    {"floor_cushion": {"rising": 0.5, "flat": 1.6, "sinking": 1.5}}),
+    encoding="utf-8")
+co.RULES_FILE = str(_rules_tmp)
+try:
+    _cap_rows = with_pivots(list(base_rows), ceiling=final_px * 1.11,
+                            floor=final_px * 0.956, times=4)
+    _cap_res = co.climb_out_gate(_FakeEx(list(_cap_rows)), "TEST/USD",
+                                 entry=final_px, goal_pct=1.5, spend=1800.0,
+                                 tide_state="FLAT", strictness=2.0)
+finally:
+    co.RULES_FILE = _rules_old
+check("4c.1 the cushion never demands past the cliff: a custom flat "
+      "cushion (1.6) at dial-max caps a tenth-of-goal under the cliff — "
+      "a floor 4.4% below (inside the surviving [4.35, 4.5] band) "
+      "still clears the floor gate",
+      _cap_res["fail_gate"] != "floor",
+      (_cap_res["fail_gate"], _cap_res["fail_reason"],
+       _cap_res["adjustments"]))
+check("4c.2 the cap names itself in the adjustments (the operator "
+      "sees the cliff, not a silent clamp)",
+      any("cushion capped at the cliff" in a
+          for a in _cap_res["adjustments"]),
+      _cap_res["adjustments"])
 res_coil = co.climb_out_gate(_FakeEx(list(rows_base)), "TEST/USD",
                              entry=final_px, goal_pct=1.5, spend=1800.0,
                              is_coil=True, coil_ceiling=final_px * 1.04)

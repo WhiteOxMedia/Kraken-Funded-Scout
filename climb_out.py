@@ -410,16 +410,27 @@ def climb_out_gate(exchange, pair: str, entry: float, goal_pct: float,
                     direction = "rising"
                 elif float(fl_lows[-1]["price"]) < float(fl_lows[-2]["price"]) * 0.999:
                     direction = "sinking"
+            _floor_max = goal * float(rules["floor_max_goal_x"])
             cushion_req = (goal * float(rules["floor_cushion"][direction])
                            * max(0.1, float(strictness or 1.0)))
+            # THE CLIFF CAP (Oct 4 review on the dial's third hand): the
+            # scaled demand may never reach the cliff — at dial-max the
+            # DEFAULT sinking cushion lands exactly ON it (1.5 x 2.0 ==
+            # 3.0) and the band [cushion_req, floor_max] degenerates to
+            # a single point; a custom cushion above 1.5 empties it
+            # outright and the floor gate refuses every entry in a world
+            # with no satisfiable floor. A tenth-of-goal of band always
+            # stays open, and the cap names itself.
+            if cushion_req > _floor_max - 0.1 * goal:
+                cushion_req = _floor_max - 0.1 * goal
+                adj.append("cushion capped at the cliff")
             adj.append(f"floor {direction} -> cushion x{rules['floor_cushion'][direction]:.1f}")
             # THE DIAL'S THIRD HAND (Oct 4 audit): the min cushion scales
             # with the dial; the trapdoor MAX stays unscaled — a floor
             # too far below is a cliff at every strictness.
             if strictness != 1.0:
                 adj.append(f"cushion dial x{strictness:.1f}")
-            floor_ok = (fl_dist >= cushion_req
-                        and fl_dist <= goal * float(rules["floor_max_goal_x"]))
+            floor_ok = (fl_dist >= cushion_req and fl_dist <= _floor_max)
             stop = fl_px - (atr or 0.0)
             fl_reason = (f"floor ${fl_px:.4f} ({direction}, strength "
                          f"{float(fl.get('strength') or 0):.1f}) {fl_dist:.1f}% below — "
