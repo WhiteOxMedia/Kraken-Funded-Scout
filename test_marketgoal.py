@@ -77,12 +77,27 @@ def goal(candles, tide_mult=1.0):
         bs._goal_tide_mult = _orig
 
 
-# the ENGINE side for the test pair — read live (the universe median for
-# this rotation when the asset has no own cell); both sides of the min()
-# use the same value, so the assertions are exact
+# the ENGINE side for the test pair — HERMETIC (Oct 5, the battery's
+# marketgoal flake): the derivation reads the LIVE rotation_thresholds
+# .json, a file the volatility engine's own scheduled pass regenerates
+# MID-SWEEP — ENG captured at the top drifted against goal()'s later
+# re-reads when the file turned over underneath the run (the 45/1).
+# The threshold READ is pinned at the engine boundary: the stub answers
+# a fixed 2.0 for any pair/rotation/schedule and the REAL
+# _window_goal_pct math (the local import, the >0.2 guard, the [1,3]
+# clamp) runs on it — both sides of every min() see the same pinned
+# number for the whole drive, so the arithmetic is exact again. The
+# pin lives and dies with this process: the drive exits at the tail,
+# so no restore — the tide stub above keeps its save/restore because
+# its checks FLIP the value mid-drive; this one pins ONE value for
+# every engine read in the file.
+import volatility_engine as _ve
+_ve.get_move_threshold = lambda *a, **k: 2.0
 ENG = bs._window_goal_pct("T/USD")
-check("the engine side resolves (the universe median for unknown pairs)",
+check("the engine side resolves (the real derivation over a pinned threshold)",
       1.0 <= ENG <= 3.0, ENG)
+check("the pin holds: the engine side IS the pinned 2.0 (hermeticity itself)",
+      abs(ENG - 2.0) < 1e-9, ENG)
 
 # ── 1. the goal: the ENGINE number, capped by the week, × the TIDE ───
 # (tide pinned to 1.0 here — the BASE math; the tide's own math is
@@ -95,7 +110,7 @@ check("the week caps a stale engine ask: 1.2%/day week -> 1.2 base",
       abs(goal(day_candles([1.2] * 7)) - 1.2) < 0.01)
 check("the MEDIAN day rules (one wild day doesn't lift the cap)",
       abs(goal(day_candles([1.2, 1.2, 1.2, 30.0, 1.2, 1.2, 1.2])) - 1.2) < 0.01)
-check("the cap never exceeds the engine number (a 2.5%/day week, engine 1.5 -> 1.5)",
+check("the cap never exceeds the engine number (a 2.5%/day week, engine 2.0 -> 2.0)",
       abs(goal(day_candles([2.5] * 7)) - ENG) < 0.01)
 
 # ── 1b. THE TIDE'S SAY (user rule, Sep 4: "the goal should be based on
