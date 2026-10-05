@@ -97,7 +97,16 @@ disc.load_state = _real_load
 
 # ── E. aggregate learning: the day's burial pile-up moves the weight ──
 _st = _real_load()
-_w0 = float((_st.get("weights") or {}).get("system_burial", 1.0))
+# THE CAP HEADROOM FIX (Oct 4 battery): the pin rode the LIVE weight,
+# and the machine's real learning lifted system_burial to its own
+# W_MAX ceiling (2.5) — min(W_MAX, 2.5 x 1.1) == 2.5, so the fabricated
+# pile-up could not move it and the pin went red against a GREEN
+# machine (the raise branch ran; the lesson was written; the weight
+# was already at the boundary). Seed a known below-cap start: the
+# property under test is "the raise moves the SAME weight", not
+# "the machine happens to have headroom today".
+_st.setdefault("weights", {})["system_burial"] = 1.0
+_w0 = float(_st["weights"]["system_burial"])
 _st["history"] = (_st.get("history") or []) + [
     {"date": today, "rot": "08-12", "score": 35.0, "total_left": 60.0,
      "realized_pnl": -50.0, "balance_after": 10000.0,
