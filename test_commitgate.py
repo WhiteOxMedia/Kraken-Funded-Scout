@@ -251,6 +251,157 @@ check(1.14, "for src in app.py background_scanner.py meta_layers.py "
       "the support lane no longer stages every tracked hook + the "
       "doc-probe's inputs (diag_mutation_sweep, the doc, the journal)")
 
+# ════════ 1b. the sandbox copier survives the RUNNING tree ════════
+# (Oct 4: two battery sweeps in one afternoon died mid-copytree — the
+# scanner's os.replace churn unlinks state files during the walk and
+# the whole-tree call collects one ENOENT and dies; the whole-tree
+# retry just loses to a different file on pass two. The copier is
+# per-file: a transient vanish retries, a permanently gone VOLATILE-
+# named file is skipped and reported, and a missing CODE file still
+# raises — the sandbox never ships without the real code.)
+print("== 1b. the sandbox copier survives the live tree's replace churn ==")
+
+# Files whose NAME marks them live churn (state, db, logs, tmp): a
+# permanently-gone copy of one is a legitimate skip. Anything else
+# (the CODE) must never skip silently.
+_VOLATILE_COPY = ("*.tmp", "*.jsonl", "*.log", "*.pid", "*.db",
+                  "*.db-wal", "*.db-shm",
+                  "scanner_pulse.json", "scanner_state.json",
+                  "console_state.json", "payout_track.json",
+                  "carve_out.json", "auto_adjust_canary.json",
+                  "_flipgrade.json", "_tidebarweekly.json")
+
+
+def _resilient_copytree(src, dst, ignore=None, volatile=_VOLATILE_COPY,
+                        tries=4, pause=0.25, copy_file=None):
+    """copytree that survives the RUNNING machine (the Oct 4 lesson).
+
+    The whole-tree call collects one ENOENT from the scanner's
+    os.replace churn and dies; the whole-tree retry just loses to a
+    different file on the next pass. This walk copies file-by-file: a
+    transient vanish retries (the replace completes in microseconds),
+    a permanently gone file whose name is volatile is skipped and
+    returned in the skips list, and a missing file that is NOT
+    volatile still raises — the sandbox never ships without the real
+    code. Returns the skipped names."""
+    import fnmatch as _fnm
+    _copy = copy_file or shutil.copy2
+    skipped = []
+    for dirpath, dirnames, filenames in os.walk(src):
+        dead = set(ignore(dirpath, dirnames + filenames)) \
+            if ignore is not None else set()
+        dirnames[:] = [d for d in dirnames if d not in dead]
+        target = dst / Path(dirpath).relative_to(src)
+        try:
+            target.mkdir(parents=True, exist_ok=True)
+        except FileNotFoundError:
+            continue   # a dir vanished mid-walk: its files skip below
+        for fn in filenames:
+            if fn in dead:
+                continue
+            s, d = Path(dirpath) / fn, target / fn
+            for attempt in range(max(1, tries)):
+                try:
+                    _copy(s, d)
+                    break
+                except (FileNotFoundError, PermissionError):
+                    if attempt == tries - 1:
+                        if any(_fnm.fnmatch(fn, pat) for pat in volatile):
+                            skipped.append(str(Path(dirpath).relative_to(src)
+                                               / fn))
+                        else:
+                            raise
+                    else:
+                        time.sleep(pause)
+    return skipped
+
+
+def _pin(n, body, why):
+    """Run one copier pin: a regressed/absent copier must not crash
+    the drive (a crash would lose every later check's verdict)."""
+    try:
+        ok = body()
+    except Exception as _e:
+        ok = False
+        print(f"  ({type(_e).__name__}: {str(_e)[:90]})")
+    check(n, ok, why)
+
+
+def _fake_copy(fail_once_name=None, fail_always_names=()):
+    """A per-file copier simulating the replace window: fail_once
+    vanishes for exactly one attempt (the scanner's os.replace
+    completes in microseconds); fail_always never comes back."""
+    calls = {}
+
+    def _copy(s, d):
+        name = Path(s).name
+        calls[name] = calls.get(name, 0) + 1
+        if name in fail_always_names or (name == fail_once_name
+                                         and calls[name] == 1):
+            raise FileNotFoundError(
+                f"[Errno 2] simulated replace window: {s}")
+        shutil.copyfile(s, d)
+
+    return _copy
+
+
+def _make_tree(root):
+    # neutral fixture names on purpose: the leak audit (sink_hygiene
+    # 1.1 / diag_testleaks) statically flags write calls that name
+    # PRODUCTION files, and this fixture's write target is a temp dir.
+    # The production names live only in the copier's volatile constant.
+    (root / "sub").mkdir(parents=True)
+    (root / "a.txt").write_text("top")
+    (root / "sub" / "app.py").write_text("code")
+    (root / "live_a.json").write_text("{}")
+    (root / "live_b.json").write_text("{}")
+
+
+_tsrc = Path(tempfile.mkdtemp(prefix="copier_src_"))
+_make_tree(_tsrc)
+
+
+def _b16():
+    dst = Path(tempfile.mkdtemp(prefix="copier_dst_")) / "repo"
+    _resilient_copytree(_tsrc, dst, copy_file=_fake_copy("a.txt"))
+    return ((dst / "a.txt").read_text() == "top"
+            and (dst / "sub" / "app.py").exists())
+
+
+def _b17():
+    dst = Path(tempfile.mkdtemp(prefix="copier_dst_")) / "repo"
+    return _resilient_copytree(_tsrc, dst,
+                               copy_file=_fake_copy("a.txt")) == []
+
+
+def _b18():
+    dst = Path(tempfile.mkdtemp(prefix="copier_dst_")) / "repo"
+    skips = _resilient_copytree(
+        _tsrc, dst, volatile=("live_a.json",),
+        copy_file=_fake_copy(fail_always_names=("live_a.json",)))
+    return ("live_a.json" in skips
+            and (dst / "a.txt").exists()
+            and (dst / "sub" / "app.py").exists())
+
+
+def _b19():
+    dst = Path(tempfile.mkdtemp(prefix="copier_dst_")) / "repo"
+    try:
+        _resilient_copytree(
+            _tsrc, dst,
+            copy_file=_fake_copy(fail_always_names=("app.py",)))
+    except FileNotFoundError:
+        return not (dst / "sub" / "app.py").exists()
+    return False
+
+
+_pin(1.16, _b16, "a transiently vanished file must land (the retry)")
+_pin(1.17, _b17, "a transient vanish is not reported as a skip")
+_pin(1.18, _b18, "a permanently gone VOLATILE state file is skipped "
+     "and reported — the copy completes")
+_pin(1.19, _b19, "a missing CODE file raises — the sandbox never "
+     "ships without the real code")
+
 if not RERUN:
     # ════════ 2. behavioral sandbox: the gate body, run for real ════════
     print("== 2. sandbox: the gate runs live in a scratch repo ==")
@@ -267,11 +418,14 @@ if not RERUN:
     _repo = Path(_pp.split(";")[-1]) if _pp else HERE
     if not (_repo / "app.py").exists():   # a real repo, not a bare fallback
         _repo = HERE
-    shutil.copytree(
-        _repo, sandbox, dirs_exist_ok=True,
+    _cp_skips = _resilient_copytree(
+        _repo, sandbox,
         ignore=shutil.ignore_patterns(
-            ".git", ".venv", "logs", "battery_history", "__pycache__",
-            "speech_queue", "*.wav"))
+            ".git", ".venv", "logs", "battery_history",
+            "__pycache__", "speech_queue", "scratch", "*.wav"))
+    if _cp_skips:
+        print(f"  (sandbox copy skipped {len(_cp_skips)} live-churn "
+              f"file(s): {', '.join(sorted(set(_cp_skips))[:8])})")
 
     def _git(*args):
         return subprocess.run(["git", *args], cwd=str(sandbox),

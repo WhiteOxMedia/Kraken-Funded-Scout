@@ -148,6 +148,17 @@ PER_ENTRY_TIMEOUT = 420   # seconds; a hung suite fails instead of hanging
 # suite trending toward its budget visible BEFORE the trip.
 TIMEOUT_OVERRIDES = {
     "test_apptest": 900,
+    # test_commitgate (Oct 4): the doc-journal consistency probe (93
+    # checks, both directions) tripled the suite's honest weight — 166s
+    # to ~297s, stable across the Oct-4 runs — while the lanes manifest
+    # still carries a stale 9-run mean (166.3s), so the measured formula
+    # hands it 3x166=498s and every honest pass sits at 60% of the
+    # ceiling: the WARN band fires on healthy runs. The override floors
+    # the budget at 720s (an honest run is ~41% of it again); the
+    # measured formula still raises above the floor the moment the
+    # manifest mean grows past 240s (test_batterybudget 2.7/2.8 pin
+    # both directions).
+    "test_commitgate": 720,
 }
 WARN_FRACTION = 0.5       # PASS using >50% of budget gets a WARN in its detail
 
@@ -321,7 +332,7 @@ def _history_record(rows, mode: str, wall_s: float) -> dict:
         else:
             n_fail += 1
             failures.append({"name": name, "status": st,
-                             "detail": str(det)[:200]})
+                             "detail": str(det)[:400]})
         if "WARN:" in str(det):
             warns.append({"name": name, "detail": str(det)[:160]})
     return {
@@ -601,7 +612,21 @@ def run_entry(path: Path, cap: int | None = None):
     if p.returncode != 0:
         tail = (p.stdout or "").strip().splitlines()[-3:]
         err = (p.stderr or "").strip().splitlines()[-2:]
-        detail = " | ".join(tail + err)[:160]
+        detail = " | ".join(tail + err)[:400]
+        # THE FULL-LOG RULE (Oct 4): the 160-char detail left the
+        # tidebarweekly battery failure untriageable — the real
+        # traceback never survived the cap. The complete stdout+stderr
+        # lands in scratch/ (never staged) keyed by suite name.
+        try:
+            _logdir = SCOUT / "scratch" / "battery_suite_logs"
+            _logdir.mkdir(parents=True, exist_ok=True)
+            (_logdir / f"{path.stem}.log").write_text(
+                f"--- exit {p.returncode} ---\n"
+                f"===== STDOUT =====\n{p.stdout or ''}\n"
+                f"===== STDERR =====\n{p.stderr or ''}",
+                encoding="utf-8")
+        except OSError:
+            pass   # the capped detail above still triages
         return "FAIL", dt, detail
     out = p.stdout or ""
     # THE OUTPUT-AWARE VERDICT (the fleet-honesty fix above): the exit

@@ -443,7 +443,23 @@ real_out = tbw.OUT_FILE
 # the production report's byte snapshot: the final guard checks the
 # battery never touched production — format-independently (an anchor
 # prose string goes stale whenever the writer's format evolves)
-_prod_out_bytes = real_out.read_bytes() if real_out.exists() else None
+# THE LIVE-WRITER RACE (Oct 4 battery, dead 8.7s in): the app's weekly
+# plate writer replaces this file while the suite runs — an exists()
+# probe can still lose the window and the read dies with an unhandled
+# FileNotFoundError. Retry once (the writer's window is microscopic),
+# then grade on what parsed (None): the byte-stable guard compares
+# like with like either way.
+def _out_bytes():
+    for _attempt in (0, 1):
+        try:
+            return real_out.read_bytes() if real_out.exists() else None
+        except FileNotFoundError:
+            if _attempt == 0:
+                time.sleep(0.5)
+    return None
+
+
+_prod_out_bytes = _out_bytes()
 sandbox = BASE / "_test_tbw_dir"
 # hermetic runs: a crashed earlier run (NameError, ^C mid-battery) must
 # not leave its ledgers behind for this run to trip over
@@ -1806,8 +1822,7 @@ finally:
 # the production report was never touched by a test: the byte snapshot
 # taken before the sandbox block must be UNCHANGED after it
 check("the production report was never written by a test (byte-stable)",
-      (real_out.read_bytes() if real_out.exists() else None)
-      == _prod_out_bytes)
+      _out_bytes() == _prod_out_bytes)
 
 # ── 7. THE BENCH'S FINAL VERDICT (Sep 12): a full report_now() bench
 #    arc — the flip-back EVENT RECORD snapshots the bench's OPEN live

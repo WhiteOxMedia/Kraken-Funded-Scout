@@ -89,6 +89,30 @@ try:
             {"test_costdrivers": {"secs": 280.9, "runs": 5}}), encoding="utf-8")
         check(2.6, 280.9 < 0.5 * rb.budget_for("test_costdrivers"),
               "the honest mean must sit under the WARN band again")
+
+        # 2.7 THE COMMITGATE FLOOR (Oct 4, red-first): the doc-journal
+        # consistency probe (93 checks, both-directions) landed in the
+        # Oct-3 wave and the suite's honest weight tripled — 166s ->
+        # ~297s, two runs stable, and 296s of its stale 498s budget
+        # (3x the 9-run stale manifest mean) is 60% of the ceiling: a
+        # WARN band every honest run now trips. The override floors
+        # that budget at 720s — the stale mean can never re-trip the
+        # band — while the measured formula still raises ABOVE it the
+        # moment the manifest mean grows past 240s (the growth
+        # direction keeps its meaning; 2.4's contract, second suite).
+        sbx.write_text(json.dumps(
+            {"test_commitgate": {"secs": 166.3, "runs": 9}}), encoding="utf-8")
+        check(2.7, rb.budget_for("test_commitgate") == 720,
+              "the stale 498s formula must not stand under the 720s "
+              f"override, got {rb.budget_for('test_commitgate')}")
+        sbx.write_text(json.dumps(
+            {"test_commitgate": {"secs": 297.0, "runs": 3}}), encoding="utf-8")
+        check(2.8, rb.budget_for("test_commitgate") == 891,
+              "a grown mean (3x297=891) must raise ABOVE the override "
+              f"— the floor is not a ceiling, got "
+              f"{rb.budget_for('test_commitgate')}")
+        check(2.9, 297.0 < 0.5 * rb.budget_for("test_commitgate"),
+              "the honest ~297s weight sits under the WARN band again")
 finally:
     rb.LANES_MANIFEST = _mf   # the real manifest, always restored
 
