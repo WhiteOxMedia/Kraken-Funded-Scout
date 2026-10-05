@@ -3956,6 +3956,176 @@ if _real_arch_fn is not None:
 # green, mutants KILLED.
 
 try:
+    # ── THE GATE QUALITY PLATE (Oct 4, red-first, user ask): the
+    #    weekly per-gate funnel report card, LIVE on the console —
+    #    burials / would-be payers / miss rate per gate over the
+    #    trailing week. The data source is the auto-adjust telemetry
+    #    journal (the same per-gate rows the boundary hook emits each
+    #    4h rotation; the funnel audit graded these by hand — now the
+    #    console carries them). House seams: the plate reads through
+    #    _gate_quality_weeks (the seam the drives patch via
+    #    telemetry_adjust.TELEMETRY_PATH, the test_telemetry idiom),
+    #    fail-soft like every plate, and the per-window MAX-B
+    #    snapshot dedupes the journal's re-emitted rotation rows (the
+    #    SAME window re-emits on every apply/queue/refuse
+    #    re-evaluation — a naive sum double-counts it).
+    import telemetry_adjust as _ta_gq
+    _real_tel_gq = getattr(_ta_gq, "TELEMETRY_PATH", None)
+    _gq_sbx = Path(tempfile.mkdtemp())
+    _gq_tel = _gq_sbx / "telemetry.jsonl"
+    try:
+        _now_gq = datetime.now().astimezone()
+
+        def _gq_ev(rot, hours_ago, gates):
+            return {"event": "auto_adjust", "rotation_id": rot,
+                    "timestamp": (_now_gq - timedelta(
+                        hours=hours_ago)).isoformat(),
+                    "status": "applied", "reason": "ok",
+                    "per_gate": [{"gate": g, "B_g": b, "P_g": p,
+                                  "r_g": (p / b) if b else None}
+                                 for g, b, p in gates]}
+
+        _gq_tel.write_text("\n".join(json.dumps(e) for e in [
+            # a rotation re-emitted mid-window: the small read first,
+            # the full-window aggregate later — the MAX-B snapshot
+            # must win, never the sum (3+13=18 would be a lie)
+            _gq_ev("2026-10-03-04-08", 8, [("tide-out", 3, 1),
+                                           ("stale-move", 5, 0)]),
+            _gq_ev("2026-10-03-04-08", 6, [("tide-out", 13, 8),
+                                           ("stale-move", 5, 0),
+                                           ("deep-veto", 4, 1)]),
+            # a second, older-in-week window
+            _gq_ev("2026-10-01-12-16", 30, [("tide-out", 2, 2),
+                                            ("worth-floor", 1, 0)]),
+            # OUTSIDE the trailing week: must never count
+            _gq_ev("2026-09-20-00-04", 24 * 10,
+                   [("tide-out", 100, 100)]),
+        ]) + "\nnot json\n", encoding="utf-8")
+        _ta_gq.TELEMETRY_PATH = _gq_tel
+        _gq_fn = getattr(app_mod, "_gate_quality_weeks", None)
+        check("the gate-quality seam exists (_gate_quality_weeks — "
+              "the plate never reads the journal raw)",
+              callable(_gq_fn), _gq_fn)
+        _gq_rows = _gq_fn(days=7) if callable(_gq_fn) else None
+        _gq_by = {r.get("gate"): r for r in (_gq_rows or [])}
+        _to = _gq_by.get("tide-out")
+        check("the per-window MAX-B snapshot dedupes the re-emitted "
+              "rotation and skips torn lines (tide-out burials 15 — "
+              "the naive sum 18 and the junk line both avoided)",
+              _to is not None and _to.get("burials") == 15,
+              _gq_rows)
+        check("the aggregate sums the deduped windows per gate "
+              "(tide-out: 15 burials, 10 would-be payers, 66.7% "
+              "refusal-miss rate = P/B, the audit's own column)",
+              _to is not None and _to.get("payers") == 10
+              and abs((_to.get("miss_rate") or 0) - 10 / 15) < 1e-9,
+              _to)
+        check("the trailing-week window filters old rows (the "
+              "10-day-old rotation's 100/100 never counts, even "
+              "though it would dominate)",
+              _to is not None and _to.get("burials") != 115,
+              _to)
+        check("worst money-missers sort first (tide-out 10 payers, "
+              "then deep-veto 1, then the zero-payer gates by "
+              "burials: stale-move before worth-floor)",
+              [r.get("gate") for r in (_gq_rows or [])]
+              == ["tide-out", "deep-veto", "stale-move", "worth-floor"],
+              [r.get("gate") for r in (_gq_rows or [])])
+        check("a gate with burials but zero payers renders a 0% miss "
+              "honestly (stale-move: 5 burials, 0 payers)",
+              _gq_by.get("stale-move", {}).get("miss_rate") == 0.0
+              and _gq_by.get("stale-move", {}).get("burials") == 5,
+              _gq_by.get("stale-move"))
+        # ── the render: subheader + one monospace block + the week
+        #    total, captured through st like the learning plate
+        _gq_md_calls, _gq_cap_calls, _gq_sub_calls = [], [], []
+        _real_md_gq = app_mod.st.markdown
+        _real_cap_gq = app_mod.st.caption
+        _real_sub_gq = app_mod.st.subheader
+
+        def _run_gq():
+            _gq_md_calls.clear(), _gq_cap_calls.clear(), \
+                _gq_sub_calls.clear()
+            app_mod.st.markdown = \
+                lambda t, **k: _gq_md_calls.append(t)
+            app_mod.st.caption = lambda t, **k: _gq_cap_calls.append(t)
+            app_mod.st.subheader = \
+                lambda t, **k: _gq_sub_calls.append(t)
+            try:
+                app_mod._render_gate_quality()
+            finally:
+                app_mod.st.markdown, app_mod.st.caption, \
+                    app_mod.st.subheader = _real_md_gq, _real_cap_gq, \
+                    _real_sub_gq
+
+        _run_gq()
+        _gq_md = "\n".join(_gq_md_calls)
+        check("the plate renders the per-gate rows (every gate with "
+              "its burial / would-be-payer / miss-rate numbers, "
+              "worst first)",
+              len(_gq_sub_calls) == 1 and "Gate quality" in _gq_sub_calls[0]
+              and "tide-out" in _gq_md and "15 burials" in _gq_md
+              and "10 would-be payers" in _gq_md and "66.7%" in _gq_md
+              and 0 <= _gq_md.find("tide-out") < _gq_md.find("deep-veto")
+              < _gq_md.find("stale-move") < _gq_md.find("worth-floor"),
+              (_gq_sub_calls, _gq_md[:300]))
+        check("the week total names the funnel's miss count against "
+              "the bar (11 would-be payers across 25 burials, 44%, "
+              "the r 0.25 tighten-bar named)",
+              "11" in "\n".join(_gq_cap_calls)
+              and "25" in "\n".join(_gq_cap_calls)
+              and "44%" in "\n".join(_gq_cap_calls)
+              and "0.25" in "\n".join(_gq_cap_calls), _gq_cap_calls)
+        # ── the rails: collecting, missing file, broken seam
+        _gq_tel.write_text("", encoding="utf-8")
+        _gq_empty = _gq_fn(days=7) if callable(_gq_fn) else "?"
+        check("an empty journal fails soft to an empty list (the "
+              "plate renders collecting, never invented numbers)",
+              _gq_empty == [], _gq_empty)
+        _ta_gq.TELEMETRY_PATH = _gq_sbx / "absent.jsonl"
+        _gq_missing = _gq_fn(days=7) if callable(_gq_fn) else "?"
+        check("a missing journal file fails soft the same way (an "
+              "honest empty, never an exception through the page)",
+              _gq_missing == [], _gq_missing)
+        _ta_gq.TELEMETRY_PATH = _gq_tel
+        _real_gq_fn = _gq_fn
+
+        def _boom_gq(days=7):
+            raise RuntimeError("telemetry probe")
+
+        if callable(_real_gq_fn):
+            app_mod._gate_quality_weeks = _boom_gq
+        _run_gq()
+        if callable(_real_gq_fn):
+            app_mod._gate_quality_weeks = _real_gq_fn
+        check("a broken seam read degrades the plate only (an "
+              "unreadable line, the subheader stands, the page "
+              "never crashes)",
+              len(_gq_sub_calls) == 1
+              and any("unreadable" in c for c in _gq_cap_calls)
+              and not _gq_md_calls, (_gq_sub_calls, _gq_cap_calls))
+        _m_gq_src = (BASE / "app.py").read_text(
+            encoding="utf-8").replace("\r\n", "\n")
+        _i_lp_gq = _m_gq_src.find("\n    _render_learning_plate()")
+        _i_gq = _m_gq_src.find("\n    _render_gate_quality()")
+        _i_bh_gq = _m_gq_src.find("\n    _render_burial_hindsight()")
+        check("the plate mounts in the MASTER flow between the "
+              "learning plate and the burial strip (the calibration, "
+              "then the gates' report card, then the forensics)",
+              0 < _i_lp_gq < _i_gq < _i_bh_gq,
+              (_i_lp_gq, _i_gq, _i_bh_gq))
+    finally:
+        if _real_tel_gq is not None:
+            _ta_gq.TELEMETRY_PATH = _real_tel_gq
+        else:
+            if hasattr(_ta_gq, "TELEMETRY_PATH"):
+                del _ta_gq.TELEMETRY_PATH
+        import shutil as _shutil_gq
+        _shutil_gq.rmtree(_gq_sbx, ignore_errors=True)
+except Exception as exc:
+    check("the gate-quality pins ran", False, exc)
+
+try:
     out = BASE / "apptest_check.txt"
     out.write_text("\n".join(lines)
                    + "\n" + "\n".join(

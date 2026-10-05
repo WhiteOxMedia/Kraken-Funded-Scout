@@ -2496,6 +2496,15 @@ def render_master(cfg: TradingConfig, kraken):
     # degrades, the plate stands.
     _render_learning_plate()
 
+    # 🎯 THE GATE QUALITY PLATE (Oct 4, user ask): the weekly per-gate
+    # miss-rate report card — burials / would-be payers / miss rate per
+    # gate, worst money-misser first, the week total against the r 0.25
+    # bar. The funnel audit's table, live: the calibration above shows
+    # HOW the machine tuned; this shows WHERE the gates' refusals cost
+    # money. Reads the auto-adjust telemetry through _gate_quality_weeks
+    # (fail-soft like every plate).
+    _render_gate_quality()
+
     # 🪦 BURIAL HINDSIGHT (Sep 28, user ask): did the gates' refusals
     # cost money? — the recent suppression ledger priced through the
     # verdict study's join (n, payer-rate, per-gate, top payers).
@@ -3132,6 +3141,123 @@ def _render_learning_plate() -> None:
                     f"({_vals[-1] - _vals[0]:+.2f})")
     except Exception as exc:
         logger.debug("learning plate skipped: %s", exc)
+
+
+def _gate_quality_weeks(days: int = 7) -> list[dict]:
+    """THE GATE QUALITY SEAM (Oct 4, user ask): the weekly per-gate
+    funnel report card, read from the auto-adjust telemetry journal —
+    the same per-gate rows the rotation-boundary hook emits each 4h
+    window (B_g burials, P_g would-be payers per gate). One row per
+    gate: {gate, burials, payers, miss_rate} with miss_rate = P/B —
+    the audit's refusal-miss column, the share of burials that would
+    have paid: the money the gate turned away. The journal RE-EMITS a
+    rotation window on every apply/queue/refuse re-evaluation, so each
+    window contributes its MAX-B snapshot ONCE (a naive sum would
+    count the same window once per re-emission). Fail-soft: a missing,
+    empty, torn or unreadable journal is an honest empty list."""
+    import telemetry_adjust as _ta
+
+    def _iv(v) -> int:
+        return int(v) if isinstance(v, (int, float)) \
+            and not isinstance(v, bool) else 0
+
+    try:
+        rows = _ta.read_events()
+    except Exception as exc:
+        logger.debug("gate-quality read skipped: %s", exc)
+        return []
+    cutoff = datetime.now().astimezone() - timedelta(days=max(1, int(days)))
+    best: dict[str, dict] = {}   # rotation_id -> its max-B snapshot
+    for ev in rows:
+        if not isinstance(ev, dict) or ev.get("event") != "auto_adjust":
+            continue
+        per_gate = ev.get("per_gate")
+        if not isinstance(per_gate, list) or not per_gate:
+            continue
+        try:
+            ts = datetime.fromisoformat(str(ev.get("timestamp") or ""))
+        except Exception:
+            continue
+        if ts.tzinfo is None:
+            ts = ts.astimezone()
+        if ts < cutoff:
+            continue
+        rid = str(ev.get("rotation_id") or "")
+        b_tot = sum(_iv(g.get("B_g")) for g in per_gate
+                    if isinstance(g, dict))
+        prev = best.get(rid)
+        if prev is None or b_tot > prev["b_tot"] or (
+                b_tot == prev["b_tot"] and ts > prev["ts"]):
+            best[rid] = {"ts": ts, "b_tot": b_tot, "per_gate": per_gate}
+    agg: dict[str, dict[str, int]] = {}
+    for snap in best.values():
+        for g in snap["per_gate"]:
+            if not isinstance(g, dict) or not g.get("gate"):
+                continue
+            slot = agg.setdefault(str(g["gate"]),
+                                  {"burials": 0, "payers": 0})
+            slot["burials"] += _iv(g.get("B_g"))
+            slot["payers"] += _iv(g.get("P_g"))
+    out = []
+    for gate, s in agg.items():
+        if s["burials"] <= 0:
+            continue          # zero-B rows are the hook's pad, not data
+        out.append({"gate": gate, "burials": s["burials"],
+                    "payers": s["payers"],
+                    "miss_rate": s["payers"] / s["burials"]})
+    out.sort(key=lambda r: (-r["payers"], -r["burials"], r["gate"]))
+    return out
+
+
+def _render_gate_quality() -> None:
+    """THE GATE QUALITY PLATE (Oct 4, user ask): the weekly per-gate
+    miss-rate report card, live on the console — for every gate, the
+    burials, the WOULD-BE PAYERS (the buried candidates hindsight
+    priced as having reached their run), and the miss rate — the share
+    of burials that would have paid: the money the gate turned away.
+    Worst money-missers sort first; the week total sits against the
+    machine's own r 0.25 tighten bar. Fail-soft like every plate: a
+    broken read degrades to an unreadable line, the page never
+    crashes."""
+    try:
+        rows = _gate_quality_weeks(days=7)
+    except Exception as exc:
+        logger.debug("gate-quality plate skipped: %s", exc)
+        rows = None
+    st.subheader("🎯 Gate quality — the week's per-gate miss rate",
+                 divider="gray")
+    if rows is None:
+        st.caption("gate quality — unreadable: the telemetry journal "
+                   "could not be read; the plate degrades, the page "
+                   "stands.")
+        return
+    if not rows:
+        st.caption("gate quality — collecting: no per-gate rows in the "
+                   "trailing week yet (the rotation-boundary hook emits "
+                   "them each 4h rotation).")
+        return
+    _lines = []
+    for r in rows:
+        _mr = r["payers"] / r["burials"]
+        _tone = ("#ff5c5c" if _mr >= 0.40
+                 else ("#e8b34b" if _mr >= 0.25 else "#3ddc84"))
+        _lines.append(
+            f"<span style='color:{_tone}'>{r['gate']}</span> "
+            f"— {r['burials']} burials · {r['payers']} would-be payers "
+            f"· <b style='color:{_tone}'>{_mr:.1%}</b> miss")
+    st.markdown(
+        "<div style='font-family:Share Tech Mono,monospace;font-size:13px;"
+        "color:#d8ccb4;line-height:1.6;'>"
+        + "<br>".join(_lines) + "</div>",
+        unsafe_allow_html=True)
+    tot_b = sum(r["burials"] for r in rows)
+    tot_p = sum(r["payers"] for r in rows)
+    st.caption(
+        f"the week: {tot_p} would-be payers across {tot_b} burials — "
+        f"{tot_p / tot_b:.0%} of the gates' refusals would have paid "
+        f"(the machine's own tighten bar is r 0.25; at or under it the "
+        f"auto-adjust freezes). One week, hindsight-priced, not a "
+        f"promise.")
 
 
 def _render_burial_hindsight() -> None:
