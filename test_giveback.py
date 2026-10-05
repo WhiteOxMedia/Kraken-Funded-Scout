@@ -365,6 +365,199 @@ finally:
     _aa1b.apply_adjustment = _real_apply5
     bs.CONTEST_TRADES_FILE = _real_ctf5
 
+# ── 6. THE TIERED GIVE-BACK RESPONSE (Oct 5, user ask): the 13:42
+#    line exposed the gap — the day's ONE tighten had fired at 12:46,
+#    before the 13:01 peak, so the second erosion leg had no knob
+#    until midnight. TWO cures: the tighten RE-ARMS at 2x the trigger
+#    (tier 2, its own rotation_id so the rails' once-per-day dedupe
+#    cannot refuse it), and the armed trails' half-goal floor
+#    TIGHTENS for the rest of the day once the day's tighten is
+#    spent (GIVEBACK_TRAIL_FLOOR_FRAC per spent tier).
+import profit_guard as _pg6
+import auto_adjust as _aa6
+import telemetry_adjust as _ta6
+import contest_account as _ca6
+from background_scanner import _track_day_giveback as _tgd6
+# the trigger is PINNED (the hermeticity lesson — a live tier change
+# under the drive would move every erosion face): the 10k tier, 20.0
+_real_thr6 = _ca6.giveback_thresholds
+_ca6.giveback_thresholds = lambda: (20.0, 10.0)
+_sbx6 = Path(tempfile.mkdtemp())
+_pg6.STATE_FILE = _sbx6 / "pg_state.json"
+_ta6.TELEMETRY_PATH = _sbx6 / "telemetry.jsonl"
+_real_ctf6 = bs.CONTEST_TRADES_FILE
+bs.CONTEST_TRADES_FILE = str(_sbx6 / "contest_trades.jsonl")
+_calls6 = []          # (delta, rotation_id) per attempt
+
+
+def _stub_apply6(delta, rotation_id="", evidence_checksum="",
+                 per_gate=None, auto=True, override_concentration=False,
+                 params=None):
+    _calls6.append((delta, rotation_id, _ca6.giveback_thresholds()))
+    return {"status": "applied", "reason": "ok", "delta": delta,
+            "before": 1.0, "after": 1.0 + delta}
+
+
+_real_apply6 = _aa6.apply_adjustment
+_aa6.apply_adjustment = _stub_apply6
+_today6 = datetime.now(MST).strftime("%Y-%m-%d")
+try:
+    Path(bs.CONTEST_TRADES_FILE).write_text(
+        json.dumps({"sold_at": f"{_today6}T10:00:00-06:00",
+                    "pnl_net": 0.0, "applied": True}) + "\n",
+        encoding="utf-8")
+    # 6a. THE LADDER IS BORN: tier 1 fires exactly as before and the
+    #     watermark now carries the count the ladder walks.
+    _pg6._save({"giveback": {"day": _today6, "peak_total": 0.0,
+                             "now_total": 0.0, "give_back": 0.0,
+                             "tightened": False}})
+    _tgd6(30.0)
+    _gb6a = _tgd6(5.0)          # erosion 25 >= trigger 20 -> tier 1
+    check("6a tier 1: the first crossing fires once and BIRTHS the "
+          "count (tightens == 1, tier stamp 1, the classic rotation_id)",
+          _gb6a.get("tightened") is True and _gb6a.get("tightens") == 1
+          and _gb6a.get("tighten", {}).get("tier") == 1
+          and len(_calls6) == 1
+          and _calls6[0][1] == f"giveback-{_today6}", _gb6a)
+    # 6b. THE 13:42 SHAPE, WHOLE: tier 1 fires early; a leg between
+    #     1x and 2x re-fires NOTHING (the gap the afternoon lived in);
+    #     2x RE-ARMS the tighten under its own rotation_id; and past
+    #     the re-arm the ladder CEILS (no tier 3 — the ask's one
+    #     re-arm; the floor factor is what keeps tightening).
+    _pg6._save({"giveback": {"day": _today6, "peak_total": 0.0,
+                             "now_total": 0.0, "give_back": 0.0,
+                             "tightened": False}})
+    _calls6.clear()
+    _tgd6(100.0)                 # the day peaks at +100
+    _tgd6(78.0)                  # erosion 22 -> tier 1
+    _n_t1 = len(_calls6)         # the tier-1 watermark for the counters
+    _gb6b2 = _tgd6(65.0)         # erosion 35 (1.75x) -> the GAP: silence
+    check("6b the gap: after tier 1, a 1.75x leg re-fires NOTHING",
+          _gb6b2.get("tightens") == 1 and len(_calls6) == _n_t1,
+          (_gb6b2, list(_calls6)))
+    _gb6b3 = _tgd6(55.0)         # erosion 45 (2.25x) -> tier 2
+    check("6b the re-arm: give_back at 2x+ fires the SECOND tighten "
+          "under its own tier rotation_id",
+          _gb6b3.get("tightens") == 2
+          and _gb6b3.get("tighten", {}).get("tier") == 2
+          and len(_calls6) == _n_t1 + 1
+          and _calls6[-1][1] == f"giveback-{_today6}-tier2"
+          and _calls6[-1][0] < 0, (_gb6b3, list(_calls6)))
+    _gb6b4 = _tgd6(20.0)         # erosion 80 (4x) -> CEIL: no tier 3
+    check("6b the ceiling: a 4x leg after the re-arm fires NO third "
+          "tier (the ladder stops where the ask stops it)",
+          _gb6b4.get("tightens") == 2 and len(_calls6) == _n_t1 + 1,
+          (_gb6b4, list(_calls6)))
+    check("6b the tier-1 identity is untouched (same rotation_id, no "
+          "tier suffix on the first attempt)",
+          _calls6[0][1] == f"giveback-{_today6}", _calls6[0])
+    # 6c. BACK-COMPAT: the LIVE mid-day state has tightened=True and
+    #     no tightens key (the 12:46 row) — the ladder reads it as
+    #     tier 1 spent and the re-arm arms at 2x.
+    _pg6._save({"giveback": {"day": _today6, "peak_total": 0.0,
+                             "now_total": 0.0, "give_back": 0.0,
+                             "tightened": True}})
+    _calls6.clear()
+    _tgd6(100.0)
+    _gb6c = _tgd6(55.0)          # erosion 45 >= 2x -> tier 2
+    check("6c a legacy watermark (tightened, no count) reads as tier "
+          "1 spent and the re-arm fires at 2x",
+          _gb6c.get("tightens") == 2
+          and _gb6c.get("tighten", {}).get("tier") == 2
+          and len(_calls6) == 1, (_gb6c, _calls6))
+    # 6d. A CRASHED attempt leaves the count unchanged and retries the
+    #     SAME tier next tick (the one-attempt-per-tier contract).
+    _pg6._save({"giveback": {"day": _today6, "peak_total": 100.0,
+                             "now_total": 100.0, "give_back": 0.0,
+                             "tightened": False}})
+    _calls6.clear()
+    def _boom6(*a, **k):
+        raise RuntimeError("rails down")
+    _aa6.apply_adjustment = _boom6
+    _gb6d1 = _tgd6(70.0)         # erosion 30 >= 20 -> the attempt CRASHES
+    _aa6.apply_adjustment = _stub_apply6
+    _gb6d2 = _tgd6(70.0)         # same erosion: the SAME tier retries
+    check("6d a crashed attempt spends nothing and the same tier "
+          "retries next tick",
+          _gb6d1.get("tightens") is None
+          and _gb6d2.get("tightens") == 1 and len(_calls6) == 1
+          and _calls6[0][1] == f"giveback-{_today6}",
+          (_gb6d1, _gb6d2, _calls6))
+    # 6e. THE SPENT-DAY FLOOR: the armed trails half-goal cap base
+    #     tightens GIVEBACK_TRAIL_FLOOR_FRAC per spent tier, for the
+    #     rest of the day; fail-soft to 1.0.
+    _sgf6 = getattr(bs, "_spent_giveback_floor", None)
+    _acb6 = getattr(bs, "_armed_cap_base", None)
+    check("6e the floor factor and the armed cap base exist on the "
+          "scanner (one expression for all three trail sites)",
+          callable(_sgf6) and callable(_acb6))
+    if _sgf6 and _acb6:
+        _pg6._save({"giveback": {"day": _today6, "tightens": 0}})
+        _f0 = _sgf6()
+        _pg6._save({"giveback": {"day": _today6, "tightens": 1}})
+        _f1 = _sgf6()
+        _pg6._save({"giveback": {"day": _today6, "tightens": 2}})
+        _f2 = _sgf6()
+        _pg6._save({"giveback": {"day": _today6, "tightens": 3}})
+        _f3 = _sgf6()
+        check("6e the floor walks the ladder: 1.0 unspent, 0.9 after "
+              "tier 1, 0.81 after the re-arm",
+              _f0 == 1.0 and _f1 == 0.9 and _f2 == 0.81, (_f0, _f1, _f2))
+        check("6e the floor keeps tightening past the ceiling (a tier "
+              "count that ever ran long never resets to loose)",
+              _f3 < _f2, (_f2, _f3))
+        _pg6._save({"giveback": {"day": _today6, "tightened": True}})
+        check("6e the legacy watermark tightens the floor too "
+              "(tightened without a count reads as one spent tier)",
+              _sgf6() == 0.9, _sgf6())
+        _pg6._save({"giveback": {"day": "1999-01-01", "tightens": 2}})
+        check("6e a stale day reads LOOSE (the floor is day-scoped and "
+              "expires with the watermark)",
+              _sgf6() == 1.0, _sgf6())
+        _pg6._save({"giveback": {"day": _today6, "tightens": 0}})
+        _c0 = _acb6(2.0)
+        _pg6._save({"giveback": {"day": _today6, "tightens": 1}})
+        _c1 = _acb6(2.0)
+        _pg6._save({"giveback": {"day": _today6, "tightens": 2}})
+        _c2 = _acb6(2.0)
+        check("6e the armed cap base: half-goal 1.0 unspent, 0.9 and "
+              "0.81 as the tiers spend",
+              _c0 == 1.0 and _c1 == 0.9 and _c2 == 0.81, (_c0, _c1, _c2))
+        _pg6._save({"giveback": {"day": _today6, "tightens": 0}})
+        _t0 = _acb6(0.5)
+        _pg6._save({"giveback": {"day": _today6, "tightens": 1}})
+        _t1 = _acb6(0.5)
+        check("6e the HARD floor tightens too (a tiny goal 1.0 floor "
+              "drops to 0.9 on a spent day)",
+              _t0 == 1.0 and _t1 == 0.9, (_t0, _t1))
+        _real_state6 = _pg6._state
+        def _broken6():
+            raise RuntimeError("state gone")
+        _pg6._state = _broken6
+        _fbroken = _sgf6()
+        _pg6._state = _real_state6
+        check("6e a broken state read fails soft to LOOSE (1.0 — the "
+              "floor never tightens on a lie)",
+              _fbroken == 1.0, _fbroken)
+    # 6f. THE THREE SITES EAT THE SAME EXPRESSION (source parity: the
+    #     exit enforcement, the voice, and the all-good lead can never
+    #     drift apart on the floor).
+    check("6f the exit enforcement and the voice both start from "
+          "_armed_cap_base",
+          "_cap = _armed_cap_base(_goal_tr)" in bssrc_g
+          and "_cap_now = _armed_cap_base(_goal)" in bssrc_g)
+    check("6f the all-good lead starts from the same cap base",
+          "_armed_cap_base(_g_ag)" in bssrc_g)
+    check("6f the tracker carries the tier ladder (the re-arm "
+          "rotation_id, the ceiling constant, the floor constant)",
+          "giveback-{_day}-tier" in bssrc_g
+          and "GIVEBACK_MAX_TIERS" in bssrc_g
+          and "GIVEBACK_TRAIL_FLOOR_FRAC = 0.90" in bssrc_g)
+finally:
+    _aa6.apply_adjustment = _real_apply6
+    _ca6.giveback_thresholds = _real_thr6
+    bs.CONTEST_TRADES_FILE = _real_ctf6   # the sink dies with the tempdir
+
 fails = [r for r in results if not r[1]]
 out = BASE / "giveback_check.txt"
 scratch_space.report_temp('giveback_check.txt').write_text("\n".join(

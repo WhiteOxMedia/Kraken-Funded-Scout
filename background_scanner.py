@@ -984,6 +984,46 @@ def _ratchet_trail_pct(entry: float, high: float, size: float) -> float:
     if peak_pct >= 1.0:
         return 2.0
     return CONTEST_TRAIL_PCT
+
+
+GIVEBACK_TRAIL_FLOOR_FRAC = 0.90  # armed-floor tighten per SPENT give-back
+# tier, for the rest of the day (Oct 5, user ask: once the day's tighten
+# is spent the armed nets keep tightening — the guard factor moved once;
+# the floor keeps moving with the tier count). The floor scales the
+# armed trail's half-goal cap base — see _armed_cap_base.
+
+
+def _spent_giveback_floor() -> float:
+    """The armed-trail floor factor for the day's SPENT give-back tiers:
+    1.0 while nothing has fired, GIVEBACK_TRAIL_FLOOR_FRAC ** tightens
+    after (0.90 after the first, 0.81 after the re-arm). Spent means
+    ATTEMPTED, whatever the rails answered — the day's erosion is what
+    arms the floor, not the rail's permission. Day-scoped (a stale
+    watermark reads loose) and fail-soft to 1.0: the floor never
+    tightens on a lie."""
+    try:
+        import profit_guard as _pg_sf
+        _gb_sf = (_pg_sf._state() or {}).get("giveback") or {}
+        if str(_gb_sf.get("day") or "") != _now_mst().strftime("%Y-%m-%d"):
+            return 1.0
+        _n_sf = _gb_sf.get("tightens")
+        _spent_sf = (int(_n_sf) if isinstance(_n_sf, (int, float))
+                     else (1 if _gb_sf.get("tightened") else 0))
+        return GIVEBACK_TRAIL_FLOOR_FRAC ** max(0, _spent_sf)
+    except Exception:
+        return 1.0
+
+
+def _armed_cap_base(goal_pct: float) -> float:
+    """The armed trail's width base — the ONE expression all three
+    trail sites start from (exit enforcement, voice parity, all-good
+    lead): half the goal, floored at 1.0%, tightened by the day's
+    spent give-back tiers. The guard factor and the lock window scale
+    or bound this at each site; the base itself can never drift."""
+    _base = max(float(goal_pct or 0.0) * GOAL_TRAIL_ARM_FRAC, 1.0)
+    return round(_base * _spent_giveback_floor(), 3)
+
+
 CONTEST_SELL_BAR = 50
 TAKE_IT_USD = 20  # the user's scalp target: out at +$20, take it every chance
 SCALP_TARGET_PCT = 0.4  # +$20 on $5,000 — the take the user actually plays for
@@ -4125,6 +4165,10 @@ _last_lock_floor_usd = 0.0   # RETIRED (Sep 5): the daily lock's voice pacing �
 # gauge. GIVEBACK_TIGHTEN_FRAC stays the guard-delta knob (how hard,
 # not when).
 GIVEBACK_TIGHTEN_FRAC = 0.10     # tighten the guard factor 10% (unchanged)
+GIVEBACK_MAX_TIERS = 2           # the ladder CEILS at the ask's one
+# re-arm: tier 1 arms at the trigger, tier 2 at 2x, and past that the
+# knob is spent — the spent-day trail floor (_armed_cap_base) is what
+# keeps tightening for the rest of the day.
 
 
 def _today_realized_pnl() -> float:
@@ -4155,8 +4199,9 @@ def _track_day_giveback(unrealized: float) -> dict:
     """One tick of the give-back watermark. `unrealized` is the open
     watch's live P&L in dollars (the caller sums (live−entry)×units
     across the rows it just priced). Updates the day's peak, computes
-    the give-back, and — when the erosion crosses the trigger and the
-    day hasn't been tightened yet — tightens the guard factor through
+    the give-back, and — when the erosion crosses the tier-armed
+    trigger (tier 1 at the trigger, the re-arm at 2x, ceiling
+    GIVEBACK_MAX_TIERS) — tightens the guard factor through
     auto_adjust.apply_adjustment (rails, ledger, telemetry, dedupe).
     Every read/write fail-soft; the exit cycle must never stall here."""
     try:
@@ -4187,27 +4232,46 @@ def _track_day_giveback(unrealized: float) -> dict:
         gb["now_total"] = round(_total, 2)
         gb["give_back"] = round(_peak - _total, 2)
         _gb_tighten_usd, _ = _ca_gb.giveback_thresholds()
-        if (gb["give_back"] >= _gb_tighten_usd
-                and not gb.get("tightened")):
+        # THE TIER LADDER (Oct 5, user ask: the 13:42 line showed the
+        # day's second erosion leg with no knob once the first tighten
+        # was spent): tier 1 arms at the trigger, the RE-ARM arms at
+        # 2x, and the ladder CEILS at GIVEBACK_MAX_TIERS — one tier
+        # per tick; a crashed attempt leaves the count unchanged and
+        # retries the SAME tier next tick. A legacy watermark
+        # (tightened=True, no count) reads as tier 1 spent, so the
+        # re-arm arms at 2x the very day this ships.
+        _t_gb = gb.get("tightens")
+        _tightens = (int(_t_gb) if isinstance(_t_gb, (int, float))
+                     else (1 if gb.get("tightened") else 0))
+        _tier = _tightens + 1
+        if (gb["give_back"] >= _gb_tighten_usd * _tier
+                and _tightens < GIVEBACK_MAX_TIERS):
             _before = _aa_gb.read_guard_factor()
             _rec = _aa_gb.apply_adjustment(
                 -(_before * GIVEBACK_TIGHTEN_FRAC),
-                rotation_id=f"giveback-{_day}",
-                evidence_checksum="giveback-day-peak",
+                rotation_id=(f"giveback-{_day}" if _tier == 1
+                             else f"giveback-{_day}-tier{_tier}"),
+                evidence_checksum=("giveback-day-peak" if _tier == 1
+                                   else f"giveback-day-peak-tier{_tier}"),
                 auto=True)
-            # ONE ATTEMPT PER DAY whatever the outcome: applied, queued
-            # or refused all land a ledger row (the count the user asked
-            # for); retrying a refusal every tick would flood the ledger
-            # with refused rows. A crashed attempt leaves tightened=False
-            # and retries next tick.
-            gb["tightened"] = True
+            # ONE ATTEMPT PER TIER whatever the outcome: applied,
+            # queued or refused all land a ledger row (the count the
+            # user asked for); retrying a refusal every tick would
+            # flood the ledger with refused rows. A crashed attempt
+            # leaves the count unchanged and retries the same tier
+            # next tick.
+            gb["tightens"] = _tier
+            gb["tightened"] = True   # back-compat: any tier spent
             gb["tighten"] = {"before": round(_before, 4),
+                             "tier": _tier,
                              "status": _rec.get("status"),
                              "reason": _rec.get("reason")}
             try:
                 from telemetry_adjust import emit_adjustment as _ea_gb
-                _ea_gb(f"giveback-{_day}", _rec, 0, 0, [],
-                       cohort="giveback", applied_by="giveback-watch")
+                _ea_gb(f"giveback-{_day}" if _tier == 1
+                       else f"giveback-{_day}-tier{_tier}",
+                       _rec, 0, 0, [], cohort="giveback",
+                       applied_by="giveback-watch")
             except Exception as _tel_exc:
                 logger.debug("give-back telemetry skipped (%s) — the "
                              "ledger row is the record", _tel_exc)
@@ -4287,7 +4351,7 @@ def _all_good_lead() -> str:
                 continue
             _g_ag = float(_w_ag.get("goal_pct") or 0.0)
             _t_ag = min(_ratchet_trail_pct(_e_ag, _h_ag, _s_ag),
-                        max(_g_ag * 0.5, 1.0))
+                        _armed_cap_base(_g_ag))
             _px_ag = _h_ag * (1 - _t_ag / 100.0)
             _u_ag = (_px_ag - _e_ag) * _s_ag
             _k_ag = (_u_ag, _t_ag, str(_p_ag).split("/")[0])
@@ -4598,7 +4662,7 @@ def contest_light(exchange, cfg):
             # entry + 2x the round-trip cost (net-positive by one cost
             # unit). Near the arm point this tightens the net; a real
             # climb (peak well above entry) never feels it.
-            _cap = max(_goal_tr * GOAL_TRAIL_ARM_FRAC, 1.0)
+            _cap = _armed_cap_base(_goal_tr)
             if _pgf is not None:
                 _cap = round(_cap * _pgf, 3)
             try:
@@ -5107,7 +5171,7 @@ def contest_light(exchange, cfg):
             except Exception:
                 _vgf = None
             _trail_now = _ratchet_trail_pct(entry, high, size)
-            _cap_now = max(_goal * GOAL_TRAIL_ARM_FRAC, 1.0)
+            _cap_now = _armed_cap_base(_goal)
             try:
                 from contest_account import COST_ROUNDTRIP_PCT as _rt_pct
                 _lock_wv = max(0.0, (1.0 - entry * (1.0 + 2.0 * _rt_pct / 100.0)

@@ -233,7 +233,8 @@ try:
     # the PROTECTIVE direction (factor DOWN — the only direction
     # apply_adjustment admits; a positive delta would loosen the trail
     # after a loss, the exact inversion this pin forbids), records the
-    # attempt in the ledger-shaped state, and never re-fires.
+    # attempt in the ledger-shaped state, RE-ARMS at 2x the trigger
+    # (the Oct 5 tier ladder) and CEILS there — no tier 3.
     calls = []
 
     def _rec_apply(delta, rotation_id="", evidence_checksum="",
@@ -253,9 +254,17 @@ try:
           and calls[0]["rotation_id"] == f"giveback-{_today}"
           and gb1.get("tightened") is True)
     gb2 = bs._track_day_giveback(-45.0)
-    check("tracker: a second tick does NOT re-fire (one attempt per "
-          "day — the ledger cannot flood)",
-          len(calls) == 1 and gb2.get("tightened") is True)
+    check("tracker: the deep second leg RE-ARMS the tighten under its "
+          "own tier rotation_id (the 13:42 lesson)",
+          len(calls) == 2
+          and calls[1]["rotation_id"] == f"giveback-{_today}-tier2"
+          and gb2.get("tightened") is True
+          and gb2.get("tightens") == 2)
+    gb3 = bs._track_day_giveback(-50.0)
+    check("tracker: past the ceiling the knob is spent (no tier 3 — "
+          "the ledger cannot flood)",
+          len(calls) == 2 and gb3.get("tightens") == 2
+          and gb3.get("tighten", {}).get("tier") == 2)
 finally:
     _aa7.apply_adjustment = _orig_aa_apply
     _tf.unlink(missing_ok=True)   # the sink again; the live journal was never touched

@@ -57,8 +57,9 @@ check(1.4, "(live / entry - 1.0) * 100.0 >= _arm_at" in SRC,
 
 print("== 2. the armed trail is tight — the half-goal width, scaled ==")
 check(2.1, "min(_trail, _cap)" in SRC
-      and "_cap = max(_goal_tr * GOAL_TRAIL_ARM_FRAC, 1.0)" in SRC,
-      "cap: trail = min(ratchet trail, max(goal*frac, 1.0))")
+      and "_cap = _armed_cap_base(_goal_tr)" in SRC,
+      "cap: trail = min(ratchet trail, _armed_cap_base(goal) — the "
+      "half-goal width tightened by the day's spent give-back tiers)")
 # 2.1b THE COST FLOOR (Sep 22, the CodeRabbit major): a WIDTH cap alone
 #      cannot lock profit — at a 2% goal the arm gain is 1% but the
 #      ratchet band at that peak is 2%, so the stop lands BELOW entry and
@@ -80,8 +81,9 @@ check(2.2, "_cap = round(_cap * _pgf, 3)" in SRC,
 check(2.3, SRC.count("_goal_tr * GOAL_TRAIL_ARM_FRAC") >= 1 and
       "if w.get(\"trail_armed\") and _goal_tr > 0:" in SRC,
       "the cap applies only while armed — pre-arm trailing is unchanged")
-check(2.4, SRC.count("_goal * GOAL_TRAIL_ARM_FRAC") >= 1,
-      "the per-pair voice computes the same stop the exit enforces")
+check(2.4, SRC.count("_armed_cap_base(") >= 3,
+      "the per-pair voice computes the same stop the exit enforces "
+      "(one cap expression for all three sites)")
 check(2.5, "import profit_guard as _pgv" in SRC,
       "her voice computes the same factor the exit enforces (parity)")
 check(2.6, "_trail = round(_trail * _pgf, 3)" in SRC,
