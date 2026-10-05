@@ -52,7 +52,8 @@ SANDBOX = Path(tempfile.mkdtemp(prefix="capcanary_"))
 _real_state = bs.TIDE_RETUNE_STATE_FILE
 _ENV_KEYS = ("TIDE_RETUNE_ENABLED", "TIDE_RETUNE_DAILY_CAP",
              "TIDE_RETUNE_QUICK_MIN", "TIDE_RETUNE_CANARY_PAIRS",
-             "TIDE_RETUNE_CANARY_CAP", "TIDE_RETUNE_CANARY_UNTIL")
+             "TIDE_RETUNE_CANARY_CAP", "TIDE_RETUNE_CANARY_UNTIL",
+             "EXIT_EXTENSION_STATE_FILE")
 _real_env = {k: os.environ.get(k) for k in _ENV_KEYS}
 
 
@@ -76,6 +77,12 @@ _CANARY_ENV = {
 try:
     bs.TIDE_RETUNE_STATE_FILE = str(SANDBOX / "tide_retune_state.json")
     ledger = Path(bs.TIDE_RETUNE_STATE_FILE)
+    # THE DIAL FILE IS SANDBOXED TOO (the live dial.json has had the
+    # canary armed since the ops session): env-first keys beat the file
+    # for the legs that SET them, but the ABSENT-keys legs must not read
+    # the operator's live file — the state-file env rebind moves
+    # dial_file() into the sandbox, where no dial.json exists.
+    _setenv(EXIT_EXTENSION_STATE_FILE=str(SANDBOX / "exx_state.json"))
 
     def _fresh():
         ledger.unlink(missing_ok=True)
@@ -93,10 +100,11 @@ try:
     check(1.1, d.get("armed") is True and d.get("cap") == 1,
           "the base dial reads exactly as the operator set it "
           "(armed, cap 1/day)")
-    check(1.2, d.get("canary_pairs") == frozenset(
-        {"BTC/USD", "ETH/USD", "UNI/USD"}),
-        "the canary pair list parses, strips and uppercases (a messy "
-        "operator string normalizes; junk entries drop)")
+    check(1.2, sorted(d.get("canary_pairs") or [])
+          == ["BTC/USD", "ETH/USD", "UNI/USD"],
+          "the canary pair list parses, strips and uppercases (a messy "
+          "operator string normalizes; junk entries drop; the dial "
+          "returns a sorted LIST — JSON-safe for the weekly sidecar)")
     check(1.3, d.get("canary_cap") == 2 and d.get("canary_until") == _until,
           "the canary cap and the time box ride the dial (the time box "
           "is the automatic rollback trigger)")
@@ -104,7 +112,7 @@ try:
     _setenv(TIDE_RETUNE_CANARY_PAIRS=None, TIDE_RETUNE_CANARY_CAP=None,
             TIDE_RETUNE_CANARY_UNTIL=None)
     d0 = bs._tide_retune_dial()
-    check(1.4, d0.get("canary_pairs") == frozenset()
+    check(1.4, d0.get("canary_pairs") == []
           and d0.get("canary_cap") is None
           and d0.get("canary_until") is None,
           "absent canary keys = no canary (the base cap stands; an "
@@ -127,7 +135,7 @@ try:
     _setenv(**_CANARY_ENV)   # restores DAILY_CAP=1 within the set
     _setenv(TIDE_RETUNE_DAILY_CAP="0")
     d_off = bs._tide_retune_dial()
-    check(3.6, d_off.get("canary_pairs") == frozenset()
+    check(3.6, d_off.get("canary_pairs") == []
           and d_off.get("canary_cap") is None,
           "with the base cap OFF (0), the dial itself reports the canary "
           "INERT (the commit review's medium: the report and the release "
@@ -136,12 +144,12 @@ try:
     _setenv(TIDE_RETUNE_DAILY_CAP="1")
     _setenv(TIDE_RETUNE_CANARY_CAP="1")
     d_flat = bs._tide_retune_dial()
-    check(3.7, d_flat.get("canary_pairs") == frozenset(),
+    check(3.7, d_flat.get("canary_pairs") == [],
           "a canary cap AT the base cap is inert too (no widening to "
           "apply = no canary, by construction in the dial)")
     _setenv(TIDE_RETUNE_CANARY_CAP="2", TIDE_RETUNE_CANARY_UNTIL=None)
     d_nobox = bs._tide_retune_dial()
-    check(3.8, d_nobox.get("canary_pairs") == frozenset(),
+    check(3.8, d_nobox.get("canary_pairs") == [],
           "an OMITTED time box is an expired one (the commit review's "
           "medium: a canary without a mandate end-date could widen "
           "indefinitely — a canary IS its time box, so the box is "
@@ -242,7 +250,7 @@ try:
     import tidebar_weekly as tbw                 # noqa: E402
     tbw.RETUNE_DIAL_OVERRIDE = {
         "armed": True, "quick_min": 66.0, "cap": 1, "spent_today": 0,
-        "canary_pairs": frozenset({"BTC/USD", "LTC/USD", "UNI/USD"}),
+        "canary_pairs": ["BTC/USD", "LTC/USD", "UNI/USD"],
         "canary_cap": 2, "canary_until": _until}
     rec = tbw._retune_reckoning(
         [(80.0, True, "2026-10-05T10:00:00-06:00"),

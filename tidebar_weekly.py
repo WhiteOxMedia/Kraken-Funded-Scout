@@ -337,6 +337,62 @@ def _quantile_bar_as_learn(state, model):
 RETUNE_DIAL_OVERRIDE = None   # the drives' seam: dict(armed, quick_min,
                               # cap, spent_today) or None = the live dial
 
+# THE CANARY'S OWN JOURNAL (Oct 5, the ops packet's reconciliation
+# ask): the day state file is a DAY map that rolls over, so it cannot
+# answer "what did the canary release this week". Every CONSUMING
+# release appends {ts, day, pair} here (gitignored runtime state,
+# beside the state file), append-only best-effort — a journal failure
+# never blocks the release (the release already happened; the
+# reckoning grades what landed and reports gaps as collecting).
+TIDE_RETUNE_HISTORY_FILE = ROOT / "tide_retune_history.jsonl"
+CANARY_WINDOW_DAYS = 7       # the reconciliation's trailing window
+CANARY_KEEP_RATE = 0.50      # the keep bar: payers / graded releases
+
+
+def append_retune_release(ts: float, pair: str) -> bool:
+    """One consuming release into the canary journal. Lives beside the
+    valve's call site (background_scanner's release path imports this)
+    so the valve code owns the row shape and the report code owns the
+    read. Best-effort: a write failure returns False and the release
+    stands — the reckoning reports the gap, never blocks the desk."""
+    try:
+        day = datetime.fromtimestamp(float(ts)).astimezone()\
+            .strftime("%Y-%m-%d")
+        row = {"ts": float(ts), "day": day,
+               "pair": str(pair or "").strip().upper()}
+        with open(TIDE_RETUNE_HISTORY_FILE, "a", encoding="utf-8") as f:
+            f.write(json.dumps(row) + "\n")
+        return True
+    except Exception:
+        return False
+
+
+def read_retune_history(days: int = None) -> list[dict]:
+    """The journal's trailing-window rows, newest first — torn lines
+    skipped, a missing file an honest empty, an unreadable one raises
+    nothing (the caller renders the gap). days=None reads everything."""
+    out = []
+    try:
+        lines = TIDE_RETUNE_HISTORY_FILE.read_text(
+            encoding="utf-8").splitlines()
+    except OSError:
+        return out
+    cutoff = (time.time() - max(1, int(days or 10 ** 6)) * 86400) \
+        if days is not None else None
+    for ln in lines:
+        try:
+            r = json.loads(ln)
+        except ValueError:
+            continue
+        if not isinstance(r, dict) or not isinstance(r.get("ts"),
+                                                    (int, float)):
+            continue
+        if cutoff is not None and float(r["ts"]) < cutoff:
+            continue
+        out.append(r)
+    out.sort(key=lambda r: r["ts"], reverse=True)
+    return out
+
 
 def _retune_dial() -> dict:
     """The retune dial for the reckoning: the drives' override first,
@@ -347,7 +403,7 @@ def _retune_dial() -> dict:
         d.setdefault("quick_min", 66.0)
         d.setdefault("cap", 3)
         d.setdefault("spent_today", None)
-        d.setdefault("canary_pairs", frozenset())
+        d.setdefault("canary_pairs", [])
         d.setdefault("canary_cap", None)
         d.setdefault("canary_until", None)
         return d
@@ -358,7 +414,7 @@ def _retune_dial() -> dict:
         return d
     except Exception:
         return {"armed": False, "quick_min": 66.0, "cap": 3,
-                "spent_today": None, "canary_pairs": frozenset(),
+                "spent_today": None, "canary_pairs": [],
                 "canary_cap": None, "canary_until": None}
 
 
@@ -458,13 +514,19 @@ def _retune_reckoning(cands, bar_live, week_tag: str) -> dict | None:
         # canary is armed, the reckoning names it — pairs, cap, time
         # box — so the weekly report is the canary's monitoring surface
         # (the reconciliation reads this line; the dial's live posture
-        # is the rollback trigger).
+        # is the rollback trigger). The summary is JSON-SAFE BY
+        # CONSTRUCTION: the canary pair set is stored as a sorted list
+        # (a frozenset broke the weekly sidecar write — the MASTER
+        # plate serves its cached copy — found by this feature's own
+        # red run), and the drives' override seam gets the same
+        # treatment so their fixtures stay serializable too.
         _can = ""
         if dial.get("canary_pairs"):
             _until = dial.get("canary_until")
             _can = (f" (+canary {dial.get('canary_cap')}/day for "
                     f"{', '.join(sorted(dial['canary_pairs']))}"
                     + (f" until {_until}" if _until else "") + ")")
+        dial["canary_pairs"] = sorted(dial.get("canary_pairs") or ())
         lines = [
             "── THE RETUNE VALVE'S RECKONING (the gate-quality audit's "
             "recalibration) ──",
@@ -509,20 +571,178 @@ def _retune_reckoning(cands, bar_live, week_tag: str) -> dict | None:
             # THE BOUND'S NAMED LIMITATION (the commit review's medium):
             # releasable prices the BASE cap only — the week join carries
             # no pair identity, so the canary's allowance is additional
-            # and unpriced here. The day ledger reconciles the canary.
+            # and unpriced here. The canary's own journal is its
+            # reconciliation — the block below grades it.
             lines.append(
                 "  canary note: the bound above prices the BASE cap; the "
                 "canary's allowance is additional and unpriced by this "
-                "join (no pair identity — the canary's own day ledger is "
+                "join (no pair identity — the canary's own journal is "
                 "its reconciliation).")
-        return {"lines": lines,
-                "summary": {"dial": dial, "band": g_band,
-                            "band_offered": len(offered), "slots": slots,
-                            "releasable": releasable, "dates": n_dates,
-                            "slots_spent_today": spent, "verdict": verdict}}
+            _canary_lines, _canary_summary = _canary_reconciliation(dial)
+            lines.extend(_canary_lines)
+            summary_out = {"dial": dial, "band": g_band,
+                           "band_offered": len(offered), "slots": slots,
+                           "releasable": releasable, "dates": n_dates,
+                           "slots_spent_today": spent, "verdict": verdict,
+                           "canary": _canary_summary}
+        else:
+            summary_out = {"dial": dial, "band": g_band,
+                           "band_offered": len(offered), "slots": slots,
+                           "releasable": releasable, "dates": n_dates,
+                           "slots_spent_today": spent, "verdict": verdict}
+        return {"lines": lines, "summary": summary_out}
     except Exception as exc:
         logger.debug("retune reckoning skipped: %s", exc)
         return None
+
+
+def _canary_reconciliation(dial: dict) -> tuple[list[str], dict]:
+    """THE CAP CANARY'S WEEK (Oct 5, the ops packet's follow-up): the
+    scoped canary's own numbers, so the keep/kill decision opens with
+    them on the page. Reads the release journal (the valve's consuming
+    call site appends one row per release), keeps the trailing
+    CANARY_WINDOW_DAYS and the canary's own pairs, and grades each
+    release from the fired-popup record NEAREST AFTER the release ts
+    (the chain is release -> alert -> fired popup -> mfe grade; a real
+    fill's pnl_net outranks the paper grade when one joins). The keep
+    bar is CANARY_KEEP_RATE of GRADED releases; releases with no popup
+    record yet render as collecting, never guessed. Never raises: a
+    torn, empty or unreadable journal degrades to one honest line."""
+    try:
+        scope = ", ".join(dial.get("canary_pairs") or [])
+        until = dial.get("canary_until")
+        head = (f"  -- THE CAP CANARY'S WEEK (scope {scope}, cap "
+                f"{dial.get('canary_cap')}/day"
+                + (f", until {until}" if until else "") + ") --")
+        try:
+            rels = [r for r in read_retune_history(
+                days=CANARY_WINDOW_DAYS)
+                if str(r.get("pair")).upper()
+                in {p.upper() for p in dial.get("canary_pairs") or ()}]
+        except Exception:
+            return [head,
+                    "     canary ledger unreadable — the reconciliation "
+                    "degrades, the reckoning stands"], {"error": True}
+        if not rels:
+            return [head,
+                    "     no canary releases on the journal yet — "
+                    "collecting"], {"releases": 0}
+        fires = []
+        try:
+            with open(SNAP_OUTCOMES_FILE, encoding="utf-8") as f:
+                for ln in f:
+                    try:
+                        r = json.loads(ln)
+                    except ValueError:
+                        continue
+                    if r.get("kind") == "fired":
+                        fires.append(r)
+        except OSError:
+            pass                     # no popup record yet: all collecting
+        fills = []
+        try:
+            with open(TRADES_FILE, encoding="utf-8") as f:
+                for ln in f:
+                    try:
+                        r = json.loads(ln)
+                    except ValueError:
+                        continue
+                    fills.append(r)
+        except OSError:
+            pass
+        import pandas as _pd
+        rows, payers, graded = [], 0, 0
+        # THE JOIN'S INTEGRITY (the commit review's two mediums): a
+        # popup grades AT MOST ONE release — matched popups are CONSUMED
+        # from the pool (oldest release wins; one outcome is never
+        # counted twice) — and a fill is matched against the POPUP's ts
+        # (the REAL FILLS layer's own window: sold_at within FILL_JOIN_H
+        # AFTER the fire), so a fill sold after the release but before
+        # the popup cannot override the popup's paper grade.
+        _fire_pool = list(fires)
+        for r in rels:
+            try:
+                ts = _pd.Timestamp(float(r["ts"]), unit="s",
+                                   tz=datetime.now().astimezone()
+                                   .tzinfo)
+            except Exception:
+                ts = None
+            pair = str(r.get("pair")).upper()
+            verdict, pnl = "collecting (no popup record yet)", None
+            if ts is not None:
+                best = None
+                for fr in _fire_pool:
+                    if str(fr.get("pair")).upper() != pair:
+                        continue
+                    try:
+                        fts = _pd.Timestamp(fr["ts"])
+                        if fts.tzinfo is None:
+                            fts = fts.tz_localize(ts.tz)
+                        else:
+                            fts = fts.tz_convert(ts.tz)
+                    except Exception:
+                        continue
+                    dt = (fts - ts).total_seconds()
+                    if 0 <= dt <= FILL_JOIN_H * 3600 \
+                            and (best is None or dt < best[0]):
+                        best = (dt, fr)
+                if best is not None:
+                    _fire_pool.remove(best[1])   # consumed: one popup,
+                                                 # one grade
+                    fr = best[1]
+                    mfe = (fr.get("outcome") or {}).get("mfe_pct")
+                    for tr in fills:
+                        if str(tr.get("pair")).upper() != pair:
+                            continue
+                        try:
+                            sa = _pd.Timestamp(tr["sold_at"])
+                            if sa.tzinfo is None:
+                                sa = sa.tz_localize(ts.tz)
+                            else:
+                                sa = sa.tz_convert(ts.tz)
+                            fts = _pd.Timestamp(fr["ts"])
+                            if fts.tzinfo is None:
+                                fts = fts.tz_localize(ts.tz)
+                            else:
+                                fts = fts.tz_convert(ts.tz)
+                            dt2 = (sa - fts).total_seconds()
+                        except Exception:
+                            continue
+                        if 0 <= dt2 <= FILL_JOIN_H * 3600:
+                            pnl = float(tr.get("pnl_net") or 0.0)
+                            break
+                    if pnl is not None:
+                        verdict = (f"FILL {pnl:+.2f} "
+                                   f"{'payer' if pnl > 0 else 'dud'}")
+                        graded += 1
+                        payers += 1 if pnl > 0 else 0
+                    elif mfe is not None:
+                        paid = float(mfe) >= FILL_GOAL_PCT
+                        verdict = f"paper {'payer' if paid else 'dud'} "\
+                                  f"(mfe {float(mfe):.2f}%)"
+                        graded += 1
+                        payers += 1 if paid else 0
+            rows.append(f"     {pair}: {verdict}")
+        rate = (payers / graded * 100.0) if graded else None
+        if graded == 0:
+            tail = (f"     the week: {len(rels)} release(s), none graded "
+                    f"yet — collecting")
+        else:
+            tail = (f"     the week: {len(rels)} release(s), {graded} "
+                    f"graded, {payers} payer(s) — {rate:.1f}% against "
+                    f"the {CANARY_KEEP_RATE * 100:.0f}% keep bar "
+                    + ("(KEEP case building)" if rate >= CANARY_KEEP_RATE * 100
+                       else "(under the keep bar)")
+                    + f" — window {CANARY_WINDOW_DAYS}d")
+        summary = {"releases": len(rels), "graded": graded,
+                   "payers": payers, "rate": rate,
+                   "keep_bar": CANARY_KEEP_RATE}
+        return [head] + rows + [tail], summary
+    except Exception as exc:
+        logger.debug("canary reconciliation skipped: %s", exc)
+        return (["  -- THE CAP CANARY'S WEEK --",
+                 "     canary ledger unreadable — the reconciliation "
+                 "degrades, the reckoning stands"], {"error": True})
 
 
 def _retune_default_cap() -> int:

@@ -1395,9 +1395,13 @@ def _tide_retune_dial() -> dict:
         # posture: flip or remove the TIDE_RETUNE_CANARY_* keys and the
         # widening expires on the next tick — no restart, no hidden
         # state. A base cap of 0 (operator OFF) can never be widened.
+        # The pairs leave as a SORTED LIST, not a set: every dial dict
+        # lands in the weekly report's JSON sidecar, and a frozenset
+        # broke that write (found by the reconciliation feature's own
+        # red run) — the dial is JSON-safe at the source.
         _raw_pairs = str(_exx_dial("TIDE_RETUNE_CANARY_PAIRS", "") or "")
-        canary_pairs = frozenset(
-            p.strip().upper() for p in _raw_pairs.split(",") if p.strip())
+        canary_pairs = sorted(
+            {p.strip().upper() for p in _raw_pairs.split(",") if p.strip()})
         try:
             canary_cap = int(float(
                 _exx_dial("TIDE_RETUNE_CANARY_CAP", "") or 0))
@@ -1424,13 +1428,13 @@ def _tide_retune_dial() -> dict:
             # canary cap at/under the base) is CLEARED here, so the
             # report and the release logic can never disagree about
             # whether a widening is armed.
-            canary_pairs, canary_cap, canary_until = frozenset(), None, None
+            canary_pairs, canary_cap, canary_until = [], None, None
         return {"armed": armed, "quick_min": qmin, "cap": max(0, cap),
                 "canary_pairs": canary_pairs,
                 "canary_cap": canary_cap, "canary_until": canary_until}
     except Exception:
         return {"armed": False, "quick_min": TIDE_RETUNE_QUICK_MIN,
-                "cap": TIDE_RETUNE_CAP, "canary_pairs": frozenset(),
+                "cap": TIDE_RETUNE_CAP, "canary_pairs": [],
                 "canary_cap": None, "canary_until": None}
 
 
@@ -1557,6 +1561,19 @@ def _tide_retune_releases(quick, pair: str = "",
                 return False, ("the retune day ledger would not persist — "
                                "failing CLOSED (a restart must not refill "
                                "the cap)")
+            # THE CANARY'S JOURNAL (Oct 5, the reconciliation ask): the
+            # day map rolls over, so every CONSUMING release also lands
+            # one append-only row in the weekly journal — the reckoning's
+            # canary block grades the week's releases against the popup
+            # outcomes from it. Best-effort: a journal failure never
+            # blocks the release (the release already happened; the
+            # reckoning reports the gap as collecting).
+            try:
+                import time as _tt
+                import tidebar_weekly as _tbw
+                _tbw.append_retune_release(_tt.time(), _p)
+            except Exception:
+                pass
         return True, (f"the calibration study opened the tide gate "
                       f"(quick {float(quick or 0):.0f} >= {d['quick_min']:.0f}, "
                       f"{len(today) + (1 if pair and consume else 0)}/{cap} today"

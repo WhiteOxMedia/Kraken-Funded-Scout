@@ -2917,6 +2917,184 @@ finally:
     import shutil as _shutil_fs
     _shutil_fs.rmtree(_fs_sbx, ignore_errors=True)
 
+# ── THE CANARY RECONCILIATION (Oct 5, the ops packet's follow-up): the
+#    cap canary's own week — per-pair releases from the day ledgers,
+#    joined to the payer outcome the fired-popup grade already gives,
+#    so the Oct 12 keep/kill decision opens with numbers on the page.
+#    THE LEDGER (new, scanner-side): every CONSUMING release appends
+#    {ts, day, pair} to tide_retune_history.jsonl — the state file is
+#    a DAY map that rolls over, so it cannot answer "what did the
+#    canary release this week"; the append-only journal can. THE JOIN:
+#    the reckoning reads the journal, keeps the trailing window's
+#    canary-pair rows, and grades each release from the popup record
+#    NEAREST AFTER the release ts (the chain is release -> alert ->
+#    fired popup -> mfe grade): mfe_pct >= FILL_GOAL_PCT is a payer,
+#    a real fill (pnl_net) outranks the paper grade. Sandbox: every
+#    path the block touches is a module attribute the drive rebinds.
+import json as _json_can
+_can_sbx = Path(tempfile.mkdtemp())
+_can_saved = {}
+for _k in ("OUT_FILE", "TIDE_RETUNE_HISTORY_FILE", "SNAP_OUTCOMES_FILE",
+           "TRADES_FILE", "CANARY_WINDOW_DAYS"):
+    _can_saved[_k] = getattr(tbw, _k, None)
+try:
+    tbw.OUT_FILE = _can_sbx / "report.txt"
+    tbw.TIDE_RETUNE_HISTORY_FILE = _can_sbx / "tide_retune_history.jsonl"
+    tbw.SNAP_OUTCOMES_FILE = _can_sbx / "snapshot_outcomes.jsonl"
+    tbw.TRADES_FILE = _can_sbx / "contest_trades.jsonl"
+    tbw.CANARY_WINDOW_DAYS = 7
+
+    def _iso(epoch):
+        from datetime import datetime as _dtm
+        return _dtm.fromtimestamp(
+            epoch, tz=_dtm.now().astimezone().tzinfo).isoformat()
+
+    def _fire(ts, pair, mfe):
+        return {"kind": "fired", "ts": ts, "pair": pair,
+                "tide": "OUT 40%", "outcome": {"mfe_pct": mfe}}
+
+    # the journal, written the way the scanner's own history-write
+    # helper does it (the drive proves THAT helper first, then grades
+    # the reconciliation through the same seam)
+    _can_now = time.time()
+    tbw.append_retune_release(
+        _can_now - 3600, "BTC/USD")          # a paper payer (mfe 2.1)
+    tbw.append_retune_release(
+        _can_now - 7200, "ETH/USD")          # a dud (mfe 0.4)
+    tbw.append_retune_release(
+        _can_now - 8 * 24 * 3600, "UNI/USD") # outside the window
+    tbw.append_retune_release(
+        _can_now - 5400, "XRP/USD")          # not a canary pair
+    (tbw.TIDE_RETUNE_HISTORY_FILE).open("a", encoding="utf-8").write(
+        "not json\n")                        # a torn line
+    _hist = tbw.read_retune_history(days=7)
+    check("canary ledger: the consuming history helper appends one "
+          "row per release (ts, day, pair) and survives torn lines",
+          isinstance(_hist, list) and len(_hist) == 3
+          and {r.get("pair") for r in _hist}
+          == {"BTC/USD", "ETH/USD", "XRP/USD"}, _hist)
+
+    # the payer join: popup records nearest AFTER each release
+    tbw.SNAP_OUTCOMES_FILE.write_text("\n".join(_json_can.dumps(r) for r in [
+        _fire("2026-01-01T00:00:00+00:00", "BTC/USD", 0.1),  # too old
+        _fire(_iso(_can_now - 3500), "BTC/USD", 2.1),        # the payer
+        _fire(_iso(_can_now - 7100), "ETH/USD", 0.4),        # the dud
+        _fire(_iso(_can_now - 5300), "XRP/USD", 9.9),        # not canary
+    ]) + "\n", encoding="utf-8")
+    tbw.RETUNE_DIAL_OVERRIDE = {
+        "armed": True, "quick_min": 66.0, "cap": 1, "spent_today": 1,
+        "canary_pairs": ["BTC/USD", "ETH/USD", "UNI/USD"],
+        "canary_cap": 2, "canary_until": "2030-01-01"}
+    rec = tbw._retune_reckoning(
+        [(80.0, True, "2026-10-05T10:00:00-06:00")], 86.0, "PROBE")
+    tbw.RETUNE_DIAL_OVERRIDE = None
+    _lines = "\n".join((rec or {}).get("lines", []))
+    check("canary reconciliation: the block renders per-pair rows with "
+          "the join's verdicts (BTC/USD a payer at the popup's grade, "
+          "ETH/USD a dud), newest first, inside the reckoning",
+          "THE CAP CANARY'S WEEK" in _lines
+          and "BTC/USD" in _lines and "ETH/USD" in _lines
+          and _lines.find("BTC/USD") < _lines.find("ETH/USD"), _lines)
+    check("canary reconciliation: the week's totals and the keep bar "
+          "are on the page (2 graded releases, 1 payer, 50.0% — AT the "
+          "50% keep bar the KEEP case is building)",
+          "1 payer(s)" in _lines and "2 release(s)" in _lines
+          and "keep bar" in _lines and "50.0%" in _lines
+          and "KEEP case building" in _lines, _lines)
+    check("canary reconciliation: the scope is carried (the 3-pair "
+          "canary, its cap, its expiry) and unjoinable releases are "
+          "named as collecting, never guessed",
+          "BTC/USD, ETH/USD, UNI/USD" in _lines
+          and "until 2030-01-01" in _lines, _lines)
+
+    # THE JOIN'S INTEGRITY (the commit review's two mediums): a popup
+    # grades AT MOST ONE release (the older release wins the match; the
+    # other renders collecting — one outcome can never be counted
+    # twice), and a fill is matched against the POPUP's ts (the REAL
+    # FILLS layer's window), so a fill sold after the release but
+    # BEFORE the popup cannot override the popup's paper grade.
+    tbw.TIDE_RETUNE_HISTORY_FILE.write_text("", encoding="utf-8")
+    tbw.SNAP_OUTCOMES_FILE.write_text("\n".join(_json_can.dumps(r) for r in [
+        _fire(_iso(_can_now - 1800), "BTC/USD", 9.9),   # ONE popup
+    ]) + "\n", encoding="utf-8")
+    tbw.append_retune_release(_can_now - 3600, "BTC/USD")  # older
+    tbw.append_retune_release(_can_now - 1900, "BTC/USD")  # younger
+    tbw.RETUNE_DIAL_OVERRIDE = {
+        "armed": True, "quick_min": 66.0, "cap": 1, "spent_today": 1,
+        "canary_pairs": ["BTC/USD"], "canary_cap": 2,
+        "canary_until": "2030-01-01"}
+    rec2 = tbw._retune_reckoning(
+        [(80.0, True, "2026-10-05T10:00:00-06:00")], 86.0, "PROBE")
+    _l2 = "\n".join((rec2 or {}).get("lines", []))
+    tbw.RETUNE_DIAL_OVERRIDE = None
+    check("canary join integrity: one popup grades ONE release (the "
+          "older release takes the match, the younger renders "
+          "collecting — an outcome is never counted twice)",
+          _l2.count("paper payer") + _l2.count("FILL ") == 1
+          and "collecting (no popup record yet)" in _l2, _l2)
+    tbw.TIDE_RETUNE_HISTORY_FILE.write_text("", encoding="utf-8")
+    tbw.SNAP_OUTCOMES_FILE.write_text("\n".join(_json_can.dumps(r) for r in [
+        _fire(_iso(_can_now - 1800), "BTC/USD", 9.9),   # the popup
+    ]) + "\n", encoding="utf-8")
+    tbw.TRADES_FILE.write_text(_json_can.dumps({
+        "pair": "BTC/USD", "sold_at": _iso(_can_now - 2000),
+        "pnl_net": 12.0}) + "\n", encoding="utf-8")   # fill BEFORE popup
+    tbw.append_retune_release(_can_now - 3600, "BTC/USD")
+    tbw.RETUNE_DIAL_OVERRIDE = {
+        "armed": True, "quick_min": 66.0, "cap": 1, "spent_today": 1,
+        "canary_pairs": ["BTC/USD"], "canary_cap": 2,
+        "canary_until": "2030-01-01"}
+    rec3 = tbw._retune_reckoning(
+        [(80.0, True, "2026-10-05T10:00:00-06:00")], 86.0, "PROBE")
+    _l3 = "\n".join((rec3 or {}).get("lines", []))
+    tbw.RETUNE_DIAL_OVERRIDE = None
+    tbw.TRADES_FILE.unlink()
+    check("canary join integrity: the fill window runs from the "
+          "POPUP's ts, not the release's (a fill sold after the "
+          "release but before the popup cannot override the popup's "
+          "paper grade)",
+          "paper payer (mfe 9.90%)" in _l3 and "FILL" not in _l3, _l3)
+
+    # the rails: an empty journal, an unreadable one, and a disarmed
+    # canary each render their honest shape
+    tbw.TIDE_RETUNE_HISTORY_FILE.write_text("", encoding="utf-8")
+    tbw.RETUNE_DIAL_OVERRIDE = {
+        "armed": True, "quick_min": 66.0, "cap": 1, "spent_today": 0,
+        "canary_pairs": ["BTC/USD"], "canary_cap": 2,
+        "canary_until": "2030-01-01"}
+    rec_empty = tbw._retune_reckoning(
+        [(80.0, True, "2026-10-05T10:00:00-06:00")], 86.0, "PROBE")
+    _l_empty = "\n".join((rec_empty or {}).get("lines", []))
+    check("canary reconciliation: an empty journal renders collecting "
+          "(the canary has released nothing yet — never invented rows)",
+          "no canary releases on the journal yet" in _l_empty, _l_empty)
+    tbw.TIDE_RETUNE_HISTORY_FILE.write_text("{broken\n", encoding="utf-8")
+    rec_bad = tbw._retune_reckoning(
+        [(80.0, True, "2026-10-05T10:00:00-06:00")], 86.0, "PROBE")
+    _l_bad = "\n".join((rec_bad or {}).get("lines", []))
+    check("canary reconciliation: a torn journal skips the torn lines "
+          "and renders its honest collecting shape (never invented rows, "
+          "never a crash)",
+          "THE CAP CANARY'S WEEK" in _l_bad
+          and "no canary releases on the journal yet" in _l_bad
+          and "canary ledger unreadable" not in _l_bad, _l_bad)
+    tbw.RETUNE_DIAL_OVERRIDE = {
+        "armed": True, "quick_min": 66.0, "cap": 1, "spent_today": 0}
+    rec_none = tbw._retune_reckoning(
+        [(80.0, True, "2026-10-05T10:00:00-06:00")], 86.0, "PROBE")
+    tbw.RETUNE_DIAL_OVERRIDE = None
+    _l_none = "\n".join((rec_none or {}).get("lines", []))
+    check("canary reconciliation: without the canary the block is "
+          "absent (the default reckoning is byte-for-byte the shipped "
+          "shape)",
+          "THE CAP CANARY'S WEEK" not in _l_none
+          and "canary ledger unreadable" not in _l_none, _l_none)
+finally:
+    for k, v in _can_saved.items():
+        setattr(tbw, k, v)
+    import shutil as _shutil_can
+    _shutil_can.rmtree(_can_sbx, ignore_errors=True)
+
 fails = [r for r in results if not r[1]]
 (scratch_space.report_temp('_tidebarweekly_check.txt')).write_text(
     "\n".join(f"{'PASS' if ok else 'FAIL'}  {name}" + (f"  [{d}]" if d and not ok else "")
