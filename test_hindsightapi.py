@@ -165,6 +165,18 @@ try:
     # ── 4. apply: the mutating POSTs are AUTHENTICATED first ────────
     import os as _os
     _tok = _os.environ.pop("HINDSIGHT_OPERATOR_TOKEN", None)
+    # THE COHORT SEAM IS SANDBOXED FOR THE WHOLE ROUTE SECTION (the
+    # 1a67567 lesson, again): the wire now serves the ARMED cell, and
+    # the repo root's live auto_adjust_canary.json is runtime state —
+    # a drive must grade the DEFAULTS world it seeds, never whatever
+    # the machine happens to have armed today. ONE pop-and-restore
+    # pair guards the whole section: the defaults file rides the env
+    # for every leg, the armed-cell leg RE-POINTS the same file via
+    # the runner (no nested env writes to leak).
+    _cohort_env_saved = _os.environ.pop("AUTO_ADJUST_CANARY_FILE", None)
+    _q_cohort_sbx = _sbx / "cohort_route_defaults.json"
+    _q_cohort_sbx.write_text("{}", encoding="utf-8")
+    _os.environ["AUTO_ADJUST_CANARY_FILE"] = str(_q_cohort_sbx)
     try:
         unauth = ha.route("POST", "/api/hindsight/rotation/ROT-1/apply",
                           {"action": "queue_review",
@@ -185,10 +197,12 @@ try:
                      {"action": "queue_review",
                       "operator_id": "op-token-1"})
         check("apply: the AUTHENTICATED queue_review computes + bundles "
-              "but never moves the factor — and its recommendation "
-              "prices the WEIGHTED delta (r_eff 0.575, the same number "
-              "the confirmed apply would land; never the aggregate "
-              "understatement the operator would then approve)",
+              "but never moves the factor — its recommendation prices "
+              "the WEIGHTED delta under the COHORT SEAM (the sandbox "
+              "defaults file rides AA_COHORT_ENV, the 1a67567 lesson: "
+              "runtime state never grades a drive), r_eff 0.575 with "
+              "the module cell — the same number the confirmed apply "
+              "lands under the same world",
               q[0] == 200 and q[1]["status"] == "queued"
               and abs(q[1]["delta"] - (-_delta_prev)) < 1e-9
               and abs(q[1]["delta"] - aa.compute_delta(7, 4)[0]) > 1e-9
@@ -214,6 +228,38 @@ try:
               qp["status"] == "queued"
               and abs(qp["delta"] - (-_q_cell)) < 1e-9
               and abs(qp["delta"] - (-_q_def)) > 1e-3, qp)
+        # THE WIRE SERVES THE ARMED CELL (the follow-up review's
+        # [medium]): the HTTP route never passed params — an armed
+        # cohort's cell was invisible to the wire, so the served
+        # recommendation priced defaults while the machine's own hook
+        # priced the cell. The route now reads _aa_params (the
+        # machine's own doctrine: the cohort file is the source, an
+        # operator body value would be a second, competing source).
+        # The sandbox flips the cell FIRST (the queue above graded the
+        # defaults world; this leg flips the cell and re-posts).
+        import canary_runner as _crq
+        _real_q = (_crq.DIAL_FILE, _crq.COHORT_FILE)
+        _crq.DIAL_FILE = _sbx / "dial_wire.json"
+        _crq.COHORT_FILE = _q_cohort_sbx   # the SECTION's own sandbox
+                                           # file: the flip arms it in
+                                           # place, the env already names it
+        try:
+            _crq.flip_canary("canary-wire-cell",
+                             params={"alpha": 0.03, "delta_max": 0.05,
+                                     "daily_cap": 5.0})
+            qw = ha.route("POST", "/api/hindsight/rotation/ROT-1/apply",
+                          {"action": "queue_review",
+                           "operator_id": "op-token-1"})
+            _qw_cell = min(0.05, 0.03 * 0.575 * _math_q.log(8))
+            check("apply: the WIRE serves the armed cell (route reads "
+                  "_aa_params -> the queued delta is -0.03 x 0.575 x "
+                  "ln 8, NOT the default-weighted number the previous "
+                  "POST graded)",
+                  qw[0] == 200 and qw[1]["status"] == "queued"
+                  and abs(qw[1]["delta"] - (-_qw_cell)) < 1e-9,
+                  (qw, _qw_cell))
+        finally:
+            _crq.DIAL_FILE, _crq.COHORT_FILE = _real_q
         na = ha.route("POST", "/api/hindsight/rotation/ROT-1/apply",
                       {"action": "auto_apply", "operator_id": "op-token-1"})
         check("apply: auto_apply without confirm refuses (the HTTP-level "
@@ -335,6 +381,13 @@ try:
             _os.environ["HINDSIGHT_OPERATOR_TOKEN"] = _tok
         else:
             _os.environ.pop("HINDSIGHT_OPERATOR_TOKEN", None)
+        # the cohort seam's restore runs on EVERY path — inside the
+        # token branch it only ran when the token env was set, and the
+        # sandbox cohort leaked into the boundary section (the
+        # three-leg cascade this taught)
+        _os.environ.pop("AUTO_ADJUST_CANARY_FILE", None)
+        if _cohort_env_saved is not None:
+            _os.environ["AUTO_ADJUST_CANARY_FILE"] = _cohort_env_saved
 
     # THE HISTORY ROUTES (the panel spec's zones 4-5, Sep 29): the
     # ledger and the telemetry stream, GET-only and read-only — a POST

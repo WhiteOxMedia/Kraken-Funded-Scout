@@ -341,10 +341,17 @@ def route(method: str, path: str, body: dict | None = None,
             # always carries the non-secret identifier; the secret
             # stays in the env where _authenticated read it.
             operator_id = "operator"
+            # THE WIRE SERVES THE ARMED CELL (the follow-up review's
+            # [medium]): the route reads the cohort's selected cell
+            # through the machine's own _aa_params seam — the boundary
+            # hook and the wire price the same recommendation, and no
+            # operator body value can create a second, competing cell
+            # source. An unlined cohort returns {} = module defaults.
+            import exit_extension as _exx_p
             return 200, apply_action(
                 rid, action, operator_id=operator_id,
                 confirm=bool(b.get("confirm")), goal_pct=goal_pct,
-                operator_override=override)
+                operator_override=override, params=_exx_p._aa_params())
     return 404, {"error": f"no route {method} {path}"}
 
 
