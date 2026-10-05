@@ -319,6 +319,134 @@ def _quantile_bar_as_learn(state, model):
     return round(max(tl.BAR_MIN, min(tl.BAR_MAX, raw)), 1)
 
 
+# ── THE RETUNE VALVE'S RECKONING (Oct 5, the gate-quality audit's
+# recalibration) ─────────────────────────────────────────────────────
+# The audit priced the week's tide-out funnel end-to-end (the gate-
+# quality plate's 41.7% refusal-miss, the worst of the gates): the
+# learned OUT bar is EV-max on BOTH contracts (60-min fit, 7h plate —
+# $5.50 vs $2.37/fire at 66), so the BAR is not the defect; the dial's
+# TIDE_RETUNE_DAILY_CAP override (1/day vs the code default 3) is the
+# binding constraint — the band the valve admits below the bar carried
+# 109 candidates and 19 would-be payers, and 1/day could reach 7. The
+# CAP stays the OPERATOR'S CALL (the dial is the risk knob; the deep
+# read burns slots at a ~5:1 dud:payer bound while the funnel sits
+# under the r-bar) — but the call now gets NUMBERS every week: this
+# section prices the valve's band, the slot budget, and the slots the
+# ledger says were spent, so the dial decision is re-litigated on
+# evidence, not memory. Read-only: the reckoning never moves the dial.
+RETUNE_DIAL_OVERRIDE = None   # the drives' seam: dict(armed, quick_min,
+                              # cap, spent_today) or None = the live dial
+
+
+def _retune_dial() -> dict:
+    """The retune dial for the reckoning: the drives' override first,
+    then the scanner's live dial (fail-soft to the code defaults)."""
+    if RETUNE_DIAL_OVERRIDE is not None:
+        d = dict(RETUNE_DIAL_OVERRIDE)
+        d.setdefault("armed", False)
+        d.setdefault("quick_min", 66.0)
+        d.setdefault("cap", 3)
+        d.setdefault("spent_today", None)
+        return d
+    try:
+        import background_scanner as _bs
+        d = dict(_bs._tide_retune_dial())
+        d.setdefault("spent_today", None)
+        return d
+    except Exception:
+        return {"armed": False, "quick_min": 66.0, "cap": 3,
+                "spent_today": None}
+
+
+def _retune_slots_spent() -> int | None:
+    """Slots the day ledger says were spent TODAY (None = unreadable,
+    the fail-closed ledger's own posture — never a fake 0)."""
+    if RETUNE_DIAL_OVERRIDE is not None:
+        st = RETUNE_DIAL_OVERRIDE.get("spent_today")
+        return int(st) if st is not None else None
+    try:
+        import background_scanner as _bs
+        day = datetime.now().astimezone().strftime("%Y-%m-%d")
+        pairs = _bs._tide_retune_load_day(day)
+        return None if pairs is None else len(pairs)
+    except Exception:
+        return None
+
+
+def _retune_reckoning(cands, bar_live, week_tag: str) -> dict | None:
+    """The OUT valve's weekly pricing. cands = the week's OUT candidates
+    [(quick, payer)] already joined by _week_candidates; bar_live = the
+    OUT in-force bar (None = the valve IS the gate). Returns {lines,
+    summary} or None when there is nothing to price. Never raises; the
+    dial is the operator's call — the reckoning prices it, never moves it."""
+    try:
+        dial = _retune_dial()
+        if not dial.get("armed"):
+            return {"lines": [
+                        "── THE RETUNE VALVE'S RECKONING ──",
+                        "  the retune dial is OFF — the wall stands alone; "
+                        "nothing to price"],
+                    "summary": {"dial": dial, "verdict": "DIAL OFF"}}
+        qmin = float(dial.get("quick_min") or 66.0)
+        cap = int(dial.get("cap") or 0)
+        offered = [(q, y) for q, y in (cands or []) if q >= qmin]
+        band = ([(q, y) for q, y in offered
+                 if bar_live is None or q < float(bar_live)])
+        g_band = _grade(band, qmin) or {"bar": qmin, "fires": 0,
+                                        "payers": 0, "rate": 0.0,
+                                        "usd": 0.0, "usd_per_fire": 0.0}
+        slots = max(0, cap) * WINDOW_DAYS
+        spent = _retune_slots_spent()
+        lines = [
+            "── THE RETUNE VALVE'S RECKONING (the gate-quality audit's "
+            "recalibration) ──",
+            f"  dial: armed, quick_min {qmin:.0f}, cap {cap}/day — slots "
+            f"this week: {slots} (the code default cap is "
+            f"{_retune_default_cap()})",
+            f"  the band only the valve admits (quick {qmin:.0f}–"
+            f"{bar_live - 1 if bar_live is not None else 100:.0f}): "
+            f"{g_band['fires']} candidates, {g_band['payers']} payers "
+            f"({g_band['rate'] * 100:.1f}%), "
+            f"${g_band['usd_per_fire']:.2f}/fire",
+            "  slots spent today (ledger): "
+            + ("unreadable (fail-closed)" if spent is None else str(spent)),
+        ]
+        if g_band["fires"] == 0:
+            verdict = ("NO BAND — the valve's floor admits nothing this "
+                       "week")
+        elif g_band["fires"] <= slots:
+            verdict = (f"CAP SUFFICES this week (band {g_band['fires']} "
+                       f"<= slots {slots})")
+        elif g_band["usd_per_fire"] > 0:
+            verdict = (f"SLOTS BIND — {g_band['fires']} band candidates vs "
+                       f"{slots} slots at ${g_band['usd_per_fire']:.2f}/fire "
+                       f"left priced; the cap (dial {cap}) is the binding "
+                       f"constraint (the code default is "
+                       f"{_retune_default_cap()})")
+        else:
+            verdict = ("SLOTS BIND (no EV case) — the band prices "
+                       f"${g_band['usd_per_fire']:.2f}/fire; no evidence "
+                       "to widen the cap")
+        lines.append(f"  verdict: {verdict}")
+        return {"lines": lines,
+                "summary": {"dial": dial, "band": g_band,
+                            "band_offered": len(offered), "slots": slots,
+                            "slots_spent_today": spent, "verdict": verdict}}
+    except Exception as exc:
+        logger.debug("retune reckoning skipped: %s", exc)
+        return None
+
+
+def _retune_default_cap() -> int:
+    """The code default cap (background_scanner.TIDE_RETUNE_CAP) — the
+    number the dial is overriding. Fail-soft to 3 (the study's value)."""
+    try:
+        import background_scanner as _bs
+        return int(_bs.TIDE_RETUNE_CAP)
+    except Exception:
+        return 3
+
+
 def _week_candidates():
     """[(state, quick, payer)] for the trailing WINDOW_DAYS: both
     ledgers, deduped per pair/15-min like the fit, joined to the 5m
@@ -1147,10 +1275,13 @@ def report_now():
         if fills_by_state is None:
             summary["fills"] = fills_why
         arr_cache = {}
+        _out_bar = None
         for st_name in ("OUT", "FLAT", "RISING"):
             cands = by_state.get(st_name) or []
             st_model = (model.get("states") or {}).get(st_name) or {}
             bar_live = st_model.get("bar")
+            if st_name == "OUT":
+                _out_bar = bar_live
             src_live = st_model.get("bar_src") or "quantile"
             if bar_live is None or not cands:
                 lines.append(f"{st_name}: no grade ({'no in-force bar' if bar_live is None else 'no candidates this week'})")
@@ -1200,6 +1331,20 @@ def report_now():
                              f"${g_other['usd']:.2f} (${g_other['usd_per_fire']:+.2f}/fire)"
                              f"   [in-force Δ$/fire {d:+.2f}]")
             lines.append("")
+        # ── THE RETUNE VALVE'S RECKONING (Oct 5): OUT's band pricing
+        #    rides right after the per-state grades — the dial's weekly
+        #    numbers, priced by the same _grade convention, never moved
+        #    by this report.
+        try:
+            _rec = _retune_reckoning(by_state.get("OUT") or [],
+                                     _out_bar, week_tag)
+            if _rec:
+                lines.append("")
+                lines.extend(_rec["lines"])
+                summary["retune_reckoning"] = _rec["summary"]
+                lines.append("")
+        except Exception as _rr_exc:
+            logger.debug("retune reckoning section skipped: %s", _rr_exc)
         # ── THE ROLLING GRADE + THE AUTO-FLIP (Sep 11) ──────────────
         recs = _load_history()
         recs = [r for r in recs if r.get("week") != week_tag]

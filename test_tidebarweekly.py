@@ -755,6 +755,133 @@ try:
           (s.get("fills_trend") or {}).get("FLAT") == [5.5]
           and s["fills_trend"]["RISING"] == [0.0]
           and s["fills_trend"]["OUT"] == [None], s.get("fills_trend"))
+    # ── 4d. THE RETUNE VALVE'S RECKONING (Oct 5, the gate-quality
+    #    audit's recalibration): the audit priced the week's tide-out
+    #    funnel end-to-end — the learned OUT bar is EV-max on BOTH
+    #    contracts (60-min fit AND the 7h plate), so the BAR is not
+    #    the defect; the dial's TIDE_RETUNE_DAILY_CAP override (1 vs
+    #    the code default 3) is the binding constraint. The cap stays
+    #    the OPERATOR'S call (the deep read burns slots at a ~5:1
+    #    dud:payer bound) — so the recalibration is EVIDENCE: the
+    #    weekly report now prices the valve's band, the slot budget,
+    #    and the slots the ledger says were spent, and names the
+    #    binding constraint with a verdict. The report prices the
+    #    dial; it never moves it.
+    check("4d.0 the reckoning rides the override seam (the drives "
+          "never touch the live dial) and prices, never moves",
+          tbw.RETUNE_DIAL_OVERRIDE is None
+          and callable(tbw._retune_reckoning)
+          and "never moves it" in (tbw._retune_reckoning.__doc__ or "")
+          and "_retune_reckoning(by_state.get(\"OUT\")" in
+          (BASE / "tidebar_weekly.py").read_text(encoding="utf-8"))
+    _real_override = tbw.RETUNE_DIAL_OVERRIDE
+    try:
+        # dial OFF: the wall stands alone, nothing to price
+        tbw.RETUNE_DIAL_OVERRIDE = {"armed": False}
+        _off = tbw._retune_reckoning([(90.0, True)], 86.0, "t-off")
+        check("4d.1 a dark dial prices nothing (the wall stands alone; "
+              "no band, no slots, no invented numbers)",
+              _off is not None and _off["summary"]["verdict"] == "DIAL OFF"
+              and "wall stands alone" in "\n".join(_off["lines"]), _off)
+        # armed with headroom: 3 band candidates, cap 2 x 7d = 14 slots
+        tbw.RETUNE_DIAL_OVERRIDE = {"armed": True, "quick_min": 66.0,
+                                    "cap": 2, "spent_today": 1}
+        _suf = tbw._retune_reckoning(
+            [(70.0, True), (75.0, False), (80.0, True)], 86.0, "t-suf")
+        check("4d.2 an armed dial with headroom says so (cap SUFFICES, "
+              "slots = cap x window, the code default named for the "
+              "operator, today's ledger spend carried)",
+              _suf is not None
+              and _suf["summary"]["verdict"].startswith("CAP SUFFICES")
+              and _suf["summary"]["slots"] == 14
+              and _suf["summary"]["slots_spent_today"] == 1
+              and "default cap is 3" in "\n".join(_suf["lines"]), _suf)
+        # the audit's own week: 8 band candidates (3 payers) vs cap 1
+        tbw.RETUNE_DIAL_OVERRIDE = {"armed": True, "quick_min": 66.0,
+                                    "cap": 1, "spent_today": None}
+        _bind = tbw._retune_reckoning(
+            [(72.0, False), (74.0, True), (75.0, False), (78.0, False),
+             (80.0, False), (82.0, True), (84.0, False), (85.0, True)],
+            86.0, "t-bind")
+        check("4d.3 the audit's binding shape (the Oct-2 week: 8 band "
+              "candidates, 3 payers, cap 1/day = 7 slots) renders "
+              "SLOTS BIND with the dial named as the constraint",
+              _bind is not None
+              and _bind["summary"]["band"]["fires"] == 8
+              and _bind["summary"]["band"]["payers"] == 3
+              and _bind["summary"]["slots"] == 7
+              and "SLOTS BIND" in _bind["summary"]["verdict"]
+              and "binding" in _bind["summary"]["verdict"]
+              and "dial 1" in _bind["summary"]["verdict"], _bind)
+        check("4d.4 an unreadable day ledger reads as unreadable (the "
+              "fail-closed posture — never a fake 0 spent)",
+              _bind is not None
+              and _bind["summary"]["slots_spent_today"] is None
+              and "unreadable (fail-closed)" in "\n".join(_bind["lines"]),
+              _bind)
+        # NO BAND: the valve's floor above everything seen
+        tbw.RETUNE_DIAL_OVERRIDE = {"armed": True, "quick_min": 90.0,
+                                    "cap": 1, "spent_today": None}
+        _none = tbw._retune_reckoning([(80.0, True)], 86.0, "t-none")
+        check("4d.5 a floor above the whole week prices NO BAND (no "
+              "candidates, no invented verdict)",
+              _none is not None
+              and _none["summary"]["verdict"].startswith("NO BAND")
+              and _none["summary"]["band"]["fires"] == 0, _none)
+        # zero-EV band: slots bind but the data refuses the widening case
+        # (cap 0 — a legitimately closed valve: 0 slots vs 3 candidates)
+        tbw.RETUNE_DIAL_OVERRIDE = {"armed": True, "quick_min": 66.0,
+                                    "cap": 0, "spent_today": None}
+        _dud = tbw._retune_reckoning(
+            [(70.0, False), (75.0, False), (80.0, False)], 86.0, "t-dud")
+        check("4d.6 a dud band never argues for widening (SLOTS BIND "
+              "with no EV case — the reckoning is evidence, not a "
+              "sales pitch)",
+              _dud is not None
+              and "no EV case" in _dud["summary"]["verdict"]
+              and _dud["summary"]["band"]["usd_per_fire"] == 0.0, _dud)
+        # the valve-only world: no in-force bar, the band is everything
+        _valve = tbw._retune_reckoning(
+            [(70.0, True), (95.0, False)], None, "t-valve")
+        check("4d.7 a cold learner (no bar) prices the valve as the "
+              "whole gate (band top 100, offered 2)",
+              _valve is not None and "100" in
+              "\n".join(_valve["lines"])
+              and _valve["summary"]["band_offered"] == 2, _valve)
+        # the FULL PASS embeds the reckoning: report text + sidecar
+        tbw.RETUNE_DIAL_OVERRIDE = {"armed": True, "quick_min": 66.0,
+                                    "cap": 1, "spent_today": 0}
+        _s = tbw.report_now()
+        _txt_rr = tbw.OUT_FILE.read_text(encoding="utf-8")
+        check("4d.8 the weekly pass embeds the reckoning after the "
+              "grades (report text carries the section + verdict; the "
+              "sidecar ships retune_reckoning for the MASTER plate)",
+              "THE RETUNE VALVE'S RECKONING" in _txt_rr
+              and _txt_rr.index("THE RETUNE VALVE'S RECKONING")
+              > _txt_rr.index("IN FORCE  bar 80")
+              and isinstance(_s.get("retune_reckoning"), dict)
+              and _s["retune_reckoning"]["verdict"]
+              in _txt_rr, (_s.get("retune_reckoning"),))
+        check("4d.9 the sidecar's verdict matches the printed one (the "
+              "plate and the report can never disagree)",
+              isinstance(_s.get("retune_reckoning"), dict)
+              and _s["retune_reckoning"]["dial"].get("cap") == 1
+              and isinstance(_s["retune_reckoning"].get("band"), dict)
+              and "verdict" in _s["retune_reckoning"],
+              _s.get("retune_reckoning"))
+        # the default-cap read: the real module's constant, and the
+        # fail-soft when background_scanner is junk
+        check("4d.10 the code default cap reads from the scanner "
+              "constant (3, the study's value) and fails soft",
+              tbw._retune_default_cap() == 3,
+              tbw._retune_default_cap())
+    finally:
+        # THE DARK-VALVE POSTURE: the rest of this suite runs with the
+        # dial override OFF — no later leg ever reads the production
+        # dial json or the live day ledger (leak-audit: the seam is a
+        # module attr; the process exits after the suite)
+        tbw.RETUNE_DIAL_OVERRIDE = {"armed": False}
+
     # ── THE REGIME MARKS: flip events projected onto the trend ──────
     real_evs_m = tbw.FLIP_EVENTS_FILE
     tbw.FLIP_EVENTS_FILE = sandbox / "flip_events_marks.jsonl"
