@@ -31,7 +31,7 @@
 ## 2. THE CANARY PLAN (armed, monitored, reversible)
 
 ### Design (commit 7bdee79 — amend chain, review loop clean)
-- **Scope:** `TIDE_RETUNE_CANARY_PAIRS = BTC/USD, ETH/USD, UNI/USD`; `TIDE_RETUNE_CANARY_CAP = 2` (base stays 1). Non-canary pairs are untouched; once-per-pair-per-day outranks the canary; the QC mirror never spends.
+- **Scope:** `TIDE_RETUNE_CANARY_PAIRS = BTC/USD, ETH/USD, UNI/USD`; `TIDE_RETUNE_CANARY_CAP = 2` — the DAY'S TOTAL cap rises 1→2 when a canary pair spends the extra slot (the +1/day is SHARED by the canary pool, first-come-first-served; each pair still max once/day; base stays 1 for everyone else). Non-canary pairs are untouched; once-per-pair-per-day outranks the canary; the QC mirror never spends. Worst case: +1 extra deep read/day shared → ≤ +7 total over the window (the Oct 12 memo's [medium] clarified the semantics — not +1/day per pair).
 - **Fail-closed doors:** junk pair list, cap < 1, base cap 0 (operator OFF can never be widened), cap ≤ base, and an omitted/expired/unparseable `TIDE_RETUNE_CANARY_UNTIL` all leave the valve at the base posture. The dial is the single posture the release logic and the weekly report share.
 - **Rollback triggers (dial-native, no restart):** remove/flip the three `TIDE_RETUNE_CANARY_*` keys → expires next tick; the time box kills it automatically on 2026-10-12.
 - **Monitoring:** the weekly reckoning's dial line names the canary (pairs, cap, until) and states the bound's limitation; the day ledger (`tide_retune_state.json`) reconciles every release; 27 red-first pins in `test_tidecapcanary` guard the whole contract.
