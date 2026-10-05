@@ -851,8 +851,29 @@ def _learn(state: dict, result: dict) -> str:
                   f"perfect). Realized ${pnl:+.0f}; weights hold."
                   + _worst_gate_txt(result.get("worst_gate")))
     else:
-        lesson = (f"Score and money agree (score {score:.0f}, realized "
-                  f"${pnl:+.0f}) — weights hold; the calibration stands.")
+        # ── THE AGREEMENT BAR (user rule, Oct 5): the old catch-all
+        # printed "Score and money agree ... the calibration stands" for
+        # score 50 + realized $+0 + $505 left on the table — a verdict
+        # the money had not earned. Agreement is the money CONFIRMING
+        # the score, and a calibration can stand only on REALIZED
+        # money: the leave must realize (the left-on-table money
+        # becomes realized) and the money left on the table must
+        # become $0 (≤ the $1 crumb the voice itself ignores). Until
+        # then the verdict is UNPROVEN — weights hold, nothing stands.
+        _left = float(result.get("total_left")
+                      or sum(float(v) or 0.0 for v in usd.values()))
+        if pnl > 0 and _left <= 1:
+            lesson = (f"Score and money agree (score {score:.0f}, realized "
+                      f"${pnl:+.0f}) — weights hold; the calibration stands.")
+        else:
+            _why = ("the money went backwards" if pnl < 0 else
+                    f"${_left:,.0f} left on the table" if _left > 1 else
+                    "nothing realized")
+            lesson = (f"Score {score:.0f}, realized ${pnl:+.0f} — {_why}: "
+                      f"the money hasn't confirmed the score, so this is "
+                      f"not agreement. Weights hold unproven — the "
+                      f"calibration stands only when the leave realizes "
+                      f"and the money left on the table becomes $0.")
     state.setdefault("lessons", []).append(
         {"ts": result["ts"], "lesson": lesson})
     state["lessons"] = state["lessons"][-30:]

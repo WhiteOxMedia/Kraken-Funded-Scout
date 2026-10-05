@@ -105,14 +105,36 @@ lesson2 = dc._learn(state2, res_lo)
 check("low score + made money -> the dominant weight EASES",
       state2["weights"]["missed"] < dc.DEFAULT_WEIGHTS["missed"], state2["weights"]["missed"])
 check("that lesson names the easing", "eases" in lesson2)
-# agreement -> weights hold
+# agreement -> weights hold (THE AGREEMENT BAR, Oct 5: realized money
+# AND the table drained — ≤ the $1 crumb the voice itself ignores)
 state3 = {"weights": dict(dc.DEFAULT_WEIGHTS), "history": [], "lessons": []}
 res_ok = {"score": 70.0, "realized_pnl": 40.0, "pace_share": 48.0,
-          "usd_left": {"missed": 10.0, "giveback": 0, "missed_exit": 0, "early_exit": 0},
+          "usd_left": {"missed": 0.5, "giveback": 0, "missed_exit": 0, "early_exit": 0},
           "ts": datetime.now(MST).isoformat()}
 lesson3 = dc._learn(state3, res_ok)
 check("score and money agree -> the weights hold",
       state3["weights"] == dc.DEFAULT_WEIGHTS and "agree" in lesson3)
+# THE AGREEMENT BAR (user rule, Oct 5): score 50 + realized $+0 + $505
+# on the table is NOT agreement — the money never confirmed the score;
+# the verdict is unproven until the leave realizes and the table
+# drains to $0
+state3b = {"weights": dict(dc.DEFAULT_WEIGHTS), "history": [], "lessons": []}
+res_505 = {"score": 50.0, "realized_pnl": 0.0, "pace_share": 48.0,
+           "usd_left": {"missed": 305.0, "giveback": 200.0, "missed_exit": 0,
+                        "early_exit": 0},
+           "ts": datetime.now(MST).isoformat()}
+lesson3b = dc._learn(state3b, res_505)
+check("score 50 + realized $0 + $505 on the table -> NOT agreement, unproven",
+      state3b["weights"] == dc.DEFAULT_WEIGHTS and "not agreement" in lesson3b
+      and "unproven" in lesson3b, lesson3b[:100])
+# money came but real leave is still on the table -> still unproven
+state3c = {"weights": dict(dc.DEFAULT_WEIGHTS), "history": [], "lessons": []}
+res_left = dict(res_ok, usd_left={"missed": 60.0, "giveback": 0,
+                                  "missed_exit": 0, "early_exit": 0})
+lesson3c = dc._learn(state3c, res_left)
+check("realized $40 but $60 still on the table -> not agreement yet",
+      state3c["weights"] == dc.DEFAULT_WEIGHTS
+      and "not agreement" in lesson3c, lesson3c[:100])
 # the bounds hold across many nudges
 state4 = {"weights": {"missed": 2.4}, "history": [], "lessons": []}
 for _ in range(5):
@@ -157,8 +179,8 @@ check("that lesson names the silent funnel", "silent funnel" in lesson_el
 res_full = dict(res_empty, empty_fire=False)
 state_f = {"weights": dict(dc.DEFAULT_WEIGHTS), "history": [], "lessons": []}
 lesson_f = dc._learn(state_f, res_full)
-check("a firing rotation with a clean sheet is unaffected (weights hold)",
-      state_f["weights"] == dc.DEFAULT_WEIGHTS and "agree" in lesson_f)
+check("a firing rotation with a clean sheet is unaffected (weights hold, the money still unproven)",
+      state_f["weights"] == dc.DEFAULT_WEIGHTS and "not agreement" in lesson_f)
 check("the cap is wired into evaluate_rotation (score, not just the lesson)",
       "EMPTY_FIRE_CAP" in src and "empty_fire = not fired" in src
       and "score = EMPTY_FIRE_CAP" in src)
