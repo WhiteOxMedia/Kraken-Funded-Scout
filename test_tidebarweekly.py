@@ -776,6 +776,10 @@ try:
           (BASE / "tidebar_weekly.py").read_text(encoding="utf-8"))
     _real_override = tbw.RETUNE_DIAL_OVERRIDE
     try:
+        # fixture date helper: an October date inside the 7-day window
+        # (days rotate — only the per-day GROUPING matters to the math)
+        def _tsd(d, h=12):
+            return f"2026-10-{d:02d}T{h:02d}:00:00+00:00"
         # dial OFF: the wall stands alone, nothing to price
         tbw.RETUNE_DIAL_OVERRIDE = {"armed": False}
         _off = tbw._retune_reckoning([(90.0, True)], 86.0, "t-off")
@@ -783,17 +787,20 @@ try:
               "no band, no slots, no invented numbers)",
               _off is not None and _off["summary"]["verdict"] == "DIAL OFF"
               and "wall stands alone" in "\n".join(_off["lines"]), _off)
-        # armed with headroom: 3 band candidates, cap 2 x 7d = 14 slots
+        # armed with headroom: 2 band candidates on 2 dates, cap 2/day
         tbw.RETUNE_DIAL_OVERRIDE = {"armed": True, "quick_min": 66.0,
                                     "cap": 2, "spent_today": 1}
         _suf = tbw._retune_reckoning(
-            [(70.0, True), (75.0, False), (80.0, True)], 86.0, "t-suf")
+            [(70.0, True, _tsd(2)), (80.0, True, _tsd(3))], 86.0, "t-suf")
         check("4d.2 an armed dial with headroom says so (cap SUFFICES, "
-              "slots = cap x window, the code default named for the "
-              "operator, today's ledger spend carried)",
+              "the naive budget named beside the per-day bound, the "
+              "code default named for the operator, today's ledger "
+              "spend carried)",
               _suf is not None
               and _suf["summary"]["verdict"].startswith("CAP SUFFICES")
               and _suf["summary"]["slots"] == 14
+              and _suf["summary"].get("releasable") == 2
+              and _suf["summary"].get("dates") == 2
               and _suf["summary"]["slots_spent_today"] == 1
               and "default cap is 3" in "\n".join(_suf["lines"]), _suf)
         # the audit's own week: 8 band candidates (3 payers) vs cap 1
@@ -835,10 +842,10 @@ try:
         _dud = tbw._retune_reckoning(
             [(70.0, False), (75.0, False), (80.0, False)], 86.0, "t-dud")
         check("4d.6 a dud band never argues for widening (SLOTS BIND "
-              "with no EV case — the reckoning is evidence, not a "
+              "with no pricing case — the reckoning is evidence, not a "
               "sales pitch)",
               _dud is not None
-              and "no EV case" in _dud["summary"]["verdict"]
+              and "no pricing case" in _dud["summary"]["verdict"]
               and _dud["summary"]["band"]["usd_per_fire"] == 0.0, _dud)
         # the valve-only world: no in-force bar, the band is everything
         _valve = tbw._retune_reckoning(
@@ -875,6 +882,67 @@ try:
               "constant (3, the study's value) and fails soft",
               tbw._retune_default_cap() == 3,
               tbw._retune_default_cap())
+        # ── the commit-review [medium]s, cured red-first ────────────
+        # (1) cap x 7 fungible slots is WRONG: a 7-day window touches
+        # 8 calendar dates (the day ledger's key) and candidates
+        # CLUSTER — the honest bound is SUM(min(cap, n_date)). (2) the
+        # "EV case" must name the house convention (payers only, gross
+        # of costs), never imply net P&L.
+        _cluster = tbw._retune_reckoning(
+            [(70.0, True, _tsd(2)), (72.0, False, _tsd(2, 13)),
+             (74.0, True, _tsd(2, 14)), (76.0, False, _tsd(2, 15)),
+             (78.0, True, _tsd(2, 16)), (80.0, False, _tsd(3)),
+             (82.0, True, _tsd(3, 13)), (84.0, False, _tsd(4))],
+            86.0, "t-cluster")
+        check("4d.11 CLUSTERED candidates bind per-day (8 band "
+              "candidates on 3 dates at cap 1/day = 3 releasable of 8 "
+              "— the fungible cap x 7 said 7 slots; the per-day math "
+              "is the honest bound)",
+              _cluster is not None
+              and _cluster["summary"]["verdict"].startswith("SLOTS BIND")
+              and "only 3 of them releasable" in _cluster["summary"]["verdict"]
+              and "clustering" in _cluster["summary"]["verdict"]
+              and _cluster["summary"].get("releasable") == 3
+              and _cluster["summary"].get("dates") == 3,
+              _cluster["summary"] if _cluster else None)
+        _spread = tbw._retune_reckoning(
+            [(70.0, True, _tsd(28)), (72.0, False, _tsd(29)),
+             (74.0, True, _tsd(30)), (76.0, False, _tsd(1)),
+             (78.0, True, _tsd(2)), (80.0, False, _tsd(3)),
+             (82.0, True, _tsd(4)), (84.0, False, _tsd(5))],
+            86.0, "t-spread")
+        check("4d.12 SPREAD candidates suffice per-day (the same 8 "
+              "candidates on 8 dates at cap 1 = 8 releasable — the "
+              "verdict FLIPS versus the clustered week, which the "
+              "fungible cap x 7 could never see)",
+              _spread is not None
+              and _spread["summary"]["verdict"].startswith("CAP SUFFICES")
+              and _spread["summary"].get("releasable") == 8
+              and _spread["summary"].get("dates") == 8,
+              _spread["summary"] if _spread else None)
+        _dud2 = tbw._retune_reckoning(
+            [(70.0, False, _tsd(2)), (75.0, False, _tsd(2, 13))],
+            86.0, "t-dud2")
+        check("4d.13 the EV case names its convention (payers only, "
+              "gross of costs — a pricing case, not net P&L; the "
+              "dud band argues nothing)",
+              _dud2 is not None
+              and "no pricing case" in _dud2["summary"]["verdict"]
+              and "payers only" in _dud2["summary"]["verdict"]
+              and "gross of costs" in _dud2["summary"]["verdict"],
+              _dud2["summary"] if _dud2 else None)
+        _bind2 = tbw._retune_reckoning(
+            [(70.0, True, _tsd(2)), (75.0, True, _tsd(2, 13))], 86.0,
+            "t-bind2")
+        check("4d.14 a binding band with payers still prices the "
+              "convention honestly (SLOTS BIND carries the payers-"
+              "only / gross-of-costs naming beside the dollars)",
+              _bind2 is not None
+              and _bind2["summary"]["verdict"].startswith("SLOTS BIND")
+              and "payers only" in _bind2["summary"]["verdict"]
+              and "gross of costs" in _bind2["summary"]["verdict"]
+              and "REAL FILLS" in _bind2["summary"]["verdict"],
+              _bind2["summary"] if _bind2 else None)
     finally:
         # THE DARK-VALVE POSTURE: the rest of this suite runs with the
         # dial override OFF — no later leg ever reads the production

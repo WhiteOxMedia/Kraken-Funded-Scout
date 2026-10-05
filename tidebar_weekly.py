@@ -389,20 +389,41 @@ def _retune_reckoning(cands, bar_live, week_tag: str) -> dict | None:
                     "summary": {"dial": dial, "verdict": "DIAL OFF"}}
         qmin = float(dial.get("quick_min") or 66.0)
         cap = int(dial.get("cap") or 0)
-        offered = [(q, y) for q, y in (cands or []) if q >= qmin]
-        band = ([(q, y) for q, y in offered
+        # candidates may be (quick, payer) or (quick, payer, ts) — the
+        # drives' per-day fixtures carry the ts; production rows do not
+        def _split(t):
+            return (float(t[0]), t[1], t[2] if len(t) >= 3 else None)
+        offered = [(q, y, ts) for q, y, ts in
+                   (_split(t) for t in (cands or [])) if q >= qmin]
+        band = ([(q, y, ts) for q, y, ts in offered
                  if bar_live is None or q < float(bar_live)])
-        g_band = _grade(band, qmin) or {"bar": qmin, "fires": 0,
-                                        "payers": 0, "rate": 0.0,
-                                        "usd": 0.0, "usd_per_fire": 0.0}
-        slots = max(0, cap) * WINDOW_DAYS
+        g_band = _grade([(q, y) for q, y, _ in band], qmin) or \
+            {"bar": qmin, "fires": 0, "payers": 0, "rate": 0.0,
+             "usd": 0.0, "usd_per_fire": 0.0}
+        # THE HONEST SLOT BOUND (the commit review's [medium]): a
+        # 7-day window touches EIGHT calendar dates and candidates
+        # cluster — cap x WINDOW_DAYS treats slots as fungible when
+        # they are not (the day ledger keys per date; a date's slots
+        # never roll over). The releasable bound is
+        # SUM(min(cap, n_date)) over the band's own dates; a candidate
+        # without a ts counts under a single unknown date (the same
+        # posture as a dateless ledger row).
+        by_date: dict = {}
+        for _q, _y, _ts in band:
+            key = str(_ts)[:10] if _ts else "unknown"
+            by_date[key] = by_date.get(key, 0) + 1
+        releasable = sum(min(max(0, cap), n) for n in by_date.values())
+        n_dates = len(by_date)
+        slots = max(0, cap) * WINDOW_DAYS   # kept as the NAIVE bound
         spent = _retune_slots_spent()
         lines = [
             "── THE RETUNE VALVE'S RECKONING (the gate-quality audit's "
             "recalibration) ──",
-            f"  dial: armed, quick_min {qmin:.0f}, cap {cap}/day — slots "
-            f"this week: {slots} (the code default cap is "
-            f"{_retune_default_cap()})",
+            f"  dial: armed, quick_min {qmin:.0f}, cap {cap}/day (the "
+            f"code default cap is {_retune_default_cap()}) — naive "
+            f"week budget {slots}, releasable bound {releasable} "
+            f"({n_dates} date(s) in the band; the per-day cap is not "
+            f"fungible across them)",
             f"  the band only the valve admits (quick {qmin:.0f}–"
             f"{bar_live - 1 if bar_live is not None else 100:.0f}): "
             f"{g_band['fires']} candidates, {g_band['payers']} payers "
@@ -414,23 +435,31 @@ def _retune_reckoning(cands, bar_live, week_tag: str) -> dict | None:
         if g_band["fires"] == 0:
             verdict = ("NO BAND — the valve's floor admits nothing this "
                        "week")
-        elif g_band["fires"] <= slots:
+        elif g_band["fires"] <= releasable:
             verdict = (f"CAP SUFFICES this week (band {g_band['fires']} "
-                       f"<= slots {slots})")
+                       f"<= releasable {releasable})")
         elif g_band["usd_per_fire"] > 0:
-            verdict = (f"SLOTS BIND — {g_band['fires']} band candidates vs "
-                       f"{slots} slots at ${g_band['usd_per_fire']:.2f}/fire "
-                       f"left priced; the cap (dial {cap}) is the binding "
-                       f"constraint (the code default is "
-                       f"{_retune_default_cap()})")
+            verdict = (f"SLOTS BIND — {g_band['fires']} band candidates, "
+                       f"only {releasable} of them releasable under the "
+                       f"per-day cap (candidates clustering on fewer "
+                       f"dates binds the valve harder than any weekly "
+                       f"budget); ${g_band['usd_per_fire']:.2f}/fire "
+                       f"priced on the house convention: payers only, "
+                       "gross of costs and losses (a pricing case, never "
+                       "net P&L — the REAL FILLS layer grades the realized "
+                       "dollars); the cap (dial "
+                       f"{cap}) is the binding constraint (the code "
+                       f"default is {_retune_default_cap()})")
         else:
-            verdict = ("SLOTS BIND (no EV case) — the band prices "
-                       f"${g_band['usd_per_fire']:.2f}/fire; no evidence "
-                       "to widen the cap")
+            verdict = ("SLOTS BIND (no pricing case) — the band prices "
+                       f"${g_band['usd_per_fire']:.2f}/fire under the "
+                       "house convention (payers only, gross of costs); "
+                       "no evidence to widen the cap")
         lines.append(f"  verdict: {verdict}")
         return {"lines": lines,
                 "summary": {"dial": dial, "band": g_band,
                             "band_offered": len(offered), "slots": slots,
+                            "releasable": releasable, "dates": n_dates,
                             "slots_spent_today": spent, "verdict": verdict}}
     except Exception as exc:
         logger.debug("retune reckoning skipped: %s", exc)
