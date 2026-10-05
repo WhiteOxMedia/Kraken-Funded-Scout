@@ -662,7 +662,9 @@ def _canary_reconciliation(dial: dict) -> tuple[list[str], dict]:
                         continue
                     fills.append(r)
         except OSError:
-            pass
+            pass   # no fills file yet = the early posture; the join
+                   # renders "collecting" (the PRODUCTION CLEAN why:
+                   # the outer except logs anything worse)
         import pandas as _pd
         rows, payers, graded = [], 0, 0
         # THE JOIN'S INTEGRITY (the commit review's two mediums): a

@@ -1578,8 +1578,9 @@ def _tide_retune_releases(quick, pair: str = "",
                 import tidebar_weekly as _tbw
                 _tbw.append_retune_release(_tt.time(), _p,
                                            state_file=TIDE_RETUNE_STATE_FILE)
-            except Exception:
-                pass
+            except Exception as _jr_exc:
+                logger.debug(
+                    "canary release journal write skipped: %s", _jr_exc)  # WHY-SWALLOW: the journal is a reconciliation surface, never a trading gate — the release already happened and MUST stand (the valve's fail-open contract); the failure is NAMED here for the reckoning's operator, never silenced
         return True, (f"the calibration study opened the tide gate "
                       f"(quick {float(quick or 0):.0f} >= {d['quick_min']:.0f}, "
                       f"{len(today) + (1 if pair and consume else 0)}/{cap} today"
