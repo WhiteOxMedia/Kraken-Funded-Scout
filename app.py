@@ -2505,6 +2505,15 @@ def render_master(cfg: TradingConfig, kraken):
     # (fail-soft like every plate).
     _render_gate_quality()
 
+    # 🪟 THE WINDOW PAYER RATIO PLATE (Oct 5, user ask): the funnel's
+    # r = P/B per rotation window, live — the gate-quality card above
+    # aggregates the week per gate; this shows the recent WINDOWS
+    # themselves, newest first, each against the machine's r 0.25
+    # tighten bar, so the payer ratio is visible without pulling
+    # telemetry by hand. Same journal, same MAX-B dedupe, fail-soft
+    # like every plate.
+    _render_window_pay()
+
     # 🪦 BURIAL HINDSIGHT (Sep 28, user ask): did the gates' refusals
     # cost money? — the recent suppression ledger priced through the
     # verdict study's join (n, payer-rate, per-gate, top payers).
@@ -3262,6 +3271,126 @@ def _render_gate_quality() -> None:
         f"(the machine's own tighten bar is r 0.25; at or under it the "
         f"auto-adjust freezes). One week, hindsight-priced, not a "
         f"promise.")
+
+
+def _window_pay_recent(days: int = 7) -> list[dict]:
+    """THE WINDOW-PAY SEAM (Oct 5, user ask): the funnel's r = P/B per
+    rotation window, read from the auto-adjust telemetry journal — the
+    gate-quality card aggregates the week PER GATE; this returns the
+    WINDOWS themselves so the payer ratio is visible without pulling
+    telemetry by hand. One row per rotation window: {rotation_id, ts,
+    burials, payers, r} with r = P/B, newest first. The journal
+    RE-EMITS a rotation window on every apply/queue/refuse
+    re-evaluation, so each window contributes its MAX-B snapshot ONCE
+    (the gate-quality seam's dedupe — a naive sum double-counts the
+    window). Both journal shapes count: the per-gate rows (Σ B_g /
+    Σ P_g) and the wire's aggregate-only top-level B/P. Fail-soft: a
+    missing, empty, torn or unreadable journal is an honest empty
+    list."""
+    import telemetry_adjust as _ta
+
+    def _iv(v) -> int:
+        return int(v) if isinstance(v, (int, float)) \
+            and not isinstance(v, bool) else 0
+
+    try:
+        rows = _ta.read_events()
+    except Exception as exc:
+        logger.debug("window-pay read skipped: %s", exc)
+        return []
+    cutoff = datetime.now().astimezone() - timedelta(days=max(1, int(days)))
+    best: dict[str, dict] = {}   # rotation_id -> its max-B snapshot
+    for ev in rows:
+        if not isinstance(ev, dict) or ev.get("event") != "auto_adjust":
+            continue
+        per_gate = ev.get("per_gate")
+        per_gate = per_gate if isinstance(per_gate, list) else []
+        b_tot = sum(_iv(g.get("B_g")) for g in per_gate
+                    if isinstance(g, dict))
+        p_tot = sum(_iv(g.get("P_g")) for g in per_gate
+                    if isinstance(g, dict))
+        if b_tot == 0 and p_tot == 0:
+            # no per-gate data → the wire's aggregate-only shape
+            b_tot = _iv(ev.get("B"))
+            p_tot = _iv(ev.get("P"))
+        if b_tot <= 0 and p_tot <= 0:
+            continue
+        try:
+            ts = datetime.fromisoformat(str(ev.get("timestamp") or ""))
+        except Exception:
+            continue
+        if ts.tzinfo is None:
+            ts = ts.astimezone()
+        if ts < cutoff:
+            continue
+        rid = str(ev.get("rotation_id") or "")
+        prev = best.get(rid)
+        if prev is None or b_tot > prev["b_tot"] or (
+                b_tot == prev["b_tot"] and ts > prev["ts"]):
+            best[rid] = {"ts": ts, "b_tot": b_tot, "p_tot": p_tot}
+    out = []
+    for rid, snap in best.items():
+        if snap["b_tot"] <= 0:
+            continue          # zero-B rows are the hook's pad, not data
+        out.append({"rotation_id": rid, "ts": snap["ts"],
+                    "burials": snap["b_tot"], "payers": snap["p_tot"],
+                    "r": snap["p_tot"] / snap["b_tot"]})
+    out.sort(key=lambda r: r["ts"], reverse=True)
+    return out
+
+
+def _render_window_pay() -> None:
+    """THE WINDOW PAYER RATIO PLATE (Oct 5, user ask): the funnel's
+    r = P/B per rotation window, live on the console — the recent
+    windows themselves, newest first, each against the machine's r 0.25
+    tighten bar. The gate-quality card above aggregates the week per
+    gate; this shows the ratio AS THE FUNNEL LIVED IT, window by
+    window, without pulling telemetry by hand. Fail-soft like every
+    plate: a broken read degrades to an unreadable line, the page
+    never crashes."""
+    try:
+        rows = _window_pay_recent(days=7)
+    except Exception as exc:
+        logger.debug("window-pay plate skipped: %s", exc)
+        rows = None
+    st.subheader("🪟 Window payer ratio — r = P/B, per window",
+                 divider="gray")
+    if rows is None:
+        st.caption("window payer ratio — unreadable: the telemetry "
+                   "journal could not be read; the plate degrades, "
+                   "the page stands.")
+        return
+    if not rows:
+        st.caption("window payer ratio — collecting: no rotation "
+                   "windows in the trailing week yet (the "
+                   "rotation-boundary hook emits them each 4h "
+                   "rotation).")
+        return
+    _lines = []
+    for r in rows[:12]:
+        _r = r.get("r")
+        _tone = ("#ff5c5c" if _r is not None and _r >= 0.40
+                 else ("#e8b34b" if _r is not None and _r >= 0.25
+                       else "#3ddc84"))
+        _ratio = f"{_r:.1%}" if _r is not None else "—"
+        # the rotation id is TELEMETRY-FED payload (the gate card's
+        # escaper rule): it rides unsafe_allow_html, so it goes through
+        # the house escaper — a hostile value renders as text, never
+        # as markup.
+        _lines.append(
+            f"<span style='color:{_tone}'>{_esc(r['rotation_id'])}</span>"
+            f" — {r['burials']} burials · {r['payers']} would-be payers "
+            f"· <b style='color:{_tone}'>{_ratio}</b> r")
+    st.markdown(
+        "<div style='font-family:Share Tech Mono,monospace;font-size:13px;"
+        "color:#d8ccb4;line-height:1.6;'>"
+        + "<br>".join(_lines) + "</div>",
+        unsafe_allow_html=True)
+    st.caption(
+        f"r = would-be payers / burials per rotation window — the "
+        f"machine's own tighten bar is r 0.25 (at or under it the "
+        f"auto-adjust freezes). {len(rows)} windows in the trailing "
+        f"week, newest first.")
 
 
 def _render_burial_hindsight() -> None:

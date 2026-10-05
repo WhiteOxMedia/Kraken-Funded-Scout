@@ -4141,6 +4141,194 @@ try:
 except Exception as exc:
     check("the gate-quality pins ran", False, exc)
 
+# ── THE WINDOW PAYER RATIO PLATE (Oct 5, red-first, user ask): the
+#    funnel's r = P/B per rotation window, LIVE on the console — the
+#    gate-quality report card above aggregates the trailing week per
+#    gate; this plate shows the recent WINDOWS themselves (newest
+#    first, each r against the machine's 0.25 tighten bar) so the
+#    funnel's payer ratio is visible without pulling telemetry by
+#    hand. Same journal, same house seams: reads through
+#    _window_pay_recent (the seam the drives patch via
+#    telemetry_adjust.TELEMETRY_PATH, the test_telemetry idiom), the
+#    per-window MAX-B snapshot dedupe (the journal RE-EMITS a window
+#    on every apply/queue/refuse re-evaluation — a naive sum
+#    double-counts it), a days= trailing-window filter like the gate
+#    card, and BOTH journal shapes accepted (the per-gate rows and
+#    the wire's aggregate-only top-level B/P).
+import telemetry_adjust as _ta_wp
+_real_tel_wp = getattr(_ta_wp, "TELEMETRY_PATH", None)
+_wp_sbx = Path(tempfile.mkdtemp())
+_wp_tel = _wp_sbx / "telemetry.jsonl"
+try:
+    _now_wp = datetime.now().astimezone()
+
+    def _wp_ev(rot, hours_ago, gates=None, b=None, p=None):
+        ev = {"event": "auto_adjust", "rotation_id": rot,
+              "timestamp": (_now_wp - timedelta(
+                  hours=hours_ago)).isoformat(),
+              "status": "applied", "reason": "ok"}
+        if gates is not None:
+            ev["per_gate"] = [{"gate": g, "B_g": gb, "P_g": gp,
+                               "r_g": (gp / gb) if gb else None}
+                              for g, gb, gp in gates]
+        if b is not None:
+            ev["B"], ev["P"] = b, p
+        return ev
+
+    _wp_tel.write_text("\n".join(json.dumps(e) for e in [
+        # a rotation re-emitted mid-window: the small read first, the
+        # full-window aggregate later — the MAX-B snapshot must win,
+        # never the sum (3+22=25 would be a lie)
+        _wp_ev("2026-10-05-00-04", 4, gates=[("tide-out", 3, 1)]),
+        _wp_ev("2026-10-05-00-04", 2, gates=[("tide-out", 13, 8),
+                                             ("stale-move", 5, 0),
+                                             ("deep-veto", 4, 1)]),
+        # a window riding the wire's AGGREGATE shape only (top-level
+        # B/P, no per_gate): the seam accepts both journal shapes
+        _wp_ev("2026-10-04-00-08", 30, b=7, p=1),
+        # OUTSIDE the trailing week: must never count
+        _wp_ev("2026-09-22-00-04", 24 * 10,
+               gates=[("tide-out", 90, 90)]),
+    ]) + "\nnot json\n", encoding="utf-8")
+    _ta_wp.TELEMETRY_PATH = _wp_tel
+    _wp_fn = getattr(app_mod, "_window_pay_recent", None)
+    check("the window-pay seam exists (_window_pay_recent — the "
+          "plate never reads the journal raw)",
+          callable(_wp_fn), _wp_fn)
+    _wp_rows = _wp_fn(days=7) if callable(_wp_fn) else None
+    _wp_rows = _wp_rows if isinstance(_wp_rows, list) else []
+    check("the re-emitted window dedupes to ONE row and the MAX-B "
+          "snapshot wins (the closed window reads 22 burials, 9 "
+          "would-be payers — the naive sum 25 and the torn line "
+          "both avoided)",
+          len(_wp_rows) == 2
+          and _wp_rows[0].get("rotation_id") == "2026-10-05-00-04"
+          and _wp_rows[0].get("burials") == 22
+          and _wp_rows[0].get("payers") == 9, _wp_rows)
+    check("the window's r is computed P/B from the deduped snapshot "
+          "(9/22 = 40.9% — the audit's own column, per window)",
+          abs((_wp_rows[0].get("r") or 0) - 9 / 22) < 1e-9,
+          _wp_rows[0])
+    check("rows ride newest first (the 2h-old closed window before "
+          "the 30h-old one)",
+          [r.get("rotation_id") for r in _wp_rows]
+          == ["2026-10-05-00-04", "2026-10-04-00-08"],
+          [r.get("rotation_id") for r in _wp_rows])
+    check("the aggregate-only journal shape counts too (top-level "
+          "B=7, P=1, r 14.3% — no per_gate needed)",
+          _wp_rows[1].get("burials") == 7
+          and _wp_rows[1].get("payers") == 1
+          and abs((_wp_rows[1].get("r") or 0) - 1 / 7) < 1e-9,
+          _wp_rows[1])
+    check("the trailing-week window filters old rows (the 10-day-old "
+          "window's 90/90 never appears)",
+          all(r.get("rotation_id") != "2026-09-22-00-04"
+              for r in _wp_rows), _wp_rows)
+    _wp_day = _wp_fn(days=1) if callable(_wp_fn) else None
+    check("the days= filter narrows honestly (days=1 keeps only the "
+          "2h window; the 30h one drops out)",
+          isinstance(_wp_day, list) and len(_wp_day) == 1
+          and _wp_day[0].get("rotation_id") == "2026-10-05-00-04",
+          _wp_day)
+    # ── the render: subheader + one monospace block + the bar caption,
+    #    captured through st like the gate-quality plate
+    _wp_md_calls, _wp_cap_calls, _wp_sub_calls = [], [], []
+    _real_md_wp = app_mod.st.markdown
+    _real_cap_wp = app_mod.st.caption
+    _real_sub_wp = app_mod.st.subheader
+
+    def _run_wp():
+        _wp_md_calls.clear(), _wp_cap_calls.clear(), \
+            _wp_sub_calls.clear()
+        app_mod.st.markdown = \
+            lambda t, **k: _wp_md_calls.append(t)
+        app_mod.st.caption = lambda t, **k: _wp_cap_calls.append(t)
+        app_mod.st.subheader = \
+            lambda t, **k: _wp_sub_calls.append(t)
+        try:
+            app_mod._render_window_pay()
+        finally:
+            app_mod.st.markdown, app_mod.st.caption, \
+                app_mod.st.subheader = _real_md_wp, _real_cap_wp, \
+                _real_sub_wp
+
+    _run_wp()
+    _wp_md = "\n".join(_wp_md_calls)
+    check("the plate renders the recent windows (subheader names the "
+          "payer ratio; each window shows its rotation id, burials, "
+          "would-be payers and r, newest first)",
+          len(_wp_sub_calls) == 1
+          and "payer ratio" in _wp_sub_calls[0]
+          and "2026-10-05-00-04" in _wp_md
+          and "22 burials" in _wp_md and "9 would-be payers" in _wp_md
+          and "40.9%" in _wp_md
+          and 0 <= _wp_md.find("2026-10-05-00-04")
+          < _wp_md.find("2026-10-04-00-08"),
+          (_wp_sub_calls, _wp_md[:300]))
+    check("the caption names the machine's r 0.25 tighten bar (the "
+          "ratio is graded against the same bar the auto-adjust "
+          "freezes on)",
+          any("0.25" in c for c in _wp_cap_calls), _wp_cap_calls)
+    # ── the rails: empty, missing, broken
+    _wp_tel.write_text("", encoding="utf-8")
+    _wp_empty = _wp_fn(days=7) if callable(_wp_fn) else "?"
+    check("an empty journal fails soft to an empty list (the plate "
+          "renders collecting, never invented numbers)",
+          _wp_empty == [], _wp_empty)
+    _ta_wp.TELEMETRY_PATH = _wp_sbx / "absent.jsonl"
+    _wp_missing = _wp_fn(days=7) if callable(_wp_fn) else "?"
+    check("a missing journal file fails soft the same way (an honest "
+          "empty, never an exception through the page)",
+          _wp_missing == [], _wp_missing)
+    _ta_wp.TELEMETRY_PATH = _wp_tel
+    _real_wp_fn = _wp_fn
+
+    def _boom_wp(days=7):
+        raise RuntimeError("telemetry probe")
+
+    if callable(_real_wp_fn):
+        app_mod._window_pay_recent = _boom_wp
+    _run_wp()
+    if callable(_real_wp_fn):
+        app_mod._window_pay_recent = _real_wp_fn
+    check("a broken seam read degrades the plate only (an unreadable "
+          "line, the subheader stands, the page never crashes)",
+          len(_wp_sub_calls) == 1
+          and any("unreadable" in c for c in _wp_cap_calls)
+          and not _wp_md_calls, (_wp_sub_calls, _wp_cap_calls))
+    _m_wp_src = (BASE / "app.py").read_text(
+        encoding="utf-8").replace("\r\n", "\n")
+    _i_gq_wp = _m_wp_src.find("\n    _render_gate_quality()")
+    _i_wp = _m_wp_src.find("\n    _render_window_pay()")
+    _i_bh_wp = _m_wp_src.find("\n    _render_burial_hindsight()")
+    check("the plate mounts in the MASTER flow between the gate "
+          "report card and the burial strip (the per-gate card, then "
+          "the per-window ratio, then the forensics)",
+          0 < _i_gq_wp < _i_wp < _i_bh_wp, (_i_gq_wp, _i_wp, _i_bh_wp))
+    # ── the escaper: a rotation id is PAYLOAD — it rides
+    #    unsafe_allow_html and must be inert (the gate-quality rule:
+    #    every string from OUTSIDE the console renders as text, never
+    #    as markup)
+    _wp_tel.write_text(json.dumps(_wp_ev(
+        "<img onerror=alert(1)>", 3, gates=[("tide-out", 6, 2)]))
+        + "\n", encoding="utf-8")
+    _run_wp()
+    _wp_esc_md = "\n".join(_wp_md_calls)
+    check("a hostile rotation id renders INERT (html-escaped payload, "
+          "never markup — the id comes from OUTSIDE the console)",
+          "&lt;img" in _wp_esc_md and "<img" not in _wp_esc_md,
+          _wp_esc_md[:200])
+except Exception as exc:
+    check("the window-payer-ratio pins ran", False, exc)
+finally:
+    if _real_tel_wp is not None:
+        _ta_wp.TELEMETRY_PATH = _real_tel_wp
+    else:
+        if hasattr(_ta_wp, "TELEMETRY_PATH"):
+            del _ta_wp.TELEMETRY_PATH
+    import shutil as _shutil_wp
+    _shutil_wp.rmtree(_wp_sbx, ignore_errors=True)
+
 try:
     out = BASE / "apptest_check.txt"
     out.write_text("\n".join(lines)
