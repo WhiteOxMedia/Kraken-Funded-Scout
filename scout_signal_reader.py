@@ -31,8 +31,13 @@ import sys
 from pathlib import Path
 from datetime import datetime, timezone, timedelta
 
-# Add the scout project to the path so we can import the signal bridge
-SCOUT_PATH = Path(r"C:\Users\birds\Workspace\kraken_scout")
+# Add the scout project to the path so we can import the signal bridge.
+# THE PATH-HIJACK RULE (Oct 4): the scout base derives from THIS FILE's
+# home — the bot root's parent hosts the scout sibling — never a baked
+# Workspace absolute (the app.py:646 hardcode masked the mutation
+# sandbox: every import inside it resolved from the real tree and the
+# mutant never ran; 17be10d).
+SCOUT_PATH = Path(__file__).resolve().parent.parent / "kraken_scout"
 if str(SCOUT_PATH) not in sys.path:
     sys.path.insert(0, str(SCOUT_PATH))
 

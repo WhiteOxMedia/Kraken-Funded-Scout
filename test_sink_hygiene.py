@@ -86,6 +86,41 @@ check("1.3 the sealed drives carry no live-name backup/restore windows "
       and 'Path("take_payouts.json")' not in _gb
       and "_bak1b" not in _gb and ".testbak" not in _gb)
 
+# ── 4. THE PATH-HIJACK SWEEP (Oct 4): app.py's _bridge hardcoded
+# sys.path.insert(r"C:\...\kraken_scout") and MASKED the mutation
+# sandbox — every later import inside it resolved from the real tree
+# and the mutant never executed. The class: an import-path insert
+# built from a baked absolute literal, i.e. a module that forgot
+# where it lives. Production modules ride the Path(__file__) idiom;
+# the fleet may not carry another (17be10d's lesson, now pinned).
+_ssr = _read(BASE / "scout_signal_reader.py")
+check("1.4 no production module re-introduces the app.py:646 hijack "
+      "class: the bot's LIVE reader derives its scout import path "
+      "from Path(__file__) (bot root -> parent -> scout sibling), "
+      "never a baked Workspace absolute",
+      "SCOUT_PATH = Path(__file__).resolve().parent.parent" in _ssr
+      and 'Path(r"C:' not in _ssr,
+      [ln for ln in _ssr.splitlines() if "SCOUT_PATH" in ln][:2])
+_sbridge = _read(BASE / "signal_bridge.py")
+check("1.5 the shared bridge's own files ride its __file__ too "
+      "(DB_PATH and KILL_SWITCH_FILE derive from the module's home — "
+      "parent.parent hosts the scout sibling, the SAME EXPRESSION "
+      "works in both twin homes so the phantommirror byte-identity "
+      "survives)",
+      "DB_PATH = (Path(__file__).resolve().parent.parent" in _sbridge
+      and "KILL_SWITCH_FILE = (Path(__file__).resolve().parent.parent"
+      in _sbridge
+      and '"kraken_scout" / "signals.db"' in _sbridge
+      and 'Path(r"C:' not in _sbridge,
+      [ln for ln in _sbridge.splitlines()
+       if "DB_PATH" in ln or "KILL_SWITCH_FILE" in ln][:2])
+check("1.6 the idiom pins stay true (app's _bridge keeps the "
+      "Path(__file__) shape that un-masked the sandbox, and the "
+      "reader keeps the SCOUT_PATH insert seam the drives pin)",
+      "sys.path.insert(0, str(Path(__file__).resolve().parent))"
+      in _read(BASE / "app.py")
+      and "sys.path.insert(0, str(SCOUT_PATH))" in _ssr)
+
 fails = [r for r in results if not r[1]]
 print(f"RESULT: {len(results) - len(fails)} passed, {len(fails)} failed")
 sys.exit(1 if fails else 0)

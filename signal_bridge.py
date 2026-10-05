@@ -31,11 +31,18 @@ logger = logging.getLogger(__name__)
 from zoneinfo import ZoneInfo
 MST = ZoneInfo("America/Denver")  # Auto DST: MDT (UTC-6) summer, MST (UTC-7) winter
 
-# Shared database — both projects use this file
-DB_PATH = Path(r"C:\Users\birds\Workspace\kraken_scout\signals.db")
+# Shared database — both projects use this file. THE PATH-HIJACK RULE
+# (Oct 4): derived from the module's home — parent.parent is the
+# common Workspace root, and the scout sibling hosts the shared data.
+# THE SAME EXPRESSION works in both twin homes (scout and bot live one
+# level under the same parent), so the phantommirror byte-identity
+# survives and every copy self-locates to the ONE shared file.
+DB_PATH = (Path(__file__).resolve().parent.parent
+           / "kraken_scout" / "signals.db")
 
 # Kill switch lock file — when present, no new trades
-KILL_SWITCH_FILE = Path(r"C:\Users\birds\Workspace\kraken_scout\kill_switch.lock")
+KILL_SWITCH_FILE = (Path(__file__).resolve().parent.parent
+                    / "kraken_scout" / "kill_switch.lock")
 
 # ── THE EXIT-WATCH SWITCH (Sep 14) ──────────────────────────────────
 # One switch that silences the exit WATCHING machinery — the scanner's
@@ -1000,7 +1007,8 @@ def get_kill_switch_reason() -> str | None:
 
 def migrate_from_json():
     """One-time migration: import old signals from trade_signals.json."""
-    json_path = Path(r"C:\Users\birds\Workspace\kraken_scout\trade_signals.json")
+    json_path = (Path(__file__).resolve().parent.parent
+                 / "kraken_scout" / "trade_signals.json")
     if not json_path.exists():
         return
 
