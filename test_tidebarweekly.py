@@ -971,6 +971,37 @@ try:
                   (_s15.get("err"), _rr15))
         finally:
             tbw._week_candidates = _real_wc_4d
+        # ── the security review's [medium]: the cap day must be the
+        # LIVE LEDGER'S zone (the scanner's astimezone rollover,
+        # Denver local) — never the UTC date the join's timestamps
+        # carry. Both lies demonstrated at the UTC midnight seam.
+        tbw.RETUNE_DIAL_OVERRIDE = {"armed": True, "quick_min": 66.0,
+                                    "cap": 1, "spent_today": None}
+        _mid = tbw._retune_reckoning(
+            [(70.0, True, "2026-10-02T23:59:00+00:00"),
+             (75.0, True, "2026-10-03T00:01:00+00:00")], 86.0, "t-mid")
+        check("4d.16 the cap day is the ledger's OWN zone (Denver "
+              "local): 17:59/18:01 MDT share ONE cap day across the "
+              "UTC midnight — releasable 1, SLOTS BIND 'only 1 of "
+              "them releasable' (the UTC-date grouping said 2 and "
+              "flattered the cap)",
+              _mid is not None
+              and _mid["summary"].get("releasable") == 1
+              and _mid["summary"].get("dates") == 1
+              and "only 1 of them releasable" in _mid["summary"]["verdict"],
+              _mid["summary"] if _mid else None)
+        _dst = tbw._retune_reckoning(
+            [(72.0, False, "2026-10-02T07:00:00+00:00"),
+             (78.0, True, "2026-10-02T04:00:00+00:00")], 86.0, "t-dst")
+        check("4d.17 the mirror shape: ONE UTC date, TWO Denver cap "
+              "days (Oct 2 01:00 MDT and Oct 1 22:00 MDT) — releasable "
+              "2, CAP SUFFICES (the UTC grouping said 1 and falsely "
+              "bound the valve)",
+              _dst is not None
+              and _dst["summary"].get("releasable") == 2
+              and _dst["summary"].get("dates") == 2
+              and _dst["summary"]["verdict"].startswith("CAP SUFFICES"),
+              _dst["summary"] if _dst else None)
     finally:
         # THE DARK-VALVE POSTURE: the rest of this suite runs with the
         # dial override OFF — no later leg ever reads the production

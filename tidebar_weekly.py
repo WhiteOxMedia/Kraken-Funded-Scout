@@ -411,9 +411,39 @@ def _retune_reckoning(cands, bar_live, week_tag: str) -> dict | None:
         # SUM(min(cap, n_date)) over the band's own dates; a candidate
         # without a ts counts under a single unknown date (the same
         # posture as a dateless ledger row).
+        # THE CAP DAY IS THE LEDGER'S ZONE (the security review's
+        # [medium]): the live retune ledger rolls over by the scanner's
+        # LOCAL date (datetime.now().astimezone()), not the UTC date
+        # the join's timestamps carry — grouping UTC split one Denver
+        # cap day across two UTC dates at midnight (flattering the
+        # cap) and merged two Denver cap days into one UTC date
+        # (falsely binding it). The grouping converts each ts with the
+        # scanner's own convention: ZoneInfo Denver first, fixed -7
+        # fallback (the per_gate_export house shape). Unparseable ts =
+        # unknown (the dateless posture).
+        def _cap_day(ts):
+            if ts is None:
+                return "unknown"
+            try:
+                from datetime import datetime as _dtm, timezone as _tz
+                t = (_dtm.fromisoformat(str(ts).replace("Z", "+00:00"))
+                     if isinstance(ts, str)
+                     else _dtm.fromisoformat(str(ts)))
+                if t.tzinfo is None:
+                    t = t.replace(tzinfo=_tz.utc)
+                try:
+                    from zoneinfo import ZoneInfo
+                    return t.astimezone(ZoneInfo("America/Denver"))\
+                        .strftime("%Y-%m-%d")
+                except Exception:
+                    from datetime import timedelta as _td
+                    return t.astimezone(_tz(_td(hours=-6)))\
+                        .strftime("%Y-%m-%d")
+            except Exception:
+                return "unknown"
         by_date: dict = {}
         for _q, _y, _ts in band:
-            key = str(_ts)[:10] if _ts else "unknown"
+            key = _cap_day(_ts)
             by_date[key] = by_date.get(key, 0) + 1
         releasable = sum(min(max(0, cap), n) for n in by_date.values())
         n_dates = len(by_date)
