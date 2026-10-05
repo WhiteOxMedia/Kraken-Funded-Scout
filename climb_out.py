@@ -376,6 +376,14 @@ def climb_out_gate(exchange, pair: str, entry: float, goal_pct: float,
         elif (tide_state or "FLAT") == "OUT":
             bar += float(rules["er_tide_tighten"])
             adj.append(f"ER bar tightened to {bar:.0f} (out tide)")
+        # THE DIAL'S SECOND HAND (Oct 4 audit): the strictness dial
+        # scales the chop bar about its calibrated anchor — 0.5x eases
+        # it, 2.0x tightens it — so the dial owns every gate the help
+        # text names. The tide ease/tighten land first; the dial then
+        # scales the whole bar.
+        if strictness != 1.0:
+            bar *= max(0.1, float(strictness))
+            adj.append(f"ER bar x{strictness:.1f}")
         squeezed = (vol_pct is not None
                     and vol_pct >= (1.0 - float(rules["squeeze_pctile"]) / 100.0))
         if er_pct is None or vol_pct is None:
@@ -402,8 +410,14 @@ def climb_out_gate(exchange, pair: str, entry: float, goal_pct: float,
                     direction = "rising"
                 elif float(fl_lows[-1]["price"]) < float(fl_lows[-2]["price"]) * 0.999:
                     direction = "sinking"
-            cushion_req = goal * float(rules["floor_cushion"][direction])
+            cushion_req = (goal * float(rules["floor_cushion"][direction])
+                           * max(0.1, float(strictness or 1.0)))
             adj.append(f"floor {direction} -> cushion x{rules['floor_cushion'][direction]:.1f}")
+            # THE DIAL'S THIRD HAND (Oct 4 audit): the min cushion scales
+            # with the dial; the trapdoor MAX stays unscaled — a floor
+            # too far below is a cliff at every strictness.
+            if strictness != 1.0:
+                adj.append(f"cushion dial x{strictness:.1f}")
             floor_ok = (fl_dist >= cushion_req
                         and fl_dist <= goal * float(rules["floor_max_goal_x"]))
             stop = fl_px - (atr or 0.0)

@@ -260,6 +260,69 @@ check("the strictness dial scales the requirement (2.0x)",
       abs(res_dial["features"]["climb_required_pct"]
           - 2.0 * res_flat["features"]["climb_required_pct"]) < 0.1,
       res_dial["features"]["climb_required_pct"])
+# ── 4b. THE DIAL'S OTHER TWO HANDS (Oct 4 audit, red-first): the
+# console help promises the strictness dial scales "room to the
+# nearest major ceiling, the chop bar, AND the floor cushion" — but
+# the gate applied it ONLY to the clearance multiplier: the ER chop
+# bar and the floor cushion never saw the dial (the audit probe read
+# the byte-identical CHOP verdict at 0.5x / 1.0x / 2.0x). All three
+# advertised hands scale now, each NAMED in the adjustments so the
+# operator sees which gate obeyed the dial.
+fresh_map()
+_dial_chop = two_phase(240, 0.0015, 60, 0.03, drift2=0.0, drift1=0.004)
+_dial_cpx = _dial_chop[-1][4]
+_dial_chop = with_pivots(_dial_chop, ceiling=_dial_cpx * 1.11,
+                         floor=_dial_cpx * 0.94, times=4)
+_er_loose = co.climb_out_gate(_FakeEx(list(_dial_chop)), "TEST/USD",
+                              entry=_dial_cpx, goal_pct=1.5, spend=1800.0,
+                              tide_state="FLAT", strictness=0.5)
+_er_strict = co.climb_out_gate(_FakeEx(list(_dial_chop)), "TEST/USD",
+                               entry=_dial_cpx, goal_pct=1.5, spend=1800.0,
+                               tide_state="FLAT", strictness=2.0)
+check("the dial moves the CHOP BAR: 0.5x eases it to 15th pct (the "
+      "chop coin's own ER 4% still fails — the dial loosens the bar, "
+      "not the coin), named in the adjustments",
+      any("ER bar x0.5" in a for a in _er_loose["adjustments"])
+      and "CHOP" in _er_loose["fail_reason"],
+      (_er_loose["fail_reason"], _er_loose["adjustments"]))
+check("the dial tightens the CHOP BAR the other way: 2.0x raises it "
+      "to 60th pct (a 40th-pct ER that passed the flat bar now "
+      "reads chop — strict = only pristine momentum)",
+      any("ER bar x2.0" in a for a in _er_strict["adjustments"]),
+      _er_strict["adjustments"])
+_dial_floor = with_pivots(list(base_rows), ceiling=final_px * 1.11,
+                          floor=final_px * 0.982, times=4)
+fresh_map()   # identical map state per leg — only the dial differs
+_fl_ok = co.climb_out_gate(_FakeEx(list(_dial_floor)), "TEST/USD",
+                           entry=final_px, goal_pct=1.5, spend=1800.0,
+                           tide_state="FLAT", strictness=1.0)
+fresh_map()   # the level map is PERSISTENT — re-prime it or leg two
+              # reads a different floor state (strength/direction)
+_fl_strict = co.climb_out_gate(_FakeEx(list(_dial_floor)), "TEST/USD",
+                               entry=final_px, goal_pct=1.5, spend=1800.0,
+                               tide_state="FLAT", strictness=2.0)
+check("the dial scales the FLOOR CUSHION: the SAME escape route "
+      "(floor 1.8% below the 1.5% goal) clears the floor gate at "
+      "1.0x (needs 1.5%) and FAILS it at 2.0x (needs exactly double "
+      "— 3.0%), the dial's hand named in the adjustments",
+      _fl_ok["fail_gate"] != "floor"
+      and _fl_strict["fail_gate"] == "floor"
+      and "cushion needs 3.0%" in (_fl_strict["fail_reason"] or "")
+      and any("cushion dial x2.0" in a
+              for a in _fl_strict["adjustments"]),
+      (_fl_ok["fail_gate"], _fl_strict["fail_reason"],
+       _fl_strict["adjustments"]))
+fresh_map()
+_air2 = with_pivots(list(base_rows), ceiling=final_px * 1.11,
+                    floor=final_px * 0.80, times=4)
+_air_strict = co.climb_out_gate(_FakeEx(list(_air2)), "TEST/USD",
+                                entry=final_px, goal_pct=1.5, spend=1800.0,
+                                tide_state="FLAT", strictness=2.0)
+check("the dial never breaks the trapdoor rail (2.0x tightens the "
+      "MIN cushion but the 20%-below floor still fails the MAX)",
+      _air_strict["fail_gate"] == "floor"
+      and "20.0% below" in _air_strict["fail_reason"],
+      (_air_strict["fail_gate"], _air_strict["fail_reason"]))
 res_coil = co.climb_out_gate(_FakeEx(list(rows_base)), "TEST/USD",
                              entry=final_px, goal_pct=1.5, spend=1800.0,
                              is_coil=True, coil_ceiling=final_px * 1.04)
