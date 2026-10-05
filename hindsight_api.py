@@ -215,11 +215,16 @@ def apply_action(rotation_id: str, action: str,
     supp, cache = _paths(supp_path, cache_path)
     agg = _rotation_aggregate(rotation_id, goal_pct, supp, cache)
     B, P, gate_rows = agg["B"], agg["P"], agg["gate_rows"]
-    # THE WEIGHTED RECOMMENDATION (the follow-up review's [medium]):
+    # THE WEIGHTED, CELL-HONEST RECOMMENDATION (two review findings):
     # every surface — summary preview, queue_review, confirmed apply —
-    # prices the SAME payer-weighted delta, so the queued number the
-    # operator reviews is the number the apply would land.
-    delta, reason = aa.compute_delta(B, P, per_gate=gate_rows)
+    # prices the SAME payer-weighted delta UNDER THE SAME PARAMS, so
+    # the queued number the operator reviews is the number the apply
+    # would land (the aggregate understatement and the default-cell
+    # drift are both gone).
+    delta, reason = aa.compute_delta(B, P, per_gate=gate_rows,
+                                     alpha=(params or {}).get("alpha"),
+                                     delta_max=(params or {}).get(
+                                         "delta_max"))
     cks, d = aa.write_evidence_bundle(
         rotation_id, gate_rows, B, P, agg["r"])
     if action == "queue_review":

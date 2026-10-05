@@ -193,6 +193,27 @@ try:
               and abs(q[1]["delta"] - (-_delta_prev)) < 1e-9
               and abs(q[1]["delta"] - aa.compute_delta(7, 4)[0]) > 1e-9
               and aa.read_guard_factor() == 2.0, q)
+        # THE QUEUE HONORS THE CELL (the follow-up review's [medium]):
+        # with the canary's params threaded, the queued recommendation
+        # prices the CELL's weighted math (0.03 x 0.575 x ln 8, capped
+        # at the cell's 0.05) — never the default-weighted number the
+        # confirmed apply would not land.
+        import math as _math_q
+        _q_cell = min(0.05, 0.03 * 0.575 * _math_q.log(8))
+        _q_def = min(0.10, 0.05 * 0.575 * _math_q.log(8))
+        qp = ha.apply_action("ROT-1", "queue_review",
+                             operator_id="op-token-1",
+                             supp_path=sup, cache_path=db,
+                             params={"alpha": 0.03, "delta_max": 0.05,
+                                     "daily_cap": 5.0})
+        check("apply: the queue with the CANARY'S PARAMS prices the "
+              "cell's weighted math (alpha 0.03/dmax 0.05 -> -0.0359, "
+              "NOT the default-weighted -0.0598 — the queued number is "
+              "what the confirmed apply would land under the same "
+              "cell)",
+              qp["status"] == "queued"
+              and abs(qp["delta"] - (-_q_cell)) < 1e-9
+              and abs(qp["delta"] - (-_q_def)) > 1e-3, qp)
         na = ha.route("POST", "/api/hindsight/rotation/ROT-1/apply",
                       {"action": "auto_apply", "operator_id": "op-token-1"})
         check("apply: auto_apply without confirm refuses (the HTTP-level "
