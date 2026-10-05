@@ -185,9 +185,13 @@ try:
                      {"action": "queue_review",
                       "operator_id": "op-token-1"})
         check("apply: the AUTHENTICATED queue_review computes + bundles "
-              "but never moves the factor",
+              "but never moves the factor — and its recommendation "
+              "prices the WEIGHTED delta (r_eff 0.575, the same number "
+              "the confirmed apply would land; never the aggregate "
+              "understatement the operator would then approve)",
               q[0] == 200 and q[1]["status"] == "queued"
-              and abs(q[1]["delta"] - aa.compute_delta(7, 4)[0]) < 1e-12
+              and abs(q[1]["delta"] - (-_delta_prev)) < 1e-9
+              and abs(q[1]["delta"] - aa.compute_delta(7, 4)[0]) > 1e-9
               and aa.read_guard_factor() == 2.0, q)
         na = ha.route("POST", "/api/hindsight/rotation/ROT-1/apply",
                       {"action": "auto_apply", "operator_id": "op-token-1"})
