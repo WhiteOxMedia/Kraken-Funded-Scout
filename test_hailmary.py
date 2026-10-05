@@ -12,15 +12,23 @@ is the guard's full platform cap (0.34/dd) — the same cap every trade
 gets now that the lock is gone; the exception adds the champion-only
 bar, the hour clock, and the loud mark. THE DEATH LINE NEVER YIELDS.
 
-OCT 1 — THE OPPORTUNISTIC MODE (user ask): the same account-in-danger
-door with a LOWER candidate bar — any VIABLE deep-scan buy (>= 62, not
-champion-grade) — under STRICTER risk: a $300 hard spend cap on top of
-the 3% guard and a 2% hard stop the exit watch judges on the
-hm_mode-stamped watch row. The deep-scan exit watch is the
-authoritative ENTRY (its read opens the door) and EXIT (its stack —
-trend sell, profit guard, hard stop — closes it). The classic window
-is tried FIRST; the opp door opens only when the champion bar declines;
-one window per rotation, shared."""
+OCT 1 — THE OPPORTUNISTIC MODE (user ask), TIGHTENED OCT 4 (user rule:
+"the confidence score needs to be above 90% ... needs to be trending
+up (no wiggles) ... the book can carry the whole size of the contest
+balance (1k, 5k, 10k) depending on which contest window we are in"):
+the same account-in-danger door with a STRICTER candidate bar — the
+deep-scan buy must read ABOVE 90% (90.0 itself declines), the frame
+must show a verified uptrend with NO WIGGLES (every one of the last
+six closes rises — a single down-step declines), and the book must
+carry the WINDOW's WHOLE balance (start_balance: the 1k/5k/10k tier),
+— under STRICTER risk: a $300 hard spend cap on top of the 3% guard
+and a 2% hard stop the exit watch judges on the hm_mode-stamped watch
+row. The deep-scan exit watch is the authoritative ENTRY (its read
+opens the door) and EXIT (its stack — trend sell, profit guard, hard
+stop — closes it). The classic window is tried FIRST; the opp door
+opens only when the champion bar declines; one window per rotation,
+shared. The console settings carry NO emergency window (Oct 4: the
+old version's sidebar plate is removed — the window is scanner-owned)."""
 import sys
 import tempfile
 import json
@@ -202,40 +210,80 @@ check("the QC result carries hail_mary + the decline reason",
       or '["hail_mary"] = _qc_hm' in ap_src)
 check("the green light reads the HAIL MARY mark",
       "SCALP GREEN LIGHT — 💪 HAIL MARY" in ap_src)
-check("the sidebar plate shows the countdown (kept)",
-      "💪 HAIL MARY" in ap_src and "WINDOWS USED" in ap_src)
+check("the emergency-window plate is GONE from the console settings "
+      "(Oct 4 user rule: no emergency window in the console — the old "
+      "version's sidebar clock is removed; the marked popup, the voice "
+      "line and the scanner log carry the visibility)",
+      "WINDOWS USED" not in ap_src
+      and "THE EMERGENCY HOUR — ACCOUNT IN DANGER" not in ap_src,
+      "the plate still renders in the Console Settings sidebar")
 check("the light panel header carries the window",
       "_hm_note" in ap_src and "the emergency hour" in ap_src)
 check("the watch clock bounds by the hour when the window is open",
       "_champ_hm_win" in ap_src)
 
-# ── 8. THE OPPORTUNISTIC HAIL MARY (user ask, Oct 1: "add an
-#    opportunistic mode to the 'Hail Mary' that seeks any viable
-#    upside; use the deep-scan exit watch as the authoritative
-#    entry/exit signal and enforce strict risk controls") ──────────────
-_opp_ok = SimpleNamespace(action="buy", confidence=70.0)
-q, why = bs._hail_mary_opp_qualifies(_opp_ok, ca.HAIL_MARY_OPP_FLOOR)
-check("8.1 the opp door takes a viable buy the champion bar would decline",
-      q, why)
+# ── 8. THE OPPORTUNISTIC HAIL MARY (user ask, Oct 1; TIGHTENED Oct 4:
+#    the door only fires when the book can carry the WHOLE contest
+#    balance — the window's own 1k/5k/10k size — the brain reads ABOVE
+#    90%, and the trend is up with NO WIGGLES: every bar in the
+#    lookback rises, no down-step) ──────────────────────────────────
+_opp_deep = SimpleNamespace(action="buy", confidence=93.0)
+_opp_wiggle = list(_rising["close"])
+_opp_wiggle[20] = 1.13   # a dip INSIDE the last six bars (the wiggle)
+_wiggling = pd.DataFrame({"close": _opp_wiggle})
 q, why = bs._hail_mary_opp_qualifies(
-    SimpleNamespace(action="buy", confidence=55.0), ca.HAIL_MARY_OPP_FLOOR)
-check("8.2 below the opp floor = declined (62 is the viable line; the "
-      "challenger band below 67 never gets a window)",
-      not q, why)
+    _opp_deep, _rising, 12000.0, 10000.0, ca.HAIL_MARY_OPP_FLOOR)
+check("8.1 the opp door takes a >90 no-wiggle uptrend buy on a book "
+      "that carries the window's full balance", q, why)
 q, why = bs._hail_mary_opp_qualifies(
-    SimpleNamespace(action="buy", confidence=93.0), ca.HAIL_MARY_OPP_FLOOR)
+    SimpleNamespace(action="buy", confidence=55.0), _rising, 12000.0,
+    10000.0, ca.HAIL_MARY_OPP_FLOOR)
+check("8.2 below the opp floor = declined (the Oct 4 rule: the score "
+      "must be ABOVE 90 — the 62 viable line is retired)",
+      not q and "90" in why, why)
+q, why = bs._hail_mary_opp_qualifies(
+    SimpleNamespace(action="buy", confidence=90.0), _rising, 12000.0,
+    10000.0, ca.HAIL_MARY_OPP_FLOOR)
+check("8.2b exactly 90 is declined (ABOVE 90 — not at it)", not q, why)
+q, why = bs._hail_mary_opp_qualifies(
+    SimpleNamespace(action="buy", confidence=93.0), _rising, 12000.0,
+    10000.0, ca.HAIL_MARY_OPP_FLOOR)
 check("8.3 champion-grade also clears the opp bar (the door is order-safe "
       "— the consumer tries classic first)", q, why)
 q, why = bs._hail_mary_opp_qualifies(
-    SimpleNamespace(action="hold", confidence=70.0), ca.HAIL_MARY_OPP_FLOOR)
+    SimpleNamespace(action="buy", confidence=93.0), _rising, 5000.0,
+    10000.0, ca.HAIL_MARY_OPP_FLOOR)
+check("8.3b the book must carry the WINDOW's whole balance (1k/5k/10k "
+      "by tier — a 10k window on a 5k-carry book declines even at 93%)",
+      not q and "book" in why, why)
+q, why = bs._hail_mary_opp_qualifies(
+    SimpleNamespace(action="buy", confidence=93.0), _wiggling, 12000.0,
+    10000.0, ca.HAIL_MARY_OPP_FLOOR)
+check("8.3c a wiggle declines (trending up means EVERY bar in the "
+      "lookback rises — no down-step)",
+      not q and "wiggle" in why, why)
+q, why = bs._hail_mary_opp_qualifies(
+    SimpleNamespace(action="hold", confidence=93.0), _rising, 12000.0,
+    10000.0, ca.HAIL_MARY_OPP_FLOOR)
 check("8.4 a non-buy deep read never opens the opp door (the exit watch's "
       "own brain IS the entry authority)",
       not q and "not buy" in why, why)
-q, why = bs._hail_mary_opp_qualifies(None, ca.HAIL_MARY_OPP_FLOOR)
+q, why = bs._hail_mary_opp_qualifies(
+    None, _rising, 12000.0, 10000.0, ca.HAIL_MARY_OPP_FLOOR)
 check("8.5 no deep read = fail-closed", not q, why)
-check("8.6 the strict constants stand ($300 cap, 2% hard stop)",
+q, why = bs._hail_mary_opp_qualifies(
+    _opp_deep, None, 12000.0, 10000.0, ca.HAIL_MARY_OPP_FLOOR)
+check("8.5b no frame = fail-closed (the uptrend cannot be verified)",
+      not q, why)
+q, why = bs._hail_mary_opp_qualifies(
+    _opp_deep, _rising, None, 10000.0, ca.HAIL_MARY_OPP_FLOOR)
+check("8.5c no book read = fail-closed (the window's size cannot be "
+      "carried unseen)", not q, why)
+check("8.6 the strict constants stand (ABOVE-90 floor, $300 cap, 2% "
+      "hard stop)",
       ca.OPP_HARD_SPEND_USD == 300.0
-      and ca.HAIL_MARY_OPP_HARD_STOP_PCT == 2.0)
+      and ca.HAIL_MARY_OPP_HARD_STOP_PCT == 2.0
+      and ca.HAIL_MARY_OPP_FLOOR == 90.0)
 check("8.7 the opp window shares the rotation slot with the classic door "
       "(no second window per rotation)",
       ca.hail_mary_opp_available(state(9990.0, hail_mary_rot=_now_rot,
@@ -245,11 +293,13 @@ check("8.8 the opp door IS the account-in-danger door (over break-even, "
       ca.hail_mary_opp_available(state(10100.0))[0] is False
       and ca.hail_mary_opp_available(state(9990.0))[0] is True)
 check("8.9 the consumer tries the champion bar FIRST and the opp door "
-      "only when it declines",
+      "only when it declines (and the opp call carries the window's "
+      "whole balance)",
       bs_src.find("_hm_q, _hm_qwhy = _hail_mary_qualifies(") > 0
       and 0 < bs_src.find("_op_q, _op_why = _hail_mary_opp_qualifies(")
       and bs_src.find("_op_q, _op_why = _hail_mary_opp_qualifies(")
-          > bs_src.find("if _hm_q:"))
+          > bs_src.find("if _hm_q:")
+      and 'balance=float(_acct["start_balance"])' in bs_src)
 check("8.10 the opp activation stamps the OPPORTUNISTIC mode",
       '_ca.activate_hail_mary(_acct, mode="opportunistic")' in bs_src)
 check("8.11 the opp spend is capped by the guard AND the $300 hard cap "
@@ -267,6 +317,11 @@ check("8.14 the marks: the title, the message line and the voice all "
       and "Opportunistic hail mary! Small shot, tight stop!" in bs_src)
 check("8.15 the fired snapshot routes the class (champion-opportunistic)",
       '"champion-opportunistic"' in bs_src)
+check("8.16 the QC mirror passes the SAME bars (the deep read, the "
+      "frame, the book carry and the window's whole balance — the QC "
+      "agrees with the alert, never disagrees)",
+      "deep=sig," in ap_src
+      and 'balance=float(_acct["start_balance"])' in ap_src)
 # (Oct 2 — THE FIRST-FIRE REMINDER: the opp class was born
 # KEEP-PROVISIONAL — zero graded fires, the hindsight grader re-runs at
 # 10 fires or 7 days. The first champion-opportunistic popup ever is the
@@ -360,10 +415,11 @@ check("8.27 the QC verdict line speaks the STRICT CAP when the window is "
       'result.get("hail_mary_mode") == "opportunistic"' in ap_src
       and "strict-cap opportunistic shot" in ap_src
       and "OPPORTUNISTIC HAIL MARY (the emergency hour" in ap_src)
-check("8.28 the light plate names the window's own mode (the classic "
-      "CHAMPION SHOT line is no longer told for an opp window)",
-      "CHAMPION-GRADE SHOT" in ap_src
-      and "STRICT-CAP OPPORTUNISTIC SHOT" in ap_src)
+check("8.28 the plate's mode lines are GONE with the plate (Oct 4: no "
+      "emergency window in the console — the window's mode is told by "
+      "the scanner's popup and log, not the console)",
+      "CHAMPION-GRADE SHOT" not in ap_src
+      and "STRICT-CAP OPPORTUNISTIC SHOT" not in ap_src)
 check("8.29 an ALREADY-ACTIVE window reads its mode and caps the QC entry "
       "(the $300 cap follows the WINDOW, not just the activation — an "
       "opp window's later QC entry keeps the cap AND the 2% stop)",

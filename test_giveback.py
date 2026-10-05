@@ -158,10 +158,47 @@ try:
           "gauge and the voice can never disagree)",
           "_pg_facts._state()" in _asrc
           and '_gb.get("day") == _gb_day' in _asrc)
-    check("the gauge renders all three numbers plus the guard stamp",
+    # ── THE TIGHTEN-OUTCOME CHIP (Oct 4, red-first): the gauge's tail
+    #    used to read the tightened BOOLEAN — but tightened=True means
+    #    "an attempt was made", not "the guard moved": today's live
+    #    ledger already carries giveback rows refused
+    #    (daily_cap_exceeded) under tightened=True. The writer persists
+    #    the truth (gb["tighten"] = {before, status, reason}); the chip
+    #    renders THE OUTCOME (attempt applied / attempt refused
+    #    (reason) / no tighten attempt yet) — the writer's record, not
+    #    optimism.
+    _tf_src = _asrc[_asrc.index("def _today_facts"):]
+    _tf_src = _tf_src[:_tf_src.index("\ndef ")]
+    check("the give-back chip renders the tighten attempt's REAL "
+          "OUTCOME from the writer's own record (gb['tighten'].status), "
+          "never the raw tightened boolean",
+          '_gb.get("tighten")' in _tf_src
+          and "'guard tightened' if _gb.get('tightened')" not in _tf_src,
+          _tf_src[-300:])
+    check("the chip's outcome words are honest (attempt refused with "
+          "the reason, attempt applied, no tighten attempt yet — the "
+          "boolean tails are gone)",
+          "attempt refused" in _tf_src
+          and "attempt applied" in _tf_src
+          and "no tighten attempt yet" in _tf_src
+          and "guard tightened" not in _tf_src
+          and "guard normal" not in _tf_src,
+          [_w for _w in ("attempt refused", "attempt applied",
+                         "no tighten attempt yet") if _w not in _tf_src])
+    _trk_src = bssrc_g[bssrc_g.index("def _track_day_giveback"):]
+    _trk_src = _trk_src[:_trk_src.index("\ndef ")]
+    check("the writer persists the attempt's outcome for the chip "
+          "(tighten = before/status/reason in the watermark, set "
+          "whatever the apply answered)",
+          'gb["tighten"]' in _trk_src
+          and '"status": _rec.get("status")' in _trk_src
+          and '"reason": _rec.get("reason")' in _trk_src,
+          _trk_src[-200:])
+    check("the gauge renders all three numbers plus the "
+          "tighten-outcome stamp (the boolean stamp is retired)",
           "DAY PEAK" in _asrc and "CURRENT" in _asrc
           and "GIVE-BACK" in _asrc
-          and "guard tightened" in _asrc and "guard normal" in _asrc)
+          and "attempt applied" in _tf_src and "attempt refused" in _tf_src)
     check("the erosion colors at the machine's own triggers "
           "(green < 1, amber < the tuned 0.20%-of-start tighten trigger, red at/over)",
           "if _ero < 1.0" in _asrc and "if _ero < 50.0" in _asrc
@@ -180,6 +217,50 @@ try:
     check("the gauge's clock is DATA (the day key derives from the "
           "plate's bucketed now_ts, not a fresh wall-clock read)",
           "datetime.fromtimestamp(now_ts, MST).strftime" in _asrc)
+    # ── the chip's three outcomes, RENDERED (app imports in the fleet
+    #    bare mode — apptest proves it; the giveback block reads the
+    #    sandboxed STATE_FILE, so _today_facts renders OUR fixture):
+    #    the applied shape is the REAL attempt the rails made above.
+    import app as _app_g
+    # the plate is st.cache_data'd on the bucketed now_ts — each render
+    # gets its own epoch (hours apart, same day) and a cache clear, or
+    # the first render silently answers all three
+    _clear_facts_g = getattr(_app_g._today_facts, "cache_clear", None) \
+        or (lambda: None)
+    _now_ts_g = int(datetime.now(MST).timestamp())
+    _clear_facts_g()
+    _gb_rows_g = _app_g._today_facts(_now_ts_g)
+    _gb_row_g = next((r for r in _gb_rows_g if "GIVE-BACK" in r), "")
+    check("the chip RENDERS the real outcome — the runtime attempt the "
+          "real rails just made was applied, and the chip says so (no "
+          "bare 'guard tightened' boolean)",
+          "attempt applied" in _gb_row_g
+          and "guard tightened" not in _gb_row_g
+          and "guard normal" not in _gb_row_g, _gb_row_g[:220])
+    _pg_gauge._save({"giveback": {"day": _today_g, "peak_total": 120.0,
+                                  "now_total": 45.0, "give_back": 75.0,
+                                  "tightened": False}})
+    _clear_facts_g()
+    _gb_rows_g2 = _app_g._today_facts(_now_ts_g + 3610)
+    _gb_row_g2 = next((r for r in _gb_rows_g2 if "GIVE-BACK" in r), "")
+    check("a never-attempted day renders honestly (no tighten attempt "
+          "yet — the absence is named, not disguised as calm)",
+          "no tighten attempt yet" in _gb_row_g2, _gb_row_g2[:220])
+    _pg_gauge._save({"giveback": {"day": _today_g, "peak_total": 120.0,
+                                  "now_total": 45.0, "give_back": 75.0,
+                                  "tightened": True,
+                                  "tighten": {"before": 2.0,
+                                              "status": "refused",
+                                              "reason": "daily_cap_exceeded"}}})
+    _clear_facts_g()
+    _gb_rows_g3 = _app_g._today_facts(_now_ts_g + 7220)
+    _gb_row_g3 = next((r for r in _gb_rows_g3 if "GIVE-BACK" in r), "")
+    check("a REFUSED attempt renders its outcome AND its reason (the "
+          "writer's record — the flag once claimed the guard moved "
+          "when the cap had refused it)",
+          "attempt refused" in _gb_row_g3
+          and "daily_cap_exceeded" in _gb_row_g3
+          and "guard tightened" not in _gb_row_g3, _gb_row_g3[:220])
 finally:
     bs.CONTEST_TRADES_FILE = _real_ctf_gg
 

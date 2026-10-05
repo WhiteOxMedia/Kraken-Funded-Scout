@@ -89,10 +89,12 @@ HAIL_MARY_WINDOW_MIN = 60      # the one-hour full-allocation window
 # entry AND exit authority: it says when the upside is still viable
 # and it says when out. The classic Hail Mary is tried FIRST; the
 # opportunistic door only opens when the champion-grade bar declines.
-HAIL_MARY_OPP_FLOOR = 62.0     # viable, not champion-grade: the deep read
-                               # must clear this to fire the opportunistic
-                               # window (a buy under the champion floor is
-                               # exactly the population this mode exists for)
+HAIL_MARY_OPP_FLOOR = 90.0     # the Oct 4 user rule: the confidence score
+                               # must be ABOVE 90 (the qualify refuses a read
+                               # AT the floor itself — 90.0 is not above 90).
+                               # Was 62 (Oct 1 "viable" line — retired: the
+                               # opportunistic shot is no longer a
+                               # challenger-grade bet).
 HAIL_MARY_OPP_HARD_STOP_PCT = 2.0   # the exit watch's hard stop for an
                                     # opportunistic position (vs the classic
                                     # window's half-buffer stop) — the strict

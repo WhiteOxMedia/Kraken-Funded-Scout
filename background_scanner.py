@@ -2244,43 +2244,64 @@ def _hail_mary_qualifies(deep, df, carry, balance, floor,
         return False, f"qualify check failed ({exc}) — fail-closed"
 
 
-def _hail_mary_opp_qualifies(deep, floor) -> tuple[bool, str]:
-    """The candidate side of THE OPPORTUNISTIC HAIL MARY (user ask, Oct 1:
-    "add an opportunistic mode that seeks any viable upside; use the
-    deep-scan exit watch as the authoritative entry/exit signal and
-    enforce strict risk controls"). The champion-grade bar declined a
-    setup while the account sits under break-even — the mode still takes
-    ANY VIABLE UPSIDE, with the strictness moved from the candidate bar
-    to the RISK:
+def _hail_mary_opp_qualifies(deep, df, carry, balance, floor,
+                             ema_short=9, ema_long=21,
+                             trend_bars=6) -> tuple[bool, str]:
+    """The candidate side of THE OPPORTUNISTIC HAIL MARY (user ask, Oct 1;
+    TIGHTENED Oct 4 — no longer a challenger-grade bet):
       1. DEEP-SCAN BUY: the deep read (the exit watch's own brain, the
          same read that will judge the exit) must read buy — its
          direction IS the entry authority here, not the tournament bar
-      2. VIABLE: the read clears the OPPORTUNISTIC floor
-         (HAIL_MARY_OPP_FLOOR, 62 — champion-grade is 89+; a challenger
-         never gets any window, so this floor sits above that bar too)
-    Deliberately ABSENT: the verified-uptrend bar and the major-book bar
-    — the tide, the knife, the book sizing and every other gate already
-    judged upstream; this mode does not re-ask what the funnel asked.
-    THE STRICT CONTROLS: a $300 hard spend cap (OPP_HARD_SPEND_USD) on
-    top of the 3% guard, and the position's watch row carries
-    hm_mode="opportunistic" so the exit watch judges a 2% hard stop
-    (HAIL_MARY_OPP_HARD_STOP_PCT) — the exit watch's trend-sell /
-    profit-guard / hard-stop stack is the authoritative EXIT. One window
-    per rotation, shared with the classic door. Fail-closed on all
-    reads. Returns (qualifies, why)."""
+      2. ABOVE 90%: the read clears HAIL_MARY_OPP_FLOOR STRICTLY — a
+         read AT the floor is not above it (the Oct 4 rule)
+      3. VERIFIED UPTREND: EMA_short > EMA_long AND close > EMA_long on
+         the deep frame (the classic's bar — the trend must be UP)
+      4. NO WIGGLES: every one of the last trend_bars closes is higher
+         than the one before — a single down-step in the lookback
+         declines (trending up means up, not up-dip-up)
+      5. MAJOR BOOK: the book carries the WHOLE contest balance — the
+         WINDOW's own size (start_balance: the 1k/5k/10k tier), not the
+         live remainder (the 'big book — all in fine' standard)
+    THE STRICT CONTROLS (unchanged): a $300 hard spend cap
+    (OPP_HARD_SPEND_USD) on top of the 3% guard, and the position's
+    watch row carries hm_mode="opportunistic" so the exit watch judges a
+    2% hard stop (HAIL_MARY_OPP_HARD_STOP_PCT) — the exit watch's
+    trend-sell / profit-guard / hard-stop stack is the authoritative
+    EXIT. One window per rotation, shared with the classic door.
+    Fail-closed on all reads. Returns (qualifies, why)."""
     try:
         if deep is None:
             return False, "no deep read — fail-closed"
         if str(deep.action) != "buy":
             return False, f"the brain reads {deep.action}, not buy"
         _bc = float(deep.confidence)
-        if _bc < float(floor):
-            return False, (f"brain {_bc:.0f}% < the opportunistic floor "
-                           f"{float(floor):.0f}% (not viable enough for the "
-                           f"strict-cap shot)")
-        return True, (f"viable upside — deep-scan buy {_bc:.0f}% ≥ "
-                      f"{float(floor):.0f}% (opportunistic; the exit watch "
-                      f"is the authority)")
+        if _bc <= float(floor):
+            return False, (f"brain {_bc:.0f}% is not ABOVE the opp floor "
+                           f"{float(floor):.0f}% (the Oct 4 rule: the "
+                           f"score must be above 90, not at it)")
+        if df is None:
+            return False, "no deep frame — the uptrend cannot be verified"
+        from indicators import ema as _ema
+        _es = float(_ema(df["close"], ema_short).iloc[-1])
+        _el = float(_ema(df["close"], ema_long).iloc[-1])
+        _px = float(df["close"].iloc[-1])
+        if not (_es > _el and _px > _el):
+            return False, ("no verified uptrend (EMA9 must sit above "
+                           "EMA21 with price over both)")
+        _closes = [float(c) for c in df["close"].iloc[-int(trend_bars):]]
+        _dip = next((i for i in range(1, len(_closes))
+                     if _closes[i] <= _closes[i - 1]), None)
+        if _dip is not None:
+            return False, (f"wiggle in the lookback (bar -{len(_closes) - _dip} "
+                           f"stepped down) — the trend must rise with no wiggles")
+        if carry is None or balance is None or float(carry) < float(balance):
+            return False, (f"not a major book (carries ${float(carry or 0):,.0f}, "
+                           f"the window's whole balance is "
+                           f"${float(balance or 0):,.0f})")
+        return True, (f"viable upside — deep-scan buy {_bc:.0f}% > "
+                      f"{float(floor):.0f}%, verified uptrend with no wiggles, "
+                      f"major book (carries ${float(carry):,.0f} ≥ the "
+                      f"window's ${float(balance):,.0f})")
     except Exception as exc:
         return False, f"opportunistic qualify failed ({exc}) — fail-closed"
 
@@ -6317,7 +6338,8 @@ def main():
                         # the opp door opens ONLY when the champion bar
                         # says no. One window per rotation, shared.
                         _op_q, _op_why = _hail_mary_opp_qualifies(
-                            deep=_deep,
+                            deep=_deep, df=_df, carry=_carry,
+                            balance=float(_acct["start_balance"]),
                             floor=_ca.HAIL_MARY_OPP_FLOOR)
                         if _op_q:
                             _acct = _ca.activate_hail_mary(_acct, mode="opportunistic")

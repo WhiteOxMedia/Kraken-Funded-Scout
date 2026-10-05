@@ -3079,12 +3079,19 @@ def _render_learning_plate() -> None:
                 _set_s = _set_t.strftime("%b %d %H:%M")
             except Exception:
                 _set_s = "?"
+            # HONEST PROMISE (Oct 4, the [medium]): the BOX stands,
+            # not the factor — the nightly recompute owns the factor
+            # and may move it mid-box; and a stale anchor retires to
+            # the live truth instead of restoring (the ledger's own
+            # time_box_expired_stale_anchor story).
             st.caption(
-                f"box promise — the guard factor holds for "
+                f"box promise — the box stands for "
                 f"{_rot_left if _rot_left is not None else '?'} more "
                 f"rotation{'' if _rot_left == 1 else 's'}, anchored at "
                 f"{_anchor_s} (set {_set_s}); expiry restores the "
-                f"anchor.")
+                f"anchor — unless the nightly recompute moved the "
+                f"factor mid-box, when the stale anchor retires to "
+                f"the live truth instead.")
         else:
             st.caption(
                 "box promise — dormant: no live time-box stands; the "
@@ -6159,13 +6166,35 @@ def _today_facts(now_ts: int) -> list[str]:
             _ero = float(_gb.get("give_back") or 0.0)   # peak minus current, >= 0
             _ero_col = "#4be38a" if _ero < 1.0 else "#ffc36b" if _ero < 50.0 else "#ff6b5e"
             _ero_txt = f"-{_ero:,.0f}" if _ero >= 0.5 else "0"
+            # THE TIGHTEN-OUTCOME CHIP (Oct 4, red-first): the tail used
+            # to read the tightened BOOLEAN — but tightened=True means
+            # "an attempt was made", not "the guard moved" (a refused
+            # attempt under the daily cap left the flag claiming a
+            # tighten that never landed). The writer persists the
+            # attempt's real outcome (tighten = {before, status,
+            # reason}); the chip renders THAT — the writer's record,
+            # never optimism.
+            _tt = _gb.get("tighten")
+            _tt = _tt if isinstance(_tt, dict) else {}
+            _tt_st = str(_tt.get("status") or "")
+            if _tt_st == "applied":
+                _tt_txt = "attempt applied"
+            elif _tt_st == "refused":
+                _tt_txt = (f"attempt refused "
+                           f"({str(_tt.get('reason') or 'no reason')})")
+            elif _tt_st == "queued":
+                _tt_txt = "attempt queued (the operator's review)"
+            elif _tt_st:
+                _tt_txt = f"attempt {_tt_st}"
+            else:
+                _tt_txt = "no tighten attempt yet"
             _gb_line = (
                 f"DAY PEAK <span class='dim'>..........</span> {_peak:+,.0f}"
                 f"   CURRENT <span class='dim'>.........</span> {_now_t:+,.0f}"
                 f"   GIVE-BACK <span class='dim'>.......</span> "
                 f"<span style='color:{_ero_col};'>{_ero_txt}</span>"
                 f"<span class='dim'> (peak {_gb.get('peak_ts', '')[:14]}, "
-                f"{'guard tightened' if _gb.get('tightened') else 'guard normal'})</span>")
+                f"{_tt_txt})</span>")
         else:
             _gb_line = (f"DAY PEAK <span class='dim'>..........</span> "
                         f"<span class='dim'>— no watermark yet today "
@@ -6946,7 +6975,8 @@ def render_quick_check(cfg: TradingConfig, kraken):
                                     # evaluate_strategy call) — the same
                                     # authority the alert feeds its door.
                                     _op_q, _op_why = _bs_opp._hail_mary_opp_qualifies(
-                                        deep=sig,
+                                        deep=sig, df=df, carry=_carry,
+                                        balance=float(_acct["start_balance"]),
                                         floor=float(_ca.HAIL_MARY_OPP_FLOOR))
                                 except Exception:
                                     _op_q, _op_why = False, "fail-closed"
@@ -9846,30 +9876,16 @@ def main():
           led(f"PACE ${_pace:,.0f}/DAY (12%/WK)", "a") + "<br>" +
           led(f"TARGET +12% = ${float(_acct_l['start_balance']) * 1.12:,.0f}", "g")
       )), unsafe_allow_html=True)
-      # ── THE HAIL MARY WINDOW (user rule, Sep 4 — kept Sep 5; swept into
-      #    the live fragment Sep 22): the emergency clock reads the SAME
-      #    fresh account read as the plate — a frozen countdown was the
-      #    same lie as a frozen balance.
-      try:
-          _hm_left = _ca.hail_mary_minutes_left(_acct_l)
-          if _hm_left > 0:
-              st.sidebar.markdown(plate("💪 HAIL MARY", (
-                  led(f"WINDOW {max(_hm_left, 0):.0f} MIN LEFT", "a") + "<br>" +
-                  led(("THE EMERGENCY HOUR — ACCOUNT IN DANGER, "
-                   + ("STRICT-CAP OPPORTUNISTIC SHOT — $300 CAP, 2% STOP"
-                      if str(_acct_l.get("hail_mary_mode") or "classic") == "opportunistic"
-                      else "CHAMPION-GRADE SHOT")), "a") + "<br>" +
-                  led("THE DEATH LINE STANDS — NEVER YIELDS", "r") + "<br>" +
-                  led(f"WINDOWS USED: {int(_acct_l.get('hail_mary_count') or 0)} · "
-                      f"ONE PER ROTATION", "off")
-              )), unsafe_allow_html=True)
-      except Exception as exc:
-          logger.debug("hail-mary plate failed: %s", exc)
+      # ── THE HAIL MARY WINDOW — REMOVED FROM THE CONSOLE (Oct 4 user
+      #    rule: "remove it from the console settings — no emergency
+      #    window (old version)"). The sidebar clock is gone; the window
+      #    is scanner-owned — the marked popup, the voice line and the
+      #    scanner log carry the visibility now.
     _balance_tick = st.fragment(run_every=15)(_balance_tick)
     _balance_tick()
-    # (Sep 22 sweep) the HAIL MARY plate moved INSIDE the live fragment —
-    # it renders in the same spot (right after the account plate), now on
-    # the 15s re-read instead of waiting for a full rerun.
+    # (Sep 22 sweep) the HAIL MARY plate used to render INSIDE this live
+    # fragment — REMOVED Oct 4 (no emergency window in the console
+    # settings; the old version's sidebar clock is gone).
     # ── THE WORTH FLOOR — INTERNAL ONLY (user rule, Sep 10: "the worth
     #    Floor dials are for internal use only; stays hidden from console"):
     #    NO toggle, NO slider, NO live-math caption on the sidebar. The
