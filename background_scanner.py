@@ -1565,13 +1565,19 @@ def _tide_retune_releases(quick, pair: str = "",
             # day map rolls over, so every CONSUMING release also lands
             # one append-only row in the weekly journal — the reckoning's
             # canary block grades the week's releases against the popup
-            # outcomes from it. Best-effort: a journal failure never
-            # blocks the release (the release already happened; the
+            # outcomes from it. The journal path derives from THIS day
+            # ledger's own path (the lockfile idiom), so a drive that
+            # sandboxes the ledger sandboxes the journal automatically —
+            # no drive write can ever leak into the live journal (found
+            # the hard way: the first drives polluted the repo-root
+            # journal with test rows). Best-effort: a journal failure
+            # never blocks the release (the release already happened; the
             # reckoning reports the gap as collecting).
             try:
                 import time as _tt
                 import tidebar_weekly as _tbw
-                _tbw.append_retune_release(_tt.time(), _p)
+                _tbw.append_retune_release(_tt.time(), _p,
+                                           state_file=TIDE_RETUNE_STATE_FILE)
             except Exception:
                 pass
         return True, (f"the calibration study opened the tide gate "

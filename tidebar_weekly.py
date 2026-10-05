@@ -349,18 +349,31 @@ CANARY_WINDOW_DAYS = 7       # the reconciliation's trailing window
 CANARY_KEEP_RATE = 0.50      # the keep bar: payers / graded releases
 
 
-def append_retune_release(ts: float, pair: str) -> bool:
+def append_retune_release(ts: float, pair: str,
+                          state_file=None) -> bool:
     """One consuming release into the canary journal. Lives beside the
     valve's call site (background_scanner's release path imports this)
     so the valve code owns the row shape and the report code owns the
-    read. Best-effort: a write failure returns False and the release
-    stands — the reckoning reports the gap, never blocks the desk."""
+    read. THE PATH DERIVES FROM THE VALVE'S OWN STATE FILE (the
+    lockfile idiom) — the caller passes it, so a drive that rebinds
+    the day ledger sandboxes the journal AUTOMATICALLY and no drive
+    write can ever leak into the live journal (found the hard way: the
+    first drive run polluted the repo-root journal with test rows).
+    Without a state_file the module attribute stands (the report-side
+    default). Best-effort: a write failure returns False and the
+    release stands — the reckoning reports the gap, never blocks the
+    desk."""
     try:
+        if state_file is not None:
+            path = Path(state_file).with_name("tide_retune_history.jsonl")
+        else:
+            path = TIDE_RETUNE_HISTORY_FILE
         day = datetime.fromtimestamp(float(ts)).astimezone()\
             .strftime("%Y-%m-%d")
         row = {"ts": float(ts), "day": day,
                "pair": str(pair or "").strip().upper()}
-        with open(TIDE_RETUNE_HISTORY_FILE, "a", encoding="utf-8") as f:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with open(path, "a", encoding="utf-8") as f:
             f.write(json.dumps(row) + "\n")
         return True
     except Exception:

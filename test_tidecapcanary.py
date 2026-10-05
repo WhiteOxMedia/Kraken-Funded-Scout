@@ -86,6 +86,10 @@ try:
 
     def _fresh():
         ledger.unlink(missing_ok=True)
+        # the sandbox journal resets with the ledger (it accumulates —
+        # the scenario rows of earlier checks must never count in later
+        # ones; the LIVE journal is never touched, that is the 4.2 gate)
+        (SANDBOX / "tide_retune_history.jsonl").unlink(missing_ok=True)
 
     def _pairs():
         try:
@@ -245,6 +249,34 @@ try:
           "the QC mirror consults the same doors with consume=False — a "
           "passing consult never spends a slot (the alert's own release "
           "will; the mirror must agree, never double-spend)")
+
+    print("== 4b. THE JOURNAL LEAK GATE ==")
+    import tidebar_weekly as _tbw_leak
+    _leak_before = None
+    _live_journal = _tbw_leak.TIDE_RETUNE_HISTORY_FILE
+    if _live_journal.exists():
+        _leak_before = _live_journal.read_text(encoding="utf-8")
+    _fresh()
+    bs._tide_retune_releases(80.0, "BTC/USD")     # a consuming release
+    check(4.2, not _live_journal.exists()
+          or _live_journal.read_text(encoding="utf-8")
+          == (_leak_before or ""),
+          "a consuming release under a SANDBOXED day ledger writes ZERO "
+          "rows into the live journal (the journal derives from the "
+          "ledger's own path — the leak gate; the first drive run "
+          "polluted the repo-root journal and the memo draft caught it)")
+    _can_journal = SANDBOX / "tide_retune_history.jsonl"
+    check(4.3, _can_journal.exists()
+          and len(_can_journal.read_text(encoding="utf-8").strip()
+                  .splitlines()) == 1,
+          "the consuming release journalled ONCE beside the sandboxed "
+          "ledger (the reconciliation's data source, self-sandboxing)")
+    _fresh()
+    bs._tide_retune_releases(80.0, "BTC/USD", consume=False)
+    check(4.4, not _can_journal.exists()
+          or _can_journal.read_text(encoding="utf-8").strip() == "",
+          "the mirror's consult journals NOTHING (consume=False never "
+          "writes — the journal counts releases, not consultations)")
 
     print("== 5. THE MONITORING SURFACE (the reckoning names it) ==")
     import tidebar_weekly as tbw                 # noqa: E402
