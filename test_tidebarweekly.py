@@ -772,7 +772,7 @@ try:
           tbw.RETUNE_DIAL_OVERRIDE is None
           and callable(tbw._retune_reckoning)
           and "never moves it" in (tbw._retune_reckoning.__doc__ or "")
-          and "_retune_reckoning(by_state.get(\"OUT\")" in
+          and "_retune_reckoning(by_state_ts.get(\"OUT\")" in
           (BASE / "tidebar_weekly.py").read_text(encoding="utf-8"))
     _real_override = tbw.RETUNE_DIAL_OVERRIDE
     try:
@@ -943,6 +943,34 @@ try:
               and "gross of costs" in _bind2["summary"]["verdict"]
               and "REAL FILLS" in _bind2["summary"]["verdict"],
               _bind2["summary"] if _bind2 else None)
+        # ── the follow-up review [medium]: production candidates ride
+        # (state, quick, payer) with NO date, so the per-day bound
+        # degenerated to min(cap, n) under one 'unknown' date and could
+        # falsely report BIND on spread-out candidates. The join must
+        # carry each candidate's own ts through to the reckoning.
+        _real_wc_4d = tbw._week_candidates
+        try:
+            tbw.RETUNE_DIAL_OVERRIDE = {"armed": True, "quick_min": 66.0,
+                                        "cap": 1, "spent_today": 0}
+            tbw._week_candidates = lambda: ([
+                ("OUT", 70.0, True, _tsd(2, 10)),
+                ("OUT", 72.0, False, _tsd(2, 11)),
+                ("OUT", 74.0, True, _tsd(3, 10)),
+                ("OUT", 76.0, False, _tsd(3, 11))], None)
+            _s15 = tbw.report_now()
+            _rr15 = _s15.get("retune_reckoning") or {}
+            check("4d.15 the PRODUCTION join carries each candidate's "
+                  "date through to the reckoning (4-tuple rows: 4 band "
+                  "candidates clustered on 2 dates at cap 1 = 2 "
+                  "releasable — the unknown-date degenerate said 1, and "
+                  "the old 3-name unpack crashed the pass outright)",
+                  "err" not in _s15
+                  and _rr15.get("releasable") == 2
+                  and _rr15.get("dates") == 2
+                  and "only 2 of them releasable" in (_rr15.get("verdict") or ""),
+                  (_s15.get("err"), _rr15))
+        finally:
+            tbw._week_candidates = _real_wc_4d
     finally:
         # THE DARK-VALVE POSTURE: the rest of this suite runs with the
         # dial override OFF — no later leg ever reads the production

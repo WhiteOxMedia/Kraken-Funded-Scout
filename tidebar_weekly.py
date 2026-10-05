@@ -375,7 +375,8 @@ def _retune_slots_spent() -> int | None:
 
 def _retune_reckoning(cands, bar_live, week_tag: str) -> dict | None:
     """The OUT valve's weekly pricing. cands = the week's OUT candidates
-    [(quick, payer)] already joined by _week_candidates; bar_live = the
+    [(quick, payer)] or [(quick, payer, ts)] joined by
+    _week_candidates; bar_live = the
     OUT in-force bar (None = the valve IS the gate). Returns {lines,
     summary} or None when there is nothing to price. Never raises; the
     dial is the operator's call — the reckoning prices it, never moves it."""
@@ -392,8 +393,10 @@ def _retune_reckoning(cands, bar_live, week_tag: str) -> dict | None:
         # candidates may be (quick, payer) or (quick, payer, ts) — the
         # drives' per-day fixtures carry the ts; production rows do not
         def _split(t):
-            return (float(t[0]), t[1], t[2] if len(t) >= 3 else None)
-        offered = [(q, y, ts) for q, y, ts in
+            return (float(t[0]), t[1],
+                    t[2] if len(t) >= 3 else None,
+                    t[3] if len(t) >= 4 else None)
+        offered = [(q, y, a or b) for q, y, a, b in
                    (_split(t) for t in (cands or [])) if q >= qmin]
         band = ([(q, y, ts) for q, y, ts in offered
                  if bar_live is None or q < float(bar_live)])
@@ -477,7 +480,7 @@ def _retune_default_cap() -> int:
 
 
 def _week_candidates():
-    """[(state, quick, payer)] for the trailing WINDOW_DAYS: both
+    """[(state, quick, payer, ts)] for the trailing WINDOW_DAYS: both
     ledgers, deduped per pair/15-min like the fit, joined to the 5m
     store on the fits' 60-min contract. (None, why) on thin evidence."""
     import numpy as np
@@ -512,7 +515,7 @@ def _week_candidates():
             continue
         mfe = float(h[i + 1: i + 1 + tl.OUTCOME_WINDOW_BARS].max()) / entry - 1.0
         rows.append((r.state, float(r.quick),
-                     mfe >= tl.OUTCOME_GOAL_PCT / 100.0))
+                     mfe >= tl.OUTCOME_GOAL_PCT / 100.0, r.ts))
     if not rows:
         return None, "no candidates joined to the store this week"
     return rows, None
@@ -1255,9 +1258,15 @@ def report_now():
         rows, why = _week_candidates()
         if rows is None:
             raise RuntimeError(why)
-        by_state = {}
-        for st_name, q, y in rows:
-            by_state.setdefault(st_name, []).append((q, y))
+        # the ts rides through (4-tuples, the follow-up review's
+        # [medium]): the grades price (quick, payer) pairs, the retune
+        # reckoning groups by the ts's own DATE — without it the
+        # per-day bound degenerates to one unknown date. Legacy
+        # 3-tuple rows (the older fixtures) degrade to (q, y).
+        by_state, by_state_ts = {}, {}
+        for row in rows:
+            by_state.setdefault(row[0], []).append((row[1], row[2]))
+            by_state_ts.setdefault(row[0], []).append(tuple(row[1:]))
         scores = tl._funnel_score_quantiles()
         week_tag = time.strftime("%G-W%V", time.gmtime())   # ISO week
         flips_now = _load_flips()
@@ -1365,7 +1374,7 @@ def report_now():
         #    numbers, priced by the same _grade convention, never moved
         #    by this report.
         try:
-            _rec = _retune_reckoning(by_state.get("OUT") or [],
+            _rec = _retune_reckoning(by_state_ts.get("OUT") or [],
                                      _out_bar, week_tag)
             if _rec:
                 lines.append("")
