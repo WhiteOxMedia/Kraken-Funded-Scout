@@ -302,6 +302,59 @@ try:
           not in st_r13["history"][0]["verdict"]
           and "giveback" in st_r13["history"][0]["verdict"],
           st_r13["history"][0]["verdict"][:90])
+    # THE LEGACY SHIM (user ask, Oct 5): rows written before the verdict
+    # rode the row carry verdict=None and no left_pairs - the resolver
+    # derives the burial map from the row's OWN system_pairs record and
+    # lets the agreement bar decide eligibility from the stored numbers.
+    _legacy = {"date": _day.isoformat(), "rot": "04-08", "score": 55.0,
+               "verdict": None, "left_pairs": None, "left_entries": None,
+               "usd_left": {"missed": 0.0, "giveback": 0.0, "missed_exit": 0.0,
+                            "early_exit": 0.0, "system_burial": 376.30},
+               "system_pairs": [{"pair": "F/USD", "gate": "tide-out"},
+                                {"pair": "Z/USD", "gate": "deep-veto"}],
+               "realized_pnl": 0, "total_left": 376.30}
+    _sold_file.write_text(_row("F/USD", 52.94, sold_h=13), encoding="utf-8")
+    st_l1 = _mk(); st_l1["history"].append(dict(_legacy))
+    nl1 = dc._resolve_prior_verdict(st_l1)
+    check("a LEGACY row (no verdict, no map) resolves from its own "
+          "system_pairs record",
+          nl1 == 1 and "partially resolved" in st_l1["history"][0]["verdict"]
+          and "unproven" in st_l1["history"][0]["verdict"]
+          and st_l1["history"][0]["verdict_credit"]["system_burial"] == 52.94,
+          str(st_l1["history"][0].get("verdict"))[:90])
+    _legacy_ok = dict(_legacy)
+    _legacy_ok["realized_pnl"] = 3.40
+    _legacy_ok["total_left"] = 0.0
+    _legacy_ok["usd_left"] = {"missed": 0.0, "giveback": 0.0,
+                              "missed_exit": 0.0, "early_exit": 0.0,
+                              "system_burial": 0.0}
+    _sold_file.write_text(_row("F/USD", 52.94, sold_h=13), encoding="utf-8")
+    st_l2 = _mk(); st_l2["history"].append(dict(_legacy_ok))
+    nl2 = dc._resolve_prior_verdict(st_l2)
+    check("a LEGACY row the agreement bar itself proves never enters "
+          "the resolver inbox",
+          nl2 == 0 and st_l2["history"][0].get("verdict") is None)
+    _legacy_nopair = dict(_legacy)
+    _legacy_nopair["system_pairs"] = []
+    _sold_file.write_text(_row("F/USD", 52.94, sold_h=13), encoding="utf-8")
+    st_l3 = _mk(); st_l3["history"].append(dict(_legacy_nopair))
+    nl3 = dc._resolve_prior_verdict(st_l3)
+    check("a LEGACY row with no pair record of its own still never "
+          "resolves (the seal holds - nothing is invented)",
+          nl3 == 0 and st_l3["history"][0].get("verdict") is None)
+    _legacy_two = dict(_legacy)
+    _legacy_two["usd_left"] = {"missed": 200.0, "giveback": 0.0,
+                               "missed_exit": 0.0, "early_exit": 0.0,
+                               "system_burial": 100.0}
+    _sold_file.write_text(_row("F/USD", 150.0, sold_h=13), encoding="utf-8")
+    st_l4 = _mk(); st_l4["history"].append(dict(_legacy_two))
+    nl4 = dc._resolve_prior_verdict(st_l4)
+    check("a LEGACY row's unpaired leave never rides a paired sale "
+          "to proven (the remainder counts EVERY nonzero component)",
+          nl4 == 1 and "partially resolved" in st_l4["history"][0]["verdict"]
+          and "proven after the fact" not in st_l4["history"][0]["verdict"]
+          and "missed" in st_l4["history"][0]["verdict"],
+          str(st_l4["history"][0].get("verdict"))[:90])
 finally:
     if _sold_backup is None:
         if _sold_file.exists():

@@ -884,7 +884,18 @@ def _resolve_prior_verdict(state: dict, current_start=None,
                 continue
             verdict = str(h.get("verdict") or "")
             if "unproven" not in verdict:
-                continue
+                if verdict:
+                    continue   # a graded verdict, not unproven
+                # THE LEGACY SHIM (user ask, Oct 5): rows written
+                # before the verdict rode the row carry None - the
+                # agreement bar decides eligibility from the row's
+                # OWN stored numbers, so the inbox never claims a
+                # rotation the bar itself proves
+                _r0 = float(h.get("realized_pnl") or 0.0)
+                _l0 = float(h.get("total_left") or 0.0)
+                if _r0 > 0.0 and _l0 <= 1.0:
+                    continue   # proven without the journal
+                verdict = "unproven"   # eligible; words below gate
             _d = h.get("date")
             if not _d:
                 continue
@@ -904,7 +915,19 @@ def _resolve_prior_verdict(state: dict, current_start=None,
                 continue   # legacy row, no component map: never resolves
             if not (isinstance(pairs_map, dict)
                     and any(bool(v) for v in pairs_map.values())):
-                continue   # no pair evidence possible: never resolves
+                # THE LEGACY SHIM: the evaluation ALWAYS recorded
+                # which pairs the gates buried (system_pairs) - the
+                # burial map derives from the row's OWN record (the
+                # pair-only join the resolver already honors for
+                # pre-entry rows). Nothing is invented: no record,
+                # no resolution.
+                _sp = sorted(set(str(p.get("pair") or "")
+                                 for p in (h.get("system_pairs")
+                                           or [])))
+                _sp = [q for q in _sp if q]
+                if not _sp:
+                    continue   # no pair evidence: never resolves
+                pairs_map = {"system_burial": _sp}
             entries_map = (h.get("left_entries")
                            if isinstance(h.get("left_entries"), dict)
                            else {})   # opportunity entries: the join
@@ -964,7 +987,8 @@ def _resolve_prior_verdict(state: dict, current_start=None,
             # proven when EVERY component's remainder is dust
             _rem_map = {c: max(0.0, round(float(usd.get(c) or 0.0)
                                           - float(_vc.get(c) or 0.0), 2))
-                        for c in pairs_map}
+                        for c in set(pairs_map) | {k for k, v in usd.items()
+                                                  if float(v or 0.0) > 0.0}}
             _rem = round(sum(_rem_map.values()), 2)
             _run = round(sum(float(v) or 0.0 for v in _vc.values()), 2)
             if _rem > RESOLVE_DUST_USD:
