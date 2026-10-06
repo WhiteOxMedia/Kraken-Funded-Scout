@@ -285,12 +285,24 @@ def disc_mod_from_penalty(penalty: float | None) -> float | None:
 def money_left_on_table(when: datetime | None = None) -> float | None:
     """Yesterday's money left on the table, USD, from the discipline
     ledger's own day readout (the same number the nightly review speaks).
+    THE FUNNEL'S OWN LEAVE IS NOT THE GUARD'S TO LOOSEN FOR (user ask,
+    Oct 6 - the audit's named residual): when the day's component map
+    exists, the numerator reads only the leave the EXITS could have
+    recovered - total_left minus the gates' own system_burial dollars
+    (money no exit ever touched, which no exit tuning recovers),
+    floored at zero so the funnel never TIGHTENS the guard either; a
+    map-less row keeps the legacy whole-leave read (fail-soft).
     Unreadable -> None."""
     facts = _daily_facts(when)
     if not facts or facts.get("total_left") is None:
         return None
     try:
-        return round(float(facts["total_left"]), 2)
+        mlt = round(float(facts["total_left"]), 2)
+        _usd = facts.get("usd_left")
+        if isinstance(_usd, dict):
+            mlt = max(0.0, round(
+                mlt - float(_usd.get("system_burial") or 0.0), 2))
+        return mlt
     except Exception:
         return None
 

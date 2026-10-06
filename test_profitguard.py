@@ -217,6 +217,41 @@ pg._daily_facts = lambda when=None: {"score": 80.0, "total_left": 0.0,
                                                   "system_burial": 0.0}}
 check("3.11e", pg.mlt_corr() == 0.0,
       "a clean day reads zero (the neutral the composite multiplies)")
+# 3.12 THE FUNNEL'S OWN LEAVE IS NOT THE GUARD'S TO LOOSEN FOR (user
+#      ask, Oct 6 - the audit's named residual): the MLT numerator read
+#      the day's WHOLE total_left, so the gates' own burial leave -
+#      money no exit ever touched, which no exit tuning recovers -
+#      loosened the exit guard. The numerator now reads the leave the
+#      EXITS could have recovered (total minus the funnel's own
+#      system_burial dollars, the component map present); a map-less
+#      row keeps the legacy whole-leave read (fail-soft), and the
+#      dock + stand-down keep the giveback's channel untouched.
+pg._daily_facts = lambda when=None: {
+    "score": 80.0, "total_left": 1756.56, "daily_pace": 240.0,
+    "usd_left": {"missed": 0.0, "giveback": 0.0, "missed_exit": 0.0,
+                 "early_exit": 0.0, "system_burial": 1756.56}}
+check("3.12a", pg.money_left_on_table() == 0.0,
+      "a burial-only day's MLT numerator is ZERO - the funnel's leave "
+      "never loosens the exit guard (Oct 5's exact shape)")
+check("3.12b", pg.mlt_corr() == 0.0,
+      "burial-only loosen is zero (the neutral term, no phantom loosen "
+      "on money the exits never saw)")
+pg._daily_facts = lambda when=None: {
+    "score": 80.0, "total_left": 645.0, "daily_pace": 240.0,
+    "usd_left": {"missed": 540.0, "giveback": 0.0, "missed_exit": 0.0,
+                 "early_exit": 0.0, "system_burial": 105.0}}
+check("3.12c", pg.money_left_on_table() == 540.0
+      and abs(pg.mlt_corr() - 2.25) < 1e-9,
+      "a mixed day's numerator counts ONLY the exits-recoverable leave "
+      "($645 - $105 burial = $540, 540/240 = 2.25)")
+pg._daily_facts = lambda when=None: {
+    "score": 80.0, "total_left": 605.0, "daily_pace": 240.0,
+    "usd_left": {"missed": 5.0, "giveback": 0.0, "missed_exit": 0.0,
+                 "early_exit": 0.0, "system_burial": 700.0}}
+check("3.12d", pg.mlt_corr() == 0.0,
+      "burial beyond the whole total (stale/partial facts) clamps the "
+      "numerator at zero - the guard never TIGHTENS on the funnel's "
+      "own leave either")
 _co11.goal_context = _co11_gc
 _co11.goal_bounds = _co11_gb
 pg._daily_facts = lambda when=None: {"score": 80.0, "total_left": 30.0,
