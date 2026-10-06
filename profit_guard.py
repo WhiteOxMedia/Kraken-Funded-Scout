@@ -43,6 +43,7 @@ the learning loop: if BOTH are unreadable the factor is not `readable`
 and the exit watch keeps the committed fixed rules rather than invent
 a context. One readable half still yields a readable factor.
 """
+import hashlib
 import json
 import math
 import os
@@ -804,9 +805,60 @@ def self_adjust(now: datetime | None = None) -> dict | None:
     # (the drive's mid-flight writer replayed it). This writer owns its
     # daily row and the history series and NOTHING else: the box, the
     # ledger, and any future writer's keys ride untouched on top.
-    _save({k: row[k] for k in ("adjusted_on", "factor", "parts", "ts",
-                               "history_len")}
-          | {"history": st["history"]})
+    _keys = {k: row[k] for k in ("adjusted_on", "factor", "parts", "ts",
+                                 "history_len")} | {"history": st["history"]}
+    # THE MLT STAND-DOWN NOTE (user ask, Oct 6): the reconciliation must
+    # be visible in hindsight, not just in code. A bake whose money-left
+    # correction yielded to a giveback-dominant day ledgers a per-day
+    # rider row in the auto_adjust_ledger - the same file hindsight's
+    # /api/hindsight/ledger serves - checksum-bound to the day facts it
+    # names so hindsight can re-derive it. The row is NOT an owner key
+    # of this save: it rides the GUARD HOOK, appending to the file's
+    # CURRENT ledger at the last point before the write, so a heartbeat
+    # row landing mid-flight is kept, never overwritten.
+    _guard = None
+    if res.get("mlt_corr") is None:
+        try:
+            _facts = _daily_facts(now) or {}
+            _usd = _facts.get("usd_left")
+            if _giveback_dominant_usd(_usd):
+                _gb = round(float((_usd or {}).get("giveback") or 0.0), 2)
+                _tl = round(float(_facts.get("total_left") or 0.0), 2)
+                _line = f"{_gb:.2f}/{_tl:.2f}"
+                _sum = hashlib.sha256(_line.encode("utf-8")).hexdigest()[:16]
+                _row = {
+                    "day": today,
+                    "rotation_id": f"daily-bake-{today}",
+                    "status": "stood_down",
+                    "before": _tl, "after": _tl, "delta": 0.0,
+                    "reason": ("mlt_stood_down: giveback-dominant day "
+                               f"(${_gb:,.2f} of the ${_tl:,.2f} leave is "
+                               "money handed back - the correction yields, "
+                               "the dock answers alone)"),
+                    "evidence": f"mlt_stood_down:{_line}:{_sum}",
+                    "applied_at": now.isoformat(timespec="seconds"),
+                }
+
+                def _note_guard(merged, cur, _row=_row):
+                    _led = merged.setdefault("auto_adjust_ledger", [])
+                    if not any(isinstance(r, dict)
+                               and r.get("status") == "stood_down"
+                               and r.get("day") == _row["day"]
+                               for r in _led):
+                        _led.append(_row)
+
+                _guard = _note_guard
+                res["stand_down_noted"] = True
+        except Exception:
+            res["stand_down_noted"] = False   # the note never moves the
+                                              # guard: fail-soft
+    # the guard kwarg rides ONLY the note path: the default call is
+    # byte-identical to the pre-note save (the mid-flight writer pin
+    # keeps exercising the legacy contract)
+    if _guard is not None:
+        _save(_keys, guard=_guard)
+    else:
+        _save(_keys)
     res = dict(res)
     res["history_len"] = len(st["history"])   # log-visible series growth
     return res

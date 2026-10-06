@@ -515,6 +515,60 @@ check("9.4c", set(_captured) <= {"adjusted_on", "factor", "parts",
                                   "ts", "history_len", "history"},
       "self_adjust saves OWNER KEYS ONLY — never a full stale snapshot "
       f"[saved: {sorted(_captured)}]")
+# THE MLT STAND-DOWN NOTE (user ask, Oct 6): when the guard's bake
+# stands the money-left correction down for a giveback-dominant day,
+# the reconciliation lands IN THE LEDGER hindsight serves - a per-day
+# rider row (status stood_down), checksum-bound to the day facts it
+# names, visible in hindsight, not just in code.
+import hashlib as _hl
+_gb_facts = {"score": 55.0, "total_left": 300.0, "daily_pace": 60.0,
+             "usd_left": {"missed": 10.0, "giveback": 300.0,
+                          "missed_exit": 0.0, "early_exit": 0.0,
+                          "system_burial": 0.0}}
+pg._daily_facts = lambda when=None: dict(_gb_facts)
+pg.rotation_strength = lambda when=None: 4
+bs._fleet_tide = lambda max_age_s=300: (78.0, "RISING")
+(TMP / "profit_guard_state.json").write_text(json.dumps(
+    {"adjusted_on": "2026-09-21", "factor": 1.3}), encoding="utf-8")
+_adjGB = pg.self_adjust(now=_ADJ_NOW)
+_gb_st = json.loads((TMP / "profit_guard_state.json")
+                    .read_text(encoding="utf-8"))
+_gb_rows = [r for r in (_gb_st.get("auto_adjust_ledger") or [])
+            if r.get("status") == "stood_down"]
+_check_line = "300.00/300.00"
+check("9.4d", _adjGB is not None and _adjGB.get("mlt_corr") is None
+      and len(_gb_rows) == 1
+      and _gb_rows[0].get("day") == "2026-09-22"
+      and "giveback" in _gb_rows[0].get("reason", "")
+      and str(_gb_rows[0].get("evidence", "")).startswith(
+          "mlt_stood_down:"),
+      "a giveback-dominant bake LEDGERS the stand-down (status "
+      "stood_down, hindsight-visible)"
+      f" [adj={_adjGB} rows={_gb_st.get('auto_adjust_ledger')}]")
+check("9.4e", len(_gb_rows) == 1
+      and _hl.sha256(_check_line.encode("utf-8")).hexdigest()[:16]
+          == str(_gb_rows[0].get("evidence", "")).split(":")[-1],
+      "the note is checksum-bound to the day facts it names - "
+      "hindsight can re-derive it")
+# a bake the stand-down never touched must ledger NO new note - the
+# rider exists only when the channel actually yields (count holds)
+_ok_st = json.loads((TMP / "profit_guard_state.json")
+                    .read_text(encoding="utf-8"))
+_ok_n = len([r for r in (_ok_st.get("auto_adjust_ledger") or [])
+             if r.get("status") == "stood_down"])
+_ok_st["adjusted_on"] = "2026-09-21"
+pg._daily_facts = lambda when=None: {"score": 90.0, "total_left": 15.0,
+                                     "daily_pace": 60.0}
+(TMP / "profit_guard_state.json").write_text(json.dumps(_ok_st),
+                                            encoding="utf-8")
+pg.self_adjust(now=_ADJ_NOW)
+_ok_st2 = json.loads((TMP / "profit_guard_state.json")
+                     .read_text(encoding="utf-8"))
+_ok_n2 = len([r for r in (_ok_st2.get("auto_adjust_ledger") or [])
+              if r.get("status") == "stood_down"])
+check("9.4f", _ok_n == 1 and _ok_n2 == 1,
+      "a bake the stand-down never touched ledgers NO new note "
+      f"[before={_ok_n} after={_ok_n2}]")
 (TMP / "profit_guard_state.json").unlink(missing_ok=True)
 pg._daily_facts = lambda when=None: None
 pg.rotation_strength = _ORIG_RS      # real fn — the stub must not leak in
