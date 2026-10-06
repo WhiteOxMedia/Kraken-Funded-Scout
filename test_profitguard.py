@@ -170,6 +170,57 @@ check("3.6e", abs(pg.discipline_penalty() - 2.0) < 1e-9,
       "nothing (the floor)")
 pg._daily_facts = lambda when=None: {"score": 80.0, "total_left": 30.0,
                                      "daily_pace": 60.0}
+# ── 3.11a-e THE STAND-DOWN (user ask, Oct 5: the guard cannot be pulled
+#      both ways at once): on a giveback-dominant day the dock tightens
+#      DiscMod while MLT_Corr — reading the SAME total_left — would
+#      loosen (1 + MLT) with the very same dollars. The reconciliation:
+#      mlt_corr STANDS DOWN on the dock's exact days (the shared
+#      _giveback_dominant_usd rule — the two consumers cannot drift).
+#      One day, one exit verdict. Today's live ledger made the OPPOSITE
+#      case (burial-dominant: dock silent, MLT loose — one voice by the
+#      luck of the mix, not by design).
+# (the live regime's adaptive goal would bend the pace — neutral it)
+import carve_out as _co11
+_co11_gb = _co11.goal_bounds
+_co11_gc = _co11.goal_context
+_co11.goal_bounds = lambda *a, **k: (0.0, 0.0)
+_co11.goal_context = lambda when=None: (1.0, False)
+pg._daily_facts = lambda when=None: {
+    "score": 80.0, "total_left": 60.0, "daily_pace": 60.0,
+    "usd_left": {"missed": 10.0, "giveback": 50.0, "missed_exit": 0.0,
+                 "early_exit": 0.0, "system_burial": 0.0}}
+check("3.11a", pg.mlt_corr() is None,
+      "the giveback-dominant day STANDS THE MLT DOWN (the dock's own "
+      "dollars cannot loosen here too)")
+check("3.11b", abs(pg.discipline_penalty() - 4.0) < 1e-9
+      and pg.mlt_corr() is None,
+      "the dock tightens and the MLT yields on the SAME day — the two "
+      "consumers act as one channel (the shared rule)")
+pg._daily_facts = lambda when=None: {
+    "score": 80.0, "total_left": 60.0, "daily_pace": 60.0,
+    "usd_left": {"missed": 50.0, "giveback": 10.0, "missed_exit": 0.0,
+                 "early_exit": 0.0, "system_burial": 0.0}}
+check("3.11c", pg.mlt_corr() == 1.0,
+      "a MISSED-dominant day keeps the learning loop live (60/60 = "
+      "+1.0 loosen — the leave story the giveback does not own)")
+pg._daily_facts = lambda when=None: {"score": 80.0, "total_left": 30.0,
+                                     "daily_pace": 60.0}
+check("3.11d", abs(pg.mlt_corr() - 0.5) < 1e-9,
+      "no component map -> the MLT reads as before (fail-soft, the "
+      "legacy rows)")
+pg._daily_facts = lambda when=None: {"score": 80.0, "total_left": 0.0,
+                                     "daily_pace": 60.0,
+                                     "usd_left": {"missed": 0.0,
+                                                  "giveback": 0.0,
+                                                  "missed_exit": 0.0,
+                                                  "early_exit": 0.0,
+                                                  "system_burial": 0.0}}
+check("3.11e", pg.mlt_corr() == 0.0,
+      "a clean day reads zero (the neutral the composite multiplies)")
+_co11.goal_context = _co11_gc
+_co11.goal_bounds = _co11_gb
+pg._daily_facts = lambda when=None: {"score": 80.0, "total_left": 30.0,
+                                     "daily_pace": 60.0}
 # THE ADAPTIVE GOAL (Sep 23): stubbed NEUTRAL for the raw pins above, then
 # pinned scaling explicitly — the context multiplier folds into the pace
 import carve_out as _co_pg

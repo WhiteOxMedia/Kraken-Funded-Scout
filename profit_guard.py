@@ -214,6 +214,23 @@ def _env_cache_get(when: datetime) -> float | None:
 
 
 # ── 2. the discipline modifier ───────────────────────────────────────────
+def _giveback_dominant_usd(usd: dict | None) -> bool:
+    """THE ONE DOMINANCE RULE both giveback consumers share (the
+    discipline dock and the MLT stand-down): giveback >= every other
+    usd_left component AND >= the tier tighten trigger. Fail-soft
+    False — an unreadable trigger never moves the guard on a lie."""
+    try:
+        _gb = float((usd or {}).get("giveback") or 0.0)
+        if _gb <= 0:
+            return False
+        if _gb < max((float(v) or 0.0) for v in (usd or {}).values()):
+            return False
+        import contest_account as _ca_gbd
+        return _gb >= float(_ca_gbd.giveback_thresholds()[0])
+    except Exception:
+        return False
+
+
 def discipline_penalty(when: datetime | None = None) -> float | None:
     """DisciplinePenalty 0-10 from the discipline score's own gap to 100
     (a 100 discipline night costs nothing; 30 costs 7). Unreadable
@@ -247,16 +264,10 @@ def discipline_penalty(when: datetime | None = None) -> float | None:
         # biggest leave being money reached and handed back tightens
         # tomorrow's guard even when the score's other components
         # dilute the sting — the score forgives, the giveback does not.
-        try:
-            _ul = facts.get("usd_left") or {}
-            _gb = float(_ul.get("giveback") or 0.0)
-            if _gb > 0 and _gb >= max((float(v) or 0.0)
-                                      for v in _ul.values()):
-                import contest_account as _ca_gbd
-                if _gb >= float(_ca_gbd.giveback_thresholds()[0]):
-                    pen += GIVEBACK_DOMINANT_PENALTY
-        except Exception:
-            pass
+        # THE ONE RULE (_giveback_dominant_usd) is shared with the MLT
+        # stand-down, so the two giveback consumers can never drift.
+        if _giveback_dominant_usd(facts.get("usd_left")):
+            pen += GIVEBACK_DOMINANT_PENALTY
         return round(min(pen, 10.0), 3)
     except Exception:
         return None
@@ -322,7 +333,17 @@ def daily_goal_usd(when: datetime | None = None) -> float | None:
 def mlt_corr(when: datetime | None = None) -> float | None:
     """MLT_Corr = MoneyLeftOnTable / DailyGoal. Positive: loosen (the
     guard was too tight). Negative: tighten (it saved losses). Neither
-    half readable -> None."""
+    half readable -> None.
+    THE STAND-DOWN (user ask, Oct 5: the guard cannot be pulled both
+    ways at once): on a GIVEBACK-DOMINANT day the money-left
+    correction yields — the same dollars cannot argue "the exits
+    choked, loosen" here while the giveback dominance dock argues
+    "the exits leaked, tighten" in DiscMod. One day, one exit verdict:
+    the biggest leave names the channel that answers, and the learning
+    loop waits for a day the leave is not the giveback's to tell."""
+    facts = _daily_facts(when)
+    if facts and _giveback_dominant_usd(facts.get("usd_left")):
+        return None
     mlt = money_left_on_table(when)
     goal = daily_goal_usd(when)
     if mlt is None or goal is None or goal <= 0:
