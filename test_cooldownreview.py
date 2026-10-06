@@ -143,6 +143,44 @@ check("no state write on dry-run",
       == _dayrows_before)
 disc.load_state = _real_load
 
+# ── E-gb. THE GIVEBACK'S OWN CHANNEL AT COOLDOWN (user ask, Oct 5):
+#    the day's AGGREGATE learning raises the giveback weight when the
+#    day's biggest leave was money reached and handed back — even
+#    when the score's other components dilute it. The seeded
+#    rotations give a giveback-dominant aggregate at a MEDIOCRE score
+#    (the exact dilution the old gates held).
+_st_gb = _real_load()
+_st_gb.setdefault("weights", {})["giveback"] = 0.9
+_gb_w0 = float(_st_gb["weights"]["giveback"])
+# hermetic: the LIVE state's own today-rows would dilute the
+# aggregate — the fabricated day must be the ONLY day on the books
+_st_gb["history"] = [h for h in (_st_gb.get("history") or [])
+                     if not (h.get("date") == today
+                             and h.get("rot") != "DAY")] + [
+    {"date": today, "rot": "08-12", "score": 50.0, "total_left": 120.0,
+     "realized_pnl": 0.0, "balance_after": 10000.0,
+     "usd_left": {"missed": 10.0, "giveback": 105.0, "missed_exit": 0.0,
+                  "early_exit": 0.0, "system_burial": 5.0},
+     "ts": f"{today}T12:00:00"}]
+disc.load_state = lambda: _st_gb
+# hermetic: the burial branch must not answer for the giveback
+_gb_pairs = disc._day_system_pairs
+_gb_duds = disc._day_system_duds
+_gb_fired = disc._day_fired_any
+disc._day_system_pairs = lambda st, d: []
+disc._day_system_duds = lambda st, d: []
+disc._day_fired_any = lambda d: True
+rev_gb = disc.cooldown_review(when=now, speak=False, dry_run=True)
+disc._day_system_pairs = _gb_pairs
+disc._day_system_duds = _gb_duds
+disc._day_fired_any = _gb_fired
+_gb_w1 = float(_st_gb["weights"]["giveback"])
+check("the cooldown aggregate raises the giveback weight on a "
+      "giveback-dominant day (score 50, realized $0)",
+      _gb_w1 > _gb_w0 and "giveback weight rises" in rev_gb["lesson"])
+print("      lesson ->", rev_gb["lesson"][:140])
+disc.load_state = _real_load
+
 # ── E2. per-asset review: verdicts on fabricated trades ─────────────
 v1 = disc._asset_verdict(100.0, 101.5, 101.6, 1.5, 7.0, 500.0)
 check("took-the-goal verdict", v1[0].startswith("took the goal") and v1[1] == 0.0)

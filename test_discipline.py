@@ -386,6 +386,69 @@ check("the popups come from the winners table (the fired log)",
 check("the realized side reads the SOLD ledger",
       "contest_trades.jsonl" in src)
 
+# ── THE GIVEBACK'S OWN CHANNEL (user ask, Oct 5): a giveback-dominant
+#    day raises the giveback weight even when the score's other
+#    components dilute the sting — a mid score or a green day cannot
+#    launder money the account REACHED and handed back. The machine's
+#    own tighten trigger is the floor: dust dominates nothing worth
+#    moving.
+_gbs = lambda: {"weights": dict(dc.DEFAULT_WEIGHTS), "history": [],
+                "lessons": []}
+_res_gb = {"score": 50.0, "realized_pnl": 0.0,
+           "usd_left": {"missed": 5.0, "giveback": 505.0,
+                        "missed_exit": 0.0, "early_exit": 0.0,
+                        "system_burial": 0.0},
+           "total_left": 510.0, "pace_share": 5.0,
+           "ts": "2026-10-05T08:00:00"}
+_st_gb = _gbs()
+_gb_w0 = float(_st_gb["weights"]["giveback"])
+dc._learn(_st_gb, _res_gb)
+_gb_w1 = float(_st_gb["weights"]["giveback"])
+check("giveback-dominant raises the giveback weight THROUGH the "
+      "dilution (score 50, realized $0 — the old gates held it)",
+      _gb_w1 > _gb_w0
+      and "giveback weight rises" in _st_gb["lessons"][-1]["lesson"],
+      _st_gb["lessons"][-1]["lesson"][:130])
+check("the rise is exactly the nudge, bounded, and DIRECTIONAL (up)",
+      abs(_gb_w1 - round(min(2.5, _gb_w0 * 1.1), 3)) < 1e-9,
+      (_gb_w0, _gb_w1))
+_res_gbd = {"score": 50.0, "realized_pnl": 0.0,
+            "usd_left": {"missed": 0.0, "giveback": 3.0,
+                         "missed_exit": 0.0, "early_exit": 0.0,
+                         "system_burial": 0.0},
+            "total_left": 3.0, "pace_share": 5.0,
+            "ts": "2026-10-05T08:00:00"}
+_st_gbd = _gbs()
+_gb_w2 = float(_st_gbd["weights"]["giveback"])
+dc._learn(_st_gbd, _res_gbd)
+check("dust giveback (dominant, under the tighten trigger) moves "
+      "nothing (the floor)",
+      float(_st_gbd["weights"]["giveback"]) == _gb_w2,
+      _st_gbd["lessons"][-1]["lesson"][:110])
+# THE PRECEDENCE PIN (the second opinion's medium, cured): giveback
+# dominance OUTRANKS the burial pile-up — a day that both buried two
+# payers AND handed back the biggest money raises the GIVEBACK weight
+# (the burial still learned at its own rotation's rollover).
+_res_gbb = {"score": 50.0, "realized_pnl": 0.0,
+            "usd_left": {"missed": 0.0, "giveback": 300.0,
+                         "missed_exit": 0.0, "early_exit": 0.0,
+                         "system_burial": 118.0},
+            "total_left": 418.0, "pace_share": 5.0,
+            "system_pairs": [{"pair": "A/USD", "gate": "g1", "usd": 60},
+                             {"pair": "B/USD", "gate": "g2", "usd": 58}],
+            "system_duds": [],
+            "ts": "2026-10-05T08:00:00"}
+_st_gbb = _gbs()
+_gb_w3 = float(_st_gbb["weights"]["giveback"])
+_b_w3 = float(_st_gbb["weights"]["system_burial"])
+dc._learn(_st_gbb, _res_gbb)
+check("giveback dominance OUTRANKS the burial pile-up (the biggest "
+      "leave names its own weight)",
+      float(_st_gbb["weights"]["giveback"]) > _gb_w3
+      and float(_st_gbb["weights"]["system_burial"]) == _b_w3
+      and "giveback weight rises" in _st_gbb["lessons"][-1]["lesson"],
+      _st_gbb["lessons"][-1]["lesson"][:130])
+
 lines.append(f"\nRESULT: {PASS} passed, {FAIL} failed")
 scratch_space.report_temp('_discipline_check.txt').write_text("\n".join(lines), encoding="utf-8")
 

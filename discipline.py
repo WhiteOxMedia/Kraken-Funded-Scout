@@ -1004,6 +1004,23 @@ def _resolve_prior_verdict(state: dict, current_start=None,
         return 0
 
 
+def _giveback_dominant(usd: dict) -> bool:
+    """Giveback dominates the day's leave AND clears the machine's own
+    tier-scaled tighten trigger — the floor that keeps dust from
+    steering weights. Fail-soft False: an unreadable trigger never
+    moves a weight on a lie."""
+    try:
+        _gb = float((usd or {}).get("giveback") or 0.0)
+        if _gb <= 0:
+            return False
+        if _gb < max((float(v) or 0.0) for v in (usd or {}).values()):
+            return False
+        import contest_account as _ca_gbdom
+        return _gb >= float(_ca_gbdom.giveback_thresholds()[0])
+    except Exception:
+        return False
+
+
 def _learn(state: dict, result: dict) -> str:
     """One learning step: compare the score with the realized money and
     nudge the dominant weight when they disagree. Returns the lesson.
@@ -1024,7 +1041,25 @@ def _learn(state: dict, result: dict) -> str:
     # must be ≥ 2.
     _net = (len(result.get("system_pairs") or [])
             - len(result.get("system_duds") or []))
-    if usd.get("system_burial", 0) > 1 and _net >= 2:
+    if _giveback_dominant(usd):
+        # ── THE GIVEBACK'S OWN CHANNEL, FIRST IN THE CHAIN (user ask,
+        # Oct 5; the second opinion's precedence medium): when the
+        # rotation's biggest leave is money the account REACHED and
+        # handed back, the giveback weight rises even when the score's
+        # other components dilute the sting — and even when a burial
+        # pile-up rode the same day (the burial learned at its own
+        # rotation's rollover; the biggest leave names its own weight
+        # here). The machine's own tighten trigger is the floor (dust
+        # dominates nothing worth moving); neither the softening branch
+        # below nor any other branch can reach a giveback-dominant
+        # result, because this branch answers first.
+        old = w.get("giveback", 1.0)
+        w["giveback"] = round(min(W_MAX, old * (1.0 + NUDGE)), 3)
+        lesson = (f"Gave back ${usd['giveback']:,.0f} after the goal — the "
+                  f"rotation's biggest leave. The giveback weight rises "
+                  f"{old:.2f} → {w['giveback']:.2f}: money reached and "
+                  f"handed back counts, whatever else the score diluted.")
+    elif usd.get("system_burial", 0) > 1 and _net >= 2:
         old = w.get("system_burial", 1.0)
         w["system_burial"] = round(min(W_MAX, old * (1.0 + NUDGE)), 3)
         _gates = sorted({str(p.get("gate") or "?") for p in result["system_pairs"]})

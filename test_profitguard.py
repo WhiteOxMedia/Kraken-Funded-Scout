@@ -138,6 +138,38 @@ try:
 finally:
     _co_fix.penalty_context = _CO_PC_REAL
     _ml_fix.discipline_penalty_extra = lambda: 0.0   # back to the hermetic zero
+# 3.6b-e THE GIVEBACK DOMINANCE DOCK (user ask, Oct 5): a day whose
+#      biggest leave was money REACHED and handed back docks
+#      tomorrow's guard even when the score's other components dilute
+#      the sting. FLAT by design — no context weighting, which would
+#      re-introduce the very dilution this dock defeats. The tier
+#      tighten trigger is the floor (the fixtures sit outside every
+#      tier: 50 clears the 10k 20.0; 3.0 clears nothing).
+pg._daily_facts = lambda when=None: {
+    "score": 80.0, "total_left": 60.0, "daily_pace": 60.0,
+    "usd_left": {"missed": 10.0, "giveback": 50.0, "missed_exit": 0.0,
+                 "early_exit": 0.0, "system_burial": 0.0}}
+check("3.6b", abs(pg.discipline_penalty() - 4.0) < 1e-9,
+      "giveback-dominant docks +2.0 (score 80: 2.0 + 2.0 = 4.0 — "
+      "the dilution-proof sting)")
+check("3.6c", abs(pg.disc_mod_from_penalty(pg.discipline_penalty()) - 0.6) < 1e-9,
+      "the dock TIGHTENS tomorrow's guard (DiscMod 0.8 -> 0.6)")
+pg._daily_facts = lambda when=None: {
+    "score": 80.0, "total_left": 60.0, "daily_pace": 60.0,
+    "usd_left": {"missed": 50.0, "giveback": 10.0, "missed_exit": 0.0,
+                 "early_exit": 0.0, "system_burial": 0.0}}
+check("3.6d", abs(pg.discipline_penalty() - 2.0) < 1e-9,
+      "a MISSED-dominant day docks nothing (the dock is the "
+      "giveback's own channel, not a generic left-on-table tax)")
+pg._daily_facts = lambda when=None: {
+    "score": 80.0, "total_left": 3.0, "daily_pace": 60.0,
+    "usd_left": {"missed": 0.0, "giveback": 3.0, "missed_exit": 0.0,
+                 "early_exit": 0.0, "system_burial": 0.0}}
+check("3.6e", abs(pg.discipline_penalty() - 2.0) < 1e-9,
+      "dust giveback (dominant, under the tighten trigger) docks "
+      "nothing (the floor)")
+pg._daily_facts = lambda when=None: {"score": 80.0, "total_left": 30.0,
+                                     "daily_pace": 60.0}
 # THE ADAPTIVE GOAL (Sep 23): stubbed NEUTRAL for the raw pins above, then
 # pinned scaling explicitly — the context multiplier folds into the pace
 import carve_out as _co_pg

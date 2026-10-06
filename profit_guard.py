@@ -64,6 +64,12 @@ ENV_NEUTRAL = 3.0         # RS 3 / TIDE 3 = a normal rotation. The spec's
                           # 2.0 clamp and never tighten.
 DISC_PENALTY_DIVISOR = 10.0
 GUARD_CLAMP = (0.5, 2.0)  # <0.9 tighten / 0.9-1.2 normal / >1.2 run
+GIVEBACK_DOMINANT_PENALTY = 2.0  # the giveback-dominance dock (Oct 5,
+# user ask): when the day's biggest leave was money REACHED and handed
+# back, discipline_penalty docks this much MORE — dilution-proof (flat,
+# never context-weighted: weighting would re-introduce the dilution),
+# floored at the machine's own tier tighten trigger. +2.0 = 20 score
+# points of sting; DiscMod 0.8 -> 0.6 on an 80-score day.
 VOL_MOD_CLAMP = (0.7, 1.4)
 ASSET_MEMORY_CLAMP = (0.7, 1.4)
 FUNDING_RISING_MULT = 1.1
@@ -235,6 +241,20 @@ def discipline_penalty(when: datetime | None = None) -> float | None:
                 except Exception:
                     pass
                 pen += _extra
+        except Exception:
+            pass
+        # THE GIVEBACK DOMINANCE DOCK (user ask, Oct 5): the day's
+        # biggest leave being money reached and handed back tightens
+        # tomorrow's guard even when the score's other components
+        # dilute the sting — the score forgives, the giveback does not.
+        try:
+            _ul = facts.get("usd_left") or {}
+            _gb = float(_ul.get("giveback") or 0.0)
+            if _gb > 0 and _gb >= max((float(v) or 0.0)
+                                      for v in _ul.values()):
+                import contest_account as _ca_gbd
+                if _gb >= float(_ca_gbd.giveback_thresholds()[0]):
+                    pen += GIVEBACK_DOMINANT_PENALTY
         except Exception:
             pass
         return round(min(pen, 10.0), 3)
