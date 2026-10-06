@@ -252,6 +252,179 @@ check("3.12d", pg.mlt_corr() == 0.0,
       "burial beyond the whole total (stale/partial facts) clamps the "
       "numerator at zero - the guard never TIGHTENS on the funnel's "
       "own leave either")
+# 3.13 THE CHANNEL VERDICT - the guard's own words (user ask, Oct 6):
+#      one fact naming which channel answered today, in the spec's own
+#      doctrine - "the biggest leave names the channel that answers."
+#      A giveback-dominant day speaks the GIVEBACK'S verdict (the dock
+#      tightens while the correction yields); otherwise the LEAVE'S
+#      verdict answers through the exits-recoverable numerator (the
+#      burial's dollars are the funnel's, never the guard's loosen).
+pg._daily_facts = lambda when=None: {
+    "score": 80.0, "total_left": 60.0, "daily_pace": 60.0,
+    "usd_left": {"missed": 10.0, "giveback": 50.0, "missed_exit": 0.0,
+                 "early_exit": 0.0, "system_burial": 0.0}}
+_cv1 = pg.channel_verdict(res={"readable": True, "factor": 1.4})
+check("3.13a", isinstance(_cv1, dict) and _cv1.get("channel") == "giveback"
+      and "dock" in _cv1.get("verdict", "")
+      and "yields" in _cv1.get("verdict", ""),
+      f"the giveback-dominant day speaks THE GIVEBACKS VERDICT {_cv1}")
+pg._daily_facts = lambda when=None: {
+    "score": 63.2, "total_left": 1756.56, "daily_pace": 240.0,
+    "usd_left": {"missed": 0.0, "giveback": 0.0, "missed_exit": 0.0,
+                 "early_exit": 0.0, "system_burial": 1756.56}}
+_cv2 = pg.channel_verdict(res={"readable": True, "factor": 1.4})
+check("3.13b", isinstance(_cv2, dict) and _cv2.get("channel") == "leave"
+      and "funnel" in _cv2.get("verdict", "")
+      and "loosened" not in _cv2.get("verdict", ""),
+      f"the burial-only day speaks THE LEAVES VERDICT, funnel-honest {_cv2}")
+pg._daily_facts = lambda when=None: {
+    "score": 80.0, "total_left": 30.0, "daily_pace": 60.0,
+    "usd_left": {"missed": 25.0, "giveback": 0.0, "missed_exit": 0.0,
+                 "early_exit": 0.0, "system_burial": 0.0}}
+_cv3 = pg.channel_verdict(res={"readable": True, "factor": 1.4})
+check("3.13c", isinstance(_cv3, dict) and _cv3.get("channel") == "leave"
+      and "loosened the guard" in _cv3.get("verdict", "")
+      and "$30.00" in _cv3.get("verdict", ""),
+      f"an exits-recoverable leave speaks the leaves loosen {_cv3}")
+# 3.13e-g THE SECOND OPINION'S MEDIUM (Oct 6): the verdict may only
+#      claim the mechanism the guard actually felt - a score-less day
+#      never docks (the dock composes inside the penalty), a capped
+#      penalty swallows the dock, a missing pace means NO MLT
+#      correction exists to loosen with. Honesty over vocabulary.
+pg._daily_facts = lambda when=None: {"total_left": 60.0, "daily_pace": 60.0,
+    "usd_left": {"missed": 10.0, "giveback": 50.0, "missed_exit": 0.0,
+                 "early_exit": 0.0, "system_burial": 0.0}}
+check("3.13e", pg.channel_verdict() is None,
+      "a score-less giveback-dominant day stays SILENT - the dock never reached the guard")
+pg._daily_facts = lambda when=None: {"score": 15.0, "total_left": 60.0,
+    "daily_pace": 60.0,
+    "usd_left": {"missed": 10.0, "giveback": 50.0, "missed_exit": 0.0,
+                 "early_exit": 0.0, "system_burial": 0.0}}
+_cvc = pg.channel_verdict(res={"readable": True, "factor": 1.4})
+check("3.13f", isinstance(_cvc, dict) and "clamped" in _cvc.get("verdict", "")
+      and "nothing tightened" not in _cvc.get("verdict", ""),
+      f"a capped-penalty giveback day names the cap, not a dock {_cvc}")
+pg._daily_facts = lambda when=None: {"score": 80.0, "total_left": 30.0,
+    "usd_left": {"missed": 25.0, "giveback": 0.0, "missed_exit": 0.0,
+                 "early_exit": 0.0, "system_burial": 0.0}}
+check("3.13g", pg.channel_verdict() is None,
+      "an exits-recoverable leave with NO pace stays silent - there is no goal to loosen against")
+# 3.13h-i THE SECOND OPINION'S P2s (Oct 6): a loosen may only claim to
+#      be FELT - a correction that rounds to zero holds neutral, and a
+#      composite already at the guard's ceiling cannot loosen further
+#      (the ceiling is per-pair: the stamp's own factor answers).
+pg._daily_facts = lambda when=None: {"score": 80.0, "total_left": 0.01,
+    "daily_pace": 240.0,
+    "usd_left": {"missed": 0.01, "giveback": 0.0, "missed_exit": 0.0,
+                 "early_exit": 0.0, "system_burial": 0.0}}
+_cvh = pg.channel_verdict(res={"readable": True, "factor": 1.4})
+check("3.13h", isinstance(_cvh, dict) and "NEUTRAL" in _cvh.get("verdict", "")
+      and "loosened" not in _cvh.get("verdict", ""),
+      f"a correction that rounds to zero holds NEUTRAL {_cvh}")
+pg._daily_facts = lambda when=None: {"score": 80.0, "total_left": 30.0,
+    "daily_pace": 60.0,
+    "usd_left": {"missed": 25.0, "giveback": 0.0, "missed_exit": 0.0,
+                 "early_exit": 0.0, "system_burial": 0.0}}
+_cvi = pg.channel_verdict(res={"readable": True, "factor": 2.0})
+check("3.13i", isinstance(_cvi, dict) and "ceiling" in _cvi.get("verdict", "")
+      and "loosened the guard" not in _cvi.get("verdict", ""),
+      f"a composite at the ceiling claims NO further loosen {_cvi}")
+# 3.13j THE CARRIED FACTOR (the second opinion's medium): a carried
+#      stamp means the composite was NOT recomputed today - no channel
+#      was felt, whatever the components say. The verdict says so.
+pg._daily_facts = lambda when=None: {"score": 55.0, "total_left": 60.0,
+    "daily_pace": 60.0,
+    "usd_left": {"missed": 10.0, "giveback": 50.0, "missed_exit": 0.0,
+                 "early_exit": 0.0, "system_burial": 0.0}}
+_cvj = pg.channel_verdict(res={"readable": True, "factor": 1.3,
+                               "carried_from": "2026-10-05"})
+check("3.13j", isinstance(_cvj, dict) and "carried" in _cvj.get("verdict", "")
+      and "docked" not in _cvj.get("verdict", "")
+      and "loosened the guard" not in _cvj.get("verdict", ""),
+      f"a carried factor claims NO felt channel {_cvj}")
+# 3.13k-m THE SECOND OPINION'S ROUND TWO: the ceiling is PER-PAIR (the
+#      meta band's gf_max can sit below the global 2.0), the FLOOR can
+#      swallow a dock's tighten exactly as the ceiling swallows a
+#      loosen, and every verdict carries an honest FELT flag.
+pg._daily_facts = lambda when=None: {"score": 80.0, "total_left": 30.0,
+    "daily_pace": 60.0,
+    "usd_left": {"missed": 25.0, "giveback": 0.0, "missed_exit": 0.0,
+                 "early_exit": 0.0, "system_burial": 0.0}}
+_cvk = pg.channel_verdict(res={"readable": True, "factor": 1.6, "gf_max": 1.6})
+check("3.13k", isinstance(_cvk, dict) and "ceiling" in _cvk.get("verdict", "")
+      and "loosened the guard" not in _cvk.get("verdict", ""),
+      f"a factor at its PER-PAIR band ceiling claims no loosen {_cvk}")
+pg._daily_facts = lambda when=None: {"score": 55.0, "total_left": 60.0,
+    "daily_pace": 60.0,
+    "usd_left": {"missed": 10.0, "giveback": 50.0, "missed_exit": 0.0,
+                 "early_exit": 0.0, "system_burial": 0.0}}
+_cvl = pg.channel_verdict(res={"readable": True, "factor": 0.5})
+check("3.13l", isinstance(_cvl, dict) and "floor" in _cvl.get("verdict", "")
+      and "was docked" not in _cvl.get("verdict", ""),
+      f"a factor at the floor cannot be docked wider-tight {_cvl}")
+_cvm = pg.channel_verdict(res={"readable": True, "factor": 1.4})
+check("3.13m", isinstance(_cvm, dict) and _cvm.get("felt") is True
+      and pg.channel_verdict(res={"readable": True, "factor": 1.4,
+                                  "carried_from": "2026-10-05"}).get("felt") is False,
+      "every verdict carries an honest FELT flag - a carried net is not one")
+# 3.13n THE PER-PAIR FLOOR (the second opinion's mirror medium): a
+#      band floor above the global 0.5 can spend the last of the
+#      width - the dock's tighten is not felt there either.
+pg._daily_facts = lambda when=None: {"score": 55.0, "total_left": 60.0,
+    "daily_pace": 60.0,
+    "usd_left": {"missed": 10.0, "giveback": 50.0, "missed_exit": 0.0,
+                 "early_exit": 0.0, "system_burial": 0.0}}
+_cvn = pg.channel_verdict(res={"readable": True, "factor": 0.7, "gf_min": 0.8})
+check("3.13n", isinstance(_cvn, dict) and "floor" in _cvn.get("verdict", "")
+      and "was docked" not in _cvn.get("verdict", ""),
+      f"a factor at its PER-PAIR band floor claims no dock {_cvn}")
+# 3.13o THE FIXED-RULES FALLBACK (the second opinion's medium): a
+#      readable-False read means the guard stands on the committed
+#      fixed rules - no factor was computed, so NOTHING was felt.
+pg._daily_facts = lambda when=None: {"score": 55.0, "total_left": 60.0,
+    "daily_pace": 60.0,
+    "usd_left": {"missed": 10.0, "giveback": 50.0, "missed_exit": 0.0,
+                 "early_exit": 0.0, "system_burial": 0.0}}
+check("3.13o", pg.channel_verdict(
+                   res={"readable": False, "factor": 1.0}) is None,
+      "an unreadable factor read speaks NOTHING - the fixed rules felt no dock")
+# 3.13p-s THE RAIL IS NOT A FACTOR FLOOR (the second opinion): the
+#      decay rail bounds the decay MODIFIER - folding it into the
+#      factor's floor codified a false 'not felt'. The binding floors
+#      are the band's gf_min AND the global clamp (whichever is
+#      higher); the leave branch answers to the floor like the dock.
+pg._daily_facts = lambda when=None: {"score": 55.0, "total_left": 60.0,
+    "daily_pace": 60.0,
+    "usd_left": {"missed": 10.0, "giveback": 50.0, "missed_exit": 0.0,
+                 "early_exit": 0.0, "system_burial": 0.0}}
+_cvp = pg.channel_verdict(res={"readable": True, "factor": 0.55,
+                               "decay_rail": 0.7})
+check("3.13p", isinstance(_cvp, dict) and _cvp.get("felt") is True
+      and "was docked" in _cvp.get("verdict", ""),
+      f"the decay rail is NOT a factor floor - a dock above the clamp is felt {_cvp}")
+pg._daily_facts = lambda when=None: {"score": 55.0, "total_left": 60.0,
+    "daily_pace": 60.0,
+    "usd_left": {"missed": 10.0, "giveback": 50.0, "missed_exit": 0.0,
+                 "early_exit": 0.0, "system_burial": 0.0}}
+_cvr = pg.channel_verdict(res={"readable": True, "factor": 0.5, "gf_min": 0.4})
+check("3.13r", isinstance(_cvr, dict) and _cvr.get("felt") is False
+      and "floor" in _cvr.get("verdict", ""),
+      f"the binding floor is the HIGHER of the band floor and the clamp {_cvr}")
+pg._daily_facts = lambda when=None: {"score": 80.0, "total_left": 30.0,
+    "daily_pace": 60.0,
+    "usd_left": {"missed": 25.0, "giveback": 0.0, "missed_exit": 0.0,
+                 "early_exit": 0.0, "system_burial": 0.0}}
+_cvs = pg.channel_verdict(res={"readable": True, "factor": 0.5})
+check("3.13s", isinstance(_cvs, dict) and _cvs.get("felt") is False
+      and "loosened the guard" not in _cvs.get("verdict", "")
+      and "floor" in _cvs.get("verdict", ""),
+      f"a floor-pinned net claims NO loosen - the width cannot tell {_cvs}")
+pg._daily_facts = lambda when=None: None
+
+check("3.13d", pg.channel_verdict() is None,
+      "an unreadable day is an honest silence - no channel verdict")
+pg._daily_facts = lambda when=None: {"score": 80.0, "total_left": 30.0,
+                                     "daily_pace": 60.0}
 _co11.goal_context = _co11_gc
 _co11.goal_bounds = _co11_gb
 pg._daily_facts = lambda when=None: {"score": 80.0, "total_left": 30.0,

@@ -4591,6 +4591,9 @@ def contest_light(exchange, cfg):
                 "gf_min": (_meta or {}).get("gf_min"),
                 "gf_max": (_meta or {}).get("gf_max"),
                 "max_carve": (_meta or {}).get("max_carve"),
+                "channel_verdict": _pg.channel_verdict(
+                    res=dict(_pgres, factor=_pgf, gf_max=(_meta or {}).get("gf_max"),
+                    gf_min=(_meta or {}).get("gf_min"))),
             }
             # the ring: carry the previous stamp's samples forward, drop
             # anything past the window, append THIS check's finalized

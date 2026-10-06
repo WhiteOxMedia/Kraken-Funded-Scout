@@ -8956,6 +8956,15 @@ def _guard_breakdown_rows(w: dict, pct: float) -> list[str]:
     rows = [head,
             f"<span class='dim' style='font-size:12px;margin-left:14px;'>"
             f"{bits}</span>"]
+    cv = brk.get("channel_verdict") or w.get("cv")
+    if isinstance(cv, dict) and cv.get("verdict"):
+        import html as _cv_html
+        _vtxt = _cv_html.escape(str(cv.get("verdict")), quote=True)
+        _suffix = (" — channel answered today"
+                   if cv.get("felt") is True else "")
+        rows.append("<span class='dim' style='font-size:12px;margin-left:14px;'>"
+                    f"{_vtxt}{_suffix}</span>")
+
     extras = []
     rcl = brk.get("rcl")
     if rcl and rcl != "NORMAL":

@@ -233,6 +233,32 @@ html = "\n".join(_gb_rows({"guard_brk": _row(rcl="NORMAL", rcl_mult=1.0,
 check(2.11, "RCL" not in html and "SAL" not in html and "END-GAME" not in html,
       "a NORMAL pass renders no meta noise — quiet when quiet")
 
+# 2.18-2.20 THE CHANNEL VERDICT ON THE PLATE (user ask, Oct 6): the
+# guard's words carry the reconciliation - which channel answered today -
+# instead of a bare factor. The stamp field is channel_verdict; the
+# renderer draws, never computes (one-brain).
+_cv_giveback = {"channel": "giveback", "felt": True,
+                "verdict": "the giveback's verdict: the guard was docked while the correction yields"}
+_cv_loosen = {"channel": "leave", "felt": True,
+              "verdict": "the leave's verdict: $30 of exits-recoverable leave loosened the guard"}
+_cv_funnel = {"channel": "leave",
+              "verdict": "the funnel's own leave is not the guard's to loosen for - no exit channel answered"}
+_cv = "\n".join(_gb_rows({"guard_brk": _row(cv=_cv_giveback),
+                                 "cv": _cv_giveback}, 1.05))
+import html as _unesc
+_check_18 = _unesc.unescape(_cv)
+check("2.18", "the giveback's verdict" in _check_18 and "docked" in _check_18
+      and "yields" in _check_18 and "channel answered today" in _check_18,
+      "the giveback's verdict renders as the guard's own words")
+_cvl = "\n".join(_gb_rows({"guard_brk": _row(cv=_cv_loosen),
+                                  "cv": _cv_loosen}, 1.05))
+_check_19 = _unesc.unescape(_cvl)
+check("2.19", "the leave's verdict" in _check_19 and "loosened the guard" in _check_19,
+      "the leave's verdict renders as the guard's own words")
+_cvf = "\n".join(_gb_rows({"guard_brk": _row(cv=_cv_funnel),
+                                  "cv": _cv_funnel}, 1.0))
+check("2.20", "no exit channel answered" in _cvf,
+      "the funnel-honest silence renders as the guard's own words")
 print("== 2b. the sparkline draws the ring's shape (never rebuilds it) ==")
 _tn = time.time()
 html = "\n".join(_gb_rows({"guard_brk": _row(gf=1.6, ring=[[_tn - 5 * 3600, 1.0],
@@ -273,6 +299,22 @@ check(3.6, '"ring"' in (HERE / "background_scanner.py").read_text(encoding="utf-
       and "ring" in app[_i:_j],
       "the ring is written by the scanner and drawn by the plate — same channel as the stamp")
 
+check("2.21", "channel_verdict" in app[_i:_j],
+      "the renderer reads the stamp's channel_verdict - the page never computes it")
+check("2.22", "channel_verdict" in (HERE / "background_scanner.py")
+      .read_text(encoding="utf-8"),
+      "the scanner stamps the guard's channel verdict on the row - one channel")
+check("2.23", "gf_max=(_meta or {}).get" in (HERE / "background_scanner.py")
+      .read_text(encoding="utf-8"),
+      "the scanner feeds the pair's OWN finalized factor into the verdict - the ceiling is per-pair, the stamp knows it")
+check("2.24", "channel answered today" not in "\n".join(_gb_rows({"guard_brk": _row(cv=_cv_funnel),
+                                  "cv": _cv_funnel}, 1.0)),
+      "a verdict that names no felt answer gets NO answered-today suffix")
+html_xss = "\n".join(_gb_rows({"guard_brk": _row(channel_verdict={"channel": "leave", "verdict": "nice verdict <img src=x onerror=alert(1)>"})}, 1.05))
+check("2.25", "<img" not in html_xss and "&lt;img" in html_xss,
+      "a hostile verdict string renders INERT - escaped, never markup")
+check("2.26", "factor=_pgf" in (HERE / "background_scanner.py").read_text(encoding="utf-8"),
+      "the scanner feeds the FINALIZED factor - the meta band moves the net after the raw read")
 print(f"\n{len(P)} passed, {len(F)} failed")
 import shutil
 shutil.rmtree(TMP, ignore_errors=True)   # hygiene: the drive leaves no strays

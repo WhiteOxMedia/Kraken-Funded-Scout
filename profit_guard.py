@@ -363,8 +363,91 @@ def mlt_corr(when: datetime | None = None) -> float | None:
         return None
     return round(mlt / goal, 3)
 
-
-# ── 4. the volatility modifier ───────────────────────────────────────────
+def channel_verdict(when: datetime | None = None, res: dict | None = None) -> dict | None:
+    """THE GUARD'S OWN WORDS (user ask, Oct 6): one fact naming which channel answered
+    today - the giveback's verdict (the dock tightens while the correction yields,
+    1826235) or the leave's verdict (the exits-recoverable numerator, 0cb27f2 - the
+    funnel's burial dollars are nobody's loosen). THE ONE RULE: it reads the same shared
+    dominance rule the dock and the stand-down read, the same penalty the dock composes
+    into, and the same exits-recoverable numerator the composite multiplies - and it may
+    claim only what the guard FELT (the second opinion's mediums + P2s): a score-less day
+    never docks, a clamped penalty holds the dock at the cap, a correction that rounds to
+    zero is neutral, no goal means no correction, the ceiling is PER-PAIR (the meta band's
+    gf_max can sit below the global 2.0) as is the floor (a dock cannot tighten width the
+    floor has already spent), a carried composite was never recomputed, and every verdict
+    carries an honest "felt" flag. Unreadable day -> None (an honest silence - the plate
+    draws, it never invents)."""
+    try:
+        facts = _daily_facts(when)
+        if not facts or facts.get("total_left") is None:
+            return None
+        _readable = bool((res or {}).get("readable"))
+        _gf = (res or {}).get("factor")
+        _ceiling = (res or {}).get("gf_max")
+        if not isinstance(_ceiling, (int, float)) or _ceiling <= 0:
+            _ceiling = GUARD_CLAMP[1]   # the per-pair band's ceiling,
+                                        # else the global clamp
+        _ceiling = min(_ceiling, GUARD_CLAMP[1])   # and the clamp
+                                                   # binds ABOVE
+                                                   # any band
+        _at_ceiling = bool(_readable and isinstance(_gf, (int, float))
+                           and _gf >= _ceiling)
+        _floor = (res or {}).get("gf_min")
+        if not isinstance(_floor, (int, float)) or _floor <= 0:
+            _floor = GUARD_CLAMP[0]     # the per-pair band's floor,
+                                        # else the global clamp
+        _floor = max(_floor, GUARD_CLAMP[0])   # the global clamp
+                                               # binds BELOW any
+                                               # band floor
+        _at_floor = bool(_readable and isinstance(_gf, (int, float))
+                         and _gf <= _floor)
+        if not _readable:   # the fixed rules stand - no factor was
+            return None     # computed, so nothing was felt
+        _carried = str((res or {}).get("carried_from") or "")
+        if _carried:   # a carried composite was NOT recomputed today:
+            return {"channel": "giveback" if _giveback_dominant_usd(
+                facts.get("usd_left")) else "leave", "felt": False,
+                "verdict": "the net is carried from '" + _carried + "' - the loop halves are unreadable, nothing was recomputed, no channel was felt today"}
+        if _giveback_dominant_usd(facts.get("usd_left")):
+            _pen = discipline_penalty(when)   # the dock only exists
+            if _pen is None:                  # where a score reached it
+                return None
+            if _at_floor:
+                return {"channel": "giveback", "felt": False,
+                        "verdict": "the giveback's verdict: the net sits at the guard's floor - the dock cannot tighten the width it has left"}
+            if _at_ceiling:
+                return {"channel": "giveback", "felt": False,
+                        "verdict": "the giveback's verdict: the dock tightened into the guard's ceiling - the cap holds the width"}
+            if _pen >= 10.0:
+                return {"channel": "giveback", "felt": False,
+                        "verdict": "the giveback's verdict: the penalty clamped at its cap"}
+            return {"channel": "giveback", "felt": True,
+                    "verdict": "the giveback's verdict: the guard was docked while the correction yields"}
+        _usd = facts.get("usd_left")
+        if isinstance(_usd, dict):
+            _total = round(float(facts.get("total_left") or 0.0), 2)
+            _bur = round(float(_usd.get("system_burial") or 0.0), 2)
+            _leave = max(0.0, round(_total - _bur, 2))
+            if _leave <= 0.0:
+                return {"channel": "leave", "felt": False,
+                        "verdict": "the funnel's own leave is not the guard's to loosen for - no exit channel answered"}
+            _mlt = mlt_corr(when)
+            if _mlt is None:                  # no goal -> no correction
+                return None                   # exists to loosen with
+            if _mlt <= 0.0:
+                return {"channel": "leave", "felt": False,
+                        "verdict": "the leave's verdict: the correction holds NEUTRAL - no felt loosen today"}
+            if _at_ceiling:
+                return {"channel": "leave", "felt": False,
+                        "verdict": "the leave's verdict: the exits-recoverable leave earned a loosen, but the net already sat at the guard's ceiling - nothing more to move"}
+            if _at_floor:
+                return {"channel": "leave", "felt": False,
+                        "verdict": "the leave's verdict: the exits-recoverable leave earned a loosen, but the net sits pinned at the guard's floor - the width cannot tell"}
+            return {"channel": "leave", "felt": True,
+                    "verdict": f"the leave's verdict: ${_leave:,.2f} of exits-recoverable leave loosened the guard"}
+        return None
+    except Exception:
+        return None
 def vol_ratio(pair: str) -> float | None:
     """CurrentVol / BaselineVol: the pair's realized VOL_WINDOW-candle
     volatility over the engine's per-cell std for its rotation.
