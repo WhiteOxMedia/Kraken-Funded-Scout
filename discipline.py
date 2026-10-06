@@ -769,6 +769,9 @@ def evaluate_rotation(exchange, rot_key: str, when=None, speak=True,
     record_burial_ledger(state, result)   # the seam's ledger: WHICH gate buried, how much
     lesson = _learn(state, result)
     result["lesson"] = lesson
+    _worth_ladder_ingest(result)   # THE LADDER'S INGEST: only a
+    # PROVEN rotation (money confirmed the score) ever mints a
+    # floor candidate; QC holds the apply either way (fail-soft)
     _entry = {k: result[k] for k in
               ("date", "rot", "score", "total_left", "system_left",
                "top_gate", "realized_pnl", "balance_after", "ts",
@@ -1287,6 +1290,10 @@ def cooldown_review(exchange=None, when=None, speak=True, dry_run=False,
     # THE RESOLVER AT COOLDOWN (the night’s last look at today’s
     # unproven lessons — the day’s own window no longer shadows them)
     _resolve_prior_verdict(state)
+    _worth_ladder_reconcile(state)   # the reconciler pass: an
+    # entry the money has since proven flips Unproven -> Proven
+    # ONCE (audit row + the next day's candidate; idempotent by
+    # the ladder's own ledger)
     state.setdefault("lessons", [])
 
     # ── 6b. THE PER-ASSET REVIEW (user spec, Sep 21: "review all the
@@ -1341,6 +1348,9 @@ def cooldown_review(exchange=None, when=None, speak=True, dry_run=False,
         lesson = f"{lesson} {_alead}"
         _day_result["lesson"] = lesson
     _day_result["top_verdict"] = _topv
+    _worth_ladder_ingest(_day_result)   # the DAY aggregate rides
+    # the same agreement bar (realized > 0, table drained) before
+    # the ladder may consider a floor nudge from it
     # the night-to-night tracker: when one pattern has topped the book a
     # week straight, the streak rides the review (return, DAY row, voice)
     # so the warning is impossible to miss on any surface
@@ -1974,3 +1984,49 @@ def trail_proposal(name: str) -> dict | None:
         return best
     except Exception:
         return None
+
+
+def _worth_ladder_ingest(result: dict) -> None:
+    """THE LEARNING LADDER'S INGEST SEAM (user spec, Oct 5): feed one
+    closed rotation to the worth ladder. Only a PROVEN rotation -
+    realized > 0 AND the table drained to the crumb - ever mints a
+    floor candidate; an Unproven rotation renders as such and mints
+    nothing. QC holds every apply. Fail-soft and flag-gated: a dead or
+    disabled ladder never blocks the score (the flag IS the canary
+    lever, and off is today's behavior byte for byte)."""
+    try:
+        import worth_ladder as _wl
+        if not _wl.worth_ladder_enabled():
+            return
+        _rid = (str(result.get("date") or "") + "-"
+                + str(result.get("rot") or ""))
+        _wl.propose_from_rotation(
+            rotation_id=_rid, score=result.get("score") or 0.0,
+            realized_usd=result.get("realized_pnl") or 0.0,
+            total_left_usd=result.get("total_left") or 0.0,
+            current_floor=_wl.current_floor_frac())
+    except Exception:
+        pass
+
+
+def _worth_ladder_reconcile(state: dict) -> None:
+    """THE RECONCILER PASS AT COOLDOWN (hard rule 5): every history
+    entry the money has since proven flips to Proven once - audit row
+    verdict_flip: proven_by_realization, plus the re-evaluated
+    candidate for the NEXT day's floor. Idempotent by the ladder's own
+    ledger; fail-soft and flag-gated exactly like the ingest."""
+    try:
+        import worth_ladder as _wl
+        if not _wl.worth_ladder_enabled():
+            return
+        _floor = _wl.current_floor_frac()
+        for _h in (state.get("history") or [])[-18:]:
+            _rid = (str(_h.get("date") or "") + "-"
+                    + str(_h.get("rot") or ""))
+            _wl.reconciler_flip(
+                rotation_id=_rid,
+                realized_usd=float(_h.get("realized_pnl") or 0.0),
+                total_left_usd=float(_h.get("total_left") or 0.0),
+                current_floor=_floor)
+    except Exception:
+        pass

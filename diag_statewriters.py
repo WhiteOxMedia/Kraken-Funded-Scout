@@ -70,6 +70,9 @@ REGISTRY: dict[tuple[str, str], dict] = {
         "note": "bookkeeping one-shot; atomic + .bak"},
     ("console_state.json", "app._save_console_state"): {
         "note": "console-owned tier state; atomic"},
+    ("console_state.json", "worth_ladder._apply_console_floor"): {
+        "note": "QC apply path writes the confirmed candidate floor; atomic (tmp + os.replace), gated by the preflight"},
+
     ("payout_track.json", "app.track_payouts"): {
         "note": "console-owned payout ledger; atomic"},
     ("scanner_pulse.json", "background_scanner._pulse_beat"): {

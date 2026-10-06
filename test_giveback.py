@@ -227,7 +227,16 @@ try:
     # the first render silently answers all three
     _clear_facts_g = getattr(_app_g._today_facts, "cache_clear", None) \
         or (lambda: None)
-    _now_ts_g = int(datetime.now(MST).timestamp())
+    _dt_g = datetime.now(MST)
+    if _dt_g.hour == 23 and _dt_g.minute >= 55:
+        _dt_g = _dt_g.replace(minute=50)   # the midnight cliff:
+        # a start this late would push the simulated epochs into
+        # tomorrow, where the today-window facts do not exist
+    _sec_to_mid = (((23 - _dt_g.hour) * 60
+                    + (59 - _dt_g.minute)) * 60 + 59 - _dt_g.second)
+    _off1 = max(120, min(3610, _sec_to_mid // 3 - 60))
+    _off2 = max(240, min(7220, _sec_to_mid // 2 - 60))
+    _now_ts_g = int(_dt_g.timestamp())
     _clear_facts_g()
     _gb_rows_g = _app_g._today_facts(_now_ts_g)
     _gb_row_g = next((r for r in _gb_rows_g if "GIVE-BACK" in r), "")
@@ -241,7 +250,7 @@ try:
                                   "now_total": 45.0, "give_back": 75.0,
                                   "tightened": False}})
     _clear_facts_g()
-    _gb_rows_g2 = _app_g._today_facts(_now_ts_g + 3610)
+    _gb_rows_g2 = _app_g._today_facts(_now_ts_g + _off1)
     _gb_row_g2 = next((r for r in _gb_rows_g2 if "GIVE-BACK" in r), "")
     check("a never-attempted day renders honestly (no tighten attempt "
           "yet — the absence is named, not disguised as calm)",
@@ -253,7 +262,7 @@ try:
                                               "status": "refused",
                                               "reason": "daily_cap_exceeded"}}})
     _clear_facts_g()
-    _gb_rows_g3 = _app_g._today_facts(_now_ts_g + 7220)
+    _gb_rows_g3 = _app_g._today_facts(_now_ts_g + _off2)
     _gb_row_g3 = next((r for r in _gb_rows_g3 if "GIVE-BACK" in r), "")
     check("a REFUSED attempt renders its outcome AND its reason (the "
           "writer's record — the flag once claimed the guard moved "

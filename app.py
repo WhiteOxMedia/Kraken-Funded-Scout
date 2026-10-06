@@ -4030,6 +4030,43 @@ def _no_pick_advice() -> str:
         return "the funnel's rejection log is unreadable right now"
 
 
+def _worth_ladder_evidence_html(_wl) -> str:
+    """THE WORTH LADDER's evidence lines for the discipline plate
+    (user spec, Oct 5: show the evidence in the discipline score): the
+    armed flag, the live floor, the candidates QC holds, the recent QC
+    decisions, the reconciler flips, the exit-watch failures - read
+    straight from the ladder's own ledger, so the plate can only show
+    what the ledger proves. Flag off with no history renders nothing
+    and the plate stays byte-identical."""
+    try:
+        _sum = _wl.evidence_summary()
+    except Exception:
+        return ""
+    _hist = ((_sum.get("candidates") or 0) + (_sum.get("decided") or 0)
+             + (_sum.get("flips") or 0) + (_sum.get("watch_fails") or 0))
+    if not _sum.get("enabled") and not _hist:
+        return ""
+    _bits = []
+    if _sum.get("enabled"):
+        _bits.append("<span style='color:#4be38a;'>armed</span>")
+    else:
+        _bits.append("<span class='dim'>flag off</span>")
+    _bits.append("live floor {:.3f}".format(float(_sum.get("current_floor") or 0.0)))
+    for _p in (_sum.get("pending") or []):
+        _bits.append("candidate {:.3f} for {} - QC pending, evidence {}".format(
+            float(_p.get("candidate_floor") or 0.0), _p.get("rotation_id"),
+            str(_p.get("evidence_checksum") or "")[:19]))
+    for _q in (_sum.get("qc") or [])[-2:]:
+        _bits.append("{} by {} on {}".format(_q.get("decision"),
+                                             _q.get("operator"),
+                                             _q.get("rotation_id")))
+    if _sum.get("flips"):
+        _bits.append("{} reconciler flip(s), proven by realization".format(_sum["flips"]))
+    if _sum.get("watch_fails"):
+        _bits.append("{} watch-fail(s) - no auto-retry".format(_sum["watch_fails"]))
+    return "<br>" + "<br>&middot; ".join(_bits)
+
+
 def _discipline_plate() -> str:
     """THE DISCIPLINE SCORE plate: the score (dopamine-styled), the
     side-by-side with the contest results, the money-left breakdown,
@@ -4078,6 +4115,13 @@ def _discipline_plate() -> str:
             for r in _h[-10:])
         lessons = _st.get("lessons") or []
         lesson = lessons[-1].get("lesson", "") if lessons else ""
+        # THE WORTH LADDER's evidence (Oct 5): the loop's paper trail,
+        # rendered only from what the ladder's ledger proves.
+        try:
+            import worth_ladder as _wl
+            _wl_html = _worth_ladder_evidence_html(_wl)
+        except Exception:
+            _wl_html = ""
         html = f"""
 <div style='font-family:Audiowide,monospace;'>
   <div style='display:flex;align-items:center;gap:16px;padding:6px 2px;'>
@@ -4104,6 +4148,7 @@ def _discipline_plate() -> str:
   </div>
   <div class='dim' style='font-size:12px;padding:2px 4px 6px;'>
     🧠 learned: {lesson}
+    {_wl_html}
   </div>
 </div>"""
         return plate("🎓 DISCIPLINE — did I leave money on the table?", html)
