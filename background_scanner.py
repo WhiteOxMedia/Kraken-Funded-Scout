@@ -4271,8 +4271,14 @@ def _track_day_giveback(unrealized: float) -> dict:
         _tightens = (int(_t_gb) if isinstance(_t_gb, (int, float))
                      else (1 if gb.get("tightened") else 0))
         _tier = _tightens + 1
+        _ref = gb.get("refused") or {}
+
+        _skip = (_ref.get("tier") == _tier
+
+                 and _ref.get("reason") == "daily_cap_exceeded")
+
         if (gb["give_back"] >= _gb_tighten_usd * _tier
-                and _tightens < _gb_ceiling):
+                and _tightens < _gb_ceiling and not _skip):
             _before = _aa_gb.read_guard_factor()
             _rec = _aa_gb.apply_adjustment(
                 -(_before * GIVEBACK_TIGHTEN_FRAC),
@@ -4281,18 +4287,59 @@ def _track_day_giveback(unrealized: float) -> dict:
                 evidence_checksum=("giveback-day-peak" if _tier == 1
                                    else f"giveback-day-peak-tier{_tier}"),
                 auto=True)
-            # ONE ATTEMPT PER TIER whatever the outcome: applied,
-            # queued or refused all land a ledger row (the count the
-            # user asked for); retrying a refusal every tick would
-            # flood the ledger with refused rows. A crashed attempt
-            # leaves the count unchanged and retries the same tier
-            # next tick.
-            gb["tightens"] = _tier
-            gb["tightened"] = True   # back-compat: any tier spent
+            # ONE ATTEMPT PER TIER for outcomes that MOVE the guard:
+
+            # applied and queued (a real review request) spend the
+
+            # tier; a daily_cap_exceeded refusal does NOT - the cap
+
+            # cannot free until midnight, so spending the tier let
+
+            # every later tier burn on the same exhausted cap while
+
+            # the guard never tightened despite real erosion (the
+
+            # Oct 6 collision). The refused tier retries next day (the
+
+            # watermark resets with the cap); the refusal marker keeps
+
+            # the ledger unflooded in between. A crashed attempt leaves
+
+            # the count unchanged and retries the same tier next tick.
+
+            _cap_refused = _rec.get("reason") == "daily_cap_exceeded"
+
             gb["tighten"] = {"before": round(_before, 4),
+
                              "tier": _tier,
+
                              "status": _rec.get("status"),
+
                              "reason": _rec.get("reason")}
+
+            if _cap_refused:
+
+                # THE CAP DOES NOT BURN A TIER (the Oct 6 collision):
+
+                # the attempt is recorded (the chip renders it) and the
+
+                # marker dedupes the retries, but the tier stays for a
+
+                # day the cap can actually serve.
+
+                gb["refused"] = {"tier": _tier,
+
+                                 "reason": _rec.get("reason"),
+
+                                 "ts": _now}
+
+            else:
+
+                gb["tightens"] = _tier
+
+                gb["tightened"] = True   # back-compat: any tier spent
+
+
             try:
                 from telemetry_adjust import emit_adjustment as _ea_gb
                 _ea_gb(f"giveback-{_day}" if _tier == 1
@@ -4300,7 +4347,7 @@ def _track_day_giveback(unrealized: float) -> dict:
                        _rec, 0, 0, [], cohort="giveback",
                        applied_by="giveback-watch")
             except Exception as _tel_exc:
-                logger.debug("give-back telemetry skipped (%s) — the "
+                logger.debug("give-back telemetry skipped (%s) - the "
                              "ledger row is the record", _tel_exc)
         _pg_gb._save({"giveback": gb})
         return gb

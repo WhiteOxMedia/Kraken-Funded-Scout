@@ -657,6 +657,88 @@ check("7e the wiring: the priced path stores the row's last truth, the failed fe
       'w["last_px"] = live' in sc7 and "_unrealized_sum += _leg" in sc7
       and sc7.count("_stale_unrealized_leg(w)") == 1)
 
+
+# ── 7g. THE DAILY_CAP COLLISION (Oct 6, red-first): a daily_cap_exceeded
+#    refusal spent the tier — "ONE ATTEMPT PER TIER whatever the outcome"
+#    burned gb["tightens"] on a cap that cannot free until midnight, so
+#    every later tier that day burned on the same exhausted cap while
+#    the guard never tightened despite real erosion. THE CURE: a cap
+#    refusal records the attempt (the chip still renders it) but spends
+#    NO tier and retries next day via a refusal marker that also keeps
+#    the ledger unflooded.
+import auto_adjust as _aa7
+import contest_account as _ca7
+_sbx7 = Path(tempfile.mkdtemp())
+_pg_gauge.STATE_FILE = _sbx7 / "pg7.json"
+_ctf7_real = bs.CONTEST_TRADES_FILE
+_tide7_real = bs._fleet_tide
+_thr7_real = _ca7.giveback_thresholds
+_app7_real = _aa7.apply_adjustment
+import telemetry_adjust as _ta7
+_ta7_real = _ta7.emit_adjustment
+_ta_calls7 = {"n": 0}
+_ta7.emit_adjustment = lambda *a, **k: _ta_calls7.__setitem__("n", _ta_calls7["n"] + 1) or None
+_calls7 = {"n": 0}
+_resp7 = {"status": "refused", "reason": "daily_cap_exceeded"}
+def _apply7(delta, **kw):
+    _calls7["n"] += 1
+    return dict(_resp7)
+try:
+    bs.CONTEST_TRADES_FILE = str(_sbx7 / "ct7.jsonl")
+    bs._fleet_tide = lambda max_age_s=300: (52.0, "FLAT")
+    _ca7.giveback_thresholds = lambda: (50.0, 999.0)
+    _aa7.apply_adjustment = _apply7
+    from background_scanner import _track_day_giveback as _tgd7
+    _day7 = datetime.now(MST).strftime("%Y-%m-%d")
+    _pg_gauge._save({"giveback": {"day": _day7, "peak_total": 0.0, "now_total": 0.0,
+                             "give_back": 0.0, "tightened": False}})
+    _tgd7(120.0)
+    gb7 = (_pg_gauge._state() or {}).get("giveback") or {}
+    _tgd7(45.0)   # give_back 75 crosses the 50 trigger: tier 1 arms
+    gb7 = (_pg_gauge._state() or {}).get("giveback") or {}
+    check("7g.1 a daily_cap refusal does NOT burn the tier (the count holds, the attempt is recorded)",
+          not gb7.get("tightens") and not gb7.get("tightened")
+          and (gb7.get("tighten") or {}).get("reason") == "daily_cap_exceeded"
+          and (gb7.get("refused") or {}).get("tier") == 1, gb7)
+    _tgd7(45.0)   # the same tick again: the marker must keep the ledger quiet
+    gb7 = (_pg_gauge._state() or {}).get("giveback") or {}
+    check("7g.2 a cap-refused tier does not flood the ledger (one attempt, then the marker)",
+          _calls7["n"] == 1 and not gb7.get("tightens"), (_calls7["n"], gb7.get("tightens")))
+    check("7g.2b the cap refusal still STREAMS its decision (the telemetry/api/alert stream sees it)",
+          _ta_calls7["n"] == 1, _ta_calls7["n"])
+    _resp7 = {"status": "applied"}   # the cap freed: a real tighten spends the tier
+    _pg_gauge._save({"giveback": {"day": _day7, "peak_total": 120.0, "now_total": 45.0,
+                             "give_back": 75.0, "tightened": False}})
+    _tgd7(45.0)
+    gb7 = (_pg_gauge._state() or {}).get("giveback") or {}
+    check("7g.3 a real tighten still spends its tier (applied -> tightens 1)",
+          gb7.get("tightens") == 1 and gb7.get("tightened") is True, gb7)
+    _resp7 = {"status": "queued", "reason": "concentration_gate_blocks_auto_apply"}
+    _pg_gauge._save({"giveback": {"day": _day7, "peak_total": 300.0, "now_total": 200.0,
+                             "give_back": 100.0, "tightens": 1, "tightened": True}})
+    _tgd7(200.0)   # give_back 100 crosses the 2x trigger: tier 2 arms, queued
+    gb7 = (_pg_gauge._state() or {}).get("giveback") or {}
+    check("7g.4 a queued attempt (a real review request) still spends its tier",
+          gb7.get("tightens") == 2, (gb7.get("tightens"), gb7.get("tighten")))
+    _resp7 = {"status": "refused", "reason": "daily_cap_exceeded"}
+    _pg_gauge._save({"giveback": {"day": "2030-01-02", "peak_total": 120.0, "now_total": 45.0,
+                             "give_back": 75.0, "tightened": False}})
+    _calls7["n"] = 0
+    _tgd7(120.0)  # a NEW day: the stale watermark resets - peak rebuilds first,
+    _tgd7(45.0)   # then the erosion legs in: tier 1 re-arms fresh with the cap
+    gb7 = (_pg_gauge._state() or {}).get("giveback") or {}
+    check("7g.5 next day the ladder recovers (the watermark resets with the cap, tier 1 re-arms)",
+          _calls7["n"] == 1 and (gb7.get("tighten") or {}).get("tier") == 1,
+          (_calls7["n"], gb7.get("tighten")))
+    check("7g.6 every tier outcome streamed exactly once (4 emits: refusal, applied, queued, refusal)",
+          _ta_calls7["n"] == 4, _ta_calls7["n"])
+finally:
+    bs.CONTEST_TRADES_FILE = _ctf7_real
+    bs._fleet_tide = _tide7_real
+    _ca7.giveback_thresholds = _thr7_real
+    _aa7.apply_adjustment = _app7_real
+    _ta7.emit_adjustment = _ta7_real
+
 fails = [r for r in results if not r[1]]
 out = BASE / "giveback_check.txt"
 scratch_space.report_temp('giveback_check.txt').write_text("\n".join(
