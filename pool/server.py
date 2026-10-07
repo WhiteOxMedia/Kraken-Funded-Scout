@@ -2678,6 +2678,20 @@ if __name__ == "__main__":
                 # Parse proxy log for new miner connections
                 parse_proxy_log_for_miners()
 
+                # THE CHARTER'S SPOOL, DRAINED (Oct 7, RESOLVED_WIRE):
+                # scout/push_client.py spools charter events whenever
+                # the operator route refuses; the reader that owns the
+                # release bookkeeping (drop after 50 tries, release
+                # after a real send) must ride THIS loop — the proxy
+                # poller processes never ran their call-path from
+                # here, so the spool sat undrained for the whole
+                # outage. Fail-soft: a push problem can never break
+                # the pool.
+                try:
+                    push_svc.drain_spool()
+                except Exception as _drain_err:
+                    print(f"[PushSpool] drain failed: {_drain_err}")
+
                 # Refresh demo miner timestamps every 3 min so they stay "active"
                 # (demo data is flagged with demo_data_seeded setting)
                 if scan_count % 3 == 0 and db.get_setting("demo_data_seeded"):

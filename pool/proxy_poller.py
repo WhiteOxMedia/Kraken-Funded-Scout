@@ -16,6 +16,10 @@ sys.path.insert(0, str(Path(__file__).parent))
 
 import database as db
 import jackpot_engine as engine
+# THE PUSH SPOOL'S READER (Oct 7, RESOLVED_WIRE): one brain, imported
+# at the top — the drain calls below name the same module the server's
+# live loop uses, so release bookkeeping is identical either way.
+import push_service as push_svc
 try:                                    # real MinerYield for the funding
     import miner_yield                  # formula (fail-soft — the poller's
 except Exception:                       # ticket/shares duties never depend
@@ -209,13 +213,14 @@ def update_workers(workers):
     except Exception as sweep_err:
         print(f"[ProxyPoller] claim sweep failed: {sweep_err}")
 
-    # THE PUSH SPOOL, DRAINED: scout/push_client.py spools events
-    # (signals, wins, reminders) when the operator route is not yet
-    # wired; one reader here hands them to the rate-limited, audited
-    # sender. Fail-soft — the push system can never break mining.
+    # THE PUSH SPOOL, DRAINED (RESOLVED_WIRE, Oct 7): the server's
+    # live scanner loop now drains scout/push_client.py's spool every
+    # cycle — the ONLY path the live fleet runs. This call stays as
+    # the belt-and-suspenders for a poller-only world and hands to the
+    # SAME shared brain (no call-time import). Fail-soft — the push
+    # system can never break mining.
     try:
-        import push_service as _push
-        _push.drain_spool()
+        push_svc.drain_spool()
     except Exception as push_err:
         print(f"[ProxyPoller] push drain failed: {push_err}")
 
