@@ -213,7 +213,9 @@ try:
           len(cyc) == 50
           and all(c["B"] >= 0 and 0 <= c["P"] <= c["B"] for c in cyc),
           (cyc[0], cyc[-1]))
-    ev = cr.evaluate(cyc, None)
+    ev = cr.evaluate(cyc, None, start_factor=2.0)   # pinned at the clamp
+    # top - the drill's documented convention (the live factor moves under
+    # the running scanner and may sit AT the floor; the drill owns its var)
     check("a healthy run passes all three thresholds (net in band, "
           "worst loss within cap, hit rate stable)",
           not ev["breach"] and ev["net_in_band"]
@@ -233,7 +235,8 @@ try:
                    params={"alpha": 0.03, "delta_max": 0.05,
                            "daily_cap": 0.2})
     _live_before = _cohort.read_text(encoding="utf-8")
-    rec = cr.run_canary(cohort, seed, cycles=30, seed=11)
+    rec = cr.run_canary(cohort, seed, cycles=30, seed=11,
+                        start_factor=2.0)   # pinned at the clamp top
     rp = Path(rec["report"])
     check("a simulated run (default arm=False) touches NO production "
           "state: no flip (dial None), the live-style cohort doc "
@@ -406,7 +409,7 @@ try:
           and ev_floor["guard_factor"]["applied"] == 15
           and any("guard factor" in r for r in ev_floor["reasons"]),
           (ev_floor.get("guard_factor"), ev_floor.get("reasons")))
-    ev_walk = cr.evaluate(cyc, prior_band=(-5.0, 5.0))
+    ev_walk = cr.evaluate(cyc, prior_band=(-5.0, 5.0), start_factor=2.0)
     check("the healthy walk reports the factor the bot follows: start "
           "inside the machine's clamp, end never above start (the "
           "rule only loosens), applies bounded by the rule-firing "
@@ -420,6 +423,17 @@ try:
           and ev_walk["guard_factor"]["end"] > cr_aa.MIN_GF
           and ev_walk["guard_factor_breach"] is False,
           (ev_walk.get("guard_factor"), ev_walk.get("applied_cycles")))
+    # THE FLOOR WORLD (Oct 7, the full battery surfacing it): the live
+    # factor can sit AT MIN_GF (Oct 6's honest dock: disc_mod 0.496 x
+    # mlt_corr 0.0). From the floor EVERY walk is already breached -
+    # the drill does not pretend headroom; it pins the verdict instead.
+    _ev_floor_live = cr.evaluate(cyc, prior_band=(-5.0, 5.0),
+                                 start_factor=cr_aa.MIN_GF)
+    check("the floor world is named honestly: a walk FROM MIN_GF is breached, never a fake healthy walk",
+          _ev_floor_live["guard_factor_breach"] is True
+          and _ev_floor_live["guard_factor"]["start"] == cr_aa.MIN_GF
+          and any("guard factor" in r for r in _ev_floor_live["reasons"]),
+          (_ev_floor_live.get("guard_factor"), _ev_floor_live.get("reasons")))
     ev_caprail = cr.evaluate([big], prior_band=(-5.0, 5.0),
                              params={"alpha": 0.03, "delta_max": 0.10,
                                      "daily_cap": 0.01})

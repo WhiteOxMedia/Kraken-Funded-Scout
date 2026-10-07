@@ -485,7 +485,8 @@ def run_canary(cohort: list[str], rotation_seed: dict,
                breach_injection: dict | None = None,
                arm: bool = False,
                arm_confirm: bool = False,
-               params: dict | None = None) -> dict:
+               params: dict | None = None,
+               start_factor: float | None = None) -> dict:
     """The spec's canary job. BY DEFAULT A PURE SIMULATION (the four-
     review major): no flip, no rollback — production state is never
     touched, because a what-if that silently re-arms the live cohort
@@ -537,7 +538,11 @@ def run_canary(cohort: list[str], rotation_seed: dict,
         for c in cyc[half:]:
             if c["B"]:
                 c["P"] = breach_injection.get("second_half_P", 0)
-    ev = evaluate(cyc, prior_band, params=params)
+    # start_factor pins the drill's variable (Oct 7): the live factor
+    # may sit AT MIN_GF (an honest dock) and a healthy walk cannot
+    # start from a breach - the drill controls its own calibration.
+    ev = evaluate(cyc, prior_band, params=params,
+                  start_factor=start_factor)
     record = {"run_id": run_id, "cohort": list(cohort),
               "dial": flipped, "cycles": len(cyc),
               "evaluation": ev,

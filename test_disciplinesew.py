@@ -235,7 +235,10 @@ finally:
     dc._fired_pairs = _orig["fired"]
     dc.STATE_FILE = _orig["state"]
 
-# ── 4. the learning: the system_burial weight learns both ways ───────
+# ── 4. the learning (REDISTRICTED Oct 7, the full battery surfacing it:
+#    the burial-cap study retired the scalar - the dial prices the
+#    gates from the journal, so these pins assert the NAME, not the
+#    nudge) ───────
 try:
     with tempfile.TemporaryDirectory() as td:
         dc.STATE_FILE = Path(td) / "state.json"
@@ -247,14 +250,16 @@ try:
                           "early_exit": 0, "system_burial": 250.0},
              "top_gate": "tide-out"}
         lesson = dc._learn(st, r)
-        check("losing rotation + gate burials -> the system weight rises + the gate is named",
-              st["weights"]["system_burial"] > 1.0 and "tide-out" in lesson, lesson)
+        check("losing rotation + gate burials -> the gate is named, the scalar stays retired",
+              st["weights"]["system_burial"] == 1.0 and "tide-out" in lesson
+      and "retire" in lesson, lesson)
         # a winning rotation dominated by system burials -> the weight eases
         st2 = dc.load_state()
         r2 = dict(r, score=30.0, realized_pnl=120.0)
         lesson2 = dc._learn(st2, r2)
-        check("winning rotation + buried non-payers -> the system weight eases (gates were right)",
-              st2["weights"]["system_burial"] < 1.0 and "gates were RIGHT" in lesson2, lesson2)
+        check("winning rotation + buried non-payers -> the gates are credited, the scalar stays retired",
+              st2["weights"]["system_burial"] == 1.0
+      and "gates were RIGHT" in lesson2 and "retire" in lesson2, lesson2)
 finally:
     dc.STATE_FILE = _orig["state"]
 
