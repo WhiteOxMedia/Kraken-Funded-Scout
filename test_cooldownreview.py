@@ -133,7 +133,15 @@ disc._day_system_pairs = _e_pairs
 disc._day_system_duds = _e_duds
 disc._day_fired_any = _e_fired
 _w1 = float(_st["weights"]["system_burial"])
-check("day-level burial pile-up raises the SAME weight", _w1 > _w0)
+# REDISTRICTED (Oct 7, the full battery surfacing it): the burial-cap
+# study (Oct 6) RETIRED the burial scalar - the dial prices the gates
+# from the journal's own payer/dud ratio, so the day-level pile-up
+# writes NO weight and NAMES the burials instead. The old raise
+# assertion contradicted the retired contract (red since Oct 6; no
+# full battery ran between the two cures to catch it).
+check("day-level burial pile-up NAMES the burials, the scalar stays retired",
+      _w1 == _w0 and "buried" in rev_e["lesson"]
+      and "gate" in rev_e["lesson"])
 check("the day lesson names the burials", "buried" in rev_e["lesson"])
 _dayrows_before = sum(1 for h in _real_load().get("history") or []
                       if h.get("rot") == "DAY" and h.get("date") == today)
