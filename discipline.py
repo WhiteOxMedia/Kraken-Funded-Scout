@@ -174,10 +174,37 @@ def record_burial_ledger(state: dict, result: dict) -> None:
         pass   # the journal never breaks the score
 
 
+# -- THE PER-GATE SENSITIVITY DIAL (the burial-cap study, Oct 6) -----
+# sens(gate) = 0.5 + 1.5 * P/(P+D) over the 30-rotation ledger (band
+# 0.5..2.0), P = the gate's buried payers, D = its buried duds. The
+# learned scalar (weights.system_burial, auto-nudged to a saturated
+# 2.5 by an empty-fire branch, two lessons lying "rises 2.50->2.50")
+# RETIRES: relief flows through the journal's own payer/dud ratio -
+# a gate that buries mostly payers eases more per burial; a dud-heavy
+# gate damps itself (deep-veto 6P/28D -> relief clawed to zero). If
+# the sensitivity must move, it moves through the same evidence + QC
+# path the gate floors ride - never a silent auto-nudge against a cap.
+def _gate_sens(gate: str, led=None) -> float:
+    """The gate's dial value from the burial ledger's own ratio; 0.5
+    (the floor) for an unseen gate - never the 2.5 legacy weight."""
+    try:
+        if led is None:   # the caller's ledger rides: one snapshot,
+            led = load_state().get("burial_ledger") or []   # never a mid-check mix
+        pay = dud = 0
+        for h in led:
+            pay += int(((h.get("gates") or {}).get(gate) or {}).get("n") or 0)
+            dud += int((h.get("duds") or {}).get(gate) or 0)
+        if pay + dud <= 0:
+            return 0.5
+        return round(0.5 + 1.5 * (pay / (pay + dud)), 3)
+    except Exception:
+        return 0.5   # fail-closed: a broken journal damps, never over-eases
+
+
 def gate_relief(gate: str, now=None) -> float:
     """Relief in popup-floor points for ONE gate, from the journal: 1 pt
-    per buried payer that rotation (the learned system_burial weight
-    scales it), capped at SEAM_RELIEF_MAX_PTS, decaying linearly to zero
+    per buried payer that rotation (the PER-GATE DIAL prices it: sens =
+    retired, the study's cure), capped at SEAM_RELIEF_MAX_PTS, decaying linearly to zero
     over SEAM_RELIEF_DECAY_H since the last burial entry. A gate that
     buried only duds gets nothing — the dud entries drive the relief
     DOWN (each buried-and-not-paid candidate claws back 0.5 pts)."""
@@ -189,11 +216,12 @@ def gate_relief(gate: str, now=None) -> float:
         now = now or _now()
         last_ts = None
         pts = 0.0
+        sens = _gate_sens(gate, led)   # ONE ratio for the whole window
         for h in led[-5:]:   # recent rotations only
             g = (h.get("gates") or {}).get(gate)
             if not g:
                 continue
-            pts += float(g.get("n") or 0) * float(st.get("weights", {}).get("system_burial", 1.0))
+            pts += float(g.get("n") or 0) * sens
             dud_n = float((h.get("duds") or {}).get(gate) or 0)
             pts -= 0.5 * dud_n   # buried duds claw the relief back
             ts = h.get("ts")
@@ -1087,13 +1115,15 @@ def _learn(state: dict, result: dict) -> str:
                   f"{old:.2f} → {w['giveback']:.2f}: money reached and "
                   f"handed back counts, whatever else the score diluted.")
     elif usd.get("system_burial", 0) > 1 and _net >= 2:
-        old = w.get("system_burial", 1.0)
-        w["system_burial"] = round(min(W_MAX, old * (1.0 + NUDGE)), 3)
+        # THE SCALAR RETIRED (the burial-cap study, Oct 6): the dial
+        # prices these gates from the journal's own payer/dud ratio -
+        # no weight write, no rise lesson against a saturated cap.
         _gates = sorted({str(p.get("gate") or "?") for p in result["system_pairs"]})
         lesson = (f"The funnel buried {len(result['system_pairs'])} paying candidates "
-                  f"(${usd['system_burial']:,.0f} theoretical; gates: {', '.join(_gates)}) — "
-                  f"the system_burial weight rises {old:.2f} → {w['system_burial']:.2f}: "
-                  f"the journal opens the gates a little where they keep burying payers.")
+                  f"(${usd['system_burial']:,.0f} theoretical; gates: {', '.join(_gates)}) - "
+                  f"the dial prices these gates from the journal's own payer/dud ratio "
+                  f"(relief = n x sens, band 0.5..2.0): the journal opens the gates "
+                  f"where they keep burying payers, and dud-heavy gates damp themselves.")
     elif result.get("empty_fire") and pnl < 0:
         # THE OPPORTUNITY COST (Sep 7): nothing fired AND the rotation
         # lost money — the funnel surfaced nothing while the account
@@ -1101,26 +1131,25 @@ def _learn(state: dict, result: dict) -> str:
         # says: the system_burial weight rises (the carve-out data
         # builds) and the lesson names the silence — WITH the worst
         # gate named (the per-gate payer ratio, Sep 28).
-        old = w.get("system_burial", 1.0)
-        w["system_burial"] = round(min(W_MAX, old * (1.0 + NUDGE)), 3)
-        lesson = (f"No popups fired and the rotation lost ${abs(pnl):.0f} — "
+        # THE SCALAR RETIRED (the burial-cap study, Oct 6): the lesson
+        # names the silence and the worst gate - it never again nudges
+        # a weight the dial has replaced.
+        lesson = (f"No popups fired and the rotation lost ${abs(pnl):.0f} - "
                   f"the funnel surfaced nothing worth taking while the "
-                  f"account bled. The system_burial weight rises "
-                  f"{old:.2f} → {w['system_burial']:.2f}: a silent funnel "
-                  f"is not a disciplined one."
+                  f"account bled. A silent funnel is not a disciplined one."
                   + _worst_gate_txt(result.get("worst_gate")))
     elif score >= 80 and pnl < 0 and dominant:
         # high score but the money went backwards — the score is
         # over-crediting; make the dominant component sting more
         old = w.get(dominant, 1.0)
-        w[dominant] = round(min(W_MAX, old * (1.0 + NUDGE)), 3)
         if dominant == "system_burial":
-            lesson = (f"Score {score:.0f} but the rotation lost ${abs(pnl):.0f} — and the "
+            lesson = (f"Score {score:.0f} but the rotation lost ${abs(pnl):.0f} - and the "
                       f"'{result.get('top_gate') or '?'}' gate buried paying candidates "
-                      f"(theoretical ${usd.get('system_burial', 0):.0f}). The system_burial "
-                      f"weight rises {old:.2f} → {w[dominant]:.2f}: the gate keeps costing — "
-                      f"the carve-out data builds.")
+                      f"(theoretical ${usd.get('system_burial', 0):.0f}). The dial prices "
+                      f"that gate from its own payer/dud ratio - dud-heavy gates damp "
+                      f"themselves; the learned scalar retires.")
         else:
+            w[dominant] = round(min(W_MAX, old * (1.0 + NUDGE)), 3)
             lesson = (f"Score {score:.0f} but the rotation lost ${abs(pnl):.0f} — "
                       f"the '{dominant}' weight rises {old:.2f} → {w[dominant]:.2f}: "
                       f"next time this pattern counts harder.")
@@ -1128,12 +1157,13 @@ def _learn(state: dict, result: dict) -> str:
         # low score but the money came — over-penalizing (the 'missed'
         # winners were probably right to skip); soften the dominant weight
         old = w.get(dominant, 1.0)
-        w[dominant] = round(max(W_MIN, old * (1.0 - NUDGE)), 3)
         if dominant == "system_burial":
-            lesson = (f"Score {score:.0f} but the rotation MADE ${pnl:.0f} — the buried "
+            lesson = (f"Score {score:.0f} but the rotation MADE ${pnl:.0f} - the buried "
                       f"candidates mostly didn't pay: the gates were RIGHT to bury them. "
-                      f"The system_burial weight eases {old:.2f} → {w[dominant]:.2f}.")
+                      f"The dial damps those gates by their own dud ratio; the learned "
+                      f"scalar retires.")
         else:
+            w[dominant] = round(max(W_MIN, old * (1.0 - NUDGE)), 3)
             lesson = (f"Score {score:.0f} but the rotation MADE ${pnl:.0f} — "
                       f"the '{dominant}' weight eases {old:.2f} → {w[dominant]:.2f}: "
                       f"some 'left on the table' was right to leave.")

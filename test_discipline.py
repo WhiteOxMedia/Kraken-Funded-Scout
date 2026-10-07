@@ -397,9 +397,10 @@ check("a zero-fire rotation's lesson says the silence, not perfection",
 res_empty_loss = dict(res_empty, realized_pnl=-30.0)
 state_el = {"weights": dict(dc.DEFAULT_WEIGHTS), "history": [], "lessons": []}
 lesson_el = dc._learn(state_el, res_empty_loss)
-check("zero fires + a losing rotation -> system_burial RISES (the silent funnel)",
-      state_el["weights"]["system_burial"] > dc.DEFAULT_WEIGHTS["system_burial"],
-      state_el["weights"]["system_burial"])
+check("zero fires + a losing rotation -> the scalar holds, the lesson names the silence",
+      state_el["weights"]["system_burial"] == dc.DEFAULT_WEIGHTS["system_burial"]
+      and "weight rises" not in lesson_el,
+      (state_el["weights"]["system_burial"], lesson_el[:90]))
 check("that lesson names the silent funnel", "silent funnel" in lesson_el
       or "surfaced nothing" in lesson_el)
 # a FIRING rotation with the same clean sheet still earns 100

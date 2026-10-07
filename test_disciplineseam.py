@@ -72,12 +72,65 @@ with tempfile.TemporaryDirectory() as _td:
     import datetime as _dt
     _noon = _dt.datetime(2026, 9, 10, 12, 0, tzinfo=dc.MST)
     r = dc.gate_relief("tide-out", now=_noon)
-    check("tide-out relief: 2 payers − 1 dud×0.5 = 1.5 pts (weight 1.0)",
-          abs(r - 1.5) < 0.01, r)
-    check("brain-floor relief: 1 pt",
-          abs(dc.gate_relief("brain-floor", now=_noon) - 1.0) < 0.01)
+    check("tide-out relief: 2 x 1.5 - 0.5 = 2.5 pts (the dial: 2P/1D prices 1.5)",
+          abs(r - 2.5) < 0.01, r)
+    check("brain-floor relief: 1 x 2.0 = 2.0 pts (the dial: all-payer prices 2.0)",
+          abs(dc.gate_relief("brain-floor", now=_noon) - 2.0) < 0.01)
     check("a gate with no record gets nothing",
           dc.gate_relief("deep-veto", now=_noon) == 0.0)
+    # -- 2b. THE PER-GATE SENSITIVITY DIAL (the burial-cap study, Oct 6:
+    # sens = 0.5 + 1.5*P/(P+D) over the 30-rotation ledger, band
+    # 0.5..2.0) - relief flows through the journal's OWN payer/dud
+    # ratio, not the learned scalar: the weight sat saturated at 2.5
+    # (nudged there by an empty-fire branch, two lying "rises 2.50->2.50"
+    # lessons) while the consumer's 4.0 cap left 34% of live relief
+    # states in the dead zone. A gate that buries mostly payers eases
+    # more per burial; a dud-heavy gate damps itself; the scalar retires.
+    check("the dial helper: tide-out 2P/1D prices sens 1.5",
+          abs(dc._gate_sens("tide-out") - 1.5) < 0.001, dc._gate_sens("tide-out"))
+    check("an all-payer gate prices at the 2.0 top of the band",
+          abs(dc._gate_sens("brain-floor") - 2.0) < 0.001, dc._gate_sens("brain-floor"))
+    check("an unseen gate prices at the 0.5 floor",
+          abs(dc._gate_sens("deep-veto") - 0.5) < 0.001, dc._gate_sens("deep-veto"))
+    st["weights"]["system_burial"] = 0.25   # absurd on purpose: the dial must not care
+    dc.save_state(st)
+    check("the relief flows through the dial, never the scalar (1 payer x sens 2.0)",
+          abs(dc.gate_relief("brain-floor", now=_noon) - 2.0) < 0.01,
+          dc.gate_relief("brain-floor", now=_noon))
+    check("tide-out relief: 2 x 1.5 - 0.5 = 2.5 (the dial's number, weight ignored)",
+          abs(dc.gate_relief("tide-out", now=_noon) - 2.5) < 0.01,
+          dc.gate_relief("tide-out", now=_noon))
+    # THE ONE-SNAPSHOT CONTRACT (the Copilot medium, Oct 6): the dial
+    # rides the ledger gate_relief already loaded - one disk read per
+    # relief check, one ratio for the whole window, no snapshot mixing
+    # if the journal updates mid-check.
+    _loads = {"n": 0}
+    _real_load = dc.load_state
+    def _counting_load():
+        _loads["n"] += 1
+        return _real_load()
+    dc.load_state = _counting_load
+    try:
+        _r_dial = dc.gate_relief("brain-floor", now=_noon)
+    finally:
+        dc.load_state = _real_load
+    check("the relief prices from ONE snapshot (one load_state per check)",
+          _loads["n"] == 1 and abs(_r_dial - 2.0) < 0.01, (_loads["n"], _r_dial))
+    # THE STUDY'S OWN SHAPE (deep-veto 6P/28D): the dud-heavy gate damps
+    # itself - sens 0.765, the window's own duds claw the rest to zero.
+    dc.STATE_FILE = Path(_td) / "dial_damp_state.json"
+    dc.save_state({"weights": {"system_burial": 2.5},
+                   "burial_ledger": [
+        {"date": "2026-09-10", "rot": "08-12", "ts": "2026-09-10T12:00:00-06:00",
+         "gates": {"deep-veto": {"n": 5, "usd": 60.0}}, "duds": {"deep-veto": 24}},
+        {"date": "2026-09-10", "rot": "12-16", "ts": "2026-09-10T12:00:00-06:00",
+         "gates": {"deep-veto": {"n": 1, "usd": 12.0}}, "duds": {"deep-veto": 4}}]})
+    _sens_dv = dc._gate_sens("deep-veto")
+    check("a dud-heavy gate damps itself (6P/28D prices 0.765, relief clawed to zero)",
+          abs(_sens_dv - 0.765) < 0.001 and dc.gate_relief("deep-veto", now=_noon) == 0.0,
+          (_sens_dv, dc.gate_relief("deep-veto", now=_noon)))
+    dc.STATE_FILE = Path(_td) / "discipline_state.json"
+
     # a big pile-up is CAPPED (6 fresh payers → uncapped would be 6)
     for i in range(6):
         res2 = dict(res, rot="08-12",
@@ -107,9 +160,11 @@ with tempfile.TemporaryDirectory() as _td:
                                  {"pair": "PUMP/USD", "gate": "brain-floor", "usd": 22.0}],
                 "system_duds": [], "top_gate": "tide-out"}
     lesson = dc._learn(st2, res_pile)
-    check("3 buried payers at $0 realized → system_burial rises",
-          st2["weights"]["system_burial"] > dc.DEFAULT_WEIGHTS["system_burial"],
+    check("3 buried payers at $0 realized -> the scalar RETIRES (the weight holds)",
+          st2["weights"]["system_burial"] == dc.DEFAULT_WEIGHTS["system_burial"],
           st2["weights"]["system_burial"])
+    check("the lesson speaks the journal, never a rise (the lying lesson dies)",
+          "weight rises" not in lesson and "dial" in lesson.lower(), lesson[:120])
     check("the lesson names the gates", "tide-out" in lesson, lesson[:80])
     # duds shrink the pile-up: net < 2 → no sting
     st3 = {"weights": dict(dc.DEFAULT_WEIGHTS), "history": [], "lessons": []}

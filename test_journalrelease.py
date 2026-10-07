@@ -54,7 +54,8 @@ pts = dc.journal_release_pts("deep-veto", now=NOW)
 # journal ts 19:30 vs NOW 20:00 → 0.5h age → decay 1 − 0.5/8 = 0.9375
 check("relief pts == gate_relief pts (same journal)",
       pts == dc.gate_relief("deep-veto", now=NOW)
-      and abs(pts - 3.0 * (1 - 0.5 / dc.SEAM_RELIEF_DECAY_H)) < 0.01, pts)
+      and pts == 4.0, pts)  # the dial: 3 x sens 2.0 = 6.0, decayed 5.625 -
+                    # still ABOVE the 4.0 cap: the cap binds, the decay is swallowed
 check("relief capped at SEAM_RELIEF_MAX_PTS",
       dc.journal_release_pts("deep-veto", now=NOW) <= dc.SEAM_RELIEF_MAX_PTS)
 st["burial_ledger"][0]["gates"]["deep-veto"]["n"] = 99
