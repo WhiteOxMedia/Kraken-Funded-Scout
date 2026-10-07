@@ -38,6 +38,19 @@ import push_service as ps
 import kraken_referral as kr
 import scheduler as sched
 import server as srv
+
+# THE MARKER SANDBOX (Oct 6 fleet lesson): the drive ticks ran with
+# the REAL task marker in place — when the live task stamp aged past
+# the 8-day deadman horizon (it did: 9.4d on Oct 6, the live deadman
+# correctly alerting), the early ticks fired the day deadman receipt
+# into the sandbox db and 9b count found its day already spent
+# (1 -> 1; a time bomb — green while the real stamp was fresh). The
+# whole drive owns a FRESH TEMP marker from here to the exit; the
+# real file is never read or written, and 9b controls its own aging
+# exactly as its pins assume.
+_real_marker = sched.ORPHAN_TASK_MARKER
+sched.ORPHAN_TASK_MARKER = _tmp / "task_marker.txt"
+sched.ORPHAN_TASK_MARKER.write_text(str(time.time()), encoding="ascii")
 from fastapi.testclient import TestClient
 
 results = []
@@ -400,7 +413,8 @@ print("== 9b. THE DEAD-MAN: the scheduled task itself must stay alive ==")
 # scheduler polices that marker every tick.
 import register_sweep_report_task as _reg
 check("9b.0", sched.ORPHAN_DEADMAN_MAX_AGE_S == _reg.DEADMAN_MAX_AGE_S
-      and sched.ORPHAN_TASK_MARKER == _reg.MARKER,
+      and _real_marker == _reg.MARKER,   # the BUILT contract (the
+      # runtime marker is the sandbox temp, Oct 6 hermeticity cure)
       "the scheduler and the task registrar agree on the horizon and "
       "the marker file (one contract, two readers)")
 _mpath = sched.ORPHAN_TASK_MARKER
@@ -665,4 +679,5 @@ check("9d.9", len(_captured) >= 2 and _ok_hit and not _evil_hit,
 
 passed, failed = results.count(True), results.count(False)
 print(f"RESULT: {passed} passed, {failed} failed")
+sched.ORPHAN_TASK_MARKER = _real_marker   # never touched, restored
 sys.exit(1 if failed else 0)

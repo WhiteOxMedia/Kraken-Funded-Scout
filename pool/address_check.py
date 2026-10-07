@@ -172,16 +172,29 @@ def b58encode(data: bytes) -> str:
 
 
 # ── the network bytes (cryptonote_protocol defs.h) ───────────────────
+# THE CRYPTONOTE TRUTH (cryptonote_protocol defs.h; the Oct 6 critical
+# sweep): the old table labeled 0x24 "testnet-standard" (it is
+# STAGENET-SUBADDRESS) and 0x35 "stagenet-standard" (it is
+# TESTNET-STANDARD), and mainnet subaddresses (0x2A) — valid 95-char
+# payout destinations users actually hold — were refused as foreign
+# bytes. All nine prefixes, correctly named:
 _NETBYTES = {
     0x12: ("mainnet-standard", 95),
     0x13: ("mainnet-integrated", 106),
-    0x24: ("testnet-standard", 95),
-    0x35: ("stagenet-standard", 95),
+    0x2A: ("mainnet-subaddress", 95),
+    0x35: ("testnet-standard", 95),
+    0x36: ("testnet-integrated", 106),
+    0x3F: ("testnet-subaddress", 95),
+    0x18: ("stagenet-standard", 95),
+    0x19: ("stagenet-integrated", 106),
+    0x24: ("stagenet-subaddress", 95),
 }
 
 
 def validate(addr) -> tuple[bool, str]:
-    """Offline mainnet-standard validation. Returns (ok, why).
+    """Offline mainnet validation (standard AND subaddress; the
+    8-prefixed subaddress shape is a first-class payout
+    destination). Returns (ok, why).
 
     ok=False is always a NAMED shape rejection:
       empty / non-string      the caller sent nothing usable
@@ -213,7 +226,8 @@ def validate(addr) -> tuple[bool, str]:
         return False, "length (decoded to an impossible byte count)"
     nb = raw[0]
     name, want_len = _NETBYTES.get(nb, ("unknown", 0))
-    if nb not in (0x12, 0x13):
+    if nb not in (0x12, 0x13, 0x2A):   # mainnet shapes only;
+        # 0x13 falls through to the integrated rejection below
         return False, (f"netbyte ({name or hex(nb)} — testnet/stagenet "
                        f"or foreign network bytes)")
     if want_len != 95:
@@ -221,12 +235,13 @@ def validate(addr) -> tuple[bool, str]:
                        "— payouts go to wallet addresses only)")
     if keccak256(raw[:65])[:4] != raw[65:]:   # checksum = FIRST 4 bytes
         return False, "checksum (Keccak-256 mismatch — corrupt or mistyped)"
-    return True, "mainnet standard, checksum verified"
+    cls = "mainnet subaddress" if nb == 0x2A else "mainnet standard"
+    return True, f"{cls}, checksum verified"
 
 
 def is_valid(addr) -> bool:
     """The boolean convenience for gates: True ONLY for a mainnet
-    standard address with a verified checksum."""
+    standard or subaddress with a verified checksum."""
     return validate(addr)[0]
 
 

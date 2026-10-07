@@ -115,8 +115,8 @@ check("3.3", b58decode(MAIN)[:1] == b"\x12" and len(b58decode(MAIN)) == 69,
       "the encode/decode round-trip pins the CN block widths")
 check("3.4", len(MAIN) == 95, f"mainnet standard renders 95 chars: {len(MAIN)}")
 
-TESTNET = _mkaddr(0x24, "test")
-STAGENET = _mkaddr(0x35, "stage")
+TESTNET = _mkaddr(0x35, "test")    # testnet-standard IS 0x35
+STAGENET = _mkaddr(0x18, "stage")  # stagenet-standard IS 0x18
 INTEG = _mkaddr(0x13, "integ")
 check("3.5", validate(TESTNET)[0] is False
       and "netbyte" in validate(TESTNET)[1],
@@ -171,6 +171,30 @@ check("4.3", srv_src.count('startswith("4")') == 0
       "the loose prefix/length intake gates are gone (replaced, not "
       "duplicated)")
 
+print("== 5. THE NETBYTE TABLE IS THE CRYPTONOTE TRUTH (the Oct 6 critical sweep, red-first): the table labeled 0x24 'testnet-standard' (it is STAGENET-SUBADDRESS, 36) and 0x35 'stagenet-standard' (it is TESTNET-STANDARD, 53), and mainnet SUBADDRESSES (0x2A, netbyte 42 - valid 95-char payout destinations per cryptonote_protocol defs.h) were refused as foreign bytes: the payout gate rejected a wallet shape users actually hold. The fixtures themselves carried the same swap.")
+_sub = _mkaddr(0x2A, "sub")
+_ok, _why = validate(_sub)
+check("5.1", _ok and "subaddress" in _why.lower(),
+      f"the mainnet subaddress validates with a named verdict: {_ok}/{_why}")
+_TRUTH = {0x12: "mainnet-standard", 0x13: "mainnet-integrated",
+          0x2A: "mainnet-subaddress", 0x35: "testnet-standard",
+          0x36: "testnet-integrated", 0x3F: "testnet-subaddress",
+          0x18: "stagenet-standard", 0x19: "stagenet-integrated",
+          0x24: "stagenet-subaddress"}
+import address_check as _ac5
+_got = {k: v[0] for k, v in _ac5._NETBYTES.items()}
+check("5.2", _got == _TRUTH,
+      f"the table is the defs.h truth: got {sorted((hex(k), n) for k, n in _got.items())}")
+check("5.3", b58decode(TESTNET)[:1] == bytes([0x35]) and b58decode(STAGENET)[:1] == bytes([0x18]),
+      f"the fixtures are the nets their names claim: TESTNET decodes to {hex(b58decode(TESTNET)[0])}, STAGENET to {hex(b58decode(STAGENET)[0])}")
+_tn_ok, _tn_why = validate(_mkaddr(0x35, "tn"))
+_sn_ok, _sn_why = validate(_mkaddr(0x18, "sn"))
+check("5.4", (not _tn_ok) and "testnet-standard" in _tn_why and "stagenet-standard" not in _tn_why
+      and (not _sn_ok) and "stagenet-standard" in _sn_why,
+      f"foreign nets refuse with the CORRECT names: testnet {_tn_why!r}, stagenet {_sn_why!r}")
+_i_ok, _i_why = validate(INTEG)
+check("5.5", (not _i_ok) and "payment id" in _i_why,
+      f"integrated still refuses (the embedded payment id): {_i_why!r}")
 lines.append(f"\nRESULT: {PASS} passed, {FAIL} failed")
 print("\n".join(lines))
 
