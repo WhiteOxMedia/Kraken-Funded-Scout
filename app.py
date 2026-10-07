@@ -4227,19 +4227,25 @@ def _discipline_plate() -> str:
                          "learning its own weights.</div>")
         s = float(_last.get("score") or 0)
         _empty = bool(_last.get("empty_fire"))
+        _capped = bool(_last.get("capped_zero_zero"))
         col = ("#ffc36b" if _empty else
-               "#4be38a" if s >= 80 else "#ffc36b" if s >= 60 else "#ff6b5e")
+               "#4be38a" if (s >= 80 and not _capped) else
+               "#ffc36b" if (s >= 60 or _capped) else "#ff6b5e")
         grade = ("SILENT ROTATION — nothing fired, nothing graded (capped)" if _empty else
+                 "ZERO REALIZED — the directive cap holds; no money confirmed" if _capped else
                  "SNIPER — nothing slipped" if s >= 85 else
                  "SOLID — tight rotation" if s >= 65 else
                  "CAREFUL — money slipped" if s >= 40 else
                  "UNDISCIPLINED — the table kept it")
-        # the streak: consecutive scores >= 70 — an empty-fire capped
-        # score never feeds the streak (a silent rotation is not a
-        # disciplined one, Sep 7)
+        # the streak: consecutive scores >= 70 — neither silence nor a
+        # zero-realized cap ever feeds it (a silent rotation is not a
+        # disciplined one, Sep 7; a confirmed-moneyless one is not
+        # either, the rotation-mode directive, Oct 7)
         streak = 0
         for row in reversed(_h):
-            if float(row.get("score") or 0) >= 70 and not row.get("empty_fire"):
+            if (float(row.get("score") or 0) >= 70
+                    and not row.get("empty_fire")
+                    and not row.get("capped_zero_zero")):
                 streak += 1
             else:
                 break

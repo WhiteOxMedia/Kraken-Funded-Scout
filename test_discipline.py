@@ -407,8 +407,10 @@ check("that lesson names the silent funnel", "silent funnel" in lesson_el
 res_full = dict(res_empty, empty_fire=False)
 state_f = {"weights": dict(dc.DEFAULT_WEIGHTS), "history": [], "lessons": []}
 lesson_f = dc._learn(state_f, res_full)
-check("a firing rotation with a clean sheet is unaffected (weights hold, the money still unproven)",
-      state_f["weights"] == dc.DEFAULT_WEIGHTS and "not agreement" in lesson_f)
+check("a firing rotation with a clean sheet rides the ZERO-ZERO verdict (weights hold, never agreement)",
+      state_f["weights"] == dc.DEFAULT_WEIGHTS
+      and "Zero realized" in lesson_f and "directive cap" in lesson_f
+      and "not agreement" not in lesson_f)
 check("the cap is wired into evaluate_rotation (score, not just the lesson)",
       "EMPTY_FIRE_CAP" in src and "empty_fire = not fired" in src
       and "score = EMPTY_FIRE_CAP" in src)
@@ -420,7 +422,8 @@ check("the plate grades a silent rotation (amber, never SNIPER)",
       "SILENT ROTATION" in ap and "empty_fire" in ap)
 check("a capped score never feeds the streak",
       "and not row.get(" in ap
-      and "empty_fire" in ap[ap.find("# the streak: consecutive scores >= 70"):ap.find("# the streak: consecutive scores >= 70") + 400])
+      and "empty_fire" in ap[ap.find("# the streak: consecutive scores >= 70"):ap.find("# the streak: consecutive scores >= 70") + 500]
+      and "capped_zero_zero" in ap[ap.find("# the streak: consecutive scores >= 70"):ap.find("# the streak: consecutive scores >= 70") + 500])
 
 # ── 6. the wiring ─────────────────────────────────────────────────────
 check("the scanner evaluates at every rotation rollover",
@@ -502,6 +505,48 @@ check("giveback dominance OUTRANKS the burial pile-up (the biggest "
       and float(_st_gbb["weights"]["system_burial"]) == _b_w3
       and "giveback weight rises" in _st_gbb["lessons"][-1]["lesson"],
       _st_gbb["lessons"][-1]["lesson"][:130])
+
+# ── 5z. THE ROTATION-MODE DIRECTIVE (user directive, Oct 7 - "recorded on
+#    the discipline score card"): ZERO-ZERO IS A FAILURE SHAPE. A FIRING
+#    rotation that realized $0 and left nothing on the table graded 100
+#    ("score 100, realized $+0 - weights hold", live twice) - the silent
+#    case was capped (Sep 7), the firing case was the hole. Red-first:
+#    every pin here failed against the uncapped scorer.
+check("the directive cap exists and stacks UNDER the silence ceiling",
+      dc.ZERO_REALIZED_CAP == 55.0 and dc.EMPTY_FIRE_CAP == 60.0
+      and dc.ZERO_REALIZED_CAP < dc.EMPTY_FIRE_CAP)
+check("the crumb is the same $1 the voice ignores", dc.ZZ_CRUMB == 1.0)
+check("5z.a a FIRING zero-zero rotation caps at 55 (was 100 - the live defect)",
+      dc._zero_zero_cap(100.0, True, 0.0, 0.0) == 55.0)
+check("5z.b the SILENT case belongs to the empty-fire cap (not doubled up)",
+      dc._zero_zero_cap(100.0, False, 0.0, 0.0) == 100.0)
+check("5z.c a PAID firing rotation is untouched (realized money speaks)",
+      dc._zero_zero_cap(100.0, True, 40.0, 0.0) == 100.0)
+check("5z.d real leave on the table is untouched (it already docks)",
+      dc._zero_zero_cap(100.0, True, 0.0, 376.30) == 100.0)
+_res_zz = {"score": 100.0, "realized_pnl": 0.0, "pace_share": 48.0,
+           "usd_left": {"missed": 0, "giveback": 0, "missed_exit": 0,
+                        "early_exit": 0, "system_burial": 0},
+           "empty_fire": False,
+           "ts": datetime.now(MST).isoformat()}
+_st_zz = {"weights": dict(dc.DEFAULT_WEIGHTS), "history": [], "lessons": []}
+_lesson_zz = dc._learn(_st_zz, _res_zz)
+check("5z.e the zero-zero lesson names the directive cap, never perfection",
+      "Zero realized" in _lesson_zz and "directive cap" in _lesson_zz,
+      _lesson_zz[:100])
+check("5z.f zero-zero nudges nothing (the weights stay unproven-held)",
+      _st_zz["weights"] == dc.DEFAULT_WEIGHTS)
+check("5z.g evaluate_rotation wires the cap (firing, realized<=0, crumb left)",
+      "ZERO_REALIZED_CAP" in src and "_zero_zero_cap(" in src
+      and "realized_pnl <= 0.0" in src and "ZZ_CRUMB" in src)
+check("5z.h the result carries the flag (the plate reads it)",
+      '"capped_zero_zero": _capped_zz' in src)
+check("5z.i the voice names the cap on the capped shape",
+      "Zero realized" in src and "capped_zero_zero" in src)
+check("5z.j the plate grades ZERO REALIZED (never SNIPER while capped)",
+      "ZERO REALIZED" in ap and "capped_zero_zero" in ap)
+check("5z.k the streak excludes a zero-realized cap (like the silence)",
+      'not row.get("capped_zero_zero")' in ap)
 
 lines.append(f"\nRESULT: {PASS} passed, {FAIL} failed")
 scratch_space.report_temp('_discipline_check.txt').write_text("\n".join(lines), encoding="utf-8")

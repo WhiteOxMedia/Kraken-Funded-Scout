@@ -100,6 +100,17 @@ BONUS_MAX = 10.0         # good-behavior bonus cap (points)
 # read as discipline perfection, or the self-learning weights drift
 # toward "suppress everything" (the exact wrong lesson).
 EMPTY_FIRE_CAP = 60.0     # a zero-fire rotation tops out here (CAREFUL band)
+# THE ROTATION-MODE DIRECTIVE (user directive, Oct 7 - "recorded on the
+# discipline score card"): ZERO-ZERO IS A FAILURE SHAPE, NEVER A PERFECT ONE.
+# A rotation that FIRED popups, realized $0 and left nothing on the table
+# cannot grade perfect - the live lessons log caught it twice ("score 100,
+# realized $+0 - weights hold", Sep 4). The Sep 7 cap owns the SILENT case;
+# this owns the FIRING zero-zero hole, capped BELOW the silence ceiling
+# (55 < 60): silence may be an honest no, zero-realized is DETECTION
+# THAT FAILED TO REALIZE - the directive's failure shape. Real leave
+# (> the crumb) already docks on its own.
+ZERO_REALIZED_CAP = 55.0  # a firing zero-realized rotation tops out here (55 < 60: the failure shape stacks worse than silence)
+ZZ_CRUMB = 1.0            # the same $1 the voice itself ignores
 # THE PAYER HORIZON (Oct 1, the right-censoring rule): the window a
 # burial needs to prove itself before the boundary judges it. Burials
 # closer to the boundary than this are UNJUDGED (system_pending) —
@@ -108,6 +119,19 @@ EMPTY_FIRE_CAP = 60.0     # a zero-fire rotation tops out here (CAREFUL band)
 BURIAL_HORIZON_HOURS = 3.0
 ROTATIONS = [("00-04", 0, 4), ("04-08", 4, 8), ("08-12", 8, 12),
              ("12-16", 12, 16), ("16-20", 16, 20), ("20-24", 20, 24)]
+
+
+def _zero_zero_cap(score: float, fired: bool, realized_pnl: float,
+                   total_left: float) -> float:
+    """The rotation-mode directive's cap (Oct 7, recorded above): a
+    FIRING rotation with realized <= $0 and <= the crumb left NEVER
+    grades above ZERO_REALIZED_CAP - the directive's failure shape
+    (something was detected, nothing was realized, nothing left to even
+    mourn). The silent rotation is the empty-fire cap's to own; an
+    already-honest score is never lowered here."""
+    if fired and realized_pnl <= 0.0 and total_left <= ZZ_CRUMB:
+        return min(score, ZERO_REALIZED_CAP)
+    return score
 
 
 def _now():
@@ -759,6 +783,16 @@ def evaluate_rotation(exchange, rot_key: str, when=None, speak=True,
         except Exception:
             _silent_dock = {}
     realized_pnl = sum(float(t.get("pnl_net") or 0) for t in sold)
+    # THE ROTATION-MODE DIRECTIVE (Oct 7): the FIRING zero-zero cap takes
+    # the raw score here - after every deduction/bonus spoke, before the
+    # result banks it (the Sep 7 cap covered only the silent case).
+    _capped_zz = False
+    if ((not empty_fire) and realized_pnl <= 0.0
+            and sum(usd.values()) <= ZZ_CRUMB
+            and score > ZERO_REALIZED_CAP):
+        score = _zero_zero_cap(score, True, realized_pnl,
+                               sum(usd.values()))
+        _capped_zz = True
 
     result = {
         "date": start.strftime("%Y-%m-%d"), "rot": rot_key,
@@ -780,6 +814,7 @@ def evaluate_rotation(exchange, rot_key: str, when=None, speak=True,
         "realized_pnl": round(realized_pnl, 2),
         "balance_after": balance,
         "empty_fire": empty_fire,
+        "capped_zero_zero": _capped_zz,
         "empty_why": empty_why,
         "empty_buried": empty_buried,
         "empty_payers": empty_payers,
@@ -1187,6 +1222,16 @@ def _learn(state: dict, result: dict) -> str:
         if pnl > 0 and _left <= 1:
             lesson = (f"Score and money agree (score {score:.0f}, realized "
                       f"${pnl:+.0f}) — weights hold; the calibration stands.")
+        elif result.get("capped_zero_zero") or (pnl <= 0 and _left <= 1):
+            # the flag first (the evaluation already applied the cap);
+            # the bare condition keeps the synthetic fixtures honest.
+            # THE ROTATION-MODE DIRECTIVE (Oct 7): zero-zero is never a
+            # neutral or healthy verdict - the lesson NAMES the failure
+            # shape (detection without realization), it never masks it.
+            lesson = (f"Score {score:.0f}, realized ${pnl:+.0f} - Zero "
+                      f"realized, nothing left on the table: the directive "
+                      f"cap holds. Detection that realized nothing is a "
+                      f"failure shape, never perfection. Weights hold.")
         else:
             _why = ("the money went backwards" if pnl < 0 else
                     f"${_left:,.0f} left on the table" if _left > 1 else
@@ -1216,6 +1261,8 @@ def _speak_result(result: dict, missed: list, missed_exit: list):
             grade = ("SNIPER!" if s >= 85 else "SOLID!" if s >= 65 else
                      "CAREFUL!" if s >= 40 else "UNDISCIPLINED!")
             line = f"Rotation closed! Discipline score: {s:.0f}! {grade} "
+            if result.get("capped_zero_zero"):
+                line += "Zero realized - the directive cap holds; no money confirmed. "
         if result["total_left"] > 1:
             line += (f"You left ${result['total_left']:,.0f} on the table. ")
             if missed:
