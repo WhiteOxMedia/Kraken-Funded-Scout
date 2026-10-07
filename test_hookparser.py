@@ -308,6 +308,28 @@ check("the review rc is the CLI's own (raw capture, THEN tr) — a blown"
       f"raw-captures={src.count('_cr_raw="$(')}, "
       f"post-tr captures={src.count('printf %s')}")
 
+# ── 5b. THE SKIPPED REVIEW (guard, Oct 6): --base HEAD resolved to the ──
+# CURRENT commit inside the snapshot worktree, so the CLI SKIPPED with
+# rc 0 and a JSONL STATUS stream ("status": "review_skipped"), the
+# parser saw no finding records and printed CLEANJSON, and the hook
+# filed a CLEAN receipt - 84 of them Oct 3..6, a coverage ledger of
+# reviews that never ran (probe B, Oct 6, served the exact shape).
+# The skip rides its OWN marker to its OWN receipt lane, never clean.
+out = run_parser(json.dumps({"type": "status", "phase": "setup",
+                             "status": "review_skipped",
+                             "message": "No committed changes detected"}) + "\n")
+check("5b.1 a review_skipped status stream rides SKIPPEDREVIEW "
+      "(never CLEANJSON, never a findings COUNT)",
+      "SKIPPEDREVIEW" in out
+      and "CLEANJSON" not in out and "COUNT" not in out,
+      out.strip()[:40])
+check("5b.2 the wiring: SKIPPEDREVIEW is gated before the CLEAN lane "
+      "(a skip takes its own receipt lane, never files clean)",
+      "grep -q '^SKIPPEDREVIEW$'" in src
+      and "cr_receipt skipped" in src
+      and 0 <= src.find("'^SKIPPEDREVIEW$'") < src.rfind("'^CLEANJSON$'"),
+      "the skip gate must precede the clean lane")
+
 lines.append(f"\nRESULT: {PASS} passed, {FAIL} failed")
 scratch_space.report_temp('_hookparser_check.txt').write_text("\n".join(lines), encoding="utf-8")
 print("\n".join(lines))   # the verdict rides STDOUT — the gate's result

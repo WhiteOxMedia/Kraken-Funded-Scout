@@ -579,7 +579,7 @@ RECEIPTS="$(git rev-parse --show-toplevel 2>/dev/null)/scratch/reviews_receipts.
 # The mode is CAPTURED AT THE BRANCH, not derived from $WT at receipt
 # time: cleanup_wt clears WT before the CLEANJSON/timeout receipts fire,
 # and deriving there would file every isolated review as in-tree
-# (found by the receipt drill, Oct 3).
+# (found by the receipt drill, Oct 3; and a CLI SKIP is the receipt's own mirror - a review that never ran filing clean - so every receipt lane rejects the skipped stream, Oct 6).
 _cr_mode="in-tree"
 cr_receipt() {   # $1 = outcome: clean | unparsed | errors | timeout
     [ -n "${RECEIPTS:-}" ] || return 0
@@ -604,11 +604,11 @@ if [ "${CODERABBIT_ISOLATED:-1}" = "1" ] \
     echo "  🐇 CodeRabbit: reviewing the STAGED content in an isolated" >&2
     echo "     worktree (the dirty tree and runtime churn are out of scope)." >&2
     _cr_mode="isolated"
-    # --base HEAD (Oct 2, the silent-coverage fix): the CLI's default
+    # --base HEAD~1 (Oct 6, the skipped-review cure; ex-Oct 2, the silent-coverage fix): the CLI's default
     # isolated review reads the whole tree as context, and a 628-file
     # repo exceeds its 150-file analysis cap — the review then dies or
     # returns no findings and the fail-open below prints "no findings"
-    # indistinguishable from a CLEAN review. --base HEAD pins the
+    # indistinguishable from a CLEAN review - probe B (Oct 6) served that exact shape. --base HEAD is the CURRENT commit: the CLI SKIPS such a review ("No committed changes"), rc 0, streaming JSONL the parser read as CLEANJSON - and the skip masqueraded as a clean receipt for 84 commits (Oct 3..6). HEAD~1 pins the
     # review to the snapshot's own diff (always small by construction:
     # one commit against its parent). The fallback's --uncommitted
     # stays baseless — no single base scopes an in-tree review.
@@ -621,7 +621,7 @@ if [ "${CODERABBIT_ISOLATED:-1}" = "1" ] \
         cd "$WT" && unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE \
                          GIT_OBJECT_DIRECTORY GIT_ALTERNATE_OBJECT_DIRECTORIES \
         && timeout "$TIMEOUT" "$BIN" review --committed \
-            --base HEAD \
+            --base HEAD~1 \
             --agent 2>/dev/null
     )" 2>/dev/null
     rc=$?
@@ -667,6 +667,7 @@ fi
 PYCODE="$(cat <<'CRPYEOF'
 import sys, json, re
 
+skipped_review = []
 errors = []   # 0.8.1 streams review errors (rate_limit et al.) as records
 
 def walk(o, out):
@@ -676,6 +677,8 @@ def walk(o, out):
     elif isinstance(o, dict):
         if "errorType" in o:
             errors.append(str(o["errorType"]))
+        if isinstance(o.get("status"), str) and o["status"] == "review_skipped":
+            skipped_review.append(True)
         has_file = any(k in o for k in ("fileName", "file", "path"))
         has_body = any(k in o for k in ("severity", "title", "comment"))
         if has_file and has_body:
@@ -714,6 +717,9 @@ if not records:
         except Exception:
             pass
 if not records:
+    if skipped_review:
+        print("SKIPPEDREVIEW")
+        sys.exit(0)
     if errors:
         # (Sep 28, found while pinning the 0.8.1 shapes) a PURE error
         # stream ({"errorType": ...} and nothing else) used to parse as
@@ -875,6 +881,12 @@ n="$(printf '%s\n' "$PARSER_OUT" | sed -n 's/^COUNT //p' | tail -1)"
 sev="$(printf '%s\n' "$PARSER_OUT" | sed -n 's/^SEV //p' | tr '\n' ' ' | sed 's/ $//')"
 errtypes="$(printf '%s\n' "$PARSER_OUT" | sed -n 's/^ERRORTYPE //p' | sort -u | tr '\n' ' ' | sed 's/ $//')"
 if [ -z "$n" ]; then
+    if printf '%s
+' "$PARSER_OUT" | grep -q '^SKIPPEDREVIEW$'; then
+        cr_receipt skipped
+        echo "  CodeRabbit: review SKIPPED by the CLI (no diff to review) - recording it, commit proceeds (fail-open)." >&2
+        exit 0
+    fi
     if printf '%s\n' "$PARSER_OUT" | grep -q '^CLEANJSON$'; then
         cr_receipt clean
         echo "  🐇 CodeRabbit: zero findings — clean JSON review." >&2

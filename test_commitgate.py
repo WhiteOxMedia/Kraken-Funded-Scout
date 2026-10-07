@@ -221,15 +221,22 @@ check(1.13, 'timeout "$budget" env -u GIT_DIR -u GIT_WORK_TREE '
 # 1.14 the support lane stages EVERY tracked hook — a static
 #      hooks/pre-commit entry would leave post-commit absent from the
 #      scratch index and the drive would red on it (missing tracked twin).
-# 1.15 the isolated review scopes to the staged diff (--base HEAD):
+# 1.15 the isolated review scopes to the staged diff (--base HEAD~1):
 #      the CLI's default isolated review reads the whole tree as
-#      context, and a 628-file repo exceeds its 150-file analysis cap —
-#      the review then dies (or returns no findings) and the fail-open
-#      hook prints "no findings" indistinguishable from a CLEAN review:
-#      the silent review-coverage gap. --base HEAD pins the review to
-#      the snapshot's own diff — the staged content is always a small
-#      diff against its parent, so the cap is unreachable by
-#      construction. (The fallback's --uncommitted stays baseless:
+#      context, and a 628-file repo exceeds its 150-file analysis cap --
+#      the review then dies (or returns nothing) and the fail-open hook
+#      prints "no findings" indistinguishable from a CLEAN review (the
+#      Oct 2 lesson). The Oct 2 cure passed --base HEAD -- but HEAD is
+#      the CURRENT commit inside the snapshot worktree, so the CLI
+#      SKIPPED the review ("No committed changes", rc 0, probe B Oct
+#      6) and the JSONL skip stream read as a clean JSON review: 84
+#      clean receipts certify reviews that never ran (Oct 3..6). The
+#      Oct 6 cure passes --base HEAD~1: the CLI resolves the PARENT
+#      (probe A served baseCommitId 924681a for head 6201108), the
+#      reviewed diff is the snapshot's staged truth against its parent
+#      (always small by construction, the cap unreachable), and a CLI
+#      skip now lands the SKIPPEDREVIEW receipt lane (hookparser 5b)
+#      instead of a clean. (The fallback's --uncommitted stays baseless:
 #      there is no single base that scopes an in-tree review to the
 #      staged work.)
 _iso_head = src.split('review --committed', 1)[1] if 'review --committed' in src else ''
@@ -237,12 +244,13 @@ _iso_seg = _iso_head.split('--agent', 1)[0] if _iso_head else ''
 _fb_seg = src.split('review --agent --uncommitted', 1)[1]     if 'review --agent --uncommitted' in src else ''
 _fb_seg = _fb_seg.split('review_json', 1)[0] if _fb_seg else ''
 _flag_lines = [ln for ln in src.splitlines()
-               if '--base HEAD' in ln and not ln.strip().startswith('#')]
+               if '--base HEAD~1' in ln and not ln.strip().startswith('#')]
 check(1.15, len(_flag_lines) == 1
-      and '--base HEAD' in _iso_seg
+      and '--base HEAD~1' in _iso_seg
       and '--base' not in _fb_seg,
-      "the isolated review must pass --base HEAD and the fallback "
-      "must stay baseless (the 150-file cap silent-coverage fix)")
+      "the isolated review must pass --base HEAD~1 and the fallback "
+      "must stay baseless (the Oct 6 skipped-review cure riding "
+      "the ex-Oct 2 silent-coverage fix)")
 check(1.14, "for src in app.py background_scanner.py meta_layers.py "
       "profit_guard.py carve_out.py tri_watch.py contest_account.py "
       "add_xrp_watch.py diag_mutation_sweep.py" in src
@@ -886,11 +894,11 @@ if not RERUN:
           f"wt={sorted(_wt_left)} ref={_ref_left!r}")
     # 2.499 the --base argument reaches the real CLI (behavioral, on
     #       the stub's own arg log): the isolated call carries
-    #       --base HEAD (the silent-coverage fix); the fallback's
+    #       --base HEAD~1 (the Oct 6 skipped-review cure; ex-Oct 2 fix); the fallback's
     #       --uncommitted call carries none.
     if calls:
-        check(2.499, "--base" in calls[0] and "HEAD" in calls[0],
-              f"the isolated review must pass --base HEAD: {calls[0]}")
+        check(2.499, "--base HEAD~1" in calls[0],
+              f"the isolated review must pass --base HEAD~1: {calls[0]}")
     else:
         check(2.499, False, "no stub call recorded — nothing to grade")
 

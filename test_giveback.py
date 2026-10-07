@@ -669,14 +669,15 @@ check("7e the wiring: the priced path stores the row's last truth, the failed fe
 import auto_adjust as _aa7
 import contest_account as _ca7
 _sbx7 = Path(tempfile.mkdtemp())
+_pgs7_real = _pg_gauge.STATE_FILE
 _pg_gauge.STATE_FILE = _sbx7 / "pg7.json"
-_ctf7_real = bs.CONTEST_TRADES_FILE
-_tide7_real = bs._fleet_tide
 _thr7_real = _ca7.giveback_thresholds
 _app7_real = _aa7.apply_adjustment
+_ctf7_real = bs.CONTEST_TRADES_FILE
+_tide7_real = bs._fleet_tide
+_ta_calls7 = {"n": 0}
 import telemetry_adjust as _ta7
 _ta7_real = _ta7.emit_adjustment
-_ta_calls7 = {"n": 0}
 _ta7.emit_adjustment = lambda *a, **k: _ta_calls7.__setitem__("n", _ta_calls7["n"] + 1) or None
 _calls7 = {"n": 0}
 _resp7 = {"status": "refused", "reason": "daily_cap_exceeded"}
@@ -733,12 +734,35 @@ try:
     check("7g.6 every tier outcome streamed exactly once (4 emits: refusal, applied, queued, refusal)",
           _ta_calls7["n"] == 4, _ta_calls7["n"])
 finally:
+    _pg_gauge.STATE_FILE = _pgs7_real
     bs.CONTEST_TRADES_FILE = _ctf7_real
     bs._fleet_tide = _tide7_real
     _ca7.giveback_thresholds = _thr7_real
     _aa7.apply_adjustment = _app7_real
     _ta7.emit_adjustment = _ta7_real
 
+# 7g.7 the fixture pays its own rent (probe A, Oct 6): the 7g sandbox
+# re-pointed _pg_gauge.STATE_FILE without restoring it - later suites
+# reading giveback would inherit the sandbox file. Save-and-restore,
+# pinned in source.
+src7 = Path(__file__).read_text(encoding="utf-8")
+check("7g.7 the fixture pays its own rent (STATE_FILE save + restore, "
+      "probe A's Oct 6 advisory)",
+      "_pgs7_real = _pg_gauge.STATE_FILE" in src7
+      and "_pg_gauge.STATE_FILE = _pgs7_real" in src7,
+      "the fixture must save and restore the guard's real state file")
+# 7g.8 the capture leads the sandbox assign (Copilot medium on 34df9d7,
+# cured red-first): the baseline must hold the REAL state file, or the
+# finally restores the sandbox and the fixture leaks its state into
+# every later suite in this process.
+s7 = Path(__file__).read_text(encoding="utf-8").splitlines()
+t7 = [ln.strip() for ln in s7]
+cap7 = t7.index("_pgs7_real = _pg_gauge.STATE_FILE")
+sbx7_at = t7.index('_pg_gauge.STATE_FILE = _sbx7 / "pg7.json"')
+check("7g.8 the STATE baseline is captured BEFORE the sandbox "
+      "assignment (the finally restores the REAL file)",
+      cap7 < sbx7_at and t7.count("_pgs7_real = _pg_gauge.STATE_FILE") == 1,
+      (cap7, sbx7_at, t7.count("_pgs7_real = _pg_gauge.STATE_FILE")))
 fails = [r for r in results if not r[1]]
 out = BASE / "giveback_check.txt"
 scratch_space.report_temp('giveback_check.txt').write_text("\n".join(
