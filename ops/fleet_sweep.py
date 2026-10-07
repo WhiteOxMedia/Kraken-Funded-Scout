@@ -256,6 +256,15 @@ def main() -> int:
     args = ap.parse_args()
 
     drives = discover_drives(args.drives)
+    _unresolved = [o for o in args.drives
+                   if not (o.strip() and any((ROOT / c).exists() for c in
+                          (o.strip(), "test_" + o.strip(),
+                           o.strip() + ".py", "test_" + o.strip() + ".py")))]
+    if _unresolved:
+        print("  !! unresolved selector(s): " + ", ".join(_unresolved)
+              + " - nothing written: a wrong selector must never overwrite"
+              + " the latest report with an empty sweep (the Oct 6 triage)")
+        return 2
     classes = load_classes()
     print(f"⚡ fleet sweep: {len(drives)} drive(s), timeout {args.timeout}s")
     results: list[dict] = []

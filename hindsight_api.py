@@ -21,6 +21,7 @@ handler calls, so a contract test IS a wire test.
 from __future__ import annotations
 
 import hashlib
+import hmac
 import json
 import sqlite3
 from datetime import datetime
@@ -55,7 +56,7 @@ def _authenticated(operator_id) -> bool:
     the concentration gate always queues."""
     import os
     token = os.environ.get("HINDSIGHT_OPERATOR_TOKEN", "")
-    return bool(token) and str(operator_id or "") == token
+    return bool(token) and hmac.compare_digest(str(operator_id or ""), token)
 
 
 # ── the aggregate underneath all routes ─────────────────────────────

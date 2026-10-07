@@ -291,16 +291,25 @@ def rcl_apply(res: dict, gf: float | None, when: datetime | None = None) -> tupl
                  and _prev.get("rot") == _rot_key_of(when))
         if not _same:
             st = _state()
-            pen = float(st.get("discipline_penalty_extra", 0.0)) + 1.0
-            # THE ADAPTIVE PENALTY CAP (user spec, Sep 23, clamp 2.5): the
-            # per-violation docked weight clamps to MaxPenalty = 2.00 x
-            # RotationMod x VolMod x FleetMod (MinPenalty = 0.50 x TideMod
-            # x BookMod governs the +1.0 dock floor). Neutral mods ->
-            # cap 2.0; unreadable sources fail open to the committed rail.
+            _prev_pen = float(st.get("discipline_penalty_extra", 0.0))
+            pen = _prev_pen + 1.0
+            # THE ADAPTIVE PENALTY CAP (user spec, Sep 23, clamp 2.5) -
+            # DELTA SEMANTICS (the Oct 6 audit): the dock is a per-
+            # violation weight, so the bounds clamp the DOCK (MaxPenalty
+            # = 2.00 x RotationMod x VolMod x FleetMod; MinPenalty = 0.50
+            # x TideMod x BookMod raises a +1.0 dock on a heavy book -
+            # yesterday's +1.36 was exactly that), never the accumulated
+            # extra. The old min(max(pen, lo), hi) clamped the TOTAL and
+            # could REDUCE a penalty a verdict raised (2.19 + 1.0 -> 2.0
+            # today). The ceiling still trims the dock's ambition, the
+            # committed 3.0 rail stands, and unreadable sources fail
+            # open to it.
             try:
                 import carve_out as _co_p
                 _plo, _phi = _co_p.penalty_bounds(when=when)
-                pen = min(max(pen, _plo), _phi)
+                _dock = min(max(1.0, _plo), _phi)
+                pen = _prev_pen + _dock
+                pen = min(pen, max(_phi, _prev_pen))
             except Exception:
                 pen = min(pen, 3.0)
             st["discipline_penalty_extra"] = round(min(pen, 3.0), 2)
@@ -531,6 +540,15 @@ def audit_close(row: dict, watch: dict | None = None,
     st["sal_last"] = {"date": today, "violations": violations,
                       "day_violations": rec["violations"],
                       "checks": checks, "ts": when.isoformat(timespec="seconds")}
+    # THE PER-VIOLATION DOCK (the Oct 6 audit): SAL_PENALTY_WEIGHT was
+    # defined and never used - the header promised "each violation adds
+    # this to the penalty" and the penalty never moved. Each close
+    # docks its OWN new violations immediately (the day-record
+    # accumulation above stays the >=3 multiplier flip's input).
+    if violations > 0:
+        _prev_dock = float(st.get("discipline_penalty_extra", 0.0))
+        st["discipline_penalty_extra"] = round(
+            min(_prev_dock + SAL_PENALTY_WEIGHT * int(violations), 3.0), 3)
     if rec["violations"] >= 3:
         st["sal_adjust"] = SAL_BAD_MULT
         st["confidence_dock"] = {"rotation": -1, "tide": -1,

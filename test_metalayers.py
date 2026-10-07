@@ -624,6 +624,83 @@ elif _RealState.exists():
     _RealState.unlink()
     print("        (probe-created state scrubbed)")
 
+# ════════ 9. THE MAJOR-DRIFT DOCK'S CLAMP (user ask, Oct 6) ════════
+# Yesterday the discipline penalty jumped 3.68 -> 5.04 (+1.36): the
+# trigger was the RCL MAJOR-drift dock (the GRASS/USD re-ask escalated
+# MILD -> MAJOR in the 12-16 rotation), NOT SAL (yesterday's audit was
+# 0 violations x 8 closes). The +1.36 was a +1.0 dock riding a
+# mod-scaled ceiling; the drifts pinned here: the clamp must never
+# REDUCE a penalty a verdict raised, the FLOOR governs the dock (not
+# the accumulated extra), and SAL's promised per-violation dock must
+# exist at all (SAL_PENALTY_WEIGHT was defined and never used).
+print("== 9. the MAJOR-DRIFT dock: delta semantics, no inversion, SAL dock ==")
+# ALL FIVE diffs pinned (the commitgate's repo copy carries data files
+# that answer the funding/volatility probes - only a fully pinned score
+# is deterministic across worlds): rotation gap 1.0, everything else
+# unknown -> score exactly 1.0 -> MAJOR, everywhere.
+ml._recent_move_pct = lambda: 0.85
+ml._rotation_gap = lambda when=None: 1.0
+ml._liquidity_slope_gap = lambda when: None
+ml._volatility_gap = lambda pair, when=None: None
+ml._funding_gap = lambda pair: None
+ml._signal_quality_gap = lambda when: None
+ml._SLOPE.clear()
+_S9 = TMP / "meta_layers_state_9.json"
+_RealState9 = ml.STATE_FILE
+ml.STATE_FILE = _S9
+import carve_out as _co9
+_real_pb9 = _co9.penalty_bounds
+try:
+    _co9.penalty_bounds = lambda when=None, res=None: (0.177, 2.0)
+    ml.STATE_FILE.write_text(json.dumps({"discipline_penalty_extra": 0.83}),
+                             encoding="utf-8")
+    _res9 = ml.rcl_measure("X/USD", _w())
+    ml.rcl_apply(_res9, 1.5, _w())
+    _st9 = json.loads(ml.STATE_FILE.read_text(encoding="utf-8"))
+    check(9.1, abs(_st9["discipline_penalty_extra"] - 1.83) < 1e-6,
+          "the +1.0 dock is a DELTA: 0.83 + 1.0 = 1.83 exactly "
+          "(yesterday's +1.36 was this dock under a 2.19 mod ceiling)")
+
+    ml.STATE_FILE.write_text(json.dumps({"discipline_penalty_extra": 2.19}),
+                             encoding="utf-8")
+    _res9b = ml.rcl_measure("X/USD", _w())
+    ml.rcl_apply(_res9b, 1.5, _w())
+    _st9b = json.loads(ml.STATE_FILE.read_text(encoding="utf-8"))
+    check(9.2, _st9b["discipline_penalty_extra"] >= 2.19,
+          "NO INVERSION: a MAJOR verdict on an accumulated 2.19 raises or "
+          f"holds (got {_st9b['discipline_penalty_extra']}; the old "
+          "accumulated clamp returned 2.0 - a REDUCTION)")
+
+    ml.STATE_FILE.write_text(json.dumps({"discipline_penalty_extra": 0.5}),
+                             encoding="utf-8")
+    _co9.penalty_bounds = lambda when=None, res=None: (1.8, 2.4)
+    _res9c = ml.rcl_measure("X/USD", _w())
+    _gf9c, _act9c = ml.rcl_apply(_res9c, 1.5, _w())
+    _st9c = json.loads(ml.STATE_FILE.read_text(encoding="utf-8"))
+    check(9.3, abs(_st9c["discipline_penalty_extra"] - 2.3) < 1e-6,
+          "the FLOOR governs the DOCK only: a 1.0 dock rides to the 1.8 "
+          f"floor -> 2.3 total (got {_st9c['discipline_penalty_extra']}; "
+          "the old clamp returned 1.8 and inflated nothing)")
+    check(9.4, _gf9c == 1.5 * ml.RCL_MAJOR_MULT,
+          "the factor path still scales x0.75 through the docked world")
+
+    ml.STATE_FILE.write_text(json.dumps(
+        {"discipline_penalty_extra": 0.0,
+         "sal_audits": {"2099-09-22": {"closes": 1, "violations": 2}}}),
+        encoding="utf-8")
+    ml.audit_close({"pair": "T/USD", "entry": 2.0, "exit": 2.04,
+                    "goal_pct": 2.0, "exit_reason": "", "closed_by": "getout"},
+                   {"high": 2.05}, _w())
+    _st9d = json.loads(ml.STATE_FILE.read_text(encoding="utf-8"))
+    check(9.5, abs(_st9d["discipline_penalty_extra"] - 1.0) < 1e-6,
+          "the SAL dock lands: the close's OWN 2 violations x 0.5 -> 1.0 "
+          f"(got {_st9d['discipline_penalty_extra']}; yesterday's "
+          "0-violation day docked nothing, the constant was dead code)")
+finally:
+    _co9.penalty_bounds = _real_pb9
+    ml.STATE_FILE = _RealState9
+    _S9.unlink(missing_ok=True)
+
 RESULT = f"{len(PASSES)} passed, {len(FAILS)} failed"
 print(RESULT)
 sys.exit(1 if FAILS else 0)

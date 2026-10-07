@@ -244,6 +244,12 @@ try:
         return {"status": "applied", "reason": "ok", "delta": delta,
                 "before": 1.9704, "after": 1.9704 + delta}
 
+    # the tide read is LIVE since the regime ceiling (Oct 6) - this
+    # tracker block pins the ceiling-2 world, so the read is sandboxed
+    # (the OUT tier-3 extension is test_giveback's regime contract)
+    _tide7_orig = bs._fleet_tide
+    bs._fleet_tide = lambda max_age_s=300: (52.0, "FLAT")
+
     _aa7.apply_adjustment = _rec_apply
     _pg7._save({"giveback": {"day": _today, "peak_total": 140.0,
                              "tightened": False}})
@@ -266,6 +272,7 @@ try:
           len(calls) == 2 and gb3.get("tightens") == 2
           and gb3.get("tighten", {}).get("tier") == 2)
 finally:
+    bs._fleet_tide = _tide7_orig
     _aa7.apply_adjustment = _orig_aa_apply
     _tf.unlink(missing_ok=True)   # the sink again; the live journal was never touched
     # restore the LIVE bindings (the sandbox files die with the

@@ -100,7 +100,24 @@ check("3.2 the verdict parser reads the x/y shape and the banner "
       "the rc contract even when no verdict parses",
       m is not None and fs._VERDICT_RE.search("ALL PASS") is not None
       and fs._VERDICT_RE.search("DONE") is not None, "no match")
-names = [d.name for d in fs.discover_drives(["canary"])]
+# HERMETIC (Oct 6 gate lesson): the pin used to resolve the selector
+# against the LIVE tree, but the commit gate runs this drive from a
+# temp sandbox whose ROOT carries no test_canary.py (the archive
+# exports to HEAD/, the lane only mirrors staged sources) — the
+# selector legitimately resolved to nothing in-gate and 3.3 red
+# there while green at root. The four-variant acceptance is now
+# proven against a seeded fixture ROOT (same swap-and-restore shape
+# as the CLASSES_FILE pins below), so the pin means the same thing
+# in every world.
+import tempfile as _tf33
+_tdir33 = Path(_tf33.mkdtemp())
+(_tdir33 / "test_canary.py").write_text("# fixture: the four-variant target" + chr(10), encoding="utf-8")
+_real_root33 = fs.ROOT
+try:
+    fs.ROOT = _tdir33
+    names = [d.name for d in fs.discover_drives(["canary"])]
+finally:
+    fs.ROOT = _real_root33
 check("3.3 discovery accepts bare, test_-prefixed and .py-suffixed names",
       names == ["test_canary.py"], names)
 import tempfile as _tf

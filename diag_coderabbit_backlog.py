@@ -181,6 +181,17 @@ def _worktree_batches(repo):
     return found
 
 
+def _norm_file_token(tok: str) -> str:
+    """THE TOKEN NORM (the Oct 6 minors triage): a commit sentence ends
+    with a PERIOD, and the period rides this module's own regex charset -
+    so the memory stored `background_scanner.py.` and never matched the
+    real basename, silently blinding the triage filter (findings looked
+    never-named while the cure commit sat right there). Trailing
+    sentence punctuation is part of no filename: strip it, then read
+    the basename as before."""
+    return Path(tok.rstrip(".-")).name
+
+
 def _triaged_files(repo, batch_ts, batch_head):
     """Filenames a LATER commit's message names (the triage memory).
 
@@ -205,7 +216,7 @@ def _triaged_files(repo, batch_ts, batch_head):
         ct, body = chunks[i].strip(), chunks[i + 1]
         if not ct.isdigit() or int(ct) <= batch_ts:
             continue
-        named |= {Path(ln.split(":")[0].strip()).name for ln in
+        named |= {_norm_file_token(ln.split(":")[0].strip()) for ln in
                   re.findall(r"[\w./\\+-]+", body) if "." in ln}
     return named
 

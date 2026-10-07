@@ -198,6 +198,83 @@ def propose_from_rotation(rotation_id, score, realized_usd, total_left_usd,
             "evidence_file": _res["file"]}
 
 
+def propose_from_recommendation(rec, source="pool_min_weekly",
+                                channel="pool_min", week_key="") -> dict:
+    """THE GATE-FLOOR INGEST SEAM (user ask, Oct 6): the weekly scorer's
+    gate-floor recommendations mint a QC candidate through the SAME
+    evidence path a Proven rotation rides - one evidence bundle, one
+    candidate ledger row, the armed cell, the checksum - so the
+    recommendation can only move its floor through qc_decide's
+    exit-watch path, never a direct file write. The scorer's own
+    stability gate IS the money proof here: a payload whose
+    recommendation is absent, out of range, or not stability-gated
+    mints NOTHING (the UNPROVEN receipt says why). The candidate floor
+    is the gate's own number - the worth band is the worth channel's,
+    not the gate's. A re-mint of the same source+week+value is
+    idempotent: one candidate, ever. Flag off -> None: inert."""
+    if not worth_ladder_enabled():
+        return None
+    _src = str(source or "gate_weekly")
+    _ch = str(channel or "pool_min")
+    _wk = str(week_key or "unknown").replace(" ", "_").replace(":", "")
+    _v = (rec or {}).get("recommendation") if isinstance(rec, dict) else None
+    if isinstance(_v, bool) or not isinstance(_v, (int, float)):
+        return {"source": _src, "week_key": _wk, "channel": _ch,
+                "verdict": "UNPROVEN",
+                "reason": "the sweep carries no recommendation - "
+                          "nothing minted"}
+    if _ch == "pool_min" and not 0.0 < float(_v) <= 1.0:
+        return {"source": _src, "week_key": _wk, "channel": _ch,
+                "verdict": "UNPROVEN",
+                "reason": "the recommendation is out of the gate's own "
+                          "range - nothing minted"}
+    if _ch == "fbw_weeks" and not 1 <= int(_v) <= 12:
+        return {"source": _src, "week_key": _wk, "channel": _ch,
+                "verdict": "UNPROVEN",
+                "reason": "the weeks recommendation is out of range - "
+                          "nothing minted"}
+    if (rec or {}).get("stable") is not True:
+        return {"source": _src, "week_key": _wk, "channel": _ch,
+                "verdict": "UNPROVEN",
+                "reason": "the scorer's stability gate did not clear - "
+                          "nothing minted"}
+    _rid = "{}_{}_{}".format(_src, _wk, "{:.6g}".format(float(_v)))
+    _cell_sum, _cell_name = armed_cell_checksum()
+    _mine = [r for r in _ledger_rows(kind="candidate")
+             if r.get("rotation_id") == _rid]
+    if _mine:
+        _r0 = _mine[-1]
+        return {"rotation_id": _rid, "source": _src, "week_key": _wk,
+                "channel": _ch, "verdict": "PROVEN",
+                "candidate_floor": _r0.get("candidate_floor", float(_v)),
+                "armed_cell_checksum": _r0.get("armed_cell_checksum",
+                                               _cell_sum),
+                "evidence_checksum": _r0.get("evidence_checksum", ""),
+                "evidence_file": _r0.get("file", ""),
+                "already_minted": True}
+    _cand = round(float(_v), 6)
+    _res = _evidence_write("evidence", {
+        "rotation_id": _rid, "source": _src, "week_key": _wk,
+        "channel": _ch, "recommendation": _v,
+        "n_priced": (rec or {}).get("n_priced"), "stable": True,
+        "mode": (rec or {}).get("mode"),
+        "proposal": (rec or {}).get("proposal"),
+        "verdict": "PROVEN", "current_floor": current_floor_frac(),
+        "candidate_floor": _cand,
+        "learning_inputs": {"scorer": "tidebar_weekly", "gate": _ch},
+        "armed_cell": _cell_name, "armed_cell_checksum": _cell_sum},
+        ledger_kind="candidate",
+        extra={"rotation_id": _rid, "source": _src, "channel": _ch,
+               "verdict": "PROVEN", "candidate_floor": _cand,
+               "armed_cell_checksum": _cell_sum})
+    return {"rotation_id": _rid, "source": _src, "week_key": _wk,
+            "channel": _ch, "verdict": "PROVEN", "candidate_floor": _cand,
+            "armed_cell_checksum": _cell_sum,
+            "evidence_checksum": _res["evidence_checksum"],
+            "evidence_file": _res["file"]}
+
+
+
 def _exit_watch_sim(watch_rows, candidate_floor, daily_pace) -> dict:
     """THE EXIT-WATCH PREFLIGHT SIM (hard rule 4): the book's capacity
     against the candidate floor. A watch row is servable when its
@@ -261,12 +338,18 @@ def _apply_console_floor(applied_floor) -> None:
 
 
 def qc_decide(pay, operator, decision, reason="", watch_rows=None,
-              daily_pace=None) -> dict:
+              daily_pace=None, channel_apply=None) -> dict:
     """THE QC SEAM (hard rule 3): the operator decides ONCE, on the same
     candidate number the ladder minted. A decided rotation can never
     re-decide (the ledger's immutability); a rejection writes its row
     and applies nothing; a confirmation runs the exit-watch preflight
     and only a servable book applies - and an UNPROVEN payload is
+    THE GATE CHANNELS (user ask, Oct 6): a payload carrying a channel
+    ("pool_min" or "fbw_weeks") rides the SAME confirm + exit-watch
+    path; its apply dispatches by channel - pool_min through the
+    registered channel applier (the guarded confirm-to-apply),
+    fbw_weeks as the LEDGERED hand-apply instruction - and a gate
+    apply NEVER touches the console worth floor.
     refused outright, because nothing unproven ever moves the floor."""
     if not isinstance(pay, dict) or pay.get("verdict") != "PROVEN":
         raise ValueError("qc_decide requires a PROVEN payload")
@@ -275,6 +358,7 @@ def qc_decide(pay, operator, decision, reason="", watch_rows=None,
         raise ValueError("rotation already decided: " + _rid)
     _op = str(operator or "unknown")
     _sum = str(pay.get("evidence_checksum", ""))
+    _ch = str(pay.get("channel") or "worth_floor")
     if str(decision) != "confirmed":
         _res = _evidence_write("qc_decision", {
             "rotation_id": _rid, "operator": _op, "decision": "rejected",
@@ -302,9 +386,16 @@ def qc_decide(pay, operator, decision, reason="", watch_rows=None,
         ledger_kind="qc_decision",
         extra={"rotation_id": _rid, "operator": _op,
                "decision": "confirmed"})
-    _sim = _exit_watch_sim(watch_rows, _candf, daily_pace)
+    _sim_floor = _candf
+    if _ch != "worth_floor":
+        # A gate apply leaves the worth floor in force - the preflight
+        # asks the SAME capacity question under the floor that governs
+        # the book after the apply (the live one).
+        _sim_floor = current_floor_frac()
+    _sim = _exit_watch_sim(watch_rows, _sim_floor, daily_pace)
     _pf = _evidence_write("preflight", {
-        "rotation_id": _rid, "candidate_floor": _candf,
+        "rotation_id": _rid, "channel": _ch, "candidate_floor": _candf,
+        "sim_floor": _sim_floor,
         "daily_pace": daily_pace, "sim": _sim,
         "watch_rows": list(watch_rows or [])},
         ledger_kind="exit_watch",
@@ -316,19 +407,81 @@ def qc_decide(pay, operator, decision, reason="", watch_rows=None,
                 "rotation_id": _rid, "operator": _op,
                 "preflight_file": _pf["file"],
                 "evidence_checksum": _pf["evidence_checksum"]}
-    _ap = _evidence_write("apply", {
-        "rotation_id": _rid, "operator": _op, "applied_floor": _candf,
-        "previous_floor": pay.get("current_floor"), "sim": _sim,
-        "daily_pace": daily_pace, "fills": _sim["servable"],
-        "fill_fraction": _sim["fill_probability"],
-        "realized_slippage": _sim["expected_slippage"]},
-        ledger_kind="apply",
-        extra={"rotation_id": _rid, "operator": _op, "applied_floor": _candf})
-    _apply_console_floor(_candf)
-    return {"applied": True, "decision": "confirmed", "exit_watch": "pass",
-            "applied_floor": _candf, "rotation_id": _rid, "operator": _op,
-            "preflight_file": _pf["file"], "apply_file": _ap["file"],
-            "evidence_checksum": _ap["evidence_checksum"]}
+    if _ch == "worth_floor":
+        _ap = _evidence_write("apply", {
+            "rotation_id": _rid, "operator": _op, "applied_floor": _candf,
+            "previous_floor": pay.get("current_floor"), "sim": _sim,
+            "daily_pace": daily_pace, "fills": _sim["servable"],
+            "fill_fraction": _sim["fill_probability"],
+            "realized_slippage": _sim["expected_slippage"]},
+            ledger_kind="apply",
+            extra={"rotation_id": _rid, "operator": _op, "applied_floor": _candf})
+        _apply_console_floor(_candf)
+        return {"applied": True, "decision": "confirmed", "exit_watch": "pass",
+                "applied_floor": _candf, "rotation_id": _rid, "operator": _op,
+                "preflight_file": _pf["file"], "apply_file": _ap["file"],
+                "evidence_checksum": _ap["evidence_checksum"]}
+    # THE GATE CHANNELS (user ask, Oct 6): the same evidence + exit-watch
+    # path, dispatched by the payload's channel - and a gate apply NEVER
+    # touches the console worth floor.
+    if _ch == "pool_min":
+        if not callable(channel_apply):
+            return {"applied": False, "decision": "confirmed",
+                    "exit_watch": "pass", "channel": _ch,
+                    "reason": "no apply channel registered for pool_min",
+                    "rotation_id": _rid, "operator": _op,
+                    "preflight_file": _pf["file"],
+                    "evidence_checksum": _pf["evidence_checksum"]}
+        try:
+            _ca = channel_apply()
+        except Exception as _exc:
+            _ca = {"applied": False,
+                   "reason": "the channel apply raised: " + str(_exc)}
+        _ap = _evidence_write("apply", {
+            "rotation_id": _rid, "operator": _op, "channel": _ch,
+            "applied_floor": _candf, "previous_floor": pay.get("current_floor"),
+            "sim": _sim, "daily_pace": daily_pace,
+            "channel_result": _ca},
+            ledger_kind="apply",
+            extra={"rotation_id": _rid, "operator": _op, "channel": _ch,
+                   "applied": bool((_ca or {}).get("applied"))})
+        if not (_ca or {}).get("applied"):
+            return {"applied": False, "decision": "confirmed",
+                    "exit_watch": "pass", "channel": _ch,
+                    "reason": str((_ca or {}).get("reason")
+                                  or "the channel apply refused"),
+                    "rotation_id": _rid, "operator": _op,
+                    "apply_file": _ap["file"],
+                    "evidence_checksum": _ap["evidence_checksum"]}
+        return {"applied": True, "decision": "confirmed",
+                "exit_watch": "pass", "channel": _ch,
+                "applied_floor": _candf, "rotation_id": _rid,
+                "operator": _op, "apply_file": _ap["file"],
+                "evidence_checksum": _ap["evidence_checksum"]}
+    if _ch == "fbw_weeks":
+        # THE ADVICE CHANNEL: FLIP_BACK_WEEKS is a shipped constant - the
+        # machinery never edits itself. The confirmed decision's apply is
+        # the LEDGERED hand-apply instruction: the evidence row records
+        # what her hand must change, nothing else moves.
+        _ap = _evidence_write("apply", {
+            "rotation_id": _rid, "operator": _op, "channel": _ch,
+            "applied_floor": _candf, "sim": _sim, "daily_pace": daily_pace,
+            "hand_apply": True,
+            "instruction": "set FLIP_BACK_WEEKS -> {} in code (her hand; "
+                           "the machinery never edits itself)".format(_candf)},
+            ledger_kind="apply",
+            extra={"rotation_id": _rid, "operator": _op, "channel": _ch,
+                   "applied_floor": _candf, "hand_apply": True})
+        return {"applied": True, "hand_apply": True, "channel": _ch,
+                "decision": "confirmed", "exit_watch": "pass",
+                "applied_floor": _candf, "rotation_id": _rid,
+                "operator": _op, "apply_file": _ap["file"],
+                "evidence_checksum": _ap["evidence_checksum"]}
+    return {"applied": False, "decision": "confirmed", "exit_watch": "pass",
+            "channel": _ch, "reason": "unknown apply channel: " + _ch,
+            "rotation_id": _rid, "operator": _op,
+            "preflight_file": _pf["file"],
+            "evidence_checksum": _pf["evidence_checksum"]}
 
 
 def reconciler_flip(rotation_id, realized_usd, total_left_usd,
@@ -395,6 +548,7 @@ def evidence_summary() -> dict:
     _gone = {str(_r.get("rotation_id")) for _r in _qc}
     _pend = [{"rotation_id": _r.get("rotation_id"),
               "candidate_floor": _r.get("candidate_floor"),
+              "channel": _r.get("channel") or "worth_floor",
               "verdict": _r.get("verdict"),
               "evidence_checksum": _r.get("evidence_checksum")}
              for _r in _ledger_rows(kind="candidate")

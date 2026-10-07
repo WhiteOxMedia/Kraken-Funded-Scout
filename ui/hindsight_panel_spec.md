@@ -23,17 +23,17 @@ proposed delta −0.08 (loosens the guard; time-boxed 3 rotations)
 
 | Gate | B_g | P_g | r_g | expected payoff | action |
 |---|---|---|---|---|---|
-| deep-veto | 8 | 4 | 50% | +2.0 | [inspect] |
-| tide-out | 4 | 2 | 50% | +1.0 | [inspect] |
+| deep-veto | 8 | 4 | 50% | +4.0 | [inspect] |
+| tide-out | 4 | 2 | 50% | +2.0 | [inspect] |
 | stale-move | 1 | 0 | 0% | +1.0 | [inspect] |
 | popup-floor | 0 | 0 | — | — | [inspect] |
 
 - Sorted payers-desc, rate tiebreak (the API's order — the UI never
   re-sorts; one brain).
-- `expected payoff = P_g × (1 − r_g)`: the duds this gate would have
+- `expected payoff = B_g × (1 − r_g)`: the duds this gate would have
   correctly caught at the proposed width — equivalently `B_g − P_g`,
-  the missed pays (per the example rows: deep-veto 8 − 4 = +2.0,
-  tide-out 4 − 2 = +1.0, stale-move 1 − 0 = +1.0 with r = 0%; a 0/0
+  the missed pays (per the example rows: deep-veto 8 − 4 = +4.0,
+  tide-out 4 − 2 = +2.0, stale-move 1 − 0 = +1.0 with r = 0%; a 0/0
   gate is unmeasurable and renders —, never a bare 0).
 - `[inspect]` scrolls to the candidate list pre-filtered to the gate.
 

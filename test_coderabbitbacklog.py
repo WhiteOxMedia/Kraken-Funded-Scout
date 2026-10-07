@@ -375,6 +375,20 @@ print("== 6. HERMETIC: the real repos never opened ==")
 check(6.1, "kraken_scout" not in out6 and "monero_project" not in out6,
       "no real repo name appears anywhere in the sandboxed runs")
 
+print("== 7. THE TOKEN NORM (the Oct 6 minors triage: a sentence period")
+print("   rode the regex's own charset and blinded the triage memory) ==")
+check(7.1, dcb._norm_file_token("background_scanner.py.") == "background_scanner.py",
+      "a sentence-ending period never rides the basename")
+check(7.2, dcb._norm_file_token("ops/fleet_sweep.py") == "fleet_sweep.py"
+      and dcb._norm_file_token("exit_extension.py-") == "exit_extension.py",
+      "path-shaped tokens basename; a trailing hyphen is punctuation")
+check(7.3, dcb._norm_file_token("test_canary.py-v2") == "test_canary.py-v2",
+      "a mid-name hyphen is part of the name, never stripped")
+check(7.4, "named |= {_norm_file_token(ln.split(" in
+      open((Path(__file__).resolve().parent / "diag_coderabbit_backlog.py"),
+           encoding="utf-8").read(),
+      "the triage memory normalizes every token it stores")
+
 import shutil
 shutil.rmtree(SANDBOX, ignore_errors=True)
 print(f"RESULT: {passed} passed, {failed} failed")

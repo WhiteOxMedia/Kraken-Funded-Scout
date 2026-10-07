@@ -22,6 +22,20 @@ sys.path.insert(0, str(BASE))
 
 import tidebar_weekly as tbw
 import scratch_space   # scratch policy: nothing volatile lands in the repo root
+import os
+import worth_ladder as wl   # the gate-floor mint's sinks (sandboxed below)
+# the ladder's sinks ride a tempdir (test_worthladder's own idiom): the
+# weekly grade now MINTS the sweeps' gate-floor recommendations as QC
+# candidates, and no test row may ever land where the machine banks.
+_sbx = Path(tempfile.mkdtemp())
+wl.EVIDENCE_DIR = _sbx / "evidence"
+wl.LEDGER_FILE = wl.EVIDENCE_DIR / "worth_ladder_ledger.jsonl"
+wl.CONSOLE_STATE = _sbx / "console_state.json"
+_cell = _sbx / "armed_cell.json"
+_cell.write_text('{"tier": 10000, "worth_floor_frac": 0.25}',
+                 encoding="utf-8")
+os.environ["WORTH_LADDER_ARMED_CELL"] = str(_cell)
+
 
 results = []
 def check(name, ok, detail=""):
@@ -294,6 +308,39 @@ finally:
     for _k, _v in _real_ob.items():
         setattr(tbw, _k, _v)
     _shl.rmtree(_ob_sbx, ignore_errors=True)
+
+# ── THE GATE-FLOOR HAND-OFF (user ask, Oct 6): the weekly grade mints
+# both sweeps' recommendations as worth-ladder QC candidates under the
+# SANDBOXED ladder sinks above — a gate floor moves only through the QC
+# evidence + exit-watch path now, and no test row ever lands where the
+# machine banks. ─────────────────────────────────────────────────────
+_mint_n0 = len(wl._ledger_rows(kind="candidate"))
+_mint = tbw.mint_gatefloor_candidates(
+    rp={"recommendation": 0.25, "n_priced": 7, "stable": True,
+        "mode": "walked",
+        "proposal": {"pool_min": 0.25, "n_priced": 7, "net": 412.5,
+                     "mode": "walked"}},
+    rf={"recommendation": 4, "n_priced": 5, "stable": True,
+        "mode": "walked", "proposal": {"weeks": 4, "net": 90.0}},
+    week_key="2026-W46")
+check("the mint hands BOTH sweeps' recommendations to the worth ladder "
+      "as QC candidates (pool_min + the fbw hand-apply)",
+      (_mint.get("pool_min") or {}).get("verdict") == "PROVEN"
+      and (_mint.get("pool_min") or {}).get("channel") == "pool_min"
+      and (_mint.get("fbw_weeks") or {}).get("verdict") == "PROVEN"
+      and (_mint.get("fbw_weeks") or {}).get("channel") == "fbw_weeks"
+      and len(wl._ledger_rows(kind="candidate")) == _mint_n0 + 2, _mint)
+check("an unstable sweep payload mints NOTHING through the hand-off",
+      ((tbw.mint_gatefloor_candidates(
+          rp={"recommendation": 0.25, "n_priced": 7, "stable": False},
+          rf={"recommendation": None, "stable": None},
+          week_key="2026-W47").get("pool_min") or {}).get("verdict")
+       == "UNPROVEN")
+      and len(wl._ledger_rows(kind="candidate")) == _mint_n0 + 2)
+check("the grade_ledger call site carries the hand-off (rp + rf in "
+      "scope, fail-soft)",
+      "mint_gatefloor_candidates(rp=rp" in
+      (BASE / "tidebar_weekly.py").read_text(encoding="utf-8"))
 
 # ── THE REGIME WATCH WARN (Sep 11): the scanner's side of the watch —
 # one WARN the first time a state slides toward a bench, quiet while it
@@ -3094,6 +3141,17 @@ finally:
         setattr(tbw, k, v)
     import shutil as _shutil_can
     _shutil_can.rmtree(_can_sbx, ignore_errors=True)
+
+# the leak audit's env arm: the gate-floor sandbox's armed-cell env is
+# restored before the drive exits (the audit reads the whole file; the
+# process's own env dies with it anyway)
+try:
+    pass
+finally:
+    try:
+        del os.environ["WORTH_LADDER_ARMED_CELL"]
+    except Exception:
+        pass
 
 fails = [r for r in results if not r[1]]
 (scratch_space.report_temp('_tidebarweekly_check.txt')).write_text(

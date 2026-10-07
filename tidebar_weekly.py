@@ -3994,6 +3994,53 @@ def apply_staged_pool_min() -> dict:
             "n_priced": rec.get("n_priced"), "net": rec.get("net")}
 
 
+def mint_gatefloor_candidates(rp=None, rf=None, week_key="") -> dict:
+    """THE WORTH-LADDER HAND-OFF (user ask, Oct 6): the weekly scorer's
+    gate-floor recommendations are minted as worth-ladder QC candidates
+    - the SAME evidence bundle, ledger and immutability a Proven
+    rotation rides - so a recommendation can only move its floor
+    through qc_decide's exit-watch path, never a direct file write.
+    The scorer's own stability gate (min_events+ priced re-arms,
+    positive net, positive 4-week and 8-week windows) is the mint's
+    PROVEN rule; anything else mints nothing. Pass the grade's own
+    sweep payloads (rp = the arc-3 pool sweep, rf = the fbw sweep); a
+    None payload is re-priced live. Fail-soft: the grade never dies
+    from the ladder. Returns {pool_min: payload|None,
+    fbw_weeks: payload|None}."""
+    try:
+        import worth_ladder as _wl
+    except Exception as exc:
+        return {"error": "worth ladder unavailable: " + str(exc)}
+    try:
+        if rp is None:
+            rp = recommend_pool_min()
+        if rf is None:
+            rf = recommend_fbw()
+    except Exception as exc:
+        return {"error": "live re-price failed: " + str(exc)}
+    if not week_key:
+        try:
+            _recs = _load_history()
+            week_key = str((_recs[-1] or {}).get("week") or "unknown")
+        except Exception:
+            week_key = "unknown"
+    out = {}
+    try:
+        out["pool_min"] = _wl.propose_from_recommendation(
+            rp, source="pool_min_weekly", channel="pool_min",
+            week_key=week_key)
+    except Exception as exc:
+        out["pool_min"] = {"verdict": "UNPROVEN", "error": str(exc)}
+    try:
+        out["fbw_weeks"] = _wl.propose_from_recommendation(
+            rf, source="fbw_weekly", channel="fbw_weeks",
+            week_key=week_key)
+    except Exception as exc:
+        out["fbw_weeks"] = {"verdict": "UNPROVEN", "error": str(exc)}
+    return out
+
+
+
 def grade_ledger() -> dict:
     """THE FLIP GRADE (Sep 11): the auto-flip judged on its OWN real
     ledger — the weekly history graded per state, the bench proximity,
@@ -4169,6 +4216,7 @@ def grade_ledger() -> dict:
         # THE ARC-3 LIVE SWEEP (Sep 13): the pool dial's default judged
         # on the real re-arms each monthly run — a recommendation that
         # turns the shipped 0.0 only on lived evidence, loudly
+            rp = None
         try:
             rp = recommend_pool_min(recs, evs)
             lines.extend(rp["lines"])
@@ -4198,6 +4246,7 @@ def grade_ledger() -> dict:
         except Exception as exc:
             logger.info("FLIP GRADE: fbw family sweep failed (%s)", exc)
             summary["fbwgate_family"] = {"error": str(exc)}
+            rf = None
         try:
             rf = recommend_fbw(recs, evs)
             lines.extend(rf["lines"])
@@ -4210,6 +4259,22 @@ def grade_ledger() -> dict:
                 "mode": rf.get("mode")}
         except Exception as exc:
             logger.info("FLIP GRADE: fbw live sweep failed (%s)", exc)
+        # THE WORTH-LADDER HAND-OFF (user ask, Oct 6): both sweeps'
+        # recommendations mint as worth-ladder QC candidates - the gate
+        # floors now move ONLY through qc_decide's evidence + exit-watch
+        # path. Fail-soft: the grade never dies from the ladder.
+        try:
+            _wl_mint = mint_gatefloor_candidates(rp=rp, rf=rf,
+                                                 week_key=(weeks_list[-1]
+                                                           if weeks_list
+                                                           else ""))
+            logger.info("FLIP GRADE: worth-ladder mint: pool_min=%s "
+                        "fbw=%s",
+                        (_wl_mint.get("pool_min") or {}).get("rotation_id"),
+                        (_wl_mint.get("fbw_weeks") or {}).get("rotation_id"))
+        except Exception as exc:
+            logger.info("FLIP GRADE: worth-ladder mint failed (%s)", exc)
+
         # THE LEARNED BARS' EVIDENCE (Sep 13): the per-state pool bars
         # the weekly learner derives from each state's own pooled-edge
         # distribution, embedded so the monthly grade states — in one

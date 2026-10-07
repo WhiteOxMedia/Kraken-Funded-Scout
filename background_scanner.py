@@ -4171,6 +4171,25 @@ GIVEBACK_MAX_TIERS = 2           # the ladder CEILS at the ask's one
 # keeps tightening for the rest of the day.
 
 
+def _giveback_ceiling(tide_state) -> int:
+    """THE REGIME-SCALED CEILING (user ask, Oct 6; the tier-ceiling
+    study's answer): the fixed 2 covered every RISING/FLAT day in the
+    book but bared the OUT days' later legs (Sep 26 $150 = 7.5 legs,
+    Oct 5 $99 = 5.0 legs — both OUT; no RISING day ever crossed the
+    second leg). OUT earns ONE more tier — the erosion keeps running
+    while the fleet is underwater, and this code path already consults
+    the tide. RISING and FLAT keep the fixed GIVEBACK_MAX_TIERS; an
+    unreadable tide fails SOFT to the base — a broken read never
+    widens a tightening knob."""
+    try:
+        if str(tide_state or "").upper() == "OUT":
+            return GIVEBACK_MAX_TIERS + 1
+    except Exception as _gb_exc:
+        logger.debug("giveback ceiling read failed (%s) — the fixed "
+                     "base stands", _gb_exc)
+    return GIVEBACK_MAX_TIERS
+
+
 def _today_realized_pnl() -> float:
     """Today's banked journal total — the sum _all_good_lead already
     speaks. Fail-soft to 0.0. The journal resolves LIVE from
@@ -4232,6 +4251,14 @@ def _track_day_giveback(unrealized: float) -> dict:
         gb["now_total"] = round(_total, 2)
         gb["give_back"] = round(_peak - _total, 2)
         _gb_tighten_usd, _ = _ca_gb.giveback_thresholds()
+        # THE CEILING READS THE TIDE (the regime-scaled ceiling, Oct 6):
+        # one breadth read (cached, the popup floor's own source) picks
+        # the day's ceiling; a broken read degrades to the fixed base.
+        try:
+            _gb_tide = _fleet_tide()[1]
+        except Exception:
+            _gb_tide = None
+        _gb_ceiling = _giveback_ceiling(_gb_tide)
         # THE TIER LADDER (Oct 5, user ask: the 13:42 line showed the
         # day's second erosion leg with no knob once the first tighten
         # was spent): tier 1 arms at the trigger, the RE-ARM arms at
@@ -4245,7 +4272,7 @@ def _track_day_giveback(unrealized: float) -> dict:
                      else (1 if gb.get("tightened") else 0))
         _tier = _tightens + 1
         if (gb["give_back"] >= _gb_tighten_usd * _tier
-                and _tightens < GIVEBACK_MAX_TIERS):
+                and _tightens < _gb_ceiling):
             _before = _aa_gb.read_guard_factor()
             _rec = _aa_gb.apply_adjustment(
                 -(_before * GIVEBACK_TIGHTEN_FRAC),
@@ -4369,6 +4396,27 @@ def _all_good_lead() -> str:
     except Exception as exc:
         logger.debug("all-good net clause skipped: %s", exc)
     return lead
+
+
+def _stale_unrealized_leg(w: dict) -> float | None:
+    """THE STALE LEG (the Oct 6 triage - CodeRabbit 4342/4391's uncured
+    twin): a failed ticker used to `continue` BEFORE the unrealized sum,
+    so a dropped WINNER read as a drawdown the give-back guard then
+    tightened on (the ride-prices cure closed the suppressed-book half;
+    this closes the fetch-fail half). The leg prices from the row's LAST
+    STORED price (written on every successful fetch below) and is handed
+    to the give-back sum ONLY - the gates never run on it (the priced
+    path below stays the only gate authority). None = no stored truth
+    (a first-tick row never priced): the row stays unpriced, honestly."""
+    try:
+        entry = float(w.get("entry") or 0.0)
+        size = float(w.get("size") or 0.0)
+        px = float(w.get("last_px") or 0.0)
+        if entry <= 0 or size <= 0 or px <= 0:
+            return None
+        return (px / entry - 1.0) * size
+    except Exception:
+        return None
 
 
 def contest_light(exchange, cfg):
@@ -4496,7 +4544,17 @@ def contest_light(exchange, cfg):
         asset = pair.split("/")[0]
         try:
             live = float(exchange.fetch_ticker(pair)["last"])
+            w["last_px"] = live
         except Exception:
+            _leg = _stale_unrealized_leg(w)
+            if _leg is not None:
+                # THE STALE LEG (the Oct 6 triage): the failed fetch must
+                # not vanish the row's unrealized leg - a dropped WINNER
+                # is a drawdown the guard tightens on. Price it from the
+                # row's last truth, hand it to the give-back sum, and
+                # skip the gates (the priced path stays the only gate
+                # authority).
+                _unrealized_sum += _leg
             continue
         entry = float(w.get("entry") or 0)
         size = float(w.get("size") or 2500.0)
@@ -7607,6 +7665,23 @@ def main():
                         logger.info("   verdict-cost report: %s", _vp.name)
                 except Exception as _exc:
                     logger.debug("verdict-cost report failed: %s", _exc)
+                # ── THE GIVE-BACK TIER HINDSIGHT (user ask, Oct 6):
+                # every SPENT tier — applied, refused and queued (a
+                # refusal burns the tier) — graded against what the day
+                # did afterward: did the re-arm tighten at the right
+                # moment, or cut a recovery short? The post-window facts
+                # read the verdict study's candle-peak book; the newest
+                # section prepends. A failed write is a missing report,
+                # never a broken review.
+                try:
+                    import giveback_tier_hindsight as _gbh
+                    _gbp = _gbh.write_report()
+                    if _gbp:
+                        logger.info("   give-back tier hindsight: %s",
+                                    _gbp.name)
+                except Exception as _exc:
+                    logger.debug("give-back tier hindsight failed: %s",
+                                 _exc)
                 # THE ERA COMPARE (user, Sep 22): the re-base's week-one
                 # read runs ONCE on/after Sep 28 — date-gated so a restart
                 # during the day cannot miss it, state-marked so it never

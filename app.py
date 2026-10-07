@@ -2463,6 +2463,7 @@ def render_master(cfg: TradingConfig, kraken):
     # table?") — the closing rotation's grade, side-by-side with the
     # contest results, with the lesson learned and the one insight
     st.markdown(_discipline_plate(), unsafe_allow_html=True)
+    _worth_ladder_qc_controls()
     # THE FRESH STAMP (Sep 13): every MASTER plate carries a visible
     # clock — the discipline plate re-reads its state each rerun, so
     # the stamp is naturally fresh (consistency, not cache)
@@ -2578,12 +2579,14 @@ def render_master(cfg: TradingConfig, kraken):
     _plate_call("flip-grade")
     st.markdown(_flipgrade_verdict(), unsafe_allow_html=True)
     _plate_render("flip-grade")
-    # THE CONFIRM-TO-APPLY (Sep 13): the arc-3 sweep STAGES its
-    # evidence-backed POOL_MIN proposal (stability-gated on priced
-    # re-arms, net, and the rolling windows); the machinery never moves
-    # the gate on its own — THIS is her hand. Rendered outside the plate
-    # so the verdict stays pure; the state reader is widget-free, the
-    # apply rides the module's guarded apply_staged_pool_min().
+    # THE GATE-FLOOR QC HAND-OFF (user ask, Oct 6): the arc-3 sweep
+    # STAGES its evidence-backed POOL_MIN proposal (stability-gated on
+    # priced re-arms, net, and the rolling windows); the machinery never
+    # moves the gate on its own — and the direct Apply is retired: the
+    # button QUEUES the recommendation as a worth-ladder QC candidate,
+    # and only qc_decide's confirm + exit-watch preflight on the
+    # discipline plate can apply it (the module's guarded
+    # apply_staged_pool_min rides as the registered channel applier).
     import tidebar_weekly as _tbw
     _pg_apply = _poolgate_apply_state()
     if _pg_apply.get("stale"):
@@ -2597,21 +2600,27 @@ def render_master(cfg: TradingConfig, kraken):
             f"{_pg_apply['pool_min']:+.2f} · net "
             f"{_pg_apply['net']:+,.2f} across "
             f"{_pg_apply['n_priced']} priced real re-arms, positive "
-            f"across the 4-week and 8-week rolling windows. Confirming "
-            f"writes tide_bar_poolmin_default.json — the flip-back gate "
-            f"reads it on its next decision — and WARNS in the scanner "
-            f"log.")
-        if st.button("Apply POOL_MIN default", key="poolgate_apply_btn",
-                     type="primary"):
-            _ares = _tbw.apply_staged_pool_min()
-            if _ares.get("applied"):
+            f"across the 4-week and 8-week rolling windows. The gate "
+            f"moves ONLY through the worth ladder now: queue it as a "
+            f"QC candidate, then confirm it on the discipline plate — "
+            f"the exit-watch preflight guards the apply.")
+        if st.button("Queue POOL_MIN for worth-ladder QC",
+                     key="poolgate_apply_btn", type="primary"):
+            try:
+                _mres = _tbw.mint_gatefloor_candidates()
+                _mp = (_mres or {}).get("pool_min") or {}
+            except Exception as _mexc:
+                _mp = {"reason": str(_mexc)}
+            if _mp.get("verdict") == "PROVEN":
                 st.success(
-                    f"POOL_MIN default applied: "
-                    f"{_ares['pool_min']:+.2f} — the flip-back gate "
-                    f"demands a recovery worth that much before "
-                    f"re-arming.")
+                    f"Queued as QC candidate {_mp.get('rotation_id')} — "
+                    f"confirm or reject it on the discipline plate; the "
+                    f"exit-watch preflight guards the apply.")
             else:
-                st.error(f"Apply refused: {_ares.get('reason')}")
+                st.error(
+                    "Queue refused: {}".format(
+                        _mp.get("reason") or _mp.get("error")
+                        or "the worth ladder did not mint (disarmed?)"))
     _render_tidebar_history()
     # THE FLIP AUDIT TRAIL (Sep 11): every auto-flip / flip-back with
     # its evidence weeks, one click down — the regime story in full.
@@ -4030,6 +4039,116 @@ def _no_pick_advice() -> str:
         return "the funnel's rejection log is unreadable right now"
 
 
+def _worth_ladder_qc_controls() -> None:
+    """THE QC OPERATOR SURFACE (user ask, Oct 6): confirm/reject buttons
+    on the discipline plate, wired to worth_ladder.qc_decide — the
+    operator decides ONCE on the SAME candidate the ladder minted, and
+    the ARMED-CELL CHECKSUM renders ABOVE the confirm button so the
+    decision is always made against the visible provenance of the cell
+    that armed the ladder. Fail-soft everywhere: no pending candidates,
+    no ladder module, a broken read — none of it may break the plate;
+    the widget renders nothing and the evidence lines keep their say."""
+    try:
+        import worth_ladder as _wlq
+        import streamlit as _stq
+        _sum = _wlq.evidence_summary()
+        _pend = list(_sum.get("pending") or [])[:3]
+        if not _pend:
+            return
+        _cell_sum, _cell_name = _wlq.armed_cell_checksum()
+        _stq.markdown(
+            "<div class='dim' style='font-size:11px;padding:2px 4px;'>"
+            "⚖️ QC — the ladder holds a candidate. Decide once; the "
+            "armed cell is <code style='font-size:10px;'>{}</code> "
+            "({})</div>".format(_cell_sum[:34], _cell_name),
+            unsafe_allow_html=True)
+        _cand_rows = {str(_r.get("rotation_id")): _r
+                      for _r in _wlq._ledger_rows(kind="candidate")}
+        for _p in _pend:
+            _rid = str(_p.get("rotation_id"))
+            _key = _rid.replace("/", "_")
+            _row = _cand_rows.get(_rid) or {}
+            _pay = {"rotation_id": _rid,
+                    "verdict": str(_p.get("verdict") or "PROVEN"),
+                    "candidate_floor": _p.get("candidate_floor"),
+                    "current_floor": _sum.get("current_floor"),
+                    "channel": str(_row.get("channel") or "worth_floor"),
+                    "score": _row.get("score"),
+                    "evidence_checksum": str(_p.get("evidence_checksum")
+                                             or "")}
+            _chp = str(_p.get("channel") or "worth_floor")
+            _chtxt = ("worth floor" if _chp == "worth_floor"
+                      else "gate POOL_MIN" if _chp == "pool_min"
+                      else "gate FBW hand-apply")
+            _m0, _m1, _m2 = _stq.columns([3, 1, 1])
+            _m0.markdown(
+                "<div class='dim' style='font-size:11px;'>{} candidate "
+                "<b>{:.3f}</b> for {} · evidence <code style='font-size:"
+                "10px;'>{}</code></div>".format(
+                    _chtxt, float(_p.get("candidate_floor") or 0.0), _rid,
+                    _pay["evidence_checksum"][:19]),
+                unsafe_allow_html=True)
+            if _m1.button("✅ CONFIRM", key="wl_qc_confirm_" + _key,
+                          use_container_width=True):
+                try:
+                    import contest_account as _ca_q
+                    _pace = float(_ca_q.daily_pace_usd(_ca_q.load_state())
+                                  or 0.0)
+                except Exception:
+                    _pace = 0.0
+                try:
+                    _rows = list((_load_watch() or {}).values())
+                except Exception:
+                    _rows = []
+                _chan_ap = None
+                if str(_pay.get("channel")) == "pool_min":
+                    try:
+                        import tidebar_weekly as _tbwq
+                        _chan_ap = _tbwq.apply_staged_pool_min
+                    except Exception:
+                        _chan_ap = None
+                try:
+                    _res = _wlq.qc_decide(_pay, operator="plate",
+                                          decision="confirmed",
+                                          watch_rows=_rows,
+                                          daily_pace=_pace,
+                                          channel_apply=_chan_ap)
+                    _mid = (str(_res.get("applied_floor"))
+                            if _res.get("applied")
+                            else "REFUSED: " + str(_res.get("reason")))
+                    if _res.get("applied") and _res.get("hand_apply"):
+                        _mid += " (hand-apply recorded)"
+                    _stq.session_state["wl_qc_msg"] = (
+                        "confirmed {} -> {} ({})".format(
+                            _rid, _mid,
+                            _res.get("evidence_checksum", "")[:19]))
+                except Exception as _exc:
+                    _stq.session_state["wl_qc_msg"] = (
+                        "confirm failed: {}".format(_exc))
+                _stq.rerun()
+            if _m2.button("✕ REJECT", key="wl_qc_reject_" + _key,
+                          use_container_width=True):
+                try:
+                    _res = _wlq.qc_decide(_pay, operator="plate",
+                                          decision="rejected",
+                                          reason="operator rejected "
+                                                 "on the plate")
+                    _stq.session_state["wl_qc_msg"] = (
+                        "rejected {} ({})".format(
+                            _rid, _res.get("evidence_checksum", "")[:19]))
+                except Exception as _exc:
+                    _stq.session_state["wl_qc_msg"] = (
+                        "reject failed: {}".format(_exc))
+                _stq.rerun()
+        _msg = _stq.session_state.get("wl_qc_msg")
+        if _msg:
+            _stq.markdown("<div class='dim' style='font-size:11px;'>"
+                          "⚖️ {}</div>".format(_msg),
+                          unsafe_allow_html=True)
+    except Exception:
+        return
+
+
 def _worth_ladder_evidence_html(_wl) -> str:
     """THE WORTH LADDER's evidence lines for the discipline plate
     (user spec, Oct 5: show the evidence in the discipline score): the
@@ -4065,6 +4184,28 @@ def _worth_ladder_evidence_html(_wl) -> str:
     if _sum.get("watch_fails"):
         _bits.append("{} watch-fail(s) - no auto-retry".format(_sum["watch_fails"]))
     return "<br>" + "<br>&middot; ".join(_bits)
+
+
+def _gate_ladder_line() -> str:
+    """THE CROSS-CHANNEL LINE's live read (fail-soft): the give-back
+    tier ledger, the candle-peak book and the discipline history - every
+    read guarded; "" when nothing is spent or nothing is readable, so
+    the plate never breaks and never fakes a grade."""
+    try:
+        import giveback_tier_hindsight as _gbh_l
+        _tiers = _gbh_l.spent_tiers()
+        if not _tiers:
+            return ""
+        _hist = []
+        try:
+            import discipline as _disc_l
+            _hist = (_disc_l.load_state() or {}).get("history") or []
+        except Exception:
+            _hist = []
+        return _gbh_l.day_line(_tiers, _gbh_l._graded_book(),
+                               _gbh_l._lifts(), _hist)
+    except Exception:
+        return ""
 
 
 def _discipline_plate() -> str:
@@ -4122,6 +4263,14 @@ def _discipline_plate() -> str:
             _wl_html = _worth_ladder_evidence_html(_wl)
         except Exception:
             _wl_html = ""
+        # THE CROSS-CHANNEL LINE (user ask, Oct 6): the hindsight
+        # scorer's gate grade beside the ladder's money verdict, same
+        # day - the two channels' disagreement, visible on the plate.
+        try:
+            _gl_html = _gate_ladder_line()
+        except Exception:
+            _gl_html = ""
+
         html = f"""
 <div style='font-family:Audiowide,monospace;'>
   <div style='display:flex;align-items:center;gap:16px;padding:6px 2px;'>
@@ -4149,6 +4298,7 @@ def _discipline_plate() -> str:
   <div class='dim' style='font-size:12px;padding:2px 4px 6px;'>
     🧠 learned: {lesson}
     {_wl_html}
+    {_gl_html}
   </div>
 </div>"""
         return plate("🎓 DISCIPLINE — did I leave money on the table?", html)

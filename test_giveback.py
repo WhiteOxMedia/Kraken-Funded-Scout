@@ -428,6 +428,13 @@ try:
           and _gb6a.get("tighten", {}).get("tier") == 1
           and len(_calls6) == 1
           and _calls6[0][1] == f"giveback-{_today6}", _gb6a)
+    # the tide read is LIVE since the regime ceiling (Oct 6) - the 6b
+    # block pins the ceiling-2 world (FLAT/RISING), so the read is
+    # sandboxed here; the OUT extension (tier 3) is the regime pins' own
+    # contract further down
+    _real_tide_6b = bs._fleet_tide
+    bs._fleet_tide = lambda max_age_s=300: (52.0, "FLAT")
+
     # 6b. THE 13:42 SHAPE, WHOLE: tier 1 fires early; a leg between
     #     1x and 2x re-fires NOTHING (the gap the afternoon lived in);
     #     2x RE-ARMS the tighten under its own rotation_id; and past
@@ -457,6 +464,7 @@ try:
           "tier (the ladder stops where the ask stops it)",
           _gb6b4.get("tightens") == 2 and len(_calls6) == _n_t1 + 1,
           (_gb6b4, list(_calls6)))
+    bs._fleet_tide = _real_tide_6b
     check("6b the tier-1 identity is untouched (same rotation_id, no "
           "tier suffix on the first attempt)",
           _calls6[0][1] == f"giveback-{_today6}", _calls6[0])
@@ -562,10 +570,92 @@ try:
           "giveback-{_day}-tier" in bssrc_g
           and "GIVEBACK_MAX_TIERS" in bssrc_g
           and "GIVEBACK_TRAIL_FLOOR_FRAC = 0.90" in bssrc_g)
+    # ── THE REGIME-SCALED CEILING (user ask, Oct 6; RED-FIRST): the
+    # tier-ceiling study (scratch/_tier_ceiling_study.py) found every
+    # uncovered erosion day sat in OUT tide (Sep 26 $150 = 7.5 legs,
+    # Oct 5 $99 = 5.0 legs) and no RISING day ever crossed the second
+    # leg — OUT earns a third tier, RISING/FLAT keep the fixed 2, and
+    # an unreadable tide fails to the base ceiling.
+    _pg_r = __import__("profit_guard")
+    _aa_r = __import__("auto_adjust")
+    _ca_r = __import__("contest_account")
+    _tel_r = __import__("telemetry_adjust")
+    _real_state_r, _real_save_r = _pg_r._state, _pg_r._save
+    _real_apply_r = _aa_r.apply_adjustment
+    _real_thr_r = _ca_r.giveback_thresholds
+    _real_emit_r = _tel_r.emit_adjustment
+    _real_fleet_r = bs._fleet_tide
+    _real_ctf_r = bs.CONTEST_TRADES_FILE
+    _sink_r = {}
+    _calls_r = []
+    try:
+        _tmp_r = tempfile.mkdtemp()
+        _ctf_r = Path(_tmp_r) / "contest_trades.jsonl"
+        _ctf_r.write_text("", encoding="utf-8")
+        bs.CONTEST_TRADES_FILE = str(_ctf_r)
+        _pg_r._state = lambda: _sink_r
+        _pg_r._save = lambda patch: (_sink_r.update(patch))
+        _aa_r.apply_adjustment = (
+            lambda delta, rotation_id="", evidence_checksum="", auto=True:
+            (_calls_r.append(rotation_id),
+             {"status": "applied", "rotation_id": rotation_id})[1])
+        _ca_r.giveback_thresholds = lambda: (20.0, 10.0)
+        _tel_r.emit_adjustment = lambda *a, **k: None
+        check("RED the tier ceiling scales by tide: OUT arms a 3rd tier, "
+              "RISING/FLAT keep the fixed 2, unreadable tide fails to base",
+              bs._giveback_ceiling("OUT") == 3
+              and bs._giveback_ceiling("RISING") == 2
+              and bs._giveback_ceiling("FLAT") == 2
+              and bs._giveback_ceiling(None) == 2)
+        bs._fleet_tide = lambda max_age_s=300: (34.2, "OUT")
+        bs._track_day_giveback(0.0)
+        _sink_r["giveback"]["tightens"] = 2
+        _sink_r["giveback"]["peak_total"] = 100.0
+        bs._track_day_giveback(-70.0)
+        check("RED an OUT-tide third crossing ARMS the tier-3 attempt",
+              any("tier3" in str(c) for c in _calls_r))
+        _calls_r.clear()
+        bs._fleet_tide = lambda max_age_s=300: (52.0, "FLAT")
+        _tight_r = _sink_r["giveback"].get("tightens")
+        bs._track_day_giveback(-70.0)
+        check("the FLAT tide keeps the fixed ceiling: no third attempt, "
+              "the count holds",
+              not _calls_r
+              and _sink_r["giveback"].get("tightens") == _tight_r)
+    finally:
+        bs.CONTEST_TRADES_FILE = _real_ctf_r
+        bs._fleet_tide = _real_fleet_r
+        _pg_r._state, _pg_r._save = _real_state_r, _real_save_r
+        _aa_r.apply_adjustment = _real_apply_r
+        _ca_r.giveback_thresholds = _real_thr_r
+        _tel_r.emit_adjustment = _real_emit_r
+        shutil.rmtree(_tmp_r, ignore_errors=True)
+
 finally:
     _aa6.apply_adjustment = _real_apply6
     _ca6.giveback_thresholds = _real_thr6
     bs.CONTEST_TRADES_FILE = _real_ctf6   # the sink dies with the tempdir
+
+# - 7. THE STALE LEG (the Oct 6 CodeRabbit triage - 4342/4391's uncured
+#    twin: a failed ticker continued BEFORE the unrealized sum, so a
+#    dropped WINNER read as a drawdown the guard tightened on; the
+#    ride-prices cure closed the suppressed-book half, not this one) --
+sc7 = open(BASE / "background_scanner.py", encoding="utf-8").read()
+_leg_w = {"pair": "X/USD", "entry": 2.0, "size": 100.0, "last_px": 2.5}
+check("7a the stale leg prices from the row's last stored truth: (2.5/2.0-1)*100 = 25",
+      bs._stale_unrealized_leg(_leg_w) == 25.0,
+      "got " + str(bs._stale_unrealized_leg(_leg_w)))
+check("7b no stored truth is honest None (a first-tick row is unpriced, never fabricated)",
+      bs._stale_unrealized_leg({"pair": "X/USD", "entry": 2.0, "size": 100.0}) is None)
+check("7c unpriceable rows return None (entry/size/px guards)",
+      bs._stale_unrealized_leg({"entry": 0, "size": 100.0, "last_px": 2.5}) is None
+      and bs._stale_unrealized_leg({"entry": 2.0, "size": 0, "last_px": 2.5}) is None
+      and bs._stale_unrealized_leg({"entry": 2.0, "size": 100.0, "last_px": 0}) is None)
+check("7d garbage inputs fail soft to None",
+      bs._stale_unrealized_leg({"entry": "x", "size": {}, "last_px": None}) is None)
+check("7e the wiring: the priced path stores the row's last truth, the failed fetch prices the leg",
+      'w["last_px"] = live' in sc7 and "_unrealized_sum += _leg" in sc7
+      and sc7.count("_stale_unrealized_leg(w)") == 1)
 
 fails = [r for r in results if not r[1]]
 out = BASE / "giveback_check.txt"

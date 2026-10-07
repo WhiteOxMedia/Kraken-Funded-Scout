@@ -904,6 +904,15 @@ finally:
         del pg.STATE_FILE
     shutil.rmtree(_sbx, ignore_errors=True)
 
+# - 9. THE CONSTANT-TIME GATE (the Oct 6 minors triage): the operator
+#    token rode a plain == - a timing side-channel on the one secret
+#    that can loosen the guard. hmac.compare_digest, always.
+_sc_ct = open(BASE / "hindsight_api.py", encoding="utf-8").read()
+check("9.1 the token compare is constant-time (hmac.compare_digest)",
+      "import hmac" in _sc_ct and "compare_digest" in _sc_ct)
+check("9.2 no plain == token compare survives",
+      chr(39) + "str(operator_id or " + chr(34) + chr(34) + ") == token" + chr(39) not in _sc_ct)
+
 fails = [r for r in results if not r[1]]
 rep = BASE / "artifacts" / "hindsight_api" / "_hindsightapi_drive.txt"
 rep.parent.mkdir(parents=True, exist_ok=True)
