@@ -153,10 +153,18 @@ check("every release log line marks the provenance (desktop deep-veto, "
       and src.count('_mark_release(pair, "tide-out")') == 2,
       (src.count('_mark_release(pair, "deep-veto")'),
        src.count('_mark_release(pair, "tide-out")')))
+# (Oct 8) scoped to each site's OWN log line: the stale-move release
+# added a second "JOURNAL RELEASE (desktop)" EARLIER in the file, and a
+# first-occurrence find paired the deep-veto mark with the WRONG log —
+# the intent is mark-before-its-own-log, both sites
+_dv_mark = src.find('_mark_release(pair, "deep-veto")')
+_sm_mark = src.find('_mark_release(pair, "stale-move")')
 check("the desktop release mark sits inside the released branch "
       "(before the JOURNAL RELEASE log)",
-      src.find("_mark_release(pair, \"deep-veto\")")
-      < src.find("JOURNAL RELEASE (desktop)"))
+      _dv_mark != -1
+      and 0 < _dv_mark < src.find("JOURNAL RELEASE (desktop)", _dv_mark)
+      and _sm_mark != -1
+      and 0 < _sm_mark < src.find("JOURNAL RELEASE (desktop)", _sm_mark))
 check("each mark precedes its popup's snapshot write (mark -> fire order)",
       all(0 < src.find('_mark_release(pair, "%s")' % g) < i for g in
           ("deep-veto", "tide-out")
