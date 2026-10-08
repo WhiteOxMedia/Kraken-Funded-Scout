@@ -291,19 +291,19 @@ def rcl_apply(res: dict, gf: float | None, when: datetime | None = None) -> tupl
                  and _prev.get("rot") == _rot_key_of(when))
         if not _same:
             st = _state()
+            if st.get("rcl_last", {}).get("verdict") == "MAJOR DRIFT":
+                st["rcl_last"]["verdict_ts"] = time.time()   # the fresh
+                # dock fire stamps the FRESH verdict (a not-quite-
+                # simultaneous write and timestamp, the real-time-merge
+                # contract)
             _prev_pen = float(st.get("discipline_penalty_extra", 0.0))
             pen = _prev_pen + 1.0
-            # THE ADAPTIVE PENALTY CAP (user spec, Sep 23, clamp 2.5) -
-            # DELTA SEMANTICS (the Oct 6 audit): the dock is a per-
-            # violation weight, so the bounds clamp the DOCK (MaxPenalty
-            # = 2.00 x RotationMod x VolMod x FleetMod; MinPenalty = 0.50
-            # x TideMod x BookMod raises a +1.0 dock on a heavy book -
-            # yesterday's +1.36 was exactly that), never the accumulated
-            # extra. The old min(max(pen, lo), hi) clamped the TOTAL and
-            # could REDUCE a penalty a verdict raised (2.19 + 1.0 -> 2.0
-            # today). The ceiling still trims the dock's ambition, the
-            # committed 3.0 rail stands, and unreadable sources fail
-            # open to it.
+            # (the dock-note) the ALERT SURFACES THROUGH THIS SAME ROW:
+            # this is the only writer (with the silent-rotation dock for
+            # the other half of the threshold) that can push the penalty
+            # past 2.0 unless an SAL audit drift on its own (Tripwire A:
+            # the dose names its source, the alert judges by RML/RA,
+            # the incremental dry_run decorator rides BOTH sources)
             try:
                 import carve_out as _co_p
                 _plo, _phi = _co_p.penalty_bounds(when=when)
@@ -322,6 +322,12 @@ def rcl_apply(res: dict, gf: float | None, when: datetime | None = None) -> tupl
         st["rcl_last"] = {"verdict": verdict, "score": res.get("score"),
                           "ts": time.time(),
                           "rot": _rot_key_of(when)}
+        # RE-STAMP the fresh verdict epoch (Tripwire A, the "the reentry
+        # freshness was the ts, not the rotation key" catch): because
+        # rcl_apply is per-VERDICT not per-tick, the freshest surface
+        # is a verdict fire. The alert reads this surface.
+        if st["rcl_last"].get("verdict") != "MAJOR DRIFT":
+            st["rcl_last"]["verdict_ts"] = st["rcl_last"]["ts"]
         _save(st)
     elif verdict == "NORMAL":
         # reality re-aligned: lift the re-entry suppression — but only on
@@ -602,6 +608,39 @@ def discipline_penalty_extra() -> float:
     return float(_state().get("discipline_penalty_extra", 0.0))
 
 
+def silent_penalty_ambient(dry_run: bool = False,
+                           when: datetime | None = None,
+                           state: dict | None = None) -> dict:
+    """THE AMBIENT READER (Tripwire A, user ask Oct 8, red-first): the
+    alert seam reads the penalty WITHOUT writing state (dry_run=True:
+    the drive calls it with a tempdir state — the sensor is HONEST with
+    no side effects); production calls read the world once.
+    Returns _silent_ambient(seconds_latched, live_penalty, source).
+
+    Read-only callers (the canary, the ops watcher) pass nothing —
+    the live meta state answers, never written.
+    """
+    when = when or _now_mst()
+    st = state if state is not None else _state()
+    pen = float(st.get("discipline_penalty_extra", 0.0) or 0.0)
+    src_row = st.get("rcl_last") or {}
+    if _rot_key_of(when) != str(src_row.get("rot") or ""):
+        src_row = {}                     # the storage TTL expired
+    if (src_row.get("verdict") == "MAJOR DRIFT"
+            and float(src_row.get("verdict_ts") or 0) >=
+                float(st.get("silent_docks", {}).get("ts_epoch") or 0)):
+        # RE-STAMPED IN THE METADATA (the reentry spec): the reentry
+        # re-measure re-asks reality at DRIFT_TTL and, on a still-
+        # drifting reading, re-refreshes verdict_ts (the reentry stays
+        # fresh like it always was). Reads (the alert/canary) never.
+        return {"seconds_latched": (when.timestamp()
+                                      - float(src_row.get("verdict_ts") or 0)),
+                "live_penalty": pen, "source": "RML (MAJOR DRIFT)"}
+    return {"seconds_latched": 0.0, "live_penalty": pen,
+            "source": "RA (silent-rotation dock)"}
+
+
+
 def dock_silent_rotation(n_buried: int, when: datetime | None = None,
                          n_payers: int = 0,
                          rot_key: str | None = None) -> dict:
@@ -661,7 +700,8 @@ def dock_silent_rotation(n_buried: int, when: datetime | None = None,
         st["discipline_penalty_extra"] = round(pen, 2)
         st["silent_docks"] = {"rot": key, "buried": int(n_buried),
                               "payers": n_payers, "docked": dock,
-                              "ts": when.isoformat(timespec="seconds")}
+                              "ts": when.isoformat(timespec="seconds"),
+                              "ts_epoch": when.timestamp()}
         _save(st)
         return {"docked": dock, "penalty": pen, "rot": key,
                 "buried": int(n_buried), "payers": n_payers}
