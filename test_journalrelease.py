@@ -9,6 +9,17 @@ Three layers, all REAL code:
      SELL always vetoes; HOLD releases only when the journal has
      champion-grade hindsight AND the candidate sits within slack of
      the floor; the mover gate's condition truth-table from source.
+  6. The stale-move release (Oct 8): the wiggle trap was the STRANDED
+     gate — journal fuel rendered display-only by app.py's release-fuel
+     strip, no consumer. Both guard sites (re-entry + mover) read
+     journal_release_pts("stale-move") in the deep-veto shape.
+     THE MOVER'S GATE IS THE DESK-BLESSED DIRECTION (the commit-gate
+     reviewers' reachability finding, Oct 8): the mover desk gate only
+     admits buy reads to the wiggle check, so a HOLD-only release there
+     was dead code — the gate is now 'deep read in hand, SELL always
+     stands' (buy in practice, hold still releases if the desk gate
+     ever admits it); the desktop re-entry site keeps HOLD-only, which
+     is LIVE there via the deep-veto released-hold path.
 """
 import re
 import sys
@@ -314,6 +325,167 @@ check("sure-thing: the release marks provenance at the call site",
 check("sure-thing: the release log names the gate and the slack",
       "SURE THING %s: JOURNAL RELEASE" in ssrc
       and '"sure-thing-deep-veto")' in ssrc)
+
+# ── 6. the stale-move release, exec'd from source (Oct 8) ───────────────
+# The STRANDED gate: the journal has carried stale-move relief since the
+# release-fuel strip shipped, but no gate consumed it — app.py rendered
+# the pts display-only while both wiggle-trap sites hard-returned on the
+# APT lesson. Both sites now spend the fuel in the deep-veto shape:
+# HOLD-only deep gate (a SELL always stands; no deep read in hand
+# releases nothing — the release never buys a brain read), quick within
+# SEAM_RELEASE_SLACK of the floor, relief from THIS gate's own burials,
+# fail-closed on a broken journal. RED-FIRST: this section ran RED
+# against the unwired guard before the wiring landed.
+try:
+    smsrc = Path("background_scanner.py").read_text(encoding="utf-8")
+
+    # ── the re-entry site: the whole guard block, try: through except ──
+    _sm_anchor = smsrc.index("_st = _stale_move(exchange, pair)")
+    _sm_start = smsrc.rindex("try:", 0, _sm_anchor)
+    _sm_start = smsrc.rindex("\n", 0, _sm_start) + 1   # the line's own head:
+                            # rindex alone lands mid-line and the dedent
+                            # base would miss the leading indent
+    _sm_end = smsrc.index("pair, exc)", _sm_anchor) + len("pair, exc)")
+    _sm_block = smsrc[_sm_start:_sm_end]
+    _sm_ind = len(_sm_block) - len(_sm_block.lstrip(" "))
+    _sm_ded = "\n".join(ln[_sm_ind:] if ln.strip() else ln
+                        for ln in _sm_block.splitlines())
+
+    SMNS = {"logger": types.SimpleNamespace(
+                info=lambda *a, **k: SMNS["logs"].append(
+                    " ".join(str(x) for x in a)),
+                warning=lambda *a, **k: SMNS["logs"].append(
+                    "WARN " + " ".join(str(x) for x in a))),
+            "_log_suppression": lambda pair, gate, detail, **kw:
+                SMNS["supp"].append((pair, gate)),
+            "_mark_release": lambda pair, gate:
+                SMNS["marks"].append((pair, gate)),
+            "DESKTOP_ALERT_MIN": 92.0,
+            "_df_state": "FLAT", "_df_pct": 61.0, "_rot_now_key": "16-20",
+            "exchange": None, "pair": "X/USD", "asset": "X",
+            "logs": [], "supp": [], "marks": []}
+
+    exec(compile("def _sm(_stale_move, signal, _deep):\n"
+                 + "\n".join("    " + ln for ln in _sm_ded.splitlines()),
+                 "stalemove_block", "exec"), SMNS)
+
+    _SM_STALE = (5.0, 12.0)   # 4h high 5h ago, 12% below it
+    _mv = lambda ex, pr: _SM_STALE
+    _fresh = lambda ex, pr: None
+
+    dc.load_state = lambda: _state({"stale-move": {"n": 3, "usd": 45.0}})
+    SMNS["logs"].clear(); SMNS["supp"].clear(); SMNS["marks"].clear()
+    SMNS["_sm"](_mv, _Sig(), _Deep("hold", 70.0))
+    check("re-entry: stale + HOLD deep + champion journal + within slack → released",
+          any("JOURNAL RELEASE" in l for l in SMNS["logs"])
+          and not SMNS["supp"], SMNS["supp"])
+    check("re-entry: the release stamps stale-move provenance",
+          SMNS["marks"] == [("X/USD", "stale-move")], SMNS["marks"])
+
+    SMNS["logs"].clear(); SMNS["supp"].clear(); SMNS["marks"].clear()
+    SMNS["_sm"](_mv, _Sig(), _Deep("sell", 80.0))
+    check("re-entry: SELL deep read always stands — no release even with the journal",
+          len(SMNS["supp"]) == 1 and SMNS["supp"][0][1] == "stale-move"
+          and not SMNS["marks"]
+          and not any("JOURNAL RELEASE" in l for l in SMNS["logs"]))
+
+    SMNS["logs"].clear(); SMNS["supp"].clear(); SMNS["marks"].clear()
+    SMNS["_sm"](_mv, _Sig(), None)
+    check("re-entry: no deep read in hand → the trap stands (the release "
+          "never buys a brain read)",
+          len(SMNS["supp"]) == 1 and not SMNS["marks"])
+
+    SMNS["logs"].clear(); SMNS["supp"].clear(); SMNS["marks"].clear()
+    SMNS["_sm"](_mv, type("S", (), {"confidence": 86.0})(), _Deep("hold", 70.0))
+    check("re-entry: HOLD + journal but quick beyond slack → the trap stands",
+          len(SMNS["supp"]) == 1 and not SMNS["marks"])
+
+    SMNS["logs"].clear(); SMNS["supp"].clear(); SMNS["marks"].clear()
+    SMNS["_sm"](_fresh, _Sig(), _Deep("hold", 70.0))
+    check("re-entry: a fresh move (not stale) never touches the release",
+          not SMNS["supp"] and not SMNS["marks"]
+          and not any("JOURNAL RELEASE" in l for l in SMNS["logs"]))
+
+    dc.load_state = lambda: {"weights": {}, "burial_ledger": []}
+    SMNS["logs"].clear(); SMNS["supp"].clear(); SMNS["marks"].clear()
+    SMNS["_sm"](_mv, _Sig(), _Deep("hold", 70.0))
+    check("re-entry: silent journal → the trap stands (fail-closed)",
+          len(SMNS["supp"]) == 1 and not SMNS["marks"])
+
+    dc.load_state = _boom
+    SMNS["logs"].clear(); SMNS["supp"].clear(); SMNS["marks"].clear()
+    SMNS["_sm"](_mv, _Sig(), _Deep("hold", 70.0))
+    check("re-entry: broken journal → the trap stands (fail-closed)",
+          len(SMNS["supp"]) == 1 and not SMNS["marks"])
+    dc.load_state = _real_load
+
+    # ── the mover site: the release decision, exec'd from source ──
+    _mv_start = smsrc.index("_m_stale = _stale_move(exchange, pair)")
+    _mv_start = smsrc.rindex("\n", 0, _mv_start) + 1   # the line's own head
+    _mv_end = smsrc.index("if _m_stale and not _m_sm_rel:", _mv_start)
+    _mv_frag = smsrc[_mv_start:_mv_end]
+    _mv_ind = len(_mv_frag) - len(_mv_frag.lstrip(" "))
+    _mv_ded = "\n".join(ln[_mv_ind:] if ln.strip() else ln
+                        for ln in _mv_frag.splitlines())
+
+    MVNS = {"exchange": None, "pair": "X/USD", "asset": "X"}
+    exec(compile("def _mv_rel(_stale_move, signal, _deep_sig):\n"
+                 + "\n".join("    " + ln for ln in _mv_ded.splitlines())
+                 + "\n    return _m_sm_rel",
+                 "mover_stalemove_rel", "exec"), MVNS)
+
+    dc.load_state = lambda: _state({"stale-move": {"n": 3, "usd": 45.0}})
+    check("mover: stale + the desk gate's buy + journal → release",
+          MVNS["_mv_rel"](_mv, _Sig(), _Deep("buy", 70.0)) is True)
+    check("mover: SELL always stands — no release even with the journal",
+          MVNS["_mv_rel"](_mv, _Sig(), _Deep("sell", 80.0)) is False)
+    check("mover: a hold still releases on the desk-blessed gate (unreachable "
+          "past the desk gate today — the gate must not silently bury fuel "
+          "if the desk gate ever admits it)",
+          MVNS["_mv_rel"](_mv, _Sig(), _Deep("hold", 70.0)) is True)
+    check("mover: no deep read in hand → no release",
+          MVNS["_mv_rel"](_mv, _Sig(), None) is False)
+    dc.load_state = lambda: _state({"stale-move": {"n": 3, "usd": 45.0}})
+    check("mover: quick beyond the 89 rail + slack → no release",
+          MVNS["_mv_rel"](_mv, type("S", (), {"confidence": 83.0})(),
+                          _Deep("buy", 70.0)) is False)
+    check("mover: a fresh move never releases",
+          MVNS["_mv_rel"](_fresh, _Sig(), _Deep("buy", 70.0)) is False)
+    dc.load_state = lambda: {"weights": {}, "burial_ledger": []}
+    check("mover: silent journal → no release (fail-closed)",
+          MVNS["_mv_rel"](_mv, _Sig(), _Deep("buy", 70.0)) is False)
+    dc.load_state = _boom
+    check("mover: broken journal → no release (fail-closed)",
+          MVNS["_mv_rel"](_mv, _Sig(), _Deep("buy", 70.0)) is False)
+    dc.load_state = _real_load
+
+    # ── the wiring pins: both sites, the shape, the control flow ──
+    check("both sites read the stranded journal (stale-move fuel is spendable)",
+          smsrc.count('journal_release_pts("stale-move")') == 2)
+    check("both sites mark stale-move provenance on release",
+          smsrc.count('_mark_release(pair, "stale-move")') == 2)
+    check("re-entry: HOLD-only deep gate in the source",
+          '_deep is not None and _deep.action == "hold"' in _sm_block)
+    check("re-entry: fail-closed — the release flag resets on a broken journal",
+          _sm_block.count("_sm_rel = False") >= 2)
+    check("re-entry: the 5-pt slack vs the LIVE popup floor",
+          "SEAM_RELEASE_SLACK" in _sm_block
+          and "float(DESKTOP_ALERT_MIN)" in _sm_block)
+    check("re-entry: the released candidate skips the return — the popup proceeds",
+          "if _sm_rel:" in _sm_block
+          and sum(1 for ln in _sm_block.splitlines() if ln.strip() == "return") == 1)
+    check("mover: the suppression is conditional — a release falls into the popup else",
+          "_m_sm_rel = False" in _mv_frag
+          and smsrc.count("if _m_stale and not _m_sm_rel:") == 1)
+    _mv_supp_end = smsrc.index("rot=rot_key)", _mv_start)
+    _mv_else_head = smsrc[_mv_supp_end:smsrc.index("THE GOAL CLOCK", _mv_supp_end)]
+    check("mover: the release mark + log sit at the head of the popup else",
+          "else:" in _mv_else_head
+          and '_mark_release(pair, "stale-move")' in _mv_else_head
+          and "JOURNAL RELEASE (mover)" in _mv_else_head)
+except ValueError as _ve:
+    check("stale-move release: the wiring exists in background_scanner.py",
+          False, f"source anchor missing: {_ve}")
 
 print(f"RESULT: {PASS} passed, {FAIL} failed")
 sys.exit(1 if FAIL else 0)

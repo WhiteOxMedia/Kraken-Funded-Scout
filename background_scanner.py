@@ -6225,19 +6225,54 @@ def main():
         # chart data: 4h-high age + distance. One standard for all.
         if True:
             try:
+                _sm_rel = False
                 _st = _stale_move(exchange, pair)
                 if _st:
-                    logger.info("  STALE MOVE: %s — 4h high %.0fh ago, %.1f%% below it "
-                                "— popup skipped (the wiggle trap)",
-                                asset, _st[0], _st[1])
-                    _log_suppression(pair, "stale-move",
-                                     f"4h high {_st[0]:.0f}h ago, {_st[1]:.1f}% below it",
-                                     quick=float(signal.confidence),
-                                     brain=(float(_deep.confidence) if _deep is not None else None),
-                                     tide=(f"{_df_state} {_df_pct:.0f}%" if _df_pct is not None else _df_state),
-                                     rot=_rot_now_key)
-                    return
+                    # ── THE JOURNAL RELEASE (Oct 8): the STRANDED gate —
+                    # the journal has carried stale-move relief since the
+                    # release-fuel strip rendered it display-only (app.py)
+                    # while both wiggle-trap sites hard-returned on the APT
+                    # lesson. The fuel spends in the deep-veto shape:
+                    # HOLD-only deep gate (a SELL always stands; no deep
+                    # read in hand releases nothing — the release never
+                    # buys a brain read), quick within SEAM_RELEASE_SLACK
+                    # of the LIVE popup floor, fail-closed on a broken
+                    # journal.
+                    _sm_pts = 0.0
+                    if _deep is not None and _deep.action == "hold":
+                        try:
+                            import discipline as _dc_sm
+                            _sm_pts = _dc_sm.journal_release_pts("stale-move")
+                            if (_sm_pts > 0.0
+                                    and float(signal.confidence)
+                                    + _dc_sm.SEAM_RELEASE_SLACK
+                                    >= float(DESKTOP_ALERT_MIN)):
+                                _sm_rel = True
+                        except Exception:
+                            _sm_rel = False
+                    if _sm_rel:
+                        _mark_release(pair, "stale-move")
+                        logger.info(
+                            "  JOURNAL RELEASE (desktop): %s — 4h high %.0fh ago, "
+                            "%.1f%% below it — quick %.0f%% within %s pts of the floor "
+                            "%.0f%%; the journal shows stale-move burying champion-grade "
+                            "payers (relief %.1f pts) — released",
+                            asset, _st[0], _st[1], float(signal.confidence),
+                            _dc_sm.SEAM_RELEASE_SLACK, float(DESKTOP_ALERT_MIN),
+                            _sm_pts)
+                    else:
+                        logger.info("  STALE MOVE: %s — 4h high %.0fh ago, %.1f%% below it "
+                                    "— popup skipped (the wiggle trap)",
+                                    asset, _st[0], _st[1])
+                        _log_suppression(pair, "stale-move",
+                                         f"4h high {_st[0]:.0f}h ago, {_st[1]:.1f}% below it",
+                                         quick=float(signal.confidence),
+                                         brain=(float(_deep.confidence) if _deep is not None else None),
+                                         tide=(f"{_df_state} {_df_pct:.0f}%" if _df_pct is not None else _df_state),
+                                         rot=_rot_now_key)
+                        return
             except Exception as exc:
+                _sm_rel = False
                 # THE SAGGING-TOP RISK: a stale-move read that failed
                 # lets a possibly-dead re-entry through — the guard's
                 # absence must be visible against the APT lesson
@@ -8158,7 +8193,37 @@ def main():
                             # the runner already ran — so EVERY mover popup
                             # gets the wiggle check, not just re-entries.
                             _m_stale = _stale_move(exchange, pair)
+                            _m_sm_rel = False
                             if _m_stale:
+                                # ── THE JOURNAL RELEASE (Oct 8): the mover's
+                                # strand of the same wire — the journal's
+                                # stale-move fuel spends in the deep-veto
+                                # shape. THE GATE IS THE DESK-BLESSED
+                                # DIRECTION (the commit-gate reviewers'
+                                # reachability finding): the desk gate
+                                # upstream already demanded a buy read (the
+                                # JUP fail-closed lesson), so only blessed
+                                # directions reach this guard — the release
+                                # asks for a deep read in hand with a SELL
+                                # always standing (a hold releases too, so
+                                # the wire stays live if the desk gate ever
+                                # admits it), quick within
+                                # SEAM_RELEASE_SLACK of the 89.0 rail the
+                                # suppression itself logs, fail-closed.
+                                _m_sm_pts = 0.0
+                                if _deep_sig is not None \
+                                        and _deep_sig.action != "sell":
+                                    try:
+                                        import discipline as _dc_sm
+                                        _m_sm_pts = _dc_sm.journal_release_pts("stale-move")
+                                        if (_m_sm_pts > 0.0
+                                                and float(signal.confidence)
+                                                + _dc_sm.SEAM_RELEASE_SLACK
+                                                >= 89.0):
+                                            _m_sm_rel = True
+                                    except Exception:
+                                        _m_sm_rel = False
+                            if _m_stale and not _m_sm_rel:
                                 logger.info("  MOVER STALE MOVE: %s — 4h high %.0fh ago, "
                                             "%.1f%% below it — popup skipped (the wiggle trap)",
                                             asset, _m_stale[0], _m_stale[1])
@@ -8171,6 +8236,17 @@ def main():
                                                  floor=89.0,
                                                  tide=f"{_tsw} {_tpw or 0:.0f}%", rot=rot_key)
                             else:
+                                if _m_stale:
+                                    _mark_release(pair, "stale-move")
+                                    logger.info(
+                                        "  JOURNAL RELEASE (mover): %s — 4h high %.0fh ago, "
+                                        "%.1f%% below it — quick %.0f%% within %s pts of the "
+                                        "89.0 rail; the journal shows stale-move burying "
+                                        "champion-grade payers (relief %.1f pts) — released",
+                                        asset, _m_stale[0], _m_stale[1],
+                                        float(signal.confidence),
+                                        _dc_sm.SEAM_RELEASE_SLACK, _m_sm_pts)
+                                # THE GOAL CLOCK — same math as the champion popup
                                 # THE GOAL CLOCK — same math as the champion popup
                                 # (Sep 4: the asset's OWN week of daily candles;
                                 # the window bounded by the rotation boundary)
