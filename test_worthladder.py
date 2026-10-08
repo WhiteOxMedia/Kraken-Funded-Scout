@@ -27,6 +27,79 @@ _cell.write_text(json.dumps({"tier": 10000, "worth_floor_frac": 0.25}),
 os.environ["WORTH_LADDER_ARMED_CELL"] = str(_cell)
 os.environ["WORTH_LADDER_ENABLED"] = "1"
 
+# - 0b. THE SANDBOX-LEAK GUARD (user ask, Oct 8): from here to the tail,
+# EVERY write-capable open and every os.replace the drive (and the
+# ladder machinery it drives, including the discipline seams) performs
+# is recorded; the tail proves none of them touched a live-state path.
+# Passive by design — the audit never blocks a write, it JUDGES the
+# write log at the end, so the suite's own behavior is unchanged and a
+# leak cannot hide behind a swallowed exception.
+import io as _io
+import builtins as _builtins
+
+def _path_str(p):
+    # bytes and PathLike paths are recorded too (CodeRabbit major, amended);
+    # int fds carry no attributable path -> None (unrecordable, not hidden:
+    # the ladder machinery never writes through a bare fd)
+    if isinstance(p, bytes):
+        return os.fsdecode(p)
+    try:
+        v = os.fspath(p)
+        return os.fsdecode(v) if isinstance(v, bytes) else v
+    except TypeError:
+        return None
+
+_WRITTEN = []
+_REAL_OPEN = _builtins.open
+
+def _audit_open(file, mode="r", *a, **k):
+    try:
+        _p = _path_str(file)
+        if _p is not None and any(_c in (mode or "") for _c in "wax+"):
+            _WRITTEN.append(_p)
+    except Exception:
+        pass
+    return _REAL_OPEN(file, mode, *a, **k)
+
+_builtins.open = _audit_open
+_io.open = _audit_open          # Path.write_text/bytes resolve through here
+# os.open coverage (CodeRabbit major, amended): fd-level writes must be
+# recorded too. Int fds can't be attributed to a path, so they pass
+# through unrecorded — the ladder machinery uses path-based APIs only.
+_REAL_OSOPEN = os.open
+
+def _audit_osopen(file, flags, *a, **k):
+    try:
+        _w_flags = (os.O_WRONLY, os.O_RDWR, os.O_APPEND,
+                    os.O_CREAT, os.O_TRUNC)
+        if any(flags & f for f in _w_flags):
+            _p = _path_str(file)
+            if _p is None and not isinstance(file, int):
+                _p = f"<unattributable:{file!r}>"  # fail-closed: counts as a leak
+            if k.get("dir_fd") is not None and _p is not None:
+                # a dir_fd-relative path cannot be resolved against cwd -
+                # record a marker that fails containment (fail-closed)
+                _p = f"<dirfd-relative:{_p}>"
+            if _p is not None:
+                _WRITTEN.append(_p)
+    except Exception:
+        pass
+    return _REAL_OSOPEN(file, flags, *a, **k)
+
+os.open = _audit_osopen
+_REAL_REPLACE = os.replace
+
+def _audit_replace(src, dst, *a, **k):
+    try:
+        _p = _path_str(dst)
+        if _p is not None:
+            _WRITTEN.append(_p)
+    except Exception:
+        pass
+    return _REAL_REPLACE(src, dst, *a, **k)
+
+os.replace = _audit_replace
+
 # - 1. THE AGREEMENT PINS (hard rule 1+2)
 check("A realized $40, left $0 -> PROVEN", wl.compute_verdict(40.0, 0.0) == "PROVEN")
 check("A the unproven shapes: realized 0, loss, or a crumb over",
@@ -510,12 +583,54 @@ check("XCH the plate mounts the line beneath the ladder's evidence lines",
       and _app_g.find("{_gl_html}") > _app_g.find("{_wl_html}")
       and "def day_line" in _gbh14_src)
 
+# - 15. THE SANDBOX-LEAK VERDICT (the guard's tail, user ask, Oct 8):
+# the drive's write log is judged — every write must have landed in the
+# tempdir sandbox or the scratch policy's own report file (volatile by
+# policy, never machine state). ONE leak is a FAIL: a drive that writes
+# the repo's live files would corrupt the machine's real ladder state,
+# ledger and console dial from inside a 'test'.
+# CodeRabbit major, amended: containment is judged on RESOLVED paths,
+# not string prefixes — 'sbx\\..\\live.json' survives a startswith test
+# but collapses to a live-state path under resolution (CodeRabbit major,
+# cured in-commit), and a symlink INTO the sandbox escapes abspath but
+# not realpath (CodeRabbit major, cured in-commit: both roots and every
+# recorded path go through realpath). An unresolvable path is a leak
+# (fail-closed).
+_sbx_r = os.path.realpath(str(_sbx))
+_scratch_r = os.path.realpath(str(BASE / "scratch"))
+
+def _contained(w):
+    try:
+        if w.startswith("<"):  # unattributable/dirfd markers: fail-closed
+            return False
+        r = os.path.realpath(str(w))
+        return any(os.path.commonpath([r, root]) == root
+                   for root in (_sbx_r, _scratch_r))
+    except Exception:
+        return False
+
+_leaks = [w for w in _WRITTEN if not _contained(w)]
+check("SANDBOX-LEAK the drive wrote ZERO live-state paths (every write "
+      "landed in the tempdir sandbox or the scratch policy's report)",
+      not _leaks,
+      f"{len(_WRITTEN)} writes audited; leaks: {sorted(set(_leaks))[:5]}")
+check("SANDBOX-LEAK the audit is not vacuous (the drive really did "
+      "write through the guard, into the sandbox)",
+      len(_WRITTEN) > 0
+      and any(_contained(w) and os.path.commonpath(
+          [os.path.realpath(str(w)), _sbx_r]) == _sbx_r for w in _WRITTEN),
+      f"writes recorded: {len(_WRITTEN)}")
+
 # the leak audit's env arm: every env store above is restored before
 # the drive exits (the audit reads the whole file; one finally covers
 # all four stores, and the process's own env dies with it anyway)
 try:
     pass
 finally:
+    _builtins.open = _REAL_OPEN
+    _io.open = _REAL_OPEN
+    os.open = _REAL_OSOPEN
+    os.replace = _REAL_REPLACE
     try:
         del os.environ["WORTH_LADDER_ENABLED"]
         del os.environ["WORTH_LADDER_ARMED_CELL"]
