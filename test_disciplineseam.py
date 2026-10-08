@@ -649,7 +649,7 @@ with tempfile.TemporaryDirectory() as _td8:
               "0.5 crossed on a 1.0 penalty = 0.5 back — the gates "
               "widened and paid for the lesson's price)",
               f1.get("forgiven") == 0.5
-              and ml.discipline_penalty_extra() == 0.5, f1)
+              and st8["discipline_penalty_extra"] == 0.5, f1)
         # 8.2 fresh key, fresh day: the clamp still holds (a 3.0
         # relief still forgives only the ASK — 0.5, not the relief)
         st8 = ml._state()
@@ -662,7 +662,7 @@ with tempfile.TemporaryDirectory() as _td8:
               "forgives 0.5 — the lesson's price, not the gates' "
               "whole relief)",
               f2.get("forgiven") == 0.5
-              and ml.discipline_penalty_extra() == 0.0, f2)
+              and st8["discipline_penalty_extra"] == 0.0, f2)
         # 8.3 dud-heavy gates get NOTHING (the lesson healed only
         # when PAID): relief under the min_pts forgives zero
         st8 = ml._state()
@@ -673,7 +673,7 @@ with tempfile.TemporaryDirectory() as _td8:
         check("8.3 relief BELOW min_pts forgives NOTHING (the gate "
               "has not yet paid for the lesson — dud clawback holds)",
               f3.get("forgiven") == 0.0
-              and ml.discipline_penalty_extra() == 1.0, f3)
+              and st8["discipline_penalty_extra"] == 1.0, f3)
         # 8.4 the KEY is stamped and re-inkable: same key does not
         # re-forgive (the dedup side of the family), a DAY-later key does
         st8 = ml._state()
@@ -689,9 +689,9 @@ with tempfile.TemporaryDirectory() as _td8:
               "record (same key cannot re-forgive; silent_forgaved "
               "carries both for the audit)",
               f4.get("forgiven") == 0.5 and f4b.get("forgiven") == 0.0
-              and (ml._state().get("silent_forgaved") or {}).get("rot")
+              and (st8.get("silent_forgaved") or {}).get("rot")
               == "12-16"
-              and (ml._state().get("silent_forgaved") or {}).get("date")
+              and (st8.get("silent_forgaved") or {}).get("date")
               == "2026-10-08", (f4, f4b))
         # 8.5 the MANDATE (the ask crossed, the penalty gone): the
         # forgiveness is EXACTLY the ask, not a grain more (the bill
@@ -707,7 +707,7 @@ with tempfile.TemporaryDirectory() as _td8:
               "relief = 0.7 off the 2.0 penalty — the lesson's own "
               "price, the rest of the relief belongs to the gates)",
               f5.get("forgiven") == 0.7
-              and ml.discipline_penalty_extra() == 1.3, f5)
+              and st8["discipline_penalty_extra"] == 1.3, f5)
     finally:
         ml.STATE_FILE = _real_state8
 

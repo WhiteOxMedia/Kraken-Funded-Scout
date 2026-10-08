@@ -1316,7 +1316,7 @@ def _speak_result(result: dict, missed: list, missed_exit: list):
 
 
 def cooldown_review(exchange=None, when=None, speak=True, dry_run=False,
-                    watch_file=None) -> dict:
+                    watch_file=None, ml_state=None) -> dict:
     """THE COOLDOWN REVIEW (user spec, Sep 21) — "What did I learn today,
     and how do I increase the PnL when this setup appears again?"
 
@@ -1340,6 +1340,15 @@ def cooldown_review(exchange=None, when=None, speak=True, dry_run=False,
     rides the state's lessons log (the same one the console reads).
 
     dry_run: skip the state write and the voice — for tests.
+    ml_state: the CALLER'S meta_layers state for the forgiveness
+    channel — the SANDBOX RULE for the second plane (the drive-found
+    leak, Oct 8: the term's state= fallback was _state(), the LIVE
+    meta state file, so a sandboxed-discipline drive could still write
+    the real penalty world through the forgiveness). Production callers
+    pass nothing (the live file answers); sandboxed callers pass their
+    own world — the state their test already owns (a dict read + saved
+    in its own finally, or a dict the drive stubs). The dry-run gate
+    stays in front of the term regardless: a dry run never forgives.
     Fail-soft everywhere: a missing rotation result is a skipped fact,
     never an exception; the review speaks only what it can prove."""
     when = when or _now()
@@ -1517,6 +1526,8 @@ def cooldown_review(exchange=None, when=None, speak=True, dry_run=False,
                     continue
             _forgave = _mlf.forgive_on_paid_relief(
                 min_pts=0.5, total=_relief_seen, ml=_mlf,
+                state=ml_state,   # the CALLER's plane (the sandbox rule;
+                                  # None = the live meta state — production)
                 now=when, rot_key="DAY", date_key=_today)
             if _forgave.get("forgiven", 0.0) > 0:
                 lesson = (f"{lesson} The gates widened and paid for the "

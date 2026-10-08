@@ -748,10 +748,16 @@ def forgive_on_paid_relief(min_pts: float, total: float,
                                  "relief_seen": round(float(total), 2),
                                  "ts": when.isoformat(timespec="seconds")}
         if state is not None:
+            # THE CALLER'S PLANE (the Copilot high, cured): a sandboxed
+            # caller passed its own state dict - it OWNS the disk write
+            # (its file, its finally). This function mutates the dict
+            # in place and NEVER touches the live meta file through a
+            # state= call - the sandbox cannot leak through _save.
             state.update({"discipline_penalty_extra":
                           st["discipline_penalty_extra"],
                           "silent_forgaved": st["silent_forgaved"]})
-        _save(st)
+        else:
+            _save(st)   # production: the live file, merge-saved as usual
         return {"forgiven": round(_forgive, 3),
                 "penalty": st["discipline_penalty_extra"],
                 "relief_seen": round(float(total), 2),
