@@ -127,11 +127,43 @@ app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
 # build script's output dir); the routes expose ONLY the artifacts,
 # with nosniff + attachment disposition. The manifest is generated at
 # build time; /api/downloads/bundle-info reads it for the dashboard.
+#
+# THE ADMIN GATE (Oct 8): the anonymous surface is retired — the
+# server's own access log caught an external IP (5.102.169.29) pulling
+# the zip (and the zip carried the private ntfy topic for days before
+# the Phase-0 scrub, which is exactly what the gate makes unreachable).
+# The installer is a private artifact now: a caller must present an
+# ADMIN SESSION (the dashboard's session cookie, is_admin=1) or the
+# OPERATOR TOKEN (X-Operator-Token, the machine leg's own auth) —
+# the dashboard card rides the admin cookie, a headless re-install
+# rides the token. No caching layer can hold a copy for an anonymous
+# request either: no-cache was already pinned, and now the 401/403
+# precedes any bytes.
 _dist_dir = Path(__file__).parent.parent / "dist"
 
 
+def _bundle_reader_or_401(request: Request):
+    """Admin session or operator token — the bundle's two legitimate
+    readers. Nothing else: no public leg, no API-key path (the zip
+    carries private internals, so the bar is the operator's)."""
+    supplied = request.headers.get("X-Operator-Token", "")
+    if supplied:
+        stored = str(db.get_setting("PUSH_OPERATOR_TOKEN", "") or "")
+        if stored and secrets.compare_digest(supplied, stored):
+            return True
+    user = get_user_from_request(request)
+    if user and user.get("is_admin"):
+        return True
+    if not get_user_from_request(request):
+        raise HTTPException(status_code=401,
+                            detail="admin session or operator token required")
+    raise HTTPException(status_code=403,
+                        detail="admin access required")
+
+
 @app.get("/downloads/KrakenScoutBundle.zip")
-async def downloads_bundle():
+async def downloads_bundle(request: Request):
+    _bundle_reader_or_401(request)
     f = _dist_dir / "KrakenScoutBundle.zip"
     if not f.exists():
         raise HTTPException(status_code=404, detail="bundle not built")
@@ -145,7 +177,8 @@ async def downloads_bundle():
 
 
 @app.get("/downloads/KrakenScoutBundle.zip.sha256")
-async def downloads_bundle_sha256():
+async def downloads_bundle_sha256(request: Request):
+    _bundle_reader_or_401(request)
     f = _dist_dir / "KrakenScoutBundle.zip.sha256"
     if not f.exists():
         raise HTTPException(status_code=404, detail="checksum not published")
