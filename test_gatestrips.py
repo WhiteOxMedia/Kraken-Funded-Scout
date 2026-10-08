@@ -339,5 +339,161 @@ try:
 except Exception as exc:  # noqa: BLE001
     check("broken state: ease line degrades without raising", False, repr(exc))
 
+# ═══════════════════════════════════════════════════════════════════
+# 3. THE STRANDED TAG (Oct 8, user ask): fuel without a wire never
+#    looks spendable
+# ═══════════════════════════════════════════════════════════════════
+# THE LIE THIS KILLS: both strips rendered every gate's relief points as
+# if the funnel could spend them — stale-move carried 2.49 pts
+# display-only for weeks (the release-fuel strip shipped, the wire
+# didn't) and the page implied an ease that never came. The cure: the
+# strips tag any gate ABOVE 0 whose name is not in the wire set, and
+# the wire set is DERIVED from background_scanner's own _mark_release
+# call sites — single-sourced, so the tag self-updates as wires land or
+# retire and can never drift from the machinery it describes.
+check("slice: the stranded-tag helper exists in app.py",
+      "def _release_wired_gates(" in src)
+if "def _release_wired_gates(" in src:
+    # a PRIVATE namespace: the helper must keep reading the REAL app's
+    # __file__ (the scanner source beside it) even while NS["__file__"]
+    # is sandboxed to the fixture dir — otherwise the fixture's missing
+    # background_scanner.py fails the helper soft and the tag never
+    # renders in any scenario below
+    _wns = dict(NS)
+    _wns["__file__"] = str(APP)   # the sandbox from section 2 must not
+    # leak in: the helper reads the REAL scanner source beside the app
+    exec(_extract_fn("_release_wired_gates"), _wns)
+    NS["_release_wired_gates"] = _wns["_release_wired_gates"]
+    _relw = _wns["_release_wired_gates"]
+else:
+    _wns, _relw = None, None
+
+check("wired set derives from the scanner's own relief READS (the 5 wires "
+      "today)",
+      bool(_relw) and _relw() == {"deep-veto", "tide-out",
+                                  "sure-thing-deep-veto", "stale-move",
+                                  "brain-floor"},
+      sorted(_relw()) if _relw else "helper missing")
+
+# THE RETUNE HOLE (the commit-gate's Oct 8 finding, cured): _mark_release
+# names the gate whose PROVENANCE rides a fire, not the gate whose relief
+# was consumed — the retune valve marks 'tide-out-retune' and never reads
+# the journal, so a mark-derived set would call that fuel spendable. The
+# derivation rides the journal reads; the pin pins the hole shut.
+_bs_src = Path(__file__).parent.joinpath("background_scanner.py").read_text(
+    encoding="utf-8")
+import re as _re3
+_reads = _re3.findall(
+    r'(?:journal_release_pts|gate_relief)\(\s*"([^"]+)"\s*\)', _bs_src)
+check("tide-out-retune marks a fire but never reads the journal — it must "
+      "NOT be in the wired set",
+      _relw() is not None and "tide-out-retune" not in _relw(),
+      sorted(_relw()) if _relw else "helper missing")
+
+# the derivation's completeness guard: if a future relief read passes a
+# COMPUTED gate name, the regex silently misses it and the set lies —
+# so pin that every relief call opens with a quoted literal (docstring
+# prose uses empty parens or single quotes; neither matches this)
+_computed = _re3.findall(
+    r'(?:journal_release_pts|gate_relief)\(\s*[A-Za-z_]', _bs_src)
+check("every scanner relief read passes a literal gate name (a computed "
+      "arg would be invisible to the derivation)",
+      not _computed, _computed)
+
+# fail-soft: an unreadable scanner source → None = UNKNOWN, and unknown
+# must render NO tag (a wrong tag is the same lie in the other direction)
+if _wns is not None:
+    _real_wf = _wns["__file__"]
+    _wns["__file__"] = str(Path(_tf.mkdtemp()) / "nowhere.py")
+    check("wired set fails soft: unreadable scanner → None (no tag on unknown)",
+          _relw() is None)
+    _wns["__file__"] = _real_wf
+
+# THE SCENARIO: a stranded gate (downward-trend has no wire) carrying
+# relief beside two wired gates with the same fuel
+(_tmp / "popup_suppressions.jsonl").write_text(
+    "\n".join(_json.dumps({"ts": f"2026-10-08T1{i}:00:00-06:00",
+                           "pair": f"S{i}/USD", "gate": g,
+                           "detail": "d", "quick": 80.0})
+              for i, g in enumerate(["tide-out", "deep-veto",
+                                     "downward-trend"])),
+    encoding="utf-8")
+_rel = {"tide-out": 0.25, "deep-veto": 0.67, "downward-trend": 0.40}
+_disc.journal_release_pts = lambda gate, now=None: _rel.get(gate, 0.0)
+_disc.load_state = lambda: {"burial_ledger": [
+    {"gates": {"tide-out": {"n": 2}, "deep-veto": {"n": 1},
+               "downward-trend": {"n": 3}}, "duds": {}}]}
+NS["__file__"] = str(_tmp / "app.py")
+
+STUB.markdowns.clear()
+try:
+    _render_suppression_strip()
+except Exception as exc:  # noqa: BLE001
+    import traceback
+    traceback.print_exc()
+    check("strip ran clean with the wire set live", False, repr(exc))
+else:
+    check("strip ran clean with the wire set live", True)
+
+
+def _row_for_gate(html, gate):
+    return next((r for r in html.split("</div>") if f">{gate}<" in r
+                 or gate in r), "")
+
+
+_blk = next((m for m in STUB.markdowns if "RELEASE FUEL" in m), "")
+_dt_row = _row_for_gate(_blk, "downward-trend")
+_to_row = _row_for_gate(_blk, "tide-out")
+_dv_row = _row_for_gate(_blk, "deep-veto")
+check("relief block: the stranded gate is tagged",
+      bool(_dt_row) and "STRANDED" in _dt_row, _dt_row[:200])
+check("relief block: wired gates are never tagged",
+      bool(_to_row) and bool(_dv_row)
+      and "STRANDED" not in _to_row and "STRANDED" not in _dv_row)
+check("relief block: the tag names the lie (no wire consumes it)",
+      bool(_dt_row) and "no release wire" in _dt_row)
+check("relief block: the header explains the tag",
+      bool(_blk) and "STRANDED" in _blk.split("downward-trend")[0])
+
+_ez2 = next((m for m in STUB.markdowns if "asked to ease" in m), "")
+check("ease line: the stranded gate is tagged after its pts",
+      bool(_ez2)
+      and 0 <= _ez2.find("downward-trend 0.40 pts") < _ez2.find("STRANDED"),
+      _ez2[:160])
+check("ease line: wired gates sit clean before any tag",
+      bool(_ez2)
+      and "STRANDED" not in _ez2.split("downward-trend")[0], _ez2[:160])
+
+# zero-fuel gates are NOT stranded — no relief, no lie to correct
+_rel = {"tide-out": 0.25, "deep-veto": 0.67, "downward-trend": 0.0}
+STUB.markdowns.clear()
+_render_suppression_strip()
+_blk0 = next((m for m in STUB.markdowns if "RELEASE FUEL" in m), "")
+_dt0 = _row_for_gate(_blk0, "downward-trend")
+check("a 0.00 gate is closed, not stranded — no tag at zero fuel",
+      bool(_dt0) and "STRANDED" not in _dt0 and "0.00 pts" in _dt0,
+      _dt0[:160])
+
+# unknown wire set (helper fails): the strips still render, tagless —
+# fail-soft beats fail-wrong, and the drive pins the no-raise. (Only
+# runnable once the helper exists — pre-wire this scenario is the
+# helper-missing FAIL above.)
+if _wns is not None:
+    _rel = {"tide-out": 0.25, "deep-veto": 0.67, "downward-trend": 0.40}
+    STUB.markdowns.clear()
+    NS["_release_wired_gates"] = lambda: (_ for _ in ()).throw(
+        RuntimeError("broken helper"))
+    try:
+        _render_suppression_strip()
+        _blkU = next((m for m in STUB.markdowns if "RELEASE FUEL" in m), "")
+        check("broken helper: strips render tagless, never raise",
+              bool(_blkU)
+              and "STRANDED — no release wire" not in _blkU)
+    except Exception as exc:  # noqa: BLE001
+        check("broken helper: strips render tagless, never raise",
+              False, repr(exc))
+    finally:
+        NS["_release_wired_gates"] = _wns["_release_wired_gates"]
+
 print(f"\nRESULT: {PASS} passed, {FAIL} failed")
 sys.exit(1 if FAIL else 0)

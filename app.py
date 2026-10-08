@@ -3809,6 +3809,31 @@ def _load_archive_rows(limit: int = 14) -> list:
         return []
 
 
+def _release_wired_gates():
+    """The gates whose relief a LIVE release wire actually READS —
+    derived from background_scanner's own journal_release_pts("<gate>")
+    and gate_relief("<gate>") call-site literals, single-sourced from
+    the machinery itself: the set self-updates as wires land or retire
+    and can never drift from the code that consumes the fuel. (NOT the
+    _mark_release sites: a mark names the gate whose provenance rides a
+    fire — tide-out-retune marks without ever reading the journal, so a
+    mark-derived set would call its fuel spendable when it is not.)
+    Returns None when the scanner source is unreadable — UNKNOWN, and
+    unknown renders NO stranded tag (a wrong tag is the same lie in the
+    other direction). Never raises."""
+    try:
+        import re as _re_w
+        _src = (Path(__file__).parent / "background_scanner.py").read_text(
+            encoding="utf-8")
+        _sites = set(_re_w.findall(
+            r'(?:journal_release_pts|gate_relief)\(\s*"([^"]+)"\s*\)',
+            _src))
+        return _sites if _sites else None
+    except Exception as exc:
+        logger.debug("release wire set unavailable: %s", exc)
+        return None
+
+
 def _render_suppression_strip():
     """🚫 MONEY LEFT ON THE TABLE — the popups the funnel buried, newest
     first (popup_suppressions.jsonl, written by the scanner at every
@@ -3834,16 +3859,37 @@ def _render_suppression_strip():
             logger.debug("funnel-relief strip: discipline state unread: %s", exc)
         if _ez_gates:
             _ez = {g: float(_dc_ez.journal_release_pts(g)) for g in _ez_gates}
+            # THE STRANDED TAG (Oct 8, user ask): fuel without a wire is
+            # not spendable — a gate above 0 outside the release wire set
+            # (derived from the scanner's own _mark_release sites) is
+            # tagged STRANDED so the display never implies an ease the
+            # funnel cannot deliver (the stale-move lesson: 2.49 pts
+            # rendered for weeks with no consumer). Unknown wire set →
+            # no tag (fail-soft beats fail-wrong).
+            try:
+                _ez_wired = _release_wired_gates()
+            except Exception:
+                _ez_wired = None
             _live = [(g, p) for g, p in
                      sorted(_ez.items(), key=lambda kv: -kv[1]) if p > 0]
             if _live:
-                _txt = " · ".join(f"{g} {p:.2f} pts" for g, p in _live)
+                _txt = " · ".join(
+                    f"{g} {p:.2f} pts"
+                    + (" <span style='color:#ff6b5e;'"
+                       " title='this gate has journal relief but no release "
+                       "wire consumes it — the fuel is display-only'>"
+                       "⚠ STRANDED — no release wire</span>"
+                       if (_ez_wired is not None and g not in _ez_wired)
+                       else "")
+                    for g, p in _live)
                 st.markdown(
                     f"<div style='font-family:Share Tech Mono,monospace;"
                     f"font-size:12.5px;padding:2px 2px 6px;color:#ffc36b;'>"
                     f"⚑ the funnel is being asked to ease: {_txt}"
                     f"<span class='dim'> — above 0, the gate can release a "
-                    f"near-bar champion</span></div>", unsafe_allow_html=True)
+                    "near-bar champion" + ("; ⚠ STRANDED = relief with no "
+                    "release wire consumes it" if _ez_wired is not None
+                    else "") + "</span></div>", unsafe_allow_html=True)
             else:
                 st.markdown(
                     "<div class='dim' style='font-family:Share Tech Mono,"
@@ -3919,20 +3965,37 @@ def _render_suppression_strip():
                         logger.debug("release fuel: discipline state unread: %s", exc)
                     if _gates:
                         _pts = {g: _dc_rel.journal_release_pts(g) for g in _gates}
+                        # THE STRANDED TAG (Oct 8): same wire set as the
+                        # ease line — a gate above 0 with no release wire
+                        # is tagged, not silently displayed as spendable.
+                        try:
+                            _rel_wired = _release_wired_gates()
+                        except Exception:
+                            _rel_wired = None
                         _rel_rows = []
                         for _g in sorted(_gates, key=lambda g: -_pts[g]):
                             _c = "#4be38a" if _pts[_g] > 0 else "#8a8171"
+                            _stranded = (_rel_wired is not None
+                                         and _pts[_g] > 0
+                                         and _g not in _rel_wired)
                             _rel_rows.append(
                                 f"<div style='font-family:Share Tech Mono,monospace;"
                                 f"font-size:12.5px;color:#d8ccb4;padding:2px 0;'>"
                                 f"<span style='color:{_c};'>{_g}</span>"
-                                f"<span class='dim'> ......... </span>{_pts[_g]:.2f} pts</div>")
+                                f"<span class='dim'> ......... </span>{_pts[_g]:.2f} pts"
+                                + (" <span style='color:#ff6b5e;'"
+                                   " title='journal relief with no release wire "
+                                   "consuming it — display-only fuel'>⚠ STRANDED "
+                                   "— no release wire</span>" if _stranded
+                                  else "")
+                                + "</div>")
                         st.markdown(
                             "<div style='padding:8px 2px 0;font-family:Share Tech Mono,"
                             "monospace;font-size:12px;color:#8a8171;'>THE JOURNAL'S "
                             "RELEASE FUEL — live relief per gate (buried payers − duds, "
                             "capped 4, decaying over 8h). Above 0, the gate can release "
-                            "a near-bar champion; at 0.00 it is closed:</div>"
+                            "a near-bar champion; at 0.00 it is closed; ⚠ STRANDED = "
+                            "relief with no release wire consumes it:</div>"
                             + "".join(_rel_rows), unsafe_allow_html=True)
                 except Exception as exc:
                     logger.debug("release fuel points skipped: %s", exc)
