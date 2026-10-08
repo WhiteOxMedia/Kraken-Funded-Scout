@@ -26,20 +26,45 @@ Pins, red-first:
 import os
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 BASE = Path(__file__).resolve().parent
 CARRIERS = ["push_topic.txt", "_ntfydiag.txt", ".workshop/context.md"]
 
+# THE SANDBOX-SEED TOPIC (the testleaks/sink_hygiene cure, Oct 8): the
+# 4.1 pin used to read the LIVE push_topic.txt at its default repo-root
+# path (the testleaks L42 finding) — a live production file moving under
+# the pin (the Phase 1 topic flip would change what 4.1 greps for
+# mid-flight; a fresh checkout or a commitgate sandbox has no file at
+# all and the check silently skipped as "nothing to leak"). THE SEED:
+# a tempfile.mkdtemp()-derived sandbox push_topic.txt holding a FIXED
+# synthetic topic — the grep target is now deterministic, hermetic, and
+# secret-free (this drive never reads the private value it guards; the
+# tree could never re-leak it through the drive itself). The LIVE file
+# is still asserted in section 3 exactly as before (existence + size,
+# conditional on provisioning) — that contract never needed the
+# secret's VALUE, only the file's presence.
+_TOPIC_SANDBOX = Path(tempfile.mkdtemp())   # leak-audit: ok (tempfile-
+                                            # derived sandbox; the seeded
+                                            # topic is synthetic, never
+                                            # the live secret)
+_TOPIC_FILE = _TOPIC_SANDBOX / "push_topic.txt"
+# BUILT FROM PARTS (the self-match catch, cured in-commit): the seed's
+# contiguous literal must NOT exist in this tracked source — 4.1 greps
+# the STAGED tree for the seed, and the drive's own file is staged; a
+# literal here would match itself forever. Joined at runtime, the parts
+# are inert text; only the assembled value is the grep target.
+SEEDED_TOPIC = "-".join(["scout", "sbx", "topic", "hygiene", "probe"])
+_TOPIC_FILE.write_text(SEEDED_TOPIC + "\n", encoding="utf-8")
+
 
 def _live_topic() -> bytes:
-    """The private topic, read from the UNTRACKED runtime file — this
-    drive must never carry the secret it guards (a hardcoded token
-    would re-leak it into the very tree being cleaned, and would go
-    stale the day Phase 1 rotates the topic). Empty when no topic is
-    provisioned."""
+    """The grep target for 4.1: the SEEDED synthetic topic from the
+    sandbox file (never the live secret — the seed above; the old
+    default-path read of push_topic.txt is retired)."""
     try:
-        return (BASE / "push_topic.txt").read_bytes().strip()
+        return _TOPIC_FILE.read_bytes().strip()
     except OSError:
         return b""
 

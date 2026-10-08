@@ -190,11 +190,25 @@ finally:
 #    line's LIVE totals, copy and artifact): 3.3 now REQUIRES the
 #    evidence totals to actually differ; a vacuous world (no trades hit
 #    GF-sensitive stops) fails with its cause PRINTED, never green.
-try:
-    _pgs_factor = float(
-        json.loads((BASE / "profit_guard_state.json")
-                   .read_text(encoding="utf-8")).get("factor") or 1.0)
-except (OSError, json.JSONDecodeError):
+# THE SANDBOX MIRROR (the testleaks L195 cure, Oct 8 — the same
+# class the topic-hygiene drive caught): profit_guard_state.json is
+# a LIVE production file; the pre-fire anchor read at its default
+# repo-root path moved under the pin (self-adjust rewrites it while
+# the drive runs). The read goes through a SEEDED COPY in a tempfile
+# sandbox: profit_guard._read_state's pure-reader seam (5a3d717) never
+# touches the module default, and the anchor is byte-faithful — the
+# mirror is written from the live bytes when they exist, from the
+# artifact's own or-1.0 fallback when they don't (fresh checkout /
+# commitgate sandbox).
+import tempfile as _tf33
+import profit_guard as _pg33
+_pgs_path = BASE / "profit_guard_state.json"
+_pgs_factor = None
+if _pgs_path.exists():
+    _mirror33 = Path(_tf33.mkdtemp()) / "profit_guard_state.json"   # leak-audit: ok (tempfile-derived sandbox mirror; read-only over the live file)
+    _mirror33.write_bytes(_pgs_path.read_bytes())
+    _pgs_factor = float((_pg33._read_state(_mirror33).get("factor")) or 1.0)
+if _pgs_factor is None:
     _pgs_factor = 1.0   # the artifact's own default (or 1.0) - matched
 # anchors by construction, same source the walk freezes; the trip:
 _drift = round(_pgs_factor * 1.25, 4)   # a 25% GF shift: every width moves
