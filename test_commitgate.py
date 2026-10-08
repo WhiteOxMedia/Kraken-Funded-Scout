@@ -37,7 +37,15 @@ import time
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
-HOOK = HERE / "hooks" / "pre-commit"
+# THE INJECTABLE HOOK (the sandbox-leak cure, Oct 8): the mutation drill
+# runs this drive as a CHILD against a MUTATED HOOK COPY in a tempdir —
+# named here — never by writing the live hooks/pre-commit and restoring
+# it (the write-and-restore shape is the class' own sin: a crash between
+# write and restore leaves the machine's real gate broken by its own
+# test). Production callers set nothing; the census reads the real hook.
+HOOK = (Path(os.environ["GUARD_HOOK_PATH"])
+        if os.environ.get("GUARD_HOOK_PATH")
+        else HERE / "hooks" / "pre-commit")
 RERUN = os.environ.get("GUARD_RERUN") == "1"
 # THE FAST LANE (Oct 7, the 509% wall-growth cure): CG_FAST=1 skips the
 # behavioral sandbox (section 2 — 7 full hook runs ≈ 263s of the suite's
@@ -54,6 +62,84 @@ def check(n, cond, why=""):
     _RESULTS_LEDGER.append((n, bool(cond), why))
     mark = "PASS" if cond else "FAIL"
     print(f"{mark}  {n}" + (f"  ({why})" if why and not cond else ""))
+
+
+# ════════ 0b. THE SANDBOX-LEAK GUARD (the worthladder port, user ask
+# Oct 8): from here to the tail, EVERY write-capable open (builtins +
+# io + fd-level os.open) and every os.replace the drive performs is
+# recorded; the tail proves none of them touched a live-state path.
+# Passive by design — the audit never blocks a write, it JUDGES the
+# write log at the end, so the gate's behavior is unchanged and a leak
+# cannot hide behind a swallowed exception. THE COMMITGATE ROOTS: the
+# section-2 sandbox (full lane), the system tempdir (the hook's own
+# scratch exports + the copier tempdirs + the cr-worktrees), THIS
+# repo's scratch (the report artifact — volatile by policy), and the
+# CodeRabbit CLI's own review store (a third-party cache the real
+# hook runs write). NOTHING ELSE: a write into HERE's live files —
+# discipline_state, push_topic, logs, a battery file — is a leak.
+import io as _io
+import builtins as _builtins
+import tempfile as _tf_warm
+_tf_warm.gettempdir()   # warm the lazy tempdir BEFORE the shim (CPython's
+                        # first-use probe file is machinery, not a drive write)
+
+def _path_str(p):
+    # bytes and PathLike paths are recorded too; int fds carry no
+    # attributable path -> None (unrecordable, not hidden: the gate
+    # drive writes through path-based APIs only)
+    if isinstance(p, bytes):
+        return os.fsdecode(p)
+    try:
+        v = os.fspath(p)
+        return os.fsdecode(v) if isinstance(v, bytes) else v
+    except TypeError:
+        return None
+
+_WRITTEN = []
+_REAL_OPEN = _builtins.open
+
+def _audit_open(file, mode="r", *a, **k):
+    try:
+        _p = _path_str(file)
+        if _p is not None and any(_c in (mode or "") for _c in "wax+"):
+            _WRITTEN.append(_p)
+    except Exception:
+        pass
+    return _REAL_OPEN(file, mode, *a, **k)
+
+_builtins.open = _audit_open
+_io.open = _audit_open          # Path.write_text/bytes resolve through here
+_REAL_OSOPEN = os.open
+
+def _audit_osopen(file, flags, *a, **k):
+    try:
+        _w_flags = (os.O_WRONLY, os.O_RDWR, os.O_APPEND,
+                    os.O_CREAT, os.O_TRUNC)
+        if any(flags & f for f in _w_flags):
+            _p = _path_str(file)
+            if _p is None and not isinstance(file, int):
+                _p = f"<unattributable:{file!r}>"  # fail-closed: a leak
+            if k.get("dir_fd") is not None and _p is not None:
+                _p = f"<dirfd-relative:{_p}>"      # fail-closed: a leak
+            if _p is not None:
+                _WRITTEN.append(_p)
+    except Exception:
+        pass
+    return _REAL_OSOPEN(file, flags, *a, **k)
+
+os.open = _audit_osopen
+_REAL_REPLACE = os.replace
+
+def _audit_replace(src, dst, *a, **k):
+    try:
+        _p = _path_str(dst)
+        if _p is not None:
+            _WRITTEN.append(_p)
+    except Exception:
+        pass
+    return _REAL_REPLACE(src, dst, *a, **k)
+
+os.replace = _audit_replace
 
 
 # ════════ 1. source census: the real hook's flag wiring ════════
@@ -943,28 +1029,34 @@ if not RERUN and not FAST:
     shim_git.unlink(missing_ok=True)
     shutil.rmtree(shim, ignore_errors=True)
 
-# ════════ 3. the census bites: mutation drill on a scratch copy ════════
+# ════════ 3. the census bites: mutation drill on a tempdir COPY ════════
+# (the sandbox-leak cure, Oct 8: the first cut wrote the LIVE
+# hooks/pre-commit and byte-restored it in a finally — caught by this
+# drive's own write-audit on its maiden run. The mutant now lives in a
+# tempdir; the child reads it through the GUARD_HOOK_PATH seam above;
+# the live hook is never opened for writing by its own test.)
 if not RERUN:
     print("== 3. mutation drill: a quiet-guarded failure echo fails 1.31 ==")
     mutated = src.replace(
         'echo "  ⛔ GATE: $t FAILED',
         '[ "$GATE_QUIET" = "1" ] || echo "  ⛔ GATE: $t FAILED')
     check(3.0, mutated != src, "mutation did not apply — needle drifted")
-    try:
-        HOOK.write_text(mutated, encoding="utf-8")
-        r = subprocess.run(
-            [sys.executable, "-X", "utf8", str(Path(__file__))],
-            capture_output=True, text=True, encoding="utf-8",
-            errors="replace", timeout=120, cwd=str(HERE),
-            env={**os.environ, "GUARD_RERUN": "1"})
-        check(3.1, r.returncode == 1,
-              "the mutated drive must fail (a hidden red must be unthinkable)")
-        check(3.2, "1.31" in (r.stdout or ""),
-              "the failure must be the census check, not a crash")
-    finally:
-        # byte-exact restore, always — write_text would flip LF to CRLF
-        # on Windows and break the machine-local mirror's byte-identity
-        HOOK.write_bytes(src.encode("utf-8"))
+    _mutant = Path(tempfile.mkdtemp(prefix="census_mutant_")) / "pre-commit"
+    _mutant.write_text(mutated, encoding="utf-8")
+    r = subprocess.run(
+        [sys.executable, "-X", "utf8", str(Path(__file__))],
+        capture_output=True, text=True, encoding="utf-8",
+        errors="replace", timeout=120, cwd=str(HERE),
+        env={**os.environ, "GUARD_RERUN": "1",
+             "GUARD_HOOK_PATH": str(_mutant)})
+    check(3.1, r.returncode == 1,
+          "the mutated drive must fail (a hidden red must be unthinkable)")
+    check(3.2, "1.31" in (r.stdout or ""),
+          "the failure must be the census check, not a crash")
+    check(3.3, src == (HERE / "hooks" / "pre-commit").read_text(
+              encoding="utf-8"),
+          "the LIVE hook is byte-untouched by the drill (the mutant "
+          "lived and died in the tempdir)")
 
 # ════════ the FLEET-HONESTY AUDITOR (Sep 30, the mutation sweep's
 # fleet flaw): a drive that PRINTS a pass/fail summary must also EXIT
@@ -1183,6 +1275,50 @@ check("the doc-journal consistency probe: vacuous_triage.md's ledger "
       "the verdict record cannot drift from the record it describes",
       _doc_ok,
       f"doc_ok={_doc_ok} bad={_doc_bad}")
+
+# ════════ THE SANDBOX-LEAK VERDICT (the guard's tail, the worthladder
+# port): the drive's write log is judged — every write must have landed
+# in the section-2 sandbox (full lane), the system tempdir (the hook's
+# scratch exports, the copier tempdirs, the cr-worktrees), this repo's
+# scratch policy report, or the CodeRabbit CLI's own cache. ONE leak is
+# a FAIL: a gate test that writes the REAL repo's live files — the
+# state, the topic, the logs, the battery — corrupts the machine it
+# claims to guard. Containment is judged on RESOLVED paths (realpath,
+# not string prefixes — '..'-shaped and symlink escapes die here), and
+# an unresolvable path is a leak (fail-closed).
+_guard_roots = [os.path.realpath(str(HERE / "scratch")),
+                os.path.realpath(tempfile.gettempdir())]
+try:
+    _guard_roots.append(os.path.realpath(str(sandbox)))   # full lane
+except NameError:
+    pass                                                  # FAST lane
+for _ev in (os.environ.get("LOCALAPPDATA"), os.environ.get("USERPROFILE")):
+    if _ev:
+        for _sub in ("coderabbit", ".coderabbit"):
+            _cr = os.path.realpath(os.path.join(_ev, _sub))
+            if _cr not in _guard_roots:
+                _guard_roots.append(_cr)
+
+def _cg_contained(w):
+    try:
+        if w.startswith("<"):  # unattributable/dirfd markers: fail-closed
+            return False
+        r = os.path.realpath(str(w))
+        return any(os.path.commonpath([r, root]) == root
+                   for root in _guard_roots)
+    except Exception:
+        return False
+
+_cg_leaks = [w for w in _WRITTEN if not _cg_contained(w)]
+check("SANDBOX-LEAK the gate drive wrote ZERO live-state paths (every "
+      "write landed in the sandbox, a tempdir, the scratch report, or "
+      "the CodeRabbit cache)",
+      not _cg_leaks,
+      f"{len(_WRITTEN)} writes audited; leaks: {sorted(set(_cg_leaks))[:5]}")
+check("SANDBOX-LEAK the audit is not vacuous (the drive really did "
+      "write through the guard)",
+      len(_WRITTEN) > 0,
+      f"writes recorded: {len(_WRITTEN)}")
 
 # ════════ summary ════════
 passed, failed = results.count(True), results.count(False)

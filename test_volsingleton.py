@@ -53,6 +53,80 @@ def check(name, ok, why=""):
 # LIVE engine is never touched (rebind, like price_alert's LOCK_FILE).
 SBX = HERE / "scratch"
 SBX.mkdir(exist_ok=True)
+
+# ════════ 0b. THE SANDBOX-LEAK GUARD (the worthladder port, user ask
+# Oct 8): every write-capable open (builtins + io + fd-level os.open)
+# and every os.replace the DRIVE performs is recorded; the tail proves
+# none of them touched a live-state path. FOR THIS DRIVE THE GUARD IS
+# THE POINT: the whole suite exists so the singleton machinery never
+# writes the REAL .volatility.pid / .volatility.lock at the repo root —
+# a forgotten rebind (the exact regression class the rebinding exists
+# to prevent) would now fail the drive instead of silently docking the
+# live engine. Passive by design: the audit never blocks a write, it
+# JUDGES the log at the end. The holder SUBPROCESSES are outside this
+# process's audit (they carry their own sandboxed paths in their -c
+# source, asserted by the checks below); the drive-process writes —
+# claim/release, the pid templates, the sweep — are all audited here.
+import io as _io
+import builtins as _builtins
+import tempfile as _tf_warm
+_tf_warm.gettempdir()   # warm the lazy tempdir BEFORE the shim (CPython's
+                        # first-use probe file is machinery, not a drive write)
+
+def _path_str(p):
+    if isinstance(p, bytes):
+        return os.fsdecode(p)
+    try:
+        v = os.fspath(p)
+        return os.fsdecode(v) if isinstance(v, bytes) else v
+    except TypeError:
+        return None
+
+_WRITTEN = []
+_REAL_OPEN = _builtins.open
+
+def _audit_open(file, mode="r", *a, **k):
+    try:
+        _p = _path_str(file)
+        if _p is not None and any(_c in (mode or "") for _c in "wax+"):
+            _WRITTEN.append(_p)
+    except Exception:
+        pass
+    return _REAL_OPEN(file, mode, *a, **k)
+
+_builtins.open = _audit_open
+_io.open = _audit_open          # Path.write_text/bytes resolve through here
+_REAL_OSOPEN = os.open
+
+def _audit_osopen(file, flags, *a, **k):
+    try:
+        _w_flags = (os.O_WRONLY, os.O_RDWR, os.O_APPEND,
+                    os.O_CREAT, os.O_TRUNC)
+        if any(flags & f for f in _w_flags):
+            _p = _path_str(file)
+            if _p is None and not isinstance(file, int):
+                _p = f"<unattributable:{file!r}>"  # fail-closed: a leak
+            if k.get("dir_fd") is not None and _p is not None:
+                _p = f"<dirfd-relative:{_p}>"      # fail-closed: a leak
+            if _p is not None:
+                _WRITTEN.append(_p)
+    except Exception:
+        pass
+    return _REAL_OSOPEN(file, flags, *a, **k)
+
+os.open = _audit_osopen
+_REAL_REPLACE = os.replace
+
+def _audit_replace(src, dst, *a, **k):
+    try:
+        _p = _path_str(dst)
+        if _p is not None:
+            _WRITTEN.append(_p)
+    except Exception:
+        pass
+    return _REAL_REPLACE(src, dst, *a, **k)
+
+os.replace = _audit_replace
 REAL_LOCK = ve.VOL_PID_FILE
 ve.VOL_PID_FILE = str(SBX / "_vol_singleton.pid")
 ve.VOL_LOCK_FILE = str(SBX / "_vol_singleton.lock")
@@ -257,6 +331,41 @@ check("4.2 the old 'no own guard' comment is gone (the contract "
       "no own guard; the launcher verifies by command line"
       not in _ps,
       "the stale comment survives")
+
+# ════════ THE SANDBOX-LEAK VERDICT (the guard's tail, the worthladder
+# port): the drive's write log is judged — every write must have landed
+# in the scratch sandbox (SBX — this drive's lock world IS scratch, by
+# design) or the system tempdir. ONE leak is a FAIL — and for this
+# drive the named leak would be the suite's own nightmare: the REAL
+# .volatility.pid / .volatility.lock at the repo root, written by a
+# forgotten rebind. Containment is judged on RESOLVED paths (realpath,
+# not string prefixes), and an unresolvable path is a leak
+# (fail-closed).
+_sbx_r = os.path.realpath(str(SBX))
+_tmp_r = os.path.realpath(__import__("tempfile").gettempdir())
+
+def _contained(w):
+    try:
+        if w.startswith("<"):  # unattributable/dirfd markers: fail-closed
+            return False
+        r = os.path.realpath(str(w))
+        return any(os.path.commonpath([r, root]) == root
+                   for root in (_sbx_r, _tmp_r))
+    except Exception:
+        return False
+
+_leaks = [w for w in _WRITTEN if not _contained(w)]
+check("SANDBOX-LEAK the drive wrote ZERO live-state paths (every write "
+      "landed in the scratch sandbox or a tempdir — the REAL "
+      ".volatility.pid/.lock at the repo root was never touched)",
+      not _leaks,
+      f"{len(_WRITTEN)} writes audited; leaks: {sorted(set(_leaks))[:5]}")
+check("SANDBOX-LEAK the audit is not vacuous (the drive really did "
+      "write through the guard, into the sandbox)",
+      len(_WRITTEN) > 0
+      and any(_contained(w) and os.path.commonpath(
+          [os.path.realpath(str(w)), _sbx_r]) == _sbx_r for w in _WRITTEN),
+      f"writes recorded: {len(_WRITTEN)}")
 
 passed, failed = results.count(True), results.count(False)
 print(f"RESULT: {passed} passed, {failed} failed")
