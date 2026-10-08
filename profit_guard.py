@@ -607,8 +607,42 @@ def decay_mod(w: dict | None = None,
 
 
 # ── 8. the composite ─────────────────────────────────────────────────────
+_OV_CACHE = {"key": None, "val": None}
+
+
+def _operator_factor() -> float | None:
+    """The operator's single-variable calibration (user ask, Oct 7):
+    the state file's operator_factor, when present and numeric, IS the
+    guard factor (clamped to GUARD_CLAMP by the caller). The learned
+    parts keep computing and reporting underneath, the nightly
+    self_adjust keeps owning factor/history from the MACHINE's own
+    recompute (it reads with respect_override=False), and DELETING the
+    key returns control to the machine instantly. Cached on
+    (mtime, size): guard_factor runs per candidate on every scan."""
+    try:
+        sf = _state_file()
+        si = sf.stat()
+        key = (si.st_mtime, si.st_size)
+        if _OV_CACHE["key"] == key:
+            return _OV_CACHE["val"]
+        v = _state().get("operator_factor")
+        # fail-soft includes NON-FINITE and BOOLS: json.loads accepts a
+        # NaN/Inf literal (a nan would slip through the clamp), and a
+        # JSON false IS an int in Python (False -> 0.0 -> clamp 0.5 -
+        # the tightest guard, silently; Copilot, Oct 7). Only a finite
+        # non-bool number is an operator decision.
+        val = (float(v) if isinstance(v, (int, float))
+               and not isinstance(v, bool)
+               and math.isfinite(float(v)) else None)
+        _OV_CACHE.update(key=key, val=val)
+        return val
+    except Exception:
+        return None
+
+
 def guard_factor(pair: str, w: dict | None = None,
-                 when: datetime | None = None) -> dict:
+                 when: datetime | None = None,
+                 respect_override: bool = True) -> dict:
     """The full composite with every part named. The slow halves of the
     learning loop (EnvScore, DiscMod, MLT_Corr) read yesterday's stored
     context when the live read is unreadable — the loop's whole point is
@@ -657,6 +691,19 @@ def guard_factor(pair: str, w: dict | None = None,
         env_term = (float(env) / ENV_NEUTRAL) if env is not None else 1.0
         factor = env_term * _n(dm) * (1.0 + _n(mlt, 0.0)) * _n(vr) * _n(am) * _n(fm) * _n(dec)
         factor = round(max(GUARD_CLAMP[0], min(GUARD_CLAMP[1], factor)), 3)
+    # THE OPERATOR OVERRIDE (Oct 7, the neutral-point ask): an explicit
+    # operator_factor in the state file IS the factor — the one variable
+    # the operator owns. Clamped to GUARD_CLAMP, provenance-flagged in
+    # the result, named by explain(); the parts still compute and ride
+    # the result, and the nightly record reads with respect_override
+    # False so the learning never sees the override.
+    override = None
+    if respect_override:
+        _ovf = _operator_factor()
+        if _ovf is not None:
+            override = round(max(GUARD_CLAMP[0],
+                                 min(GUARD_CLAMP[1], _ovf)), 3)
+            factor = override
     # THE DECAY RAIL for the plate (clamp 2.4's UI): the effective floor
     # this cycle's decay enforced — the plate renders it, never recomputes
     # it (one-brain). Same min() semantics as decay_mod's rail.
@@ -665,7 +712,10 @@ def guard_factor(pair: str, w: dict | None = None,
         _rail_lo = min(DECAY_FLOOR, float(_co_r.decay_bounds(when=when)[0]))
     except Exception:
         _rail_lo = DECAY_FLOOR
-    return {"factor": factor, "readable": loop_readable or bool(carried),
+    return {"factor": factor,
+            "readable": loop_readable or bool(carried)
+            or override is not None,
+            "operator_override": override,
             "carried_from": carried[0] if carried else None,
             "env": env, "disc_mod": dm, "mlt_corr": mlt, "vol_mod":
             (round(max(VOL_MOD_CLAMP[0], min(VOL_MOD_CLAMP[1], vr)), 3)
@@ -874,7 +924,7 @@ def self_adjust(now: datetime | None = None) -> dict | None:
     st = _state()
     if st.get("adjusted_on") == today:
         return None
-    res = guard_factor("", None, when=now)
+    res = guard_factor("", None, when=now, respect_override=False)
     # (CodeRabbit minor) a CARRIED factor is not today's adjustment: if
     # the loop halves are unreadable the stored factor renews itself
     # every night, and the 2-day freshness check could never expire.
@@ -977,6 +1027,8 @@ def explain(res: dict, pair: str = "") -> str:
         bits.append(f"mlt {res['mlt_corr']:+.2f}")
     if res.get("decay_mod") is not None and res["decay_mod"] < 1.0:
         bits.append(f"decay {res['decay_mod']:.2f}")
+    if res.get("operator_override") is not None:
+        bits.append(f"OPERATOR OVERRIDE {res['operator_override']:.2f}")
     g = res["factor"]
     mood = ("let it run" if g > 1.2 else
             "tighten" if g < 0.9 else "normal trailing")
