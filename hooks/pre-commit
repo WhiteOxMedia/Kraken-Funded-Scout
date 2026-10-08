@@ -406,12 +406,16 @@ if git diff --cached --name-only | grep -qxE 'app\.py|background_scanner\.py|met
     maybe_run "$_HK"  test_hookparser.py  result   10   # the parser's key
                                                         # contract, against
                                                         # the staged hook
-    # budget 600 (Oct 3): the receipt drill added a full gate run — the
-    # suite measures ~370s in-gate; the old 180s budget blocked the very
-    # commit that carried the drill (the gate rejected its own cure).
+    # budget 240 (Oct 7, the 509% wall-growth cure): the in-commit drive
+    # runs the CG_FAST lane — source census + mutation drill only
+    # (measured ~30s); the behavioral sandbox (~300s, 7 full hook runs)
+    # moved to the battery lane (run_battery sets no CG_FAST). A full-
+    # sandbox run now blows this budget BY DESIGN: a loud timeout red
+    # forces the fix instead of silently paying ten minutes per commit.
     # ONE variable for BOTH call sites (_HK above, _HD below) — two
     # literals drifted within a single commit attempt.
-    _CG_BUDGET=600
+    _CG_BUDGET=240
+    export CG_FAST=1   # the gate's own drive: fast census lane (battery keeps the full sandbox)
     maybe_run "$_HK"  test_commitgate.py result  "$_CG_BUDGET"   # the gate's own guard:
                                                         # the quiet census +
                                                         # live sandbox drills

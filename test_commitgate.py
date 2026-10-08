@@ -19,6 +19,12 @@ mutation drill at the tail re-proves the census bites: the pass echo
 wrapped in a bare quiet guard must FAIL the drive — run under
 GUARD_RERUN=1 so the rerun grades only the census, fast.
 
+THE FAST LANE (Oct 7, the 509% wall-growth cure): the hook exports
+CG_FAST=1 for its in-commit drive — section 2 (the behavioral sandbox,
+~263s of seven full hook runs) is skipped there and runs in the BATTERY
+lane instead (run_battery sets no CG_FAST). The skip prints a banner,
+never silence, and the census + mutation drill still run in-commit.
+
 Exit 0 only when every check passed. Prints "RESULT: N passed, M failed".
 """
 import os
@@ -33,6 +39,12 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 HOOK = HERE / "hooks" / "pre-commit"
 RERUN = os.environ.get("GUARD_RERUN") == "1"
+# THE FAST LANE (Oct 7, the 509% wall-growth cure): CG_FAST=1 skips the
+# behavioral sandbox (section 2 — 7 full hook runs ≈ 263s of the suite's
+# ~298s) and keeps the source census + the mutation drill. The hook sets
+# it for its in-commit drive; the battery lane (run_battery, no CG_FAST)
+# owns the full sandbox drill.
+FAST = os.environ.get("CG_FAST") == "1"
 sys.path.insert(0, str(HERE))
 results = []
 _RESULTS_LEDGER = []   # (label, ok, why) — the report artifact reads it
@@ -410,7 +422,10 @@ _pin(1.18, _b18, "a permanently gone VOLATILE state file is skipped "
 _pin(1.19, _b19, "a missing CODE file raises — the sandbox never "
      "ships without the real code")
 
-if not RERUN:
+if FAST and not RERUN:
+    print("== 2. sandbox: SKIPPED (CG_FAST=1 — in-commit fast lane; "
+          "the behavioral drills run in the battery lane) ==")
+if not RERUN and not FAST:
     # ════════ 2. behavioral sandbox: the gate body, run for real ════════
     print("== 2. sandbox: the gate runs live in a scratch repo ==")
     _sbx = tempfile.TemporaryDirectory(prefix="commitgate_quiet_")

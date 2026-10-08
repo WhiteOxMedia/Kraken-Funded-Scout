@@ -184,7 +184,7 @@ try:
 
     _real_gf = pg.guard_factor
 
-    def _gf_fresh(pair, live, when=None):
+    def _gf_fresh(pair, live, when=None, respect_override=True):
         return {"readable": True, "factor": 2.0, "env": 3.0,
                 "disc_mod": 0.8, "mlt_corr": 1.0, "vol_mod": None,
                 "asset_mem": 1.0, "funding_mod": 1.0, "decay_mod": 1.0}
@@ -211,7 +211,7 @@ try:
               pg.self_adjust(now=_today) is None,
               json.loads(GSTATE.read_text(encoding="utf-8")))
 
-        def _gf_carried(pair, live, when=None):
+        def _gf_carried(pair, live, when=None, respect_override=True):
             return {"readable": True, "factor": 2.0, "carried_from": "old",
                     "env": None, "disc_mod": None, "mlt_corr": None}
 

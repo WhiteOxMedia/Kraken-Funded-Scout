@@ -94,6 +94,15 @@ PY = SCOUT / ".venv" / "Scripts" / "python.exe"
 if not PY.exists():
     PY = Path(sys.executable)
 
+# THE BATTERY IS THE FULL LANE (Oct 7, the commitgate wall-split): the
+# hook exports CG_FAST=1 for its in-commit commitgate drive — an env
+# inherited from a shell that just committed would silently fast-lane
+# the battery's commitgate entry and the sandbox drills would never
+# run anywhere. The battery always runs the full suite: the flag is
+# stripped before any drive spawns (the banner-less full run is the
+# receipt — the fast skip prints, its absence here is the proof).
+os.environ.pop("CG_FAST", None)
+
 # LIVE-CONTRACT ENTRIES (Sep 26): discovery-wrapper suites that execute
 # a sibling checkout's live drive through THAT repo's venv. Excluded
 # from --fast by name (fast stays hermetic-by-construction); run by the
