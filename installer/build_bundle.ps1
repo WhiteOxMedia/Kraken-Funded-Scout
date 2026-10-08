@@ -54,7 +54,7 @@ New-Item -ItemType Directory -Force -Path $Bundle, (Join-Path $Bundle "payload")
 # Git's MSYS tar here, which reads the colon in C:\... paths as a
 # remote host ("Cannot connect to C: resolve failed")
 $TAR = Join-Path $env:SystemRoot "System32\tar.exe"
-Write-Host "[1/5] scout: git archive HEAD ..."
+Write-Host "[1/6] scout: git archive HEAD ..."
 $TarF = Join-Path $Dist "_archive.tar"
 git -C $Scout archive --format=tar -o $TarF HEAD
 if ($LASTEXITCODE -ne 0) { throw "scout archive failed" }
@@ -67,7 +67,7 @@ New-Item -ItemType Directory -Force -Path $Stage | Out-Null   # the stage
 # moved away with scout - a fresh one for monero (the drive caught
 # the first draft untarring into a vanished directory)
 
-Write-Host "[2/5] monero: git archive HEAD ..."
+Write-Host "[2/6] monero: git archive HEAD ..."
 git -C $Root archive --format=tar -o $TarF HEAD
 if ($LASTEXITCODE -ne 0) { throw "monero archive failed" }
 & $TAR -xf $TarF -C $Stage
@@ -95,7 +95,7 @@ if (-not (Test-Path $DbDst)) {
 }
 
 # ── 2. the xmrig payload (untracked -> copy from the working tree) ────
-Write-Host "[3/5] xmrig payload ..."
+Write-Host "[3/6] xmrig payload ..."
 $xsrc = Join-Path $Root "xmrig\xmrig-6.26.0"
 if (Test-Path (Join-Path $xsrc "xmrig.exe")) {
     Copy-Item -Recurse -Force $xsrc (Join-Path $Bundle "payload\xmrig-6.26.0")
@@ -111,13 +111,13 @@ if (Test-Path (Join-Path $xsrc "xmrig.exe")) {
 # (the whole flow, ending on the checkbox UI), Uninstall is the
 # self-deleting opt-out-and-go (no registry, no scheduled tasks, no
 # Startup - deleting the folder IS the uninstall).
-Write-Host "[4/5] one-click wrappers + install.ps1 ..."   # (the README follows as [5/5])
+Write-Host "[4/6] one-click wrappers + install.ps1 ..."   # (the README follows as [5/6])
 foreach ($b in @("Install Kraken Scout.bat", "Uninstall Kraken Scout.bat")) {
     Copy-Item (Join-Path $PSScriptRoot $b) (Join-Path $Bundle $b) -Force
 }
 Copy-Item (Join-Path $PSScriptRoot "install.ps1") (Join-Path $Bundle "install.ps1") -Force
 # ── 5. the README ─────────────────────────────────────────────────────
-Write-Host "[5/5] the README ..."
+Write-Host "[5/6] the README ..."
 $Enc = New-Object System.Text.UTF8Encoding($false)
 $Readme = @"
 KRAKEN SCOUT BUNDLE (built from committed heads: scout $ScoutHead, monero $MoneroHead)
@@ -141,10 +141,30 @@ NOTES     The Miner Bot is OPTIONAL (the checkbox default is ON; uncheck
           it and nothing miner-related is configured or registered).
           Payouts require manual registration at xmrjackpot.com - the
           setup window shows the start-here note when it finishes.
+          PHONE PUSH  The scout's private ntfy topic is NOT shipped -
+          the operator provisions push_topic.txt in the scout folder
+          after install (rotation hygiene, Oct 7).
 "@
 [System.IO.File]::WriteAllText((Join-Path $Bundle "README.txt"), ($Readme + "`r`n"), $Enc)
 
 Remove-Item -Recurse -Force $Stage -ErrorAction SilentlyContinue
+
+# ── 6. THE TOPIC GUARD + THE PUBLIC ARTIFACT (Oct 7, Phase 0 of the
+# ntfy topic rotation) ────────────────────────────────────────────────
+# installer\finalize_bundle.py fail-closes the build on ANY private
+# ntfy-topic carrier (denylist filenames, .workshop/, the live topic
+# bytes read from the scout's untracked push_topic.txt - never a
+# hardcoded secret, so the guard follows every rotation), then writes
+# the SERVED artifact: KrakenScoutBundle.zip + .sha256 + .zip.json
+# manifest in one pass (the folder alone was never the leak - the
+# pool serves the zip unauthenticated, and it had drifted from the
+# folder since Sep 26).
+Write-Host "[6/6] topic guard + public artifact (installer\finalize_bundle.py) ..."
+$Py = Join-Path $Root ".venv\Scripts\python.exe"
+if (-not (Test-Path $Py)) { $Py = "python" }
+& $Py (Join-Path $PSScriptRoot "finalize_bundle.py") $Bundle $Dist $Scout $Root
+if ($LASTEXITCODE -ne 0) { throw "bundle finalize failed (topic guard hit, or the zip/manifest step)" }
+
 $ScoutFiles = (Get-ChildItem -Recurse -File (Join-Path $Bundle "payload\scout")).Count
 $MoneroFiles = (Get-ChildItem -Recurse -File (Join-Path $Bundle "payload\monero_project")).Count
 $SizeMB = [math]::Round(((Get-ChildItem -Recurse -File $Bundle | Measure-Object Length -Sum).Sum / 1MB), 1)
