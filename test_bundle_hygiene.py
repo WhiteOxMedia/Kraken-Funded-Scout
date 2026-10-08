@@ -33,6 +33,7 @@ zip on disk carried the topic in 3 entries):
 """
 import hashlib
 import json
+import os
 import sys
 import zipfile
 from pathlib import Path
@@ -45,6 +46,81 @@ SHA_FILE = HERE / "dist" / "KrakenScoutBundle.zip.sha256"
 DENY_NAMES = {"push_topic.txt", "_ntfydiag.txt"}
 
 results = []
+
+# ════════ 0b. THE SANDBOX-LEAK GUARD (the worthladder port, user ask
+# Oct 8): every write-capable open (builtins + io + fd-level os.open)
+# and every os.replace this drive performs is recorded; the tail proves
+# the drive wrote NOTHING outside a probe sandbox. FOR THIS DRIVE THE
+# CONTRACT IS ZERO WRITES: it is a pure READER (the builder sources,
+# the public zip, the manifest — read, never touched), so any write at
+# all is a regression, and the guard is proven ALIVE by one controlled
+# probe write into a tempdir (the anti-vacuity inverse of the writer
+# drives: their guard fails on zero writes, this one fails on any
+# write it did not itself make). Passive by design — the audit never
+# blocks a write, it JUDGES the log at the end.
+import io as _io
+import builtins as _builtins
+import tempfile as _tf_warm
+_tf_warm.gettempdir()   # warm the lazy tempdir BEFORE the shim: CPython's
+                        # first gettempdir() fd-opens a probe file in the
+                        # temp root to test writability — tempfile's own
+                        # machinery, not this drive's write; warmed here
+                        # it never pollutes the audit log
+
+def _path_str(p):
+    if isinstance(p, bytes):
+        return os.fsdecode(p)
+    try:
+        v = os.fspath(p)
+        return os.fsdecode(v) if isinstance(v, bytes) else v
+    except TypeError:
+        return None
+
+_WRITTEN = []
+_REAL_OPEN = _builtins.open
+
+def _audit_open(file, mode="r", *a, **k):
+    try:
+        _p = _path_str(file)
+        if _p is not None and any(_c in (mode or "") for _c in "wax+"):
+            _WRITTEN.append(_p)
+    except Exception:
+        pass
+    return _REAL_OPEN(file, mode, *a, **k)
+
+_builtins.open = _audit_open
+_io.open = _audit_open          # Path.write_text/bytes resolve through here
+_REAL_OSOPEN = os.open
+
+def _audit_osopen(file, flags, *a, **k):
+    try:
+        _w_flags = (os.O_WRONLY, os.O_RDWR, os.O_APPEND,
+                    os.O_CREAT, os.O_TRUNC)
+        if any(flags & f for f in _w_flags):
+            _p = _path_str(file)
+            if _p is None and not isinstance(file, int):
+                _p = f"<unattributable:{file!r}>"  # fail-closed: a leak
+            if k.get("dir_fd") is not None and _p is not None:
+                _p = f"<dirfd-relative:{_p}>"      # fail-closed: a leak
+            if _p is not None:
+                _WRITTEN.append(_p)
+    except Exception:
+        pass
+    return _REAL_OSOPEN(file, flags, *a, **k)
+
+os.open = _audit_osopen
+_REAL_REPLACE = os.replace
+
+def _audit_replace(src, dst, *a, **k):
+    try:
+        _p = _path_str(dst)
+        if _p is not None:
+            _WRITTEN.append(_p)
+    except Exception:
+        pass
+    return _REAL_REPLACE(src, dst, *a, **k)
+
+os.replace = _audit_replace
 
 
 def check(n, cond, msg=""):
@@ -144,6 +220,42 @@ else:
     check(3.1, True, "(artifact set incomplete, skip-clean)")
     check(3.2, True, "(artifact set incomplete, skip-clean)")
     check(3.3, True, "(artifact set incomplete, skip-clean)")
+
+# ════════ 4. THE SANDBOX-LEAK VERDICT (the guard's tail, the worthladder
+# port, inverted for a reader drive): the shim is proven ALIVE by one
+# controlled probe write into a tempdir (a drive-audit that records
+# nothing proves nothing), then the log is judged — every recorded
+# write must be that probe's tempdir path. ANY other write — a repo
+# file, the dist tree, the live topic — is a FAIL: this drive audits
+# the bundle by READING it, and a test that wrote what it audits would
+# be the leak it exists to catch. Containment on RESOLVED paths
+# (realpath), fail-closed on unresolvable/markers.
+import tempfile as _tf
+_probe_dir = _tf.mkdtemp(prefix="bundlehyg_probe_")
+_probe = Path(_probe_dir) / "probe.txt"
+_probe.write_text("the guard is alive", encoding="utf-8")
+_probe.unlink(missing_ok=True)
+
+_probe_r = os.path.realpath(str(_probe_dir))
+
+def _contained(w):
+    try:
+        if w.startswith("<"):  # unattributable/dirfd markers: fail-closed
+            return False
+        return os.path.commonpath(
+            [os.path.realpath(str(w)), _probe_r]) == _probe_r
+    except Exception:
+        return False
+
+check(4.1, _WRITTEN and _contained(_WRITTEN[0]) and
+      any("probe.txt" in str(w) for w in _WRITTEN),
+      "the audit shim is ALIVE (the probe write was recorded) — "
+      f"writes: {_WRITTEN[:3]}")
+_stray = [w for w in _WRITTEN if not _contained(w)]
+check(4.2, not _stray,
+      "the drive wrote ZERO paths beyond the probe sandbox (a pure "
+      "reader: the sources, the zip and the manifest are read, never "
+      "touched)" + (f" strays: {sorted(set(_stray))[:5]}" if _stray else ""))
 
 passed, failed = results.count(True), results.count(False)
 print(f"RESULT: {passed} passed, {failed} failed")
