@@ -98,7 +98,19 @@ switch ($Component) {
     }
     "volatility_engine" {
         $script = "volatility_engine.py"; $py = "$Base\.venv\Scripts\python.exe"
-        $lockFile = ""   # no own guard; the launcher verifies by command line
+        # Oct 8: the engine runs its OWN singleton guard (.volatility.pid
+        # claimed at the top of main — an O_CREAT|O_EXCL atomic create,
+        # a live-python double refused via the tasklist python check, a
+        # dead lock retaken by tmp+os.replace with an ownership
+        # re-verify, released only by its owner, an unverifiable holder
+        # (tasklist failure) refused fail-closed). NO helper-side
+        # retake here — a Remove-Item between "read dead pid" and
+        # "remove" could delete a FRESH claim another racer just won
+        # (TOCTOU), minting two engines. The engine is the single
+        # retaker: this branch just spawns, and a spawned double dies
+        # loudly at the guard instead of racing the first pair's
+        # 12-week OHLCV pull.
+        $lockFile = ""
     }
     "bot_runner" {
         $script = "bot_runner.py"; $cwd = $BotDir

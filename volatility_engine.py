@@ -36,6 +36,7 @@ import json
 import logging
 import os
 import sqlite3
+import subprocess
 import threading
 import time
 from datetime import datetime, timedelta
@@ -51,6 +52,154 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 CACHE_DB = os.path.join(BASE_DIR, "ohlcv_cache.db")
 THRESHOLDS_JSON = os.path.join(BASE_DIR, "rotation_thresholds.json")
 UNIVERSE_JSON = os.path.join(BASE_DIR, "volatility_universe.json")
+
+# ── THE SINGLETON GUARD (Oct 8, red-first): one engine pair, ever ──
+# The launcher's only duplicate defense was a racy CIM cmdline probe
+# (Test-Component misses during the boot window — imports + the first
+# full 12-week pull take seconds — and misses processes on a single
+# query, the Aug 28 duplicate-scanner cause). The engine now guards
+# ITSELF: claimed at the top of main(), BEFORE any boot work. THE
+# ARBITER IS THE KERNEL, NOT THE FILE: the claim is an msvcrt
+# byte-range lock (LK_NBLCK) on .volatility.lock — atomic (two racers
+# cannot both hold byte 0), self-releasing (a killed engine's lock
+# vanishes with the process, so a stale world self-heals on the next
+# boot — no retake race is even possible), held for the process
+# lifetime via a global fd. THE PID FILE IS A SEPARATE, ALWAYS-
+# READABLE ARTIFACT (.volatility.pid — the house shape): only the lock
+# holder writes it, so a refused racer reads the true holder's pid,
+# and no diagnostic read ever touches a locked byte (mixing the
+# arbiter and the pid in one file made the diagnostics race the lock —
+# the Oct 8 drive caught it). The tasklist python-check only enriches
+# the refusal, and an unverifiable holder (tasklist failure) still
+# refuses — fail-closed, never "dead because the check broke".
+# release_lock is owner-only: only the process holding the kernel lock
+# may unlock and unlink. start_detached deliberately does NOT pre-clear
+# either file (a helper-side Remove-Item races a fresh claim —
+# TOCTOU): the engine is the single retaker. Two racing launch paths
+# collapse to one pair: the second instance dies loudly at the guard
+# instead of pulling 12 weeks of OHLCV twice.
+VOL_PID_FILE = os.path.join(BASE_DIR, ".volatility.pid")
+VOL_LOCK_FILE = os.path.join(BASE_DIR, ".volatility.lock")
+
+try:
+    import msvcrt as _msvcrt          # the fleet is Windows; the lock
+except ImportError:                    # is the arbiter, so a platform
+    _msvcrt = None                     # without it refuses (never runs
+                                       # unguarded)
+_LOCK_HOLDER_FD = None   # this process's kernel lock, for owner-only release
+
+
+def _pid_alive_python(pid: int):
+    """True only when the pid names a LIVE PYTHON process — the
+    recycled-pid trap (tasklist sees ANY process on that pid) closed
+    the cheap way (the house shape: ops/price_alert's own guard).
+    Returns None when the check itself fails (tasklist error/timeout):
+    an UNKNOWN holder is never treated as dead — refusal only, never
+    an overwrite of a possibly-live engine's lock."""
+    if not pid or pid <= 0:
+        return False
+    try:
+        out = subprocess.run(
+            ["tasklist", "/FI", f"PID eq {pid}", "/FO", "CSV", "/NH"],
+            capture_output=True, text=True, timeout=15).stdout or ""
+        return "python" in out.lower()
+    except Exception:
+        return None
+
+
+def _read_lock_pid() -> int:
+    """The pid file's recorded pid, 0 when unreadable/corrupt — the
+    pid file is PLAIN TEXT and never locked (the arbiter is the
+    separate .volatility.lock), so diagnostics can always read it."""
+    try:
+        return int(open(VOL_PID_FILE, encoding="utf-8").read().strip() or 0)
+    except Exception:
+        return 0
+
+
+def claim_lock() -> bool:
+    """Refuse a live engine double. False means the pair is taken (or
+    the holder is unverifiable) — the caller must exit loud.
+
+    ATOMICITY (the review majors): the arbiter is the kernel byte-
+    range lock, not a check-then-write on the file — two racing
+    processes cannot both hold byte 0, a killed holder's lock is
+    released by the OS (the stale-file self-heal needs no retake
+    race), and ONLY the lock holder writes its pid into the file (a
+    refused racer never touches the content)."""
+    global _LOCK_HOLDER_FD
+    if _msvcrt is None:
+        logger.error("no msvcrt on this platform — the singleton lock "
+                     "cannot be enforced — refusing to run unguarded")
+        return False
+    try:
+        fd = os.open(VOL_LOCK_FILE, os.O_CREAT | os.O_RDWR)
+    except OSError as exc:
+        logger.error("could not open the lock arbiter (%s) — refusing "
+                     "to run unguarded", exc)
+        return False
+    try:
+        _msvcrt.locking(fd, _msvcrt.LK_NBLCK, 1)
+    except OSError:
+        os.close(fd)
+        old = _read_lock_pid()
+        alive = _pid_alive_python(old)
+        if alive is True:
+            logger.warning("REFUSED: a Volatility Engine already runs "
+                           "(pid %s) — one engine per pair; killing me, "
+                           "not racing it", old)
+        elif alive is None:
+            logger.error("the pair is taken and the holder is "
+                         "unverifiable (tasklist failed) — refusing "
+                         "fail-closed; clear %s by hand if the engine "
+                         "is truly dead", VOL_PID_FILE)
+        else:
+            # the kernel lock is held but the recorded pid is not a
+            # live python: a live NON-engine process holds byte 0 —
+            # still a held lock, still a refusal (never stomp it)
+            logger.warning("REFUSED: the pid lock is held by a live "
+                           "process that is not a recorded engine (pid "
+                           "%s) — not stomping it", old)
+        return False
+    # OWNER: the kernel lock is ours for the process lifetime — now
+    # (and only now) the pid file carries this process (plain text,
+    # never locked — every refused racer reads the true holder).
+    try:
+        with open(VOL_PID_FILE, "w", encoding="utf-8") as f:
+            f.write(str(os.getpid()))
+    except OSError as exc:
+        _msvcrt.locking(fd, _msvcrt.LK_UNLCK, 1)
+        os.close(fd)
+        logger.error("could not stamp the pid lock (%s) — refusing", exc)
+        return False
+    _LOCK_HOLDER_FD = fd
+    return True
+
+
+def release_lock() -> None:
+    """Clean-shutdown release — OWNER-ONLY: only the process holding
+    the kernel lock (the claimer's fd) unlocks and unlinks; a non-
+    owner's release is a no-op, so a stale file from a kill is left
+    for the next boot's self-heal."""
+    global _LOCK_HOLDER_FD
+    fd = _LOCK_HOLDER_FD
+    if fd is None:
+        return
+    _LOCK_HOLDER_FD = None
+    try:
+        _msvcrt.locking(fd, _msvcrt.LK_UNLCK, 1)
+    except Exception:
+        pass
+    try:
+        os.close(fd)
+    except Exception:
+        pass
+    for _f in (VOL_PID_FILE, VOL_LOCK_FILE):
+        try:
+            if os.path.exists(_f):
+                os.unlink(_f)
+        except Exception:
+            pass
 
 WINDOW_WEEKS = 12          # target — Kraken OHLC caps at ~30 days of 1h per pull,
                            # so the cache ACCUMULATES toward this over time
@@ -624,6 +773,13 @@ def main():
     parser.add_argument("--once", action="store_true", help="single pass then exit")
     args = parser.parse_args()
 
+    # THE GUARD RUNS BEFORE ANY BOOT WORK (the race is the boot window:
+    # imports + the first full pull are exactly when a second launcher
+    # sees nothing and spawns again). A refused claim exits loudly —
+    # the launcher's early-death capture names the cause.
+    if not claim_lock():
+        raise SystemExit(3)
+
     logger.info("=" * 60)
     logger.info("  Kraken Scout — Volatility Engine")
     logger.info("  %d-week rolling window | rotations 00-04/04-08/08-12/12-16/16-20", WINDOW_WEEKS)
@@ -631,6 +787,19 @@ def main():
     logger.info("  Press Ctrl+C to stop")
     logger.info("=" * 60)
 
+    try:
+        _run_loop(args)
+    finally:
+        release_lock()
+    logger.info("Volatility Engine stopped.")
+
+
+def _run_loop(args) -> None:
+    """The pull/refresh loop, extracted so main's guard + release
+    bracket it exactly once (the lock must outlive every exit path —
+    the finally is the shutdown release; a hard kill leaves the stale
+    file for the next boot's retake, which the recycled-pid check makes
+    safe)."""
     full_pull = True  # first pass always pulls the whole window
     last_full = time.time()
     while True:
@@ -657,8 +826,6 @@ def main():
             time.sleep(REFRESH_SECONDS)
         except KeyboardInterrupt:
             break
-
-    logger.info("Volatility Engine stopped.")
 
 
 if __name__ == "__main__":

@@ -24,6 +24,10 @@ auto_adjust_canary.json
 auto_adjust_canary.json.tmp*
 # the single-instance guard's pid file
 .scanner.pid
+# the volatility engine's singleton pid file (Oct 8: the engine claims
+# .volatility.pid before any boot work — a live-python double is
+# refused, a dead lock retaken; runtime state, never committed)
+.volatility.pid
 # the hindsight service's pid file (runner CLI bookkeeping; the live
 # ownership contract is the port)
 .hindsight.pid
