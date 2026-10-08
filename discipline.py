@@ -857,7 +857,14 @@ def evaluate_rotation(exchange, rot_key: str, when=None, speak=True,
               ("date", "rot", "score", "total_left", "system_left",
                "top_gate", "realized_pnl", "balance_after", "ts",
                "system_pairs", "system_duds",
-               "system_pending", "empty_pending")}   # the per-pair burials
+               "system_pending", "empty_pending",
+               "empty_fire", "capped_zero_zero")}   # the per-pair burials
+    # THE PLATE'S FLAGS RIDE THE ROW (the 12:00-verification catch, Oct
+    # 7): the plate grades from _last.get("empty_fire") / "capped_zero_zero"
+    # — but the old _entry never copied them, so EVERY persisted row read
+    # flagless and the amber ZERO REALIZED grade (and the silent-rotation
+    # grade, and the streak's exclusions) could never render from live
+    # data. The directive's verdict is a persisted fact, not a fixture.
     # (+ the unjudged rows: the censoring evidence must outlive the
     # call — the review's medium, Oct 1: a result field the _entry
     # never copied died at the boundary)
