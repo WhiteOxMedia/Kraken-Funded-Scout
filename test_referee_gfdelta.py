@@ -161,17 +161,135 @@ finally:
     _restore(old)
 
 # the parity gate: a drifting frozen baseline aborts exit 3
-old = _sandbox_series([["2026-09-27", 1.0]])
-_gf_old = getattr(rg, "GF_FROZEN", None)   # captured BEFORE the override
+# THE ANCHOR-DERIVED DRIFT (Oct 8, the 3.3 rot the red-first triage
+# caught): the old fixture hardcoded the drift at 1.0 against the
+# comment's "real state: 2.0" — but the live factor MOVES (the canary's
+# rewrite landed 0.9168 on Sep 29; self-adjust has since priced 1.0),
+# and the artifact freezes ITS GF at the state's own value. A hardcoded
+# anchor eventually EQUALS the artifact's frozen baseline — and a parity
+# copy at the same frozen factor reproduces the artifact exactly, the
+# gate passes, and the rot (a parity gate wired to a constant) ships
+# silently green. RED-FIRST receipts: live 19/20 since Oct 7's battery;
+# this run reproduced it locally (live factor 1.0, drift 1.0, parity
+# OK, rc=0, FAIL). THE CURE: the drift is read from the SAME source the
+# artifact freezes at — profit_guard_state.json's live factor — and
+# pushed one ratchet-step past it, so the injected baseline is
+# GUARANTEED to differ from the artifact's frozen anchor whatever the
+# live state does: the walk multiplies every width by GF (ratchet_w * gf),
+# so 0.25 shifts every non-floor width and the frozen rows cannot
+# reproduce the artifact's. The pre-fire equality is a named check: the
+# fixture GUARANTEES its own poison before spending a walk on it.
+# THE CODELOPS CATCHES, CURED IN-AMEND:
+#  - (minor) an unreadable state file fails closed to the artifact's own
+#    fallback (or 1.0 - exactly what _referee_gfdelta/_livearm_referee
+#    read at their GF sites), so the drift still derives from the anchor
+#    the run actually priced; a broken anchor never wrecks this section.
+#  - (low) a 25% GF shift is not PROOF of different totals - and vacuous
+#    is the silent-green shape the drive exists to kill. THE DRIFT
+#    EVIDENCE is cut from the poisoned run's own stdout (the parity
+#    line's LIVE totals, copy and artifact): 3.3 now REQUIRES the
+#    evidence totals to actually differ; a vacuous world (no trades hit
+#    GF-sensitive stops) fails with its cause PRINTED, never green.
 try:
-    rg.GF_FROZEN = 1.0          # the drifted baseline (real state: 2.0)
+    _pgs_factor = float(
+        json.loads((BASE / "profit_guard_state.json")
+                   .read_text(encoding="utf-8")).get("factor") or 1.0)
+except (OSError, json.JSONDecodeError):
+    _pgs_factor = 1.0   # the artifact's own default (or 1.0) - matched
+# anchors by construction, same source the walk freezes; the trip:
+_drift = round(_pgs_factor * 1.25, 4)   # a 25% GF shift: every width moves
+if _drift == _pgs_factor:
+    _drift = round(_pgs_factor + 0.25, 4)   # the guard: never the anchor
+# the ARTIFACT's own LIVE frozen total on THIS data — the divergence
+# target 3.3a1 compares the poisoned copy against (the same number the
+# parity gate inside main() compares at < 0.5 tolerance): run the
+# artifact subprocess once, parse the referee's LIVE row, same shape
+# _referee_rows uses. One extra ~20s subprocess; the evidence is the
+# run's own mouth, not a constant.
+import subprocess as _sp33
+import re as _re33b
+_r33 = _sp33.run([sys.executable, str(BASE / "_livearm_referee.py")],
+                 capture_output=True, text=True, encoding="utf-8",
+                 errors="replace", cwd=str(BASE), timeout=600)
+_out33 = (_r33.stdout or "") + (_r33.stderr or "")
+_m33 = None
+for _ln in _out33.splitlines():
+    if _ln.startswith("LIVE half-goal arm"):
+        _m33 = _ln
+        break
+_ref_live_total = None
+if _m33:
+    _f33 = [p.strip() for p in _m33.split("|")]
+    if len(_f33) == 9:
+        try:
+            _ref_live_total = float(_f33[-1])
+        except ValueError:
+            _ref_live_total = None
+old = _sandbox_series([["2026-09-27", _drift]])
+_gf_old = getattr(rg, "GF_FROZEN", None)   # captured BEFORE the override
+check("3.3a the drift fixture is GUARANTEED off the artifact's frozen "
+      "anchor (the pre-fire poison check: a constant calibrates to a "
+      "dead world by construction)",
+      _drift != _pgs_factor,
+      f"anchor {_pgs_factor} -> drift {_drift}")
+try:
+    rg.GF_FROZEN = _drift     # the drifted baseline (state-derived, never
+                              # equal to the artifact's frozen anchor)
     buf = io.StringIO()
     with redirect_stdout(buf):
         rc = _main_rc()
     out = buf.getvalue()
+    # THE DRIFT EVIDENCE (the Copilot low, cured in-amend): the abort
+    # must name a REAL divergence, not just exit 3. TWO cuts from the
+    # poisoned run's own stdout:
+    #   (1) the parity verdict is DRIFT (the machinery judged the copy
+    #       off the artifact);
+    #   (2) the LIVE frozen-row TOTAL is parsed from the copy's table
+    #       (the run prints one row per policy+mode; the FIRST "LIVE
+    #       half-goal arm" line is the frozen baseline) AND it differs
+    #       from the artifact's own run of the same data (the referee
+    #       subprocess re-runs on the identical cohort, so a faithful
+    #       copy CANNOT diverge; the row-level GF-sensitivity check is
+    #       the pre-fire 3.3a poison guarantee).
+    import re as _re33
+    _mref = _re33.search(r"live reproduces:\s*(OK|DRIFT)", out)
+    # THE LIVE-SPECIFIC EVIDENCE (the Copilot medium on the second cut,
+    # cured in-amend): the generic "live reproduces: DRIFT" word is the
+    # OR of two gates (live | hybrid) — a HYBRID-only mismatch satisfies
+    # it without the LIVE gate ever firing. So the LIVE half is pinned
+    # DIRECTLY by its own arithmetic: ok_live is exactly
+    # |copy_total - ref_total| < 0.5 AND |copy_ctrl - ref_ctrl| < 0.5
+    # (_referee_gfdelta main, the gate's own code); the poisoned copy's
+    # parsed LIVE total being > 0.5 off the artifact's parsed total
+    # PROVES ok_live was False — the LIVE gate itself fired, whatever
+    # the hybrid half did. (The ctrl half is implied: parity compares
+    # totals and ctrl as an AND — a False verdict with one arm > 0.5
+    # out is a fired gate.)
+    _copies = _re33.findall(
+        r"LIVE half-goal arm.*\|.*\|\s*(-?\d+\.\d+)\s*$", out, _re33.M)
+    _ev_copy = float(_copies[0]) if _copies else None
+    _live_fired = (_mref is not None and _mref.group(1) == "DRIFT"
+                   and _ev_copy is not None and _ref_live_total is not None
+                   and abs(_ev_copy - _ref_live_total) >= 0.5)
+    check("3.3a1 the poisoned copy's frozen row actually DIVERGED from "
+          "the artifact's — LIVE-specifically (the DRIFT word is an OR "
+          "of live|hybrid, so the evidence is the copy's parsed LIVE "
+          "total > 0.5 off the artifact's own: ok_live's own arithmetic "
+          "is False BY CONSTRUCTION, the LIVE gate itself fired, "
+          "whatever the hybrid half did)",
+          _live_fired,
+          (f"copy LIVE {_ev_copy} vs artifact {_ref_live_total} "
+           f"(delta {_ev_copy - _ref_live_total:+.2f}, gate fires at "
+           f">= 0.5 — the boundary is INCLUDED, matching ok_live's "
+           f"< 0.5 pass-tolerance)" if _ev_copy is not None
+           and _ref_live_total is not None else
+           f"UNPARSEABLE — copy LIVE {_ev_copy}, artifact "
+           f"{_ref_live_total} (the evidence failed to read; the check "
+           f"fails above, never a TypeError)"))
     check("3.3 a frozen baseline off the referee's numbers aborts the "
           "study (exit 3, the copy is indicted, not the refinement)",
-          rc == 3 and "ABORT" in out and "DRIFT" in out)
+          rc == 3 and "ABORT" in out and "DRIFT" in out,
+          f"rc={rc}")
 finally:
     _restore(old)
     if _gf_old is not None:
