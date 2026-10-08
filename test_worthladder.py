@@ -2,7 +2,7 @@
 closes the loop: verdict-gated floor candidates, QC agreement on the
 same number, the exit-watch preflight, immutable checksummed evidence.
 Red-first: every pin here failed against the missing module first."""
-import json, sys, hashlib, os, tempfile
+import json, re, sys, hashlib, os, tempfile
 from pathlib import Path
 
 BASE = Path(__file__).resolve().parent
@@ -620,6 +620,92 @@ check("SANDBOX-LEAK the audit is not vacuous (the drive really did "
       and any(_contained(w) and os.path.commonpath(
           [os.path.realpath(str(w)), _sbx_r]) == _sbx_r for w in _WRITTEN),
       f"writes recorded: {len(_WRITTEN)}")
+
+# - 16. THE GUARD'S OWN RED PROOF (user ask, Oct 8): a leak guard that
+# drifted open — a containment root added for convenience, a startswith
+# prefix instead of realpath, a swallowed exception — would pass every
+# future leak silently. The drive proves the verdict machinery is
+# MARGINAL, in both directions, against synthetic entries (fakes in a
+# copy of _WRITTEN — the real log is untouched, since the tail verdict
+# above already consumed it and one fake leak here would fail the
+# drive's own gate). No filesystem gaming: the fakes are PATH STRINGS —
+# the same inputs the audit records — so every judge is exercised
+# directly, and every real write the shim recorded is proven OFF the
+# log in the tail (already green above).
+_live_leak = str(BASE / "worth_ladder_state.json")   # a REAL live-state path
+_check = _contained(_live_leak)
+check("GUARD-PROOF the judge FAILs a REAL live-state path (the repo "
+      "root is not a containment root)",
+      _check is False, f"contained={_check} for {_live_leak}")
+_check = _contained(str(_sbx / "write.json"))
+check("GUARD-PROOF the judge PASSes a real sandbox path (marginal "
+      "both directions — a drifted-open judge can't slip this by)",
+      _check is True, f"contained={_check}")
+# the CodeRabbit-class escape the realpath cure exists for: a '..'-shaped
+# string that COLLAPSES onto a live-state path under resolution — a
+# startswith/'prefix root' judge would call it contained
+_check = _contained(os.path.join(str(_sbx), "..", "worth_ladder_state.json"))
+check("GUARD-PROOF the '..'-shaped escape is refused (collapse-to-live "
+      "dies under realpath — the CodeRabbit cure stays cured)",
+      _check is False, f"contained={_check}")
+_check = _contained("<unattributable:9>")
+check("GUARD-PROOF the fail-closed markers are refused (an "
+      "unattributable record is a leak, never waved through)",
+      _check is False, f"contained={_check}")
+# THE INJECTED-LEAK DYNAMICS (the ask, literal): the verdict's margin
+# is `not _leaks` on _WRITTEN — proven live by computing the verdict
+# over a fake-leak-injected COPY and over the clean log, so a judge
+# that drifted open (everything contained) would fail 16.4 and a
+# verdict wired to a constant would fail 16.5.
+_inj = _WRITTEN + [_live_leak]
+_inj_leaks = [w for w in _inj if not _contained(w)]
+check("GUARD-PROOF the injected fake leak IS detected (the verdict "
+      "over the injected copy fails exactly the injected path)",
+      _inj_leaks == [_live_leak],
+      f"inj_leaks={_inj_leaks[:3]} (want exactly [{_live_leak}])")
+_clean_dynamics = not [w for w in _WRITTEN if not _contained(w)]
+check("GUARD-PROOF the injected dynamics are MARGINAL (clean log -> "
+      "zero-leak verdict; +1 fake -> fail — a constant-True verdict "
+      "cannot satisfy both)",
+      _clean_dynamics is True and _inj_leaks != [],
+      f"clean={_clean_dynamics} injected_leaks={len(_inj_leaks)}")
+_snapshot = list(_WRITTEN)
+check("GUARD-PROOF the real write log is untouched by the proof (the "
+      "fakes live in copies — the tail verdict above judged the true "
+      "log)",
+      _WRITTEN == _snapshot and _live_leak not in _WRITTEN,
+      f"len(before)={len(_snapshot)} len(now)={len(_WRITTEN)}")
+#
+# 16.8 THE SOURCE PIN (Copilot's medium on the section-16 commit, cured
+# in-amend): the injected dynamics recompute the judge, but the LIVE
+# verdict could drift away from this machinery — hardcoded to pass, or
+# recomputed from a different (weaker) predicate — while 16.1-16.7
+# stayed green. So the pin reads the drive's OWN SOURCE and proves the
+# live verdict consumes the same scout: the verdict's ok-slot must be
+# the source text `not _leaks`, and _leaks must be derived as `[w for w
+# in _WRITTEN if not _contained(w)]` — the exact predicate 16.5/16.6
+# exercise. A verdict swapped for a constant, a check() call with a
+# literal True in the verdict slot, or a _leaks computed elsewhere all
+# flunk this pin in the same run.
+_src = (BASE / "test_worthladder.py").read_text(encoding="utf-8")
+_verdict_slot = re.search(
+    r'SANDBOX-LEAK the drive wrote ZERO[^\n]*\n[^\n]*\n\s*(not _leaks)',
+    _src)
+check("GUARD-PROOF the LIVE verdict consumes the injected machinery "
+      "(source pin: the verdict's ok-slot is `not _leaks`, computed "
+      "from the same _contained predicate 16.5/16.6 exercise — a "
+      "hardcoded-true verdict would flunk this pin)",
+      _verdict_slot is not None and _verdict_slot.group(1)
+      == "not _leaks",
+      f"verdict_slot={(_verdict_slot.group(1) if _verdict_slot else None)!r}")
+_leaks_line = re.search(
+    r'_leaks\s*=\s*\[w for w in _WRITTEN if not _contained\(w\)\]', _src)
+check("GUARD-PROOF the leak list stays wired to the audited log "
+      "(source pin: `_leaks = [w for w in _WRITTEN if not "
+      "_contained(w)]` exists verbatim — the live verdict cannot be "
+      "recomputed from a weaker predicate without this line moving)",
+      _leaks_line is not None,
+      f"found={bool(_leaks_line)}")
 
 # the leak audit's env arm: every env store above is restored before
 # the drive exits (the audit reads the whole file; one finally covers
