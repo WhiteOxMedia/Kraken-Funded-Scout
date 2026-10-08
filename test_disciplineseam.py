@@ -615,6 +615,159 @@ check("7.24 a DETECTED near-boundary payer DOCKS (test first, classify "
       == {"NEAR/USD"} and not (_res9.get("system_pending") or []),
       (_calls9, _res9.get("system_pending")))
 
+# ── 8. THE FORGIVENESS TERM (user ask, Oct 8 — "Tripwire B, red-first:
+# the score should forgive once the gates have widened and paid for the
+# lesson"): the dock stings the WHOLE book via discipline_penalty_extra
+# (disc_mod = 1 - penalty/10 at ~5 GF discipline points per penalty
+# point), but the family's OTHER half — the journal — prices relief
+# per gate from the SAME burials (gate_relief, sens dial, dud clawback,
+# 8h decay, cap 4.0). The two halves never met: a penalty that nears
+# the 3.0 rail while the gates are actively widening and RELEASING
+# payers is a lesson that healed but never stopped billing. The term:
+#   forgive_on_paid_relief(min_pts, total, ml, now, state) — what the
+#   RELIEF already proved: capped, clamped to (0, penalty), keys
+#   stamped (silent_forgave = rot@date — audit-visible, re-forgivable
+#   next day), SELF ( følger the journal's dud clawback: relief <
+#   min_pts forgives NOTHING — the lesson healed only when paid).
+# RED-FIRST: 8.1-8.5 fail until the machinery exists in meta_layers.
+import meta_layers as _ml8   # (already imported as ml in section 7)
+
+with tempfile.TemporaryDirectory() as _td8:
+    _real_state8 = ml.STATE_FILE
+    ml.STATE_FILE = Path(_td8) / "meta_state8.json"
+    try:
+        st8 = ml._state()
+        st8["discipline_penalty_extra"] = 1.0
+        ml._save(st8)
+        # 8.1 the forgiveness is THE ASK (min_pts = what the lesson
+        # costs in relief terms — the gates crossed it, that much of
+        # the bill comes back; the RELIEF is the gates' side, the ASK
+        # is the lesson's price — one number, one meaning)
+        f1 = ml.forgive_on_paid_relief(min_pts=0.5, total=1.0, ml=ml,
+                                       now=dc._now(), state=st8)
+        check("8.1 the relief-paid lesson FORGIVES THE ASK (min_pts "
+              "0.5 crossed on a 1.0 penalty = 0.5 back — the gates "
+              "widened and paid for the lesson's price)",
+              f1.get("forgiven") == 0.5
+              and ml.discipline_penalty_extra() == 0.5, f1)
+        # 8.2 fresh key, fresh day: the clamp still holds (a 3.0
+        # relief still forgives only the ASK — 0.5, not the relief)
+        st8 = ml._state()
+        st8["discipline_penalty_extra"] = 0.5
+        ml._save(st8)
+        f2 = ml.forgive_on_paid_relief(min_pts=0.5, total=3.0, ml=ml,
+                                       now=dc._now(), state=st8,
+                                       rot_key="16-20", date_key="2026-10-08")
+        check("8.2 the forgiveness CLAMPS to the ASK (3.0 relief "
+              "forgives 0.5 — the lesson's price, not the gates' "
+              "whole relief)",
+              f2.get("forgiven") == 0.5
+              and ml.discipline_penalty_extra() == 0.0, f2)
+        # 8.3 dud-heavy gates get NOTHING (the lesson healed only
+        # when PAID): relief under the min_pts forgives zero
+        st8 = ml._state()
+        st8["discipline_penalty_extra"] = 1.0
+        ml._save(st8)
+        f3 = ml.forgive_on_paid_relief(min_pts=2.0, total=1.0, ml=ml,
+                                       now=dc._now(), state=st8)
+        check("8.3 relief BELOW min_pts forgives NOTHING (the gate "
+              "has not yet paid for the lesson — dud clawback holds)",
+              f3.get("forgiven") == 0.0
+              and ml.discipline_penalty_extra() == 1.0, f3)
+        # 8.4 the KEY is stamped and re-inkable: same key does not
+        # re-forgive (the dedup side of the family), a DAY-later key does
+        st8 = ml._state()
+        st8["discipline_penalty_extra"] = 1.0
+        ml._save(st8)
+        f4 = ml.forgive_on_paid_relief(min_pts=0.5, total=1.0, ml=ml,
+                                       now=dc._now(), state=st8,
+                                       rot_key="12-16", date_key="2026-10-08")
+        f4b = ml.forgive_on_paid_relief(min_pts=0.5, total=1.0, ml=ml,
+                                        now=dc._now(), state=st8,
+                                        rot_key="12-16", date_key="2026-10-08")
+        check("8.4 the forgiveness is keyed per (date, rot) on the "
+              "record (same key cannot re-forgive; silent_forgaved "
+              "carries both for the audit)",
+              f4.get("forgiven") == 0.5 and f4b.get("forgiven") == 0.0
+              and (ml._state().get("silent_forgaved") or {}).get("rot")
+              == "12-16"
+              and (ml._state().get("silent_forgaved") or {}).get("date")
+              == "2026-10-08", (f4, f4b))
+        # 8.5 the MANDATE (the ask crossed, the penalty gone): the
+        # forgiveness is EXACTLY the ask, not a grain more (the bill
+        # comes back to the lesson's price, the rest of the relief
+        # stays where it is — the relief belongs to the gates)
+        st8 = ml._state()
+        st8["discipline_penalty_extra"] = 2.0
+        ml._save(st8)
+        f5 = ml.forgive_on_paid_relief(min_pts=0.7, total=2.5, ml=ml,
+                                       now=dc._now(), state=st8,
+                                       rot_key="20-24", date_key="2026-10-08")
+        check("8.5 the forgiveness is EXACTLY the ask (0.7 of 2.5 "
+              "relief = 0.7 off the 2.0 penalty — the lesson's own "
+              "price, the rest of the relief belongs to the gates)",
+              f5.get("forgiven") == 0.7
+              and ml.discipline_penalty_extra() == 1.3, f5)
+    finally:
+        ml.STATE_FILE = _real_state8
+
+# 8.6-8.8 the WIRE (source contract): the evaluation reports HOW MUCH
+# relief the burying gates have earned (so the forgiveness inputs are
+# the journal's OWN hindsight), the boundary consults, and the tool
+# rides the existing meta state — no new plane, no second st.
+src_ml8 = Path("meta_layers.py").read_text(encoding="utf-8")
+check("8.6 the term lives in meta_layers on the penalty key (same "
+      "channel family — dock, RCL, SAL, forgiveness — one key, per-"
+      "call caps, never a new plane)",
+      "def forgive_on_paid_relief" in src_ml8
+      and src_ml8.index("def forgive_on_paid_relief")
+          > src_ml8.index("def dock_silent_rotation"))
+check("8.7 the forgiveness respects the relief's own dud clawback "
+      "(the min_pts ask rides gate_relief's math — the dial, the cap, "
+      "the decay — not a new pricing)",
+      "gate_relief" in src_ml8 or "journal_release_pts" in src_ml8)
+check("8.8 the forgiveness is silent-stamped on the record (the "
+      "audit trail: silent_forgaved rides the meta state, the review "
+      "can see when the gates paid)",
+      "silent_forgaved" in src_ml8)
+
+# ── 8.9-8.11 THE PRODUCTION WIRE (the Copilot high + medium, cured
+# in-commit): the term MUST have a live production caller — the
+# cooldown review forgives on the day-learn wrap, keyed to the DAY row
+# (date-only, so one forgiveness per day regardless of rotation
+# count); the relief quote is the fleet's own gate_relief (the relief
+# ANY burying gate currently holds), asource-pinned so the wire
+# survives refactors; and the corollaries ride it too (NaN fail-
+# neutral, the day-lesson text, the DAY row carrying forgave).
+src_dc8 = Path("discipline.py").read_text(encoding="utf-8")
+check("8.9 the cooldown review CALLS the forgiveness (the production "
+      "wire: no caller = no forgiveness, the Copilot high)",
+      "forgive_on_paid_relief(" in src_dc8
+      and 'rot_key="DAY"' in src_dc8
+      and 'min_pts=0.5' in src_dc8)
+check("8.10 the relief quote is the journal's OWN gate_relief (the "
+      "fleet's relief, never a new pricing; the gates-seen universe "
+      "names the burying gates)",
+      src_dc8.count("gate_relief(") >= 2
+      and "_gates_seen" in src_dc8)
+check("8.11 the DAY row speaks the forgiveness (the persisted history "
+      "carries forgave — the review's plate can see when the gates "
+      "paid) and the NaN quote FAILS NEUTRAL (the meta side)",
+      '"forgave": _day_result.get("forgave")' in src_dc8
+      and "isfinite" in src_ml8
+      and "not finite" in src_ml8)
+check("8.12 THE DRY-RUN GATE (the Copilot high, cured): the "
+      "historical reviews (dnl_report, profit_guard) run THROUGH the "
+      "cooldown review with dry_run=True — a dry run must never write "
+      "meta state (a historical read could have reduced the live "
+      "penalty with relief it never asked to be paid). The real "
+      "review at the day boundary is the forgiver; everything else "
+      "reads the lesson with the penalty world untouched",
+      "if not dry_run:" in src_dc8[
+          src_dc8.index("THE PAYING-GATE FORGIVENESS"):
+          src_dc8.index("THE PAYING-GATE FORGIVENESS") + 4000]
+      and "_mlf.forgive_on_paid_relief(" in src_dc8)
+
 lines.append(f"\nRESULT: {PASS} passed, {FAIL} failed")
 out = Path("_disciplineseam_test.txt")
 out.write_text("\n".join(lines), encoding="utf-8")

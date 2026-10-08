@@ -669,6 +669,97 @@ def dock_silent_rotation(n_buried: int, when: datetime | None = None,
         return {"docked": 0.0, "reason": "dock failed soft"}
 
 
+def discipline_surplus(min_pts: float, total: float,
+                       ml, when: datetime | None = None,
+                       state: dict | None = None) -> float:
+    """The relief the burying gates have ALREADY EARNED, read through
+    the caller's discipline module (the journal is discipline's surface —
+    meta_layers never imports it: the import cycle is one-way by
+    design). Returns the capped relief pts the gates currently hold;
+    0.0 when anything is unreadable (fail-neutral: no forgiveness veils
+    an unreadable journal — the lesson keeps billing until PROVEN paid).
+    Discipline passes its own read; the drive passes any heralding call
+    it stubs."""
+    when = when or _now_mst()
+    try:
+        pts = float(total or 0.0)
+        if pts <= 0.0:
+            return 0.0
+        return min(float(min_pts), pts)   # the ask is the FLOOR, the
+                                          # surplus is the relief
+    except Exception:
+        return 0.0
+
+
+def forgive_on_paid_relief(min_pts: float, total: float,
+                           ml, now: datetime | None = None,
+                           state: dict | None = None,
+                           rot_key: str | None = None,
+                           date_key: str | None = None) -> dict:
+    """THE FORGIVENESS TERM (user ask, Oct 8 — "Tripwire B"... red-first:
+    the score should forgive once the gates have widened and paid for
+    the lesson): the dock stings the whole book through
+    discipline_penalty_extra, but the journal's relief (gate_relief —
+    the sens dial, the dud clawback, the 8h decay, the 4.0 cap) prices
+    HOW WIDE the burying gates have already become. When that relief
+    has crossed min_pts, the lesson's bill comes back — the score
+    forgives the RELIEF-PAID PENALTY, clamped to what the dock actually
+    took, keyed per (date, rot) on the record so a day-later lesson can
+    forgive again. WHAT IS ALREADY PAID: the relief is the gates' own
+    widened floor in popup points — measurable, capped, damped — so
+    the forgiveness is bounded from BOTH sides (never wider than the
+    gates actually went, never more than the dock originally took).
+    Fail-neutral: an unreadable journal or a broken state forgives
+    NOTHING — the lesson keeps billing until the gates PROVE they paid.
+    Callers (the cooldown review, the next dock) pass their own state —
+    the state the caller loaded, the state it saves — never a second
+    plane; read-only consumers pass nothing and the meta state answers.
+    The key"rot_key or the current rotation" stamps silent_forgaved on
+    the record (the audit asked: when did the gates pay?)."""
+    when = now or _now_mst()
+    try:
+        st = state if state is not None else _state()
+        import math as _math
+        if not _math.isfinite(float(total or 0.0)):
+            return {"forgiven": 0.0, "reason": "the relief quote is "
+                    "not finite — fail-neutral, the lesson keeps "
+                    "billing"}   # NaN passes every comparison — the
+                                   # Copilot medium, cured: fail-neutral
+        pen = float(st.get("discipline_penalty_extra", 0.0) or 0.0)
+        if pen <= 0.0:
+            return {"forgiven": 0.0, "penalty": pen,
+                    "reason": "no penalty to forgive"}
+        _key_rot = rot_key or _rot_key_of(when)
+        _key_date = date_key or when.strftime("%Y-%m-%d")
+        prior = st.get("silent_forgaved") or {}
+        if (prior.get("rot") == _key_rot
+                and prior.get("date") == _key_date):
+            return {"forgiven": 0.0, "penalty": pen,
+                    "reason": f"already forgave for {_key_date} {_key_rot}"}
+        if total is None or float(total or 0.0) < float(min_pts):
+            return {"forgiven": 0.0, "penalty": pen,
+                    "reason": (f"relief {float(total or 0.0):.2f} < the "
+                               f"{float(min_pts):.2f} ask — the lesson "
+                               "has not yet been paid for")}
+        _forgive = min(float(min_pts), pen)   # never more than the dock took
+        st["discipline_penalty_extra"] = round(pen - _forgive, 3)
+        st["silent_forgaved"] = {"rot": _key_rot, "date": _key_date,
+                                 "forgiven": round(_forgive, 3),
+                                 "relief_seen": round(float(total), 2),
+                                 "ts": when.isoformat(timespec="seconds")}
+        if state is not None:
+            state.update({"discipline_penalty_extra":
+                          st["discipline_penalty_extra"],
+                          "silent_forgaved": st["silent_forgaved"]})
+        _save(st)
+        return {"forgiven": round(_forgive, 3),
+                "penalty": st["discipline_penalty_extra"],
+                "relief_seen": round(float(total), 2),
+                "rot": _key_rot, "date": _key_date}
+    except Exception:
+        return {"forgiven": 0.0, "reason": "forgive failed soft"}
+
+
 # ═══════════════ SECTION 3 — THE DAILY NARRATIVE LAYER ═══════════════
 def dnl_report(when: datetime | None = None) -> dict | None:
     """Collect the day, answer the seven questions, store the report,

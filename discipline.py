@@ -1481,6 +1481,53 @@ def cooldown_review(exchange=None, when=None, speak=True, dry_run=False,
     if _alead:
         lesson = f"{lesson} {_alead}"
         _day_result["lesson"] = lesson
+    # ── THE PAYING-GATE FORGIVENESS (user ask, Oct 8, "Tripwire B"): the
+    # day-learn wraps the day's verdict, day-level ask 0.5, day-key
+    # (date-only; the DAY row is the only forgiver — Copilot high, cured
+    # in-commit): when the burying gates have widened (journal relief >=
+    # the ask), the day's penalty returns exactly the ask. The relief
+    # quote is THE FLEET'S OWN AggReliefTotal: the max over each active
+    # gate's gate_relief (the relief any gate currently holds — the
+    # gates must collectively have crossed the ask, a dud-heavy day
+    # forgives nothing). Fail-soft: an unreadable journal forgives
+    # NOTHING (the term's own fail-neutral contract; the review
+    # proceeds with the lesson unchanged when silent).
+    _forgave = None
+    try:
+        # THE DRY-RUN GATE (Copilot high, cured in-commit): the
+        # historical reviews dnl_report and profit_guard run THROUGH
+        # here with dry_run=True — a dry run must never write meta
+        # state (a historical review could have REDUCED the live
+        # penalty with relief it never asked to be paid). The real
+        # review at the day-boundary is the forgiver; everything else
+        # reads the lesson with the penalty world untouched.
+        if not dry_run:
+            import meta_layers as _mlf
+            _relief_seen = 0.0
+            _led = (state.get("burial_ledger") or [])
+            _gates_seen = sorted({str(g) for h in _led[-5:]
+                                  for g in ((h.get("gates") or {}))}
+                                 | {str(p.get("gate") or "?")
+                                    for p in (_day_result.get("system_pairs") or [])})
+            for _g in _gates_seen:
+                try:
+                    _relief_seen = max(_relief_seen,
+                                       float(gate_relief(_g, now=when)))
+                except Exception:
+                    continue
+            _forgave = _mlf.forgive_on_paid_relief(
+                min_pts=0.5, total=_relief_seen, ml=_mlf,
+                now=when, rot_key="DAY", date_key=_today)
+            if _forgave.get("forgiven", 0.0) > 0:
+                lesson = (f"{lesson} The gates widened and paid for the "
+                          f"lesson — {float(_forgave['forgiven']):.2f} of the "
+                          f"penalty forgiven (the relief asked {0.5:.2f}, "
+                          f"the journal held "
+                          f"{float(_forgave.get('relief_seen', 0.0)):.2f}).")
+                _day_result["lesson"] = lesson
+    except Exception:
+        _forgave = None
+    _day_result["forgave"] = _forgave
     _day_result["top_verdict"] = _topv
     _worth_ladder_ingest(_day_result)   # the DAY aggregate rides
     # the same agreement bar (realized > 0, table drained) before
@@ -1549,6 +1596,7 @@ def cooldown_review(exchange=None, when=None, speak=True, dry_run=False,
             "verdict_color_streak": _day_result["verdict_color_streak"],
             "top_three": _day_result.get("top_three"),
             "era_line": _day_result.get("era_line"),
+            "forgave": _day_result.get("forgave"),
         })
         state["history"] = state["history"][-60:]
         save_state(state)
@@ -1575,6 +1623,7 @@ def cooldown_review(exchange=None, when=None, speak=True, dry_run=False,
         "verdict_color_streak": _day_result["verdict_color_streak"],
         "top_three": _day_result.get("top_three"),
         "era_line": _day_result.get("era_line"),
+        "forgave": _day_result.get("forgave"),
     }
 
 
