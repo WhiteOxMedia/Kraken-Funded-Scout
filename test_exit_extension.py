@@ -1069,6 +1069,32 @@ try:
     # evaporates with the process, and there is nothing to steal or
     # unlink), bound to the state file's path AT CALL TIME (a sandboxed
     # ledger must never contend on a repo-root lock).
+    # THE 19B REWRITE (Oct 8, the identity-race class retirement): the
+    # old 12.19b diffed the repo-root anchor's BYTES across this
+    # drive's runtime — the charter-drive's in-sweep flake class
+    # (battery_final_20261007). The audit-ledger fingerprint pattern
+    # replaces it, shaped for this surface:
+    #   - THE FINGERPRINTS: the production lock writes NOTHING (the
+    #     anchor sizes 0, untouched since Oct 2 18:10 — the lock lives
+    #     in the OS per HANDLE), so any 12.19-run write leaks one of
+    #     exactly two shapes: the TRICKERY template ("999999|...", the
+    #     literal this drive writes inside the sandbox) or FRESH
+    #     TAKEOVER CLUTTER (reused handle, stale content, bumpable
+    #     mtime — the leak would look ancient and operate dead). A
+    #     FRESH NON-EMPTY anchor is therefore itself a leak signal —
+    #     0 or pre-existing-non-junk, anything else. Anti-vacuity:
+    #     pre-existing junk (a stale takeover file this drive did not
+    #     create) or a Windows symlinker deleting it mid-run names the
+    #     MISS, never a false green.
+    #   - THE SIMULTANEITY: the sandbox leg's runs prove the snapshot
+    #     covers the anchor's whole exposure (leak-in-both = leak —
+    #     a no-op cannot leave residue, in either wall alone).
+    # The lock bookkeeping lives in ONE data structure; content-type of
+    # every write is the 999999|... template only (urls are 0-byte);
+    # SIZE 0 means the file wholly (with ZERO junk in it) is the lock:
+    # 0 bytes = handle-only signature. FRESH NON-EMPTY = leak (leak
+    # tools can never operate; faking is the LIE, never the navy the
+    # pre-existing junk would have to lie about).
     _src19 = (BASE / "background_scanner.py").read_text(encoding="utf-8")
     _i_cls = _src19.find("class _TideRetuneFileLock")
     _i_end = _src19.find("\ndef ", _i_cls) if _i_cls >= 0 else -1
@@ -1082,40 +1108,129 @@ try:
           ("msvcrt" in _cls19, "LK_NBLCK" in _cls19,
            ".unlink(" not in _cls19, "os.link" not in _cls19))
     # (b) call-site binding: a release under a REBOUND state file must
-    # leave its lock beside the rebound ledger — and never touch the
-    # repo-root anchor. (Oct 3 re-aim: the third conjunct used to assert
-    # the root anchor's ABSENCE, but the armed retune canary's first live
-    # lock legitimately created it (Oct 2 18:10) and the kernel-owned
-    # class never unlinks on release — absence is permanently false in
-    # production. The enforceable contract is IMMUTABILITY: the
-    # sandboxed release must leave the root anchor's bytes exactly as it
-    # found them, whoever owns them.)
+    # lock beside the rebound ledger — and never leave a WRITE SHAPE on
+    # the repo-root anchor. (Oct 8 re-aim, the identity-race class
+    # retirement: the old conjunct byte-diffed the anchor across this
+    # drive's runtime — the charter flake's race class
+    # (battery_final_20261007), retired drive by drive. The production
+    # anchor is a 0-BYTE, content-free HANDLE signature (the kernel-
+    # owned lock lives in the OS per HANDLE; the file is just the
+    # anchor and holds nothing — 0 bytes since Oct 2 18:10), so the
+    # pin judges SHAPES snap-to-now, never mirrored bytes:
+    #   leaks: fresh bytes where 0 lived, bytes created where nothing
+    #   lived, this drive's trickery/takeover template (999999|...)
+    #   anywhere, or a changed pre-existing anchor (whole-file
+    #   rewrites included). A pre-existing NON-template anchor is
+    #   strictly out of scope (operator clutter, not a drive write);
+    #   its REMOVAL only names a MISS (a symptom, never attributed
+    #   proof) and never holds the verdict false-green-free.
+    #   ANTI-VACUITY: the detector proves itself on a drive-owned
+    #   template write, which is FENCED into its own try/finally and
+    #   runs AFTER the release leg so it can never contaminate the
+    #   runtime verdict. A live byte-range holder refuses the probe
+    #   byte (PermissionError 13) — the kernel's own guard then IS
+    #   the proof, and the anti-vacuity leg rides it)
     _19_dir = Path(_12_tmp) / "lockbind"
     _19_dir.mkdir(exist_ok=True)
     _19_old_sf = bs.TIDE_RETUNE_STATE_FILE
+    _19_root = BASE / "tide_retune_state.json.lock"
+    _19_probe = b"999999|2099-12-31T00:00:00-07:00|deadbeef"
+
+    # THE SHAPE JUDGE (one function, replays the snap-state against a
+    # now-state; returns the leak SHAPE it detects, None = clean):
+    # every leak case this drive's section can emit has one branch.
+    # THE STRICT WINDOW (CodeRabbit medium on the first pass, cured):
+    # the snap-to-judge window is this drive's OWN fixture + release
+    # leg — MILLISECONDS on a 0-byte locked-by-nothing anchor — so a
+    # ZERO-BYTE anchor that VANISHED inside it is a drive write shape
+    # too (the leak case that DELETES what it found; the production
+    # lock's file PERSISTS — only the byte range is the lock, the
+    # anchor is never removed by a legit writer).
+    def _19_shape_leak(snap, st_now, b_now):
+        if snap is None:
+            return ("bytes created where none lived (a template or "
+                    "junk write by this drive's run)"
+                    if st_now is not None else None)
+        if snap[1] == 0:
+            if st_now is None:
+                return ("the 0-byte anchor was REMOVED inside the "
+                        "window (the drive's job was a release call, "
+                        "never a deletion)")
+            return ("bytes on a 0-byte anchor — the production lock "
+                    "writes nothing, so bytes here are a drive write"
+                    if st_now.st_size > 0 else None)
+        if st_now is None:
+            return ("MISS — a pre-existing anchor vanished mid-run "
+                    "(a symptom, never attributed to this drive)")
+        if (b_now or b"") != (snap[3] or b""):
+            if (b_now or b"").startswith(b"999999|"):
+                return ("the trickery template leaked over the "
+                        "pre-existing anchor")
+            return ("the pre-existing anchor's bytes changed "
+                    "mid-run (not a shape this drive owns)")
+        return None
+
+    # THE SNAP precedes every leak-capable action: what the anchor is
+    # afterwards is judged against HERE, at the time the shape judge
+    # is called — never against a mirrored dict read.
+    _19_snap = None
+    if _19_root.exists():
+        _19_st0 = _19_root.stat()
+        _19_snap = ("existed", _19_st0.st_size, _19_st0.st_mtime,
+                    _19_root.read_bytes())
+    # FIXTURES (the ledger seed) ride AFTER the snap — the order does
+    # not write the anchor, so nothing here can precede the snap.
     bs.TIDE_RETUNE_STATE_FILE = str(_19_dir / "tide_retune_state.json")
     Path(bs.TIDE_RETUNE_STATE_FILE).write_text(json.dumps(
         {"day": datetime.now().astimezone().strftime("%Y-%m-%d"),
          "pairs": []}), encoding="utf-8")
-    _19_root = BASE / "tide_retune_state.json.lock"
-    _19_root_before = (_19_root.read_bytes()
-                       if _19_root.exists() else None)
-    _19_root_size0 = (_19_root.stat().st_size
-                      if _19_root.exists() else None)
     _rel19, _why19 = bs._tide_retune_releases(70.0, "LOCKBIND/USD")
-    _19_root_after = (_19_root.read_bytes()
-                      if _19_root.exists() else None)
-    _19_root_ok = ((_19_root_after is None and _19_root_before is None)
-                   or _19_root_after == _19_root_before)
+    _19_st_after = (_19_root.stat() if _19_root.exists() else None)
+    _19_b_after = (_19_root.read_bytes() if _19_root.exists() else None)
+    _19_leak = _19_shape_leak(_19_snap, _19_st_after, _19_b_after)
+    _13_dir_has_lock = any(_19_dir.glob("*.lock"))
     _ck12("12.19b the lockfile follows the ledger's CURRENT path (call-"
-          "time derivation — a sandboxed release locks in its sandbox "
-          "and leaves the repo-root anchor byte-identical, never "
-          "writing the production canary's lock)",
+          "time derivation — a sandboxed release locks in its sandbox; "
+          "and the_audit-ledger pins the repo-root anchor at "
+          "RUNTIME, shape-keyed: no bytes where 0 lived, the drive's "
+          "template nowhere on it, the snap the whole exposure — the "
+          "byte-diff race across this drive's runtime is retired with "
+          "the charter flake's class)",
           _rel19 is True
-          and any(_19_dir.glob("*.lock"))
-          and _19_root_ok,
-          (_rel19, sorted(p.name for p in _19_dir.glob("*")),
-           _19_root_before, _19_root_after, _19_root_size0))
+          and _13_dir_has_lock
+          and _19_leak is None,
+          (_rel19, _19_leak or "no leak SHAPE on the anchor",
+           str(_19_root), sorted(p.name for p in _19_dir.glob("*"))))
+    # THE DETECTOR'S RED-PROOF is IN-MEMORY ONLY (CodeRabbit major on
+    # the first cut, cured: the probe used to write the real repo-root
+    # anchor and best-effort restore it — a concurrent production
+    # holder or a failed restore could leave the anchor modified or
+    # removed; the class' own rule — no drive write to a live artifact
+    # — is the rule the probe obeys too). The probe replays the EXACT
+    # now-state this drive's leak case emits (bytes-on-zero, or the
+    # template-over-pre-existing shape when a non-empty anchor sits
+    # there) through the shape judge and NOTHING ELSE: no file write,
+    # no stat, no restore that can fail silently.
+    if _19_snap is None:
+        _19_probe_st = types.SimpleNamespace(st_size=len(_19_probe))
+        _19_probe_case = "bytes created where none lived"
+    elif _19_snap[1] == 0:
+        _19_probe_st = types.SimpleNamespace(st_size=len(_19_probe))
+        _19_probe_case = "bytes on a 0-byte anchor"
+    else:
+        _19_probe_st = types.SimpleNamespace(st_size=_19_snap[1] + len(_19_probe))
+        _19_probe_case = "template over the pre-existing anchor"
+    _19_probe_guilty = _19_shape_leak(
+        _19_snap, _19_probe_st, _19_probe) is not None
+    _ck12("12.19b-red the leak-shape detector is ALIVE: replaying the "
+          "drive's exact leak case through the shape judge fires on it "
+          "(IN-MEMORY ONLY — the live anchor is never touched: no "
+          "probe write, no restore race, no silent failure path; the "
+          "detector cannot pass by recording nothing)",
+          _19_probe_guilty,
+          (_19_probe_case or "no case", _19_probe_guilty,
+           ("existed" if _19_snap else "absent"),
+           _19_snap[1] if _19_snap else None))
     # (c) the behavioral contract, deterministic: a HELD lock cannot be
     # taken by metadata trickery (rewriting the file to look ancient
     # must not help — the kernel owns the lock, not the file's

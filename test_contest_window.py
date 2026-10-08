@@ -167,7 +167,28 @@ if _repo_watch.exists():
         _repo_after = None
 _bw = json.loads(_repo_before) if _repo_before else {}
 _aw = json.loads(_repo_after) if _repo_after else {}
-check("the LIVE repo watch lost no rows while the suite ran (no leak)",
+# THE 2.0b HEADER-AUDIT (Oct 8, the identity-race class retirement, one
+# drive at a time): the byte-level row-subset pin rides the identity-
+# race family that died in battery_final_20261007 (stripped to the
+# valid subsumption core): the LIVE watch is a PERSISTENT WRITER's own
+# surface (the running scanner's rotation writes it legs-between; a
+# sweep straddling a write DETERMINISTICALLY races it — battery_final_
+# 20261007's shape). The DRIVE RULE the audit-ledger pins: rows lost
+# = rows the flow could not have touched out-of-band (wiped rows
+# TAIL THE PIN — a drive leaking a wipe DOES delete rows), so the
+# missing-rows assertion stays the pin in-retrospect (a retro-
+# attribution wrapper, the same pattern the charter flake cure)
+# — v2b pins the family too: the rows-vanished shape stays a DRIVE
+# LEAK signal, and the check MUST carry the subsumption reason in
+# its detail (a pass by recording nothing = snapshot-only vacuity).
+_repo_leak_note = (
+    f"rows_before={len(_bw)} rows_after={len(_aw)} "
+    f"lost={sorted(set(_bw) - set(_aw))[:5]}")
+check("the LIVE repo watch lost no rows while the suite ran (no leak "
+      "— rows-vanished is a DRIVE-LEAK signal in-retrospect: the "
+      "sandbox flow touches no live rows out-of-band, so anything it "
+      "lost is attributed HERE, the byte/subset race of the 0924 "
+      "flake's class retired)",
       not (set(_bw) - set(_aw)))
 
 # ── 7. the death line follows the WINDOW, not a stale console ─────────

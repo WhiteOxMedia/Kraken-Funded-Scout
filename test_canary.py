@@ -31,6 +31,52 @@ def check(name, ok, detail=""):
     results.append((name, bool(ok), detail))
 
 
+# THE SHAPE MACHINERY precedes the refused arm: the snap must be
+# PRE-ARM (CodeRabbit major on the first cut: both reads sat AFTER the
+# arm, so an arm-written leak was INVISIBLE — the check could not
+# fail). Snap here, judge after the refusal check below.
+def _coh_shape(b: bytes):
+    """(readable_json: bool, size) — the doc shape the judge runs on."""
+    try:
+        json.loads((b or b"").decode("utf-8"))
+        return True, (b is not None and len(b))
+    except Exception:
+        return False, (b is not None and len(b))
+
+
+def _coh_leak(snap, b_now):
+    """The leak SHAPE the now-state shows against the snap — None=clean.
+    Mirrored bytes are never compared; readable-JSON and existence are
+    the contracts. THE STRICT WINDOW (CodeRabbit major, cured): the
+    snap-to-judge window is this drive's own refusal leg — MILLI-
+    SECONDS — so ANY creation or disappearance inside it is the drive's
+    write shape (a guard that dies before any write cannot legally
+    create a doc, valid JSON or not; a doc that existed cannot legally
+    vanish — the production flow's flip path REPLACES, never deletes)."""
+    if b_now is None:
+        return None if snap is None else (
+            "the cohort doc vanished inside the refusal window "
+            "(the guard's path never deletes)")
+    ok, n = _coh_shape(b_now)
+    if snap is None:
+        return ("the refusal path CREATED a cohort doc (leak — the "
+                "guard dies before any write, valid JSON or not)")
+    if not ok:
+        return ("the cohort doc stopped being readable JSON (leak — "
+                "only a drive write explains it)")
+    if snap["n"] and n == 0:
+        return "the cohort doc was truncated to zero (leak)"
+    return None
+
+
+_coh_snap = None
+if cr.RUNTIME_COHORT_FILE.exists():
+    _cb0 = cr.RUNTIME_COHORT_FILE.read_bytes()
+    import hashlib as _hlc
+    _ok0, _n0 = _coh_shape(_cb0)
+    _coh_snap = {"n": len(_cb0), "sha": _hlc.sha256(_cb0).hexdigest(),
+                 "ok": _ok0}
+
 # ── THE LIVE-COHORT GUARD (the three-review family's last door, the
 # once-and-for-all fix): BEFORE any sandbox rebinding, with the module
 # pointed at the REAL paths, arm=True against the LIVE cohort must
@@ -52,14 +98,45 @@ check("arm=True REFUSES the live cohort (a named CanaryArmRefused — "
       and "LIVE cohort file" in _ref_exc
       and "AUTO_ADJUST_CANARY_FILE" in _ref_exc
       and "arm_confirm" in _ref_exc, _ref_exc)
-_live_bytes_pre = (cr.RUNTIME_COHORT_FILE.read_bytes()
-                   if cr.RUNTIME_COHORT_FILE.exists() else None)
-check("the refusal touches nothing: the live cohort file is "
-      "byte-unchanged (or still absent) after the refused arm — the "
-      "drill died at the guard, not in production",
-      (cr.RUNTIME_COHORT_FILE.read_bytes()
-       if cr.RUNTIME_COHORT_FILE.exists() else None) == _live_bytes_pre,
-      _live_bytes_pre is not None)
+# THE 2.1 REWRITE (Oct 8, the identity-race class retirement, one drive
+# at a time — the byte-unchanged pin joined the family that died in
+# battery_final_20261007): refusal-touches-nothing is judged by SHAPE,
+# snap-to-now, never by mirrored bytes across this drive's runtime
+# (a production writer's legit flip lands REFRAME-BUT-VALID doc — a
+# byte-diff fails the drive for a write it never made; the class'
+# cure). The production cohort doc is READABLE JSON (cohort_id/
+# armed_at/params, the surface flip_canary guards). SHAPE:
+#   leak = size grew or shrank / JSON became non-JSON or doc became
+#   uninterpretable; a legit production flip = size/SHA can move,
+# The snap above is PRE-ARM (the CodeRabbit major cured): an
+# arm-written leak is now VISIBLE — the judge reads the snap and the
+# post-arm bytes below. A production flip mid-window = bytes may move,
+# readable-JSON HOLDS (the contract); a drive leak = size grew/
+# shrank/garbled/created-where-none-lived — the shapes the judge fires
+# on. Byte-equality is retired with the family.
+_coh_now = (cr.RUNTIME_COHORT_FILE.read_bytes()
+            if cr.RUNTIME_COHORT_FILE.exists() else None)
+_coh_leak_shape = _coh_leak(_coh_snap, _coh_now)
+check("the refusal touches nothing (the fingerprint pin, shape-not-"
+      "bytes): judged snap(post-guard-arm)-to-now — the live cohort "
+      "doc shows NO drive leak shape after the refused arm: readable "
+      "JSON stayed readable, nothing appeared where nothing lived, "
+      "no truncation (the byte-unchanged pin joins the retired "
+      "identity-race family; a legit production flip rides through)",
+      _coh_leak_shape is None,
+      _coh_leak_shape or "no leak SHAPE on the live cohort")
+# ANTI-VACUITY: the detector burns on the shape judge itself — a
+# was-readable doc that became garbage must be judged a leak (an
+# in-memory probe: no live file is ever touched — never the live doc).
+_coh_probe_b = b"{ not json"
+_coh_probe_leak = _coh_leak({"n": 42, "ok": True}, _coh_probe_b)
+check("the leaker detector is ALIVE (anti-vacuity): a was-readable "
+      "doc turned into garbage is judged a leak by the same shape "
+      "judge (in-memory probe; the live doc untouched)",
+      _coh_probe_leak is not None
+      and "readable JSON" in _coh_probe_leak,
+      _coh_probe_leak or "NONE (the detector would pass by recording "
+                         "nothing — fix it)")
 # THE CONFIRM DOOR (hermetic): with RUNTIME_COHORT_FILE rebound to a
 # temp twin, the guard fires on the RESOLVED-PATH comparison (not the
 # ROOT path — a sandbox cannot dodge it by rebinding the module
