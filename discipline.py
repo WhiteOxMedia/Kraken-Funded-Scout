@@ -513,7 +513,12 @@ def _coin_paid(exchange, pair: str, entry: float, goal_pct: float,
         ohl = exchange.fetch_ohlcv(pair, timeframe="1h", since=since, limit=10)
         for c in (ohl or []):
             ct = datetime.fromtimestamp(c[0] / 1000, tz=MST)
-            if alert <= ct <= window_end and c[2]:
+            # END-EXCLUSIVE (CodeRabbit, Oct 7): a candle OPENING at
+            # window_end spans AFTER the window - its high is not
+            # in-window evidence (a 11:57 sale must not be charged from
+            # the 12:00 candle's later high). The other buckets share
+            # this primitive and the same honesty.
+            if alert <= ct < window_end and c[2]:
                 if float(c[2]) >= entry * (1.0 + goal_pct / 100.0):
                     return True
         return False
@@ -652,6 +657,19 @@ def evaluate_rotation(exchange, rot_key: str, when=None, speak=True,
         elif realized < 0 and peak_pct >= goal * 0.9:
             t["_left"] = size * peak_pct / 100.0 - realized
             missed_exit.append(t)
+        elif _coin_paid(exchange, t["pair"], entry, goal, t["_ts"], end):
+            # THE EARLY EXIT (the bucket's own comment, wired Oct 7):
+            # the branches above own every peak-reached shape — this is
+            # the complement. The peak in hand never reached the goal,
+            # the exit landed, and the coin paid the goal AFTER the
+            # sale: the money left is the unpaid goal span. Only a
+            # DETECTED post-sale payment docks (the burial rule's
+            # DETECT-first standard — right-censoring can never dock),
+            # and the candle read fails closed, so no phantom money.
+            left = max(0.0, goal_usd - max(realized, 0.0))
+            if left > 0:
+                t["_left"] = left
+                early_exit.append(t)
 
     # still-held: the goal reached with no exit at all (the harshest)
     try:
@@ -857,6 +875,13 @@ def evaluate_rotation(exchange, rot_key: str, when=None, speak=True,
         "missed": [p.get("pair") for p in missed],
         "giveback": [t.get("pair") for t in giveback],
         "missed_exit": [t.get("pair") for t in missed_exit],
+        # early_exit STAYS OUT of the resolver's inbox (CodeRabbit, Oct
+        # 7): the bucket is BORN PROVEN — the leave exists because a
+        # post-sale payment was DETECTED by the candle test, so there
+        # is nothing for a later sale to prove. Exposing its pairs here
+        # would let _resolve_prior_verdict match the ORIGINATING sale
+        # (same pair, same entry) and credit the leave with money that
+        # was already realized — a leave proving itself.
         "early_exit": [],
         "system_burial": [p.get("pair") for p in system_burial],
     }
@@ -866,7 +891,8 @@ def evaluate_rotation(exchange, rot_key: str, when=None, speak=True,
         "giveback": {t.get("pair"): float(t.get("entry") or 0.0)
                      for t in giveback},
         "missed_exit": {t.get("pair"): float(t.get("entry") or 0.0)
-                        for t in missed_exit},
+                       for t in missed_exit},
+        # born-proven: see left_pairs above — never sale-resolvable
         "early_exit": {},
         "system_burial": {p.get("pair"): float(p.get("entry") or 0.0)
                           for p in system_burial},
