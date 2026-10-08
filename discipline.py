@@ -77,6 +77,17 @@ RESOLVE_MIN_PROFIT_USD = 5.0   # the leave must land as REAL profit
 RESOLVE_MAX_LOOKBACK_DAYS = 3  # evidence older than this never joins
 RESOLVE_ENTRY_TOL = 0.10 # a sale proves THE opportunity only when its
                         # entry is this close to the opportunity entry
+# BORN-PROVEN COMPONENTS (CodeRabbit's isolated review of the early-exit
+# wire 9635a5e, run Oct 8 once the quota reset — the one untriaged
+# major, cured): leaves whose proof already exists at BIRTH. early_exit
+# exists BECAUSE a post-sale payment was detected by the candle test,
+# and its resolver inbox is deliberately empty (a leave must never
+# prove itself). The resolution arithmetic must agree: these components
+# never count as unresolved leave — not in the resolver's remainder
+# (pre-credited: the detection IS the proof) and not in the agreement
+# bar's left-on-the-table sum. Born-proven is proven everywhere, or the
+# bucket is born-proven only where it doesn't bite.
+BORN_PROVEN_COMPONENTS = ("early_exit",)
 # the learned component weights (bounded; nudged by learn())
 DEFAULT_WEIGHTS = {
     "missed": 1.0,        # a paying popup never taken
@@ -921,7 +932,7 @@ def evaluate_rotation(exchange, rot_key: str, when=None, speak=True,
 
 
 def _resolve_prior_verdict(state: dict, current_start=None,
-                           current_end=None) -> int:
+                           current_end=None, trades_file=None) -> int:
     """The verdict resolver (Oct 5): find the most recent UNPROVEN
     rotation lesson in the history, re-join its leave to the SOLD
     journal as of NOW, and upgrade the lesson when the money has
@@ -950,7 +961,13 @@ def _resolve_prior_verdict(state: dict, current_start=None,
     try:
         rows = []
         try:
-            _p = Path(__file__).parent / "contest_trades.jsonl"
+            # THE INJECTABLE JOURNAL (CodeRabbit's isolated review of
+            # the born-proven cure, second major: a test that empties
+            # the shared journal can lose a concurrent sale or strand
+            # an interrupted run with a wiped journal) — production
+            # calls take the default; fixtures pass a temp path.
+            _p = (Path(trades_file) if trades_file
+                  else Path(__file__).parent / "contest_trades.jsonl")
             for _line in _p.read_text(encoding="utf-8").splitlines():
                 if not _line.strip():
                     continue
@@ -970,9 +987,24 @@ def _resolve_prior_verdict(state: dict, current_start=None,
                 except Exception:
                     continue
         except Exception:
-            return 0
+            # THE BORN-PROVEN EXCEPTION (Copilot's low on the second
+            # cut, cured in-amend Oct 8): a born-proven-only window
+            # needs NO sale evidence — the candle detection IS its
+            # proof — so an unreadable journal may not strand it
+            # unproven forever (the same shape the no-rows case below
+            # exempts). Live components keep the fail-soft: no journal,
+            # no sale credit, and the walk below simply finds no rows.
+            if not BORN_PROVEN_COMPONENTS:
+                return 0
+            rows = []
         if not rows:
-            return 0
+            # THE BORN-PROVEN EXCEPTION (CodeRabbit's isolated review,
+            # cured Oct 8): a window whose leave is only born-proven
+            # money needs NO sale rows — the candle detection IS its
+            # proof, so the resolver must still walk the history with
+            # an empty journal. Any live component still needs sales.
+            if not BORN_PROVEN_COMPONENTS:
+                return 0
         _floor = (_now() - timedelta(days=RESOLVE_MAX_LOOKBACK_DAYS))
         _used_set = set(state.get("resolver_used_sales") or [])
         for h in reversed(state.get("history") or []):
@@ -1022,8 +1054,19 @@ def _resolve_prior_verdict(state: dict, current_start=None,
                                            or [])))
                 _sp = [q for q in _sp if q]
                 if not _sp:
-                    continue   # no pair evidence: never resolves
-                pairs_map = {"system_burial": _sp}
+                    # THE BORN-PROVEN GATE (CodeRabbit's isolated review
+                    # of 9635a5e, cured Oct 8): an all-empty inbox is the
+                    # DESIGN for born-proven components — skip only when
+                    # some LIVE leave exists that no inbox covers. A
+                    # leave of ONLY born-proven money walks through and
+                    # is pre-credited below (the candle detection IS its
+                    # proof; no sale can or may supply it).
+                    if any((k not in BORN_PROVEN_COMPONENTS)
+                           and float(v or 0.0) > RESOLVE_DUST_USD
+                           for k, v in usd.items()):
+                        continue   # live leave, no pair evidence
+                else:
+                    pairs_map = {"system_burial": _sp}
             entries_map = (h.get("left_entries")
                            if isinstance(h.get("left_entries"), dict)
                            else {})   # opportunity entries: the join
@@ -1077,16 +1120,32 @@ def _resolve_prior_verdict(state: dict, current_start=None,
                         _vc[_c] = round(float(_vc.get(_c) or 0.0) + _best, 2)
                         _claimed.add(_pair)
                         _used.append(_best_sig)
-            if _credit < RESOLVE_MIN_PROFIT_USD:
-                continue   # no new evidence this pass: the words stay
             # the credit drains only its own components; the verdict is
-            # proven when EVERY component's remainder is dust
+            # proven when EVERY component's remainder is dust. THE
+            # BORN-PROVEN EXCLUSION (CodeRabbit's second major, cured
+            # in-amend Oct 8): a born-proven component contributes ZERO
+            # remainder — the candle detection IS its proof, no sale can
+            # or may supply it (the inbox is empty by design) — but it
+            # NEVER rides verdict_credit either: the early-exit gap is
+            # DETECTED opportunity, never realized money, and a credit
+            # there would let the verdict claim the candle's high as a
+            # sale. Detected and realized stay separate columns.
             _rem_map = {c: max(0.0, round(float(usd.get(c) or 0.0)
                                           - float(_vc.get(c) or 0.0), 2))
                         for c in set(pairs_map) | {k for k, v in usd.items()
-                                                  if float(v or 0.0) > 0.0}}
+                                                   if float(v or 0.0) > 0.0}
+                        if c not in BORN_PROVEN_COMPONENTS}
             _rem = round(sum(_rem_map.values()), 2)
+            _bp_usd = round(sum(float(usd.get(_bp) or 0.0)
+                                for _bp in BORN_PROVEN_COMPONENTS), 2)
             _run = round(sum(float(v) or 0.0 for v in _vc.values()), 2)
+            if _credit < RESOLVE_MIN_PROFIT_USD and not (
+                    _bp_usd > 0 and _rem <= RESOLVE_DUST_USD):
+                continue   # no new evidence this pass: the words stay
+                           # (a born-proven leave with every live
+                           # component at dust clears this gate alone —
+                           # its proof is the detection, not a sale,
+                           # and the old $5 floor never applied to it)
             if _rem > RESOLVE_DUST_USD:
                 _stuck = ", ".join(f"{c} ${v:,.0f}"
                                    for c, v in sorted(_rem_map.items())
@@ -1094,6 +1153,12 @@ def _resolve_prior_verdict(state: dict, current_start=None,
                 _new = (f"unproven (partially resolved: ${_run:,.0f} of its "
                         f"${_left:,.0f} realized, ${_rem:,.0f} still unproven "
                         f"[{_stuck}] — the money is landing)")
+            elif _bp_usd > 0:
+                _new = (f"proven after the fact (score {h.get('score'):.0f}, "
+                        f"${_run:,.0f} of its ${_left:,.0f} leave realized by "
+                        f"sale, ${_bp_usd:,.0f} more DETECTED by the post-sale "
+                        f"candle test (never realized money) — the calibration "
+                        f"stands)")
             else:
                 _new = (f"proven after the fact (score {h.get('score'):.0f}, "
                         f"leave ${_left:,.0f} realized — the money "
@@ -1114,13 +1179,33 @@ def _resolve_prior_verdict(state: dict, current_start=None,
             state["resolver_used_sales"] = _ledger[-200:]
             _kind = ("partially proven" if _rem > RESOLVE_DUST_USD
                      else "PROVEN after the fact")
-            _tail = ("the money is landing." if _rem > RESOLVE_DUST_USD
-                     else "the money landed, the calibration stands.")
+            # THE DETECTED/REALIZED WORDING (Copilot's medium on the
+            # second cut, cured in-amend): the lessons log must say
+            # what the verdict says — realized-by-sale money and
+            # born-proven DETECTED money are different columns, and a
+            # born-proven-only window never claims "the money landed"
+            # about a gap the candle saw but no sale ever banked.
+            if _bp_usd > 0 and _credit <= 0:
+                _tail = (f"the ${_bp_usd:,.0f} gap was DETECTED by the "
+                         f"post-sale candle test, not realized proceeds — "
+                         f"the calibration stands.")
+                _sum = (f"${_bp_usd:,.0f} of its ${_left:,.0f} leave "
+                        f"born-proven detected")
+            elif _bp_usd > 0:
+                _tail = (f"${_credit:,.0f} realized by sale, "
+                         f"${_bp_usd:,.0f} more detected by the post-sale "
+                         f"candle test (never realized money).")
+                _sum = (f"${_credit:,.0f} of its ${_left:,.0f} leave "
+                        f"realized by sale, ${_bp_usd:,.0f} more detected")
+            else:
+                _tail = ("the money is landing." if _rem > RESOLVE_DUST_USD
+                         else "the money landed, the calibration stands.")
+                _sum = (f"${_credit:,.0f} of its ${_left:,.0f} leave "
+                        f"realized")
             state.setdefault("lessons", []).append(
                 {"ts": h["verdict_ts"],
                  "lesson": f"Rotation {_d} {h.get('rot')} {_kind}: "
-                           f"${_credit:,.0f} of its ${_left:,.0f} leave "
-                           f"realized — {_tail}"})
+                           f"{_sum} — {_tail}"})
             return 1
         return 0
     except Exception:
@@ -1250,8 +1335,17 @@ def _learn(state: dict, result: dict) -> str:
         # becomes realized) and the money left on the table must
         # become $0 (≤ the $1 crumb the voice itself ignores). Until
         # then the verdict is UNPROVEN — weights hold, nothing stands.
-        _left = float(result.get("total_left")
-                      or sum(float(v) or 0.0 for v in usd.values()))
+        # THE BORN-PROVEN EXCLUSION (CodeRabbit's isolated review of
+        # 9635a5e, cured Oct 8): the bar weighs UNRESOLVED leave —
+        # components whose proof exists at birth (the candle test
+        # already detected the payment) never hold the bar open, or a
+        # rotation whose leave is only early-exit money could never
+        # stand. total_left keeps the full map for the plate/voice.
+        _left = float(result.get("total_left") or 0.0)
+        if _left <= 0.0:
+            _left = sum(float(v) or 0.0 for v in usd.values())
+        for _bp in BORN_PROVEN_COMPONENTS:
+            _left = round(_left - float(usd.get(_bp) or 0.0), 2)
         if pnl > 0 and _left <= 1:
             lesson = (f"Score and money agree (score {score:.0f}, realized "
                       f"${pnl:+.0f}) — weights hold; the calibration stands.")

@@ -197,6 +197,129 @@ check("5.1 realized_pnl sums the sold trades (47.0)",
 check("6.1 the evaluation persisted to the SANDBOX only",
       len(_saved_states) == 1, str(len(_saved_states)))
 
+# ── 7. BORN-PROVEN MEANS PROVEN EVERYWHERE (CodeRabbit's isolated
+#    review of 9635a5e, run Oct 8 once the quota reset — the one
+#    untriaged major, cured): the bucket's dollars leave the store
+#    through usd_left, but its inbox is deliberately empty (check 3.1
+#    — a leave must never prove itself). The RESOLVER'S remainder and
+#    _learn's agreement bar both sum the whole usd_left map, so a
+#    window that carries early-exit leave could never reach "all
+#    components dust": the resolver would badge it "partially
+#    resolved ... early_exit $X still unproven" forever, and the
+#    agreement bar would refuse the calibration — about money the
+#    candle test ALREADY PROVED landed. Born-proven is proven
+#    everywhere, or the bucket is born-proven only where it doesn't
+#    bite. THE CONTRACT (CodeRabbit's second major, cured in-amend):
+#    the early-exit gap is DETECTED opportunity, never realized money
+#    — the resolver proves the window with the detection but never
+#    credits it as a sale, and the DETECTED wording says which is
+#    which. THE JOURNAL (CodeRabbit's first major, cured in-amend):
+#    every fixture reads a TEMP journal through the resolver's
+#    injectable trades_file seam — the live contest_trades.jsonl is
+#    never opened, a concurrent sale can never be lost to a
+#    backup/restore window.
+_tj = Path(tempfile.mkdtemp(prefix="exw_journal_")) / "trades.jsonl"
+try:
+    _tj.write_text("", encoding="utf-8")   # no sale evidence at all
+    _day = (datetime.now(MST) - timedelta(days=1)).date()
+    _verdict = ("Score 50, realized $+0 — $12 left on the table: the "
+                "money hasn't confirmed the score, so this is not "
+                "agreement. Weights hold unproven — the calibration "
+                "stands only when the leave realizes and the money "
+                "left on the table becomes $0.")
+    _hist = {"date": _day.isoformat(), "rot": "08-12", "score": 50.0,
+             "verdict": _verdict,
+             "usd_left": {"missed": 0.0, "giveback": 0.0, "missed_exit": 0.0,
+                          "early_exit": 12.0, "system_burial": 0.0},
+             "left_pairs": {"missed": [], "giveback": [],
+                            "missed_exit": [], "early_exit": [],
+                            "system_burial": []},
+             "left_entries": {"missed": {}, "giveback": {},
+                              "missed_exit": {}, "early_exit": {},
+                              "system_burial": {}},
+             "system_pairs": []}
+    _mk = lambda: {"weights": dict(dc.DEFAULT_WEIGHTS), "history": [],
+                   "lessons": []}
+    _st_e = _mk(); _st_e["history"].append(dict(_hist))
+    _n_e = dc._resolve_prior_verdict(_st_e, trades_file=_tj)
+    check("7.1 a leave of ONLY born-proven early-exit money grades "
+          "PROVEN with zero sales (the candle already proved it)",
+          _n_e == 1 and "proven after the fact"
+          in str(_st_e["history"][0]["verdict"]),
+          str(_n_e) + " " + str(_st_e["history"][0]["verdict"])[:90])
+    check("7.1c the DETECTED/realized contract: the proven verdict "
+          "says the gap was DETECTED by the candle, never that it "
+          "was realized by a sale — and no verdict_credit rides it",
+          "DETECTED" in str(_st_e["history"][0]["verdict"])
+          and "realized by sale" in str(_st_e["history"][0]["verdict"])
+          and not (_st_e["history"][0].get("verdict_credit") or {})
+          .get("early_exit"),
+          str(_st_e["history"][0]["verdict"])[:130])
+    _n_e2 = dc._resolve_prior_verdict(_st_e, trades_file=_tj)
+    check("7.1b the born-proven upgrade is idempotent (a re-review "
+          "moves no words, appends no duplicate lesson)",
+          _n_e2 == 0 and len(_st_e["lessons"]) == 1,
+          str(_n_e2) + " lessons=" + str(len(_st_e["lessons"])))
+    _st_m = _mk(); _st_m["history"].append(
+        dict(_hist, usd_left={"missed": 500.0, "giveback": 0.0,
+                              "missed_exit": 0.0, "early_exit": 12.0,
+                              "system_burial": 0.0},
+             left_pairs={"missed": ["M/USD"], "giveback": [],
+                         "missed_exit": [], "early_exit": [],
+                         "system_burial": []},
+             left_entries={"missed": {"M/USD": 1.0}, "giveback": {},
+                           "missed_exit": {}, "early_exit": {},
+                           "system_burial": {}}))
+    _row_m = json.dumps({"sold_at": _day.isoformat()
+                         + "T11:00:00-06:00", "pair": "M/USD",
+                         "pnl_net": 520.0, "entry": 1.0, "exit": 1.02,
+                         "size": 1000.0, "applied": True}) + "\n"
+    _tj.write_text(_row_m, encoding="utf-8")
+    _n_m = dc._resolve_prior_verdict(_st_m, trades_file=_tj)
+    check("7.2 with a live component beside it, early_exit never "
+          "surfaces as 'still unproven' (it was born proven)",
+          _n_m == 1 and "early_exit" not in
+          str(_st_m["history"][0]["verdict"]),
+          str(_st_m["history"][0]["verdict"])[:120])
+    _tj.write_text("", encoding="utf-8")
+    # 7.4 THE UNREADABLE-JOURNAL EXCEPTION (Copilot's low on the
+    #     second cut, cured in-amend): a born-proven-only window
+    #     resolves even when the journal is MISSING — the candle
+    #     detection needs no sale evidence. The injectable seam makes
+    #     this testable without touching the live file.
+    _st_u = _mk(); _st_u["history"].append(dict(_hist))
+    _n_u = dc._resolve_prior_verdict(_st_u,
+                                     trades_file=_tj.parent / "absent.jsonl")
+    check("7.4 an unreadable journal never strands a born-proven "
+          "window (the detection IS the proof, no sale evidence "
+          "needed)",
+          _n_u == 1 and "proven after the fact"
+          in str(_st_u["history"][0]["verdict"]),
+          str(_n_u) + " " + str(_st_u["history"][0]["verdict"])[:90])
+    check("7.5 the LESSONS LOG keeps the detected/realized contract "
+          "too — a born-proven-only window never says 'the money "
+          "landed' about a gap no sale ever banked",
+          any("DETECTED by the post-sale candle test" in l["lesson"]
+              and "never realized" not in l["lesson"].split("DETECTED")[0]
+              for l in _st_u["lessons"])
+          and not any("the money landed" in l["lesson"]
+                      for l in _st_u["lessons"]),
+          str(_st_u["lessons"])[-160:])
+    _st_l = _mk()
+    _res_l = {"score": 50.0, "realized_pnl": 60.0, "pace_share": 48.0,
+              "usd_left": {"missed": 0.0, "giveback": 0.0,
+                           "missed_exit": 0.0, "early_exit": 12.0,
+                           "system_burial": 0.0},
+              "ts": datetime.now(MST).isoformat()}
+    _lesson_l = dc._learn(_st_l, _res_l)
+    check("7.3 the agreement bar weighs the leave MINUS the "
+          "born-proven component ($12 early-exit leave + $60 "
+          "realized stands)",
+          "Score and money agree" in _lesson_l, _lesson_l[:100])
+finally:
+    pass   # the fixture journal is a TEMP file — the live
+           # contest_trades.jsonl was never opened, nothing to restore
+
 passed, failed = results.count(True), results.count(False)
 print(f"RESULT: {passed} passed, {failed} failed")
 sys.exit(1 if failed else 0)
