@@ -137,3 +137,15 @@ reports/
 # task 8: rotation evidence bundles stay on disk (15MB+ db images,
 # retention 90d) — the manifest pins their checksums
 artifacts/evidence/rotations/
+
+# ── the private ntfy push topic (Oct 7, Phase 0 rotation hygiene) ──
+# All three were TRACKED until today, and the monero bundle builder
+# ships `git archive kraken_scout HEAD` — so the public zip served at
+# pool /downloads/KrakenScoutBundle.zip carried the topic in 3 entries
+# (anyone with the URL could subscribe and read every BUY / GET OUT).
+# Untracked + denied means the archive door (the commit itself) can
+# never carry them again. The live files STAY on disk: the scanner
+# re-reads push_topic.txt on every send, no restart needed.
+push_topic.txt
+_ntfydiag.txt
+.workshop/
