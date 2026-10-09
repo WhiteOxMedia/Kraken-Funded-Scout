@@ -41,8 +41,32 @@ sandbox-value assignment staying exempt; the finally, sandbox-local,
 and sentinel arms must each stay clean. The self-check runs on every
 battery pass (DIAG_RUN) and in every pre-commit gate pass, so the
 value-shape exemption gap cannot reopen silently.
+
+ARM 4 — LIVE-VALUE POISON, the dead-poison hunt (Oct 8, user ask):
+the class the sandbox-seed cures (test_topic_hygiene, then the
+monero test_bundle_hygiene port) kept treating by hand — a FIXTURE
+hardcoding a string constant that equals a LIVE production data
+file's CURRENT value. The poison: the pin is green today and silently
+false the moment the live file rotates (the topic flip, a canary
+re-arm, a ledger row aging out), and a fresh checkout or gate sandbox
+with no live file silently skips the very assertion that depended on
+it. The universe: string values harvested from the SMALL production
+data files the audit already knows (<= 8 KB at the repo root),
+filtered to DISTINCTIVE values (long enough, lettered, not a bare
+date/timestamp/number, not a pair symbol, not a single short token)
+and minus everything that also appears in production SOURCE — a
+value present in tracked source is a shared constant, never live
+state (that one filter kills nearly every false positive: pair
+symbols, wire texts, drive names). Each test_*.py string constant is
+then matched against the map (equality or containment); a hit is
+LIVE-VALUE POISON unless the 'leak-audit: ok' sentinel stands within
+its window. The self-check grows poison probes driven by a SYNTHETIC
+live-value map (deterministic, secret-free): the bare poison literal
+must flag, the sentinel'd one must stay clean, and the parts-join
+seed shape must stay clean — the cure pattern itself is pinned.
 """
 import ast
+import json
 import re
 import sys
 import tempfile
@@ -73,6 +97,150 @@ def collect_production_names():
                 if re.search(r"\.(jsonl|json|txt|feather|csv|db)$", base):
                     names.add(base)
     return names
+
+
+# ════════ ARM 4 — THE LIVE-VALUE MAP (the dead-poison hunt, Oct 8) ════════
+_LIVE_CACHE = None
+
+
+_ISO_STAMP = re.compile(r"\d{4}-\d{2}-\d{2}T")
+
+
+def _distinctive_value(v):
+    """THE TRUE-POISON CONTRACT (the Oct 8 dead-poison hunt, refined
+    through three false-positive rounds): the only live datum worth
+    poisoning a fixture over is an UNSTRUCTURED MINT — a value a random
+    generator produced (the ntfy topic was the fleet's one true member:
+    secrets-grade letters+digits, no spaces, decomposable into nothing).
+    Everything else a data file carries is REPRODUCIBLE from its shape
+    and therefore a legitimate fixture constant: prose reports ('pairs
+    written : 102'), grades ('thin (4/6 edge weeks)'), serial fragments
+    ('"KEY": null,'), drive-name listings (test_*/diag_*), clock-stamp
+    ids (canary-<stamp>, pair|ISO|action dedupe keys, bare ISO stamps).
+    A fixture may hardcode any of those and stay honest; hardcoding an
+    unstructured mint dies on the next rotation."""
+    if not (16 <= len(v) <= 200):
+        return False                      # mints are long, bounded tokens
+    if " " in v or "\n" in v or "\t" in v:
+        return False                      # prose is never a mint
+    if not re.search(r"[A-Za-z]", v) or not re.search(r"[0-9]", v):
+        return False                      # a mint mixes letters + digits
+    if re.match(r"^(test_|diag_)", v):
+        return False                      # fleet inventory names
+    if re.match(r"^(canary|cohort)[-_]", v):
+        return False                      # stamp-derived cohort ids
+    if "|" in v and _ISO_STAMP.search(v):
+        return False                      # pair|stamp|action dedupe keys
+    if _ISO_STAMP.search(v):
+        return False                      # anything clock-stamped
+    if re.fullmatch(r"[\d:./\-T ]+", v) or v.isdigit():
+        return False                      # numerics/dates (belt)
+    if re.fullmatch(r"[A-Z0-9]{1,10}/[A-Z]{2,6}", v):
+        return False                      # pair symbols (belt)
+    # THE SERIALIZED-FRAGMENT FILTER: a real datum never opens with a
+    # quote or ends in serialization punctuation ('"KEY": null,').
+    if v.startswith(('"', "'")) or v.endswith(('":', ",", ":", "{", "}")):
+        return False
+    return True
+
+
+def _string_values(raw):
+    """Every string value plausibly carried by a data file's text: JSON
+    leaf strings when it parses, plus quoted-string extraction (jsonl
+    lines) and the whole stripped content + per-line text (txt seeds
+    like push_topic.txt)."""
+    vals = set()
+    s = raw.strip()
+    if s:
+        vals.add(s)
+    for line in raw.splitlines():
+        line = line.strip()
+        if line:
+            vals.add(line)
+    try:
+        def _walk(o):
+            if isinstance(o, str):
+                vals.add(o)
+            elif isinstance(o, dict):
+                for x in o.values():
+                    _walk(x)
+            elif isinstance(o, list):
+                for x in o:
+                    _walk(x)
+        _walk(json.loads(raw))
+    except Exception:
+        pass
+    for m in re.finditer(r'"((?:[^"\\]|\\.)*)"', raw):
+        try:
+            vals.add(json.loads('"' + m.group(1) + '"'))
+        except Exception:
+            vals.add(m.group(1))
+    return vals
+
+
+def live_poison_values(prod_names=None):
+    """The live-value map: distinctive value -> the production data file
+    whose CURRENT content carries it. A value that ALSO appears in
+    production SOURCE is a shared constant, never live state — that
+    filter is what keeps the arm quiet (pair symbols, wire texts, drive
+    names all live in tracked source; only true live-only state
+    survives). Computed once per process; reads are skip-clean (the
+    gate-sandbox lesson: a vanished victim is gone, gone is clean)."""
+    global _LIVE_CACHE
+    if _LIVE_CACHE is not None:
+        return _LIVE_CACHE
+    if prod_names is None:
+        prod_names = collect_production_names()
+    corpus = []
+    for py in ROOT.rglob("*.py"):
+        rel = py.relative_to(ROOT).as_posix()
+        if rel.startswith((".venv", ".git")) or "/backup" in rel \
+                or rel.startswith("backup_") \
+                or py.name.startswith(("test_", "diag_")):
+            continue
+        # THE CORPUS IS EVERY NON-TEST, NON-DIAG SOURCE — scratch/
+        # and artifacts/ INCLUDED: the v1 false positives were exactly
+        # this gap (the evening-chunk listing's drive names and the
+        # battery logs' record copies live only in scratch/artifacts, so
+        # a name harvested from a data file looked "live-only" while the
+        # tracked sources carry it everywhere). Anything the tracked
+        # tree ALSO says is a shared constant, never live state.
+        try:
+            corpus.append(py.read_text(encoding="utf-8", errors="replace"))
+        except OSError:
+            continue
+    # ...AND THE NON-PY TRACKED SOURCES TOO (the chunk-listing lesson,
+    # cont'd): _runchunk.py was the only py reader, but the battery
+    # shell scripts and the docsrot md files quote the same constants —
+    # a shared literal does not care about the file extension.
+    for extra in ("*.ps1", "*.md"):
+        for f in ROOT.glob(extra):
+            if f.name.startswith(("test_", "diag_", "leak")):
+                continue
+            try:
+                corpus.append(f.read_text(encoding="utf-8",
+                                          errors="replace"))
+            except OSError:
+                continue
+    corpus_text = "\n".join(corpus)
+    vals = {}
+    for name in sorted(prod_names):
+        p = ROOT / name
+        if not p.is_file():
+            continue
+        try:
+            if p.stat().st_size > 8192:
+                continue
+            raw = p.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            continue
+        for v in _string_values(raw):
+            v = v.strip()
+            if not _distinctive_value(v) or v in corpus_text:
+                continue
+            vals.setdefault(v, name)
+    _LIVE_CACHE = vals
+    return vals
 
 
 def target_name(node):
@@ -190,7 +358,10 @@ def is_tempfile_value(node):
     return False
 
 
-def audit_file(py, prod_names):
+def audit_file(py, prod_names, live_values=None):
+    """The four arms: production-path writes, unguarded swaps, cwd/env
+    + default-path reads, and live-value poison (live_values=None ->
+    the process-wide cached map)."""
     hits = []
     try:
         src = py.read_text(encoding="utf-8", errors="replace")
@@ -198,6 +369,8 @@ def audit_file(py, prod_names):
     except SyntaxError as exc:
         return [f"  SYNTAX ERROR: {exc}"]
     src_lines = src.splitlines()
+    if live_values is None:
+        live_values = live_poison_values(prod_names)
     restored = finally_targets(tree)
     sbx = sandbox_names(tree)
     # a name assigned exactly once is a DEFINITION, not a swap — there is
@@ -369,6 +542,37 @@ def audit_file(py, prod_names):
                                      f"live production file moves under "
                                      f"the pin; seed the data or point the "
                                      f"reader at a sandbox"))
+        # 4) LIVE-VALUE POISON (the dead-poison hunt, Oct 8): a string
+        # constant in the suite whose text matches a LIVE production data
+        # file's current value — equality or containment — pins live
+        # state by VALUE: green today, silently false after the next
+        # rotation, and silently skipped in a checkout where the live
+        # file does not exist. The sentinel arm applies as everywhere
+        # else ('leak-audit: ok' in the window = the deliberate pin,
+        # documented). Sandbox-derived values are unreachable here by
+        # construction: the map only carries values harvested from
+        # production data files.
+        if isinstance(node, ast.Constant) and isinstance(node.value, str):
+            cv = node.value.strip()
+            owner = live_values.get(cv)
+            if owner is None and len(cv) >= 10:
+                for lv, lown in live_values.items():
+                    if lv in cv:
+                        owner = lown
+                        break
+            if owner:
+                near = "\n".join(src_lines[max(node.lineno - 5, 0):
+                                           min(len(src_lines),
+                                               node.lineno + 2)])
+                if "leak-audit: ok" not in near \
+                        and "clock-audit: ok" not in near:
+                    hits.append((node.lineno,
+                                 f"LIVE-VALUE POISON: fixture hardcodes the "
+                                 f"current value of live production file "
+                                 f"{owner} — seed it (mkdtemp + parts-join "
+                                 f"synthetic value, the test_topic_hygiene "
+                                 f"pattern) or sentinel 'leak-audit: ok'"))
+
         if isinstance(node, ast.Assign) and len(node.targets) == 1 \
                 and isinstance(node.targets[0], ast.Subscript) \
                 and "environ" in ast.unparse(node.targets[0].value):
@@ -402,6 +606,10 @@ def audit_selfcheck(prod_names):
     sentinel arms, or breaks audit_file itself fails here — on every
     battery pass and every pre-commit gate pass."""
     failures = []
+    # the synthetic live value (deterministic, secret-free) is built
+    # FIRST — the arm-4 probes' f-string literals interpolate it below,
+    # and this checker's own source never carries the contiguous needle
+    _syn = "-".join(["scout", "syn", "poison", "probe", "value", "9x"])
     probes = {
         "probe_gap": (
             "import m\n"
@@ -451,6 +659,33 @@ def audit_selfcheck(prod_names):
             "TMP = Path(tempfile.mkdtemp())\n"
             "x = (TMP / 'scanner_pulse.json').read_text()\n"
         ),
+        # THE ARM-4 PROBES' FILES: the poison and sentinel probes carry
+        # the synthetic value as ONE contiguous literal (the real poison
+        # shape — a runtime join is invisible to a static Constant scan
+        # and is exactly what the cure-probe celebrates); the literal is
+        # f-string-interpolated from the parts-built _syn (defined just
+        # below, before the probes dict is consumed) so this checker's
+        # own source never carries the whole needle.
+        "probe_poison": (
+            "from pathlib import Path\n"
+            f"PINNED_TOPIC = '{_syn}'\n"
+            "assert PINNED_TOPIC\n"
+        ),
+        "probe_poison_ok": (
+            "from pathlib import Path\n"
+            "# leak-audit: ok - the deliberate live-value pin, documented\n"
+            f"PINNED_TOPIC = '{_syn}'\n"
+            "assert PINNED_TOPIC\n"
+        ),
+        "probe_poison_sbx": (
+            "import tempfile\n"
+            "from pathlib import Path\n"
+            "TMP = Path(tempfile.mkdtemp())\n"
+            "# the seed shape: a mkdtemp sandbox file holding the value,\n"
+            "# built from parts — the cure pattern itself\n"
+            "SEED = '-'.join(['scout', 'syn', 'poison', 'probe', 'value'])\n"
+            "(TMP / 'push_topic.txt').write_text(SEED + '\\n')\n"
+        ),
     }
     with tempfile.TemporaryDirectory(prefix="_testleaks_probe_") as td:
         tdp = Path(td)
@@ -490,6 +725,43 @@ def audit_selfcheck(prod_names):
                 "read is no longer flagged (the prose-backfill class "
                 "re-entered) or the arm's sandbox/sentinel exemptions "
                 "over-tightened")
+
+        # ══ ARM 4 PROBES (the dead-poison hunt, Oct 8): the synthetic
+        # live map (deterministic, secret-free — never the real live
+        # values) drives three probes: the bare poison literal must flag
+        # exactly once, the sentinel'd one must stay clean, and the
+        # parts-join seed shape (the cure itself — a runtime join is
+        # invisible to the static scan AND matches nothing) must stay
+        # clean. _syn was built above, before the probes dict consumed
+        # it — the f-strings interpolate the whole needle only at probe
+        # file creation, never in this checker's tracked source.
+        # the synthetic value enters the map through _distinctive_value
+        # itself — a neutered filter (mutant) empties the map, the probe
+        # flags nothing, and the self-check goes red: the contract gate
+        # and the poison arm die together, never one surviving the other
+        _syn_map = ({_syn: "synthetic_live.json"}
+                    if _distinctive_value(_syn) else {})
+        _pmap = {n: audit_file(p, prod_names, live_values=_syn_map)
+                 for n, p in (("probe_poison", tdp / "probe_poison.py"),
+                              ("probe_poison_ok", tdp / "probe_poison_ok.py"),
+                              ("probe_poison_sbx", tdp / "probe_poison_sbx.py"))
+                 if p.exists()}
+        poison_flagged = [h for h in _pmap.get("probe_poison", [])
+                          if "LIVE-VALUE POISON" in h]
+        if len(poison_flagged) != 1:
+            failures.append(
+                f"probe_poison scored {poison_flagged} — expected exactly "
+                "one LIVE-VALUE POISON hit; the dead-poison arm has "
+                "drifted (missing, or the sentinel/sandbox exemptions "
+                "over-tightened)")
+        for name in ("probe_poison_ok", "probe_poison_sbx"):
+            bad = [h for h in _pmap.get(name, [])
+                   if "LIVE-VALUE POISON" in h]
+            if bad:
+                failures.append(
+                    f"{name} must stay clean of LIVE-VALUE POISON but was "
+                    f"flagged: {bad} — a legitimate arm of the poison "
+                    "check over-tightened")
 
     # source pins. TWO anti-vacuity disciplines, learned the hard way in
     # this very file: a pin that searches for a literal which also appears
