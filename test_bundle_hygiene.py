@@ -57,7 +57,7 @@ import tempfile
 import tempfile as _tf_warm
 import sys
 import zipfile
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 
 HERE = Path(__file__).resolve().parent
 ZIP = HERE / "dist" / "KrakenScoutBundle.zip"
@@ -172,11 +172,19 @@ def _carries_topic(name, raw, targets=None):
     # ".workshop/config.json" — no leading slash — so a root-level
     # denied-dir member appeared in NEITHER findings list and 2.2
     # passed while the bundle carried the denied directory): match
-    # .workshop as a COMPLETE PATH COMPONENT, first component
-    # included, via the parts view of the member name.
-    if Path(name).name in DENY_NAMES \
-            or (Path(name).parts and Path(name).parts[0] == ".workshop") \
-            or "/.workshop/" in name:
+    # .workshop as a COMPLETE PATH COMPONENT. THE FLAVOUR HOLE (the
+    # CodeRabbit minor on 577c518, verified real: Path() is the HOST
+    # flavour — on Windows \\ splits, on POSIX it does not, and ZIP
+    # member names are POSIX by spec) — the name is NORMALIZED to the
+    # POSIX view FIRST (backslashes to forward slashes), then judged
+    # with PurePosixPath so the component check is host-independent
+    # and a backslash-separated .workshop member cannot bypass on a
+    # POSIX gate host. The component test is ANYWHERE-in-parts (root
+    # level AND deep — parts[0]-only would lose the deep shape once
+    # the substring fallback goes; parts is the single truth).
+    _nm = name.replace("\\", "/")
+    _pp = PurePosixPath(_nm)
+    if _pp.name in DENY_NAMES or ".workshop" in _pp.parts:
         return None                     # carrier by NAME, not bytes
     return any(t in raw for t, _lbl in targets)
 
