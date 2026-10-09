@@ -64,6 +64,24 @@ its window. The self-check grows poison probes driven by a SYNTHETIC
 live-value map (deterministic, secret-free): the bare poison literal
 must flag, the sentinel'd one must stay clean, and the parts-join
 seed shape must stay clean — the cure pattern itself is pinned.
+
+ARM 5 — ARGV SECRET EXPOSURE, the command-line hunt (Oct 9, user ask):
+a subprocess invocation whose command-line POSITIONAL args carry the
+CONTENTS of a production data file — an inline read in the argv
+(open('x.json').read(), (BASE / 'x.txt').read_text()) or a one-hop
+Name assigned such a read — puts the live value on the process command
+line: visible in ps / tasklist imports, echoed in every runner log,
+and preserved for posterity inside traceback cmdline dumps. The safe
+shape is the fleet's own cure: pass a PATTERN FILE PATH (-f), never
+the bytes (-e); the path travels the command line, the secret never
+does. Arm 3b's read contract is reused whole (one _read_target:
+literal basenames only, attribute chains end the static reach, sandbox
+free names stay exempt) and the 'leak-audit: ok' sentinel window
+applies as everywhere else. Probed permanently: the inline-read argv
+flags at the invocation line, the one-hop-variable argv flags (the
+variable barely abets the leak — the exposure is the invocation, not
+the line), and the sentinel'd argv, the sandbox-read argv, and the
+pattern-file PATH argv stay clean.
 """
 import ast
 import json
@@ -78,6 +96,15 @@ OUT = ROOT / "_testleaks.txt"
 SANDBOX_HINTS = re.compile(r"^(_sbx|tmp|temp|_tmp|_test|_scratch)", re.I)
 PATHISH = re.compile(r"(FILE|PATH|DIR|NAME|JSON|LOG|TXT)$", re.I)
 LITERAL_TARGETS = (ast.Constant, ast.JoinedStr)
+
+# ARM 5 — the subprocess member set the argv hunt grades, and the
+# attributes a read-shaped call can carry. run/Popen/check_output/call
+# take the argv list positionally; getoutput/getstatusoutput take a
+# shell STRING (a Constant — static reach ends inside it), so
+# list-form invocations are the graded shape, the fleet's universal one.
+_SUBPROC_CALLS = ("run", "Popen", "check_output", "getoutput",
+                  "getstatusoutput", "call")
+_READ_ATTRS = ("read", "readline", "readlines", "read_text", "read_bytes")
 
 
 def collect_production_names():
@@ -274,6 +301,43 @@ def target_name(node):
     return None
 
 
+def _read_target(call, prod_names, sbx):
+    """The PRODUCTION basename a read-shaped call reads (the arm-5
+    probe), or None. Resolves through target_name: read_text/read_bytes
+    receivers, open()'s first arg (read-mode only — a write-capable
+    open is arm 1's business), and the open('f').read() chain resolved
+    through the open call itself. THE ARM-3B BOUNDS, REUSED WHOLE: one
+    read contract for both arms — attribute-chain receivers end the
+    static reach, sandbox free names stay exempt, and the name must be
+    a bare production basename (directory-bearing paths are pinned
+    elsewhere)."""
+    fn = call.func
+    attr = getattr(fn, "attr", None)
+    if attr in _READ_ATTRS:
+        rnode = getattr(fn, "value", None)
+        if isinstance(rnode, ast.Call) \
+                and getattr(rnode.func, "id", None) == "open" \
+                and rnode.args:
+            rnode = rnode.args[0]       # open('f').read() — unchain it
+    elif getattr(fn, "id", None) == "open" and call.args:
+        mode = call.args[1].value if (
+            len(call.args) > 1 and isinstance(call.args[1], ast.Constant)
+            and isinstance(call.args[1].value, str)) else "r"
+        if not re.fullmatch(r"[rUb]+", mode or ""):
+            return None                 # write-capable: arm 1 owns it
+        rnode = call.args[0]
+    else:
+        return None
+    if rnode is None or any(isinstance(n, ast.Attribute)
+                            for n in ast.walk(rnode)):
+        return None
+    name = target_name(rnode)
+    if name and name in prod_names and "/" not in name \
+            and "\\" not in name and not (free_names(call) & sbx):
+        return name
+    return None
+
+
 def is_sandbox(name):
     return bool(name) and bool(SANDBOX_HINTS.match(name)) \
         or "tempfile" in (name or "").lower() \
@@ -369,9 +433,9 @@ def is_tempfile_value(node):
 
 
 def audit_file(py, prod_names, live_values=None):
-    """The four arms: production-path writes, unguarded swaps, cwd/env
-    + default-path reads, and live-value poison (live_values=None ->
-    the process-wide cached map)."""
+    """The five arms: production-path writes, unguarded swaps, cwd/env
+    + default-path reads, live-value poison, and argv secret exposure
+    (live_values=None -> the process-wide cached map)."""
     hits = []
     try:
         src = py.read_text(encoding="utf-8", errors="replace")
@@ -400,6 +464,23 @@ def audit_file(py, prod_names, live_values=None):
             if isinstance(t, (ast.Attribute, ast.Name)):
                 key = ast.unparse(t)
                 assign_counts[key] = assign_counts.get(key, 0) + 1
+
+    # ARM 5's one-hop map (Oct 9): a Name assigned the result of a
+    # production-file READ, then passed through a subprocess argv — the
+    # read and the command line need not share a line, and the variable
+    # BARELY abets the leak: the exposure is the invocation, not the
+    # line, so the hop is followed exactly once (no transitive chase —
+    # two hops is a different arm if the fleet ever grows one).
+    read_var = {}
+    for nd in ast.walk(tree):
+        if isinstance(nd, ast.Assign) and len(nd.targets) == 1 \
+                and isinstance(nd.targets[0], ast.Name):
+            for sub in ast.walk(nd.value):
+                if isinstance(sub, ast.Call):
+                    owner = _read_target(sub, prod_names, sbx)
+                    if owner:
+                        read_var[nd.targets[0].id] = owner
+                        break
 
     def value_is_sandbox(val):
         if val is None:
@@ -583,6 +664,48 @@ def audit_file(py, prod_names, live_values=None):
                                  f"synthetic value, the test_topic_hygiene "
                                  f"pattern) or sentinel 'leak-audit: ok'"))
 
+        # 5) ARGV SECRET EXPOSURE (the command-line hunt, Oct 9): a
+        # subprocess invocation whose POSITIONAL args — the literal
+        # command line ps / tasklist / a runner log would echo — carry
+        # the CONTENTS of a production data file: an inline read in the
+        # argv, or a one-hop Name assigned such a read. The safe shape
+        # is the fleet's own cure — pass a PATTERN FILE PATH (-f),
+        # never the bytes (-e): the path travels the command line, the
+        # secret never does. env=/input= travel by pipe or environment
+        # block, NOT the command line: out of this arm's contract.
+        # Sandbox reads are exempt as everywhere else, and the
+        # sentinel window applies as everywhere else.
+        if isinstance(node, ast.Call) and (
+                (isinstance(node.func, ast.Attribute)
+                 and isinstance(node.func.value, ast.Name)
+                 and node.func.value.id == "subprocess"
+                 and node.func.attr in _SUBPROC_CALLS)
+                or (isinstance(node.func, ast.Name)
+                    and node.func.id in _SUBPROC_CALLS)):
+            argv_hits = []
+            for a in node.args:
+                for sub in ast.walk(a):
+                    if isinstance(sub, ast.Call):
+                        owner = _read_target(sub, prod_names, sbx)
+                        if owner:
+                            argv_hits.append(owner)
+                    elif isinstance(sub, ast.Name) and sub.id in read_var:
+                        argv_hits.append(read_var[sub.id])
+            if argv_hits:
+                near = "\n".join(src_lines[max(node.lineno - 5, 0):
+                                           min(len(src_lines),
+                                               node.lineno + 2)])
+                if "leak-audit: ok" not in near \
+                        and "clock-audit: ok" not in near:
+                    owners = sorted(set(argv_hits))
+                    hits.append((node.lineno,
+                                 f"ARGV SECRET EXPOSURE: the command line "
+                                 f"carries the contents of {owners} — "
+                                 f"visible in ps/tasklist listings and in "
+                                 f"every log that echoes the invocation; "
+                                 f"pass a PATTERN FILE PATH (-f), never the "
+                                 f"bytes (-e), or sentinel 'leak-audit: ok'"))
+
         if isinstance(node, ast.Assign) and len(node.targets) == 1 \
                 and isinstance(node.targets[0], ast.Subscript) \
                 and "environ" in ast.unparse(node.targets[0].value):
@@ -616,6 +739,12 @@ def audit_selfcheck(prod_names):
     sentinel arms, or breaks audit_file itself fails here — on every
     battery pass and every pre-commit gate pass."""
     failures = []
+    # the arm-5 member (Oct 9), parts-built BEFORE the probes dict
+    # below consumes it: 'subprocess.run' never appears contiguous in
+    # this checker's tracked source (the leak-arm pool rule — a
+    # literal here would find itself in any tree-wide argv scan). The
+    # probes prefix the module themselves: "subprocess." + _r5.
+    _r5 = "r" + "un"
     # the synthetic live value (deterministic, secret-free) is built
     # FIRST — the arm-4 probes' f-string literals interpolate it below,
     # and this checker's own source never carries the contiguous needle
@@ -695,6 +824,51 @@ def audit_selfcheck(prod_names):
             "# built from parts — the cure pattern itself\n"
             "SEED = '-'.join(['scout', 'syn', 'poison', 'probe', 'value'])\n"
             "(TMP / 'push_topic.txt').write_text(SEED + '\\n')\n"
+        ),
+        # ══ THE ARM-5 PROBES (the argv hunt, Oct 9): subprocess argvs
+        # built from production-file READS must flag, and the safe
+        # PATTERN-FILE PATH shape must stay clean. The invocation
+        # member is parts-built via _r5 (defined above, before this
+        # dict consumes it) so this checker's tracked source never
+        # carries the contiguous needle — mirror of the leak-arm's
+        # pool rule.
+        "probe_argv": (
+            "import subprocess\n"
+            "from pathlib import Path\n"
+            "BASE = Path(__file__).parent\n"
+            "subprocess." + _r5 + "(['git', 'grep', '-F', '-e',\n"
+            "    (BASE / 'push_topic.txt').read_text()])\n"
+        ),
+        "probe_argv_var": (
+            "import subprocess\n"
+            "from pathlib import Path\n"
+            "BASE = Path(__file__).parent\n"
+            "PAT = (BASE / 'push_topic.txt').read_text()\n"
+            f"Popen(['git', 'grep', '-f', PAT])\n"
+        ),
+        "probe_argv_ok": (
+            "import subprocess\n"
+            "from pathlib import Path\n"
+            "BASE = Path(__file__).parent\n"
+            "# leak-audit: ok - the deliberate argv secret, documented\n"
+            "subprocess." + _r5 + "(['git', 'grep', '-F', '-e',\n"
+            "    (BASE / 'push_topic.txt').read_text()])\n"
+        ),
+        "probe_argv_sbx": (
+            "import subprocess\n"
+            "import tempfile\n"
+            "from pathlib import Path\n"
+            "TMP = Path(tempfile.mkdtemp())\n"
+            "# a sandbox read feeds the argv (legit)\n"
+            "" + _r5 + "(['git', 'grep', '-e', (TMP / 'push_topic.txt')"
+            ".read_text()])\n"
+        ),
+        "probe_argv_patfile": (
+            "import subprocess\n"
+            "from pathlib import Path\n"
+            "BASE = Path(__file__).parent\n"
+            "PATF = BASE / 'ctl_pattern.txt'\n"
+            "subprocess." + _r5 + "(['git', 'grep', '-f', str(PATF)])\n"
         ),
     }
     with tempfile.TemporaryDirectory(prefix="_testleaks_probe_") as td:
@@ -809,6 +983,39 @@ def audit_selfcheck(prod_names):
                         "is the ONLY carrier (glob->read->filter->map has "
                         "drifted); a fresh checkout would fail-open here: "
                         "empty map, arm CLEAN, nothing checked")
+
+        # ══ THE ARM-5 PROBE VERDICTS (the argv hunt, Oct 9): the
+        # inline-read argv and the one-hop-variable argv must flag
+        # EXACTLY ONE ARGV SECRET EXPOSURE each; the sentinel'd, the
+        # sandbox-read, and the pattern-file PATH argv must stay
+        # clean of the class. A blind argv arm (pattern gone, shape
+        # match broken, map plumbing cut) goes red HERE, every pass.
+        _pmap5 = {n: audit_file(p, prod_names)
+                  for n, p in (("probe_argv", tdp / "probe_argv.py"),
+                               ("probe_argv_var", tdp / "probe_argv_var.py"),
+                               ("probe_argv_ok", tdp / "probe_argv_ok.py"),
+                               ("probe_argv_sbx", tdp / "probe_argv_sbx.py"),
+                               ("probe_argv_patfile",
+                                tdp / "probe_argv_patfile.py"))
+                  if p.exists()}
+        for _need in ("probe_argv", "probe_argv_var"):
+            _flag = [h for h in _pmap5.get(_need, [])
+                     if "ARGV SECRET EXPOSURE" in h]
+            if len(_flag) != 1:
+                failures.append(
+                    f"{_need} scored {_flag} — expected exactly one "
+                    "ARGV SECRET EXPOSURE hit; the argv hunt has "
+                    "drifted (missing, or the sandbox/sentinel "
+                    "exemptions over-tightened)")
+        for _clean in ("probe_argv_ok", "probe_argv_sbx",
+                       "probe_argv_patfile"):
+            _bad = [h for h in _pmap5.get(_clean, [])
+                    if "ARGV SECRET EXPOSURE" in h]
+            if _bad:
+                failures.append(
+                    f"{_clean} must stay clean of ARGV SECRET EXPOSURE "
+                    f"but was flagged: {_bad} — a legitimate arm of "
+                    "the argv check over-tightened")
 
     # source pins. TWO anti-vacuity disciplines, learned the hard way in
     # this very file: a pin that searches for a literal which also appears
