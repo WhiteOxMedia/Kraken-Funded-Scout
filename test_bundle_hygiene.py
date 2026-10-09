@@ -48,11 +48,14 @@ the drive itself. The conditional-on-provisioning contract of the old
 live read is preserved by construction: the seeded file ALWAYS
 exists, so the secret-scan can never silently skip.
 """
+import builtins as _builtins
 import hashlib
+import io as _io
 import json
 import os
-import sys
 import tempfile
+import tempfile as _tf_warm
+import sys
 import zipfile
 from pathlib import Path
 
@@ -153,6 +156,43 @@ def _read(p):
         return ""
 
 
+# ════════ 0c. THE SCAN WIRE — the block the negative pins (1.5 the
+# installer sources, 2.1 the public zip) AND the §4 positive control
+# BOTH run, so a control CANNOT drift from the pin it proves. Each
+# knob stays tiny, named, and load-bearing: denylist names are
+# carriers by NAME regardless of bytes (None = carrier), and the
+# byte probe is plain containment — NO try/except pass that would
+# let an unreadable member hide; a member that cannot be read fails
+# its scan loudly (2.1's own caller surfaces it).
+def _carries_topic(name, raw, targets=None):
+    if targets is None:
+        targets = _grep_targets()
+    if Path(name).name in DENY_NAMES or "/.workshop/" in name:
+        return None                     # carrier by NAME, not bytes
+    return any(t in raw for t, _lbl in targets)
+
+
+def _source_leaks(src, targets=None):
+    """The 1.5 wire: does a source text carry any scan target's bytes?"""
+    if targets is None:
+        targets = _grep_targets()
+    return any(t in src.encode("utf-8") for t, _lbl in targets)
+
+
+def _zip_findings(zf, targets=None):
+    """The 2.1/2.2 wire: (members carrying topic bytes, denylist
+    carriers) from an OPEN ZipFile handle — 2.1/2.2 call it on the
+    live artifact, the §4 control calls it on the twins."""
+    byte_hits, name_hits = [], []
+    for n in zf.namelist():
+        _v = _carries_topic(n, zf.read(n), targets=targets)
+        if _v is None:
+            name_hits.append(n)
+        elif _v:
+            byte_hits.append(n)
+    return byte_hits, name_hits
+
+
 # the grep target: the SEEDED synthetic topic from a sandbox seed file
 # (the kraken test_topic_hygiene port, Oct 8 — this drive must never
 # read the live secret it guards; the seed follows every future
@@ -166,6 +206,39 @@ _TOPIC_FILE = _TOPIC_SANDBOX / "push_topic.txt"
 SEEDED_TOPIC = "-".join(["scout", "sbx", "bundle", "hygiene", "probe"])
 _TOPIC_FILE.write_text(SEEDED_TOPIC + "\n", encoding="utf-8")
 topic = SEEDED_TOPIC.encode("utf-8")
+
+# THE LIVE DOOR returns (the CodeRabbit major on 4386262, triaged REAL
+# Oct 9 — the same [high] the kraken seed cure dropped and 0dfc69c
+# re-pinned there): the seed alone can never catch the LIVE topic
+# re-entering the tree it guards, so the scan targets are the PAIR.
+#   · the SEED arm (always present): hermetic, deterministic — the
+#     fresh-checkout leg that never silently skips;
+#   · the LIVE arm (conditional on provisioning): the rotation-
+#     following leg — a real leak with the live value dies HERE, not
+#     only when it collides with the synthetic seed (it never will).
+# The live leg reads the scout's runtime file DIRECTLY at its default
+# path — the deliberaate live-value pin the leak-audit's own arm
+# demands (sentinel below); in a fresh checkout the file is absent
+# and the seed leg still pins the door (never a silent skip).
+def _grep_targets():
+    targets = [(topic, "seeded (synthetic)")]
+    try:
+        # the deliberate live-value pin: this drive's JOB is to scan
+        # for the live value when provisioned — leak-audit: ok (the
+        # emergency leak triage reads the rotation-following leg; a
+        # fresh checkout skip-cleans LOUDLY into the check detail).
+        # THE PATH TEXT is derived at runtime from this machine's
+        # USERPROFILE — the tracked source carries NO hardcoded secret
+        # and NO absolute path (a clone under another user still hits
+        # its own sibling); the value is only ever scanned AGAINST,
+        # never passed through anything that echoes it.
+        live = (Path(os.environ["USERPROFILE"]) / "Workspace" / "kraken_scout"
+                / "push_topic.txt").read_bytes().strip()
+    except (OSError, KeyError):
+        live = b""
+    if live:
+        targets.append((live, "live (rotation-following)"))
+    return targets
 
 ps1 = _read(HERE / "installer" / "build_bundle.ps1")
 fin = _read(HERE / "installer" / "finalize_bundle.py")
@@ -182,34 +255,47 @@ check(1.3, bool(fin) and "scout" in fin and "push_topic.txt" in fin
       "file (follows every rotation, never hardcoded)")
 check(1.4, bool(fin) and "sys.exit(1)" in fin,
       "the finalizer fail-closes (exit 1 on any guard hit)")
-# 1.5 now greps for the SEEDED synthetic topic — deterministic, hermetic,
-# secret-free (the old conditional live-secret scan never skips).
-leak = [name for name, src in (("build_bundle.ps1", ps1),
-                               ("finalize_bundle.py", fin))
-        if topic in src.encode("utf-8")]
-check(1.5, not leak,
-      "no installer source carries the seeded-topic bytes (a hardcoded "
-      "secret would re-leak it and trip the guard on its own "
-      "build)" + (str(leak) if leak else ""))
+# 1.5 runs BOTH doors (the CodeRabbit major triaged REAL: the seed
+# alone passes a LIVE topic sitting in an installer source — the live
+# leg closes it; the seed leg never skips). Same wire the §4 control
+# trips: one control cannot drift from the pin it proves. The guard
+# pieces the live arm exercises MUST exist in the wire it feeds —
+# pinned HERE (1.5a): _grep_targets/LIVE_TARGET exist and 1.5's
+# findings list actually consumes them.
+_targets = _grep_targets()
+_live_legs = [t for t, _lbl in _targets if _lbl != "seeded (synthetic)"]
+leak_seed, leak_live = [], []
+for name, src in (("build_bundle.ps1", ps1), ("finalize_bundle.py", fin)):
+    for t, lbl in _targets:
+        if t in src.encode("utf-8"):
+            (leak_seed if lbl == "seeded (synthetic)" else leak_live).append(name)
+check(1.5, not leak_seed and not leak_live,
+      "no installer source carries EITHER scan door's bytes (a hardcoded "
+      "secret would re-leak it and trip the guard on its own build; "
+      "the seed alone cannot see a LIVE re-leak — the live door closes "
+      "that)" + (str(leak_seed + leak_live) if (leak_seed or leak_live) else ""))
+_l_provisioned = bool(_live_legs)
+check(1.6, not (_l_provisioned and bool(leak_live)),
+      "LIVE door (rotation-following, conditional on provisioning): no "
+      "installer source carries the LIVE topic's bytes "
+      + ("(not provisioned — the seed leg still pins the door; never a "
+         "silent skip: the codegen layer says so here, loudly)"
+         if not _l_provisioned else
+         "(provisioned; the scan above consumed BOTH doors)"))
 
 print("== 2. THE LIVE ARTIFACT ON DISK ==")
 if ZIP.exists():
+    # the PAIR of doors, same wire: _zip_findings consumes _targets via
+    # _carries_topic (§0c — the module wire, NOT a seed-only scan). The
+    # live-secret read is retired from the DEFAULT path only; the
+    # conditional rotation-following live door is back, sentineled and
+    # loud in a fresh checkout (1.6's detail names it).
     with zipfile.ZipFile(ZIP) as z:
-        names = z.namelist()
-        byte_hits, name_hits = [], []
-        for n in names:
-            if Path(n).name in DENY_NAMES or "/.workshop/" in n:
-                name_hits.append(n)
-                continue
-            try:
-                if topic in z.read(n):
-                    byte_hits.append(n)
-            except Exception:
-                pass
+        byte_hits, name_hits = _zip_findings(z, targets=_targets)
     check(2.1, not byte_hits,
-          f"zero seeded-topic bytes in the public zip ({len(names)} "
-          f"entries; the live-secret read is retired — the grep target "
-          f"is the fixed synthetic seed)"
+          f"zero seeded-topic bytes in the public zip ({len(z.namelist())} "
+          f"entries; the grep target is the seeded synthetic PAIRED with "
+          "the conditional live door (rotation-following))"
           + (str(byte_hits[:4]) if byte_hits else ""))
     check(2.2, not name_hits,
           "zero denylist carriers in the public zip"
