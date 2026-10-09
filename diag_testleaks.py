@@ -178,22 +178,31 @@ def _string_values(raw):
     return vals
 
 
-def live_poison_values(prod_names=None):
+def live_poison_values(prod_names=None, root=None):
     """The live-value map: distinctive value -> the production data file
     whose CURRENT content carries it. A value that ALSO appears in
     production SOURCE is a shared constant, never live state — that
     filter is what keeps the arm quiet (pair symbols, wire texts, drive
     names all live in tracked source; only true live-only state
-    survives). Computed once per process; reads are skip-clean (the
-    gate-sandbox lesson: a vanished victim is gone, gone is clean)."""
+    survives). Computed once per process (only the DEFAULT root is
+    cached — a sandbox root always harvests fresh); reads are skip-clean
+    (the gate-sandbox lesson: a vanished victim is gone, gone is clean).
+    THE ROOT SEAM (the fresh-checkout lesson, Oct 8): root=None means
+    the real repo — root=SomeDir harvests THAT tree instead, so the
+    self-check can exercise the full harvesting path (glob -> read ->
+    filter -> map) end-to-end on a sandbox world it controls, without
+    touching or depending on any live secret. An empty harvest in a
+    world that SHOULD carry live values is the arm's own red, not a
+    silent skip — see the self-check's founding-member pin."""
     global _LIVE_CACHE
-    if _LIVE_CACHE is not None:
+    if root is None and _LIVE_CACHE is not None:
         return _LIVE_CACHE
     if prod_names is None:
         prod_names = collect_production_names()
+    the_root = ROOT if root is None else Path(root)
     corpus = []
-    for py in ROOT.rglob("*.py"):
-        rel = py.relative_to(ROOT).as_posix()
+    for py in the_root.rglob("*.py"):
+        rel = py.relative_to(the_root).as_posix()
         if rel.startswith((".venv", ".git")) or "/backup" in rel \
                 or rel.startswith("backup_") \
                 or py.name.startswith(("test_", "diag_")):
@@ -214,7 +223,7 @@ def live_poison_values(prod_names=None):
     # shell scripts and the docsrot md files quote the same constants —
     # a shared literal does not care about the file extension.
     for extra in ("*.ps1", "*.md"):
-        for f in ROOT.glob(extra):
+        for f in the_root.glob(extra):
             if f.name.startswith(("test_", "diag_", "leak")):
                 continue
             try:
@@ -225,7 +234,7 @@ def live_poison_values(prod_names=None):
     corpus_text = "\n".join(corpus)
     vals = {}
     for name in sorted(prod_names):
-        p = ROOT / name
+        p = the_root / name
         if not p.is_file():
             continue
         try:
@@ -239,7 +248,8 @@ def live_poison_values(prod_names=None):
             if not _distinctive_value(v) or v in corpus_text:
                 continue
             vals.setdefault(v, name)
-    _LIVE_CACHE = vals
+    if root is None:
+        _LIVE_CACHE = vals
     return vals
 
 
@@ -762,6 +772,43 @@ def audit_selfcheck(prod_names):
                     f"{name} must stay clean of LIVE-VALUE POISON but was "
                     f"flagged: {bad} — a legitimate arm of the poison "
                     "check over-tightened")
+
+        # ══ THE HARVEST-PATH PROBE (the fresh-checkout lesson, Oct 8 —
+        # the Copilot medium cured here): the probes above inject the
+        # synthetic map DIRECTLY, which can never catch a broken
+        # HARVESTER (the exact fail-open a fresh checkout would hit:
+        # untracked live file absent -> empty map -> arm reports CLEAN
+        # having checked nothing). So the self-check exercises
+        # live_poison_values END-TO-END on a sandbox root it controls:
+        # world A — a source quoting the value + a data file carrying it
+        # (the corpus filter must kill it: shared constant); world B —
+        # the data file only (the map must carry exactly the synthetic
+        # value, the harvester's whole contract in one assertion).
+        for _wname, _quote in (("harvest_shared", True),
+                               ("harvest_live", False)):
+            _w = tdp / _wname
+            _w.mkdir()
+            (_w / "push_topic.txt").write_text(_syn + "\n", encoding="utf-8")
+            if _quote:
+                (_w / "seeded_topic.py").write_text(
+                    "SEED = " + repr(_syn) + "\n", encoding="utf-8")
+            _m = live_poison_values(prod_names={"push_topic.txt"},
+                                    root=_w)
+            if _quote:
+                if _m:
+                    failures.append(
+                        f"harvest_shared scored {_m} — a value the tracked "
+                        "source also carries must be filtered as a shared "
+                        "constant, never live state (the corpus pass has "
+                        "drifted)")
+            else:
+                if _m.get(_syn) != "push_topic.txt":
+                    failures.append(
+                        f"harvest_live scored {_m} — the harvester failed "
+                        "to mint the map from a world where the data file "
+                        "is the ONLY carrier (glob->read->filter->map has "
+                        "drifted); a fresh checkout would fail-open here: "
+                        "empty map, arm CLEAN, nothing checked")
 
     # source pins. TWO anti-vacuity disciplines, learned the hard way in
     # this very file: a pin that searches for a literal which also appears
