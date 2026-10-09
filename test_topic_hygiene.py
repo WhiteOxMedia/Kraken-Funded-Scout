@@ -292,10 +292,19 @@ def main():
             _flagged = (_rp.returncode == 0
                         and "leaked_note.txt" in _rp.stdout)
             # the live leg: -f patternfile (the exact shape 4.1's live
-            # arm runs) against the clean twin — must stay empty
+            # arm runs) against BOTH twins (the Copilot medium, Oct 8:
+            # a -f leg exercised only on the clean tree passes when the
+            # pattern file is broken or ignored — the leg itself would
+            # be blind). Poisoned: MUST flag leaked_note.txt (rc 0).
+            # Clean: MUST stay empty (rc 1).
             _pat = _TOPIC_SANDBOX / "ctl_pattern.txt"
             _pat.write_bytes(SEEDED_TOPIC.encode("utf-8") + b"\n")
             try:
+                _rcp = subprocess.run(
+                    ["git", "grep", "--cached", "-l", "-F", "-f",
+                     str(_pat)], cwd=str(_poisoned), timeout=60,
+                    capture_output=True, text=True, encoding="utf-8",
+                    errors="replace")
                 _rc = subprocess.run(
                     ["git", "grep", "--cached", "-l", "-F", "-f",
                      str(_pat)], cwd=str(_clean), timeout=60,
@@ -306,12 +315,16 @@ def main():
                     _pat.unlink()
                 except OSError:
                     pass
+            _live_flags = (_rcp.returncode == 0
+                           and "leaked_note.txt" in _rcp.stdout)
             _quiet = (_rc.returncode == 1 and _rc.stdout.strip() == "")
-            if not (_flagged and _quiet):
+            if not (_flagged and _live_flags and _quiet):
                 _ctl_ok = False
-                _ctl_detail = (f"poisoned flagged={_flagged} "
-                               f"(rc={_rp.returncode}, "
-                               f"out={_rp.stdout.strip()[:80]!r}) / "
+                _ctl_detail = (f"seeded -e flagged={_flagged} "
+                               f"(rc={_rp.returncode}) / "
+                               f"live -f flagged={_live_flags} "
+                               f"(rc={_rcp.returncode}, "
+                               f"out={_rcp.stdout.strip()[:80]!r}) / "
                                f"clean quiet={_quiet} "
                                f"(rc={_rc.returncode})")
     except (OSError, subprocess.SubprocessError) as _exc:
