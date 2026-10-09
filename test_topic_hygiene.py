@@ -245,6 +245,85 @@ def main():
           'os.path.join(os.path.dirname(os.path.abspath(__file__)), "push_topic.txt")'
           in src)
 
+    # ══ 6. THE POSITIVE CONTROL — the pin's teeth, pinned not assumed
+    # (Oct 8, the dead-poison discipline): 4.1 is a NEGATIVE pin (grep
+    # empty = clean), and a negative pin vacuously passes when its
+    # needle goes blind — a changed grep shape, a quiet skip, a cwd
+    # drift could zero every future run and 4.1 would still say PASS.
+    # So the control builds a SANDBOX GIT WORKTREE (its own repo, its
+    # own index — the real one is never touched), stages a file
+    # carrying the synthetic topic, and runs the EXACT wire 4.1 runs:
+    # the seeded -e shape and the live -f patternfile shape. The
+    # poisoned worktree MUST flag (rc 0, the file named); a clean twin
+    # MUST stay empty (rc 1). If the control cannot trip the wire, the
+    # pin has no teeth and 4.1's green is worthless — the control
+    # fails the drive, red, on every future run.
+    _seed()
+    _ctl_ok, _ctl_detail = True, ""
+    try:
+        with tempfile.TemporaryDirectory(prefix="_topic_ctl_") as _ctd:
+            _poisoned = Path(_ctd) / "poisoned"
+            _clean = Path(_ctd) / "clean"
+            for _w in (_poisoned, _clean):
+                _w.mkdir()
+                _g = lambda *a, wd=_w: subprocess.run(
+                    ["git", *a], cwd=str(wd), timeout=60,
+                    capture_output=True, text=True, encoding="utf-8",
+                    errors="replace")
+                _g("init", "-q")
+                _g("config", "user.email", "ctl@topic-hygiene.sbx")
+                _g("config", "user.name", "topic-hygiene control")
+            (_poisoned / "leaked_note.txt").write_text(
+                "carry " + SEEDED_TOPIC + " in a tracked file\n",
+                encoding="utf-8")
+            (_clean / "innocent.txt").write_text(
+                "nothing here but housekeeping\n", encoding="utf-8")
+            for _w in (_poisoned, _clean):
+                subprocess.run(["git", "add", "-A"], cwd=str(_w),
+                               timeout=60, capture_output=True)
+
+            # the seeded leg: -e with the synthetic value (the exact
+            # shape 4.1's seed arm runs)
+            _rp = subprocess.run(
+                ["git", "grep", "--cached", "-l", "-F", "-e",
+                 SEEDED_TOPIC], cwd=str(_poisoned), timeout=60,
+                capture_output=True, text=True, encoding="utf-8",
+                errors="replace")
+            _flagged = (_rp.returncode == 0
+                        and "leaked_note.txt" in _rp.stdout)
+            # the live leg: -f patternfile (the exact shape 4.1's live
+            # arm runs) against the clean twin — must stay empty
+            _pat = _TOPIC_SANDBOX / "ctl_pattern.txt"
+            _pat.write_bytes(SEEDED_TOPIC.encode("utf-8") + b"\n")
+            try:
+                _rc = subprocess.run(
+                    ["git", "grep", "--cached", "-l", "-F", "-f",
+                     str(_pat)], cwd=str(_clean), timeout=60,
+                    capture_output=True, text=True, encoding="utf-8",
+                    errors="replace")
+            finally:
+                try:
+                    _pat.unlink()
+                except OSError:
+                    pass
+            _quiet = (_rc.returncode == 1 and _rc.stdout.strip() == "")
+            if not (_flagged and _quiet):
+                _ctl_ok = False
+                _ctl_detail = (f"poisoned flagged={_flagged} "
+                               f"(rc={_rp.returncode}, "
+                               f"out={_rp.stdout.strip()[:80]!r}) / "
+                               f"clean quiet={_quiet} "
+                               f"(rc={_rc.returncode})")
+    except (OSError, subprocess.SubprocessError) as _exc:
+        _ctl_ok = False
+        _ctl_detail = f"control worktree failed: {_exc!r}" \
+                      " (the control must RUN, never skip — a control " \
+                      "that cannot execute proves nothing)"
+    check("6.1 POSITIVE CONTROL: the same grep wire TRIPS on a staged "
+          "leak in a sandbox worktree (poisoned flags, clean twin "
+          "quiet) — 4.1's green has teeth, not assumed",
+          _ctl_ok, _ctl_detail)
+
     passed, failed = results.count(True), results.count(False)
     print(f"RESULT: {passed} passed, {failed} failed")
     return 1 if failed else 0
