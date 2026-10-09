@@ -167,7 +167,16 @@ def _read(p):
 def _carries_topic(name, raw, targets=None):
     if targets is None:
         targets = _grep_targets()
-    if Path(name).name in DENY_NAMES or "/.workshop/" in name:
+    # THE ROOT-LEVEL HOLE (the CodeRabbit major on c84e077, verified
+    # real: "/.workshop/" in name is FALSE for a member named exactly
+    # ".workshop/config.json" — no leading slash — so a root-level
+    # denied-dir member appeared in NEITHER findings list and 2.2
+    # passed while the bundle carried the denied directory): match
+    # .workshop as a COMPLETE PATH COMPONENT, first component
+    # included, via the parts view of the member name.
+    if Path(name).name in DENY_NAMES \
+            or (Path(name).parts and Path(name).parts[0] == ".workshop") \
+            or "/.workshop/" in name:
         return None                     # carrier by NAME, not bytes
     return any(t in raw for t, _lbl in targets)
 
@@ -275,6 +284,16 @@ check(1.5, not leak_seed and not leak_live,
       "the seed alone cannot see a LIVE re-leak — the live door closes "
       "that)" + (str(leak_seed + leak_live) if (leak_seed or leak_live) else ""))
 _l_provisioned = bool(_live_legs)
+# THE VISIBILITY CURE (the CodeRabbit minor on c84e077: check() prints
+# its message ONLY on failure, so the "not provisioned" leg was
+# invisible on every green run — a seed-only run looked identical to
+# a both-doors run in the output). The provisioning status prints
+# UNCONDITIONALLY, before the verdict check.
+print("  (1.6 live door: "
+      + ("PROVISIONED — the rotation-following leg scanned with the seed"
+         if _l_provisioned else
+         "NOT PROVISIONED — this checkout's seed-only run; the fresh-"
+         "checkout leg still pins the door") + ")")
 check(1.6, not (_l_provisioned and bool(leak_live)),
       "LIVE door (rotation-following, conditional on provisioning): no "
       "installer source carries the LIVE topic's bytes "
