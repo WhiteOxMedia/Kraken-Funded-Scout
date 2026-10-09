@@ -193,17 +193,36 @@ def main():
     # 4. the staged tree (what archive HEAD ships once committed)
     # carries zero topic bytes — BOTH doors: the seeded synthetic topic
     # (hermetic, never skips) and the live topic from disk (conditional
-    # on provisioning; follows every rotation)
+    # on provisioning; follows every rotation). THE WIRE (the Copilot
+    # medium's [medium], Oct 8): the live topic never rides a process
+    # ARGV — Get-CimInstance Win32_Process CommandLine is same-user
+    # readable, and the scanner/bot run under that user. The seed leg
+    # (synthetic text, nothing to expose) may use -e; the LIVE leg
+    # feeds its pattern through -f <file> from the seed sandbox (a
+    # mkdtemp world, swept right after) — argv carries a path, never
+    # the secret.
     _findings = []
+    _seed()
     for _topic, _label in _grep_targets():
-        rc, out, _ = git("grep", "--cached", "-l", "-F", "-e",
-                         _topic.decode("utf-8", "replace"))
+        if _label.startswith("live"):
+            _pat = _TOPIC_SANDBOX / "live_topic_pattern.txt"
+            _pat.write_bytes(_topic + b"\n")
+            rc, out, _ = git("grep", "--cached", "-l", "-F", "-f",
+                             str(_pat))
+            try:
+                _pat.unlink()
+            except OSError:
+                pass
+        else:
+            rc, out, _ = git("grep", "--cached", "-l", "-F", "-e",
+                             _topic.decode("utf-8", "replace"))
         if not (rc == 1 and out.strip() == ""):
             _findings.append(f"{_label}: {out.strip()[:200]}")
+    _provisioned_targets = len(_grep_targets())
     _detail = ("; ".join(_findings) if _findings else
                ("(live leg skip-clean: no topic provisioned in this "
-                "checkout — the seed leg still pinned)" if len(
-                   _grep_targets()) == 1 else ""))
+                "checkout — the seed leg still pinned)"
+                if _provisioned_targets == 1 else ""))
     check("4.1 the STAGED tree carries zero topic bytes (git grep "
           "--cached over BOTH the seeded and the live topic: empty — "
           "the bundle builder archives HEAD, so the public zip can "
