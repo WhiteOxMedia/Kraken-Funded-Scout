@@ -207,12 +207,18 @@ def main():
         if _label.startswith("live"):
             _pat = _TOPIC_SANDBOX / "live_topic_pattern.txt"
             _pat.write_bytes(_topic + b"\n")
-            rc, out, _ = git("grep", "--cached", "-l", "-F", "-f",
-                             str(_pat))
             try:
-                _pat.unlink()
-            except OSError:
-                pass
+                # try/finally (the Copilot medium, Oct 8): a git()
+                # timeout raises mid-grep — the finally guarantees the
+                # plaintext pattern NEVER outlives the sweep, even on
+                # a crash path.
+                rc, out, _ = git("grep", "--cached", "-l", "-F", "-f",
+                                 str(_pat))
+            finally:
+                try:
+                    _pat.unlink()
+                except OSError:
+                    pass
         else:
             rc, out, _ = git("grep", "--cached", "-l", "-F", "-e",
                              _topic.decode("utf-8", "replace"))
