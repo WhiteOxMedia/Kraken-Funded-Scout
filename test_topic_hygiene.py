@@ -53,24 +53,67 @@ CARRIERS = ["push_topic.txt", "_ntfydiag.txt", ".workshop/context.md"]
 # is still asserted in section 3 exactly as before (existence + size,
 # conditional on provisioning) — that contract never needed the
 # secret's VALUE, only the file's presence.
-_TOPIC_SANDBOX = Path(tempfile.mkdtemp())   # leak-audit: ok (tempfile-
-                                            # derived sandbox; the seeded
-                                            # topic is synthetic, never
-                                            # the live secret)
-_TOPIC_FILE = _TOPIC_SANDBOX / "push_topic.txt"
+_TOPIC_SANDBOX = None   # lazy: created by _seed() under main() — the
+                        # import-safe contract means the module imports
+                        # with ZERO side effects (no tempdir, no writes;
+                        # the Copilot medium's [medium], Oct 8)
+_TOPIC_FILE = None      # leak-audit: ok (a lazy seed holder, not a
+                        # swap: _seed() binds it ONCE to a tempfile-
+                        # derived sandbox, never production state)
 # BUILT FROM PARTS (the self-match catch, cured in-commit): the seed's
 # contiguous literal must NOT exist in this tracked source — 4.1 greps
 # the STAGED tree for the seed, and the drive's own file is staged; a
 # literal here would match itself forever. Joined at runtime, the parts
 # are inert text; only the assembled value is the grep target.
 SEEDED_TOPIC = "-".join(["scout", "sbx", "topic", "hygiene", "probe"])
-_TOPIC_FILE.write_text(SEEDED_TOPIC + "\n", encoding="utf-8")
+
+
+def _seed():
+    """Create the sandbox seed file on FIRST use (inside main()); the
+    import-safe contract keeps the module body side-effect-free."""
+    global _TOPIC_SANDBOX, _TOPIC_FILE
+    if _TOPIC_FILE is None:
+        _TOPIC_SANDBOX = Path(tempfile.mkdtemp())  # leak-audit: ok (the
+        # seeded topic is synthetic, never the live secret)
+        _TOPIC_FILE = _TOPIC_SANDBOX / "push_topic.txt"
+        _TOPIC_FILE.write_text(SEEDED_TOPIC + "\n", encoding="utf-8")
+
+
+def _grep_targets() -> list:
+    """The byte-scan targets for 4.1, BOTH doors pinned (the Copilot
+    medium's [high], Oct 8): the SEEDED topic (hermetic — always
+    present, deterministic; the fresh-checkout lesson) AND, conditional
+    on provisioning, the LIVE topic read from the scanner's runtime
+    file (the rotation-following trip the original drive had — a live
+    topic re-entering the staged tree must die here too, not just a
+    seed collision). The seed alone would pass a staged live leak; the
+    live value alone silently skipped in a fresh checkout; the PAIR
+    closes both."""
+    targets = [(SEEDED_TOPIC.encode("utf-8"), "seeded (synthetic)")]
+    # the LIVE leg reads the scanner's runtime file DIRECTLY (never the
+    # seed sandbox — the seed holds only synthetic text; the live secret
+    # lives beside background_scanner.py and is what must never ride
+    # the staged tree). Conditional on provisioning: a fresh checkout
+    # has no file, and the seed leg still pins the door.
+    try:
+        # the DEFAULT-PATH read the leak audit flags is the arm's own
+        # contract: this drive's JOB is to grep the staged tree for the
+        # live value — leak-audit: ok (the deliberate live-value pin,
+        # the rotation-following leg; in a fresh checkout the file is
+        # absent and the seed leg still pins the door)
+        live = (BASE / "push_topic.txt").read_bytes().strip()
+    except OSError:
+        live = b""
+    if live:
+        targets.append((live, "live (rotation-following)"))
+    return targets
 
 
 def _live_topic() -> bytes:
     """The grep target for 4.1: the SEEDED synthetic topic from the
     sandbox file (never the live secret — the seed above; the old
     default-path read of push_topic.txt is retired)."""
+    _seed()
     try:
         return _TOPIC_FILE.read_bytes().strip()
     except OSError:
@@ -147,24 +190,25 @@ def main():
           "(scope corrected Oct 8: the deleted diagnostic snapshot must "
           "not fail the tripwire)")
 
-    # 4. the staged tree (what archive HEAD ships once committed) carries
-    # zero topic bytes — the topic read from the live untracked file, so
-    # this check follows every future rotation
-    _topic = _live_topic()
-    if _topic:
-        # -F fixed-string + -e explicit pattern: the topic is DATA, never
-        # a regex (a metacharacter topic could match unrelated text or
-        # abort the grep), and -e keeps a leading hyphen from becoming an
-        # option.
+    # 4. the staged tree (what archive HEAD ships once committed)
+    # carries zero topic bytes — BOTH doors: the seeded synthetic topic
+    # (hermetic, never skips) and the live topic from disk (conditional
+    # on provisioning; follows every rotation)
+    _findings = []
+    for _topic, _label in _grep_targets():
         rc, out, _ = git("grep", "--cached", "-l", "-F", "-e",
                          _topic.decode("utf-8", "replace"))
-        _ok, _detail = (rc == 1 and out.strip() == ""), out.strip()[:200]
-    else:
-        _ok, _detail = True, "(no live topic provisioned — nothing to leak)"
-    check("4.1 the STAGED tree carries zero topic bytes "
-          "(git grep --cached: empty — the bundle builder archives HEAD, "
-          "so the public zip can never carry the topic again)",
-          _ok, _detail)
+        if not (rc == 1 and out.strip() == ""):
+            _findings.append(f"{_label}: {out.strip()[:200]}")
+    _detail = ("; ".join(_findings) if _findings else
+               ("(live leg skip-clean: no topic provisioned in this "
+                "checkout — the seed leg still pinned)" if len(
+                   _grep_targets()) == 1 else ""))
+    check("4.1 the STAGED tree carries zero topic bytes (git grep "
+          "--cached over BOTH the seeded and the live topic: empty — "
+          "the bundle builder archives HEAD, so the public zip can "
+          "never carry the topic again)",
+          not _findings, _detail)
 
     # 5. the scanner's per-send topic read is pinned by name (the file
     # must keep its exact name and location beside background_scanner.py)
