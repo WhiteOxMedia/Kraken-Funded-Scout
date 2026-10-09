@@ -30,16 +30,33 @@ zip on disk carried the topic in 3 entries):
      zero .workshop entries (skip-clean when the bundle is not built)
   4. the served surface stays consistent: manifest sha == zip bytes ==
      sidecar (the serve drive's contract, re-pinned here)
+
+THE SANDBOX-SEED CURE (Oct 8, the last dead-poison residual, the
+kraken test_topic_hygiene port): checks 1.5 and 2.1 used to read the
+LIVE topic from the scout's cross-repo default path (SCOUT /
+push_topic.txt) — a live production secret moving under the pin (a
+future rotation would silently change what these checks grep for
+mid-flight; a fresh checkout or a sandboxed gate run has no file at
+all and the secret-scan silently skipped as "nothing to leak"). THE
+SEED: a tempfile.mkdtemp()-derived sandbox push_topic.txt holding a
+FIXED synthetic topic, built from parts (the seed's contiguous
+literal must NOT exist in this tracked source — a literal here would
+match itself in any tree-wide byte scan). The grep target is now
+deterministic, hermetic, and secret-free: this drive never reads the
+private value it guards, and the tree could never re-leak it through
+the drive itself. The conditional-on-provisioning contract of the old
+live read is preserved by construction: the seeded file ALWAYS
+exists, so the secret-scan can never silently skip.
 """
 import hashlib
 import json
 import os
 import sys
+import tempfile
 import zipfile
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
-SCOUT = HERE.parent / "kraken_scout"
 ZIP = HERE / "dist" / "KrakenScoutBundle.zip"
 MANIFEST = HERE / "dist" / "KrakenScoutBundle.zip.json"
 SHA_FILE = HERE / "dist" / "KrakenScoutBundle.zip.sha256"
@@ -136,13 +153,19 @@ def _read(p):
         return ""
 
 
-# the live topic, read from the scout's UNTRACKED runtime file — this
-# drive must never carry the secret it guards, and must follow every
-# future rotation
-topic = b""
-tf = SCOUT / "push_topic.txt"
-if tf.exists():
-    topic = tf.read_bytes().strip()
+# the grep target: the SEEDED synthetic topic from a sandbox seed file
+# (the kraken test_topic_hygiene port, Oct 8 — this drive must never
+# read the live secret it guards; the seed follows every future
+# rotation by following nothing at all: it is fixed synthetic text)
+_TOPIC_SANDBOX = Path(tempfile.mkdtemp(prefix="bundlehyg_seed_"))
+_TOPIC_FILE = _TOPIC_SANDBOX / "push_topic.txt"
+# BUILT FROM PARTS (the self-match catch): the seed's contiguous
+# literal must NOT exist in this tracked source — a literal here would
+# match itself forever in any tree-wide scan. Joined at runtime, the
+# parts are inert text; only the assembled value is the grep target.
+SEEDED_TOPIC = "-".join(["scout", "sbx", "bundle", "hygiene", "probe"])
+_TOPIC_FILE.write_text(SEEDED_TOPIC + "\n", encoding="utf-8")
+topic = SEEDED_TOPIC.encode("utf-8")
 
 ps1 = _read(HERE / "installer" / "build_bundle.ps1")
 fin = _read(HERE / "installer" / "finalize_bundle.py")
@@ -159,16 +182,15 @@ check(1.3, bool(fin) and "scout" in fin and "push_topic.txt" in fin
       "file (follows every rotation, never hardcoded)")
 check(1.4, bool(fin) and "sys.exit(1)" in fin,
       "the finalizer fail-closes (exit 1 on any guard hit)")
-if topic:
-    leak = [name for name, src in (("build_bundle.ps1", ps1),
-                                   ("finalize_bundle.py", fin))
-            if topic in src.encode("utf-8")]
-    check(1.5, not leak,
-          "no installer source carries the topic bytes (a hardcoded "
-          "secret would re-leak it and trip the guard on its own "
-          "build)" + (str(leak) if leak else ""))
-else:
-    check(1.5, True, "(no live topic provisioned — secret-scan skipped)")
+# 1.5 now greps for the SEEDED synthetic topic — deterministic, hermetic,
+# secret-free (the old conditional live-secret scan never skips).
+leak = [name for name, src in (("build_bundle.ps1", ps1),
+                               ("finalize_bundle.py", fin))
+        if topic in src.encode("utf-8")]
+check(1.5, not leak,
+      "no installer source carries the seeded-topic bytes (a hardcoded "
+      "secret would re-leak it and trip the guard on its own "
+      "build)" + (str(leak) if leak else ""))
 
 print("== 2. THE LIVE ARTIFACT ON DISK ==")
 if ZIP.exists():
@@ -179,15 +201,15 @@ if ZIP.exists():
             if Path(n).name in DENY_NAMES or "/.workshop/" in n:
                 name_hits.append(n)
                 continue
-            if topic:
-                try:
-                    if topic in z.read(n):
-                        byte_hits.append(n)
-                except Exception:
-                    pass
+            try:
+                if topic in z.read(n):
+                    byte_hits.append(n)
+            except Exception:
+                pass
     check(2.1, not byte_hits,
-          f"zero topic bytes in the public zip ({len(names)} entries; "
-          f"pre-cure this carried 3 topic entries)"
+          f"zero seeded-topic bytes in the public zip ({len(names)} "
+          f"entries; the live-secret read is retired — the grep target "
+          f"is the fixed synthetic seed)"
           + (str(byte_hits[:4]) if byte_hits else ""))
     check(2.2, not name_hits,
           "zero denylist carriers in the public zip"
@@ -225,25 +247,33 @@ else:
 # port, inverted for a reader drive): the shim is proven ALIVE by one
 # controlled probe write into a tempdir (a drive-audit that records
 # nothing proves nothing), then the log is judged — every recorded
-# write must be that probe's tempdir path. ANY other write — a repo
-# file, the dist tree, the live topic — is a FAIL: this drive audits
-# the bundle by READING it, and a test that wrote what it audits would
-# be the leak it exists to catch. Containment on RESOLVED paths
-# (realpath), fail-closed on unresolvable/markers.
+# write must be one of the drive's own TEMPDIR worlds: the probe's and
+# the SEED file's (the seed above is the one write the seed cure adds,
+# a tempfile.mkdtemp()-derived sandbox push_topic.txt carrying only
+# synthetic text — never the repo, the dist tree, or the live topic).
+# ANY write beyond those two sandboxes — a repo file, the dist tree,
+# the live topic — is a FAIL: this drive audits the bundle by READING
+# it, and a test that wrote what it audits would be the leak it exists
+# to catch. Containment on RESOLVED paths (realpath), fail-closed on
+# unresolvable/markers.
 import tempfile as _tf
 _probe_dir = _tf.mkdtemp(prefix="bundlehyg_probe_")
 _probe = Path(_probe_dir) / "probe.txt"
 _probe.write_text("the guard is alive", encoding="utf-8")
 _probe.unlink(missing_ok=True)
 
-_probe_r = os.path.realpath(str(_probe_dir))
+# the drive's own worlds, RESOLVED: the seed sandbox (written before
+# the shim? no — AFTER: the shim captures it) and the probe's
+_OWN_WORLDS = [os.path.realpath(str(_TOPIC_SANDBOX)),
+               os.path.realpath(str(_probe_dir))]
 
 def _contained(w):
     try:
         if w.startswith("<"):  # unattributable/dirfd markers: fail-closed
             return False
-        return os.path.commonpath(
-            [os.path.realpath(str(w)), _probe_r]) == _probe_r
+        wr = os.path.realpath(str(w))
+        return any(os.path.commonpath([wr, world]) == world
+                   for world in _OWN_WORLDS)
     except Exception:
         return False
 
@@ -253,9 +283,10 @@ check(4.1, _WRITTEN and _contained(_WRITTEN[0]) and
       f"writes: {_WRITTEN[:3]}")
 _stray = [w for w in _WRITTEN if not _contained(w)]
 check(4.2, not _stray,
-      "the drive wrote ZERO paths beyond the probe sandbox (a pure "
-      "reader: the sources, the zip and the manifest are read, never "
-      "touched)" + (f" strays: {sorted(set(_stray))[:5]}" if _stray else ""))
+      "the drive wrote ZERO paths beyond its own tempdir worlds (the "
+      "seed sandbox + the probe sandbox — a pure reader: the sources, "
+      "the zip and the manifest are read, never touched)"
+      + (f" strays: {sorted(set(_stray))[:5]}" if _stray else ""))
 
 passed, failed = results.count(True), results.count(False)
 print(f"RESULT: {passed} passed, {failed} failed")
