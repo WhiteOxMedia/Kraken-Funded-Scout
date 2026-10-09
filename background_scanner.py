@@ -2689,6 +2689,102 @@ def _take_release_prov(pair: str):
     return None
 
 
+# ── THE STALE-RELEASE TRIPWIRE (Oct 8, tripwire A's day-latched shape):
+# the first time a stale-move JOURNAL RELEASE fires in production, the
+# phone learns it — the strand of the funnel that buried 328 candidates
+# learning to let one through is the moment to watch. Unlike tripwire A
+# (a polling watcher — the penalty has no in-scanner moment), the
+# release fires INSIDE the scanner: the emit rides the release sites
+# and the latch is a day-key in this tripwire's own gitignored state
+# file (the ops-watcher idiom: price_alert_state.json et al). The OPS
+# push leg only (high prio; never the classified trade push — this is
+# machinery, not a trade). Rails (tripwire A's): a failed push leaves
+# the latch UNSET (the trip stays armed, the next release retries); a
+# fresh day-key re-arms; only gate "stale-move" trips. Seams: now/push/
+# state injectable — the drive runs it pure, production defaults touch
+# only their own file.
+STALE_RELEASE_ALERT_STATE = (os.path.dirname(os.path.abspath(__file__))
+                             + os.sep + "stale_release_alert_state.json")
+
+
+def _note_release_alert(pair: str, gate: str, pts: float, quick: float,
+                        floor: float, now=None,
+                        push=None, state=None) -> bool:
+    """The trip: fire the phone push on this release, unless the
+    day-latch holds. Returns True iff a push WENT OUT this call. Never
+    raises — a tripwire failure must never break the release itself."""
+    try:
+        if gate != "stale-move":
+            return False
+        import json as _json
+        _now = now if now is not None else datetime.now()
+        _day = _now.strftime("%Y-%m-%d")
+        st = state
+        if st is None:
+            try:
+                st = _json.load(open(STALE_RELEASE_ALERT_STATE,
+                                     encoding="utf-8"))
+            except Exception:
+                st = {}
+        if not isinstance(st, dict):
+            st = {}
+        if str(st.get("stale_release_alert_day") or "") == _day:
+            return False                       # the day-latch holds
+        try:
+            import discipline as _dc_sr
+            _slack = int(_dc_sr.SEAM_RELEASE_SLACK)
+        except Exception:
+            _slack = 5
+        _text = (f"🔓 STALE-MOVE JOURNAL RELEASE: {pair} released past the "
+                 f"wiggle trap — quick {float(quick):.0f} within "
+                 f"{_slack} pts of the floor "
+                 f"{float(floor):.0f}, relief {float(pts):.1f} pts. "
+                 "The gate that buried 328 let one through (1st: "
+                 + ("yes" if not st.get("stale_release_alert_first")
+                    else "no") + ")")
+        # THE PUSH CHARTER (Oct 8, user spec): the phone carries ONLY the
+        # two actionable instructions — BUY ALERT / EXIT ALERT. A gate
+        # release is internal logic: it logs to the scanner log and the
+        # console renders it; the phone never hears it. The default push
+        # is the CONSOLE-ONLY sink: the emit is observable (the trip,
+        # the latch, the first-ever marker all still record) without a
+        # phone leg. No production caller passes a phone push.
+        _push = push if push is not None else (
+            lambda t, prio="log", tag=None:
+            logger.info("  📲 STALE-RELEASE TRIPWIRE (console-only, the "
+                        "push charter): %s", t))
+        if not _push(_text):
+            return False                       # failed push: stays ARMED
+        _mark = {"stale_release_alert_day": _day,
+                 "stale_release_alert_pair": str(pair),
+                 "stale_release_alert_pts": float(pts)}
+        if not st.get("stale_release_alert_first"):
+            _mark["stale_release_alert_first"] = _day
+        if state is not None:
+            state.update(_mark)                # the injected plane
+        else:
+            # merge into the tripwire's OWN file (the re-read-merge
+            # idiom; never scanner_state — this latch is ops-owned)
+            try:
+                _cur = _json.load(open(STALE_RELEASE_ALERT_STATE,
+                                       encoding="utf-8"))
+                if not isinstance(_cur, dict):
+                    _cur = {}
+            except Exception:
+                _cur = {}
+            _cur.update(_mark)
+            _tmp = STALE_RELEASE_ALERT_STATE + ".tmp"
+            with open(_tmp, "w", encoding="utf-8") as _fh:
+                _json.dump(_cur, _fh, indent=2)
+            os.replace(_tmp, STALE_RELEASE_ALERT_STATE)
+        logger.info("  📲 STALE-RELEASE TRIPWIRE: %s (%s) — the phone "
+                    "learned the first spend", pair, _day)
+        return True
+    except Exception as exc:
+        logger.debug("stale-release tripwire failed (non-fatal): %s", exc)
+        return False
+
+
 # the CURRENT fire-time context (pair-keyed; set by _begin_fire_snapshot
 # at the top of every popup-path evaluation, consumed by the suppression
 # hook above and the fired-snapshot writes below)
@@ -6252,6 +6348,12 @@ def main():
                             _sm_rel = False
                     if _sm_rel:
                         _mark_release(pair, "stale-move")
+                        # THE STALE-RELEASE TRIPWIRE (tripwire A's shape):
+                        # the first spend of this wire pings the phone.
+                        _note_release_alert(
+                            pair, "stale-move", _sm_pts,
+                            quick=float(signal.confidence),
+                            floor=float(DESKTOP_ALERT_MIN))
                         logger.info(
                             "  JOURNAL RELEASE (desktop): %s — 4h high %.0fh ago, "
                             "%.1f%% below it — quick %.0f%% within %s pts of the floor "
@@ -8238,6 +8340,11 @@ def main():
                             else:
                                 if _m_stale:
                                     _mark_release(pair, "stale-move")
+                                    # THE STALE-RELEASE TRIPWIRE (the mover's strand)
+                                    _note_release_alert(
+                                        pair, "stale-move", _m_sm_pts,
+                                        quick=float(signal.confidence),
+                                        floor=89.0)
                                     logger.info(
                                         "  JOURNAL RELEASE (mover): %s — 4h high %.0fh ago, "
                                         "%.1f%% below it — quick %.0f%% within %s pts of the "

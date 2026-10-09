@@ -356,6 +356,11 @@ try:
                     " ".join(str(x) for x in a)),
                 warning=lambda *a, **k: SMNS["logs"].append(
                     "WARN " + " ".join(str(x) for x in a))),
+            # the tripwire emit rides the release block (Oct 8): the
+            # exec'd body calls it — inject the recorder so the release
+            # path doesn't NameError into the guard's except-swallow
+            "_note_release_alert": lambda pair, gate, pts, **kw:
+                SMNS["alerts"].append((pair, gate, pts)),
             "_log_suppression": lambda pair, gate, detail, **kw:
                 SMNS["supp"].append((pair, gate)),
             "_mark_release": lambda pair, gate:
@@ -363,7 +368,7 @@ try:
             "DESKTOP_ALERT_MIN": 92.0,
             "_df_state": "FLAT", "_df_pct": 61.0, "_rot_now_key": "16-20",
             "exchange": None, "pair": "X/USD", "asset": "X",
-            "logs": [], "supp": [], "marks": []}
+            "logs": [], "supp": [], "marks": [], "alerts": []}
 
     exec(compile("def _sm(_stale_move, signal, _deep):\n"
                  + "\n".join("    " + ln for ln in _sm_ded.splitlines()),
@@ -381,6 +386,11 @@ try:
           and not SMNS["supp"], SMNS["supp"])
     check("re-entry: the release stamps stale-move provenance",
           SMNS["marks"] == [("X/USD", "stale-move")], SMNS["marks"])
+    check("re-entry: the release pings the tripwire (the phone learns)",
+          len(SMNS["alerts"]) == 1
+          and SMNS["alerts"][0][0] == "X/USD"
+          and SMNS["alerts"][0][1] == "stale-move"
+          and SMNS["alerts"][0][2] > 0, SMNS["alerts"])
 
     SMNS["logs"].clear(); SMNS["supp"].clear(); SMNS["marks"].clear()
     SMNS["_sm"](_mv, _Sig(), _Deep("sell", 80.0))

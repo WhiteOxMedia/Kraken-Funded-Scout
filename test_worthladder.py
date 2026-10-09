@@ -2,6 +2,7 @@
 closes the loop: verdict-gated floor candidates, QC agreement on the
 same number, the exit-watch preflight, immutable checksummed evidence.
 Red-first: every pin here failed against the missing module first."""
+import sys
 import json, re, sys, hashlib, os, tempfile
 from pathlib import Path
 

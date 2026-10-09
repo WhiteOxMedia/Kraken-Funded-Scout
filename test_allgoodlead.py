@@ -1,5 +1,6 @@
 """Behavioral drive for _all_good_lead (Sep 21): live data, no-trades,
 unapplied-only, and cooldown-hour cases."""
+import sys
 import json
 from datetime import datetime
 from pathlib import Path

@@ -1,3 +1,4 @@
+import sys
 """Test the GET OUT persistence + I RE-ENTERED form fixes (Aug 30)."""
 from pathlib import Path
 
