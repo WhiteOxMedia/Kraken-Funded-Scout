@@ -104,4 +104,11 @@ scratch_space.report_temp('ratchet_check.txt').write_text("\n".join(
     f"{'PASS' if ok else 'FAIL'}  {name}  {detail}" for name, ok, detail in results)
     + f"\nRESULT: {len(results) - len(fails)}/{len(results)}\n")
 print(f"RESULT: {len(results) - len(fails)}/{len(results)} passed -> {out.name}")
-sys.exit(1 if fails else 0)
+
+
+def main():
+    sys.exit(1 if fails else 0)
+
+
+if __name__ == "__main__":
+    sys.exit(main())

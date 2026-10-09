@@ -307,4 +307,11 @@ check("the report artifact is produced by THIS run (re-runnable evidence)",
 lines.append(f"\nRESULT: {PASS} passed, {FAIL} failed")
 scratch_space.report_temp('_replaylive_test.txt').write_text("\n".join(lines), encoding="utf-8")
 print("DONE")
-sys.exit(1 if FAIL else 0)
+
+
+def main():
+    sys.exit(1 if FAIL else 0)
+
+
+if __name__ == "__main__":
+    sys.exit(main())

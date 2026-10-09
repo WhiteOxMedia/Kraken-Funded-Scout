@@ -156,4 +156,11 @@ rep.write_text("\n".join(f"{'PASS' if ok else 'FAIL'}  {n}" +
                + f"\n\nRESULT: {len(results) - len(fails)} passed, "
                  f"{len(fails)} failed\n", encoding="utf-8")
 print(f"RESULT: {len(results) - len(fails)} passed, {len(fails)} failed")
-sys.exit(1 if fails else 0)
+
+
+def main():
+    sys.exit(1 if fails else 0)
+
+
+if __name__ == "__main__":
+    sys.exit(main())

@@ -60,4 +60,11 @@ scratch_space.report_temp("opsfleetsweep_check.txt").write_text(
                  for n, ok, d in results),
     encoding="utf-8")
 print("ALL PASS" if not fails else str(len(fails)) + " FAILURES")
-raise SystemExit(1 if fails else 0)
+
+
+def main():
+    raise SystemExit(1 if fails else 0)
+
+
+if __name__ == "__main__":
+    sys.exit(main())

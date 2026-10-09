@@ -273,7 +273,11 @@ check("the LIVE meta_layers_state.json was never opened for writing "
 print(f"\nRESULT: PASS {PASS} / FAIL {FAIL}")
 for ln in lines:
     print(ln)
-sys.exit(0 if FAIL == 0 else 1)
+
+
+def main():
+    sys.exit(0 if FAIL == 0 else 1)
+
 
 if __name__ == "__main__":
-    pass
+    sys.exit(main())

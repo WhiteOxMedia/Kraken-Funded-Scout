@@ -227,4 +227,11 @@ lines.append(f"RESULT: {PASS} passed, {FAIL} failed")
 (scratch_space.report_temp('_basegradepins_check.txt')).write_text("\n".join(lines) + "\n",
                                                encoding="utf-8")
 print("\n".join(lines))
-sys.exit(1 if FAIL else 0)
+
+
+def main():
+    sys.exit(1 if FAIL else 0)
+
+
+if __name__ == "__main__":
+    sys.exit(main())

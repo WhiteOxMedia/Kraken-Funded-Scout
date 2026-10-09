@@ -76,4 +76,11 @@ out = BASE / "liq_filter_check.txt"
 scratch_space.report_temp('liq_filter_check.txt').write_text("\n".join(lines), encoding="utf-8")
 fails = results.count(False)
 print(f"RESULT: {len(results) - fails} passed, {fails} failed")
-raise SystemExit(1 if fails else 0)
+
+
+def main():
+    raise SystemExit(1 if fails else 0)
+
+
+if __name__ == "__main__":
+    sys.exit(main())

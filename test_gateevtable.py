@@ -149,4 +149,11 @@ import scratch_space
     + f"\n\nRESULT: {len(results) - len(fails)} passed, {len(fails)} failed\n",
     encoding="utf-8")
 print(f"\nRESULT: {len(results) - len(fails)} passed, {len(fails)} failed")
-sys.exit(1 if fails else 0)
+
+
+def main():
+    sys.exit(1 if fails else 0)
+
+
+if __name__ == "__main__":
+    sys.exit(main())

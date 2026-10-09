@@ -4329,24 +4329,30 @@ finally:
     import shutil as _shutil_wp
     _shutil_wp.rmtree(_wp_sbx, ignore_errors=True)
 
-try:
-    out = BASE / "apptest_check.txt"
-    out.write_text("\n".join(lines)
-                   + "\n" + "\n".join(
-                       f"{'PASS' if ok else 'FAIL'}  {name}"
-                       + (f"  [{d}]" if d and not ok else "")
-                       for name, ok, d in results)
-                   + f"\n\nRESULT: {sum(1 for _, ok, _ in results if ok)} passed, "
-                     f"{sum(1 for _, ok, _ in results if not ok)} failed\n",
-                   encoding="utf-8")
-    fails = [r for r in results if not r[1]]
-    print(f"RESULT: {len(results) - len(fails)} passed, {len(fails)} failed")
-    print("done")
-    sys.exit(1 if fails else 0)
-finally:
-    # the SCOUT_PREFS_FILE env swap's restore — the suite hands the
-    # environment back before it exits (the leak gate's contract)
-    if _SCOUT_PREFS_REAL is not None:
-        _os.environ["SCOUT_PREFS_FILE"] = _SCOUT_PREFS_REAL
-    else:
-        _os.environ.pop("SCOUT_PREFS_FILE", None)
+
+def main():
+    try:
+        out = BASE / "apptest_check.txt"
+        out.write_text("\n".join(lines)
+                       + "\n" + "\n".join(
+                           f"{'PASS' if ok else 'FAIL'}  {name}"
+                           + (f"  [{d}]" if d and not ok else "")
+                           for name, ok, d in results)
+                       + f"\n\nRESULT: {sum(1 for _, ok, _ in results if ok)} passed, "
+                         f"{sum(1 for _, ok, _ in results if not ok)} failed\n",
+                       encoding="utf-8")
+        fails = [r for r in results if not r[1]]
+        print(f"RESULT: {len(results) - len(fails)} passed, {len(fails)} failed")
+        print("done")
+        sys.exit(1 if fails else 0)
+    finally:
+        # the SCOUT_PREFS_FILE env swap's restore — the suite hands the
+        # environment back before it exits (the leak gate's contract)
+        if _SCOUT_PREFS_REAL is not None:
+            _os.environ["SCOUT_PREFS_FILE"] = _SCOUT_PREFS_REAL
+        else:
+            _os.environ.pop("SCOUT_PREFS_FILE", None)
+
+
+if __name__ == "__main__":
+    sys.exit(main())

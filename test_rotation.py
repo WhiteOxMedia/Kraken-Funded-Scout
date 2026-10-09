@@ -227,5 +227,11 @@ open("_rotation_check.txt", "w", encoding="utf-8").write("\n".join(lines))
 
 print(f"RESULT: {PASS} passed, {FAIL} failed")
 
-raise SystemExit(1 if FAIL else 0)   # the fleet-honesty fix (Sep 30): DONE-only tails failed closed
-print("DONE")
+
+def main():
+    raise SystemExit(1 if FAIL else 0)   # the fleet-honesty fix (Sep 30): DONE-only tails failed closed
+    print("DONE")
+
+
+if __name__ == "__main__":
+    sys.exit(main())

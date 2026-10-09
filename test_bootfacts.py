@@ -170,4 +170,11 @@ check("zero balance drops money clauses", "on the book" not in line_f)
 _real_ca.load_state = _orig_load
 
 print(f"RESULT: {PASS} passed, {FAIL} failed")
-sys.exit(1 if FAIL else 0)
+
+
+def main():
+    sys.exit(1 if FAIL else 0)
+
+
+if __name__ == "__main__":
+    sys.exit(main())

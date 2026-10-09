@@ -266,5 +266,12 @@ finally:
 lines.append(f"\nRESULT: {PASS} passed, {FAIL} failed")
 scratch_space.report_temp('_disciplinesew_check.txt').write_text("\n".join(lines), encoding="utf-8")
 print("DONE")
-if FAIL:
-    sys.exit(1)
+
+
+def main():
+    if FAIL:
+        sys.exit(1)
+
+
+if __name__ == "__main__":
+    sys.exit(main())

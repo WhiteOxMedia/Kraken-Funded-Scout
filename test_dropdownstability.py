@@ -114,4 +114,11 @@ check(5.2, SRC.count("stable_expander(") >= 4,
 
 RESULT = f"{len(PASSES)} passed, {len(FAILS)} failed"
 print(RESULT)
-sys.exit(1 if FAILS else 0)
+
+
+def main():
+    sys.exit(1 if FAILS else 0)
+
+
+if __name__ == "__main__":
+    sys.exit(main())

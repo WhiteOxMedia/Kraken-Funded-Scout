@@ -205,4 +205,11 @@ check("the scorer's dataset files are the scanner's (ONE seam)",
 out = "\n".join(lines) + f"\n\n{PASS} passed, {FAIL} failed\n"
 open("_advisorybrain_check.txt", "w", encoding="ascii", errors="replace").write(out)
 print(out)
-sys.exit(0)
+
+
+def main():
+    sys.exit(0)
+
+
+if __name__ == "__main__":
+    sys.exit(main())

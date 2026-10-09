@@ -232,4 +232,11 @@ check("the desktop Kraken shortcut targets the windowless VBS",
       "retargeted to a .bat = visible consoles again on every click")
 
 print(f"\nlifecycle contract: {PASS}/{PASS + FAIL}")
-sys.exit(1 if FAIL else 0)
+
+
+def main():
+    sys.exit(1 if FAIL else 0)
+
+
+if __name__ == "__main__":
+    sys.exit(main())

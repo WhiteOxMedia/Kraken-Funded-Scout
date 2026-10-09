@@ -320,4 +320,11 @@ if FAILED:
 out = Path(__file__).resolve().parent / "test_execution_tiers_check.txt"
 out.write_text("\n".join(lines), encoding="utf-8")
 print(f"{'ALL PASS' if not FAILED else 'FAILURES: ' + str(len(FAILED))} → {out.name}")
-raise SystemExit(1 if FAILED else 0)   # the fleet-honesty tail (Sep 30 triage)
+
+
+def main():
+    raise SystemExit(1 if FAILED else 0)   # the fleet-honesty tail (Sep 30 triage)
+
+
+if __name__ == "__main__":
+    sys.exit(main())

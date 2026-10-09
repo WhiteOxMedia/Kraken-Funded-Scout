@@ -199,4 +199,11 @@ check("every machine-local hook has a tracked twin (no dead hooks)",
 
 n_pass = sum(1 for _, ok, _ in results if ok)
 print(f"\nRESULT: {n_pass} passed, {len(results) - n_pass} failed")
-sys.exit(0 if n_pass == len(results) else 1)
+
+
+def main():
+    sys.exit(0 if n_pass == len(results) else 1)
+
+
+if __name__ == "__main__":
+    sys.exit(main())

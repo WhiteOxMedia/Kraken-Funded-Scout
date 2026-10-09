@@ -316,4 +316,11 @@ finally:
     bs._speak_server = _orig_speak
 
 print(f"RESULT: {PASS} passed, {FAIL} failed")
-sys.exit(1 if FAIL else 0)
+
+
+def main():
+    sys.exit(1 if FAIL else 0)
+
+
+if __name__ == "__main__":
+    sys.exit(main())

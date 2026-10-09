@@ -703,4 +703,11 @@ finally:
 
 RESULT = f"{len(PASSES)} passed, {len(FAILS)} failed"
 print(RESULT)
-sys.exit(1 if FAILS else 0)
+
+
+def main():
+    sys.exit(1 if FAILS else 0)
+
+
+if __name__ == "__main__":
+    sys.exit(main())

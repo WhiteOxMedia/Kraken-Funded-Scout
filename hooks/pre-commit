@@ -205,7 +205,13 @@ if git diff --cached --name-only | grep -qxE 'app\.py|background_scanner\.py|met
     # never a stale HEAD layer or an absent sibling (the gate ran the
     # drive on a sandbox that lacked the file and the pin crashed with
     # FileNotFoundError — red for the wrong reason).
-    for src in app.py background_scanner.py meta_layers.py profit_guard.py carve_out.py tri_watch.py contest_account.py add_xrp_watch.py diag_mutation_sweep.py ops/fleet_sweep.py ops/fleet_sweep_classes.json artifacts/mutation_sweep/vacuous_triage.md artifacts/mutation_sweep/journal.json $(git ls-files 'hooks/*' | grep -v '\.sample$'); do
+    # (Oct 8) scout_signal_reader.py + signal_bridge.py join the lane:
+    # the collection-kill sweep staged test_sink_hygiene.py, whose gate
+    # trigger (the sink row) runs it in the sandbox — and its 1.4/1.5/1.6
+    # path-hijack pins FILE-READ those two production sources off
+    # Path(__file__), not PYTHONPATH, so absent from the scratch the pins
+    # read empty strings and red for environment, not truth.
+    for src in app.py background_scanner.py meta_layers.py profit_guard.py carve_out.py tri_watch.py contest_account.py add_xrp_watch.py diag_mutation_sweep.py scout_signal_reader.py signal_bridge.py ops/fleet_sweep.py ops/fleet_sweep_classes.json artifacts/mutation_sweep/vacuous_triage.md artifacts/mutation_sweep/journal.json $(git ls-files 'hooks/*' | grep -v '\.sample$'); do
         mkdir -p "$SCRATCH/$(dirname "$src")"   # nested guarded paths (hooks/)
         git show ":$src" > "$SCRATCH/$src" 2>/dev/null || cp "$src" "$SCRATCH/$src" \
             || { echo "  ⛔ GATE: cannot stage $src for the gate" >&2; exit 1; }

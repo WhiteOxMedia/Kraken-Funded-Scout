@@ -103,4 +103,11 @@ lines.append(f"TOTAL: {len(results) + 1 - fails}/{len(results) + 1}")
 
 open(scratch_space.report_temp('_trump_fix_check.txt'), "w", encoding="utf-8").write("\n".join(lines))
 print(f"RESULT: {len(results) + 1 - fails} passed, {fails} failed")
-raise SystemExit(1 if fails else 0)
+
+
+def main():
+    raise SystemExit(1 if fails else 0)
+
+
+if __name__ == "__main__":
+    sys.exit(main())

@@ -185,4 +185,11 @@ bs.SIGNAL_SNAPSHOTS_FILE, bs.SUPPRESSION_LOG_FILE = _orig
 _reset()
 
 print(f"\nRESULT: {PASS} passed, {FAIL} failed")
-sys.exit(1 if FAIL else 0)
+
+
+def main():
+    sys.exit(1 if FAIL else 0)
+
+
+if __name__ == "__main__":
+    sys.exit(main())

@@ -644,4 +644,11 @@ scratch_space.report_temp('_retiredkept_test.txt').write_text(
     "\n".join(lines), encoding="utf-8")
 
 print(f"RESULT: {PASS} passed, {FAIL} failed")
-raise SystemExit(1 if FAIL else 0)
+
+
+def main():
+    raise SystemExit(1 if FAIL else 0)
+
+
+if __name__ == "__main__":
+    sys.exit(main())

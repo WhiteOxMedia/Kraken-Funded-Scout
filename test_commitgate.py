@@ -1338,4 +1338,11 @@ _fails = [r for r in _RESULTS_LEDGER if not r[1]]
                  + ("" if not _fails else
                     f"\nFAILED: {[n for n, ok, d in _RESULTS_LEDGER if not ok]}")]),
  encoding="utf-8"))
-sys.exit(1 if failed else 0)
+
+
+def main():
+    sys.exit(1 if failed else 0)
+
+
+if __name__ == "__main__":
+    sys.exit(main())

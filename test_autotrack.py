@@ -184,4 +184,11 @@ out.append("")
 out.append(f"{len(results) - fails}/{len(results)} passed")
 Path(__file__).with_name("_autotrack_check.txt").write_text("\n".join(out), encoding="utf-8")
 print(f"{len(results) - fails}/{len(results)} passed -> _autotrack_check.txt")
-sys.exit(1 if fails else 0)
+
+
+def main():
+    sys.exit(1 if fails else 0)
+
+
+if __name__ == "__main__":
+    sys.exit(main())

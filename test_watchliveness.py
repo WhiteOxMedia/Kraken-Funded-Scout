@@ -709,4 +709,11 @@ else:
 import shutil
 shutil.rmtree(TMP, ignore_errors=True)
 print(f"\nRESULT: {len(P)} passed, {len(F)} failed")
-sys.exit(1 if F else 0)
+
+
+def main():
+    sys.exit(1 if F else 0)
+
+
+if __name__ == "__main__":
+    sys.exit(main())

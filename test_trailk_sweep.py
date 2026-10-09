@@ -210,4 +210,11 @@ check("4.5", bs._ratchet_trail_pct(100.0, 99.0, 0) == 3.0
 
 print("\n".join(lines))
 print(f"RESULT: {PASS} passed, {FAIL} failed")
-sys.exit(1 if FAIL else 0)
+
+
+def main():
+    sys.exit(1 if FAIL else 0)
+
+
+if __name__ == "__main__":
+    sys.exit(main())

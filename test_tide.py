@@ -368,5 +368,12 @@ scratch_space.report_temp('tide_check.txt').write_text("\n".join(
 print(f"{'ALL PASS' if not fails else str(len(fails)) + ' FAILURES'}")
 # THE HONEST EXIT (Sep 23): the battery gates on this suite's exit code —
 # a silent rc=0 on failures let the fire path rot undetected for weeks.
-if fails:
-    sys.exit(1)
+
+
+def main():
+    if fails:
+        sys.exit(1)
+
+
+if __name__ == "__main__":
+    sys.exit(main())

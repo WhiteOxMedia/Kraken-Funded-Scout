@@ -270,5 +270,12 @@ print("DONE")
 # parses the STREAMED OUTPUT — a verdict that lived only in the check
 # file read as a no-verdict failure every full run.
 print(f"RESULT: {PASS} passed, {FAIL} failed")
-if FAIL:
-    sys.exit(1)
+
+
+def main():
+    if FAIL:
+        sys.exit(1)
+
+
+if __name__ == "__main__":
+    sys.exit(main())

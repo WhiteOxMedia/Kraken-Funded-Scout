@@ -51,4 +51,11 @@ scratch_space.report_temp('trend_check.txt').write_text("\n".join(
     f"{'PASS' if ok else 'FAIL'}  {name}" + (f"  [{d}]" if d and not ok else "")
     for name, ok, d in results), encoding="utf-8")
 print(f"{'ALL PASS' if not fails else str(len(fails)) + ' FAILURES'}")
-raise SystemExit(1 if fails else 0)   # the fleet-honesty tail (Sep 30 triage)
+
+
+def main():
+    raise SystemExit(1 if fails else 0)   # the fleet-honesty tail (Sep 30 triage)
+
+
+if __name__ == "__main__":
+    sys.exit(main())

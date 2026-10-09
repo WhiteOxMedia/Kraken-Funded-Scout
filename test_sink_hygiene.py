@@ -123,4 +123,11 @@ check("1.6 the idiom pins stay true (app's _bridge keeps the "
 
 fails = [r for r in results if not r[1]]
 print(f"RESULT: {len(results) - len(fails)} passed, {len(fails)} failed")
-sys.exit(1 if fails else 0)
+
+
+def main():
+    sys.exit(1 if fails else 0)
+
+
+if __name__ == "__main__":
+    sys.exit(main())

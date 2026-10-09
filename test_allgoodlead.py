@@ -291,4 +291,11 @@ finally:
     shutil.rmtree(_sink_dir, ignore_errors=True)
 
 print(f"RESULT: {ok} passed, {fail} failed")
-raise SystemExit(1 if fail else 0)
+
+
+def main():
+    raise SystemExit(1 if fail else 0)
+
+
+if __name__ == "__main__":
+    sys.exit(main())

@@ -9,4 +9,10 @@ import sys
 
 import diag_statewriters as ds
 
-sys.exit(ds.main())
+
+def main():
+    sys.exit(ds.main())
+
+
+if __name__ == "__main__":
+    sys.exit(main())

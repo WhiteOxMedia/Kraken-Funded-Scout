@@ -28,7 +28,8 @@ opens the door) and EXIT (its stack — trend sell, profit guard, hard
 stop — closes it). The classic window is tried FIRST; the opp door
 opens only when the champion bar declines; one window per rotation,
 shared. The console settings carry NO emergency window (Oct 4: the
-old version's sidebar plate is removed — the window is scanner-owned)."""
+old version's sidebar plate is removed — the window is scanner-owned).
+"""
 import sys
 import tempfile
 import json
@@ -483,5 +484,11 @@ scratch_space.report_temp('_hailmary_check.txt').write_text("\n".join(lines), en
 
 print(f"RESULT: {PASS} passed, {FAIL} failed")
 
-raise SystemExit(1 if FAIL else 0)   # the fleet-honesty fix (Sep 30): DONE-only tails failed closed
-print("DONE")
+
+def main():
+    raise SystemExit(1 if FAIL else 0)   # the fleet-honesty fix (Sep 30): DONE-only tails failed closed
+    print("DONE")
+
+
+if __name__ == "__main__":
+    sys.exit(main())

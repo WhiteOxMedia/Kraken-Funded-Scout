@@ -203,4 +203,11 @@ check("entry: the unit symbol comes from the pair (FIL regression)",
 out = "\n".join(lines) + f"\n\n{PASS} passed, {FAIL} failed\n"
 open(scratch_space.report_temp('_dangerzone_check.txt'), "w", encoding="ascii", errors="replace").write(out)
 print(out)
-sys.exit(0)
+
+
+def main():
+    sys.exit(0)
+
+
+if __name__ == "__main__":
+    sys.exit(main())

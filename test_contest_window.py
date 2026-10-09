@@ -310,4 +310,11 @@ lines.append(f"\nRESULT: {PASS} passed, {FAIL} failed")
 out = BASE / "_contestwindow_test.txt"
 scratch_space.report_temp('_contestwindow_test.txt').write_text("\n".join(lines), encoding="utf-8")
 print("\n".join(lines[-3:]))
-sys.exit(1 if FAIL else 0)
+
+
+def main():
+    sys.exit(1 if FAIL else 0)
+
+
+if __name__ == "__main__":
+    sys.exit(main())

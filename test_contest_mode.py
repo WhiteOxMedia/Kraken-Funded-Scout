@@ -35,4 +35,11 @@ lines.append(f"RESULT: {len(oks) - fails} passed, {fails} failed")
 out = BASE / "contest_mode_check.txt"
 scratch_space.report_temp('contest_mode_check.txt').write_text("\n".join(lines), encoding="utf-8")
 print(f"RESULT: {len(oks) - fails} passed, {fails} failed")
-raise SystemExit(1 if fails else 0)
+
+
+def main():
+    raise SystemExit(1 if fails else 0)
+
+
+if __name__ == "__main__":
+    sys.exit(main())

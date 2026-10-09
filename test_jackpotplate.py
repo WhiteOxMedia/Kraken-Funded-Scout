@@ -416,4 +416,11 @@ finally:
         os.environ.pop("SCOUT_PREFS_FILE", None)
     else:
         os.environ["SCOUT_PREFS_FILE"] = _scout_prefs_real
-sys.exit(1 if _failed else 0)
+
+
+def main():
+    sys.exit(1 if _failed else 0)
+
+
+if __name__ == "__main__":
+    sys.exit(main())

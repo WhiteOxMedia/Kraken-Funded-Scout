@@ -237,4 +237,11 @@ lines.append(f"\nRESULT: {PASS} passed, {FAIL} failed")
 out = BASE / "_surethingautorefit_check.txt"
 out.write_text("\n".join(lines), encoding="utf-8")
 print(f"RESULT: {PASS} passed, {FAIL} failed")
-sys.exit(1 if FAIL else 0)
+
+
+def main():
+    sys.exit(1 if FAIL else 0)
+
+
+if __name__ == "__main__":
+    sys.exit(main())

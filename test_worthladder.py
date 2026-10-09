@@ -728,4 +728,11 @@ scratch_space.report_temp('worthladder_check.txt').write_text(
     "\n".join(f"{'PASS' if ok else 'FAIL'}  {name}" + (f"  [{d}]" if d and not ok else "")
               for name, ok, d in results) + "\n", encoding="utf-8")
 print(f"RESULT: {len(results) - len(fails)} passed, {len(fails)} failed")
-raise SystemExit(1 if fails else 0)
+
+
+def main():
+    raise SystemExit(1 if fails else 0)
+
+
+if __name__ == "__main__":
+    sys.exit(main())

@@ -251,4 +251,11 @@ out = scratch_space.report_temp("pricealert_check.txt")
 out.write_text("\n".join(lines) + f"\n\nRESULT: {PASS} passed, {FAIL} failed\n",
                encoding="utf-8")
 print(f"RESULT: {PASS} passed, {FAIL} failed")
-sys.exit(1 if fails else 0)
+
+
+def main():
+    sys.exit(1 if fails else 0)
+
+
+if __name__ == "__main__":
+    sys.exit(main())

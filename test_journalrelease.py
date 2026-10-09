@@ -488,4 +488,11 @@ except ValueError as _ve:
           False, f"source anchor missing: {_ve}")
 
 print(f"RESULT: {PASS} passed, {FAIL} failed")
-sys.exit(1 if FAIL else 0)
+
+
+def main():
+    sys.exit(1 if FAIL else 0)
+
+
+if __name__ == "__main__":
+    sys.exit(main())

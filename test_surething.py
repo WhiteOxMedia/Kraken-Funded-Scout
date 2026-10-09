@@ -308,4 +308,11 @@ check("the goal the fire picked is stamped into the snapshot (the diag grades it
 out = "\n".join(lines) + f"\n\n{PASS} passed, {FAIL} failed\n"
 open(scratch_space.report_temp('_surething_check.txt'), "w", encoding="ascii", errors="replace").write(out)
 print(out)
-sys.exit(0)
+
+
+def main():
+    sys.exit(0)
+
+
+if __name__ == "__main__":
+    sys.exit(main())

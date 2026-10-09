@@ -184,4 +184,11 @@ lines.append(f"{PASS} passed, {FAIL} failed")
 report = "\n".join(lines)
 print(report)
 scratch_space.report_temp('_popupfloor_test.txt').write_text(report + "\n", encoding="utf-8")
-sys.exit(1 if FAIL else 0)
+
+
+def main():
+    sys.exit(1 if FAIL else 0)
+
+
+if __name__ == "__main__":
+    sys.exit(main())

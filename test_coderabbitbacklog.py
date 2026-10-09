@@ -392,4 +392,11 @@ check(7.4, "named |= {_norm_file_token(ln.split(" in
 import shutil
 shutil.rmtree(SANDBOX, ignore_errors=True)
 print(f"RESULT: {passed} passed, {failed} failed")
-sys.exit(1 if failed else 0)
+
+
+def main():
+    sys.exit(1 if failed else 0)
+
+
+if __name__ == "__main__":
+    sys.exit(main())

@@ -220,7 +220,14 @@ finally:
         shutil.rmtree(_tmp, ignore_errors=True)
 
 print()
-if _fails:
-    print(f"FAILED: {_fails}")
-    sys.exit(1)
-print("all pins green")
+
+
+def main():
+    if _fails:
+        print(f"FAILED: {_fails}")
+        sys.exit(1)
+    print("all pins green")
+
+
+if __name__ == "__main__":
+    sys.exit(main())

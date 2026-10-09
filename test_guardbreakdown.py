@@ -318,4 +318,11 @@ check("2.26", "factor=_pgf" in (HERE / "background_scanner.py").read_text(encodi
 print(f"\n{len(P)} passed, {len(F)} failed")
 import shutil
 shutil.rmtree(TMP, ignore_errors=True)   # hygiene: the drive leaves no strays
-sys.exit(1 if F else 0)
+
+
+def main():
+    sys.exit(1 if F else 0)
+
+
+if __name__ == "__main__":
+    sys.exit(main())

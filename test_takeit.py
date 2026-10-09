@@ -127,4 +127,11 @@ lines_out = [f"{'PASS' if ok else 'FAIL'}  {name}" + (f"  [{detail}]" if detail 
 out = BASE / "takeit_check.txt"
 scratch_space.report_temp('takeit_check.txt').write_text("\n".join(lines_out), encoding="utf-8")
 print(f"{'ALL PASS' if not fails else str(len(fails)) + ' FAILURES'}")
-raise SystemExit(1 if fails else 0)   # the fleet-honesty fix (Sep 30): printed FAILURES, exited 0
+
+
+def main():
+    raise SystemExit(1 if fails else 0)   # the fleet-honesty fix (Sep 30): printed FAILURES, exited 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

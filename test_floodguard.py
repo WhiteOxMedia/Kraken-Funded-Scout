@@ -208,4 +208,11 @@ check("the formatter carries both stamp kinds",
       "flood_tally" in src and "flood_suppressed" in src)
 
 print(f"\nflood guard: {PASS}/{PASS + FAIL}")
-sys.exit(1 if FAIL else 0)
+
+
+def main():
+    sys.exit(1 if FAIL else 0)
+
+
+if __name__ == "__main__":
+    sys.exit(main())

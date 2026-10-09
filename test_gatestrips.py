@@ -496,4 +496,11 @@ if _wns is not None:
         NS["_release_wired_gates"] = _wns["_release_wired_gates"]
 
 print(f"\nRESULT: {PASS} passed, {FAIL} failed")
-sys.exit(1 if FAIL else 0)
+
+
+def main():
+    sys.exit(1 if FAIL else 0)
+
+
+if __name__ == "__main__":
+    sys.exit(main())

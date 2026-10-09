@@ -773,4 +773,11 @@ out = Path("_disciplineseam_test.txt")
 out.write_text("\n".join(lines), encoding="utf-8")
 print("\n".join(lines))
 print("DONE")
-raise SystemExit(1 if FAIL else 0)   # the fleet-honesty fix (Sep 30): the verdict printed, the exit never rode it
+
+
+def main():
+    raise SystemExit(1 if FAIL else 0)   # the fleet-honesty fix (Sep 30): the verdict printed, the exit never rode it
+
+
+if __name__ == "__main__":
+    sys.exit(main())

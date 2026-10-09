@@ -554,4 +554,11 @@ check("wiring: the proposal rides the warning, gated on the streak",
       and "TRAIL_SIM_ABLE" in src_d)
 
 print(f"\nRESULT: {PASS} passed, {FAIL} failed")
-sys.exit(1 if FAIL else 0)
+
+
+def main():
+    sys.exit(1 if FAIL else 0)
+
+
+if __name__ == "__main__":
+    sys.exit(main())

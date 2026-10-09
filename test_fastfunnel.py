@@ -153,4 +153,11 @@ check("the router lives in the scorer (ONE source, like brain_size_mult)",
 out = "\n".join(lines) + f"\n\n{PASS} passed, {FAIL} failed\n"
 open("_fastfunnel_check.txt", "w", encoding="ascii", errors="replace").write(out)
 print(out)
-sys.exit(0)
+
+
+def main():
+    sys.exit(0)
+
+
+if __name__ == "__main__":
+    sys.exit(main())
