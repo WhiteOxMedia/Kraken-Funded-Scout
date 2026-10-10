@@ -563,10 +563,11 @@ check(6.2, SRC.index("_ml.finalize") < SRC.index("_trail = _ratchet_trail_pct"),
       "RCL runs BEFORE the factor lands on the trail (spec section 4.1)")
 check(6.3, "_mla.audit_close(" in SRC,
       "SAL runs at the auto-close (after trades close)")
-check(6.4, SRC.count("reentry_blocked()") >= 2 and "rcl-drift-reentry" in SRC
+check(6.4, SRC.count("reentry_blocked()") >= 2 and "rcl-drift" in SRC
       and SRC.count("reentry_blocked_for(pair)") >= 2,
-      "both fire routes suppress re-entry candidates under drift — and "
-      "bind the candidate's pair for the Oct 1 bounded re-ask")
+      "both fire routes weaken re-entry candidates under drift (min-size, "
+      "unified rule) — and bind the candidate's pair for the Oct 1 "
+      "bounded re-ask")
 check(6.5, "_mlf.endgame_active()" in SRC and "RCL END-GAME" in SRC,
       "major drift suppresses borderline signals (the popup floor rises)")
 check(6.6, "END-GAME MODE: the net tightens" in SRC,

@@ -111,8 +111,8 @@ check("the floor is CONTEXT + the Hail Mary bar now (never a blocker)",
 check("the number SIZES via the bucket table (the advisory wiring)",
       "from hindsight_scorer import brain_size_mult" in bs_src
       and "_spend = _spend * _brain_mult" in bs_src)
-check("the direction gates (the number is advisory, the direction is not)",
-      '"deep-direction"' in bs_src)
+check("the contra-read is a note on the ledger (deep-veto deleted)",
+      '"deep-contranote"' in bs_src)
 check("fail-closed survives (no brain read = no popup)",
       "no unverified popups (fail-closed" in bs_src)
 check("the fire-time rule holds the bridge too (no scan = no write)",

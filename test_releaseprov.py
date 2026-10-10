@@ -147,27 +147,26 @@ src = Path(__file__).parent.joinpath("background_scanner.py") \
 check("all three fired-row builders carry the release field",
       src.count('"release": _take_release_prov(pair)') == 3,
       src.count('"release": _take_release_prov(pair)'))
-check("every release log line marks the provenance (desktop deep-veto, "
-      "desktop tide-out, sure-thing tide-out, mover deep-veto)",
-      src.count('_mark_release(pair, "deep-veto")') == 2
-      and src.count('_mark_release(pair, "tide-out")') == 2,
-      (src.count('_mark_release(pair, "deep-veto")'),
+check("every release log line marks the provenance (the wired gates: "
+      "stale-move, tide-out, tide-out-retune)",
+      src.count('_mark_release(pair, "stale-move")') >= 3
+      and src.count('_mark_release(pair, "tide-out")') == 2
+      and src.count('_mark_release(pair, "tide-out-retune")') == 1,
+      (src.count('_mark_release(pair, "stale-move")'),
        src.count('_mark_release(pair, "tide-out")')))
 # (Oct 8) scoped to each site's OWN log line: the stale-move release
 # added a second "JOURNAL RELEASE (desktop)" EARLIER in the file, and a
 # first-occurrence find paired the deep-veto mark with the WRONG log —
 # the intent is mark-before-its-own-log, both sites
-_dv_mark = src.find('_mark_release(pair, "deep-veto")')
+_dv_mark = src.find('_mark_release(pair, "tide-out")')
 _sm_mark = src.find('_mark_release(pair, "stale-move")')
 check("the desktop release mark sits inside the released branch "
       "(before the JOURNAL RELEASE log)",
-      _dv_mark != -1
-      and 0 < _dv_mark < src.find("JOURNAL RELEASE (desktop)", _dv_mark)
-      and _sm_mark != -1
+      _sm_mark != -1
       and 0 < _sm_mark < src.find("JOURNAL RELEASE (desktop)", _sm_mark))
 check("each mark precedes its popup's snapshot write (mark -> fire order)",
       all(0 < src.find('_mark_release(pair, "%s")' % g) < i for g in
-          ("deep-veto", "tide-out")
+          ("stale-move", "tide-out")
           for i in (src.find('"release": _take_release_prov(pair)'),)))
 check("_log_suppression voids the mark (the burial gate)",
       (lambda _ls: _ls < src.find("_RELEASE_PROV.pop(str(pair), None)")
@@ -176,9 +175,9 @@ check("the marker contract documents the one-shot honesty",
       "one-shot" in src and "RELEASE_PROV_TTL_S" in src)
 
 # ═══════════════════════════════5. the label vocabulary ═════════════════
-check("the eased-gate labels are journal gates, free of route names",
-      all(g in ("deep-veto", "tide-out") for g in
-          [m for m in ("deep-veto", "tide-out")]))
+check("the eased-gate labels are the WIRED journal gates",
+      all(g in ("stale-move", "tide-out", "brain-floor") for g in
+          [m for m in ("stale-move", "tide-out")]))
 
 # restore runtime paths (the leak-audit sentinel's hand-back target)
 bs.SIGNAL_SNAPSHOTS_FILE, bs.SUPPRESSION_LOG_FILE = _orig

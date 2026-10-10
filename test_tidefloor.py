@@ -75,8 +75,9 @@ check("lone-wolf discount still stacks inside popup_floor (never below 55)",
       "fl = max(LONE_WOLF_DESKTOP_FLOOR, fl - lw_pts)" in src)
 check("relaxation is logged (the floor line names the rotation)",
       "POPUP FLOOR: rotation %s" in src)
-check("the deep-read >=60 pre-check still applies (never discounted)",
-      src.count("DEEP VETO (desktop)") >= 1)
+check("the deep contradiction is a NOTE, not a veto (unified rule)",
+      src.count("deep-contranote") >= 1
+      and "the deep-veto gate is deleted" in src)
 
 lines.append(f"\nRESULT: {PASS} passed, {FAIL} failed")
 open(scratch_space.report_temp('_tidefloor_check.txt'), "w", encoding="utf-8").write("\n".join(lines))

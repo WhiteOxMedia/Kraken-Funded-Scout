@@ -101,7 +101,9 @@ check("the card still SHOWS the pick (plate intact) — but NO confirm "
       and "card_confirm" not in ap and "champ_next_btn" not in ap
       and "auto_track_popup" in bs)
 check("the champion alert voice is untouched (the ONE buy voice)",
-      'title = (f"🟢 BUY {asset} — {_dc:.0f}% SURE"' in bs)
+      # the money-is-the-headline title (Oct 9): the spend leads, then sure
+      'title = (f"🟢 BUY {asset} {_title_spend}"' in bs
+      and 'f" — {_dc:.0f}% SURE"' in bs)
 check("the card's voice code is kept (reversible — don't delete anything)",
       "_size_say" in ap and "New pick! {h['asset']}!" in ap)
 

@@ -94,9 +94,9 @@ check("the route reads the FIRE-TIME features (the snapshot ctx)",
       '(_SNAPSHOT_CTX.get("ctx") or {}).get("features")' in champ)
 check("the router fails CLOSED (a broken read = the slow funnel)",
       "_fast_route, _fast_why = False, \"\"" in champ)
-check("THE WORTH FLOOR WAIVES on the fast route (and only there)",
-      "if is_buy and not _fast_route:" in champ
-      and "THE FAST FUNNEL WAIVES IT" in champ)
+check("the worth floor MERGES into min-size (the slow route never vetoes)",
+      "if is_buy and not _fast_route and _spend > 0:" in champ
+      and "_min_size_weaken(\"worth-floor\"" in champ)
 check("the popup title carries the FAST ROUTE mark",
       '" — FAST ROUTE" if _fast_route' in champ)
 check("the voice says Fast ROUTE", '"Fast route! " if _fast_route' in champ)
@@ -105,19 +105,19 @@ check("the message spells the route + the risk story",
       and "the 3% guard + the" in champ)
 check("the fired snapshot tags the route (champion-fast)",
       '"champion-fast" if _fast_route' in champ)
-check("the ONLY gate the fast route waives is the worth floor "
-      "(death line, caps, tide, thin all stand)",
-      champ.count("not _fast_route") == 1
-      and "if is_buy and not _fast_route:" in champ
-      and "DEATH LINE" in champ)
+check("the min-size weaken pins the spend and marks the title",
+      champ.count("_min_size_weaken(") >= 4
+      and "MIN SIZE (" in champ
+      and "Minimum size — the unified rule!" in champ)
 check("the popup cap is retired (Sep 9: functions kept, never called) — the fast route's cap waiver is moot",
       "_recent_fired_popups()" not in champ and "THE FAST FUNNEL" in champ)
 
 # ── 4. the scanner wiring (mover path) ───────────────────────────────
 check("the mover path routes too (momentum runners are the fast feed)",
       "_m_fast, _m_fast_why = fast_route(" in bs)
-check("the mover's worth floor waives on the fast route",
-      "if _m_worth < _m_pace * _m_wf and not _m_fast:" in bs)
+check("the mover's worth floor merges into the min-size rule too",
+      "if _m_worth < _m_pace * _m_wf and not _m_fast and not _m_weak:" in bs
+      and "MOVER MIN-SIZE FIRE" in bs)
 check("the mover popup carries the mark + the snapshot tags the route",
       '" — FAST ROUTE" if _m_fast' in bs and '"mover-fast" if _m_fast' in bs)
 

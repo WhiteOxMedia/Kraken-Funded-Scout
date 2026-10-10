@@ -1,14 +1,25 @@
-param([string]$Text = "", [int]$Rate = 2, [int]$Volume = 100, [string]$OutFile = "")
+param([string]$Text = "", [int]$Rate = 2, [int]$Volume = 100, [string]$OutFile = "", [string]$Voice = "")
 # Zira speaks LOUD: render TTS to WAV, amplify to near-full scale (max 3x),
 # then play. Volume 100 alone leaves her quiet — this actually boosts her.
 # With -OutFile, the amplified WAV is ALSO saved there (for the phone push)
 # instead of being deleted.
+# -Voice: legacy knob kept for manual testing — empty = Mira/Zira
+# (Oct 9 revert: the two-mouth David contract is retired; Mira speaks
+# every call, GET OUT included, and its "!" carries the urgency). A
+# missing voice name falls back to the default female selection — never
+# a silent call.
 $ErrorActionPreference = "SilentlyContinue"
 if (-not $Text) { exit }
 
 Add-Type -AssemblyName System.Speech
 $s = New-Object System.Speech.Synthesis.SpeechSynthesizer
-try { $s.SelectVoiceByHints([System.Speech.Synthesis.VoiceGender]::Female) } catch {}
+$voiceSet = $false
+if ($Voice) {
+    try { $s.SelectVoice($Voice); $voiceSet = $true } catch {}
+}
+if (-not $voiceSet) {
+    try { $s.SelectVoiceByHints([System.Speech.Synthesis.VoiceGender]::Female) } catch {}
+}
 $s.Volume = [Math]::Max(0, [Math]::Min(100, $Volume))
 $s.Rate = $Rate
 
@@ -66,10 +77,13 @@ if (Test-Path $wav) {
         $fs.Close()
     } catch {}
 
-    $player = New-Object System.Media.SoundPlayer($wav)
-    $player.PlaySync()
+    # Copy the finished render to OutFile BEFORE PlaySync: the scanner's
+    # phone-push attach polls for this file the moment it spawns us —
+    # the push shouldn't wait through the spoken playback.
     if ($OutFile) {
         try { Copy-Item $wav $OutFile -Force } catch {}
     }
+    $player = New-Object System.Media.SoundPlayer($wav)
+    $player.PlaySync()
     Remove-Item $wav
 }

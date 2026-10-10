@@ -382,8 +382,10 @@ check("climb_rules.json exists with the defaults (read LIVE, the "
 bs = open("background_scanner.py", encoding="utf-8").read()
 check("the champion path gates on climb-out (hard gate + suppression)",
       'f"climb-{_fg}"' in bs)
-check("the mover path gates on climb-out",
-      "MOVER CLIMB-OUT" in bs)
+check("the mover path gates on climb-out (min-size weaken)",
+      "_m_climb = _climb_out_check(" in bs
+      and "CLIMB-OUT {_mfg}" in bs
+      and "MOVER MIN-SIZE FIRE" in bs)
 check("the sure-thing path gates on climb-out (the coil case)",
       "is_coil=True, coil_ceiling=float(r.get(\"zone_high\")" in bs)
 check("the scanner wrapper reads the live context (tide, death, dial)",

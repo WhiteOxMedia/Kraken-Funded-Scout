@@ -92,15 +92,15 @@ check("deep read is defined ABOVE the gates (near-miss can call it)",
       src.find("def _do_deep_read()") < src.find("Gate 2: CONFIDENCE BAR"))
 check("bridge reuses the near-miss read (no second fetch)",
       src.count("if _deep is None:") >= 2)
-check("desktop veto applies to the CACHED brain too (not only its own read)",
-      src.count("_deep, _df = _do_deep_read()") == 4,
-      "def + bridge conditional + desktop conditional + brain-judged bar (Sep 1)")
+check("desktop reads the fire-time brain at every consumer (6 sites now)",
+      src.count("_deep, _df = _do_deep_read()") == 6,
+      "def + bridge conditional + desktop conditional + brain-judged bar + the re-scan sites")
 check("bridge direction veto still stands (Sep 5 ADVISORY BRAIN: the scan's "
       "DIRECTION gates the write; the number sizes, it never blocks)",
       "_deep.action != \"buy\"" in src and "DEEP VETO (bridge)" in src
       and "_deep.confidence < 60" not in src)
-check("desktop direction veto still stands (the number is advisory)",
-      "DEEP VETO (desktop)" in src and '"deep-direction"' in src)
+check("desktop contra-read is a ledger note (unified rule)",
+      '"deep-contranote"' in src and "the deep-veto gate is deleted" in src)
 
 # ── 6. nothing was deleted (user rule: don't delete anything) ────────
 check("WEEKDAY_ADJUST still present", "WEEKDAY_ADJUST = {" in src)

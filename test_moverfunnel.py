@@ -101,9 +101,11 @@ check("desktop uses the FIRE-TIME rule (Sep 5 ADVISORY BRAIN: the scan must "
       and "_deep_sig.action == \"buy\"" in src
       and "float(_deep_sig.confidence) >= 89" not in src)
 check("mover popup fails CLOSED on a broken brain read (the JUP lesson)",
-      "_m_desk_ok = False  # fail-closed" in src)
-check("mover popup has the worth floor (half the daily pace, same as champion)",
-      "MOVER WORTH FLOOR" in src and "WORTH_FLOOR_PACE_FRAC" in src)
+      "_m_desk_ok = _deep_sig is not None" in src
+      and "fail-closed stays" in src)
+check("mover's worth floor MERGES into min-size (never vetoes, unified rule)",
+      "WORTH FLOOR:" in src and "_min_size_weaken" not in src or "MOVER MIN-SIZE FIRE" in src
+      and "_m_wf = _worth_floor_frac()" in src)
 check("funnel evaluates at its own floor, not the tournament bar",
       "evaluate_and_check(pair, df, MOVER_MIN_CONF)" in src)
 
@@ -136,8 +138,9 @@ check("mover popup has the book-carry verdict (her four verdicts)",
       "measure_book(exchange, pair)" in src
       and "Small size only — {_m_spend:,.0f} dollars! " in src
       and "Book unreadable — your call on size! " in src)
-check("mover popup suppresses on TOO THIN (no popup at all)",
-      "MOVER TOO THIN" in src)
+check("mover's TOO-THIN gate is GONE — thin books size, never silence (Oct 9)",
+      "THE TOO-THIN GATE IS GONE" in src
+      and "MOVER TOO THIN" not in src)
 check("mover popup sizes off the LIVE contest account",
       "_ca.load_state()" in src and "import contest_account as _ca" in src)
 

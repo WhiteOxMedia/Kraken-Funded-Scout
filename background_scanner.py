@@ -3220,36 +3220,79 @@ def _danger_zone_panel(exchange, pair: str, spend: float, goal_pct: float,
         return f"{'─' * 30}\nDANGER ZONE: metrics unavailable ({exc})\n"
 
 
-def _speak_server(text: str, rate: int = 2, push_text: str | None = None):
+def _speak_server(text: str, rate: int = 2, push_text: str | None = None,
+                  voice: str = ""):
     """Zira out loud from the SCANNER process — runs whether or not any
     browser is open. Same amplified speak script the console uses.
-    Every line ALSO goes to the phone as a push notification (ntfy) with
-    HER ACTUAL AMPLIFIED VOICE ATTACHED — tap play on the phone, it's
-    Zira, not the phone's substitute voice. One voice, three deliveries:
-    PC speakers, browser captions, phone audio push. push_text: a richer
-    body for the phone than what she speaks aloud (the GET OUT popup's
-    full reasons) — the voice stays short, the push carries everything."""
+    Every line ALSO goes to the phone as a push notification (ntfy).
+    push_text: a richer body for the phone than what she speaks aloud
+    (the GET OUT popup's full reasons) — the voice stays short, the
+    push carries everything.
+    voice (legacy knob, Oct 9 revert: empty for everything now — Mira
+    speaks all calls including GET OUT, the "!" carries the urgency).
+    Kept so a passed-but-missing name still falls back to the script's
+    default female selection instead of breaking."""
     import subprocess
     _base = os.path.dirname(os.path.abspath(__file__))
     _wav_path = os.path.join(_base, "speech_queue", "last_voice.wav")
-    # her-words log: every spoken line is readable on the console
     _log_her_line(text)
+    # THE ATTACH-READY POLL (the wav was always rendered here, but the
+    # phone never got it — Oct 9, her ask): the render runs async; the
+    # push waits for THIS line's render (OutFile mtime newer than the
+    # pre-call stamp) before sending, up to 15s. A missed render ships
+    # text-only — the call is never delayed into silence.
+    _pre_ts = time.time()
+    _spk_proc = None
+    _spk_had_pid = False
     try:
         os.makedirs(os.path.dirname(_wav_path), exist_ok=True)
         script = os.path.join(_base, "speak_loud.ps1")
         if not os.path.exists(script):
             return
-        subprocess.Popen(["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass",
-                          "-File", script, "-Text", VOICE_PREFIX + text, "-Rate", str(rate),
-                          "-Volume", str(_voice_volume()), "-OutFile", _wav_path],
-                         creationflags=0x08000000)
+        _argv = ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass",
+                 "-File", script, "-Text", VOICE_PREFIX + text, "-Rate", str(rate),
+                 "-Volume", str(_voice_volume()), "-OutFile", _wav_path]
+        if voice:
+            _argv += ["-Voice", voice]
+        _spk_proc = subprocess.Popen(_argv, creationflags=0x08000000)
+        _spk_had_pid = True
     except Exception as exc:
         logger.debug("speak failed: %s", exc)
+    _render_fresh = False
+    for _ in range(30):  # 30 × 0.5s = 15s cap
+        try:
+            if os.path.exists(_wav_path) and os.path.getmtime(_wav_path) > _pre_ts:
+                _render_fresh = True
+                break
+        except OSError:
+            pass  # why: a stat race on the just-created wav — next 0.5s tick retries
+    # THE VOICE LIFELINE (the 17:48 hardening, Oct 9): a spawn that died
+    # before its 0.5s first poll used to look like a mere missed render —
+    # 20 minutes of log mining to even suspect it. If the file never went
+    # fresh AND the child is already gone before tick ONE, the speaker
+    # didn't fail quietly — it failed instantly. Log so it shows in ONE
+    # grep, then still push (text-only) — the call is never delayed.
+    if not _render_fresh and _spk_had_pid:
+        _died_early = True
+        try:
+            if _spk_proc is not None and _spk_proc.poll() is None:
+                _died_early = False  # still alive at first poll — not a quick death
+        except Exception as _life_exc:
+            # never silent (the gate): a probe error must not eat the lifeline
+            logger.debug("voice lifeline liveness probe failed: %s", _life_exc)
+        if _died_early:
+            logger.warning("🔇 VOICE DIED BEFORE SPEAKING: the speak "
+                           "spawn exited instantly (pid %s) — no audio on "
+                           "the PC; the push goes out text-only.",
+                           getattr(_spk_proc, "pid", "?"))
     # phone push: BUY NOW / SELL NOW priority alerts only (user rule,
     # Aug 30) — everything else stays on PC voice + the console panel.
     # push_text (when given) carries the full-reasons body on the phone
-    # while the spoken line stays short.
-    _push_to_phone(push_text if push_text else text, wav_path=_wav_path)
+    # while the spoken line stays short. The wav attaches when the fresh
+    # render landed (the file IS the push body on ntfy's attach route);
+    # a stale/absent render ships the text alone.
+    _push_to_phone(push_text if push_text else text,
+                   wav_path=_wav_path if _render_fresh else None)
 
 
 def _push_topic() -> str | None:
@@ -3276,22 +3319,41 @@ _push_state = {"text": "", "ts": 0.0}
 _push_retry_q = []  # [{"text":…, "prio":…, "due": epoch, "why":…}]
 
 
-def _send_ntfy(text: str, prio: str, attempt: str, tag: str | None = None) -> bool:
+def _send_ntfy(text: str, prio: str, attempt: str, tag: str | None = None,
+               attach_path: str | None = None) -> bool:
     """One logged ntfy attempt. True only on an HTTP accept — which is
-    delivery to the server, never proof the PHONE received it."""
+    delivery to the server, never proof the PHONE received it.
+    attach_path: when given and readable, the call rides ntfy's file
+    attachment protocol (the body IS the file, sent as octet-stream with
+    a Filename header) — the text becomes the notification's title-side
+    context and the phone gets the rendered voice as tap-to-play audio
+    (the out-of-coverage leg: service returns, the play button is there)."""
     topic = _push_topic()
     if not topic:
         logger.warning("phone push skipped (%s) — no push_topic.txt", attempt)
         return False
     try:
-        import urllib.request, urllib.parse
-        req = urllib.request.Request(
-            f"https://ntfy.sh/{urllib.parse.quote(topic)}",
-            data=str(text).encode("utf-8"),
-            headers={"Title": "Kraken Scout", "Priority": prio,
-                     "Tags": tag or ("rotating_light" if prio == "urgent" else "chart_with_upwards_trend")})
-        urllib.request.urlopen(req, timeout=10)
-        logger.info("📲 PUSHED (%s, %s): %s", prio, attempt, str(text)[:90])
+        import urllib.request, urllib.parse, os as _os
+        _headers = {"Title": "Kraken Scout", "Priority": prio,
+                    "Tags": tag or ("rotating_light" if prio == "urgent" else "chart_with_upwards_trend")}
+        if attach_path and os.path.exists(attach_path) and os.path.getsize(attach_path) > 0:
+            with open(attach_path, "rb") as _af:
+                _data = _af.read()
+            _headers["Filename"] = "exit_call.wav"
+            # Message header must be latin-1-safe per HTTP header rules —
+            # the em-dash body fails; the push TEXT rides the title only.
+            _safe_ascii = str(text).encode("ascii", "replace").decode("ascii")
+            _headers["Message"] = _safe_ascii.replace("\n", " ")[:200]
+            req = urllib.request.Request(f"https://ntfy.sh/{urllib.parse.quote(topic)}",
+                                         data=_data, headers=_headers,
+                                         method="PUT")
+        else:
+            req = urllib.request.Request(
+                f"https://ntfy.sh/{urllib.parse.quote(topic)}",
+                data=str(text).encode("utf-8"), headers=_headers)
+        urllib.request.urlopen(req, timeout=20 if attach_path else 10)
+        logger.info("📲 PUSHED (%s, %s)%s: %s", prio, attempt,
+                    " +voice" if attach_path else "", str(text)[:90])
         return True
     except Exception as exc:
         # push is best-effort — the PC voice already spoke — but it is
@@ -3314,7 +3376,8 @@ def _process_push_retries():
             continue
         _push_retry_q.remove(_r)
         _send_ntfy(_r["text"], _r["prio"],
-                   f"attempt 2/2, first sent {now - _r['why']:.0f}s earlier")
+                   f"attempt 2/2, first sent {now - _r['why']:.0f}s earlier",
+                   attach_path=_r.get("attach"))
     if len(_push_retry_q) > 8:
         del _push_retry_q[8:]
 
@@ -3477,7 +3540,7 @@ def _push_to_phone(text: str, wav_path: str | None = None):
         return  # the ntfy leg needs its topic — the native leg already went
     try:
         prio = "urgent" if is_sell else "high"
-        _send_ntfy(str(text), prio, "attempt 1/2")
+        _send_ntfy(str(text), prio, "attempt 1/2", attach_path=wav_path)
         # THE BUY GETS THE SAME DOUBT (Sep 29, her ask): the retry queue
         # used to be GET-OUT-only, but a missed BUY is the missed entry —
         # the one call the desk can least afford to never hear. A missed
@@ -3491,7 +3554,8 @@ def _push_to_phone(text: str, wav_path: str | None = None):
         # queue cap.
         _push_retry_q.append({"text": str(text), "prio": prio,
                               "due": now + 60.0,
-                              "why": now})
+                              "why": now,
+                              "attach": wav_path})
     except Exception as exc:
         # push is best-effort — the PC voice already spoke — but it is
         # never SILENT: the scanner log carries every failure
@@ -3740,15 +3804,17 @@ def _save_contest_watch(watch: dict, fresh_keys=None):
 
 
 def _popup_already_watched(pair: str) -> bool:
-    """THE ONE-WATCH RULE (user rule, Sep 21): a BUY NOW popup must never
-    fire for an asset that is ALREADY being watched — the watch IS the
-    entry record (popups auto-track at fire time), so a second popup for
-    the same pair can only be noise while she's still in it. The watch
-    clears two ways: SOLD (the user took profit) or the GET OUT
-    auto-close (the machine stopped the watch) — either way the next
-    setup may fire fresh. Checked on all three contest BUY routes
-    (champion, Sure Thing breakout, mover) — the bot's own DCA 'BUY
-    MORE' notification is a different book and stays ungated."""
+    """THE ONE-WATCH RULE (user rule, Sep 21; SHARPENED Oct 9: "currently
+    watching, not recently watched"): a BUY NOW popup never fires for an
+    asset CURRENTLY being watched — the tombstone-free loader is the
+    contract, so a SOLD or GET-OUT-cleared row is GONE for this gate the
+    moment the tombstone lands (not "recently watched": that former
+    state leaked — a manual sell with no tombstone sync left the pair
+    gated for the rest of the rotation). The merged WATCHING rows live
+    in HER WORDS; the wipe row is a distinct event from the watcher.
+    Checked on all three contest BUY routes (champion, Sure Thing
+    breakout, mover) — the bot's own DCA 'BUY MORE' is a different book
+    and stays ungated."""
     try:
         if pair in _load_contest_watch():
             _log_suppression(pair, "already-watched",
@@ -5104,6 +5170,10 @@ def contest_light(exchange, cfg):
                 # THE POPUP LEDGER first (Sep 21): the exit call is journaled
                 # even if the voice/push delivery dies — what fired is history.
                 popup_journal("GET OUT", f"Get out now — Sell {asset}!", _push_txt)
+                # one mouth (Oct 9 revert: user prefers Mira for
+                # everything): GET OUT stays Mira's voice, the urgency
+                # rides the rate and the exclamation marks — "Get out
+                # now!" — nothing more.
                 _speak_server(f"Get out now! Sell {asset}! {_why}"
                               f"I'll base-call the next one the moment it sets up — no clock-waiting!", rate=1,
                               push_text=_push_txt)
@@ -5660,10 +5730,17 @@ def main():
         WHOLE call out loud (user directive: she speaks why/when/how-long,
         not just the coin name — the bare 'BUY PENGU' morning taught us).
         The old balloon toast died in ~5 seconds; this popup holds the
-        screen up to 3 minutes (or until you click OK)."""
+        screen up to 3 minutes (or until you click OK).
+        THE 17:48 HARDENING (Oct 9, the silent GET OUT lesson): the modal
+        could sit UNDER the fullscreen console (never seen), and the voice
+        spawn could die before rendering a single sample with no trace —
+        both legs now fight back: the modal grabs TOPMOST (4096 = the
+        always-on-top bit), and the voice spawn is WATCHED below (the
+        _speak_server hardening logs 'died before speaking') instead of
+        being mined 20 minutes later."""
         import subprocess
-        safe_title = title.replace("'", "''").replace('"', '`"')
-        safe_msg = message.replace("'", "''").replace('"', '`"')
+        safe_title = title.replace("'", "").replace('"', "")
+        safe_msg = message.replace("'", "").replace('"', "").replace("\n", " | ")[:180]
 
         # 1) Zira announces it (amplified — heard across the room)
         try:
@@ -5677,13 +5754,18 @@ def main():
             logger.warning("voice announce failed (%s) — the popup "
                            "surfaces silent", exc)
 
-        # 2) Persistent popup — stays up to 3 minutes or until clicked
+        # 2) Persistent popup — stays up to 3 minutes or until clicked.
+        #    TOPMOST force (4096 = MB_TOPMOST in the FSNAV bitfield): the
+        #    modal now BEATS the fullscreen console instead of sitting
+        #    behind it unseen.
         try:
-            ps = (
+            _t = safe_title.replace("\n", " ")
+            _m = safe_msg.replace("\n", " ")
+            ps_cmd = (
                 f"$w = New-Object -ComObject WScript.Shell; "
-                f"$null = $w.Popup('{safe_msg}', 180, '{safe_title}', 48)"
+                f"$r = $w.Popup('{_m}', 180, '{_t}', 4096 + 48)"
             )
-            subprocess.Popen(['powershell', '-WindowStyle', 'Hidden', '-Command', ps],
+            subprocess.Popen(['powershell', '-WindowStyle', 'Hidden', '-Command', ps_cmd],
                              stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         except Exception as exc:
             logger.debug("Popup notification failed: %s", exc)
@@ -5754,14 +5836,15 @@ def main():
                             else _mlr.reentry_blocked())
                 if _blocked:
                     _mlr.note_reentry_block()
-                    logger.info("  RCL DRIFT: %s re-entry suppressed — "
-                                "reality moved, the calibration is behind",
-                                asset)
-                    _log_suppression(pair, "rcl-drift-reentry",
-                                     "RCL drift — re-entry candidate suppressed",
-                                     quick=float(signal.confidence),
-                                     rot=rotation_key_for_hour(_now_mst().hour))
-                    return
+                    # THE UNIFIED RULE (user decree, Oct 9): the RCL
+                    # drift tag is CALIBRATION HUMILITY, not a wall —
+                    # a resumable trade (the PUMP shape: exit closed a
+                    # min-size runner, trend resumes) re-fires at
+                    # minimum size, marked. Nothing blocks QC.
+                    logger.info("  RCL DRIFT: %s re-entry rides minimum size — "
+                                "the calibration is behind but the unified "
+                                "rule never blocks", asset)
+                    _rcl_weaken = True
                 if getattr(_mlr, "reentry_override_pair", lambda: None)() == pair:
                     # The override covers this pass (kept for its window:
                     # BOTH downstream paths — the popup gate AND the mover
@@ -6072,25 +6155,13 @@ def main():
                     return
                 # ── THE ADVISORY BRAIN (user rule, Sep 5): the brain's
                 # NUMBER no longer blocks the ledger write — it sizes the
-                # entry downstream. What still blocks: the scan's
-                # DIRECTION — a deep read that says SELL/HOLD against a
-                # buy is an invalid fire-time diagnostic (its confidence
-                # measures conviction in the OPPOSITE call), and the bot's
-                # own reader gates (ladder, head-to-head, carry cap) stay
-                # the real-money protection, fully intact.
-                if _deep.action != "buy":
-                    logger.info("  DEEP VETO (bridge): %s deep-reads %s %.0f%% — not written; the scan contradicts the buy",
-                                asset, _deep.action, _deep.confidence)
-                    _log_suppression(pair, "deep-veto",
-                                     f"bridge stage: deep-reads {_deep.action} "
-                                     f"{_deep.confidence:.0f}% — the scan's direction "
-                                     f"contradicts the buy (the number is advisory, "
-                                     f"the direction is not)",
-                                     quick=float(signal.confidence),
-                                     brain=float(_deep.confidence),
-                                     tide=f"{_ts0} {_tp0:.0f}%" if _ts0 else None,
-                                     rot=rotation_key_for_hour(_now_mst().hour))
-                    return
+                # entry downstream. THE DIRECTION VETO IS GONE (user
+                # rule, Oct 9: "delete the deep-veto gate — if the QC
+                # will pass the deep scan then don't leave money on the
+                # table"): a SELL/HOLD deep read no longer blocks the
+                # bridge write. The bot's own reader gates (ladder,
+                # head-to-head, carry cap) stay the real-money
+                # protection, fully intact.
                 # NO DOWNWARD TREND PICKS (user directive, Aug 25) — same
                 # EMA knife test as the QC, on the bot's money too
                     from indicators import ema as _ema2
@@ -6250,23 +6321,26 @@ def main():
                         _deep, _df = None, None
                 if _deep is not None:
                     _bc = float(_deep.confidence)
+                    # THE DEEP DIRECTION VETO IS GONE (user rule, Oct 9:
+                    # "delete the deep-veto gate"): a SELL/HOLD deep read
+                    # no longer silences the popup — the brain's NUMBER
+                    # still SIZES the entry (any direction), and the
+                    # desk gates upstream (floor, tide, stale, book)
+                    # carry the risk. A contradicting read is logged to
+                    # the ledger (forensics) but the fire lands.
                     if _deep.action != "buy":
-                        # the scan RAN — but it contradicts the buy: an
-                        # invalid fire-time diagnostic (its confidence
-                        # measures conviction in the opposite call; a
-                        # number you cannot use as a buy sizer)
-                        logger.info("  DEEP DIRECTION VETO (desktop): %s deep-reads "
-                                    "%s %.0f%% — the scan contradicts the buy",
+                        logger.info("  ADVISORY CONTRA (note): %s deep-reads "
+                                    "%s %.0f%% — logged, the fire lands (the "
+                                    "deep-veto gate is deleted)",
                                     asset, _deep.action, _bc)
-                        _log_suppression(pair, "deep-direction",
-                                         f"deep-reads {_deep.action} {_bc:.0f}% — the scan's "
-                                         f"direction contradicts the buy (the number is "
-                                         f"advisory, the direction is not)",
+                        _log_suppression(pair, "deep-contranote",
+                                         f"deep-reads {_deep.action} {_bc:.0f}% "
+                                         f"against the buy — logged only (the "
+                                         f"deep-veto gate is deleted; the fire lands)",
                                          quick=float(signal.confidence), brain=_bc,
                                          floor=float(DESKTOP_ALERT_MIN),
                                          tide=(f"{_df_state} {_df_pct:.0f}%" if _df_pct is not None else _df_state),
                                          rot=_rot_now_key)
-                        return
                     _brain_floor_ok = True
                     try:
                         from hindsight_scorer import brain_size_mult
@@ -6363,16 +6437,54 @@ def main():
                             _dc_sm.SEAM_RELEASE_SLACK, float(DESKTOP_ALERT_MIN),
                             _sm_pts)
                     else:
-                        logger.info("  STALE MOVE: %s — 4h high %.0fh ago, %.1f%% below it "
-                                    "— popup skipped (the wiggle trap)",
-                                    asset, _st[0], _st[1])
-                        _log_suppression(pair, "stale-move",
-                                         f"4h high {_st[0]:.0f}h ago, {_st[1]:.1f}% below it",
-                                         quick=float(signal.confidence),
-                                         brain=(float(_deep.confidence) if _deep is not None else None),
-                                         tide=(f"{_df_state} {_df_pct:.0f}%" if _df_pct is not None else _df_state),
-                                         rot=_rot_now_key)
-                        return
+                        # THE STALE-MOVE VERDICT IS A RE-SCAN NOW (user rule,
+                        # Oct 9: "if a stale-move happens then get a new
+                        # scan to pass or fail"): the stale shape no longer
+                        # SILENTLY buries the candidate — a one-shot FRESH
+                        # deep read decides RIGHT NOW. A buy-direction
+                        # fresh read releases the fire (the move may be
+                        # sagging but the desk-grade scan says go); any
+                        # other read stands as the honest fail — and the
+                        # popup still does NOT fire (the fail is REAL,
+                        # not silence). The fail lands in the ledger so
+                        # the candidate is visible as judged, not hidden.
+                        _sm_deeper = None
+                        try:
+                            if _deep is None:
+                                _deep, _df = _do_deep_read()
+                            elif float(getattr(_deep, "ts", 0) or 0) < time.time() - 60:
+                                _deep, _df = _do_deep_read()   # a >60s-old read is not fresh
+                            _sm_deeper = _deep
+                        except Exception:
+                            _sm_deeper = None
+                        _sm_pass = (_sm_deeper is not None
+                                    and _sm_deeper.action == "buy")
+                        if _sm_pass:
+                            _mark_release(pair, "stale-move")
+                            logger.info(
+                                "  STALE-MOVE RE-SCAN PASS: %s — 4h high %.0fh ago, "
+                                "%.1f%% below it — the FRESH deep read says BUY %.0f%%; "
+                                "the re-scan pass releases the fire",
+                                asset, _st[0], _st[1], _sm_deeper.confidence)
+                        else:
+                            _sm_why = ("no fresh read" if _sm_deeper is None
+                                       else f"deep reads {_sm_deeper.action} "
+                                            f"{_sm_deeper.confidence:.0f}%")
+                            logger.info("  STALE MOVE: %s — 4h high %.0fh ago, %.1f%% below it "
+                                        "— the fresh re-scan FAILED (%s) — the popup STANDS DOWN "
+                                        "(the fail is real, not silence)",
+                                        asset, _st[0], _st[1], _sm_why)
+                            _log_suppression(pair, "stale-move",
+                                             f"stale: 4h high {_st[0]:.0f}h ago, {_st[1]:.1f}% below it — the "
+                                             "fresh re-scan FAILED ("+
+                                             ("no fresh read" if _sm_deeper is None else
+                                              f"deep reads {_sm_deeper.action} {_sm_deeper.confidence:.0f}%")+
+                                             ") — the fail is REAL, not silence",
+                                             quick=float(signal.confidence),
+                                             brain=(float(_deep.confidence) if _deep is not None else None),
+                                             tide=(f"{_df_state} {_df_pct:.0f}%" if _df_pct is not None else _df_state),
+                                             rot=_rot_now_key)
+                            return
             except Exception as exc:
                 _sm_rel = False
                 # THE SAGGING-TOP RISK: a stale-move read that failed
@@ -6444,6 +6556,8 @@ def main():
         if is_buy:
             _out_tide_lw = False        # the lone-wolf carve-out path
             _out_tide_learned = False   # the learned-bar / journal-release path
+            _out_tide_weakened = False  # adversity landing (unified-rule min-size)
+            _knife_weaken = False       # the EMA knife (unified-rule min-size)
             try:
                 # TIDE OUT = no entries anywhere — EXCEPT THE LONE-WOLF
                 # CARVE-OUT (user rule, Sep 4, the POPCAT lesson: the
@@ -6511,95 +6625,54 @@ def main():
                                     logger.info("  OUT-TIDE RETUNE RELEASE: %s — quick %.0f — %s (the brain still owes its verdict)",
                                                 asset, float(signal.confidence), _rrel_why)
                                 else:
-                                    _bar_txt = (f"personal bar {_pbar:.0f} ({_lmeta})"
-                                                if _pbar is not None
-                                                else f"no learned bar ({_lmeta})")
-                                    try:
-                                        import carve_out as _co_t
-                                        _lw_req_txt = (f"lone wolf needs >= "
-                                                       f"+{_co_t.required_own_move(_co_t.gate(pair=pair)):.0f}% "
-                                                       f"own 24h move")
-                                    except Exception:
-                                        _lw_req_txt = (f"lone wolf needs >= "
-                                                       f"+{LONE_WOLF_MOVE_MIN:.0f}% own 24h move")
-                                    _log_suppression(pair, "tide-out",
-                                                     f"fleet {_tp2:.0f}% up — the OUT tide's price: "
-                                                     f"quick {float(signal.confidence):.1f} vs {_bar_txt}; "
-                                                     f"{_lw_req_txt}; journal: {_rel_why}; retune: {_rrel_why}",
-                                                     quick=float(signal.confidence),
-                                                     brain=(float(_deep.confidence) if _deep is not None else None),
-                                                     floor=float(DESKTOP_ALERT_MIN),
-                                                     tide=f"OUT {_tp2:.0f}%", rot=_rot_now_key)
-                                    logger.info("  TIDE OUT (fleet %.0f%%) — desktop suppressed (%s; journal: %s; retune: %s)",
-                                                _tp2, _bar_txt, _rel_why, _rrel_why)
-                                    return
+                                    # THE UNIFIED RULE (user decree, Oct 9):
+                                    # "If QC says BUY -> fire. If anything
+                                    # is weak -> fire minimum size and
+                                    # clearly display the amount + the
+                                    # time to target. Nothing blocks QC."
+                                    # The OUT tide is ADVERSITY, not a
+                                    # veto: the fire lands at the
+                                    # minimum-viable size, marked
+                                    # 'against the tide' — the exit
+                                    # watch already owns the risk on the
+                                    # same terms as every fire.
+                                    _out_tide_weakened = True   # the unified-rule choke min-sizes this
+                                    _out_tide_learned = True    # rides the marked 'against the tide' path
+                                    logger.info("  OUT TIDE ADVERSITY: %s — the fire LANDS at minimum size "
+                                                "(the unified rule: QC never blocked)", asset)
                 # The brain rules EVERY alert — whether this stage read it
                 # or the near-miss consult already did (one read, cached).
                 if _deep is None:
                     _deep, _df = _do_deep_read()
                 if _deep is not None:
-                    # ADVISORY BRAIN (Sep 5): the DIRECTION still vetoes —
-                    # a SELL/HOLD read against a buy is an invalid
-                    # diagnostic — but the NUMBER no longer does (it sized
-                    # the entry upstream; a 40% read fires at 0.10x, it is
-                    # not buried here).
+                    # THE DEEP-VETO DIRECTION GATE IS GONE (user rule,
+                    # Oct 9): a SELL/HOLD read is forensics, not a wall —
+                    # the read is logged and the fire proceeds. The
+                    # upstream gates (floor, tide, book, stale re-scan)
+                    # carry the risk.
                     if _deep.action != "buy":
-                        # THE JOURNAL RELEASE (Sep 21, the verdict-cost study:
-                        # deep-veto was the largest mispriced pool — 86
-                        # burials, 86 high-quality, 24 ran +3% after) — the
-                        # SOFT edge only: a HOLD near the floor with the
-                        # journal's champion-grade hindsight on this gate
-                        # becomes a pass. A SELL always stands; a broken
-                        # journal vetoes (fail-closed, like every relief).
-                        _rel_pts = 0.0
-                        _released = False
-                        if _deep.action == "hold":
-                            try:
-                                import discipline as _dc_r
-                                _rel_pts = _dc_r.journal_release_pts("deep-veto")
-                                if (_rel_pts > 0.0
-                                        and float(signal.confidence)
-                                        + _dc_r.SEAM_RELEASE_SLACK
-                                        >= float(DESKTOP_ALERT_MIN)):
-                                    _released = True
-                            except Exception:
-                                _rel_pts = 0.0
-                        if _released:
-                            _mark_release(pair, "deep-veto")
-                            logger.info(
-                                "  JOURNAL RELEASE (desktop): %s deep-reads hold %.0f%% — "
-                                "quick %.0f%% within %s pts of the floor %.0f%%; the journal "
-                                "shows deep-veto burying champion-grade payers "
-                                "(relief %.1f pts) — released",
-                                asset, _deep.confidence, float(signal.confidence),
-                                _dc_r.SEAM_RELEASE_SLACK, float(DESKTOP_ALERT_MIN),
-                                _rel_pts)
-                        else:
-                            logger.info("  DEEP VETO (desktop): %s deep-reads %s %.0f%% — the scan contradicts the buy",
-                                        asset, _deep.action, _deep.confidence)
-                            _log_suppression(pair, "deep-veto",
-                                             f"deep-reads {_deep.action} {_deep.confidence:.0f}% "
-                                             f"— the scan's direction contradicts the buy "
-                                             f"(the number is advisory, the direction is not)",
-                                             quick=float(signal.confidence),
-                                             brain=float(_deep.confidence),
-                                             floor=float(DESKTOP_ALERT_MIN),
-                                             tide=(f"{_df_state} {_df_pct:.0f}%" if _df_pct is not None else _df_state),
-                                             rot=_rot_now_key)
-                            return
-                    from indicators import ema as _ema3
-                    _es = float(_ema3(_df["close"], cfg.ema_short).iloc[-1])
-                    _el = float(_ema3(_df["close"], cfg.ema_long).iloc[-1])
-                    if _es < _el and float(_df["close"].iloc[-1]) < _el:
-                        logger.info("  DEEP VETO (desktop): %s downward trend — no downward trend picks (user rule)", asset)
-                        _log_suppression(pair, "downward-trend",
-                                         "EMA9<EMA21 and price<EMA21 — no downward trend picks",
+                        logger.info("  DEEP CONTRA (note): %s deep-reads %s %.0f%% "
+                                    "— logged, the fire lands", asset,
+                                    _deep.action, _deep.confidence)
+                        _log_suppression(pair, "deep-contranote",
+                                         f"deep-reads {_deep.action} {_deep.confidence:.0f}% "
+                                         f"against the buy — logged only (the deep-veto "
+                                         f"gate is deleted; the fire lands)",
                                          quick=float(signal.confidence),
                                          brain=float(_deep.confidence),
                                          floor=float(DESKTOP_ALERT_MIN),
                                          tide=(f"{_df_state} {_df_pct:.0f}%" if _df_pct is not None else _df_state),
                                          rot=_rot_now_key)
-                        return
+                    from indicators import ema as _ema3
+                    _es = float(_ema3(_df["close"], cfg.ema_short).iloc[-1])
+                    _el = float(_ema3(_df["close"], cfg.ema_long).iloc[-1])
+                    if _es < _el and float(_df["close"].iloc[-1]) < _el:
+                        # THE UNIFIED RULE (Oct 9): the downtrend knife is
+                        # ADVERSITY — the fire lands at minimum size,
+                        # marked; it no longer returns. (Aug 25's rule
+                        # reshaped by the Oct 9 decree: nothing blocks QC.)
+                        logger.info("  KNIFE (weaken): %s downward trend — the fire LANDS at minimum size", asset)
+                        _knife_weaken = True
             except Exception as _exc:
                 logger.debug("desktop pre-check unavailable for %s: %s (alerting anyway — QC still gates)", asset, _exc)
 
@@ -6655,27 +6728,30 @@ def main():
                 if _spend > _carry:
                     _fit = [c * _spend for c in (0.25, 0.50, 0.75, 1.00)
                             if c * _spend <= _carry]
-                    _spend = max(_fit) if _fit else 0.0
+                    # THE MINIMUM-VIABLE FLOOR (the JUP bump, Oct 9: a $60
+                    # top-of-book zeroed the spend, and the worth floor
+                    # then bumped a 72% QC pick for "paying $0" — the
+                    # Oct 9 too-thin retirement missed this one line).
+                    # A thin book sizes DOWN but never to zero: the
+                    # tranche floor is the same 0.10x minimum the brain
+                    # scaler uses. The buy is at-market; the book fills
+                    # what it fills.
+                    _spend = max(_fit) if _fit else _spend * 0.10
         except Exception:
             _carry = None
-        if _carry is not None and _spend <= 0:
-            logger.info("  TOO THIN for contest size (book carries ~$%.0f) — desktop suppressed",
-                        _carry)
-            _log_suppression(pair, "too-thin",
-                             f"the book carries ~${_carry:.0f} — even 25% of the contest "
-                             f"size doesn't fit",
-                             quick=float(signal.confidence),
-                             brain=(float(_deep.confidence) if _deep is not None else None),
-                             floor=float(DESKTOP_ALERT_MIN),
-                             tide=(f"{_df_state} {_df_pct:.0f}%" if _df_pct is not None else _df_state),
-                             rot=_rot_now_key)
-            return
+        # THE TOO-THIN GATE IS GONE (user rule, Oct 9: "delete the too-thin
+        # gate; make the recommended spend amount more noticeable"). The
+        # thin book no longer SILENCES the popup — the sized spend (even
+        # a 0.10x minimum viable) IS the notice: the book carry still
+        # SIZES the entry down, but the call always gets heard and the
+        # SPEND line carries the money up front (the dopamine line).
         if _carry is not None and _spend < (float(_bal) if _bal > 0 else float(DEFAULT_CONFIG.challenge_balance)):
             contest_msg = (f"  SPEND: {_spend / (float(_bal) if _bal > 0 else float(DEFAULT_CONFIG.challenge_balance)):.0%} = "
-                           f"${_spend:,.0f} — SMALL COIN: this book carries ${_spend:,.0f}, "
-                           f"not ${_bal:,.0f}\n")
+                           f"${_spend:,.0f} — the book will carry it: ${_carry:,.0f} "
+                           f"(20% of the visible book — small coin)\n")
         elif _carry is not None:
-            contest_msg = f"  SPEND: 100% = ${_bal:,.0f} — big book, carries all-in\n"
+            contest_msg = (f"  SPEND: 100% = ${_bal:,.0f} — big book, will carry it: "
+                           f"${_carry:,.0f} (20% of the visible book)\n")
         # ── THE 3% DEATH-LINE GUARD (Kraken Funded rules, encoded Sep 1 —
         # the drift audit found the -3% line was never modeled): the
         # contest account's real state (tier + current balance from the
@@ -6785,9 +6861,9 @@ def main():
                 return
             if _spend > _risk_cap:
                 _spend = _risk_cap
-                contest_msg = (f"  SPEND: ${_spend:,.0f} — THE 3% GUARD: this coin's worst-case "
+                contest_msg = (f"  RISK CAP: ${_spend:,.0f} pre-sizing — THE 3% GUARD: this coin's worst-case "
                                f"window drawdown is {_wdd:.1f}%; ${_spend:,.0f} is the most the "
-                               f"platform line can afford\n")
+                               f"platform line can afford (the recommended spend is the title/ENTER line)\n")
         except Exception as _exc:
             logger.debug("3%% guard unavailable in send_alert: %s", _exc)  # fail-open
         # ── THE ADVISORY-BRAIN SIZE SCALER (user rule, Sep 5): the brain's
@@ -6804,6 +6880,8 @@ def main():
                     _spend = _spend * _brain_mult
                     logger.info("  ADVISORY BRAIN SIZING: %.2fx → $%.0f",
                                 _brain_mult, _spend)
+                # RCL drift marker lives in _rcl_weaken; the min-floor
+                # itself rides the unified choke at _base_spend below
             except Exception as exc:
                 # sizing dollars move here — the skipped scaler must be
                 # visible (the spend ships at its pre-scaler value)
@@ -6821,6 +6899,36 @@ def main():
             _spend = _spend * _tide_size_mult
             logger.info("  FLAT TIDE SIZING: %.2fx → $%.0f (the tide data spoke)",
                         _tide_size_mult, _spend)
+        # ── THE UNIFIED-RULE WEAKEN (user decree, Oct 9): "If QC says BUY
+        #    -> fire. If anything is weak -> fire minimum size."
+        #    Adversity is INFORMATION — the fire lands at min-viable and is
+        #    marked plainly; it never returns. The min floor rides the
+        #    same 0.10x the brain scaler uses, against the SIZED base
+        #    (pre-brain: guard-cap, book tranche, tide are all in).
+        _weak_fire_reason = ""
+        _base_spend = _spend
+        try:
+            _rcl_weaken_flag = _rcl_weaken
+        except NameError:
+            _rcl_weaken_flag = False
+
+        def _min_size_weaken(gate: str, why: str):
+            """Mark a fire as weakened: log the reason and pin the spend
+            to the min-viable floor (0.10x of the sized base)."""
+            nonlocal _spend, _weak_fire_reason
+            _weak_fire_reason = f"{gate}: {why}"
+            _spend = max(_spend, _base_spend * 0.10)
+            logger.info("  MIN-SIZE FIRE (%s): %s — spend clamped to $%.0f",
+                        gate.upper(), why, _spend)
+        # OUT-tide adversity survivors (the block above no longer
+        # returns): weakened, not suppressed — the earned passes
+        # (lone wolf, learned bar, journal/retune release) fire FULL size
+        if _out_tide_weakened:
+            _min_size_weaken("out-tide", "fired against the OUT tide")
+        if _knife_weaken:
+            _min_size_weaken("knife", "downward trend (EMA9<EMA21, price<EMA21) — minimum size")
+        if _rcl_weaken_flag:
+            _min_size_weaken("rcl-drift", "re-entry while the calibration is behind — minimum size")
         # ── THE CLIMB-OUT GATES (user rule, Sep 6: "Find swing trades
         #    that avoid danger zones: no trades near major resistance,
         #    no trades in chop, no trades when liquidity is thin. Only
@@ -6844,14 +6952,16 @@ def main():
                             _climb.get("fail_reason"))
                 _log_suppression(pair, f"climb-{_fg}",
                                  f"{_climb.get('fail_reason')} — no clear "
-                                 f"escape route (climb-out)",
+                                 f"escape route (climb-out; the unified rule fires at min size)",
                                  quick=float(signal.confidence),
                                  brain=(float(_deep.confidence) if _deep is not None else None),
                                  floor=float(DESKTOP_ALERT_MIN),
                                  tide=(f"{_df_state} {_df_pct:.0f}%" if _df_pct is not None else _df_state),
                                  rot=_rot_now_key,
                                  climb=(_climb.get("features") or {}))
-                return
+                # THE UNIFIED RULE (Oct 9): no escape route is ADVERSITY —
+                # the fire lands at minimum size, marked
+                _min_size_weaken(f"climb-{_fg}", _climb.get("fail_reason") or "no clear escape route")
         # ── THE WORTH FLOOR (user rule, Sep 2: "big coins only... less
         # entries but more money" — the JUP lesson: a $233 sized entry at
         # the +2% goal pays $4.66, noise that only pays the spread): the
@@ -6862,7 +6972,12 @@ def main():
         # the pace gate for the data — the 73%-winner momentum class
         # pays quick and often; the 3% guard + the popup cap carry the
         # risk alone. The slow route keeps the floor.
-        if is_buy and not _fast_route:
+        # (Oct 9) THE MINIMUM-VIABLE ENTRY WAIVES IT TOO: the sizing
+        # doctrine says even a minimum entry fires; judging a
+        # minimum-sized fire by a full-size pace bar re-buries every
+        # thin-book pick the floor's own sizing created. The floor
+        # judges what it was built to judge: full-size entries.
+        if is_buy and not _fast_route and _spend > 0:
             try:
                 import contest_account as _ca_w
                 _acct_w = _ca_w.load_state()
@@ -6870,20 +6985,22 @@ def main():
                 _wf_w = _worth_floor_frac()  # the console dial, live
                 _worth_w = float(_spend) * (float(_goal_pct) / 100.0)
                 if _worth_w < _pace_w * _wf_w:
-                    logger.info("  WORTH FLOOR: %s — a $%.0f entry at the +%.1f%% goal pays "
-                                "only $%.0f (< $%.0f, %.0f%% of the daily pace) — popup bumped",
-                                asset, _spend, _goal_pct, _worth_w,
-                                _pace_w * _wf_w, _wf_w * 100.0)
                     _log_suppression(pair, "worth-floor",
                                      f"a ${_spend:.0f} entry at the +{_goal_pct:.1f}% goal pays "
                                      f"${_worth_w:.0f} < the ${_pace_w * _wf_w:.0f} floor "
-                                     f"({_wf_w * 100.0:.0f}% of the daily pace)",
+                                     f"({_wf_w * 100.0:.0f}% of the daily pace; merged into the min-size rule Oct 9)",
                                      quick=float(signal.confidence),
                                      brain=(float(_deep.confidence) if _deep is not None else None),
                                      floor=float(DESKTOP_ALERT_MIN),
                                      tide=(f"{_df_state} {_df_pct:.0f}%" if _df_pct is not None else _df_state),
                                      rot=_rot_now_key)
-                    return
+                    # THE MERGED DIAL (user decree, Oct 9): worth-floor is
+                    # no longer a veto — the popup fires at minimum size
+                    # with the recommended amount + time-to-target in the
+                    # title/voice. The floor informs; it never blocks.
+                    _min_size_weaken("worth-floor",
+                                     f"a ${_spend:.0f} entry at +{_goal_pct:.1f}% pays "
+                                     f"${_worth_w:.0f} (< ${_pace_w * _wf_w:.0f} pace bar) — minimum size")
             except Exception as _exc:
                 logger.debug("worth floor unavailable: %s", _exc)  # fail-open
         if is_buy:
@@ -6923,10 +7040,13 @@ def main():
                                 else _mlr2.reentry_blocked())
                     if _blocked:
                         _mlr2.note_reentry_block()
-                        logger.info("  RCL DRIFT: %s re-entry suppressed "
-                                    "(mover route) — no popup while reality "
-                                    "drifts", pair)
-                        return
+                        # unified rule (Oct 9): min-size inline — the
+                        # earlier choke already ran, so weaken right here
+                        _min_size_weaken("rcl-drift",
+                                         "re-entry while the calibration is behind")
+                        logger.info("  RCL DRIFT: %s re-entry rides "
+                                    "minimum size — the unified rule "
+                                    "never blocks", pair)
                     if getattr(_mlr2, "reentry_override_pair", lambda: None)() == pair:
                         logger.info("  RCL OVERRIDE: %s re-entry allowed by "
                                     "operator override (recorded, mover route)", pair)
@@ -6963,15 +7083,26 @@ def main():
                     _hm_line = ("  💪 HAIL MARY: the emergency hour runs — "
                                 "the death line stands\n")
                     _hm_say = "Hail Mary! The emergency hour is open! "
-            title = (f"🟢 BUY {asset} — {_dc:.0f}% SURE"
+            _small_coin = _carry is not None and _spend < (float(_bal) if _bal > 0 else float(DEFAULT_CONFIG.challenge_balance))
+            # THE MONEY IS THE HEADLINE (user rule, Oct 9): the recom-
+            # mended spend leads the title — the dopamine dollar figure
+            # the desk can act on at a glance, before ANY words follow.
+            _title_spend = (f"${_spend:,.0f}" if _spend > 0 else
+                            "SIZE YOUR OWN")
+            # THE UNIFIED-RULE MARK (user decree, Oct 9): a weakened fire
+            # says WHY it rides small, right in the title.
+            _weak_title = (f" — MIN SIZE ({_weak_fire_reason.split(': ', 1)[-1].upper()})"
+                           if _weak_fire_reason else "")
+            title = (f"🟢 BUY {asset} {_title_spend}"
+                     + f" — {_dc:.0f}% SURE"
                      + (f" — {_brain_mult:.2f}× SIZE" if _brain_mult < 1.0 else "")
                      + (" — FAST ROUTE" if _fast_route else "")
                      + (" — CHALLENGER" if _challenger else "")
                      + (" — AGAINST THE TIDE" if _out_tide_learned else "")
                      + (" — LONE WOLF (OUT TIDE)" if _out_tide_lw else "")
+                     + _weak_title
                      + (" — OPPORTUNISTIC HAIL MARY" if _hail_mary and _hail_mary_mode == "opportunistic"
                         else " — HAIL MARY" if _hail_mary else ""))
-            _small_coin = _carry is not None and _spend < (float(_bal) if _bal > 0 else float(DEFAULT_CONFIG.challenge_balance))
             _challenger_say = (f"A challenger — just under the {DESKTOP_ALERT_MIN:.0f} percent floor! "
                                if _challenger else "")
             _challenger_line = (f"  CHALLENGER: the brain reads {_dc:.0f}% vs this rotation's "
@@ -6981,15 +7112,18 @@ def main():
             _lw_say = (f"Lone wolf! Moving on her own against an out tide! " if _out_tide_lw
                        else "Lone wolf! Moving on her own while the fleet sits still! " if _lw_pts
                        else "")
-            _spoken = (f"Buy {asset}! {_dc:.0f} percent sure! "
+            _spoken = (f"Buy {asset}! "
+                       + (f"Recommended {(_spend):,.0f} dollars — " if _spend > 0 else "")
+                       + f"{_dc:.0f} percent sure! "
                        + _challenger_say
                        + _brain_say
                        + ("Flat tide — half size! " if _tide_size_mult < 1.0 else "")
+                       + ("Minimum size — the unified rule! " if _weak_fire_reason else "")
                        + ("Fast route! " if _fast_route else "")
                        + _reentry_say
                        + _hm_say
                        + _lw_say
-                       + f"Aim for plus {_goal_pct:.0f} percent! "
+                       + f"Aiming plus {_goal_pct:.0f} percent — target around {_out_by or '?'}, "
                        + (f"Small size only — {_spend:,.0f} dollars! " if _small_coin else
                           (f"Big book — all {(float(_bal) if _bal > 0 else float(DEFAULT_CONFIG.challenge_balance)):,.0f} dollars in fine! "
                            if _carry is not None else
@@ -7336,69 +7470,24 @@ def main():
                     # is announced once per zone — popping here while the
                     # coil is still armed re-announces it every 5-min poll
                     continue
+                # THE SURE-THING DEEP VETO IS GONE (user rule, Oct 9: the
+                # deep-veto class is deleted tree-wide): a SELL/HOLD
+                # deep read no longer buries the coil — the read is
+                # logged (the ledger keeps the forensics shape) and the
+                # coil FIRES. The armed memory still consumes the zone
+                # (the coil is announced once per zone regardless).
                 if _st_deep.action != "buy":
-                    # THE JOURNAL RELEASE (Sep 21, the verdict-cost study;
-                    # extended to this gate Sep 22): the SOFT edge only —
-                    # a HOLD near the popup floor with the journal's
-                    # champion-grade hindsight on THIS gate's own burials
-                    # (sure-thing-deep-veto keeps its own ledger) becomes a
-                    # pass. A SELL always stands; a broken journal vetoes
-                    # (fail-closed, like every relief).
-                    # THE FLOOR IS LOCAL (review 7c568d2, Sep 23): the old
-                    # line referenced the champion path's popup-floor local
-                    # — a name this function never binds, so the release's
-                    # own except swallowed the NameError and a champion-
-                    # grade coil was buried with the journal relief
-                    # silently dead. The floor computes HERE from the same
-                    # inputs the champion path uses (funnel tide, lone
-                    # wolf, rotation base); a broken read fails closed to
-                    # the rotation rail.
-                    try:
-                        _st_floor = popup_floor(_ts, float(_lw_pts or 0.0),
-                                                None, pair)
-                    except Exception:
-                        _st_floor = float(popup_floor_for_rotation(None))
-                    _st_rel_pts = 0.0
-                    _st_released = False
-                    if _st_deep.action == "hold":
-                        try:
-                            import discipline as _dc_st
-                            _st_rel_pts = _dc_st.journal_release_pts(
-                                "sure-thing-deep-veto")
-                            if (_st_rel_pts > 0.0
-                                    and float(r.get("score") or 0.0)
-                                    + _dc_st.SEAM_RELEASE_SLACK
-                                    >= float(_st_floor)):
-                                _st_released = True
-                        except Exception:
-                            _st_rel_pts = 0.0
-                    if _st_released:
-                        _mark_release(pair, "sure-thing-deep-veto")
-                        logger.info(
-                            "  SURE THING %s: JOURNAL RELEASE — deep-reads hold "
-                            "%.0f%% against the breakout, quick %.0f within %s pts "
-                            "of the floor %.0f%%; the journal shows this gate "
-                            "burying champion-grade coils (relief %.1f pts) — released",
-                            asset, _st_deep.confidence,
-                            float(r.get("score") or 0.0),
-                            _dc_st.SEAM_RELEASE_SLACK, float(_st_floor),
-                            _st_rel_pts)
-                    else:
-                        logger.info("  SURE THING %s: deep veto — the scan reads %s %.0f%% "
-                                    "against the breakout", asset, _st_deep.action,
-                                    _st_deep.confidence)
-                        _log_suppression(pair, "sure-thing-deep-veto",
-                                         f"deep-reads {_st_deep.action} "
-                                         f"{_st_deep.confidence:.0f}% — the scan "
-                                         f"contradicts the breakout",
-                                         quick=float(r.get("score") or 0.0),
-                                         brain=float(_st_deep.confidence),
-                                         rot=rotation_key_for_hour(_now_mst().hour))
-                        # the armed memory STAYS (CodeRabbit, Sep 8): a vetoed
-                        # coil is not a new coil — popping here re-announces
-                        # the same zone every poll; the suppression log still
-                        # records every veto
-                        continue
+                    logger.info("  SURE THING %s: contranote — the scan reads %s %.0f%% "
+                                "against the breakout — logged, the coil fires "
+                                "(the deep-veto gate is deleted)", asset,
+                                _st_deep.action, _st_deep.confidence)
+                    _log_suppression(pair, "sure-thing-contranote",
+                                     f"deep-reads {_st_deep.action} "
+                                     f"{_st_deep.confidence:.0f}% against the breakout — "
+                                     f"logged only (the deep-veto gate is deleted)",
+                                     quick=float(r.get("score") or 0.0),
+                                     brain=float(_st_deep.confidence),
+                                     rot=rotation_key_for_hour(_now_mst().hour))
                 # the death-line guard sizes it; the probability sizes it more;
                 # the FLAT tide sizes it too (Sep 7: same factor the champion,
                 # the mover and the QC already pay — FLAT 22% win vs RISING
@@ -8082,20 +8171,10 @@ def main():
                         # deep read ≥60 + no downward trend — the quality floor
                         # (the PUMP lesson: never buy what the brain dislikes).
                         # Fail-open on errors, same as the bridge pre-check.
+                        # THE DEEP-VETO JOURNAL WIRE IS GONE (user rule,
+                        # Oct 9): the gate itself no longer exists, so its
+                        # release fuel is dead — only the READ runs now.
                         try:
-                            # THE JOURNAL RELEASE for the mover's deep-veto
-                            # too (Sep 21): near-bar HOLD + the journal's
-                            # champion-grade hindsight on deep-veto = pass;
-                            # SELL still buries. Fail-closed.
-                            _m_release, _m_rel_pts, _dc_r = False, 0.0, None
-                            _m_released_said = False
-                            try:
-                                import discipline as _dc_r
-                                _m_rel_pts = _dc_r.journal_release_pts("deep-veto")
-                                if _m_rel_pts > 0.0:
-                                    _m_release = True
-                            except Exception:
-                                _m_release = False
                             from strategy import evaluate_strategy as _ev, \
                                 enable_deep_analysis, disable_deep_analysis
                             enable_deep_analysis()
@@ -8104,32 +8183,28 @@ def main():
                             from indicators import ema as _ema_mv
                             _es_mv = float(_ema_mv(df["close"], cfg.ema_short).iloc[-1])
                             _el_mv = float(_ema_mv(df["close"], cfg.ema_long).iloc[-1])
-                            if (_deep_sig.action == "sell"
-                                    or (_deep_sig.action == "hold"
-                                        and (not _m_release
-                                             or _deep_sig.confidence
-                                             + _dc_r.SEAM_RELEASE_SLACK < 60))
-                                    or (_deep_sig.action == "buy"
-                                        and _deep_sig.confidence < 60)
-                                    or (_es_mv < _el_mv and float(df["close"].iloc[-1]) < _el_mv)):
-                                if _deep_sig.action == "hold" and _m_release \
-                                        and not _m_released_said:
-                                    _mark_release(pair, "deep-veto")
-                                    logger.info(
-                                        "  JOURNAL RELEASE (mover): %s deep-reads hold %.0f%% — "
-                                        "near the 60 bar with the journal's champion-grade "
-                                        "hindsight on deep-veto (relief %.1f pts) — released",
-                                        asset, _deep_sig.confidence, _m_rel_pts)
-                                    _m_released_said = True
-                                else:
-                                    logger.info("  MOVER VETO: %s deep-reads %s %.0f%% — the brain says no",
-                                                asset, _deep_sig.action, _deep_sig.confidence)
-                                    _log_suppression(pair, "deep-veto",
-                                                     f"mover: deep-reads {_deep_sig.action} "
-                                                     f"{_deep_sig.confidence:.0f}% — the brain says no",
-                                                     quick=float(signal.confidence),
-                                                     brain=float(_deep_sig.confidence), rot=rot_key)
-                                    continue
+                            # THE MOVER DEEP-VETO IS GONE (user rule,
+                            # Oct 9): a contradicting read is forensics,
+                            # not a wall — the fire proceeds. The
+                            # downward-trend knife stays (Aug 25 rule).
+                            if _deep_sig.action != "buy":
+                                logger.info("  MOVER CONTRA (note): %s deep-reads %s %.0f%% — logged, the fire lands",
+                                            asset, _deep_sig.action, _deep_sig.confidence)
+                                _log_suppression(pair, "deep-contranote",
+                                                 f"mover: deep-reads {_deep_sig.action} {_deep_sig.confidence:.0f}% "
+                                                 f"against the buy — logged only (the deep-veto gate is deleted)",
+                                                 quick=float(signal.confidence),
+                                                 brain=float(_deep_sig.confidence), rot=rot_key)
+                            if (_deep_sig.action == "buy"
+                                    and _deep_sig.confidence < 60)                                     or (_es_mv < _el_mv and float(df["close"].iloc[-1]) < _el_mv):
+                                logger.info("  MOVER VETO: %s deep reads sub-bar/trend — no pick (quality floor; the brain says no)",
+                                            asset, getattr(_deep_sig, 'confidence', 0))
+                                _log_suppression(pair, "quality-floor",
+                                                 f"mover: deep {'<60' if _deep_sig.action == 'buy' else _deep_sig.action} "
+                                                 f"or EMA knife — the quality floor stands",
+                                                 quick=float(signal.confidence),
+                                                 brain=float(_deep_sig.confidence), rot=rot_key)
+                                continue
                         except Exception as _exc:
                             logger.debug("mover deep read unavailable for %s: %s (fail-open)", pair, _exc)
 
@@ -8252,20 +8327,31 @@ def main():
                         except Exception as exc:
                             logger.warning("mover fire snapshot failed for %s (%s) "
                                            "— this fire's hindsight row is lost", pair, exc)
-                        try:
-                            _m_desk_ok = (_deep_sig is not None
-                                          and _deep_sig.action == "buy")
-                        except Exception:
-                            _m_desk_ok = False  # fail-closed: no brain read, no popup (the JUP lesson — KEPT)
-                        if not _m_desk_ok:
-                            logger.info("  Mover %s %.0f%% — bot-only (the scan "
-                                        "didn't run or contradicts the buy)", asset, signal.confidence)
-                            _log_suppression(pair, "fail-closed" if _deep_sig is None else "deep-direction",
-                                             f"mover: {'the brain could not be read' if _deep_sig is None else 'the scan reads ' + str(_deep_sig.action) + ' — it contradicts the buy'} "
-                                             f"(fire-time rule: the scan must run; the number is advisory)",
+                        # THE DESK GATE (the mover path): only AVAILABILITY
+                        # gates the popup now — a contradicting read is
+                        # logged (forensics) but never silences the fire
+                        # (user rule, Oct 9: the deep-veto class is deleted;
+                        # fail-closed stays for a MISSING read only — the
+                        # JUP lesson, kept).
+                        _m_desk_ok = _deep_sig is not None
+                        if _deep_sig is not None and _deep_sig.action != "buy":
+                            _log_suppression(pair, "deep-contranote",
+                                             f"mover: the scan reads {_deep_sig.action} "
+                                             f"{_deep_sig.confidence:.0f}% against the buy — logged only "
+                                             f"(the deep-veto gate is deleted; the fire lands)",
                                              quick=float(signal.confidence),
                                              brain=(float(_deep_sig.confidence)
                                                     if _deep_sig is not None else None),
+                                             floor=89.0,
+                                             tide=f"{_tsw} {_tpw or 0:.0f}%", rot=rot_key)
+                        if not _m_desk_ok:
+                            logger.info("  Mover %s %.0f%% — bot-only (the scan "
+                                        "could not be read — fail-closed stays)", asset, signal.confidence)
+                            _log_suppression(pair, "fail-closed",
+                                             "mover: the brain could not be read "
+                                             "(fire-time rule: the scan must run; the number is advisory)",
+                                             quick=float(signal.confidence),
+                                             brain=None,
                                              floor=89.0,
                                              tide=f"{_tsw} {_tpw or 0:.0f}%", rot=rot_key)
                         else:
@@ -8388,12 +8474,17 @@ def main():
                                                 _m_fit = [c * _m_spend for c in
                                                           (0.25, 0.50, 0.75, 1.00)
                                                           if c * _m_spend <= _m_carry]
-                                                _m_spend = max(_m_fit) if _m_fit else 0.0
+                                                # minimum-viable floor (the
+                                                # champion-side JUP fix, Oct 9)
+                                                _m_spend = max(_m_fit) if _m_fit else _m_spend * 0.10
                                     except Exception:
                                         _m_carry = None
+                                    # THE TOO-THIN GATE IS GONE (user rule,
+                                    # Oct 9, the mover path too): the thin
+                                    # book SIZES the spend but never silences
+                                    # the popup — the sized spend is the notice.
                                     if _m_carry is not None and _m_spend <= 0:
-                                        _m_skip = (f"MOVER TOO THIN for contest size "
-                                                   f"(book carries ~${_m_carry:,.0f}) — desktop suppressed")
+                                        _m_spend = 0.0   # the spend line reads SIZE YOUR OWN
                                     else:
                                         _m_wdd = _ca.window_drawdown_pct(pair)
                                         _m_risk = _ca.max_entry_usd(
@@ -8436,31 +8527,42 @@ def main():
                                                 float(signal.price or 0.0),
                                                 float(_m_goal or 1.5),
                                                 float(_m_spend or 0.0))
+                                            _m_weak = ""
                                             if not _m_climb.get("ok"):
                                                 _mfg = _m_climb.get("fail_gate") or "?"
-                                                _m_skip = (f"MOVER CLIMB-OUT {_mfg}: "
-                                                           f"{_m_climb.get('fail_reason')}")
-                                            # THE WORTH FLOOR (same rule as the champion
-                                            # popup — the JUP lesson): the sized entry at
-                                            # its goal must pay at least the dial's share
-                                            # of the daily pace, or the popup is bumped.
-                                            # (Sep 6) THE FAST FUNNEL WAIVES IT (the
-                                            # caps carry the risk alone).
+                                                # unified rule (Oct 9): adversity fires min-size
+                                                _m_weak = f"CLIMB-OUT {_mfg}: {_m_climb.get('fail_reason') or '?'}"
+                                            # THE MERGED DIAL (Oct 9): the worth floor no
+                                            # longer bumps — it informs; the fire lands
+                                            # at min size marked
                                             _m_pace = _ca.daily_pace_usd(_m_acct)
                                             _m_wf = _worth_floor_frac()  # the console dial, live
                                             _m_worth = _m_spend * (_m_goal / 100.0)
-                                            if _m_worth < _m_pace * _m_wf and not _m_fast:
-                                                _m_skip = (f"MOVER WORTH FLOOR: ${_m_spend:,.0f} at the "
-                                                           f"+{_m_goal:.1f}% goal pays only ${_m_worth:,.0f} "
-                                                           f"(< ${_m_pace * _m_wf:,.0f}, {_m_wf:.0%} of "
-                                                           f"the daily pace) — popup bumped")
+                                            if _m_worth < _m_pace * _m_wf and not _m_fast and not _m_weak:
+                                                _m_weak = (f"WORTH FLOOR: ${_m_spend:,.0f} at the "
+                                                           f"+{_m_goal:.1f}% goal pays ${_m_worth:,.0f} "
+                                                           f"(< ${_m_pace * _m_wf:,.0f})")
                                 except Exception as _exc:
                                     logger.debug("mover 3%% guard unavailable: %s", _exc)  # fail-open
-                                if _m_skip:
+                                if _m_weak:
+                                    # the unified-rule weaken: the fire rides min size —
+                                    # the mover's floor matches the champion's minim-viable
+                                    # breadth (2% of the tier, the same rough floor the
+                                    # 0.10x brain mult + flat tide reach on any real book)
+                                    _m_spend = max(_m_spend, _m_bal * 0.02)
+                                    logger.info("  MOVER MIN-SIZE FIRE (%s): spend clamped to $%.0f — the fire LANDS",
+                                                _m_weak, _m_spend)
+                                    _log_suppression(pair, "worth-floor" if "WORTH" in _m_weak else "climb-out",
+                                                     f"mover min-size: {_m_weak}",
+                                                     quick=float(signal.confidence),
+                                                     brain=(float(_deep_sig.confidence)
+                                                            if _deep_sig is not None else None),
+                                                     floor=89.0,
+                                                     tide=f"{_tsw} {_tpw or 0:.0f}%", rot=rot_key)
+                                    _m_wakemark = (f" 🧭 MIN SIZE ({_m_weak.split(':')[0]})")
+                                elif _m_skip:
                                     logger.info("  %s", _m_skip)
-                                    _m_gate = ("too-thin" if "TOO THIN" in _m_skip
-                                               else "worth-floor" if "WORTH FLOOR" in _m_skip
-                                               else "death-line")
+                                    _m_gate = "death-line" if "DEATH" in _m_skip else "worth-floor"
                                     _log_suppression(pair, _m_gate, f"mover: {_m_skip}",
                                                      quick=float(signal.confidence),
                                                      brain=(float(_deep_sig.confidence)
@@ -8490,15 +8592,17 @@ def main():
                                     _m_re_say = "Re-entry! " if _m_re else ""
                                     # the SPEND line (3% guard / small coin)
                                     if _m_guard_capped:
-                                        _m_spend_line = (f"  SPEND: ${_m_spend:,.0f} — THE 3% GUARD: this coin's "
+                                        _m_spend_line = (f"  RISK CAP: ${_m_spend:,.0f} pre-sizing — THE 3% GUARD: this coin's "
                                                          f"worst-case window drawdown is {_m_wdd:.1f}%; "
-                                                         f"${_m_spend:,.0f} is the most the death line can afford\n")
+                                                         f"${_m_spend:,.0f} is the most the death line can afford "
+                                                         f"(the recommended spend is the title/ENTER line)\n")
                                     elif _m_carry is not None and _m_spend < _m_bal:
                                         _m_spend_line = (f"  SPEND: {_m_spend / _m_bal:.0%} = ${_m_spend:,.0f} — "
-                                                         f"SMALL COIN: this book carries ${_m_spend:,.0f}, "
-                                                         f"not ${_m_bal:,.0f}\n")
+                                                         f"the book will carry it: ${_m_carry:,.0f} "
+                                                         f"(20% of the visible book — small coin)\n")
                                     elif _m_carry is not None:
-                                        _m_spend_line = f"  SPEND: 100% = ${_m_bal:,.0f} — big book, carries all-in\n"
+                                        _m_spend_line = (f"  SPEND: 100% = ${_m_bal:,.0f} — big book, "
+                                                         f"will carry it: ${_m_carry:,.0f} (20% of the visible book)\n")
                                     else:
                                         _m_spend_line = ""
                                     # HER SIZE VOICE (the four verdicts; too thin
@@ -8512,8 +8616,10 @@ def main():
                                     _m_title = (f"🚀 MOVER BUY {asset} — {_m_dc:.0f}% SURE"
                                                 + (f" — {_m_mult:.2f}× SIZE" if _m_mult < 1.0 else "")
                                                 + (" — FAST ROUTE" if _m_fast else "")
-                                                + (" — LONE WOLF (OUT TIDE)" if _m_out_lw else ""))
+                                                + (" — LONE WOLF (OUT TIDE)" if _m_out_lw else "")
+                                                + (" 🧭 MIN SIZE" if _m_weak else ""))
                                     _m_spoken = (f"Buy {asset}! {_m_dc:.0f} percent sure! "
+                                                 + (f"Minimum size — {_m_weak.split(':')[0] if _m_weak else ''}! " if _m_weak else "")
                                                  + (f"The brain says {_m_dc:.0f} percent — sizing at {_m_mult:.2f}! "
                                                     if _m_mult < 1.0 else "")
                                                  + ("Fast route! " if _m_fast else "")

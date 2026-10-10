@@ -115,8 +115,8 @@ import background_scanner as _bs_precheck  # noqa: E402  (loaded once
 # here so the patch below lands on the module the gate actually uses)
 _bs_precheck._push_topic = lambda: None
 _ntfy_calls = []
-_bs_precheck._send_ntfy = lambda text, prio, note: _ntfy_calls.append(
-    (str(text)[:40], prio))
+_bs_precheck._send_ntfy = (lambda text, prio, note, attach_path=None:
+                           _ntfy_calls.append((str(text)[:40], prio)))
 # a sandboxed client BEFORE the scanner module loads: its import of
 # push_client (inside _charter_push) must bind THIS spool, not the
 # real one

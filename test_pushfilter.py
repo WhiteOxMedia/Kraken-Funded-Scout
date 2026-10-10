@@ -160,8 +160,8 @@ check("different text pushes immediately", len(sent) == 1)
 
 # 9. THE SEND (Sep 21): urlopen is actually invoked — the regression that
 #    built the request and dropped it is closed at the source
-check("urlopen invoked with a 10s timeout",
-      "urllib.request.urlopen(req, timeout=10)" in
+check("urlopen invoked with a sane timeout (10s text, 20s attach)",
+      "urllib.request.urlopen(req, timeout=20 if attach_path else 10)" in
       open("background_scanner.py", encoding="utf-8").read())
 check("push success logged", "PUSHED (" in
       open("background_scanner.py", encoding="utf-8").read())

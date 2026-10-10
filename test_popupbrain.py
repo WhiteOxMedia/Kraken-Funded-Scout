@@ -101,8 +101,9 @@ check("the JUP loophole is closed — fail-CLOSED (a broken brain read = NO popu
 check("the fail-open quick check is GONE (the JUP 14:52 hole — quick 92 opened "
       "the popup, the QC's brain said 67 two minutes later)",
       "the quick check stands" not in src)
-check("the funnel's desktop path fails CLOSED too",
-      "_m_desk_ok = False  # fail-closed" in src)
+check("the funnel's desktop path fails CLOSED too (a broken read = bot-only)",
+      "_m_desk_ok = _deep_sig is not None" in src
+      and "fail-closed stays" in src)
 check("the stale-move guard judges EVERY candidate (Sep 21: the re-entry "
       "class was retired — \"it was replaced with real data already\")",
       "if _is_reentry:" in src and "THE STALE-MOVE GUARD" in src
@@ -114,12 +115,12 @@ check("the stale guard's failure is VISIBLE (the sagging-top warning, "
 check("the goal clock: the asset's OWN week (market goal) -> 1-3% goal, rotation-bounded window",
       "_market_goal_pct(exchange, pair)" in src and "GOAL CLOCK" in src
       and "_rotation_window_min()" in src)
-check("the funnel's desktop path uses the FIRE-TIME rule (the scan must run; "
-      "the number sizes via the bucket table)",
-      "brain_size_mult" in src and "_m_desk_ok = (_deep_sig is not None" in src)
+check("the funnel's desktop path uses the ADVISORY rule (the scan must "
+      "run; the number sizes via the bucket table)",
+      "brain_size_mult" in src and "_m_spend = _m_spend * _m_mult" in src)
 check("her line speaks the GOAL, not the twenty",
-      '"Aim for plus {_goal_pct:.0f} percent! "' in src.replace("'", '"').replace('"Aim', '"Aim')
-      or "Aim for plus {_goal_pct:.0f} percent!" in src)
+      "Aim for plus {_m_goal:.0f} percent!" in src
+      or "Aiming plus {_goal_pct:.0f} percent" in src)
 check("the $20 phrasing is gone from the POPUP path (the light is stage 3)",
       (lambda s: "The twenty comes in" not in s and "up twenty dollars" not in s
                  and "until you're up $20" not in s)(
@@ -149,8 +150,10 @@ check("the floor scales with the tier: $12 on 1k, $120 on 10k",
 check("JUP's $233 entry at +2% ($4.66) is BELOW the 1k-tier floor — bumped",
       _jup_spend * _jup_goal / 100.0 < ca.daily_pace_usd(_acct_1k) * bs.WORTH_FLOOR_PACE_FRAC,
       _jup_spend * _jup_goal / 100.0)
-check("the worth floor gates send_alert AND the mover popup",
-      "WORTH FLOOR:" in src and "MOVER WORTH FLOOR" in src)
+check("the worth floor INFORMS both routes (champion min-size + mover MERGED DIAL)",
+      "_min_size_weaken(\"worth-floor\"" in src
+      and "WORTH FLOOR:" in src
+      and "_m_wf = _worth_floor_frac()" in src)
 check("a big enough entry clears (fresh 10k, low-dd coin: $5,100 at +2.5% = $127.50 ≥ $120)",
       5100.0 * 2.5 / 100.0 >= 120.0)
 

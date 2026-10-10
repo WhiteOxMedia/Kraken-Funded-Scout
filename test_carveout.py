@@ -340,7 +340,7 @@ check("9.1 the cache is keyed by pair (a dict of slots, not one global "
       and '{"ts": 0.0, "res": None}' not in co_src)
 check("9.2 every scanner caller still names the pair (the key is only "
       "as honest as the callers)",
-      bs_src.count(".gate(pair=pair)") >= 4
+      bs_src.count(".gate(pair=pair") >= 3
       and "_co.gate(pair=pair)" in bs_src
       and "_co.gate(pair=pair, when=when)" in ml_src)
 

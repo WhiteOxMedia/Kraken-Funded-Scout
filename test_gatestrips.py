@@ -309,18 +309,18 @@ else:
 
 # ── the ease line: page level, ledger-driven, both states ──────────
 STUB.markdowns.clear()
-_rel = {"deep-veto": 0.52, "tide-out": 0.11, "downward-trend": 0.0}
+_rel = {"deep-veto": 0.52, "stale-move": 0.44, "downward-trend": 0.0}
 _disc.journal_release_pts = lambda gate, now=None: _rel.get(gate, 0.0)
 _disc.load_state = lambda: {"burial_ledger": [
-    {"gates": {"deep-veto": {"n": 1}, "tide-out": {"n": 2},
+    {"gates": {"deep-veto": {"n": 1}, "stale-move": {"n": 2},
                "downward-trend": {"n": 3}}, "duds": {}}]}
 _render_suppression_strip()
 _ez = next((m for m in STUB.markdowns if "asked to ease" in m), "")
 check("ease line renders on the page when relief is live",
-      bool(_ez) and "deep-veto 0.52 pts" in _ez and "tide-out 0.11 pts" in _ez,
+      bool(_ez) and "deep-veto 0.52 pts" in _ez and "stale-move 0.44 pts" in _ez,
       _ez[:140])
 check("ease line sorts easing gates costliest first",
-      0 <= _ez.find("deep-veto") < _ez.find("tide-out"), _ez[:140])
+      0 <= _ez.find("deep-veto") < _ez.find("stale-move"), _ez[:140])
 check("ease line does not name closed gates",
       "downward-trend" not in _ez, _ez[:140])
 
@@ -368,11 +368,10 @@ if "def _release_wired_gates(" in src:
 else:
     _wns, _relw = None, None
 
-check("wired set derives from the scanner's own relief READS (the 5 wires "
-      "today)",
-      bool(_relw) and _relw() == {"deep-veto", "tide-out",
-                                  "sure-thing-deep-veto", "stale-move",
-                                  "brain-floor"},
+check("wired set derives from the scanner's own relief READS (the post-unified "
+      "3 wires)",
+      bool(_relw) and _relw() == {"brain-floor", "stale-move",
+                                  "tide-out"},
       sorted(_relw()) if _relw else "helper missing")
 
 # THE RETUNE HOLE (the commit-gate's Oct 8 finding, cured): _mark_release
@@ -418,10 +417,10 @@ if _wns is not None:
               for i, g in enumerate(["tide-out", "deep-veto",
                                      "downward-trend"])),
     encoding="utf-8")
-_rel = {"tide-out": 0.25, "deep-veto": 0.67, "downward-trend": 0.40}
+_rel = {"stale-move": 0.25, "brain-floor": 0.67, "downward-trend": 0.40}
 _disc.journal_release_pts = lambda gate, now=None: _rel.get(gate, 0.0)
 _disc.load_state = lambda: {"burial_ledger": [
-    {"gates": {"tide-out": {"n": 2}, "deep-veto": {"n": 1},
+    {"gates": {"stale-move": {"n": 2}, "brain-floor": {"n": 1},
                "downward-trend": {"n": 3}}, "duds": {}}]}
 NS["__file__"] = str(_tmp / "app.py")
 
@@ -443,8 +442,8 @@ def _row_for_gate(html, gate):
 
 _blk = next((m for m in STUB.markdowns if "RELEASE FUEL" in m), "")
 _dt_row = _row_for_gate(_blk, "downward-trend")
-_to_row = _row_for_gate(_blk, "tide-out")
-_dv_row = _row_for_gate(_blk, "deep-veto")
+_to_row = _row_for_gate(_blk, "stale-move")
+_dv_row = _row_for_gate(_blk, "brain-floor")
 check("relief block: the stranded gate is tagged",
       bool(_dt_row) and "STRANDED" in _dt_row, _dt_row[:200])
 check("relief block: wired gates are never tagged",
@@ -465,7 +464,7 @@ check("ease line: wired gates sit clean before any tag",
       and "STRANDED" not in _ez2.split("downward-trend")[0], _ez2[:160])
 
 # zero-fuel gates are NOT stranded — no relief, no lie to correct
-_rel = {"tide-out": 0.25, "deep-veto": 0.67, "downward-trend": 0.0}
+_rel = {"stale-move": 0.25, "brain-floor": 0.67, "downward-trend": 0.0}
 STUB.markdowns.clear()
 _render_suppression_strip()
 _blk0 = next((m for m in STUB.markdowns if "RELEASE FUEL" in m), "")

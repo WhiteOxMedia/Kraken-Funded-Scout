@@ -255,11 +255,12 @@ check("the crack variant stands (the second trigger)",
 check("the deep scan runs BEFORE the popup (the Sep 6 waiver retired, Sep 7)",
       "_deep_read(exchange, pair, cfg)" in st_fn
       and "sure-thing-fail-closed" in st_fn
-      and "sure-thing-deep-veto" in st_fn
+      and "sure-thing-contranote" in st_fn
       and "popup precedes" not in st_fn)
-check("the fire-time rule is fail-closed on the Sure Thing path too",
-      "no deep read, " in st_fn and "no popup (the fire-time rule)" in st_fn
-      and "contradicts the breakout" in st_fn)
+check("a contradicting read is a NOTE — the coil fires (deep-veto deleted)",
+      "against the breakout" in st_fn
+      and "the deep-veto gate is deleted" in st_fn
+      and "no deep read, " in st_fn and "no popup (the fire-time rule)" in st_fn)
 check("the deep-read helper is ONE implementation shared with the champion",
       "def _deep_read(exchange, pair, cfg)" in bs
       and bs.count("_deep_read(exchange, pair, cfg)") >= 2)

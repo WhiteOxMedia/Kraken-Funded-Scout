@@ -7748,6 +7748,11 @@ def render_quick_check(cfg: TradingConfig, kraken):
                 # THE HAIL MARY WINDOW bounds the watch's clock (one hour,
                 # not the rotation) — the QC agrees with the alert path
                 _champ_hm_win = bool(st.session_state.get("qc_result", {}).get("hail_mary"))
+                # the green-light popup's book-carry line reads the SAME
+                # 20%-of-book carry the sizing gate computed (never a
+                # name-only variable — the rot census caught _carry_usd
+                # used-but-never-bound here)
+                _carry_usd = st.session_state.get("qc_result", {}).get("carry_usd")
                 st.session_state["qc_result"]["thin_book"] = _thin_book
                 st.session_state["qc_result"]["champ_floor"] = _champ_floor
                 # ── THE CLIMB-OUT MIRROR (user rule, Sep 6): the QC
@@ -7888,6 +7893,32 @@ def render_quick_check(cfg: TradingConfig, kraken):
                                 _sized_down = _spend_usd < float(cfg.challenge_balance)
                                 _pct_txt = f"{_chunk[0]:.0%}"
                                 _fine_say = ""  # the re-entry fine is retired (Sep 21)
+                                # THE GREEN-LIGHT JOURNAL + MODAL (the
+                                # DOT hole, Oct 9): a console green light
+                                # fired voice + push + auto-watch but never
+                                # the desktop modal or a popup-history row.
+                                # Both legs mirror notify_big's contract.
+                                _gl_title = (f"🟢 BUY {asset} — ${_spend_usd:,.0f}"
+                                             f" — {sig.confidence:.0f}% SURE")
+                                _gl_msg = (
+                                    f"BUY {asset}\n"
+                                    f"GO — {_confirm_txt}{_reentry_txt}"
+                                    f"Spend ${_spend_usd:,.0f}"
+                                    + (f" — the book will carry it: ${_carry_usd:,.0f} "
+                                       f"(20% of the visible book)." if _carry_usd else ".")
+                                    + (f"  ⚠ {' · '.join(_warns)}." if _warns else "")
+                                    + f"\nEntry {px}  ·  goal +{float(_goal_pct or 1.5):.1f}%")
+                                try:
+                                    _bs5.popup_journal("BUY", _gl_title, _gl_msg)
+                                    _gl_sub = ("powershell", "-WindowStyle", "Hidden", "-Command",
+                                               f"$w = New-Object -ComObject WScript.Shell; "
+                                               f"$null = $w.Popup('"
+                                               + _gl_msg.replace("'", "").replace("\n", " | ")
+                                               + "', 180, '" + _gl_title.replace("'", "") + "', 4096+48)")
+                                    subprocess.Popen(_gl_sub, stdout=subprocess.DEVNULL,
+                                                     stderr=subprocess.DEVNULL)
+                                except Exception as _gl_exc:
+                                    logger.debug("green-light journal/modal failed: %s", _gl_exc)
                                 if _warns:
                                     _speak(f"Go! {asset}! Buy {_pct_txt}! {_fine_say}But heads up: "
                                            + " and ".join(_warns) + "!", rate=1)

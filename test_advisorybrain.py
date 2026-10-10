@@ -69,11 +69,11 @@ check("the bridge deep read is exception-safe (a raise = None, not open)",
       "except Exception:\n                        _deep, _df = None, None" in bs_src)
 check("the desktop fail-closed stands (availability is mandatory)",
       'no unverified popups (fail-closed; quick said' in bs_src)
-check("the direction gates exist (the number is advisory, the direction is not)",
-      '"deep-direction"' in bs_src
-      and "the number is advisory, the direction is not" in bs_src)
-check("the direction contradiction is named on the bridge write too",
-      "the scan contradicts the buy" in bs_src)
+check("the contra-read is a NOTE, not a gate (the deep-veto is deleted)",
+      '"deep-contranote"' in bs_src
+      and "the deep-veto gate is deleted" in bs_src)
+check("the contra-read says the fire lands on the ledger too",
+      "the fire lands" in bs_src)
 
 # ── 3. THE ADVISORY SIZE SCALER ──────────────────────────────────────
 check("the scanner imports the ONE bucket table",
