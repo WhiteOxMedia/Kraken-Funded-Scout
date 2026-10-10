@@ -8272,7 +8272,7 @@ def main():
                                                  brain=float(_deep_sig.confidence), rot=rot_key)
                             if (_deep_sig.action == "buy"
                                     and _deep_sig.confidence < 60)                                     or (_es_mv < _el_mv and float(df["close"].iloc[-1]) < _el_mv):
-                                logger.info("  MOVER VETO: %s deep reads sub-bar/trend — no pick (quality floor; the brain says no)",
+                                logger.info("  MOVER VETO: %s deep reads %s sub-bar/trend — no pick (quality floor; the brain says no)",
                                             asset, getattr(_deep_sig, 'confidence', 0))
                                 _log_suppression(pair, "quality-floor",
                                                  f"mover: deep {'<60' if _deep_sig.action == 'buy' else _deep_sig.action} "
@@ -8534,15 +8534,19 @@ def main():
                                 _m_mult = 1.0
                                 _m_guard_capped = False
                                 _m_climb = None  # fail-open init: a broken read never NameErrors the popup
+                                # THE MAX/MIN PAIR (user decree, Oct 10): MAX is the
+                                # full COMPUTED spend — before any weaken clamp, after
+                                # every real size (tranche, guard, brain, tide) — so
+                                # the trust anchor inits unusable; every assignment
+                                # inside the try below ENGRAVES it (the last one that
+                                # runs wins). A bomber read dies mid-flight: the stale
+                                # anchor can never poison the next fire.
+                                _m_base_spend = -1.0
                                 try:
                                     import contest_account as _ca
                                     _m_acct = _ca.load_state()
                                     _m_bal = float(_m_acct["current_balance"])
                                     _m_spend = _m_bal
-                                    # THE MAX/MIN PAIR (user decree, Oct 10):
-                                    # MAX rides the full sized base BEFORE any
-                                    # weaken clamps — snapshot it here.
-                                    _m_base_spend = _m_spend
                                     try:
                                         from execution_tiers import measure_book
                                         _m_book = measure_book(exchange, pair)
@@ -8556,6 +8560,7 @@ def main():
                                                 # minimum-viable floor (the
                                                 # champion-side JUP fix, Oct 9)
                                                 _m_spend = max(_m_fit) if _m_fit else _m_spend * 0.10
+                                                _m_base_spend = _m_spend      # the tranche IS the size
                                     except Exception:
                                         _m_carry = None
                                     # THE TOO-THIN GATE IS GONE (user rule,
@@ -8576,6 +8581,7 @@ def main():
                                             if _m_spend > _m_risk:
                                                 _m_spend = _m_risk
                                                 _m_guard_capped = True
+                                                _m_base_spend = _m_spend      # the death-line cap IS the size
                                             # ADVISORY-BRAIN SIZING (user rule, Sep 5 —
                                             # same bucket table as the champion path):
                                             # the brain's number multiplies the guard-
@@ -8598,6 +8604,12 @@ def main():
                                                 logger.info("  MOVER FLAT TIDE SIZING: "
                                                             "%.2fx → $%.0f", TIDE_FLAT_SIZE_FACTOR,
                                                             _m_spend)
+                                            # THE MAX/MIN EPILOGUE (user decree, Oct 10):
+                                            # MAX = the full computed spend BEFORE any
+                                            # weaken clamp — the balance that survived the
+                                            # tranche + death-line cap + brain + tide,
+                                            # genuine sizing.
+                                            _m_base_spend = _m_spend
                                             # ── THE CLIMB-OUT GATES (Sep 6):
                                             #    same hard gate as the champion
                                             #    path — no escape route, no trade

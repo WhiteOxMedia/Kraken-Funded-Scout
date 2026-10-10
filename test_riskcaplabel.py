@@ -107,9 +107,14 @@ check("champion voice speaks the range",
       and '", min {_min_spend_say} dollars — "' in bs)
 check("champion: the pair never leaks '-' figures (base or nothing)",
       "MIN: ---" not in bs)
-check("mover: the base is snapshotted before the weaken clamps",
-      "_m_base_spend = _m_spend" in bs
-      and bs.find("_m_base_spend = _m_spend") < bs.find("MOVER MIN-SIZE FIRE"))
+check("mover: MAX never shows an uncapped balance (cr triage 6a24c50 — "
+      "MAX is the full COMPUTED spend, after tranche + guard, before the weake"
+      "n clamp; the fail-open init is unusable so a mid-sizing read-death "
+      "cannot poison another fire's pair)",
+      "_m_base_spend = -1.0" in bs
+      and bs.find("_m_base_spend = _m_spend") > bs.find("_m_base_spend = -1.0")  # the engraves live below the anchor
+      and "_m_base_spend = _m_bal" not in bs
+      and bs.count("_m_base_spend = _m_spend") == 3)
 check("mover title carries the MAX/MIN pair",
       'f" — MAX: ${_m_base_spend:,.0f} — MIN: ${(_m_bal * 0.02):,.0f}"' in bs)
 check("mover voice speaks the range",
@@ -117,6 +122,13 @@ check("mover voice speaks the range",
       and '", min {(_m_bal * 0.02):,.0f} dollars — "' in bs)
 check("the mover min-size clamp still lands (the floor is applied, not just shown)",
       "_m_spend = max(_m_spend, _m_bal * 0.02)" in bs)
+check("mover: the guard cap and the FLAT tide are the last engraves before "
+      "the title build (MAX = the survived balance, the epilogue after "
+      "the brain + tide scalers)",
+      bs.find('_m_base_spend = _m_spend      # the death-line cap IS the size')
+      < bs.find("ADVISORY-BRAIN SIZING")
+      and bs.find("MOVER FLAT TIDE SIZING") < bs.rfind("_m_base_spend = _m_spend")
+      and "MAX = the full computed spend BEFORE any" in bs)
 check("sizing-unavailable fallback reads exactly (title + voice, both paths)",
       bs.count("SIZE YOUR OWN — sizing unavailable") >= 2
       and "Sizing unavailable — size your own! " in bs)
