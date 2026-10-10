@@ -15,6 +15,14 @@ reintroduce the two-money confusion:
   - the genuinely-recommended SPEND lines (small-coin tranche, big
     book, Hail Mary) keep their labels
   - the explanatory tail names the title/ENTER line as the spend
+
+THE MAX/MIN PAIR (user decree, Oct 10: "always display both the maximum
+and minimum viable spend amounts"): both paths also pin
+  - champion title/voice build the pair from _base_spend (the sized base
+    captured BEFORE any weaken clamp) — MAX x1.0, MIN x0.10
+  - mover snapshot _m_base_spend before its clamps; MIN rides _m_bal*0.02
+  - the SIZE YOUR OWN fallback reads exactly
+    "SIZE YOUR OWN — sizing unavailable" and the voice says so too
 """
 import sys
 from pathlib import Path
@@ -85,6 +93,33 @@ check("no bare SPEND: $… — THE 3% GUARD pairing remains anywhere",
 check("both RISK CAP sites count = 2 (champion + mover)",
       bs.count("RISK CAP: ${_spend:,.0f} pre-sizing")
       + bs.count("RISK CAP: ${_m_spend:,.0f} pre-sizing") == 2)
+
+# ── THE MAX/MIN PAIR (user decree, Oct 10) ──────────────────────────
+check("champion: _base_spend captured before any weaken clamp",
+      "_base_spend = _spend" in bs
+      and bs.find("_base_spend = _spend") < bs.find("def _min_size_weaken"))
+check("champion: the min floor rides 0.10x of the base (not the weakened spend)",
+      "_spend = max(_spend, _base_spend * 0.10)" in bs)
+check("champion title leads with the MAX/MIN pair",
+      'f"MAX: ${_base_spend:,.0f} — MIN: ${(_base_spend * 0.10):,.0f}"' in bs)
+check("champion voice speaks the range",
+      '"the range is max {_max_spend_say}"' in bs
+      and '", min {_min_spend_say} dollars — "' in bs)
+check("champion: the pair never leaks '-' figures (base or nothing)",
+      "MIN: ---" not in bs)
+check("mover: the base is snapshotted before the weaken clamps",
+      "_m_base_spend = _m_spend" in bs
+      and bs.find("_m_base_spend = _m_spend") < bs.find("MOVER MIN-SIZE FIRE"))
+check("mover title carries the MAX/MIN pair",
+      'f" — MAX: ${_m_base_spend:,.0f} — MIN: ${(_m_bal * 0.02):,.0f}"' in bs)
+check("mover voice speaks the range",
+      '"The range is max {_m_base_spend:,.0f}"' in bs
+      and '", min {(_m_bal * 0.02):,.0f} dollars — "' in bs)
+check("the mover min-size clamp still lands (the floor is applied, not just shown)",
+      "_m_spend = max(_m_spend, _m_bal * 0.02)" in bs)
+check("sizing-unavailable fallback reads exactly (title + voice, both paths)",
+      bs.count("SIZE YOUR OWN — sizing unavailable") >= 2
+      and "Sizing unavailable — size your own! " in bs)
 
 # (the live-journal spot-check was CUT: the fleet sink rule
 #  (test_sink_hygiene 1.1) rightly flags any drive reading the LIVE

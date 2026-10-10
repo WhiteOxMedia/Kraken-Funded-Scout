@@ -779,7 +779,7 @@ try:
           "the retune why (the journal keeps calibrating)",
           _src12.count("_tide_retune_releases(") >= 3   # def + 2 sites
           and '_mark_release(pair, "tide-out-retune")' in _src12
-          and "retune: {_rrel_why}" in _src12
+          and "retune: %s" in _src12
           and "OUT-TIDE RETUNE PASS" in _src12
           and "OUT-TIDE RETUNE RELEASE" in _src12)
 

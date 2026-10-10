@@ -37,23 +37,34 @@ def check(name, ok, detail=""):
 bs_src = Path("background_scanner.py").read_text(encoding="utf-8")
 app_src = Path("app.py").read_text(encoding="utf-8")
 
+# the claws (battery triage, Oct 10): every source-shape pin bites on the
+# SITE of the story, not the whole 9k-line file — find() + a read window.
+def frame(needle, back=200, fwd=200):
+    i = bs_src.find(needle)
+    return bs_src[max(0, i - back):i + fwd] if i >= 0 else ""
+
 # ── 1. OPTION 2: the suppression log exists and every gate hooks it ──
 check("the log helper + file constant exist",
       "def _log_suppression" in bs_src and "popup_suppressions.jsonl" in bs_src)
 # (Sep 5, ADVISORY BRAIN: "brain-floor" retired with the blocking floor —
-# its verdicts split into deep-direction (the scan contradicts) and
-# popup-cap (the flood cap). Sep 10: "rotation-lock" retired with the
-# per-rotation cap — the hook text survives in the kept-dead branch; the
-# other hooks stand.)
-for gate in ("fail-closed", "stale-move", "tide-out",
-             "deep-veto", "downward-trend", "too-thin", "worth-floor",
-             "blowoff-yesterday", "blacklisted",
-             "deep-direction"):
-    check(f"hook: {gate} logs its verdict",
-          f'"{gate}"' in bs_src)
-check("hook: the brain's number no longer blocks (it sizes — Sep 5; the name lives on as the journal-relief gate)",
-      "the NUMBER no longer does" in bs_src
-      and 'gate_relief("brain-floor")' in bs_src)
+# its verdicts split: a contradicting deep read logs `deep-contranote`
+# and the fire LANDS (Oct 9: the deep-veto class deleted tree-wide); the
+# brain's number SIZES via brain_size_mult; sub-bar reads ride the popup
+# floor's journal relief. The other hooks stand.)
+check("hook: deep-veto logs its verdict (the gate is DELETED — Oct 9; the "
+      "contradicting read still logs, as deep-contranote, and the fire lands)",
+      '"deep-contranote"' in bs_src
+      and "deep-veto gate is deleted" in frame("deep-contranote")
+      and "against the buy" in frame("deep-contranote"))
+check("hook: too-thin logs its verdict (the gate retired Oct 9 — the thin "
+      "book SIZES at the min-viable 0.10x floor now; no veto to log)",
+      "THE TOO-THIN GATE IS GONE" in bs_src
+      and "_spend = max(_fit) if _fit else _spend * 0.10" in frame("TOO-THIN GATE IS GONE"))
+check("hook: deep-direction logs its verdict (a contradicting read logs "
+      "deep-contranote; a sub-bar BUY rides the one mover quality-floor; "
+      "a clean read needs no verdict line)",
+      '"deep-contranote"' in frame("mover: deep-reads")
+      and "mover: deep {" in frame('"quality-floor"'))
 check("hook: the popup-cap gate is retired (Sep 9: no money cap at any contest size — the functions are kept, never called)",
       '"popup-cap"' not in bs_src and "def _popup_cap()" in bs_src)
 check("hook: the rotation-lock gate is retired (Sep 10: re-fires are free — the hook text survives only in the kept-dead branch)",
@@ -61,9 +72,13 @@ check("hook: the rotation-lock gate is retired (Sep 10: re-fires are free — th
 check("hook: the death-line gate logs (the daily-lock gate retired with the lock, Sep 5)",
       '"death-line"' in bs_src
       and '"daily-lock" if _which_fl == "daily-lock" else "death-line"' not in bs_src)
-check("hook: the bridge-stage deep vetoes log (pre-desktop deaths too)",
-      "bridge stage: deep-reads" in bs_src
-      and "bridge stage: EMA9<EMA21" in bs_src)
+check("hook: the bridge-stage deaths log (the fail-closed + the EMA "
+      "knife detail; the deep-direction veto deleted — the contradicting "
+      "read is the ADVISORY CONTRA note, logged, fire lands; the OUT "
+      "carve passes through gate_notes)",
+      'bridge stage: EMA9<EMA21' in frame("FAIL-CLOSED (bridge)", 0, 3000)
+      and '"deep-contranote"' in frame("THE DEEP DIRECTION VETO IS GONE", 0, 1400)
+      and 'gate_notes.append("OUT tide' in frame("THE BOT'S OUT GATE", 0, 2400))
 check("hook: the mover's pre-desktop deep veto logs (the lockout hook retired Sep 10)",
       'f"mover: {_m_lock}"' not in bs_src and "mover: deep-reads" in bs_src)
 check("the log carries the numbers (quick, brain, floor, tide, rot)",
@@ -72,11 +87,14 @@ check("the log carries the numbers (quick, brain, floor, tide, rot)",
 check("the mover's desktop suppressions log too (mover: prefix)",
       bs_src.count('"mover: {_m_skip}"') == 1 or '"mover: {_m_skip}"' in bs_src)
 # (Sep 5, ADVISORY BRAIN: the mover's brain-floor gate retired — its
-# desktop deaths now log as fail-closed (scan didn't run) or
-# deep-direction (the scan contradicts); the stale + m_skip hooks stand.)
-check("the mover's fire-time deaths log (fail-closed / direction)",
-      '"fail-closed" if _deep_sig is None else "deep-direction"' in bs_src
-      and "mover: 4h high" in bs_src)
+# desktop deaths: fail-closed (the scan didn't run), deep-contranote
+# (a contradicting action — logged only, fire lands), quality-floor
+# (sub-bar BUY or the knife); the stale + m_skip hooks stand.)
+check("the mover's fire-time deaths log (fail-closed / contranote / quality-floor)",
+      '"fail-closed"' in frame("mover: the brain could not be read")
+      and '"deep-contranote"' in frame("mover: deep-reads")
+      and '"quality-floor"' in frame("mover: deep {")
+      and 'f"mover: 4h high' in bs_src)
 check("the console MASTER shows the strip",
       "_render_suppression_strip" in app_src
       and "_render_suppression_strip()" in app_src)
@@ -115,7 +133,7 @@ check("bounce candidates (the -5 losers) don't carve",
 check("NO bridge write in an OUT tide (the bot ledger hard-blocks OUT)",
       "if _tsw != \"OUT\":" in bs_src)
 check("the mover popup title marks the carve",
-      "— LONE WOLF (OUT TIDE)" in bs_src.split("MOVER BUY")[1][:400]
+      "— LONE WOLF (OUT TIDE)" in bs_src.split("MOVER BUY")[1][:700]  # [:400] -> [:700]: the MAX/MIN pair leads the title now (Oct 10), stretching the block past the old window
       if "MOVER BUY" in bs_src else False)
 
 # ── 4. the bot ledger: the OUT tide is PRICED, not blind (Sep 10) ─────

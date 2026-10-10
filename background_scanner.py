@@ -1062,6 +1062,12 @@ TAKE_PAYOUTS_JSON = os.path.join(os.path.dirname(os.path.abspath(__file__)), "ta
 # has no payer seam on any cutoff (~10-12% both), so the bar is
 # continuity with the learned OUT bar 92 already priced at 35.
 TIDE_RISING_MIN = 75.0
+# THE FRESHNESS GRACE (the TIA bounce cure, Oct 10): a force-exit within
+# FRESH_GRACE_EXIT_MIN of entry must show NEW deterioration (exit_mod
+# risen EXIT_GRACE_RISE above the fire-time stamp) before it executes —
+# standing background hum the position was born into never kills it.
+FRESH_GRACE_EXIT_MIN = 15.0   # a fresh position needs NEW exit pressure
+EXIT_GRACE_RISE = 0.05        # ...exit_mod this much above the entry stamp
 TIDE_OUT_MAX = 35.0
 _tide_cache = {"ts": 0.0, "pct": None, "state": None}
 _tide_last_state = None
@@ -3857,6 +3863,21 @@ def auto_track_popup(pair: str, entry: float, size: float, goal_pct: float,
         w = _load_contest_watch()
         if pair in w:
             return False
+        # THE FRESHNESS STAMP (the TIA bounce audit, Oct 10): the row
+        # carries the exit watch's read AT FIRE TIME, so the force gate
+        # can tell standing background hum (the same ExitMod that armed
+        # BEFORE the buy and would re-kill every re-entry instantly -
+        # TIA ping-ponged 13 in/out cycles on one unchanged 0.3505) from
+        # NEW deterioration after the entry. A broken read stamps None:
+        # the grace then judges on held-time only.
+        try:
+            import tri_watch as _tw_at
+            _entry_em = _tw_at.exit_state(pair, None).get("exit_mod")
+        except Exception as _tw_at_exc:
+            logger.debug("auto_track_popup: exit stamp unavailable for %s "
+                         "(%s) - grace rides held-time only", pair,
+                         _tw_at_exc)
+            _entry_em = None
         w[pair] = {"entry": float(entry or 0.0),
                    "high": float(entry or 0.0),
                    "added": _now_mst().isoformat(),
@@ -3866,7 +3887,8 @@ def auto_track_popup(pair: str, entry: float, size: float, goal_pct: float,
                    "goal_pct": float(goal_pct or 0.0),
                    "window_min": float(window_min or 0.0),
                    "why": [why],
-                   "source": source}
+                   "source": source,
+                   "entry_exit_mod": _entry_em}
         if hm_mode:
             # THE OPPORTUNISTIC STAMP (user ask, Oct 1): the exit watch
             # reads this key to judge the 2% hard stop — without it the
@@ -5033,9 +5055,49 @@ def contest_light(exchange, cfg):
             try:
                 _tw_gate = w.get("exit_watch")
                 if isinstance(_tw_gate, dict) and _tw_gate.get("force_exit"):
-                    should_exit = True
-                    reason = str(_tw_gate.get("force_reason") or
-                                 "EXIT WATCH — the trend read says this move is done")
+                    # THE FRESHNESS GRACE (the TIA bounce cure, Oct 10,
+                    # user-run rule change: 13 forced in/out cycles in one
+                    # morning — every kill was the SAME unchanged ExitMod
+                    # 0.3505 the entry inherited, +0.0005 over the gate,
+                    # zero new information after the fire). Background
+                    # hum the position was BORN into doesn't get to
+                    # execute it: within FRESH_GRACE_EXIT_MIN of entry the
+                    # force gate needs NEW deterioration — exit_mod risen
+                    # EXIT_GRACE_RISE above the entry stamp — or it waits
+                    # out the grace (the other calibrated gates + the
+                    # trail + the hard stop still guard every cycle; the
+                    # clock is the only thing that ever stays silent).
+                    # After the grace, the raw gate stands as before. A
+                    # missing entry stamp (old rows, a broken fire-time
+                    # read) degrades to held-time-only — and ANY unreadable
+                    # exit read never skips the other gates.
+                    _held_min_g = -1.0
+                    try:
+                        _w_added = w.get("added")
+                        if _w_added:
+                            _held_min_g = (time.time()
+                                           - datetime.fromisoformat(
+                                               _w_added).timestamp()) / 60.0
+                    except Exception:
+                        _held_min_g = -1.0
+                    _em_now = _tw_gate.get("exit_mod")
+                    _em_entry = w.get("entry_exit_mod")
+                    _grace_active = (0 <= _held_min_g < FRESH_GRACE_EXIT_MIN)
+                    _rose = (isinstance(_em_now, (int, float))
+                             and isinstance(_em_entry, (int, float))
+                             and float(_em_now) >= float(_em_entry) + EXIT_GRACE_RISE)
+                    if _grace_active and not _rose:
+                        logger.info(
+                            "  EXIT-WATCH GRACE: %s held %.1f min — force gate "
+                            "(ExitMod %.2f) is the standing entry read (%.2f at "
+                            "fire time), no NEW deterioration — the gate waits; "
+                            "trail + hard stop still guard",
+                            pair, max(_held_min_g, 0.0), float(_em_now or 0.0),
+                            float(_em_entry or 0.0))
+                    else:
+                        should_exit = True
+                        reason = str(_tw_gate.get("force_reason") or
+                                     "EXIT WATCH — the trend read says this move is done")
             except Exception as _exc:
                 logger.debug("exit-watch force gate read skipped for %s: %s",
                              pair, _exc)
@@ -6640,6 +6702,9 @@ def main():
                                     _out_tide_learned = True    # rides the marked 'against the tide' path
                                     logger.info("  OUT TIDE ADVERSITY: %s — the fire LANDS at minimum size "
                                                 "(the unified rule: QC never blocked)", asset)
+                                    logger.info("  TIDE OUT (fleet %.0f%%) — the fire rides min-size "
+                                                 "(journal: %s; retune: %s)",
+                                                 _df_pct or 0.0, _rel_why, _rrel_why)
                 # The brain rules EVERY alert — whether this stage read it
                 # or the near-miss consult already did (one read, cached).
                 if _deep is None:
@@ -7087,8 +7152,15 @@ def main():
             # THE MONEY IS THE HEADLINE (user rule, Oct 9): the recom-
             # mended spend leads the title — the dopamine dollar figure
             # the desk can act on at a glance, before ANY words follow.
-            _title_spend = (f"${_spend:,.0f}" if _spend > 0 else
-                            "SIZE YOUR OWN")
+            # THE MAX/MIN PAIR (user decree, Oct 10: "always display both
+            # the maximum and minimum viable spend amounts"): MAX rides the
+            # full sized base (pre-weaken), MIN is the 0.10x floor the brain
+            # scaler already trades on - both live in the title + voice.
+            _max_spend_say = (f"${_base_spend:,.0f}" if _base_spend > 0 else "")
+            _min_spend_say = (f"${_base_spend * 0.10:,.0f}" if _base_spend > 0 else "")
+            _title_spend = (f"MAX: ${_base_spend:,.0f} — MIN: ${(_base_spend * 0.10):,.0f}"
+                            if _base_spend > 0 else
+                            "SIZE YOUR OWN — sizing unavailable")
             # THE UNIFIED-RULE MARK (user decree, Oct 9): a weakened fire
             # says WHY it rides small, right in the title.
             _weak_title = (f" — MIN SIZE ({_weak_fire_reason.split(': ', 1)[-1].upper()})"
@@ -7113,7 +7185,10 @@ def main():
                        else "Lone wolf! Moving on her own while the fleet sits still! " if _lw_pts
                        else "")
             _spoken = (f"Buy {asset}! "
-                       + (f"Recommended {(_spend):,.0f} dollars — " if _spend > 0 else "")
+                       + (f"Recommended {(_spend):,.0f} — "
+                          f"the range is max {_max_spend_say}"
+                          f", min {_min_spend_say} dollars — " if _spend > 0 else
+                          "Sizing unavailable — size your own! ")
                        + f"{_dc:.0f} percent sure! "
                        + _challenger_say
                        + _brain_say
@@ -8464,6 +8539,10 @@ def main():
                                     _m_acct = _ca.load_state()
                                     _m_bal = float(_m_acct["current_balance"])
                                     _m_spend = _m_bal
+                                    # THE MAX/MIN PAIR (user decree, Oct 10):
+                                    # MAX rides the full sized base BEFORE any
+                                    # weaken clamps — snapshot it here.
+                                    _m_base_spend = _m_spend
                                     try:
                                         from execution_tiers import measure_book
                                         _m_book = measure_book(exchange, pair)
@@ -8550,6 +8629,7 @@ def main():
                                     # breadth (2% of the tier, the same rough floor the
                                     # 0.10x brain mult + flat tide reach on any real book)
                                     _m_spend = max(_m_spend, _m_bal * 0.02)
+                                    _m_min_spend_say = f"${_m_bal * 0.02:,.0f}"
                                     logger.info("  MOVER MIN-SIZE FIRE (%s): spend clamped to $%.0f — the fire LANDS",
                                                 _m_weak, _m_spend)
                                     _log_suppression(pair, "worth-floor" if "WORTH" in _m_weak else "climb-out",
@@ -8613,12 +8693,22 @@ def main():
                                         _m_size_say = f"Big book — all {_m_bal:,.0f} dollars in fine! "
                                     else:
                                         _m_size_say = "Book unreadable — your call on size! "
-                                    _m_title = (f"🚀 MOVER BUY {asset} — {_m_dc:.0f}% SURE"
+                                    # THE MAX/MIN PAIR (user decree, Oct 10):
+                                    # the title leads with both ends of the
+                                    # sizing range.
+                                    _m_title = (f"🚀 MOVER BUY {asset}"
+                                                + (f" — MAX: ${_m_base_spend:,.0f} — MIN: ${(_m_bal * 0.02):,.0f}"
+                                                   if _m_base_spend > 0 else
+                                                   " — SIZE YOUR OWN — sizing unavailable")
+                                                + f" — {_m_dc:.0f}% SURE"
                                                 + (f" — {_m_mult:.2f}× SIZE" if _m_mult < 1.0 else "")
                                                 + (" — FAST ROUTE" if _m_fast else "")
                                                 + (" — LONE WOLF (OUT TIDE)" if _m_out_lw else "")
                                                 + (" 🧭 MIN SIZE" if _m_weak else ""))
                                     _m_spoken = (f"Buy {asset}! {_m_dc:.0f} percent sure! "
+                                                 + (f"The range is max {_m_base_spend:,.0f}"
+                                                    f", min {(_m_bal * 0.02):,.0f} dollars — " if _m_base_spend > 0 else
+                                                    "Sizing unavailable — size your own! ")
                                                  + (f"Minimum size — {_m_weak.split(':')[0] if _m_weak else ''}! " if _m_weak else "")
                                                  + (f"The brain says {_m_dc:.0f} percent — sizing at {_m_mult:.2f}! "
                                                     if _m_mult < 1.0 else "")
