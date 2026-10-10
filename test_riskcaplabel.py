@@ -115,6 +115,10 @@ check("mover: MAX never shows an uncapped balance (cr triage 6a24c50 — "
       and bs.find("_m_base_spend = _m_spend") > bs.find("_m_base_spend = -1.0")  # the engraves live below the anchor
       and "_m_base_spend = _m_bal" not in bs
       and bs.count("_m_base_spend = _m_spend") == 3)
+check("mover: the range cannot invert (the Copilot medium on 5c0c6cd — "
+      "a tight guard cap can size MAX below the floor; the clamp raises the "
+      "ENGRAVED MAX with the landed spend)",
+      "_m_base_spend = max(_m_base_spend, _m_bal * 0.02)" in bs)
 check("mover title carries the MAX/MIN pair",
       'f" — MAX: ${_m_base_spend:,.0f} — MIN: ${(_m_bal * 0.02):,.0f}"' in bs)
 check("mover voice speaks the range",

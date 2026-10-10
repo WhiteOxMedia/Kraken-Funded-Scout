@@ -8641,6 +8641,11 @@ def main():
                                     # breadth (2% of the tier, the same rough floor the
                                     # 0.10x brain mult + flat tide reach on any real book)
                                     _m_spend = max(_m_spend, _m_bal * 0.02)
+                                    # THE RANGE CANNOT INVERT (the Copilot second-opinion medium on 5c0c6cd):
+                                    # a tight guard cap can size MAX below the unified floor — the fire
+                                    # actually lands AT the floor then, so the floor is a real size and
+                                    # MAX is raised with it. MAX >= MIN, always.
+                                    _m_base_spend = max(_m_base_spend, _m_bal * 0.02)
                                     _m_min_spend_say = f"${_m_bal * 0.02:,.0f}"
                                     logger.info("  MOVER MIN-SIZE FIRE (%s): spend clamped to $%.0f — the fire LANDS",
                                                 _m_weak, _m_spend)
