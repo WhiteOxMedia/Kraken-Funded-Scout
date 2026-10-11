@@ -26,6 +26,7 @@ This drive pins the YARDSTICK, not the browser:
 import re
 import sys
 import tempfile
+import time
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
@@ -131,6 +132,28 @@ check(6.4, verdicts == {"ok", "limited"}
 count_before = len(db.get_cta_click_summary(days=30))
 verdicts2 = {gate("9.9.9.7", OK["user-agent"], "") for _ in range(3)}
 check(6.5, verdicts2 == {"bot"}, "the bot refusal is stable (no fingerprint anguish)")
+# (CodeRabbit MAJOR on c269a25, executed: the map prune must free IPs
+# whose newest timestamp has AGED OUT of the window — an IP that never
+# returns must not occupy the map forever)
+with srv_mod._cta_lock:
+    srv_mod._cta_hits["8.8.1.1"] = [time.time() - srv_mod._CTA_WINDOW_S - 5]
+    srv_mod._cta_hits["8.8.1.2"] = [time.time()]          # fresh: stays
+    for i in range(4097):
+        srv_mod._cta_hits[f"prune-seed-{i}"] = [time.time() - srv_mod._CTA_WINDOW_S - 5]
+# the gate call must run OUTSIDE the lock (it locks internally —
+# the drill's own first draft held the lock through the call and
+# deadlocked on itself, which is exactly the interleave the lock
+# exists to serialize)
+gate("8.8.1.3", OK["user-agent"], OK["origin"])   # one pass over the cap
+with srv_mod._cta_lock:
+    gone_aged = "8.8.1.1" not in srv_mod._cta_hits
+    kept_fresh = "8.8.1.2" in srv_mod._cta_hits
+    seeds_left = sum(1 for k in srv_mod._cta_hits if k.startswith("prune-seed-"))
+check(6.6, gone_aged and kept_fresh and seeds_left < 4097,
+      "aged-out IPs are pruned (stale gone, fresh kept, map bounded "
+      f"— seeds left: {seeds_left})")
+with srv_mod._cta_lock:
+    srv_mod._cta_hits.clear()
 
 n_fail = results.count(False)
 print(f"\nRESULT: {results.count(True) - 0} passed, {n_fail} failed" if False

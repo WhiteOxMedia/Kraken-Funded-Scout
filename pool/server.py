@@ -672,7 +672,7 @@ _KRAKEN_CTA_SLOTS = frozenset({
 #   · THE BOT HEURISTIC: sendBeacon/fetch (what the real page sends)
 #     always carries the site's origin; a browser always sends a
 #     User-Agent. An originless request, a missing UA, or a
-#     UA объявly announcing itself a script/bot/curl is a script,
+#     UA openly announcing itself a script/bot/curl is a script,
 #     not a click — refused 403, recorded as "bot" for forensics.
 #   · THE PER-IP WINDOW: a human reads a page and clicks a link;
 #     even a very enthusiastic one does not click ten times in an
@@ -708,9 +708,15 @@ def _cta_click_allowed(ip: str, user_agent: str, origin: str) -> str:
             return "limited"
         hits.append(now)
         _cta_hits[ip] = hits
-        # the map itself must not grow forever: prune empty IPs
+        # the map itself must not grow forever: prune IPs whose whole
+        # window has aged out (CodeRabbit MAJOR on c269a25 — the first
+        # version pruned only EMPTY lists, but every stored list holds
+        # at least one timestamp, so an IP that never came back was
+        # never pruned and an IPv6-rotating farm could grow the map
+        # without bound; the stale-by-window rule is the real expiry)
         if len(_cta_hits) > 4096:
-            for k in [k for k, v in _cta_hits.items() if not v][:1024]:
+            for k in [k for k, v in _cta_hits.items()
+                      if not v or now - v[-1] >= _CTA_WINDOW_S][:1024]:
                 _cta_hits.pop(k, None)
     return "ok"
 
