@@ -1,6 +1,9 @@
-# XMR Jackpot — Hostinger Horizons Review Bundle
+# XMR Jackpot — Site Review Bundle
 
-**Purpose:** Hostinger Horizons review of the site's structure and styling.
+**Purpose:** Review of the site's structure and styling (an artifact for
+reviewers only — the live site is served LOCALLY on this machine and
+reaches the web through the Cloudflare tunnel; there is no Hostinger
+deploy).
 Review and correct ONLY the frontend files in this zip. Everything
 server-side (the jackpot engine, wallets, the database, the miner
 infrastructure) stays exactly where it is.

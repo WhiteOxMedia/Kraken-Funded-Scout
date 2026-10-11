@@ -1,6 +1,9 @@
 """test_bundle_parity.py — THE DEPLOY-ARTIFACT DRIFT GUARD (Sep 26).
 
-dist_hostinger/xmrjackpot_review is the Hostinger review bundle: a
+dist_site_review/xmrjackpot_review is the site review bundle (a
+LOCAL-serve artifact — the site runs on this PC behind the Cloudflare
+tunnel; there is no Hostinger deploy — the name dist_hostinger was
+the Sep 25 review round's and misread as a deploy target): a
 verbatim copy of pool/templates (index + admin_panel) plus every
 pool/static file, a README, and a deterministic zip + sha256 sidecar.
 History has shown the bundle silently trailing the source (push_client
@@ -34,9 +37,9 @@ import zipfile
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
-BUNDLE = HERE / "dist_hostinger" / "xmrjackpot_review"
-ZIP_PATH = HERE / "dist_hostinger" / "xmrjackpot_review.zip"
-SHA_PATH = HERE / "dist_hostinger" / "xmrjackpot_review.zip.sha256"
+BUNDLE = HERE / "dist_site_review" / "xmrjackpot_review"
+ZIP_PATH = HERE / "dist_site_review" / "xmrjackpot_review.zip"
+SHA_PATH = HERE / "dist_site_review" / "xmrjackpot_review.zip.sha256"
 
 results = []
 
@@ -48,7 +51,7 @@ def check(n, cond, why=""):
 
 
 if not BUNDLE.is_dir():
-    print("SKIP: dist_hostinger/xmrjackpot_review not present — "
+    print("SKIP: dist_site_review/xmrjackpot_review not present — "
           "the fleet stays green on checkouts without the deploy artifact")
     print("RESULT: 0 passed, 0 failed")
     sys.exit(0)
@@ -131,7 +134,7 @@ else:
     check(6, False, "no zip to verify")
 
 # 7. the README inventory cannot trail the shipped versions
-readme_lines = (BUNDLE / "README.txt").read_text(encoding="utf-8").splitlines()
+readme_lines = (BUNDLE / "README.txt").read_text(encoding="utf-8").splitlines()  # clock-audit: ok — README.txt is the SHIPPED artifact the inventory pins (not live state)
 readme_bad = []
 for name, ver in sorted(dict(tv).items()):
     row = next((ln for ln in readme_lines

@@ -1,7 +1,12 @@
 """make_bundle.py — THE ONE-COMMAND DEPLOY-ARTIFACT BUILDER (Sep 26).
 
-Regenerates the Hostinger review bundle (dist_hostinger/
-xmrjackpot_review) from the live sources and runs the verify gate:
+Regenerates the site review bundle (dist_site_review/
+xmrjackpot_review) from the live sources and runs the verify gate.
+(The serving model is LOCAL: the site runs on this PC's uvicorn and
+reaches the world through the Cloudflare tunnel — there is no
+Hostinger deploy. This dir is a review artifact only; the name used
+to read dist_hostinger/ from the Sep 25 Hostinger Horizons review
+round and misread as a deploy target.)
 
   1. copies pool/templates/index.html + admin_panel.html verbatim
   2. copies every pool/static file verbatim (static/ is RECREATED, so
@@ -33,9 +38,9 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 SRC_TPL = HERE / "pool" / "templates"
 SRC_STATIC = HERE / "pool" / "static"
-BUNDLE = HERE / "dist_hostinger" / "xmrjackpot_review"
-ZIP_PATH = HERE / "dist_hostinger" / "xmrjackpot_review.zip"
-SHA_PATH = HERE / "dist_hostinger" / "xmrjackpot_review.zip.sha256"
+BUNDLE = HERE / "dist_site_review" / "xmrjackpot_review"
+ZIP_PATH = HERE / "dist_site_review" / "xmrjackpot_review.zip"
+SHA_PATH = HERE / "dist_site_review" / "xmrjackpot_review.zip.sha256"
 GATE = HERE / "test_bundle_parity.py"
 ZIP_STAMP = (2026, 9, 26, 0, 0, 0)   # the determinism anchor (see docstring)
 
@@ -102,7 +107,7 @@ def build_zip():
             z.writestr(zi, f.read_bytes())
     digest = hashlib.sha256(ZIP_PATH.read_bytes()).hexdigest()
     SHA_PATH.write_text(
-        f"{digest} *dist_hostinger/xmrjackpot_review.zip\n", encoding="ascii")
+        f"{digest} *dist_site_review/xmrjackpot_review.zip\n", encoding="ascii")
     return digest
 
 
