@@ -347,6 +347,22 @@ def init_db():
                 updated_at REAL DEFAULT (strftime('%s','now'))
             )
         """)
+        # THE KRAKEN CTA CLICK LEDGER (Oct 10): one row per clicked
+        # referral CTA on the public page. Append-only, no session —
+        # the counter MEASURES interest, it never spins up a login.
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS kraken_cta_click (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                slot TEXT NOT NULL,
+                url TEXT,
+                ip_address TEXT,
+                user_id INTEGER,
+                created_at REAL DEFAULT (strftime('%s','now'))
+            )
+        """)
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_kcc_slot "
+            "ON kraken_cta_click(slot, created_at)")
 
 
 def encrypt_existing_pii() -> dict:
@@ -1304,6 +1320,50 @@ def add_audit_log(user_id, action, details="", ip_address=None):
             "INSERT INTO audit_log (user_id, action, details, ip_address) VALUES (?, ?, ?, ?)",
             (user_id, action, details, ip_address),
         )
+
+
+# ═══════════════════════════════════════════════════════════════
+#  KRAKEN CTA CLICK LEDGER (Oct 10)
+# ═══════════════════════════════════════════════════════════════
+
+def record_cta_click(slot, url=None, ip_address=None, user_id=None):
+    """One row per clicked Kraken referral CTA. Fire-and-forget on the
+    client side; the server never needs a session to accept it."""
+    with get_db() as conn:
+        conn.execute(
+            "INSERT INTO kraken_cta_click (slot, url, ip_address, user_id) "
+            "VALUES (?, ?, ?, ?)",
+            (slot, url, ip_address, user_id),
+        )
+
+
+def get_cta_click_summary(days=30):
+    """Per-slot counts for the admin metrics row: all-time, and the
+    last `days` (default 30) — plus today's count for the pulse read."""
+    # ONE clock read (CodeRabbit minor on ddcdd1e): two separate
+    # time.time() calls could straddle UTC midnight (-day_start landing
+    # a hair before it), cribbing end-of-previous-day clicks into
+    # today's window; now is a single coherent snapshot.
+    now = time.time()
+    day_start = now - (now % 86400)
+    window_start = now - days * 86400
+    with get_db() as conn:
+        rows = conn.execute(
+            "SELECT slot, "
+            "COUNT(*) AS total, "
+            "SUM(CASE WHEN created_at >= ? THEN 1 ELSE 0 END) AS in_window, "
+            "SUM(CASE WHEN created_at >= ? THEN 1 ELSE 0 END) AS today, "
+            "MAX(created_at) AS last_at "
+            "FROM kraken_cta_click "
+            "GROUP BY slot",
+            (window_start, day_start),
+        ).fetchall()
+    return [
+        {"slot": r["slot"], "total": r["total"],
+         "in_window": r["in_window"] or 0, "today": r["today"] or 0,
+         "last_at": r["last_at"]}
+        for r in rows
+    ]
 
 
 def get_audit_logs(limit=50):

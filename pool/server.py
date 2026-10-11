@@ -655,6 +655,53 @@ async def api_get_subaddress(request: Request):
     raise HTTPException(500, "Failed to generate subaddress")
 
 
+# ── THE KRAKEN CTA CLICK COUNTER (Oct 10) ─────────────────────
+
+_KRAKEN_CTA_URL = "https://invite.kraken.com/JDNW/29bygijw"
+_KRAKEN_CTA_SLOTS = frozenset({
+    "hero-top", "hero-badge", "wf-funded-button", "signup-step-zero",
+    "howto-step1", "footer-box", "wallet-modal", "challenge-step1",
+    "challenge-step5", "realplay-banner", "unattributed",
+})
+
+
+class CTAClickBody(BaseModel):
+    slot: str
+    url: str = ""
+
+
+@app.post("/api/cta/kraken-click")
+async def api_cta_kraken_click(request: Request, body: CTAClickBody):
+    """Public click counter for the Kraken referral CTAs. No session
+    required — the counter MEASURES interest, it never spins up a
+    login. Only the known referral URL and known slots are counted
+    (a wrong url is dropped — the ledger records OUR link, not a
+    spoofer's)."""
+    if body.slot not in _KRAKEN_CTA_SLOTS:
+        raise HTTPException(422, "unknown CTA slot")
+    if body.url and body.url.rstrip("/") != _KRAKEN_CTA_URL:
+        raise HTTPException(422, "unrecognized CTA url")
+    ip = request.client.host if request.client else "unknown"
+    user = None
+    try:
+        user = get_user_from_request(request)  # optional — may stay None
+    except Exception:
+        user = None
+    db.record_cta_click(body.slot, body.url or _KRAKEN_CTA_URL,
+                        ip_address=ip,
+                        user_id=user["id"] if user else None)
+    return {"ok": True, "slot": body.slot}
+
+
+@app.get("/api/admin/kraken-cta-stats")
+async def api_admin_kraken_cta_stats(request: Request):
+    """Admin metrics row: click counts per CTA slot (all-time,
+    30-day, today)."""
+    require_admin(request)
+    return {"slots": db.get_cta_click_summary(days=30),
+            "url": _KRAKEN_CTA_URL}
+
+
 @app.get("/api/miner-config/{wallet_address:path}")
 async def api_miner_config(wallet_address: str):
     """Generate a downloadable xmrig config.json pre-configured for this pool."""

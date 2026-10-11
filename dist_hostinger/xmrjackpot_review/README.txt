@@ -5,7 +5,7 @@ Review and correct ONLY the frontend files in this zip. Everything
 server-side (the jackpot engine, wallets, the database, the miner
 infrastructure) stays exactly where it is.
 
-**Date:** October 3, 2026 (regenerated from the live template + current statics)
+**Date:** October 10, 2026 (regenerated from the live template + current statics)
 
 ---
 

@@ -183,6 +183,17 @@ TRUTH_AUDIT = {
     "No Gambling · No Purchase Needed":
         "(sticker removed by user order, Sep 25 evening IV - the claim "
         "lives on the How It Works page)",
+    # THE KRAKEN FUNNEL REWORDINGS (Oct 10, the accessibility pass):
+    # three referral CTAs retitled to make sign-up+trade the visible
+    # action, each keeping the community referral URL verbatim
+    "Need XMR? Get it on Kraken —":
+        "Sign up & trade on Kraken —",
+    "Sign Up & Trade →":
+        "Open Your Account →",
+    "Sign up for Kraken →":
+        "Sign up for Kraken (email + ID, ~5 min) →",
+    "🛒 Need XMR? Get it on Kraken →":
+        "🛒 Sign up & trade on Kraken —",
 }
 unsanctioned = [s for s in missing if s not in TRUTH_AUDIT]
 check(1.1, not unsanctioned,
@@ -245,7 +256,12 @@ check(1.5, not missing_new,
       f"all {len(REQUIRED_NEW)} required phase-2 strings present "
       + (f"- MISSING: {missing_new[:6]}" if missing_new else ""))
 added = new_text - old_text
-check(1.6, len(added) < 220,
+# THE OCT 10 RAISE (533+251 -> <380): the Kraken funnel session added
+# the sanctioned CTA rewordings above AND a whole new charter surface,
+# the #challenge walkthrough page (signal anatomy, the funded-tier
+# bridge, five tutorial steps) — the additive bound rises to carry it,
+# still bounded: a runaway rewrite (>380) still fails this drive.
+check(1.6, len(added) < 380,
       f"the redesign stays additive-bounded ({len(added)} new strings "
       f"on top of the {len(old_text)} preserved ones)")
 check(1.7, 'href="https://xmrjackpot.com"' in new_html,

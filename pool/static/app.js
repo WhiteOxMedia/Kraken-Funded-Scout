@@ -314,6 +314,29 @@
     else if (action === "mark-comment-read" && id > 0) { markCommentRead(id); }
     else if (action === "archive-comment" && id > 0) { archiveComment(id); }
     else if (action === "mark-paid" && id > 0) { markPaid(id); }
+    else if (action === "navigate-signup-rendered") { ev.preventDefault(); navigateTo("signup"); }
+    else if (action === "navigate-dashboard-rendered") { ev.preventDefault(); navigateTo("dashboard"); }
+  });
+
+  // ─── KRAKEN CTA CLICK COUNTER (Oct 10) ────────────────────
+  // Every outbound Kraken referral link on the page carries
+  // data-cta-slot; one delegated listener counts the click
+  // fire-and-forget (sendBeacon-style fetch, keepalive) BEFORE the
+  // tab navigates away. No navigation is blocked or delayed.
+  var KRAKEN_CTA_URL = 'https://invite.kraken.com/JDNW/29bygijw';
+  document.addEventListener('click', function (ev) {
+    var el = ev.target.closest ? ev.target.closest('a[href*="invite.kraken.com"], a[href="' + KRAKEN_CTA_URL + '"]') : null;
+    if (!el) return;
+    var slot = el.getAttribute('data-cta-slot') || 'unattributed';
+    try {
+      var body = JSON.stringify({ slot: slot, url: KRAKEN_CTA_URL });
+      if (navigator.sendBeacon) {
+        navigator.sendBeacon('/api/cta/kraken-click', new Blob([body], { type: 'application/json' }));
+      } else {
+        fetch('/api/cta/kraken-click', { method: 'POST', keepalive: true, credentials: 'same-origin',
+          headers: { 'Content-Type': 'application/json' }, body: body });
+      }
+    } catch (e) { /* the counter never blocks the click */ }
   });
 
   function updateModeBadge() {
@@ -2109,7 +2132,7 @@
 
     // Hash-based routing: /#admin, /#dashboard, /#signup, etc.
     var hashPage = (window.location.hash || '').replace('#', '');
-    var validPages = ['landing', 'signup', 'howto', 'realplay', 'leaderboard', 'dashboard', 'admin'];
+    var validPages = ['landing', 'signup', 'howto', 'realplay', 'leaderboard', 'dashboard', 'admin', 'challenge'];
     if (hashPage && validPages.indexOf(hashPage) !== -1) {
       navigateTo(hashPage);
     } else {

@@ -323,6 +323,62 @@
     });
   }
 
+  /* THE KRAKEN CTA METRICS ROW (Oct 10): click counts per public
+     CTA slot — the measure of how hard the referral CTAs pull.
+     Rendered inside the provider-config card, refreshed on card
+     mount only (the ledger is append-only; no live polling). */
+  function ctaMetricsSection(stats) {
+    var slots = stats && stats.slots ? stats.slots : [];
+    var rows = slots.map(function (s) {
+      var when = s.last_at
+        ? new Date(s.last_at * 1000).toISOString().slice(0, 16).replace("T", " ") + " UTC"
+        : "—";
+      return '<tr style="border-top:1px solid var(--hairline,rgba(255,255,255,.10));">' +
+        '<td style="padding:4px 8px;color:var(--text,#eee);">' + esc(s.slot) + "</td>" +
+        '<td style="padding:4px 8px;text-align:right;color:var(--text,#eee);font-weight:700;">' + esc(s.total) + "</td>" +
+        '<td style="padding:4px 8px;text-align:right;color:var(--text-dim,#bbb);">' + esc(s.in_window) + "</td>" +
+        '<td style="padding:4px 8px;text-align:right;color:var(--gold-bright,#c9a227);">' + esc(s.today) + "</td>" +
+        '<td style="padding:4px 8px;color:var(--text-mute,#9a9a9a);font-size:0.85em;">' + esc(when) + "</td>" +
+        "</tr>";
+    });
+    var body = rows.length
+      ? rows.join("")
+      : '<tr><td colspan="5" style="padding:8px;color:var(--text-mute,#9a9a9a);">' +
+        "no clicks recorded yet</td></tr>";
+    return (
+      '<div style="margin-top:14px;padding-top:10px;' +
+      'border-top:1px solid var(--hairline,rgba(255,255,255,.12));">' +
+      '<div style="font-size:0.85em;font-weight:700;margin-bottom:6px;">' +
+      "Kraken CTA clicks — the referral funnel reading</div>" +
+      '<table style="width:100%;border-collapse:collapse;font-size:0.8em;">' +
+      '<thead><tr style="color:var(--text-mute,#9a9a9a);">' +
+      '<th style="text-align:left;padding:2px 8px;">slot</th>' +
+      '<th style="text-align:right;padding:2px 8px;">all-time</th>' +
+      '<th style="text-align:right;padding:2px 8px;">30d</th>' +
+      '<th style="text-align:right;padding:2px 8px;">today</th>' +
+      '<th style="text-align:left;padding:2px 8px;">last click</th>' +
+      "</tr></thead><tbody>" + body + "</tbody></table>" +
+      '<div style="font-size:0.72em;color:var(--text-mute);margin-top:6px;">' +
+      "counts clicks on " + (stats && stats.url ? esc(stats.url) : "") +
+      " — opens the referral tab in a new one; no user auth needed." +
+      "</div>" +
+      "</div>");
+  }
+
+  function mountCtaMetrics(card) {
+    fetch("/api/admin/kraken-cta-stats", { credentials: "same-origin" })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (data) {
+        if (!data) { return; }   // not an admin — the row stays absent
+        var host = card.querySelector("#krMapMount");
+        if (!host) { return; }
+        var row = document.createElement("div");
+        row.innerHTML = ctaMetricsSection(data);
+        host.parentNode.insertBefore(row.firstChild || row, host);
+      })
+      .catch(function () { /* metrics are optional — never block the card */ });
+  }
+
   function mapSection(data) {
     return (
       '<div style="margin-top:14px;padding-top:10px;' +
@@ -434,6 +490,7 @@
             wireMap(data);
           })
           .catch(function () { /* mapping sheet optional */ });
+        mountCtaMetrics(wrap);
       })
       .catch(function () { wrap.remove(); });
     return true;
