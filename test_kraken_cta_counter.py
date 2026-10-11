@@ -96,6 +96,41 @@ check(5.3, "def api_admin_kraken_cta_stats" in _stats_fn
       "any later route's)")
 check(5.4, "unrecognized CTA url" in srv,
       "spoof urls refused — the ledger records OUR referral link only")
+check(5.5, "_cta_click_allowed" in srv and "_CTA_PER_IP_MAX" in srv
+      and "_BOT_UA_MARKERS" in srv,
+      "the honesty gates exist (bot heuristic + per-IP window)")
+check(5.6, "cta-refusal-" in srv,
+      "refusals are recorded as their own ledger tag (the admin row "
+      "can show counted vs refused traffic)")
+
+print("== 6. THE HONESTY GATES DECIDE (executed, not folklore) ==")
+# Execute the real gate function from the real server module — import
+# it with the pool path and stub the app decoration away (the module
+# needs fastapi; this venv has it — the sandbox DB binding keeps the
+# drive hermetic).
+import importlib
+srv_mod = importlib.import_module("server")
+gate = srv_mod._cta_click_allowed
+OK = {"user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+      "origin": "https://xmrjackpot.com"}
+check(6.1, gate("9.9.9.1", OK["user-agent"], OK["origin"]) == "ok",
+      "an ordinary browser click passes")
+check(6.2, gate("9.9.9.2", "", OK["origin"]) == "bot"
+      and gate("9.9.9.3", "python-requests/2.31", OK["origin"]) == "bot"
+      and gate("9.9.9.4", "curl/8.0", OK["origin"]) == "bot",
+      "missing or script-ish User-Agent reads as bot")
+check(6.3, gate("9.9.9.5", OK["user-agent"], "") == "bot",
+      "a request with no Origin is no page click (the beacon always has one)")
+verdicts = set()
+ip = "9.9.9.6"
+for i in range(srv_mod._CTA_PER_IP_MAX + 2):
+    verdicts.add(gate(ip, OK["user-agent"], OK["origin"]))
+check(6.4, verdicts == {"ok", "limited"}
+      and verdicts.__contains__("limited"),
+      "a click-farm loop burns through the per-IP cap then hits the wall")
+count_before = len(db.get_cta_click_summary(days=30))
+verdicts2 = {gate("9.9.9.7", OK["user-agent"], "") for _ in range(3)}
+check(6.5, verdicts2 == {"bot"}, "the bot refusal is stable (no fingerprint anguish)")
 
 n_fail = results.count(False)
 print(f"\nRESULT: {results.count(True) - 0} passed, {n_fail} failed" if False

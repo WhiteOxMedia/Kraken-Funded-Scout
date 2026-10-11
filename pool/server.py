@@ -664,6 +664,56 @@ _KRAKEN_CTA_SLOTS = frozenset({
     "challenge-step5", "realplay-banner", "unattributed",
 })
 
+# THE FUNNEL STAYS HONEST (Oct 11): a public no-session counter is a
+# magnet for bots and click-farm loops — the numbers only mean
+# "humans clicked our referral link" if the cheap noise is filtered.
+# Two gates, in-memory, no DB growth:
+#
+#   · THE BOT HEURISTIC: sendBeacon/fetch (what the real page sends)
+#     always carries the site's origin; a browser always sends a
+#     User-Agent. An originless request, a missing UA, or a
+#     UA объявly announcing itself a script/bot/curl is a script,
+#     not a click — refused 403, recorded as "bot" for forensics.
+#   · THE PER-IP WINDOW: a human reads a page and clicks a link;
+#     even a very enthusiastic one does not click ten times in an
+#     hour from one IP. Over the per-IP cap the extras are refused
+#     429 and recorded as "limited" — the funnel keeps the first
+#     truthful clicks, drops the replayed tail.
+
+import threading as _cta_threading
+_CTA_WINDOW_S = 3600          # the per-IP sliding window: 1 hour
+_CTA_PER_IP_MAX = 8           # honest clicks per IP per window
+_cta_hits: dict = {}          # ip -> [timestamps]; bounded, in-memory
+_cta_lock = _cta_threading.Lock()
+
+_BOT_UA_MARKERS = ("bot", "crawl", "spider", "curl/", "wget", "python-requests", "python-urllib", "headless", "phantom", "scrapy", "httpx", "okhttp")
+
+
+def _cta_click_allowed(ip: str, user_agent: str, origin: str) -> str:
+    """THE HONESTY GATE. Returns "ok" if the click counts, else the
+    refusal reason ("bot" | "limited"). The bot leg is stateless;
+    the limit leg is one LOCKED check-and-append (the push rate
+    store's Sep 26 lesson: an unlocked interleave let two sends
+    both pass the check)."""
+    ua_low = (user_agent or "").lower()
+    if not user_agent or any(m in ua_low for m in _BOT_UA_MARKERS):
+        return "bot"
+    if not origin:
+        return "bot"   # a real page always sends Origin on beacon POST
+    now = time.time()
+    with _cta_lock:
+        hits = [t for t in _cta_hits.get(ip, []) if now - t < _CTA_WINDOW_S]
+        if len(hits) >= _CTA_PER_IP_MAX:
+            _cta_hits[ip] = hits          # refresh the pruning
+            return "limited"
+        hits.append(now)
+        _cta_hits[ip] = hits
+        # the map itself must not grow forever: prune empty IPs
+        if len(_cta_hits) > 4096:
+            for k in [k for k, v in _cta_hits.items() if not v][:1024]:
+                _cta_hits.pop(k, None)
+    return "ok"
+
 
 class CTAClickBody(BaseModel):
     slot: str
@@ -676,12 +726,26 @@ async def api_cta_kraken_click(request: Request, body: CTAClickBody):
     required — the counter MEASURES interest, it never spins up a
     login. Only the known referral URL and known slots are counted
     (a wrong url is dropped — the ledger records OUR link, not a
-    spoofer's)."""
+    spoofer's). Refusals (bot / over-limit) are RECORDED as their
+    own slot tag so the admin row can show both counted and
+    refused traffic — dishonest filters hide, honest filters label."""
+    ip = request.client.host if request.client else "unknown"
+    verdict = _cta_click_allowed(
+        ip,
+        request.headers.get("user-agent", ""),
+        request.headers.get("origin", ""))
+    if verdict != "ok":
+        # forensics first: the refusal is data too
+        db.record_cta_click("cta-refusal-" + verdict,
+                            body.url or _KRAKEN_CTA_URL,
+                            ip_address=ip, user_id=None)
+        raise HTTPException(403 if verdict == "bot" else 429,
+                            {"bot": "not a browser click",
+                             "limited": "click limit reached for this IP"}[verdict])
     if body.slot not in _KRAKEN_CTA_SLOTS:
         raise HTTPException(422, "unknown CTA slot")
     if body.url and body.url.rstrip("/") != _KRAKEN_CTA_URL:
         raise HTTPException(422, "unrecognized CTA url")
-    ip = request.client.host if request.client else "unknown"
     user = None
     try:
         user = get_user_from_request(request)  # optional — may stay None
