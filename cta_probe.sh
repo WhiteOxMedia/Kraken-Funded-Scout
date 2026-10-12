@@ -39,7 +39,9 @@ _CTA_PROBE_ORIGIN=https://xmrjackpot.com
 # loud on failure (the first 160 bytes of the body ride the FAIL line)
 check() {
   local label="$1" expect="$2" url="$3" ua="${4:-}" origin="${5:-}" body="${6:-}" got
-  got=$(curl -s -o /tmp/rolllast.out -w '%{http_code}' "$url" \
+  # --max-time (CR major on 4fc863f): a server that accepts but stalls
+  # must never hold a probe open — the probe times out to a FAIL verdict.
+  got=$(curl -s --max-time 10 -o /tmp/rolllast.out -w '%{http_code}' "$url" \
         ${ua:+-H "User-Agent: $ua"} ${origin:+-H "Origin: $origin"} \
         ${body:+-H "Content-Type: application/json" -d "$body"}) || echo 000
   if [ "$got" = "$expect" ]; then
@@ -54,7 +56,7 @@ check() {
 check_surface() {
   local base="$1" n
   check "stats health"        200 "$base$_CTA_PROBE_HEALTH"
-  n=$(curl -s "$base/" | grep -c 'data-cta-slot' || true)
+  n=$(curl -s --max-time 10 "$base/" | grep -c 'data-cta-slot' || true)
   if [ "$n" -gt 0 ]; then printf '  PASS page carries %s data-cta-slot tags\n' "$n"; PASS_N=$((PASS_N+1))
   else printf '  FAIL page carries 0 data-cta-slot tags\n'; FAIL_N=$((FAIL_N+1)); fi
   check "counter valid click" 200 "$base$_CTA_PROBE_COUNTER" "$_CTA_PROBE_UA" "$_CTA_PROBE_ORIGIN" \

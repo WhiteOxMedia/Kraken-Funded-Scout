@@ -36,7 +36,7 @@ BASE_URL=http://127.0.0.1:3094
 SITE_URL=https://xmrjackpot.com
 
 # verification layer: roll_3094.sh owns io orchestration only.
-source "$(dirname "$0")/cta_probe.sh"
+source cta_probe.sh
 
 # ROLL IO ONLY BELOW THIS LINE (Oct 12) — the shared probe layer
 # (single source of truth: cta_probe.sh) is loaded above; nothing here
@@ -60,8 +60,13 @@ note "starting server (README PowerShell recipe, APP_PORT=3094, log logs_server_
 WIN_PWD=$(cygpath -w "$PWD")
 powershell -NoProfile -Command "Start-Process cmd -ArgumentList '/c set APP_PORT=3094&& .venv\\Scripts\\python.exe pool\\server.py > logs_server_restart.txt 2>&1' -WorkingDirectory '$WIN_PWD' -WindowStyle Hidden"
 
+# THE STARTUP WAIT, BOUNDED TWICE (CR major on 4fc863f): the per-attempt
+# --max-time 10 keeps one stalled server from hanging a probe, and the
+# wall clock keeps the whole wait inside its 45s deadline either way.
 deadline=$(( $(date +%s) + 45 ))
-until [ "$(curl -s -o /dev/null -w '%{http_code}' "$BASE_URL$_CTA_PROBE_HEALTH" 2>/dev/null || echo 000)" = 200 ]; do
+while :; do
+  code=$(curl -s --max-time 10 -o /dev/null -w '%{http_code}' "$BASE_URL$_CTA_PROBE_HEALTH" 2>/dev/null)
+  [ "${code:-000}" = "200" ] && break
   if [ "$(date +%s)" -ge "$deadline" ]; then
     printf 'FAIL server never answered /api/stats 200 within 45s — last log lines:\n'
     tail -5 logs_server_restart.txt 2>/dev/null || true

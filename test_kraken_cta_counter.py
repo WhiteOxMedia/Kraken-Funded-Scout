@@ -115,7 +115,7 @@ _sha = HERE / "cta_probe.sh"
 import hashlib
 _lib = _sha.read_bytes()
 _hash = hashlib.sha256(_lib).hexdigest()
-_lib_sha_target = "2a3e8178d8af6659a60b31b104531ccecdff7490d1df5ce467e131ae05cb521b"
+_lib_sha_target = "9c1dc839300c6b1a470d271d24d954584ec233fad652c3072e098f2d1d238ad7"
 if _hash[:16] != _lib_sha_target[:16]:
     print(f"     sha256(cta_probe.sh) = {_hash[:16]} (pin: {_lib_sha_target[:16]})")
 check(51, _sha.exists(), "cta_probe.sh is present on disk")
