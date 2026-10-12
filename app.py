@@ -2184,6 +2184,7 @@ def _pick_card(cfg: TradingConfig, kraken):
                     _speak(f"New pick! {h['asset']}! Twenty dollars in about "
                            f"{h['pace'] * 60:.0f} minutes! {_size_say}{_tide_say}"
                            f"Stay close after {_out_say} — I'll call the exit!")
+                    _play_sound("ding")
                 except Exception as exc:
                     logger.debug("pick announcement failed: %s", exc)
         age_txt = f"{h['age_min']:.0f} minutes ago" if h["age_min"] >= 1 else "just now"
@@ -9672,6 +9673,7 @@ def render_auto_watch(cfg: TradingConfig, kraken):
                     # never silence the confirmation of a closed position.
                     try:
                         st.toast(_toast_sold, icon="✔", duration=10)
+                        _play_sound("ding")
                         _speak(_say_sold)
                     except Exception as exc:
                         logger.debug("sold toast/voice failed: %s", exc)
@@ -10125,6 +10127,7 @@ def render_exit_check(cfg: TradingConfig, kraken):
         # is hers: the trend break, never the clock)
         try:
             if _goal_mult >= 1:
+                _play_sound("ding")
                 _speak(f"Goal reached! {asset} is up {_pct:.1f} percent — "
                        f"{_goal_mult} times the goal! Stay close!")
             else:
@@ -10133,10 +10136,12 @@ def render_exit_check(cfg: TradingConfig, kraken):
                     _pnl_txt = f"You're up {(live/entry-1)*100:.1f} percent. "
                 if goal_eta:
                     pct_left, hours = goal_eta
+                    _play_sound("tick")
                     _speak(f"Still riding! {asset}! {_pnl_txt}"
                            f"Needs {pct_left:.1f} percent more to hit the goal. "
                            f"At tonight's pace, roughly {_fmt_hours(hours)}!")
                 else:
+                    _play_sound("tick")
                     _speak(f"Still riding! {asset}! {_pnl_txt}No clear target on the chart — "
                            f"I'll yell the moment it's time to sell!")
         except Exception as exc:
@@ -10182,6 +10187,7 @@ def _on_tier_change(key: str):
         st.toast(f"🆕 New {_ca_t.TIERS[_t]['label']} contest started -- "
                  f"balance ${_ca_t.TIERS[_t]['start']:,.0f}, fresh death "
                  f"line, fresh Hail Mary windows.", icon="🆕", duration=10)
+        _play_sound("ding")
         _speak(f"New contest started! Balance {_ca_t.TIERS[_t]['start']:,.0f} dollars!")
     except Exception as exc:
         logger.debug("new-contest toast/voice failed: %s", exc)
@@ -10620,6 +10626,7 @@ def main():
                          icon="✅", duration=15)
                 if _may_speak_greet:   # the VOICE is machine-wide once; the toast is every tab
                     _greet_mark()      # mark-before-spend: a crash can only lose one greeting
+                    _play_sound("ding")
                     _speak("Systems check. " + _facts)
             except Exception as exc:
                 logger.debug("systems-go toast/voice failed: %s", exc)
