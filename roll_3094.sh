@@ -40,7 +40,7 @@ check() {
   local label="$1" expect="$2" url="$3" ua="${4:-}" origin="${5:-}" body="${6:-}" got
   got=$(curl -s -o /tmp/rolllast.out -w '%{http_code}' "$url" \
         ${ua:+-H "User-Agent: $ua"} ${origin:+-H "Origin: $origin"} \
-        ${body:+-H "Content-Type: application/json" -d "$body"})
+        ${body:+-H "Content-Type: application/json" -d "$body"}) || echo 000
   if [ "$got" = "$expect" ]; then
     printf '  PASS %s (http %s)\n' "$label" "$got"; PASS_N=$((PASS_N+1))
   else
@@ -74,7 +74,8 @@ else
 fi
 
 note "starting server (README PowerShell recipe, APP_PORT=3094, log logs_server_restart.txt)"
-powershell -NoProfile -Command "Start-Process cmd -ArgumentList '/c set APP_PORT=3094&& .venv\\Scripts\\python.exe pool\\server.py > logs_server_restart.txt 2>&1' -WorkingDirectory 'C:\\Users\\birds\\Workspace\\monero_project' -WindowStyle Hidden"
+WIN_PWD=$(cygpath -w "$PWD")
+powershell -NoProfile -Command "Start-Process cmd -ArgumentList '/c set APP_PORT=3094&& .venv\\Scripts\\python.exe pool\\server.py > logs_server_restart.txt 2>&1' -WorkingDirectory '$WIN_PWD' -WindowStyle Hidden"
 
 deadline=$(( $(date +%s) + 45 ))
 until [ "$(curl -s -o /dev/null -w '%{http_code}' "$BASE_URL$HEALTH" 2>/dev/null || echo 000)" = 200 ]; do
@@ -92,11 +93,17 @@ note "new :3094 listener pid $new_pid is up"
 note "verifying local surface ($BASE_URL — the build uvicorn serves)"
 check_surface "$BASE_URL"
 
+TUNNEL=0
 if [ "${1:-}" = "--tunnel" ]; then
   note "verifying tunnel surface ($SITE_URL — what the public sees)"
   check_surface "$SITE_URL"
+  TUNNEL=1
 fi
 
 note "verdict: $PASS_N checks passed, $FAIL_N failed"
 [ "$FAIL_N" -eq 0 ] || exit 1
-note "roll complete — the tunnel is serving this build"
+if [ "$TUNNEL" -eq 1 ]; then
+  note "roll complete — the tunnel is serving this build"
+else
+  note "roll complete — local verified (tunnel not checked; rerun with --tunnel)"
+fi
