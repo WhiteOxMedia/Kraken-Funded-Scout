@@ -104,6 +104,33 @@ check(5.6, "cta-refusal-" in srv,
       "refusals are recorded as their own ledger tag (the admin row "
       "can show counted vs refused traffic)")
 
+print("== 5B. THE PROBE LIBRARY IS THE SHARED CONTRACT (Oct 12) ==")
+# The browser-shaped curl probes rolled by ./roll_3094.sh live in ONE
+# file, cta_probe.sh — sourced there, pinned HERE. This is a content
+# pin, not a curl execution: the drive's contract test is checksum
+# equality so ANY probe edit (expected code, payload, UA, origin)
+# either lands here as a re-pin or the drive REDs — the same
+# yardstick-over-browser rule the rest of the file follows.
+_sha = HERE / "cta_probe.sh"
+import hashlib
+_lib = _sha.read_bytes()
+_hash = hashlib.sha256(_lib).hexdigest()
+_lib_sha_target = "2a3e8178d8af6659a60b31b104531ccecdff7490d1df5ce467e131ae05cb521b"
+if _hash[:16] != _lib_sha_target[:16]:
+    print(f"     sha256(cta_probe.sh) = {_hash[:16]} (pin: {_lib_sha_target[:16]})")
+check(51, _sha.exists(), "cta_probe.sh is present on disk")
+check(52, b"check_surface" in _lib and b"counter valid click" in _lib
+      and b"counter bot UA" in _lib and b"counter bad slot" in _lib,
+      "the five-probe triangle lives in the library")
+check(53, b"/api/cta/kraken-click" in _lib and b"invite.kraken.com/JDNW/29bygijw" in _lib
+      and b"https://xmrjackpot.com" in _lib,
+      "endpoint + referral url + origin are the library's constants")
+check(54, b"200" in _lib and b"403" in _lib and b"422" in _lib,
+      "expected codes 200/403/422 are the library's own pins")
+check(55, _hash == _lib_sha_target,
+      f"library content hash matches the pinned contract "
+      f"({_lib_sha_target[:12]}...; a probe edit re-pins here)")
+
 print("== 6. THE HONESTY GATES DECIDE (executed, not folklore) ==")
 # Execute the real gate function from the real server module — import
 # it with the pool path and stub the app decoration away (the module
