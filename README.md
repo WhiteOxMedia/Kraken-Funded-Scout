@@ -196,6 +196,12 @@ target, so this note stays pinned.
 **The pool server on :3094.** Restart it (bash on Windows — the PID
 comes from the listener, the server runs hidden and logs to a file):
 
+ONE-COMMAND PATH (Oct 12): `./roll_3094.sh` does the whole recipe below
+AND verifies the surface (page CTA tags + the counter gate triangle,
+valid/bot/bad-slot). `./roll_3094.sh --tunnel` also re-checks
+https://xmrjackpot.com so the public site is proven to serve the new
+build. Manual recipe, when you want each step by hand:
+
 ```bash
 taskkill //F //PID $(netstat -ano | grep ":3094" | grep LISTEN | awk '{print $5}' | head -1)
 powershell -NoProfile -Command "Start-Process cmd -ArgumentList '/c set APP_PORT=3094&& .venv\\Scripts\\python.exe pool\\server.py > logs_server_restart.txt 2>&1' -WorkingDirectory 'C:\\Users\\birds\\Workspace\\monero_project' -WindowStyle Hidden"
