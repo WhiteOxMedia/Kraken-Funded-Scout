@@ -8,7 +8,7 @@ Review and correct ONLY the frontend files in this zip. Everything
 server-side (the jackpot engine, wallets, the database, the miner
 infrastructure) stays exactly where it is.
 
-**Date:** October 10, 2026 (regenerated from the live template + current statics)
+**Date:** October 12, 2026 (regenerated from the live template + current statics)
 
 ---
 
@@ -30,6 +30,7 @@ infrastructure) stays exactly where it is.
 | `static/admin_cold_wallet.js` | Admin: cold-wallet surface. (v1) |
 | `static/kraken_referral_admin.js` | Admin: Kraken referral projection config + run controls. (v6) |
 | `static/referral_projection.js` | Dashboard: the possible-future-jackpot projection card. (v1) |
+| `static/refblock.js` | Dashboard: the Kraken referral promise block — fills the hero-block's today-claims counter from the pool's recorded funding-ledger data and upgrades the block's share anchors to native share intents. (v1) |
 | `static/img/*.png` | The miner sprite artwork used by the comparison section. |
 
 ## Notes for the review

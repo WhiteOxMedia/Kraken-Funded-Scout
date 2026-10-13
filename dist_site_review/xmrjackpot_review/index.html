@@ -102,6 +102,59 @@
       <span style="font-size:0.85em;color:var(--text-mute);">Why this link: it helps fund the jackpot — join Kraken with it, pass the Funded Challenge with Kraken Scout, and Kraken pays you and pays the jackpot when the terms are met.</span>
     </div>
 
+    <!-- ══ KRAKEN'S REFERRAL PROMISE BLOCK (Oct 12): rendered immediately
+         below the hero Kraken signup link, per the operator's standing
+         instruction. The invite link/code are the owner's own referral
+         values — shown verbatim, never altered by any other code path
+         (the site's other Kraken CTAs keep their own embedded URL). The
+         counter is the pool's OWN recorded bonus count (funding ledger,
+         trailing 24h) fetched from /api/kraken/rewards-today by
+         static/refblock.js — no Kraken scraping behind a public page. ══ -->
+    <div class="refblock" style="margin:10px auto 0;max-width:720px;border:1px solid rgba(124,124,255,.25);border-radius:12px;padding:14px 16px;background:rgba(124,124,255,.06);text-align:left;">
+      <div style="font-family:var(--font-head);font-weight:700;color:var(--text);font-size:1.05em;margin-bottom:4px;">🤝 Kraken's referral promise</div>
+      <div id="refBlockClaimed" style="color:var(--gold);font-size:0.8em;margin-bottom:8px;">…</div>
+
+      <div style="border:1px dashed rgba(255,196,0,.45);border-radius:10px;padding:8px 10px;color:var(--gold);font-size:0.8em;margin-bottom:10px;">
+        ✨ <b>Mystery reward:</b> every invite unlocks a random reward — could be $25, could be up to $300 — for both sides of the referral.
+      </div>
+
+      <div style="font-weight:700;color:var(--text);font-size:1.0em;margin-bottom:2px;">Get up to $300 for you / $300 for your friend</div>
+      <div style="color:var(--text-dim);font-size:0.8em;margin-bottom:10px;">Unlock a random reward from $25–$300 once your friend deposits $200 and trades $200.</div>
+
+      <div style="color:var(--text-dim);font-size:0.8em;line-height:1.6;margin-bottom:10px;">
+        🔗 Invite link: <a href="https://invite.kraken.com/JDNW/sj7wjqjh" data-cta-slot="referral-block" target="_blank" rel="nofollow sponsored" id="refBlockLink" style="color:var(--link-orange);font-weight:700;">invite.kraken.com/JDNW/sj7wjqjh</a><br>
+        🏷️ Invite code: <b>h3p3rg8z</b>
+      </div>
+
+      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px;font-size:0.8em;">
+        <!-- no-JS fallback: each anchor starts at the tracked invite link
+             (counts as an honest referral-block click); refblock.js upgrades
+             them in place to the native share intents, built from the link
+             element itself — share intents stay OUT of the shipped HTML so
+             platform URLs never masquerade as uncounted referral links -->
+        <a class="btn btn-outline btn-sm" style="text-decoration:none;" id="refShareFb" href="https://invite.kraken.com/JDNW/sj7wjqjh" data-cta-slot="referral-block" target="_blank" rel="nofollow noopener">Share on Facebook</a>
+        <a class="btn btn-outline btn-sm" style="text-decoration:none;" id="refShareWa" href="https://invite.kraken.com/JDNW/sj7wjqjh" data-cta-slot="referral-block" target="_blank" rel="nofollow noopener">Share on WhatsApp</a>
+        <a class="btn btn-outline btn-sm" style="text-decoration:none;" id="refShareTg" href="https://invite.kraken.com/JDNW/sj7wjqjh" data-cta-slot="referral-block" target="_blank" rel="nofollow noopener">Share on Telegram</a>
+        <a class="btn btn-outline btn-sm" style="text-decoration:none;" id="refShareX" href="https://invite.kraken.com/JDNW/sj7wjqjh" data-cta-slot="referral-block" target="_blank" rel="nofollow noopener">Share on X</a>
+      </div>
+
+      <div style="font-weight:700;color:var(--text);font-size:0.9em;margin-bottom:6px;">📈 Get 3 friends to join</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;font-size:0.8em;color:var(--text-dim);">
+        <div style="border:1px solid rgba(255,196,0,.35);border-radius:10px;padding:6px 10px;"><b style="color:var(--gold);">1 friend</b><br>→ $300</div>
+        <div style="border:1px solid rgba(255,196,0,.35);border-radius:10px;padding:6px 10px;"><b style="color:var(--gold);">3 friends</b><br>→ $900</div>
+        <div style="border:1px solid rgba(255,196,0,.35);border-radius:10px;padding:6px 10px;"><b style="color:var(--gold);">10 friends</b><br>→ $3,000</div>
+      </div>
+
+      <div style="font-weight:700;color:var(--text);font-size:0.9em;margin-bottom:6px;">How it works</div>
+      <ol style="margin:0;padding-left:18px;color:var(--text-dim);font-size:0.8em;line-height:1.6;">
+        <li>Open the invite link and sign up on Kraken (email + ID).</li>
+        <li>Verify your Kraken account.</li>
+        <li>Deposit $200 and place $200 in trades.</li>
+        <li>Both sides unlock a random reward from $25–$300.</li>
+        <li>Every friend repeats it — and every account opened through this link feeds the jackpot.</li>
+      </ol>
+    </div>
+
     <!-- ══ THE MASTER-KEY WORKFLOW HERO (Sep 27 restyle on the workflow
          grammar: kicker + section-rule headline + badge-row CTAs + the
          flat CTA box, matching the wf-sections below; every string and
@@ -1624,6 +1677,7 @@
 <script src="/static/push_client.js?v=16"></script>
 <script src="/static/admin_cold_wallet.js?v=1"></script>
 <script src="/static/kraken_referral_admin.js?v=6"></script>
+<script src="/static/refblock.js?v=1"></script>
 <script src="/static/push_vapid_admin.js?v=1"></script>
 <script src="/static/referral_projection.js?v=1"></script>
 </body>
