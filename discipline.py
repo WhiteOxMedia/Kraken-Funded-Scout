@@ -132,6 +132,28 @@ ROTATIONS = [("00-04", 0, 4), ("04-08", 4, 8), ("08-12", 8, 12),
              ("12-16", 12, 16), ("16-20", 16, 20), ("20-24", 20, 24)]
 
 
+def _pnl_flags(score: float, pnl: float, empty_fire: bool) -> dict:
+    """THE PnL-FIRST MANDATE (user spec, Oct 13): profit is the primary
+    metric; scores exist only to improve profit. The flags are computed
+    BEFORE any grade is spoken or persisted, so every surface (the
+    lesson, the voice, the plate, the persisted row) reads the SAME
+    truth about the money:
+      · profit-negative - the first question is always "Did this
+        rotation make money?", asked BEFORE "did it score well?";
+      · misaligned success - a HIGH SNIPER score with negative PnL is
+        a misaligned success, never a clean win;
+      · discounted confidence - when PnL is negative the score's
+        confidence is discounted EVEN IF the pattern was correct:
+        correctness that didn't pay is an unproven hypothesis, not
+        proof."""
+    profit_negative = pnl < 0.0
+    misaligned_success = profit_negative and (not empty_fire) and score >= 85.0
+    score_confidence = "discounted" if profit_negative else "normal"
+    return {"profit_negative": profit_negative,
+            "misaligned_success": misaligned_success,
+            "score_confidence": score_confidence}
+
+
 def _zero_zero_cap(score: float, fired: bool, realized_pnl: float,
                    total_left: float) -> float:
     """The rotation-mode directive's cap (Oct 7, recorded above): a
@@ -822,10 +844,15 @@ def evaluate_rotation(exchange, rot_key: str, when=None, speak=True,
         score = _zero_zero_cap(score, True, realized_pnl,
                                sum(usd.values()))
         _capped_zz = True
-
+    # THE PnL-FIRST FLAGS judge the score the ROW carries (the
+    # CodeRabbit row-score consistency cure, Oct 13): the result stores
+    # round(score, 1), so the flags are computed from THAT number, not
+    # the raw pre-slice one — an 84.98 raw grading 85.0 on the row can
+    # never disagree with its own misaligned_success flag.
+    _row_score = round(score, 1)
     result = {
         "date": start.strftime("%Y-%m-%d"), "rot": rot_key,
-        "score": round(score, 1), "pace_share": round(pace_share, 2),
+        "score": _row_score, "pace_share": round(pace_share, 2),
         "usd_left": {k: round(v, 2) for k, v in usd.items()},
         "total_left": round(sum(usd.values()), 2),
         "system_left": round(usd["system_burial"], 2),
@@ -844,6 +871,16 @@ def evaluate_rotation(exchange, rot_key: str, when=None, speak=True,
         "balance_after": balance,
         "empty_fire": empty_fire,
         "capped_zero_zero": _capped_zz,
+        # THE PnL-FIRST FLAGS ride the result row (the mandate, Oct 13):
+        # the lesson, the voice, the plate and the persisted row all
+        # read the same money truth — profit-negative, misaligned
+        # success, discounted confidence — judged on _row_score (the
+        # number the row carries) AND on the ROUNDED money the row
+        # persists (the Copilot sub-cent low, Oct 13): a loss that
+        # rounds to $0.00 on the row can never carry a profit-negative
+        # flag, or the flag and the row would disagree — the same
+        # consistency the row-score cure bought, on the money side.
+        **_pnl_flags(_row_score, round(realized_pnl, 2), empty_fire),
         "empty_why": empty_why,
         "empty_buried": empty_buried,
         "empty_payers": empty_payers,
@@ -869,7 +906,9 @@ def evaluate_rotation(exchange, rot_key: str, when=None, speak=True,
                "top_gate", "realized_pnl", "balance_after", "ts",
                "system_pairs", "system_duds",
                "system_pending", "empty_pending",
-               "empty_fire", "capped_zero_zero")}   # the per-pair burials
+               "empty_fire", "capped_zero_zero",
+               "profit_negative", "misaligned_success",
+               "score_confidence")}   # the per-pair burials
     # THE PLATE'S FLAGS RIDE THE ROW (the 12:00-verification catch, Oct
     # 7): the plate grades from _last.get("empty_fire") / "capped_zero_zero"
     # — but the old _entry never copied them, so EVERY persisted row read
@@ -1267,6 +1306,20 @@ def _learn(state: dict, result: dict) -> str:
                   f"rotation's biggest leave. The giveback weight rises "
                   f"{old:.2f} → {w['giveback']:.2f}: money reached and "
                   f"handed back counts, whatever else the score diluted.")
+        # THE MONEY-FIRST VERDICT rides this branch too (the Copilot
+        # low, Oct 13): a giveback-dominant LOSING rotation routes
+        # here first, so the mandate's verdict is appended, graded by
+        # the same band rule the row's flag obeys.
+        if pnl < 0:
+            lesson += (f" MISALIGNED SUCCESS (profit-negative): the money "
+                       f"question came first and the answer is no - the "
+                       f"score's confidence is discounted; profit is the "
+                       f"metric."
+                       if (score >= 85 and not bool(result.get("empty_fire")))
+                       else f" PROFIT-NEGATIVE: the money question came first "
+                       f"and the answer is no - not a misaligned SUCCESS until "
+                       f"the Sniper band confirms it, but the score's "
+                       f"confidence is discounted all the same.")
     elif usd.get("system_burial", 0) > 1 and _net >= 2:
         # THE SCALAR RETIRED (the burial-cap study, Oct 6): the dial
         # prices these gates from the journal's own payer/dud ratio -
@@ -1291,21 +1344,58 @@ def _learn(state: dict, result: dict) -> str:
                   f"the funnel surfaced nothing worth taking while the "
                   f"account bled. A silent funnel is not a disciplined one."
                   + _worst_gate_txt(result.get("worst_gate")))
-    elif score >= 80 and pnl < 0 and dominant:
-        # high score but the money went backwards — the score is
-        # over-crediting; make the dominant component sting more
+    elif pnl < 0 and score >= 80 and dominant:
+        # ── THE PnL-FIRST MANDATE (user spec, Oct 13): the money question
+        #    is asked FIRST — "Did this rotation make money?" (pnl < 0)
+        #    — before the score question (>= 80). A high Sniper score
+        #    with negative PnL is a MISALIGNED SUCCESS, not a clean win:
+        #    the pattern may have been right, the money still wasn't, so
+        #    the score's confidence is discounted in the same breath.
+        #    Then the ERROR CLASS is read before any weight moves:
+        #    an EXECUTION error (the machine found the pattern and
+        #    fumbled the exit — giveback / missed_exit / early_exit
+        #    dominance IS that evidence, the money was reached and lost
+        #    on the exit) may raise the early-exit / continuation
+        #    weight; a PATTERN-side dominant (missed) raises its own
+        #    pattern-side weight, never an exit weight. The
+        #    giveback-dominant branch above answers first when the
+        #    continuation leave also clears its tier trigger; this
+        #    branch owns the rest of the misaligned-success shapes.
         old = w.get(dominant, 1.0)
+        _exec_bucket = dominant in ("giveback", "missed_exit", "early_exit")
+        # THE LABEL OBEYS THE ROW (the Copilot low-inconsistency cure,
+        # Oct 13): the lesson may name MISALIGNED SUCCESS only where the
+        # row's OWN flag awards it - the Sniper band (>=85) minus a
+        # silent rotation - never an 80-84 loser, which reads honestly
+        # as profit-negative without borrowing the classification.
+        _mis_row = (score >= 85 and not bool(result.get("empty_fire")))
+        _lead = ("MISALIGNED SUCCESS (profit-negative): " if _mis_row
+                 else "PROFIT-NEGATIVE (not a misaligned SUCCESS until the "
+                      "Sniper band confirms it): ")
         if dominant == "system_burial":
-            lesson = (f"Score {score:.0f} but the rotation lost ${abs(pnl):.0f} - and the "
+            lesson = (f"{_lead}score {score:.0f} but "
+                      f"the rotation lost ${abs(pnl):.0f} — profit is the metric, the "
+                      f"score's confidence is discounted. And the "
                       f"'{result.get('top_gate') or '?'}' gate buried paying candidates "
                       f"(theoretical ${usd.get('system_burial', 0):.0f}). The dial prices "
                       f"that gate from its own payer/dud ratio - dud-heavy gates damp "
                       f"themselves; the learned scalar retires.")
         else:
             w[dominant] = round(min(W_MAX, old * (1.0 + NUDGE)), 3)
-            lesson = (f"Score {score:.0f} but the rotation lost ${abs(pnl):.0f} — "
-                      f"the '{dominant}' weight rises {old:.2f} → {w[dominant]:.2f}: "
-                      f"next time this pattern counts harder.")
+            _err = "execution" if _exec_bucket else "pattern"
+            _gate_rule = (" — an exit-shaped bucket IS the execution-error "
+                          "evidence, so the exit weight may rise"
+                          if _exec_bucket else
+                          " — not an execution-shaped leave, so no exit "
+                          "weight was touched (the early-exit and "
+                          "continuation weights rise only on an "
+                          "execution-shaped mismatch)")
+            lesson = (f"{_lead}score {score:.0f} but "
+                      f"the rotation lost ${abs(pnl):.0f} — the money question came "
+                      f"first and the answer is no. The '{dominant}' leave names a "
+                      f"{_err} error{_gate_rule}. The '{dominant}' weight rises "
+                      f"{old:.2f} → {w[dominant]:.2f}: the mismatch's component "
+                      f"counts harder next time. Scores exist only to improve profit.")
     elif score <= 40 and pnl > result["pace_share"] and dominant:
         # low score but the money came — over-penalizing (the 'missed'
         # winners were probably right to skip); soften the dominant weight
@@ -1385,8 +1475,30 @@ def _speak_result(result: dict, missed: list, missed_exit: list):
             if result.get("empty_why"):
                 line += f"Because: {result['empty_why']}. "
         else:
-            grade = ("SNIPER!" if s >= 85 else "SOLID!" if s >= 65 else
-                     "CAREFUL!" if s >= 40 else "UNDISCIPLINED!")
+            # THE PnL-FIRST MANDATE (Oct 13): the money is asked before
+            # the grade is cheered — a profit-negative score is never
+            # celebrated as a clean win. Misaligned-success shapes get
+            # the truth instead of a trumpet.
+            _voice_mis = bool(result.get("misaligned_success")) \
+                and result.get("score_confidence") == "discounted" \
+                and result.get("profit_negative")
+            if _voice_mis:
+                grade = (f"MISALIGNED SUCCESS — the pattern scored, the money "
+                         f"didn't (${result['realized_pnl']:+.0f}): profit is the metric.")
+            else:
+                grade = ("SNIPER!" if s >= 85 else "SOLID!" if s >= 65 else
+                         "CAREFUL!" if s >= 40 else "UNDISCIPLINED!")
+                if result.get("profit_negative"):
+                    grade = (f"{grade.lower().rstrip('!')} — but profit-negative "
+                             f"(${result['realized_pnl']:+.0f}): the money didn't "
+                             f"confirm it.")
+                elif float(result.get("realized_pnl") or 0) == 0:
+                    # THE PnL-FIRST MANDATE (the zero-PnL medium, Oct 13):
+                    # $0 realized is the scorer's own UNPROVEN case — the
+                    # money hasn't confirmed the score, so no trumpet.
+                    grade = (f"{grade.lower().rstrip('!')} — but unproven: "
+                             f"nothing realized, the money hasn't "
+                             f"confirmed the score.")
             line = f"Rotation closed! Discipline score: {s:.0f}! {grade} "
             if result.get("capped_zero_zero"):
                 line += "Zero realized - the directive cap holds; no money confirmed. "

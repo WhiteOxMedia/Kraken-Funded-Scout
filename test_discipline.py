@@ -422,8 +422,12 @@ check("the plate grades a silent rotation (amber, never SNIPER)",
       "SILENT ROTATION" in ap and "empty_fire" in ap)
 check("a capped score never feeds the streak",
       "and not row.get(" in ap
-      and "empty_fire" in ap[ap.find("# the streak: consecutive scores >= 70"):ap.find("# the streak: consecutive scores >= 70") + 500]
-      and "capped_zero_zero" in ap[ap.find("# the streak: consecutive scores >= 70"):ap.find("# the streak: consecutive scores >= 70") + 500])
+      # the window grew twice (Oct 13): the PnL-first mandate added
+      # exclusion lines + a money-evidence comment to the streak loop
+      # — the fixed window must still cover the same assertions,
+      # both unchanged
+      and "empty_fire" in ap[ap.find("# the streak: consecutive scores >= 70"):ap.find("# the streak: consecutive scores >= 70") + 1200]
+      and "capped_zero_zero" in ap[ap.find("# the streak: consecutive scores >= 70"):ap.find("# the streak: consecutive scores >= 70") + 1200])
 
 # ── 6. the wiring ─────────────────────────────────────────────────────
 check("the scanner evaluates at every rotation rollover",
@@ -547,6 +551,120 @@ check("5z.j the plate grades ZERO REALIZED (never SNIPER while capped)",
       "ZERO REALIZED" in ap and "capped_zero_zero" in ap)
 check("5z.k the streak excludes a zero-realized cap (like the silence)",
       'not row.get("capped_zero_zero")' in ap)
+
+# ── 6. THE PnL-FIRST MANDATE (user spec, Oct 13): profit is the primary
+#    metric; scores exist only to improve profit. Red-first: every pin
+#    here failed against the score-only behavior.
+check("6a the flag helper exists and computes the three money truths",
+      hasattr(dc, "_pnl_flags")
+      and dc._pnl_flags(88.0, -12.0, False) == {"profit_negative": True,
+                                                "misaligned_success": True,
+                                                "score_confidence": "discounted"})
+check("6b a money-confirmed rotation is NOT misaligned (PnL agrees)",
+      dc._pnl_flags(88.0, 40.0, False) == {"profit_negative": False,
+                                           "misaligned_success": False,
+                                           "score_confidence": "normal"})
+check("6c a SILENT rotation can never be a misaligned SUCCESS (the cap owns it)",
+      dc._pnl_flags(90.0, -5.0, True)["misaligned_success"] is False)
+check("6d the flags ride the result row (the voice/plate/history read them)",
+      '"empty_fire": empty_fire' in src
+      and '**_pnl_flags(_row_score, round(realized_pnl, 2), empty_fire)' in src)
+check("6e the flags persist on the history row (the plate reads the ROW)",
+      '"profit_negative", "misaligned_success"' in src
+      and '"score_confidence"' in src)
+# the _learn branch: money-first, error-class-graded weights
+_mpn = lambda usd: {"score": 85.0, "realized_pnl": -50.0, "pace_share": 48.0,
+                    "usd_left": dict({"missed": 0, "giveback": 0,
+                                      "missed_exit": 0, "early_exit": 0}, **usd),
+                    "ts": datetime.now(MST).isoformat()}
+_mk6 = lambda: {"weights": dict(dc.DEFAULT_WEIGHTS), "history": [], "lessons": []}
+# 6f: missed_exit dominance IS the execution-error evidence — the
+# machine was in the trade and fumbled the exit. (Giveback dominance
+# is owned by its own branch above, 4b; miss it here.)
+_st_exec = _mk6()
+_mx_w0 = float(_st_exec["weights"]["missed_exit"])
+_lesson_exec = dc._learn(_st_exec, _mpn({"missed_exit": 30.0}))
+check("6f execution error (missed-exit dominant) raises the exit weight "
+      "and names the misaligned success",
+      float(_st_exec["weights"]["missed_exit"]) > _mx_w0
+      and float(_st_exec["weights"]["giveback"]) == dc.DEFAULT_WEIGHTS["giveback"]
+      and "MISALIGNED SUCCESS" in _lesson_exec and "profit-negative" in _lesson_exec
+      and "rises" in _lesson_exec and "execution" in _lesson_exec,
+      _lesson_exec[:140])
+check("6g the money question leads the branch (PnL first, score second)",
+      "elif pnl < 0 and score >= 80 and dominant" in src.replace("\n", " "))
+# 6h/6i: a PATTERN-shaped dominant (missed) — the FRESH fixture holds:
+# 6f's state is not reused (a one-lesson step must never bleed across
+# pins), so the weight verdicts here are the pattern case alone.
+_st_pat = _mk6()
+_lesson_pattern = dc._learn(_st_pat, _mpn({"missed": 30.0}))
+check("6h a pattern-shaped mismatch never touches an exit/continuation weight",
+      float(_st_pat["weights"]["early_exit"]) == dc.DEFAULT_WEIGHTS["early_exit"]
+      and float(_st_pat["weights"]["giveback"]) == dc.DEFAULT_WEIGHTS["giveback"]
+      and float(_st_pat["weights"]["missed_exit"]) == dc.DEFAULT_WEIGHTS["missed_exit"]
+      and float(_st_pat["weights"]["missed"]) > dc.DEFAULT_WEIGHTS["missed"])
+check("6i the pattern-error lesson names the misaligned success and the "
+      "weight that DID move (its own dominant, not an exit weight)",
+      "MISALIGNED SUCCESS" in _lesson_pattern
+      and "pattern" in _lesson_pattern
+      and "rises" in _lesson_pattern, _lesson_pattern[:160])
+# ── the CodeRabbit row-score + Copilot green-band cures (in-amend,
+#    Oct 13): the flags judge the score the ROW carries (rounded), and
+#    GREEN is a money-confirmed grade — both surfaces.
+check("6j the flags judge the row's stored score, never the raw "
+      "pre-slice one (an 84.98 raw can never disagree with its row)",
+      "_row_score = round(score, 1)" in src
+      and '"score": _row_score' in src
+      and "**_pnl_flags(_row_score, round(realized_pnl, 2), empty_fire)" in src)
+check("6k the plate's GREEN band requires the money's agreement "
+      "(an 80-84 loss can never render green SOLID)",
+      "s >= 80 and not _capped and _pnl_plate > 0" in ap
+      and "CAREFUL — high score, negative PnL" in ap)
+check("6q the 65-79 SOLID band cannot claim success the money lost "
+      "(the score dilutes a losing rotation - the mandate applies to "
+      "the TEXT, not just the color)",
+      "SOLID? — tight rotation, but the money lost" in ap
+      and "_pnl_neg and s >= 60" in ap)
+check("6l the history strip colors a LOSS amber (a losing row is "
+      "never a green chip — and neither is a $0-realized one, 6m)",
+      'float(r.get("realized_pnl") or 0) <= 0' in ap)
+check("6m GREEN is a money-CONFIRMED grade: strictly-positive realized "
+      "is the only green earned, on the plate AND the strip; a "
+      "zero-realized high score grades UNPROVEN (the zero-PnL medium)",
+      "_pnl_plate > 0" in ap
+      and "UNPROVEN — nothing realized" in ap
+      and "_pnl_plate == 0" in ap
+      and 'float(r.get("score") or 0) >= 70' in ap
+      and 'float(r.get("realized_pnl") or 0) > 0' in ap)
+check("6n the VOICE never trumpets an unproven $0 (the zero-PnL "
+      "medium at the rollover too)",
+      "but unproven: " in src
+      and "nothing realized, the money hasn't" in src)
+check("6o the flags judge the money the ROW persists (rounded to cents "
+      "- a sub-cent loss can never carry a flag its row contradicts)",
+      "**_pnl_flags(_row_score, round(realized_pnl, 2), empty_fire)" in src)
+check("6p the streak earns on REALIZED money, strictly positive - a "
+      "zero-realized >=70 row is the scorer's own UNPROVEN case and "
+      "never a winning streak's leg",
+      'float(row.get("realized_pnl") or 0) > 0' in ap)
+check("6r the lesson's MISALIGNED-SUCCESS label obeys the row's own "
+      "band rule: an 80-84 loser reads PROFIT-NEGATIVE without "
+      "borrowing the >=85 classification",
+      "PROFIT-NEGATIVE (not a misaligned SUCCESS until the " in src)
+_84_res = {"score": 84.0, "realized_pnl": -50.0, "pace_share": 48.0,
+           "usd_left": {"missed": 30.0, "giveback": 0, "missed_exit": 0,
+                        "early_exit": 0},
+           "ts": datetime.now(MST).isoformat()}
+_84_st = {"weights": dict(dc.DEFAULT_WEIGHTS), "history": [], "lessons": []}
+_84_lesson = dc._learn(_84_st, _84_res)
+check("6s the 84-point loser's lesson never claims MISALIGNED SUCCESS "
+      "(the plate and the row flag only award it at 85+)",
+      "not a misaligned SUCCESS" in _84_lesson
+      and "MISALIGNED SUCCESS" not in _84_lesson, _84_lesson[:140])
+check("6t a giveback-dominant LOSING rotation still hears the mandate's "
+      "verdict (the earlier branch no longer swallows it)",
+      "answer is no - the " in src
+      and "no - not a misaligned SUCCESS until " in src)
 
 lines.append(f"\nRESULT: {PASS} passed, {FAIL} failed")
 scratch_space.report_temp('_discipline_check.txt').write_text("\n".join(lines), encoding="utf-8")

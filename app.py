@@ -4292,11 +4292,32 @@ def _discipline_plate() -> str:
         s = float(_last.get("score") or 0)
         _empty = bool(_last.get("empty_fire"))
         _capped = bool(_last.get("capped_zero_zero"))
+        # THE PnL-FIRST MANDATE (Oct 13): profit is the metric — a high
+        # Sniper score the money didn't confirm is a MISALIGNED SUCCESS,
+        # never a clean win, so it grades amber. The row's flag leads;
+        # older rows without it fall back to the money itself.
+        _pnl_neg = (bool(_last.get("profit_negative"))
+                    or float(_last.get("realized_pnl") or 0) < 0)
+        _pnl_plate = float(_last.get("realized_pnl") or 0)
+        _misaligned = (not _empty and not _capped and _pnl_neg and s >= 85)
+        # THE PnL-FIRST MANDATE (Copilot's medium, Oct 13): GREEN is a
+        # money-confirmed grade — any score the plate would otherwise
+        # cheer green while the money went backwards grades amber, and
+        # 80–84 losses get the honest band name instead of a green SOLID.
+        # AND GREEN NEEDS THE MONEY'S AGREEMENT, NOT ITS ABSENCE (the
+        # zero-PnL medium, Oct 13): $0 realized with leave on the table
+        # is the scorer's own UNPROVEN case (the agreement bar) — a
+        # strictly-positive realized number is the only green earned.
         col = ("#ffc36b" if _empty else
-               "#4be38a" if (s >= 80 and not _capped) else
+               "#ffc36b" if _misaligned else
+               "#4be38a" if (s >= 80 and not _capped and _pnl_plate > 0) else
                "#ffc36b" if (s >= 60 or _capped) else "#ff6b5e")
         grade = ("SILENT ROTATION — nothing fired, nothing graded (capped)" if _empty else
                  "ZERO REALIZED — the directive cap holds; no money confirmed" if _capped else
+                 "MISALIGNED SUCCESS — the pattern scored, the money didn't: profit is the metric" if _misaligned else
+                 "UNPROVEN — nothing realized: the money hasn't confirmed the score" if (_pnl_plate == 0 and s >= 80) else
+                 "CAREFUL — high score, negative PnL: the money didn't confirm it" if (_pnl_neg and s >= 80) else
+                 "SOLID? — tight rotation, but the money lost: the score dilutes a losing rotation (profit is the metric)" if (_pnl_neg and s >= 60) else
                  "SNIPER — nothing slipped" if s >= 85 else
                  "SOLID — tight rotation" if s >= 65 else
                  "CAREFUL — money slipped" if s >= 40 else
@@ -4304,12 +4325,20 @@ def _discipline_plate() -> str:
         # the streak: consecutive scores >= 70 — neither silence nor a
         # zero-realized cap ever feeds it (a silent rotation is not a
         # disciplined one, Sep 7; a confirmed-moneyless one is not
-        # either, the rotation-mode directive, Oct 7)
+        # either, the rotation-mode directive, Oct 7) — and neither does
+        # a PROFIT-NEGATIVE one the mandate flagged (a high score with
+        # negative PnL is a misaligned success, never a winning streak)
         streak = 0
         for row in reversed(_h):
+            # the streak earns on REALIZED money, strictly positive — a
+            # ZERO-realized >=70 row is the scorer's own UNPROVEN case
+            # (the plate grades it UNPROVEN), never a winning streak's
+            # leg (the zero-PnL medium, Oct 13)
             if (float(row.get("score") or 0) >= 70
                     and not row.get("empty_fire")
-                    and not row.get("capped_zero_zero")):
+                    and not row.get("capped_zero_zero")
+                    and not bool(row.get("misaligned_success"))
+                    and float(row.get("realized_pnl") or 0) > 0):
                 streak += 1
             else:
                 break
@@ -4319,10 +4348,17 @@ def _discipline_plate() -> str:
         user_left = max(left - sys_left, 0.0)
         top_gate = str(_last.get("top_gate") or "")
         pnl_col = "#4be38a" if pnl > 0 else ("#ff6b5e" if pnl < 0 else "#9a9a9a")
-        # recent history strip (a capped empty-fire score reads amber)
+        # recent history strip (a capped empty-fire score reads amber;
+        # so does a LOSS — a losing row is never a green chip, the
+        # PnL-first mandate applies to every surface, Copilot Oct 13)
         strip = " ".join(
-            f"<span style='color:{'#ffc36b' if r.get('empty_fire') else '#4be38a' if float(r.get('score') or 0) >= 70 else '#ff6b5e'};'>"
-            f"{float(r.get('score') or 0):.0f}</span>"
+            "<span style='color:{};'>{:.0f}</span>".format(
+                "#ffc36b" if (r.get("empty_fire")
+                              or float(r.get("realized_pnl") or 0) <= 0)
+                else "#4be38a" if (float(r.get("score") or 0) >= 70
+                                   and float(r.get("realized_pnl") or 0) > 0)
+                else "#ff6b5e",
+                float(r.get("score") or 0))
             for r in _h[-10:])
         lessons = _st.get("lessons") or []
         lesson = lessons[-1].get("lesson", "") if lessons else ""
