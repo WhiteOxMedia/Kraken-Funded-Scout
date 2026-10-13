@@ -73,6 +73,9 @@ IDENTITY_INDEPENDENT = {
                               "visitor",
     "bundle_card.js": "/api/downloads/bundle-info is public static "
                       "info, no session semantics",
+    "refblock.js": "/api/kraken/rewards-today is public read-only "
+                   "(the funding-ledger referral count, no session, "
+                   "identical for every visitor); fail-open fetch only",
 }
 
 # admin-gated cards: data is global, ACCESS is per-session; the next

@@ -26,6 +26,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 import database as db
 import field_crypto as _fc
 import jackpot_engine as engine
+import jackpot_funding
 import security
 import monero_wallet as xmr
 import address_check as _addr   # offline mainnet payout-address gate
@@ -661,7 +662,7 @@ _KRAKEN_CTA_URL = "https://invite.kraken.com/JDNW/29bygijw"
 _KRAKEN_CTA_SLOTS = frozenset({
     "hero-top", "hero-badge", "wf-funded-button", "signup-step-zero",
     "howto-step1", "footer-box", "wallet-modal", "challenge-step1",
-    "challenge-step5", "realplay-banner", "unattributed",
+    "challenge-step5", "realplay-banner", "referral-block", "unattributed",
 })
 
 # THE FUNNEL STAYS HONEST (Oct 11): a public no-session counter is a
@@ -1708,6 +1709,22 @@ async def api_admin_wallet_status(request: Request):
 import kraken_referral as kr
 import push_report
 import scheduler as kr_sched
+
+
+@app.get("/api/kraken/rewards-today")
+async def api_kraken_rewards_today():
+    """Public, read-only figure for the hero referral block's
+    'rewards claimed today' counter: how many referral bonuses the pool
+    RECORDED into the funding ledger in the trailing 24h (and their USD
+    sum). Plain ledger read — no Kraken scraping, no estimate posing
+    as a fact; an unreadable ledger degrades to zeros, never lies."""
+    try:
+        stats = jackpot_funding.referral_rewards_last24h()
+        claimed = int(stats.get("count", 0))
+        total_usd = round(float(stats.get("total_usd", 0.0)), 2)
+    except Exception:
+        claimed, total_usd = 0, 0.0
+    return {"rewards_claimed": max(0, claimed), "total_usd": total_usd}
 
 
 @app.get("/api/jackpot/projection")

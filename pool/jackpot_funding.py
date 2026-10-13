@@ -111,6 +111,23 @@ def _window_rows(now_ts=None):
     return [r for r in _load_ledger() if float(r.get("ts", 0)) > cutoff]
 
 
+def referral_rewards_last24h(now_ts=None):
+    """The pool's honest 'claims' figure for the site's referral block:
+    how many referral bonuses were RECORDED into the funding ledger in
+    the trailing 24h, plus their USD sum. Read-only over the existing
+    ledger — no Kraken scraping, no estimate posing as a fact. The
+    browser block renders this count as 'rewards claimed today'."""
+    now_ts = now_ts if now_ts is not None else time.time()
+    cutoff = now_ts - 86400.0
+    rows = [r for r in _load_ledger()
+            if r.get("category") == "referral_bonus"
+            and float(r.get("ts", 0) or 0) > cutoff]
+    return {
+        "count": len(rows),
+        "total_usd": round(sum(float(r["amount_usd"]) for r in rows), 2),
+    }
+
+
 def referral_velocity_usd(now_ts=None):
     """Rolling 14-day average of referral bonuses paid (per day)."""
     rows = _window_rows(now_ts)
