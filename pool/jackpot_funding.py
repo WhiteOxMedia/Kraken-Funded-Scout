@@ -116,15 +116,29 @@ def referral_rewards_last24h(now_ts=None):
     how many referral bonuses were RECORDED into the funding ledger in
     the trailing 24h, plus their USD sum. Read-only over the existing
     ledger — no Kraken scraping, no estimate posing as a fact. The
-    browser block renders this count as 'rewards claimed today'."""
+    browser block renders this count as 'rewards claimed today'.
+    Malformed rows are SKIPPED, not fatal (CodeRabbit minor on 8ffbfde):
+    a missing/None amount_usd, a non-numeric ts, or a non-dict row must
+    not abort the whole figure — one bad row zeroing the display for
+    every visitor until it left the ledger is the failure mode we do
+    not ship. Valid rows keep counting exactly as before."""
     now_ts = now_ts if now_ts is not None else time.time()
     cutoff = now_ts - 86400.0
-    rows = [r for r in _load_ledger()
-            if r.get("category") == "referral_bonus"
-            and float(r.get("ts", 0) or 0) > cutoff]
+    rows = []
+    total = 0.0
+    for r in _load_ledger():
+        try:
+            if (r.get("category") != "referral_bonus"
+                    or not float(r.get("ts", 0) or 0) > cutoff):
+                continue
+            amt = float(r["amount_usd"])
+        except (AttributeError, KeyError, TypeError, ValueError):
+            continue
+        rows.append(r)
+        total += amt
     return {
         "count": len(rows),
-        "total_usd": round(sum(float(r["amount_usd"]) for r in rows), 2),
+        "total_usd": round(total, 2),
     }
 
 
