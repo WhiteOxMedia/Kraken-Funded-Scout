@@ -19,7 +19,7 @@ infrastructure) stays exactly where it is.
 | `index.html` | The complete site — a single-page app (landing, signup, how-to, play, winners, user dashboard, admin). All pages live in this one file; navigation shows/hides `<section>` blocks. |
 | `admin_panel.html` | The admin panel's markup fragment (injected into index.html's admin section by app.js at runtime for authenticated admins). |
 | `static/style.css` | The entire design system: tokens (CSS custom properties), all component styles, the getmonero-org redesign layer, responsive rules, reduced-motion support. |
-| `static/app.js` | The site's application logic: navigation, auth flows, dashboard population, forms, jackpot/leaderboard rendering (v28). |
+| `static/app.js` | The site's application logic: navigation, auth flows, dashboard population, forms, jackpot/leaderboard rendering (v29). |
 | `static/wf_dashboard.js` | Additive workflow wiring for the dashboard tiles/panels — status row, Scout Signals feed, the shared prefs stamp (v6). |
 | `static/push_client.js` | Web-push registration, the prefs toggles (If-Match optimistic concurrency, undo), Test-notification buttons, the ONE shared relative-time renderer (v16). |
 | `static/push_sw.js` | The push service worker (notification display; same-origin navigation only). |

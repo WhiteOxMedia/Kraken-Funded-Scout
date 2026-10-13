@@ -194,6 +194,13 @@ TRUTH_AUDIT = {
         "Sign up for Kraken (email + ID, ~5 min) →",
     "🛒 Need XMR? Get it on Kraken →":
         "🛒 Sign up & trade on Kraken —",
+    # THE RAFFLE UNIT CONTROLLER (Oct 12, operator rule): the mining
+    # banner states the unit contract verbatim — every valid share = 1
+    # unit, 100 units = one complete entry, partial progress saved,
+    # submission only on complete — replacing the v28 "shares = 1"
+    # shorthand (the canonical counter line carries the live state)
+    "Mine XMR to earn free entries. Every 100 shares = 1 entry for the daily drawing.":
+        "Mine XMR to earn free entries. Every 100 valid shares = 1 complete raffle entry — your partial progress is saved, and an entry is submitted only when all 100 units are collected.",
 }
 unsanctioned = [s for s in missing if s not in TRUTH_AUDIT]
 check(1.1, not unsanctioned,

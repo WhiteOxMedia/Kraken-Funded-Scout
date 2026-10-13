@@ -501,6 +501,19 @@ def set_setting(key, value):
         )
 
 
+def safe_pos_int(raw, fallback=100):
+    """THE RAFFLE UNIT RULE'S GUARD (Oct 12 controller): the raffle unit
+    size is a display contract (every valid share = 1 unit, N units =
+    one complete ticket) — a corrupt setting must never zero the
+    requirement (or the unit counter) for every visitor. Clamps to a
+    positive int, falls back to the caller's default otherwise."""
+    try:
+        v = int(float(raw))
+        return v if v > 0 else fallback
+    except (TypeError, ValueError):
+        return fallback
+
+
 def get_or_create_miner(wallet_address, worker_name=""):
     with get_db() as conn:
         row = conn.execute(

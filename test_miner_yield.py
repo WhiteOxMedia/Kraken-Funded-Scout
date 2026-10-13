@@ -324,6 +324,84 @@ else:
     check(8.1, not os.path.exists(LIVE_DB),
           "no live jackpot.db exists — nothing to protect, nothing touched")
 
+print("== 9. THE RAFFLE UNIT CONTROLLER (Oct 12) ==")
+# The controller's rule: every valid SHARE = 1 raffle-ticket UNIT;
+# 100 units form ONE complete ticket; the server submits ONLY when the
+# 100th unit lands (integer division at ingest, never partials); the
+# units live in the miner row (shares_valid), so a disconnect or a
+# mining stop preserves the current partial ticket; the counter resets
+# to 0 the moment the convert happens. THE DISPLAY: exactly
+# 'Raffle ticket: X / 100 units collected.' wherever mining status or
+# jackpot eligibility is shown.
+
+# 9.1-9.2 THE MINT IS COMPLETE-ONLY, AT EVERY STEP: floor division
+# mints whole tickets; the remainder stays raw units in shares_valid;
+# a disconnect + reconnect's later delta picks the count up exactly.
+_units_wallet = "9" + "u" * 94
+_units_miner = db.get_or_create_miner(_units_wallet, "raffle-units")
+
+# stop 1: 150 cumulative shares -> 1 complete entry, 50 units banking
+db.update_miner_stats(_units_wallet, 150, 0, 0)
+engine.allocate_free_tickets(_units_miner["id"], 150)
+check(9.1, db.get_miner_ticket_count(_units_miner["id"]) == 1,
+      "150 shares minted EXACTLY 1 complete entry (50 units stay "
+      "un-submitted — no partial ticket was ever minted)")
+
+# the disconnect: mining stops with 50 units collected — nothing new
+tickets_at_stop = db.get_miner_ticket_count(_units_miner["id"])
+_shares_at_stop = db.get_miner(_units_miner["id"])["shares_valid"]
+check(9.2, tickets_at_stop == 1 and _shares_at_stop == 150,
+      "after a stop at 150 shares the partial bank survives untouched "
+      "(1 entry + 50 units — nothing minted in the pause)")
+
+# reconnect: +49 units -> still 99/100, no new entry; +1 more -> the
+# 100th unit lands, the counter converts, resets to 0 for the next
+for _delta, _expected_minted in ((49, 1), (1, 2)):
+    db.update_miner_stats(_units_wallet, _delta, 0, 0)
+    engine.allocate_free_tickets(_units_miner["id"], _delta)
+check(9.3, db.get_miner_ticket_count(_units_miner["id"]) == 2,
+      "49 then 1 more unit: the convert happens ONLY at the 100th "
+      "landing (99/100 minted nothing; the complete entry arrives "
+      "with the exact completing unit)")
+_units_now = db.get_miner(_units_miner["id"])["shares_valid"]
+check(9.4, _units_now == 200,
+      "after the convert the counter reads 200 = two complete tickets "
+      "+ 0 units (the reset to 0 for the next ticket is "
+      "sharesValid mod 100 — the line format's own divisor)")
+
+# 9.5-9.7 THE DISPLAY CONTRACT IS SOURCE-PINNED: the exact line on
+# every mining-status surface, each fed by the miner row (not client
+# guesses), and the unit size read from ONE server field.
+_tpl_src = open(os.path.join(HERE, "pool", "templates", "index.html"), encoding="utf-8").read()
+_app_src = open(os.path.join(HERE, "pool", "static", "app.js"), encoding="utf-8").read()
+_srv_src = open(os.path.join(HERE, "pool", "server.py"), encoding="utf-8").read()
+# the api_stats SLICE (counter drive 5.2's technique): start at the
+# route's def, end at the NEXT @app. marker — a later require_admin or
+# a later setting read can never satisfy a check aimed at THIS route
+_i_stats = _srv_src.find("def api_stats")
+_stats_fn = _srv_src[_i_stats:_srv_src.find("@app.", _i_stats)]
+_db_src = open(os.path.join(HERE, "pool", "database.py"), encoding="utf-8").read()
+check(9.5, _tpl_src.count('id="raffleProgress"') == 1
+      and _tpl_src.count('id="dashRaffleProgress"') == 1,
+      "the unit counter exists on BOTH mining-status surfaces "
+      "(real miner panel + dashboard), each exactly once")
+check(9.6, "'Raffle ticket: ' + units + ' / ' + per + ' units collected.'" in _app_src
+      and "raffleLine(miner.shares_valid" in _app_src,
+      "the canonical line format is the app's one raffleLine() — fed "
+      "by shares_valid mod per (the persisted bank), with reset "
+      "to 0 implied at each whole hundred")
+check(9.7, "free_tickets_per_shares" in _stats_fn
+      and "db.safe_pos_int" in _stats_fn,
+      "the unit SIZE rides /api/stats from the operator setting "
+      "(db.safe_pos_int-guarded), so every surface draws from one "
+      "server-owned source, never a per-file constant")
+check(9.8, "def safe_pos_int" in _db_src
+      and db.safe_pos_int("abc") == 100 and db.safe_pos_int(None) == 100
+      and db.safe_pos_int("0") == 100 and db.safe_pos_int("-3") == 100
+      and db.safe_pos_int("150") == 150 and db.safe_pos_int("7") == 7,
+      "the unit-size guard survives corrupt settings: junk/None/zero/ "
+      "negative fall back to 100, real values pass through")
+
 shutil.rmtree(SANDBOX, ignore_errors=True)
 print(f"RESULT: {passed} passed, {failed} failed")
 sys.exit(1 if failed else 0)

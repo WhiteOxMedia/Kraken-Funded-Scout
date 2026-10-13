@@ -1191,6 +1191,14 @@
         <div class="stat-card"><div class="stat-value green" id="minerShares">0</div><div class="stat-label">Your Shares</div></div>
         <div class="stat-card"><div class="stat-value gold" id="minerTickets">0</div><div class="stat-label">Your Entries</div></div>
       </div>
+      <!-- THE RAFFLE TICKET UNIT COUNTER (Oct 12 controller): every valid
+           share = 1 unit; 100 units convert into ONE complete entry the
+           moment they land; the units live in the miner row (shares_valid),
+           so a disconnect never loses partial progress; entries are
+           submitted complete or not at all. Updated by app.js's
+           fetchRealMiner (raffleLine) — shown on every mining-status
+           surface, dashboard's included. -->
+      <div id="raffleProgress" style="text-align:center;margin-top:10px;font-size:0.85em;color:var(--gold-bright);font-weight:600;">Raffle ticket: 0 / 100 units collected.</div>
       <div id="realNoMiner" style="text-align:center;padding:20px;color:var(--text-muted);">
         <p>Miner not detected yet. Connect using the command below.</p>
       </div>
@@ -1200,7 +1208,7 @@
     <div class="card" style="margin-bottom:16px;text-align:center;background:var(--bg-deep);border:2px solid var(--gold-dark);">
       <div style="padding:20px 16px;">
         <div style="font-size:2em;margin-bottom:8px;">⛏️🎫</div>
-        <p style="color:var(--gold-bright);font-weight:700;font-size:1.05em;margin-bottom:6px;">Mine XMR to earn free entries. Every 100 shares = 1 entry for the daily drawing.</p>
+        <p style="color:var(--gold-bright);font-weight:700;font-size:1.05em;margin-bottom:6px;">Mine XMR to earn free entries. Every 100 valid shares = 1 complete raffle entry — your partial progress is saved, and an entry is submitted only when all 100 units are collected.</p>
         <div style="font-size:0.8em;color:var(--text-dim);margin-top:10px;line-height:1.7;">
           • <b>Daily Drawing</b> — free entries from mining, winner takes 90% of the grand prize every 24h<br>
           • <b>House tax</b> — 10% of all payouts, held by the pool (seeds the prize when short)<br>
@@ -1576,6 +1584,7 @@
         <div class="stat-card"><div class="stat-value green" id="dashMinerShares">0</div><div class="stat-label">Shares</div></div>
         <div class="stat-card"><div class="stat-value gold" id="dashMinerTickets">0</div><div class="stat-label">Entries</div></div>
       </div>
+      <div id="dashRaffleProgress" style="margin-top:10px;font-size:0.85em;color:var(--gold-bright);font-weight:600;text-align:center;">Raffle ticket: 0 / 100 units collected.</div>
     </div>
 
     <!-- THE KRAKEN SCOUT DOWNLOAD (acceptance condition 2, Sep 26):
@@ -1669,7 +1678,7 @@
 <div class="confetti-container" id="confettiContainer"></div>
 
 </div><!-- /#app -->
-<script src="/static/app.js?v=28"></script>
+<script src="/static/app.js?v=29"></script>
 <script src="/static/bundle_card.js?v=1"></script>
 <script src="/static/push_report_admin.js?v=1"></script>
 <script src="/static/push_decisions_admin.js?v=2"></script>

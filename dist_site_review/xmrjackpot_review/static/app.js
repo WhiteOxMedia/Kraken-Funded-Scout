@@ -8,8 +8,25 @@
 
   // ─── Constants ──────────────────────────────────────────────
   const API = window.location.origin + '/api';
-  const FREE_TICKET_SHARES = 100;   // shares per free ticket
+  const FREE_TICKET_SHARES = 100;   // shares per free ticket (fallback —
+                                    // the authoritative value rides /api/stats)
   const HOUSE_TAX_PERCENT = 10;
+  let TICKETS_PER = FREE_TICKET_SHARES;  // set from /api/stats when it lands
+
+  // THE UNIT COUNTER LINE (Oct 12 controller): the canonical raffle
+  // format shown wherever mining status or jackpot eligibility shows.
+  // Units = valid shares toward the next complete ticket; complete
+  // entries already submitted ride along as a parenthetical.
+  function raffleLine(sharesValid, completeEntries) {
+    var per = (TICKETS_PER && TICKETS_PER > 0) ? TICKETS_PER : FREE_TICKET_SHARES;
+    var units = Math.max(0, Math.floor(sharesValid || 0)) % per;
+    var line = 'Raffle ticket: ' + units + ' / ' + per + ' units collected.';
+    if (completeEntries != null) {
+      line += ' (' + completeEntries + ' complete ' +
+              (completeEntries === 1 ? 'entry' : 'entries') + ')';
+    }
+    return line;
+  }
   const POLL_STATS_MS = 15000;      // real play stats polling
   const POLL_LEADERBOARD_MS = 30000;
 
@@ -454,6 +471,11 @@
 
         var heroMiners = $('#heroMiners');
         if (heroMiners) heroMiners.textContent = d.active_miners || 0;
+
+        // THE RAFFLE UNIT RULE (Oct 12): every valid share = 1 ticket
+        // unit; the authoritative unit size comes from the operator
+        // setting, so every surface draws its line from ONE source.
+        if (d.free_tickets_per_shares) TICKETS_PER = d.free_tickets_per_shares;
 
         var heroNextDraw = $('#heroNextDraw');
         if (heroNextDraw) heroNextDraw.textContent = d.drawing_interval_hours + 'h';
@@ -1074,8 +1096,14 @@
 
       setText('#minerHashrate', fmtHash(miner.hashrate));
       setText('#minerShares', (miner.shares_valid || 0).toLocaleString());
-      setText('#minerSharesProgress', (miner.shares_valid || 0) % FREE_TICKET_SHARES + ' / ' + FREE_TICKET_SHARES);
       setText('#minerTickets', tickets);
+      // THE UNIT COUNTER, ALWAYS SHOWN where mining status shows
+      // (Oct 12 controller): partial progress lives in shares_valid
+      // (the DB row), so a disconnect keeps the current ticket's units;
+      // the server mints ONLY complete tickets (floor division at
+      // ingest) and the remainder resets to 0 the moment the 100th
+      // unit lands — never a partial entry, never a lost ticket.
+      setText('#raffleProgress', raffleLine(miner.shares_valid, tickets));
 
       // Show miner section
       const section = $('#realMinerSection');
@@ -1509,6 +1537,8 @@
       $('#dashMinerHashrate').textContent = fmtHash(miner.hashrate);
       $('#dashMinerShares').textContent = (miner.shares_valid || 0).toLocaleString();
       $('#dashMinerTickets').textContent = d.tickets || 0;
+      // the unit counter rides the dashboard's mining stats too
+      setText('#dashRaffleProgress', raffleLine(miner.shares_valid, d.tickets));
 
       // Recent wins
       var wins = d.recent_wins || [];

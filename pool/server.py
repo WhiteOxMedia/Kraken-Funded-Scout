@@ -472,7 +472,15 @@ async def api_stats(request: Request):
     ip = request.client.host if request.client else "unknown"
     if not security.stats_limiter.check(ip):
         raise HTTPException(429, "Too many requests. Slow down.")
-    return engine.get_pool_stats()
+    stats = engine.get_pool_stats()
+    # THE RAFFLE UNIT RULE (Oct 12 controller): every valid share = 1
+    # ticket unit, 100 units = ONE complete ticket, submitted only when
+    # complete, partial progress preserved in the miner row. The rule's
+    # unit size rides public stats so every client draws its display
+    # from ONE source — the operator setting, not a per-file constant.
+    stats["free_tickets_per_shares"] = db.safe_pos_int(
+        db.get_setting("free_tickets_per_shares", "100"))
+    return stats
 
 
 @app.get("/api/social-proof")
