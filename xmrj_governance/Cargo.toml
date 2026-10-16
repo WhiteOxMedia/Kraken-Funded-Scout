@@ -1,0 +1,31 @@
+[package]
+name = "xmrj_governance"
+version = "0.1.0"
+edition = "2021"
+
+# cdylib = the deployed .so; rlib = this crate as a library (its own tests, and
+# any future program that wants to CPI into governance).
+[lib]
+crate-type = ["cdylib", "lib"]
+name = "xmrj_governance"
+
+[features]
+default = []
+cpi = ["no-entrypoint"]
+no-entrypoint = []
+no-idl = []
+no-log-ix-name = []
+idl-build = ["anchor-lang/idl-build"]
+
+[dependencies]
+anchor-lang = "0.30.0"
+
+# THE PROGRAMS THIS ONE DRIVES. Both need `features = ["cpi"]`: that is what
+# compiles their generated cross-program-call surface (`xmrj_treasury::cpi::*`,
+# `xmrj_jackpot::cpi::*`) and their `program::XmrjTreasury` / `XmrjJackpot`
+# markers — without the feature those paths do not exist and this crate cannot
+# build. The path deps also mean the workspace ships ONE version of each
+# program's account layout: the CPI is type-checked against the same source
+# that declares the account.
+xmrj_treasury = { path = "../xmrj_treasury", features = ["cpi"] }
+xmrj_jackpot = { path = "../xmrj_jackpot", features = ["cpi"] }

@@ -1,0 +1,28 @@
+[package]
+name = "xmrj_treasury"
+version = "0.1.0"
+edition = "2021"
+
+# A Solana program is BOTH halves: the cdylib is what ships as the deployed
+# .so, the rlib is what a sibling program links against when it calls this
+# program by CPI (xmrj_governance does exactly that). Without the cdylib
+# crate-type, `anchor build` has no artifact to deploy.
+[lib]
+crate-type = ["cdylib", "lib"]
+name = "xmrj_treasury"
+
+[features]
+default = []
+# The `cpi` feature is what generates this program's cross-program-call
+# surface: Anchor gates the generated `cpi` module behind it, so a caller that
+# does not enable it cannot see `xmrj_treasury::cpi::*`. It implies
+# no-entrypoint so the caller links the instruction code, never a second
+# program entrypoint.
+cpi = ["no-entrypoint"]
+no-entrypoint = []
+no-idl = []
+no-log-ix-name = []
+idl-build = ["anchor-lang/idl-build"]
+
+[dependencies]
+anchor-lang = "0.30.0"

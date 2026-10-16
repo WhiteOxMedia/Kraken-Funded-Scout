@@ -9,6 +9,12 @@ wheels/
 # Virtual environments
 .venv
 
+# Rust / Anchor build output. target/deploy/ holds the PROGRAM KEYPAIRS
+# (target/deploy/<program>-keypair.json) — the private half of every program
+# address in Anchor.toml. They are local identity material: never committed,
+# and losing them loses the ability to upgrade at that address.
+target/
+
 # field_crypto at-rest encryption keys (NEVER commit)
 .keys/
 *.retired.*

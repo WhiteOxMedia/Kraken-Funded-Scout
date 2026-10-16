@@ -1,0 +1,64 @@
+# ============================================================================
+# XMRJ SOLANA WORKSPACE — THE WIRING HARNESS (Anchor CLI 0.30.x)
+#
+# The workspace root Cargo.toml has four members; THREE of them are Solana
+# programs and are listed below. The fourth, xmrj_conversion_service, is the
+# OFF-CHAIN XMR conversion microservice (no #[program], no declare_id! — see
+# its README and XMRJ_SOLANA_DEPLOYMENT_PLAN.md section 6). It is
+# deliberately absent from every [programs.<cluster>] table: a non-program
+# listed there makes `anchor build` hunt for a .so that will never exist.
+#
+#   xmrj_treasury    record_inflow_xmrj / set_split_ratio / set_exchange_rate
+#   xmrj_jackpot     fund_jackpot / trigger_payout / get_jackpot_state
+#   xmrj_governance  initialize_governance / propose_action / approve_action /
+#                    execute_action
+#
+# THE IDs BELOW ARE REAL, NOT PLACEHOLDERS. Each is the public key of
+# target/deploy/<program>-keypair.json (generated once, locally, and
+# gitignored — never commit keypairs) and each is repeated verbatim in that
+# crate's declare_id!, so harness, crate and keypair cannot disagree. If a
+# keypair is ever regenerated, `anchor keys sync` rewrites both sides.
+#
+# NO PROGRAM IS DEPLOYED ON ANY CLUSTER YET: these IDs exist so the workspace
+# is buildable/deployable, not because an address is live. Deployment is the
+# gated sequence in XMRJ_SOLANA_DEPLOYMENT_PLAN.md (sections 4.2 / 5.2).
+# ============================================================================
+
+[provider]
+# Devnet first, by the deployment plan's own recommended model (section
+# "Recommended deployment model": build/test on devnet before anything else).
+cluster = "devnet"
+# One dedicated deployer keypair. Create it with the plan's section 1.2
+# (solana-keygen new --outfile ~/.config/solana/id.json) — `~` IS expanded by
+# the Anchor CLI (shellexpand::tilde), on Windows PowerShell and WSL alike.
+# It is NOT in the repo: a keypair is never committed.
+wallet = "~/.config/solana/id.json"
+
+[programs.localnet]
+xmrj_treasury = "GGPyRTZB73reGyjANw9rdEFX8g26MmkKyAEpDqNQ2468"
+xmrj_jackpot = "6oHq39qTPVtXEiKPLt1mmxfRwRy3hucd3Qx5SJXdYfox"
+xmrj_governance = "AVbKyQ8KZa8hTHQwwSJTRGQsVQxVHzTmzmohVCH5CLe"
+
+[programs.devnet]
+xmrj_treasury = "GGPyRTZB73reGyjANw9rdEFX8g26MmkKyAEpDqNQ2468"
+xmrj_jackpot = "6oHq39qTPVtXEiKPLt1mmxfRwRy3hucd3Qx5SJXdYfox"
+xmrj_governance = "AVbKyQ8KZa8hTHQwwSJTRGQsVQxVHzTmzmohVCH5CLe"
+
+# [programs.mainnet] is INTENTIONALLY not pre-populated. A mainnet address is
+# a decision, not a default: add the table (with freshly generated mainnet
+# keypairs and their own IDs) as an explicit step in the gated mainnet
+# sequence, section 8 of XMRJ_SOLANA_DEPLOYMENT_PLAN.md. Until then a
+# mainnet deploy has no program entry to run against — the omission is the
+# safety rail.
+
+[registry]
+url = "https://api.apr.dev"
+
+[scripts]
+# `anchor run <name>`, or call the commands directly. The cluster is named
+# explicitly on the deploys so a stray [provider] cluster can never silently
+# redirect a deploy to the wrong network.
+build = "anchor build"
+keys = "anchor keys list"
+deploy-devnet = "anchor deploy --provider.cluster devnet"
+deploy-localnet = "anchor deploy --provider.cluster localnet"

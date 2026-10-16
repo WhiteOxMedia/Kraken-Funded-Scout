@@ -1,0 +1,23 @@
+[package]
+name = "xmrj_jackpot"
+version = "0.1.0"
+edition = "2021"
+
+# cdylib = the deployed .so; rlib = what xmrj_governance links against to call
+# set_payout_rules by CPI.
+[lib]
+crate-type = ["cdylib", "lib"]
+name = "xmrj_jackpot"
+
+[features]
+default = []
+# Anchor gates the generated `cpi` module behind this feature — it is what
+# lets xmrj_governance call `xmrj_jackpot::cpi::set_payout_rules`.
+cpi = ["no-entrypoint"]
+no-entrypoint = []
+no-idl = []
+no-log-ix-name = []
+idl-build = ["anchor-lang/idl-build"]
+
+[dependencies]
+anchor-lang = "0.30.0"
