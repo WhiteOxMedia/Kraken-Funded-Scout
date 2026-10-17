@@ -1,0 +1,22 @@
+# LINE ENDINGS ARE PART OF THE ARTIFACT CONTRACT (Oct 17).
+#
+# core.autocrlf=true is set on this machine and there was no attributes
+# file, so git smudged pool/templates/index.html to CRLF on checkout while
+# the committed review bundle stayed LF. The two committed blobs are
+# byte-identical (112678 bytes, 1693 LF, 0 CRLF) — but the drive compares
+# WORKING-TREE bytes, so test_bundle_parity check 2 went red on a tree whose
+# commit was already at parity, and the deterministic zip could never match
+# a rebuild from the smudged copy. These pins make the checked-out bytes
+# equal the committed bytes, so parity is a property of the repository and
+# not of how the tree happened to be checked out.
+pool/templates/*.html text eol=lf
+pool/static/*.js      text eol=lf
+pool/static/*.css     text eol=lf
+
+# The review bundle is a byte-for-byte artifact (templates, statics, README,
+# the deterministic zip and its sha256 sidecar): never convert a byte of it.
+dist_site_review/** -text
+
+# ...except the sidecar, which is a POSIX checksum file: `sha256sum -c`
+# rejects a line ending in CR, so this one stays LF everywhere.
+dist_site_review/**/*.sha256 text eol=lf
