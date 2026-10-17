@@ -13,6 +13,10 @@ pool/templates/*.html text eol=lf
 pool/static/*.js      text eol=lf
 pool/static/*.css     text eol=lf
 
+# The static image assets are binary, and the review bundle's parity check
+# compares them byte for byte: never convert one.
+pool/static/img/*.png -text
+
 # The review bundle is a byte-for-byte artifact (templates, statics, README,
 # the deterministic zip and its sha256 sidecar): never convert a byte of it.
 dist_site_review/** -text
