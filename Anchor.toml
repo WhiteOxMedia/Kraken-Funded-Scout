@@ -1,5 +1,5 @@
 # ============================================================================
-# XMRJ SOLANA WORKSPACE — THE WIRING HARNESS (Anchor CLI 0.30.x)
+# XMRJ SOLANA WORKSPACE — THE WIRING HARNESS (Anchor CLI 1.1.2)
 #
 # The workspace root Cargo.toml has four members; THREE of them are Solana
 # programs and are listed below. The fourth, xmrj_conversion_service, is the
@@ -22,7 +22,40 @@
 # NO PROGRAM IS DEPLOYED ON ANY CLUSTER YET: these IDs exist so the workspace
 # is buildable/deployable, not because an address is live. Deployment is the
 # gated sequence in XMRJ_SOLANA_DEPLOYMENT_PLAN.md (sections 4.2 / 5.2).
+#
+# Since Anchor 1.0.0 the CLI checks this agreement itself: `anchor build`
+# compares the id declared in each program's source against the public key in
+# its keypair file and ERRORS on a mismatch (`--ignore-keys` skips the check).
+# The same three-way agreement is what this drive's sections 2-4 and 13 pin.
 # ============================================================================
+
+# ── THE TOOLCHAIN PINS ──────────────────────────────────────────────────────
+# This is the ONE place the workspace's CLI versions are declared. A verified
+# fresh-clone install path for both platforms is XMRJ_SOLANA_DEPLOYMENT_PLAN.md
+# section 1.1; the wiring drive (test_anchor_wiring.py, section 13) parses these
+# two values and fails if they disagree with rust-toolchain.toml or with the
+# `anchor-lang` pin in any crate's Cargo.toml.
+#
+# anchor_version: the anchor-cli release this workspace is written for. It must
+#   equal the `anchor-lang` version every crate pins — a CLI/crate mismatch is
+#   what Anchor itself warns about (and the drive treats as a failure, not a
+#   warning). Select it with `avm install 1.1.2 && avm use 1.1.2`.
+#
+# solana_version: EXACT, with the `=` comparator on purpose. AVM parses this
+#   value as a SEMVER REQUIREMENT, so a bare "3.1.10" would accept any newer
+#   3.x the day one is published ("the newest hosted CLI that satisfies the
+#   requirement") — the opposite of a pin. `=3.1.10` requires that one hosted
+#   release. With the anchor CLI invoked through the avm stub, AVM activates
+#   this Solana CLI before spawning anchor.
+#
+# The SBF compiler follows from solana_version: `anchor build` delegates to
+# that release's cargo-build-sbf, whose platform-tools version is pinned by
+# the release's own map (`avm platform-tools resolve` prints what it resolved).
+# A separate platform-tools pin needs CLI 1.2.0+ (`anchor build
+# --tools-version`) — a lever for the next upgrade, not a value invented here.
+[toolchain]
+anchor_version = "1.1.2"
+solana_version = "=3.1.10"
 
 [provider]
 # Devnet first, by the deployment plan's own recommended model (section
@@ -51,8 +84,10 @@ xmrj_governance = "AVbKyQ8KZa8hTHQwwSJTRGQsVQxVHzTmzmohVCH5CLe"
 # mainnet deploy has no program entry to run against — the omission is the
 # safety rail.
 
-[registry]
-url = "https://api.apr.dev"
+# [registry] IS GONE, deliberately. Anchor 1.0.0 removed the registry section
+# from the format along with `anchor login`, and the CLI now warns on unused
+# fields — a leftover stamp from `anchor init` would be noise at best. Nothing
+# in this workspace used it.
 
 [scripts]
 # `anchor run <name>`, or call the commands directly. The cluster is named
@@ -62,3 +97,12 @@ build = "anchor build"
 keys = "anchor keys list"
 deploy-devnet = "anchor deploy --provider.cluster devnet"
 deploy-localnet = "anchor deploy --provider.cluster localnet"
+
+# THE DEVNET END-TO-END SMOKE TEST (tests/xmrj_devnet_e2e.ts). It DEPLOYS and
+# INITIALIZES, so the cluster is named on the command here too — and the suite
+# refuses any chain but devnet on its own, by GENESIS HASH (a URL can carry a
+# stale label; the hash cannot). There is deliberately NO bare `test` entry:
+# `anchor test` would run the suite against whatever [provider] happens to
+# point at, which is the one way this file could reach mainnet-beta.
+e2e-devnet = "anchor build && anchor deploy --provider.cluster devnet && npx ts-mocha -p ./tsconfig.json -t 1000000 \"tests/**/*.ts\""
+typecheck = "npx tsc --noEmit -p ./tsconfig.json"

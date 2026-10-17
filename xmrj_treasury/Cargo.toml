@@ -25,4 +25,23 @@ no-log-ix-name = []
 idl-build = ["anchor-lang/idl-build"]
 
 [dependencies]
-anchor-lang = "0.30.0"
+# EXACTLY pinned with `=`, not a caret range. This workspace has no Cargo.lock
+# yet (cargo has never run here), so a caret "1.1.2" would silently resolve to
+# the newest 1.x the day one is published. The `=` keeps this crate's Anchor
+# version equal to the CLI version Anchor.toml's [toolchain] pins — the
+# agreement test_anchor_wiring.py section 13 enforces. The host compiler that
+# builds it is pinned in rust-toolchain.toml (1.89.0, anchor-lang's MSRV).
+anchor-lang = "=1.1.2"
+
+# THE PROGRAM THIS ONE FUNDS. `features = ["cpi"]` is what generates
+# xmrj_jackpot's cross-program-call surface at all: `xmrj_jackpot::cpi::*`
+# (the instruction call and its accounts struct) and the
+# `program::XmrjJackpot` marker this crate's FundJackpotWithXmr uses. Without
+# the feature those paths do not exist and this crate cannot build. The path
+# dep keeps ONE copy of the jackpot's account layout between caller and callee
+# — the CPI is type-checked against the same source that declares the account,
+# so a field added on one side stops the other side compiling. The dependency
+# runs one way only (the jackpot does not depend on the treasury), so there is
+# no cycle even though the two programs call and are called by each other at
+# RUNTIME.
+xmrj_jackpot = { path = "../xmrj_jackpot", features = ["cpi"] }

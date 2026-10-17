@@ -20,4 +20,7 @@ no-log-ix-name = []
 idl-build = ["anchor-lang/idl-build"]
 
 [dependencies]
-anchor-lang = "0.30.0"
+# EXACTLY pinned with `=` — see xmrj_treasury/Cargo.toml for the reasoning
+# (no Cargo.lock yet, so a caret range would float). Equal to the CLI version
+# in Anchor.toml's [toolchain], and to the host compiler in rust-toolchain.toml.
+anchor-lang = "=1.1.2"

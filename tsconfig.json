@@ -1,0 +1,16 @@
+{
+  "comment": "Anchor 1.1.2's own mocha template ships `types: [mocha, chai]`, lib es2015, commonjs, target es6, esModuleInterop. This is that shape with three deliberate differences: `node` is in types (tests/xmrj_devnet_e2e.ts reads the .so sizes and the ANCHOR_* env vars, both of which need the node types), lib/target are es2020, and strict + noEmit are on so `npm run typecheck` is a real gate rather than a build step.",
+  "compilerOptions": {
+    "types": ["mocha", "chai", "node"],
+    "typeRoots": ["./node_modules/@types"],
+    "lib": ["es2020"],
+    "module": "commonjs",
+    "target": "es2020",
+    "esModuleInterop": true,
+    "resolveJsonModule": true,
+    "skipLibCheck": true,
+    "strict": true,
+    "noEmit": true
+  },
+  "include": ["tests/**/*.ts"]
+}

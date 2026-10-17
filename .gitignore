@@ -9,6 +9,13 @@ wheels/
 # Virtual environments
 .venv
 
+# Node dependencies for the devnet E2E suite (tests/xmrj_devnet_e2e.ts).
+# package.json + package-lock.json ARE committed: the lockfile is what makes a
+# fresh clone install the same client the workspace pins (Anchor.toml
+# [toolchain] anchor_version / @anchor-lang/core), exactly as Cargo.lock will
+# do for the crates once a build has produced one.
+node_modules/
+
 # Rust / Anchor build output. target/deploy/ holds the PROGRAM KEYPAIRS
 # (target/deploy/<program>-keypair.json) — the private half of every program
 # address in Anchor.toml. They are local identity material: never committed,

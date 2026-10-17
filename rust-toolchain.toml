@@ -1,0 +1,31 @@
+# ============================================================================
+# THE HOST RUST TOOLCHAIN — pinned, so a fresh clone compiles on the same
+# compiler the rest of the pins were chosen for. anchor-lang 1.1.2 declares
+# `rust-version = "1.89"`, so 1.89.0 is the floor AND the pin.
+#
+# rustup reads this file for every rustup-proxied command (cargo, rustc,
+# rustfmt, clippy) run anywhere beneath this directory. The channel below is
+# therefore not a suggestion: a machine whose default toolchain is something
+# else with `rustup default stable` still gets 1.89.0 inside this workspace,
+# and fails loudly with install instructions if 1.89.0 is not present.
+#
+#   rustup toolchain install 1.89.0 --profile minimal \
+#       --component rustfmt,clippy
+#
+# WHAT THIS FILE DOES NOT PIN: the compiler that builds the on-chain
+# programs. `anchor build` delegates to Solana's cargo-build-sbf, which uses
+# the forked rustc bundled in the Solana release's platform-tools — NOT the
+# toolchain selected here. That compiler is pinned transitively by the Solana
+# CLI version in Anchor.toml's [toolchain] section (solana_version), and its
+# identity can be read back with `avm platform-tools resolve`. See
+# XMRJ_SOLANA_DEPLOYMENT_PLAN.md section 1.1.
+#
+# The wiring drive (test_anchor_wiring.py, section 13) parses this file, so a
+# floating channel ("stable", "beta", "nightly") is a failed drive rather
+# than a version that silently drifts between two clones.
+# ============================================================================
+
+[toolchain]
+channel = "1.89.0"
+profile = "minimal"
+components = ["rustfmt", "clippy"]

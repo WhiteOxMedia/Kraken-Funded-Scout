@@ -5,4 +5,9 @@ edition = "2021"
 
 [dependencies]
 serde = { version = "1.0", features = ["derive"] }
-anchor-lang = "0.30.0"
+# This service is OFF-CHAIN (not a program, not in Anchor.toml's program
+# tables) but it reads the same account layouts, so it rides the SAME pinned
+# Anchor version as the three programs — exactly, for the same reason they do
+# (no Cargo.lock yet; a caret range would float). Anchor.toml's [toolchain]
+# and rust-toolchain.toml hold the CLI and compiler halves of that pin.
+anchor-lang = "=1.1.2"
