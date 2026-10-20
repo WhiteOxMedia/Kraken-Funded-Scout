@@ -63,10 +63,14 @@ def create_subaddress(label=""):
     return result.get("address"), result.get("address_index", 0)
 
 
-def get_transfers(min_height=None, in_only=True):
+def get_transfers(min_height=None, in_only=True, subaddr_indices=None):
     """
     Scan for incoming transfers since min_height.
     Returns list of {txid, amount, height, confirmations, subaddr_index, timestamp}
+
+    Pass subaddr_indices to let the wallet filter server-side; checkout
+    polling uses it so each poll only walks the one order's subaddress
+    instead of the whole wallet history.
     """
     params = {
         "in": in_only,
@@ -77,6 +81,8 @@ def get_transfers(min_height=None, in_only=True):
     }
     if min_height is not None:
         params["min_height"] = min_height
+    if subaddr_indices:
+        params["subaddr_indices"] = [int(i) for i in subaddr_indices]
 
     result = _rpc("get_transfers", params)
     if "error" in result:

@@ -38,6 +38,10 @@ DOM + fetch and pins:
      through the captured 60s poll) CLEARS the previous user's rows,
      and a network rejection renders the failure line
 
+The harness scripts /api/jackpot/status too: a cycle answered with an
+empty body makes the panel re-fetch itself in an unbounded loop and
+starve the flushes, so a live cycle is stubbed in every scenario.
+
 No network, no browser: Node is required, everything else is stubbed.
 Prints "RESULT: N passed, M failed".
 """
@@ -184,14 +188,36 @@ const ENV_B = { user_id: 'alice', preferences: { jackpot: false, scout: true },
 const ENV_C = { user_id: 'alice', preferences: { jackpot: true, scout: false },
                 updated_at: '2026-09-26T12:00:00Z' };
 
+// THE CYCLE STUB: boot also polls /api/jackpot/status. Answered with a
+// bare {} the panel schedules its deadline for NOW, tickCycle sees 0s
+// left, and re-fetches at once — an unbounded microtask loop that
+// starves this harness (the setTimeout flushes never run) and hangs
+// the scenario. Every scenario therefore scripts a cycle with time
+// left on the clock.
+const CYCLE = { next_drawing_epoch: Math.floor(Date.now() / 1000) + 3600,
+                next_drawing_seconds_remaining: 3600,
+                total_pending_entries: 0, your_pending_tickets: 0,
+                your_total_tickets: 0, scout: null,
+                jackpot_xmr: 0, jackpot_usd: 0 };
+
+// THE BOOT BLOCK: every scenario scripts the same five endpoints and
+// loads the client; the prefs envelope and the auth/status pair are
+// the only knobs.
+async function boot(prefs, extra) {
+  answers = Object.assign({
+    '/api/push/preferences': { status: 200, json: prefs },
+    '/api/auth/me': { status: 200, json: { authenticated: false } },
+    '/api/profile/stats': { status: 401, json: {} },
+    '/api/push/signals': { status: 200, json: { signals: [] } },
+    '/api/jackpot/status': { status: 200, json: CYCLE },
+  }, extra || {});
+  loadNow();
+  await flushAll();
+}
+
 async function scenario(name) {
   if (name === 'announce_instant') {
-    answers = { '/api/push/preferences': { status: 200, json: ENV_A },
-                '/api/auth/me': { status: 200, json: { authenticated: false } },
-                '/api/profile/stats': { status: 401, json: {} },
-                '/api/push/signals': { status: 200, json: { signals: [] } } };
-    loadNow();
-    await flushAll();
+    await boot(ENV_A);
     const afterBoot = gets.filter((p) => p === '/api/push/preferences').length;
     assert.ok(stampText().indexOf('SHARED[' + ENV_A.updated_at + ']') >= 0,
               'boot renders the stamp through the shared exporter: ' + stampText());
@@ -207,12 +233,7 @@ async function scenario(name) {
   }
 
   if (name === 'auth_refetch') {
-    answers = { '/api/push/preferences': { status: 200, json: ENV_A },
-                '/api/auth/me': { status: 200, json: { authenticated: false } },
-                '/api/profile/stats': { status: 401, json: {} },
-                '/api/push/signals': { status: 200, json: { signals: [] } } };
-    loadNow();
-    await flushAll();
+    await boot(ENV_A);
     const before = gets.filter((p) => p === '/api/push/preferences').length;
     answers['/api/push/preferences'] = { status: 200, json: ENV_C };
     dispatchNoDetail('xmrjackpot:auth');          // login/register
@@ -225,12 +246,7 @@ async function scenario(name) {
   }
 
   if (name === 'logout_clears') {
-    answers = { '/api/push/preferences': { status: 200, json: ENV_A },
-                '/api/auth/me': { status: 200, json: { authenticated: false } },
-                '/api/profile/stats': { status: 401, json: {} },
-                '/api/push/signals': { status: 200, json: { signals: [] } } };
-    loadNow();
-    await flushAll();
+    await boot(ENV_A);
     assert.ok(stampText().indexOf('SHARED[') >= 0, 'stamp present before logout');
     // after logout the session is gone: the fresh fetch fails the 401
     // gate and the chain answers null
@@ -249,12 +265,7 @@ async function scenario(name) {
   }
 
   if (name === 'fresh_account_honest') {
-    answers = { '/api/push/preferences': { status: 200, json: ENV_A },
-                '/api/auth/me': { status: 200, json: { authenticated: false } },
-                '/api/profile/stats': { status: 401, json: {} },
-                '/api/push/signals': { status: 200, json: { signals: [] } } };
-    loadNow();
-    await flushAll();
+    await boot(ENV_A);
     // switching to a FRESH account: a real envelope, updated_at null
     answers['/api/push/preferences'] = { status: 200, json: {
       user_id: 'bob', preferences: { jackpot: true, scout: true }, updated_at: null } };
@@ -271,12 +282,7 @@ async function scenario(name) {
     // shape-neutral (flat bodies occur end to end). A flat envelope
     // carries updated_at top-level exactly like the nested shape, so
     // the Scout stamp must re-render from it with no fetch.
-    answers = { '/api/push/preferences': { status: 200, json: ENV_A },
-                '/api/auth/me': { status: 200, json: { authenticated: false } },
-                '/api/profile/stats': { status: 401, json: {} },
-                '/api/push/signals': { status: 200, json: { signals: [] } } };
-    loadNow();
-    await flushAll();
+    await boot(ENV_A);
     const afterBoot = gets.filter((p) => p === '/api/push/preferences').length;
     dispatch('xmrjackpot:prefs', { jackpot: false, scout: true,
                                    updated_at: '2026-09-26T13:00:00Z' });
@@ -293,12 +299,7 @@ async function scenario(name) {
     // the 412 auto-adoption announces the SERVER's current envelope:
     // the nested shape PLUS an extra error field. The stamp renders
     // its two fields and ignores the rest.
-    answers = { '/api/push/preferences': { status: 200, json: ENV_A },
-                '/api/auth/me': { status: 200, json: { authenticated: false } },
-                '/api/profile/stats': { status: 401, json: {} },
-                '/api/push/signals': { status: 200, json: { signals: [] } } };
-    loadNow();
-    await flushAll();
+    await boot(ENV_A);
     dispatch('xmrjackpot:prefs', {
       user_id: 'alice',
       preferences: { jackpot: true, scout: true },
@@ -315,14 +316,9 @@ async function scenario(name) {
   }
 
   if (name === 'signals_rows_render') {
-    answers = { '/api/push/preferences': { status: 200, json: ENV_A },
-                '/api/auth/me': { status: 200, json: { authenticated: false } },
-                '/api/profile/stats': { status: 401, json: {} },
-                '/api/push/signals': { status: 200, json: { signals: [
-                  { title: 'Scout fired', ts: 1790000000 },
-                  { title: 'Second signal', ts: 1790000060 } ] } } };
-    loadNow();
-    await flushAll();
+    await boot(ENV_A, { '/api/push/signals': { status: 200, json: { signals: [
+      { title: 'Scout fired', ts: 1790000000 },
+      { title: 'Second signal', ts: 1790000060 } ] } } });
     const html = els.wfSignalFeed.innerHTML;
     assert.ok(html.indexOf('wf-feed-row') >= 0 && html.indexOf('<time ') >= 0,
               'rows render as wf-feed-row markup with <time> elements');
@@ -338,15 +334,10 @@ async function scenario(name) {
   }
 
   if (name === 'signals_xss_escaping') {
-    answers = { '/api/push/preferences': { status: 200, json: ENV_A },
-                '/api/auth/me': { status: 200, json: { authenticated: false } },
-                '/api/profile/stats': { status: 401, json: {} },
-                '/api/push/signals': { status: 200, json: { signals: [
-                  { title: '<img src=x onerror=alert(1)>', ts: 1790000000 },
-                  { title: '\"<script>alert(1)</script>', ts: 1790000060 },
-                  { title: "it's a & < test", ts: 'not-a-number' } ] } } };
-    loadNow();
-    await flushAll();
+    await boot(ENV_A, { '/api/push/signals': { status: 200, json: { signals: [
+      { title: '<img src=x onerror=alert(1)>', ts: 1790000000 },
+      { title: '\"<script>alert(1)</script>', ts: 1790000060 },
+      { title: "it's a & < test", ts: 'not-a-number' } ] } } });
     const html = els.wfSignalFeed.innerHTML;
     assert.strictEqual(html.indexOf('<img'), -1, 'no raw <img reaches the feed');
     assert.strictEqual(html.indexOf('<script'), -1, 'no raw <script reaches the feed');
@@ -366,22 +357,23 @@ async function scenario(name) {
   }
 
   if (name === 'signals_empty_and_failure') {
-    answers = { '/api/push/preferences': { status: 200, json: ENV_A },
-                '/api/auth/me': { status: 200, json: { authenticated: false } },
-                '/api/profile/stats': { status: 401, json: {} },
-                '/api/push/signals': { status: 200, json: { signals: [
-                  { title: 'old user signal', ts: 1790000000 } ] } } };
-    loadNow();
-    await flushAll();
+    await boot(ENV_A, { '/api/push/signals': { status: 200, json: { signals: [
+      { title: 'old user signal', ts: 1790000000 } ] } } });
     assert.ok(els.wfSignalFeed.innerHTML.indexOf('old user signal') >= 0,
               'rows present before the transitions');
     // THE POLL: the harness captured boot's setIntervals — boot order
     // is signals, status, prefs-stamp, so timers[0] fires refreshSignals
-    assert.ok(timers.length >= 3, 'the three 60s polls are captured');
     const nGets = () => gets.filter((p) => p === '/api/push/signals').length;
-    const fire = () => { const b = nGets(); timers[0][0]();
-                         assert.ok(nGets() === b + 1, 'timers[0] IS the ' +
-                         'signals poll (boot-order drift would fail here)'); };
+    // BOOT ORDER IS NOT A CONTRACT (the cycle panel put two polls ahead
+    // of this one): identify the signals poll BY EFFECT — fire each 60s
+    // timer and keep the one that hits /api/push/signals.
+    const poll = timers.filter((t) => t[1] === 60000).find((t) => {
+      const b = nGets(); t[0](); return nGets() > b;
+    });
+    assert.ok(poll, 'a captured 60s timer IS the signals poll');
+    const fire = () => { const b = nGets(); poll[0]();
+                         assert.ok(nGets() === b + 1,
+                                   'the signals poll fires one fetch per tick'); };
     // 1. empty list -> the honest empty-state line
     answers['/api/push/signals'] = { status: 200, json: { signals: [] } };
     fire();
@@ -409,14 +401,12 @@ async function scenario(name) {
     // THE STATUS ROWS ON AUTH (the 60s-lag fix): the wallet/miner
     // dots must switch subjects the moment xmrjackpot:auth fires —
     // same instant contract the prefs stamp already has.
-    answers = { '/api/push/preferences': { status: 200, json: ENV_A },
-                '/api/auth/me': { status: 200, json: {
-                  authenticated: true, wallet_address: '4' + 'a' * 94 } },
-                '/api/profile/stats': { status: 200, json: {
-                  miner: { hashrate: 123, shares_valid: 5 } } },
-                '/api/push/signals': { status: 200, json: { signals: [] } } };
-    loadNow();
-    await flushAll();
+    await boot(ENV_A, {
+      '/api/auth/me': { status: 200, json: {
+        authenticated: true, wallet_address: '4' + 'a' * 94 } },
+      '/api/profile/stats': { status: 200, json: {
+        miner: { hashrate: 123, shares_valid: 5 } } },
+    });
     assert.strictEqual(els.wfWalletStatus.textContent,
                        'Connected (read-only)',
                        "boot rendered alice's wallet row");
@@ -451,12 +441,7 @@ async function scenario(name) {
     // a detail-less announcement (defensive: push_client wraps the
     // dispatch in try/catch, but a malformed event must never clobber
     // the card) is a NO-OP — the guard drops it, the stamp survives.
-    answers = { '/api/push/preferences': { status: 200, json: ENV_A },
-                '/api/auth/me': { status: 200, json: { authenticated: false } },
-                '/api/profile/stats': { status: 401, json: {} },
-                '/api/push/signals': { status: 200, json: { signals: [] } } };
-    loadNow();
-    await flushAll();
+    await boot(ENV_A);
     assert.ok(stampText().indexOf('SHARED[' + ENV_A.updated_at + ']') >= 0,
               'stamp present before the malformed announcement');
     dispatchNoDetail('xmrjackpot:prefs');

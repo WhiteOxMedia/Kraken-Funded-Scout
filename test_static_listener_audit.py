@@ -89,6 +89,38 @@ ADMIN_CARDS = {
     "kraken_referral_admin.js",
 }
 
+# pure modules: no fetch of any kind, no session state, purely a DOM/ID
+# helper the other surfaces import. There is nothing to stale.
+MODULE_ONLY = {
+    "scout_ids.js": "the shared ID map + accessor the scout paywall "
+                    "modules import; resolves element ids, owns no data",
+    "brand_marker_fill.js": "paints the decorative brand marker; reads "
+                            "no endpoint and keeps no per-user state",
+}
+
+# identity-DELEGATED surfaces: they consume the signed-in payout wallet
+# but never own a session of their own - the wallet lives in
+# window.identityWallet, which the wire patch re-resolves on every
+# xmrjackpot:auth (pinned as check 3.5, so this claim is not folklore).
+IDENTITY_DELEGATED = {
+    "scout_checkout.js": "builds the checkout link from "
+                         "window.identityWallet (re-resolved on auth by "
+                         "the wire patch); its /scout/purchase POST "
+                         "carries the wallet, not a session, and the "
+                         "page ships the server's answer",
+}
+
+# NON-SHIPPED harnesses: node/jsdom drivers that assert the SHIPPED
+# modules' wiring. They never load in a browser, never hold a session,
+# and ship in no bundle - listed rather than glob-excluded so a new
+# browser surface still lands here only by editing this drive.
+NON_SHIPPED = {
+    "scout_ids.test.js",
+    "scout_paywall_freeze_and_unfreeze.test.js",
+    "scout_paywall_wire_patch.test.js",
+    "test_scout_paywall_wiring.js",
+}
+
 # ── extract the facts from every file ────────────────────────────────
 files = sorted(STATIC.glob("*.js"))
 fetch_re = re.compile(
@@ -151,12 +183,20 @@ check(3.3, "removes" in facts.get("kraken_referral_admin.js", {}).get("src", "")
       "the kraken card's failure path is documented in its own source "
       "(non-admins: the card removes itself)")
 check(3.4, not (set(facts) - set(IDENTITY_INDEPENDENT) - set(DISPATCHERS)
-                - ADMIN_CARDS - {"wf_dashboard.js", "push_sw.js"}
+                - ADMIN_CARDS - set(MODULE_ONLY) - set(IDENTITY_DELEGATED)
+                - NON_SHIPPED - {"wf_dashboard.js", "push_sw.js"}
                 - {n for n, f in facts.items() if f["listens_auth"]
                    or f["listens_prefs"]}),
       "every static file is either classified above, a listener, or "
       "the service worker (no events, no session) — a NEW file "
       "fetching per-user data fails check 2.1 until it listens")
+check(3.5, facts.get("scout_paywall_wire_patch.js", {}).get("listens_auth",
+                                                            False)
+      and "window.identityWallet = null" in
+      facts.get("scout_paywall_wire_patch.js", {}).get("src", ""),
+      "the wire patch is the OWNER of window.identityWallet and drops "
+      "it on xmrjackpot:auth — which is what makes every delegated "
+      "consumer above safe across a same-page login/logout")
 
 print("== 4. THE CONTRIBUTION THANKS IS RENDERED VERBATIM ==")
 # the member dashboard greets a member whose Kraken Referral bonus was

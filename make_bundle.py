@@ -66,7 +66,7 @@ def template_versions():
     html = (SRC_TPL / "index.html").read_text(encoding="utf-8")
     return {name: ver
             for name, ver in re.findall(
-                r'src="/static/([a-z_]+\.js)\?v=(\d+)"', html)}
+                r'src="/static/([A-Za-z0-9_\-]+\.js)\?v=(\d+)"', html)}
 
 
 def date_readme():
@@ -83,12 +83,17 @@ def date_readme():
             lines[i] = (f"**Date:** {stamp} (regenerated from the live "
                         "template + current statics)")
             continue
-        m = re.search(r"`static/([a-z_]+\.js)`", line)
+        m = re.search(r"`static/([A-Za-z0-9_\-]+\.js)`", line)
         if m and m.group(1) in versions:
             new = re.sub(r"\(v\d+\)", f"(v{versions[m.group(1)]})", line)
             if new != line:
                 lines[i] = new
                 touched += 1
+            continue
+        if m and m.group(1) not in versions:
+            # sync cannot verify a version for this file — leave the row
+            # untouched; a downstream parity check still asserts presence.
+            continue
     readme.write_text("\n".join(lines) + "\n", encoding="utf-8")
     return stamp, touched
 
@@ -111,6 +116,26 @@ def build_zip():
     return digest
 
 
+REQUIRED_STATIC_JS = [
+    "scout_ids.js",
+    "scout_paywall.js",
+    "scout_paywall_wire_patch.js",
+    "scout_checkout.js",
+    "app.js",
+]
+
+
+def _assert_scout_static_bundle():
+    """HARD GATE: every required scout module must be in the built static
+    surface — a missing file is a FAIL, not a warning."""
+    missing = [n for n in REQUIRED_STATIC_JS
+               if not (BUNDLE / "static" / n).is_file()]
+    if missing:
+        print(f"BUNDLE HARD FAIL: required static JS missing: {missing}")
+        return 1
+    return 0
+
+
 def run_gate():
     """THE VERIFY GATE: the parity drive is the builder's own proof."""
     return subprocess.run(
@@ -125,12 +150,10 @@ def main():
           f"({touched} version mention(s) synced)")
     print(f"zip: {ZIP_PATH.stat().st_size} bytes, "
           f"sha256 {digest[:16]}… (sidecar written)")
-    print("gate: test_bundle_parity.py …")
-    code = run_gate()
-    if code == 0:
-        print("GATE: PASS — the bundle is at parity and may ship")
-    else:
-        print(f"GATE: FAIL (exit {code}) — do not ship this bundle")
+    print("gate: required statics + test_bundle_parity.py …")
+    code = _assert_scout_static_bundle() or run_gate()
+    print("GATE: PASS — the bundle is at parity and may ship" if code == 0
+          else f"GATE: FAIL (exit {code}) — do not ship this bundle")
     return code
 
 

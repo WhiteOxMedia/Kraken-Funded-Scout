@@ -22,4 +22,25 @@ if [ "$rc" -ne 0 ]; then
   echo "  Fix the drive, or bypass once with: git commit --no-verify"
   exit 1
 fi
+
+# ── cross-repo sibling shadow gate ────────────────────────────────
+# Refuse to commit here while the sibling repo (Kraken-Challenge-Scout-Bot-
+# Referral-Jackpot) still has a ntfytopic carrier STAGED in its index but not
+# committed. The sibling gitignores tests/_shadow/, but gitignore does not
+# protect a path already in the index — the next commit there writes the
+# secret into history. This gate reads only the sibling's staged PATHS (never
+# the live topic value) and blocks on denylist basenames (push_topic.txt,
+# _ntfydiag.txt) and the /.workshop/ dir marker.
+GAME="$ROOT/githooks/check_sibling_shadow_gate.py"
+if [ -x "$GAME" ]; then
+  "$PY" -X utf8 "$GAME" --monero-root "$ROOT"
+  rc2=$?
+  if [ "$rc2" -ne 0 ]; then
+    echo ""
+    echo "x SIBLING SHADOW GATE FAILED — a topic-carrying file is staged in the"
+    echo "  sibling repo's index (not yet committed). See the gate's message for"
+    echo "  how to unstage it. (bypass once with: git commit --no-verify)"
+    exit 1
+  fi
+fi
 exit 0

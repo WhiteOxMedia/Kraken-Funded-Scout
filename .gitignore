@@ -33,3 +33,47 @@ fleet_history.jsonl
 # is live coverage state — never committed (a committed ledger would
 # lie about coverage after a clone)
 scratch/
+
+# ── live state: preserved on disk, NEVER committed ────────────────────
+# The pool's SQLite database is the running site's real state (accounts,
+# tickets, drawings). A committed copy would be a stale snapshot that a
+# clone could mistake for its own ledger, so it is local-only — but it is
+# also never deleted by cleanup: the -wal/-shm sidecars belong to it.
+pool/jackpot.db
+pool/jackpot.db-wal
+pool/jackpot.db-shm
+pool/push_events.jsonl
+.signal_runtime_state.json
+.signal_runtime_state.json.tmp
+.signal_runtime_watcher.instance.txt
+
+# ── the review bundle: only the artifact and its checksum ship ────────
+# dist_site_review/xmrjackpot_review/ is make_bundle.py's EXPANDED copy of
+# pool/templates + pool/static (rebuilt wholesale every run), so committing
+# it duplicates the sources and invites drift. The zip is the artifact and
+# the .sha256 is how a reviewer verifies it; both are committed.
+dist_site_review/*
+!dist_site_review/xmrjackpot_review.zip
+!dist_site_review/xmrjackpot_review.zip.sha256
+
+# ── installed toolchains, not vendored sources ────────────────────────
+# monero/ (node + build tree), p2pool/ and xmrig/ are downloaded/installed
+# locally (gigabytes); the repo ships the scripts that use them, not the
+# binaries. setup_kraken.py / install.ps1 fetch what is missing.
+monero/
+p2pool/
+xmrig/
+
+# ── runtime logs and local-only workspaces ────────────────────────────
+logs/
+pool_server.log
+pool_server.err.log
+logs_server_restart.txt
+.workshop/
+
+# dated working plans: historical notes, kept locally, not part of the
+# product a clone builds
+plans/
+
+# local audit workspace (scratch reports, one marker file)
+auditors/

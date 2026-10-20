@@ -102,6 +102,7 @@
      instant contract the prefs stamp has; without this they lagged
      up to 60s showing the PREVIOUS user's row state. */
   document.addEventListener("xmrjackpot:auth", refreshStatus);
+  document.addEventListener("xmrjackpot:auth", refreshJackpotCycle);
   document.addEventListener("xmrjackpot:auth", refreshPrefsStamp);
 
   /* the status row: miner / scout / wallet states from the endpoints
@@ -179,6 +180,107 @@
     }
   }
 
+
+  /* ── the Jackpot Cycle panel: /api/jackpot/status (auth) ──────────
+     One read per minute; the remaining-time row ticks locally from
+     the server's next_drawing_epoch so the countdown is smooth and
+     costs no extra requests. */
+  var cycleDeadline = 0;
+
+  function cycleInt(n) {
+    var v = Number(n);
+    return isFinite(v) ? v : null;
+  }
+
+  function pad2(v) { return (v < 10 ? "0" : "") + v; }
+
+  function fmtRemaining(sec) {
+    var t = Math.max(0, Math.floor(sec));
+    var h = Math.floor(t / 3600);
+    var m = Math.floor((t % 3600) / 60);
+    var s = t % 60;
+    return h > 0
+      ? h + "h " + pad2(m) + "m " + pad2(s) + "s"
+      : m + "m " + pad2(s) + "s";
+  }
+
+  function setCycle(id, text) {
+    var el = $(id);
+    if (el) { el.textContent = text; }
+  }
+
+  function tickCycle() {
+    if (!cycleDeadline) { return; }
+    var sec = Math.max(0, Math.round((cycleDeadline - Date.now()) / 1000));
+    setCycle("wfJackpotCycleRemaining", fmtRemaining(sec));
+    if (sec <= 0) {
+      cycleDeadline = 0;
+      refreshJackpotCycle();
+    }
+  }
+
+  function renderJackpotCycle(d) {
+    var epoch = cycleInt(d.next_drawing_epoch) || 0;
+    var remain = cycleInt(d.next_drawing_seconds_remaining);
+    cycleDeadline = epoch > 0
+      ? epoch * 1000
+      : Date.now() + (remain && remain > 0 ? remain * 1000 : 0);
+
+    setCycle(
+      "wfJackpotCycleNext",
+      epoch > 0 ? new Date(epoch * 1000).toLocaleString() : "Not scheduled"
+    );
+    tickCycle();
+    if (!cycleDeadline) { setCycle("wfJackpotCycleRemaining", "—"); }
+
+    var pending = cycleInt(d.total_pending_entries);
+    setCycle(
+      "wfJackpotCyclePending",
+      pending == null ? "—" : pending.toLocaleString()
+    );
+
+    var mine = cycleInt(d.your_pending_tickets);
+    setCycle("wfJackpotCycleYourTickets", mine == null ? "—" : mine.toLocaleString());
+
+    var total = cycleInt(d.your_total_tickets);
+    setCycle("wfJackpotCycleYourTotal", total == null ? "—" : total.toLocaleString());
+
+    var scout = d.scout || null;
+    setCycle(
+      "wfJackpotCycleScoutActive",
+      !scout ? "No Scout identity" : (scout.has_active_cycle ? "Active in this cycle" : "Not active")
+    );
+
+    var jackpot = cycleInt(d.jackpot_xmr);
+    var usd = cycleInt(d.jackpot_usd);
+    setCycle(
+      "wfJackpotCycleExplain",
+      jackpot == null
+        ? ""
+        : "Current jackpot: " + jackpot.toLocaleString() + " XMR" +
+          (usd && usd > 0 ? " (~$" + usd.toLocaleString() + ")" : "") + "."
+    );
+
+    setCycle("wfJackpotCycleBlocker", "");
+  }
+
+  function refreshJackpotCycle() {
+    fetch("/api/jackpot/status", { credentials: "same-origin" })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (d) {
+        if (!d) {
+          setCycle("wfJackpotCycleBlocker", "Sign in to load your cycle and ticket counts.");
+          setCycle("wfJackpotCycleRemaining", "—");
+          cycleDeadline = 0;
+          return;
+        }
+        renderJackpotCycle(d);
+      })
+      .catch(function () {
+        setCycle("wfJackpotCycleBlocker", "Could not load cycle status.");
+      });
+  }
+
   /* CTA wiring — ids added in this redesign; no existing hooks touched */
   function go(page, then) {
     var btn = document.querySelector('.nav-links button[data-page="' + page + '"]');
@@ -219,8 +321,11 @@
   function boot() {
     wire();
     refreshStatus();
+    refreshJackpotCycle();
     refreshSignals();
     refreshPrefsStamp();
+    setInterval(refreshJackpotCycle, 60000);
+    setInterval(tickCycle, 1000);
     setInterval(refreshSignals, 60000);
     setInterval(refreshStatus, 60000);
     setInterval(refreshPrefsStamp, 60000);

@@ -25,6 +25,15 @@ both fail-closed:
    drift from the built one (test_bundle_serve pins zip == manifest ==
    sidecar).
 
+SCOPE NOTE (static surface): This finalizer produces ONLY the public
+KrakenScoutBundle.zip. It is OUT OF SCOPE for the pool/static
+scout-bundle surface (app.js, scout_ids.js, scout_paywall.js,
+scout_paywall_wire_patch.js, scout_checkout.js, wf_dashboard.js,
+and the other template-referenced static JS files). Those files ship
+through make_bundle.py -> dist_site_review/xmrjackpot_review/static/,
+not through this artifact. Any edit that would add pool/static JS to
+this artifact is a regression and must be reverted.
+
 Usage: python installer/finalize_bundle.py BUNDLE_DIR DIST_DIR SCOUT_ROOT MONERO_ROOT
 """
 import hashlib
@@ -66,8 +75,9 @@ def main():
     if topic_file.exists():
         topic = topic_file.read_bytes().strip()
     if not topic:
-        print("  guard note: no live topic provisioned at "
-              + str(topic_file) + " — filename/dir denylist still enforced")
+        _fail("no live topic provisioned at " + str(topic_file)
+              + " — the topic guard cannot scan source-tree content without it"
+              + " (the served zip is PUBLIC; the build must fail, not proceed on denylist alone)")
 
     # ── 2. the scan (filename denylist everywhere, content in the
     #      source trees — the xmrig payload is a binary blob) ─────────

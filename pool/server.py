@@ -2526,7 +2526,13 @@ async def api_scout_health(request: Request):
         return {"up": False}
 
 
-@app.get("/scout", include_in_schema=False)
+# ─── Scout identity + jackpot-cycle surfaces (Oct 17) ──────────────────────
+# Mounted from pool/scout_endpoints.py so server.py stays focused.
+import pool.scout_endpoints as _scout_ep
+_scout_ep.register_scout_endpoints(app)
+
+
+
 async def scout_index_redirect():
     """Trailing slash matters for Streamlit's relative asset URLs."""
     return RedirectResponse(url="/scout/", status_code=307)

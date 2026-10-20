@@ -87,3 +87,24 @@ class NonceStore:
 
 # Global nonce store for drawing triggers
 draw_nonce_store = NonceStore(ttl_seconds=300)
+
+
+def require_auth(request):
+    """Require authentication, return user or raise 401.
+    
+    Imported by scout_endpoints.py. Delegates to server.py's
+    get_user_from_request when available; otherwise raises 401.
+    """
+    try:
+        from .server import get_user_from_request
+    except ImportError:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+
+    user = get_user_from_request(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    return user
+
+
+# Avoid circular import: HTTPException imported here
+from fastapi import HTTPException

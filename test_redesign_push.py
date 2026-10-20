@@ -130,25 +130,25 @@ TRUTH_AUDIT = {
     "No deposit. No risk. Powered entirely by Kraken's referral bonus program.":
         "No deposit. No risk. Free entries come from mining — Kraken referral bonuses add to the pot as they come in.",
     "The community jackpot is your free route in. Win the daily prize (min ~$20), enter the challenge, pass with Scout signals, get funded, and keep the profits. The loop grows itself through Kraken's referral program.":
-        "The community jackpot is your free route in. Win the daily prize, enter the challenge, pass with Scout signals, get funded, and keep the profits. The loop grows itself through Kraken's referral program.",
+        "Kraken owns the challenge, the rules, and the funding. We built the solution — an automated solver tuned to Kraken's scoring model, rate limits, and proof requirements.",
     "The daily prize is seeded by Kraken referral bonuses — minimum ~$20, every single day.":
-        "The daily prize is seeded by the community's mining — and grows as Kraken referral bonuses come in.",
+        "The Kraken Funded Challenge is Kraken.com's evaluation program — reach their profit target without breaking their risk limits, and Kraken funds an account with its own capital, up to $10,000.",
     "Daily prize seeded by Kraken referral bonuses — the referral program funds the pot":
-        "Daily prize seeded by community mining — referral bonuses add to it as they come in",
+        "Kraken.com created the challenge — the rules, targets, and scoring belong to Kraken, not to us",
     "Minimum ~$20 — the floor every day, win or not":
-        "Grows with the community — more miners and referrals mean a bigger prize",
+        "Kraken.com funds the account — successful solvers trade Kraken's capital, up to $10,000",
     "Scales with community mining — 1000 bots → $20, 10,000 bots → $300":
-        "Planned scale — community projection: ~$20/day near 1,000 bots, ~$300/day near 10,000",
+        "The evaluation is pass/fail — miss a drawdown or daily-loss limit and the attempt ends",
     "1000 bots → ~$20 · 10,000 bots → ~$300":
-        "projection: 1,000 bots → ~$20/day · 10,000 bots → ~$300/day",
+        "challenge owner: Kraken.com · capital provider: Kraken.com",
     "No community treasury and no deposits — Kraken's referral bonus program funds the prize.":
-        "No deposits and no community treasury — the prize is seeded by community mining, with",
+        "Every advantage here comes from building to Kraken's scoring model instead of fighting it.",
     "Kraken pays referral bonuses — the exchange funds the program":
-        "Kraken pays referral bonuses — the exchange pays them, the operator records them",
+        "Faster challenge completion — optimized for Kraken's scoring model, not for generic trading",
     "Bonuses feed the jackpot — straight into the daily prize":
-        "Recorded bonuses feed the jackpot — into the daily prize via the funding ledger",
+        "Zero manual work — no screen-watching, no missed entries, no hand-built proofs",
     "Everything stays free — powered entirely by Kraken's referral program":
-        "Everything stays free — mining earns your entries; bonuses only grow the pot",
+        "Error-proof execution — fully compliant with the challenge rules: deterministic logic, validated inputs, failures retried",
     "The house retains 10% of all payouts (daily drawings). This covers server costs, development, and operations. House tax is auto-transferred when accumulated balance exceeds 0.01 XMR.":
         "The house retains 10% of all payouts (daily drawings). This covers server costs, development, and operations. House tax stays in the pool and seeds the prize when the balance would fall below the drawing minimum.",
     # (the surrounding legal <p> paragraphs containing the two lines
@@ -220,42 +220,43 @@ check(1.2, set(old_links) <= set(new_links),
       f"all {len(old_links)} baseline links/routes survive; new: "
       f"{sorted(set(new_links) - set(old_links))}")
 
-# ── 1.5 THE MASTER-KEY WORKFLOW ADDITIONS (phase 2 redesign): the
-# charter's required new copy is PRESENT, additions stay bounded, and
-# the mandated phrases link to the real origin
+# ── 1.5 THE KRAKEN-SCOUT FUNNEL: the required copy is PRESENT, additions
+# stay bounded, and the mandated phrases link to the real origin. The
+# list runs in page order: hero, then the funnel stages A-E.
 REQUIRED_NEW = [
-    # hero
-    "Start Free. Unlock the Master Key. Get Funded.",
-    "Kraken Scout is the Master Key to beating the Kraken Funded Challenge",
-    "The community jackpot is your free route in",
-    "Start For Free", "Get Kraken Scout", "How It Works",
+    "Kraken Runs the Challenge. Scout Beats It.",
+    "The Kraken Funded Challenge is Kraken.com's own evaluation",
+    "Kraken owns the challenge, the rules, and the funding",
+    "Start Beating the Kraken Challenge", "Get Kraken Scout", "How It Works",
+    "Unlock Your Kraken-Funded Account",
+    "Kraken.com created the challenge, sets every threshold, and funds the account",
     "No deposit. No risk. Free entries come from mining",
-    # section 2 — the free route in
-    "Start Free With the Community Jackpot",
-    "Daily prize seeded by community mining", "Grows with the community",
-    "1,000 bots", "10,000 bots", "~$300/day",
-    "Ticket value increases with active mining", "Better odds for active miners",
-    "Join Jackpot", "See Daily Prize",
-    # section 3 — the master key
-    "Kraken Scout = The Master Key", "LONG bullish signals",
-    "Buy Now", "Exit Now", "Helps pass the Kraken Funded Challenge",
-    "Delivered through your user account",
-    "Push notifications enabled in the dashboard", "See Signals",
-    # section 4 — get funded
-    "Pass the Challenge", "Enter the challenge using the jackpot prize",
-    "Pass with Scout signals", "Kraken funds your trading account",
-    "You keep all profits", "Enter Challenge", "Funded Account Tiers",
-    "$1,000 funded", "$5,000 funded", "$10,000 funded",
-    # section 5 — the loop
-    "Kraken Pays the Jackpot", "Kraken pays referral bonuses",
-    "Recorded bonuses feed the jackpot", "Everything stays free",
-    "Use Referral Link", "See Jackpot Growth",
-    # section 6 — mining
-    "Turn On the Miner Bot", "Active mining increases ticket value",
-    "Higher-value tickets = better odds", "Mining is optional",
-    "controlled through the dashboard", "Turn Miner On", "Check Ticket Value",
-    # mandated phrases (the miner character was removed from the
-    # homepage per the Sep 25 follow-up — the asset stays, unused)
+    # A — awareness
+    "Kraken Runs the Challenge. Kraken Funds the Account.",
+    "Kraken.com created the challenge", "Kraken.com funds the account",
+    "The evaluation is pass/fail", "The limits are built to filter out amateurs",
+    "Automation is the reliable edge", "See Daily Prize",
+    # B — problem / agitation
+    "Manual Solving Is Slow. Human Error Is Fatal.",
+    "Manual solving is slow", "Human error kills progress",
+    "Kraken's challenge is designed to filter out amateurs",
+    "Most solvers never reach the funded stage", "Emotion is the real opponent",
+    "Buy Now", "Exit Now", "See Signals",
+    # C — solution
+    "The xmrjackpot Team Built Scout to Beat Kraken's Challenge",
+    "Designed specifically for Kraken's challenge",
+    "Automates the entire pipeline", "Kraken funds your trading account",
+    "Funded Account Tiers", "$1,000 funded", "$5,000 funded", "$10,000 funded",
+    # D — benefits
+    "Faster Completion. Zero Manual Work. No Missed Steps.",
+    "Faster challenge completion", "Zero manual work",
+    "Error-proof execution", "Real-time monitoring", "See Jackpot Growth",
+    # E — social proof
+    "Built by the Team Behind xmrjackpot",
+    "Used successfully in multiple challenge cycles",
+    "Designed from reverse-engineering Kraken's challenge mechanics",
+    "Fully compliant with challenge rules",
+    "Turn Miner On", "Check Ticket Value",
     "Not sure where to get started? Start here:", "Start for free at:",
 ]
 missing_new = [s for s in REQUIRED_NEW if s not in new_html]

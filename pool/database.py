@@ -364,6 +364,106 @@ def init_db():
             "CREATE INDEX IF NOT EXISTS idx_kcc_slot "
             "ON kraken_cta_click(slot, created_at)")
 
+        # ── Scout identity + cycle surfaces (Oct 17) ──────────────────────────
+        # Backing tables for /api/scout/activate, /api/jackpot/status and
+        # /api/scout/status. Idempotent (CREATE TABLE IF NOT EXISTS) and
+        # additive only — no existing table or row is touched.
+        #
+        # Mirrors the on-chain model drafted in XMRJ_SOLANA_DEPLOYMENT_PLAN.md:
+        #   identity_token   = activator's Solana wallet (the Signer of
+        #                      activate_scout) — the on-chain identity primary
+        #   aliases          = email / device_fingerprint / profile_id on the
+        #                      same identity row, mapped to that wallet
+        #   one-active-per-cycle = enforced in the service layer here and, on
+        #                      chain, by the activate_scout guard.
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS scout_identities (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                identity_token TEXT NOT NULL,
+                email TEXT,
+                device_fingerprint TEXT,
+                profile_id TEXT,
+                user_id INTEGER,
+                created_at REAL DEFAULT (strftime('%s','now')),
+                UNIQUE (identity_token),
+                FOREIGN KEY (user_id) REFERENCES users(id)
+            )
+        """)
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_scout_identities_token "
+            "ON scout_identities (identity_token)")
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_scout_identities_user "
+            "ON scout_identities (user_id)")
+
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS scout_jackpot_cycles (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                onchain_cycle_id TEXT NOT NULL,
+                window_start REAL NOT NULL,
+                window_end REAL NOT NULL,
+                is_current INTEGER NOT NULL DEFAULT 0,
+                created_at REAL DEFAULT (strftime('%s','now')),
+                UNIQUE (onchain_cycle_id)
+            )
+        """)
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_scout_cycles_current "
+            "ON scout_jackpot_cycles (is_current) "
+            "WHERE is_current = 1")
+
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS scout_jackpot_entries (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                onchain_entry_id TEXT NOT NULL,
+                identity_id INTEGER NOT NULL,
+                amount_xmr REAL NOT NULL DEFAULT 0,
+                created_at REAL DEFAULT (strftime('%s','now')),
+                UNIQUE (onchain_entry_id),
+                FOREIGN KEY (identity_id) REFERENCES scout_identities(id)
+                    ON DELETE CASCADE
+            )
+        """)
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_scout_entries_identity "
+            "ON scout_jackpot_entries (identity_id)")
+
+        # ── Scout Pro donation checkout (Oct 19) ─────────────────────────
+        # One row per checkout. The address is the buyer's Monero
+        # subaddress; the amount is the configured price at creation time.
+        # Detection/fulfilment happens in scout_endpoints.
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS scout_purchases (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL,
+                identity_wallet TEXT,
+                amount_xmr REAL NOT NULL,
+                address TEXT NOT NULL,
+                subaddress_index INTEGER,
+                status TEXT NOT NULL DEFAULT 'pending'
+                    CHECK(status IN ('pending','paid','expired','cancelled')),
+                txid TEXT,
+                confirmations INTEGER DEFAULT 0,
+                created_at REAL DEFAULT (strftime('%s','now')),
+                expires_at REAL NOT NULL,
+                paid_at REAL,
+                FOREIGN KEY (user_id) REFERENCES users(id)
+            )
+        """)
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_scout_purchases_user "
+            "ON scout_purchases (user_id, status)")
+        conn.execute(
+            "CREATE UNIQUE INDEX IF NOT EXISTS idx_scout_purchases_txid "
+            "ON scout_purchases (txid) WHERE txid IS NOT NULL")
+
+        # Scout Pro entitlement lives on the account (days set by the
+        # purchase; 0/null = not unlocked).
+        cols = {r[1] for r in conn.execute("PRAGMA table_info(users)").fetchall()}
+        if "scout_pro_until" not in cols:
+            conn.execute(
+                "ALTER TABLE users ADD COLUMN scout_pro_until REAL DEFAULT 0")
+
 
 def encrypt_existing_pii() -> dict:
     """THE ONE-TIME MIGRATION (R2, Sep 26): seal every plaintext PII
@@ -1477,6 +1577,100 @@ def get_pending_payments():
             "SELECT * FROM payment_verifications WHERE status IN ('pending', 'confirming') ORDER BY created_at"
         ).fetchall()
         return [dict(r) for r in rows]
+
+
+def create_scout_purchase(user_id, identity_wallet, amount_xmr, address,
+                          subaddress_index, expires_at):
+    """Open a checkout. Any older pending order for the user is expired so a
+    buyer always has exactly one live address/amount pair."""
+    now = time.time()
+    with get_db() as conn:
+        conn.execute(
+            "UPDATE scout_purchases SET status = 'expired' "
+            "WHERE user_id = ? AND status = 'pending'",
+            (user_id,),
+        )
+        cur = conn.execute(
+            "INSERT INTO scout_purchases "
+            "(user_id, identity_wallet, amount_xmr, address, subaddress_index, "
+            " status, created_at, expires_at) "
+            "VALUES (?, ?, ?, ?, ?, 'pending', ?, ?)",
+            (user_id, identity_wallet or None, float(amount_xmr), address,
+             subaddress_index, now, float(expires_at)),
+        )
+        row = conn.execute(
+            "SELECT * FROM scout_purchases WHERE id = ?", (cur.lastrowid,)
+        ).fetchone()
+        return dict(row) if row else None
+
+
+def get_scout_purchase(order_id):
+    with get_db() as conn:
+        row = conn.execute(
+            "SELECT * FROM scout_purchases WHERE id = ?", (order_id,)
+        ).fetchone()
+        return dict(row) if row else None
+
+
+def get_open_scout_purchase(user_id):
+    with get_db() as conn:
+        row = conn.execute(
+            "SELECT * FROM scout_purchases "
+            "WHERE user_id = ? AND status = 'pending' AND expires_at > ? "
+            "ORDER BY id DESC LIMIT 1",
+            (user_id, time.time()),
+        ).fetchone()
+        return dict(row) if row else None
+
+
+def scout_purchase_txid_used(txid):
+    with get_db() as conn:
+        row = conn.execute(
+            "SELECT id FROM scout_purchases WHERE txid = ?", (txid,)
+        ).fetchone()
+        return row is not None
+
+
+def mark_scout_purchase_paid(order_id, txid, confirmations):
+    """Transition a pending checkout to paid exactly once.
+
+    Returns True only for the call that performed the transition, so the
+    entitlement is never granted twice by concurrent status polls.
+    """
+    with get_db() as conn:
+        cur = conn.execute(
+            "UPDATE scout_purchases SET status = 'paid', txid = ?, "
+            "confirmations = ?, paid_at = strftime('%s','now') "
+            "WHERE id = ? AND status = 'pending'",
+            (txid, int(confirmations), int(order_id)),
+        )
+        return cur.rowcount == 1
+
+
+def expire_scout_purchase(order_id):
+    with get_db() as conn:
+        conn.execute(
+            "UPDATE scout_purchases SET status = 'expired' "
+            "WHERE id = ? AND status = 'pending'",
+            (int(order_id),),
+        )
+
+
+def get_user_scout_pro(user_id):
+    """Unix seconds until which Scout Pro is unlocked (0 = never)."""
+    with get_db() as conn:
+        row = conn.execute(
+            "SELECT scout_pro_until FROM users WHERE id = ?", (user_id,)
+        ).fetchone()
+        return float(row[0] or 0) if row else 0.0
+
+
+def set_user_scout_pro(user_id, until_ts):
+    with get_db() as conn:
+        conn.execute(
+            "UPDATE users SET scout_pro_until = ? WHERE id = ?",
+            (float(until_ts), int(user_id)),
+        )
 
 
 def get_user_payments(user_id):

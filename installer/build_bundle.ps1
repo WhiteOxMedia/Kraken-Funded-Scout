@@ -18,6 +18,17 @@
 # "pool") resolves in installed copies - the jackpot plate's one-brain
 # transport depends on that name (pinned by test_bundle.py).
 #
+# SCOPE NOTE (static surface): This builder ships the public
+# KrakenScoutBundle.zip (scout + monero_project pool view + xmrig + one-
+# click wrappers). It is OUT OF SCOPE for the pool/static scout-bundle
+# surface (app.js, scout_ids.js, scout_paywall.js,
+# scout_paywall_wire_patch.js, scout_checkout.js, wf_dashboard.js, and
+# the other template-referenced static JS files). Those files ship
+# through make_bundle.py -> dist_site_review/xmrjackpot_review/static/.
+# If a future edit intends to ship the pool/static JS here instead,
+# that must be an explicit, documented decision — not an accidental
+# carry from the monero_project working tree.
+#
 # Run:  powershell -NoProfile -ExecutionPolicy Bypass -File installer\build_bundle.ps1
 #       (add -Open to open the bundle folder when done)
 
@@ -37,6 +48,21 @@ Write-Host ("  out    : " + $Bundle)
 
 if (-not (Test-Path (Join-Path $Scout "app.py"))) {
     throw "kraken_scout not found beside monero_project: $Scout"
+}
+
+# EARLY GUARD (fail before assembling the payload): the topic guard in
+# finalize_bundle.py can only scan source-tree CONTENT for the live topic when
+# push_topic.txt is present - without it the content arm is silent and the
+# served zip is PUBLIC, so proceed-on-denylist-alone is not allowed. Catch it
+# here, before the git archives and the xmrig copy, with a clear message.
+$TopicFile = Join-Path $Scout "push_topic.txt"
+if (-not (Test-Path $TopicFile)) {
+    $msg = "BUILD ABORTED: push_topic.txt is missing at $TopicFile" +
+           " - the topic guard cannot scan the staged payload for the live" +
+           " ntfy topic without it (the served zip is PUBLIC). Restore it or" +
+           " run finalize_bundle.py's own check for the exact requirement."
+    Write-Host "== EARLY GUARD: $msg" -ForegroundColor Red
+    exit 1
 }
 $ScoutHead = (git -C $Scout rev-parse --short HEAD).Trim()
 $MoneroHead = (git -C $Root rev-parse --short HEAD).Trim()

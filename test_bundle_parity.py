@@ -36,11 +36,12 @@ import tempfile
 import zipfile
 from pathlib import Path
 
+from make_bundle import REQUIRED_STATIC_JS   # one list, both consumers
+
 HERE = Path(__file__).resolve().parent
 BUNDLE = HERE / "dist_site_review" / "xmrjackpot_review"
 ZIP_PATH = HERE / "dist_site_review" / "xmrjackpot_review.zip"
 SHA_PATH = HERE / "dist_site_review" / "xmrjackpot_review.zip.sha256"
-
 results = []
 
 
@@ -60,7 +61,6 @@ if not BUNDLE.is_dir():
 def relset(root):
     return {str(f.relative_to(root)).replace("\\", "/")
             for f in root.rglob("*") if f.is_file()}
-
 
 TPL = HERE / "pool" / "templates"
 STAT = HERE / "pool" / "static"
@@ -86,8 +86,9 @@ check(2, not diffs, f"files differing from source: {diffs}")
 # 3. version strings in the bundle HTML equal the template's
 bh = (BUNDLE / "index.html").read_text(encoding="utf-8")
 th = (TPL / "index.html").read_text(encoding="utf-8")
-bv = sorted(re.findall(r'src="/static/([a-z_]+\.js)\?v=(\d+)"', bh))
-tv = sorted(re.findall(r'src="/static/([a-z_]+\.js)\?v=(\d+)"', th))
+STATIC_JS_TAG_RE = r'src="/static/([A-Za-z0-9_\-]+\.js)\?v=(\d+)"'
+bv = sorted(re.findall(STATIC_JS_TAG_RE, bh))
+tv = sorted(re.findall(STATIC_JS_TAG_RE, th))
 check(3, bv == tv, f"bundle={bv} template={tv}")
 
 # 4+5. the zip is byte-reproducible and the sidecar matches
@@ -150,6 +151,39 @@ for name, ver in sorted(dict(tv).items()):
                           f"template ships v{ver}")
 check(7, not readme_bad,
       f"README inventory drift: {readme_bad}")
+
+# 8. CONTRACTUAL SCOUT/SURFACE PARITY (the regression gate).
+# This is the explicit, enumerated assertion the request asked for:
+# every required scout module must be present in the built static dir,
+# the template must reference every required file, and the required set
+# must match the explicitly enumerated contract (so a stale-delete or
+# a path rename cannot silently drop a required file from the bundle).
+static_dir = BUNDLE / "static"
+present = {p.name for p in static_dir.glob("*.js") if p.is_file()}
+missing_required = [n for n in REQUIRED_STATIC_JS if n not in present]
+check(8.1, not missing_required,
+      f"required scout/static JS missing from built bundle: "
+      f"{missing_required}")
+
+bundle_tag = sorted(re.findall(STATIC_JS_TAG_RE, bh))
+required_tagged = sorted([(r, ver) for r, ver in tv if r in REQUIRED_STATIC_JS])
+check(8.2, required_tagged and all((r, v) in bundle_tag for r, v in required_tagged),
+      f"required scout/static files not all present in the built bundle "
+      f"with matching version tags — required_tagged={required_tagged}, "
+      f"missing_from_bundle={[(r,v) for r,v in required_tagged if (r,v) not in bundle_tag]}")
+
+# 8.3 — the required contract and the template's full static JS surface
+# must agree on names (no required file omitted from the template, and
+# the template must not reference a required file that is absent from
+# the static source tree).
+template_static_names = {name for name, _ver in tv}
+source_static_names = {p.name for p in STAT.rglob("*.js") if p.is_file()}
+check(8.3, set(REQUIRED_STATIC_JS) <= template_static_names,
+      f"required files not all referenced by the template: "
+      f"{sorted(set(REQUIRED_STATIC_JS) - template_static_names)}")
+check(8.4, set(REQUIRED_STATIC_JS) <= source_static_names,
+      f"required files missing from pool/static source: "
+      f"{sorted(set(REQUIRED_STATIC_JS) - source_static_names)}")
 
 passed, failed = results.count(True), results.count(False)
 print(f"RESULT: {passed} passed, {failed} failed")
