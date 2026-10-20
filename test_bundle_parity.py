@@ -11,6 +11,9 @@ v12 while the site shipped v13, then v14; app.js v21 vs v23; wf v4 vs
 v5) — nothing failed when it drifted. This drive pins the WHOLE chain
 so a stale bundle fails the fleet instead of shipping:
 
+  0. the inputs are LF-canonical (worktree AND staged bytes): the bundle
+     is built from working-tree bytes, so a smudged checkout would make
+     the zip machine-dependent while every other check stayed green
   1. inventory parity: the bundle holds exactly index.html,
      admin_panel.html, README.txt, and every pool/static file
   2. byte parity: every source-mapped file is byte-identical
@@ -31,6 +34,7 @@ Prints "RESULT: N passed, M failed".
 """
 import hashlib
 import re
+import subprocess
 import sys
 import tempfile
 import zipfile
@@ -64,6 +68,45 @@ def relset(root):
 
 TPL = HERE / "pool" / "templates"
 STAT = HERE / "pool" / "static"
+
+# 0. THE CHECKOUT IS THE ARTIFACT'S INPUT (Oct 20). The bundle is copied
+# from WORKING-TREE bytes, so a checkout that smudges line endings makes the
+# zip machine-dependent while every check below stays green - they all compare
+# the bundle to the same smudged tree. Measured: the same commit rebuilt to
+# sha256 fb5e194f… here and 98c14e49… in a fresh clone, 224 bytes apart, with
+# parity green in both. .gitattributes pins these inputs to eol=lf; this check
+# is what makes the pin load-bearing. It fails on a CR in the file the builder
+# reads OR in the staged bytes it would ship, and it deliberately does not
+# compare full content (an ordinary uncommitted edit is not a drift).
+#
+# The README is an input too: make_bundle.py copies installer/
+# site_review_readme.txt into the bundle and dates it.
+INPUTS = ["pool/templates/index.html", "pool/templates/admin_panel.html",
+          "installer/site_review_readme.txt"] + [
+    str(f.relative_to(HERE)).replace("\\", "/")
+    for f in sorted(STAT.rglob("*"))
+    if f.is_file() and f.suffix in (".js", ".css")]
+crlf_work, crlf_blob, unreadable = [], [], []
+for rel in INPUTS:
+    path = HERE / rel
+    if not path.is_file():
+        unreadable.append(rel + ": missing")
+        continue
+    if b"\r" in path.read_bytes():
+        crlf_work.append(rel)
+    staged = subprocess.run(
+        ["git", "-C", str(HERE), "cat-file", "blob", ":" + rel],
+        capture_output=True)
+    if staged.returncode == 0:
+        if b"\r" in staged.stdout:
+            crlf_blob.append(rel)
+    else:
+        unreadable.append(rel + ": not in the index")
+check(0, not crlf_work and not crlf_blob and not unreadable,
+      f"the inputs are not LF-canonical - rebuild the artifact from a "
+      f"checkout whose bytes are the committed bytes: worktree CR={crlf_work} "
+      f"staged CR={crlf_blob} unreadable={unreadable} "
+      f"(fix: git rm --cached <path> && git checkout-index -f -- <path>)")
 
 # 1. inventory parity
 expected = {"index.html", "admin_panel.html", "README.txt"} | {

@@ -13,6 +13,11 @@ pool/templates/*.html text eol=lf
 pool/static/*.js      text eol=lf
 pool/static/*.css     text eol=lf
 
+# The review README is a bundle INPUT too (make_bundle copies it in and dates
+# it), so it is held to the same contract as the templates and statics: LF on
+# every checkout, otherwise the zip it lands in cannot be reproduced.
+installer/site_review_readme.txt text eol=lf
+
 # The static image assets are binary, and the review bundle's parity check
 # compares them byte for byte: never convert one.
 pool/static/img/*.png -text
