@@ -77,3 +77,31 @@ plans/
 
 # local audit workspace (scratch reports, one marker file)
 auditors/
+
+# ── probe / scratch output: one-off artefacts of a live investigation ──
+# Every pattern here existed in the working tree at the launch cleanup and
+# was deleted (curl dumps, probe scripts, pre-change database copies,
+# stitched HTML). The rules are anchored to the repo root so a real source
+# file one directory down cannot be swallowed by accident, and they are the
+# reason the next investigation cannot re-enter the tree by habit.
+/_*
+# ...except the probe-capture drive that IS committed and documented
+!/_probe_e2e_capture.py
+/*_report*.txt
+/*_scan*.txt
+/*.log
+/fix_*.py
+/session.yml
+/*_backup_*.db*
+/*.bak
+
+# the same debris when it lands next to the statics it probes
+pool/static/_*
+pool/static/*.new
+pool/static/*.new.*
+pool/static/*.checker.txt
+pool/static/*.missing.txt
+pool/static/*.report.txt
+pool/static/session.yml
+pool/jackpot.db.pre-*.bak
+pool/_backup_*.db*
