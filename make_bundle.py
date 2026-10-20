@@ -109,7 +109,13 @@ def date_readme():
             # sync cannot verify a version for this file — leave the row
             # untouched; a downstream parity check still asserts presence.
             continue
-    readme.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    # newline="" on purpose: Path.write_text defaults to os.linesep, which
+    # would write CRLF into the bundle on Windows and LF on Linux - the same
+    # commit would then produce two different zips. The README lands INSIDE
+    # the artifact and is compared byte for byte (parity checks 2, 6), so its
+    # bytes must not depend on the machine that built it.
+    with open(readme, "w", encoding="utf-8", newline="") as fh:
+        fh.write("\n".join(lines) + "\n")
     return stamp, touched
 
 
@@ -126,8 +132,11 @@ def build_zip():
             zi.compress_type = zipfile.ZIP_DEFLATED
             z.writestr(zi, f.read_bytes())
     digest = hashlib.sha256(ZIP_PATH.read_bytes()).hexdigest()
-    SHA_PATH.write_text(
-        f"{digest} *dist_site_review/xmrjackpot_review.zip\n", encoding="ascii")
+    # POSIX checksum line, LF on every platform: `sha256sum -c` rejects a line
+    # ending in CR, and the sidecar is committed (pinned text eol=lf), so a
+    # CRLF write here would leave every Windows build with a dirty sidecar.
+    with open(SHA_PATH, "w", encoding="ascii", newline="") as fh:
+        fh.write(f"{digest} *dist_site_review/xmrjackpot_review.zip\n")
     return digest
 
 
