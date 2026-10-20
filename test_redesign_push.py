@@ -498,6 +498,19 @@ sys.path.insert(0, str(HERE / "scout"))
 import push_client as pc                                 # noqa: E402
 pc.SPOOL = SANDBOX / "scout_spool.jsonl"
 pc.SERVER = "http://127.0.0.1:1"          # nothing listens: spool path
+# THE SECOND DATABASE INSTANCE (found Oct 20, and only a fresh clone could
+# show it): the Scout client reads its operator token from the pool's
+# database loaded BY PATH (its own production contract), which is a SECOND
+# module object with its OWN DB_PATH defaulting to the live jackpot.db. On a
+# checkout that has no live DB, emit() therefore CREATED an empty
+# pool/jackpot.db - a drive writing into the repo it is testing - and check
+# 6.4 caught it. The by-path instance is pre-warmed here (loading is
+# side-effect free) and bound to the SAME sandbox the drive uses, so the
+# contract under test still runs: the token is read through the pool module,
+# just never through the live file.
+_pc_pool_db = pc._load_pool_database()
+if _pc_pool_db is not None:
+    _pc_pool_db.DB_PATH = SANDBOX / "jackpot.db"
 check(5.1, pc.emit("not_real")["ok"] is False,
       "an unknown event never enters the pipeline")
 e1 = pc.emit("signal_buy", {"signal": "LONG", "wallet": "leak-me"})
@@ -548,15 +561,24 @@ sw_src = (HERE / "pool" / "static" / "push_sw.js").read_text(
     encoding="utf-8")
 check(6.3, 'url.charAt(0) !== "/"' in sw_src,
       "the service worker navigates same-origin only")
+_pc_db_path = (getattr(_pc_pool_db, "DB_PATH", None)
+               if _pc_pool_db is not None else None)
+_pc_hermetic = (_pc_db_path is not None
+                and os.path.realpath(str(_pc_db_path))
+                == os.path.realpath(str(SANDBOX / "jackpot.db")))
 if _live_db_real:
     check(6.4, db.DB_PATH != LIVE_DB
-          and os.path.realpath(str(db.DB_PATH)) != _live_db_real,
-          "the drive DB binding stays on the SANDBOX file - the live "
-          "jackpot.db is never opened by this drive (the live file "
-          "may change under production services; that is their right)")
+          and os.path.realpath(str(db.DB_PATH)) != _live_db_real
+          and _pc_hermetic,
+          "BOTH database instances stay on the SANDBOX file - the drive's "
+          "own module and the by-path copy the Scout client loads to read "
+          "its operator token (the live jackpot.db is never opened by this "
+          "drive; the live file may change under production services, that "
+          "is their right)")
 else:
-    check(6.4, not LIVE_DB.exists(),
-          "no live jackpot.db - nothing to protect, nothing touched")
+    check(6.4, not LIVE_DB.exists() and _pc_hermetic,
+          "no live jackpot.db - nothing to protect, nothing touched "
+          "(neither instance created one)")
 
 # ── D. THE LIVE WIRING (wired Sep 25 when server.py freed up) ────────
 print("== 7. THE ROUTES ARE WIRED ==")
