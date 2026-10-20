@@ -11,6 +11,9 @@ round and misread as a deploy target.)
   1. copies pool/templates/index.html + admin_panel.html verbatim
   2. copies every pool/static file verbatim (static/ is RECREATED, so
      a file deleted at the source cannot linger as a stale copy)
+  2b. copies the review README from installer/site_review_readme.txt
+     (its SOURCE; dist_site_review/ is untracked apart from the zip,
+     so the builder cannot read its own input from there)
   3. dates the README's **Date:** line (today) and syncs its per-file
      version mentions from the template's ?v= script tags, so the
      human-facing inventory cannot trail the shipped versions
@@ -38,6 +41,13 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 SRC_TPL = HERE / "pool" / "templates"
 SRC_STATIC = HERE / "pool" / "static"
+# The review README is an INPUT, not an output: it is the human-facing text of
+# the artifact (what is in the zip, what is deliberately not, what the reviewer
+# should answer). It lives under installer/ because dist_site_review/ is
+# gitignored apart from the zip — a builder whose only copy of a required
+# input sits in an untracked directory cannot rebuild the artifact in a fresh
+# clone, which is exactly how this was found.
+SRC_README = HERE / "installer" / "site_review_readme.txt"
 BUNDLE = HERE / "dist_site_review" / "xmrjackpot_review"
 ZIP_PATH = HERE / "dist_site_review" / "xmrjackpot_review.zip"
 SHA_PATH = HERE / "dist_site_review" / "xmrjackpot_review.zip.sha256"
@@ -51,7 +61,8 @@ def copy_sources():
         shutil.rmtree(BUNDLE / "static")
     (BUNDLE / "static").mkdir(parents=True)
     copies = [(SRC_TPL / "index.html", BUNDLE / "index.html"),
-              (SRC_TPL / "admin_panel.html", BUNDLE / "admin_panel.html")]
+              (SRC_TPL / "admin_panel.html", BUNDLE / "admin_panel.html"),
+              (SRC_README, BUNDLE / "README.txt")]
     for f in sorted(SRC_STATIC.rglob("*")):
         if f.is_file():
             copies.append((f, BUNDLE / "static" / f.relative_to(SRC_STATIC)))
@@ -73,6 +84,10 @@ def date_readme():
     """Today's date on the **Date:** line + version mentions synced
     from the template (only rows whose file is versioned there)."""
     readme = BUNDLE / "README.txt"
+    if not readme.is_file():
+        raise SystemExit(
+            f"bundle README missing at {readme} — it is copied from "
+            f"{SRC_README.relative_to(HERE)}; restore that source file")
     lines = readme.read_text(encoding="utf-8").splitlines()
     now = datetime.now()
     stamp = f"{now.strftime('%B')} {now.day}, {now.year}"
