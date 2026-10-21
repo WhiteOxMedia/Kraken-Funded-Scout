@@ -282,7 +282,6 @@
       e.preventDefault();
       const p = paywall();
       if (!p || typeof p.activateScout !== "function") {
-        if (typeof nftyRoute === "function") { nftyRoute({type: "GET_OUT_NOW"}); }
         return;
       }
       ensureIdentityWallet().then((wallet) => {

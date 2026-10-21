@@ -12,7 +12,15 @@
 <body>
 <div id="app">
 
-
+<!-- ═══════════ ANNOUNCEMENT BANNER ═══════════
+     CSP-safe: one delegated data-action, no inline handler (script-src
+     'self' would block the baseline's onclick). app.js fills the text
+     and only reveals it while an announcement is active and the member
+     has not dismissed it. -->
+<div id="announcementBanner" style="display:none;background:linear-gradient(90deg,#8B0000,#CC3300);border-bottom:2px solid #ff6b6b;padding:10px 16px;text-align:center;font-size:0.9em;color:#fff;font-weight:600;">
+  <span id="announcementText"></span>
+  <a href="#" data-action="dismiss-announcement" style="margin-left:12px;color:#fff;text-decoration:underline;font-weight:700;">Dismiss</a>
+</div>
 
 <!-- ═══════════ NAVIGATION ═══════════ -->
 <nav class="navbar">
@@ -1141,10 +1149,12 @@
 
     <!-- Your Miner Character Display -->
     <div class="card" style="margin-bottom:20px;text-align:center;" id="realMinerSection">
-      <div class="card-header">⛏️ Your Miner</div>
+      <div class="card-header">Your Miner</div>
       <div class="miner-display" id="mineScene">
-        <img src="/static/img/miner_sprite.png" alt="Miner" class="miner-sprite-big" id="realMinerSprite1">
-        <img src="/static/img/miner_sprite.png" alt="Miner 2" class="miner-sprite-big miner-sprite-2" id="realMinerSprite2" style="display:none;">
+        <!-- No sprite assets: the miner is drawn with type + CSS so the
+             profile can never show a broken <img> or a legacy image. -->
+        <div class="miner-sprite-big" id="realMinerSprite1" role="img" aria-label="Your miner" style="font-size:72px;line-height:1;"></div>
+        <div class="miner-sprite-big miner-sprite-2" id="realMinerSprite2" role="img" aria-label="Your second miner" style="display:none;font-size:36px;line-height:1;"></div>
       </div>
       <div style="margin-top:4px;">
         <span class="mine-status" id="mineStatusText">⚠️ MINER NOT DEPLOYED</span>
@@ -1156,7 +1166,7 @@
       <!-- Miner Upgrades -->
       <div style="display:flex;gap:10px;justify-content:center;margin-top:12px;flex-wrap:wrap;">
         <button class="btn btn-blue btn-sm" id="btnBoostSpeed">⚡ Boost Speed (0.5 XMR)</button>
-        <button class="btn btn-emerald btn-sm" id="btnHireMiner2">👷 Hire Miner 2 (2.0 XMR)</button>
+        <button class="btn btn-emerald btn-sm" id="btnHireMiner2">Hire Miner 2 (2.0 XMR)</button>
       </div>
 
       <div class="grid-3" id="minerStats" style="margin-top:16px;">
@@ -1675,8 +1685,25 @@
         <thead><tr><th>Drawing</th><th>Grand Prize</th><th>Payout</th><th>Date</th></tr></thead>
         <tbody id="dashWinsTable"><tr><td colspan="4" style="text-align:center;color:var(--text-mute);">No wins yet — keep mining!</td></tr></tbody>
       </table>
-    
-  
+    </div>
+
+    <!-- ALERT LOG (Oct 21) — the member's own BUY_NOW / GET_OUT_NOW
+         history. A row lands here whenever an alert actually fired while
+         phone notifications were off, so the record is never lost with
+         the notification. Read back from /api/profile/alert-log. -->
+    <div class="card" style="margin-top:16px;" id="dashAlertLogCard">
+      <div class="card-header">🔔 Your Alert Log</div>
+      <div style="font-size:0.78em;color:var(--text-mute);margin-bottom:8px;">
+        Alerts you fired while phone notifications were off.
+      </div>
+      <table>
+        <thead><tr><th>Alert</th><th>Details</th><th>When</th></tr></thead>
+        <tbody id="dashAlertLog">
+          <tr><td colspan="3" style="text-align:center;color:var(--text-mute);">No alerts logged yet.</td></tr>
+        </tbody>
+      </table>
+    </div>
+
 </section>
 
 <!-- ═══════════ ADMIN DASHBOARD (loaded dynamically for admins only) ═══════════ -->

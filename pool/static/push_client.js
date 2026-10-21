@@ -372,73 +372,12 @@
      passed through verbatim and mapped to plain language — including
      "your toggle is OFF", which is itself proof the gate works. The
      verdict stays in #prefSaved until the next action uses it. */
-  var TEST_MSGS = {
-    "jackpot notifications opted out":
-      "your Jackpot toggle is OFF — this is the gate working; turn it back on to receive these",
-    "scout notifications opted out":
-      "your Scout toggle is OFF — this is the gate working; turn it back on to receive these",
-    "no subscription":
-      "no device registered yet — press Enable Notifications first",
-    "VAPID key not provisioned":
-      "push delivery is not provisioned yet — the operator must add the keys first",
-    "rate limited": "one just went out — try again in a minute",
-    "webpush library not installed":
-      "push delivery is not configured on the server — the operator must install it",
-    "no deliverable endpoint":
-      "your device did not accept it — press Enable Notifications and try again"
-  };
-
-  function wireTestButtons() {
-    var j = document.getElementById("btnTestJackpot");
-    var s = document.getElementById("btnTestScout");
-    if (!j || !s || j.dataset.wired) { return; }
-    j.dataset.wired = "1";
-    s.dataset.wired = "1";
-    function fire(btn, category) {
-      if (btn.disabled) { return; }
-      btn.disabled = true;
-      var prev = btn.textContent;
-      btn.textContent = "testing…";
-      noteSaved("sending a real " + category + " test push…", true);
-      fetch("/api/push/test", {
-        method: "POST",
-        credentials: "same-origin",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ category: category }),
-      }).then(function (r) {
-        return r.json().then(function (res) {
-          if (r.status === 401) {
-            noteSaved("log in first — then test the pipe", true);
-            return;
-          }
-          if (res && res.ok && res.sent) {
-            noteSaved("sent — check your device 🔔");
-            return;
-          }
-          var reason = res && res.reason;
-          noteSaved(TEST_MSGS[reason] ||
-                    ("could not send it — " + (reason || "http " + r.status)),
-                    true);
-        }, function () {
-          noteSaved("could not send it — http " + r.status, true);
-        });
-      }).catch(function () {
-        noteSaved("could not reach the server — try again", true);
-      }).then(function () {
-        btn.disabled = false;
-        btn.textContent = prev;
-      });
-    }
-    j.addEventListener("click", function () { fire(j, "jackpot"); });
-    s.addEventListener("click", function () { fire(s, "scout"); });
-  }
 
   function wire() {
     var btn = document.getElementById("btnEnablePush");
     if (!btn) { return; }
     btn.addEventListener("click", enable);
     wirePrefs();
-    wireTestButtons();
     if (SUPPORTED && Notification.permission === "granted") {
       /* second triage (Sep 25): the worker registers at /push_sw.js
          with root scope now — look it up by scope, not old path */
@@ -463,72 +402,146 @@
      before wf_dashboard's boot (both classic scripts, DOMContentLoaded
      fires after). */
   window.XMRJackpotPush = { relTime: relTime };
+})();
 
-\
-/* NFTY unified alert system */
-function nftyBeep(type) {
-    if (type === "BUY_NOW") {
-        console.log("\u0007\u0007");
-    } else if (type === "GET_OUT_NOW") {
-        console.log("\u0007");
+/* ════════════════════════════════════════════════════════════════
+   UNIFIED ALERT SYSTEM — no beeps, no popups, no audio.
+   Two states are contractual (staging checklist 2.1 / 2.2):
+
+     scout_pro !== "true"  ->  NOTHING fires. No console alert, no
+                               push, no profile log. Informational
+                               surfaces (Miner Bot, Jackpot, contest
+                               helper) stay visible and silent.
+
+     scout_pro === "true"  ->  the alert fires: one console line, and
+                               then EITHER the phone push (NFTY on)
+                               OR the profile log (NFTY off).
+
+   Every entry point calls routeAlert(). Nothing else notifies.
+   ════════════════════════════════════════════════════════════════ */
+/* Only these two alert classes exist. The service worker reasons in
+   event names (signal_buy / signal_exit); the UI reasons in alert
+   names (BUY_NOW / GET_OUT_NOW). Normalizing HERE means every caller —
+   signals panel, checkout, paywall, contest helper, push worker
+   postMessage — lands on the same two strings. */
+function normalizeAlertType(type) {
+    var raw = String(type == null ? "" : type).trim().toUpperCase();
+    if (raw === "BUY_NOW" || raw === "SIGNAL_BUY" || raw === "BUY") {
+        return "BUY_NOW";
+    }
+    if (raw === "GET_OUT_NOW" || raw === "SIGNAL_EXIT" || raw === "SELL" ||
+        raw === "EXIT" || raw === "SELL_NOW") {
+        return "GET_OUT_NOW";
+    }
+    return null;   // informational surface — never an alert
+}
+
+function scoutProUnlocked() {
+    try {
+        return localStorage.getItem("scout_pro") === "true";
+    } catch (e) {
+        return false;   // private mode with storage blocked: stay locked
     }
 }
 
-function nftyAlert(signal) {
-    nftyBeep(signal);
-    const stamp = new Date().toISOString();
-    const style = "color: #00eaff; font-weight: bold; font-size: 14px;";
-    console.log("%c[NFTY][" + stamp + "] " + signal, style);
-}
-
-function userHasScoutPro() {
-    return localStorage.getItem("scout_pro") === "true";
-}
-
-function userHasNfty() {
-    return localStorage.getItem("nfty_enabled") === "true";
-}
-
-function profileAlertLog(signal) {
-    fetch("/api/profile/alert-log", {
-        method: "POST",
-        headers: {"Content-Type": "application/json"},
-        body: JSON.stringify({signal})
-    }).catch(function () {});
-}
-
-function nftyRoute(event) {
-    const type = event.type;
-    const hasScoutPro = userHasScoutPro();
-    const hasNfty = userHasNfty();
-    if (!hasScoutPro) {
-        return;
-    }
-    if (!hasNfty) {
-        profileAlertLog(type);
-        return;
-    }
-    if (type === "BUY_NOW") {
-        nftyAlert("BUY_NOW");
-    } else if (type === "GET_OUT_NOW") {
-        nftyAlert("GET_OUT_NOW");
+function nftyEnabled() {
+    try {
+        return localStorage.getItem("nfty_enabled") === "true";
+    } catch (e) {
+        return false;
     }
 }
 
-function qcSignal() {
-    nftyRoute({type: "BUY_NOW"});
+function consoleAlertMessage(type, payload) {
+    var stamp = new Date().toISOString();
+    console.log("[ALERT][" + stamp + "] " + type, payload || "");
 }
 
-function exitCheckSignal() {
-    nftyRoute({type: "GET_OUT_NOW"});
+/* Profile logging (checklist 4.1 / 4.2): the body is exactly
+   {type, payload, ts} — server-side the row also carries its own
+   receipt time, but ts travels with the request so a queued/retried
+   write keeps the moment the alert actually fired. */
+function profileAlertLog(type, payload) {
+    var body = {
+        type: type,
+        payload: payload == null ? null : payload,
+        ts: new Date().toISOString()
+    };
+    try {
+        return fetch("/api/profile/alert-log", {
+            method: "POST",
+            credentials: "same-origin",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(body)
+        }).catch(function () { /* logging never blocks the UI */ });
+    } catch (e) {
+        return null;   // no fetch (harness): the console line still stands
+    }
 }
 
-function minerBotSignal() {
-    nftyRoute({type: "BUY_NOW"});
+/* THE ONE ALERT ROUTER. Returns true only when an alert actually
+   fired — callers and tests can assert on it instead of guessing. */
+function routeAlert(type, payload) {
+    var alertType = normalizeAlertType(type);
+    if (!alertType) { return false; }        // informational, never alerts
+
+    // Scout Pro locked: no console alert, no push, no profile log.
+    if (!scoutProUnlocked()) { return false; }
+
+    consoleAlertMessage(alertType, payload);
+
+    if (nftyEnabled()) {
+        if (navigator.serviceWorker && navigator.serviceWorker.ready) {
+            navigator.serviceWorker.ready.then(function (reg) {
+                reg.showNotification(alertType, {
+                    body: JSON.stringify(payload || {}),
+                    tag: "xmrjackpot-" + alertType,
+                    data: { type: alertType, payload: payload || null }
+                });
+            }).catch(function () { /* push unavailable: console still fired */ });
+        }
+    } else {
+        // NFTY off -> the profile log is the record (checklist 3.4).
+        profileAlertLog(alertType, payload);
+    }
+    return true;
 }
 
-function jackpotSignal() {
-    nftyRoute({type: "BUY_NOW"});
+/* Service-worker -> page handoff (checklist 6.3). push_sw.js posts
+   {type, source} when a notification is clicked; the page must route
+   that through routeAlert() rather than showing a second OS banner. */
+function handlePushMessage(event) {
+    var data = event && event.data;
+    if (!data || typeof data !== "object") { return false; }
+    if (data.source !== "push_sw" && data.source !== "push_sw_reload") {
+        return false;
+    }
+    var type = data.type;
+    var payload = data.payload || null;
+    if (!normalizeAlertType(type)) { return false; }
+    // The banner is already on screen (the worker showed it); do not
+    // stack a duplicate notification for the same event.
+    var alertType = normalizeAlertType(type);
+    if (!scoutProUnlocked()) { return false; }
+    consoleAlertMessage(alertType, payload);
+    if (!nftyEnabled()) { profileAlertLog(alertType, payload); }
+    return true;
 }
 
-}());
+if (typeof navigator !== "undefined" && navigator.serviceWorker &&
+    typeof navigator.serviceWorker.addEventListener === "function") {
+    navigator.serviceWorker.addEventListener("message", handlePushMessage);
+}
+
+/* Test + console surface: staging QA drives these directly. */
+if (typeof window !== "undefined") {
+    window.XMRJackpotAlerts = {
+        normalizeAlertType: normalizeAlertType,
+        scoutProUnlocked: scoutProUnlocked,
+        nftyEnabled: nftyEnabled,
+        consoleAlertMessage: consoleAlertMessage,
+        profileAlertLog: profileAlertLog,
+        routeAlert: routeAlert,
+        handlePushMessage: handlePushMessage
+    };
+}

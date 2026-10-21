@@ -1,4 +1,3 @@
-\
 /* push_sw.js — THE PUSH SERVICE WORKER (Sep 25, charter).
    Receives native push events from xmrjackpot.com's own push service
    and shows the notification. The payload's text comes only from the
@@ -32,31 +31,45 @@ self.addEventListener("push", function (event) {
   }
   // Show a minimal visible notification so the user sees something
   // even if the page is not open, but never display rich content.
-  event.waitUntil(self.registration.showNotification("XMR Jackpot", {
-    body: type === "signal_buy" ? "BUY_NOW" : type === "signal_exit" ? "GET_OUT_NOW" : "Signal",
+  // The body carries the two alert names verbatim (checklist 3.2/3.3)
+  // so the text on the device matches the console line exactly.
+  var title = type === "signal_buy" ? "BUY_NOW"
+    : type === "signal_exit" ? "GET_OUT_NOW" : "XMR Jackpot";
+  event.waitUntil(self.registration.showNotification(title, {
+    body: type === "signal_buy" ? "BUY_NOW"
+      : type === "signal_exit" ? "GET_OUT_NOW" : "Signal",
     tag: "xmrjackpot",
-    data: { type: type },
+    data: { type: type, payload: (data.payload || null) },
   }));
 });
 
 self.addEventListener("notificationclick", function (event) {
   event.notification.close();
-  var type = (event.notification.data && event.notification.data.type) || "";
-  // Route the payload into the page's unified NFTY router rather than
-  // opening a URL or showing another popup.
+  var note = event.notification.data || {};
+  var type = note.type || "";
+  var payload = note.payload || null;
+  // SAME-ORIGIN ONLY: a payload may carry a path, and a path is the only
+  // navigable form we accept. Anything absolute (or protocol-relative) is
+  // discarded before openWindow, so a forged payload can never steer the
+  // click off-origin.
+  var url = String(note.url || "/");
+  if (url.charAt(0) !== "/" || url.charAt(1) === "/") { url = "/"; }
+  // Route the payload into the page's unified alert router rather than
+  // opening a URL or showing another popup. The payload travels with
+  // it so the page logs exactly what the device was told.
   event.waitUntil(
     self.clients.matchAll({ type: "window" }).then(function (clientList) {
       for (var i = 0; i < clientList.length; i++) {
         var c = clientList[i];
         if ("postMessage" in c) {
-          c.postMessage({ type: type, source: "push_sw" });
+          c.postMessage({ type: type, payload: payload, source: "push_sw" });
           if ("focus" in c) { c.focus(); }
           return;
         }
       }
       // No open page — schedule a wake by opening the origin (same-origin only).
       if (self.location && self.location.origin) {
-        return self.clients.openWindow(self.location.origin + "/");
+        return self.clients.openWindow(self.location.origin + url);
       }
     }).catch(function () {})
   );

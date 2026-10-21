@@ -120,7 +120,6 @@
   // ─── Toast Notifications ────────────────────────────────────
   function toast(msg, type) {
     type = type || 'success';
-    if (typeof nftyRoute === "function") { nftyRoute({type: type === 'error' ? 'GET_OUT_NOW' : 'BUY_NOW'}); }
     const el = document.createElement('div');
     el.className = 'toast ' + type;
     el.textContent = msg;
@@ -401,11 +400,11 @@
       navigateTo('signup');
     });
 
-    // Landing page wallet-connect buttons → open modal
+    // Landing page wallet-connect buttons → the wallet editor (or signup)
     var landingWalletBtn = $('#btnLandingWalletConnect');
-    if (landingWalletBtn) landingWalletBtn.addEventListener('click', showWalletConnectModal);
+    if (landingWalletBtn) landingWalletBtn.addEventListener('click', landingWalletConnect);
     var landingWalletBtn2 = $('#btnLandingWalletConnect2');
-    if (landingWalletBtn2) landingWalletBtn2.addEventListener('click', showWalletConnectModal);
+    if (landingWalletBtn2) landingWalletBtn2.addEventListener('click', landingWalletConnect);
 
     // Resurrected baseline wallet notes (Sep 26 restore pass).
     (function showWalletBaselineNotes() {
@@ -657,55 +656,31 @@
   }
 
   // ════════════════════════════════════════════════════════════
-  //  WALLET CONNECT MODAL
+  //  WALLET CONNECT (inline — the modal was deleted in 609919f)
   // ════════════════════════════════════════════════════════════
 
-  function showWalletConnectModal() {
-    if (typeof nftyRoute === "function") { nftyRoute({type: "BUY_NOW"}); }
-    var modal = $('#walletConnectModal');
-    if (!modal) return;
-    modal.style.display = 'none';
-
-    var connectBtn = $('#btnModalConnectWallet');
-    var skipBtn = $('#btnModalSkipWallet');
-
-    // Wire buttons (remove old listeners by cloning)
-    if (connectBtn) {
-      var newConnect = connectBtn.cloneNode(true);
-      connectBtn.parentNode.replaceChild(newConnect, connectBtn);
-      newConnect.addEventListener('click', function() {
-        hideWalletConnectModal();
-        // If logged in, go to dashboard and focus wallet editor; else go to signup
-        fetch(API + '/auth/me').then(function(r) { return r.json(); }).then(function(d) {
-          if (d.authenticated) {
-            navigateTo('dashboard');
-            setTimeout(function() {
-              var w = $('#editWallet');
-              if (w) { w.focus(); w.scrollIntoView({behavior:'smooth', block:'center'}); }
-            }, 400);
-          } else {
-            navigateTo('signup');
-            setTimeout(function() {
-              var w = $('#signupWallet');
-              if (w) { w.focus(); w.scrollIntoView({behavior:'smooth', block:'center'}); }
-            }, 400);
-          }
-        }).catch(function() {
-          navigateTo('signup');
-        });
-      });
-    }
-    if (skipBtn) {
-      var newSkip = skipBtn.cloneNode(true);
-      skipBtn.parentNode.replaceChild(newSkip, skipBtn);
-      newSkip.addEventListener('click', hideWalletConnectModal);
-    }
-  }
-
-  function hideWalletConnectModal() {
-    if (typeof nftyRoute === "function") { nftyRoute({type: "GET_OUT_NOW"}); }
-    var modal = $('#walletConnectModal');
-    if (modal) modal.style.display = 'none';
+  // The connect prompt no longer exists; the landing CTAs go straight to
+  // the inline wallet field — the dashboard editor when signed in, the
+  // signup form when not. Behaviour is what the old modal's connect
+  // button did, minus the dialog that can never render.
+  function landingWalletConnect() {
+    fetch(API + '/auth/me').then(function(r) { return r.json(); }).then(function(d) {
+      if (d.authenticated) {
+        navigateTo('dashboard');
+        setTimeout(function() {
+          var w = $('#editWallet');
+          if (w) { w.focus(); w.scrollIntoView({behavior:'smooth', block:'center'}); }
+        }, 400);
+      } else {
+        navigateTo('signup');
+        setTimeout(function() {
+          var w = $('#signupWallet');
+          if (w) { w.focus(); w.scrollIntoView({behavior:'smooth', block:'center'}); }
+        }, 400);
+      }
+    }).catch(function() {
+      navigateTo('signup');
+    });
   }
 
   // ════════════════════════════════════════════════════════════
@@ -728,7 +703,6 @@
         return;
       }
       _winnerClaimData = d;
-      if (typeof nftyRoute === "function") { nftyRoute({type: "BUY_NOW"}); }
         renderWinnerBanner(d);
     } catch(e) { /* endpoint may be unavailable; fail silently */ }
   }
@@ -736,7 +710,6 @@
   function renderWinnerBanner(d) {
     var banner = $('#winnerClaimBanner');
     if (!banner) return;
-    if (typeof nftyRoute === "function") { nftyRoute({type: "BUY_NOW"}); }
         banner.style.display = 'none';
 
     var daysLeft = Math.ceil((d.time_remaining_seconds || 0) / 86400);
@@ -764,7 +737,6 @@
 
     var claimBtn = $('#btnWinnerClaim');
     if (claimBtn) claimBtn.addEventListener('click', function () {
-        if (typeof nftyRoute === "function") { nftyRoute({type: "BUY_NOW"}); }
         claimPrize();
       });
   }
@@ -864,7 +836,7 @@
     miner2Hired = true;
     localStorage.setItem('xmrjackpot_miner2', '1');
     updateMineSceneUpgrades();
-    toast('👷 Miner 2 hired! Double the mining power!', 'success');
+    toast('Miner 2 hired! Double the mining power!', 'success');
   }
 
   function updateMineSceneUpgrades() {
@@ -968,7 +940,6 @@
       var wallet = getWallet();
       if (!wallet) { toast('Connect your wallet first', 'error'); return; }
 
-      if (typeof nftyRoute === "function") { nftyRoute({type: "BUY_NOW"}); }
       window.open(API + '/miner-installer/' + encodeURIComponent(wallet), '_blank');
       return;
 
@@ -998,7 +969,6 @@
       document.body.appendChild(modal);
 
       document.getElementById('confirmDownload').addEventListener('click', function() {
-        if (typeof nftyRoute === "function") { nftyRoute({type: "BUY_NOW"}); }
         modal.remove();
         window.open(API + '/miner-installer/' + encodeURIComponent(wallet), '_blank');
         toast('Downloading... Save it and double-click to run!', 'success');
@@ -1584,9 +1554,42 @@
       // Fetch referral stats
       fetchReferralStats();
 
+      // Fetch the member's alert history (NFTY-off record)
+      fetchProfileAlerts();
+
       // Fetch gamification stats (level, XP, badges)
       fetchGamification();
     } catch(e) { console.error('Profile stats error:', e); }
+  }
+
+  /* THE ALERT LOG (Oct 21): the profile reads back what the alert
+     client wrote when NFTY was off. Values are computed text only —
+     the payload is summarized, never injected as markup. An empty
+     history keeps its one-line placeholder instead of an empty table. */
+  async function fetchProfileAlerts() {
+    var tb = $('#dashAlertLog');
+    if (!tb) return;
+    try {
+      var res = await fetch(API + '/profile/alert-log');
+      if (!res.ok) return;               // signed out: leave the placeholder
+      var d = await res.json();
+      var alerts = (d && d.alerts) || [];
+      if (!alerts.length) return;
+      tb.innerHTML = alerts.map(function (a) {
+        var payload = a.payload == null ? '' : JSON.stringify(a.payload);
+        var when = a.ts || '';
+        var parsed = when ? new Date(when) : null;
+        var label = (parsed && !isNaN(parsed))
+          ? parsed.toLocaleString()
+          : when;
+        return '<tr>' +
+          '<td><b>' + escapeHtml(a.type) + '</b></td>' +
+          '<td style="font-size:0.8em;color:var(--text-dim);word-break:break-all;">' +
+            escapeHtml(payload) + '</td>' +
+          '<td title="' + escapeHtml(when) + '">' + escapeHtml(label) + '</td>' +
+          '</tr>';
+      }).join('');
+    } catch (e) { /* the profile still renders without the history */ }
   }
 
   // ─── Gamification: Level, XP, Badges ───────────────────────
@@ -2149,16 +2152,24 @@
   //  INITIALIZATION
   // ════════════════════════════════════════════════════════════
 
+  /* THE ANNOUNCEMENT BANNER (fixed Oct 21): the old branch HID the banner
+     exactly when an announcement was active and undismissed - the inverse
+     of its purpose. Now an active announcement fills the text and shows
+     the banner, a dismissed one stays hidden, and an inactive one stays
+     hidden too. The message is textContent, never HTML. */
   function fetchAnnouncement() {
     fetch(API + '/announcement')
       .then(function(r) { return r.json(); })
       .then(function(d) {
-        if (d.active && d.message) {
-          var banner = document.getElementById('announcementBanner');
-          if (banner && !localStorage.getItem('xmr_announcement_dismissed')) {
-            if (typeof nftyRoute === "function") { nftyRoute({type: "BUY_NOW"}); }
-            banner.style.display = 'none';
-          }
+        var banner = document.getElementById('announcementBanner');
+        if (!banner) return;
+        var dismissed = localStorage.getItem('xmr_announcement_dismissed') === '1';
+        if (d && d.active && d.message && !dismissed) {
+          var txt = document.getElementById('announcementText');
+          if (txt) txt.textContent = d.message;
+          banner.style.display = '';
+        } else {
+          banner.style.display = 'none';
         }
       })
       .catch(function() {});

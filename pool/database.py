@@ -20,8 +20,14 @@ ENCRYPTED_USER_COLS = ("email", "phone", "full_name", "wallet_address")
 
 @contextmanager
 def get_db():
-    conn = sqlite3.connect(str(DB_PATH))
+    # CONCURRENT APPENDS: WAL lets readers run beside a writer, but two
+    # writers still contend for the write lock. Without a busy timeout
+    # sqlite3 raises "database is locked" the instant a second connection
+    # holds it; with one, the append waits its turn and lands. Every
+    # append-only store (profile_alert_log included) relies on this.
+    conn = sqlite3.connect(str(DB_PATH), timeout=5.0)
     conn.row_factory = sqlite3.Row
+    conn.execute("PRAGMA busy_timeout=5000")
     conn.execute("PRAGMA journal_mode=WAL")
     conn.execute("PRAGMA foreign_keys=ON")
     # AT-REST HYGIENE (R2): scrub deleted content from the DB file —
@@ -155,6 +161,20 @@ def init_db():
                 created_at REAL DEFAULT (strftime('%s','now')),
                 FOREIGN KEY (user_id) REFERENCES users(id)
             );
+
+            CREATE TABLE IF NOT EXISTS profile_alert_log (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL,
+                alert_type TEXT NOT NULL
+                    CHECK(alert_type IN ('BUY_NOW', 'GET_OUT_NOW')),
+                payload TEXT DEFAULT '',
+                ts TEXT DEFAULT '',
+                created_at REAL DEFAULT (strftime('%s','now')),
+                FOREIGN KEY (user_id) REFERENCES users(id)
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_profile_alert_user
+                ON profile_alert_log (user_id, id DESC);
 
             CREATE TABLE IF NOT EXISTS admin_settings (
                 key TEXT PRIMARY KEY,
@@ -1433,6 +1453,79 @@ def add_audit_log(user_id, action, details="", ip_address=None):
             "INSERT INTO audit_log (user_id, action, details, ip_address) VALUES (?, ?, ?, ?)",
             (user_id, action, details, ip_address),
         )
+
+
+# ═══════════════════════════════════════════════════════════════
+#  PROFILE ALERT LOG (Oct 21)
+# ═══════════════════════════════════════════════════════════════
+#  The alert client writes here whenever a real alert fires with NFTY
+#  disabled (checklist 4.1 / 4.2), and the profile page reads it back
+#  (4.3 / 5.3). Only the two alert classes are storable - the CHECK
+#  constraint rejects anything else, so an informational surface can
+#  never leak into a member's alert history.
+
+def add_profile_alert(user_id, alert_type, payload=None, ts=""):
+    """One row per fired alert. Returns the stored entry."""
+    if alert_type not in ("BUY_NOW", "GET_OUT_NOW"):
+        raise ValueError("unsupported alert type: %r" % (alert_type,))
+    blob = ""
+    if payload is not None:
+        try:
+            blob = json.dumps(payload, separators=(",", ":"))
+        except (TypeError, ValueError):
+            blob = json.dumps({"unserializable": str(payload)})
+    with get_db() as conn:
+        cur = conn.execute(
+            "INSERT INTO profile_alert_log (user_id, alert_type, payload, ts) "
+            "VALUES (?, ?, ?, ?)",
+            (user_id, alert_type, blob, str(ts or "")),
+        )
+        row_id = cur.lastrowid
+        row = conn.execute(
+            "SELECT id, alert_type, payload, ts, created_at "
+            "FROM profile_alert_log WHERE id = ?", (row_id,)
+        ).fetchone()
+    return _alert_row(row)
+
+
+def _alert_row(row):
+    if row is None:
+        return None
+    payload = None
+    raw = row["payload"]
+    if raw:
+        try:
+            payload = json.loads(raw)
+        except (TypeError, ValueError):
+            payload = raw
+    return {
+        "id": row["id"],
+        "type": row["alert_type"],
+        "payload": payload,
+        "ts": row["ts"] or "",
+        "created_at": row["created_at"],
+    }
+
+
+def get_profile_alerts(user_id, limit=0):
+    """Newest first, scoped to one account.
+
+    limit=0 (the default) returns the WHOLE history, which is what the
+    profile asks for. A positive limit pages it, capped at 200 rows so a
+    caller cannot ask for an unbounded scan by accident. Ordering is by
+    the append id, not by the client-supplied ts, so the order is stable
+    even if two alerts share a second.
+    """
+    limit = int(limit or 0)
+    sql = ("SELECT id, alert_type, payload, ts, created_at "
+           "FROM profile_alert_log WHERE user_id = ? ORDER BY id DESC")
+    params = [user_id]
+    if limit > 0:
+        sql += " LIMIT ?"
+        params.append(min(limit, 200))
+    with get_db() as conn:
+        rows = conn.execute(sql, tuple(params)).fetchall()
+    return [_alert_row(r) for r in rows]
 
 
 # ═══════════════════════════════════════════════════════════════

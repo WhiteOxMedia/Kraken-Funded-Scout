@@ -201,6 +201,41 @@ TRUTH_AUDIT = {
     # shorthand (the canonical counter line carries the live state)
     "Mine XMR to earn free entries. Every 100 shares = 1 entry for the daily drawing.":
         "Mine XMR to earn free entries. Every 100 valid shares = 1 complete raffle entry — your partial progress is saved, and an entry is submitted only when all 100 units are collected.",
+    # THE WALLET-CONNECT MODAL (sanctioned removal, 609919f "remove
+    # popups"): the baseline's blocking wallet prompt is gone. Wallet
+    # binding now happens inline — the optional receive-only field on
+    # signup and in the dashboard editor — so these nine baseline strings
+    # have no surviving surface: the close-up was replaced by the inline
+    # wallet field, and the dead showWalletConnectModal() wiring was
+    # deleted outright. The promo lines survive as app.js constants
+    # rendered into #walletBaselineNotes. Listed here so 1.1 keeps
+    # failing on any FUTURE unsanctioned loss instead of absorbing this
+    # one silently.
+    "Why connect?": "(removed with the wallet-connect modal, 609919f — "
+        "wallet binding is inline on signup and in the dashboard editor)",
+    "🔗 Connect Your Monero Wallet (Optional)": "(removed with the "
+        "wallet-connect modal, 609919f)",
+    "Connecting a wallet unlocks community bonuses from partner exchanges like Kraken. These bonuses help boost the daily grand prize for everyone.":
+        "(removed with the wallet-connect modal, 609919f — the referral "
+        "bonus path is described on the How It Works surface)",
+    "Your wallet is receive-only. We cannot access your funds. We cannot send from your wallet. We cannot view your keys.":
+        "(removed with the wallet-connect modal, 609919f — the promise "
+        "survives as the receive-only note beside the wallet field)",
+    "Important:": "(removed with the wallet-connect modal, 609919f)",
+    "Bigger grand prizes": "(removed with the wallet-connect modal, 609919f)",
+    "Faster payouts if you win": "(removed with the wallet-connect modal, 609919f)",
+    "Verified participant status": "(removed with the wallet-connect modal, 609919f)",
+    "Skip for Now": "(removed with the wallet-connect modal, 609919f — "
+        "there is no prompt left to skip)",
+    # THE MINER EMOJIS (surgical delete, operator order): the ⛏️ and 👷
+    # glyphs are gone from the Your Miner card — the header now reads
+    # "Your Miner" and the upgrade button "Hire Miner 2 (2.0 XMR)". No
+    # ids, classes, containers, layout or mining logic were touched, and
+    # nothing replaced the glyphs.
+    "⛏️ Your Miner": "(emoji removed from the card header — reads "
+        "\"Your Miner\")",
+    "👷 Hire Miner 2 (2.0 XMR)": "(emoji removed from the upgrade "
+        "button — reads \"Hire Miner 2 (2.0 XMR)\")",
 }
 unsanctioned = [s for s in missing if s not in TRUTH_AUDIT]
 check(1.1, not unsanctioned,
@@ -215,10 +250,22 @@ not_landed = [new for new in TRUTH_AUDIT.values()
 check(1.10, not not_landed,
       f"all {len(TRUTH_AUDIT)} audited rewordings are present "
       + (f"- NOT LANDED: {not_landed[:6]}" if not_landed else ""))
+# SANCTIONED REMOVALS (Oct 21): the staging checklist retires the legacy
+# pixel-art miner assets - the profile must carry no sprite <img> and no
+# JS reference (checklist 5.1). Their baseline links therefore disappear
+# BY DESIGN; every other baseline link/route must still survive.
+SANCTIONED_REMOVED_LINKS = {
+    "/static/img/miner_sprite.png",
+    "/static/img/miner_reference.png",
+    "/static/img/miner_transparent.png",
+}
 old_links, new_links = links_of(old_html), links_of(new_html)
-check(1.2, set(old_links) <= set(new_links),
-      f"all {len(old_links)} baseline links/routes survive; new: "
-      f"{sorted(set(new_links) - set(old_links))}")
+lost_links = set(old_links) - set(new_links) - SANCTIONED_REMOVED_LINKS
+check(1.2, not lost_links,
+      f"all {len(old_links)} baseline links/routes survive "
+      f"(minus {len(SANCTIONED_REMOVED_LINKS)} retired sprite assets); "
+      f"new: {sorted(set(new_links) - set(old_links))}; "
+      f"lost: {sorted(lost_links)}")
 
 # ── 1.5 THE KRAKEN-SCOUT FUNNEL: the required copy is PRESENT, additions
 # stay bounded, and the mandated phrases link to the real origin. The
@@ -690,11 +737,22 @@ check(8.6, 'style="position:absolute;left:0;top:50%' not in new_html
       "the legality sticker is FULLY removed per user order, Sep 25 "
       "evening IV (no wf-award markup, no old inline stamp, no "
       "margin-pinned element in the hero)")
-check(8.7, new_html.count("miner_sprite") == 2
-      and 'id="realMinerSprite1"' in new_html,
-      "the pixel-art sprite remains ONLY in the app.js-wired realplay "
-      "scene (2 refs; the one-click box and the solo-vs-pool comparison "
-      "now carry flat design-system numerals - user report, Sep 25)")
+# Oct 21 staging checklist 5.1: the legacy sprite assets are REMOVED -
+# deleted from the tree and unreferenced by markup or JS - so the miner
+# character renders from type + CSS in the SAME app.js-wired scene.
+_app_js_text = (HERE / "pool" / "static" / "app.js").read_text(
+    encoding="utf-8", errors="replace")
+check(8.7, new_html.count("miner_sprite") == 0
+      and new_html.count("miner_reference") == 0
+      and new_html.count("miner_transparent") == 0
+      and "miner_sprite" not in _app_js_text
+      and "miner_reference" not in _app_js_text
+      and "miner_transparent" not in _app_js_text
+      and 'id="realMinerSprite1"' in new_html
+      and 'id="mineScene"' in new_html,
+      "the legacy pixel-art assets are fully retired: no sprite markup, "
+      "no JS reference, and the app.js-wired realplay scene still owns "
+      "the single miner character (checklist 5.1)")
 check(8.8, 'position:absolute' not in new_html
       and 'position: absolute' not in new_html,
       "nothing is margin-pinned or absolutely positioned in the "

@@ -10,5 +10,5 @@
     "scout_pro",
     "nfty_enabled"
   ],
-  "routing": "nftyRoute"
+  "routing": "routeAlert"
 }

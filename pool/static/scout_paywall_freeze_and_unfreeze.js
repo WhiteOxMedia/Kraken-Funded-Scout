@@ -121,11 +121,7 @@
 
     // surface the freeze message once (idempotent)
 
-    // The freeze signal is routed through the unified NFTY system instead of
-    // rendering its own inline message element.
-    if (typeof nftyRoute === "function") {
-        nftyRoute({type: "GET_OUT_NOW"});
-    }
+  }
 
   // ── freeze API (called by admin toggles / checkout lifecycle) ─────────
   window.scoutPaywallFreezeUntil = function (timestampSeconds) {

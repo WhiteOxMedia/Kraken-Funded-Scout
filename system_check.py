@@ -1,4 +1,4 @@
-import urllib.request, json, os
+import urllib.request, urllib.error, json, os
 
 print('=== PRE-LAUNCH SYSTEM CHECK ===')
 print()
@@ -57,14 +57,30 @@ try:
 except Exception as e:
     print('6.  Provably Fair:     FAIL -', e)
 
-# 7. Static files
+# 7. Static files (and the SPRITE-REMOVAL contract: the legacy
+#    pixel-art miner assets are retired, so those URLs must 404 - a
+#    server still serving them means a stale bundle is deployed)
 try:
     urllib.request.urlopen('http://127.0.0.1:3094/static/style.css', timeout=5)
     urllib.request.urlopen('http://127.0.0.1:3094/static/app.js', timeout=5)
-    urllib.request.urlopen('http://127.0.0.1:3094/static/img/miner_sprite.png', timeout=5)
-    print('7.  Static files:      OK (CSS + JS + sprite)')
+    print('7.  Static files:      OK (CSS + JS)')
 except Exception as e:
     print('7.  Static files:      FAIL -', e)
+
+SPRITES = ('miner_sprite.png', 'miner_reference.png', 'miner_transparent.png')
+still_served = []
+for name in SPRITES:
+    try:
+        urllib.request.urlopen(
+            'http://127.0.0.1:3094/static/img/' + name, timeout=5)
+        still_served.append(name)
+    except urllib.error.HTTPError as e:
+        if e.code != 404:
+            still_served.append(name + ' (HTTP ' + str(e.code) + ')')
+    except Exception:
+        pass          # connection refused etc. is check 1's failure, not this one
+print('7b. Sprite assets:     ' + ('OK (all retired, 404)' if not still_served
+                                  else 'FAIL - still served: ' + ', '.join(still_served)))
 
 # 8. Binaries
 proxy = os.path.exists('monero/xmrig-proxy.exe')

@@ -1057,6 +1057,18 @@ class ProfileUpdate(BaseModel):
     wallet_address: str = ""
 
 
+class ProfileAlertIn(BaseModel):
+    """An alert the client actually fired (checklist 4.1 / 4.2).
+
+    `type` is validated against the two alert classes in the route; `ts`
+    is the moment the alert fired on the device, kept verbatim so a
+    retried write does not rewrite history with the receipt time.
+    """
+    type: str
+    payload: object | None = None
+    ts: str | None = None
+
+
 class AdminSettingUpdate(BaseModel):
     key: str
     value: str
@@ -1302,6 +1314,38 @@ async def api_update_profile(req: ProfileUpdate, request: Request):
     )
     db.add_audit_log(user["id"], "profile_update", "Updated profile", request.client.host)
     return {"status": "ok"}
+
+
+@app.post("/api/profile/alert-log")
+async def api_profile_alert_log(req: ProfileAlertIn, request: Request):
+    """Record one fired alert for the signed-in member.
+
+    The client only posts when an alert really fired with NFTY disabled,
+    so this row is the member-visible record the profile renders. Scope
+    is always the session's own user id - a request can never write into
+    somebody else's history.
+    """
+    user = require_auth(request)
+    alert_type = (req.type or "").strip().upper()
+    if alert_type not in ("BUY_NOW", "GET_OUT_NOW"):
+        raise HTTPException(
+            status_code=400,
+            detail="unsupported alert type: only BUY_NOW and GET_OUT_NOW are logged",
+        )
+    entry = db.add_profile_alert(
+        user["id"], alert_type, payload=req.payload,
+        ts=req.ts or time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+    )
+    return {"status": "ok", "entry": entry}
+
+
+@app.get("/api/profile/alert-log")
+async def api_profile_alert_log_list(request: Request, limit: int = 0):
+    """The signed-in member's own alert history: the full list, newest
+    first. `?limit=N` pages it (capped at 200) for callers that ask.
+    """
+    user = require_auth(request)
+    return {"alerts": db.get_profile_alerts(user["id"], limit=limit)}
 
 
 @app.get("/api/profile/stats")
