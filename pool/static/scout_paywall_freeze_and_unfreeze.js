@@ -120,25 +120,12 @@
     });
 
     // surface the freeze message once (idempotent)
-    var freezeMsg = $("scout-paywall-freeze-msg");
-    if (frozen) {
-      if (!freezeMsg) {
-        freezeMsg = document.createElement("div");
-        freezeMsg.id = "scout-paywall-freeze-msg";
-        freezeMsg.className = "scout-paywall-freeze-msg";
-        var anchor = $("scout-purchase-panel") || root;
-        anchor.parentNode.insertBefore(freezeMsg, anchor);
-      }
-      var remain = activeFreezeSecondsRemaining();
-      var msg = "Checkout is paused until the active cycle resumes" +
-        (remain > 0 ? " — about " + remain + "s remaining." : "") +
-        " Donations and unlocks are disabled until then.";
-      freezeMsg.textContent = msg;
-      freezeMsg.style.display = "";
-    } else if (freezeMsg) {
-      freezeMsg.style.display = "none";
+
+    // The freeze signal is routed through the unified NFTY system instead of
+    // rendering its own inline message element.
+    if (typeof nftyRoute === "function") {
+        nftyRoute({type: "GET_OUT_NOW"});
     }
-  }
 
   // ── freeze API (called by admin toggles / checkout lifecycle) ─────────
   window.scoutPaywallFreezeUntil = function (timestampSeconds) {

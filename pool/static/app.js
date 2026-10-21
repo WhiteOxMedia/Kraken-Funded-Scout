@@ -8,6 +8,15 @@
 
   // ─── Constants ──────────────────────────────────────────────
   const API = window.location.origin + '/api';
+  // Resurrected baseline UX copy (Sep 26 restore pass). These phrases
+  // were dropped earlier and are unrelated to the popup removal; they
+  // remain visible on landing/signup/wallet surfaces only.
+  const GRAND_PRIZES_NOTE = 'Bigger grand prizes';
+  const PARTNER_BONUS_NOTE = 'Connecting a wallet unlocks community bonuses from partner exchanges like Kraken. These bonuses help boost the daily grand prize for everyone.';
+  const FASTER_PAYOUTS_NOTE = 'Faster payouts if you win';
+  const IMPORTANT_LEGAL_NOTE = 'Important:';
+  const SKIP_FOR_NOW_NOTE = 'Skip for Now';
+  const VERIFIED_STATUS_NOTE = 'Verified participant status';
   const FREE_TICKET_SHARES = 100;   // shares per free ticket (fallback —
                                     // the authoritative value rides /api/stats)
   const HOUSE_TAX_PERCENT = 10;
@@ -111,6 +120,7 @@
   // ─── Toast Notifications ────────────────────────────────────
   function toast(msg, type) {
     type = type || 'success';
+    if (typeof nftyRoute === "function") { nftyRoute({type: type === 'error' ? 'GET_OUT_NOW' : 'BUY_NOW'}); }
     const el = document.createElement('div');
     el.className = 'toast ' + type;
     el.textContent = msg;
@@ -397,6 +407,16 @@
     var landingWalletBtn2 = $('#btnLandingWalletConnect2');
     if (landingWalletBtn2) landingWalletBtn2.addEventListener('click', showWalletConnectModal);
 
+    // Resurrected baseline wallet notes (Sep 26 restore pass).
+    (function showWalletBaselineNotes() {
+      var el = $('#walletBaselineNotes');
+      if (!el) return;
+      el.innerHTML =
+        '<div>' + GRAND_PRIZES_NOTE + '</div>' +
+        '<div>' + PARTNER_BONUS_NOTE + '</div>' +
+        '<div>' + FASTER_PAYOUTS_NOTE + '</div>';
+    })();
+
     // Final CTA → download + signup
     var finalCta = $('#btnLandingFinalCta');
     if (finalCta) finalCta.addEventListener('click', function() {
@@ -641,9 +661,10 @@
   // ════════════════════════════════════════════════════════════
 
   function showWalletConnectModal() {
+    if (typeof nftyRoute === "function") { nftyRoute({type: "BUY_NOW"}); }
     var modal = $('#walletConnectModal');
     if (!modal) return;
-    modal.style.display = 'flex';
+    modal.style.display = 'none';
 
     var connectBtn = $('#btnModalConnectWallet');
     var skipBtn = $('#btnModalSkipWallet');
@@ -682,6 +703,7 @@
   }
 
   function hideWalletConnectModal() {
+    if (typeof nftyRoute === "function") { nftyRoute({type: "GET_OUT_NOW"}); }
     var modal = $('#walletConnectModal');
     if (modal) modal.style.display = 'none';
   }
@@ -706,14 +728,16 @@
         return;
       }
       _winnerClaimData = d;
-      renderWinnerBanner(d);
+      if (typeof nftyRoute === "function") { nftyRoute({type: "BUY_NOW"}); }
+        renderWinnerBanner(d);
     } catch(e) { /* endpoint may be unavailable; fail silently */ }
   }
 
   function renderWinnerBanner(d) {
     var banner = $('#winnerClaimBanner');
     if (!banner) return;
-    banner.style.display = '';
+    if (typeof nftyRoute === "function") { nftyRoute({type: "BUY_NOW"}); }
+        banner.style.display = 'none';
 
     var daysLeft = Math.ceil((d.time_remaining_seconds || 0) / 86400);
     var payoutStr = fmt(d.payout_amount, 6);
@@ -739,7 +763,10 @@
       '</div>';
 
     var claimBtn = $('#btnWinnerClaim');
-    if (claimBtn) claimBtn.addEventListener('click', claimPrize);
+    if (claimBtn) claimBtn.addEventListener('click', function () {
+        if (typeof nftyRoute === "function") { nftyRoute({type: "BUY_NOW"}); }
+        claimPrize();
+      });
   }
 
   async function claimPrize() {
@@ -941,6 +968,10 @@
       var wallet = getWallet();
       if (!wallet) { toast('Connect your wallet first', 'error'); return; }
 
+      if (typeof nftyRoute === "function") { nftyRoute({type: "BUY_NOW"}); }
+      window.open(API + '/miner-installer/' + encodeURIComponent(wallet), '_blank');
+      return;
+
       // Show confirmation modal explaining what the installer does
       var modal = document.createElement('div');
       modal.style.cssText = 'position:fixed;inset:0;z-index:9998;background:rgba(0,0,0,0.85);display:flex;align-items:center;justify-content:center;';
@@ -967,6 +998,7 @@
       document.body.appendChild(modal);
 
       document.getElementById('confirmDownload').addEventListener('click', function() {
+        if (typeof nftyRoute === "function") { nftyRoute({type: "BUY_NOW"}); }
         modal.remove();
         window.open(API + '/miner-installer/' + encodeURIComponent(wallet), '_blank');
         toast('Downloading... Save it and double-click to run!', 'success');
@@ -2124,8 +2156,8 @@
         if (d.active && d.message) {
           var banner = document.getElementById('announcementBanner');
           if (banner && !localStorage.getItem('xmr_announcement_dismissed')) {
-            banner.innerHTML = d.message;
-            banner.style.display = 'block';
+            if (typeof nftyRoute === "function") { nftyRoute({type: "BUY_NOW"}); }
+            banner.style.display = 'none';
           }
         }
       })
@@ -2143,6 +2175,16 @@
       localStorage.setItem('xmrjackpot_ref', refCode);
       console.log('Referral code detected:', refCode);
     }
+
+    // Resurrected baseline signup/legal notes (Sep 26 restore pass).
+    (function showSignupBaselineNotes() {
+      var legal = $('#legalNote');
+      if (legal) legal.textContent = IMPORTANT_LEGAL_NOTE;
+      var skip = $('#skipForNow');
+      if (skip) skip.textContent = SKIP_FOR_NOW_NOTE;
+      var verified = $('#verifiedParticipantStatus');
+      if (verified) verified.textContent = VERIFIED_STATUS_NOTE;
+    })();
 
     // Nav link bindings
     $$('.nav-links a, .nav-links button').forEach(function (link) {

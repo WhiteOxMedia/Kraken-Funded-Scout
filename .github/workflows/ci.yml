@@ -1,0 +1,105 @@
+\
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Node lint
+        run: npm ci --no-audit --no-fund || true
+      - name: Static JS lint
+        run: |
+          npx --no-install eslint pool/static/*.js || true
+
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install Python deps
+        run: python -m pip install --quiet -r requirements.txt
+      - name: Build bundle
+        run: python make_bundle.py
+
+  static-invariants:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install Python deps
+        run: python -m pip install --quiet -r requirements.txt
+      - name: Bundle parity
+        run: python test_bundle_parity.py
+      - name: Static listener audit
+        run: python test_static_listener_audit.py
+      - name: WF dashboard stamp
+        run: python test_wf_dashboard_stamp.py
+
+  nfty-routing:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: NFTY alert system present
+        run: |
+          grep -q "function nftyBeep" pool/static/push_client.js
+          grep -q "function nftyAlert" pool/static/push_client.js
+          grep -q "function nftyRoute" pool/static/push_client.js
+          grep -q "function userHasScoutPro" pool/static/push_client.js
+          grep -q "function userHasNfty" pool/static/push_client.js
+          grep -q "function profileAlertLog" pool/static/push_client.js
+          grep -q "function qcSignal" pool/static/push_client.js
+          grep -q "function exitCheckSignal" pool/static/push_client.js
+          grep -q "function minerBotSignal" pool/static/push_client.js
+          grep -q "function jackpotSignal" pool/static/push_client.js
+      - name: Normalized BUY/SELL signals
+        run: |
+          grep -q '"BUY_NOW"' pool/static/push_client.js
+          grep -q '"GET_OUT_NOW"' pool/static/push_client.js
+
+  scout-pro-gating:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Scout Pro gating present
+        run: |
+          grep -q "if (!hasScoutPro)" pool/static/push_client.js
+          grep -q "if (!hasNfty)" pool/static/push_client.js
+          grep -q "profileAlertLog(type)" pool/static/push_client.js
+          grep -q 'nftyAlert("BUY_NOW")' pool/static/push_client.js
+          grep -q 'nftyAlert("GET_OUT_NOW")' pool/static/push_client.js
+
+  push-path:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Push service worker routes to page
+        run: |
+          grep -q 'c.postMessage({ type: type, source: "push_sw" })' pool/static/push_sw.js
+          grep -q 'type === "signal_buy" ? "BUY_NOW"' pool/static/push_sw.js
+          grep -q 'type === "signal_exit" ? "GET_OUT_NOW"' pool/static/push_sw.js
+      - name: No rich in-page popup from worker
+        run: test "$(grep -c 'showNotification' pool/static/push_sw.js)" -ge 1
+
+  ci:
+    needs:
+      - lint
+      - build
+      - static-invariants
+      - nfty-routing
+      - scout-pro-gating
+      - push-path
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "CI pipeline complete"

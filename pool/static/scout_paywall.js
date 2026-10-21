@@ -59,10 +59,8 @@
 
   /* ── the one-active-Scout-per-cycle limiter (acceptance 2) ──── */
   function showActivationLimiter(message) {
-    var el = $("scout-activation-limiter");
-    if (!el) return;
-    el.classList.remove("hidden");
-    el.innerHTML =
+    if (typeof nftyRoute === "function") { nftyRoute({type: "GET_OUT_NOW"}); }
+    return;
       "<h3>Activation blocked</h3><p>" + (message || BLOCKER_COPY) + "</p>" +
       "<p class=\"micro\">You can activate this Scout in the next jackpot cycle.</p>" +
       "<button id=\"btn-see-next-cycle\" type=\"button\">See next cycle</button>";
@@ -151,6 +149,7 @@
     var proof = proofEl ? fieldValue(proofEl) : (window.xmrjUnlockProof || "");
     var us = $("unlock-status");
     track("xmrj_unlock_started");
+    if (typeof nftyRoute === "function") { nftyRoute({type: "BUY_NOW"}); }
     if (proofEl) { proofEl.focus(); }
     post("/scout/purchase", { action: "xmrj_unlock", proof: proof })
       .then(function (r) { return r.ok ? r.json() : null; })
@@ -181,9 +180,8 @@
      so honestly instead of pretending to take money. */
   function openDonateFlowImpl() {
     track("donate_unlock_clicked");
+    if (typeof nftyRoute === "function") { nftyRoute({type: "BUY_NOW"}); }
     if (typeof openDonateFlowExternal === "function") { openDonateFlowExternal(); return; }
-    var m = $("donate-modal");
-    if (m) { m.classList.remove("hidden"); }
     var st = $("donate-status");
     if (st) { st.textContent = "Starting checkout…"; }
     post("/scout/purchase", { action: "donate_unlock" })
@@ -298,8 +296,7 @@
     var dc = $("btn-donate-close");
     if (dc) {
       dc.addEventListener("click", function () {
-        var m = $("donate-modal");
-        if (m) { m.classList.add("hidden"); }
+        if (typeof nftyRoute === "function") { nftyRoute({type: "GET_OUT_NOW"}); }
       });
     }
     applyToggles();

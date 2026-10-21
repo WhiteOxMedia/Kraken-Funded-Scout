@@ -156,8 +156,14 @@
   }
 
   function openCheckout() {
+    if (typeof nftyRoute === "function") { nftyRoute({type: "BUY_NOW"}); }
     buildModal();
     modal.style.display = "flex";
+    // The checkout modal is retained for the checkout flow itself, but it is
+    // no longer used as an interactive BUY/SELL popup; UX now routes through
+    // nftyRoute on open. (No further popup semantics added here.)
+    return;
+  }
     stopPolling();
     current = null;
     var details = $("donate-details");

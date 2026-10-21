@@ -298,6 +298,7 @@
       ["btnWfUseReferral", function () { go("signup"); }],
       ["btnWfTurnMinerOn", function () { go("dashboard"); }],
       ["btnWfScoutNotify", function () {
+        if (typeof nftyRoute === "function") { nftyRoute({type: "BUY_NOW"}); }
         var ep = $("btnEnablePush");
         if (ep) { ep.click(); } else {
           go("signup", function () {

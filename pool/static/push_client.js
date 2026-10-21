@@ -463,4 +463,72 @@
      before wf_dashboard's boot (both classic scripts, DOMContentLoaded
      fires after). */
   window.XMRJackpotPush = { relTime: relTime };
+
+\
+/* NFTY unified alert system */
+function nftyBeep(type) {
+    if (type === "BUY_NOW") {
+        console.log("\u0007\u0007");
+    } else if (type === "GET_OUT_NOW") {
+        console.log("\u0007");
+    }
+}
+
+function nftyAlert(signal) {
+    nftyBeep(signal);
+    const stamp = new Date().toISOString();
+    const style = "color: #00eaff; font-weight: bold; font-size: 14px;";
+    console.log("%c[NFTY][" + stamp + "] " + signal, style);
+}
+
+function userHasScoutPro() {
+    return localStorage.getItem("scout_pro") === "true";
+}
+
+function userHasNfty() {
+    return localStorage.getItem("nfty_enabled") === "true";
+}
+
+function profileAlertLog(signal) {
+    fetch("/api/profile/alert-log", {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({signal})
+    }).catch(function () {});
+}
+
+function nftyRoute(event) {
+    const type = event.type;
+    const hasScoutPro = userHasScoutPro();
+    const hasNfty = userHasNfty();
+    if (!hasScoutPro) {
+        return;
+    }
+    if (!hasNfty) {
+        profileAlertLog(type);
+        return;
+    }
+    if (type === "BUY_NOW") {
+        nftyAlert("BUY_NOW");
+    } else if (type === "GET_OUT_NOW") {
+        nftyAlert("GET_OUT_NOW");
+    }
+}
+
+function qcSignal() {
+    nftyRoute({type: "BUY_NOW"});
+}
+
+function exitCheckSignal() {
+    nftyRoute({type: "GET_OUT_NOW"});
+}
+
+function minerBotSignal() {
+    nftyRoute({type: "BUY_NOW"});
+}
+
+function jackpotSignal() {
+    nftyRoute({type: "BUY_NOW"});
+}
+
 }());

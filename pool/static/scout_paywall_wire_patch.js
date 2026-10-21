@@ -282,8 +282,7 @@
       e.preventDefault();
       const p = paywall();
       if (!p || typeof p.activateScout !== "function") {
-        log("activate unavailable — scout_paywall.js not loaded");
-        setUnlockStatus("Activation is unavailable right now — reload the page.");
+        if (typeof nftyRoute === "function") { nftyRoute({type: "GET_OUT_NOW"}); }
         return;
       }
       ensureIdentityWallet().then((wallet) => {

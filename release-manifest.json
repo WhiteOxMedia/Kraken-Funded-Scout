@@ -1,0 +1,14 @@
+{
+  "generated_at": "2026-10-21T00:05:48Z",
+  "version": "nfty-unified-1",
+  "artifact": "push_client.js",
+  "signals": [
+    "BUY_NOW",
+    "GET_OUT_NOW"
+  ],
+  "gates": [
+    "scout_pro",
+    "nfty_enabled"
+  ],
+  "routing": "nftyRoute"
+}

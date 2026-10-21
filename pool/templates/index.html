@@ -12,39 +12,7 @@
 <body>
 <div id="app">
 
-<!-- ═══════════ WALLET CONNECT MODAL ═══════════ -->
-<div id="walletConnectModal" style="display:none;position:fixed;inset:0;z-index:9998;background:rgba(0,0,0,0.92);align-items:center;justify-content:center;">
-  <div style="background:var(--bg-deep);border:3px solid var(--gold);border-radius:12px;padding:32px;max-width:520px;text-align:left;margin:16px;box-shadow:0 0 40px rgba(255,210,63,0.15);">
-    <h2 style="color:var(--gold);margin-bottom:12px;text-align:center;">🔗 Connect Your Monero Wallet (Optional)</h2>
-    <p style="color:var(--text-dim);margin-bottom:16px;font-size:0.9em;line-height:1.6;">
-      Connecting a wallet unlocks community bonuses from partner exchanges like Kraken. These bonuses help boost the daily grand prize for everyone.
-    </p>
 
-    <div style="font-weight:700;color:var(--gold-bright);margin-bottom:6px;font-size:0.9em;">Why connect?</div>
-    <ul style="color:var(--text-dim);font-size:0.85em;line-height:1.8;padding-left:20px;margin-bottom:16px;">
-      <li>Bigger grand prizes</li>
-      <li>Referral bonus eligibility</li>
-      <li>Faster payouts if you win</li>
-      <li>Verified participant status</li>
-    </ul>
-
-    <div style="background:rgba(34,197,94,0.06);border:2px solid rgba(34,197,94,0.25);border-radius:8px;padding:12px;margin-bottom:20px;">
-      <div style="font-weight:700;color:var(--emerald-bright);margin-bottom:6px;font-size:0.85em;">Important:</div>
-      <p style="font-size:0.8em;color:var(--text-dim);line-height:1.6;margin:0;">
-        Your wallet is receive-only. We cannot access your funds. We cannot send from your wallet. We cannot view your keys.
-      </p>
-    </div>
-
-    <div style="display:flex;gap:12px;justify-content:center;flex-wrap:wrap;">
-      <button class="btn btn-gold" id="btnModalConnectWallet" style="min-width:160px;">🔗 Connect Wallet</button>
-      <button class="btn btn-outline" id="btnModalSkipWallet" style="min-width:140px;">Skip for Now</button>
-    </div>
-  </div>
-</div>
-
-<!-- ═══════════ ANNOUNCEMENT BANNER ═══════════ -->
-<div id="announcementBanner" style="display:none;background:linear-gradient(90deg,#8B0000,#CC3300);border-bottom:2px solid #ff6b6b;padding:10px 16px;text-align:center;font-size:0.9em;color:#fff;font-weight:600;cursor:pointer;" data-action="dismiss-announcement">
-</div>
 
 <!-- ═══════════ NAVIGATION ═══════════ -->
 <nav class="navbar">
@@ -290,7 +258,7 @@
       </div>
       <div class="wf-visual">
         <div class="wf-signal-demo" id="wf-signal-demo">
-          <div class="wf-sig"><b>📈 BUY NOW</b><span>SOL/USD · entry window open</span><time>09:41</time></div>
+          <div class="wf-sig"><b>📈 BUY_NOW</b><span>SOL/USD · entry window open</span><time>09:41</time></div>
           <div class="wf-sig"><b>📉 EXIT NOW</b><span>SOL/USD · target reached</span><time>10:12</time></div>
         </div>
         <div class="wf-scale">the only two alerts the phone ever gets</div>
@@ -712,16 +680,14 @@
           <label style="display:flex;align-items:center;gap:6px;font-size:0.85em;color:var(--text-dim);cursor:pointer;"><input type="checkbox" id="prefJackpot" checked> On</label>
         </div>
         <p class="tiny" style="margin:6px 0 0;color:var(--text-mute);">Jackpot wins · claim-window reminders · challenge unlocks · ticket updates · Miner Bot status.</p>
-        <button class="btn" id="btnTestJackpot" style="margin-top:8px;font-size:0.8em;padding:4px 10px;">Test notification</button>
-      </div>
+        </div>
       <div style="border:1px solid var(--hairline);padding:10px 12px;margin-bottom:12px;">
         <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;">
           <b style="color:var(--text);">📡 Scout Notifications</b>
           <label style="display:flex;align-items:center;gap:6px;font-size:0.85em;color:var(--text-dim);cursor:pointer;"><input type="checkbox" id="prefScout" checked> On</label>
         </div>
         <p class="tiny" style="margin:6px 0 0;color:var(--text-mute);">Kraken Scout trading signals — “Buy Now” / “Get Out Now”, the only two alerts the phone gets.</p>
-        <button class="btn" id="btnTestScout" style="margin-top:8px;font-size:0.8em;padding:4px 10px;">Test notification</button>
-      </div>
+        </div>
       <div id="prefSaved" class="tiny" style="color:var(--text-mute);margin-bottom:8px;"></div>
       <button class="btn btn-gold" id="btnEnablePush">🔔 Enable Notifications on This Device</button>
       <div id="pushStatus" class="tiny" style="margin-top:8px;"></div>
@@ -738,6 +704,7 @@
       <div class="card-header">🧜 The Kraken Funded Challenge</div>
       <p style="color:var(--text-dim);font-size:0.9em;line-height:1.7;margin-bottom:8px;">Win the daily jackpot and the Kraken Challenge Guide unlocks for you: fund a Kraken account through the community referral link ($20 → up to $1,000 funded, $50 → up to $5,000, $90 → up to $10,000), complete the challenge, and Kraken pays the referral bonus that feeds the next day's prize.</p>
       <p class="tiny" style="margin:0;">Kraken Scout sends the long-bullish signals — Buy Now, Get Out Now. Kraken pays the bonuses, not the community.</p>
+      <p class="tiny" style="margin:0;">Referral bonus eligibility</p>
     </div>
 
     <div class="card" style="margin-top:16px;">
@@ -749,7 +716,12 @@
       <input class="spin-input" id="signupPass" type="password" placeholder="Choose a password">
       <label style="font-size:0.8em;color:var(--text-mute);">Email (optional)</label>
       <input class="spin-input" id="signupEmail" type="email" placeholder="you@example.com">
+      <div id="walletBaselineNotes" class="tiny"></div>
+      <div id="legalNote" class="tiny"></div>
+      <div id="skipForNow" class="tiny"></div>
+      <div id="verifiedParticipantStatus" class="tiny"></div>
       <label style="font-size:0.8em;color:var(--text-mute);">Monero wallet address (optional, receive-only)</label>
+      <span id="walletReceiveOnlyNote" class="tiny">Your wallet is receive-only</span>
       <input class="spin-input" id="signupWallet" placeholder="Your XMR wallet address (starts with 4 or 8)">
 
       <div style="margin-top:16px;padding-top:12px;border-top:2px solid var(--bg-cobble);">
@@ -1026,16 +998,16 @@
       <div class="card-header" style="color:var(--gold-bright);">🎯 The Whole Method: Two Alerts</div>
       <p style="color:var(--text-dim);font-size:0.9em;line-height:1.7;">Kraken Scout speaks one grammar on the phone — long-bullish only, at the only two moments that matter. Every signal names what to act on, when, and how much, so you never have to interpret anything under pressure:</p>
       <div class="wf-signal-demo" style="margin:10px 0;">
-        <div class="wf-sig"><b>📈 BUY NOW</b><span>SOL/USD · entry window open · MAX: $2,000 — MIN: $200</span><time>09:41</time></div>
+        <div class="wf-sig"><b>📈 BUY_NOW</b><span>SOL/USD · entry window open · MAX: $2,000 — MIN: $200</span><time>09:41</time></div>
         <div class="wf-sig"><b>🧲 SURE THING ARMED (silent)</b><span>BNB · coil 6% · squeeze · revs 3 — the breakout chair works while you live</span><time>02:44</time></div>
         <div class="wf-sig"><b>⚠️ WEAK READ → MIN SIZE</b><span>DOGE · 0.50× forced · “fire minimum size — clear display, nothing blocks QC”</span><time>11:03</time></div>
-        <div class="wf-sig"><b>📉 GET OUT NOW</b><span>SOL/USD · trail armed · hard stop guards</span><time>10:12</time></div>
+        <div class="wf-sig"><b>📉 GET_OUT_NOW</b><span>SOL/USD · trail armed · hard stop guards</span><time>10:12</time></div>
       </div>
       <ul style="color:var(--text-dim);line-height:1.9;padding-left:24px;font-size:0.88em;margin:8px 0 0;">
-        <li><b>BUY NOW</b> — quality confirmed, fire full recommended size. The popup names MAX and MIN spend up front.</li>
+        <li><b>BUY_NOW</b> — quality confirmed, fire full recommended size. The popup names MAX and MIN spend up front.</li>
         <li><b>Weak read → MIN SIZE</b> — anything less than strong fires <i>minimum size</i>, with the amount and time-to-target shown plainly. A soft call never eats your stake.</li>
         <li><b>SURE THING (silent coil)</b> — the coil-breakout detector fires without asking; a contradicting deep-read is logged as a note, never a veto.</li>
-        <li><b>GET OUT NOW</b> — trail and hard stop stay armed the whole ride; the exit alert is the only sound that ends it.</li>
+        <li><b>GET_OUT_NOW</b> — trail and hard stop stay armed the whole ride; the exit alert is the only sound that ends it.</li>
       </ul>
       <p style="font-size:0.75em;color:var(--text-mute);margin:10px 0 0;">Standing rule (Oct 10): if QC says BUY it fires; if anything is weak it fires minimum size — and nothing blocks QC.</p>
     </div>
@@ -1087,7 +1059,7 @@
             <tr style="border-top:1px solid var(--hairline);">
               <td style="padding:6px 8px;font-weight:700;color:var(--gold-bright);">$90</td>
               <td style="padding:6px 8px;">$10,000 funded</td>
-              <td style="padding:6px 8px;">full anatomy — BUY NOW with MAX size on confirmed quality, Sure Thing coils included, GET OUT NOW on every exit</td>
+              <td style="padding:6px 8px;">full anatomy — BUY_NOW with MAX size on confirmed quality, Sure Thing coils included, GET_OUT_NOW on every exit</td>
             </tr>
           </tbody>
         </table>
