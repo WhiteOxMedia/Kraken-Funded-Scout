@@ -205,4 +205,9 @@ $MoneroFiles = (Get-ChildItem -Recurse -File (Join-Path $Bundle "payload\monero_
 $SizeMB = [math]::Round(((Get-ChildItem -Recurse -File $Bundle | Measure-Object Length -Sum).Sum / 1MB), 1)
 Write-Host ("BUNDLE READY: " + $Bundle)
 Write-Host ("  scout files: " + $ScoutFiles + " | monero files: " + $MoneroFiles + " | total " + $SizeMB + " MB")
+# THE EDGE CAN STILL SERVE THE OLD ZIP: Cloudflare caches it with
+# max-age=14400, so a finished build is not a shipped build. This is a
+# REMINDER, not a call - the builder must never need a Cloudflare token
+# (test_bundle.py runs it), so the purge stays an explicit next step.
+Write-Host "  NEXT: python cdn_purge.py   (the edge keeps the old zip for 4h otherwise)"
 if ($Open) { Invoke-Item $Bundle }
