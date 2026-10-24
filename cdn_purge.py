@@ -9,16 +9,29 @@ rebuild is cheaper than reasoning about which header is in force.
 
 THE LIST (keep in step with the routes in pool/server.py):
 
-  bundle     the zip, its sidecar, its manifest and the API the card reads
+  bundle     the zip, its sidecar and the API the card reads
   localized  /download in all six languages
   status     the status page and the version endpoint
-  chrome     / and /index — only reachable content changes if the navbar,
-             footer, or global JS changed
+  chrome     / — only reachable content changes if the navbar, footer, or
+             global JS changed
   miner      /api/miner-download — only if the miner .bat changed
 
 Every run purges the WHOLE list, deliberately. A single API call carries all
 of them, and forgetting a conditional entry is the exact failure this file
 exists to prevent; purging a URL that did not change costs nothing.
+
+TWO URLS THAT LOOK LIKE THEY BELONG AND DO NOT (checked Oct 24, 404 from
+both the origin and the edge):
+
+  /downloads/KrakenScoutBundle.zip.json  the manifest is a FILE the server
+      reads to build /api/downloads/bundle-info (server.py:212, :375); it
+      has no route of its own, so the API entry below is the manifest's
+      only served form.
+  /index  the front page is routed at / alone (server.py:487).
+
+Adding either back would keep the dry-run looking complete while purging a
+404. If a route for one is ever added, add its entry here in the same
+commit - and delete this note.
 
   python cdn_purge.py                      # token from CLOUDFLARE_API_TOKEN
                                            # or CF_API_TOKEN
@@ -41,10 +54,10 @@ ORIGIN = "https://" + ZONE_NAME
 
 # ── the canonical list ────────────────────────────────────────────────
 PURGE_PATHS = [
-    # bundle: rebuild the zip and these four move together
+    # bundle: rebuild the zip and these three move together (no .zip.json:
+    # the manifest is a dist file, and bundle-info is its only route)
     "/downloads/KrakenScoutBundle.zip",
     "/downloads/KrakenScoutBundle.zip.sha256",
-    "/downloads/KrakenScoutBundle.zip.json",
     "/api/downloads/bundle-info",
     # localized pages: every language, English owns the unprefixed URL
     "/download",
@@ -56,9 +69,8 @@ PURGE_PATHS = [
     # status surface
     "/status",
     "/api/version",
-    # chrome: navbar, footer, global JS
+    # chrome: navbar, footer, global JS (the front page is routed at / only)
     "/",
-    "/index",
     # miner download logic
     "/api/miner-download",
 ]

@@ -268,17 +268,21 @@ claim).
 **Cache purge (Oct 24).** Cloudflare serves the bundle zip with
 `max-age=14400`, so a rebuild can be live at the origin and still be a
 four-hour-old object at the edge. `python cdn_purge.py` is the step
-that closes that window: it purges the bundle zip, its `.sha256` and
-`.json`, `/api/downloads/bundle-info`, `/download` in all six
-languages, `/status`, `/api/version`, `/`, `/index` and
-`/api/miner-download` in one API call. Run it after **every** bundle
-rebuild and **every** localized-page change; the `/` + `/index` pair
-additionally matters when the navbar, footer or global JS moved, and
-`/api/miner-download` when the miner .bat changed. It purges the whole
-list regardless, because a single call costs the same and forgetting a
-conditional entry is the failure the file exists to prevent. The token
-comes from `CLOUDFLARE_API_TOKEN` / `CF_API_TOKEN` or a file path —
-`--dry-run` prints the URLs without calling the API.
+that closes that window: it purges the bundle zip, its `.sha256`,
+`/api/downloads/bundle-info`, `/download` in all six languages,
+`/status`, `/api/version`, `/` and `/api/miner-download` in one API
+call. Run it after **every** bundle rebuild and **every** localized-page
+change; `/` additionally matters when the navbar, footer or global JS
+moved, and `/api/miner-download` when the miner .bat changed. It purges
+the whole list regardless, because a single call costs the same and
+forgetting a conditional entry is the failure the file exists to
+prevent. Two URLs that look like they belong are deliberately absent,
+because neither is routed and purging them purged a 404 —
+`/downloads/KrakenScoutBundle.zip.json` (the manifest is a file behind
+`/api/downloads/bundle-info`) and `/index` (the front page is `/`);
+`cdn_purge.py` carries the note. The token comes from
+`CLOUDFLARE_API_TOKEN` / `CF_API_TOKEN` or a file path — `--dry-run`
+prints the URLs without calling the API.
 
 **Miner ingest key (Sep 27).** `/api/miner/shares` is an economy
 writer — its share deltas backfill free jackpot tickets (100 shares
