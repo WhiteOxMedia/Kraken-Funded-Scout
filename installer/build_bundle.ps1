@@ -142,6 +142,15 @@ foreach ($b in @("Install Kraken Scout.bat", "Uninstall Kraken Scout.bat")) {
     Copy-Item (Join-Path $PSScriptRoot $b) (Join-Path $Bundle $b) -Force
 }
 Copy-Item (Join-Path $PSScriptRoot "install.ps1") (Join-Path $Bundle "install.ps1") -Force
+# THE PAYLOAD'S COPY OF THE SAME FILE. The monero payload is `git archive
+# HEAD`, which can lag the working tree; the root installer above comes from
+# the working tree. Leaving the two out of step shipped an artifact whose
+# root installer had one xmrig pin and whose payload copy had another (the
+# broken one), so sync it here instead of hoping HEAD catches up.
+$PayloadInstaller = Join-Path $Bundle "payload\monero_project\installer\install.ps1"
+if (Test-Path $PayloadInstaller) {
+    Copy-Item (Join-Path $PSScriptRoot "install.ps1") $PayloadInstaller -Force
+}
 # ── 5. the README ─────────────────────────────────────────────────────
 Write-Host "[5/6] the README ..."
 $Enc = New-Object System.Text.UTF8Encoding($false)

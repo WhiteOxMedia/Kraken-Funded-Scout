@@ -85,16 +85,19 @@ if (Test-Path (Join-Path $PayDir "xmrig-6.26.0\xmrig.exe")) {
     if ($LASTEXITCODE -ge 8) { throw "robocopy xmrig failed rc=$LASTEXITCODE" }
     Write-Host "  staged local xmrig 6.26.0"
 } else {
-    $Url = "https://github.com/xmrig/xmrig/releases/download/v6.26.0/xmrig-6.26.0-msvc-win64.zip"
-    $Zip = Join-Path $env:TEMP "xmrig-6.26.0-msvc-win64.zip"
+    # THE RELEASE ASSET THAT EXISTS. This used to point at
+    # xmrig-6.26.0-msvc-win64.zip, which GitHub answers with 404, so the
+    # fallback could only ever fail after the user opted in.
+    $Url = "https://github.com/xmrig/xmrig/releases/download/v6.26.0/xmrig-6.26.0-windows-x64.zip"
+    $Zip = Join-Path $env:TEMP "xmrig-6.26.0-windows-x64.zip"
     Write-Host ("  fetching pinned xmrig 6.26.0 (official release) ...")
     try {
         Invoke-WebRequest -Uri $Url -OutFile $Zip -UseBasicParsing
-        # THE PINNED HASH (review triage, Sep 25): the downloaded miner
-        # payload is verified against the hash of the exact release the
-        # bundle ships — the same bytes the local payload's exe hashes
-        # to — before a single byte is extracted.
-        $WantHash = "6fa80698d7268f6e88aa88c06fb27ee99e1bcee747c2e76911e6206a5b1aeeb3"
+        # THE PINNED HASH: the SHA256 of the exact asset named above, taken
+        # by downloading that URL and hashing it on Oct 24 2026 (2,720,812
+        # bytes) - not inherited from the 404 asset this line used to name.
+        # Verified before a single byte is extracted.
+        $WantHash = "bba8097cb37d9b458a1cb1137876b27cde6740d17fe4ccbc086ba07d87d9e147"
         $GotHash = (Get-FileHash -Path $Zip -Algorithm SHA256).Hash.ToLower()
         if ($GotHash -ne $WantHash) {
             Remove-Item $Zip -ErrorAction SilentlyContinue
