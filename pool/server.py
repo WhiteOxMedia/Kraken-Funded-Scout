@@ -3,15 +3,20 @@ FastAPI backend for the XMR Jackpot Pool.
 Serves the web dashboard, static assets, and JSON API endpoints.
 """
 import os
+import re
 import sys
 import json
+from datetime import datetime, timezone
+from html import escape
 import time
 import secrets
 import hashlib
 import hmac
+import subprocess
 from pathlib import Path
 
 import asyncio
+from functools import lru_cache
 
 import aiohttp
 from fastapi import FastAPI, Request, HTTPException, Depends, WebSocket, WebSocketDisconnect
@@ -30,6 +35,8 @@ import jackpot_funding
 import security
 import monero_wallet as xmr
 import address_check as _addr   # offline mainnet payout-address gate
+import i18n                   # language negotiation + region inference
+import i18n_pages             # the six-language download/status pages
 
 app = FastAPI(title="XMR Jackpot Pool")
 
@@ -118,6 +125,50 @@ class SecurityHeadersMiddleware:
 # registered FIRST so it wraps every other middleware/route
 app.add_middleware(SecurityHeadersMiddleware)
 
+
+# ─── ONE ORIGIN, ONE SCHEME ────────────────────────────────
+# Cloudflare terminates TLS and tells the origin which scheme the client
+# used through X-Forwarded-Proto (older edges: CF-Visitor's "scheme").
+# Two canonicalizations happen here, both 301s that keep the path and the
+# query string:
+#   * http -> https, so a plaintext request does not serve a second copy
+#     of every URL;
+#   * www -> apex, so www.xmrjackpot.com is one redirect away from the
+#     canonical host instead of a duplicate site. The tunnel forwards the
+#     Host header unchanged, so this is decided here, not at the edge.
+# Loopback and un-tunnelled requests are never bounced: health checks and
+# local development carry neither the proxy header nor a www host.
+def _canonical_url(request: Request) -> str:
+    target = SITE_ORIGIN + request.url.path
+    if request.url.query:
+        target += "?" + request.url.query
+    return target
+
+
+@app.middleware("http")
+async def canonical_origin(request: Request, call_next):
+    proto = (request.headers.get("x-forwarded-proto") or "").split(",")[0].strip().lower()
+    if not proto:
+        visitor = request.headers.get("cf-visitor") or ""
+        m = re.search(r'"scheme"\s*:\s*"([a-z]+)"', visitor)
+        proto = m.group(1) if m else ""
+    host = re.sub(r":\d+$", "", (request.headers.get("host") or "").lower())
+    if host.startswith("www."):
+        return RedirectResponse(_canonical_url(request), status_code=301)
+    if proto == "http" and host and host not in (
+            "127.0.0.1", "localhost", "::1", "[::1]"):
+        return RedirectResponse(_canonical_url(request), status_code=301)
+    response = await call_next(request)
+    # HTML is never cached heuristically. This site is edited live and rolled by
+    # restarting :3094; without an explicit no-cache a browser is free to reuse
+    # the old document, and the visitor sees the PREVIOUS design until a hard
+    # reload - which reads exactly like "someone reverted the UI".
+    # Static files keep their own caching (style.css is versioned by ?v=).
+    if (response.headers.get("content-type", "").startswith("text/html")
+            and "cache-control" not in response.headers):
+        response.headers["Cache-Control"] = "no-cache"
+    return response
+
 # Mount static files
 static_dir = Path(__file__).parent / "static"
 app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
@@ -129,63 +180,191 @@ app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
 # with nosniff + attachment disposition. The manifest is generated at
 # build time; /api/downloads/bundle-info reads it for the dashboard.
 #
-# THE ADMIN GATE (Oct 8): the anonymous surface is retired — the
-# server's own access log caught an external IP (5.102.169.29) pulling
-# the zip (and the zip carried the private ntfy topic for days before
-# the Phase-0 scrub, which is exactly what the gate makes unreachable).
-# The installer is a private artifact now: a caller must present an
-# ADMIN SESSION (the dashboard's session cookie, is_admin=1) or the
-# OPERATOR TOKEN (X-Operator-Token, the machine leg's own auth) —
-# the dashboard card rides the admin cookie, a headless re-install
-# rides the token. No caching layer can hold a copy for an anonymous
-# request either: no-cache was already pinned, and now the 401/403
-# precedes any bytes.
+# PUBLIC AGAIN (Oct 24): the Oct 8 admin gate is lifted. It went up after
+# the access log caught an external IP (5.102.169.29) pulling the zip,
+# at a time when the archive still carried the private ntfy topic from
+# before the Phase-0 scrub. Both reasons are gone: the topic is scrubbed
+# and untracked (kraken 3b95c02), and finalize_bundle.py now FAILS the
+# build when the topic bytes or a denied file (push_topic.txt,
+# _ntfydiag.txt, .workshop/) would ship. /download and the Product
+# markup both promise an anonymous download, so a gated URL is a dead
+# link on the page that offers it.
+#
+# If the archive ever carries private internals again, restore the gate
+# BEFORE serving: see `git show ec82f91:pool/server.py`, "THE ADMIN GATE
+# (Oct 8)". A 401 is a bug; leaked bytes are not.
 _dist_dir = Path(__file__).parent.parent / "dist"
 
 
-def _bundle_reader_or_401(request: Request):
-    """Admin session or operator token — the bundle's two legitimate
-    readers. Nothing else: no public leg, no API-key path (the zip
-    carries private internals, so the bar is the operator's)."""
-    supplied = request.headers.get("X-Operator-Token", "")
-    if supplied:
-        stored = str(db.get_setting("PUSH_OPERATOR_TOKEN", "") or "")
-        if stored and secrets.compare_digest(supplied, stored):
-            return True
-    user = get_user_from_request(request)
-    if user and user.get("is_admin"):
-        return True
-    if not get_user_from_request(request):
-        raise HTTPException(status_code=401,
-                            detail="admin session or operator token required")
-    raise HTTPException(status_code=403,
-                        detail="admin access required")
+def _artifact_headers() -> dict:
+    """nosniff on every artifact response, and no-cache so a
+    checksum-pinned file is never served stale from an edge cache."""
+    return {"X-Content-Type-Options": "nosniff", "Cache-Control": "no-cache"}
+
+
+SITE_ORIGIN = "https://xmrjackpot.com"
+ORGANIZATION_ID = SITE_ORIGIN + "/#organization"
+WEBSITE_ID = SITE_ORIGIN + "/#website"
+
+
+def _bundle_manifest() -> dict:
+    """The build manifest the artifact routes and the page both read."""
+    mf = _dist_dir / "KrakenScoutBundle.zip.json"
+    if not mf.exists():
+        return {}
+    try:
+        return json.loads(mf.read_text(encoding="utf-8"))
+    except ValueError:
+        return {}
+
+
+def _jsonld_script(node: dict) -> str:
+    nl = chr(10)
+    return ('<script type="application/ld+json">' + nl
+            + json.dumps(node, indent=2, ensure_ascii=False)
+            + nl + "</script>")
+
+
+def _site_jsonld() -> str:
+    """Organization + WebSite: one node each, the same @id on every URL."""
+    organization = {
+        "@context": "https://schema.org",
+        "@type": "Organization",
+        "@id": ORGANIZATION_ID,
+        "name": "XMR Jackpot",
+        "url": SITE_ORIGIN + "/",
+    }
+    website = {
+        "@context": "https://schema.org",
+        "@type": "WebSite",
+        "@id": WEBSITE_ID,
+        "url": SITE_ORIGIN + "/",
+        "name": "XMR Jackpot",
+        "inLanguage": "en",
+        "publisher": {"@id": ORGANIZATION_ID},
+    }
+    return _jsonld_script(organization) + chr(10) + _jsonld_script(website)
+
+
+def _download_jsonld() -> str:
+    """Product + SoftwareApplication, for /download only.
+
+    The version comes from the build manifest on every request, so the markup
+    cannot drift from the file it describes. No version in the manifest means
+    no claim: an empty string, not a guess.
+    """
+    version = _bundle_manifest().get("version")
+    if not version:
+        return ""
+    product = {
+        "@context": "https://schema.org",
+        "@type": "Product",
+        "@id": SITE_ORIGIN + "/download#bundle",
+        "name": "Kraken Scout Bundle",
+        "url": SITE_ORIGIN + "/download",
+        "brand": {"@id": ORGANIZATION_ID},
+        "offers": {
+            "@type": "Offer",
+            "price": "0",
+            "priceCurrency": "USD",
+            "availability": "https://schema.org/InStock",
+            "url": SITE_ORIGIN + "/downloads/KrakenScoutBundle.zip",
+        },
+    }
+    application = {
+        "@context": "https://schema.org",
+        "@type": "SoftwareApplication",
+        "@id": SITE_ORIGIN + "/download#app",
+        "name": "Kraken Scout",
+        "applicationCategory": "UtilitiesApplication",
+        "isAccessibleForFree": True,
+        "softwareVersion": version,
+        "url": SITE_ORIGIN + "/download",
+        "downloadUrl": SITE_ORIGIN + "/downloads/KrakenScoutBundle.zip",
+        "publisher": {"@id": ORGANIZATION_ID},
+    }
+    return _jsonld_script(product) + chr(10) + _jsonld_script(application)
+
+
+# Template-owned JSON-LD is tagged with the one page that emits it:
+#   <!-- XMRJ:SCHEMA page=download --> ... <!-- /XMRJ:SCHEMA -->
+# Every other page strips the block, so the homepage never advertises a
+# product it does not offer, or a FAQ it does not print.
+SCHEMA_START = "<!-- XMRJ:SCHEMA page="
+SCHEMA_END = "<!-- /XMRJ:SCHEMA -->"
+_SCHEMA_BLOCK_RE = re.compile(re.escape(SCHEMA_START) + r"([a-z-]+)[\s\S]*?"
+                              + re.escape(SCHEMA_END) + r"\s*")
+
+
+def _with_jsonld(html: str, spa_page: str = "", canonical: str = "") -> str:
+    """Add the structured data the page contract promises.
+
+    Site entities go in the head of every page. Page-specific entities
+    (Product on /download, FAQPage on /how-to-play) live in the template
+    between XMRJ:SCHEMA markers tagged with their page, so this keeps the
+    matching block and strips every other one - the homepage must not
+    advertise a product it does not offer or a FAQ it does not print. Site
+    entities are recognised by their own @type, which keeps this from
+    doubling a block that the template (or an earlier call) already carries.
+    """
+    if SCHEMA_START in html:
+        html = _SCHEMA_BLOCK_RE.sub(
+            lambda m: m.group(0) if m.group(1) == spa_page else "", html)
+    if canonical and 'rel="canonical"' not in html and "</head>" in html:
+        html = html.replace(
+            "</head>",
+            '<link rel="canonical" href="' + SITE_ORIGIN + canonical + '">'
+            + chr(10) + "</head>", 1)
+    if '"@type": "Organization"' not in html and "</head>" in html:
+        html = html.replace("</head>", _site_jsonld() + chr(10) + "</head>", 1)
+    if spa_page == "download" and '"@type": "SoftwareApplication"' not in html:
+        download = _download_jsonld()
+        if download and "</body>" in html:
+            html = html.replace("</body>", download + chr(10) + "</body>", 1)
+    return html
 
 
 @app.get("/downloads/KrakenScoutBundle.zip")
-async def downloads_bundle(request: Request):
-    _bundle_reader_or_401(request)
+async def downloads_bundle():
     f = _dist_dir / "KrakenScoutBundle.zip"
     if not f.exists():
         raise HTTPException(status_code=404, detail="bundle not built")
-    # no-cache: a checksum-pinned artifact must NEVER be served stale
-    # from an edge cache (Cloudflare proved this within the hour) —
-    # revalidate per request, 304 when the bytes are unchanged.
+    # revalidate per request, 304 when the bytes are unchanged: a
+    # checksum-pinned artifact must NEVER be served stale (Cloudflare
+    # proved this within the hour).
     return FileResponse(str(f), media_type="application/zip",
                         filename="KrakenScoutBundle.zip",
-                        headers={"X-Content-Type-Options": "nosniff",
-                                 "Cache-Control": "no-cache"})
+                        headers=_artifact_headers())
+
+
+@app.head("/downloads/KrakenScoutBundle.zip")
+async def downloads_bundle_head():
+    f = _dist_dir / "KrakenScoutBundle.zip"
+    if not f.exists():
+        raise HTTPException(status_code=404, detail="bundle not built")
+    return Response(status_code=200, media_type="application/zip",
+                    headers={**_artifact_headers(),
+                             "Content-Length": str(f.stat().st_size)})
 
 
 @app.get("/downloads/KrakenScoutBundle.zip.sha256")
-async def downloads_bundle_sha256(request: Request):
-    _bundle_reader_or_401(request)
+async def downloads_bundle_sha256():
     f = _dist_dir / "KrakenScoutBundle.zip.sha256"
     if not f.exists():
         raise HTTPException(status_code=404, detail="checksum not published")
     return PlainTextResponse(f.read_text(encoding="ascii"),
-                             headers={"X-Content-Type-Options": "nosniff",
-                                      "Cache-Control": "no-cache"})
+                             headers=_artifact_headers())
+
+
+@app.head("/downloads/KrakenScoutBundle.zip.sha256")
+async def downloads_bundle_sha256_head():
+    f = _dist_dir / "KrakenScoutBundle.zip.sha256"
+    if not f.exists():
+        raise HTTPException(status_code=404, detail="checksum not published")
+    text = f.read_text(encoding="ascii")
+    return Response(status_code=200, media_type="text/plain",
+                    headers={**_artifact_headers(),
+                             "Content-Length": str(len(text.encode("ascii")))})
 
 
 @app.get("/api/downloads/bundle-info")
@@ -308,8 +487,556 @@ def _miner_ingest_authorized(request: Request, wallet: str,
 @app.get("/", response_class=HTMLResponse)
 async def dashboard():
     """Serve the main game dashboard."""
-    template_path = Path(__file__).parent / "templates" / "index.html"
-    return HTMLResponse(content=template_path.read_text(encoding="utf-8"))
+    return HTMLResponse(content=_with_jsonld(_template_text(), canonical="/"))
+
+
+# ─── Standalone pages (/download, /winners) ─────────────────
+# The copy and its schema live in the SPA template, so the app
+# production already serves is the only copy of them. These routes keep
+# exactly one section: the SPA's other pages and its scripts are
+# stripped (nothing here is dynamic), the nav becomes plain links back
+# into the app, and the head gets each URL's own title, description and
+# canonical instead of the dashboard's.
+#
+# {{...}} tokens are filled from live sources on each request. A token
+# with no value never ships: the copy falls back to an em dash, and any
+# JSON-LD block still holding a token is dropped, so a page cannot claim
+# a version the build manifest does not carry.
+HOWTO_TITLE = "How to Play — Mine Monero, Earn Entries, Win the Daily Pot"
+HOWTO_DESCRIPTION = (
+    "Point a Monero miner at the pool, earn one entry per 100 accepted shares, "
+    "and take part in the daily drawing. No deposit, no entry fee, no purchase."
+)
+WINNERS_TITLE = "Winners and Past Drawings — XMR Jackpot"
+WINNERS_DESCRIPTION = (
+    "Every completed XMR Jackpot drawing: when it ran, what it paid, the "
+    "winning entry and the public proof that anyone can re-check."
+)
+_SECTION_RE = re.compile(r'<section id="page-([a-z-]+)"[^>]*>[\s\S]*?</section>\s*')
+_LDJSON_RE = re.compile(r'<script type="application/ld\+json">[\s\S]*?</script>\s*')
+_SCRIPT_SRC_RE = re.compile(r'\s*<script src="[^"]+"></script>')
+_NAV_RE = re.compile(r'<nav class="navbar">[\s\S]*?</nav>')
+_STATIC_NAV = '''<nav class="navbar">
+  <div class="nav-logo">
+    <span style="font-size:1.6em;">⛏️</span> XMR JACKPOT
+  </div>
+  <div class="nav-links">
+    <a href="/">Home</a>
+    <a href="/#howto">How to Play</a>
+    <a href="/#realplay">Play for XMR</a>
+    <a href="/#leaderboard">Winners</a>
+    <a href="/#dashboard">Dashboard</a>
+  </div>
+</nav>'''
+
+
+STYLE_HREF = "/static/style.css?v=20"   # test_i18n_region pins this to the template
+
+
+@lru_cache(maxsize=1)
+def _site_chrome() -> dict:
+    """The navbar, footer and stylesheet every page wears, lifted from the app.
+
+    The old standalone pages were the template minus its other sections, so a
+    redesign reached them for free. They are catalog-rendered now, and a bare
+    page without the logo, the Kraken Scout footer and the CTA box reads as a
+    different, older site - so the chrome is read from the template instead of
+    retyped here, and a template edit lands on every page at once.
+    """
+    tpl = _template_text()
+    footer = re.search(r"<footer>[\s\S]*?</footer>", tpl).group(0)
+    # No app.js on these pages: a data-action would be a dead link, so the
+    # Terms link becomes the real page it means.
+    footer = footer.replace('<a href="#" data-action="navigate-howto"',
+                            '<a href="/how-to-play"', 1)
+    return {"nav": _STATIC_NAV, "footer": footer, "style": STYLE_HREF}
+
+
+def _utc_stamp(ts) -> str:
+    """A drawing timestamp as a fixed UTC string, or an em dash."""
+    try:
+        return datetime.fromtimestamp(float(ts), timezone.utc).strftime(
+            "%Y-%m-%d %H:%M UTC")
+    except (TypeError, ValueError, OSError):
+        return "—"
+
+
+def _xmr(value) -> str:
+    try:
+        return f"{float(value):.4f}"
+    except (TypeError, ValueError):
+        return "—"
+
+
+def _winners_tokens() -> dict:
+    """The drawings the page shows, read from the pool's own table.
+
+    Only completed drawings count: a pending round has neither a winner
+    nor a proof, and showing one would be a claim the proof link cannot
+    back. With none completed the page keeps its empty state.
+    """
+    try:
+        rows = [r for r in db.get_recent_drawings(20)
+                if r.get("status") == "drawn"]
+    except Exception:                     # a broken db must not 500 the page
+        rows = []
+
+    if rows:
+        latest = rows[0]
+        wid = int(latest.get("id") or 0)
+        wallet = escape(str(latest.get("winner_wallet") or "—"))
+        latest_html = (
+            "<table>\n      <tbody>\n"
+            f'        <tr><th scope="row">Drawn</th><td>{_utc_stamp(latest.get("drawn_at"))}</td></tr>\n'
+            f'        <tr><th scope="row">Winner</th><td><code>{wallet}</code></td></tr>\n'
+            f'        <tr><th scope="row">Prize</th><td>{_xmr(latest.get("jackpot_amount"))} XMR</td></tr>\n'
+            f'        <tr><th scope="row">Proof</th><td><a href="/api/verify/{wid}">/api/verify/{wid}</a></td></tr>\n'
+            "      </tbody>\n    </table>"
+        )
+    else:
+        latest_html = (
+            '<p class="seo-empty"><strong>No drawing has completed yet.</strong> '
+            "The first result will appear here with its proof as soon as the "
+            "round closes.</p>"
+        )
+
+    draw_rows = "\n".join(
+        "        <tr><td>#{}</td><td>{}</td><td>{}</td><td><code>{}</code></td>"
+        '<td><a href="/api/verify/{id}">verify</a></td></tr>'.format(
+            int(r.get("id") or 0), _utc_stamp(r.get("drawn_at")),
+            _xmr(r.get("jackpot_amount")),
+            escape(str(r.get("winner_wallet") or "—")), id=int(r.get("id") or 0))
+        for r in rows)
+    return {
+        "{{LATEST_DRAWING}}": latest_html,
+        "{{DRAW_ROWS}}": draw_rows,
+        "{{DRAW_EMPTY}}": "" if draw_rows else
+        '<p class="seo-empty">Rows appear here once drawings complete.</p>',
+    }
+
+
+def _drop_unbacked_jsonld(html: str) -> str:
+    """Remove every JSON-LD block that still holds an unfilled token."""
+    kept, pos = [], 0
+    for m in _LDJSON_RE.finditer(html):
+        if "{{" in m.group(0):
+            kept.append(html[pos:m.start()])
+            pos = m.end()
+    kept.append(html[pos:])
+    return "".join(kept)
+
+
+def _keep_only_section(html: str, keep: str) -> str:
+    """Drop every SPA page section except `keep`."""
+    return _SECTION_RE.sub(
+        lambda m: m.group(0) if m.group(1) == keep else "", html)
+
+
+def _standalone_page(template: str, keep: str, title: str,
+                     description: str, path: str, tokens: dict) -> str:
+    """Turn the SPA template into a page for one URL: one section,
+    static nav, no SPA scripts, and this URL's own head."""
+    html = template
+    for token, value in tokens.items():
+        if value:
+            html = html.replace(token, value)
+    html = _drop_unbacked_jsonld(html)
+    html = re.sub(r"\{\{[A-Z0-9_]+\}\}", "—", html)
+
+    html = _keep_only_section(html, keep)
+    html = _NAV_RE.sub(lambda _m: _STATIC_NAV, html, count=1)
+    html = _SCRIPT_SRC_RE.sub("", html)
+    html = html.replace(f'<section id="page-{keep}" class="page">',
+                        f'<section id="page-{keep}" class="page active">', 1)
+
+    head, sep, rest = html.partition("</head>")
+    if sep:
+        head = re.sub(r"<title>[\s\S]*?</title>",
+                      "<title>" + title + "</title>", head, count=1)
+        head = re.sub(r'<meta name="description" content="[^"]*">',
+                      '<meta name="description" content="'
+                      + description + '">', head, count=1)
+        head += '<link rel="canonical" href="' + SITE_ORIGIN + path + '">' + chr(10)
+        html = head + sep + rest
+    return html
+
+
+def _template_text() -> str:
+    return (Path(__file__).parent / "templates" / "index.html").read_text(
+        encoding="utf-8")
+
+
+# ─── Public relay status (fed by relay/monitor-relay.py) ─────────────
+#
+# The monitor on the pool PC writes .relay/relay-status.json every cycle. This
+# page is the miner-facing view of that file: no API key, no admin, no secrets —
+# just "is the thing I am about to point xmrig at actually answering".
+#
+# Two honesties are built in. A missing or stale file reads as "unknown", never
+# as "down": the relay can be perfectly healthy while the monitor is not running,
+# and a status page that cries wolf is worse than one that says it does not know.
+# Check details are escaped; they come from our own monitor, but a status page is
+# a bad place to start trusting strings.
+STRATUM_URL = "stratum+tcp://mine.xmrjackpot.com:3333"
+_RELAY_STATUS_FILE = (Path(__file__).resolve().parent.parent
+                      / ".relay" / "relay-status.json")
+_RELAY_CACHE: dict = {"mtime": None, "value": {}}
+_RELAY_FRESH_S = 300
+
+def _qr_svg(data: str, scale: int = 4) -> str:
+    """Inline SVG QR code, or "" if the encoder is unavailable.
+
+    Returning an empty string rather than raising keeps a missing optional
+    dependency from taking out the whole download page.
+    """
+    try:
+        import segno
+        return segno.make(data, error="m").svg_inline(
+            scale=scale, border=2, dark="#1a1a1a", light="#ffffff")
+    except Exception:
+        return ""
+
+
+def _relay_snapshot() -> dict:
+    """Current monitor verdict, re-read only when the file changes."""
+    try:
+        st = _RELAY_STATUS_FILE.stat()
+    except OSError:
+        return {"available": False, "healthy": None, "checked": None,
+                "checks": {}, "age_s": None}
+    try:
+        if _RELAY_CACHE["mtime"] != st.st_mtime:
+            _RELAY_CACHE["value"] = json.loads(
+                _RELAY_STATUS_FILE.read_text(encoding="utf-8"))
+            _RELAY_CACHE["mtime"] = st.st_mtime
+        snap = dict(_RELAY_CACHE["value"] or {})
+    except Exception:
+        return {"available": False, "healthy": None, "checked": None,
+                "checks": {}, "age_s": None}
+    snap["available"] = True
+    snap["age_s"] = max(0, int(time.time() - st.st_mtime))
+    return snap
+
+
+def _relay_verdict(snap: dict) -> str:
+    """operational | degraded | unknown — never 'down' from a stale file."""
+    if not snap.get("available"):
+        return "unknown"
+    if snap.get("age_s") is not None and snap["age_s"] > _RELAY_FRESH_S:
+        return "unknown"
+    return "operational" if snap.get("healthy") else "degraded"
+
+
+# ─── The miner pages, in six languages ───────────────────────────────
+# /download and /status are rendered from pool/templates/i18n/<lang>.json, so
+# the copy is data, not markup: a translator edits JSON, and the parity test
+# fails if a language is missing a key or drops a {placeholder}. English keeps
+# the unprefixed URL; every other language lives at /<code>/<page>, and an
+# explicit choice in the selector beats the browser header from then on.
+LOCALIZED_PAGES = ("download", "status")
+
+
+def _download_bundle() -> dict:
+    """Manifest facts for the download copy; a missing field renders as an em dash."""
+    info = _bundle_manifest()
+    size = info.get("size_human")
+    if not size and info.get("bytes"):
+        size = str(round(info["bytes"] / 1048576)) + " MB"
+    return {"size": size, "version": info.get("version"),
+            "built": info.get("built_utc"), "sha256": info.get("sha256")}
+
+
+def _scout_offer() -> dict:
+    """Live Scout Pro price and duration for the download page.
+
+    Read from the same settings the checkout reads, so the page cannot quote a
+    price the paywall does not charge. Unreadable settings fall back to the
+    checkout's own defaults rather than printing nothing.
+    """
+    def setting(key, default):
+        try:
+            return str(db.get_setting(key, str(default)) or default)
+        except Exception:
+            return str(default)
+
+    try:
+        price = float(setting("scout_pro_price_xmr", "0.01"))
+    except (TypeError, ValueError):
+        price = 0.01
+    try:
+        days = int(float(setting("scout_pro_days", "30")))
+    except (TypeError, ValueError):
+        days = 30
+    return {"price": ("%.6f" % price).rstrip("0").rstrip("."), "days": max(1, days)}
+
+
+def _render_lang_page(lang: str, page: str, request: Request) -> str:
+    if page == "download":
+        html = i18n_pages.render_download(
+            lang, SITE_ORIGIN, i18n.region_from_headers(request.headers),
+            _download_bundle(), _qr_svg(STRATUM_URL, scale=3), _site_chrome(),
+            _scout_offer())
+        # Site + product entities, appended once the copy exists: the version
+        # inside them comes from the manifest, so markup cannot claim a build
+        # the artifact is not.
+        return html.replace("</head>", _site_jsonld() + chr(10)
+                            + _download_jsonld() + chr(10) + "</head>", 1)
+    snap = _relay_snapshot()
+    return i18n_pages.render_status(lang, SITE_ORIGIN, snap,
+                                    _relay_verdict(snap),
+                                    engine.get_pool_stats(), _site_chrome())
+
+
+def _serve_page(lang: str, page: str, request: Request) -> HTMLResponse:
+    headers = {"Cache-Control": "no-store"} if page == "status" else {}
+    return HTMLResponse(_render_lang_page(lang, page, request), headers=headers)
+
+
+def _auto_language(request: Request, page: str):
+    """Send a visitor to the language they asked for, once per URL.
+
+    A choice made in the selector (the cookie) is as strong as the browser
+    header, so a Spanish-speaking miner who opens an English link stays in
+    Spanish instead of being quietly reset. English is never redirected, and a
+    crawler — which sends no Accept-Language — always gets the page the
+    canonical points at.
+    """
+    cookie = request.cookies.get(i18n.LANG_COOKIE)
+    lang = (cookie if cookie in i18n.LANGUAGES
+            else i18n.negotiate(request.headers.get("accept-language")))
+    if lang == i18n.DEFAULT_LANG:
+        return None
+    return RedirectResponse(i18n.page_path(lang, page), status_code=302,
+                            headers={"Vary": "Accept-Language, Cookie",
+                                     "Cache-Control": "no-store"})
+
+
+@app.get("/status", response_class=HTMLResponse)
+@app.get("/status/", response_class=HTMLResponse)
+async def status_page(request: Request):
+    moved = _auto_language(request, "status")
+    return moved or _serve_page(i18n.DEFAULT_LANG, "status", request)
+
+
+@app.get("/api/relay-status")
+async def api_relay_status():
+    """Anonymous JSON view of the same data the /status page renders."""
+    snap = _relay_snapshot()
+    stats = engine.get_pool_stats()
+    return JSONResponse({
+        "stratum": STRATUM_URL,
+        "verdict": _relay_verdict(snap),
+        "available": snap.get("available", False),
+        "healthy": snap.get("healthy"),
+        "checked": snap.get("checked"),
+        "age_seconds": snap.get("age_s"),
+        "checks": snap.get("checks") or {},
+        "pool": {
+            "miners": stats.get("real_miners", stats.get("active_miners", 0)),
+            "hashrate": stats.get("total_hashrate", 0),
+        },
+    }, headers={"Cache-Control": "no-store"})
+
+
+@app.get("/download", response_class=HTMLResponse)
+async def download_page(request: Request):
+    """The download page, built from the catalog for every language."""
+    moved = _auto_language(request, "download")
+    return moved or _serve_page(i18n.DEFAULT_LANG, "download", request)
+
+
+def _localized_handler(lang: str, page: str):
+    async def handler(request: Request):
+        return _serve_page(lang, page, request)
+    return handler
+
+
+for _code in i18n.LANGUAGES:
+    if _code == i18n.DEFAULT_LANG:
+        continue
+    for _page in LOCALIZED_PAGES:
+        app.add_api_route(f"/{_code}/{_page}", _localized_handler(_code, _page),
+                          methods=["GET"], response_class=HTMLResponse,
+                          name=f"{_code}_{_page}")
+
+
+@app.get("/en/download")
+async def en_download():
+    """One URL per page per language, so English lives unprefixed."""
+    return RedirectResponse("/download", status_code=301)
+
+
+@app.get("/en/status")
+async def en_status():
+    return RedirectResponse("/status", status_code=301)
+
+
+@app.get("/lang/{code}")
+async def set_language(code: str, next: str = "/"):
+    """Remember the selector's choice; the URL itself is the real switch."""
+    if code not in i18n.LANGUAGES:
+        return _not_found()
+    target = next if next.startswith("/") and not next.startswith("//") else "/"
+    response = RedirectResponse(target, status_code=303)
+    response.set_cookie(i18n.LANG_COOKIE, code, max_age=31536000, path="/",
+                        samesite="lax")
+    return response
+
+
+@app.get("/how-to-play", response_class=HTMLResponse)
+async def how_to_play_page():
+    """The how-to page, with the FAQ that the page actually prints."""
+    return HTMLResponse(content=_with_jsonld(
+        _standalone_page(_template_text(), "howto-play", HOWTO_TITLE,
+                         HOWTO_DESCRIPTION, "/how-to-play", {}),
+        "how-to-play"))
+
+
+@app.get("/winners", response_class=HTMLResponse)
+async def winners_page():
+    """The winners page, filled from the drawings table."""
+    return HTMLResponse(content=_with_jsonld(
+        _standalone_page(_template_text(), "winners", WINNERS_TITLE,
+                         WINNERS_DESCRIPTION, "/winners", _winners_tokens())))
+
+
+# ─── Crawler surface ─────────────────────────────────────────
+# Both files used to fall through to the SPA catch-all, so every crawler
+# got the HTML shell at /robots.txt and /sitemap.xml: no rules, no URLs,
+# and the pages that do exist were never submitted. The sitemap lists
+# exactly the URLs that serve their own title, canonical and copy.
+SITEMAP_PATHS = ("/", "/how-to-play", "/winners", "/download")
+ROBOTS_TXT = (
+    "User-agent: *\n"
+    "Allow: /\n"
+    "Disallow: /api/\n"
+    "Disallow: /admin\n"
+    "Disallow: /downloads/\n"
+    "Disallow: /lang/\n"
+    "\n"
+    f"Sitemap: {SITE_ORIGIN}/sitemap.xml\n"
+)
+
+
+def _indexable_paths() -> tuple:
+    """Every URL that serves its own title, canonical and copy.
+
+    The localized download pages belong here. /status does not, in any
+    language: it is noindex on purpose, because a page whose whole content is
+    "the relay answered 40 seconds ago" is a bad search result.
+    """
+    localized = tuple(i18n.page_path(code, "download")
+                      for code in i18n.LANGUAGES
+                      if code != i18n.DEFAULT_LANG)
+    return SITEMAP_PATHS + localized
+
+
+def _sitemap_xml() -> str:
+    urls = "".join(
+        "  <url><loc>" + SITE_ORIGIN + p + "</loc></url>\n"
+        for p in _indexable_paths())
+    return ('<?xml version="1.0" encoding="UTF-8"?>\n'
+            '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'
+            + urls + "</urlset>\n")
+
+
+# no-cache: Cloudflare pins /robots.txt for four hours, so an edit here
+# would otherwise be invisible to crawlers until that entry expired.
+@app.get("/robots.txt", response_class=PlainTextResponse)
+async def robots_txt():
+    return PlainTextResponse(ROBOTS_TXT, headers={"Cache-Control": "no-cache"})
+
+
+@app.get("/sitemap.xml")
+async def sitemap_xml():
+    return Response(content=_sitemap_xml(), media_type="application/xml",
+                    headers={"Cache-Control": "no-cache"})
+
+
+# ─── Deployment version surface ──────────────────────────────
+# The origin here is a workstation, not a managed host, so "is the
+# live site running the commit I just made?" had no cheap answer:
+# verification meant walking mtimes and sha256s by hand against the
+# served bytes. /version answers it in one request with the commit
+# this process STARTED FROM, the branch, the commit time, and the
+# process start time.
+#
+# Read once at import, served from memory: no git call and no file
+# read happens per request. Read-only by construction - the route
+# takes no body, no params, and touches nothing but its own
+# module-level snapshot. The snapshot is deliberately not refreshed
+# at request time: what matters for a version check is the state the
+# running process was launched from, not what is on disk now.
+_REPO_ROOT = Path(__file__).parent.parent
+_STARTED_AT = time.time()
+
+
+def _git(*args: str) -> str | None:
+    """One read-only git query against this checkout. Returns None
+    (never raises) when git or the repo is absent - a deploy that
+    ships without .git must still serve the rest of the app."""
+    try:
+        out = subprocess.run(
+            ["git", "-C", str(_REPO_ROOT), *args],
+            # explicit utf-8 + replace: this runs at IMPORT, and a decode
+            # error on a non-ASCII branch name would take the whole app
+            # down before it ever served a request.
+            capture_output=True, text=True, encoding="utf-8",
+            errors="replace", timeout=10, check=False,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return None
+    if out.returncode != 0:
+        return None
+    return out.stdout.strip() or None
+
+
+def _deploy_snapshot() -> dict:
+    """Resolve the deployed identity once. DEPLOY_COMMIT /
+    DEPLOY_BRANCH override git so an artifact copied without .git can
+    still self-report (source becomes "env")."""
+    commit = os.environ.get("DEPLOY_COMMIT") or _git("rev-parse", "HEAD")
+    branch = os.environ.get("DEPLOY_BRANCH") or _git("rev-parse", "--abbrev-ref", "HEAD")
+    porcelain = _git("status", "--porcelain")
+    return {
+        "commit": commit,
+        "commit_short": commit[:12] if commit else None,
+        "branch": branch,
+        "commit_time": _git("log", "-1", "--format=%cI"),
+        "describe": _git("describe", "--tags", "--always"),
+        # Tracked AND untracked on purpose: an untracked file the app
+        # imports is exactly the drift this endpoint exists to catch.
+        "dirty": None if porcelain is None else bool(porcelain),
+        "source": "env" if os.environ.get("DEPLOY_COMMIT") else "git",
+    }
+
+
+_DEPLOY = _deploy_snapshot()
+
+
+@app.get("/version")
+@app.get("/api/version")
+async def version():
+    """Read-only deployment identity. Deliberately uncached - a
+    cached copy of a version stamp is worse than no stamp at all."""
+    return JSONResponse(
+        {
+            "commit": _DEPLOY["commit"],
+            "commit_short": _DEPLOY["commit_short"],
+            "branch": _DEPLOY["branch"],
+            "commit_time": _DEPLOY["commit_time"],
+            "describe": _DEPLOY["describe"],
+            "dirty": _DEPLOY["dirty"],
+            "source": _DEPLOY["source"],
+            "started_at": _STARTED_AT,
+            "started_at_iso": time.strftime(
+                "%Y-%m-%dT%H:%M:%SZ", time.gmtime(_STARTED_AT)
+            ),
+            "uptime_seconds": round(time.time() - _STARTED_AT, 3),
+            "pid": os.getpid(),
+        },
+        headers={"Cache-Control": "no-store, max-age=0"},
+    )
 
 
 
@@ -853,7 +1580,11 @@ async def api_miner_installer(wallet_address: str):
     from fastapi.responses import PlainTextResponse
     w = wallet_address
     # Official xmrig 6.26.0 Windows x64 release SHA256 (from GitHub release page)
-    XMRIG_SHA256 = "8e4f37e2e0e93a55a3a8b97c6a6f4e5a3d2c1b8e9f7a6d5c4b3a2e1d0f9e8a7"
+    # Verified 2026-10-24: the release asset was downloaded and hashed here,
+    # byte for byte. The value this replaced was a placeholder, so every
+    # run of the one-click installer aborted at the hash check while
+    # telling the user the download had been tampered with.
+    XMRIG_SHA256 = "bba8097cb37d9b458a1cb1137876b27cde6740d17fe4ccbc086ba07d87d9e147"
     XMRIG_VERSION = "6.26.0"
     XMRIG_URL = f"https://github.com/xmrig/xmrig/releases/download/v{XMRIG_VERSION}/xmrig-{XMRIG_VERSION}-windows-x64.zip"
 
@@ -2784,19 +3515,41 @@ async def scout_ws_proxy(ws: WebSocket):
 # route registers before uvicorn.run blocks the interpreter).
 SPA_PAGES = ("dashboard", "admin", "signup", "howto", "realplay",
              "leaderboard", "landing")
-# /winners is a synonym for the leaderboard (the Winners page) - map it
-# rather than serving the app with an unknown hash (review triage, Sep
-# 25 evening V)
-SPA_SYNONYMS = {"winners": "leaderboard"}
+# Anything that is not a real page is a real 404. Serving the app shell
+# with a 200 at every unknown address made every typo, every dead link
+# and every retired URL an indexable copy of the homepage (the soft 404
+# verify.sh kept flagging); the hash routes are redirects, so the client
+# still boots on every page that actually exists.
+NOT_FOUND_HTML = """<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex">
+<title>Page not found — XMR Jackpot</title>
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<main class="card" style="max-width:640px;margin:10vh auto;">
+  <h1>Page not found</h1>
+  <p>There is nothing at this address. The game lives at
+     <a href="/">xmrjackpot.com</a>.</p>
+</main>
+</body>
+</html>
+"""
+
+
+def _not_found() -> HTMLResponse:
+    return HTMLResponse(NOT_FOUND_HTML, status_code=404,
+                        headers={"Cache-Control": "no-store"})
 
 
 @app.get("/{spa_page}", response_class=HTMLResponse)
 async def spa_path_fallback(spa_page: str):
-    target = SPA_SYNONYMS.get(spa_page, spa_page if spa_page in SPA_PAGES else None)
-    if target:
-        return RedirectResponse(url=f"/#{target}", status_code=302)
-    template_path = Path(__file__).parent / "templates" / "index.html"
-    return HTMLResponse(content=template_path.read_text(encoding="utf-8"))
+    if spa_page in SPA_PAGES:
+        return RedirectResponse(url=f"/#{spa_page}", status_code=302)
+    return _not_found()
 
 
 if __name__ == "__main__":

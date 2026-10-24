@@ -2246,3 +2246,47 @@
   }
 
 })();
+
+// ── THE DEPLOY BADGE (footer) ─────────────────────────────────────────
+// Names the commit the RUNNING PROCESS started from, read from /version
+// (pool/server.py). Fetched with cache:'no-store' AND a timestamp query so
+// neither the browser nor Cloudflare can answer with a stamp from an older
+// deploy — a cached version badge is worse than none, because it would
+// claim the server is something it is not. Any failure (route absent on an
+// older process, offline, non-JSON) hides the line: the badge must never
+// be the reason the footer breaks.
+(function deployBadge() {
+  var host = document.getElementById('deploy-version');
+  if (!host) return;
+  var commitEl = document.getElementById('deploy-commit');
+  var startedEl = document.getElementById('deploy-started');
+
+  function render(doc) {
+    if (!doc || !doc.commit) {
+      host.style.display = 'none';
+      return;
+    }
+    host.style.display = '';
+    if (commitEl) commitEl.textContent = doc.commit_short || String(doc.commit).slice(0, 12);
+    if (startedEl) startedEl.textContent = doc.started_at_iso || 'unknown';
+    host.title = 'branch ' + (doc.branch || '?') +
+      (doc.dirty ? ' · worktree dirty' : '') +
+      ' · pid ' + (doc.pid || '?') +
+      ' · up ' + Math.round(doc.uptime_seconds || 0) + 's';
+  }
+
+  function load() {
+    fetch('/version?ts=' + Date.now(), {
+      cache: 'no-store',
+      headers: { 'Accept': 'application/json' }
+    })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(render)
+      .catch(function () { host.style.display = 'none'; });
+  }
+
+  load();
+  // re-read on a slow cadence: after a restart, an open tab corrects
+  // itself within a minute instead of waiting for a reload
+  setInterval(load, 60000);
+})();

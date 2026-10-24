@@ -63,6 +63,20 @@ def _git_head(repo):
         return "unknown"
 
 
+def _git_version(repo):
+    """The exact commit this artifact was built from, as a version string
+    (`git describe --tags --always`, e.g. v1.0.0-preprod-1-gec82f91). It is
+    published by /api/downloads/bundle-info and stated as softwareVersion in
+    the Product markup, so the version and `monero_head` can never disagree."""
+    try:
+        r = subprocess.run(["git", "-C", str(repo), "describe", "--tags",
+                            "--always"],
+                           capture_output=True, text=True, timeout=30)
+        return r.stdout.strip() if r.returncode == 0 else "unknown"
+    except Exception:
+        return "unknown"
+
+
 def main():
     bundle, dist, scout, monero = (Path(a) for a in sys.argv[1:5])
     payload = bundle / "payload"
@@ -127,6 +141,7 @@ def main():
     xmrig_exe = xmrig_dir / "xmrig.exe"
     manifest = {
         "artifact": "KrakenScoutBundle.zip",
+        "version": _git_version(monero),
         "sha256": sha,
         "bytes": zip_path.stat().st_size,
         "size_human": "%.1f MB" % (zip_path.stat().st_size / 1048576),

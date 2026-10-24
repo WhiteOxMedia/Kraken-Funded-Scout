@@ -1261,6 +1261,7 @@
           → <a href="https://github.com/xmrig/xmrig/releases/latest" target="_blank" style="color:#7c7cff;">github.com/xmrig/xmrig/releases</a><br>
           → Run with: <code style="color:var(--diamond-bright);">xmrig -o mine.xmrjackpot.com:3333 -u YOUR_WALLET.worker -p x</code>
         </div>
+
       </div>
     </div>
 
@@ -1324,6 +1325,261 @@
   </div>
 </section>
 
+<!-- ═══════════ WINNERS PAGE (served at /winners) ═══════════
+     The copy is the SEO page; /winners keeps this section and strips
+     the rest. The LATEST_DRAWING / DRAW_ROWS / DRAW_EMPTY tokens are
+     filled from the drawings table on every request, so the page shows
+     the pool's actual results instead of a placeholder. -->
+<section id="page-winners" class="page">
+  <h1>Winners and Past Drawings</h1>
+
+  <p class="lead">
+    One entry takes 90% of the pot every 24 hours. This page records each
+    drawing — when it ran, what it paid, which entry won, and the verification
+    link that lets anyone re-check the result.
+  </p>
+
+  <div class="card">
+    <h2>Latest drawing</h2>
+    {{LATEST_DRAWING}}
+  </div>
+
+  <div class="card">
+    <h2>How a winner is chosen</h2>
+    <p>
+      Entries are counted per round: one entry for every 100 accepted shares a
+      miner contributes while the drawing is open. At the close, one entry is
+      selected from that round's entries. The winner receives 90% of the pot;
+      the remaining 10% covers servers and development and seeds the next pot.
+    </p>
+    <p>
+      Entries are not carried between rounds, and a miner who stops contributing
+      keeps the entries already earned for the round in progress.
+    </p>
+  </div>
+
+  <div class="card">
+    <h2>Check a result yourself</h2>
+    <p>
+      Before each drawing the pool publishes a commitment to its seed. After the
+      close, the seed and the full entry list are revealed. The seed is derived
+      from Monero block hashes, so the winner is fixed before the drawing and
+      cannot be chosen after the entries are known.
+    </p>
+    <p>
+      Each proof page at <code>/api/verify/{id}</code> lists the commitment, the
+      revealed seed, the entries in the round and the selected entry. Recompute
+      the selection from the seed and the entry list, and it should name the
+      winner shown here.
+    </p>
+  </div>
+
+  <div class="card">
+    <h2>Past drawings</h2>
+    <table>
+      <thead>
+        <tr>
+          <th scope="col">Drawing</th>
+          <th scope="col">Date</th>
+          <th scope="col">Prize (XMR)</th>
+          <th scope="col">Winner</th>
+          <th scope="col">Proof</th>
+        </tr>
+      </thead>
+      <tbody>
+        {{DRAW_ROWS}}
+      </tbody>
+    </table>
+    {{DRAW_EMPTY}}
+  </div>
+
+  <div class="card">
+    <h2>Payout rules</h2>
+    <ul>
+      <li>The winner receives 90% of the pot for that drawing; 10% is the house tax.</li>
+      <li>A prize must be claimed within seven days by logging in and connecting a Monero wallet.</li>
+      <li>Unclaimed prizes return to the pool and carry into the next drawing.</li>
+      <li>No deposit or purchase is ever required to hold entries.</li>
+    </ul>
+    <p>
+      New here? <a href="/how-to-play">Read how entries and drawings work</a>, or
+      <a href="/download">get the miner</a> to start earning entries.
+    </p>
+  </div>
+</section>
+
+<!-- ═══════════ HOW TO PLAY PAGE (served at /how-to-play) ═══════════
+     The SPA's own #howto walkthrough stays where it is (it carries the
+     Kraken CTA slots); this section is the indexable page, with its FAQ
+     and the FAQPage markup that only /how-to-play emits. -->
+<section id="page-howto-play" class="page">
+  <h1>How to Play: Mine Monero, Earn Entries, Win the Daily Pot</h1>
+
+  <p class="lead">
+    XMR Jackpot turns mining into a daily draw. You point a Monero miner at the
+    pool, every share you contribute counts toward entries, and once a day one
+    entry takes 90% of the pot. There is nothing to deposit and nothing to buy.
+  </p>
+
+  <div class="card">
+    <h2>What you need to start</h2>
+    <ul>
+      <li>A computer that can run the miner — the bundle is on the <a href="/download">download page</a>.</li>
+      <li>No Monero wallet to start mining. You need one only to receive a prize.</li>
+      <li>No deposit, no entry fee, no purchase. Mining is the only way in.</li>
+    </ul>
+  </div>
+
+  <div class="card">
+    <h2>Step 1 — Run the miner</h2>
+    <p>
+      Download the bundle, unzip it, and start the miner. It connects to the
+      pool and begins submitting shares. There is no wallet address to enter
+      before you start and no configuration file to edit.
+    </p>
+    <p><a class="btn btn-gold" href="/download">Download the miner</a></p>
+  </div>
+
+  <div class="card">
+    <h2>Step 2 — Every 100 shares is one entry</h2>
+    <p>
+      The pool counts accepted shares, not hours online. For every 100 shares
+      your miner submits, you receive one free entry in the drawing that is
+      currently open. Entries stay with the round until it closes, so steady
+      mining compounds: the longer you contribute, the more entries you hold
+      when the draw runs.
+    </p>
+    <p>
+      Shares are credited as the pool accepts them, so a dashboard that trails
+      your miner by a few submissions is normal. The total is unaffected.
+    </p>
+  </div>
+
+  <div class="card">
+    <h2>Step 3 — The drawing runs every 24 hours</h2>
+    <p>
+      Each drawing closes 24 hours after the previous one. One entry is selected
+      from the entries recorded for that round, and the winner takes 90% of the
+      pot. The remaining 10% covers servers and development, and seeds the next
+      pot when it runs short.
+    </p>
+    <p>
+      The pot carries over rather than resetting to nothing: an unclaimed prize
+      returns to the pool and grows the next drawing.
+    </p>
+  </div>
+
+  <div class="card">
+    <h2>Step 4 — Claim within seven days</h2>
+    <p>
+      If your entry is drawn, log in, connect a Monero wallet, and claim the
+      prize. You have seven days. After that the prize returns to the pool for
+      the next drawing, so connecting a wallet before you win is the safer
+      order of operations.
+    </p>
+    <p><a href="/winners">See past drawings and winners</a></p>
+  </div>
+
+  <div class="card">
+    <h2>How the draw stays verifiable</h2>
+    <p>
+      The pool commits to a seed before the drawing and reveals it afterwards;
+      the seed is derived from Monero block hashes, so neither the operator nor
+      a miner can pick a winner after seeing the entries. Each result can be
+      checked at <code>/api/verify/{id}</code>, where the entry set, the seed
+      and the selected entry are published together.
+    </p>
+  </div>
+
+  <div class="card">
+    <h2>What it costs</h2>
+    <p>
+      Nothing. There is no deposit, no entry fee and no purchase of any kind.
+      The only cost is the electricity your miner uses, which varies with your
+      hardware and is not paid to the pool.
+    </p>
+  </div>
+
+  <div class="card">
+    <h2>Questions people ask</h2>
+
+    <h3>Do I need a Monero wallet to mine?</h3>
+    <p>No. Mining works immediately; a wallet is only needed to receive a prize.</p>
+
+    <h3>Does the miner touch my wallet?</h3>
+    <p>
+      No. It sends hashpower to the pool and nothing else. It never asks for
+      keys and cannot move funds.
+    </p>
+
+    <h3>What happens if I stop mining mid-round?</h3>
+    <p>
+      Entries you already earned for the open drawing stay counted. You stop
+      earning new ones, but you can still win the round you are in.
+    </p>
+
+    <h3>Is this gambling?</h3>
+    <p>
+      No purchase is required and nothing is wagered — entries come from
+      contributed hashpower, not from stakes. Read the
+      <a href="/winners">payout rules</a> for how prizes are split.
+    </p>
+
+    <!-- XMRJ:SCHEMA page=how-to-play: these are the questions printed
+         above, so the markup cannot drift from the visible copy. -->
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "FAQPage",
+        "mainEntity": [
+          {
+            "@type": "Question",
+            "name": "Do I need a Monero wallet to mine?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "No. Mining works immediately; a wallet is only needed to receive a prize."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Does the miner touch my wallet?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "No. It sends hashpower to the pool and nothing else. It never asks for keys and cannot move funds."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "What happens if I stop mining mid-round?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Entries you already earned for the open drawing stay counted. You stop earning new ones, but you can still win the round you are in."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Is this gambling?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "No purchase is required and nothing is wagered — entries come from contributed hashpower, not from stakes. Read the payout rules for how prizes are split."
+            }
+          }
+        ]
+      }
+    </script>
+    <!-- /XMRJ:SCHEMA -->
+  </div>
+
+  <p>
+    <a class="btn btn-gold" href="/download">Get the miner</a>
+    <a href="/winners">Past winners</a>
+  </p>
+</section>
+
+<!-- ═══════════ DOWNLOAD PAGE (served at /download) ═══════════
+     The copy and its schema live here, in the template production
+     already serves. /download keeps this section and strips the rest,
+     filling the BUNDLE_* tokens from the build manifest. -->
 <!-- ═══════════ PLAYER DASHBOARD ═══════════ -->
 <section id="page-dashboard" class="page">
   <!-- Not logged in -->
@@ -1630,14 +1886,19 @@
     </div>
 
     <!-- THE KRAKEN SCOUT DOWNLOAD (acceptance condition 2, Sep 26):
-         stable URL + the published SHA256, filled from the manifest
-         the server itself serves at /api/downloads/bundle-info -->
+         stable URL + the published version and SHA256, filled from the
+         manifest the server itself serves at /api/downloads/bundle-info.
+         The version is the same string /download's SoftwareApplication
+         markup claims, so neither surface can describe a different build. -->
     <div class="card" style="margin-top:16px;">
       <div class="card-header">📦 Kraken Scout Trading Console + Mining Bot</div>
       <p style="font-size:0.85em;color:var(--text-dim);margin-bottom:10px;">
         One bundle: the Scout console, the pool view, and the Mining Bot
         (opt-out is a single checkbox, ON unless you uncheck it).
       </p>
+      <div style="font-size:0.8em;color:var(--text-mute);margin-bottom:6px;">
+        Version <span id="bundleVersion" style="color:var(--text-dim);font-family:monospace;word-break:break-all;">loading…</span>
+      </div>
       <div style="font-size:0.8em;color:var(--text-mute);margin-bottom:6px;">
         SHA256 <span id="bundleSha" style="color:var(--text-dim);word-break:break-all;">loading…</span>
       </div>
@@ -1731,6 +1992,13 @@
     <div style="font-size:0.75em;color:var(--text-mute);max-width:520px;margin-top:4px;">Why this link: it helps fund the jackpot — join Kraken with it, pass the Funded Challenge with Kraken Scout, and Kraken pays you and pays the jackpot when the terms are met.
   
   <p style="margin-top:10px;font-size:0.7em;color:var(--text-mute);">By using this service you agree to the Terms of Service. Cryptocurrency values are volatile. Mining costs may exceed rewards. Not financial advice.</p>
+  <!-- DEPLOY BADGE: filled from /version at runtime (app.js, no-store).
+       It names the commit the RUNNING PROCESS started from, so the footer
+       answers "which build am I looking at?" after any restart. Hidden
+       until the fetch answers; never fetched from a cache layer. -->
+  <p id="deploy-version" style="margin-top:8px;font-size:0.7em;color:var(--text-mute);font-family:monospace;display:none;">
+    deploy <span id="deploy-commit">?</span> · started <span id="deploy-started">?</span>
+  </p>
 </footer>
 
 <!-- Confetti container -->
@@ -1746,11 +2014,11 @@
 <div id="wfScoutModals" style="display:none;"></div>
 
 <!-- /#app -->
-<script src="/static/app.js?v=29"></script>  <script src="/static/scout_ids.js?v=1"></script>
+<script src="/static/app.js?v=30"></script>  <script src="/static/scout_ids.js?v=1"></script>
   <script src="/static/scout_paywall.js?v=3"></script>
   <script src="/static/scout_paywall_wire_patch.js?v=6"></script>
   <script src="/static/scout_checkout.js?v=2"></script>
-<script src="/static/bundle_card.js?v=1"></script>
+<script src="/static/bundle_card.js?v=2"></script>
 <script src="/static/push_report_admin.js?v=1"></script>
 <script src="/static/push_decisions_admin.js?v=2"></script>
 <script src="/static/wf_dashboard.js?v=7"></script>

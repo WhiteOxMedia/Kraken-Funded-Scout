@@ -211,6 +211,60 @@ sleep 9 && curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:3094/api/stat
 The `curl` health check is the confirmation step — 200 means the fleet
 gate's live drive will run, 000 means it will self-skip (honestly).
 
+**Languages and region (Oct 24).** `/download` and `/status` exist in
+English, Spanish, Portuguese, Russian, German and French. The copy is
+data, not markup: `pool/templates/i18n/<lang>.json`, rendered by
+`pool/i18n_pages.py`. Add or change a sentence there, never in the
+page builders, and run `test_i18n_region.py` — it fails if a language
+is missing a key or drops a `{placeholder}`, because the silent
+fallback would otherwise ship an English sentence inside a Spanish
+page.
+
+English owns the unprefixed URL; every other language lives under its
+code (`/es/download`, `/de/status`), `/en/...` 301s to the unprefixed
+page, and every page lists all six plus `x-default` as `hreflang`
+alternates. A browser asking for Spanish is redirected once; the
+selector at the top of each page sets `xmrj_lang`, and that choice
+beats the header from then on. `/winners` and `/how-to-play` are
+English-only on purpose — the download page says so in each language
+instead of pretending otherwise, and only pages that really exist in a
+language are listed in the sitemap or advertised as translations.
+
+**Two products on /download (Oct 24).** The page offers the free miner bot
+(`/api/miner-download`, a .bat that pins xmrig 6.26.0 by SHA256) and
+Kraken Scout (`/downloads/KrakenScoutBundle.zip`). Scout is the paid
+product: the download is free, activation is Scout Pro — the price and
+duration come from the same settings the checkout reads
+(`scout_pro_price_xmr`, `scout_pro_days`; 0.01 XMR / 30 days by
+default) or an XMRJ unlock — and unlocking happens in the dashboard,
+not on the download page. The XMRJ side settles through
+`xmrj_treasury`, whose `reserve_bps` + `jackpot_bps` split (fixed at
+`initialize`, governance-settable afterwards) is the only path that
+adds XMR to the jackpot. Two honesty rules ride with this: the miner
+.bat writes a placeholder wallet, so the page says outright that those
+shares are not credited and points at the dashboard installer instead;
+and the xmrig pin is the release **zip's** SHA256, not the exe's
+(Oct 24: the fallback named `xmrig-6.26.0-msvc-win64.zip`, which GitHub
+404s, and its pin was the hash of the exe *inside* the archive — no zip
+could ever match it, so every fallback install aborted as if the
+download had been tampered with). Both installer copies in the bundle
+carry the same pin: `build_bundle.ps1` now syncs
+`payload/monero_project/installer/install.ps1` from the working-tree
+installer, because the payload is `git archive HEAD` and can lag it.
+
+Region needs no GeoIP service: Cloudflare already attaches
+`CF-IPCountry` and the edge colo in `CF-Ray`, so `pool/i18n.py` maps
+the country to a continent and the download page says whether the
+visitor is in the relay's region or far from it. Two limits are
+deliberate. There is no per-visitor latency probe — the browser cannot
+open a TCP connection to `3333`, and timing the web endpoint would
+measure the tunnel, not the relay — so the page gives qualitative
+latency advice and no invented milliseconds. And no language claims
+mining is blocked or illegal somewhere: no jurisdiction bans Monero
+mining and no source lists "XMR-blocked countries", so the page
+advises on distance only (a test asserts no catalog contains such a
+claim).
+
 **Miner ingest key (Sep 27).** `/api/miner/shares` is an economy
 writer — its share deltas backfill free jackpot tickets (100 shares
 = 1 ticket) — so it is gated: a valid HMAC-SHA256 over

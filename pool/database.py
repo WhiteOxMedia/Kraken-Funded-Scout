@@ -850,15 +850,29 @@ def get_miner(miner_id):
 
 
 def get_recent_drawings(limit=10):
+    """Recent drawings, with the winner's MINING wallet on winner_wallet.
+
+    drawings gained its own winner_wallet column (the claim address), so
+    `d.*` plus an alias of the same name handed callers two columns under
+    one key - sqlite answered with the claim address, which is NULL until
+    a prize is claimed, and every winner rendered blank. The join is
+    aliased separately here and merged explicitly, preferring the miner
+    that actually won.
+    """
     with get_db() as conn:
         rows = conn.execute(
-            """SELECT d.*, m.wallet_address as winner_wallet
+            """SELECT d.*, m.wallet_address as miner_wallet
                FROM drawings d
                LEFT JOIN miners m ON d.winner_id = m.id
                ORDER BY d.id DESC LIMIT ?""",
             (limit,),
         ).fetchall()
-        return [dict(r) for r in rows]
+        out = []
+        for r in rows:
+            d = dict(r)
+            d["winner_wallet"] = d.pop("miner_wallet") or d.get("winner_wallet")
+            out.append(d)
+        return out
 
 
 def add_payout(miner_id, amount_xmr, payout_type, drawing_id=None):

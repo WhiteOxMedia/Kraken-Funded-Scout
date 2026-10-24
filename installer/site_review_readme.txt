@@ -27,7 +27,7 @@ infrastructure) stays exactly where it is.
 | `static/scout_checkout.js` | Scout Pro donation checkout surface. (v2) |
 | `static/push_client.js` | Web-push registration, the prefs toggles (If-Match optimistic concurrency, undo), Test-notification buttons, the ONE shared relative-time renderer (v16). |
 | `static/push_sw.js` | The push service worker (notification display; same-origin navigation only). |
-| `static/bundle_card.js` | The Kraken Scout bundle download card (stable URL + SHA256). (v1) |
+| `static/bundle_card.js` | The Kraken Scout bundle download card (stable URL, published version + SHA256). (v2) |
 | `static/push_report_admin.js` | Admin: daily push report (sends/blocks/rate-limits per category). (v1) |
 | `static/push_decisions_admin.js` | Admin: the live suppression/send decisions ledger (audit-derived). (v2) |
 | `static/push_vapid_admin.js` | Admin: VAPID provisioning status/actions. (v1) |
