@@ -109,3 +109,14 @@ pool/_backup_*.db*
 # smoke-probe output the readiness checklist reads back (run artifact, never shipped)
 smoke_probe*
 **/smoke_probe*
+
+# relay deployment scratch: admin keypair, downloaded tools, session logs.
+# The private key must never be committed.
+.relay/
+
+# fleet timing artifacts (run telemetry, churns every run — never shipped.
+# .archive.jsonl is the rotated ledger run_fleet.py writes past 200 runs)
+fleet_timings.json
+fleet_timings.jsonl
+fleet_timings.archive.jsonl
+fleet_timings.json.tmp

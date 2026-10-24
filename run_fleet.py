@@ -49,6 +49,16 @@ Exit code 1 = at least one REGRESSION (or a drive that crashed both
 runs). The runner itself touches nothing — every drive owns its own
 sandbox, and the live-db hermeticity guarantees stay inside drives.
 
+TIMING (fleet_timings.json + fleet_timings.jsonl, both gitignored)
+  Every run writes a summary artifact: verdict counts, git identity,
+  wall/drive/median/p90/max seconds, the ten-second offenders, and the
+  five slowest drives. The .jsonl is one line per run — so median/p90
+  DRIFT is recoverable after any log is deleted, and `--history` prints
+  it (a delta only against the previous run of the SAME drive set: a
+  subset run is a different measurement, never a regression).
+  --no-timings suppresses the write; a write failure never fails the
+  fleet.
+
 HISTORY (fleet_history.jsonl, gitignored — it churns every run)
   Every classified drive appends one JSON line {ts, fleet, drive,
   status, checks, passed, dur, note}. `--history` reads the ledger
@@ -59,6 +69,7 @@ HISTORY (fleet_history.jsonl, gitignored — it churns every run)
 """
 import argparse
 import json
+import math
 import os
 import re
 import subprocess
@@ -68,6 +79,22 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 HISTORY = HERE / "fleet_history.jsonl"
+# THE TIMING ARTIFACT (two views of one run, both gitignored):
+#   fleet_timings.json   the latest run, complete and pretty — inspects well
+#   fleet_timings.jsonl  one summary line per run — the DRIFT ledger
+# The per-drive ledger above records each drive's seconds; neither it nor
+# the printed table survives a deleted console log, so median/p90 drift
+# used to be unrecoverable after the fact.
+TIMINGS = HERE / "fleet_timings.json"
+TIMINGS_LEDGER = HERE / "fleet_timings.jsonl"
+KEEP_TIMINGS = 200          # ledger rotation: newest N lines stay
+
+
+def _timings_archive():
+    """The archive sits beside the ledger so repointing the ledger (the
+    drives do, into a temp dir) repoints the archive with it."""
+    return TIMINGS_LEDGER.with_name(
+        TIMINGS_LEDGER.name.replace(".jsonl", ".archive.jsonl"))
 RESULT_RE = re.compile(r"RESULT:\s*(\d+)\s+passed,\s*(\d+)\s+failed")
 FAIL_ID_RE = re.compile(r"^FAIL\s+(\S+)", re.M)
 SKIP_RE = re.compile(r"^\s*SKIP:", re.M)
@@ -195,6 +222,188 @@ def record_history(rows, fleet_id):
         print("  (history not written: {})".format(exc))
 
 
+def percentile(values, q):
+    """Nearest-rank percentile — no interpolation, so a p90 is always a
+    real drive's real time and never a synthetic point between two."""
+    if not values:
+        return 0.0
+    ordered = sorted(values)
+    k = max(1, math.ceil(q / 100.0 * len(ordered)))
+    return ordered[min(k, len(ordered)) - 1]
+
+
+def _git_identity():
+    """sha/branch/dirty of the tree that produced these numbers. Best
+    effort: telemetry must never be the reason a fleet run fails."""
+    def _q(*a):
+        try:
+            p = subprocess.run(["git", "-C", str(HERE), *a],
+                               capture_output=True, text=True, timeout=15,
+                               check=False)
+        except (OSError, subprocess.SubprocessError):
+            return ""
+        return p.stdout.strip() if p.returncode == 0 else ""
+    commit = _q("rev-parse", "HEAD")
+    return {"commit": commit, "commit_short": commit[:12] or None,
+            "branch": _q("rev-parse", "--abbrev-ref", "HEAD"),
+            "dirty": bool(_q("status", "--porcelain"))}
+
+
+def fleet_summary(rows, fleet_id, wall_s, timeout, only=None,
+                  partial=False):
+    """The machine-readable shape of one run: verdict counts plus the
+    timing distribution that the printed table cannot preserve."""
+    secs = [float(i["dur"]) for _, _, i in rows]
+    by = {}
+    for _, status, _ in rows:
+        by[status] = by.get(status, 0) + 1
+    checks = sum(int(i["checks"].split()[0]) for _, _, i in rows
+                 if i["checks"].endswith("checks"))
+    slow = sorted(rows, key=lambda r: -float(r[2]["dur"]))[:5]
+    return {
+        "schema": 1,
+        "ts": fleet_id,
+        # a subset run is a DIFFERENT measurement: drift is only compared
+        # against runs with the same set signature
+        "set": "only:" + ",".join(only) if only else "full",
+        "partial": bool(partial),
+        "timeout": timeout,
+        "git": _git_identity(),
+        "drives": {"total": len(rows), "pass": by.get("PASS", 0),
+                   "flake": by.get("FLAKE", 0), "skip": by.get("SKIP", 0),
+                   "regression": by.get("REGRESSION", 0), "checks": checks},
+        "timing": {
+            "wall_s": round(wall_s, 2),
+            "drive_total_s": round(sum(secs), 2),
+            "median_s": round(percentile(secs, 50), 2),
+            "p90_s": round(percentile(secs, 90), 2),
+            "max_s": round(max(secs), 2) if secs else 0.0,
+            "max_drive": slow[0][0] if slow else None,
+            "over_10s": [n for n, _s, i in rows if float(i["dur"]) > 10],
+        },
+        "slowest": [{"drive": n, "secs": round(float(i["dur"]), 2)}
+                    for n, _s, i in slow],
+        "rows": [{"drive": n, "status": s, "checks": i["checks"],
+                  "secs": round(float(i["dur"]), 2)}
+                 for n, s, i in rows],
+    }
+
+
+def rotate_timings(keep=KEEP_TIMINGS):
+    """Keep the newest `keep` ledger lines; move the rest to the archive.
+
+    Policy: the ACTIVE ledger is what `--history` reads, so it stays a
+    bounded, fast file (200 runs of one-line summaries). Overflow is
+    APPENDED to fleet_timings.archive.jsonl — never deleted — so the
+    long history survives for a later audit.
+
+    Safety: the archive append happens FIRST, then the ledger is replaced
+    atomically (tmp + replace). A crash or a full disk leaves the ledger
+    untouched with the overflow already archived, so the worst case is a
+    duplicated line, never a lost or truncated one. Returns the number of
+    lines moved."""
+    if keep <= 0:
+        return 0
+    try:
+        raw = TIMINGS_LEDGER.read_text(encoding="utf-8").splitlines()
+    except OSError:
+        return 0
+    lines = [ln for ln in raw if ln.strip()]
+    if len(lines) <= keep:
+        return 0
+    overflow, keepset = lines[:-keep], lines[-keep:]
+    try:
+        with _timings_archive().open("a", encoding="utf-8") as f:
+            f.write("\n".join(overflow) + "\n")
+        tmp = TIMINGS_LEDGER.with_suffix(".jsonl.tmp")
+        tmp.write_text("\n".join(keepset) + "\n", encoding="utf-8")
+        tmp.replace(TIMINGS_LEDGER)
+    except OSError as exc:
+        print("  (timing ledger not rotated: {})".format(exc))
+        return 0
+    return len(overflow)
+
+
+def write_timings(summary, keep=None):
+    """Append the drift ledger line, rotate, then rewrite the latest-run
+    JSON atomically (tmp + replace) so a reader never sees half a file."""
+    try:
+        with TIMINGS_LEDGER.open("a", encoding="utf-8") as f:
+            f.write(json.dumps(summary, separators=(",", ":")) + "\n")
+        rotate_timings(KEEP_TIMINGS if keep is None else keep)
+        tmp = TIMINGS.with_suffix(".json.tmp")
+        tmp.write_text(json.dumps(summary, indent=1), encoding="utf-8")
+        tmp.replace(TIMINGS)
+        return True
+    except OSError as exc:
+        print("  (timing artifact not written: {})".format(exc))
+        return False
+
+
+def read_timings():
+    """Parsed ledger, oldest first. Corrupt lines are skipped with a
+    count — telemetry must never take the fleet down."""
+    if not TIMINGS_LEDGER.exists():
+        return [], 0
+    entries, corrupt = [], 0
+    for line in TIMINGS_LEDGER.read_text(encoding="utf-8").splitlines():
+        if not line.strip():
+            continue
+        try:
+            e = json.loads(line)
+        except ValueError:
+            corrupt += 1
+            continue
+        # valid JSON that is not an object (`[]`, `"x"`) is corruption
+        # too — appending it would make every later .get() raise
+        if not isinstance(e, dict):
+            corrupt += 1
+            continue
+        entries.append(e)
+    return entries, corrupt
+
+
+def show_timing_drift(last=10):
+    """MEDIAN/P90 DRIFT: the fleet's own runtime over the recent runs,
+    with a delta only against the previous run of the SAME drive set
+    (a subset run is a different measurement, not a regression)."""
+    entries, corrupt = read_timings()
+    if not entries:
+        print("\nno timing history yet — run the fleet first ({} missing)"
+              .format(TIMINGS_LEDGER.name))
+        return
+    print("\nFLEET TIMING (last {} run(s)){}".format(
+        min(last, len(entries)),
+        ", {} corrupt line(s) skipped".format(corrupt) if corrupt else ""))
+    # ASCII only: this table is printed on cp1252 Windows consoles too,
+    # where a Greek delta raises UnicodeEncodeError and takes --history
+    # down with it.
+    print("{:<20} {:<14} {:>6} {:>8} {:>8} {:>7} {:>7} {:>8}  {}".format(
+        "RUN", "SET", "DRIVES", "WALL", "TOTAL", "MEDIAN", "P90", "MAX", "DELTA"))
+    print("-" * 96)
+    prev_by_set = {}
+    for e in entries[-last:]:
+        # shape-guarded: a hand-edited or half-written line must not take
+        # the whole report down (telemetry is never load-bearing)
+        t = e.get("timing") if isinstance(e.get("timing"), dict) else {}
+        dr = e.get("drives") if isinstance(e.get("drives"), dict) else {}
+        sig = (e.get("set"), e.get("timeout"))
+        delta = "-"
+        prev = prev_by_set.get(sig)
+        if prev is not None:
+            d = t.get("wall_s", 0) - prev
+            delta = "{:+.1f}s".format(d)
+        prev_by_set[sig] = t.get("wall_s", 0)
+        print("{:<20} {:<14} {:>6} {:>7.1f}s {:>7.1f}s {:>6.1f}s {:>6.1f}s "
+              "{:>7.1f}s  {}{}".format(
+                  e.get("ts", "?"), (e.get("set") or "full")[:14],
+                  dr.get("total", 0),
+                  t.get("wall_s", 0), t.get("drive_total_s", 0),
+                  t.get("median_s", 0), t.get("p90_s", 0),
+                  t.get("max_s", 0), delta,
+                  "  (partial)" if e.get("partial") else ""))
+
+
 def show_history():
     """THE FLAKE-RATE LEDGER: per-drive run counts and outcome rates
     across every recorded fleet run."""
@@ -234,6 +443,7 @@ def show_history():
     print("{} drive(s), {} classified runs{}".format(
         len(per), total,
         ", {} corrupt line(s) skipped".format(corrupt) if corrupt else ""))
+    show_timing_drift()
     return 0
 
 
@@ -255,7 +465,11 @@ def main():
     ap.add_argument("--fail-fast", action="store_true",
                     help="stop at the first regression and print that "
                          "drive's full output")
+    ap.add_argument("--no-timings", action="store_true",
+                    help="do not write the timing artifact "
+                         "(fleet_timings.json / .jsonl)")
     args = ap.parse_args()
+    t_start = time.time()
 
     drives = discover()
     if args.only:
@@ -325,8 +539,23 @@ def main():
     for name, status, info in rows:
         if status == "REGRESSION":
             print("  REGRESSION -> {}: {}".format(name, info["note"]))
-    record_history(rows, time.strftime("%Y-%m-%dT%H:%M:%SZ",
-                                       time.gmtime()))
+    fleet_id = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+    record_history(rows, fleet_id)
+
+    # THE TIMING ARTIFACT: the table above dies with the console; this
+    # does not. Median/p90 are computed from the same rows the table
+    # printed, so the two can never disagree.
+    summary = fleet_summary(rows, fleet_id, time.time() - t_start,
+                            args.timeout, only=args.only,
+                            partial=stopped_at is not None)
+    t = summary["timing"]
+    print("TIMING: wall {:.1f}s | drives {:.1f}s | median {:.1f}s | p90 "
+          "{:.1f}s | max {:.1f}s ({}){}".format(
+              t["wall_s"], t["drive_total_s"], t["median_s"], t["p90_s"],
+              t["max_s"], t["max_drive"] or "-",
+              "" if args.no_timings else " | " + TIMINGS.name))
+    if not args.no_timings:
+        write_timings(summary)
     return 1 if by.get("REGRESSION") else 0
 
 

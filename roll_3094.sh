@@ -65,7 +65,10 @@ powershell -NoProfile -Command "Start-Process cmd -ArgumentList '/c set APP_PORT
 # wall clock keeps the whole wait inside its 45s deadline either way.
 deadline=$(( $(date +%s) + 45 ))
 while :; do
-  code=$(curl -s --max-time 10 -o /dev/null -w '%{http_code}' "$BASE_URL$_CTA_PROBE_HEALTH" 2>/dev/null)
+  # `|| true` is load-bearing: under `set -e` a connection-refused curl exits 7
+  # and would kill the roll on the first attempt, before the server had a
+  # chance to bind. The loop's deadline is what decides failure.
+  code=$(curl -s --max-time 10 -o /dev/null -w '%{http_code}' "$BASE_URL$_CTA_PROBE_HEALTH" 2>/dev/null || true)
   [ "${code:-000}" = "200" ] && break
   if [ "$(date +%s)" -ge "$deadline" ]; then
     printf 'FAIL server never answered /api/stats 200 within 45s — last log lines:\n'
