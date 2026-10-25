@@ -11,12 +11,21 @@ from dataclasses import dataclass, field
 
 # ── Database ──────────────────────────────────────────────────────────────
 def _get_db_url() -> str:
-    """Return the pooled Postgres connection string."""
+    """Return the connection string, or a local file when none is configured.
+
+    NEVER a baked-in credential. This module used to fall back to a live
+    Postgres URL with the password inline, which then shipped inside the
+    public bundle; any value of that kind must come from the environment
+    (or the deployment's secret store) and nowhere else. With nothing set,
+    Scout runs on its own local SQLite file so a customer install starts
+    without an account on somebody else's database.
+    """
     for key in ("DB195374BC_DATABASE_URL", "DB1005AA9E_DATABASE_URL", "DATABASE_URL"):
         val = os.environ.get(key)
         if val:
             return val
-    return "postgresql://neondb_owner:npg_SgvAOU1buC8q@ep-crimson-wave-a69csseq-pooler.us-west-2.aws.neon.tech/neondb?channel_binding=require&sslmode=require"
+    from pathlib import Path
+    return "sqlite:///" + (Path(__file__).resolve().parent / "scout_local.db").as_posix()
 
 
 def _get_db_direct_url() -> str:
