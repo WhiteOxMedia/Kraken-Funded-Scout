@@ -130,6 +130,36 @@ def _region_card(lang: str, region: dict) -> str:
     )
 
 
+def _owner_strip(lang: str) -> str:
+    """Two labels, one line each: a partner's term must never read as ours.
+
+    The download page sells Scout, which runs Kraken's challenge — the only
+    place on the site where a partner's product and ours sit in the same
+    sentence. This strip states which half is whose and how a partner bonus
+    reaches the pot, in every language, before the chooser.
+    """
+    cell = ('<div style="flex:1 1 300px;border:1px solid {border};'
+            'border-radius:10px;padding:10px 12px;background:{bg};">'
+            '<div style="font-size:0.7em;color:var(--text-mute);'
+            'letter-spacing:.06em;text-transform:uppercase;'
+            'margin-bottom:4px;">{label}</div>'
+            '<div style="font-size:0.85em;line-height:1.6;">{body}</div>'
+            "</div>")
+    kraken = cell.format(border="rgba(124,124,255,.28)",
+                         bg="rgba(124,124,255,.06)", label="Kraken",
+                         body=escape(i18n.t(lang, "download.ownerKraken")))
+    pool = cell.format(border="rgba(255,196,0,.3)",
+                       bg="rgba(255,196,0,.05)", label="XMR Jackpot",
+                       body=escape(i18n.t(lang, "download.ownerPool")))
+    return (CARD_OPEN + "\n<h2>" + escape(i18n.t(lang, "download.ownerTitle"))
+            + "</h2>\n"
+            '<div style="display:flex;gap:12px;flex-wrap:wrap;">\n'
+            + kraken + "\n" + pool + "\n</div>\n"
+            '<p style="font-size:0.85em;color:var(--text-mute);'
+            'line-height:1.6;margin:10px 0 0;">'
+            + escape(i18n.t(lang, "download.ownerMeet")) + "</p>\n</div>\n")
+
+
 def render_download(lang: str, origin: str, region: dict | None = None,
                     bundle: dict | None = None, qr_svg: str = "",
                     chrome: dict | None = None,
@@ -148,7 +178,7 @@ def render_download(lang: str, origin: str, region: dict | None = None,
     items = "".join(
         "<li><strong>" + escape(i18n.t(lang, f"download.what{n}Title"))
         + "</strong> — " + escape(i18n.t(lang, f"download.what{n}Body")) + "</li>\n"
-        for n in (1, 2, 3))
+        for n in (1, 2))   # no pool-view card: the pool is operator-only (Oct 25)
 
     # TWO downloads, said out loud. They are different artifacts - the miner
     # installer (.bat, no Scout) and the Kraken Scout bundle (.zip) - and a page
@@ -186,8 +216,9 @@ def render_download(lang: str, origin: str, region: dict | None = None,
         '    <p class="seo-meta" style="font-size:0.8em;">' + escape(meta)
         + "</p>\n"
         "  </div>\n</div>\n</div>\n"
-        # The paywall's money path, said plainly: this is the treasury split,
-        # and it is the only way XMR reaches the pot.
+        # Where the money goes, said plainly: the Scout Pro donation is
+        # credited to the pot once per order and is the only paid path.
+        # No XMRJ or treasury rail moves XMR into the pot (see B28).
         + CARD_OPEN + "\n<h2>" + escape(i18n.t(lang, "download.treasuryTitle"))
         + "</h2>\n<p style=\"font-size:0.95em;\">"
         + escape(i18n.t(lang, "download.treasuryBody")) + "</p>\n</div>\n")
@@ -195,6 +226,7 @@ def render_download(lang: str, origin: str, region: dict | None = None,
     body = (
         "<h1>" + escape(i18n.t(lang, "download.h1")) + "</h1>\n"
         '<p class="lead">' + escape(i18n.t(lang, "download.lead")) + "</p>\n"
+        + _owner_strip(lang)
         + chooser
         + CARD_OPEN + "\n<h2>" + escape(i18n.t(lang, "download.whatTitle")) + "</h2>\n"
         "<ul>\n" + items + "</ul>\n</div>\n"

@@ -196,6 +196,45 @@ app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
 _dist_dir = Path(__file__).parent.parent / "dist"
 
 
+# ONLY AN UNCORRUPTED ARTIFACT MAY BE SERVED (Oct 25). The builder prunes
+# to installer/release_manifest.json, but the bytes on disk are not the
+# builder: a stale zip, a hand-copied one, or an interrupted roll can put
+# a contaminated archive under the PUBLIC download URL. The route checks
+# the same manifest before every (cached) response and answers 503 when
+# the artifact carries anything the manifest forbids. Fail closed: a
+# missing manifest is a violation, not a pass.
+_RELEASE_GUARD_CACHE = {"key": None, "problems": None}
+
+
+def _release_guard_module():
+    import importlib.util
+    path = Path(__file__).parent.parent / "installer" / "release_guard.py"
+    spec = importlib.util.spec_from_file_location("_xmrj_release_guard", path)
+    if spec is None or spec.loader is None:
+        raise ImportError(f"release guard missing at {path}")
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+def _artifact_problems(zip_path: Path) -> list:
+    """Manifest violations for the artifact on disk (cached per bytes)."""
+    try:
+        st = zip_path.stat()
+    except OSError:
+        return []                             # 404 path handles absence
+    key = (st.st_mtime_ns, st.st_size)
+    if _RELEASE_GUARD_CACHE["key"] == key:
+        return _RELEASE_GUARD_CACHE["problems"] or []
+    try:
+        guard = _release_guard_module()
+        problems = guard.zip_violations(zip_path, guard.load_manifest())
+    except Exception as e:                    # no manifest, broken guard
+        problems = [f"release guard unavailable: {e}"]
+    _RELEASE_GUARD_CACHE.update(key=key, problems=problems)
+    return problems
+
+
 def _artifact_headers() -> dict:
     """nosniff on every artifact response, and no-cache so a
     checksum-pinned file is never served stale from an edge cache."""
@@ -329,6 +368,13 @@ async def downloads_bundle():
     f = _dist_dir / "KrakenScoutBundle.zip"
     if not f.exists():
         raise HTTPException(status_code=404, detail="bundle not built")
+    problems = _artifact_problems(f)
+    if problems:
+        print(f"[Release] REFUSING to serve {f.name}: {len(problems)} "
+              f"manifest violation(s); first: {problems[0]}")
+        raise HTTPException(
+            status_code=503,
+            detail="this artifact is quarantined by the release manifest")
     # revalidate per request, 304 when the bytes are unchanged: a
     # checksum-pinned artifact must NEVER be served stale (Cloudflare
     # proved this within the hour).
@@ -342,6 +388,10 @@ async def downloads_bundle_head():
     f = _dist_dir / "KrakenScoutBundle.zip"
     if not f.exists():
         raise HTTPException(status_code=404, detail="bundle not built")
+    if _artifact_problems(f):
+        raise HTTPException(
+            status_code=503,
+            detail="this artifact is quarantined by the release manifest")
     return Response(status_code=200, media_type="application/zip",
                     headers={**_artifact_headers(),
                              "Content-Length": str(f.stat().st_size)})
@@ -487,7 +537,7 @@ def _miner_ingest_authorized(request: Request, wallet: str,
 @app.get("/", response_class=HTMLResponse)
 async def dashboard():
     """Serve the main game dashboard."""
-    return HTMLResponse(content=_with_jsonld(_template_text(), canonical="/"))
+    return HTMLResponse(content=_with_jsonld(_template_html(), canonical="/"))
 
 
 # ─── Standalone pages (/download, /winners) ─────────────────
@@ -503,10 +553,17 @@ async def dashboard():
 # JSON-LD block still holding a token is dropped, so a page cannot claim
 # a version the build manifest does not carry.
 HOWTO_TITLE = "How to Play — Mine Monero, Earn Entries, Win the Daily Pot"
-HOWTO_DESCRIPTION = (
-    "Point a Monero miner at the pool, earn one entry per 100 accepted shares, "
-    "and take part in the daily drawing. No deposit, no entry fee, no purchase."
-)
+def _howto_description() -> str:
+    """The /how-to-play meta description, unit from the engine (Oct 24).
+
+    The entry unit is an operator setting, so it cannot be baked into a
+    string constant: the description has to quote the number the pool
+    actually pays.
+    """
+    unit = engine.entry_unit()
+    return (f"Point a Monero miner at the pool, earn one entry per {unit} "
+            "accepted shares, and take part in the daily drawing. No "
+            "deposit, no entry fee, no purchase.")
 WINNERS_TITLE = "Winners and Past Drawings — XMR Jackpot"
 WINNERS_DESCRIPTION = (
     "Every completed XMR Jackpot drawing: when it ran, what it paid, the "
@@ -530,7 +587,7 @@ _STATIC_NAV = '''<nav class="navbar">
 </nav>'''
 
 
-STYLE_HREF = "/static/style.css?v=20"   # test_i18n_region pins this to the template
+STYLE_HREF = "/static/style.css?v=21"   # test_i18n_region pins this to the template
 
 
 @lru_cache(maxsize=1)
@@ -549,6 +606,12 @@ def _site_chrome() -> dict:
     # Terms link becomes the real page it means.
     footer = footer.replace('<a href="#" data-action="navigate-howto"',
                             '<a href="/how-to-play"', 1)
+    # The footer states the payout split and the entry unit; catalog pages
+    # must not ship those as literal tokens (Oct 24).
+    try:
+        footer = fill_terms(footer)
+    except Exception as e:
+        print(f"[Chrome] footer tokens not filled: {e}")
     return {"nav": _STATIC_NAV, "footer": footer, "style": STYLE_HREF}
 
 
@@ -581,10 +644,15 @@ def _winners_tokens() -> dict:
     except Exception:                     # a broken db must not 500 the page
         rows = []
 
+    # Seeded history is display data, not a payout: a demo winner is
+    # labeled on the public page too (Oct 24 full disclosure).
+    def _demo(r) -> str:
+        return " <em>(demo)</em>" if r.get("winner_is_demo") else ""
+
     if rows:
         latest = rows[0]
         wid = int(latest.get("id") or 0)
-        wallet = escape(str(latest.get("winner_wallet") or "—"))
+        wallet = escape(str(latest.get("winner_wallet") or "—")) + _demo(latest)
         latest_html = (
             "<table>\n      <tbody>\n"
             f'        <tr><th scope="row">Drawn</th><td>{_utc_stamp(latest.get("drawn_at"))}</td></tr>\n'
@@ -605,7 +673,8 @@ def _winners_tokens() -> dict:
         '<td><a href="/api/verify/{id}">verify</a></td></tr>'.format(
             int(r.get("id") or 0), _utc_stamp(r.get("drawn_at")),
             _xmr(r.get("jackpot_amount")),
-            escape(str(r.get("winner_wallet") or "—")), id=int(r.get("id") or 0))
+            escape(str(r.get("winner_wallet") or "—")) + _demo(r),
+            id=int(r.get("id") or 0))
         for r in rows)
     return {
         "{{LATEST_DRAWING}}": latest_html,
@@ -664,6 +733,122 @@ def _standalone_page(template: str, keep: str, title: str,
 def _template_text() -> str:
     return (Path(__file__).parent / "templates" / "index.html").read_text(
         encoding="utf-8")
+
+
+def _pro_price() -> tuple:
+    """The Scout Pro checkout price, as the checkout will charge it.
+
+    (xmr, usd) from the setting the route reads and the tracked rate.
+    One source again: the page cannot advertise one number while
+    /scout/purchase asks for another.
+    """
+    try:
+        xmr = float(db.get_setting("scout_pro_price_xmr", "0.01"))
+    except (TypeError, ValueError):
+        xmr = 0.01
+    if xmr <= 0:
+        xmr = 0.01
+    try:
+        import jackpot_funding as _funding
+        usd = xmr * _funding.xmr_usd_rate()
+    except Exception:
+        usd = xmr * 323.0
+    return round(xmr, 8), round(usd, 2)
+
+
+def _payout_terms() -> dict:
+    """Every number the copy states about the draw, from its setting.
+
+    The page used to hardcode "90%", "every 24 hours" and "7 days". All
+    three are operator settings (house_tax_percent, drawing_interval_hours,
+    claim_window_days), so a tuned pool shipped a page describing the old
+    rules. These are the same readers the engine uses, with the engine's
+    own defaults, so the sentence and the payout cannot disagree.
+    """
+    def _num(key, default):
+        try:
+            return float(db.get_setting(key, str(default)))
+        except (TypeError, ValueError):
+            return float(default)
+
+    tax = int(max(0, min(100, _num("house_tax_percent", 10))))
+    hours = _num("drawing_interval_hours", 24)
+    if hours <= 0:
+        hours = 24.0
+    claim = int(_num("claim_window_days", 7))
+    if claim < 0:
+        claim = 7
+    pro_days = int(_num("pro_unlock_days", 100))
+    if pro_days < 1:
+        pro_days = 100
+    return {
+        "house_tax": tax,
+        "winner": 100 - tax,
+        "hours": ("%g" % hours),
+        "claim": claim,
+        "pro_days": pro_days,
+    }
+
+
+def _template_html() -> str:
+    """The template with its live tokens filled in (Oct 24).
+
+    The homepage states the entry rule, the payout split, the draw
+    cadence, the claim window and the Pro price in words, so none of them
+    can be a literal: each comes from the setting the engine, the
+    scheduler or the checkout actually reads. A page that promises
+    different odds, a different schedule or a different charge than the
+    pool takes is a lie, and an operator who tunes a setting would
+    otherwise ship one.
+    """
+    unit = engine.entry_unit()
+    price_xmr, price_usd = _pro_price()
+    terms = _payout_terms()
+    # "N miners" in the comparison copy was a hardcoded "100+" while the
+    # live counter said 22. The page states the pool's own count now.
+    try:
+        miners = str(engine.get_pool_stats().get("total_miners", 0))
+    except Exception:
+        miners = "—"
+    # THE WINNERS BLOCK (fixed Oct 24): the SPA shell contains the winners
+    # section, but only the /winners route used to fill DRAW_ROWS /
+    # LATEST_DRAWING / DRAW_EMPTY. On / those three tokens shipped as
+    # literal braces to the browser. Same reader, filled everywhere.
+    try:
+        winners = _winners_tokens()
+    except Exception as e:
+        print(f"[Template] winners block unavailable: {e}")
+        winners = {}
+    html = (_template_text()
+            .replace("{{LATEST_DRAWING}}", winners.get("{{LATEST_DRAWING}}", ""))
+            .replace("{{DRAW_ROWS}}", winners.get("{{DRAW_ROWS}}", ""))
+            .replace("{{DRAW_EMPTY}}", winners.get("{{DRAW_EMPTY}}", ""))
+            .replace("{{TOTAL_MINERS}}", miners))
+    return fill_terms(html, unit=unit, prices=(price_xmr, price_usd),
+                      terms=terms)
+
+
+def fill_terms(html: str, unit=None, prices=None, terms=None) -> str:
+    """Fill the live-number tokens in any chunk of template copy.
+
+    `_site_chrome()` lifts the footer out of index.html for every catalog-
+    rendered page (/download, /status, ...). The footer states the payout
+    split, so it carries the same tokens — and without this the standalone
+    pages rendered a literal "{{WINNER_PCT}}%". One filler for every
+    surface that reuses template copy.
+    """
+    unit = engine.entry_unit() if unit is None else unit
+    price_xmr, price_usd = _pro_price() if prices is None else prices
+    terms = _payout_terms() if terms is None else terms
+    return (html
+            .replace("{{ENTRY_UNIT}}", str(unit))
+            .replace("{{PRO_PRICE_XMR}}", ("%g" % price_xmr))
+            .replace("{{PRO_PRICE_USD}}", "%.2f" % price_usd)
+            .replace("{{HOUSE_TAX_PCT}}", str(terms["house_tax"]))
+            .replace("{{WINNER_PCT}}", str(terms["winner"]))
+            .replace("{{DRAW_HOURS}}", terms["hours"])
+            .replace("{{CLAIM_DAYS}}", str(terms["claim"]))
+            .replace("{{PRO_DAYS}}", str(terms["pro_days"])))
 
 
 # ─── Public relay status (fed by relay/monitor-relay.py) ─────────────
@@ -887,8 +1072,8 @@ async def set_language(code: str, next: str = "/"):
 async def how_to_play_page():
     """The how-to page, with the FAQ that the page actually prints."""
     return HTMLResponse(content=_with_jsonld(
-        _standalone_page(_template_text(), "howto-play", HOWTO_TITLE,
-                         HOWTO_DESCRIPTION, "/how-to-play", {}),
+        _standalone_page(_template_html(), "howto-play", HOWTO_TITLE,
+                         _howto_description(), "/how-to-play", {}),
         "how-to-play"))
 
 
@@ -896,7 +1081,7 @@ async def how_to_play_page():
 async def winners_page():
     """The winners page, filled from the drawings table."""
     return HTMLResponse(content=_with_jsonld(
-        _standalone_page(_template_text(), "winners", WINNERS_TITLE,
+        _standalone_page(_template_html(), "winners", WINNERS_TITLE,
                          WINNERS_DESCRIPTION, "/winners", _winners_tokens())))
 
 
@@ -1200,13 +1385,28 @@ async def api_stats(request: Request):
     if not security.stats_limiter.check(ip):
         raise HTTPException(429, "Too many requests. Slow down.")
     stats = engine.get_pool_stats()
-    # THE RAFFLE UNIT RULE (Oct 12 controller): every valid share = 1
-    # ticket unit, 100 units = ONE complete ticket, submitted only when
-    # complete, partial progress preserved in the miner row. The rule's
-    # unit size rides public stats so every client draws its display
-    # from ONE source — the operator setting, not a per-file constant.
-    stats["free_tickets_per_shares"] = db.safe_pos_int(
-        db.get_setting("free_tickets_per_shares", "100"))
+    # THE SETTLED ENTRY RULE (Oct 24): 1 valid share = 1 unit, and
+    # entry_unit() units = ONE entry. The unit size rides public stats
+    # from the engine's single reader, so the dashboard counter, the
+    # minting engine and the homepage cannot describe different odds.
+    stats["free_tickets_per_shares"] = engine.entry_unit()
+    # the checkout price the Pro copy quotes (same setting the route reads)
+    stats["scout_pro_price_xmr"] = _pro_price()[0]
+    # FULL DISCLOSURE (Oct 24): this pool can be seeded with simulated
+    # miners, and the site's totals include them. Publish the split so
+    # the page can say "N of M miners are simulated" instead of letting
+    # a visitor read fake hashrate as community activity.
+    try:
+        with db.get_db() as conn:
+            row = conn.execute(
+                "SELECT COUNT(*) AS n,"
+                " COALESCE(SUM(CASE WHEN is_demo = 1 THEN 1 ELSE 0 END),0) AS d"
+                " FROM miners"
+            ).fetchone()
+            stats["demo_miners"] = int(row["d"] or 0)
+            stats["demo_mining_sample"] = bool(row["d"])
+    except Exception as e:  # an old DB without the column must not 500 stats
+        print(f"[Stats] demo split unavailable: {e}")
     return stats
 
 
@@ -1217,16 +1417,26 @@ async def api_social_proof():
     now = _time.time()
 
     with db.get_db() as conn:
-        # Total XMR paid out — sum from drawings (source of truth for awarded prizes)
+        # Total XMR paid out — sum from drawings (source of truth for awarded
+        # prizes). FULL DISCLOSURE (Oct 24): a drawing won by a seeded demo
+        # account was never paid, so it is counted separately instead of
+        # inflating the "to winners since launch" figure.
         row = conn.execute(
-            "SELECT COALESCE(SUM(jackpot_amount - house_tax), 0) as total FROM drawings WHERE status = 'drawn'"
+            """SELECT COALESCE(SUM(CASE WHEN COALESCE(m.is_demo,0)=0
+                                      THEN d.jackpot_amount - d.house_tax END), 0) AS real,
+                      COALESCE(SUM(CASE WHEN COALESCE(m.is_demo,0)=1
+                                      THEN d.jackpot_amount - d.house_tax END), 0) AS demo
+               FROM drawings d LEFT JOIN miners m ON d.winner_id = m.id
+               WHERE d.status = 'drawn'"""
         ).fetchone()
-        total_paid_out = round(row["total"], 6)
+        total_paid_out = round(row["real"], 6)
+        simulated_paid_out = round(row["demo"], 6)
 
         # Recent winners feed (last 5 drawn)
         winner_rows = conn.execute(
             """SELECT d.id, d.jackpot_amount, d.house_tax, d.drawn_at, d.claim_status,
-                      d.winner_wallet, m.wallet_address as winner_addr
+                      d.winner_wallet, m.wallet_address as winner_addr,
+                      COALESCE(m.is_demo, 0) as winner_is_demo
                FROM drawings d
                LEFT JOIN miners m ON d.winner_id = m.id
                WHERE d.status = 'drawn'
@@ -1242,12 +1452,14 @@ async def api_social_proof():
                 "drawn_at": r["drawn_at"],
                 "winner_wallet": wallet[:8] + "..." + wallet[-4:] if len(wallet) > 16 else wallet,
                 "claim_status": r["claim_status"],
+                # A seeded/demo winner is display data, not a payout.
+                "simulated": bool(r["winner_is_demo"]),
             })
         recent_winner = recent_winners[0] if recent_winners else None
 
         # Top miner this week
         row = conn.execute(
-            """SELECT wallet_address, shares_valid, hashrate, last_seen
+            """SELECT wallet_address, shares_valid, hashrate, last_seen, is_demo
                FROM miners
                WHERE shares_valid > 0
                ORDER BY shares_valid DESC LIMIT 1"""
@@ -1259,13 +1471,19 @@ async def api_social_proof():
                 "wallet": wallet[:8] + "..." + wallet[-4:] if len(wallet) > 16 else wallet,
                 "shares": row["shares_valid"],
                 "hashrate": round(row["hashrate"] or 0, 1),
+                "simulated": bool(row["is_demo"]),
             }
 
-        # Total drawings completed
+        # Total drawings completed, split real vs seeded demo winners so
+        # "drawings completed" cannot claim history that never ran.
         row = conn.execute(
-            "SELECT COUNT(*) as cnt FROM drawings WHERE status = 'drawn'"
+            """SELECT COUNT(*) AS cnt,
+                      COALESCE(SUM(CASE WHEN COALESCE(m.is_demo,0)=1 THEN 1 ELSE 0 END),0) AS demo
+               FROM drawings d LEFT JOIN miners m ON d.winner_id = m.id
+               WHERE d.status = 'drawn'"""
         ).fetchone()
-        total_drawings = row["cnt"]
+        total_drawings = int(row["cnt"] or 0) - int(row["demo"] or 0)
+        simulated_drawings = int(row["demo"] or 0)
 
         # Total entries in current draw (pending tickets)
         row = conn.execute(
@@ -1292,6 +1510,9 @@ async def api_social_proof():
     return {
         "total_paid_out": total_paid_out,
         "total_drawings": total_drawings,
+        # Seeded history, reported separately and labeled in the UI.
+        "simulated_paid_out": simulated_paid_out,
+        "simulated_drawings": simulated_drawings,
         "recent_winner": recent_winner,
         "recent_winners": recent_winners,
         "top_miner": top_miner,
@@ -1362,6 +1583,8 @@ async def api_referral_stats(request: Request):
         "active_referrals": stats["active_referrals"],
         "tickets_earned": stats["active_referrals"] * reward,
         "reward_per_referral": reward,
+        # The Oct 25 programme: one entry to each side, capped per cycle.
+        **db.referral_award_summary(user["id"]),
     }
 
 
@@ -1370,6 +1593,12 @@ async def api_check_referral(code: str):
     """Check if a referral code is valid (public)."""
     referrer = db.get_user_by_referral_code(code)
     return {"valid": referrer is not None}
+
+
+# The decorator was missing until Oct 24: the function existed but was
+# never registered, so the Real Play page's subaddress call 404'd and the
+# deposit box stayed empty forever.
+@app.get("/api/payment/subaddress")
 async def api_get_subaddress(request: Request):
     """Get the user's unique Monero subaddress for receiving payments."""
     user = require_auth(request)
@@ -1630,7 +1859,10 @@ async def api_miner_installer(wallet_address: str):
     installer += '(echo @echo off\r\n'
     installer += 'echo title XMR Daily Jackpot Miner\r\n'
     installer += 'echo echo Mining to: ' + w[:20] + '...\r\n'
-    installer += 'echo echo Every 100 shares = 1 free ticket!\r\n'
+    # the entry rule travels into the miner's console too, from the one
+    # reader: a .bat that quotes a stale unit is the same lie as a page
+    installer += ('echo echo Every ' + str(engine.entry_unit())
+                  + ' valid shares = 1 free entry!\r\n')
     installer += 'echo echo To stop: close this window.\r\n'
     installer += 'echo xmrig.exe --config=config.json\r\n'
     installer += 'echo pause) > start.bat\r\n'
@@ -1668,6 +1900,11 @@ async def api_miner_installer(wallet_address: str):
         headers={"Content-Disposition": "attachment; filename=install_xmr_jackpot.bat"},
         media_type="application/octet-stream"
     )
+
+
+# Registered Oct 24: this handler shipped without a decorator, so the
+# payment history endpoint the refund/support flow needs did not exist.
+@app.get("/api/payment/status")
 async def api_payment_status(request: Request):
     """Get the user's recent payment history."""
     user = require_auth(request)
@@ -1770,6 +2007,10 @@ class RegisterRequest(BaseModel):
     email: str = ""
     wallet_address: str = ""
     referral_code: str = ""
+    # THE STATED REFERRAL RULE (Oct 25): the friend gives us the
+    # REFERRER'S email at signup. The ?ref=CODE link still resolves to
+    # the same award, so an old link is not a dead end.
+    referrer_email: str = ""
     security_question: str = ""
     phone: str = ""          # the registration envelope (Sep 26 E2E)
     full_name: str = ""
@@ -1852,13 +2093,30 @@ async def api_register(req: RegisterRequest, request: Request):
     ref_code = db.generate_referral_code(req.username)
     db.set_referral_code(user_id, ref_code)
 
-    # Handle referral
-    if req.referral_code and not is_admin:
-        referrer = db.get_user_by_referral_code(req.referral_code)
-        if referrer:
-            db.set_referred_by(user_id, req.referral_code)
-            db.increment_referral_count(req.referral_code)
-            db.add_audit_log(referrer["id"], "referral", f"Referred {req.username}", request.client.host)
+    # Handle referral (Oct 25): one entry to EACH side, at signup, by the
+    # referrer's email (code link = legacy form). db.award_referral_entries
+    # enforces "once per referred account" and the per-cycle cap; a refusal
+    # is normal and never fails the signup.
+    if not is_admin:
+        referrer = None
+        method = ""
+        if (req.referrer_email or "").strip():
+            referrer = db.get_user_by_email(req.referrer_email)
+            method = "email"
+        if referrer is None and req.referral_code:
+            referrer = db.get_user_by_referral_code(req.referral_code.strip())
+            method = "code"
+        if referrer and referrer["id"] != user_id:
+            code = referrer.get("referral_code") or ""
+            if code:
+                db.set_referred_by(user_id, code)
+                db.increment_referral_count(code)
+            db.add_audit_log(
+                referrer["id"], "referral",
+                f"Referred {req.username} via {method}", request.client.host)
+            db.award_referral_entries(
+                referrer["id"], user_id, tickets=engine.entry_unit(),
+                method=method)
 
     # Signup bonus — credited as tickets, not withdrawable XMR
     # 0.003 XMR worth = 3 tickets, but shown as "signup bonus"
@@ -2151,11 +2409,18 @@ async def api_gamification(request: Request):
     """Get gamification stats (XP, level, badges, streak, super tickets) for the authenticated user."""
     user = require_auth(request)
     wallet = user.get("wallet_address", "")
+    # The dashboard quotes the price it would actually be charged, from
+    # the same reader the checkout and the homepage use (Oct 24).
+    price_xmr, price_usd = _pro_price()
+    prog = db.pro_progress(None, user["id"])
+    prog["pro_price"] = {"xmr": price_xmr, "usd": price_usd}
     if not wallet:
-        return {"has_miner": False}
+        return {"has_miner": False, "progression": prog}
     miner = db.get_or_create_miner(wallet)
     stats = db.get_gamification_stats(miner["id"])
-    return {"has_miner": True, **stats}
+    prog = db.pro_progress(miner["id"], user["id"])
+    prog["pro_price"] = {"xmr": price_xmr, "usd": price_usd}
+    return {"has_miner": True, **stats, "progression": prog}
 
 
 # ─── Winner Claim Flow ───────────────────────────────────────
@@ -2316,6 +2581,17 @@ async def api_admin_stats(request: Request):
     summary["jackpot_current"] = engine.get_jackpot_balance()
     summary["pool_stats"] = engine.get_pool_stats()
     return summary
+
+
+@app.get("/api/admin/referral-meter")
+async def api_admin_referral_meter(request: Request):
+    """This cycle's referral awards, per referrer against the cap (admin).
+
+    Read-only by design: the meter reports what the award path already did
+    — it cannot grant, cap or reset anything from here.
+    """
+    require_admin(request)
+    return db.referral_admin_meter()
 
 
 @app.get("/api/admin/users")
@@ -3205,6 +3481,12 @@ async def api_push_signals(request: Request):
     user = get_user_from_request(request)
     if not user:
         raise HTTPException(status_code=401, detail="login required")
+    # THE SIGNAL GATE (Oct 24): the feed is the paid product's history —
+    # a locked account gets an EMPTY list plus the reason, never a row.
+    # 200 with a flag (not 403): the dashboard renders an unlock prompt
+    # instead of an error, and nothing about the signals leaks either way.
+    if not db.has_scout_pro(int(user["id"])):
+        return JSONResponse({"signals": [], "scout_pro_required": True})
     return JSONResponse({"signals":
                          push_svc.scrape_recent_signals(int(user["id"]))})
 
@@ -3308,6 +3590,7 @@ _scout_ep.register_scout_endpoints(app)
 
 
 
+@app.get("/scout", include_in_schema=False)
 async def scout_index_redirect():
     """Trailing slash matters for Streamlit's relative asset URLs."""
     return RedirectResponse(url="/scout/", status_code=307)
@@ -3564,8 +3847,26 @@ if __name__ == "__main__":
         import json as _json
         import urllib.request as _urlreq
         scan_count = 0
-        PROXY_API = "http://127.0.0.1:9090"
-        PROXY_TOKEN = "xmrjackpot2026"
+        PROXY_API = os.environ.get("XMRJ_PROXY_API", "http://127.0.0.1:9090")
+        # NO CREDENTIAL LITERAL (Oct 25): this token used to be hard-coded
+        # here, and pool/server.py also shipped inside the public bundle.
+        # It is a deployment secret now - set XMRJ_PROXY_API_TOKEN on the
+        # operator box (the value in monero/proxy_config.json's api section
+        # must match), and rotate the old one, which must be treated as
+        # compromised. An unset token sends no Authorization header; the
+        # proxy then refuses and the poller reports it, which is visible.
+        def _proxy_token() -> str:
+            """Env first, then the operator's token file (never the repo)."""
+            env = (os.environ.get("XMRJ_PROXY_API_TOKEN") or "").strip()
+            if env:
+                return env
+            tf = Path(__file__).parent.parent / "monero" / "proxy_api_token.txt"
+            try:
+                return tf.read_text(encoding="utf-8").strip()
+            except OSError:
+                return ""
+
+        PROXY_TOKEN = _proxy_token()
         PROXY_LOG = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "monero", "proxy.log")
         last_log_pos = 0  # track position in log file to only read new lines
 
@@ -3780,5 +4081,36 @@ if __name__ == "__main__":
     # started only when SCHEDULER_ENABLED=1 (admin card flips it).
     kr_sched.start()
 
-    port = int(os.environ.get("APP_PORT", 80))
-    uvicorn.run(app, host="0.0.0.0", port=port)
+    # ── THE LISTENER CONTRACT (Oct 25) ────────────────────────────────
+    # APP_PORT is REQUIRED. It used to default to 80, which silently
+    # produced a second, unmanaged origin on the privileged port the first
+    # time the service was started without an environment; that orphan
+    # served a stale homepage and an admin-gated bundle for five days. A
+    # missing port is a deployment error and must stop the process, not
+    # pick one.
+    _raw_port = (os.environ.get("APP_PORT") or "").strip()
+    if not _raw_port:
+        raise SystemExit(
+            "APP_PORT is not set. The web origin must be given explicitly "
+            "(production: 3094, bound behind the Cloudflare tunnel). "
+            "Refusing to guess a port.")
+    try:
+        port = int(_raw_port)
+    except ValueError:
+        raise SystemExit(f"APP_PORT must be an integer, got {_raw_port!r}")
+    if not (1 <= port <= 65535):
+        raise SystemExit(f"APP_PORT out of range: {port}")
+    if port < 1024 and os.environ.get("XMRJ_ALLOW_PRIVILEGED_PORT") != "1":
+        raise SystemExit(
+            f"APP_PORT={port} is a privileged port. Scout's origin does not "
+            "need one: the tunnel connects to loopback. Set "
+            "XMRJ_ALLOW_PRIVILEGED_PORT=1 only for a deliberate, documented "
+            "reason.")
+
+    # Loopback by default: the Cloudflare tunnel reaches 127.0.0.1:3094 on
+    # this box, so binding every interface only widened the admin surface
+    # to the LAN. APP_HOST opts back in explicitly where that is intended.
+    host = (os.environ.get("APP_HOST") or "127.0.0.1").strip()
+    print(f"[Origin] serving Scout on http://{host}:{port}"
+          f"{' (ALL interfaces)' if host == '0.0.0.0' else ''}")
+    uvicorn.run(app, host=host, port=port)

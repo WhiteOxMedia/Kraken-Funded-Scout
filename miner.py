@@ -32,7 +32,10 @@ PROJECT_DIR = Path(__file__).parent
 XMRIG_DIR = PROJECT_DIR / "xmrig" / "xmrig-6.26.0"
 XMRIG_EXE = XMRIG_DIR / "xmrig.exe"
 XMRIG_CONFIG = XMRIG_DIR / "config.json"
-WALLET_ADDRESS = "86NjWuTLKm7eggeGw9PZ5LjFDZTHUtAQtWs7Bbu783yYfDRqSd6itapDek39rySHWCax6fnDAKQQXLiieRtRqvzCPeqTxkG"
+# THE MINING ADDRESS COMES FROM THE DEPLOYMENT (Oct 25): it is an
+# operator identifier, not a source constant. Unset means the miner has
+# nothing to mine for and says so.
+WALLET_ADDRESS = (os.environ.get("XMRJ_MINER_WALLET") or "").strip()
 MINING_POOLS = [
     ("SupportXMR", "pool.supportxmr.com:3333"),
     ("MoneroOcean", "gulf.moneroocean.stream:10128"),

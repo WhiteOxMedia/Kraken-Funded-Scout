@@ -32,6 +32,7 @@ Run:  .venv/Scripts/python.exe installer/installer.py --status
 """
 import argparse
 import json
+import os
 import sys
 import time
 import urllib.request
@@ -45,6 +46,52 @@ RECORD_PATH = INSTALLER_DIR / "install_config.json"
 DEFAULT_API = "https://xmrjackpot.com"
 GETTING_STARTED = ("Not sure where to get started? "
                    "Start here: xmrjackpot.com")
+
+# CUSTOMER-NEUTRAL MINER VALUES (Oct 25). The shipped/downloaded xmrig
+# config used to carry the operator's rig id and a developer-local pool
+# address, because it was the operator's own working config. A customer
+# config is built from THESE values instead: the public stratum, no rig id
+# at all, and a placeholder user until the customer activates.
+PUBLIC_STRATUM = (os.environ.get("XMRJ_STRATUM_URL")
+                  or "mine.xmrjackpot.com:3333")
+PLACEHOLDER_WALLET = "YOUR_MONERO_ADDRESS"
+PLACEHOLDER_PASS = "x"
+
+
+def _neutral_config() -> dict:
+    """A minimal xmrig config with no developer or operator values."""
+    return {
+        "api": {"id": None, "worker-id": None},
+        "http": {"enabled": True, "host": "127.0.0.1", "port": 18000,
+                 "access-token": None, "restricted": True},
+        "autosave": True,
+        "background": False,
+        "colors": False,
+        "title": True,
+        "randomx": {"init": -1, "mode": "auto", "1gb-pages": False,
+                    "rdmsr": False, "wrmsr": False},
+        "cpu": {"enabled": True, "huge-pages": True, "hw-aes": None,
+                "priority": None, "memory-pool": False, "yield": True,
+                "asm": True},
+        "pools": [{
+            "algo": None,
+            "coin": "monero",
+            "url": PUBLIC_STRATUM,
+            "user": PLACEHOLDER_WALLET,
+            "pass": PLACEHOLDER_PASS,
+            "rig-id": None,
+            "nicehash": False,
+            "keepalive": True,
+            "enabled": True,
+            "tls": False,
+            "tls-fingerprint": None,
+        }],
+        "print-time": 60,
+        "health-print-time": 60,
+        "retries": 5,
+        "retry-pause": 5,
+        "watch": False,
+    }
 
 FRESH_RECORD = {
     "schema": 1,
@@ -90,20 +137,38 @@ def _post_register(api_base: str, wallet: str, worker: str) -> dict:
 
 
 def _patch_xmrig_user(wallet: str, config_path: Path | None = None) -> bool:
-    """Bind the wallet into the xmrig stratum config (pools[0].user).
-    Only the user field changes; every other key is preserved. Returns
-    False when the config is absent (xmrig not downloaded yet) — that is
-    not an error: mining simply waits for the setup script."""
+    """Bind the customer's wallet into a NEUTRAL xmrig config.
+
+    Writes the config when it is absent (a customer downloads the official
+    xmrig zip, which has none) and normalises it when it is present: the
+    pool is the public stratum, the user is the customer's own address,
+    the pass is the pool's ordinary placeholder, and no rig id is sent —
+    an identifier is that customer's to choose, never an inherited one.
+    Returns False only when the file cannot be written."""
     p = config_path or XMRIG_CONFIG
     try:
         cfg = json.loads(p.read_text(encoding="utf-8"))
+        if not isinstance(cfg, dict):
+            raise ValueError("not an object")
     except (OSError, ValueError):
-        return False
+        cfg = _neutral_config()
     pools = cfg.get("pools") or []
     if not pools:
+        cfg["pools"] = _neutral_config()["pools"]
+        pools = cfg["pools"]
+    pool = pools[0]
+    pool["url"] = PUBLIC_STRATUM
+    pool["user"] = wallet
+    pool["pass"] = PLACEHOLDER_PASS
+    pool["rig-id"] = None
+    pool["keepalive"] = True
+    if "coin" not in pool:
+        pool["coin"] = "monero"
+    try:
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_text(json.dumps(cfg, indent=2), encoding="utf-8")
+    except OSError:
         return False
-    pools[0]["user"] = wallet
-    p.write_text(json.dumps(cfg, indent=2), encoding="utf-8")
     return True
 
 
@@ -132,24 +197,31 @@ def _grant_welcome_ticket(miner_id: int) -> int:
 
 def opt_in(wallet: str, api_base: str = DEFAULT_API, worker: str = "",
            dry_run: bool = False, record_path: Path | None = None,
-           config_path: Path | None = None, live_db: bool = True) -> dict:
-    """Checkbox ON: configure + auto-register + first ticket. Returns a
-    result dict; every step is reported, nothing is half-silent."""
+           config_path: Path | None = None, live_db: bool = False) -> dict:
+    """Checkbox ON: configure the miner + register the wallet on the pool.
+
+    live_db is OFF for customer installs. The old default granted a
+    "welcome ticket" by writing to a LOCAL pool database on the customer's
+    machine — a database that is not the pool's, so the entry was never in
+    any drawing. Registration (POST /api/miner/register) is the real act;
+    entries come from accepted shares (and the paid Scout Pro unlock). The
+    operator's own box can still pass live_db=True deliberately.
+    """
     wallet = (wallet or "").strip()
     if not valid_wallet(wallet):
         return {"ok": False, "error": "invalid Monero address (4/8 prefix, "
                                       "90-120 chars)"}
-    will_patch = config_path is not None or XMRIG_CONFIG.exists()
     if dry_run:
         # dry-run touches NOTHING: the plan is described, not executed
         return {"ok": True, "dry_run": True, "plan": {
-            "patch_xmrig": will_patch,
+            "write_xmrig_config": True,
             "register": {"api": api_base, "worker": worker},
-            "welcome_ticket": True,
+            "welcome_ticket": bool(live_db),
         }}
 
-    # the real sequence, each step reported: config, registration, ticket
-    patched = _patch_xmrig_user(wallet, config_path) if will_patch else False
+    # the real sequence, each step reported: config, registration, and (only
+    # on the operator's own box) the local welcome ticket
+    patched = _patch_xmrig_user(wallet, config_path)
     reg = _post_register(api_base, wallet, worker)
     if reg.get("status") != "ok":
         return {"ok": False, "error": f"registration failed: {reg}"}
@@ -166,6 +238,10 @@ def opt_in(wallet: str, api_base: str = DEFAULT_API, worker: str = "",
     save_record(rec, record_path)
     return {"ok": True, "miner_id": reg["miner_id"], "wallet": wallet,
             "xmrig_patched": patched, "welcome_ticket_granted": granted,
+            "stratum": PUBLIC_STRATUM,
+            "entry_note": ("Entries are minted from accepted shares; the "
+                           "first one appears in your dashboard after the "
+                           "pool accepts work from this wallet."),
             "phrase": GETTING_STARTED}
 
 

@@ -112,8 +112,9 @@ check(4.2, (_scout / "app.py").exists() and (_scout / "pyproject.toml").exists()
       "the scout tree is complete (app, pyproject/uv.lock, the fleet's own launchers)")
 check(4.3, not (_scout / ".venv").exists()
       and (_monero / "installer" / "installer.py").exists()
-      and (_monero / "pool" / "scout_jackpot_view.py").exists(),
-      "no venv ships; the installer and the pool view are in the monero payload")
+      and (_monero / "installer" / "installer_ui.py").exists()
+      and not (_monero / "pool").exists(),
+      "no venv and no pool in the payload; the installer half is what ships")
 check(4.4, (_bundle / "install.ps1").exists()
       and (_bundle / "Install Kraken Scout.bat").exists()
       and (_bundle / "Uninstall Kraken Scout.bat").exists()
@@ -141,17 +142,19 @@ check(5.3, "STAGED" in _rc_txt and "installer_ui.py" in _rc_txt,
       "with -NoUi the flow ends by naming the checkbox UI as the remaining step")
 
 # the staged monero tree must WORK: its own venv-less import proves the
-# module resolves and the pool view is reachable under the name contract
+# installer resolves and its miner values are CUSTOMER-neutral (the pool
+# shipped here until Oct 25; it is operator-only now).
 _vpy = _new_venv(_target / "scout")
 _r3 = subprocess.run([str(_vpy), "-X", "utf8", "-c",
                       "import sys; sys.path.insert(0, r'" + str(_target / "monero_project" / "installer") + "'); "
                       "import installer; assert installer.GETTING_STARTED.endswith('xmrjackpot.com'); "
-                      "sys.path.insert(0, r'" + str(_target / "monero_project" / "pool") + "'); "
-                      "from scout_jackpot_view import SAFE_STATS_KEYS; assert 'jackpot_xmr' in SAFE_STATS_KEYS; "
+                      "assert installer.PUBLIC_STRATUM == 'mine.xmrjackpot.com:3333'; "
+                      "assert installer.PLACEHOLDER_WALLET != ''; "
+                      "assert not (sys.path.__contains__(r'" + str(_target / "monero_project" / "pool") + "')); "
                       "print('staged-tree-ok')"],
                      capture_output=True, text=True, timeout=120)
 check(5.4, _r3.returncode == 0 and "staged-tree-ok" in _r3.stdout,
-      f"the staged tree imports its own installer + pool view: {_r3.stdout.strip() or _r3.stderr[-200:]}")
+      f"the staged tree imports its own installer with neutral miner values: {_r3.stdout.strip() or _r3.stderr[-200:]}")
 _check_src = (_target / "monero_project" / "installer" / "installer.py").read_text(encoding="utf-8")
 check(5.5, '"Not sure where to get started? "' in _check_src
       and '"Start here: xmrjackpot.com"' in _check_src,

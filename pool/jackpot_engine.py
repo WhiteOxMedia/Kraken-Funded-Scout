@@ -204,51 +204,112 @@ def get_jackpot_balance():
     return max(0, base - paid_out)
 
 
+# ═══════════════════════════════════════════════════════════════
+#  THE ENTRY RULE (settled Oct 24 — one rule, three surfaces)
+#
+#   1 unit   = 1 valid share accepted by the pool.
+#   1 entry  = ENTRY_UNIT units (the operator setting, default 100).
+#   A token  IS an entry — there is no second balance anywhere: the
+#   `tickets` table is the one ledger, and "token" is only ever the
+#   word for an entry in the Pro unlock copy.
+#
+# The unlock is DAY-based and nothing else: 100 contributing days
+# (db.pro_progress), plus the one +1 entry the unlock awards. Tokens
+# do not gate or accelerate it, so no copy may imply they do.
+#
+# Everything reads the unit through entry_unit() below — the engine's
+# minting, /api/stats (which the dashboard's counter draws from) and
+# the homepage copy (server.py fills {{ENTRY_UNIT}}). One number, one
+# source, so a change to the operator setting cannot leave the page
+# describing yesterday's odds.
+# ═══════════════════════════════════════════════════════════════
+ENTRY_UNIT_SETTING = "free_tickets_per_shares"
+DEFAULT_ENTRY_UNIT = 100
+
+
+def entry_unit() -> int:
+    """How many valid shares convert into ONE entry. Always >= 1.
+
+    A 0, a negative or junk is a MISCONFIGURATION, not a switch: the
+    pool falls back to DEFAULT_ENTRY_UNIT, exactly as the public stats
+    guard always did. That keeps one meaning for one number — no
+    surface can advertise "0 shares" and no admin typo can silently
+    stop every entry in the pool.
+    """
+    try:
+        val = int(float(db.get_setting(
+            ENTRY_UNIT_SETTING, str(DEFAULT_ENTRY_UNIT))))
+    except (TypeError, ValueError):
+        return DEFAULT_ENTRY_UNIT
+    return val if val > 0 else DEFAULT_ENTRY_UNIT
+
+
 def allocate_free_tickets(miner_id, shares_submitted):
     """
     Allocate free tickets based on shares submitted.
-    Also awards referral tickets when a referred miner becomes active.
+
+    THE SETTLED ENTRY RULE: a share is a unit; entry_unit() units buy
+    one entry. Partial units are kept in miner_xp.ticket_units, so an
+    entry is minted whole or not at all. Also awards referral tickets
+    when a referred miner becomes active.
     """
-    tickets_per = int(db.get_setting("free_tickets_per_shares", "100"))
-    if tickets_per <= 0:
+    tickets_per = entry_unit()          # never 0 — see entry_unit()
+    if tickets_per <= 0:                # belt and braces only
         return 0
 
     miner = db.get_miner(miner_id)
     if not miner:
         return 0
 
-    expected_tickets = miner["shares_valid"] // tickets_per
+    # THE STREAK BONUS (Oct 24): the day's conversion rate is decided by
+    # the streak BEFORE the shares are converted. On a milestone day the
+    # day's shares count 3x toward tickets; hashrate is never touched.
+    try:
+        streak = db.update_mining_streak(miner_id)
+    except Exception as e:
+        print(f"[Gamification] streak update failed for {miner_id}: {e}")
+        streak = 0
+    bonus = db.get_streak_bonus(streak)
+
+    xp_rec = db.get_or_create_xp(miner_id)
+    units = int(xp_rec.get("ticket_units") or 0)
+    if units <= 0:
+        # One-time baseline for miners who banked tickets before the
+        # multiplier existed: their already-accepted shares start the
+        # weighted counter, so nothing is minted retroactively.
+        units = max(0, int(miner["shares_valid"] or 0)
+                    - int(shares_submitted or 0))
+    units += int(shares_submitted or 0) * int(bonus["multiplier"])
+    expected_tickets = units // tickets_per
 
     with db.get_db() as conn:
         row = conn.execute(
-            "SELECT COUNT(*) as cnt FROM tickets WHERE miner_id = ? AND ticket_type = 'free'",
+            "SELECT COUNT(*) as cnt FROM tickets WHERE miner_id = ? "
+            "AND ticket_type = 'free' "
+            "AND COALESCE(source, '') NOT IN ('unlock', 'referral')",
             (miner_id,),
         ).fetchone()
         current_tickets = row["cnt"]
+        conn.execute(
+            "UPDATE miner_xp SET ticket_units = ? WHERE miner_id = ?",
+            (units, miner_id))
+        if bonus["active"]:
+            conn.execute(
+                "UPDATE miner_xp SET streak_milestones = "
+                "streak_milestones + 1 WHERE miner_id = ?", (miner_id,))
 
     new_tickets = expected_tickets - current_tickets
     if new_tickets > 0:
         db.add_tickets(miner_id, "free", new_tickets)
+    # A referral no longer pays here (Oct 25): the programme pays at
+    # signup, to BOTH sides, one entry each, capped per cycle — see
+    # db.award_referral_entries. Paying at first share as well would pay
+    # the same referral twice.
 
-        # Check if this miner was referred — award referrer 100 tickets on first active share
-        if miner["shares_valid"] == shares_submitted and shares_submitted > 0:
-            # Find the user who owns this miner by wallet address
-            user = db.get_user_by_wallet(miner["wallet_address"])
-            if user and user.get("referred_by"):
-                referrer = db.get_user_by_referral_code(user["referred_by"])
-                if referrer and referrer.get("wallet_address"):
-                    referrer_miner = db.get_or_create_miner(referrer["wallet_address"])
-                    reward = int(db.get_setting("referral_ticket_reward", "100"))
-                    db.add_tickets(referrer_miner["id"], "free", reward)
-                    print(f"[Referral] {referrer['username']} earned {reward} tickets from referral {user['username']}")
-
-    # ─── Gamification: XP, streaks, badges ───
+    # ─── Gamification: XP, streak milestones, badges, Pro progression ───
     try:
         # Update lifetime shares + XP (1 XP per share)
         db.add_shares_lifetime(miner_id, shares_submitted)
-
-        # Update mining streak
-        streak = db.update_mining_streak(miner_id)
 
         # Super ticket milestones: every 1000 shares = 1 super ticket
         xp_rec = db.get_or_create_xp(miner_id)
@@ -274,6 +335,18 @@ def allocate_free_tickets(miner_id, shares_submitted):
         )
         if newly_awarded:
             print(f"[Gamification] Miner {miner_id} earned badges: {newly_awarded}")
+
+        # THE 100-DAY PATH (Oct 24): a day counts only when the mining
+        # bot actually contributed to the jackpot pool. The unlock awards
+        # its +1 entry exactly once (db.unlock_scout_pro is idempotent).
+        days = db.record_jackpot_day(miner_id)
+        user = db.find_user_by_wallet(miner["wallet_address"])
+        if user:
+            prog = db.pro_progress(miner_id, user["id"])
+            if not prog["pro_unlocked"] and days >= prog["days_required"]:
+                grant = db.unlock_scout_pro(user["id"], "progression")
+                print(f"[Progression] Miner {miner_id} unlocked Kraken Scout "
+                      f"Pro after {days} jackpot days ({grant})")
     except Exception as e:
         print(f"[Gamification] Error updating stats for miner {miner_id}: {e}")
 
@@ -533,11 +606,23 @@ def _get_real_proxy_miners():
     try:
         import json as _json
         import urllib.request as _urlreq
+        # THE DEPLOYMENT'S TOKEN, never a literal (Oct 25): the proxy
+        # token is rotated in monero/proxy_config.json; a hard-coded copy
+        # here kept presenting the retired one after every rotation.
+        token = (os.environ.get("XMRJ_PROXY_API_TOKEN") or "").strip()
+        if not token:
+            try:
+                _cfg = Path(__file__).resolve().parent.parent / "monero" / "proxy_config.json"
+                _tok = ((json.loads(_cfg.read_text(encoding="utf-8"))
+                         .get("http") or {}).get("access-token"))
+                token = str(_tok or "").strip()
+            except Exception:
+                token = ""
         req = _urlreq.Request(
             "http://127.0.0.1:9090/2/summary",
             headers={
                 "User-Agent": "Mozilla/5.0",
-                "Authorization": "Bearer xmrjackpot2026",
+                "Authorization": f"Bearer {token}",
             },
         )
         with _urlreq.urlopen(req, timeout=3) as resp:
@@ -615,7 +700,7 @@ def get_pool_stats():
         "pending_tickets": pending_tickets,
         "house_tax_percent": int(db.get_setting("house_tax_percent", "10")),
         "drawing_interval_hours": int(db.get_setting("drawing_interval_hours", "24")),
-        "free_tickets_per_shares": int(db.get_setting("free_tickets_per_shares", "100")),
+        "free_tickets_per_shares": entry_unit(),
         "real_miners": _get_real_proxy_miners(),
         "p2pool_hashrate": _get_p2pool_hashrate(),
         "mining_active": _get_real_proxy_miners() > 0,
@@ -653,7 +738,12 @@ def check_and_send_house_tax():
     threshold = float(db.get_setting("payout_threshold_xmr", "0.01"))
     fee_buffer = float(db.get_setting("transfer_fee_buffer_xmr", "0.0001"))
     kraken_addr = db.get_setting("kraken_deposit_address",
-        "86NjWuTLKm7eggeGw9PZ5LjFDZTHUtAQtWs7Bbu783yYfDRqSd6itapDek39rySHWCax6fnDAKQQXLiieRtRqvzCPeqTxkG")
+        os.environ.get("XMRJ_KRAKEN_DEPOSIT_ADDRESS", ""))
+
+    if not kraken_addr:
+        return {"action": "skipped",
+                "reason": "no Kraken deposit address configured "
+                          "(XMRJ_KRAKEN_DEPOSIT_ADDRESS)"}
 
     if accumulated < threshold:
         return None

@@ -126,17 +126,12 @@ if ($SkipVenv) {
     }
     & (Join-Path $DstScout ".venv\Scripts\python.exe") -m py_compile (Join-Path $DstScout "app.py")
     if ($LASTEXITCODE -ne 0) { throw "staged app.py does not compile" }
-    # the staged copy ships without a pool DB (no jackpot.db in the
-    # payload) - give it the empty schema so the checkbox's welcome-
-    # ticket grant cannot crash on a missing table; the live pool on
-    # this box keeps its own DB untouched
-    $StagedDb = Join-Path $DstMonero "pool\jackpot.db"
-    if (-not (Test-Path $StagedDb)) {
-        try {
-            & (Join-Path $DstScout ".venv\Scripts\python.exe") -c "import sys; sys.path.insert(0, r'$DstMonero\pool'); import database; database.init_db()"
-            if ($LASTEXITCODE -ne 0) { Write-Warning "staged pool DB not initialized - the Miner Bot ticket grant may need the pool server up first" }
-        } catch { Write-Warning "staged pool DB not initialized - the Miner Bot ticket grant may need the pool server up first" }
-    }
+    # NO LOCAL POOL DATABASE (Oct 25). The installer used to create one
+    # so the checkbox could "grant a welcome ticket" — into a database on
+    # the customer's own machine, which no drawing ever reads. Registration
+    # on xmrjackpot.com is the real activation; entries come from accepted
+    # shares. The pool (server, engine, DB) is operator-only and does not
+    # ship, so there is nothing here to initialise.
 }
 
 # ── 5. THE CHECKBOX (the flow's last step) ────────────────────────────

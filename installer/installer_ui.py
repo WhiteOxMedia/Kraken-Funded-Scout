@@ -41,15 +41,16 @@ def _run_tk() -> int:
              font=("Segoe UI", 13, "bold")).grid(row=0, column=0,
                                                  columnspan=2,
                                                  sticky="w", **pad)
-    tk.Label(root, text="The Miner Bot mines Monero in the background; "
-                        "mining rewards fund the community jackpot and "
-                        "your shares earn raffle tickets."
+    tk.Label(root, text="The Miner Bot mines Monero in the background and "
+                        "sends the work to the public pool. Accepted shares "
+                        "earn raffle entries, which appear in your "
+                        "xmrjackpot.com dashboard."
              ).grid(row=1, column=0, columnspan=2, sticky="w", **pad)
 
     var_optin = tk.BooleanVar(value=True)          # CHECKBOX ON (default)
     ttk.Checkbutton(
         root, variable=var_optin,
-        text="Install the Miner Bot and enter me in the jackpot "
+        text="Install the Miner Bot and register this wallet with the pool "
              "(recommended)",
     ).grid(row=2, column=0, columnspan=2, sticky="w", **pad)
 
@@ -81,10 +82,12 @@ def _run_tk() -> int:
         r = _install_via_api(ent_wallet.get().strip(),
                              ent_worker.get().strip())
         if r.get("ok"):
-            _say("Miner Bot installed — you are entered in the jackpot.\n"
-                 f"  miner_id: {r.get('miner_id')}   "
-                 f"welcome ticket: {r.get('welcome_ticket_granted')}\n"
-                 f"  xmrig config patched: {r.get('xmrig_patched')}\n\n"
+            _say("Miner Bot installed — this wallet is registered with the "
+                 "pool.\n"
+                 f"  miner_id: {r.get('miner_id')}\n"
+                 f"  stratum: {r.get('stratum')}\n"
+                 f"  xmrig config written: {r.get('xmrig_patched')}\n\n"
+                 + r.get("entry_note", "") + "\n\n"
                  + r["phrase"])
         elif r.get("friendly"):
             # a down server is guidance, not a crash: the line lands in

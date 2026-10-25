@@ -183,8 +183,8 @@ _captured.clear()
 _r6 = installer.opt_in(GOOD, api_base="http://127.0.0.1:1", worker="d",
                        dry_run=True, record_path=_rec6, config_path=_cfg6)
 check(6.1, _r6.get("ok") and _r6.get("dry_run")
-      and _r6["plan"]["patch_xmrig"] is True,
-      "the plan is described (patch_xmrig true)")
+      and _r6["plan"]["write_xmrig_config"] is True,
+      "the plan is described (write_xmrig_config true)")
 check(6.2, not _rec6.exists() and _cfg6.read_bytes() == _before
       and len(_captured) == 0,
       "no record file, byte-identical config, zero registration calls")

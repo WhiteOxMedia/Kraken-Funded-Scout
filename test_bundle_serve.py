@@ -94,13 +94,16 @@ check(2.4, r.status_code == 200 and j["sha256"] == disk_sha
       and j["bytes"] == ZIP.stat().st_size
       and j.get("monero_head") and j.get("scout_head"),
       f"info endpoint stays PUBLIC (hash only): {j.get('sha256', '')[:12]}… monero {j.get('monero_head')}")
-# The version is derived, not typed: `git describe --tags --always` at the
-# built commit, so it always ends with the monero_head the same manifest
-# publishes. The Product markup states this same string as softwareVersion.
-check(2.5, isinstance(j.get("version"), str) and j["version"].startswith("v"),
-      f"manifest publishes a version: {j.get('version')}")
-check(2.6, j.get("version", "").endswith(j.get("monero_head", "@")),
-      f"version names the built commit ({j.get('version')} ends with {j.get('monero_head')})")
+# The version comes from installer/release_manifest.json, not from
+# `git describe` (whose preprod/-g<hash> suffixes used to reach the page).
+# The build's commit is published separately as monero_head/scout_head, and
+# the Product markup states this same string as softwareVersion.
+check(2.5, j.get("version") == "1.0.0",
+      f"manifest publishes the production version: {j.get('version')}")
+check(2.6, "preprod" not in str(j.get("version", "")).lower()
+      and bool(j.get("monero_head")) and bool(j.get("scout_head")),
+      f"version is marker-free and the built commits are published "
+      f"({j.get('monero_head')}/{j.get('scout_head')})")
 
 print("== 3. THE DASHBOARD SURFACE ==")
 html = (HERE / "pool" / "templates" / "index.html").read_text(encoding="utf-8")

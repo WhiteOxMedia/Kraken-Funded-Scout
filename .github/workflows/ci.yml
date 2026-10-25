@@ -39,6 +39,8 @@ jobs:
         run: python test_bundle_parity.py
       - name: Static listener audit
         run: python test_static_listener_audit.py
+      - name: No XMRJ/treasury claims in shipping surfaces
+        run: python test_no_xmrj_claims.py
       - name: WF dashboard stamp
         run: python test_wf_dashboard_stamp.py
 
@@ -94,6 +96,18 @@ jobs:
       - name: Acceptance drive
         run: python test_e2e_acceptance.py
 
+  release-hygiene:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Release manifest (default-deny) and hygiene gate
+        run: python installer/check_release_hygiene.py
+      - name: Release guard contract
+        run: python test_release_guard.py
+
   push-path:
     runs-on: ubuntu-latest
     steps:
@@ -114,6 +128,7 @@ jobs:
       - alert-routing
       - scout-pro-gating
       - alert-log-api
+      - release-hygiene
       - push-path
     runs-on: ubuntu-latest
     steps:

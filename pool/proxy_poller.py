@@ -29,8 +29,9 @@ PROXY_API = "http://127.0.0.1:9090"
 # THE TOKEN (review triage, Sep 25): the bearer token is a LOCAL-only
 # shared secret for the loopback API, not a credential with reach —
 # but it still does not belong in source. Settings first, then the
-# proxy_config.json the proxy actually reads, then the legacy literal
-# as the last resort so an unconfigured box keeps working.
+# proxy_config.json the proxy actually reads, then the deployment's
+# XMRJ_PROXY_API_TOKEN. There is no literal fallback: a rotation that
+# leaves a hard-coded copy behind is not a rotation.
 PROXY_TOKEN = None  # resolved lazily by _token() below
 POLL_INTERVAL = 10  # seconds
 
@@ -56,10 +57,11 @@ def _token():
             return v
     except Exception:
         pass
-    # (second triage, Sep 25 evening batch: the legacy literal is NOT
-    # cached — a transient failure at first resolution must not freeze
-    # it for the life of the process; the next call retries settings)
-    return "xmrjackpot2026"   # legacy default, last resort
+    # NO LEGACY LITERAL (Oct 25). This module used to fall back to the
+    # hard-coded proxy token, which made the rotation in server.py
+    # pointless: rotate the token and this path kept presenting the old
+    # one. The deployment supplies it, nothing else does.
+    return (os.environ.get("XMRJ_PROXY_API_TOKEN") or "").strip()
 
 
 def _api_get(path):

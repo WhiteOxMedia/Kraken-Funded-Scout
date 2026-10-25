@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>XMR Jackpot — Monero Mining Made Fun, Fair, and For Everyone</title>
-<meta name="description" content="Mine Monero together, earn free entries, and win the daily grand prize. No risk, no fees, no deposits. Privacy-friendly mining pool with provably fair drawings.">  <link rel="stylesheet" href="/static/style.css?v=20">
+<meta name="description" content="Mine Monero together, earn free entries, and win the daily grand prize. No risk, no fees, no deposits. Privacy-friendly mining pool with provably fair drawings.">  <link rel="stylesheet" href="/static/style.css?v=21">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&family=Press+Start+2P&display=swap" rel="stylesheet">
@@ -44,14 +44,21 @@
   <div class="hero" style="text-align:center;">
     <span class="wf-kicker" style="font-size:0.7rem;">Monero Means Money</span>
     <h1>A daily raffle that feels<br>more like a Jackpot!</h1>
-    <p class="sub" style="max-width:560px;margin:0 auto;">No deposits. No fees. Just your hashpower. Every share you mine becomes a raffle entry. More mining = better odds in today's draw.</p>
+    <p class="sub" style="max-width:560px;margin:0 auto;">No deposits, no fees, just your hashpower.</p>
+    <p class="sub" style="max-width:560px;margin:6px auto 0;font-size:0.9em;">Every {{ENTRY_UNIT}} valid shares you mine becomes one raffle entry. More mining equals better odds.</p>
 
-    <!-- CTAs: the one-click miner is the primary action, the plain
-         miner download rides beside it as the quieter twin -->
+    <!-- CTAs: two different downloads, side by side and named as such —
+         the miner installer (gold) and the Kraken Scout bundle (outline).
+         They used to run the same script; they no longer do. The donate
+         CTA below is Scout Pro's, and it goes where /download's unlock
+         button goes (the dashboard checkout), with no coin talk here. -->
     <div class="hero-buttons" style="justify-content:center;">
       <button class="btn btn-gold btn-lg" id="btnOneClickMine">⛏️ Download One-Click Miner &amp; Start Earning Entries</button>
-      <button class="btn btn-outline btn-lg" id="btnPlayReal">💰 Download Miner</button>
+      <a class="btn btn-outline btn-lg" style="text-decoration:none;" href="/downloads/KrakenScoutBundle.zip" download>Download Kraken Scout</a>
     </div>
+    <p style="margin-top:12px;">
+      <a class="btn btn-outline" style="text-decoration:none;" href="/#dashboard">Unlock Kraken Scout Pro — {{PRO_PRICE_XMR}} XMR (≈${{PRO_PRICE_USD}} at today's rate). Your support increases the daily jackpot and earns you an entry</a>
+    </p>
 
     <!-- assurance chips: the same flat badge grammar the workflow
          sections use (wf-badge-row) — one hairline chip each, no
@@ -67,68 +74,98 @@
          uses (wf-miner-cta) — carries the carryover rule and the
          community motto as its footer -->
     <div class="wf-miner-cta" style="flex-direction:column;gap:8px;">
-      <div style="font-size:0.85em;color:var(--text-dim);line-height:1.6;">🤝 Today's prize pool grows as miners contribute — the pot carries over, and a new winner is drawn every 24 hours.</div>
+      <div style="font-size:0.85em;color:var(--text-dim);line-height:1.6;">🤝 Today's prize pool grows as miners contribute — the pot carries over, and a new winner is drawn every {{DRAW_HOURS}} hours.</div>
       <div style="font-family:var(--font-head);font-size:0.78em;color:var(--text-mute);line-height:1.6;">
-        ⛏️ <b style="color:var(--gold);">Together we conquer. Divided we fall.</b> — One winner takes 90% of the pot in a single drawing. The more miners, the bigger the pot.
+        ⛏️ <b style="color:var(--gold);">Together we conquer. Divided we fall.</b> — One winner takes {{WINNER_PCT}}% of the pot in a single drawing. The more miners, the bigger the pot.
       </div>
     </div>
 
     <div style="margin-top:18px;font-size:0.85em;color:var(--text-dim);">
       Don't have XMR? <a href="https://invite.kraken.com/JDNW/29bygijw" data-cta-slot="hero-top" target="_blank" rel="nofollow sponsored" style="color:var(--link-orange);font-weight:700;">Get it on Kraken →</a><br>
-      <span style="font-size:0.85em;color:var(--text-mute);">Why this link: it helps fund the jackpot — join Kraken with it, pass the Funded Challenge with Kraken Scout, and Kraken pays you and pays the jackpot when the terms are met.</span>
+      <span style="font-size:0.85em;color:var(--text-mute);">Why this link: Kraken pays the referral reward on Kraken's terms; the operator credits only the bonuses it actually records into the pot. Kraken does not pay the jackpot.</span>
     </div>
 
-    <!-- ══ KRAKEN'S REFERRAL PROMISE BLOCK (Oct 12): rendered immediately
-         below the hero Kraken signup link, per the operator's standing
-         instruction. The invite link/code are the owner's own referral
-         values — shown verbatim, never altered by any other code path
-         (the site's other Kraken CTAs keep their own embedded URL). The
-         counter is the pool's OWN recorded bonus count (funding ledger,
-         trailing 24h) fetched from /api/kraken/rewards-today by
-         static/refblock.js — no Kraken scraping behind a public page. ══ -->
+    <!-- ══ SIDE POT PARTNERS (Oct 25): this block used to read as a pool
+         referral programme. It is not one — Kraken administers, sets and
+         pays the ladder below, and XMR Jackpot neither sets nor enforces
+         any part of it. The block is therefore framed as what it is: a
+         partner's external offer, with room for future partner-funded
+         contributions to the pot. The invite link/code are the owner's
+         own referral values — never altered by any other code path (the
+         site's other Kraken CTAs keep their own embedded URL), and not
+         printed as page text: each is revealed by its own button below.
+         The counter is the pool's OWN recorded partner credits (funding
+         ledger, trailing 24h) fetched from
+         /api/kraken/rewards-today by static/refblock.js — no Kraken
+         scraping behind a public page. ══ -->
     <div class="refblock" style="margin:10px auto 0;max-width:720px;border:1px solid rgba(124,124,255,.25);border-radius:12px;padding:14px 16px;background:rgba(124,124,255,.06);text-align:left;">
-      <div style="font-family:var(--font-head);font-weight:700;color:var(--text);font-size:1.05em;margin-bottom:4px;">🤝 Kraken's referral promise</div>
+      <div style="font-family:var(--font-head);font-weight:700;color:var(--text);font-size:1.05em;margin-bottom:4px;">🤝 Side Pot Partners</div>
+      <p style="color:var(--text-dim);font-size:0.82em;line-height:1.65;margin:6px 0 10px;">
+        Partner offers are external opportunities associated with the pool. Any referral rewards, bonuses, or promotional funding are governed by the partner's terms. As additional partners are added, portions of those relationships may contribute to the jackpot pool.
+      </p>
       <div id="refBlockClaimed" style="color:var(--gold);font-size:0.8em;margin-bottom:8px;">…</div>
 
+      <div style="font-weight:700;color:var(--text);font-size:0.92em;margin-bottom:6px;">Kraken — partner terms</div>
       <div style="border:1px dashed rgba(255,196,0,.45);border-radius:10px;padding:8px 10px;color:var(--gold);font-size:0.8em;margin-bottom:10px;">
-        ✨ <b>Mystery reward:</b> every invite unlocks a random reward — could be $25, could be up to $300 — for both sides of the referral.
+        ✨ <b>Kraken's mystery reward:</b> on Kraken's terms, every invite can unlock a random reward — could be $25, could be up to $300 — for both sides of the referral.
       </div>
 
-      <div style="font-weight:700;color:var(--text);font-size:1.0em;margin-bottom:2px;">Get up to $300 for you / $300 for your friend</div>
-      <div style="color:var(--text-dim);font-size:0.8em;margin-bottom:10px;">Unlock a random reward from $25–$300 once your friend deposits $200 and trades $200.</div>
+      <div style="font-weight:700;color:var(--text);font-size:1.0em;margin-bottom:2px;">Kraken pays up to $300 for you / $300 for your friend</div>
+      <div style="color:var(--text-dim);font-size:0.8em;margin-bottom:10px;">Kraken's condition: a random reward from $25–$300 once your friend deposits $200 and trades $200.</div>
 
-      <div style="color:var(--text-dim);font-size:0.8em;line-height:1.6;margin-bottom:10px;">
-        🔗 Invite link: <a href="https://invite.kraken.com/JDNW/sj7wjqjh" data-cta-slot="referral-block" target="_blank" rel="nofollow sponsored" id="refBlockLink" style="color:var(--link-orange);font-weight:700;">invite.kraken.com/JDNW/sj7wjqjh</a><br>
-        🏷️ Invite code: <b>h3p3rg8z</b>
-      </div>
-
+      <!-- The invite values are NOT printed as page text any more (Oct 24):
+           they sit behind two disclosure buttons, so the panel carries the
+           promise and the numbers only on request. <details> does the
+           revealing, which keeps the values reachable with JS off, and the
+           link keeps its tracked data-cta-slot so a click still counts. -->
       <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px;font-size:0.8em;">
-        <!-- no-JS fallback: each anchor starts at the tracked invite link
-             (counts as an honest referral-block click); refblock.js upgrades
-             them in place to the native share intents, built from the link
-             element itself — share intents stay OUT of the shipped HTML so
-             platform URLs never masquerade as uncounted referral links -->
-        <a class="btn btn-outline btn-sm" style="text-decoration:none;" id="refShareFb" href="https://invite.kraken.com/JDNW/sj7wjqjh" data-cta-slot="referral-block" target="_blank" rel="nofollow noopener">Share on Facebook</a>
-        <a class="btn btn-outline btn-sm" style="text-decoration:none;" id="refShareWa" href="https://invite.kraken.com/JDNW/sj7wjqjh" data-cta-slot="referral-block" target="_blank" rel="nofollow noopener">Share on WhatsApp</a>
-        <a class="btn btn-outline btn-sm" style="text-decoration:none;" id="refShareTg" href="https://invite.kraken.com/JDNW/sj7wjqjh" data-cta-slot="referral-block" target="_blank" rel="nofollow noopener">Share on Telegram</a>
-        <a class="btn btn-outline btn-sm" style="text-decoration:none;" id="refShareX" href="https://invite.kraken.com/JDNW/sj7wjqjh" data-cta-slot="referral-block" target="_blank" rel="nofollow noopener">Share on X</a>
+        <details style="display:inline-block;">
+          <summary class="btn btn-outline btn-sm ref-reveal">🔗 Invite link</summary>
+          <div style="margin-top:8px;font-size:0.95em;">
+            <a href="https://invite.kraken.com/JDNW/sj7wjqjh" data-cta-slot="referral-block" target="_blank" rel="nofollow sponsored" id="refBlockLink" style="color:var(--link-orange);font-weight:700;word-break:break-all;">invite.kraken.com/JDNW/sj7wjqjh</a>
+          </div>
+        </details>
+        <details style="display:inline-block;">
+          <summary class="btn btn-outline btn-sm ref-reveal">🏷️ Invite code</summary>
+          <div style="margin-top:8px;font-size:0.95em;color:var(--gold);font-weight:700;letter-spacing:0.08em;word-break:break-all;">H3P3RG8Z</div>
+        </details>
       </div>
 
-      <div style="font-weight:700;color:var(--text);font-size:0.9em;margin-bottom:6px;">📈 Get 3 friends to join</div>
+      <div style="font-weight:700;color:var(--text);font-size:0.9em;margin-bottom:2px;">📈 Kraken's ladder, as Kraken publishes it</div>
+      <div style="color:var(--text-mute);font-size:0.75em;margin-bottom:6px;">Set by Kraken, paid by Kraken — not a jackpot payout and not ours to change.</div>
       <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;font-size:0.8em;color:var(--text-dim);">
-        <div style="border:1px solid rgba(255,196,0,.35);border-radius:10px;padding:6px 10px;"><b style="color:var(--gold);">1 friend</b><br>→ $300</div>
-        <div style="border:1px solid rgba(255,196,0,.35);border-radius:10px;padding:6px 10px;"><b style="color:var(--gold);">3 friends</b><br>→ $900</div>
-        <div style="border:1px solid rgba(255,196,0,.35);border-radius:10px;padding:6px 10px;"><b style="color:var(--gold);">10 friends</b><br>→ $3,000</div>
+        <div style="border:1px solid rgba(255,196,0,.35);border-radius:10px;padding:6px 10px;"><b style="color:var(--gold);">1 friend</b><br>Kraken pays → $300</div>
+        <div style="border:1px solid rgba(255,196,0,.35);border-radius:10px;padding:6px 10px;"><b style="color:var(--gold);">3 friends</b><br>Kraken pays → $900</div>
+        <div style="border:1px solid rgba(255,196,0,.35);border-radius:10px;padding:6px 10px;"><b style="color:var(--gold);">10 friends</b><br>Kraken pays → $3,000</div>
+      </div>
+      <div style="font-size:0.8em;color:var(--text-dim);line-height:1.6;margin-bottom:10px;">
+        <b style="color:var(--gold);">Kraken caps its own referral program at $3,000.</b>
+        That cap is Kraken's term, administered and enforced by Kraken — XMR Jackpot does not set it, raise it, or pay against it. Partner bonuses the operator actually records are credited into the jackpot; opening an account through this link does not itself credit the pot, and no jackpot entry is paid for it.
       </div>
 
-      <div style="font-weight:700;color:var(--text);font-size:0.9em;margin-bottom:6px;">How it works</div>
+      <div style="font-weight:700;color:var(--text);font-size:0.9em;margin-bottom:6px;">Kraken's steps</div>
       <ol style="margin:0;padding-left:18px;color:var(--text-dim);font-size:0.8em;line-height:1.6;">
         <li>Open the invite link and sign up on Kraken (email + ID).</li>
         <li>Verify your Kraken account.</li>
         <li>Deposit $200 and place $200 in trades.</li>
-        <li>Both sides unlock a random reward from $25–$300.</li>
-        <li>Every friend repeats it — and every account opened through this link feeds the jackpot.</li>
+        <li>Both sides unlock a random reward from $25–$300, paid by Kraken under Kraken's terms.</li>
       </ol>
+    </div>
+
+    <!-- ══ WHO OWNS WHAT (Oct 25): the page states both Kraken's claims and
+         the pool's own. This strip labels the two so a partner term is
+         never read as a pool promise — and names the one interface
+         between them (recorded bonuses only). ══ -->
+    <div class="who-owns" style="max-width:720px;margin:10px auto 0;display:flex;gap:10px;flex-wrap:wrap;text-align:left;">
+      <div style="flex:1 1 320px;border:1px solid rgba(124,124,255,.28);border-radius:10px;padding:10px 12px;background:rgba(124,124,255,.06);">
+        <div style="font-size:0.7em;color:var(--text-mute);letter-spacing:.06em;text-transform:uppercase;margin-bottom:4px;">Kraken-owned (partner)</div>
+        <div style="font-size:0.8em;color:var(--text-dim);line-height:1.6;">The Funded Challenge and its rules, targets, scoring and account funding. The referral ladder, its $3,000 cap and every bonus. <b>Kraken Funded sets these and pays them under its terms; Payward Oceanic Ltd. (BVI) is the provider named in its disclosures.</b></div>
+      </div>
+      <div style="flex:1 1 320px;border:1px solid rgba(255,196,0,.3);border-radius:10px;padding:10px 12px;background:rgba(255,196,0,.05);">
+        <div style="font-size:0.7em;color:var(--text-mute);letter-spacing:.06em;text-transform:uppercase;margin-bottom:4px;">Pool-owned (XMR Jackpot)</div>
+        <div style="font-size:0.8em;color:var(--text-dim);line-height:1.6;">Entries from mining shares, the 100-day Pro path, the drawings and claims, Scout Pro, and the house tax. <b>We run these; Kraken has no part in them.</b></div>
+      </div>
+      <div style="flex:1 1 100%;font-size:0.78em;color:var(--text-mute);line-height:1.6;">Where the two meet: a Kraken bonus reaches the pot only after the operator records actually receiving it. Kraken never pays the jackpot directly, and no entry is bought with a referral.</div>
     </div>
 
     <!-- ══ THE MASTER-KEY WORKFLOW HERO (Sep 27 restyle on the workflow
@@ -138,16 +175,16 @@
     <div class="wf-hero-block" style="margin-top:44px;">
       <span class="wf-kicker" style="font-size:0.7rem;">Built by the xmrjackpot team</span>
       <div style="font-family:var(--font-head);font-weight:700;font-size:1.35em;color:var(--text);margin:6px auto 12px;max-width:680px;line-height:1.25;">Kraken Runs the Challenge. Scout Beats It.</div>
-      <p style="margin:0 auto 8px;max-width:680px;color:var(--text-dim);">The Kraken Funded Challenge is Kraken.com's own evaluation: pass it and Kraken funds your trading account with Kraken's capital. Kraken Scout is the tool the xmrjackpot team engineered specifically to pass it.</p>
-      <p style="margin:0 auto 14px;max-width:720px;color:var(--text-dim);">Kraken owns the challenge, the rules, and the funding. We built the solution — an automated solver tuned to Kraken's scoring model, rate limits, and proof requirements.</p>
+      <p style="margin:0 auto 8px;max-width:680px;color:var(--text-dim);">The Kraken Funded Challenge is Kraken's evaluation programme: pass it and a funded account of up to $10,000 is provided by Payward Oceanic Ltd. Kraken Scout is the tool the xmrjackpot team engineered specifically to pass it.</p>
+      <p style="margin:0 auto 14px;max-width:720px;color:var(--text-dim);">Kraken Funded publishes the challenge, the rules and the tiers; Payward Oceanic Ltd. provides the funded account. We built the solution — an automated solver tuned to that scoring model, the rate limits, and the proof requirements.</p>
       <div class="wf-badge-row" style="margin-bottom:14px;">
         <button class="btn btn-gold btn-lg" id="btnHeroStartFree">Start Beating the Kraken Challenge</button>
         <a class="btn btn-outline btn-lg" href="https://invite.kraken.com/JDNW/29bygijw" data-cta-slot="hero-badge" target="_blank" rel="nofollow sponsored">🛒 Sign Up &amp; Trade on Kraken →</a>
         <a class="btn btn-outline btn-lg" href="#wf-scout">Get Kraken Scout</a>
         <a class="btn btn-outline btn-lg" href="#wf-funded">How It Works</a>
       </div>
-      <div class="wf-scale" style="margin-bottom:8px;">Kraken.com created the challenge, sets every threshold, and funds the account. Kraken Scout is our engineered answer to it — and every Kraken account opened through that link feeds this jackpot.</div>
-      <div class="wf-scale" style="margin-bottom:14px;">No deposit. No risk. Free entries come from mining — Kraken referral bonuses add to the pot as they come in.</div>
+      <div class="wf-scale" style="margin-bottom:8px;"><b>Kraken-owned:</b> Kraken Funded publishes the challenge, every threshold and the tiers, and the funded account is provided by Payward Oceanic Ltd. (BVI); Kraken acts as the platform interface. <b>Pool-owned:</b> Kraken Scout is our engineered answer to it. When one of those accounts earns Kraken a referral bonus, the operator records it and credits it to this jackpot — that is a pool step, not a Kraken one.</div>
+      <div class="wf-scale" style="margin-bottom:14px;">No deposit. No risk. Free entries come from mining (pool-owned). Tiers, caps and bonuses are Kraken-owned: the operator credits the partner bonuses it actually records, as they land.</div>
       <div class="wf-miner-cta">
         <button class="btn btn-gold" id="btnHeroJoinJackpot">Unlock Your Kraken-Funded Account</button>
       </div>
@@ -188,21 +225,21 @@
       <div class="miner-compare-side pool">
         <div class="miner-compare-label">🚀 XMR Jackpot Pool</div>
         <div style="min-height:90px;display:flex;align-items:center;justify-content:center;">
-          <span style="font-size:3em;font-weight:800;color:var(--mono-orange);line-height:1;">100+</span>
+          <span style="font-size:3em;font-weight:800;color:var(--mono-orange);line-height:1;">{{TOTAL_MINERS}}</span>
         </div>
         <div style="font-size:0.8em;color:var(--text-dim);line-height:1.6;">
-          100+ miners · combined hashrate<br>
+          {{TOTAL_MINERS}} miners · combined hashrate<br>
           Pool finds blocks together<br>
           <b style="color:var(--emerald-bright);">Every miner earns entries for the daily drawing</b>
         </div>
         <div class="miner-compare-result">
-          90% of the pot to one winner · every 24 hours
+          {{WINNER_PCT}}% of the pot to one winner · every {{DRAW_HOURS}} hours
         </div>
       </div>
     </div>
 
     <p style="text-align:center;color:var(--gold-bright);font-weight:700;font-size:1.05em;margin-top:16px;">
-      One winner takes 90% of the pot in a single drawing — a payout that grows with the community.<br>
+      One winner takes {{WINNER_PCT}}% of the pot in a single drawing — a payout that grows with the community.<br>
       <span style="font-size:0.85em;color:var(--gold);">Together we conquer. Divided we fall.</span>
     </p>
   </div>
@@ -225,10 +262,11 @@
     <div class="wf-section-head"><span class="wf-kicker">The Challenge</span><h2>Kraken Runs the Challenge. Kraken Funds the Account.</h2></div>
     <div class="wf-cols">
       <div>
-        <p><b>The Kraken Funded Challenge is Kraken.com's evaluation program</b> — reach their profit target without breaking their risk limits, and Kraken funds an account with its own capital, up to $10,000.</p>
+        <p><b>The Kraken Funded Challenge is Kraken's evaluation program</b> — reach the profit target without breaking the risk limits, and a funded account of up to $10,000 is provided by Payward Oceanic Ltd. (BVI).</p>
+        <p style="font-size:0.78em;color:var(--text-mute);line-height:1.6;">Kraken Funded is a separate programme from the Kraken exchange: it is offered by Payward Oceanic Ltd. (BVI), the evaluation is administered by Breakout Trading Group, LLC, and Kraken acts as the platform interface. Tiers, targets and limits as published at <a href="https://www.kraken.com/features/funded" target="_blank" rel="noopener" style="color:var(--diamond-bright);">kraken.com/features/funded</a> — including that Kraken Funded is not available in Maine, Massachusetts or New York, and that payouts are discretionary.</p>
         <ul class="wf-list">
-          <li><b>Kraken.com created the challenge</b> — the rules, targets, and scoring belong to Kraken, not to us</li>
-          <li><b>Kraken.com funds the account</b> — successful solvers trade Kraken's capital, up to $10,000</li>
+          <li><b>Kraken Funded publishes the challenge</b> — the rules, targets, and scoring are Kraken's, not ours</li>
+          <li><b>Kraken Funded funds the account</b> — successful solvers trade up to $10,000 in capital provided by Payward Oceanic Ltd.</li>
           <li><b>The evaluation is pass/fail</b> — miss a drawdown or daily-loss limit and the attempt ends</li>
           <li><b>The limits are built to filter out amateurs</b> — tight risk rules punish improvisation</li>
           <li><b>Automation is the reliable edge</b> — rules applied mechanically, every single time</li>
@@ -239,7 +277,7 @@
         </div>
       </div>
       <div class="wf-visual">
-        <div class="wf-scale">challenge owner: <b>Kraken.com</b> · capital provider: <b>Kraken.com</b></div>
+        <div class="wf-scale">programme: <b>Kraken Funded</b> · operator: <b>Payward Oceanic Ltd. (BVI)</b> · evaluation: <b>Breakout Trading Group, LLC</b></div>
         <div class="wf-scale-bar"><span></span></div>
         <div class="wf-scale" style="margin-top:6px;">solver: you — the purpose-built tool is <b>Kraken Scout</b></div>
       </div>
@@ -284,7 +322,7 @@
           <li><b>Built by the xmrjackpot team</b> — engineered in-house, not resold third-party tooling</li>
           <li><b>Designed specifically for Kraken's challenge</b> — every rule encoded, every threshold respected</li>
           <li><b>Automates the entire pipeline</b> — entries, exits, rate limits, retries, and proof generation</li>
-          <li><b>Kraken funds your trading account</b> — up to $10,000 of Kraken's capital</li>
+          <li><b>Kraken Funded funds your account</b> — up to $10,000 in capital provided by Payward Oceanic Ltd.</li>
         </ul>
         <div style="display:flex;gap:10px;flex-wrap:wrap;">
           <button class="btn btn-gold" id="btnWfEnterChallenge">Unlock Your Kraken-Funded Account</button>
@@ -298,8 +336,8 @@
           <div class="wf-tier"><div class="wf-tier-price">$50</div><div class="wf-tier-amt">$5,000 funded</div><div class="wf-tier-note">up to</div></div>
           <div class="wf-tier"><div class="wf-tier-price">$90</div><div class="wf-tier-amt">$10,000 funded</div><div class="wf-tier-note">up to</div></div>
         </div>
-        <div class="wf-scale">the same tiers the Kraken Challenge guide shows winners</div>
-        <div class="wf-scale" style="margin-top:6px;">funding through the community referral link is what lets Kraken pay the bonus that refills tomorrow's prize</div>
+        <div class="wf-scale"><b>Kraken-owned tiers</b> — $20/$50/$90 for $1K/$5K/$10K, as published by Kraken Funded; the Scout does not change them</div>
+        <div class="wf-scale" style="margin-top:6px;"><b>Pool-owned:</b> recorded referral bonuses are what can add to the next prize — the tiers themselves pay you, not the pot</div>
       </div>
     </div>
   </div>
@@ -325,7 +363,7 @@
           <span class="wf-node">Pass the challenge</span><span class="wf-arrow">→</span>
           <span class="wf-node"><b>Kraken funds you</b></span><span class="wf-arrow">→</span>
           <span class="wf-node">Trade their capital</span><span class="wf-arrow">→</span>
-          <span class="wf-node">Keep the profits</span>
+          <span class="wf-node">Keep 80% of profits</span>
         </div>
         <div class="wf-scale" style="margin-top:10px;">the path Kraken.com laid out — <b>run by Scout end to end</b></div>
       </div>
@@ -374,6 +412,14 @@
       <div>Active Miners: <span id="heroMiners">—</span></div>
       <div>Next Drawing: <span id="heroNextDraw">—</span></div>
     </div>
+    <!-- FULL DISCLOSURE (Oct 24): the pool can carry simulated miners.
+         They are counted in the totals above, so the page says how many
+         instead of letting fake hashrate read as community activity.
+         Hidden when there are none; filled from /api/stats. -->
+    <div id="demoDisclosure" style="display:none;margin-top:12px;text-align:left;font-size:0.78em;line-height:1.6;color:var(--text-dim);border:1px dashed rgba(255,196,0,.45);border-radius:8px;padding:8px 10px;">
+      <b style="color:var(--gold);">Full disclosure:</b>
+      <span id="demoDisclosureText"></span>
+    </div>
     <div id="heroPlayerProgress"></div>
   </div>
 
@@ -386,6 +432,7 @@
         <div class="stat-value gold" id="spTotalPaid">0.000000</div>
         <div class="stat-label">Total Paid Out (XMR)</div>
         <div style="font-size:0.72em;color:var(--text-mute);margin-top:4px;">to winners since launch</div>
+        <div id="spSimPaidNote" style="display:none;font-size:0.7em;color:var(--text-mute);margin-top:2px;"></div>
       </div>
       <div class="stat-card" style="padding:16px;">
         <div style="font-size:1.6em;">🏆</div>
@@ -404,6 +451,7 @@
         <div class="stat-value green" id="spTotalDrawings">0</div>
         <div class="stat-label">Total Drawings</div>
         <div style="font-size:0.72em;color:var(--text-mute);margin-top:4px;">daily drawings completed</div>
+        <div id="spSimDrawingsNote" style="display:none;font-size:0.7em;color:var(--text-mute);margin-top:2px;"></div>
       </div>
     </div>
     <div class="countdown-bar">
@@ -475,14 +523,14 @@
   <div class="card" style="margin-bottom:24px;border-color:var(--gold-dark);background:linear-gradient(135deg,var(--bg-deep),var(--obsidian));">
     <div class="card-header" style="color:var(--gold-bright);">🎁 Community Bonus: Kraken Rewards</div>
     <p style="color:var(--text-dim);line-height:1.7;margin-bottom:16px;">
-      Kraken referral bonuses paid through the community's referral link are recorded by the operator and directed into the grand prize. Connecting a wallet helps verify active miners so those bonuses reach the prize.
+      Kraken referral bonuses paid through the community's referral link are recorded by the operator and directed into the grand prize. Kraken sets and pays those bonuses under its own terms; the pool records what it receives. Connecting a wallet helps verify active miners so those bonuses reach the prize.
     </p>
     <div style="font-weight:700;color:var(--gold);margin-bottom:8px;">What this means for you:</div>
     <ul style="color:var(--text);line-height:1.9;padding-left:24px;margin-bottom:16px;">
       <li>Larger grand prizes</li>
       <li>More frequent bonus drops</li>
       <li>A stronger, verifiable community</li>
-      <li>Still no deposits, no fees, no payments</li>
+      <li>Still no deposits and no fees to mine or enter</li>
     </ul>
     <p style="font-size:0.85em;color:var(--text-mute);font-style:italic;border-top:2px solid #000;padding-top:12px;">
       Wallet connection is optional, but it helps grow the grand prize for everyone.
@@ -530,7 +578,7 @@
       <div class="stat-card" style="padding:18px;text-align:left;">
         <div style="font-size:1.6em;margin-bottom:6px;">4️⃣</div>
         <div style="color:var(--gold);font-weight:700;margin-bottom:4px;">Win the Daily Grand Prize</div>
-        <div style="color:var(--text-dim);font-size:0.85em;">A winner is chosen every 24 hours.</div>
+        <div style="color:var(--text-dim);font-size:0.85em;">A winner is chosen every {{DRAW_HOURS}} hours.</div>
       </div>
     </div>
   </div>
@@ -539,7 +587,7 @@
   <div class="card" style="margin-bottom:24px;border-color:var(--gold-dark);background:linear-gradient(160deg,var(--bg-deep),var(--bg-void));">
     <div class="card-header" style="color:var(--gold-bright);">💎 How The Economics Work</div>
     <p style="color:var(--text-dim);font-size:0.9em;line-height:1.6;margin-bottom:18px;">
-      Every Monero mined flows through a transparent, provably fair system. No hidden fees, no house edge on the draw — just a clean 90/10 split.
+      Every Monero mined flows through a transparent, provably fair system. No hidden fees, no house edge on the draw — just a clean {{WINNER_PCT}}/{{HOUSE_TAX_PCT}} split.
     </p>
     <div class="econ-flow">
       <div class="econ-step">
@@ -551,18 +599,18 @@
       <div class="econ-step">
         <div class="econ-icon">🎫</div>
         <div class="econ-title">Earn Entries</div>
-        <div class="econ-desc">1 free entry per 100 shares mined</div>
+        <div class="econ-desc">1 free entry per {{ENTRY_UNIT}} shares mined</div>
       </div>
       <div class="econ-arrow">→</div>
       <div class="econ-step">
         <div class="econ-icon">🏆</div>
         <div class="econ-title">Daily Raffle</div>
-        <div class="econ-desc">Provably fair, every 24 hours</div>
+        <div class="econ-desc">Provably fair, every {{DRAW_HOURS}} hours</div>
       </div>
       <div class="econ-arrow">→</div>
       <div class="econ-step econ-step-winner">
         <div class="econ-icon">💰</div>
-        <div class="econ-title">Winner Gets 90% of the Grand Prize</div>
+        <div class="econ-title">Winner Gets {{WINNER_PCT}}% of the Grand Prize</div>
         <div class="econ-desc">Paid directly to your Monero wallet</div>
       </div>
     </div>
@@ -570,7 +618,7 @@
       <div class="econ-split-arrow">↓</div>
       <div class="econ-step econ-step-house">
         <div class="econ-icon">🏠</div>
-        <div class="econ-title">10% House Tax</div>
+        <div class="econ-title">{{HOUSE_TAX_PCT}}% House Tax</div>
         <div class="econ-desc">Covers servers, development, and operations — and seeds the prize when the pot runs short</div>
       </div>
       <div class="econ-arrow">→</div>
@@ -596,7 +644,7 @@
     </p>
     <div style="background:rgba(255,200,0,0.06);border:2px solid rgba(255,200,0,0.2);border-radius:8px;padding:14px;font-size:0.85em;line-height:1.7;color:var(--text-dim);">
       ⏰ <b style="color:var(--gold);">7-Day Claim Deadline</b><br>
-      If you win the grand prize, you have <b>7 days</b> to log in, connect a wallet, and claim your payout. After 7 days, the grand prize returns to the pool for the next drawing.<br><br>
+      If you win the grand prize, you have <b>{{CLAIM_DAYS}} days</b> to log in, connect a wallet, and claim your payout. After {{CLAIM_DAYS}} days, the grand prize returns to the pool for the next drawing.<br><br>
       <b style="color:var(--gold-bright);">Why seven days?</b> It gives everyone a fair chance without creating pressure. A full week is plenty of time to check in and claim a prize, and most miners pop in regularly anyway. Keeping the window reasonable helps the community stay active and ensures grand prizes don't sit unclaimed forever. If a prize isn't picked up, it simply returns to the pool and continues supporting the miners who are here and participating.
     </div>
   </div>
@@ -605,7 +653,7 @@
   <div class="card" style="margin-bottom:24px;border-color:var(--gold-dark);">
     <div class="card-header">🔗 Wallet Connection Bonus</div>
     <p style="color:var(--text-dim);line-height:1.7;margin-bottom:12px;">
-      Connecting a wallet unlocks <b style="color:var(--gold);">Kraken-powered community bonuses</b> that increase the grand prize.
+      Connecting a wallet lets the pool verify you are an active miner. Bonuses <b style="color:var(--gold);">Kraken actually pays</b> are recorded by the operator and credited into the grand prize — a wallet connection does not create a bonus by itself.
     </p>
     <p style="color:var(--gold-bright);font-weight:700;margin-bottom:16px;">Optional, but rewarding.</p>
     <div style="text-align:center;">
@@ -618,7 +666,7 @@
     <div class="card-header">❓ FAQ</div>
     <div style="font-size:0.9em;color:var(--text-dim);line-height:1.9;">
       <p>✅ <b>Free to use</b> — no cost to mine and earn entries.</p>
-      <p>✅ <b>No deposits</b> — you never send us money.</p>
+      <p>✅ <b>No deposits to enter</b> — entries come from mining, never from money. Scout Pro is an optional one-off donation of {{PRO_PRICE_XMR}} XMR (≈${{PRO_PRICE_USD}}) for alerts; it buys nothing in the drawing.</p>
       <p>✅ <b>No wallet needed to mine</b> — mining works right away.</p>
       <p>✅ <b>Wallet needed to receive winnings</b> — add one to claim prizes.</p>
       <p>✅ <b>Winner contacted in-account</b> if wallet not connected.</p>
@@ -632,11 +680,12 @@
     <p style="color:var(--text-dim);line-height:1.7;margin-bottom:16px;">
       Join the miners building the community's Monero grand prize pool.
     </p>
-    <div style="display:flex;gap:12px;justify-content:center;flex-wrap:wrap;">
-      <a href="#" class="btn btn-blue btn-sm">💬 Discord</a>
-      <a href="#" class="btn btn-blue btn-sm">✈️ Telegram</a>
-      <a href="#" class="btn btn-blue btn-sm">🐦 Twitter/X</a>
-    </div>
+    <!-- No dead buttons (Oct 24): these three were href="#" — a clickable
+         nothing in the one card promising a community. Say the channels
+         are not open yet instead of faking a door. -->
+    <p style="font-size:0.82em;color:var(--text-mute);text-align:center;margin:0;">
+      Community channels are not open yet. The live way in is the Kraken invite above — everything else on this page runs through your dashboard.
+    </p>
   </div>
 
   <!-- Final CTA -->
@@ -704,13 +753,13 @@
     <div class="card" style="border-left:3px solid #4444cc;margin-top:16px;">
       <div class="card-header" style="color:#8a8aff;">🛒 Step Zero: Your Kraken Account</div>
       <p style="color:var(--text-dim);font-size:0.9em;line-height:1.7;margin-bottom:8px;">Everything here runs on XMR — and the funded challenge runs on Kraken. <b>Open your Kraken account first</b> (free, ~5 minutes: email + ID verification), grab your XMR deposit address from <b>Funding → XMR → Deposit → Monero network</b>, and paste it below as your wallet.</p>
-      <p class="tiny" style="margin:0 0 10px;">Why our link: joining Kraken through it helps fund the jackpot — pass the Funded Challenge with Kraken Scout, and Kraken pays you and pays the jackpot when the terms are met.</p>
+      <p class="tiny" style="margin:0 0 10px;">Why our link: Kraken pays the referral reward on Kraken's terms; the operator credits only the bonuses it actually records into the pot. Kraken does not pay the jackpot.</p>
       <a href="https://invite.kraken.com/JDNW/29bygijw" data-cta-slot="signup-step-zero" target="_blank" rel="nofollow sponsored" class="btn btn-blue">🛒 Sign Up &amp; Trade on Kraken →</a>
     </div>
 
     <div class="card" style="margin-top:16px;">
       <div class="card-header">🧜 The Kraken Funded Challenge</div>
-      <p style="color:var(--text-dim);font-size:0.9em;line-height:1.7;margin-bottom:8px;">Win the daily jackpot and the Kraken Challenge Guide unlocks for you: fund a Kraken account through the community referral link ($20 → up to $1,000 funded, $50 → up to $5,000, $90 → up to $10,000), complete the challenge, and Kraken pays the referral bonus that feeds the next day's prize.</p>
+      <p style="color:var(--text-dim);font-size:0.9em;line-height:1.7;margin-bottom:8px;">Win the daily jackpot and the Kraken Challenge Guide unlocks for you: open the Kraken account through the community referral link, then buy a Kraken Funded challenge tier ($20 for $1,000 funded, $50 for $5,000, $90 for $10,000), complete the challenge, and Kraken pays its referral bonus — <b>Kraken-owned tiers and bonus</b>. The operator records what it receives and credits that into the pot; <b>Kraken does not pay the prize itself</b>.</p>
       <p class="tiny" style="margin:0;">Kraken Scout sends the long-bullish signals — Buy Now, Get Out Now. Kraken pays the bonuses, not the community.</p>
       <p class="tiny" style="margin:0;">Referral bonus eligibility</p>
     </div>
@@ -724,6 +773,8 @@
       <input class="spin-input" id="signupPass" type="password" placeholder="Choose a password">
       <label style="font-size:0.8em;color:var(--text-mute);">Email (optional)</label>
       <input class="spin-input" id="signupEmail" type="email" placeholder="you@example.com">
+      <label style="font-size:0.8em;color:var(--text-mute);">Referrer's email (optional — you both get an entry)</label>
+      <input class="spin-input" id="signupReferrerEmail" type="email" placeholder="friend@example.com">
       <div id="walletBaselineNotes" class="tiny"></div>
       <div id="legalNote" class="tiny"></div>
       <div id="skipForNow" class="tiny"></div>
@@ -769,10 +820,10 @@
         ⛏️ Together we conquer. Divided we fall!
       </p>
       <p style="font-size:0.85em;color:var(--text-dim);">
-        One winner takes 90% of the pot in a single drawing.<br>
+        One winner takes {{WINNER_PCT}}% of the pot in a single drawing.<br>
         Mining alone at 1 kH/s earns ~0.0003 XMR/day — it would take 300+ days to reach SupportXMR's 0.1 XMR payout threshold.<br>
         But together, every miner contributes shares to the pool. The grand prize grows from everyone's combined effort.<br>
-        One lucky winner takes 90% of the grand prize — a payout that grows as the community grows.<br>
+        One lucky winner takes {{WINNER_PCT}}% of the grand prize — a payout that grows as the community grows.<br>
         <b style="color:var(--gold);">Mine together. Win together. The more miners, the bigger the grand prize.</b>
       </p>
     </div>
@@ -785,7 +836,7 @@
       <p>Use your computer, your laptop, or even your spare hardware. Every hash you contribute helps the pool find blocks faster.</p>
       <div style="font-size:0.85em;color:var(--text-mute);margin-top:8px;">
         <b>Don't have an XMR wallet? Get one free on Kraken:</b><br>
-        <span>Why this link: it helps fund the jackpot — join Kraken with it, pass the Funded Challenge with Kraken Scout, and Kraken pays you and pays the jackpot when the terms are met.</span><br>
+        <span>Why this link: Kraken pays the referral reward on Kraken's terms; the operator credits only the bonuses it actually records into the pot. Kraken does not pay the jackpot.</span><br>
         1. <a href="https://invite.kraken.com/JDNW/29bygijw" data-cta-slot="howto-step1" target="_blank" rel="nofollow sponsored" style="color:#7c7cff;font-weight:700;">Sign up for Kraken (email + ID, ~5 min) →</a><br>
         2. Verify your account (email + ID)<br>
         3. Go to <b>Funding</b> → search <b>XMR</b> → click <b>Deposit</b><br>
@@ -798,7 +849,7 @@
       <div style="margin-top:8px;">
         <a href="https://invite.kraken.com/JDNW/29bygijw" data-cta-slot="howto-step1" target="_blank" rel="nofollow sponsored" class="btn btn-blue btn-sm">🛒 Open Kraken Account →</a>
         <a href="https://www.kraken.com/learn" target="_blank" rel="nofollow sponsored" class="btn btn-outline btn-sm" style="color:var(--text-dim);">📚 Kraken Learn Center</a>
-        <div style="font-size:0.8em;color:var(--text-dim);margin-top:4px;">Why this link: joining Kraken through it helps fund the jackpot — pass the Funded Challenge with Kraken Scout, and Kraken pays you and pays the jackpot when the terms are met.</div>
+        <div style="font-size:0.8em;color:var(--text-dim);margin-top:4px;">Why this link: Kraken pays the referral reward on Kraken's terms; the operator credits only the bonuses it actually records into the pot. Kraken does not pay the jackpot.</div>
       </div>
     </div>
   </div>
@@ -809,7 +860,7 @@
       <h3>🎫 You Earn Entries</h3>
       <p>For every amount of mining you contribute, you earn raffle entries. More mining = more entries = better odds to win.</p>
       <div style="font-size:0.85em;color:var(--text-mute);margin-top:6px;">
-        💡 Every <b>100 valid shares</b> earns you <b>1 free entry</b> for the daily drawing. No cost to you. Mine 24/7 for maximum entries.
+        💡 Every <b>{{ENTRY_UNIT}} valid shares</b> earns you <b>1 free entry</b> for the daily drawing. No cost to you. Mine 24/7 for maximum entries.
       </div>
     </div>
   </div>
@@ -837,7 +888,7 @@
     <div class="tutorial-step-num">5</div>
     <div>
       <h3>🏆 A Winner Is Drawn</h3>
-      <p>One miner wins <b>90% of the grand prize</b> — instantly, privately, securely. House takes 10% for server costs.</p>
+      <p>One miner wins <b>{{WINNER_PCT}}% of the grand prize</b> — instantly, privately, securely. House takes {{HOUSE_TAX_PCT}}% for server costs.</p>
       <div style="margin-top:8px;font-size:0.85em;color:var(--text-mute);">
         <b>Provably fair:</b> commit-reveal scheme seeded by Monero block hashes<br>
         <b>Verify:</b> anyone can verify any drawing at <code>/api/verify/{id}</code><br>
@@ -846,6 +897,38 @@
       <div style="margin-top:8px;font-size:0.9em;color:var(--gold-bright);font-weight:700;">
         It's like a free raffle powered by Monero mining.
       </div>
+    </div>
+  </div>
+
+  <!-- KRAKEN SCOUT AND KRAKEN SCOUT PRO (Oct 24): the How to Play page now
+       explains both products and what each one does to your odds. The rule
+       the copy keeps: tickets come from mining shares; the two Pro unlock
+       paths ({{PRO_DAYS}} contributing days, an XMR donation) each award exactly one
+       +1 jackpot entry, and neither changes hashrate or share conversion. -->
+  <div class="card" id="howto-scout" style="margin-top:24px;border-color:var(--gold-dark);background:var(--gradient-jackpot);">
+    <div class="card-header" style="color:var(--gold-bright);">🦑 Kraken Scout and Kraken Scout Pro</div>
+    <p style="color:var(--text-dim);line-height:1.7;margin-bottom:14px;">
+      This site has two products and two downloads, and they do different jobs. The miner earns your entries. Kraken Scout runs Kraken's Funded Challenge. Neither one costs anything to download.
+    </p>
+
+    <div class="security-item">
+      <div class="security-item-title">⛏️ Kraken Scout — free miner, tickets from shares</div>
+      <p><b>Download Kraken Scout</b> gives you the whole bundle in one zip: the Miner Bot and the Scout console. Run <code>Install Kraken Scout.bat</code> once; the setup window registers your wallet and writes a miner config pointed at <code>mine.xmrjackpot.com:3333</code>. Pool numbers stay on the site — the bundle carries no pool software.</p>
+      <p><b>Every {{ENTRY_UNIT}} valid shares = 1 raffle ticket</b> in the daily draw. More hashrate means more shares, more tickets, better odds. The bot also tracks your <b>daily mining streak</b>: on every 7th consecutive day the day's shares convert at <b>3×</b> (jackpot side only — your hashrate never changes), and every day your bot contributes moves you toward the Pro unlock.</p>
+      <p style="margin-bottom:0;"><a class="btn btn-gold btn-sm" href="/downloads/KrakenScoutBundle.zip" download>Download Kraken Scout</a></p>
+    </div>
+
+    <div class="security-item">
+      <div class="security-item-title">💎 Kraken Scout Pro — signals on your phone, two ways to unlock</div>
+      <p>Pro sends <b>“Buy Now” / “Exit Now”</b> signals — LONG bullish calls only — straight to your phone, and unlocks the console that automates <b>Kraken.com's Funded Challenge</b>: entry checks, position execution, exits and the proof trail, all against Kraken's own published rules.</p>
+      <p><b>Unlock path 1 — {{PRO_DAYS}} days of mining.</b> Every day your mining bot contributes shares to the jackpot counts once. At {{PRO_DAYS}} days Pro unlocks automatically, and the unlock awards <b>+1 jackpot entry</b>.</p>
+      <p><b>Unlock path 2 — a {{PRO_PRICE_XMR}} XMR donation.</b> Unlock from your dashboard. The checkout charges <b>{{PRO_PRICE_XMR}} XMR (≈${{PRO_PRICE_USD}})</b>, the donation goes into the daily jackpot, and the unlock awards <b>+1 jackpot entry</b>.</p>
+      <p style="margin-bottom:0;"><a class="btn btn-outline btn-sm" style="text-decoration:none;" href="/#dashboard">Unlock Kraken Scout Pro — {{PRO_PRICE_XMR}} XMR (≈${{PRO_PRICE_USD}}). Your support increases the daily jackpot and earns you an entry</a></p>
+    </div>
+
+    <div class="security-item" style="margin-bottom:0;">
+      <div class="security-item-title">🔁 How the two fit together</div>
+      <p style="margin-bottom:0;">Mine → earn entries → a winner is drawn every {{DRAW_HOURS}} hours. The pot is the free route into the challenge: win it and the prize funds your attempt without you depositing anything. Pass the challenge with Scout Pro and the funded account is yours to trade. Mine more, and you are simply giving yourself more shots at both.</p>
     </div>
   </div>
 
@@ -922,7 +1005,7 @@
 
       <p><b>4. Provably Fair.</b> All drawings use a commit-reveal scheme: (1) the commit hash is published before the drawing, (2) the reveal seed + Monero block hash determine the winner, (3) anyone can verify at /api/verify/{id}. The house cannot predetermine winners.</p>
 
-      <p><b>5. Fees.</b> The house retains 10% of all payouts (daily drawings). This covers server costs, development, and operations. House tax stays in the pool and seeds the prize when the balance would fall below the drawing minimum.</p>
+      <p><b>5. Fees.</b> The house retains {{HOUSE_TAX_PCT}}% of all payouts (daily drawings). This covers server costs, development, and operations. House tax stays in the pool and seeds the prize when the balance would fall below the drawing minimum.</p>
 
       <p><b>6. Mining Software.</b> The installer downloads xmrig from the official GitHub repository (github.com/xmrig/xmrig) and verifies the SHA256 hash. We do not modify the binary. xmrig is open-source under the MIT license. You are responsible for any electricity costs, hardware wear, or antivirus configuration on your device.</p>
 
@@ -953,11 +1036,28 @@
     </div>
   </div>
 
+  <!-- FULL DISCLOSURE (Oct 24): one card that states the backend's real
+       rules, in the same numbers the engine and the checkout read. Every
+       value here is a live token — if an operator tunes a setting, this
+       card moves with it and cannot describe yesterday's pool. -->
+  <div class="card" id="howto-disclosure" style="margin-top:16px;border-color:var(--gold-dark);background:var(--bg-deep);">
+    <div class="card-header" style="color:var(--gold-bright);">🫧 Full Disclosure — exactly how the pool works</div>
+    <div style="font-size:0.85em;color:var(--text-dim);line-height:1.75;">
+      <p style="margin-bottom:10px;"><b style="color:var(--gold);">Entries.</b> Every valid share your miner submits is <b>one unit</b>. <b>{{ENTRY_UNIT}} units make one entry</b>, and partial units are kept, so nothing you mine is rounded away. Mining is the only way entries are earned — no purchase is required to enter a drawing.</p>
+      <p style="margin-bottom:10px;"><b style="color:var(--gold);">Streak.</b> A contributing day is a UTC day in which your miner submitted shares. On every 7th consecutive contributing day that day's shares convert at <b>3×</b>; on other days they convert at 1×. The bonus changes entries only — never your hashrate.</p>
+      <p style="margin-bottom:10px;"><b style="color:var(--gold);">The pot.</b> The prize shown on the homepage is the pool's configured balance <i>minus every prize already drawn but not yet claimed</i>. Money is never counted twice: a claim removes the paid amount from the balance, and a prize unclaimed after <b>{{CLAIM_DAYS}} days</b> returns to the pot for the next drawing.</p>
+      <p style="margin-bottom:10px;"><b style="color:var(--gold);">The drawing.</b> A new drawing runs every <b>{{DRAW_HOURS}} hours</b>. One entry is selected from that round's recorded entries; the winner receives <b>{{WINNER_PCT}}%</b> of the pot and the remaining <b>{{HOUSE_TAX_PCT}}%</b> is the house tax, which stays in the pool and seeds the next prize. The pick is commit-reveal: the commitment is published before the draw, the seed is derived with a Monero block hash, and every drawing can be re-checked at <code>/api/verify/{id}</code>.</p>
+      <p style="margin-bottom:10px;"><b style="color:var(--gold);">Scout Pro — the two unlocks.</b> Pro is unlocked either by <b>{{PRO_DAYS}} contributing days</b> or by a <b>one-off donation of {{PRO_PRICE_XMR}} XMR (≈${{PRO_PRICE_USD}} at the current rate)</b> at checkout. That XMR is the exact amount the checkout asks for, it is credited to the jackpot once per order, and either path awards <b>exactly one +1 entry</b>. If your account has no payout wallet yet, the entry is <i>held</i> on the account (not lost) and is minted the moment a wallet is attached.</p>
+      <p style="margin-bottom:10px;"><b style="color:var(--gold);">Alerts.</b> Buy/sell alerts are served by the pool only to a signed-in account that holds Pro: the entitlement is checked on the server for every signal request, so a locked account receives no notifications regardless of what the browser sends.</p>
+      <p style="margin-bottom:0;"><b style="color:var(--gold);">Demo data.</b> A fresh install can be seeded with simulated miners so the pool is not an empty page. They are flagged and shown as <b>demo</b> on the leaderboard, and counted in a disclosure line under the homepage prize — they are never presented as real participants.</p>
+    </div>
+  </div>
+
   <!-- Responsible Play -->
   <div class="card" style="margin-top:16px;border-color:rgba(255,100,100,0.2);">
     <div class="card-header">⚠️ Responsible Play</div>
     <div style="font-size:0.8em;color:var(--text-dim);line-height:1.7;">
-      <p>This is a mining pool with a prize-drawing system. Participation is free via mining — there is nothing to purchase.</p>
+      <p>This is a mining pool with a prize-drawing system. Entry is free via mining and no purchase is needed to take part; the only paid item on the site is an optional Scout Pro donation for alerts.</p>
       <p>• <b>Free mining is always available</b> — you never need to pay to participate in the daily drawing.</p>
       <p>• <b>Mining electricity costs are real.</b> Your CPU power consumption increases while mining. Monitor your electricity costs.</p>
       <p>• If you feel you may have a gambling problem, visit <a href="https://www.begambleaware.org" target="_blank" style="color:#7c7cff;">begambleaware.org</a> or call 1-800-522-4700 (US National Problem Gambling Helpline).</p>
@@ -978,7 +1078,7 @@
       </div>
       <div class="faq-item">
         <p style="color:var(--gold-bright);font-weight:700;margin-bottom:4px;">Q: What if I win without a wallet connected?</p>
-        <p style="color:var(--text-dim);margin-bottom:16px;">A: We'll notify you in your account. You log in, add a wallet, and receive your payout. You have <b style="color:var(--gold);">7 days to claim</b> before the grand prize returns to the pool.</p>
+        <p style="color:var(--text-dim);margin-bottom:16px;">A: We'll notify you in your account. You log in, add a wallet, and receive your payout. You have <b style="color:var(--gold);">{{CLAIM_DAYS}} days to claim</b> before the grand prize returns to the pool.</p>
       </div>
       <div class="faq-item">
         <p style="color:var(--gold-bright);font-weight:700;margin-bottom:4px;">Q: Why connect early?</p>
@@ -1025,7 +1125,7 @@
       <div class="tutorial-step-num">1</div>
       <div>
         <h3>🛒 Open Your Kraken Account (Step Zero, ~5 min)</h3>
-        <p style="color:var(--text-dim);font-size:0.9em;">Email + ID verification. Use the community link below — that's the link Kraken pays the referral bonus through, the same bonus that refills the next day's jackpot.</p>
+        <p style="color:var(--text-dim);font-size:0.9em;">Email + ID verification. Use the community link below — that's the link Kraken pays its referral bonus through. The operator records the bonuses it receives and credits them into the next day's pot; Kraken pays you, not the jackpot.</p>
         <a href="https://invite.kraken.com/JDNW/29bygijw" data-cta-slot="challenge-step1" target="_blank" rel="nofollow sponsored" class="btn btn-blue btn-sm">🛒 Sign Up &amp; Trade on Kraken →</a>
         <a href="https://www.kraken.com/learn" target="_blank" rel="nofollow sponsored" class="btn btn-outline btn-sm" style="color:var(--text-dim);">📚 Kraken Learn Center</a>
       </div>
@@ -1046,7 +1146,7 @@
       <div class="tutorial-step-num">3</div>
       <div>
         <h3>💰 Enter the Challenge — Pick Your Tier by Prize Size</h3>
-        <p style="color:var(--text-dim);font-size:0.9em;">The funded-account tiers scale with what you fund the Kraken account through the community referral link. The Scout doesn't change the tier — the <b>signal discipline</b> is the same at every tier; the tier decides only how much Kraken capital rides behind it:</p>
+        <p style="color:var(--text-dim);font-size:0.9em;"><b>Kraken-owned:</b> the funded-account tiers scale with what you fund the Kraken account through the community referral link, and Kraken sets those tiers. The Scout doesn't change the tier — the <b>signal discipline</b> is the same at every tier; the tier decides only how much Kraken capital rides behind it:</p>
         <table style="width:100%;border-collapse:collapse;font-size:0.85em;margin:10px 0;color:var(--text-dim);">
           <thead><tr style="color:var(--text-mute);">
             <th style="text-align:left;padding:4px 8px;">You fund</th>
@@ -1071,7 +1171,7 @@
             </tr>
           </tbody>
         </table>
-        <p style="font-size:0.78em;color:var(--text-mute);margin:4px 0 0;">Tiers verified against the same guide the Kraken Challenge shows winners; Kraken's own terms govern the actual funding — this page is a walkthrough, not a promise.</p>
+        <p style="font-size:0.78em;color:var(--text-mute);margin:4px 0 0;">Tiers match Kraken Funded's published pricing ($20 → $1,000, $50 → $5,000, $90 → $10,000) at kraken.com/features/funded; Kraken Funded is offered by Payward Oceanic Ltd. (BVI) and evaluated by Breakout Trading Group, LLC, and its terms govern the actual funding — this page is a walkthrough, not a promise.</p>
       </div>
     </div>
 
@@ -1089,7 +1189,7 @@
       <div class="tutorial-step-num">5</div>
       <div>
         <h3>🏆 Pass + Get Funded — and the Loop Compounds</h3>
-        <p style="color:var(--text-dim);font-size:0.9em;">Pass the challenge and you trade <b>Kraken's capital</b> — the profits are yours. Kraken then pays the referral bonus for your signup into the jackpot's funding ledger, which refills tomorrow's daily prize for the whole community. Your pass funds the next person's free route in.</p>
+        <p style="color:var(--text-dim);font-size:0.9em;">Pass the challenge and you trade <b>Kraken's capital</b> — you keep 80% of the profits under Kraken Funded's published split. Kraken then pays its referral bonus for your signup (<b>Kraken-owned</b>); the operator records what it receives in the jackpot's funding ledger, and recorded bonuses can refill the next day's daily prize. Your pass can fund the next person's free route in.</p>
         <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:8px;">
           <a href="https://invite.kraken.com/JDNW/29bygijw" data-cta-slot="challenge-step5" target="_blank" rel="nofollow sponsored" class="btn btn-blue btn-sm">🛒 Open Your Kraken Account →</a>
           <button class="btn btn-outline btn-sm" data-action="navigate-dashboard-rendered">📊 See the Jackpot Grow</button>
@@ -1114,7 +1214,7 @@
     <button class="btn btn-gold" id="btnConnectWalletRealPlay">Connect Wallet</button>
     <div style="font-size:0.8em;color:var(--text-mute);margin-top:12px;text-align:left;padding:0 10px;">
       <b>How to find your XMR address on Kraken:</b><br>
-      <span>Why this link: it helps fund the jackpot — join Kraken with it, pass the Funded Challenge with Kraken Scout, and Kraken pays you and pays the jackpot when the terms are met.</span><br>
+      <span>Why this link: Kraken pays the referral reward on Kraken's terms; the operator credits only the bonuses it actually records into the pot. Kraken does not pay the jackpot.</span><br>
       1. <a href="https://invite.kraken.com/JDNW/29bygijw" data-cta-slot="wallet-modal" target="_blank" rel="nofollow sponsored" style="color:#7c7cff;">Open a Kraken account →</a><br>
       2. Go to <b>Funding</b> → search <b>XMR</b> → click <b>Deposit</b><br>
       3. Select <b>Monero Network</b> → copy the deposit address<br>
@@ -1174,14 +1274,14 @@
         <div class="stat-card"><div class="stat-value green" id="minerShares">0</div><div class="stat-label">Your Shares</div></div>
         <div class="stat-card"><div class="stat-value gold" id="minerTickets">0</div><div class="stat-label">Your Entries</div></div>
       </div>
-      <!-- THE RAFFLE TICKET UNIT COUNTER (Oct 12 controller): every valid
-           share = 1 unit; 100 units convert into ONE complete entry the
-           moment they land; the units live in the miner row (shares_valid),
+      <!-- THE RAFFLE TICKET UNIT COUNTER (settled Oct 24): every valid
+           share = 1 unit; {{ENTRY_UNIT}} units convert into ONE complete
+           entry the moment they land; the units live in the miner row (shares_valid),
            so a disconnect never loses partial progress; entries are
            submitted complete or not at all. Updated by app.js's
            fetchRealMiner (raffleLine) — shown on every mining-status
            surface, dashboard's included. -->
-      <div id="raffleProgress" style="text-align:center;margin-top:10px;font-size:0.85em;color:var(--gold-bright);font-weight:600;">Raffle ticket: 0 / 100 units collected.</div>
+      <div id="raffleProgress" style="text-align:center;margin-top:10px;font-size:0.85em;color:var(--gold-bright);font-weight:600;">Raffle ticket: 0 / {{ENTRY_UNIT}} units collected.</div>
       <div id="realNoMiner" style="text-align:center;padding:20px;color:var(--text-muted);">
         <p>Miner not detected yet. Connect using the command below.</p>
       </div>
@@ -1191,14 +1291,14 @@
     <div class="card" style="margin-bottom:16px;text-align:center;background:var(--bg-deep);border:2px solid var(--gold-dark);">
       <div style="padding:20px 16px;">
         <div style="font-size:2em;margin-bottom:8px;">⛏️🎫</div>
-        <p style="color:var(--gold-bright);font-weight:700;font-size:1.05em;margin-bottom:6px;">Mine XMR to earn free entries. Every 100 valid shares = 1 complete raffle entry — your partial progress is saved, and an entry is submitted only when all 100 units are collected.</p>
+        <p style="color:var(--gold-bright);font-weight:700;font-size:1.05em;margin-bottom:6px;">Mine XMR to earn free entries. Every {{ENTRY_UNIT}} valid shares = 1 complete raffle entry — your partial progress is saved, and an entry is submitted only when all {{ENTRY_UNIT}} units are collected.</p>
         <div style="font-size:0.8em;color:var(--text-dim);margin-top:10px;line-height:1.7;">
-          • <b>Daily Drawing</b> — free entries from mining, winner takes 90% of the grand prize every 24h<br>
-          • <b>House tax</b> — 10% of all payouts, held by the pool (seeds the prize when short)<br>
+          • <b>Daily Drawing</b> — free entries from mining, winner takes {{WINNER_PCT}}% of the grand prize every {{DRAW_HOURS}}h<br>
+          • <b>House tax</b> — {{HOUSE_TAX_PCT}}% of all payouts, held by the pool (seeds the prize when short)<br>
           • <b>Provably fair</b> — every drawing verifiable via 🔍 link
         </div>
         <p style="font-size:0.75em;margin-top:12px;margin-bottom:0;"><a href="https://invite.kraken.com/JDNW/29bygijw" data-cta-slot="realplay-banner" target="_blank" rel="nofollow sponsored" style="color:#7c7cff;">🛒 Sign up &amp; trade on Kraken —</a><br>
-        Why this link: it helps fund the jackpot — join Kraken with it, pass the Funded Challenge with Kraken Scout, and Kraken pays you and pays the jackpot when the terms are met.</p>
+        Why this link: Kraken pays the referral reward on Kraken's terms; the operator credits only the bonuses it actually records into the pot. Kraken does not pay the jackpot.</p>
       </div>
     </div>
 
@@ -1318,6 +1418,7 @@
 
   <div class="card">
     <div class="card-header">👥 Top Miners</div>
+    <div id="lbDemoNote" style="display:none;font-size:0.78em;color:var(--text-dim);line-height:1.6;margin-bottom:8px;border-left:3px solid var(--gold-dark);padding-left:8px;"></div>
     <table>
       <thead><tr><th>#</th><th>Wallet</th><th>Shares</th><th>Hashrate</th><th>Last Seen</th></tr></thead>
       <tbody id="lbMinersTable"><tr><td colspan="5" style="text-align:center;color:var(--text-mute);">⛏️ Be the first to mine!</td></tr></tbody>
@@ -1334,7 +1435,7 @@
   <h1>Winners and Past Drawings</h1>
 
   <p class="lead">
-    One entry takes 90% of the pot every 24 hours. This page records each
+    One entry takes {{WINNER_PCT}}% of the pot every {{DRAW_HOURS}} hours. This page records each
     drawing — when it ran, what it paid, which entry won, and the verification
     link that lets anyone re-check the result.
   </p>
@@ -1347,10 +1448,10 @@
   <div class="card">
     <h2>How a winner is chosen</h2>
     <p>
-      Entries are counted per round: one entry for every 100 accepted shares a
-      miner contributes while the drawing is open. At the close, one entry is
-      selected from that round's entries. The winner receives 90% of the pot;
-      the remaining 10% covers servers and development and seeds the next pot.
+      Entries are counted per round: one entry for every {{ENTRY_UNIT}} accepted
+      shares a miner contributes while the drawing is open. At the close, one entry is
+      selected from that round's entries. The winner receives {{WINNER_PCT}}% of the pot;
+      the remaining {{HOUSE_TAX_PCT}}% covers servers and development and seeds the next pot.
     </p>
     <p>
       Entries are not carried between rounds, and a miner who stops contributing
@@ -1396,7 +1497,7 @@
   <div class="card">
     <h2>Payout rules</h2>
     <ul>
-      <li>The winner receives 90% of the pot for that drawing; 10% is the house tax.</li>
+      <li>The winner receives {{WINNER_PCT}}% of the pot for that drawing; {{HOUSE_TAX_PCT}}% is the house tax.</li>
       <li>A prize must be claimed within seven days by logging in and connecting a Monero wallet.</li>
       <li>Unclaimed prizes return to the pool and carry into the next drawing.</li>
       <li>No deposit or purchase is ever required to hold entries.</li>
@@ -1417,8 +1518,9 @@
 
   <p class="lead">
     XMR Jackpot turns mining into a daily draw. You point a Monero miner at the
-    pool, every share you contribute counts toward entries, and once a day one
-    entry takes 90% of the pot. There is nothing to deposit and nothing to buy.
+    pool, every share you contribute counts toward your next entry
+    ({{ENTRY_UNIT}} shares buy one), and once a day one entry takes {{WINNER_PCT}}% of the
+    pot. There is nothing to deposit and nothing to buy.
   </p>
 
   <div class="card">
@@ -1441,11 +1543,11 @@
   </div>
 
   <div class="card">
-    <h2>Step 2 — Every 100 shares is one entry</h2>
+    <h2>Step 2 — Every {{ENTRY_UNIT}} shares is one entry</h2>
     <p>
-      The pool counts accepted shares, not hours online. For every 100 shares
-      your miner submits, you receive one free entry in the drawing that is
-      currently open. Entries stay with the round until it closes, so steady
+      The pool counts accepted shares, not hours online. For every
+      {{ENTRY_UNIT}} shares your miner submits, you receive one free entry in
+      the drawing that is currently open. Entries stay with the round until it closes, so steady
       mining compounds: the longer you contribute, the more entries you hold
       when the draw runs.
     </p>
@@ -1456,11 +1558,11 @@
   </div>
 
   <div class="card">
-    <h2>Step 3 — The drawing runs every 24 hours</h2>
+    <h2>Step 3 — The drawing runs every {{DRAW_HOURS}} hours</h2>
     <p>
-      Each drawing closes 24 hours after the previous one. One entry is selected
-      from the entries recorded for that round, and the winner takes 90% of the
-      pot. The remaining 10% covers servers and development, and seeds the next
+      Each drawing closes {{DRAW_HOURS}} hours after the previous one. One entry is selected
+      from the entries recorded for that round, and the winner takes {{WINNER_PCT}}% of the
+      pot. The remaining {{HOUSE_TAX_PCT}}% covers servers and development, and seeds the next
       pot when it runs short.
     </p>
     <p>
@@ -1601,6 +1703,7 @@
       <input class="spin-input" id="dashRegPass" type="password" placeholder="Choose password">
       <input class="spin-input" id="dashRegName" placeholder="Full name">
       <input class="spin-input" id="dashRegEmail" placeholder="Email">
+      <input class="spin-input" id="dashRegReferrerEmail" placeholder="Referrer's email (optional — you both get an entry)">
       <input class="spin-input" id="dashRegPhone" placeholder="Phone number (for alerts)">
       <input class="spin-input" id="dashRegWallet" placeholder="Kraken XMR wallet address (optional)">
       <button class="btn btn-emerald" id="btnDashReg" style="width:100%;">Register</button>
@@ -1765,6 +1868,63 @@
       </div>
     </div>
 
+    <!-- ══ KRAKEN SCOUT PRO PROGRESSION (Oct 24): filled from
+         /api/gamification's progression block — the daily streak, the
+         3x milestone conversion, contributing days toward the 100-day
+         unlock, and which path (progression / donation) unlocked it. ══ -->
+    <div class="card" style="margin-top:16px;border-color:var(--gold-dark);" id="progressionCard">
+      <div class="card-header">💎 Kraken Scout Pro Progression</div>
+      <div class="grid-3" style="margin-bottom:16px;">
+        <div class="stat-card">
+          <div style="font-size:1.5em;">🔥</div>
+          <div class="stat-value gold" id="progStreak">0 days</div>
+          <div class="stat-label">Daily Mining Streak</div>
+          <div style="font-size:0.7em;color:var(--text-mute);margin-top:3px;">consecutive days mining</div>
+        </div>
+        <div class="stat-card">
+          <div style="font-size:1.5em;">⚡</div>
+          <div class="stat-value green" id="progBonus">1×</div>
+          <div class="stat-label">Ticket Conversion</div>
+          <div style="font-size:0.7em;color:var(--text-mute);margin-top:3px;" id="progBonusNote">3× on milestone days</div>
+        </div>
+        <div class="stat-card">
+          <div style="font-size:1.5em;">🎯</div>
+          <div class="stat-value diamond" id="progNext">Day 7</div>
+          <div class="stat-label">Next Milestone</div>
+          <div style="font-size:0.7em;color:var(--text-mute);margin-top:3px;">streak day for the 3× bonus</div>
+        </div>
+      </div>
+
+      <div style="font-size:0.8em;color:var(--gold);font-weight:700;margin-bottom:6px;text-transform:uppercase;letter-spacing:1px;">Days mined toward Pro</div>
+      <div class="game-xp-bar" style="margin-bottom:6px;">
+        <div class="game-xp-fill" id="progBar" style="width:0%;"></div>
+      </div>
+      <div style="display:flex;justify-content:space-between;font-size:0.78em;color:var(--text-dim);margin-bottom:6px;">
+        <span id="progDays">0 / {{PRO_DAYS}} contributing days</span>
+        <span id="progPct">0%</span>
+      </div>
+      <div style="font-size:0.78em;color:var(--text-mute);margin-bottom:14px;" id="progRemaining"></div>
+
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px;">
+        <div style="border:1px solid var(--bg-cobble);border-radius:12px;padding:12px;">
+          <div style="font-weight:700;color:var(--text);font-size:0.9em;margin-bottom:4px;">⛏️ {{PRO_DAYS}} days of mining</div>
+          <div style="font-size:0.78em;color:var(--text-dim);line-height:1.6;">Every day your mining bot contributes shares to the jackpot counts once. At {{PRO_DAYS}} days Kraken Scout Pro unlocks automatically and awards <b style="color:var(--gold);">+1 jackpot entry</b>.</div>
+          <div style="font-size:0.78em;margin-top:6px;" id="progPath100">—</div>
+        </div>
+        <div style="border:1px solid var(--gold);border-radius:12px;padding:12px;">
+          <div style="font-weight:700;color:var(--text);font-size:0.9em;margin-bottom:4px;">💎 {{PRO_PRICE_XMR}} XMR donation</div>
+          <div style="font-size:0.78em;color:var(--text-dim);line-height:1.6;">Unlock now. The checkout charges {{PRO_PRICE_XMR}} XMR (≈${{PRO_PRICE_USD}}) to a fresh address; the donation goes into the daily jackpot and earns you <b style="color:var(--gold);">+1 jackpot entry</b>.</div>
+          <div style="font-size:0.78em;margin-top:6px;" id="progPath95">—</div>
+          <a class="btn btn-gold btn-sm" style="text-decoration:none;margin-top:8px;display:inline-block;" href="#wfScoutPurchasePanel">Donate &amp; unlock Scout Pro</a>
+        </div>
+      </div>
+
+      <div style="font-size:0.78em;color:var(--text-dim);line-height:1.6;margin-top:12px;" id="progStatus"></div>
+      <div style="font-size:0.78em;color:var(--text-mute);line-height:1.6;margin-top:8px;">
+        📡 <b style="color:var(--text-dim);">Pro signals:</b> LONG bullish calls only — “Buy Now” / “Exit Now” — delivered to your phone.
+      </div>
+    </div>
+
     <!-- Entry Stats -->
     <div class="card" style="margin-top:16px;border-color:var(--gold-dark);background:linear-gradient(135deg,var(--bg-deep),var(--obsidian));">
       <div class="card-header" style="color:var(--gold-bright);">🎫 Entry Stats</div>
@@ -1794,14 +1954,14 @@
     <div class="wf-panel-row">
       <div class="wf-panel" id="wfScoutPanel">
         <h3>📡 Kraken Scout Signals</h3>
-        <div class="wf-panel-sub">LONG bullish calls only — “Buy Now” / “Exit Now”, the only two alerts the phone gets.</div>
+        <div class="wf-panel-sub">Kraken Scout Pro sends LONG bullish calls only — “Buy Now” / “Exit Now”, the only two alerts your phone gets.</div>
         <div class="wf-feed" id="wfSignalFeed"><span class="wf-feed-empty">Loading your signal history…</span></div>
         <button class="btn btn-gold btn-sm" id="btnWfScoutNotify">Enable Scout Notifications</button>
         <div class="wf-panel-sub" id="wfPrefsStamp" style="margin-top:6px;"></div>
       </div>
       <div class="wf-panel" id="wfChallengePanel">
         <h3>🧜 Kraken Funded Challenge</h3>
-        <div class="wf-panel-sub">Win the jackpot → enter the challenge → pass on Scout signals → trade Kraken's capital. You keep the profits.</div>
+        <div class="wf-panel-sub">Win the jackpot → enter the challenge → pass on Scout signals → trade Kraken's capital. You keep 80% of the profits.</div>
         <div class="wf-kv"><span>Challenge status</span><b id="wfChallengeStatus">Not entered</b></div>
         <div class="wf-kv"><span>Progress</span><b id="wfChallengeProgress">—</b></div>
         <div class="wf-kv"><span>$20 challenge</span><b>up to $1,000 funded</b></div>
@@ -1882,7 +2042,7 @@
         <div class="stat-card"><div class="stat-value green" id="dashMinerShares">0</div><div class="stat-label">Shares</div></div>
         <div class="stat-card"><div class="stat-value gold" id="dashMinerTickets">0</div><div class="stat-label">Entries</div></div>
       </div>
-      <div id="dashRaffleProgress" style="margin-top:10px;font-size:0.85em;color:var(--gold-bright);font-weight:600;text-align:center;">Raffle ticket: 0 / 100 units collected.</div>
+      <div id="dashRaffleProgress" style="margin-top:10px;font-size:0.85em;color:var(--gold-bright);font-weight:600;text-align:center;">Raffle ticket: 0 / {{ENTRY_UNIT}} units collected.</div>
     </div>
 
     <!-- THE KRAKEN SCOUT DOWNLOAD (acceptance condition 2, Sep 26):
@@ -1893,7 +2053,7 @@
     <div class="card" style="margin-top:16px;">
       <div class="card-header">📦 Kraken Scout Trading Console + Mining Bot</div>
       <p style="font-size:0.85em;color:var(--text-dim);margin-bottom:10px;">
-        One bundle: the Scout console, the pool view, and the Mining Bot
+        One bundle: the Scout console and the Mining Bot
         (opt-out is a single checkbox, ON unless you uncheck it).
       </p>
       <div style="font-size:0.8em;color:var(--text-mute);margin-bottom:6px;">
@@ -1916,26 +2076,29 @@
     <div class="card" style="margin-top:16px;border-color:var(--gold-dark);">
       <div class="card-header">🤝 Earn More Entries With Referrals
       <p style="font-size:0.95em;color:var(--gold-bright);font-weight:700;margin-bottom:8px;">
-        Invite friends → grow the pool → increase the grand prize → boost your odds.
+        Invite friends → you both get an entry when they sign up with your email → better odds. Referral rewards are entries, not jackpot funding.
       </p>
       <div style="font-weight:700;color:var(--gold);margin-bottom:6px;font-size:0.9em;">Rewards:
       <ul style="font-size:0.85em;color:var(--text-dim);line-height:1.8;padding-left:24px;margin-bottom:12px;">
-        <li>Each referral = bonus entries</li>
-        <li>Referral streak bonuses</li>
-        <li>Weekly leaderboard</li>
-        <li>Recorded Kraken referral bonuses for wallet-connected referrals</li>
+        <li><b>Pool-owned:</b> one entry each — your friend enters your email at signup and both accounts get an entry</li>
+        <li><b>Limit 10 referral entries per jackpot cycle</b> per referrer, to keep it fair</li>
+        <li>Badges, not bonuses: <b>Recruiter</b> at your first active referral, <b>Network Builder</b> at 5 active</li>
+        <li>The leaderboard ranks the top miners — it pays no separate weekly prize</li>
+        <li><b>Kraken-owned:</b> Kraken's own referral bonuses — the operator records what it receives for wallet-connected referrals</li>
+        <li>Referral rewards do not fund the jackpot; partner bonuses the operator records are credited into the daily jackpot, and Kraken does not pay the pot</li>
       </ul>
       <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:12px;">
         <input class="spin-input" id="referralLink" readonly style="flex:1;min-width:200px;font-size:0.85em;" value="Login to get your link">
         <button class="btn btn-gold btn-sm" id="btnCopyReferral">📋 Copy</button>
       
+      <div id="refCycleLine" style="font-size:0.75em;color:var(--text-mute);margin:0 0 8px;">0 of 10 referral entries used this cycle</div>
       <div class="grid-3" style="gap:8px;">
         <div class="stat-card"><div class="stat-value gold" id="referralCount">0<div class="stat-label">Referrals
         <div class="stat-card"><div class="stat-value green" id="activeReferrals">0<div class="stat-label">Active Miners
         <div class="stat-card"><div class="stat-value diamond" id="referralTickets">0<div class="stat-label">Entries Earned
       
       <div style="font-size:0.75em;color:var(--text-mute);margin-top:8px;">
-        💡 Signup bonus: 0.003 XMR in free entries. Kraken withdrawal fee is 0.0027 XMR — keep mining for bigger payouts!
+        💡 <b>Pool-owned:</b> signup bonus is 0.003 XMR in free entries. <b>Kraken-owned:</b> the Kraken withdrawal fee is 0.0027 XMR — keep mining for bigger payouts!
       
     
 
@@ -1978,7 +2141,7 @@
 <!-- ═══════════ FOOTER ═══════════ -->
 <footer>
   <p>⛏️ XMR Jackpot — Monero Mining Made Fun, Fair, and For Everyone.</p>
-  <p>Mine together · Win together · Free entry via mining · Provably fair · 90% payout · 10% house tax · <a href="/api/stats">API</a></p>
+  <p>Mine together · Win together · Free entry via mining · Provably fair · {{WINNER_PCT}}% payout · {{HOUSE_TAX_PCT}}% house tax · <a href="/api/stats">API</a></p>
   <p style="margin-top:8px;font-size:0.8em;">
     <a href="#" data-action="navigate-howto" style="color:var(--text-mute);">📜 Terms of Service</a>
     <span style="color:var(--text-mute);"> · </span>
@@ -1989,8 +2152,10 @@
   <div style="margin-top:10px;padding:8px 14px;background:var(--bg-deep);border:2px solid #4444cc;display:inline-block;">
     <span style="color:var(--text-dim);font-size:0.8em;">Sign up &amp; trade on Kraken —</span>
     <a href="https://invite.kraken.com/JDNW/29bygijw" data-cta-slot="footer-box" target="_blank" rel="nofollow sponsored" style="color:#7c7cff;font-weight:700;text-decoration:none;font-size:0.85em;">Open Your Account →</a> <span style="color:var(--text-mute);font-size:0.8em;">·</span> <a href="https://www.kraken.com/learn" target="_blank" rel="nofollow sponsored" style="color:var(--text-mute);text-decoration:none;font-size:0.8em;">📚 Learn Center</a>
-    <div style="font-size:0.75em;color:var(--text-mute);max-width:520px;margin-top:4px;">Why this link: it helps fund the jackpot — join Kraken with it, pass the Funded Challenge with Kraken Scout, and Kraken pays you and pays the jackpot when the terms are met.
-  
+    <div style="font-size:0.75em;color:var(--text-mute);max-width:520px;margin-top:4px;">Why this link: Kraken pays the referral reward on Kraken's terms; the operator credits only the bonuses it actually records into the pot. Kraken does not pay the jackpot.
+    </div>
+  </div>
+
   <p style="margin-top:10px;font-size:0.7em;color:var(--text-mute);">By using this service you agree to the Terms of Service. Cryptocurrency values are volatile. Mining costs may exceed rewards. Not financial advice.</p>
   <!-- DEPLOY BADGE: filled from /version at runtime (app.js, no-store).
        It names the commit the RUNNING PROCESS started from, so the footer
@@ -2014,18 +2179,19 @@
 <div id="wfScoutModals" style="display:none;"></div>
 
 <!-- /#app -->
-<script src="/static/app.js?v=30"></script>  <script src="/static/scout_ids.js?v=1"></script>
+<script src="/static/app.js?v=34"></script>  <script src="/static/scout_ids.js?v=1"></script>
   <script src="/static/scout_paywall.js?v=3"></script>
   <script src="/static/scout_paywall_wire_patch.js?v=6"></script>
-  <script src="/static/scout_checkout.js?v=2"></script>
+  <script src="/static/scout_checkout.js?v=5"></script>
 <script src="/static/bundle_card.js?v=2"></script>
 <script src="/static/push_report_admin.js?v=1"></script>
 <script src="/static/push_decisions_admin.js?v=2"></script>
-<script src="/static/wf_dashboard.js?v=7"></script>
+<script src="/static/wf_dashboard.js?v=8"></script>
+<script src="/static/scout_pro_bridge.js?v=1"></script>
 <script src="/static/push_client.js?v=16"></script>
 <script src="/static/admin_cold_wallet.js?v=1"></script>
 <script src="/static/kraken_referral_admin.js?v=6"></script>
-<script src="/static/refblock.js?v=1"></script>
+<script src="/static/refblock.js?v=2"></script>
 <script src="/static/push_vapid_admin.js?v=1"></script>
 <script src="/static/referral_projection.js?v=1"></script>
 </body>

@@ -1,4 +1,15 @@
-# build_bundle.ps1 - THE BUNDLE BUILDER (Sep 25).
+# build_bundle.ps1 - THE BUNDLE BUILDER (Sep 25; whitelist since Oct 25).
+#
+# THE RELEASE CONTRACT: the staged tree is pruned to
+# installer\release_manifest.json before it is zipped. The manifest is
+# DEFAULT-DENY — a file ships only when it is named there — so the archive
+# below is an input, never the artifact. Tests, audit and phase documents,
+# CI files, the pool server/engine, the proxy poller and the developer
+# xmrig config cannot reach a customer even if a future commit adds them.
+# installer\finalize_bundle.py enforces it (and fails the build on any
+# content violation: credentials, operator wallets, localhost endpoints,
+# preprod versions). Regenerate the file list with
+# installer\generate_release_manifest.py when Scout's imports change.
 #
 # Builds dist\KrakenScoutBundle from the COMMITTED trees of both repos:
 #   scout\   <- git -C kraken_scout archive HEAD (509 files; no worktree
@@ -103,28 +114,23 @@ Remove-Item -Recurse -Force -Path (Join-Path $Stage "xmrig") -ErrorAction Silent
 Move-Item $Stage (Join-Path $Bundle "payload\monero_project")
 Remove-Item -Force $TarF -ErrorAction SilentlyContinue
 
-# the pool layer's DB module is UNTRACKED in monero_project (the pool
-# thread has not committed it yet), so the archive cannot carry it -
-# but scout_jackpot_view imports it, and without it the jackpot plate's
-# transport is dead in installed copies. Copy exactly the allowlisted
-# file from the working tree, loudly - the archive-only rule stands
-# for everything else.
-$DbSrc = Join-Path $Root "pool\database.py"
-$DbDst = Join-Path $Bundle "payload\monero_project\pool\database.py"
-if (-not (Test-Path $DbDst)) {
-    if (Test-Path $DbSrc) {
-        Copy-Item $DbSrc $DbDst -Force
-        Write-Warning "pool/database.py staged from the WORKING TREE (untracked in monero_project) - re-run the builder after the pool thread commits it"
-    } else {
-        Write-Warning "pool/database.py MISSING - installed copies will show the jackpot plate's quiet fallback line"
-    }
-}
+# THE POOL DOES NOT SHIP. The old build copied pool/database.py into the
+# payload so Scout's local jackpot plate could read an operator database;
+# neither the plate nor the pool belongs in a customer artifact, and the
+# release manifest excludes the whole pool tree. Scout shows its own
+# "jackpot view is not wired" line when the sibling is absent, which is
+# the correct customer-facing behaviour (the pool is operator-only).
 
 # ── 2. the xmrig payload (untracked -> copy from the working tree) ────
 Write-Host "[3/6] xmrig payload ..."
 $xsrc = Join-Path $Root "xmrig\xmrig-6.26.0"
 if (Test-Path (Join-Path $xsrc "xmrig.exe")) {
     Copy-Item -Recurse -Force $xsrc (Join-Path $Bundle "payload\xmrig-6.26.0")
+    # THE DEVELOPER CONFIG NEVER SHIPS: this working-tree copy mines to
+    # 127.0.0.1:3333 under the operator's rig id. The release manifest
+    # would prune it anyway; removing it here keeps the staged tree honest
+    # before the guard runs (and the miner bot writes a customer config).
+    Remove-Item -Force (Join-Path $Bundle "payload\xmrig-6.26.0\config.json") -ErrorAction SilentlyContinue
 } else {
     Write-Warning "local xmrig payload absent - install.ps1 will fetch the pinned release"
 }

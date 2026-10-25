@@ -1,7 +1,29 @@
-## Kraken-Funded-Scout — Release v1.0.0-preprod
+## Kraken-Funded-Scout — Release v1.0.0
+
+### 2026-10-25 — release remediation
+
+The 1.0.0 release packaging was withdrawn and rebuilt around a
+customer-only artifact:
+
+- the download bundle is pruned to `installer/release_manifest.json`
+  (default-deny): no tests, audits, phase/planning documents, CI files,
+  pool server/engine, proxy poller or developer xmrig config;
+- the hard-coded proxy token, operator payout addresses and the
+  Postgres credential in Scout's `config.py` are gone from the sources;
+- the shipped miner config is customer-neutral (public stratum, no rig
+  id, placeholder wallet until activation);
+- `APP_PORT` is required and the origin binds loopback by default, so
+  no second origin can appear on port 80;
+- the customer copy no longer starts the pool or creates a local pool
+  database, and the "first raffle ticket at install" language is gone
+  (entries are minted from accepted shares);
+- the version is `1.0.0`: no preprod label reaches the page, the
+  manifest or the Product markup.
+
+See `docs/release-manifest.md`.
 
 ### Summary
-Final pre-production pass for the Kraken-Funded-Scout repository.
+Final production pass for the Kraken-Funded-Scout repository.
 
 This is the first commit to the repository, establishing the working baseline for the project.
 
@@ -22,4 +44,4 @@ This is the first commit to the repository, establishing the working baseline fo
 The branch-protection work on `main` was deferred: the live repository-rulesets API rejected every candidate ruleset shape tried (required per-rule `enforcement` and exact `parameters` shapes the live server would not accept), and the legacy classic branch-protection PUT is not available on this personal repo. The protections requested — require PRs, block force pushes, require status checks — were therefore NOT applied. The tag + release below still proceed from commit `92a1436`.
 
 ### Tag
-- `v1.0.0-preprod` — points at `92a1436`.
+- `v1.0.0` — supersedes the withdrawn `v1.0.0-preprod` tag.

@@ -32,7 +32,10 @@ except Exception as e:
 
 # 4. Spin endpoint
 try:
-    body = json.dumps({'wallet_address':'86NjWuTLKm7eggeGw9PZ5LjFDZTHUtAQtWs7Bbu783yYfDRqSd6itapDek39rySHWCax6fnDAKQQXLiieRtRqvzCPeqTxkG','amount_xmr':0.001}).encode()
+    # a shape-valid FAKE address: this probe must never name the operator's
+    # real wallet (it is a diagnostic, not a payment)
+    _smoke_wallet = '4' + '0' * 94
+    body = json.dumps({'wallet_address': _smoke_wallet, 'amount_xmr': 0.001}).encode()
     req = urllib.request.Request('http://127.0.0.1:3094/api/spin', data=body, headers={'Content-Type':'application/json'})
     r = urllib.request.urlopen(req, timeout=5)
     d = json.loads(r.read())
