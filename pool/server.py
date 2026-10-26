@@ -37,6 +37,7 @@ import monero_wallet as xmr
 import address_check as _addr   # offline mainnet payout-address gate
 import i18n                   # language negotiation + region inference
 import i18n_pages             # the six-language download/status pages
+import scout_lifecycle        # Phase F: install/activation/connect/share
 
 app = FastAPI(title="XMR Jackpot Pool")
 
@@ -448,6 +449,15 @@ print("[crypto] at-rest migration:", _enc)
 class MinerRegister(BaseModel):
     wallet_address: str
     worker_name: str = ""
+    # Phase F: the installer's install id, when it has one — links this
+    # activation to the install record instead of creating a second row.
+    install_id: str = ""
+
+
+class ScoutInstallReport(BaseModel):
+    """An install beacon: the id the installer minted for this machine
+    (empty = the server mints one). No wallet, no account."""
+    install_id: str = ""
 
 
 class UpdateShares(BaseModel):
@@ -1541,13 +1551,46 @@ async def api_miner(wallet_address: str):
     }
 
 
+_INSTALL_ID_RE = re.compile(r"^[A-Za-z0-9._:-]{8,64}$")
+
+
+@app.post("/api/scout/install")
+async def api_scout_install(body: ScoutInstallReport, request: Request):
+    """THE INSTALL BEACON (Phase F) — one per installed Scout.
+
+    Unauthenticated by necessity: this fires before the customer has an
+    account. It records ONLY an install — no wallet, no identity, nothing
+    that could be mistaken for activation — is rate-limited per IP, and
+    returns the id so a client that has none can persist it. Downloads are
+    deliberately NOT counted here: a download is not an install.
+    """
+    client = request.client.host if request.client else "unknown"
+    if not security.install_limiter.check(client):
+        raise HTTPException(429, "too many install reports")
+    iid = (body.install_id or "").strip()
+    if iid and not _INSTALL_ID_RE.match(iid):
+        raise HTTPException(422, "invalid install_id")
+    rec = scout_lifecycle.record(install_id=iid or secrets.token_hex(16),
+                                 installed=True)
+    if not rec:
+        raise HTTPException(503, "install ledger unavailable")
+    return {"status": "ok", "install_id": rec["install_id"]}
+
+
 @app.post("/api/miner/register")
 async def api_register(miner: MinerRegister):
     """Register a new miner (shape-gated Sep 27: junk rows like
-    'PENDING_*' are created elsewhere, never through this gate)."""
+    'PENDING_*' are created elsewhere, never through this gate).
+
+    Phase F: registration IS activation. Only the bundled installer calls
+    this, and it has already written the wallet into the miner config; the
+    install_id links the activation to the beacon row for that machine."""
     if not _wallet_shape_ok(miner.wallet_address):
         raise HTTPException(422, "invalid wallet address shape")
     record = db.get_or_create_miner(miner.wallet_address, miner.worker_name)
+    scout_lifecycle.record(wallet=miner.wallet_address,
+                           install_id=(miner.install_id or "").strip(),
+                           activated=True)
     return {"status": "ok", "miner_id": record["id"]}
 
 
@@ -1565,6 +1608,9 @@ async def api_update_shares(data: UpdateShares, request: Request):
     miner = db.get_or_create_miner(data.wallet_address)
     db.update_miner_stats(data.wallet_address, data.shares_valid, data.shares_invalid, data.hashrate)
     new_tickets = engine.allocate_free_tickets(miner["id"], data.shares_valid)
+    scout_lifecycle.record(wallet=data.wallet_address,
+                           valid=data.shares_valid,
+                           invalid=data.shares_invalid)
     return {"status": "ok", "new_tickets": new_tickets}
 
 
@@ -2599,6 +2645,14 @@ async def api_admin_users(request: Request):
     """Get all users (admin only)."""
     admin = require_admin(request)
     return db.get_all_users()
+
+
+@app.get("/api/admin/scout-lifecycle")
+async def api_admin_scout_lifecycle(request: Request, days: float | None = None):
+    """Phase F fleet report: installed / activated / ever connected /
+    submitted shares, with never-connected kept apart from dormant."""
+    require_admin(request)
+    return scout_lifecycle.report(days=days)
 
 
 @app.get("/api/admin/miners")

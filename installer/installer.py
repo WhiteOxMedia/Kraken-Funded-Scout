@@ -17,6 +17,14 @@ services — "uninstall" is deleting the folder, and that is the whole
 story. The drive (test_installer.py) scans this file's source to keep
 that promise enforceable.
 
+FLEET TELEMETRY (Phase F): opting IN sends one install beacon for this
+machine (a random install_id persisted in the record — no wallet, no
+account) before it registers, so the pool can count installs even when the
+registration never lands. The same install_id rides the registration, so the
+beacon row becomes the activated record instead of a second one. Both calls
+are fail-soft (an offline box installs and activates normally), and an
+opt-out install sends nothing at all — the opt-out contract.
+
 Registration mapping (per the bundled protocol):
   - the MINER registry (/api/miner/register -> the miners table) is the
     jackpot entry: drawings draw from miner tickets. Opt-in auto-
@@ -36,6 +44,7 @@ import os
 import sys
 import time
 import urllib.request
+import uuid
 from pathlib import Path
 
 INSTALLER_DIR = Path(__file__).resolve().parent
@@ -97,6 +106,7 @@ FRESH_RECORD = {
     "schema": 1,
     "miner_bot_opt_in": False,     # THE DEFAULT IS OPT-OUT: nothing exists
     "installed_at": None,          # until the checkbox is chosen
+    "install_id": None,            # Phase F: this machine's ledger key
     "wallet_address": None,
     "registration": None,          # {miner_id, worker, at} when opted in
 }
@@ -118,6 +128,22 @@ def save_record(rec: dict, path: Path | None = None) -> None:
     p.write_text(json.dumps(rec, indent=1), encoding="utf-8")
 
 
+def _ensure_install_id(rec: dict, record_path: Path | None = None) -> str:
+    """This machine's install id — minted once, persisted, never reused
+    across machines. It is the ONLY identifier the install beacon sends
+    (no wallet, no account, no hardware fingerprint)."""
+    iid = str(rec.get("install_id") or "").strip()
+    if iid:
+        return iid
+    iid = uuid.uuid4().hex
+    rec["install_id"] = iid
+    try:
+        save_record(rec, record_path)
+    except OSError:                   # read-only install dir is not fatal
+        pass
+    return iid
+
+
 def valid_wallet(addr: str) -> bool:
     """Same shape rule the server enforces on claims: starts 4 or 8,
     90-120 chars (no network call, no wallet internals touched)."""
@@ -125,15 +151,38 @@ def valid_wallet(addr: str) -> bool:
     return (a.startswith("4") or a.startswith("8")) and 90 <= len(a) <= 120
 
 
-def _post_register(api_base: str, wallet: str, worker: str) -> dict:
-    """The registration HTTP call, isolated for testing."""
+def _post_json(api_base: str, path: str, body: dict,
+               timeout: int = 15) -> dict:
+    """One pool POST, isolated for testing."""
     req = urllib.request.Request(
-        api_base.rstrip("/") + "/api/miner/register",
-        data=json.dumps({"wallet_address": wallet,
-                         "worker_name": worker}).encode("utf-8"),
+        api_base.rstrip("/") + path,
+        data=json.dumps(body).encode("utf-8"),
         headers={"Content-Type": "application/json"}, method="POST")
-    with urllib.request.urlopen(req, timeout=15) as r:
+    with urllib.request.urlopen(req, timeout=timeout) as r:
         return json.loads(r.read().decode("utf-8"))
+
+
+def _post_register(api_base: str, wallet: str, worker: str,
+                   install_id: str = "") -> dict:
+    """The registration call. install_id rides along so the pool marks
+    THIS install activated instead of creating a second record."""
+    return _post_json(api_base, "/api/miner/register",
+                      {"wallet_address": wallet, "worker_name": worker,
+                       "install_id": install_id})
+
+
+def _report_install(api_base: str, install_id: str) -> bool:
+    """The Phase F install beacon: one per machine, sent on opt-in BEFORE
+    registration, so the pool still knows this Scout was installed when the
+    registration cannot land (offline, pool down). Fail-soft by contract —
+    an offline install is still an install. Nothing is sent when the user
+    leaves the checkbox OFF."""
+    try:
+        _post_json(api_base, "/api/scout/install",
+                   {"install_id": install_id}, timeout=8)
+        return True
+    except Exception:                 # noqa: BLE001 — never block an install
+        return False
 
 
 def _patch_xmrig_user(wallet: str, config_path: Path | None = None) -> bool:
@@ -219,15 +268,17 @@ def opt_in(wallet: str, api_base: str = DEFAULT_API, worker: str = "",
             "welcome_ticket": bool(live_db),
         }}
 
-    # the real sequence, each step reported: config, registration, and (only
-    # on the operator's own box) the local welcome ticket
+    # the real sequence, each step reported: install beacon, config,
+    # registration, and (only on the operator's own box) the welcome ticket
+    rec = load_record(record_path)
+    install_id = _ensure_install_id(rec, record_path)
+    _report_install(api_base, install_id)
     patched = _patch_xmrig_user(wallet, config_path)
-    reg = _post_register(api_base, wallet, worker)
+    reg = _post_register(api_base, wallet, worker, install_id)
     if reg.get("status") != "ok":
         return {"ok": False, "error": f"registration failed: {reg}"}
     granted = _grant_welcome_ticket(reg["miner_id"]) if live_db else 0
 
-    rec = load_record(record_path)
     rec.update({
         "miner_bot_opt_in": True,
         "installed_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),

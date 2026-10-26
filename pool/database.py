@@ -596,6 +596,23 @@ def init_db():
             if _col not in xcols:
                 conn.execute(_ddl)
 
+    _init_scout_lifecycle()
+
+
+def _init_scout_lifecycle() -> None:
+    """Scout lifecycle table (Phase F) plus the idempotent backfill.
+
+    Runs on its OWN connection AFTER the main init transaction commits:
+    the backfill writes, so sharing init_db's open write transaction would
+    wait on itself. Fail-soft — a telemetry table that cannot be created
+    must never stop the pool from booting, but it must be loud.
+    """
+    try:
+        import scout_lifecycle as _life
+        _life.ensure_schema()
+        _life.backfill()
+    except Exception as _e:            # noqa: BLE001 — boot must survive
+        print(f"[DB] scout lifecycle not initialised: {_e}")
 
 
 def encrypt_existing_pii() -> dict:

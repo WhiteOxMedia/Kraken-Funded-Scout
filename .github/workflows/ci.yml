@@ -96,6 +96,18 @@ jobs:
       - name: Acceptance drive
         run: python test_e2e_acceptance.py
 
+  scout-lifecycle:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install Python deps
+        run: python -m pip install --quiet fastapi httpx aiohttp cryptography jinja2 segno pywebpush pydantic
+      - name: Scout lifecycle (beacon, activation, telemetry, fleet report)
+        run: python test_scout_lifecycle.py
+
   release-hygiene:
     runs-on: ubuntu-latest
     steps:
@@ -128,6 +140,7 @@ jobs:
       - alert-routing
       - scout-pro-gating
       - alert-log-api
+      - scout-lifecycle
       - release-hygiene
       - push-path
     runs-on: ubuntu-latest

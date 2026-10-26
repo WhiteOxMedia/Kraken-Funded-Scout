@@ -135,6 +135,8 @@ if ($SkipVenv) {
 }
 
 # ── 5. THE CHECKBOX (the flow's last step) ────────────────────────────
+# Fleet telemetry is sent from installer.py's opt-in, AFTER this window:
+# ticking the box is the consent, so an opt-out install reports nothing.
 $UiPy  = Join-Path $DstMonero "installer\installer_ui.py"
 $PyExe = Join-Path $DstScout ".venv\Scripts\python.exe"
 if ($SkipVenv) { $PyExe = "python" }
