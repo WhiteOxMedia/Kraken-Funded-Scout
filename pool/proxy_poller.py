@@ -24,6 +24,12 @@ try:                                    # real MinerYield for the funding
     import miner_yield                  # formula (fail-soft — the poller's
 except Exception:                       # ticket/shares duties never depend
     miner_yield = None                  # on it)
+# PHASE F: the lifecycle brain (same package coverage as miner_yield —
+# telemetry must never be the reason share tracking stops).
+try:
+    import scout_lifecycle as lifecycle
+except Exception:
+    lifecycle = None
 
 PROXY_API = "http://127.0.0.1:9090"
 # THE TOKEN (review triage, Sep 25): the bearer token is a LOCAL-only
@@ -173,6 +179,14 @@ def update_workers(workers):
             delta_invalid = int(w["shares_invalid"])
         else:
             delta_invalid = int(w["shares_invalid"]) - prev_invalid
+
+        # PHASE F: this row is proof the wallet authed at the stratum, and a
+        # positive delta is proof it produced work. Reported even when the
+        # delta is zero (a connected-but-idle rig is CONNECTED, not
+        # invisible); record() is fail-soft by contract.
+        if lifecycle is not None:
+            lifecycle.record(wallet=w["wallet_address"], connected=True,
+                             valid=delta_valid, invalid=delta_invalid)
 
         if delta_valid > 0 or delta_invalid > 0:
             # Update stats

@@ -55,6 +55,10 @@ register_limiter = RateLimiter(max_requests=5, window_seconds=3600)
 # minute per source is far above any real poller cadence and far
 # below forgery-flood territory
 shares_limiter = RateLimiter(max_requests=12, window_seconds=60)
+# THE INSTALL BEACON (Phase F): an unauthenticated, once-per-install
+# report from the installer. 10/hour/IP covers a reinstall and a NAT of
+# machines, and refuses a flood that would fake fleet growth.
+install_limiter = RateLimiter(max_requests=10, window_seconds=3600)
 
 
 class NonceStore:

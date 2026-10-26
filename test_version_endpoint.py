@@ -128,7 +128,11 @@ tpl = (HERE / "pool" / "templates" / "index.html").read_text(encoding="utf-8")
 canonical = ('<link rel="canonical" href="' + srv_mod.SITE_ORIGIN + '/">\n')
 shell = root.text.replace(srv_mod._site_jsonld() + "\n", "", 1)
 shell = shell.replace(canonical, "", 1)
-expected = srv_mod._SCHEMA_BLOCK_RE.sub("", tpl)
+# The template carries live tokens now (entry unit, payout split, draw
+# cadence, claim window, Pro price, live miner count, the winners rows),
+# so "verbatim" means the RENDERED template, not the file bytes. Same
+# reader the route uses; the JSON-LD block is stripped the same way.
+expected = srv_mod._SCHEMA_BLOCK_RE.sub("", srv_mod._template_html())
 check(6.1, root.status_code == 200 and shell == expected,
       "GET / no longer serves the template (plus site JSON-LD and its "
       "canonical) verbatim")

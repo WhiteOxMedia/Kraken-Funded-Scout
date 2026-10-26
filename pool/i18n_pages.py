@@ -206,6 +206,7 @@ def render_download(lang: str, origin: str, region: dict | None = None,
         '    <p style="font-size:0.95em;">'
         + escape(i18n.t(lang, "download.scoutBody",
                          price=offer.get("price", "0.01"),
+                         usd=offer.get("usd", "95.00"),
                          days=offer.get("days", 30))) + "</p>\n"
         '    <p><a class="btn btn-gold" href="/downloads/KrakenScoutBundle.zip" '
         "download>" + escape(i18n.t(lang, "download.cta")) + "</a>\n"

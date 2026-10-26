@@ -15,6 +15,7 @@ _tmp = Path(tempfile.mkdtemp(prefix="kr_int_"))
 import database as db; db.DB_PATH = _tmp / "jackpot.db"; db.init_db()
 import jackpot_funding as funding
 import kraken_referral as kr
+import projection_ad
 import server as srv
 from fastapi.testclient import TestClient
 
@@ -188,9 +189,10 @@ check(6.8, kr.provider_mode() == "unconfigured", "credential removal degrades cl
 print("== 6.9 THE DELTA-SPIKE GUARD ==")
 # the _boom run collapsed the seed 60 -> 0 (a 100% drop against the
 # previous projection): the guard must flag the row and audit it
-lp = kr.latest_projection()
-check(6.9, lp["anomaly"] == 1,
-      f"projection flagged anomalous after the collapse (anomaly={lp['anomaly']})")
+est = projection_ad.read_estimate(projection_ad.AdSlot.HERO)
+check(6.9, est is not None and est.anomaly == 1,
+      f"projection flagged anomalous after the collapse "
+      f"(anomaly={getattr(est, 'anomaly', None)})")
 with db.get_db() as conn:
     spike = conn.execute("SELECT COUNT(*) c FROM audit_log WHERE "
                          "action='jackpot_projection.delta_spike'").fetchone()["c"]

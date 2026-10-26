@@ -49,11 +49,29 @@ def generate_fake_xmr_address(prefix):
     body = prefix + "".join(random.choices(chars, k=89))
     return body[:95]
 
+def flag_demo_rows():
+    """Mark already-seeded demo miners, without re-seeding anything.
+
+    The is_demo column arrived after the demo data did (Oct 24), so an
+    existing install had 20 unlabelled simulated miners. Matching on the
+    seeder's own worker names is how those rows get flagged; new rows are
+    flagged on insert below as well. Idempotent.
+    """
+    names = [w for _p, w, _s, _h, _m in DEMO_MINERS]
+    with db.get_db() as conn:
+        conn.executemany(
+            "UPDATE miners SET is_demo = 1 WHERE worker_name = ?",
+            [(n,) for n in names],
+        )
+
+
 def seed():
     print("Checking for existing data...")
     existing = db.get_all_miners()
     if len(existing) >= 20:
-        print(f"Already have {len(existing)} miners — skipping seed.")
+        flag_demo_rows()
+        print(f"Already have {len(existing)} miners — skipping seed "
+              "(demo rows re-flagged).")
         return
 
     print("Seeding demo miners...")
@@ -81,6 +99,15 @@ def seed():
                 ).fetchone()
                 if row:
                     miner_ids.append((row["id"], addr, worker))
+
+    # MARK THEM AS SIMULATED (Oct 24): the UI can then say so instead of
+    # showing fake hashrate next to real miners. Idempotent: re-running
+    # re-flags the same wallets.
+    with db.get_db() as conn:
+        conn.executemany(
+            "UPDATE miners SET is_demo = 1 WHERE wallet_address = ?",
+            [(addr,) for _mid, addr, _worker in miner_ids],
+        )
 
     print(f"\nSeeded {len(miner_ids)} demo miners.")
 

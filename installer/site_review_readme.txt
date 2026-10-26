@@ -25,6 +25,7 @@ infrastructure) stays exactly where it is.
 | `static/scout_paywall.js` | Scout Pro paywall surface — checkout, unlock, freeze/unfreeze contract. (v3) |
 | `static/scout_paywall_wire_patch.js` | Wire patch bridging the legacy Scout paywall IDs to the current wf* template IDs. (v6) |
 | `static/scout_checkout.js` | Scout Pro donation checkout surface. (v2) |
+| `static/scout_pro_bridge.js` | Caches the server's Scout Pro entitlement (GET /api/scout/pro) into the flag every alert path reads — the writer that makes the paywall open. (v1) |
 | `static/push_client.js` | Web-push registration, the prefs toggles (If-Match optimistic concurrency, undo), Test-notification buttons, the ONE shared relative-time renderer (v16). |
 | `static/push_sw.js` | The push service worker (notification display; same-origin navigation only). |
 | `static/bundle_card.js` | The Kraken Scout bundle download card (stable URL, published version + SHA256). (v2) |

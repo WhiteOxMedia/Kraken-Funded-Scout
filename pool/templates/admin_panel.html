@@ -8,7 +8,14 @@
 <div class="grid-4" style="margin-bottom:20px;">
   <div class="stat-card"><div class="stat-value green" id="adminActiveMiners">0</div><div class="stat-label">Active Miners</div></div>
   <div class="stat-card"><div class="stat-value blue" id="adminTotalMiners">0</div><div class="stat-label">Total Miners</div></div>
-  <div class="stat-card"><div class="stat-value gold" id="adminJackpot">0</div><div class="stat-label">Current Jackpot</div></div>
+  <!-- The pot card carries its own source split (Oct 26): the same number,
+       read twice — the daily funding accrual versus XMR actually received.
+       Painted from jackpot_split, which the server reconciles to the base. -->
+  <div class="stat-card">
+    <div class="stat-value gold" id="adminJackpot">0</div>
+    <div class="stat-label">Current Jackpot</div>
+    <div id="adminJackpotSplit" style="font-size:0.68em;color:var(--text-mute);margin-top:6px;line-height:1.4;">…</div>
+  </div>
   <div class="stat-card"><div class="stat-value" id="adminHouseTax">0</div><div class="stat-label">House Tax Earned</div></div>
 </div>
 <div class="grid-4" style="margin-bottom:20px;">
@@ -16,6 +23,22 @@
   <div class="stat-card"><div class="stat-value" id="adminDrawings">0</div><div class="stat-label">Drawings</div></div>
   <div class="stat-card"><div class="stat-value" id="adminTickets">0</div><div class="stat-label">Total Tickets</div></div>
   <div class="stat-card"><div class="stat-value" id="adminPaidOut">0</div><div class="stat-label">Total Paid Out</div></div>
+</div>
+
+<!-- Referral Meter (Oct 25): the 10-per-cycle rule, shown as it is enforced.
+     Per referrer, because the cap is per referrer — a single global bar would
+     hide one account at the cap while the rest sit at zero. Read-only. -->
+<div class="card" style="margin-bottom:20px;">
+  <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;">
+    <span>🎟️ Referral Entries — This Cycle</span>
+    <span id="refMeterStamp" style="font-size:0.75em;color:var(--text-mute);">…</span>
+  </div>
+  <div id="refMeterSummary" style="font-size:0.85em;color:var(--text-dim);margin-bottom:10px;">Loading…</div>
+  <div id="refMeterReferrers" style="display:flex;flex-direction:column;gap:6px;"></div>
+  <div id="refMeterRecent" style="font-size:0.78em;color:var(--text-mute);margin-top:10px;"></div>
+  <div style="font-size:0.72em;color:var(--text-mute);margin-top:8px;">
+    The cap is per referrer and resets when a drawing completes. This meter is read-only — the award path enforces the rule.
+  </div>
 </div>
 
 <!-- Kraken Scout Console (live trading dashboard, streamed from the scout PC) -->

@@ -391,10 +391,11 @@ check(9.6, "'Raffle ticket: ' + units + ' / ' + per + ' units collected.'" in _a
       "by shares_valid mod per (the persisted bank), with reset "
       "to 0 implied at each whole hundred")
 check(9.7, "free_tickets_per_shares" in _stats_fn
-      and "db.safe_pos_int" in _stats_fn,
-      "the unit SIZE rides /api/stats from the operator setting "
-      "(db.safe_pos_int-guarded), so every surface draws from one "
-      "server-owned source, never a per-file constant")
+      and "engine.entry_unit()" in _stats_fn,
+      "the unit SIZE rides /api/stats from the engine's ONE reader "
+      "(entry_unit(), which carries the same corrupt-setting guard), so "
+      "every surface draws from one server-owned source, never a "
+      "per-file constant")
 check(9.8, "def safe_pos_int" in _db_src
       and db.safe_pos_int("abc") == 100 and db.safe_pos_int(None) == 100
       and db.safe_pos_int("0") == 100 and db.safe_pos_int("-3") == 100

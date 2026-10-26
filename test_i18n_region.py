@@ -40,6 +40,14 @@ import database as db
 
 db.DB_PATH = Path(tempfile.mkdtemp(prefix="i18n_")) / "jackpot.db"
 db.init_db()
+# THE RATE IS PINNED (Oct 26): the download pages quote the Scout price by
+# converting $95 at the live rate, and this drive compares the rendered
+# page against `_scout_offer()` a moment later. With an unpinned rate the
+# first render answers from the 323 fallback while the background fetch
+# lands mid-run, so the two disagree by the market and the check flakes.
+# What is under test is that the page quotes the SAME conversion, not what
+# XMR is worth today.
+db.set_setting("XMR_USD_RATE", "500.0")
 
 import i18n
 import server as srv

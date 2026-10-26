@@ -37,6 +37,7 @@ import monero_wallet as xmr
 import address_check as _addr   # offline mainnet payout-address gate
 import i18n                   # language negotiation + region inference
 import i18n_pages             # the six-language download/status pages
+import projection_ad          # the advertisement-only projection surface
 import scout_lifecycle        # Phase F: install/activation/connect/share
 
 app = FastAPI(title="XMR Jackpot Pool")
@@ -144,6 +145,20 @@ def _canonical_url(request: Request) -> str:
     if request.url.query:
         target += "?" + request.url.query
     return target
+
+
+# ─── WHICH SURFACE IS BEING SERVED ─────────────────────────
+# projection_ad refuses to hand out an advertisement while an OPERATOR
+# URL is being served. That refusal has to know the URL, so bind it here
+# for every request — before any handler runs, and cleared afterwards so
+# a later task in the same context cannot inherit it.
+@app.middleware("http")
+async def advertisement_surface_marker(request: Request, call_next):
+    token = projection_ad.mark_active_path(request.url.path)
+    try:
+        return await call_next(request)
+    finally:
+        projection_ad.clear_active_path(token)
 
 
 @app.middleware("http")
@@ -748,22 +763,25 @@ def _template_text() -> str:
 def _pro_price() -> tuple:
     """The Scout Pro checkout price, as the checkout will charge it.
 
-    (xmr, usd) from the setting the route reads and the tracked rate.
-    One source again: the page cannot advertise one number while
-    /scout/purchase asks for another.
+    (xmr, usd). The operator sells Pro at a DOLLAR price ($95 since Oct
+    26), so the dollar figure is stored and the XMR amount is derived at
+    the tracked rate. Deliberately reads this module's own `db`: the
+    checkout module imports database under a second name, and a sandbox
+    test that patches one binding must not silently read the other.
     """
-    try:
-        xmr = float(db.get_setting("scout_pro_price_xmr", "0.01"))
-    except (TypeError, ValueError):
-        xmr = 0.01
-    if xmr <= 0:
-        xmr = 0.01
-    try:
-        import jackpot_funding as _funding
-        usd = xmr * _funding.xmr_usd_rate()
-    except Exception:
-        usd = xmr * 323.0
-    return round(xmr, 8), round(usd, 2)
+    def _num(key, default):
+        try:
+            return float(db.get_setting(key, str(default)))
+        except (TypeError, ValueError):
+            return float(default)
+
+    usd = _num("scout_pro_price_usd", 95.0)
+    if usd <= 0:
+        usd = 95.0
+    # the live rate (or the operator's pin), never the old 323 constant
+    rate = jackpot_funding.xmr_usd_rate()
+    xmr = round(usd / rate, 8) if rate > 0 else 0.0
+    return xmr, round(usd, 2)
 
 
 def _payout_terms() -> dict:
@@ -955,14 +973,15 @@ def _scout_offer() -> dict:
             return str(default)
 
     try:
-        price = float(setting("scout_pro_price_xmr", "0.01"))
-    except (TypeError, ValueError):
-        price = 0.01
+        price, usd = _pro_price()
+    except Exception:
+        price, usd = 0.0, 95.0
     try:
         days = int(float(setting("scout_pro_days", "30")))
     except (TypeError, ValueError):
         days = 30
-    return {"price": ("%.6f" % price).rstrip("0").rstrip("."), "days": max(1, days)}
+    return {"price": ("%.6f" % price).rstrip("0").rstrip("."),
+            "usd": "%.2f" % usd, "days": max(1, days)}
 
 
 def _render_lang_page(lang: str, page: str, request: Request) -> str:
@@ -1622,6 +1641,13 @@ async def api_referral_stats(request: Request):
     if not stats:
         return {"referral_code": None, "referral_count": 0, "active_referrals": 0}
     reward = int(db.get_setting("referral_ticket_reward", "100"))
+    # THE KRAKEN CARD'S OWN VALUES (Oct 25): the ONE link the operator is
+    # an affiliate for. Settings win; the site's canonical CTA is the
+    # fallback, so the card can never show an empty invite. The code is
+    # the link's last path segment — derived, never stored twice.
+    import kraken_challenge as _kch
+    kraken_link = (_kch.get_referral_link() or _KRAKEN_CTA_URL).strip()
+    kraken_code = kraken_link.rstrip("/").rsplit("/", 1)[-1]
     return {
         "referral_code": stats["referral_code"],
         "referral_link": f"https://xmrjackpot.com/?ref={stats['referral_code']}",
@@ -1631,6 +1657,15 @@ async def api_referral_stats(request: Request):
         "reward_per_referral": reward,
         # The Oct 25 programme: one entry to each side, capped per cycle.
         **db.referral_award_summary(user["id"]),
+        # Program A (Kraken): the operator's affiliate link, its code, and
+        # the share of a recorded payout the pool keeps (the referrer keeps
+        # the other half from Kraken directly).
+        "kraken_invite_link": kraken_link,
+        "kraken_invite_code": kraken_code,
+        "kraken_pool_share_pct": db.kraken_pool_share_pct(),
+        # Program B (XMRJackpot): the XMRJ accrual and the Solana wallet it
+        # would be paid to (empty until a wallet is connected).
+        **db.referral_xmrj_summary(user["id"]),
     }
 
 
@@ -2160,9 +2195,15 @@ async def api_register(req: RegisterRequest, request: Request):
             db.add_audit_log(
                 referrer["id"], "referral",
                 f"Referred {req.username} via {method}", request.client.host)
-            db.award_referral_entries(
+            entry_award = db.award_referral_entries(
                 referrer["id"], user_id, tickets=engine.entry_unit(),
                 method=method)
+            # The INTERNAL programme's coin reward rides the SAME award: it
+            # accrues only when the entry award was actually made, so the
+            # per-cycle cap is one cap for both rewards and a capped signup
+            # cannot farm XMRJ past it. A rate of 0 writes nothing.
+            if entry_award.get("status") == "awarded":
+                db.award_referral_xmrj(referrer["id"], user_id)
 
     # Signup bonus — credited as tickets, not withdrawable XMR
     # 0.003 XMR worth = 3 tickets, but shown as "signup bonus"
@@ -2625,6 +2666,11 @@ async def api_admin_stats(request: Request):
     admin = require_admin(request)
     summary = db.get_pool_summary()
     summary["jackpot_current"] = engine.get_jackpot_balance()
+    # The card's second line (Oct 26): how much of that pot the daily
+    # funding accrual put there versus XMR actually received. Same
+    # balance, read twice — the split cannot disagree with the number
+    # above it.
+    summary["jackpot_split"] = engine.get_jackpot_split()
     summary["pool_stats"] = engine.get_pool_stats()
     return summary
 
@@ -2638,6 +2684,125 @@ async def api_admin_referral_meter(request: Request):
     """
     require_admin(request)
     return db.referral_admin_meter()
+
+
+# ── THE KRAKEN PAYOUT RECORDER (Oct 25, admin) ─────────────────
+# Kraken pays the referral bonus into the AFFILIATE's Kraken account, never
+# into the pool, and no Kraken feed tells us a payout happened — the
+# operator verifies it and records it here. The pool keeps its share
+# (kraken_pool_share_pct, default half) as a funding-ledger receipt; the
+# referrer keeps the rest from Kraken directly. Nothing is paid to a user
+# out of pool funds by this route.
+
+
+@app.get("/api/admin/referral/payouts")
+async def api_admin_referral_payouts(request: Request):
+    """The recorded Kraken payouts + the two referral settings (admin).
+
+    no-store: the card edits these settings, so a heuristically cached
+    copy would show stale values and the next save would post them back.
+    """
+    require_admin(request)
+    return JSONResponse(db.kraken_payout_summary(),
+                        headers={"Cache-Control": "no-store"})
+
+
+@app.post("/api/admin/referral/payout")
+async def api_admin_referral_payout_record(request: Request):
+    """Record ONE verified Kraken referral payout (admin).
+
+    Body: {user_id | username, amount_usd, note?}. Refuses an account that
+    was never referred, a non-positive amount, and a second recording for
+    the same account in the same month (the ledger row is unique per
+    account per month) — a re-run can never inflate the pot.
+    """
+    admin = require_admin(request)
+    body = await _push_body(request)
+    target = None
+    raw_id = body.get("user_id")
+    if raw_id not in (None, ""):
+        try:
+            target = db.get_user(int(raw_id))
+        except (TypeError, ValueError):
+            target = None
+    elif str(body.get("username") or "").strip():
+        target = db.get_user_by_username(str(body["username"]).strip())
+    if not target:
+        raise HTTPException(status_code=404, detail="no such user")
+    try:
+        gross = float(body.get("amount_usd"))
+    except (TypeError, ValueError):
+        raise HTTPException(status_code=400, detail="amount_usd required")
+    result = db.record_kraken_referral_payout(
+        target["id"], gross, note=str(body.get("note") or ""))
+    status = result.get("status")
+    if status == "no_referrer":
+        raise HTTPException(
+            status_code=409,
+            detail=f"'{target['username']}' was not referred by anyone — "
+                   f"there is no referrer to attribute the payout to")
+    if status == "already":
+        raise HTTPException(
+            status_code=409,
+            detail=f"a payout for '{target['username']}' is already recorded "
+                   f"for {result.get('period')} — nothing was credited")
+    if status in ("invalid", "no_pool_share"):
+        raise HTTPException(status_code=400,
+                            detail=f"refused: {status}")
+    if status == "ledger_refused":
+        raise HTTPException(status_code=502,
+                            detail="the funding ledger refused the receipt — "
+                                   "nothing was recorded")
+    kr.emit_audit(target["id"], "kraken_referral_payout.recorded",
+                  by="admin_panel", by_admin=str(admin["username"]),
+                  gross_usd=result.get("gross_usd"),
+                  pool_usd=result.get("pool_usd"),
+                  ledger_id=result.get("ledger_id"))
+    return JSONResponse({"ok": True, **result})
+
+
+@app.post("/api/admin/referral/config")
+async def api_admin_referral_config(request: Request):
+    """Set the internal programme's XMRJ rate and the Kraken pool share.
+
+    Both are plain operator settings; a blank field keeps the stored value,
+    so saving one never zeroes the other by accident.
+    """
+    admin = require_admin(request)
+    body = await _push_body(request)
+    changed = {}
+    # VALIDATE BOTH FIELDS BEFORE WRITING EITHER (Oct 26): the panel sends
+    # one request carrying both values. Writing the rate and then rejecting
+    # the share left a half-applied save behind an error message, and the
+    # card (re-reading the old share) made that look like nothing changed.
+    rate = pct = None
+    if body.get("xmrj_award") not in (None, ""):
+        try:
+            rate = max(0, int(float(body["xmrj_award"])))
+        except (TypeError, ValueError):
+            raise HTTPException(status_code=400,
+                                detail="xmrj_award must be a whole number")
+    if body.get("pool_share_pct") not in (None, ""):
+        try:
+            pct = int(float(body["pool_share_pct"]))
+        except (TypeError, ValueError):
+            raise HTTPException(status_code=400,
+                                detail="pool_share_pct must be a whole number")
+        if not 0 <= pct <= 100:
+            raise HTTPException(status_code=400,
+                                detail="pool_share_pct must be 0-100")
+    if rate is None and pct is None:
+        raise HTTPException(status_code=400, detail="nothing to change")
+    if rate is not None:
+        db.set_setting(db.XMRJ_RATE_KEY, str(rate))
+        changed["xmrj_award"] = rate
+    if pct is not None:
+        db.set_setting(db.KRAKEN_SHARE_KEY, str(pct))
+        changed["pool_share_pct"] = pct
+    kr.emit_audit(None, "referral.config_updated",
+                  by_admin=str(admin["username"]), **changed)
+    return JSONResponse({"ok": True, **changed,
+                         **db.kraken_payout_summary(limit=1)})
 
 
 @app.get("/api/admin/users")
@@ -2847,30 +3012,57 @@ async def api_jackpot_projection():
     TTL/staleness is surfaced, never hidden; when no projection has
     been persisted yet the API answers 200 with source 'none' and
     the card renders current-only."""
+    # THE TABLE IS AN ADVERTISEMENT AND THIS IS ITS ONE PUBLIC DOOR
+    # (Oct 26): projection_ad.read_estimate takes an AdSlot and refuses
+    # outright when an admin URL is being served. A forbidden read is a
+    # programming error, not "no data" — it must never be swallowed into
+    # the current-only response below.
     try:
-        proj = kr.latest_projection()
+        est = projection_ad.read_estimate(projection_ad.AdSlot.HERO)
+    except projection_ad.AdminReadForbidden:
+        raise
     except Exception:
-        proj = None
+        est = None
     current = engine.get_pool_stats()
     cur_usd = round(float(current.get("jackpot_usd") or 0.0), 2)
-    if not proj:
+    # THE CONVERSION IS DISCLOSED (Oct 26): every USD on this card was
+    # converted at this rate, and the descriptor says whose rate it is,
+    # how old, and whether it is the fallback. Same object /api/stats
+    # serves, so the hero plate and this card can never label differently.
+    rate_info = (current.get("xmr_usd_rate_info")
+                 or jackpot_funding.rate_info())
+    rate_num = round(float(rate_info.get("rate") or 0.0), 2)
+    if not est:
         return JSONResponse({
             "possible_future_jackpot_usd": cur_usd,
             "current_jackpot_usd": cur_usd,
             "referral_seed_usd": 0.0,
             "count_of_users_included": 0,
             "updated_at": None, "source": "none",
-            "mode": kr.provider_mode(), "fresh": False, "anomaly": 0})
+            "mode": kr.provider_mode(), "fresh": False, "anomaly": 0,
+            "xmr_usd_rate": rate_num,
+            "xmr_usd_rate_info": rate_info})
+    # THE CURRENT LEG IS READ LIVE (Oct 26): the row is an hourly
+    # SNAPSHOT converted at whatever rate the worker ran under, and the
+    # pot moves every block. Echoing the snapshot's "current" beside a
+    # live hero plate showed two different pots on one page (337 vs 620
+    # the day the rate stopped being a literal). The SEED still comes
+    # from the row — it is a projection and must not be recomputed per
+    # page — and possible is current + seed, the worker's own formula.
+    # `Estimate.total_with` has to be HANDED the live pot: this module
+    # cannot invent the money half of the sum.
+    seed = est.referral_seed_usd
     return JSONResponse({
-        "possible_future_jackpot_usd": round(
-            float(proj["possible_future_jackpot"]), 2),
-        "current_jackpot_usd": round(float(proj["current_jackpot"]), 2),
-        "referral_seed_usd": round(float(proj["referral_seed"]), 2),
-        "count_of_users_included": int(proj["count_of_users_included"]),
-        "updated_at": float(proj["updated_at"]),
-        "source": proj["source"], "mode": kr.provider_mode(),
-        "fresh": bool(proj.get("fresh")),
-        "anomaly": int(proj.get("anomaly") or 0)})
+        "possible_future_jackpot_usd": est.total_with(cur_usd),
+        "current_jackpot_usd": cur_usd,
+        "referral_seed_usd": seed,
+        "count_of_users_included": est.count_of_users,
+        "updated_at": est.updated_at,
+        "source": est.source, "mode": kr.provider_mode(),
+        "fresh": est.fresh,
+        "anomaly": est.anomaly,
+        "xmr_usd_rate": rate_num,
+        "xmr_usd_rate_info": rate_info})
 
 
 @app.post("/api/admin/kraken-referral/run")
@@ -4075,27 +4267,38 @@ if __name__ == "__main__":
                         except Exception as e:
                             print(f"[Wallet] Auto-load failed: {e}")
 
-                    pending = db.get_pending_payments()
-                    if pending:
-                        for p in pending:
-                            tx_info = xmr.get_transfer_by_txid(p["txid"])
-                            if tx_info and tx_info["confirmed"]:
-                                user = db.get_user(p["user_id"])
-                                miner = db.get_or_create_miner(user.get("wallet_address", "")) if user else None
-                                if miner:
-                                    # Credit free tickets for deposits (1 ticket per 0.001 XMR)
-                                    tickets = int(tx_info["amount"] / 0.001)
-                                    db.add_tickets(miner["id"], "free", tickets)
-                                db.credit_payment(p["id"], tickets if tickets else 0)
+                    # THE DEPOSIT SCAN IS QUARANTINED (Oct 26): this
+                    # block used to share one try with the house-tax
+                    # send, the claim rollover and the seed below, so a
+                    # query that raised here (get_pending_payments'
+                    # created_at) silently killed all three for 24 days
+                    # while drawing 15 sat past its deadline. A broken
+                    # deposit scan may never again stop the rollover.
+                    try:
+                        pending = db.get_pending_payments()
+                        if pending:
+                            for p in pending:
+                                tx_info = xmr.get_transfer_by_txid(p["txid"])
+                                if tx_info and tx_info["confirmed"]:
+                                    user = db.get_user(p["user_id"])
+                                    miner = db.get_or_create_miner(user.get("wallet_address", "")) if user else None
+                                    if miner:
+                                        # Credit free tickets for deposits (1 ticket per 0.001 XMR)
+                                        tickets = int(tx_info["amount"] / 0.001)
+                                        db.add_tickets(miner["id"], "free", tickets)
+                                    db.credit_payment(p["id"], tickets if tickets else 0)
 
-                    known = db.get_all_subaddress_mappings()
-                    if known:
-                        payments = xmr.scan_new_payments(known)
-                        for pmt in payments:
-                            db.record_payment(
-                                pmt["user"], pmt["txid"], pmt["amount"],
-                                pmt["subaddr_index"], pmt["height"], pmt["confirmations"]
-                            )
+                        known = db.get_all_subaddress_mappings()
+                        if known:
+                            payments = xmr.scan_new_payments(known)
+                            for pmt in payments:
+                                db.record_payment(
+                                    pmt["user"], pmt["txid"], pmt["amount"],
+                                    pmt["subaddr_index"], pmt["height"], pmt["confirmations"]
+                                )
+                    except Exception as e:
+                        print(f"[Wallet] Deposit scan failed: {type(e).__name__}: {e} — "
+                              "house tax, claim rollover and seed continue")
 
                     result = engine.check_and_send_house_tax()
                     if result:
@@ -4125,7 +4328,12 @@ if __name__ == "__main__":
                                 print(f"[Seed] Jackpot seeded from house tax: {seed_amount:.6f} XMR (house tax remaining: {house_tax - seed_amount:.6f})")
 
                 _time.sleep(60)
-            except Exception:
+            except Exception as e:
+                # A SILENT SWALLOW COST 24 DAYS (Oct 26): the bare
+                # handler slept and said nothing, so a query raising on
+                # every cycle hid the whole branch from the log. The
+                # next silent death must be visible instead.
+                print(f"[Scanner] cycle failed: {type(e).__name__}: {e}")
                 _time.sleep(60)
 
     scanner = threading.Thread(target=payment_scanner_loop, daemon=True)

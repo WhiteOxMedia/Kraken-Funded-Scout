@@ -208,7 +208,6 @@ console.log('Test 4: activate posts to /scout/activate with 409 limiter render')
 document.body.innerHTML = '';
 window.identityWallet = 'sol_test_wallet_123';
 window.selectedScoutId = 42;
-window.xmrjUnlockProof = 'proof_abc';
 
 const test4Ids = ['btnWfScoutPurchaseActivate', 'wfScoutActivationLimiter', 'wfScoutUnlockStatus'];
 const { boundOnClick: t4OnClick, boundEvents: t4Events } = setupElements(test4Ids);
@@ -231,7 +230,6 @@ global.window.fetch = testFetch;
 // The patch now delegates activation to scout_paywall's exposed function.
 const activated = [];
 window.selectedScoutId = 42;
-window.xmrjUnlockProof = 'proof_abc';
 window.XMRJackpotScoutPaywall = {
   activateScout: function () { activated.push(true); }
 };
@@ -264,7 +262,6 @@ console.log('Test 5: already_active:true path still delegates to scout_paywall')
 document.body.innerHTML = '';
 window.identityWallet = 'already_active_wallet';
 window.selectedScoutId = 7;
-window.xmrjUnlockProof = 'proof_already';
 
 const test5Ids = [
   'btnWfScoutPurchaseActivate',

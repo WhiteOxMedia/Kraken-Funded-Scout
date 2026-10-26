@@ -239,6 +239,12 @@ def init_db():
             "house_wallet": house_wallet,
             "upstream_pool": "pool.supportxmr.com:3333",
             "jackpot_balance": "0",
+            # WHO FUNDED THE BASE (Oct 26): the two counters behind the
+            # admin pot card's accrual-vs-received line. Derived state —
+            # the engine reconciles them to jackpot_balance on read, so a
+            # stale or missing value can only mislabel the split.
+            "jackpot_src_accrual": "0",
+            "jackpot_src_received": "0",
             "kraken_deposit_address": kraken_deposit,
             "payout_threshold_xmr": "0.01",
             "transfer_fee_buffer_xmr": "0.0001",
@@ -572,6 +578,56 @@ def init_db():
         conn.execute(
             "CREATE INDEX IF NOT EXISTS idx_referral_awards_cycle "
             "ON referral_awards(referrer_id, cycle_anchor)")
+
+        # ─── The XMRJ referral accrual (Oct 25) ───
+        # The INTERNAL programme's coin reward. There is no XMRJ token to
+        # move: the XMRJ treasury program (Anchor source only, nothing
+        # deployed on any cluster) books XMRJ as a u64 in its state PDA via
+        # record_inflow_xmrj, and no mint exists anywhere. So an award is
+        # ACCRUED here — the amount, the referrer, the Solana wallet the
+        # pool knows at read time — and is payable when the treasury is
+        # deployed. UNIQUE per referred account: one friend, one award.
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS referral_xmrj_awards (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                referrer_id INTEGER NOT NULL,
+                referred_user_id INTEGER NOT NULL UNIQUE,
+                amount INTEGER NOT NULL DEFAULT 0,
+                solana_wallet TEXT NOT NULL DEFAULT '',
+                status TEXT NOT NULL DEFAULT 'accrued',
+                created_at INTEGER NOT NULL DEFAULT (strftime('%s','now'))
+            )
+            """)
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_referral_xmrj_referrer "
+            "ON referral_xmrj_awards(referrer_id)")
+
+        # ─── Kraken payouts the operator records into the pot (Oct 25) ───
+        # Kraken pays a referral bonus into the AFFILIATE's Kraken account,
+        # never into the pool. The operator records the payout by hand; the
+        # pool keeps its share (kraken_pool_share_pct, default 50) and the
+        # referrer keeps the rest from Kraken directly. UNIQUE per referred
+        # account per month, so a re-run cannot credit the pot twice.
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS kraken_referral_payouts (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                referred_user_id INTEGER NOT NULL,
+                referrer_id INTEGER NOT NULL,
+                gross_usd REAL NOT NULL,
+                pool_usd REAL NOT NULL,
+                pct INTEGER NOT NULL,
+                period TEXT NOT NULL,
+                ledger_id INTEGER,
+                note TEXT NOT NULL DEFAULT '',
+                created_at INTEGER NOT NULL DEFAULT (strftime('%s','now')),
+                UNIQUE (referred_user_id, period)
+            )
+            """)
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_kraken_payouts_referrer "
+            "ON kraken_referral_payouts(referrer_id, created_at)")
 
         # ─── Ticket provenance (Oct 24) ───
         tcols = {r["name"] for r in conn.execute(
@@ -1396,6 +1452,249 @@ def referral_award_summary(user_id):
     return {"awards_this_cycle": used, "cycle_cap": cap,
             "entries_held": held, "cycle_anchor": cycle,
             "remaining": max(0, cap - used)}
+
+
+# ─── THE XMRJ AWARD (Oct 25, internal programme) ───
+# The reward unit is an INTEGER, exactly like the treasury program's
+# record_inflow_xmrj(amount: u64) — that program's own arithmetic, so a
+# number accrued here can be booked there unchanged when it ships. No
+# token, no mint, no chain call: this module only ever writes a ledger.
+XMRJ_RATE_KEY = "referral_xmrj_award"
+KRAKEN_SHARE_KEY = "kraken_pool_share_pct"
+DEFAULT_KRAKEN_SHARE_PCT = 50
+
+
+def referral_xmrj_rate():
+    """XMRJ per successful referral. 0 (the default) means the operator
+    has not set a rate yet — nothing is awarded and no surface invents
+    one."""
+    try:
+        return max(0, int(float(get_setting(XMRJ_RATE_KEY, "0"))))
+    except (TypeError, ValueError):
+        return 0
+
+
+def solana_wallet_for_user(user_id):
+    """The user's connected Solana wallet — the identity_token the Scout
+    activation flow records (scout_identities.identity_token). Empty when
+    the account has not connected one: the award still accrues, it just
+    has nowhere to be paid yet."""
+    try:
+        uid = int(user_id)
+    except (TypeError, ValueError):
+        return ""
+    with get_db() as conn:
+        row = conn.execute(
+            "SELECT identity_token FROM scout_identities WHERE user_id = ? "
+            "ORDER BY id DESC LIMIT 1", (uid,)).fetchone()
+    return str((row["identity_token"] if row else "") or "").strip()
+
+
+def award_referral_xmrj(referrer_id, referred_user_id, amount=None):
+    """Accrue the internal programme's XMRJ reward for one referral.
+
+    Idempotent by construction: referral_xmrj_awards.referred_user_id is
+    UNIQUE, so the same friend can never pay twice. `amount` defaults to
+    the operator's setting; a rate of 0 is "unconfigured" and writes
+    nothing rather than inventing a number.
+
+    The wallet is snapshotted when one is already connected, and resolved
+    live at display time otherwise — connecting a wallet later must never
+    mean re-running the award.
+    """
+    try:
+        referrer_id = int(referrer_id)
+        referred_user_id = int(referred_user_id)
+    except (TypeError, ValueError):
+        return {"status": "invalid"}
+    if referrer_id <= 0 or referred_user_id <= 0:
+        return {"status": "invalid"}
+    if referrer_id == referred_user_id:
+        return {"status": "self"}
+    if amount is None:
+        amount = referral_xmrj_rate()
+    try:
+        amount = max(0, int(amount))
+    except (TypeError, ValueError):
+        return {"status": "invalid"}
+    if amount <= 0:
+        return {"status": "unconfigured", "amount": 0}
+    if not get_user(referrer_id) or not get_user(referred_user_id):
+        return {"status": "unknown_user"}
+
+    wallet = solana_wallet_for_user(referrer_id)
+    with get_db() as conn:
+        if conn.execute(
+                "SELECT 1 FROM referral_xmrj_awards WHERE referred_user_id "
+                "= ?", (referred_user_id,)).fetchone():
+            return {"status": "already", "amount": amount}
+        try:
+            cur = conn.execute(
+                "INSERT INTO referral_xmrj_awards (referrer_id, "
+                "referred_user_id, amount, solana_wallet, status) "
+                "VALUES (?, ?, ?, ?, 'accrued')",
+                (referrer_id, referred_user_id, amount, wallet))
+            award_id = cur.lastrowid
+        except sqlite3.IntegrityError:
+            return {"status": "already", "amount": amount}
+    try:
+        add_audit_log(
+            referrer_id, "referral_xmrj",
+            f"referred user {referred_user_id}: {amount} XMRJ accrued "
+            f"(wallet {'set' if wallet else 'not connected yet'})")
+    except Exception:
+        pass
+    return {"status": "awarded", "award_id": award_id, "amount": amount,
+            "wallet": wallet}
+
+
+def referral_xmrj_summary(user_id):
+    """The internal card's numbers: the rate, what this account has
+    accrued, and the Solana wallet it would be paid to."""
+    try:
+        uid = int(user_id)
+    except (TypeError, ValueError):
+        uid = 0
+    with get_db() as conn:
+        row = conn.execute(
+            "SELECT COUNT(*) AS n, COALESCE(SUM(amount), 0) AS total "
+            "FROM referral_xmrj_awards WHERE referrer_id = ?",
+            (uid,)).fetchone()
+    wallet = solana_wallet_for_user(uid)
+    count = int((row["n"] if row else 0) or 0)
+    total = int((row["total"] if row else 0) or 0)
+    rate = referral_xmrj_rate()
+    return {
+        "xmrj_per_referral": rate,
+        "xmrj_awarded": total,
+        "xmrj_referrals": count,
+        "xmrj_status": "accrued",
+        "solana_wallet": wallet,
+        "xmrj_payable": bool(wallet and total > 0),
+    }
+
+
+# ─── KRAKEN PAYOUTS THE OPERATOR RECORDS (Oct 25) ───
+def kraken_pool_share_pct():
+    """The pool's share of a recorded Kraken payout, in whole percent.
+    Default 50: the referrer keeps the other half from Kraken directly."""
+    try:
+        pct = int(float(get_setting(KRAKEN_SHARE_KEY,
+                                    str(DEFAULT_KRAKEN_SHARE_PCT))))
+    except (TypeError, ValueError):
+        pct = DEFAULT_KRAKEN_SHARE_PCT
+    return min(100, max(0, pct))
+
+
+def _referrer_of(referred_user_id):
+    """The account that referred this user: the referral_awards ledger
+    first (it is the award that actually paid), then users.referred_by
+    (the code the signup recorded)."""
+    with get_db() as conn:
+        row = conn.execute(
+            "SELECT referrer_id FROM referral_awards WHERE referred_user_id "
+            "= ?", (int(referred_user_id),)).fetchone()
+    if row:
+        return get_user(int(row["referrer_id"]))
+    user = get_user(int(referred_user_id)) or {}
+    code = (user.get("referred_by") or "").strip()
+    return get_user_by_referral_code(code) if code else None
+
+
+def record_kraken_referral_payout(referred_user_id, gross_usd, note=""):
+    """Record a Kraken referral payout the operator has verified.
+
+    The pool keeps kraken_pool_share_pct of the gross (default half) and
+    the referrer keeps the rest from Kraken directly — this function never
+    pays a user out of pool funds. Idempotent per referred account per
+    calendar month, so re-running a receipt cannot inflate the pot.
+
+    Returns a status dict; the caller treats every non-'recorded' status
+    as a refusal, never as a crash.
+    """
+    try:
+        uid = int(referred_user_id)
+        gross = float(gross_usd)
+    except (TypeError, ValueError):
+        return {"status": "invalid"}
+    if gross <= 0:
+        return {"status": "invalid"}
+    if not get_user(uid):
+        return {"status": "unknown_user"}
+    referrer = _referrer_of(uid)
+    if not referrer:
+        return {"status": "no_referrer"}
+    referrer_id = int(referrer["id"])
+    if referrer_id == uid:
+        return {"status": "self"}
+    pct = kraken_pool_share_pct()
+    pool_usd = round(gross * pct / 100.0, 2)
+    if pool_usd <= 0:
+        return {"status": "no_pool_share", "pct": pct}
+    period = time.strftime("%Y-%m")
+    with get_db() as conn:
+        try:
+            cur = conn.execute(
+                "INSERT INTO kraken_referral_payouts (referred_user_id, "
+                "referrer_id, gross_usd, pool_usd, pct, period, note) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?)",
+                (uid, referrer_id, round(gross, 2), pool_usd, pct, period,
+                 str(note or "")[:200]))
+            payout_id = cur.lastrowid
+        except sqlite3.IntegrityError:
+            return {"status": "already", "period": period,
+                    "referrer_id": referrer_id}
+
+    import jackpot_funding as funding          # local: funding imports us
+    ledger_id = funding.record_funding(
+        "referral_bonus", pool_usd, sponsor_id=referrer_id,
+        source="kraken_referral_payout")
+    if ledger_id is None:                      # refused — unwind the receipt
+        with get_db() as conn:
+            conn.execute("DELETE FROM kraken_referral_payouts WHERE id = ?",
+                         (payout_id,))
+        return {"status": "ledger_refused", "pool_usd": pool_usd}
+    with get_db() as conn:
+        conn.execute(
+            "UPDATE kraken_referral_payouts SET ledger_id = ? WHERE id = ?",
+            (int(ledger_id), payout_id))
+    try:
+        add_audit_log(
+            referrer_id, "kraken_referral_payout",
+            f"referred user {uid}: ${gross:.2f} gross recorded, "
+            f"${pool_usd:.2f} to the pot ({pct}%), ledger {ledger_id}")
+    except Exception:
+        pass
+    return {"status": "recorded", "id": payout_id,
+            "referrer_id": referrer_id,
+            "referrer_username": referrer["username"],
+            "gross_usd": round(gross, 2), "pool_usd": pool_usd,
+            "referrer_keeps_usd": round(gross - pool_usd, 2),
+            "pct": pct, "period": period, "ledger_id": int(ledger_id)}
+
+
+def kraken_payout_summary(limit=10):
+    """The admin card's read: the recorded payouts, newest first, plus
+    the totals they add up to. Read-only."""
+    with get_db() as conn:
+        rows = [dict(r) for r in conn.execute(
+            "SELECT p.*, ru.username AS referred_username, "
+            "rr.username AS referrer_username FROM kraken_referral_payouts p "
+            "LEFT JOIN users ru ON ru.id = p.referred_user_id "
+            "LEFT JOIN users rr ON rr.id = p.referrer_id "
+            "ORDER BY p.id DESC LIMIT ?", (int(limit),)).fetchall()]
+        agg = conn.execute(
+            "SELECT COUNT(*) AS n, COALESCE(SUM(gross_usd), 0) AS gross, "
+            "COALESCE(SUM(pool_usd), 0) AS pool "
+            "FROM kraken_referral_payouts").fetchone()
+    return {
+        "payouts": rows,
+        "count": int((agg["n"] if agg else 0) or 0),
+        "gross_usd": round(float((agg["gross"] if agg else 0) or 0), 2),
+        "pool_usd": round(float((agg["pool"] if agg else 0) or 0), 2),
+        "pool_share_pct": kraken_pool_share_pct(),
+        "xmrj_per_referral": referral_xmrj_rate(),
+    }
 
 
 def referral_admin_meter(limit_referrers=10, limit_recent=10):
@@ -2345,9 +2644,19 @@ def credit_payment(payment_id, tickets_awarded):
 
 
 def get_pending_payments():
+    """Deposit rows still awaiting confirmation, oldest first.
+
+    payment_verifications has never had a created_at column (it stamps
+    scanned_at and credited_at — the same trap get_user_payments
+    documents), so ORDER BY created_at raised on EVERY call. The server's
+    payment scanner swallowed that raise and with it every step after
+    it, including the 7-day claim rollover. Order by a column the table
+    actually carries.
+    """
     with get_db() as conn:
         rows = conn.execute(
-            "SELECT * FROM payment_verifications WHERE status IN ('pending', 'confirming') ORDER BY created_at"
+            "SELECT * FROM payment_verifications WHERE status IN ('pending', 'confirming') "
+            "ORDER BY COALESCE(scanned_at, 0) ASC, id ASC"
         ).fetchall()
         return [dict(r) for r in rows]
 

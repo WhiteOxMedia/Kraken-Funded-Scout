@@ -236,12 +236,13 @@ Kraken Scout (`/downloads/KrakenScoutBundle.zip`). Scout is the paid
 product: the download is free, activation is Scout Pro — the price and
 duration come from the same settings the checkout reads
 (`scout_pro_price_xmr`, `scout_pro_days`; 0.01 XMR / 30 days by
-default) or an XMRJ unlock — and unlocking happens in the dashboard,
-not on the download page. The XMRJ side settles through
-`xmrj_treasury`, whose `reserve_bps` + `jackpot_bps` split (fixed at
-`initialize`, governance-settable afterwards) is the only path that
-adds XMR to the jackpot. Two honesty rules ride with this: the miner
-.bat writes a placeholder wallet, so the page says outright that those
+default) — and unlocking happens in the dashboard, not on the download
+page. The checkout is Monero-only: it opens a fresh subaddress for the
+order, matches the transfer, grants the entitlement, and credits the
+donation to the pot once per order. There is no XMRJ unlock; the
+`xmrj_*` Solana programs exist but are undeployed and uncalled (see
+MEMO_COMPLIANCE_AUDIT.md B28). Two honesty rules ride with this: the
+miner .bat writes a placeholder wallet, so the page says outright that those
 shares are not credited and points at the dashboard installer instead;
 and the xmrig pin is the release **zip's** SHA256, not the exe's
 (Oct 24: the fallback named `xmrig-6.26.0-msvc-win64.zip`, which GitHub

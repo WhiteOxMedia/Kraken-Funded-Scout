@@ -54,7 +54,7 @@
     modal.innerHTML =
       '<div style="max-width:430px;width:100%;background:#fff;color:#1c1c1e;' +
       'border-radius:12px;padding:20px;box-shadow:0 20px 60px rgba(0,0,0,.35);">' +
-      '<h3 style="margin:0 0 6px;font-size:1.1em;">Donate &amp; unlock Scout Pro</h3>' +
+      '<h3 style="margin:0 0 6px;font-size:1.1em;">Unlock Scout Pro</h3>' +
       '<p id="donate-status" style="margin:8px 0;font-size:.9em;color:#555;">Starting checkout…</p>' +
       '<div id="donate-details" style="display:none;margin-top:10px;">' +
       '<div style="font-size:.78em;color:#777;text-transform:uppercase;letter-spacing:.04em;">Send exactly</div>' +
@@ -97,7 +97,7 @@
     function tick() {
       var left = Math.max(0, Math.round(Number(current.expires_at) - Date.now() / 1000));
       if (left <= 0) {
-        el.textContent = "Checkout expired — click Donate again for a fresh address.";
+        el.textContent = "Checkout expired — click Unlock again for a fresh address.";
         return;
       }
       var m = Math.floor(left / 60);
@@ -113,7 +113,8 @@
     current = order;
     var details = $("donate-details");
     if (details) details.style.display = "block";
-    $("donate-amount").textContent = money(order.amount_xmr) + " XMR";
+    $("donate-amount").textContent = money(order.amount_xmr) + " XMR" +
+      (order.amount_usd ? " (≈$" + Number(order.amount_usd).toFixed(2) + ")" : "");
     $("donate-address").textContent = order.address || "";
     var link = $("donate-pay-link");
     if (link) link.href = order.checkout_url || ("monero:" + (order.address || ""));
@@ -126,9 +127,23 @@
     var details = $("donate-details");
     if (details) details.style.display = "none";
     var until = order.scout_pro && order.scout_pro.until;
+    var sp = order.scout_pro || {};
+    // The donation is jackpot money and the unlock awards one entry: say
+    // both, and say so honestly when the entry is held for a wallet.
+    var entry = sp.entry_held
+      ? " Your +1 jackpot entry is held until you add a payout wallet."
+      : (sp.entry_awarded ? " Your +1 jackpot entry is in the pot." : "");
     setStatus("Payment confirmed — Scout Pro unlocked" +
-      (until ? " until " + when(until) + "." : "."));
-    note("Scout Pro unlocked" + (until ? " until " + when(until) + "." : "."));
+      (until ? " until " + when(until) + "." : ".") +
+      " Your donation went into the jackpot." + entry);
+    note("Scout Pro unlocked" + (until ? " until " + when(until) + "." : ".") +
+      " Donation added to the jackpot." + entry);
+    // THE PAYWALL OPENS NOW (Oct 24): the bridge caches the server's
+    // verdict in the flag every alert path reads, so the buyer's alerts
+    // work on this page, not after a reload.
+    if (window.XMRScoutPro && window.XMRScoutPro.refresh) {
+      window.XMRScoutPro.refresh();
+    }
   }
 
   function pollStatus(orderId) {
@@ -143,7 +158,7 @@
         if (d.status === "paid") succeeded(d);
         else if (d.status === "expired") {
           stopPolling();
-          setStatus("Checkout expired — click Donate again for a fresh address.");
+          setStatus("Checkout expired — click Unlock again for a fresh address.");
         }
         return d;
       })
@@ -178,9 +193,14 @@
       })
     }).then(function (r) {
       return r.json().catch(function () { return null; })
-        .then(function (d) { return { ok: r.ok, data: d }; });
+        .then(function (d) { return { ok: r.ok, status: r.status, data: d }; });
     }).then(function (res) {
       var d = res.data;
+      if (res.status === 401) {
+        // A signed-out visitor is not a broken checkout: say what to do.
+        setStatus("Sign in to start checkout — nothing was charged.");
+        return;
+      }
       if (!res.ok || !d || d.status === "error") {
         setStatus((d && d.message) || "Checkout is unavailable right now — nothing was charged.");
         return;

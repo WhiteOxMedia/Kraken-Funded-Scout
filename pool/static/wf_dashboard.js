@@ -149,6 +149,14 @@
       .then(function (r) { return r.ok ? r.json() : null; })
       .then(function (d) {
         var rows = (d && d.signals) || [];
+        if (d && d.scout_pro_required) {
+          // THE SERVER SAID NO (Oct 24): the feed is the paid product's
+          // history, so name the lock instead of pretending it is empty.
+          feed.innerHTML = '<span class="wf-feed-empty">Scout signals are ' +
+            'part of Kraken Scout Pro — unlock from the panel below to ' +
+            'receive them.</span>';
+          return;
+        }
         if (!rows.length) {
           feed.innerHTML = '<span class="wf-feed-empty">No signals pushed yet — ' +
             'they appear here the moment Scout fires.</span>';
@@ -253,12 +261,22 @@
 
     var jackpot = cycleInt(d.jackpot_xmr);
     var usd = cycleInt(d.jackpot_usd);
+    // THE CONVERSION IS NAMED (Oct 26): "(~$645)" without a rate hides
+    // the fact that it is a conversion, and hides a stale or fallback
+    // rate behind a confident-looking dollar sign.
+    var ri = d.xmr_usd_rate_info || null;
+    var rateNote = "";
+    if (ri && ri.label) {
+      var line = String(ri.label);
+      rateNote = " " + line.charAt(0).toUpperCase() + line.slice(1) + ".";
+    }
     setCycle(
       "wfJackpotCycleExplain",
       jackpot == null
         ? ""
         : "Current jackpot: " + jackpot.toLocaleString() + " XMR" +
-          (usd && usd > 0 ? " (~$" + usd.toLocaleString() + ")" : "") + "."
+          (usd && usd > 0 ? " (~$" + usd.toLocaleString() + ")" : "") +
+          "." + rateNote
     );
 
     setCycle("wfJackpotCycleBlocker", "");

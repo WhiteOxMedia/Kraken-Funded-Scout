@@ -57,7 +57,7 @@
       <a class="btn btn-outline btn-lg" style="text-decoration:none;" href="/downloads/KrakenScoutBundle.zip" download>Download Kraken Scout</a>
     </div>
     <p style="margin-top:12px;">
-      <a class="btn btn-outline" style="text-decoration:none;" href="/#dashboard">Unlock Kraken Scout Pro — {{PRO_PRICE_XMR}} XMR (≈${{PRO_PRICE_USD}} at today's rate). Your support increases the daily jackpot and earns you an entry</a>
+      <a class="btn btn-outline" style="text-decoration:none;" href="/#dashboard">Unlock Kraken Scout Pro — ${{PRO_PRICE_USD}} (≈{{PRO_PRICE_XMR}} XMR at today's rate). 70% of it goes into the daily jackpot, 30% is kept by the operator, and it earns you an entry</a>
     </p>
 
     <!-- assurance chips: the same flat badge grammar the workflow
@@ -666,7 +666,7 @@
     <div class="card-header">❓ FAQ</div>
     <div style="font-size:0.9em;color:var(--text-dim);line-height:1.9;">
       <p>✅ <b>Free to use</b> — no cost to mine and earn entries.</p>
-      <p>✅ <b>No deposits to enter</b> — entries come from mining, never from money. Scout Pro is an optional one-off donation of {{PRO_PRICE_XMR}} XMR (≈${{PRO_PRICE_USD}}) for alerts; it buys nothing in the drawing.</p>
+      <p>✅ <b>No deposits to enter</b> — entries come from mining, never from money. Scout Pro is an optional one-off purchase of ${{PRO_PRICE_USD}} (≈{{PRO_PRICE_XMR}} XMR) for alerts; 70% of it funds the daily jackpot and 30% is kept by the operator — it buys nothing in the drawing.</p>
       <p>✅ <b>No wallet needed to mine</b> — mining works right away.</p>
       <p>✅ <b>Wallet needed to receive winnings</b> — add one to claim prizes.</p>
       <p>✅ <b>Winner contacted in-account</b> if wallet not connected.</p>
@@ -903,7 +903,7 @@
   <!-- KRAKEN SCOUT AND KRAKEN SCOUT PRO (Oct 24): the How to Play page now
        explains both products and what each one does to your odds. The rule
        the copy keeps: tickets come from mining shares; the two Pro unlock
-       paths ({{PRO_DAYS}} contributing days, an XMR donation) each award exactly one
+       paths ({{PRO_DAYS}} contributing days, a paid unlock) each award exactly one
        +1 jackpot entry, and neither changes hashrate or share conversion. -->
   <div class="card" id="howto-scout" style="margin-top:24px;border-color:var(--gold-dark);background:var(--gradient-jackpot);">
     <div class="card-header" style="color:var(--gold-bright);">🦑 Kraken Scout and Kraken Scout Pro</div>
@@ -922,8 +922,8 @@
       <div class="security-item-title">💎 Kraken Scout Pro — signals on your phone, two ways to unlock</div>
       <p>Pro sends <b>“Buy Now” / “Exit Now”</b> signals — LONG bullish calls only — straight to your phone, and unlocks the console that automates <b>Kraken.com's Funded Challenge</b>: entry checks, position execution, exits and the proof trail, all against Kraken's own published rules.</p>
       <p><b>Unlock path 1 — {{PRO_DAYS}} days of mining.</b> Every day your mining bot contributes shares to the jackpot counts once. At {{PRO_DAYS}} days Pro unlocks automatically, and the unlock awards <b>+1 jackpot entry</b>.</p>
-      <p><b>Unlock path 2 — a {{PRO_PRICE_XMR}} XMR donation.</b> Unlock from your dashboard. The checkout charges <b>{{PRO_PRICE_XMR}} XMR (≈${{PRO_PRICE_USD}})</b>, the donation goes into the daily jackpot, and the unlock awards <b>+1 jackpot entry</b>.</p>
-      <p style="margin-bottom:0;"><a class="btn btn-outline btn-sm" style="text-decoration:none;" href="/#dashboard">Unlock Kraken Scout Pro — {{PRO_PRICE_XMR}} XMR (≈${{PRO_PRICE_USD}}). Your support increases the daily jackpot and earns you an entry</a></p>
+      <p><b>Unlock path 2 — a ${{PRO_PRICE_USD}} purchase.</b> Unlock from your dashboard. The checkout charges <b>${{PRO_PRICE_USD}} (≈{{PRO_PRICE_XMR}} XMR at today's rate)</b>; 70% of the price goes into the daily jackpot, the operator keeps 30%, and the unlock awards <b>+1 jackpot entry</b>.</p>
+      <p style="margin-bottom:0;"><a class="btn btn-outline btn-sm" style="text-decoration:none;" href="/#dashboard">Unlock Kraken Scout Pro — ${{PRO_PRICE_USD}} (≈{{PRO_PRICE_XMR}} XMR). 70% goes into the daily jackpot, 30% is kept by the operator, and it earns you an entry</a></p>
     </div>
 
     <div class="security-item" style="margin-bottom:0;">
@@ -1047,7 +1047,7 @@
       <p style="margin-bottom:10px;"><b style="color:var(--gold);">Streak.</b> A contributing day is a UTC day in which your miner submitted shares. On every 7th consecutive contributing day that day's shares convert at <b>3×</b>; on other days they convert at 1×. The bonus changes entries only — never your hashrate.</p>
       <p style="margin-bottom:10px;"><b style="color:var(--gold);">The pot.</b> The prize shown on the homepage is the pool's configured balance <i>minus every prize already drawn but not yet claimed</i>. Money is never counted twice: a claim removes the paid amount from the balance, and a prize unclaimed after <b>{{CLAIM_DAYS}} days</b> returns to the pot for the next drawing.</p>
       <p style="margin-bottom:10px;"><b style="color:var(--gold);">The drawing.</b> A new drawing runs every <b>{{DRAW_HOURS}} hours</b>. One entry is selected from that round's recorded entries; the winner receives <b>{{WINNER_PCT}}%</b> of the pot and the remaining <b>{{HOUSE_TAX_PCT}}%</b> is the house tax, which stays in the pool and seeds the next prize. The pick is commit-reveal: the commitment is published before the draw, the seed is derived with a Monero block hash, and every drawing can be re-checked at <code>/api/verify/{id}</code>.</p>
-      <p style="margin-bottom:10px;"><b style="color:var(--gold);">Scout Pro — the two unlocks.</b> Pro is unlocked either by <b>{{PRO_DAYS}} contributing days</b> or by a <b>one-off donation of {{PRO_PRICE_XMR}} XMR (≈${{PRO_PRICE_USD}} at the current rate)</b> at checkout. That XMR is the exact amount the checkout asks for, it is credited to the jackpot once per order, and either path awards <b>exactly one +1 entry</b>. If your account has no payout wallet yet, the entry is <i>held</i> on the account (not lost) and is minted the moment a wallet is attached.</p>
+      <p style="margin-bottom:10px;"><b style="color:var(--gold);">Scout Pro — the two unlocks.</b> Pro is unlocked either by <b>{{PRO_DAYS}} contributing days</b> or by a <b>one-off purchase of ${{PRO_PRICE_USD}} (≈{{PRO_PRICE_XMR}} XMR at the current rate)</b> at checkout. That is the exact price the checkout asks for; 70% of it is credited to the jackpot and 30% is kept by the operator, once per order. Either path awards <b>exactly one +1 entry</b>. If your account has no payout wallet yet, the entry is <i>held</i> on the account (not lost) and is minted the moment a wallet is attached.</p>
       <p style="margin-bottom:10px;"><b style="color:var(--gold);">Alerts.</b> Buy/sell alerts are served by the pool only to a signed-in account that holds Pro: the entitlement is checked on the server for every signal request, so a locked account receives no notifications regardless of what the browser sends.</p>
       <p style="margin-bottom:0;"><b style="color:var(--gold);">Demo data.</b> A fresh install can be seeded with simulated miners so the pool is not an empty page. They are flagged and shown as <b>demo</b> on the leaderboard, and counted in a disclosure line under the homepage prize — they are never presented as real participants.</p>
     </div>
@@ -1057,7 +1057,7 @@
   <div class="card" style="margin-top:16px;border-color:rgba(255,100,100,0.2);">
     <div class="card-header">⚠️ Responsible Play</div>
     <div style="font-size:0.8em;color:var(--text-dim);line-height:1.7;">
-      <p>This is a mining pool with a prize-drawing system. Entry is free via mining and no purchase is needed to take part; the only paid item on the site is an optional Scout Pro donation for alerts.</p>
+      <p>This is a mining pool with a prize-drawing system. Entry is free via mining and no purchase is needed to take part; the only paid item on the site is an optional Scout Pro purchase for alerts.</p>
       <p>• <b>Free mining is always available</b> — you never need to pay to participate in the daily drawing.</p>
       <p>• <b>Mining electricity costs are real.</b> Your CPU power consumption increases while mining. Monitor your electricity costs.</p>
       <p>• If you feel you may have a gambling problem, visit <a href="https://www.begambleaware.org" target="_blank" style="color:#7c7cff;">begambleaware.org</a> or call 1-800-522-4700 (US National Problem Gambling Helpline).</p>
@@ -1912,10 +1912,10 @@
           <div style="font-size:0.78em;margin-top:6px;" id="progPath100">—</div>
         </div>
         <div style="border:1px solid var(--gold);border-radius:12px;padding:12px;">
-          <div style="font-weight:700;color:var(--text);font-size:0.9em;margin-bottom:4px;">💎 {{PRO_PRICE_XMR}} XMR donation</div>
-          <div style="font-size:0.78em;color:var(--text-dim);line-height:1.6;">Unlock now. The checkout charges {{PRO_PRICE_XMR}} XMR (≈${{PRO_PRICE_USD}}) to a fresh address; the donation goes into the daily jackpot and earns you <b style="color:var(--gold);">+1 jackpot entry</b>.</div>
+          <div style="font-weight:700;color:var(--text);font-size:0.9em;margin-bottom:4px;">💎 ${{PRO_PRICE_USD}} purchase</div>
+          <div style="font-size:0.78em;color:var(--text-dim);line-height:1.6;">Unlock now. The checkout charges ${{PRO_PRICE_USD}} (≈{{PRO_PRICE_XMR}} XMR) to a fresh address; 70% goes into the daily jackpot, 30% is kept by the operator, and the unlock earns you <b style="color:var(--gold);">+1 jackpot entry</b>.</div>
           <div style="font-size:0.78em;margin-top:6px;" id="progPath95">—</div>
-          <a class="btn btn-gold btn-sm" style="text-decoration:none;margin-top:8px;display:inline-block;" href="#wfScoutPurchasePanel">Donate &amp; unlock Scout Pro</a>
+          <a class="btn btn-gold btn-sm" style="text-decoration:none;margin-top:8px;display:inline-block;" href="#wfScoutPurchasePanel">Unlock Scout Pro</a>
         </div>
       </div>
 
@@ -1984,7 +1984,7 @@
         <div id="wfScoutPurchaseBlocker" style="margin-top:8px;"></div>
         <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;">
           <button class="btn btn-gold btn-sm" id="wfBtnDownloadMiner">⬇ Download Miner</button>
-          <button class="btn btn-gold btn-sm" id="wfBtnDonateUnlock">💎 Donate and Unlock Scout Pro</button>
+          <button class="btn btn-gold btn-sm" id="wfBtnDonateUnlock">💎 Unlock Scout Pro</button>
           <button class="btn btn-gold btn-sm" id="btnWfScoutPurchaseActivate">Activate Scout Identity</button>
           <button class="btn btn-outline btn-sm" id="btnWfScoutPurchaseLearn">How Activation Works</button>
         </div>
@@ -2072,35 +2072,94 @@
       </div>
     
 
-    <!-- Referral Program -->
-    <div class="card" style="margin-top:16px;border-color:var(--gold-dark);">
-      <div class="card-header">🤝 Earn More Entries With Referrals
+    <!-- ═══ PROGRAM A — KRAKEN REFERRAL PROGRAM ═══
+         The operator is the Kraken affiliate: ONE community invite link,
+         the same link the rest of the site sends people through. The link
+         is never rendered as text (hidden input + copy button), and each
+         share button builds its intent URL from it at click time. Program A
+         and Program B are separate cards on purpose — neither borrows the
+         other's copy. -->
+    <div class="card" id="cardKrakenReferral" style="margin-top:16px;border-color:var(--gold-dark);">
+      <div class="card-header">🦑 Kraken Referral Program</div>
       <p style="font-size:0.95em;color:var(--gold-bright);font-weight:700;margin-bottom:8px;">
+        Mystery reward: $25–$300 for both sides, on Kraken's terms.
+      </p>
+      <p style="font-size:0.85em;color:var(--text-dim);line-height:1.7;margin-bottom:10px;">
+        Everyone uses the community's Kraken link. Kraken pays your side into your own Kraken account;
+        the operator records what it receives, and the pool's share is credited into the jackpot.
+      </p>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:8px;">
+        <input type="hidden" id="krakenInviteLink" value="">
+        <button class="btn btn-gold btn-sm" id="btnCopyKrakenLink">📋 Copy My Kraken Invite Link</button>
+        <span style="font-size:0.85em;color:var(--text-mute);">Invite code:
+          <b id="krakenInviteCode" style="color:var(--gold);letter-spacing:0.06em;">…</b>
+        </span>
+      </div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px;">
+        <button class="btn btn-outline btn-sm" data-share="x">Share on X</button>
+        <button class="btn btn-outline btn-sm" data-share="telegram">Telegram</button>
+        <button class="btn btn-outline btn-sm" data-share="whatsapp">WhatsApp</button>
+        <button class="btn btn-outline btn-sm" data-share="facebook">Facebook</button>
+        <button class="btn btn-outline btn-sm" data-share="email">Email</button>
+      </div>
+      <div id="krakenLinkNote" style="font-size:0.75em;color:var(--text-mute);line-height:1.6;">
+        Kraken administers the reward, sets its terms and pays it. Opening an account through this
+        link does not credit the pot by itself, and Kraken does not pay the jackpot.
+      </div>
+    </div>
+
+    <!-- ═══ PROGRAM B — XMRJACKPOT REFERRAL PROGRAM ═══
+         The internal programme: one code per account, one entry to each side
+         at signup (capped per cycle), and an XMRJ award for the referrer that
+         accrues against their connected Solana wallet. No token moves here —
+         the XMRJ treasury is not deployed, so the card says "accrued". -->
+    <div class="card" id="cardJackpotReferral" style="margin-top:16px;border-color:var(--hairline);">
+      <div class="card-header">🤝 XMRJackpot Referral Program</div>
+      <p style="font-size:0.95em;color:var(--gold-bright);font-weight:700;margin-bottom:8px;">
+        Share your XMRJackpot referral code to earn XMRJ when your friends join.
+      </p>
+      <p style="font-size:0.88em;color:var(--text-dim);line-height:1.7;margin-bottom:8px;">
         Invite friends → you both get an entry when they sign up with your email → better odds. Referral rewards are entries, not jackpot funding.
       </p>
-      <div style="font-weight:700;color:var(--gold);margin-bottom:6px;font-size:0.9em;">Rewards:
-      <ul style="font-size:0.85em;color:var(--text-dim);line-height:1.8;padding-left:24px;margin-bottom:12px;">
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:8px;">
+        <input class="spin-input" id="referralLink" readonly style="flex:1;min-width:200px;font-size:0.85em;" value="Login to get your link">
+        <button class="btn btn-gold btn-sm" id="btnCopyReferral">📋 Copy My XMRJackpot Referral Code</button>
+      </div>
+      <div id="refCycleLine" style="font-size:0.75em;color:var(--text-mute);margin:0 0 8px;">0 of 10 referral rewards used this cycle</div>
+      <div class="grid-3" style="gap:8px;">
+        <div class="stat-card"><div class="stat-value gold" id="referralCount">0</div><div class="stat-label">Referrals</div></div>
+        <div class="stat-card"><div class="stat-value green" id="activeReferrals">0</div><div class="stat-label">Active Miners</div></div>
+        <div class="stat-card"><div class="stat-value diamond" id="referralTickets">0</div><div class="stat-label">Entries Earned</div></div>
+      </div>
+      <div style="display:flex;gap:14px;align-items:center;flex-wrap:wrap;margin-top:10px;">
+        <span style="font-size:0.85em;color:var(--text-dim);">Your code:
+          <b id="referralCodeText" style="color:var(--gold);letter-spacing:0.06em;">…</b></span>
+        <span style="font-size:0.85em;color:var(--text-dim);">XMRJ per referral:
+          <b id="xmrjPerReferral">not set</b></span>
+        <span style="font-size:0.85em;color:var(--text-dim);">Accrued:
+          <b id="xmrjAwarded">0</b> XMRJ</span>
+      </div>
+      <div id="solanaWalletLine" style="font-size:0.78em;color:var(--text-mute);margin-top:6px;">
+        Connect a Solana wallet to receive XMRJ — awards accrue until one is connected.
+      </div>
+      <div style="font-weight:700;color:var(--gold);margin:8px 0 6px;font-size:0.9em;">Rewards:</div>
+      <ul style="font-size:0.82em;color:var(--text-dim);line-height:1.7;padding-left:22px;margin:0 0 8px;">
         <li><b>Pool-owned:</b> one entry each — your friend enters your email at signup and both accounts get an entry</li>
-        <li><b>Limit 10 referral entries per jackpot cycle</b> per referrer, to keep it fair</li>
+        <li><b>XMRJ:</b> 1 XMRJ for each friend who signs up with your code or email</li>
+        <li><b>Limit 10 referral rewards per jackpot cycle</b> per referrer — entries and XMRJ share the cap, to keep it fair</li>
         <li>Badges, not bonuses: <b>Recruiter</b> at your first active referral, <b>Network Builder</b> at 5 active</li>
         <li>The leaderboard ranks the top miners — it pays no separate weekly prize</li>
         <li><b>Kraken-owned:</b> Kraken's own referral bonuses — the operator records what it receives for wallet-connected referrals</li>
         <li>Referral rewards do not fund the jackpot; partner bonuses the operator records are credited into the daily jackpot, and Kraken does not pay the pot</li>
       </ul>
-      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:12px;">
-        <input class="spin-input" id="referralLink" readonly style="flex:1;min-width:200px;font-size:0.85em;" value="Login to get your link">
-        <button class="btn btn-gold btn-sm" id="btnCopyReferral">📋 Copy</button>
-      
-      <div id="refCycleLine" style="font-size:0.75em;color:var(--text-mute);margin:0 0 8px;">0 of 10 referral entries used this cycle</div>
-      <div class="grid-3" style="gap:8px;">
-        <div class="stat-card"><div class="stat-value gold" id="referralCount">0<div class="stat-label">Referrals
-        <div class="stat-card"><div class="stat-value green" id="activeReferrals">0<div class="stat-label">Active Miners
-        <div class="stat-card"><div class="stat-value diamond" id="referralTickets">0<div class="stat-label">Entries Earned
-      
-      <div style="font-size:0.75em;color:var(--text-mute);margin-top:8px;">
+      <div style="font-size:0.75em;color:var(--text-mute);margin-top:2px;">
         💡 <b>Pool-owned:</b> signup bonus is 0.003 XMR in free entries. <b>Kraken-owned:</b> the Kraken withdrawal fee is 0.0027 XMR — keep mining for bigger payouts!
-      
-    
+      </div>
+      <div id="refXmrjNote" style="font-size:0.75em;color:var(--text-mute);margin-top:8px;line-height:1.6;">
+        XMRJ awards are recorded against your connected Solana wallet and become payable once the
+        XMRJ treasury is deployed — no token moves before then.
+      </div>
+    </div>
 
     <!-- Recent Wins -->
     <div class="card" style="margin-top:16px;">
@@ -2179,7 +2238,7 @@
 <div id="wfScoutModals" style="display:none;"></div>
 
 <!-- /#app -->
-<script src="/static/app.js?v=34"></script>  <script src="/static/scout_ids.js?v=1"></script>
+<script src="/static/app.js?v=35"></script>  <script src="/static/scout_ids.js?v=1"></script>
   <script src="/static/scout_paywall.js?v=3"></script>
   <script src="/static/scout_paywall_wire_patch.js?v=6"></script>
   <script src="/static/scout_checkout.js?v=5"></script>
@@ -2191,6 +2250,7 @@
 <script src="/static/push_client.js?v=16"></script>
 <script src="/static/admin_cold_wallet.js?v=1"></script>
 <script src="/static/kraken_referral_admin.js?v=6"></script>
+<script src="/static/referral_admin.js?v=3"></script>
 <script src="/static/refblock.js?v=2"></script>
 <script src="/static/push_vapid_admin.js?v=1"></script>
 <script src="/static/referral_projection.js?v=1"></script>

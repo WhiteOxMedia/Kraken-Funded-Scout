@@ -29,8 +29,12 @@ WHERE THE MONEY ACTUALLY IS (no phantom funds, no double-count)
 
 THE RATE
 --------
-XMR_USD is a setting (XMR_USD_RATE) the server may refresh; the
-default is the engine's own long-standing constant (323). Every
+One reader, three tiers (Oct 26): the operator's pinned XMR_USD_RATE
+wins outright; otherwise the LIVE Kraken ticker rate from xmr_price
+(TTL-cached, so a page read never waits on the network); otherwise the
+engine's long-standing 323 constant as the last resort. It used to be
+the 323 constant full stop, which priced a 593-dollar XMR at 323 and
+made every dollar figure on the site wrong by that factor. Every
 derived amount carries the rate and mode it was converted at.
 
 PRIVACY
@@ -54,7 +58,20 @@ LEDGER_KEY = "jackpot_funding_ledger"
 RATE_KEY = "XMR_USD_RATE"
 DEFAULT_XMR_USD = 323.0       # jackpot_engine's own approximate rate
 
-CATEGORIES = ("referral_bonus", "mining_yield")
+# A Scout Pro donation is a different animal from the two formula
+# categories: it is money already received, not an inflow to be
+# projected into a 14-day average, so it never enters ReferralVelocity
+# or MinerYield (the two functions filter by category explicitly) and
+# the daily accrual can never double-count it. It lands in the base
+# immediately through credit_donation() below.
+DONATION_CATEGORY = "scout_pro_donation"
+
+# The operator's split of a Scout Pro unlock: the jackpot gets 70%, the
+# operator keeps 30% (Oct 26). One constant so the ledger, the copy and
+# the tests cannot disagree about the rule.
+JACKPOT_SHARE_PCT = 70
+
+CATEGORIES = ("referral_bonus", "mining_yield", DONATION_CATEGORY)
 ACTION_ACCRUE = "funding_accrual"
 
 
@@ -72,17 +89,126 @@ def _save_ledger(rows):
     db.set_setting(LEDGER_KEY, json.dumps(rows, separators=(",", ":")))
 
 
+def lifetime_accrued_xmr():
+    """Every XMR the daily compute has ever put into the base.
+
+    Read by the engine's source attribution (Oct 26) ONLY to bootstrap
+    the admin card's split on a box that predates it — the accrual is
+    already stamped row by row here, so the history does not have to be
+    guessed. This is not a balance and nothing draws on it: claim and
+    spend math stays in the engine.
+    """
+    total = 0.0
+    for r in _load_ledger():
+        if r.get("action") != ACTION_ACCRUE or r.get("status") != "accrued":
+            continue
+        try:
+            total += float(r.get("amount_xmr") or 0.0)
+        except (TypeError, ValueError):
+            continue
+    return round(total, 12)
+
+
 def xmr_usd_rate():
+    """The XMR/USD rate every USD <-> XMR conversion in the pool uses.
+
+    The single reader: the engine's hero pot, the funding formula, the
+    Scout Pro price and the projection card all come through here, so
+    they can never quote different dollars. See xmr_price for the
+    caching contract; this function never raises and always returns a
+    usable positive number.
+    """
+    try:
+        import xmr_price
+        return float(xmr_price.current(fallback=DEFAULT_XMR_USD)["rate"])
+    except Exception:
+        pass
     try:
         return float(db.get_setting(RATE_KEY, str(DEFAULT_XMR_USD)))
     except (TypeError, ValueError):
         return DEFAULT_XMR_USD
 
 
-def record_funding(category, amount_usd, sponsor_id=None, source=""):
+SOURCE_LABELS = {"override": "operator-set", "kraken_ticker": "Kraken",
+                 "default": "fallback"}
+
+
+def _age_text(seconds):
+    """A short age for a visitor: '4 min ago', not an epoch."""
+    s = max(0, int(seconds or 0))
+    if s < 90:
+        return "%d s ago" % s
+    if s < 5400:
+        return "%d min ago" % int(round(s / 60.0))
+    if s < 172800:
+        return "%d h ago" % int(round(s / 3600.0))
+    return "%d d ago" % int(round(s / 86400.0))
+
+
+def rate_info():
+    """THE RATE AND ITS PROVENANCE, for every surface that quotes USD.
+
+    The hero plate, the dashboard plate, the projection card and the
+    admin pot card all convert at xmr_usd_rate(); this returns the same
+    number WITH where it came from, how old it is and whether it is a
+    fallback — so a visitor is told what the dollars were converted at
+    instead of being handed a number of unknown vintage.
+
+    Returns {"rate", "source", "as_of", "stale", "label"}. `label` is
+    display-ready and built HERE, once: every surface says the same
+    sentence, and a test can read it without a browser.
+    """
+    try:
+        import xmr_price
+        info = dict(xmr_price.current(fallback=DEFAULT_XMR_USD))
+    except Exception:
+        info = {"rate": DEFAULT_XMR_USD, "source": "default",
+                "as_of": None, "stale": True}
+    try:
+        rate = float(info.get("rate") or DEFAULT_XMR_USD)
+    except (TypeError, ValueError):
+        rate = float(DEFAULT_XMR_USD)
+    if rate <= 0:
+        rate = float(DEFAULT_XMR_USD)
+    source = str(info.get("source") or "default")
+    as_of = info.get("as_of")
+    try:
+        as_of = float(as_of) if as_of else None
+    except (TypeError, ValueError):
+        as_of = None
+    stale = bool(info.get("stale"))
+    price = "$%.2f/XMR" % rate
+    if source == "override":
+        label = "converted at the operator-set " + price
+    elif source == "default" or not as_of:
+        # THE BAD CASE, SAID OUT LOUD: nothing was ever fetched (or the
+        # cache chain broke) and this is the caller's constant.
+        stale = True
+        label = ("converted at the FALLBACK " + price
+                 + " \u2014 no live rate on this box")
+    else:
+        venue = SOURCE_LABELS.get(source, source)
+        if as_of:
+            label = "converted at %s \u00b7 %s \u00b7 %s" % (
+                price, venue, _age_text(time.time() - as_of))
+        else:
+            # a rate with no fetch time cannot be called fresh
+            stale = True
+            label = "converted at %s \u00b7 %s (fetch time unknown)" % (
+                price, venue)
+        if stale:
+            label += " \u2014 stale, refresh overdue"
+    return {"rate": round(rate, 8), "source": source, "as_of": as_of,
+            "stale": stale, "label": label}
+
+
+def record_funding(category, amount_usd, sponsor_id=None, source="",
+                   amount_xmr=None, jackpot_xmr=None, treasury_xmr=None):
     """Record one real funding inflow in USD. Returns the row id, or
     None when the category/amount is invalid. This is a RECEIPT — the
-    money enters the base only through accrue_daily_funding."""
+    money enters the base only through accrue_daily_funding, except
+    for a Scout Pro donation (credit_donation), whose XMR amount is
+    already in hand and is stamped on the row that way."""
     if category not in CATEGORIES:
         return None
     try:
@@ -93,16 +219,86 @@ def record_funding(category, amount_usd, sponsor_id=None, source=""):
         return None
     rows = _load_ledger()
     rid = 1 + max((int(r.get("id", 0)) for r in rows), default=0)
-    rows.append({
+    row = {
         "id": rid,
-        "category": category,               # 'referral_bonus' | 'mining_yield'
+        "category": category,               # see CATEGORIES
         "amount_usd": amount_usd,           # USD ONLY — the ledger's unit
         "sponsor_id": sponsor_id,           # opaque sponsor id (no addresses)
         "source": str(source or "")[:120],  # e.g. kraken challenge payout
         "ts": time.time(),
-    })
+    }
+    for extra, value in (("amount_xmr", amount_xmr),
+                         ("jackpot_xmr", jackpot_xmr),
+                         ("treasury_xmr", treasury_xmr)):
+        if value is not None:
+            try:
+                row[extra] = round(float(value), 12)
+            except (TypeError, ValueError):
+                pass
+    rows.append(row)
     _save_ledger(rows[-LEDGER_MAX_ROWS:])
     return rid
+
+
+def credit_donation(order_id, amount_xmr, sponsor_id=None, source=""):
+    """A paid Scout Pro unlock is SPLIT 70/30 (Oct 26).
+
+    The operator's rule: the jackpot gets 70% of the price, the operator
+    keeps 30%. Raise the base by the jackpot's share NOW (the money
+    already left the buyer's wallet; waiting for the 14-day formula
+    would sit on it for a fortnight) and leave one ledger receipt that
+    records the whole payment plus both halves, so the split is
+    auditable per order.
+
+    Idempotent per checkout order: the receipt's source key carries the
+    order id, so a replayed status poll, a retried fulfilment or a
+    manual re-run can never fund the same order twice. Returns
+    {"credited": bool, "amount_xmr": float, "jackpot_xmr": float,
+     "treasury_xmr": float, "base_xmr": float}.
+    """
+    try:
+        amount_xmr = round(float(amount_xmr or 0), 12)
+    except (TypeError, ValueError):
+        return {"credited": False, "reason": "invalid amount", "amount_xmr": 0.0}
+    if amount_xmr <= 0:
+        return {"credited": False, "reason": "invalid amount", "amount_xmr": 0.0}
+
+    jackpot_xmr = round(amount_xmr * JACKPOT_SHARE_PCT / 100.0, 12)
+    treasury_xmr = round(amount_xmr - jackpot_xmr, 12)
+
+    key = "scout_pro_donation:%s" % (order_id,)
+    for r in _load_ledger():
+        if r.get("source") == key:
+            return {"credited": False, "reason": "already credited",
+                    "amount_xmr": float(r.get("amount_xmr") or 0.0),
+                    "jackpot_xmr": float(r.get("jackpot_xmr")
+                                        or r.get("amount_xmr") or 0.0),
+                    "treasury_xmr": float(r.get("treasury_xmr") or 0.0)}
+
+    rate = xmr_usd_rate()
+    rid = record_funding(
+        DONATION_CATEGORY, amount_xmr * rate, sponsor_id=sponsor_id,
+        source=key, amount_xmr=amount_xmr,
+        jackpot_xmr=jackpot_xmr, treasury_xmr=treasury_xmr,
+    )
+    if rid is None:
+        return {"credited": False, "reason": "receipt rejected",
+                "amount_xmr": 0.0}
+
+    # The engine stays the only balance writer, exactly as the daily
+    # accrual does it — same hook, same rounding. Only the jackpot's
+    # 70% enters the pot; the treasury's 30% never touches the base.
+    # Tagged RECEIVED (Oct 26): this XMR arrived from a buyer, so the
+    # admin pot card must not report it as formula accrual.
+    import jackpot_engine as engine
+    base = engine.add_funding_base(jackpot_xmr, source=engine.SRC_RECEIVED)
+    return {"credited": True, "amount_xmr": amount_xmr,
+            "jackpot_xmr": jackpot_xmr, "treasury_xmr": treasury_xmr,
+            "amount_usd": round(amount_xmr * rate, 2),
+            "jackpot_usd": round(jackpot_xmr * rate, 2),
+            "treasury_usd": round(treasury_xmr * rate, 2),
+            "split_pct": JACKPOT_SHARE_PCT,
+            "receipt_id": rid, "base_xmr": base}
 
 
 def _window_rows(now_ts=None):
@@ -127,7 +323,7 @@ def referral_rewards_last24h(now_ts=None):
     rows = []
     total = 0.0
     for r in _load_ledger():
-        try:
+        try:            # donations are receipts, not referral velocity
             if (r.get("category") != "referral_bonus"
                     or not float(r.get("ts", 0) or 0) > cutoff):
                 continue

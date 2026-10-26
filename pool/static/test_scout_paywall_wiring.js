@@ -136,7 +136,6 @@ function resetDomain() {
   delete window.__scout_wire_patch_installed;
   delete window.identityWallet;
   delete window.selectedScoutId;
-  delete window.xmrjUnlockProof;
   delete window.xmrWalletAddress;
 }
 
@@ -231,10 +230,9 @@ const fetch2 = (input, init) => {
 };
 
 installPatchWithFetch(fetch2, {
-  windowState: {
-    identityWallet: "sol-test-1",
-    selectedScoutId: 42,
-    xmrjUnlockProof: "proof-abc"
+  windowState: {      identityWallet: "sol-test-1",
+      selectedScoutId: 42
+
   }
 });
 
@@ -266,7 +264,8 @@ setTimeout(() => {
     }
     assert(String(parsed.scout_id) === "42", "scout_id in activate payload");
     assert(parsed.identity_token === "sol-test-1", "identity_token in activate payload");
-    assert(parsed.xmrj_unlock_proof === "proof-abc", "xmrj_unlock_proof in activate payload");
+    assert(!("xmrj_unlock_proof" in parsed),
+      "activate payload carries no XMRJ unlock proof");
   }
   const afterStatus = us.textContent || "";
   assert(
@@ -310,8 +309,7 @@ function runTest3() {
   installPatchWithFetch(fetch3, {
     windowState: {
       identityWallet: "sol-2",
-      selectedScoutId: 99,
-      xmrjUnlockProof: "proof-99"
+      selectedScoutId: 99
     }
   });
 
@@ -455,8 +453,7 @@ function runTest5() {
   installPatchWithFetch(fetch5, {
     windowState: {
       identityWallet: "sol-5",
-      selectedScoutId: 55,
-      xmrjUnlockProof: "proof-55"
+      selectedScoutId: 55
     }
   });
 

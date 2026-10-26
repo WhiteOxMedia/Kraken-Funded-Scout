@@ -80,6 +80,13 @@
     key: KEY
   };
 
+  // THE IDENTITY CONTRACT (repo-wide): app.js announces every login and
+  // logout as xmrjackpot:auth, and a per-user surface re-reads on it.
+  // Without this, a same-page sign-in would leave the previous account's
+  // verdict cached until a reload — which is exactly the stale-paywall
+  // the bridge exists to remove.
+  document.addEventListener("xmrjackpot:auth", refresh);
+
   if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", refresh);
   } else {

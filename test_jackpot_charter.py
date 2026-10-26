@@ -33,6 +33,11 @@ import database as db
 _tmp = tempfile.mkdtemp(prefix="jackpot_charter_")
 db.DB_PATH = Path(_tmp) / "jackpot.db"
 db.init_db()
+# THE RATE IS PINNED (Oct 26): the pool now converts at the LIVE Kraken
+# ticker rate, so any check that asserts dollars must fix the rate it
+# converts at — otherwise these exact assertions would pass or fail with
+# the market instead of with the formula they are grading.
+db.set_setting("XMR_USD_RATE", "323.0")
 
 import jackpot_engine as engine
 import jackpot_funding as funding
@@ -340,6 +345,38 @@ _bd = _mk_drawing("drawn", drawn_at=time.time() - 8 * 86400, claim="pending",
 _exp = engine.check_expired_claims() or []
 check(6.3, any(e.get("drawing_id") == _bd for e in _exp),
       "expiry still sweeps, releases, and logs — the earmark model untouched")
+
+print("== 7. THE SCOUT PRO DONATION IS JACKPOT MONEY (Oct 24) ==")
+_base0 = float(db.get_setting("jackpot_balance", "0"))
+_vel0 = funding.referral_velocity_usd()
+_d = funding.credit_donation(4242, 0.01, sponsor_id=7)
+check(7.1, _d.get("credited") is True
+      and abs(_d.get("amount_xmr", 0) - 0.01) < 1e-12
+      and abs(_d.get("jackpot_xmr", 0) - 0.007) < 1e-12
+      and abs(_d.get("treasury_xmr", 0) - 0.003) < 1e-12,
+      "a paid unlock is credited in full and split 70/30 "
+      f"({_d.get('jackpot_xmr')} / {_d.get('treasury_xmr')})")
+check(7.2, abs(float(db.get_setting("jackpot_balance", "0"))
+              - (_base0 + 0.007)) < 1e-9,
+      "the pot itself moves by the jackpot's 70% — the base is real "
+      "money, not a receipt that never lands")
+_d2 = funding.credit_donation(4242, 0.01, sponsor_id=7)
+check(7.3, _d2.get("credited") is False,
+      "the same checkout can never fund the pot twice")
+check(7.4, abs(float(db.get_setting("jackpot_balance", "0"))
+              - (_base0 + 0.007)) < 1e-9,
+      "a replayed status poll leaves the balance untouched")
+_rows = [r for r in funding._load_ledger()
+        if r.get("source") == "scout_pro_donation:4242"]
+check(7.5, len(_rows) == 1
+      and _rows[0].get("category") == funding.DONATION_CATEGORY
+      and abs(float(_rows[0].get("amount_xmr") or 0) - 0.01) < 1e-12,
+      "one receipt, filed under its own category with its XMR stamped")
+check(7.6, abs(funding.referral_velocity_usd() - _vel0) < 1e-9,
+      "a donation never inflates ReferralVelocity — the daily formula "
+      "cannot double-count money already in the base")
+check(7.7, funding.credit_donation(4243, 0).get("credited") is False,
+      "a zero or absent amount is refused")
 
 passed, failed = results.count(True), results.count(False)
 print(f"RESULT: {passed} passed, {failed} failed")

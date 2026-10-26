@@ -10,7 +10,6 @@
   // ── global state the agent asked for (window-scoped) ────────────────
   window.identityWallet = window.identityWallet || null;
   window.selectedScoutId = window.selectedScoutId || null;
-  window.xmrjUnlockProof = window.xmrjUnlockProof || null;
   window.xmrWalletAddress = window.xmrWalletAddress || null;
 
   // ── safe delegate (fallback if scout_paywall.js has not exposed yet)
@@ -100,7 +99,6 @@
       "btn-donate-unlock",
       "connect-xmr-wallet",
       "btn-activate-scout",
-      "btn-unlock-xmrj",
       "btn-miner-started"
     ];
     for (const id of BLOCKER_IDS) {

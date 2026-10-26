@@ -18,7 +18,8 @@ headless and hermetic:
                        text promises exist (GETTING_STARTED)
   3. checkbox ON       the handler's exact call with the entries'
                        stripped values: valid wallet -> ok result with
-                       miner_id + welcome ticket + phrase; the record
+                       miner_id + phrase and NO local welcome ticket
+                       (a customer box is not the pool); the record
                        says opted-in with the wallet bound
   4. bad wallet        whitespace-padded garbage is stripped then
                        rejected (ok False, error names the shape rule)
@@ -72,6 +73,13 @@ _tmp = Path(tempfile.mkdtemp(prefix="installer_ui_drive_"))
 db.DB_PATH = _tmp / "jackpot.db"
 db.init_db()
 
+# Phase F: opt-in beacons the install before it registers. Fail-soft
+# telemetry with no place in a drive — stubbed so the UI path never reaches
+# xmrjackpot.com; the beacon's call shape is pinned in test_installer.py.
+_beacons = []
+installer._report_install = lambda api_base, iid: (
+    _beacons.append((api_base, iid)) or True)
+
 results = []
 
 
@@ -93,7 +101,7 @@ cfg_path.write_text(json.dumps({
 
 
 def _fake_transport_ok(captured):
-    def _post(api_base, wallet, worker):
+    def _post(api_base, wallet, worker, install_id=""):
         captured.append((api_base, wallet, worker))
         miner = db.get_or_create_miner(wallet, worker or "")
         return {"status": "ok", "miner_id": miner["id"]}
@@ -101,7 +109,7 @@ def _fake_transport_ok(captured):
 
 
 def _fake_transport_down(captured):
-    def _post(api_base, wallet, worker):
+    def _post(api_base, wallet, worker, install_id=""):
         raise OSError("connection refused")
     return _post
 
@@ -161,9 +169,12 @@ installer._post_register = _fake_transport_ok(captured)
 # ent_worker.get().strip()) - so the worker arrives pre-stripped here
 r = installer.opt_in("  " + WALLET + "  ", worker="rig7",
                      record_path=rec_path, config_path=cfg_path)
-check(3.1, r.get("ok") is True and r.get("welcome_ticket_granted") == 1
+# THE CUSTOMER CONTRACT (Oct 25): a customer box mints NO local welcome
+# ticket — the local pool database is not the pool, so such an entry could
+# never be drawn. Registration + accepted shares are the entry paths.
+check(3.1, r.get("ok") is True and r.get("welcome_ticket_granted") == 0
       and r.get("xmrig_patched") is True and r.get("phrase"),
-      f"install ok: ticket 1, config patched, phrase carried")
+      "install ok: config patched, phrase carried, NO local ticket")
 check(3.2, captured and captured[0][1] == WALLET
       and captured[0][2] == "rig7",
       "wallet STRIPPED by opt_in; worker echoes the (UI-stripped) value")
@@ -176,6 +187,8 @@ check(3.4, rec.get("miner_bot_opt_in") is True
       and rec.get("wallet_address") == WALLET
       and rec.get("registration", {}).get("miner_id"),
       "the record says opted-in with the wallet + miner bound")
+check("3.5", _beacons == [(installer.DEFAULT_API, rec.get("install_id"))],
+      "the UI's opt-in path sent ONE install beacon with this machine's id")
 
 print("== 4. BAD WALLET (the shape rule, pre-network) ==")
 r = installer.opt_in(BAD_WALLET, record_path=rec_path,
@@ -256,7 +269,7 @@ import urllib.error as _uerr                       # noqa: E402
 
 
 def _transport_raising(exc):
-    def _post(api_base, wallet, worker):
+    def _post(api_base, wallet, worker, install_id=""):
         raise exc
     return _post
 

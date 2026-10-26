@@ -6,6 +6,7 @@ no real VAPID send). Prints "RESULT: N passed, M failed".
 """
 import sys
 import tempfile
+import time
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
@@ -91,6 +92,12 @@ check(3.2, r.status_code == 200, f"alice re-login: {r.status_code}")
 
 print("== 4. PUSH SUBSCRIPTION, MULTI-DEVICE ==")
 uid = db.get_user_by_username("e2e_alice")["id"]
+# Fixture (Oct 24): signal events are entitled server-side, so an account
+# that has to reach the PREFERENCE gate below must hold Scout Pro first
+# (the entitlement gate itself is graded by test_scout_pro_gate.py).
+with db.get_db() as conn:
+    conn.execute("UPDATE users SET scout_pro_until = ? WHERE id = ?",
+                 (time.time() + 30 * 86400, int(uid)))
 r1 = client.post("/api/push/subscribe", json={"subscription": {
     "endpoint": "https://push.example/alice-phone",
     "keys": {"p256dh": "k1", "auth": "a1"}}})

@@ -1380,3 +1380,30 @@ input[type="email"], select, textarea {
   }
 }
 
+
+/* ── footer alignment (Oct 24) ────────────────────────────────────── */
+/* Every section above is centred by its own hero/card rules; the footer
+   was the only block left on the browser default, so it read as a
+   different column. One rule, no layout change beyond the alignment. */
+footer {
+  text-align: center;
+}
+
+/* ── the referral block's reveal buttons (Oct 24) ─────────────────── */
+/* The invite link and code are hidden behind <details><summary> so the
+   values are not printed as page text; the summary wears .btn, so strip
+   the disclosure marker and keep it looking (and feeling) like a button.
+   No script needed — it still opens with JS off. */
+summary.ref-reveal {
+  list-style: none;
+  cursor: pointer;
+}
+
+summary.ref-reveal::-webkit-details-marker {
+  display: none;
+}
+
+details[open] > summary.ref-reveal {
+  border-color: var(--gold);
+  color: var(--gold);
+}

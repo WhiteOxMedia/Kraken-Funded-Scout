@@ -145,6 +145,7 @@ REQUIRED_STATIC_JS = [
     "scout_paywall.js",
     "scout_paywall_wire_patch.js",
     "scout_checkout.js",
+    "scout_pro_bridge.js",
     "app.js",
 ]
 

@@ -205,6 +205,147 @@ def get_jackpot_balance():
 
 
 # ═══════════════════════════════════════════════════════════════
+#  WHO FUNDED THE POT (Oct 26 — the admin card's second line)
+#
+#  The base is one number written by several flows, and the operator's
+#  question is which of them the money in play actually came from: the
+#  daily funding accrual (the charter's formula, paid out of the pool's
+#  own income) or XMR actually received (a Scout Pro donation's jackpot
+#  share, a wallet seed, a house-tax top-up).
+#
+#  Two counters carry that attribution — DERIVED state, never a second
+#  balance. The base stays the only number the pool draws on, so a wrong
+#  or missing counter can never inflate or block a payout; the worst it
+#  can do is mislabel the split, and _attribute() re-derives it from the
+#  base on every write and every read so that cannot last.
+#
+#  A claim is paid out of BOTH sources in proportion to what each held
+#  when it settled. "Accrual first" would be tidier to implement and a
+#  fiction to read: once the XMR is in the one wallet nothing earmarks it
+#  to a source, so the honest answer to "how much of the pot is accrual"
+#  moves down with every payout rather than jumping.
+
+SRC_ACCRUAL = "accrual"
+SRC_RECEIVED = "received"
+_SRC_SETTINGS = {SRC_ACCRUAL: "jackpot_src_accrual",
+                 SRC_RECEIVED: "jackpot_src_received"}
+
+
+def _src_read():
+    """The two counters as stored. Missing or unparsable reads as 0 —
+    _attribute() is what turns a 0 into a real answer."""
+    out = {}
+    for src, key in _SRC_SETTINGS.items():
+        try:
+            out[src] = max(0.0, float(db.get_setting(key, "0") or 0))
+        except (TypeError, ValueError):
+            out[src] = 0.0
+    return out
+
+
+def _src_write(accrual, received):
+    db.set_setting(_SRC_SETTINGS[SRC_ACCRUAL],
+                   str(round(max(0.0, accrual), 12)))
+    db.set_setting(_SRC_SETTINGS[SRC_RECEIVED],
+                   str(round(max(0.0, received), 12)))
+
+
+def _lifetime_accrued_xmr():
+    """Bootstrap only: what the daily compute has ever added. The
+    funding ledger already stamps every accrual, so a box that predates
+    this feature does not have to guess."""
+    try:
+        import jackpot_funding as _funding
+        return float(_funding.lifetime_accrued_xmr())
+    except Exception:
+        return 0.0
+
+
+def _attribute(base, accrual=None, received=None):
+    """Describe `base` by source. Returns the two counters — it NEVER
+    moves the base.
+
+    Four cases, in the order they matter:
+      * counters already sum to the base -> keep them as recorded;
+      * no counters on an already-funded box (the feature is newer than
+        the money) -> split the base by the funding ledger's own accrual
+        history, capped at the base, and say so (`inferred`);
+      * the base grew without a counter moving (a writer that passes no
+        source: the house-tax seed, a demo seed, an operator's raw
+        set_setting) -> the gap is RECEIVED, because the accrual only
+        ever arrives through add_funding_base, so anything else is money
+        that actually turned up (`reconciled`);
+      * the base shrank without a counter moving (a payout, a manual
+        correction) -> both counters shrink by the same factor, which is
+        a claim being paid from both sources proportionally.
+    """
+    base = max(0.0, float(base or 0.0))
+    if accrual is None or received is None:
+        _held = _src_read()
+        accrual = _held[SRC_ACCRUAL] if accrual is None else accrual
+        received = _held[SRC_RECEIVED] if received is None else received
+    accrual = max(0.0, float(accrual or 0.0))
+    received = max(0.0, float(received or 0.0))
+    total = accrual + received
+    inferred = reconciled = False
+
+    if total <= 0.0:
+        if base > 0.0:
+            _accrued = min(max(0.0, _lifetime_accrued_xmr()), base)
+            accrual, received = _accrued, base - _accrued
+            inferred = True
+    elif abs(total - base) > 1e-9:
+        gap = base - total
+        if gap > 0.0:                    # money in, no counter moved
+            received += gap
+        else:                            # money out: paid from both
+            _factor = base / total
+            accrual, received = accrual * _factor, base - accrual * _factor
+        reconciled = True
+
+    return {SRC_ACCRUAL: round(accrual, 12),
+            SRC_RECEIVED: round(received, 12),
+            "inferred": inferred, "reconciled": reconciled}
+
+
+def get_jackpot_split():
+    """The pot split by where it came from — the admin card's second
+    line. Every figure is XMR; a caller converts if it wants dollars.
+
+    `accrual_xmr + received_xmr == jackpot_xmr` by construction. The
+    counters describe the BASE, and a drawn-but-unclaimed prize is held
+    back from the pot, so their share through the pot is scaled down by
+    exactly the fraction of the base still in play. Printing the base
+    counters beside the pot would have the card claim more of the money
+    than the pool will pay, which is the one thing this card exists to
+    prevent.
+    """
+    base = max(0.0, float(db.get_setting("jackpot_balance", "0") or 0))
+    pot = round(max(0.0, get_jackpot_balance()), 8)
+    att = _attribute(base)
+    if att["inferred"] or att["reconciled"]:
+        try:
+            _src_write(att[SRC_ACCRUAL], att[SRC_RECEIVED])
+        except Exception as _e:      # a read must never die on a receipt
+            print(f"[Sources] attribution write skipped: {_e}")
+    held = att[SRC_ACCRUAL] + att[SRC_RECEIVED]
+    share = (pot / held) if held > 0 else 0.0
+    accrual_xmr = min(pot, round(att[SRC_ACCRUAL] * share, 8))
+    received_xmr = round(max(0.0, pot - accrual_xmr), 8)
+    return {
+        "jackpot_xmr": pot,
+        "accrual_xmr": accrual_xmr,
+        "received_xmr": received_xmr,
+        "accrual_pct": round(accrual_xmr * 100.0 / pot, 1) if pot > 0 else 0.0,
+        "base_xmr": round(base, 8),
+        "unclaimed_xmr": round(max(0.0, base - pot), 8),
+        "attributed": pot > 0 and held > 0,
+        "inferred": att["inferred"],
+        "reconciled": att["reconciled"],
+    }
+
+
+# ═══════════════════════════════════════════════════════════════
 #  THE ENTRY RULE (settled Oct 24 — one rule, three surfaces)
 #
 #   1 unit   = 1 valid share accepted by the pool.
@@ -587,13 +728,14 @@ def seed_jackpot_from_wallet():
         if seed_amount <= 0:
             return None
 
-        # Add to jackpot balance
-        current_jackpot = float(db.get_setting("jackpot_balance", "0"))
-        db.set_setting("jackpot_balance", str(round(current_jackpot + seed_amount, 8)))
+        # Add to jackpot balance — through the one funding writer and
+        # tagged RECEIVED (Oct 26): this is real wallet money moving into
+        # the pot, not the formula's accrual, and the admin card says so.
+        new_jackpot = add_funding_base(seed_amount, source=SRC_RECEIVED)
 
         return {
             "seeded": seed_amount,
-            "new_jackpot": round(current_jackpot + seed_amount, 8),
+            "new_jackpot": new_jackpot,
             "wallet_balance": available,
         }
     except Exception as e:
@@ -645,19 +787,62 @@ def _get_p2pool_hashrate():
         return 0
 
 
-def add_funding_base(amount_xmr):
+def add_funding_base(amount_xmr, source=SRC_ACCRUAL):
     """The funding model's ONE entry into the balance: raise the base
     by a REAL, backed amount (the self-adjusting daily seed). Nothing
-    else may write the base for funding — one writer per flow."""
+    else may write the base for funding — one writer per flow.
+
+    `source` says WHICH flow funded it, because the admin pot card now
+    reports the mix: SRC_ACCRUAL for the daily compute's own income,
+    SRC_RECEIVED for XMR that actually arrived (a Scout Pro donation's
+    jackpot share). Anything that reaches the base outside this function
+    is reconciled as received on the next read, so a flow that forgets
+    the argument can only under-claim the formula, never over-claim it.
+    """
     amount_xmr = max(0.0, float(amount_xmr or 0.0))
     _b = float(db.get_setting("jackpot_balance", "0"))
+    _att = _attribute(_b)            # absorb any drift before crediting,
+    _a, _r = _att[SRC_ACCRUAL], _att[SRC_RECEIVED]   # so this credit lands
+    if source == SRC_RECEIVED:                       # on the right side
+        _r += amount_xmr
+    else:
+        _a += amount_xmr
     db.set_setting("jackpot_balance", str(round(_b + amount_xmr, 8)))
+    _src_write(_a, _r)
     return round(_b + amount_xmr, 8)
+
+
+def _xmr_usd_rate():
+    """The pool's ONE XMR/USD reader (jackpot_funding's), so the hero
+    pot and the funding formula can never quote different dollars. The
+    constant here is only reachable if that import itself breaks — it
+    is never the price a working box quotes."""
+    try:
+        import jackpot_funding as _funding
+        return float(_funding.xmr_usd_rate())
+    except Exception:
+        return 323.0
+
+
+def _xmr_usd_rate_info():
+    """The rate WITH its provenance (Oct 26), for the surfaces that
+    quote dollars: a visitor must be able to see what the conversion
+    was, how old it is, and whether it is the fallback."""
+    try:
+        import jackpot_funding as _funding
+        return _funding.rate_info()
+    except Exception:
+        return {"rate": 323.0, "source": "default", "as_of": None,
+                "stale": True,
+                "label": ("converted at the FALLBACK $323.00/XMR "
+                          "\u2014 no live rate on this box")}
 
 
 def get_pool_stats():
     """Get aggregate pool statistics."""
     jackpot = get_jackpot_balance()
+    rate_info = _xmr_usd_rate_info()
+    rate = float(rate_info.get("rate") or _xmr_usd_rate())
 
     with db.get_db() as conn:
         # Total miners
@@ -692,7 +877,13 @@ def get_pool_stats():
 
     return {
         "jackpot_xmr": round(jackpot, 6),
-        "jackpot_usd": round(jackpot * 323, 2),  # approximate
+        "jackpot_usd": round(jackpot * rate, 2),
+        # the rate the dollar figure was converted at, so a caller can
+        # label it instead of implying the pot IS dollars — and the
+        # descriptor beside it (source, age, stale) so the label can say
+        # WHOSE rate it is and whether it is old or a fallback
+        "xmr_usd_rate": round(rate, 2),
+        "xmr_usd_rate_info": rate_info,
         "total_miners": total_miners,
         "active_miners": active_miners,
         "total_hashrate": round(total_hashrate, 1),
@@ -919,14 +1110,25 @@ def process_winner_claim(drawing_id, wallet_address):
     if _base >= payout_amount:               # real funds pay real claims;
         db.set_setting("jackpot_balance",    # a negative base is not a
                        str(round(_base - payout_amount, 8)))  # payout
+        _new_base = round(_base - payout_amount, 8)
     else:
         db.set_setting("jackpot_balance", "0")
+        _new_base = 0.0
         db.add_audit_log(
             None, "claim_overdraw",
             json.dumps({"drawing_id": drawing_id,
                         "requested": round(payout_amount, 8),
                         "base_was": round(_base, 8)}),
         )
+
+    # WHO PAID FOR IT (Oct 26): shrink the source counters with the base,
+    # proportionally, so the admin card keeps describing the money still
+    # in play instead of the money that was here yesterday.
+    try:
+        _att = _attribute(_new_base)
+        _src_write(_att[SRC_ACCRUAL], _att[SRC_RECEIVED])
+    except Exception as _e:
+        print(f"[Settlement] source attribution skipped: {_e}")
 
     # Update winner's total_earned
     with db.get_db() as conn:

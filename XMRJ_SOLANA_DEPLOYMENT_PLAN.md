@@ -123,6 +123,26 @@ solana balance
 If airdrop requests are rate-limited or fail, use the Web Faucet instead of repeated CLI airdrop calls.
 Devnet airdrops are limited per request.
 
+WHERE THE DEVNET SOL COMES FROM — NOT THE POOL (recorded Oct 26). The jackpot
+pool cannot fund this step and must not be drawn on for it, for two
+independent reasons. (1) It holds XMR, not SOL: the live pot figure the admin
+dashboard shows comes from `kraken_referral_sim_v1` — a SIMULATED referral
+projection, not a balance — and the most recent real drawings were 0.05 and
+0.093 XMR. (2) Even a real XMR → SOL conversion on Kraken produces MAINNET SOL.
+Devnet is a separate ledger with no bridge to mainnet, and the address formats
+are identical, so mainnet SOL sent to the devnet wallet's address lands on
+mainnet and is invisible on devnet. Devnet SOL exists only as faucet airdrops;
+nothing is ever paid for it. Devnet costs: 0.004 SOL for the mint in section 2,
+and the three program deploys in section 9 need rent computed from the real .so
+sizes (~7,000 lamports per byte of account data), which is why section 9 says to
+top up before the first run rather than during it.
+
+MAINNET, BY CONTRAST, COSTS REAL MONEY. The same three deploys would be paid in
+purchased SOL, roughly 1.5–2 SOL per program of a few hundred KB, non-refundable
+if a program id has to be abandoned after deploy; and the mint is irreversible
+under the section 3.1 lock. That is section 8, gated deliberately, and it is
+not a shortcut around a faucet that has not been clicked.
+
 ### 1.4 Confirm tooling before moving on
 
 Do not proceed to token creation until these commands succeed in the chosen
@@ -192,26 +212,69 @@ spl-token --url devnet create-account <XMRJ_MINT>
 
 Store the returned associated token account address as TREASURY_VAULT.
 
-### 2.3 Mint initial supply
+### 2.3 Mint initial supply — DECIDED (Oct 26)
 
-spl-token --url devnet mint <XMRJ_MINT> <AMOUNT> <TREASURY_VAULT>
+Max supply is FIXED at **100,000,000 XMRJ** (9 decimals). There is no emission
+schedule and no post-genesis mint: section 3.1 is the chosen branch. The whole
+cap is minted once, at genesis, split four ways:
 
-This example mints into the treasury vault. The implementation must support:
+| Tranche             | Share | Amount       | Account                          |
+|---------------------|-------|--------------|----------------------------------|
+| Treasury reserve    | 50%   | 50,000,000   | associated token account (2.2)   |
+| Jackpot & rewards   | 25%   | 25,000,000   | token account                    |
+| Community growth    | 15%   | 15,000,000   | token account                    |
+| Team / foundation   | 10%   | 10,000,000   | token account                    |
 
-- fixed supply, and/or
-- governed emission, where mint authority is held by governance program/multisig
+Mechanically: the treasury reserve is the ATA of 2.2, and the other three are
+ordinary 165-byte token accounts, because an ATA is unique per (owner, mint) —
+one wallet cannot have four. All four are owned by the deployer, so this is one
+transaction per tranche and no extra key custody.
 
-## 3. Lock or delegate mint authority
+Two limits of that split, recorded so nobody reads more into it than the chain
+enforces:
 
-### 3.1 Fixed supply
+- **The split is bookkeeping, not custody.** All four accounts have the same
+  owner, so one signer can move any of them. Real separation needs four distinct
+  owners (or the multisig/program of 3.2, which is NOT the chosen branch) and is
+  a separate step.
+- **Team/foundation vesting is not enforced on chain.** This workspace has no
+  vesting program, so a lock there would be a promise, not a constraint. Do not
+  describe that tranche as vested until something enforces it.
+
+The one-line CLI equivalent, per tranche:
+
+spl-token --url devnet mint <XMRJ_MINT> <AMOUNT> <ACCOUNT>
+
+`create_xmrj_mint.js` is the implementation: it asserts the bps total 10000,
+mints the four tranches, and reads every account back (mint, owner, amount, and
+total supply against the cap) instead of trusting what it sent.
+
+## 3. Lock or delegate mint authority — DECIDED (Oct 26): 3.1
+
+### 3.1 Fixed supply — CHOSEN
 
 Disable mint authority:
 
 spl-token --url devnet authorize <XMRJ_MINT> mint --disable
 
-### 3.2 Governed emission
+This is ONE-WAY: no instruction re-enables it, and the plan has no path back.
+So the order is fixed and not interchangeable — mint the full 100,000,000
+across the four accounts of 2.3 first, disable second, then verify that supply
+reads the cap and that no mint authority is reported.
 
-Set mint authority to a governance program or multisig. Mint authority must never remain on a single hot wallet.
+`create_xmrj_mint.js --lock` does exactly that and refuses to disable on any
+supply other than the cap. It is opt-in on purpose: the irreversible step is
+never a side effect of creating the token. Until it runs, the mint authority
+is a single hot wallet key, which is a DEVNET-ONLY state — 3.2 below is why it
+cannot survive into anything public.
+
+### 3.2 Governed emission — NOT the chosen branch
+
+Kept for the record: set the mint authority to a governance program or
+multisig, where minting is a governed act. Mint authority must never remain on
+a single hot wallet, which is the constraint that rules this out as a resting
+state. If the cap is ever revisited, that is a new mint under 3.2 — not a
+remint of this one.
 
 spl-token --url devnet authorize <XMRJ_MINT> mint <NEW_AUTHORITY_PUBLICKEY>
 
