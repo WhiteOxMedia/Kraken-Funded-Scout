@@ -1,7 +1,18 @@
 name: CI
 
+# ONE run per commit on a branch that has a PR (Oct 28). The aggregator below is
+# a REQUIRED status check on main (ruleset "main: the CI aggregate must pass"),
+# and a required context is satisfied only when every run that reports it on the
+# head commit is green: a push on a PR branch plus its pull_request synchronize
+# event used to run the same fourteen jobs twice, so a flake or a cancelled
+# duplicate in EITHER blocked a merge that was in fact green — measured on PR #1,
+# where a cancelled push run left `ci` failing next to a passing one and the PR
+# stayed BLOCKED while ready for review. Pushes to main still run (that is the
+# branch nobody opens a PR against); feature and release branches get their run
+# from the pull_request event.
 on:
   push:
+    branches: [main]
   pull_request:
 
 jobs:
