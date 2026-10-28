@@ -230,27 +230,34 @@ jobs:
   # (report §11.14), which is why only one check skips. The keypair identity stays a
   # host-side gate, where the real keypairs exist (test_anchor_wiring.py 4.3).
   #
-  # COST, MEASURED ON THIS JOB'S OWN RUNNER (Oct 27, ubuntu-latest, public repo,
-  # report §11.14 — a scratch branch ran the job with nothing cached, then
-  # re-ran it warm):
-  #                                             run 1   run 2
-  #                                            (cold)  (warm)
-  #   job wall                                 318 s    57 s
-  #   cache restore (1269 MB toolchain)          0 s    20 s
-  #   cache restore (423 MB crates + target)     0 s     4 s
-  #   rustup + 1.89.0 (rustfmt, clippy)          8 s    11 s
-  #   Agave 3.1.10 install (215 MB)             14 s     0 s
-  #   `cargo install avm` + anchor-cli 1.1.2   108 s     0 s
-  #   platform-tools v1.52 (519 MB)             36 s     0 s
-  #   anchor build + 3x build-sbf              131 s    16 s
-  #   the artifact drive / keygen               <1 s     1 s
-  #   cache SAVE (only for a key the cache lacks) 15 s    0 s
-  # Both caches earn their place — the toolchain one buys back ~155 s, the
-  # crates one ~115 s — and together they cost 24 s to restore. A second cold
-  # run on a busier runner took 370 s, so the worst case seen is ~6 min: 15
-  # minutes is ~2.4x that, and a hang still fails fast instead of burning a
-  # default-sized budget. (30 came from the host numbers, which overestimated
-  # avm by 2.5x on this hardware.)
+  # COST, MEASURED ON THIS JOB'S OWN RUNNER (Oct 27-28, ubuntu-latest, public
+  # repo, report §11.14 and §11.16). Every cold number is a first run after a
+  # cache MISS: both xmrj caches were deleted and the job re-run alone, seven
+  # times, so the spread below is the runner's rather than the workflow's.
+  #
+  #   cold job wall             318  370  374  429  452  470  487 s
+  #                             min 318   median 429   max 487
+  #   warm (cache hit)          54-57 s
+  #   toolchain hit, crates cold 176 s  (the toolchain cache alone is ~250 s)
+  #
+  #   step (cold)                      range        worst
+  #   rustup + 1.89.0                  8-11 s        11 s
+  #   Agave 3.1.10                     14-20 s       20 s
+  #   `cargo install avm` + anchor     108-156 s    156 s
+  #   platform-tools / build-sbf       36-60 s       60 s
+  #   anchor build + 3x build-sbf      131-214 s    214 s
+  #   cache save                       11-34 s       34 s
+  #
+  # THE TIMEOUT comes from that distribution, not from one run: 1.5x the worst
+  # cold run (487 s) is 731 s, rounded up to the next whole 5 minutes is 900 s
+  # — 1.85x the worst and 2.1x the median. A hang still fails fast instead of
+  # burning the 360-minute default, and a slow-but-real run is not killed where
+  # a re-run would cost more than the wait. (30 came from host numbers that
+  # overestimated avm by 2.5x. The earlier note here claimed 2.4x against a
+  # single 370 s run, before the 487 s sample existed.)
+  #
+  # Both caches earn their place: the toolchain one buys back ~250 s, the crates
+  # one ~115 s, and together they cost ~24 s to restore.
   xmrj-build-artifacts:
     runs-on: ubuntu-latest
     timeout-minutes: 15
