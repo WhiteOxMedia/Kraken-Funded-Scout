@@ -240,6 +240,22 @@ def record_funding(category, amount_usd, sponsor_id=None, source="",
     return rid
 
 
+def _receipt_row(key):
+    """The pre-Oct-26 protection: a receipt in the settings ledger."""
+    for r in _load_ledger():
+        if isinstance(r, dict) and r.get("source") == key:
+            return r
+    return None
+
+
+def _already(credit, reason="already credited"):
+    """The replay answer: the ORIGINAL split, and no money moved."""
+    return {"credited": False, "reason": reason,
+            "amount_xmr": float(credit.get("amount_xmr") or 0.0),
+            "jackpot_xmr": float(credit.get("jackpot_xmr") or 0.0),
+            "treasury_xmr": float(credit.get("treasury_xmr") or 0.0)}
+
+
 def credit_donation(order_id, amount_xmr, sponsor_id=None, source=""):
     """A paid Scout Pro unlock is SPLIT 70/30 (Oct 26).
 
@@ -250,11 +266,19 @@ def credit_donation(order_id, amount_xmr, sponsor_id=None, source=""):
     records the whole payment plus both halves, so the split is
     auditable per order.
 
-    Idempotent per checkout order: the receipt's source key carries the
-    order id, so a replayed status poll, a retried fulfilment or a
-    manual re-run can never fund the same order twice. Returns
-    {"credited": bool, "amount_xmr": float, "jackpot_xmr": float,
-     "treasury_xmr": float, "base_xmr": float}.
+    IDEMPOTENT PER ORDER, AND THE KEY IS A ROW (Oct 26): the check used
+    to be a scan of this module's ledger, which is a RECEIPT BOOK capped
+    at LEDGER_MAX_ROWS and rewritten as one JSON value — a replayed poll
+    for an order whose receipt had aged out of that cap funded the pot a
+    second time. Now one `donation_credits` row per order id IS the
+    credit, and the INSERT plus the base raise run in ONE transaction:
+    a concurrent poller loses the insert and moves nothing, and a crash
+    between them rolls both back instead of leaving money with no key or
+    a key with no money. The ledger receipt is still written afterwards
+    as the audit trail — it is no longer what makes this safe.
+
+    Returns {"credited": bool, "amount_xmr": float, "jackpot_xmr":
+    float, "treasury_xmr": float, "base_xmr": float}.
     """
     try:
         amount_xmr = round(float(amount_xmr or 0), 12)
@@ -267,31 +291,54 @@ def credit_donation(order_id, amount_xmr, sponsor_id=None, source=""):
     treasury_xmr = round(amount_xmr - jackpot_xmr, 12)
 
     key = "scout_pro_donation:%s" % (order_id,)
-    for r in _load_ledger():
-        if r.get("source") == key:
-            return {"credited": False, "reason": "already credited",
-                    "amount_xmr": float(r.get("amount_xmr") or 0.0),
-                    "jackpot_xmr": float(r.get("jackpot_xmr")
-                                        or r.get("amount_xmr") or 0.0),
-                    "treasury_xmr": float(r.get("treasury_xmr") or 0.0)}
 
+    # 1. ALREADY KNOWN? then the answer is the original split and nothing
+    #    moves. An order credited before this table existed is adopted on
+    #    sight, so its protection stops being prunable.
+    credit = db.get_donation_credit(order_id)
+    if credit is None:
+        legacy = _receipt_row(key)
+        if legacy is not None:
+            credit = db.adopt_donation_credit(
+                order_id, legacy.get("amount_xmr") or amount_xmr,
+                legacy.get("jackpot_xmr") or 0.0,
+                legacy.get("treasury_xmr") or 0.0,
+                sponsor_id=sponsor_id, source=key)
+    if credit is not None:
+        return _already(credit)
+
+    # The rate first: xmr_price may reach the network, which must never
+    # happen while a write transaction is open.
     rate = xmr_usd_rate()
-    rid = record_funding(
-        DONATION_CATEGORY, amount_xmr * rate, sponsor_id=sponsor_id,
-        source=key, amount_xmr=amount_xmr,
-        jackpot_xmr=jackpot_xmr, treasury_xmr=treasury_xmr,
-    )
-    if rid is None:
-        return {"credited": False, "reason": "receipt rejected",
-                "amount_xmr": 0.0}
+    import jackpot_engine as engine                  # the one balance writer
 
-    # The engine stays the only balance writer, exactly as the daily
-    # accrual does it — same hook, same rounding. Only the jackpot's
-    # 70% enters the pot; the treasury's 30% never touches the base.
-    # Tagged RECEIVED (Oct 26): this XMR arrived from a buyer, so the
-    # admin pot card must not report it as formula accrual.
-    import jackpot_engine as engine
-    base = engine.add_funding_base(jackpot_xmr, source=engine.SRC_RECEIVED)
+    # 2. THE CLAIM AND THE MONEY, IN ONE TRANSACTION. The engine stays the
+    #    only balance writer, exactly as the daily accrual does it — same
+    #    hook, same rounding, just handed this transaction. Only the
+    #    jackpot's 70% enters the pot; the treasury's 30% never touches
+    #    the base. Tagged RECEIVED (Oct 26): this XMR arrived from a
+    #    buyer, so the admin pot card must not call it formula accrual.
+    with db.get_db() as conn:
+        if not db.claim_donation_credit(
+                conn, order_id, amount_xmr, jackpot_xmr, treasury_xmr,
+                sponsor_id=sponsor_id, source=key):
+            # a concurrent poller won the insert between step 1 and here
+            return _already(db.get_donation_credit(order_id, conn=conn) or {})
+        base = engine.add_funding_base(jackpot_xmr,
+                                       source=engine.SRC_RECEIVED, conn=conn)
+        db.set_donation_base(conn, order_id, base)
+
+    # 3. THE RECEIPT (audit only): filed after the money is safe, so a
+    #    ledger write can never be mistaken for the credit itself.
+    rid = None
+    try:
+        rid = record_funding(
+            DONATION_CATEGORY, amount_xmr * rate, sponsor_id=sponsor_id,
+            source=key, amount_xmr=amount_xmr,
+            jackpot_xmr=jackpot_xmr, treasury_xmr=treasury_xmr,
+        )
+    except Exception as e:          # the credit stands; the receipt retries
+        print(f"[Funding] donation {key} credited; receipt not filed: {e}")
     return {"credited": True, "amount_xmr": amount_xmr,
             "jackpot_xmr": jackpot_xmr, "treasury_xmr": treasury_xmr,
             "amount_usd": round(amount_xmr * rate, 2),

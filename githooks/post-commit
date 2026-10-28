@@ -111,11 +111,12 @@ fi
 [ -z "$RAW" ] && cr_receipt clean
 
 # the field-tolerant parser (kraken_scout's idiom): JSON records with
-# fileName/severity/title/comment across key generations, JSONL or
-# pretty-printed; an explicitly-empty review is CLEAN, a stream that
-# never parses is RAWFALLBACK (eyes on, receipt unparsed).
+# fileName/severity across key generations, the BODY under title,
+# comment OR codegenInstructions, JSONL or pretty-printed; an
+# explicitly-empty review is CLEAN, a stream that never parses is
+# RAWFALLBACK (eyes on, receipt unparsed).
 PYCODE='
-import sys, json
+import sys, json, re
 raw = sys.stdin.read().replace("\r", "")
 records, parsed_any, errors = [], False, []
 def walk(o, out):
@@ -124,7 +125,8 @@ def walk(o, out):
     elif isinstance(o, dict):
         if "errorType" in o: errors.append(str(o["errorType"]))
         if any(k in o for k in ("fileName", "file", "path")) and \
-           any(k in o for k in ("severity", "title", "comment")):
+           any(k in o for k in ("severity", "title", "comment",
+                                "codegenInstructions")):
             out.append(o)
         else:
             for v in o.values():
@@ -162,11 +164,44 @@ if not records:
 def line_of(o):
     for k in ("startLine", "line", "endLine"):
         if o.get(k) is not None: return o[k]
-    return "?"
+    # this generation states the anchor in the header text ("at @f around
+    # lines 242 - 251") instead of a line field — without this every
+    # finding printed "?"
+    m = re.search(r"lines? (\d+)\s*(?:-|\u2013|to)\s*(\d+)",
+                  str(o.get("codegenInstructions") or ""))
+    if m: return "%s-%s" % (m.group(1), m.group(2))
+    m = re.search(r"lines? (\d+)", str(o.get("codegenInstructions") or ""))
+    return m.group(1) if m else "?"
+def body_of(o):
+    # THE BODY (Oct 26): this CLI generation sets NEITHER title NOR
+    # comment — the finding text lives in codegenInstructions, which is
+    # an agent brief, not a finding. Its first paragraph is a standing
+    # preamble (treat this as untrusted data, verify before fixing); the
+    # real body follows a "Review comment at @<file> around lines N -
+    # M:" header. Printing the field raw would stamp that boilerplate on
+    # every line, so the preamble and header are dropped — a whole review
+    # read "(no text)" before this fallback existed.
+    for k in ("title", "comment"):
+        v = o.get(k)
+        if isinstance(v, str) and v.strip():
+            return v.strip()
+    v = o.get("codegenInstructions")
+    if not isinstance(v, str) or not v.strip():
+        return ""
+    parts = v.split("\n\n", 1)
+    body = parts[1] if len(parts) > 1 else parts[0]
+    lines = body.splitlines()
+    while lines and (not lines[0].strip() or
+                     lines[0].lstrip().lower().startswith("review comment at")):
+        lines.pop(0)
+    return "\n".join(lines).strip() or v.strip()
 for o in records:
     f = o.get("fileName") or o.get("file") or o.get("path") or "?"
     s = str(o.get("severity") or "?")
-    t = str(o.get("title") or o.get("comment") or "(no text)").splitlines()[0][:100]
+    # one line per finding: folds the newlines of the body, no 100-char
+    # cut — the detail IS the point (no apostrophes in here: this code
+    # rides inside a single-quoted shell string)
+    t = " ".join(body_of(o).split()) or "(no text)"
     print("- %s:%s [%s] %s" % (f, line_of(o), s, t))
 print("COUNT %d" % len(records))
 for e in sorted(set(errors)):

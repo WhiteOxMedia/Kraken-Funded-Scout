@@ -74,11 +74,16 @@ pub const JACKPOT_FUNDER_SEED: &[u8] = b"jackpot_funder";
 pub const UPGRADEABLE_LOADER_ID: Pubkey =
     Pubkey::from_str_const("BPFLoaderUpgradeab1e11111111111111111111111");
 
-/// The loader's ProgramData address prefix: `[PROGRAM_DATA_SEED, <program
-/// id>]` under UPGRADEABLE_LOADER_ID. One value in all three crates and in
-/// the devnet suite (`Buffer.from("programdata")`), because a derivation that
-/// disagrees with the runtime's is an account that does not exist.
-pub const PROGRAM_DATA_SEED: &[u8] = b"programdata";
+/// THE RUNTIME'S ProgramData RULE: the upgradeable loader derives a program's
+/// ProgramData account as `[<program id>]` under UPGRADEABLE_LOADER_ID — the
+/// program's own id and NOTHING ELSE. There is deliberately no seed constant
+/// to share with the suite here: the `"programdata"` prefix this crate used
+/// to prepend derived 5ALdAqdhEmXK8gDjj3JsT84Cs1QVHy98Rd3bHW74D93L for this
+/// program's id, while the account the loader actually created is
+/// CRANd8V3PhnZd9gs46qHMHQGvLoeJgQS5XAZaqmd4wNo — so `initialize` was
+/// refused on a real cluster with `NotProgramData` (6004). One seed, no
+/// prefix, pinned against the pointer the deployed program account carries in
+/// its own 32 bytes.
 
 /// `UpgradeableLoaderState::ProgramData` is bincode-encoded as: u32 variant
 /// (3 = ProgramData), u64 slot, then `Option<Pubkey>` — a one-byte tag (1 =
@@ -136,6 +141,13 @@ pub mod xmrj_treasury {
             reserve_bps.checked_add(jackpot_bps) == Some(10_000),
             ErrorCode::InvalidSplitRatio
         );
+        // THE RATE IS A MULTIPLIER on the funding path — see
+        // fund_jackpot_with_xmr, where the recorded XMRJ share is valued in
+        // XMR at this rate. A zero rate is refused where it is SET: it would
+        // make every recorded share worth zero XMR and brick funding for the
+        // life of the state, which is not a thing to discover at the first
+        // funding call.
+        require!(exchange_rate_bps > 0, ErrorCode::InvalidExchangeRate);
 
         // THE UPGRADE-AUTHORITY GATE: the payer must BE this program's
         // upgrade authority, read from the program's own ProgramData account
@@ -220,7 +232,20 @@ pub mod xmrj_treasury {
         Ok(())
     }
 
+    /// SET THE ON-CHAIN EXCHANGE RATE — in basis points of XMR per XMRJ, the
+    /// same unit and the same integer arithmetic the off-chain conversion
+    /// service uses (`xmr_amount = xmrj_amount * exchange_rate_bps / 10 000`,
+    /// see xmrj_conversion_service): 10 000 means 1 XMRJ = 1 XMR, and 1 250
+    /// means 1 XMRJ = 0.125 XMR.
+    ///
+    /// Since F2 of XMRJ_DEVNET_EXECUTION_REPORT.md the rate is READ, not merely
+    /// recorded: it VALUES the convertible share in fund_jackpot_with_xmr, so
+    /// this setter moves the ceiling on how much XMR the treasury may forward.
+    /// A rate of 0 is refused: it would make every recorded share worth zero
+    /// XMR and brick funding permanently.
     pub fn set_exchange_rate(ctx: Context<SetExchangeRate>, exchange_rate_bps: u64) -> Result<()> {
+        require!(exchange_rate_bps > 0, ErrorCode::InvalidExchangeRate);
+
         let state = &mut ctx.accounts.treasury_state;
         state.exchange_rate_bps = exchange_rate_bps;
         Ok(())
@@ -282,12 +307,44 @@ pub mod xmrj_treasury {
     pub fn fund_jackpot_with_xmr(ctx: Context<FundJackpotWithXmr>, amount_xmr: u64) -> Result<()> {
         let state = &mut ctx.accounts.treasury_state;
 
-        let forwardable = state
-            .total_converted_xmrj
-            .checked_sub(state.total_jackpot_funded_xmr)
-            .ok_or(ErrorCode::Overflow)?;
+        // THE CONVERSION — the fix for F2. The recorded convertible share is
+        // denominated in XMRJ; the amount this instruction forwards is XMR.
+        // Comparing the two 1:1 (which is what this did while
+        // `exchange_rate_bps` was written by two instructions and read by
+        // none) made the on-chain bound independent of the rate the off-chain
+        // service converts at, and made a proposal "changing the rate" change
+        // nothing on chain. The same arithmetic, in integers, in the SAME
+        // direction as xmrj_conversion_service (which is the module that
+        // defines the rate's unit — `xmr_amount = xmrj_amount *
+        // exchange_rate_bps / 10 000`, so 10 000 means 1 XMRJ = 1 XMR):
+        //
+        //     convertible_xmr = total_converted_xmrj * exchange_rate_bps / 10 000
+        //
+        // CUMULATIVE, not per-call: the XMR reachable from everything recorded
+        // so far, minus everything already forwarded. Converting each call in
+        // isolation would let a caller shave the remainder instead of
+        // forwarding it.
+        let rate = state.exchange_rate_bps as u128;
+        // A zero rate would make every recorded share worth zero XMR — funding
+        // permanently bricked. initialize and set_exchange_rate refuse it
+        // where it is set; refused here too rather than left to arithmetic.
+        require!(rate > 0, ErrorCode::InvalidExchangeRate);
+
+        let convertible_xmr = (state.total_converted_xmrj as u128)
+            .checked_mul(rate)
+            .ok_or(ErrorCode::Overflow)?
+            / 10_000;
+        let already_forwarded = state.total_jackpot_funded_xmr as u128;
+
+        // SATURATING, not checked: a proposal that LOWERS the rate lowers this
+        // ceiling, and a treasury that has already forwarded more than the new
+        // ceiling computes may then subtract into negatives. Refusing every
+        // further amount is the right answer — the bound is exhausted — and it
+        // is reported as `ExceedsConvertibleShare` below. A subtraction that
+        // returned `Overflow` would name the wrong cause.
+        let forwardable = convertible_xmr.saturating_sub(already_forwarded);
         require!(
-            amount_xmr <= forwardable,
+            (amount_xmr as u128) <= forwardable,
             ErrorCode::ExceedsConvertibleShare
         );
 
@@ -332,8 +389,8 @@ pub mod xmrj_treasury {
 /// REQUIRE THAT `signer` IS THIS PROGRAM'S UPGRADE AUTHORITY.
 ///
 /// `program_data` is the ProgramData account the `Initialize` constraint
-/// derives as `[PROGRAM_DATA_SEED, crate::ID]` under UPGRADEABLE_LOADER_ID, so
-/// it is this program's own account and not a lookalike. This function then
+/// derives as `[crate::ID]` under UPGRADEABLE_LOADER_ID — the loader's own
+/// rule — so it is this program's own account and not a lookalike. This function then
 /// proves three things about the BYTES the loader wrote:
 ///
 /// 1. the loader owns the account (`owner == UPGRADEABLE_LOADER_ID`);
@@ -394,6 +451,13 @@ pub struct TreasuryState {
     pub total_inflow_xmrj: u64,
     pub total_reserve_xmrj: u64,
     pub total_converted_xmrj: u64,
+    /// THE XMR/XMRJ RATE the recorded convertible share is valued at, in
+    /// basis points: 10 000 means 1 XMRJ = 1 XMR (the par the runbook deploys
+    /// at). WRITTEN by initialize and by set_exchange_rate (admin-gated, so by
+    /// an approved proposal), and READ by fund_jackpot_with_xmr — where it
+    /// decides how much XMR the recorded convertible share is worth, and
+    /// therefore how much may be forwarded. Zero is refused: it would value
+    /// every share at zero and brick funding.
     pub exchange_rate_bps: u64,
     pub reserve_bps: u64,
     pub jackpot_bps: u64,
@@ -438,14 +502,20 @@ pub struct Initialize<'info> {
     )]
     pub admin_authority: UncheckedAccount<'info>,
     /// CHECK: THIS PROGRAM'S ProgramData account on the upgradeable loader,
-    /// derived here from `[b"programdata", <this program id>]` under the
+    /// derived here from `[<this program id>]` under the
     /// LOADER's id — so the address is fixed and a lookalike account cannot be
     /// passed. It is read, not written: `require_upgrade_authority` checks the
     /// loader owns it, that it is in the ProgramData variant, and that its
     /// recorded upgrade authority is the payer.
+    // `bump` is REQUIRED by anchor whenever `seeds` are given, and here it is
+    // what turns the comment above into a constraint: without it the derive
+    // fails ("bump must be provided with seeds") and the whole instruction
+    // disappears; with it the address is DERIVED and compared, so a lookalike
+    // is rejected by the runtime, not by a comment.
     #[account(
-        seeds = [PROGRAM_DATA_SEED, crate::ID.as_ref()],
+        seeds = [crate::ID.as_ref()],
         seeds::program = UPGRADEABLE_LOADER_ID,
+        bump
     )]
     pub program_data: UncheckedAccount<'info>,
     #[account(mut)]
@@ -465,6 +535,9 @@ pub struct RecordInflowXmrj<'info> {
     /// The state's own operational authority, demanded as a SIGNER: the
     /// `has_one` above is what makes the address checked rather than supplied,
     /// and this is what makes it unable to be merely relayed by a third party.
+    /// CHECK: nothing is deserialized from this account. `#[account(signer)]`
+    /// makes it the key that must sign, and the state's
+    /// `has_one = operational_authority` is what binds that key to the state.
     #[account(signer)]
     pub operational_authority: AccountInfo<'info>,
 }
@@ -473,6 +546,9 @@ pub struct RecordInflowXmrj<'info> {
 pub struct SetSplitRatio<'info> {
     #[account(mut, seeds = [b"treasury_state"], bump, has_one = admin_authority)]
     pub treasury_state: Account<'info, TreasuryState>,
+    /// CHECK: an account key, not an account body. Bound by the state's
+    /// `has_one = admin_authority` above and demanded as a SIGNER here,
+    /// so the value is checked by the derive rather than read through a type.
     #[account(signer)]
     pub admin_authority: AccountInfo<'info>,
 }
@@ -481,6 +557,9 @@ pub struct SetSplitRatio<'info> {
 pub struct SetExchangeRate<'info> {
     #[account(mut, seeds = [b"treasury_state"], bump, has_one = admin_authority)]
     pub treasury_state: Account<'info, TreasuryState>,
+    /// CHECK: an account key, not an account body. Bound by the state's
+    /// `has_one = admin_authority` above and demanded as a SIGNER here,
+    /// so the value is checked by the derive rather than read through a type.
     #[account(signer)]
     pub admin_authority: AccountInfo<'info>,
 }
@@ -489,6 +568,9 @@ pub struct SetExchangeRate<'info> {
 pub struct SetOperationalAuthority<'info> {
     #[account(mut, seeds = [b"treasury_state"], bump, has_one = admin_authority)]
     pub treasury_state: Account<'info, TreasuryState>,
+    /// CHECK: an account key, not an account body. Bound by the state's
+    /// `has_one = admin_authority` above and demanded as a SIGNER here,
+    /// so the value is checked by the derive rather than read through a type.
     #[account(signer)]
     pub admin_authority: AccountInfo<'info>,
 }
@@ -535,6 +617,8 @@ pub enum ErrorCode {
     InvalidSplitRatio,
     #[msg("Amount exceeds the convertible share the treasury has recorded")]
     ExceedsConvertibleShare,
+    #[msg("Exchange rate must be greater than zero")]
+    InvalidExchangeRate,
     #[msg("The program_data account is not this program's ProgramData account")]
     NotProgramData,
     #[msg("This program has no upgrade authority (it is immutable); initialize before finalizing it")]

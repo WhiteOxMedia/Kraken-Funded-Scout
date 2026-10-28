@@ -5,7 +5,10 @@
   "comment": "The Solana workspace's test harness. Versions here are EXACT (no carets) for the same reason the crates use `=`: this repo pins every tool it builds with, and test_anchor_wiring.py section 14 fails if @anchor-lang/core drifts from Anchor.toml's [toolchain] anchor_version. `@anchor-lang/core` is the renamed client package (was @coral-xyz/anchor before Anchor 1.0.0).",
   "scripts": {
     "test": "ts-mocha -p ./tsconfig.json -t 1000000 \"tests/**/*.ts\"",
-    "typecheck": "tsc --noEmit -p ./tsconfig.json"
+    "test:rpc": "ts-mocha -p ./tsconfig.json -t 120000 \"tests/xmrj_rpc_resilience.ts\"",
+    "typecheck": "tsc --noEmit -p ./tsconfig.json",
+    "loadtest": "ts-node tools/xmrj_loadtest.ts",
+    "loadtest:offline": "ts-node tools/xmrj_loadtest.ts --offline"
   },
   "dependencies": {
     "@anchor-lang/core": "1.1.2"

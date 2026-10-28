@@ -629,6 +629,31 @@ def init_db():
             "CREATE INDEX IF NOT EXISTS idx_kraken_payouts_referrer "
             "ON kraken_referral_payouts(referrer_id, created_at)")
 
+        # ─── THE DONATION ORDER KEY (Oct 26) ───
+        # Idempotency for Scout Pro donation crediting used to be a scan of
+        # jackpot_funding's settings-backed ledger — one JSON value capped
+        # at LEDGER_MAX_ROWS (2000) and rewritten on every write. Once an
+        # old order's receipt aged out of that cap, a replayed status poll
+        # funded the pot a second time. This table is the key instead: one
+        # row per order id, never pruned, and the INSERT is the claim. The
+        # credit is written in the SAME transaction as the claim (callers
+        # pass their get_db() connection in), so a crash between them
+        # rolls both back rather than leaving money with no key, or a key
+        # with no money.
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS donation_credits (
+                order_id TEXT PRIMARY KEY,
+                amount_xmr REAL NOT NULL DEFAULT 0,
+                jackpot_xmr REAL NOT NULL DEFAULT 0,
+                treasury_xmr REAL NOT NULL DEFAULT 0,
+                sponsor_id TEXT,
+                source TEXT,
+                base_xmr REAL,
+                credited_at REAL DEFAULT (strftime('%s','now'))
+            )
+            """)
+
         # ─── Ticket provenance (Oct 24) ───
         tcols = {r["name"] for r in conn.execute(
             "PRAGMA table_info(tickets)")}
@@ -792,19 +817,27 @@ def reencrypt_pii() -> dict:
     return {"rows_resealed": resealed}
 
 
-def get_setting(key, default=None):
-    with get_db() as conn:
+def get_setting(key, default=None, conn=None):
+    # `conn` joins the caller's OPEN transaction (Oct 26): a credit that
+    # must commit its balance with its claim cannot open a second
+    # connection — SQLite would block it on the writer lock.
+    if conn is not None:
         row = conn.execute("SELECT value FROM settings WHERE key = ?", (key,)).fetchone()
+        return row["value"] if row else default
+    with get_db() as c:
+        row = c.execute("SELECT value FROM settings WHERE key = ?", (key,)).fetchone()
         return row["value"] if row else default
 
 
-def set_setting(key, value):
-    with get_db() as conn:
-        conn.execute(
-            "INSERT INTO settings (key, value) VALUES (?, ?) "
-            "ON CONFLICT(key) DO UPDATE SET value = ?",
-            (key, str(value), str(value)),
-        )
+def set_setting(key, value, conn=None):
+    sql = ("INSERT INTO settings (key, value) VALUES (?, ?) "
+           "ON CONFLICT(key) DO UPDATE SET value = ?")
+    args = (key, str(value), str(value))
+    if conn is not None:
+        conn.execute(sql, args)
+        return
+    with get_db() as c:
+        c.execute(sql, args)
 
 
 def safe_pos_int(raw, fallback=100):
@@ -2659,6 +2692,81 @@ def get_pending_payments():
             "ORDER BY COALESCE(scanned_at, 0) ASC, id ASC"
         ).fetchall()
         return [dict(r) for r in rows]
+
+
+# ── THE DONATION ORDER KEY (Oct 26) ────────────────────────────────────
+# One row per checkout order, written by the same transaction that raises
+# the pot. The INSERT is the claim: whoever inserts owns the credit, and
+# everyone else reads the row and moves nothing. See the table's comment
+# in init_db for why the settings ledger could not carry this.
+def get_donation_credit(order_id, conn=None):
+    """The credit row for one order, or None when it never landed.
+
+    `conn` reads inside the caller's open transaction, so a credit can
+    see the claim it is in the middle of making.
+    """
+    sql = "SELECT * FROM donation_credits WHERE order_id = ?"
+    key = (str(order_id),)
+    if conn is not None:
+        row = conn.execute(sql, key).fetchone()
+        return dict(row) if row else None
+    with get_db() as c:
+        row = c.execute(sql, key).fetchone()
+        return dict(row) if row else None
+
+
+def claim_donation_credit(conn, order_id, amount_xmr, jackpot_xmr,
+                          treasury_xmr, sponsor_id=None, source=""):
+    """Claim one order INSIDE the caller's transaction.
+
+    True means this caller owns the credit and must finish it (raise the
+    pot, stamp the base) before that transaction commits. False means the
+    order already has a row — an earlier credit or a concurrent poll —
+    and nothing may move. INSERT OR IGNORE against the primary key is the
+    whole mechanism: no read-then-write window, so two threads polling
+    the same checkout cannot both win.
+    """
+    cur = conn.execute(
+        "INSERT OR IGNORE INTO donation_credits (order_id, amount_xmr, "
+        "jackpot_xmr, treasury_xmr, sponsor_id, source, credited_at) "
+        "VALUES (?, ?, ?, ?, ?, ?, strftime('%s','now'))",
+        (str(order_id), float(amount_xmr), float(jackpot_xmr),
+         float(treasury_xmr),
+         None if sponsor_id is None else str(sponsor_id),
+         str(source or "")[:120]))
+    return cur.rowcount == 1
+
+
+def set_donation_base(conn, order_id, base_xmr):
+    """Stamp the pot value this credit produced (same transaction)."""
+    conn.execute(
+        "UPDATE donation_credits SET base_xmr = ? WHERE order_id = ?",
+        (round(float(base_xmr), 12), str(order_id)))
+
+
+def adopt_donation_credit(order_id, amount_xmr, jackpot_xmr, treasury_xmr,
+                          sponsor_id=None, source="", base_xmr=None):
+    """Adopt a credit that predates this table.
+
+    An order credited before Oct 26 is protected only by its receipt in
+    the prunable ledger. On sight, that protection is copied into the key
+    table so it outlives the ledger's cap. INSERT OR IGNORE: an existing
+    row (the ordinary replay) is never overwritten.
+    """
+    with get_db() as conn:
+        conn.execute(
+            "INSERT OR IGNORE INTO donation_credits (order_id, amount_xmr, "
+            "jackpot_xmr, treasury_xmr, sponsor_id, source, base_xmr, "
+            "credited_at) VALUES (?, ?, ?, ?, ?, ?, ?, strftime('%s','now'))",
+            (str(order_id), float(amount_xmr), float(jackpot_xmr),
+             float(treasury_xmr),
+             None if sponsor_id is None else str(sponsor_id),
+             str(source or "")[:120],
+             None if base_xmr is None else round(float(base_xmr), 12)))
+        row = conn.execute(
+            "SELECT * FROM donation_credits WHERE order_id = ?",
+            (str(order_id),)).fetchone()
+        return dict(row) if row else None
 
 
 def create_scout_purchase(user_id, identity_wallet, amount_xmr, address,

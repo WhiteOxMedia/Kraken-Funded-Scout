@@ -1,0 +1,45 @@
+{
+  "first_launch": true,
+  "miner_opt_in": true,
+  "pro_unlocked": null,
+  "pro_until": 0,
+  "last_local_alert": {
+    "type": "BUY_NOW",
+    "payload": {
+      "probe": "engine prep"
+    },
+    "ts": "2026-10-22T01:09:27.401752+00:00"
+  },
+  "calibrated": true,
+  "calibration": {
+    "steps": [
+      {
+        "name": "system checks",
+        "ok": true,
+        "detail": "python ok; filesystem ok"
+      },
+      {
+        "name": "watchdog initialization",
+        "ok": true,
+        "detail": "2026-10-22T01:09:27.401165+00:00"
+      },
+      {
+        "name": "miner verification",
+        "ok": true,
+        "detail": "xmrig present"
+      },
+      {
+        "name": "alert engine prep",
+        "ok": true,
+        "detail": "Pro-locked probe stayed silent (correct); Pro-unlocked alert routed (correct)"
+      },
+      {
+        "name": "configuration sync",
+        "ok": true,
+        "detail": "app state persisted"
+      }
+    ],
+    "current": null,
+    "progress": 100
+  }
+}

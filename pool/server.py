@@ -4280,13 +4280,22 @@ if __name__ == "__main__":
                             for p in pending:
                                 tx_info = xmr.get_transfer_by_txid(p["txid"])
                                 if tx_info and tx_info["confirmed"]:
+                                    # PER PAYMENT, NOT PER LOOP (review, Oct 26):
+                                    # `tickets` used to be assigned only under
+                                    # `if miner:` and read outside it — so the
+                                    # first deposit with no miner raised
+                                    # NameError (killing the scan), and every
+                                    # later one stamped the PREVIOUS payment's
+                                    # count onto its row. Zero until this
+                                    # payment mints its own.
+                                    tickets = 0
                                     user = db.get_user(p["user_id"])
                                     miner = db.get_or_create_miner(user.get("wallet_address", "")) if user else None
                                     if miner:
                                         # Credit free tickets for deposits (1 ticket per 0.001 XMR)
                                         tickets = int(tx_info["amount"] / 0.001)
                                         db.add_tickets(miner["id"], "free", tickets)
-                                    db.credit_payment(p["id"], tickets if tickets else 0)
+                                    db.credit_payment(p["id"], tickets)
 
                         known = db.get_all_subaddress_mappings()
                         if known:

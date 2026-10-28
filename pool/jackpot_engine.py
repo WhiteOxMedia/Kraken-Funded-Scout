@@ -231,23 +231,28 @@ _SRC_SETTINGS = {SRC_ACCRUAL: "jackpot_src_accrual",
                  SRC_RECEIVED: "jackpot_src_received"}
 
 
-def _src_read():
+# THE OPTIONAL CONNECTION (Oct 26): a caller that must commit this
+# module's balance write WITH its own row (jackpot_funding's donation
+# claim) passes its open transaction down, and none of these touch a
+# second connection — SQLite would block that one on the writer lock.
+# Every other caller passes nothing and behaves exactly as before.
+def _src_read(conn=None):
     """The two counters as stored. Missing or unparsable reads as 0 —
     _attribute() is what turns a 0 into a real answer."""
     out = {}
     for src, key in _SRC_SETTINGS.items():
         try:
-            out[src] = max(0.0, float(db.get_setting(key, "0") or 0))
+            out[src] = max(0.0, float(db.get_setting(key, "0", conn=conn) or 0))
         except (TypeError, ValueError):
             out[src] = 0.0
     return out
 
 
-def _src_write(accrual, received):
+def _src_write(accrual, received, conn=None):
     db.set_setting(_SRC_SETTINGS[SRC_ACCRUAL],
-                   str(round(max(0.0, accrual), 12)))
+                   str(round(max(0.0, accrual), 12)), conn=conn)
     db.set_setting(_SRC_SETTINGS[SRC_RECEIVED],
-                   str(round(max(0.0, received), 12)))
+                   str(round(max(0.0, received), 12)), conn=conn)
 
 
 def _lifetime_accrued_xmr():
@@ -261,7 +266,7 @@ def _lifetime_accrued_xmr():
         return 0.0
 
 
-def _attribute(base, accrual=None, received=None):
+def _attribute(base, accrual=None, received=None, conn=None):
     """Describe `base` by source. Returns the two counters — it NEVER
     moves the base.
 
@@ -281,7 +286,7 @@ def _attribute(base, accrual=None, received=None):
     """
     base = max(0.0, float(base or 0.0))
     if accrual is None or received is None:
-        _held = _src_read()
+        _held = _src_read(conn)
         accrual = _held[SRC_ACCRUAL] if accrual is None else accrual
         received = _held[SRC_RECEIVED] if received is None else received
     accrual = max(0.0, float(accrual or 0.0))
@@ -787,7 +792,7 @@ def _get_p2pool_hashrate():
         return 0
 
 
-def add_funding_base(amount_xmr, source=SRC_ACCRUAL):
+def add_funding_base(amount_xmr, source=SRC_ACCRUAL, conn=None):
     """The funding model's ONE entry into the balance: raise the base
     by a REAL, backed amount (the self-adjusting daily seed). Nothing
     else may write the base for funding — one writer per flow.
@@ -798,17 +803,21 @@ def add_funding_base(amount_xmr, source=SRC_ACCRUAL):
     jackpot share). Anything that reaches the base outside this function
     is reconciled as received on the next read, so a flow that forgets
     the argument can only under-claim the formula, never over-claim it.
+
+    `conn` runs the whole raise inside a caller's transaction (the
+    donation claim, Oct 26) so the money and the claim commit together.
     """
     amount_xmr = max(0.0, float(amount_xmr or 0.0))
-    _b = float(db.get_setting("jackpot_balance", "0"))
-    _att = _attribute(_b)            # absorb any drift before crediting,
+    _b = float(db.get_setting("jackpot_balance", "0", conn=conn))
+    _att = _attribute(_b, conn=conn)  # absorb any drift before crediting,
     _a, _r = _att[SRC_ACCRUAL], _att[SRC_RECEIVED]   # so this credit lands
     if source == SRC_RECEIVED:                       # on the right side
         _r += amount_xmr
     else:
         _a += amount_xmr
-    db.set_setting("jackpot_balance", str(round(_b + amount_xmr, 8)))
-    _src_write(_a, _r)
+    db.set_setting("jackpot_balance", str(round(_b + amount_xmr, 8)),
+                   conn=conn)
+    _src_write(_a, _r, conn=conn)
     return round(_b + amount_xmr, 8)
 
 

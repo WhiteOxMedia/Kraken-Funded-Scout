@@ -201,9 +201,12 @@ def _harness_problems(ts, runner, gated_src, manifest_text):
     # 6. the accounts the suite sends match the gated struct's own list and
     #    seeds: the negative attempt must be a REAL initialize call, not a
     #    malformed one that fails for an unrelated reason.
+    # The ProgramData account is NOT in this list on purpose: the loader
+    # derives it as `[<program id>]` alone, so there is no seed literal to
+    # share — a `"programdata"` prefix derives an address with no account at
+    # it, which is NotProgramData (6004) on chain.
     for seed, where in (("jackpot_state", "JACKPOT_STATE_SEED"),
-                        ("governance_authority", "GOVERNANCE_AUTHORITY_SEED"),
-                        ("programdata", "PROGRAM_DATA_SEED")):
+                        ("governance_authority", "GOVERNANCE_AUTHORITY_SEED")):
         if f'{where} = "{seed}"' not in ts:
             problems["seed:" + seed] = "the suite does not use the crate's literal"
     for lit in (LOADER_ID, "AVbKyQ8KZa8hTHQwwSJTRGQsVQxVHzTmzmohVCH5CLe"):

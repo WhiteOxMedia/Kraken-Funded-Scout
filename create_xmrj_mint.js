@@ -412,9 +412,15 @@ async function main() {
       // 2.2 verbatim: the associated token account `create-account` makes.
       [address] = associatedTokenAddress(payer.publicKey, mint.publicKey);
       signers = [payer];
+      // `Create` does BOTH: it materialises the PDA and initializes it as a
+      // token account. Following it with `InitializeAccount` initializes the
+      // same account twice, which the token program refuses with
+      // `custom program error: 0x6` ("account or token already in use") — the
+      // failure the first live run of this script hit. The other three
+      // tranches are plain system accounts, which the token program does NOT
+      // initialize, so they still need the explicit call below.
       createIxs = [
         createAssociatedTokenAccount(payer.publicKey, address, payer.publicKey, mint.publicKey),
-        initializeAccount(address, mint.publicKey, payer.publicKey),
       ];
     } else {
       // An ATA is unique per (owner, mint), so the remaining tranches are
