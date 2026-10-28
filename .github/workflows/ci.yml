@@ -277,18 +277,45 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-      # TWO caches, because they invalidate on different things: the toolchain
-      # changes with the pins in Anchor.toml / rust-toolchain.toml; the compiled
-      # artifacts change with Cargo.lock too. One combined key would throw a good
-      # toolchain away on every lockfile bump.
-      - name: Cache the toolchain (avm + anchor-cli, Agave, platform-tools)
+      # THE CACHE KEYS COME FROM THE PINS, NOT FROM THE MANIFEST (Oct 28). This
+      # job used to hash Anchor.toml WHOLE, so editing a cluster, a program id or
+      # a comment discarded a 150 s avm build, a 734 MB Solana toolchain
+      # (Agave 215 + platform-tools 519) and 443 MB of compiled crates that
+      # depend on none of it — a one-line manifest edit cost the full ~460 s
+      # cold run. Four inputs actually matter: solana_version, anchor_version,
+      # the rust channel and the avm rev. They are read once here, and each
+      # cache is keyed on only the ones it uses, so a miss is scoped to what
+      # really changed.
+      - name: Read the pins the cache keys are derived from
+        id: pins
+        run: |
+          SOL=$(sed -nE 's/^solana_version *= *"([^"]+)".*/\1/p' Anchor.toml | head -1)
+          ANC=$(sed -nE 's/^anchor_version *= *"([^"]+)".*/\1/p' Anchor.toml | head -1)
+          if [ -z "$SOL" ] || [ -z "$ANC" ]; then
+            echo "Anchor.toml [toolchain] must pin BOTH solana_version and anchor_version" >&2
+            exit 1
+          fi
+          echo "solana=$SOL" >> "$GITHUB_OUTPUT"
+          echo "anchor=$ANC" >> "$GITHUB_OUTPUT"
+          echo "pins: solana=$SOL anchor=$ANC"
+      # avm and the anchor-cli it installs depend on the avm REV (a literal in
+      # the install step below, pinned there for the reason wiring-drive 3.6
+      # states) and the anchor version — never on the crates or the sources.
+      - name: Cache avm and the anchor-cli it installs
+        uses: actions/cache@v4
+        with:
+          path: ~/.avm
+          key: xmrj-avm-85c5293e-${{ steps.pins.outputs.anchor }}-${{ hashFiles('rust-toolchain.toml') }}
+      # The Agave CLI and the platform-tools that cargo-build-sbf downloads are
+      # both derived from solana_version (3.1.10 resolves platform-tools v1.57),
+      # so they move together and are cached together.
+      - name: Cache the Solana toolchain (Agave + platform-tools)
         uses: actions/cache@v4
         with:
           path: |
-            ~/.avm
             ~/.local/share/solana
             ~/.cache/solana
-          key: xmrj-toolchain-${{ hashFiles('Anchor.toml', 'rust-toolchain.toml') }}
+          key: xmrj-solana-${{ steps.pins.outputs.solana }}-${{ hashFiles('rust-toolchain.toml') }}
       # target/deploy is deliberately NOT cached: it is where the build puts the
       # .so files and where the placeholder keypairs live, and the drive checks
       # that each .so is newer than its sources — a cache that could carry an old
@@ -300,6 +327,11 @@ jobs:
       # step went 16 s -> 110 s. `anchor build` runs a HOST build of each
       # program alongside the SBF one (that is where the IDL comes from), and
       # these two dirs are its output. Keep them.
+      # Cargo.lock (and the compiler channel) is the only thing the registry and
+      # the compiled artifacts depend on. Anchor.toml is NOT one of them: the ids
+      # in it reach the crates through declare_id!, in source, and `anchor build`
+      # is given --ignore-keys. restore-keys keeps a genuine lockfile bump from
+      # starting at an empty target/.
       - name: Cache the crates and the compiled artifacts
         uses: actions/cache@v4
         with:
@@ -309,7 +341,7 @@ jobs:
             target/release
             target/debug
             target/sbpf-solana-solana
-          key: xmrj-crates-${{ hashFiles('Anchor.toml', 'rust-toolchain.toml', 'Cargo.lock') }}
+          key: xmrj-crates-${{ hashFiles('rust-toolchain.toml', 'Cargo.lock') }}
           restore-keys: xmrj-crates-
       - name: Rust — the channel rust-toolchain.toml pins
         run: |
@@ -319,10 +351,10 @@ jobs:
           rustup default 1.89.0
       - name: Solana CLI — the Agave release Anchor.toml [toolchain] pins
         run: |
-          # The version comes from the MANIFEST. A second hardcoded copy here is
-          # exactly the drift the wiring drive (13.1) exists to catch.
-          REL=$(sed -nE 's/^solana_version *= *"([^"]+)".*/\1/p' Anchor.toml | head -1)
-          if [ -z "$REL" ]; then echo "no solana_version in Anchor.toml" >&2; exit 1; fi
+          # The version comes from the MANIFEST, read once by the pins step. A
+          # second hardcoded copy here is exactly the drift the wiring drive
+          # (13.1) exists to catch.
+          REL="${{ steps.pins.outputs.solana }}"
           BIN="$HOME/.local/share/solana/install/active_release/bin"
           if "$BIN/solana" --version 2>/dev/null | grep -qF "$REL"; then
             echo "Agave $REL restored from the toolchain cache"
@@ -333,10 +365,12 @@ jobs:
       - name: anchor-cli — the pinned release, through avm (built once, cached)
         run: |
           # avm is built from a PINNED commit, not the repository's HEAD: the
-          # toolchain cache restores a binary, and a moving HEAD would make a
-          # cache hit a different tool from a cache miss. 85c5293e is avm 1.2.1,
-          # the build this workspace's install used. Cold it is ~4.5 min of
-          # compiling (measured); on a hit it is skipped entirely.
+          # cache restores a binary, and a moving HEAD would make a cache hit a
+          # different tool from a cache miss. 85c5293e is avm 1.2.1, the build
+          # this workspace's install used. Cold it is ~150 s of compiling
+          # (measured, 108-161 s over seven runs); on a hit the whole step is a
+          # `command -v` and an `avm use`. The anchor version is the manifest's
+          # pin, not a second literal.
           AVM=$(command -v avm || true)
           if [ -z "$AVM" ] && [ -x "$HOME/.avm/bin/avm" ]; then AVM="$HOME/.avm/bin/avm"; fi
           if [ -z "$AVM" ]; then
@@ -344,8 +378,8 @@ jobs:
             AVM=$(command -v avm)
           fi
           echo "$HOME/.avm/bin" >> "$GITHUB_PATH"
-          "$AVM" install 1.1.2
-          "$AVM" use 1.1.2
+          "$AVM" install "${{ steps.pins.outputs.anchor }}"
+          "$AVM" use "${{ steps.pins.outputs.anchor }}"
       - name: The SBF compiler this release maps to
         run: cargo build-sbf --install-only
       - name: A throwaway payer and PLACEHOLDER program keys (nothing here signs)
