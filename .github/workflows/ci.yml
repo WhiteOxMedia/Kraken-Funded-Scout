@@ -267,8 +267,20 @@ jobs:
   # overestimated avm by 2.5x. The earlier note here claimed 2.4x against a
   # single 370 s run, before the 487 s sample existed.)
   #
-  # Both caches earn their place: the toolchain one buys back ~250 s, the crates
-  # one ~115 s, and together they cost ~24 s to restore.
+  # WHAT A MISS COSTS NOW (Oct 28, after the keys were split — same job, one
+  # re-run per line, caches deleted by class):
+  #   every cache empty                     506 s
+  #   avm + the Solana toolchain cold       341 s
+  #   crates/target cold                    144 s
+  #   a manifest edit, no pin changed        64 s   (was ~460 s: it threw all
+  #                                                  three caches away at once)
+  # The last line is the point of the split. Editing a cluster, a program id or
+  # a comment in Anchor.toml is the common case here, and it used to buy an avm
+  # rebuild, a 734 MB toolchain download and a full program rebuild for a change
+  # none of them depend on.
+  #
+  # All three caches earn their place: the Solana one buys back ~250 s and the
+  # crates one ~115 s, and together they cost ~30 s to restore on a hit.
   xmrj-build-artifacts:
     runs-on: ubuntu-latest
     timeout-minutes: 15
