@@ -352,6 +352,14 @@ jobs:
           XMRJ_PLACEHOLDER_KEYS: "1"
         run: python test_xmrj_build_artifacts.py
 
+  # THE AGGREGATE (Oct 27; made able to fail Oct 28). `needs:` ALONE makes this
+  # job SKIPPED when any sibling fails, which the first full pipeline run
+  # measured (PR #1, run 40690417522): 12 gates green, `build` red, and this job
+  # reported "skipped" with zero steps — the one check meant to summarise the
+  # pipeline was absent from exactly the runs that needed it. `if: always()`
+  # makes it run regardless; the step below fails HERE for every sibling whose
+  # result is not "success", so a failure, a cancellation and a gate that never
+  # ran all read as red rather than as a missing row in the check list.
   ci:
     needs:
       - lint
@@ -367,6 +375,28 @@ jobs:
       - jackpot-funding
       - release-hygiene
       - push-path
+    if: always()
     runs-on: ubuntu-latest
     steps:
-      - run: echo "CI pipeline complete"
+      - name: Every gate passed
+        env:
+          # the whole needs map as JSON (name -> {result, outputs}), so one step
+          # can name EVERY gate that did not pass instead of stopping at the
+          # first non-success
+          NEEDS: ${{ toJSON(needs) }}
+        run: |
+          python3 - <<'PY'
+          import json, os, sys
+
+          needs = json.loads(os.environ["NEEDS"])
+          for name in sorted(needs):
+              print("%-22s %s" % (name, needs[name]["result"]))
+          bad = [(n, needs[n]["result"]) for n in sorted(needs)
+                 if needs[n]["result"] != "success"]
+          if bad:
+              print("")
+              print("CI GATE FAILED: " + ", ".join("%s=%s" % b for b in bad))
+              sys.exit(1)
+          print("")
+          print("CI pipeline complete: %d gates, all successful" % len(needs))
+          PY

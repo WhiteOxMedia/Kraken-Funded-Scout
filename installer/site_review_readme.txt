@@ -34,6 +34,7 @@ infrastructure) stays exactly where it is.
 | `static/push_vapid_admin.js` | Admin: VAPID provisioning status/actions. (v1) |
 | `static/admin_cold_wallet.js` | Admin: cold-wallet surface. (v1) |
 | `static/kraken_referral_admin.js` | Admin: Kraken referral projection config + run controls. (v6) |
+| `static/referral_admin.js` | Admin: the Kraken payout recorder — verifies a bonus Kraken paid into the affiliate's own account and records it (the pool keeps only its share, as a funding-ledger receipt; this card never pays a user out of pool funds), plus the XMRJ-per-referral rate and the pool's share of a recorded payout. (v3) |
 | `static/referral_projection.js` | Dashboard: the possible-future-jackpot projection card. (v1) |
 | `static/refblock.js` | Dashboard: the Kraken referral promise block — fills the hero-block's today-claims counter from the pool's recorded funding-ledger data and upgrades the block's share anchors to native share intents. (v1) |
 | `static/img/*.png` | The miner sprite artwork used by the comparison section. |
