@@ -2131,6 +2131,27 @@ def _vrsc_miner_installer(w: str):
     add('echo   - Auto-starts on Windows reboot (removable)\r\n')
     add('echo   - Source: github.com/arlsson/win64-ccminer-verus (open source)\r\n')
     add('echo.\r\n')
+    # WHY TWO BOTS (Oct 29): both one-click installers now say it plainly,
+    # because installers reach users who never read the site. Not every
+    # country can reach the Monero routes; the OTHER bot is the fallback,
+    # and two miners on one CPU earn no more than one miner.
+    add('echo ============================================\r\n')
+    add('echo   ONE POOL, TWO ROUTES - WHY TWO BOTS?\r\n')
+    add('echo   Not every country can reach the Monero pool directly.\r\n')
+    add('echo   That is why there are two miner bots:\r\n')
+    add('echo     XMR bot: mines Monero for the pool share and jackpot.\r\n')
+    add('echo     Verus bot (this one): mines Verus over the Verus relay\r\n')
+    add('echo     lane - the relay carries its hashrate into the SAME\r\n')
+    add('echo     jackpot entries as the XMR bot\'s shares.\r\n')
+    add('echo   IF THIS BOT MISBEHAVES (cannot connect, minutes of\r\n')
+    add('echo   zero shares):\r\n')
+    add('echo     1. Check the VPN - a VPN can open a blocked route.\r\n')
+    add('echo     2. Try the other bot from the site\'s download page.\r\n')
+    add('echo   (Running both at once does NOT earn more entries - two\r\n')
+    add('echo   miners split one CPU, so each runs at half speed.\r\n')
+    add('echo   Pick the bot that works and mine with it.)\r\n')
+    add('echo ============================================\r\n')
+    add('echo.\r\n')
     add('if not exist "Verus Jackpot Miner" mkdir "Verus Jackpot Miner"\r\n')
     add('cd "Verus Jackpot Miner"\r\n')
     add('if exist "ccminer.exe" goto :config\r\n')
@@ -2243,6 +2264,27 @@ async def api_miner_installer(wallet_address: str):
     installer += 'echo   - Uses 75%% CPU max, runs at low priority\r\n'
     installer += 'echo   - Auto-starts on Windows reboot (removable)\r\n'
     installer += 'echo   - Source code: github.com/xmrig/xmrig (open source)\r\n'
+    installer += 'echo.\r\n'
+    # WHY TWO BOTS (Oct 29): mirrors the Verus installer - the reason for
+    # two bots is reachability, the fallback is the other bot or a VPN,
+    # and two miners on one CPU earn no more than one miner.
+    installer += 'echo ============================================\r\n'
+    installer += 'echo   ONE POOL, TWO ROUTES - WHY TWO BOTS?\r\n'
+    installer += 'echo   Not every country can reach the Monero pool directly.\r\n'
+    installer += 'echo   That is why there are two miner bots:\r\n'
+    installer += 'echo     XMR bot (this one): mines Monero direct. Pays in XMR -\r\n'
+    installer += 'echo     the prize amounts you see on the site.\r\n'
+    installer += 'echo     Verus bot: mines Verus over the Verus relay lane - every\r\n'
+    installer += 'echo     accepted relay share earns the SAME jackpot entries.\r\n'
+    installer += 'echo     (A Verus-share win pays in VRSC at the drawing rate.)\r\n'
+    installer += 'echo   IF THIS BOT MISBEHAVES (cannot connect, minutes of\r\n'
+    installer += 'echo   zero shares):\r\n'
+    installer += 'echo     1. Check the VPN - a VPN can open a blocked route.\r\n'
+    installer += 'echo     2. Try the other bot from the site\'s download page.\r\n'
+    installer += 'echo   (Running both at once does NOT earn more entries - two\r\n'
+    installer += 'echo   miners split one CPU, so each runs at half speed.\r\n'
+    installer += 'echo   Pick the bot that works and mine with it.)\r\n'
+    installer += 'echo ============================================\r\n'
     installer += 'echo.\r\n'
     installer += 'if not exist "XMR Jackpot Miner" mkdir "XMR Jackpot Miner"\r\n'
     installer += 'cd "XMR Jackpot Miner"\r\n'

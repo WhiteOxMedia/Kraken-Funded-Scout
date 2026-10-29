@@ -33,11 +33,66 @@ Expect: every drive `PASS` (or honest `SKIP: pool server down` rows with
 
 ## 2. THE COMMIT (narrow, message-true)
 
+The ship set is FIXED: exactly the 90 paths commit `f096aa0` shipped
+(Oct 28-29 work). `git add -A` is forbidden — an exact list is the only
+way this commit cannot pull in unrelated changes. Stage with exactly:
+
 ```
-git add <the modified files you verified in step 0>   # never git add -A
+git add Cargo.lock LAUNCH_CHECKLIST.md \
+  XMRJ_DEVNET_EXECUTION_REPORT.md XMRJ_DEVNET_RUNBOOK.md \
+  drivekit.py eslint.config.js payout_contract.json \
+  installer/install_config.json \
+  pool/templates/app_i18n/de.json pool/templates/app_i18n/en.json \
+  pool/templates/app_i18n/es.json pool/templates/app_i18n/fr.json \
+  pool/templates/app_i18n/pt.json pool/templates/app_i18n/ru.json \
+  pool/vrsc_price.py pool/vrsc_relay.py \
+  relay/up-vrsc.py relay/vrsc-relay.cmd scout_app.json \
+  test_admin_vrsc_panel.py test_claim_lease_expiry_race.py \
+  test_donation_idempotency.py test_miner_poll_no_mint.py \
+  test_payout_contract_battery.py test_payout_contract_docs.py \
+  test_playtest_stumble_fixes.py test_vrsc_coin_surface.py \
+  test_vrsc_concurrent_claim.py test_vrsc_miner.py \
+  test_vrsc_rate_stale.py test_vrsc_relay_wire.py \
+  test_xmrj_build_artifacts.py test_xmrj_offline_gates.py \
+  test_xmrj_rpc_endpoint.py tests/xmrj_rpc_resilience.ts \
+  tools/rpc_resilience.ts tools/xmrj_devnet_run.sh \
+  tools/xmrj_loadtest.ts xmrj_devnet_token.json \
+  .github/workflows/ci.yml Anchor.toml README.md \
+  XMRJ_SOLANA_DEPLOYMENT_PLAN.md create_xmrj_mint.js \
+  dist_site_review/xmrjackpot_review.zip \
+  dist_site_review/xmrjackpot_review.zip.sha256 \
+  githooks/post-commit installer/installer.py \
+  installer/installer_ui.py installer/site_review_readme.txt \
+  package-lock.json package.json pool/address_check.py \
+  pool/database.py pool/i18n.py pool/jackpot_engine.py \
+  pool/jackpot_funding.py pool/scout_endpoints.py pool/security.py \
+  pool/server.py pool/static/app.js pool/static/push_client.js \
+  pool/static/scout_pro_bridge.js pool/static/style.css \
+  pool/static/wf_dashboard.js pool/templates/admin_panel.html \
+  pool/templates/index.html relay/README.md relay/bootstrap-relay.sh \
+  run_fleet.py test_anchor_wiring.py test_claim_expiry_degate.py \
+  test_gate_negative.py test_i18n_region.py test_installer_ui.py \
+  test_no_xmrj_claims.py test_push_client_envelope.py \
+  test_scout_donation.py test_scout_pro_gate.py \
+  test_version_endpoint.py test_wf_dashboard_stamp.py \
+  test_xmrj_devnet_e2e.py tests/xmrj_devnet_e2e.ts \
+  tests/xmrj_gate_negative.ts tsconfig.json \
+  verify_hostinger_corrections.py xmrj_conversion_service/src/lib.rs \
+  xmrj_governance/src/lib.rs xmrj_jackpot/src/lib.rs \
+  xmrj_treasury/src/lib.rs
 git commit -m "<what this ships>"
 ```
 
+- Stage-count check: `git diff --cached --name-only | wc -l` must
+  print **90** before you commit. A different number is a hard stop.
+- A file modified in the tree but NOT on this list is a stop
+  (unreviewed change), not a rename-add. NEVER add the known
+  junk/probe families: `_probe*`, `_sweep*`, `_anchor_verify.txt`,
+  `_md_probe.txt`, `_manifest_fix.py`, `COMMIT_MSG.tmp`,
+  `_commitmsg.tmp`, `_preview_hero.html`, `*.pyc`, `_probe_state_dir/`,
+  `*.db.bak*`, `.pr-cleanup-worktree/`, stray artifact files.
+- If life has moved past Oct 28-29, update this list from
+  `git show f096aa0 --name-status`, never from memory.
 - The pre-commit hook (`githooks/pre-commit`) re-runs the whole fleet
   on the staged tree and **blocks on REGRESSION** — that run, not
   step 1, is the one that proves the commit. Budget ~2+ minutes.

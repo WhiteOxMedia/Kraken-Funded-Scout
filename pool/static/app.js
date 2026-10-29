@@ -1056,6 +1056,28 @@
       if (saved) walletInput.value = saved;
     }
 
+    // THE HONEST COIN NOTE (Oct 29): a Verus-shaped address gets the
+    // truth BEFORE connect — this surface mines and pays XMR; the Verus
+    // rail is the relay. The reveal rides the SAME shape expression the
+    // connect gate below uses (34 chars, leading R): a Verus-shaped
+    // paste shows the note, anything else hides it. The note says the
+    // two facts that usually get assumed away: the connect box stores a
+    // payout address only (a paste never decides miners.coin — that is
+    // share truth), and the drawing's same-coin rule pays a
+    // Verus-share win in VRSC, so VRSC joins the rail the relay owns.
+    // The catalog key (home.realVerusNote) translates it in all six
+    // languages against this exact English string.
+    var verusNote = $('#realVerusNote');
+    const gateShape = function (addr) { return addr.length === 34 && addr[0] === 'R'; };
+    var showVerusNote = function () {
+      if (!verusNote) return;
+      verusNote.style.display = gateShape((walletInput.value || '').trim()) ? '' : 'none';
+    };
+    if (walletInput && verusNote) {
+      walletInput.addEventListener('input', showVerusNote);
+      if (walletInput.value) showVerusNote();   // a restored Verus wallet tells too
+    }
+
     if (connectBtns.length) {
       // THE SERVER-SIDE GATE (Oct 29, playtest stumble): a length check
       // alone accepted any 20+-character string ('this-is-not-a-'
