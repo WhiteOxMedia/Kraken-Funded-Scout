@@ -25,6 +25,7 @@ This drive pins the YARDSTICK, not the browser:
 """
 import json
 import os
+import re
 import subprocess
 import sys
 import tempfile
@@ -128,6 +129,19 @@ tpl = (HERE / "pool" / "templates" / "index.html").read_text(encoding="utf-8")
 canonical = ('<link rel="canonical" href="' + srv_mod.SITE_ORIGIN + '/">\n')
 shell = root.text.replace(srv_mod._site_jsonld() + "\n", "", 1)
 shell = shell.replace(canonical, "", 1)
+# Oct 29 i18n rework: every homepage variant (English root included)
+# now stamps runtime pieces the template does not carry — the
+# <script id="appI18n"> per-language catalog in the head and the
+# region-guidance card in the landing and dashboard sections (the
+# TestClient sends no Accept-Language header, so the card carries the
+# "unknown region" copy). Both strips work by PAYLOAD SHAPE rather
+# than exact bytes: the catalog varies with the language's strings,
+# and the card's tail '</p></div>' is unique inside it (the header
+# div closes early).
+shell = re.sub(r'<script type="application/json" id="appI18n">'
+                r'[\s\S]*?</script>\n?', "", shell, count=1)
+shell = re.sub(r'<div class="card" data-region-guidance="true"'
+               r'[\s\S]*?</p></div>', "", shell)
 # The template carries live tokens now (entry unit, payout split, draw
 # cadence, claim window, Pro price, live miner count, the winners rows),
 # so "verbatim" means the RENDERED template, not the file bytes. Same

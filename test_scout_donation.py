@@ -23,7 +23,17 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE / "pool"))
 
+import address_check as ac                                   # noqa: E402
 import database as db                                        # noqa: E402
+
+# THE DONOR'S PAYOUT WALLET (Oct 29): a REAL mainnet-standard address
+# (netbyte 0x12 + two 32-byte keys + keccak tail), built once with the
+# house decoder's own encoder. The Oct-28 integrated-address gate made
+# profile/update reject junk shapes such as "4" + "C" * 94 with
+# 422 — exactly what a hostile payload deserves — so the drive's
+# cascade now rides a checksummed address like every real donor's.
+_DNPAYLOAD = bytes([0x12]) + bytes([0x44]) * 32 + bytes([0x45]) * 32
+VALID_WALLET = ac.b58encode(_DNPAYLOAD + ac.keccak256(_DNPAYLOAD)[:4])
 
 _tmp = tempfile.mkdtemp(prefix="scout_donation_")
 db.DB_PATH = Path(_tmp) / "jackpot.db"
@@ -168,10 +178,10 @@ check(3.3, db.get_ticket_count() == 0,
       "no phantom ticket exists (a ticket needs a miner, a miner a wallet)")
 
 r = client.post("/api/profile/update",
-                json={"display_name": "donor", "wallet_address": "4" + "C" * 94})
+                json={"display_name": "donor", "wallet_address": VALID_WALLET})
 check(3.4, r.status_code == 200, "the donor attaches a payout wallet")
 
-miner = db.get_or_create_miner("4" + "C" * 94)
+miner = db.get_or_create_miner(VALID_WALLET)
 check(3.5, db.get_miner_ticket_count(miner["id"]) == 1,
       "the moment the wallet lands the held entry becomes a real ticket")
 check(3.6, db.get_user(USER["id"])["pending_entries"] == 0,

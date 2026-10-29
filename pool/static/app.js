@@ -8,6 +8,67 @@
 
   // ─── Constants ──────────────────────────────────────────────
   const API = window.location.origin + '/api';
+
+  // The server embeds the matching English reference and selected-language
+  // catalog on localized homepage routes. Static copy is identified against
+  // English so language switching never depends on already-translated text.
+  var appI18n = (function () {
+    try {
+      var node = document.getElementById('appI18n');
+      var data = node ? JSON.parse(node.textContent || '{}') : {};
+      return data && data.current && data.en ? data : {};
+    } catch (e) { return {}; }
+  })();
+  function applyAppLanguage(lang) {
+    var current = appI18n[lang] || appI18n.current || {};
+    if (!appI18n.en || !current || lang === 'en') return;
+    var textMap = Object.create(null);
+    var htmlMap = Object.create(null);
+    var attrMap = Object.create(null);
+    Object.keys(appI18n.en).forEach(function (key) {
+      var source = appI18n.en[key];
+      if (!source || typeof source !== 'string') return;
+      var replacement = current[key] || source;
+      var hasLiveValue = /\{\w+\}/.test(source);
+      var hasMarkup = /[<>]/.test(source);
+      if (hasMarkup) {
+        var sourceBox = document.createElement('div');
+        sourceBox.innerHTML = source;
+        htmlMap[sourceBox.textContent.trim()] = replacement;
+      } else if (hasLiveValue) {
+        var sourcePrefix = source.split(/\{\w+\}/)[0].trim();
+        var translatedPrefix = replacement.split(/\{\w+\}/)[0].trim();
+        if (sourcePrefix && translatedPrefix) textMap[sourcePrefix] = translatedPrefix;
+      } else textMap[source.trim()] = replacement;
+      attrMap[source] = replacement;
+    });
+    // Translate exact template content in one pass, leaving unmatched DOM and
+    // live values untouched. Markup-bearing catalog entries only replace an
+    // exact server-owned template fragment.
+    var walker = document.createTreeWalker(document.body, NodeFilter.SHOW_ELEMENT | NodeFilter.SHOW_TEXT);
+    var nodes = [];
+    while (walker.nextNode()) nodes.push(walker.currentNode);
+    nodes.forEach(function (node) {
+      if (node.nodeType === Node.TEXT_NODE) {
+        var source = node.nodeValue.trim();
+        if (Object.prototype.hasOwnProperty.call(textMap, source)) {
+          node.nodeValue = node.nodeValue.replace(source, textMap[source]);
+        }
+      } else if (node.nodeType === Node.ELEMENT_NODE && node.children.length === 0 &&
+                 Object.prototype.hasOwnProperty.call(htmlMap, node.textContent.trim())) {
+        node.innerHTML = htmlMap[node.textContent.trim()];
+      }
+    });
+    document.querySelectorAll('[placeholder], [title], [aria-label]').forEach(function (el) {
+      ['placeholder', 'title', 'aria-label'].forEach(function (attr) {
+        var source = el.getAttribute(attr);
+        if (source && Object.prototype.hasOwnProperty.call(attrMap, source)) {
+          el.setAttribute(attr, attrMap[source]);
+        }
+      });
+    });
+  }
+  applyAppLanguage(appI18n.lang || 'en');
   // Resurrected baseline UX copy (Sep 26 restore pass). These phrases
   // were dropped earlier and are unrelated to the popup removal; they
   // remain visible on landing/signup/wallet surfaces only.
@@ -782,15 +843,28 @@
   function renderWinnerBanner(d) {
     var banner = $('#winnerClaimBanner');
     if (!banner) return;
-        banner.style.display = 'none';
+    /* SHOW, DON'T HIDE (Oct 29, playtest stumble): this function only
+       runs when /api/winner/status has a pending claim, so the container
+       must become visible — the pre-fix line left the banner hidden on
+       EVERY render (checkWinnerStatus hides it itself on has_pending_claim
+       false), so winners never saw their claim and the claim-success
+       innerHTML swap also rendered into the hidden container. */
+    banner.style.display = '';
 
+    /* THE COIN-AWARE BANNER (Oct 29): the winner's miner coin is the
+       coin the prize pays in (a VRSC draw even names Verus), so the
+       input hint and currency name read that coin — an XMR banner for
+       a VRSC winner told them to add 'a Monero wallet' for a Verus
+       payout, and its XMR-only placeholder refused their R-address. */
+    var isVrsc = (d.winner_coin === 'vrsc');
+    var coinName = isVrsc ? 'VRSC' : 'XMR';
     var daysLeft = Math.ceil((d.time_remaining_seconds || 0) / 86400);
     var payoutStr = fmt(d.payout_amount, 6);
 
     var walletInputHtml = '';
     if (!d.has_wallet) {
       walletInputHtml = '<div class="winner-claim-row">' +
-        '<input class="spin-input" id="winnerWalletInput" placeholder="Your XMR wallet address (starts with 4 or 8)">' +
+        '<input class="spin-input" id="winnerWalletInput" placeholder="' + (isVrsc ? 'Your Verus wallet address (starts with R)' : 'Your XMR wallet address (starts with 4 or 8)') + '">' +
         '<button class="btn btn-gold" id="btnWinnerClaim">🏆 Claim Prize</button>' +
       '</div>';
     } else {
@@ -801,8 +875,8 @@
 
     banner.innerHTML =
       '<div class="winner-banner">' +
-        '<div class="winner-banner-title">🎉 You\'re the winner! You won <b>' + payoutStr + ' XMR</b>! ' +
-          (d.has_wallet ? '' : 'Add a Monero wallet to receive your payout.') + '</div>' +
+        '<div class="winner-banner-title">🎉 You\'re the winner! You won <b>' + payoutStr + ' ' + coinName + '</b>! ' +
+          (d.has_wallet ? '' : 'Add a ' + (isVrsc ? 'Verus' : 'Monero') + ' wallet to receive your payout.') + '</div>' +
         '<div class="winner-banner-deadline">⏰ Claim deadline: ' + daysLeft + ' day' + (daysLeft === 1 ? '' : 's') + ' remaining</div>' +
         walletInputHtml +
       '</div>';
@@ -824,16 +898,30 @@
       wallet = _winnerClaimData.winner_wallet || '';
     }
 
-    if (!wallet) { toast('Enter your Monero wallet address', 'error'); return; }
-
-    // Client-side validation: starts with 4 or 8, length 90-120
-    if (!(wallet.startsWith('4') || wallet.startsWith('8'))) {
-      toast('Invalid Monero address — must start with 4 or 8', 'error');
+    if (!wallet) {
+      toast(_winnerClaimData.winner_coin === 'vrsc'
+        ? 'Enter your Verus wallet address'
+        : 'Enter your Monero wallet address', 'error');
       return;
     }
-    if (wallet.length < 90 || wallet.length > 120) {
-      toast('Invalid Monero address length (must be 90-120 characters)', 'error');
-      return;
+
+    // THE COIN-AWARE PRE-GATE (Oct 29): the old 4/8 + 90-120 client
+    // check hard-coded XMR — a Verus miner's R-address would have been
+    // refused by their own claim banner. The payout validator the
+    // server's gates use now answers, coin derived from shape exactly
+    // like the Connect Wallet gate. The server stays the authority:
+    // its claim route re-validates with the drawing's miner coin.
+    var claimCoin = (_winnerClaimData.winner_coin === 'vrsc') ? 'vrsc'
+                  : ((wallet.length === 34 && wallet[0] === 'R') ? 'vrsc' : 'xmr');
+    if (claimCoin === 'xmr') {
+      if (!(wallet.startsWith('4') || wallet.startsWith('8'))) {
+        toast('Invalid Monero address — must start with 4 or 8', 'error');
+        return;
+      }
+      if (wallet.length < 90 || wallet.length > 120) {
+        toast('Invalid Monero address length (must be 90-120 characters)', 'error');
+        return;
+      }
     }
 
     var claimBtn = $('#btnWinnerClaim');
@@ -848,16 +936,28 @@
       var d = await res.json();
       if (res.ok && d.status === 'ok') {
         var payoutStr = fmt(d.payout_amount, 6);
+        /* THE COIN THE SERVER ANSWERED (Oct 29, playtest stumble): the
+           server's claim reply carries the drawing's claim coin (xmr or
+           vrsc) — the success text used to hard-code XMR, telling a
+           Verus winner their payout was sent in the wrong coin. */
+        var claimCoin = (d.coin === 'vrsc') ? 'VRSC' : 'XMR';
+        /* QUEUED, NOT TRANSACTED (Oct 29): the route queues a pending
+           payout (manual-from-Kraken for XMR, treasury for VRSC) — the
+           pre-fix wording said "has been sent" while the server marks
+           the ref pending_*, which overclaims. */
+        var queued = (d.tx_hash && String(d.tx_hash).indexOf('pending_') === 0);
         var banner = $('#winnerClaimBanner');
         if (banner) {
           banner.innerHTML =
             '<div class="winner-confirmed">' +
-              '<div class="winner-confirmed-title">✅ Your payout of ' + payoutStr + ' XMR has been sent!</div>' +
-              '<div class="winner-confirmed-tx">Transaction: ' + (d.tx_hash || '—') + '</div>' +
+              '<div class="winner-confirmed-title">✅ Your payout of ' + payoutStr + ' ' + claimCoin +
+                (queued ? ' has been queued for payout!' : ' has been sent!') + '</div>' +
+              '<div class="winner-confirmed-tx">Payout ref: ' + (d.tx_hash || '—') + '</div>' +
             '</div>';
         }
         launchConfetti();
-        toast('Payout sent! ' + payoutStr + ' XMR', 'success');
+        toast(queued ? 'Payout queued! ' + payoutStr + ' ' + claimCoin 
+                     : 'Payout sent! ' + payoutStr + ' ' + claimCoin, 'success');
         _winnerClaimData = null;
       } else {
         toast(d.detail || 'Claim failed', 'error');
@@ -943,27 +1043,71 @@
     // Stop any existing polls
     stopPolling();
 
-    // Wallet connect
+    // Wallet connect. TWO buttons carry the same job (Oct 28 playtest):
+    // the landing hero's #btnConnectWallet AND the real-play page's own
+    // #btnConnectWalletRealPlay — the latter shipped with no listener,
+    // so a user on "Play for XMR" could paste a wallet and click to
+    // nothing at all. One handler, both ids.
     const walletInput = $('#realWalletInput');
-    const connectBtn = $('#btnConnectWallet');
+    const connectBtns = [$('#btnConnectWallet'), $('#btnConnectWalletRealPlay')].filter(Boolean);
 
     if (walletInput) {
       const saved = getWallet();
       if (saved) walletInput.value = saved;
     }
 
-    if (connectBtn) {
-      connectBtn.addEventListener('click', function () {
+    if (connectBtns.length) {
+      // THE SERVER-SIDE GATE (Oct 29, playtest stumble): a length check
+      // alone accepted any 20+-character string ('this-is-not-a-'
+      // 'address-but-long-enough' got 'Wallet connected!'). Money was
+      // never misdirected — signup/profile/claim re-validate offline —
+      // but the stored and DISPLAYED wallet could carry junk. The same
+      // mainnet validator the other gates use now answers this button:
+      // one /api/wallet/validate call before connecting. The SHAPE
+      // derives the GATE choice only: an R+33-Base58 string rides the
+      // Verus gate, anything else the Monero mainnet gate. The shape is
+      // deliberately never stamped into miners.coin — that column is
+      // what the drawing payout branch reads to decide the coin a win
+      // pays in, and its one writer is the Verus share pipeline
+      // (vrsc_relay.record_accepted_share): a pasted address is not
+      // share truth and must never decide a payout coin. Network-down:
+      // SERVER_ERR, not a fallback — degrade to 'cannot verify now',
+      // never to 'looks fine'.
+      const connectHandler = async function () {
         const addr = (walletInput.value || '').trim();
         if (!addr || addr.length < 20) {
-          toast('Enter a valid XMR wallet address', 'error');
+          toast('Enter a valid wallet address', 'error');
+          return;
+        }
+        var coin = (addr.length === 34 && addr[0] === 'R') ? 'vrsc' : 'xmr';
+        try {
+          var vres = await fetch(API + '/wallet/validate', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ address: addr, coin: coin })
+          });
+          if (vres.status === 429) {
+            toast('Too many attempts — wait a moment and try again', 'error');
+            return;
+          }
+          var vinfo = await vres.json();
+        } catch (e) {
+          toast('Cannot verify the wallet right now — try again', 'error');
+          return;
+        }
+        if (!vres.ok || !vinfo.valid) {
+          var why = (vinfo && vinfo.reason) ? vinfo.reason : 'address rejected';
+          toast(coin === 'vrsc'
+            ? ('Invalid Verus address — ' + why)
+            : ('Invalid XMR address — ' + why), 'error');
           return;
         }
         setWallet(addr);
         toast('Wallet connected!', 'success');
         showRealPlayMain();
         startRealPlayPolling();
-      });
+      };
+      connectBtns.forEach(function (btn) { btn.addEventListener('click', connectHandler); });
     }
 
     // Copy referral code button (PROGRAM B — the internal programme)
@@ -2009,6 +2153,7 @@
     fetchAdminPayouts();
     fetchAdminAudit();
     fetchAdminSettings();
+    fetchAdminVrsc();
     fetchAdminWalletStatus();
     fetchScoutStatus();
     fetchAdminOrphans();
@@ -2016,9 +2161,17 @@
 
     pollingTimers.push(setInterval(fetchAdminStats, 15000));
     pollingTimers.push(setInterval(fetchAdminOrphans, 60000));
+    pollingTimers.push(setInterval(fetchAdminVrsc, 60000));
 
     var saveSetting = $('#btnSaveSetting');
     if (saveSetting) saveSetting.addEventListener('click', saveAdminSetting);
+
+    var vrscPinBtn = $('#btnVrscPinSet');
+    if (vrscPinBtn) vrscPinBtn.addEventListener('click', vrscPinSet);
+    var vrscUnpinBtn = $('#btnVrscPinClear');
+    if (vrscUnpinBtn) vrscUnpinBtn.addEventListener('click', vrscPinClear);
+    var vrscTerrBtn = $('#btnVrscTerrSave');
+    if (vrscTerrBtn) vrscTerrBtn.addEventListener('click', vrscTerrSave);
 
     var drawBtn = $('#btnAdminDraw');
     if (drawBtn) drawBtn.addEventListener('click', adminTriggerDraw);
@@ -2367,7 +2520,21 @@
       if (!tb || !d.length) return;
       tb.innerHTML = d.map(function(p) {
         var action = p.status === 'pending' ? '<button class="btn btn-emerald btn-sm" data-action="mark-paid" data-id="'+p.id+'">Mark Sent</button>' : p.status;
-        return '<tr><td>' + p.id + '</td><td>' + shortAddr(p.wallet_address||'') + '</td><td>' + fmt(p.amount_xmr,6) + ' XMR</td><td>' + p.payout_type + '</td><td>' + p.status + '</td><td>' + action + '</td></tr>';
+        // THE COIN FIELD (Oct 28): a VRSC payout names its coin and
+        // quantity; the XMR equivalent stays secondary. XMR rows keep
+        // the exact markup that was always here.
+        var coin = (p.coin || 'xmr').toLowerCase();
+        var amountCell = coin === 'xmr'
+          ? fmt(p.amount_xmr,6) + ' XMR'
+          : (p.amount_coin != null
+              ? fmt(p.amount_coin,6) + ' ' + coin.toUpperCase()
+                + ' <span style="font-size:0.78em;color:var(--text-mute);">(equiv ' + fmt(p.amount_xmr,6) + ' XMR)</span>'
+              : fmt(p.amount_xmr,6) + ' XMR-equiv \u00b7 ' + coin.toUpperCase());
+        var statusCell = (coin === 'vrsc' && p.status === 'pending'
+          && p.tx_hash === 'pending_manual_treasury')
+          ? 'pending <span style="font-size:0.78em;color:var(--gold);">\u00b7 treasury send</span>'
+          : p.status;
+        return '<tr><td>' + p.id + '</td><td>' + shortAddr(p.wallet_address||'') + '</td><td>' + amountCell + '</td><td>' + p.payout_type + '</td><td>' + statusCell + '</td><td>' + action + '</td></tr>';
       }).join('');
     } catch(e) {}
   }
@@ -2384,6 +2551,130 @@
         return '<div style="padding:6px 0;border-bottom:1px solid var(--border);"><span style="color:var(--gold);">' + (a.username||'system') + '</span> — <span style="color:var(--text-dim);">' + a.action + '</span> <span style="color:var(--text-mute);font-size:0.85em;" title="' + (a.created_at ? isoOf(a.created_at) : '') + '">' + (a.created_at ? timeAgo(a.created_at) : '') + '</span></div>';
       }).join('');
     } catch(e) {}
+  }
+
+
+  // ─── Admin Verus card (Oct 28) ─────────────────────────────
+  // Pin, territories and the reader's episode log, painted with the
+  // SAME discipline the public rate notes follow: a number always
+  // names its tier — a bare figure would be a fallback pretending to
+  // be live. CSP forbids inline handlers, so the card's buttons are
+  // bound once in initAdmin like every other admin control.
+  function _vesc(s) {
+    return String(s == null ? '' : s).replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+  var VRSC_SRC_LABELS = {
+    override: 'operator pin',
+    coingecko: 'CoinGecko (live fetch)',
+    default: 'fallback constant'
+  };
+
+  function _paintVrscState(d) {
+    var info = d.rate || {};
+    var rateEl = $('#vrscRateValue');
+    var srcEl = $('#vrscRateSource');
+    if (rateEl) rateEl.textContent = Number(info.rate || 0).toFixed(4) + ' USD/VRSC';
+    if (srcEl) {
+      var label = VRSC_SRC_LABELS[info.source] || (info.source || 'unknown');
+      var asOf = info.as_of ? new Date(info.as_of * 1000).toLocaleString() : '—';
+      srcEl.innerHTML = _vesc(label) +
+        ' · <span style="color:' +
+        (info.stale ? 'var(--redstone,#c0392b)' : 'var(--emerald,#2ea86f)') + '">' +
+        (info.stale ? 'STALE' : 'fresh') + '</span> · as of ' + _vesc(asOf);
+      srcEl.title = info.stale
+        ? 'The number is older than the TTL (or is the fallback) — the reader says so rather than pretending.'
+        : '';
+    }
+    var liveEl = $('#vrscLiveNote');
+    if (liveEl) {
+      liveEl.textContent = d.live_enabled
+        ? 'live fetching: ON'
+        : 'live fetching: OFF (kill switch)';
+      liveEl.style.color = d.live_enabled ? '' : 'var(--redstone,#c0392b)';
+    }
+    var pinEl = $('#vrscPinNote');
+    if (pinEl) {
+      pinEl.textContent = d.pin
+        ? 'pinned at ' + d.pin + ' — the pin outranks any stamped rate'
+        : 'no pin — the stamped live tier answers';
+    }
+    var pinInput = $('#vrscPinInput');
+    if (pinInput) pinInput.value = d.pin || '';
+    var terr = d.territories || {};
+    var terrInput = $('#vrscTerrInput');
+    if (terrInput) terrInput.value = (terr.codes || []).join(',');
+    var terrSrc = $('#vrscTerrSource');
+    if (terrSrc) {
+      var tsrc = { db: 'set in the db (this editor wins)',
+                   env: 'from XMRJ_VRSC_TERRITORIES (env)',
+                   'default': 'built-in default (US,CA)' }[terr.source] || terr.source;
+      terrSrc.textContent = (terr.codes || []).length + ' in force · ' + tsrc;
+    }
+    var st = d.state || {};
+    var stEl = $('#vrscStateNote');
+    if (stEl) {
+      stEl.textContent =
+        'served=' + (st.served || '—') +
+        ' · fails=' + (st.fails || '—') +
+        ' · candidate=' + (st.candidate || '—');
+    }
+    var epi = $('#vrscEpiList');
+    if (epi) {
+      var rows = d.episodes || [];
+      epi.innerHTML = rows.length ? rows.map(function (a) {
+        var when = a.created_at
+          ? new Date(a.created_at * 1000).toLocaleString() : '—';
+        return '<div style="padding:4px 0;border-bottom:1px solid var(--border);">' +
+          '<span style="color:var(--gold);">' + _vesc(a.action || '') + '</span>' +
+          ' <span style="color:var(--text-mute);font-size:0.85em;" title="' +
+          _vesc(when) + '">' + (a.created_at ? timeAgo(a.created_at) : '') + '</span>' +
+          '<div style="color:var(--text-dim);margin-top:2px;word-break:break-all;">' +
+          _vesc(a.details || '') + '</div></div>';
+      }).join('')
+        : '<p style=\'color:var(--text-mute);margin:4px 0;\'>No vrsc_rate episodes logged — the tier has been holding steady.</p>';
+    }
+    var stamp = $('#vrscStamp');
+    if (stamp) stamp.textContent = 'refreshed ' + new Date().toLocaleTimeString();
+  }
+
+  async function fetchAdminVrsc() {
+    try {
+      var res = await fetch(API + '/admin/vrsc');
+      if (!res.ok) return;
+      _paintVrscState(await res.json());
+    } catch (e) {}
+  }
+
+  async function _postVrsc(path, body, okMsg) {
+    try {
+      var res = await fetch(API + path, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      var d = await res.json();
+      if (res.ok && d.status === 'ok') {
+        toast(okMsg, 'success');
+        fetchAdminVrsc();
+        fetchAdminAudit();
+      } else {
+        toast(d.detail || 'Failed', 'error');
+      }
+    } catch (e) { toast('Error: ' + okMsg, 'error'); }
+  }
+
+  function vrscPinSet() {
+    var v = ($('#vrscPinInput').value || '').trim();
+    _postVrsc('/admin/vrsc/rate-pin', { value: v }, 'VRSC rate pin saved');
+  }
+  function vrscPinClear() {
+    _postVrsc('/admin/vrsc/rate-pin', { value: '' }, 'VRSC rate pin cleared');
+  }
+  function vrscTerrSave() {
+    var v = ($('#vrscTerrInput').value || '').trim();
+    _postVrsc('/admin/vrsc/territories', { territories: v }, 'VRSC territories saved');
   }
 
   async function fetchAdminSettings() {
@@ -2570,6 +2861,19 @@
   }
 
   function init() {
+    // Bind locale selection before ordinary page navigation handlers.
+    $$('.nav-language a').forEach(function (link) {
+      link.addEventListener('click', function (event) {
+        event.preventDefault();
+        var target = new URL(link.href, window.location.href);
+        if (window.location.hash) {
+          var nextPath = target.searchParams.get('next') || '/';
+          target.searchParams.set('next', nextPath + window.location.hash);
+        }
+        window.location.assign(target.href);
+      });
+    });
+
     // Fetch site-wide announcement
     fetchAnnouncement();
 

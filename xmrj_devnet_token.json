@@ -1,0 +1,66 @@
+{
+  "_note": "DEVNET ONLY. Created by create_xmrj_mint.js from XMRJ_SOLANA_DEPLOYMENT_PLAN.md sections 2 and 3.1. Devnet tokens have no value and are not a listing, a treasury or a promise of either. Supply is the fixed 100,000,000 cap split 50/25/15/10; the split is bookkeeping, not custody — all four accounts have one owner — and the team/foundation tranche has no on-chain vesting.",
+  "cluster": "devnet",
+  "rpc_url": "https://api.devnet.solana.com",
+  "genesis_hash": "EtWTRABZaYq6iMfeYKouRu166VU2xqa1wcaWoxPkrZBG",
+  "token": {
+    "name": "XMR Jackpot Treasury Token",
+    "symbol": "XMRJ",
+    "standard": "spl-token",
+    "decimals": 9
+  },
+  "mint": "Esr6mbA5mg7WWgmXs9joeJbe2Kr32LxH188QsKp7qdQr",
+  "treasury_vault": "2DcwNpr9PAPFUqF9A27bdSthBSZMAemBPmYrcQmnK5Qd",
+  "treasury_vault_kind": "associated token account",
+  "treasury_vault_owner": "7YhEG31B7vyDp42qv31UW3TLukA4nhGJ89nwnQW12Sb5",
+  "allocation": {
+    "treasury_reserve": {
+      "label": "Treasury reserve",
+      "share_bps": 5000,
+      "address": "2DcwNpr9PAPFUqF9A27bdSthBSZMAemBPmYrcQmnK5Qd",
+      "kind": "associated token account",
+      "amount": "50000000000000000",
+      "amount_xmrj": "50000000"
+    },
+    "jackpot_rewards": {
+      "label": "Jackpot & rewards",
+      "share_bps": 2500,
+      "address": "5BSDSXR78sxVzNFZ2vZtut5EVoDuWXDKU2b2w6qs4E5p",
+      "kind": "token account",
+      "amount": "25000000000000000",
+      "amount_xmrj": "25000000"
+    },
+    "community_growth": {
+      "label": "Community growth",
+      "share_bps": 1500,
+      "address": "DumYx9nm1fUKADgrVFVg3MZ63KdzNkoVYhSq6uFozKMg",
+      "kind": "token account",
+      "amount": "15000000000000000",
+      "amount_xmrj": "15000000"
+    },
+    "team_foundation": {
+      "label": "Team / foundation",
+      "share_bps": 1000,
+      "address": "BCeX9H87MJTyeSEUNVDgDTpBT9X1k8Mx7mi1JkirbCTv",
+      "kind": "token account",
+      "amount": "10000000000000000",
+      "amount_xmrj": "10000000"
+    }
+  },
+  "max_supply": "100000000",
+  "max_supply_base_units": "100000000000000000",
+  "supply": "100000000000000000",
+  "mint_authority": null,
+  "mint_authority_disabled": true,
+  "freeze_authority": null,
+  "created_at": "2026-10-27T20:08:41.348Z",
+  "transactions": {
+    "create_mint": "5awevHKgJk5T2zV8jwp1QQZYS6vx2f2jRbrpmCF4ieeUSRbgrE7Fx6Fk85shxLEaQpYCVH2xkg1sd3QTsKX2Bbng",
+    "treasury_reserve": "3NzV1m6m5ESXBsigZxsJ7XmNyQfCCMLedGEs3TGzU7QfKx2PLeYo6P6tXqUsiQfGUwMXuA5BFd3cNzPxeidCS8UT",
+    "jackpot_rewards": "4NW6Kq12Zoon4CtXeNPimymVMGGhe4qJ4Xu9zS38EiPTyE8m8UajiTLzmEL1pSfigs8JUt1w7hadVLwL6JfyXgDh",
+    "community_growth": "BdhvcXsVou1w7ud1DwphFWK5r4nyREVPzw4aUWJGtWrzezoic4yB4xSckhqWe4yw1dmGNx7XWv8V5kqCV98rb3w",
+    "team_foundation": "4bd6GzvdTApw9Rx3t8x2Vfwfn8sC7imp8enAokvBb2uxuZos5M2SjeACr4JvNXv6zAkbCWmCXnU9NQc9yQyqwZ6x",
+    "disable_mint_authority": "NfT8jL8sRvpgJvNh2ZfvpntfVMBua7tN5uRukbCP3ae8u8ADvyM88LYuHWyifvbdihDwF7KYxee4CBUXRFw9U4o"
+  },
+  "locked_at": "2026-10-27T20:08:55.800Z"
+}

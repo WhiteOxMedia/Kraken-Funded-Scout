@@ -133,6 +133,20 @@ def object_keys(obj):
     return keys
 
 
+def it_block(suite, needle):
+    """The BODY of the `it("<title>", async function () { ... });` whose title
+    contains `needle` (case-insensitive), or None. Matched by delimiter rather
+    than by line shape, because every one of these bodies nests braces — a
+    line-oriented reader would stop at the first `}` and then happily accept a
+    block that had lost its assertions."""
+    for m in re.finditer(r'it\(\s*"([^"]+)"\s*,\s*async function\s*\(\s*\)\s*\{',
+                         suite):
+        if needle.lower() in m.group(1).lower():
+            start = suite.index("{", m.end() - 1)
+            return suite[start:match_delim(suite, start, "{", "}") + 1]
+    return None
+
+
 def call_args(suite, var, call):
     """The top-level arguments of `<var>.methods.<call>(...)`, or None. The
     suite formats these across lines and nests calls in them, so this walks
@@ -332,19 +346,51 @@ def _suite_problems(suite, sources, genesis=None):
         problems["seed_literals"] = {"stray": sorted(stray),
                                      "declared": sorted(crate_seeds)}
 
-    # 2.4 the proposal's action variant and its field exist in the Rust enum.
-    prop = re.search(r"proposeAction\(\s*\{\s*(\w+)\s*:\s*\{\s*(\w+)\s*:", suite)
-    if not prop:
-        problems["proposal_shape"] = "no proposeAction({variant: {field: ...}})"
+    # 2.4 EVERY GovernanceAction THE SUITE PROPOSES exists in the Rust enum,
+    # with the fields it passes. The suite names each action as a literal
+    # (`const ACTION_* = { variant: { fields } }`), so this pins the whole SET
+    # rather than one variant: the variant's position IS the borsh
+    # discriminant and its field names ARE the payload, so a rename on either
+    # side is a different instruction.
+    #
+    # It also requires the two actions findings F1 and F2 are about: a PAYOUT
+    # (without which a funded jackpot can never be paid) and a RATE CHANGE
+    # (without which the rate stays a field nobody reads).
+    _enum = re.search(r"pub enum GovernanceAction\s*\{(.*?)\n\}",
+                      sources["xmrj_governance"], re.S)
+    _enum_text = _enum.group(1) if _enum else ""
+    _enum_variants = {
+        m.group(1): set(re.findall(r"(\w+)\s*:", m.group(2)))
+        for m in re.finditer(r"^\s{4}([A-Z]\w*)\s*\{([^}]*)\}", _enum_text, re.M)
+    }
+    _actions = re.findall(
+        r"const\s+ACTION_\w+\s*=\s*\{\s*(\w+)\s*:\s*\{([^}]*)\}", suite)
+    if not _actions:
+        problems["action_literals"] = (
+            "no `const ACTION_<name> = { variant: { fields } }` in the suite, so "
+            "there is nothing to pin the proposed actions against")
     else:
-        enum_body = re.search(r"pub enum GovernanceAction\s*\{(.*?)\n\}",                              sources["xmrj_governance"],
- re.S)
-        enum_text = enum_body.group(1) if enum_body else ""
-        variant = upper_camel(prop.group(1))
-        if variant not in enum_text:
-            problems["proposal_variant"] = {"variant": variant}
-        elif camel_to_snake(prop.group(2)) not in enum_text:
-            problems["proposal_field"] = {"field": prop.group(2)}
+        _proposed_variants = set()
+        for _literal, _fields in _actions:
+            _variant = upper_camel(_literal)
+            _proposed_variants.add(_variant)
+            _declared = _enum_variants.get(_variant)
+            if _declared is None:
+                problems["action_variant:" + _variant] = {
+                    "proposed": _literal, "enum": sorted(_enum_variants)}
+                continue
+            for _field in re.findall(r"(\w+)\s*:", _fields):
+                if camel_to_snake(_field) not in _declared:
+                    problems["action_field:" + _variant] = {
+                        "suite": _field, "enum": sorted(_declared)}
+        if "TriggerPayout" not in _proposed_variants:
+            problems["action_missing_payout"] = (
+                "the suite never proposes a payout, so nothing proves a funded "
+                "jackpot can be paid (finding F1)")
+        if "SetExchangeRate" not in _proposed_variants:
+            problems["action_missing_rate"] = (
+                "the suite never proposes a rate change, so nothing proves the "
+                "rate is read on the funding path (finding F2)")
 
     # 3.1 the values make the assertion NON-VACUOUS: the suite's "before" is
     # what `initialize` writes in Rust, and its proposal moves the cap to a
@@ -416,14 +462,24 @@ def _suite_problems(suite, sources, genesis=None):
         funding["not_asserted"] = "the direct funding calls are not asserted refused"
     _inflow = re.search(r"FUNDING_INFLOW_XMRJ\s*=\s*([\d_]+)", suite)
     _amount = re.search(r"FUNDING_AMOUNT_XMR\s*=\s*([\d_]+)", suite)
-    if not (_inflow and _amount):
-        funding["amounts"] = "missing FUNDING_INFLOW_XMRJ / FUNDING_AMOUNT_XMR"
+    _rate = re.search(r"INIT_EXCHANGE_RATE_BPS\s*=\s*([\d_]+)", suite)
+    if not (_inflow and _amount and _rate):
+        funding["amounts"] = ("missing FUNDING_INFLOW_XMRJ / FUNDING_AMOUNT_XMR / "
+                              "INIT_EXCHANGE_RATE_BPS")
+    elif int(_rate.group(1).replace("_", "")) == 0:
+        # initialize and set_exchange_rate both refuse a zero rate (it would
+        # value every recorded share at zero and brick funding).
+        funding["rate_zero"] = _rate.group(1)
     elif jj:
-        _share = (int(_inflow.group(1).replace("_", ""))
-                  * int(jj.group(1).replace("_", ""))) // 10_000
-        if int(_amount.group(1).replace("_", "")) > _share:
+        _share_xmrj = (int(_inflow.group(1).replace("_", ""))
+                       * int(jj.group(1).replace("_", ""))) // 10_000
+        # VALUED AT THE RATE THE SUITE INITIALIZES WITH — the same expression
+        # fund_jackpot_with_xmr evaluates on chain, not the 1:1 comparison the
+        # treasury used to make while the rate went unread (finding F2).
+        _share_xmr = (_share_xmrj * int(_rate.group(1).replace("_", ""))) // 10_000
+        if int(_amount.group(1).replace("_", "")) > _share_xmr:
             funding["amount_exceeds_share"] = {
-                "forwarded": _amount.group(1), "convertible_share": _share}
+                "forwarded": _amount.group(1), "convertible_share_xmr": _share_xmr}
     if funding:
         problems["funding_path"] = funding
 
@@ -453,15 +509,38 @@ def _suite_problems(suite, sources, genesis=None):
         problems["rerun_states"] = "no fetchNullable before initialize"
     if "proposalState === null" not in suite:
         problems["rerun_proposal"] = "no guard for the already-created proposal"
+    # ...AND THE SEQUENCE THAT MAKES A SECOND PROPOSAL POSSIBLE AT ALL
+    # (finding F5): the suite has to ask the state what the next id is, derive
+    # the PDA with that id as an 8-byte LITTLE-ENDIAN u64 — the encoding
+    # `proposal_id.to_le_bytes()` writes in Rust — and put it in the seeds. A
+    # suite that reused one id would collide with an account that already
+    # exists; one that derived a two-seed PDA would look for an account no
+    # instruction creates.
+    if "proposalCount" not in suite:
+        problems["rerun_sequence"] = (
+            "the suite never reads proposalCount, so it cannot know which id is "
+            "next and can never make a second proposal")
+    if not re.search(r"writeBigUInt64LE|toArrayLike\(Buffer,\s*\"le\"", suite):
+        problems["proposal_id_encoding"] = (
+            "the suite never encodes the proposal id as an 8-byte little-endian "
+            "u64, which is the encoding the PDA's third seed uses")
+    if not re.search(r"\[\s*Buffer\.from\(PROPOSAL_SEED\)\s*,\s*"
+                     r"governanceState\.toBuffer\(\)\s*,\s*\w+\s*\]", suite):
+        problems["proposal_id_seed"] = (
+            "the proposal PDA is not derived from three seeds (the literal, the "
+            "governance state and the id), so it is the id-less singleton the "
+            "program no longer creates")
 
     # 3.7 THE INITIALIZE GATE, from the SUITE's side. Every program now gates
     # `initialize` on its own upgrade authority, which means every initializer
     # call must hand the program's ProgramData account to the instruction — an
-    # account the client derives as ["programdata", programId] under the
-    # upgradeable loader. Omit it and the very first call fails on chain;
-    # derive it from the wrong seed or loader and it fails with "account does
-    # not exist". Both literals are pinned against the crates here, because
-    # the suite and the programs must describe the SAME address.
+    # account the runtime derives as [programId] ALONE under the upgradeable
+    # loader: one seed, no string prefix. Omit it and the very first call
+    # fails on chain; prepend the `"programdata"` literal this file used to
+    # carry, or derive it under another loader, and the address has no account
+    # at it, so the instruction is refused with NotProgramData (6004). Both
+    # sides are pinned here, because the suite and the programs must describe
+    # the SAME address.
     gate_calls = [obj for _var, call, obj in sites
                   if call in ("initialize", "initializeGovernance")
                   and obj is not None]
@@ -475,15 +554,21 @@ def _suite_problems(suite, sources, genesis=None):
                 "initializer call(s) without programData: indexes "
                 + repr(missing_pd))
 
-    crate_pd_seed = re.search(r'PROGRAM_DATA_SEED:\s*&\[u8\]\s*=\s*b"([^"]+)"',
-                              "\n".join(sources.values()))
-    suite_pd_seed = re.search(r'PROGRAM_DATA_SEED\s*=\s*"([^"]+)"', suite)
-    if not (crate_pd_seed and suite_pd_seed):
-        problems["program_data_seed"] = {"suite": bool(suite_pd_seed),
-                                         "crate": bool(crate_pd_seed)}
-    elif crate_pd_seed.group(1) != suite_pd_seed.group(1):
-        problems["program_data_seed"] = {"suite": suite_pd_seed.group(1),
-                                         "crate": crate_pd_seed.group(1)}
+    # The derivation itself, on both sides: ONE seed (the program's own id),
+    # no prefix — the rule the runtime's own ProgramData address obeys.
+    crate_pd = "\n".join(sources.values())
+    if "PROGRAM_DATA_SEED" in crate_pd or "PROGRAM_DATA_SEED" in suite:
+        problems["program_data_seed"] = (
+            "a PROGRAM_DATA_SEED prefix is back on one side; the loader "
+            "derives the address from the program id alone")
+    elif not re.search(r"seeds\s*=\s*\[\s*crate::ID\.as_ref\(\)\s*\]",
+                       crate_pd):
+        problems["program_data_seed"] = (
+            "no crate derives ProgramData as [crate::ID] under the loader")
+    elif not re.search(r"findProgramAddressSync\(\s*\[\s*programId\."
+                       r"toBuffer\(\)\s*\]", suite):
+        problems["program_data_seed"] = (
+            "the suite does not derive ProgramData as [programId] alone")
 
     crate_loader = re.search(
         r'UPGRADEABLE_LOADER_ID:\s*Pubkey\s*=\s*[^;]*?"([^"]+)"',
@@ -555,6 +640,82 @@ def _suite_problems(suite, sources, genesis=None):
     if op:
         problems["operational_gate"] = op
 
+    # 3.9 THE PAYOUT PATH (finding F1), FROM THE SUITE'S SIDE. A funded jackpot
+    # that can never be paid is the finding this whole change is about, so the
+    # suite has to make a PAYOUT proposal and then read its EFFECT from the
+    # jackpot: the balance, total_payouts_xmr, last_winner and the identity
+    # balance + total_payouts == total_funded — plus the treasury re-read, to
+    # prove a payout did not move it. Two controls are what make it a proof
+    # rather than a demo: a DIRECT triggerPayout signed by the deployer's own
+    # wallet REFUSED (the stored admin authority is a PDA, and no off-path key
+    # can sign for it) and the executed proposal REFUSED a second time.
+    payout = {}
+    _payout_block = it_block(suite, "PAID OUT")
+    if _payout_block is None:
+        problems["payout_block"] = (
+            "no `it(\"... PAID OUT ...\")` block: nothing in the suite "
+            "exercises the governance -> payout path")
+    else:
+        for _needed in ("jackpotBalanceXmr", "totalPayoutsXmr", "totalFundedXmr",
+                        "lastWinner", "totalJackpotFundedXmr"):
+            if _needed not in _payout_block:
+                payout["unasserted:" + _needed] = (
+                    "the payout step never reads " + _needed)
+        if "expect(" not in _payout_block:
+            payout["no_assertions"] = "the payout step asserts nothing"
+        if not re.search(r"triggerPayout\s*\(", _payout_block):
+            payout["direct_control_missing"] = (
+                "no DIRECT triggerPayout attempt, so nothing proves a wallet "
+                "cannot pay the jackpot without governance")
+        if "adminAuthority: payer.publicKey" not in _payout_block:
+            payout["direct_control_key"] = (
+                "the direct triggerPayout is not attempted with a WALLET key as "
+                "the admin authority")
+        if not re.search(r"expect\(\s*refused", _payout_block):
+            payout["direct_not_asserted"] = (
+                "the direct triggerPayout is not asserted refused")
+        if not re.search(r"executeAction\s*\(", _payout_block):
+            payout["replay_control_missing"] = (
+                "no second executeAction on the executed payout proposal, so "
+                "nothing proves a payout cannot be replayed")
+        if not re.search(r"expect\(\s*replayed", _payout_block):
+            payout["replay_not_asserted"] = (
+                "the replay attempt is not asserted refused")
+        if not re.search(r"ACTION_TRIGGER_PAYOUT", suite):
+            payout["action_unused"] = (
+                "ACTION_TRIGGER_PAYOUT is declared but never proposed")
+    if payout:
+        problems["payout_path"] = payout
+
+    # 3.10 THE RATE IS READ (finding F2), FROM THE SUITE'S SIDE. Setting the
+    # rate and reading it back proves the field is writable; proving the BOUND
+    # moved is what proves something on the funding path reads it. So the suite
+    # must move the rate in BOTH directions — a bound that only ever shrank
+    # could pass on a coincidence — and assert that an amount the program
+    # ACCEPTED is REFUSED after the change.
+    rate = {}
+    _rate_block = it_block(suite, "LIVE bound")
+    if _rate_block is None:
+        problems["rate_block"] = (
+            "no rate-block `it(...)` in the suite: nothing proves the exchange "
+            "rate is read on the funding path")
+    else:
+        for _needed in ("exchangeRateBps", "fundJackpotWithXmr"):
+            if _needed not in _rate_block:
+                rate["unused:" + _needed] = (
+                    "the rate step never uses " + _needed)
+        if "HALVED_RATE_BPS" not in _rate_block or "DOUBLED_RATE_BPS" not in _rate_block:
+            rate["one_direction"] = (
+                "the rate is moved in ONE direction only, so a ceiling that "
+                "merely shrank could pass by accident")
+        if not re.search(r"expect\(\s*nowRefused", _rate_block):
+            rate["shift_not_asserted"] = (
+                "the amount accepted at par is not asserted REFUSED after the "
+                "rate changes, which is the one assertion that separates a live "
+                "bound from a dead field")
+    if rate:
+        problems["rate_path"] = rate
+
     return problems
 
 
@@ -579,10 +740,14 @@ check("2.3 every PDA seed literal the suite derives with is a seed one of the "
       "the instruction would simply fail on chain)",
       "seed_literals" not in _problems, _problems.get("seed_literals"))
 _enum_problems = {k: v for k, v in _problems.items()
-                  if k in ("proposal_shape", "proposal_variant", "proposal_field")}
-check("2.4 the proposed GovernanceAction variant and its field exist in the "
-      "Rust enum as declared â€” that variant index and those field names ARE "
-      "the borsh encoding, so a rename is a different instruction",
+                  if k.startswith("action_")}
+check("2.4 EVERY GovernanceAction the suite proposes exists in the Rust "
+      "enum with the fields it passes — and the set includes a "
+      "PAYOUT and a RATE CHANGE. A variant's position IS the borsh "
+      "discriminant and its field names ARE the payload, so a rename on "
+      "either side is a different instruction; the payout is the path "
+      "finding F1 was about, and the rate change is what proves anything "
+      "READS the rate (finding F2)",
       not _enum_problems, _enum_problems)
 _value_problems = {k: v for k, v in _problems.items()
                    if k in ("values", "values_initial", "values_vacuous",
@@ -609,10 +774,14 @@ check("3.4 the suite guards on DEVNET's genesis hash — the value the devnet "
       "genesis hash cannot)",
       not _guard_problems, _guard_problems)
 
-_rerun_problems = {k: v for k, v in _problems.items() if k.startswith("rerun")}
-check("3.5 rerun safety: the suite checks whether the state accounts and the "
-      "(single, ever) proposal already exist before creating them — a devnet "
-      "test that fails on its second run teaches nothing",
+_rerun_problems = {k: v for k, v in _problems.items() if k.startswith("rerun") or k.startswith("proposal_id")}
+check("3.5 rerun safety: the suite checks whether the state accounts and each "
+      "proposal already exist before creating them, ASKS the state which id is "
+      "next, and derives the proposal PDA from three seeds with that id as an "
+      "8-byte little-endian u64 — the encoding the program's own "
+      "`proposal_id.to_le_bytes()` writes. A devnet test that fails on its "
+      "second run teaches nothing, and a suite that reused one id would collide "
+      "with an account that already exists (finding F5)",
       not _rerun_problems, _rerun_problems)
 check("3.6 THE FUNDING PATH is exercised with its negative controls in "
       "place: an inflow is recorded, the treasury -> jackpot CPI funds the "
@@ -655,6 +824,26 @@ check("3.7 THE INITIALIZE GATE is satisfied from the suite's side: every "
       "would look for an account that does not exist",
       not _gate_suite, _gate_suite)
 
+_PAYOUT_KEYS = ("payout_path", "payout_block")
+_RATE_KEYS = ("rate_path", "rate_block")
+_payout_suite = {k: v for k, v in _problems.items() if k in _PAYOUT_KEYS}
+check("3.9 THE PAYOUT PATH (finding F1) is exercised with its controls: a "
+      "TriggerPayout proposal is made and its EFFECT is read from the jackpot "
+      "— balance, total_payouts_xmr, last_winner and the identity "
+      "balance + total_payouts == total_funded — with the treasury re-read to "
+      "show a payout does not move it; a DIRECT triggerPayout signed by the "
+      "deployer's wallet is asserted REFUSED (the stored admin authority is a "
+      "PDA, so no off-path key can pay), and the executed proposal is asserted "
+      "refused a SECOND time (no replay)",
+      not _payout_suite, _payout_suite)
+_rate_suite = {k: v for k, v in _problems.items() if k in _RATE_KEYS}
+check("3.10 THE EXCHANGE RATE IS READ (finding F2): the suite moves the rate "
+      "through governance in BOTH directions and asserts that an amount the "
+      "program ACCEPTED is REFUSED after the change — setting a value and "
+      "reading it back would prove the field is writable, not that anything on "
+      "the funding path uses it",
+      not _rate_suite, _rate_suite)
+
 # ── 4. RED-FIRST: mutations through the SAME predicate ──────────────────
 # A predicate that passes is only worth what it rejects. Each mutation below
 # is a way this file could rot, and each must be caught by the SAME
@@ -682,6 +871,18 @@ _mutations = [
             1,
         ),
         "program_data_loader",
+    ),
+    (
+        "the `\"programdata\"` prefix put back in front of the program id — "
+        "the derivation the live run refused with NotProgramData (6004)",
+        SUITE_TEXT.replace(
+            "    [programId.toBuffer()],\n"
+            "    new anchor.web3.PublicKey(UPGRADEABLE_LOADER_ID),",
+            '    [Buffer.from("programdata"), programId.toBuffer()],\n'
+            "    new anchor.web3.PublicKey(UPGRADEABLE_LOADER_ID),",
+            1,
+        ),
+        "program_data_seed",
     ),
     (
         "a seed literal typo'd in the suite",
@@ -724,6 +925,61 @@ _mutations = [
         SUITE_TEXT.replace("\n      rejected,\n", "\n      false,\n", 1),
         "negative_control",
     ),
+    (
+        "the payout proposal replaced by a second cap change",
+        SUITE_TEXT.replace(
+            "const ACTION_TRIGGER_PAYOUT = {\n  triggerPayout: {",
+            "const ACTION_TRIGGER_PAYOUT = {\n  setJackpotPayoutRules: {",
+            1,
+        ),
+        "action_missing_payout",
+    ),
+    (
+        "the payout's last_winner assertion swapped for another counter",
+        SUITE_TEXT.replace(
+            'after.lastWinner.toBase58(), "last_winner is not the winner"',
+            'after.totalPayoutsXmr.toBase58(), "last_winner is not the winner"',
+            1,
+        ),
+        "payout_path",
+    ),
+    (
+        "the direct triggerPayout control's refusal weakened",
+        SUITE_TEXT.replace(
+            'expect(\n      refused,\n      "a DIRECT triggerPayout',
+            'expect(\n      true,\n      "a DIRECT triggerPayout',
+            1,
+        ),
+        "payout_path",
+    ),
+    (
+        "the payout replay control's assertion dropped",
+        SUITE_TEXT.replace(
+            'expect(replayed, "the payout proposal executed TWICE")',
+            'expect(true, "the payout proposal executed TWICE")',
+            1,
+        ),
+        "payout_path",
+    ),
+    (
+        "the suite stops asking the state for the next proposal id",
+        SUITE_TEXT.replace("state.proposalCount.toNumber()", "1", 1),
+        "rerun_sequence",
+    ),
+    (
+        "the proposal PDA derived from two seeds again",
+        SUITE_TEXT.replace(
+            "[Buffer.from(PROPOSAL_SEED), governanceState.toBuffer(), idBytes]",
+            "[Buffer.from(PROPOSAL_SEED), governanceState.toBuffer()]",
+            1,
+        ),
+        "proposal_id_seed",
+    ),
+    (
+        "the rate shift no longer asserted refused",
+        SUITE_TEXT.replace("expect(\n      nowRefused,", "expect(\n      overRefused,", 1),
+        "rate_path",
+    ),
 ]
 _missed = []
 for why, mutant, want in _mutations:
@@ -733,13 +989,19 @@ for why, mutant, want in _mutations:
     got = _suite_problems(mutant, SOURCES)
     if want not in got:
         _missed.append((why, {"wanted": want, "got": sorted(got)}))
-check("4.1 RED-FIRST: ten mutations — a renamed account key, a dropped "
-      "`programData`, a ProgramData address derived under another loader, a "
+check("4.1 RED-FIRST: eighteen mutations — a renamed account key, a dropped "
+      "`programData`, a ProgramData address derived under another loader, the "
+      "`\"programdata\"` prefix put back in front of the program id, a "
       "seed typo, a vacuous proposal value, a dropped negative-control "
       "assertion, a dropped operational signature, a removed non-operational "
-      "recording control, a weakened non-operational rejection and a missing "
-      "initialize argument — each trip the SAME predicate the real suite "
-      "passes, so \"it passes\" and \"it discriminates\" are one code path",
+      "recording control, a weakened non-operational rejection, a missing "
+      "initialize argument, a payout proposal replaced by another cap change, "
+      "the payout's `last_winner` assertion swapped, the direct-triggerPayout "
+      "refusal weakened, the replay assertion dropped, the next-id lookup "
+      "replaced by a constant, the proposal PDA derived from two seeds again, "
+      "and the rate shift no longer asserted refused — each trip the SAME "
+      "predicate the real suite passes, so \"it passes\" and \"it "
+      "discriminates\" are one code path",
       not _missed, _missed)
 
 # ── 5. THE LIVE HALF: opt-in, or an honest SKIP ─────────────────────────
@@ -764,8 +1026,9 @@ def live_skip_reason(env=None, which=None, root=None):
     wallet = env.get("ANCHOR_WALLET")
     if not wallet and not (Path.home() / ".config" / "solana" / "id.json").is_file():
         return "no ANCHOR_WALLET in the environment and no ~/.config/solana/id.json"
-    if not env.get("ANCHOR_PROVIDER_URL"):
-        return "no ANCHOR_PROVIDER_URL (set it to https://api.devnet.solana.com)"
+    if not (env.get("XMRJ_RPC_URL") or env.get("ANCHOR_PROVIDER_URL")):
+        return ("no XMRJ_RPC_URL / ANCHOR_PROVIDER_URL (set one to "
+                "https://api.devnet.solana.com)")
     return None
 
 
@@ -783,16 +1046,38 @@ _skip = live_skip_reason()
 if _skip:
     print("SKIP: " + _skip)
 else:
-    _cmd = ["npx", "ts-mocha", "-p", "./tsconfig.json", "-t", "1000000",
+    # `npx` is a .cmd wrapper on Windows, and CreateProcess cannot execute a
+    # .cmd itself: passing the bare name raises FileNotFoundError (WinError 2)
+    # before mocha starts. Resolve it and, only where it resolved to a shell
+    # wrapper, hand it to the command interpreter. POSIX is unchanged.
+    _npx = shutil.which("npx") or "npx"
+    _cmd = [_npx, "ts-mocha", "-p", "./tsconfig.json", "-t", "1000000",
             "tests/**/*.ts"]
+    if os.name == "nt" and _npx.lower().endswith((".cmd", ".bat")):
+        _cmd = [os.environ.get("COMSPEC", "cmd.exe"), "/c", *_cmd]
     _run = subprocess.run(_cmd, cwd=str(HERE), capture_output=True, text=True,
                           timeout=3600)
     _out = (_run.stdout or "") + (_run.stderr or "")
+    # MOCHA'S REPORT IS THE GRADE, so the whole of it is kept. A rate-limited
+    # public RPC fills the last 25 lines with retry notices and pushes the one
+    # line that says what actually failed out of view — which is how a real
+    # assertion failure can read as "429" in the summary. The full output goes
+    # to reports/, and the failure carries the FIRST line that names a problem.
+    _saved = HERE / "reports" / f"xmrj_suite_mocha_{_run.returncode}_rc.log"
+    _saved.parent.mkdir(exist_ok=True)
+    _saved.write_text(_out, encoding="utf-8")
+    _why = next(
+        (line.strip() for line in _out.splitlines()
+         if re.match(r"\s*\d+\)\s", line) or "Error:" in line or "AssertionError" in line),
+        "(mocha printed no error line)",
+    )
     check("5.2 the devnet suite ran to completion and every step passed "
           "(mocha's own report is the grade, not this file's opinion)",
           _run.returncode == 0 and "passing" in _out,
           {"exit": _run.returncode,
-           "tail": _out.strip().splitlines()[-25:]})
+           "first_error": _why,
+           "mocha_log": str(_saved),
+           "tail": _out.strip().splitlines()[-6:]})
 
 passed = sum(1 for ok, _, _ in results if ok)
 failed = len(results) - passed

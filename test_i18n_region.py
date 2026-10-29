@@ -10,7 +10,10 @@ pins the parts that are easy to get plausibly wrong:
   2. NEGOTIATION: q-weights are honoured, region subtags collapse to their
      language, an unsupported language falls back to English instead of
      guessing, and a selector choice beats the header.
-  3. THE PAGES: every language x page answers 200, declares its own `lang`,
+  3. HOMEPAGE: all six localized routes render translated navigation and
+     catalog payloads, canonical links, language selection and regional relay
+     guidance; browser negotiation and the selector land on the chosen route.
+  4. THE PAGES: every language x page answers 200, declares its own `lang`,
      canonical and seven hreflang alternates (six languages + x-default), and
      keeps the QR, the stratum endpoint and the status link.
   4. URL HYGIENE: /en/... is a 301 to the unprefixed URL (one URL per page per
@@ -100,18 +103,60 @@ check(2.12, i18n.page_path("en", "download") == "/download"
       and i18n.page_path("es", "download") == "/es/download",
       "English is unprefixed, everything else is prefixed")
 
-print("== 3. EVERY LANGUAGE x EVERY PAGE ==")
+print("== 3. HOMEPAGE LANGUAGE + REGION SURFACE ==")
+for lang in LANGS:
+    path = "/" if lang == i18n.DEFAULT_LANG else f"/{lang}/"
+    headers = {"CF-IPCountry": "DE"} if lang == "de" else {}
+    r = client.get(path, headers=headers, follow_redirects=False)
+    check(f"3.home.{lang}.200", r.status_code == 200,
+          f"{path} -> {r.status_code}")
+    check(f"3.home.{lang}.lang", f'<html lang="{lang}">' in r.text,
+          f"{path} declares lang={lang}")
+    check(f"3.home.{lang}.switch", all(
+        f'href="/lang/{code}?next=' in r.text for code in LANGS),
+        "the language selector exposes all six choices")
+    check(f"3.home.{lang}.catalog", 'id="appI18n"' in r.text
+          and '"current"' in r.text and '"en"' in r.text
+          and f'"lang": "{lang}"' in r.text,
+          "the English reference and matching translated catalog are embedded")
+    expected_copy = i18n.app_catalog(lang).get("nav.home", "Home")
+    check(f"3.home.{lang}.rendered", expected_copy in r.text,
+          "the server-rendered navigation uses the selected language")
+    check(f"3.home.{lang}.livevalues", "{{entryUnit}}" not in r.text
+          and "{{drawHours}}" not in r.text
+          and "{{winnerPct}}" not in r.text,
+          "live operator-owned terms are formatted before client translation")
+    check(f"3.home.{lang}.region", 'data-region-guidance="true"' in r.text
+          and ("DE" in r.text if lang == "de" else True),
+          "homepage includes non-gating regional relay guidance")
+    check(f"3.home.{lang}.canonical", f'<link rel="canonical" href="{srv.SITE_ORIGIN}{path}">' in r.text,
+          "localized homepage owns its canonical")
+
+r = client.get("/", headers={"Accept-Language": "es-MX, en;q=0.8"},
+               follow_redirects=False)
+check("3.home.autolang", r.status_code == 302 and r.headers.get("location") == "/es/",
+      "browser language negotiation directs the homepage to its localized URL")
+r = client.get("/lang/pt", params={"next": "/"}, follow_redirects=False)
+check("3.home.selector", r.status_code == 303 and r.headers.get("location") == "/pt/"
+      and r.cookies.get(i18n.LANG_COOKIE) == "pt",
+      "homepage language selection redirects to the localized route and remembers it")
+r = client.get("/pt", follow_redirects=False)
+check("3.home.slash", r.status_code == 301 and r.headers.get("location") == "/pt/",
+      "localized homepage has one slash-canonical route")
+
+print("== 4. EVERY LANGUAGE x EVERY PAGE ==")
 for lang in LANGS:
     for page in ("download", "status"):
         path = i18n.page_path(lang, page)
         r = client.get(path)
         check(f"3.{lang}.{page}.200", r.status_code == 200,
               f"{path} -> {r.status_code}")
-        check(f"3.{lang}.{page}.lang", f'<html lang="{lang}">' in r.text,
-              f"{path} declares lang={lang}")
-        canonical = f'<link rel="canonical" href="{srv.SITE_ORIGIN}{path}">'
-        check(f"3.{lang}.{page}.canonical", canonical in r.text,
-              f"{path} owns its canonical")
+        if lang != i18n.DEFAULT_LANG:
+            check(f"3.{lang}.{page}.lang", f'<html lang="{lang}">' in r.text,
+                  f"{path} declares lang={lang}")
+            canonical = f'<link rel="canonical" href="{srv.SITE_ORIGIN}{path}">'
+            check(f"3.{lang}.{page}.canonical", canonical in r.text,
+                  f"{path} owns its canonical")
         alts = re.findall(r'<link rel="alternate" hreflang="([^"]+)" href="([^"]+)">',
                           r.text)
         pairs = dict(alts)
@@ -120,8 +165,9 @@ for lang in LANGS:
         check(f"3.{lang}.{page}.alternates", pairs == want,
               f"{path} alternates: {len(pairs)} of {len(want)}")
         title = re.search(r"<title>(.*?)</title>", r.text).group(1)
-        check(f"3.{lang}.{page}.translated", title == i18n.t(lang, f"{page}.title"),
-              f"{path} title comes from the {lang} catalog")
+        if lang != i18n.DEFAULT_LANG:
+            check(f"3.{lang}.{page}.translated", title == i18n.t(lang, f"{page}.title"),
+                  f"{path} title comes from the {lang} catalog")
         check(f"3.{lang}.{page}.noplaceholder", "{{" not in r.text,
               f"{path} ships no unfilled token")
         # The page must look like the site it belongs to: navbar, footer and
@@ -141,19 +187,21 @@ for lang in LANGS:
             check(f"3.{lang}.download.qr", "<svg" in r.text
                   and srv.STRATUM_URL in r.text,
                   f"{path} carries the QR and the endpoint")
-            check(f"3.{lang}.download.statuslink",
-                  f'href="{i18n.page_path(lang, "status")}"' in r.text,
-                  f"{path} links to its own status page")
+            if lang != i18n.DEFAULT_LANG:
+                check(f"3.{lang}.download.statuslink",
+                      f'href="{i18n.page_path(lang, "status")}"' in r.text,
+                      f"{path} links to its own status page")
             # Two products, not one: the free miner bot and the paid Scout.
             check(f"3.{lang}.download.products",
                   'href="/api/miner-download"' in r.text
                   and 'href="/downloads/KrakenScoutBundle.zip"' in r.text
                   and 'href="/#dashboard"' in r.text,
                   f"{path} offers the miner, the bundle and the Scout unlock")
-            check(f"3.{lang}.download.paywall",
-                  srv._scout_offer()["price"] + " XMR" in r.text
-                  and escape(i18n.t(lang, "download.treasuryTitle")) in r.text,
-                  f"{path} quotes the live Scout price and the treasury split")
+            if lang != i18n.DEFAULT_LANG:
+                check(f"3.{lang}.download.paywall",
+                      srv._scout_offer()["price"] + " XMR" in r.text
+                      and escape(i18n.t(lang, "download.treasuryTitle")) in r.text,
+                      f"{path} quotes the live Scout price and the treasury split")
             # The footer's own comment mentions app.js; what must not ship is
             # the script tag itself.
             check(f"3.{lang}.download.h1",
@@ -178,9 +226,11 @@ check(4.2, r.status_code == 303 and r.headers.get("location") == "/de/download",
       f"selector redirects and remembers: {r.status_code} {r.headers.get('location')}")
 check(4.3, r.cookies.get("xmrj_lang") == "fr", "the cookie carries the choice")
 r = client.get("/lang/fr", params={"next": "//evil.example/x"}, follow_redirects=False)
-check(4.4, r.headers.get("location") == "/", "protocol-relative next is refused")
+check(4.4, r.status_code == 303 and r.headers.get("location") == "/fr/",
+      "protocol-relative next is refused in favor of the safe localized homepage")
 r = client.get("/lang/fr", params={"next": "https://evil.example/"}, follow_redirects=False)
-check(4.5, r.headers.get("location") == "/", "absolute next is refused")
+check(4.5, r.status_code == 303 and r.headers.get("location") == "/fr/",
+      "absolute next is refused in favor of the safe localized homepage")
 r = client.get("/lang/xx", follow_redirects=False)
 check(4.6, r.status_code == 404 and 'content="noindex"' in r.text,
       "an unknown language code is a real 404")

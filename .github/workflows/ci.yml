@@ -1,7 +1,22 @@
 name: CI
 
+# ONE run per commit on a branch that has a PR (Oct 28). The aggregator below is
+# a REQUIRED status check on main (ruleset "main: a pull request with a green
+# ci"), and a required context is satisfied only when every run that reports it
+# on the head commit is green: a push on a PR branch plus its pull_request
+# synchronize event used to run the same fourteen jobs twice, so a flake or a
+# cancelled duplicate in EITHER blocked a merge that was in fact green —
+# measured on PR #1, where a cancelled push run left `ci` failing next to a
+# passing one and the PR stayed BLOCKED while ready for review.
+#
+# Pushes still run on main, and that is now the only way a commit gets there:
+# the same ruleset refuses a direct push ("Changes must be made through a pull
+# request", measured on an empty commit), so the push event fires for the MERGE
+# commit — the one commit whose `ci` result nobody would otherwise look at. A
+# branch with a PR gets its single run from the pull_request event.
 on:
   push:
+    branches: [main]
   pull_request:
 
 jobs:
@@ -12,11 +27,10 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-      - name: Node lint
-        run: npm ci --no-audit --no-fund || true
+      - name: Install Node dependencies for lint
+        run: npm ci --no-audit --no-fund
       - name: Static JS lint
-        run: |
-          npx --no-install eslint pool/static/*.js || true
+        run: npx --no-install eslint pool/static/*.js
 
   build:
     runs-on: ubuntu-latest
@@ -108,6 +122,28 @@ jobs:
       - name: Scout lifecycle (beacon, activation, telemetry, fleet report)
         run: python test_scout_lifecycle.py
 
+  # THE MONEY SUITES (Oct 26). These drive the real engine, the real
+  # funding model and the real FastAPI app over a sandboxed DB — they were
+  # run by hand only, so a donation or accrual regression could ship green.
+  jackpot-funding:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install Python deps
+        # the import-time set for database/engine/funding/server (cryptography
+        # for field_crypto, httpx for fastapi.testclient), plus the lazily
+        # imported ones so a handler path cannot fail on a missing module
+        run: python -m pip install --quiet fastapi httpx aiohttp cryptography keyring pydantic py-vapid pywebpush segno uvicorn
+      - name: Donation idempotency (order key, pruning, concurrency, rollback)
+        run: python test_donation_idempotency.py
+      - name: Jackpot split (who funded the pot)
+        run: python test_jackpot_split.py
+      - name: Charter drive (formula, 30-day limit, referral loop, phrases)
+        run: python test_jackpot_charter.py
+
   release-hygiene:
     runs-on: ubuntu-latest
     steps:
@@ -132,17 +168,302 @@ jobs:
       - name: No rich in-page popup from worker
         run: test "$(grep -c 'showNotification' pool/static/push_sw.js)" -ge 1
 
+  # THE RPC LAYER AND THE ENDPOINT CONTRACT (Oct 27). Both clients reach the
+  # cluster through tools/rpc_resilience.ts, and WHICH cluster that is must come
+  # from the environment: the three devnet passes in the execution report's
+  # §11.9 died on a 429 from the free public endpoint, and the fix only holds if
+  # nothing builds a connection of its own with a cluster baked in. No chain, no
+  # wallet, no cluster here: the layer's tests drive a stub fetch, and
+  # test_xmrj_rpc_endpoint.py reads the wiring.
+  xmrj-rpc-contract:
+    runs-on: ubuntu-latest
+    env:
+      # playwright is a dev dependency of the pool's UI drives, not of this job;
+      # skipping its browser download keeps this gate fast and dependency-free
+      PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Install the pinned client deps
+        run: npm ci --no-audit --no-fund
+      - name: Typecheck the suite and the harness (the RPC layer included)
+        run: npm run typecheck
+      - name: The retry layer — stub fetch, injected clock, no chain
+        run: npm run test:rpc
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: The endpoint comes from the environment (contract)
+        run: python test_xmrj_rpc_endpoint.py
+
+  # THE XMRJ OFFLINE DRIVES A CLONE CAN RUN (Oct 27). The build-dependent ones
+  # read target/, which is gitignored — the program keypairs it holds are the
+  # PRIVATE halves of the program addresses, so no clone contains them. This job
+  # is the no-build side: it runs the drives that need no toolchain, and it proves
+  # HERE that the build-dependent drives REFUSE an unbuilt checkout instead of
+  # reporting a green fleet. The build side is the next job down
+  # (xmrj-build-artifacts), which builds the programs with placeholder keys and
+  # runs test_xmrj_build_artifacts.py on them; `tools/xmrj_loadtest.ts --offline`
+  # stays a host-side gate (the runbook's §3 runs it after the build).
+  xmrj-offline-drives:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Install the pinned client deps (ts-node runs the harness check)
+        run: npm ci --no-audit --no-fund
+      - name: Source <-> manifest <-> toolchain wiring (artifact half SKIPped, unbuilt)
+        run: python test_anchor_wiring.py
+      - name: The devnet suite's own offline half
+        run: python test_xmrj_devnet_e2e.py
+      - name: The build-dependent drives refuse an unbuilt checkout
+        run: python test_xmrj_offline_gates.py
+
+  # THE BUILD, SO THE ARTIFACT DRIVE RUNS ON A PUSH (Oct 27). Everything above
+  # gates sources; this job compiles the three programs with the pinned toolchain
+  # (rust-toolchain.toml, Anchor.toml [toolchain]) and then runs
+  # test_xmrj_build_artifacts.py against REAL artifacts: each .so is a program and
+  # not an entrypoint-less shell (check 1.3, finding F10), the artifacts are newer
+  # than their sources, the IDL surface is the one the harness drives, and the rent
+  # budget comes from the real sizes.
+  #
+  # NO PROGRAM KEYPAIR COMES FROM A SECRET, deliberately (report §11.14): an address
+  # IS a public key, so a valid keypair file for the ids this repo declares needs
+  # their PRIVATE halves — there is no way to synthesize one, which is why the build
+  # generates placeholders and passes --ignore-keys. The private halves would buy
+  # exactly one thing here (check 3.3, the keypair identity), and it reports itself
+  # SKIPPED with that reason. Check 3.4 STILL RUNS: Anchor stamps the IDL's address
+  # from `declare_id!`, not from the keypair — measured on a placeholder build
+  # (report §11.14), which is why only one check skips. The keypair identity stays a
+  # host-side gate, where the real keypairs exist (test_anchor_wiring.py 4.3).
+  #
+  # COST, MEASURED ON THIS JOB'S OWN RUNNER (Oct 27-28, ubuntu-latest, public
+  # repo, report §11.14 and §11.16). Every cold number is a first run after a
+  # cache MISS: both xmrj caches were deleted and the job re-run alone, seven
+  # times, so the spread below is the runner's rather than the workflow's.
+  #
+  #   cold job wall             318  370  374  429  452  470  487 s
+  #                             min 318   median 429   max 487
+  #   warm (cache hit)          54-57 s
+  #   toolchain hit, crates cold 176 s  (the toolchain cache alone is ~250 s)
+  #
+  #   step (cold)                      range        worst
+  #   rustup + 1.89.0                  8-11 s        11 s
+  #   Agave 3.1.10                     14-20 s       20 s
+  #   `cargo install avm` + anchor     108-156 s    156 s
+  #   platform-tools / build-sbf       36-60 s       60 s
+  #   anchor build + 3x build-sbf      131-214 s    214 s
+  #   cache save                       11-34 s       34 s
+  #
+  # THE TIMEOUT comes from that distribution, not from one run: 1.5x the worst
+  # cold run (487 s) is 731 s, rounded up to the next whole 5 minutes is 900 s
+  # — 1.85x the worst and 2.1x the median. A hang still fails fast instead of
+  # burning the 360-minute default, and a slow-but-real run is not killed where
+  # a re-run would cost more than the wait. (30 came from host numbers that
+  # overestimated avm by 2.5x. The earlier note here claimed 2.4x against a
+  # single 370 s run, before the 487 s sample existed.)
+  #
+  # WHAT A MISS COSTS NOW (Oct 28, after the keys were split — same job, one
+  # re-run per line, caches deleted by class):
+  #   every cache empty                     506 s
+  #   avm + the Solana toolchain cold       341 s
+  #   crates/target cold                    144 s
+  #   a manifest edit, no pin changed        64 s   (was ~460 s: it threw all
+  #                                                  three caches away at once)
+  # The last line is the point of the split. Editing a cluster, a program id or
+  # a comment in Anchor.toml is the common case here, and it used to buy an avm
+  # rebuild, a 734 MB toolchain download and a full program rebuild for a change
+  # none of them depend on.
+  #
+  # All three caches earn their place: the Solana one buys back ~250 s and the
+  # crates one ~115 s, and together they cost ~30 s to restore on a hit.
+  xmrj-build-artifacts:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      # THE CACHE KEYS COME FROM THE PINS, NOT FROM THE MANIFEST (Oct 28). This
+      # job used to hash Anchor.toml WHOLE, so editing a cluster, a program id or
+      # a comment discarded a 150 s AVM build, a 734 MB Solana toolchain
+      # (Agave 215 + platform-tools 519) and 443 MB of compiled crates that
+      # depend on none of it — a one-line manifest edit cost the full ~460 s
+      # cold run. Four inputs actually matter: solana_version, anchor_version,
+      # the rust channel and the avm rev. They are read once here, and each
+      # cache is keyed on only the ones it uses, so a miss is scoped to what
+      # really changed.
+      - name: Read the pins the cache keys are derived from
+        id: pins
+        run: |
+          SOL=$(sed -nE 's/^solana_version *= *"([^"]+)".*/\1/p' Anchor.toml | head -1)
+          ANC=$(sed -nE 's/^anchor_version *= *"([^"]+)".*/\1/p' Anchor.toml | head -1)
+          if [ -z "$SOL" ] || [ -z "$ANC" ]; then
+            echo "Anchor.toml [toolchain] must pin BOTH solana_version and anchor_version" >&2
+            exit 1
+          fi
+          echo "solana=$SOL" >> "$GITHUB_OUTPUT"
+          echo "anchor=$ANC" >> "$GITHUB_OUTPUT"
+          echo "pins: solana=$SOL anchor=$ANC"
+      # avm and the anchor-cli it installs depend on the avm REV (a literal in
+      # the install step below, pinned there for the reason wiring-drive 3.6
+      # states) and the anchor version — never on the crates or the sources.
+      - name: Cache avm and the anchor-cli it installs
+        uses: actions/cache@v4
+        with:
+          path: ~/.avm
+          key: xmrj-avm-85c5293e-${{ steps.pins.outputs.anchor }}-${{ hashFiles('rust-toolchain.toml') }}
+      # The Agave CLI and the platform-tools that cargo-build-sbf downloads are
+      # both derived from solana_version (3.1.10 resolves platform-tools v1.57),
+      # so they move together and are cached together.
+      - name: Cache the Solana toolchain (Agave + platform-tools)
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.local/share/solana
+            ~/.cache/solana
+          key: xmrj-solana-${{ steps.pins.outputs.solana }}-${{ hashFiles('rust-toolchain.toml') }}
+      # target/deploy is deliberately NOT cached: it is where the build puts the
+      # .so files and where the placeholder keypairs live, and the drive checks
+      # that each .so is newer than its sources — a cache that could carry an old
+      # .so into a job is a cache that can hide a missing rebuild.
+      # target/release and target/debug ARE cached, and that was measured the
+      # other way round rather than assumed (report §11.14): dropping them on
+      # the theory that only build-sbf writes target/ cut the archive from
+      # 423 MB to 221 MB — and cost 94 s on every warm run, because the build
+      # step went 16 s -> 110 s. `anchor build` runs a HOST build of each
+      # program alongside the SBF one (that is where the IDL comes from), and
+      # these two dirs are its output. Keep them.
+      # Cargo.lock (and the compiler channel) is the only thing the registry and
+      # the compiled artifacts depend on. Anchor.toml is NOT one of them: the ids
+      # in it reach the crates through declare_id!, in source, and `anchor build`
+      # is given --ignore-keys. restore-keys keeps a genuine lockfile bump from
+      # starting at an empty target/.
+      - name: Cache the crates and the compiled artifacts
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target/release
+            target/debug
+            target/sbpf-solana-solana
+          key: xmrj-crates-${{ hashFiles('rust-toolchain.toml', 'Cargo.lock') }}
+          restore-keys: xmrj-crates-
+      - name: Rust — the channel rust-toolchain.toml pins
+        run: |
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal --default-toolchain none
+          echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
+          rustup toolchain install 1.89.0 --profile minimal --component rustfmt,clippy
+          rustup default 1.89.0
+      - name: Solana CLI — the Agave release Anchor.toml [toolchain] pins
+        run: |
+          # The version comes from the MANIFEST, read once by the pins step. A
+          # second hardcoded copy here is exactly the drift the wiring drive
+          # (13.1) exists to catch.
+          REL="${{ steps.pins.outputs.solana }}"
+          BIN="$HOME/.local/share/solana/install/active_release/bin"
+          if "$BIN/solana" --version 2>/dev/null | grep -qF "$REL"; then
+            echo "Agave $REL restored from the toolchain cache"
+          else
+            sh -c "$(curl -sSfL "https://release.anza.xyz/v$REL/install")"
+          fi
+          echo "$BIN" >> "$GITHUB_PATH"
+      - name: anchor-cli — the pinned release, through avm (built once, cached)
+        run: |
+          # avm is built from a PINNED commit, not the repository's HEAD: the
+          # cache restores a binary, and a moving HEAD would make a cache hit a
+          # different tool from a cache miss. 85c5293e is avm 1.2.1, the build
+          # this workspace's install used. Cold it is ~150 s of compiling
+          # (measured, 108-161 s over seven runs); on a hit the whole step is a
+          # `command -v` and an `avm use`. The anchor version is the manifest's
+          # pin, not a second literal.
+          AVM=$(command -v avm || true)
+          if [ -z "$AVM" ] && [ -x "$HOME/.avm/bin/avm" ]; then AVM="$HOME/.avm/bin/avm"; fi
+          if [ -z "$AVM" ]; then
+            cargo install avm --git https://github.com/otter-sec/anchor --rev 85c5293e --locked
+            AVM=$(command -v avm)
+          fi
+          echo "$HOME/.avm/bin" >> "$GITHUB_PATH"
+          "$AVM" install "${{ steps.pins.outputs.anchor }}"
+          "$AVM" use "${{ steps.pins.outputs.anchor }}"
+      - name: The SBF compiler this release maps to
+        run: cargo build-sbf --install-only
+      - name: A throwaway payer and PLACEHOLDER program keys (nothing here signs)
+        run: |
+          mkdir -p target/deploy "$HOME/.config/solana"
+          solana-keygen new --no-bip39-passphrase --force -o "$HOME/.config/solana/id.json"
+          for p in xmrj_treasury xmrj_jackpot xmrj_governance; do
+            solana-keygen new --no-bip39-passphrase --force -o "target/deploy/$p-keypair.json"
+          done
+      - name: Build — the runbook's §3 recipe (anchor build, then each program alone)
+        run: |
+          anchor build --ignore-keys
+          # The stale UNHASHED rlib `cargo build-sbf` leaves in deps/ is the
+          # runbook §3 failure: the next program's build picks it up and dies with
+          # "could not find `cpi` in `xmrj_jackpot`" (plus a global_allocator
+          # conflict) — measured here on a rebuild, which is what every push after
+          # the first one is. tools/xmrj_devnet_run.sh §3 does the same.
+          rm -f target/sbpf-solana-solana/release/deps/libxmrj_*.rlib
+          for p in xmrj_treasury xmrj_jackpot xmrj_governance; do (cd "$p" && cargo build-sbf); done
+      - name: The artifact drive — .so reality, IDL surface, freshness, rent
+        env:
+          XMRJ_PLACEHOLDER_KEYS: "1"
+        run: python test_xmrj_build_artifacts.py
+
+  # THE AGGREGATE (Oct 27; made able to fail Oct 28). `needs:` ALONE makes this
+  # job SKIPPED when any sibling fails, which the first full pipeline run
+  # measured (PR #1, run 40690417522): 12 gates green, `build` red, and this job
+  # reported "skipped" with zero steps — the one check meant to summarise the
+  # pipeline was absent from exactly the runs that needed it. `if: always()`
+  # makes it run regardless; the step below fails HERE for every sibling whose
+  # result is not "success", so a failure, a cancellation and a gate that never
+  # ran all read as red rather than as a missing row in the check list.
   ci:
     needs:
       - lint
+      - xmrj-rpc-contract
+      - xmrj-offline-drives
+      - xmrj-build-artifacts
       - build
       - static-invariants
       - alert-routing
       - scout-pro-gating
       - alert-log-api
       - scout-lifecycle
+      - jackpot-funding
       - release-hygiene
       - push-path
+    if: always()
     runs-on: ubuntu-latest
     steps:
-      - run: echo "CI pipeline complete"
+      - name: Every gate passed
+        env:
+          # the whole needs map as JSON (name -> {result, outputs}), so one step
+          # can name EVERY gate that did not pass instead of stopping at the
+          # first non-success
+          NEEDS: ${{ toJSON(needs) }}
+        run: |
+          python3 - <<'PY'
+          import json, os, sys
+
+          needs = json.loads(os.environ["NEEDS"])
+          for name in sorted(needs):
+              print("%-22s %s" % (name, needs[name]["result"]))
+          bad = [(n, needs[n]["result"]) for n in sorted(needs)
+                 if needs[n]["result"] != "success"]
+          if bad:
+              print("")
+              print("CI GATE FAILED: " + ", ".join("%s=%s" % b for b in bad))
+              sys.exit(1)
+          print("")
+          print("CI pipeline complete: %d gates, all successful" % len(needs))
+          PY

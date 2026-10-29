@@ -70,12 +70,16 @@ HISTORY (fleet_history.jsonl, gitignored — it churns every run)
 import argparse
 import json
 import math
-import os
-import re
 import subprocess
 import sys
 import time
 from pathlib import Path
+
+# THE SHARED VOCABULARY (drivekit.py): every argv, every regex and
+# the rerun triangle below are drivekit's — the fleet is its biggest
+# consumer, not its owner, so a future runner can contract-free reuse
+# the exact same grammar.
+import drivekit  # noqa: E402
 
 HERE = Path(__file__).resolve().parent
 HISTORY = HERE / "fleet_history.jsonl"
@@ -95,9 +99,6 @@ def _timings_archive():
     drives do, into a temp dir) repoints the archive with it."""
     return TIMINGS_LEDGER.with_name(
         TIMINGS_LEDGER.name.replace(".jsonl", ".archive.jsonl"))
-RESULT_RE = re.compile(r"RESULT:\s*(\d+)\s+passed,\s*(\d+)\s+failed")
-FAIL_ID_RE = re.compile(r"^FAIL\s+(\S+)", re.M)
-SKIP_RE = re.compile(r"^\s*SKIP:", re.M)
 
 
 def discover():
@@ -105,43 +106,20 @@ def discover():
 
 
 def run_drive(path, timeout):
-    """One drive run -> a result dict (no classification)."""
-    env = os.environ.copy()
-    env["PYTHONIOENCODING"] = "utf-8"
-    t0 = time.time()
-    try:
-        proc = subprocess.run(
-            [sys.executable, "-X", "utf8", str(path)],
-            capture_output=True, text=True, encoding="utf-8",
-            errors="replace", timeout=timeout, cwd=str(HERE), env=env)
-        rc, out = proc.returncode, (proc.stdout or "") + (proc.stderr or "")
-        why = ""
-    except subprocess.TimeoutExpired as exc:
-        raw = exc.stdout or b""
-        if isinstance(raw, bytes):
-            raw = raw.decode("utf-8", "replace")
-        rc, out, why = 124, raw or "", "timed out after {}s".format(timeout)
-    dur = time.time() - t0
-    m = RESULT_RE.search(out)
-    passed = int(m.group(1)) if m else None
-    failed = int(m.group(2)) if m else None
-    return {
-        "name": path.stem, "rc": rc, "dur": dur, "out": out,
-        "passed": passed, "failed": failed,
-        "fails": sorted(set(FAIL_ID_RE.findall(out))),
-        "skip": bool(SKIP_RE.search(out)),
-        "why": why,
-        "tail": "\n".join(out.strip().splitlines()[-3:]),
-    }
+    """One drive run -> a result dict (no classification). The raw
+    subprocess, the regex answer sheet, and the exit-124-on-timeout
+    contract are drivekit.run_child — the exact fleet argv ever since
+    the vocabulary moved into drivekit.py."""
+    return drivekit.run_child(path, timeout, utf8_flag=True, cwd=HERE)
 
 
 def grade_first(r):
-    """The first-run verdict before any triage."""
-    if r["skip"] and r["passed"] == 0 and r["failed"] == 0:
-        return "SKIP"
-    if r["passed"] is not None:
-        return "PASS" if r["failed"] == 0 and r["rc"] == 0 else "FAIL"
-    return "PASS" if r["rc"] == 0 else "FAIL"   # scenario-style: exit code
+    """The first-run verdict before any triage (drivekit.grade_first's
+    exact fleet shape: a scenario-style drive grades by its exit code,
+    and the zero-check hardening is the battery entry's, not this
+    fleet's — its coverage table shows the counts it saw)."""
+    return drivekit.grade_first(r, scenario_rc=(0,), scenario_label="PASS",
+                                honest_zero_check=False)
 
 
 def run_classified(path, args):
@@ -173,21 +151,21 @@ def run_classified(path, args):
                             "note": "after cooldown retry (was skipped)"}
 
     # FAILED first run -> the rerun triage decides flake vs regression
-    for attempt in range(1, max(1, args.retries) + 1):
-        r2 = run_drive(path, args.timeout)
-        if grade_first(r2) == "PASS":
-            n = "{} checks".format(r2["passed"]) if r2["passed"] is not None \
-                else "scenario"
-            return "FLAKE", {
-                "checks": n, "dur": r1["dur"] + r2["dur"],
-                "note": "failed first run ({}), passed rerun #{}".format(
-                    ",".join(r1["fails"][:4]) or ("exit " + str(r1["rc"])),
-                    attempt)}
-        r1, first = r2, grade_first(r2)
+    status, prev, r1, attempt = drivekit.triage(
+        r1, lambda: run_drive(path, args.timeout), retries=args.retries,
+        scenario_rc=(0,), scenario_label="PASS", honest_zero_check=False)
+    if status == "FLAKE":
+        n = "{} checks".format(r1["passed"]) if r1["passed"] is not None \
+            else "scenario"
+        return "FLAKE", {
+            "checks": n, "dur": prev["dur"] + r1["dur"],
+            "note": "failed first run ({}), passed rerun #{}".format(
+                ",".join(prev["fails"][:4]) or ("exit " + str(prev["rc"])),
+                attempt)}
 
     # stable failure: same checks both runs = clean regression;
     # divergent checks = a regression that is ALSO unstable
-    if first == "SKIP":
+    if status == "SKIP":
         return "SKIP", {"checks": "0/0", "dur": r1["dur"],
                         "note": "flipped to skip on rerun — investigate"}
     return "REGRESSION", {

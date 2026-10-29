@@ -56,7 +56,48 @@ LEDGER_MAX_ROWS = 2000        # the receipt book is bounded (review
                               # losing a day of history
 LEDGER_KEY = "jackpot_funding_ledger"
 RATE_KEY = "XMR_USD_RATE"
+
+
+def _positive(raw):
+    """A float from a setting string when it is a real positive number,
+    else None (the house "never trust a blank or a zero" helper)."""
+    try:
+        v = float(str(raw).strip())
+    except (TypeError, ValueError):
+        return None
+    return v if v > 0 else None
 DEFAULT_XMR_USD = 323.0       # jackpot_engine's own approximate rate
+
+# THE VRSC BRIDGE (Oct 28): users on the Verus download branch mine
+# VerusCoin, not Monero — the relays that would feed Monero to the pool
+# are inaccessible from their regions, which is WHY the branch exists.
+# Verus-run share counts still earn entries, but Verus currency itself
+# cannot fund a jackpot pool without a conversion leg, so it does: the
+# rate it converts at is the VRSC answer to xmr_price (see vrsc_price),
+# and the pinned rate below is ONLY its fallback tier — never a quote
+# that can be trusted as fresh. It is deliberately not the engine's
+# 323: proving one coin's fallback leaked into the other's reader is
+# what this constant is for.
+DEFAULT_VRSC_USD = 1.0
+
+
+def vrsc_usd_rate():
+    """The VRSC/USD rate for every Verus-side payout conversion.
+
+    The single VRSC reader, structured exactly like xmr_usd_rate: the
+    kill-switchable vrsc_price tier first (override -> last fetched ->
+    fallback, never raising), then the pinned VRSC_USD_RATE key as a
+    last resort. See vrsc_price for the caching contract.
+    """
+    try:
+        import vrsc_price
+        return float(vrsc_price.current(fallback=DEFAULT_VRSC_USD)["rate"])
+    except Exception:
+        pass
+    try:
+        return float(db.get_setting("VRSC_USD_RATE", str(DEFAULT_VRSC_USD)))
+    except (TypeError, ValueError):
+        return DEFAULT_VRSC_USD
 
 # A Scout Pro donation is a different animal from the two formula
 # categories: it is money already received, not an inflow to be
@@ -126,10 +167,102 @@ def xmr_usd_rate():
     try:
         return float(db.get_setting(RATE_KEY, str(DEFAULT_XMR_USD)))
     except (TypeError, ValueError):
-        return DEFAULT_XMR_USD
+        return DEFAULT_XMR_USD# ── THE STALE-RATE GUARD (Oct 28) ────────────────────────────
+# A same-coin VRSC payout converts REAL treasury money at
+# (XMR/USD) / (VRSC/USD). Stale is harmless on a hero card and
+# disgraceful on a payout: the claim is the one place in the pool where
+# an old rate SILENTLY MISPRICES a prize. So the payout conversion
+# checks both legs' snapshot ages: inside the warn window it still
+# pays but the audit row records exactly how old the numbers were,
+# and inside the block window it refuses — nothing is paid on a
+# number nobody would sign for. Every refusal is retriable: the
+# claim path returns before any db mutation, so refreshing the rate
+# and re-claiming is the whole recovery, within the claim window.
+VRSC_RATE_STALE_KEY = "VRSC_RATE_STALE_S"
+VRSC_RATE_STALE_S = 900              # warn: a snapshot older than this
+VRSC_RATE_BLOCK_MULT = 3             # block: older than warn x this
 
 
-SOURCE_LABELS = {"override": "operator-set", "kraken_ticker": "Kraken",
+def _leg_freshness(mod, is_xmr=False, now=None):
+    """One leg's (rate, age): age 0.0 = operator-vouched (a pin or the
+    bridge's own db key), age None = no snapshot at all, so the caller
+    would silently quote a DEFAULT constant."""
+    try:
+        if mod.override() is not None:
+            return None, 0.0
+        rate, ts, _src = mod.last_good()
+        if ts:
+            return float(rate), max(0.0, float(now) - float(ts))
+        if is_xmr:
+            # The bridge's db-pinned XMR rate key: when the operator
+            # values is present and positive it vouches for the leg.
+            v = _positive(db.get_setting(RATE_KEY, ""))
+            if v is not None and v != DEFAULT_XMR_USD:
+                return None, 0.0
+    except Exception:
+        pass
+    return None, None
+
+
+def vrsc_conversion_guard(warn_s=None, block_s=None):
+    """Freshness gate for the same-coin conversion (Oct 28). NEVER raises.
+
+    Returns {"ok", "reason", "warn", "xmr_age_s", "vrsc_age_s"}:
+    ok False = DO NOT convert (the reason name both legs' ages);
+    warn is a human sentence when a leg is old-but-payable, else None.
+
+    Thresholds: warn at VRSC_RATE_STALE_S (operator-tunable through the
+    db setting VRSC_RATE_STALE_KEY); block at warn x VRSC_RATE_BLOCK_MULT.
+    """
+    out = {"ok": True, "reason": None, "warn": None,
+           "xmr_age_s": None, "vrsc_age_s": None}
+    if warn_s is None:
+        warn_s = _positive(str(db.get_setting(
+            VRSC_RATE_STALE_KEY, str(VRSC_RATE_STALE_S))) or VRSC_RATE_STALE_S)
+    if not warn_s or warn_s <= 0:
+        warn_s = VRSC_RATE_STALE_S
+    if block_s is None:
+        block_s = warn_s * float(VRSC_RATE_BLOCK_MULT)
+    now = time.time()
+
+    try:
+        import vrsc_price as _vp
+        out["vrsc_age_s"] = _leg_freshness(_vp, now=now)[1]
+    except Exception:
+        out["vrsc_age_s"] = None
+    try:
+        import xmr_price as _xp
+        out["xmr_age_s"] = _leg_freshness(_xp, is_xmr=True, now=now)[1]
+    except Exception:
+        out["xmr_age_s"] = None
+
+    blocks, warns = [], []
+    for name, age in (("VRSC", out["vrsc_age_s"]),
+                      ("XMR", out["xmr_age_s"])):
+        if age is None:
+            blocks.append("%s rate has no snapshot — the conversion "
+                          "would silently price at a default constant; "
+                          "pull the rate or pin an operator override "
+                          "before paying out" % name)
+        elif age >= block_s:
+            blocks.append("%s rate snapshot is %.0f s old (block threshold "
+                          "%.0f s)" % (name, age, block_s))
+        elif age >= warn_s:
+            warns.append("%s rate snapshot is %.0f s old (warn threshold "
+                         "%.0f s)" % (name, age, warn_s))
+
+    if blocks:
+        out["ok"] = False
+        out["reason"] = "VRSC payout blocked by the stale-rate guard: " \
+                         + "; ".join(blocks)
+    elif warns:
+        out["warn"] = "Stale-rate guard warning: " + "; ".join(warns) \
+                       + " — the conversion proceeded on this snapshot"
+    return out
+
+
+SOURCE_LABELS = { "override": "operator-set", "kraken_ticker": "Kraken",
+                 "coingecko": "CoinGecko",
                  "default": "fallback"}
 
 
@@ -240,6 +373,22 @@ def record_funding(category, amount_usd, sponsor_id=None, source="",
     return rid
 
 
+def _receipt_row(key):
+    """The pre-Oct-26 protection: a receipt in the settings ledger."""
+    for r in _load_ledger():
+        if isinstance(r, dict) and r.get("source") == key:
+            return r
+    return None
+
+
+def _already(credit, reason="already credited"):
+    """The replay answer: the ORIGINAL split, and no money moved."""
+    return {"credited": False, "reason": reason,
+            "amount_xmr": float(credit.get("amount_xmr") or 0.0),
+            "jackpot_xmr": float(credit.get("jackpot_xmr") or 0.0),
+            "treasury_xmr": float(credit.get("treasury_xmr") or 0.0)}
+
+
 def credit_donation(order_id, amount_xmr, sponsor_id=None, source=""):
     """A paid Scout Pro unlock is SPLIT 70/30 (Oct 26).
 
@@ -250,11 +399,19 @@ def credit_donation(order_id, amount_xmr, sponsor_id=None, source=""):
     records the whole payment plus both halves, so the split is
     auditable per order.
 
-    Idempotent per checkout order: the receipt's source key carries the
-    order id, so a replayed status poll, a retried fulfilment or a
-    manual re-run can never fund the same order twice. Returns
-    {"credited": bool, "amount_xmr": float, "jackpot_xmr": float,
-     "treasury_xmr": float, "base_xmr": float}.
+    IDEMPOTENT PER ORDER, AND THE KEY IS A ROW (Oct 26): the check used
+    to be a scan of this module's ledger, which is a RECEIPT BOOK capped
+    at LEDGER_MAX_ROWS and rewritten as one JSON value — a replayed poll
+    for an order whose receipt had aged out of that cap funded the pot a
+    second time. Now one `donation_credits` row per order id IS the
+    credit, and the INSERT plus the base raise run in ONE transaction:
+    a concurrent poller loses the insert and moves nothing, and a crash
+    between them rolls both back instead of leaving money with no key or
+    a key with no money. The ledger receipt is still written afterwards
+    as the audit trail — it is no longer what makes this safe.
+
+    Returns {"credited": bool, "amount_xmr": float, "jackpot_xmr":
+    float, "treasury_xmr": float, "base_xmr": float}.
     """
     try:
         amount_xmr = round(float(amount_xmr or 0), 12)
@@ -267,31 +424,54 @@ def credit_donation(order_id, amount_xmr, sponsor_id=None, source=""):
     treasury_xmr = round(amount_xmr - jackpot_xmr, 12)
 
     key = "scout_pro_donation:%s" % (order_id,)
-    for r in _load_ledger():
-        if r.get("source") == key:
-            return {"credited": False, "reason": "already credited",
-                    "amount_xmr": float(r.get("amount_xmr") or 0.0),
-                    "jackpot_xmr": float(r.get("jackpot_xmr")
-                                        or r.get("amount_xmr") or 0.0),
-                    "treasury_xmr": float(r.get("treasury_xmr") or 0.0)}
 
+    # 1. ALREADY KNOWN? then the answer is the original split and nothing
+    #    moves. An order credited before this table existed is adopted on
+    #    sight, so its protection stops being prunable.
+    credit = db.get_donation_credit(order_id)
+    if credit is None:
+        legacy = _receipt_row(key)
+        if legacy is not None:
+            credit = db.adopt_donation_credit(
+                order_id, legacy.get("amount_xmr") or amount_xmr,
+                legacy.get("jackpot_xmr") or 0.0,
+                legacy.get("treasury_xmr") or 0.0,
+                sponsor_id=sponsor_id, source=key)
+    if credit is not None:
+        return _already(credit)
+
+    # The rate first: xmr_price may reach the network, which must never
+    # happen while a write transaction is open.
     rate = xmr_usd_rate()
-    rid = record_funding(
-        DONATION_CATEGORY, amount_xmr * rate, sponsor_id=sponsor_id,
-        source=key, amount_xmr=amount_xmr,
-        jackpot_xmr=jackpot_xmr, treasury_xmr=treasury_xmr,
-    )
-    if rid is None:
-        return {"credited": False, "reason": "receipt rejected",
-                "amount_xmr": 0.0}
+    import jackpot_engine as engine                  # the one balance writer
 
-    # The engine stays the only balance writer, exactly as the daily
-    # accrual does it — same hook, same rounding. Only the jackpot's
-    # 70% enters the pot; the treasury's 30% never touches the base.
-    # Tagged RECEIVED (Oct 26): this XMR arrived from a buyer, so the
-    # admin pot card must not report it as formula accrual.
-    import jackpot_engine as engine
-    base = engine.add_funding_base(jackpot_xmr, source=engine.SRC_RECEIVED)
+    # 2. THE CLAIM AND THE MONEY, IN ONE TRANSACTION. The engine stays the
+    #    only balance writer, exactly as the daily accrual does it — same
+    #    hook, same rounding, just handed this transaction. Only the
+    #    jackpot's 70% enters the pot; the treasury's 30% never touches
+    #    the base. Tagged RECEIVED (Oct 26): this XMR arrived from a
+    #    buyer, so the admin pot card must not call it formula accrual.
+    with db.get_db() as conn:
+        if not db.claim_donation_credit(
+                conn, order_id, amount_xmr, jackpot_xmr, treasury_xmr,
+                sponsor_id=sponsor_id, source=key):
+            # a concurrent poller won the insert between step 1 and here
+            return _already(db.get_donation_credit(order_id, conn=conn) or {})
+        base = engine.add_funding_base(jackpot_xmr,
+                                       source=engine.SRC_RECEIVED, conn=conn)
+        db.set_donation_base(conn, order_id, base)
+
+    # 3. THE RECEIPT (audit only): filed after the money is safe, so a
+    #    ledger write can never be mistaken for the credit itself.
+    rid = None
+    try:
+        rid = record_funding(
+            DONATION_CATEGORY, amount_xmr * rate, sponsor_id=sponsor_id,
+            source=key, amount_xmr=amount_xmr,
+            jackpot_xmr=jackpot_xmr, treasury_xmr=treasury_xmr,
+        )
+    except Exception as e:          # the credit stands; the receipt retries
+        print(f"[Funding] donation {key} credited; receipt not filed: {e}")
     return {"credited": True, "amount_xmr": amount_xmr,
             "jackpot_xmr": jackpot_xmr, "treasury_xmr": treasury_xmr,
             "amount_usd": round(amount_xmr * rate, 2),

@@ -231,23 +231,28 @@ _SRC_SETTINGS = {SRC_ACCRUAL: "jackpot_src_accrual",
                  SRC_RECEIVED: "jackpot_src_received"}
 
 
-def _src_read():
+# THE OPTIONAL CONNECTION (Oct 26): a caller that must commit this
+# module's balance write WITH its own row (jackpot_funding's donation
+# claim) passes its open transaction down, and none of these touch a
+# second connection — SQLite would block that one on the writer lock.
+# Every other caller passes nothing and behaves exactly as before.
+def _src_read(conn=None):
     """The two counters as stored. Missing or unparsable reads as 0 —
     _attribute() is what turns a 0 into a real answer."""
     out = {}
     for src, key in _SRC_SETTINGS.items():
         try:
-            out[src] = max(0.0, float(db.get_setting(key, "0") or 0))
+            out[src] = max(0.0, float(db.get_setting(key, "0", conn=conn) or 0))
         except (TypeError, ValueError):
             out[src] = 0.0
     return out
 
 
-def _src_write(accrual, received):
+def _src_write(accrual, received, conn=None):
     db.set_setting(_SRC_SETTINGS[SRC_ACCRUAL],
-                   str(round(max(0.0, accrual), 12)))
+                   str(round(max(0.0, accrual), 12)), conn=conn)
     db.set_setting(_SRC_SETTINGS[SRC_RECEIVED],
-                   str(round(max(0.0, received), 12)))
+                   str(round(max(0.0, received), 12)), conn=conn)
 
 
 def _lifetime_accrued_xmr():
@@ -261,7 +266,7 @@ def _lifetime_accrued_xmr():
         return 0.0
 
 
-def _attribute(base, accrual=None, received=None):
+def _attribute(base, accrual=None, received=None, conn=None):
     """Describe `base` by source. Returns the two counters — it NEVER
     moves the base.
 
@@ -281,7 +286,7 @@ def _attribute(base, accrual=None, received=None):
     """
     base = max(0.0, float(base or 0.0))
     if accrual is None or received is None:
-        _held = _src_read()
+        _held = _src_read(conn)
         accrual = _held[SRC_ACCRUAL] if accrual is None else accrual
         received = _held[SRC_RECEIVED] if received is None else received
     accrual = max(0.0, float(accrual or 0.0))
@@ -787,7 +792,7 @@ def _get_p2pool_hashrate():
         return 0
 
 
-def add_funding_base(amount_xmr, source=SRC_ACCRUAL):
+def add_funding_base(amount_xmr, source=SRC_ACCRUAL, conn=None):
     """The funding model's ONE entry into the balance: raise the base
     by a REAL, backed amount (the self-adjusting daily seed). Nothing
     else may write the base for funding — one writer per flow.
@@ -798,17 +803,21 @@ def add_funding_base(amount_xmr, source=SRC_ACCRUAL):
     jackpot share). Anything that reaches the base outside this function
     is reconciled as received on the next read, so a flow that forgets
     the argument can only under-claim the formula, never over-claim it.
+
+    `conn` runs the whole raise inside a caller's transaction (the
+    donation claim, Oct 26) so the money and the claim commit together.
     """
     amount_xmr = max(0.0, float(amount_xmr or 0.0))
-    _b = float(db.get_setting("jackpot_balance", "0"))
-    _att = _attribute(_b)            # absorb any drift before crediting,
+    _b = float(db.get_setting("jackpot_balance", "0", conn=conn))
+    _att = _attribute(_b, conn=conn)  # absorb any drift before crediting,
     _a, _r = _att[SRC_ACCRUAL], _att[SRC_RECEIVED]   # so this credit lands
     if source == SRC_RECEIVED:                       # on the right side
         _r += amount_xmr
     else:
         _a += amount_xmr
-    db.set_setting("jackpot_balance", str(round(_b + amount_xmr, 8)))
-    _src_write(_a, _r)
+    db.set_setting("jackpot_balance", str(round(_b + amount_xmr, 8)),
+                   conn=conn)
+    _src_write(_a, _r, conn=conn)
     return round(_b + amount_xmr, 8)
 
 
@@ -1040,14 +1049,81 @@ def process_winner_claim(drawing_id, wallet_address):
                           "last 30 days — the claim unlocks when the "
                           "cooldown passes"}
 
-    # Check deadline
+    # Check deadline — THE LEASE-BEARER EXPIRY (Oct 28): this branch
+    # may retire ONLY a claim flight that has not started. The old
+    # direct db.expire_drawing call fired an unconditional UPDATE: a
+    # claim racing the deadline — even one mid-mint on a LIVE lease —
+    # was clobbered to 'expired', the rollover audit was written over
+    # a paying flight, and the mint's continuation wrote straight
+    # through to 'claimed'. Now the expiry is a CAS on 'pending'
+    # (db.expire_drawing, rowcount-driven): a rowcount of 0 means the
+    # flight was leased (or already claimed/expired) — this arrival
+    # never touches the holder's row — and it falls through to the
+    # lease attempt, where either a LIVE lease turns it away or a DEAD
+    # one is stealed, and the post-lease re-check below retires it by
+    # the one writer allowed to move a 'claiming' row.
     deadline = drawing.get("claim_deadline")
     if deadline and time.time() > deadline:
-        # Expire it — the earmark releases back to the pool via the
-        # balance model; log the rollover event like the sweep's path
-        # does (this branch cannot double-fire: if the sweep expired
-        # first, the claim_status == 'expired' guard above returned)
-        db.expire_drawing(drawing_id)
+        if db.expire_drawing(drawing_id):
+            # The earmark releases back to the pool via the balance
+            # model; log the rollover event like the sweep's path does.
+            try:
+                _ret = drawing["jackpot_amount"] - drawing.get("house_tax", 0)
+                db.add_audit_log(
+                    None, "jackpot_rollover",
+                    json.dumps({"drawing_id": drawing_id,
+                                "returned_xmr": round(_ret, 8),
+                                "via": "claim_raced_deadline"}),
+                )
+            except Exception as _e:
+                print(f"[Rollover] audit log write failed: {_e}")
+            return {"status": "error", "reason": "Claim window expired"}
+        # Expired/claimed/leased under us: NOT ours to touch — fall
+        # through to the lease gate and let the row's owner (one way
+        # or another) decide this arrival's fate.
+
+    # THE CLAIM LEASE (Oct 28): any two claims of the SAME drawing — a
+    # double-clicked button, a fast retry, two admin screens — arrive
+    # here as two threads that BOTH just read claim_status == 'pending'.
+    # Reading is not owning: without an atomic flip between the check
+    # and the mint, both threads clear every gate and both reach
+    # add_payout, and the treasury pays the same prize twice. So the
+    # mint is gated on a lease whose acquisition is ONE conditional
+    # UPDATE (pending -> 'claiming'): the first writer owns the row,
+    # the loser's UPDATE matches 0 rows and it is turned away before
+    # any money moves. A refused claim releases the lease (the retry
+    # paths below depend on that); a claimant that died mid-flight is
+    # recovered by the lease's own steal window.
+    def _bail(reason):
+        # Give the lease back: a refused claim leaves the drawing to be
+        # re-claimed the ordinary way (the stale-rate retry and the
+        # wallet-RPC retry both depend on this), and never reports the
+        # flight-lock as the final state.
+        db.release_claim_lease(drawing_id)
+        return {"status": "error", "reason": reason}
+
+    if not db.acquire_claim_lease(drawing_id):
+        try:
+            db.add_audit_log(
+                None, "claim_race_lost",
+                json.dumps({"drawing_id": drawing_id,
+                            "miner_id": drawing["winner_id"]}),
+            )
+        except Exception as _e:
+            print(f"[ClaimLease] lost-race audit write failed: {_e}")
+        return {"status": "error",
+                "reason": "Another claim of this drawing is in flight — "
+                          "try again in a moment"}
+
+    # THE POST-LEASE WINDOW RE-CHECK (Oct 28): with the lease OURS the
+    # window's clock is re-read as the holder. The pre-lease branch is
+    # a CAS and only retired an un-neleased 'pending' row, falling
+    # through when the flight was ALREADY leased — this is the point
+    # where a claimant that took a DEAD lease with the window overdue
+    # finally meets the deadline: the drawing retires HERE, under the
+    # lease name, in the one write allowed to move a 'claiming' row.
+    if deadline and time.time() > deadline:
+        db.expire_leased_drawing(drawing_id)
         try:
             _ret = drawing["jackpot_amount"] - drawing.get("house_tax", 0)
             db.add_audit_log(
@@ -1058,6 +1134,8 @@ def process_winner_claim(drawing_id, wallet_address):
             )
         except Exception as _e:
             print(f"[Rollover] audit log write failed: {_e}")
+        # The flip under the lease leaves no work for a release — the
+        # lease is spent exactly where a late window meets it.
         return {"status": "error", "reason": "Claim window expired"}
 
     # Calculate payout amount
@@ -1065,39 +1143,148 @@ def process_winner_claim(drawing_id, wallet_address):
     house_tax = drawing.get("house_tax", 0)
     payout_amount = jackpot - house_tax
 
-    # Send payout via wallet RPC
-    tx_hash = None
-    try:
-        import monero_wallet as xmr
-        if xmr.rpc_available():
-            result = xmr._rpc("transfer", {
-                "destinations": [{"address": wallet_address, "amount": int(payout_amount * 1e12)}],
-                "priority": 1,
-                "ring_size": 16,
-            })
-            if "error" not in result:
-                tx_hash = result.get("tx_hash", "")
+    # THE SAME-COIN PAYOUT RULE (Oct 28): the winner's miner coin decides
+    # the coin the prize is paid in. A Verus miner's win is delivered in
+    # VRSC out of the treasury, denominated at the LIVE VRSC/USD rate
+    # against the pool's XMR rate — while the pool's own BOOKS stay in
+    # XMR-equivalent units: amount_xmr keeps the same number the base
+    # deduction below was always doing, and amount_coin carries the
+    # quantity of VRSC the winner is owed. The pool has no Verus wallet
+    # RPC today, so the VRSC leg is MANUAL, exactly like the
+    # pending-from-Kraken path the server endpoint runs: the payout row
+    # waits in 'pending' and the treasury officer's send flips it via
+    # the existing admin status tool.
+    coin = (winner.get("coin") or "xmr") if winner else "xmr"
+    amount_coin = None
+
+    if coin == "vrsc":
+        import jackpot_funding
+        _xmr_usd = jackpot_funding.xmr_usd_rate()
+        _vrsc_usd = jackpot_funding.vrsc_usd_rate()
+        if not (_xmr_usd > 0 and _vrsc_usd > 0):
+            return _bail("VRSC payout needs live conversion rates — "
+                         "treasury rate reader unavailable")
+
+        # THE STALE-RATE GUARD (Oct 28): this is the one conversion in
+        # the pool that SETS A PAYOUT, so both legs' snapshots must be
+        # fresh enough to sign for. A refusal returns BEFORE any db
+        # mutation — the drawing stays unclaimed — so the officer's
+        # recovery is: refresh the rates, re-run the claim, all within
+        # the already-open claim window. A warn pays but shouts: the
+        # audit row and the response payload both carry the ages.
+        _guard = jackpot_funding.vrsc_conversion_guard()
+        if not _guard["ok"]:
+            try:
+                db.add_audit_log(
+                    None, "vrsc_rate_stale_blocked",
+                    json.dumps({"drawing_id": drawing_id,
+                                "miner_id": drawing["winner_id"],
+                                "vrsc_age_s": _guard["vrsc_age_s"],
+                                "xmr_age_s": _guard["xmr_age_s"],
+                                "reason": _guard["reason"]}),
+                )
+            except Exception as _e:
+                print(f"[StaleRate] blocked-audit write failed: {_e}")
+            return _bail(_guard["reason"])
+        _rate_warning = _guard["warn"]
+        if _rate_warning:
+            try:
+                db.add_audit_log(
+                    None, "vrsc_rate_stale_warned",
+                    json.dumps({"drawing_id": drawing_id,
+                                "miner_id": drawing["winner_id"],
+                                "vrsc_age_s": _guard["vrsc_age_s"],
+                                "xmr_age_s": _guard["xmr_age_s"]}),
+                )
+            except Exception as _e:
+                print(f"[StaleRate] warned-audit write failed: {_e}")
+
+        amount_coin = round(payout_amount * _xmr_usd / _vrsc_usd, 8)
+        tx_hash = "pending_manual_treasury"
+    else:
+        # Send payout via wallet RPC
+        tx_hash = None
+        try:
+            import monero_wallet as xmr
+            if xmr.rpc_available():
+                result = xmr._rpc("transfer", {
+                    "destinations": [{"address": wallet_address, "amount": int(payout_amount * 1e12)}],
+                    "priority": 1,
+                    "ring_size": 16,
+                })
+                if "error" not in result:
+                    tx_hash = result.get("tx_hash", "")
+                else:
+                    return _bail("Wallet RPC error: " + str(result.get("error")))
             else:
-                return {"status": "error", "reason": "Wallet RPC error: " + str(result.get("error"))}
-        else:
-            tx_hash = "pending_manual"
-    except Exception as e:
-        return {"status": "error", "reason": f"Transfer failed: {e}"}
+                tx_hash = "pending_manual"
+        except Exception as e:
+            return _bail(f"Transfer failed: {e}")
 
-    # Record the payout
-    db.add_payout(drawing["winner_id"], payout_amount, "jackpot", drawing_id)
+    # Record the payout. THE FX-AT-MINT STAMP (Oct 28): a same-coin
+    # row carries the exact rates that priced its amount_coin — the
+    # guard's snapshots, captured verbatim — so reconciliation reprices
+    # the row from itself instead of trusting the rate feeds' TODAY
+    # reading. The XMR leg prices nothing and stamps NULL: a face-value
+    # payout has no book to reconcile against.
+    _payout_id = db.add_payout(
+        drawing["winner_id"], payout_amount, "jackpot", drawing_id,
+        coin=coin, amount_coin=amount_coin,
+        fx_xmr_usd=(_xmr_usd if coin == "vrsc" else None),
+        fx_vrsc_usd=(_vrsc_usd if coin == "vrsc" else None))
     # Update payout status if we got a tx_hash
-    if tx_hash and tx_hash != "pending_manual":
+    if tx_hash and tx_hash not in ("pending_manual", "pending_manual_treasury"):
+        db.update_payout_status(_payout_id, "sent", tx_hash)
+    elif tx_hash:
+        # The MANUAL legs (XMR-from-Kraken, VRSC-from-treasury, Oct 28)
+        # stay 'pending' but the row still says WHY: the admin payout
+        # ledger reads the row alone, so the pending marker belongs on
+        # it rather than only in the audit trail.
         with db.get_db() as conn:
-            row = conn.execute(
-                "SELECT id FROM payouts WHERE drawing_id = ? AND payout_type = 'jackpot' ORDER BY id DESC LIMIT 1",
-                (drawing_id,),
-            ).fetchone()
-            if row:
-                db.update_payout_status(row["id"], "sent", tx_hash)
+            conn.execute(
+                "UPDATE payouts SET tx_hash = ? WHERE id = ?",
+                (tx_hash, _payout_id),
+            )
 
-    # Mark drawing as claimed
-    db.claim_drawing(drawing_id, wallet_address)
+    if coin == "vrsc":
+        # THE SAME-COIN RECEIPT (Oct 28): the drawing, the payout and the
+        # audit trail all say WHY a Verus winner is owed VRSC. The claim
+        # itself is NOT silent about the manual leg — the row waits in
+        # 'pending' for the treasury send, the claim window's own
+        # deadline has no bearing on that.
+        db.add_audit_log(
+            None, "vrsc_payout_pending_treasury",
+            json.dumps({"drawing_id": drawing_id,
+                        "miner_id": drawing["winner_id"],
+                        "coin": "vrsc",
+                        "amount_coin": amount_coin,
+                        "amount_xmr": round(payout_amount, 8),
+                        "xmr_usd": _xmr_usd, "vrsc_usd": _vrsc_usd,
+                        "wallet": wallet_address[:24]}),
+        )
+
+    # Mark drawing as claimed (stamps the drawing's coin with the same
+    # winner coin it just paid out in). LEASE-BEARER (Oct 28): the flip
+    # is the lease holder's privilege ONLY — a refusal here means the
+    # lease was lost mid-mint (a 300-second steal arrived between the
+    # lease gates and this write), so the drawing does NOT flip and the
+    # settlement below is skipped: the books do not count a drawing
+    # whose owner is no longer us. The payout row that already landed
+    # stays exactly as it is — a won prize waiting on the won clock —
+    # and the lost-lease audit names the mid-mint phase.
+    if not db.claim_drawing(drawing_id, wallet_address, coin=coin):
+        try:
+            db.add_audit_log(
+                None, "claim_race_lost",
+                json.dumps({"drawing_id": drawing_id,
+                            "miner_id": drawing["winner_id"],
+                            "phase": "mint"}),
+            )
+        except Exception as _e:
+            print(f"[ClaimLease] mint-phase lost-race audit failed: {_e}")
+        return {"status": "error",
+                "reason": "The claim lease was lost mid-mint — the "
+                          "drawing stayed with its current holder"}
 
     # THE SETTLEMENT (Sep 24 protocol audit): the payout has LEFT the
     # wallet, so the base loses exactly the paid amount — never more
@@ -1142,6 +1329,15 @@ def process_winner_claim(drawing_id, wallet_address):
         "drawing_id": drawing_id,
         "payout_amount": payout_amount,
         "tx_hash": tx_hash,
+        # THE SAME-COIN ANSWER (Oct 28): the caller learns WHICH coin the
+        # prize pays in and, for a Verus winner, the exact VRSC quantity
+        # the treasury is being asked for.
+        "coin": coin,
+        "amount_coin": amount_coin,
+        # THE STALE-RATE WARN (Oct 28): a stale-but-payable conversion is
+        # never silent — the payload names it so the caller's receipt
+        # carries the same caveat the audit row does.
+        "rate_warning": _rate_warning if coin == "vrsc" else None,
     }
 
 

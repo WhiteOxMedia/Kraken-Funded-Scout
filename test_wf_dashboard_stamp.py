@@ -206,7 +206,12 @@ const CYCLE = { next_drawing_epoch: Math.floor(Date.now() / 1000) + 3600,
 async function boot(prefs, extra) {
   answers = Object.assign({
     '/api/push/preferences': { status: 200, json: prefs },
-    '/api/auth/me': { status: 200, json: { authenticated: false } },
+    // Oct 29 LOGGED-OUT GATE: the scenarios sweep the SIGNED-IN panel
+    // (prefs stamp, signals feed, auth refetches), so the strobe
+    // default is now a session; the gate's signed-OUT premise — the
+    // silent zero-guarded-fetch boot — is pinned by its own scenario
+    // below (signed_out_gate).
+    '/api/auth/me': { status: 200, json: { authenticated: true } },
     '/api/profile/stats': { status: 401, json: {} },
     '/api/push/signals': { status: 200, json: { signals: [] } },
     '/api/jackpot/status': { status: 200, json: CYCLE },
@@ -452,6 +457,44 @@ async function scenario(name) {
     return 'announce_without_detail ok';
   }
 
+  if (name === 'signed_out_gate') {
+    // THE LOGGED-OUT GATE, signed-OUT premise (Oct 29): the strobe
+    // says no session, so the guarded reads MUST NOT run at boot —
+    // zero preferences/signals/profile fetches, no 401 noise — and
+    // the 60s tick refuses them too. Login flips the strobe and the
+    // same auth event the drive clocks (check 2) re-enters and
+    // pulls the real envelope.
+    answers = {
+      '/api/auth/me': { status: 200, json: { authenticated: false } },
+      '/api/push/preferences': { status: 200, json: ENV_A },
+      '/api/profile/stats': { status: 401, json: {} },
+      '/api/push/signals': { status: 200, json: { signals: [] } },
+      '/api/jackpot/status': { status: 200, json: CYCLE },
+    };
+    loadNow();
+    await flushAll();
+    const banned = ['/api/push/preferences', '/api/push/signals', '/api/profile/stats'];
+    for (const p of banned) {
+      assert.strictEqual(gets.filter((x) => x === p).length, 0,
+        'a signed-out boot fetches ZERO ' + p);
+    }
+    assert.strictEqual(stampText(), '', 'the signed-out panel carries no prefs stamp');
+    for (const t of timers) { t[0](); }
+    await flushAll();
+    for (const p of banned) {
+      assert.strictEqual(gets.filter((x) => x === p).length, 0,
+        'the signed-out 60s tick still refuses ' + p);
+    }
+    answers['/api/auth/me'] = { status: 200, json: { authenticated: true } };
+    dispatchNoDetail('xmrjackpot:auth');
+    await flushAll();
+    assert.ok(gets.filter((x) => x === '/api/push/preferences').length >= 1,
+      'login (the auth event) re-enters and reads the envelope');
+    assert.ok(stampText().indexOf('SHARED[' + ENV_A.updated_at + ']') >= 0,
+      'the stamp renders right after the login: ' + stampText());
+    return 'signed_out_gate ok';
+  }
+
   throw new Error('unknown scenario ' + name);
 }
 
@@ -485,6 +528,8 @@ SCENARIOS = [
      "empty list renders the empty line; a null answer clears the prior user's rows; a network rejection renders the failure line"),
     ("11", "auth_refreshes_status",
      "xmrjackpot:auth refetches and re-renders the wallet/miner dots instantly — no 60s subject lag"),
+    ("12", "signed_out_gate",
+     "Oct 29 logged-out gate: a signed-out boot performs ZERO guarded fetches (and so does its 60s tick), and login re-enters with one envelope read"),
 ]
 
 

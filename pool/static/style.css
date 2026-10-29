@@ -162,6 +162,12 @@ hr, .hairline-rule {
   border-bottom-color: var(--link-orange);
   text-decoration: none;
 }
+.nav-language { display: flex; align-items: center; gap: 7px; margin-left: auto; }
+.nav-language a { color: var(--text-dim); font-size: 0.78rem; font-weight: 700; }
+.nav-language a:hover, .nav-language a[aria-current="page"] { color: var(--mono-orange); }
+@media (max-width: 760px) {
+  .nav-language { margin-left: 0; }
+}
 
 .mode-badge, .mode-badge.free, .mode-badge.real {
   display: inline-block;

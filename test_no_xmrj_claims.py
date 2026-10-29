@@ -18,7 +18,14 @@ must stay allowed, while "Unlock with XMRJ" fails:
   2. no banned identifier (`xmrj_treasury`, `xmrj_jackpot`, `xmrj_unlock`,
      `startXmrjUnlock`, `xmrj-unlock`) may appear,
   3. no line may put "treasury" next to money words (jackpot, unlock, fund,
-     split, reserve, payout, pot, settle, XMR).
+     split, reserve, payout, pot, settle, XMR) WITH A TOKEN MARKER —
+     the XMRJ token must be named on the same line. The bare-word rule was
+     a stale yardstick (Oct 29): the pool has a DELIBERATE treasury leg
+     now (Oct 28), the Verus leg that delivers the VRSC prize —
+     "VRSC-from-treasury", "pending treasury send", "REAL treasury money"
+     describe a payout carrier, not an XMRJ rail — and a treasury story
+     that never names the token stays allowed. Only a line that ties the
+     treasury to XMRJ-the-token re-raises the B28 defect.
 Section 3 feeds fabricated claims through the SAME predicate that scans the
 files, so a green run means the detector still bites rather than that it was
 quietly disabled.
@@ -31,6 +38,15 @@ import re
 import sys
 import tempfile
 from pathlib import Path
+
+# Windows consoles default to cp1252, which cannot print the emoji a
+# violation line may carry — the error text vanished into a traceback
+# instead of naming the offending surface (Oct 29). Speak UTF-8 or fail
+# with the real message.
+try:
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+except (AttributeError, ValueError):
+    pass
 
 HERE = Path(__file__).resolve().parent
 results = []
@@ -103,10 +119,21 @@ def _claim_hits(line):
                 hits.append((tok, line.strip()))
             start = i + len(tok)
 
-    # 3. a treasury money path: the word in a clause that also names the
-    #    money it would move. Whole words only — "spot" is not "pot".
+    # 3. a treasury money path TIED TO THE TOKEN (Oct 29): the word in a
+    #    clause that also names the money it would move, on a line that
+    #    also names XMRJ-the-token. Line-mind, not clause-mind, for the
+    #    marker: the Verus-leg treasury is the pool's DELIBERATE VRSC
+    #    payout carrier, its stories never mention XMRJ, and "Treasury
+    #    funds the pot. No XMRJ." must keep its truth while "XMRJ settles
+    #    through the treasury" keeps its charge. A negated token marker
+    #    does not carry the tie either — "no XMRJ treasury rail" is the
+    #    correction, not the defect. Whole words only — "spot" isn't "pot".
+    token_ref = re.search(r"xmrj(?!ackpot)", low)
+    token_tied = bool(token_ref) and not _negated(line, token_ref.start())
     for m in re.finditer(r"\btreasury\b", low):
         if _negated(line, m.start()):
+            continue
+        if not token_tied:
             continue
         if MONEY_RE.search(_clause(line, m.start())):
             hits.append(("treasury", line.strip()))
@@ -180,7 +207,8 @@ check(1.2, not identifiers,
       "a banned XMRJ identifier survives: " + " | ".join(identifiers[:4]))
 treasury = [v for v in violations if "[treasury]" in v]
 check(1.3, not treasury,
-      "a surface still routes money through a treasury: " + " | ".join(treasury[:4]))
+      "a surface still ties XMRJ-token money to a treasury: "
+      + " | ".join(treasury[:4]))
 
 print("== 2. THE SCAN IS NOT VACUOUS ==")
 # A path typo would leave every rule green over an empty set. Name the
@@ -207,8 +235,14 @@ _must_catch = [
      "xmrj_treasury", "the program named as a live money path"),
     ("window.startXmrjUnlockFlow posts action: \"xmrj_unlock\".",
      "startxmrjunlock", "the removed paywall entry point"),
-    ("Funds reach the pot through the treasury split.",
-     "treasury", "a treasury split funding the pot"),
+    # THE TOKEN-TIED RULE (Oct 29): the XMRJ name must ride along with
+    # the treasury story for it to count — the bare-treasury control of
+    # the first detector described the Verus payout leg, which the pool
+    # really has.
+    ("Funds reach the pot through the XMRJ treasury split.",
+     "treasury", "a token-claimed treasury split funding the pot"),
+    ("The XMRJ treasury settles the pool's pot after each draw.",
+     "treasury", "a token-claimed treasury settlement"),
 ]
 _missed = []
 for text, rule, why in _must_catch:
@@ -224,6 +258,12 @@ _allowed = [
     "The checkout is Monero-only and no treasury rail moves XMR into the pot.",
     "Treasury titles are translated in six languages.",
     "The treasury does not fund the jackpot.",
+    # THE DELIBERATE VERUS LEG (Oct 28): these are the payout carrier's
+    # own words — they must read as truth, not as claims.
+    "A same-coin VRSC payout converts REAL treasury money at the live rate.",
+    "VRSC-from-treasury is the manual leg; XMR-from-Kraken is the other one.",
+    "The prize waits in pending-treasury state until the treasury send lands.",
+    "No XMRJ — the treasury funds the pot through the Verus leg.",
 ]
 _still_flagged = [t for t in _allowed if _claim_hits(t)]
 check(3.2, not _still_flagged,
@@ -241,15 +281,19 @@ with tempfile.TemporaryDirectory() as _td:
     }), encoding="utf-8")
     _key_hits = [h for line in text_lines(_p) for h in _claim_hits(line)]
     _p.write_text(json.dumps({
-        "download.treasuryBody": "Funds reach the pot through the treasury split.",
+        "download.treasuryBody":
+            "Funds reach the pot through the XMRJ treasury split.",
     }), encoding="utf-8")
     _value_hits = [h for line in text_lines(_p) for h in _claim_hits(line)]
 check(3.3, not _key_hits and _value_hits,
       f"catalog scan: key hits {_key_hits}, value hits {_value_hits}")
 
-# A negation in a DIFFERENT sentence must not launder the claim.
-_masked = _claim_hits("No fee. Treasury funds the jackpot every order.")
-check(3.4, _masked, "a neighbouring 'No' laundered a treasury claim")
+# A negation in a DIFFERENT sentence must not launder the claim, and the
+# token marker must live beside it (Oct 29): "No fee. Treasury funds the
+# jackpot." alone reads like the Verus leg now — the masking control
+# names the token in the SAME sentence as the movement it claims.
+_masked = _claim_hits("No fee. The XMRJ treasury funds the jackpot every order.")
+check(3.4, _masked, "a neighbouring 'No' laundered a token-tied treasury claim")
 
 passed, failed = results.count(True), results.count(False)
 print(f"RESULT: {passed} passed, {failed} failed")

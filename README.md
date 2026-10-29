@@ -367,6 +367,88 @@ stream output verbatim, map the drive's honest self-skip signature
 (RESULT 0/0 **plus** a `SKIP:` line) to the battery's SKIP vocabulary,
 and add the wrapper to `LIVE_ENTRIES` so `--fast` stays hermetic.
 
+## The payout contract (operator-facing, Oct 28)
+
+**Read this before touching a payout, a claim, or a rate.** One
+winner's prize moving out of the treasury has three rules attached;
+they are enforced in code, pinned by drives, and described here as
+the contract the operator operates against.
+
+**Rule 1 — the winner's coin decides (same-coin payout).** A miner who
+talked to the pool through the Verus relay is paid in VRSC from the
+treasury; every other winner is paid XMR through the wallet RPC or
+the standing manual leg. The pool's BOOKS stay in XMR-equivalent
+units no matter what moved: `payouts.amount_xmr` keeps the XMR
+number every old reader expects and `payouts.amount_coin` carries
+the VRSC quantity the winner is owed. Without a Verus wallet RPC,
+the VRSC leg is manual — the row waits in `pending` with
+`tx_hash = pending_manual_treasury` until the treasury officer's
+send flips it (the same admin tool that flips the XMR-from-Kraken
+leg). The winners page and the 💸 admin card both show the coin and
+the pending-treasury state, not just the equivalent. Pinned by
+`test_vrsc_miner.py`, `test_vrsc_coin_surface.py`.
+
+**Rule 2 — no payout at a stale rate (the stale-rate guard).** The
+claim is the one place an old rate silently misprices real money
+(bold labels on pages are merely old; a VRSC quantity SETS A
+PAYOUT). Before any same-coin conversion, both legs are age-checked
+— the VRSC/USD snapshot and the XMR/USD snapshot — in
+`jackpot_funding.vrsc_conversion_guard()`:
+
+- **fresh** (≤ `VRSC_RATE_STALE_S`, db setting, default **900 s**):
+  pay silently.
+- **warn** (> 900 s, < warn × 3): pay LOUDLY — audit row
+  `vrsc_rate_stale_warned` carries both legs' ages, and the claim
+  response payload carries the same sentence in `rate_warning`.
+- **block** (≥ warn × 3 = 2700 s at defaults, or a leg with no
+  snapshot at all): refuse with
+  `VRSC payout blocked by the stale-rate guard: …`, audit row
+  `vrsc_rate_stale_blocked`. The refusal happens BEFORE any db
+  mutation, so the recovery is one step: refresh the rates (or pin
+  an operator override — a pin is a vouched value, not a snapshot,
+  and freshens its leg), then re-claim. Nothing is stranded; the
+  claim window is untouched.
+
+Operator knobs: `VRSC_RATE_STALE_S` moves the warn window, and the
+block always scales as warn × 3. A zero/nonsense value falls back to
+the 900 s constant. Pinned by `test_vrsc_rate_stale.py`.
+
+**Rule 3 — one drawing, one payout (the claim lease).** A double
+click, a fast retry, or two admin screens all arrive as two threads
+that BOTH read `claim_status = 'pending'`. Reading is not owning:
+the mint is gated by `db.acquire_claim_lease()` — ONE conditional
+UPDATE (`pending → 'claiming'`) whose loser matches 0 rows and is
+turned away at "another claim is in flight" before any money moves
+(audit `claim_race_lost`). Every post-lease refusal releases the
+lease, so refused claims stay re-claimable the ordinary way. A
+claimed drawing can never be leased again; a lease older than the
+**300 s steal window** means a claimant died mid-flight — the next
+acquisition steals it and the prize is never stranded. Pinned by
+`test_vrsc_concurrent_claim.py`.
+
+**The operator's quick reference:**
+
+| To check… | grep the audit log for | Act when you see it |
+| --- | --- | --- |
+| a payout waiting on the treasury leg | `vrsc_payout_pending_treasury` — or `tx_hash = pending_manual_treasury` rows in the 💸 card | send the VRSC, flip the row |
+| a stale-rate warn | `vrsc_rate_stale_warned` | rates are > 15 min old — refresh before the next same-coin claim |
+| a stale-rate block | `vrsc_rate_stale_blocked` | the claim refused; refresh/pin rates and tell the winner to re-claim (window still open) |
+| a lost claim race | `claim_race_lost` | expected under double-clicking; no action unless same drawing repeats |
+
+The claim-window facts the rules sit inside: a drawn prize is
+claimable for `claim_window_days` (db setting, default 7), the sweep
+expires it and returns the earmark to the pool, and everything above
+is retriable inside the still-open window.
+
+All three rules in one envelope: `python test_payout_contract_battery.py`
+runs the three drives together as one battery entry — each drive
+keeps its own child-`result:` echo (15 + 23 + 22 = 60 checks), and
+one entry-wide `RESULT:` sum is what the fleet's ledger parses. The
+entry joins the fleet by the same auto-discovery every `test_*.py`
+ride uses (85 drives today), so the pre-commit gate runs the whole
+envelope on every commit, not just the three drives individually —
+a system-wide regression in the contract is one red row, not three.
+
 ## Related one-command tools
 
 - `python setup_dev.py` — new-clone setup: venv from `uv.lock` + the

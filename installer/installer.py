@@ -2,9 +2,16 @@
 
 The bundled install presents ONE choice: the Miner Bot checkbox.
 
-  ON  (the default) -> configure the miner, auto-register the user with
+  ON + wallet       -> configure the miner, auto-register the user with
                        the jackpot system, grant the first raffle ticket,
                        bind the wallet. The user is IN the jackpot.
+  ON, no wallet     -> INSTALL FIRST (Oct 26): the Scout app, the neutral
+                       miner config and the local calibration need no
+                       address, so they all land immediately and the
+                       window starts Scout instead of refusing to move.
+                       The pool binding is the one step deferred
+                       (install_app); a wallet added later completes it
+                       through opt_in() with the same install_id.
   OFF               -> nothing is configured, nobody is registered, no
                        ticket exists. The user may register manually at
                        xmrjackpot.com later; the phrase on the finish
@@ -257,6 +264,15 @@ def opt_in(wallet: str, api_base: str = DEFAULT_API, worker: str = "",
     operator's own box can still pass live_db=True deliberately.
     """
     wallet = (wallet or "").strip()
+    if not wallet:
+        # NO WALLET IS NOT A FAILURE (Oct 26). Installing Scout never needed
+        # an address — only EARNING does. This used to answer "invalid
+        # Monero address" and stop a user who had just downloaded the
+        # bundle, before the app could start or calibrate. Install now,
+        # bind later; a real opt-in() with an address completes it.
+        return install_app(api_base=api_base, worker=worker,
+                           dry_run=dry_run, record_path=record_path,
+                           config_path=config_path)
     if not valid_wallet(wallet):
         return {"ok": False, "error": "invalid Monero address (4/8 prefix, "
                                       "90-120 chars)"}
@@ -281,6 +297,7 @@ def opt_in(wallet: str, api_base: str = DEFAULT_API, worker: str = "",
 
     rec.update({
         "miner_bot_opt_in": True,
+        "pending_wallet": False,     # the deferred install is complete now
         "installed_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
         "wallet_address": wallet,
         "registration": {"miner_id": reg["miner_id"], "worker": worker,
@@ -296,6 +313,81 @@ def opt_in(wallet: str, api_base: str = DEFAULT_API, worker: str = "",
             "phrase": GETTING_STARTED}
 
 
+def _ensure_neutral_config(config_path: Path | None = None) -> bool:
+    """Write the customer-neutral miner config when there is none.
+
+    NEVER rewrites an existing file: a reinstall must not clobber a wallet
+    that is already bound — that binding is the only thing making the
+    shares payable. True when a config exists afterwards.
+    """
+    p = config_path or XMRIG_CONFIG
+    if p.is_file():
+        return True
+    try:
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_text(json.dumps(_neutral_config(), indent=2), encoding="utf-8")
+        return True
+    except OSError:
+        return False
+
+
+def install_app(api_base: str = DEFAULT_API, worker: str = "",
+                dry_run: bool = False, record_path: Path | None = None,
+                config_path: Path | None = None) -> dict:
+    """THE WALLET-FREE INSTALL (Oct 26): Scout first, wallet whenever.
+
+    Everything an install actually needs is local: the binaries, the
+    customer-neutral miner config, the calibration checks, the local
+    alerts. Only the POOL BINDING — registration, a wallet on the shares,
+    a place to pay — needs an address, and that is exactly the step this
+    defers. The setup window must be able to hand a new user a running,
+    calibrating Scout without turning a freshly downloaded bundle into an
+    address form.
+
+    What it does: mints/persists the machine's install_id, sends the
+    install beacon (install_id ONLY — the record's own promise), writes a
+    neutral config if none exists, and records the install with
+    `pending_wallet: True`.
+
+    What it does NOT do: it never registers, never grants a ticket, and
+    never leaves `miner_bot_opt_in` true — a miner must not run pointed at
+    a placeholder address, where the work pays nobody. The moment the user
+    supplies a wallet, opt_in() finishes the job under the same install_id
+    and clears the pending flag.
+    """
+    if dry_run:
+        return {"ok": True, "dry_run": True, "pending_wallet": True,
+                "plan": {"write_neutral_xmrig_config": True,
+                         "register": None,
+                         "welcome_ticket": False}}
+
+    rec = load_record(record_path)
+    install_id = _ensure_install_id(rec, record_path)
+    _report_install(api_base, install_id)   # telemetry carries no wallet
+    cfg_ok = _ensure_neutral_config(config_path)
+    rec.update({
+        "miner_bot_opt_in": False,          # nothing mines without a wallet
+        "pending_wallet": True,
+        "installed_at": (rec.get("installed_at")
+                         or time.strftime("%Y-%m-%dT%H:%M:%SZ",
+                                          time.gmtime())),
+        "wallet_address": None,
+        "registration": None,
+    })
+    save_record(rec, record_path)
+    return {
+        "ok": True, "pending_wallet": True, "xmrig_config": cfg_ok,
+        "install_id": install_id, "stratum": PUBLIC_STRATUM,
+        "entry_note": ("Scout is installed and calibrates the first time it "
+                       "starts. The Miner Bot stays stopped until a wallet "
+                       "is added — shares have to be payable to an address "
+                       "of your own."),
+        "next_step": ("Add your Monero address in this window (or at "
+                      "xmrjackpot.com) to start earning entries."),
+        "phrase": GETTING_STARTED,
+    }
+
+
 def opt_out(record_path: Path | None = None) -> dict:
     """Checkbox OFF (or a later change of heart): the record says opted-
     out and NOTHING else is touched — no miner process is killed from an
@@ -303,6 +395,7 @@ def opt_out(record_path: Path | None = None) -> dict:
     the user may still be running it deliberately)."""
     rec = load_record(record_path)
     rec.update({"miner_bot_opt_in": False,
+                "pending_wallet": False,
                 "opted_out_at": time.strftime("%Y-%m-%dT%H:%M:%SZ",
                                               time.gmtime()),
                 "registration": rec.get("registration"),
@@ -339,6 +432,12 @@ def main() -> int:
             # a plan is not an install: say so, show it, touch nothing
             print("DRY RUN — nothing was written. The opt-in would:")
             print(json.dumps(r["plan"], indent=1))
+            print("  " + GETTING_STARTED)
+            return 0
+        if r.get("ok") and r.get("pending_wallet"):
+            print("Scout installed — it calibrates the first time it starts.")
+            print("  Miner Bot: NOT started (no wallet bound).")
+            print("  " + r.get("next_step", ""))
             print("  " + GETTING_STARTED)
             return 0
         if r.get("ok"):

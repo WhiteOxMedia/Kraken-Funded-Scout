@@ -448,7 +448,10 @@ def register_scout_endpoints(app):
         sp = await _social_proof()()
 
         wallet = user.get("wallet_address") or ""
-        miner = db.get_or_create_miner(wallet) if wallet else None
+        # READ-ONLY lookup (Oct 29, the honest auto-register): a status
+        # poll never mints a miner row — activation and signed ingest
+        # are the only creators.
+        miner = db.get_miner_by_wallet(wallet) if wallet else None
         pending_tickets = int(db.get_miner_ticket_count(miner["id"])) if miner else 0
 
         with db.get_db() as conn:
@@ -662,7 +665,10 @@ def register_scout_endpoints(app):
         sp = await _social_proof()()
 
         wallet = user.get("wallet_address") or ""
-        miner = db.get_or_create_miner(wallet) if wallet else None
+        # READ-ONLY lookup (Oct 29, the honest auto-register): a status
+        # poll never mints a miner row — activation and signed ingest
+        # are the only creators.
+        miner = db.get_miner_by_wallet(wallet) if wallet else None
         pending_tickets = int(db.get_miner_ticket_count(miner["id"])) if miner else 0
 
         with db.get_db() as conn:

@@ -109,6 +109,7 @@ const prefsBox = { jackpot: true, scout: true };   // browser default: ON
 const dispatched = [];
 const sentRequests = [];
 let script = null;             // the currently scripted fetch response
+let authScript = null;         // optional override for the /api/auth/me strobe
 
 function el(id) {
   const e = {
@@ -174,7 +175,17 @@ sandbox.fetch = function (path, opts) {
   const headers = opts.headers || {};
   const body = opts.body ? JSON.parse(opts.body) : null;
   sentRequests.push({ method, path, headers, body });
-  const resp = script || { status: 200, headers: {}, json: {} };
+  // Oct 29 LOGGED-OUT GATE: the client's boot uses the quiet public
+  // auth strobe (/api/auth/me) to decide whether preferences may be
+  // read; the drive scripts it separately and defaults to a
+  // SIGNED-IN session, so every existing scenario keeps its exact
+  // semantics. Only the gate scenario overrides authScript.
+  let resp;
+  if (/api\/auth\/me/.test(String(path))) {
+    resp = authScript || { status: 200, headers: {}, json: { authenticated: true } };
+  } else {
+    resp = script || { status: 200, headers: {}, json: {} };
+  }
   return Promise.resolve({
     ok: resp.status >= 200 && resp.status < 300,
     status: resp.status,
@@ -715,6 +726,33 @@ async function scenario(name) {
     return 'retry_after_412 ok';
   }
 
+  if (name === 'logged_out_gate') {
+    // Oct 29 LOGGED-OUT GATE, the signed-OUT premise: the boot strobe
+    // says no session, so the MUST-NOT behavior is the old one — a
+    // page-load read that 401s. The screen stands at the user
+    // defaults; a signed-in decision re-enters via the same auth
+    // event that already adds history-clearing (scenario 8).
+    authScript = { status: 200, headers: {}, json: { authenticated: false } };
+    script = { status: 200, headers: { ETag: '"2026-09-26T10:00:00Z"' }, json: ENVELOPE };
+    loadClient();
+    await flushAll();
+    assert.strictEqual(
+      sentRequests.filter((r) => r.path === '/api/push/preferences').length, 0,
+      'a signed-out boot fetches ZERO preference envelopes');
+    assert.deepStrictEqual(checkboxState(), { jackpot: true, scout: true },
+      'signed-out screen stands at the user defaults (no both-ON lie from a partial read)');
+    // LOGIN: the strobe flips to a session and the client re-reads
+    // with the event trigger that owns re-entry (same handler shape
+    // scenario 8 drives).
+    authScript = { status: 200, headers: {}, json: { authenticated: true } };
+    sandbox.document._listeners['xmrjackpot:auth'][
+      sandbox.document._listeners['xmrjackpot:auth'].length - 1]({});
+    await flushAll();
+    assert.deepStrictEqual(checkboxState(), { jackpot: false, scout: true },
+      'the login re-read adopts the server envelope');
+    return 'logged_out_gate ok';
+  }
+
   throw new Error('unknown scenario ' + name);
 }
 
@@ -764,6 +802,8 @@ SCENARIOS = [
      "the N-step walk: simultaneous undo+redo links, depth past two, inert bottom, redo restores both"),
     ("14", "history_cap",
      "MAX_HISTORY caps the stack: 22 writes, exactly 20 undo steps, then inert"),
+    ("15", "logged_out_gate",
+     "Oct 29 logged-out gate: a signed-out boot performs NO preferences read (the screen keeps the defaults), and the login auth event re-reads the envelope"),
 ]
 
 

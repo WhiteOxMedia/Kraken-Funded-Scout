@@ -9,7 +9,7 @@
  * could not open: a member who donated never had alerts switched on,
  * and the ones who did were only ever the hand-set ones.
  *
- * This is that bridge, and it does not decide anything: GET /api/scout/pro
+ * This is that bridge, and it decides nothing: GET /api/scout/pro
  * is authenticated and server-authoritative (subscription window or the
  * 100-day lifetime grant). The browser only CACHES the verdict, because
  * routeAlert() has to answer synchronously when a signal lands.
@@ -54,14 +54,43 @@
     return !!active;
   }
 
-  /* Ask the server, cache the answer. Resolves to the active flag. */
-  function refresh() {
-    return fetch("/api/scout/pro", {
+  /* THE LOGGED-OUT GATE (Oct 29, playtest stumble): a signed-out page
+     used to open every load with the same noisy miss — the boot
+     refresh fired GET /api/scout/pro with no session, answering 401.
+     Same class as the four guarded polls wf_dashboard.js gates behind
+     its strobe (Oct 29). Here the gate is self-contained: the boot
+     refresh asks the PUBLIC /api/auth/me (200 authenticated or not,
+     never a guarded miss) first, and only an authenticated answer may
+     reach the guarded entitlement read. A signed-out page locks locally
+     via write(false, 0) — the bridge's own contract, no 401, no noise.
+     The xmrjackpot:auth listener below keeps login/logout correct, so
+     the only read this saves is the one that used to miss. */
+  function meStrobe() {
+    return fetch("/api/auth/me", {
       credentials: "same-origin",
       headers: { "Accept": "application/json" }
     }).then(function (r) {
+      if (!r.ok) { return false; }
+      return r.json().then(function (d) {
+        return !!(d && d.authenticated);
+      });
+    }).catch(function () { return false; });
+  }
+
+  /* Ask the server, cache the answer. Resolves to the active flag. */
+  function refresh() {
+    return meStrobe().then(function (authed) {
+      if (!authed) {
+        return write(false, 0);        // signed out: locked, no guarded read
+      }
+      return fetch("/api/scout/pro", {
+        credentials: "same-origin",
+        headers: { "Accept": "application/json" }
+      });
+    }).then(function (r) {
+      if (!r) { return cached(); }     // the gate already answered
       if (!r.ok) {
-        return write(false, 0);        // signed out / refused: locked
+        return write(false, 0);        // refused: locked
       }
       return r.json().then(function (d) {
         if (!d || typeof d !== "object") {

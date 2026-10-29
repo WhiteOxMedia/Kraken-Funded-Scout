@@ -92,6 +92,55 @@
 </div>
 
 <div style="margin-top:16px;">
+  <!-- Verus card (Oct 28): the three VRSC levers — the operator's rate
+       pin, the territory branch list, and the reader's episode log.
+       Served state is shown with its provenance NEVER bare: a number
+       without its tier is the fallback pretending to be real. -->
+  <div class="card">
+    <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;">
+      <span>⛏️ Verus (VRSC) — Rate & Territories</span>
+      <span id="vrscStamp" style="font-size:0.75em;color:var(--text-mute);">…</span>
+    </div>
+
+    <!-- the reading actually served -->
+    <div style="display:flex;gap:16px;flex-wrap:wrap;align-items:baseline;margin-bottom:10px;">
+      <div style="font-size:1.5em;color:var(--gold);" id="vrscRateValue">—</div>
+      <div style="font-size:0.8em;color:var(--text-dim);" id="vrscRateSource">loading provenance…</div>
+      <div style="font-size:0.75em;color:var(--text-mute);" id="vrscLiveNote"></div>
+    </div>
+
+    <!-- the pin -->
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px;">
+      <label style="font-size:0.8em;color:var(--text-dim);">Operator pin (VRSC/USD):</label>
+      <input class="spin-input" id="vrscPinInput" placeholder="empty = no pin" style="width:110px;">
+      <button class="btn btn-gold btn-sm" id="btnVrscPinSet">📌 Pin</button>
+      <button class="btn btn-sm" id="btnVrscPinClear" style="background:var(--netherite);color:var(--text-dim);">Unpin</button>
+      <span id="vrscPinNote" style="font-size:0.75em;color:var(--text-mute);"></span>
+    </div>
+
+    <!-- the territories -->
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:8px;">
+      <label style="font-size:0.8em;color:var(--text-dim);">Verus territories:</label>
+      <input class="spin-input" id="vrscTerrInput" placeholder="US,CA" style="width:160px;">
+      <button class="btn btn-blue btn-sm" id="btnVrscTerrSave">Save</button>
+      <span id="vrscTerrSource" style="font-size:0.75em;color:var(--text-mute);"></span>
+    </div>
+
+    <!-- the reader's episode record -->
+    <div style="font-size:0.78em;color:var(--text-mute);margin-bottom:4px;">
+      Episode state: <span id="vrscStateNote" style="color:var(--text-dim);">…</span>
+    </div>
+    <div id="vrscEpiList" style="max-height:180px;overflow-y:auto;font-size:0.8em;border-top:1px solid var(--border);padding-top:6px;">
+      <p style="color:var(--text-mute);margin:4px 0;">Loading episode log…</p>
+    </div>
+    <div style="font-size:0.72em;color:var(--text-mute);margin-top:6px;">
+      served = the answer readers get CHANGED · fetch_failed = the feed broke · recovered = it came back.
+      A pin outranks a stamped live rate; the live tier answers when checked, never when it must be invented.
+    </div>
+  </div>
+</div>
+
+<div style="margin-top:16px;">
   <div class="card-header" style="margin-top:12px;">🔐 Monero Wallet RPC</div>
   <div id="adminWalletStatus" style="font-size:0.85em;padding:8px;border:2px solid #000;margin-top:8px;min-height:40px;">
     <span style="color:var(--text-mute);">Checking wallet status...</span>

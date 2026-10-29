@@ -101,7 +101,11 @@ def _pending_winner(suffix, worker):
 
 print("== 1. THE RACE GUARD: A CLAIM IS NEVER CLOBBERED ==")
 mid, did = _expired_winner("a", "race-rig", time.time() - 10)
-# a claim lands "between the read and the write":
+# a claim lands "between the read and the write": under the
+# lease-bearer contract (Oct 28) a claim ALWAYS arrives through the
+# lease, so the simulation takes the lease and then flips — which is
+# also a second-leg proof that a lease-held drawing outranks the sweep
+db.acquire_claim_lease(did)
 db.claim_drawing(did, "4" + "a" * 94)
 out = engine.check_expired_claims()
 with db.get_db() as conn:
@@ -109,9 +113,10 @@ with db.get_db() as conn:
                          (did,)).fetchone()[0]
 check(1.1, state == "claimed" and (out is None or
       all(e["drawing_id"] != did for e in out)),
-      "a drawing CLAIMED before the sweep's write stays claimed — the "
-      "compare-and-set refused to erase the winner's money (the old "
-      "unconditional UPDATE would have flipped it to expired)")
+      "a drawing CLAIMED (held via the lease) before the sweep's write "
+      "stays claimed — the compare-and-set refused to erase the "
+      "winner's money (the old unconditional UPDATE would have "
+      "flipped it to expired)")
 # and the same sweep still expires a genuinely stale one
 mid2, did2 = _expired_winner("b", "stale-rig", time.time() - 10)
 out = engine.check_expired_claims()

@@ -1,0 +1,75 @@
+{
+  "generated_by": "test_payout_contract_battery.py",
+  "inventory": "payout_contract",
+  "read_together": [
+    "test_payout_contract_battery.py",
+    "claim_window_days"
+  ],
+  "readme": {
+    "file": "README.md",
+    "section": "The payout contract"
+  },
+  "rules": [
+    {
+      "checks": {
+        "failed": 0,
+        "passed": 15
+      },
+      "child": "test_vrsc_coin_surface.py",
+      "classification": "PASS",
+      "readme_facts": [
+        "rule 1",
+        "same-coin payout",
+        "amount_xmr",
+        "amount_coin",
+        "pending_manual_treasury",
+        "test_vrsc_coin_surface.py"
+      ],
+      "rule": 1,
+      "title": "the winner's coin decides (same-coin payout)"
+    },
+    {
+      "checks": {
+        "failed": 0,
+        "passed": 23
+      },
+      "child": "test_vrsc_rate_stale.py",
+      "classification": "PASS",
+      "readme_facts": [
+        "rule 2",
+        "stale-rate guard",
+        "vrsc_conversion_guard",
+        "VRSC_RATE_STALE_S",
+        "vrsc_rate_stale_warned",
+        "vrsc_rate_stale_blocked",
+        "test_vrsc_rate_stale.py"
+      ],
+      "rule": 2,
+      "title": "no payout at a stale rate (the stale-rate guard)"
+    },
+    {
+      "checks": {
+        "failed": 0,
+        "passed": 22
+      },
+      "child": "test_vrsc_concurrent_claim.py",
+      "classification": "PASS",
+      "readme_facts": [
+        "rule 3",
+        "claim lease",
+        "acquire_claim_lease",
+        "claiming",
+        "claim_race_lost",
+        "300 s steal window",
+        "test_vrsc_concurrent_claim.py"
+      ],
+      "rule": 3,
+      "title": "one drawing, one payout (the claim lease)"
+    }
+  ],
+  "totals": {
+    "children_checks_failed": 0,
+    "children_checks_passed": 60,
+    "rules": 3
+  }
+}

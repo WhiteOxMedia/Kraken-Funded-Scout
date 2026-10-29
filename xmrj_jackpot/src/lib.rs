@@ -61,11 +61,14 @@ pub const JACKPOT_FUNDER_SEED: &[u8] = b"jackpot_funder";
 pub const UPGRADEABLE_LOADER_ID: Pubkey =
     Pubkey::from_str_const("BPFLoaderUpgradeab1e11111111111111111111111");
 
-/// The loader's ProgramData address prefix: `[PROGRAM_DATA_SEED, <program
-/// id>]` under UPGRADEABLE_LOADER_ID. One value in all three crates and in
-/// the devnet suite — a derivation that disagrees with the runtime's is an
-/// account that does not exist.
-pub const PROGRAM_DATA_SEED: &[u8] = b"programdata";
+/// THE RUNTIME'S ProgramData RULE: the upgradeable loader derives a program's
+/// ProgramData account as `[<program id>]` under UPGRADEABLE_LOADER_ID — the
+/// program's own id and NOTHING ELSE. There is deliberately no seed constant
+/// to share with the suite here: the `"programdata"` prefix this crate used
+/// to prepend derived an address with no account at it, so `initialize` was
+/// refused on a real cluster with `NotProgramData` (6004). One seed, no
+/// prefix, pinned against the pointer the deployed program account carries in
+/// its own 32 bytes.
 
 /// `UpgradeableLoaderState::ProgramData` bincode layout: u32 variant (3 =
 /// ProgramData), u64 slot, then `Option<Pubkey>` — a one-byte tag (1 = Some)
@@ -75,9 +78,12 @@ const PROGRAM_DATA_AUTHORITY_OPTION_OFFSET: usize = 4 + 8;
 const PROGRAM_DATA_AUTHORITY_OFFSET: usize = PROGRAM_DATA_AUTHORITY_OPTION_OFFSET + 1;
 const PROGRAM_DATA_MIN_LEN: usize = PROGRAM_DATA_AUTHORITY_OFFSET + 32;
 
-/// 8-byte discriminator + five fields + the payout cap: balance, total
-/// payouts, last winner, treasury program, admin authority, max payout bps.
-pub const JACKPOT_STATE_SPACE: usize = 8 + 8 + 8 + 32 + 32 + 32 + 8;
+/// 8-byte discriminator + the four u64 counters (balance, total payouts,
+/// total funded, max payout bps) + the three pubkeys (last winner, treasury
+/// program, admin authority). The wiring drive recomputes this from the
+/// struct's own fields, so a field added without this line is a failure there
+/// rather than an "account data too small" at initialize.
+pub const JACKPOT_STATE_SPACE: usize = 8 + 8 + 8 + 8 + 32 + 32 + 32 + 8;
 
 #[program]
 pub mod xmrj_jackpot {
@@ -121,6 +127,7 @@ pub mod xmrj_jackpot {
         state.treasury_program = TREASURY_PROGRAM_ID;
         state.admin_authority = ctx.accounts.admin_authority.key();
         state.max_payout_bps = 10_000;
+        state.total_funded_xmr = 0;
 
         Ok(())
     }
@@ -158,9 +165,41 @@ pub mod xmrj_jackpot {
             .checked_add(amount_xmr)
             .ok_or(ErrorCode::Overflow)?;
 
+        // WHAT HAS EVER ARRIVED — the other half of the identity a payout is
+        // reconciled against:
+        //
+        //     jackpot_balance_xmr + total_payouts_xmr == total_funded_xmr
+        //
+        // Both sides move only here and in `trigger_payout`. Without this
+        // field a payout could be checked only as a DELTA against what the
+        // caller remembers; with it, the reconciliation is a fact about the
+        // account, checkable by anyone reading the chain.
+        state.total_funded_xmr = state
+            .total_funded_xmr
+            .checked_add(amount_xmr)
+            .ok_or(ErrorCode::Overflow)?;
+
         Ok(())
     }
 
+    /// PAY A WINNER — and read the SIGNER requirement before believing the
+    /// payout is reachable, because for a while it was not (F1 in
+    /// XMRJ_DEVNET_EXECUTION_REPORT.md).
+    ///
+    /// `admin_authority` must equal the state's stored admin authority AND must
+    /// SIGN. That address is the governance authority PDA — `initialize`
+    /// derives it under the pinned governance program id — so the only thing in
+    /// the runtime that can produce this call is a CPI from xmrj_governance
+    /// signed with that PDA's own seeds:
+    /// `GovernanceAction::TriggerPayout`. No keypair holds the address, no
+    /// wallet can substitute its own key, and no other instruction on either
+    /// program reaches this one.
+    ///
+    /// The guards below are the accounting: the amount cannot exceed the live
+    /// balance, and — once governance has set `max_payout_bps` below 10 000 —
+    /// it cannot exceed that share of the balance either. `total_payouts_xmr`
+    /// and `last_winner` record what moved, and with `total_funded_xmr` they
+    /// close the identity `balance + total_payouts == total_funded`.
     pub fn trigger_payout(
         ctx: Context<TriggerPayout>,
         winner: Pubkey,
@@ -234,8 +273,8 @@ pub mod xmrj_jackpot {
 /// REQUIRE THAT `signer` IS THIS PROGRAM'S UPGRADE AUTHORITY.
 ///
 /// `program_data` is the ProgramData account the `Initialize` constraint
-/// derives as `[PROGRAM_DATA_SEED, crate::ID]` under UPGRADEABLE_LOADER_ID, so
-/// it is this program's own account and not a lookalike. This function then
+/// derives as `[crate::ID]` under UPGRADEABLE_LOADER_ID — the loader's own
+/// rule — so it is this program's own account and not a lookalike. This function then
 /// proves three things about the BYTES the loader wrote: the loader owns the
 /// account; the value is `ProgramData` (variant 3), not a Buffer or an empty
 /// account that happens to sit at that address; and the authority option is
@@ -298,6 +337,18 @@ pub struct JackpotState {
     /// The governance-set payout cap in basis points of the live balance
     /// (10_000 = uncapped). Appended, so no existing field moves.
     pub max_payout_bps: u64,
+    /// EVERYTHING THAT HAS EVER BEEN FUNDED INTO THIS JACKPOT, in XMR — the
+    /// sum of every `fund_jackpot` amount, never decreased. Appended, so no
+    /// existing field moves.
+    ///
+    /// It exists so the two money-moving instructions form a closed identity
+    /// anyone can check on chain:
+    ///
+    ///     jackpot_balance_xmr + total_payouts_xmr == total_funded_xmr
+    ///
+    /// which is what makes "the treasury/accounting balances reconcile" a
+    /// property of the accounts rather than a claim about a run's history.
+    pub total_funded_xmr: u64,
 }
 
 #[derive(Accounts)]
@@ -321,14 +372,20 @@ pub struct Initialize<'info> {
     )]
     pub admin_authority: UncheckedAccount<'info>,
     /// CHECK: THIS PROGRAM'S ProgramData account on the upgradeable loader,
-    /// derived here from `[b"programdata", <this program id>]` under the
+    /// derived here from `[<this program id>]` under the
     /// LOADER's id — the address is fixed, so a lookalike cannot be passed.
     /// Read, not written: `require_upgrade_authority` checks the loader owns
     /// it, that it is in the ProgramData variant, and that its recorded
     /// upgrade authority is the payer.
+    // `bump` is REQUIRED by anchor whenever `seeds` are given, and here it is
+    // what turns the comment above into a constraint: without it the derive
+    // fails ("bump must be provided with seeds") and the whole instruction
+    // disappears; with it the address is DERIVED and compared, so a lookalike
+    // is rejected by the runtime, not by a comment.
     #[account(
-        seeds = [PROGRAM_DATA_SEED, crate::ID.as_ref()],
+        seeds = [crate::ID.as_ref()],
         seeds::program = UPGRADEABLE_LOADER_ID,
+        bump
     )]
     pub program_data: UncheckedAccount<'info>,
     #[account(mut)]
@@ -369,6 +426,9 @@ pub struct FundJackpot<'info> {
 pub struct TriggerPayout<'info> {
     #[account(mut, seeds = [b"jackpot_state"], bump)]
     pub jackpot_state: Account<'info, JackpotState>,
+    /// CHECK: an account key, not an account body: `trigger_payout` requires
+    /// it to equal `jackpot_state.admin_authority` (the governance authority
+    /// PDA, which is off-curve and only signable by governance via CPI).
     #[account(signer)]
     pub admin_authority: AccountInfo<'info>,
 }
@@ -377,6 +437,8 @@ pub struct TriggerPayout<'info> {
 pub struct SetPayoutRules<'info> {
     #[account(mut, seeds = [b"jackpot_state"], bump, has_one = admin_authority)]
     pub jackpot_state: Account<'info, JackpotState>,
+    /// CHECK: an account key, not an account body: bound by the state's
+    /// `has_one = admin_authority` and demanded as a SIGNER here.
     #[account(signer)]
     pub admin_authority: AccountInfo<'info>,
 }

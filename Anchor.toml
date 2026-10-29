@@ -41,21 +41,33 @@
 #   what Anchor itself warns about (and the drive treats as a failure, not a
 #   warning). Select it with `avm install 1.1.2 && avm use 1.1.2`.
 #
-# solana_version: EXACT, with the `=` comparator on purpose. AVM parses this
-#   value as a SEMVER REQUIREMENT, so a bare "3.1.10" would accept any newer
-#   3.x the day one is published ("the newest hosted CLI that satisfies the
-#   requirement") — the opposite of a pin. `=3.1.10` requires that one hosted
-#   release. With the anchor CLI invoked through the avm stub, AVM activates
-#   this Solana CLI before spawning anchor.
+# solana_version: the exact Agave release — BARE, three parts, no comparator
+#   and no range. The `=` this file used to carry does not pin harder: the
+#   anchor CLI parses this key as a PLAIN version and dies before it compiles
+#   anything, with
+#     Error: unexpected character '=' while parsing major version number
+#   Verified against anchor-cli 1.1.2 — `anchor build` and `anchor build -s
+#   3.1.10` fail identically, because the flag does not override the manifest
+#   value. AVM is the reader that WOULD accept a requirement on this key
+#   (`avm solana resolve` resolves the line to solana 3.1.10); the CLI is the
+#   reader that decides the build, so the pin is the three-part number itself,
+#   and the drive's section 13 requires exactly that shape.
 #
-# The SBF compiler follows from solana_version: `anchor build` delegates to
-# that release's cargo-build-sbf, whose platform-tools version is pinned by
-# the release's own map (`avm platform-tools resolve` prints what it resolved).
-# A separate platform-tools pin needs CLI 1.2.0+ (`anchor build
-# --tools-version`) — a lever for the next upgrade, not a value invented here.
+# THE SBF COMPILER IS NOT PINNED BY A FILE HERE. `anchor build` delegates to
+# this release's cargo-build-sbf, which picks platform-tools by its OWN
+# compiled-in default — v1.52 for 3.1.10 — and links it into rustup. That is
+# NOT the version `avm platform-tools resolve` prints for the same release
+# (v1.57), and cargo-build-sbf reads neither a [workspace.metadata.solana]
+# tools-version key nor a PLATFORM_TOOLS_VERSION env var: measured on the
+# installed 3.1.10 binary (Oct 27), the metadata key was present in the
+# workspace AND the per-crate manifests and changed nothing, while
+# `cargo-build-sbf --tools-version v1.57` changed it immediately. So the
+# compiler that actually emits the .so is v1.52 / rustc 1.89.0-dev, and the
+# mount it needs is a symlink — see the platform-tools note in
+# XMRJ_DEVNET_RUNBOOK.md section 1d on Windows.
 [toolchain]
 anchor_version = "1.1.2"
-solana_version = "=3.1.10"
+solana_version = "3.1.10"
 
 [provider]
 # Devnet first, by the deployment plan's own recommended model (section
@@ -66,6 +78,20 @@ cluster = "devnet"
 # the Anchor CLI (shellexpand::tilde), on Windows PowerShell and WSL alike.
 # It is NOT in the repo: a keypair is never committed.
 wallet = "~/.config/solana/id.json"
+
+# ── WHERE `anchor build` FINDS ITS PROGRAMS ─────────────────────────────────
+# Anchor 1.1.2 does not take the program list from [programs.<cluster>]: it
+# builds the workspace MEMBERS named here (or a `programs/*` directory, when
+# this table is absent). With neither, the list is empty — and an empty list is
+# not an error: `anchor build` exits 0 having compiled nothing at all. That is
+# why the three program crates are named explicitly.
+#
+# xmrj_conversion_service is deliberately NOT in this list: it is not a program
+# (no #[program], no declare_id!), and a non-program here sends the build
+# hunting for a .so that will never exist. Its membership of the CARGO workspace
+# (the root Cargo.toml) is a different table, and stays as it is.
+[workspace]
+members = ["xmrj_treasury", "xmrj_jackpot", "xmrj_governance"]
 
 [programs.localnet]
 xmrj_treasury = "GGPyRTZB73reGyjANw9rdEFX8g26MmkKyAEpDqNQ2468"

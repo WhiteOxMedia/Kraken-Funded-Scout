@@ -28,6 +28,89 @@ few dozen miners stay far under 1 GB/month. One researched option is
 [Kamatera](https://index.trygravity.com/go/eaf83d93-27f3-4da5-892c-cf0022f64d5a)
 (month-by-month, smallest instance, 30-day trial).
 
+## The Verus relay — one command (Oct 28)
+
+The Verus branch (`pool/vrsc_relay.py`) is the region-branched download's own
+lane: `XMRJ_VRSC_STRATUM` (or the public LuckPool default until it is set) is
+where its generated `.bat` mines. One command on the pool PC brings the whole
+Verus leg up:
+
+```bash
+python relay/up-vrsc.py
+```
+
+That starts the relay process here, guarded and logged, fronts it on the VPS,
+installs logon persistence and probes the lane (see its docstring for the
+deliberate omissions and the `--dry-run` plan). What it ends up as:
+
+```
+verus miner -> VPS:3957 (haproxy) -> wg0 -> pool PC:3957 (vrsc_relay.py
+             -> na.luckpool.net:3956 upstream; entries into jackpot.db)
+```
+
+It reuses everything the Monero front already is: the same VPS, the same
+haproxy, the same wg0 peer — `bootstrap-relay.sh --with-vrsc` adds exactly one
+more lane and nothing else (VRSC_PORT=3957 default, ufw 3957/tcp). It is
+idempotent and re-run safe.
+
+The relay process deliberately runs on the **pool PC**, not on the VPS, even
+though its own docstring first suggests the opposite: the docstring assumed
+"the pool host copy of jackpot.db mounted to the VPS", and this kit has no
+mount — an unmerged VPS copy counting raffle entries would lose Verus miners'
+entries until someone merged it home before every daily draw, forever. Here the
+relay writes the LIVE `pool/jackpot.db`, the same file the Monero entries and
+the drawings engine use; one ledger, one truth. The cost is a failure class the
+kit already owns for 3333: if the tunnel or the pool PC is down, 3957 goes with
+it (and `verify-stratum.py` will say so).
+
+When you re-run on an already-up VPS with the front present, only the local
+guard/args and the probe redo. The startup copy (via `--no-autostart`) and the
+bootstrap regenerate themselves.
+
+### After it is up (manual, by design)
+
+1. The one-time Windows firewall rule the lane needs (up-vrsc.py prints it when
+   missing; run once in an ELEVATED PowerShell):
+
+   ```powershell
+   New-NetFirewallRule -DisplayName "vrsc stratum via relay" `
+     -Direction Inbound -Protocol TCP -LocalPort 3957 `
+     -RemoteAddress 10.66.66.1 -Action Allow
+   ```
+
+   Scoped to the tunnel address, the same way as the 3333 rule: nothing outside
+   wg0 learns that 3957 exists on this machine.
+
+2. Point the Verus branch at the relay. Set `XMRJ_VRSC_STRATUM=mine.xmrjackpot.com:3957`
+   in the pool host's boot environment and restart the server: `.bat`
+   generation reads it then, so a shipped file carries the answer, never a
+   placeholder. No new DNS record — `mine` already grey-points at the VPS; only
+   the port differs. While the env is unset the branch keeps mining to the
+   public LuckPool endpoint, exactly as today.
+
+3. Prove it, then decide nothing less:
+
+   ```bash
+   python relay/verify-stratum.py mine.xmrjackpot.com 3957
+   python relay/verify-stratum.py mine.xmrjackpot.com 3957 --external   # foreign network deciding the go
+   ```
+
+   The first from here proves the VPS lane and the backend (the packet leaves
+   over wg0 and comes back through haproxy), exactly as for 3333; the second is
+   the go/no-go. A `--no-probe` run prints both lines as reminders.
+
+The monitor (`relay/monitor-relay.py`) watches the 3333 front; it does not yet
+probe 3957 — if the Verus lane ever needs its own punch-in, the `pool`/`tunnel`
+probes still catch the shared failure first (the relay process is behind the
+very `tunnel`/backend state those already cover), and a lane of its own would
+need a second probe rather than an extra alert channel.
+
+Rolling the Verus lane back: stop the relay (the guard will not restart it on
+its own — kill the python that owns :3957, remove the Startup copy), point no
+env anywhere, and re-run the bootstrap WITHOUT `--with-vrsc` if you want the
+untouched 3333 front regenerated (the line is absent from its haproxy.cfg then).
+Nothing else changes for the Monero miners.
+
 ## Deployment record (2026-10-24)
 
 **Live since 2026-10-24 18:52 UTC: `mine.xmrjackpot.com` -> `155.94.157.66`, grey cloud, verified from Cloudflare's own nameservers.**

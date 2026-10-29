@@ -23,8 +23,17 @@ headless and hermetic:
                        says opted-in with the wallet bound
   4. bad wallet        whitespace-padded garbage is stripped then
                        rejected (ok False, error names the shape rule)
-  5. empty wallet      the empty string is rejected the same way (a
-                       blank field is not a valid address)
+  8. INSTALL FIRST     the UI pins: wallet field labelled optional, the
+                       blank branch calls _install_app_via_api (no error
+                       dialog), and _launch_scout starts Scout with
+                       --calibrate, fail-soft when a spawn is blocked
+
+  4b. NO WALLET        THE OCT 26 FIX: a blank field INSTALLS (neutral
+                       config, install beacon, record pending_wallet) and
+                       starts Scout to calibrate — it is no longer an
+                       error that stops the app a user just downloaded.
+                       Adding a wallet later completes the SAME install
+                       (one install_id) and clears the pending flag
   6. registration down the transport is CAUGHT by the UI guard
                        (_install_via_api): friendly=True guidance, no
                        exception, no crash — the KNOWN GAP is closed;
@@ -195,11 +204,54 @@ r = installer.opt_in(BAD_WALLET, record_path=rec_path,
                      config_path=cfg_path)
 check(4.1, r.get("ok") is False and "invalid Monero address" in r.get("error", ""),
       f"garbage rejected locally: {r.get('error', '')[:50]}")
+captured.clear()
 r = installer.opt_in("", record_path=rec_path, config_path=cfg_path)
-check(4.2, r.get("ok") is False,
-      "the empty field is rejected the same way (blank != valid)")
-check(4.3, captured and len(captured) == 1,
-      "a rejected wallet NEVER reaches the registration transport")
+check(4.2, r.get("ok") is True and r.get("pending_wallet") is True,
+      "a blank field INSTALLS instead of failing (Oct 26: no wallet blocker)")
+check(4.3, captured == [],
+      "a rejected/blank wallet NEVER reaches the registration transport")
+check(4.4, json.loads(cfg_path.read_text(encoding="utf-8"))["pools"][0]["user"]
+      == WALLET,
+      "…and the wallet already bound to the config is NOT clobbered")
+
+print("== 4b. NO WALLET: INSTALL FIRST, BIND LATER (Oct 26) ==")
+pend_rec = _tmp / "pending_record.json"
+pend_cfg = _tmp / "pending_config.json"      # absent: a fresh download
+captured.clear()
+_beacons.clear()
+r = installer.opt_in("  ", worker="rig9", record_path=pend_rec,
+                     config_path=pend_cfg)
+check("4b.1", r.get("ok") is True and r.get("pending_wallet") is True,
+      f"a fresh download installs with no address: {r.get('next_step', '')[:46]}")
+check("4b.2", captured == [],
+      "…nothing is registered (there is no wallet to bind)")
+_pcfg = json.loads(pend_cfg.read_text(encoding="utf-8"))
+check("4b.3", _pcfg["pools"][0]["user"] == installer.PLACEHOLDER_WALLET
+      and _pcfg["pools"][0]["url"] == installer.PUBLIC_STRATUM,
+      "…a NEUTRAL config is written (placeholder user, public stratum)")
+_rec = installer.load_record(pend_rec)
+check("4b.4", _rec.get("pending_wallet") is True
+      and _rec.get("miner_bot_opt_in") is False
+      and _rec.get("registration") is None,
+      "…the record says installed-but-unbound, and the miner is NOT opted in"
+      " (a placeholder address must never mine)")
+check("4b.5", _beacons == [(installer.DEFAULT_API, _rec.get("install_id"))],
+      "…one install beacon carrying the install_id and nothing else")
+captured.clear()
+_after = installer.opt_in(WALLET, worker="rig9", record_path=pend_rec,
+                          config_path=pend_cfg)
+_rec2 = installer.load_record(pend_rec)
+check("4b.6", _after.get("ok") is True and captured
+      and captured[0][1] == WALLET,
+      "adding a wallet later registers for real")
+check("4b.7", _rec2.get("pending_wallet") is False
+      and _rec2.get("miner_bot_opt_in") is True
+      and _rec2.get("wallet_address") == WALLET
+      and _rec2.get("install_id") == _rec.get("install_id"),
+      "…clears pending under the SAME install_id (one machine, one record)")
+check("4b.8", json.loads(pend_cfg.read_text(encoding="utf-8"))["pools"][0]["user"]
+      == WALLET,
+      "…and the config now carries the real address")
 
 print("== 5. WORKER NAME (optional) ==")
 captured.clear()
@@ -339,6 +391,54 @@ check("7.2f", _escaped,
       "only the transport family is masked)")
 
 installer._post_register = _fake_transport_ok(captured)
+
+print("== 8. INSTALL FIRST: THE UI NEVER BLOCKS ON A WALLET (Oct 26) ==")
+_ui_src = inspect.getsource(installer_ui._run_tk)
+check("8.1", "optional" in _ui_src.lower(),
+      "the wallet field is labelled OPTIONAL, so a user knows it may be left blank")
+check("8.2", "_install_app_via_api(" in _ui_src,
+      "the blank field routes to the wallet-free install, not an error")
+check("8.3", "invalid Monero address" not in _ui_src
+      and "messagebox" not in _ui_src.split("if not wallet:")[1].split(
+          "_install_via_api(wallet")[0],
+      "…and the blank branch shows no error dialog (download continues)")
+check("8.4", "_launch_scout()" in _ui_src.split("if not wallet:")[1],
+      "…and starts Scout so calibration begins without a wallet")
+
+_orig_popen = installer_ui.subprocess.Popen
+_spawned = []
+installer_ui.subprocess.Popen = lambda argv, **kw: _spawned.append(
+    (argv, kw)) or object()
+try:
+    _launched = installer_ui._launch_scout()
+finally:
+    installer_ui.subprocess.Popen = _orig_popen
+check("8.5", _launched is True and _spawned
+      and _spawned[0][0][1].endswith("app.py")
+      and "--calibrate" in _spawned[0][0],
+      "_launch_scout runs Scout with --calibrate (calibration starts itself)")
+
+
+def _spawn_blocked(*_a, **_kw):
+    raise OSError("policy blocked the spawn")
+
+
+installer_ui.subprocess.Popen = _spawn_blocked
+try:
+    _blocked = installer_ui._launch_scout()
+finally:
+    installer_ui.subprocess.Popen = _orig_popen
+check("8.6", _blocked is False,
+      "a blocked spawn answers False, never an exception (install stands)")
+
+R = installer.install_app(record_path=_tmp / "app_only.json",
+                          config_path=_tmp / "app_only_config.json")
+check("8.7", R.get("ok") is True and R.get("pending_wallet") is True
+      and R.get("xmrig_config") is True,
+      "install_app() alone: ok, pending, config written")
+check("8.8", "calibrat" in R.get("entry_note", "")
+      and "xmrjackpot.com" in R.get("next_step", "") + R.get("phrase", ""),
+      "…and tells the user Scout calibrates now, wallet needed only to earn")
 
 passed, failed = results.count(True), results.count(False)
 print(f"RESULT: {passed} passed, {failed} failed")

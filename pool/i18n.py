@@ -44,6 +44,7 @@ LANGUAGES = {
 DEFAULT_LANG = "en"
 LANG_COOKIE = "xmrj_lang"
 CATALOG_DIR = Path(__file__).resolve().parent / "templates" / "i18n"
+APP_CATALOG_DIR = Path(__file__).resolve().parent / "templates" / "app_i18n"
 
 
 # ─── Language negotiation ─────────────────────────────────────────────
@@ -176,6 +177,19 @@ def catalog(lang: str) -> dict:
 
 
 @lru_cache(maxsize=None)
+def app_catalog(lang: str) -> dict:
+    """The homepage/dashboard UI catalog; unsupported languages use English."""
+    if lang not in LANGUAGES:
+        lang = DEFAULT_LANG
+    path = APP_CATALOG_DIR / f"{lang}.json"
+    try:
+        strings = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        strings = {}
+    return strings if isinstance(strings, dict) else {}
+
+
+@lru_cache(maxsize=None)
 def _english() -> dict:
     return catalog(DEFAULT_LANG)
 
@@ -188,6 +202,19 @@ def t(lang: str, key: str, **fmt) -> str:
     visible placeholder is a bug report, an exception is an outage.
     """
     text = catalog(lang).get(key) or _english().get(key) or key
+    if fmt:
+        try:
+            return text.format(**fmt)
+        except (KeyError, IndexError, ValueError):
+            return text
+    return text
+
+
+def app_t(lang: str, key: str, **fmt) -> str:
+    """Translate app UI strings, falling back to the English app catalog."""
+    if lang not in LANGUAGES:
+        lang = DEFAULT_LANG
+    text = app_catalog(lang).get(key) or app_catalog(DEFAULT_LANG).get(key) or key
     if fmt:
         try:
             return text.format(**fmt)

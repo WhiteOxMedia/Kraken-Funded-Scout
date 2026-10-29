@@ -21,8 +21,16 @@
 //! - Maintain full audit logs
 //! - Support multisig admin
 
-use anchor_lang::prelude::*;
+// This crate is OFF-CHAIN: it needs exactly two things from anchor-lang, the
+// `msg!` macro and the ProgramError type its security helpers return, so it
+// names them instead of glob-importing the prelude. That glob is what broke
+// this crate's first `cargo check`: `anchor_lang::prelude` re-exports
+// `Result<T> = std::result::Result<T, anchor_lang::Error>`, so every
+// std-style `Result<(), String>` / `Result<(), ProgramError>` below became
+// "type alias takes 1 generic argument but 2 generic arguments were supplied"
+// — 18 errors from one import. The pins are untouched; only the import is.
 use anchor_lang::solana_program::msg;
+use anchor_lang::solana_program::program_error::ProgramError;
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -33,9 +41,12 @@ use std::sync::Arc;
 /// Exchange rate representation: XMR per XMRJ unit, stored as basis points
 /// to avoid floating point in shared state.
 ///
-/// ```
+/// ```text
 /// xmr_amount = xmrj_amount * exchange_rate
 /// ```
+// `text`, not a bare fence, on purpose: a bare fence is a DOCTEST, and these
+// are pseudocode — `cargo test` tried to compile them as Rust and failed
+// with "cannot find value `xmr_amount` in this scope" until it was told.
 pub const EXCHANGE_RATE_BPS_DEFAULT: u64 = 0;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -48,7 +59,10 @@ impl ExchangeRate {
         Self { bps }
     }
 
-    pub fn as_f64(self) -> f64 {
+    /// Takes `&self`, not `self`: callers hold the rate behind a shared
+    /// reference (`self.rate.as_f64()` in ExchangeRateModule), and a by-value
+    /// receiver made that "cannot move out of `self.rate`".
+    pub fn as_f64(&self) -> f64 {
         self.bps as f64 / 10_000.0
     }
 }
@@ -363,25 +377,28 @@ impl ConversionPipeline {
     }
 
     pub fn send_to_kraken(&mut self, conversion_id: u64) -> Result<(), String> {
-        if let Some(entry) = self.queue.get(conversion_id) {
-            self.queue.mark_status(conversion_id, ConversionStatus::SentToKraken);
-            self.kraken_handler.send_to_kraken(entry.xmr_amount)
-        } else {
-            Err("unknown conversion id".into())
-        }
+        // Read the amount OUT of the queue before mutating its status: holding
+        // the `get` borrow across `mark_status` is a second borrow of the same
+        // field (E0502), and cloning the one number is cheaper than a RefCell.
+        let Some(entry) = self.queue.get(conversion_id) else {
+            return Err("unknown conversion id".into());
+        };
+        let xmr_amount = entry.xmr_amount;
+        self.queue.mark_status(conversion_id, ConversionStatus::SentToKraken);
+        self.kraken_handler.send_to_kraken(xmr_amount)
     }
 
     pub fn update_jackpot(&mut self, conversion_id: u64) -> Result<(), String> {
-        if let Some(entry) = self.queue.get(conversion_id) {
-            self.queue.mark_status(conversion_id, ConversionStatus::UpdatedJackpot);
-            msg!(
-                "Update jackpot liquidity state for conversion {}",
-                conversion_id
-            );
-            Ok(())
-        } else {
-            Err("unknown conversion id".into())
+        if self.queue.get(conversion_id).is_none() {
+            return Err("unknown conversion id".into());
         }
+        self.queue
+            .mark_status(conversion_id, ConversionStatus::UpdatedJackpot);
+        msg!(
+            "Update jackpot liquidity state for conversion {}",
+            conversion_id
+        );
+        Ok(())
     }
 
     pub fn current_exchange_rate_response(&self) -> ExchangeRateResponse {
@@ -448,9 +465,11 @@ pub fn reject_user_conversion() -> Result<(), ProgramError> {
 // Example conversion logic (matching spec)
 // ---------------------------------------------------------------------------
 
-/// ```
+/// ```text
 /// xmr_amount = xmrj_amount * exchange_rate
 /// ```
+// (The fence is `text` for the same reason as at the top of this file: this is
+// the formula, not a Rust example doctests should try to compile.)
 pub fn compute_xmr(xmrj_amount: u64, exchange_rate: f64) -> f64 {
     xmrj_amount as f64 * exchange_rate
 }

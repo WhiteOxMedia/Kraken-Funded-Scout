@@ -16,6 +16,7 @@ fix over the REAL routes and the REAL push service:
 House conventions: check(n, cond, why), RESULT line, sys.exit.
 """
 import json
+import re
 import sys
 import tempfile
 import time
@@ -188,8 +189,14 @@ check(4.5, 'KEY = "scout_pro"' in _bsrc
       "the bridge writes the exact key push_client reads")
 
 _tpl = (HERE / "pool" / "templates" / "index.html").read_text(encoding="utf-8")
-check(4.6, "/static/scout_pro_bridge.js?v=1" in _tpl,
-      "the page ships the bridge (before push_client in the tag order)")
+# Oct 29: the cache-bust version moved to v=2 with the push rewire, so
+# pin the PROPERTY the check was for — the bridge tag ships WITH a
+# cache-busting query — not one specific version number (a versionless
+# tag would serve stale bridges after every bump).
+_tpl_bridge = re.search(r'<script src="/static/scout_pro_bridge\.js\?v=\d+"></script>', _tpl)
+check(4.6, _tpl_bridge is not None,
+      "the page ships the bridge WITH a cache-bust version (plain or "
+      "bumped tag order)")
 check(4.7, _tpl.index("scout_pro_bridge.js") < _tpl.index("push_client.js"),
       "the bridge loads BEFORE the alert router that reads its cache")
 

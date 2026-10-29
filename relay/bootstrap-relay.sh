@@ -14,10 +14,21 @@
 #     - the router's 3333 forward can be closed entirely,
 #     - miners keep using mine.xmrjackpot.com:3333 with no client change.
 #
+# VERUS FRONTEND (Oct 28): with --with-vrsc the same haproxy also fronts the
+#   Verus branch, whose relay process (pool/vrsc_relay.py) runs on the POOL PC
+#   against the live jackpot ledger, behind one more hop of the SAME tunnel:
+#
+#     verus miner -> VPS:${VRSC_PORT} (haproxy) -> wg0 -> pool PC:3957 (vrsc_relay.py)
+#
+#   No second service, no second stack on the VPS — just one more TCP lane
+#   through the front that already exists. Run it by hand, or let
+#   `python relay/up-vrsc.py` (the one command) drive this script remotely:
+#
 # USAGE
 #   sudo bash bootstrap-relay.sh                    # first run, generates the home peer
 #   sudo bash bootstrap-relay.sh --home-pubkey KEY  # re-run with a peer you already have
 #   SSH_PORT=2222 sudo bash bootstrap-relay.sh      # if sshd is not on 22
+#   VRSC_PORT=3957 sudo bash bootstrap-relay.sh --with-vrsc   # + the Verus lane
 #
 # Idempotent: re-running rewrites the same files and restarts both services.
 # Nothing here touches DNS; the record is moved separately, after the relay is
@@ -32,13 +43,16 @@ HOME_ADDR="${WG_NET}.2"
 STRATUM_PORT="${STRATUM_PORT:-3333}"
 ORIGIN_PORT="${ORIGIN_PORT:-3333}"
 SSH_PORT="${SSH_PORT:-22}"
+VRSC_PORT="${VRSC_PORT:-3957}"
+WITH_VRSC="${WITH_VRSC:-0}"
 HOME_PUBKEY=""
 
 while [ $# -gt 0 ]; do
   case "$1" in
     --home-pubkey) HOME_PUBKEY="${2:-}"; shift 2 ;;
     --home-pubkey=*) HOME_PUBKEY="${1#*=}"; shift ;;
-    -h|--help) sed -n '2,25p' "$0"; exit 0 ;;
+    --with-vrsc) WITH_VRSC="1"; shift ;;
+    -h|--help) sed -n '2,35p' "$0"; exit 0 ;;
     *) echo "unknown argument: $1" >&2; exit 2 ;;
   esac
 done
@@ -52,6 +66,15 @@ say "installing wireguard + haproxy"
 export DEBIAN_FRONTEND=noninteractive
 apt-get update -qq
 apt-get install -y -qq wireguard haproxy curl >/dev/null
+
+# The Verus lane rides the SAME WireGuard peer and the SAME pool PC: no new
+# service on the VPS, one more bind on the haproxy that already fronts 3333.
+VRSC_FRONTEND=""
+if [ "${WITH_VRSC}" -eq 1 ]; then
+  VRSC_FRONTEND=$(printf 'frontend vrsc_in\n    bind *:%s\n    default_backend verus_relay\n\nbackend verus_relay\n    server vrsc-relay-pc ${HOME_ADDR}:%s check inter 10s fall 3 rise 2\n\n' "${VRSC_PORT}" "${VRSC_PORT}")
+  # ${HOME_ADDR} must expand INSIDE the haproxy heredoc below, not here.
+  VRSC_FRONTEND="${VRSC_FRONTEND//\$\{HOME_ADDR\}/${HOME_ADDR}}"
+fi
 
 say "keys"
 install -d -m 700 /etc/wireguard
@@ -126,6 +149,8 @@ frontend stratum_in
 
 backend p2pool
     server pool-pc ${HOME_ADDR}:${ORIGIN_PORT} check inter 10s fall 3 rise 2
+
+${VRSC_FRONTEND}
 EOF
 haproxy -c -f /etc/haproxy/haproxy.cfg
 systemctl enable haproxy >/dev/null
@@ -136,6 +161,9 @@ if command -v ufw >/dev/null; then
   ufw allow "${SSH_PORT}/tcp" >/dev/null
   ufw allow "${STRATUM_PORT}/tcp" >/dev/null
   ufw allow "${WG_PORT}/udp" >/dev/null
+  if [ "${WITH_VRSC}" -eq 1 ]; then
+    ufw allow "${VRSC_PORT}/tcp" >/dev/null
+  fi
   ufw --force enable >/dev/null
   ufw status | sed -n '1,12p'
 else
@@ -144,9 +172,30 @@ fi
 
 PUBLIC_IP="$(curl -4 -fsS --max-time 10 https://api.ipify.org || echo '<VPS_PUBLIC_IP>')"
 
+# The Verus lane's summary and follow-up lines, or nothing when it was not asked for.
+VRSC_SUMMARY=""
+VRSC_NEXT=""
+if [ "${WITH_VRSC}" -eq 1 ]; then
+  VRSC_SUMMARY=$(printf '  verus lane   : %s/tcp -> vrsc_relay.py on the pool PC (same wg peer)' "${VRSC_PORT}")
+  VRSC_NEXT=$(cat <<VRNEXT
+
+  VERUS LANE (pool/vrsc_relay.py runs on the POOL PC, behind this front):
+   4. Start the relay on the pool PC and ship this lane in one command
+      from that machine:  python relay/up-vrsc.py
+   5. Point the Verus branch at it — the pool host names the relay at boot
+      (the generated .bat carries the answer at generation time):
+        XMRJ_VRSC_STRATUM=${PUBLIC_IP}:${VRSC_PORT}
+      No new DNS record: mine.xmrjackpot.com already answers here.
+   6. Prove the lane from the pool PC AFTER it runs:
+        python relay/verify-stratum.py ${PUBLIC_IP} ${VRSC_PORT}
+VRNEXT
+)
+fi
+
 say "relay is up"
 printf '  public ip    : %s\n  stratum      : %s/tcp -> %s:%s\n  wireguard    : udp/%s, peer %s\n' \
   "$PUBLIC_IP" "$STRATUM_PORT" "$HOME_ADDR" "$ORIGIN_PORT" "$WG_PORT" "$HOME_ADDR"
+if [ -n "$VRSC_SUMMARY" ]; then echo "$VRSC_SUMMARY"; fi
 
 cat <<EOF
 
@@ -178,5 +227,5 @@ NEXT
         -RemoteAddress ${VPS_ADDR} -Action Allow
  3. Prove it from OUTSIDE the house network (phone hotspot):
       python relay/verify-stratum.py ${PUBLIC_IP} ${STRATUM_PORT}
-    Only when that prints PASS, move the DNS record (see relay/README.md).
+    Only when that prints PASS, move the DNS record (see relay/README.md).${VRSC_NEXT}
 EOF

@@ -286,6 +286,48 @@ def init_db():
             conn.execute("ALTER TABLE drawings ADD COLUMN claimed_at REAL")
         if "winner_wallet" not in cols:
             conn.execute("ALTER TABLE drawings ADD COLUMN winner_wallet TEXT")
+        if "claim_leased_at" not in cols:
+            # THE CLAIM LEASE (Oct 28): epoch when a claim reserved the
+            # drawing.(NULL = no lease.) A lease is young property: a
+            # live claim finishes in seconds, so any lease older than
+            # the steal window means a claimant died mid-flight and the
+            # drawing returns to the pool's book.
+            conn.execute(
+                "ALTER TABLE drawings ADD COLUMN claim_leased_at REAL")
+
+        # ─── THE SAME-COIN PAYOUT COLUMNS (Oct 28) ───
+        # Every money row carries the coin it was denominated in.
+        # 'xmr' is the default and the past: a NULL/new row is an
+        # XMR-denominated row, so every existing drawing and payout
+        # keeps meaning exactly what it meant before. A 'vrsc' row was
+        # PAID IN VERUS — the winner's coin decides it (see
+        # process_winner_claim), and amount_coin carries the quantity
+        # of that coin the prize was denominated in while amount_xmr
+        # keeps its XMR-equivalent (the books stay in one unit).
+        if "coin" not in cols:
+            conn.execute(
+                "ALTER TABLE drawings ADD COLUMN coin TEXT DEFAULT 'xmr'")
+        pcols = {r["name"] for r in conn.execute("PRAGMA table_info(payouts)")}
+        if "coin" not in pcols:
+            conn.execute(
+                "ALTER TABLE payouts ADD COLUMN coin TEXT DEFAULT 'xmr'")
+        if "amount_coin" not in pcols:
+            conn.execute(
+                "ALTER TABLE payouts ADD COLUMN amount_coin REAL")
+
+        # ─── THE FX-AT-MINT COLUMNS (Oct 28) ───
+        # A same-coin row records WHICH rates priced it — fx_xmr_usd
+        # and fx_vrsc_usd, captured at mint time — so reconciliation
+        # can reprice amount_coin from the row itself and name the
+        # exact book the treasury was charged against. NULL fx on an
+        # 'xmr' row is the honest shape: the XMR leg pays face value
+        # and priced nothing.
+        if "fx_xmr_usd" not in pcols:
+            conn.execute(
+                "ALTER TABLE payouts ADD COLUMN fx_xmr_usd REAL")
+        if "fx_vrsc_usd" not in pcols:
+            conn.execute(
+                "ALTER TABLE payouts ADD COLUMN fx_vrsc_usd REAL")
 
         # ─── THE DEMO FLAG (Oct 24 full-disclosure pass) ───
         # seed_demo.py fills the pool with simulated miners so a fresh
@@ -298,6 +340,13 @@ def init_db():
         if "is_demo" not in mcols:
             conn.execute(
                 "ALTER TABLE miners ADD COLUMN is_demo INTEGER DEFAULT 0")
+        # THE MINER'S OWN COIN (Oct 28): which coin this miner bot MINES
+        # — set by the Verus relay path ('vrsc'); every other origin is
+        # Monero ('xmr'). The drawing-side payout branch reads THIS to
+        # decide the coin a win pays in.
+        if "coin" not in mcols:
+            conn.execute(
+                "ALTER TABLE miners ADD COLUMN coin TEXT DEFAULT 'xmr'")
 
         # ─── Users table migrations ───
         ucols = {r["name"] for r in conn.execute("PRAGMA table_info(users)")}
@@ -629,6 +678,31 @@ def init_db():
             "CREATE INDEX IF NOT EXISTS idx_kraken_payouts_referrer "
             "ON kraken_referral_payouts(referrer_id, created_at)")
 
+        # ─── THE DONATION ORDER KEY (Oct 26) ───
+        # Idempotency for Scout Pro donation crediting used to be a scan of
+        # jackpot_funding's settings-backed ledger — one JSON value capped
+        # at LEDGER_MAX_ROWS (2000) and rewritten on every write. Once an
+        # old order's receipt aged out of that cap, a replayed status poll
+        # funded the pot a second time. This table is the key instead: one
+        # row per order id, never pruned, and the INSERT is the claim. The
+        # credit is written in the SAME transaction as the claim (callers
+        # pass their get_db() connection in), so a crash between them
+        # rolls both back rather than leaving money with no key, or a key
+        # with no money.
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS donation_credits (
+                order_id TEXT PRIMARY KEY,
+                amount_xmr REAL NOT NULL DEFAULT 0,
+                jackpot_xmr REAL NOT NULL DEFAULT 0,
+                treasury_xmr REAL NOT NULL DEFAULT 0,
+                sponsor_id TEXT,
+                source TEXT,
+                base_xmr REAL,
+                credited_at REAL DEFAULT (strftime('%s','now'))
+            )
+            """)
+
         # ─── Ticket provenance (Oct 24) ───
         tcols = {r["name"] for r in conn.execute(
             "PRAGMA table_info(tickets)")}
@@ -792,19 +866,27 @@ def reencrypt_pii() -> dict:
     return {"rows_resealed": resealed}
 
 
-def get_setting(key, default=None):
-    with get_db() as conn:
+def get_setting(key, default=None, conn=None):
+    # `conn` joins the caller's OPEN transaction (Oct 26): a credit that
+    # must commit its balance with its claim cannot open a second
+    # connection — SQLite would block it on the writer lock.
+    if conn is not None:
         row = conn.execute("SELECT value FROM settings WHERE key = ?", (key,)).fetchone()
+        return row["value"] if row else default
+    with get_db() as c:
+        row = c.execute("SELECT value FROM settings WHERE key = ?", (key,)).fetchone()
         return row["value"] if row else default
 
 
-def set_setting(key, value):
-    with get_db() as conn:
-        conn.execute(
-            "INSERT INTO settings (key, value) VALUES (?, ?) "
-            "ON CONFLICT(key) DO UPDATE SET value = ?",
-            (key, str(value), str(value)),
-        )
+def set_setting(key, value, conn=None):
+    sql = ("INSERT INTO settings (key, value) VALUES (?, ?) "
+           "ON CONFLICT(key) DO UPDATE SET value = ?")
+    args = (key, str(value), str(value))
+    if conn is not None:
+        conn.execute(sql, args)
+        return
+    with get_db() as c:
+        c.execute(sql, args)
 
 
 def safe_pos_int(raw, fallback=100):
@@ -835,6 +917,23 @@ def get_or_create_miner(wallet_address, worker_name=""):
             "SELECT * FROM miners WHERE wallet_address = ?", (wallet_address,)
         ).fetchone()
         return dict(row)
+
+
+def get_miner_by_wallet(wallet_address):
+    """READ-ONLY miner lookup by WALLET: no mint. The poll routes use
+    this instead of get_or_create_miner because every unauthenticated
+    reader polling a wallet that has not yet submitted a share was
+    minting a zombie miners row every poll cycle (Oct 29: the R111
+    playtest resurrect loop came straight through here).
+
+    NAMED get_miner_by_wallet, not get_miner: get_miner(miner_id)
+    already exists below (jackpot_engine's winner lookup), and a
+    duplicate name silently shadowed one side of it."""
+    with get_db() as conn:
+        row = conn.execute(
+            "SELECT * FROM miners WHERE wallet_address = ?", (wallet_address,)
+        ).fetchone()
+        return dict(row) if row else None
 
 
 def update_miner_stats(wallet_address, shares_valid=0, shares_invalid=0, hashrate=0):
@@ -980,22 +1079,132 @@ def set_drawing_winner_wallet(drawing_id, wallet_address):
         )
 
 
-def claim_drawing(drawing_id, wallet_address):
-    """Mark a drawing as claimed by the winner."""
+def set_miner_coin(wallet_address, coin):
+    """Stamp WHICH COIN this miner bot mines ('xmr' | 'vrsc'). Written
+    by the Verus relay path at first accepted share; reads of the field
+    default to 'xmr'. Also fixes an accidental flip: an existing row
+    keeps its coin unless the caller is the coin's own pipeline."""
+    coin = (coin or "").strip().lower()
+    if coin not in ("xmr", "vrsc"):
+        return False
     with get_db() as conn:
-        conn.execute(
-            "UPDATE drawings SET claim_status = 'claimed', claimed_at = strftime('%s','now') WHERE id = ?",
+        conn.execute("UPDATE miners SET coin = ? WHERE wallet_address = ?",
+                     (coin, wallet_address))
+    return True
+
+
+def acquire_claim_lease(drawing_id, steal_after_s=300):
+    """THE CLAIM LEASE (Oct 28): atomically reserve a drawing for one
+    claim. Two claims arriving together (double-click, fast retry, two
+    screens) must not both pass the claim_status check and both mint a
+    payout — this is ONE conditional UPDATE (pending -> 'claiming'), so
+    the first writer owns the row and the loser's UPDATE matches 0
+    rows. Returns True when THIS call holds the lease. A lease older
+    than steal_after_s is a claimant that died mid-flight: the steal
+    hands the drawing back to a live claimant instead of stranding it.
+    """
+    with get_db() as conn:
+        cur = conn.execute(
+            "UPDATE drawings SET claim_status = 'claiming', "
+            "claim_leased_at = strftime('%s','now') "
+            "WHERE id = ? AND (IFNULL(claim_status, 'pending') = 'pending' "
+            "OR (claim_status = 'claiming' "
+            "AND IFNULL(claim_leased_at, 0) > 0 "
+            "AND strftime('%s','now') - claim_leased_at > ?))",
+            (drawing_id, steal_after_s),
+        )
+        return cur.rowcount == 1
+
+
+def release_claim_lease(drawing_id):
+    """Return an abandoned lease to 'pending'. Only the lease owner's
+    own state ('claiming' with no payout minted) is touched: a drawing
+    already claimed or expired by someone else is left alone."""
+    with get_db() as conn:
+        cur = conn.execute(
+            "UPDATE drawings SET claim_status = 'pending', "
+            "claim_leased_at = NULL "
+            "WHERE id = ? AND claim_status = 'claiming'",
             (drawing_id,),
         )
+        return cur.rowcount == 1
+
+
+def claim_drawing(drawing_id, wallet_address, coin=None):
+    """Mark a drawing as claimed by the winner. `coin` stamps WHICH
+    coin the prize was claimed in (the winner's own miner coin, Oct 28);
+    absent means the drawing's default 'xmr'.
+
+    THE LEASE-BEARER CLAIM (Oct 28): ONLY the flight that holds the
+    claim lease may flip a drawing to 'claimed'. The flip is gated on
+    claim_status = 'claiming' — the one state ONLY acquire_claim_lease
+    can create — and releases the lease on success. A caller WITHOUT
+    the lease matches zero rows and returns False: the row it just
+    read as 'pending' stays 'pending', the money it meant to mint is
+    not minted against a drawing another thread has already claimed,
+    expired or leased. `wallet_address` is not touched by the gate;
+    the stamping write lives with the flip.
+    """
+    with get_db() as conn:
+        if coin:
+            cur = conn.execute(
+                "UPDATE drawings SET claim_status = 'claimed', "
+                "claimed_at = strftime('%s','now'), coin = ?, "
+                "claim_leased_at = NULL "
+                "WHERE id = ? AND claim_status = 'claiming'",
+                (coin, drawing_id),
+            )
+        else:
+            cur = conn.execute(
+                "UPDATE drawings SET claim_status = 'claimed', "
+                "claimed_at = strftime('%s','now'), "
+                "claim_leased_at = NULL "
+                "WHERE id = ? AND claim_status = 'claiming'",
+                (drawing_id,),
+            )
+        return cur.rowcount == 1
 
 
 def expire_drawing(drawing_id):
-    """Mark a drawing as expired (jackpot returned to pool)."""
+    """Mark a drawing as expired (jackpot returned to pool).
+
+    THE LEASE-BEARER EXPIRY (Oct 28): the pump-side caller (the claim
+    sweep, the pre-lease deadline branch) may retire ONLY a claim
+    flight that has not started — the flip is CASed on
+    claim_status = 'pending' (COALESCE covers a legacy NULL). A row
+    someone is currently CLAIMING is not this caller's to touch: a
+    rowcount of 0 means the flight is leased (or already claimed or
+    expired) — check downstream, don't clobber. The lease holder's own
+    expiry route goes through expire_leased_drawing.
+    """
     with get_db() as conn:
-        conn.execute(
-            "UPDATE drawings SET claim_status = 'expired' WHERE id = ?",
+        cur = conn.execute(
+            "UPDATE drawings SET claim_status = 'expired', "
+            "claim_leased_at = NULL "
+            "WHERE id = ? "
+            "AND COALESCE(claim_status, 'pending') = 'pending'",
             (drawing_id,),
         )
+        return cur.rowcount == 1
+
+
+def expire_leased_drawing(drawing_id):
+    """EXPIRE A DRAWING THE CALLER HOLDS THE LEASE ON (Oct 28): the one
+    writer allowed to flip 'claiming' -> 'expired'. A claim flight that
+    acquired the lease re-checks the claim window AFTER its lease, and
+    an overdue window retires the drawing in the holder's name — the
+    lease precondition IS the ownership proof. Without the lease the
+    flip matches zero rows and returns False: no lease, no rollover,
+    the drawing stays exactly as the next gate finds it.
+    """
+    with get_db() as conn:
+        cur = conn.execute(
+            "UPDATE drawings SET claim_status = 'expired', "
+            "claim_leased_at = NULL "
+            "WHERE id = ? AND claim_status = 'claiming'",
+            (drawing_id,),
+        )
+        return cur.rowcount == 1
 
 
 def get_unclaimed_drawings():
@@ -1053,7 +1262,8 @@ def get_recent_drawings(limit=10):
     with get_db() as conn:
         rows = conn.execute(
             """SELECT d.*, m.wallet_address as miner_wallet,
-                      COALESCE(m.is_demo, 0) as miner_is_demo
+                      COALESCE(m.is_demo, 0) as miner_is_demo,
+                      COALESCE(m.coin, 'xmr') as miner_coin
                FROM drawings d
                LEFT JOIN miners m ON d.winner_id = m.id
                ORDER BY d.id DESC LIMIT ?""",
@@ -1066,15 +1276,42 @@ def get_recent_drawings(limit=10):
             # A drawing won by a simulated account must be labelable as
             # such: seeded history is display data, not a real payout.
             d["winner_is_demo"] = bool(d.pop("miner_is_demo", 0) or 0)
+            # WHICH COIN the winner talked to the pool with (Oct 28).
+            # After the claim the drawing's own coin is the truth of
+            # what was PAID; BEFORE the claim nothing is paid yet, so the
+            # miner's coin is the prize-in-prospect the surface may show
+            # (a quantity must still wait for the claim's live rate).
+            d["winner_coin"] = (
+                (d.get("coin") or "")
+                if str(d.get("claim_status") or "") == "claimed"
+                else ""
+            ) or d.pop("miner_coin", "xmr") or "xmr"
             out.append(d)
         return out
 
 
-def add_payout(miner_id, amount_xmr, payout_type, drawing_id=None):
+def add_payout(miner_id, amount_xmr, payout_type, drawing_id=None,
+               coin="xmr", amount_coin=None,
+               fx_xmr_usd=None, fx_vrsc_usd=None):
+    """Mint one payout row. `coin` is the coin the payout was DENOMINATED
+    in ('xmr' default; 'vrsc' for a same-coin Verus prize, Oct 28) and
+    `amount_coin` that quantity; amount_xmr stays the XMR-equivalent so
+    every existing reader of the ledger is unchanged.
+
+    THE FX-AT-MINT STAMP (Oct 28): a same-coin row that was PRICED by
+    the conversion carries the exact rates that priced it — fx_xmr_usd
+    and fx_vrsc_usd, captured verbatim at mint time. Reconciliation
+    reprices amount_coin from the row itself (fx_xmr_usd / fx_vrsc_usd
+    x amount_xmr) and can name the book the treasury was charged
+    against, instead of trusting whatever the rate feeds are reading
+    TODAY."""
     with get_db() as conn:
         cur = conn.execute(
-            "INSERT INTO payouts (miner_id, amount_xmr, payout_type, drawing_id) VALUES (?, ?, ?, ?)",
-            (miner_id, amount_xmr, payout_type, drawing_id),
+            "INSERT INTO payouts (miner_id, amount_xmr, payout_type, "
+            "drawing_id, coin, amount_coin, fx_xmr_usd, fx_vrsc_usd) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            (miner_id, amount_xmr, payout_type, drawing_id, coin or "xmr",
+             amount_coin, fx_xmr_usd, fx_vrsc_usd),
         )
         return cur.lastrowid
 
@@ -2659,6 +2896,81 @@ def get_pending_payments():
             "ORDER BY COALESCE(scanned_at, 0) ASC, id ASC"
         ).fetchall()
         return [dict(r) for r in rows]
+
+
+# ── THE DONATION ORDER KEY (Oct 26) ────────────────────────────────────
+# One row per checkout order, written by the same transaction that raises
+# the pot. The INSERT is the claim: whoever inserts owns the credit, and
+# everyone else reads the row and moves nothing. See the table's comment
+# in init_db for why the settings ledger could not carry this.
+def get_donation_credit(order_id, conn=None):
+    """The credit row for one order, or None when it never landed.
+
+    `conn` reads inside the caller's open transaction, so a credit can
+    see the claim it is in the middle of making.
+    """
+    sql = "SELECT * FROM donation_credits WHERE order_id = ?"
+    key = (str(order_id),)
+    if conn is not None:
+        row = conn.execute(sql, key).fetchone()
+        return dict(row) if row else None
+    with get_db() as c:
+        row = c.execute(sql, key).fetchone()
+        return dict(row) if row else None
+
+
+def claim_donation_credit(conn, order_id, amount_xmr, jackpot_xmr,
+                          treasury_xmr, sponsor_id=None, source=""):
+    """Claim one order INSIDE the caller's transaction.
+
+    True means this caller owns the credit and must finish it (raise the
+    pot, stamp the base) before that transaction commits. False means the
+    order already has a row — an earlier credit or a concurrent poll —
+    and nothing may move. INSERT OR IGNORE against the primary key is the
+    whole mechanism: no read-then-write window, so two threads polling
+    the same checkout cannot both win.
+    """
+    cur = conn.execute(
+        "INSERT OR IGNORE INTO donation_credits (order_id, amount_xmr, "
+        "jackpot_xmr, treasury_xmr, sponsor_id, source, credited_at) "
+        "VALUES (?, ?, ?, ?, ?, ?, strftime('%s','now'))",
+        (str(order_id), float(amount_xmr), float(jackpot_xmr),
+         float(treasury_xmr),
+         None if sponsor_id is None else str(sponsor_id),
+         str(source or "")[:120]))
+    return cur.rowcount == 1
+
+
+def set_donation_base(conn, order_id, base_xmr):
+    """Stamp the pot value this credit produced (same transaction)."""
+    conn.execute(
+        "UPDATE donation_credits SET base_xmr = ? WHERE order_id = ?",
+        (round(float(base_xmr), 12), str(order_id)))
+
+
+def adopt_donation_credit(order_id, amount_xmr, jackpot_xmr, treasury_xmr,
+                          sponsor_id=None, source="", base_xmr=None):
+    """Adopt a credit that predates this table.
+
+    An order credited before Oct 26 is protected only by its receipt in
+    the prunable ledger. On sight, that protection is copied into the key
+    table so it outlives the ledger's cap. INSERT OR IGNORE: an existing
+    row (the ordinary replay) is never overwritten.
+    """
+    with get_db() as conn:
+        conn.execute(
+            "INSERT OR IGNORE INTO donation_credits (order_id, amount_xmr, "
+            "jackpot_xmr, treasury_xmr, sponsor_id, source, base_xmr, "
+            "credited_at) VALUES (?, ?, ?, ?, ?, ?, ?, strftime('%s','now'))",
+            (str(order_id), float(amount_xmr), float(jackpot_xmr),
+             float(treasury_xmr),
+             None if sponsor_id is None else str(sponsor_id),
+             str(source or "")[:120],
+             None if base_xmr is None else round(float(base_xmr), 12)))
+        row = conn.execute(
+            "SELECT * FROM donation_credits WHERE order_id = ?",
+            (str(order_id),)).fetchone()
+        return dict(row) if row else None
 
 
 def create_scout_purchase(user_id, identity_wallet, amount_xmr, address,
