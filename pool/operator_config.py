@@ -173,7 +173,10 @@ def pro_days():
         import database as db
         v = int(float(db.get_setting(SCOUT_PRO_DAYS_SETTING,
                                      str(SCOUT_PRO_DEFAULT_DAYS))))
-    except (ImportError, TypeError, ValueError):
+    # OverflowError beats ValueError here: float("1e999") is inf, and
+    # int(inf) OVERFLOWS - a stored astronomic days value must fall back,
+    # not raise inside order fulfillment.
+    except (ImportError, TypeError, ValueError, OverflowError):
         v = SCOUT_PRO_DEFAULT_DAYS
     return max(1, v)
 
@@ -190,7 +193,8 @@ def pro_checkout_minutes():
         import database as db
         v = int(float(db.get_setting(SCOUT_PRO_CHECKOUT_MINUTES_SETTING,
                                      str(SCOUT_PRO_DEFAULT_CHECKOUT_MIN))))
-    except (ImportError, TypeError, ValueError):
+    # OverflowError: same inf-int overflow as pro_days (see there).
+    except (ImportError, TypeError, ValueError, OverflowError):
         v = SCOUT_PRO_DEFAULT_CHECKOUT_MIN
     return max(5, v)
 
