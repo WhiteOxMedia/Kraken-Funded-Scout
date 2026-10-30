@@ -310,9 +310,16 @@ jobs:
           New-Item -ItemType Directory -Force -Path (Join-Path $Bundle "payload") | Out-Null
           Copy-Item -Path "installer\install.ps1" -Destination (Join-Path $Bundle "install.ps1") -Force
           robocopy "scout" (Join-Path $Bundle "payload\scout") /E /NFL /NDL /NJH /NJS /NP | Out-Null
-          if ($LASTEXITCODE -ge 8) { Write-Host "scout staging failed rc=$LASTEXITCODE"; exit 1 }
+          $Rc = $LASTEXITCODE
+          if ($Rc -ge 8) { Write-Host "scout staging failed rc=$Rc"; exit 1 }
           robocopy "." (Join-Path $Bundle "payload\monero_project") /E /XD .git .github node_modules .venv dist dist_site_review xmrig reports target __pycache__ .pytest_cache .workshop tools plans docs schemas src xmrj_treasury xmrj_jackpot xmrj_governance xmrj_conversion_service /NFL /NDL /NJH /NJS /NP | Out-Null
-          if ($LASTEXITCODE -ge 8) { Write-Host "monero staging failed rc=$LASTEXITCODE"; exit 1 }
+          $Rc = $LASTEXITCODE
+          if ($Rc -ge 8) { Write-Host "monero staging failed rc=$Rc"; exit 1 }
+          # robocopy 0-7 is success (1 = "files copied"), but a nonzero
+          # $LASTEXITCODE rides OUT of a pwsh step as that step's exit
+          # code: the Oct 30 PR run measured this exact stage printing
+          # its success line and still exiting 1. Zero it once read.
+          $LASTEXITCODE = 0
           if (-not (Test-Path (Join-Path $Bundle "payload\scout\app.py"))) { Write-Host "staging failed: no payload\scout\app.py"; exit 1 }
           Write-Host "smoke bundle staged at $Bundle; fresh target: $Target"
       # -NoUi -SkipVenv is the drive mode install.ps1's own header
@@ -338,7 +345,10 @@ jobs:
             if (Test-Path $d) { Remove-Item -Recurse -Force $d }
           }
           robocopy (Join-Path $env:RUNNER_TEMP "smoke_bundle") $Carry /E /NFL /NDL /NJH /NJS /NP | Out-Null
-          if ($LASTEXITCODE -ge 8) { Write-Host "carry staging failed rc=$LASTEXITCODE"; exit 1 }
+          $Rc = $LASTEXITCODE
+          if ($Rc -ge 8) { Write-Host "carry staging failed rc=$Rc"; exit 1 }
+          # the same robocopy success-code rule as the slim stage above
+          $LASTEXITCODE = 0
           # THE PINS PARSE OUT OF THE INSTALLER (install_smoke.py's rule —
           # one edit is a pin change, never a second hidden literal).
           $ins = Get-Content (Join-Path $Carry "install.ps1") -Raw
