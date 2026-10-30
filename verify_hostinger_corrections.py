@@ -145,6 +145,15 @@ def main() -> int:
         created |= set(re.findall(r'id="([A-Za-z0-9_-]+)"', src))
         created |= set(re.findall(r"\.id\s*=\s*'([A-Za-z0-9_-]+)'", src))
         created |= set(re.findall(r'\.id\s*=\s*"([A-Za-z0-9_-]+)"', src))
+    # Oct 29 i18n rework: the SERVED homepage carries ids the template
+    # file itself does not — the server stamps runtime artifacts into
+    # it (the appI18n language-catalog head script, region-guidance
+    # cards). Scrape the server's own injected markup like the JS
+    # self-created ids above, so an app id keyed to a runtime id is
+    # graded against its real answerer, not marked dangling.
+    created |= set(re.findall(
+        r'id="([A-Za-z0-9_-]+)"',
+        (PROD / "server.py").read_text(encoding="utf-8")))
     # review triage (Sep 25 evening V): grade EVERY referenced id against
     # the corrected ids - a corrected JS may reference a hook the
     # corrected HTML dropped, new or old alike. The id pool spans ALL

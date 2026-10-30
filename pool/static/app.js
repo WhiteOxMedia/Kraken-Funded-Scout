@@ -8,11 +8,72 @@
 
   // ─── Constants ──────────────────────────────────────────────
   const API = window.location.origin + '/api';
+
+  // The server embeds the matching English reference and selected-language
+  // catalog on localized homepage routes. Static copy is identified against
+  // English so language switching never depends on already-translated text.
+  var appI18n = (function () {
+    try {
+      var node = document.getElementById('appI18n');
+      var data = node ? JSON.parse(node.textContent || '{}') : {};
+      return data && data.current && data.en ? data : {};
+    } catch (e) { return {}; }
+  })();
+  function applyAppLanguage(lang) {
+    var current = appI18n[lang] || appI18n.current || {};
+    if (!appI18n.en || !current || lang === 'en') return;
+    var textMap = Object.create(null);
+    var htmlMap = Object.create(null);
+    var attrMap = Object.create(null);
+    Object.keys(appI18n.en).forEach(function (key) {
+      var source = appI18n.en[key];
+      if (!source || typeof source !== 'string') return;
+      var replacement = current[key] || source;
+      var hasLiveValue = /\{\w+\}/.test(source);
+      var hasMarkup = /[<>]/.test(source);
+      if (hasMarkup) {
+        var sourceBox = document.createElement('div');
+        sourceBox.innerHTML = source;
+        htmlMap[sourceBox.textContent.trim()] = replacement;
+      } else if (hasLiveValue) {
+        var sourcePrefix = source.split(/\{\w+\}/)[0].trim();
+        var translatedPrefix = replacement.split(/\{\w+\}/)[0].trim();
+        if (sourcePrefix && translatedPrefix) textMap[sourcePrefix] = translatedPrefix;
+      } else textMap[source.trim()] = replacement;
+      attrMap[source] = replacement;
+    });
+    // Translate exact template content in one pass, leaving unmatched DOM and
+    // live values untouched. Markup-bearing catalog entries only replace an
+    // exact server-owned template fragment.
+    var walker = document.createTreeWalker(document.body, NodeFilter.SHOW_ELEMENT | NodeFilter.SHOW_TEXT);
+    var nodes = [];
+    while (walker.nextNode()) nodes.push(walker.currentNode);
+    nodes.forEach(function (node) {
+      if (node.nodeType === Node.TEXT_NODE) {
+        var source = node.nodeValue.trim();
+        if (Object.prototype.hasOwnProperty.call(textMap, source)) {
+          node.nodeValue = node.nodeValue.replace(source, textMap[source]);
+        }
+      } else if (node.nodeType === Node.ELEMENT_NODE && node.children.length === 0 &&
+                 Object.prototype.hasOwnProperty.call(htmlMap, node.textContent.trim())) {
+        node.innerHTML = htmlMap[node.textContent.trim()];
+      }
+    });
+    document.querySelectorAll('[placeholder], [title], [aria-label]').forEach(function (el) {
+      ['placeholder', 'title', 'aria-label'].forEach(function (attr) {
+        var source = el.getAttribute(attr);
+        if (source && Object.prototype.hasOwnProperty.call(attrMap, source)) {
+          el.setAttribute(attr, attrMap[source]);
+        }
+      });
+    });
+  }
+  applyAppLanguage(appI18n.lang || 'en');
   // Resurrected baseline UX copy (Sep 26 restore pass). These phrases
   // were dropped earlier and are unrelated to the popup removal; they
   // remain visible on landing/signup/wallet surfaces only.
   const GRAND_PRIZES_NOTE = 'Bigger grand prizes';
-  const PARTNER_BONUS_NOTE = 'Connecting a wallet unlocks community bonuses from partner exchanges like Kraken. These bonuses help boost the daily grand prize for everyone.';
+  const PARTNER_BONUS_NOTE = 'Partner bonuses (e.g. Kraken) are credited to the daily grand prize only once the operator records receiving them';
   const FASTER_PAYOUTS_NOTE = 'Faster payouts if you win';
   const IMPORTANT_LEGAL_NOTE = 'Important:';
   const SKIP_FOR_NOW_NOTE = 'Skip for Now';
@@ -21,6 +82,10 @@
                                     // the authoritative value rides /api/stats)
   const HOUSE_TAX_PERCENT = 10;
   let TICKETS_PER = FREE_TICKET_SHARES;  // set from /api/stats when it lands
+  let VRSC_RELAY_LIVE = false;      // latched from /api/stats (the same
+                                    // XMRJ_VRSC_STRATUM the installers
+                                    // branch on); decides WHICH honest
+                                    // wallet note a Verus-shaped paste gets
 
   // THE UNIT COUNTER LINE (Oct 12 controller): the canonical raffle
   // format shown wherever mining status or jackpot eligibility shows.
@@ -365,6 +430,43 @@
     } catch (e) { /* the counter never blocks the click */ }
   });
 
+  // Share intents (Oct 29, review): ONE document-level delegation, attached
+  // once here outside initRealPlay. It used to live inside initRealPlay and
+  // got re-attached on every visit to the real-play page, so the Nth visit
+  // fired the share handler N times per click (N share popups on one tap).
+  // Built at CLICK TIME from the hidden link, so no raw URL is ever in the
+  // page text and nothing is shared until asked.
+  document.addEventListener('click', function (ev) {
+    var btn = ev.target && ev.target.closest
+      ? ev.target.closest('[data-share]') : null;
+    if (!btn) return;
+    var hidden = $('#krakenInviteLink');
+    var url = hidden ? (hidden.value || '').trim() : '';
+    if (!url) {
+      toast('Invite link still loading — try again in a moment', 'error');
+      return;
+    }
+    var where = btn.getAttribute('data-share');
+    var text = 'Mining XMR in the community pool — join Kraken through our link ' +
+      '(mystery reward for both sides, on Kraken terms):';
+    var target = '';
+    if (where === 'x') {
+      target = 'https://twitter.com/intent/tweet?text=' + encodeURIComponent(text) +
+        '&url=' + encodeURIComponent(url);
+    } else if (where === 'telegram') {
+      target = 'https://t.me/share/url?url=' + encodeURIComponent(url) +
+        '&text=' + encodeURIComponent(text);
+    } else if (where === 'whatsapp') {
+      target = 'https://wa.me/?text=' + encodeURIComponent(text + ' ' + url);
+    } else if (where === 'facebook') {
+      target = 'https://www.facebook.com/sharer/sharer.php?u=' + encodeURIComponent(url);
+    } else if (where === 'email') {
+      target = 'mailto:?subject=' + encodeURIComponent('Mine XMR with me') +
+        '&body=' + encodeURIComponent(text + '\n\n' + url);
+    }
+    if (target) window.open(target, '_blank', 'noopener');
+  });
+
   function updateModeBadge() {
     const badge = $('#modeBadge');
     if (!badge) return;
@@ -382,15 +484,9 @@
   // ════════════════════════════════════════════════════════════
 
   function initLanding() {
-    // CTA buttons
-    const realBtn = $('#btnPlayReal');
-
-    if (realBtn) realBtn.addEventListener('click', function () {
-      // Download installer immediately, then go to signup
-      window.open(API + '/miner-download', '_blank');
-      toast('Downloading miner... Save it and double-click to run!', 'success');
-      navigateTo('signup');
-    });
+    // CTA buttons. The hero's second button is a plain anchor to the
+    // Kraken Scout bundle (Oct 24), so only the miner one needs a
+    // handler here — it no longer duplicates that anchor's job.
 
     // One-click miner CTA — download immediately, then go to signup
     var oneClickBtn = $('#btnOneClickMine');
@@ -467,6 +563,35 @@
     }
   }
 
+  // THE RATE NOTE (Oct 26): a dollar figure here is a CONVERSION, so
+  // every place that quotes one also says what it was converted at,
+  // how old that rate is, and whether it is the fallback. The sentence
+  // is built server-side (jackpot_funding.rate_info) so the hero, the
+  // dashboard plate and the projection card cannot word it differently.
+  function paintRateNote(afterEl, info, id) {
+    if (!afterEl || !afterEl.parentNode) return;
+    var note = document.getElementById(id);
+    if (note && note.previousElementSibling !== afterEl) {
+      note.remove();          // the plate was re-rendered under us
+      note = null;
+    }
+    if (!note) {
+      note = document.createElement('div');
+      note.id = id;
+      note.className = 'rate-note';
+      note.style.cssText = 'font-size:0.72em;line-height:1.45;margin-top:2px;';
+      afterEl.parentNode.insertBefore(note, afterEl.nextSibling);
+    }
+    var label = (info && info.label) ? String(info.label) : '';
+    if (!label) { note.style.display = 'none'; return; }
+    note.style.display = '';
+    note.style.color = info.stale ? 'var(--redstone,#c0392b)'
+                                  : 'var(--text-mute,#9a9a9a)';
+    note.textContent = label;
+    note.title = '1 XMR = $' + Number(info.rate || 0).toFixed(2) +
+      ' — source: ' + (info.source || 'unknown');
+  }
+
   function fetchLiveJackpotForHero() {
     fetch(API + '/stats')
       .then(function (r) { return r.json(); })
@@ -475,6 +600,7 @@
         if (el) el.textContent = fmt(d.jackpot_xmr, 6) + ' XMR';
         var usdEl = $('#heroJackpotUsd');
         if (usdEl) usdEl.textContent = '≈ $' + fmt(d.jackpot_usd, 2);
+        paintRateNote(usdEl, d.xmr_usd_rate_info, 'heroRateNote');
 
         var tickets = $('#heroTickets');
         if (tickets) tickets.textContent = (d.pending_tickets || 0).toLocaleString();
@@ -496,8 +622,35 @@
         // setting, so every surface draws its line from ONE source.
         if (d.free_tickets_per_shares) TICKETS_PER = d.free_tickets_per_shares;
 
+        // THE RELAY GATE (Oct 29 audit): the Verus wallet note's entry
+        // promise is backed ONLY when a relay lane exists. Without it
+        // the offline note is the truth shown instead.
+        if (d.vrsc_relay_live != null) VRSC_RELAY_LIVE = !!d.vrsc_relay_live;
+        // a wallet-note revealed before this fetch landed was shown under
+        // the fallback guess; re-open it now that the truth is known.
+        document.dispatchEvent(new CustomEvent('xmrjackpot:relay'));
+
         var heroNextDraw = $('#heroNextDraw');
         if (heroNextDraw) heroNextDraw.textContent = d.drawing_interval_hours + 'h';
+
+        // FULL DISCLOSURE (Oct 24): say out loud when the totals include
+        // simulated miners, and how many. Hidden when the pool is real.
+        var demoBox = $('#demoDisclosure');
+        var demoText = $('#demoDisclosureText');
+        if (demoBox && demoText) {
+          var demoN = Number(d.demo_miners) || 0;
+          if (d.demo_mining_sample && demoN > 0) {
+            var totalN = Number(d.total_miners) || 0;
+            demoText.textContent = demoN + ' of the ' + totalN +
+              ' miners in these totals (and their shares and hashrate) are ' +
+              'simulated demo accounts kept alive for display. Entries, ' +
+              'drawings, claims and payouts are real ledger events; only ' +
+              'the simulated miners are not.';
+            demoBox.style.display = '';
+          } else {
+            demoBox.style.display = 'none';
+          }
+        }
       })
       .catch(function () { /* silent */ });
   }
@@ -515,12 +668,36 @@
         var drawings = $('#spTotalDrawings');
         if (drawings) drawings.textContent = d.total_drawings || 0;
 
+        // Seeded history is not paid history: disclose it next to both
+        // counters instead of folding it into the totals (Oct 24).
+        var simPaid = Number(d.simulated_paid_out) || 0;
+        var simDraw = Number(d.simulated_drawings) || 0;
+        var paidNote = $('#spSimPaidNote');
+        if (paidNote) {
+          paidNote.textContent = (simPaid > 0 || simDraw > 0)
+            ? '+ ' + fmt(simPaid, 6) + ' XMR simulated (never paid)' : '';
+          paidNote.style.display = (simPaid > 0 || simDraw > 0) ? '' : 'none';
+        }
+        var drawNote = $('#spSimDrawingsNote');
+        if (drawNote) {
+          drawNote.textContent = simDraw > 0
+            ? '+ ' + simDraw + ' simulated' : '';
+          drawNote.style.display = simDraw > 0 ? '' : 'none';
+        }
+
         // Recent winner
         var wAddr = $('#spWinnerAddr');
         var wDetail = $('#spWinnerDetail');
         if (d.recent_winner) {
           if (wAddr) wAddr.textContent = shortAddr(d.recent_winner.winner_wallet);
-          if (wDetail) wDetail.textContent = 'Won ' + fmt(d.recent_winner.payout_amount, 6) + ' XMR';
+          // /api/social-proof calls it prize_amount; payout_amount was a
+          // typo that printed "Won 0.000000 XMR" on every visit.
+          var wonXmr = (d.recent_winner.prize_amount != null)
+            ? d.recent_winner.prize_amount
+            : d.recent_winner.payout_amount;
+          if (wDetail) wDetail.textContent =
+            'Won ' + fmt(wonXmr, 6) + ' XMR' +
+            (d.recent_winner.simulated ? ' · demo account' : '');
         } else {
           if (wAddr) wAddr.textContent = '—';
           if (wDetail) wDetail.textContent = 'First drawing coming soon!';
@@ -531,7 +708,8 @@
         var tmDetail = $('#spTopMinerDetail');
         if (d.top_miner) {
           if (tmAddr) tmAddr.textContent = shortAddr(d.top_miner.wallet);
-          if (tmDetail) tmDetail.textContent = (d.top_miner.shares || 0).toLocaleString() + ' shares · ' + fmtHash(d.top_miner.hashrate);
+          if (tmDetail) tmDetail.textContent = (d.top_miner.shares || 0).toLocaleString() + ' shares · ' + fmtHash(d.top_miner.hashrate) +
+            (d.top_miner.simulated ? ' · demo account' : '');
         } else {
           if (tmAddr) tmAddr.textContent = '—';
           if (tmDetail) tmDetail.textContent = 'Be the first!';
@@ -543,8 +721,11 @@
           var winners = d.recent_winners || [];
           if (winners.length) {
             feed.innerHTML = winners.map(function (w) {
+              var demo = w.simulated
+                ? ' <span style="font-size:0.9em;color:var(--text-mute);">(demo)</span>'
+                : '';
               return '<div class="winner-row">' +
-                '<span class="winner-wallet">' + shortAddr(w.winner_wallet) + '</span>' +
+                '<span class="winner-wallet">' + shortAddr(w.winner_wallet) + demo + '</span>' +
                 '<span class="winner-prize">' + fmt(w.prize_amount, 6) + ' XMR</span>' +
                 '<span class="winner-time" title="' + (w.drawn_at ? isoOf(w.drawn_at) : '') + '">' + timeAgo(w.drawn_at) + '</span>' +
                 '</div>';
@@ -626,6 +807,7 @@
     var user = $('#signupUser').value.trim();
     var pass = $('#signupPass').value;
     var email = $('#signupEmail').value.trim();
+    var referrerEmail = $('#signupReferrerEmail') ? $('#signupReferrerEmail').value.trim() : '';
     var wallet = $('#signupWallet').value.trim();
     var secQ = $('#signupSecurityQ') ? $('#signupSecurityQ').value : '';
     var secA = $('#signupSecurityA') ? $('#signupSecurityA').value.trim() : '';
@@ -636,7 +818,7 @@
       var res = await fetch(API + '/auth/register', {
         method: 'POST',
         headers: {'Content-Type':'application/json'},
-        body: JSON.stringify({username: user, password: pass, email: email, wallet_address: wallet, referral_code: refCode, security_question: secQ, security_answer: secA}),
+        body: JSON.stringify({username: user, password: pass, email: email, wallet_address: wallet, referral_code: refCode, referrer_email: referrerEmail, security_question: secQ, security_answer: secA}),
       });
       var d = await res.json();
       if (d.status === 'ok') {
@@ -710,15 +892,28 @@
   function renderWinnerBanner(d) {
     var banner = $('#winnerClaimBanner');
     if (!banner) return;
-        banner.style.display = 'none';
+    /* SHOW, DON'T HIDE (Oct 29, playtest stumble): this function only
+       runs when /api/winner/status has a pending claim, so the container
+       must become visible — the pre-fix line left the banner hidden on
+       EVERY render (checkWinnerStatus hides it itself on has_pending_claim
+       false), so winners never saw their claim and the claim-success
+       innerHTML swap also rendered into the hidden container. */
+    banner.style.display = '';
 
+    /* THE COIN-AWARE BANNER (Oct 29): the winner's miner coin is the
+       coin the prize pays in (a VRSC draw even names Verus), so the
+       input hint and currency name read that coin — an XMR banner for
+       a VRSC winner told them to add 'a Monero wallet' for a Verus
+       payout, and its XMR-only placeholder refused their R-address. */
+    var isVrsc = (d.winner_coin === 'vrsc');
+    var coinName = isVrsc ? 'VRSC' : 'XMR';
     var daysLeft = Math.ceil((d.time_remaining_seconds || 0) / 86400);
     var payoutStr = fmt(d.payout_amount, 6);
 
     var walletInputHtml = '';
     if (!d.has_wallet) {
       walletInputHtml = '<div class="winner-claim-row">' +
-        '<input class="spin-input" id="winnerWalletInput" placeholder="Your XMR wallet address (starts with 4 or 8)">' +
+        '<input class="spin-input" id="winnerWalletInput" placeholder="' + (isVrsc ? 'Your Verus wallet address (starts with R)' : 'Your XMR wallet address (starts with 4 or 8)') + '">' +
         '<button class="btn btn-gold" id="btnWinnerClaim">🏆 Claim Prize</button>' +
       '</div>';
     } else {
@@ -729,8 +924,8 @@
 
     banner.innerHTML =
       '<div class="winner-banner">' +
-        '<div class="winner-banner-title">🎉 You\'re the winner! You won <b>' + payoutStr + ' XMR</b>! ' +
-          (d.has_wallet ? '' : 'Add a Monero wallet to receive your payout.') + '</div>' +
+        '<div class="winner-banner-title">🎉 You\'re the winner! You won <b>' + payoutStr + ' ' + coinName + '</b>! ' +
+          (d.has_wallet ? '' : 'Add a ' + (isVrsc ? 'Verus' : 'Monero') + ' wallet to receive your payout.') + '</div>' +
         '<div class="winner-banner-deadline">⏰ Claim deadline: ' + daysLeft + ' day' + (daysLeft === 1 ? '' : 's') + ' remaining</div>' +
         walletInputHtml +
       '</div>';
@@ -752,16 +947,30 @@
       wallet = _winnerClaimData.winner_wallet || '';
     }
 
-    if (!wallet) { toast('Enter your Monero wallet address', 'error'); return; }
-
-    // Client-side validation: starts with 4 or 8, length 90-120
-    if (!(wallet.startsWith('4') || wallet.startsWith('8'))) {
-      toast('Invalid Monero address — must start with 4 or 8', 'error');
+    if (!wallet) {
+      toast(_winnerClaimData.winner_coin === 'vrsc'
+        ? 'Enter your Verus wallet address'
+        : 'Enter your Monero wallet address', 'error');
       return;
     }
-    if (wallet.length < 90 || wallet.length > 120) {
-      toast('Invalid Monero address length (must be 90-120 characters)', 'error');
-      return;
+
+    // THE COIN-AWARE PRE-GATE (Oct 29): the old 4/8 + 90-120 client
+    // check hard-coded XMR — a Verus miner's R-address would have been
+    // refused by their own claim banner. The payout validator the
+    // server's gates use now answers, coin derived from shape exactly
+    // like the Connect Wallet gate. The server stays the authority:
+    // its claim route re-validates with the drawing's miner coin.
+    var claimCoin = (_winnerClaimData.winner_coin === 'vrsc') ? 'vrsc'
+                  : ((wallet.length === 34 && wallet[0] === 'R') ? 'vrsc' : 'xmr');
+    if (claimCoin === 'xmr') {
+      if (!(wallet.startsWith('4') || wallet.startsWith('8'))) {
+        toast('Invalid Monero address — must start with 4 or 8', 'error');
+        return;
+      }
+      if (wallet.length < 90 || wallet.length > 120) {
+        toast('Invalid Monero address length (must be 90-120 characters)', 'error');
+        return;
+      }
     }
 
     var claimBtn = $('#btnWinnerClaim');
@@ -776,16 +985,28 @@
       var d = await res.json();
       if (res.ok && d.status === 'ok') {
         var payoutStr = fmt(d.payout_amount, 6);
+        /* THE COIN THE SERVER ANSWERED (Oct 29, playtest stumble): the
+           server's claim reply carries the drawing's claim coin (xmr or
+           vrsc) — the success text used to hard-code XMR, telling a
+           Verus winner their payout was sent in the wrong coin. */
+        var claimCoin = (d.coin === 'vrsc') ? 'VRSC' : 'XMR';
+        /* QUEUED, NOT TRANSACTED (Oct 29): the route queues a pending
+           payout (manual-from-Kraken for XMR, treasury for VRSC) — the
+           pre-fix wording said "has been sent" while the server marks
+           the ref pending_*, which overclaims. */
+        var queued = (d.tx_hash && String(d.tx_hash).indexOf('pending_') === 0);
         var banner = $('#winnerClaimBanner');
         if (banner) {
           banner.innerHTML =
             '<div class="winner-confirmed">' +
-              '<div class="winner-confirmed-title">✅ Your payout of ' + payoutStr + ' XMR has been sent!</div>' +
-              '<div class="winner-confirmed-tx">Transaction: ' + (d.tx_hash || '—') + '</div>' +
+              '<div class="winner-confirmed-title">✅ Your payout of ' + payoutStr + ' ' + claimCoin +
+                (queued ? ' has been queued for payout!' : ' has been sent!') + '</div>' +
+              '<div class="winner-confirmed-tx">Payout ref: ' + (d.tx_hash || '—') + '</div>' +
             '</div>';
         }
         launchConfetti();
-        toast('Payout sent! ' + payoutStr + ' XMR', 'success');
+        toast(queued ? 'Payout queued! ' + payoutStr + ' ' + claimCoin 
+                     : 'Payout sent! ' + payoutStr + ' ' + claimCoin, 'success');
         _winnerClaimData = null;
       } else {
         toast(d.detail || 'Claim failed', 'error');
@@ -871,40 +1092,137 @@
     // Stop any existing polls
     stopPolling();
 
-    // Wallet connect
+    // Wallet connect. TWO buttons carry the same job (Oct 28 playtest):
+    // the landing hero's #btnConnectWallet AND the real-play page's own
+    // #btnConnectWalletRealPlay — the latter shipped with no listener,
+    // so a user on "Play for XMR" could paste a wallet and click to
+    // nothing at all. One handler, both ids.
     const walletInput = $('#realWalletInput');
-    const connectBtn = $('#btnConnectWallet');
+    const connectBtns = [$('#btnConnectWallet'), $('#btnConnectWalletRealPlay')].filter(Boolean);
 
     if (walletInput) {
       const saved = getWallet();
       if (saved) walletInput.value = saved;
     }
 
-    if (connectBtn) {
-      connectBtn.addEventListener('click', function () {
+    // THE HONEST COIN NOTE (Oct 29): a Verus-shaped address gets the
+    // truth BEFORE connect — this surface mines and pays XMR; the Verus
+    // rail is the relay. The reveal rides the SAME shape expression the
+    // connect gate below uses (34 chars, leading R): a Verus-shaped
+    // paste shows the note, anything else hides it. The note says the
+    // two facts that usually get assumed away: the connect box stores a
+    // payout address only (a paste never decides miners.coin — that is
+    // share truth), and the drawing's same-coin rule pays a
+    // Verus-share win in VRSC, so VRSC joins the rail the relay owns.
+    // The catalog keys (home.realVerusNote / home.realVerusNoteOffline)
+    // translate them in all six languages against these exact strings.
+    var verusNote = $('#realVerusNote');
+    var verusNoteOffline = $('#realVerusNoteOffline');
+    const gateShape = function (addr) { return addr.length === 34 && addr[0] === 'R'; };
+    var showVerusNote = function () {
+      if (!verusNote && !verusNoteOffline) return;
+      var on = gateShape((walletInput.value || '').trim());
+      var relayUp = !!VRSC_RELAY_LIVE;
+      // show the RELAY note only when a relay lane actually exists; the
+      // offline note says so plainly when it does not. Neither note ever
+      // promises entries the pool cannot count.
+      if (verusNote) verusNote.style.display = (on && relayUp) ? '' : 'none';
+      if (verusNoteOffline) verusNoteOffline.style.display = (on && !relayUp) ? '' : 'none';
+    };
+    if (walletInput && (verusNote || verusNoteOffline)) {
+      walletInput.addEventListener('input', showVerusNote);
+      document.addEventListener('xmrjackpot:relay', showVerusNote);
+      if (walletInput.value) showVerusNote();   // a restored Verus wallet tells too
+    }
+
+    if (connectBtns.length) {
+      // THE SERVER-SIDE GATE (Oct 29, playtest stumble): a length check
+      // alone accepted any 20+-character string ('this-is-not-a-'
+      // 'address-but-long-enough' got 'Wallet connected!'). Money was
+      // never misdirected — signup/profile/claim re-validate offline —
+      // but the stored and DISPLAYED wallet could carry junk. The same
+      // mainnet validator the other gates use now answers this button:
+      // one /api/wallet/validate call before connecting. The SHAPE
+      // derives the GATE choice only: an R+33-Base58 string rides the
+      // Verus gate, anything else the Monero mainnet gate. The shape is
+      // deliberately never stamped into miners.coin — that column is
+      // what the drawing payout branch reads to decide the coin a win
+      // pays in, and its one writer is the Verus share pipeline
+      // (vrsc_relay.record_accepted_share): a pasted address is not
+      // share truth and must never decide a payout coin. Network-down:
+      // SERVER_ERR, not a fallback — degrade to 'cannot verify now',
+      // never to 'looks fine'.
+      const connectHandler = async function () {
         const addr = (walletInput.value || '').trim();
         if (!addr || addr.length < 20) {
-          toast('Enter a valid XMR wallet address', 'error');
+          toast('Enter a valid wallet address', 'error');
+          return;
+        }
+        var coin = (addr.length === 34 && addr[0] === 'R') ? 'vrsc' : 'xmr';
+        try {
+          var vres = await fetch(API + '/wallet/validate', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ address: addr, coin: coin })
+          });
+          if (vres.status === 429) {
+            toast('Too many attempts — wait a moment and try again', 'error');
+            return;
+          }
+          var vinfo = await vres.json();
+        } catch (e) {
+          toast('Cannot verify the wallet right now — try again', 'error');
+          return;
+        }
+        if (!vres.ok || !vinfo.valid) {
+          var why = (vinfo && vinfo.reason) ? vinfo.reason : 'address rejected';
+          toast(coin === 'vrsc'
+            ? ('Invalid Verus address — ' + why)
+            : ('Invalid XMR address — ' + why), 'error');
           return;
         }
         setWallet(addr);
         toast('Wallet connected!', 'success');
         showRealPlayMain();
         startRealPlayPolling();
-      });
+      };
+      connectBtns.forEach(function (btn) { btn.addEventListener('click', connectHandler); });
     }
 
-    // Copy referral link button
+    // Copy referral code button (PROGRAM B — the internal programme)
+    // The label says COPY MY CODE, so the clipboard gets the code (?ref=
+    // takes either); the full link stays visible in the input beside it.
     var copyBtn = $('#btnCopyReferral');
     if (copyBtn) copyBtn.addEventListener('click', function() {
-      var link = $('#referralLink');
-      if (link && link.value) {
-        link.select();
-        document.execCommand('copy');
-        toast('Referral link copied!', 'success');
+      var codeEl = $('#referralCodeText');
+      var code = codeEl ? (codeEl.textContent || '').trim() : '';
+      if (!code || code === '…') {
+        toast('Sign in to get your referral code', 'error');
+        return;
       }
+      copyText(code, 'Referral code copied!');
     });
 
+    // PROGRAM A — the operator's one Kraken invite link. It is never
+    // rendered as text: the value lives in a hidden input and the copy
+    // button (plus the share buttons below) is the only way it leaves
+    // the page.
+    var krakenCopy = $('#btnCopyKrakenLink');
+    if (krakenCopy) krakenCopy.addEventListener('click', function() {
+      var hidden = $('#krakenInviteLink');
+      var url = hidden ? (hidden.value || '').trim() : '';
+      if (!url) {
+        toast('Invite link still loading — try again in a moment', 'error');
+        return;
+      }
+      copyText(url, 'Kraken invite link copied!');
+    });
+
+    // Share intents are delegated ONCE at the document root (Oct 29):
+    // the listener below sits outside initRealPlay, so returning to the
+    // real-play page cannot stack a second or third copy of it (a
+    // stacked copy opened one share window per past visit on a single
+    // share click).
     // Get subaddress button
     var subaddrBtn = $('#btnGetSubaddress');
     if (subaddrBtn) subaddrBtn.addEventListener('click', async function() {
@@ -1001,6 +1319,35 @@
     } catch(e) {}
   }
 
+  // One clipboard path for both programmes: the async API where it
+  // exists (a click handler is a user gesture, so it is allowed), with a
+  // hidden-textarea fallback for older/insecure contexts.
+  function copyText(value, okMessage) {
+    function fallback() {
+      try {
+        var ta = document.createElement('textarea');
+        ta.value = value;
+        ta.setAttribute('readonly', '');
+        ta.style.position = 'fixed';
+        ta.style.opacity = '0';
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand('copy');
+        document.body.removeChild(ta);
+        toast(okMessage, 'success');
+      } catch (e) {
+        toast('Copy failed — select the value and copy manually', 'error');
+      }
+    }
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(value).then(function () {
+        toast(okMessage, 'success');
+      }).catch(fallback);
+    } else {
+      fallback();
+    }
+  }
+
   async function fetchReferralStats() {
     try {
       var res = await fetch(API + '/referral/stats');
@@ -1014,6 +1361,40 @@
       if (ar) ar.textContent = d.active_referrals || 0;
       var rt = $('#referralTickets');
       if (rt) rt.textContent = d.tickets_earned || 0;
+      var cl = $('#refCycleLine');
+      if (cl && typeof d.cycle_cap === 'number') {
+        cl.textContent = (d.awards_this_cycle || 0) + ' of ' + d.cycle_cap +
+          ' referral rewards used this cycle' +
+          (d.entries_held ? ' · ' + d.entries_held +
+            ' held until a wallet is connected' : '');
+      }
+      // PROGRAM B: the code itself, the XMRJ rate and the accrual.
+      var codeEl = $('#referralCodeText');
+      if (codeEl && d.referral_code) codeEl.textContent = d.referral_code;
+      var rateEl = $('#xmrjPerReferral');
+      if (rateEl) {
+        rateEl.textContent = d.xmrj_per_referral
+          ? (d.xmrj_per_referral + ' XMRJ') : 'not set';
+      }
+      var accruedEl = $('#xmrjAwarded');
+      if (accruedEl) accruedEl.textContent = d.xmrj_awarded || 0;
+      var walletEl = $('#solanaWalletLine');
+      if (walletEl) {
+        if (d.solana_wallet) {
+          var w = String(d.solana_wallet);
+          walletEl.textContent = 'Paid to your connected Solana wallet ' +
+            w.slice(0, 4) + '…' + w.slice(-4) +
+            ' — payable when the XMRJ treasury is deployed.';
+        } else {
+          walletEl.textContent = 'No Solana wallet connected yet — XMRJ awards ' +
+            'accrue on your account until you connect one.';
+        }
+      }
+      // PROGRAM A: the operator's invite link + its derived code.
+      var hiddenLink = $('#krakenInviteLink');
+      if (hiddenLink && d.kraken_invite_link) hiddenLink.value = d.kraken_invite_link;
+      var codeBadge = $('#krakenInviteCode');
+      if (codeBadge && d.kraken_invite_code) codeBadge.textContent = d.kraken_invite_code;
     } catch(e) {}
   }
 
@@ -1063,6 +1444,8 @@
 
       setText('#realJackpotXmr', fmt(d.jackpot_xmr, 6) + ' XMR');
       setText('#realJackpotUsd', '≈ $' + fmt(d.jackpot_usd, 2));
+      paintRateNote(document.querySelector('#realJackpotUsd'),
+                    d.xmr_usd_rate_info, 'realRateNote');
       setText('#realActiveMiners', d.active_miners);
       setText('#realPoolHashrate', fmtHash(d.total_hashrate));
       setText('#realPendingTickets', d.pending_tickets);
@@ -1367,6 +1750,8 @@
     var user = $('#dashRegUser').value.trim();
     var pass = $('#dashRegPass').value;
     var email = $('#dashRegEmail').value.trim();
+    var referrerEl = $('#dashRegReferrerEmail');
+    var referrerEmail = referrerEl ? referrerEl.value.trim() : '';
     var wallet = $('#dashRegWallet').value.trim();
     var phoneEl = $('#dashRegPhone');
     var nameEl = $('#dashRegName');
@@ -1378,7 +1763,7 @@
       var res = await fetch(API + '/auth/register', {
         method: 'POST',
         headers: {'Content-Type':'application/json'},
-        body: JSON.stringify({username: user, password: pass, email: email, wallet_address: wallet, referral_code: refCode, phone: phone, full_name: fullName}),
+        body: JSON.stringify({username: user, password: pass, email: email, wallet_address: wallet, referral_code: refCode, referrer_email: referrerEmail, phone: phone, full_name: fullName}),
       });
       var d = await res.json();
       if (d.status === 'ok') {
@@ -1609,6 +1994,82 @@
       .replace(/"/g, '&quot;');
   }
 
+  // THE PROGRESSION CARD (Oct 24): streak, the 3x milestone conversion,
+  // contributing days toward the 100-day Pro unlock and which path
+  // (progression / donation) granted it. Values come from
+  // /api/gamification's `progression` block, never from client guesses.
+  function renderProgression(prog) {
+    if (!prog) return;
+    var st = prog.streak || {};
+    function txt(id, value) {
+      var el = $(id);
+      if (el) el.textContent = value;
+    }
+
+    var streak = st.streak_days || 0;
+    txt('#progStreak', streak + (streak === 1 ? ' day' : ' days'));
+    var mult = st.multiplier || 1;
+    txt('#progBonus', mult + '×');
+    txt('#progBonusNote', mult > 1
+      ? 'milestone day — shares count ' + mult + '×'
+      : '3× on milestone days');
+    txt('#progNext', 'Day ' + (st.next_milestone_day || 7));
+
+    var days = prog.days_mined || 0;
+    var req = prog.days_required || 100;
+    var pct = Math.min(100, Math.max(0, Number(prog.progress_percent) || 0));
+    txt('#progDays', days.toLocaleString() + ' / ' + req + ' contributing days');
+    txt('#progPct', pct + '%');
+    var bar = $('#progBar');
+    if (bar) bar.style.width = pct + '%';
+    txt('#progRemaining', prog.days_remaining > 0
+      ? prog.days_remaining + ' more contributing day' +
+        (prog.days_remaining === 1 ? '' : 's') + ' to the automatic unlock.'
+      : 'The 100-day threshold is reached.');
+
+    var unlocked = !!prog.pro_unlocked;
+    var source = prog.pro_unlock_source || '';
+    txt('#progPath100', unlocked && source === 'progression'
+      ? '✅ Unlocked on this path'
+      : (unlocked ? '—' : days.toLocaleString() + ' of ' + req + ' days'));
+    // The price is the server's (prog.pro_price), never a literal here:
+    // the dashboard must quote the same XMR the checkout will ask for.
+    var pp = prog.pro_price || {};
+    var priceLabel = '';
+    // Lead with the DOLLAR price (the product is sold at $95); the XMR
+    // figure is the checkout's quote at today's rate. Same pair the
+    // server fills the homepage with.
+    if (pp.usd) {
+      priceLabel = '$' + Number(pp.usd).toFixed(2) +
+        (pp.xmr ? ' (≈' + pp.xmr + ' XMR)' : '');
+    } else if (pp.xmr) {
+      priceLabel = pp.xmr + ' XMR';
+    }
+    txt('#progPath95', unlocked && source === 'donation'
+      ? '✅ Unlocked by donation'
+      : (unlocked ? '—'
+        : (priceLabel ? 'Instant unlock — ' + priceLabel + ' — +1 entry'
+                      : 'Instant unlock — +1 entry')));
+
+    var status = $('#progStatus');
+    if (status) {
+      if (unlocked) {
+        status.textContent = '💎 Kraken Scout Pro is unlocked on your account' +
+          (source === 'donation' ? ' by donation' :
+           source === 'progression' ? ' through the 100-day mining path' : '') +
+          (prog.entry_held
+            ? ' — your +1 jackpot entry is held until you add a payout wallet.'
+            : (prog.unlock_entry_awarded
+              ? ' — the +1 jackpot entry has been credited.' : '.'));
+      } else {
+        status.textContent = 'Not unlocked yet — ' +
+          (prog.days_remaining || 0) +
+          ' contributing days to go, or unlock now for ' +
+          (priceLabel || 'the amount the checkout quotes') + '.';
+      }
+    }
+  }
+
   async function fetchGamification() {
     var loading = $('#gameLoading');
     var main = $('#gameMain');
@@ -1629,12 +2090,15 @@
         if (loading) loading.style.display = 'none';
         if (main) main.style.display = 'none';
         if (noMiner) noMiner.style.display = '';
+        renderProgression(d.progression);
         return;
       }
 
       if (loading) loading.style.display = 'none';
       if (noMiner) noMiner.style.display = 'none';
       if (main) main.style.display = '';
+
+      renderProgression(d.progression);
 
       // Level + emoji
       var emojiEl = $('#gameLevelEmoji');
@@ -1734,11 +2198,13 @@
     }
 
     fetchAdminStats();
+    fetchAdminReferralMeter();
     fetchAdminUsers();
     fetchAdminMiners();
     fetchAdminPayouts();
     fetchAdminAudit();
     fetchAdminSettings();
+    fetchAdminVrsc();
     fetchAdminWalletStatus();
     fetchScoutStatus();
     fetchAdminOrphans();
@@ -1746,9 +2212,17 @@
 
     pollingTimers.push(setInterval(fetchAdminStats, 15000));
     pollingTimers.push(setInterval(fetchAdminOrphans, 60000));
+    pollingTimers.push(setInterval(fetchAdminVrsc, 60000));
 
     var saveSetting = $('#btnSaveSetting');
     if (saveSetting) saveSetting.addEventListener('click', saveAdminSetting);
+
+    var vrscPinBtn = $('#btnVrscPinSet');
+    if (vrscPinBtn) vrscPinBtn.addEventListener('click', vrscPinSet);
+    var vrscUnpinBtn = $('#btnVrscPinClear');
+    if (vrscUnpinBtn) vrscUnpinBtn.addEventListener('click', vrscPinClear);
+    var vrscTerrBtn = $('#btnVrscTerrSave');
+    if (vrscTerrBtn) vrscTerrBtn.addEventListener('click', vrscTerrSave);
 
     var drawBtn = $('#btnAdminDraw');
     if (drawBtn) drawBtn.addEventListener('click', adminTriggerDraw);
@@ -1927,7 +2401,7 @@
           + 'background:rgba(255,0,0,0.08);color:var(--redstone);'
           + 'font-weight:bold;">\u26a0\ufe0f ' + total + ' orphaned row(s) '
           + 'detected - do not sweep blind: run '
-          + '<code>python sweep_db.py --report</code> to plan it '
+          + '<code>python tools/sweep_db.py --report</code> to plan it '
           + '(rc 1 = sweepable, rc 2 = UNPLANNED edge).</div>'
           + '<p style="margin:4px 0;">The weekly scheduler leg reported '
           + 'this (audit action scheduler.orphans_report). Review the '
@@ -1941,19 +2415,121 @@
     } catch(e) {}
   }
 
+  // WHO FUNDED THE POT (Oct 26): the Current Jackpot card's second line.
+  // Two sources only — the daily funding accrual and XMR actually
+  // received — and they add up to the number above them, because the
+  // server scales both through the same earmark (get_jackpot_split).
+  // Read-only copy: nothing here writes the pot.
+  function paintAdminJackpotSplit(split) {
+    var el = $('#adminJackpotSplit');
+    if (!el) return;
+    if (!split || !split.attributed) {
+      el.textContent = 'no funds in play to attribute yet';
+      el.title = 'The pot is empty: nothing has been accrued or received.';
+      return;
+    }
+    var pot = Number(split.jackpot_xmr || 0);
+    var accrual = Number(split.accrual_xmr || 0);
+    var received = Number(split.received_xmr || 0);
+    var pct = pot > 0 ? Math.round(accrual * 100 / pot) : 0;
+    var held = Number(split.unclaimed_xmr || 0);
+    el.innerHTML =
+      '<div>daily accrual <b style="color:var(--gold);">' + fmt(accrual, 6) +
+      '</b> <span style="opacity:.7;">(' + pct + '%)</span></div>' +
+      '<div>received <b style="color:var(--diamond);">' + fmt(received, 6) +
+      '</b> <span style="opacity:.7;">(' + (pot > 0 ? 100 - pct : 0) +
+      '%)</span></div>';
+    el.title = 'XMR, and the two lines add up to the pot above. "Daily ' +
+      'accrual" is what the funding formula added and the pool still ' +
+      'holds; "received" is XMR that actually arrived (Scout Pro ' +
+      'donation shares, wallet seeds, house-tax top-ups). Claims are ' +
+      'paid from both in proportion, so this is what is left, not what ' +
+      'was ever contributed.' +
+      (held > 0 ? ' A drawn prize of ' + fmt(held, 6) + ' XMR is being ' +
+        'held back for its winner and is not in the pot.' : '') +
+      (split.inferred ? ' The split was inferred from the funding ledger ' +
+        'on first read; every credit since is attributed as it lands.' : '');
+  }
+
   async function fetchAdminStats() {
     try {
       var res = await fetch(API + '/admin/stats');
       if (res.status === 401 || res.status === 403) { navigateTo('dashboard'); toast('Admin access required', 'error'); return; }
       var d = await res.json();
-      $('#adminActiveMiners').textContent = d.miners_active || 0;
-      $('#adminTotalMiners').textContent = d.miners_total || 0;
+      // The admin sees the honest split: real vs simulated (Oct 24).
+      var demoN = d.miners_demo || 0;
+      var demoActive = d.miners_demo_active || 0;
+      $('#adminActiveMiners').textContent = (d.miners_active || 0) +
+        (demoActive ? ' (' + demoActive + ' demo)' : '');
+      $('#adminTotalMiners').textContent = (d.miners_total || 0) +
+        (demoN ? ' (' + demoN + ' demo)' : '');
       $('#adminJackpot').textContent = fmt(d.jackpot_current || 0, 6);
+      paintAdminJackpotSplit(d.jackpot_split);
       $('#adminHouseTax').textContent = fmt(d.total_house_tax || 0, 6);
       $('#adminUsers').textContent = d.users_total || 0;
       $('#adminDrawings').textContent = d.drawings_total || 0;
       $('#adminTickets').textContent = d.tickets_total || 0;
       $('#adminPaidOut').textContent = fmt(d.total_paid_out || 0, 6);
+    } catch(e) {}
+  }
+
+  // THE REFERRAL METER (Oct 25): the cap is per referrer per jackpot cycle,
+  // so the panel draws one bar per referrer rather than one global bar — a
+  // single aggregate would hide an account sitting at the cap.
+  async function fetchAdminReferralMeter() {
+    function ea(x) {
+      return String(x == null ? '' : x).replace(/[&<>"']/g, function(c) {
+        return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];
+      });
+    }
+    try {
+      var res = await fetch(API + '/admin/referral-meter');
+      if (!res.ok) return;
+      var d = await res.json();
+      var sum = $('#refMeterSummary');
+      if (!sum) return;
+      var stamp = $('#refMeterStamp');
+      if (stamp) stamp.textContent = d.cycle_anchor
+        ? 'cycle since ' + new Date(d.cycle_anchor * 1000).toLocaleString()
+        : 'no drawing yet this cycle';
+      var held = d.entries_held || 0;
+      sum.innerHTML = '<b>' + (d.awards_this_cycle || 0) + '</b> award' +
+        ((d.awards_this_cycle === 1) ? '' : 's') + ' this cycle · <b>' +
+        (d.referrers_this_cycle || 0) + '</b> referrer' +
+        ((d.referrers_this_cycle === 1) ? '' : 's') + ' · cap <b>' +
+        (d.cap || 0) + '</b> each · <b>' + (d.referrers_at_cap || 0) +
+        '</b> at the cap · <b>' + held + '</b> entr' +
+        (held === 1 ? 'y' : 'ies') + ' held (' + (d.accounts_holding || 0) +
+        ' account' + ((d.accounts_holding === 1) ? '' : 's') +
+        ' without a wallet)';
+      var rows = $('#refMeterReferrers');
+      if (rows) {
+        var list = d.top_referrers || [];
+        rows.innerHTML = list.length ? list.map(function(r) {
+          var pct = d.cap ? Math.min(100, Math.round(r.awards * 100 / d.cap)) : 0;
+          var colour = r.at_cap ? 'var(--redstone)' : 'var(--gold)';
+          return '<div><div style="display:flex;justify-content:space-between;font-size:0.8em;">' +
+            '<span class="ref-meter-name">' + ea(r.username) + '</span>' +
+            '<span style="color:' + colour + ';">' + r.awards + ' / ' + d.cap +
+            (r.at_cap ? ' · cap reached' : '') + '</span></div>' +
+            '<div style="height:8px;background:var(--bg-cobble);border-radius:4px;overflow:hidden;margin-top:3px;">' +
+            '<div class="ref-meter-bar" data-awards="' + r.awards + '" style="height:100%;width:' + pct +
+            '%;background:' + colour + ';"></div></div></div>';
+        }).join('')
+          : '<div style="font-size:0.8em;color:var(--text-mute);">No referral awards in this cycle.</div>';
+      }
+      var recent = $('#refMeterRecent');
+      if (recent) {
+        var rs = d.recent || [];
+        recent.innerHTML = rs.length ? 'Latest: ' + rs.slice(0, 5).map(function(a) {
+          var when = a.created_at
+            ? new Date(a.created_at * 1000).toLocaleTimeString() : '—';
+          return ea(a.referrer || '?') + ' → ' + ea(a.referred || '?') +
+            ' (' + ea(a.method) + ', ' + a.tickets + ' each)' +
+            (a.referrer_granted ? '' : ' · referrer held') +
+            (a.referred_granted ? '' : ' · friend held') + ' · ' + when;
+        }).join('<br>') : '';
+      }
     } catch(e) {}
   }
 
@@ -1978,7 +2554,10 @@
       var tb = $('#adminMinersTable');
       if (!tb || !d.length) return;
       tb.innerHTML = d.map(function(m) {
-        return '<tr><td>' + m.id + '</td><td>' + shortAddr(m.wallet_address) + '</td><td>' + (m.shares_valid||0).toLocaleString() + '</td><td>' + fmtHash(m.hashrate) + '</td><td><span title="' + (m.last_seen ? isoOf(m.last_seen) : '') + '">' + timeAgo(m.last_seen) + '</span></td></tr>';
+        var demo = m.is_demo
+          ? ' <span style="font-size:0.75em;color:var(--text-mute);border:1px solid var(--hairline);border-radius:4px;padding:1px 4px;">demo</span>'
+          : '';
+        return '<tr><td>' + m.id + '</td><td>' + shortAddr(m.wallet_address) + demo + '</td><td>' + (m.shares_valid||0).toLocaleString() + '</td><td>' + fmtHash(m.hashrate) + '</td><td><span title="' + (m.last_seen ? isoOf(m.last_seen) : '') + '">' + timeAgo(m.last_seen) + '</span></td></tr>';
       }).join('');
     } catch(e) {}
   }
@@ -1992,7 +2571,21 @@
       if (!tb || !d.length) return;
       tb.innerHTML = d.map(function(p) {
         var action = p.status === 'pending' ? '<button class="btn btn-emerald btn-sm" data-action="mark-paid" data-id="'+p.id+'">Mark Sent</button>' : p.status;
-        return '<tr><td>' + p.id + '</td><td>' + shortAddr(p.wallet_address||'') + '</td><td>' + fmt(p.amount_xmr,6) + ' XMR</td><td>' + p.payout_type + '</td><td>' + p.status + '</td><td>' + action + '</td></tr>';
+        // THE COIN FIELD (Oct 28): a VRSC payout names its coin and
+        // quantity; the XMR equivalent stays secondary. XMR rows keep
+        // the exact markup that was always here.
+        var coin = (p.coin || 'xmr').toLowerCase();
+        var amountCell = coin === 'xmr'
+          ? fmt(p.amount_xmr,6) + ' XMR'
+          : (p.amount_coin != null
+              ? fmt(p.amount_coin,6) + ' ' + coin.toUpperCase()
+                + ' <span style="font-size:0.78em;color:var(--text-mute);">(equiv ' + fmt(p.amount_xmr,6) + ' XMR)</span>'
+              : fmt(p.amount_xmr,6) + ' XMR-equiv \u00b7 ' + coin.toUpperCase());
+        var statusCell = (coin === 'vrsc' && p.status === 'pending'
+          && p.tx_hash === 'pending_manual_treasury')
+          ? 'pending <span style="font-size:0.78em;color:var(--gold);">\u00b7 treasury send</span>'
+          : p.status;
+        return '<tr><td>' + p.id + '</td><td>' + shortAddr(p.wallet_address||'') + '</td><td>' + amountCell + '</td><td>' + p.payout_type + '</td><td>' + statusCell + '</td><td>' + action + '</td></tr>';
       }).join('');
     } catch(e) {}
   }
@@ -2009,6 +2602,130 @@
         return '<div style="padding:6px 0;border-bottom:1px solid var(--border);"><span style="color:var(--gold);">' + (a.username||'system') + '</span> — <span style="color:var(--text-dim);">' + a.action + '</span> <span style="color:var(--text-mute);font-size:0.85em;" title="' + (a.created_at ? isoOf(a.created_at) : '') + '">' + (a.created_at ? timeAgo(a.created_at) : '') + '</span></div>';
       }).join('');
     } catch(e) {}
+  }
+
+
+  // ─── Admin Verus card (Oct 28) ─────────────────────────────
+  // Pin, territories and the reader's episode log, painted with the
+  // SAME discipline the public rate notes follow: a number always
+  // names its tier — a bare figure would be a fallback pretending to
+  // be live. CSP forbids inline handlers, so the card's buttons are
+  // bound once in initAdmin like every other admin control.
+  function _vesc(s) {
+    return String(s == null ? '' : s).replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+  var VRSC_SRC_LABELS = {
+    override: 'operator pin',
+    coingecko: 'CoinGecko (live fetch)',
+    default: 'fallback constant'
+  };
+
+  function _paintVrscState(d) {
+    var info = d.rate || {};
+    var rateEl = $('#vrscRateValue');
+    var srcEl = $('#vrscRateSource');
+    if (rateEl) rateEl.textContent = Number(info.rate || 0).toFixed(4) + ' USD/VRSC';
+    if (srcEl) {
+      var label = VRSC_SRC_LABELS[info.source] || (info.source || 'unknown');
+      var asOf = info.as_of ? new Date(info.as_of * 1000).toLocaleString() : '—';
+      srcEl.innerHTML = _vesc(label) +
+        ' · <span style="color:' +
+        (info.stale ? 'var(--redstone,#c0392b)' : 'var(--emerald,#2ea86f)') + '">' +
+        (info.stale ? 'STALE' : 'fresh') + '</span> · as of ' + _vesc(asOf);
+      srcEl.title = info.stale
+        ? 'The number is older than the TTL (or is the fallback) — the reader says so rather than pretending.'
+        : '';
+    }
+    var liveEl = $('#vrscLiveNote');
+    if (liveEl) {
+      liveEl.textContent = d.live_enabled
+        ? 'live fetching: ON'
+        : 'live fetching: OFF (kill switch)';
+      liveEl.style.color = d.live_enabled ? '' : 'var(--redstone,#c0392b)';
+    }
+    var pinEl = $('#vrscPinNote');
+    if (pinEl) {
+      pinEl.textContent = d.pin
+        ? 'pinned at ' + d.pin + ' — the pin outranks any stamped rate'
+        : 'no pin — the stamped live tier answers';
+    }
+    var pinInput = $('#vrscPinInput');
+    if (pinInput) pinInput.value = d.pin || '';
+    var terr = d.territories || {};
+    var terrInput = $('#vrscTerrInput');
+    if (terrInput) terrInput.value = (terr.codes || []).join(',');
+    var terrSrc = $('#vrscTerrSource');
+    if (terrSrc) {
+      var tsrc = { db: 'set in the db (this editor wins)',
+                   env: 'from XMRJ_VRSC_TERRITORIES (env)',
+                   'default': 'built-in default (US,CA)' }[terr.source] || terr.source;
+      terrSrc.textContent = (terr.codes || []).length + ' in force · ' + tsrc;
+    }
+    var st = d.state || {};
+    var stEl = $('#vrscStateNote');
+    if (stEl) {
+      stEl.textContent =
+        'served=' + (st.served || '—') +
+        ' · fails=' + (st.fails || '—') +
+        ' · candidate=' + (st.candidate || '—');
+    }
+    var epi = $('#vrscEpiList');
+    if (epi) {
+      var rows = d.episodes || [];
+      epi.innerHTML = rows.length ? rows.map(function (a) {
+        var when = a.created_at
+          ? new Date(a.created_at * 1000).toLocaleString() : '—';
+        return '<div style="padding:4px 0;border-bottom:1px solid var(--border);">' +
+          '<span style="color:var(--gold);">' + _vesc(a.action || '') + '</span>' +
+          ' <span style="color:var(--text-mute);font-size:0.85em;" title="' +
+          _vesc(when) + '">' + (a.created_at ? timeAgo(a.created_at) : '') + '</span>' +
+          '<div style="color:var(--text-dim);margin-top:2px;word-break:break-all;">' +
+          _vesc(a.details || '') + '</div></div>';
+      }).join('')
+        : '<p style=\'color:var(--text-mute);margin:4px 0;\'>No vrsc_rate episodes logged — the tier has been holding steady.</p>';
+    }
+    var stamp = $('#vrscStamp');
+    if (stamp) stamp.textContent = 'refreshed ' + new Date().toLocaleTimeString();
+  }
+
+  async function fetchAdminVrsc() {
+    try {
+      var res = await fetch(API + '/admin/vrsc');
+      if (!res.ok) return;
+      _paintVrscState(await res.json());
+    } catch (e) {}
+  }
+
+  async function _postVrsc(path, body, okMsg) {
+    try {
+      var res = await fetch(API + path, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      var d = await res.json();
+      if (res.ok && d.status === 'ok') {
+        toast(okMsg, 'success');
+        fetchAdminVrsc();
+        fetchAdminAudit();
+      } else {
+        toast(d.detail || 'Failed', 'error');
+      }
+    } catch (e) { toast('Error: ' + okMsg, 'error'); }
+  }
+
+  function vrscPinSet() {
+    var v = ($('#vrscPinInput').value || '').trim();
+    _postVrsc('/admin/vrsc/rate-pin', { value: v }, 'VRSC rate pin saved');
+  }
+  function vrscPinClear() {
+    _postVrsc('/admin/vrsc/rate-pin', { value: '' }, 'VRSC rate pin cleared');
+  }
+  function vrscTerrSave() {
+    var v = ($('#vrscTerrInput').value || '').trim();
+    _postVrsc('/admin/vrsc/territories', { territories: v }, 'VRSC territories saved');
   }
 
   async function fetchAdminSettings() {
@@ -2108,6 +2825,8 @@
         var verifyLink = r.status === 'drawn'
           ? ' <a href=\"/api/verify/' + r.id + '\" target=\"_blank\" style=\"color:var(--diamond-bright);text-decoration:none;\" title=\"Provably Fair: Verify\">🔍</a>'
           : '';
+        // Seeded history is display data: say so on the row.
+        if (r.winner_is_demo) winner += ' <span style="font-size:0.8em;color:var(--text-mute);">(demo)</span>';
         return '<tr>' +
           '<td>#' + r.id + verifyLink + '</td>' +
           '<td>' + fmt(r.jackpot_amount, 6) + ' XMR</td>' +
@@ -2135,14 +2854,31 @@
       }
 
       tb.innerHTML = d.slice(0, 10).map(function (m, i) {
+        // A simulated row says so on the row itself (Oct 24).
+        var demoTag = m.is_demo
+          ? ' <span style="font-size:0.72em;color:var(--text-mute);border:1px solid var(--hairline);border-radius:4px;padding:1px 4px;">demo</span>'
+          : '';
         return '<tr>' +
           '<td>' + (i + 1) + '</td>' +
-          '<td>' + shortAddr(m.wallet_address) + '</td>' +
+          '<td>' + shortAddr(m.wallet_address) + demoTag + '</td>' +
           '<td>' + (m.shares_valid || 0).toLocaleString() + '</td>' +
           '<td>' + fmtHash(m.hashrate) + '</td>' +
           '<td><span title="' + (m.last_seen ? isoOf(m.last_seen) : '') + '">' + timeAgo(m.last_seen) + '</span></td>' +
           '</tr>';
       }).join('');
+
+      var demoRows = d.filter(function (m) { return m.is_demo; }).length;
+      var note = $('#lbDemoNote');
+      if (note) {
+        if (demoRows > 0) {
+          note.textContent = '⚠️ ' + demoRows + ' of these ' + d.length +
+            ' rows are simulated demo accounts, not real miners. Their ' +
+            'shares and hashrate are generated for display.';
+          note.style.display = '';
+        } else {
+          note.style.display = 'none';
+        }
+      }
     } catch (e) {
       console.error('Leaderboard miners error:', e);
     }
@@ -2176,6 +2912,19 @@
   }
 
   function init() {
+    // Bind locale selection before ordinary page navigation handlers.
+    $$('.nav-language a').forEach(function (link) {
+      link.addEventListener('click', function (event) {
+        event.preventDefault();
+        var target = new URL(link.href, window.location.href);
+        if (window.location.hash) {
+          var nextPath = target.searchParams.get('next') || '/';
+          target.searchParams.set('next', nextPath + window.location.hash);
+        }
+        window.location.assign(target.href);
+      });
+    });
+
     // Fetch site-wide announcement
     fetchAnnouncement();
 
@@ -2245,4 +2994,48 @@
     init();
   }
 
+})();
+
+// ── THE DEPLOY BADGE (footer) ─────────────────────────────────────────
+// Names the commit the RUNNING PROCESS started from, read from /version
+// (pool/server.py). Fetched with cache:'no-store' AND a timestamp query so
+// neither the browser nor Cloudflare can answer with a stamp from an older
+// deploy — a cached version badge is worse than none, because it would
+// claim the server is something it is not. Any failure (route absent on an
+// older process, offline, non-JSON) hides the line: the badge must never
+// be the reason the footer breaks.
+(function deployBadge() {
+  var host = document.getElementById('deploy-version');
+  if (!host) return;
+  var commitEl = document.getElementById('deploy-commit');
+  var startedEl = document.getElementById('deploy-started');
+
+  function render(doc) {
+    if (!doc || !doc.commit) {
+      host.style.display = 'none';
+      return;
+    }
+    host.style.display = '';
+    if (commitEl) commitEl.textContent = doc.commit_short || String(doc.commit).slice(0, 12);
+    if (startedEl) startedEl.textContent = doc.started_at_iso || 'unknown';
+    host.title = 'branch ' + (doc.branch || '?') +
+      (doc.dirty ? ' · worktree dirty' : '') +
+      ' · pid ' + (doc.pid || '?') +
+      ' · up ' + Math.round(doc.uptime_seconds || 0) + 's';
+  }
+
+  function load() {
+    fetch('/version?ts=' + Date.now(), {
+      cache: 'no-store',
+      headers: { 'Accept': 'application/json' }
+    })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(render)
+      .catch(function () { host.style.display = 'none'; });
+  }
+
+  load();
+  // re-read on a slow cadence: after a restart, an open tab corrects
+  // itself within a minute instead of waiting for a reload
+  setInterval(load, 60000);
 })();

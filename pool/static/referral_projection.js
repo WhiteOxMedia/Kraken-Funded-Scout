@@ -27,6 +27,18 @@
       .replace(/>/g, "&gt;").replace(/"/g, "&quot;");
   }
 
+  /* THE CONVERSION NOTE (Oct 26): these dollars were converted from XMR
+     at the rate the API reports. The sentence is built server-side, so
+     this card says exactly what the hero plate says — and when the rate
+     is stale or the fallback, it says so in the warning colour instead
+     of quoting a number of unknown vintage as if it were current. */
+  function rateNote(info) {
+    if (!info || !info.label) return "";
+    return "<div style='margin-top:4px;font-size:0.8em;color:" +
+      (info.stale ? "var(--red,#e05555)" : "var(--text-mute,#9a9a9a)") +
+      ";' class='rate-note'>" + esc(info.label) + "</div>";
+  }
+
   function modal(html) {
     var ov = document.createElement("div");
     ov.id = "refProjModal";
@@ -68,6 +80,11 @@
       "(configurable); shown data was persisted <b>" + when + "</b> from " +
       "<b>" + Number(d.count_of_users_included || 0) + "</b> user " +
       "statuses. Currency is USD, rounded to cents.</p>" +
+      (d.xmr_usd_rate_info && d.xmr_usd_rate_info.label
+        ? "<p><b>Conversion:</b> " + esc(d.xmr_usd_rate_info.label) +
+          ". The current jackpot is converted at that rate; the referral " +
+          "seed is the worker's stored USD estimate.</p>"
+        : "") +
       "<p style='color:var(--text-mute,#9a9a9a);'>This is not a payable " +
       "balance. Kraken referral terms apply; nothing here automates any " +
       "exchange action.</p>" +
@@ -123,7 +140,7 @@
       " + projected referral seed " + fmtUsd(d.referral_seed_usd) +
       " <span style='color:var(--text-mute,#9a9a9a);'>(" +
       Number(d.count_of_users_included || 0) + " referral statuses)" +
-      "</span></div>") + notConf +
+      "</span></div>") + rateNote(d.xmr_usd_rate_info) + notConf +
       "<div style='margin-top:6px;'>" +
       "<a href='#' id='refProjMethod' style='color:var(--gold,#c2a24a);'>" +
       "Methodology &amp; assumptions</a></div>";

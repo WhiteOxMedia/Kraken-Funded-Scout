@@ -1,4 +1,15 @@
-# build_bundle.ps1 - THE BUNDLE BUILDER (Sep 25).
+# build_bundle.ps1 - THE BUNDLE BUILDER (Sep 25; whitelist since Oct 25).
+#
+# THE RELEASE CONTRACT: the staged tree is pruned to
+# installer\release_manifest.json before it is zipped. The manifest is
+# DEFAULT-DENY — a file ships only when it is named there — so the archive
+# below is an input, never the artifact. Tests, audit and phase documents,
+# CI files, the pool server/engine, the proxy poller and the developer
+# xmrig config cannot reach a customer even if a future commit adds them.
+# installer\finalize_bundle.py enforces it (and fails the build on any
+# content violation: credentials, operator wallets, localhost endpoints,
+# preprod versions). Regenerate the file list with
+# installer\generate_release_manifest.py when Scout's imports change.
 #
 # Builds dist\KrakenScoutBundle from the COMMITTED trees of both repos:
 #   scout\   <- git -C kraken_scout archive HEAD (509 files; no worktree
@@ -103,28 +114,23 @@ Remove-Item -Recurse -Force -Path (Join-Path $Stage "xmrig") -ErrorAction Silent
 Move-Item $Stage (Join-Path $Bundle "payload\monero_project")
 Remove-Item -Force $TarF -ErrorAction SilentlyContinue
 
-# the pool layer's DB module is UNTRACKED in monero_project (the pool
-# thread has not committed it yet), so the archive cannot carry it -
-# but scout_jackpot_view imports it, and without it the jackpot plate's
-# transport is dead in installed copies. Copy exactly the allowlisted
-# file from the working tree, loudly - the archive-only rule stands
-# for everything else.
-$DbSrc = Join-Path $Root "pool\database.py"
-$DbDst = Join-Path $Bundle "payload\monero_project\pool\database.py"
-if (-not (Test-Path $DbDst)) {
-    if (Test-Path $DbSrc) {
-        Copy-Item $DbSrc $DbDst -Force
-        Write-Warning "pool/database.py staged from the WORKING TREE (untracked in monero_project) - re-run the builder after the pool thread commits it"
-    } else {
-        Write-Warning "pool/database.py MISSING - installed copies will show the jackpot plate's quiet fallback line"
-    }
-}
+# THE POOL DOES NOT SHIP. The old build copied pool/database.py into the
+# payload so Scout's local jackpot plate could read an operator database;
+# neither the plate nor the pool belongs in a customer artifact, and the
+# release manifest excludes the whole pool tree. Scout shows its own
+# "jackpot view is not wired" line when the sibling is absent, which is
+# the correct customer-facing behaviour (the pool is operator-only).
 
 # ── 2. the xmrig payload (untracked -> copy from the working tree) ────
 Write-Host "[3/6] xmrig payload ..."
 $xsrc = Join-Path $Root "xmrig\xmrig-6.26.0"
 if (Test-Path (Join-Path $xsrc "xmrig.exe")) {
     Copy-Item -Recurse -Force $xsrc (Join-Path $Bundle "payload\xmrig-6.26.0")
+    # THE DEVELOPER CONFIG NEVER SHIPS: this working-tree copy mines to
+    # 127.0.0.1:3333 under the operator's rig id. The release manifest
+    # would prune it anyway; removing it here keeps the staged tree honest
+    # before the guard runs (and the miner bot writes a customer config).
+    Remove-Item -Force (Join-Path $Bundle "payload\xmrig-6.26.0\config.json") -ErrorAction SilentlyContinue
 } else {
     Write-Warning "local xmrig payload absent - install.ps1 will fetch the pinned release"
 }
@@ -142,6 +148,15 @@ foreach ($b in @("Install Kraken Scout.bat", "Uninstall Kraken Scout.bat")) {
     Copy-Item (Join-Path $PSScriptRoot $b) (Join-Path $Bundle $b) -Force
 }
 Copy-Item (Join-Path $PSScriptRoot "install.ps1") (Join-Path $Bundle "install.ps1") -Force
+# THE PAYLOAD'S COPY OF THE SAME FILE. The monero payload is `git archive
+# HEAD`, which can lag the working tree; the root installer above comes from
+# the working tree. Leaving the two out of step shipped an artifact whose
+# root installer had one xmrig pin and whose payload copy had another (the
+# broken one), so sync it here instead of hoping HEAD catches up.
+$PayloadInstaller = Join-Path $Bundle "payload\monero_project\installer\install.ps1"
+if (Test-Path $PayloadInstaller) {
+    Copy-Item (Join-Path $PSScriptRoot "install.ps1") $PayloadInstaller -Force
+}
 # ── 5. the README ─────────────────────────────────────────────────────
 Write-Host "[5/6] the README ..."
 $Enc = New-Object System.Text.UTF8Encoding($false)
@@ -196,4 +211,9 @@ $MoneroFiles = (Get-ChildItem -Recurse -File (Join-Path $Bundle "payload\monero_
 $SizeMB = [math]::Round(((Get-ChildItem -Recurse -File $Bundle | Measure-Object Length -Sum).Sum / 1MB), 1)
 Write-Host ("BUNDLE READY: " + $Bundle)
 Write-Host ("  scout files: " + $ScoutFiles + " | monero files: " + $MoneroFiles + " | total " + $SizeMB + " MB")
+# THE EDGE CAN STILL SERVE THE OLD ZIP: Cloudflare caches it with
+# max-age=14400, so a finished build is not a shipped build. This is a
+# REMINDER, not a call - the builder must never need a Cloudflare token
+# (test_bundle.py runs it), so the purge stays an explicit next step.
+Write-Host "  NEXT: python cdn_purge.py   (the edge keeps the old zip for 4h otherwise)"
 if ($Open) { Invoke-Item $Bundle }

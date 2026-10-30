@@ -46,6 +46,11 @@ SUBS_KEY = "push_subscriptions"
 SPOOL_PATH = Path(__file__).resolve().parent / "push_events.jsonl"
 RATE_KEY = "push_send_rate"
 MAX_PER_HOUR = 20          # per user, per event class
+# THE PAID EVENTS (Oct 24): the two signals are the product Scout Pro
+# sells, so they are gated on the entitlement at the SENDER — not just
+# in the browser, where localStorage decides nothing that matters.
+SIGNAL_EVENTS = ("signal_buy", "signal_exit")
+
 EVENTS = {
     "jackpot_win": {
         "title": "🎉 YOU WON THE JACKPOT",
@@ -132,7 +137,7 @@ EVENTS = {
         "title": "🧹 Orphaned rows detected",
         "body": ("The weekly FK sweep detector found orphaned "
                  "rows in the pool database - do not sweep blind: "
-                 "plan with sweep_db.py --report first."),
+                 "plan with tools/sweep_db.py --report first."),
         "tag": "orphans-alert",
         "url": "/#admin",
         "rate": 2,
@@ -601,6 +606,15 @@ def send_to_user(user_id: int, event: str, extra: dict = None) -> dict:
     # the audit order matches the gate order: block -> rate-limit ->
     # send -> allow.
     cat = CATEGORY.get(event)
+    # THE ENTITLEMENT GATE (Oct 24), before the opt-out gate: a signal is
+    # the paid product, so a locked account never receives one however
+    # its toggles read. Logged like every other suppression — a refused
+    # signal is a decision, not silence.
+    if event in SIGNAL_EVENTS and not db.has_scout_pro(user_id):
+        _audit(user_id, "push_send_blocked",
+               {"event": event, "category": cat,
+                "reason": "scout_pro_required", "via": "push_service"})
+        return {"sent": 0, "reason": "scout pro required"}
     if cat and not get_prefs(user_id).get(cat, True):
         _audit(user_id, "push_send_blocked",
                {"event": event, "category": cat,
@@ -695,6 +709,28 @@ def send_to_subscribers(event: str, extra: dict = None) -> dict:
     subs = [r for r in _load_subs() if r["user_id"] > 0]
     if not subs:
         return {"sent": 0, "reason": "no subscription"}
+    blocked_users = []
+    if event in SIGNAL_EVENTS:
+        # THE BROADCAST GATE (Oct 24): a signal reaches Pro subscribers
+        # only. Everyone else is counted and named in the audit row —
+        # the operator can see the paid audience, and a locked account
+        # never learns the signal fired.
+        eligible = []
+        for _r in subs:
+            _uid = int(_r["user_id"])
+            if db.has_scout_pro(_uid):
+                eligible.append(_r)
+            elif _uid not in blocked_users:
+                blocked_users.append(_uid)
+        subs = eligible
+        if not subs:
+            _audit(None, "push_broadcast",
+                   {"event": event, "delivered": 0, "recipients": 0,
+                    "scout_pro_blocked": len(blocked_users),
+                    "reason": "scout_pro_required",
+                    "via": "push_service"})
+            return {"sent": 0, "reason": "scout pro required",
+                    "eligible": 0, "blocked": len(blocked_users)}
     if not _rate_ok(0, event):
         # the broadcast limiter's refusal is a logged decision too —
         # an unaudited silent no-send would hide real suppression
@@ -713,8 +749,10 @@ def send_to_subscribers(event: str, extra: dict = None) -> dict:
         total += int(res.get("sent", 0))
     _audit(None, "push_broadcast", {"event": event, "delivered": total,
                                     "recipients": len(_unique_users),
+                                    "scout_pro_blocked": len(blocked_users),
                                     "via": "push_service"})
-    return {"sent": total}
+    return {"sent": total, "eligible": len(_unique_users),
+            "blocked": len(blocked_users)}
 
 
 def send_admin_push(event: str, extra: dict = None) -> dict:

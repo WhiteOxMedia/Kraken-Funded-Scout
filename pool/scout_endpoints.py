@@ -2,7 +2,7 @@
 pool/scout_endpoints.py — XMR Jackpot Pool: scout identity + jackpot-cycle surfaces
 
 Backing schema: schemas/pool_scout.sql
-On-chain mirror: xmrj_jackpot/src/scout_identity.rs (drafted; not compiled here)
+On-chain mirror: none — the xmrj_* programs are undeployed and uncalled here
 
 Endpoints:
   POST   /api/scout/activate
@@ -18,6 +18,10 @@ import time
 
 from . import database as db
 from . import monero_wallet as xmr
+try:                                   # the module runs flat (server.py) too
+    import operator_config as oc
+except ImportError:                    # pragma: no cover - package mode
+    from . import operator_config as oc
 from .security import require_auth
 from fastapi import HTTPException, Request
 from fastapi.responses import JSONResponse
@@ -104,40 +108,115 @@ def _pool_stats():
 
 
 
-SCOUT_PRO_PRICE_KEY = "scout_pro_price_xmr"
-SCOUT_PRO_DAYS_KEY = "scout_pro_days"
-SCOUT_PRO_TTL_KEY = "scout_pro_checkout_minutes"
-SCOUT_PRO_DEFAULT_PRICE = 0.01
-SCOUT_PRO_DEFAULT_DAYS = 30
-SCOUT_PRO_DEFAULT_TTL_MIN = 30
+SCOUT_PRO_PRICE_KEY = oc.SCOUT_PRO_PRICE_SETTING      # the ONE chain reader: oc
+SCOUT_PRO_DAYS_KEY = oc.SCOUT_PRO_DAYS_SETTING
+SCOUT_PRO_TTL_KEY = oc.SCOUT_PRO_CHECKOUT_MINUTES_SETTING
+SCOUT_PRO_DEFAULT_PRICE = oc.SCOUT_PRO_DEFAULT_PRICE_USD
+SCOUT_PRO_DEFAULT_DAYS = oc.SCOUT_PRO_DEFAULT_DAYS
+SCOUT_PRO_DEFAULT_TTL_MIN = oc.SCOUT_PRO_DEFAULT_CHECKOUT_MIN
 SCOUT_PRO_MIN_CONFIRMATIONS = 1
 
 
-def _setting_float(key, default):
-    try:
-        return float(db.get_setting(key, str(default)) or default)
-    except (TypeError, ValueError):
-        return float(default)
+# The setting READERS (days, checkout TTL, price) live in
+# pool/operator_config — the ONE reader per Pro chain (Oct 30).
 
 
-def _setting_int(key, default):
-    try:
-        return int(float(db.get_setting(key, str(default)) or default))
-    except (TypeError, ValueError):
-        return int(default)
+def scout_pro_price():
+    """Scout Pro's price as (usd, xmr) — the ONE chain reader is
+    operator_config.pro_price(); this wrapper only keeps this module's
+    historical name for its callers (checkout, order open). The product
+    is sold at a DOLLAR price; the XMR amount is derived at the tracked
+    rate each time a quote is rendered or an order is opened, so the
+    homepage, the dashboard, the download page and the checkout cannot
+    quote a different sum than the one the wallet is asked for.
+    """
+    return oc.pro_price()
 
 
 def _scout_pro_payload(user_id):
-    until = db.get_user_scout_pro(user_id)
-    return {"active": until > time.time(), "until": int(until) if until else 0}
+    """Entitlement plus which path unlocked it.
+
+    Two paths (Oct 24): the 100-day progression sets the lifetime flag,
+    while a donation/checkout grant is time-boxed in scout_pro_until.
+    """
+    row = db.get_user(user_id) or {}
+    until = float(row.get("scout_pro_until") or 0)
+    lifetime = bool(int(row.get("scout_pro_lifetime") or 0))
+    held = int(row.get("pending_entries") or 0)
+    return {
+        "active": lifetime or until > time.time(),
+        "until": int(until) if until else 0,
+        "lifetime": lifetime,
+        "source": row.get("scout_pro_unlock_source") or "",
+        #
+        # "awarded" means a real ticket exists; a held entry is granted
+        # but still waiting for a payout wallet to be minted onto.
+        "entry_awarded": bool(int(row.get("scout_pro_entry_awarded") or 0))
+        and not held,
+        "entry_held": bool(held),
+        "pending_entries": held,
+    }
 
 
 def _grant_scout_pro(user_id):
-    days = max(1, _setting_int(SCOUT_PRO_DAYS_KEY, SCOUT_PRO_DEFAULT_DAYS))
-    base = max(db.get_user_scout_pro(user_id), time.time())
-    until = base + days * 86400
-    db.set_user_scout_pro(user_id, until)
-    return until
+    days = oc.pro_days()
+    # unlock_scout_pro also awards the one +1 jackpot entry per account;
+    # with no payout wallet it HOLDS the entry on the account instead of
+    # dropping it (claim_pending_entries mints it once a wallet lands).
+    grant = db.unlock_scout_pro(user_id, "donation", grant_days=days)
+    return grant.get("until", 0)
+
+
+def _funding_module():
+    """jackpot_funding under either entry layout (package or direct)."""
+    try:
+        from . import jackpot_funding as funding
+    except ImportError:  # direct ``python server.py`` layout
+        import jackpot_funding as funding  # type: ignore[no-redef]
+    return funding
+
+
+def _credit_order_donation(order):
+    """Route a PAID donation into the jackpot (Oct 24).
+
+    The memo promises the $95 donation goes into the daily jackpot and
+    the checkout used it to stop at the entitlement: the buyer's XMR
+    landed in the wallet and the pot never moved. credit_donation()
+    raises the real base immediately and is idempotent per order id, so
+    a replayed status poll can never fund the same checkout twice.
+
+    A funding failure must not undo an entitlement the buyer already
+    paid for, but it must not be silent either — it lands in the audit
+    log where the admin ledger can see it and can be re-run.
+    """
+    try:
+        return _funding_module().credit_donation(
+            order["id"], order.get("amount_xmr"),
+            sponsor_id=order.get("user_id"), source="scout_pro_checkout",
+        )
+    except Exception as e:
+        print(f"[Funding] scout donation order #{order.get('id')} "
+              f"not credited: {e}")
+        try:
+            db.add_audit_log(order.get("user_id"),
+                             "scout_donation_credit_failed",
+                             f"order #{order.get('id')}: {e}")
+        except Exception:
+            pass
+        return {"credited": False, "reason": str(e)}
+
+
+def _claim_held(user_id):
+    """Mint any held unlock entry this account can now own.
+
+    Called from the authenticated surfaces a returning member loads, so
+    the entry moves the moment a wallet is attached, with no scheduler.
+    """
+    try:
+        return db.claim_pending_entries(user_id)
+    except Exception as e:
+        print(f"[Progression] held-entry claim failed for {user_id}: {e}")
+        return {"claimed": 0, "held": 0}
 
 
 def _checkout_subaddress(user, request):
@@ -171,11 +250,17 @@ def _pay_uri(address, amount):
 
 
 def _order_payload(order):
+    amount_xmr = float(order["amount_xmr"])
+    try:
+        amount_usd = round(amount_xmr * _funding_module().xmr_usd_rate(), 2)
+    except Exception:
+        amount_usd = None
     return {
         "order_id": int(order["id"]),
         "status": order["status"],
         "address": order["address"],
-        "amount_xmr": float(order["amount_xmr"]),
+        "amount_xmr": amount_xmr,
+        "amount_usd": amount_usd,
         "expires_at": int(order["expires_at"]),
         "txid": order.get("txid"),
         "confirmations": int(order.get("confirmations") or 0),
@@ -223,6 +308,9 @@ def _fulfil_order(order, txid, confirmations):
         return db.get_scout_purchase(order["id"])
     if changed:
         _grant_scout_pro(order["user_id"])
+        # THE DONATION IS JACKPOT MONEY (Oct 24): the pot moves on the
+        # same transition that grants Pro, never on a poll replay.
+        _credit_order_donation(order)
     return db.get_scout_purchase(order["id"])
 
 def register_scout_endpoints(app):
@@ -286,7 +374,7 @@ def register_scout_endpoints(app):
                 raise HTTPException(404, "bound pool user not found")
             if not target_user.get("wallet_address"):
                 raise HTTPException(
-                    403, "bound account has no wallet — XMRJ unlock failed"
+                    403, "bound account has no wallet — a Scout needs a payout wallet"
                 )
 
         if identity_owns_active_cycle(int(target_user_id)):
@@ -340,11 +428,15 @@ def register_scout_endpoints(app):
         cycle-level fields here.
         """
         user = require_auth(request)
+        _claim_held(user["id"])
         stats = _pool_stats()()
         sp = await _social_proof()()
 
         wallet = user.get("wallet_address") or ""
-        miner = db.get_or_create_miner(wallet) if wallet else None
+        # READ-ONLY lookup (Oct 29, the honest auto-register): a status
+        # poll never mints a miner row — activation and signed ingest
+        # are the only creators.
+        miner = db.get_miner_by_wallet(wallet) if wallet else None
         pending_tickets = int(db.get_miner_ticket_count(miner["id"])) if miner else 0
 
         with db.get_db() as conn:
@@ -367,6 +459,10 @@ def register_scout_endpoints(app):
         return {
             "jackpot_xmr": stats.get("jackpot_xmr", 0.0),
             "jackpot_usd": stats.get("jackpot_usd", 0.0),
+            # the conversion behind jackpot_usd (Oct 26): the dashboard
+            # sentence says what rate it was converted at, and whether
+            # that rate is old or the fallback
+            "xmr_usd_rate_info": stats.get("xmr_usd_rate_info", {}),
             "next_drawing_epoch": int(sp.get("next_drawing_ts", 0) or 0),
             "next_drawing_seconds_remaining": int(
                 max(0, (sp.get("next_drawing_ts") or 0) - (sp.get("now") or 0))
@@ -386,6 +482,20 @@ def register_scout_endpoints(app):
                 else None
             ),
         }
+
+    @app.get("/api/scout/pro")
+    async def api_scout_pro(request: Request):
+        """THE BROWSER'S ENTITLEMENT READ (Oct 24).
+
+        push_client.js gates every alert on a localStorage flag, and a
+        flag nobody sets is a paywall that never opens. This is the
+        cheap, authenticated source scout_pro_bridge.js caches: the
+        verdict plus its expiry and unlock path — no pool stats, no
+        social proof, no identity walk, so it is safe to poll.
+        """
+        user = require_auth(request)
+        _claim_held(user["id"])
+        return _scout_pro_payload(user["id"])
 
     @app.get("/scout/status")
     async def api_scout_status_legacy(request: Request):
@@ -416,6 +526,7 @@ def register_scout_endpoints(app):
 
         action = str(body.get("action") or "").strip().lower()
         order_id = body.get("order_id")
+        _claim_held(user["id"])
 
         if action in ("status", "check") or (not action and order_id):
             try:
@@ -496,7 +607,7 @@ def register_scout_endpoints(app):
                  "message": "Monero wallet RPC is unavailable - checkout cannot open right now."},
                 status_code=503,
             )
-        price = _setting_float(SCOUT_PRO_PRICE_KEY, SCOUT_PRO_DEFAULT_PRICE)
+        _price_usd, price = scout_pro_price()
         if price <= 0:
             return JSONResponse(
                 {"status": "error", "message": "Scout Pro price is not configured."},
@@ -511,7 +622,7 @@ def register_scout_endpoints(app):
                      "message": "Could not create a Monero address for this checkout."},
                     status_code=503,
                 )
-            ttl = max(5, _setting_int(SCOUT_PRO_TTL_KEY, SCOUT_PRO_DEFAULT_TTL_MIN))
+            ttl = oc.pro_checkout_minutes()
             order = db.create_scout_purchase(
                 user["id"],
                 body.get("identity_wallet") or user.get("wallet_address") or "",
@@ -534,11 +645,15 @@ def register_scout_endpoints(app):
     @app.get("/api/jackpot/status")
     async def api_jackpot_status(request: Request):
         user = require_auth(request)
+        _claim_held(user["id"])
         stats = _pool_stats()()
         sp = await _social_proof()()
 
         wallet = user.get("wallet_address") or ""
-        miner = db.get_or_create_miner(wallet) if wallet else None
+        # READ-ONLY lookup (Oct 29, the honest auto-register): a status
+        # poll never mints a miner row — activation and signed ingest
+        # are the only creators.
+        miner = db.get_miner_by_wallet(wallet) if wallet else None
         pending_tickets = int(db.get_miner_ticket_count(miner["id"])) if miner else 0
 
         with db.get_db() as conn:
@@ -561,6 +676,10 @@ def register_scout_endpoints(app):
         return {
             "jackpot_xmr": stats.get("jackpot_xmr", 0.0),
             "jackpot_usd": stats.get("jackpot_usd", 0.0),
+            # the conversion behind jackpot_usd (Oct 26): the dashboard
+            # sentence says what rate it was converted at, and whether
+            # that rate is old or the fallback
+            "xmr_usd_rate_info": stats.get("xmr_usd_rate_info", {}),
             "next_drawing_epoch": int(sp.get("next_drawing_ts", 0) or 0),
             "next_drawing_seconds_remaining": int(
                 max(0, (sp.get("next_drawing_ts") or 0) - (sp.get("now") or 0))

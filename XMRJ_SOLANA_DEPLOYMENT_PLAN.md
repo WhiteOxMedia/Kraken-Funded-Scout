@@ -35,16 +35,21 @@ in someone's shell history, and the wiring drive fails if any of them drifts:
 | what | pinned value | where it lives |
 | --- | --- | --- |
 | anchor-cli (the CLI) | 1.1.2 | Anchor.toml `[toolchain] anchor_version` |
-| Solana CLI (Agave) | `=3.1.10` | Anchor.toml `[toolchain] solana_version` |
+| Solana CLI (Agave) | `3.1.10` | Anchor.toml `[toolchain] solana_version` |
 | host Rust (cargo, rustc) | 1.89.0 | rust-toolchain.toml `channel` |
 | anchor-lang (the crate the programs link) | `=1.1.2` | each crate's Cargo.toml |
-| the SBF compiler (what emits the .so) | follows `=3.1.10` | that Solana release's platform-tools map |
+| the SBF compiler (what emits the .so) | `v1.52` | cargo-build-sbf 3.1.10's own compiled-in default (avm's map for 3.1.10 says `v1.57`) |
 
-The `=` on the Solana version is deliberate and load-bearing: AVM parses this
-value as a semver REQUIREMENT and picks the newest hosted CLI that satisfies it,
-so a bare "3.1.10" would drift to the next 3.x the day it ships. `=3.1.10`
-requires that one release. All five values are checked by
-test_anchor_wiring.py section 13 — including the numbers in this table.
+The Solana version is written BARE — one exact release, no comparator. This is
+not a style choice: AVM accepts a `=` requirement on that key (`avm solana
+resolve` reads the line and names the release it resolves), but the anchor CLI
+that actually runs the build does not. `anchor build` parses the key as a plain
+version and exits before compiling anything, with
+`Error: unexpected character '=' while parsing major version number`; verified
+against anchor-cli 1.1.2, where `anchor build -s 3.1.10` fails identically
+because the flag does not override the manifest value. The pin is the exact
+three-part number, and it is checked by test_anchor_wiring.py section 13 —
+together with the other four values and the numbers in this table.
 
 Step 1 — host Rust. On WSL, Linux and macOS after rustup is installed; on native
 Windows install rustup from rustup.rs first, then the same command:
@@ -123,6 +128,26 @@ solana balance
 If airdrop requests are rate-limited or fail, use the Web Faucet instead of repeated CLI airdrop calls.
 Devnet airdrops are limited per request.
 
+WHERE THE DEVNET SOL COMES FROM — NOT THE POOL (recorded Oct 26). The jackpot
+pool cannot fund this step and must not be drawn on for it, for two
+independent reasons. (1) It holds XMR, not SOL: the live pot figure the admin
+dashboard shows comes from `kraken_referral_sim_v1` — a SIMULATED referral
+projection, not a balance — and the most recent real drawings were 0.05 and
+0.093 XMR. (2) Even a real XMR → SOL conversion on Kraken produces MAINNET SOL.
+Devnet is a separate ledger with no bridge to mainnet, and the address formats
+are identical, so mainnet SOL sent to the devnet wallet's address lands on
+mainnet and is invisible on devnet. Devnet SOL exists only as faucet airdrops;
+nothing is ever paid for it. Devnet costs: 0.004 SOL for the mint in section 2,
+and the three program deploys in section 9 need rent computed from the real .so
+sizes (~7,000 lamports per byte of account data), which is why section 9 says to
+top up before the first run rather than during it.
+
+MAINNET, BY CONTRAST, COSTS REAL MONEY. The same three deploys would be paid in
+purchased SOL, roughly 1.5–2 SOL per program of a few hundred KB, non-refundable
+if a program id has to be abandoned after deploy; and the mint is irreversible
+under the section 3.1 lock. That is section 8, gated deliberately, and it is
+not a shortcut around a faucet that has not been clicked.
+
 ### 1.4 Confirm tooling before moving on
 
 Do not proceed to token creation until these commands succeed in the chosen
@@ -152,11 +177,17 @@ What they do NOT do:
   nothing here has been resolved, let alone locked; the `=` pins on anchor-lang
   are the stand-in until the first successful build, whose lockfile should be
   committed and kept.
-- The SBF compiler is pinned only TRANSITIVELY, through the Solana CLI version
-  and that release's platform-tools map. Pinning it explicitly needs Anchor CLI
-  1.2.0 or newer (`anchor build --tools-version`, or cargo-build-sbf's
-  `[workspace.metadata.solana] tools-version`) — a lever for the next upgrade,
-  not a value invented here.
+- The SBF compiler is pinned by NO FILE here. `anchor build` delegates to
+  cargo-build-sbf, which selects platform-tools by its own compiled-in default
+  — v1.52 for 3.1.10 — and links that into rustup. That is not the version
+  `avm platform-tools resolve` prints for the same release (v1.57), and
+  cargo-build-sbf honours neither a `[workspace.metadata.solana]
+  tools-version` key nor a PLATFORM_TOOLS_VERSION variable: measured on the
+  installed 3.1.10 binary, the key was present in BOTH the workspace manifest
+  and each program's manifest and changed nothing, while
+  `cargo-build-sbf --tools-version v1.57` changed it immediately. So the
+  compiler that emits the .so is v1.52 (rustc 1.89.0-dev). Section 13 of
+  test_anchor_wiring.py does not cover it.
 - Byte-identical .so files across machines are NOT implied. Anchor's answer to
   that is `anchor build --verifiable`, which builds inside a pinned Docker
   image; use it for any artifact a third party has to reproduce.
@@ -192,26 +223,69 @@ spl-token --url devnet create-account <XMRJ_MINT>
 
 Store the returned associated token account address as TREASURY_VAULT.
 
-### 2.3 Mint initial supply
+### 2.3 Mint initial supply — DECIDED (Oct 26)
 
-spl-token --url devnet mint <XMRJ_MINT> <AMOUNT> <TREASURY_VAULT>
+Max supply is FIXED at **100,000,000 XMRJ** (9 decimals). There is no emission
+schedule and no post-genesis mint: section 3.1 is the chosen branch. The whole
+cap is minted once, at genesis, split four ways:
 
-This example mints into the treasury vault. The implementation must support:
+| Tranche             | Share | Amount       | Account                          |
+|---------------------|-------|--------------|----------------------------------|
+| Treasury reserve    | 50%   | 50,000,000   | associated token account (2.2)   |
+| Jackpot & rewards   | 25%   | 25,000,000   | token account                    |
+| Community growth    | 15%   | 15,000,000   | token account                    |
+| Team / foundation   | 10%   | 10,000,000   | token account                    |
 
-- fixed supply, and/or
-- governed emission, where mint authority is held by governance program/multisig
+Mechanically: the treasury reserve is the ATA of 2.2, and the other three are
+ordinary 165-byte token accounts, because an ATA is unique per (owner, mint) —
+one wallet cannot have four. All four are owned by the deployer, so this is one
+transaction per tranche and no extra key custody.
 
-## 3. Lock or delegate mint authority
+Two limits of that split, recorded so nobody reads more into it than the chain
+enforces:
 
-### 3.1 Fixed supply
+- **The split is bookkeeping, not custody.** All four accounts have the same
+  owner, so one signer can move any of them. Real separation needs four distinct
+  owners (or the multisig/program of 3.2, which is NOT the chosen branch) and is
+  a separate step.
+- **Team/foundation vesting is not enforced on chain.** This workspace has no
+  vesting program, so a lock there would be a promise, not a constraint. Do not
+  describe that tranche as vested until something enforces it.
+
+The one-line CLI equivalent, per tranche:
+
+spl-token --url devnet mint <XMRJ_MINT> <AMOUNT> <ACCOUNT>
+
+`create_xmrj_mint.js` is the implementation: it asserts the bps total 10000,
+mints the four tranches, and reads every account back (mint, owner, amount, and
+total supply against the cap) instead of trusting what it sent.
+
+## 3. Lock or delegate mint authority — DECIDED (Oct 26): 3.1
+
+### 3.1 Fixed supply — CHOSEN
 
 Disable mint authority:
 
 spl-token --url devnet authorize <XMRJ_MINT> mint --disable
 
-### 3.2 Governed emission
+This is ONE-WAY: no instruction re-enables it, and the plan has no path back.
+So the order is fixed and not interchangeable — mint the full 100,000,000
+across the four accounts of 2.3 first, disable second, then verify that supply
+reads the cap and that no mint authority is reported.
 
-Set mint authority to a governance program or multisig. Mint authority must never remain on a single hot wallet.
+`create_xmrj_mint.js --lock` does exactly that and refuses to disable on any
+supply other than the cap. It is opt-in on purpose: the irreversible step is
+never a side effect of creating the token. Until it runs, the mint authority
+is a single hot wallet key, which is a DEVNET-ONLY state — 3.2 below is why it
+cannot survive into anything public.
+
+### 3.2 Governed emission — NOT the chosen branch
+
+Kept for the record: set the mint authority to a governance program or
+multisig, where minting is a governed act. Mint authority must never remain on
+a single hot wallet, which is the constraint that rules this out as a resting
+state. If the cap is ever revisited, that is a new mint under 3.2 — not a
+remint of this one.
 
 spl-token --url devnet authorize <XMRJ_MINT> mint <NEW_AUTHORITY_PUBLICKEY>
 
@@ -265,15 +339,28 @@ Interface status (Oct 17 — stated rather than implied, so nothing here reads a
   under the TREASURY program id, so only this program can sign for it), and it
   is the only call on Solana the jackpot accepts (5.3). It takes the treasury
   state, the jackpot state, the funder PDA and the jackpot program; it forwards
-  at most what the treasury has RECORDED as convertible — the amount is bounded
-  by `total_converted_xmrj - total_jackpot_funded_xmr`, so it can never mint
-  jackpot balance and never forwards the same recorded amount twice.
+  at most what the treasury has RECORDED as convertible, VALUED AT THE
+  GOVERNANCE-SET RATE:
+
+  ```
+  convertible_xmr = total_converted_xmrj * exchange_rate_bps / 10_000
+  forwardable     = convertible_xmr - total_jackpot_funded_xmr
+  ```
+
+  so it can never mint jackpot balance and never forwards the same recorded
+  amount twice. The rate is READ here — it is not decorative: two instructions
+  wrote `exchange_rate_bps` and nothing consumed it, which made a "change the
+  rate" proposal a no-op on chain (finding F2 of
+  reports/XMRJ_DEVNET_EXECUTION_REPORT.md). A zero rate is refused where it is set and
+  where it is used, and the subtraction saturates, because a proposal that
+  LOWERS the rate can put the ceiling under what has already gone out.
   It is gated on the state's `operational_authority`, exactly like
   `record_inflow_xmrj`: `has_one` fixes the address and a `signer` constraint
   demands the signature, so neither call can be merely relayed. Deliberately
-  NOT `admin_authority` — that is the governance authority PDA and the proposal
-  PDA is a singleton (9.3), so routing funding through it would make funding a
-  one-time act per cluster. The operational key is seeded by the deployer at
+  NOT `admin_authority` — that is the governance authority PDA, and funding is
+  an operational act that must not wait for a vote; the governance path is for
+  what must be voted on (the rate, the split, the cap, the payout). The
+  operational key is seeded by the deployer at
   `initialize` and rotatable only by an approved proposal
   (`set_operational_authority`), which keeps a compromised key to one proposal's
   blast radius instead of the deployment's.
@@ -364,12 +451,21 @@ The Jackpot program is responsible for:
 
 - tracking logical jackpot balance (XMR amount)
 - accepting funding only from the Treasury program
-- managing payout events
+- paying a winner through governance, within the live balance and the cap
 - providing jackpot state to the UI
 
 Required interface (as specified):
 
 - fund_jackpot(amount_xmr) — callable only by Treasury
+- trigger_payout(winner, amount_xmr) — callable only by the state's
+  `admin_authority`, which is the governance authority PDA, and only as a
+  SIGNER. A PDA signs only inside a CPI from the program that derives it, so the
+  one path is `GovernanceAction::TriggerPayout` executed by an approved
+  proposal. It refuses an amount above the live balance
+  (`InsufficientJackpotBalance`) and, once `max_payout_bps` is below 10 000, an
+  amount above that share of it (`PayoutExceedsCap`).
+- set_payout_rules(max_payout_bps) — admin-only, i.e. the same governance path
+  (an approved proposal, never a wallet), and refuses a cap above 10 000 bps
 
 ### 5.1 Build
 
@@ -567,15 +663,24 @@ work out the rent the deploy needs.
 
 ### 9.3 What it does not prove, and the limits it records
 
-- The TREASURY's own set_split_ratio / set_exchange_rate /
-  set_operational_authority CPI is NOT exercised. `proposal` is a PDA seeded
-  [b"proposal", governance_state] created with `init`, and no close instruction
-  exists, so exactly ONE governance action can ever exist per governance state
-  on a cluster. One run proves one action; the other three call sites are pinned
-  structurally, offline, by test_xmrj_devnet_e2e.py and
-  test_anchor_wiring.py 12.12/12.13. (The treasury → jackpot FUNDING CPI is
-  exercised — step 6 — because it is not a governance action and needs no
-  proposal.)
+- **Proposals are per-id now, not one per cluster.** The PDA is
+  `["proposal", governance_state, proposal_id]`, the id must be the state's
+  `proposal_count` (which the instruction then increments), and an id can never
+  be reused. So the suite and the stress harness can execute MORE THAN ONE
+  governance action per state and per run. Before F5 was fixed the seed was
+  `["proposal", governance_state]` with `init` and no close instruction, so
+  exactly one action could ever exist per governance state.
+- **A payout IS exercised** (step 7): a funded jackpot is paid through a
+  `TriggerPayout` proposal executed by the governance authority PDA, and the
+  effect is read from the jackpot. This was the finding F1 — `trigger_payout`
+  demanded a signer no instruction could produce, so the balance was a one-way
+  ratchet. What the suite cannot prove offline is that the run HAPPENED; that
+  needs a cluster.
+- What is still only pinned STRUCTURALLY is the set of governance CPI arms the
+  suite does not drive in a given run (set_split_ratio,
+  set_operational_authority): test_xmrj_devnet_e2e.py and test_anchor_wiring.py
+  12.12–12.17 pin them, plus the whole payout chain, against the Rust sources
+  without a chain.
 - The owners are devnet-only identities DERIVED FROM PUBLIC CONSTANTS, chosen
   so a rerun can sign again. They hold no value — the genesis guard is what
   makes that acceptable.
@@ -600,26 +705,39 @@ work out the rent the deploy needs.
 
 ## Status
 
-Not started in this environment, and nothing on the Solana side has been compiled
-or deployed — cargo, rustc, anchor and solana are all absent here (see "Current
-environment assessment" above), which is why every check on this side is
-structural. The toolchain is now PINNED rather than described: anchor-cli 1.1.2,
+**Compiled, not deployed.** `cargo check --workspace` is clean on all four
+crates with the pinned host compiler, and `anchor build` produced the three
+`.so` artifacts and their IDLs on 2026-10-27 (the artifact drive computes the
+rent budget from the real sizes). Nothing has been deployed: the deployer wallet
+holds 0 SOL and the devnet RPC faucet is closed (see
+reports/XMRJ_DEVNET_EXECUTION_REPORT.md B1). The Solana CLI is still absent on this box,
+which is why the deploy steps have not run. The toolchain is now PINNED rather
+than described: anchor-cli 1.1.2,
 Solana CLI 3.1.10 and host Rust 1.89.0 in Anchor.toml `[toolchain]` and
 rust-toolchain.toml, anchor-lang `=1.1.2` in every crate, with
 test_anchor_wiring.py section 13 enforcing that the five values and this
 document agree. Installing the tooling (section 1.1) is the first required step;
 choosing versions no longer is.
 
-THE ONE THING THAT IS NOW WRITTEN AND WAITING: tests/xmrj_devnet_e2e.ts
+THE SUITE IS WRITTEN AND WAITING FOR A CLUSTER: tests/xmrj_devnet_e2e.ts
 (section 9) deploys the three programs, initializes both states, carries a
 proposal through its threshold, proves the CPI changed the parameter on chain,
-and funds the jackpot through the treasury's CPI while proving the two direct
-funding paths are rejected. It has NEVER RUN — no toolchain exists here — and
-its interface is pinned offline against the Rust sources by
+funds the jackpot through the treasury's CPI (refusing the two direct funding
+routes), PAYS a funded jackpot through a `TriggerPayout` proposal and reads the
+effect back (step 7), and proves the exchange rate is a live bound by asserting
+that an amount ACCEPTED at one rate is REFUSED at a lower one (step 8). It has
+NOT run against a cluster — there is no SOL and no Solana CLI here — and its
+interface is pinned offline against the Rust sources by
 test_xmrj_devnet_e2e.py, which reports SKIP for the live half on a box without
 anchor, solana and a funded devnet wallet. That suite is what turns every
-"unverified" label in this document into a fact, and it needs a machine with
-the pinned toolchain to do it.
+"unverified" label in this document into a fact.
+
+What the offline evidence already establishes: the workspace COMPILES
+(`cargo check --workspace`, 0 errors), the money path is complete in code (a
+funded jackpot can be paid by governance and by nothing else), and 90 offline
+checks pass (58 wiring + 10 artifacts + 22 suite tripwires) plus `tsc` and the
+harness's 12 planned scenarios. What it does not establish, and cannot: that any
+of it has executed on a chain.
 
 THE OPERATIONAL GATE IS CLOSED IN CODE. `record_inflow_xmrj` and
 `fund_jackpot_with_xmr` used to be open calls — anyone could record an inflow
@@ -629,14 +747,15 @@ chosen at `initialize` and rotatable only by an approved governance proposal
 (`set_operational_authority`, via the governance `SetOperationalAuthority`
 action); both money-moving calls demand that exact address as a SIGNER, so a
 third party cannot even relay them. It is not `admin_authority`, because the
-proposal PDA is a singleton (9.3) and every operational act would then be a
-once-per-cluster act. `test_anchor_wiring.py` 12.12/12.13 pin the whole chain —
+operational acts are not policy: routing each recorded inflow through a vote
+would make operations wait on governance, and the admin authority is a PDA no
+wallet can sign with. `test_anchor_wiring.py` 12.12/12.13 pin the whole chain —
 field, initialize parameter and assignment, both `has_one` + `signer` pairs, the
 admin-gated rotator, and the governance variant and arm that reaches it — and
 the devnet suite (section 9) signs both calls with the key and proves a
-non-operational signer is refused. UNCOMPILED and UNRUN here: no Rust or Anchor
-toolchain exists in this environment, so the structural pins are the strongest
-statement available until section 9 runs on a machine that has one.
+non-operational signer is refused. COMPILED here; UNRUN on a cluster — the
+structural pins plus `cargo check` are the strongest statement available until
+section 9 runs on a machine with SOL.
 
 THE INITIALIZE RACE IS CLOSED IN CODE, and its status has the same shape as
 the funding guarantee below: all three programs now take their own ProgramData

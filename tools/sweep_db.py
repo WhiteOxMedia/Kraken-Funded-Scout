@@ -42,7 +42,10 @@ and dead-user audit rows are reference-nulled (history is kept, the
 dangling user_id is dropped). A future edge needs a new labeled pair
 here - the labels ARE the manifest, so name them like a receipt.
 
-Stdlib-only; runs with plain python from the repo root.
+Stdlib-only; runs with plain python from anywhere: the DB default
+resolves from the checkout root this tools/ directory sits in (the
+Oct 29 root-organization layout), so receipts still land against
+pool/jackpot.db.
 """
 import sqlite3
 import sys
@@ -50,10 +53,11 @@ import tempfile
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
+ROOT = HERE.parent if HERE.name == "tools" else HERE
 sys.path.insert(0, str(HERE))
 import sweep_lib  # noqa: E402
 
-DEFAULT_DB = HERE / "pool" / "jackpot.db"
+DEFAULT_DB = ROOT / "pool" / "jackpot.db"
 AUDIT_ACTION = "sweep.cli.orphans"
 
 # (label, sql) - labels land in the manifest; every FK edge gets a pair.
@@ -133,7 +137,7 @@ def dry_run(db_path):
             print(f"  GATE: would COMMIT - foreign_key_check would be "
                   f"empty after the sweep")
         print("  to perform the sweep (backup, gate, manifest): "
-              "python sweep_db.py --apply"
+              "python tools/sweep_db.py --apply"
               + (f" --db {db_path}" if db_path != DEFAULT_DB else ""))
         return 0
     finally:

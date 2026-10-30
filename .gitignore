@@ -51,10 +51,11 @@ pool/push_events.jsonl
 # dist_site_review/xmrjackpot_review/ is make_bundle.py's EXPANDED copy of
 # pool/templates + pool/static (rebuilt wholesale every run), so committing
 # it duplicates the sources and invites drift. The zip is the artifact and
-# the .sha256 is how a reviewer verifies it; both are committed.
+# the .sha256 is how a reviewer verifies it. Oct 29: the checkout stopped
+# TRACKING the binary artifact — it is rebuilt by make_bundle.py in one
+# command, so a fresh clone regenerates it instead of importing a stale
+# snapshot. The files stay on disk locally; only git forgets them.
 dist_site_review/*
-!dist_site_review/xmrjackpot_review.zip
-!dist_site_review/xmrjackpot_review.zip.sha256
 
 # ── installed toolchains, not vendored sources ────────────────────────
 # monero/ (node + build tree), p2pool/ and xmrig/ are downloaded/installed
@@ -85,8 +86,6 @@ auditors/
 # file one directory down cannot be swallowed by accident, and they are the
 # reason the next investigation cannot re-enter the tree by habit.
 /_*
-# ...except the probe-capture drive that IS committed and documented
-!/_probe_e2e_capture.py
 /*_report*.txt
 /*_scan*.txt
 /*.log
@@ -97,6 +96,7 @@ auditors/
 
 # the same debris when it lands next to the statics it probes
 pool/static/_*
+tools/_*
 pool/static/*.new
 pool/static/*.new.*
 pool/static/*.checker.txt
@@ -109,3 +109,14 @@ pool/_backup_*.db*
 # smoke-probe output the readiness checklist reads back (run artifact, never shipped)
 smoke_probe*
 **/smoke_probe*
+
+# relay deployment scratch: admin keypair, downloaded tools, session logs.
+# The private key must never be committed.
+.relay/
+
+# fleet timing artifacts (run telemetry, churns every run — never shipped.
+# .archive.jsonl is the rotated ledger run_fleet.py writes past 200 runs)
+fleet_timings.json
+fleet_timings.jsonl
+fleet_timings.archive.jsonl
+fleet_timings.json.tmp

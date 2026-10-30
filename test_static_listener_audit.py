@@ -53,6 +53,7 @@ PER_USER_ENDPOINTS = (
     "/api/push/signals",
     "/api/auth/me",
     "/api/profile/stats",
+    "/api/scout/pro",       # the Scout Pro verdict IS per account (Oct 24)
 )
 
 # ── THE AUDIT TABLES (deliberate classifications — edit consciously) ──
@@ -87,6 +88,7 @@ ADMIN_CARDS = {
     "push_decisions_admin.js",
     "push_report_admin.js",
     "kraken_referral_admin.js",
+    "referral_admin.js",
 }
 
 # pure modules: no fetch of any kind, no session state, purely a DOM/ID

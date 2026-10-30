@@ -3,15 +3,23 @@
 One window, one choice, exactly as the protocol orders it:
 
   [x] Install the Miner Bot (recommended)   <- DEFAULT CHECKED
-      wallet address: ____________________
-      worker name:   ____________________
+      wallet address (OPTIONAL): __________
+      worker name (optional):    __________
 
-  [ Install ]
+  [ Install Scout ]  [ Remove Miner Bot ]
 
-Checkbox ON  -> installer.opt_in: configure, auto-register with the
-                jackpot, grant the first raffle ticket, bind the wallet.
+Checkbox ON + wallet -> installer.opt_in: configure, auto-register with the
+                 jackpot, grant the first raffle ticket, bind the wallet.
+Checkbox ON, no wallet -> INSTALL FIRST (Oct 26): installer.install_app
+                 writes the neutral config, records the install and
+                 hands off to Scout, which calibrates on start. Only the
+                 pool binding is deferred; the empty field is no longer
+                 an error and never blocks the app from running.
 Checkbox OFF -> nothing is installed or registered; the finish text
-                points at xmrjackpot.com for manual registration.
+                 points at xmrjackpot.com for manual registration.
+
+Every successful path starts Scout (`--calibrate`), fail-soft: a spawn
+failure is a sentence in the output pane, never an undo of the install.
 
 The UI displays no secrets (the wallet is typed by the user, never
 generated or stored beyond the opt-in record) and changes nothing until
@@ -21,6 +29,8 @@ is unavailable (headless installs use installer.py's CLI flags).
 
 Run:  .venv/Scripts/python.exe installer/installer_ui.py
 """
+import os
+import subprocess
 import sys
 from pathlib import Path
 
@@ -41,19 +51,21 @@ def _run_tk() -> int:
              font=("Segoe UI", 13, "bold")).grid(row=0, column=0,
                                                  columnspan=2,
                                                  sticky="w", **pad)
-    tk.Label(root, text="The Miner Bot mines Monero in the background; "
-                        "mining rewards fund the community jackpot and "
-                        "your shares earn raffle tickets."
+    tk.Label(root, text="The Miner Bot mines Monero in the background and "
+                        "sends the work to the public pool. Accepted shares "
+                        "earn raffle entries, which appear in your "
+                        "xmrjackpot.com dashboard."
              ).grid(row=1, column=0, columnspan=2, sticky="w", **pad)
 
     var_optin = tk.BooleanVar(value=True)          # CHECKBOX ON (default)
     ttk.Checkbutton(
         root, variable=var_optin,
-        text="Install the Miner Bot and enter me in the jackpot "
+        text="Install the Miner Bot and register this wallet with the pool "
              "(recommended)",
     ).grid(row=2, column=0, columnspan=2, sticky="w", **pad)
 
-    tk.Label(root, text="Your Monero wallet address").grid(
+    tk.Label(root, text="Your Monero wallet address (optional — add it "
+                        "later to start earning)").grid(
         row=3, column=0, sticky="w", **pad)
     ent_wallet = ttk.Entry(root, width=64)
     ent_wallet.grid(row=4, column=0, columnspan=2, sticky="we", **pad)
@@ -78,14 +90,34 @@ def _run_tk() -> int:
             _say("Miner Bot not installed — you are NOT registered.\n\n"
                  + installer.GETTING_STARTED)
             return
-        r = _install_via_api(ent_wallet.get().strip(),
-                             ent_worker.get().strip())
+        wallet = ent_wallet.get().strip()
+        if not wallet:
+            # INSTALL FIRST (Oct 26): a blank field is a choice, not an
+            # error. Scout, the config and the calibration are local; only
+            # earning needs an address, and that stays pending.
+            r = _install_app_via_api(ent_worker.get().strip())
+            if not r.get("ok"):
+                _say(r.get("error", "install failed"))
+                return
+            _say("Scout installed — calibration is starting.\n"
+                 "  Miner Bot: NOT started (no wallet bound yet)\n"
+                 "  xmrig config: "
+                 + ("ready" if r.get("xmrig_config") else "could not be written") + "\n"
+                 + r.get("next_step", "") + "\n\n"
+                 + ("" if _launch_scout() else
+                    "Open Kraken Scout yourself to run the calibration.\n\n")
+                 + r.get("phrase", ""))
+            return
+        r = _install_via_api(wallet, ent_worker.get().strip())
         if r.get("ok"):
-            _say("Miner Bot installed — you are entered in the jackpot.\n"
-                 f"  miner_id: {r.get('miner_id')}   "
-                 f"welcome ticket: {r.get('welcome_ticket_granted')}\n"
-                 f"  xmrig config patched: {r.get('xmrig_patched')}\n\n"
+            _say("Miner Bot installed — this wallet is registered with the "
+                 "pool.\n"
+                 f"  miner_id: {r.get('miner_id')}\n"
+                 f"  stratum: {r.get('stratum')}\n"
+                 f"  xmrig config written: {r.get('xmrig_patched')}\n\n"
+                 + r.get("entry_note", "") + "\n\n"
                  + r["phrase"])
+            _launch_scout()          # calibration begins now, not later
         elif r.get("friendly"):
             # a down server is guidance, not a crash: the line lands in
             # the output pane (no scary popup — nothing the user did
@@ -100,7 +132,7 @@ def _run_tk() -> int:
              "The miner stops mining for the jackpot when it next exits.\n\n"
              + installer.GETTING_STARTED)
 
-    ttk.Button(root, text="Install", command=_install).grid(
+    ttk.Button(root, text="Install Scout", command=_install).grid(
         row=7, column=0, sticky="w", **pad)
     ttk.Button(root, text="Remove Miner Bot", command=_remove).grid(
         row=7, column=1, sticky="w", **pad)
@@ -130,12 +162,52 @@ def _install_via_api(wallet: str, worker: str) -> dict:
         }
 
 
+def _install_app_via_api(worker: str = "") -> dict:
+    """The wallet-free install, guarded like _install_via_api.
+
+    A down server is guidance here too — and for this path the server is
+    not even needed: install_app's beacon is fail-soft, so an offline box
+    still installs and calibrates. The wrapper exists so the tk callback
+    can never die on a transport error.
+    """
+    try:
+        return installer.install_app(worker=worker)
+    except OSError:
+        return {
+            "ok": False, "friendly": True,
+            "error": "Could not finish the install on this machine — press "
+                     "Install Scout again in a minute.",
+        }
+
+
+def _launch_scout() -> bool:
+    """Start Scout so calibration begins immediately (Oct 26).
+
+    Fail-soft by contract: an install that already landed must never be
+    undone by a missing interpreter, a locked file or a policy block. The
+    caller turns False into one sentence in the output pane. Detached on
+    Windows so closing the setup window does not kill the calibration.
+    """
+    app = installer.PROJECT_DIR / "scout" / "app.py"
+    if not app.is_file():
+        return False
+    try:
+        kwargs = {"cwd": str(app.parent)}
+        if os.name == "nt":
+            kwargs["creationflags"] = 0x00000008   # DETACHED_PROCESS
+        subprocess.Popen([sys.executable, str(app), "--calibrate"], **kwargs)
+        return True
+    except Exception:                 # noqa: BLE001 — never fail the install
+        return False
+
+
 def main() -> int:
     try:
         import tkinter  # noqa: F401
     except ImportError:
         print("tkinter unavailable (headless install) — use the CLI:\n"
-              "  installer.py --opt-in --wallet <address>\n"
+              "  installer.py --opt-in                  # install, wallet later\n"
+              "  installer.py --opt-in --wallet <addr>  # install + register\n"
               "  installer.py --opt-out\n"
               "  installer.py --status")
         return 1

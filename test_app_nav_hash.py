@@ -3,8 +3,9 @@
 Review triage (batch ebf73e75): opening /#admin and then picking Home
 left #admin in the URL, so a reload resurrected the Admin page; and
 /winners redirected to a hash route the client did not accept (fixed
-Sep 25 evening-V by SPA_SYNONYMS, unpinned until now). This drive pins
-BOTH halves of the contract:
+Sep 25 evening-V by SPA_SYNONYMS). /winners is a page of its own now
+(Oct 23), so the drive pins that too. It covers BOTH halves of the
+contract:
 
   1-2. THE REAL app.js UNDER NODE (executed, not needle-matched): a
        stubbed DOM/history/localStorage sandbox boots the actual file
@@ -16,11 +17,11 @@ BOTH halves of the contract:
        unknown hash is ignored, not crashed on. navigateTo must be
        exported on window (the injected stale-miner banner's inline
        onclick resolves there).
-  3.   THE SPA ROUTES (FastAPI, hermetic TestClient): /winners maps to
-       /#leaderboard (the synonym the review flagged), every real page
-       path redirects to its own hash, unknown paths serve the app
-       shell - so the redirects can never point at a hash route the
-       client would not honor again.
+  3.   THE SPA ROUTES (FastAPI, hermetic TestClient): every real page
+       path redirects to its own hash, /winners serves its own page
+       with a canonical instead of redirecting, and an unknown path is a
+       real 404 rather than the app shell - so the redirects can never
+       point at a hash route the client would not honor again.
 
 Node is required for sections 1-2 (honest SKIP without it); section 3
 is pure Python. Prints "RESULT: N passed, M failed".
@@ -251,16 +252,18 @@ from fastapi.testclient import TestClient
 
 client = TestClient(srv.app)
 r = client.get("/winners", follow_redirects=False)
-check(3.1, r.status_code == 302 and r.headers.get("location") == "/#leaderboard",
-      f"/winners maps to the leaderboard hash the client honors: "
-      f"{r.status_code} -> {r.headers.get('location')}")
+check(3.1, r.status_code == 200
+      and '<link rel="canonical" href="https://xmrjackpot.com/winners">' in r.text
+      and "Winners and Past Drawings" in r.text,
+      f"/winners serves its own page, not a redirect: {r.status_code}")
 r = client.get("/dashboard", follow_redirects=False)
 check(3.2, r.status_code == 302 and r.headers.get("location") == "/#dashboard",
       f"every real page path redirects to its own hash: "
       f"{r.status_code} -> {r.headers.get('location')}")
 r = client.get("/definitely-not-a-page", follow_redirects=False)
-check(3.3, r.status_code == 200 and "text/html" in r.headers.get("content-type", ""),
-      f"an unknown path serves the app shell instead of a bogus redirect: {r.status_code}")
+check(3.3, r.status_code == 404 and "app.js" not in r.text
+      and 'content="noindex"' in r.text,
+      f"an unknown path is a real 404, not the app shell: {r.status_code}")
 r = client.get("/", follow_redirects=False)
 check(3.4, r.status_code == 200, f"the root serves the app: {r.status_code}")
 

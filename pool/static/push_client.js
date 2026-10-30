@@ -280,7 +280,18 @@
         .then(function (p) { adopt(p); })
         .catch(function () { /* defaults stand */ });
     }
-    readServer();
+    /* THE LOGGED-OUT GATE (Oct 29, playtest stumble): readServer() used
+       to fire on every page load, 401ing on every page a signed-out
+       visitor opened. The read now runs only when the ONE quiet,
+       public authentication strobe (/api/auth/me — 200 authenticated
+       or not, never a guarded miss) says there is a session. The
+       xmrjackpot:auth re-read below already covers signup/login. */
+    fetch("/api/auth/me", { credentials: "same-origin" })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (me) {
+        if (me && me.authenticated) { readServer(); }
+      })
+      .catch(function () { /* defaults stand */ });
     // after login/register the subject changes — re-read so the ETag
     // belongs to THIS user before the first toggle races on it, and
     // drop the undo target: one account's undo must never replay

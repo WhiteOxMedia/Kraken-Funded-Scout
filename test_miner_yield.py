@@ -43,6 +43,13 @@ def check(n, cond, why):
 SANDBOX = tempfile.mkdtemp(prefix="miner_yield_drive_")
 sys.path.insert(0, os.path.join(HERE, "pool"))
 
+# Same fixture as test_rate_label and test_ui_disclosure: no fetching in this
+# file. flush_daily values mined XMR in dollars through the rate reader, and
+# a background Kraken refresh landing mid-drive would move the rate under
+# the exact-USD receipt checks. XMR_PRICE_LIVE=0 keeps the pinned operator
+# rate (323.0, set below) the whole drive's fixed input, off the network.
+os.environ["XMR_PRICE_LIVE"] = "0"
+
 import database as db                                  # noqa: E402
 DB_PATH = os.path.join(SANDBOX, "jackpot.db")
 db.DB_PATH = __import__("pathlib").Path(DB_PATH)
@@ -391,10 +398,11 @@ check(9.6, "'Raffle ticket: ' + units + ' / ' + per + ' units collected.'" in _a
       "by shares_valid mod per (the persisted bank), with reset "
       "to 0 implied at each whole hundred")
 check(9.7, "free_tickets_per_shares" in _stats_fn
-      and "db.safe_pos_int" in _stats_fn,
-      "the unit SIZE rides /api/stats from the operator setting "
-      "(db.safe_pos_int-guarded), so every surface draws from one "
-      "server-owned source, never a per-file constant")
+      and "engine.entry_unit()" in _stats_fn,
+      "the unit SIZE rides /api/stats from the engine's ONE reader "
+      "(entry_unit(), which carries the same corrupt-setting guard), so "
+      "every surface draws from one server-owned source, never a "
+      "per-file constant")
 check(9.8, "def safe_pos_int" in _db_src
       and db.safe_pos_int("abc") == 100 and db.safe_pos_int(None) == 100
       and db.safe_pos_int("0") == 100 and db.safe_pos_int("-3") == 100

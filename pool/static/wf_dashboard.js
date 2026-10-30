@@ -17,6 +17,19 @@
 
   function $(id) { return document.getElementById(id); }
 
+  /* THE LOGGED-OUT GATE (Oct 29, playtest stumble): a signed-out page
+     used to poll four guarded endpoints every 60 seconds — jackpot/
+     status, push/signals, push/preferences, profile/stats — each
+     answering 401, pure console noise for anyone who opens devtools.
+     wfAuthed is the shared gate: refreshStatus's /api/auth/me read
+     (public, 200 authenticated or not, NEVER a guarded miss) is the
+     only authentication strobe, and the guarded fetches below refuse
+     to run while it says signed-out. The xmrjackpot:auth event runs
+     refreshStatus FIRST (first-registered listener), so a login or
+     logout repaints the same instant; a fresh page paint renders its
+     signed-out cards locally until /me answers. */
+  var wfAuthed = false;
+
   function esc(s) {
     return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) {
       return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
@@ -82,6 +95,13 @@
   function refreshPrefsStamp() {
     var el = $("wfPrefsStamp");
     if (!el) return;
+    /* THE LOGGED-OUT GATE (Oct 29): the guarded read runs only when
+       the session is proven; signed-out renders the null answer (the
+       empty stamp) locally. */
+    if (!wfAuthed) {
+      renderPrefsStamp(null);
+      return;
+    }
     fetch("/api/push/preferences", { credentials: "same-origin" })
       .then(function (r) { return r.ok ? r.json() : null; })
       .then(renderPrefsStamp)
@@ -101,9 +121,11 @@
      wallet/miner dots the moment the subject switches — the same
      instant contract the prefs stamp has; without this they lagged
      up to 60s showing the PREVIOUS user's row state. */
+  /* THE AUTH STROBE (Oct 29): refreshStatus is the ONLY xmrjackpot:auth
+     listener left — its gated fan-out repaints the cycle, signals and
+     prefs surfaces the moment /me answers, so separate listeners would
+     only race it with a stale wfAuthed and re-fetch guarded endpoints. */
   document.addEventListener("xmrjackpot:auth", refreshStatus);
-  document.addEventListener("xmrjackpot:auth", refreshJackpotCycle);
-  document.addEventListener("xmrjackpot:auth", refreshPrefsStamp);
 
   /* the status row: miner / scout / wallet states from the endpoints
      app.js already uses — read-only, no mutation, no new calls */
@@ -112,10 +134,33 @@
       .then(function (r) { return r.ok ? r.json() : null; })
       .then(function (me) {
         var authed = !!(me && me.authenticated);
+        wfAuthed = authed;                     // the LOGGED-OUT GATE's strobe
+        if (authed) {
+          /* instant post-login paint (Oct 29): the gated reads below
+             used to wait for their next 60s tick; they now run the
+             moment /me announces the session. */
+          refreshJackpotCycle();
+          refreshSignals();
+          refreshPrefsStamp();
+        }
         if ($("wfDotWallet") && $("wfWalletStatus")) {
           var w = (me && me.wallet_address) || "";
           $("wfDotWallet").className = "wf-dot" + (w ? " on" : "");
           $("wfWalletStatus").textContent = w ? "Connected (read-only)" : "One-directional";
+        }
+        /* THE GATED FAN-OUT (Oct 29): profile/stats is guarded, so it
+           is fetched ONLY when authed — signed-out is painted locally
+           here (the same labels the fetch used to produce), no 401. */
+        if (!authed) {
+          if ($("wfDotMiner") && $("wfMinerStatus")) {
+            $("wfDotMiner").className = "wf-dot";
+            $("wfMinerStatus").textContent = "Login to start";
+          }
+          if ($("wfDotScout") && $("wfScoutStatus")) {
+            $("wfDotScout").className = "wf-dot";
+            $("wfScoutStatus").textContent = "Not Connected";
+          }
+          return;
         }
         fetch("/api/profile/stats", { credentials: "same-origin" })
           .then(function (r) { return r.ok ? r.json() : null; })
@@ -145,10 +190,24 @@
   function refreshSignals() {
     var feed = $("wfSignalFeed");
     if (!feed) return;
+    /* THE LOGGED-OUT GATE (Oct 29): the guarded history read runs
+       only when the session is proven. */
+    if (!wfAuthed) {
+      feed.innerHTML = '<span class="wf-feed-empty">Sign in to see your Scout signals.</span>';
+      return;
+    }
     fetch("/api/push/signals", { credentials: "same-origin" })
       .then(function (r) { return r.ok ? r.json() : null; })
       .then(function (d) {
         var rows = (d && d.signals) || [];
+        if (d && d.scout_pro_required) {
+          // THE SERVER SAID NO (Oct 24): the feed is the paid product's
+          // history, so name the lock instead of pretending it is empty.
+          feed.innerHTML = '<span class="wf-feed-empty">Scout signals are ' +
+            'part of Kraken Scout Pro — unlock from the panel below to ' +
+            'receive them.</span>';
+          return;
+        }
         if (!rows.length) {
           feed.innerHTML = '<span class="wf-feed-empty">No signals pushed yet — ' +
             'they appear here the moment Scout fires.</span>';
@@ -253,18 +312,37 @@
 
     var jackpot = cycleInt(d.jackpot_xmr);
     var usd = cycleInt(d.jackpot_usd);
+    // THE CONVERSION IS NAMED (Oct 26): "(~$645)" without a rate hides
+    // the fact that it is a conversion, and hides a stale or fallback
+    // rate behind a confident-looking dollar sign.
+    var ri = d.xmr_usd_rate_info || null;
+    var rateNote = "";
+    if (ri && ri.label) {
+      var line = String(ri.label);
+      rateNote = " " + line.charAt(0).toUpperCase() + line.slice(1) + ".";
+    }
     setCycle(
       "wfJackpotCycleExplain",
       jackpot == null
         ? ""
         : "Current jackpot: " + jackpot.toLocaleString() + " XMR" +
-          (usd && usd > 0 ? " (~$" + usd.toLocaleString() + ")" : "") + "."
+          (usd && usd > 0 ? " (~$" + usd.toLocaleString() + ")" : "") +
+          "." + rateNote
     );
 
     setCycle("wfJackpotCycleBlocker", "");
   }
 
   function refreshJackpotCycle() {
+    /* THE LOGGED-OUT GATE (Oct 29): the guarded read runs only when
+       the session is proven; signed-out states the blocker locally —
+       the exact card the null answer used to paint, without the 401. */
+    if (!wfAuthed) {
+      setCycle("wfJackpotCycleBlocker", "Sign in to load your cycle and ticket counts.");
+      setCycle("wfJackpotCycleRemaining", "—");
+      cycleDeadline = 0;
+      return;
+    }
     fetch("/api/jackpot/status", { credentials: "same-origin" })
       .then(function (r) { return r.ok ? r.json() : null; })
       .then(function (d) {

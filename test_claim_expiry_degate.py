@@ -50,6 +50,14 @@ def check(n, cond, why):
 SANDBOX = tempfile.mkdtemp(prefix="degate_drive_")
 sys.path.insert(0, os.path.join(HERE, "pool"))
 
+# Same fixture as test_rate_label and test_ui_disclosure: no fetching in
+# this file. The claim sweep path runs through jackpot_funding and the
+# poller (miner_yield) converts the pot between USD and XMR through the
+# rate reader, so a background Kraken refresh landing mid-drive would
+# dial the network from inside the drive and move the dollar pins.
+# XMR_PRICE_LIVE=0 keeps the reader on the fallback, off the network.
+os.environ["XMR_PRICE_LIVE"] = "0"
+
 import database as db                                  # noqa: E402
 db.DB_PATH = __import__("pathlib").Path(
     os.path.join(SANDBOX, "jackpot.db"))
@@ -101,7 +109,11 @@ def _pending_winner(suffix, worker):
 
 print("== 1. THE RACE GUARD: A CLAIM IS NEVER CLOBBERED ==")
 mid, did = _expired_winner("a", "race-rig", time.time() - 10)
-# a claim lands "between the read and the write":
+# a claim lands "between the read and the write": under the
+# lease-bearer contract (Oct 28) a claim ALWAYS arrives through the
+# lease, so the simulation takes the lease and then flips — which is
+# also a second-leg proof that a lease-held drawing outranks the sweep
+db.acquire_claim_lease(did)
 db.claim_drawing(did, "4" + "a" * 94)
 out = engine.check_expired_claims()
 with db.get_db() as conn:
@@ -109,9 +121,10 @@ with db.get_db() as conn:
                          (did,)).fetchone()[0]
 check(1.1, state == "claimed" and (out is None or
       all(e["drawing_id"] != did for e in out)),
-      "a drawing CLAIMED before the sweep's write stays claimed — the "
-      "compare-and-set refused to erase the winner's money (the old "
-      "unconditional UPDATE would have flipped it to expired)")
+      "a drawing CLAIMED (held via the lease) before the sweep's write "
+      "stays claimed — the compare-and-set refused to erase the "
+      "winner's money (the old unconditional UPDATE would have "
+      "flipped it to expired)")
 # and the same sweep still expires a genuinely stale one
 mid2, did2 = _expired_winner("b", "stale-rig", time.time() - 10)
 out = engine.check_expired_claims()

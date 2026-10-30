@@ -7,14 +7,23 @@ the posture's OPTIONAL self-test (stored last verdict at a glance; an
 explicit verify=true dials through the SAME shared 30s throttle) -> the
 config read EMBEDS that posture verbatim (the panel and setup_kraken.py
 report identical state, printer-parity pinned)."""
-import sys, tempfile
+import os, sys, tempfile
 from pathlib import Path
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE / "pool"))
+# Same fixture as test_rate_label and test_ui_disclosure: no fetching in
+# this file. The projection read model and /api/stats convert the pot into
+# dollars through the rate reader; with fetching LIVE the sandbox DB starts
+# empty and a background Kraken refresh is one possible mid-drive visitor.
+# XMR_PRICE_LIVE=0 keeps the reader on the fallback, off the network -
+# every dollar assertion here sums the payload's own fields, so nothing
+# else moves.
+os.environ["XMR_PRICE_LIVE"] = "0"
 _tmp = Path(tempfile.mkdtemp(prefix="kr_int_"))
 import database as db; db.DB_PATH = _tmp / "jackpot.db"; db.init_db()
 import jackpot_funding as funding
 import kraken_referral as kr
+import projection_ad
 import server as srv
 from fastapi.testclient import TestClient
 
@@ -188,9 +197,10 @@ check(6.8, kr.provider_mode() == "unconfigured", "credential removal degrades cl
 print("== 6.9 THE DELTA-SPIKE GUARD ==")
 # the _boom run collapsed the seed 60 -> 0 (a 100% drop against the
 # previous projection): the guard must flag the row and audit it
-lp = kr.latest_projection()
-check(6.9, lp["anomaly"] == 1,
-      f"projection flagged anomalous after the collapse (anomaly={lp['anomaly']})")
+est = projection_ad.read_estimate(projection_ad.AdSlot.HERO)
+check(6.9, est is not None and est.anomaly == 1,
+      f"projection flagged anomalous after the collapse "
+      f"(anomaly={getattr(est, 'anomaly', None)})")
 with db.get_db() as conn:
     spike = conn.execute("SELECT COUNT(*) c FROM audit_log WHERE "
                          "action='jackpot_projection.delta_spike'").fetchone()["c"]

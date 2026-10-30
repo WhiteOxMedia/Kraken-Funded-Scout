@@ -25,14 +25,16 @@ infrastructure) stays exactly where it is.
 | `static/scout_paywall.js` | Scout Pro paywall surface — checkout, unlock, freeze/unfreeze contract. (v3) |
 | `static/scout_paywall_wire_patch.js` | Wire patch bridging the legacy Scout paywall IDs to the current wf* template IDs. (v6) |
 | `static/scout_checkout.js` | Scout Pro donation checkout surface. (v2) |
+| `static/scout_pro_bridge.js` | Caches the server's Scout Pro entitlement (GET /api/scout/pro) into the flag every alert path reads — the writer that makes the paywall open. (v1) |
 | `static/push_client.js` | Web-push registration, the prefs toggles (If-Match optimistic concurrency, undo), Test-notification buttons, the ONE shared relative-time renderer (v16). |
 | `static/push_sw.js` | The push service worker (notification display; same-origin navigation only). |
-| `static/bundle_card.js` | The Kraken Scout bundle download card (stable URL + SHA256). (v1) |
+| `static/bundle_card.js` | The Kraken Scout bundle download card (stable URL, published version + SHA256). (v2) |
 | `static/push_report_admin.js` | Admin: daily push report (sends/blocks/rate-limits per category). (v1) |
 | `static/push_decisions_admin.js` | Admin: the live suppression/send decisions ledger (audit-derived). (v2) |
 | `static/push_vapid_admin.js` | Admin: VAPID provisioning status/actions. (v1) |
 | `static/admin_cold_wallet.js` | Admin: cold-wallet surface. (v1) |
 | `static/kraken_referral_admin.js` | Admin: Kraken referral projection config + run controls. (v6) |
+| `static/referral_admin.js` | Admin: the Kraken payout recorder — verifies a bonus Kraken paid into the affiliate's own account and records it (the pool keeps only its share, as a funding-ledger receipt; this card never pays a user out of pool funds), plus the XMRJ-per-referral rate and the pool's share of a recorded payout. (v3) |
 | `static/referral_projection.js` | Dashboard: the possible-future-jackpot projection card. (v1) |
 | `static/refblock.js` | Dashboard: the Kraken referral promise block — fills the hero-block's today-claims counter from the pool's recorded funding-ledger data and upgrades the block's share anchors to native share intents. (v1) |
 | `static/img/*.png` | The miner sprite artwork used by the comparison section. |

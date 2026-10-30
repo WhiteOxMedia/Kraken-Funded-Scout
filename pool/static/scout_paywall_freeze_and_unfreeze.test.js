@@ -143,7 +143,6 @@
     document: global.document,
     identityWallet: null,
     selectedScoutId: null,
-    xmrjUnlockProof: null,
     xmrWalletAddress: null,
     refreshScoutsAndJackpot: function () { return true; },
     localStorage: {

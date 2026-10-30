@@ -3,17 +3,22 @@ FastAPI backend for the XMR Jackpot Pool.
 Serves the web dashboard, static assets, and JSON API endpoints.
 """
 import os
+import re
 import sys
 import json
+from datetime import datetime, timezone
+from html import escape
 import time
 import secrets
 import hashlib
 import hmac
+import subprocess
 from pathlib import Path
 
 import asyncio
 
 import aiohttp
+import anyio              # zip serving stream sharing (sharing-safe read)
 from fastapi import FastAPI, Request, HTTPException, Depends, WebSocket, WebSocketDisconnect
 from fastapi.responses import (HTMLResponse, JSONResponse,
                                PlainTextResponse, RedirectResponse,
@@ -27,9 +32,15 @@ import database as db
 import field_crypto as _fc
 import jackpot_engine as engine
 import jackpot_funding
+import vrsc_price             # the VRSC rate reader: pin, tiers, episode log
 import security
 import monero_wallet as xmr
 import address_check as _addr   # offline mainnet payout-address gate
+import i18n                   # language negotiation + region inference
+import i18n_pages             # the six-language download/status pages
+import projection_ad          # the advertisement-only projection surface
+import scout_lifecycle        # Phase F: install/activation/connect/share
+import operator_config as oc   # THE ONE READER for operator-configurable values
 
 app = FastAPI(title="XMR Jackpot Pool")
 
@@ -118,6 +129,64 @@ class SecurityHeadersMiddleware:
 # registered FIRST so it wraps every other middleware/route
 app.add_middleware(SecurityHeadersMiddleware)
 
+
+# ─── ONE ORIGIN, ONE SCHEME ────────────────────────────────
+# Cloudflare terminates TLS and tells the origin which scheme the client
+# used through X-Forwarded-Proto (older edges: CF-Visitor's "scheme").
+# Two canonicalizations happen here, both 301s that keep the path and the
+# query string:
+#   * http -> https, so a plaintext request does not serve a second copy
+#     of every URL;
+#   * www -> apex, so www.xmrjackpot.com is one redirect away from the
+#     canonical host instead of a duplicate site. The tunnel forwards the
+#     Host header unchanged, so this is decided here, not at the edge.
+# Loopback and un-tunnelled requests are never bounced: health checks and
+# local development carry neither the proxy header nor a www host.
+def _canonical_url(request: Request) -> str:
+    target = SITE_ORIGIN + request.url.path
+    if request.url.query:
+        target += "?" + request.url.query
+    return target
+
+
+# ─── WHICH SURFACE IS BEING SERVED ─────────────────────────
+# projection_ad refuses to hand out an advertisement while an OPERATOR
+# URL is being served. That refusal has to know the URL, so bind it here
+# for every request — before any handler runs, and cleared afterwards so
+# a later task in the same context cannot inherit it.
+@app.middleware("http")
+async def advertisement_surface_marker(request: Request, call_next):
+    token = projection_ad.mark_active_path(request.url.path)
+    try:
+        return await call_next(request)
+    finally:
+        projection_ad.clear_active_path(token)
+
+
+@app.middleware("http")
+async def canonical_origin(request: Request, call_next):
+    proto = (request.headers.get("x-forwarded-proto") or "").split(",")[0].strip().lower()
+    if not proto:
+        visitor = request.headers.get("cf-visitor") or ""
+        m = re.search(r'"scheme"\s*:\s*"([a-z]+)"', visitor)
+        proto = m.group(1) if m else ""
+    host = re.sub(r":\d+$", "", (request.headers.get("host") or "").lower())
+    if host.startswith("www."):
+        return RedirectResponse(_canonical_url(request), status_code=301)
+    if proto == "http" and host and host not in (
+            "127.0.0.1", "localhost", "::1", "[::1]"):
+        return RedirectResponse(_canonical_url(request), status_code=301)
+    response = await call_next(request)
+    # HTML is never cached heuristically. This site is edited live and rolled by
+    # restarting :3094; without an explicit no-cache a browser is free to reuse
+    # the old document, and the visitor sees the PREVIOUS design until a hard
+    # reload - which reads exactly like "someone reverted the UI".
+    # Static files keep their own caching (style.css is versioned by ?v=).
+    if (response.headers.get("content-type", "").startswith("text/html")
+            and "cache-control" not in response.headers):
+        response.headers["Cache-Control"] = "no-cache"
+    return response
+
 # Mount static files
 static_dir = Path(__file__).parent / "static"
 app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
@@ -129,63 +198,417 @@ app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
 # with nosniff + attachment disposition. The manifest is generated at
 # build time; /api/downloads/bundle-info reads it for the dashboard.
 #
-# THE ADMIN GATE (Oct 8): the anonymous surface is retired — the
-# server's own access log caught an external IP (5.102.169.29) pulling
-# the zip (and the zip carried the private ntfy topic for days before
-# the Phase-0 scrub, which is exactly what the gate makes unreachable).
-# The installer is a private artifact now: a caller must present an
-# ADMIN SESSION (the dashboard's session cookie, is_admin=1) or the
-# OPERATOR TOKEN (X-Operator-Token, the machine leg's own auth) —
-# the dashboard card rides the admin cookie, a headless re-install
-# rides the token. No caching layer can hold a copy for an anonymous
-# request either: no-cache was already pinned, and now the 401/403
-# precedes any bytes.
+# PUBLIC AGAIN (Oct 24): the Oct 8 admin gate is lifted. It went up after
+# the access log caught an external IP (5.102.169.29) pulling the zip,
+# at a time when the archive still carried the private ntfy topic from
+# before the Phase-0 scrub. Both reasons are gone: the topic is scrubbed
+# and untracked (kraken 3b95c02), and finalize_bundle.py now FAILS the
+# build when the topic bytes or a denied file (push_topic.txt,
+# _ntfydiag.txt, .workshop/) would ship. /download and the Product
+# markup both promise an anonymous download, so a gated URL is a dead
+# link on the page that offers it.
+#
+# If the archive ever carries private internals again, restore the gate
+# BEFORE serving: see `git show ec82f91:pool/server.py`, "THE ADMIN GATE
+# (Oct 8)". A 401 is a bug; leaked bytes are not.
 _dist_dir = Path(__file__).parent.parent / "dist"
 
 
-def _bundle_reader_or_401(request: Request):
-    """Admin session or operator token — the bundle's two legitimate
-    readers. Nothing else: no public leg, no API-key path (the zip
-    carries private internals, so the bar is the operator's)."""
-    supplied = request.headers.get("X-Operator-Token", "")
-    if supplied:
-        stored = str(db.get_setting("PUSH_OPERATOR_TOKEN", "") or "")
-        if stored and secrets.compare_digest(supplied, stored):
-            return True
-    user = get_user_from_request(request)
-    if user and user.get("is_admin"):
-        return True
-    if not get_user_from_request(request):
-        raise HTTPException(status_code=401,
-                            detail="admin session or operator token required")
-    raise HTTPException(status_code=403,
-                        detail="admin access required")
+# ONLY AN UNCORRUPTED ARTIFACT MAY BE SERVED (Oct 25). The builder prunes
+# to installer/release_manifest.json, but the bytes on disk are not the
+# builder: a stale zip, a hand-copied one, or an interrupted roll can put
+# a contaminated archive under the PUBLIC download URL. The route checks
+# the same manifest before every (cached) response and answers 503 when
+# the artifact carries anything the manifest forbids. Fail closed: a
+# missing manifest is a violation, not a pass.
+_RELEASE_GUARD_CACHE = {"key": None, "problems": None}
+
+
+def _release_guard_module():
+    import importlib.util
+    path = Path(__file__).parent.parent / "installer" / "release_guard.py"
+    spec = importlib.util.spec_from_file_location("_xmrj_release_guard", path)
+    if spec is None or spec.loader is None:
+        raise ImportError(f"release guard missing at {path}")
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+def _artifact_problems(zip_path: Path) -> list:
+    """Manifest violations for the artifact on disk (cached per bytes)."""
+    try:
+        st = zip_path.stat()
+    except OSError:
+        return []                             # 404 path handles absence
+    key = (st.st_mtime_ns, st.st_size)
+    if _RELEASE_GUARD_CACHE["key"] == key:
+        return _RELEASE_GUARD_CACHE["problems"] or []
+    try:
+        guard = _release_guard_module()
+        problems = guard.zip_violations(zip_path, guard.load_manifest())
+    except Exception as e:                    # no manifest, broken guard
+        # A GUARD FAILURE IS NOT A VERDICT (review, Oct 29): caching this
+        # string under the artifact's mtime key kept ONE transient failure
+        # (guard file mid-roll, manifest unreadable) answering 503 on every
+        # later request with the same key until the zip itself changed or
+        # the process restarted, even after the guard was intact again.
+        # Report it this request, cache nothing, and the next request
+        # re-runs the guard once it is readable.
+        return [f"release guard unavailable: {e}"]
+    _RELEASE_GUARD_CACHE.update(key=key, problems=problems)
+    return problems
+
+
+def _artifact_headers() -> dict:
+    """nosniff on every artifact response, and no-cache so a
+    checksum-pinned file is never served stale from an edge cache."""
+    return {"X-Content-Type-Options": "nosniff", "Cache-Control": "no-cache"}
+
+
+def _log_serving(method: str, request: Request, f: Path, size: int) -> None:
+    """ONE line per served artifact (Oct 30): whenever Explorer shows
+    "You require permission from \<machine\>\<user>" during a rebuild,
+    the log line answering "which process held the file" now sits right
+    in the server log next to the request that held it — the reader
+    needs no cross-file PID hunt, and `tools/stop_pool_server.sh --dry-
+    run` names the same PID when the handle is still open."""
+    ua = (request.headers.get("user-agent") or "-")[:64]
+    print(f"[Downloads] {method} {request.url.path} file={f.name} "
+          f"handler_pid={os.getpid()} size={size} ua={ua}", flush=True)
+
+
+class _SharingFileResponse(FileResponse):
+    """FileResponse that reads the artifact through a SHARING-SAFE open
+    (Oct 30).
+
+    The old behavior: Starlette's FileResponse calls its own
+    `anyio.open_file(path)` — a plain CRT open that DENIES
+    FILE_SHARE_DELETE — so for the whole life of a streamed download the
+    zip handle denied unlink/rename, and Explorer answered deletion with
+    "You require permission from \<machine\>\<user>". The lock is the
+    SHARE MODE of this open, not the file's permissions.
+
+    The fix: the response's read opens the artifact through
+    CreateFileW with FILE_SHARE_READ | FILE_SHARE_WRITE |
+    FILE_SHARE_DELETE. Measured on this checkout (Oct 30 probe):
+    while our sharing-safe handle is open, a `DeleteFileW` from any
+    other process SUCCEEDS (underlying NTFS deferred deletion carries
+    the open read of the in-flight download to completion on the bytes
+    it already pinned), the name is gone from the directory the
+    moment the delete wins, and in-flight reads/seek continue
+    working until the response drains and the handle closes.
+    Consequence: a rebuild's `del dist\\KrakenScoutBundle.zip` during a
+    slow client download no longer trips the Explorer dialog, and the
+    old-file release is provably handled by the tooling at
+    tools/stop_pool_server.sh (which stays for stopping/other files).
+
+    Implementation shape (pinned by test_bundle_serve.py 8.x): the
+    three _handle_* overrides below are a YEETED copy of the Starlette
+    1.3.1 internals with the only two bytecode-level changes: the file
+    open is `self._sharing_open()` (ours), and the pid log line rides
+    along when the route asks for it. Range parsing/multipart/header
+    logic all live in the parent class and are inherited unchanged —
+    a Starlette bump changes ONLY these three bodies' lineages.
+    """
+    async def _sharing_open(self):
+        """Open `self.path` so unlink/rename share is granted while the
+        response streams from the handle, wrapped for the handler's
+        awaitable read()/seek() protocol."""
+        import io as _io
+        path = "" if self.path is None else str(self.path)
+        if os.name != "nt":
+            # POSIX unlink semantics already allow delete/rename under an
+            # open read handle — the plain anyio open suffices there.
+            return await anyio.open_file(path, mode="rb")
+        import ctypes as _ct
+        import msvcrt as _ms
+        k32 = _ct.windll.kernel32
+        GENERIC_READ = 0x80000000
+        FILE_SHARE_READ, FILE_SHARE_WRITE, FILE_SHARE_DELETE = 0x1, 0x2, 0x4
+        OPEN_EXISTING = 3
+        k32.CreateFileW.restype = _ct.c_void_p
+        k32.CreateFileW.argtypes = [
+            _ct.c_wchar_p, _ct.c_uint, _ct.c_uint, _ct.c_void_p,
+            _ct.c_uint, _ct.c_uint, _ct.c_void_p]
+        INVALID_HANDLE_VALUE = _ct.c_void_p(-1).value
+        handle = k32.CreateFileW(
+            path, GENERIC_READ,
+            FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+            None, OPEN_EXISTING, 0, None)
+        if not handle or handle == INVALID_HANDLE_VALUE:
+            raise OSError(
+                f"CreateFileW refused {path} "
+                f"(GetLastError={_ct.GetLastError()})")
+        fd = _ms.open_osfhandle(handle, os.O_RDONLY)
+        return anyio.wrap_file(_io.open(fd, "rb"))
+
+    async def _handle_simple(self, send, send_header_only, send_pathsend):
+        # [YEETED COPY, Oct 30]: starlette.responses 1.3.1
+        # FileResponse._handle_simple, with the open swapped.
+        await send({"type": "http.response.start", "status": self.status_code,
+                    "headers": self.raw_headers})
+        if send_header_only:
+            await send({"type": "http.response.body", "body": b"",
+                        "more_body": False})
+        elif send_pathsend:
+            await send({"type": "http.response.pathsend", "path": str(self.path)})
+        else:
+            async with await self._sharing_open() as file:
+                more_body = True
+                while more_body:
+                    chunk = await file.read(self.chunk_size)
+                    more_body = len(chunk) == self.chunk_size
+                    await send({"type": "http.response.body", "body": chunk,
+                                "more_body": more_body})
+
+    async def _handle_single_range(self, send, start, end, file_size,
+                                   send_header_only):
+        # [YEETED COPY, Oct 30]: starlette.responses 1.3.1
+        # FileResponse._handle_single_range, with the open swapped.
+        from starlette.datastructures import MutableHeaders as _MH
+        headers = _MH(raw=list(self.raw_headers))
+        headers["content-range"] = f"bytes {start}-{end - 1}/{file_size}"
+        headers["content-length"] = str(end - start)
+        await send({"type": "http.response.start", "status": 206,
+                    "headers": headers.raw})
+        if send_header_only:
+            await send({"type": "http.response.body", "body": b"",
+                        "more_body": False})
+        else:
+            async with await self._sharing_open() as file:
+                await file.seek(start)
+                more_body = True
+                while more_body:
+                    chunk = await file.read(min(self.chunk_size, end - start))
+                    start += len(chunk)
+                    more_body = (len(chunk) == self.chunk_size
+                                 and start < end)
+                    await send({"type": "http.response.body", "body": chunk,
+                                "more_body": more_body})
+
+    async def _handle_multiple_ranges(self, send, ranges, file_size,
+                                      send_header_only):
+        # [YEETED COPY, Oct 30]: starlette.responses 1.3.1
+        # FileResponse._handle_multiple_ranges, with the open swapped.
+        import anyio as _anyio
+        from starlette.datastructures import MutableHeaders as _MH
+        boundary = secrets.token_hex(13)
+        content_length, header_generator = self.generate_multipart(
+            ranges, boundary, file_size, self.headers["content-type"])
+        headers = _MH(raw=list(self.raw_headers))
+        headers["content-type"] = f"multipart/byteranges; boundary={boundary}"
+        headers["content-length"] = str(content_length)
+        await send({"type": "http.response.start", "status": 206,
+                    "headers": headers.raw})
+        if send_header_only:
+            await send({"type": "http.response.body", "body": b"",
+                        "more_body": False})
+        else:
+            async with await self._sharing_open() as file:
+                for start, end in ranges:
+                    await send({"type": "http.response.body",
+                                "body": header_generator(start, end),
+                                "more_body": True})
+                    await file.seek(start)
+                    while start < end:
+                        chunk = await file.read(min(self.chunk_size,
+                                                    end - start))
+                        start += len(chunk)
+                        await send({"type": "http.response.body",
+                                    "body": chunk, "more_body": True})
+                    await send({"type": "http.response.body",
+                                "body": b"\r\n", "more_body": True})
+                await send({"type": "http.response.body",
+                            "body": f"--{boundary}--".encode("latin-1"),
+                            "more_body": False})
+
+    # the parent class's starlette-internal names these copies rely on
+    # (checked, not assumed): range parsing, multipart generation and
+    # header tools still resolve against Starlette's own FileResponse.
+    assert getattr(FileResponse, "_parse_range_header", None) is not None
+    assert getattr(FileResponse, "generate_multipart", None) is not None
+    assert getattr(FileResponse, "_should_use_range", None) is not None
+
+
+SITE_ORIGIN = "https://xmrjackpot.com"
+ORGANIZATION_ID = SITE_ORIGIN + "/#organization"
+WEBSITE_ID = SITE_ORIGIN + "/#website"
+
+
+def _bundle_manifest() -> dict:
+    """The build manifest the artifact routes and the page both read."""
+    mf = _dist_dir / "KrakenScoutBundle.zip.json"
+    if not mf.exists():
+        return {}
+    try:
+        return json.loads(mf.read_text(encoding="utf-8"))
+    except ValueError:
+        return {}
+
+
+def _jsonld_script(node: dict) -> str:
+    nl = chr(10)
+    return ('<script type="application/ld+json">' + nl
+            + json.dumps(node, indent=2, ensure_ascii=False)
+            + nl + "</script>")
+
+
+def _site_jsonld() -> str:
+    """Organization + WebSite: one node each, the same @id on every URL."""
+    organization = {
+        "@context": "https://schema.org",
+        "@type": "Organization",
+        "@id": ORGANIZATION_ID,
+        "name": "XMR Jackpot",
+        "url": SITE_ORIGIN + "/",
+    }
+    website = {
+        "@context": "https://schema.org",
+        "@type": "WebSite",
+        "@id": WEBSITE_ID,
+        "url": SITE_ORIGIN + "/",
+        "name": "XMR Jackpot",
+        "inLanguage": "en",
+        "publisher": {"@id": ORGANIZATION_ID},
+    }
+    return _jsonld_script(organization) + chr(10) + _jsonld_script(website)
+
+
+def _download_jsonld() -> str:
+    """Product + SoftwareApplication, for /download only.
+
+    The version comes from the build manifest on every request, so the markup
+    cannot drift from the file it describes. No version in the manifest means
+    no claim: an empty string, not a guess.
+    """
+    version = _bundle_manifest().get("version")
+    if not version:
+        return ""
+    product = {
+        "@context": "https://schema.org",
+        "@type": "Product",
+        "@id": SITE_ORIGIN + "/download#bundle",
+        "name": "Kraken Scout Bundle",
+        "url": SITE_ORIGIN + "/download",
+        "brand": {"@id": ORGANIZATION_ID},
+        "offers": {
+            "@type": "Offer",
+            "price": "0",
+            "priceCurrency": "USD",
+            "availability": "https://schema.org/InStock",
+            "url": SITE_ORIGIN + "/downloads/KrakenScoutBundle.zip",
+        },
+    }
+    application = {
+        "@context": "https://schema.org",
+        "@type": "SoftwareApplication",
+        "@id": SITE_ORIGIN + "/download#app",
+        "name": "Kraken Scout",
+        "applicationCategory": "UtilitiesApplication",
+        "isAccessibleForFree": True,
+        "softwareVersion": version,
+        "url": SITE_ORIGIN + "/download",
+        "downloadUrl": SITE_ORIGIN + "/downloads/KrakenScoutBundle.zip",
+        "publisher": {"@id": ORGANIZATION_ID},
+    }
+    return _jsonld_script(product) + chr(10) + _jsonld_script(application)
+
+
+# Template-owned JSON-LD is tagged with the one page that emits it:
+#   <!-- XMRJ:SCHEMA page=download --> ... <!-- /XMRJ:SCHEMA -->
+# Every other page strips the block, so the homepage never advertises a
+# product it does not offer, or a FAQ it does not print.
+SCHEMA_START = "<!-- XMRJ:SCHEMA page="
+SCHEMA_END = "<!-- /XMRJ:SCHEMA -->"
+_SCHEMA_BLOCK_RE = re.compile(re.escape(SCHEMA_START) + r"([a-z-]+)[\s\S]*?"
+                              + re.escape(SCHEMA_END) + r"\s*")
+
+
+def _with_jsonld(html: str, spa_page: str = "", canonical: str = "") -> str:
+    """Add the structured data the page contract promises.
+
+    Site entities go in the head of every page. Page-specific entities
+    (Product on /download, FAQPage on /how-to-play) live in the template
+    between XMRJ:SCHEMA markers tagged with their page, so this keeps the
+    matching block and strips every other one - the homepage must not
+    advertise a product it does not offer or a FAQ it does not print. Site
+    entities are recognised by their own @type, which keeps this from
+    doubling a block that the template (or an earlier call) already carries.
+    """
+    if SCHEMA_START in html:
+        html = _SCHEMA_BLOCK_RE.sub(
+            lambda m: m.group(0) if m.group(1) == spa_page else "", html)
+    if canonical and 'rel="canonical"' not in html and "</head>" in html:
+        html = html.replace(
+            "</head>",
+            '<link rel="canonical" href="' + SITE_ORIGIN + canonical + '">'
+            + chr(10) + "</head>", 1)
+    if '"@type": "Organization"' not in html and "</head>" in html:
+        html = html.replace("</head>", _site_jsonld() + chr(10) + "</head>", 1)
+    if spa_page == "download" and '"@type": "SoftwareApplication"' not in html:
+        download = _download_jsonld()
+        if download and "</body>" in html:
+            html = html.replace("</body>", download + chr(10) + "</body>", 1)
+    return html
 
 
 @app.get("/downloads/KrakenScoutBundle.zip")
 async def downloads_bundle(request: Request):
-    _bundle_reader_or_401(request)
     f = _dist_dir / "KrakenScoutBundle.zip"
     if not f.exists():
         raise HTTPException(status_code=404, detail="bundle not built")
-    # no-cache: a checksum-pinned artifact must NEVER be served stale
-    # from an edge cache (Cloudflare proved this within the hour) —
-    # revalidate per request, 304 when the bytes are unchanged.
-    return FileResponse(str(f), media_type="application/zip",
-                        filename="KrakenScoutBundle.zip",
-                        headers={"X-Content-Type-Options": "nosniff",
-                                 "Cache-Control": "no-cache"})
+    problems = _artifact_problems(f)
+    if problems:
+        print(f"[Release] REFUSING to serve {f.name}: {len(problems)} "
+              f"manifest violation(s); first: {problems[0]}")
+        raise HTTPException(
+            status_code=503,
+            detail="this artifact is quarantined by the release manifest")
+    # revalidate per request, 304 when the bytes are unchanged: a
+    # checksum-pinned artifact must NEVER be served stale (Cloudflare
+    # proved this within the hour).
+    _log_serving("GET", request, f, f.stat().st_size)
+    # Sharing-safe read: the response streams from a handle that grants
+    # unlink/rename share, so a rebuild's delete during a slow download
+    # succeeds instead of tripping Explorer's permission dialog.
+    return _SharingFileResponse(str(f), media_type="application/zip",
+                                filename="KrakenScoutBundle.zip",
+                                headers=_artifact_headers())
+
+
+@app.head("/downloads/KrakenScoutBundle.zip")
+async def downloads_bundle_head():
+    f = _dist_dir / "KrakenScoutBundle.zip"
+    if not f.exists():
+        raise HTTPException(status_code=404, detail="bundle not built")
+    if _artifact_problems(f):
+        raise HTTPException(
+            status_code=503,
+            detail="this artifact is quarantined by the release manifest")
+    return Response(status_code=200, media_type="application/zip",
+                    headers={**_artifact_headers(),
+                             "Content-Length": str(f.stat().st_size)})
 
 
 @app.get("/downloads/KrakenScoutBundle.zip.sha256")
-async def downloads_bundle_sha256(request: Request):
-    _bundle_reader_or_401(request)
+async def downloads_bundle_sha256():
     f = _dist_dir / "KrakenScoutBundle.zip.sha256"
     if not f.exists():
         raise HTTPException(status_code=404, detail="checksum not published")
     return PlainTextResponse(f.read_text(encoding="ascii"),
-                             headers={"X-Content-Type-Options": "nosniff",
-                                      "Cache-Control": "no-cache"})
+                             headers=_artifact_headers())
+
+
+@app.head("/downloads/KrakenScoutBundle.zip.sha256")
+async def downloads_bundle_sha256_head():
+    f = _dist_dir / "KrakenScoutBundle.zip.sha256"
+    if not f.exists():
+        raise HTTPException(status_code=404, detail="checksum not published")
+    text = f.read_text(encoding="ascii")
+    return Response(status_code=200, media_type="text/plain",
+                    headers={**_artifact_headers(),
+                             "Content-Length": str(len(text.encode("ascii")))})
 
 
 @app.get("/api/downloads/bundle-info")
@@ -219,6 +642,15 @@ print("[crypto] at-rest migration:", _enc)
 class MinerRegister(BaseModel):
     wallet_address: str
     worker_name: str = ""
+    # Phase F: the installer's install id, when it has one — links this
+    # activation to the install record instead of creating a second row.
+    install_id: str = ""
+
+
+class ScoutInstallReport(BaseModel):
+    """An install beacon: the id the installer minted for this machine
+    (empty = the server mints one). No wallet, no account."""
+    install_id: str = ""
 
 
 class UpdateShares(BaseModel):
@@ -306,10 +738,838 @@ def _miner_ingest_authorized(request: Request, wallet: str,
 
 # ─── Frontend Route ──────────────────────────────────────────
 @app.get("/", response_class=HTMLResponse)
-async def dashboard():
-    """Serve the main game dashboard."""
-    template_path = Path(__file__).parent / "templates" / "index.html"
-    return HTMLResponse(content=template_path.read_text(encoding="utf-8"))
+async def dashboard(request: Request):
+    """Serve the main game dashboard in the selected language."""
+    moved = _auto_language(request, "")
+    if moved:
+        return moved
+    return HTMLResponse(content=_with_jsonld(
+        _localized_homepage("en", request), canonical="/"))
+
+
+# ─── Standalone pages (/download, /winners) ─────────────────
+# The copy and its schema live in the SPA template, so the app
+# production already serves is the only copy of them. These routes keep
+# exactly one section: the SPA's other pages and its scripts are
+# stripped (nothing here is dynamic), the nav becomes plain links back
+# into the app, and the head gets each URL's own title, description and
+# canonical instead of the dashboard's.
+#
+# {{...}} tokens are filled from live sources on each request. A token
+# with no value never ships: the copy falls back to an em dash, and any
+# JSON-LD block still holding a token is dropped, so a page cannot claim
+# a version the build manifest does not carry.
+HOWTO_TITLE = "How to Play — Mine Monero, Earn Entries, Win the Daily Pot"
+def _howto_description() -> str:
+    """The /how-to-play meta description, unit from the engine (Oct 24).
+
+    The entry unit is an operator setting, so it cannot be baked into a
+    string constant: the description has to quote the number the pool
+    actually pays.
+    """
+    unit = engine.entry_unit()
+    return (f"Point a Monero miner at the pool, earn one entry per {unit} "
+            "accepted shares, and take part in the daily drawing. No "
+            "deposit, no entry fee, no purchase.")
+WINNERS_TITLE = "Winners and Past Drawings — XMR Jackpot"
+WINNERS_DESCRIPTION = (
+    "Every completed XMR Jackpot drawing: when it ran, what it paid, the "
+    "winning entry and the public proof that anyone can re-check."
+)
+_SECTION_RE = re.compile(r'<section id="page-([a-z-]+)"[^>]*>[\s\S]*?</section>\s*')
+_LDJSON_RE = re.compile(r'<script type="application/ld\+json">[\s\S]*?</script>\s*')
+_SCRIPT_SRC_RE = re.compile(r'\s*<script src="[^"]+"></script>')
+_NAV_RE = re.compile(r'<nav class="navbar">[\s\S]*?</nav>')
+_STATIC_NAV = '''<nav class="navbar">
+  <div class="nav-logo">
+    <span style="font-size:1.6em;">⛏️</span> XMR JACKPOT
+  </div>
+  <div class="nav-links">
+    <a href="/">Home</a>
+    <a href="/#howto">How to Play</a>
+    <a href="/#realplay">Play for XMR</a>
+    <a href="/#leaderboard">Winners</a>
+    <a href="/#dashboard">Dashboard</a>
+  </div>
+</nav>'''
+
+
+STYLE_HREF = "/static/style.css?v=21"   # test_i18n_region pins this to the template
+
+
+def _site_chrome() -> dict:
+    """The navbar, footer and stylesheet every page wears, lifted from the app.
+
+    The old standalone pages were the template minus its other sections, so a
+    redesign reached them for free. They are catalog-rendered now, and a bare
+    page without the logo, the Kraken Scout footer and the CTA box reads as a
+    different, older site - so the chrome is read from the template instead of
+    retyped here, and a template edit lands on every page at once.
+
+    NOT lru_cached (review, Oct 29): a cached copy baked fill_terms()' output
+    in once per process, so the footer's {{WINNER_PCT}}/{{HOUSE_TAX_PCT}}/
+    {{DRAW_HOURS}}/{{CLAIM_DAYS}}/{{PRO_DAYS}}, the ticket-entry unit and the
+    Pro price froze at the first visitor's values and did not follow an
+    operator setting change or the live XMR rate until a restart. The parse
+    is a regex and a replace on one footer block, only on catalog pages -
+    recomputing per request is the cheap, honest option.
+    """
+    tpl = _template_text()
+    footer = re.search(r"<footer>[\s\S]*?</footer>", tpl).group(0)
+    # No app.js on these pages: a data-action would be a dead link, so the
+    # Terms link becomes the real page it means.
+    footer = footer.replace('<a href="#" data-action="navigate-howto"',
+                            '<a href="/how-to-play"', 1)
+    # The footer states the payout split and the entry unit; catalog pages
+    # must not ship those as literal tokens (Oct 24).
+    try:
+        footer = fill_terms(footer)
+    except Exception as e:
+        print(f"[Chrome] footer tokens not filled: {e}")
+    return {"nav": _STATIC_NAV, "footer": footer, "style": STYLE_HREF}
+
+
+def _utc_stamp(ts) -> str:
+    """A drawing timestamp as a fixed UTC string, or an em dash."""
+    try:
+        return datetime.fromtimestamp(float(ts), timezone.utc).strftime(
+            "%Y-%m-%d %H:%M UTC")
+    except (TypeError, ValueError, OSError):
+        return "—"
+
+
+def _xmr(value) -> str:
+    try:
+        return f"{float(value):.4f}"
+    except (TypeError, ValueError):
+        return "—"
+
+
+def _winners_tokens() -> dict:
+    """The drawings the page shows, read from the pool's own table.
+
+    Only completed drawings count: a pending round has neither a winner
+    nor a proof, and showing one would be a claim the proof link cannot
+    back. With none completed the page keeps its empty state.
+
+    THE COIN FIELD (Oct 28): a Verus win states the coin it was paid in
+    and — once claimed — the exact quantity the treasury owes, with the
+    pending-send marker while the manual leg waits. The quantity is
+    NEVER invented here: rates move between render and claim, so an
+    unclaimed Verus win says equivalent, not a number, and a drawing
+    with no payout facts falls back to the equivalent-only cell.
+    """
+    try:
+        rows = [r for r in db.get_recent_drawings(20)
+                if r.get("status") == "drawn"]
+    except Exception:                     # a broken db must not 500 the page
+        rows = []
+
+    # The payout facts the coin-aware prize cells need: claimed quantity
+    # and pending-treasury state, one read, latest jackpot payout wins.
+    # Failing here degrades to the equivalent-only cell, never a 500.
+    paid = {}
+    if rows:
+        _ids = [int(r.get("id") or 0) for r in rows]
+        try:
+            with db.get_db() as conn:
+                _q = conn.execute(
+                    "SELECT drawing_id, coin, amount_coin, status, tx_hash "
+                    "FROM payouts WHERE drawing_id IN (%s) ORDER BY id"
+                    % ",".join("?" * len(_ids)), _ids,
+                ).fetchall()
+            for _p in _q:
+                paid[int(_p["drawing_id"])] = dict(_p)
+        except Exception:
+            paid = {}
+
+    def _prize(r):
+        j = float(r.get("jackpot_amount") or 0)
+        if ((r.get("coin") or "xmr") != "vrsc"
+                and r.get("winner_coin") != "vrsc"):
+            return _xmr(j) + " XMR"
+        pf = paid.get(int(r.get("id") or 0)) or {}
+        if pf.get("coin") == "vrsc" and pf.get("amount_coin"):
+            out = "%s VRSC" % ("%.6f" % float(pf["amount_coin"]))
+            if str(pf.get("status")) == "pending":
+                out += " <em>(pending treasury send)</em>"
+            return out
+        hint = "paid in VRSC" if r.get("coin") == "vrsc" else "pays in VRSC"
+        return "%s XMR-equiv \u00b7 %s" % (_xmr(j), hint)
+
+    # Seeded history is display data, not a payout: a demo winner is
+    # labeled on the public page too (Oct 24 full disclosure).
+    def _demo(r) -> str:
+        return " <em>(demo)</em>" if r.get("winner_is_demo") else ""
+
+    if rows:
+        latest = rows[0]
+        wid = int(latest.get("id") or 0)
+        wallet = escape(str(latest.get("winner_wallet") or "—")) + _demo(latest)
+        latest_html = (
+            "<table>\n      <tbody>\n"
+            f'        <tr><th scope="row">Drawn</th><td>{_utc_stamp(latest.get("drawn_at"))}</td></tr>\n'
+            f'        <tr><th scope="row">Winner</th><td><code>{wallet}</code></td></tr>\n'
+            f'        <tr><th scope="row">Prize</th><td>{_prize(latest)}</td></tr>\n'
+            f'        <tr><th scope="row">Proof</th><td><a href="/api/verify/{wid}">/api/verify/{wid}</a></td></tr>\n'
+            "      </tbody>\n    </table>"
+        )
+    else:
+        latest_html = (
+            '<p class="seo-empty"><strong>No drawing has completed yet.</strong> '
+            "The first result will appear here with its proof as soon as the "
+            "round closes.</p>"
+        )
+
+    draw_rows = "\n".join(
+        "        <tr><td>#{}</td><td>{}</td><td>{}</td><td><code>{}</code></td>"
+        '<td><a href="/api/verify/{id}">verify</a></td></tr>'.format(
+            int(r.get("id") or 0), _utc_stamp(r.get("drawn_at")),
+            _prize(r),
+            escape(str(r.get("winner_wallet") or "—")) + _demo(r),
+            id=int(r.get("id") or 0))
+        for r in rows)
+    return {
+        "{{LATEST_DRAWING}}": latest_html,
+        "{{DRAW_ROWS}}": draw_rows,
+        "{{DRAW_EMPTY}}": "" if draw_rows else
+        '<p class="seo-empty">Rows appear here once drawings complete.</p>',
+    }
+
+
+def _drop_unbacked_jsonld(html: str) -> str:
+    """Remove every JSON-LD block that still holds an unfilled token."""
+    kept, pos = [], 0
+    for m in _LDJSON_RE.finditer(html):
+        if "{{" in m.group(0):
+            kept.append(html[pos:m.start()])
+            pos = m.end()
+    kept.append(html[pos:])
+    return "".join(kept)
+
+
+def _keep_only_section(html: str, keep: str) -> str:
+    """Drop every SPA page section except `keep`."""
+    return _SECTION_RE.sub(
+        lambda m: m.group(0) if m.group(1) == keep else "", html)
+
+
+def _standalone_page(template: str, keep: str, title: str,
+                     description: str, path: str, tokens: dict) -> str:
+    """Turn the SPA template into a page for one URL: one section,
+    static nav, no SPA scripts, and this URL's own head."""
+    html = template
+    for token, value in tokens.items():
+        if value:
+            html = html.replace(token, value)
+    html = _drop_unbacked_jsonld(html)
+    html = re.sub(r"\{\{[A-Z0-9_]+\}\}", "—", html)
+
+    html = _keep_only_section(html, keep)
+    html = _NAV_RE.sub(lambda _m: _STATIC_NAV, html, count=1)
+    html = _SCRIPT_SRC_RE.sub("", html)
+    html = html.replace(f'<section id="page-{keep}" class="page">',
+                        f'<section id="page-{keep}" class="page active">', 1)
+
+    head, sep, rest = html.partition("</head>")
+    if sep:
+        head = re.sub(r"<title>[\s\S]*?</title>",
+                      "<title>" + title + "</title>", head, count=1)
+        head = re.sub(r'<meta name="description" content="[^"]*">',
+                      '<meta name="description" content="'
+                      + description + '">', head, count=1)
+        head += '<link rel="canonical" href="' + SITE_ORIGIN + path + '">' + chr(10)
+        html = head + sep + rest
+    return html
+
+
+def _template_text() -> str:
+    return (Path(__file__).parent / "templates" / "index.html").read_text(
+        encoding="utf-8")
+
+
+def _pro_price() -> tuple:
+    """The Scout Pro checkout price, as the checkout will charge it.
+
+    (xmr, usd) — the SAME (usd, xmr) tuple every consumer in the
+    checkout chain gets from pool/operator_config.pro_price(), reordered
+    for this module's historical callers. One chain, one reader:
+    operator_config stores the dollar figure and derives the XMR amount
+    at the tracked rate (the live rate or the operator's pin, never the
+    old 323 constant).
+    """
+    usd, amount = oc.pro_price()
+    return amount, usd
+
+
+def _payout_terms() -> dict:
+    """Every number the copy states about the draw, from its setting.
+
+    The page used to hardcode "90%", "every 24 hours" and "7 days". All
+    three are operator settings (house_tax_percent, drawing_interval_hours,
+    claim_window_days), so a tuned pool shipped a page describing the old
+    rules. These are the same readers the engine uses, with the engine's
+    own defaults, so the sentence and the payout cannot disagree.
+    """
+    def _num(key, default):
+        try:
+            return float(db.get_setting(key, str(default)))
+        except (TypeError, ValueError):
+            return float(default)
+
+    tax = int(max(0, min(100, _num("house_tax_percent", 10))))
+    hours = _num("drawing_interval_hours", 24)
+    if hours <= 0:
+        hours = 24.0
+    claim = int(_num("claim_window_days", 7))
+    if claim < 0:
+        claim = 7
+    pro_days = int(_num("pro_unlock_days", 100))
+    if pro_days < 1:
+        pro_days = 100
+    return {
+        "house_tax": tax,
+        "winner": 100 - tax,
+        "hours": ("%g" % hours),
+        "claim": claim,
+        "pro_days": pro_days,
+    }
+
+
+def _template_html() -> str:
+    """The template with its live tokens filled in (Oct 24).
+
+    The homepage states the entry rule, the payout split, the draw
+    cadence, the claim window and the Pro price in words, so none of them
+    can be a literal: each comes from the setting the engine, the
+    scheduler or the checkout actually reads. A page that promises
+    different odds, a different schedule or a different charge than the
+    pool takes is a lie, and an operator who tunes a setting would
+    otherwise ship one.
+    """
+    unit = engine.entry_unit()
+    price_xmr, price_usd = _pro_price()
+    terms = _payout_terms()
+    # "N miners" in the comparison copy was a hardcoded "100+" while the
+    # live counter said 22. The page states the pool's own count now.
+    try:
+        miners = str(engine.get_pool_stats().get("total_miners", 0))
+    except Exception:
+        miners = "—"
+    # THE WINNERS BLOCK (fixed Oct 24): the SPA shell contains the winners
+    # section, but only the /winners route used to fill DRAW_ROWS /
+    # LATEST_DRAWING / DRAW_EMPTY. On / those three tokens shipped as
+    # literal braces to the browser. Same reader, filled everywhere.
+    try:
+        winners = _winners_tokens()
+    except Exception as e:
+        print(f"[Template] winners block unavailable: {e}")
+        winners = {}
+    html = (_template_text()
+            .replace("{{LATEST_DRAWING}}", winners.get("{{LATEST_DRAWING}}", ""))
+            .replace("{{DRAW_ROWS}}", winners.get("{{DRAW_ROWS}}", ""))
+            .replace("{{DRAW_EMPTY}}", winners.get("{{DRAW_EMPTY}}", ""))
+            .replace("{{TOTAL_MINERS}}", miners))
+    return fill_terms(html, unit=unit, prices=(price_xmr, price_usd),
+                      terms=terms)
+
+
+def fill_terms(html: str, unit=None, prices=None, terms=None) -> str:
+    """Fill the live-number tokens in any chunk of template copy.
+
+    `_site_chrome()` lifts the footer out of index.html for every catalog-
+    rendered page (/download, /status, ...). The footer states the payout
+    split, so it carries the same tokens — and without this the standalone
+    pages rendered a literal "{{WINNER_PCT}}%". One filler for every
+    surface that reuses template copy.
+    """
+    unit = engine.entry_unit() if unit is None else unit
+    price_xmr, price_usd = _pro_price() if prices is None else prices
+    terms = _payout_terms() if terms is None else terms
+    return (html
+            .replace("{{ENTRY_UNIT}}", str(unit))
+            .replace("{{PRO_PRICE_XMR}}", ("%g" % price_xmr))
+            .replace("{{PRO_PRICE_USD}}", "%.2f" % price_usd)
+            .replace("{{HOUSE_TAX_PCT}}", str(terms["house_tax"]))
+            .replace("{{WINNER_PCT}}", str(terms["winner"]))
+            .replace("{{DRAW_HOURS}}", terms["hours"])
+            .replace("{{CLAIM_DAYS}}", str(terms["claim"]))
+            .replace("{{PRO_DAYS}}", str(terms["pro_days"])))
+
+
+# ─── Public relay status (fed by relay/monitor-relay.py) ─────────────
+#
+# The monitor on the pool PC writes .relay/relay-status.json every cycle. This
+# page is the miner-facing view of that file: no API key, no admin, no secrets —
+# just "is the thing I am about to point xmrig at actually answering".
+#
+# Two honesties are built in. A missing or stale file reads as "unknown", never
+# as "down": the relay can be perfectly healthy while the monitor is not running,
+# and a status page that cries wolf is worse than one that says it does not know.
+# Check details are escaped; they come from our own monitor, but a status page is
+# a bad place to start trusting strings.
+STRATUM_URL = "stratum+tcp://mine.xmrjackpot.com:3333"
+_RELAY_STATUS_FILE = (Path(__file__).resolve().parent.parent
+                      / ".relay" / "relay-status.json")
+_RELAY_CACHE: dict = {"mtime": None, "value": {}}
+_RELAY_FRESH_S = 300
+
+def _qr_svg(data: str, scale: int = 4) -> str:
+    """Inline SVG QR code, or "" if the encoder is unavailable.
+
+    Returning an empty string rather than raising keeps a missing optional
+    dependency from taking out the whole download page.
+    """
+    try:
+        import segno
+        return segno.make(data, error="m").svg_inline(
+            scale=scale, border=2, dark="#1a1a1a", light="#ffffff")
+    except Exception:
+        return ""
+
+
+def _relay_snapshot() -> dict:
+    """Current monitor verdict, re-read only when the file changes."""
+    try:
+        st = _RELAY_STATUS_FILE.stat()
+    except OSError:
+        return {"available": False, "healthy": None, "checked": None,
+                "checks": {}, "age_s": None}
+    try:
+        if _RELAY_CACHE["mtime"] != st.st_mtime:
+            _RELAY_CACHE["value"] = json.loads(
+                _RELAY_STATUS_FILE.read_text(encoding="utf-8"))
+            _RELAY_CACHE["mtime"] = st.st_mtime
+        snap = dict(_RELAY_CACHE["value"] or {})
+    except Exception:
+        return {"available": False, "healthy": None, "checked": None,
+                "checks": {}, "age_s": None}
+    snap["available"] = True
+    snap["age_s"] = max(0, int(time.time() - st.st_mtime))
+    return snap
+
+
+def _relay_verdict(snap: dict) -> str:
+    """operational | degraded | unknown — never 'down' from a stale file."""
+    if not snap.get("available"):
+        return "unknown"
+    if snap.get("age_s") is not None and snap["age_s"] > _RELAY_FRESH_S:
+        return "unknown"
+    return "operational" if snap.get("healthy") else "degraded"
+
+
+# ─── The miner pages, in six languages ───────────────────────────────
+# /download and /status are rendered from pool/templates/i18n/<lang>.json, so
+# the copy is data, not markup: a translator edits JSON, and the parity test
+# fails if a language is missing a key or drops a {placeholder}. English keeps
+# the unprefixed URL; every other language lives at /<code>/<page>, and an
+# explicit choice in the selector beats the browser header from then on.
+LOCALIZED_PAGES = ("download", "status")
+
+
+def _download_bundle() -> dict:
+    """Manifest facts for the download copy; a missing field renders as an em dash."""
+    info = _bundle_manifest()
+    size = info.get("size_human")
+    if not size and info.get("bytes"):
+        size = str(round(info["bytes"] / 1048576)) + " MB"
+    return {"size": size, "version": info.get("version"),
+            "built": info.get("built_utc"), "sha256": info.get("sha256")}
+
+
+def _scout_offer() -> dict:
+    """Live Scout Pro price and duration for the download page.
+
+    Read from the same settings the checkout reads, so the page cannot quote a
+    price the paywall does not charge. Unreadable settings fall back to the
+    checkout's own defaults rather than printing nothing.
+    """
+    try:
+        price, usd = _pro_price()
+    except Exception:
+        price, usd = 0.0, 95.0
+    days = oc.pro_days()          # THE ONE reader of the grant-days chain
+    return {"price": ("%.6f" % price).rstrip("0").rstrip("."),
+            "usd": "%.2f" % usd, "days": days}
+
+
+def _render_lang_page(lang: str, page: str, request: Request) -> str:
+    if page == "download":
+        html = i18n_pages.render_download(
+            lang, SITE_ORIGIN, i18n.region_from_headers(request.headers),
+            _download_bundle(), _qr_svg(STRATUM_URL, scale=3), _site_chrome(),
+            _scout_offer())
+        # Site + product entities, appended once the copy exists: the version
+        # inside them comes from the manifest, so markup cannot claim a build
+        # the artifact is not.
+        return html.replace("</head>", _site_jsonld() + chr(10)
+                            + _download_jsonld() + chr(10) + "</head>", 1)
+    snap = _relay_snapshot()
+    return i18n_pages.render_status(lang, SITE_ORIGIN, snap,
+                                    _relay_verdict(snap),
+                                    engine.get_pool_stats(), _site_chrome())
+
+
+def _serve_page(lang: str, page: str, request: Request) -> HTMLResponse:
+    headers = {"Cache-Control": "no-store"} if page == "status" else {}
+    return HTMLResponse(_render_lang_page(lang, page, request), headers=headers)
+
+
+def _auto_language(request: Request, page: str):
+    """Send a visitor to the language they asked for, once per URL."""
+    cookie = request.cookies.get(i18n.LANG_COOKIE)
+    lang = (cookie if cookie in i18n.LANGUAGES
+            else i18n.negotiate(request.headers.get("accept-language")))
+    if lang == i18n.DEFAULT_LANG:
+        return None
+    target = (i18n.page_path(lang, page) if page
+              else ("/" if lang == i18n.DEFAULT_LANG else f"/{lang}/"))
+    return RedirectResponse(target, status_code=302,
+                            headers={"Vary": "Accept-Language, Cookie",
+                                     "Cache-Control": "no-store"})
+
+
+@app.get("/status", response_class=HTMLResponse)
+@app.get("/status/", response_class=HTMLResponse)
+async def status_page(request: Request):
+    moved = _auto_language(request, "status")
+    return moved or _serve_page(i18n.DEFAULT_LANG, "status", request)
+
+
+@app.get("/api/relay-status")
+async def api_relay_status():
+    """Anonymous JSON view of the same data the /status page renders."""
+    snap = _relay_snapshot()
+    stats = engine.get_pool_stats()
+    return JSONResponse({
+        "stratum": STRATUM_URL,
+        "verdict": _relay_verdict(snap),
+        "available": snap.get("available", False),
+        "healthy": snap.get("healthy"),
+        "checked": snap.get("checked"),
+        "age_seconds": snap.get("age_s"),
+        "checks": snap.get("checks") or {},
+        "pool": {
+            "miners": stats.get("real_miners", stats.get("active_miners", 0)),
+            "hashrate": stats.get("total_hashrate", 0),
+        },
+    }, headers={"Cache-Control": "no-store"})
+
+
+@app.get("/download", response_class=HTMLResponse)
+async def download_page(request: Request):
+    """The download page, built from the catalog for every language."""
+    moved = _auto_language(request, "download")
+    return moved or _serve_page(i18n.DEFAULT_LANG, "download", request)
+
+
+def _homepage_region_card(lang: str, request: Request) -> str:
+    """Show the configured relay location as latency context, never as a gate."""
+    region = i18n.region_from_headers(request.headers)
+    country = region.get("country") or ""
+    if not country:
+        copy = i18n.app_t(lang, "dashboard.homeRegionUnknown")
+    elif region.get("near"):
+        copy = i18n.app_t(lang, "dashboard.homeRegionNear", country=country)
+    else:
+        copy = i18n.app_t(
+            lang, "dashboard.homeRegionFar", country=country,
+            region=i18n.t(lang, "region.name." + region.get("region", "global")))
+    return ('<div class="card" data-region-guidance="true" '
+            'style="border-color:var(--lapis);margin-bottom:18px;">'
+            '<div class="card-header">'
+            + escape(i18n.app_t(lang, "dashboard.homeRegionTitle"))
+            + '</div><p style="margin:0;color:var(--text-dim);">'
+            + escape(copy) + '</p></div>')
+
+
+def _localized_homepage(lang: str, request: Request) -> str:
+    """Render the shared SPA with translated chrome, copy, and region context."""
+    html = _template_html().replace('<html lang="en">',
+                                    f'<html lang="{lang}">', 1)
+    links = []
+    for code, name in i18n.LANGUAGES.items():
+        destination = "/" if code == i18n.DEFAULT_LANG else f"/{code}/"
+        links.append(
+            f'<a href="/lang/{code}?next={destination}" lang="{code}" '
+            f'title="{escape(name)}"' +
+            (' aria-current="page"' if code == lang else '') +
+            f'>{code.upper()}</a>')
+    switch = ('<div class="nav-language" aria-label="'
+              + escape(i18n.app_t(lang, "dashboard.langLabel"))
+              + '">' + ' <span aria-hidden="true">·</span> '.join(links)
+              + '</div>')
+    if lang != i18n.DEFAULT_LANG:
+        html = re.sub(r'\s*<div class="nav-language"[\s\S]*?</div>', '', html, count=1)
+        html = html.replace('</nav>', switch + '</nav>', 1)
+    region_card = _homepage_region_card(lang, request)
+    landing_marker = '<section id="page-landing" class="page active">'
+    html = html.replace(landing_marker, landing_marker + region_card, 1)
+    dash_marker = '<section id="page-dashboard" class="page">'
+    html = html.replace(dash_marker, dash_marker + region_card, 1)
+    # The browser maps static template copy against the English reference,
+    # then uses the selected language's complete UI catalog. Format live
+    # operator-owned values before sending either catalog to the page.
+    terms = _payout_terms()
+    price_xmr, price_usd = _pro_price()
+    values = {
+        "entryUnit": engine.entry_unit(),
+        "drawHours": terms["hours"],
+        "winnerPct": terms["winner"],
+        "proUsd": "%.2f" % price_usd,
+        "proXmr": "%g" % price_xmr,
+    }
+    def _formatted_catalog(code):
+        output = {}
+        for key, value in i18n.app_catalog(code).items():
+            try:
+                output[key] = value.format(**values)
+            except (AttributeError, KeyError, IndexError, ValueError):
+                output[key] = value
+        return output
+    # THE TRANSLATED TITLE (Oct 29, playtest stumble): the localized
+    # homepage used to keep the template's English <title> — body and
+    # chrome translated, metadata still English. home.metaTitle added
+    # to every app_i18n catalog now names the page per language, with
+    # app_t's own English fallback if a catalog ever loses the key.
+    meta_title = (i18n.app_t(lang, "home.metaTitle") or "").strip()
+    if meta_title:
+        html = re.sub(r"<title>[\s\S]*?</title>",
+                      "<title>" + escape(meta_title) + "</title>",
+                      html, count=1)
+    app_copy = {"lang": lang, "en": _formatted_catalog(i18n.DEFAULT_LANG),
+                "current": _formatted_catalog(lang)}
+    catalog_json = json.dumps(app_copy, ensure_ascii=False)
+    catalog_json = catalog_json.replace('<', '\\u003c').replace('>', '\\u003e')
+    payload = '<script type="application/json" id="appI18n">' + catalog_json + '</script>'
+    html = html.replace('</head>', payload + '</head>', 1)
+    return html
+
+
+def _localized_home_handler(lang: str):
+    async def handler(request: Request):
+        return HTMLResponse(content=_with_jsonld(
+            _localized_homepage(lang, request),
+            canonical=i18n.page_path(lang, "")))
+    return handler
+
+
+def _localized_home_root(lang: str):
+    async def handler():
+        return RedirectResponse(f"/{lang}/", status_code=301)
+    return handler
+
+
+def _localized_handler(lang: str, page: str):
+    async def handler(request: Request):
+        return _serve_page(lang, page, request)
+    return handler
+
+
+for _code in i18n.LANGUAGES:
+    if _code == i18n.DEFAULT_LANG:
+        continue
+    for _page in LOCALIZED_PAGES:
+        app.add_api_route(f"/{_code}/{_page}", _localized_handler(_code, _page),
+                          methods=["GET"], response_class=HTMLResponse,
+                          name=f"{_code}_{_page}")
+    app.add_api_route(f"/{_code}/", _localized_home_handler(_code),
+                      methods=["GET"], response_class=HTMLResponse,
+                      name=f"{_code}_home")
+    app.add_api_route(f"/{_code}", _localized_home_root(_code),
+                      methods=["GET"], name=f"{_code}_home_slash")
+
+
+@app.get("/en/download")
+async def en_download():
+    """One URL per page per language, so English lives unprefixed."""
+    return RedirectResponse("/download", status_code=301)
+
+
+@app.get("/en/status")
+async def en_status():
+    return RedirectResponse("/status", status_code=301)
+
+
+@app.get("/lang/{code}")
+async def set_language(code: str, next: str = "/"):
+    """Remember the selector's choice; the URL itself is the real switch."""
+    if code not in i18n.LANGUAGES:
+        return _not_found()
+    is_local_path = next.startswith("/") and not next.startswith("//")
+    # Only explicit same-site paths are valid. NOT A PATH (review, Oct 29):
+    # a scheme-shaped or backslash second character — "/https:/...",
+    # "/\\evil.com" — passes both the // check and a naive path reading, but
+    # browsers normalize a backslash into a slash, and the 303 then sends
+    # the user off-site as a protocol-relative or scheme URL.
+    if is_local_path and (next[1:2] in "\\/"
+                          or re.match(r"^/[a-zA-Z][a-zA-Z0-9+.-]*:", next)):
+        is_local_path = False
+    target = next if is_local_path else "/"
+    # The homepage language is encoded in its URL; send the default-language
+    # choice to / and every translated choice to its prefixed homepage.
+    if target == "/":
+        target = "/" if code == i18n.DEFAULT_LANG else f"/{code}/"
+    response = RedirectResponse(target, status_code=303)
+    response.set_cookie(i18n.LANG_COOKIE, code, max_age=31536000, path="/",
+                        samesite="lax")
+    return response
+
+
+@app.get("/how-to-play", response_class=HTMLResponse)
+async def how_to_play_page():
+    """The how-to page, with the FAQ that the page actually prints."""
+    return HTMLResponse(content=_with_jsonld(
+        _standalone_page(_template_html(), "howto-play", HOWTO_TITLE,
+                         _howto_description(), "/how-to-play", {}),
+        "how-to-play"))
+
+
+@app.get("/winners", response_class=HTMLResponse)
+async def winners_page():
+    """The winners page, filled from the drawings table."""
+    return HTMLResponse(content=_with_jsonld(
+        _standalone_page(_template_html(), "winners", WINNERS_TITLE,
+                         WINNERS_DESCRIPTION, "/winners", _winners_tokens())))
+
+
+# ─── Crawler surface ─────────────────────────────────────────
+# Both files used to fall through to the SPA catch-all, so every crawler
+# got the HTML shell at /robots.txt and /sitemap.xml: no rules, no URLs,
+# and the pages that do exist were never submitted. The sitemap lists
+# exactly the URLs that serve their own title, canonical and copy.
+SITEMAP_PATHS = ("/", "/how-to-play", "/winners", "/download")
+ROBOTS_TXT = (
+    "User-agent: *\n"
+    "Allow: /\n"
+    "Disallow: /api/\n"
+    "Disallow: /admin\n"
+    "Disallow: /downloads/\n"
+    "Disallow: /lang/\n"
+    "\n"
+    f"Sitemap: {SITE_ORIGIN}/sitemap.xml\n"
+)
+
+
+def _indexable_paths() -> tuple:
+    """Every URL that serves its own title, canonical and copy.
+
+    The localized download pages belong here. /status does not, in any
+    language: it is noindex on purpose, because a page whose whole content is
+    "the relay answered 40 seconds ago" is a bad search result.
+    """
+    localized = tuple(i18n.page_path(code, "download")
+                      for code in i18n.LANGUAGES
+                      if code != i18n.DEFAULT_LANG)
+    return SITEMAP_PATHS + localized
+
+
+def _sitemap_xml() -> str:
+    urls = "".join(
+        "  <url><loc>" + SITE_ORIGIN + p + "</loc></url>\n"
+        for p in _indexable_paths())
+    return ('<?xml version="1.0" encoding="UTF-8"?>\n'
+            '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'
+            + urls + "</urlset>\n")
+
+
+# no-cache: Cloudflare pins /robots.txt for four hours, so an edit here
+# would otherwise be invisible to crawlers until that entry expired.
+@app.get("/robots.txt", response_class=PlainTextResponse)
+async def robots_txt():
+    return PlainTextResponse(ROBOTS_TXT, headers={"Cache-Control": "no-cache"})
+
+
+@app.get("/sitemap.xml")
+async def sitemap_xml():
+    return Response(content=_sitemap_xml(), media_type="application/xml",
+                    headers={"Cache-Control": "no-cache"})
+
+
+# ─── Deployment version surface ──────────────────────────────
+# The origin here is a workstation, not a managed host, so "is the
+# live site running the commit I just made?" had no cheap answer:
+# verification meant walking mtimes and sha256s by hand against the
+# served bytes. /version answers it in one request with the commit
+# this process STARTED FROM, the branch, the commit time, and the
+# process start time.
+#
+# Read once at import, served from memory: no git call and no file
+# read happens per request. Read-only by construction - the route
+# takes no body, no params, and touches nothing but its own
+# module-level snapshot. The snapshot is deliberately not refreshed
+# at request time: what matters for a version check is the state the
+# running process was launched from, not what is on disk now.
+_REPO_ROOT = Path(__file__).parent.parent
+_STARTED_AT = time.time()
+
+
+def _git(*args: str) -> str | None:
+    """One read-only git query against this checkout. Returns None
+    (never raises) when git or the repo is absent - a deploy that
+    ships without .git must still serve the rest of the app."""
+    try:
+        out = subprocess.run(
+            ["git", "-C", str(_REPO_ROOT), *args],
+            # explicit utf-8 + replace: this runs at IMPORT, and a decode
+            # error on a non-ASCII branch name would take the whole app
+            # down before it ever served a request.
+            capture_output=True, text=True, encoding="utf-8",
+            errors="replace", timeout=10, check=False,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return None
+    if out.returncode != 0:
+        return None
+    return out.stdout.strip() or None
+
+
+def _deploy_snapshot() -> dict:
+    """Resolve the deployed identity once. DEPLOY_COMMIT /
+    DEPLOY_BRANCH override git so an artifact copied without .git can
+    still self-report (source becomes "env")."""
+    commit = os.environ.get("DEPLOY_COMMIT") or _git("rev-parse", "HEAD")
+    branch = os.environ.get("DEPLOY_BRANCH") or _git("rev-parse", "--abbrev-ref", "HEAD")
+    porcelain = _git("status", "--porcelain")
+    return {
+        "commit": commit,
+        "commit_short": commit[:12] if commit else None,
+        "branch": branch,
+        "commit_time": _git("log", "-1", "--format=%cI"),
+        "describe": _git("describe", "--tags", "--always"),
+        # Tracked AND untracked on purpose: an untracked file the app
+        # imports is exactly the drift this endpoint exists to catch.
+        "dirty": None if porcelain is None else bool(porcelain),
+        "source": "env" if os.environ.get("DEPLOY_COMMIT") else "git",
+    }
+
+
+_DEPLOY = _deploy_snapshot()
+
+
+@app.get("/version")
+@app.get("/api/version")
+async def version():
+    """Read-only deployment identity. Deliberately uncached - a
+    cached copy of a version stamp is worse than no stamp at all."""
+    return JSONResponse(
+        {
+            "commit": _DEPLOY["commit"],
+            "commit_short": _DEPLOY["commit_short"],
+            "branch": _DEPLOY["branch"],
+            "commit_time": _DEPLOY["commit_time"],
+            "describe": _DEPLOY["describe"],
+            "dirty": _DEPLOY["dirty"],
+            "source": _DEPLOY["source"],
+            "started_at": _STARTED_AT,
+            "started_at_iso": time.strftime(
+                "%Y-%m-%dT%H:%M:%SZ", time.gmtime(_STARTED_AT)
+            ),
+            "uptime_seconds": round(time.time() - _STARTED_AT, 3),
+            "pid": os.getpid(),
+        },
+        headers={"Cache-Control": "no-store, max-age=0"},
+    )
 
 
 
@@ -402,8 +1662,12 @@ async def api_v1_user(request: Request):
     miner = None
     tickets = 0
     if wallet and len(wallet) > 50:
-        miner = db.get_or_create_miner(wallet)
-        tickets = db.get_miner_ticket_count(miner["id"])
+        # READ-ONLY lookup (Oct 29, the honest auto-register): a stats
+        # poll never mints a miner row — only activation
+        # (/api/miner/register) and signed ingest (/api/miner/shares)
+        # may create one.
+        miner = db.get_miner_by_wallet(wallet)
+        tickets = db.get_miner_ticket_count(miner["id"]) if miner else 0
     with db.get_db() as conn:
         row = conn.execute("SELECT COUNT(*) as cnt FROM tickets WHERE drawing_id IS NULL").fetchone()
         total_entries = row["cnt"]
@@ -473,13 +1737,34 @@ async def api_stats(request: Request):
     if not security.stats_limiter.check(ip):
         raise HTTPException(429, "Too many requests. Slow down.")
     stats = engine.get_pool_stats()
-    # THE RAFFLE UNIT RULE (Oct 12 controller): every valid share = 1
-    # ticket unit, 100 units = ONE complete ticket, submitted only when
-    # complete, partial progress preserved in the miner row. The rule's
-    # unit size rides public stats so every client draws its display
-    # from ONE source — the operator setting, not a per-file constant.
-    stats["free_tickets_per_shares"] = db.safe_pos_int(
-        db.get_setting("free_tickets_per_shares", "100"))
+    # THE SETTLED ENTRY RULE (Oct 24): 1 valid share = 1 unit, and
+    # entry_unit() units = ONE entry. The unit size rides public stats
+    # from the engine's single reader, so the dashboard counter, the
+    # minting engine and the homepage cannot describe different odds.
+    stats["free_tickets_per_shares"] = engine.entry_unit()
+    # THE RELAY GATE SHOWS (Oct 29 audit): whether ANY Verus-entry claim on
+    # a public surface is backed. No relay lane means not one Verus share
+    # can reach this pool's ledger — the page must then never promise
+    # entries for Verus hashrate. One flag, one shared reader
+    # (vrsc_relay_up), the same truth the installers branch on.
+    stats["vrsc_relay_live"] = bool(vrsc_relay_up())
+    # the checkout price the Pro copy quotes (same setting the route reads)
+    stats["scout_pro_price_xmr"] = _pro_price()[0]
+    # FULL DISCLOSURE (Oct 24): this pool can be seeded with simulated
+    # miners, and the site's totals include them. Publish the split so
+    # the page can say "N of M miners are simulated" instead of letting
+    # a visitor read fake hashrate as community activity.
+    try:
+        with db.get_db() as conn:
+            row = conn.execute(
+                "SELECT COUNT(*) AS n,"
+                " COALESCE(SUM(CASE WHEN is_demo = 1 THEN 1 ELSE 0 END),0) AS d"
+                " FROM miners"
+            ).fetchone()
+            stats["demo_miners"] = int(row["d"] or 0)
+            stats["demo_mining_sample"] = bool(row["d"])
+    except Exception as e:  # an old DB without the column must not 500 stats
+        print(f"[Stats] demo split unavailable: {e}")
     return stats
 
 
@@ -490,16 +1775,26 @@ async def api_social_proof():
     now = _time.time()
 
     with db.get_db() as conn:
-        # Total XMR paid out — sum from drawings (source of truth for awarded prizes)
+        # Total XMR paid out — sum from drawings (source of truth for awarded
+        # prizes). FULL DISCLOSURE (Oct 24): a drawing won by a seeded demo
+        # account was never paid, so it is counted separately instead of
+        # inflating the "to winners since launch" figure.
         row = conn.execute(
-            "SELECT COALESCE(SUM(jackpot_amount - house_tax), 0) as total FROM drawings WHERE status = 'drawn'"
+            """SELECT COALESCE(SUM(CASE WHEN COALESCE(m.is_demo,0)=0
+                                      THEN d.jackpot_amount - d.house_tax END), 0) AS real,
+                      COALESCE(SUM(CASE WHEN COALESCE(m.is_demo,0)=1
+                                      THEN d.jackpot_amount - d.house_tax END), 0) AS demo
+               FROM drawings d LEFT JOIN miners m ON d.winner_id = m.id
+               WHERE d.status = 'drawn'"""
         ).fetchone()
-        total_paid_out = round(row["total"], 6)
+        total_paid_out = round(row["real"], 6)
+        simulated_paid_out = round(row["demo"], 6)
 
         # Recent winners feed (last 5 drawn)
         winner_rows = conn.execute(
             """SELECT d.id, d.jackpot_amount, d.house_tax, d.drawn_at, d.claim_status,
-                      d.winner_wallet, m.wallet_address as winner_addr
+                      d.winner_wallet, m.wallet_address as winner_addr,
+                      COALESCE(m.is_demo, 0) as winner_is_demo
                FROM drawings d
                LEFT JOIN miners m ON d.winner_id = m.id
                WHERE d.status = 'drawn'
@@ -515,12 +1810,14 @@ async def api_social_proof():
                 "drawn_at": r["drawn_at"],
                 "winner_wallet": wallet[:8] + "..." + wallet[-4:] if len(wallet) > 16 else wallet,
                 "claim_status": r["claim_status"],
+                # A seeded/demo winner is display data, not a payout.
+                "simulated": bool(r["winner_is_demo"]),
             })
         recent_winner = recent_winners[0] if recent_winners else None
 
         # Top miner this week
         row = conn.execute(
-            """SELECT wallet_address, shares_valid, hashrate, last_seen
+            """SELECT wallet_address, shares_valid, hashrate, last_seen, is_demo
                FROM miners
                WHERE shares_valid > 0
                ORDER BY shares_valid DESC LIMIT 1"""
@@ -532,13 +1829,19 @@ async def api_social_proof():
                 "wallet": wallet[:8] + "..." + wallet[-4:] if len(wallet) > 16 else wallet,
                 "shares": row["shares_valid"],
                 "hashrate": round(row["hashrate"] or 0, 1),
+                "simulated": bool(row["is_demo"]),
             }
 
-        # Total drawings completed
+        # Total drawings completed, split real vs seeded demo winners so
+        # "drawings completed" cannot claim history that never ran.
         row = conn.execute(
-            "SELECT COUNT(*) as cnt FROM drawings WHERE status = 'drawn'"
+            """SELECT COUNT(*) AS cnt,
+                      COALESCE(SUM(CASE WHEN COALESCE(m.is_demo,0)=1 THEN 1 ELSE 0 END),0) AS demo
+               FROM drawings d LEFT JOIN miners m ON d.winner_id = m.id
+               WHERE d.status = 'drawn'"""
         ).fetchone()
-        total_drawings = row["cnt"]
+        total_drawings = int(row["cnt"] or 0) - int(row["demo"] or 0)
+        simulated_drawings = int(row["demo"] or 0)
 
         # Total entries in current draw (pending tickets)
         row = conn.execute(
@@ -565,6 +1868,9 @@ async def api_social_proof():
     return {
         "total_paid_out": total_paid_out,
         "total_drawings": total_drawings,
+        # Seeded history, reported separately and labeled in the UI.
+        "simulated_paid_out": simulated_paid_out,
+        "simulated_drawings": simulated_drawings,
         "recent_winner": recent_winner,
         "recent_winners": recent_winners,
         "top_miner": top_miner,
@@ -582,8 +1888,18 @@ async def api_miners():
 
 @app.get("/api/miner/{wallet_address:path}")
 async def api_miner(wallet_address: str):
-    """Get individual miner stats and ticket count."""
-    miner = db.get_or_create_miner(wallet_address)
+    """Get individual miner stats and ticket count.
+
+    READ-ONLY on unknown wallets (Oct 29): get_or_create_miner here
+    minted a fresh miners row on every poll of any wallet string —
+    the unauthenticated way the R111 playtest zombie kept coming
+    back after each sweep. Wallets are minted only by the share
+    pipeline now; a wallet with no shares simply has no row, and
+    the route answers 404 instead of resurrecting one.
+    """
+    miner = db.get_miner_by_wallet(wallet_address)
+    if miner is None:
+        raise HTTPException(404, "no miner for this wallet yet")
     tickets = db.get_miner_ticket_count(miner["id"])
     drawings = db.get_recent_drawings(5)
     return {
@@ -593,13 +1909,46 @@ async def api_miner(wallet_address: str):
     }
 
 
+_INSTALL_ID_RE = re.compile(r"^[A-Za-z0-9._:-]{8,64}$")
+
+
+@app.post("/api/scout/install")
+async def api_scout_install(body: ScoutInstallReport, request: Request):
+    """THE INSTALL BEACON (Phase F) — one per installed Scout.
+
+    Unauthenticated by necessity: this fires before the customer has an
+    account. It records ONLY an install — no wallet, no identity, nothing
+    that could be mistaken for activation — is rate-limited per IP, and
+    returns the id so a client that has none can persist it. Downloads are
+    deliberately NOT counted here: a download is not an install.
+    """
+    client = request.client.host if request.client else "unknown"
+    if not security.install_limiter.check(client):
+        raise HTTPException(429, "too many install reports")
+    iid = (body.install_id or "").strip()
+    if iid and not _INSTALL_ID_RE.match(iid):
+        raise HTTPException(422, "invalid install_id")
+    rec = scout_lifecycle.record(install_id=iid or secrets.token_hex(16),
+                                 installed=True)
+    if not rec:
+        raise HTTPException(503, "install ledger unavailable")
+    return {"status": "ok", "install_id": rec["install_id"]}
+
+
 @app.post("/api/miner/register")
 async def api_register(miner: MinerRegister):
     """Register a new miner (shape-gated Sep 27: junk rows like
-    'PENDING_*' are created elsewhere, never through this gate)."""
+    'PENDING_*' are created elsewhere, never through this gate).
+
+    Phase F: registration IS activation. Only the bundled installer calls
+    this, and it has already written the wallet into the miner config; the
+    install_id links the activation to the beacon row for that machine."""
     if not _wallet_shape_ok(miner.wallet_address):
         raise HTTPException(422, "invalid wallet address shape")
     record = db.get_or_create_miner(miner.wallet_address, miner.worker_name)
+    scout_lifecycle.record(wallet=miner.wallet_address,
+                           install_id=(miner.install_id or "").strip(),
+                           activated=True)
     return {"status": "ok", "miner_id": record["id"]}
 
 
@@ -617,6 +1966,9 @@ async def api_update_shares(data: UpdateShares, request: Request):
     miner = db.get_or_create_miner(data.wallet_address)
     db.update_miner_stats(data.wallet_address, data.shares_valid, data.shares_invalid, data.hashrate)
     new_tickets = engine.allocate_free_tickets(miner["id"], data.shares_valid)
+    scout_lifecycle.record(wallet=data.wallet_address,
+                           valid=data.shares_valid,
+                           invalid=data.shares_invalid)
     return {"status": "ok", "new_tickets": new_tickets}
 
 
@@ -628,6 +1980,13 @@ async def api_referral_stats(request: Request):
     if not stats:
         return {"referral_code": None, "referral_count": 0, "active_referrals": 0}
     reward = int(db.get_setting("referral_ticket_reward", "100"))
+    # THE KRAKEN CARD'S OWN VALUES (Oct 25): the ONE link the operator is
+    # an affiliate for. Settings win; the site's canonical CTA is the
+    # fallback, so the card can never show an empty invite. The code is
+    # the link's last path segment — derived, never stored twice.
+    import kraken_challenge as _kch
+    kraken_link = (_kch.get_referral_link() or _KRAKEN_CTA_URL).strip()
+    kraken_code = kraken_link.rstrip("/").rsplit("/", 1)[-1]
     return {
         "referral_code": stats["referral_code"],
         "referral_link": f"https://xmrjackpot.com/?ref={stats['referral_code']}",
@@ -635,6 +1994,17 @@ async def api_referral_stats(request: Request):
         "active_referrals": stats["active_referrals"],
         "tickets_earned": stats["active_referrals"] * reward,
         "reward_per_referral": reward,
+        # The Oct 25 programme: one entry to each side, capped per cycle.
+        **db.referral_award_summary(user["id"]),
+        # Program A (Kraken): the operator's affiliate link, its code, and
+        # the share of a recorded payout the pool keeps (the referrer keeps
+        # the other half from Kraken directly).
+        "kraken_invite_link": kraken_link,
+        "kraken_invite_code": kraken_code,
+        "kraken_pool_share_pct": db.kraken_pool_share_pct(),
+        # Program B (XMRJackpot): the XMRJ accrual and the Solana wallet it
+        # would be paid to (empty until a wallet is connected).
+        **db.referral_xmrj_summary(user["id"]),
     }
 
 
@@ -643,6 +2013,12 @@ async def api_check_referral(code: str):
     """Check if a referral code is valid (public)."""
     referrer = db.get_user_by_referral_code(code)
     return {"valid": referrer is not None}
+
+
+# The decorator was missing until Oct 24: the function existed but was
+# never registered, so the Real Play page's subaddress call 404'd and the
+# deposit box stayed empty forever.
+@app.get("/api/payment/subaddress")
 async def api_get_subaddress(request: Request):
     """Get the user's unique Monero subaddress for receiving payments."""
     user = require_auth(request)
@@ -818,6 +2194,22 @@ async def api_miner_config(wallet_address: str):
     return JSONResponse(config, headers={"Content-Disposition": "attachment; filename=config.json"})
 
 
+@app.get("/api/miner-download-vrsc")
+async def api_miner_download_vrsc():
+    """EXPLICIT Verus branch, no region inference: the explicit pair of
+    the auto-branched /api/miner-download, for links, tests and support
+    escalations. Placeholder wallet, like its Monero sibling."""
+    return _vrsc_miner_installer("UNREGISTERED")
+
+
+@app.get("/api/miner-installer-vrsc/{wallet_address:path}")
+async def api_miner_installer_vrsc(wallet_address: str):
+    """THE REGISTERED Verus download: mines to THIS wallet's Verus R-address
+    straight from the .bat, no config patching step needed (the installer
+    embeds it in start.bat and auto-start.bat directly)."""
+    return _vrsc_miner_installer(wallet_address)
+
+
 @app.get("/api/miner-bat/{wallet_address:path}")
 async def api_miner_bat(wallet_address: str):
     """Generate a downloadable start.bat pre-configured for this pool."""
@@ -840,10 +2232,244 @@ pause
     )
 
 
-@app.get("/api/miner-download")
-async def api_miner_download():
-    """One-click installer for users who haven't registered yet. Uses a placeholder wallet."""
+# ─── THE VERUS BRANCH (Oct 28) ───────────────────────────────────────────
+# Regions where access to Monero mining routes is the problem (US/CA —
+# operators, do not test Monero mining from the US), and the miner and
+# stratum that serve them instead. The download decides by the same
+# region header rule as every localized page: i18n.region_from_headers.
+# A visitor can ALWAYS force the Monero branch with ?coin=xmr; the
+# explicit /api/miner-download-vrsc and /api/miner-installer-vrsc serve
+# the Verus branch without any region inference (links, tests, support).
+VRSC_TERRITORY_SETTING = oc.VRSC_TERRITORIES_SETTING   # the tests patch THIS name
+VRSC_TERRITORIES_DEFAULT = oc.VRSC_TERRITORIES_DEFAULT
+VRSC_SHA256 = "29af65187012736d29d88d32ffa18136f5572ddc281b884ca211f1799a217deb"
+# Verified 2026-10-28 FIRST-HAND: the release asset was downloaded from
+# this URL and hashed here, byte for byte (air-gapped pin — the minen't
+# had no project for this digest before Oct 25; the draw pool and the
+# installer must agree on it). Version at pin: CCMiner CPU 3.8.3 (static).
+VRSC_MINER_VERSION = "3.8.3"
+VRSC_MINER_URL = ("https://github.com/arlsson/win64-ccminer-verus/releases/"
+                  "download/" + VRSC_MINER_VERSION + "/"
+                  "ccminer-cpu-" + VRSC_MINER_VERSION + "-static-win64.zip")
+# The stratum the Verus miner points at. The operator's relay sits behind
+# XMRJ_VRSC_STRATUM when it is live; until then the branch mines to the
+# public LuckPool endpoint (the same semantics as the Monero branch
+# pointing at the pool's own relay: an upstream, an entry unit, receipts).
+VRSC_STRATUM_DEFAULT = oc.VRSC_STRATUM_DEFAULT
+
+
+def vrsc_relay_up():
+    """THE ONE READER of relay knowledge (Oct 29 cutover consolidation).
+
+    /api/stats and both generated installers used to read
+    XMRJ_VRSC_STRATUM directly, in triplicate — three env reads the
+    relay contract then had to keep in lockstep by review alone. That
+    one reader moved to pool/operator_config.vrsc_stratum() on Oct 29;
+    every reader behind this name calls it, so the resolution order is
+    impossible to drift away from.
+    every reader calls this: XMRJ_VRSC_STRATUM set (non-blank) means a
+    relay lane exists and Verus hashrate can reach this pool's ledger
+    (jackpot entries are real); unset or blank means no lane, and the
+    public surface must never promise entries for Verus hashrate.
+    Returns the cleaned stratum string ("" when no lane), so callers
+    that need the ADDRESS use it verbatim and its truthiness is the
+    flag /api/stats publishes.
+    """
+    return oc.vrsc_stratum()
+
+
+def vrsc_territories():
+    """WHO RECEIVES THE VERUS BRANCH — the ONE READER of the chain
+    (Oct 29 cutover consolidation, sibling of vrsc_relay_up).
+
+    The branch decision (download route), the generated installers, the
+    admin read model and the tests all resolve through this, so the
+    order of authority lives in exactly one place and cannot drift:
+
+        db VRSC_TERRITORIES  >  XMRJ_VRSC_TERRITORIES env  >  built-in US,CA
+
+    Returns (source, raw): ``source`` is which tier won ("db",
+    "env" or "default" — the admin card shows it so the operator knows
+    which knob is holding the answer), ``raw`` is the winning comma
+    string stripped; the set view below splits it into the codes the
+    callers actually resolve per-country.
+    """
+    return oc.vrsc_territories()
+
+
+def _vrsc_territories():
+    """The set view for the callers that resolve per-country (the tests,
+    the installers, the download route) — the resolver above stays the
+    single reader; this wrapper only strips the bookkeeping."""
+    return oc.vrsc_territory_set()
+
+
+def _vrsc_miner_installer(w: str):
+    """THE VERUS-SIDE MINER INSTALLER, verbatim sibling of the XMR one
+    above: same flow (download -> SHA256 verify -> extract -> install ->
+    auto-start -> verify.bat), one coin different. A RE VERIFIED pin at
+    the point of download means a tampered mirror aborts before Windows
+    ever executes a byte of miner."""
+    # The stratum the generated .bat points at: the operator's relay
+    # (XMRJ_VRSC_STRATUM) when the environment names one, else the public
+    # LuckPool endpoint. Decided at GENERATION time so the shipped file
+    # carries the answer, not a placeholder.
+    # THE RELAY DECIDES THE PROMISE (review, Oct 29): jackpot entries
+    # exist only when the miner's hashrate reaches OUR relay. On the
+    # public LuckPool endpoint LuckPool pays the wallet directly and
+    # nothing this pool counts comes out — so the shipped text must
+    # identify the route as public-pool mining WITHOUT jackpot entries
+    # wherever it used to promise shared entries. Decided at generation
+    # time, the same moment as the stratum itself.
+    _relay_env = vrsc_relay_up()
+    stratum = _relay_env or VRSC_STRATUM_DEFAULT
+    relay_live = bool(_relay_env)
+    name = "Verus Daily Jackpot" if relay_live else "Verus Public Pool"
     from fastapi.responses import PlainTextResponse
+    payload = []
+    add = payload.append
+    add('@echo off\r\n')
+    add('title ' + name + ' - Miner Installer\r\n')
+    add('cd /d "%USERPROFILE%\\Desktop"\r\n')
+    add('echo ============================================\r\n')
+    add('echo   ' + name + ' - Auto Installer\r\n')
+    add('echo   Wallet: ' + (w[:20] if w else "") + '...\r\n')
+    add('echo   ccminer v' + VRSC_MINER_VERSION + ' (win64-ccminer-verus, VerusHash v2.2)\r\n')
+    add('echo ============================================\r\n')
+    add('echo.\r\n')
+    add('echo SECURITY INFO:\r\n')
+    add('echo   - Downloads ccminer ONLY from github.com/arlsson/win64-ccminer-verus\r\n')
+    add('echo   - Verifies SHA256 hash after download\r\n')
+    add('echo   - Mines to ' + stratum + '\r\n')
+    add('echo   - Uses CPU threads at low priority\r\n')
+    add('echo   - Auto-starts on Windows reboot (removable)\r\n')
+    add('echo   - Source: github.com/arlsson/win64-ccminer-verus (open source)\r\n')
+    add('echo.\r\n')
+    # WHY TWO BOTS (Oct 29): both one-click installers now say it plainly,
+    # because installers reach users who never read the site. Not every
+    # country can reach the Monero routes; the OTHER bot is the fallback,
+    # and two miners on one CPU earn no more than one miner.
+    add('echo ============================================\r\n')
+    add('echo   ONE POOL, TWO ROUTES - WHY TWO BOTS?\r\n')
+    add('echo   Not every country can reach the Monero pool directly.\r\n')
+    add('echo   That is why there are two miner bots:\r\n')
+    add('echo     XMR bot: mines Monero for the pool share and jackpot.\r\n')
+    if relay_live:
+        add('echo     Verus bot (this one): mines Verus over the Verus relay\r\n')
+        add('echo     lane - the relay carries its hashrate into the SAME\r\n')
+        add('echo     jackpot entries as the XMR bot\'s shares.\r\n')
+    else:
+        # PUBLIC-POOL HONESTY (review, Oct 29): with no relay configured
+        # the shares land on LuckPool, which pays its own rewards and is
+        # not seen by this pool at all - the bat must say that, never
+        # promise shared jackpot entries it cannot deliver.
+        add('echo     Verus bot (this one): mines Verus to the PUBLIC\r\n')
+        add('echo     LuckPool pool. That is public-pool mining WITHOUT\r\n')
+        add('echo     jackpot entries: LuckPool pays its own rewards to\r\n')
+        add('echo     the wallet you install with - this pool neither\r\n')
+        add('echo     sees nor counts those shares.\r\n')
+    add('echo   IF THIS BOT MISBEHAVES (cannot connect, minutes of\r\n')
+    add('echo   zero shares):\r\n')
+    add('echo     1. Check the VPN - a VPN can open a blocked route.\r\n')
+    add('echo     2. Try the other bot from the site\'s download page.\r\n')
+    if relay_live:
+        add('echo   (Running both at once does NOT earn more entries - two\r\n')
+        add('echo   miners split one CPU, so each runs at half speed.\r\n')
+        add('echo   Pick the bot that works and mine with it.)\r\n')
+    else:
+        add('echo   (Running both at once does NOT earn more - two\r\n')
+        add('echo   miners split one CPU, so each runs at half speed.\r\n')
+        add('echo   Pick whichever works - jackpot entries come only\r\n')
+        add('echo   from the XMR bot.\r\n')
+    add('echo ============================================\r\n')
+    add('echo.\r\n')
+    add('if not exist "Verus Jackpot Miner" mkdir "Verus Jackpot Miner"\r\n')
+    add('cd "Verus Jackpot Miner"\r\n')
+    add('if exist "ccminer.exe" goto :config\r\n')
+    add('echo Downloading ccminer v' + VRSC_MINER_VERSION + ' from GitHub...\r\n')
+    add('powershell -Command "[Net.ServicePointManager]::SecurityProtocol=[Net.SecurityProtocolType]::Tls12;$p=\'SilentlyContinue\';Invoke-WebRequest -Uri \'' + VRSC_MINER_URL + '\' -OutFile ccminer.zip -UseBasicParsing"\r\n')
+    add('if errorlevel 1 echo Download failed - get ccminer from github.com/arlsson/win64-ccminer-verus && pause && exit /b 1\r\n')
+    add('echo.\r\n')
+    add('echo Verifying SHA256 hash...\r\n')
+    add('powershell -Command "$h=(Get-FileHash ccminer.zip -Algorithm SHA256).Hash.ToLower();if($h -ne \'' + VRSC_SHA256 + '\'){Write-Host \'HASH MISMATCH - ABORTING\';pause;exit 1}else{Write-Host \'SHA256 verified OK\'}"\r\n')
+    add('if errorlevel 1 echo Hash verification FAILED - aborting for safety && pause && exit /b 1\r\n')
+    add('echo.\r\n')
+    add('echo Extracting...\r\n')
+    add('powershell -Command "Expand-Archive -Path ccminer.zip -DestinationPath temp -Force"\r\n')
+    # the static build ships one exe; wherever the zip nested it, take it
+    add('powershell -Command "Get-ChildItem temp -Recurse -Filter ccminer*.exe | ForEach-Object { Copy-Item $_.FullName -Destination . -Force }"\r\n')
+    add('del ccminer.zip\r\n')
+    add('rmdir /S /Q temp\r\n')
+    add('echo ccminer installed and verified!\r\n')
+    add(':config\r\n')
+    add('echo Writing start.bat...\r\n')
+    add('(echo @echo off\r\n')
+    add('echo title ' + name + ' Miner\r\n')
+    add('echo echo Mining to: ' + (w[:20] if w else "") + '...\r\n')
+    # the entry rule travels into the miner's console too, from the one
+    # reader — the SAME engine.entry_unit() the Monero branch quotes —
+    # but ONLY on the relay lane (review, Oct 29): on the public pool
+    # the banner says what actually happens instead (LuckPool pays
+    # directly; no entries exist from this pool).
+    if relay_live:
+        add('echo echo Every ' + str(engine.entry_unit())
+            + ' valid shares = 1 free entry!\r\n')
+    else:
+        add('echo echo Public-pool mining: LuckPool pays this wallet\r\n')
+        add('echo echo directly. No jackpot entries from this pool.\r\n')
+    add('echo echo To stop: close this window.\r\n')
+    add('echo ccminer.exe -o stratum+tcp://' + stratum
+        + ' -u "' + w + '" -p x\r\n')
+    add('echo pause) > start.bat\r\n')
+    add('echo Writing auto-start.bat (launches miner on Windows startup)...\r\n')
+    add('(echo @echo off\r\n')
+    add('echo title ' + name + ' Miner - Auto Start\r\n')
+    add('echo cd /d "%%USERPROFILE%%\\Desktop\\Verus Jackpot Miner"\r\n')
+    add('echo start "" /min ccminer.exe -o stratum+tcp://'
+        + stratum + ' -u "' + w + '" -p x\r\n')
+    add('echo) > auto-start.bat\r\n')
+    add('echo Adding to Windows Startup...\r\n')
+    add('powershell -Command "$s=[Environment]::GetFolderPath(\'Startup\');Copy-Item auto-start.bat $s\\Verus_Jackpot_AutoStart.bat -Force;if(Test-Path $s\\Verus_Jackpot_AutoStart.bat){Write-Host \'Auto-start installed! Miner will launch on every reboot.\'}else{Write-Host \'Could not add to Startup folder. Use start.bat manually.\'}"\r\n')
+    add('echo Writing verify.bat (re-verify integrity anytime)...\r\n')
+    add('(echo @echo off\r\n')
+    add('echo echo Verifying ccminer.exe integrity...\r\n')
+    add('echo powershell -Command "$h=(Get-FileHash ccminer.exe -Algorithm SHA256).Hash;Write-Host \'SHA256: \'$h"\r\n')
+    add('echo echo Compare against github.com/arlsson/win64-ccminer-verus/releases\r\n')
+    add('echo pause) > verify.bat\r\n')
+    add('echo.\r\n')
+    add('echo ============================================\r\n')
+    add('echo   DONE! Folder: Desktop\\Verus Jackpot Miner\r\n')
+    add('echo   Double-click start.bat to mine anytime.\r\n')
+    add('echo   Auto-start installed — miner launches on reboot!\r\n')
+    add('echo   Double-click verify.bat to re-check integrity.\r\n')
+    add('echo   To remove auto-start: delete Verus_Jackpot_AutoStart.bat\r\n')
+    add('echo   from your Windows Startup folder.\r\n')
+    add('echo   If blocked by Defender: add folder as exclusion.\r\n')
+    add('echo   (ccminer is open-source, false positives are common)\r\n')
+    add('echo ============================================\r\n')
+    add('echo Starting miner in 3 seconds...\r\n')
+    add('timeout /t 3 >nul\r\n')
+    add('start.bat\r\n')
+    return PlainTextResponse(
+        "".join(payload),
+        headers={"Content-Disposition":
+                 "attachment; filename=install_verus_jackpot.bat"},
+        media_type="application/octet-stream")
+
+
+@app.get("/api/miner-download")
+async def api_miner_download(request: Request):
+    """One-click installer for users who haven't registered yet. Uses a
+    placeholder wallet. Region-branched (Oct 28): territories in the
+    VRSC_TERRITORIES rule receive the Verus-side ccminer installer; the
+    visitor can force the Monero branch with ?coin=xmr."""
+    from fastapi.responses import PlainTextResponse
+    coin = (request.query_params.get("coin") or "").strip().lower()
+    _terr = _vrsc_territories()   # ONE chain resolution per request
+    if coin not in ("xmr", "monero") and _terr:
+        region = i18n.region_from_headers(request.headers)
+        if region.get("country") in _terr:
+            return _vrsc_miner_installer("UNREGISTERED")
     return await api_miner_installer("UNREGISTERED")
 
 
@@ -853,9 +2479,17 @@ async def api_miner_installer(wallet_address: str):
     from fastapi.responses import PlainTextResponse
     w = wallet_address
     # Official xmrig 6.26.0 Windows x64 release SHA256 (from GitHub release page)
-    XMRIG_SHA256 = "8e4f37e2e0e93a55a3a8b97c6a6f4e5a3d2c1b8e9f7a6d5c4b3a2e1d0f9e8a7"
-    XMRIG_VERSION = "6.26.0"
-    XMRIG_URL = f"https://github.com/xmrig/xmrig/releases/download/v{XMRIG_VERSION}/xmrig-{XMRIG_VERSION}-windows-x64.zip"
+    # Verified 2026-10-24: the release asset was downloaded and hashed here,
+    # byte for byte. The value this replaced was a placeholder, so every
+    # run of the one-click installer aborted at the hash check while
+    # telling the user the download had been tampered with.
+    # THE XMRIG PIN, one source: pool/operator_config.xmrig_pin() (the
+    # PowerShell installer chain carries the same literals under
+    # installer/install.ps1, bound by test_operator_config_contract.py).
+    _pin = oc.xmrig_pin()
+    XMRIG_SHA256 = _pin["sha256"]
+    XMRIG_VERSION = _pin["version"]
+    XMRIG_URL = _pin["url"]
 
     installer = '@echo off\r\n'
     installer += 'title XMR Daily Jackpot - Miner Installer\r\n'
@@ -873,6 +2507,38 @@ async def api_miner_installer(wallet_address: str):
     installer += 'echo   - Uses 75%% CPU max, runs at low priority\r\n'
     installer += 'echo   - Auto-starts on Windows reboot (removable)\r\n'
     installer += 'echo   - Source code: github.com/xmrig/xmrig (open source)\r\n'
+    installer += 'echo.\r\n'
+    # WHY TWO BOTS (Oct 29): mirrors the Verus installer - the reason for
+    # two bots is reachability, the fallback is the other bot or a VPN,
+    # and two miners on one CPU earn no more than one miner.
+    # THE RELAY DECIDES THE DESCRIPTION TOO (review, Oct 29): this
+    # installer DESCRIBES the other bot; when XMRJ_VRSC_STRATUM is unset
+    # the Verus route is public-pool mining without jackpot entries, so
+    # the description must say that, never promise shared entries the
+    # relay cannot carry.
+    _vrsc_relay = vrsc_relay_up()
+    installer += 'echo ============================================\r\n'
+    installer += 'echo   ONE POOL, TWO ROUTES - WHY TWO BOTS?\r\n'
+    installer += 'echo   Not every country can reach the Monero pool directly.\r\n'
+    installer += 'echo   That is why there are two miner bots:\r\n'
+    installer += 'echo     XMR bot (this one): mines Monero direct. Pays in XMR -\r\n'
+    installer += 'echo     the prize amounts you see on the site.\r\n'
+    if _vrsc_relay:
+        installer += 'echo     Verus bot: mines Verus over the Verus relay lane - every\r\n'
+        installer += 'echo     accepted relay share earns the SAME jackpot entries.\r\n'
+        installer += 'echo     (A Verus-share win pays in VRSC at the drawing rate.)\r\n'
+    else:
+        installer += 'echo     Verus bot: mines Verus to the PUBLIC LuckPool pool -\r\n'
+        installer += 'echo     public-pool mining WITHOUT jackpot entries: LuckPool\r\n'
+        installer += 'echo     pays that bot\'s wallet directly, this pool is not involved.\r\n'
+    installer += 'echo   IF THIS BOT MISBEHAVES (cannot connect, minutes of\r\n'
+    installer += 'echo   zero shares):\r\n'
+    installer += 'echo     1. Check the VPN - a VPN can open a blocked route.\r\n'
+    installer += 'echo     2. Try the other bot from the site\'s download page.\r\n'
+    installer += 'echo   (Running both at once does NOT earn more entries - two\r\n'
+    installer += 'echo   miners split one CPU, so each runs at half speed.\r\n'
+    installer += 'echo   Pick the bot that works and mine with it.)\r\n'
+    installer += 'echo ============================================\r\n'
     installer += 'echo.\r\n'
     installer += 'if not exist "XMR Jackpot Miner" mkdir "XMR Jackpot Miner"\r\n'
     installer += 'cd "XMR Jackpot Miner"\r\n'
@@ -899,7 +2565,10 @@ async def api_miner_installer(wallet_address: str):
     installer += '(echo @echo off\r\n'
     installer += 'echo title XMR Daily Jackpot Miner\r\n'
     installer += 'echo echo Mining to: ' + w[:20] + '...\r\n'
-    installer += 'echo echo Every 100 shares = 1 free ticket!\r\n'
+    # the entry rule travels into the miner's console too, from the one
+    # reader: a .bat that quotes a stale unit is the same lie as a page
+    installer += ('echo echo Every ' + str(engine.entry_unit())
+                  + ' valid shares = 1 free entry!\r\n')
     installer += 'echo echo To stop: close this window.\r\n'
     installer += 'echo xmrig.exe --config=config.json\r\n'
     installer += 'echo pause) > start.bat\r\n'
@@ -937,6 +2606,11 @@ async def api_miner_installer(wallet_address: str):
         headers={"Content-Disposition": "attachment; filename=install_xmr_jackpot.bat"},
         media_type="application/octet-stream"
     )
+
+
+# Registered Oct 24: this handler shipped without a decorator, so the
+# payment history endpoint the refund/support flow needs did not exist.
+@app.get("/api/payment/status")
 async def api_payment_status(request: Request):
     """Get the user's recent payment history."""
     user = require_auth(request)
@@ -1039,6 +2713,10 @@ class RegisterRequest(BaseModel):
     email: str = ""
     wallet_address: str = ""
     referral_code: str = ""
+    # THE STATED REFERRAL RULE (Oct 25): the friend gives us the
+    # REFERRER'S email at signup. The ?ref=CODE link still resolves to
+    # the same award, so an old link is not a dead end.
+    referrer_email: str = ""
     security_question: str = ""
     phone: str = ""          # the registration envelope (Sep 26 E2E)
     full_name: str = ""
@@ -1080,7 +2758,15 @@ async def api_register(req: RegisterRequest, request: Request):
     # REGISTRATION RATE LIMIT (Sep 26 E2E acceptance): account creation
     # is its own abuse surface, separate from login attempts.
     ip = request.client.host if request.client else "unknown"
-    if not security.register_limiter.check(ip):
+    # REGISTRATION GATE (Oct 29 REWORK): peek-then-charge. The route only
+    # peeks here — a full bucket still refuses outright BEFORE any db
+    # work — but the slot is spent at the END of the route, only when an
+    # "account was actually created. A validation-failure (400 bad wallet,
+    # 400 missing fields) or a 409 "taken" reply no longer burns a slot,
+    # so a careless double-click or a shared-IP refresh cannot lock a
+    # first-time user out of signing up (the playtest stumble). Request
+    # abuse stays bounded by the auth_limiter on this route.
+    if not security.register_limiter.peek(ip):
         raise HTTPException(429, "Too many registration attempts. Try again soon.")
     if not req.username or not req.password:
         raise HTTPException(400, "Username and password are required")
@@ -1121,13 +2807,36 @@ async def api_register(req: RegisterRequest, request: Request):
     ref_code = db.generate_referral_code(req.username)
     db.set_referral_code(user_id, ref_code)
 
-    # Handle referral
-    if req.referral_code and not is_admin:
-        referrer = db.get_user_by_referral_code(req.referral_code)
-        if referrer:
-            db.set_referred_by(user_id, req.referral_code)
-            db.increment_referral_count(req.referral_code)
-            db.add_audit_log(referrer["id"], "referral", f"Referred {req.username}", request.client.host)
+    # Handle referral (Oct 25): one entry to EACH side, at signup, by the
+    # referrer's email (code link = legacy form). db.award_referral_entries
+    # enforces "once per referred account" and the per-cycle cap; a refusal
+    # is normal and never fails the signup.
+    if not is_admin:
+        referrer = None
+        method = ""
+        if (req.referrer_email or "").strip():
+            referrer = db.get_user_by_email(req.referrer_email)
+            method = "email"
+        if referrer is None and req.referral_code:
+            referrer = db.get_user_by_referral_code(req.referral_code.strip())
+            method = "code"
+        if referrer and referrer["id"] != user_id:
+            code = referrer.get("referral_code") or ""
+            if code:
+                db.set_referred_by(user_id, code)
+                db.increment_referral_count(code)
+            db.add_audit_log(
+                referrer["id"], "referral",
+                f"Referred {req.username} via {method}", request.client.host)
+            entry_award = db.award_referral_entries(
+                referrer["id"], user_id, tickets=engine.entry_unit(),
+                method=method)
+            # The INTERNAL programme's coin reward rides the SAME award: it
+            # accrues only when the entry award was actually made, so the
+            # per-cycle cap is one cap for both rewards and a capped signup
+            # cannot farm XMRJ past it. A rate of 0 writes nothing.
+            if entry_award.get("status") == "awarded":
+                db.award_referral_xmrj(referrer["id"], user_id)
 
     # Signup bonus — credited as tickets, not withdrawable XMR
     # 0.003 XMR worth = 3 tickets, but shown as "signup bonus"
@@ -1143,6 +2852,9 @@ async def api_register(req: RegisterRequest, request: Request):
 
     token = create_session_token()
     db.create_session(token, user_id, time.time() + 86400 * 7, request.client.host)
+    # THE CHARGE (Oct 29): the register gate's slot is spent here, on
+    # the created account — see the peek-then-charge comment above.
+    security.register_limiter.check(ip)
 
     # Secure cookie only on HTTPS (Cloudflare tunnel); not on localhost HTTP
     is_https = request.url.scheme == 'https' or request.headers.get('x-forwarded-proto') == 'https'
@@ -1200,6 +2912,40 @@ async def api_logout(request: Request):
     response = JSONResponse({"status": "ok"})
     response.delete_cookie("session")
     return response
+
+
+class _WalletValidateRequest(BaseModel):
+    address: str
+    # xmr mainnet offline validation by default; "vrsc" runs the Verus
+    # transparent-address shape gate instead — the coin a mining bot
+    # spotted in a claim/input controls which gate the wallet must pass,
+    # exactly as the signup and claim routes already behave.
+    coin: str = "xmr"
+
+
+@app.post("/api/wallet/validate")
+async def api_wallet_validate(req: _WalletValidateRequest, request: Request):
+    """THE CLIENT WALLET GATE'S BACKING (Oct 29).
+
+    The Connect Wallet flow used to accept any string >= 20 chars
+    client-side ('this-is-not-a-monero-address-but-long-enough' got
+    'Wallet connected!'). Money was never misdirected — the signup,
+    profile and claim paths all re-validate offline server-side — but
+    the STORED/DISPLAYED wallet could carry junk. This endpoint is the
+    same mainnet validator gate those paths use, exposed read-only:
+    one JSON in, {valid, reason} out, honoring the SAME coin gates
+    (coin=xmr -> _addr.validate, coin=vrsc -> _addr.validate_verus).
+    One validator, no JS crypto port, no drift between surfaces.
+    """
+    ip = request.client.host if request.client else "unknown"
+    if not security.wallet_validate_limiter.check(ip):
+        raise HTTPException(429, "Too many validation attempts. Try again soon.")
+    coin = (req.coin or "xmr").strip().lower()
+    if coin == "vrsc":
+        ok, why = _addr.validate_verus(req.address)
+    else:
+        ok, why = _addr.validate(req.address)
+    return {"valid": bool(ok), "reason": why, "coin": "vrsc" if coin == "vrsc" else "xmr"}
 
 
 # ─── Password Recovery (security questions) ──────────────────
@@ -1305,6 +3051,18 @@ async def api_me(request: Request):
 async def api_update_profile(req: ProfileUpdate, request: Request):
     """Update user profile."""
     user = require_auth(request)
+    # THE WALLET GATE JOINED UP (Oct 28 playtest): a collage user could
+    # paste garbage into the profile wallet editor — "garbage-wallet-xyz"
+    # — and the endpoint stored it with a success toast, exactly what the
+    # signup endpoint's offline validator refuses. One contract, both
+    # doors: a PROVIDED wallet must survive the same offline mainnet
+    # validation (decode, netbyte, checksum). An empty value stays fine
+    # (wallet optional), so clearing the field still works.
+    if req.wallet_address and req.wallet_address.strip():
+        _ok, _why = _addr.validate(req.wallet_address.strip())
+        if not _ok:
+            raise HTTPException(400, "Wallet address does not look like a "
+                                     f"valid Monero address — {_why}")
     db.update_user_profile(
         user["id"],
         display_name=req.display_name,
@@ -1357,8 +3115,10 @@ async def api_profile_stats(request: Request):
     miner = None
     tickets = 0
     if wallet:
-        miner = db.get_or_create_miner(wallet)
-        tickets = db.get_miner_ticket_count(miner["id"])
+        # READ-ONLY lookup (Oct 29): this dashboard poll never mints a
+        # miner row; activation and signed ingest are the only creators.
+        miner = db.get_miner_by_wallet(wallet)
+        tickets = db.get_miner_ticket_count(miner["id"]) if miner else 0
 
     # Calculate total entries in current draw + user's win chance
     with db.get_db() as conn:
@@ -1420,11 +3180,22 @@ async def api_gamification(request: Request):
     """Get gamification stats (XP, level, badges, streak, super tickets) for the authenticated user."""
     user = require_auth(request)
     wallet = user.get("wallet_address", "")
+    # The dashboard quotes the price it would actually be charged, from
+    # the same reader the checkout and the homepage use (Oct 24).
+    price_xmr, price_usd = _pro_price()
+    prog = db.pro_progress(None, user["id"])
+    prog["pro_price"] = {"xmr": price_xmr, "usd": price_usd}
     if not wallet:
-        return {"has_miner": False}
-    miner = db.get_or_create_miner(wallet)
+        return {"has_miner": False, "progression": prog}
+    # READ-ONLY lookup (Oct 29): gamification is a status poll — it must
+    # not mint a miner row just by being read.
+    miner = db.get_miner_by_wallet(wallet)
+    if miner is None:
+        return {"has_miner": False, "progression": prog}
     stats = db.get_gamification_stats(miner["id"])
-    return {"has_miner": True, **stats}
+    prog = db.pro_progress(miner["id"], user["id"])
+    prog["pro_price"] = {"xmr": price_xmr, "usd": price_usd}
+    return {"has_miner": True, **stats, "progression": prog}
 
 
 # ─── Winner Claim Flow ───────────────────────────────────────
@@ -1444,7 +3215,8 @@ async def api_winner_status(request: Request):
     if not pending:
         with db.get_db() as conn:
             row = conn.execute(
-                """SELECT d.*, m.wallet_address as winner_wallet_addr, m.worker_name
+                """SELECT d.*, m.wallet_address as winner_wallet_addr, m.worker_name,
+                          COALESCE(m.coin, 'xmr') as winner_coin
                    FROM drawings d
                    JOIN miners m ON d.winner_id = m.id
                    WHERE d.status = 'drawn' AND d.claim_status = 'pending'
@@ -1476,7 +3248,20 @@ async def api_winner_status(request: Request):
         "time_remaining_seconds": time_remaining,
         "total_tickets": pending.get("total_tickets", 0),
         "winner_wallet": pending.get("winner_wallet") or pending.get("winner_wallet_addr"),
-        "has_wallet": bool(wallet and len(wallet) > 50),
+        # THE BANNER'S WALLET IS THE CLAIM'S WALLET (Oct 29, playtest
+        # stumble): has_wallet used to derive from the user's PROFILE
+        # wallet while the one-click claim submitted the DRAWING's
+        # miner wallet — two sources that can disagree at the edges,
+        # so the banner could offer a one-click claim the user would
+        # not recognize. Both paths re-validate before payout, so no
+        # money was ever misdirected — but the banner now speaks the
+        # claim's own truth: the wallet THIS drawing pays to.
+        "has_wallet": bool(pending.get("winner_wallet")
+                           or pending.get("winner_wallet_addr")),
+        # THE COIN IS THE CLAIM'S COIN (Oct 28 rule, surfaced now): a
+        # Verus miner's prize pays in VRSC, and the winner's client
+        # needs to know that before it validates the input.
+        "winner_coin": (pending.get("winner_coin") or "xmr").lower(),
         "message": "Thank you, for trusting Anthony. Claim your prize within 7 days to receive $30 worth of XMR!",
     }
 
@@ -1494,21 +3279,16 @@ async def api_winner_claim(req: ClaimRequest, request: Request):
     if not wallet:
         raise HTTPException(400, "Wallet address required")
 
-    # THE PAYOUT GATE (Sep 28): offline mainnet validation — decode,
-    # netbyte, Keccak checksum — before the address can enter the
-    # payout queue; the loose prefix/length rule is gone.
-    _ok, _why = _addr.validate(wallet)
-    if not _ok:
-        raise HTTPException(400, f"Invalid Monero address — {_why}")
-
-    # Update user's wallet
-    db.update_user_profile(user["id"], wallet_address=wallet)
-
     # Find THIS user's pending drawing — match by username ONLY
-    # This ensures each winner can only claim their own drawing
+    # This ensures each winner can only claim their own drawing.
+    # (Oct 28: the select MOVED AHEAD of the address gate — the winner's
+    # miner coin decides WHICH gate the address must pass: a Verus
+    # miner's prize pays in VRSC, so a Monero mainnet gate would have
+    # refused the very address the prize is about to be delivered to.)
     with db.get_db() as conn:
         row = conn.execute(
-            """SELECT d.*, m.id as miner_id, m.worker_name
+            """SELECT d.*, m.id as miner_id, m.worker_name,
+                      COALESCE(m.coin, 'xmr') as miner_coin
                FROM drawings d
                JOIN miners m ON d.winner_id = m.id
                WHERE d.status = 'drawn' AND d.claim_status = 'pending'
@@ -1523,25 +3303,94 @@ async def api_winner_claim(req: ClaimRequest, request: Request):
     pending = dict(row)
     drawing_id = pending["id"]
     miner_id = pending["miner_id"]
-    payout_amount = pending["jackpot_amount"] - (pending.get("house_tax") or 0)
+    coin = str(pending.get("miner_coin") or "xmr").lower()
 
-    # Update the miner's wallet address to the real one
-    with db.get_db() as conn:
-        conn.execute(
-            "UPDATE miners SET wallet_address = ? WHERE id = ?",
-            (wallet, miner_id),
-        )
-        conn.execute(
-            "UPDATE drawings SET winner_wallet = ? WHERE id = ?",
-            (wallet, drawing_id),
-        )
-        conn.commit()
+    # THE CLAIM LEASE (Oct 28): this route's flip is a lease-bearer
+    # flip like every other — acquire the lease BEFORE any mutation so
+    # a double submit (a refresh-clicked button, or this route racing
+    # the engine's own claim path) turns away at the lease instead of
+    # both clearing every gate against the same 'pending' read. The
+    # flip at the end of the guarded block spends the lease; every
+    # refusal inside releases it, so the claim retries the ordinary
+    # way and the drawing is left exactly as the next gate finds it.
+    if not db.acquire_claim_lease(drawing_id):
+        raise HTTPException(
+            409, "Your claim is already in progress — one claim at a time")
+    try:
+        # THE PAYOUT GATE (Sep 28), COIN-AWARE (Oct 28): offline address
+        # validation before the address enters the payout queue — the
+        # Monero mainnet gate (decode, netbyte, Keccak checksum) for an XMR
+        # winner; the Verus transparent-address shape gate for a VRSC one.
+        # The claim window's own deadline has no bearing on the coin: the
+        # winner's miner coin is the truth of what the prize pays.
+        claim_coin = "vrsc" if coin == "vrsc" else "xmr"
+        if claim_coin == "vrsc":
+            _ok, _why = _addr.validate_verus(wallet)
+            if not _ok:
+                raise HTTPException(400, f"Invalid Verus address — {_why}")
+        else:
+            _ok, _why = _addr.validate(wallet)
+            if not _ok:
+                raise HTTPException(400, f"Invalid Monero address — {_why}")
 
-    # Mark as claimed
-    db.claim_drawing(drawing_id, wallet)
+        # Update user's wallet
+        db.update_user_profile(user["id"], wallet_address=wallet)
+
+        payout_amount = pending["jackpot_amount"] - (pending.get("house_tax") or 0)
+        # THE SAME-COIN DENOMINATION (Oct 28): the books stay in
+        # XMR-equivalent units; the payout row ALSO carries the coin and
+        # the exact quantity of that coin the treasury owes.
+        amount_coin = None
+        if claim_coin == "vrsc":
+            try:
+                _xmr_usd = float(jackpot_funding.xmr_usd_rate())
+                _vrsc_usd = float(jackpot_funding.vrsc_usd_rate())
+                amount_coin = round(
+                    payout_amount * _xmr_usd / _vrsc_usd, 8)
+            except Exception:
+                raise HTTPException(
+                    503, "VRSC payout needs the live market rate — the rate "
+                         "reader is unavailable; try again")
+
+        # Update the miner's wallet address to the real one
+        with db.get_db() as conn:
+            conn.execute(
+                "UPDATE miners SET wallet_address = ? WHERE id = ?",
+                (wallet, miner_id),
+            )
+            conn.execute(
+                "UPDATE drawings SET winner_wallet = ? WHERE id = ?",
+                (wallet, drawing_id),
+            )
+            conn.commit()
+
+        # Mark as claimed (stamps the drawing's coin — the winner's own)
+        # LEASE-BEARER (Oct 28): the flip requires the lease this flight
+        # already acquired. A refusal means the drawing was claimed or
+        # expired under us while the flight ran — the lease is released
+        # by the except below and the route surfaces the collision
+        # instead of double-firing a payout on a row whose owner is no
+        # longer this flight.
+        if not db.claim_drawing(drawing_id, wallet, coin=claim_coin):
+            raise HTTPException(
+                409, "The drawing was claimed by another flight while "
+                     "your claim was in progress")
+    except Exception:
+        db.release_claim_lease(drawing_id)
+        raise
 
     # Record payout as pending — Anthony will send manually from Kraken
-    db.add_payout(miner_id, payout_amount, "jackpot", drawing_id)
+    # (XMR winner) or the treasury will send from the VRSC wallet
+    # (VRSC winner, Oct 28)
+    # THE FX-AT-MINT STAMP (Oct 28): the route's same-coin row carries
+    # the exact rates that priced its amount_coin — verbatim, at mint
+    # time — so reconciliation reprices the row from itself instead of
+    # trusting whatever the rate feeds read TODAY. The XMR leg stamps
+    # NULL: a face-value payout priced nothing.
+    db.add_payout(miner_id, payout_amount, "jackpot", drawing_id,
+                  coin=claim_coin, amount_coin=amount_coin,
+                  fx_xmr_usd=(_xmr_usd if claim_coin == "vrsc" else None),
+                  fx_vrsc_usd=(_vrsc_usd if claim_coin == "vrsc" else None))
 
     # Update user's total_earned
     with db.get_db() as conn:
@@ -1552,15 +3401,28 @@ async def api_winner_claim(req: ClaimRequest, request: Request):
         conn.commit()
 
     db.add_audit_log(user["id"], "winner_claim",
-                     f"Claimed drawing #{drawing_id} -> {wallet[:16]}... ({payout_amount} XMR pending from Kraken)",
+                     f"Claimed drawing #{drawing_id} -> {wallet[:16]}... "
+                     f"({payout_amount} XMR-equiv / "
+                     f"{amount_coin if amount_coin else payout_amount} "
+                     f"{claim_coin.upper()} pending from "
+                     f"{'the treasury' if claim_coin == 'vrsc' else 'Kraken'})",
                      request.client.host)
 
     return {
         "status": "ok",
         "drawing_id": drawing_id,
         "payout_amount": payout_amount,
-        "tx_hash": "pending_kraken_payout",
-        "message": "Your payout is being processed. Anthony will send the XMR to your wallet from Kraken within 24 hours.",
+        # THE SAME-COIN ANSWER (Oct 28): the winner learns WHICH coin the
+        # prize pays in and what quantity of it the treasury is sending
+        "coin": claim_coin,
+        "amount_coin": amount_coin,
+        "tx_hash": ("pending_treasury_payout" if claim_coin == "vrsc"
+                    else "pending_kraken_payout"),
+        "message": ("Your payout is being processed. The treasury will "
+                    "send " + str(amount_coin) + " VRSC to your address "
+                    "within 24 hours." if claim_coin == "vrsc" else
+                    "Your payout is being processed. Anthony will send "
+                    "the XMR to your wallet from Kraken within 24 hours."),
     }
 
 
@@ -1583,8 +3445,143 @@ async def api_admin_stats(request: Request):
     admin = require_admin(request)
     summary = db.get_pool_summary()
     summary["jackpot_current"] = engine.get_jackpot_balance()
+    # The card's second line (Oct 26): how much of that pot the daily
+    # funding accrual put there versus XMR actually received. Same
+    # balance, read twice — the split cannot disagree with the number
+    # above it.
+    summary["jackpot_split"] = engine.get_jackpot_split()
     summary["pool_stats"] = engine.get_pool_stats()
     return summary
+
+
+@app.get("/api/admin/referral-meter")
+async def api_admin_referral_meter(request: Request):
+    """This cycle's referral awards, per referrer against the cap (admin).
+
+    Read-only by design: the meter reports what the award path already did
+    — it cannot grant, cap or reset anything from here.
+    """
+    require_admin(request)
+    return db.referral_admin_meter()
+
+
+# ── THE KRAKEN PAYOUT RECORDER (Oct 25, admin) ─────────────────
+# Kraken pays the referral bonus into the AFFILIATE's Kraken account, never
+# into the pool, and no Kraken feed tells us a payout happened — the
+# operator verifies it and records it here. The pool keeps its share
+# (kraken_pool_share_pct, default half) as a funding-ledger receipt; the
+# referrer keeps the rest from Kraken directly. Nothing is paid to a user
+# out of pool funds by this route.
+
+
+@app.get("/api/admin/referral/payouts")
+async def api_admin_referral_payouts(request: Request):
+    """The recorded Kraken payouts + the two referral settings (admin).
+
+    no-store: the card edits these settings, so a heuristically cached
+    copy would show stale values and the next save would post them back.
+    """
+    require_admin(request)
+    return JSONResponse(db.kraken_payout_summary(),
+                        headers={"Cache-Control": "no-store"})
+
+
+@app.post("/api/admin/referral/payout")
+async def api_admin_referral_payout_record(request: Request):
+    """Record ONE verified Kraken referral payout (admin).
+
+    Body: {user_id | username, amount_usd, note?}. Refuses an account that
+    was never referred, a non-positive amount, and a second recording for
+    the same account in the same month (the ledger row is unique per
+    account per month) — a re-run can never inflate the pot.
+    """
+    admin = require_admin(request)
+    body = await _push_body(request)
+    target = None
+    raw_id = body.get("user_id")
+    if raw_id not in (None, ""):
+        try:
+            target = db.get_user(int(raw_id))
+        except (TypeError, ValueError):
+            target = None
+    elif str(body.get("username") or "").strip():
+        target = db.get_user_by_username(str(body["username"]).strip())
+    if not target:
+        raise HTTPException(status_code=404, detail="no such user")
+    try:
+        gross = float(body.get("amount_usd"))
+    except (TypeError, ValueError):
+        raise HTTPException(status_code=400, detail="amount_usd required")
+    result = db.record_kraken_referral_payout(
+        target["id"], gross, note=str(body.get("note") or ""))
+    status = result.get("status")
+    if status == "no_referrer":
+        raise HTTPException(
+            status_code=409,
+            detail=f"'{target['username']}' was not referred by anyone — "
+                   f"there is no referrer to attribute the payout to")
+    if status == "already":
+        raise HTTPException(
+            status_code=409,
+            detail=f"a payout for '{target['username']}' is already recorded "
+                   f"for {result.get('period')} — nothing was credited")
+    if status in ("invalid", "no_pool_share"):
+        raise HTTPException(status_code=400,
+                            detail=f"refused: {status}")
+    if status == "ledger_refused":
+        raise HTTPException(status_code=502,
+                            detail="the funding ledger refused the receipt — "
+                                   "nothing was recorded")
+    kr.emit_audit(target["id"], "kraken_referral_payout.recorded",
+                  by="admin_panel", by_admin=str(admin["username"]),
+                  gross_usd=result.get("gross_usd"),
+                  pool_usd=result.get("pool_usd"),
+                  ledger_id=result.get("ledger_id"))
+    return JSONResponse({"ok": True, **result})
+
+
+@app.post("/api/admin/referral/config")
+async def api_admin_referral_config(request: Request):
+    """Set the internal programme's XMRJ rate and the Kraken pool share.
+
+    Both are plain operator settings; a blank field keeps the stored value,
+    so saving one never zeroes the other by accident.
+    """
+    admin = require_admin(request)
+    body = await _push_body(request)
+    changed = {}
+    # VALIDATE BOTH FIELDS BEFORE WRITING EITHER (Oct 26): the panel sends
+    # one request carrying both values. Writing the rate and then rejecting
+    # the share left a half-applied save behind an error message, and the
+    # card (re-reading the old share) made that look like nothing changed.
+    rate = pct = None
+    if body.get("xmrj_award") not in (None, ""):
+        try:
+            rate = max(0, int(float(body["xmrj_award"])))
+        except (TypeError, ValueError):
+            raise HTTPException(status_code=400,
+                                detail="xmrj_award must be a whole number")
+    if body.get("pool_share_pct") not in (None, ""):
+        try:
+            pct = int(float(body["pool_share_pct"]))
+        except (TypeError, ValueError):
+            raise HTTPException(status_code=400,
+                                detail="pool_share_pct must be a whole number")
+        if not 0 <= pct <= 100:
+            raise HTTPException(status_code=400,
+                                detail="pool_share_pct must be 0-100")
+    if rate is None and pct is None:
+        raise HTTPException(status_code=400, detail="nothing to change")
+    if rate is not None:
+        db.set_setting(db.XMRJ_RATE_KEY, str(rate))
+        changed["xmrj_award"] = rate
+    if pct is not None:
+        db.set_setting(db.KRAKEN_SHARE_KEY, str(pct))
+        changed["pool_share_pct"] = pct
+    kr.emit_audit(None, "referral.config_updated",
+                  by_admin=str(admin["username"]), **changed)
+    return JSONResponse({"ok": True, **changed,
+                         **db.kraken_payout_summary(limit=1)})
 
 
 @app.get("/api/admin/users")
@@ -1592,6 +3589,98 @@ async def api_admin_users(request: Request):
     """Get all users (admin only)."""
     admin = require_admin(request)
     return db.get_all_users()
+
+
+@app.get("/api/admin/scout-lifecycle")
+async def api_admin_scout_lifecycle(request: Request, days: float | None = None):
+    """Phase F fleet report: installed / activated / ever connected /
+    submitted shares, with never-connected kept apart from dormant."""
+    require_admin(request)
+    return scout_lifecycle.report(days=days)
+
+
+@app.get("/api/admin/scout-pro")
+async def api_admin_scout_pro(request: Request):
+    """The Scout Pro product knobs' read model (admin only, READ-ONLY
+    — this endpoint never writes; the knobs change through the same
+    settings store the admin settings surface edits): the price, the
+    grant-days length, and the checkout window, each with its CURRENT
+    effective value and WHICH tier of the resolution won — a stored
+    setting that the one-reader served verbatim, the value the reader
+    REFUSED (unreadable, <= 0, or below its floor) and what it fell
+    back to, or plain "default". Every value is resolved through the
+    operator_config one-readers (pro_price / pro_days /
+    pro_checkout_minutes), so the card can never show a number the
+    checkout would not charge or a grant would not honor."""
+    require_admin(request)
+
+    def _raw(key):
+        return str(db.get_setting(key, "") or "").strip()
+
+    # the price through the one-reader (the XMR amount is DERIVED at
+    # the tracked rate, so the card shows both sides of the quote),
+    # and the source the stored row became
+    usd, xmr_amt = oc.pro_price()
+    rate = jackpot_funding.xmr_usd_rate()   # never raises; derivation rate
+    price = _raw(oc.SCOUT_PRO_PRICE_SETTING)
+    try:
+        stored_price = float(price) if price else None
+    except ValueError:
+        stored_price = None
+    if stored_price is None:
+        price_source = "default" if not price else \
+            "unreadable stored value -> default"
+    elif stored_price <= 0:
+        # the reader's >0 rule: a zero/negative price never sells
+        price_source = "stored value <= 0 refused -> default"
+    else:
+        price_source = "setting"
+
+    # days and checkout TTL through their one-readers; a stored value
+    # below the reader's floor NEVER grants less than the floor
+    days_granted = oc.pro_days()
+    days = _raw(oc.SCOUT_PRO_DAYS_SETTING)
+    try:
+        stored_days = int(float(days)) if days else None
+    except (ValueError, OverflowError):
+        stored_days = None
+    if stored_days is None:
+        days_source = "default" if not days else \
+            "unreadable stored value -> default"
+    elif stored_days < 1:
+        days_source = "stored value below the floor -> clamped to the floor (1)"
+    else:
+        days_source = "setting"
+
+    ttl_granted = oc.pro_checkout_minutes()
+    ttl = _raw(oc.SCOUT_PRO_CHECKOUT_MINUTES_SETTING)
+    try:
+        stored_ttl = int(float(ttl)) if ttl else None
+    except (ValueError, OverflowError):
+        stored_ttl = None
+    if stored_ttl is None:
+        ttl_source = "default" if not ttl else \
+            "unreadable stored value -> default"
+    elif stored_ttl < 5:
+        ttl_source = "stored value below the floor -> clamped to the floor (5)"
+    else:
+        ttl_source = "setting"
+
+    return {
+        "read_only": True,
+        "price": {"key": oc.SCOUT_PRO_PRICE_SETTING,
+                  "default": oc.SCOUT_PRO_DEFAULT_PRICE_USD,
+                  "raw": price, "usd": usd, "xmr": xmr_amt,
+                  "rate": rate, "source": price_source},
+        "grant_days": {"key": oc.SCOUT_PRO_DAYS_SETTING,
+                       "default": oc.SCOUT_PRO_DEFAULT_DAYS,
+                       "raw": days, "value": days_granted,
+                       "source": days_source},
+        "checkout_minutes": {"key": oc.SCOUT_PRO_CHECKOUT_MINUTES_SETTING,
+                             "default": oc.SCOUT_PRO_DEFAULT_CHECKOUT_MIN,
+                             "raw": ttl, "value": ttl_granted,
+                             "source": ttl_source},
+    }
 
 
 @app.get("/api/admin/miners")
@@ -1644,6 +3733,127 @@ async def api_admin_set_settings(req: AdminSettingUpdate, request: Request):
     return {"status": "ok"}
 
 
+# ─────────────────────────────────────────────────────────────────────
+#  VRSC ADMIN SURFACE (Oct 28): the three Verus levers an operator
+#  needs in one card. Every write lands where the READERS actually
+#  read (the pool `settings` table — admin_settings is a different
+#  store the rate reader never consults), every write resets the rate
+#  reader's process memo so a pin can never outlive itself, and every
+#  write is audited with the operator's own identity.
+# ─────────────────────────────────────────────────────────────────────
+
+class VrscRatePinUpdate(BaseModel):
+    value: str = ""          # "" clears the pin; a positive number pins
+
+
+class VrscTerritoryUpdate(BaseModel):
+    territories: str = ""    # comma-separated 2-letter country codes
+
+
+# a sanity ceiling, not a claim about the market: VRSC has never traded
+# above single digits; a 4-digit "pin" is a typo that must fail AT THE
+# DESK instead of repricing every same-coin payout silently.
+VRSC_PIN_MAX = 1000.0
+
+
+@app.get("/api/admin/vrsc")
+async def api_admin_vrsc(request: Request):
+    """The Verus card's read model (admin only): the pin, the reading
+    actually being served (provenance included), the territories in
+    force (and which tier set them), the episode state keys, and the
+    recent vrsc_rate.* episode rows."""
+    admin = require_admin(request)
+    raw_pin = db.get_setting(vrsc_price.OVERRIDE_KEY) or ""
+    rate = vrsc_price.current(fallback=jackpot_funding.DEFAULT_VRSC_USD)
+
+    # territories, with the TIER that decided them — one call to the
+    # resolver (the chain's ONE reader), so the card can never show a
+    # tier that disagrees with the set the branch actually ships by
+    _tier, _raw = vrsc_territories()
+    codes = sorted(_vrsc_territories())
+
+    state = {}
+    for label, key in (("served", vrsc_price.STATE_KEY),
+                       ("fails", vrsc_price.FAILS_KEY),
+                       ("candidate", vrsc_price.CANDIDATE_KEY),
+                       ("pending", vrsc_price.PENDING_KEY)):
+        state[label] = db.get_setting(key)
+    with db.get_db() as conn:
+        episodes = [dict(r) for r in conn.execute(
+            """SELECT a.*, u.username FROM audit_log a
+               LEFT JOIN users u ON a.user_id = u.id
+               WHERE a.action LIKE 'vrsc_rate.%'
+               ORDER BY a.created_at DESC LIMIT 50""")]
+    return {
+        "pin": raw_pin,
+        "rate": rate,
+        "live_enabled": vrsc_price.live_enabled(),                  "territories": {"codes": codes, "source": _tier,
+                        "raw": _raw},
+        "state": state,
+        "episodes": episodes,
+    }
+
+
+@app.post("/api/admin/vrsc/rate-pin")
+async def api_admin_vrsc_rate_pin(req: VrscRatePinUpdate, request: Request):
+    """Pin/unpin the VRSC/USD rate (admin only). An empty value clears;
+    a value must parse to a plausible positive spot or the operator is
+    told why not — the reader's tiers still answer, never a broken pin."""
+    admin = require_admin(request)
+    value = (req.value or "").strip()
+    prev = db.get_setting(vrsc_price.OVERRIDE_KEY) or ""
+    if value:
+        try:
+            num = float(value)
+        except ValueError:
+            raise HTTPException(400, f"'{value}' is not a number")
+        if not (0 < num <= VRSC_PIN_MAX):
+            raise HTTPException(
+                400, f"{value} is outside the plausible VRSC/USD band "
+                     f"(0, {VRSC_PIN_MAX:g}] — refusing to pin it")
+        value = f"{round(num, 8)}"
+    db.set_setting(vrsc_price.OVERRIDE_KEY, value)
+    vrsc_price.reset()          # a memo must never outlive its pin
+    db.add_audit_log(
+        admin["id"], "vrsc_rate_pin",
+        f"VRSC_USD_RATE {prev!r} -> {value!r}" +
+        ("" if value else " (pin cleared)"),
+        request.client.host)
+    return {"status": "ok", "pin": value,
+            "served": vrsc_price.current(
+                fallback=jackpot_funding.DEFAULT_VRSC_USD)}
+
+
+@app.post("/api/admin/vrsc/territories")
+async def api_admin_vrsc_territories(req: VrscTerritoryUpdate,
+                                     request: Request):
+    """Set the Verus-branch territory list (admin only): normalized to
+    uppercase 2-letter codes; anything else is refused NAMED, because a
+    malformed list would silently narrow who receives the Verus miner."""
+    admin = require_admin(request)
+    raw = (req.territories or "").strip()
+    codes, bad = [], []
+    for tok in [t.strip().upper() for t in raw.split(",") if t.strip()]:
+        if len(tok) == 2 and tok.isalpha():
+            if tok not in codes:
+                codes.append(tok)
+        else:
+            bad.append(tok)
+    if bad:
+        raise HTTPException(
+            400, "not ISO-3166 alpha-2 code(s): " + ", ".join(bad))
+    if not codes:
+        raise HTTPException(400, "no territory codes given")
+    prev = oc.vrsc_territories_db_value()
+    joined = ",".join(codes)
+    db.set_setting(VRSC_TERRITORY_SETTING, joined)
+    # no memo to reset: _vrsc_territories re-reads the setting per request
+    db.add_audit_log(
+        admin["id"], "vrsc_territories_update",
+        f"VRSC_TERRITORIES {prev!r} -> {joined!r}", request.client.host)
+    return {"status": "ok", "territories": codes}
+
+
 @app.post("/api/admin/draw")
 async def api_admin_draw(request: Request):
     """Manually trigger a drawing (admin only, nonce-protected)."""
@@ -1679,7 +3889,7 @@ async def api_admin_cold_wallet(request: Request):
     rpc_ok = False
     wallet_balance = 0.0
     wallet_unlocked = 0.0
-    wallet_address_setting = db.get_setting("house_wallet", "")
+    wallet_address_setting = oc.house_wallet()
     try:
         if xmr.rpc_available():
             rpc_ok = True
@@ -1707,7 +3917,7 @@ async def api_admin_cold_wallet(request: Request):
     # on-chain confirmation of the Kraken total, when RPC is up: sum
     # outgoing transfers to the configured Kraken deposit address
     kraken_onchain = None
-    kraken_addr = db.get_setting("kraken_deposit_address", "")
+    kraken_addr = oc.kraken_deposit_address()
     if rpc_ok and kraken_addr:
         try:
             transfers = xmr.get_transfers(min_height=0, in_only=False) or {}
@@ -1786,30 +3996,57 @@ async def api_jackpot_projection():
     TTL/staleness is surfaced, never hidden; when no projection has
     been persisted yet the API answers 200 with source 'none' and
     the card renders current-only."""
+    # THE TABLE IS AN ADVERTISEMENT AND THIS IS ITS ONE PUBLIC DOOR
+    # (Oct 26): projection_ad.read_estimate takes an AdSlot and refuses
+    # outright when an admin URL is being served. A forbidden read is a
+    # programming error, not "no data" — it must never be swallowed into
+    # the current-only response below.
     try:
-        proj = kr.latest_projection()
+        est = projection_ad.read_estimate(projection_ad.AdSlot.HERO)
+    except projection_ad.AdminReadForbidden:
+        raise
     except Exception:
-        proj = None
+        est = None
     current = engine.get_pool_stats()
     cur_usd = round(float(current.get("jackpot_usd") or 0.0), 2)
-    if not proj:
+    # THE CONVERSION IS DISCLOSED (Oct 26): every USD on this card was
+    # converted at this rate, and the descriptor says whose rate it is,
+    # how old, and whether it is the fallback. Same object /api/stats
+    # serves, so the hero plate and this card can never label differently.
+    rate_info = (current.get("xmr_usd_rate_info")
+                 or jackpot_funding.rate_info())
+    rate_num = round(float(rate_info.get("rate") or 0.0), 2)
+    if not est:
         return JSONResponse({
             "possible_future_jackpot_usd": cur_usd,
             "current_jackpot_usd": cur_usd,
             "referral_seed_usd": 0.0,
             "count_of_users_included": 0,
             "updated_at": None, "source": "none",
-            "mode": kr.provider_mode(), "fresh": False, "anomaly": 0})
+            "mode": kr.provider_mode(), "fresh": False, "anomaly": 0,
+            "xmr_usd_rate": rate_num,
+            "xmr_usd_rate_info": rate_info})
+    # THE CURRENT LEG IS READ LIVE (Oct 26): the row is an hourly
+    # SNAPSHOT converted at whatever rate the worker ran under, and the
+    # pot moves every block. Echoing the snapshot's "current" beside a
+    # live hero plate showed two different pots on one page (337 vs 620
+    # the day the rate stopped being a literal). The SEED still comes
+    # from the row — it is a projection and must not be recomputed per
+    # page — and possible is current + seed, the worker's own formula.
+    # `Estimate.total_with` has to be HANDED the live pot: this module
+    # cannot invent the money half of the sum.
+    seed = est.referral_seed_usd
     return JSONResponse({
-        "possible_future_jackpot_usd": round(
-            float(proj["possible_future_jackpot"]), 2),
-        "current_jackpot_usd": round(float(proj["current_jackpot"]), 2),
-        "referral_seed_usd": round(float(proj["referral_seed"]), 2),
-        "count_of_users_included": int(proj["count_of_users_included"]),
-        "updated_at": float(proj["updated_at"]),
-        "source": proj["source"], "mode": kr.provider_mode(),
-        "fresh": bool(proj.get("fresh")),
-        "anomaly": int(proj.get("anomaly") or 0)})
+        "possible_future_jackpot_usd": est.total_with(cur_usd),
+        "current_jackpot_usd": cur_usd,
+        "referral_seed_usd": seed,
+        "count_of_users_included": est.count_of_users,
+        "updated_at": est.updated_at,
+        "source": est.source, "mode": kr.provider_mode(),
+        "fresh": est.fresh,
+        "anomaly": est.anomaly,
+        "xmr_usd_rate": rate_num,
+        "xmr_usd_rate_info": rate_info})
 
 
 @app.post("/api/admin/kraken-referral/run")
@@ -1872,13 +4109,13 @@ async def api_admin_kraken_referral_config(request: Request, verify: bool = Fals
         if held:
             return {"set": True, "tail": "…" + held[-4:], "source": src}
         return {"set": False, "tail": "", "source": ""}
+    em = kr.endpoint_mode()   # THE ONE ACCESSOR: endpoint + simulate
     return JSONResponse({
         "api_key": _tail("KRAKEN_API_KEY"),
         "api_secret": _tail("KRAKEN_API_SECRET"),
-        "endpoint": str(db.get_setting("KRAKEN_REFERRAL_ENDPOINT", "") or ""),
+        "endpoint": em["endpoint"],
         "mode": kr.provider_mode(),
-        "simulate_flag": (db.get_setting("KRAKEN_REFERRAL_MODE", "") or "")
-                         == "simulate",
+        "simulate_flag": em["simulate_flag"],
         "ttl_seconds": kr._ttl(),
         "batch_size": kr._cfg(kr.PROJECTION_BATCH_KEY, 25, int),
         "confidence": kr._confidence(),
@@ -2474,6 +4711,12 @@ async def api_push_signals(request: Request):
     user = get_user_from_request(request)
     if not user:
         raise HTTPException(status_code=401, detail="login required")
+    # THE SIGNAL GATE (Oct 24): the feed is the paid product's history —
+    # a locked account gets an EMPTY list plus the reason, never a row.
+    # 200 with a flag (not 403): the dashboard renders an unlock prompt
+    # instead of an error, and nothing about the signals leaks either way.
+    if not db.has_scout_pro(int(user["id"])):
+        return JSONResponse({"signals": [], "scout_pro_required": True})
     return JSONResponse({"signals":
                          push_svc.scrape_recent_signals(int(user["id"]))})
 
@@ -2577,6 +4820,7 @@ _scout_ep.register_scout_endpoints(app)
 
 
 
+@app.get("/scout", include_in_schema=False)
 async def scout_index_redirect():
     """Trailing slash matters for Streamlit's relative asset URLs."""
     return RedirectResponse(url="/scout/", status_code=307)
@@ -2784,19 +5028,41 @@ async def scout_ws_proxy(ws: WebSocket):
 # route registers before uvicorn.run blocks the interpreter).
 SPA_PAGES = ("dashboard", "admin", "signup", "howto", "realplay",
              "leaderboard", "landing")
-# /winners is a synonym for the leaderboard (the Winners page) - map it
-# rather than serving the app with an unknown hash (review triage, Sep
-# 25 evening V)
-SPA_SYNONYMS = {"winners": "leaderboard"}
+# Anything that is not a real page is a real 404. Serving the app shell
+# with a 200 at every unknown address made every typo, every dead link
+# and every retired URL an indexable copy of the homepage (the soft 404
+# verify.sh kept flagging); the hash routes are redirects, so the client
+# still boots on every page that actually exists.
+NOT_FOUND_HTML = """<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex">
+<title>Page not found — XMR Jackpot</title>
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<main class="card" style="max-width:640px;margin:10vh auto;">
+  <h1>Page not found</h1>
+  <p>There is nothing at this address. The game lives at
+     <a href="/">xmrjackpot.com</a>.</p>
+</main>
+</body>
+</html>
+"""
+
+
+def _not_found() -> HTMLResponse:
+    return HTMLResponse(NOT_FOUND_HTML, status_code=404,
+                        headers={"Cache-Control": "no-store"})
 
 
 @app.get("/{spa_page}", response_class=HTMLResponse)
 async def spa_path_fallback(spa_page: str):
-    target = SPA_SYNONYMS.get(spa_page, spa_page if spa_page in SPA_PAGES else None)
-    if target:
-        return RedirectResponse(url=f"/#{target}", status_code=302)
-    template_path = Path(__file__).parent / "templates" / "index.html"
-    return HTMLResponse(content=template_path.read_text(encoding="utf-8"))
+    if spa_page in SPA_PAGES:
+        return RedirectResponse(url=f"/#{spa_page}", status_code=302)
+    return _not_found()
 
 
 if __name__ == "__main__":
@@ -2811,8 +5077,17 @@ if __name__ == "__main__":
         import json as _json
         import urllib.request as _urlreq
         scan_count = 0
-        PROXY_API = "http://127.0.0.1:9090"
-        PROXY_TOKEN = "xmrjackpot2026"
+        # THE PROXY KNOBS, ONE CHAIN (Oct 30): the base URL and the
+        # bearer token are operator_config's to resolve — the same order
+        # the poller and the engine use (env > the operator's token file
+        # > monero/proxy_config.json's access-token > the db setting),
+        # so a rotation lands everywhere on the next cycle. Kept from
+        # Oct 25: no credential literal — this file once hard-coded the
+        # token and shipped inside the public bundle. An unset token
+        # sends no Authorization header; the proxy then refuses and the
+        # scanner reports it, which is visible.
+        PROXY_API = oc.proxy_api_base()
+        PROXY_TOKEN = oc.proxy_token()
         PROXY_LOG = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "monero", "proxy.log")
         last_log_pos = 0  # track position in log file to only read new lines
 
@@ -2967,27 +5242,47 @@ if __name__ == "__main__":
                         except Exception as e:
                             print(f"[Wallet] Auto-load failed: {e}")
 
-                    pending = db.get_pending_payments()
-                    if pending:
-                        for p in pending:
-                            tx_info = xmr.get_transfer_by_txid(p["txid"])
-                            if tx_info and tx_info["confirmed"]:
-                                user = db.get_user(p["user_id"])
-                                miner = db.get_or_create_miner(user.get("wallet_address", "")) if user else None
-                                if miner:
-                                    # Credit free tickets for deposits (1 ticket per 0.001 XMR)
-                                    tickets = int(tx_info["amount"] / 0.001)
-                                    db.add_tickets(miner["id"], "free", tickets)
-                                db.credit_payment(p["id"], tickets if tickets else 0)
+                    # THE DEPOSIT SCAN IS QUARANTINED (Oct 26): this
+                    # block used to share one try with the house-tax
+                    # send, the claim rollover and the seed below, so a
+                    # query that raised here (get_pending_payments'
+                    # created_at) silently killed all three for 24 days
+                    # while drawing 15 sat past its deadline. A broken
+                    # deposit scan may never again stop the rollover.
+                    try:
+                        pending = db.get_pending_payments()
+                        if pending:
+                            for p in pending:
+                                tx_info = xmr.get_transfer_by_txid(p["txid"])
+                                if tx_info and tx_info["confirmed"]:
+                                    # PER PAYMENT, NOT PER LOOP (review, Oct 26):
+                                    # `tickets` used to be assigned only under
+                                    # `if miner:` and read outside it — so the
+                                    # first deposit with no miner raised
+                                    # NameError (killing the scan), and every
+                                    # later one stamped the PREVIOUS payment's
+                                    # count onto its row. Zero until this
+                                    # payment mints its own.
+                                    tickets = 0
+                                    user = db.get_user(p["user_id"])
+                                    miner = db.get_or_create_miner(user.get("wallet_address", "")) if user else None
+                                    if miner:
+                                        # Credit free tickets for deposits (1 ticket per 0.001 XMR)
+                                        tickets = int(tx_info["amount"] / 0.001)
+                                        db.add_tickets(miner["id"], "free", tickets)
+                                    db.credit_payment(p["id"], tickets)
 
-                    known = db.get_all_subaddress_mappings()
-                    if known:
-                        payments = xmr.scan_new_payments(known)
-                        for pmt in payments:
-                            db.record_payment(
-                                pmt["user"], pmt["txid"], pmt["amount"],
-                                pmt["subaddr_index"], pmt["height"], pmt["confirmations"]
-                            )
+                        known = db.get_all_subaddress_mappings()
+                        if known:
+                            payments = xmr.scan_new_payments(known)
+                            for pmt in payments:
+                                db.record_payment(
+                                    pmt["user"], pmt["txid"], pmt["amount"],
+                                    pmt["subaddr_index"], pmt["height"], pmt["confirmations"]
+                                )
+                    except Exception as e:
+                        print(f"[Wallet] Deposit scan failed: {type(e).__name__}: {e} — "
+                              "house tax, claim rollover and seed continue")
 
                     result = engine.check_and_send_house_tax()
                     if result:
@@ -3017,7 +5312,12 @@ if __name__ == "__main__":
                                 print(f"[Seed] Jackpot seeded from house tax: {seed_amount:.6f} XMR (house tax remaining: {house_tax - seed_amount:.6f})")
 
                 _time.sleep(60)
-            except Exception:
+            except Exception as e:
+                # A SILENT SWALLOW COST 24 DAYS (Oct 26): the bare
+                # handler slept and said nothing, so a query raising on
+                # every cycle hid the whole branch from the log. The
+                # next silent death must be visible instead.
+                print(f"[Scanner] cycle failed: {type(e).__name__}: {e}")
                 _time.sleep(60)
 
     scanner = threading.Thread(target=payment_scanner_loop, daemon=True)
@@ -3027,5 +5327,36 @@ if __name__ == "__main__":
     # started only when SCHEDULER_ENABLED=1 (admin card flips it).
     kr_sched.start()
 
-    port = int(os.environ.get("APP_PORT", 80))
-    uvicorn.run(app, host="0.0.0.0", port=port)
+    # ── THE LISTENER CONTRACT (Oct 25) ────────────────────────────────
+    # APP_PORT is REQUIRED. It used to default to 80, which silently
+    # produced a second, unmanaged origin on the privileged port the first
+    # time the service was started without an environment; that orphan
+    # served a stale homepage and an admin-gated bundle for five days. A
+    # missing port is a deployment error and must stop the process, not
+    # pick one.
+    _raw_port = (os.environ.get("APP_PORT") or "").strip()
+    if not _raw_port:
+        raise SystemExit(
+            "APP_PORT is not set. The web origin must be given explicitly "
+            "(production: 3094, bound behind the Cloudflare tunnel). "
+            "Refusing to guess a port.")
+    try:
+        port = int(_raw_port)
+    except ValueError:
+        raise SystemExit(f"APP_PORT must be an integer, got {_raw_port!r}")
+    if not (1 <= port <= 65535):
+        raise SystemExit(f"APP_PORT out of range: {port}")
+    if port < 1024 and os.environ.get("XMRJ_ALLOW_PRIVILEGED_PORT") != "1":
+        raise SystemExit(
+            f"APP_PORT={port} is a privileged port. Scout's origin does not "
+            "need one: the tunnel connects to loopback. Set "
+            "XMRJ_ALLOW_PRIVILEGED_PORT=1 only for a deliberate, documented "
+            "reason.")
+
+    # Loopback by default: the Cloudflare tunnel reaches 127.0.0.1:3094 on
+    # this box, so binding every interface only widened the admin surface
+    # to the LAN. APP_HOST opts back in explicitly where that is intended.
+    host = (os.environ.get("APP_HOST") or "127.0.0.1").strip()
+    print(f"[Origin] serving Scout on http://{host}:{port}"
+          f"{' (ALL interfaces)' if host == '0.0.0.0' else ''}")
+    uvicorn.run(app, host=host, port=port)

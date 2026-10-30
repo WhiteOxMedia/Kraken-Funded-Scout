@@ -111,7 +111,7 @@ print("== 5B. THE PROBE LIBRARY IS THE SHARED CONTRACT (Oct 12) ==")
 # equality so ANY probe edit (expected code, payload, UA, origin)
 # either lands here as a re-pin or the drive REDs — the same
 # yardstick-over-browser rule the rest of the file follows.
-_sha = HERE / "cta_probe.sh"
+_sha = HERE / "tools" / "cta_probe.sh"
 import hashlib
 _lib = _sha.read_bytes()
 _hash = hashlib.sha256(_lib).hexdigest()

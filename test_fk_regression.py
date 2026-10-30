@@ -42,6 +42,7 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE / "pool"))
 sys.path.insert(0, str(HERE))
+sys.path.insert(0, str(HERE / "tools"))
 
 import field_crypto as fc                          # noqa: E402
 fc.KEY_DIR = Path(tempfile.mkdtemp(prefix="fkreg_key_"))

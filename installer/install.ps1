@@ -50,14 +50,27 @@ if (-not (Test-Path (Join-Path $Src "app.py"))) {
 
 # ── 1. preflight uv ───────────────────────────────────────────────────
 $uv = Get-Command uv -ErrorAction SilentlyContinue
-if (-not $uv) {
+if (-not $uv -and $SkipVenv) {
+    # -SkipVenv never builds a venv, so it never needs uv: an air-gapped
+    # drive box stages even where winget is absent. (The REAL WIRESHOW,
+    # Oct 30 PR run 41142467862: the slim leg's winget installed uv, fine;
+    # the carry leg's winget returned nonzero - the install had already
+    # landed by the first step - and the installer died on the rc alone,
+    # before the venv step it would never have run. The ground truth of
+    # "uv is available" is Get-Command after a PATH refresh, below; and
+    # for stage-only mode the true answer is "not needed at all".)
+    Write-Host "[1/4] uv missing but -SkipVenv stages only - preflight skipped"
+} elseif (-not $uv) {
     Write-Host "[1/4] uv missing - installing via winget ..."
     winget install --id astral-sh.uv -e --accept-source-agreements --accept-package-agreements
-    if ($LASTEXITCODE -ne 0) { throw "winget could not install uv - install it from https://docs.astral.sh/uv/ and re-run" }
-    # this session's PATH may predate the install
+    # THE RC IS NOT THE VERDICT (the carry leg's carry-again winget
+    # nonzero shown above): a nonzero rc after a landed install must not
+    # kill a run whose uv is in fact on PATH. Get-Command after the
+    # refresh is the verdict; the rc rides in the throw's message line.
+    # note: the PATH may predate this session's install
     $env:Path = [System.Environment]::GetEnvironmentVariable("Path", "User") + ";" + $env:Path
     if (-not (Get-Command uv -ErrorAction SilentlyContinue)) {
-        throw "uv was installed but is not on PATH yet - open a new terminal and re-run"
+        throw "winget could not install uv - install it from https://docs.astral.sh/uv/ and re-run (winget rc $LASTEXITCODE)"
     }
 } else {
     Write-Host "[1/4] uv found"
@@ -85,16 +98,19 @@ if (Test-Path (Join-Path $PayDir "xmrig-6.26.0\xmrig.exe")) {
     if ($LASTEXITCODE -ge 8) { throw "robocopy xmrig failed rc=$LASTEXITCODE" }
     Write-Host "  staged local xmrig 6.26.0"
 } else {
-    $Url = "https://github.com/xmrig/xmrig/releases/download/v6.26.0/xmrig-6.26.0-msvc-win64.zip"
-    $Zip = Join-Path $env:TEMP "xmrig-6.26.0-msvc-win64.zip"
+    # THE RELEASE ASSET THAT EXISTS. This used to point at
+    # xmrig-6.26.0-msvc-win64.zip, which GitHub answers with 404, so the
+    # fallback could only ever fail after the user opted in.
+    $Url = "https://github.com/xmrig/xmrig/releases/download/v6.26.0/xmrig-6.26.0-windows-x64.zip"
+    $Zip = Join-Path $env:TEMP "xmrig-6.26.0-windows-x64.zip"
     Write-Host ("  fetching pinned xmrig 6.26.0 (official release) ...")
     try {
         Invoke-WebRequest -Uri $Url -OutFile $Zip -UseBasicParsing
-        # THE PINNED HASH (review triage, Sep 25): the downloaded miner
-        # payload is verified against the hash of the exact release the
-        # bundle ships — the same bytes the local payload's exe hashes
-        # to — before a single byte is extracted.
-        $WantHash = "6fa80698d7268f6e88aa88c06fb27ee99e1bcee747c2e76911e6206a5b1aeeb3"
+        # THE PINNED HASH: the SHA256 of the exact asset named above, taken
+        # by downloading that URL and hashing it on Oct 24 2026 (2,720,812
+        # bytes) - not inherited from the 404 asset this line used to name.
+        # Verified before a single byte is extracted.
+        $WantHash = "bba8097cb37d9b458a1cb1137876b27cde6740d17fe4ccbc086ba07d87d9e147"
         $GotHash = (Get-FileHash -Path $Zip -Algorithm SHA256).Hash.ToLower()
         if ($GotHash -ne $WantHash) {
             Remove-Item $Zip -ErrorAction SilentlyContinue
@@ -123,20 +139,17 @@ if ($SkipVenv) {
     }
     & (Join-Path $DstScout ".venv\Scripts\python.exe") -m py_compile (Join-Path $DstScout "app.py")
     if ($LASTEXITCODE -ne 0) { throw "staged app.py does not compile" }
-    # the staged copy ships without a pool DB (no jackpot.db in the
-    # payload) - give it the empty schema so the checkbox's welcome-
-    # ticket grant cannot crash on a missing table; the live pool on
-    # this box keeps its own DB untouched
-    $StagedDb = Join-Path $DstMonero "pool\jackpot.db"
-    if (-not (Test-Path $StagedDb)) {
-        try {
-            & (Join-Path $DstScout ".venv\Scripts\python.exe") -c "import sys; sys.path.insert(0, r'$DstMonero\pool'); import database; database.init_db()"
-            if ($LASTEXITCODE -ne 0) { Write-Warning "staged pool DB not initialized - the Miner Bot ticket grant may need the pool server up first" }
-        } catch { Write-Warning "staged pool DB not initialized - the Miner Bot ticket grant may need the pool server up first" }
-    }
+    # NO LOCAL POOL DATABASE (Oct 25). The installer used to create one
+    # so the checkbox could "grant a welcome ticket" — into a database on
+    # the customer's own machine, which no drawing ever reads. Registration
+    # on xmrjackpot.com is the real activation; entries come from accepted
+    # shares. The pool (server, engine, DB) is operator-only and does not
+    # ship, so there is nothing here to initialise.
 }
 
 # ── 5. THE CHECKBOX (the flow's last step) ────────────────────────────
+# Fleet telemetry is sent from installer.py's opt-in, AFTER this window:
+# ticking the box is the consent, so an opt-out install reports nothing.
 $UiPy  = Join-Path $DstMonero "installer\installer_ui.py"
 $PyExe = Join-Path $DstScout ".venv\Scripts\python.exe"
 if ($SkipVenv) { $PyExe = "python" }

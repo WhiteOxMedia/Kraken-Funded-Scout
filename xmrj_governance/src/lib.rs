@@ -39,11 +39,14 @@ pub const GOVERNANCE_AUTHORITY_SEED: &[u8] = b"governance_authority";
 pub const UPGRADEABLE_LOADER_ID: Pubkey =
     Pubkey::from_str_const("BPFLoaderUpgradeab1e11111111111111111111111");
 
-/// The loader's ProgramData address prefix: `[PROGRAM_DATA_SEED, <program
-/// id>]` under UPGRADEABLE_LOADER_ID. One value in all three crates and in
-/// the devnet suite — a derivation that disagrees with the runtime's is an
-/// account that does not exist.
-pub const PROGRAM_DATA_SEED: &[u8] = b"programdata";
+/// THE RUNTIME'S ProgramData RULE: the upgradeable loader derives a program's
+/// ProgramData account as `[<program id>]` under UPGRADEABLE_LOADER_ID — the
+/// program's own id and NOTHING ELSE. There is deliberately no seed constant
+/// to share with the suite here: the `"programdata"` prefix this crate used
+/// to prepend derived an address with no account at it, so
+/// `initialize_governance` was refused on a real cluster with `NotProgramData`
+/// (6004). One seed, no prefix, pinned against the pointer the deployed
+/// program account carries in its own 32 bytes.
 
 /// `UpgradeableLoaderState::ProgramData` bincode layout: u32 variant (3 =
 /// ProgramData), u64 slot, then `Option<Pubkey>` — a one-byte tag (1 = Some)
@@ -88,20 +91,51 @@ pub mod xmrj_governance {
         // no longer exists and could not compile.
         state.bump = ctx.bumps.governance_state;
         state.authority_bump = ctx.bumps.governance_authority;
+        // The ID SEQUENCE starts here: the first proposal anyone makes must
+        // carry id 0, the next id 1, and so on.
+        state.proposal_count = 0;
         Ok(())
     }
 
-    pub fn propose_action(ctx: Context<ProposeAction>, action: GovernanceAction) -> Result<()> {
+    /// PROPOSE AN ACTION — the first of the three governance instructions, and
+    /// the one that hands out proposal IDs.
+    ///
+    /// THE ID IS A SEQUENCE, NOT A FREE CHOICE: `proposal_id` must equal the
+    /// state's `proposal_count`, which this call then increments.
+    pub fn propose_action(
+        ctx: Context<ProposeAction>,
+        proposal_id: u64,
+        action: GovernanceAction,
+    ) -> Result<()> {
+        let state = &mut ctx.accounts.governance_state;
+        require!(
+            proposal_id == state.proposal_count,
+            ErrorCode::ProposalIdOutOfSequence
+        );
+
         let proposal = &mut ctx.accounts.proposal;
+        proposal.proposal_id = proposal_id;
         proposal.action = action;
         proposal.approvals = 0;
         proposal.executed = false;
+
+        state.proposal_count = state
+            .proposal_count
+            .checked_add(1)
+            .ok_or(ErrorCode::Overflow)?;
         Ok(())
     }
 
-    pub fn approve_action(ctx: Context<ApproveAction>) -> Result<()> {
+    pub fn approve_action(ctx: Context<ApproveAction>, proposal_id: u64) -> Result<()> {
         let state = &ctx.accounts.governance_state;
         let proposal = &mut ctx.accounts.proposal;
+        // The PDA's own seeds already fix this (the address is derived from
+        // the id), and this re-states it against the STORED field, so a
+        // proposal whose body disagrees with its address cannot be approved.
+        require!(
+            proposal.proposal_id == proposal_id,
+            ErrorCode::ProposalIdMismatch
+        );
         let signer = ctx.accounts.owner.key();
         require!(state.owners.contains(&signer), ErrorCode::NotOwner);
         require!(!proposal.executed, ErrorCode::AlreadyExecuted);
@@ -117,9 +151,13 @@ pub mod xmrj_governance {
     /// authority PDA; the action that has no program instruction behind it
     /// (a BPF upgrade) is emitted as an intent event instead of pretending to
     /// be applied here.
-    pub fn execute_action(ctx: Context<ExecuteAction>) -> Result<()> {
+    pub fn execute_action(ctx: Context<ExecuteAction>, proposal_id: u64) -> Result<()> {
         let state = &ctx.accounts.governance_state;
         let proposal = &mut ctx.accounts.proposal;
+        require!(
+            proposal.proposal_id == proposal_id,
+            ErrorCode::ProposalIdMismatch
+        );
         require!(!proposal.executed, ErrorCode::AlreadyExecuted);
         require!(
             proposal.approvals >= state.threshold,
@@ -208,6 +246,30 @@ pub mod xmrj_governance {
                     max_payout_bps,
                 )?;
             }
+            GovernanceAction::TriggerPayout {
+                winner,
+                amount_xmr,
+            } => {
+                // The CPI F1 is about: the jackpot's own `trigger_payout`, called
+                // with the governance authority PDA as `admin_authority` and
+                // signed by it. The callee checks that the account IS its stored
+                // admin authority and that it SIGNED — the same two checks a
+                // wallet cannot satisfy, because a PDA has no keypair and only
+                // the deriving program can sign for it. This arm is the only
+                // code path in the workspace that reaches `trigger_payout`.
+                xmrj_jackpot::cpi::trigger_payout(
+                    CpiContext::new_with_signer(
+                        XmrjJackpot::id(),
+                        xmrj_jackpot::cpi::accounts::TriggerPayout {
+                            jackpot_state: ctx.accounts.jackpot_state.to_account_info(),
+                            admin_authority: ctx.accounts.governance_authority.to_account_info(),
+                        },
+                        authority_seeds,
+                    ),
+                    winner,
+                    amount_xmr,
+                )?;
+            }
             GovernanceAction::UpgradeProgram { new_program_id } => {
                 // A BPF upgrade is a chain-level operation (the upgrade
                 // authority), not an instruction either program exposes — so
@@ -228,8 +290,8 @@ pub mod xmrj_governance {
 /// REQUIRE THAT `signer` IS THIS PROGRAM'S UPGRADE AUTHORITY.
 ///
 /// `program_data` is the ProgramData account the `InitializeGovernance`
-/// constraint derives as `[PROGRAM_DATA_SEED, crate::ID]` under
-/// UPGRADEABLE_LOADER_ID, so it is this program's own account and not a
+/// constraint derives as `[crate::ID]` under UPGRADEABLE_LOADER_ID — the
+/// loader's own rule — so it is this program's own account and not a
 /// lookalike. This function then proves three things about the BYTES the
 /// loader wrote: the loader owns the account; the value is `ProgramData`
 /// (variant 3), not a Buffer or an empty account that happens to sit at that
@@ -291,10 +353,32 @@ pub struct GovernanceState {
     /// The bump of the authority PDA above — stored so execute_action can
     /// sign the CPI without re-deriving it.
     pub authority_bump: u8,
+    /// HOW MANY PROPOSALS THIS GOVERNANCE HAS EVER CREATED, which is also the
+    /// id the NEXT one must carry. This is the sequence behind the proposal
+    /// PDA: `["proposal", governance_state, proposal_id]`. Before it existed
+    /// the proposal PDA was `["proposal", governance_state]` with `init`, so
+    /// exactly ONE action could ever exist per cluster (F5 in
+    /// XMRJ_DEVNET_EXECUTION_REPORT.md) — a governance that could change one
+    /// parameter and then never again.
+    pub proposal_count: u64,
 }
+
+/// THE LARGEST SERIALIZED `GovernanceAction` — today `TriggerPayout`, whose
+/// 1-byte discriminant is followed by a 32-byte key and a u64. The proposal
+/// account is sized from THIS rather than from a round number, so a future
+/// variant that outgrows it is a constant to bump here instead of an
+/// "account data too small" discovered when someone tries to propose.
+pub const MAX_ACTION_LEN: usize = 1 + 32 + 8;
+
+/// 8-byte discriminator + the proposal id + the action + approvals + executed.
+pub const PROPOSAL_SPACE: usize = 8 + 8 + MAX_ACTION_LEN + 1 + 1;
 
 #[account]
 pub struct Proposal {
+    /// The id this proposal was created with, which is also the third seed of
+    /// its own PDA (`["proposal", governance_state, proposal_id]`). Stored, not
+    /// merely derived, so the account itself says which id it is.
+    pub proposal_id: u64,
     pub action: GovernanceAction,
     pub approvals: u8,
     pub executed: bool,
@@ -305,7 +389,7 @@ pub struct InitializeGovernance<'info> {
     #[account(
         init,
         payer = payer,
-        space = 8 + 4 + 32 * 10 + 1 + 1 + 1,
+        space = 8 + 4 + 32 * 10 + 1 + 1 + 1 + 8,
         seeds = [b"governance_state"],
         bump
     )]
@@ -315,14 +399,20 @@ pub struct InitializeGovernance<'info> {
     #[account(seeds = [b"governance_authority"], bump)]
     pub governance_authority: UncheckedAccount<'info>,
     /// CHECK: THIS PROGRAM'S ProgramData account on the upgradeable loader,
-    /// derived here from `[b"programdata", <this program id>]` under the
+    /// derived here from `[<this program id>]` under the
     /// LOADER's id — the address is fixed, so a lookalike cannot be passed.
     /// Read, not written: `require_upgrade_authority` checks the loader owns
     /// it, that it is in the ProgramData variant, and that its recorded
     /// upgrade authority is the payer.
+    // `bump` is REQUIRED by anchor whenever `seeds` are given, and here it is
+    // what turns the comment above into a constraint: without it the derive
+    // fails ("bump must be provided with seeds") and the whole instruction
+    // disappears; with it the address is DERIVED and compared, so a lookalike
+    // is rejected by the runtime, not by a comment.
     #[account(
-        seeds = [PROGRAM_DATA_SEED, crate::ID.as_ref()],
+        seeds = [crate::ID.as_ref()],
         seeds::program = UPGRADEABLE_LOADER_ID,
+        bump
     )]
     pub program_data: UncheckedAccount<'info>,
     #[account(mut)]
@@ -331,14 +421,21 @@ pub struct InitializeGovernance<'info> {
 }
 
 #[derive(Accounts)]
+#[instruction(proposal_id: u64)]
 pub struct ProposeAction<'info> {
-    #[account(seeds = [b"governance_state"], bump = governance_state.bump)]
+    /// MUT because `propose_action` increments `proposal_count` — the write
+    /// that makes the next id knowable and the sequence append-only.
+    #[account(mut, seeds = [b"governance_state"], bump = governance_state.bump)]
     pub governance_state: Account<'info, GovernanceState>,
     #[account(
         init,
         payer = proposer,
-        space = 8 + 64,
-        seeds = [b"proposal", governance_state.key().as_ref()],
+        space = PROPOSAL_SPACE,
+        seeds = [
+            b"proposal",
+            governance_state.key().as_ref(),
+            proposal_id.to_le_bytes().as_ref()
+        ],
         bump
     )]
     pub proposal: Account<'info, Proposal>,
@@ -348,20 +445,46 @@ pub struct ProposeAction<'info> {
 }
 
 #[derive(Accounts)]
+#[instruction(proposal_id: u64)]
 pub struct ApproveAction<'info> {
     #[account(seeds = [b"governance_state"], bump = governance_state.bump)]
     pub governance_state: Account<'info, GovernanceState>,
-    #[account(mut)]
+    /// DERIVED from the same three seeds its `init` used, so the id in the
+    /// instruction and the proposal's own address cannot disagree.
+    #[account(
+        mut,
+        seeds = [
+            b"proposal",
+            governance_state.key().as_ref(),
+            proposal_id.to_le_bytes().as_ref()
+        ],
+        bump
+    )]
     pub proposal: Account<'info, Proposal>,
+    /// CHECK: an account key, not an account body: `approve_action` requires
+    /// it to be one of `governance_state.owners` before the approval counts,
+    /// and the derive demands its signature.
     #[account(signer)]
     pub owner: AccountInfo<'info>,
 }
 
 #[derive(Accounts)]
+#[instruction(proposal_id: u64)]
 pub struct ExecuteAction<'info> {
     #[account(seeds = [b"governance_state"], bump = governance_state.bump)]
     pub governance_state: Account<'info, GovernanceState>,
-    #[account(mut)]
+    /// DERIVED from the proposal's own three seeds, exactly as in
+    /// ApproveAction: the id is an input, and the account it resolves to is
+    /// checked by the runtime before this instruction's body runs.
+    #[account(
+        mut,
+        seeds = [
+            b"proposal",
+            governance_state.key().as_ref(),
+            proposal_id.to_le_bytes().as_ref()
+        ],
+        bump
+    )]
     pub proposal: Account<'info, Proposal>,
     /// CHECK: owned by the TREASURY program; this program cannot deserialize
     /// it, and does not need to — the CPI target validates ownership of its
@@ -399,6 +522,21 @@ pub enum GovernanceAction {
     /// existing variant keeps its index, so this cannot change the borsh
     /// encoding of an action someone already proposed.
     SetOperationalAuthority { new_authority: Pubkey },
+    /// PAY THE JACKPOT OUT — the action that was MISSING, and the one F1 of
+    /// XMRJ_DEVNET_EXECUTION_REPORT.md is about.
+    ///
+    /// The jackpot's `trigger_payout` requires its `admin_authority` — the
+    /// governance authority PDA — to SIGN, and a PDA can only sign inside a
+    /// CPI from the program that derives it. With no variant calling it, a
+    /// funded jackpot could be topped up forever and never paid: the balance
+    /// was a one-way ratchet. This arm is that path, and it is the ONLY one.
+    /// The PDA has no keypair, so no wallet can produce the signature, and no
+    /// other instruction on either program reaches `trigger_payout`.
+    ///
+    /// Appended LAST, after SetOperationalAuthority, for the reason given
+    /// there: every existing variant keeps its index, so this cannot change
+    /// the Borsh encoding of an action someone already proposed.
+    TriggerPayout { winner: Pubkey, amount_xmr: u64 },
     // SetConversionServiceParams is GONE, deliberately. The conversion
     // service is off-chain (it holds no Solana account, so there is no state
     // for a proposal to write); its limits are configured where the service
@@ -427,6 +565,10 @@ pub enum ErrorCode {
     ThresholdNotMet,
     #[msg("Invalid split ratio")]
     InvalidSplitRatio,
+    #[msg("Proposal id is not the next one in sequence; each id is used exactly once")]
+    ProposalIdOutOfSequence,
+    #[msg("The proposal account does not hold the id the instruction named")]
+    ProposalIdMismatch,
     #[msg("Overflow")]
     Overflow,
     #[msg("The program_data account is not this program's ProgramData account")]

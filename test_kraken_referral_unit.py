@@ -1,13 +1,23 @@
 """test_kraken_referral_unit.py — normalization, formula, signing,
 provider honesty + posture (setup_kraken.py's read), the notification
 leg (sandbox, hermetic)."""
+import os
 import sys, tempfile
 from pathlib import Path
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE / "pool"))
+
+# Same fixture as test_rate_label and test_ui_disclosure: no fetching in
+# this file. Section 2 seeds funding velocity through jackpot_funding and
+# the eligibility estimates convert USD<->XMR through the rate reader, so
+# a background Kraken refresh landing mid-drive would dial the network
+# from inside the drive and move the pinned money assertions under it.
+# XMR_PRICE_LIVE=0 keeps the reader on the fallback, off the network.
+os.environ["XMR_PRICE_LIVE"] = "0"
 _tmp = Path(tempfile.mkdtemp(prefix="kr_unit_"))
 import database as db; db.DB_PATH = _tmp / "jackpot.db"; db.init_db()
 import kraken_referral as kr
+import projection_ad
 
 results = []
 def check(n, cond, why=""):
@@ -181,13 +191,14 @@ check(5.2, res.get("sent") == 0 and res.get("reason") in
       f"notice path runs to its honest terminal state: {res}")
 
 print("== 6. AGGREGATION READS ==")
-check(6.1, kr.latest_projection() is None, "no projection before any run")
+check(6.1, projection_ad.read_estimate(projection_ad.AdSlot.HERO) is None,
+      "no projection before any run")
 p = kr.run_worker()                        # unconfigured: discovers, zero users
 check(6.2, p["processed"] == 0 and p["errors"] == 0 and p["mode"] == "unconfigured"
       and p["source"] == "kraken_referral_unconfigured_v1",
       "empty run is a clean, honestly-labeled zero")
-lp = kr.latest_projection()
-check(6.3, lp and lp["possible_future_jackpot"] >= 0 and lp["referral_seed"] == 0.0,
+est = projection_ad.read_estimate(projection_ad.AdSlot.HERO)
+check(6.3, est is not None and est.referral_seed_usd == 0.0,
       "projection row persisted even for the zero run")
 
 passed, failed = results.count(True), results.count(False)

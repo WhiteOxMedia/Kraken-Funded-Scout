@@ -39,12 +39,26 @@ one pins what a browser actually experiences, end to end:
 Requires the live server on APP_PORT (default 3094). Skips itself
 (RESULT: 0 passed, 0 failed + note) when the server is down, so the
 fleet stays green on boxes without the tunnel.
+
+CONCURRENCY (Oct 30, the 17:49Z double-flake): this drive owns a FIXED
+probe account on a shared live server, and two fleet runs at the same
+wall time interleave their If-Match-versioned writes on that one
+account — the loser sees its etag go stale mid-contract (4.1/4.4/
+5.2-5.4) and flakes while passing in isolation every time. The
+contract being tested NEEDS a quiescent probe, so the drive queues on
+.prefs_probe.lock (an exclusive-create file beside this script,
+released by atexit; a MISSED lock is a degraded run, never a red
+one — a timed-out waiter proceeds unlocked rather than wedge).
 """
+import atexit
 import json
+import os
 import sys
+import time
 import urllib.error
 import urllib.request
 from http.cookiejar import CookieJar
+from pathlib import Path
 
 BASE = "http://127.0.0.1:3094"
 PROBE = "prefs_live_probe"
@@ -87,6 +101,53 @@ class Client:
         return self.req("POST", path, body, headers)
 
 
+# ─── THE PROBE QUEUE ─────────────────────────────────────────
+# One writer at a time on the shared fixed probe (see the module
+# header). An exclusive-create file beside this script, spun until the
+# previous run's drive (about 1.5s of live traffic) is done; released
+# by atexit so every exit path — the skips included — frees it.
+PROBE_LOCK = Path(__file__).resolve().parent / ".prefs_probe.lock"
+PROBE_LOCK_WAIT_S = 60     # never wedge the fleet timeout on ourselves
+PROBE_LOCK_STALE_S = 120   # a holder older than this is a dead process
+
+
+def _probe_lock_acquire():
+    """Wait for and take the probe lock. Returns True when THIS run
+    holds it, False when the run proceeds UNLOCKED (waited out: a lock
+    outage must degrade to today's iterable, never turn green red)."""
+    deadline = time.time() + PROBE_LOCK_WAIT_S
+    while True:
+        try:
+            os.close(os.open(str(PROBE_LOCK),
+                             os.O_CREAT | os.O_EXCL | os.O_WRONLY))
+            return True
+        except FileExistsError:
+            pass
+        except OSError:
+            return False
+        try:
+            breach = time.time() - PROBE_LOCK.stat().st_mtime > PROBE_LOCK_STALE_S
+        except OSError:
+            breach = False
+        if breach:
+            try:
+                os.remove(str(PROBE_LOCK))
+            except OSError:
+                pass
+        if time.time() >= deadline:
+            return False
+        time.sleep(0.25)
+
+
+def _probe_lock_release():
+    """Leaving the stage. On FileNotFoundError someone else already
+    removed our own file — a stale-age steal, not an error."""
+    try:
+        os.remove(str(PROBE_LOCK))
+    except OSError:
+        pass
+
+
 def server_up():
     try:
         with urllib.request.urlopen(BASE + "/api/stats", timeout=5) as r:
@@ -101,7 +162,7 @@ if not server_up():
     print("RESULT: 0 passed, 0 failed")
     sys.exit(0)
 
-import time
+import time  # the probe queue spins on wall time (see its helpers above)
 # DETERMINISTIC PROBE (Sep 26, caught by the fleet gate): a unique
 # suffix per run exhausted the register limiter (5/hour/IP) under
 # repeated fleet runs — 2.1/2.2 failed "stably" with nothing wrong.
@@ -117,6 +178,13 @@ check(1.1, s == 401, f"cookie-less GET: {s}")
 s, h, j = anon.post("/api/push/preferences",
                     {"preferences": {"jackpot": False}})
 check(1.2, s == 401, f"cookie-less POST: {s}")
+
+_held = _probe_lock_acquire()
+if _held:
+    atexit.register(_probe_lock_release)   # every exit path frees it
+else:
+    print("NOTE: probe lock waited out — proceeding unlocked "
+          "(contract traffic may interleave with another run)")
 
 print("== 2. REAL SESSION ==")
 c = Client()

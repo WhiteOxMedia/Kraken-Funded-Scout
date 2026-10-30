@@ -36,19 +36,21 @@ manifest (`users.probe_swept`; `jackpot.orphans_swept` for the FK
 sweep). Pre-sweep backups land next to the DB as
 `_backup_jackpot_pre_*.db`.
 
-The discipline lives in `sweep_lib.py` and its operator face is
-`sweep_db.py`: a bare `python sweep_db.py` is a READ-ONLY dry run
+The discipline lives in `tools/sweep_lib.py` and its operator face is
+`tools/sweep_db.py` (the Oct 29 root organization moved the probe and
+sweep scripts into `tools/`; every command below runs from the repo
+root): a bare `python tools/sweep_db.py` is a READ-ONLY dry run
 (it rehearses the labeled statements on a throwaway backup-API
 copy, prints the per-label counts and the gate verdict, and
-writes nothing), while `python sweep_db.py --apply` performs the
-sweep through `sweep_lib` - backup beside the DB, the
+writes nothing), while `python tools/sweep_db.py --apply` performs the
+sweep through `tools/sweep_lib` - backup beside the DB, the
 `PRAGMA foreign_key_check` gate INSIDE the transaction (a
 violation rolls the whole sweep back), and the manifest audit
 row. New FK edges need a new labeled statement pair in
-`sweep_db.py`; the dry run flips to `would ROLLBACK` until one is
+`tools/sweep_db.py`; the dry run flips to `would ROLLBACK` until one is
 added. Pinned by `test_sweep_cli.py`.
 
-The planning half is `python sweep_db.py --report` (backed by
+The planning half is `python tools/sweep_db.py --report` (backed by
 `sweep_lib.orphans()`): it reads every FK edge from the schema
 itself and reports per-edge violation counts with sample rowids
 and the disposition a sweep would take (delete / null /
@@ -59,26 +61,27 @@ UNPLANNED), so cron/alerting reacts to the receipt itself.
 Pinned by `test_fk_regression` 3c and `test_sweep_cli` section 6.
 
 Scheduled alerting: the Windows task `CodebuffWeeklyOrphanReport`
-(Sundays 06:15, user-level) runs `run_sweep_report.cmd`, which
+(Sundays 06:15, user-level) runs `tools/run_sweep_report.cmd`, which
 appends the receipt to `logs_sweep_report.txt` and leaves the
 exit code (0/1/2 above) in Task Scheduler's Last Result -
 alerting reacts to the rc without parsing the log. The task is
-registered by the tracked `register_sweep_report_task.py` (which
+registered by the tracked `tools/register_sweep_report_task.py` (which
 carries a `--check` self-audit: both alert properties, the 1h
 execution limit, battery-safety, and the dead-man marker) and
-runs `run_sweep_report_task.ps1`, a DUE-GATED wrapper - at most
+runs `tools/run_sweep_report_task.ps1`, a DUE-GATED wrapper - at most
 one actual report per 7d window, so a StartWhenAvailable
 catch-up (a missed Sunday fires at the next available start)
 can never double-report, and every firing is rc-safe. The
 pool scheduler polices the wrapper's last-ACTUAL-run marker
-(`task_sweep_report_last.txt`): missing or older than 8 days
+(`task_sweep_report_last.txt`, still at the checkout root): missing
+or older than 8 days
 -> `alert=true` + one `scheduler.orphans_deadman` audit row per
 day, because a scheduled task that stops running is the one
 failure no report can reveal. Re-create the
 task after moving the checkout (the wrapper resolves its own
 directory, but the task's command line is absolute):
 `schtasks //Create //TN CodebuffWeeklyOrphanReport //TR
-"'<repo>un_sweep_report.cmd'" //SC WEEKLY //D SUN //ST 06:15 //F`.
+"'<repo>	oolsun_sweep_report.cmd'" //SC WEEKLY //D SUN //ST 06:15 //F`.
 
 The pool scheduler's weekly ops digest (leg 7, Sep 27) pushes ONE
 line to the admin's push subscribers after each scan window:
@@ -211,6 +214,101 @@ sleep 9 && curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:3094/api/stat
 The `curl` health check is the confirmation step — 200 means the fleet
 gate's live drive will run, 000 means it will self-skip (honestly).
 
+**Stop without restart (Oct 29).** `tools/stop_pool_server.sh` is the
+dedicated STOP toggle — `roll_3094.sh` has no stop-only mode, and
+locking/deleting an old bundle version is exactly when you want the
+server gone, not restarted. The lock it fixes: `/downloads/
+KrakenScoutBundle.zip` streams through `FileResponse`, so Windows holds
+the zip open for the life of a download and Explorer answers deletion
+with "You require permission from \<machine\>\<user>" (that name is the
+file's owner, not a grant to find elsewhere). Stop, and every handle
+releases: old artifact files become deletable. Safety lash: the PID
+comes from `Get-NetTCPConnection` (never a name sweep) and is killed
+only after its command line matches the pool server's entry point
+(`pool/server.py`) — anything else is printed and refused; `--dry-run`
+previews without killing, `--all` additionally clears wedged duplicate
+`pool/server.py` processes that hold no listener (each still
+gate-checked), and after killing it polls until the port is actually
+free (exit 3 if a PID survives past 10 s). Restart with the usual
+recipe above or `roll_3094.sh`; if what you deleted is `dist/
+KrakenScoutBundle.zip` — the served artifact — leave the server
+stopped until it is rebuilt with `make_bundle.py`, or download
+requests get a 404.
+
+**Languages and region (Oct 24).** `/download` and `/status` exist in
+English, Spanish, Portuguese, Russian, German and French. The copy is
+data, not markup: `pool/templates/i18n/<lang>.json`, rendered by
+`pool/i18n_pages.py`. Add or change a sentence there, never in the
+page builders, and run `test_i18n_region.py` — it fails if a language
+is missing a key or drops a `{placeholder}`, because the silent
+fallback would otherwise ship an English sentence inside a Spanish
+page.
+
+English owns the unprefixed URL; every other language lives under its
+code (`/es/download`, `/de/status`), `/en/...` 301s to the unprefixed
+page, and every page lists all six plus `x-default` as `hreflang`
+alternates. A browser asking for Spanish is redirected once; the
+selector at the top of each page sets `xmrj_lang`, and that choice
+beats the header from then on. `/winners` and `/how-to-play` are
+English-only on purpose — the download page says so in each language
+instead of pretending otherwise, and only pages that really exist in a
+language are listed in the sitemap or advertised as translations.
+
+**Two products on /download (Oct 24).** The page offers the free miner bot
+(`/api/miner-download`, a .bat that pins xmrig 6.26.0 by SHA256) and
+Kraken Scout (`/downloads/KrakenScoutBundle.zip`). Scout is the paid
+product: the download is free, activation is Scout Pro — the price and
+duration come from the same settings the checkout reads
+(`scout_pro_price_xmr`, `scout_pro_days`; 0.01 XMR / 30 days by
+default) — and unlocking happens in the dashboard, not on the download
+page. The checkout is Monero-only: it opens a fresh subaddress for the
+order, matches the transfer, grants the entitlement, and credits the
+donation to the pot once per order. There is no XMRJ unlock; the
+`xmrj_*` Solana programs exist but are undeployed and uncalled (see
+reports/MEMO_COMPLIANCE_AUDIT.md B28). Two honesty rules ride with this: the
+miner .bat writes a placeholder wallet, so the page says outright that those
+shares are not credited and points at the dashboard installer instead;
+and the xmrig pin is the release **zip's** SHA256, not the exe's
+(Oct 24: the fallback named `xmrig-6.26.0-msvc-win64.zip`, which GitHub
+404s, and its pin was the hash of the exe *inside* the archive — no zip
+could ever match it, so every fallback install aborted as if the
+download had been tampered with). Both installer copies in the bundle
+carry the same pin: `build_bundle.ps1` now syncs
+`payload/monero_project/installer/install.ps1` from the working-tree
+installer, because the payload is `git archive HEAD` and can lag it.
+
+Region needs no GeoIP service: Cloudflare already attaches
+`CF-IPCountry` and the edge colo in `CF-Ray`, so `pool/i18n.py` maps
+the country to a continent and the download page says whether the
+visitor is in the relay's region or far from it. Two limits are
+deliberate. There is no per-visitor latency probe — the browser cannot
+open a TCP connection to `3333`, and timing the web endpoint would
+measure the tunnel, not the relay — so the page gives qualitative
+latency advice and no invented milliseconds. And no language claims
+mining is blocked or illegal somewhere: no jurisdiction bans Monero
+mining and no source lists "XMR-blocked countries", so the page
+advises on distance only (a test asserts no catalog contains such a
+claim).
+
+**Cache purge (Oct 24).** Cloudflare serves the bundle zip with
+`max-age=14400`, so a rebuild can be live at the origin and still be a
+four-hour-old object at the edge. `python cdn_purge.py` is the step
+that closes that window: it purges the bundle zip, its `.sha256`,
+`/api/downloads/bundle-info`, `/download` in all six languages,
+`/status`, `/api/version`, `/` and `/api/miner-download` in one API
+call. Run it after **every** bundle rebuild and **every** localized-page
+change; `/` additionally matters when the navbar, footer or global JS
+moved, and `/api/miner-download` when the miner .bat changed. It purges
+the whole list regardless, because a single call costs the same and
+forgetting a conditional entry is the failure the file exists to
+prevent. Two URLs that look like they belong are deliberately absent,
+because neither is routed and purging them purged a 404 —
+`/downloads/KrakenScoutBundle.zip.json` (the manifest is a file behind
+`/api/downloads/bundle-info`) and `/index` (the front page is `/`);
+`cdn_purge.py` carries the note. The token comes from
+`CLOUDFLARE_API_TOKEN` / `CF_API_TOKEN` or a file path — `--dry-run`
+prints the URLs without calling the API.
+
 **Miner ingest key (Sep 27).** `/api/miner/shares` is an economy
 writer — its share deltas backfill free jackpot tickets (100 shares
 = 1 ticket) — so it is gated: a valid HMAC-SHA256 over
@@ -293,22 +391,164 @@ stream output verbatim, map the drive's honest self-skip signature
 (RESULT 0/0 **plus** a `SKIP:` line) to the battery's SKIP vocabulary,
 and add the wrapper to `LIVE_ENTRIES` so `--fast` stays hermetic.
 
+## The payout contract (operator-facing, Oct 28)
+
+**Read this before touching a payout, a claim, or a rate.** One
+winner's prize moving out of the treasury has three rules attached;
+they are enforced in code, pinned by drives, and described here as
+the contract the operator operates against.
+
+**Rule 1 — the winner's coin decides (same-coin payout).** A miner who
+talked to the pool through the Verus relay is paid in VRSC from the
+treasury; every other winner is paid XMR through the wallet RPC or
+the standing manual leg. The pool's BOOKS stay in XMR-equivalent
+units no matter what moved: `payouts.amount_xmr` keeps the XMR
+number every old reader expects and `payouts.amount_coin` carries
+the VRSC quantity the winner is owed. Without a Verus wallet RPC,
+the VRSC leg is manual — the row waits in `pending` with
+`tx_hash = pending_manual_treasury` until the treasury officer's
+send flips it (the same admin tool that flips the XMR-from-Kraken
+leg). The winners page and the 💸 admin card both show the coin and
+the pending-treasury state, not just the equivalent. Pinned by
+`test_vrsc_miner.py`, `test_vrsc_coin_surface.py`.
+
+**Rule 2 — no payout at a stale rate (the stale-rate guard).** The
+claim is the one place an old rate silently misprices real money
+(bold labels on pages are merely old; a VRSC quantity SETS A
+PAYOUT). Before any same-coin conversion, both legs are age-checked
+— the VRSC/USD snapshot and the XMR/USD snapshot — in
+`jackpot_funding.vrsc_conversion_guard()`:
+
+- **fresh** (≤ `VRSC_RATE_STALE_S`, db setting, default **900 s**):
+  pay silently.
+- **warn** (> 900 s, < warn × 3): pay LOUDLY — audit row
+  `vrsc_rate_stale_warned` carries both legs' ages, and the claim
+  response payload carries the same sentence in `rate_warning`.
+- **block** (≥ warn × 3 = 2700 s at defaults, or a leg with no
+  snapshot at all): refuse with
+  `VRSC payout blocked by the stale-rate guard: …`, audit row
+  `vrsc_rate_stale_blocked`. The refusal happens BEFORE any db
+  mutation, so the recovery is one step: refresh the rates (or pin
+  an operator override — a pin is a vouched value, not a snapshot,
+  and freshens its leg), then re-claim. Nothing is stranded; the
+  claim window is untouched.
+
+Operator knobs: `VRSC_RATE_STALE_S` moves the warn window, and the
+block always scales as warn × 3. A zero/nonsense value falls back to
+the 900 s constant. Pinned by `test_vrsc_rate_stale.py`.
+
+**Rule 3 — one drawing, one payout (the claim lease).** A double
+click, a fast retry, or two admin screens all arrive as two threads
+that BOTH read `claim_status = 'pending'`. Reading is not owning:
+the mint is gated by `db.acquire_claim_lease()` — ONE conditional
+UPDATE (`pending → 'claiming'`) whose loser matches 0 rows and is
+turned away at "another claim is in flight" before any money moves
+(audit `claim_race_lost`). Every post-lease refusal releases the
+lease, so refused claims stay re-claimable the ordinary way. A
+claimed drawing can never be leased again; a lease older than the
+**300 s steal window** means a claimant died mid-flight — the next
+acquisition steals it and the prize is never stranded. Pinned by
+`test_vrsc_concurrent_claim.py`.
+
+**The operator's quick reference:**
+
+| To check… | grep the audit log for | Act when you see it |
+| --- | --- | --- |
+| a payout waiting on the treasury leg | `vrsc_payout_pending_treasury` — or `tx_hash = pending_manual_treasury` rows in the 💸 card | send the VRSC, flip the row |
+| a stale-rate warn | `vrsc_rate_stale_warned` | rates are > 15 min old — refresh before the next same-coin claim |
+| a stale-rate block | `vrsc_rate_stale_blocked` | the claim refused; refresh/pin rates and tell the winner to re-claim (window still open) |
+| a lost claim race | `claim_race_lost` | expected under double-clicking; no action unless same drawing repeats |
+
+The claim-window facts the rules sit inside: a drawn prize is
+claimable for `claim_window_days` (db setting, default 7), the sweep
+expires it and returns the earmark to the pool, and everything above
+is retriable inside the still-open window.
+
+All three rules in one envelope: `python test_payout_contract_battery.py`
+runs the three drives together as one battery entry — each drive
+keeps its own child-`result:` echo (15 + 23 + 22 = 60 checks), and
+one entry-wide `RESULT:` sum is what the fleet's ledger parses. The
+entry joins the fleet by the same auto-discovery every `test_*.py`
+ride uses (85 drives today), so the pre-commit gate runs the whole
+envelope on every commit, not just the three drives individually —
+a system-wide regression in the contract is one red row, not three.
+
 ## Related one-command tools
 
-- `python setup_dev.py` — new-clone setup: venv from `uv.lock` + the
-  commit-gate hook, then verifies both (idempotent).
-- `python make_bundle.py` — regenerate the Hostinger review bundle from
-  the live template + statics; runs the parity drive as its own gate.
-- `python ops_status.py` — the one-command health receipt: bundle
-  version, :3094 listener PID + `/api/stats` health, scheduler
-  heartbeat age, last orphan scan (age + totals), the scheduled
-  task's Last/Next Run + Last Result, the dead-man marker age, and
-  the scout sibling's guard factor (latest value + history day-span —
-  a read-only peek so the sizing brain's series stays visible on the
-  receipt; absence is an honest NONE, never an alert).
-  Strictly read-only (the DB opens `mode=ro`). Exit code is the
-  alert: 0 all-clear, 1 when any surface needs a human — server
-  down, stale heartbeat (the loop ticks hourly, so the threshold is
-  1.5x the cadence), orphan build-up, failed task run, or a stale
-  dead-man marker. `--json` for machines. Pinned by
-  `test_ops_status.py`.
+The repo root holds the standing entry points; the one-off scripts live
+under `tools/` (below). The :3094 STOP toggle,
+`tools/stop_pool_server.sh`, is documented in Runtime operations.
+
+| Script | What it does | Gated by |
+| --- | --- | --- |
+| `python run_fleet.py` | the one-command fleet: discovers every `test_*.py` drive (the count is never stored), runs them in one pass, reruns failure triage (repeat failure = regression, failure that passes on rerun = flake), prints the coverage table | graded itself: a green fleet is evidence, not recollection |
+| `python setup_dev.py` | new-clone setup: venv from `uv.lock` (including the push delivery + encryption layers) ‡ the commit-gate hook, then verifies both; idempotent | its own end-of-run verification |
+| `python make_bundle.py` | regenerate the site-review bundle `dist_site_review/` from the live template + statics (a reviewers-only artifact; LOCAL serving model, no deploy target) | runs the parity drive as its own gate |
+| `python ops_status.py` | the one-command health receipt: bundle version, :3094 listener PID + `/api/stats` health, scheduler heartbeat age, last orphan scan (age + totals), scheduled task Last/Next Run + Last Result, dead-man marker age, and the scout sibling's guard factor (a read-only peek; absence is an honest NONE, never an alert). Strictly read-only (the DB opens `mode=ro`); exit code is the alert: 0 all-clear, 1 when any surface needs a human. `--json` for machines | `test_ops_status.py` |
+
+### One-off scripts (moved under `tools/`, the Oct 29 root organization)
+
+One-off scripts do not live in the repo root any more - the root stays
+the drives (`test_*.py`, auto-discovered) plus the standing entry
+points above. The sweep discipline that also moved in this round
+(`tools/sweep_db.py`, `tools/sweep_lib.py`, its scheduled wrappers
+`tools/run_sweep_report.cmd`, `tools/run_sweep_report_task.ps1`,
+`tools/register_sweep_report_task.py`) and the :3094 stop toggle
+(`tools/stop_pool_server.sh`) are documented in Runtime operations
+above. The sweep tooling's flag surface, one row per invocation:
+
+| Tool / invocation | Flag | What it does / exits with |
+| --- | --- | --- |
+| `python tools/sweep_db.py` | *(bare)* | read-only dry run on `pool/jackpot.db`: rehearses on a throwaway backup-API copy, prints per-label counts + gate verdict, writes nothing; rc 0 (`--report` rc semantics do NOT apply) |
+| | `--report` | the orphan detector's receipt, mode=ro; rc is the alert: 0 all-clear, 1 violations (all planned), 2 an edge is UNPLANNED (needs a human first) |
+| | `--apply` | the real sweep through `sweep_lib`: backup beside the DB, in-transaction `foreign_key_check` gate, manifest audit row; rc 0 committed, 1 the discipline refused (rolled back, data untouched) |
+| | `--db PATH` | target another file; the default resolves from the checkout root this `tools/` sits in (identical from any cwd) |
+| | *(unknown arg, or `--db` with no path)* | rc 2 + usage line; a missing `--db` file exits 1 |
+| `python tools/register_sweep_report_task.py` | *(bare)* | register / update the `CodebuffWeeklyOrphanReport` task (StartWhenAvailable, 1h limit, battery kill-switches off) |
+| | `--check` | verify-only self-audit (both triggers, wrapper command, time limit, dead-man marker freshness); rc 0 wired, 1 drifted |
+| `tools/run_sweep_report.cmd` / `tools/run_sweep_report_task.ps1` | *(no flags)* | the Task Scheduler wrappers; the .ps1 is due-gated (max one actual report per 7d window, exits 0 when fresh) and an actual run exits with the report's rc (0/1/2 above) for Last Result |
+
+The remaining scripts under `tools/`, with their purposes:
+
+- `tools/cta_probe.sh` - SOURCED (not executed) browser-shaped curl
+  probes for :3094 and the tunnel front; the single definition of the
+  probe contract, content-pinned by `test_kraken_cta_counter.py`.
+- `tools/rebuild_bundle_watch.py` - the bundle rebuild watcher: the
+  served zip is built from `git archive HEAD` on both repos, so it
+  goes stale whenever either head moves. This compares the stamped
+  HEAD pair against both repos' current HEAD, rebuilds through
+  `installer/build_bundle.ps1` -> `installer/finalize_bundle.py`,
+  re-verifies with the three bundle drives, then stamps the pair;
+  no drift is a quiet no-op, any drive failure exits 1.
+- `tools/_probe_e2e_capture.py` - throwaway receiver-side push proof
+  (Sep 25): a local HTTP receiver stands in for the push endpoint
+  while the REAL sender chain runs, then the captured wire bytes are
+  verified independently - the VAPID ES256 signature against the
+  provisioned public key and the aes128gcm payload by hand-rolled
+  RFC 8188. Sandbox DB throughout.
+- `tools/_sweep_retire_r111_miner.py` - one-shot sweep caller that
+  retires the R111 playtest zombie miner rows through
+  `sweep_db`/`sweep_lib` (full-wallet match, zero-shares guard so a
+  real miner with shares can never retire, loud no-op), dry run by
+  default, `--apply` for the real sweep.
+- `tools/diag_adminflow.py` - one-off Playwright probe of the exact
+  admin flow: real admin session minted in the live DB, phone-sized
+  viewport, xmrjackpot.com -> Admin tab -> embedded Scout console
+  iframe.
+- `tools/diag_threeleg.py` - one-off three-leg websocket probe with
+  the real first console message: leg 1 direct to console :8501, leg
+  2 through the local proxy :3094 (admin cookie), leg 3 through the
+  public Cloudflare tunnel.
+- `tools/rpc_resilience.ts` - the ONE Solana RPC layer shared by both
+  XMRJ devnet clients, read out of the installed @solana/web3.js
+  rather than guessed: rate-limit retries plus timeout handling,
+  born from three devnet runs the free public endpoint's 429s
+  stopped.
+- `tools/xmrj_devnet_run.sh` - the XMRJ devnet runbook executor:
+  preflight the pinned toolchain, then build -> deploy -> e2e -> mint
+  -> stress with every step's output and exit status captured into
+  one log; the destructive and SOL-costing steps run only behind
+  explicit flags, so the default invocation touches no chain state.
+- `tools/xmrj_loadtest.ts` - the XMRJ stress harness: every scenario
+  pins BOTH directions, including the expected failures - a stress
+  test whose only possible outcome is "passed" is a smoke test.

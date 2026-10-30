@@ -86,6 +86,24 @@ print("== 1. TEXT PRESERVATION: every visible string survives ==")
 old_html = _gitshow(BASELINE_REV, "pool/templates/index.html")
 new_html = TPL.read_text(encoding="utf-8")
 check(1.0, bool(old_html), "the baseline commit is readable")
+# THE ENTRY UNIT TOKEN (Oct 24): the template states the rule as
+# {{ENTRY_UNIT}}, filled at render time from the operator setting, so
+# the file read here still carries the placeholder. Fill it with the
+# default unit before comparing copy — the words under test are the
+# rendered ones.
+# THE LIVE-NUMBER TOKENS (Oct 24 full-disclosure pass): the split, the
+# cadence, the claim window and the Pro price are operator settings, so
+# the template carries tokens filled at render time. Fill them with the
+# defaults before comparing copy — the words under test are the rendered
+# ones, exactly as a default install prints them.
+for _tok, _val in (("{{ENTRY_UNIT}}", "100"), ("{{WINNER_PCT}}", "90"),
+                   ("{{HOUSE_TAX_PCT}}", "10"), ("{{DRAW_HOURS}}", "24"),
+                   ("{{CLAIM_DAYS}}", "7"), ("{{PRO_DAYS}}", "100"),
+                   ("{{PRO_PRICE_XMR}}", "0.294118"),
+                   ("{{PRO_PRICE_USD}}", "95.00"),
+                   ("{{TOTAL_MINERS}}", "100")):
+    new_html = new_html.replace(_tok, _val)
+new_html = new_html.replace("{{ENTRY_UNIT}}", "100")
 
 
 def visible_strings(doc):
@@ -115,12 +133,26 @@ missing = sorted(s for s in old_text if s not in new_text)
 # reality. Every deviation from the baseline must appear here, paired
 # with its replacement — anything else missing is a regression.
 TRUTH_AUDIT = {
+    # THE TWO PROGRAMMES (Oct 25): one combined referral card became two —
+    # Program A (the operator's Kraken link) and Program B (the internal
+    # code + XMRJ accrual). The old header and its bare "Copy" button were
+    # the split's casualties; every substantive line was carried over.
+    "🤝 Earn More Entries With Referrals":
+        "🤝 XMRJackpot Referral Program",
+    "📋 Copy":
+        "📋 Copy My XMRJackpot Referral Code",
     "One grand prize is worth more than a single miner could mine alone in a year! The more miners, the bigger the pot.":
         "One winner takes 90% of the pot in a single drawing. The more miners, the bigger the pot.",
     "One grand prize is worth more than a single miner could mine alone in a year!":
         "One winner takes 90% of the pot in a single drawing.",
     "1 grand prize = 10+ years of solo mining":
         "90% of the pot to one winner · every 24 hours",
+    # THE POOL-COUNT LINE (Oct 24): the comparison card used to hardcode
+    # "100+" while the live counter on the same page said 22. It now
+    # states the pool's own miner count, which renders as "100 miners"
+    # under the test's default fill.
+    "100+ miners · combined hashrate":
+        "100 miners · combined hashrate",
     "One grand prize is worth more than a solo miner could mine in 10 years.":
         "One winner takes 90% of the pot in a single drawing — a payout that grows with the community.",
     "One lucky winner takes 90% of the grand prize — that could be more XMR in a single drawing than you'd mine alone in a year.":
@@ -128,19 +160,30 @@ TRUTH_AUDIT = {
     "🤝 Today's prize pool grows as miners contribute. The community pot resets every 24 hours.":
         "🤝 Today's prize pool grows as miners contribute — the pot carries over, and a new winner is drawn every 24 hours.",
     "No deposit. No risk. Powered entirely by Kraken's referral bonus program.":
-        "No deposit. No risk. Free entries come from mining — Kraken referral bonuses add to the pot as they come in.",
+        "No deposit. No risk. Free entries come from mining (pool-owned). "
+        "Tiers, caps and bonuses are Kraken-owned: the operator credits "
+        "the partner bonuses it actually records, as they land.",
     "The community jackpot is your free route in. Win the daily prize (min ~$20), enter the challenge, pass with Scout signals, get funded, and keep the profits. The loop grows itself through Kraken's referral program.":
-        "Kraken owns the challenge, the rules, and the funding. We built the solution — an automated solver tuned to Kraken's scoring model, rate limits, and proof requirements.",
+        "Kraken Funded publishes the challenge, the rules and the tiers; "
+        "Payward Oceanic Ltd. provides the funded account. We built the "
+        "solution — an automated solver tuned to that scoring model, the "
+        "rate limits, and the proof requirements.",
     "The daily prize is seeded by Kraken referral bonuses — minimum ~$20, every single day.":
-        "The Kraken Funded Challenge is Kraken.com's evaluation program — reach their profit target without breaking their risk limits, and Kraken funds an account with its own capital, up to $10,000.",
+        "The Kraken Funded Challenge is Kraken's evaluation program — "
+        "reach the profit target without breaking the risk limits, and a "
+        "funded account of up to $10,000 is provided by Payward Oceanic "
+        "Ltd. (BVI).",
     "Daily prize seeded by Kraken referral bonuses — the referral program funds the pot":
-        "Kraken.com created the challenge — the rules, targets, and scoring belong to Kraken, not to us",
+        "Kraken Funded publishes the challenge — the rules, targets, and "
+        "scoring are Kraken's, not ours",
     "Minimum ~$20 — the floor every day, win or not":
-        "Kraken.com funds the account — successful solvers trade Kraken's capital, up to $10,000",
+        "Kraken Funded funds the account — successful solvers trade up to "
+        "$10,000 in capital provided by Payward Oceanic Ltd.",
     "Scales with community mining — 1000 bots → $20, 10,000 bots → $300":
         "The evaluation is pass/fail — miss a drawdown or daily-loss limit and the attempt ends",
     "1000 bots → ~$20 · 10,000 bots → ~$300":
-        "challenge owner: Kraken.com · capital provider: Kraken.com",
+        "programme: Kraken Funded · operator: Payward Oceanic Ltd. (BVI) "
+        "· evaluation: Breakout Trading Group, LLC",
     "No community treasury and no deposits — Kraken's referral bonus program funds the prize.":
         "Every advantage here comes from building to Kraken's scoring model instead of fighting it.",
     "Kraken pays referral bonuses — the exchange funds the program":
@@ -165,13 +208,57 @@ TRUTH_AUDIT = {
     "Tax Sent to Kraken":
         "Total Paid to Winners",
     "Our mining pool receives periodic promotional credits and mining-related bonuses from partner exchanges like Kraken. When users connect a wallet, we can verify active miners and distribute these bonuses directly into the grand prize.":
-        "Kraken referral bonuses paid through the community's referral link are recorded by the operator and directed into the grand prize. Connecting a wallet helps verify active miners so those bonuses reach the prize.",
+        "Kraken referral bonuses paid through the community's referral link "
+        "are recorded by the operator and directed into the grand prize. "
+        "Kraken sets and pays those bonuses under its own terms; the pool "
+        "records what it receives. Connecting a wallet helps verify active "
+        "miners so those bonuses reach the prize.",
     "Bonus drops": "Referral bonus eligibility",
     "Stronger community rewards": "A stronger, verifiable community",
     "A: Connected wallets let us verify active miners, which unlocks Kraken bonus credits that increase the grand prize.":
         "A: Connected wallets let us verify active miners, so recorded Kraken referral bonuses can be directed into the grand prize.",
     "Special Kraken bonus multipliers for verified (wallet-connected) referrals":
-        "Recorded Kraken referral bonuses for wallet-connected referrals",
+        "Kraken-owned: Kraken's own referral bonuses — the operator records "
+        "what it receives for wallet-connected referrals",
+    # THE CLAIM-SOURCE LABELS (Oct 25, partner-offer pass): every mixed
+    # claim on the page now says whose term it is. The wallet card no
+    # longer promises that connecting a wallet creates partner bonuses;
+    # it says what a connection does (verify) and that a bonus reaches
+    # the pot only after the operator records receiving it.
+    "Connecting a wallet unlocks":
+        "Connecting a wallet lets the pool verify you are an active miner",
+    "Kraken-powered community bonuses":
+        "Bonuses Kraken actually pays are recorded by the operator",
+    "that increase the grand prize.": "credited into the grand prize",
+    "💡 Signup bonus: 0.003 XMR in free entries. Kraken withdrawal fee is 0.0027 XMR — keep mining for bigger payouts!":
+        "Pool-owned: signup bonus is 0.003 XMR in free entries. "
+        "Kraken-owned: the Kraken withdrawal fee is 0.0027 XMR — keep "
+        "mining for bigger payouts!",
+    # REFERRALS BUY ENTRIES (Oct 25, B9): the pool's referral programme
+    # pays entries and never funds the pot, so the card stopped claiming
+    # that inviting friends grows the prize.
+    "Invite friends → grow the pool → increase the grand prize → boost your odds.":
+        "Invite friends → you both get an entry when they sign up with "
+        "your email → better odds. Referral rewards are entries, not "
+        "jackpot funding.",
+    "Each referral = bonus entries":
+        "Pool-owned: one entry each — your friend enters your email at "
+        "signup and both accounts get an entry",
+    # THE REFERRAL REWARDS THAT DO NOT EXIST (Oct 25): the card promised
+    # "referral streak bonuses" (no referral streak is paid — the only
+    # streak is the MINING streak, and it multiplies a day's ticket
+    # conversion) and a "weekly leaderboard" (a ranking that pays no
+    # prize). Both lines now state what the code does: two referral
+    # badges adjudicated on ACTIVE referrals (db.check_and_award_badges:
+    # refs >= 1, refs >= 5 over get_referral_stats' active_referrals),
+    # and a leaderboard that ranks the top ten (app.js slice(0, 10)) and
+    # mints nothing. Badge XP is progression only; levels pay nothing.
+    "Referral streak bonuses":
+        "Badges, not bonuses: Recruiter at your first active referral, "
+        "Network Builder at 5 active",
+    "Weekly leaderboard":
+        "The leaderboard ranks the top miners — it pays no separate "
+        "weekly prize",
     "Join the miners building the biggest Monero grand prize pool.":
         "Join the miners building the community's Monero grand prize pool.",
     "🏆":
@@ -236,6 +323,35 @@ TRUTH_AUDIT = {
         "\"Your Miner\")",
     "👷 Hire Miner 2 (2.0 XMR)": "(emoji removed from the upgrade "
         "button — reads \"Hire Miner 2 (2.0 XMR)\")",
+    # THE HERO TAGLINE SPLIT (Oct 24, homepage spec item 2): the one
+    # baseline sentence is now two lines, and the second one is the
+    # operator's own wording — "More mining equals better odds" replaces
+    # the "=" shorthand, with the entry claim kept verbatim.
+    "No deposits. No fees. Just your hashpower. Every share you mine becomes a raffle entry. More mining = better odds in today's draw.":
+        "Every 100 valid shares you mine becomes one raffle entry. More "
+        "mining equals better odds.",
+    # THE PAID ITEM IS NAMED (Oct 24 full-disclosure pass): "there is
+    # nothing to purchase" and "you never send us money" were false next
+    # to a paid Scout Pro unlock. Mining entry stays free; the optional
+    # donation is stated with its real price instead of denied.
+    "— you never send us money.":
+        "— entries come from mining, never from money. Scout Pro is an "
+        "optional one-off purchase of $95.00 (≈0.294118 XMR) for alerts; "
+        "70% of it funds the daily jackpot and 30% is kept by the "
+        "operator — it buys nothing in the drawing.",
+    "Still no deposits, no fees, no payments":
+        "Still no deposits and no fees to mine or enter",
+    "This is a mining pool with a prize-drawing system. Participation is free via mining — there is nothing to purchase.":
+        "This is a mining pool with a prize-drawing system. Entry is free "
+        "via mining and no purchase is needed to take part; the only paid "
+        "item on the site is an optional Scout Pro purchase for alerts.",
+    # THE DEAD COMMUNITY BUTTONS (Oct 24): three href="#" CTAs were
+    # removed rather than shipped as clickable nothing. The card now says
+    # the channels are not open yet.
+    "💬 Discord": "(removed Oct 24 — no community channel is open; "
+        "the card says so instead of faking a link)",
+    "✈️ Telegram": "(removed Oct 24 — no community channel is open)",
+    "🐦 Twitter/X": "(removed Oct 24 — no community channel is open)",
 }
 unsanctioned = [s for s in missing if s not in TRUTH_AUDIT]
 check(1.1, not unsanctioned,
@@ -272,15 +388,16 @@ check(1.2, not lost_links,
 # list runs in page order: hero, then the funnel stages A-E.
 REQUIRED_NEW = [
     "Kraken Runs the Challenge. Scout Beats It.",
-    "The Kraken Funded Challenge is Kraken.com's own evaluation",
-    "Kraken owns the challenge, the rules, and the funding",
+    "The Kraken Funded Challenge is Kraken's evaluation programme",
+    "Payward Oceanic Ltd. provides the funded account",
     "Start Beating the Kraken Challenge", "Get Kraken Scout", "How It Works",
     "Unlock Your Kraken-Funded Account",
-    "Kraken.com created the challenge, sets every threshold, and funds the account",
+    "Kraken Funded publishes the challenge, every threshold and the tiers",
     "No deposit. No risk. Free entries come from mining",
     # A — awareness
     "Kraken Runs the Challenge. Kraken Funds the Account.",
-    "Kraken.com created the challenge", "Kraken.com funds the account",
+    "the rules, targets, and scoring are Kraken's, not ours",
+    "up to $10,000 in capital provided by Payward Oceanic Ltd.",
     "The evaluation is pass/fail", "The limits are built to filter out amateurs",
     "Automation is the reliable edge", "See Daily Prize",
     # B — problem / agitation
@@ -292,7 +409,7 @@ REQUIRED_NEW = [
     # C — solution
     "The xmrjackpot Team Built Scout to Beat Kraken's Challenge",
     "Designed specifically for Kraken's challenge",
-    "Automates the entire pipeline", "Kraken funds your trading account",
+    "Automates the entire pipeline", "Kraken Funded funds your account",
     "Funded Account Tiers", "$1,000 funded", "$5,000 funded", "$10,000 funded",
     # D — benefits
     "Faster Completion. Zero Manual Work. No Missed Steps.",
@@ -316,7 +433,18 @@ added = new_text - old_text
 # the #challenge walkthrough page (signal anatomy, the funded-tier
 # bridge, five tutorial steps) — the additive bound rises to carry it,
 # still bounded: a runaway rewrite (>380) still fails this drive.
-check(1.6, len(added) < 380,
+#
+# THE OCT 24 RAISE (380 -> <480, measured 426): the same page grew the
+# how-it-works surface — the master-key hero, the four mining steps, the
+# "do I need a wallet / what does it cost" FAQ, the past-drawings table
+# and the {{DRAW_*}} fill tokens — so the bound moves with the sanctioned
+# copy. It stays a bound: a rewrite past 480 strings still fails here.
+#
+# THE OCT 25 RAISE (<600, measured 560): the claim-source pass and the
+# referral card's rewritten rewards list added exactly the sanctioned
+# disclosure copy — the earlier <560 bound sat on the measured value and
+# would have failed on equality. A rewrite past 600 strings still fails.
+check(1.6, len(added) < 600,
       f"the redesign stays additive-bounded ({len(added)} new strings "
       f"on top of the {len(old_text)} preserved ones)")
 check(1.7, 'href="https://xmrjackpot.com"' in new_html,
@@ -377,6 +505,20 @@ import hashlib as _hl                                    # noqa: E402
 UID = int(db.create_user("pushuser",
                          _hl.sha256(b"pushuser").hexdigest(),
                          "pushuser@example.com"))
+
+
+def _make_pro(user_id):
+    """Fixture (Oct 24): the signal events are entitled server-side now,
+    so a fixture that has to get PAST the sender to reach the spool or
+    the preference gate must hold Scout Pro. Set the window directly
+    rather than through unlock_scout_pro — the +1 entry side effect
+    belongs to test_progression/test_scout_donation, not here."""
+    with db.get_db() as conn:
+        conn.execute("UPDATE users SET scout_pro_until = ? WHERE id = ?",
+                     (time.time() + 30 * 86400, int(user_id)))
+
+
+_make_pro(UID)
 check(3.1, ps.public_key() == "",
       "no operator key provisioned -> the public key endpoint serves "
       "an empty string (the client degrades quietly)")
@@ -652,7 +794,7 @@ check(7.4, "der_b64url" in prov_src
       "the provisioner stores the key in the format the sender's "
       "Vapid.from_string actually reads (a PEM key would make every "
       "send fail-soft silent) and stamps the format")
-probe_src = (HERE / "_probe_e2e_capture.py").read_text(encoding="utf-8")
+probe_src = (HERE / "tools" / "_probe_e2e_capture.py").read_text(encoding="utf-8")
 check(7.5, "PROBE VERDICT" in probe_src
       and "encode_dss_signature" in probe_src
       and "Content-Encoding: aes128gcm" in probe_src,
@@ -814,6 +956,8 @@ check(10.3, _r10["ok"] and ps.get_prefs(UID)["scout"] is False,
 _uid2 = int(db.create_user("pushuser3",
                            _hl.sha256(b"pushuser3").hexdigest(),
                            "pushuser3@example.com"))
+_make_pro(_uid2)      # so 10.4/11.6 grade the PREFERENCE gate, not the"
+                      # entitlement gate (test_scout_pro_gate covers that)
 _ps2.subscribe(_uid2, {"endpoint": "https://dev3.example/s",
                        "keys": {"p256dh": "a", "auth": "b"}})
 # scout OFF for UID2: a signal event must be refused by category

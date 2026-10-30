@@ -40,6 +40,7 @@ import database as db
 import field_crypto as _fc
 import jackpot_engine as engine
 import jackpot_funding as funding
+import projection_ad
 import push_service as push_svc
 
 SOURCE_LIVE = "kraken_referral_api_v1"
@@ -55,11 +56,14 @@ STATUS_MAP = {
     "rejected": "Ineligible", "closed": "Ineligible",
 }
 
-PROJECTION_TTL_KEY = "KRAKEN_REFERRAL_TTL_SECONDS"          # default 3600
+# The two projection knobs are DEFINED in projection_ad (the module that
+# owns the table) and only ALIASED here, so the worker and the reader can
+# never disagree about what counts as stale or as a spike.
+PROJECTION_TTL_KEY = projection_ad.TTL_SETTING            # default 3600
 PROJECTION_BATCH_KEY = "KRAKEN_REFERRAL_BATCH_SIZE"         # default 25
 PROJECTION_RETRIES_KEY = "KRAKEN_REFERRAL_MAX_RETRIES"      # default 4
 PROJECTION_CONF_KEY = "KRAKEN_REFERRAL_CONFIDENCE"          # default 0.6
-PROJECTION_SPIKE_KEY = "KRAKEN_PROJECTION_SPIKE_PCT"        # default 25
+PROJECTION_SPIKE_KEY = projection_ad.SPIKE_SETTING       # default 25
 PROJECTION_MODE_KEY = "KRAKEN_REFERRAL_MODE"                # "" | simulate
 
 
@@ -69,6 +73,30 @@ def _cfg(name, default, cast=str):
         return cast(raw) if raw not in ("", None) else default
     except (TypeError, ValueError):
         return default
+
+
+# ── THE ENDPOINT + SIMULATE ACCESSOR (one read, one truth) ─────────
+PROJECTION_ENDPOINT_KEY = "KRAKEN_REFERRAL_ENDPOINT"      # settings only
+
+
+def endpoint_mode():
+    """THE ONE READ for the provider's two non-secret rows: the
+    settings-only endpoint URL (charter: the keyring never stores
+    URLs) and the operator's explicit simulate request. Every reader
+    of these rows — provider_mode, the posture, the live fetch, and
+    the server's admin config model — goes through this ONE accessor,
+    so they can never disagree about what counts as provisioned or
+    simulated. The endpoint is returned stripped (a whitespace-padded
+    URL is the same URL); simulate ALWAYS wins: the operator's
+    labeled dry-run must not be trapped into live mode by stale
+    credentials."""
+    ep = str(db.get_setting(PROJECTION_ENDPOINT_KEY, "") or "").strip()
+    return {
+        "endpoint": ep,
+        "endpoint_set": bool(ep),
+        "simulate_flag": (db.get_setting(PROJECTION_MODE_KEY, "") or "")
+                         == "simulate",
+    }
 
 
 # ── THE CREDENTIAL ACCESSOR (tiered, one seam for the project) ──────
@@ -153,7 +181,7 @@ def kraken_credentials():
 
 
 def _ttl():
-    return max(60, _cfg(PROJECTION_TTL_KEY, 3600, int))
+    return projection_ad.freshness_ttl()
 
 
 def _confidence():
@@ -165,11 +193,11 @@ def provider_mode():
     dry-run ALWAYS wins — stale credentials must not trap the panel
     in live mode); 'live' iff credentials AND endpoint provisioned;
     otherwise 'unconfigured'."""
-    if (db.get_setting(PROJECTION_MODE_KEY, "") or "") == "simulate":
+    em = endpoint_mode()
+    if em["simulate_flag"]:
         return "simulate"
     key, sec, _src = kraken_credentials()
-    ep = db.get_setting("KRAKEN_REFERRAL_ENDPOINT", "")
-    if key and sec and ep:
+    if key and sec and em["endpoint_set"]:
         return "live"
     return "unconfigured"
 
@@ -189,7 +217,8 @@ def provider_posture():
     kr_ = _keyring_creds()
     env = _env_creds()
     eff_key, eff_sec, tier = kraken_credentials()
-    ep = str(db.get_setting("KRAKEN_REFERRAL_ENDPOINT", "") or "").strip()
+    em = endpoint_mode()          # the accessor's truth, verbatim
+    ep = em["endpoint"]
     mode = provider_mode()
     missing = []
     if not tier:
@@ -526,7 +555,7 @@ def fetch_user_status(user_id, referral_id):
                     "last_updated": "sim"}
         return {"ok": True, "raw": resp, "mode": mode}
     api_key, api_secret, _src = kraken_credentials()
-    endpoint = db.get_setting("KRAKEN_REFERRAL_ENDPOINT", "")
+    endpoint = endpoint_mode()["endpoint"]
     tries = _cfg(PROJECTION_RETRIES_KEY, 4, int)
     delay = 1.0
     for attempt in range(tries):
@@ -626,22 +655,18 @@ def run_worker(subset_limit=None):
     current_usd = round(float(stats.get("jackpot_usd") or 0.0), 2)
     seed = round(seed_total, 2)
     possible = round(current_usd + seed, 2)
-    prev = latest_projection()
-    anomaly = 0
-    spike = _cfg(PROJECTION_SPIKE_KEY, 25.0, float)
-    if prev and prev.get("possible_future_jackpot"):
-        base = float(prev["possible_future_jackpot"])
-        if base > 0 and abs(possible - base) / base * 100.0 > spike:
-            anomaly = 1
-            emit_audit(None, "jackpot_projection.delta_spike",
-                       possible=possible, previous=base,
-                       pct=round(abs(possible - base) / base * 100.0, 2))
-    with db.get_db() as conn:
-        conn.execute(
-            "INSERT INTO jackpot_projection (possible_future_jackpot,"
-            " referral_seed, current_jackpot, count_of_users_included,"
-            " anomaly, source) VALUES (?, ?, ?, ?, ?, ?)",
-            (possible, seed, current_usd, processed, anomaly, source))
+    # THE WRITE LIVES IN projection_ad (Oct 26): that module owns the
+    # table, and it answers the delta-spike question from the previous
+    # row itself — so the worker (which an ADMIN endpoint triggers) never
+    # needs a display read of an advertisement to do its job.
+    written = projection_ad.publish_estimate(
+        possible_usd=possible, seed_usd=seed, current_usd=current_usd,
+        users=processed, source=source)
+    anomaly = int(written.get("anomaly") or 0)
+    if anomaly:
+        emit_audit(None, "jackpot_projection.delta_spike",
+                   possible=possible, previous=written.get("previous_usd"),
+                   pct=written.get("delta_pct"))
     emit_audit(None, "jackpot_projection.updated",
                source=source, possible=possible, seed=seed,
                users=processed, errors=errors, anomaly=anomaly)
@@ -654,13 +679,8 @@ def run_worker(subset_limit=None):
             "current_jackpot_xmr": stats.get("jackpot_xmr")}
 
 
-def latest_projection():
-    """The display read: latest jackpot_projection row (TTL-guarded)."""
-    with db.get_db() as conn:
-        row = conn.execute("SELECT * FROM jackpot_projection "
-                           "ORDER BY id DESC LIMIT 1").fetchone()
-    if not row:
-        return None
-    d = dict(row)
-    d["fresh"] = (time.time() - float(d["updated_at"])) <= _ttl()
-    return d
+# The display read moved to projection_ad.read_estimate(slot): the table
+# is an ADVERTISEMENT, and only that module may hand one out. There is
+# deliberately no `latest_projection()` here any more — a worker module
+# that also served the number is exactly how an operator's dashboard
+# ended up quoting an advert as the pot.

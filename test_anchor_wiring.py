@@ -59,8 +59,9 @@ WHAT IT PROVES, section by section:
      and nothing else). Each must go RED, so the checks above are known to
      discriminate rather than merely to pass.
   13. THE TOOLCHAIN PINS: the five values a fresh clone has to agree on — the
-     anchor-cli version, the Solana CLI version (with its exact `=`
-     comparator, because AVM reads that value as a semver REQUIREMENT), the
+     anchor-cli version, the Solana CLI version (an exact three-part release
+     with NO comparator: anchor-cli 1.1.2 parses that key as a plain version
+     and refuses to build at all when it carries a `=`), the
      host Rust channel, every crate's anchor-lang pin, and the deployment
      plan's own numbers — judged by ONE predicate that the red-first
      mutations run through too.
@@ -89,10 +90,22 @@ NOT_A_PROGRAM = "xmrj_conversion_service"
 results = []
 
 
+skipped = 0
+
+
 def check(name, cond, why=""):
     results.append((bool(cond), name, why))
     print(("PASS  " if cond else "FAIL  ") + name
           + (f"  ({why})" if why and not cond else ""))
+
+
+def skip(name, why=""):
+    """A check that CANNOT RUN HERE, said out loud. Not a pass: it stays in the
+    transcript and the count, so a run that skipped half its checks cannot be
+    mistaken for a run that verified them (the reason is always printed)."""
+    global skipped
+    skipped += 1
+    print("SKIP  " + name + (f"  ({why})" if why else ""))
 
 
 def read(path):
@@ -240,32 +253,51 @@ mismatch = {n: (declared[n], tables["devnet"].get(n)) for n in PROGRAMS
 check("4.1 each crate's declare_id! is the SAME string the manifest lists "
       "for devnet (Anchor fails the build/deploy on a mismatch)",
       not mismatch, mismatch)
-key_bad, key_missing, pub_mismatch = [], [], {}
-for n in PROGRAMS:
-    kp = HERE / "target" / "deploy" / f"{n}-keypair.json"
-    if not kp.exists():
-        key_missing.append(n)
-        continue
-    try:
-        raw = json.loads(kp.read_text(encoding="utf-8"))
-    except Exception:                                       # noqa: BLE001
-        key_bad.append(n)
-        continue
-    if (not isinstance(raw, list) or len(raw) != 64
-            or not all(isinstance(b, int) and 0 <= b <= 255 for b in raw)):
-        key_bad.append(n)
-        continue
-    pub = b58encode(bytes(raw[32:]))
-    if pub != tables["devnet"].get(n):
-        pub_mismatch[n] = pub
-check("4.2 every program has target/deploy/<program>-keypair.json in the "
-      "64-byte Solana shape",
-      not key_missing and not key_bad,
-      {"missing": key_missing, "malformed": key_bad})
-check("4.3 each keypair's PUBLIC HALF base58-encodes to exactly the "
-      "address the manifest and crate declare — the ID is a real identity, "
-      "not a typed-in string",
-      not pub_mismatch and not key_missing, pub_mismatch)
+# THE ARTIFACT-SIDE HALF OF THIS DRIVE, and where it can run. The keypairs live
+# in target/deploy/, which is gitignored by design (6.1) and exists only where a
+# build has run: they hold the PRIVATE halves of the program addresses, so no
+# clone can contain them and no CI job can regenerate the ids these crates
+# declare. On a host that has built (the runbook's §3) both checks run as before —
+# including the failure that matters, a keypair deleted next to the sources. On a
+# checkout that has never been built they are reported SKIPPED with that reason,
+# not PASSED: "nobody built here" is not a wiring defect, but it is also not
+# evidence, and a skip that printed nothing would let this drive look green on a
+# tree with no keypairs at all.
+if not (HERE / "target" / "deploy").is_dir():
+    skip("4.2 every program has target/deploy/<program>-keypair.json in the 64-byte "
+         "Solana shape",
+         "this checkout has no target/deploy — nothing has been built here")
+    skip("4.3 each keypair's PUBLIC HALF base58-encodes to exactly the address the "
+         "manifest and crate declare (the ID is a real identity, not a typed-in string)",
+         "same: the keypairs are gitignored halves of the program addresses; the "
+         "runbook's §3 runs this drive where a build exists")
+else:
+    key_bad, key_missing, pub_mismatch = [], [], {}
+    for n in PROGRAMS:
+        kp = HERE / "target" / "deploy" / f"{n}-keypair.json"
+        if not kp.exists():
+            key_missing.append(n)
+            continue
+        try:
+            raw = json.loads(kp.read_text(encoding="utf-8"))
+        except Exception:                                   # noqa: BLE001
+            key_bad.append(n)
+            continue
+        if (not isinstance(raw, list) or len(raw) != 64
+                or not all(isinstance(b, int) and 0 <= b <= 255 for b in raw)):
+            key_bad.append(n)
+            continue
+        pub = b58encode(bytes(raw[32:]))
+        if pub != tables["devnet"].get(n):
+            pub_mismatch[n] = pub
+    check("4.2 every program has target/deploy/<program>-keypair.json in the "
+          "64-byte Solana shape",
+          not key_missing and not key_bad,
+          {"missing": key_missing, "malformed": key_bad})
+    check("4.3 each keypair's PUBLIC HALF base58-encodes to exactly the "
+          "address the manifest and crate declare — the ID is a real identity, "
+          "not a typed-in string",
+          not pub_mismatch and not key_missing, pub_mismatch)
 
 # ── 5. the deploy surface the harness owes the operator ──────────────────
 scripts = cfg.get("scripts") or {}
@@ -870,13 +902,35 @@ def _funder_problems(jackpot_src, treasury_src):
     if "xmrj_jackpot::cpi::fund_jackpot(" not in treasury_src:
         problems["no_cpi_call"] = "the treasury does not call the jackpot at all"
 
-    # The bound: only what was RECORDED as convertible may be forwarded, once.
-    if ("total_converted_xmrj" not in treasury_src
-            or "total_jackpot_funded_xmr" not in treasury_src):
-        problems["no_bound"] = "no recorded-convertible bound on the amount"
-    elif not re.search(r"amount_xmr\s*<=\s*forwardable", treasury_src):
-        problems["bound_not_enforced"] = \
-            "the recorded-convertible bound is not required"
+    # The bound: only what was RECORDED as convertible may be forwarded, once —
+    # and since finding F2 was fixed it is VALUED AT THE RATE the state holds,
+    # which is what makes `exchange_rate_bps` a control instead of a field two
+    # instructions wrote and none read. Four facts in one place: the share the
+    # treasury recorded, the rate it is converted with, what has already gone
+    # out, and the amount bounded by what is left.
+    body = _block_after(treasury_src, "pub fn fund_jackpot_with_xmr(") or ""
+    missing = []
+    if "total_converted_xmrj" not in body:
+        missing.append("the recorded convertible share (total_converted_xmrj)")
+    if "exchange_rate_bps" not in body:
+        missing.append("the rate (exchange_rate_bps) — the bound would be "
+                       "blind to it, which is exactly finding F2")
+    if "total_jackpot_funded_xmr" not in body:
+        missing.append("what has already been forwarded")
+    if not re.search(r"checked_mul\(\s*rate\s*\)", body):
+        missing.append("the rate MULTIPLIED into the share (checked_mul(rate))")
+    if not re.search(r"amount_xmr\s*(?:as u128)?\s*\)?\s*<=\s*forwardable", body):
+        missing.append("the amount required to be within what is left "
+                       "(<= forwardable)")
+    if missing:
+        problems["no_bound"] = missing
+    # A zero rate would value every recorded share at zero and brick funding,
+    # so BOTH places that can set it refuse it.
+    if treasury_src.count("exchange_rate_bps > 0") < 2:
+        problems["rate_guard"] = (
+            "the zero-rate refusal is missing from initialize and/or "
+            "set_exchange_rate (found " + str(treasury_src.count("exchange_rate_bps > 0"))
+            + " of 2)")
     return problems
 
 
@@ -900,7 +954,13 @@ _funder_mutations = [
     ("the treasury signing nothing (an unsigned CPI)",
      JAC, TRE.replace("new_with_signer", "new", 1)),
     ("the recorded-convertible bound removed from the treasury",
-     JAC, TRE.replace("amount_xmr <= forwardable", "amount_xmr <= u64::MAX", 1)),
+     JAC, TRE.replace("(amount_xmr as u128) <= forwardable",
+                      "(amount_xmr as u128) <= u128::MAX", 1)),
+    ("the RATE taken back out of the bound (the 1:1 comparison F2 replaced)",
+     JAC, TRE.replace("checked_mul(rate)", "checked_mul(10_000)", 1)),
+    ("the zero-rate refusal removed from an initializer/setter",
+     JAC, TRE.replace("require!(exchange_rate_bps > 0, ErrorCode::InvalidExchangeRate);",
+                      "", 1)),
     ("the funder seed constraint dropped from the treasury's account",
      JAC, TRE.replace("#[account(seeds = [JACKPOT_FUNDER_SEED], bump)]",
                       "#[account(mut)]", 1)),
@@ -911,10 +971,11 @@ for why, jac_text, tre_text in _funder_mutations:
         _missed_funder.append((why, "mutation did not apply — fixture is stale"))
     elif not _funder_problems(jac_text, tre_text):
         _missed_funder.append((why, "the predicate found nothing wrong"))
-check("12.7 RED-FIRST on the funding authorization: six mutations — the "
+check("12.7 RED-FIRST on the funding authorization: eight mutations — the "
       "signer constraint dropped, the PDA un-pinned from the treasury id, a "
       "seed literal changed on one side only, an unsigned CPI, the "
-      "convertible bound removed, and the treasury's seed constraint dropped "
+      "convertible bound removed, the RATE taken back out of that bound, the "
+      "zero-rate refusal removed, and the treasury's seed constraint dropped "
       "— each trip the SAME predicate the real sources just passed through",
       not _missed_funder, _missed_funder)
 
@@ -1044,10 +1105,15 @@ def _upgrade_gate_problems(sources):
         elif pin.group(1) != LOADER_ID_LITERAL:
             problems[f"{name}:loader_id"] = pin.group(1)
 
-        seed = re.search(r'PROGRAM_DATA_SEED:\s*&\[u8\]\s*=\s*b"([^"]+)"', text)
-        if not seed or seed.group(1) != "programdata":
+        # THE LOADER'S RULE: a program's ProgramData account is
+        # `[<program id>]` under UPGRADEABLE_LOADER_ID — one seed, and NO
+        # string prefix. A `PROGRAM_DATA_SEED` prefix is the defect this check
+        # exists to keep out: it derives a DIFFERENT address, and `initialize`
+        # is refused there with `NotProgramData` (6004).
+        if "PROGRAM_DATA_SEED" in text:
             problems[f"{name}:program_data_seed"] = (
-                seed.group(1) if seed else "no PROGRAM_DATA_SEED")
+                "a PROGRAM_DATA_SEED prefix is back; the loader derives the "
+                "address from the program id alone")
 
         for label, needle in PROGRAM_DATA_LAYOUT.items():
             if needle not in text:
@@ -1066,12 +1132,16 @@ def _upgrade_gate_problems(sources):
             if not re.search(r"pub\s+program_data\s*:", struct):
                 problems[f"{name}:program_data_account"] = (
                     fn.group(2) + " does not take the program's ProgramData")
-            elif not re.search(r"seeds\s*=\s*\[\s*PROGRAM_DATA_SEED",
-                               struct):
+            elif not re.search(r"seeds\s*=\s*\[\s*[^\]]*\]", struct):
                 problems[f"{name}:program_data_seed_constraint"] = struct[:200]
             elif "crate::ID" not in struct:
                 problems[f"{name}:program_data_not_own_id"] = (
                     "the ProgramData address is not this program's")
+            elif not re.search(r"seeds\s*=\s*\[\s*crate::ID\.as_ref\(\)\s*\]",
+                               struct):
+                problems[f"{name}:program_data_seed_prefix"] = (
+                    "the ProgramData seeds carry a prefix; the loader derives "
+                    "the address from the program id alone")
             elif "seeds::program = UPGRADEABLE_LOADER_ID" not in struct:
                 problems[f"{name}:program_data_not_loader"] = (
                     "the ProgramData address is not derived under the "
@@ -1359,6 +1429,309 @@ check("12.13 RED-FIRST on the operational gate: eight mutations — the state "
       "predicate the real sources just passed through",
       not _missed_op, _missed_op)
 
+# ── 12.14/12.15 THE PAYOUT PATH — the other half of the authority chain ─
+# 12.6 closed the AUTHORIZATION for FUNDING. Nothing closed the mirror-image
+# question for PAYING OUT, and the answer was that there was no path at all:
+# `trigger_payout` demanded the governance authority PDA as a signer, a PDA can
+# only sign inside a CPI from the program that derives it, and no
+# `GovernanceAction` variant called it — so a funded jackpot could be topped up
+# forever and never paid (finding F1 of XMRJ_DEVNET_EXECUTION_REPORT.md).
+#
+# The guarantee spans two crates, so it is ONE predicate: the callee's two
+# checks, the derivation that makes the stored authority a PDA, the caller's
+# variant and arm and the seeds the arm signs with — plus the fact that makes it
+# a single path rather than the first of several, that EXACTLY ONE call site in
+# the workspace reaches the payout instruction.
+PAYOUT_IX = "trigger_payout"
+PAYOUT_VARIANT = "TriggerPayout"
+
+
+def _payout_path_problems(sources):
+    """{problem: detail} unless a funded jackpot can be PAID out, through an
+    approved governance proposal and through nothing else."""
+    problems = {}
+    jackpot_src = sources["xmrj_jackpot"]
+    governance_src = sources["xmrj_governance"]
+
+    # (1) THE CALLEE'S GATE: the authority the STATE records, demanded as a
+    # SIGNER, on an account the instruction can write.
+    fn = re.search(r"pub fn " + PAYOUT_IX + r"\(\s*ctx:\s*Context<(\w+)>",
+                   jackpot_src)
+    if not fn:
+        problems["callee_fn"] = "no `pub fn " + PAYOUT_IX + "` in the jackpot"
+    else:
+        body = dict(_accounts_bodies(jackpot_src)).get(fn.group(1))
+        if body is None:
+            problems["callee_struct"] = fn.group(1)
+        else:
+            if not re.search(r"#\[account\([^)]*\bsigner\b[^)]*\)\]\s*pub\s+"
+                             r"admin_authority\s*:", body):
+                problems["callee_no_signer"] = (
+                    PAYOUT_IX + " does not demand the admin authority as a "
+                    "SIGNER: any wallet could pay the jackpot out")
+            if not re.search(r"#\[account\([^)]*\bmut\b[^)]*\)\]\s*pub\s+"
+                             r"jackpot_state\s*:", body):
+                problems["callee_state_not_mut"] = (
+                    "the payout cannot write the jackpot's own state, so nothing "
+                    "would move")
+    if not re.search(r"ctx\.accounts\.admin_authority\.key\(\)\s*==\s*"
+                     r"state\.admin_authority", jackpot_src):
+        problems["callee_key_check"] = (
+            PAYOUT_IX + " does not compare the caller's key with the authority "
+            "the state records, so the signature would be for the wrong account")
+
+    # (2) THAT AUTHORITY IS THE GOVERNANCE AUTHORITY PDA — the one address
+    # xmrj_governance can sign for and no keypair holds.
+    init_body = _block_after(jackpot_src, "pub struct Initialize<'info>") or ""
+    if not re.search(r"seeds\s*=\s*\[b\"governance_authority\"\]", init_body):
+        problems["callee_authority_seed"] = (
+            "the jackpot does not derive its admin authority from the governance "
+            "authority seed, so the signer the payout needs is not the address "
+            "governance can sign for")
+    elif "seeds::program = GOVERNANCE_PROGRAM_ID" not in init_body:
+        problems["callee_authority_program"] = (
+            "the authority is not derived under the PINNED governance program "
+            "id, so it is some other program's PDA")
+
+    # (3) THE CALLER: a variant that carries the payout, an arm for it, and a
+    # CPI signed with the authority PDA's own seeds.
+    if not re.search(PAYOUT_VARIANT + r"\s*\{\s*winner\s*:\s*Pubkey\s*,\s*"
+                     r"amount_xmr\s*:\s*u64\s*\}", governance_src):
+        problems["gov_variant"] = (
+            "GovernanceAction has no " + PAYOUT_VARIANT + " { winner, "
+            "amount_xmr } variant, so no proposal can authorize a payout")
+    arm = _arm_block(governance_src, PAYOUT_VARIANT)
+    if arm is None:
+        problems["gov_arm"] = "no handler arm for " + PAYOUT_VARIANT
+    else:
+        if "xmrj_jackpot::cpi::" + PAYOUT_IX + "(" not in arm:
+            problems["gov_cpi"] = "the arm does not CPI into " + PAYOUT_IX
+        if "xmrj_jackpot::cpi::accounts::" + PAYOUT_VARIANT + " {" not in arm:
+            problems["gov_cpi_accounts"] = (
+                "the CPI does not build the callee's accounts struct")
+        if ("admin_authority: ctx.accounts.governance_authority"
+                ".to_account_info()") not in arm:
+            problems["gov_cpi_admin"] = (
+                "the CPI does not pass the governance authority as the admin "
+                "authority, so the callee's key check cannot be satisfied")
+        if "authority_seeds" not in arm:
+            problems["gov_no_signer"] = (
+                "the CPI is not signed with the authority PDA's seeds, so the "
+                "callee's signer requirement is unmet and the payout fails")
+        for needle in ("winner", "amount_xmr"):
+            if needle not in arm:
+                problems["gov_arg:" + needle] = (
+                    "the arm does not forward " + needle)
+
+    # (4) ONE PATH, NOT SEVERAL: exactly one call site in the whole workspace
+    # reaches the payout instruction. A second one — a helper, a re-export, an
+    # "admin" shortcut — would be another way to move the jackpot's money, and
+    # it would not necessarily be signed by the authority PDA.
+    call_sites = [n + "::" + c + "::" + f
+                  for n, text in sources.items()
+                  for c, f in re.findall(
+                      r"(xmrj_[a-z_]+)::cpi::([a-z_][a-z0-9_]*)\s*\(", text)
+                  if f == PAYOUT_IX]
+    if call_sites != ["xmrj_governance::xmrj_jackpot::" + PAYOUT_IX]:
+        problems["one_path"] = {"call_sites": call_sites}
+    return problems
+
+
+_payout_bad = _payout_path_problems(src)
+check("12.14 A FUNDED JACKPOT CAN BE PAID — through an approved proposal and "
+      "through nothing else (finding F1): trigger_payout demands the state's "
+      "admin authority as a SIGNER and compares it with what the state "
+      "records; the jackpot DERIVES that authority as the governance authority "
+      "PDA under the pinned governance id; governance carries a TriggerPayout "
+      "variant whose arm CPIs into trigger_payout, builds the callee's "
+      "accounts, passes that PDA as the admin authority and signs with its "
+      "seeds — and EXACTLY ONE call site in the workspace reaches the "
+      "instruction, so there is no second, off-path way to pay the jackpot",
+      not _payout_bad, _payout_bad)
+
+_payout_mutations = [
+    ("the payout variant removed from the enum",
+     {"xmrj_governance": GOV.replace(
+         "    TriggerPayout { winner: Pubkey, amount_xmr: u64 },",
+         "    SetSplitRatio { reserve_bps: u64, jackpot_bps: u64 },", 1)}),
+    ("the handler arm removed",
+     {"xmrj_governance": _drop_arm(GOV, PAYOUT_VARIANT)}),
+    ("the arm's CPI left unsigned",
+     {"xmrj_governance": GOV.replace(
+         _arm_block(GOV, PAYOUT_VARIANT) or "\0",
+         (_arm_block(GOV, PAYOUT_VARIANT) or "\0").replace(
+             "authority_seeds,", "", 1), 1)}),
+    # Scoped to the payout ARM, not to the file: `admin_authority:
+    # ctx.accounts.governance_authority.to_account_info()` is the same line in
+    # every parameter arm, so an unscoped replacement would corrupt an earlier
+    # arm and leave the payout one correct — a fixture that proves nothing.
+    ("the arm pointing the authority at the jackpot's own state",
+     {"xmrj_governance": GOV.replace(
+         _arm_block(GOV, PAYOUT_VARIANT) or "\0",
+         (_arm_block(GOV, PAYOUT_VARIANT) or "\0").replace(
+             "admin_authority: ctx.accounts.governance_authority"
+             ".to_account_info()",
+             "admin_authority: ctx.accounts.jackpot_state.to_account_info()",
+             1), 1)}),
+    ("a SECOND call site added (an off-path payout)",
+     {"xmrj_treasury": TRE + "\nfn off_path(a: u64) { let _ = "
+      "xmrj_jackpot::cpi::" + PAYOUT_IX + "(a); }"}),
+    ("the callee's signer demand dropped",
+     {"xmrj_jackpot": JAC.replace(
+         "#[account(signer)]\n    pub admin_authority: AccountInfo<'info>,",
+         "pub admin_authority: AccountInfo<'info>,", 1),}),
+    ("the callee's authority no longer derived under the governance id",
+     {"xmrj_jackpot": JAC.replace("seeds::program = GOVERNANCE_PROGRAM_ID,",
+                                  "", 1)}),
+    ("the callee's key comparison removed",
+     {"xmrj_jackpot": JAC.replace(
+         "ctx.accounts.admin_authority.key() == state.admin_authority",
+         "ctx.accounts.admin_authority.key() != Pubkey::default()", 1)}),
+]
+_missed_payout = []
+for why, override in _payout_mutations:
+    mutated = dict(src)
+    mutated.update(override)
+    if all(mutated[k] == src[k] for k in override):
+        _missed_payout.append((why, "mutation did not apply — fixture is stale"))
+    elif not _payout_path_problems(mutated):
+        _missed_payout.append((why, "the predicate found nothing wrong"))
+check("12.15 RED-FIRST on the payout path: eight mutations — the variant "
+      "removed, the handler arm removed, the CPI left unsigned, the authority "
+      "pointed at the wrong account, a SECOND call site added, the callee's "
+      "signer demand dropped, its authority derivation un-pinned from the "
+      "governance id, and its key comparison removed — each trip the SAME "
+      "predicate the real sources just passed through",
+      not _missed_payout, _missed_payout)
+
+# ── 12.16/12.17 PROPOSALS BY ID — a governance state that can act twice ──
+# The proposal PDA used to be ["proposal", governance_state] with `init`, so a
+# deployed governance state could execute EXACTLY ONE action and then never
+# propose again: a parameter that can be set once and never corrected (finding
+# F5). The fix is an id: ["proposal", governance_state, proposal_id], with the
+# id required to be the NEXT one in the state's own count, so ids cannot be
+# reused or skipped and the order proposals were made in is recorded rather
+# than implied.
+def _proposal_sequence_problems(governance_src):
+    """{problem: detail} unless every proposal has an id of its own."""
+    problems = {}
+    if not re.search(r"#\[account\]\s*pub struct GovernanceState\s*\{[^}]*"
+                     r"pub\s+proposal_count\s*:\s*u64", governance_src, re.S):
+        problems["no_counter"] = (
+            "GovernanceState does not record proposal_count, so nothing knows "
+            "which id is next")
+    if not re.search(r"pub fn propose_action\(\s*ctx:\s*Context<ProposeAction>"
+                     r"\s*,\s*proposal_id:\s*u64\s*,", governance_src):
+        problems["no_param"] = (
+            "propose_action does not take a proposal_id, so a second proposal "
+            "would compete for the first one's address")
+    propose_struct = _block_after(governance_src,
+                                  "pub struct ProposeAction<'info>") or ""
+    # The attribute sits ABOVE the struct, so it is matched on the source with
+    # the declaration it belongs to rather than inside the struct's braces.
+    if not re.search(r"#\[instruction\(proposal_id: u64\)\]\s*"
+                     r"pub struct ProposeAction", governance_src):
+        problems["no_instruction_attr"] = (
+            "ProposeAction carries no `#[instruction(proposal_id: u64)]`, so the "
+            "account derive cannot build seeds from the id")
+    for struct_name in ("ProposeAction", "ApproveAction", "ExecuteAction"):
+        body = _block_after(governance_src,
+                            "pub struct " + struct_name + "<'info>") or ""
+        if not re.search(r"seeds\s*=\s*\[[^\]]*"
+                         r"governance_state\.key\(\)\.as_ref\(\)[^\]]*"
+                         r"proposal_id\.to_le_bytes\(\)\.as_ref\(\)",
+                         body, re.S):
+            problems["seeds:" + struct_name] = (
+                struct_name + " does not derive the proposal from [literal, "
+                "governance_state, proposal_id], so a lookup by id would find "
+                "the wrong account or none")
+    if not re.search(r"proposal_id\s*==\s*state\.proposal_count",
+                     governance_src):
+        problems["no_sequence"] = (
+            "propose_action does not require the id to BE the next one in the "
+            "sequence, so ids could be reused or skipped")
+    if not re.search(r"state\.proposal_count\s*=\s*state\s*\.\s*proposal_count"
+                     r"\s*\.checked_add\(1\)", governance_src):
+        problems["no_increment"] = (
+            "proposal_count is never incremented, so the state could never "
+            "accept a second proposal")
+    if not re.search(r"#\[account\]\s*pub struct Proposal\s*\{[^}]*"
+                     r"pub\s+proposal_id\s*:\s*u64", governance_src, re.S):
+        problems["not_stored"] = (
+            "the Proposal account does not record its own id, so it cannot say "
+            "which id it is")
+    checked = len(re.findall(r"proposal\.proposal_id\s*==\s*proposal_id",
+                             governance_src))
+    if checked < 2:
+        problems["id_checked"] = (
+            "approve_action and execute_action do not BOTH re-check the id "
+            "against the account they were handed (found " + str(checked) + ")")
+    space = re.search(r"pub const PROPOSAL_SPACE:\s*usize\s*=\s*([0-9+*() A-Z_]+);",
+                      governance_src)
+    action_len = re.search(r"pub const MAX_ACTION_LEN:\s*usize\s*=\s*([0-9+*() ]+);",
+                           governance_src)
+    if "space = PROPOSAL_SPACE" not in propose_struct:
+        problems["space"] = (
+            "the proposal account is not sized from PROPOSAL_SPACE: a round "
+            "number would be too small the day a variant grows")
+    elif not (space and action_len):
+        problems["space_const"] = "PROPOSAL_SPACE / MAX_ACTION_LEN not found"
+    else:
+        try:
+            largest = _sum_terms(action_len.group(1))
+            total = _sum_terms(space.group(1).replace("MAX_ACTION_LEN",
+                                                      str(largest)))
+        except ValueError:
+            problems["space_const"] = space.group(1)
+        else:
+            # 8 discriminator + 8 id + the largest variant + approvals +
+            # executed. The largest variant today is TriggerPayout: a 1-byte
+            # discriminant, a 32-byte key and a u64.
+            if largest < 1 + 32 + 8 or total < 8 + 8 + largest + 1 + 1:
+                problems["space_too_small"] = {"MAX_ACTION_LEN": largest,
+                                               "PROPOSAL_SPACE": total}
+    return problems
+
+
+_proposal_bad = _proposal_sequence_problems(GOV)
+check("12.16 EVERY PROPOSAL HAS AN ID OF ITS OWN (finding F5): GovernanceState "
+      "counts proposals, propose_action takes the id and requires it to BE the "
+      "next one in that count, the count is incremented so the state can accept "
+      "another, all three instructions derive the same three-seed PDA "
+      "[literal, governance_state, proposal_id], the id is re-checked against "
+      "the account in BOTH approve and execute, and the account is sized from "
+      "the largest action variant rather than a round number",
+      not _proposal_bad, _proposal_bad)
+
+_proposal_mutations = [
+    ("the id dropped from the proposal PDA's seeds",
+     GOV.replace("proposal_id.to_le_bytes().as_ref()", "", 1)),
+    ("the sequence check loosened to accept any id",
+     GOV.replace("proposal_id == state.proposal_count", "proposal_id >= 0", 1)),
+    ("the counter never incremented",
+     GOV.replace(".checked_add(1)", ".checked_add(0)", 1)),
+    ("the stored id no longer checked in approve/execute",
+     GOV.replace("proposal.proposal_id == proposal_id",
+                 "proposal.proposal_id >= 0")),
+    ("the proposal account sized from a round number again",
+     GOV.replace("space = PROPOSAL_SPACE", "space = 8 + 64", 1)),
+    ("the id argument removed from propose_action",
+     GOV.replace("proposal_id: u64,\n        action: GovernanceAction,",
+                 "action: GovernanceAction,", 1)),
+]
+_missed_proposal = []
+for why, mutant in _proposal_mutations:
+    if mutant == GOV:
+        _missed_proposal.append((why, "mutation did not apply — fixture is stale"))
+    elif not _proposal_sequence_problems(mutant):
+        _missed_proposal.append((why, "the predicate found nothing wrong"))
+check("12.17 RED-FIRST on the proposal id sequence: six mutations — the id "
+      "dropped from the seeds, the sequence check loosened, the counter never "
+      "incremented, the stored id no longer re-checked, the account sized from "
+      "a round number, and the id argument removed — each trip the SAME "
+      "predicate the real source just passed through",
+      not _missed_proposal, _missed_proposal)
+
 # ── 13. the toolchain pins: five values, one fact ────────────────────────
 # Moving off Anchor 0.30 is the kind of change that gets HALF applied — a crate
 # on a new anchor-lang while the CLI stays old, a rust-toolchain.toml that says
@@ -1385,10 +1758,13 @@ def _toolchain_pin_problems(manifest, crates, rusttc, plan_text):
     # anchor_version: an exact three-part version, no range operator.
     if not re.match(r"^\d+\.\d+\.\d+$", anchor_pin):
         problems["anchor_version"] = anchor_pin
-    # solana_version: the EXACT comparator. AVM parses this value as a semver
-    # requirement and takes the newest hosted CLI satisfying it, so a bare
-    # "3.1.10" is a floor that moves, not a pin.
-    if not re.match(r"^=\d+\.\d+\.\d+$", solana_pin):
+    # solana_version: an exact three-part version too — and NOT a comparator.
+    # AVM would accept a `=` requirement on this key, but the anchor CLI is the
+    # reader that runs the build, and it parses the value as a plain version:
+    # `=3.1.10` stops the build outright ("unexpected character '=' while
+    # parsing major version number", anchor-cli 1.1.2). A floor written as
+    # "3.1" or "^3.1.10" drifts and is caught here as well.
+    if not re.match(r"^\d+\.\d+\.\d+$", solana_pin):
         problems["solana_version"] = solana_pin
     channel = str(((rusttc.get("toolchain") or {}).get("channel")) or "").strip()
     if not re.match(r"^\d+\.\d+\.\d+$", channel) or channel in FLOATING_RUST:
@@ -1422,10 +1798,11 @@ except Exception as exc:                                    # noqa: BLE001
 _pin_problems = _toolchain_pin_problems(cfg, _manifests, _rusttc, read(PLAN))
 _pin_ver = {k: v for k, v in _pin_problems.items()
             if k in ("anchor_version", "solana_version")}
-check("13.1 Anchor.toml [toolchain] pins anchor_version as an exact three-part "
-      "version and solana_version with the `=` comparator (AVM reads that value "
-      "as a semver REQUIREMENT: a bare 3.1.10 would accept any newer hosted "
-      "3.x — a floor that moves, not a pin)",
+check("13.1 Anchor.toml [toolchain] pins BOTH anchor_version and solana_version "
+      "as exact three-part versions, with no comparator and no range (a `=` on "
+      "solana_version is what AVM would accept but anchor-cli 1.1.2 refuses — "
+      "its build parses that key as a plain version and dies before compiling; "
+      "a floor like 3.1 or ^3.1.10 drifts, and is caught here too)",
       not _pin_ver, _pin_ver)
 check("13.2 rust-toolchain.toml pins an exact Rust channel instead of a floating "
       "one (rustup applies it to every cargo/rustc run beneath this directory, "
@@ -1452,8 +1829,8 @@ _mutations = [
     ("anchor_version bumped in the manifest only",
      {"toolchain": dict(cfg.get("toolchain") or {}, anchor_version="1.2.1")},
      _rusttc, read(PLAN), "anchor-lang:"),
-    ("solana_version without the exact comparator",
-     {"toolchain": dict(cfg.get("toolchain") or {}, solana_version="3.1.10")},
+    ("solana_version written as a floating major.minor floor",
+     {"toolchain": dict(cfg.get("toolchain") or {}, solana_version="3.1")},
      _rusttc, read(PLAN), "solana_version"),
     ("rust-toolchain.toml on the floating channel",
      cfg, {"toolchain": {"channel": "stable", "profile": "minimal"}},
@@ -1474,13 +1851,14 @@ _missed = [(why, want) for why, manifest, rusttc, plan, want in _mutations
                _toolchain_pin_problems(manifest, _manifests, rusttc, plan),
                want)]
 check("13.5 RED-FIRST on the pins: each of the four mutations this section exists "
-      "to catch — a manifest-only anchor bump, a Solana version without the "
-      "exact comparator, a floating Rust channel, a plan that still installs "
+      "to catch — a manifest-only anchor bump, a Solana version written as a "
+      "floating floor, a floating Rust channel, a plan that still installs "
       "the `stable` channel — trips the SAME predicate the real artifacts just "
       "passed through",
       not _missed, _missed)
 
 passed = sum(1 for ok, _, _ in results if ok)
 failed = len(results) - passed
-print(f"RESULT: {passed} passed, {failed} failed")
+print(f"RESULT: {passed} passed, {failed} failed"
+      + (f", {skipped} skipped" if skipped else ""))
 sys.exit(1 if failed else 0)

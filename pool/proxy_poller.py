@@ -5,7 +5,6 @@ share submissions per miner, feeding data into the jackpot engine.
 xmrig-proxy must be configured with HTTP API enabled on port 9090.
 Each miner connects with: wallet_address.worker_name as their username.
 """
-import os
 import sys
 import time
 import json
@@ -16,6 +15,17 @@ sys.path.insert(0, str(Path(__file__).parent))
 
 import database as db
 import jackpot_engine as engine
+# THE PROXY KNOBS, ONE CHAIN (Oct 30): every reader of the operator's
+# proxy-API secrets resolves through pool/operator_config now — the
+# token env > token file > proxy config > db setting, and the base URL
+# env > loopback. This poller used to carry its own chain (db token
+# first, and a module-global CACHE that froze the token at poller start):
+# the fold ends both, so a rotation lands on the next poll cycle here
+# the same way it does in the server's scanner loop and the engine.
+import operator_config  # noqa: E402  (the pool tree is on sys.path above)
+
+PROXY_API = operator_config.proxy_api_base()
+POLL_INTERVAL = 10  # seconds
 # THE PUSH SPOOL'S READER (Oct 7, RESOLVED_WIRE): one brain, imported
 # at the top — the drain calls below name the same module the server's
 # live loop uses, so release bookkeeping is identical either way.
@@ -24,43 +34,12 @@ try:                                    # real MinerYield for the funding
     import miner_yield                  # formula (fail-soft — the poller's
 except Exception:                       # ticket/shares duties never depend
     miner_yield = None                  # on it)
-
-PROXY_API = "http://127.0.0.1:9090"
-# THE TOKEN (review triage, Sep 25): the bearer token is a LOCAL-only
-# shared secret for the loopback API, not a credential with reach —
-# but it still does not belong in source. Settings first, then the
-# proxy_config.json the proxy actually reads, then the legacy literal
-# as the last resort so an unconfigured box keeps working.
-PROXY_TOKEN = None  # resolved lazily by _token() below
-POLL_INTERVAL = 10  # seconds
-
-
-def _token():
-    global PROXY_TOKEN
-    if PROXY_TOKEN:
-        return PROXY_TOKEN
-    try:
-        import database as _db
-        v = str(_db.get_setting("PROXY_API_TOKEN", "") or "")
-        if v:
-            PROXY_TOKEN = v
-            return v
-    except Exception:
-        pass
-    try:
-        cfg = json.loads(Path(__file__).resolve().parent.parent.joinpath(
-            "monero", "proxy_config.json").read_text(encoding="utf-8"))
-        v = str(((cfg.get("http") or {}).get("access-token")) or "")
-        if v:
-            PROXY_TOKEN = v
-            return v
-    except Exception:
-        pass
-    # (second triage, Sep 25 evening batch: the legacy literal is NOT
-    # cached — a transient failure at first resolution must not freeze
-    # it for the life of the process; the next call retries settings)
-    return "xmrjackpot2026"   # legacy default, last resort
-
+# PHASE F: the lifecycle brain (same package coverage as miner_yield —
+# telemetry must never be the reason share tracking stops).
+try:
+    import scout_lifecycle as lifecycle
+except Exception:
+    lifecycle = None
 
 def _api_get(path):
     """One HTTP brain for the proxy API (token, timeout, errors)."""
@@ -69,7 +48,9 @@ def _api_get(path):
             f"{PROXY_API}{path}",
             headers={
                 "User-Agent": "Mozilla/5.0",
-                "Authorization": f"Bearer {_token()}",
+                # resolved per request by the ONE reader's order, so a
+                # rotation lands on the next poll cycle without a restart
+                "Authorization": f"Bearer {operator_config.proxy_token()}",
             },
         )
         with urllib.request.urlopen(req, timeout=5) as resp:
@@ -171,6 +152,14 @@ def update_workers(workers):
             delta_invalid = int(w["shares_invalid"])
         else:
             delta_invalid = int(w["shares_invalid"]) - prev_invalid
+
+        # PHASE F: this row is proof the wallet authed at the stratum, and a
+        # positive delta is proof it produced work. Reported even when the
+        # delta is zero (a connected-but-idle rig is CONNECTED, not
+        # invisible); record() is fail-soft by contract.
+        if lifecycle is not None:
+            lifecycle.record(wallet=w["wallet_address"], connected=True,
+                             valid=delta_valid, invalid=delta_invalid)
 
         if delta_valid > 0 or delta_invalid > 0:
             # Update stats

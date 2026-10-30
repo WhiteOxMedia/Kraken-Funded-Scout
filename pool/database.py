@@ -2,6 +2,7 @@
 Database models for the XMR Daily Jackpot Pool.
 SQLite database stores: miners, shares, tickets, drawings, payouts.
 """
+import os
 import sqlite3
 import time
 import json
@@ -69,6 +70,7 @@ def init_db():
                 cost_xmr REAL DEFAULT 0,
                 drawing_id INTEGER,
                 created_at REAL DEFAULT (strftime('%s','now')),
+                source TEXT DEFAULT '',
                 FOREIGN KEY (miner_id) REFERENCES miners(id),
                 FOREIGN KEY (drawing_id) REFERENCES drawings(id)
             );
@@ -209,9 +211,21 @@ def init_db():
                 total_shares_lifetime INTEGER DEFAULT 0,
                 badges_earned TEXT DEFAULT '[]',
                 super_tickets INTEGER DEFAULT 0,
+                ticket_units INTEGER DEFAULT 0,
+                streak_milestones INTEGER DEFAULT 0,
+                jackpot_days INTEGER DEFAULT 0,
+                last_jackpot_day TEXT,
                 FOREIGN KEY (miner_id) REFERENCES miners(id)
             );
         """)
+
+        # OPERATOR ADDRESSES COME FROM THE DEPLOYMENT (Oct 25). These were
+        # hard-coded receive addresses in source; an address is an operator
+        # identifier and must not live in a repo that can be cloned or
+        # packaged. Unset means empty (payout refuses loudly) rather than a
+        # silent default somebody else chose.
+        house_wallet = os.environ.get("XMRJ_HOUSE_WALLET", "")
+        kraken_deposit = os.environ.get("XMRJ_KRAKEN_DEPOSIT_ADDRESS", "")
 
         # Initialize default settings
         defaults = {
@@ -222,10 +236,16 @@ def init_db():
             "paid_spin_tickets": "1",
             "drawing_interval_hours": "24",
             "min_jackpot_xmr": "0.01",
-            "house_wallet": "86NjWuTLKm7eggeGw9PZ5LjFDZTHUtAQtWs7Bbu783yYfDRqSd6itapDek39rySHWCax6fnDAKQQXLiieRtRqvzCPeqTxkG",
+            "house_wallet": house_wallet,
             "upstream_pool": "pool.supportxmr.com:3333",
             "jackpot_balance": "0",
-            "kraken_deposit_address": "86NjWuTLKm7eggeGw9PZ5LjFDZTHUtAQtWs7Bbu783yYfDRqSd6itapDek39rySHWCax6fnDAKQQXLiieRtRqvzCPeqTxkG",
+            # WHO FUNDED THE BASE (Oct 26): the two counters behind the
+            # admin pot card's accrual-vs-received line. Derived state —
+            # the engine reconciles them to jackpot_balance on read, so a
+            # stale or missing value can only mislabel the split.
+            "jackpot_src_accrual": "0",
+            "jackpot_src_received": "0",
+            "kraken_deposit_address": kraken_deposit,
             "payout_threshold_xmr": "0.01",
             "transfer_fee_buffer_xmr": "0.0001",
             "house_tax_accumulated": "0",
@@ -233,8 +253,18 @@ def init_db():
             "jackpot_seed_xmr": "0.05",
             "signup_bonus_xmr": "0.003",
             "referral_ticket_reward": "100",
+            "referral_cycle_cap": "10",
             "kraken_withdrawal_fee_xmr": "0.0027",
             "claim_window_days": "7",
+            # THE STREAK BONUS (Oct 24): on a streak-milestone day the
+            # tickets mined that day convert at 3x. It never touches the
+            # miner's hashrate — only the jackpot side of the pool.
+            "streak_bonus_every_days": "7",
+            "streak_bonus_multiplier": "3",
+            # THE PROGRESSION UNLOCK: days on which the mining bot
+            # actually contributed to the jackpot pool. 100 of them
+            # unlock Kraken Scout Pro and award the +1 unlock entry.
+            "pro_unlock_days": "100",
         }
         for key, value in defaults.items():
             conn.execute(
@@ -256,6 +286,67 @@ def init_db():
             conn.execute("ALTER TABLE drawings ADD COLUMN claimed_at REAL")
         if "winner_wallet" not in cols:
             conn.execute("ALTER TABLE drawings ADD COLUMN winner_wallet TEXT")
+        if "claim_leased_at" not in cols:
+            # THE CLAIM LEASE (Oct 28): epoch when a claim reserved the
+            # drawing.(NULL = no lease.) A lease is young property: a
+            # live claim finishes in seconds, so any lease older than
+            # the steal window means a claimant died mid-flight and the
+            # drawing returns to the pool's book.
+            conn.execute(
+                "ALTER TABLE drawings ADD COLUMN claim_leased_at REAL")
+
+        # ─── THE SAME-COIN PAYOUT COLUMNS (Oct 28) ───
+        # Every money row carries the coin it was denominated in.
+        # 'xmr' is the default and the past: a NULL/new row is an
+        # XMR-denominated row, so every existing drawing and payout
+        # keeps meaning exactly what it meant before. A 'vrsc' row was
+        # PAID IN VERUS — the winner's coin decides it (see
+        # process_winner_claim), and amount_coin carries the quantity
+        # of that coin the prize was denominated in while amount_xmr
+        # keeps its XMR-equivalent (the books stay in one unit).
+        if "coin" not in cols:
+            conn.execute(
+                "ALTER TABLE drawings ADD COLUMN coin TEXT DEFAULT 'xmr'")
+        pcols = {r["name"] for r in conn.execute("PRAGMA table_info(payouts)")}
+        if "coin" not in pcols:
+            conn.execute(
+                "ALTER TABLE payouts ADD COLUMN coin TEXT DEFAULT 'xmr'")
+        if "amount_coin" not in pcols:
+            conn.execute(
+                "ALTER TABLE payouts ADD COLUMN amount_coin REAL")
+
+        # ─── THE FX-AT-MINT COLUMNS (Oct 28) ───
+        # A same-coin row records WHICH rates priced it — fx_xmr_usd
+        # and fx_vrsc_usd, captured at mint time — so reconciliation
+        # can reprice amount_coin from the row itself and name the
+        # exact book the treasury was charged against. NULL fx on an
+        # 'xmr' row is the honest shape: the XMR leg pays face value
+        # and priced nothing.
+        if "fx_xmr_usd" not in pcols:
+            conn.execute(
+                "ALTER TABLE payouts ADD COLUMN fx_xmr_usd REAL")
+        if "fx_vrsc_usd" not in pcols:
+            conn.execute(
+                "ALTER TABLE payouts ADD COLUMN fx_vrsc_usd REAL")
+
+        # ─── THE DEMO FLAG (Oct 24 full-disclosure pass) ───
+        # seed_demo.py fills the pool with simulated miners so a fresh
+        # install is not an empty page. The stats and the leaderboard
+        # then look like activity that does not exist. This flag is how
+        # the UI can SAY which rows are simulated instead of passing
+        # them off as real miners; the demo liveness refresher in
+        # server.py also only touches flagged rows.
+        mcols = {r["name"] for r in conn.execute("PRAGMA table_info(miners)")}
+        if "is_demo" not in mcols:
+            conn.execute(
+                "ALTER TABLE miners ADD COLUMN is_demo INTEGER DEFAULT 0")
+        # THE MINER'S OWN COIN (Oct 28): which coin this miner bot MINES
+        # — set by the Verus relay path ('vrsc'); every other origin is
+        # Monero ('xmr'). The drawing-side payout branch reads THIS to
+        # decide the coin a win pays in.
+        if "coin" not in mcols:
+            conn.execute(
+                "ALTER TABLE miners ADD COLUMN coin TEXT DEFAULT 'xmr'")
 
         # ─── Users table migrations ───
         ucols = {r["name"] for r in conn.execute("PRAGMA table_info(users)")}
@@ -483,6 +574,175 @@ def init_db():
         if "scout_pro_until" not in cols:
             conn.execute(
                 "ALTER TABLE users ADD COLUMN scout_pro_until REAL DEFAULT 0")
+        # The two unlock paths (Oct 24): a progression unlock is lifetime
+        # (scout_pro_lifetime=1), a checkout grant is time-boxed in
+        # scout_pro_until. The unlock entry is awarded at most once.
+        for _col, _ddl in (
+            ("scout_pro_lifetime",
+             "ALTER TABLE users ADD COLUMN scout_pro_lifetime INTEGER DEFAULT 0"),
+            ("scout_pro_unlock_source",
+             "ALTER TABLE users ADD COLUMN scout_pro_unlock_source TEXT DEFAULT ''"),
+            ("scout_pro_unlocked_at",
+             "ALTER TABLE users ADD COLUMN scout_pro_unlocked_at REAL DEFAULT 0"),
+            ("scout_pro_entry_awarded",
+             "ALTER TABLE users ADD COLUMN scout_pro_entry_awarded INTEGER DEFAULT 0"),
+            # Held unlock entries (Oct 24): an unlock entry is a ticket,
+            # a ticket is owned by a miner, and a miner is owned by a
+            # payout wallet. An account with no wallet yet keeps its
+            # entry HERE instead of losing it — claim_pending_entries()
+            # mints the real ticket as soon as a wallet is attached.
+            ("pending_entries",
+             "ALTER TABLE users ADD COLUMN pending_entries INTEGER DEFAULT 0"),
+            # Referral entries (Oct 25): a referral pays ONE ENTRY TO EACH
+            # SIDE at signup and never pot money. A side with no payout
+            # wallet yet keeps its entry HERE instead of losing it —
+            # claim_referral_entries() mints the ticket when a wallet
+            # lands, the same deal unlock entries get.
+            ("pending_referral_entries",
+             "ALTER TABLE users ADD COLUMN pending_referral_entries "
+             "INTEGER DEFAULT 0"),
+        ):
+            if _col not in cols:
+                conn.execute(_ddl)
+
+        # ─── The referral ledger (Oct 25) ───
+        # One row per referred account EVER (UNIQUE), so a referral pays
+        # once no matter how many times the signup path reaches it.
+        # cycle_anchor is the drawn_at of the last completed drawing at
+        # award time — the boundary the per-cycle cap counts against.
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS referral_awards (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                referrer_id INTEGER NOT NULL,
+                referred_user_id INTEGER NOT NULL UNIQUE,
+                method TEXT NOT NULL DEFAULT 'email',
+                cycle_anchor INTEGER NOT NULL DEFAULT 0,
+                tickets INTEGER NOT NULL DEFAULT 0,
+                referrer_granted INTEGER NOT NULL DEFAULT 0,
+                referred_granted INTEGER NOT NULL DEFAULT 0,
+                created_at INTEGER NOT NULL DEFAULT (strftime('%s','now'))
+            )
+            """)
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_referral_awards_cycle "
+            "ON referral_awards(referrer_id, cycle_anchor)")
+
+        # ─── The XMRJ referral accrual (Oct 25) ───
+        # The INTERNAL programme's coin reward. There is no XMRJ token to
+        # move: the XMRJ treasury program (Anchor source only, nothing
+        # deployed on any cluster) books XMRJ as a u64 in its state PDA via
+        # record_inflow_xmrj, and no mint exists anywhere. So an award is
+        # ACCRUED here — the amount, the referrer, the Solana wallet the
+        # pool knows at read time — and is payable when the treasury is
+        # deployed. UNIQUE per referred account: one friend, one award.
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS referral_xmrj_awards (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                referrer_id INTEGER NOT NULL,
+                referred_user_id INTEGER NOT NULL UNIQUE,
+                amount INTEGER NOT NULL DEFAULT 0,
+                solana_wallet TEXT NOT NULL DEFAULT '',
+                status TEXT NOT NULL DEFAULT 'accrued',
+                created_at INTEGER NOT NULL DEFAULT (strftime('%s','now'))
+            )
+            """)
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_referral_xmrj_referrer "
+            "ON referral_xmrj_awards(referrer_id)")
+
+        # ─── Kraken payouts the operator records into the pot (Oct 25) ───
+        # Kraken pays a referral bonus into the AFFILIATE's Kraken account,
+        # never into the pool. The operator records the payout by hand; the
+        # pool keeps its share (kraken_pool_share_pct, default 50) and the
+        # referrer keeps the rest from Kraken directly. UNIQUE per referred
+        # account per month, so a re-run cannot credit the pot twice.
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS kraken_referral_payouts (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                referred_user_id INTEGER NOT NULL,
+                referrer_id INTEGER NOT NULL,
+                gross_usd REAL NOT NULL,
+                pool_usd REAL NOT NULL,
+                pct INTEGER NOT NULL,
+                period TEXT NOT NULL,
+                ledger_id INTEGER,
+                note TEXT NOT NULL DEFAULT '',
+                created_at INTEGER NOT NULL DEFAULT (strftime('%s','now')),
+                UNIQUE (referred_user_id, period)
+            )
+            """)
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_kraken_payouts_referrer "
+            "ON kraken_referral_payouts(referrer_id, created_at)")
+
+        # ─── THE DONATION ORDER KEY (Oct 26) ───
+        # Idempotency for Scout Pro donation crediting used to be a scan of
+        # jackpot_funding's settings-backed ledger — one JSON value capped
+        # at LEDGER_MAX_ROWS (2000) and rewritten on every write. Once an
+        # old order's receipt aged out of that cap, a replayed status poll
+        # funded the pot a second time. This table is the key instead: one
+        # row per order id, never pruned, and the INSERT is the claim. The
+        # credit is written in the SAME transaction as the claim (callers
+        # pass their get_db() connection in), so a crash between them
+        # rolls both back rather than leaving money with no key, or a key
+        # with no money.
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS donation_credits (
+                order_id TEXT PRIMARY KEY,
+                amount_xmr REAL NOT NULL DEFAULT 0,
+                jackpot_xmr REAL NOT NULL DEFAULT 0,
+                treasury_xmr REAL NOT NULL DEFAULT 0,
+                sponsor_id TEXT,
+                source TEXT,
+                base_xmr REAL,
+                credited_at REAL DEFAULT (strftime('%s','now'))
+            )
+            """)
+
+        # ─── Ticket provenance (Oct 24) ───
+        tcols = {r["name"] for r in conn.execute(
+            "PRAGMA table_info(tickets)")}
+        if "source" not in tcols:
+            conn.execute(
+                "ALTER TABLE tickets ADD COLUMN source TEXT DEFAULT ''")
+
+        # ─── Miner progression columns (Oct 24) ───
+        xcols = {r["name"] for r in conn.execute(
+            "PRAGMA table_info(miner_xp)")}
+        for _col, _ddl in (
+            ("ticket_units",
+             "ALTER TABLE miner_xp ADD COLUMN ticket_units INTEGER DEFAULT 0"),
+            ("streak_milestones",
+             "ALTER TABLE miner_xp ADD COLUMN streak_milestones INTEGER DEFAULT 0"),
+            ("jackpot_days",
+             "ALTER TABLE miner_xp ADD COLUMN jackpot_days INTEGER DEFAULT 0"),
+            ("last_jackpot_day",
+             "ALTER TABLE miner_xp ADD COLUMN last_jackpot_day TEXT"),
+        ):
+            if _col not in xcols:
+                conn.execute(_ddl)
+
+    _init_scout_lifecycle()
+
+
+def _init_scout_lifecycle() -> None:
+    """Scout lifecycle table (Phase F) plus the idempotent backfill.
+
+    Runs on its OWN connection AFTER the main init transaction commits:
+    the backfill writes, so sharing init_db's open write transaction would
+    wait on itself. Fail-soft — a telemetry table that cannot be created
+    must never stop the pool from booting, but it must be loud.
+    """
+    try:
+        import scout_lifecycle as _life
+        _life.ensure_schema()
+        _life.backfill()
+    except Exception as _e:            # noqa: BLE001 — boot must survive
+        print(f"[DB] scout lifecycle not initialised: {_e}")
 
 
 def encrypt_existing_pii() -> dict:
@@ -606,19 +866,27 @@ def reencrypt_pii() -> dict:
     return {"rows_resealed": resealed}
 
 
-def get_setting(key, default=None):
-    with get_db() as conn:
+def get_setting(key, default=None, conn=None):
+    # `conn` joins the caller's OPEN transaction (Oct 26): a credit that
+    # must commit its balance with its claim cannot open a second
+    # connection — SQLite would block it on the writer lock.
+    if conn is not None:
         row = conn.execute("SELECT value FROM settings WHERE key = ?", (key,)).fetchone()
+        return row["value"] if row else default
+    with get_db() as c:
+        row = c.execute("SELECT value FROM settings WHERE key = ?", (key,)).fetchone()
         return row["value"] if row else default
 
 
-def set_setting(key, value):
-    with get_db() as conn:
-        conn.execute(
-            "INSERT INTO settings (key, value) VALUES (?, ?) "
-            "ON CONFLICT(key) DO UPDATE SET value = ?",
-            (key, str(value), str(value)),
-        )
+def set_setting(key, value, conn=None):
+    sql = ("INSERT INTO settings (key, value) VALUES (?, ?) "
+           "ON CONFLICT(key) DO UPDATE SET value = ?")
+    args = (key, str(value), str(value))
+    if conn is not None:
+        conn.execute(sql, args)
+        return
+    with get_db() as c:
+        c.execute(sql, args)
 
 
 def safe_pos_int(raw, fallback=100):
@@ -651,6 +919,23 @@ def get_or_create_miner(wallet_address, worker_name=""):
         return dict(row)
 
 
+def get_miner_by_wallet(wallet_address):
+    """READ-ONLY miner lookup by WALLET: no mint. The poll routes use
+    this instead of get_or_create_miner because every unauthenticated
+    reader polling a wallet that has not yet submitted a share was
+    minting a zombie miners row every poll cycle (Oct 29: the R111
+    playtest resurrect loop came straight through here).
+
+    NAMED get_miner_by_wallet, not get_miner: get_miner(miner_id)
+    already exists below (jackpot_engine's winner lookup), and a
+    duplicate name silently shadowed one side of it."""
+    with get_db() as conn:
+        row = conn.execute(
+            "SELECT * FROM miners WHERE wallet_address = ?", (wallet_address,)
+        ).fetchone()
+        return dict(row) if row else None
+
+
 def update_miner_stats(wallet_address, shares_valid=0, shares_invalid=0, hashrate=0):
     with get_db() as conn:
         conn.execute(
@@ -665,12 +950,17 @@ def update_miner_stats(wallet_address, shares_valid=0, shares_invalid=0, hashrat
         )
 
 
-def add_tickets(miner_id, ticket_type, count, cost_xmr=0, drawing_id=None):
+def add_tickets(miner_id, ticket_type, count, cost_xmr=0, drawing_id=None,
+                source=""):
+    """Mint tickets. `source` separates granted entries (an unlock
+    reward) from shares-converted ones, so a granted ticket never eats
+    the next share conversion."""
     with get_db() as conn:
         for _ in range(count):
             conn.execute(
-                "INSERT INTO tickets (miner_id, ticket_type, cost_xmr, drawing_id) VALUES (?, ?, ?, ?)",
-                (miner_id, ticket_type, cost_xmr, drawing_id),
+                "INSERT INTO tickets (miner_id, ticket_type, cost_xmr, "
+                "drawing_id, source) VALUES (?, ?, ?, ?, ?)",
+                (miner_id, ticket_type, cost_xmr, drawing_id, source),
             )
 
 
@@ -789,22 +1079,132 @@ def set_drawing_winner_wallet(drawing_id, wallet_address):
         )
 
 
-def claim_drawing(drawing_id, wallet_address):
-    """Mark a drawing as claimed by the winner."""
+def set_miner_coin(wallet_address, coin):
+    """Stamp WHICH COIN this miner bot mines ('xmr' | 'vrsc'). Written
+    by the Verus relay path at first accepted share; reads of the field
+    default to 'xmr'. Also fixes an accidental flip: an existing row
+    keeps its coin unless the caller is the coin's own pipeline."""
+    coin = (coin or "").strip().lower()
+    if coin not in ("xmr", "vrsc"):
+        return False
     with get_db() as conn:
-        conn.execute(
-            "UPDATE drawings SET claim_status = 'claimed', claimed_at = strftime('%s','now') WHERE id = ?",
+        conn.execute("UPDATE miners SET coin = ? WHERE wallet_address = ?",
+                     (coin, wallet_address))
+    return True
+
+
+def acquire_claim_lease(drawing_id, steal_after_s=300):
+    """THE CLAIM LEASE (Oct 28): atomically reserve a drawing for one
+    claim. Two claims arriving together (double-click, fast retry, two
+    screens) must not both pass the claim_status check and both mint a
+    payout — this is ONE conditional UPDATE (pending -> 'claiming'), so
+    the first writer owns the row and the loser's UPDATE matches 0
+    rows. Returns True when THIS call holds the lease. A lease older
+    than steal_after_s is a claimant that died mid-flight: the steal
+    hands the drawing back to a live claimant instead of stranding it.
+    """
+    with get_db() as conn:
+        cur = conn.execute(
+            "UPDATE drawings SET claim_status = 'claiming', "
+            "claim_leased_at = strftime('%s','now') "
+            "WHERE id = ? AND (IFNULL(claim_status, 'pending') = 'pending' "
+            "OR (claim_status = 'claiming' "
+            "AND IFNULL(claim_leased_at, 0) > 0 "
+            "AND strftime('%s','now') - claim_leased_at > ?))",
+            (drawing_id, steal_after_s),
+        )
+        return cur.rowcount == 1
+
+
+def release_claim_lease(drawing_id):
+    """Return an abandoned lease to 'pending'. Only the lease owner's
+    own state ('claiming' with no payout minted) is touched: a drawing
+    already claimed or expired by someone else is left alone."""
+    with get_db() as conn:
+        cur = conn.execute(
+            "UPDATE drawings SET claim_status = 'pending', "
+            "claim_leased_at = NULL "
+            "WHERE id = ? AND claim_status = 'claiming'",
             (drawing_id,),
         )
+        return cur.rowcount == 1
+
+
+def claim_drawing(drawing_id, wallet_address, coin=None):
+    """Mark a drawing as claimed by the winner. `coin` stamps WHICH
+    coin the prize was claimed in (the winner's own miner coin, Oct 28);
+    absent means the drawing's default 'xmr'.
+
+    THE LEASE-BEARER CLAIM (Oct 28): ONLY the flight that holds the
+    claim lease may flip a drawing to 'claimed'. The flip is gated on
+    claim_status = 'claiming' — the one state ONLY acquire_claim_lease
+    can create — and releases the lease on success. A caller WITHOUT
+    the lease matches zero rows and returns False: the row it just
+    read as 'pending' stays 'pending', the money it meant to mint is
+    not minted against a drawing another thread has already claimed,
+    expired or leased. `wallet_address` is not touched by the gate;
+    the stamping write lives with the flip.
+    """
+    with get_db() as conn:
+        if coin:
+            cur = conn.execute(
+                "UPDATE drawings SET claim_status = 'claimed', "
+                "claimed_at = strftime('%s','now'), coin = ?, "
+                "claim_leased_at = NULL "
+                "WHERE id = ? AND claim_status = 'claiming'",
+                (coin, drawing_id),
+            )
+        else:
+            cur = conn.execute(
+                "UPDATE drawings SET claim_status = 'claimed', "
+                "claimed_at = strftime('%s','now'), "
+                "claim_leased_at = NULL "
+                "WHERE id = ? AND claim_status = 'claiming'",
+                (drawing_id,),
+            )
+        return cur.rowcount == 1
 
 
 def expire_drawing(drawing_id):
-    """Mark a drawing as expired (jackpot returned to pool)."""
+    """Mark a drawing as expired (jackpot returned to pool).
+
+    THE LEASE-BEARER EXPIRY (Oct 28): the pump-side caller (the claim
+    sweep, the pre-lease deadline branch) may retire ONLY a claim
+    flight that has not started — the flip is CASed on
+    claim_status = 'pending' (COALESCE covers a legacy NULL). A row
+    someone is currently CLAIMING is not this caller's to touch: a
+    rowcount of 0 means the flight is leased (or already claimed or
+    expired) — check downstream, don't clobber. The lease holder's own
+    expiry route goes through expire_leased_drawing.
+    """
     with get_db() as conn:
-        conn.execute(
-            "UPDATE drawings SET claim_status = 'expired' WHERE id = ?",
+        cur = conn.execute(
+            "UPDATE drawings SET claim_status = 'expired', "
+            "claim_leased_at = NULL "
+            "WHERE id = ? "
+            "AND COALESCE(claim_status, 'pending') = 'pending'",
             (drawing_id,),
         )
+        return cur.rowcount == 1
+
+
+def expire_leased_drawing(drawing_id):
+    """EXPIRE A DRAWING THE CALLER HOLDS THE LEASE ON (Oct 28): the one
+    writer allowed to flip 'claiming' -> 'expired'. A claim flight that
+    acquired the lease re-checks the claim window AFTER its lease, and
+    an overdue window retires the drawing in the holder's name — the
+    lease precondition IS the ownership proof. Without the lease the
+    flip matches zero rows and returns False: no lease, no rollover,
+    the drawing stays exactly as the next gate finds it.
+    """
+    with get_db() as conn:
+        cur = conn.execute(
+            "UPDATE drawings SET claim_status = 'expired', "
+            "claim_leased_at = NULL "
+            "WHERE id = ? AND claim_status = 'claiming'",
+            (drawing_id,),
+        )
+        return cur.rowcount == 1
 
 
 def get_unclaimed_drawings():
@@ -850,22 +1250,68 @@ def get_miner(miner_id):
 
 
 def get_recent_drawings(limit=10):
+    """Recent drawings, with the winner's MINING wallet on winner_wallet.
+
+    drawings gained its own winner_wallet column (the claim address), so
+    `d.*` plus an alias of the same name handed callers two columns under
+    one key - sqlite answered with the claim address, which is NULL until
+    a prize is claimed, and every winner rendered blank. The join is
+    aliased separately here and merged explicitly, preferring the miner
+    that actually won.
+    """
     with get_db() as conn:
         rows = conn.execute(
-            """SELECT d.*, m.wallet_address as winner_wallet
+            """SELECT d.*, m.wallet_address as miner_wallet,
+                      COALESCE(m.is_demo, 0) as miner_is_demo,
+                      COALESCE(m.coin, 'xmr') as miner_coin
                FROM drawings d
                LEFT JOIN miners m ON d.winner_id = m.id
                ORDER BY d.id DESC LIMIT ?""",
             (limit,),
         ).fetchall()
-        return [dict(r) for r in rows]
+        out = []
+        for r in rows:
+            d = dict(r)
+            d["winner_wallet"] = d.pop("miner_wallet") or d.get("winner_wallet")
+            # A drawing won by a simulated account must be labelable as
+            # such: seeded history is display data, not a real payout.
+            d["winner_is_demo"] = bool(d.pop("miner_is_demo", 0) or 0)
+            # WHICH COIN the winner talked to the pool with (Oct 28).
+            # After the claim the drawing's own coin is the truth of
+            # what was PAID; BEFORE the claim nothing is paid yet, so the
+            # miner's coin is the prize-in-prospect the surface may show
+            # (a quantity must still wait for the claim's live rate).
+            d["winner_coin"] = (
+                (d.get("coin") or "")
+                if str(d.get("claim_status") or "") == "claimed"
+                else ""
+            ) or d.pop("miner_coin", "xmr") or "xmr"
+            out.append(d)
+        return out
 
 
-def add_payout(miner_id, amount_xmr, payout_type, drawing_id=None):
+def add_payout(miner_id, amount_xmr, payout_type, drawing_id=None,
+               coin="xmr", amount_coin=None,
+               fx_xmr_usd=None, fx_vrsc_usd=None):
+    """Mint one payout row. `coin` is the coin the payout was DENOMINATED
+    in ('xmr' default; 'vrsc' for a same-coin Verus prize, Oct 28) and
+    `amount_coin` that quantity; amount_xmr stays the XMR-equivalent so
+    every existing reader of the ledger is unchanged.
+
+    THE FX-AT-MINT STAMP (Oct 28): a same-coin row that was PRICED by
+    the conversion carries the exact rates that priced it — fx_xmr_usd
+    and fx_vrsc_usd, captured verbatim at mint time. Reconciliation
+    reprices amount_coin from the row itself (fx_xmr_usd / fx_vrsc_usd
+    x amount_xmr) and can name the book the treasury was charged
+    against, instead of trusting whatever the rate feeds are reading
+    TODAY."""
     with get_db() as conn:
         cur = conn.execute(
-            "INSERT INTO payouts (miner_id, amount_xmr, payout_type, drawing_id) VALUES (?, ?, ?, ?)",
-            (miner_id, amount_xmr, payout_type, drawing_id),
+            "INSERT INTO payouts (miner_id, amount_xmr, payout_type, "
+            "drawing_id, coin, amount_coin, fx_xmr_usd, fx_vrsc_usd) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            (miner_id, amount_xmr, payout_type, drawing_id, coin or "xmr",
+             amount_coin, fx_xmr_usd, fx_vrsc_usd),
         )
         return cur.lastrowid
 
@@ -954,6 +1400,26 @@ def get_user(user_id):
     return _seal_user_row(dict(row)) if row else None
 
 
+def get_user_by_email(email):
+    """Equality lookup by email via the KEYED BLIND INDEX (users.email_idx).
+
+    The email column is sealed at rest (see create_user), so a plain
+    WHERE email = ? would compare ciphertext and never match. The index
+    is keyed and case-folded, which is exactly the referral path's
+    semantics: the friend types the referrer's address, we hash it.
+    """
+    if not email:
+        return None
+    idx = _fc.blind_index(str(email).strip().lower(), domain="email")
+    if not idx:
+        return None
+    with get_db() as conn:
+        row = conn.execute(
+            "SELECT * FROM users WHERE email_idx = ? LIMIT 1", (idx,)
+        ).fetchone()
+    return _seal_user_row(dict(row)) if row else None
+
+
 def get_user_by_wallet(wallet_address):
     """Equality lookup on an encrypted column via the KEYED BLIND INDEX
     (users.wallet_idx): deterministic under the active key, opaque at
@@ -967,6 +1433,26 @@ def get_user_by_wallet(wallet_address):
         row = conn.execute(
             "SELECT * FROM users WHERE wallet_idx = ?", (idx,)).fetchone()
     return _seal_user_row(dict(row)) if row else None
+
+
+def find_user_by_wallet(wallet_address):
+    """Wallet -> account, with the no-key fallback.
+
+    The blind index is empty when crypto is unavailable, so the unlock
+    path (which runs once per miner-day at most) falls back to a scan of
+    the decrypted wallet column rather than silently missing the account.
+    """
+    user = get_user_by_wallet(wallet_address)
+    if user or not wallet_address:
+        return user
+    target = str(wallet_address)
+    with get_db() as conn:
+        rows = conn.execute("SELECT * FROM users").fetchall()
+    for row in rows:
+        candidate = _seal_user_row(dict(row))
+        if (candidate.get("wallet_address") or "") == target:
+            return candidate
+    return None
 
 
 def generate_referral_code(username):
@@ -1024,6 +1510,492 @@ def increment_referral_count(referrer_code):
             "UPDATE users SET referral_count = referral_count + 1 WHERE referral_code = ?",
             (referrer_code,)
         )
+
+
+# ─── REFERRAL ENTRIES (Oct 25) ───
+# The stated programme, in code: a referral pays ONE ENTRY TO EACH SIDE
+# at signup, attributed by the referrer's email (the referral code stays
+# as the legacy link form), capped at referral_cycle_cap awards per
+# referrer per jackpot cycle. Entries only — a referral never pays pot
+# money and never buys a share of the jackpot.
+
+
+def referral_cycle_anchor():
+    """The boundary a "jackpot cycle" counts from: the drawn_at of the
+    most recent drawing, or 0 when nothing has been drawn yet."""
+    with get_db() as conn:
+        row = conn.execute(
+            "SELECT COALESCE(MAX(drawn_at), 0) AS anchor FROM drawings"
+        ).fetchone()
+    try:
+        return int((row["anchor"] if row else 0) or 0)
+    except (TypeError, ValueError):
+        return 0
+
+
+def _grant_or_hold_referral_entry(user_id, tickets):
+    """Give a user their referral entry, or hold it until a wallet exists.
+
+    A ticket belongs to a miner and a miner belongs to a payout wallet, so
+    an account without one cannot hold a ticket yet. It keeps the entry on
+    the account (pending_referral_entries) and claim_referral_entries()
+    mints it the moment a wallet lands.
+    """
+    tickets = max(0, int(tickets or 0))
+    if tickets <= 0:
+        return "none"
+    user = get_user(user_id) or {}
+    wallet = (user.get("wallet_address") or "").strip()
+    if wallet:
+        miner = get_or_create_miner(wallet)
+        add_tickets(miner["id"], "free", tickets, source="referral")
+        return "granted"
+    with get_db() as conn:
+        conn.execute(
+            "UPDATE users SET pending_referral_entries = "
+            "pending_referral_entries + ? WHERE id = ?", (tickets, user_id))
+    return "held"
+
+
+def award_referral_entries(referrer_id, referred_user_id, tickets,
+                           method="email", cap=None):
+    """Pay one entry to each side of a referral, once, inside the cap.
+
+    Idempotent by construction: referral_awards.referred_user_id is
+    UNIQUE, so a second call for the same friend returns "already" and
+    mints nothing. The per-cycle limit counts awards for the referrer
+    whose cycle_anchor equals the current one — when the next drawing
+    lands the anchor moves and the allowance resets.
+
+    Returns a status dict; callers treat "capped"/"already"/"self" as
+    normal, not errors: the signup that triggered it still succeeds.
+    """
+    try:
+        referrer_id = int(referrer_id)
+        referred_user_id = int(referred_user_id)
+    except (TypeError, ValueError):
+        return {"status": "invalid"}
+    if referrer_id <= 0 or referred_user_id <= 0:
+        return {"status": "invalid"}
+    if referrer_id == referred_user_id:
+        return {"status": "self"}
+    # Both accounts must exist: a ledger row pointing at a missing user
+    # could never be granted or audited, so it is refused here.
+    if not get_user(referrer_id) or not get_user(referred_user_id):
+        return {"status": "unknown_user"}
+    tickets = max(0, int(tickets or 0))
+
+    if cap is None:
+        try:
+            cap = int(get_setting("referral_cycle_cap", "10"))
+        except (TypeError, ValueError):
+            cap = 10
+    cap = max(0, cap)
+    cycle = referral_cycle_anchor()
+
+    with get_db() as conn:
+        if conn.execute(
+                "SELECT 1 FROM referral_awards WHERE referred_user_id = ?",
+                (referred_user_id,)).fetchone():
+            return {"status": "already", "cycle_anchor": cycle}
+        used = int(conn.execute(
+            "SELECT COUNT(*) AS n FROM referral_awards WHERE referrer_id = ? "
+            "AND cycle_anchor = ?", (referrer_id, cycle)).fetchone()["n"] or 0)
+        if used >= cap:
+            return {"status": "capped", "cap": cap, "used": used,
+                    "cycle_anchor": cycle}
+        try:
+            cur = conn.execute(
+                "INSERT INTO referral_awards (referrer_id, referred_user_id, "
+                "method, cycle_anchor, tickets) VALUES (?, ?, ?, ?, ?)",
+                (referrer_id, referred_user_id, str(method or "email"),
+                 cycle, tickets))
+            award_id = cur.lastrowid
+        except sqlite3.IntegrityError:
+            return {"status": "already", "cycle_anchor": cycle}
+
+    referrer_state = _grant_or_hold_referral_entry(referrer_id, tickets)
+    referred_state = _grant_or_hold_referral_entry(referred_user_id, tickets)
+    with get_db() as conn:
+        conn.execute(
+            "UPDATE referral_awards SET referrer_granted = ?, "
+            "referred_granted = ? WHERE id = ?",
+            (1 if referrer_state == "granted" else 0,
+             1 if referred_state == "granted" else 0, award_id))
+    try:
+        add_audit_log(
+            referrer_id, "referral_entry",
+            f"referred user {referred_user_id} via {method or 'email'}: "
+            f"{tickets} tickets each ({referrer_state}/{referred_state}, "
+            f"cycle {cycle}, {used + 1}/{cap})")
+    except Exception:
+        pass
+    return {"status": "awarded", "award_id": award_id, "tickets": tickets,
+            "cycle_anchor": cycle, "used": used + 1, "cap": cap,
+            "referrer": referrer_state, "referred": referred_state}
+
+
+def claim_referral_entries(user_id):
+    """Turn held referral entries into real tickets once a wallet exists.
+
+    Same shape as claim_pending_entries(): a conditional UPDATE is the
+    claim, so only one caller can win the transition and a ticket is
+    never minted twice.
+    """
+    with get_db() as conn:
+        row = conn.execute(
+            "SELECT pending_referral_entries FROM users WHERE id = ?",
+            (user_id,)).fetchone()
+    held = int((row["pending_referral_entries"] if row else 0) or 0)
+    if held <= 0:
+        return {"claimed": 0, "held": 0}
+    user = get_user(user_id) or {}
+    wallet = (user.get("wallet_address") or "").strip()
+    if not wallet:
+        return {"claimed": 0, "held": held}
+    with get_db() as conn:
+        cur = conn.execute(
+            "UPDATE users SET pending_referral_entries = 0 "
+            "WHERE id = ? AND pending_referral_entries = ?", (user_id, held))
+        won = cur.rowcount == 1
+    if not won:
+        return {"claimed": 0, "held": 0}
+    miner = get_or_create_miner(wallet)
+    add_tickets(miner["id"], "free", held, source="referral")
+    try:
+        add_audit_log(user_id, "held_referral_claimed",
+                      f"{held} held referral entries -> {wallet[:16]}...")
+    except Exception:
+        pass
+    return {"claimed": held, "held": 0}
+
+
+def referral_award_summary(user_id):
+    """This cycle's referral awards for the dashboard: used, cap, and the
+    entries still held for want of a wallet."""
+    cycle = referral_cycle_anchor()
+    try:
+        cap = max(0, int(get_setting("referral_cycle_cap", "10")))
+    except (TypeError, ValueError):
+        cap = 10
+    with get_db() as conn:
+        used = int(conn.execute(
+            "SELECT COUNT(*) AS n FROM referral_awards WHERE referrer_id = ? "
+            "AND cycle_anchor = ?", (user_id, cycle)).fetchone()["n"] or 0)
+        row = conn.execute(
+            "SELECT pending_referral_entries FROM users WHERE id = ?",
+            (user_id,)).fetchone()
+    held = int((row["pending_referral_entries"] if row else 0) or 0)
+    return {"awards_this_cycle": used, "cycle_cap": cap,
+            "entries_held": held, "cycle_anchor": cycle,
+            "remaining": max(0, cap - used)}
+
+
+# ─── THE XMRJ AWARD (Oct 25, internal programme) ───
+# The reward unit is an INTEGER, exactly like the treasury program's
+# record_inflow_xmrj(amount: u64) — that program's own arithmetic, so a
+# number accrued here can be booked there unchanged when it ships. No
+# token, no mint, no chain call: this module only ever writes a ledger.
+XMRJ_RATE_KEY = "referral_xmrj_award"
+KRAKEN_SHARE_KEY = "kraken_pool_share_pct"
+DEFAULT_KRAKEN_SHARE_PCT = 50
+
+
+def referral_xmrj_rate():
+    """XMRJ per successful referral. 0 (the default) means the operator
+    has not set a rate yet — nothing is awarded and no surface invents
+    one."""
+    try:
+        return max(0, int(float(get_setting(XMRJ_RATE_KEY, "0"))))
+    except (TypeError, ValueError):
+        return 0
+
+
+def solana_wallet_for_user(user_id):
+    """The user's connected Solana wallet — the identity_token the Scout
+    activation flow records (scout_identities.identity_token). Empty when
+    the account has not connected one: the award still accrues, it just
+    has nowhere to be paid yet."""
+    try:
+        uid = int(user_id)
+    except (TypeError, ValueError):
+        return ""
+    with get_db() as conn:
+        row = conn.execute(
+            "SELECT identity_token FROM scout_identities WHERE user_id = ? "
+            "ORDER BY id DESC LIMIT 1", (uid,)).fetchone()
+    return str((row["identity_token"] if row else "") or "").strip()
+
+
+def award_referral_xmrj(referrer_id, referred_user_id, amount=None):
+    """Accrue the internal programme's XMRJ reward for one referral.
+
+    Idempotent by construction: referral_xmrj_awards.referred_user_id is
+    UNIQUE, so the same friend can never pay twice. `amount` defaults to
+    the operator's setting; a rate of 0 is "unconfigured" and writes
+    nothing rather than inventing a number.
+
+    The wallet is snapshotted when one is already connected, and resolved
+    live at display time otherwise — connecting a wallet later must never
+    mean re-running the award.
+    """
+    try:
+        referrer_id = int(referrer_id)
+        referred_user_id = int(referred_user_id)
+    except (TypeError, ValueError):
+        return {"status": "invalid"}
+    if referrer_id <= 0 or referred_user_id <= 0:
+        return {"status": "invalid"}
+    if referrer_id == referred_user_id:
+        return {"status": "self"}
+    if amount is None:
+        amount = referral_xmrj_rate()
+    try:
+        amount = max(0, int(amount))
+    except (TypeError, ValueError):
+        return {"status": "invalid"}
+    if amount <= 0:
+        return {"status": "unconfigured", "amount": 0}
+    if not get_user(referrer_id) or not get_user(referred_user_id):
+        return {"status": "unknown_user"}
+
+    wallet = solana_wallet_for_user(referrer_id)
+    with get_db() as conn:
+        if conn.execute(
+                "SELECT 1 FROM referral_xmrj_awards WHERE referred_user_id "
+                "= ?", (referred_user_id,)).fetchone():
+            return {"status": "already", "amount": amount}
+        try:
+            cur = conn.execute(
+                "INSERT INTO referral_xmrj_awards (referrer_id, "
+                "referred_user_id, amount, solana_wallet, status) "
+                "VALUES (?, ?, ?, ?, 'accrued')",
+                (referrer_id, referred_user_id, amount, wallet))
+            award_id = cur.lastrowid
+        except sqlite3.IntegrityError:
+            return {"status": "already", "amount": amount}
+    try:
+        add_audit_log(
+            referrer_id, "referral_xmrj",
+            f"referred user {referred_user_id}: {amount} XMRJ accrued "
+            f"(wallet {'set' if wallet else 'not connected yet'})")
+    except Exception:
+        pass
+    return {"status": "awarded", "award_id": award_id, "amount": amount,
+            "wallet": wallet}
+
+
+def referral_xmrj_summary(user_id):
+    """The internal card's numbers: the rate, what this account has
+    accrued, and the Solana wallet it would be paid to."""
+    try:
+        uid = int(user_id)
+    except (TypeError, ValueError):
+        uid = 0
+    with get_db() as conn:
+        row = conn.execute(
+            "SELECT COUNT(*) AS n, COALESCE(SUM(amount), 0) AS total "
+            "FROM referral_xmrj_awards WHERE referrer_id = ?",
+            (uid,)).fetchone()
+    wallet = solana_wallet_for_user(uid)
+    count = int((row["n"] if row else 0) or 0)
+    total = int((row["total"] if row else 0) or 0)
+    rate = referral_xmrj_rate()
+    return {
+        "xmrj_per_referral": rate,
+        "xmrj_awarded": total,
+        "xmrj_referrals": count,
+        "xmrj_status": "accrued",
+        "solana_wallet": wallet,
+        "xmrj_payable": bool(wallet and total > 0),
+    }
+
+
+# ─── KRAKEN PAYOUTS THE OPERATOR RECORDS (Oct 25) ───
+def kraken_pool_share_pct():
+    """The pool's share of a recorded Kraken payout, in whole percent.
+    Default 50: the referrer keeps the other half from Kraken directly."""
+    try:
+        pct = int(float(get_setting(KRAKEN_SHARE_KEY,
+                                    str(DEFAULT_KRAKEN_SHARE_PCT))))
+    except (TypeError, ValueError):
+        pct = DEFAULT_KRAKEN_SHARE_PCT
+    return min(100, max(0, pct))
+
+
+def _referrer_of(referred_user_id):
+    """The account that referred this user: the referral_awards ledger
+    first (it is the award that actually paid), then users.referred_by
+    (the code the signup recorded)."""
+    with get_db() as conn:
+        row = conn.execute(
+            "SELECT referrer_id FROM referral_awards WHERE referred_user_id "
+            "= ?", (int(referred_user_id),)).fetchone()
+    if row:
+        return get_user(int(row["referrer_id"]))
+    user = get_user(int(referred_user_id)) or {}
+    code = (user.get("referred_by") or "").strip()
+    return get_user_by_referral_code(code) if code else None
+
+
+def record_kraken_referral_payout(referred_user_id, gross_usd, note=""):
+    """Record a Kraken referral payout the operator has verified.
+
+    The pool keeps kraken_pool_share_pct of the gross (default half) and
+    the referrer keeps the rest from Kraken directly — this function never
+    pays a user out of pool funds. Idempotent per referred account per
+    calendar month, so re-running a receipt cannot inflate the pot.
+
+    Returns a status dict; the caller treats every non-'recorded' status
+    as a refusal, never as a crash.
+    """
+    try:
+        uid = int(referred_user_id)
+        gross = float(gross_usd)
+    except (TypeError, ValueError):
+        return {"status": "invalid"}
+    if gross <= 0:
+        return {"status": "invalid"}
+    if not get_user(uid):
+        return {"status": "unknown_user"}
+    referrer = _referrer_of(uid)
+    if not referrer:
+        return {"status": "no_referrer"}
+    referrer_id = int(referrer["id"])
+    if referrer_id == uid:
+        return {"status": "self"}
+    pct = kraken_pool_share_pct()
+    pool_usd = round(gross * pct / 100.0, 2)
+    if pool_usd <= 0:
+        return {"status": "no_pool_share", "pct": pct}
+    period = time.strftime("%Y-%m")
+    with get_db() as conn:
+        try:
+            cur = conn.execute(
+                "INSERT INTO kraken_referral_payouts (referred_user_id, "
+                "referrer_id, gross_usd, pool_usd, pct, period, note) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?)",
+                (uid, referrer_id, round(gross, 2), pool_usd, pct, period,
+                 str(note or "")[:200]))
+            payout_id = cur.lastrowid
+        except sqlite3.IntegrityError:
+            return {"status": "already", "period": period,
+                    "referrer_id": referrer_id}
+
+    import jackpot_funding as funding          # local: funding imports us
+    ledger_id = funding.record_funding(
+        "referral_bonus", pool_usd, sponsor_id=referrer_id,
+        source="kraken_referral_payout")
+    if ledger_id is None:                      # refused — unwind the receipt
+        with get_db() as conn:
+            conn.execute("DELETE FROM kraken_referral_payouts WHERE id = ?",
+                         (payout_id,))
+        return {"status": "ledger_refused", "pool_usd": pool_usd}
+    with get_db() as conn:
+        conn.execute(
+            "UPDATE kraken_referral_payouts SET ledger_id = ? WHERE id = ?",
+            (int(ledger_id), payout_id))
+    try:
+        add_audit_log(
+            referrer_id, "kraken_referral_payout",
+            f"referred user {uid}: ${gross:.2f} gross recorded, "
+            f"${pool_usd:.2f} to the pot ({pct}%), ledger {ledger_id}")
+    except Exception:
+        pass
+    return {"status": "recorded", "id": payout_id,
+            "referrer_id": referrer_id,
+            "referrer_username": referrer["username"],
+            "gross_usd": round(gross, 2), "pool_usd": pool_usd,
+            "referrer_keeps_usd": round(gross - pool_usd, 2),
+            "pct": pct, "period": period, "ledger_id": int(ledger_id)}
+
+
+def kraken_payout_summary(limit=10):
+    """The admin card's read: the recorded payouts, newest first, plus
+    the totals they add up to. Read-only."""
+    with get_db() as conn:
+        rows = [dict(r) for r in conn.execute(
+            "SELECT p.*, ru.username AS referred_username, "
+            "rr.username AS referrer_username FROM kraken_referral_payouts p "
+            "LEFT JOIN users ru ON ru.id = p.referred_user_id "
+            "LEFT JOIN users rr ON rr.id = p.referrer_id "
+            "ORDER BY p.id DESC LIMIT ?", (int(limit),)).fetchall()]
+        agg = conn.execute(
+            "SELECT COUNT(*) AS n, COALESCE(SUM(gross_usd), 0) AS gross, "
+            "COALESCE(SUM(pool_usd), 0) AS pool "
+            "FROM kraken_referral_payouts").fetchone()
+    return {
+        "payouts": rows,
+        "count": int((agg["n"] if agg else 0) or 0),
+        "gross_usd": round(float((agg["gross"] if agg else 0) or 0), 2),
+        "pool_usd": round(float((agg["pool"] if agg else 0) or 0), 2),
+        "pool_share_pct": kraken_pool_share_pct(),
+        "xmrj_per_referral": referral_xmrj_rate(),
+    }
+
+
+def referral_admin_meter(limit_referrers=10, limit_recent=10):
+    """The operator's view of the referral programme for THIS cycle.
+
+    The cap is PER REFERRER, so the meter is per referrer — one global bar
+    would hide a single account sitting at 10 while everyone else is at
+    zero. Returns the cycle's totals, the busiest referrers against the cap,
+    every entry still held for want of a wallet, and the newest awards.
+    """
+    cycle = referral_cycle_anchor()
+    try:
+        cap = max(0, int(get_setting("referral_cycle_cap", "10")))
+    except (TypeError, ValueError):
+        cap = 10
+    with get_db() as conn:
+        tot = conn.execute(
+            "SELECT COUNT(*) AS awards, COALESCE(SUM(tickets), 0) AS tickets "
+            "FROM referral_awards WHERE cycle_anchor = ?",
+            (cycle,)).fetchone()
+        referrers = conn.execute(
+            "SELECT ra.referrer_id, u.username, COUNT(*) AS awards, "
+            "COALESCE(SUM(ra.tickets), 0) AS tickets "
+            "FROM referral_awards ra "
+            "LEFT JOIN users u ON u.id = ra.referrer_id "
+            "WHERE ra.cycle_anchor = ? GROUP BY ra.referrer_id "
+            "ORDER BY awards DESC, ra.referrer_id ASC LIMIT ?",
+            (cycle, int(limit_referrers))).fetchall()
+        held_row = conn.execute(
+            "SELECT COALESCE(SUM(pending_referral_entries), 0) AS entries, "
+            "COALESCE(SUM(CASE WHEN COALESCE(pending_referral_entries, 0) > 0 "
+            "THEN 1 ELSE 0 END), 0) AS accounts FROM users").fetchone()
+        recent = conn.execute(
+            "SELECT ra.id, ra.referrer_id, ru.username AS referrer, "
+            "ra.referred_user_id, du.username AS referred, ra.method, "
+            "ra.tickets, ra.referrer_granted, ra.referred_granted, "
+            "ra.created_at FROM referral_awards ra "
+            "LEFT JOIN users ru ON ru.id = ra.referrer_id "
+            "LEFT JOIN users du ON du.id = ra.referred_user_id "
+            "ORDER BY ra.id DESC LIMIT ?", (int(limit_recent),)).fetchall()
+    rows = []
+    for r in referrers:
+        used = int(r["awards"] or 0)
+        rows.append({
+            "referrer_id": r["referrer_id"],
+            "username": r["username"] or "(deleted)",
+            "awards": used,
+            "tickets": int(r["tickets"] or 0),
+            "cap": cap,
+            "remaining": max(0, cap - used),
+            "at_cap": used >= cap,
+        })
+    return {
+        "cycle_anchor": cycle,
+        "cap": cap,
+        "awards_this_cycle": int(tot["awards"] or 0),
+        "tickets_this_cycle": int(tot["tickets"] or 0),
+        "referrers_this_cycle": len(rows),
+        "referrers_at_cap": sum(1 for r in rows if r["at_cap"]),
+        "entries_held": int(held_row["entries"] or 0),
+        "accounts_holding": int(held_row["accounts"] or 0),
+        "top_referrers": rows,
+        "recent": [dict(r) for r in recent],
+    }
 
 
 def get_referral_stats(user_id):
@@ -1122,6 +2094,12 @@ def update_user_profile(user_id, display_name=None, avatar=None, bio=None, walle
                 user_id,
             ),
         )
+    if wallet_address:
+        # A held unlock entry becomes a real ticket the moment the
+        # account gets a wallet (Oct 24). Idempotent — no hold, no-op.
+        claim_pending_entries(user_id)
+        # Same deal for a held referral entry (Oct 25).
+        claim_referral_entries(user_id)
 
 
 def update_user_password(user_id, new_password_hash):
@@ -1401,8 +2379,246 @@ def get_gamification_stats(miner_id):
         "mining_streak_days": xp_record["mining_streak_days"],
         "total_shares_lifetime": xp_record["total_shares_lifetime"],
         "super_tickets": xp_record["super_tickets"],
+        "jackpot_days": int(xp_record.get("jackpot_days") or 0),
         "badges": badge_details,
         "badges_earned_count": len(badges),
+    }
+
+
+# ═══════════════════════════════════════════════════════════════
+#  PROGRESSION: STREAK BONUS + KRAKEN SCOUT PRO UNLOCK (Oct 24)
+# ═══════════════════════════════════════════════════════════════
+
+def _utc_day():
+    from datetime import datetime
+    return datetime.utcnow().strftime("%Y-%m-%d")
+
+
+def get_streak_bonus(streak_days):
+    """The 3x ticket conversion, applied on milestone days only.
+
+    A milestone day is every Nth consecutive mining day (default 7).
+    The bonus changes how the day's shares convert into tickets; it does
+    not touch hashrate, which is why the miner is never affected.
+    """
+    try:
+        every = max(1, int(float(get_setting("streak_bonus_every_days", "7"))))
+        mult = max(1, int(float(get_setting("streak_bonus_multiplier", "3"))))
+    except (TypeError, ValueError):
+        every, mult = 7, 3
+    streak = int(streak_days or 0)
+    on_milestone = streak > 0 and streak % every == 0
+    if streak <= 0:
+        to_next = every
+    else:
+        to_next = every - (streak % every) or every
+    return {
+        "active": on_milestone,
+        "multiplier": mult if on_milestone else 1,
+        "every_days": every,
+        "bonus_multiplier": mult,
+        "streak_days": streak,
+        "next_milestone_day": streak + to_next,
+        "days_to_milestone": to_next,
+    }
+
+
+def record_jackpot_day(miner_id):
+    """Count a day on which this miner's bot contributed to the pool.
+
+    Idempotent per UTC day: a miner may submit thousands of shares in a
+    day and the day still counts once. Missing days pause progress; they
+    never reset it.
+    """
+    today = _utc_day()
+    rec = get_or_create_xp(miner_id)
+    if rec.get("last_jackpot_day") == today:
+        return int(rec.get("jackpot_days") or 0)
+    days = int(rec.get("jackpot_days") or 0) + 1
+    with get_db() as conn:
+        conn.execute(
+            "UPDATE miner_xp SET jackpot_days = ?, last_jackpot_day = ? "
+            "WHERE miner_id = ?", (days, today, miner_id))
+    return days
+
+
+def _pro_row(user_id):
+    with get_db() as conn:
+        return conn.execute(
+            "SELECT scout_pro_until, scout_pro_lifetime, "
+            "scout_pro_unlock_source, scout_pro_unlocked_at, "
+            "scout_pro_entry_awarded, pending_entries FROM users WHERE id = ?",
+            (user_id,)).fetchone()
+
+
+def has_scout_pro(user_id):
+    """THE ENTITLEMENT PREDICATE (Oct 24): does this account hold
+    Kraken Scout Pro right now?
+
+    One place decides, so the server-side signal gate and the browser's
+    cached flag can never disagree about who is paid up: lifetime wins,
+    otherwise the checkout window must still be open. A missing row or
+    a bad id is simply not entitled.
+    """
+    import time as _time
+    if user_id is None:
+        return False
+    row = _pro_row(user_id)
+    if not row:
+        return False
+    return bool(int(row["scout_pro_lifetime"] or 0)) or \
+        float(row["scout_pro_until"] or 0) > _time.time()
+
+
+def unlock_scout_pro(user_id, source, grant_days=None):
+    """Mark Pro unlocked and award its +1 jackpot entry, once.
+
+    source='progression' sets the lifetime flag (the 100-day path); a
+    checkout grant passes its day count instead. The unlock entry is a
+    single free ticket per account, whether the unlock came from the
+    streak path or a donation.
+    """
+    import time as _time
+    now = _time.time()
+    row = _pro_row(user_id)
+    if not row:
+        return {"unlocked": False, "entry_awarded": False}
+
+    lifetime = int(row["scout_pro_lifetime"] or 0)
+    until = float(row["scout_pro_until"] or 0)
+    if grant_days:
+        until = max(until, now) + int(grant_days) * 86400
+        lifetime = max(lifetime, 0)
+    else:
+        lifetime = 1
+        until = max(until, now)
+
+    entry_awarded = False
+    entry_held = False
+    if not int(row["scout_pro_entry_awarded"] or 0):
+        user = get_user(user_id)
+        wallet = (user or {}).get("wallet_address") or ""
+        if wallet:
+            miner = get_or_create_miner(wallet)
+            add_tickets(miner["id"], "free", 1, source="unlock")
+            entry_awarded = True
+        else:
+            # NO WALLET, STILL AN ENTRY (Oct 24): a donor paying from a
+            # browser-only account has no wallet and therefore no miner
+            # to hang a ticket on. The old code minted nothing and
+            # stamped the awarded flag anyway, so the promised entry
+            # was burned the moment it was earned. The entry is HELD
+            # on the account instead; the flag stays honest because it
+            # now means "granted", and claim_pending_entries() turns
+            # the hold into a real ticket.
+            entry_held = True
+
+    with get_db() as conn:
+        conn.execute(
+            "UPDATE users SET scout_pro_until = ?, scout_pro_lifetime = ?, "
+            "scout_pro_unlock_source = CASE WHEN scout_pro_unlock_source "
+            "IS NULL OR scout_pro_unlock_source = '' THEN ? "
+            "ELSE scout_pro_unlock_source END, "
+            "scout_pro_unlocked_at = CASE WHEN scout_pro_unlocked_at "
+            "IS NULL OR scout_pro_unlocked_at = 0 THEN ? "
+            "ELSE scout_pro_unlocked_at END, "
+            "scout_pro_entry_awarded = 1, "
+            "pending_entries = pending_entries + ? WHERE id = ?",
+            (until, lifetime, source, now, 1 if entry_held else 0, user_id))
+
+    return {"unlocked": True, "entry_awarded": entry_awarded,
+            "entry_held": entry_held,
+            "until": int(until), "lifetime": bool(lifetime),
+            "source": source}
+
+
+def claim_pending_entries(user_id):
+    """Turn held unlock entries into real tickets, once, as soon as the
+    account has a payout wallet.
+
+    Idempotent and cheap enough to call on every dashboard read: the
+    conditional UPDATE (pending_entries = <exact count>) is the claim,
+    so only one caller can win the transition and a ticket is never
+    minted twice. With no wallet the entry simply stays held.
+    """
+    row = _pro_row(user_id)
+    if not row:
+        return {"claimed": 0, "held": 0}
+    held = int(row["pending_entries"] or 0)
+    if held <= 0:
+        return {"claimed": 0, "held": 0}
+    user = get_user(user_id) or {}
+    wallet = (user.get("wallet_address") or "").strip()
+    if not wallet:
+        return {"claimed": 0, "held": held}
+    with get_db() as conn:
+        cur = conn.execute(
+            "UPDATE users SET pending_entries = 0 "
+            "WHERE id = ? AND pending_entries = ?", (user_id, held))
+        won = cur.rowcount == 1
+    if not won:
+        return {"claimed": 0, "held": 0}
+    miner = get_or_create_miner(wallet)
+    add_tickets(miner["id"], "free", held, source="unlock")
+    try:
+        add_audit_log(user_id, "held_entry_claimed",
+                      f"{held} held unlock entry -> {wallet[:16]}...")
+    except Exception:
+        pass
+    return {"claimed": held, "held": 0}
+
+
+def pro_progress(miner_id, user_id=None):
+    """Everything the dashboard needs to show progress toward Pro.
+
+    THE SETTLED TOKEN RULE (Oct 24): a token IS an entry — there is no
+    second balance to consult. This path therefore counts CONTRIBUTING
+    DAYS and nothing else; the unlock awards its +1 entry through
+    unlock_scout_pro. No token threshold gates it and none accelerates
+    it, which is why this payload has no token field at all.
+    """
+    import time as _time
+    if miner_id:
+        rec = get_or_create_xp(miner_id)
+        days = int(rec.get("jackpot_days") or 0)
+        streak_days = rec.get("mining_streak_days")
+    else:
+        days, streak_days = 0, 0
+    try:
+        target = max(1, int(float(get_setting("pro_unlock_days", "100"))))
+    except (TypeError, ValueError):
+        target = 100
+    bonus = get_streak_bonus(streak_days)
+
+    unlocked = False
+    source = ""
+    unlocked_at = 0
+    entry_awarded = False
+    held = 0
+    if user_id is not None:
+        row = _pro_row(user_id)
+        if row:
+            unlocked = bool(int(row["scout_pro_lifetime"] or 0)) or \
+                float(row["scout_pro_until"] or 0) > _time.time()
+            source = row["scout_pro_unlock_source"] or ""
+            unlocked_at = int(row["scout_pro_unlocked_at"] or 0)
+            entry_awarded = bool(int(row["scout_pro_entry_awarded"] or 0))
+            held = int(row["pending_entries"] or 0)
+
+    return {
+        "streak": bonus,
+        "days_mined": days,
+        "days_required": target,
+        "days_remaining": max(0, target - days),
+        "progress_percent": round(min(100.0, days * 100.0 / target), 1),
+        "pro_unlocked": unlocked,
+        "pro_unlock_source": source,
+        "pro_unlocked_at": unlocked_at,
+        # "credited" means a real ticket exists; a held entry is granted
+        # but still waiting for a payout wallet to be minted onto.
+        "unlock_entry_awarded": entry_awarded and not held,
+        "pending_entries": held,
+        "entry_held": bool(held),
     }
 
 
@@ -1665,11 +2881,96 @@ def credit_payment(payment_id, tickets_awarded):
 
 
 def get_pending_payments():
+    """Deposit rows still awaiting confirmation, oldest first.
+
+    payment_verifications has never had a created_at column (it stamps
+    scanned_at and credited_at — the same trap get_user_payments
+    documents), so ORDER BY created_at raised on EVERY call. The server's
+    payment scanner swallowed that raise and with it every step after
+    it, including the 7-day claim rollover. Order by a column the table
+    actually carries.
+    """
     with get_db() as conn:
         rows = conn.execute(
-            "SELECT * FROM payment_verifications WHERE status IN ('pending', 'confirming') ORDER BY created_at"
+            "SELECT * FROM payment_verifications WHERE status IN ('pending', 'confirming') "
+            "ORDER BY COALESCE(scanned_at, 0) ASC, id ASC"
         ).fetchall()
         return [dict(r) for r in rows]
+
+
+# ── THE DONATION ORDER KEY (Oct 26) ────────────────────────────────────
+# One row per checkout order, written by the same transaction that raises
+# the pot. The INSERT is the claim: whoever inserts owns the credit, and
+# everyone else reads the row and moves nothing. See the table's comment
+# in init_db for why the settings ledger could not carry this.
+def get_donation_credit(order_id, conn=None):
+    """The credit row for one order, or None when it never landed.
+
+    `conn` reads inside the caller's open transaction, so a credit can
+    see the claim it is in the middle of making.
+    """
+    sql = "SELECT * FROM donation_credits WHERE order_id = ?"
+    key = (str(order_id),)
+    if conn is not None:
+        row = conn.execute(sql, key).fetchone()
+        return dict(row) if row else None
+    with get_db() as c:
+        row = c.execute(sql, key).fetchone()
+        return dict(row) if row else None
+
+
+def claim_donation_credit(conn, order_id, amount_xmr, jackpot_xmr,
+                          treasury_xmr, sponsor_id=None, source=""):
+    """Claim one order INSIDE the caller's transaction.
+
+    True means this caller owns the credit and must finish it (raise the
+    pot, stamp the base) before that transaction commits. False means the
+    order already has a row — an earlier credit or a concurrent poll —
+    and nothing may move. INSERT OR IGNORE against the primary key is the
+    whole mechanism: no read-then-write window, so two threads polling
+    the same checkout cannot both win.
+    """
+    cur = conn.execute(
+        "INSERT OR IGNORE INTO donation_credits (order_id, amount_xmr, "
+        "jackpot_xmr, treasury_xmr, sponsor_id, source, credited_at) "
+        "VALUES (?, ?, ?, ?, ?, ?, strftime('%s','now'))",
+        (str(order_id), float(amount_xmr), float(jackpot_xmr),
+         float(treasury_xmr),
+         None if sponsor_id is None else str(sponsor_id),
+         str(source or "")[:120]))
+    return cur.rowcount == 1
+
+
+def set_donation_base(conn, order_id, base_xmr):
+    """Stamp the pot value this credit produced (same transaction)."""
+    conn.execute(
+        "UPDATE donation_credits SET base_xmr = ? WHERE order_id = ?",
+        (round(float(base_xmr), 12), str(order_id)))
+
+
+def adopt_donation_credit(order_id, amount_xmr, jackpot_xmr, treasury_xmr,
+                          sponsor_id=None, source="", base_xmr=None):
+    """Adopt a credit that predates this table.
+
+    An order credited before Oct 26 is protected only by its receipt in
+    the prunable ledger. On sight, that protection is copied into the key
+    table so it outlives the ledger's cap. INSERT OR IGNORE: an existing
+    row (the ordinary replay) is never overwritten.
+    """
+    with get_db() as conn:
+        conn.execute(
+            "INSERT OR IGNORE INTO donation_credits (order_id, amount_xmr, "
+            "jackpot_xmr, treasury_xmr, sponsor_id, source, base_xmr, "
+            "credited_at) VALUES (?, ?, ?, ?, ?, ?, ?, strftime('%s','now'))",
+            (str(order_id), float(amount_xmr), float(jackpot_xmr),
+             float(treasury_xmr),
+             None if sponsor_id is None else str(sponsor_id),
+             str(source or "")[:120],
+             None if base_xmr is None else round(float(base_xmr), 12)))
+        row = conn.execute(
+            "SELECT * FROM donation_credits WHERE order_id = ?",
+            (str(order_id),)).fetchone()
+        return dict(row) if row else None
 
 
 def create_scout_purchase(user_id, identity_wallet, amount_xmr, address,
@@ -1767,9 +3068,17 @@ def set_user_scout_pro(user_id, until_ts):
 
 
 def get_user_payments(user_id):
+    """The user's recent deposits, newest first.
+
+    payment_verifications has never had a created_at column (it stamps
+    scanned_at and credited_at), so the old ORDER BY raised on every
+    call and /api/payment/status could only ever 500. Order by the
+    column the table actually carries.
+    """
     with get_db() as conn:
         rows = conn.execute(
-            "SELECT * FROM payment_verifications WHERE user_id = ? ORDER BY created_at DESC LIMIT 20",
+            "SELECT * FROM payment_verifications WHERE user_id = ? "
+            "ORDER BY COALESCE(credited_at, scanned_at) DESC, id DESC LIMIT 20",
             (user_id,),
         ).fetchall()
         return [dict(r) for r in rows]
@@ -1799,10 +3108,21 @@ def get_pool_summary():
         active_miners = conn.execute(
             "SELECT COUNT(*) as c FROM miners WHERE last_seen > strftime('%s','now') - 600"
         ).fetchone()["c"]
+        # The operator's own numbers say which miners are simulated
+        # (Oct 24): a seeded pool otherwise reads as 20 real miners.
+        demo_miners = conn.execute(
+            "SELECT COUNT(*) as c FROM miners WHERE is_demo = 1"
+        ).fetchone()["c"]
+        demo_active = conn.execute(
+            "SELECT COUNT(*) as c FROM miners WHERE is_demo = 1 "
+            "AND last_seen > strftime('%s','now') - 600"
+        ).fetchone()["c"]
 
         return {
             "miners_total": miners_count,
             "miners_active": active_miners,
+            "miners_demo": demo_miners,
+            "miners_demo_active": demo_active,
             "users_total": users_count,
             "drawings_total": drawings_count,
             "tickets_total": tickets_count,

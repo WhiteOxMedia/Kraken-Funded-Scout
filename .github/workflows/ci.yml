@@ -1,8 +1,28 @@
 name: CI
 
+# ONE run per commit on a branch that has a PR (Oct 28). The aggregator below is
+# a REQUIRED status check on main (ruleset "main: a pull request with a green
+# ci"), and a required context is satisfied only when every run that reports it
+# on the head commit is green: a push on a PR branch plus its pull_request
+# synchronize event used to run the same fourteen jobs twice, so a flake or a
+# cancelled duplicate in EITHER blocked a merge that was in fact green —
+# measured on PR #1, where a cancelled push run left `ci` failing next to a
+# passing one and the PR stayed BLOCKED while ready for review.
+#
+# Pushes still run on main, and that is now the only way a commit gets there:
+# the same ruleset refuses a direct push ("Changes must be made through a pull
+# request", measured on an empty commit), so the push event fires for the MERGE
+# commit — the one commit whose `ci` result nobody would otherwise look at. A
+# branch with a PR gets its single run from the pull_request event.
 on:
   push:
+    branches: [main]
   pull_request:
+  # ONE-OFF RUNS: the whole 16-job matrix rides on `workflow_dispatch`
+  # too, so a single new gate can be proven on the real runners (a true
+  # ubuntu and a true windows interpreter) BEFORE a PR asks the ruleset
+  # to enforce it — dispatch it, watch it, then open the PR.
+  workflow_dispatch:
 
 jobs:
   lint:
@@ -12,11 +32,10 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-      - name: Node lint
-        run: npm ci --no-audit --no-fund || true
+      - name: Install Node dependencies for lint
+        run: npm ci --no-audit --no-fund
       - name: Static JS lint
-        run: |
-          npx --no-install eslint pool/static/*.js || true
+        run: npx --no-install eslint pool/static/*.js
 
   build:
     runs-on: ubuntu-latest
@@ -37,10 +56,20 @@ jobs:
           python-version: "3.11"
       - name: Bundle parity
         run: python test_bundle_parity.py
+      - name: Sweep-discipline wiring (the tools/ home the scheduler and both wrappers assume)
+        run: python test_sweep_wiring.py
       - name: Static listener audit
         run: python test_static_listener_audit.py
+      - name: No XMRJ/treasury claims in shipping surfaces
+        run: python test_no_xmrj_claims.py
       - name: WF dashboard stamp
         run: python test_wf_dashboard_stamp.py
+      # THE BOTH-SHAPES CONTRACT (Oct 30): the smoke job below stages the
+      # bundle TWICE — slim (the [3/4] fetch branch) and carry (the
+      # robocopy branch no clone can exercise) — and this drive pins the
+      # job's text so neither leg can be quietly dropped: test_ci_both_shapes.py
+      - name: Both-shapes smoke contract (slim AND carry legs pinned)
+        run: python test_ci_both_shapes.py
 
   alert-routing:
     runs-on: ubuntu-latest
@@ -86,13 +115,113 @@ jobs:
         with:
           python-version: "3.11"
       - name: Install Python deps
-        run: python -m pip install --quiet fastapi httpx pywebpush
+        # TestClient drives the FastAPI app over Starlette internals; the
+        # pins are the .venv's resolved set (the same set the
+        # bundle-serving-contract job measured: starlette 1.10 hangs
+        # FileResponse-driven legs instead of failing).
+        run: python -m pip install --quiet "fastapi==0.139.2" "starlette==1.3.1" "anyio==4.14.2" "httpx==0.28.1" pywebpush
       - name: Profile alert log end-to-end
         run: python test_profile_alert_log_api.py
       - name: Push prefs envelope end-to-end
         run: python test_push_prefs_api.py
       - name: Acceptance drive
         run: python test_e2e_acceptance.py
+
+  scout-lifecycle:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install Python deps
+        # Same measured set as the bundle-serving-contract job
+        # (starlette 1.10 hangs Starlette-internals legs instead of
+        # failing).
+        run: python -m pip install --quiet "fastapi==0.139.2" "starlette==1.3.1" "anyio==4.14.2" "httpx==0.28.1" aiohttp cryptography jinja2 segno pywebpush pydantic
+      - name: Scout lifecycle (beacon, activation, telemetry, fleet report)
+        run: python test_scout_lifecycle.py
+
+  # THE MONEY SUITES (Oct 26). These drive the real engine, the real
+  # funding model and the real FastAPI app over a sandboxed DB — they were
+  # run by hand only, so a donation or accrual regression could ship green.
+  jackpot-funding:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install Python deps
+        # the import-time set for database/engine/funding/server (cryptography
+        # for field_crypto, httpx for fastapi.testclient), plus the lazily
+        # imported ones so a handler path cannot fail on a missing module
+        # TestClient drives the real FastAPI app over Starlette internals
+        # and pool/server imports uvicorn; same measured set as the
+        # bundle-serving-contract job (starlette 1.10 hangs instead of
+        # failing).
+        run: python -m pip install --quiet "fastapi==0.139.2" "starlette==1.3.1" "anyio==4.14.2" "httpx==0.28.1" aiohttp cryptography keyring pydantic py-vapid pywebpush segno "uvicorn==0.51.0"
+      - name: Donation idempotency (order key, pruning, concurrency, rollback)
+        run: python test_donation_idempotency.py
+      - name: Jackpot split (who funded the pot)
+        run: python test_jackpot_split.py
+      - name: Charter drive (formula, 30-day limit, referral loop, phrases)
+        run: python test_jackpot_charter.py
+
+  # THE SHARING-SAFE DOWNLOAD SERVING CONTRACT, GATED IN CI (Oct 30).
+  # test_bundle_serve.py's 8.x legs pin the /downloads route's
+  # _SharingFileResponse: the open denies nothing (delete/rename of the
+  # streamed artifact succeeds while the read carries on to the bytes it
+  # pinned), the copied handlers ride Starlette's own range machinery
+  # (200 / 206 single / 206 multipart) and the serving-pid log line is
+  # real. The windows runner is forced by the contract, not by the
+  # installer leg: 8.1's probe is kernel32.DeleteFileW share-mode
+  # semantics — the Windows mechanism the contract exists to keep (the
+  # Explorer "You require permission from" dialog is a Windows customer
+  # incident) — an ubuntu runner cannot exercise it at all.
+  #
+  # NO LOCAL :3094 SERVER, by construction: the whole drive runs
+  # in-process through FastAPI's TestClient; nothing binds a port and
+  # nothing dials localhost. And NO dist artifact is needed here: a CI
+  # clone cannot build KrakenScoutBundle.zip (the builder needs the
+  # sibling scout repo + the untracked push_topic.txt), so the drive's
+  # artifact-dependent legs print the documented SKIP and the sharing-safe
+  # legs (8.1-8.7 + the route-source pin 8.9) and the card wiring (3.x)
+  # gate — non-quietly: skips are printed lines, never synthesized passes,
+  # and the drive's exit code still counts only PASS/FAIL.
+  bundle-serving-contract:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install Python deps
+        # THE PINS ARE THE SERVE MACHINE'S RUNTIME, measured Oct 30: the
+        # 8.x copied legs ride Starlette's own FileResponse internals
+        # (leg 8.7 pins their presence) — and starlette 1.10 changed
+        # FileResponse.__call__ to await disconnect in a way the drive's
+        # raw-scope harness never answers, so an UNPINNED install does
+        # not fail this gate, it HANGS it (measured: starlette 1.10.0
+        # blocks leg 8.3 forever; 1.3.1 streams and returns. The pins
+        # are exactly the versions this checkout's .venv runs and were
+        # verified hermetically at 12 passed / 0 failed). Also aiohttp:
+        # pool/server imports it at module level.
+        run: python -m pip install --quiet "fastapi==0.139.2" "starlette==1.3.1" "anyio==4.14.2" "httpx==0.28.1" aiohttp
+      - name: Download-surface drive — sharing-safe serving contract
+        run: python test_bundle_serve.py
+
+  release-hygiene:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Release manifest (default-deny) and hygiene gate
+        run: python installer/check_release_hygiene.py
+      - name: Release guard contract
+        run: python test_release_guard.py
 
   push-path:
     runs-on: ubuntu-latest
@@ -106,15 +235,451 @@ jobs:
       - name: No rich in-page popup from worker
         run: test "$(grep -c 'showNotification' pool/static/push_sw.js)" -ge 1
 
+  # THE CUSTOMER PATH, EXERCISED (Oct 29). Three installer incidents (the
+  # re-nested "xmrig xmrig 6260" layout, a Defender quarantine, a fallback
+  # that silently 404s or fails its fetch) were all caught by CUSTOMERS on
+  # machines the build box never tests — and install.ps1's own try/catch
+  # makes a failed xmrig fetch only a WARNING, so the install "succeeds"
+  # with no miner anywhere. This gate runs the installer on a real
+  # Windows runner into a FRESH directory (RUNNER_TEMP is per-job, so the
+  # fresh-directory contract is structural), then drives
+  # installer/install_smoke.py, which proves out of the installer's own
+  # literals: the pinned xmrig URL still answers, the pinned SHA256 still
+  # matches, the exe lands at the exact contract path
+  # <target>\xmrig\xmrig-6.26.0\xmrig.exe byte-for-byte from the pinned
+  # zip, the layout cannot re-nest, and both app trees staged. Nothing
+  # executes the miner binary (Defender can quarantine it mid-job; byte
+  # equality is the deterministic proof). The bundle is staged from the
+  # checkout and carries NO xmrig payload, deliberately: what runs is the
+  # pinned-URL fetch branch customers most often hit, not
+  # build_bundle.ps1's local-copy branch (the builder also needs the
+  # sibling kraken_scout repo + push_topic.txt a CI clone cannot have).
+  #
+  # BOTH SHAPES, EVERY PUSH (Oct 30): the legs below stage the bundle TWICE
+  # on purpose — once with NO xmrig payload (the slim shape: install.ps1's
+  # [3/4] takes the pinned-URL fetch branch) and once WITH it (the carry
+  # shape: build_bundle.ps1 [3/6] copies the local payload, so [3/4] takes
+  # the robocopy branch — a branch that until this leg never ran in CI,
+  # because the local xmrig/ tree is untracked and no clone carries it).
+  # The carry leg feeds itself from the pinned release zip and drops the
+  # zip's config.json the way [3/6] drops the staged developer one. The
+  # smoke drive is branch-blind by design: the EXACT PATH THE BYTES LANDED
+  # contract is the same for both shapes, and it is proveable either way.
+  #
+  # RUNTIME, EXPECTED: a cold windows-latest job is minutes, not the
+  # xmrj build job's quarter hour. The carry leg doubles the install-phase
+  # work (a second pinned-asset download, robocopy, and verify pass), so
+  # the cap moves 10 -> 15 — still 1.5x headroom, and a hang still fails
+  # fast instead of burning the default.
+  scout-install-smoke:
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      # RUNNER HYGIENE, NOT A GATE: Defender is live on GitHub's Windows
+      # runners and can quarantine a miner exe outright — the customer
+      # incident class in miniature. Excluding only the temp/stage trees
+      # narrows what gets tested: THIS gate verifies OUR staging logic
+      # byte-for-byte, not Microsoft's scanner. If an exclusion is refused
+      # the step warns and continues; the drive's size + byte checks then
+      # report a quarantine themselves.
+      - name: Defender exclusions for the smoke tree (harness hygiene)
+        run: |
+          foreach ($p in @($env:RUNNER_TEMP, "${{ github.workspace }}")) {
+            try {
+              Add-MpPreference -ExclusionPath $p -ErrorAction Stop
+              Write-Host "excluded: $p"
+            } catch {
+              Write-Warning ("defender exclusion unavailable (" + $_.Exception.Message + ") - continuing")
+            }
+          }
+      # THE BUNDLE LAYOUT, FROM THE CHECKOUT: install.ps1 at a bundle root
+      # with payload\scout and payload\monero_project beside it (the layout
+      # the shipped bundle has), and NO xmrig payload anywhere.
+      - name: Stage the bundle layout the customer receives
+        run: |
+          $ErrorActionPreference = "Stop"
+          $Bundle = Join-Path $env:RUNNER_TEMP "smoke_bundle"
+          $Target = Join-Path $env:RUNNER_TEMP "KrakenScoutSmoke"
+          foreach ($d in @($Bundle, $Target)) {
+            if (Test-Path $d) { Remove-Item -Recurse -Force $d }
+          }
+          New-Item -ItemType Directory -Force -Path (Join-Path $Bundle "payload") | Out-Null
+          Copy-Item -Path "installer\install.ps1" -Destination (Join-Path $Bundle "install.ps1") -Force
+          robocopy "scout" (Join-Path $Bundle "payload\scout") /E /NFL /NDL /NJH /NJS /NP | Out-Null
+          $Rc = $LASTEXITCODE
+          if ($Rc -ge 8) { Write-Host "scout staging failed rc=$Rc"; exit 1 }
+          robocopy "." (Join-Path $Bundle "payload\monero_project") /E /XD .git .github node_modules .venv dist dist_site_review xmrig reports target __pycache__ .pytest_cache .workshop tools plans docs schemas src xmrj_treasury xmrj_jackpot xmrj_governance xmrj_conversion_service /NFL /NDL /NJH /NJS /NP | Out-Null
+          $Rc = $LASTEXITCODE
+          if ($Rc -ge 8) { Write-Host "monero staging failed rc=$Rc"; exit 1 }
+          # robocopy 0-7 is success (1 = "files copied"), but a nonzero
+          # $LASTEXITCODE rides OUT of a pwsh step as that step's exit
+          # code: the Oct 30 PR run measured this exact stage printing
+          # its success line and still exiting 1. Zero it once read.
+          $LASTEXITCODE = 0
+          if (-not (Test-Path (Join-Path $Bundle "payload\scout\app.py"))) { Write-Host "staging failed: no payload\scout\app.py"; exit 1 }
+          Write-Host "smoke bundle staged at $Bundle; fresh target: $Target"
+      # -NoUi -SkipVenv is the drive mode install.ps1's own header
+      # documents; the fresh target was deleted above.
+      - name: Install into the fresh directory (stage + miner-payload mode)
+        run: |
+          & powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $env:RUNNER_TEMP "smoke_bundle\install.ps1") -Target (Join-Path $env:RUNNER_TEMP "KrakenScoutSmoke") -NoUi -SkipVenv
+          if ($LASTEXITCODE -ne 0) { Write-Host "install.ps1 rc=$LASTEXITCODE"; exit 1 }
+      - name: The drive proves the pins, the exact path and the bytes
+        run: |
+          python installer\install_smoke.py --installer (Join-Path $env:RUNNER_TEMP "smoke_bundle\install.ps1") --target (Join-Path $env:RUNNER_TEMP "KrakenScoutSmoke")
+      # THE CARRY-SHAPE LEG (Oct 30): reproduces what build_bundle.ps1 [3/6]
+      # feeds a payload-carrying bundle — starts from the staged slim
+      # bundle, adds the pinned payload, drops the zip's config.json the way
+      # [3/6] drops the staged developer config, then installs into a
+      # SECOND fresh target so no state leaks between the shapes.
+      - name: Stage the carry-shape bundle (the payload rides along)
+        run: |
+          $ErrorActionPreference = "Stop"
+          $Carry = Join-Path $env:RUNNER_TEMP "smoke_bundle_carry"
+          $Target = Join-Path $env:RUNNER_TEMP "KrakenScoutSmokeCarry"
+          foreach ($d in @($Carry, $Target)) {
+            if (Test-Path $d) { Remove-Item -Recurse -Force $d }
+          }
+          robocopy (Join-Path $env:RUNNER_TEMP "smoke_bundle") $Carry /E /NFL /NDL /NJH /NJS /NP | Out-Null
+          $Rc = $LASTEXITCODE
+          if ($Rc -ge 8) { Write-Host "carry staging failed rc=$Rc"; exit 1 }
+          # the same robocopy success-code rule as the slim stage above
+          $LASTEXITCODE = 0
+          # THE PINS PARSE OUT OF THE INSTALLER (install_smoke.py's rule —
+          # one edit is a pin change, never a second hidden literal).
+          $ins = Get-Content (Join-Path $Carry "install.ps1") -Raw
+          $Url = [regex]::Match($ins, '\$Url\s*=\s*"([^"]+)"').Groups[1].Value
+          $WantHash = [regex]::Match($ins, '\$WantHash\s*=\s*"([0-9a-zA-Z]{64})"').Groups[1].Value
+          if (-not $Url -or -not $WantHash) { Write-Host "carry staging failed: the pin block in install.ps1 stopped parsing"; exit 1 }
+          # the same discipline install.ps1's fetch branch keeps: the hash
+          # is verified BEFORE a single byte is extracted.
+          $Zip = Join-Path $env:RUNNER_TEMP "carry_xmrig_pinned.zip"
+          Invoke-WebRequest -Uri $Url -OutFile $Zip -UseBasicParsing
+          $Got = (Get-FileHash -Path $Zip -Algorithm SHA256).Hash.ToLower()
+          if ($Got -ne $WantHash) { Remove-Item -Force $Zip -ErrorAction SilentlyContinue; Write-Host "carry staging failed: pinned asset failed its hash pin ($($Got.Substring(0,16))...)"; exit 1 }
+          Expand-Archive -Path $Zip -DestinationPath (Join-Path $Carry "payload") -Force
+          Remove-Item -Force $Zip
+          if (-not (Test-Path (Join-Path $Carry "payload\xmrig-6.26.0\xmrig.exe"))) { Write-Host "carry staging failed: no payload\xmrig-6.26.0\xmrig.exe"; exit 1 }
+          # THE DEVELOPER CONFIG NEVER SHIPS (the [3/6] mirror).
+          Remove-Item -Force (Join-Path $Carry "payload\xmrig-6.26.0\config.json") -ErrorAction SilentlyContinue
+          Write-Host "carry bundle staged at $Carry (xmrig rides along); fresh target: $Target"
+      - name: Install from the carry bundle (install.ps1's robocopy branch)
+        run: |
+          $out = & powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $env:RUNNER_TEMP "smoke_bundle_carry\install.ps1") -Target (Join-Path $env:RUNNER_TEMP "KrakenScoutSmokeCarry") -NoUi -SkipVenv
+          if ($LASTEXITCODE -ne 0) { Write-Host ($out | Select-Object -Last 20); Write-Host "carry install.ps1 rc=$LASTEXITCODE"; exit 1 }
+          # THE BRANCH IS ASSERTED, NOT ASSUMED: the payload is in place, so
+          # [3/4] must have taken the robocopy leg — its own leaf line is
+          # the proof the fetch branch did not quietly run instead.
+          if (-not (@($out) -match "staged local xmrig 6.26.0")) {
+            Write-Host "carry leg failed: install.ps1 did not report 'staged local xmrig 6.26.0'"
+            exit 1
+          }
+      - name: Same smoke drive, carry branch
+        run: |
+          python installer\install_smoke.py --installer (Join-Path $env:RUNNER_TEMP "smoke_bundle_carry\install.ps1") --target (Join-Path $env:RUNNER_TEMP "KrakenScoutSmokeCarry")
+
+  # THE RPC LAYER AND THE ENDPOINT CONTRACT (Oct 27). Both clients reach the
+  # cluster through tools/rpc_resilience.ts, and WHICH cluster that is must come
+  # from the environment: the three devnet passes in the execution report's
+  # §11.9 died on a 429 from the free public endpoint, and the fix only holds if
+  # nothing builds a connection of its own with a cluster baked in. No chain, no
+  # wallet, no cluster here: the layer's tests drive a stub fetch, and
+  # test_xmrj_rpc_endpoint.py reads the wiring.
+  xmrj-rpc-contract:
+    runs-on: ubuntu-latest
+    env:
+      # playwright is a dev dependency of the pool's UI drives, not of this job;
+      # skipping its browser download keeps this gate fast and dependency-free
+      PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Install the pinned client deps
+        run: npm ci --no-audit --no-fund
+      - name: Typecheck the suite and the harness (the RPC layer included)
+        run: npm run typecheck
+      - name: The retry layer — stub fetch, injected clock, no chain
+        run: npm run test:rpc
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: The endpoint comes from the environment (contract)
+        run: python test_xmrj_rpc_endpoint.py
+
+  # THE XMRJ OFFLINE DRIVES A CLONE CAN RUN (Oct 27). The build-dependent ones
+  # read target/, which is gitignored — the program keypairs it holds are the
+  # PRIVATE halves of the program addresses, so no clone contains them. This job
+  # is the no-build side: it runs the drives that need no toolchain, and it proves
+  # HERE that the build-dependent drives REFUSE an unbuilt checkout instead of
+  # reporting a green fleet. The build side is the next job down
+  # (xmrj-build-artifacts), which builds the programs with placeholder keys and
+  # runs test_xmrj_build_artifacts.py on them; `tools/xmrj_loadtest.ts --offline`
+  # stays a host-side gate (the runbook's §3 runs it after the build).
+  xmrj-offline-drives:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Install the pinned client deps (ts-node runs the harness check)
+        run: npm ci --no-audit --no-fund
+      - name: Source <-> manifest <-> toolchain wiring (artifact half SKIPped, unbuilt)
+        run: python test_anchor_wiring.py
+      - name: The devnet suite's own offline half
+        run: python test_xmrj_devnet_e2e.py
+      - name: The build-dependent drives refuse an unbuilt checkout
+        run: python test_xmrj_offline_gates.py
+
+  # THE BUILD, SO THE ARTIFACT DRIVE RUNS ON A PUSH (Oct 27). Everything above
+  # gates sources; this job compiles the three programs with the pinned toolchain
+  # (rust-toolchain.toml, Anchor.toml [toolchain]) and then runs
+  # test_xmrj_build_artifacts.py against REAL artifacts: each .so is a program and
+  # not an entrypoint-less shell (check 1.3, finding F10), the artifacts are newer
+  # than their sources, the IDL surface is the one the harness drives, and the rent
+  # budget comes from the real sizes.
+  #
+  # NO PROGRAM KEYPAIR COMES FROM A SECRET, deliberately (report §11.14): an address
+  # IS a public key, so a valid keypair file for the ids this repo declares needs
+  # their PRIVATE halves — there is no way to synthesize one, which is why the build
+  # generates placeholders and passes --ignore-keys. The private halves would buy
+  # exactly one thing here (check 3.3, the keypair identity), and it reports itself
+  # SKIPPED with that reason. Check 3.4 STILL RUNS: Anchor stamps the IDL's address
+  # from `declare_id!`, not from the keypair — measured on a placeholder build
+  # (report §11.14), which is why only one check skips. The keypair identity stays a
+  # host-side gate, where the real keypairs exist (test_anchor_wiring.py 4.3).
+  #
+  # COST, MEASURED ON THIS JOB'S OWN RUNNER (Oct 27-28, ubuntu-latest, public
+  # repo, report §11.14 and §11.16). Every cold number is a first run after a
+  # cache MISS: both xmrj caches were deleted and the job re-run alone, seven
+  # times, so the spread below is the runner's rather than the workflow's.
+  #
+  #   cold job wall             318  370  374  429  452  470  487 s
+  #                             min 318   median 429   max 487
+  #   warm (cache hit)          54-57 s
+  #   toolchain hit, crates cold 176 s  (the toolchain cache alone is ~250 s)
+  #
+  #   step (cold)                      range        worst
+  #   rustup + 1.89.0                  8-11 s        11 s
+  #   Agave 3.1.10                     14-20 s       20 s
+  #   `cargo install avm` + anchor     108-156 s    156 s
+  #   platform-tools / build-sbf       36-60 s       60 s
+  #   anchor build + 3x build-sbf      131-214 s    214 s
+  #   cache save                       11-34 s       34 s
+  #
+  # THE TIMEOUT comes from that distribution, not from one run: 1.5x the worst
+  # cold run (487 s) is 731 s, rounded up to the next whole 5 minutes is 900 s
+  # — 1.85x the worst and 2.1x the median. A hang still fails fast instead of
+  # burning the 360-minute default, and a slow-but-real run is not killed where
+  # a re-run would cost more than the wait. (30 came from host numbers that
+  # overestimated avm by 2.5x. The earlier note here claimed 2.4x against a
+  # single 370 s run, before the 487 s sample existed.)
+  #
+  # WHAT A MISS COSTS NOW (Oct 28, after the keys were split — same job, one
+  # re-run per line, caches deleted by class):
+  #   every cache empty                     506 s
+  #   avm + the Solana toolchain cold       341 s
+  #   crates/target cold                    144 s
+  #   a manifest edit, no pin changed        64 s   (was ~460 s: it threw all
+  #                                                  three caches away at once)
+  # The last line is the point of the split. Editing a cluster, a program id or
+  # a comment in Anchor.toml is the common case here, and it used to buy an avm
+  # rebuild, a 734 MB toolchain download and a full program rebuild for a change
+  # none of them depend on.
+  #
+  # All three caches earn their place: the Solana one buys back ~250 s and the
+  # crates one ~115 s, and together they cost ~30 s to restore on a hit.
+  xmrj-build-artifacts:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      # THE CACHE KEYS COME FROM THE PINS, NOT FROM THE MANIFEST (Oct 28). This
+      # job used to hash Anchor.toml WHOLE, so editing a cluster, a program id or
+      # a comment discarded a 150 s AVM build, a 734 MB Solana toolchain
+      # (Agave 215 + platform-tools 519) and 443 MB of compiled crates that
+      # depend on none of it — a one-line manifest edit cost the full ~460 s
+      # cold run. Four inputs actually matter: solana_version, anchor_version,
+      # the rust channel and the avm rev. They are read once here, and each
+      # cache is keyed on only the ones it uses, so a miss is scoped to what
+      # really changed.
+      - name: Read the pins the cache keys are derived from
+        id: pins
+        run: |
+          SOL=$(sed -nE 's/^solana_version *= *"([^"]+)".*/\1/p' Anchor.toml | head -1)
+          ANC=$(sed -nE 's/^anchor_version *= *"([^"]+)".*/\1/p' Anchor.toml | head -1)
+          if [ -z "$SOL" ] || [ -z "$ANC" ]; then
+            echo "Anchor.toml [toolchain] must pin BOTH solana_version and anchor_version" >&2
+            exit 1
+          fi
+          echo "solana=$SOL" >> "$GITHUB_OUTPUT"
+          echo "anchor=$ANC" >> "$GITHUB_OUTPUT"
+          echo "pins: solana=$SOL anchor=$ANC"
+      # avm and the anchor-cli it installs depend on the avm REV (a literal in
+      # the install step below, pinned there for the reason wiring-drive 3.6
+      # states) and the anchor version — never on the crates or the sources.
+      - name: Cache avm and the anchor-cli it installs
+        uses: actions/cache@v4
+        with:
+          path: ~/.avm
+          key: xmrj-avm-85c5293e-${{ steps.pins.outputs.anchor }}-${{ hashFiles('rust-toolchain.toml') }}
+      # The Agave CLI and the platform-tools that cargo-build-sbf downloads are
+      # both derived from solana_version (3.1.10 resolves platform-tools v1.57),
+      # so they move together and are cached together.
+      - name: Cache the Solana toolchain (Agave + platform-tools)
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.local/share/solana
+            ~/.cache/solana
+          key: xmrj-solana-${{ steps.pins.outputs.solana }}-${{ hashFiles('rust-toolchain.toml') }}
+      # target/deploy is deliberately NOT cached: it is where the build puts the
+      # .so files and where the placeholder keypairs live, and the drive checks
+      # that each .so is newer than its sources — a cache that could carry an old
+      # .so into a job is a cache that can hide a missing rebuild.
+      # target/release and target/debug ARE cached, and that was measured the
+      # other way round rather than assumed (report §11.14): dropping them on
+      # the theory that only build-sbf writes target/ cut the archive from
+      # 423 MB to 221 MB — and cost 94 s on every warm run, because the build
+      # step went 16 s -> 110 s. `anchor build` runs a HOST build of each
+      # program alongside the SBF one (that is where the IDL comes from), and
+      # these two dirs are its output. Keep them.
+      # Cargo.lock (and the compiler channel) is the only thing the registry and
+      # the compiled artifacts depend on. Anchor.toml is NOT one of them: the ids
+      # in it reach the crates through declare_id!, in source, and `anchor build`
+      # is given --ignore-keys. restore-keys keeps a genuine lockfile bump from
+      # starting at an empty target/.
+      - name: Cache the crates and the compiled artifacts
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target/release
+            target/debug
+            target/sbpf-solana-solana
+          key: xmrj-crates-${{ hashFiles('rust-toolchain.toml', 'Cargo.lock') }}
+          restore-keys: xmrj-crates-
+      - name: Rust — the channel rust-toolchain.toml pins
+        run: |
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal --default-toolchain none
+          echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
+          rustup toolchain install 1.89.0 --profile minimal --component rustfmt,clippy
+          rustup default 1.89.0
+      - name: Solana CLI — the Agave release Anchor.toml [toolchain] pins
+        run: |
+          # The version comes from the MANIFEST, read once by the pins step. A
+          # second hardcoded copy here is exactly the drift the wiring drive
+          # (13.1) exists to catch.
+          REL="${{ steps.pins.outputs.solana }}"
+          BIN="$HOME/.local/share/solana/install/active_release/bin"
+          if "$BIN/solana" --version 2>/dev/null | grep -qF "$REL"; then
+            echo "Agave $REL restored from the toolchain cache"
+          else
+            sh -c "$(curl -sSfL "https://release.anza.xyz/v$REL/install")"
+          fi
+          echo "$BIN" >> "$GITHUB_PATH"
+      - name: anchor-cli — the pinned release, through avm (built once, cached)
+        run: |
+          # avm is built from a PINNED commit, not the repository's HEAD: the
+          # cache restores a binary, and a moving HEAD would make a cache hit a
+          # different tool from a cache miss. 85c5293e is avm 1.2.1, the build
+          # this workspace's install used. Cold it is ~150 s of compiling
+          # (measured, 108-161 s over seven runs); on a hit the whole step is a
+          # `command -v` and an `avm use`. The anchor version is the manifest's
+          # pin, not a second literal.
+          AVM=$(command -v avm || true)
+          if [ -z "$AVM" ] && [ -x "$HOME/.avm/bin/avm" ]; then AVM="$HOME/.avm/bin/avm"; fi
+          if [ -z "$AVM" ]; then
+            cargo install avm --git https://github.com/otter-sec/anchor --rev 85c5293e --locked
+            AVM=$(command -v avm)
+          fi
+          echo "$HOME/.avm/bin" >> "$GITHUB_PATH"
+          "$AVM" install "${{ steps.pins.outputs.anchor }}"
+          "$AVM" use "${{ steps.pins.outputs.anchor }}"
+      - name: The SBF compiler this release maps to
+        run: cargo build-sbf --install-only
+      - name: A throwaway payer and PLACEHOLDER program keys (nothing here signs)
+        run: |
+          mkdir -p target/deploy "$HOME/.config/solana"
+          solana-keygen new --no-bip39-passphrase --force -o "$HOME/.config/solana/id.json"
+          for p in xmrj_treasury xmrj_jackpot xmrj_governance; do
+            solana-keygen new --no-bip39-passphrase --force -o "target/deploy/$p-keypair.json"
+          done
+      - name: Build — the runbook's §3 recipe (anchor build, then each program alone)
+        run: |
+          anchor build --ignore-keys
+          # The stale UNHASHED rlib `cargo build-sbf` leaves in deps/ is the
+          # runbook §3 failure: the next program's build picks it up and dies with
+          # "could not find `cpi` in `xmrj_jackpot`" (plus a global_allocator
+          # conflict) — measured here on a rebuild, which is what every push after
+          # the first one is. tools/xmrj_devnet_run.sh §3 does the same.
+          rm -f target/sbpf-solana-solana/release/deps/libxmrj_*.rlib
+          for p in xmrj_treasury xmrj_jackpot xmrj_governance; do (cd "$p" && cargo build-sbf); done
+      - name: The artifact drive — .so reality, IDL surface, freshness, rent
+        env:
+          XMRJ_PLACEHOLDER_KEYS: "1"
+        run: python test_xmrj_build_artifacts.py
+
+  # THE AGGREGATE (Oct 27; made able to fail Oct 28). `needs:` ALONE makes this
+  # job SKIPPED when any sibling fails, which the first full pipeline run
+  # measured (PR #1, run 40690417522): 12 gates green, `build` red, and this job
+  # reported "skipped" with zero steps — the one check meant to summarise the
+  # pipeline was absent from exactly the runs that needed it. `if: always()`
+  # makes it run regardless; the step below fails HERE for every sibling whose
+  # result is not "success", so a failure, a cancellation and a gate that never
+  # ran all read as red rather than as a missing row in the check list.
   ci:
     needs:
       - lint
+      - xmrj-rpc-contract
+      - xmrj-offline-drives
+      - xmrj-build-artifacts
       - build
       - static-invariants
       - alert-routing
       - scout-pro-gating
       - alert-log-api
+      - scout-lifecycle
+      - scout-install-smoke
+      - jackpot-funding
+      - release-hygiene
+      - bundle-serving-contract
       - push-path
+    if: always()
     runs-on: ubuntu-latest
     steps:
-      - run: echo "CI pipeline complete"
+      - name: Every gate passed
+        env:
+          # the whole needs map as JSON (name -> {result, outputs}), so one step
+          # can name EVERY gate that did not pass instead of stopping at the
+          # first non-success
+          NEEDS: ${{ toJSON(needs) }}
+        run: |
+          python3 - <<'PY'
+          import json, os, sys
+
+          needs = json.loads(os.environ["NEEDS"])
+          for name in sorted(needs):
+              print("%-22s %s" % (name, needs[name]["result"]))
+          bad = [(n, needs[n]["result"]) for n in sorted(needs)
+                 if needs[n]["result"] != "success"]
+          if bad:
+              print("")
+              print("CI GATE FAILED: " + ", ".join("%s=%s" % b for b in bad))
+              sys.exit(1)
+          print("")
+          print("CI pipeline complete: %d gates, all successful" % len(needs))
+          PY

@@ -56,8 +56,8 @@ def _fake_transport(captured: list):
     (in the SANDBOX db) and return its id — a registration that creates
     nothing would hand opt_in a miner_id the ticket grant can't satisfy
     (the FK the drive caught)."""
-    def _post(api_base, wallet, worker):
-        captured.append((api_base, wallet, worker))
+    def _post(api_base, wallet, worker, install_id=""):
+        captured.append((api_base, wallet, worker, install_id))
         pool_dir = str(HERE / "pool")
         if pool_dir not in sys.path:
             sys.path.insert(0, pool_dir)
@@ -101,6 +101,11 @@ _cfg.write_text(json.dumps({
 }), encoding="utf-8")
 _captured = []
 installer._post_register = _fake_transport(_captured)
+# Phase F: opt-in beacons the install BEFORE registering. Stubbed here so
+# the drive never reaches xmrjackpot.com; the call shape is pinned below.
+_beacons = []
+installer._report_install = lambda api_base, iid: (
+    _beacons.append((api_base, iid)) or True)
 
 # the welcome grant runs against a SANDBOX db: rebind the pool database
 # module's DB_PATH before the grant's own import lands on it
@@ -153,6 +158,15 @@ _n_welcome = _conn.execute("SELECT COUNT(*) FROM tickets WHERE "
 check(3.5, _n_welcome == 1,
       f"exactly ONE welcome ticket granted (type 'free' per the schema's "
       f"CHECK; sandbox DB says {_n_welcome})")
+# Phase F: the machine's install id is minted, persisted, sent on ONE
+# install beacon before registration, and carried on the registration so
+# the pool marks THAT install activated (one row, not a second record).
+check(3.6, bool(_rec_d.get("install_id"))
+      and len(_captured[0]) == 4
+      and _captured[0][3] == _rec_d["install_id"]
+      and _beacons == [("http://127.0.0.1:1", _rec_d["install_id"])],
+      "the install id is persisted, beaconed once, and rides the "
+      "registration call")
 # 4. idempotent: a second opt-in grants no second ticket (the miner now
 # HAS a ticket — the server-side ticket-less rule stays quiet)
 installer.opt_in(GOOD, api_base="http://127.0.0.1:1", worker="rig1",
@@ -162,6 +176,7 @@ _n2 = _conn.execute("SELECT COUNT(*) FROM tickets WHERE "
 check(4.1, _n2 == 1, f"second opt-in granted nothing more ({_n2})")
 
 print("== 5. opt-out touches nothing else ==")
+_n_beacons = len(_beacons)
 _r5 = installer.opt_out(_rec)
 _d5 = json.loads(_rec.read_text(encoding="utf-8"))
 _c5 = json.loads(_cfg.read_text(encoding="utf-8"))
@@ -173,6 +188,8 @@ check(5.2, _c5["pools"][0]["user"] == GOOD
       "nothing; the installer does not scrub configs)")
 check(5.3, installer.load_record(_rec)["miner_bot_opt_in"] is False,
       "reloading the record after opt-out: still out (no resurrection)")
+check(5.4, len(_beacons) == _n_beacons,
+      "opt-out sends NO telemetry — ticking the box is the consent")
 
 print("== 6. dry-run writes NOTHING ==")
 _rec6 = Path(_tmp) / "rec6.json"
@@ -180,14 +197,15 @@ _cfg6 = Path(_tmp) / "cfg6.json"
 _cfg6.write_text('{"pools": [{"user": "KEEP"}]}', encoding="utf-8")
 _before = _cfg6.read_bytes()
 _captured.clear()
+_beacons.clear()
 _r6 = installer.opt_in(GOOD, api_base="http://127.0.0.1:1", worker="d",
                        dry_run=True, record_path=_rec6, config_path=_cfg6)
 check(6.1, _r6.get("ok") and _r6.get("dry_run")
-      and _r6["plan"]["patch_xmrig"] is True,
-      "the plan is described (patch_xmrig true)")
+      and _r6["plan"]["write_xmrig_config"] is True,
+      "the plan is described (write_xmrig_config true)")
 check(6.2, not _rec6.exists() and _cfg6.read_bytes() == _before
-      and len(_captured) == 0,
-      "no record file, byte-identical config, zero registration calls")
+      and len(_captured) == 0 and len(_beacons) == 0,
+      "no record file, byte-identical config, zero network calls")
 
 print("== 7. no persistence anywhere ==")
 import re as _re

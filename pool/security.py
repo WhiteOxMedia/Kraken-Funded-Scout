@@ -42,6 +42,22 @@ class RateLimiter:
 
             return True
 
+    def peek(self, key):
+        """Read-only limit probe: True while the caller is still under
+        the window's cap, False once the cap is full — WITHOUT spending
+        a slot. check() is symmetric: it probes AND charges in one call.
+        A gate that must deny under-cap callers before expensive work
+        while charging only some subset of requests (the register route
+        charges only on an inbox-perip cond) peeks first and calls
+        check() on the events it wants counted."""
+        now = time.time()
+        cutoff = now - self.window
+        with self.lock:
+            timestamps = self.buckets.get(key, [])
+            timestamps = [t for t in timestamps if t > cutoff]
+            self.buckets[key] = timestamps
+            return len(timestamps) < self.max
+
 
 # ─── Rate limiter instances ─────────────────────────────────
 # Public stats: 30 req/min per IP
@@ -49,12 +65,26 @@ stats_limiter = RateLimiter(max_requests=30, window_seconds=60)
 # Auth endpoints: 20 req/min per IP (login/register)
 auth_limiter = RateLimiter(max_requests=20, window_seconds=60)
 # account CREATION is its own abuse surface (Sep 26 E2E):
-# 5 registrations / hour / IP
+# 5 registrations / hour / IP. The slot is SPENT ON A CREATED ACCOUNT
+# only (Oct 29): the route peeks before its validation+db work and
+# runs check() once at the end, so a typo'd wallet or a taken username
+# cannot burn the pool's own gate — a careless double-click or a
+# shared-IP refresh no longer locks a first-time user out of signing
+# up. Request-shape abuse stays bounded by auth_limiter on the same
+# route (20/min/IP).
 register_limiter = RateLimiter(max_requests=5, window_seconds=3600)
 # the miner ingest gate (Sep 27): 12 signed share-delta calls per
 # minute per source is far above any real poller cadence and far
 # below forgery-flood territory
 shares_limiter = RateLimiter(max_requests=12, window_seconds=60)
+# THE WALLET-VALIDATE GATE (Oct 29): the Connect Wallet flow's backing
+# endpoint. 30/min/IP covers a typo-retry loop many times over; a
+# flood probe of shape answers is refused well before it matters.
+wallet_validate_limiter = RateLimiter(max_requests=30, window_seconds=60)
+# THE INSTALL BEACON (Phase F): an unauthenticated, once-per-install
+# report from the installer. 10/hour/IP covers a reinstall and a NAT of
+# machines, and refuses a flood that would fake fleet growth.
+install_limiter = RateLimiter(max_requests=10, window_seconds=3600)
 
 
 class NonceStore:

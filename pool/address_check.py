@@ -245,6 +245,45 @@ def is_valid(addr) -> bool:
     return validate(addr)[0]
 
 
+# ── THE VERUS GATE (Oct 28) ───────────────────────────────────────────
+# A Verus miner's win is paid in VRSC (the coin their bot mines), so the
+# claim wallet must be a VERUS address, not a Monero one. Verus mainnet
+# transparent addresses are 'R' + 33 Base58 chars (34 total); privacy
+# addresses are 'i' + 74 (75 total) and the treasury should NOT be
+# forced through them — a transparent address is a payout destination
+# every daemon can see. Shape-level honesty here: this validates the
+# prefix, length and Base58 charset WITHOUT a checksum — Verus's
+# checksummed base58 needs its own variant, and an honest Schmitt says
+# that plainly rather than pretending. The treasury officer's send is
+# the final authority, exactly like the manual-from-Kraken path.
+_VERUS_B58 = _B58  # address fields use the same Base58 alphabet
+
+
+def validate_verus(addr) -> tuple[bool, str]:
+    """Offline Verus mainnet payout-address shape check.
+    Returns (ok, why) in the same named-rejection convention as
+    validate()."""
+    if not isinstance(addr, str):
+        return False, "empty"
+    a = addr.strip()
+    if not a:
+        return False, "empty"
+    if a.startswith("i"):
+        return False, ("privacy (i-addresses are not a payout destination "
+                       "— use the transparent R-address)")
+    if not a.startswith("R"):
+        return False, ("shape (a Verus mainnet transparent address "
+                       "starts with R)")
+    if len(a) != 34:
+        return False, (f"length ({len(a)} chars, not the 34 of a Verus "
+                       f"transparent address)")
+    for ch in a:
+        if ch not in _VERUS_B58:
+            return False, f"charset ({ch!r} is not Base58)"
+    return True, ("Verus mainnet transparent, shape verified (no checksum "
+                  "check — the treasury send is the authority)")
+
+
 if __name__ == "__main__":
     import sys
     ok, why = validate(sys.argv[1] if len(sys.argv) > 1 else "")

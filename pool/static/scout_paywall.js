@@ -1,5 +1,5 @@
 /* scout_paywall.js — first-impression UX module (Oct 17):
-   donation/unlock flow, XMRJ unlock, Scout activation + one-active-
+   donation/unlock flow, Scout activation + one-active-
    identity limiter, miner polling, XMR wallet status, Kraken referral
    tracking, and the admin toggles.
 
@@ -87,32 +87,28 @@
   }
 
   /* ── Activate Scout ───────────────────────────────────────────
-     Spec payload (scout_id, xmrj_unlock_proof, identity_wallet) plus
-     identity_token — the pool's actual lookup key, so the same click
-     satisfies both contracts. Answers handled: the spec's
+     Payload: identity_token — the pool's actual lookup key — plus
+     identity_wallet and scout_id. Answers handled: the spec's
      AlreadyActiveScoutForCycle error, the real envelope's
      already_active flag, and the one-active-scout detail string.
      
-     DOM reads: the template does not render scout-id / xmrj-unlock-proof /
-     identity-wallet inputs, so read from window locals set by the
+     DOM reads: the template does not render scout-id / identity-wallet
+     inputs, so read from window locals set by the
      scout_paywall_wire_patch module (which owns those fields). For the
      status line, use the wf-scout panel's status element. */
   function activateScoutImpl() {
     // Read from window locals (set by wire patch) when DOM inputs absent
     var scoutIdEl = $("scout-id");
-    var proofEl = $("xmrj-unlock-proof");
     var walletEl = $("identity-wallet");
     var us = $("unlock-status");
 
     var scoutId = scoutIdEl ? fieldValue(scoutIdEl) : (window.selectedScoutId != null ? String(window.selectedScoutId) : "");
-    var proof = proofEl ? fieldValue(proofEl) : (window.xmrjUnlockProof || "");
     var wallet = walletEl ? fieldValue(walletEl) : (window.identityWallet || "");
 
     if (!wallet) { track("scout_activated_error", { reason: "missing_fields" }); return; }
     track("scout_activated", { scout_id: scoutId });    post("/api/scout/activate", {
       identity_token: wallet,
       scout_id: scoutId,
-      xmrj_unlock_proof: proof,
       identity_wallet: wallet
     })
       // A 409 AlreadyActiveScoutForCycle carries the limiter message in its
@@ -139,36 +135,6 @@
       .catch(function () {
         if (us) { us.textContent = "Activation could not be completed. Please try again."; }
         track("scout_activated_error", { reason: "network" });
-      });
-  }
-
-  /* ── Unlock with XMRJ (spec hook: POST /scout/purchase) ─────── */
-  function startXmrjUnlockFlowImpl() {
-    var proofEl = $("xmrj-unlock-proof");
-    var proof = proofEl ? fieldValue(proofEl) : (window.xmrjUnlockProof || "");
-    var us = $("unlock-status");
-    track("xmrj_unlock_started");
-    if (proofEl) { proofEl.focus(); }
-    post("/scout/purchase", { action: "xmrj_unlock", proof: proof })
-      .then(function (r) { return r.ok ? r.json() : null; })
-      .then(function (d) {
-        if (d && d.proof && proof) {
-          proof.value = d.proof;
-          track("xmrj_unlock_proof_ready");
-        } else {
-          track("xmrj_unlock_error");
-          if (us) {
-            us.textContent =
-              "The XMRJ unlock service is not reachable yet — your proof was not consumed. Try again shortly.";
-          }
-        }
-      })
-      .catch(function () {
-        track("xmrj_unlock_error");
-        if (us) {
-          us.textContent =
-            "The XMRJ unlock service is not reachable yet — your proof was not consumed. Try again shortly.";
-        }
       });
   }
 
@@ -308,7 +274,6 @@
     track: track,
     showActivationLimiter: showActivationLimiter,
     openDonateFlow: openDonateFlowImpl,
-    startXmrjUnlockFlow: startXmrjUnlockFlowImpl,
     activateScout: activateScoutImpl,
     pollScoutStatus: pollScoutStatus,
     connectXmrWallet: connectXmrWallet,

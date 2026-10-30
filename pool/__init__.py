@@ -9,6 +9,7 @@ from . import (  # noqa: F401
     jackpot_funding,
     kraken_referral as kr,
     monero_wallet as xmr,
+    projection_ad,
     push_report,
     push_service as push_svc,
     scheduler as kr_sched,

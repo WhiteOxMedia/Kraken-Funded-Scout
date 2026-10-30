@@ -17,7 +17,16 @@ both fail-closed:
    (scout + monero trees; the xmrig binary payload is filename-checked
    only). ANY hit exits 1 — the build refuses to ship a leak.
 
-2. THE PUBLIC ARTIFACT: the folder alone is not served — the pool
+2. THE RELEASE MANIFEST (Oct 25): after assembly the staged tree is
+   pruned to installer/release_manifest.json — default-deny, so tests,
+   audits, phase docs, operator tooling, the pool server and the
+   developer xmrig config are removed rather than trusted to a
+   denylist — and the surviving tree is scanned for forbidden content
+   (credentials, operator wallets, localhost pool endpoints, preprod
+   versions). A content hit FAILS the build: a pruned program is a
+   broken program, so that has to be fixed at the source.
+
+3. THE PUBLIC ARTIFACT: the folder alone is not served — the pool
    serves the zip + .sha256 + .zip.json manifest from disk. The
    finalizer zips the bundle (forward-slash entry names under the
    KrakenScoutBundle/ prefix, fixed stamp) and rewrites manifest and
@@ -38,11 +47,15 @@ Usage: python installer/finalize_bundle.py BUNDLE_DIR DIST_DIR SCOUT_ROOT MONERO
 """
 import hashlib
 import json
+import os
 import subprocess
 import sys
 import zipfile
 from datetime import datetime, timezone
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import release_guard as guard          # noqa: E402  (the one manifest brain)
 
 DENY_NAMES = {"push_topic.txt", "_ntfydiag.txt"}
 DENY_DIR_MARKER = "/.workshop/"
@@ -61,6 +74,24 @@ def _git_head(repo):
         return r.stdout.strip() if r.returncode == 0 else "unknown"
     except Exception:
         return "unknown"
+
+
+def _git_version(repo, manifest_version):
+    """The customer-facing version. It comes from the release manifest —
+    never from `git describe`, whose dev-tag suffixes (preprod, -rc,
+    -<n>-g<hash>) used to reach the download page and the Product markup.
+    The build's exact commit is published separately as `monero_head`.
+
+    XMRJ_RELEASE_VERSION lets an operator stamp a versioned release
+    without editing the manifest, but it is validated by the guard's own
+    marker rule, so it cannot smuggle a non-production label either."""
+    env = (os.environ.get("XMRJ_RELEASE_VERSION") or "").strip()
+    version = env or manifest_version
+    try:
+        guard.release_version({"version": version})
+    except guard.ManifestError as e:
+        _fail(str(e))
+    return version
 
 
 def main():
@@ -107,6 +138,21 @@ def main():
     print("  topic guard: clean "
           + ("(live topic scanned)" if topic else "(no topic provisioned)"))
 
+    # ── 2b. THE RELEASE MANIFEST: default-deny prune, then validate ──
+    manifest = guard.load_manifest()
+    removed = guard.prune(bundle, manifest)
+    print(f"  release manifest: pruned {len(removed)} file(s) not on the "
+          f"customer whitelist")
+    problems = guard.scan_bundle(bundle, manifest)
+    if problems:
+        for p in problems[:40]:
+            print("  RELEASE HIT: " + p)
+        _fail(f"the bundle violates installer/release_manifest.json "
+              f"({len(problems)} violation(s)) — fix the sources and rebuild")
+    print("  release guard: clean (" + str(len(manifest['allowed']))
+          + " allowed paths, " + str(len(manifest.get('content_rules') or ()))
+          + " content rules)")
+
     # ── 3. the public artifact: zip + manifest + sidecar, one pass ───
     dist.mkdir(parents=True, exist_ok=True)
     zip_path = dist / "KrakenScoutBundle.zip"
@@ -125,20 +171,30 @@ def main():
 
     xmrig_dir = payload / "xmrig-6.26.0"
     xmrig_exe = xmrig_dir / "xmrig.exe"
-    manifest = {
+    # The manifest must describe the shape it published: some builds
+    # carry the local xmrig tree, fresh-clone builds do not (install.ps1
+    # fetches the pinned release at install time) - a static contents
+    # string would claim a payload the slim shape never zipped.
+    xmrig_contents = ("installer + xmrig 6.26.0 payload" if xmrig_exe.exists()
+                      else "installer; the xmrig payload is fetched from "
+                      "the pinned release at install time")
+    release = {
         "artifact": "KrakenScoutBundle.zip",
+        "version": _git_version(monero, guard.release_version(manifest)),
         "sha256": sha,
         "bytes": zip_path.stat().st_size,
         "size_human": "%.1f MB" % (zip_path.stat().st_size / 1048576),
         "built_utc": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "monero_head": _git_head(monero),
         "scout_head": _git_head(scout),
+        "release_manifest_sha256": guard.manifest_sha256(manifest),
+        "release_policy": "default-deny whitelist (installer/release_manifest.json)",
         "xmrig_version": "6.26.0" if xmrig_dir.is_dir() else None,
         "xmrig_sha256": (hashlib.sha256(xmrig_exe.read_bytes()).hexdigest()
                          if xmrig_exe.exists() else None),
-        "contents": ("Kraken Scout (git archive HEAD) + monero_project "
-                     "pool view + xmrig 6.26.0 payload + one-click "
-                     "installers; bundle root dir KrakenScoutBundle/"),
+        "contents": ("Kraken Scout (runtime modules + launchers) + the "
+                     f"{xmrig_contents}; no pool, no "
+                     "operator tooling, no tests; root dir KrakenScoutBundle/"),
         "install": "unzip, open KrakenScoutBundle/, run 'Install Kraken Scout.bat'",
         "verify": "CertUtil -hashfile KrakenScoutBundle.zip SHA256",
         "urls": {
@@ -147,9 +203,9 @@ def main():
         },
     }
     (dist / "KrakenScoutBundle.zip.json").write_text(
-        json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
+        json.dumps(release, indent=2) + "\n", encoding="utf-8")
     print("BUNDLE FINALIZED: " + str(zip_path)
-          + "  (" + manifest["size_human"] + ", sha256 " + sha[:16] + "…)")
+          + "  (" + release["size_human"] + ", sha256 " + sha[:16] + "…)")
 
 
 if __name__ == "__main__":

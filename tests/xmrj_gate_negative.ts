@@ -51,7 +51,6 @@ const EXPECTED_CODE = Number(process.env.XMRJ_GATE_ERROR || "0");
 // The seed literals, byte-for-byte the crates' own constants.
 const JACKPOT_STATE_SEED = "jackpot_state";
 const GOVERNANCE_AUTHORITY_SEED = "governance_authority";
-const PROGRAM_DATA_SEED = "programdata";
 const LOADER_ID = "BPFLoaderUpgradeab1e11111111111111111111111";
 
 // xmrj_jackpot's pinned governance program (declare_id! in that crate).
@@ -65,9 +64,13 @@ const INITIALIZE_DISC = createHash("sha256")
   .digest()
   .subarray(0, 8);
 
-// JACKPOT_STATE_SPACE = 8 + 8 + 8 + 32 + 32 + 32 + 8, and the field offsets
-// that follow from it (the wiring drive recomputes both from the struct).
-const STATE_LEN = 8 + 8 + 8 + 32 + 32 + 32 + 8;
+// JACKPOT_STATE_SPACE = 8 + 8 + 8 + 32 + 32 + 32 + 8 + 8 — the fields in
+// order: balance, total payouts, last winner, treasury program, admin
+// authority, max payout bps, and (appended last, finding F1's accounting)
+// total funded. The offsets below are unchanged by that field because it went
+// on the END; a field inserted in the middle would move them, which is why
+// they are written as sums rather than as numbers.
+const STATE_LEN = 8 + 8 + 8 + 32 + 32 + 32 + 8 + 8;
 const OFF_TREASURY = 8 + 8 + 8 + 32;
 const OFF_ADMIN = OFF_TREASURY + 32;
 const OFF_MAX_BPS = OFF_ADMIN + 32;
@@ -96,8 +99,9 @@ function negativeSuite(): void {
     [Buffer.from(GOVERNANCE_AUTHORITY_SEED)],
     new anchor.web3.PublicKey(GOVERNANCE_PROGRAM_ID),
   );
+  // The loader's own rule: one seed, the program's id, no string prefix.
   const [programData] = anchor.web3.PublicKey.findProgramAddressSync(
-    [Buffer.from(PROGRAM_DATA_SEED), programId.toBuffer()],
+    [programId.toBuffer()],
     new anchor.web3.PublicKey(LOADER_ID),
   );
 

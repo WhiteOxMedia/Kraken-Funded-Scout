@@ -16,7 +16,8 @@
 # the marker ages past 8 days. See "Scheduled alerting" in README.md.
 
 $ErrorActionPreference = 'Stop'
-$repo  = Split-Path -Parent $MyInvocation.MyCommand.Path
+$tools = Split-Path -Parent $MyInvocation.MyCommand.Path
+$repo  = Split-Path -Parent $tools
 $stamp = Join-Path $repo 'task_sweep_report_last.txt'
 $log   = Join-Path $repo 'logs_sweep_report.txt'
 
@@ -39,7 +40,7 @@ if ($last -gt 0 -and ($now - $last) -lt ($week - $grace)) {
 }
 
 $py  = Join-Path $repo '.venv\Scripts\python.exe'
-$cli = Join-Path $repo 'sweep_db.py'
+$cli = Join-Path (Join-Path $repo 'tools') 'sweep_db.py'
 Add-Content -Path $log -Value (
     "===== run " + (Get-Date).ToUniversalTime().ToString('yyyy-MM-dd HH:mm:ss') +
     " UTC (the exit code of this run is the task's Last Result)") -Encoding UTF8
