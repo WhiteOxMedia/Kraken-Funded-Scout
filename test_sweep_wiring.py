@@ -61,6 +61,15 @@ def check(n, cond, why=""):
           + (f"  ({why})" if why and not cond else ""))
 
 
+def _text(path):
+    """A missing wrapper is a FAILING CHECK, not a crashed drive: the
+    RESULT ledger must always print, so reads degrade to empty text."""
+    try:
+        return path.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return ""
+
+
 if not SCHEDULER.is_file():
     print("SKIP: pool/scheduler.py not present - the wiring drive pins "
           "the pool checkout only")
@@ -89,6 +98,10 @@ check("2a the scheduler still inserts <repo>/tools into sys.path",
 check("2b the scheduler imports sweep_lib from that path",
       "import sweep_lib" in sched_src,
       "the import statement relied on by the weekly orphan leg")
+check("2c the scheduler wires the registrar in from tools/",
+      "register_sweep_report_task" in sched_src,
+      "the weekly orphan leg's lazy registrar import resolves through "
+      "the same tools/ insert - dropped wiring means no task refresh")
 
 probe = (
     "import sys; sys.path.insert(0, r'{root}'); "
@@ -102,17 +115,16 @@ if r.returncode == 0 and r.stdout.count("\n") >= 2:
     resolved = [line.strip() for line in r.stdout.strip().splitlines()[:2]]
     off_tools = [p for p in resolved
                  if not p.startswith(str(TOOL_ROOT))]
-    check("2c the scheduler's actual import resolves sweep_lib + the "
+    check("2d the scheduler's actual import resolves sweep_lib + the "
           "registrar from tools/",
           not off_tools, f"imported from outside tools/: {off_tools}")
 else:
-    check("2c the scheduler's actual import resolves sweep_lib + the "
+    check("2d the scheduler's actual import resolves sweep_lib + the "
           "registrar from tools/", False,
           f"the probe failed (rc={r.returncode}): {r.stderr.strip()[:200]}")
 
 # ── 3. THE WRAPPERS ASSUME THIS LEVEL ─────────────────────────────
-ps1 = (TOOL_ROOT / "run_sweep_report_task.ps1").read_text(
-    encoding="utf-8", errors="replace")
+ps1 = _text(TOOL_ROOT / "run_sweep_report_task.ps1")
 check("3a the ps1 wrapper self-locates via its own invocation path",
       "Split-Path -Parent $MyInvocation.MyCommand.Path" in ps1
       and "Split-Path -Parent $tools" in ps1,
@@ -123,8 +135,7 @@ check("3b the ps1 wrapper invokes the CLI at <repo>/tools/sweep_db.py",
       "Join-Path" in ps1,
       "the wrapper's CLI pin must point at the tools/ home")
 
-cmd = (TOOL_ROOT / "run_sweep_report.cmd").read_text(
-    encoding="utf-8", errors="replace")
+cmd = _text(TOOL_ROOT / "run_sweep_report.cmd")
 check("3c the cmd wrapper cd's exactly one directory up",
       'cd /d "%~dp0.."' in cmd,
       '%~dp0.. only lands on the repo root when the .cmd itself is '
@@ -133,8 +144,7 @@ check("3d the cmd wrapper invokes tools\\sweep_db.py",
       "tools\\sweep_db.py" in cmd,
       "the .cmd's invocation must name the tools/ home")
 
-reg = (TOOL_ROOT / "register_sweep_report_task.py").read_text(
-    encoding="utf-8", errors="replace")
+reg = _text(TOOL_ROOT / "register_sweep_report_task.py")
 check("3e the task registrar points WRAPPER at its own directory's "
       "run_sweep_report_task.ps1",
       'WRAPPER = HERE / "run_sweep_report_task.ps1"' in reg,
