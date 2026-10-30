@@ -33,7 +33,8 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
-REPO = Path(__file__).resolve().parent          # monero_project/
+HERE = Path(__file__).resolve().parent          # tools/ on a staged checkout
+REPO = HERE.parent if HERE.name == "tools" else HERE   # monero_project/
 SCOUT = REPO.parent / "kraken_scout"
 STAMP = REPO / "scratch" / "_bundle_built_heads.json"
 RECEIPTS = REPO / "scratch" / "reviews_receipts.jsonl"
