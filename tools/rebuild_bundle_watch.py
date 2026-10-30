@@ -106,8 +106,35 @@ def _receipt(outcome, scout_head, monero_head, detail=""):
         pass
 
 
+def _backfill_if_missing():
+    """Re-stage the pinned release automatically when the local xmrig
+    payload is gone (Oct 30) - the wide shape degrades to slim SILENTLY
+    on the next rebuild otherwise (build_bundle.ps1 copies the payload
+    only when its exe is present, and the shape contracts honestly PASS
+    both shapes, so nothing goes red). The healer lives in
+    tools/backfill_xmrig.py: same URL/zip-hash/exe-hash pins as
+    install.ps1's $WantHash and test_bundle.py 4.5. Quiet when the
+    payload is present (the NO-DRIFT quiet-path rule); a failure is
+    logged loudly and never kills the watch cycle."""
+    here_tools = Path(__file__).resolve().parent
+    if str(here_tools) not in sys.path:
+        sys.path.insert(0, str(here_tools))
+    try:
+        import backfill_xmrig
+    except ImportError:
+        _log("BACKFILL UNAVAILABLE: tools/backfill_xmrig.py is missing - "
+             "the carry shape stays degraded")
+        return
+    rc, msg = backfill_xmrig.backfill(repo=REPO, log=_log)
+    if rc != 0:
+        _log("CARRY SHAPE DEGRADED: %s - the NEXT rebuild ships the slim "
+             "shape (honest, but the miner no longer rides along)" % msg)
+
+
 def main():
     force = "--force" in sys.argv[1:]
+
+    _backfill_if_missing()
 
     scout_head = _head(SCOUT)
     monero_head = _head(REPO)

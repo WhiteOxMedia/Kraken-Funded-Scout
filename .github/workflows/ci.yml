@@ -18,6 +18,11 @@ on:
   push:
     branches: [main]
   pull_request:
+  # ONE-OFF RUNS: the whole 16-job matrix rides on `workflow_dispatch`
+  # too, so a single new gate can be proven on the real runners (a true
+  # ubuntu and a true windows interpreter) BEFORE a PR asks the ruleset
+  # to enforce it — dispatch it, watch it, then open the PR.
+  workflow_dispatch:
 
 jobs:
   lint:
@@ -59,6 +64,12 @@ jobs:
         run: python test_no_xmrj_claims.py
       - name: WF dashboard stamp
         run: python test_wf_dashboard_stamp.py
+      # THE BOTH-SHAPES CONTRACT (Oct 30): the smoke job below stages the
+      # bundle TWICE — slim (the [3/4] fetch branch) and carry (the
+      # robocopy branch no clone can exercise) — and this drive pins the
+      # job's text so neither leg can be quietly dropped: test_ci_both_shapes.py
+      - name: Both-shapes smoke contract (slim AND carry legs pinned)
+        run: python test_ci_both_shapes.py
 
   alert-routing:
     runs-on: ubuntu-latest
@@ -104,7 +115,11 @@ jobs:
         with:
           python-version: "3.11"
       - name: Install Python deps
-        run: python -m pip install --quiet fastapi httpx pywebpush
+        # TestClient drives the FastAPI app over Starlette internals; the
+        # pins are the .venv's resolved set (the same set the
+        # bundle-serving-contract job measured: starlette 1.10 hangs
+        # FileResponse-driven legs instead of failing).
+        run: python -m pip install --quiet "fastapi==0.139.2" "starlette==1.3.1" "anyio==4.14.2" "httpx==0.28.1" pywebpush
       - name: Profile alert log end-to-end
         run: python test_profile_alert_log_api.py
       - name: Push prefs envelope end-to-end
@@ -120,7 +135,10 @@ jobs:
         with:
           python-version: "3.11"
       - name: Install Python deps
-        run: python -m pip install --quiet fastapi httpx aiohttp cryptography jinja2 segno pywebpush pydantic
+        # Same measured set as the bundle-serving-contract job
+        # (starlette 1.10 hangs Starlette-internals legs instead of
+        # failing).
+        run: python -m pip install --quiet "fastapi==0.139.2" "starlette==1.3.1" "anyio==4.14.2" "httpx==0.28.1" aiohttp cryptography jinja2 segno pywebpush pydantic
       - name: Scout lifecycle (beacon, activation, telemetry, fleet report)
         run: python test_scout_lifecycle.py
 
@@ -138,13 +156,60 @@ jobs:
         # the import-time set for database/engine/funding/server (cryptography
         # for field_crypto, httpx for fastapi.testclient), plus the lazily
         # imported ones so a handler path cannot fail on a missing module
-        run: python -m pip install --quiet fastapi httpx aiohttp cryptography keyring pydantic py-vapid pywebpush segno uvicorn
+        # TestClient drives the real FastAPI app over Starlette internals
+        # and pool/server imports uvicorn; same measured set as the
+        # bundle-serving-contract job (starlette 1.10 hangs instead of
+        # failing).
+        run: python -m pip install --quiet "fastapi==0.139.2" "starlette==1.3.1" "anyio==4.14.2" "httpx==0.28.1" aiohttp cryptography keyring pydantic py-vapid pywebpush segno "uvicorn==0.51.0"
       - name: Donation idempotency (order key, pruning, concurrency, rollback)
         run: python test_donation_idempotency.py
       - name: Jackpot split (who funded the pot)
         run: python test_jackpot_split.py
       - name: Charter drive (formula, 30-day limit, referral loop, phrases)
         run: python test_jackpot_charter.py
+
+  # THE SHARING-SAFE DOWNLOAD SERVING CONTRACT, GATED IN CI (Oct 30).
+  # test_bundle_serve.py's 8.x legs pin the /downloads route's
+  # _SharingFileResponse: the open denies nothing (delete/rename of the
+  # streamed artifact succeeds while the read carries on to the bytes it
+  # pinned), the copied handlers ride Starlette's own range machinery
+  # (200 / 206 single / 206 multipart) and the serving-pid log line is
+  # real. The windows runner is forced by the contract, not by the
+  # installer leg: 8.1's probe is kernel32.DeleteFileW share-mode
+  # semantics — the Windows mechanism the contract exists to keep (the
+  # Explorer "You require permission from" dialog is a Windows customer
+  # incident) — an ubuntu runner cannot exercise it at all.
+  #
+  # NO LOCAL :3094 SERVER, by construction: the whole drive runs
+  # in-process through FastAPI's TestClient; nothing binds a port and
+  # nothing dials localhost. And NO dist artifact is needed here: a CI
+  # clone cannot build KrakenScoutBundle.zip (the builder needs the
+  # sibling scout repo + the untracked push_topic.txt), so the drive's
+  # artifact-dependent legs print the documented SKIP and the sharing-safe
+  # legs (8.1-8.7 + the route-source pin 8.9) and the card wiring (3.x)
+  # gate — non-quietly: skips are printed lines, never synthesized passes,
+  # and the drive's exit code still counts only PASS/FAIL.
+  bundle-serving-contract:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install Python deps
+        # THE PINS ARE THE SERVE MACHINE'S RUNTIME, measured Oct 30: the
+        # 8.x copied legs ride Starlette's own FileResponse internals
+        # (leg 8.7 pins their presence) — and starlette 1.10 changed
+        # FileResponse.__call__ to await disconnect in a way the drive's
+        # raw-scope harness never answers, so an UNPINNED install does
+        # not fail this gate, it HANGS it (measured: starlette 1.10.0
+        # blocks leg 8.3 forever; 1.3.1 streams and returns. The pins
+        # are exactly the versions this checkout's .venv runs and were
+        # verified hermetically at 12 passed / 0 failed). Also aiohttp:
+        # pool/server imports it at module level.
+        run: python -m pip install --quiet "fastapi==0.139.2" "starlette==1.3.1" "anyio==4.14.2" "httpx==0.28.1" aiohttp
+      - name: Download-surface drive — sharing-safe serving contract
+        run: python test_bundle_serve.py
 
   release-hygiene:
     runs-on: ubuntu-latest
@@ -189,12 +254,26 @@ jobs:
   # pinned-URL fetch branch customers most often hit, not
   # build_bundle.ps1's local-copy branch (the builder also needs the
   # sibling kraken_scout repo + push_topic.txt a CI clone cannot have).
-  #\n  # RUNTIME, EXPECTED: a cold windows-latest job is minutes, not the
-  # xmrj build job's quarter hour; timeout at 10 — a hang fails fast
-  # instead of burning the default.
+  #
+  # BOTH SHAPES, EVERY PUSH (Oct 30): the legs below stage the bundle TWICE
+  # on purpose — once with NO xmrig payload (the slim shape: install.ps1's
+  # [3/4] takes the pinned-URL fetch branch) and once WITH it (the carry
+  # shape: build_bundle.ps1 [3/6] copies the local payload, so [3/4] takes
+  # the robocopy branch — a branch that until this leg never ran in CI,
+  # because the local xmrig/ tree is untracked and no clone carries it).
+  # The carry leg feeds itself from the pinned release zip and drops the
+  # zip's config.json the way [3/6] drops the staged developer one. The
+  # smoke drive is branch-blind by design: the EXACT PATH THE BYTES LANDED
+  # contract is the same for both shapes, and it is proveable either way.
+  #
+  # RUNTIME, EXPECTED: a cold windows-latest job is minutes, not the
+  # xmrj build job's quarter hour. The carry leg doubles the install-phase
+  # work (a second pinned-asset download, robocopy, and verify pass), so
+  # the cap moves 10 -> 15 — still 1.5x headroom, and a hang still fails
+  # fast instead of burning the default.
   scout-install-smoke:
     runs-on: windows-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -245,6 +324,53 @@ jobs:
       - name: The drive proves the pins, the exact path and the bytes
         run: |
           python installer\install_smoke.py --installer (Join-Path $env:RUNNER_TEMP "smoke_bundle\install.ps1") --target (Join-Path $env:RUNNER_TEMP "KrakenScoutSmoke")
+      # THE CARRY-SHAPE LEG (Oct 30): reproduces what build_bundle.ps1 [3/6]
+      # feeds a payload-carrying bundle — starts from the staged slim
+      # bundle, adds the pinned payload, drops the zip's config.json the way
+      # [3/6] drops the staged developer config, then installs into a
+      # SECOND fresh target so no state leaks between the shapes.
+      - name: Stage the carry-shape bundle (the payload rides along)
+        run: |
+          $ErrorActionPreference = "Stop"
+          $Carry = Join-Path $env:RUNNER_TEMP "smoke_bundle_carry"
+          $Target = Join-Path $env:RUNNER_TEMP "KrakenScoutSmokeCarry"
+          foreach ($d in @($Carry, $Target)) {
+            if (Test-Path $d) { Remove-Item -Recurse -Force $d }
+          }
+          robocopy (Join-Path $env:RUNNER_TEMP "smoke_bundle") $Carry /E /NFL /NDL /NJH /NJS /NP | Out-Null
+          if ($LASTEXITCODE -ge 8) { Write-Host "carry staging failed rc=$LASTEXITCODE"; exit 1 }
+          # THE PINS PARSE OUT OF THE INSTALLER (install_smoke.py's rule —
+          # one edit is a pin change, never a second hidden literal).
+          $ins = Get-Content (Join-Path $Carry "install.ps1") -Raw
+          $Url = [regex]::Match($ins, '\$Url\s*=\s*"([^"]+)"').Groups[1].Value
+          $WantHash = [regex]::Match($ins, '\$WantHash\s*=\s*"([0-9a-zA-Z]{64})"').Groups[1].Value
+          if (-not $Url -or -not $WantHash) { Write-Host "carry staging failed: the pin block in install.ps1 stopped parsing"; exit 1 }
+          # the same discipline install.ps1's fetch branch keeps: the hash
+          # is verified BEFORE a single byte is extracted.
+          $Zip = Join-Path $env:RUNNER_TEMP "carry_xmrig_pinned.zip"
+          Invoke-WebRequest -Uri $Url -OutFile $Zip -UseBasicParsing
+          $Got = (Get-FileHash -Path $Zip -Algorithm SHA256).Hash.ToLower()
+          if ($Got -ne $WantHash) { Remove-Item -Force $Zip -ErrorAction SilentlyContinue; Write-Host "carry staging failed: pinned asset failed its hash pin ($($Got.Substring(0,16))...)"; exit 1 }
+          Expand-Archive -Path $Zip -DestinationPath (Join-Path $Carry "payload") -Force
+          Remove-Item -Force $Zip
+          if (-not (Test-Path (Join-Path $Carry "payload\xmrig-6.26.0\xmrig.exe"))) { Write-Host "carry staging failed: no payload\xmrig-6.26.0\xmrig.exe"; exit 1 }
+          # THE DEVELOPER CONFIG NEVER SHIPS (the [3/6] mirror).
+          Remove-Item -Force (Join-Path $Carry "payload\xmrig-6.26.0\config.json") -ErrorAction SilentlyContinue
+          Write-Host "carry bundle staged at $Carry (xmrig rides along); fresh target: $Target"
+      - name: Install from the carry bundle (install.ps1's robocopy branch)
+        run: |
+          $out = & powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $env:RUNNER_TEMP "smoke_bundle_carry\install.ps1") -Target (Join-Path $env:RUNNER_TEMP "KrakenScoutSmokeCarry") -NoUi -SkipVenv
+          if ($LASTEXITCODE -ne 0) { Write-Host ($out | Select-Object -Last 20); Write-Host "carry install.ps1 rc=$LASTEXITCODE"; exit 1 }
+          # THE BRANCH IS ASSERTED, NOT ASSUMED: the payload is in place, so
+          # [3/4] must have taken the robocopy leg — its own leaf line is
+          # the proof the fetch branch did not quietly run instead.
+          if (-not (@($out) -match "staged local xmrig 6.26.0")) {
+            Write-Host "carry leg failed: install.ps1 did not report 'staged local xmrig 6.26.0'"
+            exit 1
+          }
+      - name: Same smoke drive, carry branch
+        run: |
+          python installer\install_smoke.py --installer (Join-Path $env:RUNNER_TEMP "smoke_bundle_carry\install.ps1") --target (Join-Path $env:RUNNER_TEMP "KrakenScoutSmokeCarry")
 
   # THE RPC LAYER AND THE ENDPOINT CONTRACT (Oct 27). Both clients reach the
   # cluster through tools/rpc_resilience.ts, and WHICH cluster that is must come
@@ -520,6 +646,7 @@ jobs:
       - scout-install-smoke
       - jackpot-funding
       - release-hygiene
+      - bundle-serving-contract
       - push-path
     if: always()
     runs-on: ubuntu-latest

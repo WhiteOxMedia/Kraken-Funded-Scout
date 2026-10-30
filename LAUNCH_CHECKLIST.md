@@ -33,13 +33,18 @@ Expect: every drive `PASS` (or honest `SKIP: pool server down` rows with
 
 ## 2. THE COMMIT (narrow, message-true)
 
-The ship set is FIXED: exactly the 90 paths commit `f096aa0` shipped
-(Oct 28-29 work). `git add -A` is forbidden — an exact list is the only
+The ship set is FIXED at the **88** paths below: the 90 paths commit
+`f096aa0` shipped (Oct 28-29) after two `b0bd8d3` (Oct 29 root reorg)
+deltas — the review-bundle zip + .sha256 no longer ship in a commit
+(git un-tracked them deliberately: they regenerate on demand via
+`make_bundle.py`, and a fresh clone rebuilds them instead of importing
+a stale snapshot), and the devnet report now lives under `reports/`.
+`git add -A` is forbidden — an exact list is the only
 way this commit cannot pull in unrelated changes. Stage with exactly:
 
 ```
 git add Cargo.lock LAUNCH_CHECKLIST.md \
-  XMRJ_DEVNET_EXECUTION_REPORT.md XMRJ_DEVNET_RUNBOOK.md \
+  reports/XMRJ_DEVNET_EXECUTION_REPORT.md XMRJ_DEVNET_RUNBOOK.md \
   drivekit.py eslint.config.js payout_contract.json \
   installer/install_config.json \
   pool/templates/app_i18n/de.json pool/templates/app_i18n/en.json \
@@ -59,8 +64,6 @@ git add Cargo.lock LAUNCH_CHECKLIST.md \
   tools/xmrj_loadtest.ts xmrj_devnet_token.json \
   .github/workflows/ci.yml Anchor.toml README.md \
   XMRJ_SOLANA_DEPLOYMENT_PLAN.md create_xmrj_mint.js \
-  dist_site_review/xmrjackpot_review.zip \
-  dist_site_review/xmrjackpot_review.zip.sha256 \
   githooks/post-commit installer/installer.py \
   installer/installer_ui.py installer/site_review_readme.txt \
   package-lock.json package.json pool/address_check.py \
@@ -84,7 +87,10 @@ git commit -m "<what this ships>"
 ```
 
 - Stage-count check: `git diff --cached --name-only | wc -l` must
-  print **90** before you commit. A different number is a hard stop.
+  print **88** before you commit. A different number is a hard stop.
+  (The ship step stages NO bundle artifact: the review zip + sidecar
+  regenerate on the drive via `make_bundle.py` — a step-0 parity run —
+  and staging a gitignored path aborts the whole `git add` command.)
 - A file modified in the tree but NOT on this list is a stop
   (unreviewed change), not a rename-add. NEVER add the known
   junk/probe families: `_probe*`, `_sweep*`, `_anchor_verify.txt`,

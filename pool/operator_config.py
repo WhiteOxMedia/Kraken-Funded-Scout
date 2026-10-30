@@ -31,7 +31,9 @@ Verus entries), never a silent value somebody else chose.
 """
 from __future__ import annotations
 
+import json
 import os
+from pathlib import Path
 
 # ── 1. THE VRSC RELAY LANE ──────────────────────────────────────────────
 # XMRJ_VRSC_STRATUM set (non-blank) means a relay lane exists and Verus
@@ -275,3 +277,87 @@ def xmrig_pin():
         "sha256": XMRIG_SHA256,
         "layout_dir": XMRIG_LAYOUT[0] + "\\" + XMRIG_LAYOUT[1],
     }
+
+
+# ── 6. THE PROXY API ──────────────────────────────────────
+# The pool's proxy-API call sites (the poller loop, the server's
+# payment-scanner loop, the engine's miner count) carried THREE
+# different token chains and two hard-coded URLs; after a rotation
+# any of the three could stale-present the retired secret. Both knobs
+# are read HERE now, ONE order each:
+#
+#     proxy_api_base()   XMRJ_PROXY_API env > the loopback default
+#     proxy_token()      env > operator token file > proxy config > db
+#
+# The token tiers' roles, as the repo already documents them:
+#   1. XMRJ_PROXY_API_TOKEN env -- the deployment secret (docs
+#      release-manifest.md: set it on the operator box, rotate it in
+#      monero/proxy_config.json; the env is what a fresh boot supplies).
+#   2. monero/proxy_api_token.txt -- the operator's token file, the
+#      tier the Oct 25 fold in server.py reads.
+#   3. monero/proxy_config.json http.access-token -- the value the
+#      proxy itself enforces at boot; if the operator rotated only
+#      the proxy's config and set it there, this tier still matches
+#      what xmrig-proxy enforces.
+#   4. db setting PROXY_API_TOKEN -- a legacy tier nothing in the repo
+#      writes anymore; kept last so a value an operator populated by
+#      hand still resolves instead of dropping to empty after this fold.
+# Empty means UNSET -- the caller sends no Authorization header (the
+# proxy refuses, the poller reports it; louder and truer than a guessed
+# secret). Nothing here caches, so a rotation lands on the next poll
+# cycle. The db import stays lazy; the file reads are stdlib-only, the
+# module stays cheap enough for miner.py and the contract test.
+PROXY_API_ENV = "XMRJ_PROXY_API"
+PROXY_API_DEFAULT = "http://127.0.0.1:9090"
+PROXY_TOKEN_ENV = "XMRJ_PROXY_API_TOKEN"
+PROXY_TOKEN_SETTING = "PROXY_API_TOKEN"
+MONERO_DIR = Path(__file__).resolve().parent.parent / "monero"
+
+
+def proxy_api_base():
+    """THE ONE READER of the proxy API base URL: the deployment's
+    XMRJ_PROXY_API wins, the loopback default otherwise. A trailing
+    slash is stripped so callers can concatenate '/2/summary' safely."""
+    base = os.environ.get(PROXY_API_ENV, "").strip().rstrip("/")
+    return base or PROXY_API_DEFAULT
+
+
+def _read_proxy_files():
+    """The two FILE tiers, in order: the operator's token file, then
+    the proxy's own config. Returns the first non-blank secret found
+    (fail-soft per tier; a missing or malformed file just falls out)."""
+    candidates = (
+        MONERO_DIR / "proxy_api_token.txt",
+        MONERO_DIR / "proxy_config.json",
+    )
+    for i, path in enumerate(candidates):
+        try:
+            txt = path.read_text(encoding="utf-8")
+            if i == 0:
+                value = txt.strip()
+            else:
+                value = str(((json.loads(txt).get("http") or {})
+                             .get("access-token")) or "").strip()
+            if value:
+                return value
+        except Exception:
+            continue
+    return ""
+
+
+def proxy_token():
+    """THE ONE READER of the proxy bearer token, in the documented
+    order (env > operator token file > the proxy's own config > the
+    legacy db setting). Never raises, never caches."""
+    env = os.environ.get(PROXY_TOKEN_ENV, "").strip()
+    if env:
+        return env
+    file_token = _read_proxy_files()
+    if file_token:
+        return file_token
+    try:
+        import database as db
+        db_token = str(db.get_setting(PROXY_TOKEN_SETTING, "") or "").strip()
+    except Exception:
+        db_token = ""
+    return db_token

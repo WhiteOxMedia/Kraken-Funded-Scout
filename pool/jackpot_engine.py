@@ -751,25 +751,14 @@ def seed_jackpot_from_wallet():
 def _get_real_proxy_miners():
     """Get the count of real miners connected to xmrig-proxy."""
     try:
-        import json as _json
-        import urllib.request as _urlreq
-        # THE DEPLOYMENT'S TOKEN, never a literal (Oct 25): the proxy
-        # token is rotated in monero/proxy_config.json; a hard-coded copy
-        # here kept presenting the retired one after every rotation.
-        token = (os.environ.get("XMRJ_PROXY_API_TOKEN") or "").strip()
-        if not token:
-            try:
-                _cfg = Path(__file__).resolve().parent.parent / "monero" / "proxy_config.json"
-                _tok = ((json.loads(_cfg.read_text(encoding="utf-8"))
-                         .get("http") or {}).get("access-token"))
-                token = str(_tok or "").strip()
-            except Exception:
-                token = ""
+        import operator_config as _oc   # THE ONE READER (Oct 30): token
+        import json as _json           # chain and base URL live in
+        import urllib.request as _urlreq  # operator_config, one order
         req = _urlreq.Request(
-            "http://127.0.0.1:9090/2/summary",
+            f"{_oc.proxy_api_base()}/2/summary",
             headers={
                 "User-Agent": "Mozilla/5.0",
-                "Authorization": f"Bearer {token}",
+                "Authorization": f"Bearer {_oc.proxy_token()}",
             },
         )
         with _urlreq.urlopen(req, timeout=3) as resp:

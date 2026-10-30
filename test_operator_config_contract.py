@@ -12,6 +12,8 @@ operator sits behind:
     kraken_deposit_address()    kraken_deposit_address    (the house-tax target)
     miner_wallet()              XMRJ_MINER_WALLET         (the miner's own address)
     xmrig_pin()                 version/url/sha/layout    (the xmrig release pin)
+    proxy_api_base()            XMRJ_PROXY_API (> default) (the proxy API base URL)
+    proxy_token()               env > txt > json > db     (the proxy bearer token)
 
 Two halves:
 
@@ -37,8 +39,10 @@ House conventions (the conftest harness): check/report, sandbox_db.
 """
 import os
 import re
+import shutil
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
@@ -65,13 +69,15 @@ import xmr_price                           # noqa: E402
 
 BANNED_ENV = ["XMRJ_VRSC_STRATUM", "XMRJ_VRSC_TERRITORIES",
               "XMRJ_HOUSE_WALLET", "XMRJ_KRAKEN_DEPOSIT_ADDRESS",
-              "XMRJ_MINER_WALLET"]
+              "XMRJ_MINER_WALLET", "XMRJ_PROXY_API",
+              "XMRJ_PROXY_API_TOKEN"]
 BANNED_SETTINGS = {"house_wallet": "setting:house_wallet",
                    "kraken_deposit_address": "setting:kraken_deposit_address",
                    "scout_pro_price_usd": "setting:scout_pro_price_usd",
                    "scout_pro_days": "setting:scout_pro_days",
                    "scout_pro_checkout_minutes": "setting:scout_pro_checkout_minutes",
-                   "VRSC_TERRITORIES": "setting:VRSC_TERRITORIES"}
+                   "VRSC_TERRITORIES": "setting:VRSC_TERRITORIES",
+                   "PROXY_API_TOKEN": "setting:PROXY_API_TOKEN"}
 PIN_SHA = oc.XMRIG_SHA256
 PIN_URL_MARK = "xmrig/releases/download/v"
 
@@ -104,6 +110,15 @@ PATTERNS = {
        for k in BANNED_ENV},
     **{tag: re.compile(r"\.get_setting\s*\(\s*['\"]" + re.escape(k) + r"['\"]")
        for k, tag in BANNED_SETTINGS.items()},
+    # the proxy-API file tiers: reading the operator's token file or the
+    # access-token OUT of the proxy's own config, anywhere but the ONE
+    # reader. Writes are exempt by shape -- installer.py and
+    # setup_xmrig.ps1 GENERATE a fresh config ("access-token": None),
+    # which neither pattern matches; only a resolution-shaped read does.
+    "proxy:token_file": re.compile(r"proxy_api_token\.txt"),
+    "proxy:cfg_access": re.compile(
+        r"\.get\s*\(\s*['\"]access-token['\"]"
+        + r"|\[['\"]access-token['\"]\]"),
     "pin:sha": re.compile(re.escape(PIN_SHA)),
     "pin:url": re.compile(re.escape(PIN_URL_MARK)),
 }
@@ -196,6 +211,7 @@ finally:
     os.environ.pop(oc.VRSC_TERRITORIES_ENV, None)
 
 print("3c. the Pro price (stored USD, derived XMR)")
+import json as _json                                    # noqa: E402
 import jackpot_funding                                    # noqa: E402
 db.set_setting(oc.SCOUT_PRO_PRICE_SETTING, "")
 db.set_setting(xmr_price.OVERRIDE_KEY, "400")             # pin the rate at 400
@@ -259,6 +275,49 @@ try:
           "the miner's own address reads the deployment env, stripped")
 finally:
     os.environ.pop(oc.MINER_WALLET_ENV, None)
+
+print("3f. the proxy API (base URL + bearer token — the ONE order)")
+_probe_dir = Path(tempfile.mkdtemp(prefix="oc_proxy_tiers_"))
+_real_monero = oc.MONERO_DIR
+try:
+    oc.MONERO_DIR = _probe_dir              # the file tiers probe a sandbox dir
+    os.environ.pop(oc.PROXY_API_ENV, None)
+    os.environ.pop(oc.PROXY_TOKEN_ENV, None)
+    db.set_setting(oc.PROXY_TOKEN_SETTING, "")
+    check(3.21, oc.proxy_api_base() == "http://127.0.0.1:9090",
+          "no env -> the documented loopback base")
+    check(3.22, oc.proxy_token() == "",
+          "no tier set -> UNSET (the caller sends no Authorization header)")
+    os.environ[oc.PROXY_API_ENV] = " http://127.0.0.1:9200/ "
+    check(3.23, oc.proxy_api_base() == "http://127.0.0.1:9200",
+          "XMRJ_PROXY_API wins the base URL, trailing slash stripped")
+    (_probe_dir / "proxy_api_token.txt").write_text(" file-token ",
+                                                    encoding="utf-8")
+    os.environ[oc.PROXY_TOKEN_ENV] = " env-token "
+    check(3.24, oc.proxy_token() == "env-token",
+          "the deployment env tier wins over the operator token file")
+    os.environ.pop(oc.PROXY_TOKEN_ENV, None)
+    check(3.25, oc.proxy_token() == "file-token",
+          "no env -> the operator's token file tier resolves")
+    (_probe_dir / "proxy_api_token.txt").unlink()
+    (_probe_dir / "proxy_config.json").write_text(
+        _json.dumps({"http": {"access-token": "cfg-token"}}),
+        encoding="utf-8")
+    check(3.26, oc.proxy_token() == "cfg-token",
+          "no env, no token file -> the proxy's own enforced access-token")
+    (_probe_dir / "proxy_config.json").unlink()
+    db.set_setting(oc.PROXY_TOKEN_SETTING, " db-token ")
+    check(3.27, oc.proxy_token() == "db-token",
+          "no files -> the legacy db-setting tier resolves last")
+    db.set_setting(oc.PROXY_TOKEN_SETTING, "")
+    check(3.28, oc.proxy_token() == "",
+          "every tier empty -> UNSET again (loud, never a guessed secret)")
+finally:
+    oc.MONERO_DIR = _real_monero
+    shutil.rmtree(_probe_dir, ignore_errors=True)
+    os.environ.pop(oc.PROXY_API_ENV, None)
+    os.environ.pop(oc.PROXY_TOKEN_ENV, None)
+    db.set_setting(oc.PROXY_TOKEN_SETTING, "")
 
 print("\n== 4. THE PIN: MODULE AND POWERSHELL AGREE, TO THE BYTE ==")
 _ps = (HERE / "installer" / "install.ps1").read_text(encoding="utf-8",

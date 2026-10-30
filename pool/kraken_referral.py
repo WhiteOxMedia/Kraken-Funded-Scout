@@ -75,6 +75,30 @@ def _cfg(name, default, cast=str):
         return default
 
 
+# ── THE ENDPOINT + SIMULATE ACCESSOR (one read, one truth) ─────────
+PROJECTION_ENDPOINT_KEY = "KRAKEN_REFERRAL_ENDPOINT"      # settings only
+
+
+def endpoint_mode():
+    """THE ONE READ for the provider's two non-secret rows: the
+    settings-only endpoint URL (charter: the keyring never stores
+    URLs) and the operator's explicit simulate request. Every reader
+    of these rows — provider_mode, the posture, the live fetch, and
+    the server's admin config model — goes through this ONE accessor,
+    so they can never disagree about what counts as provisioned or
+    simulated. The endpoint is returned stripped (a whitespace-padded
+    URL is the same URL); simulate ALWAYS wins: the operator's
+    labeled dry-run must not be trapped into live mode by stale
+    credentials."""
+    ep = str(db.get_setting(PROJECTION_ENDPOINT_KEY, "") or "").strip()
+    return {
+        "endpoint": ep,
+        "endpoint_set": bool(ep),
+        "simulate_flag": (db.get_setting(PROJECTION_MODE_KEY, "") or "")
+                         == "simulate",
+    }
+
+
 # ── THE CREDENTIAL ACCESSOR (tiered, one seam for the project) ──────
 # Every half of the project sees the operator's Kraken identity the
 # SAME way, in tier order: the OS environment (a COMPLETE pair only),
@@ -169,11 +193,11 @@ def provider_mode():
     dry-run ALWAYS wins — stale credentials must not trap the panel
     in live mode); 'live' iff credentials AND endpoint provisioned;
     otherwise 'unconfigured'."""
-    if (db.get_setting(PROJECTION_MODE_KEY, "") or "") == "simulate":
+    em = endpoint_mode()
+    if em["simulate_flag"]:
         return "simulate"
     key, sec, _src = kraken_credentials()
-    ep = db.get_setting("KRAKEN_REFERRAL_ENDPOINT", "")
-    if key and sec and ep:
+    if key and sec and em["endpoint_set"]:
         return "live"
     return "unconfigured"
 
@@ -193,7 +217,8 @@ def provider_posture():
     kr_ = _keyring_creds()
     env = _env_creds()
     eff_key, eff_sec, tier = kraken_credentials()
-    ep = str(db.get_setting("KRAKEN_REFERRAL_ENDPOINT", "") or "").strip()
+    em = endpoint_mode()          # the accessor's truth, verbatim
+    ep = em["endpoint"]
     mode = provider_mode()
     missing = []
     if not tier:
@@ -530,7 +555,7 @@ def fetch_user_status(user_id, referral_id):
                     "last_updated": "sim"}
         return {"ok": True, "raw": resp, "mode": mode}
     api_key, api_secret, _src = kraken_credentials()
-    endpoint = db.get_setting("KRAKEN_REFERRAL_ENDPOINT", "")
+    endpoint = endpoint_mode()["endpoint"]
     tries = _cfg(PROJECTION_RETRIES_KEY, 4, int)
     delay = 1.0
     for attempt in range(tries):

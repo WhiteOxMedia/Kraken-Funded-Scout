@@ -20,6 +20,7 @@ SANDBOX: everything lands in temp dirs; the live staging uses
 -SkipVenv so no winget/uv call can fire; nothing here touches the
 production install_config.json or jackpot.db.
 """
+import hashlib
 import json
 import os
 import shutil
@@ -121,8 +122,27 @@ check(4.4, (_bundle / "install.ps1").exists()
       and (_bundle / "README.txt").exists(),
       "the bundle root carries the entry points and the README")
 _xmrig = _bundle / "payload" / "xmrig-6.26.0"
-check(4.5, (_xmrig / "xmrig.exe").exists(),
-      "the xmrig payload is in the bundle (local copy rode along)")
+# THE DECIDED SHAPE CONTRACT (Oct 30): the local xmrig/ tree is an
+# UNTRACKED toolchain (gitignore: "installed toolchains, not vendored
+# sources"), so the bundle has two legitimate shapes and neither is the
+# "right" one to force: payload rides along when the tree is present,
+# and when it is not, install.ps1 fetches the pinned GitHub release at
+# install time (CI stages the slim shape on purpose and exercise it).
+# The old unconditional 4.5 ("exe must be inside") failed on the slim
+# build, pinning the machine instead of the contract. Each shape is
+# proven on its own terms below.
+_xrig_exe = _xmrig / "xmrig.exe"
+if _xrig_exe.exists():
+    _carry_sha = hashlib.sha256(_xrig_exe.read_bytes()).hexdigest()
+    check(4.5, _carry_sha == "6fa80698d7268f6e88aa88c06fb27ee99e1bcee747c2e76911e6206a5b1aeeb3",
+          f"the xmrig payload rode along and its exe pins to the manifest "
+          f"hash ({_carry_sha[:12]}…)")
+else:
+    _stage_install = (_bundle / "install.ps1").read_text(encoding="utf-8")
+    check(4.5, "xmrig-6.26.0-windows-x64.zip" in _stage_install
+          and "$WantHash = \"bba8097cb37d9b458a1cb1137876b27cde6740d17fe4ccbc086ba07d87d9e147\"" in _stage_install,
+          "slim shape: the staged install.ps1 still fetches the pinned "
+          "release asset and hash-checks it before extracting")
 _readme = (_bundle / "README.txt").read_text(encoding="utf-8")
 check(4.6, "Install Kraken Scout.bat" in _readme
       and "xmrjackpot.com" in _readme
@@ -134,9 +154,18 @@ _target = _tmp / "target"
 _r2 = _ps(_bundle / "install.ps1", "-Target", str(_target), "-SkipVenv", "-NoUi", timeout=300)
 check(5.1, _r2.returncode == 0, f"installer rc={_r2.returncode} {_r2.stderr[-300:] if _r2.returncode else ''}")
 check(5.2, (_target / "scout" / "app.py").exists()
-      and (_target / "monero_project" / "installer" / "installer_ui.py").exists()
-      and (_target / "xmrig" / "xmrig-6.26.0" / "xmrig.exe").exists(),
-      "scout + monero_project + xmrig all staged under the target")
+      and (_target / "monero_project" / "installer" / "installer_ui.py").exists(),
+      "scout + monero_project always stage under the target")
+if _xrig_exe.exists():
+    check("5.2.1", (_target / "xmrig" / "xmrig-6.26.0" / "xmrig.exe").exists(),
+          "the carried payload's robocopy leg staged xmrig under the target")
+else:
+    # slim shape: the exe under the target can only come from the pinned
+    # fetch; when the fetch did not complete (offline), the installer's    # own leaf message proves the leg ran and degrades as designed.
+    check("5.2.1", (_target / "xmrig" / "xmrig-6.26.0" / "xmrig.exe").exists()
+          or "fetching pinned xmrig" in _rc_txt,
+          "the slim shape took the fetch-at-install leg (fetch done or "
+          "the installer's honest degrade message in the output)")
 _rc_txt = _r2.stdout or ""
 check(5.3, "STAGED" in _rc_txt and "installer_ui.py" in _rc_txt,
       "with -NoUi the flow ends by naming the checkbox UI as the remaining step")

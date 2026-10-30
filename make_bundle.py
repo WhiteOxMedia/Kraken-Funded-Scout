@@ -12,8 +12,9 @@ round and misread as a deploy target.)
   2. copies every pool/static file verbatim (static/ is RECREATED, so
      a file deleted at the source cannot linger as a stale copy)
   2b. copies the review README from installer/site_review_readme.txt
-     (its SOURCE; dist_site_review/ is untracked apart from the zip,
-     so the builder cannot read its own input from there)
+     (its SOURCE; nothing under dist_site_review/ is tracked any more —
+     the artifact regenerates on demand — so the builder cannot read
+     its own input from there)
   3. dates the README's **Date:** line (today) and syncs its per-file
      version mentions from the template's ?v= script tags, so the
      human-facing inventory cannot trail the shipped versions
@@ -43,8 +44,9 @@ SRC_TPL = HERE / "pool" / "templates"
 SRC_STATIC = HERE / "pool" / "static"
 # The review README is an INPUT, not an output: it is the human-facing text of
 # the artifact (what is in the zip, what is deliberately not, what the reviewer
-# should answer). It lives under installer/ because dist_site_review/ is
-# gitignored apart from the zip — a builder whose only copy of a required
+# should answer). It lives under installer/ because NOTHING under
+# dist_site_review/ is tracked (gitignored wholesale since b0bd8d3 — the zip
+# and sidecar regenerate on demand) — a builder whose only copy of a required
 # input sits in an untracked directory cannot rebuild the artifact in a fresh
 # clone, which is exactly how this was found.
 SRC_README = HERE / "installer" / "site_review_readme.txt"
@@ -133,8 +135,9 @@ def build_zip():
             z.writestr(zi, f.read_bytes())
     digest = hashlib.sha256(ZIP_PATH.read_bytes()).hexdigest()
     # POSIX checksum line, LF on every platform: `sha256sum -c` rejects a line
-    # ending in CR, and the sidecar is committed (pinned text eol=lf), so a
-    # CRLF write here would leave every Windows build with a dirty sidecar.
+    # ending in CR, so a CRLF write here would corrupt the checksum line on
+    # every Windows build (a tracked form of this file is pinned eol=lf in
+    # .gitattributes, but the file itself regenerates rather than shipping).
     with open(SHA_PATH, "w", encoding="ascii", newline="") as fh:
         fh.write(f"{digest} *dist_site_review/xmrjackpot_review.zip\n")
     return digest

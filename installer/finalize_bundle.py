@@ -171,6 +171,13 @@ def main():
 
     xmrig_dir = payload / "xmrig-6.26.0"
     xmrig_exe = xmrig_dir / "xmrig.exe"
+    # The manifest must describe the shape it published: some builds
+    # carry the local xmrig tree, fresh-clone builds do not (install.ps1
+    # fetches the pinned release at install time) - a static contents
+    # string would claim a payload the slim shape never zipped.
+    xmrig_contents = ("installer + xmrig 6.26.0 payload" if xmrig_exe.exists()
+                      else "installer; the xmrig payload is fetched from "
+                      "the pinned release at install time")
     release = {
         "artifact": "KrakenScoutBundle.zip",
         "version": _git_version(monero, guard.release_version(manifest)),
@@ -186,7 +193,7 @@ def main():
         "xmrig_sha256": (hashlib.sha256(xmrig_exe.read_bytes()).hexdigest()
                          if xmrig_exe.exists() else None),
         "contents": ("Kraken Scout (runtime modules + launchers) + the "
-                     "installer + xmrig 6.26.0 payload; no pool, no "
+                     f"{xmrig_contents}; no pool, no "
                      "operator tooling, no tests; root dir KrakenScoutBundle/"),
         "install": "unzip, open KrakenScoutBundle/, run 'Install Kraken Scout.bat'",
         "verify": "CertUtil -hashfile KrakenScoutBundle.zip SHA256",

@@ -475,23 +475,80 @@ a system-wide regression in the contract is one red row, not three.
 
 ## Related one-command tools
 
-- `python setup_dev.py` — new-clone setup: venv from `uv.lock` + the
-  commit-gate hook, then verifies both (idempotent).
-- `python make_bundle.py` — regenerate the Hostinger review bundle from
-  the live template + statics; runs the parity drive as its own gate.
-- `tools/stop_pool_server.sh` — the :3094 STOP toggle (see Runtime
-  operations): gate-checked kill with `--dry-run` / `--all`, port-free
-  verification.
-- `python ops_status.py` — the one-command health receipt: bundle
-  version, :3094 listener PID + `/api/stats` health, scheduler
-  heartbeat age, last orphan scan (age + totals), the scheduled
-  task's Last/Next Run + Last Result, the dead-man marker age, and
-  the scout sibling's guard factor (latest value + history day-span —
-  a read-only peek so the sizing brain's series stays visible on the
-  receipt; absence is an honest NONE, never an alert).
-  Strictly read-only (the DB opens `mode=ro`). Exit code is the
-  alert: 0 all-clear, 1 when any surface needs a human — server
-  down, stale heartbeat (the loop ticks hourly, so the threshold is
-  1.5x the cadence), orphan build-up, failed task run, or a stale
-  dead-man marker. `--json` for machines. Pinned by
-  `test_ops_status.py`.
+The repo root holds the standing entry points; the one-off scripts live
+under `tools/` (below). The :3094 STOP toggle,
+`tools/stop_pool_server.sh`, is documented in Runtime operations.
+
+| Script | What it does | Gated by |
+| --- | --- | --- |
+| `python run_fleet.py` | the one-command fleet: discovers every `test_*.py` drive (the count is never stored), runs them in one pass, reruns failure triage (repeat failure = regression, failure that passes on rerun = flake), prints the coverage table | graded itself: a green fleet is evidence, not recollection |
+| `python setup_dev.py` | new-clone setup: venv from `uv.lock` (including the push delivery + encryption layers) ‡ the commit-gate hook, then verifies both; idempotent | its own end-of-run verification |
+| `python make_bundle.py` | regenerate the site-review bundle `dist_site_review/` from the live template + statics (a reviewers-only artifact; LOCAL serving model, no deploy target) | runs the parity drive as its own gate |
+| `python ops_status.py` | the one-command health receipt: bundle version, :3094 listener PID + `/api/stats` health, scheduler heartbeat age, last orphan scan (age + totals), scheduled task Last/Next Run + Last Result, dead-man marker age, and the scout sibling's guard factor (a read-only peek; absence is an honest NONE, never an alert). Strictly read-only (the DB opens `mode=ro`); exit code is the alert: 0 all-clear, 1 when any surface needs a human. `--json` for machines | `test_ops_status.py` |
+
+### One-off scripts (moved under `tools/`, the Oct 29 root organization)
+
+One-off scripts do not live in the repo root any more - the root stays
+the drives (`test_*.py`, auto-discovered) plus the standing entry
+points above. The sweep discipline that also moved in this round
+(`tools/sweep_db.py`, `tools/sweep_lib.py`, its scheduled wrappers
+`tools/run_sweep_report.cmd`, `tools/run_sweep_report_task.ps1`,
+`tools/register_sweep_report_task.py`) and the :3094 stop toggle
+(`tools/stop_pool_server.sh`) are documented in Runtime operations
+above. The sweep tooling's flag surface, one row per invocation:
+
+| Tool / invocation | Flag | What it does / exits with |
+| --- | --- | --- |
+| `python tools/sweep_db.py` | *(bare)* | read-only dry run on `pool/jackpot.db`: rehearses on a throwaway backup-API copy, prints per-label counts + gate verdict, writes nothing; rc 0 (`--report` rc semantics do NOT apply) |
+| | `--report` | the orphan detector's receipt, mode=ro; rc is the alert: 0 all-clear, 1 violations (all planned), 2 an edge is UNPLANNED (needs a human first) |
+| | `--apply` | the real sweep through `sweep_lib`: backup beside the DB, in-transaction `foreign_key_check` gate, manifest audit row; rc 0 committed, 1 the discipline refused (rolled back, data untouched) |
+| | `--db PATH` | target another file; the default resolves from the checkout root this `tools/` sits in (identical from any cwd) |
+| | *(unknown arg, or `--db` with no path)* | rc 2 + usage line; a missing `--db` file exits 1 |
+| `python tools/register_sweep_report_task.py` | *(bare)* | register / update the `CodebuffWeeklyOrphanReport` task (StartWhenAvailable, 1h limit, battery kill-switches off) |
+| | `--check` | verify-only self-audit (both triggers, wrapper command, time limit, dead-man marker freshness); rc 0 wired, 1 drifted |
+| `tools/run_sweep_report.cmd` / `tools/run_sweep_report_task.ps1` | *(no flags)* | the Task Scheduler wrappers; the .ps1 is due-gated (max one actual report per 7d window, exits 0 when fresh) and an actual run exits with the report's rc (0/1/2 above) for Last Result |
+
+The remaining scripts under `tools/`, with their purposes:
+
+- `tools/cta_probe.sh` - SOURCED (not executed) browser-shaped curl
+  probes for :3094 and the tunnel front; the single definition of the
+  probe contract, content-pinned by `test_kraken_cta_counter.py`.
+- `tools/rebuild_bundle_watch.py` - the bundle rebuild watcher: the
+  served zip is built from `git archive HEAD` on both repos, so it
+  goes stale whenever either head moves. This compares the stamped
+  HEAD pair against both repos' current HEAD, rebuilds through
+  `installer/build_bundle.ps1` -> `installer/finalize_bundle.py`,
+  re-verifies with the three bundle drives, then stamps the pair;
+  no drift is a quiet no-op, any drive failure exits 1.
+- `tools/_probe_e2e_capture.py` - throwaway receiver-side push proof
+  (Sep 25): a local HTTP receiver stands in for the push endpoint
+  while the REAL sender chain runs, then the captured wire bytes are
+  verified independently - the VAPID ES256 signature against the
+  provisioned public key and the aes128gcm payload by hand-rolled
+  RFC 8188. Sandbox DB throughout.
+- `tools/_sweep_retire_r111_miner.py` - one-shot sweep caller that
+  retires the R111 playtest zombie miner rows through
+  `sweep_db`/`sweep_lib` (full-wallet match, zero-shares guard so a
+  real miner with shares can never retire, loud no-op), dry run by
+  default, `--apply` for the real sweep.
+- `tools/diag_adminflow.py` - one-off Playwright probe of the exact
+  admin flow: real admin session minted in the live DB, phone-sized
+  viewport, xmrjackpot.com -> Admin tab -> embedded Scout console
+  iframe.
+- `tools/diag_threeleg.py` - one-off three-leg websocket probe with
+  the real first console message: leg 1 direct to console :8501, leg
+  2 through the local proxy :3094 (admin cookie), leg 3 through the
+  public Cloudflare tunnel.
+- `tools/rpc_resilience.ts` - the ONE Solana RPC layer shared by both
+  XMRJ devnet clients, read out of the installed @solana/web3.js
+  rather than guessed: rate-limit retries plus timeout handling,
+  born from three devnet runs the free public endpoint's 429s
+  stopped.
+- `tools/xmrj_devnet_run.sh` - the XMRJ devnet runbook executor:
+  preflight the pinned toolchain, then build -> deploy -> e2e -> mint
+  -> stress with every step's output and exit status captured into
+  one log; the destructive and SOL-costing steps run only behind
+  explicit flags, so the default invocation touches no chain state.
+- `tools/xmrj_loadtest.ts` - the XMRJ stress harness: every scenario
+  pins BOTH directions, including the expected failures - a stress
+  test whose only possible outcome is "passed" is a smoke test.

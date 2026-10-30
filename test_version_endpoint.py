@@ -32,6 +32,28 @@ import tempfile
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
+
+# OCT 30 FLAKE PIN (check 6.1 was intermittent in the fleet): this drive
+# imports server, which transitively imports xmr_price — and the rate
+# reader is LIVE BY DEFAULT when XMR_PRICE_LIVE is unset. Check 6.1
+# compares one GET / render against a second _template_html() render
+# milliseconds later. Render #1 leaves the per-process memo on the
+# fallback and xmr_price._maybe_refresh() spawns the background Kraken
+# fetch; when that fetch LANDS between the two renders, _fetch_and_store
+# invalidates the memo ("next read resolves from the fresh value"), so
+# {{PRO_PRICE_XMR}} / appI18n proXmr quote a different rate in render #2
+# than render #1 of the same template bytes — and the verbatim equality
+# flips on network timing alone. The house kill switch (the fixture
+# conftest.py documents, set before the imports in every rate-quoting
+# drive — test_i18n_region, test_ui_disclosure and the rest) keeps the
+# reader on the fallback, off the network, and both renders identical.
+# (test_rate_pin_fleet scans direct importers of xmr_price/jackpot_funding
+# only; this drive reaches the reader through server, so the pin lives
+# here, spelled the tripwire's literal way in case a direct import ever
+# lands.)
+os.environ["XMR_PRICE_LIVE"] = "0"
+os.environ["VRSC_PRICE_LIVE"] = "0"  # the winners rows carry the same chain
+
 sys.path.insert(0, str(HERE / "pool"))
 
 # hermetic DB, exactly like the other server-importing drives: the app

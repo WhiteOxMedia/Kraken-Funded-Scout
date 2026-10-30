@@ -3599,6 +3599,90 @@ async def api_admin_scout_lifecycle(request: Request, days: float | None = None)
     return scout_lifecycle.report(days=days)
 
 
+@app.get("/api/admin/scout-pro")
+async def api_admin_scout_pro(request: Request):
+    """The Scout Pro product knobs' read model (admin only, READ-ONLY
+    — this endpoint never writes; the knobs change through the same
+    settings store the admin settings surface edits): the price, the
+    grant-days length, and the checkout window, each with its CURRENT
+    effective value and WHICH tier of the resolution won — a stored
+    setting that the one-reader served verbatim, the value the reader
+    REFUSED (unreadable, <= 0, or below its floor) and what it fell
+    back to, or plain "default". Every value is resolved through the
+    operator_config one-readers (pro_price / pro_days /
+    pro_checkout_minutes), so the card can never show a number the
+    checkout would not charge or a grant would not honor."""
+    require_admin(request)
+
+    def _raw(key):
+        return str(db.get_setting(key, "") or "").strip()
+
+    # the price through the one-reader (the XMR amount is DERIVED at
+    # the tracked rate, so the card shows both sides of the quote),
+    # and the source the stored row became
+    usd, xmr_amt = oc.pro_price()
+    rate = jackpot_funding.xmr_usd_rate()   # never raises; derivation rate
+    price = _raw(oc.SCOUT_PRO_PRICE_SETTING)
+    try:
+        stored_price = float(price) if price else None
+    except ValueError:
+        stored_price = None
+    if stored_price is None:
+        price_source = "default" if not price else \
+            "unreadable stored value -> default"
+    elif stored_price <= 0:
+        # the reader's >0 rule: a zero/negative price never sells
+        price_source = "stored value <= 0 refused -> default"
+    else:
+        price_source = "setting"
+
+    # days and checkout TTL through their one-readers; a stored value
+    # below the reader's floor NEVER grants less than the floor
+    days_granted = oc.pro_days()
+    days = _raw(oc.SCOUT_PRO_DAYS_SETTING)
+    try:
+        stored_days = int(float(days)) if days else None
+    except (ValueError, OverflowError):
+        stored_days = None
+    if stored_days is None:
+        days_source = "default" if not days else \
+            "unreadable stored value -> default"
+    elif stored_days < 1:
+        days_source = "stored value below the floor -> clamped to the floor (1)"
+    else:
+        days_source = "setting"
+
+    ttl_granted = oc.pro_checkout_minutes()
+    ttl = _raw(oc.SCOUT_PRO_CHECKOUT_MINUTES_SETTING)
+    try:
+        stored_ttl = int(float(ttl)) if ttl else None
+    except (ValueError, OverflowError):
+        stored_ttl = None
+    if stored_ttl is None:
+        ttl_source = "default" if not ttl else \
+            "unreadable stored value -> default"
+    elif stored_ttl < 5:
+        ttl_source = "stored value below the floor -> clamped to the floor (5)"
+    else:
+        ttl_source = "setting"
+
+    return {
+        "read_only": True,
+        "price": {"key": oc.SCOUT_PRO_PRICE_SETTING,
+                  "default": oc.SCOUT_PRO_DEFAULT_PRICE_USD,
+                  "raw": price, "usd": usd, "xmr": xmr_amt,
+                  "rate": rate, "source": price_source},
+        "grant_days": {"key": oc.SCOUT_PRO_DAYS_SETTING,
+                       "default": oc.SCOUT_PRO_DEFAULT_DAYS,
+                       "raw": days, "value": days_granted,
+                       "source": days_source},
+        "checkout_minutes": {"key": oc.SCOUT_PRO_CHECKOUT_MINUTES_SETTING,
+                             "default": oc.SCOUT_PRO_DEFAULT_CHECKOUT_MIN,
+                             "raw": ttl, "value": ttl_granted,
+                             "source": ttl_source},
+    }
+
+
 @app.get("/api/admin/miners")
 async def api_admin_miners(request: Request):
     """Get all miners (admin only)."""
@@ -4025,13 +4109,13 @@ async def api_admin_kraken_referral_config(request: Request, verify: bool = Fals
         if held:
             return {"set": True, "tail": "…" + held[-4:], "source": src}
         return {"set": False, "tail": "", "source": ""}
+    em = kr.endpoint_mode()   # THE ONE ACCESSOR: endpoint + simulate
     return JSONResponse({
         "api_key": _tail("KRAKEN_API_KEY"),
         "api_secret": _tail("KRAKEN_API_SECRET"),
-        "endpoint": str(db.get_setting("KRAKEN_REFERRAL_ENDPOINT", "") or ""),
+        "endpoint": em["endpoint"],
         "mode": kr.provider_mode(),
-        "simulate_flag": (db.get_setting("KRAKEN_REFERRAL_MODE", "") or "")
-                         == "simulate",
+        "simulate_flag": em["simulate_flag"],
         "ttl_seconds": kr._ttl(),
         "batch_size": kr._cfg(kr.PROJECTION_BATCH_KEY, 25, int),
         "confidence": kr._confidence(),
@@ -4993,26 +5077,17 @@ if __name__ == "__main__":
         import json as _json
         import urllib.request as _urlreq
         scan_count = 0
-        PROXY_API = os.environ.get("XMRJ_PROXY_API", "http://127.0.0.1:9090")
-        # NO CREDENTIAL LITERAL (Oct 25): this token used to be hard-coded
-        # here, and pool/server.py also shipped inside the public bundle.
-        # It is a deployment secret now - set XMRJ_PROXY_API_TOKEN on the
-        # operator box (the value in monero/proxy_config.json's api section
-        # must match), and rotate the old one, which must be treated as
-        # compromised. An unset token sends no Authorization header; the
-        # proxy then refuses and the poller reports it, which is visible.
-        def _proxy_token() -> str:
-            """Env first, then the operator's token file (never the repo)."""
-            env = (os.environ.get("XMRJ_PROXY_API_TOKEN") or "").strip()
-            if env:
-                return env
-            tf = Path(__file__).parent.parent / "monero" / "proxy_api_token.txt"
-            try:
-                return tf.read_text(encoding="utf-8").strip()
-            except OSError:
-                return ""
-
-        PROXY_TOKEN = _proxy_token()
+        # THE PROXY KNOBS, ONE CHAIN (Oct 30): the base URL and the
+        # bearer token are operator_config's to resolve — the same order
+        # the poller and the engine use (env > the operator's token file
+        # > monero/proxy_config.json's access-token > the db setting),
+        # so a rotation lands everywhere on the next cycle. Kept from
+        # Oct 25: no credential literal — this file once hard-coded the
+        # token and shipped inside the public bundle. An unset token
+        # sends no Authorization header; the proxy then refuses and the
+        # scanner reports it, which is visible.
+        PROXY_API = oc.proxy_api_base()
+        PROXY_TOKEN = oc.proxy_token()
         PROXY_LOG = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "monero", "proxy.log")
         last_log_pos = 0  # track position in log file to only read new lines
 
