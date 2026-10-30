@@ -109,26 +109,16 @@ def _pool_stats():
 
 
 SCOUT_PRO_PRICE_KEY = oc.SCOUT_PRO_PRICE_SETTING      # the ONE chain reader: oc
-SCOUT_PRO_DAYS_KEY = "scout_pro_days"
-SCOUT_PRO_TTL_KEY = "scout_pro_checkout_minutes"
+SCOUT_PRO_DAYS_KEY = oc.SCOUT_PRO_DAYS_SETTING
+SCOUT_PRO_TTL_KEY = oc.SCOUT_PRO_CHECKOUT_MINUTES_SETTING
 SCOUT_PRO_DEFAULT_PRICE = oc.SCOUT_PRO_DEFAULT_PRICE_USD
-SCOUT_PRO_DEFAULT_DAYS = 30
-SCOUT_PRO_DEFAULT_TTL_MIN = 30
+SCOUT_PRO_DEFAULT_DAYS = oc.SCOUT_PRO_DEFAULT_DAYS
+SCOUT_PRO_DEFAULT_TTL_MIN = oc.SCOUT_PRO_DEFAULT_CHECKOUT_MIN
 SCOUT_PRO_MIN_CONFIRMATIONS = 1
 
 
-def _setting_float(key, default):
-    try:
-        return float(db.get_setting(key, str(default)) or default)
-    except (TypeError, ValueError):
-        return float(default)
-
-
-def _setting_int(key, default):
-    try:
-        return int(float(db.get_setting(key, str(default)) or default))
-    except (TypeError, ValueError):
-        return int(default)
+# The setting READERS (days, checkout TTL, price) live in
+# pool/operator_config — the ONE reader per Pro chain (Oct 30).
 
 
 def scout_pro_price():
@@ -169,7 +159,7 @@ def _scout_pro_payload(user_id):
 
 
 def _grant_scout_pro(user_id):
-    days = max(1, _setting_int(SCOUT_PRO_DAYS_KEY, SCOUT_PRO_DEFAULT_DAYS))
+    days = oc.pro_days()
     # unlock_scout_pro also awards the one +1 jackpot entry per account;
     # with no payout wallet it HOLDS the entry on the account instead of
     # dropping it (claim_pending_entries mints it once a wallet lands).
@@ -632,7 +622,7 @@ def register_scout_endpoints(app):
                      "message": "Could not create a Monero address for this checkout."},
                     status_code=503,
                 )
-            ttl = max(5, _setting_int(SCOUT_PRO_TTL_KEY, SCOUT_PRO_DEFAULT_TTL_MIN))
+            ttl = oc.pro_checkout_minutes()
             order = db.create_scout_purchase(
                 user["id"],
                 body.get("identity_wallet") or user.get("wallet_address") or "",

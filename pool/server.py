@@ -1184,22 +1184,13 @@ def _scout_offer() -> dict:
     price the paywall does not charge. Unreadable settings fall back to the
     checkout's own defaults rather than printing nothing.
     """
-    def setting(key, default):
-        try:
-            return str(db.get_setting(key, str(default)) or default)
-        except Exception:
-            return str(default)
-
     try:
         price, usd = _pro_price()
     except Exception:
         price, usd = 0.0, 95.0
-    try:
-        days = int(float(setting("scout_pro_days", "30")))
-    except (TypeError, ValueError):
-        days = 30
+    days = oc.pro_days()          # THE ONE reader of the grant-days chain
     return {"price": ("%.6f" % price).rstrip("0").rstrip("."),
-            "usd": "%.2f" % usd, "days": max(1, days)}
+            "usd": "%.2f" % usd, "days": days}
 
 
 def _render_lang_page(lang: str, page: str, request: Request) -> str:
