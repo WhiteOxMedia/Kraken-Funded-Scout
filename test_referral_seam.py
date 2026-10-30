@@ -46,6 +46,16 @@ def check(n, cond, why):
 SANDBOX = tempfile.mkdtemp(prefix="referral_seam_drive_")
 sys.path.insert(0, os.path.join(HERE, "pool"))
 
+# Same fixture as test_rate_label and test_ui_disclosure: no fetching in
+# this file. The daily plan is computed here (compute_daily_jackpot -> the
+# rate reader), and a background Kraken refresh landing mid-drive would dial
+# the network from inside the drive and move the rate under the pinned
+# dollar assertions. XMR_PRICE_LIVE=0 keeps the reader on the fallback, off
+# the network - the plan's USD fields are rate-independent, so nothing else
+# moves. Section 6's subprocess inherits the environment, so the child
+# subprocess stays offline too.
+os.environ["XMR_PRICE_LIVE"] = "0"
+
 import database as db                                  # noqa: E402
 db.DB_PATH = __import__("pathlib").Path(
     os.path.join(SANDBOX, "jackpot.db"))

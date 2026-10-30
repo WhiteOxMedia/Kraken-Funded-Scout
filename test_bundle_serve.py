@@ -234,6 +234,123 @@ with zipfile.ZipFile(ZIP) as z:
     readme = [n for n in names if n.endswith("README.txt")]
     check(4.3, bool(readme), "README ships at the bundle root")
 
+print("== 8. SHARING-SAFE SERVING + THE SERVING-PID LOG (Oct 30) ==")
+# The zip route used to hold the file through a CRT open that denied
+# FILE_SHARE_DELETE, so for the life of every streamed download Explorer
+# refused delete/rename with "You require permission from \<machine\>\<user>".
+# The sharing-safety is a property of the OPEN (the share flags), and the
+# diagnostic is a property of the LOG: both are pinned below.
+import os as _os
+import io as _io
+import contextlib as _ctx
+import ctypes as _ct
+import anyio as _anyio
+
+# 8.1 THE OPEN IS SHARING-SAFE: delete mid-read succeeds and the read
+# carries on to the same bytes it pinned at open.
+async def _sharing_open_leg():
+    tmp = Path(tempfile.mkdtemp(prefix="sharing_leg_")) / "artifact.bin"
+    body = b"HEAD-FIRST-" + b"x" * (256 * 1024) + b"-TAIL-LAST"
+    tmp.write_bytes(body)
+    resp = srv._SharingFileResponse(str(tmp), media_type="application/octet-stream")
+    file = await resp._sharing_open()
+    deleted_rc = None
+    try:
+        head = await file.read(16)
+        _k32 = _ct.windll.kernel32
+        _k32.DeleteFileW.argtypes = [_ct.c_wchar_p]
+        deleted_rc = _k32.DeleteFileW(str(tmp))    # any other party's delete
+        name_gone = not tmp.exists()
+        await file.seek(128 * 1024)
+        mid = await file.read(16)
+        await file.seek(-10, _os.SEEK_END)
+        tail = await file.read(10)
+    finally:
+        await file.aclose()
+    return dict(head=head, deleted_rc=deleted_rc, name_gone=name_gone,
+                mid=mid, tail=tail, body=body)
+
+leg = _anyio.run(_sharing_open_leg)
+check(8.1, leg["deleted_rc"] != 0 and leg["name_gone"] is True,
+      f"delete-while-open succeeds and the name unlinks "
+      f"(rc={leg['deleted_rc']}, gone={leg['name_gone']})")
+check(8.2, leg["head"] == leg["body"][:16]
+      and leg["mid"] == leg["body"][128 * 1024:128 * 1024 + 16]
+      and leg["tail"] == leg["body"][-10:],
+      "reads before and after the mid-flight delete return the exact "
+      "bytes the open pinned")
+
+# 8.3 THE COPIED HANDLERS STREAM correctly: 200 full-body, 206 single
+# range and 206 multipart — through the class's own opens.
+async def _response_leg():
+    tmp = Path(tempfile.mkdtemp(prefix="resp_leg_")) / "artifact.bin"
+    body = bytes(range(256)) * 512
+    tmp.write_bytes(body)
+    stat = tmp.stat()
+
+    async def receive():
+        return {"type": "http.request", "body": b"", "more_body": False}
+
+    async def run_scope(headers):
+        msgs = []
+
+        async def send(m):
+            msgs.append(m)
+
+        scope = {"type": "http", "method": "GET", "headers": headers,
+                 "extensions": {}}
+        resp = srv._SharingFileResponse(str(tmp), stat_result=stat,
+                                        media_type="application/zip")
+        await resp(scope, receive, send)
+        start = next(m for m in msgs if m["type"] == "http.response.start")
+        chunks = b"".join(m["body"] for m in msgs if m["type"] == "http.response.body")
+        hdrs = dict((k.lower(), v) for k, v in start["headers"])
+        return start["status"], hdrs, chunks
+
+    out = {}
+    out["full"] = await run_scope([])
+    out["range"] = await run_scope([(b"range", b"bytes=0-63")])
+    out["multi"] = await run_scope([(b"range", b"bytes=0-63, 128-191")])
+    return out
+
+rl = _anyio.run(_response_leg)
+check(8.4, rl["full"][0] == 200 and len(rl["full"][2]) == 256 * 512
+      and rl["full"][2] == bytes(range(256)) * 512,
+      "plain GET streams the exact file, status 200")
+check(8.5, rl["range"][0] == 206
+      and rl["range"][1][b"content-range"] == b"bytes 0-63/131072"
+      and rl["range"][2] == (bytes(range(256)) * 512)[:64],
+      "single range -> 206 with content-range and the exact slice")
+check(8.6, rl["multi"][0] == 206
+      and rl["multi"][1][b"content-type"].startswith(b"multipart/byteranges")
+      and (b"0-63" in rl["multi"][2] and b"128-191" in rl["multi"][2]),
+      "multipart request answers 206 with both ranges' headers present")
+check(8.7, issubclass(srv._SharingFileResponse, srv.FileResponse)
+      and hasattr(srv.FileResponse, "_parse_range_header")
+      and hasattr(srv.FileResponse, "generate_multipart"),
+      "the subclass rides Starlette's own range machinery (the parent's "
+      "internals the copied handlers rely on still exist)")
+
+# 8.8 THE LIVE ROUTE IS WIRED: the GET answers synchronously-logged with
+# THIS process's pid (uppercase path, zip file), and the route source
+# instantiation is the sharing-safe class itself.
+import io as _iobuf
+BUF = _iobuf.StringIO()
+with _ctx.redirect_stdout(BUF):
+    r = client.get("/downloads/KrakenScoutBundle.zip", headers={"range": "bytes=0-0"})
+log_out = BUF.getvalue()
+check(8.8, r.status_code == 206 and f"handler_pid={_os.getpid()}" in log_out
+      and "/downloads/KrakenScoutBundle.zip" in log_out
+      and "[Downloads] GET" in log_out,
+      f"the live zip route prints the serving pid log line "
+      f"({r.status_code}, range honored)")
+_route_src = (srv.__file__ and Path(srv.__file__).read_text(encoding="utf-8")) or ""
+check(8.9, "async def downloads_bundle(request: Request)" in _route_src
+      and "_SharingFileResponse(" in _route_src.split(
+          "@app.get(\"/downloads/KrakenScoutBundle.zip\")", 1)[-1].split("def ", 1)[-1].split("@app.", 1)[0],
+      "the zip GET instantiates the sharing-safe class directly (not the "
+      "plain FileResponse)")
+
 passed, failed = results.count(True), results.count(False)
 print(f"RESULT: {passed} passed, {failed} failed")
 sys.exit(1 if failed else 0)

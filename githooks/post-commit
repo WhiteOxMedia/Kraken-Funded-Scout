@@ -88,8 +88,9 @@ FILTERED="$(printf '%s\n' "$DIFF" | awk '
 # THE BASE IS PINNED (the first live run's lesson, 2ea9bcc): bare
 # --committed diffs HEAD against HEAD — an empty diff the CLI can hang
 # on (rc=124 at the timeout) — so the review is pinned to the LANDING
-# COMMIT explicitly: --base HEAD~1. A repo's very first commit has no
-# parent to diff against: skip quietly (no receipt — nothing was
+# COMMIT explicitly (Oct 29): --base-commit HEAD~1, the commit-anchored
+# flag (the CLI's --base means BRANCH). A repo's very first commit has
+# no parent to diff against: skip quietly (no receipt — nothing was
 # reviewed), the edge never recurs in a mature repo.
 if ! git rev-parse -q --verify HEAD~1 >/dev/null 2>&1; then
     exit 0
@@ -101,7 +102,7 @@ fi
 # take rc, THEN strip the CRs.
 rc=0
 RAW="$(timeout "$TIMEOUT" "$BIN" review --agent --committed \
-        --base HEAD~1 2>/dev/null)" || rc=$?
+        --base-commit HEAD~1 2>/dev/null)" || rc=$?
 RAW="$(printf '%s' "$RAW" | tr -d '\r')"
 if [ $rc -ne 0 ]; then
     cr_receipt timeout

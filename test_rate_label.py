@@ -27,47 +27,35 @@ This file grades that contract:
      card, and the methodology dialog
   7. hermetic: sandbox DB, no fetch (XMR_PRICE_LIVE=0), no wallet RPC
 
-House conventions: check(n, cond, why), RESULT line, sys.exit.
+House conventions: check/report, sandbox_db, make_client — the ONE copy of
+that harness lives in conftest.py now, shared with the other house scripts.
 """
 import json
 import os
-import sys
-import tempfile
 import time
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
-sys.path.insert(0, str(HERE / "pool"))
+
+from conftest import (                     # the harness, ONE copy: conftest.py
+    check,                                 # one grade: PASS/FAIL + counters
+    make_client,                           # TestClient, wallet RPC refused
+    report,                                # the RESULT line + the exit code
+    sandbox_db,                            # a fresh jackpot.db in a fresh tempdir
+)
 
 # No fetching in this file: every tier is simulated by writing the very
 # keys the reader uses, so the grades never depend on the market.
 os.environ["XMR_PRICE_LIVE"] = "0"
 
+_tmp = sandbox_db("rate_label_")
+
 import database as db                                        # noqa: E402
-
-_tmp = tempfile.mkdtemp(prefix="rate_label_")
-db.DB_PATH = Path(_tmp) / "jackpot.db"
-db.init_db()
-
 import jackpot_funding as funding                             # noqa: E402
 import projection_ad                                          # noqa: E402
-import server as srv                                          # noqa: E402
 import xmr_price                                              # noqa: E402
-from fastapi.testclient import TestClient                     # noqa: E402
 
-srv.xmr.rpc_available = lambda *a, **k: False
-CLIENT = TestClient(srv.app)
-passed = failed = 0
-
-
-def check(n, cond, why):
-    global passed, failed
-    tag = "PASS" if cond else "FAIL"
-    print(f"{tag}  {n}  {why}")
-    if cond:
-        passed += 1
-    else:
-        failed += 1
+CLIENT, srv = make_client()
 
 
 def clear_rate():
@@ -235,5 +223,4 @@ check(7.2, str(HERE / "pool" / "jackpot.db") != str(db.DB_PATH),
 check(7.3, xmr_price.live_enabled() is False,
       "fetching stayed disabled for the whole file")
 
-print(f"\nRESULT: {passed} passed, {failed} failed")
-sys.exit(1 if failed else 0)
+report()

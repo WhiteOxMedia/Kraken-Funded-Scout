@@ -36,7 +36,7 @@ BASE_URL=http://127.0.0.1:3094
 SITE_URL=https://xmrjackpot.com
 
 # verification layer: roll_3094.sh owns io orchestration only.
-source cta_probe.sh
+source tools/cta_probe.sh
 
 # ROLL IO ONLY BELOW THIS LINE (Oct 12) — the shared probe layer
 # (single source of truth: cta_probe.sh) is loaded above; nothing here

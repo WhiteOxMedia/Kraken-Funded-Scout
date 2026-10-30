@@ -38,6 +38,7 @@ diagnoses, a human decides.
 import argparse
 import hashlib
 import json
+import os
 import re
 import subprocess
 import sys
@@ -47,7 +48,15 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
-DEFAULT_URL = "http://127.0.0.1/"
+# The app itself refuses to start on a guessed port: APP_PORT is required
+# (production binds it behind the Cloudflare tunnel). A hard loopback :80
+# default answered "unreachable" on every bare run, because nothing can
+# ever listen there. Follow the same env the server does; without APP_PORT
+# the operator is presumably checking the public origin, which really is
+# :80 at the edge (review, Oct 29).
+_APP_PORT = (os.environ.get("APP_PORT") or "").strip()
+DEFAULT_URL = (f"http://127.0.0.1:{int(_APP_PORT)}/"
+               if _APP_PORT.isdigit() else "http://xmrjackpot.com/")
 TIMEOUT = 10
 _VERSION_PATHS = ("/version", "/api/version")
 # Cloudflare 403s the stock Python-urllib UA outright (observed on

@@ -64,6 +64,10 @@ from pathlib import Path as _Path
 _ROOT = _Path(__file__).resolve().parent.parent
 if str(_ROOT) not in _sys.path:
     _sys.path.insert(0, str(_ROOT))
+if str(_ROOT / "tools") not in _sys.path:
+    # the sweep discipline and the task registrar live in tools/ (Oct
+    # 29 root organization); the weekly orphan leg reads them there.
+    _sys.path.insert(0, str(_ROOT / "tools"))
 import sweep_lib
 import push_report
 import push_service as push_svc

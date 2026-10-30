@@ -28,6 +28,7 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE / "pool"))
+sys.path.insert(0, str(HERE / "tools"))
 
 _tmp = Path(tempfile.mkdtemp(prefix="sched_vapid_"))
 import database as db
@@ -387,7 +388,7 @@ import register_sweep_report_task as _reg9
 check("9.9", (_reg9.SCAN_DOW, _reg9.SCAN_HOUR, _reg9.SCAN_MINUTE)
       == (6, 6, 15)
       and "-DaysOfWeek Sunday -At 06:15" in _reg9.__doc__ + open(
-          HERE / "register_sweep_report_task.py", encoding="utf-8").read(),
+          HERE / "tools" / "register_sweep_report_task.py", encoding="utf-8").read(),
       "the registrar owns the window shape and the PS trigger matches it")
 _win = sched._orphan_window_index(time.time())
 check("9.10", sched._orphan_due({"ts": _win + 1}) is False

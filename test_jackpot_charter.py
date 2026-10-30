@@ -19,6 +19,7 @@ settlement semantics underneath.
 Prints "RESULT: N passed, M failed".
 """
 import json
+import os
 import sys
 import tempfile
 import time
@@ -27,6 +28,16 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE / "pool"))
+
+# Same fixture as test_rate_label and test_ui_disclosure: no fetching in this
+# file. The formula values mined XMR in dollars through the rate reader, and
+# a background Kraken refresh landing mid-drive would move the rate under
+# checks that assert exact dollar figures. XMR_PRICE_LIVE=0 keeps the pinned
+# rate (323 here) the whole drive's fixed input, off the network. The pin
+# below still wins outright - the override tier is consulted before anything
+# else - but the kill switch makes the no-network guarantee of the drive
+# explicit instead of a side effect of the pin.
+os.environ["XMR_PRICE_LIVE"] = "0"
 
 import database as db
 

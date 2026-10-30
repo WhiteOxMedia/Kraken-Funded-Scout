@@ -45,9 +45,12 @@ import time
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
+ROOT = HERE.parent if HERE.name == "tools" else HERE
 TASK_NAME = "CodebuffWeeklyOrphanReport"
+# the wrapper lives beside this script (tools/); the marker stays at
+# the checkout ROOT where pool/scheduler.py's dead-man leg reads it.
 WRAPPER = HERE / "run_sweep_report_task.ps1"
-MARKER = HERE / "task_sweep_report_last.txt"
+MARKER = ROOT / "task_sweep_report_last.txt"
 # the dead-man horizon (must match pool/scheduler.py's
 # ORPHAN_DEADMAN_MAX_AGE_S - the drive pins the equality)
 DEADMAN_MAX_AGE_S = 8 * 86400

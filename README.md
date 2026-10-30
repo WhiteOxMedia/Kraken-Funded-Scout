@@ -36,19 +36,21 @@ manifest (`users.probe_swept`; `jackpot.orphans_swept` for the FK
 sweep). Pre-sweep backups land next to the DB as
 `_backup_jackpot_pre_*.db`.
 
-The discipline lives in `sweep_lib.py` and its operator face is
-`sweep_db.py`: a bare `python sweep_db.py` is a READ-ONLY dry run
+The discipline lives in `tools/sweep_lib.py` and its operator face is
+`tools/sweep_db.py` (the Oct 29 root organization moved the probe and
+sweep scripts into `tools/`; every command below runs from the repo
+root): a bare `python tools/sweep_db.py` is a READ-ONLY dry run
 (it rehearses the labeled statements on a throwaway backup-API
 copy, prints the per-label counts and the gate verdict, and
-writes nothing), while `python sweep_db.py --apply` performs the
-sweep through `sweep_lib` - backup beside the DB, the
+writes nothing), while `python tools/sweep_db.py --apply` performs the
+sweep through `tools/sweep_lib` - backup beside the DB, the
 `PRAGMA foreign_key_check` gate INSIDE the transaction (a
 violation rolls the whole sweep back), and the manifest audit
 row. New FK edges need a new labeled statement pair in
-`sweep_db.py`; the dry run flips to `would ROLLBACK` until one is
+`tools/sweep_db.py`; the dry run flips to `would ROLLBACK` until one is
 added. Pinned by `test_sweep_cli.py`.
 
-The planning half is `python sweep_db.py --report` (backed by
+The planning half is `python tools/sweep_db.py --report` (backed by
 `sweep_lib.orphans()`): it reads every FK edge from the schema
 itself and reports per-edge violation counts with sample rowids
 and the disposition a sweep would take (delete / null /
@@ -59,26 +61,27 @@ UNPLANNED), so cron/alerting reacts to the receipt itself.
 Pinned by `test_fk_regression` 3c and `test_sweep_cli` section 6.
 
 Scheduled alerting: the Windows task `CodebuffWeeklyOrphanReport`
-(Sundays 06:15, user-level) runs `run_sweep_report.cmd`, which
+(Sundays 06:15, user-level) runs `tools/run_sweep_report.cmd`, which
 appends the receipt to `logs_sweep_report.txt` and leaves the
 exit code (0/1/2 above) in Task Scheduler's Last Result -
 alerting reacts to the rc without parsing the log. The task is
-registered by the tracked `register_sweep_report_task.py` (which
+registered by the tracked `tools/register_sweep_report_task.py` (which
 carries a `--check` self-audit: both alert properties, the 1h
 execution limit, battery-safety, and the dead-man marker) and
-runs `run_sweep_report_task.ps1`, a DUE-GATED wrapper - at most
+runs `tools/run_sweep_report_task.ps1`, a DUE-GATED wrapper - at most
 one actual report per 7d window, so a StartWhenAvailable
 catch-up (a missed Sunday fires at the next available start)
 can never double-report, and every firing is rc-safe. The
 pool scheduler polices the wrapper's last-ACTUAL-run marker
-(`task_sweep_report_last.txt`): missing or older than 8 days
+(`task_sweep_report_last.txt`, still at the checkout root): missing
+or older than 8 days
 -> `alert=true` + one `scheduler.orphans_deadman` audit row per
 day, because a scheduled task that stops running is the one
 failure no report can reveal. Re-create the
 task after moving the checkout (the wrapper resolves its own
 directory, but the task's command line is absolute):
 `schtasks //Create //TN CodebuffWeeklyOrphanReport //TR
-"'<repo>un_sweep_report.cmd'" //SC WEEKLY //D SUN //ST 06:15 //F`.
+"'<repo>	oolsun_sweep_report.cmd'" //SC WEEKLY //D SUN //ST 06:15 //F`.
 
 The pool scheduler's weekly ops digest (leg 7, Sep 27) pushes ONE
 line to the admin's push subscribers after each scan window:
@@ -211,6 +214,27 @@ sleep 9 && curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:3094/api/stat
 The `curl` health check is the confirmation step — 200 means the fleet
 gate's live drive will run, 000 means it will self-skip (honestly).
 
+**Stop without restart (Oct 29).** `tools/stop_pool_server.sh` is the
+dedicated STOP toggle — `roll_3094.sh` has no stop-only mode, and
+locking/deleting an old bundle version is exactly when you want the
+server gone, not restarted. The lock it fixes: `/downloads/
+KrakenScoutBundle.zip` streams through `FileResponse`, so Windows holds
+the zip open for the life of a download and Explorer answers deletion
+with "You require permission from \<machine\>\<user>" (that name is the
+file's owner, not a grant to find elsewhere). Stop, and every handle
+releases: old artifact files become deletable. Safety lash: the PID
+comes from `Get-NetTCPConnection` (never a name sweep) and is killed
+only after its command line matches the pool server's entry point
+(`pool/server.py`) — anything else is printed and refused; `--dry-run`
+previews without killing, `--all` additionally clears wedged duplicate
+`pool/server.py` processes that hold no listener (each still
+gate-checked), and after killing it polls until the port is actually
+free (exit 3 if a PID survives past 10 s). Restart with the usual
+recipe above or `roll_3094.sh`; if what you deleted is `dist/
+KrakenScoutBundle.zip` — the served artifact — leave the server
+stopped until it is rebuilt with `make_bundle.py`, or download
+requests get a 404.
+
 **Languages and region (Oct 24).** `/download` and `/status` exist in
 English, Spanish, Portuguese, Russian, German and French. The copy is
 data, not markup: `pool/templates/i18n/<lang>.json`, rendered by
@@ -241,7 +265,7 @@ page. The checkout is Monero-only: it opens a fresh subaddress for the
 order, matches the transfer, grants the entitlement, and credits the
 donation to the pot once per order. There is no XMRJ unlock; the
 `xmrj_*` Solana programs exist but are undeployed and uncalled (see
-MEMO_COMPLIANCE_AUDIT.md B28). Two honesty rules ride with this: the
+reports/MEMO_COMPLIANCE_AUDIT.md B28). Two honesty rules ride with this: the
 miner .bat writes a placeholder wallet, so the page says outright that those
 shares are not credited and points at the dashboard installer instead;
 and the xmrig pin is the release **zip's** SHA256, not the exe's
@@ -455,6 +479,9 @@ a system-wide regression in the contract is one red row, not three.
   commit-gate hook, then verifies both (idempotent).
 - `python make_bundle.py` — regenerate the Hostinger review bundle from
   the live template + statics; runs the parity drive as its own gate.
+- `tools/stop_pool_server.sh` — the :3094 STOP toggle (see Runtime
+  operations): gate-checked kill with `--dry-run` / `--all`, port-free
+  verification.
 - `python ops_status.py` — the one-command health receipt: bundle
   version, :3094 listener PID + `/api/stats` health, scheduler
   heartbeat age, last orphan scan (age + totals), the scheduled

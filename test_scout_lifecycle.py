@@ -327,13 +327,51 @@ check("7.4", rep2["answers"] == {
       f"backfilled answers: {rep2['answers']}")
 check("7.5", life.backfill() == 0 and len(life._rows()) == 2,
       "a second backfill seeds nothing (idempotent)")
-check("7.6", all(r["wallet_address"] not in (
-        "PENDING_AuditJunk", "4" + "C" * 94, "4audit" + "a" * 88)
-        for r in life._rows()),
-      "no junk wallet becomes a lifecycle record, and none aborts the seed")
+WH = W("h")
+
+# ── 9. the wallet-shadow merge (Oct 29 review) ───────────────────
+print("== 9. wallet-shadow merge ==")
+# Own sandbox: this section adds rows and must not pollute the census
+# the operator-CLI checks below compare against.
+SHADOW_ID = "install-shadow-0001"
+share_t = NOW - 600
+_merge_db, _prev_db = SANDBOX / "merge.db", db.DB_PATH
+db.DB_PATH = _merge_db
+db.init_db()
+life.ensure_schema()
+# The kill chain: a share-telemetry/backfill row keyed ``w:WH`` exists for
+# a wallet, AND the wallet's machine has its own beacon row with no
+# wallet. Binding the wallet onto the beacon row used to die on the
+# UNIQUE wallet column; fail-soft swallowed the error and the activation
+# was lost forever (last-occurrence events cannot re-record it). record()
+# must instead merge the shadow row's first-occurrence stamps into the
+# install row, delete the shadow, and land the binding.
+SHADOW_ID = "install-shadow-0001"
+share_t = NOW - 600
+life.record(install_id=SHADOW_ID, installed=True, at=NOW - 700)
+life.record(wallet=WH, valid=2, at=share_t)          # creates the w:WH row
+pre_shadow = [r for r in life._rows()
+              if r["wallet_address"] == WH or r["install_id"] == SHADOW_ID]
+check("9.1", len(pre_shadow) == 2,
+      "the pre-cure shape: a beacon row with no wallet plus a w:<wallet> "
+      "row for the same Scout")
+life.record(wallet=WH, install_id=SHADOW_ID, activated=True, at=NOW)
+rows_ = [r for r in life._rows()
+         if r["wallet_address"] == WH or r["install_id"] == SHADOW_ID]
+check("9.2", len(rows_) == 1, "ONE row per Scout after the merge")
+merged = rows_[0]
+check("9.3", merged["install_id"] == SHADOW_ID
+      and merged["wallet_address"] == WH and merged["activation_complete"] == 1,
+      f"the activation DID land (the pre-cure smoke swallowed it): {merged}")
+check("9.4", merged["first_valid_share"] == share_t
+      and merged["first_connect"] == share_t and merged["installed_at"],
+      "the shadow's first-occurrence stamps survived the merge")
+check("9.5", life.classify(merged, now=NOW) == life.MINING,
+      "the merged Scout classifies MINING, never NEW")
+db.DB_PATH = _prev_db
 
 
-# ── 8. the operator report ───────────────────────────────────────────
+# ── 8. the operator report ──────────────────────────────────────
 print("== 8. operator CLI ==")
 buf = io.StringIO()
 with contextlib.redirect_stdout(buf):

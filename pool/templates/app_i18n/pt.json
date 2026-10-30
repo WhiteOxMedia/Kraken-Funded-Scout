@@ -83,6 +83,7 @@
   "home.noDownside": "Sem desvantagens",
   "home.realUpside": "Uma oportunidade real",
   "home.realVerusNote": "💡 Endereço Verus: esta interface minera e paga em XMR; o trilho Verus é o relé. O hashrate Verus entra no mesmo jackpot pelo canal do relé Verus, e todo share aceito pelo relé rende entradas exatamente como um share XMR. Esta caixa só guarda para onde vai um pagamento: um endereço colado nunca muda a moeda que você minera, e um prêmio ganado com shares Verus é pago em VRSC na taxa do sorteio.",
+  "home.realVerusNoteOffline": "💡 Endereço Verus: esta interface minera e paga em XMR. O canal do relé Verus NÃO está ativo neste deployment — o hashrate Verus não pode ganhar entradas no jackpot aqui; só shares XMR podem. Esta caixa só guarda para onde vai um pagamento: um endereço colado nunca muda a moeda que você minera.",
   "home.communityBonus": "🎁 Bônus comunitário: recompensas da Kraken",
   "home.community": "🤝 Minerando juntos. Vencendo juntos.",
   "home.howItWorks": "⚙️ Como funciona",

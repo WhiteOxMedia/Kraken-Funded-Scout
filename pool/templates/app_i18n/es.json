@@ -83,6 +83,7 @@
   "home.noDownside": "Sin desventajas",
   "home.realUpside": "Una oportunidad real",
   "home.realVerusNote": "💡 Dirección Verus: esta interfaz mina y paga en XMR; el raíl Verus es el relé. El hashrate Verus entra al mismo jackpot por el carril del relé Verus, y todo share aceptado por el relé gana entradas exactamente igual que un share XMR. Esta casilla solo guarda dónde va un pago: una dirección pegada nunca cambia la moneda que minas, y una entrada ganada con shares Verus se paga en VRSC a la tarifa del sorteo.",
+  "home.realVerusNoteOffline": "💡 Dirección Verus: esta interfaz mina y paga en XMR. El carril del relé Verus NO está activo en este despliegue, así que el hashrate Verus no puede ganar entradas al jackpot aquí — solo los shares XMR lo hacen. Esta casilla solo guarda dónde va un pago: una dirección pegada nunca cambia la moneda que minas.",
   "home.communityBonus": "🎁 Bonificaciones comunitarias: recompensas de Kraken",
   "home.community": "🤝 Minamos juntos. Ganamos juntos.",
   "home.howItWorks": "⚙️ Cómo funciona",

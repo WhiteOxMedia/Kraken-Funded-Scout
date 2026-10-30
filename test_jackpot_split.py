@@ -23,6 +23,7 @@ line trustworthy:
 House conventions: check(n, cond, why), RESULT line, sys.exit.
 """
 import json
+import os
 import sys
 import tempfile
 import time
@@ -30,6 +31,13 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE / "pool"))
+
+# Same fixture as test_rate_label and test_ui_disclosure: no fetching in this
+# file. A donation's split is priced through the rate reader, and a
+# background Kraken refresh landing mid-drive would move the rate under the
+# exact-number checks. XMR_PRICE_LIVE=0 keeps the pinned operator rate
+# (500.0 here) the whole drive's fixed input, off the network.
+os.environ["XMR_PRICE_LIVE"] = "0"
 
 import database as db                                        # noqa: E402
 

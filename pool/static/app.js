@@ -82,6 +82,10 @@
                                     // the authoritative value rides /api/stats)
   const HOUSE_TAX_PERCENT = 10;
   let TICKETS_PER = FREE_TICKET_SHARES;  // set from /api/stats when it lands
+  let VRSC_RELAY_LIVE = false;      // latched from /api/stats (the same
+                                    // XMRJ_VRSC_STRATUM the installers
+                                    // branch on); decides WHICH honest
+                                    // wallet note a Verus-shaped paste gets
 
   // THE UNIT COUNTER LINE (Oct 12 controller): the canonical raffle
   // format shown wherever mining status or jackpot eligibility shows.
@@ -426,6 +430,43 @@
     } catch (e) { /* the counter never blocks the click */ }
   });
 
+  // Share intents (Oct 29, review): ONE document-level delegation, attached
+  // once here outside initRealPlay. It used to live inside initRealPlay and
+  // got re-attached on every visit to the real-play page, so the Nth visit
+  // fired the share handler N times per click (N share popups on one tap).
+  // Built at CLICK TIME from the hidden link, so no raw URL is ever in the
+  // page text and nothing is shared until asked.
+  document.addEventListener('click', function (ev) {
+    var btn = ev.target && ev.target.closest
+      ? ev.target.closest('[data-share]') : null;
+    if (!btn) return;
+    var hidden = $('#krakenInviteLink');
+    var url = hidden ? (hidden.value || '').trim() : '';
+    if (!url) {
+      toast('Invite link still loading — try again in a moment', 'error');
+      return;
+    }
+    var where = btn.getAttribute('data-share');
+    var text = 'Mining XMR in the community pool — join Kraken through our link ' +
+      '(mystery reward for both sides, on Kraken terms):';
+    var target = '';
+    if (where === 'x') {
+      target = 'https://twitter.com/intent/tweet?text=' + encodeURIComponent(text) +
+        '&url=' + encodeURIComponent(url);
+    } else if (where === 'telegram') {
+      target = 'https://t.me/share/url?url=' + encodeURIComponent(url) +
+        '&text=' + encodeURIComponent(text);
+    } else if (where === 'whatsapp') {
+      target = 'https://wa.me/?text=' + encodeURIComponent(text + ' ' + url);
+    } else if (where === 'facebook') {
+      target = 'https://www.facebook.com/sharer/sharer.php?u=' + encodeURIComponent(url);
+    } else if (where === 'email') {
+      target = 'mailto:?subject=' + encodeURIComponent('Mine XMR with me') +
+        '&body=' + encodeURIComponent(text + '\n\n' + url);
+    }
+    if (target) window.open(target, '_blank', 'noopener');
+  });
+
   function updateModeBadge() {
     const badge = $('#modeBadge');
     if (!badge) return;
@@ -580,6 +621,14 @@
         // unit; the authoritative unit size comes from the operator
         // setting, so every surface draws its line from ONE source.
         if (d.free_tickets_per_shares) TICKETS_PER = d.free_tickets_per_shares;
+
+        // THE RELAY GATE (Oct 29 audit): the Verus wallet note's entry
+        // promise is backed ONLY when a relay lane exists. Without it
+        // the offline note is the truth shown instead.
+        if (d.vrsc_relay_live != null) VRSC_RELAY_LIVE = !!d.vrsc_relay_live;
+        // a wallet-note revealed before this fetch landed was shown under
+        // the fallback guess; re-open it now that the truth is known.
+        document.dispatchEvent(new CustomEvent('xmrjackpot:relay'));
 
         var heroNextDraw = $('#heroNextDraw');
         if (heroNextDraw) heroNextDraw.textContent = d.drawing_interval_hours + 'h';
@@ -1065,16 +1114,24 @@
     // payout address only (a paste never decides miners.coin — that is
     // share truth), and the drawing's same-coin rule pays a
     // Verus-share win in VRSC, so VRSC joins the rail the relay owns.
-    // The catalog key (home.realVerusNote) translates it in all six
-    // languages against this exact English string.
+    // The catalog keys (home.realVerusNote / home.realVerusNoteOffline)
+    // translate them in all six languages against these exact strings.
     var verusNote = $('#realVerusNote');
+    var verusNoteOffline = $('#realVerusNoteOffline');
     const gateShape = function (addr) { return addr.length === 34 && addr[0] === 'R'; };
     var showVerusNote = function () {
-      if (!verusNote) return;
-      verusNote.style.display = gateShape((walletInput.value || '').trim()) ? '' : 'none';
+      if (!verusNote && !verusNoteOffline) return;
+      var on = gateShape((walletInput.value || '').trim());
+      var relayUp = !!VRSC_RELAY_LIVE;
+      // show the RELAY note only when a relay lane actually exists; the
+      // offline note says so plainly when it does not. Neither note ever
+      // promises entries the pool cannot count.
+      if (verusNote) verusNote.style.display = (on && relayUp) ? '' : 'none';
+      if (verusNoteOffline) verusNoteOffline.style.display = (on && !relayUp) ? '' : 'none';
     };
-    if (walletInput && verusNote) {
+    if (walletInput && (verusNote || verusNoteOffline)) {
       walletInput.addEventListener('input', showVerusNote);
+      document.addEventListener('xmrjackpot:relay', showVerusNote);
       if (walletInput.value) showVerusNote();   // a restored Verus wallet tells too
     }
 
@@ -1161,39 +1218,11 @@
       copyText(url, 'Kraken invite link copied!');
     });
 
-    // Share intents: built at CLICK TIME from the hidden link, so no raw
-    // URL is ever in the page text and nothing is shared until asked.
-    document.addEventListener('click', function (ev) {
-      var btn = ev.target && ev.target.closest
-        ? ev.target.closest('[data-share]') : null;
-      if (!btn) return;
-      var hidden = $('#krakenInviteLink');
-      var url = hidden ? (hidden.value || '').trim() : '';
-      if (!url) {
-        toast('Invite link still loading — try again in a moment', 'error');
-        return;
-      }
-      var where = btn.getAttribute('data-share');
-      var text = 'Mining XMR in the community pool — join Kraken through our link ' +
-        '(mystery reward for both sides, on Kraken terms):';
-      var target = '';
-      if (where === 'x') {
-        target = 'https://twitter.com/intent/tweet?text=' + encodeURIComponent(text) +
-          '&url=' + encodeURIComponent(url);
-      } else if (where === 'telegram') {
-        target = 'https://t.me/share/url?url=' + encodeURIComponent(url) +
-          '&text=' + encodeURIComponent(text);
-      } else if (where === 'whatsapp') {
-        target = 'https://wa.me/?text=' + encodeURIComponent(text + ' ' + url);
-      } else if (where === 'facebook') {
-        target = 'https://www.facebook.com/sharer/sharer.php?u=' + encodeURIComponent(url);
-      } else if (where === 'email') {
-        target = 'mailto:?subject=' + encodeURIComponent('Mine XMR with me') +
-          '&body=' + encodeURIComponent(text + '\n\n' + url);
-      }
-      if (target) window.open(target, '_blank', 'noopener');
-    });
-
+    // Share intents are delegated ONCE at the document root (Oct 29):
+    // the listener below sits outside initRealPlay, so returning to the
+    // real-play page cannot stack a second or third copy of it (a
+    // stacked copy opened one share window per past visit on a single
+    // share click).
     // Get subaddress button
     var subaddrBtn = $('#btnGetSubaddress');
     if (subaddrBtn) subaddrBtn.addEventListener('click', async function() {
@@ -2372,7 +2401,7 @@
           + 'background:rgba(255,0,0,0.08);color:var(--redstone);'
           + 'font-weight:bold;">\u26a0\ufe0f ' + total + ' orphaned row(s) '
           + 'detected - do not sweep blind: run '
-          + '<code>python sweep_db.py --report</code> to plan it '
+          + '<code>python tools/sweep_db.py --report</code> to plan it '
           + '(rc 1 = sweepable, rc 2 = UNPLANNED edge).</div>'
           + '<p style="margin:4px 0;">The weekly scheduler leg reported '
           + 'this (audit action scheduler.orphans_report). Review the '

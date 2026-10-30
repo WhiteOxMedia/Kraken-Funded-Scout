@@ -16,51 +16,32 @@ figures stop using jackpot_engine's hardcoded 323:
   6. HERMETIC: every fetch in this file is a stub — no network, and the
      live jackpot.db is untouched (sandbox DB)
 
-House conventions: check(n, cond, why), RESULT line, sys.exit.
+House conventions: check/report, sandbox_db, fake_fetch, CALLS — the ONE
+copy of that harness lives in conftest.py now, shared with the other
+house scripts; this file keeps only its own grades.
 """
 import os
-import sys
-import tempfile
 import time
 from pathlib import Path
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-passed = failed = 0
 
+from conftest import (                     # the harness, ONE copy: conftest.py
+    CALLS,                                 # what reached the "wire"
+    check,                                 # one grade: PASS/FAIL + counters
+    fake_fetch,                            # the stub standing in for the ticker
+    report,                                # the RESULT line + the exit code
+    sandbox_db,                            # a fresh jackpot.db in a fresh tempdir
+)
 
-def check(n, cond, why):
-    global passed, failed
-    tag = "PASS" if cond else "FAIL"
-    print(f"{tag}  {n}  {why}")
-    if cond:
-        passed += 1
-    else:
-        failed += 1
-
-
-SANDBOX = tempfile.mkdtemp(prefix="xmr_price_")
-sys.path.insert(0, os.path.join(HERE, "pool"))
+SANDBOX = sandbox_db("xmr_price_")
 
 import database as db                                  # noqa: E402
-db.DB_PATH = Path(SANDBOX) / "jackpot.db"
-db.init_db()
-
 import xmr_price                                       # noqa: E402
 import jackpot_funding as funding                      # noqa: E402
 import jackpot_engine as engine                        # noqa: E402
 
 FALLBACK = 323.0
-CALLS = []
-
-
-def fake_fetch(rate):
-    """A stub standing in for the ticker — every check below uses one."""
-    def _f():
-        CALLS.append(rate)
-        if isinstance(rate, Exception):
-            raise rate
-        return rate
-    return _f
 
 
 def reset_db():
@@ -223,5 +204,4 @@ check(6.3, xmr_price.refresh_now() is None and not CALLS,
       "XMR_PRICE_LIVE=0: no automatic fetch, no exception")
 os.environ.pop("XMR_PRICE_LIVE", None)
 
-print(f"\nRESULT: {passed} passed, {failed} failed")
-sys.exit(1 if failed else 0)
+report()

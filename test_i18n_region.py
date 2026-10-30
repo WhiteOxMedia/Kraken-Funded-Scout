@@ -30,6 +30,7 @@ pins the parts that are easy to get plausibly wrong:
 
 Prints "RESULT: N passed, M failed".
 """
+import os
 import re
 import sys
 import tempfile
@@ -38,6 +39,15 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE / "pool"))
+
+# Same fixture as test_rate_label and test_ui_disclosure: no fetching in this
+# file. The download pages charge Scout Pro at the live rate and the drive
+# compares the rendered page against _scout_offer() a moment later; without
+# the kill switch a background Kraken refresh landing mid-drive would move
+# the rate between the two and the exact-price check would flake by the
+# market. XMR_PRICE_LIVE=0 keeps the pinned operator rate (or the 323
+# fallback) the whole drive's fixed input, off the network.
+os.environ["XMR_PRICE_LIVE"] = "0"
 
 import database as db
 

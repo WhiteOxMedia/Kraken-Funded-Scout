@@ -13,7 +13,7 @@ One line per surface, every read-only:
                    (read-only peek; the series' health is the scout
                    drives' contract — visible here, never alertable here)
 
-Exit code is the alert (the sweep_db.py --report contract):
+Exit code is the alert (the tools/sweep_db.py --report contract):
   0 all-clear, 1 anything needs a human (server down, heartbeat stale,
   orphan build-up, task failure, dead-man stale).  --json for machines,
   --line for the whole receipt on ONE line (ALERT/OK prefix).

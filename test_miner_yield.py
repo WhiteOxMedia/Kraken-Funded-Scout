@@ -43,6 +43,13 @@ def check(n, cond, why):
 SANDBOX = tempfile.mkdtemp(prefix="miner_yield_drive_")
 sys.path.insert(0, os.path.join(HERE, "pool"))
 
+# Same fixture as test_rate_label and test_ui_disclosure: no fetching in this
+# file. flush_daily values mined XMR in dollars through the rate reader, and
+# a background Kraken refresh landing mid-drive would move the rate under
+# the exact-USD receipt checks. XMR_PRICE_LIVE=0 keeps the pinned operator
+# rate (323.0, set below) the whole drive's fixed input, off the network.
+os.environ["XMR_PRICE_LIVE"] = "0"
+
 import database as db                                  # noqa: E402
 DB_PATH = os.path.join(SANDBOX, "jackpot.db")
 db.DB_PATH = __import__("pathlib").Path(DB_PATH)

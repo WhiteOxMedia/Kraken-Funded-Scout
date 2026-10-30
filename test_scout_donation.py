@@ -14,6 +14,7 @@ sandboxed DB — no network, no real Monero node:
 
 House conventions: check(n, cond, why), RESULT line, sys.exit.
 """
+import os
 import sys
 import tempfile
 import time
@@ -22,6 +23,14 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE / "pool"))
+
+# Same fixture as test_rate_label and test_ui_disclosure: no fetching in
+# this file. The checkout price is charged in XMR at the tracked rate and the
+# pot moves are asserted in dollars (`jackpot_usd before/after`), so a
+# background Kraken refresh landing mid-drive would move the rate under both.
+# XMR_PRICE_LIVE=0 keeps the pinned operator rate (500 below) the whole
+# drive's fixed input, off the network.
+os.environ["XMR_PRICE_LIVE"] = "0"
 
 import address_check as ac                                   # noqa: E402
 import database as db                                        # noqa: E402

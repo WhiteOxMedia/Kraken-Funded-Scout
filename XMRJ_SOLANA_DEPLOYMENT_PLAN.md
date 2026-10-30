@@ -351,7 +351,7 @@ Interface status (Oct 17 — stated rather than implied, so nothing here reads a
   amount twice. The rate is READ here — it is not decorative: two instructions
   wrote `exchange_rate_bps` and nothing consumed it, which made a "change the
   rate" proposal a no-op on chain (finding F2 of
-  XMRJ_DEVNET_EXECUTION_REPORT.md). A zero rate is refused where it is set and
+  reports/XMRJ_DEVNET_EXECUTION_REPORT.md). A zero rate is refused where it is set and
   where it is used, and the subtraction saturates, because a proposal that
   LOWERS the rate can put the ceiling under what has already gone out.
   It is gated on the state's `operational_authority`, exactly like
@@ -710,7 +710,7 @@ crates with the pinned host compiler, and `anchor build` produced the three
 `.so` artifacts and their IDLs on 2026-10-27 (the artifact drive computes the
 rent budget from the real sizes). Nothing has been deployed: the deployer wallet
 holds 0 SOL and the devnet RPC faucet is closed (see
-XMRJ_DEVNET_EXECUTION_REPORT.md B1). The Solana CLI is still absent on this box,
+reports/XMRJ_DEVNET_EXECUTION_REPORT.md B1). The Solana CLI is still absent on this box,
 which is why the deploy steps have not run. The toolchain is now PINNED rather
 than described: anchor-cli 1.1.2,
 Solana CLI 3.1.10 and host Rust 1.89.0 in Anchor.toml `[toolchain]` and

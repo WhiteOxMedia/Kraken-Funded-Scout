@@ -84,11 +84,13 @@ check(1.8, "FILTERED" in src and '[ -z "$FILTERED" ] && exit 0' in src,
 check(1.9, "git rev-parse --show-toplevel" in src,
       "the ledger lands in THIS repo's scratch (toplevel-derived), "
       "never the caller's cwd")
-check(1.10, "--base HEAD~1" in src and "HEAD~1" in src,
-      "the review is pinned to the LANDING COMMIT (--base HEAD~1 — bare "
-      "--committed diffs HEAD vs HEAD and can hang the CLI; the first "
-      "live run bounced at the 300s timeout), with a parentless-repo "
-      "skip (the first commit has nothing to diff against)")
+check(1.10, "--base-commit HEAD~1" in src
+      and "git rev-parse -q --verify HEAD~1" in src,
+      "the review is pinned to the LANDING COMMIT (--base-commit HEAD~1 — "
+      "the CLI's --base means BRANCH, bare --committed diffs HEAD vs HEAD "
+      "and can hang the CLI; the first live run bounced at the 300s "
+      "timeout), with a parentless-repo skip (the first commit has "
+      "nothing to diff against)")
 check(1.11, src.count("cr_receipt errors") == 1
       and 'if [ -n "$errtypes" ]' in src and "ERRORTYPE " in src
       and '"errorType"' in src,

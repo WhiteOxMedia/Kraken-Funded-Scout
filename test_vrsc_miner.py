@@ -163,9 +163,29 @@ check(3.3, "na.luckpool.net:3956" in body and "stratum+tcp://" in body,
       "the Verus bat names the Verus stratum, not the Monero relay")
 check(3.4, "xmrig" not in body.lower(),
       "no xmrig string ships in the Verus bat")
+# THE GATE (review, Oct 29): jackpot-entry wording exists ONLY when
+# XMRJ_VRSC_STRATUM names a relay. With no relay the shares land on
+# LuckPool — public-pool mining, no entries from this pool — so the bat
+# must say that instead of promising an entry banner it cannot back.
+check(3.5, "1 free entry" not in body
+      and "No jackpot entries from this pool" in body,
+      "no relay configured: the US bat promises NO entries and says so")
+old_env = os.environ.get("XMRJ_VRSC_STRATUM")
+os.environ["XMRJ_VRSC_STRATUM"] = "relay.example.com:3956"
+bat_relay = client.get("/api/miner-download", headers={"cf-ipcountry": "US"})
+body_relay = bat_relay.text
 entry_unit = engine.entry_unit()
-check(3.5, f"Every {entry_unit} valid shares = 1 free entry!" in body,
-      f"the entry banner quotes the ONE engine.entry_unit() ({entry_unit})")
+check(3.06,
+      f"Every {entry_unit} valid shares = 1 free entry!" in body_relay
+      and "SAME" in body_relay
+      and "jackpot entries as the XMR bot's shares" in body_relay
+      and "relay.example.com:3956" in body_relay,
+      f"relay configured: the banner quotes the ONE engine.entry_unit() "
+      f"({entry_unit}) and points at the relay stratum")
+if old_env is None:
+    os.environ.pop("XMRJ_VRSC_STRATUM", None)
+else:
+    os.environ["XMRJ_VRSC_STRATUM"] = old_env
 
 bat_de = client.get("/api/miner-download", headers={"cf-ipcountry": "DE"})
 check(3.6, "install_xmr_jackpot.bat" in bat_de.headers.get(
@@ -202,6 +222,108 @@ check(3.12, R_ADDR in bat_reg.text
 check(3.13, "echo ccminer.exe -o stratum+tcp://" in bat_reg.text
       and f'-u "{R_ADDR}"' in bat_reg.text,
       "start.bat inside the bat mines to the embedded R-address")
+
+print("== 3M. THE MATRIX: TERRITORIES x RELAY ==")
+# THE NO-RESURRECTION GUARANTEE (Oct 29): the territories knob decides WHO
+# gets served the Verus bat, never WHAT the bat may promise. The entry
+# banner exists in that bat only under a live relay, in every cell of the
+# matrix (visitor region x db territories x relay env x route) — a reroute
+# must never paste the unbacked "1 free entry" line back into the bat.
+old_rel2 = os.environ.get("XMRJ_VRSC_STRATUM")
+old_terr = db.get_setting(srv.VRSC_TERRITORY_SETTING)
+entry_unit = engine.entry_unit()
+entry_banner = f"Every {entry_unit} valid shares = 1 free entry!"
+# (visitor, db territories, sweep the explicit -vrsc route too?)
+matrix = [
+    ("US", "", False),          # the built-in US,CA default
+    ("DE", "", False),          # outside the built-in list
+    ("US", "DE,FR", False),     # rerouted OUT by the knob
+    ("DE", "DE,FR", False),     # rerouted IN by the knob
+    ("SG", "DE,FR", False),     # a country no list names
+]
+unbacked = []      # relay DOWN: a Verus bat carrying the banner, or one
+                   # without the honesty line
+rebuilt = []       # relay UP: a Verus bat missing the banner/stratum, or
+                   # an XMR bat that lost its OWN (always-backed) banner
+for visitor, terr, _explicit in matrix:
+    db.set_setting(srv.VRSC_TERRITORY_SETTING, terr)
+    for relay_set in (False, True):
+        if relay_set:
+            os.environ["XMRJ_VRSC_STRATUM"] = "relay.example.com:3956"
+        else:
+            os.environ.pop("XMRJ_VRSC_STRATUM", None)
+        for route in ("/api/miner-download", "/api/miner-download-vrsc"):
+            r = client.get(route, headers={"cf-ipcountry": visitor})
+            b = r.text
+            is_verus = "ccminer.exe" in b and "xmrig" not in b.lower()
+            cell = f"({visitor},{terr or 'default-terr'},"
+            cell += f"relay={'up' if relay_set else 'down'},{route})"
+            if not is_verus:
+                # the Monero bat is out of scope EXCEPT for the rule that
+                # relay state never touches ITS always-backed banner
+                if entry_banner not in b:
+                    rebuilt.append(cell + " (xmr bat lost its banner)")
+                continue
+            if not relay_set:
+                if entry_banner in b:
+                    unbacked.append(cell)
+                if "No jackpot entries from this pool" not in b:
+                    unbacked.append(cell + " (honesty line missing)")
+            else:
+                if entry_banner not in b or "relay.example.com:3956" not in b:
+                    rebuilt.append(cell)
+                if "WITHOUT" in b or "No jackpot entries" in b:
+                    rebuilt.append(cell + " (stale public-pool copy)")
+check(3.14, not unbacked,
+      "relay down x every territory cell: the Verus bat promises NO "
+      "entries and carries the honesty line (violations: "
+      f"{unbacked or 'none'})")
+check(3.15, not rebuilt,
+      "relay up x every territory cell: the Verus bat quotes the ONE "
+      f"entry_unit banner ({entry_unit}) + relay stratum, the XMR bat "
+      "keeps its own, stale public-pool copy is gone "
+      f"(violations: {rebuilt or 'none'})")
+# THE PRECEDENCE CELL (Oct 29): WHO gets the Verus bat is decided by ONE
+# ordered chain — the db VRSC_TERRITORIES setting first, the
+# XMRJ_VRSC_TERRITORIES env second, the built-in US,CA last. A stale db
+# value, a leftover env var or both at once must never disagree with that
+# chain's winner. WHO is served is relay-independent (asserted here under
+# the default relay state); WHAT that bat may promise is the matrix above.
+old_terr_env = os.environ.get("XMRJ_VRSC_TERRITORIES")
+prec = {  # (db value, env value) -> {country: expect the Verus bat}
+    ("FR", "US"): {"FR": True, "US": False},
+    ("", "US"): {"US": True, "DE": False},
+    ("", ""): {"US": True, "DE": False},
+    ("DE,US", ""): {"DE": True, "SG": False},
+}
+prec_broken = []
+for (terr_db, terr_env), rules in prec.items():
+    db.set_setting(srv.VRSC_TERRITORY_SETTING, terr_db)
+    if terr_env:
+        os.environ["XMRJ_VRSC_TERRITORIES"] = terr_env
+    else:
+        os.environ.pop("XMRJ_VRSC_TERRITORIES", None)
+    for cc, expect_verus in rules.items():
+        r = client.get("/api/miner-download", headers={"cf-ipcountry": cc})
+        b = r.text
+        is_verus = "ccminer.exe" in b and "xmrig" not in b.lower()
+        if is_verus != expect_verus:
+            prec_broken.append((terr_db, terr_env, cc, "verus"
+                                if is_verus else "monero"))
+check(3.16, not prec_broken,
+      "the ONE ordered territory chain (db > XMRJ_VRSC_TERRITORIES env > "
+      "built-in US,CA) decides WHO gets the Verus bat in every "
+      f"precedence cell (disagreements: {prec_broken or 'none'})")
+if old_terr_env is None:
+    os.environ.pop("XMRJ_VRSC_TERRITORIES", None)
+else:
+    os.environ["XMRJ_VRSC_TERRITORIES"] = old_terr_env
+
+if old_rel2 is None:
+    os.environ.pop("XMRJ_VRSC_STRATUM", None)
+else:
+    os.environ["XMRJ_VRSC_STRATUM"] = old_rel2
+db.set_setting(srv.VRSC_TERRITORY_SETTING, old_terr or "")
 
 print("== 4. THE RELAY STATE MACHINE (no sockets needed) ==")
 import vrsc_relay                                        # noqa: E402

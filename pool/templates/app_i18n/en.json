@@ -83,6 +83,7 @@
   "home.noDownside": "No Downside",
   "home.realUpside": "Real Upside",
   "home.realVerusNote": "💡 Verus address: this surface mines and pays XMR; the Verus rail is the relay. Verus hashrate joins the same jackpot through the Verus relay lane, and every accepted relay share earns entries exactly like an XMR share. This box only stores where a payout goes — a pasted address never switches the coin you mine, and a Verus-share win pays in VRSC at the drawing rate.",
+  "home.realVerusNoteOffline": "💡 Verus address: this surface mines and pays XMR. The Verus relay lane is NOT live on this deployment, so Verus hashrate cannot earn jackpot entries here — only XMR shares do. This box only stores where a payout goes — a pasted address never switches the coin you mine.",
   "home.communityBonus": "🎁 Community Bonus: Kraken Rewards",
   "home.community": "🤝 Mining Together. Winning Together.",
   "home.howItWorks": "⚙️ How It Works",

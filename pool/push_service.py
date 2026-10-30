@@ -137,7 +137,7 @@ EVENTS = {
         "title": "🧹 Orphaned rows detected",
         "body": ("The weekly FK sweep detector found orphaned "
                  "rows in the pool database - do not sweep blind: "
-                 "plan with sweep_db.py --report first."),
+                 "plan with tools/sweep_db.py --report first."),
         "tag": "orphans-alert",
         "url": "/#admin",
         "rate": 2,

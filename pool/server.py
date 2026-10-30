@@ -16,9 +16,9 @@ import subprocess
 from pathlib import Path
 
 import asyncio
-from functools import lru_cache
 
 import aiohttp
+import anyio              # zip serving stream sharing (sharing-safe read)
 from fastapi import FastAPI, Request, HTTPException, Depends, WebSocket, WebSocketDisconnect
 from fastapi.responses import (HTMLResponse, JSONResponse,
                                PlainTextResponse, RedirectResponse,
@@ -40,6 +40,7 @@ import i18n                   # language negotiation + region inference
 import i18n_pages             # the six-language download/status pages
 import projection_ad          # the advertisement-only projection surface
 import scout_lifecycle        # Phase F: install/activation/connect/share
+import operator_config as oc   # THE ONE READER for operator-configurable values
 
 app = FastAPI(title="XMR Jackpot Pool")
 
@@ -247,7 +248,14 @@ def _artifact_problems(zip_path: Path) -> list:
         guard = _release_guard_module()
         problems = guard.zip_violations(zip_path, guard.load_manifest())
     except Exception as e:                    # no manifest, broken guard
-        problems = [f"release guard unavailable: {e}"]
+        # A GUARD FAILURE IS NOT A VERDICT (review, Oct 29): caching this
+        # string under the artifact's mtime key kept ONE transient failure
+        # (guard file mid-roll, manifest unreadable) answering 503 on every
+        # later request with the same key until the zip itself changed or
+        # the process restarted, even after the guard was intact again.
+        # Report it this request, cache nothing, and the next request
+        # re-runs the guard once it is readable.
+        return [f"release guard unavailable: {e}"]
     _RELEASE_GUARD_CACHE.update(key=key, problems=problems)
     return problems
 
@@ -256,6 +264,171 @@ def _artifact_headers() -> dict:
     """nosniff on every artifact response, and no-cache so a
     checksum-pinned file is never served stale from an edge cache."""
     return {"X-Content-Type-Options": "nosniff", "Cache-Control": "no-cache"}
+
+
+def _log_serving(method: str, request: Request, f: Path, size: int) -> None:
+    """ONE line per served artifact (Oct 30): whenever Explorer shows
+    "You require permission from \<machine\>\<user>" during a rebuild,
+    the log line answering "which process held the file" now sits right
+    in the server log next to the request that held it — the reader
+    needs no cross-file PID hunt, and `tools/stop_pool_server.sh --dry-
+    run` names the same PID when the handle is still open."""
+    ua = (request.headers.get("user-agent") or "-")[:64]
+    print(f"[Downloads] {method} {request.url.path} file={f.name} "
+          f"handler_pid={os.getpid()} size={size} ua={ua}", flush=True)
+
+
+class _SharingFileResponse(FileResponse):
+    """FileResponse that reads the artifact through a SHARING-SAFE open
+    (Oct 30).
+
+    The old behavior: Starlette's FileResponse calls its own
+    `anyio.open_file(path)` — a plain CRT open that DENIES
+    FILE_SHARE_DELETE — so for the whole life of a streamed download the
+    zip handle denied unlink/rename, and Explorer answered deletion with
+    "You require permission from \<machine\>\<user>". The lock is the
+    SHARE MODE of this open, not the file's permissions.
+
+    The fix: the response's read opens the artifact through
+    CreateFileW with FILE_SHARE_READ | FILE_SHARE_WRITE |
+    FILE_SHARE_DELETE. Measured on this checkout (Oct 30 probe):
+    while our sharing-safe handle is open, a `DeleteFileW` from any
+    other process SUCCEEDS (underlying NTFS deferred deletion carries
+    the open read of the in-flight download to completion on the bytes
+    it already pinned), the name is gone from the directory the
+    moment the delete wins, and in-flight reads/seek continue
+    working until the response drains and the handle closes.
+    Consequence: a rebuild's `del dist\\KrakenScoutBundle.zip` during a
+    slow client download no longer trips the Explorer dialog, and the
+    old-file release is provably handled by the tooling at
+    tools/stop_pool_server.sh (which stays for stopping/other files).
+
+    Implementation shape (pinned by test_bundle_serve.py 8.x): the
+    three _handle_* overrides below are a YEETED copy of the Starlette
+    1.3.1 internals with the only two bytecode-level changes: the file
+    open is `self._sharing_open()` (ours), and the pid log line rides
+    along when the route asks for it. Range parsing/multipart/header
+    logic all live in the parent class and are inherited unchanged —
+    a Starlette bump changes ONLY these three bodies' lineages.
+    """
+    async def _sharing_open(self):
+        """Open `self.path` so unlink/rename share is granted while the
+        response streams from the handle, wrapped for the handler's
+        awaitable read()/seek() protocol."""
+        import io as _io
+        path = "" if self.path is None else str(self.path)
+        if os.name != "nt":
+            # POSIX unlink semantics already allow delete/rename under an
+            # open read handle — the plain anyio open suffices there.
+            return await anyio.open_file(path, mode="rb")
+        import ctypes as _ct
+        import msvcrt as _ms
+        k32 = _ct.windll.kernel32
+        GENERIC_READ = 0x80000000
+        FILE_SHARE_READ, FILE_SHARE_WRITE, FILE_SHARE_DELETE = 0x1, 0x2, 0x4
+        OPEN_EXISTING = 3
+        k32.CreateFileW.restype = _ct.c_void_p
+        k32.CreateFileW.argtypes = [
+            _ct.c_wchar_p, _ct.c_uint, _ct.c_uint, _ct.c_void_p,
+            _ct.c_uint, _ct.c_uint, _ct.c_void_p]
+        INVALID_HANDLE_VALUE = _ct.c_void_p(-1).value
+        handle = k32.CreateFileW(
+            path, GENERIC_READ,
+            FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+            None, OPEN_EXISTING, 0, None)
+        if not handle or handle == INVALID_HANDLE_VALUE:
+            raise OSError(
+                f"CreateFileW refused {path} "
+                f"(GetLastError={_ct.GetLastError()})")
+        fd = _ms.open_osfhandle(handle, os.O_RDONLY)
+        return anyio.wrap_file(_io.open(fd, "rb"))
+
+    async def _handle_simple(self, send, send_header_only, send_pathsend):
+        # [YEETED COPY, Oct 30]: starlette.responses 1.3.1
+        # FileResponse._handle_simple, with the open swapped.
+        await send({"type": "http.response.start", "status": self.status_code,
+                    "headers": self.raw_headers})
+        if send_header_only:
+            await send({"type": "http.response.body", "body": b"",
+                        "more_body": False})
+        elif send_pathsend:
+            await send({"type": "http.response.pathsend", "path": str(self.path)})
+        else:
+            async with await self._sharing_open() as file:
+                more_body = True
+                while more_body:
+                    chunk = await file.read(self.chunk_size)
+                    more_body = len(chunk) == self.chunk_size
+                    await send({"type": "http.response.body", "body": chunk,
+                                "more_body": more_body})
+
+    async def _handle_single_range(self, send, start, end, file_size,
+                                   send_header_only):
+        # [YEETED COPY, Oct 30]: starlette.responses 1.3.1
+        # FileResponse._handle_single_range, with the open swapped.
+        from starlette.datastructures import MutableHeaders as _MH
+        headers = _MH(raw=list(self.raw_headers))
+        headers["content-range"] = f"bytes {start}-{end - 1}/{file_size}"
+        headers["content-length"] = str(end - start)
+        await send({"type": "http.response.start", "status": 206,
+                    "headers": headers.raw})
+        if send_header_only:
+            await send({"type": "http.response.body", "body": b"",
+                        "more_body": False})
+        else:
+            async with await self._sharing_open() as file:
+                await file.seek(start)
+                more_body = True
+                while more_body:
+                    chunk = await file.read(min(self.chunk_size, end - start))
+                    start += len(chunk)
+                    more_body = (len(chunk) == self.chunk_size
+                                 and start < end)
+                    await send({"type": "http.response.body", "body": chunk,
+                                "more_body": more_body})
+
+    async def _handle_multiple_ranges(self, send, ranges, file_size,
+                                      send_header_only):
+        # [YEETED COPY, Oct 30]: starlette.responses 1.3.1
+        # FileResponse._handle_multiple_ranges, with the open swapped.
+        import anyio as _anyio
+        from starlette.datastructures import MutableHeaders as _MH
+        boundary = secrets.token_hex(13)
+        content_length, header_generator = self.generate_multipart(
+            ranges, boundary, file_size, self.headers["content-type"])
+        headers = _MH(raw=list(self.raw_headers))
+        headers["content-type"] = f"multipart/byteranges; boundary={boundary}"
+        headers["content-length"] = str(content_length)
+        await send({"type": "http.response.start", "status": 206,
+                    "headers": headers.raw})
+        if send_header_only:
+            await send({"type": "http.response.body", "body": b"",
+                        "more_body": False})
+        else:
+            async with await self._sharing_open() as file:
+                for start, end in ranges:
+                    await send({"type": "http.response.body",
+                                "body": header_generator(start, end),
+                                "more_body": True})
+                    await file.seek(start)
+                    while start < end:
+                        chunk = await file.read(min(self.chunk_size,
+                                                    end - start))
+                        start += len(chunk)
+                        await send({"type": "http.response.body",
+                                    "body": chunk, "more_body": True})
+                    await send({"type": "http.response.body",
+                                "body": b"\r\n", "more_body": True})
+                await send({"type": "http.response.body",
+                            "body": f"--{boundary}--".encode("latin-1"),
+                            "more_body": False})
+
+    # the parent class's starlette-internal names these copies rely on
+    # (checked, not assumed): range parsing, multipart generation and
+    # header tools still resolve against Starlette's own FileResponse.
+    assert getattr(FileResponse, "_parse_range_header", None) is not None
+    assert getattr(FileResponse, "generate_multipart", None) is not None
+    assert getattr(FileResponse, "_should_use_range", None) is not None
 
 
 SITE_ORIGIN = "https://xmrjackpot.com"
@@ -381,7 +554,7 @@ def _with_jsonld(html: str, spa_page: str = "", canonical: str = "") -> str:
 
 
 @app.get("/downloads/KrakenScoutBundle.zip")
-async def downloads_bundle():
+async def downloads_bundle(request: Request):
     f = _dist_dir / "KrakenScoutBundle.zip"
     if not f.exists():
         raise HTTPException(status_code=404, detail="bundle not built")
@@ -395,9 +568,13 @@ async def downloads_bundle():
     # revalidate per request, 304 when the bytes are unchanged: a
     # checksum-pinned artifact must NEVER be served stale (Cloudflare
     # proved this within the hour).
-    return FileResponse(str(f), media_type="application/zip",
-                        filename="KrakenScoutBundle.zip",
-                        headers=_artifact_headers())
+    _log_serving("GET", request, f, f.stat().st_size)
+    # Sharing-safe read: the response streams from a handle that grants
+    # unlink/rename share, so a rebuild's delete during a slow download
+    # succeeds instead of tripping Explorer's permission dialog.
+    return _SharingFileResponse(str(f), media_type="application/zip",
+                                filename="KrakenScoutBundle.zip",
+                                headers=_artifact_headers())
 
 
 @app.head("/downloads/KrakenScoutBundle.zip")
@@ -620,7 +797,6 @@ _STATIC_NAV = '''<nav class="navbar">
 STYLE_HREF = "/static/style.css?v=21"   # test_i18n_region pins this to the template
 
 
-@lru_cache(maxsize=1)
 def _site_chrome() -> dict:
     """The navbar, footer and stylesheet every page wears, lifted from the app.
 
@@ -629,6 +805,14 @@ def _site_chrome() -> dict:
     page without the logo, the Kraken Scout footer and the CTA box reads as a
     different, older site - so the chrome is read from the template instead of
     retyped here, and a template edit lands on every page at once.
+
+    NOT lru_cached (review, Oct 29): a cached copy baked fill_terms()' output
+    in once per process, so the footer's {{WINNER_PCT}}/{{HOUSE_TAX_PCT}}/
+    {{DRAW_HOURS}}/{{CLAIM_DAYS}}/{{PRO_DAYS}}, the ticket-entry unit and the
+    Pro price froze at the first visitor's values and did not follow an
+    operator setting change or the live XMR rate until a restart. The parse
+    is a regex and a replace on one footer block, only on catalog pages -
+    recomputing per request is the cheap, honest option.
     """
     tpl = _template_text()
     footer = re.search(r"<footer>[\s\S]*?</footer>", tpl).group(0)
@@ -807,25 +991,15 @@ def _template_text() -> str:
 def _pro_price() -> tuple:
     """The Scout Pro checkout price, as the checkout will charge it.
 
-    (xmr, usd). The operator sells Pro at a DOLLAR price ($95 since Oct
-    26), so the dollar figure is stored and the XMR amount is derived at
-    the tracked rate. Deliberately reads this module's own `db`: the
-    checkout module imports database under a second name, and a sandbox
-    test that patches one binding must not silently read the other.
+    (xmr, usd) — the SAME (usd, xmr) tuple every consumer in the
+    checkout chain gets from pool/operator_config.pro_price(), reordered
+    for this module's historical callers. One chain, one reader:
+    operator_config stores the dollar figure and derives the XMR amount
+    at the tracked rate (the live rate or the operator's pin, never the
+    old 323 constant).
     """
-    def _num(key, default):
-        try:
-            return float(db.get_setting(key, str(default)))
-        except (TypeError, ValueError):
-            return float(default)
-
-    usd = _num("scout_pro_price_usd", 95.0)
-    if usd <= 0:
-        usd = 95.0
-    # the live rate (or the operator's pin), never the old 323 constant
-    rate = jackpot_funding.xmr_usd_rate()
-    xmr = round(usd / rate, 8) if rate > 0 else 0.0
-    return xmr, round(usd, 2)
+    usd, amount = oc.pro_price()
+    return amount, usd
 
 
 def _payout_terms() -> dict:
@@ -1232,11 +1406,15 @@ async def set_language(code: str, next: str = "/"):
     if code not in i18n.LANGUAGES:
         return _not_found()
     is_local_path = next.startswith("/") and not next.startswith("//")
+    # Only explicit same-site paths are valid. NOT A PATH (review, Oct 29):
+    # a scheme-shaped or backslash second character — "/https:/...",
+    # "/\\evil.com" — passes both the // check and a naive path reading, but
+    # browsers normalize a backslash into a slash, and the 303 then sends
+    # the user off-site as a protocol-relative or scheme URL.
+    if is_local_path and (next[1:2] in "\\/"
+                          or re.match(r"^/[a-zA-Z][a-zA-Z0-9+.-]*:", next)):
+        is_local_path = False
     target = next if is_local_path else "/"
-    # Do not accept absolute URLs even if a query parser normalizes them to
-    # a slash-prefixed path; only explicit same-site paths are valid.
-    if not is_local_path or re.match(r"^/[a-zA-Z][a-zA-Z0-9+.-]*:", target):
-        target = "/"
     # The homepage language is encoded in its URL; send the default-language
     # choice to / and every translated choice to its prefixed homepage.
     if target == "/":
@@ -1573,6 +1751,12 @@ async def api_stats(request: Request):
     # from the engine's single reader, so the dashboard counter, the
     # minting engine and the homepage cannot describe different odds.
     stats["free_tickets_per_shares"] = engine.entry_unit()
+    # THE RELAY GATE SHOWS (Oct 29 audit): whether ANY Verus-entry claim on
+    # a public surface is backed. No relay lane means not one Verus share
+    # can reach this pool's ledger — the page must then never promise
+    # entries for Verus hashrate. One flag, one shared reader
+    # (vrsc_relay_up), the same truth the installers branch on.
+    stats["vrsc_relay_live"] = bool(vrsc_relay_up())
     # the checkout price the Pro copy quotes (same setting the route reads)
     stats["scout_pro_price_xmr"] = _pro_price()[0]
     # FULL DISCLOSURE (Oct 24): this pool can be seeded with simulated
@@ -2065,8 +2249,8 @@ pause
 # A visitor can ALWAYS force the Monero branch with ?coin=xmr; the
 # explicit /api/miner-download-vrsc and /api/miner-installer-vrsc serve
 # the Verus branch without any region inference (links, tests, support).
-VRSC_TERRITORY_SETTING = "VRSC_TERRITORIES"
-VRSC_TERRITORIES_DEFAULT = "US,CA"
+VRSC_TERRITORY_SETTING = oc.VRSC_TERRITORIES_SETTING   # the tests patch THIS name
+VRSC_TERRITORIES_DEFAULT = oc.VRSC_TERRITORIES_DEFAULT
 VRSC_SHA256 = "29af65187012736d29d88d32ffa18136f5572ddc281b884ca211f1799a217deb"
 # Verified 2026-10-28 FIRST-HAND: the release asset was downloaded from
 # this URL and hashed here, byte for byte (air-gapped pin — the minen't
@@ -2080,23 +2264,53 @@ VRSC_MINER_URL = ("https://github.com/arlsson/win64-ccminer-verus/releases/"
 # XMRJ_VRSC_STRATUM when it is live; until then the branch mines to the
 # public LuckPool endpoint (the same semantics as the Monero branch
 # pointing at the pool's own relay: an upstream, an entry unit, receipts).
-VRSC_STRATUM_DEFAULT = "na.luckpool.net:3956"
+VRSC_STRATUM_DEFAULT = oc.VRSC_STRATUM_DEFAULT
+
+
+def vrsc_relay_up():
+    """THE ONE READER of relay knowledge (Oct 29 cutover consolidation).
+
+    /api/stats and both generated installers used to read
+    XMRJ_VRSC_STRATUM directly, in triplicate — three env reads the
+    relay contract then had to keep in lockstep by review alone. That
+    one reader moved to pool/operator_config.vrsc_stratum() on Oct 29;
+    every reader behind this name calls it, so the resolution order is
+    impossible to drift away from.
+    every reader calls this: XMRJ_VRSC_STRATUM set (non-blank) means a
+    relay lane exists and Verus hashrate can reach this pool's ledger
+    (jackpot entries are real); unset or blank means no lane, and the
+    public surface must never promise entries for Verus hashrate.
+    Returns the cleaned stratum string ("" when no lane), so callers
+    that need the ADDRESS use it verbatim and its truthiness is the
+    flag /api/stats publishes.
+    """
+    return oc.vrsc_stratum()
+
+
+def vrsc_territories():
+    """WHO RECEIVES THE VERUS BRANCH — the ONE READER of the chain
+    (Oct 29 cutover consolidation, sibling of vrsc_relay_up).
+
+    The branch decision (download route), the generated installers, the
+    admin read model and the tests all resolve through this, so the
+    order of authority lives in exactly one place and cannot drift:
+
+        db VRSC_TERRITORIES  >  XMRJ_VRSC_TERRITORIES env  >  built-in US,CA
+
+    Returns (source, raw): ``source`` is which tier won ("db",
+    "env" or "default" — the admin card shows it so the operator knows
+    which knob is holding the answer), ``raw`` is the winning comma
+    string stripped; the set view below splits it into the codes the
+    callers actually resolve per-country.
+    """
+    return oc.vrsc_territories()
 
 
 def _vrsc_territories():
-    """The comma-separated country list whose visitors receive the Verus
-    branch. Order of authority: db setting (admin-overridable) first,
-    env XMRJ_VRSC_TERRITORIES second, the built-in US,CA last."""
-    raw = None
-    try:
-        raw = db.get_setting(VRSC_TERRITORY_SETTING)
-    except Exception:
-        raw = None
-    if raw is None or not isinstance(raw, str) or not raw.strip():
-        raw = os.environ.get("XMRJ_VRSC_TERRITORIES", "")
-    if not raw.strip():
-        raw = VRSC_TERRITORIES_DEFAULT
-    return {cc.strip().upper() for cc in raw.split(",") if cc.strip()}
+    """The set view for the callers that resolve per-country (the tests,
+    the installers, the download route) — the resolver above stays the
+    single reader; this wrapper only strips the bookkeeping."""
+    return oc.vrsc_territory_set()
 
 
 def _vrsc_miner_installer(w: str):
@@ -2109,16 +2323,25 @@ def _vrsc_miner_installer(w: str):
     # (XMRJ_VRSC_STRATUM) when the environment names one, else the public
     # LuckPool endpoint. Decided at GENERATION time so the shipped file
     # carries the answer, not a placeholder.
-    stratum = (os.environ.get("XMRJ_VRSC_STRATUM", "").strip()
-               or VRSC_STRATUM_DEFAULT)
+    # THE RELAY DECIDES THE PROMISE (review, Oct 29): jackpot entries
+    # exist only when the miner's hashrate reaches OUR relay. On the
+    # public LuckPool endpoint LuckPool pays the wallet directly and
+    # nothing this pool counts comes out — so the shipped text must
+    # identify the route as public-pool mining WITHOUT jackpot entries
+    # wherever it used to promise shared entries. Decided at generation
+    # time, the same moment as the stratum itself.
+    _relay_env = vrsc_relay_up()
+    stratum = _relay_env or VRSC_STRATUM_DEFAULT
+    relay_live = bool(_relay_env)
+    name = "Verus Daily Jackpot" if relay_live else "Verus Public Pool"
     from fastapi.responses import PlainTextResponse
     payload = []
     add = payload.append
     add('@echo off\r\n')
-    add('title Verus Daily Jackpot - Miner Installer\r\n')
+    add('title ' + name + ' - Miner Installer\r\n')
     add('cd /d "%USERPROFILE%\\Desktop"\r\n')
     add('echo ============================================\r\n')
-    add('echo   Verus Daily Jackpot Pool - Auto Installer\r\n')
+    add('echo   ' + name + ' - Auto Installer\r\n')
     add('echo   Wallet: ' + (w[:20] if w else "") + '...\r\n')
     add('echo   ccminer v' + VRSC_MINER_VERSION + ' (win64-ccminer-verus, VerusHash v2.2)\r\n')
     add('echo ============================================\r\n')
@@ -2140,16 +2363,33 @@ def _vrsc_miner_installer(w: str):
     add('echo   Not every country can reach the Monero pool directly.\r\n')
     add('echo   That is why there are two miner bots:\r\n')
     add('echo     XMR bot: mines Monero for the pool share and jackpot.\r\n')
-    add('echo     Verus bot (this one): mines Verus over the Verus relay\r\n')
-    add('echo     lane - the relay carries its hashrate into the SAME\r\n')
-    add('echo     jackpot entries as the XMR bot\'s shares.\r\n')
+    if relay_live:
+        add('echo     Verus bot (this one): mines Verus over the Verus relay\r\n')
+        add('echo     lane - the relay carries its hashrate into the SAME\r\n')
+        add('echo     jackpot entries as the XMR bot\'s shares.\r\n')
+    else:
+        # PUBLIC-POOL HONESTY (review, Oct 29): with no relay configured
+        # the shares land on LuckPool, which pays its own rewards and is
+        # not seen by this pool at all - the bat must say that, never
+        # promise shared jackpot entries it cannot deliver.
+        add('echo     Verus bot (this one): mines Verus to the PUBLIC\r\n')
+        add('echo     LuckPool pool. That is public-pool mining WITHOUT\r\n')
+        add('echo     jackpot entries: LuckPool pays its own rewards to\r\n')
+        add('echo     the wallet you install with - this pool neither\r\n')
+        add('echo     sees nor counts those shares.\r\n')
     add('echo   IF THIS BOT MISBEHAVES (cannot connect, minutes of\r\n')
     add('echo   zero shares):\r\n')
     add('echo     1. Check the VPN - a VPN can open a blocked route.\r\n')
     add('echo     2. Try the other bot from the site\'s download page.\r\n')
-    add('echo   (Running both at once does NOT earn more entries - two\r\n')
-    add('echo   miners split one CPU, so each runs at half speed.\r\n')
-    add('echo   Pick the bot that works and mine with it.)\r\n')
+    if relay_live:
+        add('echo   (Running both at once does NOT earn more entries - two\r\n')
+        add('echo   miners split one CPU, so each runs at half speed.\r\n')
+        add('echo   Pick the bot that works and mine with it.)\r\n')
+    else:
+        add('echo   (Running both at once does NOT earn more - two\r\n')
+        add('echo   miners split one CPU, so each runs at half speed.\r\n')
+        add('echo   Pick whichever works - jackpot entries come only\r\n')
+        add('echo   from the XMR bot.\r\n')
     add('echo ============================================\r\n')
     add('echo.\r\n')
     add('if not exist "Verus Jackpot Miner" mkdir "Verus Jackpot Miner"\r\n')
@@ -2173,19 +2413,26 @@ def _vrsc_miner_installer(w: str):
     add(':config\r\n')
     add('echo Writing start.bat...\r\n')
     add('(echo @echo off\r\n')
-    add('echo title Verus Daily Jackpot Miner\r\n')
+    add('echo title ' + name + ' Miner\r\n')
     add('echo echo Mining to: ' + (w[:20] if w else "") + '...\r\n')
     # the entry rule travels into the miner's console too, from the one
-    # reader — the SAME engine.entry_unit() the Monero branch quotes
-    add('echo echo Every ' + str(engine.entry_unit())
-        + ' valid shares = 1 free entry!\r\n')
+    # reader — the SAME engine.entry_unit() the Monero branch quotes —
+    # but ONLY on the relay lane (review, Oct 29): on the public pool
+    # the banner says what actually happens instead (LuckPool pays
+    # directly; no entries exist from this pool).
+    if relay_live:
+        add('echo echo Every ' + str(engine.entry_unit())
+            + ' valid shares = 1 free entry!\r\n')
+    else:
+        add('echo echo Public-pool mining: LuckPool pays this wallet\r\n')
+        add('echo echo directly. No jackpot entries from this pool.\r\n')
     add('echo echo To stop: close this window.\r\n')
     add('echo ccminer.exe -o stratum+tcp://' + stratum
         + ' -u "' + w + '" -p x\r\n')
     add('echo pause) > start.bat\r\n')
     add('echo Writing auto-start.bat (launches miner on Windows startup)...\r\n')
     add('(echo @echo off\r\n')
-    add('echo title Verus Jackpot Miner - Auto Start\r\n')
+    add('echo title ' + name + ' Miner - Auto Start\r\n')
     add('echo cd /d "%%USERPROFILE%%\\Desktop\\Verus Jackpot Miner"\r\n')
     add('echo start "" /min ccminer.exe -o stratum+tcp://'
         + stratum + ' -u "' + w + '" -p x\r\n')
@@ -2227,9 +2474,10 @@ async def api_miner_download(request: Request):
     visitor can force the Monero branch with ?coin=xmr."""
     from fastapi.responses import PlainTextResponse
     coin = (request.query_params.get("coin") or "").strip().lower()
-    if coin not in ("xmr", "monero") and _vrsc_territories():
+    _terr = _vrsc_territories()   # ONE chain resolution per request
+    if coin not in ("xmr", "monero") and _terr:
         region = i18n.region_from_headers(request.headers)
-        if region.get("country") in _vrsc_territories():
+        if region.get("country") in _terr:
             return _vrsc_miner_installer("UNREGISTERED")
     return await api_miner_installer("UNREGISTERED")
 
@@ -2244,9 +2492,13 @@ async def api_miner_installer(wallet_address: str):
     # byte for byte. The value this replaced was a placeholder, so every
     # run of the one-click installer aborted at the hash check while
     # telling the user the download had been tampered with.
-    XMRIG_SHA256 = "bba8097cb37d9b458a1cb1137876b27cde6740d17fe4ccbc086ba07d87d9e147"
-    XMRIG_VERSION = "6.26.0"
-    XMRIG_URL = f"https://github.com/xmrig/xmrig/releases/download/v{XMRIG_VERSION}/xmrig-{XMRIG_VERSION}-windows-x64.zip"
+    # THE XMRIG PIN, one source: pool/operator_config.xmrig_pin() (the
+    # PowerShell installer chain carries the same literals under
+    # installer/install.ps1, bound by test_operator_config_contract.py).
+    _pin = oc.xmrig_pin()
+    XMRIG_SHA256 = _pin["sha256"]
+    XMRIG_VERSION = _pin["version"]
+    XMRIG_URL = _pin["url"]
 
     installer = '@echo off\r\n'
     installer += 'title XMR Daily Jackpot - Miner Installer\r\n'
@@ -2268,15 +2520,26 @@ async def api_miner_installer(wallet_address: str):
     # WHY TWO BOTS (Oct 29): mirrors the Verus installer - the reason for
     # two bots is reachability, the fallback is the other bot or a VPN,
     # and two miners on one CPU earn no more than one miner.
+    # THE RELAY DECIDES THE DESCRIPTION TOO (review, Oct 29): this
+    # installer DESCRIBES the other bot; when XMRJ_VRSC_STRATUM is unset
+    # the Verus route is public-pool mining without jackpot entries, so
+    # the description must say that, never promise shared entries the
+    # relay cannot carry.
+    _vrsc_relay = vrsc_relay_up()
     installer += 'echo ============================================\r\n'
     installer += 'echo   ONE POOL, TWO ROUTES - WHY TWO BOTS?\r\n'
     installer += 'echo   Not every country can reach the Monero pool directly.\r\n'
     installer += 'echo   That is why there are two miner bots:\r\n'
     installer += 'echo     XMR bot (this one): mines Monero direct. Pays in XMR -\r\n'
     installer += 'echo     the prize amounts you see on the site.\r\n'
-    installer += 'echo     Verus bot: mines Verus over the Verus relay lane - every\r\n'
-    installer += 'echo     accepted relay share earns the SAME jackpot entries.\r\n'
-    installer += 'echo     (A Verus-share win pays in VRSC at the drawing rate.)\r\n'
+    if _vrsc_relay:
+        installer += 'echo     Verus bot: mines Verus over the Verus relay lane - every\r\n'
+        installer += 'echo     accepted relay share earns the SAME jackpot entries.\r\n'
+        installer += 'echo     (A Verus-share win pays in VRSC at the drawing rate.)\r\n'
+    else:
+        installer += 'echo     Verus bot: mines Verus to the PUBLIC LuckPool pool -\r\n'
+        installer += 'echo     public-pool mining WITHOUT jackpot entries: LuckPool\r\n'
+        installer += 'echo     pays that bot\'s wallet directly, this pool is not involved.\r\n'
     installer += 'echo   IF THIS BOT MISBEHAVES (cannot connect, minutes of\r\n'
     installer += 'echo   zero shares):\r\n'
     installer += 'echo     1. Check the VPN - a VPN can open a blocked route.\r\n'
@@ -3428,17 +3691,10 @@ async def api_admin_vrsc(request: Request):
     raw_pin = db.get_setting(vrsc_price.OVERRIDE_KEY) or ""
     rate = vrsc_price.current(fallback=jackpot_funding.DEFAULT_VRSC_USD)
 
-    # territories, with the TIER that decided them (the resolver's own
-    # order of authority, spelled out so the operator knows which knob
-    # is holding the value they see)
-    raw_db = db.get_setting(VRSC_TERRITORY_SETTING)
-    raw_env = os.environ.get("XMRJ_VRSC_TERRITORIES", "")
-    if raw_db and raw_db.strip():
-        tier, raw = "db", raw_db
-    elif raw_env.strip():
-        tier, raw = "env", raw_env
-    else:
-        tier, raw = "default", VRSC_TERRITORIES_DEFAULT
+    # territories, with the TIER that decided them — one call to the
+    # resolver (the chain's ONE reader), so the card can never show a
+    # tier that disagrees with the set the branch actually ships by
+    _tier, _raw = vrsc_territories()
     codes = sorted(_vrsc_territories())
 
     state = {}
@@ -3456,9 +3712,8 @@ async def api_admin_vrsc(request: Request):
     return {
         "pin": raw_pin,
         "rate": rate,
-        "live_enabled": vrsc_price.live_enabled(),
-        "territories": {"codes": codes, "source": tier,
-                        "raw": (raw or "").strip()},
+        "live_enabled": vrsc_price.live_enabled(),                  "territories": {"codes": codes, "source": _tier,
+                        "raw": _raw},
         "state": state,
         "episodes": episodes,
     }
@@ -3514,7 +3769,7 @@ async def api_admin_vrsc_territories(req: VrscTerritoryUpdate,
             400, "not ISO-3166 alpha-2 code(s): " + ", ".join(bad))
     if not codes:
         raise HTTPException(400, "no territory codes given")
-    prev = db.get_setting(VRSC_TERRITORY_SETTING) or ""
+    prev = oc.vrsc_territories_db_value()
     joined = ",".join(codes)
     db.set_setting(VRSC_TERRITORY_SETTING, joined)
     # no memo to reset: _vrsc_territories re-reads the setting per request
@@ -3559,7 +3814,7 @@ async def api_admin_cold_wallet(request: Request):
     rpc_ok = False
     wallet_balance = 0.0
     wallet_unlocked = 0.0
-    wallet_address_setting = db.get_setting("house_wallet", "")
+    wallet_address_setting = oc.house_wallet()
     try:
         if xmr.rpc_available():
             rpc_ok = True
@@ -3587,7 +3842,7 @@ async def api_admin_cold_wallet(request: Request):
     # on-chain confirmation of the Kraken total, when RPC is up: sum
     # outgoing transfers to the configured Kraken deposit address
     kraken_onchain = None
-    kraken_addr = db.get_setting("kraken_deposit_address", "")
+    kraken_addr = oc.kraken_deposit_address()
     if rpc_ok and kraken_addr:
         try:
             transfers = xmr.get_transfers(min_height=0, in_only=False) or {}

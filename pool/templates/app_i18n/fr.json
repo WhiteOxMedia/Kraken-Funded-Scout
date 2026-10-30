@@ -83,6 +83,7 @@
   "home.noDownside": "Aucun inconvénient",
   "home.realUpside": "Une vraie opportunité",
   "home.realVerusNote": "💡 Adresse Verus : cette page mine et paie en XMR ; le rail Verus est le relais. Le hashrate Verus rejoint le même jackpot via la voie du relais Verus, et chaque part acceptée par le relais rapporte des participations exactement comme une part XMR. Ce champ enregistre seulement où va un paiement : une adresse collée ne change jamais la pièce que vous minez, et un gain de parts Verus est payé en VRSC au taux du tirage.",
+  "home.realVerusNoteOffline": "💡 Adresse Verus : cette page mine et paie en XMR. La voie du relais Verus n'est PAS active sur ce déploiement — le hashrate Verus ne peut pas rapporter de participations au jackpot ici ; seules les parts XMR le peuvent. Ce champ enregistre seulement où va un paiement : une adresse collée ne change jamais la pièce que vous minez.",
   "home.communityBonus": "🎁 Bonus communautaires : récompenses Kraken",
   "home.community": "🤝 Miner ensemble. Gagner ensemble.",
   "home.howItWorks": "⚙️ Comment ça marche",

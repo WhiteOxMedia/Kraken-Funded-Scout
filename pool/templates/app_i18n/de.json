@@ -83,6 +83,7 @@
   "home.noDownside": "Keine Nachteile",
   "home.realUpside": "Echte Gewinnchance",
   "home.realVerusNote": "💡 Verus-Adresse: Diese Seite mined und zahlt XMR; die Verus-Schiene ist das Relay. Verus-Hashrate kommt über die Verus-Relay-Lane in denselben Jackpot, und jeder angenommene Relay-Share bringt Einträge genau wie ein XMR-Share. Dieses Feld speichert nur, wohin eine Auszahlung geht: eine eingefügte Adresse wechselt nie die geminte Münze, und ein Gewinn aus Verus-Shares wird zum Kurs der Ziehung in VRSC ausgezahlt.",
+  "home.realVerusNoteOffline": "💡 Verus-Adresse: Diese Seite mined und zahlt XMR. Die Verus-Relay-Lane läuft auf diesem Deployment NICHT — Verus-Hashrate kann hier keine Jackpot-Einträge verdienen, nur XMR-Shares können es. Dieses Feld speichert weiterhin nur, wohin eine Auszahlung geht: eine eingefügte Adresse wechselt nie die geminte Münze.",
   "home.communityBonus": "🎁 Community-Bonus: Kraken-Prämien",
   "home.community": "🤝 Gemeinsam schürfen. Gemeinsam gewinnen.",
   "home.howItWorks": "⚙️ So funktioniert's",

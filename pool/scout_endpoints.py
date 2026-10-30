@@ -18,6 +18,10 @@ import time
 
 from . import database as db
 from . import monero_wallet as xmr
+try:                                   # the module runs flat (server.py) too
+    import operator_config as oc
+except ImportError:                    # pragma: no cover - package mode
+    from . import operator_config as oc
 from .security import require_auth
 from fastapi import HTTPException, Request
 from fastapi.responses import JSONResponse
@@ -104,10 +108,10 @@ def _pool_stats():
 
 
 
-SCOUT_PRO_PRICE_KEY = "scout_pro_price_usd"
+SCOUT_PRO_PRICE_KEY = oc.SCOUT_PRO_PRICE_SETTING      # the ONE chain reader: oc
 SCOUT_PRO_DAYS_KEY = "scout_pro_days"
 SCOUT_PRO_TTL_KEY = "scout_pro_checkout_minutes"
-SCOUT_PRO_DEFAULT_PRICE = 95.0
+SCOUT_PRO_DEFAULT_PRICE = oc.SCOUT_PRO_DEFAULT_PRICE_USD
 SCOUT_PRO_DEFAULT_DAYS = 30
 SCOUT_PRO_DEFAULT_TTL_MIN = 30
 SCOUT_PRO_MIN_CONFIRMATIONS = 1
@@ -128,24 +132,15 @@ def _setting_int(key, default):
 
 
 def scout_pro_price():
-    """Scout Pro's price as (usd, xmr).
-
-    The product is sold at a DOLLAR price (Oct 26: the operator set it at
-    $95; the old copy advertised 0.01 XMR, about $3), so USD is the stored
-    source and the XMR amount is derived at the tracked rate each time a
-    quote is rendered or an order is opened. One reader for the homepage,
-    the dashboard, the download page and the checkout, so none of them can
+    """Scout Pro's price as (usd, xmr) — the ONE chain reader is
+    operator_config.pro_price(); this wrapper only keeps this module's
+    historical name for its callers (checkout, order open). The product
+    is sold at a DOLLAR price; the XMR amount is derived at the tracked
+    rate each time a quote is rendered or an order is opened, so the
+    homepage, the dashboard, the download page and the checkout cannot
     quote a different sum than the one the wallet is asked for.
     """
-    usd = _setting_float(SCOUT_PRO_PRICE_KEY, SCOUT_PRO_DEFAULT_PRICE)
-    if usd <= 0:
-        usd = SCOUT_PRO_DEFAULT_PRICE
-    try:
-        rate = float(_funding_module().xmr_usd_rate())
-    except Exception:
-        rate = 0.0
-    xmr = round(usd / rate, 8) if rate > 0 else 0.0
-    return round(usd, 2), xmr
+    return oc.pro_price()
 
 
 def _scout_pro_payload(user_id):

@@ -38,7 +38,7 @@ import tempfile
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
-CLI = HERE / "sweep_db.py"
+CLI = HERE / "tools" / "sweep_db.py"
 PY = sys.executable
 
 results = []

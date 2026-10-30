@@ -23,12 +23,22 @@ What this drive pins:
   7. no XMR reaches the pot from a referral ENTRY (entries are not money)
 """
 import hashlib
+import os
 import sys
 import tempfile
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE / "pool"))
+
+# Same fixture as test_rate_label and test_ui_disclosure: no fetching in
+# this file. Section 9 computes the daily plan (compute_daily_jackpot ->
+# the rate reader) and the admin card's pot figures convert through it too,
+# so a background Kraken refresh landing mid-drive would dial the network
+# from inside the drive. XMR_PRICE_LIVE=0 keeps the reader on the fallback,
+# off the network - every assertion here is rate-independent, so nothing
+# else moves.
+os.environ["XMR_PRICE_LIVE"] = "0"
 
 # hermetic DB before the app import touches database
 _tmp = Path(tempfile.mkdtemp(prefix="referral_programs_"))

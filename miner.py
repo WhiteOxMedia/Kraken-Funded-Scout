@@ -22,20 +22,29 @@ from pathlib import Path
 
 # Add src to path
 sys.path.insert(0, str(Path(__file__).parent / "src"))
+sys.path.insert(0, str(Path(__file__).parent / "pool"))
 
 import xmrig_api
 import kraken_client
 
+# THE XMRIG PIN, one source for every Python chain: pool/operator_config
+# (the PowerShell installer keeps the same literals under installer/
+# install.ps1, bound by test_operator_config_contract.py).
+import operator_config as _oc
+_XMRIG_PIN = _oc.xmrig_pin()
+XMRIG_VERSION = _XMRIG_PIN["version"]
+
 
 # ─── Configuration ────────────────────────────────────────────────────
 PROJECT_DIR = Path(__file__).parent
-XMRIG_DIR = PROJECT_DIR / "xmrig" / "xmrig-6.26.0"
+XMRIG_DIR = PROJECT_DIR / "xmrig" / XMRIG_VERSION
 XMRIG_EXE = XMRIG_DIR / "xmrig.exe"
 XMRIG_CONFIG = XMRIG_DIR / "config.json"
 # THE MINING ADDRESS COMES FROM THE DEPLOYMENT (Oct 25): it is an
 # operator identifier, not a source constant. Unset means the miner has
-# nothing to mine for and says so.
-WALLET_ADDRESS = (os.environ.get("XMRJ_MINER_WALLET") or "").strip()
+# nothing to mine for and says so. THE ONE READER of that env key is
+# pool/operator_config.miner_wallet(); this file reads nothing directly.
+WALLET_ADDRESS = _oc.miner_wallet()
 MINING_POOLS = [
     ("SupportXMR", "pool.supportxmr.com:3333"),
     ("MoneroOcean", "gulf.moneroocean.stream:10128"),
@@ -65,7 +74,7 @@ def print_banner():
 
 
 def print_config():
-    print(f"{C.CYAN}║  Miner:      xmrig 6.26.0 (RandomX)                         ║{C.RESET}")
+    print(f"{C.CYAN}║  Miner:      xmrig {XMRIG_VERSION} (RandomX)                       ║{C.RESET}")
     print(f"{C.CYAN}║  Coin:       Monero (XMR)                                    ║{C.RESET}")
     print(f"{C.CYAN}║  Wallet:     {WALLET_ADDRESS[:16]}...{WALLET_ADDRESS[-8:]}  ║{C.RESET}")
     print(f"{C.CYAN}║  Pools:      {', '.join(p[0] for p in MINING_POOLS):<43s}║{C.RESET}")

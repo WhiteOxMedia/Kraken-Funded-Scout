@@ -42,6 +42,7 @@ This drive pins that contract end to end against the real app module:
      claim or the XMRJ unlock path.
 """
 import html as html_mod
+import os
 import re
 import sys
 import tempfile
@@ -49,6 +50,13 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE / "pool"))
+
+# No fetching in this file: check 3.2 demands that the rate the homepage
+# render quoted is still the rate _pro_price() quotes at check time, and
+# a background Kraken-ticker refresh landing between the two made the
+# drive flaky (run hermetic 97/1, network-works 98/0, repeatedly).
+# Same fixture as test_rate_label: XMR_PRICE_LIVE=0 before the imports.
+os.environ["XMR_PRICE_LIVE"] = "0"
 
 # hermetic DB before the app import touches database (same pattern as the
 # other server drives: the live ledger is never read or written).
@@ -314,6 +322,48 @@ check(11.5, "you keep 80% of the profits" in funded
       "the profit split is not stated as Kraken Funded publishes it (80%)")
 check(11.6, "not available in Maine, Massachusetts or New York" in funded,
       "the page does not carry Kraken Funded's state restriction")
+
+print("== 12. THE WALLET NOTE FOLLOWS THE RELAY ==")
+# THE WALLET-NOTE GATE (Oct 29 audit): the Verus-shaped wallet input used
+# to reveal ONE note whose text promised relay-lane jackpot entries from
+# the reality that no relay lane may exist. Now app.js picks between two
+# note WORDS on the runtime truth (/api/stats -> vrsc_relay_live, the
+# same XMRJ_VRSC_STRATUM the installers branch on) and the default is the
+# OFFLINE note: until the flag lands, the page may only under-promise.
+_page = client.get("/").text
+check(12.1, 'id="realVerusNote"' in _page and 'id="realVerusNoteOffline"' in _page,
+      "the homepage carries both note bodies")
+check(12.2,
+      re.search(r'id="realVerusNote"[^>]*display:none', _page)
+      and re.search(r'id="realVerusNoteOffline"[^>]*display:none', _page),
+      "a note body ships visible before any gate can hide it")
+_app_js = (HERE / "pool" / "static" / "app.js").read_text(encoding="utf-8")
+check(12.3, "(on && relayUp) ? '' : 'none'" in _app_js
+      and "(on && !relayUp) ? '' : 'none'" in _app_js,
+      "app.js does not map relayUp onto exactly one of the two notes")
+check(12.4, "let VRSC_RELAY_LIVE = false;" in _app_js
+      and "VRSC_RELAY_LIVE = !!d.vrsc_relay_live" in _app_js
+      and "'xmrjackpot:relay'" in _app_js,
+      "the offline default, the /api/stats latch or the re-notify is gone "
+      "(a note revealed before stats landed would never flip)")
+old = os.environ.get("XMRJ_VRSC_STRATUM")
+os.environ.pop("XMRJ_VRSC_STRATUM", None)
+check(12.5, client.get("/api/stats").json().get("vrsc_relay_live") is False,
+      "stats claims a relay lane with none configured (the gate reads env "
+      "at request time or the flag defaulted to truthy)")
+os.environ["XMRJ_VRSC_STRATUM"] = "relay.example.com:3956"
+check(12.6, client.get("/api/stats").json().get("vrsc_relay_live") is True,
+      "stats refuses to admit the configured relay lane")
+if old is None:
+    os.environ.pop("XMRJ_VRSC_STRATUM", None)
+else:
+    os.environ["XMRJ_VRSC_STRATUM"] = old
+check(12.7, "cannot earn jackpot entries here" in _page
+      and "NOT live on this deployment" in _page,
+      "the offline note lost its plain wording of the no-relay truth")
+check(12.8, "home.realVerusNoteOffline" in _page,
+      "the catalog injection lost the offline key (the six-language "
+      "note would fall back to untranslated English)")
 
 passed, failed = results.count(True), results.count(False)
 print(f"RESULT: {passed} passed, {failed} failed")

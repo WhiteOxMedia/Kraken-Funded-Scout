@@ -50,6 +50,14 @@ def check(n, cond, why):
 SANDBOX = tempfile.mkdtemp(prefix="degate_drive_")
 sys.path.insert(0, os.path.join(HERE, "pool"))
 
+# Same fixture as test_rate_label and test_ui_disclosure: no fetching in
+# this file. The claim sweep path runs through jackpot_funding and the
+# poller (miner_yield) converts the pot between USD and XMR through the
+# rate reader, so a background Kraken refresh landing mid-drive would
+# dial the network from inside the drive and move the dollar pins.
+# XMR_PRICE_LIVE=0 keeps the reader on the fallback, off the network.
+os.environ["XMR_PRICE_LIVE"] = "0"
+
 import database as db                                  # noqa: E402
 db.DB_PATH = __import__("pathlib").Path(
     os.path.join(SANDBOX, "jackpot.db"))

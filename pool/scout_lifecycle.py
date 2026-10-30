@@ -15,8 +15,10 @@ ONE ROW PER SCOUT
     install beacon and with the registration. Rows the pool learns from its
     own side (proxy telemetry for a wallet the installer never reported) are
     keyed ``w:<wallet>``. A write looks the row up by install id first, then
-    by wallet, so the same machine cannot become two rows once both
-    identities are known.
+    by wallet; when BOTH exist for the same machine (a beacon row with no
+    wallet, plus an earlier ``w:<wallet>`` telemetry row), the wallet-keyed
+    row is merged into the install row and deleted, so the UNIQUE wallet
+    column cannot reject the activation update (Oct 29).
 
 FIRST-OCCURRENCE STAMPS (never rewritten)
     first_seen            the row was created
@@ -154,6 +156,43 @@ def record(*, wallet: str = "", install_id: str = "", at: float | None = None,
     try:
         with db.get_db() as conn:
             key = _find(conn, wallet, install_id, when)
+            # THE WALLET SHADOW MERGE (review, Oct 29): an install row and a
+            # wallet-keyed row can both exist for the same Scout — the beacon
+            # created the install row with no wallet, while share telemetry
+            # or the backfill had already minted ``w:<wallet>``. The UPDATE
+            # below then binds the wallet onto the install row and dies on
+            # ``wallet_address UNIQUE``; fail-soft swallowed the error and
+            # the activation stamps were LOST, forever, because the events
+            # that would have re-recorded them are last-occurrence-only.
+            # When the key is an install row but a ``w:<wallet>`` shadow
+            # row exists, absorb its first-occurrence stamps into the
+            # install row, delete the shadow, and the update binds cleanly.
+            if wallet and not key.startswith("w:"):
+                shadow = conn.execute(
+                    "SELECT * FROM scout_lifecycle WHERE wallet_address = ? "
+                    "AND install_id != ?", (wallet, key)).fetchone()
+                if shadow is not None:
+                    s = dict(shadow)
+                    conn.execute(
+                        """UPDATE scout_lifecycle SET
+                             first_seen          = MIN(first_seen, ?),
+                             installed_at        = COALESCE(installed_at, ?),
+                             first_connect       = COALESCE(first_connect, ?),
+                             first_share         = COALESCE(first_share, ?),
+                             first_valid_share   = COALESCE(first_valid_share, ?),
+                             activation_complete = MAX(activation_complete, ?),
+                             last_seen           = MAX(COALESCE(last_seen, 0), ?)
+                           WHERE install_id = ?""",
+                        (float(s["first_seen"] or 0),
+                         float(s["installed_at"] or 0),
+                         float(s["first_connect"] or 0),
+                         float(s["first_share"] or 0),
+                         float(s["first_valid_share"] or 0),
+                         int(s["activation_complete"] or 0),
+                         float(s["last_seen"] or 0), key))
+                    conn.execute(
+                        "DELETE FROM scout_lifecycle WHERE install_id = ?",
+                        (s["install_id"],))
             conn.execute(
                 """UPDATE scout_lifecycle SET
                      wallet_address = COALESCE(wallet_address, NULLIF(?, '')),

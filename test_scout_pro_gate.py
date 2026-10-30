@@ -14,6 +14,10 @@ fix over the REAL routes and the REAL push service:
      alert path reads.
 
 House conventions: check(n, cond, why), RESULT line, sys.exit.
+Like the other emoji-bearing drives, stdout is reconfigured to UTF-8
+before any Unicode fact can land on a cp1252 console (the 3.3 message
+names the 📈 signal — a bare cp1252 printer used to kill the drive
+mid-check instead of reporting it).
 """
 import json
 import re
@@ -22,6 +26,10 @@ import tempfile
 import time
 import types
 from pathlib import Path
+
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    sys.stderr.reconfigure(encoding="utf-8", errors="replace")
 
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE / "pool"))

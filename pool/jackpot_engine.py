@@ -937,8 +937,15 @@ def check_and_send_house_tax():
     accumulated = float(db.get_setting("house_tax_accumulated", "0"))
     threshold = float(db.get_setting("payout_threshold_xmr", "0.01"))
     fee_buffer = float(db.get_setting("transfer_fee_buffer_xmr", "0.0001"))
-    kraken_addr = db.get_setting("kraken_deposit_address",
-        os.environ.get("XMRJ_KRAKEN_DEPOSIT_ADDRESS", ""))
+    # the ONE chain reader (pool/operator_config): the stored setting
+    # wins, the deployment env is the same-boot fallback this used to
+    # read inline, empty means payout refuses loudly. The fallback below
+    # only survives the import NAME, never a second read of the key.
+    try:
+        import operator_config as _ocmod
+    except ImportError:                                  # pragma: no cover
+        from . import operator_config as _ocmod
+    kraken_addr = _ocmod.kraken_deposit_address()
 
     if not kraken_addr:
         return {"action": "skipped",

@@ -794,7 +794,7 @@ check(7.4, "der_b64url" in prov_src
       "the provisioner stores the key in the format the sender's "
       "Vapid.from_string actually reads (a PEM key would make every "
       "send fail-soft silent) and stamps the format")
-probe_src = (HERE / "_probe_e2e_capture.py").read_text(encoding="utf-8")
+probe_src = (HERE / "tools" / "_probe_e2e_capture.py").read_text(encoding="utf-8")
 check(7.5, "PROBE VERDICT" in probe_src
       and "encode_dss_signature" in probe_src
       and "Content-Encoding: aes128gcm" in probe_src,

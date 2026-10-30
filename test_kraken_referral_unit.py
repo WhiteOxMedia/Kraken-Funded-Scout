@@ -1,10 +1,19 @@
 """test_kraken_referral_unit.py — normalization, formula, signing,
 provider honesty + posture (setup_kraken.py's read), the notification
 leg (sandbox, hermetic)."""
+import os
 import sys, tempfile
 from pathlib import Path
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE / "pool"))
+
+# Same fixture as test_rate_label and test_ui_disclosure: no fetching in
+# this file. Section 2 seeds funding velocity through jackpot_funding and
+# the eligibility estimates convert USD<->XMR through the rate reader, so
+# a background Kraken refresh landing mid-drive would dial the network
+# from inside the drive and move the pinned money assertions under it.
+# XMR_PRICE_LIVE=0 keeps the reader on the fallback, off the network.
+os.environ["XMR_PRICE_LIVE"] = "0"
 _tmp = Path(tempfile.mkdtemp(prefix="kr_unit_"))
 import database as db; db.DB_PATH = _tmp / "jackpot.db"; db.init_db()
 import kraken_referral as kr
