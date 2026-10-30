@@ -50,14 +50,27 @@ if (-not (Test-Path (Join-Path $Src "app.py"))) {
 
 # ── 1. preflight uv ───────────────────────────────────────────────────
 $uv = Get-Command uv -ErrorAction SilentlyContinue
-if (-not $uv) {
+if (-not $uv -and $SkipVenv) {
+    # -SkipVenv never builds a venv, so it never needs uv: an air-gapped
+    # drive box stages even where winget is absent. (The REAL WIRESHOW,
+    # Oct 30 PR run 41142467862: the slim leg's winget installed uv, fine;
+    # the carry leg's winget returned nonzero - the install had already
+    # landed by the first step - and the installer died on the rc alone,
+    # before the venv step it would never have run. The ground truth of
+    # "uv is available" is Get-Command after a PATH refresh, below; and
+    # for stage-only mode the true answer is "not needed at all".)
+    Write-Host "[1/4] uv missing but -SkipVenv stages only - preflight skipped"
+} elseif (-not $uv) {
     Write-Host "[1/4] uv missing - installing via winget ..."
     winget install --id astral-sh.uv -e --accept-source-agreements --accept-package-agreements
-    if ($LASTEXITCODE -ne 0) { throw "winget could not install uv - install it from https://docs.astral.sh/uv/ and re-run" }
-    # this session's PATH may predate the install
+    # THE RC IS NOT THE VERDICT (the carry leg's carry-again winget
+    # nonzero shown above): a nonzero rc after a landed install must not
+    # kill a run whose uv is in fact on PATH. Get-Command after the
+    # refresh is the verdict; the rc rides in the throw's message line.
+    # note: the PATH may predate this session's install
     $env:Path = [System.Environment]::GetEnvironmentVariable("Path", "User") + ";" + $env:Path
     if (-not (Get-Command uv -ErrorAction SilentlyContinue)) {
-        throw "uv was installed but is not on PATH yet - open a new terminal and re-run"
+        throw "winget could not install uv - install it from https://docs.astral.sh/uv/ and re-run (winget rc $LASTEXITCODE)"
     }
 } else {
     Write-Host "[1/4] uv found"
