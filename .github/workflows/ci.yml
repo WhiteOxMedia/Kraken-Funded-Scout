@@ -51,6 +51,8 @@ jobs:
           python-version: "3.11"
       - name: Bundle parity
         run: python test_bundle_parity.py
+      - name: Sweep-discipline wiring (the tools/ home the scheduler and both wrappers assume)
+        run: python test_sweep_wiring.py
       - name: Static listener audit
         run: python test_static_listener_audit.py
       - name: No XMRJ/treasury claims in shipping surfaces
