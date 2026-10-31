@@ -60,9 +60,11 @@ each one verified:
      the CI wiring is removed, the Defender-exclusion step is deleted,
      degraded into an exit, stripped of -ErrorAction Stop, and moved
      below the staging steps, the 15-minute cap is relaxed, the runner
-     is moved off windows-latest, an undocumented tree is slipped into
-     the /XD list and a documented tree dropped from it, each in a
-     mutated copy, with a violation expected for each
+     is moved off windows-latest, a SECOND timeout-minutes line is
+     sneaked under the audited cap, a SECOND runs-on line is
+     sneaked under the audited runner, an undocumented tree is
+     slipped into the /XD list and a documented tree dropped from
+     it, each in a mutated copy, with a violation expected for each
 
   9. RUNNER HYGIENE, NOT A GATE: the Defender-exclusion step sits
      before either leg stages anything (an exclusion only helps if it
@@ -228,6 +230,24 @@ def violations(text, smoke=None):
         v.append(f"{JOB} no longer runs on windows-latest")
     if not re.search(r"^    timeout-minutes: 15$", block, re.M):
         v.append(f"{JOB} lost its 15-minute cap (the carry leg needs it)")
+    # -- a SECOND pin line cannot sneak past ----------------------------------
+    # duplicate YAML keys last-win silently: the audited FIRST line
+    # satisfies the checks above while the real job takes the second
+    # one. Both pins live only in the job-level 4-space mapping, so
+    # a second .{4}-indent line is no formatting accident: it is the
+    # sneak this contract refuses.
+    caps = re.findall(r"(?m)^ {4}timeout-minutes:.*$", block)
+    if len(caps) > 1:
+        v.append(f"{JOB} carries a second timeout-minutes line "
+                 "(duplicate YAML keys last-win: the audited cap is NOT "
+                 "the one that runs)")
+    runners = re.findall(r"(?m)^ {4}runs-on:.*$", block)
+    if len(runners) > 1:
+        v.append(f"{JOB} carries a second runs-on line (duplicate YAML "
+                 "keys last-win: the audited runner is NOT the one that "
+                 "runs)")
+    elif runners and runners[0].split(":", 1)[1].strip() != "windows-latest":
+        v.append(f"{JOB} is not pinned to windows-latest")
 
     bodies = step_bodies(block)
     for name in (DEFENDER,) + SLIM + CARRY:
@@ -505,6 +525,22 @@ def main():
                                ".workshop tools", 1), smoke_lf)
     check(2.18, any("roster documents" in x for x in c),
           "dropping a documented tree from the /XD list turns the audit red",
+          "; ".join(c)[:180])
+    c = violations(mutate_job(src, lambda b: re.sub(
+        r"(?m)^    timeout-minutes: 15$",
+        "    timeout-minutes: 15\n    timeout-minutes: 600", b, count=1)),
+                   smoke_lf)
+    check(2.19, any("second timeout-minutes" in x for x in c),
+          "a SECOND timeout-minutes line sneaking under the audited cap "
+          "turns the audit red (duplicate keys last-win - without the "
+          "guard it runs 600 in silence)", "; ".join(c)[:180])
+    c = violations(mutate_job(src, lambda b: re.sub(
+        r"(?m)^    runs-on: windows-latest$",
+        "    runs-on: windows-latest\n    runs-on: ubuntu-latest", b,
+        count=1)), smoke_lf)
+    check("2.20", any("second runs-on" in x for x in c),
+          "a SECOND runs-on line sneaking under the audited runner turns "
+          "the audit red (the last-wins key would run the sneak)",
           "; ".join(c)[:180])
 
     print(f"\nRESULT: {passed} passed, {failed} failed")
