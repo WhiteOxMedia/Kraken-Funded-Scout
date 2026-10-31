@@ -179,6 +179,20 @@ check(
     _missing_idl,
 )
 if _missing or _missing_idl:
+    # THE HONEST SKIP (fleet-graded): target/ is gitignored BY DESIGN, so a
+    # fresh clone has no artifacts — nothing for this drive to grade, and the
+    # fleet must not call that a regression. The refusal keeps its fleet-skip
+    # vocabulary (SKIP marker + an honest 0/0 RESULT) while the prose line and
+    # the NON-ZERO exit stay exactly as they are: the offline-gate drive's
+    # check 1.1 pins that a drive that merely prints a refusal still exits
+    # non-zero, and its red-first mutations flip either one to trip it. The
+    # SKIP line deliberately does NOT echo the refusal message itself — that
+    # wording belongs to the prose line alone, or the message-mutation below
+    # stops being able to trip (a wording change there must stay visible).
+    print("SKIP: no build artifacts in this checkout — target/ is "
+          "gitignored by design; the artifact surface cannot be graded "
+          "until `anchor build` has run")
+    print("RESULT: 0 passed, 0 failed")
     print("RESULT: cannot continue without artifacts — run `anchor build` first")
     sys.exit(1)
 

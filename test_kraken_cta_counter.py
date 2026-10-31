@@ -114,7 +114,11 @@ print("== 5B. THE PROBE LIBRARY IS THE SHARED CONTRACT (Oct 12) ==")
 _sha = HERE / "tools" / "cta_probe.sh"
 import hashlib
 _lib = _sha.read_bytes()
-_hash = hashlib.sha256(_lib).hexdigest()
+# The pin is a content pin, not an EOL pin: the store carries LF
+# (git's index EOL) and Windows checkouts land the file as CRLF. Hash
+# the LF-normalized bytes so a checkout that only changed the line
+# endings answers green, while any real probe edit still re-pins.
+_hash = hashlib.sha256(_lib.replace(b"\r\n", b"\n")).hexdigest()
 _lib_sha_target = "9c1dc839300c6b1a470d271d24d954584ec233fad652c3072e098f2d1d238ad7"
 if _hash[:16] != _lib_sha_target[:16]:
     print(f"     sha256(cta_probe.sh) = {_hash[:16]} (pin: {_lib_sha_target[:16]})")
