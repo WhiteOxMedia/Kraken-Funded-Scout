@@ -27,6 +27,22 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE / "pool"))
 
+# HERMETIC FIELD KEY (the fk_regression pattern): this drive's contract is
+# the EMAIL-ATTRIBUTION award, which runs through get_user_by_email —
+# the keyed blind index. A fresh checkout has no at-rest key (pool/.keys
+# is operator-local, absent by design), and without one the blind index
+# is empty: index_email returns "", referrer lookup returns None, and
+# the signup never awards — five honest checks gone red on a working
+# implementation. So the drive provisions its own throwaway key here and
+# grades the seam identically on every checkout.
+_keys = Path(tempfile.mkdtemp(prefix="refkey_"))
+import field_crypto as _fc  # noqa: E402
+_fc.KEY_DIR = _keys
+_fc.KEY_FILE = _keys / "field_key"
+_fc._KEY_CACHE = None
+_fc.generate_key_file()
+
+
 # hermetic DB before the app import touches database
 _tmp = Path(tempfile.mkdtemp(prefix="referral_entries_"))
 import address_check as ac  # noqa: E402
@@ -37,6 +53,11 @@ db.init_db()
 
 from fastapi.testclient import TestClient  # noqa: E402
 
+import os
+# XMR_PRICE_LIVE=0 keeps the rate reader on the fallback, off the
+# network (this drive reaches it transitively through a gateway
+# import below - the top-level pin test_rate_pin_fleet.py enforces).
+os.environ["XMR_PRICE_LIVE"] = "0"
 import server as srv_mod  # noqa: E402
 
 results = []

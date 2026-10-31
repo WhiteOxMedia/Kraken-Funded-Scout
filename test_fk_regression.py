@@ -241,19 +241,50 @@ check("3.13", '?mode=ro", uri=True' in
 raw3.close()
 
 print("== 4. THE LIVE CANARIES (read-only) ==")
-live = sqlite3.connect(f"file:{(HERE / 'pool' / 'jackpot.db').as_posix()}"
-                       "?mode=ro", uri=True)
-check("4.1", live.execute("PRAGMA integrity_check").fetchone()[0] == "ok",
-      "the live DB answers integrity ok")
-check("4.2", _fk_violations(live) == 0,
-      "the live DB reads an EMPTY foreign_key_check — the 287 stay dead")
-_fixtures = live.execute(
-    "SELECT COUNT(*) c FROM users WHERE username IN "
-    "('security_probe','prefs_live_probe_fleet')").fetchone()[0]
-check("4.3", _fixtures == 2,
-      f"both standing fleet fixtures present ({_fixtures}/2 — they must "
-      "survive every sweep)")
-live.close()
+
+
+def _live_ready():
+    """The canaries grade operator state, and pool/jackpot.db is NOT part
+    of the checkout: gitignored, absent in a fresh clone (this probe also
+    refuses an empty file — an RW connect elsewhere on this checkout once
+    created one as a side effect, and grading a zero-table file is not
+    grading a database). When there is no live DB, the drive names the
+    gap and keeps the hermetic sections it actually ran — it does not
+    crash on the open below."""
+    if not (HERE / "pool" / "jackpot.db").exists():
+        return False
+    try:
+        _c = sqlite3.connect(
+            f"file:{(HERE / 'pool' / 'jackpot.db').as_posix()}?mode=ro",
+            uri=True)
+        try:
+            _t = {r[0] for r in _c.execute(
+                "SELECT name FROM sqlite_master WHERE type='table'")}
+        finally:
+            _c.close()
+        return "users" in _t
+    except sqlite3.Error:
+        return False
+
+
+if not _live_ready():
+    print("SKIP: 4.x the live pool/jackpot.db is absent in this checkout "
+          "— the read-only canaries have no operator database to grade "
+          "(sections 1-3 ran hermetically on the sandbox)")
+else:
+    live = sqlite3.connect(f"file:{(HERE / 'pool' / 'jackpot.db').as_posix()}"
+                           "?mode=ro", uri=True)
+    check("4.1", live.execute("PRAGMA integrity_check").fetchone()[0] == "ok",
+          "the live DB answers integrity ok")
+    check("4.2", _fk_violations(live) == 0,
+          "the live DB reads an EMPTY foreign_key_check — the 287 stay dead")
+    _fixtures = live.execute(
+        "SELECT COUNT(*) c FROM users WHERE username IN "
+        "('security_probe','prefs_live_probe_fleet')").fetchone()[0]
+    check("4.3", _fixtures == 2,
+          f"both standing fleet fixtures present ({_fixtures}/2 — they must "
+          "survive every sweep)")
+    live.close()
 
 passed, failed = results.count(True), results.count(False)
 print(f"RESULT: {passed} passed, {failed} failed")

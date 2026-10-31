@@ -94,6 +94,29 @@ FILES = (
 )
 CRATES = ("xmrj_treasury", "xmrj_jackpot", "xmrj_governance")
 
+
+def _ts_node_reachable() -> bool:
+    """Whether `npx ts-node` can resolve here.
+
+    Check 1.2 (and its 1.2 mutation rows) drive `npx ts-node` with the copied
+    harness, whose imports resolve through node_modules found by walking up
+    the directory chain — CI installs them (every job that runs this file
+    runs `npm ci` first). A bare local clone has none: ts-node then dies on
+    module-not-found instead of naming `anchor build`, which would grade the
+    ENVIRONMENT as a failure. The honest answer on such a box is a named
+    skip of exactly the harness-dependent legs; every other check is untouched.
+    """
+    _p = ROOT.resolve()
+    while True:
+        if (_p / "node_modules" / "ts-node").is_dir():
+            return True
+        if _p.parent == _p:
+            return False
+        _p = _p.parent
+
+
+_TSNODE_OK = _ts_node_reachable()
+
 results: list[tuple[bool, str, object]] = []
 
 
@@ -167,19 +190,28 @@ try:
 finally:
     shutil.rmtree(_fresh, ignore_errors=True)
 
-_fresh = copy_unbuilt_tree()
-try:
-    _npx = shutil.which("npx") or "npx"
-    _rc, _out = run(f'"{_npx}" ts-node "{_fresh / HARNESS}" --offline')
-    check(
-        "1.2 `tools/xmrj_loadtest.ts --offline` REFUSES an unbuilt checkout too — "
-        "its plan needs target/idl/*.json, and it names the fix instead of planning "
-        "scenarios it cannot drive",
-        _rc != 0 and "anchor build" in _out,
-        f"rc {_rc}; last line: {_out.strip().splitlines()[-1] if _out.strip() else 'no output'}",
+if _TSNODE_OK:
+    _fresh = copy_unbuilt_tree()
+    try:
+        _npx = shutil.which("npx") or "npx"
+        _rc, _out = run(f'"{_npx}" ts-node "{_fresh / HARNESS}" --offline')
+        check(
+            "1.2 `tools/xmrj_loadtest.ts --offline` REFUSES an unbuilt checkout too — "
+            "its plan needs target/idl/*.json, and it names the fix instead of planning "
+            "scenarios it cannot drive",
+            _rc != 0 and "anchor build" in _out,
+            f"rc {_rc}; last line: {_out.strip().splitlines()[-1] if _out.strip() else 'no output'}",
+        )
+    finally:
+        shutil.rmtree(_fresh, ignore_errors=True)
+else:
+    print(
+        "SKIP: 1.2 the ts-node harness deps are not installed in this checkout "
+        "(no node_modules above the root) — npx would die on module-not-found "
+        "instead of naming `anchor build`, so the harness refusal contract "
+        "cannot be graded here; CI runs this drive behind `npm ci`, and the "
+        "red-first legs that own 1.2 skip with it"
     )
-finally:
-    shutil.rmtree(_fresh, ignore_errors=True)
 
 # ── 2. the host-side path still runs them ───────────────────────────────
 runner = read(RUNNER)
@@ -365,6 +397,16 @@ def run_against(root: Path) -> list[str]:
 
 
 if not os.environ.get("XMRJ_OFFLINE_GATES_ROOT"):
+    # A check whose harness leg cannot run here (no node_modules) cannot
+    # prove anything on the RED-FIRST side either — running its mutation
+    # row would show the mutated copy “passing” only because the leg itself
+    # skips, a blind spot, not a red. Skip the row with the leg.
+    _effective = [m for m in MUTATIONS if m[0] != "1.2" or _TSNODE_OK]
+    _mut_count = len(_effective)
+    _mut_note = f"each of the {_mut_count} mutations"
+    if _mut_count != len(MUTATIONS):
+        _mut_note += " (the 1.2 row skips with its check: the harness deps " \
+                     "are not installed in this checkout)"
     _control = copy_unbuilt_tree()
     try:
         _control_failed = run_against(_control)
@@ -378,7 +420,7 @@ if not os.environ.get("XMRJ_OFFLINE_GATES_ROOT"):
     )
 
     _blind, _stale = [], []
-    for _id, _rel, _old, _new in MUTATIONS:
+    for _id, _rel, _old, _new in _effective:
         try:
             _root = copy_unbuilt_tree((_rel, _old, _new))
         except ValueError as err:
@@ -397,7 +439,7 @@ if not os.environ.get("XMRJ_OFFLINE_GATES_ROOT"):
         _stale,
     )
     check(
-        f"4.3 RED-FIRST: each of the {len(MUTATIONS)} mutations breaks its property in "
+        f"4.3 RED-FIRST: {_mut_note} breaks its property in "
         f"a copy of the tree and trips the check that owns it",
         not _blind and not _stale,
         _blind,
