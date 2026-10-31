@@ -263,8 +263,13 @@ jobs:
   # because the local xmrig/ tree is untracked and no clone carries it).
   # The carry leg feeds itself from the pinned release zip and drops the
   # zip's config.json the way [3/6] drops the staged developer one. The
-  # smoke drive is branch-blind by design: the EXACT PATH THE BYTES LANDED
-  # contract is the same for both shapes, and it is proveable either way.
+  # smoke drive is branch-blind NO MORE (same date): each leg captures
+  # its install.ps1 run's stdout to a transcript and hands it to
+  # install_smoke.py with --branch slim|carry + --installer-output, and
+  # the drive pins BOTH [3/4] leg lines out of install.ps1 itself (the
+  # robocopy leg's "staged local xmrig", the fetch leg's "fetched") and
+  # judges WHICH leg actually printed. THE BRANCH IS ASSERTED WHERE THE
+  # CONTRACT LIVES - never claimed by the step that happens to run.
   #
   # RUNTIME, EXPECTED: a cold windows-latest job is minutes, not the
   # xmrj build job's quarter hour. The carry leg doubles the install-phase
@@ -312,6 +317,17 @@ jobs:
           robocopy "scout" (Join-Path $Bundle "payload\scout") /E /NFL /NDL /NJH /NJS /NP | Out-Null
           $Rc = $LASTEXITCODE
           if ($Rc -ge 8) { Write-Host "scout staging failed rc=$Rc"; exit 1 }
+          # THE /XD ROSTER - the /XD list below is mirrored here tree by tree,
+          # each with its reason, and the drive (test_ci_both_shapes.py)
+          # asserts the two sets are equal: exclusion drift now red-lines
+          # the audit instead of happening silently.
+          #   .git .github node_modules .venv  (checkout plumbing and build environments)
+          #   dist dist_site_review  (build outputs, never the shipped payload)
+          #   xmrig  (the untracked miner tree - slim must never inherit it)
+          #   reports target  (runtime churn and Rust build output)
+          #   __pycache__ .pytest_cache .workshop  (interpreter, test and workstation state)
+          #   tools plans docs schemas src  (operator tooling, docs and sibling surfaces)
+          #   xmrj_treasury xmrj_jackpot xmrj_governance xmrj_conversion_service  (devnet program sources)
           robocopy "." (Join-Path $Bundle "payload\monero_project") /E /XD .git .github node_modules .venv dist dist_site_review xmrig reports target __pycache__ .pytest_cache .workshop tools plans docs schemas src xmrj_treasury xmrj_jackpot xmrj_governance xmrj_conversion_service /NFL /NDL /NJH /NJS /NP | Out-Null
           $Rc = $LASTEXITCODE
           if ($Rc -ge 8) { Write-Host "monero staging failed rc=$Rc"; exit 1 }
@@ -326,11 +342,21 @@ jobs:
       # documents; the fresh target was deleted above.
       - name: Install into the fresh directory (stage + miner-payload mode)
         run: |
-          & powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $env:RUNNER_TEMP "smoke_bundle\install.ps1") -Target (Join-Path $env:RUNNER_TEMP "KrakenScoutSmoke") -NoUi -SkipVenv
-          if ($LASTEXITCODE -ne 0) { Write-Host "install.ps1 rc=$LASTEXITCODE"; exit 1 }
-      - name: The drive proves the pins, the exact path and the bytes
+          # THE $Rc PIN (the winget race class): capture BEFORE anything
+          # else - the failure branch would print and only then read a
+          # slot its own pipeline could someday clobber.
+          $out = & powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $env:RUNNER_TEMP "smoke_bundle\install.ps1") -Target (Join-Path $env:RUNNER_TEMP "KrakenScoutSmoke") -NoUi -SkipVenv
+          $Rc = $LASTEXITCODE
+          # THE LEG LINE GOES TO THE DRIVE: only this stdout knows which
+          # leg [3/4] took, and install_smoke.py (--installer-output)
+          # now owns pinning it. Writing the transcript BEFORE judging
+          # rc is safe: Set-Content is a cmdlet, it cannot clobber the
+          # captured slot.
+          $out | Set-Content -Path (Join-Path $env:RUNNER_TEMP "slim_install_transcript.txt") -Encoding utf8
+          if ($Rc -ne 0) { Write-Host ($out | Select-Object -Last 20); Write-Host "slim install.ps1 rc=$Rc"; exit 1 }
+      - name: The drive proves the SHAPE, the pins, the exact path and the bytes
         run: |
-          python installer\install_smoke.py --installer (Join-Path $env:RUNNER_TEMP "smoke_bundle\install.ps1") --target (Join-Path $env:RUNNER_TEMP "KrakenScoutSmoke")
+          python installer\install_smoke.py --branch slim --installer (Join-Path $env:RUNNER_TEMP "smoke_bundle\install.ps1") --installer-output (Join-Path $env:RUNNER_TEMP "slim_install_transcript.txt") --target (Join-Path $env:RUNNER_TEMP "KrakenScoutSmoke")
       # THE CARRY-SHAPE LEG (Oct 30): reproduces what build_bundle.ps1 [3/6]
       # feeds a payload-carrying bundle — starts from the staged slim
       # bundle, adds the pinned payload, drops the zip's config.json the way
@@ -369,18 +395,20 @@ jobs:
           Write-Host "carry bundle staged at $Carry (xmrig rides along); fresh target: $Target"
       - name: Install from the carry bundle (install.ps1's robocopy branch)
         run: |
+          # THE $Rc PIN: capture BEFORE anything else - the failure branch
+          # would print and only then read a slot its own pipeline could
+          # someday clobber.
           $out = & powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $env:RUNNER_TEMP "smoke_bundle_carry\install.ps1") -Target (Join-Path $env:RUNNER_TEMP "KrakenScoutSmokeCarry") -NoUi -SkipVenv
-          if ($LASTEXITCODE -ne 0) { Write-Host ($out | Select-Object -Last 20); Write-Host "carry install.ps1 rc=$LASTEXITCODE"; exit 1 }
-          # THE BRANCH IS ASSERTED, NOT ASSUMED: the payload is in place, so
-          # [3/4] must have taken the robocopy leg — its own leaf line is
-          # the proof the fetch branch did not quietly run instead.
-          if (-not (@($out) -match "staged local xmrig 6.26.0")) {
-            Write-Host "carry leg failed: install.ps1 did not report 'staged local xmrig 6.26.0'"
-            exit 1
-          }
-      - name: Same smoke drive, carry branch
+          $Rc = $LASTEXITCODE
+          # THE LEG LINE GOES TO THE DRIVE: install_smoke.py
+          # (--installer-output) owns the robocopy-leaf assertion now -
+          # kept, here as before, BEFORE judging rc (a cmdlet cannot
+          # clobber the captured slot).
+          $out | Set-Content -Path (Join-Path $env:RUNNER_TEMP "carry_install_transcript.txt") -Encoding utf8
+          if ($Rc -ne 0) { Write-Host ($out | Select-Object -Last 20); Write-Host "carry install.ps1 rc=$Rc"; exit 1 }
+      - name: Same smoke drive, carry branch - the drive asserts the shape itself
         run: |
-          python installer\install_smoke.py --installer (Join-Path $env:RUNNER_TEMP "smoke_bundle_carry\install.ps1") --target (Join-Path $env:RUNNER_TEMP "KrakenScoutSmokeCarry")
+          python installer\install_smoke.py --branch carry --installer (Join-Path $env:RUNNER_TEMP "smoke_bundle_carry\install.ps1") --installer-output (Join-Path $env:RUNNER_TEMP "carry_install_transcript.txt") --target (Join-Path $env:RUNNER_TEMP "KrakenScoutSmokeCarry")
 
   # THE RPC LAYER AND THE ENDPOINT CONTRACT (Oct 27). Both clients reach the
   # cluster through tools/rpc_resilience.ts, and WHICH cluster that is must come
