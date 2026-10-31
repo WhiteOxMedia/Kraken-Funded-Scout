@@ -1,6 +1,8 @@
 """test_kraken_referral_unit.py — normalization, formula, signing,
 provider honesty + posture (setup_kraken.py's read), the notification
-leg (sandbox, hermetic)."""
+leg (sandbox, hermetic), and the static exclusivity contract for the
+KRAKEN_REFERRAL rows (endpoint_mode/set_endpoint_mode are the ONLY
+readers and writers, everywhere)."""
 import os
 import sys, tempfile
 from pathlib import Path
@@ -200,6 +202,19 @@ check(6.2, p["processed"] == 0 and p["errors"] == 0 and p["mode"] == "unconfigur
 est = projection_ad.read_estimate(projection_ad.AdSlot.HERO)
 check(6.3, est is not None and est.referral_seed_usd == 0.0,
       "projection row persisted even for the zero run")
+
+print("== 7. THE ACCESSOR IS THE ONLY READER (static contract) ==")
+# ONE SOURCE OF TRUTH: the machinery lives in
+# test_kraken_accessor_exclusivity.py — the file the CI static-invariants
+# job runs directly on every push — and this drive delegates here so the
+# local run and CI exercise the same code (the assertions keep their
+# 7.x numbering). The two non-secret rows (endpoint + simulate) are
+# owned by the accessor in pool/kraken_referral.py: endpoint_mode()
+# reads them, set_endpoint_mode() writes them, and no other production
+# module touches them.
+import test_kraken_accessor_exclusivity as _acc
+
+_acc.run(check)
 
 passed, failed = results.count(True), results.count(False)
 print(f"RESULT: {passed} passed, {failed} failed")

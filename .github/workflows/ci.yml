@@ -60,6 +60,8 @@ jobs:
         run: python test_sweep_wiring.py
       - name: Static listener audit
         run: python test_static_listener_audit.py
+      - name: Kraken referral accessor exclusivity (one reader, one writer)
+        run: python test_kraken_accessor_exclusivity.py
       - name: No XMRJ/treasury claims in shipping surfaces
         run: python test_no_xmrj_claims.py
       - name: WF dashboard stamp

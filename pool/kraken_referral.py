@@ -75,7 +75,7 @@ def _cfg(name, default, cast=str):
         return default
 
 
-# ── THE ENDPOINT + SIMULATE ACCESSOR (one read, one truth) ─────────
+# ── THE ENDPOINT + SIMULATE ACCESSOR (one read, one write) ─────────
 PROJECTION_ENDPOINT_KEY = "KRAKEN_REFERRAL_ENDPOINT"      # settings only
 
 
@@ -97,6 +97,39 @@ def endpoint_mode():
         "simulate_flag": (db.get_setting(PROJECTION_MODE_KEY, "") or "")
                          == "simulate",
     }
+
+
+def set_endpoint_mode(endpoint=None, clear_endpoint=False, simulate=None):
+    """THE ACCESSOR'S ONE WRITE — the mirror of endpoint_mode(): the
+    admin panel's POST config and setup_kraken.py both store the two
+    non-secret rows through this ONE seam, so the key literals and the
+    URL rule live here and nowhere else — a write is instantly visible
+    to every endpoint_mode() read, and the no-second-literal rule
+    holds for writes as it does for reads. endpoint (truthy) must
+    satisfy the shared URL rule (http(s), <=300 chars) or ValueError
+    is raised — the panel turns that into its 400; clear_endpoint
+    stores '' (the read treats it as unset); simulate=True/False
+    sets/clears the operator's explicit simulate request ("simulate"
+    always wins at the read). Returns the row names written, for the
+    caller's audit tail. Settings only — the keyring never stores
+    URLs (charter)."""
+    updates = []
+    if endpoint:
+        ep = str(endpoint).strip()
+        if not ep.startswith(("http://", "https://")) or len(ep) > 300:
+            raise ValueError("endpoint must be an http(s) URL (<=300 chars)")
+        db.set_setting(PROJECTION_ENDPOINT_KEY, ep)
+        updates.append(PROJECTION_ENDPOINT_KEY)
+    elif clear_endpoint:
+        db.set_setting(PROJECTION_ENDPOINT_KEY, "")
+        updates.append(PROJECTION_ENDPOINT_KEY + " (cleared)")
+    if simulate is not None:
+        db.set_setting(PROJECTION_MODE_KEY,
+                       "simulate" if simulate else "")
+        updates.append(PROJECTION_MODE_KEY + "="
+                       + ("simulate" if simulate
+                          else "live-or-unconfigured"))
+    return updates
 
 
 # ── THE CREDENTIAL ACCESSOR (tiered, one seam for the project) ──────

@@ -20,7 +20,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent / "pool"))
 import database as db            # noqa: E402
 import kraken_referral as kr     # noqa: E402
 
-ENDPOINT_KEY = "KRAKEN_REFERRAL_ENDPOINT"
+# (the endpoint's key literal lives in pool/kraken_referral.py's
+# accessor, read AND written through it — never retyped here)
 
 
 def _ask_endpoint(current):
@@ -195,15 +196,23 @@ def main():
     print("Keys stored in Windows Credential Manager.")
     print()
 
-    ep = _ask_endpoint(kr.provider_posture()["endpoint"])
+    # THE CURRENT ENDPOINT comes through THE ONE ACCESSOR (the same
+    # read the admin panel's config card renders) — not a second path
+    # through the posture dict, so the prompt hint and the panel can
+    # never disagree about what is provisioned.
+    ep = _ask_endpoint(kr.endpoint_mode()["endpoint"])
 
     if ep:
         # idempotent schema check so endpoint storage never fails on a
         # box the server has not booted on yet (CREATE TABLE IF NOT
         # EXISTS — the same DB the pool server uses)
         db.init_db()
-        db.set_setting(ENDPOINT_KEY, ep)
-        print(f"Endpoint stored in settings ({ENDPOINT_KEY}).")
+        # THE ONE WRITE (kr.set_endpoint_mode): the key literal and the
+        # URL rule live in one place — the same seam the admin panel's
+        # POST writes through — so this store is instantly visible to
+        # every accessor read, the panel's included.
+        written = kr.set_endpoint_mode(endpoint=ep)
+        print(f"Endpoint stored in settings ({', '.join(written)}).")
 
     _print_posture(kr.provider_posture())
     _crosscheck_server()
