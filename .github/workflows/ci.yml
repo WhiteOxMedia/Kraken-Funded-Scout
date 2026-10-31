@@ -317,6 +317,17 @@ jobs:
           robocopy "scout" (Join-Path $Bundle "payload\scout") /E /NFL /NDL /NJH /NJS /NP | Out-Null
           $Rc = $LASTEXITCODE
           if ($Rc -ge 8) { Write-Host "scout staging failed rc=$Rc"; exit 1 }
+          # THE /XD ROSTER - the /XD list below is mirrored here tree by tree,
+          # each with its reason, and the drive (test_ci_both_shapes.py)
+          # asserts the two sets are equal: exclusion drift now red-lines
+          # the audit instead of happening silently.
+          #   .git .github node_modules .venv  (checkout plumbing and build environments)
+          #   dist dist_site_review  (build outputs, never the shipped payload)
+          #   xmrig  (the untracked miner tree - slim must never inherit it)
+          #   reports target  (runtime churn and Rust build output)
+          #   __pycache__ .pytest_cache .workshop  (interpreter, test and workstation state)
+          #   tools plans docs schemas src  (operator tooling, docs and sibling surfaces)
+          #   xmrj_treasury xmrj_jackpot xmrj_governance xmrj_conversion_service  (devnet program sources)
           robocopy "." (Join-Path $Bundle "payload\monero_project") /E /XD .git .github node_modules .venv dist dist_site_review xmrig reports target __pycache__ .pytest_cache .workshop tools plans docs schemas src xmrj_treasury xmrj_jackpot xmrj_governance xmrj_conversion_service /NFL /NDL /NJH /NJS /NP | Out-Null
           $Rc = $LASTEXITCODE
           if ($Rc -ge 8) { Write-Host "monero staging failed rc=$Rc"; exit 1 }

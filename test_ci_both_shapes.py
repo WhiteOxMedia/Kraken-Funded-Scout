@@ -59,9 +59,10 @@ each one verified:
      stripped from the drive, the hash-before-extract order is broken,
      the CI wiring is removed, the Defender-exclusion step is deleted,
      degraded into an exit, stripped of -ErrorAction Stop, and moved
-     below the staging steps, the 15-minute cap is relaxed and the
-     runner is moved off windows-latest, each in a mutated copy, with a
-     violation expected for each
+     below the staging steps, the 15-minute cap is relaxed, the runner
+     is moved off windows-latest, an undocumented tree is slipped into
+     the /XD list and a documented tree dropped from it, each in a
+     mutated copy, with a violation expected for each
 
   9. RUNNER HYGIENE, NOT A GATE: the Defender-exclusion step sits
      before either leg stages anything (an exclusion only helps if it
@@ -72,6 +73,14 @@ each one verified:
      one Write-Warning, an explicit '- continuing', never an exit -
      this gate verifies OUR staging logic, not Microsoft's scanner,
      and a refused exclusion must never fail the job
+
+  10. THE /XD ROSTER IS THE LIST'S MIRROR: the monero staging's /XD
+      list documents its reason, tree by tree, in a comment block
+      immediately above it (THE /XD ROSTER); the drive parses BOTH
+      sides and asserts the two sets are equal - a tree excluded
+      without its documented reason, or a documented tree the list no
+      longer excludes, violates. Drift between the list and its own
+      documentation can no longer be silent
 
 READ-ONLY apart from nothing at all: it PARSES (never executes)
 ci.yml, never executes installer/install_smoke.py - no runner, no
@@ -161,6 +170,46 @@ def leaf_violations(smoke):
     return v
 
 
+ROSTER_MARKER = "THE /XD ROSTER"
+ROSTER_LINE = re.compile(r"^\s*#\s{3}(.*)$")
+
+
+def xd_list_of(stage):
+    """The trees the monero staging's /XD line excludes (as a set)."""
+    for line in stage.splitlines():
+        if line.lstrip().startswith("robocopy") and "monero_project" in line:
+            m = re.search(r"/XD (.+?) /NFL", line)
+            if m:
+                return set(m.group(1).split())
+    return None
+
+
+def xd_roster_of(stage):
+    """The trees documented in THE /XD ROSTER comment block (as a set).
+
+    The body is the maximal run of '#   ' lines after the marker; prose
+    lines before the run are skipped, and the first non-roster line
+    ends the run once started - an unrelated triple-space comment later
+    in the step can never be counted in.
+    """
+    lines = stage.splitlines()
+    idx = next((i for i, l in enumerate(lines) if ROSTER_MARKER in l), None)
+    if idx is None:
+        return None
+    names, body = set(), False
+    for l in lines[idx + 1:]:
+        m = ROSTER_LINE.match(l)
+        if m:
+            body = True
+            names.update(re.sub(r"\s*\(.*\)\s*$", "",
+                                m.group(1)).split())
+        elif body:
+            break
+        elif not l.lstrip().startswith("#"):
+            break
+    return names if names else None
+
+
 def violations(text, smoke=None):
     """Every contract breach of the workflow text (and - pinned
     separately below - the drive's own text), one line per cause.
@@ -221,6 +270,24 @@ def violations(text, smoke=None):
         v.append(f"'{SLIM[0]}' no longer excludes the untracked xmrig/ tree "
                  "from robocopy - the checkout could silently turn slim "
                  "into carry and hide the fetch branch")
+    # ── the /XD list cannot drift from its roster comment ──
+    xd = xd_list_of(slim_stage)
+    xd_roster = xd_roster_of(slim_stage)
+    if ROSTER_MARKER not in slim_stage:
+        v.append("the /XD list lost its documenting roster comment "
+                 f"('{ROSTER_MARKER}') - exclusions are undocumented again")
+    elif xd is None or xd_roster is None:
+        v.append("the /XD list or its roster comment is unparseable - "
+                 "the drift check itself died")
+    else:
+        hidden = sorted(xd - xd_roster)
+        ghosts = sorted(xd_roster - xd)
+        if hidden:
+            v.append(f"the /XD list excludes {hidden} that the roster "
+                     "comment never documented - exclusion drift went silent")
+        if ghosts:
+            v.append(f"the roster documents {ghosts} that the /XD list no "
+                     "longer excludes - exclusion drift went silent")
     if "Invoke-WebRequest" in slim_stage + slim_install:
         v.append("the slim leg downloads something itself - slim must let "
                  "install.ps1's own [3/4] fetch branch do the fetching")
@@ -428,6 +495,17 @@ def main():
     check(2.16, any("no longer runs on windows-latest" in x for x in c),
           "moving the runner off windows-latest (INSIDE the job block, "
           "not a sibling's line) turns the audit red", "; ".join(c)[:180])
+    c = violations(src.replace("xmrj_conversion_service /NFL",
+                               "xmrj_conversion_service scratch /NFL", 1),
+                   smoke_lf)
+    check(2.17, any("never documented" in x for x in c),
+          "slipping an undocumented tree into the /XD list turns the "
+          "audit red", "; ".join(c)[:180])
+    c = violations(src.replace(".pytest_cache .workshop tools",
+                               ".workshop tools", 1), smoke_lf)
+    check(2.18, any("roster documents" in x for x in c),
+          "dropping a documented tree from the /XD list turns the audit red",
+          "; ".join(c)[:180])
 
     print(f"\nRESULT: {passed} passed, {failed} failed")
     sys.exit(1 if failed else 0)
