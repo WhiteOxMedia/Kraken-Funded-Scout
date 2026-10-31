@@ -4158,22 +4158,21 @@ async def api_admin_kraken_referral_config_set(request: Request):
             # never plaintext-at-rest in the DB).
             db.set_setting(name, _fc.encrypt(v) if _fc.available() else v)
             updates.append(name)
+    # THE ACCESSOR'S WRITE (kr.set_endpoint_mode): the key literals and
+    # the URL rule live in one place — the same seam setup_kraken.py
+    # writes through — so a panel write is instantly visible to the
+    # panel's own read (both sides of the card are the one accessor).
     ep = str(body.get("endpoint") or "").strip()
     if ep:
-        if not ep.startswith(("http://", "https://")) or len(ep) > 300:
-            raise HTTPException(status_code=400,
-                                detail="endpoint must be an http(s) URL")
-        db.set_setting("KRAKEN_REFERRAL_ENDPOINT", ep)
-        updates.append("KRAKEN_REFERRAL_ENDPOINT")
+        try:
+            updates.extend(kr.set_endpoint_mode(endpoint=ep))
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=str(e))
     elif body.get("clear_endpoint"):
-        db.set_setting("KRAKEN_REFERRAL_ENDPOINT", "")
-        updates.append("KRAKEN_REFERRAL_ENDPOINT (cleared)")
+        updates.extend(kr.set_endpoint_mode(clear_endpoint=True))
     sim = body.get("simulate")
     if sim is not None:
-        db.set_setting("KRAKEN_REFERRAL_MODE",
-                       "simulate" if sim else "")
-        updates.append("KRAKEN_REFERRAL_MODE="
-                       + ("simulate" if sim else "live-or-unconfigured"))
+        updates.extend(kr.set_endpoint_mode(simulate=bool(sim)))
     # THE SCHEDULER + EXPIRY CALENDAR (user flow, Sep 26): enable/disable
     # and interval ride the same admin surface; the expiry is the
     # operator-defined calendar the notice leg obeys.
