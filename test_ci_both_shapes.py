@@ -59,8 +59,9 @@ each one verified:
      stripped from the drive, the hash-before-extract order is broken,
      the CI wiring is removed, the Defender-exclusion step is deleted,
      degraded into an exit, stripped of -ErrorAction Stop, and moved
-     below the staging steps, each in a mutated copy, with a violation
-     expected for each
+     below the staging steps, the 15-minute cap is relaxed and the
+     runner is moved off windows-latest, each in a mutated copy, with a
+     violation expected for each
 
   9. RUNNER HYGIENE, NOT A GATE: the Defender-exclusion step sits
      before either leg stages anything (an exclusion only helps if it
@@ -312,6 +313,17 @@ def without(text, needle):
     return text.replace(needle, "", 1)
 
 
+def mutate_job(text, fn):
+    """Swap the scout-install-smoke job block for fn(block), anchored:
+    a job-level pin (runner, cap) must be mutated INSIDE the job - a
+    global first-occurrence deletion would hit a sibling job's own
+    windows-latest / timeout-minutes line and prove nothing."""
+    block = job_block_of(text, JOB)
+    if not block:
+        return text
+    return text.replace(block, fn(block), 1)
+
+
 def main():
     with open(WORKFLOW, encoding="utf-8") as f:
         src = f.read()
@@ -404,6 +416,18 @@ def main():
           "moving the Defender-exclusion step below the staging steps "
           "turns the audit red (exclusions must predate the bytes)",
           "; ".join(c)[:180])
+    c = violations(mutate_job(src, lambda b: b.replace(
+                       "    timeout-minutes: 15\n", "    timeout-minutes: 30\n",
+                       1)), smoke_lf)
+    check(2.15, any("15-minute cap" in x for x in c),
+          "relaxing the job's 15-minute cap to 30 (INSIDE the job block, "
+          "not a sibling's line) turns the audit red", "; ".join(c)[:180])
+    c = violations(mutate_job(src, lambda b: b.replace(
+                       "runs-on: windows-latest", "runs-on: ubuntu-latest",
+                       1)), smoke_lf)
+    check(2.16, any("no longer runs on windows-latest" in x for x in c),
+          "moving the runner off windows-latest (INSIDE the job block, "
+          "not a sibling's line) turns the audit red", "; ".join(c)[:180])
 
     print(f"\nRESULT: {passed} passed, {failed} failed")
     sys.exit(1 if failed else 0)
