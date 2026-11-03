@@ -1,0 +1,19 @@
+now: Mon 04:03 PM Denver
+
+bridge PENGU records since noon: 1
+  2026-08-24T15:39:46 buy closed    src=scout_auto    conf=64
+     entry=0.009669 stop=0.009299 tp=0.010595
+     reason: Regime: ranging (volatility rank 59/100); 🔥 BREAKOUT — Phase 1 — Breakout — +2.3% move with 1.2x volume;   Breaking Bollinger upper band (BB%B=0.79)
+winner 15:56 PENGU/USD buy 92% reasons: [; "; R; e
+winner 15:39 PENGU/USD buy 64% reasons: [; "; R; e
+
+PENGU live: 0.009895  (24h change -0.0%)
+  14:15  O 0.00948  H 0.00948  L 0.00942  C 0.00943
+  14:30  O 0.00944  H 0.00960  L 0.00944  C 0.00957
+  14:45  O 0.00956  H 0.00965  L 0.00954  C 0.00965
+  15:00  O 0.00966  H 0.00970  L 0.00963  C 0.00963
+  15:15  O 0.00963  H 0.00968  L 0.00961  C 0.00967
+  15:30  O 0.00968  H 0.00975  L 0.00964  C 0.00974
+  15:45  O 0.00974  H 0.00996  L 0.00974  C 0.00993
+  16:00  O 0.00996  H 0.00996  L 0.00989  C 0.00989
+engine lookup failed: cannot import name 'SCALP_TARGET_PCT' from 'volatility_engine' (C:\Users\birds\Workspace\kraken_scout\volatility_engine.py)

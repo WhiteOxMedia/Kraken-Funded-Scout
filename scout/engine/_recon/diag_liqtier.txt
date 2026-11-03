@@ -1,0 +1,122 @@
+### diag_liqtier — co_filename=diag_liqtier.py firstlineno=1
+DOCSTRING:
+diag_liqtier.py — THE TIER-METHOD BACKTEST (Sep 19).
+
+QUESTION (user, Sep 19): did the advisory liquidity tier's conservative
+bias ever CHANGE a trade's execution method at the 10k tier?
+
+WHY THE QUESTION IS SHARP: the tier machinery (`classify_tier(notional,
+tob)`) keys on spend-vs-book-depth — cut the account 10x and every spend
+falls 10x, so books that looked big at 10k look enormous at 1k. The
+question is whether any REAL fire sat near a tier boundary where the
+tier flip (market -> ladder -> TWAP) actually happens.
+
+STRUCTURAL TRUTHS THIS STUDY MUST HONOR:
+  1. The bot executes EVERY buy as a market order (bot_engine.py:556) —
+     it imports only gate_buy (blacklist/health/cap/slippage) from
+     execution_tiers, never the tier->method map. The method is a
+     label, not an executor. So the backtest prices the LABEL DELTAS
+     (what would have changed) and the SLIPPAGE DELTAS (what would
+     have actually cost/made money), and says so.
+  2. No historical book depth was ever stored (no tob in any ledger).
+     This study reads each pair's book LIVE and applies a +/-30%
+     robustness band on tob — if a verdict flips inside that band, the
+     honest answer is "unclear", not
+
+TOP-LEVEL NAMES (imports/defs in order):
+  IMPORT __future__
+  IMPORT annotations
+  STORE  annotations
+  IMPORT glob
+  STORE  glob
+  IMPORT json
+  STORE  json
+  IMPORT re
+  STORE  re
+  IMPORT sys
+  STORE  sys
+  IMPORT pathlib
+  IMPORT Path
+  STORE  Path
+  STORE  OUT
+  STORE  BOT_GLOB
+  STORE  TOB_BAND
+  STORE  TIER_BOUNDS
+  STORE  FILL_RE
+  STORE  FILL_TS_RE
+  STORE  parse_fills
+  STORE  classify_tier
+  STORE  method_for_tier
+  STORE  flip_verdict
+  STORE  main
+
+ALL STRINGS (dedup, order-preserving, >=4 chars):
+  diag_liqtier.py — THE TIER-METHOD BACKTEST (Sep 19).
+
+QUESTION (user, Sep 19): did the advisory liquidity tier's conservative
+bias ever CHANGE a trade's execution method at the 10k tier?
+
+WHY THE QUESTION IS SHARP: the t
+  _liqtier.txt
+  kraken_xrp_trading_bot
+  logs
+  bot.log*
+  EVENT BUY (\S+) ::.*?Cost: \$([\d.]+)
+  ^(\d{4}-\d{2}-\d{2} \d{2}:\d{2})
+  paths
+  list[str]
+  return
+  list[dict]
+  Every real bot fill: ts, pair, cost. Duplicates (log rotation) deduped
+on (ts_minute, pair, cost).
+  utf-8
+  replace
+  pair
+  cost
+  notional_usd
+  float
+  tob_usd
+  tuple[int, str, float]
+  Mirror of execution_tiers.classify_tier (kept local so the study has
+zero state coupling and the pins can hand-verify).
+  T6 Institutional
+  Mirror of liquidity_snapshot's method map.
+  market
+  ladder x3
+  TWAP x4
+  capped+ladder
+  lived_tier
+  cf_tier
+  band_flips
+  bool
+  One row's verdict: the method label that would have changed.
+  same
+  FLIP-in-band
+  FLIP-stable
+  THE TIER-METHOD BACKTEST — did the advisory tier's conservative bias
+  ever change a trade's execution method at the 10k tier?
+  real fills parsed from bot logs: 
+  FATAL: no ccxt for book reads: 
+  asks
+  bids
+    book read failed 
+  pairs with live books: 
+  lived$
+  lived tier
+  1k tier
+  verdict
+  band?
+  >8.2f
+  >7.2f
+  VERDICT: same=
+    stable-flip=
+    in-band-flip(unclear)=
+    no-book=
+  Structural context (checked, not assumed):
+    - the bot executes every buy as a MARKET order (bot_engine.place_market_buy);
+      it imports only gate_buy (blacklist/health/cap/slippage) from execution_tiers.
+      The tier->method map is a label: no executor consumes it today.
+  ----------------------------------------------------------------------------------------------------
+  __main__
+
+TOTAL STRINGS: 60

@@ -1,0 +1,19 @@
+calibration run Tue 02:48 PM — 261 signals (deduped per pair-hour, conf>=60)
+
+CHASE off 1h base at signal time (guard currently blocks >2%):
+  0-1%       n=148  $20-hit 79%
+  1-2%       n=62   $20-hit 79%
+  2-3%       n=26   $20-hit 77%
+  3-5%       n=20   $20-hit 75%
+  5-100%     n=5    $20-hit 80%
+
+TREND at signal time (guard currently blocks FALLING):
+  UP         n=153  $20-hit 78%
+  FALLING    n=93   $20-hit 77%
+  BASING     n=6    $20-hit 100%
+
+ENTRY DELAY: $20 hit if you entered N minutes AFTER the signal:
+  + 0 min   n=261  $20-hit 87%
+  +15 min   n=261  $20-hit 80%
+  +30 min   n=259  $20-hit 81%
+  +45 min   n=259  $20-hit 82%

@@ -1,0 +1,9 @@
+PASS  the fixture exists and every line is valid JSON (a captured stream, not a summary)
+PASS  the mixed errorType + findings stream rides ERRORTYPE next to its COUNT 4 (the error never silences the findings)
+PASS  the full record renders file:line [sev] title
+PASS  the skeletal record renders the honest store message, never a fabricated title
+PASS  codegenInstructions line+text extracted (line 33)
+PASS  the hybrid record: codegen beats the skeletal message (scoped to the h.py line — the stream's real skeletal record keeps its own honest message)
+PASS  the pure-error half is COUNT 0 + ERRORTYPE, never CLEANJSON (the masquerade class, pinned from the fixture)
+
+RESULT: 7 passed, 0 failed

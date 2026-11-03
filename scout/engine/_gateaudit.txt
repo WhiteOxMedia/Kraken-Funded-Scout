@@ -1,0 +1,169 @@
+=== GATE AUDIT — 725 suppressions, 2026-09-04 → 2026-09-10 ===
+
+── by gate ──
+gate                    count  pairs max quick quick≥floor ≥floor-5
+brain-floor               135     35      92.0           8        8
+tide-out                  126     28      94.0          20       47
+too-thin                   97     28     100.0          46       48
+downward-trend             97     13      89.0           5        8
+daily-lock                 72     23     100.0          39       42
+deep-veto                  71     28     100.0           0        0
+rotation-lock              55     17     100.0           0        0
+worth-floor                23     11      97.0           6        6
+stale-move                 21      9     100.0           1        1
+deep-direction             14     11      61.2           0        0
+blowoff-yesterday          10      5      64.0           0        0
+climb-floor                 2      2      76.0           0        1
+death-line                  1      1      84.0           0        1
+sure-thing-deep-veto        1      1      43.9           0        0
+
+── killed AT/ABOVE the floor (the gate, not the score, did it) ──
+  2026-09-05T00:52  TAO/USD          brain-floor        quick  89.0 vs floor 84   FLAT 59%
+  2026-09-05T02:25  KAITO/USD        brain-floor        quick  79.0 vs floor 78   RISING 72%
+  2026-09-05T02:37  KAITO/USD        brain-floor        quick  79.0 vs floor 78   RISING 72%
+  2026-09-05T02:48  KAITO/USD        brain-floor        quick  79.0 vs floor 78   RISING 72%
+  2026-09-05T02:59  KAITO/USD        brain-floor        quick  79.0 vs floor 78   RISING 72%
+  2026-09-05T06:50  POPCAT/USD       brain-floor        quick  79.0 vs floor 78   RISING 73%
+  2026-09-05T07:28  POL/USD          brain-floor        quick  92.0 vs floor 78   RISING 78%
+  2026-09-05T07:33  ADA/USD          brain-floor        quick  92.0 vs floor 78   RISING 78%
+  2026-09-05T04:58  RENDER/USD       daily-lock         quick  94.0 vs floor 78   RISING 72%
+  2026-09-05T05:24  AVAX/USD         daily-lock         quick  97.0 vs floor 78   RISING 73%
+  2026-09-05T06:38  POL/USD          daily-lock         quick  92.0 vs floor 78   RISING 73%
+  2026-09-05T06:50  POL/USD          daily-lock         quick  92.0 vs floor 78   RISING 73%
+  2026-09-05T07:03  SUI/USD          daily-lock         quick  99.0 vs floor 78   RISING 73%
+  2026-09-05T07:03  VIRTUAL/USD      daily-lock         quick  99.0 vs floor 78   RISING 73%
+  2026-09-05T07:05  AVAX/USD         daily-lock         quick 100.0 vs floor 78   RISING 73%
+  2026-09-05T07:16  POL/USD          daily-lock         quick  92.0 vs floor 78   RISING 73%
+  2026-09-05T07:17  SUI/USD          daily-lock         quick 100.0 vs floor 78   RISING 73%
+  2026-09-05T07:26  PENGU/USD        daily-lock         quick  92.0 vs floor 78   RISING 73%
+  2026-09-05T07:46  POPCAT/USD       daily-lock         quick  89.0 vs floor 78   RISING 78%
+  2026-09-05T08:01  FIL/USD          daily-lock         quick 100.0 vs floor 78   RISING 78%
+  2026-09-05T08:03  DOT/USD          daily-lock         quick 100.0 vs floor 78   RISING 78%
+  2026-09-05T08:13  FIL/USD          daily-lock         quick 100.0 vs floor 78   RISING 78%
+  2026-09-05T08:29  POL/USD          daily-lock         quick  92.0 vs floor 78   RISING 72%
+  2026-09-05T08:41  POL/USD          daily-lock         quick  92.0 vs floor 78   RISING 72%
+  2026-09-05T08:52  POL/USD          daily-lock         quick  92.0 vs floor 78   RISING 72%
+  2026-09-05T09:01  FIL/USD          daily-lock         quick 100.0 vs floor 78   RISING 72%
+  2026-09-05T09:13  FIL/USD          daily-lock         quick 100.0 vs floor 78   RISING 72%
+  2026-09-05T09:25  FIL/USD          daily-lock         quick 100.0 vs floor 78   RISING 72%
+  2026-09-05T09:36  FIL/USD          daily-lock         quick 100.0 vs floor 78   RISING 75%
+  2026-09-05T09:41  POL/USD          daily-lock         quick  92.0 vs floor 78   RISING 75%
+  2026-09-05T09:44  HYPE/USD         daily-lock         quick  92.0 vs floor 78   RISING 75%
+  2026-09-05T09:48  FIL/USD          daily-lock         quick 100.0 vs floor 78   RISING 75%
+  2026-09-05T09:53  POL/USD          daily-lock         quick  92.0 vs floor 78   RISING 75%
+  2026-09-05T09:58  AAVE/USD         daily-lock         quick  92.0 vs floor 78   RISING 75%
+  2026-09-05T10:00  FIL/USD          daily-lock         quick 100.0 vs floor 78   RISING 75%
+  2026-09-05T10:11  FIL/USD          daily-lock         quick 100.0 vs floor 78   RISING 75%
+  2026-09-05T10:35  BTC/USD          daily-lock         quick  84.0 vs floor 78   RISING 83%
+  2026-09-05T10:38  LINK/USD         daily-lock         quick  92.0 vs floor 78   RISING 83%
+  2026-09-05T10:49  BTC/USD          daily-lock         quick  84.0 vs floor 78   RISING 83%
+  2026-09-05T10:54  FARTCOIN/USD     daily-lock         quick  89.0 vs floor 78   RISING 83%
+  2026-09-05T10:57  ETH/USD          daily-lock         quick  92.0 vs floor 78   RISING 83%
+  2026-09-05T11:29  POL/USD          daily-lock         quick  92.0 vs floor 78   RISING 85%
+  2026-09-05T11:33  HYPE/USD         daily-lock         quick  92.0 vs floor 78   RISING 85%
+  2026-09-05T13:14  INJ/USD          daily-lock         quick  84.0 vs floor 78   RISING 85%
+  2026-09-05T13:34  POL/USD          daily-lock         quick  97.0 vs floor 78   RISING 85%
+  2026-09-05T14:49  FIL/USD          daily-lock         quick  81.0 vs floor 78   RISING 76%
+  2026-09-05T16:04  BCH/USD          daily-lock         quick 100.0 vs floor 82   RISING 85%
+  2026-09-06T08:34  XPL/USD          downward-trend     quick  84.0 vs floor 84   FLAT 64%
+  2026-09-06T08:40  CRV/USD          downward-trend     quick  89.0 vs floor 84   FLAT 64%
+  2026-09-06T08:41  XPL/USD          downward-trend     quick  84.0 vs floor 84   FLAT 64%
+  2026-09-06T08:52  XPL/USD          downward-trend     quick  84.6 vs floor 84   FLAT 64%
+  2026-09-06T08:58  XPL/USD          downward-trend     quick  84.6 vs floor 84   FLAT 64%
+  2026-09-06T01:05  DASH/USD         stale-move         quick  99.0 vs floor 89   FLAT 70%
+  2026-09-09T14:57  LTC/USD          tide-out           quick  91.7 vs floor 89   OUT 21%
+  2026-09-09T15:48  PUMP/USD         tide-out           quick  92.0 vs floor 89   OUT 18%
+  2026-09-09T15:59  PUMP/USD         tide-out           quick  92.0 vs floor 89   OUT 18%
+  2026-09-10T06:41  ETH/USD          tide-out           quick  94.0 vs floor 89   OUT 14%
+  2026-09-10T06:54  HBAR/USD         tide-out           quick  94.0 vs floor 89   OUT 14%
+  2026-09-10T06:54  OP/USD           tide-out           quick  91.1 vs floor 89   OUT 14%
+  2026-09-10T06:56  ETH/USD          tide-out           quick  92.0 vs floor 89   OUT 14%
+  2026-09-10T06:56  POL/USD          tide-out           quick  92.0 vs floor 89   OUT 14%
+  2026-09-10T06:57  DOGE/USD         tide-out           quick  94.0 vs floor 89   OUT 14%
+  2026-09-10T07:36  POL/USD          tide-out           quick  92.0 vs floor 89   OUT 9%
+  2026-09-10T07:42  BTC/USD          tide-out           quick  94.0 vs floor 89   OUT 9%
+  2026-09-10T07:54  POL/USD          tide-out           quick  92.0 vs floor 89   OUT 9%
+  2026-09-10T10:20  FARTCOIN/USD     tide-out           quick  84.0 vs floor 84   OUT 15%
+  2026-09-10T10:31  FARTCOIN/USD     tide-out           quick  84.0 vs floor 84   OUT 13%
+  2026-09-10T10:34  ADA/USD          tide-out           quick  84.0 vs floor 84   OUT 11%
+  2026-09-10T10:41  FARTCOIN/USD     tide-out           quick  84.0 vs floor 84   OUT 11%
+  2026-09-10T10:45  JUP/USD          tide-out           quick  94.0 vs floor 84   OUT 11%
+  2026-09-10T10:47  ONDO/USD         tide-out           quick  86.3 vs floor 84   OUT 11%
+  2026-09-10T10:52  FARTCOIN/USD     tide-out           quick  84.5 vs floor 84   OUT 11%
+  2026-09-10T10:55  JUP/USD          tide-out           quick  94.0 vs floor 84   OUT 11%
+  2026-09-05T00:34  ETC/USD          too-thin           quick  89.0 vs floor 84   FLAT 59%
+  2026-09-05T01:41  ONDO/USD         too-thin           quick  97.0 vs floor 78   RISING 73%
+  2026-09-05T01:50  APT/USD          too-thin           quick  99.0 vs floor 78   RISING 73%
+  2026-09-05T01:52  ONDO/USD         too-thin           quick  97.0 vs floor 78   RISING 73%
+  2026-09-05T02:01  APT/USD          too-thin           quick 100.0 vs floor 78   RISING 73%
+  2026-09-05T02:35  DOT/USD          too-thin           quick 100.0 vs floor 78   RISING 72%
+  2026-09-05T03:30  ATOM/USD         too-thin           quick 100.0 vs floor 78   RISING 76%
+  2026-09-05T03:41  ATOM/USD         too-thin           quick 100.0 vs floor 78   RISING 76%
+  2026-09-05T03:51  ATOM/USD         too-thin           quick 100.0 vs floor 78   RISING 76%
+  2026-09-05T03:58  MOODENG/USD      too-thin           quick  89.0 vs floor 78   RISING 76%
+  2026-09-05T04:01  APT/USD          too-thin           quick 100.0 vs floor 78   RISING 76%
+  2026-09-05T04:03  ATOM/USD         too-thin           quick 100.0 vs floor 78   RISING 76%
+  2026-09-05T04:12  APT/USD          too-thin           quick 100.0 vs floor 78   RISING 76%
+  2026-09-05T04:14  ATOM/USD         too-thin           quick 100.0 vs floor 78   RISING 76%
+  2026-09-05T04:26  ATOM/USD         too-thin           quick 100.0 vs floor 78   RISING 72%
+  2026-09-05T04:26  KAITO/USD        too-thin           quick  92.0 vs floor 78   RISING 72%
+  2026-09-05T04:33  APT/USD          too-thin           quick 100.0 vs floor 78   RISING 72%
+  2026-09-05T05:53  PENGU/USD        too-thin           quick  92.0 vs floor 78   RISING 73%
+  2026-09-05T06:00  VIRTUAL/USD      too-thin           quick 100.0 vs floor 78   RISING 73%
+  2026-09-05T06:39  LINK/USD         too-thin           quick  92.0 vs floor 78   RISING 73%
+  2026-09-05T06:40  DOT/USD          too-thin           quick  97.0 vs floor 78   RISING 73%
+  2026-09-05T06:51  DOT/USD          too-thin           quick  97.0 vs floor 78   RISING 73%
+  2026-09-05T07:21  ADA/USD          too-thin           quick  92.0 vs floor 78   RISING 73%
+  2026-09-05T07:56  LINK/USD         too-thin           quick  92.0 vs floor 78   RISING 78%
+  2026-09-05T08:04  VIRTUAL/USD      too-thin           quick 100.0 vs floor 78   RISING 78%
+  2026-09-05T08:32  ADA/USD          too-thin           quick  92.0 vs floor 78   RISING 72%
+  2026-09-05T09:01  UNI/USD          too-thin           quick 100.0 vs floor 78   RISING 72%
+  2026-09-05T09:13  UNI/USD          too-thin           quick 100.0 vs floor 78   RISING 72%
+  2026-09-05T09:53  KAITO/USD        too-thin           quick  92.0 vs floor 78   RISING 75%
+  2026-09-05T10:11  LINK/USD         too-thin           quick 100.0 vs floor 78   RISING 75%
+  2026-09-05T10:15  UNI/USD          too-thin           quick 100.0 vs floor 78   RISING 75%
+  2026-09-05T10:22  LINK/USD         too-thin           quick 100.0 vs floor 78   RISING 75%
+  2026-09-05T12:03  CRV/USD          too-thin           quick  92.0 vs floor 78   RISING 85%
+  2026-09-05T12:49  LINK/USD         too-thin           quick 100.0 vs floor 78   RISING 85%
+  2026-09-05T13:50  BCH/USD          too-thin           quick  97.0 vs floor 78   RISING 87%
+  2026-09-05T19:44  ADA/USD          too-thin           quick  97.0 vs floor 82   RISING 77%
+  2026-09-06T00:31  INJ/USD          too-thin           quick 100.0 vs floor 78   RISING 82%
+  2026-09-06T00:43  INJ/USD          too-thin           quick 100.0 vs floor 78   RISING 82%
+  2026-09-06T03:34  WLD/USD          too-thin           quick  97.0 vs floor 84   FLAT 54%
+  2026-09-06T08:22  DOT/USD          too-thin           quick  67.0 vs floor 59   FLAT 64%
+  2026-09-06T08:22  JTO/USD          too-thin           quick  67.0 vs floor 55   FLAT 64%
+  2026-09-06T08:32  NEAR/USD         too-thin           quick  64.5 vs floor 55   FLAT 64%
+  2026-09-06T09:50  NEAR/USD         too-thin           quick  69.5 vs floor 55   FLAT 64%
+  2026-09-06T14:42  TRX/USD          too-thin           quick  81.0 vs floor 78   RISING 70%
+  2026-09-06T14:52  TRX/USD          too-thin           quick  81.0 vs floor 78   RISING 70%
+  2026-09-09T12:57  TRX/USD          too-thin           quick  84.0 vs floor 78   RISING 70%
+  2026-09-06T08:58  NEAR/USD         worth-floor        quick  69.0 vs floor 55   FLAT 64%
+  2026-09-06T08:59  TRX/USD          worth-floor        quick  84.0 vs floor 84   FLAT 64%
+  2026-09-06T09:38  NEAR/USD         worth-floor        quick  69.5 vs floor 55   FLAT 64%
+  2026-09-06T11:47  LDO/USD          worth-floor        quick  67.0 vs floor 59   FLAT 53%
+  2026-09-06T11:59  LDO/USD          worth-floor        quick  67.0 vs floor 59   FLAT 53%
+  2026-09-06T12:16  RENDER/USD       worth-floor        quick  97.0 vs floor 89   FLAT 53%
+
+── near-miss band (quick within 5 below floor) — latest 12 ──
+  2026-09-10T11:58  JUP/USD          tide-out           quick  80.1 vs floor 84
+  2026-09-10T10:55  HBAR/USD         tide-out           quick  79.0 vs floor 84
+  2026-09-10T10:45  HBAR/USD         tide-out           quick  79.0 vs floor 84
+  2026-09-10T10:34  JUP/USD          tide-out           quick  81.0 vs floor 84
+  2026-09-10T10:34  HBAR/USD         tide-out           quick  79.0 vs floor 84
+  2026-09-10T10:23  HBAR/USD         tide-out           quick  79.0 vs floor 84
+  2026-09-10T10:12  HBAR/USD         tide-out           quick  79.0 vs floor 84
+  2026-09-10T10:06  DOGE/USD         tide-out           quick  79.0 vs floor 84
+  2026-09-10T09:51  DOGE/USD         tide-out           quick  79.0 vs floor 84
+  2026-09-10T09:36  DOGE/USD         tide-out           quick  79.0 vs floor 84
+  2026-09-10T09:22  PENGU/USD        tide-out           quick  81.0 vs floor 84
+  2026-09-10T09:20  OP/USD           tide-out           quick  79.0 vs floor 84
+
+── learned weights (discipline_state.json) ──
+  {"missed": 1.0, "giveback": 0.9, "missed_exit": 1.25, "early_exit": 0.5}
+  lessons logged: 22
+    {'date': '2026-09-09', 'rot': '16-20', 'score': 60.0, 'total_left': 0, 'system_left': 0, 'top_gate': None, 'realized_pnl': 0, 'balance_after': 1055.0,
+    {'date': '2026-09-09', 'rot': '20-24', 'score': 60.0, 'total_left': 0, 'system_left': 0, 'top_gate': None, 'realized_pnl': 0, 'balance_after': 1055.0,
+    {'date': '2026-09-10', 'rot': '00-04', 'score': 50.0, 'total_left': 22.25, 'system_left': 22.25, 'top_gate': 'blowoff-yesterday', 'realized_pnl': 0, '
+    {'date': '2026-09-10', 'rot': '04-08', 'score': 50.0, 'total_left': 73.45, 'system_left': 73.45, 'top_gate': 'tide-out', 'realized_pnl': 0, 'balance_a
+    {'date': '2026-09-10', 'rot': '12-16', 'score': 60.0, 'total_left': 0, 'system_left': 0, 'top_gate': None, 'realized_pnl': 0, 'balance_after': 1055.0,
+    {'date': '2026-09-10', 'rot': '08-12', 'score': 50.0, 'total_left': 45.41, 'system_left': 45.41, 'top_gate': 'tide-out', 'realized_pnl': 0, 'balance_a

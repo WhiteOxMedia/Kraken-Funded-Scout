@@ -1,0 +1,1 @@
+Bot already running (pid 2284) — exiting to prevent duplicate.

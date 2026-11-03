@@ -1,0 +1,27 @@
+PASS  the ledger is written in the state (no second save — no clobber)  
+PASS  tide-out: 2 payers, $96 theoretical  {'tide-out': {'n': 2, 'usd': 96.0}, 'brain-floor': {'n': 1, 'usd': 22.0}}
+PASS  brain-floor: 1 payer, $22  
+PASS  the dud is recorded against its gate  
+PASS  a re-evaluation replaces the rotation's entry (no double count)  
+PASS  tide-out relief: 2 payers − 1 dud×0.5 = 1.5 pts (weight 1.0)  1.5
+PASS  brain-floor relief: 1 pt  
+PASS  a gate with no record gets nothing  
+PASS  the relief never exceeds the 4-pt cap  4.0
+PASS  a stale journal fades to zero (8h decay)  0.0
+PASS  3 buried payers at $0 realized → system_burial rises  1.1
+PASS  the lesson names the gates  The funnel buried 3 paying candidates ($118 theoretical; gates: brain-floor, tid
+PASS  buried duds offset the pile-up (net 1 < 2 → weights hold)  
+PASS  the popup floor takes the journal relief (84 − ~1 brain-floor pt)  (84, 83.0)
+PASS  the floor never breaches the deep-read bound (≥ 60)  
+PASS  the QC and the alert read the same relieved stack (one helper)  
+PASS  journal open: a 94-quick champion RELEASES — the discipline journal opened the tide gate  
+PASS  a sub-84 brain does not champion the release  
+PASS  a SELL deep read never releases  
+PASS  a sub-92 quick is not champion-grade  
+PASS  the second champion of the same rotation also releases (uncapped)  the discipline journal opened the tide gate
+PASS  a broken journal → gate_relief 0 (fail-closed)  
+PASS  a broken journal → the release refuses  
+PASS  evaluate_rotation records the ledger BEFORE the save  
+PASS  the ledger rides the SAME save as the history (no clobber window)  
+
+RESULT: 25 passed, 0 failed

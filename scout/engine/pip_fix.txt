@@ -1,0 +1,3 @@
+Resolved 1 package in 6ms
+error: Failed to install: streamlit-1.61.1-py3-none-any.whl (streamlit==1.61.1)
+  Caused by: Failed to persist temporary file to C:\Users\birds\Workspace\kraken_scout\.venv\Lib\site-packages\..\..\Scripts\streamlit.exe: failed to persist temporary file: Access is denied. (os error 5)

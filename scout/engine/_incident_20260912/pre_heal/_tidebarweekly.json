@@ -1,0 +1,115 @@
+{
+ "generated_ts": "2026-09-12 09:23 UTC",
+ "week": "2026-W37",
+ "cadence": "daily (7-day grade window)",
+ "states": {
+  "OUT": {
+   "n": 20,
+   "in_force": {
+    "bar": 88.0,
+    "fires": 20,
+    "payers": 20,
+    "rate": 1.0,
+    "usd": 316.5,
+    "usd_per_fire": 15.82
+   },
+   "other": {
+    "bar": 86.0,
+    "fires": 20,
+    "payers": 20,
+    "rate": 1.0,
+    "usd": 316.5,
+    "usd_per_fire": 15.82
+   },
+   "other_src": "quantile"
+  },
+  "FLAT": {
+   "n": 1,
+   "in_force": {
+    "bar": 92.0,
+    "fires": 0,
+    "payers": 0,
+    "rate": 0.0,
+    "usd": 0.0,
+    "usd_per_fire": 0.0
+   },
+   "other": {
+    "bar": 92.0,
+    "fires": 0,
+    "payers": 0,
+    "rate": 0.0,
+    "usd": 0.0,
+    "usd_per_fire": 0.0
+   },
+   "other_src": "outcome-fitted"
+  },
+  "RISING": null
+ },
+ "flips": {
+  "OUT": {
+   "flipped": true,
+   "since": "t"
+  },
+  "FLAT": {
+   "flipped": false
+  },
+  "RISING": {
+   "flipped": false
+  }
+ },
+ "fills": {
+  "states": {
+   "OUT": {
+    "fills": 0,
+    "pnl": 0.0,
+    "winners": 0,
+    "unfilled": 4,
+    "unfilled_payers": 4,
+    "usd_if_paid": 34.889268488421706
+   },
+   "RISING": {
+    "fills": 0,
+    "pnl": 0.0,
+    "winners": 0,
+    "unfilled": 35,
+    "unfilled_payers": 20,
+    "usd_if_paid": 87.06036098172711
+   }
+  },
+  "coverage_from": "2026-09-11T10:30:05.856696+00:00"
+ },
+ "trend": {
+  "OUT": [
+   0.0
+  ],
+  "FLAT": [
+   null
+  ],
+  "RISING": [
+   null
+  ]
+ },
+ "fills_trend": {
+  "OUT": [
+   0.0
+  ],
+  "FLAT": [
+   null
+  ],
+  "RISING": [
+   0.0
+  ]
+ },
+ "flip_marks": {
+  "OUT": [
+   null
+  ],
+  "FLAT": [
+   null
+  ],
+  "RISING": [
+   null
+  ]
+ },
+ "bench_warn": null
+}

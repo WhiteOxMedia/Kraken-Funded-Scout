@@ -1,0 +1,116 @@
+### test_clampcost — co_filename=test_clampcost.py firstlineno=1
+DOCSTRING:
+test_clampcost.py — pins the clamp-cost study + its monthly driver.
+
+The study (diag_clampcost.py) prices the personal-bar clamp bug by
+replaying graded tide-out burials through BOTH clamp worlds. These pins
+run it HERMETICALLY (tmpdir paths, synthetic outcome rows, the store +
+live-cut replays stubbed to a known adjustment) so the battery never
+touches the production ledgers or the deep store:
+
+  1. THE VINDICATED ARC — a payer in the erased band: learned bar 86,
+     adj +3.0, quick 83 -> bugged world buries (bar clamped back to 86),
+     fixed world releases (bar 83). $791.25 x +2.5% = +$19.78.
+  2. THE COSTING ARC — the same release with a -3.0% outcome: the fixed
+     world ships a LOSER the clamp blocked: cost = 19.78 - (-23.74)
+     shape -> -$23.74. The study must price denials that SAVED money
+     negative — it is a two-sided ledger.
+  3. THE LEDGER — run_study appends one JSONL record per pass with the
+     summary fields (window, counts, cost, position).
+  4. THE DRIVER — monthly_driver_loop ticks on a fast clock, appends
+     per pass, and dies cleanly on stop.set().
+  5. THE EMPTY WINDOW — no outcomes rows: zeros, never an exception.
+
+Run: .venv\Scripts\python.exe -X 
+
+TOP-LEVEL NAMES (imports/defs in order):
+  IMPORT json
+  STORE  json
+  IMPORT sys
+  STORE  sys
+  IMPORT threading
+  STORE  threading
+  IMPORT tempfile
+  STORE  tempfile
+  IMPORT time
+  STORE  time
+  IMPORT pathlib
+  IMPORT Path
+  STORE  Path
+  STORE  BASE
+  IMPORT diag_clampcost
+  STORE  dc
+  STORE  PASS
+  STORE  FAIL
+  STORE  lines
+  STORE  check
+  STORE  _hermetic
+  STORE  _row
+  STORE  main
+
+ALL STRINGS (dedup, order-preserving, >=4 chars):
+  test_clampcost.py — pins the clamp-cost study + its monthly driver.
+
+The study (diag_clampcost.py) prices the personal-bar clamp bug by
+replaying graded tide-out burials through BOTH clamp worlds. These pins
+run it HERME
+  PASS  
+  FAIL  
+  events
+  Point the study at tmpdir files with the given synthetic rows and
+stub the replay to a known +3.0 store adjustment, no live cut.
+  snapshot_outcomes.jsonl
+  clampcost_monthly.jsonl
+  clampcost_check.txt
+  utf-8
+  pair
+  end_pct
+  return
+  2026-09-16T10:00:00-06:00
+  gate
+  tide-out
+  quick
+  brain
+  floor
+  tide
+  OUT 14%
+  08-12
+  detail
+  the OUT tide's price on the bot's ledger: quick 83.0 vs personal bar 86 (learned OUT bar 86 (payers 10.9% over 479h of deep history))
+  outcome
+  end_move_pct
+  mfe_pct
+  max_dd_pct
+  payoff
+  winner
+  speed
+  min_to_goal_min
+  clampcost_pins_
+  PUMP/USD
+  vindicated arc: bugged world buries the band payer (0 released)
+  bugged_released
+  vindicated arc: fixed world releases it (1 released)
+  fixed_released
+  vindicated arc: cost +19.78 USD (hand arithmetic)
+  cost_usd
+  vindicated arc: the txt names the clamp as the eraser
+  THE CLAMP BUG COST: +19.78
+  +19.78
+  costing arc: the fix's release priced -23.74 USD
+  costing arc: the release set is still 1/0 (same gate math)
+  ledger: two passes appended two records
+  ledger: the record carries the study's fields
+  graded_tideout
+  pass
+  fail
+  ledger: the cost records round-trip the arcs
+  driver: appended per tick and stopped cleanly
+   records (was 
+  empty window: zeros without exception
+  RESULT: 
+   passed, 
+   failed
+  _clampcostpins_check.txt
+  __main__
+
+TOTAL STRINGS: 58

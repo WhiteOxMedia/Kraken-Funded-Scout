@@ -1,0 +1,517 @@
+08:19 PM [INFO] R5 🌆 US Late | full scan every 10m
+08:28 PM [INFO] ============================================================
+08:28 PM [INFO]   Kraken Scout — Rotation Scanner (data-driven)
+08:28 PM [INFO]   Time zone: Mountain Time (MST/MDT, auto DST)
+08:28 PM [INFO]   R1 00-04 Asia | R2 04-08 Pre-US | R3 08-12 EU/US
+08:28 PM [INFO]   R4 12-16 US PM | R5 16-20 US Late | 20-24 cooldown
+08:28 PM [INFO]   Gates: calibrated confidence bar + expected-move floor
+08:28 PM [INFO]   Press Ctrl+C to stop
+08:28 PM [INFO] ============================================================
+08:28 PM [INFO]   Tide memory live driver: ON (popup outcomes refresh every 30 min)
+08:28 PM [INFO]   Deep store 5m driver: ON (live-Kraken extension every 24h)
+08:28 PM [INFO]   Sure Thing auto-refit driver: ON (monthly refit, first pass in 10 min; holdout degradation reported)
+08:28 PM [INFO]   Tide bar weekly driver: ON (outcome-vs-quantile hindsight — daily pass, 7-day grade window; first pass in 10 min)
+08:28 PM [INFO]   Flip grade driver: ON (the bench machinery judged on its own ledger — monthly once 2 weeks of history exist; first pass in 15 min)
+08:29 PM [INFO] 🧲 SURE THING ARMED (silent): BCH — coil 1.09% · 8 tests · squeeze 0.90 · ATR 0.5723644921626643 · BB 1.0 · revs 0 · hist 6%/18
+08:30 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+08:30 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+08:31 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+08:31 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+08:32 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+08:32 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+08:33 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+08:33 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+08:35 PM [INFO] 🧲 SURE THING ARMED (silent): PENGU — coil 1.04% · 3 tests · squeeze 0.94 · ATR 0.438227391117994 · BB 0.04 · revs 2 · hist 0%/16
+08:35 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+08:35 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+08:36 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+08:36 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+08:37 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+08:37 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+08:38 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+08:38 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+08:39 PM [INFO] 🧲 SURE THING ARMED (silent): MOODENG — coil 0.47% · 6 tests · squeeze 0.98 · ATR 0.4481016583964484 · BB 0.92 · revs 6 · hist 0%/13
+08:39 PM [INFO] 🧲 SURE THING ARMED (silent): PNUT — coil 1.08% · 3 tests · squeeze 0.88 · ATR 0.5603031280232267 · BB 0.08 · revs 2 · hist 0%/21
+08:40 PM [INFO] 🧲 SURE THING ARMED (silent): ASTER — coil 0.42% · 11 tests · squeeze 0.85 · ATR 0.27533332339821137 · BB 0.84 · revs 0 · hist 0%/17
+08:40 PM [INFO] 🧲 SURE THING ARMED (silent): FARTCOIN — coil 1.04% · 6 tests · squeeze 0.83 · ATR 0.5027124773960244 · BB 0.68 · revs 3 · hist 0%/8
+08:40 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+08:40 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+08:40 PM [INFO] TIDE BAR WEEKLY: === THE TIDE BAR WEEKLY — outcome bar vs the quantile ===
+08:41 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+08:41 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+08:41 PM [INFO] SURE THING AUTO-REFIT: kept refit: the fresh refit regressed vs the incumbent on the same holdout (0.519 < 0.522) — no improvement, no ship
+08:42 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+08:42 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+08:43 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+08:43 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+08:43 PM [INFO] FLIP GRADE: held — 1 week(s) of history — the grade holds until 2 (the seeded replays in diag_flipgrade.py remain simulations)
+08:44 PM [INFO]   SURE THING PNUT: deep veto — the scan reads hold 24% against the breakout
+08:44 PM [INFO] 🧲 SURE THING ARMED (silent): POL — coil 0.81% · 9 tests · squeeze 0.81 · ATR 0.665136498564446 · BB 0.96 · revs 1 · hist 0%/17
+08:45 PM [INFO] 🧲 SURE THING ARMED (silent): POPCAT — coil 0.62% · 3 tests · squeeze 1.00 · ATR 0.35358160358159924 · BB 0.48 · revs 2 · hist 0%/18
+08:45 PM [INFO] 🧲 SURE THING ARMED (silent): VIRTUAL — coil 0.93% · 11 tests · squeeze 0.83 · ATR 0.247914389275645 · BB 0.96 · revs 1 · hist 0%/15
+08:45 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+08:45 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+08:46 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+08:46 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+08:47 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+08:47 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+08:48 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+08:48 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+08:49 PM [INFO]   SURE THING LTC: deep veto — the scan reads sell 0% against the breakout
+08:49 PM [INFO]   SURE THING XRP: deep veto — the scan reads hold 20% against the breakout
+08:50 PM [INFO] 🧲 SURE THING ARMED (silent): RENDER — coil 0.79% · 3 tests · squeeze 0.85 · ATR 0.47702937677312424 · BB 1.0 · revs 3 · hist 8%/13
+08:50 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+08:51 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+08:51 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+08:52 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+08:52 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+08:53 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+08:53 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+08:54 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+08:54 PM [INFO] ============================================================
+08:54 PM [INFO]   Kraken Scout — Rotation Scanner (data-driven)
+08:54 PM [INFO]   Time zone: Mountain Time (MST/MDT, auto DST)
+08:54 PM [INFO]   R1 00-04 Asia | R2 04-08 Pre-US | R3 08-12 EU/US
+08:54 PM [INFO]   R4 12-16 US PM | R5 16-20 US Late | 20-24 cooldown
+08:54 PM [INFO]   Gates: calibrated confidence bar + expected-move floor
+08:54 PM [INFO]   Press Ctrl+C to stop
+08:54 PM [INFO] ============================================================
+08:54 PM [INFO]   Tide memory live driver: ON (popup outcomes refresh every 30 min)
+08:54 PM [INFO]   Deep store 5m driver: ON (live-Kraken extension every 24h)
+08:54 PM [INFO]   Sure Thing auto-refit driver: ON (monthly refit, first pass in 10 min; holdout degradation reported)
+08:54 PM [INFO]   Tide bar weekly driver: ON (outcome-vs-quantile hindsight — daily pass, 7-day grade window; first pass in 10 min)
+08:54 PM [INFO]   Flip grade driver: ON (the bench machinery judged on its own ledger — monthly, plus a fresh grade shortly after each weekly tide-bar pass; first pass in 15 min)
+08:55 PM [INFO] 🧲 SURE THING ARMED (silent): KAITO — coil 1.06% · 10 tests · squeeze 0.96 · ATR 0.19908335720424145 · BB 1.0 · revs 1 · hist 0%/20
+08:55 PM [INFO] 🧲 SURE THING ARMED (silent): LDO — coil 1.08% · 3 tests · squeeze 0.88 · ATR 0.3423645320197044 · BB 0.88 · revs 0 · hist 0%/16
+08:55 PM [INFO] 🧲 SURE THING ARMED (silent): TRUMP — coil 0.70% · 3 tests · squeeze 1.00 · ATR 0.43706856206856143 · BB 1.0 · revs 1 · hist 0%/13
+08:55 PM [INFO] 🧲 SURE THING ARMED (silent): POL — coil 0.81% · 9 tests · squeeze 0.81 · ATR 0.5408273850265582 · BB 0.8 · revs 1 · hist 0%/19
+08:55 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+08:56 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+08:56 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+08:57 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+08:57 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+08:58 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+08:58 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+08:59 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+08:59 PM [INFO] 🧲 SURE THING ARMED (silent): FIL — coil 0.88% · 10 tests · squeeze 0.83 · ATR 0.5269942371853205 · BB 1.0 · revs 0 · hist 0%/17
+09:00 PM [INFO] 🧲 SURE THING ARMED (silent): FARTCOIN — coil 1.32% · 3 tests · squeeze 0.83 · ATR 0.5617146517018479 · BB 0.48 · revs 1 · hist 0%/9
+09:00 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+09:01 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+09:01 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+09:02 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+09:02 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+09:03 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+09:03 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+09:04 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+09:05 PM [INFO] 🧲 SURE THING ARMED (silent): CRV — coil 1.04% · 4 tests · squeeze 0.90 · ATR 0.4821625255689538 · BB 1.0 · revs 3 · hist 0%/11
+09:05 PM [INFO] 🧲 SURE THING ARMED (silent): XRP — coil 0.54% · 6 tests · squeeze 0.88 · ATR 0.4870918215032112 · BB 0.8 · revs 1 · hist 0%/22
+09:05 PM [INFO] 🧲 SURE THING ARMED (silent): TIA — coil 0.61% · 7 tests · squeeze 0.88 · ATR 0.4407675420765939 · BB 0.92 · revs 1 · hist 0%/17
+09:05 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+09:06 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+09:06 PM [INFO] TIDE BAR WEEKLY: === THE TIDE BAR WEEKLY — outcome bar vs the quantile ===
+09:06 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+09:07 PM [INFO] SURE THING AUTO-REFIT: kept refit: the fresh refit regressed vs the incumbent on the same holdout (0.519 < 0.522) — no improvement, no ship
+09:07 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+09:07 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+09:08 PM [INFO] FLIP GRADE: held — 1 week(s) of history — the grade holds until 2 (the seeded replays in diag_flipgrade.py remain simulations)
+09:08 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+09:08 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+09:09 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+09:11 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+09:11 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+09:12 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+09:12 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+09:13 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+09:13 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+09:14 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+09:14 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+09:15 PM [INFO] 🧲 SURE THING ARMED (silent): AVAX — coil 0.50% · 9 tests · squeeze 0.81 · ATR 0.6218311959439319 · BB 0.48 · revs 3 · hist 0%/20
+09:15 PM [INFO] 🧲 SURE THING ARMED (silent): XRP — coil 0.49% · 3 tests · squeeze 0.81 · ATR 0.5634819269390322 · BB 0.72 · revs 5 · hist 0%/22
+09:16 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+09:16 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+09:17 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+09:17 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+09:18 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+09:18 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+09:19 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+09:19 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+09:20 PM [INFO] 🧲 SURE THING ARMED (silent): FIL — coil 0.88% · 7 tests · squeeze 0.83 · ATR 0.5697888911662231 · BB 0.6 · revs 1 · hist 0%/19
+09:20 PM [INFO] 🧲 SURE THING ARMED (silent): MOODENG — coil 0.75% · 3 tests · squeeze 1.00 · ATR 0.42010880515816207 · BB 0.4 · revs 3 · hist 0%/13
+09:20 PM [INFO] 🧲 SURE THING ARMED (silent): NEAR — coil 1.42% · 3 tests · squeeze 1.00 · ATR 0.6526637248702971 · BB 0.68 · revs 0 · hist 0%/2
+09:20 PM [INFO] 🧲 SURE THING ARMED (silent): RENDER — coil 0.50% · 11 tests · squeeze 0.88 · ATR 0.37167503720237605 · BB 0.88 · revs 1 · hist 0%/14
+09:21 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+09:21 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+09:22 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+09:22 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+09:23 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+09:23 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+09:24 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+09:24 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+09:26 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+09:26 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+09:27 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+09:27 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+09:28 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+09:28 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+09:29 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+09:29 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+09:30 PM [INFO] 🧲 SURE THING ARMED (silent): CRV — coil 0.71% · 4 tests · squeeze 0.96 · ATR 0.6037187309445055 · BB 0.84 · revs 3 · hist 0%/13
+09:30 PM [INFO] 🧲 SURE THING ARMED (silent): FIL — coil 0.88% · 5 tests · squeeze 0.81 · ATR 0.6062705254515605 · BB 0.52 · revs 2 · hist 0%/20
+09:30 PM [INFO]   SURE THING NEAR: 1h knife active — falling wedge, skip
+09:31 PM [INFO] 🧲 SURE THING ARMED (silent): ZEC — coil 1.45% · 11 tests · squeeze 1.00 · ATR 0.690095084307126 · BB 0.8 · revs 1 · hist 0%/5
+09:31 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+09:31 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+09:32 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+09:32 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+09:33 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+09:33 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+09:34 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+09:34 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+09:35 PM [INFO] 🧲 SURE THING ARMED (silent): KAITO — coil 0.51% · 15 tests · squeeze 0.83 · ATR 0.586621650137161 · BB 0.92 · revs 3 · hist 0%/19
+09:35 PM [INFO]   SURE THING NEAR: 1h knife active — falling wedge, skip
+09:36 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+09:36 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+09:37 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+09:37 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+09:38 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+09:38 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+09:39 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+09:39 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+09:40 PM [INFO] 🧲 SURE THING ARMED (silent): AAVE — coil 0.66% · 10 tests · squeeze 0.81 · ATR 0.6218468371350843 · BB 0.88 · revs 5 · hist 4%/23
+09:40 PM [INFO] 🧲 SURE THING ARMED (silent): CRV — coil 0.83% · 3 tests · squeeze 0.98 · ATR 0.6093419581796088 · BB 0.76 · revs 5 · hist 0%/12
+09:40 PM [INFO] 🧲 SURE THING ARMED (silent): XRP — coil 0.45% · 7 tests · squeeze 0.81 · ATR 0.5677957620962856 · BB 0.76 · revs 4 · hist 0%/24
+09:41 PM [INFO] 🧲 SURE THING ARMED (silent): ATOM — coil 1.74% · 5 tests · squeeze 0.81 · ATR 0.6824892657356892 · BB 0.4 · revs 2 · hist 0%/15
+09:41 PM [INFO] 🧲 SURE THING ARMED (silent): TAO — coil 0.83% · 14 tests · squeeze 0.98 · ATR 0.5696607560910033 · BB 0.72 · revs 2 · hist 6%/17
+09:41 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+09:41 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+09:42 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+09:42 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+09:43 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+09:43 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+09:44 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+09:44 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+09:45 PM [INFO] 🧲 SURE THING ARMED (silent): KAITO — coil 0.41% · 16 tests · squeeze 0.83 · ATR 0.7309019013966026 · BB 0.92 · revs 4 · hist 10%/19
+09:45 PM [INFO] 🧲 SURE THING ARMED (silent): SOL — coil 0.67% · 3 tests · squeeze 0.81 · ATR 0.6348913122914261 · BB 0.96 · revs 5 · hist 4%/24
+09:46 PM [INFO] 🧲 SURE THING ARMED (silent): PUMP — coil 1.99% · 6 tests · squeeze 1.00 · ATR 0.36943521594684603 · BB 0.08 · revs 2 · hist 100%/1
+09:46 PM [INFO]   SURE THING PUMP: 1h knife active — falling wedge, skip
+09:46 PM [INFO] 🧲 SURE THING ARMED (silent): VIRTUAL — coil 0.41% · 11 tests · squeeze 0.81 · ATR 0.4336349019701935 · BB 0.6 · revs 2 · hist 0%/18
+09:46 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+09:47 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+09:47 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+09:48 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+09:48 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+09:49 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+09:49 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+09:50 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+09:50 PM [INFO] 🧲 SURE THING ARMED (silent): DOGE — coil 0.38% · 6 tests · squeeze 0.85 · ATR 0.5154156653841288 · BB 0.88 · revs 1 · hist 4%/24
+09:50 PM [INFO] 🧲 SURE THING ARMED (silent): GRASS — coil 0.92% · 5 tests · squeeze 0.85 · ATR 0.21837033933807512 · BB 0.48 · revs 2 · hist 0%/11
+09:51 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+09:52 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+09:52 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+09:53 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+09:53 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+09:54 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+09:54 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+09:55 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+09:55 PM [INFO] 🧲 SURE THING ARMED (silent): LINK — coil 0.86% · 7 tests · squeeze 0.94 · ATR 0.4752626501846308 · BB 0.28 · revs 4 · hist 4%/23
+09:56 PM [INFO] 🧲 SURE THING ARMED (silent): SOL — coil 0.63% · 4 tests · squeeze 0.85 · ATR 0.5818404967813374 · BB 0.72 · revs 5 · hist 4%/25
+09:56 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+09:57 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+09:57 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+09:58 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+09:58 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+09:59 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+09:59 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+10:00 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+10:01 PM [INFO] 🧲 SURE THING ARMED (silent): NEAR — coil 1.54% · 3 tests · squeeze 1.00 · ATR 0.585340312017864 · BB 0.12 · revs 2 · hist 50%/2
+10:01 PM [INFO]   SURE THING NEAR: 1h knife active — falling wedge, skip
+10:01 PM [INFO] 🧲 SURE THING ARMED (silent): JUP — coil 1.91% · 3 tests · squeeze 0.98 · ATR 0.6488822427589386 · BB 0.88 · revs 1 · hist 0%/7
+10:01 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+10:02 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+10:02 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+10:03 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+10:03 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+10:04 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+10:04 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+10:05 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+10:05 PM [INFO] 🧲 SURE THING ARMED (silent): ARB — coil 1.13% · 3 tests · squeeze 0.81 · ATR 0.579607303798207 · BB 1.0 · revs 2 · hist 0%/7
+10:05 PM [INFO] 🧲 SURE THING ARMED (silent): AVAX — coil 0.50% · 5 tests · squeeze 0.81 · ATR 0.4793464085072326 · BB 0.56 · revs 2 · hist 5%/21
+10:06 PM [INFO] 🧲 SURE THING ARMED (silent): LDO — coil 0.80% · 3 tests · squeeze 0.88 · ATR 0.3502141597379692 · BB 0.68 · revs 2 · hist 0%/18
+10:06 PM [INFO]   SURE THING NEAR: 1h knife active — falling wedge, skip
+10:06 PM [INFO] 🧲 SURE THING ARMED (silent): PNUT — coil 1.28% · 3 tests · squeeze 0.83 · ATR 0.7041540020263544 · BB 0.76 · revs 1 · hist 0%/20
+10:06 PM [INFO] 🧲 SURE THING ARMED (silent): S — coil 0.74% · 3 tests · squeeze 0.92 · ATR 0.45543905635649595 · BB 0.04 · revs 1 · hist 0%/20
+10:06 PM [INFO] 🧲 SURE THING ARMED (silent): HYPE — coil 0.82% · 7 tests · squeeze 0.85 · ATR 0.5857966128273532 · BB 0.96 · revs 3 · hist 6%/18
+10:06 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+10:07 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+10:07 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+10:08 PM [INFO] ============================================================
+10:08 PM [INFO]   Kraken Scout — Rotation Scanner (data-driven)
+10:08 PM [INFO]   Time zone: Mountain Time (MST/MDT, auto DST)
+10:08 PM [INFO]   R1 00-04 Asia | R2 04-08 Pre-US | R3 08-12 EU/US
+10:08 PM [INFO]   R4 12-16 US PM | R5 16-20 US Late | 20-24 cooldown
+10:08 PM [INFO]   Gates: calibrated confidence bar + expected-move floor
+10:08 PM [INFO]   Press Ctrl+C to stop
+10:08 PM [INFO] ============================================================
+10:08 PM [INFO]   Tide memory live driver: ON (popup outcomes refresh every 30 min)
+10:08 PM [INFO]   Deep store 5m driver: ON (live-Kraken extension every 24h)
+10:08 PM [INFO]   Sure Thing auto-refit driver: ON (monthly refit, first pass in 10 min; holdout degradation reported)
+10:08 PM [INFO]   Tide bar weekly driver: ON (outcome-vs-quantile hindsight — daily pass, 7-day grade window; first pass in 10 min)
+10:08 PM [INFO]   Flip grade driver: ON (the bench machinery judged on its own ledger — monthly, plus a fresh grade shortly after each weekly tide-bar pass; first pass in 15 min)
+10:08 PM [INFO]   SURE THING NEAR: 1h knife active — falling wedge, skip
+10:09 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+10:09 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+10:10 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+10:10 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+10:11 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+10:12 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+10:12 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+10:13 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+10:13 PM [INFO]   SURE THING NEAR: 1h knife active — falling wedge, skip
+10:14 PM [INFO] 🧲 SURE THING ARMED (silent): ATOM — coil 1.32% · 5 tests · squeeze 0.85 · ATR 0.5113039491108442 · BB 0.84 · revs 2 · hist 0%/14
+10:14 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+10:15 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+10:15 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+10:16 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+10:16 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+10:17 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+10:17 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+10:18 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+10:19 PM [INFO] 🧲 SURE THING ARMED (silent): JUP — coil 1.71% · 3 tests · squeeze 0.96 · ATR 0.5694070080862523 · BB 1.0 · revs 0 · hist 12%/8
+10:19 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+10:20 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+10:20 PM [INFO] TIDE BAR WEEKLY: === THE TIDE BAR WEEKLY — outcome bar vs the quantile ===
+10:20 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+10:21 PM [INFO] SURE THING AUTO-REFIT: kept refit: the fresh refit regressed vs the incumbent on the same holdout (0.520 < 0.522) — no improvement, no ship
+10:21 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+10:21 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+10:21 PM [INFO] FLIP GRADE: held — 1 week(s) of history — the grade holds until 2 (the seeded replays in diag_flipgrade.py remain simulations)
+10:22 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+10:22 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+10:23 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+10:23 PM [INFO] 🧲 SURE THING ARMED (silent): ARB — coil 0.99% · 3 tests · squeeze 0.94 · ATR 0.5008235536339258 · BB 0.76 · revs 1 · hist 17%/6
+10:23 PM [INFO] 🧲 SURE THING ARMED (silent): ADA — coil 0.76% · 7 tests · squeeze 0.83 · ATR 0.4887250964333327 · BB 0.88 · revs 1 · hist 6%/17
+10:24 PM [INFO] 🧲 SURE THING ARMED (silent): ONDO — coil 0.69% · 4 tests · squeeze 0.83 · ATR 0.5112899701362015 · BB 0.04 · revs 3 · hist 5%/21
+10:24 PM [INFO] 🧲 SURE THING ARMED (silent): AIXBT — coil 0.10% · 24 tests · squeeze 1.00 · ATR 0.08219016083255593 · BB 1.0 · revs 0 · hist 5%/21
+10:24 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+10:25 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+10:25 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+10:26 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+10:26 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+10:27 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+10:27 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+10:28 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+10:28 PM [INFO] 🧲 SURE THING ARMED (silent): LINK — coil 0.75% · 4 tests · squeeze 0.83 · ATR 0.37728841564579785 · BB 0.64 · revs 1 · hist 4%/23
+10:29 PM [INFO] 🧲 SURE THING ARMED (silent): UNI — coil 1.84% · 7 tests · squeeze 0.90 · ATR 0.7518136887941291 · BB 0.96 · revs 0 · hist 0%/12
+10:29 PM [INFO]   SURE THING UNI: deep veto — the scan reads hold 28% against the breakout
+10:29 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+10:30 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+10:30 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+10:31 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+10:31 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+10:32 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+10:32 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+10:33 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+10:34 PM [INFO] 🧲 SURE THING ARMED (silent): JUP — coil 1.49% · 3 tests · squeeze 0.98 · ATR 0.5071332124006074 · BB 1.0 · revs 3 · hist 12%/8
+10:34 PM [INFO]   SURE THING AIXBT: deep veto — the scan reads hold 35% against the breakout
+10:35 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+10:35 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+10:36 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+10:36 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+10:37 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+10:37 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+10:38 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+10:38 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+10:39 PM [INFO] 🧲 SURE THING ARMED (silent): DOT — coil 0.95% · 3 tests · squeeze 1.00 · ATR 0.40452503284259866 · BB 0.96 · revs 1 · hist 0%/12
+10:39 PM [INFO]   SURE THING SOL: deep veto — the scan reads hold 21% against the breakout
+10:39 PM [INFO] 🧲 SURE THING ARMED (silent): ATOM — coil 1.06% · 5 tests · squeeze 0.81 · ATR 0.4135609893681781 · BB 0.8 · revs 0 · hist 0%/14
+10:39 PM [INFO] 🧲 SURE THING ARMED (silent): JTO — coil 1.14% · 5 tests · squeeze 0.81 · ATR 0.6023405523961322 · BB 0.52 · revs 3 · hist 0%/12
+10:39 PM [INFO] 🧲 SURE THING ARMED (silent): POL — coil 0.88% · 4 tests · squeeze 1.00 · ATR 0.45085205299445447 · BB 0.52 · revs 2 · hist 0%/17
+10:39 PM [INFO] 🧲 SURE THING ARMED (silent): TIA — coil 0.75% · 3 tests · squeeze 0.88 · ATR 0.5351075403799481 · BB 0.32 · revs 1 · hist 0%/16
+10:39 PM [INFO] 🧲 SURE THING ARMED (silent): TRX — coil 0.19% · 24 tests · squeeze 0.83 · ATR 0.4503809358658046 · BB 1.0 · revs 0 · hist 0%/28
+10:40 PM [INFO] 🧲 SURE THING ARMED (silent): ZEC — coil 1.54% · 4 tests · squeeze 0.96 · ATR 0.515248995335009 · BB 0.72 · revs 1 · hist 0%/5
+10:40 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+10:40 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+10:41 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+10:41 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+10:42 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+10:42 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+10:43 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+10:43 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+10:44 PM [INFO]   SURE THING PNUT: deep veto — the scan reads sell 0% against the breakout
+10:44 PM [INFO]   SURE THING XRP: deep veto — the scan reads hold 35% against the breakout
+10:45 PM [INFO] 🧲 SURE THING ARMED (silent): STX — coil 1.34% · 4 tests · squeeze 0.92 · ATR 0.6834288426977707 · BB 0.44 · revs 3 · hist 0%/18
+10:45 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+10:45 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+10:46 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+10:46 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+10:47 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+10:47 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+10:48 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+10:48 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+10:49 PM [INFO] 🧲 SURE THING ARMED (silent): LDO — coil 0.80% · 3 tests · squeeze 0.90 · ATR 0.4408779497589444 · BB 0.04 · revs 1 · hist 0%/17
+10:49 PM [INFO] 🧲 SURE THING ARMED (silent): WLD — coil 0.84% · 7 tests · squeeze 1.00 · ATR 0.3054790967128241 · BB 0.32 · revs 5 · hist 0%/14
+10:49 PM [INFO] 🧲 SURE THING ARMED (silent): ETC — coil 0.52% · 3 tests · squeeze 0.85 · ATR 0.263189784449459 · BB 0.04 · revs 1 · hist 0%/21
+10:49 PM [INFO] 🧲 SURE THING ARMED (silent): JUP — coil 1.26% · 8 tests · squeeze 0.98 · ATR 0.4661396705639787 · BB 1.0 · revs 3 · hist 12%/8
+10:50 PM [INFO] 🧲 SURE THING ARMED (silent): PUMP — coil 1.47% · 3 tests · squeeze 0.98 · ATR 0.37597675816469595 · BB 1.0 · revs 6 · hist 0%/3
+10:50 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+10:50 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+10:51 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+10:51 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+10:52 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+10:52 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+10:53 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+10:53 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+10:54 PM [INFO] 🧲 SURE THING ARMED (silent): AVAX — coil 0.47% · 8 tests · squeeze 0.83 · ATR 0.46309450472084335 · BB 0.28 · revs 3 · hist 0%/22
+10:54 PM [INFO] 🧲 SURE THING ARMED (silent): S — coil 1.10% · 3 tests · squeeze 0.81 · ATR 0.31026785714286104 · BB 0.04 · revs 0 · hist 0%/19
+10:55 PM [INFO]   SURE THING JUP: deep veto — the scan reads hold 18% against the breakout
+10:55 PM [INFO] 🧲 SURE THING ARMED (silent): WIF — coil 0.61% · 8 tests · squeeze 0.85 · ATR 0.3656280758918057 · BB 0.56 · revs 1 · hist 0%/19
+10:55 PM [INFO] 🧲 SURE THING ARMED (silent): ASTER — coil 0.71% · 9 tests · squeeze 0.83 · ATR 0.24114155831062598 · BB 0.36 · revs 1 · hist 0%/18
+10:55 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+10:55 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+10:56 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+10:56 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+10:57 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+10:57 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+10:58 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+10:58 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+10:59 PM [INFO]   SURE THING PNUT: deep veto — the scan reads sell 0% against the breakout
+11:00 PM [INFO] 🧲 SURE THING ARMED (silent): ATOM — coil 1.51% · 3 tests · squeeze 0.88 · ATR 0.5230603633858691 · BB 0.36 · revs 1 · hist 0%/16
+11:00 PM [INFO] 🧲 SURE THING ARMED (silent): POL — coil 0.77% · 7 tests · squeeze 1.00 · ATR 0.42102206736352876 · BB 0.64 · revs 3 · hist 0%/20
+11:00 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+11:01 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+11:01 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+11:02 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+11:02 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+11:03 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+11:03 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+11:04 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+11:04 PM [INFO] 🧲 SURE THING ARMED (silent): BNB — coil 0.62% · 6 tests · squeeze 0.81 · ATR 0.6797603951083461 · BB 1.0 · revs 3 · hist 0%/24
+11:05 PM [INFO] 🧲 SURE THING ARMED (silent): S — coil 1.10% · 6 tests · squeeze 0.81 · ATR 0.15562024182713766 · BB 0.32 · revs 0 · hist 0%/19
+11:05 PM [INFO] 🧲 SURE THING ARMED (silent): APT — coil 1.65% · 3 tests · squeeze 0.81 · ATR 0.6100898481875432 · BB 0.96 · revs 3 · hist 0%/6
+11:05 PM [INFO] 🧲 SURE THING ARMED (silent): ONDO — coil 0.78% · 4 tests · squeeze 0.81 · ATR 0.34486864494795205 · BB 0.68 · revs 1 · hist 0%/19
+11:05 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+11:06 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+11:06 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+11:07 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+11:07 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+11:08 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+11:08 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+11:09 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+11:09 PM [INFO] 🧲 SURE THING ARMED (silent): LINK — coil 0.66% · 4 tests · squeeze 0.81 · ATR 0.4480100079154767 · BB 0.8 · revs 1 · hist 0%/22
+11:09 PM [INFO] 🧲 SURE THING ARMED (silent): BCH — coil 0.60% · 9 tests · squeeze 0.81 · ATR 0.3943366475117275 · BB 0.04 · revs 4 · hist 0%/21
+11:09 PM [INFO] 🧲 SURE THING ARMED (silent): AAVE — coil 0.74% · 4 tests · squeeze 0.83 · ATR 0.6544256120527324 · BB 0.04 · revs 6 · hist 0%/23
+11:10 PM [INFO] 🧲 SURE THING ARMED (silent): PENGU — coil 0.68% · 6 tests · squeeze 0.96 · ATR 0.2867237217467668 · BB 0.36 · revs 1 · hist 0%/16
+11:10 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+11:11 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+11:11 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+11:12 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+11:12 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+11:13 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+11:13 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+11:14 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+11:14 PM [INFO] 🧲 SURE THING ARMED (silent): DOGE — coil 0.33% · 14 tests · squeeze 0.83 · ATR 0.31526031201596 · BB 0.8 · revs 1 · hist 0%/21
+11:14 PM [INFO] 🧲 SURE THING ARMED (silent): FIL — coil 0.75% · 9 tests · squeeze 0.81 · ATR 0.3693664965986398 · BB 0.52 · revs 0 · hist 0%/18
+11:15 PM [INFO] 🧲 SURE THING ARMED (silent): MOODENG — coil 0.82% · 8 tests · squeeze 1.00 · ATR 0.24209971596493393 · BB 0.08 · revs 3 · hist 0%/14
+11:15 PM [INFO] 🧲 SURE THING ARMED (silent): PNUT — coil 0.85% · 3 tests · squeeze 0.92 · ATR 0.2398205659075209 · BB 0.72 · revs 2 · hist 0%/21
+11:15 PM [INFO] 🧲 SURE THING ARMED (silent): TRUMP — coil 0.71% · 3 tests · squeeze 0.92 · ATR 0.3082087041624606 · BB 0.44 · revs 4 · hist 0%/15
+11:15 PM [INFO] 🧲 SURE THING ARMED (silent): ASTER — coil 0.71% · 9 tests · squeeze 0.81 · ATR 0.2803417208762717 · BB 0.64 · revs 1 · hist 0%/18
+11:15 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+11:16 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+11:16 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+11:17 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+11:17 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+11:18 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+11:18 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+11:19 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+11:20 PM [INFO] 🧲 SURE THING ARMED (silent): HBAR — coil 0.52% · 8 tests · squeeze 0.85 · ATR 0.48730960943031876 · BB 0.04 · revs 2 · hist 0%/24
+11:20 PM [INFO] 🧲 SURE THING ARMED (silent): LDO — coil 0.80% · 3 tests · squeeze 0.83 · ATR 0.26499745805795627 · BB 0.8 · revs 4 · hist 0%/18
+11:20 PM [INFO] 🧲 SURE THING ARMED (silent): ONDO — coil 0.65% · 3 tests · squeeze 0.90 · ATR 0.42422316473060434 · BB 0.84 · revs 2 · hist 0%/19
+11:20 PM [INFO] 🧲 SURE THING ARMED (silent): TAO — coil 0.71% · 4 tests · squeeze 0.98 · ATR 0.3005207918354023 · BB 0.68 · revs 1 · hist 0%/15
+11:20 PM [INFO] 🧲 SURE THING ARMED (silent): FARTCOIN — coil 1.11% · 3 tests · squeeze 0.94 · ATR 0.3794642857142779 · BB 0.92 · revs 4 · hist 0%/9
+11:20 PM [INFO] 🧲 SURE THING ARMED (silent): VIRTUAL — coil 0.36% · 18 tests · squeeze 0.98 · ATR 0.17178945286912636 · BB 0.04 · revs 1 · hist 0%/17
+11:20 PM [INFO] 🧲 SURE THING ARMED (silent): XPL — coil 0.61% · 3 tests · squeeze 1.00 · ATR 0.22719843085976457 · BB 0.96 · revs 4 · hist 8%/13
+11:20 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+11:21 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+11:21 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+11:22 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+11:22 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+11:23 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+11:23 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+11:24 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+11:25 PM [INFO] 🧲 SURE THING ARMED (silent): KAITO — coil 0.90% · 6 tests · squeeze 0.81 · ATR 0.3792871835775148 · BB 0.04 · revs 1 · hist 0%/19
+11:25 PM [INFO] 🧲 SURE THING ARMED (silent): WLD — coil 0.99% · 4 tests · squeeze 1.00 · ATR 0.3462404875019889 · BB 0.04 · revs 4 · hist 0%/15
+11:25 PM [INFO] 🧲 SURE THING ARMED (silent): SUI — coil 0.94% · 5 tests · squeeze 0.88 · ATR 0.3849890490110023 · BB 0.04 · revs 2 · hist 0%/17
+11:25 PM [INFO]   SURE THING XPL: 1h knife active — falling wedge, skip
+11:25 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+11:26 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+11:26 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+11:27 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+11:27 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+11:28 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+11:28 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+11:29 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+11:30 PM [INFO] 🧲 SURE THING ARMED (silent): FIL — coil 0.63% · 9 tests · squeeze 0.90 · ATR 0.22195018096657462 · BB 0.96 · revs 0 · hist 0%/20
+11:31 PM [INFO]   SURE THING XPL: 1h knife active — falling wedge, skip
+11:31 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+11:31 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+11:32 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+11:32 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+11:33 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+11:33 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+11:34 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+11:34 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+11:35 PM [INFO] 🧲 SURE THING ARMED (silent): KAITO — coil 0.90% · 6 tests · squeeze 0.88 · ATR 0.43622897313582004 · BB 0.04 · revs 2 · hist 0%/18
+11:36 PM [INFO] 🧲 SURE THING ARMED (silent): PUMP — coil 0.82% · 11 tests · squeeze 0.96 · ATR 0.29070911864573146 · BB 1.0 · revs 4 · hist 33%/3
+11:36 PM [INFO]   SURE THING PUMP: 1h knife active — falling wedge, skip
+11:36 PM [INFO]   SURE THING XPL: 1h knife active — falling wedge, skip
+11:36 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+11:36 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+11:37 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+11:37 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+11:38 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+11:38 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+11:39 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+11:39 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+11:40 PM [INFO] 🧲 SURE THING ARMED (silent): LTC — coil 0.72% · 6 tests · squeeze 0.83 · ATR 0.6111075904244354 · BB 1.0 · revs 2 · hist 0%/27
+11:41 PM [INFO]   SURE THING PUMP: 1h knife active — falling wedge, skip
+11:41 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+11:41 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+11:42 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+11:42 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+11:43 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+11:43 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+11:44 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+11:44 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+11:46 PM [INFO] 🧲 SURE THING ARMED (silent): ASTER — coil 0.40% · 11 tests · squeeze 0.98 · ATR 0.2567954577729599 · BB 1.0 · revs 0 · hist 0%/19
+11:46 PM [INFO]   SURE THING PUMP: 1h knife active — falling wedge, skip
+11:46 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+11:46 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+11:47 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+11:47 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+11:48 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+11:48 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+11:49 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+11:49 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+11:50 PM [INFO] 🧲 SURE THING ARMED (silent): KAITO — coil 0.86% · 3 tests · squeeze 0.85 · ATR 0.5799399198931839 · BB 0.36 · revs 4 · hist 10%/20
+11:50 PM [INFO] 🧲 SURE THING ARMED (silent): LDO — coil 0.80% · 3 tests · squeeze 0.98 · ATR 0.2640577507598784 · BB 0.56 · revs 3 · hist 0%/17
+11:51 PM [INFO]   SURE THING PUMP: 1h knife active — falling wedge, skip
+11:51 PM [INFO] 🧲 SURE THING ARMED (silent): VIRTUAL — coil 0.60% · 3 tests · squeeze 0.92 · ATR 0.26438050337997443 · BB 0.04 · revs 1 · hist 0%/19
+11:51 PM [INFO] 🧲 SURE THING ARMED (silent): XPL — coil 0.85% · 3 tests · squeeze 0.94 · ATR 0.27477596204533944 · BB 0.04 · revs 2 · hist 0%/10
+11:51 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+11:51 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+11:52 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+11:52 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+11:53 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+11:53 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+11:54 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+11:54 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+11:55 PM [INFO] 🧲 SURE THING ARMED (silent): HBAR — coil 0.58% · 8 tests · squeeze 0.83 · ATR 0.42670164373620983 · BB 0.2 · revs 1 · hist 4%/25
+11:56 PM [INFO] 🧲 SURE THING ARMED (silent): RENDER — coil 0.50% · 11 tests · squeeze 0.81 · ATR 0.28281788586748596 · BB 0.68 · revs 0 · hist 0%/17
+11:56 PM [INFO]   SURE THING PUMP: 1h knife active — falling wedge, skip
+11:56 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+11:57 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+11:57 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+11:58 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+11:58 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+11:59 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00
+11:59 PM [INFO]   Next check in 30s | 🌙 Cooldown Fri | COOLDOWN — no buys until 00:00

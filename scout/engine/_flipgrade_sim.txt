@@ -1,0 +1,86 @@
+=== THE FLIP GRADE — did flipped states stop losing? (Sep 11) ===
+
+SEED — the real 2026-W37 OUT record:
+  in force (the outcome fit): 48 fires $+4.62/fire (total $+221.55)
+  counterfactual (quantile): 66 fires $+3.36/fire (total $+221.55)
+  the fit's realized edge that week: +1.26 $/fire
+
+-- A. THE BENCH — the losing streak the fit earned --
+  2026-W37: fit $+4.62/fire vs quantile $+3.36/fire  edge +1.26  pooled +1.26  -> -
+  2026-W38: fit $+4.22/fire vs quantile $+3.66/fire  edge +0.56  pooled +0.91  -> -
+  2026-W39: fit $+4.12/fire vs quantile $+3.56/fire  edge +0.56  pooled +0.79  -> -
+  2026-W40: fit $+4.02/fire vs quantile $+3.46/fire  edge +0.56  pooled +0.73  -> -
+
+  HINDSIGHT IN DOLLARS (W37-W39, the fit still live):
+    the fit: $+621.87 over 144 fires ($+4.32/fire)
+    the quantile, same weeks: $+698.07 over 198 fires ($+3.53/fire)
+    per-dollar efficiency lost to the fit: $-0.79/fire x 144 fires
+    NOTE the contract: the flip keys on $/fire — per-dollar
+    efficiency — because the size ladder scales exposure per fire.
+    Raw totals still favor the fit's fatter fire count here; the
+    bench trades total dollars for efficiency. That tension is the
+    known open question on this machinery (see the verdict).
+
+-- B. THE FLIPPED WEEKS — does the state stop losing? --
+The quantile is live now; the fit's fires are counterfactual on
+the SAME candidate stream. First two weeks: the live quantile
+out-earns the benched fit (the bleed stops). Then the fit's
+counterfactual recovers on a THINNING stream — and the flip-back
+lands the week the pool turns positive.
+  2026-W41: live quantile $+3.76/fire, fit cf $+3.92/fire (fit edge +0.16, pooled +0.46) -> flip_back (fit cf winning 5 weeks, pooled fit edge +0.46)
+  2026-W42: live quantile $+3.66/fire, fit cf $+3.82/fire (fit edge +0.16, pooled +0.36) -> -
+  2026-W43: live quantile $+2.76/fire, fit cf $+6.70/fire (fit edge +3.94, pooled +0.85) -> -
+  2026-W44: live quantile $+2.86/fire, fit cf $+6.70/fire (fit edge +3.84, pooled +1.44) -> -
+  2026-W45: live quantile $+2.76/fire, fit cf $+6.70/fire (fit edge +3.94, pooled +2.41) -> -
+  2026-W46: live quantile $+2.66/fire, fit cf $+5.92/fire (fit edge +3.26, pooled +3.59) -> -
+
+  HINDSIGHT IN DOLLARS:
+    W41-W42 (the stopped bleed): the live quantile realized $+489.72 ($+3.71/fire) while the
+    benched fit's counterfactual would have paid $+3.87/fire —
+    the flip SAVED $-0.16/fire x 132 fires = $-21.12 vs staying benched-fit.
+    W43-W44 (the recovery begins, on a thinning stream): the fit's counterfactual out-earned $+6.70/fire vs the live quantile's $+2.81 — 2 consecutive fit-winning weeks, BUT the pooled 4-week edge was still negative, so the POOL GUARD held the bar benched (see W44: no flip-back). The recovery must out-earn the bad weeks' pooled
+    memory, not just a lucky fortnight — the pool crossed zero at
+    the THIRD winning week (W45): the thin 20-fire recovery weeks
+    still outweighed the fat early losses, because the pool reads
+    $/fire, not totals. The re-arm was earned on the fit's OWN
+    axis, on weeks it did not trade — a thin week still counts.
+
+-- C. THE INVERSION PROOF — the pre-fix rule, recomputed --
+Flipped-regime weeks where the fit's counterfactual LOSES two
+weeks running (the fit stays dead weight). The old code read the
+raw in_force-other delta = quantile - fit > 0 there, i.e. it saw
+'winning weeks' and re-armed a losing fit.
+  the fit's counterfactual edges those weeks: +0.46, +0.46 (losing)
+  OLD rule: raw 'winning' streak 0, raw pool +0.05 -> flip-back fires = False
+  SHIPPED rule: flip-back fires = True (stays benched: the fit never proved it)
+
+
+-- THE TRAIL -- all four arcs land on the audit trail marked SIMULATION (0 appended this run; a re-run refreshes its own records in place, so the worked examples always match this seed). The console's audit view renders them as the worked examples; no machinery consumer reads them.
+-- VERDICT --
+Does a flipped state stop losing? The machinery is built so it
+must, and the replay shows the arc: the bench requires 3
+consecutive fit-losing weeks AND a negative pooled fit edge; the
+flipped weeks are then graded live-quantile vs counterfactual-fit
+on the same candidate stream, so 'stopped losing' is directly
+observable in $/fire; and the fit returns only after consecutive
+counterfactual winning weeks AND a positive pooled edge — the
+replay shows the pool guard holding the re-arm two extra weeks
+(W44) until the recovery out-earned the bad weeks' pooled memory —
+the flip-back landed at W45, the first week the pool crossed zero.
+The trail now carries ALL FOUR arcs: arc 1 (OUT) where the bench
+PAID, arc 2 (RISING) where the bench COST, arc 3 (FLAT) where
+the re-arm itself COSTS — there the fit re-armed fast, bled
+again, and the gate re-flipped it at the first legal pass the
+second bleed allowed, so a wrong re-arm does not linger either.
+Arc 2's flip-back re-armed at the first contract-legal pass, so
+the wrong bench ended as soon as the contract allows.
+Both horizons run on the canonical fit−quantile axis, regime-
+normalized by each week's other_src (the pre-fix code would have
+re-armed a losing fit — section C shows it firing on raw deltas
+the shipped code correctly reads as losing; the shipped rule
+cannot). Two honest caveats: (1) the decision metric is $/fire —
+per-dollar efficiency — while raw totals can still favor the
+benched fit's fatter fire count, which is the ladder-vs-selection
+tension, not a bug; (2) one real week of history exists (W37), so
+every flip decision above is a seeded replay, not a lived event —
+from W38 on this grade is re-runnable from the live ledger.

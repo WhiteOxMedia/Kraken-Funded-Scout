@@ -1,0 +1,7 @@
+NEW check finds acknowledged record (dup suppressed): True
+OLD check would have missed it (dup written): True
+Traceback (most recent call last):
+  File "C:\Users\birds\Workspace\kraken_scout\test_dupcheck.py", line 42, in <module>
+    left = conn.execute("SELECT COUNT(*) c FROM signals WHERE pair='TESTACK/USD'").fetchone()["c"]
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^
+TypeError: tuple indices must be integers or slices, not str

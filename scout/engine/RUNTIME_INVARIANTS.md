@@ -1,0 +1,124 @@
+# RUNTIME INVARIANTS — kraken_scout
+
+**Runtime state is never stashed, never committed, never auto-saved by hooks.
+Runtime directories are owned exclusively by the running scanner.**
+
+These invariants are policy AND enforcement. The guard tests below fail the
+suite (and the pre-commit hook blocks the commit) if any of this regresses.
+
+---
+
+## What counts as runtime state
+
+Any file the running stack *writes while trading*:
+
+- **Live positions & books:** `contest_watch.json`, `contest_account.json`,
+  `contest_trades.jsonl`, `take_payouts.json`, `signal_snapshots.jsonl`,
+  `snapshot_outcomes.jsonl`, `pending_check.txt`
+- **Scanner memory & caches:** `signals.db`, `ohlcv_cache.db`,
+  `rotation_thresholds.json`, `rotation_lockout.json`, `climb_levels.json`,
+  `volatility_universe.json`, `sure_thing_autoweights.json`, `coin_floors.json`,
+  `tide_bar_*`, `tide_retune_state.json` (its `.json.lock` anchor too — only the kernel's byte-range on it is the lock), `discipline_state.json`,
+  `scanner_state.json`, `scanner.lock`
+- **Voice & logs:** `voice_log.jsonl`, `speech_queue/`, `scanner.log`,
+  `logs/`, every `*.log`
+- **Console state:** `console_state.json`, `console_prefs.json`,
+  `popup_suppressions.jsonl`, `.last_boot_greet`
+
+Live **positions** (the rows in `contest_watch.json`) are real money in
+flight. On 2026-09-21 the old pre-commit hook's stash dance reset this file
+to `{}` **twice mid-session**, leaving a live FARTCOIN position unwatched
+with no exit checks. That incident is the reason every rule below exists.
+
+## The rules
+
+1. **Never stashed.** No hook, script, alias, or human workflow may run any
+   stash operation on this repository while the scanner runs — which is
+   always. Enforced by `test_no_runtime_stash.py` and the pre-commit guard
+   (a commit adding stash logic is blocked).
+2. **Never committed.** Runtime state files must not be added to commits.
+   The post-commit review filter class-filters them out of reviews; the
+   tripwire reports any commit that touches them.
+3. **Never auto-saved by hooks.** Hooks must not read, write, move, copy, or
+   *reference* runtime paths. They review code only. Enforced by
+   `test_hooks_ignore_runtime_state.py`.
+4. **Runtime directories are owned exclusively by the running scanner.**
+   Humans and tooling observe (read-only); nothing else mutates them. The
+   `SOLD` button, the scanner's exit path, and the contest itself are the
+   only writers of position state.
+5. **A review that would require hiding the working tree is wrong.** The
+   CodeRabbit review runs against the tree as-is. Churn is noise; noise is
+   never an excuse to move files under a live trading system.
+
+## THE PIN-DRIFT CONVENTION (Sep 29, the sweep's lesson)
+
+Every drive pin is a promise about a shape somewhere else in the fleet —
+a call signature, a component count, a file convention, a threshold. When
+a commit LEGITIMATELY changes that shape, the pin is part of the change:
+
+**Any commit that changes a pinned shape updates the pin in the SAME
+commit.** Never "fix the tests later", never leave a red drive for the
+next session to decode — a stale pin is a lie the next sweep reads as a
+production failure (the Sep-29 sweep: 2 of its 4 reds were exactly this,
+including a lifecycle pin still counting four components after the
+fifth joined).
+
+- **Legitimate shape change** → update the pin's assertion AND its
+  label to name the new truth and WHY it changed ("counts five
+  components — hindsight_service joined Sep 29"). The label is the
+  changelog.
+- **Regression, not evolution** (the new shape is a bug) → fix the
+  production code, keep the pin.
+- **Can't tell which?** The pin wins the argument: revert the shape
+  change and re-decide deliberately. A drive failing is information;
+  silencing it without a decision is how the fleet stops noticing.
+- The commit-gate catches honest misses (a same-commit pin update that
+  doesn't match the new code still blocks); the SWEEP catches the
+  drift this convention prevents. Both exist because pins rot quietly —
+  see manifest task 35 for the precedent.
+
+## The canary cohort guard (the three-review family, closed)
+
+`auto_adjust_canary.json` is the RUNNING MACHINE's armed cohort — the
+auto-adjust gate reads it live per rotation boundary. It is runtime
+state: never committed, never stashed, and never written by a drill.
+The guard, in `canary_runner.run_canary`:
+
+- **Default is simulation** (`arm=False`): no flip, no rollback — a
+  what-if touches nothing (the four-review major, closed 88ab18d).
+- **`arm=True` REFUSES the live cohort** (`CanaryArmRefused`) unless
+  `arm_confirm=True`: the guard compares `cohort_file().resolve()`
+  (the `AUTO_ADJUST_CANARY_FILE` seam) against
+  `RUNTIME_COHORT_FILE.resolve()` — a staging sandbox moves the seam
+  and sails through; a deliberate live re-arm must say so and is
+  stamped `armed_live_cohort: true` in the run report (45dd456+).
+- Production arming stays `ops/canary_enable` → `flip_canary(params=…)`.
+
+Pinned red-first-in-spirit in `test_canary.py` (the refusal leg runs
+BEFORE any sandbox rebinding).
+
+## Arming the hook (fresh clones)
+
+The pre-commit hook is **versioned at `hooks/pre-commit`** and survives
+clones; machine-local `.git/hooks` copies are not used. A fresh checkout
+arms it with ONE line (this is policy, not folklore — without it the
+stash guard, the commit gate, and the tripwires do not run):
+
+    git config core.hooksPath hooks
+
+## Enforcement map
+
+| Layer | Guard |
+|---|---|
+| pre-commit hook | blocks any staged diff adding stash logic; runs no file operations itself |
+| `test_no_runtime_stash.py` | fails if hooks/scripts/aliases contain stash invocations; fails if `git stash list` is non-empty |
+| `test_hooks_ignore_runtime_state.py` | fails if any active hook references runtime paths; fails if the machine-local `.git/hooks/pre-commit` drifts from the tracked `hooks/pre-commit` (byte-census, CRLF-normalized — the fallback lives outside git, so the census is its only pin) |
+| `runtime_tripwire.py` | passive monitor: checksums runtime state, reports commits/stashes/scripts touching it |
+| `safe_commit.py` | refuses to commit while the scanner is mid-write (live pid + watch rows) |
+
+## If the stash list is ever non-empty again
+
+Do not pop blindly. Audit content against the worktree first, quarantine
+unique bytes OUTSIDE the repo (see `..\stash_rescue_2026-09-21\README.md`
+for the 2026-09-21 precedent and method), then clear. Positions recovered
+from a stash snapshot must be re-verified against the live feed.

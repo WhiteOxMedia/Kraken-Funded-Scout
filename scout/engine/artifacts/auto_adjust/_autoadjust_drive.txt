@@ -1,0 +1,80 @@
+PASS  below the sample floor the rule refuses (named, not silent)
+PASS  below the ratio floor the rule refuses (the gates were RIGHT)
+PASS  B_MIN boundary passes and the delta is proportional (0.05 x 0.4 x ln 6)
+PASS  the per-adjustment cap binds (r=1.0, B=200 would beg -0.265, it gets -0.10)
+PASS  the cap holds at absurd sample counts
+PASS  the clamp honors the machine's guard bounds (2.0 -> 1.92)
+PASS  the clamp floors at GUARD_CLAMP's low end (0.6 - 0.2 -> 0.5)
+PASS  concentration: one gate carrying 8 of 10 payers reads 0.8
+PASS  concentration of no payers is 0.0, never a division error
+PASS  a clean rotation APPLIES (conc 3/8 < 0.5, factor 2.0 -> 1.92)
+PASS  the time box rides the state (3 rotations, before recorded)
+PASS  the daily cumulative cap refuses the third same-day adjust (0.16 + 0.08 > 0.20)
+PASS  the refusals are LEDGERED, not dropped (three rows, named)
+PASS  a single-gate story cannot auto-apply — it queues for review and the factor does not move
+PASS  the operator's queue_review override applies through the same caps (1.84 -> 1.79)
+PASS  the operator rollback restores the pre-adjust factor
+PASS  rolling back a rotation with no applied row refuses honestly
+PASS  the full undo (the box-opening rotation) collapses the box and restores 2.0
+PASS  after 3 rotations the box expires and ITS before factor is restored (the auto-revert)
+PASS  a live box reports its remaining rotations instead of expiring
+PASS  a stacked adjustment preserves the ORIGINAL before in the box (the restore target is the pre-adjustment factor, not the already-loosened one)
+PASS  the stacked box's expiry restores the ORIGINAL factor (2.0, not the intermediate)
+PASS  the first production apply lands (applied, 2.0 -> 1.95)
+PASS  the second production apply lands ON the live box (applied, 1.95 -> 1.90 — the stack is real, never a refusal masquerading as a pass)
+PASS  the production stack keeps the ORIGINAL before in the box (2.0 — the restore target is the pre-adjustment factor, not the first box's 1.95)
+PASS  the production stack's expiry restores the ORIGINAL factor (2.0, not the intermediate 1.95)
+PASS  lifecycle stack #1 (LIFE-A) applies, factor 1.95
+PASS  lifecycle stack #1: the box's anchor is still the ORIGINAL 2.0 (deep stacks never rewrite the restore target)
+PASS  lifecycle stack #2 (LIFE-B) applies, factor 1.9
+PASS  lifecycle stack #2: the box's anchor is still the ORIGINAL 2.0 (deep stacks never rewrite the restore target)
+PASS  lifecycle stack #3 (LIFE-C) applies, factor 1.85
+PASS  lifecycle stack #3: the box's anchor is still the ORIGINAL 2.0 (deep stacks never rewrite the restore target)
+PASS  lifecycle stack #4 (LIFE-D) applies, factor 1.8
+PASS  lifecycle stack #4: the box's anchor is still the ORIGINAL 2.0 (deep stacks never rewrite the restore target)
+PASS  after FOUR stacks the box's after is the last apply (1.80)
+PASS  the 4-stack box's expiry restores the ORIGINAL 2.0
+PASS  the expiry LEDGERS its revert (a time_box_expired row: 1.80 -> 2.0, LIFE-D's rotation_id carried)
+PASS  expiry removes the box from the state (the tombstone held)
+PASS  the post-expiry apply opens a FRESH box anchored at 2.0 (no stale carry; its own rotation_id and evidence)
+PASS  the post-expiry box reverts to 2.0 and leaves no box behind
+PASS  the first apply for a rotation lands (applied)
+PASS  a second apply for the SAME rotation refuses by name (rotation_already_applied — one adjustment per rotation, ever)
+PASS  the base rotation opens its box (applied, 2.0 -> 1.95)
+PASS  the stacked rotation lands on the base box (applied, 1.95 -> 1.90)
+PASS  rolling back the SECOND stacked rotation lands (reverted, 1.90 -> 1.95 — the first adjustment's loosening legitimately stands)
+PASS  the rollback of a STACKED rotation keeps the box alive with the ORIGINAL anchor (2.0) — undoing the top never strands the first adjustment's restore target
+PASS  the surviving loosening is still temporary by construction: the drained box's expiry restores the ORIGINAL 2.0 and the expiry row names the box's lineage (STACK-A)
+PASS  the base rotation opens its own box for the collapse leg (applied, 2.0 -> 1.95)
+PASS  rolling back the BASE rotation collapses the whole box (factor 2.0, no box left — the operator's full undo)
+PASS  a stacked rotation's undo REFUSES after the full undo cleared the box (time_box_already_cleared — no stale intermediate factor resurrects outside any box; the factor stays 2.0)
+PASS  a fresh chain's box opens on the cleared slate (applied, 2.0 -> 1.95)
+PASS  a cleared chain's row CANNOT undo into the live box even when its before equals the live anchor (rotation_not_in_live_box — the stale undo must not collapse the live box)
+PASS  a cleared chain's row refuses even when its before matches the live box's after (shape is not lineage — the box stays intact under its own chain)
+PASS  the live chain's own base undo still collapses its box (reverted 2.0, boxless — lineage passes, shape governs)
+PASS  the scanner's boundary hook carries the box heartbeat (one tick per closed rotation + expire, watermarked aa_box_last_rotation — the wiring is fenced in source)
+PASS  the DRIFTED box retires WITHOUT the restore (the recompute's 1.7 stands — a stale anchor never yanks the guard against newer data)
+PASS  the drifted expiry LEDGERS its retirement (status expired, 1.95 -> 1.7 — the no-restore is on the record)
+PASS  the UNDRIFTED box still restores its anchor (the clean auto-revert, unchanged by the guard)
+PASS  the ARMED daily_cap bites: a 0.05 delta refuses under a 0.02 armed cap even though the module default is 10.0 (the cell governs, not the module global)
+PASS  a full armed cell applies and the record carries ALL THREE keys (the proof the armed params are live)
+PASS  a tightening delta is refused by name (self-adjust only refunds)
+PASS  a refused rotation still leaves its evidence bundle (insufficient_samples, checksummed)
+PASS  the bundle is immutable — re-proposing never rewrites it
+PASS  the bundle carries the per-gate CSV
+PASS  a passing rotation applies through propose_from_aggregate with the bundle attached
+PASS  re-arm: a FRESH box still arms the full 3 (the birth contract)
+PASS  re-arm: a STACK CARRIES the countdown (rotations_left is the box's remaining life, never the apply's reset)
+PASS  re-arm: the stacked row records its TRUE expiry window (the rec's promise matches the carried box)
+PASS  re-arm: an apply on a DUE box expires it FIRST (the same drift-aware expiry the heartbeat runs — no loosening stacks onto a dead guarantee)
+PASS  re-arm: the post-expiry apply opens a FRESH box from the restored anchor (before 2.0, full 3 rotations)
+PASS  re-arm: a DUE box under a DRIFTED factor retires stale (no restore yank) and the apply evaluates from the recompute's factor — the foreign writer is never clobbered
+PASS  re-arm: a REFUSED apply still expires the due box (the guarantee's death is the box's business, not the cap's)
+PASS  re-arm: a box that EXPIRED inside the apply's window stays dead — the write-back births a fresh box from the live factor, never resurrects the closed guarantee
+PASS  re-arm: a TICK inside the apply's window is not written back over — the box's remaining rotations at write time win
+PASS  re-arm: a factor MOVED inside the apply's window re-clamps the stack from the live value (the rec and the written factor tell the truth about their base)
+PASS  re-arm: a box TICKED TO 0 inside the window stays dead — the apply expires it (the heartbeat's own expiry, ledgered) and births fresh from the restored anchor, never clamps 0 -> 1 onto a spent guarantee
+PASS  re-arm: a tick landing INSIDE the write's own window is never written back over — the setter's read-time rotations win, not the caller's snapshot
+PASS  re-arm: a box due AT THE WRITE dies there — the setter expires it (ledgered) and births from the restored anchor, and the rec re-clamps to the post-expiry truth (the rec, the box and the factor tell one story)
+
+RESULT: 78 passed, 0 failed

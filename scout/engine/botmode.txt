@@ -1,0 +1,15 @@
+﻿2026-08-24 07:42:16,725 [bot_engine] INFO: Own scanning OFF â€” scout funnel owns buys; managing exits only
+2026-08-24 07:42:16,856 [__main__] INFO:   No open positions â€” scanning for entries
+2026-08-24 07:42:16,856 [__main__] INFO: Sleeping 15 minutes (Scout signals checked every 60s)...
+2026-08-24 07:43:21,078 [scout_signal_reader] INFO: ðŸ“Š Balance check: $482.44 (start $485.79, 0.7%)
+2026-08-24 07:43:21,215 [scout_signal_reader] INFO: Scout BUY STX/USD â€” at max positions (3/3), running the challenge
+2026-08-24 07:43:21,346 [scout_signal_reader] INFO: Scout BUY STX/USD skipped â€” challenge lost, incumbents hold
+2026-08-24 07:43:21,589 [scout_signal_reader] INFO: Scout BUY VIRTUAL/USD â€” at max positions (3/3), running the challenge
+2026-08-24 07:43:21,720 [scout_signal_reader] INFO: Scout BUY VIRTUAL/USD skipped â€” challenge lost, incumbents hold
+2026-08-24 07:43:21,869 [scout_signal_reader] INFO: Scout BUY TAO/USD â€” at max positions (3/3), running the challenge
+2026-08-24 07:43:21,996 [scout_signal_reader] INFO: Scout BUY TAO/USD skipped â€” challenge lost, incumbents hold
+2026-08-24 07:45:22,351 [scout_signal_reader] INFO: ðŸ“Š Balance check: $482.44 (start $485.79, 0.7%)
+2026-08-24 07:45:22,659 [scout_signal_reader] INFO: Scout BUY APT/USD â€” at max positions (3/3), running the challenge
+2026-08-24 07:45:22,796 [scout_signal_reader] INFO: Scout BUY APT/USD skipped â€” challenge lost, incumbents hold
+2026-08-24 07:45:22,950 [scout_signal_reader] INFO: Scout BUY ARB/USD â€” at max positions (3/3), running the challenge
+2026-08-24 07:45:23,080 [scout_signal_reader] INFO: Scout BUY ARB/USD skipped â€” challenge lost, incumbents hold

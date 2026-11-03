@@ -1,0 +1,28 @@
+=== THE SURE THING'S FIRE BAR, GRADED (Sep 10) ===
+pairs replayed: 54   armed poll steps: 15646 (stride 3 candles)
+coil episodes (the live funnel's pop-once unit): 3858
+armed score distribution: p10 21.5 / p25 25.3 / median 30.1 / p75 34.0 / p90 37.8 / max 91.6
+
+per bar: fires = episodes whose score crossed B (first crossing, the live trigger); payers hit the popup's own goal (+1.5% in 60 min from the crossing close). $/fire = goal-take on payers + end-move on every fire, sized by the funnel's ladder at the crossing score.
+
+── all tides ──
+ bar  fires  payers   rate  med mfe  end avg   $ total  $/fire
+  40    421      53  12.6%    0.34%   +0.07%    +57.93   +0.14
+  45    160      26  16.2%    0.40%   +0.06%    +52.30   +0.33
+  50     72      13  18.1%    0.53%   +0.10%    +48.42   +0.67
+  55     38      12  31.6%    0.83%   +0.26%    +65.86   +1.73
+  60     20       6  30.0%    0.79%   -0.08%    +39.76   +1.99
+  65      8       4  50.0%    1.09%   -0.19%    +35.29   +4.41
+
+── fires at the 45 bar (the shipped threshold), by tide state ──
+RISING  fires  30  payers   7 (23.3%)  goal-take $+34.81
+FLAT    fires  68  payers  13 (19.1%)  goal-take $+62.67
+OUT     fires  62  payers   6 (9.7%)  goal-take $+21.05
+
+
+── the contract test: payer rate by bar, three contracts ──
+  1.5% / 60 min (the popup's)  40:12.6%  45:16.2%  50:18.1%  55:31.6%  60:30.0%  65:50.0%
+  1.5% / 4 h (the store's)     40:41.0%  45:47.2%  50:52.8%  55:60.5%  60:60.0%  65:75.0%
+  3.0% / 4 h (popup-grade)     40:18.1%  45:26.4%  50:26.4%  55:26.3%  60:25.0%  65:0.0%
+
+READ (Sep 11, post-refit): the legacy score RANKED PAYERS BACKWARDS — holdout AUC 0.410, payer rate FALLING as the bar rose (the Sep 10 verdict). The ridge refit (diag_surething_refit.py — the coin's own history at 56 of the weight, ceiling tests 15, the squeeze 12; the tight-coil/pullback/buy-dominance terms ranked nothing and zeroed) un-inverted the ranking: payer rate now RISES with the bar under every contract, and every bar 40-65 shows POSITIVE $/fire under the popup's own 60-minute contract — the first time any Sure Thing configuration has shown that. The shipped bar is 45 (frequency-weighted edge; 55-65 pay more per fire on far fewer fires). Rollback: SURE_THING_USE_REFIT=False restores the legacy score and the blanket no-win regime. Caveat: one 30-day falling-market regime — re-grade on a rising month before trusting the weights blindly.

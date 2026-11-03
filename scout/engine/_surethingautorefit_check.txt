@@ -1,0 +1,26 @@
+PASS  the refit period is monthly  
+PASS  the first pass fires shortly after boot (the store is touched at every restart)  
+PASS  the forward-ranker floor and the drop margin exist  
+PASS  the weights ledger is a real file beside the module  
+PASS  the report rotates instead of growing forever  
+PASS  the scanner wires the auto-refit driver  
+PASS  the driver is a daemon beside its siblings  
+PASS  a fit that beats legacy and the incumbent SHIPS  {'verdict': "SHIPPED: holdout AUC 0.994 at-or-better than the incumbent's 0.983 and legacy's 0.680 on the same holdout — 1050 train / 450 holdout episodes", 'shipped': True, 'auc_new': 0.9936381186381187, 'auc_incumbent': 0.982515795015795, 'auc_legacy': 0.6798876798876798}
+PASS  the ship swapped the live weights (atomic dict update, clipped to the module's [0, 40] band)  {'tight': 0.0, 'atr': 0.0, 'bb': 0.0, 'tests': 20.0, 'pull': 0.0, 'buydom': 0.0, 'fade': 0.0, 'micro': 0.0, 'burst': 0.0, 'squeeze': 0.0, 'hist': 80.0}
+PASS  the ship stamped the ledger  SHIPPED: holdout AUC 0.994 at-or-better than the incumbent's 0.983 and legacy's 0.680 on the same holdout — 1050 train / 450 holdout episodes
+PASS  the report landed and carries the verdict  
+PASS  a fit below the incumbent is KEPT (no regression ships)  {'verdict': "DEGRADED vs refit: holdout AUC 0.864 is more than 0.03 below the incumbent's 0.994 on the same holdout — keeping the incumbent's weights and reporting the degradation", 'shipped': False, 'auc_new': 0.8642725517725518, 'auc_incumbent': 0.9936381186381187, 'auc_legacy': 0.6798876798876798}
+PASS  a keep leaves the live weights untouched  
+PASS  the keep is stamped honestly (shipped: false)  
+PASS  a fit far below the incumbent is named DEGRADED  {'verdict': "DEGRADED vs refit: holdout AUC 0.758 is more than 0.03 below the incumbent's 0.994 on the same holdout — keeping the incumbent's weights and reporting the degradation", 'shipped': False, 'auc_new': 0.7576342576342576, 'auc_incumbent': 0.9936381186381187, 'auc_legacy': 0.6798876798876798}
+PASS  the degradation is on the report (the report-when-degraded contract)  
+PASS  the degraded pass still keeps the incumbent's weights  
+PASS  a coin-flip fit never ships  {'verdict': 'kept refit: the fresh refit does not beat legacy (holdout AUC 0.687 vs legacy 0.680)', 'shipped': False, 'auc_new': 0.6874341874341874, 'auc_incumbent': 0.9936381186381187, 'auc_legacy': 0.6798876798876798}
+PASS  a thin replay keeps the incumbent and says why  {'verdict': 'kept: replay too thin (0 rows < 400) — the incumbent stands', 'shipped': False}
+PASS  a thin replay touches no weights  
+PASS  the driver loop runs its first pass and idles alive  {'n': 1}
+PASS  a raising pass never kills the driver  
+PASS  the shipped REFIT_W source stands (the refit swaps at runtime, the file is the cold-start truth)  
+PASS  the production ledger was never written by a test  
+
+RESULT: 24 passed, 0 failed

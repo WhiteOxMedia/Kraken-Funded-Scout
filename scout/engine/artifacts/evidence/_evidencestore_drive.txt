@@ -1,0 +1,14 @@
+PASS  the snapshot copies the inputs and pins their sha256s
+PASS  the manifest names the commit sha (the code that read them is part of the evidence)
+PASS  the bundle checksum covers the manifest itself
+PASS  a fresh bundle verifies clean
+PASS  byte drift fails verify BY NAME
+PASS  a missing input fails verify BY NAME
+PASS  an existing bundle is returned untouched (immutable, verify-first)
+PASS  the 100-day-old bundle is pruned at the 90-day floor, and the prune REPORTS it
+PASS  a second prune removes nothing (idempotent, never silent about it)
+PASS  a missing input is REPORTED in the manifest, never silently dropped
+PASS  the LIVE machine's inputs snapshot into a sandbox store (files pinned, the db among them, production evidence untouched)
+PASS  the sandboxed live-input bundle verifies (the referee could replay from it)
+
+RESULT: 12 passed, 0 failed

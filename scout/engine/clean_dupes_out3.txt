@@ -1,0 +1,6 @@
+backup written: signals.db.bak-20260824-dupes
+deleted 1: ['XPL/USD id=31f5ac96']
+remaining open buy records: 3
+  2026-08-24T11:47:52 JUP/USD scout_auto
+  2026-08-24T11:47:53 LDO/USD scout_auto
+  2026-08-24T11:59:06 XPL/USD scout_auto

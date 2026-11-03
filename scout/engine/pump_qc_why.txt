@@ -1,0 +1,12 @@
+now: Tue 09:22:11 AM Denver
+
+latest PUMP signal: 2026-08-25T08:53:39 conf=77% entry=0.004674
+live: 0.004656  (moved -0.4% since signal)
+intended 1h low (4x15m): 0.004645 -> chase +0.2%
+ACTUAL QC base (4x1h): 0.004491 -> chase +3.7% (BLOCK) — the QC uses this one
+deep scan read NOW: HOLD 40% (needs buy + 60 floor)
+  reasons: Regime: ranging (volatility rank 40/100); MACD bearish (hist=-0.0000); EMA bearish (short < long)
+pace now: 0.7h (cap 6.0h) (pass)
+payout block: none
+
+VERDICT: chase guard is the no

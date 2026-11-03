@@ -1,0 +1,32 @@
+universe size: 54
+
+TOP 20 MOVERS (24h) — * = in the 54-asset universe:
+ 1.   +659.2%  SIDEKICK/USD
+ 2.    +81.7%  WEN/USD
+ 3.    +29.7%  WARD/USD
+ 4.    +27.2%  AI3/USD
+ 5.    +26.7%  0G/USD
+ 6.    +25.9%  LOCKIN/USD
+ 7.    +24.1%  GAIA/USD
+ 8.    +21.8%  NOCK/USD
+ 9.    +20.6%  ZORA/USD
+10.    +18.4%  TX/USD
+11.    +18.1%  OOB/USD
+12.    +16.6%  FLOCK/USD
+13.    +16.5%  SOMI/USD
+14.    +14.8%  MNGO/USD
+15.    +13.1%  CCD/USD
+16.    +12.2%  WAXL/USD
+17.    +12.0%  NOT/USD
+18.    +11.5%  SKR/USD
+19.    +10.0%  BOB/USD
+20.     +9.4%  SAPIEN/USD
+
+of the top 10 movers, 0 are in the universe
+
+best IN-UNIVERSE movers:
+      +6.1%  STX/USD
+      +3.8%  CRV/USD
+      +3.8%  WIF/USD
+      +2.4%  FIL/USD
+      +2.2%  NEAR/USD

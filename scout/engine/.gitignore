@@ -1,0 +1,158 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Virtual environments
+.venv
+
+# console watchdog runtime timestamp - rewritten on every heal
+.console_watchdog.grace
+
+# Sure Thing backtest harness runtime data (bt_surething.py download)
+surething_data/
+_bt_download_summary.json
+# the goal-tilt evidence the weekly diag writes for the fire seam
+surething_goal_tilt.json
+surething_goal_tilt.json.tmp*
+exit_extension.dial.json
+exit_extension.dial.json.tmp*
+auto_adjust_canary.json
+auto_adjust_canary.json.tmp*
+# the single-instance guard's pid file
+.scanner.pid
+# the volatility engine's singleton pid file (Oct 8: the engine claims
+# .volatility.pid before any boot work — a live-python double is
+# refused, a dead lock retaken; runtime state, never committed)
+.volatility.pid
+# the hindsight service's pid file (runner CLI bookkeeping; the live
+# ownership contract is the port)
+.hindsight.pid
+# the console boot-greeting's machine-wide marker (one spoken greeting
+# per 30 min — duplicate browser tabs can never chorus)
+.last_boot_greet
+# sqlite WAL sidecars of the live bridge db (the db itself is committed
+# after a checkpoint) + the backfill's safety copy
+signals.db-shm
+signals.db-wal
+signals.db.bak_botstrategy
+# the contest account's writer lockfile (written on every balance save)
+contest_account.json.lock
+contest_account.json.lock.tmp*
+stop_stack.lock
+
+# ── fleet runtime state (Sep 20) ─────────────────────────────────────
+# single-instance lock files (pid journals rewritten on every boot)
+*.lock
+# atomic-write tmp suffixes (json/tmp churn from every live writer)
+*.tmp
+*.tmp.*
+# sqlite WAL sidecars of every live store (the .db itself is committed
+# after a checkpoint; the sidecars are fleet-owned)
+*-shm
+*-wal
+# scanner log rotations (the live scanner.log is committed as evidence)
+scanner.log.20*
+# the live voice wav the speech queue renders
+speech_queue/*.wav
+# cache scratch dirs from diag runs
+_test_*/
+
+# ── RUNTIME STATE (RUNTIME_INVARIANTS.md, Sep 21) ──
+# Owned exclusively by the running scanner/console: never committed,
+# never revertable by a git operation (the 2026-09-21 hook-dance lesson:
+# a stash/checkout of tracked state files silently reverted the live
+# contest tier and hid an open position).
+contest_account.json
+push_canary.json
+push_canary.json.tmp*
+price_alert.lock
+price_alert_state.json
+price_alert_state.json.tmp*
+# the payer-recovery watcher's runtime state (same idiom as price_alert)
+payer_alert.lock
+payer_alert_state.json
+payer_alert_state.json.tmp*
+payer_alert_metrics.csv
+# the stale-release tripwire runtime state (the ops-watcher idiom, Oct 8)
+stale_release_alert_state.json
+stale_release_alert_state.json.tmp*
+console_state.json
+contest_watch.json
+discipline_state.json
+scanner_state.json
+rotation_lockout.json
+rotation_thresholds.json
+sure_thing_autoweights.json
+climb_levels.json
+take_payouts.json
+popup_suppressions.jsonl
+popups.jsonl
+contest_trades.jsonl
+signal_snapshots.jsonl
+snapshot_outcomes.jsonl
+tide_bar_flip_events.jsonl
+tide_bar_reckoning_window.jsonl
+# the opp verdict's scheduled report (the prepended keep/kill sections)
+opp_hindsight_report.txt
+# the tide-retune valve's persisted day ledger (a restart must not
+# refill the daily cap) + its lock anchor (PERSISTS — only the
+# kernel's byte-range on it is the lock; the file itself is just the
+# handle's anchor and stays beside the ledger)
+tide_retune_state.json
+tide_retune_state.json.tmp*
+tide_retune_state.json.lock
+# the opp class's first-fire reminder marker (one-shot, the reminders/
+# idiom — a repo operation must never re-fire the toast)
+_opp_first_fire_reminder.done
+voice_log.jsonl
+*.db
+scanner.log
+scanner.lock
+scanner_stderr.log
+scanner_stdout.log
+logs/
+speech_queue/
+hype_now.txt
+why_rejected.txt
+kii_woulda.txt
+liq_cal.txt
+one_asset.txt
+zec_trace.txt
+
+# battery health reports: machine-written run history (never committed)
+battery_history/
+
+# scratch policy (Sep 24): volatile artifacts live in scratch/*
+!scratch/bot_mutation_audit.py
+!scratch/bot_mutation_journal.json
+!scratch/bot_mutation_report.txt
+!scratch/journal_reverified_20260930.json
+!scratch/journal_reverified_20260930_run2.json
+!scratch/apptest_phase.py
+!scratch/sweep_batches.py
+!scratch/sbx_integrity.py
+!scratch/launch_committed_sweep.py, swept
+# by kraken_stalewatch; the repo root stops being a scratch destination
+
+# policy summaries (stale purges, hygiene) are runtime state, like battery_history
+reports/
+
+# task 8: rotation evidence bundles stay on disk (15MB+ db images,
+# retention 90d) — the manifest pins their checksums
+artifacts/evidence/rotations/
+
+# ── the private ntfy push topic (Oct 7, Phase 0 rotation hygiene) ──
+# All three were TRACKED until today, and the monero bundle builder
+# ships `git archive kraken_scout HEAD` — so the public zip served at
+# pool /downloads/KrakenScoutBundle.zip carried the topic in 3 entries
+# (anyone with the URL could subscribe and read every BUY / GET OUT).
+# Untracked + denied means the archive door (the commit itself) can
+# never carry them again. The live files STAY on disk: the scanner
+# re-reads push_topic.txt on every send, no restart needed.
+push_topic.txt
+_ntfydiag.txt
+.workshop/

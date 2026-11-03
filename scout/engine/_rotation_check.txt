@@ -1,0 +1,41 @@
+PASS  fresh asset allowed  
+PASS  same-rotation re-fire -> ALLOWED (the cap is off)  re-entry (fired 12-16 earlier today)
+PASS  ...flagged as a re-entry (the popup still says so)  
+PASS  the strict 'already ran' verdict can no longer return  
+PASS  other asset unaffected  
+PASS  new rotation -> re-armed  re-entry (fired 00-04 earlier today)
+PASS  flagged as re-entry  
+PASS  fine defaults to 0  
+PASS  fine surfaces on re-entry  
+PASS  old day record ignored + pruned  
+PASS  profit re-arm lifts the ledger record  
+PASS  the lift is one-shot (record gone)  
+PASS  post: PUMP clean (no record at all)  
+PASS  other assets' records only lift on their own sale  
+PASS  earlier-rotation record: nothing to disarm  
+PASS  ...and the re-entry context survives  
+PASS  no record: re-arm is a clean no-op  
+PASS  blowoff majority detected  {'shape': 'blowoff', 'detail': '2/3 recent days ran +3.9% at this hour and dumped — re-run risk', 'days': 3, 'gain_pct': 3.9333333333333322, 'retrace_pct': 2.815713287411398}
+PASS  blowoff detail counts days  2/3 recent days ran +3.9% at this hour and dumped — re-run risk
+PASS  trend-and-held detected  {'shape': 'trend', 'detail': 'ran +3.9% and held at this hour (2/3 days)', 'days': 3, 'gain_pct': 3.9333333333333322, 'retrace_pct': 0.44823799540780396}
+PASS  quiet detected  {'shape': 'quiet', 'detail': 'quiet at this hour recently (+0.8% avg run)', 'days': 3, 'gain_pct': 0.8000000000000019, 'retrace_pct': 0.39682565719337154}
+PASS  no data -> None (fail-open)  
+PASS  live BTC context computed  {'shape': 'quiet', 'detail': 'quiet at this hour recently (+0.0% avg run)', 'days': 3, 'gain_pct': 0.023881506019526846, 'retrace_pct': 0.2041654922264062}
+PASS  THE LOCK IS RETIRED — the gate says so  
+PASS  send_alert's lock branch is retired-marked (kept, dead)  
+PASS  the header retires the cap AND the anti-spam  
+PASS  send_alert has blowoff demotion  
+PASS  send_alert marks on alert  
+PASS  QC gate checks rotation  
+PASS  QC gate checks blowoff  
+PASS  QC marks on green  
+PASS  QC rejection display kept (dead since the retirement, honest machinery)  
+PASS  card filter kept (Aug 31: with the confirmation window — a just-fired pick stays visible for CHECK)  
+PASS  fine callout in voice  
+PASS  the SOLD tap re-arms through the scanner's ONE function  
+PASS  the re-arm fires ONLY on net profit (a loss keeps the lock)  
+PASS  the re-arm speaks it  
+PASS  the re-arm is dup-safe (reload-if-missing pattern)  
+PASS  the scanner-side function lives with the lock it disarms  
+
+RESULT: 39 passed, 0 failed

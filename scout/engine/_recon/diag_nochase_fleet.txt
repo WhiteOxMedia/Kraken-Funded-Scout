@@ -1,0 +1,185 @@
+### diag_nochase_fleet — co_filename=diag_nochase_fleet.py firstlineno=1
+DOCSTRING:
+diag_nochase_fleet.py — THE NO-CHASE RULE, GRADED ACROSS THE FLEET
+(Sep 16). The monthly, fleet-wide form of diag_nochase.py.
+
+WHY THIS EXISTS: the ZEC study (diag_nochase.py) proved the no-chase
+ladder's honesty on ONE coin — the RSI ceiling never decided a trade
+because the pullback gate refused first. But "which gate decides" is a
+per-coin fact, and the funnel runs the ladder on every coin every hour.
+This study replays EVERY 1h feather store through the same honest
+counterfactual (the identical strategy with ONLY the RSI ceiling line
+disabled) and prices, in dollars across the whole fleet: how much the
+RSI refusals LEFT ON THE TABLE vs SAVED over each store's history.
+
+CONVENTIONS (shared with the ZEC study):
+  * horizon 4h (one rotation, the popup's hold style); position =
+    the live contest size x brain_size_mult (the funnel's ladder).
+  * decisive refusal = the real world holds on the RSI ceiling AND the
+    gate-free world actually buys; consecutive refusals = one trade.
+  * the census names which gate refused the gate-free world — if the
+    pullback gate leads fleet-wide too, the ceiling stays a messenger,
+    not a decider.
+
+THE MONTHLY DRIVER: the no-chase ladder pric
+
+TOP-LEVEL NAMES (imports/defs in order):
+  IMPORT glob
+  STORE  glob
+  IMPORT json
+  STORE  json
+  IMPORT logging
+  STORE  logging
+  IMPORT os
+  STORE  os
+  IMPORT re
+  STORE  re
+  IMPORT sys
+  STORE  sys
+  IMPORT tempfile
+  STORE  tempfile
+  IMPORT threading
+  STORE  threading
+  IMPORT time
+  STORE  time
+  IMPORT datetime
+  IMPORT datetime
+  STORE  datetime
+  IMPORT timezone
+  STORE  timezone
+  IMPORT pathlib
+  IMPORT Path
+  STORE  Path
+  STORE  BASE
+  STORE  OUT
+  STORE  LEDGER
+  STORE  STORES_GLOB
+  STORE  POSITION_USD
+  STORE  POSITION_USD_FALLBACK
+  STORE  HORIZON
+  STORE  WARMUP
+  STORE  FIRST_DELAY_S
+  STORE  MONTHLY_PERIOD_S
+  STORE  logger
+  STORE  _position_usd
+  STORE  _CF
+  STORE  _build_counterfactual
+  STORE  _replay_pair
+  STORE  run_study
+  STORE  _append
+  STORE  main
+  STORE  monthly_driver_loop
+
+ALL STRINGS (dedup, order-preserving, >=4 chars):
+  diag_nochase_fleet.py — THE NO-CHASE RULE, GRADED ACROSS THE FLEET
+(Sep 16). The monthly, fleet-wide form of diag_nochase.py.
+
+WHY THIS EXISTS: the ZEC study (diag_nochase.py) proved the no-chase
+ladder's honesty on ONE 
+  _nochasefleet_check.txt
+  _nochasefleet_monthly.jsonl
+  surething_data/kraken/*_USD-1h.feather
+  nochasefleet
+  return
+  Today's ledger (the live contest size) with the study's own
+fallback — same convention as the clamp-cost driver.
+  live contest size unreadable (%s) — the fallback $%.0f stands
+  strategy.py's exact source with ONLY the RSI ceiling line made
+unreachable, in a tempdir under its own module name. Built ONCE per
+process (the monthly loop reuses it — no tempdir pile-up).
+  utf-8
+  rsi_ceiling = 78.0 if trending_up else 68.0
+  ceiling line not unique: 
+  rsi_ceiling = 200.0 if trending_up else 200.0  # COUNTERFACTUAL: the no-chase gate disabled
+  nochase_fleet_
+  strategy_nochase_fleet.py
+  One store through the honest counterfactual. Returns the pair
+summary (or None when the store is too short).
+  date
+  -1h.feather
+  RSI [\d.]+ above 78\.0
+  RSI [\d.]+ above 68\.0
+  waiting for pullback to EMA
+  pullback gate (price above EMA)
+  falling knife
+  not a buy signal
+  falling-knife gate
+  score below min_confidence
+  other dip-buy gate / no signal
+  close
+  high
+  size
+  mfe_usd
+  pair
+  hours
+  fired78
+  fired68
+  decisive
+  left_usd
+  saved_usd
+  mfe_left_usd
+  net_usd
+  blockers
+  max_stores
+  One full fleet pass. Writes the txt, appends the monthly record,
+returns the summary. Never raises past the writes. `max_stores`
+bounds the replay (the hermetic pins + smoke runs use 2-3 stores;
+the driver passes None fo
+  === THE NO-CHASE RULE ACROSS THE FLEET (Sep 16) ===
+  stores: 
+   (BOUNDED SAMPLE — the driver runs the full fleet)
+   | horizon 4h | counterfactual = the identical strategy with ONLY the RSI ceiling disabled
+  no stores found — the study cannot run (the 5m/1h builders have not populated surething_data/kraken)
+  pairs
+  hours_total
+  position_usd
+  nochase-fleet: %s skipped (%s)
+  replayed: 
+   stores, 
+   store-hours (pass took 
+   min) | position $
+  ,.0f
+   x the brain's size ladder
+  store freshness: oldest feather 
+  %b %d %H:%M
+   — the window ends where the store builders last extended
+  ── THE CENSUS (the ceiling fired, the gate-free world refused) ──
+   hour(s)
+  ── PER PAIR (sorted by |net of the rule|) ──
+  ceil78
+  ceil68
+  left$
+  saved$
+  net$
+  >+9.2f
+  >9.2f
+  ── THE FLEET HEADLINE ──
+  decisive refusals: 
+   | LEFT ON THE TABLE +
+  ,.2f
+   USD | SAVED +
+   USD | NET 
+  +,.2f
+   USD (positive = loosening the ceiling would have PAID; negative = the rule MAKES money fleet-wide)
+  mfe ceiling (always sell the top): +
+   USD
+  READ: the ZEC deep-dive (diag_nochase.py) stays the worked example; this fleet pass prices the same ladder on every coin — a decisive refusal HERE is where the RSI line is the decider, not the messenger.
+  bounded
+  pass_min
+  summary
+  nochase-fleet ledger append failed (%s) — the txt still carries the verdict
+  fleet: 
+   decisive refusals | net 
+   USD | ledger: 
+  stop
+  first_delay_s
+  period_s
+  The daemon loop: one pass shortly after boot (the ledger record
+seeds the history), then monthly. Never raises; dies with the
+scanner. Each month's record prices the no-chase ladder on the
+stores AS THEY STAND — the wind
+  NOCHASE-FLEET: monthly re-price — %d stores, %d decisive, net %+.2f USD (%.0f min)
+  NOCHASE-FLEET: pass failed (%s) — this month's re-price skips, the ledger stands
+  __main__
+
+TOTAL STRINGS: 96

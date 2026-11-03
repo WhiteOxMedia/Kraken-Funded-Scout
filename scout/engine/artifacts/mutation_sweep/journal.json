@@ -1,0 +1,3112 @@
+{
+ "results": {
+  "test_advisorybrain.py": {
+   "baseline": {
+    "rc": 0,
+    "red": false,
+    "secs": 0.7,
+    "exit_blind": false
+   },
+   "mutation": {
+    "background_scanner.py": {
+     "rc": 0,
+     "red": true,
+     "secs": 0.4,
+     "mutations": 1826
+    },
+    "hindsight_scorer.py": {
+     "rc": 0,
+     "red": true,
+     "secs": 0.4,
+     "mutations": 263
+    }
+   },
+   "verdict": "KILLED",
+   "detail": "background_scanner.py: rc=0 (1826 mutations); hindsight_scorer.py: rc=0 (263 mutations)"
+  },
+  "test_balancepop.py": {
+   "verdict": "UNTESTABLE",
+   "drive_class": "SOURCE-TEXT",
+   "detail": "SOURCE-TEXT: the verdict imports or demands a sibling checkout outside this repo \u2014 the sandbox copy can never satisfy it (green from the real repo; run_battery still executes it for real) \u2014 the drive-class manifest"
+  },
+  "test_bot_day.py": {
+   "verdict": "UNTESTABLE",
+   "drive_class": "LIVE-STATE",
+   "detail": "LIVE-STATE: the verdict imports or demands a sibling checkout outside this repo \u2014 the sandbox copy can never satisfy it (green from the real repo; run_battery still executes it for real) \u2014 the drive-class manifest"
+  },
+  "test_botdb.py": {
+   "verdict": "UNTESTABLE",
+   "drive_class": "LIVE-STATE",
+   "detail": "LIVE-STATE: the verdict imports or demands a sibling checkout outside this repo \u2014 the sandbox copy can never satisfy it (green from the real repo; run_battery still executes it for real) \u2014 the drive-class manifest"
+  },
+  "test_bracket_click.py": {
+   "verdict": "UNTESTABLE",
+   "drive_class": "LIVE-STATE",
+   "detail": "LIVE-STATE: the verdict imports or demands a sibling checkout outside this repo \u2014 the sandbox copy can never satisfy it (green from the real repo; run_battery still executes it for real) \u2014 the drive-class manifest"
+  },
+  "test_carry.py": {
+   "verdict": "UNTESTABLE",
+   "drive_class": "SOURCE-TEXT",
+   "detail": "SOURCE-TEXT: the verdict imports or demands a sibling checkout outside this repo \u2014 the sandbox copy can never satisfy it (green from the real repo; run_battery still executes it for real) \u2014 the drive-class manifest"
+  },
+  "test_chase.py": {
+   "verdict": "UNTESTABLE",
+   "drive_class": "LIVE-MARKET",
+   "detail": "LIVE-MARKET: the verdict imports or demands a sibling checkout outside this repo \u2014 the sandbox copy can never satisfy it (green from the real repo; run_battery still executes it for real) \u2014 the drive-class manifest"
+  },
+  "test_contest_mode.py": {
+   "baseline": {
+    "rc": 0,
+    "red": false,
+    "secs": 1.2,
+    "exit_blind": false
+   },
+   "mutation": {
+    "scanner.py": {
+     "rc": 0,
+     "red": false,
+     "secs": 1.1,
+     "mutations": 214
+    },
+    "scratch_space.py": {
+     "rc": 0,
+     "red": false,
+     "secs": 1.2,
+     "mutations": 3
+    },
+    "strategy.py": {
+     "rc": 0,
+     "red": false,
+     "secs": 1.2,
+     "mutations": 588
+    }
+   },
+   "verdict": "KILLED",
+   "detail": "repaired during vacuous triage (Sep 30): verdict aggregation added \u2014 sandbox kill-proven under scanner.py+strategy.py conjunctive mutation (1 failed, rc=1)",
+   "triaged": "2026-09-30"
+  },
+  "test_cooldowncheck.py": {
+   "verdict": "UNTESTABLE",
+   "drive_class": "SOURCE-TEXT",
+   "detail": "SOURCE-TEXT: the verdict imports or demands a sibling checkout outside this repo \u2014 the sandbox copy can never satisfy it (green from the real repo; run_battery still executes it for real) \u2014 the drive-class manifest"
+  },
+  "test_dangerzone.py": {
+   "baseline": {
+    "rc": 0,
+    "red": false,
+    "secs": 0.2,
+    "exit_blind": false
+   },
+   "mutation": {
+    "background_scanner.py": {
+     "rc": 0,
+     "red": true,
+     "secs": 0.3,
+     "mutations": 1826
+    },
+    "contest_account.py": {
+     "rc": 0,
+     "red": true,
+     "secs": 0.3,
+     "mutations": 130
+    },
+    "execution_tiers.py": {
+     "rc": 0,
+     "red": false,
+     "secs": 0.2,
+     "mutations": 384
+    },
+    "scratch_space.py": {
+     "rc": 0,
+     "red": false,
+     "secs": 0.2,
+     "mutations": 3
+    }
+   },
+   "verdict": "KILLED",
+   "detail": "background_scanner.py: rc=0 (1826 mutations); contest_account.py: rc=0 (130 mutations)"
+  },
+  "test_dcagate.py": {
+   "verdict": "UNTESTABLE",
+   "drive_class": "SOURCE-TEXT",
+   "detail": "SOURCE-TEXT: the verdict imports or demands a sibling checkout outside this repo \u2014 the sandbox copy can never satisfy it (green from the real repo; run_battery still executes it for real) \u2014 the drive-class manifest"
+  },
+  "test_depthcheck.py": {
+   "baseline": {
+    "rc": 0,
+    "red": false,
+    "secs": 0.1,
+    "exit_blind": false
+   },
+   "mutation": {
+    "execution_tiers.py": {
+     "rc": 0,
+     "red": false,
+     "secs": 0.2,
+     "mutations": 384
+    },
+    "scratch_space.py": {
+     "rc": 0,
+     "red": false,
+     "secs": 0.2,
+     "mutations": 3
+    }
+   },
+   "verdict": "KILLED",
+   "detail": "rechecked Sep 30 (vacuous triage): killed under the full conjunctive set \u2014 prior false VACUOUS was the exit-blind tail (verdict invisible to the rc-only judge; fixed by the fleet-honesty patch)",
+   "triaged": "2026-09-30"
+  },
+  "test_dopamine.py": {
+   "verdict": "UNTESTABLE",
+   "drive_class": "LIVE-STATE",
+   "detail": "LIVE-STATE: the verdict imports or demands a sibling checkout outside this repo \u2014 the sandbox copy can never satisfy it (green from the real repo; run_battery still executes it for real) \u2014 the drive-class manifest"
+  },
+  "test_entry_control.py": {
+   "verdict": "UNTESTABLE",
+   "drive_class": "SOURCE-TEXT",
+   "detail": "SOURCE-TEXT: the verdict imports or demands a sibling checkout outside this repo \u2014 the sandbox copy can never satisfy it (green from the real repo; run_battery still executes it for real) \u2014 the drive-class manifest"
+  },
+  "test_eth_gap.py": {
+   "verdict": "UNTESTABLE",
+   "drive_class": "LIVE-MARKET",
+   "detail": "LIVE-MARKET: the verdict imports or demands a sibling checkout outside this repo \u2014 the sandbox copy can never satisfy it (green from the real repo; run_battery still executes it for real) \u2014 the drive-class manifest"
+  },
+  "test_exitsynthesis.py": {
+   "verdict": "UNTESTABLE",
+   "drive_class": "SOURCE-TEXT",
+   "detail": "SOURCE-TEXT: the verdict imports or demands a sibling checkout outside this repo \u2014 the sandbox copy can never satisfy it (green from the real repo; run_battery still executes it for real) \u2014 the drive-class manifest"
+  },
+  "test_fastfunnel.py": {
+   "baseline": {
+    "rc": 0,
+    "red": false,
+    "secs": 0.2,
+    "exit_blind": false
+   },
+   "mutation": {
+    "background_scanner.py": {
+     "rc": 0,
+     "red": true,
+     "secs": 0.3,
+     "mutations": 1826
+    },
+    "hindsight_scorer.py": {
+     "rc": 0,
+     "red": true,
+     "secs": 0.4,
+     "mutations": 263
+    }
+   },
+   "verdict": "KILLED",
+   "detail": "background_scanner.py: rc=0 (1826 mutations); hindsight_scorer.py: rc=0 (263 mutations)"
+  },
+  "test_funnelplate.py": {
+   "verdict": "UNTESTABLE",
+   "drive_class": "SOURCE-TEXT",
+   "detail": "SOURCE-TEXT: the verdict imports or demands a sibling checkout outside this repo \u2014 the sandbox copy can never satisfy it (green from the real repo; run_battery still executes it for real) \u2014 the drive-class manifest"
+  },
+  "test_giveback.py": {
+   "baseline": {
+    "rc": 0,
+    "red": false,
+    "secs": 3.3,
+    "exit_blind": false
+   },
+   "mutation": {
+    "app.py": {
+     "rc": 0,
+     "red": true,
+     "secs": 3.0,
+     "mutations": 2279
+    },
+    "auto_adjust.py": {
+     "rc": 0,
+     "red": true,
+     "secs": 3.3,
+     "mutations": 63
+    },
+    "background_scanner.py": {
+     "rc": 0,
+     "red": true,
+     "secs": 2.6,
+     "mutations": 1826
+    },
+    "contest_account.py": {
+     "rc": 0,
+     "red": true,
+     "secs": 2.8,
+     "mutations": 130
+    },
+    "profit_guard.py": {
+     "rc": 0,
+     "red": false,
+     "secs": 3.1,
+     "mutations": 209
+    },
+    "scratch_space.py": {
+     "rc": 0,
+     "red": false,
+     "secs": 2.8,
+     "mutations": 3
+    },
+    "telemetry_adjust.py": {
+     "rc": 0,
+     "red": false,
+     "secs": 2.6,
+     "mutations": 10
+    }
+   },
+   "verdict": "KILLED",
+   "detail": "app.py: rc=0 (2279 mutations); auto_adjust.py: rc=0 (63 mutations); background_scanner.py: rc=0 (1826 mutations); contest_account.py: rc=0 (130 mutations)"
+  },
+  "test_goalgame.py": {
+   "verdict": "UNTESTABLE",
+   "drive_class": "SOURCE-TEXT",
+   "detail": "SOURCE-TEXT: the verdict imports or demands a sibling checkout outside this repo \u2014 the sandbox copy can never satisfy it (green from the real repo; run_battery still executes it for real) \u2014 the drive-class manifest"
+  },
+  "test_hersize.py": {
+   "verdict": "UNTESTABLE",
+   "drive_class": "SOURCE-TEXT",
+   "detail": "SOURCE-TEXT: the verdict imports or demands a sibling checkout outside this repo \u2014 the sandbox copy can never satisfy it (green from the real repo; run_battery still executes it for real) \u2014 the drive-class manifest"
+  },
+  "test_hookparser.py": {
+   "verdict": "UNTESTABLE",
+   "drive_class": "SOURCE-TEXT",
+   "detail": "SOURCE-TEXT: the verdict imports or demands a sibling checkout outside this repo \u2014 the sandbox copy can never satisfy it (green from the real repo; run_battery still executes it for real) \u2014 the drive-class manifest"
+  },
+  "test_hype_now.py": {
+   "verdict": "UNTESTABLE",
+   "drive_class": "LIVE-MARKET",
+   "detail": "LIVE-MARKET: the verdict imports or demands a sibling checkout outside this repo \u2014 the sandbox copy can never satisfy it (green from the real repo; run_battery still executes it for real) \u2014 the drive-class manifest"
+  },
+  "test_kii.py": {
+   "verdict": "UNTESTABLE",
+   "drive_class": "LIVE-MARKET",
+   "detail": "LIVE-MARKET: the verdict imports or demands a sibling checkout outside this repo \u2014 the sandbox copy can never satisfy it (green from the real repo; run_battery still executes it for real) \u2014 the drive-class manifest"
+  },
+  "test_kii_woulda.py": {
+   "verdict": "UNTESTABLE",
+   "drive_class": "LIVE-MARKET",
+   "detail": "LIVE-MARKET: the verdict imports or demands a sibling checkout outside this repo \u2014 the sandbox copy can never satisfy it (green from the real repo; run_battery still executes it for real) \u2014 the drive-class manifest"
+  },
+  "test_liq_filter.py": {
+   "baseline": {
+    "rc": 0,
+    "red": false,
+    "secs": 0.8,
+    "exit_blind": false
+   },
+   "mutation": {
+    "background_scanner.py": {
+     "rc": 0,
+     "red": false,
+     "secs": 0.8,
+     "mutations": 1826
+    },
+    "scratch_space.py": {
+     "rc": 0,
+     "red": false,
+     "secs": 0.9,
+     "mutations": 3
+    }
+   },
+   "verdict": "KILLED",
+   "detail": "repaired during vacuous triage (Sep 30): RESULT aggregate + honest exit added (cases 1/3 were already complementary only-path pins: rotation-floor vs daily-backstop) \u2014 sandbox kill-proven under background_scanner.py mutation (1 failed, rc=1)",
+   "triaged": "2026-09-30"
+  },
+  "test_longonly.py": {
+   "baseline": {
+    "rc": 0,
+    "red": false,
+    "secs": 2.0,
+    "exit_blind": false
+   },
+   "mutation": {
+    "scanner.py": {
+     "rc": 0,
+     "red": false,
+     "secs": 1.3,
+     "mutations": 214
+    },
+    "scratch_space.py": {
+     "rc": 0,
+     "red": false,
+     "secs": 1.2,
+     "mutations": 3
+    },
+    "strategy.py": {
+     "rc": 0,
+     "red": false,
+     "secs": 1.2,
+     "mutations": 588
+    }
+   },
+   "verdict": "KILLED",
+   "detail": "repaired during vacuous triage (Sep 30): verdict aggregation (PASS/FAIL counters + RESULT + honest exit) added to the runtime _compare_signals pins \u2014 sandbox kill-proven under scanner.py+strategy.py conjunctive mutation (3 failed, rc=1)",
+   "triaged": "2026-09-30"
+  },
+  "test_nearmiss.py": {
+   "baseline": {
+    "rc": 0,
+    "red": false,
+    "secs": 0.2,
+    "exit_blind": false
+   },
+   "mutation": {
+    "background_scanner.py": {
+     "rc": 0,
+     "red": false,
+     "secs": 0.3,
+     "mutations": 1826
+    },
+    "scratch_space.py": {
+     "rc": 0,
+     "red": false,
+     "secs": 0.3,
+     "mutations": 3
+    }
+   },
+   "verdict": "KILLED",
+   "detail": "rechecked Sep 30 (vacuous triage): KILLED by background_scanner.py rc=1 (1851 mutations) \u2014 prior false VACUOUS was the exit-blind tail",
+   "triaged": "2026-09-30"
+  },
+  "test_night.py": {
+   "verdict": "UNTESTABLE",
+   "drive_class": "LIVE-STATE",
+   "detail": "LIVE-STATE: the verdict imports or demands a sibling checkout outside this repo \u2014 the sandbox copy can never satisfy it (green from the real repo; run_battery still executes it for real) \u2014 the drive-class manifest"
+  },
+  "test_night_pnl.py": {
+   "verdict": "UNTESTABLE",
+   "drive_class": "LIVE-STATE",
+   "detail": "LIVE-STATE: the verdict imports or demands a sibling checkout outside this repo \u2014 the sandbox copy can never satisfy it (green from the real repo; run_battery still executes it for real) \u2014 the drive-class manifest"
+  },
+  "test_no_alerts.py": {
+   "verdict": "UNTESTABLE",
+   "drive_class": "LIVE-STATE",
+   "detail": "LIVE-STATE: the verdict imports or demands a sibling checkout outside this repo \u2014 the sandbox copy can never satisfy it (green from the real repo; run_battery still executes it for real) \u2014 the drive-class manifest"
+  },
+  "test_one_asset.py": {
+   "verdict": "UNTESTABLE",
+   "drive_class": "LIVE-STATE",
+   "detail": "LIVE-STATE: the verdict imports or demands a sibling checkout outside this repo \u2014 the sandbox copy can never satisfy it (green from the real repo; run_battery still executes it for real) \u2014 the drive-class manifest"
+  },
+  "test_payouts.py": {
+   "verdict": "UNTESTABLE",
+   "drive_class": "LIVE-STATE",
+   "detail": "LIVE-STATE: the verdict imports or demands a sibling checkout outside this repo \u2014 the sandbox copy can never satisfy it (green from the real repo; run_battery still executes it for real) \u2014 the drive-class manifest"
+  },
+  "test_payouts_e2e.py": {
+   "verdict": "UNTESTABLE",
+   "drive_class": "LIVE-STATE",
+   "detail": "LIVE-STATE: the verdict imports or demands a sibling checkout outside this repo \u2014 the sandbox copy can never satisfy it (green from the real repo; run_battery still executes it for real) \u2014 the drive-class manifest"
+  },
+  "test_persistexit.py": {
+   "verdict": "UNTESTABLE",
+   "drive_class": "SOURCE-TEXT",
+   "detail": "SOURCE-TEXT: the verdict imports or demands a sibling checkout outside this repo \u2014 the sandbox copy can never satisfy it (green from the real repo; run_battery still executes it for real) \u2014 the drive-class manifest"
+  },
+  "test_popupbrain.py": {
+   "baseline": {
+    "rc": 0,
+    "red": false,
+    "secs": 1.5,
+    "exit_blind": false
+   },
+   "mutation": {
+    "background_scanner.py": {
+     "rc": 0,
+     "red": false,
+     "secs": 1.3,
+     "mutations": 1826
+    },
+    "contest_account.py": {
+     "rc": 0,
+     "red": false,
+     "secs": 1.2,
+     "mutations": 130
+    },
+    "scratch_space.py": {
+     "rc": 0,
+     "red": false,
+     "secs": 1.0,
+     "mutations": 3
+    }
+   },
+   "verdict": "KILLED",
+   "detail": "rechecked Sep 30 (vacuous triage): killed under the full conjunctive set \u2014 prior false VACUOUS was the exit-blind tail",
+   "triaged": "2026-09-30"
+  },
+  "test_positionscale.py": {
+   "baseline": {
+    "rc": 0,
+    "red": false,
+    "secs": 0.2,
+    "exit_blind": false
+   },
+   "mutation": {
+    "scratch_space.py": {
+     "rc": 0,
+     "red": false,
+     "secs": 0.2,
+     "mutations": 3
+    },
+    "signal_bridge.py": {
+     "rc": 0,
+     "red": false,
+     "secs": 0.2,
+     "mutations": 127
+    }
+   },
+   "verdict": "KILLED",
+   "detail": "rechecked Sep 30 (vacuous triage): killed under the full conjunctive set \u2014 prior false VACUOUS was the exit-blind tail",
+   "triaged": "2026-09-30"
+  },
+  "test_qclonewolf.py": {
+   "verdict": "UNTESTABLE",
+   "drive_class": "SOURCE-TEXT",
+   "detail": "SOURCE-TEXT: the verdict imports or demands a sibling checkout outside this repo \u2014 the sandbox copy can never satisfy it (green from the real repo; run_battery still executes it for real) \u2014 the drive-class manifest"
+  },
+  "test_scansethonesty.py": {
+   "baseline": {
+    "rc": 0,
+    "red": false,
+    "secs": 2.7,
+    "exit_blind": false
+   },
+   "mutation": {
+    "app.py": {
+     "rc": 0,
+     "red": false,
+     "secs": 2.8,
+     "mutations": 2279
+    },
+    "scratch_space.py": {
+     "rc": 0,
+     "red": false,
+     "secs": 2.8,
+     "mutations": 3
+    }
+   },
+   "verdict": "KILLED",
+   "detail": "rechecked Sep 30 (vacuous triage): killed under the full conjunctive set \u2014 prior false VACUOUS was the exit-blind tail",
+   "triaged": "2026-09-30"
+  },
+  "test_sink_hygiene.py": {
+   "verdict": "UNTESTABLE",
+   "drive_class": "STATIC-AUDIT",
+   "detail": "STATIC-AUDIT: the verdict imports or demands a sibling checkout outside this repo \u2014 the sandbox copy can never satisfy it (green from the real repo; run_battery still executes it for real) \u2014 the drive-class manifest"
+  },
+  "test_soldpnl.py": {
+   "baseline": {
+    "rc": 0,
+    "red": false,
+    "secs": 0.1,
+    "exit_blind": false
+   },
+   "mutation": {
+    "contest_account.py": {
+     "rc": 0,
+     "red": false,
+     "secs": 0.1,
+     "mutations": 130
+    },
+    "scratch_space.py": {
+     "rc": 0,
+     "red": false,
+     "secs": 0.2,
+     "mutations": 3
+    }
+   },
+   "verdict": "KILLED",
+   "detail": "rechecked Sep 30 (vacuous triage): killed under the full conjunctive set (130 contest_account mutants, exact-value pnl pins) \u2014 prior false VACUOUS was the exit-blind tail",
+   "triaged": "2026-09-30"
+  },
+  "test_sunday.py": {
+   "verdict": "UNTESTABLE",
+   "drive_class": "LIVE-STATE",
+   "detail": "LIVE-STATE: the verdict imports or demands a sibling checkout outside this repo \u2014 the sandbox copy can never satisfy it (green from the real repo; run_battery still executes it for real) \u2014 the drive-class manifest"
+  },
+  "test_thinbrain.py": {
+   "verdict": "UNTESTABLE",
+   "drive_class": "SOURCE-TEXT",
+   "detail": "SOURCE-TEXT: the verdict imports or demands a sibling checkout outside this repo \u2014 the sandbox copy can never satisfy it (green from the real repo; run_battery still executes it for real) \u2014 the drive-class manifest"
+  },
+  "test_tidefloor.py": {
+   "verdict": "UNTESTABLE",
+   "drive_class": "SOURCE-TEXT",
+   "detail": "SOURCE-TEXT: the verdict imports or demands a sibling checkout outside this repo \u2014 the sandbox copy can never satisfy it (green from the real repo; run_battery still executes it for real) \u2014 the drive-class manifest"
+  },
+  "test_tierauto.py": {
+   "baseline": {
+    "rc": 0,
+    "red": false,
+    "secs": 0.2,
+    "exit_blind": false
+   },
+   "mutation": {
+    "background_scanner.py": {
+     "rc": 0,
+     "red": false,
+     "secs": 0.3,
+     "mutations": 1826
+    },
+    "contest_account.py": {
+     "rc": 0,
+     "red": false,
+     "secs": 0.3,
+     "mutations": 130
+    },
+    "scratch_space.py": {
+     "rc": 0,
+     "red": false,
+     "secs": 0.2,
+     "mutations": 3
+    }
+   },
+   "verdict": "KILLED",
+   "detail": "rechecked Sep 30 (vacuous triage): killed under the full conjunctive set (130 contest_account mutants, +-0.01 exact-value pins) \u2014 prior false VACUOUS was the exit-blind tail",
+   "triaged": "2026-09-30"
+  },
+  "test_toggleguard.py": {
+   "verdict": "UNTESTABLE",
+   "drive_class": "SOURCE-TEXT",
+   "detail": "SOURCE-TEXT: the verdict imports or demands a sibling checkout outside this repo \u2014 the sandbox copy can never satisfy it (green from the real repo; run_battery still executes it for real) \u2014 the drive-class manifest"
+  },
+  "test_tour_state.py": {
+   "verdict": "UNTESTABLE",
+   "drive_class": "LIVE-STATE",
+   "detail": "LIVE-STATE: the verdict imports or demands a sibling checkout outside this repo \u2014 the sandbox copy can never satisfy it (green from the real repo; run_battery still executes it for real) \u2014 the drive-class manifest"
+  },
+  "test_trend.py": {
+   "baseline": {
+    "rc": 0,
+    "red": false,
+    "secs": 2.3,
+    "exit_blind": false
+   },
+   "mutation": {
+    "app.py": {
+     "rc": 0,
+     "red": true,
+     "secs": 2.7,
+     "mutations": 2279
+    },
+    "config.py": {
+     "rc": 0,
+     "red": false,
+     "secs": 2.8,
+     "mutations": 40
+    },
+    "scratch_space.py": {
+     "rc": 0,
+     "red": false,
+     "secs": 2.4,
+     "mutations": 3
+    }
+   },
+   "verdict": "KILLED",
+   "detail": "app.py: rc=0 (2279 mutations)"
+  },
+  "test_trump_render.py": {
+   "baseline": {
+    "rc": 0,
+    "red": false,
+    "secs": 0.6,
+    "exit_blind": false
+   },
+   "mutation": {
+    "config.py": {
+     "rc": 0,
+     "red": false,
+     "secs": 0.6,
+     "mutations": 40
+    },
+    "scratch_space.py": {
+     "rc": 0,
+     "red": false,
+     "secs": 0.6,
+     "mutations": 3
+    },
+    "strategy.py": {
+     "rc": 0,
+     "red": false,
+     "secs": 0.6,
+     "mutations": 588
+    }
+   },
+   "verdict": "KILLED",
+   "detail": "repaired during vacuous triage (Sep 30): ABSOLUTE-PATH import removed (sys.path pointed at the live repo \u2014 the drive could never test sandbox code; a gate-integrity hole) + verdict print + honest exit \u2014 sandbox kill-proven under config.py+strategy.py mutation (3 failed, rc=1)",
+   "triaged": "2026-09-30"
+  },
+  "test_uismooth.py": {
+   "verdict": "UNTESTABLE",
+   "drive_class": "SOURCE-TEXT",
+   "detail": "SOURCE-TEXT: the verdict imports or demands a sibling checkout outside this repo \u2014 the sandbox copy can never satisfy it (green from the real repo; run_battery still executes it for real) \u2014 the drive-class manifest"
+  },
+  "test_winnerlock.py": {
+   "verdict": "UNTESTABLE",
+   "drive_class": "SOURCE-TEXT",
+   "detail": "SOURCE-TEXT: the verdict imports or demands a sibling checkout outside this repo \u2014 the sandbox copy can never satisfy it (green from the real repo; run_battery still executes it for real) \u2014 the drive-class manifest"
+  },
+  "test_winners.py": {
+   "verdict": "UNTESTABLE",
+   "drive_class": "LIVE-STATE",
+   "detail": "LIVE-STATE: the verdict imports or demands a sibling checkout outside this repo \u2014 the sandbox copy can never satisfy it (green from the real repo; run_battery still executes it for real) \u2014 the drive-class manifest"
+  },
+  "test_xrp_scan.py": {
+   "verdict": "UNTESTABLE",
+   "drive_class": "LIVE-MARKET",
+   "detail": "LIVE-MARKET: the verdict imports or demands a sibling checkout outside this repo \u2014 the sandbox copy can never satisfy it (green from the real repo; run_battery still executes it for real) \u2014 the drive-class manifest"
+  },
+  "test_xrp_signals.py": {
+   "verdict": "UNTESTABLE",
+   "drive_class": "LIVE-STATE",
+   "detail": "LIVE-STATE: the verdict imports or demands a sibling checkout outside this repo \u2014 the sandbox copy can never satisfy it (green from the real repo; run_battery still executes it for real) \u2014 the drive-class manifest"
+  },
+  "test_lonewolf.py": {
+   "baseline": {
+    "rc": 0,
+    "red": false,
+    "secs": 0.5,
+    "exit_blind": false
+   },
+   "mutation": {
+    "background_scanner.py": {
+     "rc": 1,
+     "red": true,
+     "secs": 3.0,
+     "mutations": 1851
+    },
+    "carve_out.py": {
+     "rc": 0,
+     "red": false,
+     "secs": 0.4,
+     "mutations": 509
+    },
+    "scratch_space.py": {
+     "rc": 0,
+     "red": false,
+     "secs": 0.2,
+     "mutations": 3
+    }
+   },
+   "verdict": "KILLED",
+   "detail": "background_scanner.py: rc=1 (1851 mutations)"
+  },
+  "test_trendbridge.py": {
+   "baseline": {
+    "rc": 0,
+    "red": false,
+    "secs": 0.8,
+    "exit_blind": false
+   },
+   "mutation": {
+    "background_scanner.py": {
+     "rc": 1,
+     "red": true,
+     "secs": 0.8,
+     "mutations": 1851
+    },
+    "scratch_space.py": {
+     "rc": 0,
+     "red": false,
+     "secs": 0.8,
+     "mutations": 3
+    }
+   },
+   "verdict": "KILLED",
+   "detail": "background_scanner.py: rc=1 (1851 mutations)"
+  },
+  "test_eracompare.py": {
+   "baseline": {
+    "rc": 0,
+    "red": false,
+    "secs": 1.3,
+    "exit_blind": false
+   },
+   "mutation": {
+    "background_scanner.py": {
+     "rc": 1,
+     "red": true,
+     "secs": 1.3,
+     "mutations": 1851
+    },
+    "discipline.py": {
+     "rc": 1,
+     "red": true,
+     "secs": 1.2,
+     "mutations": 493
+    },
+    "era_compare.py": {
+     "rc": 1,
+     "red": true,
+     "secs": 0.2,
+     "mutations": 20
+    }
+   },
+   "verdict": "KILLED",
+   "detail": "background_scanner.py: rc=1 (1851 mutations); discipline.py: rc=1 (493 mutations); era_compare.py: rc=1 (20 mutations)"
+  },
+  "test_herwords.py": {
+   "baseline": {
+    "rc": 0,
+    "red": false,
+    "secs": 7.5,
+    "exit_blind": false
+   },
+   "mutation": {
+    "background_scanner.py": {
+     "rc": 1,
+     "red": true,
+     "secs": 0.5,
+     "mutations": 1851
+    }
+   },
+   "verdict": "KILLED",
+   "detail": "background_scanner.py: rc=1 (1851 mutations)"
+  },
+  "test_marketgoal.py": {
+   "baseline": {
+    "rc": 0,
+    "red": false,
+    "secs": 0.4,
+    "exit_blind": false
+   },
+   "mutation": {
+    "background_scanner.py": {
+     "rc": 1,
+     "red": true,
+     "secs": 0.3,
+     "mutations": 1851
+    },
+    "scratch_space.py": {
+     "rc": 0,
+     "red": false,
+     "secs": 0.4,
+     "mutations": 3
+    }
+   },
+   "verdict": "KILLED",
+   "detail": "background_scanner.py: rc=1 (1851 mutations)"
+  },
+  "test_worthdial.py": {
+   "baseline": {
+    "rc": 0,
+    "red": false,
+    "secs": 1.1,
+    "exit_blind": false
+   },
+   "mutation": {
+    "background_scanner.py": {
+     "rc": 1,
+     "red": true,
+     "secs": 3.1,
+     "mutations": 1851
+    },
+    "contest_account.py": {
+     "rc": 0,
+     "red": false,
+     "secs": 1.2,
+     "mutations": 130
+    },
+    "scratch_space.py": {
+     "rc": 0,
+     "red": false,
+     "secs": 1.0,
+     "mutations": 3
+    },
+    "volatility_engine.py": {
+     "rc": 0,
+     "red": false,
+     "secs": 1.0,
+     "mutations": 205
+    }
+   },
+   "verdict": "KILLED",
+   "detail": "background_scanner.py: rc=1 (1851 mutations)"
+  },
+  "test_takeit.py": {
+   "baseline": {
+    "rc": 0,
+    "red": false,
+    "secs": 0.4,
+    "exit_blind": false
+   },
+   "mutation": {
+    "background_scanner.py": {
+     "rc": 1,
+     "red": true,
+     "secs": 0.3,
+     "mutations": 1851
+    },
+    "scratch_space.py": {
+     "rc": 0,
+     "red": false,
+     "secs": 0.3,
+     "mutations": 3
+    }
+   },
+   "verdict": "KILLED",
+   "detail": "background_scanner.py: rc=1 (1851 mutations)"
+  },
+  "test_zec_trace.py": {
+   "verdict": "UNTESTABLE",
+   "drive_class": "LIVE-STATE",
+   "detail": "LIVE-STATE: the verdict imports or demands a sibling checkout outside this repo \u2014 the sandbox copy can never satisfy it (green from the real repo; run_battery still executes it for real) \u2014 the drive-class manifest"
+  },
+  "test_5mstore.py": {
+   "baseline": {
+    "rc": 0,
+    "red": false,
+    "secs": 7.7,
+    "exit_blind": false
+   },
+   "mutation": {
+    "fetch_kraken_5m_history.py": {
+     "rc": 1,
+     "red": true,
+     "secs": 1.0,
+     "mutations": 99
+    }
+   },
+   "verdict": "KILLED",
+   "detail": "fetch_kraken_5m_history.py: rc=1 (99 mutations)"
+  },
+  "test_adaptivecache.py": {
+   "baseline": {
+    "rc": 0,
+    "red": false,
+    "secs": 0.2,
+    "exit_blind": false
+   },
+   "mutation": {
+    "adaptive_cache.py": {
+     "rc": 1,
+     "red": true,
+     "secs": 0.1,
+     "mutations": 107
+    },
+    "scratch_space.py": {
+     "rc": 0,
+     "red": false,
+     "secs": 0.2,
+     "mutations": 3
+    }
+   },
+   "verdict": "KILLED",
+   "detail": "adaptive_cache.py: rc=1 (107 mutations)"
+  },
+  "test_agendacheck.py": {
+   "baseline": {
+    "rc": 0,
+    "red": false,
+    "secs": 9.8,
+    "exit_blind": false
+   },
+   "mutation": {
+    "diag_cooldowncheck.py": {
+     "rc": 1,
+     "red": true,
+     "secs": 0.2,
+     "mutations": 39
+    },
+    "diag_hygiene.py": {
+     "rc": 1,
+     "red": true,
+     "secs": 0.5,
+     "mutations": 111
+    }
+   },
+   "verdict": "KILLED",
+   "detail": "diag_cooldowncheck.py: rc=1 (39 mutations); diag_hygiene.py: rc=1 (111 mutations)"
+  },
+  "test_apptest.py": {
+   "baseline": {
+    "rc": 0,
+    "red": false,
+    "secs": 76.8,
+    "exit_blind": false
+   },
+   "mutation": {
+    "app.py": {
+     "rc": 1,
+     "red": true,
+     "secs": 33.8,
+     "mutations": 2342
+    },
+    "diag_cachesweep.py": {
+     "rc": 0,
+     "red": false,
+     "secs": 76.3,
+     "mutations": 89
+    },
+    "diag_prefsmirror.py": {
+     "rc": 0,
+     "red": false,
+     "secs": 76.5,
+     "mutations": 73
+    },
+    "diag_silentpass.py": {
+     "rc": 0,
+     "red": false,
+     "secs": 76.4,
+     "mutations": 28
+    },
+    "diag_sizingaudit.py": {
+     "rc": 0,
+     "red": false,
+     "secs": 79.1,
+     "mutations": 74
+    },
+    "diag_stshadow.py": {
+     "rc": 0,
+     "red": false,
+     "secs": 77.5,
+     "mutations": 122
+    },
+    "diag_widgetsweep.py": {
+     "rc": 0,
+     "red": false,
+     "secs": 76.5,
+     "mutations": 17
+    },
+    "health_check.py": {
+     "rc": 0,
+     "red": false,
+     "secs": 80.4,
+     "mutations": 87
+    },
+    "tidebar_weekly.py": {
+     "rc": 1,
+     "red": true,
+     "secs": 68.5,
+     "mutations": 841
+    }
+   },
+   "verdict": "KILLED",
+   "detail": "app.py: rc=1 (2342 mutations); tidebar_weekly.py: rc=1 (841 mutations)"
+  },
+  "test_atomicio.py": {
+   "baseline": {
+    "rc": 0,
+    "red": false,
+    "secs": 0.1,
+    "exit_blind": false
+   },
+   "mutation": {
+    "atomic_io.py": {
+     "rc": 1,
+     "red": true,
+     "secs": 0.1,
+     "mutations": 27
+    }
+   },
+   "verdict": "KILLED",
+   "detail": "atomic_io.py: rc=1 (27 mutations)"
+  },
+  "test_autoadjust.py": {
+   "verdict": "KILLED",
+   "detail": "auto_adjust.py: rc=1 (137 mutations); profit_guard.py: rc=1 (211 mutations)",
+   "mutation": {
+    "auto_adjust.py": {
+     "rc": 1,
+     "red": true,
+     "mutations": 137
+    },
+    "profit_guard.py": {
+     "rc": 1,
+     "red": true,
+     "mutations": 211
+    }
+   },
+   "baseline": {
+    "rc": 0,
+    "red": false
+   }
+  },
+  "test_autotrack.py": {
+   "baseline": {
+    "rc": 0,
+    "red": false,
+    "secs": 0.4,
+    "exit_blind": false
+   },
+   "mutation": {
+    "background_scanner.py": {
+     "rc": 1,
+     "red": true,
+     "secs": 0.3,
+     "mutations": 1851
+    }
+   },
+   "verdict": "KILLED",
+   "detail": "background_scanner.py: rc=1 (1851 mutations)"
+  },
+  "test_basegrade.py": {
+   "baseline": {
+    "rc": 0,
+    "red": false,
+    "secs": 2.0,
+    "exit_blind": false
+   },
+   "mutation": {
+    "diag_basegrade.py": {
+     "rc": 1,
+     "red": true,
+     "secs": 0.6,
+     "mutations": 113
+    },
+    "scratch_space.py": {
+     "rc": 0,
+     "red": false,
+     "secs": 1.9,
+     "mutations": 3
+    }
+   },
+   "verdict": "KILLED",
+   "detail": "diag_basegrade.py: rc=1 (113 mutations)"
+  },
+  "test_batterybudget.py": {
+   "baseline": {
+    "rc": 0,
+    "red": false,
+    "secs": 0.7,
+    "exit_blind": false
+   },
+   "mutation": {
+    "run_battery.py": {
+     "rc": 1,
+     "red": true,
+     "secs": 0.2,
+     "mutations": 288
+    }
+   },
+   "verdict": "KILLED",
+   "detail": "run_battery.py: rc=1 (288 mutations)"
+  },
+  "test_bootfacts.py": {
+   "baseline": {
+    "rc": 0,
+    "red": false,
+    "secs": 1.3,
+    "exit_blind": false
+   },
+   "mutation": {
+    "contest_account.py": {
+     "rc": 1,
+     "red": true,
+     "secs": 1.0,
+     "mutations": 130
+    }
+   },
+   "verdict": "KILLED",
+   "detail": "contest_account.py: rc=1 (130 mutations)"
+  },
+  "test_boundaryexam.py": {
+   "baseline": {
+    "rc": 0,
+    "red": false,
+    "secs": 1.2,
+    "exit_blind": false
+   },
+   "mutation": {
+    "carve_out.py": {
+     "rc": 1,
+     "red": true,
+     "secs": 0.2,
+     "mutations": 509
+    },
+    "discipline.py": {
+     "rc": 0,
+     "red": false,
+     "secs": 1.0,
+     "mutations": 493
+    },
+    "meta_layers.py": {
+     "rc": 1,
+     "red": true,
+     "secs": 0.2,
+     "mutations": 354
+    },
+    "scratch_space.py": {
+     "rc": 0,
+     "red": false,
+     "secs": 1.0,
+     "mutations": 3
+    }
+   },
+   "verdict": "KILLED",
+   "detail": "carve_out.py: rc=1 (509 mutations); meta_layers.py: rc=1 (354 mutations)"
+  },
+  "test_canary.py": {
+   "baseline": {
+    "rc": 0,
+    "red": false,
+    "secs": 0.4,
+    "exit_blind": false
+   },
+   "mutation": {
+    "auto_adjust.py": {
+     "rc": 1,
+     "red": true,
+     "secs": 0.2,
+     "mutations": 63
+    },
+    "canary_runner.py": {
+     "rc": 1,
+     "red": true,
+     "secs": 0.2,
+     "mutations": 101
+    },
+    "simulate_sweep.py": {
+     "rc": 1,
+     "red": true,
+     "secs": 0.2,
+     "mutations": 93
+    }
+   },
+   "verdict": "KILLED",
+   "detail": "auto_adjust.py: rc=1 (63 mutations); canary_runner.py: rc=1 (101 mutations); simulate_sweep.py: rc=1 (93 mutations)"
+  },
+  "test_charter_signal_push.py": {
+   "verdict": "UNTESTABLE",
+   "drive_class": "SIBLING-CHECKOUT",
+   "detail": "SIBLING-CHECKOUT: the verdict imports or demands a sibling checkout outside this repo \u2014 the sandbox copy can never satisfy it (green from the real repo; run_battery still executes it for real) \u2014 the drive-class manifest"
+  },
+  "test_clampcost.py": {
+   "baseline": {
+    "rc": 0,
+    "red": false,
+    "secs": 1.4,
+    "exit_blind": false
+   },
+   "mutation": {
+    "diag_clampcost.py": {
+     "rc": 1,
+     "red": true,
+     "secs": 0.1,
+     "mutations": 70
+    },
+    "scratch_space.py": {
+     "rc": 0,
+     "red": false,
+     "secs": 1.4,
+     "mutations": 3
+    }
+   },
+   "verdict": "KILLED",
+   "detail": "diag_clampcost.py: rc=1 (70 mutations)"
+  },
+  "test_climbout.py": {
+   "baseline": {
+    "rc": 0,
+    "red": false,
+    "secs": 0.3,
+    "exit_blind": false
+   },
+   "mutation": {
+    "background_scanner.py": {
+     "rc": 0,
+     "red": true,
+     "secs": 0.4,
+     "mutations": 1851
+    },
+    "climb_out.py": {
+     "rc": 1,
+     "red": true,
+     "secs": 0.2,
+     "mutations": 235
+    },
+    "execution_tiers.py": {
+     "rc": 0,
+     "red": false,
+     "secs": 0.5,
+     "mutations": 384
+    }
+   },
+   "verdict": "KILLED",
+   "detail": "background_scanner.py: rc=0 (1851 mutations); climb_out.py: rc=1 (235 mutations)"
+  },
+  "test_climbouthindsight.py": {
+   "baseline": {
+    "rc": 0,
+    "red": false,
+    "secs": 1.4,
+    "exit_blind": false
+   },
+   "mutation": {
+    "diag_climbouthindsight.py": {
+     "rc": 1,
+     "red": true,
+     "secs": 0.1,
+     "mutations": 34
+    },
+    "scratch_space.py": {
+     "rc": 0,
+     "red": false,
+     "secs": 1.4,
+     "mutations": 3
+    }
+   },
+   "verdict": "KILLED",
+   "detail": "diag_climbouthindsight.py: rc=1 (34 mutations)"
+  },
+  "test_coderabbitbacklog.py": {
+   "baseline": {
+    "rc": 0,
+    "red": false,
+    "secs": 2.1,
+    "exit_blind": false
+   },
+   "mutation": {
+    "diag_coderabbit_backlog.py": {
+     "rc": 1,
+     "red": true,
+     "secs": 0.7,
+     "mutations": 51
+    }
+   },
+   "verdict": "KILLED",
+   "detail": "diag_coderabbit_backlog.py: rc=1 (51 mutations)"
+  },
+  "test_commitgate.py": {
+   "verdict": "UNTESTABLE",
+   "drive_class": "SCAFFOLD-ONLY",
+   "detail": "auto: the only mapped guarded module is scratch_space.py (test scaffolding) \u2014 no verdict-bearing logic to mutate"
+  },
+  "test_confirmwindow.py": {
+   "baseline": {
+    "rc": 0,
+    "red": false,
+    "secs": 0.2,
+    "exit_blind": false
+   },
+   "mutation": {
+    "background_scanner.py": {
+     "rc": 1,
+     "red": true,
+     "secs": 0.3,
+     "mutations": 1851
+    },
+    "scratch_space.py": {
+     "rc": 0,
+     "red": false,
+     "secs": 0.4,
+     "mutations": 3
+    }
+   },
+   "verdict": "KILLED",
+   "detail": "background_scanner.py: rc=1 (1851 mutations)"
+  },
+  "test_contest_window.py": {
+   "baseline": {
+    "rc": 0,
+    "red": false,
+    "secs": 1.8,
+    "exit_blind": false
+   },
+   "mutation": {
+    "contest_account.py": {
+     "rc": 1,
+     "red": true,
+     "secs": 0.2,
+     "mutations": 130
+    },
+    "scratch_space.py": {
+     "rc": 0,
+     "red": false,
+     "secs": 1.8,
+     "mutations": 3
+    }
+   },
+   "verdict": "KILLED",
+   "detail": "contest_account.py: rc=1 (130 mutations)"
+  },
+  "test_contestline.py": {
+   "baseline": {
+    "rc": 0,
+    "red": false,
+    "secs": 0.2,
+    "exit_blind": false
+   },
+   "mutation": {
+    "contest_account.py": {
+     "rc": 1,
+     "red": true,
+     "secs": 0.2,
+     "mutations": 130
+    },
+    "scratch_space.py": {
+     "rc": 0,
+     "red": false,
+     "secs": 0.2,
+     "mutations": 3
+    }
+   },
+   "verdict": "KILLED",
+   "detail": "contest_account.py: rc=1 (130 mutations)"
+  },
+  "test_cooldownreview.py": {
+   "baseline": {
+    "rc": 0,
+    "red": false,
+    "secs": 1.5,
+    "exit_blind": false
+   },
+   "mutation": {
+    "background_scanner.py": {
+     "rc": 0,
+     "red": false,
+     "secs": 2.8,
+     "mutations": 1851
+    },
+    "discipline.py": {
+     "rc": 1,
+     "red": true,
+     "secs": 1.1,
+     "mutations": 493
+    }
+   },
+   "verdict": "KILLED",
+   "detail": "discipline.py: rc=1 (493 mutations)"
+  },
+  "test_costdrivers.py": {
+   "baseline": {
+    "rc": 0,
+    "red": false,
+    "secs": 89.3,
+    "exit_blind": false
+   },
+   "mutation": {
+    "diag_laddergrade.py": {
+     "rc": 1,
+     "red": true,
+     "secs": 4.5,
+     "mutations": 73
+    },
+    "diag_tidememory_hindsight.py": {
+     "rc": 1,
+     "red": true,
+     "secs": 0.2,
+     "mutations": 78
+    },
+    "scratch_space.py": {
+     "rc": 0,
+     "red": false,
+     "secs": 88.8,
+     "mutations": 3
+    }
+   },
+   "verdict": "KILLED",
+   "detail": "diag_laddergrade.py: rc=1 (73 mutations); diag_tidememory_hindsight.py: rc=1 (78 mutations)"
+  },
+  "test_dailylock.py": {
+   "baseline": {
+    "rc": 0,
+    "red": false,
+    "secs": 0.2,
+    "exit_blind": false
+   },
+   "mutation": {
+    "contest_account.py": {
+     "rc": 1,
+     "red": true,
+     "secs": 0.2,
+     "mutations": 130
+    },
+    "scratch_space.py": {
+     "rc": 0,
+     "red": false,
+     "secs": 0.2,
+     "mutations": 3
+    }
+   },
+   "verdict": "KILLED",
+   "detail": "contest_account.py: rc=1 (130 mutations)"
+  },
+  "test_discipline.py": {
+   "baseline": {
+    "rc": 0,
+    "red": false,
+    "secs": 0.2,
+    "exit_blind": false
+   },
+   "mutation": {
+    "discipline.py": {
+     "rc": 1,
+     "red": true,
+     "secs": 0.2,
+     "mutations": 493
+    },
+    "scratch_space.py": {
+     "rc": 0,
+     "red": false,
+     "secs": 0.2,
+     "mutations": 3
+    }
+   },
+   "verdict": "KILLED",
+   "detail": "discipline.py: rc=1 (493 mutations)"
+  },
+  "test_disciplineseam.py": {
+   "baseline": {
+    "rc": 0,
+    "red": false,
+    "secs": 0.7,
+    "exit_blind": false
+   },
+   "mutation": {
+    "background_scanner.py": {
+     "rc": 1,
+     "red": true,
+     "secs": 0.4,
+     "mutations": 1851
+    },
+    "discipline.py": {
+     "rc": 1,
+     "red": true,
+     "secs": 0.9,
+     "mutations": 493
+    },
+    "meta_layers.py": {
+     "rc": 1,
+     "red": true,
+     "secs": 0.7,
+     "mutations": 354
+    }
+   },
+   "verdict": "KILLED",
+   "detail": "background_scanner.py: rc=1 (1851 mutations); discipline.py: rc=1 (493 mutations); meta_layers.py: rc=1 (354 mutations)"
+  },
+  "test_disciplinesew.py": {
+   "baseline": {
+    "rc": 0,
+    "red": false,
+    "secs": 0.2,
+    "exit_blind": false
+   },
+   "mutation": {
+    "contest_account.py": {
+     "rc": 0,
+     "red": false,
+     "secs": 0.2,
+     "mutations": 130
+    },
+    "discipline.py": {
+     "rc": 1,
+     "red": true,
+     "secs": 0.2,
+     "mutations": 493
+    },
+    "scratch_space.py": {
+     "rc": 0,
+     "red": false,
+     "secs": 0.2,
+     "mutations": 3
+    }
+   },
+   "verdict": "KILLED",
+   "detail": "discipline.py: rc=1 (493 mutations)"
+  },
+  "test_dropdownstability.py": {
+   "baseline": {
+    "rc": 0,
+    "red": false,
+    "secs": 2.9,
+    "exit_blind": false
+   },
+   "mutation": {
+    "app.py": {
+     "rc": 1,
+     "red": true,
+     "secs": 2.8,
+     "mutations": 2342
+    }
+   },
+   "verdict": "KILLED",
+   "detail": "app.py: rc=1 (2342 mutations)"
+  },
+  "test_dupcheck.py": {
+   "verdict": "UNTESTABLE",
+   "drive_class": "STANDALONE",
+   "detail": "STANDALONE: imports no guarded repo module (AST-verified) \u2014 the verdict rides subprocesses, source text, or live artifacts; behavior mutation has nothing to flow through \u2014 the drive-class manifest"
+  },
+  "test_dupfinal.py": {
+   "verdict": "UNTESTABLE",
+   "drive_class": "SCAFFOLD-ONLY",
+   "detail": "auto: the only mapped guarded module is scratch_space.py (test scaffolding) \u2014 no verdict-bearing logic to mutate"
+  },
+  "test_evidencestore.py": {
+   "baseline": {
+    "rc": 0,
+    "red": false,
+    "secs": 0.5,
+    "exit_blind": false
+   },
+   "mutation": {
+    "evidence_store.py": {
+     "rc": 1,
+     "red": true,
+     "secs": 0.3,
+     "mutations": 21
+    },
+    "per_gate_export.py": {
+     "rc": 0,
+     "red": false,
+     "secs": 0.6,
+     "mutations": 59
+    }
+   },
+   "verdict": "KILLED",
+   "detail": "evidence_store.py: rc=1 (21 mutations)"
+  },
+  "test_execution_tiers.py": {
+   "baseline": {
+    "rc": 0,
+    "red": false,
+    "secs": 0.3,
+    "exit_blind": false
+   },
+   "mutation": {
+    "execution_tiers.py": {
+     "rc": 1,
+     "red": true,
+     "secs": 0.2,
+     "mutations": 384
+    }
+   },
+   "verdict": "KILLED",
+   "detail": "execution_tiers.py: rc=1 (384 mutations)"
+  },
+  "test_exit_extension.py": {
+   "baseline": {
+    "rc": 0,
+    "red": false,
+    "secs": 0.9,
+    "exit_blind": false
+   },
+   "mutation": {
+    "background_scanner.py": {
+     "rc": 1,
+     "red": true,
+     "secs": 0.8,
+     "mutations": 1851
+    },
+    "contest_account.py": {
+     "rc": 0,
+     "red": false,
+     "secs": 0.9,
+     "mutations": 130
+    },
+    "exit_extension.py": {
+     "rc": 1,
+     "red": true,
+     "secs": 0.2,
+     "mutations": 112
+    }
+   },
+   "verdict": "KILLED",
+   "detail": "background_scanner.py: rc=1 (1851 mutations); exit_extension.py: rc=1 (112 mutations)"
+  },
+  "test_extfade.py": {
+   "baseline": {
+    "rc": 0,
+    "red": false,
+    "secs": 0.6,
+    "exit_blind": false
+   },
+   "mutation": {
+    "diag_extfade.py": {
+     "rc": 1,
+     "red": true,
+     "secs": 0.7,
+     "mutations": 92
+    },
+    "scratch_space.py": {
+     "rc": 0,
+     "red": false,
+     "secs": 0.6,
+     "mutations": 3
+    }
+   },
+   "verdict": "KILLED",
+   "detail": "diag_extfade.py: rc=1 (92 mutations)"
+  },
+  "test_fast20.py": {
+   "baseline": {
+    "rc": 0,
+    "red": false,
+    "secs": 0.2,
+    "exit_blind": false
+   },
+   "mutation": {
+    "background_scanner.py": {
+     "rc": 0,
+     "red": false,
+     "secs": 0.3,
+     "mutations": 1851
+    },
+    "scratch_space.py": {
+     "rc": 0,
+     "red": false,
+     "secs": 0.4,
+     "mutations": 3
+    },
+    "volatility_engine.py": {
+     "rc": 1,
+     "red": true,
+     "secs": 0.2,
+     "mutations": 205
+    }
+   },
+   "verdict": "KILLED",
+   "detail": "volatility_engine.py: rc=1 (205 mutations)"
+  },
+  "test_find_eth.py": {
+   "verdict": "UNTESTABLE",
+   "drive_class": "STANDALONE",
+   "detail": "STANDALONE: imports no guarded repo module (AST-verified) \u2014 the verdict rides subprocesses, source text, or live artifacts; behavior mutation has nothing to flow through \u2014 the drive-class manifest"
+  },
+  "test_fleetsweep.py": {
+   "verdict": "UNTESTABLE",
+   "drive_class": "STANDALONE",
+   "detail": "STANDALONE: imports no guarded repo module (AST-verified) \u2014 the verdict rides subprocesses, source text, or live artifacts; behavior mutation has nothing to flow through \u2014 the drive-class manifest"
+  },
+  "test_floodguard.py": {
+   "baseline": {
+    "rc": 0,
+    "red": false,
+    "secs": 0.2,
+    "exit_blind": false
+   },
+   "mutation": {
+    "background_scanner.py": {
+     "rc": 1,
+     "red": true,
+     "secs": 0.3,
+     "mutations": 1851
+    }
+   },
+   "verdict": "KILLED",
+   "detail": "background_scanner.py: rc=1 (1851 mutations)"
+  },
+  "test_gatestrips.py": {
+   "verdict": "UNTESTABLE",
+   "drive_class": "STANDALONE",
+   "detail": "STANDALONE: imports no guarded repo module (AST-verified) \u2014 the verdict rides subprocesses, source text, or live artifacts; behavior mutation has nothing to flow through \u2014 the drive-class manifest"
+  },
+  "test_guardbreakdown.py": {
+   "baseline": {
+    "rc": 0,
+    "red": false,
+    "secs": 2.0,
+    "exit_blind": false
+   },
+   "mutation": {
+    "background_scanner.py": {
+     "rc": 1,
+     "red": true,
+     "secs": 0.8,
+     "mutations": 1851
+    },
+    "meta_layers.py": {
+     "rc": 0,
+     "red": false,
+     "secs": 1.8,
+     "mutations": 354
+    }
+   },
+   "verdict": "KILLED",
+   "detail": "background_scanner.py: rc=1 (1851 mutations)"
+  },
+  "test_hailmary.py": {
+   "baseline": {
+    "rc": 0,
+    "red": false,
+    "secs": 0.8,
+    "exit_blind": false
+   },
+   "mutation": {
+    "background_scanner.py": {
+     "rc": 1,
+     "red": true,
+     "secs": 0.9,
+     "mutations": 1851
+    },
+    "contest_account.py": {
+     "rc": 1,
+     "red": true,
+     "secs": 0.4,
+     "mutations": 130
+    },
+    "scratch_space.py": {
+     "rc": 0,
+     "red": false,
+     "secs": 0.8,
+     "mutations": 3
+    }
+   },
+   "verdict": "KILLED",
+   "detail": "background_scanner.py: rc=1 (1851 mutations); contest_account.py: rc=1 (130 mutations)"
+  },
+  "test_headline.py": {
+   "baseline": {
+    "rc": 0,
+    "red": false,
+    "secs": 2.8,
+    "exit_blind": false
+   },
+   "mutation": {
+    "app.py": {
+     "rc": 1,
+     "red": true,
+     "secs": 2.9,
+     "mutations": 2342
+    },
+    "background_scanner.py": {
+     "rc": 0,
+     "red": false,
+     "secs": 3.2,
+     "mutations": 1851
+    }
+   },
+   "verdict": "KILLED",
+   "detail": "app.py: rc=1 (2342 mutations)"
+  },
+  "test_hindightservice.py": {
+   "baseline": {
+    "rc": 0,
+    "red": false,
+    "secs": 21.1,
+    "exit_blind": false
+   },
+   "mutation": {
+    "hindsight_service.py": {
+     "rc": 1,
+     "red": true,
+     "secs": 2.0,
+     "mutations": 64
+    }
+   },
+   "verdict": "KILLED",
+   "detail": "hindsight_service.py: rc=1 (64 mutations)"
+  },
+  "test_hindsight.py": {
+   "baseline": {
+    "rc": 0,
+    "red": false,
+    "secs": 0.1,
+    "exit_blind": false
+   },
+   "mutation": {
+    "hindsight_scorer.py": {
+     "rc": 1,
+     "red": true,
+     "secs": 0.1,
+     "mutations": 263
+    },
+    "scratch_space.py": {
+     "rc": 0,
+     "red": false,
+     "secs": 0.1,
+     "mutations": 3
+    }
+   },
+   "verdict": "KILLED",
+   "detail": "hindsight_scorer.py: rc=1 (263 mutations)"
+  },
+  "test_hindsightapi.py": {
+   "baseline": {
+    "rc": 0,
+    "red": false,
+    "secs": 1.0,
+    "exit_blind": false
+   },
+   "mutation": {
+    "auto_adjust.py": {
+     "rc": 1,
+     "red": true,
+     "secs": 0.2,
+     "mutations": 63
+    },
+    "background_scanner.py": {
+     "rc": 1,
+     "red": true,
+     "secs": 1.5,
+     "mutations": 1851
+    },
+    "canary_runner.py": {
+     "rc": 1,
+     "red": true,
+     "secs": 1.3,
+     "mutations": 101
+    },
+    "exit_extension.py": {
+     "rc": 1,
+     "red": true,
+     "secs": 1.4,
+     "mutations": 112
+    },
+    "hindsight_api.py": {
+     "rc": 1,
+     "red": true,
+     "secs": 0.2,
+     "mutations": 91
+    },
+    "profit_guard.py": {
+     "rc": 1,
+     "red": true,
+     "secs": 1.4,
+     "mutations": 209
+    },
+    "telemetry_adjust.py": {
+     "rc": 0,
+     "red": false,
+     "secs": 1.4,
+     "mutations": 10
+    }
+   },
+   "verdict": "KILLED",
+   "detail": "auto_adjust.py: rc=1 (63 mutations); background_scanner.py: rc=1 (1851 mutations); canary_runner.py: rc=1 (101 mutations); exit_extension.py: rc=1 (112 mutations); hindsight_api.py: rc=1 (91 mutations); profit_guard.py: rc=1 (209 mutations)"
+  },
+  "test_hooks_ignore_runtime_state.py": {
+   "verdict": "UNTESTABLE",
+   "drive_class": "HOST-BOUND",
+   "detail": "HOST-BOUND: audits the host's live git identity (the machine-local .git/hooks mirror + core.hooksPath) \u2014 the sandbox copy cannot contain it (.git excluded); probe-proven: git+armed-mirror copy reads 4/0 GREEN, git+no-mirror 2/2, no-git 2/1 \u2014 the drive-class manifest"
+  },
+  "test_jackpotplate.py": {
+   "verdict": "UNTESTABLE",
+   "drive_class": "SIBLING-CHECKOUT",
+   "detail": "SIBLING-CHECKOUT: the verdict imports or demands a sibling checkout outside this repo \u2014 the sandbox copy can never satisfy it (green from the real repo; run_battery still executes it for real) \u2014 the drive-class manifest"
+  },
+  "test_journalrelease.py": {
+   "baseline": {
+    "rc": 0,
+    "red": false,
+    "secs": 0.1,
+    "exit_blind": false
+   },
+   "mutation": {
+    "discipline.py": {
+     "rc": 1,
+     "red": true,
+     "secs": 0.2,
+     "mutations": 493
+    }
+   },
+   "verdict": "KILLED",
+   "detail": "discipline.py: rc=1 (493 mutations)"
+  },
+  "test_lifecycle.py": {
+   "verdict": "UNTESTABLE",
+   "drive_class": "STANDALONE",
+   "detail": "STANDALONE: imports no guarded repo module (AST-verified) \u2014 the verdict rides subprocesses, source text, or live artifacts; behavior mutation has nothing to flow through \u2014 the drive-class manifest"
+  },
+  "test_light_once.py": {
+   "baseline": {
+    "rc": 0,
+    "red": false,
+    "secs": 1.1,
+    "exit_blind": false
+   },
+   "mutation": {
+    "background_scanner.py": {
+     "rc": 1,
+     "red": true,
+     "secs": 1.2,
+     "mutations": 1851
+    },
+    "config.py": {
+     "rc": 0,
+     "red": false,
+     "secs": 1.3,
+     "mutations": 40
+    }
+   },
+   "verdict": "KILLED",
+   "detail": "background_scanner.py: rc=1 (1851 mutations)"
+  },
+  "test_liq_cal.py": {
+   "verdict": "UNTESTABLE",
+   "drive_class": "STANDALONE",
+   "detail": "STANDALONE: imports no guarded repo module (AST-verified) \u2014 the verdict rides subprocesses, source text, or live artifacts; behavior mutation has nothing to flow through \u2014 the drive-class manifest"
+  },
+  "test_metalayers.py": {
+   "baseline": {
+    "rc": 0,
+    "red": false,
+    "secs": 1.6,
+    "exit_blind": false
+   },
+   "mutation": {
+    "background_scanner.py": {
+     "rc": 1,
+     "red": true,
+     "secs": 1.4,
+     "mutations": 1851
+    },
+    "carve_out.py": {
+     "rc": 0,
+     "red": false,
+     "secs": 1.3,
+     "mutations": 509
+    },
+    "discipline.py": {
+     "rc": 0,
+     "red": false,
+     "secs": 1.5,
+     "mutations": 493
+    },
+    "meta_layers.py": {
+     "rc": 1,
+     "red": true,
+     "secs": 0.2,
+     "mutations": 354
+    },
+    "profit_guard.py": {
+     "rc": 0,
+     "red": false,
+     "secs": 1.4,
+     "mutations": 209
+    }
+   },
+   "verdict": "KILLED",
+   "detail": "background_scanner.py: rc=1 (1851 mutations); meta_layers.py: rc=1 (354 mutations)"
+  },
+  "test_moverfunnel.py": {
+   "baseline": {
+    "rc": 0,
+    "red": false,
+    "secs": 0.4,
+    "exit_blind": false
+   },
+   "mutation": {
+    "background_scanner.py": {
+     "rc": 1,
+     "red": true,
+     "secs": 0.3,
+     "mutations": 1851
+    },
+    "scratch_space.py": {
+     "rc": 0,
+     "red": false,
+     "secs": 0.4,
+     "mutations": 3
+    }
+   },
+   "verdict": "KILLED",
+   "detail": "background_scanner.py: rc=1 (1851 mutations)"
+  },
+  "test_no_runtime_stash.py": {
+   "verdict": "UNTESTABLE",
+   "drive_class": "STANDALONE",
+   "detail": "STANDALONE: imports no guarded repo module (AST-verified) \u2014 the verdict rides subprocesses, source text, or live artifacts; behavior mutation has nothing to flow through \u2014 the drive-class manifest"
+  },
+  "test_option23.py": {
+   "baseline": {
+    "rc": 0,
+    "red": false,
+    "secs": 0.7,
+    "exit_blind": false
+   },
+   "mutation": {
+    "background_scanner.py": {
+     "rc": 1,
+     "red": true,
+     "secs": 1.4,
+     "mutations": 1851
+    },
+    "scratch_space.py": {
+     "rc": 0,
+     "red": false,
+     "secs": 1.0,
+     "mutations": 3
+    }
+   },
+   "verdict": "KILLED",
+   "detail": "background_scanner.py: rc=1 (1851 mutations)"
+  },
+  "test_outliverhindsight.py": {
+   "baseline": {
+    "rc": 0,
+    "red": false,
+    "secs": 2.0,
+    "exit_blind": false
+   },
+   "mutation": {
+    "background_scanner.py": {
+     "rc": 1,
+     "red": true,
+     "secs": 2.2,
+     "mutations": 1851
+    },
+    "diag_outliverhindsight.py": {
+     "rc": 1,
+     "red": true,
+     "secs": 1.0,
+     "mutations": 72
+    },
+    "scratch_space.py": {
+     "rc": 0,
+     "red": false,
+     "secs": 2.0,
+     "mutations": 3
+    }
+   },
+   "verdict": "KILLED",
+   "detail": "background_scanner.py: rc=1 (1851 mutations); diag_outliverhindsight.py: rc=1 (72 mutations)"
+  },
+  "test_pending.py": {
+   "verdict": "UNTESTABLE",
+   "drive_class": "STANDALONE",
+   "detail": "STANDALONE: imports no guarded repo module (AST-verified) \u2014 the verdict rides subprocesses, source text, or live artifacts; behavior mutation has nothing to flow through \u2014 the drive-class manifest"
+  },
+  "test_pergate.py": {
+   "baseline": {
+    "rc": 0,
+    "red": false,
+    "secs": 0.2,
+    "exit_blind": false
+   },
+   "mutation": {
+    "per_gate_export.py": {
+     "rc": 1,
+     "red": true,
+     "secs": 0.2,
+     "mutations": 59
+    }
+   },
+   "verdict": "KILLED",
+   "detail": "per_gate_export.py: rc=1 (59 mutations)"
+  },
+  "test_phantommirror.py": {
+   "baseline": {
+    "rc": 0,
+    "red": false,
+    "secs": 0.5,
+    "exit_blind": false
+   },
+   "mutation": {
+    "scratch_space.py": {
+     "rc": 0,
+     "red": false,
+     "secs": 0.5,
+     "mutations": 3
+    },
+    "signal_bridge.py": {
+     "rc": 1,
+     "red": true,
+     "secs": 0.4,
+     "mutations": 127
+    }
+   },
+   "verdict": "KILLED",
+   "detail": "signal_bridge.py: rc=1 (127 mutations)"
+  },
+  "test_pool_docsrot_live.py": {
+   "verdict": "UNTESTABLE",
+   "drive_class": "SIBLING-CHECKOUT",
+   "detail": "SIBLING-CHECKOUT: the verdict imports or demands a sibling checkout outside this repo \u2014 the sandbox copy can never satisfy it (green from the real repo; run_battery still executes it for real) \u2014 the drive-class manifest"
+  },
+  "test_pool_prefs_live.py": {
+   "verdict": "UNTESTABLE",
+   "drive_class": "SIBLING-CHECKOUT",
+   "detail": "SIBLING-CHECKOUT: the verdict imports or demands a sibling checkout outside this repo \u2014 the sandbox copy can never satisfy it (green from the real repo; run_battery still executes it for real) \u2014 the drive-class manifest"
+  },
+  "test_popupfloor.py": {
+   "baseline": {
+    "rc": 0,
+    "red": false,
+    "secs": 0.2,
+    "exit_blind": false
+   },
+   "mutation": {
+    "background_scanner.py": {
+     "rc": 1,
+     "red": true,
+     "secs": 0.3,
+     "mutations": 1851
+    },
+    "scratch_space.py": {
+     "rc": 0,
+     "red": false,
+     "secs": 0.4,
+     "mutations": 3
+    }
+   },
+   "verdict": "KILLED",
+   "detail": "background_scanner.py: rc=1 (1851 mutations)"
+  },
+  "test_pricealert.py": {
+   "baseline": {
+    "rc": 0,
+    "red": false,
+    "secs": 0.4,
+    "exit_blind": false
+   },
+   "mutation": {
+    "ops/price_alert.py": {
+     "rc": 1,
+     "red": true,
+     "secs": 0.2,
+     "mutations": 61
+    },
+    "scratch_space.py": {
+     "rc": 0,
+     "red": false,
+     "secs": 0.4,
+     "mutations": 3
+    }
+   },
+   "verdict": "KILLED",
+   "detail": "ops/price_alert.py: rc=1 (61 mutations)"
+  },
+  "test_profitguard.py": {
+   "baseline": {
+    "rc": 0,
+    "red": false,
+    "secs": 1.9,
+    "exit_blind": false
+   },
+   "mutation": {
+    "carve_out.py": {
+     "rc": 0,
+     "red": false,
+     "secs": 1.7,
+     "mutations": 509
+    },
+    "meta_layers.py": {
+     "rc": 0,
+     "red": false,
+     "secs": 1.7,
+     "mutations": 354
+    },
+    "profit_guard.py": {
+     "rc": 1,
+     "red": true,
+     "secs": 0.2,
+     "mutations": 209
+    }
+   },
+   "verdict": "KILLED",
+   "detail": "profit_guard.py: rc=1 (209 mutations)"
+  },
+  "test_protected_extension_gate.py": {
+   "verdict": "UNTESTABLE",
+   "drive_class": "STANDALONE",
+   "detail": "STANDALONE: imports no guarded repo module (AST-verified) \u2014 the verdict rides subprocesses, source text, or live artifacts; behavior mutation has nothing to flow through \u2014 the drive-class manifest"
+  },
+  "test_pushfilter.py": {
+   "baseline": {
+    "rc": 0,
+    "red": false,
+    "secs": 0.2,
+    "exit_blind": false
+   },
+   "mutation": {
+    "background_scanner.py": {
+     "rc": 1,
+     "red": true,
+     "secs": 0.3,
+     "mutations": 1851
+    },
+    "scratch_space.py": {
+     "rc": 0,
+     "red": false,
+     "secs": 0.4,
+     "mutations": 3
+    }
+   },
+   "verdict": "KILLED",
+   "detail": "background_scanner.py: rc=1 (1851 mutations)"
+  },
+  "test_ratchet.py": {
+   "baseline": {
+    "rc": 0,
+    "red": false,
+    "secs": 0.2,
+    "exit_blind": false
+   },
+   "mutation": {
+    "background_scanner.py": {
+     "rc": 1,
+     "red": true,
+     "secs": 0.3,
+     "mutations": 1851
+    },
+    "scratch_space.py": {
+     "rc": 0,
+     "red": false,
+     "secs": 0.3,
+     "mutations": 3
+    }
+   },
+   "verdict": "KILLED",
+   "detail": "background_scanner.py: rc=1 (1851 mutations)"
+  },
+  "test_rebootsurv.py": {
+   "baseline": {
+    "rc": 0,
+    "red": false,
+    "secs": 0.3,
+    "exit_blind": false
+   },
+   "mutation": {
+    "background_scanner.py": {
+     "rc": 1,
+     "red": true,
+     "secs": 0.4,
+     "mutations": 1851
+    },
+    "profit_guard.py": {
+     "rc": 1,
+     "red": true,
+     "secs": 0.4,
+     "mutations": 209
+    },
+    "scratch_space.py": {
+     "rc": 0,
+     "red": false,
+     "secs": 0.3,
+     "mutations": 3
+    }
+   },
+   "verdict": "KILLED",
+   "detail": "background_scanner.py: rc=1 (1851 mutations); profit_guard.py: rc=1 (209 mutations)"
+  },
+  "test_recoveryscenarios.py": {
+   "baseline": {
+    "rc": 0,
+    "red": false,
+    "secs": 0.2,
+    "exit_blind": false
+   },
+   "mutation": {
+    "background_scanner.py": {
+     "rc": 1,
+     "red": true,
+     "secs": 0.3,
+     "mutations": 1851
+    },
+    "contest_account.py": {
+     "rc": 1,
+     "red": true,
+     "secs": 0.4,
+     "mutations": 130
+    },
+    "ops/recovery_scenarios.py": {
+     "rc": 1,
+     "red": true,
+     "secs": 0.2,
+     "mutations": 104
+    },
+    "scratch_space.py": {
+     "rc": 0,
+     "red": false,
+     "secs": 0.2,
+     "mutations": 3
+    },
+    "signal_bridge.py": {
+     "rc": 0,
+     "red": false,
+     "secs": 0.2,
+     "mutations": 127
+    }
+   },
+   "verdict": "KILLED",
+   "detail": "background_scanner.py: rc=1 (1851 mutations); contest_account.py: rc=1 (130 mutations); ops/recovery_scenarios.py: rc=1 (104 mutations)"
+  },
+  "test_referee_gfdelta.py": {
+   "baseline": {
+    "rc": 0,
+    "red": false,
+    "secs": 10.2,
+    "exit_blind": false
+   },
+   "mutation": {
+    "_gf_series.py": {
+     "rc": 1,
+     "red": true,
+     "secs": 0.7,
+     "mutations": 20
+    },
+    "_referee_gfdelta.py": {
+     "rc": 1,
+     "red": true,
+     "secs": 0.7,
+     "mutations": 123
+    }
+   },
+   "verdict": "KILLED",
+   "detail": "_gf_series.py: rc=1 (20 mutations); _referee_gfdelta.py: rc=1 (123 mutations)"
+  },
+  "test_releaseprov.py": {
+   "baseline": {
+    "rc": 0,
+    "red": false,
+    "secs": 0.2,
+    "exit_blind": false
+   },
+   "mutation": {
+    "background_scanner.py": {
+     "rc": 1,
+     "red": true,
+     "secs": 0.3,
+     "mutations": 1851
+    }
+   },
+   "verdict": "KILLED",
+   "detail": "background_scanner.py: rc=1 (1851 mutations)"
+  },
+  "test_replaylive.py": {
+   "baseline": {
+    "rc": 0,
+    "red": false,
+    "secs": 58.4,
+    "exit_blind": false
+   },
+   "mutation": {
+    "diag_replaylive.py": {
+     "rc": 1,
+     "red": true,
+     "secs": 0.2,
+     "mutations": 174
+    },
+    "scratch_space.py": {
+     "rc": 0,
+     "red": false,
+     "secs": 55.9,
+     "mutations": 3
+    }
+   },
+   "verdict": "KILLED",
+   "detail": "diag_replaylive.py: rc=1 (174 mutations)"
+  },
+  "test_resetrebaseline.py": {
+   "baseline": {
+    "rc": 0,
+    "red": false,
+    "secs": 0.3,
+    "exit_blind": false
+   },
+   "mutation": {
+    "reset_rebaseline.py": {
+     "rc": 1,
+     "red": true,
+     "secs": 0.2,
+     "mutations": 45
+    },
+    "signal_bridge.py": {
+     "rc": 1,
+     "red": true,
+     "secs": 0.3,
+     "mutations": 127
+    }
+   },
+   "verdict": "KILLED",
+   "detail": "reset_rebaseline.py: rc=1 (45 mutations); signal_bridge.py: rc=1 (127 mutations)"
+  },
+  "test_resilience.py": {
+   "baseline": {
+    "rc": 0,
+    "red": false,
+    "secs": 0.3,
+    "exit_blind": false
+   },
+   "mutation": {
+    "atomic_io.py": {
+     "rc": 1,
+     "red": true,
+     "secs": 0.1,
+     "mutations": 27
+    },
+    "profit_guard.py": {
+     "rc": 1,
+     "red": true,
+     "secs": 0.2,
+     "mutations": 209
+    },
+    "restore_state.py": {
+     "rc": 1,
+     "red": true,
+     "secs": 0.3,
+     "mutations": 17
+    },
+    "scratch_space.py": {
+     "rc": 0,
+     "red": false,
+     "secs": 0.2,
+     "mutations": 3
+    },
+    "telemetry_adjust.py": {
+     "rc": 0,
+     "red": false,
+     "secs": 0.2,
+     "mutations": 10
+    }
+   },
+   "verdict": "KILLED",
+   "detail": "atomic_io.py: rc=1 (27 mutations); profit_guard.py: rc=1 (209 mutations); restore_state.py: rc=1 (17 mutations)"
+  },
+  "test_reviewplate.py": {
+   "verdict": "UNTESTABLE",
+   "drive_class": "STANDALONE",
+   "detail": "STANDALONE: imports no guarded repo module (AST-verified) \u2014 the verdict rides subprocesses, source text, or live artifacts; behavior mutation has nothing to flow through \u2014 the drive-class manifest"
+  },
+  "test_rotation.py": {
+   "baseline": {
+    "rc": 0,
+    "red": false,
+    "secs": 0.3,
+    "exit_blind": false
+   },
+   "mutation": {
+    "background_scanner.py": {
+     "rc": 1,
+     "red": true,
+     "secs": 0.3,
+     "mutations": 1851
+    }
+   },
+   "verdict": "KILLED",
+   "detail": "background_scanner.py: rc=1 (1851 mutations)"
+  },
+  "test_runnertether.py": {
+   "baseline": {
+    "rc": 0,
+    "red": false,
+    "secs": 0.1,
+    "exit_blind": false
+   },
+   "mutation": {
+    "diag_runnertether.py": {
+     "rc": 1,
+     "red": true,
+     "secs": 0.1,
+     "mutations": 59
+    },
+    "scratch_space.py": {
+     "rc": 0,
+     "red": false,
+     "secs": 0.1,
+     "mutations": 3
+    }
+   },
+   "verdict": "KILLED",
+   "detail": "diag_runnertether.py: rc=1 (59 mutations)"
+  },
+  "test_scout_docs.py": {
+   "baseline": {
+    "rc": 0,
+    "red": false,
+    "secs": 1.3,
+    "exit_blind": false
+   },
+   "mutation": {
+    "background_scanner.py": {
+     "rc": 1,
+     "red": true,
+     "secs": 1.2,
+     "mutations": 1851
+    },
+    "discipline.py": {
+     "rc": 1,
+     "red": true,
+     "secs": 1.5,
+     "mutations": 493
+    }
+   },
+   "verdict": "KILLED",
+   "detail": "background_scanner.py: rc=1 (1851 mutations); discipline.py: rc=1 (493 mutations)"
+  },
+  "test_simsweep.py": {
+   "baseline": {
+    "rc": 0,
+    "red": false,
+    "secs": 0.2,
+    "exit_blind": false
+   },
+   "mutation": {
+    "simulate_sweep.py": {
+     "rc": 1,
+     "red": true,
+     "secs": 0.1,
+     "mutations": 93
+    }
+   },
+   "verdict": "KILLED",
+   "detail": "simulate_sweep.py: rc=1 (93 mutations)"
+  },
+  "test_stateclobber.py": {
+   "baseline": {
+    "rc": 0,
+    "red": false,
+    "secs": 24.8,
+    "exit_blind": false
+   },
+   "mutation": {
+    "auto_adjust.py": {
+     "rc": 1,
+     "red": true,
+     "secs": 0.2,
+     "mutations": 63
+    },
+    "background_scanner.py": {
+     "rc": 1,
+     "red": true,
+     "secs": 0.5,
+     "mutations": 1851
+    },
+    "meta_layers.py": {
+     "rc": 1,
+     "red": true,
+     "secs": 24.8,
+     "mutations": 354
+    },
+    "profit_guard.py": {
+     "rc": 1,
+     "red": true,
+     "secs": 0.3,
+     "mutations": 209
+    }
+   },
+   "verdict": "KILLED",
+   "detail": "auto_adjust.py: rc=1 (63 mutations); background_scanner.py: rc=1 (1851 mutations); meta_layers.py: rc=1 (354 mutations); profit_guard.py: rc=1 (209 mutations)"
+  },
+  "test_statewriters.py": {
+   "baseline": {
+    "rc": 0,
+    "red": false,
+    "secs": 1.5,
+    "exit_blind": false
+   },
+   "mutation": {
+    "diag_statewriters.py": {
+     "rc": 1,
+     "red": true,
+     "secs": 0.1,
+     "mutations": 123
+    }
+   },
+   "verdict": "KILLED",
+   "detail": "diag_statewriters.py: rc=1 (123 mutations)"
+  },
+  "test_surething.py": {
+   "baseline": {
+    "rc": 0,
+    "red": false,
+    "secs": 0.2,
+    "exit_blind": false
+   },
+   "mutation": {
+    "hindsight_scorer.py": {
+     "rc": 0,
+     "red": true,
+     "secs": 0.1,
+     "mutations": 263
+    },
+    "scratch_space.py": {
+     "rc": 0,
+     "red": false,
+     "secs": 0.2,
+     "mutations": 3
+    },
+    "sure_thing.py": {
+     "rc": 1,
+     "red": true,
+     "secs": 0.2,
+     "mutations": 243
+    }
+   },
+   "verdict": "KILLED",
+   "detail": "hindsight_scorer.py: rc=0 (263 mutations); sure_thing.py: rc=1 (243 mutations)"
+  },
+  "test_surethingautorefit.py": {
+   "baseline": {
+    "rc": 0,
+    "red": false,
+    "secs": 8.8,
+    "exit_blind": false
+   },
+   "mutation": {
+    "diag_surething_refit.py": {
+     "rc": 1,
+     "red": true,
+     "secs": 8.8,
+     "mutations": 181
+    },
+    "sure_thing.py": {
+     "rc": 1,
+     "red": true,
+     "secs": 8.8,
+     "mutations": 243
+    },
+    "surething_autorefit.py": {
+     "rc": 1,
+     "red": true,
+     "secs": 0.6,
+     "mutations": 58
+    }
+   },
+   "verdict": "KILLED",
+   "detail": "diag_surething_refit.py: rc=1 (181 mutations); sure_thing.py: rc=1 (243 mutations); surething_autorefit.py: rc=1 (58 mutations)"
+  },
+  "test_surethingdiag.py": {
+   "baseline": {
+    "rc": 0,
+    "red": false,
+    "secs": 0.4,
+    "exit_blind": false
+   },
+   "mutation": {
+    "background_scanner.py": {
+     "rc": 1,
+     "red": true,
+     "secs": 0.4,
+     "mutations": 1851
+    },
+    "diag_surething.py": {
+     "rc": 1,
+     "red": true,
+     "secs": 0.4,
+     "mutations": 198
+    }
+   },
+   "verdict": "KILLED",
+   "detail": "background_scanner.py: rc=1 (1851 mutations); diag_surething.py: rc=1 (198 mutations)"
+  },
+  "test_telemetry.py": {
+   "baseline": {
+    "rc": 0,
+    "red": false,
+    "secs": 0.3,
+    "exit_blind": false
+   },
+   "mutation": {
+    "auto_adjust.py": {
+     "rc": 0,
+     "red": false,
+     "secs": 0.3,
+     "mutations": 63
+    },
+    "telemetry_adjust.py": {
+     "rc": 1,
+     "red": true,
+     "secs": 0.3,
+     "mutations": 10
+    }
+   },
+   "verdict": "KILLED",
+   "detail": "telemetry_adjust.py: rc=1 (10 mutations)"
+  },
+  "test_tide.py": {
+   "baseline": {
+    "rc": 0,
+    "red": false,
+    "secs": 4.2,
+    "exit_blind": false
+   },
+   "mutation": {
+    "background_scanner.py": {
+     "rc": 1,
+     "red": true,
+     "secs": 1.0,
+     "mutations": 1851
+    },
+    "scratch_space.py": {
+     "rc": 0,
+     "red": false,
+     "secs": 3.9,
+     "mutations": 3
+    }
+   },
+   "verdict": "KILLED",
+   "detail": "background_scanner.py: rc=1 (1851 mutations)"
+  },
+  "test_tidebarweekly.py": {
+   "baseline": {
+    "rc": 0,
+    "red": false,
+    "secs": 9.8,
+    "exit_blind": false
+   },
+   "mutation": {
+    "hindsight_scorer.py": {
+     "rc": 0,
+     "red": false,
+     "secs": 9.4,
+     "mutations": 263
+    },
+    "poolgate_arcs.py": {
+     "rc": 1,
+     "red": true,
+     "secs": 9.3,
+     "mutations": 139
+    },
+    "scratch_space.py": {
+     "rc": 0,
+     "red": false,
+     "secs": 9.4,
+     "mutations": 3
+    },
+    "tide_learn.py": {
+     "rc": 1,
+     "red": true,
+     "secs": 9.1,
+     "mutations": 190
+    },
+    "tidebar_weekly.py": {
+     "rc": 1,
+     "red": true,
+     "secs": 3.8,
+     "mutations": 841
+    }
+   },
+   "verdict": "KILLED",
+   "detail": "poolgate_arcs.py: rc=1 (139 mutations); tide_learn.py: rc=1 (190 mutations); tidebar_weekly.py: rc=1 (841 mutations)"
+  },
+  "test_tidelearn.py": {
+   "baseline": {
+    "rc": 0,
+    "red": false,
+    "secs": 0.7,
+    "exit_blind": false
+   },
+   "mutation": {
+    "scratch_space.py": {
+     "rc": 0,
+     "red": false,
+     "secs": 0.6,
+     "mutations": 3
+    },
+    "tide_learn.py": {
+     "rc": 1,
+     "red": true,
+     "secs": 0.7,
+     "mutations": 190
+    }
+   },
+   "verdict": "KILLED",
+   "detail": "tide_learn.py: rc=1 (190 mutations)"
+  },
+  "test_tidememory.py": {
+   "baseline": {
+    "rc": 0,
+    "red": false,
+    "secs": 2.0,
+    "exit_blind": false
+   },
+   "mutation": {
+    "background_scanner.py": {
+     "rc": 1,
+     "red": true,
+     "secs": 2.1,
+     "mutations": 1851
+    },
+    "diag_tidememory_hindsight.py": {
+     "rc": 1,
+     "red": true,
+     "secs": 2.0,
+     "mutations": 78
+    },
+    "scratch_space.py": {
+     "rc": 0,
+     "red": false,
+     "secs": 1.8,
+     "mutations": 3
+    },
+    "tide_memory.py": {
+     "rc": 1,
+     "red": true,
+     "secs": 0.6,
+     "mutations": 82
+    }
+   },
+   "verdict": "KILLED",
+   "detail": "background_scanner.py: rc=1 (1851 mutations); diag_tidememory_hindsight.py: rc=1 (78 mutations); tide_memory.py: rc=1 (82 mutations)"
+  },
+  "test_tidestamp.py": {
+   "baseline": {
+    "rc": 0,
+    "red": false,
+    "secs": 3.7,
+    "exit_blind": false
+   },
+   "mutation": {
+    "scratch_space.py": {
+     "rc": 0,
+     "red": false,
+     "secs": 3.6,
+     "mutations": 3
+    },
+    "signal_bridge.py": {
+     "rc": 1,
+     "red": true,
+     "secs": 0.2,
+     "mutations": 127
+    }
+   },
+   "verdict": "KILLED",
+   "detail": "signal_bridge.py: rc=1 (127 mutations)"
+  },
+  "test_topfill.py": {
+   "baseline": {
+    "rc": 0,
+    "red": false,
+    "secs": 3.0,
+    "exit_blind": false
+   },
+   "mutation": {
+    "app.py": {
+     "rc": 1,
+     "red": true,
+     "secs": 2.4,
+     "mutations": 2342
+    },
+    "auto_adjust.py": {
+     "rc": 1,
+     "red": true,
+     "secs": 2.5,
+     "mutations": 63
+    },
+    "top_payers.py": {
+     "rc": 1,
+     "red": true,
+     "secs": 0.2,
+     "mutations": 33
+    }
+   },
+   "verdict": "KILLED",
+   "detail": "app.py: rc=1 (2342 mutations); auto_adjust.py: rc=1 (63 mutations); top_payers.py: rc=1 (33 mutations)"
+  },
+  "test_trailk_sweep.py": {
+   "baseline": {
+    "rc": 0,
+    "red": false,
+    "secs": 0.9,
+    "exit_blind": false
+   },
+   "mutation": {
+    "_hybrid_trail_sweep.py": {
+     "rc": 1,
+     "red": true,
+     "secs": 0.4,
+     "mutations": 73
+    },
+    "_verdict_study.py": {
+     "rc": 1,
+     "red": true,
+     "secs": 0.3,
+     "mutations": 183
+    },
+    "background_scanner.py": {
+     "rc": 1,
+     "red": true,
+     "secs": 1.0,
+     "mutations": 1851
+    },
+    "discipline.py": {
+     "rc": 1,
+     "red": true,
+     "secs": 1.3,
+     "mutations": 493
+    }
+   },
+   "verdict": "KILLED",
+   "detail": "_hybrid_trail_sweep.py: rc=1 (73 mutations); _verdict_study.py: rc=1 (183 mutations); background_scanner.py: rc=1 (1851 mutations); discipline.py: rc=1 (493 mutations)"
+  },
+  "test_trailstop.py": {
+   "verdict": "UNTESTABLE",
+   "drive_class": "STANDALONE",
+   "detail": "STANDALONE: imports no guarded repo module (AST-verified) \u2014 the verdict rides subprocesses, source text, or live artifacts; behavior mutation has nothing to flow through \u2014 the drive-class manifest"
+  },
+  "test_triwatch.py": {
+   "baseline": {
+    "rc": 0,
+    "red": false,
+    "secs": 0.8,
+    "exit_blind": false
+   },
+   "mutation": {
+    "carve_out.py": {
+     "rc": 0,
+     "red": false,
+     "secs": 0.7,
+     "mutations": 509
+    },
+    "meta_layers.py": {
+     "rc": 1,
+     "red": true,
+     "secs": 0.7,
+     "mutations": 354
+    },
+    "scratch_space.py": {
+     "rc": 0,
+     "red": false,
+     "secs": 0.8,
+     "mutations": 3
+    },
+    "tri_watch.py": {
+     "rc": 1,
+     "red": true,
+     "secs": 0.7,
+     "mutations": 174
+    }
+   },
+   "verdict": "KILLED",
+   "detail": "meta_layers.py: rc=1 (354 mutations); tri_watch.py: rc=1 (174 mutations)"
+  },
+  "test_verdictnightly.py": {
+   "baseline": {
+    "rc": 0,
+    "red": false,
+    "secs": 1.2,
+    "exit_blind": false
+   },
+   "mutation": {
+    "_verdict_study.py": {
+     "rc": 1,
+     "red": true,
+     "secs": 0.3,
+     "mutations": 183
+    },
+    "discipline.py": {
+     "rc": 1,
+     "red": true,
+     "secs": 1.3,
+     "mutations": 493
+    }
+   },
+   "verdict": "KILLED",
+   "detail": "_verdict_study.py: rc=1 (183 mutations); discipline.py: rc=1 (493 mutations)"
+  },
+  "test_verdicttrail.py": {
+   "verdict": "UNTESTABLE",
+   "drive_class": "STANDALONE",
+   "detail": "STANDALONE: imports no guarded repo module (AST-verified) \u2014 the verdict rides subprocesses, source text, or live artifacts; behavior mutation has nothing to flow through \u2014 the drive-class manifest"
+  },
+  "test_why_rejected.py": {
+   "verdict": "UNTESTABLE",
+   "drive_class": "STANDALONE",
+   "detail": "STANDALONE: imports no guarded repo module (AST-verified) \u2014 the verdict rides subprocesses, source text, or live artifacts; behavior mutation has nothing to flow through \u2014 the drive-class manifest"
+  },
+  "test_allgoodlead.py": {
+   "baseline": {
+    "rc": 0,
+    "red": false,
+    "secs": 0.6,
+    "exit_blind": false
+   },
+   "mutation": {
+    "auto_adjust.py": {
+     "rc": 0,
+     "red": false,
+     "secs": 0.3,
+     "mutations": 63
+    },
+    "background_scanner.py": {
+     "rc": 1,
+     "red": true,
+     "secs": 0.4,
+     "mutations": 1851
+    },
+    "profit_guard.py": {
+     "rc": 0,
+     "red": false,
+     "secs": 0.5,
+     "mutations": 209
+    },
+    "telemetry_adjust.py": {
+     "rc": 0,
+     "red": false,
+     "secs": 0.2,
+     "mutations": 10
+    },
+    "volatility_engine.py": {
+     "rc": 0,
+     "red": false,
+     "secs": 0.3,
+     "mutations": 205
+    }
+   },
+   "verdict": "KILLED",
+   "detail": "background_scanner.py: rc=1 (1851 mutations)"
+  },
+  "test_carveout.py": {
+   "baseline": {
+    "rc": 0,
+    "red": false,
+    "secs": 1.9,
+    "exit_blind": false
+   },
+   "mutation": {
+    "carve_out.py": {
+     "rc": 1,
+     "red": true,
+     "secs": 1.2,
+     "mutations": 509
+    },
+    "meta_layers.py": {
+     "rc": 1,
+     "red": true,
+     "secs": 1.4,
+     "mutations": 354
+    },
+    "profit_guard.py": {
+     "rc": 1,
+     "red": true,
+     "secs": 1.8,
+     "mutations": 209
+    },
+    "scratch_space.py": {
+     "rc": 0,
+     "red": false,
+     "secs": 1.4,
+     "mutations": 3
+    }
+   },
+   "verdict": "KILLED",
+   "detail": "carve_out.py: rc=1 (509 mutations); meta_layers.py: rc=1 (354 mutations); profit_guard.py: rc=1 (209 mutations)"
+  },
+  "test_watchliveness.py": {
+   "baseline": {
+    "rc": 0,
+    "red": false,
+    "secs": 2.8,
+    "exit_blind": false
+   },
+   "mutation": {
+    "background_scanner.py": {
+     "rc": 1,
+     "red": true,
+     "secs": 2.0,
+     "mutations": 1851
+    },
+    "meta_layers.py": {
+     "rc": 0,
+     "red": false,
+     "secs": 2.8,
+     "mutations": 354
+    }
+   },
+   "verdict": "KILLED",
+   "detail": "background_scanner.py: rc=1 (1851 mutations)"
+  },
+  "test_trimlifecycle.py": {
+   "verdict": "KILLED",
+   "detail": "background_scanner.py: rc=1 (1940 mutations)",
+   "mutation": {
+    "background_scanner.py": {
+     "rc": 1,
+     "red": true,
+     "mutations": 1940
+    }
+   },
+   "baseline": {
+    "rc": 0,
+    "red": false
+   }
+  }
+ },
+ "at": 1790805061.4661028
+}

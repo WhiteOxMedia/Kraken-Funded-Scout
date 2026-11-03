@@ -1,0 +1,16 @@
+now: Thu 08:23 AM — records since 10:00 PM:
+  2026-08-27T08:22:31 JUP/USD      buy rejected  src=scout_auto   conf=64 exec=Max positions — challenger lost the head-to-head
+  2026-08-27T08:18:10 FIL/USD      buy rejected  src=scout_auto   conf=67 exec=Max positions — challenger lost the head-to-head
+  2026-08-27T08:01:38 AVAX/USD     buy filled    src=scout_auto   conf=100 exec=
+  2026-08-27T07:54:21 PENGU/USD    buy rejected  src=scout_auto   conf=92 exec=Max positions — challenger lost the head-to-head
+  2026-08-27T07:38:52 TRX/USD      buy rejected  src=scout_auto   conf=84 exec=Max positions — challenger lost the head-to-head
+  2026-08-27T07:08:04 HYPE/USD     buy rejected  src=scout_auto   conf=97 exec=Max positions — challenger lost the head-to-head
+  2026-08-27T06:25:42 CRV/USD      buy rejected  src=scout_auto   conf=72 exec=Max positions — challenger lost the head-to-head
+  2026-08-27T06:23:32 DGAI/USD     buy rejected  src=scout_gainer conf=78 exec=Max positions — challenger lost the head-to-head
+  2026-08-27T06:14:47 CRV/USD      buy rejected  src=scout_auto   conf=72 exec=Max positions — challenger lost the head-to-head
+  2026-08-27T06:12:37 DGAI/USD     buy rejected  src=scout_gainer conf=78 exec=Max positions — challenger lost the head-to-head
+  2026-08-27T06:01:35 DGAI/USD     buy rejected  src=scout_gainer conf=78 exec=Max positions — challenger lost the head-to-head
+  2026-08-27T05:50:34 DGAI/USD     buy rejected  src=scout_gainer conf=78 exec=Max positions — challenger lost the head-to-head
+  2026-08-27T05:39:48 DGAI/USD     buy rejected  src=scout_gainer conf=78 exec=Max positions — challenger lost the head-to-head
+  2026-08-27T05:31:01 CRV/USD      buy rejected  src=scout_auto   conf=72 exec=Max positions — challenger lost the head-to-head
+  2026-08-27T05:28:51 DGAI/USD     buy rejected  src=scout_gainer conf=78 exec=Max positions — challenger lost the head-to-head

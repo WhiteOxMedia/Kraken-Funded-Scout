@@ -1,0 +1,62 @@
+=== BRIDGE OPEN POSITIONS ===
+
+=== BRIDGE SIGNALS XMR/XRP/APT since Sep 2 ===
+2026-09-02T08:47:27 APT/USD   buy conf=67.0 src=scout_auto status=rejected exec= px= high= closed= pnl=None reason=Max positions — challenger lost the head-to-head
+2026-09-02T08:58:26 APT/USD   buy conf=67.0 src=scout_auto status=rejected exec= px= high= closed= pnl=None reason=Max positions — challenger lost the head-to-head
+2026-09-02T12:52:10 APT/USD   buy conf=89.0 src=scout_auto status=rejected exec= px= high= closed= pnl=None reason=Max positions — challenger lost the head-to-head
+2026-09-02T13:20:48 APT/USD   buy conf=78.0 src=scout_auto status=rejected exec= px= high= closed= pnl=None reason=Max positions — challenger lost the head-to-head
+2026-09-02T13:32:05 APT/USD   buy conf=75.0 src=scout_auto status=rejected exec= px= high= closed= pnl=None reason=Max positions — challenger lost the head-to-head
+2026-09-02T13:43:31 APT/USD   buy conf=75.0 src=scout_auto status=rejected exec= px= high= closed= pnl=None reason=Max positions — challenger lost the head-to-head
+2026-09-02T13:43:35 XMR/USD   buy conf=84.0 src=scout_mover status=rejected exec= px= high= closed= pnl=None reason=Max positions — challenger lost the head-to-head
+2026-09-02T13:54:45 APT/USD   buy conf=81.0 src=scout_auto status=rejected exec= px= high= closed= pnl=None reason=Max positions — challenger lost the head-to-head
+2026-09-02T14:14:56 APT/USD   buy conf=81.0 src=scout_auto status=rejected exec= px= high= closed= pnl=None reason=Max positions — challenger lost the head-to-head
+2026-09-02T14:19:20 APT/USD   buy conf=67.0 src=scout_mover status=rejected exec= px= high= closed= pnl=None reason=Max positions — challenger lost the head-to-head
+2026-09-02T14:30:31 APT/USD   buy conf=81.0 src=scout_auto status=rejected exec= px= high= closed= pnl=None reason=Max positions — challenger lost the head-to-head
+2026-09-02T17:36:53 APT/USD   buy conf=91.0 src=scout_auto status=cancelled exec= px= high= closed= pnl=None reason=
+2026-09-02T17:47:58 APT/USD   buy conf=91.0 src=scout_auto status=closed exec=2026-09-02T17:48:59.910393-06:00 px=0.5839 high=0.5877 closed=2026-09-02T20:00:24.259359-06:00 pnl=0.0 reason=
+2026-09-03T03:36:38 APT/USD   buy conf=71.0 src=scout_auto status=rejected exec= px= high= closed= pnl=None reason=Max positions — challenger lost the head-to-head
+2026-09-03T03:53:04 APT/USD   buy conf=71.0 src=scout_auto status=rejected exec= px= high= closed= pnl=None reason=Max positions — challenger lost the head-to-head
+2026-09-03T07:55:02 XRP/USD   buy conf=65.0 src=scout_auto status=rejected exec= px= high= closed= pnl=None reason=Max positions — challenger lost the head-to-head
+2026-09-03T19:27:02 XRP/USD   buy conf=38.9 src=bot_strategy status=closed exec=2026-09-03T19:27:02.628405-07:00 px=1.43842 high=1.45398 closed=2026-09-03T22:28:48.533451-06:00 pnl=0.4446504108399978 reason=
+2026-09-03T22:29:51 XRP/USD   buy conf=40.0 src=bot_strategy status=closed exec=2026-09-03T22:29:51.027578-07:00 px=1.44821 high=1.45831 closed=2026-09-04T04:52:50.164261-06:00 pnl=-0.2667419388900356 reason=
+2026-09-04T03:52:56 XMR/USD   buy conf=59.5 src=bot_strategy status=closed exec=2026-09-04T03:52:56.345197-07:00 px=548.54 high=550.18 closed=2026-09-04T10:52:27.236018-06:00 pnl=-3.938765740000022 reason=
+2026-09-04T10:51:27 XMR/USD   sell conf=0.0 src=scout_exit_check status=closed exec=2026-09-04T10:52:27.637049-06:00 px=529.93 high= closed=2026-09-04T10:52:27.659214-06:00 pnl=-3.938765740000022 reason=
+2026-09-04T10:06:54 XRP/USD   buy conf=40.0 src=bot_strategy status=closed exec=2026-09-04T10:06:54.753900-07:00 px=1.40041 high= closed=2026-09-04T11:22:18.732278-06:00 pnl=-0.3246602707700035 reason=
+2026-09-04T11:07:35 XRP/USD   sell conf=0.0 src=scout_trend_exit status=rejected exec= px= high= closed= pnl=None reason=Cooldown: bought 1 min ago
+2026-09-04T10:54:48 XRP/USD   buy conf=53.5 src=bot_strategy status=closed exec=2026-09-04T10:54:48.997040-07:00 px=1.3931 high=1.39673 closed=2026-09-04T12:10:15.269907-06:00 pnl=-0.040661449200008803 reason=
+2026-09-04T11:55:32 XRP/USD   sell conf=0.0 src=scout_trend_exit status=rejected exec= px= high= closed= pnl=None reason=Cooldown: bought 1 min ago
+2026-09-04T14:56:34 XMR/USD   buy conf=70.0 src=bot_strategy status=closed exec=2026-09-04T14:56:34.271137-07:00 px=514.26 high=517.38 closed=2026-09-04T16:11:53.311130-06:00 pnl=0.036628159999999355 reason=
+2026-09-04T15:57:28 XMR/USD   sell conf=0.0 src=scout_trend_exit status=rejected exec= px= high= closed= pnl=None reason=Cooldown: bought 1 min ago
+2026-09-04T15:12:14 XRP/USD   buy conf=70.0 src=bot_strategy status=closed exec=2026-09-04T15:12:14.592197-07:00 px=1.39636 high=1.39762 closed=2026-09-04T16:27:31.702552-06:00 pnl=-0.20066648400000275 reason=
+2026-09-04T16:12:16 XRP/USD   sell conf=0.0 src=scout_trend_exit status=rejected exec= px= high= closed= pnl=None reason=Cooldown: bought 1 min ago
+2026-09-04T16:27:24 XRP/USD   sell conf=0.0 src=scout_trend_exit status=rejected exec= px= high= closed= pnl=None reason=No position or balance
+
+=== BRIDGE PENDING ===
+
+=== KRAKEN WALLET (reality) ===
+USD: 176.2156
+
+=== KRAKEN TRADES since Sep 2 (XMR/XRP/APT/UNI/ASTER) ===
+09-04 16:11:49 XMR/USD   SELL 0.113537 @ 516.397 fee=0.20520565
+09-04 15:56:30 XMR/USD   BUY  0.113537 @ 514.26 fee=0.20435638
+09-04 10:52:24 XMR/USD   SELL 0.233317 @ 529.933 fee=0.43274797
+09-04 06:23:41 XMR/USD   BUY  0.049688 @ 539.83 fee=0.09388076
+09-04 05:53:11 XMR/USD   BUY  0.074123 @ 543.1 fee=0.1408967
+09-04 04:52:52 XMR/USD   BUY  0.109506 @ 548.54 fee=0.21023947
+09-04 16:27:28 XRP/USD   SELL 41.74 @ 1.39644 fee=0.20400568
+09-04 16:12:11 XRP/USD   BUY  41.74 @ 1.39637 fee=0.20399545
+09-04 12:10:12 XRP/USD   SELL 41.9376 @ 1.39702 fee=0.2050569
+09-04 11:54:45 XRP/USD   BUY  41.9376 @ 1.3931 fee=0.20448152
+09-04 11:22:15 XRP/USD   SELL 41.8302 @ 1.39754 fee=0.20460768
+09-04 11:06:51 XRP/USD   BUY  41.8302 @ 1.40042 fee=0.20502933
+09-04 04:52:46 XRP/USD   SELL 69.5631 @ 1.44637 fee=0.35214919
+09-04 00:30:37 XRP/USD   BUY  27.969 @ 1.44058 fee=0.14102052
+09-03 23:29:46 XRP/USD   BUY  41.5942 @ 1.44821 fee=0.21082974
+09-03 22:28:44 XRP/USD   SELL 41.8279 @ 1.45415 fee=0.21288413
+09-03 20:26:57 XRP/USD   BUY  41.8279 @ 1.43843 fee=0.21058276
+09-02 20:00:14 APT/USD   SELL 310.868 @ 0.580918 fee=0.6320605
+09-02 17:48:56 APT/USD   BUY  310.868 @ 0.584 fee=0.63541348
+09-02 05:20:43 UNI/USD   SELL 47.0392 @ 5.8723 fee=0.9668
+09-02 00:16:08 UNI/USD   BUY  47.0392 @ 6.2198 fee=1.02401
+09-02 17:38:04 ASTER/USD SELL 253.379 @ 0.724081 fee=0.64213
+09-02 08:22:20 ASTER/USD BUY  379.278 @ 0.72655 fee=0.96448

@@ -1,0 +1,19 @@
+PASS  the SQL runs verbatim from sql/per_gate_ratios.sql
+PASS  r_g sorts DESC with NULL last (deep-veto 1.0 first, the unmeasurable gate last)
+PASS  deep-veto: B_g 2, P_g 2, r_g 1.0
+PASS  tide-out: B_g 4, P_g 3, r_g 0.75
+PASS  stale-move: B_g 1, P_g 0, r_g 0.0 (an honest zero)
+PASS  popup-floor: B_g 0 (unmeasurable only), P_g 0, r_g NULL
+PASS  another rotation's rows never leak into the window
+PASS  the goal boundary is >= (1.5 counts, 1.49 does not)
+PASS  the journal loads one rotation only and dedups to FIRST refusal per (pair, gate)
+PASS  the machine loader computes real peaks from the cache (tide-out 1/2, deep-veto 1/1)
+PASS  the rotation summary feeds the auto-adjust (B 3, P 2)
+PASS  the CSV artifact carries the header, both gates, and 4-place ratios
+PASS  the default rotation id is the scanner's 4h window stamp (the isolated review's major: the old default could never match a journal rot)
+PASS  a full rotation id scopes the bare-window journal to ITS day (yesterday's same window excluded)
+PASS  a bare window id still matches undated (the loader's original contract)
+PASS  the live journal path runs read-only and returns [] for an unknown rotation
+PASS  the peak window is 7h inclusive and entry is the pre-refusal close (+30% inside, the 9.99 outside bar ignored)
+
+RESULT: 17 passed, 0 failed

@@ -1,0 +1,5 @@
+POPCAT close Sep 3 08:00: 0.05380
+POPCAT close Sep 4 08:00: 0.05020
+own 24h move at crown time: -6.69%
+FLAT lone-wolf tiers: >= +5% (25 pts) / >= +8% (35 pts)
+-> at +0.0%: NEITHER tier

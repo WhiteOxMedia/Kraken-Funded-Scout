@@ -1,0 +1,4 @@
+discipline.py:133:9: local variable 'sched' is assigned to but never used
+;: No such file or directory
+echo: No such file or directory
+PF_DONE: No such file or directory

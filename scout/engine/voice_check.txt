@@ -1,0 +1,5 @@
+﻿installed voices:
+  Microsoft David Desktop | Male | en-US
+  Microsoft Zira Desktop | Female | en-US
+female voice selected: Microsoft Zira Desktop
+spoke test line

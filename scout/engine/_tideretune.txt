@@ -1,0 +1,51 @@
+=== THE TIDE RETUNE — spot-native store ===
+deep pairs loaded: 102
+popup fleet priced: 54 pairs
+
+breadth hours callable: 1187 (2026-07-23 15:00:00+00:00 .. 2026-09-11 01:00:00+00:00)
+
+ RIS>=  OUT<= | RISING pay  (hrs) | FLAT pay  (hrs) |  OUT pay  (hrs) | R-O spread            order
+---------------------------------------------------------------------------------------------------------
+    60     20 |      20.2%    280 |    10.3%    673 |    11.6%    230 |      +8.7pp    not monotonic
+    60     25 |      20.2%    280 |     9.9%    601 |    12.0%    302 |      +8.2pp    not monotonic
+    60     30 |      20.2%    280 |     9.9%    515 |    11.7%    388 |      +8.6pp    not monotonic
+    60     35 |      20.2%    280 |    10.4%    424 |    10.9%    479 |      +9.4pp    not monotonic
+    60     40 |      20.2%    280 |    10.2%    329 |    10.9%    574 |      +9.3pp    not monotonic
+    65     20 |      23.1%    222 |    10.2%    731 |    11.6%    230 |     +11.5pp    not monotonic
+    65     25 |      23.1%    222 |     9.9%    659 |    12.0%    302 |     +11.1pp    not monotonic
+    65     30 |      23.1%    222 |     9.8%    573 |    11.7%    388 |     +11.4pp    not monotonic
+    65     35 |      23.1%    222 |    10.2%    482 |    10.9%    479 |     +12.2pp    not monotonic
+    65     40 |      23.1%    222 |    10.0%    387 |    10.9%    574 |     +12.2pp    not monotonic
+    70     20 |      24.9%    182 |    10.5%    771 |    11.6%    230 |     +13.3pp    not monotonic
+    70     25 |      24.9%    182 |    10.1%    699 |    12.0%    302 |     +12.9pp    not monotonic
+    70     30 |      24.9%    182 |    10.1%    613 |    11.7%    388 |     +13.2pp    not monotonic
+    70     35 |      24.9%    182 |    10.6%    522 |    10.9%    479 |     +14.0pp    not monotonic
+    70     40 |      24.9%    182 |    10.5%    427 |    10.9%    574 |     +14.0pp    not monotonic
+    75     20 |      26.9%    153 |    10.6%    800 |    11.6%    230 |     +15.4pp    not monotonic
+    75     25 |      26.9%    153 |    10.3%    728 |    12.0%    302 |     +14.9pp    not monotonic
+    75     30 |      26.9%    153 |    10.3%    642 |    11.7%    388 |     +15.3pp    not monotonic
+    75     35 |      26.9%    153 |    10.8%    551 |    10.9%    479 |     +16.1pp    not monotonic
+    75     40 |      26.9%    153 |    10.7%    456 |    10.9%    574 |     +16.0pp    not monotonic
+    80     20 |      31.8%    116 |    10.6%    837 |    11.6%    230 |     +20.2pp    not monotonic
+    80     25 |      31.8%    116 |    10.4%    765 |    12.0%    302 |     +19.7pp    not monotonic
+    80     30 |      31.8%    116 |    10.4%    679 |    11.7%    388 |     +20.1pp    not monotonic
+    80     35 |      31.8%    116 |    10.8%    588 |    10.9%    479 |     +20.9pp    not monotonic
+    80     40 |      31.8%    116 |    10.8%    493 |    10.9%    574 |     +20.9pp    not monotonic
+
+── candidates failing the hour floors (every state needs >= 150h) are shown but not eligible ──
+eligible candidates: 20 of 25
+
+── THE PICK — widest RISING−OUT payer spread among eligible ──
+  TIDE_RISING_MIN = 75   TIDE_OUT_MAX = 35
+   RISING: payers  26.9% | median 4h +0.20% | 153h
+     FLAT: payers  10.8% | median 4h -0.07% | 551h
+      OUT: payers  10.9% | median 4h +0.02% | 479h
+  RISING−OUT payer spread: +16.1pp
+
+── the dials in force (70 / 35) on the same store ──
+   RISING: payers  24.9% | median 4h +0.10% | 182h
+     FLAT: payers  10.6% | median 4h -0.06% | 522h
+      OUT: payers  10.9% | median 4h +0.02% | 479h
+
+The learned OUT bar (tide_learn.py) re-prices itself against
+whatever states the shipped thresholds produce on its 30-min TTL.

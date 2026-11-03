@@ -1,8 +1,46 @@
 # monero_project — XMR Daily Jackpot Pool
 
+## What lives here (the 30-second map)
+
+One repo, two products, kept deliberately separate — **the miners are not the
+Scout**:
+
+- **`pool/` — XMR Jackpot** (the pool, the website, the miner). The
+  Monero daily-jackpot pool and its website at
+  [xmrjackpot.com](https://xmrjackpot.com/) plus the miner config. The
+  miners are how you win the jackpot: an xmrig worker pointed at
+  `stratum+tcp://mine.xmrjackpot.com:3333`, every 100 accepted shares is
+  one entry in the open drawing. The free `.bat` miner ships inside the
+  [download bundle](https://xmrjackpot.com/download) next to the scanner;
+  a free account at xmrjackpot.com lets you mine under your own wallet and
+  adds the dashboard, entry controls and account settings.
+- **`scout/` — Kraken Scout** (the product). The free, open-source market
+  scanner built to beat the Kraken funded challenge, shipped to everyone in
+  the same bundle. `scout/` holds the desktop console app as it ships
+  (`app.py`, `push_client.py`); `scout/engine/` is the scanner engine
+  source (signal + execution brain: pair scans, entry grading, exit-ladder
+  bot rules), merged here with its full commit history intact.
+- **Kraken Pro** (the Pro unlock, a.k.a. Scout Pro) is unlocked on the site,
+  not here: create a free account at xmrjackpot.com and unlock it from the
+  dashboard ([/scout-pro](https://xmrjackpot.com/scout-pro)). Pro adds live
+  push alerts, profile sync across devices and one extra jackpot entry, and
+  funds the jackpot (70% of every Pro order goes into the daily pot).
+
+**Who owns what** — Kraken: the Funded Challenge, its rules, targets and
+account funding, and its referral ladder. XMR Jackpot: entries from mining
+shares, the drawings and claims, and Scout Pro. We run these; Kraken has no
+part in them and never pays the jackpot directly (only operator-recorded
+Kraken bonuses reach the pot).
+
+*Everything below is the operator documentation for this repo: the drive
+fleet, the commit gate, the runtime operations.*
+
+---
+
 A Monero daily-jackpot pool: FastAPI server (`pool/server.py`, port 3094),
 native push system, Kraken referral projection, and the Scout funnel
-(see the sibling `kraken_scout` checkout for the trading half).
+(the trading half now lives in this repo — `scout/` is the shipped console,
+`scout/engine/` is the engine source).
 
 ## The drive fleet
 

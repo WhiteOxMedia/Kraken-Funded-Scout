@@ -1,0 +1,42 @@
+[
+  {
+    "id": "ent-1",
+    "content": "[ent-1] Shared goal helper: _derive_goal(pair) in app.py (wraps _bs._window_goal_pct + window scaling); green light path refactored to use it",
+    "status": "completed"
+  },
+  {
+    "id": "ent-2",
+    "content": "[ent-2] Unified entry control _render_entry_control(): pair selectbox/free-text, same-trade/new-trade toggle, spent÷owned or entry$+size$ inputs, keyed updates only",
+    "status": "completed"
+  },
+  {
+    "id": "ent-3",
+    "content": "[ent-3] Wire the control into BOTH render sites (below SOLD buttons; Quick Check replacing +/- column); retire the old RE-ENTERED form",
+    "status": "completed"
+  },
+  {
+    "id": "ent-4",
+    "content": "[ent-4] WATCH-anyway: derive goal/window on add + size input (kill the $2,500 default PnL)",
+    "status": "completed"
+  },
+  {
+    "id": "rt-1",
+    "content": "[rt-1] _run_exit_logic: live ticker price for trail/goal/PnL/peak (candle-close fallback); seed in-progress candle with live price before strategy eval",
+    "status": "completed"
+  },
+  {
+    "id": "rt-2",
+    "content": "[rt-2] EXIT CHECK tab: ticker-first reads for trail/goal/PnL",
+    "status": "completed"
+  },
+  {
+    "id": "rt-3",
+    "content": "[rt-3] Scanner voice (background_scanner): align per-minute price checks to the ticker",
+    "status": "completed"
+  },
+  {
+    "id": "ver-1",
+    "content": "[ver-1] End-to-end verify: all five entry paths produce correct watch records; real-time trail test; no bridge writes from contest paths",
+    "status": "completed"
+  }
+]

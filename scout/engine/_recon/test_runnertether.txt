@@ -1,0 +1,79 @@
+### test_runnertether — co_filename=test_runnertether.py firstlineno=1
+DOCSTRING:
+test_runnertether.py — hermetic pins for the runner-tether backtest
+(diag_runnertether).
+
+These pins prove the ARMED tether counterfactual on synthetic bars —
+no production file is read:
+
+  1. never-confirmed runs claim nothing (the original exit stands)
+  2. a confirmed runner exits on the trail break at the trail price
+  3. a confirmed runner that never breaks trails to the horizon's
+     last close
+  4. the giveback-after-confirm case prices its honest cost
+  5. the horizon clamp and the empty/zero guards
+  6. the study's constants: the trail is the guard's own giveback
+     (1.5%), the horizon is the re-goal cadence (8 bars), and the
+     fix is ARMED (the naive tether-everything world is dead on disk)
+
+
+TOP-LEVEL NAMES (imports/defs in order):
+  IMPORT json
+  STORE  json
+  IMPORT sys
+  STORE  sys
+  IMPORT pathlib
+  IMPORT Path
+  STORE  Path
+  STORE  BASE
+  IMPORT diag_runnertether
+  STORE  drt
+  STORE  PASS
+  STORE  FAIL
+  STORE  lines
+  STORE  check
+  STORE  bars
+  STORE  g
+  STORE  bars
+  STORE  g
+  STORE  bars
+  STORE  g
+  STORE  bars
+  STORE  g
+  STORE  g
+  STORE  g
+  STORE  bars
+  STORE  g
+
+ALL STRINGS (dedup, order-preserving, >=4 chars):
+  test_runnertether.py — hermetic pins for the runner-tether backtest
+(diag_runnertether).
+
+These pins prove the ARMED tether counterfactual on synthetic bars —
+no production file is read:
+
+  1. never-confirmed runs claim 
+  PASS  
+  FAIL  
+  arm rule: a coin that never confirms +2% claims NOTHING (the original exit stands, delta 0)
+  armed
+  tether_exit
+  runner: the armed tether exits at the trail-break close (+1.8% over the fixed-goal sell)
+  runner: a confirmed run that never gives back 1.5% rides to the horizon's last close
+  horizon end
+  detail
+  giveback: a confirmed run that dies prices its cost (trail break BELOW the original exit)
+  guards: no bars after the exit claims nothing
+  guards: a zero exit price claims nothing
+  horizon: the clamp rides only the first bar
+  constants: the trail is the guard's own giveback (1.5%), the horizon is the re-goal cadence (8 bars), the runner run is 2%
+  the fix is ARMED: the naive tether-everything world (which rode this month's losers down) is dead on disk
+  ARMED
+  
+RESULT: 
+   passed, 
+   failed
+  _runnertether_check.txt
+  utf-8
+
+TOTAL STRINGS: 22

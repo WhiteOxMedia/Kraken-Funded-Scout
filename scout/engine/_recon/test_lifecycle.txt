@@ -1,0 +1,192 @@
+### test_lifecycle — co_filename=test_lifecycle.py firstlineno=1
+DOCSTRING:
+test_lifecycle.py - THE LAUNCH-LIFECYCLE CONTRACT (Sep 15).
+
+Pins the start/stop machinery in source so neither side can silently
+regress to the boot-opener / double-console bugs:
+
+  1. THE WATCHDOG'S FLEET GATE (reminders/console_watchdog.ps1) -
+     the Sep 7 watchdog healed a dead console UNCONDITIONALLY, every
+     minute: at unlock it could start a console before the desktop
+     shortcut ever ran, and it resurrected consoles the user killed.
+     Pinned: marker required, BOTH pid locks checked with a live-python
+     guard, and the gate ORDERED BEFORE the respawn.
+  2. THE LAUNCHER'S RE-ARM (launch_stack.ps1) - starting the stack by
+     hand is the only thing that re-arms the watchdog, and only when
+     every component verified up. Pinned: marker written strictly
+     inside `if ($okAll)`, stop_stack.lock cleared, and the marker
+     filename IDENTICAL to the one the watchdog reads (if the paths
+     drift, the re-arm arms nothing and boot heals nothing).
+  3. THE STOP PATH (stop_stack.ps1) - disarms the watchdog BEFORE the
+     first kill pass (no resurrection mid-shutdown), takes the launcher
+     mutex, and verifies silence twice before declaring victory.
+  4. THE WINDOW
+
+TOP-LEVEL NAMES (imports/defs in order):
+  IMPORT os
+  STORE  os
+  IMPORT re
+  STORE  re
+  IMPORT sys
+  STORE  sys
+  IMPORT pathlib
+  IMPORT Path
+  STORE  Path
+  STORE  BASE
+  STORE  WD
+  STORE  LS
+  STORE  SS
+  STORE  VBS
+  STORE  HD
+  STORE  MARKER_NAME
+  STORE  PASS
+  STORE  FAIL
+  STORE  check
+  STORE  ordered
+  STORE  wd
+  STORE  ls
+  STORE  ss
+  STORE  vbs
+  STORE  hd
+  STORE  code_only
+  STORE  wdc
+  STORE  lsc
+  STORE  ssc
+  STORE  hdc
+  STORE  shortcut_targets_vbs
+
+ALL STRINGS (dedup, order-preserving, >=4 chars):
+  test_lifecycle.py - THE LAUNCH-LIFECYCLE CONTRACT (Sep 15).
+
+Pins the start/stop machinery in source so neither side can silently
+regress to the boot-opener / double-console bugs:
+
+  1. THE WATCHDOG'S FLEET GATE (reminde
+  reminders
+  console_watchdog.ps1
+  launch_stack.ps1
+  stop_stack.ps1
+  launch_kraken_hidden.vbs
+  start_detached.ps1
+  .console_watchdog.on
+    PASS  
+    FAIL  
+  first
+  second
+  return
+  True when `first` appears in src BEFORE `second` (ordering pin).
+  utf-8
+  replace
+  Source with comment lines stripped (# for ps1, ' for vbs).
+Pins judge CODE: the scripts document the bugs they retired
+("the old Read-Host trap", "the streamlit.exe trampoline"), and
+a comment mentioning history must nev
+  watchdog exists
+  watchdog requires the marker (delete = disable)
+  if (-not (Test-Path $marker)) { exit 0 }
+  fleet gate checks the SCANNER pid lock
+  Test-LockAlive "$scout\scanner.lock"
+  fleet gate checks the BOT pid lock
+  Test-LockAlive "$botDir\bot.lock"
+  a recycled pid on a non-python exe is refused
+  -match 'python'
+  gate is ORDERED BEFORE the respawn
+  the heal must be unreachable while the fleet is down
+  console detection is contract-shaped (streamlit run app.py)
+  streamlit run app\.py
+  console detection checks the :8501 listener
+  :8501
+  zombie sweep kills BOTH halves (parent-child)
+  ParentProcessId
+  watchdog heals in the stack's OWN mode (visible stays visible)
+  visible_stack.off
+  '-ShowWin'
+  a hidden heal of a visible stack looks like a vanished component
+  respawn goes through the hardened helper, never a direct spawn
+  streamlit.exe
+  python -m streamlit
+  launcher exists
+  re-arm writes the marker ONLY on a fully-verified stack
+  if \(\$okAll\) \{[^}]*
+  re-arm clears the stop lock (a start un-stops)
+  if \(\$okAll\) \{[^}]*stop_stack\.lock
+  re-arm and watchdog read the SAME marker path
+  a path drift silently disarms the whole interlock
+  no Read-Host trap (the old launcher parked on it)
+  Read-Host
+  no foreground console (the old 'this window is the dashboard')
+  streamlit.exe" run app.py
+  & '.\app.py'
+  no -RedirectStandardOutput (the inherited-pipe hold)
+  -RedirectStandardOutput
+  all four components spawn through Start-Verified
+  Start-Verified "
+  VISIBLE is the default mode (visible_stack.off = hidden)
+  $showWin = -not
+  her preference: windows she can see, not a background fleet
+  -Hidden is a one-run override and never flips the preference
+  if ($Hidden)
+  visible_stack.on
+  Set-Content
+  an override that writes the marker would steal her choice
+  all four components receive the -ShowWin switch
+  -ShowWin:$showWin
+  got 
+  visible mode verifies the CONSOLE shape, not the tee wrapper
+  streamlit run app.py
+  streamlit runs HEADLESS (never opens its own browser tab)
+  --server.headless true
+  the Sep 15 double-tab bug: streamlit auto-opened AND the launcher opened
+  the launcher is the single opener on BOTH console paths
+  Start-Process "http://localhost:8501"
+  fresh start AND already-running must each open exactly one tab
+  stop script exists
+  STOP disarms the watchdog BEFORE the first kill pass
+  Remove-Item $marker
+  Stop-Process
+  a resurrection mid-shutdown turns stop into restart
+  STOP takes the launcher mutex (no start/stop race)
+  Global\KrakenLaunchStack
+  STOP drops the stop lock
+  Set-Content -Path $stopLock
+  STOP verifies silence twice before declaring down
+  $left1
+  $left2
+  VBS host exists
+  the click path runs the launcher hidden and transcribes it
+  logs\launch_stack.log
+  the checklist is the click's paper trail once no window exists
+  the venv self-check survived the windowless move
+  uv sync
+  helper exists
+  helper accepts -ShowWin
+  [switch]$ShowWin
+  visible windows are TITLED per component
+  $host.UI.RawUI.WindowTitle
+  $title
+  the wrapper CLAIMS its own visibility (hidden chains hide children)
+  GetConsoleWindow
+  ShowWindow
+  -WindowStyle Normal is overridden by the parent's show-state
+  live output is TEE'D: window AND logs\<stem>_console.log
+  _console.log
+  Add-Content -Path $ConLog
+  the tee wrapper propagates the child's exit code
+  exit $LASTEXITCODE
+  without it the early-death capture reads a phantom success
+  early-death evidence lands in the transcript she reads
+  ${LogStem}_console.log
+  hidden mode keeps separate stdout/stderr redirects
+  -RedirectStandardOutput $outLog -RedirectStandardError $errLog
+  console shape lives in the helper too (alive-probe parity)
+  "streamlit run app.py"
+  OneDrive
+  Desktop
+  Kraken.lnk
+  latin-1
+  the desktop Kraken shortcut targets the windowless VBS
+  retargeted to a .bat = visible consoles again on every click
+  
+lifecycle contract: 
+
+TOTAL STRINGS: 123

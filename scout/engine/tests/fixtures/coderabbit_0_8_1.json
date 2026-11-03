@@ -1,0 +1,5 @@
+{"errorType": "rate_limit", "message": "free allowance reached - retry after the hour window"}
+{"fileName": "per_gate_export.py", "startLine": 165, "severity": "major", "title": "Fix the default rotation id", "comment": "It can never match a journal row."}
+{"fileName": "s.py", "severity": "minor", "type": "finding"}
+{"fileName": "g.py", "severity": "major", "codegenInstructions": "Review comment at @g.py at line 33: The goal-price calc repeats the raw entry read. Wrap it."}
+{"fileName": "h.py", "severity": "minor", "codegenInstructions": "Review comment at @h.py at line 8: Guard the JSON parse."}

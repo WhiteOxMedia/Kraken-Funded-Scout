@@ -1,0 +1,198 @@
+### diag_basegrade — co_filename=diag_basegrade.py firstlineno=1
+DOCSTRING:
+diag_basegrade.py — THE FIXED-HOUR CLAIM, GRADED (Sep 19).
+
+WHY THIS EXISTS: the old base call told her "give it about an hour to
+base" — one number for 100+ coins with wildly different rhythms. The
+Sep 19 rebuild replaced it with each coin's own book (coin_wiggle_profile:
+median bars-to-base among recovered dips per depth bucket). This study
+grades the RETIRED claim fleet-wide: replay every coin's 1h store with
+the book's exact walk and price how wrong "about an hour" (60 min) was
+per coin, in median base minutes.
+
+METHOD — mirrors coin_wiggle_profile's walk exactly (validated against
+the live book at boot): rolling 24h high, dip = (hh - close)/hh, dips
+>= 0.5% only, a dip RECOVERS when a future high re-touches hh within
+24 bars (one rotation), bars-to-base = first bar whose high >= hh,
+minutes = bars * 60 (1h bars). The grade is honest about the universe:
+recovered dips only — a dip that never based within the rotation is a
+GET OUT case, not a base-time sample.
+
+THE MONTHLY EVIDENCE DRIVER (Sep 20): the study re-prices itself every
+month as the deep stores grow — a coin's median base time sharpens with
+every recovered dip its store accrues, and the fleet verdict that set
+the "abo
+
+TOP-LEVEL NAMES (imports/defs in order):
+  IMPORT __future__
+  IMPORT annotations
+  STORE  annotations
+  IMPORT json
+  STORE  json
+  IMPORT logging
+  STORE  logging
+  IMPORT statistics
+  STORE  statistics
+  IMPORT sys
+  STORE  sys
+  IMPORT threading
+  STORE  threading
+  IMPORT datetime
+  IMPORT datetime
+  STORE  datetime
+  IMPORT timezone
+  STORE  timezone
+  IMPORT pathlib
+  IMPORT Path
+  STORE  Path
+  STORE  BASE
+  STORE  STORES
+  STORE  OUT
+  STORE  LEDGER
+  STORE  FIXED_CLAIM_MIN
+  STORE  LOOKBACK_DAYS
+  STORE  MIN_DIP_PCT
+  STORE  THIN_N
+  STORE  BUCKETS
+  STORE  MONTHLY_PERIOD_S
+  STORE  FIRST_DELAY_S
+  STORE  logger
+  STORE  bucket_of
+  STORE  walk_store
+  STORE  med
+  STORE  run_study
+  STORE  main
+  STORE  _read_ledger
+  STORE  monthly_driver_loop
+
+ALL STRINGS (dedup, order-preserving, >=4 chars):
+  diag_basegrade.py — THE FIXED-HOUR CLAIM, GRADED (Sep 19).
+
+WHY THIS EXISTS: the old base call told her "give it about an hour to
+base" — one number for 100+ coins with wildly different rhythms. The
+Sep 19 rebuild replac
+  surething_data
+  kraken
+  _basegrade_check.txt
+  _basegrade_monthly.jsonl
+  basegrade
+  float
+  path
+  Path
+  The book's walk on one store. Returns (raw_minutes, bucket_minutes,
+bucket_totals, bucket_rec4) — raw_minutes: one base-duration in minutes
+per recovered dip >= 0.5%; bucket_minutes: {bucket: [minutes]} for
+buckets with 
+  date
+  time
+  high
+  close
+    skip 
+  anchor
+  bool
+  return
+  dict
+  One full grade over the deep stores. Writes _basegrade_check.txt
+(the full report) and appends the month's summary to
+_basegrade_monthly.jsonl (the re-pricing history — each record
+prices the stores AS THEY STOOD). store
+  *_USD-1h.feather
+  THE FIXED-HOUR CLAIM, GRADED — 'about an hour' (
+   min) vs each coin's own median base time
+  universe: 
+   stores, last 
+   days, recovered dips >= 
+  % only (minutes = bars x 60)
+
+  _USD-1h.feather
+  buckets
+  bmed
+  anchor 
+  ): book bmed=
+  h (n=
+  ) | replay=
+  h -> 
+  AGREE
+  DIVERGE
+  anchor skipped: 
+  -1h.feather
+  pair
+  graded 
+   coins (
+   skipped: thin/unreadable)
+
+  FLEET VERDICT (all recovered dips pooled):
+    fleet median base time: 
+   min vs the claim's 60 min -> the claim was 
+  LATE
+  EARLY
+   by 
+   min at the median
+    dips basing SLOWER than an hour: 
+  %) — times the fixed claim said 'ready' while the coin was still basing
+    dips basing under 30 min: 
+  %) — times an hour was overcautious
+
+  BY DIP DEPTH (fleet pooled):
+  med_min
+  rec4
+  %): n=
+    median 
+  6.0f
+   min  -> claim off by 
+  +.0f
+   min  rec4=
+  % of 
+   dips
+  PER-COIN MEDIAN BASE TIME (
+   coins with >= 
+   recovered dips; 
+   thin, unlisted):
+  coin
+  median
+    verdict
+  an hour is LATE
+  an hour is EARLY
+  an hour is fair
+  7.0f
+  +5.0f
+   min  
+    thin (medians unreliable): 
+   ...
+  seconds
+  stores_dir
+  coins_total
+  graded
+  skipped
+  samples
+  claim_min
+  fleet_median_min
+  late_n
+  late_pct
+  fast_n
+  fast_pct
+  solid_coins
+  thin_coins
+  top_offenders
+  delta_min
+  utf-8
+  basegrade txt write failed (%s) — the ledger still carries the verdict
+  basegrade ledger append failed (%s) — the txt still carries the verdict
+  wrote 
+   coins graded, fleet median 
+   min vs the claim's 
+   samples)
+  list
+  stop
+  threading.Event
+  first_delay_s
+  period_s
+  The daemon loop: one pass shortly after boot (the ledger record
+seeds the history), then monthly. Never raises; dies with the
+scanner. The append-only ledger (_basegrade_monthly.jsonl) is the
+re-pricing history — each mo
+  BASE-GRADE: monthly re-price — %d/%d coins graded, fleet median %.0f min vs the claim's %.0f (%d samples)
+  BASE-GRADE: pass failed (%s) — this month's re-price skips, the ledger stands
+  __main__
+
+TOTAL STRINGS: 112

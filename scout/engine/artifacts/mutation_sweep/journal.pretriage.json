@@ -1,0 +1,1401 @@
+{
+ "results": {
+  "test_advisorybrain.py": {
+   "baseline": {
+    "rc": 0,
+    "red": false,
+    "secs": 0.7,
+    "exit_blind": false
+   },
+   "mutation": {
+    "background_scanner.py": {
+     "rc": 0,
+     "red": true,
+     "secs": 0.4,
+     "mutations": 1826
+    },
+    "hindsight_scorer.py": {
+     "rc": 0,
+     "red": true,
+     "secs": 0.4,
+     "mutations": 263
+    }
+   },
+   "verdict": "KILLED",
+   "detail": "background_scanner.py: rc=0 (1826 mutations); hindsight_scorer.py: rc=0 (263 mutations)"
+  },
+  "test_balancepop.py": {
+   "baseline": {
+    "rc": 0,
+    "red": false,
+    "secs": 0.2,
+    "exit_blind": false
+   },
+   "mutation": {
+    "scratch_space.py": {
+     "rc": 0,
+     "red": false,
+     "secs": 0.1,
+     "mutations": 3
+    }
+   },
+   "verdict": "VACUOUS",
+   "detail": "stayed green under every mutation"
+  },
+  "test_bot_day.py": {
+   "baseline": {
+    "rc": 0,
+    "red": false,
+    "secs": 0.2,
+    "exit_blind": false
+   },
+   "mutation": {
+    "scratch_space.py": {
+     "rc": 0,
+     "red": false,
+     "secs": 0.2,
+     "mutations": 3
+    }
+   },
+   "verdict": "VACUOUS",
+   "detail": "stayed green under every mutation"
+  },
+  "test_botdb.py": {
+   "baseline": {
+    "rc": 0,
+    "red": false,
+    "secs": 1.9,
+    "exit_blind": false
+   },
+   "mutation": {
+    "config.py": {
+     "rc": 0,
+     "red": false,
+     "secs": 1.7,
+     "mutations": 40
+    },
+    "scratch_space.py": {
+     "rc": 0,
+     "red": false,
+     "secs": 1.3,
+     "mutations": 3
+    }
+   },
+   "verdict": "VACUOUS",
+   "detail": "stayed green under every mutation"
+  },
+  "test_bracket_click.py": {
+   "baseline": {
+    "rc": 0,
+    "red": false,
+    "secs": 46.7,
+    "exit_blind": false
+   },
+   "mutation": {
+    "scratch_space.py": {
+     "rc": 0,
+     "red": false,
+     "secs": 44.1,
+     "mutations": 3
+    }
+   },
+   "verdict": "VACUOUS",
+   "detail": "stayed green under every mutation"
+  },
+  "test_carry.py": {
+   "baseline": {
+    "rc": 0,
+    "red": false,
+    "secs": 0.1,
+    "exit_blind": false
+   },
+   "mutation": {
+    "config.py": {
+     "rc": 0,
+     "red": false,
+     "secs": 0.1,
+     "mutations": 40
+    },
+    "scratch_space.py": {
+     "rc": 0,
+     "red": false,
+     "secs": 0.1,
+     "mutations": 3
+    }
+   },
+   "verdict": "VACUOUS",
+   "detail": "stayed green under every mutation"
+  },
+  "test_chase.py": {
+   "baseline": {
+    "rc": 0,
+    "red": false,
+    "secs": 4.3,
+    "exit_blind": false
+   },
+   "mutation": {
+    "scratch_space.py": {
+     "rc": 0,
+     "red": false,
+     "secs": 4.3,
+     "mutations": 3
+    }
+   },
+   "verdict": "VACUOUS",
+   "detail": "stayed green under every mutation"
+  },
+  "test_contest_mode.py": {
+   "baseline": {
+    "rc": 0,
+    "red": false,
+    "secs": 1.2,
+    "exit_blind": false
+   },
+   "mutation": {
+    "scanner.py": {
+     "rc": 0,
+     "red": false,
+     "secs": 1.1,
+     "mutations": 214
+    },
+    "scratch_space.py": {
+     "rc": 0,
+     "red": false,
+     "secs": 1.2,
+     "mutations": 3
+    },
+    "strategy.py": {
+     "rc": 0,
+     "red": false,
+     "secs": 1.2,
+     "mutations": 588
+    }
+   },
+   "verdict": "VACUOUS",
+   "detail": "stayed green under every mutation"
+  },
+  "test_cooldowncheck.py": {
+   "baseline": {
+    "rc": 0,
+    "red": false,
+    "secs": 0.7,
+    "exit_blind": false
+   },
+   "mutation": {
+    "scratch_space.py": {
+     "rc": 0,
+     "red": false,
+     "secs": 0.7,
+     "mutations": 3
+    },
+    "strategy.py": {
+     "rc": 0,
+     "red": false,
+     "secs": 0.7,
+     "mutations": 588
+    }
+   },
+   "verdict": "VACUOUS",
+   "detail": "stayed green under every mutation"
+  },
+  "test_dangerzone.py": {
+   "baseline": {
+    "rc": 0,
+    "red": false,
+    "secs": 0.2,
+    "exit_blind": false
+   },
+   "mutation": {
+    "background_scanner.py": {
+     "rc": 0,
+     "red": true,
+     "secs": 0.3,
+     "mutations": 1826
+    },
+    "contest_account.py": {
+     "rc": 0,
+     "red": true,
+     "secs": 0.3,
+     "mutations": 130
+    },
+    "execution_tiers.py": {
+     "rc": 0,
+     "red": false,
+     "secs": 0.2,
+     "mutations": 384
+    },
+    "scratch_space.py": {
+     "rc": 0,
+     "red": false,
+     "secs": 0.2,
+     "mutations": 3
+    }
+   },
+   "verdict": "KILLED",
+   "detail": "background_scanner.py: rc=0 (1826 mutations); contest_account.py: rc=0 (130 mutations)"
+  },
+  "test_dcagate.py": {
+   "baseline": {
+    "rc": 0,
+    "red": false,
+    "secs": 0.2,
+    "exit_blind": false
+   },
+   "mutation": {
+    "background_scanner.py": {
+     "rc": 0,
+     "red": false,
+     "secs": 0.3,
+     "mutations": 1826
+    },
+    "scratch_space.py": {
+     "rc": 0,
+     "red": false,
+     "secs": 0.3,
+     "mutations": 3
+    }
+   },
+   "verdict": "VACUOUS",
+   "detail": "stayed green under every mutation"
+  },
+  "test_depthcheck.py": {
+   "baseline": {
+    "rc": 0,
+    "red": false,
+    "secs": 0.1,
+    "exit_blind": false
+   },
+   "mutation": {
+    "execution_tiers.py": {
+     "rc": 0,
+     "red": false,
+     "secs": 0.2,
+     "mutations": 384
+    },
+    "scratch_space.py": {
+     "rc": 0,
+     "red": false,
+     "secs": 0.2,
+     "mutations": 3
+    }
+   },
+   "verdict": "VACUOUS",
+   "detail": "stayed green under every mutation"
+  },
+  "test_dopamine.py": {
+   "baseline": {
+    "rc": 0,
+    "red": false,
+    "secs": 0.1,
+    "exit_blind": false
+   },
+   "mutation": {
+    "scratch_space.py": {
+     "rc": 0,
+     "red": false,
+     "secs": 0.1,
+     "mutations": 3
+    }
+   },
+   "verdict": "VACUOUS",
+   "detail": "stayed green under every mutation"
+  },
+  "test_entry_control.py": {
+   "baseline": {
+    "rc": 0,
+    "red": false,
+    "secs": 0.1,
+    "exit_blind": false
+   },
+   "mutation": {
+    "scratch_space.py": {
+     "rc": 0,
+     "red": false,
+     "secs": 0.1,
+     "mutations": 3
+    }
+   },
+   "verdict": "VACUOUS",
+   "detail": "stayed green under every mutation"
+  },
+  "test_eth_gap.py": {
+   "baseline": {
+    "rc": 0,
+    "red": false,
+    "secs": 4.3,
+    "exit_blind": false
+   },
+   "mutation": {
+    "background_scanner.py": {
+     "rc": 0,
+     "red": false,
+     "secs": 4.5,
+     "mutations": 1826
+    },
+    "config.py": {
+     "rc": 0,
+     "red": false,
+     "secs": 4.6,
+     "mutations": 40
+    },
+    "scratch_space.py": {
+     "rc": 0,
+     "red": false,
+     "secs": 4.5,
+     "mutations": 3
+    },
+    "strategy.py": {
+     "rc": 0,
+     "red": false,
+     "secs": 4.3,
+     "mutations": 588
+    },
+    "volatility_engine.py": {
+     "rc": 0,
+     "red": false,
+     "secs": 4.4,
+     "mutations": 205
+    }
+   },
+   "verdict": "VACUOUS",
+   "detail": "stayed green under every mutation"
+  },
+  "test_exitsynthesis.py": {
+   "baseline": {
+    "rc": 0,
+    "red": false,
+    "secs": 0.2,
+    "exit_blind": false
+   },
+   "mutation": {
+    "background_scanner.py": {
+     "rc": 0,
+     "red": false,
+     "secs": 0.3,
+     "mutations": 1826
+    },
+    "scratch_space.py": {
+     "rc": 0,
+     "red": false,
+     "secs": 0.3,
+     "mutations": 3
+    }
+   },
+   "verdict": "VACUOUS",
+   "detail": "stayed green under every mutation"
+  },
+  "test_fastfunnel.py": {
+   "baseline": {
+    "rc": 0,
+    "red": false,
+    "secs": 0.2,
+    "exit_blind": false
+   },
+   "mutation": {
+    "background_scanner.py": {
+     "rc": 0,
+     "red": true,
+     "secs": 0.3,
+     "mutations": 1826
+    },
+    "hindsight_scorer.py": {
+     "rc": 0,
+     "red": true,
+     "secs": 0.4,
+     "mutations": 263
+    }
+   },
+   "verdict": "KILLED",
+   "detail": "background_scanner.py: rc=0 (1826 mutations); hindsight_scorer.py: rc=0 (263 mutations)"
+  },
+  "test_funnelplate.py": {
+   "baseline": {
+    "rc": 0,
+    "red": false,
+    "secs": 0.1,
+    "exit_blind": false
+   },
+   "mutation": {
+    "scratch_space.py": {
+     "rc": 0,
+     "red": false,
+     "secs": 0.1,
+     "mutations": 3
+    }
+   },
+   "verdict": "VACUOUS",
+   "detail": "stayed green under every mutation"
+  },
+  "test_giveback.py": {
+   "baseline": {
+    "rc": 0,
+    "red": false,
+    "secs": 3.3,
+    "exit_blind": false
+   },
+   "mutation": {
+    "app.py": {
+     "rc": 0,
+     "red": true,
+     "secs": 3.0,
+     "mutations": 2279
+    },
+    "auto_adjust.py": {
+     "rc": 0,
+     "red": true,
+     "secs": 3.3,
+     "mutations": 63
+    },
+    "background_scanner.py": {
+     "rc": 0,
+     "red": true,
+     "secs": 2.6,
+     "mutations": 1826
+    },
+    "contest_account.py": {
+     "rc": 0,
+     "red": true,
+     "secs": 2.8,
+     "mutations": 130
+    },
+    "profit_guard.py": {
+     "rc": 0,
+     "red": false,
+     "secs": 3.1,
+     "mutations": 209
+    },
+    "scratch_space.py": {
+     "rc": 0,
+     "red": false,
+     "secs": 2.8,
+     "mutations": 3
+    },
+    "telemetry_adjust.py": {
+     "rc": 0,
+     "red": false,
+     "secs": 2.6,
+     "mutations": 10
+    }
+   },
+   "verdict": "KILLED",
+   "detail": "app.py: rc=0 (2279 mutations); auto_adjust.py: rc=0 (63 mutations); background_scanner.py: rc=0 (1826 mutations); contest_account.py: rc=0 (130 mutations)"
+  },
+  "test_goalgame.py": {
+   "baseline": {
+    "rc": 0,
+    "red": false,
+    "secs": 0.2,
+    "exit_blind": false
+   },
+   "mutation": {
+    "background_scanner.py": {
+     "rc": 0,
+     "red": false,
+     "secs": 0.3,
+     "mutations": 1826
+    },
+    "scratch_space.py": {
+     "rc": 0,
+     "red": false,
+     "secs": 0.3,
+     "mutations": 3
+    }
+   },
+   "verdict": "VACUOUS",
+   "detail": "stayed green under every mutation"
+  },
+  "test_hersize.py": {
+   "baseline": {
+    "rc": 0,
+    "red": false,
+    "secs": 0.1,
+    "exit_blind": false
+   },
+   "mutation": {
+    "scratch_space.py": {
+     "rc": 0,
+     "red": false,
+     "secs": 0.1,
+     "mutations": 3
+    }
+   },
+   "verdict": "VACUOUS",
+   "detail": "stayed green under every mutation"
+  },
+  "test_herwords.py": {
+   "baseline": {
+    "rc": 0,
+    "red": false,
+    "secs": 8.5,
+    "exit_blind": false
+   },
+   "mutation": {
+    "background_scanner.py": {
+     "rc": 0,
+     "red": false,
+     "secs": 0.4,
+     "mutations": 1826
+    }
+   },
+   "verdict": "VACUOUS",
+   "detail": "stayed green under every mutation"
+  },
+  "test_hookparser.py": {
+   "baseline": {
+    "rc": 0,
+    "red": false,
+    "secs": 1.8,
+    "exit_blind": false
+   },
+   "mutation": {
+    "scratch_space.py": {
+     "rc": 0,
+     "red": false,
+     "secs": 1.8,
+     "mutations": 3
+    }
+   },
+   "verdict": "VACUOUS",
+   "detail": "stayed green under every mutation"
+  },
+  "test_hype_now.py": {
+   "baseline": {
+    "rc": 0,
+    "red": false,
+    "secs": 3.8,
+    "exit_blind": false
+   },
+   "mutation": {
+    "background_scanner.py": {
+     "rc": 0,
+     "red": false,
+     "secs": 3.8,
+     "mutations": 1826
+    },
+    "config.py": {
+     "rc": 0,
+     "red": false,
+     "secs": 3.8,
+     "mutations": 40
+    },
+    "strategy.py": {
+     "rc": 0,
+     "red": false,
+     "secs": 3.6,
+     "mutations": 588
+    },
+    "volatility_engine.py": {
+     "rc": 0,
+     "red": false,
+     "secs": 3.7,
+     "mutations": 205
+    }
+   },
+   "verdict": "VACUOUS",
+   "detail": "stayed green under every mutation"
+  },
+  "test_kii.py": {
+   "baseline": {
+    "rc": 0,
+    "red": false,
+    "secs": 3.6,
+    "exit_blind": false
+   },
+   "mutation": {
+    "config.py": {
+     "rc": 0,
+     "red": false,
+     "secs": 3.7,
+     "mutations": 40
+    },
+    "scratch_space.py": {
+     "rc": 0,
+     "red": false,
+     "secs": 3.7,
+     "mutations": 3
+    },
+    "strategy.py": {
+     "rc": 0,
+     "red": false,
+     "secs": 3.7,
+     "mutations": 588
+    }
+   },
+   "verdict": "VACUOUS",
+   "detail": "stayed green under every mutation"
+  },
+  "test_kii_woulda.py": {
+   "baseline": {
+    "rc": 0,
+    "red": false,
+    "secs": 3.6,
+    "exit_blind": false
+   },
+   "mutation": {
+    "config.py": {
+     "rc": 0,
+     "red": false,
+     "secs": 3.7,
+     "mutations": 40
+    },
+    "strategy.py": {
+     "rc": 0,
+     "red": false,
+     "secs": 3.9,
+     "mutations": 588
+    }
+   },
+   "verdict": "VACUOUS",
+   "detail": "stayed green under every mutation"
+  },
+  "test_liq_filter.py": {
+   "baseline": {
+    "rc": 0,
+    "red": false,
+    "secs": 0.8,
+    "exit_blind": false
+   },
+   "mutation": {
+    "background_scanner.py": {
+     "rc": 0,
+     "red": false,
+     "secs": 0.8,
+     "mutations": 1826
+    },
+    "scratch_space.py": {
+     "rc": 0,
+     "red": false,
+     "secs": 0.9,
+     "mutations": 3
+    }
+   },
+   "verdict": "VACUOUS",
+   "detail": "stayed green under every mutation"
+  },
+  "test_longonly.py": {
+   "baseline": {
+    "rc": 0,
+    "red": false,
+    "secs": 2.0,
+    "exit_blind": false
+   },
+   "mutation": {
+    "scanner.py": {
+     "rc": 0,
+     "red": false,
+     "secs": 1.3,
+     "mutations": 214
+    },
+    "scratch_space.py": {
+     "rc": 0,
+     "red": false,
+     "secs": 1.2,
+     "mutations": 3
+    },
+    "strategy.py": {
+     "rc": 0,
+     "red": false,
+     "secs": 1.2,
+     "mutations": 588
+    }
+   },
+   "verdict": "VACUOUS",
+   "detail": "stayed green under every mutation"
+  },
+  "test_nearmiss.py": {
+   "baseline": {
+    "rc": 0,
+    "red": false,
+    "secs": 0.2,
+    "exit_blind": false
+   },
+   "mutation": {
+    "background_scanner.py": {
+     "rc": 0,
+     "red": false,
+     "secs": 0.3,
+     "mutations": 1826
+    },
+    "scratch_space.py": {
+     "rc": 0,
+     "red": false,
+     "secs": 0.3,
+     "mutations": 3
+    }
+   },
+   "verdict": "VACUOUS",
+   "detail": "stayed green under every mutation"
+  },
+  "test_night.py": {
+   "baseline": {
+    "rc": 0,
+    "red": false,
+    "secs": 1.7,
+    "exit_blind": false
+   },
+   "mutation": {
+    "background_scanner.py": {
+     "rc": 0,
+     "red": false,
+     "secs": 1.4,
+     "mutations": 1826
+    },
+    "config.py": {
+     "rc": 0,
+     "red": false,
+     "secs": 1.3,
+     "mutations": 40
+    },
+    "scratch_space.py": {
+     "rc": 0,
+     "red": false,
+     "secs": 1.1,
+     "mutations": 3
+    }
+   },
+   "verdict": "VACUOUS",
+   "detail": "stayed green under every mutation"
+  },
+  "test_night_pnl.py": {
+   "baseline": {
+    "rc": 0,
+    "red": false,
+    "secs": 1.1,
+    "exit_blind": false
+   },
+   "mutation": {
+    "config.py": {
+     "rc": 0,
+     "red": false,
+     "secs": 1.1,
+     "mutations": 40
+    }
+   },
+   "verdict": "VACUOUS",
+   "detail": "stayed green under every mutation"
+  },
+  "test_no_alerts.py": {
+   "baseline": {
+    "rc": 0,
+    "red": false,
+    "secs": 0.2,
+    "exit_blind": false
+   },
+   "mutation": {
+    "background_scanner.py": {
+     "rc": 0,
+     "red": false,
+     "secs": 0.3,
+     "mutations": 1826
+    }
+   },
+   "verdict": "VACUOUS",
+   "detail": "stayed green under every mutation"
+  },
+  "test_one_asset.py": {
+   "baseline": {
+    "rc": 0,
+    "red": false,
+    "secs": 8.9,
+    "exit_blind": false
+   },
+   "mutation": {
+    "config.py": {
+     "rc": 0,
+     "red": false,
+     "secs": 8.9,
+     "mutations": 40
+    },
+    "kraken_api.py": {
+     "rc": 0,
+     "red": false,
+     "secs": 9.4,
+     "mutations": 19
+    }
+   },
+   "verdict": "VACUOUS",
+   "detail": "stayed green under every mutation"
+  },
+  "test_payouts.py": {
+   "baseline": {
+    "rc": 0,
+    "red": false,
+    "secs": 8.0,
+    "exit_blind": false
+   },
+   "mutation": {
+    "scratch_space.py": {
+     "rc": 0,
+     "red": false,
+     "secs": 8.0,
+     "mutations": 3
+    }
+   },
+   "verdict": "VACUOUS",
+   "detail": "stayed green under every mutation"
+  },
+  "test_payouts_e2e.py": {
+   "baseline": {
+    "rc": 0,
+    "red": false,
+    "secs": 0.8,
+    "exit_blind": false
+   },
+   "mutation": {
+    "kraken_api.py": {
+     "rc": 0,
+     "red": false,
+     "secs": 0.8,
+     "mutations": 19
+    },
+    "scratch_space.py": {
+     "rc": 0,
+     "red": false,
+     "secs": 0.8,
+     "mutations": 3
+    }
+   },
+   "verdict": "VACUOUS",
+   "detail": "stayed green under every mutation"
+  },
+  "test_persistexit.py": {
+   "baseline": {
+    "rc": 0,
+    "red": false,
+    "secs": 0.2,
+    "exit_blind": false
+   },
+   "mutation": {
+    "scratch_space.py": {
+     "rc": 0,
+     "red": false,
+     "secs": 0.1,
+     "mutations": 3
+    }
+   },
+   "verdict": "VACUOUS",
+   "detail": "stayed green under every mutation"
+  },
+  "test_popupbrain.py": {
+   "baseline": {
+    "rc": 0,
+    "red": false,
+    "secs": 1.5,
+    "exit_blind": false
+   },
+   "mutation": {
+    "background_scanner.py": {
+     "rc": 0,
+     "red": false,
+     "secs": 1.3,
+     "mutations": 1826
+    },
+    "contest_account.py": {
+     "rc": 0,
+     "red": false,
+     "secs": 1.2,
+     "mutations": 130
+    },
+    "scratch_space.py": {
+     "rc": 0,
+     "red": false,
+     "secs": 1.0,
+     "mutations": 3
+    }
+   },
+   "verdict": "VACUOUS",
+   "detail": "stayed green under every mutation"
+  },
+  "test_positionscale.py": {
+   "baseline": {
+    "rc": 0,
+    "red": false,
+    "secs": 0.2,
+    "exit_blind": false
+   },
+   "mutation": {
+    "scratch_space.py": {
+     "rc": 0,
+     "red": false,
+     "secs": 0.2,
+     "mutations": 3
+    },
+    "signal_bridge.py": {
+     "rc": 0,
+     "red": false,
+     "secs": 0.2,
+     "mutations": 127
+    }
+   },
+   "verdict": "VACUOUS",
+   "detail": "stayed green under every mutation"
+  },
+  "test_qclonewolf.py": {
+   "baseline": {
+    "rc": 0,
+    "red": false,
+    "secs": 0.1,
+    "exit_blind": false
+   },
+   "mutation": {
+    "scratch_space.py": {
+     "rc": 0,
+     "red": false,
+     "secs": 0.1,
+     "mutations": 3
+    }
+   },
+   "verdict": "VACUOUS",
+   "detail": "stayed green under every mutation"
+  },
+  "test_scansethonesty.py": {
+   "baseline": {
+    "rc": 0,
+    "red": false,
+    "secs": 2.7,
+    "exit_blind": false
+   },
+   "mutation": {
+    "app.py": {
+     "rc": 0,
+     "red": false,
+     "secs": 2.8,
+     "mutations": 2279
+    },
+    "scratch_space.py": {
+     "rc": 0,
+     "red": false,
+     "secs": 2.8,
+     "mutations": 3
+    }
+   },
+   "verdict": "VACUOUS",
+   "detail": "stayed green under every mutation"
+  },
+  "test_sink_hygiene.py": {
+   "baseline": {
+    "rc": 0,
+    "red": false,
+    "secs": 6.0,
+    "exit_blind": false
+   },
+   "mutation": {
+    "background_scanner.py": {
+     "rc": 0,
+     "red": false,
+     "secs": 2.2,
+     "mutations": 1826
+    },
+    "diag_testleaks.py": {
+     "rc": 0,
+     "red": false,
+     "secs": 4.1,
+     "mutations": 166
+    }
+   },
+   "verdict": "VACUOUS",
+   "detail": "stayed green under every mutation"
+  },
+  "test_soldpnl.py": {
+   "baseline": {
+    "rc": 0,
+    "red": false,
+    "secs": 0.1,
+    "exit_blind": false
+   },
+   "mutation": {
+    "contest_account.py": {
+     "rc": 0,
+     "red": false,
+     "secs": 0.1,
+     "mutations": 130
+    },
+    "scratch_space.py": {
+     "rc": 0,
+     "red": false,
+     "secs": 0.2,
+     "mutations": 3
+    }
+   },
+   "verdict": "VACUOUS",
+   "detail": "stayed green under every mutation"
+  },
+  "test_sunday.py": {
+   "baseline": {
+    "rc": 0,
+    "red": false,
+    "secs": 1.2,
+    "exit_blind": false
+   },
+   "mutation": {
+    "config.py": {
+     "rc": 0,
+     "red": false,
+     "secs": 1.1,
+     "mutations": 40
+    },
+    "scratch_space.py": {
+     "rc": 0,
+     "red": false,
+     "secs": 1.1,
+     "mutations": 3
+    }
+   },
+   "verdict": "VACUOUS",
+   "detail": "stayed green under every mutation"
+  },
+  "test_takeit.py": {
+   "baseline": {
+    "rc": 0,
+    "red": true,
+    "secs": 0.2,
+    "exit_blind": true
+   },
+   "verdict": "BASELINE-RED",
+   "detail": "EXIT-CODE-BLIND at baseline: prints failures, exits 0"
+  },
+  "test_thinbrain.py": {
+   "baseline": {
+    "rc": 0,
+    "red": false,
+    "secs": 0.1,
+    "exit_blind": false
+   },
+   "mutation": {
+    "scratch_space.py": {
+     "rc": 0,
+     "red": false,
+     "secs": 0.1,
+     "mutations": 3
+    }
+   },
+   "verdict": "VACUOUS",
+   "detail": "stayed green under every mutation"
+  },
+  "test_tidefloor.py": {
+   "baseline": {
+    "rc": 0,
+    "red": false,
+    "secs": 0.2,
+    "exit_blind": false
+   },
+   "mutation": {
+    "background_scanner.py": {
+     "rc": 0,
+     "red": false,
+     "secs": 0.3,
+     "mutations": 1826
+    },
+    "scratch_space.py": {
+     "rc": 0,
+     "red": false,
+     "secs": 0.3,
+     "mutations": 3
+    }
+   },
+   "verdict": "VACUOUS",
+   "detail": "stayed green under every mutation"
+  },
+  "test_tierauto.py": {
+   "baseline": {
+    "rc": 0,
+    "red": false,
+    "secs": 0.2,
+    "exit_blind": false
+   },
+   "mutation": {
+    "background_scanner.py": {
+     "rc": 0,
+     "red": false,
+     "secs": 0.3,
+     "mutations": 1826
+    },
+    "contest_account.py": {
+     "rc": 0,
+     "red": false,
+     "secs": 0.3,
+     "mutations": 130
+    },
+    "scratch_space.py": {
+     "rc": 0,
+     "red": false,
+     "secs": 0.2,
+     "mutations": 3
+    }
+   },
+   "verdict": "VACUOUS",
+   "detail": "stayed green under every mutation"
+  },
+  "test_toggleguard.py": {
+   "baseline": {
+    "rc": 0,
+    "red": false,
+    "secs": 0.1,
+    "exit_blind": false
+   },
+   "mutation": {
+    "scratch_space.py": {
+     "rc": 0,
+     "red": false,
+     "secs": 0.1,
+     "mutations": 3
+    }
+   },
+   "verdict": "VACUOUS",
+   "detail": "stayed green under every mutation"
+  },
+  "test_tour_state.py": {
+   "baseline": {
+    "rc": 0,
+    "red": false,
+    "secs": 0.1,
+    "exit_blind": false
+   },
+   "mutation": {
+    "scratch_space.py": {
+     "rc": 0,
+     "red": false,
+     "secs": 0.1,
+     "mutations": 3
+    }
+   },
+   "verdict": "VACUOUS",
+   "detail": "stayed green under every mutation"
+  },
+  "test_trend.py": {
+   "baseline": {
+    "rc": 0,
+    "red": false,
+    "secs": 2.3,
+    "exit_blind": false
+   },
+   "mutation": {
+    "app.py": {
+     "rc": 0,
+     "red": true,
+     "secs": 2.7,
+     "mutations": 2279
+    },
+    "config.py": {
+     "rc": 0,
+     "red": false,
+     "secs": 2.8,
+     "mutations": 40
+    },
+    "scratch_space.py": {
+     "rc": 0,
+     "red": false,
+     "secs": 2.4,
+     "mutations": 3
+    }
+   },
+   "verdict": "KILLED",
+   "detail": "app.py: rc=0 (2279 mutations)"
+  },
+  "test_trendbridge.py": {
+   "baseline": {
+    "rc": 0,
+    "red": false,
+    "secs": 0.7,
+    "exit_blind": false
+   },
+   "mutation": {
+    "background_scanner.py": {
+     "rc": 0,
+     "red": false,
+     "secs": 0.8,
+     "mutations": 1826
+    },
+    "scratch_space.py": {
+     "rc": 0,
+     "red": false,
+     "secs": 0.8,
+     "mutations": 3
+    },
+    "signal_bridge.py": {
+     "rc": 0,
+     "red": false,
+     "secs": 0.7,
+     "mutations": 127
+    }
+   },
+   "verdict": "VACUOUS",
+   "detail": "stayed green under every mutation"
+  },
+  "test_trump_render.py": {
+   "baseline": {
+    "rc": 0,
+    "red": false,
+    "secs": 0.6,
+    "exit_blind": false
+   },
+   "mutation": {
+    "config.py": {
+     "rc": 0,
+     "red": false,
+     "secs": 0.6,
+     "mutations": 40
+    },
+    "scratch_space.py": {
+     "rc": 0,
+     "red": false,
+     "secs": 0.6,
+     "mutations": 3
+    },
+    "strategy.py": {
+     "rc": 0,
+     "red": false,
+     "secs": 0.6,
+     "mutations": 588
+    }
+   },
+   "verdict": "VACUOUS",
+   "detail": "stayed green under every mutation"
+  },
+  "test_uismooth.py": {
+   "baseline": {
+    "rc": 0,
+    "red": false,
+    "secs": 0.1,
+    "exit_blind": false
+   },
+   "mutation": {
+    "scratch_space.py": {
+     "rc": 0,
+     "red": false,
+     "secs": 0.1,
+     "mutations": 3
+    }
+   },
+   "verdict": "VACUOUS",
+   "detail": "stayed green under every mutation"
+  },
+  "test_winnerlock.py": {
+   "baseline": {
+    "rc": 0,
+    "red": false,
+    "secs": 0.1,
+    "exit_blind": false
+   },
+   "mutation": {
+    "scratch_space.py": {
+     "rc": 0,
+     "red": false,
+     "secs": 0.1,
+     "mutations": 3
+    }
+   },
+   "verdict": "VACUOUS",
+   "detail": "stayed green under every mutation"
+  },
+  "test_winners.py": {
+   "baseline": {
+    "rc": 0,
+    "red": false,
+    "secs": 1.5,
+    "exit_blind": false
+   },
+   "mutation": {
+    "config.py": {
+     "rc": 0,
+     "red": false,
+     "secs": 1.1,
+     "mutations": 40
+    },
+    "scratch_space.py": {
+     "rc": 0,
+     "red": false,
+     "secs": 1.1,
+     "mutations": 3
+    }
+   },
+   "verdict": "VACUOUS",
+   "detail": "stayed green under every mutation"
+  },
+  "test_xrp_scan.py": {
+   "baseline": {
+    "rc": 0,
+    "red": false,
+    "secs": 3.8,
+    "exit_blind": false
+   },
+   "mutation": {
+    "background_scanner.py": {
+     "rc": 0,
+     "red": false,
+     "secs": 3.8,
+     "mutations": 1826
+    },
+    "config.py": {
+     "rc": 0,
+     "red": false,
+     "secs": 3.9,
+     "mutations": 40
+    },
+    "kraken_api.py": {
+     "rc": 0,
+     "red": false,
+     "secs": 4.1,
+     "mutations": 19
+    },
+    "scratch_space.py": {
+     "rc": 0,
+     "red": false,
+     "secs": 3.6,
+     "mutations": 3
+    },
+    "strategy.py": {
+     "rc": 0,
+     "red": false,
+     "secs": 3.8,
+     "mutations": 588
+    }
+   },
+   "verdict": "VACUOUS",
+   "detail": "stayed green under every mutation"
+  },
+  "test_xrp_signals.py": {
+   "baseline": {
+    "rc": 0,
+    "red": false,
+    "secs": 1.3,
+    "exit_blind": false
+   },
+   "mutation": {
+    "db.py": {
+     "rc": 0,
+     "red": false,
+     "secs": 0.6,
+     "mutations": 69
+    },
+    "scratch_space.py": {
+     "rc": 0,
+     "red": false,
+     "secs": 1.3,
+     "mutations": 3
+    }
+   },
+   "verdict": "VACUOUS",
+   "detail": "stayed green under every mutation"
+  },
+  "test_zec_trace.py": {
+   "baseline": {
+    "rc": 0,
+    "red": false,
+    "secs": 1.0,
+    "exit_blind": false
+   },
+   "mutation": {
+    "config.py": {
+     "rc": 0,
+     "red": false,
+     "secs": 1.1,
+     "mutations": 40
+    }
+   },
+   "verdict": "VACUOUS",
+   "detail": "stayed green under every mutation"
+  }
+ },
+ "at": 1790755353.5440798
+}

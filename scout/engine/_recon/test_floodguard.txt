@@ -1,0 +1,154 @@
+### test_floodguard — co_filename=test_floodguard.py firstlineno=1
+DOCSTRING:
+test_floodguard.py — THE FLOOD GUARD'S PIN SUITE (Sep 14).
+
+Pins the scanner's log-flood quota machinery end to end:
+  1. the quota admits the first LOG_FLOOD_QUOTA records of a signature
+     and refuses the rest of that window
+  2. ERROR/CRITICAL always pass — the stop-everything line is never
+     filtered, and never consumes quota
+  3. signature = call site + arity: 200 pairs failing at one site is
+     ONE storm; a different site is a different budget; a different
+     arity is a different budget
+  4. the suppression notice rides the LAST ADMITTED line — a swallowed
+     line cannot announce itself, the final visible one does
+  5. the window rolls: the next window's FIRST record of the signature
+     carries the +N tally — adjacent windows only
+  6. a quiet pause expires the tally honestly (no stale "+N" claims)
+  7. two handlers over one shared quota count each record exactly once
+     and their streams are byte-identical (the REAL logging flow, e2e)
+  8. the formatter is idempotent on stamped records — the same record
+     flows through both handlers' formatters, no double suffix — and
+     passes unstamped records through untouched
+  9. the signature prune bound holds (idle
+
+TOP-LEVEL NAMES (imports/defs in order):
+  IMPORT __future__
+  IMPORT annotations
+  STORE  annotations
+  IMPORT io
+  STORE  io
+  IMPORT logging
+  STORE  logging
+  IMPORT sys
+  STORE  sys
+  IMPORT time
+  STORE  time
+  IMPORT pathlib
+  IMPORT Path
+  STORE  Path
+  IMPORT background_scanner
+  STORE  bs
+  STORE  PASS
+  STORE  FAIL
+  STORE  check
+  STORE  rec
+  STORE  new_quota
+  STORE  q
+  STORE  admitted
+  STORE  q
+  STORE  f
+  STORE  i
+  STORE  err
+  STORE  crit
+  STORE  n_after
+  STORE  q
+  STORE  same_site
+  STORE  other
+  STORE  arity2
+  STORE  q
+  STORE  recs
+  STORE  r
+  STORE  q
+  STORE  i
+  STORE  first
+  STORE  second
+  STORE  gap
+  STORE  q
+  STORE  i
+  STORE  later
+  STORE  lg
+  STORE  h
+  STORE  s1
+  STORE  s2
+  STORE  fq
+  STORE  fmt
+  STORE  s
+  STORE  h
+  STORE  storm_line
+  STORE  i
+  STORE  out1
+  STORE  out2
+  STORE  fmt
+  STORE  stamped
+  STORE  a
+  STORE  b
+  STORE  plain
+  STORE  q
+  STORE  i
+  STORE  src
+
+ALL STRINGS (dedup, order-preserving, >=4 chars):
+  test_floodguard.py — THE FLOOD GUARD'S PIN SUITE (Sep 14).
+
+Pins the scanner's log-flood quota machinery end to end:
+  1. the quota admits the first LOG_FLOOD_QUOTA records of a signature
+     and refuses the rest of tha
+    PASS  
+    FAIL  
+  A LogRecord at a chosen fake call site (module, lineno) with args.
+  pair %s failed
+  boom
+  quota admits the first 10 of a signature
+  first10=
+  quota refuses the rest of the window
+  rest=
+  ERROR passes the filter mid-storm
+  CRITICAL passes the filter
+  ERROR did not consume quota (site still saturated)
+  a WARNING after the ERRORs was admitted — quota leaked
+  200 pairs at one site is ONE storm (4th refused)
+  got 
+  a different site has its own budget
+  a different arity has its own budget
+  notice stamped on the last ADMITTED record
+  flood_suppressed
+  stamp on the wrong record
+  next window's first record carries the +N tally
+  flood_tally
+  tally=
+  only the FIRST record of the new window carries the tally
+  a window gap claims no tally (adjacent windows only)
+  no stale tally after a quiet pause
+  fg_e2e
+  %(levelname)s %(message)s
+  e2e: the storm renders exactly 3 lines per handler
+  lines=
+  e2e: both handlers byte-identical (one count, one decision)
+  e2e: the notice is in the stream
+  suppressing further identical
+  e2e: the window roll delivers [+37 suppressed] on the stream
+  [+37 suppressed in the previous window]
+  empty
+  %(message)s
+  stamped record formats identically twice (no double suffix)
+  flood guard
+  unstamped record formats exactly as before
+  pair Y failed
+  300 signatures tracked without error
+  idle signatures pruned on the next new signature
+  len=
+  background_scanner.py
+  utf-8
+  the shared quota is mounted on BOTH handlers
+  addFilter(_LogFloodFilter(
+  mounts=
+  ONE shared _FloodQuota instance behind both handlers
+  _flood = _FloodQuota()
+  the per-record decision cache is the dedupe mechanism
+  _flood_keep
+  the formatter carries both stamp kinds
+  
+flood guard: 
+
+TOTAL STRINGS: 56

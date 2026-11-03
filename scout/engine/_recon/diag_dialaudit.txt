@@ -1,0 +1,103 @@
+### diag_dialaudit — co_filename=diag_dialaudit.py firstlineno=1
+DOCSTRING:
+diag_dialaudit.py — THE DIAL AUDIT GATE (Sep 17).
+
+WHY THIS EXISTS: the HER VOLUME dial shipped as a no-op (the amp script
+wrote its gain through a read-only stream — every line played at 100%),
+and the exit_watch key stored the AND of two toggles, so one AUTO-WATCH
+off-cycle silently killed the fleet's GET OUT ladder (the bridge reads
+that key). Shared-file dials fail exactly like that: quietly, at the
+seams, months after the knob was built. This gate pins every
+console→scanner dial's CONTRACT — who writes it, who reads it, what it
+is allowed to shape, and what it must NEVER shape — so the next drift
+fails the battery instead of the trading day.
+
+Run: .venv\Scripts\python.exe -X utf8 diag_dialaudit.py   (exit 0 = green)
+Writes _dialaudit.txt.
+
+
+TOP-LEVEL NAMES (imports/defs in order):
+  IMPORT json
+  STORE  json
+  IMPORT re
+  STORE  re
+  IMPORT sys
+  STORE  sys
+  IMPORT tempfile
+  STORE  tempfile
+  IMPORT pathlib
+  IMPORT Path
+  STORE  Path
+  STORE  ROOT
+  STORE  OUT
+  STORE  lines
+  STORE  say
+  STORE  CONTRACTS
+  STORE  main
+
+ALL STRINGS (dedup, order-preserving, >=4 chars):
+  diag_dialaudit.py — THE DIAL AUDIT GATE (Sep 17).
+
+WHY THIS EXISTS: the HER VOLUME dial shipped as a no-op (the amp script
+wrote its gain through a read-only stream — every line played at 100%),
+and the exit_watch key st
+  _dialaudit.txt
+  background_scanner.py
+  utf-8
+  if source in CONSOLE_SOURCES:.*?subprocess\.Popen\(_cmd
+  CONSOLE_SOURCES = {"console_queue"}
+  def _her_volume_pct
+  def _voice_enabled
+  if source in CONSOLE_SOURCES:
+  -Volume
+  else:
+  100%
+  HER VOLUME: %s alert at 100%%
+  HER VOLUME: console line at %d%%
+  HER VOLUME: console line dialed OUT (vol 0)
+  return  # dialed to zero
+  subprocess.Popen
+  SELF-CHECK — the mouth's dial contract
+    dial reaches ONLY console-sourced lines, alerts always 100, mute returns before spawn, proof lines log: 
+  VIOLATION
+  SELF-CHECK ERROR: 
+  app.py
+  _cs\[\"exit_watch\"\]\s*=\s*bool\(watch_on and
+  bool(exit_watch)
+  LATCH CHECK — the exit_watch AND-latch
+    exit_watch key stores its own toggle's state, never the AND: 
+  VIOLATION 
+  watch_on
+  exit_watch
+  SEED ALIGNMENT — widget keys seed from their own file key
+  st\.session_state\["
+  "\]\s*=\s*_cs\.get\(\s*"
+  _toggle
+  _ui"
+   <- 
+  HERMETIC WORLDS — signal_bridge.exit_watch_enabled()
+  console_state.json
+    exit_watch:true  -> gate 
+    exit_watch:false -> gate 
+  {torn
+    torn file        -> gate 
+  ON (fail-open)
+  signal_bridge.py
+  def exit_watch_enabled.*?return val
+    reader names only 'exit_watch' (never watch_on): 
+    HERMETIC ERROR: 
+  THE DIAL CONTRACTS (console_state.json — one file, two processes)
+  DIAL
+  WRITTEN BY
+  READ BY
+        shapes: 
+        NEVER : 
+  RULE OF THE FILE: a console dial may quiet its own channel; it can
+  never silence a trading call, and no toggle ever writes another
+  toggle's key. The bridge's gate answers to exit_watch alone.
+  ALL GREEN
+  FINDINGS PRESENT
+    ----------------------------------------------------------------------------------------------
+  __main__
+
+TOTAL STRINGS: 59

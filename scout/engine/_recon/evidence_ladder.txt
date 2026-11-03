@@ -1,0 +1,93 @@
+### evidence_ladder — co_filename=evidence_ladder.py firstlineno=1
+DOCSTRING:
+evidence_ladder.py — THE EVIDENCE LADDER (Sep 19).
+
+One place where every maturity bar in the fleet lives, with the
+evidence definition that fills it. A dial may not speak until its
+rung on this ladder is reached by the evidence the ladder names.
+
+WHY THIS EXISTS: the maturity bars grew up in three files — the
+growth gate (diag_chaseback: 10 graded turns, early speak at 8),
+the cap tune (diag_chasecap: 20 graded turns), and the regime
+stability gate (tidebar_weekly: 3 winning weeks to flip, 2 to flip
+back, 4-week rolling windows). Three numbers with no shared home
+means no reader can see the whole ladder at once, and a tune in one
+file never reconciles against its neighbors. This module is the
+single home: the consumers import their constants FROM HERE, so the
+numbers cannot drift apart, and the ladder renders itself as text
+for reports and the MASTER plate.
+
+WHAT COUNTS AS EVIDENCE (the shared predicate):
+  A GRADED TURN is a spoken chase turn in chase_turns.jsonl whose
+  forecast horizon has closed and whose pair's deep store could
+  price it. Each study prices its own world on that row —
+  diag_chaseback: 4-bar ran/end on the pair's store; diag_chasecap:
+  the same plus the zero
+
+TOP-LEVEL NAMES (imports/defs in order):
+  IMPORT __future__
+  IMPORT annotations
+  STORE  annotations
+  IMPORT pathlib
+  IMPORT Path
+  STORE  Path
+  STORE  CHASE_TURNS_FILE
+  STORE  WEEKLY_LEDGER_FILE
+  STORE  TURN_BARS
+  STORE  WEEK_BARS
+  STORE  ROW_BARS
+  STORE  EVENT_BARS
+  STORE  SAMPLE_BARS
+  STORE  _LADDER_TEXT
+  STORE  ladder_lines
+  STORE  progress_bar
+  STORE  mature
+  STORE  weeks_mature
+  STORE  rows_mature
+  STORE  events_mature
+  STORE  samples_mature
+
+ALL STRINGS (dedup, order-preserving, >=4 chars):
+  evidence_ladder.py — THE EVIDENCE LADDER (Sep 19).
+
+One place where every maturity bar in the fleet lives, with the
+evidence definition that fills it. A dial may not speak until its
+rung on this ladder is reached by the 
+  chase_turns.jsonl
+  _tidebarweekly_history.jsonl
+  GROWTH_GATE
+  GROWTH_GATE_EARLY
+  CAP_MATURITY
+  FLIP_WEEKS
+  FLIP_BACK_WEEKS
+  ROLLING_WEEKS
+  SELLVETO_REVIEW
+  DIAL_EVENTS
+  COINFLOOR_DELTA
+  OUTLIVER_HINDSIGHT
+  CLIMBOUT_BRIDGE
+  return
+  list
+  The ladder as renderable lines — pure, no IO, pinned.
+  width
+  THE SCOREBOARD BAR (Sep 20, user: "each dial's current graded
+turns/weeks against its bar, so the ladder reads as a scoreboard").
+A tiny ASCII progress bar — '#' per slot the evidence has filled,
+'-' for the rest, clampe
+  dial
+  evidence_n
+  bool
+  Has a turn-rung dial reached its bar? Pure; for callers that
+want the bar as a predicate instead of a bare constant.
+  unknown turn dial: 
+  rung
+  Has a week-rung dial reached its bar? Pure.
+  unknown week rung: 
+  Has a row-rung dial reached its bar? Pure.
+  unknown row rung: 
+  Has an event-rung dial reached its bar? Pure.
+  unknown event rung: 
+  Has a sample-rung study reached its bar? Pure.
+  unknown sample rung: 
+
+TOTAL STRINGS: 33

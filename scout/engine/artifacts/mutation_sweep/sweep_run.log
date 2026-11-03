@@ -1,0 +1,348 @@
+building sandbox copy...
+[1/162] test_5mstore.py: KILLED  fetch_kraken_5m_history.py: rc=1 (99 mutations)
+[2/162] test_adaptivecache.py: KILLED  adaptive_cache.py: rc=1 (107 mutations)
+[3/162] test_advisorybrain.py: VACUOUS  stayed green under every mutation
+[4/162] test_agendacheck.py: BASELINE-RED  baseline rc=1: 
+[5/162] test_allgoodlead.py: KILLED  background_scanner.py: rc=1 (1826 mutations); telemetry_adjust.py: rc=1 (10 mutations); volatility_engine.py: rc=1 (205 
+[6/162] test_apptest.py: KILLED  app.py: rc=1 (2279 mutations); tidebar_weekly.py: rc=1 (841 mutations)
+[7/162] test_atomicio.py: KILLED  atomic_io.py: rc=1 (27 mutations)
+[8/162] test_autoadjust.py: KILLED  auto_adjust.py: rc=1 (63 mutations); profit_guard.py: rc=1 (209 mutations)
+[9/162] test_autotrack.py: KILLED  background_scanner.py: rc=1 (1826 mutations)
+[10/162] test_balancepop.py: VACUOUS  stayed green under every mutation
+[11/162] test_basegrade.py: KILLED  diag_basegrade.py: rc=1 (113 mutations)
+[12/162] test_batterybudget.py: KILLED  run_battery.py: rc=1 (273 mutations)
+[13/162] test_bootfacts.py: KILLED  contest_account.py: rc=1 (130 mutations)
+[14/162] test_bot_day.py: VACUOUS  stayed green under every mutation
+[15/162] test_botdb.py: VACUOUS  stayed green under every mutation
+[16/162] test_boundaryexam.py: KILLED  carve_out.py: rc=1 (509 mutations); meta_layers.py: rc=1 (354 mutations)
+[17/162] test_bracket_click.py: VACUOUS  stayed green under every mutation
+[18/162] test_canary.py: KILLED  canary_runner.py: rc=1 (62 mutations)
+[19/162] test_carry.py: VACUOUS  stayed green under every mutation
+[20/162] test_carveout.py: BASELINE-RED  baseline rc=1: 
+[21/162] test_charter_signal_push.py: BASELINE-RED  baseline rc=1: \test_charter_signal_push.py", line 50, in <module>
+    import database as db                            
+[22/162] test_chase.py: VACUOUS  stayed green under every mutation
+[23/162] test_clampcost.py: KILLED  diag_clampcost.py: rc=1 (70 mutations)
+[24/162] test_climbout.py: KILLED  climb_out.py: rc=1 (235 mutations)
+[25/162] test_climbouthindsight.py: KILLED  diag_climbouthindsight.py: rc=1 (34 mutations)
+[26/162] test_coderabbitbacklog.py: KILLED  diag_coderabbit_backlog.py: rc=1 (51 mutations)
+[27/162] test_commitgate.py: BASELINE-RED  baseline rc=1: 
+[28/162] test_confirmwindow.py: KILLED  background_scanner.py: rc=1 (1826 mutations)
+[29/162] test_contest_mode.py: VACUOUS  stayed green under every mutation
+[30/162] test_contest_window.py: KILLED  contest_account.py: rc=1 (130 mutations)
+[31/162] test_contestline.py: KILLED  contest_account.py: rc=1 (130 mutations)
+[32/162] test_cooldowncheck.py: VACUOUS  stayed green under every mutation
+[33/162] test_cooldownreview.py: KILLED  discipline.py: rc=1 (493 mutations)
+[34/162] test_costdrivers.py: KILLED  diag_laddergrade.py: rc=1 (73 mutations); diag_tidememory_hindsight.py: rc=1 (78 mutations)
+[35/162] test_dailylock.py: KILLED  contest_account.py: rc=1 (130 mutations)
+[36/162] test_dangerzone.py: VACUOUS  stayed green under every mutation
+[37/162] test_dcagate.py: VACUOUS  stayed green under every mutation
+[38/162] test_depthcheck.py: VACUOUS  stayed green under every mutation
+[39/162] test_discipline.py: KILLED  discipline.py: rc=1 (493 mutations)
+[40/162] test_disciplineseam.py: KILLED  background_scanner.py: rc=1 (1826 mutations); discipline.py: rc=1 (493 mutations)
+[41/162] test_disciplinesew.py: KILLED  discipline.py: rc=1 (493 mutations)
+[42/162] test_dopamine.py: VACUOUS  stayed green under every mutation
+[43/162] test_dropdownstability.py: KILLED  app.py: rc=1 (2279 mutations)
+[44/162] test_dupcheck.py: UNMAPPED  no guarded module maps to it
+[45/162] test_dupfinal.py: BASELINE-RED  baseline rc=1:    cwd,
+                             ^^^^
+                             startupinfo)
+                     
+[46/162] test_entry_control.py: VACUOUS  stayed green under every mutation
+[47/162] test_eracompare.py: KILLED  discipline.py: rc=1 (493 mutations); era_compare.py: rc=1 (20 mutations)
+[48/162] test_eth_gap.py: VACUOUS  stayed green under every mutation
+[49/162] test_evidencestore.py: KILLED  evidence_store.py: rc=1 (21 mutations)
+[50/162] test_execution_tiers.py: KILLED  execution_tiers.py: rc=1 (384 mutations)
+[51/162] test_exit_extension.py: KILLED  background_scanner.py: rc=1 (1826 mutations); exit_extension.py: rc=1 (103 mutations)
+[52/162] test_exitsynthesis.py: VACUOUS  stayed green under every mutation
+[53/162] test_extfade.py: KILLED  diag_extfade.py: rc=1 (92 mutations)
+[54/162] test_fast20.py: KILLED  volatility_engine.py: rc=1 (205 mutations)
+[55/162] test_fastfunnel.py: VACUOUS  stayed green under every mutation
+[56/162] test_find_eth.py: UNMAPPED  no guarded module maps to it
+[57/162] test_fleetsweep.py: UNMAPPED  no guarded module maps to it
+[58/162] test_floodguard.py: KILLED  background_scanner.py: rc=1 (1826 mutations)
+[59/162] test_funnelplate.py: VACUOUS  stayed green under every mutation
+[60/162] test_gatestrips.py: UNMAPPED  no guarded module maps to it
+[61/162] test_giveback.py: VACUOUS  stayed green under every mutation
+[62/162] test_goalgame.py: VACUOUS  stayed green under every mutation
+[63/162] test_guardbreakdown.py: KILLED  background_scanner.py: rc=1 (1826 mutations)
+[64/162] test_hailmary.py: KILLED  contest_account.py: rc=1 (130 mutations)
+[65/162] test_headline.py: KILLED  app.py: rc=1 (2279 mutations)
+[66/162] test_hersize.py: VACUOUS  stayed green under every mutation
+[67/162] test_herwords.py: VACUOUS  stayed green under every mutation
+[68/162] test_hindightservice.py: KILLED  hindsight_service.py: rc=1 (64 mutations)
+[69/162] test_hindsight.py: KILLED  hindsight_scorer.py: rc=1 (263 mutations)
+[70/162] test_hindsightapi.py: KILLED  auto_adjust.py: rc=1 (63 mutations); background_scanner.py: rc=1 (1826 mutations); canary_runner.py: rc=1 (62 mutations)
+[71/162] test_hookparser.py: VACUOUS  stayed green under every mutation
+[72/162] test_hooks_ignore_runtime_state.py: BASELINE-RED  baseline rc=1: 
+[73/162] test_hype_now.py: VACUOUS  stayed green under every mutation
+[74/162] test_jackpotplate.py: BASELINE-RED  baseline rc=1: po\test_jackpotplate.py", line 63, in <module>
+    import database as db  # the POOL's database (scout ro
+[75/162] test_journalrelease.py: KILLED  discipline.py: rc=1 (493 mutations)
+[76/162] test_kii.py: VACUOUS  stayed green under every mutation
+[77/162] test_kii_woulda.py: VACUOUS  stayed green under every mutation
+[78/162] test_lifecycle.py: UNMAPPED  no guarded module maps to it
+[79/162] test_light_once.py: KILLED  background_scanner.py: rc=1 (1826 mutations)
+[80/162] test_liq_cal.py: UNMAPPED  no guarded module maps to it
+[81/162] test_liq_filter.py: VACUOUS  stayed green under every mutation
+[82/162] test_lonewolf.py: KILLED  background_scanner.py: rc=1 (1826 mutations)
+[83/162] test_longonly.py: VACUOUS  stayed green under every mutation
+[84/162] test_marketgoal.py: KILLED  background_scanner.py: rc=1 (1826 mutations)
+[85/162] test_metalayers.py: KILLED  background_scanner.py: rc=1 (1826 mutations); meta_layers.py: rc=1 (354 mutations)
+[86/162] test_moverfunnel.py: KILLED  background_scanner.py: rc=1 (1826 mutations)
+[87/162] test_nearmiss.py: VACUOUS  stayed green under every mutation
+[88/162] test_night.py: VACUOUS  stayed green under every mutation
+[89/162] test_night_pnl.py: VACUOUS  stayed green under every mutation
+[90/162] test_no_alerts.py: VACUOUS  stayed green under every mutation
+[91/162] test_no_runtime_stash.py: UNMAPPED  no guarded module maps to it
+[92/162] test_one_asset.py: VACUOUS  stayed green under every mutation
+[93/162] test_option23.py: KILLED  background_scanner.py: rc=1 (1826 mutations)
+[94/162] test_outliverhindsight.py: KILLED  background_scanner.py: rc=1 (1826 mutations); diag_outliverhindsight.py: rc=1 (72 mutations)
+[95/162] test_payouts.py: VACUOUS  stayed green under every mutation
+[96/162] test_payouts_e2e.py: VACUOUS  stayed green under every mutation
+[97/162] test_pending.py: UNMAPPED  no guarded module maps to it
+[98/162] test_pergate.py: KILLED  per_gate_export.py: rc=1 (59 mutations)
+[99/162] test_persistexit.py: VACUOUS  stayed green under every mutation
+[100/162] test_phantommirror.py: KILLED  signal_bridge.py: rc=1 (127 mutations)
+[101/162] test_pool_docsrot_live.py: BASELINE-RED  baseline rc=1: FAIL: drive not found at C:\Users\birds\Workspace\kraken_scout\_mutation_sbx\monero_project\test_readme_d
+[102/162] test_pool_prefs_live.py: BASELINE-RED  baseline rc=1: FAIL: pool checkout not found at C:\Users\birds\Workspace\kraken_scout\_mutation_sbx\monero_project
+
+[103/162] test_popupbrain.py: VACUOUS  stayed green under every mutation
+[104/162] test_popupfloor.py: KILLED  background_scanner.py: rc=1 (1826 mutations)
+[105/162] test_positionscale.py: VACUOUS  stayed green under every mutation
+[106/162] test_pricealert.py: KILLED  ops/price_alert.py: rc=1 (61 mutations)
+[107/162] test_profitguard.py: KILLED  profit_guard.py: rc=1 (209 mutations)
+[108/162] test_protected_extension_gate.py: UNMAPPED  no guarded module maps to it
+[109/162] test_pushfilter.py: KILLED  background_scanner.py: rc=1 (1826 mutations)
+[110/162] test_qclonewolf.py: VACUOUS  stayed green under every mutation
+[111/162] test_ratchet.py: KILLED  background_scanner.py: rc=1 (1826 mutations)
+[112/162] test_rebootsurv.py: KILLED  background_scanner.py: rc=1 (1826 mutations); profit_guard.py: rc=1 (209 mutations)
+[113/162] test_recoveryscenarios.py: KILLED  background_scanner.py: rc=1 (1826 mutations); contest_account.py: rc=1 (130 mutations); ops/recovery_scenarios.py: rc=1 
+[114/162] test_referee_gfdelta.py: KILLED  _gf_series.py: rc=1 (20 mutations); _referee_gfdelta.py: rc=1 (123 mutations)
+[115/162] test_releaseprov.py: KILLED  background_scanner.py: rc=1 (1826 mutations)
+[116/162] test_replaylive.py: KILLED  diag_replaylive.py: rc=1 (174 mutations)
+[117/162] test_resetrebaseline.py: KILLED  reset_rebaseline.py: rc=1 (45 mutations)
+[118/162] test_resilience.py: KILLED  atomic_io.py: rc=1 (27 mutations); profit_guard.py: rc=1 (209 mutations); restore_state.py: rc=1 (17 mutations)
+[119/162] test_reviewplate.py: UNMAPPED  no guarded module maps to it
+[120/162] test_rotation.py: KILLED  background_scanner.py: rc=1 (1826 mutations)
+[121/162] test_runnertether.py: KILLED  diag_runnertether.py: rc=1 (59 mutations)
+[122/162] test_scansethonesty.py: VACUOUS  stayed green under every mutation
+[123/162] test_scout_docs.py: KILLED  background_scanner.py: rc=1 (1826 mutations); discipline.py: rc=1 (493 mutations)
+[124/162] test_simsweep.py: KILLED  simulate_sweep.py: rc=1 (93 mutations)
+[125/162] test_sink_hygiene.py: VACUOUS  stayed green under every mutation
+[126/162] test_soldpnl.py: VACUOUS  stayed green under every mutation
+[127/162] test_stateclobber.py: KILLED  auto_adjust.py: rc=1 (63 mutations); background_scanner.py: rc=1 (1826 mutations); meta_layers.py: rc=1 (354 mutations);
+[128/162] test_statewriters.py: KILLED  diag_statewriters.py: rc=1 (123 mutations)
+[129/162] test_sunday.py: VACUOUS  stayed green under every mutation
+[130/162] test_surething.py: KILLED  sure_thing.py: rc=1 (243 mutations)
+[131/162] test_surethingautorefit.py: KILLED  diag_surething_refit.py: rc=1 (181 mutations); sure_thing.py: rc=1 (243 mutations); surething_autorefit.py: rc=1 (58 mut
+[132/162] test_surethingdiag.py: KILLED  background_scanner.py: rc=1 (1826 mutations); diag_surething.py: rc=1 (198 mutations)
+[133/162] test_takeit.py: VACUOUS  stayed green under every mutation
+[134/162] test_telemetry.py: KILLED  telemetry_adjust.py: rc=1 (10 mutations)
+[135/162] test_thinbrain.py: VACUOUS  stayed green under every mutation
+[136/162] test_tide.py: KILLED  background_scanner.py: rc=1 (1826 mutations)
+[137/162] test_tidebarweekly.py: KILLED  poolgate_arcs.py: rc=1 (139 mutations); tide_learn.py: rc=1 (190 mutations); tidebar_weekly.py: rc=1 (841 mutations)
+[138/162] test_tidefloor.py: VACUOUS  stayed green under every mutation
+[139/162] test_tidelearn.py: KILLED  tide_learn.py: rc=1 (190 mutations)
+[140/162] test_tidememory.py: KILLED  background_scanner.py: rc=1 (1826 mutations); diag_tidememory_hindsight.py: rc=1 (78 mutations); tide_memory.py: rc=1 (8
+[141/162] test_tidestamp.py: KILLED  signal_bridge.py: rc=1 (127 mutations)
+[142/162] test_tierauto.py: VACUOUS  stayed green under every mutation
+[143/162] test_toggleguard.py: VACUOUS  stayed green under every mutation
+[144/162] test_topfill.py: KILLED  app.py: rc=1 (2279 mutations); auto_adjust.py: rc=1 (63 mutations); top_payers.py: rc=1 (33 mutations)
+[145/162] test_tour_state.py: VACUOUS  stayed green under every mutation
+[146/162] test_trailk_sweep.py: KILLED  _hybrid_trail_sweep.py: rc=1 (73 mutations); _verdict_study.py: rc=1 (183 mutations); background_scanner.py: rc=1 (1826 
+[147/162] test_trailstop.py: UNMAPPED  no guarded module maps to it
+[148/162] test_trend.py: VACUOUS  stayed green under every mutation
+[149/162] test_trendbridge.py: VACUOUS  stayed green under every mutation
+[150/162] test_triwatch.py: KILLED  meta_layers.py: rc=1 (354 mutations); tri_watch.py: rc=1 (174 mutations)
+[151/162] test_trump_render.py: VACUOUS  stayed green under every mutation
+[152/162] test_uismooth.py: VACUOUS  stayed green under every mutation
+[153/162] test_verdictnightly.py: KILLED  _verdict_study.py: rc=1 (183 mutations); discipline.py: rc=1 (493 mutations)
+[154/162] test_verdicttrail.py: UNMAPPED  no guarded module maps to it
+[155/162] test_watchliveness.py: KILLED  background_scanner.py: rc=1 (1826 mutations)
+[156/162] test_why_rejected.py: UNMAPPED  no guarded module maps to it
+[157/162] test_winnerlock.py: VACUOUS  stayed green under every mutation
+[158/162] test_winners.py: VACUOUS  stayed green under every mutation
+[159/162] test_worthdial.py: KILLED  background_scanner.py: rc=1 (1826 mutations)
+[160/162] test_xrp_scan.py: VACUOUS  stayed green under every mutation
+[161/162] test_xrp_signals.py: VACUOUS  stayed green under every mutation
+[162/162] test_zec_trace.py: VACUOUS  stayed green under every mutation
+THE MUTATION SWEEP — 2026-09-30 01:46
+==============================================================================
+
+VACUOUS (58):
+  test_advisorybrain.py  [stayed green under every mutation]
+  test_balancepop.py  [stayed green under every mutation]
+  test_bot_day.py  [stayed green under every mutation]
+  test_botdb.py  [stayed green under every mutation]
+  test_bracket_click.py  [stayed green under every mutation]
+  test_carry.py  [stayed green under every mutation]
+  test_chase.py  [stayed green under every mutation]
+  test_contest_mode.py  [stayed green under every mutation]
+  test_cooldowncheck.py  [stayed green under every mutation]
+  test_dangerzone.py  [stayed green under every mutation]
+  test_dcagate.py  [stayed green under every mutation]
+  test_depthcheck.py  [stayed green under every mutation]
+  test_dopamine.py  [stayed green under every mutation]
+  test_entry_control.py  [stayed green under every mutation]
+  test_eth_gap.py  [stayed green under every mutation]
+  test_exitsynthesis.py  [stayed green under every mutation]
+  test_fastfunnel.py  [stayed green under every mutation]
+  test_funnelplate.py  [stayed green under every mutation]
+  test_giveback.py  [stayed green under every mutation]
+  test_goalgame.py  [stayed green under every mutation]
+  test_hersize.py  [stayed green under every mutation]
+  test_herwords.py  [stayed green under every mutation]
+  test_hookparser.py  [stayed green under every mutation]
+  test_hype_now.py  [stayed green under every mutation]
+  test_kii.py  [stayed green under every mutation]
+  test_kii_woulda.py  [stayed green under every mutation]
+  test_liq_filter.py  [stayed green under every mutation]
+  test_longonly.py  [stayed green under every mutation]
+  test_nearmiss.py  [stayed green under every mutation]
+  test_night.py  [stayed green under every mutation]
+  test_night_pnl.py  [stayed green under every mutation]
+  test_no_alerts.py  [stayed green under every mutation]
+  test_one_asset.py  [stayed green under every mutation]
+  test_payouts.py  [stayed green under every mutation]
+  test_payouts_e2e.py  [stayed green under every mutation]
+  test_persistexit.py  [stayed green under every mutation]
+  test_popupbrain.py  [stayed green under every mutation]
+  test_positionscale.py  [stayed green under every mutation]
+  test_qclonewolf.py  [stayed green under every mutation]
+  test_scansethonesty.py  [stayed green under every mutation]
+  test_sink_hygiene.py  [stayed green under every mutation]
+  test_soldpnl.py  [stayed green under every mutation]
+  test_sunday.py  [stayed green under every mutation]
+  test_takeit.py  [stayed green under every mutation]
+  test_thinbrain.py  [stayed green under every mutation]
+  test_tidefloor.py  [stayed green under every mutation]
+  test_tierauto.py  [stayed green under every mutation]
+  test_toggleguard.py  [stayed green under every mutation]
+  test_tour_state.py  [stayed green under every mutation]
+  test_trend.py  [stayed green under every mutation]
+  test_trendbridge.py  [stayed green under every mutation]
+  test_trump_render.py  [stayed green under every mutation]
+  test_uismooth.py  [stayed green under every mutation]
+  test_winnerlock.py  [stayed green under every mutation]
+  test_winners.py  [stayed green under every mutation]
+  test_xrp_scan.py  [stayed green under every mutation]
+  test_xrp_signals.py  [stayed green under every mutation]
+  test_zec_trace.py  [stayed green under every mutation]
+
+BASELINE-RED (9):
+  test_agendacheck.py  [baseline rc=1: ]
+  test_carveout.py  [baseline rc=1: ]
+  test_charter_signal_push.py  [baseline rc=1: \test_charter_signal_push.py", line 50, in <module>
+    import database as ]
+  test_commitgate.py  [baseline rc=1: ]
+  test_dupfinal.py  [baseline rc=1:    cwd,
+                             ^^^^
+                             star]
+  test_hooks_ignore_runtime_state.py  [baseline rc=1: ]
+  test_jackpotplate.py  [baseline rc=1: po\test_jackpotplate.py", line 63, in <module>
+    import database as db  #]
+  test_pool_docsrot_live.py  [baseline rc=1: FAIL: drive not found at C:\Users\birds\Workspace\kraken_scout\_mutation_sb]
+  test_pool_prefs_live.py  [baseline rc=1: FAIL: pool checkout not found at C:\Users\birds\Workspace\kraken_scout\_mut]
+
+UNMAPPED (13):
+  test_dupcheck.py  [no guarded module maps to it]
+  test_find_eth.py  [no guarded module maps to it]
+  test_fleetsweep.py  [no guarded module maps to it]
+  test_gatestrips.py  [no guarded module maps to it]
+  test_lifecycle.py  [no guarded module maps to it]
+  test_liq_cal.py  [no guarded module maps to it]
+  test_no_runtime_stash.py  [no guarded module maps to it]
+  test_pending.py  [no guarded module maps to it]
+  test_protected_extension_gate.py  [no guarded module maps to it]
+  test_reviewplate.py  [no guarded module maps to it]
+  test_trailstop.py  [no guarded module maps to it]
+  test_verdicttrail.py  [no guarded module maps to it]
+  test_why_rejected.py  [no guarded module maps to it]
+
+KILLED (82):
+  test_5mstore.py
+  test_adaptivecache.py
+  test_allgoodlead.py
+  test_apptest.py
+  test_atomicio.py
+  test_autoadjust.py
+  test_autotrack.py
+  test_basegrade.py
+  test_batterybudget.py
+  test_bootfacts.py
+  test_boundaryexam.py
+  test_canary.py
+  test_clampcost.py
+  test_climbout.py
+  test_climbouthindsight.py
+  test_coderabbitbacklog.py
+  test_confirmwindow.py
+  test_contest_window.py
+  test_contestline.py
+  test_cooldownreview.py
+  test_costdrivers.py
+  test_dailylock.py
+  test_discipline.py
+  test_disciplineseam.py
+  test_disciplinesew.py
+  test_dropdownstability.py
+  test_eracompare.py
+  test_evidencestore.py
+  test_execution_tiers.py
+  test_exit_extension.py
+  test_extfade.py
+  test_fast20.py
+  test_floodguard.py
+  test_guardbreakdown.py
+  test_hailmary.py
+  test_headline.py
+  test_hindightservice.py
+  test_hindsight.py
+  test_hindsightapi.py
+  test_journalrelease.py
+  test_light_once.py
+  test_lonewolf.py
+  test_marketgoal.py
+  test_metalayers.py
+  test_moverfunnel.py
+  test_option23.py
+  test_outliverhindsight.py
+  test_pergate.py
+  test_phantommirror.py
+  test_popupfloor.py
+  test_pricealert.py
+  test_profitguard.py
+  test_pushfilter.py
+  test_ratchet.py
+  test_rebootsurv.py
+  test_recoveryscenarios.py
+  test_referee_gfdelta.py
+  test_releaseprov.py
+  test_replaylive.py
+  test_resetrebaseline.py
+  test_resilience.py
+  test_rotation.py
+  test_runnertether.py
+  test_scout_docs.py
+  test_simsweep.py
+  test_stateclobber.py
+  test_statewriters.py
+  test_surething.py
+  test_surethingautorefit.py
+  test_surethingdiag.py
+  test_telemetry.py
+  test_tide.py
+  test_tidebarweekly.py
+  test_tidelearn.py
+  test_tidememory.py
+  test_tidestamp.py
+  test_topfill.py
+  test_trailk_sweep.py
+  test_triwatch.py
+  test_verdictnightly.py
+  test_watchliveness.py
+  test_worthdial.py
+
+==============================================================================
+total 162: killed 82, VACUOUS 58, baseline-red 9, unmapped 13, timeout 0

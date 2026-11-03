@@ -1,0 +1,7 @@
+PASS  _speak queues a file (no direct speech)
+PASS  queue file carries the text
+PASS  queue file carries the rate
+PASS  queue file carries a timestamp
+PASS  queue clean after test
+PASS  scanner drains the queue in its main loop
+PASS  console _speak has no direct speech (Popen gone — queue only)

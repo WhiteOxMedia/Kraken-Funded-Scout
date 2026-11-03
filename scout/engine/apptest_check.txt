@@ -1,0 +1,296 @@
+exception: ElementList()
+KRAKEN SCOUT: FOUND
+TODAY: FOUND
+NOW:: FOUND
+Win Feed: missing
+Today's Score: missing
+New here: missing
+PASS  the no-pick diagnostic helper exists
+PASS  the closest call names the champion near-miss (2 pts)
+PASS  the breakout coil's learned-bar gap is parsed from the detail text
+PASS  a far-from-bar reject is not a close call
+PASS  rows outside the 90-minute window are ignored
+PASS  the busiest gates are counted
+PASS  the fail-open path says so instead of crashing
+PASS  the tide bar verdict renderer exists on MASTER
+PASS  the plate renders [TIDE BAR VERDICT]
+PASS  the plate renders [OUT ]
+PASS  the plate renders [FLAT ]
+PASS  the plate renders [Δ +]
+PASS  the plate renders [$+3.09/fire]
+PASS  the plate renders [outcome-fitted]
+PASS  the fills block renders [REAL FILLS — the fires that actually trade]
+PASS  the fills block renders [FLAT <span class='dim'>1 filled</span> <sp]
+PASS  the fills block renders [realized $+0.00]
+PASS  the fills block renders [18 paid on paper]
+PASS  the fills block renders [$79.26 the size ladder gated]
+PASS  the fills block renders [fire-event coverage begins 2026-09-11 10:3]
+PASS  the fills block renders [TOTAL:</span> 1 filled, <span style='color]
+PASS  an ungraded state is named, not dropped
+PASS  a flipped state wears the BENCHED badge
+PASS  the sparkline chars are sized by the shared max-abs scale
+PASS  each sparkline char carries its own sign color
+PASS  a one-sided week is a dim gap, not a zero
+PASS  the trend line names the latest pooled edge
+PASS  an empty trend series renders no line
+PASS  the fills spark renders under its trend line
+PASS  a flat-zero week is a visible grey baseline bar
+PASS  the fills spark names the latest realized P&L
+PASS  a negative fill week wears the red sign color
+PASS  a flip week stamps its glyph in amber (a one-sided week carries no edge in the hover — honest)
+PASS  a flip-back week stamps its glyph in green with its week's edge
+PASS  a marked week's glyph replaces the bar (one char per week)
+PASS  an old sidecar without flip_marks renders unmarked lines
+PASS  the regime-watch helper exists
+PASS  a live state's falling edge names the bench slide with its streak and its gate forecast (streak >= need: the pool is necessarily negative — the next pass fires)
+PASS  a benched state's rising edge names the flip-back climb with its forecast
+PASS  a single losing week reads singular and forecasts the REMAINING fresh weeks (need - streak, the streak keeps extending under the projection)
+PASS  a wrong-side edge forecasts the zero-crossing weeks plus the fresh gate weeks
+PASS  a far gate caps honestly at 8+ (no false precision)
+PASS  the wrong-way slopes name nothing (no machinery action to warn about)
+PASS  steady slopes and thin series stay silent
+PASS  mixed pressures join with the separator
+PASS  the plate carries the REGIME WATCH line
+PASS  an empty flip ledger renders the honest census shape (no fake 0 · 0 · 0)
+PASS  the census chip sits beside the regime watch
+PASS  the populated trail's chip counts the graded pair (1 PAYING · 1 COSTING · 0 pending), red on COSTING
+PASS  the chip's census carries the reckoning tally once stamped flip-backs exist (…· 2 agreed · 0 disagreed)
+PASS  no bench_warn in the sidecar -> no strip (no fake urgency)
+PASS  the plate shows the pass's own warning, phrase verbatim
+PASS  a trend-less (old) sidecar renders the plate without sparklines
+PASS  a trend-less sidecar shows the no-pressure fallback
+PASS  the sparkline helper exists and degrades on empty input
+PASS  a not-graded fills record is named on the plate
+PASS  a missing sidecar degrades to the quiet fallback
+PASS  the history click-through exists on MASTER
+PASS  the expander is on the page (newest-first label)
+PASS  the expander carries the report text
+PASS  a huge history is capped with the honest marker
+PASS  the week-section splitter exists
+PASS  sections split on the report header with their ISO week
+PASS  each section keeps its own body
+PASS  a dated-untagged section labels by its derived ISO week
+PASS  a pre-2000 date echo stays unmarked (not a real report)
+PASS  the ISO-week picker is on the page
+PASS  the options are newest-first with the All-weeks default and the deltas RENDER (stored values stay semantic tags — nothing counted is stored)
+PASS  a picked week renders ONLY that week's sections
+PASS  the week-edge parser exists
+PASS  a flipped-regime section's delta normalizes to the fit edge (sign flipped)
+PASS  a fit-live section's delta passes through unchanged
+PASS  a week's edge comes from its NEWEST section (the file is newest-first)
+PASS  one-sided states contribute nothing (no zero fakes)
+PASS  the week-sides parser exists
+PASS  a flipped-regime week maps each LINE to its bar (the label, not the seat)
+PASS  a fit-live week maps the IN FORCE line to the fit side
+PASS  a week's sides come from its NEWEST section (same policy as the edge parser)
+PASS  a week with an unparseable rate on one side yields nothing (the chart degrades to an edge-only hover)
+PASS  no production data file was left behind by the pins
+PASS  the production report file carries no fixture text
+PASS  the history renderer accepts an injected sandbox path
+PASS  the verdict plate accepts an injected sidecar path
+PASS  the ledger chart draws a path per graded state
+PASS  a flipped-regime week plots its CANONICAL fit edge (sign normalized through the real helper)
+PASS  every point carries a hover title with its week AND both sides' fires and payer rates
+PASS  an ungraded state draws no line (honest gap)
+PASS  the zero line and the legend render
+PASS  an empty/missing ledger renders nothing (fail-open)
+PASS  a benched span shades its weeks under the line
+PASS  a shaded chart carries the legend note
+PASS  a flip's evidence weeks each carry a ▼ — floating marker AND on-point stamp both name the week
+PASS  a RE-FLIP's evidence carries the doubled ▼▼ with the 'benched again' story (marker + on-point stamp)
+PASS  a flip-back's in-window evidence carries a ▲ (its out-of-window week is skipped) — marker + stamp
+PASS  a flip week's point wears the sparkline's ▼ (decision, the week's own data, and the click hint in one hover)
+PASS  a flip-back week's point wears the ▲ at its own edge
+PASS  the glyph replaces the plain circle on its week — unmarked W39/W40 keep circles, marked weeks none
+PASS  the stamp rides the ACTION colors (amber ▼ for the fit's bench), not the state's line color
+PASS  the markers carry the decision story in their hover
+PASS  a marked chart names the glyphs in its caption
+PASS  every chart glyph hrefs an anchor that exists on the audit trail (floats AND on-point stamps)
+PASS  the trail's verb names the regime churn: the second flip reads RE-FLIPPED, the first stays AUTO-FLIPPED
+PASS  glyph hovers carry the click hint and the caption names the click-through
+PASS  a flip on a never-graded week stamps the zero line (marker hover + point stamp, honestly edgeless)
+PASS  an all-gap state with no events stays invisible
+PASS  no flip events -> an unshaded, unmarked chart (and no legend notes)
+PASS  sim floats render HOLLOW (fill none, state-colored stroke) while the real flip floats stay solid
+PASS  sim point stamps are hollow outlines too (the sparkline glyph shape, outline-painted, in the state's color)
+PASS  the real flip's stamps stay SOLID action-amber beside the hollow sims on the same weeks
+PASS  every sim marker's hover carries the simulated tag
+PASS  a RE-ARM's evidence carries the doubled ▲▲ with the 'returned again' story, hollow (sim) per the dialect
+PASS  the chart mirrors the hide toggle: hollow sim glyphs drop (markers + stamps), lived glyphs stay (the real OUT flip keeps 2 floats + 2 stamps = 4 ▼), the caption carries the mirror note
+PASS  the sim-bearing caption names the hollow dialect
+PASS  a sim glyph's href lands on the SIMULATION row (the -sim anchor suffix), a real glyph's on the lived row
+PASS  a real event wins its slot over a colliding sim (the lived decision is never overdrawn)
+PASS  a prose-only week extends the chart with its edge and its sides (sign-normalized through the regime flip)
+PASS  the backfilled week plots BEFORE the ledger's first week
+PASS  ledger weeks keep their provenance-free hovers
+PASS  the caption names the backfill
+PASS  a week in both sources keeps the LEDGER's edge (and no prose tag)
+PASS  a missing prose file changes nothing
+PASS  the audit view renders the flip event red with its verb
+PASS  the evidence weeks render beside the event
+PASS  the flip-back renders green with its counterfactual evidence
+PASS  a state sitting benched right now is visible
+PASS  the benched strip grades the OPEN bench in dollars (the shared math: realized quantile vs fit counterfactual)
+PASS  the live verdict renders in the verdict colors
+PASS  the strip carries the bench's CUMULATIVE cost-to-date (realized $20 - counterfactual $10 = $10 up in the shared entry text)
+PASS  events render newest first
+PASS  the flip's aftermath grades the realized quantile vs the fit's counterfactual (the decision's own bar, post-decision weeks only)
+PASS  the flip-back's aftermath is honestly pending (its evidence weeks are the newest history — nothing graded after)
+PASS  the flip-back row preserves the bench's FINAL verdict (the to-date dollars, frozen at the moment it ended)
+PASS  a missing history ledger degrades the aftermath to pending (the event rows still render)
+PASS  every row wears its verdict chip and the census names the machinery's record — classification matches the aftermath's own dollars (the graded PAID flip is PAYING; its pending twin stays pending, never borrowed while un-benched)
+PASS  the PAYING filter shows the graded flip and hides the pending flip-back (anchor stub keeps its chart glyph resolvable, note names the hidden count)
+PASS  the pending filter isolates the flip-back with its preserved bench_final intact
+PASS  an empty verdict view says so honestly (no rows, all anchors stubbed, the census still readable)
+PASS  every verdict mode keeps the benched strip and the live aftermath (state meta is never filtered)
+PASS  the live aftermath pends honestly on a missing ledger too
+PASS  a COSTING flip-back grades the aftermath and names it on the row (the re-arm's own dollars)
+PASS  the fbw3 clause renders the REAL never-arms deny on the costing row (no third winning week, the decision's own avoided cost: $2.00/fire over 20 fires = $40.00)
+PASS  the clause sits between the aftermath and the bench's final verdict on the row
+PASS  the flip row (PAYING) never earns a clause
+PASS  the census counts the graded pair (1 PAYING · 1 COSTING)
+PASS  the borrow's reckoning renders AGREES on the graded costing flip-back
+PASS  a flip (PAYING) row never earns a reckoning (only the closure is graded)
+PASS  the trail's census line tallies the persisted stamp beside the counts (the FLAT closure borrows COSTING: …2 COSTING · 0 pending · 1 agreed · 0 disagreed)
+PASS  a positive deny names the later arm week and its save in dollars
+PASS  a negative deny says the extra week would have cost — no fake savings
+PASS  a same-week replay credits the pool guard, not the week count
+PASS  an unpriced delayed arm stays honest
+PASS  a wrong borrow renders DISAGREES loudly with the clause and the amber color
+PASS  a sim event renders under the SIMULATION badge
+PASS  a sim's badge carries its ARC NAME from sim_source's parenthesized tail
+PASS  a sim WITHOUT a sim_source keeps the bare badge (no fabricated arc)
+PASS  a sim's embedded aftermath renders with the simulated label (never the real-ledger math)
+PASS  a sim without an embedded aftermath stays honestly pending (the replay's weeks never lived in the ledger)
+PASS  the tally never counts sims — a stamped sim renders and still leaves the census alone
+PASS  the real events' aftermath is untouched by the sims
+PASS  hiding sims drops every sim row (badge, arc, aftermath)
+PASS  hiding sims keeps the real rows' evidence intact
+PASS  the hide side carries the honest hidden-count note
+PASS  a sims-only trail hides to the honest one-liner (never empty, never an error)
+PASS  a benched state with no flip event pends its live aftermath with the precise reason
+PASS  an empty trail renders the quiet one-liner
+PASS  the flip grade verdict renderer exists on MASTER
+PASS  the plate renders the NEWEST section (not the older runs)
+PASS  the benched state's regime line renders
+PASS  the pooled dollars render with the canonical delta
+PASS  the per-week edge strip renders
+PASS  the flip-back proximity renders
+PASS  a graded aftermath renders with its verdict colored
+PASS  a pending aftermath renders dim (no fake verdict)
+PASS  a one-sided state renders its honest degrade
+PASS  the open-bench strip renders on the plate with the live verdict and its dollars
+PASS  a pending open-bench renders its honest reason, never a fake verdict
+PASS  a malformed sidecar degrades to no strip (the grade rows still render)
+PASS  the pool-gate dials strip renders the walked family net per threshold with verdict colors and the arc-3 hold
+PASS  a MISSED threshold renders red and an arc-3 raise PROPOSAL renders its bar with the apply-by-hand note — the plate never implies the machinery moved the gate
+PASS  a baseline-hold renders the withheld honesty (the dial grade is not trustworthy until the walk reconciles)
+PASS  a sidecar without the dial blocks renders no strip — a held grade cleared them with the bench dollars
+PASS  a missing grade file renders the quiet amber one-liner
+PASS  the verdict plate accepts an injected open-bench sidecar
+PASS  a stage the live sweep no longer proposes reads STALE with its reason — a stale stage renders a caption, never an apply button
+PASS  a coherent stage reads the button-shape state (no stale key; the bar, net dollars, and priced count ride through)
+PASS  an unparseable stage file reads empty — no strip
+PASS  an out-of-range staged bar reads empty — never rendered as applyable
+PASS  a missing stage file reads empty
+PASS  the learned bars render on the dials line: the in-force bar green, the derived bar dim as ships-next-pass, the thin state dim with its reason
+PASS  a sidecar without the learned block renders the strip from what IS present (the family bit) and no learned bits — a hold cleared the learned evidence with the other dial verdicts, never floored from stale data
+PASS  the fbw walk renders beside the pool dials: family nets verdict-colored and the proposal named as advice for her hand, never auto-applied
+PASS  the fbw walk's hold renders honestly (zero priced re-arms — a raise needs every rolling window positive)
+PASS  a baseline-held fbw walk renders the withheld honesty — the dial grade is not trustworthy until reconciled
+PASS  a sidecar without the fbw blocks renders no fbw bits — a hold cleared the dial's evidence with the rest
+PASS  the streak dial renders beside the pool dials: each graduated FBW's net dollars verdict-colored with its denied/delayed counts dim
+PASS  a sidecar without the streak block renders no streak bits — a hold cleared the dial's evidence with the rest
+PASS  a corrupt streak entry is skipped, never fatal (the strip degrades, the grade rows survive)
+PASS  the app still boots clean (no exception)
+PASS  the sims toggle renders in the booted app (the production trail carries sims)
+PASS  unchecking hides the sims under the stable key
+PASS  the MASTER chart mirrors the hidden toggle (hollow glyphs drop, the caption notes it)
+PASS  the hidden choice survives a rerun (session_state, not the widget default)
+PASS  checking again brings the worked examples back
+PASS  the chart's hollow glyphs return with the toggle (and the mirror note lifts)
+PASS  the one-click 'show worked examples' button renders beside the hidden note
+PASS  clicking the note's button restores the sims (trail rows AND the chart's hollow glyphs)
+PASS  the one-click show lands on the toggle too (one choice, both surfaces)
+PASS  the verdict control renders at MASTER level (it moved out of the trail expander — near the chart it drives)
+PASS  selecting COSTING filters the trail (the semantic pick lands in session_state)
+PASS  the verdict choice survives a plain rerun (session_state, not the widget default)
+PASS  switching back to All verdicts unhides the rows
+PASS  ONE widget: exactly one verdict selectbox on the whole page — the trail resolves the MASTER pick without rendering its own (the duplicate-key class stays closed)
+PASS  the trail's hidden-note points at the MASTER control (the sync is discoverable from inside the trail)
+PASS  st-shadow selftest: the analyzer catches every variant (before/after-bind, walrus, global-rebind, wrong-module import; clean snippets stay clean)
+PASS  FLEET DISCOVERY: the sweep finds the live console (and any other streamlit-importing module) — it can never silently narrow back to one file
+PASS  GATE MEMBERSHIP: production modules are gated; diagnostics, scratch (_-prefixed) and the test harness are swept but report-only
+PASS  WATCH-LIST: covers the module surface beyond widgets (st.secrets must never sail past the detector again)
+PASS  st-shadow ground truth (app.py): scoped loads equal an independent whole-tree walk
+PASS  PRODUCTION FLEET CLEAN (2 streamlit module(s) discovered): no scope in any gated module binds a local st and calls st widgets — the swallowed-widget class is closed fleet-wide
+PASS  FLEET BITES: a poisoned production module in a fresh tree is discovered, gated, and flagged; a poisoned scratch file is report-only; a streamlit-free module is never discovered
+PASS  prefs mirror: the booted app renders the verdict dropdown with a clean prefs sandbox
+PASS  prefs mirror: selecting COSTING lands in the JSON file (the choice leaves the session)
+PASS  prefs mirror: a FRESH session restores the verdict pick from the file (tab-close persistence)
+PASS  prefs mirror: the sims toggle renders in the booted app (the trail carries graded sims)
+PASS  prefs mirror: unchecking the toggle mirrors show_flip_sims=false into the file
+PASS  prefs mirror: a FRESH session restores the hidden sims (chart mirror reads the file too)
+PASS  prefs mirror: re-checking mirrors show=true and a fresh session restores SHOW (both directions)
+PASS  prefs guards: no file reads as {} (defaults), the mirror fails open to SHOW
+PASS  prefs guards: a CORRUPT file reads as {} — the mirror never raises, the console never blocks on it
+PASS  prefs guards: the file stores whatever was saved, but restore's membership/isinstance guards reject junk (a bad verdict name is not a known option; a non-bool show restores the SHOW default)
+PASS  cache-sweep selftest: the two-module fleet catches the CROSS-MODULE freeze (from-import AND alias-attribute edges), exempts fragments and clean arg-only bodies
+PASS  cache-sweep fleet discovery: the console's closure is found (app.py plus every local module it pulls in) — the sweep can never silently narrow back to one file
+PASS  PRODUCTION FLEET CLEAN: no cached plate in ANY module freezes session_state, transitively across module boundaries
+PASS  cache-sweep TIER 3: nested-staleness chains are collected and the selftest asserts the hermetic cached->cached edge
+PASS  TIER 3 REAL CHAINS: the fleet's shipped composition is visible — account_value sits on wallet_snapshot and closed_trades on _bridge (a chain silently appearing or vanishing must fail here)
+PASS  the safe pattern holds: _tidebar_verdict carries the sims toggle in its signature (cache key, not a frozen read)
+PASS  fresh-stamp: _scalp_headline and _today_facts take the bucketed now_ts in their signatures (time is cache-key data, not a frozen read)
+PASS  fresh-stamp: _recent_big_payout's clock is caller-fed (required kwarg now_ts; zero wall-clock reads in its body — the transitive tier-2 path is severed)
+PASS  fresh-stamp: the ttl constants are the single clock (decorators and call-site buckets share one number per plate) and the 'as of' stamps render at the call sites
+PASS  plate clocks: the tide verdict's stamp is captured before its cached call and rendered after it (outside the cached body — a 5-min ttl cannot freeze the clock)
+PASS  plate clocks: the discipline plate and the suppression strip stamp their live re-reads (every MASTER plate carries a visible clock)
+PASS  TIER 2 FLEET CLEAN: no cached body in ANY module reaches the wall clock (the frozen-stamp class is closed fleet-wide; classified reads live in FORGIVEN_TIER2 with reasons, printed in the report)
+PASS  the forgiven registry is honest: seven classified reads, every one naming its (callee, read) rule
+PASS  cache strip: HIT after a clean call→render; a compute inside the window wins over the pending HIT; the next clean call→render flips back to HIT
+PASS  cache strip: uncached plates read 'no cache (live)' and never claim a ttl
+PASS  cache strip: memory-only observability (a dict, no file writes in the touch/call/render helpers) — the strip can never dirty production
+PASS  cache strip hit-rate: 3 computes over 6 requests reads exactly 50% hits and stays QUIET at the boundary
+PASS  cache strip hit-rate: 4 computes over 7 requests reads 43% and flags 🔥 HOT — recomputing more often than the ttl implies (the health verdict she sees)
+PASS  cache strip hit-rate: below the 5-request sample floor no rate is claimed (one or two requests are noise, not a verdict) and uncached plates never claim one (live is their contract)
+PASS  cache strip hit-rate: the request counter rides the UNCACHED call (every rerun), the compute counter the cached body, and the HOT gate demands ttl + 5-request floor (the metric can never flag a live plate or a thin sample)
+PASS  cache strip: production wiring — touches inside the three cached bodies, call→render brackets around the two uncached renders, the expander on MASTER
+PASS  snap-back sweep selftest: the analyzer flags the no-key and stored-display classes, passes the blessed literal/prefix-key shapes and world-derived prefills, catches dynamic value=
+PASS  PRODUCTION CLEAN: all 19 stateful widgets carry a stable key — the snap-back class is closed
+PASS  FLEET DISCOVERY: the sweep finds app.py and every other streamlit-importing module — it can never silently narrow back to one file
+PASS  GATE MEMBERSHIP: production modules are gated; diagnostics, scratch (_-prefixed) and the test harness are swept but report-only
+PASS  FLEET CLEAN (2 streamlit module(s), 19 widgets): no stateful widget in any gated module snaps back or stores a derived display string
+PASS  FLEET BITES: a poisoned production module is discovered, gated, and flagged (no-key + stored-display); the same poison in a _scratch file is report-only; a streamlit-free module is never discovered
+PASS  the ISO-week picker keeps its blessed shape (stable tb_week_pick key, semantic stored values)
+PASS  entry form: the mode/how options are plain words
+PASS  entry form: the display labels carry the glyph decoration format_func-side
+PASS  entry form: the radios ride format_func and no code branches on the old glyph prefixes
+PASS  the light's interval stores SECONDS (semantic), the 'every X min' display is derived, and the old display-string-keyed widget is gone
+PASS  silent-swallow selftest: bare/broad silent passes flagged, logged and narrow+commented shapes blessed
+PASS  PRODUCTION CLEAN: all 442 exception handlers across the fleet (app.py, tidebar_weekly.py, background_scanner.py, bot_runner.py) — none swallows silently without a trace
+PASS  the fleet sweep found every production module it gates (a silently-narrowed fleet would protect nothing)
+PASS  the keyring fallback stays loud (logged broad handler so a dead credential source can never trade in silence)
+PASS  APP-EDIT METAGATE: all four app.py analyzers (st-shadow, cache-sweep, snap-back, prefs-mirror) pass their selftests and every production sweep is CLEAN in one entry
+PASS  sizing-audit CANON EXPOSED: every hermetic fixture is a named permanent case (ule/param/import/walrus/module)
+PASS  sizing-audit canon case fx_ule: the planted call-arg UnboundLocalError flags at the call argument
+PASS  sizing-audit canon case fx_param: the legit shape stays quiet
+PASS  sizing-audit canon case fx_import: the legit shape stays quiet
+PASS  sizing-audit canon case fx_walrus: the legit shape stays quiet
+PASS  sizing-audit canon case fx_module: the legit shape stays quiet
+PASS  sizing-audit selftest aggregate: every canon case passes
+PASS  SIZING GATES CLEAN: worth tilt, cap-dollar ceiling, danger zone, the 3% guard helpers AND the bot's order-sizing path (engine _execute_buy/carry cap/min volume, the runner's tick loop, the bridge's position_size_usd seam) — no read of any local precedes its store, call arguments included
+PASS  the sizing audit's bot-fleet roster is live: engine, runner and bridge gates all found in production source (a rename can never silently drop a sizing gate)
+PASS  the bot-engine extension BITES: a planted call-arg UnboundLocalError in _execute_buy is named at the call argument (mis-sized real order, not a missed popup)
+PASS  dim sync: no filter dims nothing (the chart keeps its full regime history)
+PASS  dim sync: PAYING dims the COSTING stamp in both layers (2 opacity attrs of 4 stamp instances), names the count honestly in the caption, keeps every href and hover
+PASS  dim sync: COSTING dims the complement (the PAYING stamp, both layers) — the same machinery, the other side
+PASS  dim sync: pending dims BOTH graded stamps (4 instances) — the note names 2, and honestly: the pending decision renders no glyph at all, so nothing of it dims
+PASS  span dim: PAYING dims FLAT's benched span with its state (fill-opacity 0.02), keeps OUT's lit (its flip-back matches), names the span in the caption, and still dims OUT's mismatched flip stamps
+PASS  span dim: COSTING keeps BOTH spans lit — every state has at least one matching decision (FLAT's flip, OUT's flip), so no span dims with the whole-chart rule
+PASS  span dim: no filter renders every span at full opacity and no dim note appears
+PASS  dim sync: the mirror helper reads the session pick and falls back to the prefs file (module-level, st safe)
+PASS  health-command selftest: corrupt/bad-line/dup/missing caught, lazy-absent healthy, probe-dead fails
+PASS  HEALTH: the live stack answers in one pass — scanner, bot, 2 volatility engines, console :8501, every ledger intact (read-only, exit-coded)
+
+RESULT: 287 passed, 0 failed

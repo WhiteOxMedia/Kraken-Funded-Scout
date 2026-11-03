@@ -1,0 +1,924 @@
+#!/usr/bin/env bash
+# VERSIONED (Sep 22): this file is tracked at hooks/pre-commit so the
+# tripwire gate, the runtime-stash guard, and the CodeRabbit finding
+# renderer survive fresh clones. A new checkout arms it with ONE line:
+#   git config core.hooksPath hooks
+# (.git/hooks copies are machine-local by git's design and will drift —
+#  this tracked copy is the single source of truth. The hook verifies that
+#  mirror itself at commit time: a missing copy is auto-armed, a diverged
+#  copy blocks with the re-arm recipe — drift is caught before the gate
+#  runs, not just in the battery.)
+# ─────────────────────────────────────────────────────────────────────────
+# PRE-COMMIT: CodeRabbit advisory review (user rule, Sep 7 — "wire cr
+# review --agent into the pre-commit flow so changes get reviewed before
+# landing").
+#
+# POLICY (user-chosen, Sep 7):
+#   · WARN-ONLY — findings print, the commit is NEVER blocked by a review.
+#   · FAIL-OPEN — if CodeRabbit is unavailable (signed out, offline, the
+#     command hangs/errors), the commit proceeds and the reason is logged.
+#
+# WHY: kraken_scout is a LIVE TRADING system — the commit flow must never
+# be hostage to a third-party CLI's auth state or uptime. The review is a
+# second pair of eyes, not a gate. Use `git commit --no-verify` to skip
+# entirely when you're in a hurry (the hook says so).
+#
+# WHAT IT REVIEWS: the staged content, reviewed in place. The repo churns
+# live runtime state (logs, caches, ledgers, snapshots — see
+# RUNTIME_INVARIANTS.md for the class list); the reviewer may see that
+# churn in the working tree and it is noise, not danger. The review
+# performs NO stash operations and never writes or moves a file: runtime
+# state is owned exclusively by the running scanner.
+#
+# AUTH: `coderabbit auth login --api-key <key>` (an AGENTIC key from
+# CodeRabbit settings — plain user keys are rejected by the CLI). The
+# key is stored by CodeRabbit itself; the hook never handles it.
+#
+# ENV OVERRIDES:
+#   CODERABBIT_OFF=1          skip the review entirely
+#   CODERABBIT_TIMEOUT_SEC    review max seconds (default 300)
+# ─────────────────────────────────────────────────────────────────────────
+set -u
+
+# Hoisted python resolution — used by the tripwire gate below AND the
+# finding renderer at the bottom (absolute: blocks may cd into scratch dirs).
+PY="$PWD/.venv/Scripts/python.exe"
+[ -x "$PY" ] || PY="$(command -v python || command -v py || true)"
+
+# ── PERMANENT GUARD (2026-09-21, RUNTIME_INVARIANTS.md): runtime state is
+# never stashed. Any commit that ADDS stash logic is blocked here — except
+# inside the enforcement layer itself (the guard suites and the safe-commit
+# wrapper QUOTE the pattern in order to forbid it, mirroring the suite's
+# own exemption; a real stash execution added there is still caught by
+# test_no_runtime_stash's executable-line scan in the battery).
+if git diff --cached -- . \
+        ':(exclude)test_no_runtime_stash.py' \
+        ':(exclude)test_hooks_ignore_runtime_state.py' \
+        ':(exclude)safe_commit.py' \
+        ':(exclude)runtime_tripwire.py' \
+        ':(exclude)RUNTIME_INVARIANTS.md' 2>/dev/null | grep -qE '^\+.*git[[:space:]]+stash'; then
+    echo "  ⛔ GUARD: added lines invoke a stash command — runtime state must" >&2
+    echo "     never be stashed or auto-swept (see RUNTIME_INVARIANTS.md)." >&2
+    echo "     Commit blocked. Remove the stash logic and retry." >&2
+    exit 1
+fi
+
+# ── THE MIRROR CHECK (Sep 23, user: "verify the machine-local mirror
+# before running, so drift is caught at commit time, not just in the
+# battery") ── The tracked hooks/ dir is the single source of truth and
+# core.hooksPath executes it exclusively; the .git/hooks copies are the
+# fallback if hooksPath is ever lost. A stale, out-of-band-edited, or
+# missing fallback is exactly the drift the battery census hunts — so the
+# hook verifies EVERY tracked hook's mirror BEFORE any gate work: the
+# copy that would run on a lost hooksPath must be the reviewed one.
+#   · missing mirror  -> auto-armed from the source of truth (bootstrap,
+#     not drift — a fresh clone's first commit arms its own fallback)
+#   · diverged mirror -> BLOCKED with the re-arm recipe (fail-closed,
+#     like the gate; the battery's two-way census remains the wider net)
+#   · a hooks/<name> edit is compared as it will RUN: git executes the
+#     worktree file under core.hooksPath, so the worktree hook is the
+#     reference (index fallback if the worktree file vanished) — the same
+#     semantics as the battery's two-way census, so the two can never
+#     disagree; an edited hook must be re-armed before it can land.
+check_mirror() {
+    local name="$1" tracked="hooks/$1" copy=".git/hooks/$1" want have
+    if [ -f "$tracked" ]; then
+        want="$(tr -d '\r' < "$tracked" 2>/dev/null)" || {
+            echo "  🪞 mirror: cannot read $tracked — skipping (unusual state)." >&2
+            return 0
+        }
+    else
+        want="$(git show ":$tracked" 2>/dev/null | tr -d '\r')" || {
+            echo "  🪞 mirror: $tracked is in neither the worktree nor the index — skipping." >&2
+            return 0
+        }
+    fi
+    if [ ! -f "$copy" ]; then
+        mkdir -p ".git/hooks"
+        git show ":$tracked" > "$copy" 2>/dev/null
+        echo "  🪞 mirror: $copy was missing — armed from $tracked (bootstrap)." >&2
+        return 0
+    fi
+    have="$(tr -d '\r' < "$copy" 2>/dev/null)"
+    if [ "$have" != "$want" ]; then
+        echo "  ⛔ MIRROR DRIFT: $copy no longer matches $tracked — commit blocked." >&2
+        echo "     The fallback copy is stale or was edited out-of-band; the hook" >&2
+        echo "     that would run on a lost core.hooksPath is not the reviewed one." >&2
+        echo "     Re-arm and retry: cp $tracked $copy" >&2
+        exit 1
+    fi
+}
+for _h in $(git ls-files 'hooks/*'); do
+    case "$_h" in *.sample) continue ;; esac
+    check_mirror "$(basename "$_h")"
+done
+
+# ── THE POISON-ENV STRIP (Sep 28, hoisted Sep 30 to serve the gate's
+# host-asset staging too): a real commit exports GIT_DIR/GIT_WORK_TREE/
+# GIT_INDEX_FILE to its hooks, and any git call that must address a
+# DIFFERENT repository — the gate's scratch identity repo below, the
+# review's snapshot worktree — resolves those against the OUTER repo
+# instead (the probe proved GIT_DIR=. kills worktree add outright, and
+# GIT_INDEX_FILE would silently redirect an index read). Callers pass
+# the FULL command (git included) — an exec git "$@" here would double
+# the git and turn every wrapped call into 'git git …' (drilled Sep 28).
+run_clean_git() {
+    ( unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE \
+             GIT_OBJECT_DIRECTORY GIT_ALTERNATE_OBJECT_DIRECTORIES
+      exec "$@" )
+}
+
+# ── THE COMMIT GATE (Sep 22, generalized from the one-brain tripwire) ──
+# Every staged change to a guarded source file runs that source's check
+# drives against the STAGED content: the index exports into a scratch dir
+# (never the worktree, never runtime state), drives run there with
+# PYTHONPATH layered staged -> HEAD -> worktree, so a non-staged import
+# resolves from the COMMITTED content first (finding 3, Sep 23 — the
+# dirty worktree can never leak into the gate's verdict) and the
+# worktree serves only what HEAD cannot: untracked data modules and the
+# LIVE-probe ledgers. A failed verdict, a crash, or a budget overrun
+# BLOCKS the commit
+# — fail-closed everywhere, a missing verdict included. Per-drive budgets
+# are sized ~5x the battery-measured runtime; -X utf8 matches the
+# battery's own interpreter flag (the drives print unicode).
+# Per-drive verdict contracts (verified 2026-09-22):
+#   test_persistexit   check-file only (prints DONE; rc always 0)
+#                      (guards BOTH one-brain directions: console never
+#                       computes exits; scanner never reads a console
+#                       verdict — runs under app.py AND background_scanner.py)
+#   test_autotrack     exit code + "N/M passed"
+#   test_trailstop     exit code + "RESULT: N passed, M failed"
+#   test_watchliveness exit code + RESULT (imports bs+ml: needs the
+#                      scratch exports + PYTHONPATH)
+#   test_metalayers    exit code + RESULT (censuses every guarded source)
+#   test_rebootsurv    exit code + RESULT (reboot-survival: pulse/stamps/
+#                      guard state survive a reboot; hermetic tmpdirs)
+#   test_balancepop    exit code + RESULT (the sidebar-sweep census:
+#                      no file-read display strands outside a live
+#                      fragment — the KAITO freeze can never return)
+#   test_hookparser    exit code + RESULT (the finding parser's key
+#                      contract: fileName/startLine PRIMARY — a drop-
+#                      back to the old file/line sed keys fails; runs
+#                      against the STAGED hook in the scratch dir)
+#   test_commitgate    exit code + RESULT (the gate's own quiet-mode
+#                      census + live sandbox drills — a failure echo
+#                      gone quiet fails the drive that guards it)
+#   test_tidelearn     exit code + RESULT (the EV-ladder admission
+#                      policy: pure-branch matrix + integration legs
+#                      through the real fit — the longest-recurring
+#                      review finding is now gate-protected)
+#   test_payeralert    exit code + RESULT (the payer-recovery watcher's
+#                      contract: the yaml subset parser fails closed,
+#                      EV-table pricing, first-seen candidates, the
+#                      closed-candle + book trip, at-most-once fire)
+#   test_whyecon       exit code + RESULT (the burial banner's
+#                      why-blocked economics: the EV artifact's medfill
+#                      + payer rate joined at render time — fail-soft,
+#                      one source of truth, the money path untouched)
+#   test_hailmary      exit code + RESULT (the Hail Mary exception: the
+#                      classic one-hour window AND the opportunistic
+#                      mode — the deep-scan exit watch as the entry/
+#                      exit authority, the $300 hard cap, the 2% stop
+#                      on the hm_mode watch-row stamp)
+# Measured cold runtimes (2026-09-22, HEAD): persistexit 0.4s, autotrack
+# 0.7s, trailstop 0.4s, metalayers 2.9s, watchliveness 3.3s — the budgets
+# below are ~5x those. Each drive runs at most ONCE per commit even when
+# several guarded sources are staged together.
+# QUIET MODE (Sep 23): GATE_QUIET=1 (env, default 0) suppresses the
+# per-drive PASS chatter for trivial commits — a FAILED drive, a budget
+# timeout, and the fail summary ALWAYS print (quiet must never hide a
+# red), and the green summary counts the drives so quiet output still
+# proves the gate ran.
+# Emergency bypass stays available: git commit --no-verify — deliberately.
+if git diff --cached --name-only | grep -qxE 'app\.py|background_scanner\.py|meta_layers\.py|profit_guard\.py|carve_out\.py|tri_watch\.py|hooks/[^/]+|test_hooks_ignore_runtime_state\.py|test_commitgate\.py|artifacts/mutation_sweep/vacuous_triage\.md|artifacts/mutation_sweep/journal\.json'; then
+    if [ -z "$PY" ]; then
+        echo "  ⛔ GATE: guarded source staged but no python found — commit blocked." >&2
+        exit 1
+    fi
+    SCRATCH="$(mktemp -d "${TMPDIR:-/tmp}/commitgate.XXXXXX")"
+    trap 'rm -rf "$SCRATCH"' EXIT
+    # SUPPORT-FILE LANE (Sep 30, the stateclobber sandbox crash): some
+    # drives read NON-guarded sources as files — test_stateclobber's
+    # section-7 pins read contest_account.py and add_xrp_watch.py as
+    # siblings (BASE / name). They ride the same staged-first copy as
+    # the guarded sources so a source pin audits the commit's content,
+    # never a stale HEAD layer or an absent sibling (the gate ran the
+    # drive on a sandbox that lacked the file and the pin crashed with
+    # FileNotFoundError — red for the wrong reason).
+    # (Oct 8) scout_signal_reader.py + signal_bridge.py join the lane:
+    # the collection-kill sweep staged test_sink_hygiene.py, whose gate
+    # trigger (the sink row) runs it in the sandbox — and its 1.4/1.5/1.6
+    # path-hijack pins FILE-READ those two production sources off
+    # Path(__file__), not PYTHONPATH, so absent from the scratch the pins
+    # read empty strings and red for environment, not truth.
+    for src in app.py background_scanner.py meta_layers.py profit_guard.py carve_out.py tri_watch.py contest_account.py add_xrp_watch.py diag_mutation_sweep.py scout_signal_reader.py signal_bridge.py ops/fleet_sweep.py ops/fleet_sweep_classes.json artifacts/mutation_sweep/vacuous_triage.md artifacts/mutation_sweep/journal.json $(git ls-files 'hooks/*' | grep -v '\.sample$'); do
+        mkdir -p "$SCRATCH/$(dirname "$src")"   # nested guarded paths (hooks/)
+        git show ":$src" > "$SCRATCH/$src" 2>/dev/null || cp "$src" "$SCRATCH/$src" \
+            || { echo "  ⛔ GATE: cannot stage $src for the gate" >&2; exit 1; }
+    done
+    # STAGE THE HOST ASSETS (Sep 30, the HOST-BOUND drive un-classed from
+    # the gate): test_hooks_ignore_runtime_state audits the machine-local
+    # .git/hooks mirror — an asset the scratch never had, so the drive read
+    # the sandbox probe's shape-C red (no-git 2/1) for ENVIRONMENT reasons
+    # and was classed out of the gate entirely. The scratch becomes the
+    # probe's shape A: a git repo whose index carries the staged hooks
+    # (git ls-files must list them — the drive's tracked-hook census reads
+    # it) with the .git/hooks mirror ARMED FROM THE STAGED HOOKS — the same
+    # bytes check_mirror just verified against the host mirror, so arming
+    # from the staged content (not the host copy) is faithful AND puts the
+    # drive's no-runtime-state scan on the STAGED hook: a staged hook that
+    # names runtime state or mutates files fails here, before it can land.
+    # A staging failure (init/add/cp) does not block the gate by itself —
+    # the drive then reads its shape-C/B red with the reason in its own
+    # output: fail-closed through the drive, never through a silent skip.
+    run_clean_git git -C "$SCRATCH" init -q
+    run_clean_git git -C "$SCRATCH" add hooks
+    for h in $(run_clean_git git -C "$SCRATCH" ls-files 'hooks/*'); do
+        case "$h" in *.sample) continue ;; esac
+        cp "$SCRATCH/$h" "$SCRATCH/.git/hooks/$(basename "$h")"
+    done
+    # Windows Python cannot consume MSYS-style paths (/tmp, /c/...);
+    # cygpath -w renders the paths natively. THE THREE-LAYER RESOLUTION
+    # (finding 3, Sep 23): the scratch (STAGED content) first, then a
+    # HEAD archive — the COMMITTED content of every tracked .py the
+    # index knows, exported once — so a drive's non-staged imports
+    # resolve from what the commit will actually build, never from a
+    # dirty worktree file nobody staged (the old worktree fallback could
+    # green-light a combination HEAD never contained). The worktree
+    # comes LAST: it only serves what HEAD cannot — the untracked data
+    # modules and the live ledgers the LIVE probes read (their
+    # PYTHONPATH walk skips the scratch and the archive, both of which
+    # carry no contest_trades.jsonl, and land on the real repo).
+    # The staged-shadow sources are skipped in the archive pass — they
+    # are in the scratch already (or deliberately absent when not
+    # staged), and shadowing the scratch with stale HEAD copies would
+    # reverse the whole design.
+    WINSCRATCH="$(cygpath -w "$SCRATCH" 2>/dev/null || echo "$SCRATCH")"
+    WINREPO="$(cygpath -w "$PWD" 2>/dev/null || echo "$PWD")"
+    # ONE spawn, not one per file: git archive exports the whole
+    # tracked .py tree (minus the staged-shadow sources) in a single
+    # subprocess — a per-file `git show` loop costs ~200 spawns per
+    # gate invocation and the commitgate drills invoke the gate 3x.
+    # The archive pass fails closed to the plain fallback when HEAD
+    # cannot serve (a bare scratch repo) — the worktree layer then
+    # answers, exactly as before this layer existed.
+    if git archive HEAD -o "$SCRATCH/head.tar" -- '*.py' \
+            ':(exclude)app.py' ':(exclude)background_scanner.py' \
+            ':(exclude)meta_layers.py' ':(exclude)profit_guard.py' \
+            ':(exclude)carve_out.py' ':(exclude)tri_watch.py' \
+            ':(exclude)contest_account.py' ':(exclude)add_xrp_watch.py' ':(exclude)ops/fleet_sweep.py' \
+            ':(exclude)hooks/*' > /dev/null 2>&1 \
+            && tar -xf "$SCRATCH/head.tar" -C "$SCRATCH/HEAD" 2>/dev/null; then
+        rm -f "$SCRATCH/head.tar"
+        WINHEAD="$(cygpath -w "$SCRATCH/HEAD" 2>/dev/null || echo "$SCRATCH/HEAD")"
+        export PYTHONPATH="$WINSCRATCH;$WINHEAD;$WINREPO"
+    else
+        export PYTHONPATH="$WINSCRATCH;$WINREPO"   # no HEAD to archive (bare scratch repo)
+    fi
+    # fail-open to verbose: an unset/corrupt flag can never silence the gate
+    GATE_QUIET="${GATE_QUIET:-0}"
+    _DRIVES_RUN=0
+    FAILS=""
+    run_drive() {
+        local t="$1" mode="$2" budget="$3"
+        local out rc res failed p tot t0 t1 dt
+        git show ":$t" > "$SCRATCH/$t" 2>/dev/null || cp "$t" "$SCRATCH/$t"
+        t0="$(date +%s%N)"
+        # EVERY drive child runs with the real-commit poison env stripped
+        # (Sep 30, the task-61 commit lesson): a commit exports GIT_DIR/
+        # GIT_WORK_TREE/GIT_INDEX_FILE and a drive that itself runs git
+        # drills (commitgate's sandbox) would address the OUTER repo and
+        # die for environment reasons. No drive ever legitimately wants
+        # the outer git identity; the hook's own index-reading calls
+        # above KEEP the env. Unconditional strip, not per-row.
+        out="$(cd "$SCRATCH" && timeout "$budget" env -u GIT_DIR -u GIT_WORK_TREE -u GIT_INDEX_FILE -u GIT_OBJECT_DIRECTORY -u GIT_ALTERNATE_OBJECT_DIRECTORIES "$PY" -X utf8 "$t" 2>&1)"; rc=$?
+        t1="$(date +%s%N)"; dt=$(( (t1 - t0) / 1000000 ))
+        res=""; failed=""
+        case "$mode" in
+            checkfile)
+                # the report follows the scratch policy (Sep 24): drives
+                # write it into the repo's scratch/reports_temp/ via
+                # scratch_space; both locations answer (grep prints
+                # path:match — the sed still extracts the tail number).
+                res="$(grep -oE 'RESULT: [0-9]+ passed, [0-9]+ failed' \
+                           "$SCRATCH/_persist_check.txt" \
+                           "$PWD/scratch/reports_temp/_persist_check.txt" \
+                           2>/dev/null | tail -1)"
+                failed="$(printf '%s' "$res" | sed -n 's/.*, \([0-9]*\) failed/\1/p')" ;;
+            result)
+                # two real conventions: "RESULT: N passed, M failed"
+                # (persistexit-style) and the bare "N passed, M failed"
+                # (trailstop, metalayers) — take the last verdict line
+                res="$(printf '%s\n' "$out" | grep -oE '(RESULT: )?[0-9]+ passed, [0-9]+ failed' | tail -1)"
+                failed="$(printf '%s' "$res" | sed -n 's/.*, \([0-9]*\) failed/\1/p')" ;;
+            nm)
+                res="$(printf '%s\n' "$out" | grep -oE '[0-9]+/[0-9]+ passed' | tail -1)"
+                p="$(printf '%s' "$res" | sed -n 's/^\([0-9]*\)\/.*/\1/p')"
+                tot="$(printf '%s' "$res" | sed -n 's|^[0-9]*/\([0-9]*\) passed.*|\1|p')"
+                if [ -n "$p" ] && [ -n "$tot" ]; then failed=$(( tot - p )); fi ;;
+        esac
+        if [ "$rc" -eq 124 ]; then
+            echo "  ⛔ GATE: $t exceeded its ${budget}s budget — blocked." >&2
+            printf '%s\n' "$out" | tail -3 >&2
+            FAILS="$FAILS $t(timeout)"
+        elif [ "$rc" -ne 0 ] || [ -z "$res" ] || [ "${failed:-1}" != "0" ]; then
+            echo "  ⛔ GATE: $t FAILED (${res:-no verdict — crashed or truncated}; rc=$rc)" >&2
+            printf '%s\n' "$out" | grep -E '^FAIL' | head -8 >&2
+            printf '%s\n' "$out" | tail -4 >&2
+            FAILS="$FAILS $t"
+        else
+            [ "$GATE_QUIET" = "1" ] || echo "  🧠 gate: $t — $res (${dt}ms, budget ${budget}s)" >&2
+        fi
+    }
+    _APP=no; _BS=no; _ML=no; _CO=no; _TW=no; _HK=no; _HH=no; _HD=no; _HS=no; _TL=no; _SW=no; _FS=no; _SH=no; _PA=no; _HA=no
+    printf '%s\n' "$(git diff --cached --name-only)" | grep -qx 'app.py' && _APP=yes
+    printf '%s\n' "$(git diff --cached --name-only)" | grep -qx 'background_scanner.py' && _BS=yes
+    printf '%s\n' "$(git diff --cached --name-only)" | grep -qxE 'meta_layers\.py|profit_guard\.py' && _ML=yes
+    printf '%s\n' "$(git diff --cached --name-only)" | grep -qxE 'carve_out\.py|meta_layers\.py|profit_guard\.py' && _CO=yes
+    printf '%s\n' "$(git diff --cached --name-only)" | grep -qx 'tri_watch.py' && _TW=yes
+    printf '%s\n' "$(git diff --cached --name-only)" | grep -qx 'hooks/pre-commit' && _HK=yes
+    printf '%s\n' "$(git diff --cached --name-only)" | grep -qxE 'hooks/[^/]+|test_hooks_ignore_runtime_state\.py' && _HH=yes
+    printf '%s\n' "$(git diff --cached --name-only)" | grep -qxE 'artifacts/mutation_sweep/vacuous_triage\.md|artifacts/mutation_sweep/journal\.json|test_commitgate\.py' && _HD=yes
+    printf '%s\n' "$(git diff --cached --name-only)" | grep -qxE 'hindsight_service\.py|test_hindightservice\.py' && _HS=yes
+    printf '%s\n' "$(git diff --cached --name-only)" | grep -qxE 'tide_learn\.py|test_tidelearn\.py' && _TL=yes
+    printf '%s\n' "$(git diff --cached --name-only)" | grep -qxE 'ops/fleet_sweep\.py|ops/fleet_sweep_classes\.json|test_fleetsweep\.py' && _FS=yes
+    printf '%s\n' "$(git diff --cached --name-only)" | grep -qxE 'diag_testleaks\.py|test_sink_hygiene\.py' && _SH=yes
+    printf '%s\n' "$(git diff --cached --name-only)" | grep -qxE 'ops/payer_alert\.py|ops/payer_alert\.yaml|test_payeralert\.py' && _PA=yes
+    printf '%s\n' "$(git diff --cached --name-only)" | grep -qxE 'test_hailmary\.py|contest_account\.py|background_scanner\.py|app\.py' && _HA=yes
+    printf '%s\n' "$(git diff --cached --name-only)" | grep -qxE 'atomic_io\.py|profit_guard\.py|restore_state\.py|test_resilience\.py|diag_statewriters\.py|meta_layers\.py|background_scanner\.py' && _SW=yes
+    # Trigger → drive map, deduped: when app.py AND background_scanner.py
+    # are staged together (the f5ad99d shape), watchliveness and metalayers
+    # would run twice under a naive per-source block — maybe_run keys on
+    # the test name and runs each drive at most once per commit.
+    RAN=""
+    maybe_run() {
+        local flag="$1" t; shift
+        [ "$flag" = yes ] || return 0
+        t="$1"
+        case " $RAN " in *" $t "*) return 0 ;; esac
+        RAN="$RAN $t"
+        _DRIVES_RUN=$((_DRIVES_RUN + 1))   # counted post-dedup: the summary's proof-of-run number
+        run_drive "$@"
+    }
+    maybe_run "$_APP" test_persistexit.py  checkfile 5
+    maybe_run "$_APP" test_balancepop.py  result    5   # sidebar-sweep census:
+                                                        # every display read
+                                                        # rides a fragment
+    maybe_run "$_APP" test_watchliveness.py result  20
+    maybe_run "$_APP" test_funnelplate.py  result   10   # the funnel plate's
+                                                        # builder + wiring
+    maybe_run "$_APP" test_guardbreakdown.py result 20 # the guard badge
+    maybe_run "$_APP" test_whyecon.py     result 10   # the burial banner's
+                                                        # why-blocked econ:
+                                                        # medfill + payer
+                                                        # rate from the EV
+                                                        # artifact, render-
+                                                        # time join (money
+                                                        # path untouched)
+    maybe_run "$_APP" test_metalayers.py   result   15
+    maybe_run "$_BS"  test_persistexit.py checkfile 5   # the MIRROR tripwire:
+                                                        # scanner never reads a
+                                                        # console-written verdict
+    maybe_run "$_BS"  test_autotrack.py    nm        5
+    maybe_run "$_BS"  test_trailstop.py    result    5
+    maybe_run "$_BS"  test_rebootsurv.py  result    5   # pulse/stamps/guard survive reboots
+    maybe_run "$_BS"  test_stateclobber.py result  60   # the cross-writer concurrency drive:
+                                                        # REAL concurrent writer processes
+                                                        # (scanner/bot/guard waves) against
+                                                        # sandboxed state files — the clobber
+                                                        # class cannot come back quietly
+    maybe_run "$_BS"  test_watchliveness.py result 20   # deduped when app.py also staged
+    maybe_run "$_BS"  test_metalayers.py   result   15   # deduped
+    maybe_run "$_BS"  test_carveout.py    result   15   # the adaptive carve-out
+    maybe_run "$_BS"  test_guardbreakdown.py result 20 # deduped
+    maybe_run "$_ML"  test_metalayers.py   result   15   # deduped
+    maybe_run "$_ML"  test_profitguard.py  result   15   # the guard's own suite
+    maybe_run "$_ML"  test_carveout.py    result   15   # deduped
+    maybe_run "$_CO"  test_carveout.py    result   15   # deduped
+    maybe_run "$_CO"  test_profitguard.py  result   15   # deduped
+    maybe_run "$_CO"  test_boundaryexam.py result  30   # the boundary
+                                                        # cross-exam + the
+                                                        # correction overlays
+    maybe_run "$_BS"  test_boundaryexam.py result  30   # deduped; the tick's
+                                                        # trigger, verdicts,
+                                                        # reschedule pins
+    maybe_run "$_TW"  test_triwatch.py     result  30   # the tri-watch stack
+    maybe_run "$_TW"  test_metalayers.py   result   15   # deduped; the shared
+                                                        # candle read
+    maybe_run "$_HS"  test_hindightservice.py result 90  # the service runner's
+                                                        # lifecycle/ownership
+                                                        # contract (real ports,
+                                                        # real subprocesses)
+    maybe_run "$_HK"  test_hookparser.py  result   10   # the parser's key
+                                                        # contract, against
+                                                        # the staged hook
+    # budget 240 (Oct 7, the 509% wall-growth cure): the in-commit drive
+    # runs the CG_FAST lane — source census + mutation drill only
+    # (measured ~30s); the behavioral sandbox (~300s, 7 full hook runs)
+    # moved to the battery lane (run_battery sets no CG_FAST). A full-
+    # sandbox run now blows this budget BY DESIGN: a loud timeout red
+    # forces the fix instead of silently paying ten minutes per commit.
+    # ONE variable for BOTH call sites (_HK above, _HD below) — two
+    # literals drifted within a single commit attempt.
+    _CG_BUDGET=240
+    export CG_FAST=1   # the gate's own drive: fast census lane (battery keeps the full sandbox)
+    maybe_run "$_HK"  test_commitgate.py result  "$_CG_BUDGET"   # the gate's own guard:
+                                                        # the quiet census +
+                                                        # live sandbox drills
+    # THE HOST ASSETS ARE STAGED, SO THE CENSUS RUNS GATED (Sep 30): the
+    # identity drive reads GIT IDENTITY — with the real-commit poison env
+    # leaking in, its git subprocesses would point at the OUTER repo and
+    # manufacture orphan-mirror failures inside the sandbox (every drive
+    # child runs stripped now — see run_drive above). The row also fires
+    # on the drive's own file and on ANY tracked hook (hooks/[^/]+), so a
+    # future third hook is censused by construction.
+    maybe_run "$_HH"  test_hooks_ignore_runtime_state.py result  10
+    # THE DOC-JOURNAL CONSISTENCY CHECK (Sep 30, task 62): the fleet-
+    # verdict document's ledger and class counts are re-derived from the
+    # STAGED journal every time the doc, the journal, or this drive is
+    # staged — a doc that drifts from the record blocks the commit.
+    # budget 600 (Oct 3): the receipt drill added a full gate run — the
+    # suite measures ~370s in-gate; the old 180s budget blocked the very
+    # commit that carried the drill (the gate rejected its own cure).
+    maybe_run "$_HD"  test_commitgate.py result  "$_CG_BUDGET"
+    maybe_run "$_TL"  test_tidelearn.py   result   15   # the EV ladder's
+                                                        # admission policy
+                                                        # (zero-EV deny),
+                                                        # gate-protected
+    maybe_run "$_SW"  test_statewriters.py result  60   # the state-writer
+                                                        # LINTER (R1/R2/R3)
+                                                        # against the staged
+                                                        # tree: no new raw
+                                                        # writer lands
+    maybe_run "$_SW"  test_resilience.py  result   15   # retry telemetry +
+                                                        # the tested restore
+                                                        # path (no
+                                                        # double-apply)
+    maybe_run "$_FS"  test_fleetsweep.py result   10   # the sweep tool's
+                                                        # own contract:
+                                                        # classification +
+                                                        # render hermetic
+                                                        # (the _row crash
+                                                        # class, round 6)
+    maybe_run "$_SH"  test_sink_hygiene.py result 15   # the sink-hygiene
+                                                        # TRIPWIRE: the
+                                                        # fleet leak audit
+                                                        # in-process; no
+                                                        # drive writes a
+                                                        # production file
+    maybe_run "$_PA"  test_payeralert.py result  15   # the payer-recovery
+                                                        # watcher's contract:
+                                                        # spec parser (fails
+                                                        # closed), medfill
+                                                        # pricing, first-seen
+                                                        # candidates, the
+                                                        # closed-candle +
+                                                        # book trip, the
+                                                        # at-most-once fire
+                                                        # (the 16:55 PUMP
+                                                        # phantom class)
+    maybe_run "$_HA"  test_hailmary.py result  30   # the Hail Mary
+                                                        # exception: the
+                                                        # classic window
+                                                        # + the opportunistic
+                                                        # mode (the deep-scan
+                                                        # exit watch is the
+                                                        # authority, the
+                                                        # $300 hard cap,
+                                                        # the 2% stop on the
+                                                        # hm_mode stamp)
+    if [ -n "$FAILS" ]; then
+        echo "  ⛔ COMMIT GATE: failed drives:${FAILS}" >&2
+        echo "     Fix them (run the drive in the repo root) or bypass with" >&2
+        echo "     git commit --no-verify — deliberately, never casually." >&2
+        exit 1
+    fi
+    if [ "$GATE_QUIET" = "1" ]; then
+        echo "  🧠 commit gate (quiet): ${_DRIVES_RUN} drive(s) green on the staged content." >&2
+    else
+        echo "  🧠 commit gate: every triggered drive green on the staged content." >&2
+    fi
+fi
+
+[ "${CODERABBIT_OFF:-0}" = "1" ] && exit 0
+[ -z "$(git diff --cached --name-only)" ] && exit 0   # nothing staged
+
+BIN="$(command -v coderabbit || command -v cr || true)"
+if [ -z "$BIN" ]; then
+    echo "  🐇 CodeRabbit: CLI not found — skipping review (fail-open)." >&2
+    echo "    hmm — 'coderabbit auth login' + restart the terminal to arm." >&2
+    exit 0
+fi
+
+TIMEOUT="${CODERABBIT_TIMEOUT_SEC:-300}"
+
+# ── THE ISOLATED REVIEW (Sep 28): the reviewer reads a WORKTREE OF THE
+# STAGED CONTENT, never this working tree. History that forced this:
+# the reviewer repeatedly cross-read the dirty worktree (or the CLI read
+# disk beyond the diff) and served majors about code the commit did not
+# contain — an uncommitted later turn's exit_extension signature judged
+# against the committed diff, and vice versa. Five advisories were
+# triaged false for exactly that; the committed world was verifiably
+# self-consistent every time (git grep at HEAD). Fix: build a snapshot
+# commit FROM THE INDEX in a detached TEMP worktree and run the review
+# THERE — its disk carries staged+HEAD content and nothing else; the
+# dirty tree, the runtime churn, and the untracked files are
+# unreachable. THE RUNTIME-STATE RULES SURVIVE INTACT: no stash (the
+# snapshot is built from the index in a separate directory — the live
+# tree is never touched, RUNTIME_INVARIANTS.md holds), no worktree-file
+# writes by us (git builds it; the reviewer only reads), the live
+# scanner's ledgers stay owned by the running scanner. The CLI runs
+# `review --committed` against the snapshot's HEAD (the staged diff is
+# its last commit) — untracked files are unreachable in it by
+# construction, so no --include-untracked either. CODERABBIT_ISOLATED=0
+# restores the old in-tree review; every failure mode fails OPEN to a
+# plain in-tree review, then to commit-proceeds (the standing policy).
+# OBSERVABLE (same day, second pass): the very next real commit fell back
+# again while the bash -x trace had run the whole chain clean — and the
+# fallback served a major on a runtime-churn file the staged diff never
+# touched, the exact leak class this isolation exists to kill. A silent
+# fallback is indistinguishable from a leak, so the chain records WHERE
+# it failed and the worktree-add stderr rides the fallback banner.
+WT=""; WT_REF=""; _isol_err=""; _isol_step=""
+# THE REAL-COMMIT POISON (Sep 28, found by the banner): a real commit
+# exports GIT_DIR/GIT_WORK_TREE/GIT_INDEX_FILE to its hooks, and
+# `git worktree add` resolves those (relative) paths against ITS OWN
+# cwd — the probe proved GIT_DIR=. kills worktree add outright ("not a
+# git repository"), and the real-commit stderr died mid-prepare
+# ("Preparing worktree…" then fatal on the LAST line). Every manual
+# `bash -x` run has a clean env, which is why the trace always passed
+# while real commits fell back. The snapshot steps deliberately KEEP
+# the env (write-tree must read THE staged index); worktree add, the
+# in-worktree review, and the cleanup run with it stripped.
+# (run_clean_git — the poison-env strip — is defined above the gate,
+# hoisted Sep 30 to serve the scratch's host-asset staging too.)
+cleanup_wt() {
+    [ -n "$WT" ] || return 0
+    run_clean_git git worktree remove --force "$WT" >/dev/null 2>&1
+    run_clean_git git worktree prune >/dev/null 2>&1
+    run_clean_git git update-ref -d "${WT_REF:-}" 2>/dev/null
+    rm -rf "$WT" 2>/dev/null
+    WT=""
+}
+# Airtight cleanup (Sep 28, second pass): the explicit cleanup_wt calls
+# below cover the normal path and the isolation-fallback path, but a hard
+# interrupt mid-review (Ctrl-C inside the up-to-300s review window, a
+# kill) bypasses BOTH and would leak the temp worktree and its
+# refs/cr-snapshot-* ref — the one exit path "cleanup runs on every path"
+# didn't yet own. ONE chained EXIT trap runs the cleanup on every exit
+# and also finishes the gate's scratch exports: bash allows a single EXIT
+# trap, so an unchained second trap would silently REPLACE the gate's own
+# rm -rf "$SCRATCH" and move the leak instead of closing it. The explicit
+# calls stay — cleanup must happen before the renderer runs, not only at
+# script exit.
+trap 'cleanup_wt; rm -rf "${SCRATCH:-}" 2>/dev/null' EXIT
+
+# ── THE COVERAGE RECEIPT (Oct 3): the CLI records a review batch ONLY
+# when findings exist — a clean review lands nothing — so the backlog
+# watchdog could not tell a clean review from a review that never ran
+# (a week of clean isolated reviews read as an ever-growing open set).
+# Every completed review appends one receipt into the REPO's
+# scratch/reviews_receipts.jsonl (the isolated snapshot covers the
+# staged truth; the receipt's ts postdates every commit it reviewed).
+# The watchdog merges the CLEAN receipts into its coverage ledger; a
+# bounced review (timeout / unparsed / review errors) records its
+# outcome for forensics and covers nothing. Findings-carrying reviews
+# need no receipt — the CLI's own batch IS their record. Append-only,
+# best-effort: a receipt failure never blocks the commit.
+RECEIPTS="$(git rev-parse --show-toplevel 2>/dev/null)/scratch/reviews_receipts.jsonl"
+# The mode is CAPTURED AT THE BRANCH, not derived from $WT at receipt
+# time: cleanup_wt clears WT before the CLEANJSON/timeout receipts fire,
+# and deriving there would file every isolated review as in-tree
+# (found by the receipt drill, Oct 3; and a CLI SKIP is the receipt's own mirror - a review that never ran filing clean - so every receipt lane rejects the skipped stream, Oct 6).
+_cr_mode="in-tree"
+cr_receipt() {   # $1 = outcome: clean | unparsed | errors | timeout
+    [ -n "${RECEIPTS:-}" ] || return 0
+    mkdir -p "$(dirname "$RECEIPTS")" 2>/dev/null
+    printf '{"ts": %s, "head": "%s", "mode": "%s", "outcome": "%s"}\n' \
+        "$(date +%s)" \
+        "${SNAPSHOT:-$(git rev-parse --short HEAD 2>/dev/null || echo unknown)}" \
+        "${_cr_mode:-in-tree}" "$1" \
+        >> "$RECEIPTS" 2>/dev/null || true
+}
+if [ "${CODERABBIT_ISOLATED:-1}" = "1" ] \
+        && _isol_step="mktemp" \
+        && WT="$(mktemp -d "${TMPDIR:-/tmp}/cr-worktree.XXXXXX")" \
+        && _isol_step="snapshot (write-tree/commit-tree)" \
+        && SNAPSHOT="$(git commit-tree "$(git write-tree)" -p HEAD \
+            -m "cr advisory snapshot (staged index)")" \
+        && _isol_step="ref (update-ref)" \
+        && WT_REF="refs/cr-snapshot-$$" \
+        && git update-ref "$WT_REF" "$SNAPSHOT" 2>/dev/null \
+        && _isol_step="worktree-add" \
+        && { _isol_err="$(run_clean_git git worktree add --detach "$WT" "$SNAPSHOT" 2>&1)"; }; then
+    echo "  🐇 CodeRabbit: reviewing the STAGED content in an isolated" >&2
+    echo "     worktree (the dirty tree and runtime churn are out of scope)." >&2
+    _cr_mode="isolated"
+    # --base HEAD~1 (Oct 6, the skipped-review cure; ex-Oct 2, the silent-coverage fix): the CLI's default
+    # isolated review reads the whole tree as context, and a 628-file
+    # repo exceeds its 150-file analysis cap — the review then dies or
+    # returns no findings and the fail-open below prints "no findings"
+    # indistinguishable from a CLEAN review - probe B (Oct 6) served that exact shape. --base HEAD is the CURRENT commit: the CLI SKIPS such a review ("No committed changes"), rc 0, streaming JSONL the parser read as CLEANJSON - and the skip masqueraded as a clean receipt for 84 commits (Oct 3..6). HEAD~1 pins the
+    # review to the snapshot's own diff (always small by construction:
+    # one commit against its parent). The fallback's --uncommitted
+    # stays baseless — no single base scopes an in-tree review.
+    # rc must be the CLI's OWN, not tr's: the old capture piped through
+    # tr INSIDE the substitution, so a blown-budget review (empty stream,
+    # tr rc=0) fell into the no-findings branch and filed a CLEAN receipt
+    # — the watchdog counted coverage that never happened (Copilot
+    # medium on 9eb36b8, drill 2.27). Capture raw, take rc, THEN tr.
+    _cr_raw="$(
+        cd "$WT" && unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE \
+                         GIT_OBJECT_DIRECTORY GIT_ALTERNATE_OBJECT_DIRECTORIES \
+        && timeout "$TIMEOUT" "$BIN" review --committed \
+            --base HEAD~1 \
+            --agent 2>/dev/null
+    )" 2>/dev/null
+    rc=$?
+    review_json="$(printf '%s' "$_cr_raw" | tr -d '\r')"
+    cleanup_wt
+else
+    _isol_err="$(printf '%s' "$_isol_err" | tr -d '\r')"
+    _isol_line="$(printf '%s' "$_isol_err" | tail -1)"   # the fatal lives on the LAST line (git prints its progress first)
+    echo "  🐇 CodeRabbit: worktree isolation unavailable (failed at:" >&2
+    echo "     ${_isol_step:-?}${_isol_line:+; git said: $_isol_line}) —" >&2
+    echo "     falling back to an in-tree review (the working tree may color" >&2
+    echo "     the findings)." >&2
+    cleanup_wt
+    _cr_raw="$(timeout "$TIMEOUT" "$BIN" review --agent --uncommitted 2>/dev/null)" 2>/dev/null
+    rc=$?
+    review_json="$(printf '%s' "$_cr_raw" | tr -d '\r')"
+fi
+
+if [ $rc -ne 0 ]; then
+    cr_receipt timeout
+    echo "  🐇 CodeRabbit: review didn't finish (rc=$rc; timeout ${TIMEOUT}s) — commit proceeds (fail-open)." >&2
+    exit 0
+fi
+
+if [ -z "$review_json" ]; then
+    cr_receipt clean
+    echo "  🐇 CodeRabbit: no findings — clean review." >&2
+    exit 0
+fi
+
+# Render the agent-mode findings. The REAL CLI shape (verified against
+# the local review store, 2026-09-22): JSON records whose fields are
+# fileName / startLine / severity / title / comment — the old sed looked
+# for "file"/"line", matched nothing, and printed ?:? placeholders.
+# This parser is field-tolerant (both key generations), handles JSONL,
+# wrapped envelopes, and pretty-printed JSON, and NEVER swallows findings
+# silently: if the stream carries text but nothing parses, the raw head
+# is printed for eyes-on. An EXPLICITLY EMPTY review is not a failure:
+# valid JSON carrying zero records ("[]", {"findings": []}) prints
+# CLEANJSON and the hook confirms in one quiet line — the eyes-on raw
+# dump is reserved for streams that never parsed at all, so a clean
+# commit speaks findings only when it has findings.
+PYCODE="$(cat <<'CRPYEOF'
+import sys, json, re
+
+skipped_review = []
+errors = []   # 0.8.1 streams review errors (rate_limit et al.) as records
+
+def walk(o, out):
+    if isinstance(o, list):
+        for i in o:
+            walk(i, out)
+    elif isinstance(o, dict):
+        if "errorType" in o:
+            errors.append(str(o["errorType"]))
+        if isinstance(o.get("status"), str) and o["status"] == "review_skipped":
+            skipped_review.append(True)
+        has_file = any(k in o for k in ("fileName", "file", "path"))
+        has_body = any(k in o for k in ("severity", "title", "comment"))
+        if has_file and has_body:
+            out.append(o)
+        else:
+            for v in o.values():
+                if isinstance(v, (list, dict)):
+                    walk(v, out)
+
+raw = sys.stdin.read().replace("\r", "")
+records = []
+parsed_any = False
+try:
+    val = json.loads(raw)
+    parsed_any = True
+    walk(val, records)                      # pretty-printed single JSON
+except Exception:
+    pass
+if not records:
+    buf = ""                                # JSONL, pretty or compact:
+    for ln in raw.splitlines():             # accumulate to balanced braces
+        buf += ln + "\n"
+        if buf.count("{") <= buf.count("}"):
+            try:
+                val = json.loads(buf)
+                parsed_any = True
+                walk(val, records)
+            except Exception:
+                pass
+            buf = ""
+    if buf.strip():
+        try:
+            val = json.loads(buf)
+            parsed_any = True
+            walk(val, records)
+        except Exception:
+            pass
+if not records:
+    if skipped_review:
+        print("SKIPPEDREVIEW")
+        sys.exit(0)
+    if errors:
+        # (Sep 28, found while pinning the 0.8.1 shapes) a PURE error
+        # stream ({"errorType": ...} and nothing else) used to parse as
+        # valid JSON with zero records and print CLEANJSON - the hook
+        # claimed a clean review while the CLI had bounced. COUNT 0 +
+        # ERRORTYPE keeps the advisory fail-open shape and fires the
+        # hook's "review errors" banner honestly.
+        print("COUNT 0")
+        for e in sorted(set(errors)):
+            print("ERRORTYPE " + e)
+        sys.exit(0)
+    if parsed_any:
+        print("CLEANJSON")   # valid JSON, zero records: explicitly empty
+    else:
+        print("RAWFALLBACK") # never parsed at all: eyes on
+    sys.exit(0)
+def _line_of(o):
+    l = o.get("startLine")
+    if l is None:
+        l = o.get("line")
+    if l is None:
+        lr = o.get("lineRange") or {}
+        l = lr.get("start") if isinstance(lr, dict) else None
+    if l is None:
+        ci = o.get("codegenInstructions") or ""
+        m = re.search(r"at line (\d+)", ci)   # 0.8.1: line lives only inside
+                                              # "Review comment at @file at line N:"
+        if m:
+            l = m.group(1)
+    if l is None:
+        l = o.get("endLine")
+    return l
+
+
+def _text_of(o):
+    t = (o.get("title") or o.get("comment") or "")
+    if not t:
+        ty = str(o.get("type") or "")
+        if ty and ty.lower() != "finding":   # 0.8.1's stream type IS the literal
+            t = ty   # "finding" — text-shaped noise that would defeat the
+                     # skeletal detector; a real type name still counts
+    if not t:
+        cat = o.get("commentCategory")
+        t = str(cat) if cat else ""
+    if not t and o.get("indicatorTypes"):
+        t = ", ".join(str(x) for x in o["indicatorTypes"])
+    if not t and o.get("codegenInstructions"):
+        m = re.search(r"Review comment at @[^\s]+ at line \d+:\s*(.+)",
+                      str(o["codegenInstructions"]), re.S)
+        if m:
+            t = m.group(1)   # 0.8.1: the real comment text rides after that prefix
+    t = str(t).strip()
+    return t or None
+
+
+def _store_records():
+    """The 0.8.1 LIVE STREAM can emit skeletal finding records (type
+    fileName severity and nothing else) while the CLI's own local
+    review store fills title/lines/comment afterwards. When the stream
+    is skeletal, join against the store review dir that matches THIS
+    review and nothing else: the hook passes its snapshot hash in
+    CR_SNAPSHOT and the store's git.json records the reviewed head -
+    a dir whose head disagrees (another thread's review through the
+    same hook, a stale epoch) is never joined, no matter how fresh."""
+    import os, glob, time
+    out = []
+    snap = os.environ.get("CR_SNAPSHOT") or ""
+    if not snap:
+        return out   # no snapshot identity (fallback review): no join
+    try:
+        root = os.path.join(
+            os.environ.get("LOCALAPPDATA")
+            or os.path.expanduser("~/AppData/Local"),
+            "CodeRabbit", "reviews")
+        dirs = [d for d in glob.glob(
+            os.path.join(root, "*", "*", "reviews", "*"))
+            if os.path.isdir(d)]
+        if not dirs:
+            return out
+        newest = max(dirs, key=os.path.getmtime)
+        try:
+            if abs(int(time.time() * 1000)
+                   - int(os.path.basename(newest))) > 30 * 60 * 1000:
+                return out   # stale epoch: not this review
+        except ValueError:
+            pass
+        try:
+            with open(os.path.join(newest, "git.json"),
+                      encoding="utf-8") as fh:
+                gitmeta = json.load(fh)
+            if str(gitmeta.get("head") or "") != snap:
+                return out   # not THIS snapshot's review (cross-repo or
+                             # another thread's run): never dress ours
+        except Exception:
+            return out
+        for p in glob.glob(os.path.join(newest, "*.json")):
+            try:
+                with open(p, encoding="utf-8") as fh:
+                    val = json.load(fh)
+            except Exception:
+                continue
+            if isinstance(val, dict) and val.get("fileName") \
+                    and val.get("severity"):
+                out.append(val)
+    except Exception:
+        pass
+    return out
+
+
+# a record is SKELETAL when neither a line nor any text is extractable:
+# the stream gave file+severity only (the 0.8.1 live shape)
+_skeletal = [o for o in records
+             if _line_of(o) is None and _text_of(o) is None]
+if _skeletal:
+    _store = _store_records()   # fetched ONCE - id-dedup needs stable objects
+    _used = set()
+    for o in _skeletal:
+        for sr in _store:
+            if id(sr) in _used:
+                continue
+            if sr.get("fileName") == o.get("fileName") \
+                    and str(sr.get("severity")) == str(o.get("severity")):
+                _used.add(id(sr))
+                for k in ("startLine", "endLine", "lineRange", "title",
+                          "comment", "codegenInstructions"):
+                    if o.get(k) is None and sr.get(k) is not None:
+                        o[k] = sr[k]
+                break
+
+n = 0
+sevs = []
+for o in records:
+    f = o.get("fileName") or o.get("file") or o.get("path") or "?"
+    l = _line_of(o)
+    if l is None:
+        l = "?"
+    s = str(o.get("severity") or "?")
+    t = _text_of(o)
+    if t:
+        t = t.splitlines()[0][:100]
+    elif _line_of(o) is not None:
+        t = "(no title text in stream)"     # has a line, no text: the old
+                                            # honest message still applies
+    else:
+        t = "(stream gave no line/text - full record in the local store)"
+    n += 1
+    sevs.append(s)
+    print("- %s:%s [%s] %s" % (f, l, s, t))
+print("COUNT %d" % n)
+for s in sevs:
+    print("SEV " + s)
+for e in sorted(set(errors)):
+    print("ERRORTYPE " + e)
+CRPYEOF
+)"
+PARSER_OUT="$(printf '%s\n' "$review_json" \
+    | CR_SNAPSHOT="${SNAPSHOT:-}" "$PY" -c "$PYCODE" 2>/dev/null)"
+n="$(printf '%s\n' "$PARSER_OUT" | sed -n 's/^COUNT //p' | tail -1)"
+sev="$(printf '%s\n' "$PARSER_OUT" | sed -n 's/^SEV //p' | tr '\n' ' ' | sed 's/ $//')"
+errtypes="$(printf '%s\n' "$PARSER_OUT" | sed -n 's/^ERRORTYPE //p' | sort -u | tr '\n' ' ' | sed 's/ $//')"
+if [ -z "$n" ]; then
+    if printf '%s
+' "$PARSER_OUT" | grep -q '^SKIPPEDREVIEW$'; then
+        cr_receipt skipped
+        echo "  CodeRabbit: review SKIPPED by the CLI (no diff to review) - recording it, commit proceeds (fail-open)." >&2
+        exit 0
+    fi
+    if printf '%s\n' "$PARSER_OUT" | grep -q '^CLEANJSON$'; then
+        cr_receipt clean
+        echo "  🐇 CodeRabbit: zero findings — clean JSON review." >&2
+        exit 0
+    fi
+    cr_receipt unparsed
+    echo "  🐇 CodeRabbit findings (unparsed stream — eyes on, commit proceeds):" >&2
+    printf '%s' "$review_json" | head -c 600 >&2
+    echo >&2
+    n=0
+    sev=""
+else
+    echo "  🐇 CodeRabbit findings:" >&2
+    printf '%s\n' "$PARSER_OUT" | grep '^-' | sed 's/^/    /' >&2
+fi
+
+echo "  🐇 CodeRabbit: $n finding(s). Advisory only — commit proceeds." >&2
+echo "    (blockers seen:${sev:+ $sev})" >&2
+if [ -n "$errtypes" ]; then
+    cr_receipt errors
+    echo "    ⚠ review errors: $errtypes — advisories may be incomplete" >&2
+    echo "    (fail-open, never silence — the review did not fully run)." >&2
+fi
+echo "    skip anytime: git commit --no-verify" >&2
+exit 0

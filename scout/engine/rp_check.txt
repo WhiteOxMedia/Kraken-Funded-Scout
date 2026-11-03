@@ -1,0 +1,6 @@
+ Volume in drive C is Windows
+ Volume Serial Number is E266-DD81
+
+ Directory of C:\Users\birds\Workspace\kraken_scout
+
+File Not Found

@@ -1,0 +1,155 @@
+{
+ "generated_ts": "2026-09-14 01:10 UTC",
+ "week": "2026-W38",
+ "cadence": "daily (7-day grade window)",
+ "states": {
+  "OUT": {
+   "n": 225,
+   "in_force": {
+    "bar": 80.0,
+    "fires": 51,
+    "payers": 14,
+    "rate": 0.27450980392156865,
+    "usd": 189.9,
+    "usd_per_fire": 3.72
+   },
+   "other": {
+    "bar": 92.0,
+    "fires": 25,
+    "payers": 6,
+    "rate": 0.24,
+    "usd": 94.95,
+    "usd_per_fire": 3.8
+   },
+   "other_src": "quantile"
+  },
+  "FLAT": {
+   "n": 243,
+   "in_force": {
+    "bar": 90.0,
+    "fires": 40,
+    "payers": 5,
+    "rate": 0.125,
+    "usd": 79.12,
+    "usd_per_fire": 1.98
+   },
+   "other": {
+    "bar": 92.0,
+    "fires": 40,
+    "payers": 5,
+    "rate": 0.125,
+    "usd": 79.12,
+    "usd_per_fire": 1.98
+   },
+   "other_src": "quantile"
+  },
+  "RISING": {
+   "n": 156,
+   "in_force": {
+    "bar": 85.0,
+    "fires": 14,
+    "payers": 5,
+    "rate": 0.35714285714285715,
+    "usd": 79.12,
+    "usd_per_fire": 5.65
+   },
+   "other": {
+    "bar": 86.0,
+    "fires": 14,
+    "payers": 5,
+    "rate": 0.35714285714285715,
+    "usd": 79.12,
+    "usd_per_fire": 5.65
+   },
+   "other_src": "quantile"
+  }
+ },
+ "flips": {},
+ "fills": {
+  "states": {
+   "RISING": {
+    "fills": 0,
+    "pnl": 0.0,
+    "winners": 0,
+    "unfilled": 34,
+    "unfilled_payers": 21,
+    "usd_if_paid": 97.00639517455221
+   },
+   "FLAT": {
+    "fills": 2,
+    "pnl": -0.47999999999999954,
+    "winners": 1,
+    "unfilled": 2,
+    "unfilled_payers": 0,
+    "usd_if_paid": 0.0
+   }
+  },
+  "coverage_from": "2026-09-11T12:55:11.032985+00:00"
+ },
+ "trend": {
+  "OUT": [
+   1.26,
+   0.68
+  ],
+  "FLAT": [
+   1.13,
+   0.31
+  ],
+  "RISING": [
+   0.33,
+   0.18
+  ]
+ },
+ "fills_trend": {
+  "OUT": [
+   0.0,
+   null
+  ],
+  "FLAT": [
+   -0.47999999999999954,
+   -0.47999999999999954
+  ],
+  "RISING": [
+   0.0,
+   0.0
+  ]
+ },
+ "flip_marks": {
+  "OUT": [
+   null,
+   null
+  ],
+  "FLAT": [
+   null,
+   null
+  ],
+  "RISING": [
+   null,
+   null
+  ]
+ },
+ "poolmin_learned": {
+  "OUT": {
+   "pool_min": null,
+   "n_edges": 2,
+   "median": null,
+   "reason": "thin (2/6 edge weeks)"
+  },
+  "FLAT": {
+   "pool_min": null,
+   "n_edges": 2,
+   "median": null,
+   "reason": "thin (2/6 edge weeks)"
+  },
+  "RISING": {
+   "pool_min": null,
+   "n_edges": 2,
+   "median": null,
+   "reason": "thin (2/6 edge weeks)"
+  }
+ },
+ "bench_warn": {
+  "state": "OUT",
+  "phrase": "OUT sliding toward a bench (+0.68, 0 losing weeks, ~5 wk to gate)"
+ }
+}

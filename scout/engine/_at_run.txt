@@ -1,0 +1,71 @@
+2026-09-13 08:11:20.754 WARNING streamlit.runtime.scriptrunner_utils.script_run_context: Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.
+2026-09-13 08:11:20.755 WARNING streamlit.runtime.scriptrunner_utils.script_run_context: Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.
+2026-09-13 08:11:20.947 
+  [33m[1mWarning:[0m to view this Streamlit app on a browser, run it with the following
+  command:
+
+    streamlit run test_apptest.py [ARGUMENTS]
+2026-09-13 08:11:20.947 Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.
+2026-09-13 08:11:20.947 Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.
+2026-09-13 08:11:20.953 No runtime found, using MemoryCacheStorageManager
+2026-09-13 08:11:20.953 No runtime found, using MemoryCacheStorageManager
+2026-09-13 08:11:20.954 No runtime found, using MemoryCacheStorageManager
+2026-09-13 08:11:20.954 No runtime found, using MemoryCacheStorageManager
+2026-09-13 08:11:20.954 No runtime found, using MemoryCacheStorageManager
+2026-09-13 08:11:20.955 No runtime found, using MemoryCacheStorageManager
+2026-09-13 08:11:20.955 No runtime found, using MemoryCacheStorageManager
+2026-09-13 08:11:20.955 No runtime found, using MemoryCacheStorageManager
+2026-09-13 08:11:20.955 No runtime found, using MemoryCacheStorageManager
+2026-09-13 08:11:20.956 No runtime found, using MemoryCacheStorageManager
+2026-09-13 08:11:20.956 No runtime found, using MemoryCacheStorageManager
+2026-09-13 08:11:20.956 No runtime found, using MemoryCacheStorageManager
+2026-09-13 08:11:20.956 No runtime found, using MemoryCacheStorageManager
+2026-09-13 08:11:20.957 No runtime found, using MemoryCacheStorageManager
+2026-09-13 08:11:20.958 No runtime found, using MemoryCacheStorageManager
+2026-09-13 08:11:20.958 No runtime found, using MemoryCacheStorageManager
+2026-09-13 08:11:21.003 No runtime found, using MemoryCacheStorageManager
+2026-09-13 08:11:21.003 Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.
+2026-09-13 08:11:21.008 Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.
+2026-09-13 08:11:21.011 Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.
+2026-09-13 08:11:21.014 Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.
+2026-09-13 08:11:21.018 Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.
+2026-09-13 08:11:21.021 Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.
+2026-09-13 08:11:21.023 Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.
+2026-09-13 08:11:21.025 Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.
+2026-09-13 08:11:21.054 Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.
+2026-09-13 08:11:21.188 Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.
+2026-09-13 08:11:21.319 Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.
+2026-09-13 08:11:21.493 Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.
+2026-09-13 08:11:46.834 Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.
+2026-09-13 08:11:48.074 Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.
+2026-09-13 08:11:49.252 Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.
+2026-09-13 08:11:49.889 Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.
+2026-09-13 08:11:49.889 Session state does not function when running a script without `streamlit run`
+2026-09-13 08:11:49.889 Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.
+2026-09-13 08:11:50.415 Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.
+2026-09-13 08:11:50.416 Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.
+2026-09-13 08:11:50.416 Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.
+2026-09-13 08:11:50.416 Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.
+2026-09-13 08:11:50.417 No runtime found, using MemoryCacheStorageManager
+2026-09-13 08:11:50.417 No runtime found, using MemoryCacheStorageManager
+2026-09-13 08:11:50.417 No runtime found, using MemoryCacheStorageManager
+2026-09-13 08:11:50.417 No runtime found, using MemoryCacheStorageManager
+2026-09-13 08:11:50.418 No runtime found, using MemoryCacheStorageManager
+2026-09-13 08:11:50.418 No runtime found, using MemoryCacheStorageManager
+2026-09-13 08:11:50.418 No runtime found, using MemoryCacheStorageManager
+2026-09-13 08:11:50.418 No runtime found, using MemoryCacheStorageManager
+2026-09-13 08:11:50.419 No runtime found, using MemoryCacheStorageManager
+2026-09-13 08:11:50.419 No runtime found, using MemoryCacheStorageManager
+2026-09-13 08:11:50.420 No runtime found, using MemoryCacheStorageManager
+2026-09-13 08:11:50.420 No runtime found, using MemoryCacheStorageManager
+2026-09-13 08:11:50.420 No runtime found, using MemoryCacheStorageManager
+2026-09-13 08:11:50.420 No runtime found, using MemoryCacheStorageManager
+2026-09-13 08:11:50.421 No runtime found, using MemoryCacheStorageManager
+2026-09-13 08:11:50.422 No runtime found, using MemoryCacheStorageManager
+2026-09-13 08:11:50.422 Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.
+2026-09-13 08:11:50.422 Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.
+2026-09-13 08:11:50.425 Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.
+2026-09-13 08:11:50.425 Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.
+2026-09-13 08:11:52.736 Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.
+RESULT: 236 passed, 0 failed
+done

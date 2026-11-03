@@ -1,0 +1,5 @@
+backup written: signals.db.bak-20260824-dupes
+deleted 2: ['PUMP/USD id=8b569c87', 'ARB/USD id=0b4b860b']
+remaining open buy records: 2
+  2026-08-24T11:06:11 PUMP/USD scout_auto
+  2026-08-24T11:24:24 ARB/USD scout_auto

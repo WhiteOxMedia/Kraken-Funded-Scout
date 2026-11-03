@@ -1,0 +1,32 @@
+[
+  {
+    "content": "[infra-1] Fix broken venv (uv trampoline failure)",
+    "id": "1",
+    "status": "completed"
+  },
+  {
+    "content": "[code-2] signal_bridge.py: trailing high column, 4h loss cooldown, keep-winners reset, max 3 positions",
+    "id": "2",
+    "status": "completed"
+  },
+  {
+    "content": "[code-3] background_scanner.py: trailing stop exit, winner-exempt rotation, morning interval 15m",
+    "id": "3",
+    "status": "completed"
+  },
+  {
+    "content": "[code-4] reset_positions.py: skip winners >5% up (keep arg)",
+    "id": "4",
+    "status": "completed"
+  },
+  {
+    "content": "[code-5] scout_signal_reader.py: min trade $100",
+    "id": "5",
+    "status": "completed"
+  },
+  {
+    "content": "[verify-6] Compile all files, run end-to-end checks, clean temp files",
+    "id": "6",
+    "status": "completed"
+  }
+]

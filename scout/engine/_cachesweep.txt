@@ -1,0 +1,54 @@
+CACHE-STALENESS SWEEP v2 — the console's import closure (the sims-toggle class, fleet-wide)
+modules discovered from 'app': 26 (fns 606, cached 17)
+
+FLEET (module: fns / cached / fragments / cross-module edges):
+  adaptive_cache: 13 / 0 / 0 / 0
+  app: 133 / 17 / 3 / 132
+  background_scanner: 86 / 0 / 0 / 101
+  climb_out: 12 / 0 / 0 / 1
+  config: 2 / 0 / 0 / 0
+  contest_account: 26 / 0 / 0 / 4
+  db: 16 / 0 / 0 / 0
+  diag_surething_refit: 9 / 0 / 0 / 3
+  discipline: 17 / 0 / 0 / 6
+  execution_tiers: 29 / 0 / 0 / 2
+  fetch_kraken_5m_history: 10 / 0 / 0 / 0
+  hindsight_scorer: 15 / 0 / 0 / 0
+  indicators: 18 / 0 / 0 / 0
+  kraken_api: 19 / 0 / 0 / 0
+  patterns: 10 / 0 / 0 / 0
+  scanner: 16 / 0 / 0 / 7
+  secrets_utils: 3 / 0 / 0 / 0
+  signal_bridge: 34 / 0 / 0 / 0
+  strategy: 11 / 0 / 0 / 6
+  sure_thing: 5 / 0 / 0 / 0
+  surething_autorefit: 8 / 0 / 0 / 5
+  tide_learn: 15 / 0 / 0 / 2
+  tide_memory: 11 / 0 / 0 / 4
+  tidebar_weekly: 61 / 0 / 0 / 9
+  trend: 0 / 0 / 0 / 0
+  volatility_engine: 27 / 0 / 0 / 0
+
+SELFTEST (the two-module hermetic fleet):
+  tier1: app.plate reaches session_state via db.helper() (line 5)
+  tier1: app.plate reaches session_state via db.helper2() (line 10)
+  tier2: app.plate reaches datetime.datetime.now() via db.helper2() (line 11)
+  tier3: app.plate -> db.helper2
+  fleet: ['app', 'db'] fns=5
+
+TIER 1: none — no cached body in the fleet freezes session_state, transitively across module boundaries
+TIER 2: none
+TIER 3 — NESTED STALENESS CHAINS, cached calling cached (2) — report-only: the inner ttl stacks on the outer's, so read the ladder before trusting a plate's freshness story:
+  app.account_value -> app.wallet_snapshot
+  app.closed_trades -> app._bridge
+
+FORGIVEN tier-2 reads — classified in FORGIVEN_TIER2 with reasons (7):
+  app._fast_twenty <- time.time() via volatility_engine.load_rotation_thresholds() (line 441) [expiry math: the read drives _THRESH_CACHE mtime invalidation — the helper IS a cache; its clock must be live]
+  app._qc_liquidity_core <- datetime.now() via execution_tiers._now() (line 121) [expiry math: scale-in slice expiry (until/count comparisons) and the snapshot's own age/rem fields — cache-management reads]
+  app._qc_liquidity_core <- time.time() via execution_tiers.measure_book() (line 266) [ts field: stamps the book snapshot fetched in the same call — provenance on live data, not a frozen stamp]
+  app._qc_liquidity_core <- time.time() via volatility_engine.load_rotation_thresholds() (line 441) [expiry math: the read drives _THRESH_CACHE mtime invalidation — the helper IS a cache; its clock must be live]
+  app._scalp_headline <- time.time() via volatility_engine.load_rotation_thresholds() (line 441) [expiry math: the read drives _THRESH_CACHE mtime invalidation — the helper IS a cache; its clock must be live]
+  app._today_facts <- datetime.now() via contest_account.load_state() (line 96) [dead field: the clock lands in fallback records' contest_id/updated_at fields, which no cached plate reads]
+  app._today_facts <- datetime.now() via contest_account.load_state() (line 97) [dead field: the clock lands in fallback records' contest_id/updated_at fields, which no cached plate reads]
+
+VERDICT: FLEET CLEAN — every cached plate's inputs ride its cache key, across every module the console imports

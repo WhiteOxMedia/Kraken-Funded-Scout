@@ -1,0 +1,57 @@
+PASS  the live day's baseline, if recorded, is a positive balance (read-only)  3.34328220483285
+PASS  the live kill switch is clear  
+PASS  the incident: the breaker reads the flatten as a -63% day  63.1%
+PASS  the incident: the breaker TRIGGERS (>= 10%)  
+PASS  the incident: reset alone does NOT fix it (the baseline is untouched)  
+PASS  S1: the log's live reading is detected as the balance  KILL-SWITCH RESET REBASELINE — 2026-09-13
+1. actual balance: $23.34  (bot log 2026-09-13 11:00:00 (newest live reading))
+PASS  S1: the day is RE-BASELINED to the actual balance  KILL-SWITCH RESET REBASELINE — 2026-09-13
+1. actual balance: $23.34  (bot log 2026-09-13 11:00:00 (newest live reading))
+2. today's baseline: $63.33
+3. RE-BASELINED: today now starts at $23.34  (was $
+PASS  S1: the lock cleared (trading resumes)  
+PASS  S1: the breaker's view is verified ~0%  ed)
+5. VERIFIED: baseline $23.34, breaker reads 0.0% (triggers at -10%) — the day starts here.
+Trading resumes on the next bot cycle. Exits were never blocked.
+
+PASS  S2: the failed write is reported, not swallowed  KILL-SWITCH RESET REBASELINE — 2026-09-13
+1. actual balance: $23.34  (bot log 2026-09-13 11:00:00 (newest live reading))
+3. REBASELINE WRITE FAILED: unable to open database file — the lock still clear
+PASS  S2: the user is warned the lock is about to clear on a stale baseline  KILL-SWITCH RESET REBASELINE — 2026-09-13
+1. actual balance: $23.34  (bot log 2026-09-13 11:00:00 (newest live reading))
+3. REBASELINE WRITE FAILED: unable to open database file — the lock still clears. Run the script again (the bot may hold the DB; it frees it) or type the balance as the argument.
+
+PASS  S2: DECLINED -> the lock STAYS (trading stays paused)  
+PASS  S2: the output says KEPT and names the fix  xt bot cycle.
+  Clear the kill switch anyway? [y/N]:   KEPT: kill_switch.lock stays — trading stays paused.
+  Re-run the shortcut, or the script with the balance as the argument, to finish the reset.
+
+PASS  S3: confirmed -> the lock clears (the user's explicit call)  
+PASS  S3: the output names the stale baseline consequence  ctive=False  (lock cleared)
+5. (could not verify the baseline: unable to open database file — the reset itself already landed; check the bot's next cycle)
+Trading resumes on the next bot cycle. Exits were never blocked.
+
+PASS  S4: no source is stated honestly  KILL-SWITCH RESET REBASELINE — 2026-09-13
+1. actual balance: UNKNOWN (none found)
+2. today's baseline: $63.33
+3. NO REBASELINE possible — the lock still clears, but if the balance dropped >10% today the breaker WILL re-fire on the next bot cycle. Run again wit
+PASS  S4: non-interactive counts as a NO -> the lock STAYS  
+PASS  S5: EOF is a decline -> the lock STAYS  yway? [y/N]:   KEPT: kill_switch.lock stays — trading stays paused.
+  Re-run the shortcut, or the script with the balance as the argument, to finish the reset.
+
+PASS  detection: the typed balance wins  (42.5, '--balance argument')
+PASS  detection: a non-numeric arg falls back to the log  (23.34, 'bot log 2026-09-13 11:00:00 (newest live reading)')
+PASS  detection: no arg + no matching log day -> no source (the gate decides)  (None, 'no source')
+PASS  detection: '0' is refused (falls back to the log)  (23.34, 'bot log 2026-09-13 11:00:00 (newest live reading)')
+PASS  detection: '-5' is refused (falls back to the log)  (23.34, 'bot log 2026-09-13 11:00:00 (newest live reading)')
+PASS  detection: 'nan' is refused (falls back to the log)  (23.34, 'bot log 2026-09-13 11:00:00 (newest live reading)')
+PASS  detection: 'inf' is refused (falls back to the log)  (23.34, 'bot log 2026-09-13 11:00:00 (newest live reading)')
+PASS  the rebaseline script exists with the three steps  
+PASS  the gate exists (the lock does not clear un-confirmed on a failed rebaseline)  
+PASS  the gate is fail-closed (EOF/KeyboardInterrupt/non-interactive = no)  
+PASS  the DB connection closes on every path (no lock held into the reset)  
+PASS  the RESET shortcut runs the rebaseline (not the bare reset)  
+PASS  the shortcut tells the user how to correct a wrong balance  
+PASS  the shortcut's closing message matches the actual lock state  
+
+RESULT: 32 passed, 0 failed

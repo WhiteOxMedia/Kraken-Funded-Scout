@@ -1,0 +1,48 @@
+=== THE LADDER AUDIT — brain_size_mult vs the refit scores ===
+run at: 2026-09-11 06:26
+table in force: ((85.0, 1.0), (75.0, 0.75), (65.0, 0.5), (55.0, 0.33), (45.0, 0.2), (0.0, 0.1))
+the ladder matches a population when $/fire RISES with the bucket
+
+== POPULATION A — funnel quick scores (what the tide outcome fits price) ==
+── POPULATION A (60-min contract) ──
+bucket    mult  fires  payers    rate   $/fire
+45-55     0.20     80       6    7.5%    +0.24
+55-65     0.33    179      22   12.3%    +0.64
+65-75     0.50    172      27   15.7%    +1.24
+75-85     0.75    106      19   17.9%    +2.13
+85+       1.00     85      14   16.5%    +2.61
+total fires in population: 622
+
+── POPULATION A (240-min contract) ──
+bucket    mult  fires  payers    rate   $/fire
+45-55     0.20     80      27   33.8%    +1.07
+55-65     0.33    179      72   40.2%    +2.10
+65-75     0.50    172      67   39.0%    +3.08
+75-85     0.75    106      34   32.1%    +3.81
+85+       1.00     85      41   48.2%    +7.63
+total fires in population: 622
+
+== POPULATION B — Sure Thing coil refit scores (what the weight fits price) ==
+── POPULATION B (60-min contract) ──
+bucket    mult  fires  payers    rate   $/fire
+45-55     0.20     84      14   16.7%    +0.53
+55-65     0.33     25       5   20.0%    +1.04
+65-75     0.50      1       0    0.0%    +0.00
+75-85     0.75      2       2  100.0%   +11.87
+85+       1.00      3       1   33.3%    +5.27
+total fires in population: 115
+
+── POPULATION B (240-min contract) ──
+bucket    mult  fires  payers    rate   $/fire
+45-55     0.20     84      41   48.8%    +1.54
+55-65     0.33     25      13   52.0%    +2.72
+65-75     0.50      1       0    0.0%    +0.00
+75-85     0.75      2       2  100.0%   +11.87
+85+       1.00      3       2   66.7%   +10.55
+total fires in population: 115
+
+── VERDICT ──
+  POPULATION A [60-min contract]: MATCHES — $/fire rises with the ladder  (45-55: $+0.24, 55-65: $+0.64, 65-75: $+1.24, 75-85: $+2.13, 85+: $+2.61)
+  POPULATION A [240-min contract]: MATCHES — $/fire rises with the ladder  (45-55: $+1.07, 55-65: $+2.10, 65-75: $+3.08, 75-85: $+3.81, 85+: $+7.63)
+  POPULATION B [60-min contract]: MATCHES — $/fire rises with the ladder  (45-55: $+0.53, 55-65: $+1.04, 85+: $+5.27)
+  POPULATION B [240-min contract]: MATCHES — $/fire rises with the ladder  (45-55: $+1.54, 55-65: $+2.72, 85+: $+10.55)
