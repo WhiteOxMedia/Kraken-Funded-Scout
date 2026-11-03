@@ -1,0 +1,149 @@
+### diag_smoketier — co_filename=diag_smoketier.py firstlineno=1
+DOCSTRING:
+diag_smoketier.py — THE FULL SIZING CHAIN AT THE $1,000 TIER (Sep 19).
+
+One pass, arithmetic only, no network: the tier account (death line,
+buffer), the 3% entry guard, the book-carry chunk fit, the combined
+entry size, and the tier-aware exit stop — each shrunk to the small
+account by formula and checked against hand-computed dollars.
+
+  death line   = start x (1 - 3%)          = $970.00 at the 1k tier
+  buffer       = current - death line      = $30.00 fresh
+  entry guard  = min(balance, buffer x 0.34 / dd)   (dd fail-conserv >= 0.5%)
+  book carry   = biggest chunk (25/50/75/100%) whose dollars fit
+                 under 20% of the top-of-book depth
+  entry size   = min(account, book carry, guard)
+  exit stop    = max(buffer x 0.5, $5)     — tightens as the buffer burns
+
+Every check is exact (no tolerances beyond float equality). Exit-coded:
+0 = all green, 1 = any check failed. SAFE TO RUN ANYTIME: read-only on
+the module state (load_state is sandboxed to a tmpdir shape, never the
+production contest_account.json).
+
+Run:  .venv\Scripts\python.exe -X utf8 diag_smoketier.py
+Writes _smoketier.txt.
+
+
+TOP-LEVEL NAMES (imports/defs in order):
+  IMPORT json
+  STORE  json
+  IMPORT sys
+  STORE  sys
+  IMPORT tempfile
+  STORE  tempfile
+  IMPORT pathlib
+  IMPORT Path
+  STORE  Path
+  STORE  PASS
+  STORE  FAIL
+  STORE  lines
+  STORE  check
+  STORE  cents
+  IMPORT contest_account
+  STORE  ca
+  STORE  _td
+  STORE  _ca_saved
+  STORE  acct
+  STORE  _line
+  STORE  _buf
+  STORE  _line10k
+  STORE  g3
+  STORE  g2
+  STORE  g1
+  STORE  g6
+  STORE  g10k
+  STORE  g_dead
+  STORE  _chunk_fit
+  STORE  c1v
+  STORE  carry1
+  STORE  c2v
+  STORE  carry2
+  STORE  c3v
+  STORE  carry3
+  STORE  c4v
+  STORE  carry4
+  IMPORT execution_tiers
+  IMPORT classify_tier
+  STORE  classify_tier
+  STORE  _tn
+  STORE  e1
+  STORE  e2
+  STORE  e3
+  STORE  stop_fresh
+  STORE  acct_mid
+  STORE  stop_mid
+  STORE  acct_line
+  STORE  stop_line
+  STORE  _buf10k
+  STORE  bs_src
+  STORE  _entry
+  STORE  _worst
+  STORE  _stop
+  STORE  _dd_missing
+  STORE  _exc
+  STORE  _exc
+  STORE  _exc
+
+ALL STRINGS (dedup, order-preserving, >=4 chars):
+  diag_smoketier.py — THE FULL SIZING CHAIN AT THE $1,000 TIER (Sep 19).
+
+One pass, arithmetic only, no network: the tier account (death line,
+buffer), the 3% entry guard, the book-carry chunk fit, the combined
+entry size,
+  PASS  
+  FAIL  
+  Money compares at money precision: binary floats carry
+340.00000000000006 for what is exactly $340.00 — the smoke test
+judges dollars in cents, never in float identity.
+  ca.json
+  tier
+  start_balance
+  current_balance
+  utf-8
+  THE FULL SIZING CHAIN AT THE $1,000 TIER — smoke, arithmetic only
+  A1 the sandboxed account is the 1k tier, fresh balance
+  A2 the death line is start x 97% = $970.00
+  got 
+  A3 the buffer is current - line = $30.00
+  A4 the 10k line is $9,700 (the percent never moves)
+  B1 guard @ 3% dd (fail-conservative) = 30x0.34/0.03 = $340.00
+  B2 guard @ 2% dd = $510.00
+  B3 guard @ 1% dd = $1,000 (full balance, capped by the account)
+  B4 guard @ 6% dd = $170.00 (jumpy coins shrink hardest)
+  B5 the same coin at the 10k tier = $5,100 — the guard shrank 10.0x to the small account
+  B6 buffer gone (at the line) -> $0 — no new risk, ever
+  C1 tob $1,500 -> carry $300 -> the 25% chunk ($250) fits
+  got carry 
+  , chunk 
+  C2 tob $4,000 -> carry $800 -> the 75% chunk ($750) fits
+  C3 tob $6,000 -> carry $1,200 -> all-in ($1,000) fits
+  C4 tob $800 -> carry $160 -> NO chunk fits ($250 > $160): too thin, $0
+  C5 classify_tier prices the $250 order at 16.7% of the $1,500 tob
+  D1 entry = min($1,000 account, $250 book, $510 guard) = $250
+  D2 entry = min($1,000, $400 book, $340 guard) = $340 — the guard binds
+  D3 no book read -> the guard alone caps at $510
+  E1 stop fresh @ 1k = max($30x0.5, $5) = $15.00
+  E2 stop at $985 balance = max($15x0.5, $5) = $7.50 — it tightens as the buffer burns
+  E3 at the line the $5 floor holds the stop open
+  E4 the same stop at 10k = $150.00 — 10.0x the 1k stop
+  background_scanner.py
+  F1 the scanner's live stop reads the same formula (max(buffer x 0.5, $5))
+  max(_ca_l.buffer(_acct_l) * 0.5, 5.0)
+  _ca_l.buffer
+  F2 the scanner's stop fall-back is config-tiered (balance x 3% x 0.5), not a fixed $100
+  float(cfg.challenge_balance) * 0.03) * 0.5
+  F3 the story: $250 entry, worst case -$5.00 = 16.7% of the $30 buffer (under the 1/3 rule), stop -$15.00 = 6% of entry
+  F4 three consecutive worst cases leave the account alive (3 x $5 = $15 <= $30 buffer)
+  F5 the funnel clamps the popup's own spend to the guard cap (send_alert: _spend = _risk_cap, with a spoken SPEND line)
+  if _spend > _risk_cap:
+  _spend = _risk_cap
+  THE 3% GUARD
+  NOPE123
+  F6 an unknown coin's drawdown fails conservative to 3%
+  RESULT: 
+   passed, 
+   failed
+  _smoketier.txt
+  DONE
+
+TOTAL STRINGS: 54

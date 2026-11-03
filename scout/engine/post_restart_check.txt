@@ -1,0 +1,6 @@
+trades after #490: 4
+{'id': 491, 'timestamp': datetime.datetime(2026, 9, 4, 22, 43, 9, 186685), 'pair': 'XRP/USD', 'side': 'buy', 'volume': 41.655252, 'price': 1.39603, 'reason': 'RSI oversold (39.2); BB oversold (%B=-0.02); Double oversold (RSI + BB) — strong dip'}
+{'id': 492, 'timestamp': datetime.datetime(2026, 9, 4, 22, 58, 25, 860224), 'pair': 'XRP/USD', 'side': 'sell', 'volume': 41.655252, 'price': 1.39574, 'reason': 'GET OUT NOW — trend reversed (EMA9 $1.4028 < EMA21 $1.4137, price $1.3957 under both, PnL -0.0%)'}
+{'id': 493, 'timestamp': datetime.datetime(2026, 9, 4, 23, 0, 31, 205646), 'pair': 'XRP/USD', 'side': 'buy', 'volume': 41.569879, 'price': 1.39533, 'reason': 'RSI oversold (39.4)'}
+{'id': 494, 'timestamp': datetime.datetime(2026, 9, 4, 23, 1, 44, 811511), 'pair': 'XRP/USD', 'side': 'sell', 'volume': 41.569879, 'price': 1.39501, 'reason': 'Cooldown ended at 1 min — 1h knife still reversed (EMA9 $1.401 < EMA21 $1.412, live $1.395 under both)'}
+wallet: USD=175.378

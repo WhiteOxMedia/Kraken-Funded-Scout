@@ -1,0 +1,74 @@
+### fire_attribution — co_filename=fire_attribution.py firstlineno=1
+DOCSTRING:
+fire_attribution.py — WHICH RELIEF MECHANISM UNLOCKED THE FIRE? (Sep 17).
+
+WHY THIS EXISTS: several mechanisms now lower the walls — the clamp fix
+(the personal OUT bar ships inside [80, 86), the band the bugged clamp
+erased at 86), the per-coin score floors (a coin's blocked-trade court),
+and the defer pass (the brain's timing hold rides the trend). A marginal
+fire could come from any of them; knowing WHICH is paying decides what
+gets tuned next. This module is the single source of truth for that
+attribution — the fire paths stamp it into the fired snapshots, and
+diag_fireattrib.py prices it in dollars.
+
+THE RULE (necessity, not presence): a mechanism gets the fire only when
+the fire would NOT have happened without it —
+  clamp fix  necessary iff the fire is an OUT personal-bar fire and
+             quick < 86 (the bugged clamp would have shipped 86 and
+             buried it),
+  coin floor necessary iff quick < the un-relieved base bar,
+  both       when each alone would have buried it,
+  defer      the fire exists only because the defer carve overrode a
+             contradictory hold (no bar unlocked it — the brain did),
+  fast_route the route waived the floor by design (never 
+
+TOP-LEVEL NAMES (imports/defs in order):
+  STORE  SRC_CLAMP
+  STORE  SRC_COIN
+  STORE  SRC_BOTH
+  STORE  SRC_DEFER
+  STORE  SRC_FAST
+  STORE  SRC_NONE
+  STORE  CLAMP_WALL
+  STORE  attribute_fire
+  STORE  mover_unlock
+
+ALL STRINGS (dedup, order-preserving, >=4 chars):
+  fire_attribution.py — WHICH RELIEF MECHANISM UNLOCKED THE FIRE? (Sep 17).
+
+WHY THIS EXISTS: several mechanisms now lower the walls — the clamp fix
+(the personal OUT bar ships inside [80, 86), the band the bugged clamp
+er
+  clamp_fix
+  coin_floor
+  clamp_fix+coin_floor
+  defer_pass
+  fast_route
+  none
+  quick
+  eff_bar
+  base_bar
+  clamp_court
+  coin_pts
+  defer
+  coin_name
+  return
+  Attribute one fire to the mechanism(s) that unlocked it.
+
+quick       — the score that fired
+eff_bar     — the binding bar it cleared (the personal OUT bar when
+              clamp_court, else the assembled floor)
+base_b
+  source
+  unlock_pts
+  would_have_fired_unclamped
+  would_have_fired_unrelieved
+  fleet_bar
+  relieved_bar
+  The mover path's unlock: did the coin-floor relief re-read pass
+a candidate the fleet bar had killed? Returns {unlocked_by, pts} —
+unlocked_by is SRC_COIN when the relieved bar admits what the fleet
+bar denied, else SRC_
+  unlocked_by
+
+TOTAL STRINGS: 24

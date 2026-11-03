@@ -1,0 +1,440 @@
+=== THE TIDE BAR WEEKLY — outcome bar vs the quantile ===
+graded at: 2026-09-14 01:10 UTC  (2026-W38, trailing 7 days; the pass runs daily, the grade stays weekly)
+fleet-level replay on the fits' 60-min contract (+1.5% MFE); $ = 1055 x size mult x 1.5% per payer
+
+── REAL FILLS: the fires that actually traded ──
+  (fire-event coverage begins Sep 11 12:55 UTC — earlier fills are unattributable; the join thickens as the ledger ages)
+  FLAT: 2 fills, 1 winners, realized $-0.48   (+2 unfilled fires, 0 paid on paper, $0.00 the size ladder gated)
+  RISING: 0 fills, 0 winners, realized $+0.00   (+34 unfilled fires, 21 paid on paper, $97.01 the size ladder gated)
+  TOTAL: 2 fills, realized $-0.48 — realized dollars, not the candle counterfactual
+
+OUT  (225 candidates this week; in force: outcomes bar 80)
+  IN FORCE  bar 80: 51 fires, 14 payers (27.5%), $189.90 ($+3.72/fire)
+  quantile  bar 92: 25 fires, 6 payers (24.0%), $94.95 ($+3.80/fire)   [in-force Δ$/fire -0.08]
+
+FLAT  (243 candidates this week; in force: outcomes bar 90)
+  IN FORCE  bar 90: 40 fires, 5 payers (12.5%), $79.12 ($+1.98/fire)
+  quantile  bar 92: 40 fires, 5 payers (12.5%), $79.12 ($+1.98/fire)   [in-force Δ$/fire +0.00]
+
+RISING  (156 candidates this week; in force: outcomes bar 85)
+  IN FORCE  bar 85: 14 fires, 5 payers (35.7%), $79.12 ($+5.65/fire)
+  quantile  bar 86: 14 fires, 5 payers (35.7%), $79.12 ($+5.65/fire)   [in-force Δ$/fire +0.00]
+
+── THE ROLLING GRADE (pooled 4 weeks, the fit vs the quantile, canonical axis) ──
+  OUT pooled 2w: FIT 99 fires $+4.16/fire  vs  QUANTILE 91 fires $+3.48/fire   fit edge +0.68
+  FLAT pooled 2w: FIT 60 fires $+2.64/fire  vs  QUANTILE 68 fires $+2.33/fire   fit edge +0.31
+  RISING pooled 2w: FIT 29 fires $+5.46/fire  vs  QUANTILE 30 fires $+5.27/fire   fit edge +0.18
+
+=== THE TIDE BAR WEEKLY — outcome bar vs the quantile ===
+graded at: 2026-09-13 20:56 UTC  (2026-W37, trailing 7 days; the pass runs daily, the grade stays weekly)
+fleet-level replay on the fits' 60-min contract (+1.5% MFE); $ = 1055 x size mult x 1.5% per payer
+
+── REAL FILLS: the fires that actually traded ──
+  (fire-event coverage begins Sep 11 10:30 UTC — earlier fills are unattributable; the join thickens as the ledger ages)
+  OUT: 0 fills, 0 winners, realized $+0.00   (+4 unfilled fires, 4 paid on paper, $34.89 the size ladder gated)
+  FLAT: 2 fills, 1 winners, realized $-0.48   (+2 unfilled fires, 0 paid on paper, $0.00 the size ladder gated)
+  RISING: 0 fills, 0 winners, realized $+0.00   (+35 unfilled fires, 22 paid on paper, $99.14 the size ladder gated)
+  TOTAL: 2 fills, realized $-0.48 — realized dollars, not the candle counterfactual
+
+OUT  (559 candidates this week; in force: outcomes bar 92)
+  IN FORCE  bar 92: 48 fires, 14 payers (29.2%), $221.55 ($+4.62/fire)
+  quantile  bar 86: 66 fires, 14 payers (21.2%), $221.55 ($+3.36/fire)   [in-force Δ$/fire +1.26]
+
+FLAT  (124 candidates this week; in force: outcomes bar 90)
+  IN FORCE  bar 90: 20 fires, 5 payers (25.0%), $79.12 ($+3.96/fire)
+  quantile  bar 86: 28 fires, 5 payers (17.9%), $79.12 ($+2.83/fire)   [in-force Δ$/fire +1.13]
+
+RISING  (173 candidates this week; in force: outcomes bar 87)
+  IN FORCE  bar 87: 15 fires, 5 payers (33.3%), $79.12 ($+5.28/fire)
+  quantile  bar 86: 16 fires, 5 payers (31.2%), $79.12 ($+4.95/fire)   [in-force Δ$/fire +0.33]
+
+── THE ROLLING GRADE (pooled 4 weeks, the fit vs the quantile, canonical axis) ──
+  OUT pooled 1w: FIT 48 fires $+4.62/fire  vs  QUANTILE 66 fires $+3.36/fire   fit edge +1.26
+  FLAT pooled 1w: FIT 20 fires $+3.96/fire  vs  QUANTILE 28 fires $+2.83/fire   fit edge +1.13
+  RISING pooled 1w: FIT 15 fires $+5.27/fire  vs  QUANTILE 16 fires $+4.95/fire   fit edge +0.33
+
+=== THE TIDE BAR WEEKLY — outcome bar vs the quantile ===
+graded at: 2026-09-13 20:29 UTC  (2026-W37, trailing 7 days; the pass runs daily, the grade stays weekly)
+fleet-level replay on the fits' 60-min contract (+1.5% MFE); $ = 1055 x size mult x 1.5% per payer
+
+── REAL FILLS: the fires that actually traded ──
+  (fire-event coverage begins Sep 11 10:30 UTC — earlier fills are unattributable; the join thickens as the ledger ages)
+  OUT: 0 fills, 0 winners, realized $+0.00   (+4 unfilled fires, 4 paid on paper, $34.89 the size ladder gated)
+  FLAT: 2 fills, 1 winners, realized $-0.48   (+2 unfilled fires, 0 paid on paper, $0.00 the size ladder gated)
+  RISING: 0 fills, 0 winners, realized $+0.00   (+35 unfilled fires, 22 paid on paper, $99.14 the size ladder gated)
+  TOTAL: 2 fills, realized $-0.48 — realized dollars, not the candle counterfactual
+
+OUT  (558 candidates this week; in force: outcomes bar 92)
+  IN FORCE  bar 92: 47 fires, 13 payers (27.7%), $205.72 ($+4.38/fire)
+  quantile  bar 86: 65 fires, 13 payers (20.0%), $205.72 ($+3.17/fire)   [in-force Δ$/fire +1.21]
+
+FLAT  (119 candidates this week; in force: outcomes bar 90)
+  IN FORCE  bar 90: 17 fires, 5 payers (29.4%), $79.12 ($+4.65/fire)
+  quantile  bar 86: 25 fires, 5 payers (20.0%), $79.12 ($+3.17/fire)   [in-force Δ$/fire +1.48]
+
+RISING  (174 candidates this week; in force: outcomes bar 87)
+  IN FORCE  bar 87: 16 fires, 6 payers (37.5%), $94.95 ($+5.93/fire)
+  quantile  bar 86: 17 fires, 6 payers (35.3%), $94.95 ($+5.59/fire)   [in-force Δ$/fire +0.34]
+
+── THE ROLLING GRADE (pooled 4 weeks, the fit vs the quantile, canonical axis) ──
+  OUT pooled 1w: FIT 47 fires $+4.38/fire  vs  QUANTILE 65 fires $+3.16/fire   fit edge +1.21
+  FLAT pooled 1w: FIT 17 fires $+4.65/fire  vs  QUANTILE 25 fires $+3.16/fire   fit edge +1.49
+  RISING pooled 1w: FIT 16 fires $+5.93/fire  vs  QUANTILE 17 fires $+5.59/fire   fit edge +0.35
+
+=== THE TIDE BAR WEEKLY — outcome bar vs the quantile ===
+graded at: 2026-09-13 20:02 UTC  (2026-W37, trailing 7 days; the pass runs daily, the grade stays weekly)
+fleet-level replay on the fits' 60-min contract (+1.5% MFE); $ = 1055 x size mult x 1.5% per payer
+
+── REAL FILLS: the fires that actually traded ──
+  (fire-event coverage begins Sep 11 10:30 UTC — earlier fills are unattributable; the join thickens as the ledger ages)
+  OUT: 0 fills, 0 winners, realized $+0.00   (+4 unfilled fires, 4 paid on paper, $34.89 the size ladder gated)
+  FLAT: 2 fills, 1 winners, realized $-0.48   (+2 unfilled fires, 0 paid on paper, $0.00 the size ladder gated)
+  RISING: 0 fills, 0 winners, realized $+0.00   (+35 unfilled fires, 22 paid on paper, $99.14 the size ladder gated)
+  TOTAL: 2 fills, realized $-0.48 — realized dollars, not the candle counterfactual
+
+OUT  (560 candidates this week; in force: outcomes bar 92)
+  IN FORCE  bar 92: 49 fires, 15 payers (30.6%), $237.38 ($+4.84/fire)
+  quantile  bar 86: 67 fires, 15 payers (22.4%), $237.38 ($+3.54/fire)   [in-force Δ$/fire +1.30]
+
+FLAT  (117 candidates this week; in force: outcomes bar 90)
+  IN FORCE  bar 90: 16 fires, 5 payers (31.2%), $79.12 ($+4.95/fire)
+  quantile  bar 86: 24 fires, 5 payers (20.8%), $79.12 ($+3.30/fire)   [in-force Δ$/fire +1.65]
+
+RISING  (172 candidates this week; in force: outcomes bar 87)
+  IN FORCE  bar 87: 14 fires, 4 payers (28.6%), $63.30 ($+4.52/fire)
+  quantile  bar 86: 15 fires, 4 payers (26.7%), $63.30 ($+4.22/fire)   [in-force Δ$/fire +0.30]
+
+── THE ROLLING GRADE (pooled 4 weeks, the fit vs the quantile, canonical axis) ──
+  OUT pooled 1w: FIT 49 fires $+4.84/fire  vs  QUANTILE 67 fires $+3.54/fire   fit edge +1.30
+  FLAT pooled 1w: FIT 16 fires $+4.95/fire  vs  QUANTILE 24 fires $+3.30/fire   fit edge +1.65
+  RISING pooled 1w: FIT 14 fires $+4.52/fire  vs  QUANTILE 15 fires $+4.22/fire   fit edge +0.30
+
+=== THE TIDE BAR WEEKLY — outcome bar vs the quantile ===
+graded at: 2026-09-13 19:37 UTC  (2026-W37, trailing 7 days; the pass runs daily, the grade stays weekly)
+fleet-level replay on the fits' 60-min contract (+1.5% MFE); $ = 1055 x size mult x 1.5% per payer
+
+── REAL FILLS: the fires that actually traded ──
+  (fire-event coverage begins Sep 11 10:30 UTC — earlier fills are unattributable; the join thickens as the ledger ages)
+  OUT: 0 fills, 0 winners, realized $+0.00   (+4 unfilled fires, 4 paid on paper, $34.89 the size ladder gated)
+  FLAT: 2 fills, 1 winners, realized $-0.48   (+1 unfilled fires, 0 paid on paper, $0.00 the size ladder gated)
+  RISING: 0 fills, 0 winners, realized $+0.00   (+35 unfilled fires, 22 paid on paper, $99.14 the size ladder gated)
+  TOTAL: 2 fills, realized $-0.48 — realized dollars, not the candle counterfactual
+
+OUT  (558 candidates this week; in force: outcomes bar 92)
+  IN FORCE  bar 92: 49 fires, 15 payers (30.6%), $237.38 ($+4.84/fire)
+  quantile  bar 86: 67 fires, 15 payers (22.4%), $237.38 ($+3.54/fire)   [in-force Δ$/fire +1.30]
+
+FLAT  (114 candidates this week; in force: outcomes bar 90)
+  IN FORCE  bar 90: 16 fires, 5 payers (31.2%), $79.12 ($+4.95/fire)
+  quantile  bar 86: 22 fires, 5 payers (22.7%), $79.12 ($+3.60/fire)   [in-force Δ$/fire +1.35]
+
+RISING  (174 candidates this week; in force: outcomes bar 87)
+  IN FORCE  bar 87: 14 fires, 4 payers (28.6%), $63.30 ($+4.52/fire)
+  quantile  bar 86: 15 fires, 4 payers (26.7%), $63.30 ($+4.22/fire)   [in-force Δ$/fire +0.30]
+
+── THE ROLLING GRADE (pooled 4 weeks, the fit vs the quantile, canonical axis) ──
+  OUT pooled 1w: FIT 49 fires $+4.84/fire  vs  QUANTILE 67 fires $+3.54/fire   fit edge +1.30
+  FLAT pooled 1w: FIT 16 fires $+4.95/fire  vs  QUANTILE 22 fires $+3.60/fire   fit edge +1.35
+  RISING pooled 1w: FIT 14 fires $+4.52/fire  vs  QUANTILE 15 fires $+4.22/fire   fit edge +0.30
+
+=== THE TIDE BAR WEEKLY — outcome bar vs the quantile ===
+graded at: 2026-09-13 19:10 UTC  (2026-W37, trailing 7 days; the pass runs daily, the grade stays weekly)
+fleet-level replay on the fits' 60-min contract (+1.5% MFE); $ = 1055 x size mult x 1.5% per payer
+
+── REAL FILLS: the fires that actually traded ──
+  (fire-event coverage begins Sep 11 10:30 UTC — earlier fills are unattributable; the join thickens as the ledger ages)
+  OUT: 0 fills, 0 winners, realized $+0.00   (+4 unfilled fires, 4 paid on paper, $34.89 the size ladder gated)
+  FLAT: 2 fills, 1 winners, realized $-0.48   (+1 unfilled fires, 0 paid on paper, $0.00 the size ladder gated)
+  RISING: 0 fills, 0 winners, realized $+0.00   (+35 unfilled fires, 22 paid on paper, $99.14 the size ladder gated)
+  TOTAL: 2 fills, realized $-0.48 — realized dollars, not the candle counterfactual
+
+OUT  (556 candidates this week; in force: outcomes bar 92)
+  IN FORCE  bar 92: 49 fires, 14 payers (28.6%), $221.55 ($+4.52/fire)
+  quantile  bar 86: 67 fires, 14 payers (20.9%), $221.55 ($+3.31/fire)   [in-force Δ$/fire +1.21]
+
+FLAT  (108 candidates this week; in force: outcomes bar 90)
+  IN FORCE  bar 90: 16 fires, 5 payers (31.2%), $79.12 ($+4.95/fire)
+  quantile  bar 86: 22 fires, 5 payers (22.7%), $79.12 ($+3.60/fire)   [in-force Δ$/fire +1.35]
+
+RISING  (177 candidates this week; in force: outcomes bar 87)
+  IN FORCE  bar 87: 14 fires, 4 payers (28.6%), $63.30 ($+4.52/fire)
+  quantile  bar 86: 15 fires, 4 payers (26.7%), $63.30 ($+4.22/fire)   [in-force Δ$/fire +0.30]
+
+── THE ROLLING GRADE (pooled 4 weeks, the fit vs the quantile, canonical axis) ──
+  OUT pooled 1w: FIT 49 fires $+4.52/fire  vs  QUANTILE 67 fires $+3.31/fire   fit edge +1.21
+  FLAT pooled 1w: FIT 16 fires $+4.95/fire  vs  QUANTILE 22 fires $+3.60/fire   fit edge +1.35
+  RISING pooled 1w: FIT 14 fires $+4.52/fire  vs  QUANTILE 15 fires $+4.22/fire   fit edge +0.30
+
+=== THE TIDE BAR WEEKLY — outcome bar vs the quantile ===
+graded at: 2026-09-13 18:49 UTC  (2026-W37, trailing 7 days; the pass runs daily, the grade stays weekly)
+fleet-level replay on the fits' 60-min contract (+1.5% MFE); $ = 1055 x size mult x 1.5% per payer
+
+── REAL FILLS: the fires that actually traded ──
+  (fire-event coverage begins Sep 11 10:30 UTC — earlier fills are unattributable; the join thickens as the ledger ages)
+  OUT: 0 fills, 0 winners, realized $+0.00   (+4 unfilled fires, 4 paid on paper, $34.89 the size ladder gated)
+  FLAT: 2 fills, 1 winners, realized $-0.48   (+1 unfilled fires, 0 paid on paper, $0.00 the size ladder gated)
+  RISING: 0 fills, 0 winners, realized $+0.00   (+35 unfilled fires, 22 paid on paper, $99.14 the size ladder gated)
+  TOTAL: 2 fills, realized $-0.48 — realized dollars, not the candle counterfactual
+
+OUT  (562 candidates this week; in force: outcomes bar 92)
+  IN FORCE  bar 92: 49 fires, 14 payers (28.6%), $221.55 ($+4.52/fire)
+  quantile  bar 86: 67 fires, 14 payers (20.9%), $221.55 ($+3.31/fire)   [in-force Δ$/fire +1.21]
+
+FLAT  (104 candidates this week; in force: outcomes bar 90)
+  IN FORCE  bar 90: 16 fires, 5 payers (31.2%), $79.12 ($+4.95/fire)
+  quantile  bar 86: 22 fires, 5 payers (22.7%), $79.12 ($+3.60/fire)   [in-force Δ$/fire +1.35]
+
+RISING  (171 candidates this week; in force: outcomes bar 87)
+  IN FORCE  bar 87: 14 fires, 4 payers (28.6%), $63.30 ($+4.52/fire)
+  quantile  bar 86: 15 fires, 4 payers (26.7%), $63.30 ($+4.22/fire)   [in-force Δ$/fire +0.30]
+
+── THE ROLLING GRADE (pooled 4 weeks, the fit vs the quantile, canonical axis) ──
+  OUT pooled 1w: FIT 49 fires $+4.52/fire  vs  QUANTILE 67 fires $+3.31/fire   fit edge +1.21
+  FLAT pooled 1w: FIT 16 fires $+4.95/fire  vs  QUANTILE 22 fires $+3.60/fire   fit edge +1.35
+  RISING pooled 1w: FIT 14 fires $+4.52/fire  vs  QUANTILE 15 fires $+4.22/fire   fit edge +0.30
+
+=== THE TIDE BAR WEEKLY — outcome bar vs the quantile ===
+graded at: 2026-09-13 17:32 UTC  (2026-W37, trailing 7 days; the pass runs daily, the grade stays weekly)
+fleet-level replay on the fits' 60-min contract (+1.5% MFE); $ = 1055 x size mult x 1.5% per payer
+
+── REAL FILLS: the fires that actually traded ──
+  (fire-event coverage begins Sep 11 10:30 UTC — earlier fills are unattributable; the join thickens as the ledger ages)
+  OUT: 0 fills, 0 winners, realized $+0.00   (+4 unfilled fires, 4 paid on paper, $34.89 the size ladder gated)
+  FLAT: 2 fills, 1 winners, realized $-0.48   (+1 unfilled fires, 0 paid on paper, $0.00 the size ladder gated)
+  RISING: 0 fills, 0 winners, realized $+0.00   (+35 unfilled fires, 22 paid on paper, $99.14 the size ladder gated)
+  TOTAL: 2 fills, realized $-0.48 — realized dollars, not the candle counterfactual
+
+OUT  (557 candidates this week; in force: outcomes bar 92)
+  IN FORCE  bar 92: 48 fires, 13 payers (27.1%), $205.72 ($+4.29/fire)
+  quantile  bar 86: 66 fires, 13 payers (19.7%), $205.72 ($+3.12/fire)   [in-force Δ$/fire +1.17]
+
+FLAT  (99 candidates this week; in force: outcomes bar 90)
+  IN FORCE  bar 90: 15 fires, 5 payers (33.3%), $79.12 ($+5.28/fire)
+  quantile  bar 86: 20 fires, 5 payers (25.0%), $79.12 ($+3.96/fire)   [in-force Δ$/fire +1.32]
+
+RISING  (175 candidates this week; in force: outcomes bar 87)
+  IN FORCE  bar 87: 15 fires, 5 payers (33.3%), $79.12 ($+5.28/fire)
+  quantile  bar 86: 16 fires, 5 payers (31.2%), $79.12 ($+4.95/fire)   [in-force Δ$/fire +0.33]
+
+── THE ROLLING GRADE (pooled 4 weeks, the fit vs the quantile, canonical axis) ──
+  OUT pooled 1w: FIT 48 fires $+4.29/fire  vs  QUANTILE 66 fires $+3.12/fire   fit edge +1.17
+  FLAT pooled 1w: FIT 15 fires $+5.27/fire  vs  QUANTILE 20 fires $+3.96/fire   fit edge +1.32
+  RISING pooled 1w: FIT 15 fires $+5.27/fire  vs  QUANTILE 16 fires $+4.95/fire   fit edge +0.33
+
+=== THE TIDE BAR WEEKLY — outcome bar vs the quantile ===
+graded at: 2026-09-13 15:40 UTC  (2026-W37, trailing 7 days; the pass runs daily, the grade stays weekly)
+fleet-level replay on the fits' 60-min contract (+1.5% MFE); $ = 1055 x size mult x 1.5% per payer
+
+── REAL FILLS: the fires that actually traded ──
+  (fire-event coverage begins Sep 11 10:30 UTC — earlier fills are unattributable; the join thickens as the ledger ages)
+  OUT: 0 fills, 0 winners, realized $+0.00   (+4 unfilled fires, 4 paid on paper, $34.89 the size ladder gated)
+  FLAT: 2 fills, 1 winners, realized $-0.48
+  RISING: 0 fills, 0 winners, realized $+0.00   (+35 unfilled fires, 22 paid on paper, $99.14 the size ladder gated)
+  TOTAL: 2 fills, realized $-0.48 — realized dollars, not the candle counterfactual
+
+OUT  (554 candidates this week; in force: outcomes bar 92)
+  IN FORCE  bar 92: 48 fires, 14 payers (29.2%), $221.55 ($+4.62/fire)
+  quantile  bar 86: 66 fires, 14 payers (21.2%), $221.55 ($+3.36/fire)   [in-force Δ$/fire +1.26]
+
+FLAT  (94 candidates this week; in force: outcomes bar 90)
+  IN FORCE  bar 90: 13 fires, 5 payers (38.5%), $79.12 ($+6.09/fire)
+  quantile  bar 86: 18 fires, 5 payers (27.8%), $79.12 ($+4.40/fire)   [in-force Δ$/fire +1.69]
+
+RISING  (173 candidates this week; in force: outcomes bar 87)
+  IN FORCE  bar 87: 15 fires, 5 payers (33.3%), $79.12 ($+5.28/fire)
+  quantile  bar 86: 16 fires, 5 payers (31.2%), $79.12 ($+4.95/fire)   [in-force Δ$/fire +0.33]
+
+── THE ROLLING GRADE (pooled 4 weeks, the fit vs the quantile, canonical axis) ──
+  OUT pooled 1w: FIT 48 fires $+4.62/fire  vs  QUANTILE 66 fires $+3.36/fire   fit edge +1.26
+  FLAT pooled 1w: FIT 13 fires $+6.09/fire  vs  QUANTILE 18 fires $+4.40/fire   fit edge +1.69
+  RISING pooled 1w: FIT 15 fires $+5.27/fire  vs  QUANTILE 16 fires $+4.95/fire   fit edge +0.33
+
+=== THE TIDE BAR WEEKLY — outcome bar vs the quantile ===
+graded at: 2026-09-13 14:24 UTC  (2026-W37, trailing 7 days; the pass runs daily, the grade stays weekly)
+fleet-level replay on the fits' 60-min contract (+1.5% MFE); $ = 1055 x size mult x 1.5% per payer
+
+── REAL FILLS: the fires that actually traded ──
+  (fire-event coverage begins Sep 11 10:30 UTC — earlier fills are unattributable; the join thickens as the ledger ages)
+  OUT: 0 fills, 0 winners, realized $+0.00   (+4 unfilled fires, 4 paid on paper, $34.89 the size ladder gated)
+  FLAT: 2 fills, 1 winners, realized $-0.48
+  RISING: 0 fills, 0 winners, realized $+0.00   (+35 unfilled fires, 22 paid on paper, $99.14 the size ladder gated)
+  TOTAL: 2 fills, realized $-0.48 — realized dollars, not the candle counterfactual
+
+OUT  (548 candidates this week; in force: outcomes bar 92)
+  IN FORCE  bar 92: 47 fires, 15 payers (31.9%), $237.38 ($+5.05/fire)
+  quantile  bar 86: 65 fires, 15 payers (23.1%), $237.38 ($+3.65/fire)   [in-force Δ$/fire +1.40]
+
+FLAT  (94 candidates this week; in force: outcomes bar 90)
+  IN FORCE  bar 90: 13 fires, 5 payers (38.5%), $79.12 ($+6.09/fire)
+  quantile  bar 86: 18 fires, 5 payers (27.8%), $79.12 ($+4.40/fire)   [in-force Δ$/fire +1.69]
+
+RISING  (174 candidates this week; in force: outcomes bar 87)
+  IN FORCE  bar 87: 14 fires, 4 payers (28.6%), $63.30 ($+4.52/fire)
+  quantile  bar 86: 15 fires, 4 payers (26.7%), $63.30 ($+4.22/fire)   [in-force Δ$/fire +0.30]
+
+── THE ROLLING GRADE (pooled 4 weeks, the fit vs the quantile, canonical axis) ──
+  OUT pooled 1w: FIT 47 fires $+5.05/fire  vs  QUANTILE 65 fires $+3.65/fire   fit edge +1.40
+  FLAT pooled 1w: FIT 13 fires $+6.09/fire  vs  QUANTILE 18 fires $+4.40/fire   fit edge +1.69
+  RISING pooled 1w: FIT 14 fires $+4.52/fire  vs  QUANTILE 15 fires $+4.22/fire   fit edge +0.30
+
+=== THE TIDE BAR WEEKLY — outcome bar vs the quantile ===
+graded at: 2026-09-13 04:37 UTC  (2026-W37, trailing 7 days; the pass runs daily, the grade stays weekly)
+fleet-level replay on the fits' 60-min contract (+1.5% MFE); $ = 1055 x size mult x 1.5% per payer
+
+── REAL FILLS: the fires that actually traded ──
+  (fire-event coverage begins Sep 11 10:30 UTC — earlier fills are unattributable; the join thickens as the ledger ages)
+  OUT: 0 fills, 0 winners, realized $+0.00   (+4 unfilled fires, 4 paid on paper, $34.89 the size ladder gated)
+  FLAT: 1 fills, 1 winners, realized $+4.74
+  RISING: 0 fills, 0 winners, realized $+0.00   (+35 unfilled fires, 21 paid on paper, $91.02 the size ladder gated)
+  TOTAL: 1 fills, realized $+4.74 — realized dollars, not the candle counterfactual
+
+OUT  (450 candidates this week; in force: outcomes bar 92)
+  IN FORCE  bar 92: 39 fires, 15 payers (38.5%), $237.38 ($+6.09/fire)
+  quantile  bar 89: 51 fires, 15 payers (29.4%), $237.38 ($+4.65/fire)   [in-force Δ$/fire +1.44]
+
+FLAT  (86 candidates this week; in force: outcomes bar 90)
+  IN FORCE  bar 90: 12 fires, 5 payers (41.7%), $79.12 ($+6.59/fire)
+  quantile  bar 89: 17 fires, 5 payers (29.4%), $79.12 ($+4.65/fire)   [in-force Δ$/fire +1.94]
+
+RISING  (171 candidates this week; in force: outcomes bar 87)
+  IN FORCE  bar 87: 14 fires, 4 payers (28.6%), $63.30 ($+4.52/fire)
+  quantile  bar 86: 15 fires, 4 payers (26.7%), $63.30 ($+4.22/fire)   [in-force Δ$/fire +0.30]
+
+── THE ROLLING GRADE (pooled 4 weeks, the fit vs the quantile, canonical axis) ──
+  OUT pooled 1w: FIT 39 fires $+6.09/fire  vs  QUANTILE 51 fires $+4.65/fire   fit edge +1.43
+  FLAT pooled 1w: FIT 12 fires $+6.59/fire  vs  QUANTILE 17 fires $+4.65/fire   fit edge +1.94
+  RISING pooled 1w: FIT 14 fires $+4.52/fire  vs  QUANTILE 15 fires $+4.22/fire   fit edge +0.30
+
+=== THE TIDE BAR WEEKLY — outcome bar vs the quantile ===
+graded at: 2026-09-13 03:26 UTC  (2026-W37, trailing 7 days; the pass runs daily, the grade stays weekly)
+fleet-level replay on the fits' 60-min contract (+1.5% MFE); $ = 1055 x size mult x 1.5% per payer
+
+── REAL FILLS: the fires that actually traded ──
+  (fire-event coverage begins Sep 11 10:30 UTC — earlier fills are unattributable; the join thickens as the ledger ages)
+  OUT: 0 fills, 0 winners, realized $+0.00   (+4 unfilled fires, 4 paid on paper, $34.89 the size ladder gated)
+  FLAT: 1 fills, 1 winners, realized $+4.74
+  RISING: 0 fills, 0 winners, realized $+0.00   (+35 unfilled fires, 21 paid on paper, $91.02 the size ladder gated)
+  TOTAL: 1 fills, realized $+4.74 — realized dollars, not the candle counterfactual
+
+OUT  (449 candidates this week; in force: outcomes bar 95)
+  IN FORCE  bar 95: 12 fires, 4 payers (33.3%), $63.30 ($+5.27/fire)
+  quantile  bar 89: 51 fires, 13 payers (25.5%), $205.72 ($+4.03/fire)   [in-force Δ$/fire +1.24]
+
+FLAT  (85 candidates this week; in force: outcomes bar 90)
+  IN FORCE  bar 90: 12 fires, 5 payers (41.7%), $79.12 ($+6.59/fire)
+  quantile  bar 89: 17 fires, 5 payers (29.4%), $79.12 ($+4.65/fire)   [in-force Δ$/fire +1.94]
+
+RISING  (173 candidates this week; in force: outcomes bar 87)
+  IN FORCE  bar 87: 14 fires, 4 payers (28.6%), $63.30 ($+4.52/fire)
+  quantile  bar 86: 15 fires, 4 payers (26.7%), $63.30 ($+4.22/fire)   [in-force Δ$/fire +0.30]
+
+── THE ROLLING GRADE (pooled 4 weeks, the fit vs the quantile, canonical axis) ──
+  OUT pooled 1w: FIT 12 fires $+5.27/fire  vs  QUANTILE 51 fires $+4.03/fire   fit edge +1.24
+  FLAT pooled 1w: FIT 12 fires $+6.59/fire  vs  QUANTILE 17 fires $+4.65/fire   fit edge +1.94
+  RISING pooled 1w: FIT 14 fires $+4.52/fire  vs  QUANTILE 15 fires $+4.22/fire   fit edge +0.30
+
+=== THE TIDE BAR WEEKLY — outcome bar vs the quantile ===
+graded at: 2026-09-12 20:28 UTC  (2026-W37, trailing 7 days; the pass runs daily, the grade stays weekly)
+fleet-level replay on the fits' 60-min contract (+1.5% MFE); $ = 1055 x size mult x 1.5% per payer
+
+── REAL FILLS: the fires that actually traded ──
+  (fire-event coverage begins Sep 11 10:30 UTC — earlier fills are unattributable; the join thickens as the ledger ages)
+  OUT: 0 fills, 0 winners, realized $+0.00   (+4 unfilled fires, 4 paid on paper, $34.89 the size ladder gated)
+  FLAT: 1 fills, 1 winners, realized $+4.74
+  RISING: 0 fills, 0 winners, realized $+0.00   (+35 unfilled fires, 21 paid on paper, $91.02 the size ladder gated)
+  TOTAL: 1 fills, realized $+4.74 — realized dollars, not the candle counterfactual
+
+OUT  (413 candidates this week; in force: outcomes bar 92)
+  IN FORCE  bar 92: 36 fires, 14 payers (38.9%), $221.55 ($+6.15/fire)
+  quantile  bar 89: 48 fires, 14 payers (29.2%), $221.55 ($+4.62/fire)   [in-force Δ$/fire +1.53]
+
+FLAT  (84 candidates this week; in force: quantile bar 89)
+  IN FORCE  bar 89: 17 fires, 5 payers (29.4%), $79.12 ($+4.65/fire)
+  outcome-fitted bar 85: 17 fires, 5 payers (29.4%), $79.12 ($+4.65/fire)   [in-force Δ$/fire +0.00]
+
+RISING  (175 candidates this week; in force: outcomes bar 87)
+  IN FORCE  bar 87: 15 fires, 5 payers (33.3%), $79.12 ($+5.28/fire)
+  quantile  bar 86: 16 fires, 5 payers (31.2%), $79.12 ($+4.95/fire)   [in-force Δ$/fire +0.33]
+
+── THE ROLLING GRADE (pooled 4 weeks, the fit vs the quantile, canonical axis) ──
+  OUT pooled 1w: FIT 36 fires $+6.15/fire  vs  QUANTILE 48 fires $+4.62/fire   fit edge +1.54
+  FLAT pooled 1w: FIT 17 fires $+4.65/fire  vs  QUANTILE 17 fires $+4.65/fire   fit edge +0.00
+  RISING pooled 1w: FIT 15 fires $+5.27/fire  vs  QUANTILE 16 fires $+4.95/fire   fit edge +0.33
+
+=== THE TIDE BAR WEEKLY — outcome bar vs the quantile ===
+graded at: 2026-09-12 13:00 UTC  (2026-W37, trailing 7 days; the pass runs daily, the grade stays weekly)
+fleet-level replay on the fits' 60-min contract (+1.5% MFE); $ = 1055 x size mult x 1.5% per payer
+
+── REAL FILLS: the fires that actually traded ──
+  (fire-event coverage begins Sep 11 10:30 UTC — earlier fills are unattributable; the join thickens as the ledger ages)
+  OUT: 0 fills, 0 winners, realized $+0.00   (+4 unfilled fires, 4 paid on paper, $34.89 the size ladder gated)
+  RISING: 0 fills, 0 winners, realized $+0.00   (+35 unfilled fires, 20 paid on paper, $87.06 the size ladder gated)
+  TOTAL: 0 fills, realized $+0.00 — realized dollars, not the candle counterfactual
+
+OUT  (415 candidates this week; in force: outcomes bar 92)
+  IN FORCE  bar 92: 36 fires, 12 payers (33.3%), $189.90 ($+5.27/fire)
+  quantile  bar 86: 49 fires, 12 payers (24.5%), $189.90 ($+3.88/fire)   [in-force Δ$/fire +1.39]
+
+FLAT  (48 candidates this week; in force: quantile bar 86)
+  IN FORCE  bar 86: 5 fires, 1 payers (20.0%), $15.82 ($+3.17/fire)
+  outcome-fitted bar —: not available (thin fit; the comparison is one-sided)
+
+RISING  (174 candidates this week; in force: outcomes bar 87)
+  IN FORCE  bar 87: 15 fires, 5 payers (33.3%), $79.12 ($+5.28/fire)
+  quantile  bar 86: 16 fires, 5 payers (31.2%), $79.12 ($+4.95/fire)   [in-force Δ$/fire +0.33]
+
+── THE ROLLING GRADE (pooled 4 weeks, the fit vs the quantile, canonical axis) ──
+  OUT pooled 1w: FIT 36 fires $+5.28/fire  vs  QUANTILE 49 fires $+3.88/fire   fit edge +1.40
+  RISING pooled 1w: FIT 15 fires $+5.27/fire  vs  QUANTILE 16 fires $+4.95/fire   fit edge +0.33
+
+=== THE TIDE BAR WEEKLY — outcome bar vs the quantile ===
+graded at: 2026-09-12 11:22 UTC  (2026-W37, trailing 7 days; the pass runs daily, the grade stays weekly)
+fleet-level replay on the fits' 60-min contract (+1.5% MFE); $ = 1055 x size mult x 1.5% per payer
+
+── REAL FILLS: the fires that actually traded ──
+  (fire-event coverage begins Sep 11 10:30 UTC — earlier fills are unattributable; the join thickens as the ledger ages)
+  OUT: 0 fills, 0 winners, realized $+0.00   (+4 unfilled fires, 4 paid on paper, $34.89 the size ladder gated)
+  RISING: 0 fills, 0 winners, realized $+0.00   (+35 unfilled fires, 20 paid on paper, $87.06 the size ladder gated)
+  TOTAL: 0 fills, realized $+0.00 — realized dollars, not the candle counterfactual
+
+OUT  (418 candidates this week; in force: outcomes bar 92)
+  IN FORCE  bar 92: 37 fires, 14 payers (37.8%), $221.55 ($+5.99/fire)
+  quantile  bar 86: 50 fires, 14 payers (28.0%), $221.55 ($+4.43/fire)   [in-force Δ$/fire +1.56]
+
+FLAT  (43 candidates this week; in force: quantile bar 86)
+  IN FORCE  bar 86: 3 fires, 1 payers (33.3%), $15.82 ($+5.27/fire)
+  outcome-fitted bar —: not available (thin fit; the comparison is one-sided)
+
+RISING  (172 candidates this week; in force: outcomes bar 87)
+  IN FORCE  bar 87: 14 fires, 4 payers (28.6%), $63.30 ($+4.52/fire)
+  quantile  bar 86: 15 fires, 4 payers (26.7%), $63.30 ($+4.22/fire)   [in-force Δ$/fire +0.30]
+
+── THE ROLLING GRADE (pooled 4 weeks, the fit vs the quantile, canonical axis) ──
+  OUT pooled 1w: FIT 37 fires $+5.99/fire  vs  QUANTILE 50 fires $+4.43/fire   fit edge +1.56
+  RISING pooled 1w: FIT 14 fires $+4.52/fire  vs  QUANTILE 15 fires $+4.22/fire   fit edge +0.30
+
+=== THE TIDE BAR WEEKLY — outcome bar vs the quantile ===
+graded at: 2026-09-12 10:12 UTC  (2026-W37, trailing 7 days; the pass runs daily, the grade stays weekly)
+fleet-level replay on the fits' 60-min contract (+1.5% MFE); $ = 1055 x size mult x 1.5% per payer
+
+── REAL FILLS: the fires that actually traded ──
+  (fire-event coverage begins Sep 11 10:30 UTC — earlier fills are unattributable; the join thickens as the ledger ages)
+  OUT: 0 fills, 0 winners, realized $+0.00   (+4 unfilled fires, 4 paid on paper, $34.89 the size ladder gated)
+  RISING: 0 fills, 0 winners, realized $+0.00   (+35 unfilled fires, 20 paid on paper, $87.06 the size ladder gated)
+  TOTAL: 0 fills, realized $+0.00 — realized dollars, not the candle counterfactual
+
+OUT  (417 candidates this week; in force: outcomes bar 80)
+  IN FORCE  bar 80: 86 fires, 25 payers (29.1%), $348.15 ($+4.05/fire)
+  quantile  bar 86: 48 fires, 13 payers (27.1%), $205.72 ($+4.29/fire)   [in-force Δ$/fire -0.24]
+
+FLAT  (42 candidates this week; in force: quantile bar 86)
+  IN FORCE  bar 86: 3 fires, 1 payers (33.3%), $15.82 ($+5.27/fire)
+  outcome-fitted bar —: not available (thin fit; the comparison is one-sided)
+
+RISING  (175 candidates this week; in force: outcomes bar 87)
+  IN FORCE  bar 87: 16 fires, 6 payers (37.5%), $94.95 ($+5.93/fire)
+  quantile  bar 86: 17 fires, 6 payers (35.3%), $94.95 ($+5.59/fire)   [in-force Δ$/fire +0.34]
+
+── THE ROLLING GRADE (pooled 4 weeks, the fit vs the quantile, canonical axis) ──
+  OUT pooled 1w: FIT 86 fires $+4.05/fire  vs  QUANTILE 48 fires $+4.29/fire   fit edge -0.24
+  RISING pooled 1w: FIT 16 fires $+5.93/fire  vs  QUANTILE 17 fires $+5.59/fire   fit edge +0.35

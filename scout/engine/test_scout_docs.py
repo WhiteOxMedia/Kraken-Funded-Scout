@@ -1,0 +1,164 @@
+"""Test THE SCOUT DOCS ROT GUARD (Sep 27): README.md claims are pinned so
+the exit-ladder documentation cannot silently rot. Four contract layers:
+
+  1. FILES — every backticked .py/.md/.bat name in the README exists in
+     the checkout (the pool docs-rot drive's file-honesty rule, native).
+  2. CONSTANTS WITH VALUES — the dials the README names must exist AND
+     still carry the documented values (CONTEST_TRAIL_PCT 3.0,
+     GOAL_TRAIL_ARM_FRAC 0.5, TAKE_IT_USD 20, SCALP_TARGET_PCT 0.4,
+     TRAIL_SIM_ABLE (1.0,1.5,2.0,3.0)); a silent dial change breaks the
+     README on purpose, forcing the doc to move WITH the code.
+  3. THE LADDER CHAIN — the README's exit order (SL -> TP -> knife ->
+     ATR trail -> strategy sell -> exhaustion -> momentum-rider ->
+     THESIS DEAD) must match the exit-synthesis contract's own docstring,
+     token for token in order; the doc and the contract rot together or
+     not at all.
+  4. THE EVIDENCE STANCE — the README names all five studies and the
+     tripwire drive, carries the snapshots-frozen statement (study
+     numbers are Sep 27 snapshots; the drives and studies are the live
+     truth — pinning live ledger outputs would rot BY DESIGN), and the
+     tripwire drive itself runs green from here.
+  5. THE LIVE-CONTRACT WRAPPERS — the template and both registered
+     copies keep the timeout catch (with bytes decode) and the
+     empty-0/0 refusal; the copies cannot drift from the template.
+
+Read-only beyond running the one subprocess drive."""
+import re
+import subprocess
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).parent))
+
+PASS, FAIL = 0, 0
+lines = []
+
+
+def check(name, ok, detail=""):
+    global PASS, FAIL
+    lines.append(("PASS  " if ok else "FAIL  ") + name + "  " + str(detail))
+    if ok:
+        PASS += 1
+    else:
+        FAIL += 1
+
+
+HERE = Path(__file__).parent
+readme = (HERE / "README.md").read_text(encoding="utf-8")
+
+print("== 1. FILES: every backticked path exists ==")
+# CODE RABBIT MINOR (Sep 27): the first pattern [A-Za-z_0-9]+ silently
+# skipped backticked names WITH SPACES - the README's own ops shims
+# ("Launch Scout.bat", "Kill Switch - FLATTEN.bat") were unpinned, so
+# deleting one would not turn 1.2 red. Match the FULL backticked
+# filename (spaces included); the space-free form is what the original
+# missed.
+names = sorted(set(re.findall(r"`([^`\n]+\.(?:py|md|bat))`", readme)))
+check("1.1", len(names) >= 15,
+      f"the README names {len(names)} files (a collapse means the doc shrank)")
+_missing = [n for n in names if not (HERE / n).exists()]
+check("1.2", not _missing, f"missing: {_missing or 'none'}")
+_shims = [n for n in names if n.endswith(".bat")]
+check("1.2b", "Launch Scout.bat" in _shims
+      and "Kill Switch - FLATTEN.bat" in _shims,
+      f"the space-bearing .bat shims are CAPTURED, not skipped: {_shims}")
+for must in ("test_trailk_sweep.py", "test_trailstop.py",
+             "test_exitsynthesis.py", "test_profitguard.py",
+             "_trail_k_sweep.py", "_hybrid_trail_sweep.py",
+             "_preset_backtest.py", "_preset_tierscaled.py",
+             "_guardfree_trail.py", "test_pool_docsrot_live.py"):
+    check(f"1.3.{must[:18]}", must in names,
+          "a load-bearing artifact vanished from the doc")
+
+print("== 2. CONSTANTS: named dials exist AND carry the documented values ==")
+import discipline as disc              # noqa: E402
+import background_scanner as bs        # noqa: E402
+for const, val in (("CONTEST_TRAIL_PCT", 3.0), ("GOAL_TRAIL_ARM_FRAC", 0.5),
+                   ("TAKE_IT_USD", 20), ("SCALP_TARGET_PCT", 0.4)):
+    check(f"2.1.{const[:14]}", getattr(bs, const, None) == val,
+          f"README documents {const}={val}; source says "
+          f"{getattr(bs, const, None)!r}")
+check("2.2", list(disc.TRAIL_SIM_ABLE) == [1.0, 1.5, 2.0, 3.0],
+      "the sweep set the README documents matches discipline.TRAIL_SIM_ABLE")
+check("2.3", bs._ratchet_trail_pct(100.0, 101.0, 0) == 2.0
+      and bs._ratchet_trail_pct(100.0, 102.0, 0) == 1.5,
+      "the documented ratchet steps (+1% -> 2.0, +2% -> 1.5) are the "
+      "function's real boundaries")
+
+print("== 3. THE LADDER CHAIN: doc and exit-synthesis contract agree ==")
+_TOKENS = ["SL", "TP", "knife", "ATR trail", "strategy sell",
+           "exhaustion", "momentum-rider", "THESIS DEAD"]
+
+
+def _chain_in(text):
+    pos = 0
+    for tok in _TOKENS:
+        idx = text.find(tok, pos)
+        if idx < 0:
+            return False
+        pos = idx + len(tok)
+    return True
+
+
+check("3.1", _chain_in(readme), "the README carries the full ordered chain")
+_exits_doc = (HERE / "test_exitsynthesis.py").read_text(encoding="utf-8")
+check("3.2", _chain_in(_exits_doc),
+      "the exit-synthesis contract's docstring carries the same chain")
+check("3.3", _chain_in(readme) == _chain_in(_exits_doc),
+      "doc and contract agree (if one moved without the other, this is red)")
+
+print("== 4. THE EVIDENCE STANCE ==")
+check("4.1", "snapshots frozen at Sep 27" in readme,
+      "the README declares its study numbers as frozen snapshots - the "
+      "live ledger grows, the drives and studies are the live truth")
+check("4.2", "relative bar" in readme and "-95.96" in readme,
+      "the corrected control accounting (relative bar, incumbent "
+      "baseline) is documented, not the pre-correction story")
+_r = subprocess.run([sys.executable, "-X", "utf8",
+                     "test_trailk_sweep.py"],
+                    cwd=str(HERE), capture_output=True, text=True,
+                    encoding="utf-8", errors="replace", timeout=300)
+check("4.3", _r.returncode == 0 and "20 passed, 0 failed" in _r.stdout,
+      f"the tripwire drive runs green from the docs drive "
+      f"({_r.stdout.strip().splitlines()[-1] if _r.stdout else 'no output'})")
+
+print("== 5. THE LIVE-CONTRACT WRAPPERS: the template's timeout contract ==")
+# CODE RABBIT MINOR (bf9c8da, Sep 28): the pool-drive wrappers run the
+# child with timeout=300 but never caught subprocess.TimeoutExpired -
+# a hung drive crashed the battery entry with a bare traceback instead
+# of the wrapper's own named FAIL (with the partial output as evidence).
+# The catch lives in the template AND both registered copies; this
+# census keeps the three from drifting apart again.
+for _w in ("LIVE_CONTRACT_TEMPLATE.py", "test_pool_docsrot_live.py",
+           "test_pool_prefs_live.py"):
+    _t = (HERE / _w).read_text(encoding="utf-8")
+    check(f"5.1.{_w[:24]}",
+          "except subprocess.TimeoutExpired" in _t and "timeout=300" in _t,
+          f"{_w} lost the TimeoutExpired catch - a hung pool drive would "
+          f"traceback the battery ledger instead of a named FAIL")
+    # the timeout's partial output can arrive as BYTES (TimeoutExpired
+    # keeps raw bytes on some Python versions even under text=True) -
+    # the str-only guard silently dropped the evidence (f3868a3 review)
+    check(f"5.2.{_w[:24]}",
+          "isinstance(partial, bytes)" in _t and 'decode(' in _t,
+          f"{_w} lost the bytes decode for the timeout's partial output")
+# the prefs wrapper must refuse the empty 0/0 exactly like its docsrot
+# sibling (the f3868a3 review: 'An empty 0/0 run passes here as green')
+_t = (HERE / "test_pool_prefs_live.py").read_text(encoding="utf-8")
+_docs_t = (HERE / "test_pool_docsrot_live.py").read_text(encoding="utf-8")
+check("5.3.prefs-empty-contract",
+      "the drive certified nothing" in _t
+      and "the drive certified nothing" in _docs_t,
+      "the prefs wrapper lost the empty-0/0 refusal its docsrot sibling "
+      "carries - a drive that ran nothing would pass as green again")
+
+print("\n".join(lines))
+print(f"RESULT: {PASS} passed, {FAIL} failed")
+
+
+def main():
+    sys.exit(1 if FAIL else 0)
+
+
+if __name__ == "__main__":
+    sys.exit(main())

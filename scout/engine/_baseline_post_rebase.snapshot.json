@@ -1,0 +1,47 @@
+{
+  "taken": "2026-09-21T23:51-06:00",
+  "class_costs": {
+    "took the goal": {
+      "n": 22,
+      "usd": 0.0
+    },
+    "exited too soon": {
+      "n": 4,
+      "usd": 22.767295748419077
+    },
+    "scratch": {
+      "n": 13,
+      "usd": 0.0
+    },
+    "stayed too long": {
+      "n": 6,
+      "usd": 64.78066323851473
+    },
+    "bought the top": {
+      "n": 3,
+      "usd": 42.519999999999996
+    }
+  },
+  "ratchet": {
+    "engaged_of": 48,
+    "live_band": 35
+  },
+  "deepveto_week": {
+    "n": 1,
+    "usd": 196.85,
+    "window_from": "2026-09-14"
+  },
+  "relief_now": {
+    "deep-veto": 0.52,
+    "tide-out": 0.03
+  },
+  "dials": {
+    "ratchet_src": "104300a2b860",
+    "journal_release_dials": {
+      "SEAM_RELEASE_SLACK": 5.0,
+      "SEAM_RELIEF_MAX_PTS": 4.0,
+      "SEAM_RELIEF_DECAY_H": 8.0
+    },
+    "journal_release_hash": "a867ed98e002"
+  }
+}

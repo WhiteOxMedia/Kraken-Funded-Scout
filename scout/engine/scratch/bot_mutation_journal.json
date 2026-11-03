@@ -1,0 +1,144 @@
+{
+ "test_fills.py": {
+  "modules": [
+   "fills.py",
+   "scout_signal_reader.py",
+   "bot_engine.py"
+  ],
+  "baseline": {
+   "rc": 0,
+   "red": false,
+   "secs": 0.2,
+   "exit_blind": false
+  },
+  "mutation": {
+   "fills.py": {
+    "rc": 1,
+    "red": true,
+    "secs": 0.1,
+    "mutations": 44,
+    "evidence": "rom fills.trail_geometry)\nPASS  4.4 the fixed-ladder exits stay untouched (the mechanical protection is not the learning surface)\n\nRESULT: 15 passed, 12 failed\n"
+   },
+   "scout_signal_reader.py": {
+    "rc": 1,
+    "red": true,
+    "secs": 0.1,
+    "mutations": 232,
+    "evidence": "from fills.trail_geometry)\nPASS  4.4 the fixed-ladder exits stay untouched (the mechanical protection is not the learning surface)\n\nRESULT: 26 passed, 1 failed\n"
+   },
+   "bot_engine.py": {
+    "rc": 1,
+    "red": true,
+    "secs": 0.1,
+    "mutations": 263,
+    "evidence": "from fills.trail_geometry)\nPASS  4.4 the fixed-ladder exits stay untouched (the mechanical protection is not the learning surface)\n\nRESULT: 26 passed, 1 failed\n"
+   }
+  },
+  "verdict": "KILLED",
+  "detail": "fills.py: rc=1 (44 mutations); scout_signal_reader.py: rc=1 (232 mutations); bot_engine.py: rc=1 (263 mutations)"
+ },
+ "test_learningplate.py": {
+  "modules": [
+   "app.py"
+  ],
+  "baseline": {
+   "rc": 0,
+   "red": false,
+   "secs": 0.2,
+   "exit_blind": false
+  },
+  "mutation": {
+   "app.py": {
+    "rc": 1,
+    "red": true,
+    "secs": 0.1,
+    "mutations": 285,
+    "evidence": "line only (the GF metric stands, no trend caption)\nPASS  the trend is read from the seam (gf_history), never derived in the plate\n\nRESULT: 24 passed, 10 failed\n"
+   }
+  },
+  "verdict": "KILLED",
+  "detail": "app.py: rc=1 (285 mutations)"
+ },
+ "test_lockguard.py": {
+  "modules": [
+   "bot_runner.py"
+  ],
+  "baseline": {
+   "rc": 0,
+   "red": false,
+   "secs": 2.7,
+   "exit_blind": false
+  },
+  "mutation": {
+   "bot_runner.py": {
+    "rc": 1,
+    "red": true,
+    "secs": 2.1,
+    "mutations": 49,
+    "evidence": "\nFAIL  a probe TOOL failure refuses (fail-safe down)  [[]]\nPASS  an EMPTY lock file takes over\nPASS  an CORRUPT lock file takes over\nRESULT: 4 passed, 6 failed\n"
+   }
+  },
+  "verdict": "KILLED",
+  "detail": "bot_runner.py: rc=1 (49 mutations)"
+ },
+ "test_rearmmirror.py": {
+  "modules": [
+   "signal_bridge.py",
+   "bot_engine.py",
+   "scout_signal_reader.py"
+  ],
+  "baseline": {
+   "rc": 0,
+   "red": false,
+   "secs": 2.1,
+   "exit_blind": false
+  },
+  "mutation": {
+   "signal_bridge.py": {
+    "rc": 1,
+    "red": true,
+    "secs": 1.9,
+    "mutations": 136,
+    "evidence": "RESULT: 21 passed, 1 failed\n"
+   },
+   "bot_engine.py": {
+    "rc": 1,
+    "red": true,
+    "secs": 2.1,
+    "mutations": 263,
+    "evidence": "RESULT: 20 passed, 2 failed\n"
+   },
+   "scout_signal_reader.py": {
+    "rc": 1,
+    "red": true,
+    "secs": 0.1,
+    "mutations": 232,
+    "evidence": "turn (False, str(gate.get('meta') or 'the machinery keeps the bench'))\n                       ^^^^^^^^\nAttributeError: 'NoneType' object has no attribute 'get'\n"
+   }
+  },
+  "verdict": "KILLED",
+  "detail": "signal_bridge.py: rc=1 (136 mutations); bot_engine.py: rc=1 (263 mutations); scout_signal_reader.py: rc=1 (232 mutations)"
+ },
+ "test_scoreboard.py": {
+  "modules": [
+   "app.py"
+  ],
+  "baseline": {
+   "rc": 0,
+   "red": false,
+   "secs": 0.1,
+   "exit_blind": false
+  },
+  "mutation": {
+   "app.py": {
+    "rc": 1,
+    "red": true,
+    "secs": 0.1,
+    "mutations": 285,
+    "evidence": "t float, kind=order)\nFAIL  the ledger's spend/receive pair becomes ONE buy fill with fee 0.0 (the spread is embedded in the price) and price = cost/amount \u2014 []\n"
+   }
+  },
+  "verdict": "KILLED",
+  "detail": "app.py: rc=1 (285 mutations)"
+ }
+}

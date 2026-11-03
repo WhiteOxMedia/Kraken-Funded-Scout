@@ -1,0 +1,101 @@
+### diag_hodholds — co_filename=diag_hodholds.py firstlineno=1
+DOCSTRING:
+diag_hodholds.py — THE HOLDS-RAN HOUR-OF-DAY SPLIT (Sep 19).
+
+QUESTION (user, Sep 19): the brain-holds that ran at the newest vetoed
+hours — do they cluster in a SPECIFIC rotation window? The fleet's
+rotations are 4h Denver-local (background_scanner.rotation_key_for_hour),
+so the hour-of-day split uses the SAME 4h buckets the fleet trades on:
+00-04, 04-08, ... 20-24 America/Denver.
+
+METHOD: replay every captured veto hour through the grade's machinery
+(the closed-bar guard included — final numbers only), take the
+brain-HOLD rows (the veto's confirmations AND its refused money when
+they run), and bucket by Denver-local rotation window: n, ran-rate,
+dollars per window. Three views: all graded rows, the newest day (the
+"newest vetoed hours"), and band-35 alone (the follow-through gate's
+own band, whose 9-of-12 holds-ran prompted this split).
+
+Run: .venv\Scripts\python.exe -X utf8 diag_hodholds.py
+Writes _hodholds.txt. Read-only; CPU-only replay.
+
+
+TOP-LEVEL NAMES (imports/defs in order):
+  IMPORT __future__
+  IMPORT annotations
+  STORE  annotations
+  IMPORT json
+  STORE  json
+  IMPORT sys
+  STORE  sys
+  IMPORT time
+  STORE  time
+  IMPORT datetime
+  STORE  _dt
+  IMPORT pathlib
+  IMPORT Path
+  STORE  Path
+  IMPORT zoneinfo
+  IMPORT ZoneInfo
+  STORE  ZoneInfo
+  STORE  OUT
+  STORE  DENVER
+  STORE  rot_window
+  STORE  bucket_holds
+  STORE  _table
+  STORE  main
+
+ALL STRINGS (dedup, order-preserving, >=4 chars):
+  diag_hodholds.py — THE HOLDS-RAN HOUR-OF-DAY SPLIT (Sep 19).
+
+QUESTION (user, Sep 19): the brain-holds that ran at the newest vetoed
+hours — do they cluster in a SPECIFIC rotation window? The fleet's
+rotations are 4h Den
+  _hodholds.txt
+  America/Denver
+  ts_epoch
+  float
+  return
+  The Denver-local 4h rotation window a timestamp lives in — the
+same clock the fleet's rotation_key_for_hour trades on.
+  rows
+  list[dict]
+  dict[str, dict]
+  Pure bucketing: hold rows -> per-window aggregates. Pinnable.
+  pairs
+  pair
+  rate
+  title
+  list[str]
+    holds: 
+  , ran 
+  window
+     pairs that ran
+  >7.2f
+  >+10.2f
+  utf-8
+  %Y-%m-%dT%H:%M:%S
+  -1h.feather
+  brain_conf
+  band
+  brain_action
+  THE HOLDS-RAN HOUR-OF-DAY SPLIT — do the brain-holds that ran
+  cluster in a specific rotation window? (4h Denver-local, the
+  fleet's own rotation clock | position $
+  ,.2f
+  VIEW 1 — ALL GRADED VETOED HOURS (Sep 16-19):
+  VIEW 2 — THE NEWEST VETOED HOURS (last 24h):
+  VIEW 3 — BAND-35 ONLY (the gate's own band):
+  CLUSTER CHECK: 
+   of 
+   ran-holds sit in 
+  % — uniform would be 
+  % across 
+   windows); that window's ran-rate 
+   vs overall 
+  CAVEAT: 
+  the sample is thin (n=
+  ) — read this as a lead, not a law; the 4h window shape matches the fleet's rotation clock, so a real cluster means the veto leaks in a specific part of the day
+  __main__
+
+TOTAL STRINGS: 46

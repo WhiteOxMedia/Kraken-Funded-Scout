@@ -1,0 +1,27 @@
+[
+  {
+    "content": "[rot-1] Inspect ohlcv_cache schema, rotation helpers, QC gate + alert gate code paths",
+    "id": "rot-1",
+    "status": "completed"
+  },
+  {
+    "content": "[rot-2] Build rotation lockout: one green light per asset per rotation (QC + desktop alert)",
+    "id": "rot-2",
+    "status": "completed"
+  },
+  {
+    "content": "[rot-3] Build yesterday-rotation context: blowoff detection demotes green lights",
+    "id": "rot-3",
+    "status": "completed"
+  },
+  {
+    "content": "[rot-4] Fine-aware re-entry verdict (config, amber + voice when set)",
+    "id": "rot-4",
+    "status": "completed"
+  },
+  {
+    "content": "[rot-5] Tests, commit, restart scanner + console, verify live",
+    "id": "rot-5",
+    "status": "completed"
+  }
+]

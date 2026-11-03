@@ -1,0 +1,6 @@
+wallet holds: ['ATOM21', 'NVDA', 'USD']
+bridge 'filled' records: 3
+  CLEARED ASTER/USD (6a61e3b8) — ASTER not in wallet → ghost closed
+  CLEARED FIL/USD (a4b05697) — FIL not in wallet → ghost closed
+  CLEARED POL/USD (cce315d6) — POL not in wallet → ghost closed
+remaining bridge 'filled': 0

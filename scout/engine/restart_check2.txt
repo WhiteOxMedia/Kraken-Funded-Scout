@@ -1,0 +1,9 @@
+PID 10100  created 9/4/2026 2:05:42 AM  parent 8908  cmd: C:\Python314\python.exe  pool\server.py
+PID 15652  created 9/4/2026 2:24:25 PM  parent 20120  cmd: "C:\Users\birds\AppData\Roaming\uv\python\cpython-3.14-windows-x86_64-none\python.exe"  -m ipykernel_launcher -f C:\Users\birds\AppData\Local\Temp\tmp
+PID 22928  created 9/4/2026 4:59:49 PM  parent 2888  cmd: .venv\Scripts\python.exe  -X utf8 volatility_engine.py  
+PID 8612  created 9/4/2026 4:59:49 PM  parent 22928  cmd: "C:\Users\birds\AppData\Roaming\uv\python\cpython-3.14-windows-x86_64-none\python.exe"   -X utf8 volatility_engine.py  
+PID 17036  created 9/4/2026 4:59:51 PM  parent 7040  cmd: .venv\Scripts\python.exe  background_scanner.py  
+PID 22848  created 9/4/2026 4:59:51 PM  parent 17036  cmd: "C:\Users\birds\AppData\Roaming\uv\python\cpython-3.14-windows-x86_64-none\python.exe"   background_scanner.py  
+PID 24384  created 9/4/2026 4:59:53 PM  parent 15432  cmd: .venv\Scripts\python.exe  bot_runner.py --interval 15  
+PID 21160  created 9/4/2026 4:59:54 PM  parent 20400  cmd: "C:\Users\birds\Workspace\kraken_scout\.venv\Scripts\python.exe" "C:\Users\birds\Workspace\kraken_scout\.venv\Scripts\streamlit.exe" run app.py --serv
+PID 7052  created 9/4/2026 4:59:54 PM  parent 21160  cmd: "C:\Users\birds\AppData\Roaming\uv\python\cpython-3.14-windows-x86_64-none\python.exe"  "C:\Users\birds\Workspace\kraken_scout\.venv\Scripts\streamlit

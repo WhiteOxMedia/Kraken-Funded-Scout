@@ -1,0 +1,25 @@
+run: Tue 10:37 AM Denver
+
+=== Wed 08/19 ===
+  buy signals: 29  distinct coins: 26  peak hour: 8 signals
+  confidence: median 92%  >=89%: 25  >=60%: 28
+  $20 within 4h: 24/25 (96%)
+  sources: {'scout_auto': 25, 'scout_gainer': 4}
+=== Thu 08/20 ===
+  buy signals: 47  distinct coins: 28  peak hour: 12 signals
+  confidence: median 67%  >=89%: 22  >=60%: 39
+  $20 within 4h: 28/35 (80%)
+  sources: {'scout_auto': 35, 'scout_gainer': 12}
+=== Mon 08/24 ===
+  buy signals: 132  distinct coins: 35  peak hour: 21 signals
+  confidence: median 70%  >=89%: 14  >=60%: 130
+  $20 within 4h: 98/132 (74%)
+  sources: {'scout_auto': 129, 'scout_dca': 3}
+=== Tue 08/25 ===
+  buy signals: 133  distinct coins: 28  peak hour: 41 signals
+  confidence: median 72%  >=89%: 19  >=60%: 132
+  $20 within 4h: 65/133 (49%)
+  sources: {'scout_auto': 120, 'scout_dca': 13}
+
+TOP COINS Aug 19-20: RENDERx4, APTx4, VIRTUALx4, ONDOx4, DOTx3, GRASSx3, JUPx3, MONx3
+TOP COINS Aug 24-25: XPLx20, OPx19, DOGEx16, ARBx15, VIRTUALx13, PUMPx13, ONDOx11, BTCx10

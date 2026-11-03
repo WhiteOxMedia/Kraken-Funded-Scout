@@ -1,0 +1,32 @@
+now: Wed 08:49 PM Denver
+
+contest watch: ['LINK/USD', 'TAO/USD']
+  LINK/USD: entry=11.586 high=11.59782 added=2026-08-26T18:24:56
+  TAO/USD: entry=237.7169 high=246.7438 added=2026-08-26T19:33:29
+
+TAO 15m candles (last 4 hours):
+  17:00  O 232.00  H 232.53  L 231.42  C 231.42
+  17:15  O 231.55  H 232.96  L 231.45  C 232.64
+  17:30  O 232.66  H 234.46  L 232.14  C 234.46
+  17:45  O 234.25  H 234.96  L 234.22  C 234.65
+  18:00  O 234.65  H 234.65  L 233.18  C 233.74
+  18:15  O 233.31  H 235.38  L 233.17  C 233.26
+  18:30  O 233.75  H 235.41  L 233.75  C 234.98
+  18:45  O 234.90  H 239.87  L 234.74  C 238.87
+  19:00  O 238.47  H 239.71  L 238.03  C 238.21
+  19:15  O 237.94  H 239.04  L 235.77  C 239.04
+  19:30  O 239.11  H 239.95  L 237.22  C 238.58
+  19:45  O 238.94  H 240.47  L 238.81  C 239.77
+  20:00  O 239.76  H 244.33  L 239.76  C 243.82
+  20:15  O 243.94  H 246.91  L 242.45  C 243.10
+  20:30  O 242.88  H 244.10  L 239.84  C 240.84
+  20:45  O 240.72  H 241.09  L 240.31  C 240.45
+4h peak 246.91 -> now 240.45 (-2.6% off peak)
+
+bridge TAO records since 5 PM: 4
+  2026-08-26T18:54:54 buy rejected  src=scout_auto   conf=89 entry=237.9162 exec=Liquidity: depth unstable: best-level depth $406→$8
+  2026-08-26T19:32:03 buy rejected  src=scout_auto   conf=92 entry=239.3649 exec=Max positions — challenger lost the head-to-head
+  2026-08-26T19:43:56 buy rejected  src=scout_auto   conf=92 entry=239.8296 exec=Max positions — challenger lost the head-to-head
+  2026-08-26T19:55:12 buy rejected  src=scout_auto   conf=92 entry=239.4117 exec=Max positions — challenger lost the head-to-head
+
+take payouts: {"PUMP/USD": {"amount": 240, "ts": "2026-08-24T20:24:52.285468-06:00"}, "PENGU/USD": {"amount": 160, "ts": "2026-08-24T19:06:20.091027-06:00"}, "ASTER/USD": {"amount": 100, "ts": "2026-08-26T16:30:50.400342-06:00"}, "TAO/USD": {"amount": 180, "ts": "2026-08-26T20:20:14.963303-06:00"}}

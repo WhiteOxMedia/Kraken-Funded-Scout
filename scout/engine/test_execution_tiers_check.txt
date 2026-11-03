@@ -1,0 +1,68 @@
+EXECUTION TIERS UNIT TEST — 66 checks, 0 failed
+======================================================================
+PASS  T1 at 4.9%
+PASS  T2 at 5.0%
+PASS  T2 at 19.9%
+PASS  T3 at 20.0%
+PASS  T3 at 49.9%
+PASS  T4 at 50.0%
+PASS  T5 at 100%
+PASS  T6 at 300%
+PASS  T6 when no book
+PASS  deep book slip ~0.01%
+PASS  deep book vwap
+PASS  uneven book slip > 0.2%
+PASS  beyond-book extrapolation
+PASS  sell-side mirror ~0.01%
+PASS  deep book healthy ≥60
+PASS  thin book unhealthy <60
+PASS  deep > thin by ≥20
+PASS  breakdown sums to score
+PASS  stable book → maker 20
+PASS  pulled book → maker 0
+PASS  identical books stable
+PASS  maker pull → unstable
+PASS  spread blowout → unstable
+PASS  abort: spread 2x detected
+PASS  abort: depth drop detected
+PASS  abort: price jump detected
+PASS  calm book → no abort
+PASS  deep book passes gates
+PASS  deep book no cap needed
+PASS  deep book tier T1/T2
+PASS  thin book gated by health (no blacklist)
+PASS  thin book NOT blacklisted
+PASS  recovered book trades again
+PASS  mid book capped at T2
+PASS  sliptrap book passes health
+PASS  uneven book hits slippage gate
+PASS  unstable depth blocks buy
+PASS  strike 1 noted
+PASS  strike 1 → size mult 0.5
+PASS  strike 2 blacklists
+PASS  audit blacklist active
+PASS  good fill no strike
+PASS  small remainder not scheduled
+PASS  real remainder scheduled
+PASS  scale has 4 slices
+PASS  scale expires ~2h
+PASS  merge adds remainder
+PASS  cancel clears queue
+PASS  cooldown detection sane
+PASS  T2 executes as market
+PASS  T2 one order placed
+PASS  T2 result ccxt-compatible
+PASS  T5 caps and ladders
+PASS  T5 limit orders placed
+PASS  T5 leaves remainder
+PASS  T5 result has tier meta
+PASS  sell T2 market
+PASS  sell completes
+PASS  paper mode no real orders
+PASS  paper mode simulates fill
+PASS  paper T5 simulates
+PASS  paper T5 no slippage audit
+PASS  snapshot ok
+PASS  snapshot has tier
+PASS  snapshot has method+time
+PASS  snapshot capped ≤ 20%

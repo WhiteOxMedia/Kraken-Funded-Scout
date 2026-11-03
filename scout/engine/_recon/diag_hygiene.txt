@@ -1,0 +1,125 @@
+### diag_hygiene — co_filename=diag_hygiene.py firstlineno=1
+DOCSTRING:
+diag_hygiene.py - THE HYGIENE GATE (rebuilt Sep 15 after the deletion
+event took the original with it).
+
+WHY THIS EXISTS: the Sep 14 sweep deleted ~200 stray artifacts across
+both repos - one-off diag probes, per-suite _bat_test_*.log captures,
+scratch DBs the test suites re-created on every run, the bot's literal
+`$null` file. Litter re-accumulates silently unless something FAILS on
+it. This gate is that something: run it anytime, it is strictly
+read-only, stdlib only, and exit-coded (0 clean / 1 findings) so a .bat
+or scheduler can gate on it.
+
+RULES (both repo roots; anything NESTED below the root is exempt -
+subdirectory scratch is deliberate sandbox output):
+  A. ROOT SCRATCH of the litter classes the sweep found:
+       _*.db  _*.log  _sbx_*  _bat_*  $*
+     (_*.txt is deliberately NOT flagged: _tidebarweekly.txt and
+     _flipgrade.txt are live production ledgers.)
+  B. NEW ONE-OFF PROBES: a diag_* file (any extension) that is
+     referenced by NO *.py, *.bat, *.ps1, or *.md in either repo AND is
+     not in KEEP_WORLDS. The 34 diags that survived the Sep 14
+     reference-audit are pinned in KEEP_WORLDS so this gate never
+     re-litigates that verdict; any NEW diag file m
+
+TOP-LEVEL NAMES (imports/defs in order):
+  IMPORT re
+  STORE  re
+  IMPORT sys
+  STORE  sys
+  IMPORT pathlib
+  IMPORT Path
+  STORE  Path
+  STORE  SCOUT
+  STORE  BOT
+  STORE  LOGS
+  STORE  KEEP_WORLDS
+  STORE  FACTORY_SCRATCH
+  STORE  KNOWN_DEAD_ARTIFACTS
+  STORE  RULE_A
+  STORE  REF_EXTS
+  STORE  rule_a_hit
+  STORE  diag_stem
+  STORE  build_reference_corpus
+  STORE  audit
+  STORE  selftest
+  STORE  main
+
+ALL STRINGS (dedup, order-preserving, >=4 chars):
+  diag_hygiene.py - THE HYGIENE GATE (rebuilt Sep 15 after the deletion
+event took the original with it).
+
+WHY THIS EXISTS: the Sep 14 sweep deleted ~200 stray artifacts across
+both repos - one-off diag probes, per-suite _
+  C:\Users\birds\Workspace\kraken_xrp_trading_bot
+  logs
+  diag_aster
+  diag_benchfinal
+  diag_benchtodate
+  diag_cachesweep
+  diag_calibrate
+  diag_fbw3
+  diag_firstflipback
+  diag_fleetstudy
+  diag_flipgrade
+  diag_missedmoney
+  diag_poolgate
+  diag_popupfloor
+  diag_prefsmirror
+  diag_rebaseline
+  diag_rebaseline2
+  diag_replaylive
+  diag_silentpass
+  diag_sizingaudit
+  diag_stshadow
+  diag_surething
+  diag_surething_grade
+  diag_surething_refit
+  diag_sweep
+  diag_syrup
+  diag_testleaks
+  diag_tidebarrefit
+  diag_tidedata
+  diag_tidehistory
+  diag_tidememory_hindsight
+  diag_tideretune
+  diag_tomorrowpass
+  diag_w38grade
+  diag_widgetsweep
+  diag_hygiene
+  _test_tidestamp.db
+  _test_tidestamp_old.db
+  trading_bot.db
+  ^(_.*\.(?:db|log)|_sbx_.*|_bat_.*|\$.*)$
+  name
+  return
+  True when a ROOT-LEVEL name is scratch of the litter classes.
+  utf-8
+  ignore
+  Returns (strays, checked_counts). Read-only.
+  RULE D: known dead artifact name with LIVE data - identify the writer before trusting it
+  RULE D: known dead artifact (0-byte ghost) - delete it
+  RULE A: root scratch
+  diag_
+  RULE B: unreferenced one-off probe
+  Pins for the rules themselves (pure-name; hermetic).
+    FAIL  selftest: trading_bot.db missing from KNOWN_DEAD_ARTIFACTS
+    FAIL  selftest 
+  : got 
+  , want 
+    FAIL  selftest: SCOUT resolved oddly
+    selftest: rule pins green (13 cases)
+    HYGIENE AUDIT - root scratch + one-off probes, both repos
+   root files scanned, 
+   diag files
+    STRAY  
+  
+HYGIENE: 
+   STRAY FILE(S) - clean before shipping
+  
+HYGIENE: CLEAN
+  ============================================================
+  __main__
+
+TOTAL STRINGS: 68

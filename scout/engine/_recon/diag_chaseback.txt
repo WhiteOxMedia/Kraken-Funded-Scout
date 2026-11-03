@@ -1,0 +1,423 @@
+### diag_chaseback — co_filename=diag_chaseback.py firstlineno=1
+DOCSTRING:
+diag_chaseback.py — THE CHASE-COVERAGE STUDY (Sep 17).
+
+WHY THIS EXISTS: the chase-setup tracker only watches pairs the mover
+funnel REJECTED — and the funnel only deep-scans the top-15 runners
+(24h gain >= MOVER_MIN_PCT = 5%, MOVER_TOP_N = 15). A pullback-and-turn
+on a pair that was never a big enough runner is INVISIBLE to the alert:
+never tracked, never spoken, never graded. This study prices that
+blind spot on the deep candle stores: the tracker's exact state machine
+(arm on rejection, 8h life, refresh ref, rising-EMA cross turn, 4%
+rollover guard) replayed hour by hour across every contest store, each
+setup graded forward through the popup contract (RAN = +2% MFE within
+4 bars, end = the window close), priced in the chase convention (the
+FULL CHASE_POS_USD position — the alert is not brain-sized).
+
+The two worlds:
+  CAUGHT  — the turn fired while the pair was tracked (the funnel had
+            rejected it within its 8h life): the alert spoke.
+  MISSED  — the same candle pattern (rising EMA9, cross from below,
+            drop <= 4% from the recent high close) on an UNTRACKED
+            pair: silence. The reference for an untracked pair is the
+            rolling 8-bar max cl
+
+TOP-LEVEL NAMES (imports/defs in order):
+  IMPORT __future__
+  IMPORT annotations
+  STORE  annotations
+  IMPORT glob
+  STORE  glob
+  IMPORT json
+  STORE  json
+  IMPORT logging
+  STORE  logging
+  IMPORT os
+  STORE  os
+  IMPORT time
+  STORE  time
+  IMPORT datetime
+  IMPORT datetime
+  STORE  datetime
+  IMPORT timezone
+  STORE  timezone
+  IMPORT pathlib
+  IMPORT Path
+  STORE  Path
+  STORE  logger
+  STORE  BASE
+  STORE  OUT
+  STORE  LEDGER
+  STORE  CHASE_TURNS_JSONL
+  STORE  STORES_GLOB
+  STORE  POSITION_USD
+  STORE  POSITION_USD_FALLBACK
+  STORE  HORIZON
+  STORE  WARMUP
+  STORE  CHASE_MAX_AGE_H
+  STORE  CHASE_TURN_MAX_DROP_PCT
+  STORE  MOVER_MIN_PCT
+  STORE  MOVER_TOP_N
+  STORE  PULLBACK_LOOKBACK
+  STORE  RAN_PCT
+  STORE  MONTHLY_PERIOD_S
+  STORE  FIRST_DELAY_S
+  IMPORT evidence_ladder
+  IMPORT TURN_BARS
+  STORE  _EL_TURN_BARS
+  STORE  GROWTH_GATE_N
+  STORE  GROWTH_MILESTONE
+  STORE  GROWTH_GATE_EARLY_N
+  STORE  GROWTH_GATE_RATE_EDGE
+  STORE  GROWTH_GATE_USD_MULT
+  STORE  merge_milestone
+  STORE  growth_gate_open
+  STORE  _utcnow_iso
+  STORE  _position_usd
+  STORE  _load_store
+  STORE  FLOOR_STEPS
+  STORE  _epoch_s
+  STORE  _fleet_movers_on_list
+  STORE  _detect_setups
+  STORE  _load_lived_turns
+  STORE  _lived_weekly
+  STORE  _marginal_floor_bands
+  STORE  DIM_EDGES
+  STORE  _dim_sweep
+  STORE  _dim_band_walk
+  STORE  _unified_policy
+  STORE  _price_world
+  STORE  _floor_sweep
+  STORE  run_study
+  STORE  monthly_driver_loop
+  STORE  graded_watchlist_turns
+  STORE  growth_watch_loop
+  STORE  ledger_last_record
+  STORE  s
+
+ALL STRINGS (dedup, order-preserving, >=4 chars):
+  diag_chaseback.py — THE CHASE-COVERAGE STUDY (Sep 17).
+
+WHY THIS EXISTS: the chase-setup tracker only watches pairs the mover
+funnel REJECTED — and the funnel only deep-scans the top-15 runners
+(24h gain >= MOVER_MIN_PCT
+  chaseback
+  _chaseback_check.txt
+  _chaseback_monthly.jsonl
+  chase_turns.jsonl
+  surething_data/kraken/*_USD-1h.feather
+  GROWTH_GATE
+  growth_milestone.json
+  GROWTH_GATE_EARLY
+  gate
+  prev
+  dict | None
+  verdict
+  str | None
+  graded
+  float
+  gate_src
+  first_ts
+  float | None
+  position_usd
+  return
+  THE GROWTH MILESTONE (Sep 19, user: "when the growth gate hits 10
+graded turns, have the study record the verdict date and dollars so
+the plate can show how long the widening took to earn its grow
+call"). Pure state mach
+  GROW
+  earned_date
+  %Y-%m-%d
+  full
+  graded_at_earn
+  first_turn_ts
+  days_to_earn
+  full_gate_date
+  rate
+  usd_turn
+  total_usd
+  bool
+  THE EARLY GATE'S EVIDENCE RULE (Sep 19, user: "lower the growth
+gate to 8 graded turns if the rate separation stays extreme, and pin
+the evidence rule that would justify it"). The full evidence gate
+stays GROWTH_GATE_N —
+  Today's ledger (the live contest size) with the study's own
+fallback — the family convention.
+  live contest size unreadable (%s) — the fallback $%.0f stands
+  One feather store -> (closes np array, highs, datetimes UTC).
+  date
+  close
+  high
+  'np.ndarray'
+  A UTC DatetimeIndex -> epoch SECONDS via the datetime64[s] cast.
+The naive astype('int64') is unit-ambiguous across pandas versions
+(this environment returned µs-scale ints, which made the 8h expiry
+unreachable and infla
+  datetime64[s]
+  int64
+  warmup
+  dict
+  Hour-major fleet walk: {pair: {hour_i: bool}} — was the pair in
+the top MOVER_TOP_N by 24h pct (>= MOVER_MIN_PCT) at that hour?
+The 24h pct uses the honest smaller window near a store's start
+(base = the first close), th
+  list
+  One pair's tracker state machine over its own candle grid ->
+[{ts_epoch_s, caught: bool, px, ran, end_pct}]. Mirrors the real
+machinery: arm/refresh on an on-list (rejection) hour, 8h life,
+rising-EMA9 cross turn, drop g
+  first
+  said
+  caught
+  pct24
+  ema_slope
+  pullback
+  THE LIVED FEED (Sep 18): the widening's real catches — every
+[watchlist]-provenance turn in chase_turns.jsonl whose 4-bar
+horizon has closed, graded on its own deep store with the sim's
+exact convention (ran = +2% MFE on
+  surething_data
+  kraken
+  utf-8
+  replace
+  rows
+  pending
+  total
+  [watchlist]
+  pair
+  _USD-1h.feather
+  right
+  lived
+  THE LIVED-TREND FEED (Sep 19): the widening's graded turns
+bucketed by ISO week — the plate's sparkline series. Weeks are
+computed in UTC (the ledgers already stamp UTC) from each row's
+epoch ts; a week's usd prices the 
+  THE MARGINAL BANDS (Sep 19): a floor sweep prices cumulative rung
+worlds — rung dollars must never be added, and a raise's price is
+the band it DENIES. This helper derives the one true pricing object
+from a sweep. For a 
+  buckets
+  bands
+  chosen
+  unsortable rungs
+  ceiling
+  from
+  denied
+  % ran
+  % denies 
+   setups (
+  ) worth $
+  +,.2f
+   — the last denial that pays; every raise past it would exclude real money
+  no rung's denial strictly improves the kept world — every pct band earns its keep
+  denied_total
+  THE DIMENSION-GENERAL SWEEP (Sep 19): the same cumulative
+set-bucket math _floor_sweep prices pct24 with, run over ANY
+turn-hour feature. A floor at edge E keeps every setup whose dim
+>= E, so each bucket IS the kept wor
+  unknown
+  keys
+  sweep
+  THE WALK, DIMENSION-GENERAL (Sep 19): start at no floor (every
+dim-known setup as one kept world), climb the edges ascending, and
+price each raise as the band it DENIES — the difference between
+consecutive KEPT worlds (k
+  bleed_per_seat
+  floor 
+   denies 
+   setups worth $
+  ,.2f
+  /seat denied)
+  no edge's denial strictly improves the kept world — every band earns its keep on this dimension
+  kept_world
+  seats
+  THE UNIFIED WIDENING POLICY (Sep 19, user: "combine the pct24
+quality floor and the growth verdict into one widening policy:
+which coins earn seats AND which turns are worth speaking, priced
+together"): the two report ca
+  pool bands: a >=+
+  % floor denies 
+   setups that ran 
+  % and cost $
+   at the margin
+   (all denials below it together: 
+   setups, $
+   — speak only above +
+   — the denial pays
+  lived bands agree — the floor is CONFIRMED for speaking (ship on the watch)
+  lived bands have not confirmed — the floor stays a report line until the widening's own turns agree
+  pool bands price no paying denial — no 24h-pct floor earns the watch; every seat's turn speaks
+  seats: GROW — the widening earns more seats, and the new coins' turns clear the same speak floor
+  SHRINK
+  seats: SHRINK — retire the bleeding seats and demand the speak floor on whatever remains
+  HOLD
+  seats: HOLD — the six stand; the speak floor is what moves
+  seats: the grow/hold verdict still waits (
+   graded turns — the early gate opens at 
+   only on extreme separation: the rate edge plus double the pool's dollars) — the speak floor rides pool evidence alone until the widening earns its own verdict
+  speak_floor
+  floor_confirmed
+  marginal
+  lived_marginal
+  setups
+  One world's ledger: n, ran, usd (end-move at the FULL chase
+position), ran ceiling, and the recent-window splits.
+  missed
+  THE QUALITY CUTOFF (Sep 18): the coverage study's blind spot ran
+at 16% while the tracked world ran at 35% — but the missed pool is
+not one world. Bucket the MISSED setups by their turn-hour 24h pct
+into rungs — < 0, >= 
+  band_n
+  band_ran
+  band_usd
+  band_ceiling
+  max_pairs
+  int | None
+  stores_dir
+  Path | None
+  write
+  The fleet study across the contest stores. Bounds make it
+hermetic: max_pairs slices, stores_dir/position_usd injectable.
+  *_USD-1h.feather
+  -1h.feather
+  chaseback: %s unreadable (%s)
+  chaseback: %s walk failed (%s)
+  caught_n
+  missed_n
+  missed_ran
+  missed_usd
+  caught_usd
+  by_pair
+  floor_sweep
+  by_week
+  early
+   ran (
+  %) vs the pool's 
+  %, $
+  /turn vs $
+   — the widening bleeds end-move (
+   bleeds worst); retire seats, do not add
+   — the watchlist out-runs the pool it was carved from; it earns more seats
+   — inside the pool's band; the six stand until the rate separates
+   — the evidence gate fired early: the separation is extreme (the rate edge plus doubled dollars), not merely good
+  pool_rate
+  pool_usd_turn
+  growth
+  milestone
+  .tmp
+  growth milestone write failed: %s
+  policy
+  pairs
+  bounded
+  per_coin
+  dim_bakeoff
+  === THE CHASE-COVERAGE STUDY: pullback-and-turn setups — caught vs missed (Sep 17) ===
+  stores: 
+   contest pairs | position $
+  ,.0f
+   (the full chase position) | horizon 
+  h | ran = +
+  % MFE | the funnel's view: top 
+   runners >= 
+  % on 24h
+  CAUGHT (tracked — the alert spoke): 
+   setups, 
+   ran, $
+   (ceiling $
+    w14: 
+   | w30: 
+  MISSED (the same pattern, never tracked): 
+  LIVED (the widening's real [watchlist] catches, closed horizons): 
+   turns, 
+   pending
+   ran $
+    WATCHLIST GROWTH: 
+   graded turns — the grow/hold verdict waits (
+   more)
+    WATCHLIST GROWTH VERDICT: 
+    GROWTH MILESTONE: earned 
+   via the 
+   gate at 
+   graded turns
+   days from the first lived turn (
+   | then: 
+   lived
+   | full-evidence date: 
+    WIDENING POLICY (seats x speak floor, priced together): 
+  speak floor >= +
+  CONFIRMED — ships speaking
+  pool evidence — awaits lived confirmation
+  no speak floor earns the watch — every seat's turn speaks
+      
+    LIVED BY RUNG (decision-time 24h pct; each row is the kept world a floor there would hold):
+  5.1f
+      >=+
+  % | 
+   ran 
+  >+9,.2f
+   end, $
+  >7,.2f
+   ceiling
+      <0%   | 
+   end
+      ?pct  | 
+   turns (pre-stamp legacy rows — no decision-time 24h pct, priced nowhere)
+  THE BLIND SPOT: 
+   patterns the tracker never saw (
+  % of all setups), 
+  % ran — $
+   end-move, $
+   at the ran ceiling
+  missed money by coin (worst first):
+   missed (
+   ran), $
+   (caught 
+   stp, $
+  >+8,.2f
+  , -$
+  >+11,.2f
+  >9,.2f
+     ?pct | 
+   | no 24h pct at the turn hour — priced nowhere ($
+   ceiling)
+    VERDICT: floor >= +
+  % is the separator — it keeps 
+   ran = 
+  % vs the pool's 
+  %), holding $
+   of the $
+   ceiling (
+    VERDICT: no rung doubles the pool's ran-rate while holding half its ceiling — a 24h-pct cutoff does not separate payers from noise on this data.
+    DIMENSION BAKE-OFF (the marginal walk per turn-hour feature; winner = most bleed denied per seat):
+  chaseback ledger write failed: %s
+  CHASEBACK: caught %d / missed %d ($%.2f missed)
+  first_delay_s
+  period_s
+  The daemon loop: one study shortly after boot, then monthly —
+the blind spot re-prices itself as the stores grow. Never raises;
+dies with the scanner.
+  chaseback pass failed: %s
+  The growth gate's exact count: every [watchlist] row in
+chase_turns.jsonl whose HORIZON-hour horizon has closed. Mirrors
+_load_lived_turns' grading (same filter, same horizon math) so the
+watch fires when the STUDY would
+  poll_s
+  THE GROWTH WATCH (Sep 19, user: "watch chase_turns.jsonl until 10
+watchlist turns have graded horizons, re-run the coverage study, and
+read the first real GROW/HOLD/SHRINK verdict"; early gate Sep 19):
+polls the ledger a
+   GROWTH WATCH: %d graded [watchlist] turns reached the early gate (%d) — running the study; the verdict speaks only if the separation is extreme
+   GROWTH WATCH: the early-gate verdict is %s (fired at %d graded turns)
+   GROWTH WATCH: the early gate held — the separation is not extreme; the watch continues to the full gate (%d)
+   GROWTH WATCH: %d graded turns reached the full gate (%d) — running the study for the first full-gate verdict
+   GROWTH WATCH: the first evidence-gate verdict is %s
+  rendered by an earlier pass
+   GROWTH WATCH: poll failed (%s) — retrying next cycle
+  The study snapshot's newest record (for the watch's verdict read).
+The chaseback ledger holds ONE pretty-printed JSON object, os.replace'd
+each pass; an older JSONL shape (one record per line) loads by its
+last line. Non
+  __main__
+  %(message)s
+
+TOTAL STRINGS: 269

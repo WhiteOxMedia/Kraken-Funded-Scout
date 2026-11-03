@@ -1,0 +1,135 @@
+### diag_nochase — co_filename=diag_nochase.py firstlineno=1
+DOCSTRING:
+diag_nochase.py — THE OVERBOUGHT NO-CHASE RULE, GRADED ON ZEC (Sep 16).
+
+WHY THIS EXISTS: ZEC ran +12.8% in a day and the desk saw silence. The
+live read was `hold, 0% — RSI 78.2 above 78.0 (overbought even for an
+uptrend)`. The question: on ZEC's OWN history, how much did the RSI-78
+refusals LEAVE ON THE TABLE vs SAVE, in dollars?
+
+THE HONEST COUNTERFACTUAL (one gate removed, nothing else):
+  * the RSI ceiling gate is a hard hold-return in the dip-buy section
+    (`rsi_ceiling = 78.0 if trending_up else 68.0`). The counterfactual
+    strategy is strategy.py's EXACT source with that ONE line patched to
+    an unreachable ceiling, written to a TEMPDIR (nothing lands in the
+    repo) and imported under its own name — so the two worlds differ
+    only where the ceiling fired;
+  * replay: every store hour from warm-up 30 to horizon-4, evaluating
+    the window ENDING at that hour's close (fast mode — the funnel's
+    evaluation mode). A REFUSAL is a real-world hold whose reasons
+    carry the RSI-ceiling line; it is DECISIVE only if the gate-free
+    world actually BUYS (conf >= min_confidence) on the same window;
+  * consecutive decisive refusals are ONE trade (the first hour) — no
+  
+
+TOP-LEVEL NAMES (imports/defs in order):
+  IMPORT re
+  STORE  re
+  IMPORT sys
+  STORE  sys
+  IMPORT tempfile
+  STORE  tempfile
+  IMPORT pathlib
+  IMPORT Path
+  STORE  Path
+  STORE  BASE
+  STORE  OUT
+  STORE  STORE
+  STORE  POSITION_USD
+  STORE  HORIZON
+  STORE  WARMUP
+  STORE  PASS
+  STORE  FAIL
+  STORE  lines
+  STORE  check
+  STORE  _build_counterfactual
+  STORE  main
+
+ALL STRINGS (dedup, order-preserving, >=4 chars):
+  diag_nochase.py — THE OVERBOUGHT NO-CHASE RULE, GRADED ON ZEC (Sep 16).
+
+WHY THIS EXISTS: ZEC ran +12.8% in a day and the desk saw silence. The
+live read was `hold, 0% — RSI 78.2 above 78.0 (overbought even for an
+uptren
+  _nochase_check.txt
+  surething_data
+  kraken
+  ZEC_USD-1h.feather
+  PASS  
+  FAIL  
+  strategy.py's exact source with ONLY the RSI ceiling line made
+unreachable, in a tempdir under its own module name.
+  utf-8
+  rsi_ceiling = 78.0 if trending_up else 68.0
+  ceiling line not unique: 
+  rsi_ceiling = 200.0 if trending_up else 200.0  # COUNTERFACTUAL: the no-chase gate disabled
+  nochase_
+  strategy_nochase.py
+  date
+  the store carries the study's horizon everywhere
+   hours
+  RSI [\d.]+ above 78\.0
+  RSI [\d.]+ above 68\.0
+  waiting for pullback to EMA
+  pullback gate (price above EMA)
+  falling knife
+  not a buy signal
+  falling-knife gate
+  score below min_confidence
+  other dip-buy gate / no signal
+  close
+  high
+  conf
+  size
+  mfe_usd
+  === THE NO-CHASE RULE ON ZEC'S OWN HISTORY (Sep 16) ===
+  store: 2026-07-23 -> 2026-09-11, 
+   hourly candles | counterfactual = the same strategy with ONLY the RSI ceiling gate disabled (tempdir module, one line)
+  ── THE CENSUS (the ceiling fired, the gate-free world still refused) ──
+  ceiling fired as the hold reason: RSI-78 
+   hour(s), RSI-68 
+   hour(s)
+  decisive (gate-free world actually bought): 0
+    the gate-free world refused anyway via 
+   decisive refusal trade(s) ──
+    none: the gate-free world never bought through this ceiling on ZEC — the other gates (pullback, knife, scoring) refused first. The ceiling had no decisive bite on this side.
+    would-be trades: 
+    (winners 
+  , losers 
+    LEFT ON THE TABLE: +
+  ,.2f
+   USD end-move (+
+   at the mfe top-selling ceiling)
+    SAVED by the refusals: +
+   USD (the would-be losses avoided)
+    NET of the rule on this side: 
+  +,.2f
+   USD (positive = the rule COST money; negative = the rule MADE money)
+      
+  %b %d %H:%M
+   UTC  conf 
+   -> $
+   | end 
+  +.2f
+   USD) | mfe 
+  % mae 
+  ── THE HEADLINE (both ceilings, the no-chase rule as a whole) ──
+  decisive refusals: 
+   | LEFT ON THE TABLE +
+   USD | SAVED +
+   USD | NET 
+   USD (
+  the rule cost money on ZEC
+  the rule paid for itself on ZEC
+  trail-guard lens: 
+   of 
+   would-be trades drew down past -3% (the 4% guard's territory) — the saved-side dollars partly ride the exit ladder, not just hold-to-horizon.
+  RESULT: 
+   passed, 
+   failed
+  wrote 
+   failed, 
+   decisive refusals
+  __main__
+
+TOTAL STRINGS: 80

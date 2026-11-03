@@ -1,0 +1,17 @@
+PASS  the repo resolves hindsight_service through the python path (scratch-safe: the drive and the service land in the same tree, no absolute paths)
+PASS  start verifies by HTTP (the machine's panel would render from this server)
+PASS  the wire answers the SANDBOXED fixture through the runner's env seams — B=3, r=0.67 is a shape production's journal cannot produce, so the seams moved the data paths
+PASS  an unseeded rotation answers 200 with B=0 — the panel's new-rotation render is zeros, never a 500
+PASS  a mutating POST without the operator token is refused 403 over the real wire (the transport never opens mutations)
+PASS  double start refuses — already_up, never a second server
+PASS  a second bind on the live port is refused (bind-first is the double-server guard)
+PASS  stop kills the PORT's listener even with a corrupted pid file (the uv-shim trap: the pid file may lie, the bound port cannot)
+PASS  a stale pid file (a recycled, non-python pid) never wedges start — cleared, then verified True
+PASS  a corrupt (non-numeric) pid file is ignored, start still verifies
+PASS  the runner stops an ours-shaped server it did not spawn (ownership is port+body+python, never the spawner)
+PASS  a foreign HTTP server on the port is NEVER killed — the stop refuses by name (200 but not our body) and the foreign listener survives
+PASS  concurrent scenarios: scenario 1's server stayed up and answering the whole time the runner recycled scenario 0's port (the panel's server and a neighbor coexist)
+PASS  final stop: the recycled scenario-0 server goes silent and its pid file is cleaned up
+PASS  status answers for a live foreign-spawned server (spawned here by the drive, not by the runner): http_up + is_ours + the summary probe
+
+RESULT: 15 passed, 0 failed

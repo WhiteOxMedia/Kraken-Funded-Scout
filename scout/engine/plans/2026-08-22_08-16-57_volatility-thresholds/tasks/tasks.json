@@ -1,0 +1,32 @@
+[
+  {
+    "content": "[vol-0] Kill stale :3000 orphan dashboard",
+    "id": "vol-0",
+    "status": "completed"
+  },
+  {
+    "content": "[vol-1] Build volatility_engine.py (cache, stats, JSON, tables, loop)",
+    "id": "vol-1",
+    "status": "completed"
+  },
+  {
+    "content": "[vol-2] Integrate new rotations + dual gates into background_scanner.py",
+    "id": "vol-2",
+    "status": "completed"
+  },
+  {
+    "content": "[vol-3] Launch Kraken.bat + single desktop shortcut",
+    "id": "vol-3",
+    "status": "completed"
+  },
+  {
+    "content": "[vol-4] app.py reads live calibrated bars",
+    "id": "vol-4",
+    "status": "completed"
+  },
+  {
+    "content": "[vol-5] Cross-check all py references + end-to-end verify",
+    "id": "vol-5",
+    "status": "completed"
+  }
+]

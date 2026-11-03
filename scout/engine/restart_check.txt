@@ -1,0 +1,28 @@
+=== PYTHON PROCESSES ===
+PID 17720  created 9/6/2026 8:38:24 AM  cmd: C:\Python314\python.exe  pool\server.py
+PID 22096  created 9/6/2026 10:22:27 AM  cmd: .venv\Scripts\python.exe  background_scanner.py  
+PID 21768  created 9/6/2026 10:22:27 AM  cmd: "C:\Users\birds\AppData\Roaming\uv\python\cpython-3.14-windows-x86_64-none\python.exe"   background_scanner.py  
+PID 10812  created 9/6/2026 10:22:29 AM  cmd: .venv\Scripts\python.exe  bot_runner.py --interval 15  
+PID 22336  created 9/6/2026 10:22:30 AM  cmd: "C:\Users\birds\Workspace\kraken_scout\.venv\Scripts\python.exe" "C:\Users\birds\Workspace\kraken_scout\.venv\Scripts\streamlit.exe" run app
+PID 11568  created 9/6/2026 10:22:30 AM  cmd: "C:\Users\birds\AppData\Roaming\uv\python\cpython-3.14-windows-x86_64-none\python.exe"  "C:\Users\birds\Workspace\kraken_scout\.venv\Scripts
+total python.exe count: 8
+
+=== PORT 8501 ===
+TCP    0.0.0.0:8501           0.0.0.0:0              LISTENING       11568
+TCP    [::]:8501              [::]:0                 LISTENING       11568
+
+=== BOT HEARTBEAT ===
+last write: 9/6/2026 10:49:48 AM  (age 00 min 11 s)
+
+=== SCANNER LOCK / VOICE ===
+scanner.lock last write: 9/6/2026 10:22:31 AM
+voice_log tail:
+  {"ts": "2026-09-06T09:37:08.119975-06:00", "text": "CRV is today's best pick! Confirm it below!"}
+  {"ts": "2026-09-06T10:02:58.118030-06:00", "text": "Buy RENDER! 100 percent sure! Aim for plus 1 percent! Small size only  4,101 dollars! If it hasn't paid by 12:02, get out!"}
+  {"ts": "2026-09-06T10:23:40.017330-06:00", "text": "Hello there! My systems are online and ready to make you a ton of money today! Ready to have some fun!"}
+  {"ts": "2026-09-06T10:29:16.326333-06:00", "text": "Buy UNI! 64 percent sure! The brain says 64 percent  sizing at 0.33! Fast route! Aim for plus 2 percent! Small size only  850 dollars! If it hasn't paid by 11:59, get out!"}
+  {"ts": "2026-09-06T10:42:56.779087-06:00", "text": "Buy DOT! 52 percent sure! The brain says 52 percent  sizing at 0.20! Fast route! Lone wolf! Moving on her own while the fleet sits still! Aim for plus 1 percent! Small size only  500 dollars! If it hasn't paid by 12:02, get out!"}
+
+=== COMMIT TIMES ===
+bot repo:    7cb5d73 2026-09-06 09:41:55 -0600 The self-strategy retirement (user rule, Sep 6): the real account trades ONLY scout signals
+scout repo:  026414b 2026-09-06 09:40:36 -0600 The fast funnel goes live + the self-strategy retirement (user rule, Sep 6: "We have enough data to act now. Get it done. This won't survive a week like this.")

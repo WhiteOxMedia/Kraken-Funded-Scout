@@ -1,0 +1,7 @@
+now: Tue 03:32 PM Denver
+
+OP records since 3:00 PM: 0
+DOGE records since 3:00 PM: 1
+  2026-08-25T15:09:19 buy rejected  src=scout_auto   conf=79 entry=0.085352 exec=Max positions — challenger lost the head-to-head
+DOGE/USD: live=0.08620 EMA9=0.08798 EMA21=0.08913 -> FALLING
+OP/USD: live=0.10090 EMA9=0.10257 EMA21=0.10411 -> FALLING

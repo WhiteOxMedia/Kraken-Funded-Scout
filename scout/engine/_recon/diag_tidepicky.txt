@@ -1,0 +1,151 @@
+### diag_tidepicky — co_filename=diag_tidepicky.py firstlineno=1
+DOCSTRING:
+diag_tidepicky.py — THE PICKY-TIDE STUDY (Sep 19).
+
+HER HYPOTHESIS, priced before anything is built: "When the Tide is
+rising we get picky when we need to relax. All ships rise together.
+Good. The only concern is to get spread too thin ... too much churn and
+burn fees to chase all the Buy signals at once, and going thin doesn't
+make much profit overall. I want the thickest book choice with the most
+steady climb rate based on the full coin history to win the popup
+floor. Longer goal times with higher expectations: 5-10% in 4-6 hours."
+
+The replay, on the REAL 1h store (the same files the wiggle book and
+the deep store read — full coin history, 60d window):
+  - the tide is recomputed exactly as the fleet computes it: EMA21 per
+    coin, breadth = % of coins above it, RISING = breadth >= 75.
+  - at every RISING hour, the eligibility screen a RISING-tide funnel
+    would apply (above EMA21, 2-20% 24h range, top-30% dollar volume,
+    fresh quote) produces the CHASE world: every eligible coin takes a
+    slot, budget split evenly (the "spread too thin" she names).
+  - the PICKY world takes ONE coin per RISING hour: the thickest book
+    (top 15% dollar volume) with the steadiest 24h cli
+
+TOP-LEVEL NAMES (imports/defs in order):
+  IMPORT json
+  STORE  json
+  IMPORT sys
+  STORE  sys
+  IMPORT pathlib
+  IMPORT Path
+  STORE  Path
+  IMPORT pandas
+  STORE  pd
+  STORE  STORE
+  STORE  OUT
+  STORE  LOOKBACK_DAYS
+  STORE  TIDE_RISING_MIN
+  STORE  GOALS
+  STORE  HORIZONS_H
+  STORE  ELIG_MIN_PCT
+  STORE  ELIG_MAX_PCT
+  STORE  THICK_Q
+  STORE  MAX_CHASE_SLOTS
+  STORE  FEE_THIN
+  STORE  FEE_THICK
+  STORE  BUDGET
+  STORE  load_universe
+  STORE  tide_hours
+  STORE  eligible_at
+  STORE  settle
+  STORE  run_study
+  STORE  r
+
+ALL STRINGS (dedup, order-preserving, >=4 chars):
+  diag_tidepicky.py — THE PICKY-TIDE STUDY (Sep 19).
+
+HER HYPOTHESIS, priced before anything is built: "When the Tide is
+rising we get picky when we need to relax. All ships rise together.
+Good. The only concern is to get 
+  surething_data
+  kraken
+  _tidepicky.txt
+  {pair: DataFrame(date, open, high, low, close, volume, ema21,
+vol20)} over the lookback window. Read-only.
+  *_USD-1h.feather
+  date
+  close
+  ema21
+  volume
+  vol20
+  _USD
+  {ts: breadth_pct} — the fleet's own math: % of coins above their
+EMA21, one row per hourly stamp (coins with >=25 bars at that stamp).
+  The RISING-tide buy screen on coin `df` at bar `i`: above its own
+EMA21, a 2-20% 24h range (a mover, not a corpse, not an explosion
+already over), a real dollar-volume rank, a fresh quote.
+  range
+  stead
+  vol_rank
+  Goal-hit within the horizon (filled at the goal price, the same
+fill the bot's limit would get) else exit at the horizon close.
+Returns the gross move in % (positive/negative).
+  high
+  error
+  universe too thin: 
+   coins
+  no RISING hours in the window
+  pair
+  n_elig
+  cand
+  pick
+  no actionable RISING slots
+  One pass: every goal x horizon; returns per-slot net % lists.
+  picky
+  sum_pct
+  thin
+  picky2
+  chase
+  THE PICKY-TIDE STUDY (Sep 19) — chase-all vs one picky pick,
+  window: last 
+  d of the 1h store, 
+   coins, 
+   RISING hours, 
+   actionable slots
+  : avg slot 
+  +6.2f
+  %  ($
+  +7.2f
+   on $
+  )   per-trade 
+  %   >0 trades 
+  4.0%
+     slots w/ thin-book 
+    BEST: 
+   at 
+  +.2f
+  %/slot ($
+  PICKY — one thick+steady coin, 5-10% goals, 4-6h
+  PICKY-2 — the two steadiest thick coins, 50/50
+  CHASE — top-4 by book rank, 25% chunks each
+  THE WORST SLOTS (risk of the best config each)
+    picky 
+  : worst 
+  %, 10th-pct 
+    picky2 
+    chase 
+    NOTE: the 'chase' world is the ACTIONABLE chase — top-4 by book rank (the chunk picker's 25% x 4). Full-breadth splits ($12 legs) cannot exist on the platform.
+  THE VERDICT
+    picky best: 
+    picky2 best: 
+    chase best: 
+    edge picky2 vs chase: 
+   per $
+   slot)
+    her hypothesis (ONE pick wins) is TRUE on this window
+    her hypothesis (ONE pick wins) is NOT supported on this window
+  THE THIN SPLIT (chase world): median eligible coins per RISING hour = 
+  ; a $
+   slot splits into ~$
+   positions — at 5-10% goals each leg must run its full goal to move the slot.
+  utf-8
+  slots
+  rising_hours
+  coins
+  picky_best
+  picky2_best
+  chase_best
+  median_eligible
+  __main__
+
+TOTAL STRINGS: 85

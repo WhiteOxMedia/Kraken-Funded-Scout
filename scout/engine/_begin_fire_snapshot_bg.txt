@@ -1,0 +1,29 @@
+def _begin_fire_snapshot(exchange, pair: str, quick_conf, **extras) -> dict:
+    """Compute + stash the fire-time feature vector for this candidate —
+    ONE 5-min candle fetch, reused by every downstream verdict (fired or
+    buried). Feature failure NEVER blocks the funnel: a broken read logs
+    features=None and the gates proceed (the fail-closed rule lives on
+    the DEEP SCAN, not on the feature math)."""
+    ctx = {"pair": pair, "quick": quick_conf, "contest_size": _contest_size()}
+    ctx.update(extras)
+    feats = None
+    try:
+        from hindsight_scorer import fire_features
+        rows = exchange.fetch_ohlcv(pair, timeframe="5m", limit=100)
+        feats = fire_features(rows or [])
+    except Exception as exc:
+        logger.debug("fire-time features unavailable for %s: %s", pair, exc)
+        ctx["features_error"] = True
+    ctx["features"] = feats
+    _SNAPSHOT_CTX.clear()
+    _SNAPSHOT_CTX.update({"pair": pair, "started": time.time(), "ctx": ctx})
+    return ctx
+
+
+def _deep_read(exchange, pair, cfg):
+    """The deep scan: the 1h x 200 strategy read behind every fire-time
+    verdict. ONE implementation (Sep 7): the champion path's closure and
+    the Sure Thing's pre-fire gate both call this — every popup is
+    brain-read BEFORE it fires (the Sep 6 post-entry waiver retired at
+    the user's call). Returns (signal, df) or (None, None). Never
+    raises — the c

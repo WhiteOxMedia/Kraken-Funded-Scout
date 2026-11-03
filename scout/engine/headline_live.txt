@@ -1,0 +1,6 @@
+live headline run: Tue 08:38 AM Denver
+signals in last 45 min: 13  ->  distinct moves after clustering: 3
+
+HEADLINE  PUMP       $20 in ~0.7h  since-signal +1.8%  setup 77%  book $408,815  (cluster of 2)
+runner 1  AIXBT      $20 in ~1.1h  since-signal +0.0%  setup 67%  book $396  (cluster of 6)
+runner 2  DOGE       $20 in ~1.6h  since-signal +0.2%  setup 80%  book $592,542  (cluster of 1)

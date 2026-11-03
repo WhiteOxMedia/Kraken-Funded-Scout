@@ -1,0 +1,31 @@
+winners rows: 30
+09-04 17:00:15  DOGE/USD    buy  conf=51.9 scan=auto regime=ranging reasons=["Regime: ranging (volatility rank 52/100)", "MACD bullish (hist=0.0000)", "EMA bearish (short < long)", "Sign
+09-04 16:54:27  HYPE/USD    buy  conf=51.3 scan=auto regime=ranging reasons=["Regime: ranging (volatility rank 69/100)", "MACD bearish (hist=-0.1539)", "EMA bearish (short < long)", "Sig
+09-04 16:47:38  TIA/USD     buy  conf=50.0 scan=auto regime=ranging reasons=["Regime: ranging (volatility rank 33/100)", "MACD bullish (hist=0.0001)", "EMA bearish (short < long)", "Sign
+09-04 16:36:08  TIA/USD     buy  conf=51.1 scan=auto regime=ranging reasons=["Regime: ranging (volatility rank 33/100)", "MACD bullish (hist=0.0001)", "EMA bearish (short < long)", "Sign
+09-04 16:14:43  UNI/USD     buy  conf=50.8 scan=auto regime=ranging reasons=["Regime: ranging (volatility rank 65/100)", "MACD bearish (hist=-0.0168)", "EMA bearish (short < long)", "Sig
+09-04 16:10:42  POPCAT/USD  buy  conf=50.3 scan=auto regime=ranging reasons=["Regime: ranging (volatility rank 61/100)", "MACD bullish (hist=0.0000)", "EMA bearish (short < long)", "Sign
+09-04 15:56:44  PNUT/USD    buy  conf=56.3 scan=auto regime=ranging reasons=["Regime: ranging (volatility rank 71/100)", "MACD bearish (hist=-0.0000)", "EMA bearish (short < long)", "Sig
+09-04 15:54:28  MOODENG/USD buy  conf=59.0 scan=auto regime=high_vol reasons=["Regime: high_vol (volatility rank 91/100)", "\ud83d\udd25 BREAKOUT \u2014 Phase 1 \u2014 Breakout \u2014 +2.
+09-04 15:52:02  HYPE/USD    buy  conf=50.8 scan=auto regime=ranging reasons=["Regime: ranging (volatility rank 67/100)", "MACD bearish (hist=-0.1516)", "EMA bearish (short < long)", "Sig
+09-04 15:42:48  MOODENG/USD buy  conf=59.0 scan=auto regime=high_vol reasons=["Regime: high_vol (volatility rank 89/100)", "\ud83d\udd25 BREAKOUT \u2014 Phase 1 \u2014 Breakout \u2014 +3.
+09-04 15:37:18  HYPE/USD    buy  conf=40.6 scan=full regime=ranging reasons=["Regime: ranging (volatility rank 65/100)", "MACD bearish (hist=-0.1332)", "EMA bearish (short < long)", "Sig
+09-04 15:33:45  WIF/USD     buy  conf=54.4 scan=auto regime=ranging reasons=["Regime: ranging (volatility rank 54/100)", "MACD bullish (hist=0.0001)", "EMA bearish (short < long)", "Sign
+09-04 15:31:18  MOODENG/USD buy  conf=59.0 scan=auto regime=high_vol reasons=["Regime: high_vol (volatility rank 89/100)", "\ud83d\udd25 BREAKOUT \u2014 Phase 1 \u2014 Breakout \u2014 +3.
+09-04 15:25:16  HYPE/USD    buy  conf=45.5 scan=full regime=ranging reasons=["Regime: ranging (volatility rank 65/100)", "MACD bearish (hist=-0.1420)", "EMA bearish (short < long)", "Sig
+09-04 15:21:11  TRX/USD     sell conf=17.7 scan=full regime=ranging reasons=["Regime: ranging (volatility rank 38/100)", "MACD bullish (hist=0.0001)", "EMA bullish (short > long)", "Sign
+09-04 15:20:21  MOODENG/USD buy  conf=59.0 scan=auto regime=high_vol reasons=["Regime: high_vol (volatility rank 89/100)", "\ud83d\udd25 BREAKOUT \u2014 Phase 1 \u2014 Breakout \u2014 +2.
+09-04 15:15:54  WIF/USD     buy  conf=52.1 scan=auto regime=ranging reasons=["Regime: ranging (volatility rank 52/100)", "MACD bullish (hist=0.0001)", "EMA bearish (short < long)", "Sign
+09-04 15:04:52  WIF/USD     buy  conf=52.1 scan=auto regime=ranging reasons=["Regime: ranging (volatility rank 52/100)", "MACD bullish (hist=0.0001)", "EMA bearish (short < long)", "Sign
+09-04 14:55:36  MOODENG/USD buy  conf=59.0 scan=auto regime=high_vol reasons=["Regime: high_vol (volatility rank 92/100)", "\ud83d\udd25 BREAKOUT \u2014 Phase 1 \u2014 Breakout \u2014 +2.
+09-04 14:51:39  ZEC/USD     buy  conf=77.5 scan=auto regime=bull_trend reasons=["Regime: bull_trend (volatility rank 98/100)", "Pullback to EMA support in uptrend (RSI 61.8) \u2014 trend en
+09-04 14:44:07  MOODENG/USD buy  conf=59.0 scan=auto regime=high_vol reasons=["Regime: high_vol (volatility rank 89/100)", "\ud83d\udd25 BREAKOUT \u2014 Phase 1 \u2014 Breakout \u2014 +2.
+09-04 14:32:38  MOODENG/USD buy  conf=59.0 scan=auto regime=high_vol reasons=["Regime: high_vol (volatility rank 90/100)", "\ud83d\udd25 BREAKOUT \u2014 Phase 1 \u2014 Breakout \u2014 +1.
+09-04 14:21:10  MOODENG/USD buy  conf=59.0 scan=auto regime=high_vol reasons=["Regime: high_vol (volatility rank 89/100)", "\ud83d\udd25 BREAKOUT \u2014 Phase 1 \u2014 Breakout \u2014 +2.
+09-04 14:09:30  MOODENG/USD buy  conf=59.0 scan=auto regime=high_vol reasons=["Regime: high_vol (volatility rank 90/100)", "\ud83d\udd25 BREAKOUT \u2014 Phase 1 \u2014 Breakout \u2014 +1.
+09-04 13:57:58  MOODENG/USD buy  conf=51.0 scan=auto regime=high_vol reasons=["Regime: high_vol (volatility rank 96/100)", "\ud83d\udd25 BREAKOUT \u2014 Phase 1 \u2014 Breakout \u2014 +3.
+09-04 13:53:30  ASTER/USD   buy  conf=54.0 scan=auto regime=high_vol reasons=["Regime: high_vol (volatility rank 97/100)", "\ud83d\udd25 BREAKOUT \u2014 Phase 1 \u2014 Breakout \u2014 +1.
+09-04 13:46:28  MOODENG/USD buy  conf=51.0 scan=auto regime=high_vol reasons=["Regime: high_vol (volatility rank 96/100)", "\ud83d\udd25 BREAKOUT \u2014 Phase 1 \u2014 Breakout \u2014 +3.
+09-04 13:24:40  ASTER/USD   buy  conf=54.0 scan=auto regime=high_vol reasons=["Regime: high_vol (volatility rank 96/100)", "\ud83d\udd25 BREAKOUT \u2014 Phase 1 \u2014 Breakout \u2014 +1.
+09-04 12:01:48  STX/USD     buy  conf=50.0 scan=auto regime=ranging reasons=["Regime: ranging (volatility rank 29/100)", "MACD bearish (hist=-0.0006)", "EMA bearish (short < long)", "Sig
+09-04 11:52:30  DOGE/USD    buy  conf=64.0 scan=auto regime=high_vol reasons=["Regime: high_vol (volatility rank 82/100)", "RSI oversold (27.6)", "BB oversold (%B=0.05)", "Double oversold

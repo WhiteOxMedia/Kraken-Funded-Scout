@@ -1,0 +1,221 @@
+scout copy: 414 lines; bot live: 985 lines; diff hunks: 14
+--- scout_copy
++++ bot_live
+@@ -42,7 +42,85 @@
+     is_kill_switch_active, get_kill_switch_reason, trigger_kill_switch,
+-    get_daily_pnl, get_consecutive_losses, is_already_holding,
+-    get_open_position_count, MAX_CONCURRENT_POSITIONS,
++    is_already_holding, get_open_position_count, max_positions_for,
++    record_daily_start_balance, get_daily_start_balance, MAX_DAILY_LOSS_PCT,
++    _get_db,  # noqa: F401 — used by the ghost sweep
+ )
+-
+-MST = timezone(timedelta(hours=-7))
++from restricted_pairs import is_restricted
++
++from zoneinfo import ZoneInfo
++MST = ZoneInfo("America/Denver")  # Auto DST: MDT (UTC-6) summer, MST (UTC-7) winter
++
++
++def _get_total_account_value(kraken) -> float:
++    """Get total account value in USD: all cash + all crypto at market price."""
++    try:
++        import ccxt
++        balance = kraken.exchange.fetch_balance()
++        total_usd = 0.0
++
++        # Add cash balances (USD, USDT, EUR, etc.)
++        for cur in ("USD", "USDT", "EUR", "GBP"):
++            val = balance.get(cur, {})
++            if isinstance(val, dict):
++                total_usd += float(val.get("total", 0))
++            elif isinstance(val, (int, float)):
++                total_usd += float(val)
++
++        # Add crypto balances — convert each to USD via ticker
++        for cur, info in balance.get("total", {}).items():
++            if cur in ("USD", "USDT", "EUR", "GBP", "ZFEE"):
++                continue
++            amount = float(info) if not isinstance(info, dict) else float(info.get("total", 0))
++            if amount <= 0:
++                continue
++            try:
++                pair = f"{cur}/USD"
++                ticker = kraken.exchange.fetch_ticker(pair)
++                price = float(ticker.get("last", 0))
++                total_usd += amount * price
++            except Exception:
++                # Try USDT pair as fallback
++                try:
++                    pair = f"{cur}/USDT"
++                    ticker = kraken.exchange.fetch_ticker(pair)
++                    price = float(ticker.get("last", 0))
++                    total_usd += amount * price
++                except Exception:
++                    continue  # Skip unknown asset
++
++        return total_usd
++    except Exception as exc:
++        logger.warning("Could not fetch total account value: %s", exc)
++        return 0.0
++
++
++def _check_balance_circuit_breaker(kraken) -> tuple[bool, str]:
++    """Check if account has dropped more than MAX_DAILY_LOSS_PCT today.
++
++    Returns (should_trigger, reason).
++    Uses actual Kraken balance — snapshots at first check of the day,
++    then compares current value against that snapshot.
++    """
++    current_value = _get_total_account_value(kraken)
++    if current_value <= 0:
++        return False, ""  # Can't check — don't trigger
++
++    # Get or set today's starting balance
++    day_start = get_daily_start_balance()
++    if day_start is None:
++        # First check of the day — record the starting balance
++        record_daily_start_balance(current_value)
++        logger.info("📊 Daily balance snapshot: $%.2f (kill switch at -%s%% = $%.2f)",
++                    current_value, MAX_DAILY_LOSS_PCT, current_value * (1 - MAX_DAILY_LOSS_PCT / 100))
++        return False, ""
++
++    # Check if we've dropped more than 10%
++    loss_pct = ((day_start - current_value) / day_start) * 100
++    if loss_pct >= MAX_DAILY_LOSS_PCT:
++        return True, (f"Account dropped {loss_pct:.1f}% today "
++                      f"(start: ${day_start:.2f}, now: ${current_value:.2f}, "
++                      f"loss: ${day_start - current_value:.2f})")
++
++    logger.info("📊 Balance check: $%.2f (start $%.2f, %s%.1f%%)",
++                current_value, day_start, "+" if current_value >= day_start else "", loss_pct)
++    return False, ""
+ 
+@@ -52,10 +130,11 @@
+ def _find_weakest_position(kraken, config) -> dict | None:
+-    """Find the weakest LOSING position to sell for rebalancing.
+-
+-    Only considers positions that are currently at a LOSS (pnl_pct < 0).
+-    Profitable positions are never sold for rebalancing.
+-
+-    Evaluates each losing position by:
+-    1. P&L percentage (worst loser first)
+-    2. Current strategy signal (sell/hold = weaker than buy)
++    """Find the weakest position to sell for rebalancing.
++
++    Evaluates each position by:
++    1. P&L percentage (worst first)
++    2. Current strategy signal (sell = weakest, hold = medium, buy = strongest)
++
++    A position showing a sell signal is the weakest regardless of PnL —
++    momentum has already left. A position showing a strong buy is spared
++    (it's recovering).
+ 
+@@ -75,6 +154,2 @@
+             pnl_pct = ((live_price - pos.entry_price) / pos.entry_price) * 100
+-
+-            # ONLY consider losing positions — never sell a winner for rebalancing
+-            if pnl_pct >= 0:
+-                continue
+ 
+@@ -95,2 +170,4 @@
+                         signal_penalty = -2.0  # momentum fading
++                    elif sig.action == "buy" and sig.confidence >= 50:
++                        continue  # recovering — skip this position
+             except Exception:
+@@ -110,7 +187,363 @@
+     if weakest:
+-        logger.info("  Weakest loser: %s (%.1f%% P&L)", weakest["pair"], weakest["pnl_pct"])
++        logger.info("  Weakest position: %s (%.1f%% PnL)", weakest["pair"], weakest["pnl_pct"])
+     else:
+-        logger.info("  No losing positions to rebalance from")
++        logger.info("  No positions available to rebalance from")
+ 
+     return weakest
++
++
++# ── RESTORED GATES (user directive, Sep 4: "restore the gates that were
++# deleted and make them work properly, if they were in effect on Sept
++# 3rd" — the Sep 3 17:57 rework silently dropped these; the Sep 3 trading
++# record they're credited for ran WITH them): the head-to-head challenge,
++# the winner-lock, the chase guard, the ghost sweep, the learned pair
++# blacklist. Merged onto the current base: the POSITION LADDER v2, the
++# >=70 rotation floor (user rule, Sep 3), market orders, scout_mover,
++# and the scout_exit_check sell path all stand.
++# ── Head-to-head challenge: a new signal can displace the weakest position ──
++CHALLENGE_MARGIN = 10.0      # challenger must beat the incumbent by this many points
++WINNER_PROTECT_PCT = 5.0     # positions up more than this NEVER get challenged
++FRESH_BUY_COOLDOWN_MIN = 120 # positions younger than this can't be challenged
++                             # (Aug 24: 30 min allowed same-hour churn — 59 fills,
++                             # ~$16 fees; CRV lived 58 minutes, JUP was bought-sold-
++                             # rebought inside 63 minutes)
++CHASE_STALE_PCT = 2.0        # live > signal entry by this = the signal went stale
++CHASE_BLOWOFF_PCT = 5.0      # live > 1h low by this = buying a blowoff spike
++GHOST_GRACE_MIN = 35         # bridge record younger than this might be a buy in flight
++
++
++def _sweep_ghost_bridge_records() -> list[str]:
++    """Close bridge 'filled' records whose positions the bot no longer holds.
++
++    Ground truth is the bot's own position DB: if a pair has no open bot
++    position and its bridge record is older than GHOST_GRACE_MIN minutes,
++    the sell happened without the bridge being notified — a ghost. Ghosts
++    occupy the position slots and silently reject every
++    new signal (the Aug 24 morning: three ghosts ate six 92% picks).
++    Returns the list of swept pairs.
++    """
++    from datetime import datetime, timezone as _tz
++    import db as bot_db
++
++    open_bridge = []
++    try:
++        # read-only peek at the bridge's filled buys
++        conn = _get_db()
++        conn.row_factory = None
++        rows = conn.execute(
++            "SELECT signal_id, pair, executed_at FROM signals "
++            "WHERE status='filled' AND action='buy'").fetchall()
++        open_bridge = [(r[0], r[1], r[2]) for r in rows]
++        conn.close()
++    except Exception:
++        return []
++
++    if not open_bridge:
++        return []
++
++    held_bases = {p.base_currency for p in bot_db.get_open_positions()}
++    now = datetime.now(_tz.utc)
++    swept = []
++    for signal_id, pair, executed_at in open_bridge:
++        try:
++            base = pair.split("/")[0] if "/" in pair else ""
++            if base in held_bases:
++                continue  # real position — keep
++            if executed_at:
++                t = datetime.fromisoformat(executed_at)
++                if t.tzinfo is None:
++                    t = t.replace(tzinfo=_tz.utc)
++                age_min = (now - t).total_seconds() / 60
++                if age_min < GHOST_GRACE_MIN:
++                    continue  # possibly a buy still being opened — leave it
++            mark_closed(signal_id, 0.0)
++            swept.append(f"{base}({signal_id})")
++        except Exception as exc:
++            logger.debug("Ghost sweep skip %s: %s", pair, exc)
++    return swept
++
++
++def _bridge_entry_conf(pair: str) -> float:
++    """The confidence the signal carried when we BOUGHT this pair — the
++    incumbent's entry conviction. Aug 24 lesson: scoring incumbents by a
++    fresh scan returned hold=0% for nearly everything, so ANY challenger
++    won the head-to-head (a 72% SOL displaced an 89% CRV after 58 min).
++    Entry conviction is the honest strength of the incumbent's case."""
++    try:
++        conn = _get_db()
++        conn.row_factory = None
++        row = conn.execute(
++            "SELECT confidence FROM signals WHERE pair=? AND action='buy' "
++            "AND status='filled' ORDER BY executed_at DESC LIMIT 1",
++            (pair,)).fetchone()
++        conn.close()

@@ -1,0 +1,20 @@
+=== READ-BEFORE-ASSIGN v4 (st-shadow scope machinery) ===
+--- 0 candidate problems (whole-file, any store counts) ---
+
+=== SIZING GATES — CALL-AWARE FLOW CHECK (worth tilt / cap ceiling / danger zone / the bot's order-sizing path) ===
+  CLEAN — every gate's first read of every local follows its first store, call arguments included (walrus counts as a store)
+--- 0 gate-flow findings ---
+
+=== HARDCODED DOLLAR FALLBACKS IN SIZING CONTEXTS ===
+  background_scanner.py:1182  $1000.0 in: _size = 1000.0
+--- 1 dollar-literal sites (inspect each: fallback or legit constant?) ---
+
+SELFTEST (the hermetic canon — each case named, all must pass):
+  [PASS] fx_ule — the planted call-arg ULE flags at the call argument (2 finding(s): _danger_zone_panel.spend READ before first STORE (store at line 3); _danger_zone_panel.spend call-arg READ feeding impact() at line 2 before first STORE (line 3) — UnboundLocalError at fire time)
+  [PASS] fx_param — params-as-stores stay quiet (0 finding(s))
+  [PASS] fx_import — import-alias bindings stay quiet (0 finding(s))
+  [PASS] fx_walrus — walrus targets count as stores (condition binds first) (0 finding(s))
+  [PASS] fx_module — qualified module-handle reads never count as bare gate-name reads (0 finding(s))
+  aggregate: [PASS] fx_ule=PASS (2 finding(s): _danger_zone_panel.spend READ before first STORE (store at line 3); _danger_zone_panel.spend call-arg READ feeding impact() at line 2 before first STORE (line 3) — UnboundLocalError at fire time); fx_param=PASS (0 finding(s)); fx_import=PASS (0 finding(s)); fx_walrus=PASS (0 finding(s)); fx_module=PASS (0 finding(s))
+
+VERDICT: GATES CLEAN

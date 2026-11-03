@@ -1,0 +1,122 @@
+### test_extfade — co_filename=test_extfade.py firstlineno=1
+DOCSTRING:
+test_extfade.py - pins THE EXTENSION-FADE HINDSIGHT STUDY (Sep 19).
+
+The study (diag_extfade.py) prices the proposed fade gate's hindsight:
+every real popup fire, its over-extension features at fire time from
+the deep 1h store, and what the trade did in its 4h contest window.
+These pins run the pure core HERMETICALLY (tmpdir logs, synthetic
+candles, hand-verified arithmetic) so the battery never touches the
+production ledgers:
+
+  1. the fire harvest - both BIG ALERT line formats, AM/PM -> 24h,
+     the bare-asset /USD append, and (pair, hour) dedupe
+  2. the fire grader - ext / run24 / rngpos / end / mfe arithmetic
+     against a hand-computed synthetic candle world
+  3. the grader's None contract - short history and open windows are
+     skipped, never priced
+  4. the band verdict - counts, won, ran, end dollars, empty bands
+     omitted
+  5. the tercile splitter
+  6. THE DECISION RULE - a fade gate is contradicted when the
+     fade-shape band's end dollars are positive (extended fires made
+     money). Pinned on a synthetic contradiction world so the rule
+     itself can never be inverted by a future edit.
+
+The lived verdict from the Sep 19 run (51 graded fires): the fade
+shape 
+
+TOP-LEVEL NAMES (imports/defs in order):
+  IMPORT json
+  STORE  json
+  IMPORT sys
+  STORE  sys
+  IMPORT tempfile
+  STORE  tempfile
+  IMPORT pathlib
+  IMPORT Path
+  STORE  Path
+  STORE  PASS
+  STORE  FAIL
+  STORE  lines
+  STORE  check
+  IMPORT numpy
+  STORE  np
+  IMPORT pandas
+  STORE  pd
+  IMPORT diag_extfade
+  STORE  ef
+  STORE  tmp
+  STORE  log
+  STORE  fires
+  STORE  by_pair
+  STORE  n
+  STORE  idx
+  STORE  closes
+  STORE  fwd
+  STORE  df
+  STORE  g
+  STORE  rows
+  STORE  v
+  STORE  t1
+  STORE  t2
+  STORE  fade_band
+  STORE  bv
+  STORE  contradicted
+  STORE  out
+
+ALL STRINGS (dedup, order-preserving, >=4 chars):
+  test_extfade.py - pins THE EXTENSION-FADE HINDSIGHT STUDY (Sep 19).
+
+The study (diag_extfade.py) prices the proposed fade gate's hindsight:
+every real popup fire, its over-extension features at fire time from
+the deep 1h
+  PASS  
+  FAIL  
+  scanner.log.2026-09-19
+  07:05 AM [main] BIG ALERT: BUY NEAR - 89% - entry $2.85
+07:50 AM [main] BIG ALERT: BUY NEAR - 90% - entry $2.90
+07:45 AM [main] 🚀 BIG ALERT: BUY STX — 64% — entry $0.61
+02:10 PM [main] BIG ALERT: BUY PUMP - 67% - entry $
+  utf-8
+  harvest: both line formats + dedupe to 3 fires
+  pair
+  harvest: bare asset gets /USD
+  NEAR/USD
+  STX/USD
+  harvest: AM/PM to 24h (07:05, 07:45, 14:10)
+  PUMP/USD
+  harvest: confidence parsed
+  conf
+  2026-09-19 00:00
+  open
+  high
+  close
+  volume
+  grader: ext vs hand-computed EMA20 (+8.97%)
+  grader: run24 = +10% (float-tight)
+  run24
+  grader: rngpos = 100 (top of the 48h range)
+  rngpos
+  grader: end = +3.64%
+  grader: mfe = +3.64% and ran3% qualifies
+  grader: short history -> None
+  grader: open forward window -> None
+  verdict: band A is [lo,hi) - x=3.0 stays out (n=2, won=1, ran=1)
+  verdict: band A end dollars = +$30
+  end_usd
+  verdict: genuinely empty band omitted
+  terciles: 33/66 pct of 1..9
+  HIGH (fade shape)
+  decision rule: positive fade-band end$ contradicts the gate
+  decision rule: the study's lived verdict is registered
+  stays unwired
+  HIGH stretch +$105.19, HIGH run24 +$129.43, strict +$75.05
+   passed, 
+   failed
+
+  _extfade_check.txt
+  ascii
+  replace
+
+TOTAL STRINGS: 44

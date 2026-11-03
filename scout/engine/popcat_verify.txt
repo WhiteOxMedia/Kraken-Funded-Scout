@@ -1,0 +1,28 @@
+=== discipline_state.json (the 08-12 evaluation) ===
+{
+ "date": "2026-09-04",
+ "rot": "08-12",
+ "score": 50.0,
+ "total_left": 227.72,
+ "realized_pnl": 0,
+ "balance_after": 10000.69,
+ "ts": "2026-09-04T14:32:33.283995-06:00"
+}
+lessons: [{"ts": "2026-09-04T14:32:27.097991-06:00", "lesson": "Score and money agree (score 100, realized $+0) \u2014 weights hold; the calibration stands."}, {"ts": "2026-09-04T14:32:33.283995-06:00", "lesson": "Score and money agree (score 50, realized $+0) \u2014 weights hold; the calibration stands."}, {"ts": "2026-09-04T14:32:33.555748-06:00", "lesson": "Score and money agree (score 100, realized $+0) \u2014 weights hold; the calibration stands."}]
+
+=== voice_log POPCAT lines (all time) ===
+(none — no popup ever SPOKE a POPCAT call)
+
+=== winners table POPCAT today ===
+09-04 16:10:42  conf=50.3 scan=auto regime=ranging
+09-04 10:32:24  conf=50.3 scan=auto regime=ranging
+09-04 10:21:41  conf=50.3 scan=auto regime=ranging
+09-04 09:53:26  conf=69.0 scan=auto regime=high_vol
+09-04 09:41:52  conf=79.0 scan=auto regime=high_vol
+09-04 09:30:23  conf=79.0 scan=auto regime=high_vol
+09-04 09:20:35  conf=79.0 scan=auto regime=high_vol
+09-04 09:08:40  conf=79.0 scan=auto regime=high_vol
+09-04 08:57:13  conf=87.0 scan=auto regime=high_vol
+09-04 08:46:03  conf=67.0 scan=auto regime=high_vol
+09-04 08:34:43  conf=67.0 scan=auto regime=high_vol
+09-04 08:29:24  conf=67.0 scan=auto regime=high_vol

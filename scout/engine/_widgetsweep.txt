@@ -1,0 +1,16 @@
+=== THE SNAP-BACK SWEEP — every stateful widget keyed, backed, and storing semantic values — FLEET-WIDE ===
+
+selftest: PASS — selftest clean: no-key, stored-display, prefill, and dynamic-value rules all live
+discovered: 2 streamlit module(s): app.py, secrets_utils.py
+audited: 19 stateful widget calls fleet-wide
+
+[GATE] app.py: 19 stateful widget call(s), 0 tier-1, 0 tier-2
+[GATE] secrets_utils.py: 0 stateful widget call(s), 0 tier-1, 0 tier-2
+
+TIER 1: none — every stateful widget in every gated module carries a stable key and stores semantic values
+
+tier 2: none
+
+the blessed pattern: stable literal key + semantic session_state
+restored init-on-missing; counted labels rendered, never stored
+(the verdict dropdown, the sims toggle, the ISO-week picker).

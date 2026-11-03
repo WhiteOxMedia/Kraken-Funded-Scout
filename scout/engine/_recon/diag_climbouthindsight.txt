@@ -1,0 +1,144 @@
+### diag_climbouthindsight — co_filename=diag_climbouthindsight.py firstlineno=1
+DOCSTRING:
+diag_climbouthindsight.py — THE CLIMB-OUT BRIDGE'S HINDSIGHT (Sep 20).
+
+WHY THIS EXISTS: the climb-out bridge (Sep 19, user: "Thin book = low
+risk, low reward but a good 'Climb out' candidate") re-evaluates rejected
+thin-book candidates on BOUNCE merit and seeds them into the bounce
+bracket — when one fires, _climbout_credit stamps the fire into
+_climbout.jsonl. A fire is a claim: "this thin book will pay." This
+study prices that claim in dollars by joining every fire to its SOLD
+close in contest_trades.jsonl:
+
+  fire (pair, fired_at)  ->  the pair's first close with sold_at >=
+  fired_at (closes consumed in order, so a repeat fire waits for its
+  own close). The bridge's dollars are the realized pnl_net of its
+  joined closes; a fire with no close yet stays PENDING — never priced
+  before it exists. A close BEFORE the fire is a different trade and
+  never joins (the fire cannot claim a trade it did not open).
+
+Family conventions (diag_outliverhindsight shape): run_study() core,
+_climbouthindsight.txt report, _climbouthindsight_monthly.jsonl
+append-only re-pricing ledger, monthly_driver_loop daemon (never
+raises; dies with the scanner). Hermetic: every path is a module
+constant the
+
+TOP-LEVEL NAMES (imports/defs in order):
+  IMPORT __future__
+  IMPORT annotations
+  STORE  annotations
+  IMPORT json
+  STORE  json
+  IMPORT threading
+  STORE  threading
+  IMPORT datetime
+  IMPORT datetime
+  STORE  datetime
+  IMPORT pathlib
+  IMPORT Path
+  STORE  Path
+  STORE  FIRST_DELAY_S
+  STORE  MONTHLY_PERIOD_S
+  STORE  FIRES_FILE
+  STORE  TRADES_FILE
+  STORE  LEDGER
+  STORE  OUT
+  STORE  _say
+  STORE  _read_jsonl
+  STORE  _ts
+  STORE  join_fires_to_closes
+  STORE  run_study
+  STORE  monthly_driver_loop
+  STORE  s
+
+ALL STRINGS (dedup, order-preserving, >=4 chars):
+  diag_climbouthindsight.py — THE CLIMB-OUT BRIDGE'S HINDSIGHT (Sep 20).
+
+WHY THIS EXISTS: the climb-out bridge (Sep 19, user: "Thin book = low
+risk, low reward but a good 'Climb out' candidate") re-evaluates rejected
+thin
+  _climbout.jsonl
+  contest_trades.jsonl
+  _climbouthindsight_monthly.jsonl
+  _climbouthindsight.txt
+  line
+  lines
+  list[str]
+  return
+  None
+  path
+  Path
+  list[dict]
+  Every parseable dict row; junk lines never kill the tail.
+  utf-8
+  replace
+  datetime | None
+  fires
+  closes
+  The join: per pair, fires in fire order, closes in close order;
+a fire takes the pair's first close AT OR AFTER its fired_at that no
+earlier fire of that pair consumed. Returns one row per fire:
+{pair, fired_at, sold_at,
+  pair
+  fired_at
+  sold_at
+  pnl_net
+  held_min
+  goal_pct
+  verdict
+  COST
+  dict
+  One pass: join the fires to the closes, price the bridge, write
+the report + the monthly ledger record. Never raises on data —
+missing/junk files price honest zeros.
+  THE CLIMB-OUT BRIDGE'S HINDSIGHT (Sep 20)
+  fires: _climbout.jsonl | closes: contest_trades.jsonl (pnl_net realized)
+  a fire prices its pair's first SOLD close at-or-after the fire; earlier closes never join
+
+  CLIMBOUT_BRIDGE
+  fires: 
+    graded: 
+    pending: 
+  BRIDGE VERDICT: 
+   paid, 
+   cost, net 
+  +.2f
+   USD
+  /graded fire)
+  BRIDGE SAMPLE: 
+   USD — TOO THIN TO VERDICT: 
+   graded close(s), the ladder's CLIMBOUT_BRIDGE rung needs 
+   fired 
+   -> sold 
+  +8.2f
+   USD  [
+  ]  held 
+   min
+   -> PENDING (no SOLD close yet)
+    no climb-out fires yet — the bridge has not spoken; the first fire lands in _climbout.jsonl and the next pass prices it
+  seconds
+  fires_total
+  graded
+  pending
+  wins
+  losses
+  net_usd
+  avg_usd
+  rows
+  
+ledger append failed: 
+  stop
+  threading.Event
+  first_delay_s
+  float
+  period_s
+  The daemon loop: one pass shortly after boot (the ledger record
+seeds the history), then monthly. Never raises; dies with the
+scanner. The append-only ledger is the re-pricing history — each
+month's record prices the fir
+  scanner
+  CLIMB-OUT HINDSIGHT: monthly re-price — %d/%d fire(s) graded, %d pending, net %+.2f USD
+  CLIMB-OUT HINDSIGHT: pass failed (%s) — this month's re-price skips, the ledger stands
+  __main__
+
+TOTAL STRINGS: 74

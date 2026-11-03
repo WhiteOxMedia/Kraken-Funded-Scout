@@ -1,0 +1,6 @@
+bridge filled/open buy records: 4 (showing up to 12)
+  2026-08-24T11:24:24 ARB/USD      src=scout_auto     conf=68 entry=0.0977 id=11cbf2ae
+  2026-08-24T11:06:11 PUMP/USD     src=scout_auto     conf=66 entry=0.00473 id=6dc85a8c
+  2026-08-24T10:24:58 ARB/USD      src=bot_strategy   conf=68 entry=0.0977 id=0b4b860b
+  2026-08-24T10:07:13 PUMP/USD     src=bot_strategy   conf=66 entry=0.004735 id=8b569c87
+pending records: 1

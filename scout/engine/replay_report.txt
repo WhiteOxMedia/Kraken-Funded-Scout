@@ -1,0 +1,45 @@
+replay run: Mon 02:43 PM Denver
+
+bridge signals total (any date): 313
+  2026-08-18: 25
+  2026-08-19: 29
+  2026-08-20: 47
+  2026-08-21: 53
+  2026-08-22: 4
+  2026-08-23: 39
+  2026-08-24: 116
+
+tournament winners (past 7 days, with entry): 400
+  Mon 08/24: 348
+  Sun 08/23: 52
+
+current rotation median bars: 00-04wd=60, 04-08wd=62, 08-12wd=60, 12-16wd=60, 16-20wd=60, 20-24wd=60
+
+candle cache pairs: 62
+
+replayable pool (7d, buys, pre-cooldown, deduped): 283
+sub-bar cohort: 86   passed-bar cohort: 182
+
+  PASSED the bar (old gate said GO): n=182  $20-within-window: 131 (72%)  within-24h: 149 (82%)
+  SUB-BAR (old gate said NO): n=86  $20-within-window: 69 (80%)  within-24h: 73 (85%)
+
+sub-bar hit rate by confidence band:
+    50-60%: n=77  $20-within-window: 62 (81%)  within-24h: 65 (84%)
+    60-70%: n=2  $20-within-window: 2 (100%)  within-24h: 2 (100%)
+
+sub-bar signals that WOULD have paid $20 (top 15 by speed):
+  Mon 04:58 LDO/USD      51% (bar 62) $20 in 0.0h
+  Mon 09:56 POL/USD      59% (bar 60) $20 in 0.1h
+  Mon 02:56 TIA/USD      51% (bar 60) $20 in 0.1h
+  Mon 05:54 JTO/USD      59% (bar 62) $20 in 0.1h
+  Mon 07:53 ALGO/USD     58% (bar 62) $20 in 0.1h
+  Mon 05:51 POL/USD      59% (bar 62) $20 in 0.1h
+  Mon 04:49 KAITO/USD    50% (bar 62) $20 in 0.2h
+  Sat 05:46 XRP/USD      38% (bar 60) $20 in 0.2h
+  Mon 00:46 MOODENG/USD  51% (bar 60) $20 in 0.2h
+  Mon 09:45 ATOM/USD     54% (bar 60) $20 in 0.2h
+  Mon 09:45 APT/USD      53% (bar 60) $20 in 0.2h
+  Mon 07:44 DOGE/USD     55% (bar 62) $20 in 0.3h
+  Mon 07:44 TIA/USD      61% (bar 62) $20 in 0.3h
+  Mon 07:41 ARB/USD      54% (bar 62) $20 in 0.3h
+  Tue 14:40 XRP/USD      0% (bar 60) $20 in 0.3h

@@ -1,0 +1,12 @@
+now: Wed 09:35 PM Denver
+TAO live 239.58 | entry 237.72 -> +$39 (+0.78%)
+drawdown from the peak (246.74): 2.9%
+
+HISTORY: only 1 episodes this size in 5 days — too few to call
+
+1h trend: UP (EMA9 239.8 vs EMA21 237.6, price 239.6)
+tide: FLAT (56%)
+
+$20 needs live to rise to 238.67 (-0.4% from here)
+break-even needs 237.72 (-0.8%)
+old peak needs 246.74 (+3.0%)

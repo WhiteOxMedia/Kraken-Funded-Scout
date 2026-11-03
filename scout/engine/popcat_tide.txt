@@ -1,0 +1,10 @@
+fleet tide at ~09:00 Sep 4 (cached candles): 18/92 above EMA21 = 20% -> OUT
+POPCAT at ~09:00: close 0.05070 vs EMA21 0.05252 -> below (downtrend)
+
+=== console_state.json (worth floor + goal toggles) ===
+worth_floor_frac = 0.1
+worth_floor_auto = True
+watch_on = True
+goal_on = True
+voice_on = True
+tier = $10,000

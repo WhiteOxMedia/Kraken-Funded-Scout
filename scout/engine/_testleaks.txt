@@ -1,0 +1,4 @@
+TEST-SUITE LEAK AUDIT — module globals & production paths
+(kraken_scout, 57 production data filenames known)
+
+CLEAN — no unguarded swaps, no production-path writes.

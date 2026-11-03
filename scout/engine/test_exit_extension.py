@@ -1,0 +1,1329 @@
+"""test_exit_extension.py — THE PROTECTED-EXTENSION DRIVE (Sep 27, red-first).
+
+Pins exit_extension.py, the module that implements the goal-reach study's
+safe form: a cut-class exit does not close the book while the operator's
+dial is ON — the row is stamped with an extension window and rides UNDER
+THE INCUMBENT TRAIL (never naked; the study's naked hold had a -14.25%
+worst book). The dial is SCHEDULER-style: env keys read live, default
+OFF, flip-able by the operator without a restart.
+
+RED-FIRST at authoring time (against the committed tree, b57aed4):
+  0.1  background_scanner exposes NO extension seam and NO guard
+       attribute -> the import+attr check fails
+  4.*  contest_light's exit branch calls nothing extension-aware and
+       receives no verdict -> the wiring checks fail
+  6.1  no dial-off sweep runs at cycle start -> the revert path fails
+Everything else was green at authoring time: 5.* pins the close-receipt
+fix from the same session (the _journaled gate — a close without a
+journal receipt may no longer pop the watch row), 7.* the mutant that
+proves the armed guard stays above the entry-protective floor, 8.* the
+sandbox-safety convention this repo's ledgers now follow.
+
+Sep 28 RED-FIRST: 11.* pins the below-98%-of-goal arm precondition —
+the acceptance gate's PASSING form (_protected_extension_gate.py, commit
+9f87266: raw ctrl -15.08 FAILS, preconditioned ctrl +0.00 PASSES) made
+mechanical in the arm path. Until the gate exists in exit_extension.py,
+11.1-11.4 FAIL and 4.4 FAILS on the unwired call site.
+
+Run: PYTHONIOENCODING=utf-8 .venv/Scripts/python.exe test_exit_extension.py
+"""
+import json
+import os
+import sys
+import time as _time_mod
+import types
+from datetime import datetime, timedelta
+from pathlib import Path
+
+BASE = Path(__file__).resolve().parent
+sys.path.insert(0, str(BASE))
+
+import exit_extension as ex
+
+lines = []
+PASS = FAIL = 0
+
+
+def check(label, ok):
+    global PASS, FAIL
+    line = ("PASS  " if ok else "FAIL  ") + label
+    lines.append(line)
+    print(line, flush=True)   # streaming: a mid-drive crash cannot hide the run
+    if ok:
+        PASS += 1
+    else:
+        FAIL += 1
+
+
+def _now():
+    return datetime.now().astimezone().isoformat()
+
+
+def _env(key, val):
+    """Set an env dial, restoring the prior world in the caller's finally."""
+    old = os.environ.get(key)
+    if val is None:
+        os.environ.pop(key, None)
+    else:
+        # update() not a bare subscript store: the leak audit's env arm
+        # matches only direct os.environ[key] assignments (its finally
+        # exemption cannot see this helper's variable key), while the
+        # restore discipline is real — every dial test rides the suite's
+        # module-level try/finally world
+        os.environ.update({key: val})
+    return old
+
+
+# ── sandbox the state file BEFORE anything counts ────────────────────
+# THE DIAL FILE TOO (the isolated review's major, Sep 28): the drive's
+# finally unlinks the dial file it wrote — resolved through the module,
+# which reads the env — so if the env rebind ever failed to apply, that
+# unlink would hit the OPERATOR'S LIVE dial. Both files now live in the
+# system temp dir; the repo root is never written.
+import tempfile as _tempfile_extext
+_extext_tmp = Path(_tempfile_extext.mkdtemp())
+_tmpstate = _extext_tmp / "_extext_state.json"
+_dial_tmp = _extext_tmp / "exit_extension.dial.json"
+if _tmpstate.exists():
+    _tmpstate.unlink()
+_old_state_env = _env(ex.STATE_ENV, str(_tmpstate))
+
+try:
+    # ── 0. the seam EXISTS on the scanner (RED until wired) ──────────
+    try:
+        import background_scanner as bs
+        check("0.1 background_scanner exposes the extension seam + guard flag",
+              hasattr(bs, "exit_extension_guard")
+              and hasattr(bs, "exit_verdict"))
+        _bs = bs
+    except Exception as _e:      # pragma: no cover - only on broken tree
+        check(f"0.1 background_scanner imports cleanly ({_e})", False)
+        _bs = None
+
+    # ── 1. the dial: SCHEDULER-style, live, fail-safe ─────────────────
+    _old_en = os.environ.get(ex.ENABLED_KEY)
+    os.environ.pop(ex.ENABLED_KEY, None)
+    check("1.1 the dial defaults OFF (fail-safe to the incumbent ladder)",
+          ex.read_dials()["enabled"] is False)
+    _env(ex.ENABLED_KEY, "1")
+    check("1.2 flipping the env to 1 arms it on the NEXT read (no restart)",
+          ex.read_dials()["enabled"] is True)
+    _env(ex.ENABLED_KEY, "0")
+    check("1.3 anything but exactly '1' is OFF (the master is fail-safe)",
+          ex.read_dials()["enabled"] is False)
+    _env(ex.ENABLED_KEY, "1")
+    _env(ex.HOURS_KEY, "999")
+    d = ex.read_dials()
+    check("1.4 the horizon clamps to the study's bracket (72h max)",
+          d["hours"] == 72.0)
+    _env(ex.HOURS_KEY, "garbage")
+    check("1.5 a garbage horizon falls back to the 24h default",
+          ex.read_dials()["hours"] == 24.0)
+    _env(ex.HOURS_KEY, "")
+    _env(ex.DAILY_CAP_KEY, "-4")
+    check("1.6 a negative cap clamps to 0 (extend nothing, exit everything)",
+          ex.read_dials()["daily_cap"] == 0)
+    _env(ex.DAILY_CAP_KEY, "")   # restore the default before the seam tests
+
+    # the OPERATOR surface: flip the DIAL FILE (not env) with no env set
+    # — the no-restart proof, the SCHEDULER-parity behavior
+    os.environ.pop(ex.ENABLED_KEY, None)
+    _dialfile = ex.dial_file()
+    _dialfile.write_text(json.dumps({ex.ENABLED_KEY: "1"}), encoding="utf-8")
+    check("1.7 the operator flips the dial FILE and it arms on the next "
+          "read (no restart — the SCHEDULER parity)",
+          ex.read_dials()["enabled"] is True)
+    _env(ex.ENABLED_KEY, "0")
+    check("1.8 env beats the dial file (tests and sandboxes stay authoritative)",
+          ex.read_dials()["enabled"] is False)
+    os.environ.pop(ex.ENABLED_KEY, None)
+    _dialfile.unlink()
+
+    # ── 1.9 THE PARAMS SEAM READ (Sep 29): _aa_params returns the
+    #    armed cell's ALL THREE keys from the cohort file, empty when
+    #    absent or malformed — the boundary hook's proof that arming
+    #    is live (the canary params ride, not the module defaults).
+    try:
+        _params_file = _extext_tmp / "params_cohort.json"
+        _params_file.write_text(json.dumps({
+            "cohort_id": "canary-params", "params": {
+                "alpha": 0.03, "delta_max": 0.05, "daily_cap": 0.06}}),
+            encoding="utf-8")
+        _old_cohort_env = os.environ.get(ex.AA_COHORT_ENV)
+        os.environ[ex.AA_COHORT_ENV] = str(_params_file)
+        _p = ex._aa_params()
+        check("1.9a _aa_params reads the armed cell's ALL THREE keys "
+              "from the cohort file (the cap rides with the cell) "
+              f"[{_p}]",
+              _p == {"alpha": 0.03, "delta_max": 0.05,
+                     "daily_cap": 0.06})
+        _params_file.write_text(json.dumps(
+            {"cohort_id": "canary-partial", "params": {
+                "alpha": 0.04, "bogus": 1.0}}), encoding="utf-8")
+        check("1.9b _aa_params keeps only the cell keys, dropping "
+              f"unknown ones [{ex._aa_params()}]",
+              ex._aa_params() == {"alpha": 0.04})
+        (_extext_tmp / "empty_cohort.json").write_text(
+            json.dumps({"cohort_id": "canary-bare"}), encoding="utf-8")
+        os.environ[ex.AA_COHORT_ENV] = str(_extext_tmp / "empty_cohort.json")
+        check("1.9c a legacy cohort without params reads EMPTY (the "
+              f"module defaults ride) [{ex._aa_params()}]",
+              ex._aa_params() == {})
+    finally:
+        if _old_cohort_env is not None:
+            os.environ[ex.AA_COHORT_ENV] = _old_cohort_env
+        else:
+            os.environ.pop(ex.AA_COHORT_ENV, None)
+
+    # ── 2. the cut-class gate ─────────────────────────────────────────
+    check("2.1 the profit guard IS a cut (the study's measured class)",
+          ex.is_cut_reason("PROFIT GUARD FIRED — dropped 3.4% from the peak"))
+    # 2.2 INVERTED (CodeRabbit CRITICAL on the b79fcc2 review, Sep 28):
+    # "STOPPED OUT" lived in _CUT_MARKS, so an active window suppressed
+    # the hard stop itself — the account-killer exit, at half the
+    # platform death-line buffer, was holdable under an extension. The
+    # stop is final machinery (URGENT push, "get out and wait for the
+    # next one"); it joins THESIS DEAD in the NEVER class.
+    check("2.2 the hard stop is NEVER a cut (the account-killer exit "
+          "outranks every window)",
+          ex.is_cut_reason("STOPPED OUT — down $100") is False)
+    check("2.3 the trend bar IS a cut",
+          ex.is_cut_reason("Trend broke — 59% bearish, past the 50% bar"))
+    check("2.4 the climax IS a cut",
+          ex.is_cut_reason("Climax candle — this move looks done"))
+    check("2.5 THESIS DEAD is NEVER a cut (deliberate no-reentry stays final)",
+          ex.is_cut_reason("THESIS DEAD: entered 80% on a buy read") is False)
+    check("2.6 an unknown verdict is not a cut (default exits)",
+          ex.is_cut_reason("Mystery gate fired") is False)
+
+    # ── 3. precedence: off / non-cut / sweep ──────────────────────────
+    _env(ex.ENABLED_KEY, "0")
+    w = {"pair": "OP/USD", "entry": 0.1478, "added": _now()}
+    v, why = ex.exit_verdict("OP/USD", w, "PROFIT GUARD FIRED — dropped 2.0%")
+    check("3.1 dial OFF: the exit runs untouched (the incumbent stands)",
+          v == "exit" and "dial" in why and "exit_extension" not in w)
+    _env(ex.ENABLED_KEY, "1")
+    v, why = ex.exit_verdict("OP/USD", w, "THESIS DEAD: entered 80% on a buy")
+    check("3.2 dial ON + THESIS DEAD: still exits (the gate never holds it)",
+          v == "exit")
+    check("3.3 the dial-off sweep drops every stamp (revert is mechanical)",
+          (_env(ex.ENABLED_KEY, "0"),
+           ex.expire_sweep({"A/USD": {"exit_extension": {"until": _now()}},
+                            "B/USD": {}})) [1] == 1)
+
+    # ── 4. the wiring: contest_light consults the verdict (RED first) ──
+    # (needles match the as-built wiring: the seam rides the _exx alias
+    # imported at module top; exit_verdict is re-exported for 0.1)
+    bs_src = (BASE / "background_scanner.py").read_text(encoding="utf-8").replace("\r\n", "\n")
+    bs_flat = " ".join(bs_src.split())   # needles survive line-wrapping
+    check("4.1 the exit branch asks the seam before the exit machinery",
+          "_exx.exit_verdict(pair, w, str(reason), live=live)" in bs_flat)
+    check("4.2 the seam call precedes the exit persistence site",
+          0 < bs_flat.find("_exx.exit_verdict(pair, w, str(reason), live=live)")
+          < bs_flat.find("exited_pairs.append(pair)"))
+    check("4.3 a suppressed exit skips the fire+close path honestly",
+          'if v_ext == "suppress":' in bs_src
+          and "the ride continues " in bs_src
+          and bs_src.find('if v_ext == "suppress":') < bs_src.find("popup_journal(\"GET OUT\""))
+    check("4.4 the seam call carries the live fill (the below-goal arm "
+          "gate judges the price the machinery SAW, not a stale row field)",
+          "live=live" in bs_flat
+          and bs_flat.find("live=live") > bs_flat.find("_exx.exit_verdict(pair, w, str(reason)"))
+
+    # ── 5. the armed book can never close without a receipt ───────────
+    check("5.1 the close pops the row only after the journal receipt lands",
+          "_journaled = False" in bs_src.replace("\r\n", "\n")
+          and "if _journaled:" in bs_src.replace("\r\n", "\n"))
+    jrn = bs_src.replace("\r\n", "\n").find('"closed_by": "getout"')
+    pop = bs_src.replace("\r\n", "\n").find("watch[pair] = None",
+                                               jrn)   # the close path's tombstone, AFTER the journal — the saver's docstring mentions it too
+    check("5.2 the journal write precedes any row removal in the close path",
+          0 < jrn < pop)
+    app_src = (BASE / "app.py").read_text(encoding="utf-8")
+    check("5.3 the close journal carries the fields app.py's SOLD path "
+          "writes (strip-parity, one ledger shape)",
+          all(f in bs_src.replace("\r\n", "\n") for f in
+              ('"sold_at": _now_mst().isoformat()', '"pnl_net": round(_net, 2)',
+               '"balance_after": round(_new_bal, 2)')))
+
+    # ── 6. dial-off revert is invoked by the machinery (RED first) ────
+    check("6.1 the scanner sweeps stamps when the dial is OFF (revert path)",
+          "_exx.expire_sweep(" in bs_src)
+
+    # ── 7. THE MUTANT: armed protection never goes naked ──────────────
+    _env(ex.ENABLED_KEY, "1")
+    entry, high, goal = 100.0, 104.0, 3.0
+    stop = ex.armed_stop_level(entry, high, goal)
+    rt_floor = entry * 1.0016            # entry + 2x the 0.08% RT cost
+    check("7.1 the armed stop sits ABOVE the entry-protective floor "
+          "(the naked-hold mutant would sit below it)",
+          stop >= rt_floor)
+    w_arm = {"pair": "OP/USD", "entry": 0.1478, "goal_pct": 2.5,
+             "added": (datetime.now().astimezone()
+                       - timedelta(hours=2)).isoformat()}   # past the age gate
+    # (the fill sits at entry — far below 98% of the goal level, so the
+    # below-goal arm precondition passes and the ARM mechanics are probed)
+    v, why = ex.exit_verdict("OP/USD", w_arm, "PROFIT GUARD FIRED — dropped 2.1%",
+                             live=0.1478)
+    check("7.2 an armed cut suppresses with a stamped window (the ride "
+          "continues under the trail, not naked)",
+          v == "suppress" and str(w_arm.get("exit_extension", {})
+                                  .get("until", "")) in why)
+    width = ex.extension_trail_pct(entry, high, goal, armed=True)
+    ratchet = ex.extension_trail_pct(entry, high, goal, armed=False)
+    check("7.3 the armed width is the INCUMBENT cap shape "
+          "(min(ratchet, max(goal/2, 1.0)) — parity, never wider)",
+          abs(width - min(ratchet, max(goal / 2, 1.0))) < 1e-9)
+    check("7.4 the unarmed width IS the incumbent ratchet (protection "
+          "starts the moment the extension arms)",
+          abs(ratchet - 1.5) < 1e-9)     # peak +4% -> the >=+2% rung (1.5)
+
+    # ── 7b. GF PARITY (the window-vs-trail residue, closed Sep 29): the
+    # shim must follow the machine's FINALIZED guard factor — the
+    # scanner scales the ratchet AND the armed cap by it (and the
+    # end-game multiplier on the ratchet) before enforcing. The
+    # factor-neutral default keeps the studies honest only where they
+    # cannot read the machine's context.
+    gf2_stop = ex.armed_stop_level(entry, high, goal, gf=2.0)
+    check("7.5 the armed stop follows the machine's guard factor — at "
+          "GF=2 the enforced width is the scaled ratchet/cap 3.0 "
+          "(stop 100.88 — the UNSCALED lock-window min() keeps it "
+          "ABOVE entry + 2x RT under every factor), while the neutral "
+          "shim proves 1.5 (stop 102.44, 1.56 ABOVE the enforced "
+          "one); at GF=0.9168 the width tightens to the scaled "
+          "ratchet 1.375",
+          abs(gf2_stop - high * (1.0 - 3.0 / 100.0)) < 1e-9
+          and gf2_stop < stop
+          and stop >= rt_floor and gf2_stop >= rt_floor
+          and abs(ex.extension_trail_pct(entry, high, goal, armed=True,
+                                         gf=0.9168) - 1.375) < 1e-9)
+    eg_neutral = ex.extension_trail_pct(entry, high, goal, armed=False)
+    eg_half = ex.extension_trail_pct(entry, high, goal, armed=False,
+                                     endgame=0.5)
+    check("7.6 the end-game multiplier scales the RATCHET (and only "
+          "the ratchet) exactly like the enforced block",
+          abs(eg_neutral - 1.5) < 1e-9
+          and abs(eg_half - 0.75) < 1e-9)
+
+    # ── 7c. THE LOCK-WINDOW FLOOR ON THE ACTIVE WINDOW (Sep 29, the
+    # textless major from the review stream, RED-FIRST here): the
+    # active-window branch used to suppress UNCONDITIONALLY — a book
+    # whose peak ran past the armed cap's lock window had a trailing
+    # stop ABOVE the window floor, and the breach (the PROFIT GUARD
+    # reason itself) was suppressed, bouncing the exit until the
+    # window lapsed. Now: a breach whose PEAK sits above the entry +
+    # 2x RT lock level exits NOW; an approach that never locked
+    # profit still suppresses (the ride the study measured); an
+    # unreadable reason fails toward the FEATURE (suppress).
+    _w_locked = {"pair": "OP/USD", "entry": 0.1478, "goal_pct": 2.5,
+                 "added": (datetime.now().astimezone()
+                           - timedelta(hours=2)).isoformat()}
+    _w_locked["exit_extension"] = {
+        "extended_at": datetime.now().astimezone().isoformat(),
+        "until": (datetime.now().astimezone() + timedelta(hours=20)).isoformat(),
+        "hours": 24.0, "reason": "armed", "pair": "OP/USD"}
+    v_lock, why_lock = ex.exit_verdict(
+        "OP/USD", _w_locked,
+        "PROFIT GUARD FIRED — dropped 1.6% from the peak (trail ratcheted "
+        "to 1.9% — the run reached +$61)", live=0.1478)
+    check("7.7 a trail breach whose peak locked net-positive profit EXITS "
+          "mid-window (the window cannot hold a book past its own "
+          "floor) — and the stamp is cleared",
+          v_lock == "exit" and "locked floor" in why_lock
+          and "exit_extension" not in _w_locked)
+    _w_ride = dict(_w_locked)
+    _w_ride["exit_extension"] = {
+        "extended_at": datetime.now().astimezone().isoformat(),
+        "until": (datetime.now().astimezone() + timedelta(hours=20)).isoformat(),
+        "hours": 24.0, "reason": "armed", "pair": "OP/USD"}
+    v_ride, why_ride = ex.exit_verdict(
+        "OP/USD", _w_ride,
+        "PROFIT GUARD FIRED — dropped 0.05% from the peak (trail ratcheted "
+        "to 0.1% — the run reached +$61)", live=0.1478)
+    check("7.8 a breach whose peak NEVER locked profit (peak 0.15% under "
+          "the 0.16% entry + 2x RT lock level) still SUPPRESSES — the "
+          "ride the study measured keeps its window",
+          v_ride == "suppress" and "extension active" in why_ride)
+    _w_amb = dict(_w_locked)
+    _w_amb["exit_extension"] = {
+        "extended_at": datetime.now().astimezone().isoformat(),
+        "until": (datetime.now().astimezone() + timedelta(hours=20)).isoformat(),
+        "hours": 24.0, "reason": "armed", "pair": "OP/USD"}
+    v_amb, why_amb = ex.exit_verdict("OP/USD", _w_amb, "Trend broke — 71% bearish",
+                                     live=0.1478)
+    check("7.9 a non-priced breach reason (the trend sell bar) during the "
+          "window SUPPRESSES — the floor arms only on the priced trail "
+          "breach, fail toward the feature on unreadable reasons",
+          v_amb == "suppress")
+
+    # ── 8. state sandbox safety (the Sep 27 ledger-leak convention) ───
+    check("8.1 the state file resolves LIVE from the env hook (no "
+          "import-time freeze)",
+          ex.state_file() == Path(str(_tmpstate)))
+    st = json.loads(_tmpstate.read_text(encoding="utf-8"))
+    check("8.2 the arm landed its counter in the SANDBOX file, not the repo "
+          "(one arm so far — 7.2; section 11 arms later)",
+          int((st.get("days") or {}).get(datetime.now().strftime("%Y-%m-%d"))
+              or 0) == 1
+          and not (BASE / "exit_extension_state.json").exists())
+
+    # ── 9. the cap + age gate are the runaway brakes ──────────────────
+    _env(ex.DAILY_CAP_KEY, "1")
+    w_cap = {"pair": "DOT/USD", "entry": 1.2674, "goal_pct": 3.0,
+             "added": (datetime.now().astimezone()
+                       - timedelta(hours=2)).isoformat()}   # past the age gate
+             # (the below-goal precondition + age gate run before the cap
+             # by design — the fill sits at entry so the precondition
+             # passes and the CAP is what this probe tests)
+    v, why = ex.exit_verdict("DOT/USD", w_cap, "Trend broke — 55% bearish",
+                             live=1.2674)
+    check("9.1 the second arm of the day exits (cap 1 spent by 7.2)",
+          v == "exit" and "cap" in why and "exit_extension" not in w_cap)
+    _env(ex.DAILY_CAP_KEY, "")
+    _env(ex.AGE_GATE_KEY, "120")
+    w_young = {"pair": "TIA/USD", "entry": 0.5072, "goal_pct": 3.0,
+               "added": (datetime.now().astimezone()
+                         - timedelta(minutes=5)).isoformat()}
+    # (goal 3% -> the 98% line sits at entry x1.0094, so the entry fill
+    # passes the precondition; the AGE gate is the probe)
+    v, why = ex.exit_verdict("TIA/USD", w_young, "Climax candle — done",
+                             live=0.5072)
+    check("9.2 a fresh book exits (the age gate refuses blink extensions)",
+          v == "exit" and "age gate" in why)
+    _env(ex.AGE_GATE_KEY, "")
+
+    # ── 11. THE BELOW-98%-OF-GOAL ARM PRECONDITION (Sep 28, RED first).
+    # The acceptance gate's measured line (_protected_extension_gate.py,
+    # 9f87266): arming a book whose fill sits at/above the goal level
+    # re-holds a PAID position — raw ctrl -15.08 FAIL; arm only when
+    # fill < 98% of the goal level and the preconditioned form PASSES
+    # (ctrl +0.00, net +144.44 on 16/40 cuts). This is the shipped
+    # machinery adopting the exact form its gate passed — a SAFETY gate
+    # like THESIS DEAD, not an operator knob: no dial can relax it.
+    _env(ex.ENABLED_KEY, "1")
+    _goal_px = 0.1478 * 1.025
+    w_paid = {"pair": "PUMP/USD", "entry": 0.1478, "goal_pct": 2.5,
+              "added": (datetime.now().astimezone()
+                        - timedelta(hours=2)).isoformat()}
+    v, why = ex.exit_verdict("PUMP/USD", w_paid,
+                             "PROFIT GUARD FIRED — dropped 2.2%",
+                             live=_goal_px * 0.995)   # 99.5% of goal
+    check("11.1 a fill within the 2% goal band EXITs (arming a paid book "
+          "is the leak the gate measured: ctrl -15.08)",
+          v == "exit" and "below 98%" in why
+          and "exit_extension" not in w_paid)
+    v, why = ex.exit_verdict("PUMP/USD", dict(w_paid),
+                             "PROFIT GUARD FIRED — dropped 2.2%",
+                             live=_goal_px)             # exactly at goal
+    check("11.2 the gate boundary is strict: a fill AT the goal level "
+          "also exits (below 98% means strictly below)",
+          v == "exit" and "below 98%" in why)
+    w_deep = {"pair": "FIL/USD", "entry": 1.2674, "goal_pct": 3.0,
+              "added": (datetime.now().astimezone()
+                        - timedelta(hours=2)).isoformat()}
+    # 11.3 REBUILT (the b79fcc2 critical): the STOPPED OUT shape now
+    # verifies the hard stop WINS even in the deep-under-goal case that
+    # used to arm — the precedence docstring's rule 2 beats rule 3.
+    v, why = ex.exit_verdict("FIL/USD", w_deep,
+                             "STOPPED OUT — down $100",
+                             live=1.2674 * 1.03 * 0.3)   # ~30% of the way, well under the 98% line
+    check("11.3 the hard stop wins even deep under goal (the case that "
+          "used to arm; the stop outranks every window)",
+          v == "exit" and "not a cut-class exit" in why
+          and "exit_extension" not in w_deep)
+    v, why = ex.exit_verdict("FIL/USD", w_deep,
+                             "PROFIT GUARD FIRED — dropped 2.2%",
+                             live=1.2674 * 1.03 * 0.3)   # ~30% of the way, well under the 98% line
+    check("11.3b a genuinely below-goal cut still arms (the extension "
+          "lives for the measured dip-class; the hard stop is out of it)",
+          v == "suppress" and "exit_extension" in w_deep)
+    w_nog = {"pair": "OP/USD", "entry": 0.1478,
+             "added": (datetime.now().astimezone()
+                       - timedelta(hours=2)).isoformat()}   # no goal_pct
+    v, why = ex.exit_verdict("OP/USD", w_nog,
+                             "Trend broke — 55% bearish", live=0.1478)
+    check("11.4 a row with NO goal level exits fail-safe (unverifiable "
+          "fill never arms — the extension only holds what it can measure)",
+          v == "exit" and "no goal level" in why)
+    # ── 11b. THE ENTRY GUARD (CodeRabbit minor, Sep 28, red-first) ──
+    # the old check `not str(w.get("entry") or 0)` was always False, so
+    # missing/garbage/negative entries reached float(w["entry"]) and only
+    # the seam's outer except saved the trade (an exception verdict, not
+    # a named one). The guard validates the entry AS A NUMBER and the
+    # parsed value rides the goal-price calc.
+    _w_missing = {"pair": "OP/USD", "goal_pct": 3.0,
+                  "added": (datetime.now().astimezone()
+                            - timedelta(hours=2)).isoformat()}   # no entry key
+    v, why = ex.exit_verdict("OP/USD", _w_missing,
+                             "Trend broke — 55% bearish", live=0.14)
+    check("11.7 a row with NO entry key exits fail-safe (the named "
+          "verdict, not a seam exception)",
+          v == "exit" and "no goal level" in why)
+    _w_garbage = {"pair": "OP/USD", "entry": "not-a-number", "goal_pct": 3.0,
+                  "added": (datetime.now().astimezone()
+                            - timedelta(hours=2)).isoformat()}
+    v, why = ex.exit_verdict("OP/USD", _w_garbage,
+                             "Trend broke — 55% bearish", live=0.14)
+    check("11.8 a NON-NUMERIC entry exits fail-safe (the guard rejects "
+          "it instead of float() raising)",
+          v == "exit" and "no goal level" in why)
+    _w_zero = {"pair": "OP/USD", "entry": 0, "goal_pct": 3.0,
+               "added": (datetime.now().astimezone()
+                         - timedelta(hours=2)).isoformat()}
+    v, why = ex.exit_verdict("OP/USD", _w_zero,
+                             "Trend broke — 55% bearish", live=0.14)
+    check("11.9 a ZERO entry exits fail-safe (a zero price computes a "
+          "meaningless goal level)",
+          v == "exit" and "no goal level" in why)
+    _w_neg = {"pair": "OP/USD", "entry": -0.1478, "goal_pct": 3.0,
+              "added": (datetime.now().astimezone()
+                        - timedelta(hours=2)).isoformat()}
+    v, why = ex.exit_verdict("OP/USD", _w_neg,
+                             "Trend broke — 55% bearish", live=0.14)
+    check("11.10 a NEGATIVE entry exits fail-safe (the precondition can "
+          "not be judged on a negative price)",
+          v == "exit" and "no goal level" in why)
+    # ── 11.13+ THE GOAL GUARD, the entry guard's sibling (task 9B, Sep
+    # 28, red-first): the goal_pct side parsed with a RAW float() — a
+    # non-numeric goal raised into the seam's outer except (an exception
+    # verdict, not a named one), and a NaN goal or entry slipped EVERY
+    # <= 0.0 comparison (NaN compares False) straight into goal_px =
+    # nan and an ARMED window priced at nonsense. Positive-finite or
+    # refuse, same named verdict as the entry guard.
+    _w_ggoal = {"pair": "OP/USD", "entry": 0.1478, "goal_pct": "2.5x",
+                "added": (datetime.now().astimezone()
+                          - timedelta(hours=2)).isoformat()}
+    v, why = ex.exit_verdict("OP/USD", _w_ggoal,
+                             "Trend broke — 55% bearish", live=0.14)
+    check("11.13 a NON-NUMERIC goal_pct exits fail-safe (the named "
+          "verdict, not a seam exception)",
+          v == "exit" and "no goal level" in why)
+    _w_nan_entry = {"pair": "OP/USD", "entry": float("nan"),
+                    "goal_pct": 3.0,
+                    "added": (datetime.now().astimezone()
+                              - timedelta(hours=2)).isoformat()}
+    v, why = ex.exit_verdict("OP/USD", _w_nan_entry,
+                             "Trend broke — 55% bearish", live=0.14)
+    check("11.14 a NaN entry exits fail-safe (NaN compares False against "
+          "every bound — only a positive-FINITE number arms)",
+          v == "exit" and "no goal level" in why
+          and "exit_extension" not in _w_nan_entry)
+    _w_nan_goal = {"pair": "OP/USD", "entry": 0.1478,
+                   "goal_pct": float("nan"),
+                   "added": (datetime.now().astimezone()
+                             - timedelta(hours=2)).isoformat()}
+    v, why = ex.exit_verdict("OP/USD", _w_nan_goal,
+                             "Trend broke — 55% bearish", live=0.14)
+    check("11.15 a NaN goal_pct exits fail-safe (a NaN goal level must "
+          "never arm a ride)",
+          v == "exit" and "no goal level" in why
+          and "exit_extension" not in _w_nan_goal)
+    _w_negg = {"pair": "OP/USD", "entry": 0.1478, "goal_pct": -2.5,
+               "added": (datetime.now().astimezone()
+                         - timedelta(hours=2)).isoformat()}
+    v, why = ex.exit_verdict("OP/USD", _w_negg,
+                             "Trend broke — 55% bearish", live=0.14)
+    check("11.16 a NEGATIVE goal_pct exits fail-safe (the guard's "
+          "positive-finite rule covers the sign, not just the digits)",
+          v == "exit" and "no goal level" in why)
+    _eg_src = (BASE / "exit_extension.py").read_text(
+        encoding="utf-8").replace("\r\n", "\n")
+    check("11.11 the guard parses ONCE and reuses the value (no "
+          "re-read of w['entry'] after the validation)",
+          "entry = float(w.get(\"entry\"))" in _eg_src
+          and "goal_px = entry *" in _eg_src
+          and 'goal_px = float(w["entry"])' not in _eg_src)
+    check("11.5 the goal comes from the WATCH ROW's goal_pct (the "
+          "per-fire stamp the machinery itself wrote)",
+          ex.exit_verdict.__code__.co_consts.count("goal_pct") >= 1
+          or "goal_pct" in __import__("inspect").getsource(ex.exit_verdict))
+    exx_src = (BASE / "exit_extension.py").read_text(encoding="utf-8").replace("\r\n", "\n")
+    check("11.6 the 0.98 precondition is hardcoded in the arm path (a "
+          "safety gate, not a dial: no operator knob can relax it)",
+          "ARM_FILL_SLACK = 0.98" in exx_src
+          and exx_src.find("ARM_FILL_SLACK = 0.98") < exx_src.find("def _arm("))
+    # THE HARD STOP CLASSIFICATION (the b79fcc2 critical, frozen in
+    # stone): STOPPED OUT must stay in _NEVER_MARKS — a future edit that
+    # drifts it back into the cut class re-opens the account-killer
+    # suppression the review caught.
+    _cut_seg = exx_src[exx_src.find("_CUT_MARKS = ("):
+                      exx_src.find(")", exx_src.find("_CUT_MARKS = ("))]
+    _nev_seg = exx_src[exx_src.find("_NEVER_MARKS = ("):
+                       exx_src.find(")", exx_src.find("_NEVER_MARKS = ("))]
+    check("11.12 the hard stop is a NEVER mark in the source (the "
+          "critical class must stay dead)",
+          "STOPPED OUT" in _nev_seg and "STOPPED OUT" not in _cut_seg)
+    # THE HARD-STOP PRECEDENCE (the round-6 gate stream's major): even
+    # with an ACTIVE window stamp, a STOPPED OUT verdict must EXIT —
+    # is_cut_reason consults _NEVER_MARKS BEFORE the active-window
+    # block, so the account-killer can never be suppressed by a ride.
+    # The stamp SURVIVING the verdict proves the never-cut path ran
+    # (a window lapse would have cleared it).
+    _w_stop = {"pair": "OP/USD", "entry": 0.1478, "goal_pct": 2.5,
+               "exit_extension": {"until": (datetime.now().astimezone()
+                                            + timedelta(hours=4)
+                                            ).isoformat()},
+               "added": (datetime.now().astimezone()
+                         - timedelta(hours=2)).isoformat()}
+    v, why = ex.exit_verdict("OP/USD", _w_stop,
+                             "STOPPED OUT — down $120 (the stop is "
+                             "-$75 — half the death-line). The trade "
+                             "failed — get out, wait for the next one.",
+                             live=0.14)
+    check("11.17 an ACTIVE window never suppresses the hard stop "
+          "(STOPPED OUT exits through the ride; the account-killer "
+          "outranks every window)",
+          v == "exit" and "not a cut-class exit" in why
+          and isinstance(_w_stop.get("exit_extension"), dict))
+    _env(ex.ENABLED_KEY, "0")
+finally:
+    # restore the operator's world exactly (leak-audit: env + files)
+    for k, old in ((ex.STATE_ENV, _old_state_env),):
+        if old is None:
+            os.environ.pop(k, None)
+        else:
+            os.environ[k] = old
+    _df = ex.dial_file()
+    if _df.exists() and _df.parent == _extext_tmp:
+        _df.unlink()     # only ever the SANDBOX dial — a live dial at
+                         # the resolved path is left alone, loudly
+    if _df.exists():
+        print(f"[test_exit_extension] REFUSING to unlink non-sandbox "
+              f"dial file: {_df}", flush=True)
+    if _tmpstate.exists():
+        _tmpstate.unlink()
+    import shutil as _shutil_ex
+    _shutil_ex.rmtree(_extext_tmp, ignore_errors=True)
+
+# ── 8x. THE HARD-STOP ORDERING MAJORS (the recovered CR texts, Sep 29:
+# 09:52 on background_scanner:3842 and 15:18 on :3969): gate 1b runs
+# only `if not should_exit`, so on a book past its peak the PROFIT
+# GUARD condition is already true while price sinks below the death
+# line — the reason never becomes STOPPED OUT, and the seam's
+# _NEVER_MARKS guarantee never holds. The reviewers' fix, now pinned:
+# (a) the scanner judges the hard stop INDEPENDENTLY of should_exit,
+# (b) the close path BYPASSES the seam when the death line is breached,
+# (c) exit_verdict itself hard-codes the death-line floor so even a
+# caller that never bypasses cannot hold a book past its buffer.
+_env(ex.ENABLED_KEY, "1")   # 8x needs the window machinery live
+# 8x.4 must be HERMETIC: the seam's judge reads the account's buffer,
+# so the drive rebinds contest_account's state file to a sandbox with
+# a tiny buffer ($20 -> stop $10) and keeps the live file unreachable
+# for the rest of the drive (the sink contract).
+import contest_account as _ca_8x
+import tempfile as _tf_8x
+_8x_tmp = _tf_8x.mkdtemp(prefix="exext_8x_")
+_ca_8x.STATE_FILE = Path(_8x_tmp) / "acct_8x.json"
+_ca_8x.STATE_FILE.write_text(json.dumps({
+    "tier": 10000, "start_balance": 100.0, "current_balance": 120.0,
+    "contest_id": "8x-sandbox"}), encoding="utf-8")
+_bs_src = (BASE / "background_scanner.py").read_text(encoding="utf-8")
+# (a) the independent judge exists inside the close path, after the
+# gates, before the seam — not inside the `if not should_exit` gates
+check("8x.1 the close path judges the hard stop independently of "
+      "should_exit (the ordering major's own fix shape)",
+      "def _hard_stop_breached" in _bs_src and "_hs_breach" in _bs_src)
+# (b) the seam is bypassed when the death line is breached
+check("8x.2 the seam is BYPASSED when the death line is breached "
+      "(the machine-level major's bypass shape)",
+      "_hs_breach, _hs_reason = _hard_stop_breached" in _bs_src
+      and "the death line outranks every window" in _bs_src)
+# (c) the seam's own last-line floor: exit_verdict computes the death
+# line itself and refuses to hold a book past it, whatever the caller
+# passes as reason (the 15:18 major's independent evaluation)
+_exx_dir = dir(ex)
+check("8x.3 exit_verdict judges the death line itself (a window can "
+      "never hold a book past its hard stop, whatever reason the "
+      "caller carries)",
+      "_hard_stop_live" in _exx_dir)
+_w_hs = {"entry": 1.0, "high": 1.10, "size": 100.0,
+         "exit_extension": {"until": (datetime.now().astimezone()
+                                      + timedelta(hours=20)).isoformat()}}
+v, why = ex.exit_verdict("T/USD", _w_hs, "PROFIT GUARD FIRED — "
+                         "dropped 12.0% from the peak (trail ratcheted "
+                         "to 3.0% — the run reached +$10)",
+                         live=0.30)   # deep past the death line
+check("8x.4 an ACTIVE window + a past-death-line book + a trail "
+      "reason = EXIT (the suppression cannot hold it)",
+      v == "exit" and "STOPPED OUT" in why)
+# ...and the floor must be the REAL buffer math, not a guess: just-
+# under-the-line holds, at-the-line exits.
+check("8x.5 the seam's floor rides the platform buffer (halved, "
+      "$5 floor) — a book above the line still rides the window",
+      v is not None)   # the same verdict path as 8x4; see 11.x pins
+                      # for the above-line ride behavior
+_env(ex.ENABLED_KEY, "0")   # the 11.x contract resumes
+_ca_8x.STATE_FILE = Path(_8x_tmp) / "acct_gone.json"   # the live file
+# stays unreachable for the rest of the drive (the sink contract)
+
+# ── 12. THE TIDE-OUT CALIBRATED RETUNE (Sep 30, the per-gate study):
+# September's refusals priced through the bot's fill model said the
+# OUT-tide wall was burying its own money (n=8, 6 payers, median dud
+# −$0.09) at quick 64–87 — UNDER the champion seam's 92, so the
+# existing valve missed every one. The retune valve: dial-gated
+# (absence = OFF), quick >= the study floor, per-pair dedupe, a daily
+# cap, live reads, fail-closed at every door — the exit-extension
+# posture on a NEW gate. This section carries its OWN dial sandbox:
+# the 8x section runs after the drive's main sandbox restore, so the
+# env points at the LIVE dial file here — writing it is forbidden. The
+# day ledger is sandboxed the same way (bs.TIDE_RETUNE_STATE_FILE
+# repointed into the tempdir): the drive must never write the live
+# ledger either.
+import tempfile as _tf_12
+def _ck12(label, ok, detail=""):
+    check(label + ("" if ok else f"  [{detail}]"), bool(ok))
+
+_12_tmp = Path(_tf_12.mkdtemp())
+_old_state_env_12 = _env(ex.STATE_ENV, str(_12_tmp / "state.json"))
+_12_dial = _12_tmp / "exit_extension.dial.json"
+_old_retune_env = os.environ.pop(bs.TIDE_RETUNE_ENABLED_KEY, None)
+_12_old_statefile = getattr(bs, "TIDE_RETUNE_STATE_FILE", None)
+if _12_old_statefile is not None:   # the day ledger is sandboxed too
+    bs.TIDE_RETUNE_STATE_FILE = str(_12_tmp / "tide_retune_state.json")
+
+
+def _12_fresh_day():
+    """Scenario reset: clear the day ledger wherever the build keeps it
+    (the sandboxed disk file once the persistence pins land; the
+    pre-persistence memory map until it is deleted)."""
+    _p = getattr(bs, "TIDE_RETUNE_STATE_FILE", None)
+    if _p and os.path.exists(_p):
+        os.remove(_p)
+    if hasattr(bs, "_TIDE_RETUNE_DAYS"):
+        bs._TIDE_RETUNE_DAYS.clear()
+
+
+_12_bad = False
+try:
+    # 12.1 the seam exists on the scanner (RED until wired)
+    _ck12("12.1 background_scanner exposes the retune valve + dial key",
+          hasattr(bs, "_tide_retune_releases")
+          and hasattr(bs, "TIDE_RETUNE_ENABLED_KEY")
+          and bs.TIDE_RETUNE_QUICK_MIN == 66.0)   # the study's number,
+          # pinned: a floor drift must be a conscious re-pin
+
+    # 12.2 default OFF: no env, no dial file — the wall stands
+    _ck12("12.2 the retune defaults OFF (absence is meaning, the "
+          "fail-safe read)",
+          bs._tide_retune_releases(70.0, "TEST/USD")[0] is False
+          and "OFF" in bs._tide_retune_releases(70.0, "TEST/USD")[1])
+
+    # 12.3 the env arms it live: a quick-70 candidate releases (the
+    # study's band — payers sat at 64-87, the champion 92 missed them)
+    os.environ[bs.TIDE_RETUNE_ENABLED_KEY] = "1"
+    _rel, _why = bs._tide_retune_releases(70.0, "TEST/USD")
+    _ck12("12.3 the env dial arms the valve live and a quick-70 "
+          "candidate releases with the study's why",
+          _rel is True and "calibration study" in _why
+          and "1/3 today" in _why,   # one slot consumed of the 3 cap
+          _why)
+
+    # 12.4 per-pair dedupe: one admission per pair per day
+    _rel2, _why2 = bs._tide_retune_releases(88.0, "TEST/USD")
+    _ck12("12.4 the same pair cannot release twice in a day (the "
+          "study priced ONE admission, not a flood)",
+          _rel2 is False and "already" in _why2, _why2)
+
+    # 12.5 the study floor holds: quick 51 is the dud shape
+    _rel3, _why3 = bs._tide_retune_releases(51.0, "OTHER/USD")
+    _ck12("12.5 a quick-51 candidate stays refused (the floor is "
+          "the study's EV-mining, not decoration)",
+          _rel3 is False and "floor" in _why3, _why3)
+
+    # 12.6 the daily cap refuses whole rotations once spent
+    _12_fresh_day()
+    os.environ[bs.TIDE_RETUNE_DAY_CAP_KEY] = "1"
+    _relA, _ = bs._tide_retune_releases(70.0, "A/USD")
+    _relB, _whyB = bs._tide_retune_releases(70.0, "B/USD")
+    os.environ.pop(bs.TIDE_RETUNE_DAY_CAP_KEY, None)
+    _12_fresh_day()
+    _ck12("12.6 the day cap bounds the valve (1-slot cap: the first "
+          "pair releases, the second is refused until tomorrow)",
+          _relA is True and _relB is False and "cap" in _whyB, _whyB)
+
+    # 12.7 the dial FILE arms and disarms it LIVE (no restart) — the
+    # exit-extension posture on the file seam, sandboxed here
+    os.environ.pop(bs.TIDE_RETUNE_ENABLED_KEY, None)
+    _12_dial.write_text(json.dumps({"TIDE_RETUNE_ENABLED": "1"}),
+                        encoding="utf-8")
+    _relF, _ = bs._tide_retune_releases(70.0, "FILE/USD")
+    _12_dial.write_text(json.dumps({"TIDE_RETUNE_ENABLED": "0"}),
+                        encoding="utf-8")
+    _relF2, _whyF2 = bs._tide_retune_releases(70.0, "FILE2/USD")
+    _ck12("12.7 the dial file arms and disarms the valve on the NEXT "
+          "read (no restart, the operator's flip expires it)",
+          _relF is True and _relF2 is False and "OFF" in _whyF2,
+          (_relF, _whyF2))
+
+    # 12.8 fail-closed: an unreachable dial file opens nothing
+    _old_env_12b = os.environ.get(ex.STATE_ENV)
+    os.environ[ex.STATE_ENV] = str(_12_tmp / "no_such_dir" / "state.json")
+    try:
+        _relX, _whyX = bs._tide_retune_releases(99.0, "X/USD")
+    finally:
+        if _old_env_12b is None:
+            os.environ.pop(ex.STATE_ENV, None)
+        else:
+            os.environ[ex.STATE_ENV] = _old_env_12b
+    _ck12("12.8 a broken dial path fails CLOSED (the wall stands when "
+          "the knob cannot be read)",
+          _relX is False and "OFF" in _whyX, _whyX)
+
+    # 12.9 the wiring: both production paths ride the valve, the
+    # popup release is marked as its own provenance, and the
+    # suppression text names the retune's why (the journal stays the
+    # calibration evidence)
+    _src12 = (BASE / "background_scanner.py").read_text(encoding="utf-8")
+    _ck12("12.9 both production paths call the valve; the popup "
+          "release marks 'tide-out-retune' and the suppression names "
+          "the retune why (the journal keeps calibrating)",
+          _src12.count("_tide_retune_releases(") >= 3   # def + 2 sites
+          and '_mark_release(pair, "tide-out-retune")' in _src12
+          and "retune: %s" in _src12
+          and "OUT-TIDE RETUNE PASS" in _src12
+          and "OUT-TIDE RETUNE RELEASE" in _src12)
+
+    # 12.10 THE RESTART (the persistence pins): the day ledger lives on
+    # DISK, so a scanner relaunch rereads it and finds the day's
+    # releases still counted — the cap CANNOT be refilled by a restart.
+    # Proven with a fresh interpreter: the child imports the scanner
+    # cold (no memory but the file), repoints only the sandbox
+    # constant, and must refuse the pair the parent already released
+    # ("already") while a never-released pair still gets a slot —
+    # persistence must not over-refuse either.
+    import subprocess as _sp_12
+    os.environ[bs.TIDE_RETUNE_ENABLED_KEY] = "1"   # re-arm (12.7 disarmed)
+    _12_fresh_day()
+    _relP, _ = bs._tide_retune_releases(70.0, "PERSIST/USD")
+    _persist_file = Path(bs.TIDE_RETUNE_STATE_FILE)
+    _disk = (json.loads(_persist_file.read_text(encoding="utf-8"))
+             if _persist_file.exists() else {})
+    _today = datetime.now().astimezone().strftime("%Y-%m-%d")
+    _sp_env = dict(os.environ)
+    _sp_env[bs.TIDE_RETUNE_ENABLED_KEY] = "1"
+    _prog = (
+        "import background_scanner as bs\n"
+        f"bs.TIDE_RETUNE_STATE_FILE = {json.dumps(str(_persist_file))}\n"
+        "a = bs._tide_retune_releases(70.0, 'PERSIST/USD')\n"
+        "b = bs._tide_retune_releases(70.0, 'FRESH/USD')\n"
+        "print('RESULT', a[0], 'already' in a[1], b[0], 'cap' not in b[1])\n"
+    )
+    _sp_run = _sp_12.run([sys.executable, "-X", "utf8", "-c", _prog],
+                         cwd=str(BASE), env=_sp_env, capture_output=True,
+                         text=True, timeout=180)
+    _tok = _sp_run.stdout.split("RESULT")[-1].split()
+    _ck12("12.10 the day ledger survives a restart: a fresh interpreter "
+          "refuses the pair already released today and the cap does "
+          "not refill",
+          _relP is True
+          and _disk.get("day") == _today
+          and _disk.get("pairs") == ["PERSIST/USD"]
+          and _sp_run.returncode == 0
+          and _tok == ["False", "True", "True", "True"],
+          (_relP, _disk, _sp_run.returncode, _sp_run.stdout[-300:],
+           _sp_run.stderr[-300:]))
+
+    # 12.11 day rollover: a ledger stamped with an older day reads as a
+    # fresh day and is REPLACED on the next release — old days never
+    # bind, and yesterday's pairs never spend today's cap.
+    _yday = (datetime.now().astimezone() - timedelta(days=1)
+             ).strftime("%Y-%m-%d")
+    Path(bs.TIDE_RETUNE_STATE_FILE).write_text(
+        json.dumps({"day": _yday,
+                    "pairs": ["OLD/USD", "OLD2/USD", "OLD3/USD"]}),
+        encoding="utf-8")
+    _relY, _ = bs._tide_retune_releases(70.0, "NEW/USD")
+    _diskY = json.loads(Path(bs.TIDE_RETUNE_STATE_FILE).read_text(
+        encoding="utf-8"))
+    _ck12("12.11 an old day's ledger reads as a fresh day and the "
+          "rollover replaces it (yesterday's pairs never bind today)",
+          _relY is True
+          and _diskY.get("day") == _today
+          and _diskY.get("pairs") == ["NEW/USD"],
+          (_relY, _diskY))
+
+    # 12.12 a ledger that exists but cannot be trusted fails CLOSED —
+    # an admission valve never guesses. Corrupt json, or today's stamp
+    # with a pairs field that is not a list, refuses the release (a
+    # crash or a broken disk cannot refill the cap by destroying the
+    # evidence) and the why names the ledger for the operator.
+    Path(bs.TIDE_RETUNE_STATE_FILE).write_text("{not json",
+                                               encoding="utf-8")
+    _relC1, _whyC1 = bs._tide_retune_releases(70.0, "CORRUPT/USD")
+    Path(bs.TIDE_RETUNE_STATE_FILE).write_text(
+        json.dumps({"day": _today, "pairs": "not-a-list"}),
+        encoding="utf-8")
+    _relC2, _whyC2 = bs._tide_retune_releases(70.0, "CORRUPT/USD")
+    _ck12("12.12 an unreadable ledger fails CLOSED (corrupt json or a "
+          "malformed day entry refuses the release — never reads as an "
+          "empty day)",
+          _relC1 is False and "unreadable" in _whyC1
+          and _relC2 is False and "unreadable" in _whyC2,
+          (_whyC1, _whyC2))
+
+    # 12.13 the write is ATOMIC (the repo's ledger idiom: .tmp then
+    # os.replace, the signal-snapshot posture — a reader, the other
+    # scanner thread or a restart, never sees a partial day) and the
+    # file sits at the runtime-state convention (repo root, never
+    # committed).
+    _src13 = (BASE / "background_scanner.py").read_text(encoding="utf-8")
+    _save13 = ("" if "def _tide_retune_save_day" not in _src13 else
+               _src13.split("def _tide_retune_save_day", 1)[1].split(
+                   "\ndef ", 1)[0])
+    _ck12("12.13 the ledger write is atomic (.tmp then os.replace — "
+          "readers never see a partial day) and the file is the "
+          "runtime-state convention",
+          hasattr(bs, "TIDE_RETUNE_STATE_FILE")
+          and "def _tide_retune_save_day" in _src13
+          and ".tmp" in _save13 and "os.replace" in _save13
+          and '"tide_retune_state.json"' in _src13)
+
+    # 12.14 the QC's mirror consult (Oct 2, the QC agrees — never
+    # disagree): consume=False reads the SAME doors and the SAME ledger
+    # but spends NOTHING — a would-release leaves the ledger untouched,
+    # so the alert's later fire still gets its own slot.
+    _12_fresh_day()
+    _relW, _whyW = bs._tide_retune_releases(70.0, "MIRROR/USD",
+                                            consume=False)
+    _left = Path(bs.TIDE_RETUNE_STATE_FILE).exists()
+    _relC, _whyC = bs._tide_retune_releases(70.0, "MIRROR/USD")
+    _ck12("12.14 the QC's consult is read-only: the same valve passes "
+          "the mirror without spending the slot (the alert's fire "
+          "still gets its own)",
+          _relW is True and _left is False
+          and _relC is True and "1/3" in _whyC,
+          (_relW, _whyW, _left, _relC, _whyC))
+
+    # 12.15 the mirror AGREES with a fired alert: a pair that already
+    # holds today's admission passes the consult (never a double-spend,
+    # never a contradiction) — and a spent cap still refuses a pair
+    # that holds nothing.
+    _relH, _whyH = bs._tide_retune_releases(70.0, "MIRROR/USD",
+                                            consume=False)
+    _rel2, _ = bs._tide_retune_releases(70.0, "SLOT2/USD")
+    _rel3, _ = bs._tide_retune_releases(70.0, "SLOT3/USD")
+    _relS, _whyS = bs._tide_retune_releases(70.0, "FOURTH/USD",
+                                            consume=False)
+    _ck12("12.15 the consult agrees with the alert's already-released "
+          "pair (it holds its admission) and still honors the spent cap",
+          _relH is True and "holds" in _whyH
+          and _rel2 is True and _rel3 is True
+          and _relS is False and "cap" in _whyS,
+          (_relH, _whyH, _relS, _whyS))
+
+    # 12.16 every door stays fail-closed in consult mode: the dial OFF,
+    # the study floor, an untrustworthy ledger — the QC's mirror can
+    # never open what the alert's valve would refuse.
+    os.environ.pop(bs.TIDE_RETUNE_ENABLED_KEY, None)   # dial file says 0
+    _relOff, _whyOff = bs._tide_retune_releases(70.0, "Z/USD",
+                                                consume=False)
+    os.environ[bs.TIDE_RETUNE_ENABLED_KEY] = "1"
+    _relFl, _whyFl = bs._tide_retune_releases(51.0, "Z/USD",
+                                              consume=False)
+    Path(bs.TIDE_RETUNE_STATE_FILE).write_text("{broken",
+                                               encoding="utf-8")
+    _relU, _whyU = bs._tide_retune_releases(70.0, "Z/USD",
+                                            consume=False)
+    _ck12("12.16 the consult mode keeps every door fail-closed (OFF, "
+          "floor, untrustworthy ledger — the mirror can never open "
+          "what the valve would refuse)",
+          _relOff is False and "OFF" in _whyOff
+          and _relFl is False and "floor" in _whyFl
+          and _relU is False and "unreadable" in _whyU,
+          (_whyOff, _whyFl, _whyU))
+
+    # 12.17 the consuming path is SERIALIZED in-process (the reviewer
+    # minor on the backfill, Oct 2): the load-check-save sequence runs
+    # under a module lock, so two scanner threads can never interleave
+    # the sequence and double-spend the cap. Proven at the mutation
+    # itself: the save is wrapped to test the lock — under the lock a
+    # non-blocking re-acquire FAILS (threading.Lock is not reentrant),
+    # outside it succeeds. Deterministic, no timing races.
+    import threading as _th_12
+    _ck12("12.17 the consuming path is serialized: a module lock wraps "
+          "the ledger sequence (save runs UNDER it — proven at the "
+          "mutation, not by timing)",
+          hasattr(bs, "_TIDE_RETUNE_LOCK")
+          and isinstance(bs._TIDE_RETUNE_LOCK, type(_th_12.Lock()))
+          and "with _TIDE_RETUNE_LOCK," in _src13
+          and "_TideRetuneFileLock(" in _src13)   # composed with the
+    # cross-process lockfile (12.18): one with, both serialization layers
+    _12_fresh_day()
+    _lock_seen = []
+    _real_save = bs._tide_retune_save_day
+
+    # the spy tries a NON-BLOCKING acquire at the save: if it SUCCEEDS,
+    # the lock was free at that moment — the save ran OUTSIDE the
+    # critical section (bad); if it FAILS, the sequence holds it (good)
+    def _spy_save2(day, pairs):
+        got = bs._TIDE_RETUNE_LOCK.acquire(False)
+        _lock_seen.append(not got)   # True = already held (good)
+        if got:
+            bs._TIDE_RETUNE_LOCK.release()
+        return _real_save(day, pairs)
+
+    bs._tide_retune_save_day = _spy_save2
+    try:
+        _relL, _ = bs._tide_retune_releases(70.0, "LOCK/USD")
+    finally:
+        bs._tide_retune_save_day = _real_save
+    _ck12("12.17b the save ran while the lock was held (the sequence is "
+          "one critical section, not three races)",
+          _relL is True and _lock_seen == [True], _lock_seen)
+
+    # 12.18 THE CAP IS CROSS-PROCESS ATOMIC (Oct 2, the finding's
+    # second half closes): the in-process lock (12.17) cannot stop two
+    # PROCESSES — the QC consult already reads from the console
+    # process, and any second releaser (a bot-side door, an op script)
+    # could read the same near-empty ledger and both pass the cap
+    # check: two admissions on a 1-slot cap, one write clobbering the
+    # other. The consuming path now holds a create-if-absent LOCKFILE
+    # (the contest_account idiom: os.link, pid|iso|uuid token, stale
+    # takeover, bounded retry, exhaustion = fail-closed refusal) around
+    # the whole read-check-write. Proven with two real child processes
+    # racing a cap-1 valve: the TOTAL successful releases across both
+    # must be exactly 1 (the loser re-reads under the lock and is
+    # refused by the spent cap) — never 2, and never a clobbered
+    # ledger showing one pair while two popups fired.
+    import subprocess as _sp3
+    os.environ[bs.TIDE_RETUNE_ENABLED_KEY] = "1"
+    os.environ[bs.TIDE_RETUNE_DAY_CAP_KEY] = "1"
+    _12_fresh_day()
+    # the sandbox MUST flow into the child by value (the state-file
+    # path formatted into the child source): children import the module
+    # fresh, so the parent's in-memory rebind is invisible — and the
+    # drive must never race the LIVE repo-root ledger. The children
+    # RENDEZVOUS on a go-file (each writes its ready marker, then polls
+    # for the parent's go) so their first attempts truly overlap —
+    # without it, interpreter-import skew alone decides the race and a
+    # pin could pass by luck (it did, once — the honest red needs the
+    # shape leg below).
+    _race_dir = Path(_12_tmp) / "race"
+    _race_dir.mkdir(exist_ok=True)
+    _go = _race_dir / "go"
+    _child_src = (
+        "import sys, time\n"
+        "sys.path.insert(0, {base!r})\n"
+        "import background_scanner as bs\n"
+        "bs.TIDE_RETUNE_STATE_FILE = {sf!r}\n"
+        "from pathlib import Path as _P\n"
+        "_rd = _P({rd!r})\n"
+        "(_rd / 'ready_{{t}}').write_text('1')\n"
+        "for _ in range(500):\n"
+        "    if (_rd / 'go').exists():\n"
+        "        break\n"
+        "    time.sleep(0.01)\n"
+        "succ = 0\n"
+        "for i in range(30):\n"
+        "    rel, why = bs._tide_retune_releases(70.0, '{{t}}-' + str(i) + '/USD')\n"
+        "    succ += 1 if rel else 0\n"
+        "    time.sleep(0.02)\n"
+        "print('SUCC', succ)\n"
+    ).format(base=str(BASE), sf=str(bs.TIDE_RETUNE_STATE_FILE),
+             rd=str(_race_dir))
+    _procs, _succ = [], []
+    for _tag in ("XA", "XB"):
+        _procs.append(_sp3.Popen(
+            [sys.executable, "-X", "utf8", "-c",
+             _child_src.replace("{t}", _tag)],
+            cwd=str(BASE), env=dict(os.environ),
+            stdout=_sp3.PIPE, stderr=_sp3.PIPE, text=True))
+    for _ in range(500):                       # both ready -> release
+        if (_race_dir / "ready_XA").exists() \
+                and (_race_dir / "ready_XB").exists():
+            _go.write_text("1")
+            break
+        _time_mod.sleep(0.01)
+    for _p in _procs:
+        _out, _err = _p.communicate(timeout=120)
+        for _ln in _out.splitlines():
+            if _ln.startswith("SUCC"):
+                _succ.append(int(_ln.split()[1]))
+    _total = sum(_succ)
+    _today2 = bs._tide_retune_load_day(
+        datetime.now().astimezone().strftime("%Y-%m-%d"))
+    # THE SHAPE LEG (the deterministic half of the red; re-aimed in
+    # round 2 — the contract moved from an os.link unlink-takeover
+    # lockfile to a kernel-owned byte-range lock, see 12.19): the
+    # valve's source must hold a lock bound to the ledger's path.
+    _src18 = (BASE / "background_scanner.py").read_text(encoding="utf-8")
+    _shape18 = ("_retune_lockfile_path" in _src18
+                and "LK_NBLCK" in _src18)
+    _ck12("12.18 two racing processes spend EXACTLY one cap-1 slot "
+          "(the lock serializes the read-check-write across processes; "
+          "zero winners would mean the valve locked ITSELF out — also a "
+          "failure; the ledger holds exactly the winner's pair)",
+          _shape18
+          and len(_succ) == 2 and _total == 1
+          and isinstance(_today2, list) and len(_today2) == _total,
+          (_shape18, _succ, _total, _today2))
+    _12_fresh_day()
+
+    # 12.19 THE LOCK IS STEAL-PROOF AND FOLLOWS THE LEDGER'S CURRENT
+    # PATH (round 2, the Copilot [high] on 272e283): the unlink-based
+    # takeover could strip a LIVE holder's lock (age alone decided) and
+    # the check-then-unlink could remove another contender's
+    # REPLACEMENT — either race re-opens the double-spend 12.18 closed.
+    # The contract: a kernel-owned byte-range lock (msvcrt.locking —
+    # the lock lives in the OS per HANDLE, a dead holder's lock
+    # evaporates with the process, and there is nothing to steal or
+    # unlink), bound to the state file's path AT CALL TIME (a sandboxed
+    # ledger must never contend on a repo-root lock).
+    # THE 19B REWRITE (Oct 8, the identity-race class retirement): the
+    # old 12.19b diffed the repo-root anchor's BYTES across this
+    # drive's runtime — the charter-drive's in-sweep flake class
+    # (battery_final_20261007). The audit-ledger fingerprint pattern
+    # replaces it, shaped for this surface:
+    #   - THE FINGERPRINTS: the production lock writes NOTHING (the
+    #     anchor sizes 0, untouched since Oct 2 18:10 — the lock lives
+    #     in the OS per HANDLE), so any 12.19-run write leaks one of
+    #     exactly two shapes: the TRICKERY template ("999999|...", the
+    #     literal this drive writes inside the sandbox) or FRESH
+    #     TAKEOVER CLUTTER (reused handle, stale content, bumpable
+    #     mtime — the leak would look ancient and operate dead). A
+    #     FRESH NON-EMPTY anchor is therefore itself a leak signal —
+    #     0 or pre-existing-non-junk, anything else. Anti-vacuity:
+    #     pre-existing junk (a stale takeover file this drive did not
+    #     create) or a Windows symlinker deleting it mid-run names the
+    #     MISS, never a false green.
+    #   - THE SIMULTANEITY: the sandbox leg's runs prove the snapshot
+    #     covers the anchor's whole exposure (leak-in-both = leak —
+    #     a no-op cannot leave residue, in either wall alone).
+    # The lock bookkeeping lives in ONE data structure; content-type of
+    # every write is the 999999|... template only (urls are 0-byte);
+    # SIZE 0 means the file wholly (with ZERO junk in it) is the lock:
+    # 0 bytes = handle-only signature. FRESH NON-EMPTY = leak (leak
+    # tools can never operate; faking is the LIE, never the navy the
+    # pre-existing junk would have to lie about).
+    _src19 = (BASE / "background_scanner.py").read_text(encoding="utf-8")
+    _i_cls = _src19.find("class _TideRetuneFileLock")
+    _i_end = _src19.find("\ndef ", _i_cls) if _i_cls >= 0 else -1
+    _cls19 = (_src19[_i_cls:_i_end]
+              if _i_cls >= 0 and _i_end > _i_cls else "")
+    _19_a = ("msvcrt" in _cls19 and "LK_NBLCK" in _cls19
+             and ".unlink(" not in _cls19 and "os.link" not in _cls19)
+    _ck12("12.19a the lock class is kernel-owned (msvcrt byte-range — "
+          "no unlink takeover, no link dance, nothing to steal)",
+          _19_a,
+          ("msvcrt" in _cls19, "LK_NBLCK" in _cls19,
+           ".unlink(" not in _cls19, "os.link" not in _cls19))
+    # (b) call-site binding: a release under a REBOUND state file must
+    # lock beside the rebound ledger — and never leave a WRITE SHAPE on
+    # the repo-root anchor. (Oct 8 re-aim, the identity-race class
+    # retirement: the old conjunct byte-diffed the anchor across this
+    # drive's runtime — the charter flake's race class
+    # (battery_final_20261007), retired drive by drive. The production
+    # anchor is a 0-BYTE, content-free HANDLE signature (the kernel-
+    # owned lock lives in the OS per HANDLE; the file is just the
+    # anchor and holds nothing — 0 bytes since Oct 2 18:10), so the
+    # pin judges SHAPES snap-to-now, never mirrored bytes:
+    #   leaks: fresh bytes where 0 lived, bytes created where nothing
+    #   lived, this drive's trickery/takeover template (999999|...)
+    #   anywhere, or a changed pre-existing anchor (whole-file
+    #   rewrites included). A pre-existing NON-template anchor is
+    #   strictly out of scope (operator clutter, not a drive write);
+    #   its REMOVAL only names a MISS (a symptom, never attributed
+    #   proof) and never holds the verdict false-green-free.
+    #   ANTI-VACUITY: the detector proves itself on a drive-owned
+    #   template write, which is FENCED into its own try/finally and
+    #   runs AFTER the release leg so it can never contaminate the
+    #   runtime verdict. A live byte-range holder refuses the probe
+    #   byte (PermissionError 13) — the kernel's own guard then IS
+    #   the proof, and the anti-vacuity leg rides it)
+    _19_dir = Path(_12_tmp) / "lockbind"
+    _19_dir.mkdir(exist_ok=True)
+    _19_old_sf = bs.TIDE_RETUNE_STATE_FILE
+    _19_root = BASE / "tide_retune_state.json.lock"
+    _19_probe = b"999999|2099-12-31T00:00:00-07:00|deadbeef"
+
+    # THE SHAPE JUDGE (one function, replays the snap-state against a
+    # now-state; returns the leak SHAPE it detects, None = clean):
+    # every leak case this drive's section can emit has one branch.
+    # THE STRICT WINDOW (CodeRabbit medium on the first pass, cured):
+    # the snap-to-judge window is this drive's OWN fixture + release
+    # leg — MILLISECONDS on a 0-byte locked-by-nothing anchor — so a
+    # ZERO-BYTE anchor that VANISHED inside it is a drive write shape
+    # too (the leak case that DELETES what it found; the production
+    # lock's file PERSISTS — only the byte range is the lock, the
+    # anchor is never removed by a legit writer).
+    def _19_shape_leak(snap, st_now, b_now):
+        if snap is None:
+            return ("bytes created where none lived (a template or "
+                    "junk write by this drive's run)"
+                    if st_now is not None else None)
+        if snap[1] == 0:
+            if st_now is None:
+                return ("the 0-byte anchor was REMOVED inside the "
+                        "window (the drive's job was a release call, "
+                        "never a deletion)")
+            return ("bytes on a 0-byte anchor — the production lock "
+                    "writes nothing, so bytes here are a drive write"
+                    if st_now.st_size > 0 else None)
+        if st_now is None:
+            return ("MISS — a pre-existing anchor vanished mid-run "
+                    "(a symptom, never attributed to this drive)")
+        if (b_now or b"") != (snap[3] or b""):
+            if (b_now or b"").startswith(b"999999|"):
+                return ("the trickery template leaked over the "
+                        "pre-existing anchor")
+            return ("the pre-existing anchor's bytes changed "
+                    "mid-run (not a shape this drive owns)")
+        return None
+
+    # THE SNAP precedes every leak-capable action: what the anchor is
+    # afterwards is judged against HERE, at the time the shape judge
+    # is called — never against a mirrored dict read.
+    _19_snap = None
+    if _19_root.exists():
+        _19_st0 = _19_root.stat()
+        _19_snap = ("existed", _19_st0.st_size, _19_st0.st_mtime,
+                    _19_root.read_bytes())
+    # FIXTURES (the ledger seed) ride AFTER the snap — the order does
+    # not write the anchor, so nothing here can precede the snap.
+    bs.TIDE_RETUNE_STATE_FILE = str(_19_dir / "tide_retune_state.json")
+    Path(bs.TIDE_RETUNE_STATE_FILE).write_text(json.dumps(
+        {"day": datetime.now().astimezone().strftime("%Y-%m-%d"),
+         "pairs": []}), encoding="utf-8")
+    _rel19, _why19 = bs._tide_retune_releases(70.0, "LOCKBIND/USD")
+    _19_st_after = (_19_root.stat() if _19_root.exists() else None)
+    _19_b_after = (_19_root.read_bytes() if _19_root.exists() else None)
+    _19_leak = _19_shape_leak(_19_snap, _19_st_after, _19_b_after)
+    _13_dir_has_lock = any(_19_dir.glob("*.lock"))
+    _ck12("12.19b the lockfile follows the ledger's CURRENT path (call-"
+          "time derivation — a sandboxed release locks in its sandbox; "
+          "and the_audit-ledger pins the repo-root anchor at "
+          "RUNTIME, shape-keyed: no bytes where 0 lived, the drive's "
+          "template nowhere on it, the snap the whole exposure — the "
+          "byte-diff race across this drive's runtime is retired with "
+          "the charter flake's class)",
+          _rel19 is True
+          and _13_dir_has_lock
+          and _19_leak is None,
+          (_rel19, _19_leak or "no leak SHAPE on the anchor",
+           str(_19_root), sorted(p.name for p in _19_dir.glob("*"))))
+    # THE DETECTOR'S RED-PROOF is IN-MEMORY ONLY (CodeRabbit major on
+    # the first cut, cured: the probe used to write the real repo-root
+    # anchor and best-effort restore it — a concurrent production
+    # holder or a failed restore could leave the anchor modified or
+    # removed; the class' own rule — no drive write to a live artifact
+    # — is the rule the probe obeys too). The probe replays the EXACT
+    # now-state this drive's leak case emits (bytes-on-zero, or the
+    # template-over-pre-existing shape when a non-empty anchor sits
+    # there) through the shape judge and NOTHING ELSE: no file write,
+    # no stat, no restore that can fail silently.
+    if _19_snap is None:
+        _19_probe_st = types.SimpleNamespace(st_size=len(_19_probe))
+        _19_probe_case = "bytes created where none lived"
+    elif _19_snap[1] == 0:
+        _19_probe_st = types.SimpleNamespace(st_size=len(_19_probe))
+        _19_probe_case = "bytes on a 0-byte anchor"
+    else:
+        _19_probe_st = types.SimpleNamespace(st_size=_19_snap[1] + len(_19_probe))
+        _19_probe_case = "template over the pre-existing anchor"
+    _19_probe_guilty = _19_shape_leak(
+        _19_snap, _19_probe_st, _19_probe) is not None
+    _ck12("12.19b-red the leak-shape detector is ALIVE: replaying the "
+          "drive's exact leak case through the shape judge fires on it "
+          "(IN-MEMORY ONLY — the live anchor is never touched: no "
+          "probe write, no restore race, no silent failure path; the "
+          "detector cannot pass by recording nothing)",
+          _19_probe_guilty,
+          (_19_probe_case or "no case", _19_probe_guilty,
+           ("existed" if _19_snap else "absent"),
+           _19_snap[1] if _19_snap else None))
+    # (c) the behavioral contract, deterministic: a HELD lock cannot be
+    # taken by metadata trickery (rewriting the file to look ancient
+    # must not help — the kernel owns the lock, not the file's
+    # content); the valve refuses BUSY while a live process holds it
+    # (a FRESH ledger — the cap door must not be what refuses); and a
+    # dropped handle (closing the fd is exactly what process death
+    # does) frees the lock for the next acquirer
+    _19_lk_path = _19_dir / "tide_retune_state.json.lock"
+    _lk1 = bs._TideRetuneFileLock(_19_lk_path)
+    _lk1.__enter__()
+    _19_held1 = _lk1.held
+    # the trickery attempt: rewrite the anchor to look ancient — the
+    # kernel REFUSES the write itself (Windows byte-range locks are
+    # mandatory: a foreign write to the locked byte gets
+    # PermissionError 13), so the forgery cannot even land, let alone
+    # unlock anything
+    _19_trickery_refused = False
+    try:
+        _19_lk_path.write_text("999999|2020-01-01T00:00:00-07:00|deadbeef",
+                               encoding="utf-8")
+    except OSError:
+        _19_trickery_refused = True
+    _lk2 = bs._TideRetuneFileLock(_19_lk_path)
+    _lk2.__enter__()
+    _19_stolen = _lk2.held
+    _lk2.__exit__()
+    # fresh ledger + rebound path: the ONLY door that can refuse now
+    # is the busy one
+    Path(bs.TIDE_RETUNE_STATE_FILE).write_text(json.dumps(
+        {"day": datetime.now().astimezone().strftime("%Y-%m-%d"),
+         "pairs": []}), encoding="utf-8")
+    _rel19b, _why19b = bs._tide_retune_releases(70.0, "LOCKBUSY/USD")
+    _lk1.__exit__()
+    _lk3 = bs._TideRetuneFileLock(_19_lk_path)
+    _lk3.__enter__()
+    _19_held3 = _lk3.held
+    _19_recovered = False
+    try:
+        import os as _os19
+        _os19.close(_lk3._fd)          # the death simulation: the
+                                       # kernel drops the byte range
+    finally:
+        _lk3.held = False              # __exit__ would double-close
+        _lk4 = bs._TideRetuneFileLock(_19_lk_path)
+        _lk4.__enter__()
+        _19_recovered = _lk4.held
+        _lk4.__exit__()
+    _ck12("12.19c a held lock survives metadata trickery (the kernel "
+          "refuses a foreign write to the locked byte outright) and a "
+          "busy valve refuses CLOSED; a dropped handle frees it "
+          "(kernel-owned: steal-proof AND crash-recovering)",
+          _19_held1 and _19_trickery_refused and not _19_stolen
+          and _rel19b is False and "busy" in _why19b
+          and _19_held3 and _19_recovered,
+          (_19_held1, _19_trickery_refused, _19_stolen, _rel19b,
+           _why19b, _19_held3, _19_recovered))
+except Exception as _e12:
+    _12_bad = True
+    check(f"12.x the retune section ran clean ({_e12!r})", False)
+finally:
+    if _old_retune_env is None:
+        os.environ.pop(bs.TIDE_RETUNE_ENABLED_KEY, None)
+    else:
+        os.environ[bs.TIDE_RETUNE_ENABLED_KEY] = _old_retune_env
+    os.environ.pop(bs.TIDE_RETUNE_DAY_CAP_KEY, None)
+    if _old_state_env_12 is None:
+        os.environ.pop(ex.STATE_ENV, None)
+    else:
+        os.environ[ex.STATE_ENV] = _old_state_env_12
+    if _12_old_statefile is not None:
+        bs.TIDE_RETUNE_STATE_FILE = _12_old_statefile
+    import shutil as _sh_12
+    _sh_12.rmtree(_12_tmp, ignore_errors=True)
+if _12_bad:
+    pass  # the section's own failure is pinned above
+
+# ── 10. the whole tree still parses (the drive's own smoke) ──────────
+import ast
+for f in ("background_scanner.py", "exit_extension.py", "contest_account.py",
+          "app.py"):
+    try:
+        ast.parse((BASE / f).read_text(encoding="utf-8"))
+        check(f"10.x {f} parses", True)
+    except SyntaxError as e:
+        check(f"10.x {f} parses ({e})", False)
+
+print("\n".join(lines))
+print(f"\nRESULT: {PASS} passed, {FAIL} failed")
+
+
+def main():
+    sys.exit(1 if FAIL else 0)
+
+
+if __name__ == "__main__":
+    sys.exit(main())

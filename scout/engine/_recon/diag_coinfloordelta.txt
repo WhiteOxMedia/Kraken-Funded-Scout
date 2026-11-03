@@ -1,0 +1,185 @@
+### diag_coinfloordelta — co_filename=diag_coinfloordelta.py firstlineno=1
+DOCSTRING:
+diag_coinfloordelta.py — THE COIN-FLOOR DELTA (Sep 17).
+
+WHY THIS EXISTS: coin_floors.py learns each coin's own score-floor
+relief from its blocked trades — but learning is not pricing. This
+study prices the DELTA the way the fleet prices everything else: one
+replay of every contest store, two worlds side by side.
+
+  WORLD G (the global floor): every blocked buy under the assembled
+  floor (~84, the usual rail) stays blocked. Baseline dollars: 0.
+
+  WORLD P (the per-coin floors): each coin's own earned relief applies
+  — a blocked hour at the coin's personal bar (floor - edge, never
+  below 70) enters the ledger at its real size (position x the brain's
+  ladder) and grades end-move and ran (+2% MFE, the popup contract)
+  over the popup's 4h horizon.
+
+The delta is the answer in dollars: what the personal floors RELEASE
+(payers admitted, their $), what they ADMIT (duds that bled), and the
+net — the number the fleet weighs before trusting the relief. Shares
+ONE set of learning semantics with the live learner (coin_floors.
+_learn_from built the edges being priced) and ONE forward-outcome
+contract with the ladder grade and the clamp-cost study. Monthly
+driver: the relief re-prices itsel
+
+TOP-LEVEL NAMES (imports/defs in order):
+  IMPORT __future__
+  IMPORT annotations
+  STORE  annotations
+  IMPORT glob
+  STORE  glob
+  IMPORT json
+  STORE  json
+  IMPORT logging
+  STORE  logging
+  IMPORT threading
+  STORE  threading
+  IMPORT time
+  STORE  time
+  IMPORT datetime
+  IMPORT datetime
+  STORE  datetime
+  IMPORT timezone
+  STORE  timezone
+  IMPORT pathlib
+  IMPORT Path
+  STORE  Path
+  STORE  logger
+  STORE  BASE
+  STORE  OUT
+  STORE  LEDGER
+  STORE  STORES_GLOB
+  STORE  POSITION_USD
+  STORE  POSITION_USD_FALLBACK
+  STORE  HORIZON
+  STORE  WARMUP
+  STORE  WORLD_BAR
+  STORE  FIRST_DELAY_S
+  STORE  MONTHLY_PERIOD_S
+  STORE  _utcnow_iso
+  STORE  _position_usd
+  STORE  _floors_records
+  STORE  _blocked_trades
+  STORE  run_study
+  STORE  _append
+  STORE  monthly_driver_loop
+
+ALL STRINGS (dedup, order-preserving, >=4 chars):
+  diag_coinfloordelta.py — THE COIN-FLOOR DELTA (Sep 17).
+
+WHY THIS EXISTS: coin_floors.py learns each coin's own score-floor
+relief from its blocked trades — but learning is not pricing. This
+study prices the DELTA the wa
+  coinfloordelta
+  _coinfloordelta_check.txt
+  _coinfloordelta_monthly.jsonl
+  surething_data/kraken/*_USD-1h.feather
+  return
+  float
+  Today's ledger (the live contest size) with the study's own
+fallback — the family convention.
+  live contest size unreadable (%s) — the fallback $%.0f stands
+  dict
+  The learner's on-disk coins (what the funnel would actually
+apply). Empty dict = no relief learned = the delta is zero by
+construction (an honest study, not a fabricated one).
+  utf-8
+  coins
+  floors records unreadable (%s)
+  list
+  One store -> the blocked buys under WORLD_BAR inside the court
+band [72, 84): conf, entry, end-move %, ran (+2% MFE), collapsed
+to consecutive-hour trades. Same court the learner learned from.
+  date
+  confidence
+  close
+  high
+  entry
+  max_pairs
+  int | None
+  stores_dir
+  Path | None
+  floors
+  dict | None
+  world_bar
+  position_usd
+  float | None
+  One full delta study. Writes the txt, appends the monthly
+record, returns the summary. Bounds make it hermetic: max_pairs
+slices the stores, floors/stores_dir/position_usd are injectable
+for the pins.
+  *_USD-1h.feather
+  -1h.feather
+  pairs
+  relief_coins
+  released
+  payers
+  mfe_usd
+  duds
+  net_usd
+  per_coin
+  bounded
+  === THE COIN-FLOOR DELTA: personal floors vs the global bar (Sep 17) ===
+  worlds: G = everything under 
+   stays blocked (baseline $0) | P = each coin's earned relief applies (bar - edge, never < 
+  position $
+  ,.0f
+   x the brain's ladder | horizon 
+  h | ran = +
+  % MFE (the popup contract)
+  relief coins on disk: 
+  edge
+   of 
+   learned
+  no stores found — the study cannot run
+  coinfloordelta: %s skipped (%s)
+  rel_n
+  rel_pay
+  rel_usd
+  rel_mfe_usd
+  dud_n
+  dud_usd
+  stores replayed: 
+   (BOUNDED SAMPLE — the driver runs the 54)
+  no earned relief in the floors file (or no store hours inside any coin's court) — the delta is $0 by construction; the learner's driver fills the file and this study re-prices monthly.
+  ── PER RELIEF COIN ──
+  coin
+  rel$
+  dud$
+  net$
+  >5.1f
+  >+10.2f
+  >+8.2f
+   ceiling) 
+  TOTAL: released 
+   trades (
+   ran, ran-ceiling $
+  +,.2f
+  ), admitted 
+   duds ($
+  ) — NET $
+   per window
+  COINFLOOR_DELTA
+  THE DELTA IS MONEY: the personal floors admit edge the global bar taxes
+  THE RELIEF BLEEDS: the admitted duds outpay the released payers — tighten the clamp or shrink the band
+  WASH: the relief neither pays nor bleeds this window
+  TOO THIN TO VERDICT: 
+   graded relief(s), the ladder's COINFLOOR_DELTA rung needs 
+   — the relief's net is information, not advice yet
+  verdict
+  summary
+  coin-floor delta ledger append failed (%s) — the txt still carries the verdict
+  stop
+  threading.Event
+  first_delay_s
+  period_s
+  None
+  The daemon loop: one pass after the learner has filled its file,
+then monthly. Never raises; dies with the stop event.
+  COIN-FLOOR DELTA: monthly re-price — %d relief coin(s), net %+.2f | %s
+  no relief yet
+  COIN-FLOOR DELTA: pass failed (%s) — this month's re-price skips, the ledger stands
+
+TOTAL STRINGS: 101

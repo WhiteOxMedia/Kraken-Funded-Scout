@@ -1,0 +1,22 @@
+ST-SHADOW AUDIT — the fleet (2 streamlit module(s)) (the swallowed-widget class)
+st.<name> loads in scopes, fleet-wide: 359
+
+SELFTEST (the analyzer against a known-bad snippet):
+  line 28: st.markdown in <module> > wrong_import — after-bind (st is shadowed import of 'json' -> AttributeError)
+  line 19: st.session_state in <module> > hidden_walrus — after-bind (st is 'walrus'-bound -> AttributeError)
+  line 6: st.caption in <module> > trail_block — before-bind (UnboundLocalError)
+  line 11: st.markdown in <module> > trail_block — after-bind (st is 'Assign'-bound -> AttributeError); SWALLOWED by try/except
+  line 14: st.selectbox in <module> > trail_block — after-bind (st is 'Assign'-bound -> AttributeError)
+  line 22: st.@global-rebind in <module> > global_rebind — global st + bare assign rebinds the MODULE st for every other scope
+
+FLEET (G = production gate member, r = report-only):
+  [G] app.py: 135 scope(s), 358 load(s) — CLEAN
+  [G] secrets_utils.py: 4 scope(s), 1 load(s) — CLEAN
+
+PASS  selftest: bad snippet flags swallow, uncaught, before-bind, walrus + global-rebind variants; clean side stays clean
+PASS  app.py: scoped loads equal the independent whole-tree walk
+PASS  app.py: every st.<attr> it uses is on the analyzer's watch-list
+PASS  secrets_utils.py: scoped loads equal the independent whole-tree walk
+PASS  secrets_utils.py: every st.<attr> it uses is on the analyzer's watch-list
+PASS  FLEET CLEAN: 2 production module(s) — no scope binds a local st and calls st widgets (the swallowed-widget class is closed fleet-wide)
+VERDICT: FLEET CLEAN — the bug class is absent from production

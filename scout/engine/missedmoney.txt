@@ -1,0 +1,58 @@
+today suppressions: 347
+by gate: brain-floor=128, daily-lock=72, too-thin=59, deep-veto=33, downward-trend=23, rotation-lock=21, stale-move=7, worth-floor=2, death-line=1, blowoff-yesterday=1
+unique buried pairs: 49
+
+pair        gate        brain |   mfe1h   mfe3h   worst   end3h | minTo+1%
+AAVE/USD    daily-lock     92 |  +0.45%  +2.39%  -0.51%  +1.78% | 120
+ADA/USD     deep-veto      21 |  +0.57%  +1.53%  -0.58%  +0.43% | 115
+AIXBT/USD   too-thin       73 |  +3.97%  +3.97%  +0.00%  +0.82% | 0
+ALGO/USD    too-thin       91 |  +0.39%  +0.39%  -2.09%  -1.38% | -
+APR/USD     brain-floor    78 |  +2.13%  +4.13%  -1.44%  +0.97% | 25
+APT/USD     too-thin      100 |  +0.00%  +0.00%  -0.80%  -0.23% | -
+AR/USD      deep-veto      28 |  +1.37%  +4.51%  -0.18%  +3.48% | 40
+ARB/USD     brain-floor    51 |  +0.44%  +0.44%  -3.45%  -1.91% | -
+ASTER/USD   blowoff-yesterday    62 |  +1.45%  +1.45%  -3.13%  -1.55% | 0
+ATOM/USD    too-thin      100 |  +0.16%  +0.16%  -0.87%  +0.04% | -
+AVAX/USD    daily-lock    100 |  +0.33%  +0.96%  -0.04%  +0.86% | -
+BCH/USD     deep-veto      10 |  +0.25%  +1.49%  -0.45%  +0.69% | 155
+BTC/USD     daily-lock     84 |  +0.32%  +0.32%  -0.21%  -0.21% | -
+CRV/USD     brain-floor    14 |  +0.62%  +0.62%  -0.90%  +0.09% | -
+DOGE/USD    too-thin       83 |  +0.39%  +0.45%  -1.07%  -0.99% | -
+DOT/USD     too-thin      100 |  +0.44%  +1.72%  -0.26%  +0.72% | 80
+ETC/USD     too-thin       92 |  +1.95%  +1.95%  +0.00%  +0.27% | 35
+ETH/USD     daily-lock     92 |  +0.55%  +0.55%  -0.02%  +0.27% | -
+FARTCOIN/USD brain-floor     7 |  +0.06%  +1.43%  -1.13%  +1.25% | 180
+FIL/USD     daily-lock     76 |  +0.38%  +0.77%  -0.77%  -0.77% | -
+HNT/USD     deep-veto      42 |  +0.96%  +0.96%  -3.36%  -3.32% | -
+HYPE/USD    daily-lock     92 |  +0.68%  +0.88%  -0.25%  +0.16% | -
+ICP/USD     brain-floor    75 |  +0.83%  +0.83%  -1.17%  -0.83% | -
+INJ/USD     brain-floor    59 |  +0.61%  +0.90%  -0.33%  +0.65% | -
+JTO/USD     brain-floor    67 |  +1.12%  +1.12%  -1.01%  -0.62% | 10
+KAITO/USD   brain-floor    43 |  +0.77%  +1.45%  -0.29%  +0.45% | 80
+LINK/USD    too-thin       92 |  +0.36%  +1.15%  -0.25%  +0.92% | 170
+LTC/USD     rotation-lock    67 |  +0.09%  +0.09%  -0.58%  -0.23% | -
+MOODENG/USD too-thin       74 |  +1.43%  +1.43%  -1.17%  -0.19% | 5
+NEAR/USD    brain-floor    68 |  +0.85%  +0.85%  -1.44%  +0.73% | -
+ONDO/USD    too-thin      100 |  +0.25%  +0.25%  -0.53%  -0.18% | -
+OP/USD      rotation-lock    67 |  +0.00%  +0.39%  -1.18%  +0.20% | -
+PENGU/USD   brain-floor     4 |  +0.39%  +0.39%  -0.82%  -0.17% | -
+PNUT/USD    brain-floor    66 |  +2.02%  +5.05%  -0.20%  +4.04% | 60
+POL/USD     brain-floor    63 |  +0.48%  +0.54%  -0.35%  +0.23% | -
+POPCAT/USD  deep-veto      24 |  +0.38%  +0.38%  -0.95%  -0.95% | -
+PUMP/USD    downward-trend    62 |  +0.80%  +0.80%  -2.93%  -2.61% | -
+RENDER/USD  rotation-lock    97 |  +1.09%  +1.09%  -0.07%  +0.07% | 25
+SOL/USD     deep-veto      36 |  +0.26%  +0.41%  -0.40%  -0.15% | -
+STX/USD     downward-trend    66 |  +0.58%  +1.16%  -0.15%  +0.31% | 165
+SUI/USD     rotation-lock    67 |  +0.63%  +0.63%  -0.18%  +0.37% | -
+TAO/USD     brain-floor    64 |  +3.33%  +3.33%  -0.16%  +2.31% | 10
+TIA/USD     brain-floor     0 |  +0.70%  +1.77%  -0.32%  +1.21% | 155
+TRUMP/USD   worth-floor    91 |  +0.50%  +0.50%  -1.34%  +0.33% | -
+UNI/USD     brain-floor    39 |  +0.77%  +6.53%  -1.23%  +5.45% | 135
+VIRTUAL/USD brain-floor     2 |  +0.53%  +1.21%  -0.32%  +1.21% | 180
+WLD/USD     brain-floor     0 |  +1.07%  +2.85%  -0.13%  +2.29% | 10
+XRP/USD     brain-floor    68 |  +0.53%  +0.53%  -0.70%  -0.41% | -
+ZEC/USD     brain-floor    72 |  +0.81%  +0.81%  -2.14%  -1.82% | -
+
+buried signals whose 3h window reached +1%: 22/49
+buried signals whose 3h window reached +2%: 8/49
+median 3h MFE: +0.90%

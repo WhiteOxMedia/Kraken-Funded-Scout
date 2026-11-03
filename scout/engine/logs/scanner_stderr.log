@@ -1,0 +1,405 @@
+06:58 PM [INFO] ============================================================
+06:58 PM [INFO]   Kraken Scout — Rotation Scanner (data-driven)
+06:58 PM [INFO]   Time zone: Mountain Time (MST/MDT, auto DST)
+06:58 PM [INFO]   R1 00-04 Asia | R2 04-08 Pre-US | R3 08-12 EU/US
+06:58 PM [INFO]   R4 12-16 US PM | R5 16-20 US Late | 20-24 cooldown
+06:58 PM [INFO]   Gates: calibrated confidence bar + expected-move floor
+06:58 PM [INFO]   Press Ctrl+C to stop
+06:58 PM [INFO] ============================================================
+06:58 PM [INFO]   Tide memory live driver: ON (popup outcomes refresh every 30 min)
+06:58 PM [INFO]   Deep store 5m driver: ON (live-Kraken extension every 24h)
+06:58 PM [INFO]   Sure Thing auto-refit driver: ON (monthly refit, first pass in 10 min; holdout degradation reported)
+06:58 PM [INFO]   Tide bar weekly driver: ON (outcome-vs-quantile hindsight — daily pass, 7-day grade window; first pass in 10 min)
+06:58 PM [INFO]   Flip grade driver: ON (the bench machinery judged on its own ledger — monthly, plus a fresh grade shortly after each weekly tide-bar pass; first pass in 15 min)
+06:58 PM [INFO] R5 🌆 US Late — Quick ticker scan...
+06:58 PM [INFO]   Movers (>2%): AIXBT, ALGO, FIL
+06:59 PM [INFO] R5 🌆 US Late — Full tournament (54 assets, min_conf=50)...
+06:59 PM [INFO]   US late session — steady moves
+06:59 PM [INFO]   Fetched 54/54 assets
+06:59 PM [INFO]   Liquidity filter: excluded 16 assets (< $1M 24h vol): LDO ($0.1M), GRASS ($0.1M), KAITO ($0.0M), MOODENG ($0.1M), S ($0.1M), TRUMP ($0.2M), PNUT ($0.0M), OP ($0.2M), JTO ($0.1M), ETC ($0.2M), POPCAT ($0.1M), ATOM ($0.2M), AIXBT ($0.0M), ASTER ($0.4M), XPL ($0.5M), VIRTUAL ($0.2M)
+06:59 PM [INFO] 🏆 Momentum Champion: buy TRX (89%)
+06:59 PM [INFO]   📉 Yesterday's losers (bounce candidates): LSK(-9%), ZEC(-0%), BTC(-0%)
+07:00 PM [INFO]   TIDE MEMORY: TRX -3.0 pts in OUT — TRX/USD pays 0.0% in OUT hours (fleet 10.9%) over 479h of history; live popups 0% pay (fleet 71%, 2 events, w 2.0) -> -3.00 pts (bar 60% → 63%)
+07:00 PM [INFO]   EASY TO SELL: 90/100
+07:00 PM [INFO]   TIDE OUT (fleet 11%) — no bridge write; the OUT tide's price on the bot's ledger: quick 89.0 vs personal bar 93 (learned OUT bar 90 (outcome-fitted on 216 live candidates, payers 19.9%; deep history payers 10.9% over 479h))
+07:00 PM [INFO]   Tournament done in 18s
+07:00 PM [INFO]   Next check in 30s | R5 🌆 US Late Sun | threshold 60% | full scan every 10m
+07:00 PM [INFO]   Next check in 30s | R5 🌆 US Late Sun | threshold 60% | full scan every 10m
+07:01 PM [INFO] R5 🌆 US Late — Quick ticker scan...
+07:01 PM [INFO]   Movers (>2%): AIXBT, ALGO, FIL
+07:01 PM [INFO]   Next check in 30s | R5 🌆 US Late Sun | threshold 60% | full scan every 10m
+07:01 PM [INFO]   Next check in 30s | R5 🌆 US Late Sun | threshold 60% | full scan every 10m
+07:02 PM [INFO]   Next check in 30s | R5 🌆 US Late Sun | threshold 60% | full scan every 10m
+07:02 PM [INFO]   Next check in 30s | R5 🌆 US Late Sun | threshold 60% | full scan every 10m
+07:03 PM [INFO] R5 🌆 US Late — Quick ticker scan...
+07:03 PM [INFO]   Movers (>2%): AIXBT, ALGO, FIL
+07:03 PM [INFO]   Next check in 30s | R5 🌆 US Late Sun | threshold 60% | full scan every 10m
+07:04 PM [INFO]   Next check in 30s | R5 🌆 US Late Sun | threshold 60% | full scan every 10m
+07:05 PM [INFO] R5 🌆 US Late — Quick ticker scan...
+07:05 PM [INFO]   Movers (>2%): AIXBT, ALGO
+07:05 PM [INFO]   Next check in 30s | R5 🌆 US Late Sun | threshold 60% | full scan every 10m
+07:05 PM [INFO]   Next check in 30s | R5 🌆 US Late Sun | threshold 60% | full scan every 10m
+07:06 PM [INFO]   Next check in 30s | R5 🌆 US Late Sun | threshold 60% | full scan every 10m
+07:06 PM [INFO]   Next check in 30s | R5 🌆 US Late Sun | threshold 60% | full scan every 10m
+07:07 PM [INFO] R5 🌆 US Late — Quick ticker scan...
+07:07 PM [INFO]   Movers (>2%): AIXBT, FIL
+07:07 PM [INFO]   Next check in 30s | R5 🌆 US Late Sun | threshold 60% | full scan every 10m
+07:07 PM [INFO]   Next check in 30s | R5 🌆 US Late Sun | threshold 60% | full scan every 10m
+07:08 PM [INFO]   Next check in 30s | R5 🌆 US Late Sun | threshold 60% | full scan every 10m
+07:09 PM [INFO] R5 🌆 US Late — Full tournament (54 assets, min_conf=50)...
+07:09 PM [INFO]   US late session — steady moves
+07:10 PM [WARNING] REGIME WATCH: OUT sliding toward a bench (+0.68, 0 losing weeks, ~5 wk to gate) — the outcome bar is losing to the quantile; at 3 losing weeks the bench takes over. Watch the plate.
+07:10 PM [WARNING] REGIME WATCH: FLAT sliding toward a bench (+0.31, 0 losing weeks, ~4 wk to gate) — the outcome bar is losing to the quantile; at 3 losing weeks the bench takes over. Watch the plate.
+07:10 PM [WARNING] REGIME WATCH: RISING sliding toward a bench (+0.18, 0 losing weeks, ~5 wk to gate) — the outcome bar is losing to the quantile; at 3 losing weeks the bench takes over. Watch the plate.
+07:10 PM [INFO] TIDE BAR WEEKLY: === THE TIDE BAR WEEKLY — outcome bar vs the quantile ===
+07:10 PM [INFO]   Fetched 54/54 assets
+07:10 PM [INFO]   Liquidity filter: excluded 16 assets (< $1M 24h vol): GRASS ($0.0M), KAITO ($0.0M), PNUT ($0.0M), LDO ($0.1M), MOODENG ($0.1M), TRUMP ($0.2M), ETC ($0.2M), S ($0.0M), ATOM ($0.2M), JTO ($0.1M), POPCAT ($0.1M), OP ($0.2M), VIRTUAL ($0.2M), ASTER ($0.4M), AIXBT ($0.0M), XPL ($0.5M)
+07:10 PM [INFO] 🏆 Momentum Champion: buy TRX (54%)
+07:10 PM [INFO]   TIDE MEMORY: TRX -3.0 pts in OUT — TRX/USD pays 0.0% in OUT hours (fleet 10.9%) over 479h of history; live popups 0% pay (fleet 71%, 2 events, w 2.0) -> -3.00 pts (bar 60% → 63%)
+07:10 PM [INFO]   BUY TRX (quick 54%) — below 63% bar (R5 🌆 US Late 16-20) — contest-only
+07:10 PM [INFO]   EASY TO SELL: 90/100
+07:10 PM [INFO]   Bot gates declined TRX — desktop alert fires as CONTEST-ONLY
+--- Logging error ---
+Traceback (most recent call last):
+  File "C:\Users\birds\AppData\Roaming\uv\python\cpython-3.14.7-windows-x86_64-none\Lib\logging\__init__.py", line 1151, in emit
+    msg = self.format(record)
+  File "C:\Users\birds\AppData\Roaming\uv\python\cpython-3.14.7-windows-x86_64-none\Lib\logging\__init__.py", line 999, in format
+    return fmt.format(record)
+           ~~~~~~~~~~^^^^^^^^
+  File "C:\Users\birds\AppData\Roaming\uv\python\cpython-3.14.7-windows-x86_64-none\Lib\logging\__init__.py", line 712, in format
+    record.message = record.getMessage()
+                     ~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\birds\AppData\Roaming\uv\python\cpython-3.14.7-windows-x86_64-none\Lib\logging\__init__.py", line 400, in getMessage
+    msg = msg % self.args
+          ~~~~^~~~~~~~~~~
+TypeError: %d format: a real number is required, not NoneType
+Call stack:
+  File "C:\Users\birds\Workspace\kraken_scout\background_scanner.py", line 5660, in <module>
+    main()
+  File "C:\Users\birds\Workspace\kraken_scout\background_scanner.py", line 5543, in main
+    send_alert(best_pair, best_signal, auto_trade_threshold)
+  File "C:\Users\birds\Workspace\kraken_scout\background_scanner.py", line 3375, in send_alert
+    logger.info("  POPUP FLOOR: rotation %s rail %d → %d (%s)",
+Message: '  POPUP FLOOR: rotation %s rail %d → %d (%s)'
+Arguments: ('16-20', 93, None, 'flat')
+--- Logging error ---
+Traceback (most recent call last):
+  File "C:\Users\birds\AppData\Roaming\uv\python\cpython-3.14.7-windows-x86_64-none\Lib\logging\__init__.py", line 1151, in emit
+    msg = self.format(record)
+  File "C:\Users\birds\AppData\Roaming\uv\python\cpython-3.14.7-windows-x86_64-none\Lib\logging\__init__.py", line 999, in format
+    return fmt.format(record)
+           ~~~~~~~~~~^^^^^^^^
+  File "C:\Users\birds\AppData\Roaming\uv\python\cpython-3.14.7-windows-x86_64-none\Lib\logging\__init__.py", line 712, in format
+    record.message = record.getMessage()
+                     ~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\birds\AppData\Roaming\uv\python\cpython-3.14.7-windows-x86_64-none\Lib\logging\__init__.py", line 400, in getMessage
+    msg = msg % self.args
+          ~~~~^~~~~~~~~~~
+TypeError: %d format: a real number is required, not NoneType
+Call stack:
+  File "C:\Users\birds\Workspace\kraken_scout\background_scanner.py", line 5660, in <module>
+    main()
+  File "C:\Users\birds\Workspace\kraken_scout\background_scanner.py", line 5543, in main
+    send_alert(best_pair, best_signal, auto_trade_threshold)
+  File "C:\Users\birds\Workspace\kraken_scout\background_scanner.py", line 3375, in send_alert
+    logger.info("  POPUP FLOOR: rotation %s rail %d → %d (%s)",
+Message: '  POPUP FLOOR: rotation %s rail %d → %d (%s)'
+Arguments: ('16-20', 93, None, 'flat')
+07:10 PM [INFO]   DEEP DIRECTION VETO (desktop): TRX deep-reads hold 40% — the scan contradicts the buy
+07:10 PM [INFO]   Desktop suppressed: the brain could not be read for TRX — no unverified popups (fail-closed; quick said 54%)
+07:10 PM [INFO]   Tournament done in 56s
+07:10 PM [INFO]   Next check in 30s | R5 🌆 US Late Sun | threshold 60% | full scan every 10m
+07:11 PM [INFO] SURE THING AUTO-REFIT: kept refit: the fresh refit regressed vs the incumbent on the same holdout (0.522 < 0.526) — no improvement, no ship
+07:11 PM [INFO] R5 🌆 US Late — Quick ticker scan...
+07:11 PM [INFO]   Movers (>2%): AIXBT, ALGO, FIL
+07:11 PM [INFO]   Next check in 30s | R5 🌆 US Late Sun | threshold 60% | full scan every 10m
+07:11 PM [INFO] FLIP GRADE: graded 2 weeks of history
+07:11 PM [INFO]   Next check in 30s | R5 🌆 US Late Sun | threshold 60% | full scan every 10m
+07:12 PM [INFO]   Next check in 30s | R5 🌆 US Late Sun | threshold 60% | full scan every 10m
+07:12 PM [INFO]   Next check in 30s | R5 🌆 US Late Sun | threshold 60% | full scan every 10m
+07:13 PM [INFO] R5 🌆 US Late — Quick ticker scan...
+07:13 PM [INFO]   Movers (>2%): AIXBT, ALGO, FIL
+07:13 PM [INFO]   Next check in 30s | R5 🌆 US Late Sun | threshold 60% | full scan every 10m
+07:15 PM [INFO]   Next check in 30s | R5 🌆 US Late Sun | threshold 60% | full scan every 10m
+07:15 PM [INFO] R5 🌆 US Late — Quick ticker scan...
+07:15 PM [INFO]   Movers (>2%): AIXBT, ALGO, FIL
+07:15 PM [INFO]   Next check in 30s | R5 🌆 US Late Sun | threshold 60% | full scan every 10m
+07:16 PM [INFO]   Next check in 30s | R5 🌆 US Late Sun | threshold 60% | full scan every 10m
+07:16 PM [INFO]   Next check in 30s | R5 🌆 US Late Sun | threshold 60% | full scan every 10m
+07:17 PM [INFO]   Next check in 30s | R5 🌆 US Late Sun | threshold 60% | full scan every 10m
+07:17 PM [INFO] R5 🌆 US Late — Quick ticker scan...
+07:17 PM [INFO]   Movers (>2%): AIXBT, ALGO, FIL
+07:17 PM [INFO]   Next check in 30s | R5 🌆 US Late Sun | threshold 60% | full scan every 10m
+07:18 PM [INFO]   Next check in 30s | R5 🌆 US Late Sun | threshold 60% | full scan every 10m
+07:18 PM [INFO]   Next check in 30s | R5 🌆 US Late Sun | threshold 60% | full scan every 10m
+07:20 PM [INFO] R5 🌆 US Late — Full tournament (54 assets, min_conf=50)...
+07:20 PM [INFO]   US late session — steady moves
+07:20 PM [INFO]   Fetched 54/54 assets
+07:20 PM [INFO]   Liquidity filter: excluded 16 assets (< $1M 24h vol): GRASS ($0.0M), MOODENG ($0.1M), LDO ($0.1M), KAITO ($0.0M), TRUMP ($0.2M), S ($0.0M), PNUT ($0.0M), OP ($0.2M), ETC ($0.2M), POPCAT ($0.1M), JTO ($0.1M), ATOM ($0.2M), ASTER ($0.4M), AIXBT ($0.0M), XPL ($0.5M), VIRTUAL ($0.2M)
+07:20 PM [INFO] 🏆 Momentum Champion: buy TRX (53%)
+07:20 PM [INFO]   TIDE MEMORY: TRX -3.0 pts in OUT — TRX/USD pays 0.0% in OUT hours (fleet 10.9%) over 479h of history; live popups 0% pay (fleet 71%, 2 events, w 2.0) -> -3.00 pts (bar 60% → 63%)
+07:20 PM [INFO]   BUY TRX (quick 53%) — below 63% bar (R5 🌆 US Late 16-20) — contest-only
+07:20 PM [INFO]   EASY TO SELL: 90/100
+07:20 PM [INFO]   Bot gates declined TRX — desktop alert fires as CONTEST-ONLY
+--- Logging error ---
+Traceback (most recent call last):
+  File "C:\Users\birds\AppData\Roaming\uv\python\cpython-3.14.7-windows-x86_64-none\Lib\logging\__init__.py", line 1151, in emit
+    msg = self.format(record)
+  File "C:\Users\birds\AppData\Roaming\uv\python\cpython-3.14.7-windows-x86_64-none\Lib\logging\__init__.py", line 999, in format
+    return fmt.format(record)
+           ~~~~~~~~~~^^^^^^^^
+  File "C:\Users\birds\AppData\Roaming\uv\python\cpython-3.14.7-windows-x86_64-none\Lib\logging\__init__.py", line 712, in format
+    record.message = record.getMessage()
+                     ~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\birds\AppData\Roaming\uv\python\cpython-3.14.7-windows-x86_64-none\Lib\logging\__init__.py", line 400, in getMessage
+    msg = msg % self.args
+          ~~~~^~~~~~~~~~~
+TypeError: %d format: a real number is required, not NoneType
+Call stack:
+  File "C:\Users\birds\Workspace\kraken_scout\background_scanner.py", line 5660, in <module>
+    main()
+  File "C:\Users\birds\Workspace\kraken_scout\background_scanner.py", line 5543, in main
+    send_alert(best_pair, best_signal, auto_trade_threshold)
+  File "C:\Users\birds\Workspace\kraken_scout\background_scanner.py", line 3375, in send_alert
+    logger.info("  POPUP FLOOR: rotation %s rail %d → %d (%s)",
+Message: '  POPUP FLOOR: rotation %s rail %d → %d (%s)'
+Arguments: ('16-20', 93, None, 'flat')
+--- Logging error ---
+Traceback (most recent call last):
+  File "C:\Users\birds\AppData\Roaming\uv\python\cpython-3.14.7-windows-x86_64-none\Lib\logging\__init__.py", line 1151, in emit
+    msg = self.format(record)
+  File "C:\Users\birds\AppData\Roaming\uv\python\cpython-3.14.7-windows-x86_64-none\Lib\logging\__init__.py", line 999, in format
+    return fmt.format(record)
+           ~~~~~~~~~~^^^^^^^^
+  File "C:\Users\birds\AppData\Roaming\uv\python\cpython-3.14.7-windows-x86_64-none\Lib\logging\__init__.py", line 712, in format
+    record.message = record.getMessage()
+                     ~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\birds\AppData\Roaming\uv\python\cpython-3.14.7-windows-x86_64-none\Lib\logging\__init__.py", line 400, in getMessage
+    msg = msg % self.args
+          ~~~~^~~~~~~~~~~
+TypeError: %d format: a real number is required, not NoneType
+Call stack:
+  File "C:\Users\birds\Workspace\kraken_scout\background_scanner.py", line 5660, in <module>
+    main()
+  File "C:\Users\birds\Workspace\kraken_scout\background_scanner.py", line 5543, in main
+    send_alert(best_pair, best_signal, auto_trade_threshold)
+  File "C:\Users\birds\Workspace\kraken_scout\background_scanner.py", line 3375, in send_alert
+    logger.info("  POPUP FLOOR: rotation %s rail %d → %d (%s)",
+Message: '  POPUP FLOOR: rotation %s rail %d → %d (%s)'
+Arguments: ('16-20', 93, None, 'flat')
+07:20 PM [INFO]   DEEP DIRECTION VETO (desktop): TRX deep-reads hold 40% — the scan contradicts the buy
+07:20 PM [INFO]   Desktop suppressed: the brain could not be read for TRX — no unverified popups (fail-closed; quick said 53%)
+07:20 PM [INFO]   Tournament done in 13s
+07:20 PM [INFO]   Next check in 30s | R5 🌆 US Late Sun | threshold 60% | full scan every 10m
+07:21 PM [INFO] R5 🌆 US Late — Quick ticker scan...
+07:21 PM [INFO]   Movers (>2%): AIXBT, ALGO, FIL
+07:21 PM [INFO]   Next check in 30s | R5 🌆 US Late Sun | threshold 60% | full scan every 10m
+07:21 PM [INFO]   Next check in 30s | R5 🌆 US Late Sun | threshold 60% | full scan every 10m
+07:22 PM [INFO]   Next check in 30s | R5 🌆 US Late Sun | threshold 60% | full scan every 10m
+07:22 PM [INFO]   Next check in 30s | R5 🌆 US Late Sun | threshold 60% | full scan every 10m
+07:23 PM [INFO] R5 🌆 US Late — Quick ticker scan...
+07:23 PM [INFO]   Movers (>2%): AIXBT, ALGO, FIL
+07:23 PM [INFO]   Next check in 30s | R5 🌆 US Late Sun | threshold 60% | full scan every 10m
+07:23 PM [INFO]   Next check in 30s | R5 🌆 US Late Sun | threshold 60% | full scan every 10m
+07:24 PM [INFO]   Next check in 30s | R5 🌆 US Late Sun | threshold 60% | full scan every 10m
+07:25 PM [INFO]   Next check in 30s | R5 🌆 US Late Sun | threshold 60% | full scan every 10m
+07:26 PM [INFO] R5 🌆 US Late — Quick ticker scan...
+07:26 PM [INFO]   Movers (>2%): AIXBT, ALGO, FIL
+07:26 PM [INFO]   Next check in 30s | R5 🌆 US Late Sun | threshold 60% | full scan every 10m
+07:26 PM [INFO]   Next check in 30s | R5 🌆 US Late Sun | threshold 60% | full scan every 10m
+07:27 PM [INFO]   Next check in 30s | R5 🌆 US Late Sun | threshold 60% | full scan every 10m
+07:27 PM [INFO]   Next check in 30s | R5 🌆 US Late Sun | threshold 60% | full scan every 10m
+07:28 PM [INFO] R5 🌆 US Late — Quick ticker scan...
+07:28 PM [INFO]   Movers (>2%): AIXBT, ALGO, FIL
+07:28 PM [INFO]   Next check in 30s | R5 🌆 US Late Sun | threshold 60% | full scan every 10m
+07:28 PM [INFO]   Next check in 30s | R5 🌆 US Late Sun | threshold 60% | full scan every 10m
+07:29 PM [INFO] R5 🌆 US Late — Full tournament (54 assets, min_conf=50)...
+07:29 PM [INFO]   US late session — steady moves
+07:29 PM [INFO]   Fetched 54/54 assets
+07:29 PM [INFO]   Liquidity filter: excluded 15 assets (< $1M 24h vol): LDO ($0.1M), GRASS ($0.0M), MOODENG ($0.1M), KAITO ($0.0M), ATOM ($0.2M), PNUT ($0.0M), S ($0.0M), TRUMP ($0.2M), POPCAT ($0.1M), OP ($0.2M), JTO ($0.1M), ETC ($0.2M), AIXBT ($0.0M), ASTER ($0.4M), VIRTUAL ($0.2M)
+07:29 PM [INFO] 🏆 Momentum Champion: buy TRX (52%)
+07:29 PM [INFO]   TIDE MEMORY: TRX -3.0 pts in OUT — TRX/USD pays 0.0% in OUT hours (fleet 10.9%) over 479h of history; live popups 0% pay (fleet 71%, 2 events, w 2.0) -> -3.00 pts (bar 60% → 63%)
+07:29 PM [INFO]   BUY TRX (quick 52%) — below 63% bar (R5 🌆 US Late 16-20) — contest-only
+07:29 PM [INFO]   EASY TO SELL: 90/100
+07:29 PM [INFO]   Bot gates declined TRX — desktop alert fires as CONTEST-ONLY
+--- Logging error ---
+Traceback (most recent call last):
+  File "C:\Users\birds\AppData\Roaming\uv\python\cpython-3.14.7-windows-x86_64-none\Lib\logging\__init__.py", line 1151, in emit
+    msg = self.format(record)
+  File "C:\Users\birds\AppData\Roaming\uv\python\cpython-3.14.7-windows-x86_64-none\Lib\logging\__init__.py", line 999, in format
+    return fmt.format(record)
+           ~~~~~~~~~~^^^^^^^^
+  File "C:\Users\birds\AppData\Roaming\uv\python\cpython-3.14.7-windows-x86_64-none\Lib\logging\__init__.py", line 712, in format
+    record.message = record.getMessage()
+                     ~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\birds\AppData\Roaming\uv\python\cpython-3.14.7-windows-x86_64-none\Lib\logging\__init__.py", line 400, in getMessage
+    msg = msg % self.args
+          ~~~~^~~~~~~~~~~
+TypeError: %d format: a real number is required, not NoneType
+Call stack:
+  File "C:\Users\birds\Workspace\kraken_scout\background_scanner.py", line 5660, in <module>
+    main()
+  File "C:\Users\birds\Workspace\kraken_scout\background_scanner.py", line 5543, in main
+    send_alert(best_pair, best_signal, auto_trade_threshold)
+  File "C:\Users\birds\Workspace\kraken_scout\background_scanner.py", line 3375, in send_alert
+    logger.info("  POPUP FLOOR: rotation %s rail %d → %d (%s)",
+Message: '  POPUP FLOOR: rotation %s rail %d → %d (%s)'
+Arguments: ('16-20', 93, None, 'flat')
+--- Logging error ---
+Traceback (most recent call last):
+  File "C:\Users\birds\AppData\Roaming\uv\python\cpython-3.14.7-windows-x86_64-none\Lib\logging\__init__.py", line 1151, in emit
+    msg = self.format(record)
+  File "C:\Users\birds\AppData\Roaming\uv\python\cpython-3.14.7-windows-x86_64-none\Lib\logging\__init__.py", line 999, in format
+    return fmt.format(record)
+           ~~~~~~~~~~^^^^^^^^
+  File "C:\Users\birds\AppData\Roaming\uv\python\cpython-3.14.7-windows-x86_64-none\Lib\logging\__init__.py", line 712, in format
+    record.message = record.getMessage()
+                     ~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\birds\AppData\Roaming\uv\python\cpython-3.14.7-windows-x86_64-none\Lib\logging\__init__.py", line 400, in getMessage
+    msg = msg % self.args
+          ~~~~^~~~~~~~~~~
+TypeError: %d format: a real number is required, not NoneType
+Call stack:
+  File "C:\Users\birds\Workspace\kraken_scout\background_scanner.py", line 5660, in <module>
+    main()
+  File "C:\Users\birds\Workspace\kraken_scout\background_scanner.py", line 5543, in main
+    send_alert(best_pair, best_signal, auto_trade_threshold)
+  File "C:\Users\birds\Workspace\kraken_scout\background_scanner.py", line 3375, in send_alert
+    logger.info("  POPUP FLOOR: rotation %s rail %d → %d (%s)",
+Message: '  POPUP FLOOR: rotation %s rail %d → %d (%s)'
+Arguments: ('16-20', 93, None, 'flat')
+07:29 PM [INFO]   DEEP DIRECTION VETO (desktop): TRX deep-reads hold 40% — the scan contradicts the buy
+07:29 PM [INFO]   Desktop suppressed: the brain could not be read for TRX — no unverified popups (fail-closed; quick said 52%)
+07:29 PM [INFO]   Tournament done in 14s
+07:29 PM [INFO]   Next check in 30s | R5 🌆 US Late Sun | threshold 60% | full scan every 10m
+07:31 PM [INFO]   Next check in 30s | R5 🌆 US Late Sun | threshold 60% | full scan every 10m
+07:31 PM [INFO] R5 🌆 US Late — Quick ticker scan...
+07:31 PM [INFO]   Movers (>2%): AIXBT, ALGO, FIL
+07:31 PM [INFO]   Next check in 30s | R5 🌆 US Late Sun | threshold 60% | full scan every 10m
+07:32 PM [INFO]   Next check in 30s | R5 🌆 US Late Sun | threshold 60% | full scan every 10m
+07:32 PM [INFO]   Next check in 30s | R5 🌆 US Late Sun | threshold 60% | full scan every 10m
+07:33 PM [INFO]   Next check in 30s | R5 🌆 US Late Sun | threshold 60% | full scan every 10m
+07:33 PM [INFO] R5 🌆 US Late — Quick ticker scan...
+07:33 PM [INFO]   Movers (>2%): AIXBT, ALGO, FIL
+07:33 PM [INFO]   Next check in 30s | R5 🌆 US Late Sun | threshold 60% | full scan every 10m
+07:34 PM [INFO]   Next check in 30s | R5 🌆 US Late Sun | threshold 60% | full scan every 10m
+07:34 PM [INFO]   Next check in 30s | R5 🌆 US Late Sun | threshold 60% | full scan every 10m
+07:36 PM [INFO]   Next check in 30s | R5 🌆 US Late Sun | threshold 60% | full scan every 10m
+07:36 PM [INFO] R5 🌆 US Late — Quick ticker scan...
+07:36 PM [INFO]   Movers (>2%): AIXBT, ALGO, FIL
+07:36 PM [INFO]   Next check in 30s | R5 🌆 US Late Sun | threshold 60% | full scan every 10m
+07:37 PM [INFO]   Next check in 30s | R5 🌆 US Late Sun | threshold 60% | full scan every 10m
+07:37 PM [INFO]   Next check in 30s | R5 🌆 US Late Sun | threshold 60% | full scan every 10m
+07:38 PM [INFO]   Next check in 30s | R5 🌆 US Late Sun | threshold 60% | full scan every 10m
+07:38 PM [INFO] R5 🌆 US Late — Quick ticker scan...
+07:38 PM [INFO]   Movers (>2%): AIXBT, ALGO, FIL
+07:38 PM [INFO]   Next check in 30s | R5 🌆 US Late Sun | threshold 60% | full scan every 10m
+07:39 PM [INFO] R5 🌆 US Late — Full tournament (54 assets, min_conf=50)...
+07:39 PM [INFO]   US late session — steady moves
+07:39 PM [INFO]   Fetched 54/54 assets
+07:39 PM [INFO]   Liquidity filter: excluded 15 assets (< $1M 24h vol): KAITO ($0.0M), MOODENG ($0.1M), LDO ($0.1M), GRASS ($0.0M), PNUT ($0.0M), S ($0.0M), TRUMP ($0.2M), POPCAT ($0.1M), OP ($0.2M), ATOM ($0.2M), ETC ($0.2M), JTO ($0.1M), ASTER ($0.4M), AIXBT ($0.0M), VIRTUAL ($0.2M)
+07:39 PM [INFO] 🏆 Momentum Champion: buy TRX (79%)
+07:39 PM [INFO]   TIDE MEMORY: TRX -3.0 pts in OUT — TRX/USD pays 0.0% in OUT hours (fleet 10.9%) over 479h of history; live popups 0% pay (fleet 70%, 2 events, w 1.9) -> -3.00 pts (bar 60% → 63%)
+07:39 PM [INFO]   EASY TO SELL: 90/100
+07:39 PM [INFO]   TIDE OUT (fleet 14%) — no bridge write; the OUT tide's price on the bot's ledger: quick 79.0 vs personal bar 86 (learned OUT bar 80 (outcome-fitted on 239 live candidates, payers 20.4%; deep history payers 10.9% over 479h))
+07:39 PM [INFO]   Tournament done in 16s
+07:39 PM [INFO]   Next check in 30s | R5 🌆 US Late Sun | threshold 60% | full scan every 10m
+07:40 PM [INFO]   Next check in 30s | R5 🌆 US Late Sun | threshold 60% | full scan every 10m
+07:41 PM [INFO]   Next check in 30s | R5 🌆 US Late Sun | threshold 60% | full scan every 10m
+07:42 PM [INFO] R5 🌆 US Late — Quick ticker scan...
+07:42 PM [INFO]   Movers (>2%): AIXBT, ALGO, FIL
+07:42 PM [INFO]   Next check in 30s | R5 🌆 US Late Sun | threshold 60% | full scan every 10m
+07:42 PM [INFO]   Next check in 30s | R5 🌆 US Late Sun | threshold 60% | full scan every 10m
+07:43 PM [INFO]   Next check in 30s | R5 🌆 US Late Sun | threshold 60% | full scan every 10m
+07:43 PM [INFO]   Next check in 30s | R5 🌆 US Late Sun | threshold 60% | full scan every 10m
+07:44 PM [INFO] R5 🌆 US Late — Quick ticker scan...
+07:44 PM [INFO]   Movers (>2%): AIXBT, ALGO, FIL
+07:44 PM [INFO]   Next check in 30s | R5 🌆 US Late Sun | threshold 60% | full scan every 10m
+07:44 PM [INFO]   Next check in 30s | R5 🌆 US Late Sun | threshold 60% | full scan every 10m
+07:45 PM [INFO]   Next check in 30s | R5 🌆 US Late Sun | threshold 60% | full scan every 10m
+07:46 PM [INFO]   Next check in 30s | R5 🌆 US Late Sun | threshold 60% | full scan every 10m
+07:47 PM [INFO] R5 🌆 US Late — Quick ticker scan...
+07:47 PM [INFO]   Movers (>2%): AIXBT, ALGO, FIL
+07:47 PM [INFO]   Next check in 30s | R5 🌆 US Late Sun | threshold 60% | full scan every 10m
+07:47 PM [INFO]   Next check in 30s | R5 🌆 US Late Sun | threshold 60% | full scan every 10m
+07:48 PM [INFO]   Next check in 30s | R5 🌆 US Late Sun | threshold 60% | full scan every 10m
+07:48 PM [INFO]   Next check in 30s | R5 🌆 US Late Sun | threshold 60% | full scan every 10m
+07:49 PM [INFO] R5 🌆 US Late — Quick ticker scan...
+07:49 PM [INFO]   Movers (>2%): AIXBT, ALGO, FIL
+07:49 PM [INFO] R5 🌆 US Late — Full tournament (54 assets, min_conf=50)...
+07:49 PM [INFO]   US late session — steady moves
+07:49 PM [INFO]   Fetched 54/54 assets
+07:49 PM [INFO]   Liquidity filter: excluded 15 assets (< $1M 24h vol): KAITO ($0.0M), GRASS ($0.0M), LDO ($0.1M), TRUMP ($0.2M), S ($0.0M), PNUT ($0.0M), MOODENG ($0.1M), OP ($0.2M), JTO ($0.1M), ETC ($0.2M), POPCAT ($0.1M), ATOM ($0.2M), ASTER ($0.4M), AIXBT ($0.0M), VIRTUAL ($0.2M)
+07:49 PM [INFO] 🏆 Momentum Champion: buy TRX (79%)
+07:49 PM [INFO]   TIDE MEMORY: TRX -3.0 pts in OUT — TRX/USD pays 0.0% in OUT hours (fleet 10.9%) over 479h of history; live popups 0% pay (fleet 70%, 2 events, w 1.9) -> -3.00 pts (bar 60% → 63%)
+07:49 PM [INFO]   EASY TO SELL: 90/100
+07:49 PM [INFO]   TIDE OUT (fleet 14%) — no bridge write; the OUT tide's price on the bot's ledger: quick 79.0 vs personal bar 93 (learned OUT bar 90 (outcome-fitted on 236 live candidates, payers 19.4%; deep history payers 10.9% over 479h))
+07:49 PM [INFO]   Tournament done in 16s
+07:49 PM [INFO]   Next check in 30s | R5 🌆 US Late Sun | threshold 60% | full scan every 10m
+07:50 PM [INFO]   Next check in 30s | R5 🌆 US Late Sun | threshold 60% | full scan every 10m
+07:50 PM [INFO]   Next check in 30s | R5 🌆 US Late Sun | threshold 60% | full scan every 10m
+07:52 PM [INFO]   Next check in 30s | R5 🌆 US Late Sun | threshold 60% | full scan every 10m
+07:52 PM [INFO] R5 🌆 US Late — Quick ticker scan...
+07:52 PM [INFO]   Movers (>2%): AIXBT, ALGO, FIL, INJ
+07:52 PM [INFO]   Next check in 30s | R5 🌆 US Late Sun | threshold 60% | full scan every 10m
+07:53 PM [INFO]   Next check in 30s | R5 🌆 US Late Sun | threshold 60% | full scan every 10m
+07:53 PM [INFO]   Next check in 30s | R5 🌆 US Late Sun | threshold 60% | full scan every 10m
+07:54 PM [INFO]   Next check in 30s | R5 🌆 US Late Sun | threshold 60% | full scan every 10m
+07:54 PM [INFO] R5 🌆 US Late — Quick ticker scan...
+07:54 PM [INFO]   Movers (>2%): AIXBT, ALGO, FIL, INJ
+07:54 PM [INFO]   Next check in 30s | R5 🌆 US Late Sun | threshold 60% | full scan every 10m
+07:55 PM [INFO]   Next check in 30s | R5 🌆 US Late Sun | threshold 60% | full scan every 10m
+07:55 PM [INFO]   Next check in 30s | R5 🌆 US Late Sun | threshold 60% | full scan every 10m
+07:57 PM [INFO]   Next check in 30s | R5 🌆 US Late Sun | threshold 60% | full scan every 10m
+07:58 PM [INFO] R5 🌆 US Late — Quick ticker scan...
+07:58 PM [INFO]   Movers (>2%): AIXBT, ALGO, FIL, INJ, JTO
+07:58 PM [INFO]   Next check in 30s | R5 🌆 US Late Sun | threshold 60% | full scan every 10m
+07:58 PM [INFO]   Next check in 30s | R5 🌆 US Late Sun | threshold 60% | full scan every 10m
+07:59 PM [INFO]   Next check in 30s | R5 🌆 US Late Sun | threshold 60% | full scan every 10m
+07:59 PM [INFO] R5 🌆 US Late — Full tournament (54 assets, min_conf=50)...
+07:59 PM [INFO]   US late session — steady moves
+07:59 PM [INFO]   Fetched 54/54 assets
+07:59 PM [INFO]   Liquidity filter: excluded 15 assets (< $1M 24h vol): MOODENG ($0.1M), GRASS ($0.1M), LDO ($0.1M), KAITO ($0.0M), S ($0.0M), PNUT ($0.0M), TRUMP ($0.2M), ATOM ($0.2M), JTO ($0.1M), POPCAT ($0.1M), OP ($0.2M), ETC ($0.2M), AIXBT ($0.0M), ASTER ($0.4M), VIRTUAL ($0.2M)
+07:59 PM [INFO] 🏆 Momentum Champion: buy TRX (79%)
+07:59 PM [INFO]   TIDE MEMORY: TRX -3.0 pts in OUT — TRX/USD pays 0.0% in OUT hours (fleet 10.9%) over 479h of history; live popups 0% pay (fleet 70%, 2 events, w 1.9) -> -3.00 pts (bar 60% → 63%)
+07:59 PM [INFO]   EASY TO SELL: 90/100
+07:59 PM [INFO]   TIDE OUT (fleet 14%) — no bridge write; the OUT tide's price on the bot's ledger: quick 79.0 vs personal bar 93 (learned OUT bar 90 (outcome-fitted on 236 live candidates, payers 19.4%; deep history payers 10.9% over 479h))
+07:59 PM [INFO]   Tournament done in 14s
+07:59 PM [INFO]   Next check in 30s | R5 🌆 US Late Sun | threshold 60% | full scan every 10m
+08:00 PM [INFO] ============================================================
+08:00 PM [INFO]   COOLDOWN FLATTEN — trading day closed
+08:00 PM [INFO] ============================================================
+08:00 PM [INFO]   reset: Phase 1: 0 tracked positions in bot DB
+08:00 PM [INFO]   reset: Phase 2: Scanning actual Kraken balances for untracked assets
+08:00 PM [INFO]   reset: ADA: dust ($0.00) — skipping
+08:00 PM [INFO]   reset: ATOM: dust ($0.00) — skipping
+08:00 PM [INFO]   reset: AVAX: dust ($0.00) — skipping
+08:00 PM [INFO]   reset: INJ: dust ($0.00) — skipping
+08:00 PM [INFO]   reset: NEAR: dust ($0.00) — skipping
+08:00 PM [INFO]   reset: POL: dust ($0.00) — skipping
+08:00 PM [INFO]   reset: TRX: dust ($0.00) — skipping
+08:00 PM [INFO]   reset: USDC: dust ($0.00) — skipping
+08:00 PM [INFO]   reset: Untracked sold: 0 assets, ~$0.00 freed
+08:00 PM [INFO]   reset: --- after reset ---
+08:00 PM [INFO]   reset: open positions: 0
+08:00 PM [INFO]   reset: USD free : 3.34
+08:00 PM [INFO] Reset: closed 0 filled (kept 0 winners), cancelled 0 pending/0 acknowledged
+08:00 PM [INFO]   Bridge reset: closed 0, cancelled 0 pending, kept 0 winners
+08:00 PM [INFO] Cooldown flatten done | kept winners: none
+08:00 PM [INFO] Rotation R5 🌆 US Late -> 🌙 Cooldown (positions ride — cooldown flatten owns resets)
+08:01 PM [INFO] 🎓 DISCIPLINE: rotation 16-20 score 50 — left $51 on the table (missed $0 / giveback $0 / no-exit $0)
+08:01 PM [INFO]    lesson: No popups fired — score capped at 50 (the opportunity cost: a silent rotation cannot grade perfect). Realized $+0; weights hold.
+08:01 PM [INFO]   Next check in 30s | 🌙 Cooldown Sun | COOLDOWN — no buys until 00:00
+08:03 PM [INFO]   Next check in 30s | 🌙 Cooldown Sun | COOLDOWN — no buys until 00:00
+08:03 PM [INFO]   Next check in 30s | 🌙 Cooldown Sun | COOLDOWN — no buys until 00:00
+08:04 PM [INFO]   Next check in 30s | 🌙 Cooldown Sun | COOLDOWN — no buys until 00:00
+08:04 PM [INFO]   Next check in 30s | 🌙 Cooldown Sun | COOLDOWN — no buys until 00:00
+08:05 PM [INFO]   Next check in 30s | 🌙 Cooldown Sun | COOLDOWN — no buys until 00:00
+08:05 PM [INFO]   Next check in 30s | 🌙 Cooldown Sun | COOLDOWN — no buys until 00:00
+08:06 PM [INFO]   Next check in 30s | 🌙 Cooldown Sun | COOLDOWN — no buys until 00:00
+08:06 PM [INFO]   Next check in 30s | 🌙 Cooldown Sun | COOLDOWN — no buys until 00:00
+08:08 PM [INFO]   Next check in 30s | 🌙 Cooldown Sun | COOLDOWN — no buys until 00:00
+08:08 PM [INFO]   Next check in 30s | 🌙 Cooldown Sun | COOLDOWN — no buys until 00:00
+08:09 PM [INFO]   Next check in 30s | 🌙 Cooldown Sun | COOLDOWN — no buys until 00:00
+08:09 PM [INFO]   Next check in 30s | 🌙 Cooldown Sun | COOLDOWN — no buys until 00:00
+08:10 PM [INFO]   Next check in 30s | 🌙 Cooldown Sun | COOLDOWN — no buys until 00:00

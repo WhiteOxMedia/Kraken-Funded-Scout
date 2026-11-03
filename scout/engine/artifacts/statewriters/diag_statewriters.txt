@@ -1,0 +1,36 @@
+PASS  selftest: the good writer is discovered and ATOMIC
+PASS  selftest: a read-mode open is never a writer
+PASS  selftest: the bypasser is discovered NON-ATOMIC (R2 bites)
+PASS  selftest: the popper trips the resurrection rule (R3 bites)
+PASS  selftest: the None-guarded merger does NOT trip R3 (the convention itself is not the crime)
+PASS  R0 the files of record stay governed (a registry deletion silently withdraws governance — the census floor holds)
+PASS  R1 every production writer of a governed state file is REGISTERED (new writer: join the registry with a note, or the repo refuses)
+PASS  R1b the registry names no ghost writers (a rename updates it)
+PASS  R2 every registered writer saves ATOMICALLY (tmp + replace/replace_atomic) unless allow_non_atomic with a reason — or delegates_to a registered atomic writer
+PASS  R3 no merge-file writer POPS the dict it saves without a None-guard (pop-then-merge resurrects deleted rows)
+
+RESULT: 10 passed, 0 failed
+
+CENSUS (the frozen ground truth):
+  ATOMIC  auto_adjust_canary.json <- canary_runner.flip_canary
+  ATOMIC  auto_adjust_canary.json <- canary_runner.rollback
+  ATOMIC  console_state.json <- app._save_console_state
+  ATOMIC  contest_watch.json <- add_xrp_watch.<module>
+  ATOMIC  contest_watch.json <- app._save_watch
+  ATOMIC  contest_watch.json <- background_scanner._save_contest_watch
+  ATOMIC  contest_watch.json <- bot_engine._upsert_bot_watch_row
+  ATOMIC  contest_watch.json <- contest_account.new_contest
+  ATOMIC  contest_watch.json <- set_bnb_size.<module>
+  ATOMIC  execution_state.json <- clean_expired_blacklist.<module>
+  ATOMIC  execution_state.json <- execution_tiers._save_state
+  ATOMIC  meta_layers_state.json <- meta_layers._save
+  ATOMIC  payout_track.json <- app.track_payouts
+  ATOMIC  popup_suppressions.archive.jsonl <- background_scanner._log_suppression
+  ATOMIC  popup_suppressions.jsonl <- background_scanner._log_suppression
+  ATOMIC  profit_guard_state.json <- profit_guard._save
+  ATOMIC  rotation_lockout.json <- background_scanner.rotation_mark_fired
+  ATOMIC  rotation_lockout.json <- background_scanner.rotation_rearm_on_profit
+  ATOMIC  scanner_pulse.json <- background_scanner._pulse_beat
+  ATOMIC  scanner_state.json <- background_scanner._save_scanner_state
+  ATOMIC  signal_snapshots.jsonl <- background_scanner._log_signal_snapshot
+  ATOMIC  take_payouts.json <- background_scanner._save_take_payout

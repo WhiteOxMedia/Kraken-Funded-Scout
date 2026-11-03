@@ -1,0 +1,324 @@
+{
+ "generated": "2026-09-05T18:42:25.933738",
+ "n_events": 109,
+ "min_support": 15,
+ "overall": {
+  "n": 109,
+  "winner_rate": 0.569,
+  "fast_rate": 0.569,
+  "dud_rate": 0.055
+ },
+ "features": {
+  "momentum_15m": {
+   "terciles": [
+    {
+     "band": "lo",
+     "range": [
+      -6.3275,
+      -0.3191
+     ],
+     "n": 36,
+     "winner_rate": 0.444,
+     "fast_rate": 0.444,
+     "dud_rate": 0.111
+    },
+    {
+     "band": "mid",
+     "range": [
+      -0.308,
+      0.0293
+     ],
+     "n": 36,
+     "winner_rate": 0.611,
+     "fast_rate": 0.611,
+     "dud_rate": 0.028
+    },
+    {
+     "band": "hi",
+     "range": [
+      0.0572,
+      2.0306
+     ],
+     "n": 37,
+     "winner_rate": 0.649,
+     "fast_rate": 0.649,
+     "dud_rate": 0.027
+    }
+   ]
+  },
+  "momentum_1h": {
+   "terciles": [
+    {
+     "band": "lo",
+     "range": [
+      -3.6076,
+      -0.3933
+     ],
+     "n": 36,
+     "winner_rate": 0.444,
+     "fast_rate": 0.444,
+     "dud_rate": 0.139
+    },
+    {
+     "band": "mid",
+     "range": [
+      -0.3759,
+      0.4057
+     ],
+     "n": 36,
+     "winner_rate": 0.528,
+     "fast_rate": 0.528,
+     "dud_rate": 0.028
+    },
+    {
+     "band": "hi",
+     "range": [
+      0.4443,
+      3.1037
+     ],
+     "n": 37,
+     "winner_rate": 0.73,
+     "fast_rate": 0.73,
+     "dud_rate": 0.0
+    }
+   ]
+  },
+  "vol_burst": {
+   "terciles": [
+    {
+     "band": "lo",
+     "range": [
+      0.5525,
+      0.9989
+     ],
+     "n": 36,
+     "winner_rate": 0.5,
+     "fast_rate": 0.5,
+     "dud_rate": 0.083
+    },
+    {
+     "band": "mid",
+     "range": [
+      0.999,
+      1.0183
+     ],
+     "n": 36,
+     "winner_rate": 0.556,
+     "fast_rate": 0.556,
+     "dud_rate": 0.056
+    },
+    {
+     "band": "hi",
+     "range": [
+      1.0206,
+      6.6818
+     ],
+     "n": 37,
+     "winner_rate": 0.649,
+     "fast_rate": 0.649,
+     "dud_rate": 0.027
+    }
+   ]
+  },
+  "velocity_pct_min": {
+   "terciles": [
+    {
+     "band": "lo",
+     "range": [
+      -0.3937,
+      -0.021
+     ],
+     "n": 36,
+     "winner_rate": 0.472,
+     "fast_rate": 0.472,
+     "dud_rate": 0.111
+    },
+    {
+     "band": "mid",
+     "range": [
+      -0.0203,
+      0.0098
+     ],
+     "n": 36,
+     "winner_rate": 0.528,
+     "fast_rate": 0.528,
+     "dud_rate": 0.056
+    },
+    {
+     "band": "hi",
+     "range": [
+      0.01,
+      0.2481
+     ],
+     "n": 37,
+     "winner_rate": 0.703,
+     "fast_rate": 0.703,
+     "dud_rate": 0.0
+    }
+   ]
+  },
+  "body_ratio": {
+   "terciles": [
+    {
+     "band": "lo",
+     "range": [
+      0.0714,
+      0.5263
+     ],
+     "n": 35,
+     "winner_rate": 0.657,
+     "fast_rate": 0.657,
+     "dud_rate": 0.029
+    },
+    {
+     "band": "mid",
+     "range": [
+      0.5299,
+      0.7282
+     ],
+     "n": 35,
+     "winner_rate": 0.457,
+     "fast_rate": 0.457,
+     "dud_rate": 0.086
+    },
+    {
+     "band": "hi",
+     "range": [
+      0.7295,
+      1.0
+     ],
+     "n": 36,
+     "winner_rate": 0.583,
+     "fast_rate": 0.583,
+     "dud_rate": 0.028
+    }
+   ]
+  },
+  "pos_from_4h_high": {
+   "terciles": [
+    {
+     "band": "lo",
+     "range": [
+      -20.031,
+      -1.3877
+     ],
+     "n": 36,
+     "winner_rate": 0.444,
+     "fast_rate": 0.444,
+     "dud_rate": 0.083
+    },
+    {
+     "band": "mid",
+     "range": [
+      -1.3739,
+      -0.6506
+     ],
+     "n": 36,
+     "winner_rate": 0.639,
+     "fast_rate": 0.639,
+     "dud_rate": 0.028
+    },
+    {
+     "band": "hi",
+     "range": [
+      -0.65,
+      0.0
+     ],
+     "n": 37,
+     "winner_rate": 0.622,
+     "fast_rate": 0.622,
+     "dud_rate": 0.054
+    }
+   ]
+  },
+  "off_window_low": {
+   "terciles": [
+    {
+     "band": "lo",
+     "range": [
+      0.1453,
+      2.011
+     ],
+     "n": 36,
+     "winner_rate": 0.444,
+     "fast_rate": 0.444,
+     "dud_rate": 0.083
+    },
+    {
+     "band": "mid",
+     "range": [
+      2.0717,
+      3.1267
+     ],
+     "n": 36,
+     "winner_rate": 0.639,
+     "fast_rate": 0.639,
+     "dud_rate": 0.028
+    },
+    {
+     "band": "hi",
+     "range": [
+      3.234,
+      8.7141
+     ],
+     "n": 37,
+     "winner_rate": 0.622,
+     "fast_rate": 0.622,
+     "dud_rate": 0.054
+    }
+   ]
+  },
+  "ema_gap": {
+   "terciles": [
+    {
+     "band": "lo",
+     "range": [
+      -0.5278,
+      -0.0136
+     ],
+     "n": 36,
+     "winner_rate": 0.5,
+     "fast_rate": 0.5,
+     "dud_rate": 0.083
+    },
+    {
+     "band": "mid",
+     "range": [
+      -0.0034,
+      0.182
+     ],
+     "n": 36,
+     "winner_rate": 0.5,
+     "fast_rate": 0.5,
+     "dud_rate": 0.083
+    },
+    {
+     "band": "hi",
+     "range": [
+      0.1849,
+      0.759
+     ],
+     "n": 37,
+     "winner_rate": 0.703,
+     "fast_rate": 0.703,
+     "dud_rate": 0.0
+    }
+   ]
+  }
+ },
+ "fast_route": {},
+ "brain_advisory": {
+  "hi_brain_85+": {
+   "n": 34,
+   "winner_rate": 0.618,
+   "fast_rate": 0.618,
+   "dud_rate": 0.088
+  },
+  "lo_brain_45-": {
+   "n": 22,
+   "winner_rate": 0.636,
+   "fast_rate": 0.636,
+   "dud_rate": 0.0
+  }
+ }
+}

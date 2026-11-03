@@ -1,0 +1,132 @@
+=== THE POOL THRESHOLD, REPLAYED (FLAT's arc 3) ===
+
+[PASS] at threshold 0 the walk reproduces the shipped FBW=2 arc (flip W39 / flip-back W41 / re-flip W44)
+[PASS] the shipped pool guard passed the re-arm at +0.26 on its own rolling-4 window (hand arithmetic: 789.40/256 - 722.50/256 = 0.2613)
+[PASS] at pool > 0.25 the +0.26 re-arm is NOT denied (the threshold is below the gate's own read)
+[PASS] at pool > 0.5 the re-arm IS denied — and stays denied: the arc ends flip W39 only (a benched state cannot re-flip, so W44's losing week just extends the bench)
+[PASS] the denial is stable across the arc's re-checks: the recomputed pools at W42 (+0.20) and W43 (+0.20) also fail +0.50, and W44's bleed sinks the pool to -0.45 while breaking the winning streak outright
+[PASS] the governed window's hand arithmetic: fit 787.20/246 = $3.20/fire vs quantile 614.10/138 = $4.45/fire
+[PASS] the shipped re-arm's realized $/fire is the fit's 3.20 vs the quantile's 4.45 (COSTS on the contract axis)
+
+-- THE DOLLARS (the re-arm's governed window, W42-W44) --
+  shipped (pool > 0, FBW=2): the re-armed fit realizes
+    $+3.20/fire over 246 fires ($787.20 total) vs the
+    quantile's $+4.45/fire over 138 fires ($614.10) —
+    the re-arm COSTS $+1.25/fire = $+307.50 of
+    counterfactual on the contract axis.
+
+  pool > 0.25: NOT denied — the gate's own read (+0.26)
+    clears +0.25; the walk is identical to shipped. The
+    threshold sits INSIDE the margin of this decision, which
+    is itself the finding: +0.25 would not have saved FLAT.
+
+  pool > 0.5: DENIED — and the denial holds: the
+    recomputed pools at W42/W43 (+0.20 each) also fail +0.50,
+    so the fit stays benched and the quantile ships W42-W44 at
+    $+4.45/fire — the same window the FBW=3 counterfactual
+    ships. The W44 bleed breaks the winning streak before the
+    gate reconsiders, so no re-arm ever lands on this arc.
+
+-- THE MARGIN: WHICH DIAL DENIES, AND HOW CLOSE IT SITS --
+  the re-arm decision sat at pool +0.26 / 2 winning weeks.
+    FBW=3 denies by a WIDE margin (no third winning week ever
+    exists — the recovery was exactly two weeks). A pool of
+    +0.50 denies by a NARROW margin at the decision (0.26 vs
+    0.50) but holds it through the re-checks (+0.20, +0.20);
+    +0.25 does not deny at all (gap +0.01).
+    On THIS arc the graduated family splits: +0.25 passes the
+    bad re-arm, +0.50 denies it — and FBW=3 denies it too, so
+    the two dials AGREE here; they part ways on arc shape (see
+    the robustness case).
+
+  THE ROBUSTNESS CASE FOR THE THRESHOLD (beyond one arc): the
+  week count measures the recovery's SHAPE (how many weeks),
+  not its STRENGTH (how well the fit would fire). Any future
+  arc with a fat pool and a slow recovery passes FBW=3 while
+  bleeding; the pool threshold reads strength, which is what
+  the governed dollars scale with (the size ladder scales
+  exposure per fire). The contract axis is $/fire; the pool
+  is $/fire — the dial and the axis are the same unit.
+
+-- THE HONEST COUNTER-CASE (one arc cannot price it) --
+  a threshold DENIES more: an arc with a thin pool but a
+  real, durable recovery (small samples, genuinely better
+  fit) stays benched under pool > +0.50 while FBW=2 re-arms
+  it — the threshold's own missed-opportunity cost,
+  unpriceable on this arc. And FBW=3's denial here was free
+  BECAUSE the recovery was thin; the same constant on a fat-
+  pool/thin-weeks arc would deny a GOOD re-arm. Neither dial
+  dominates a priori; the graduated family (0 / +0.25 /
+  +0.50) exists so the live ledger's accumulating flip
+  history can grade the dial monthly — the flip-grade
+  machinery already re-runs.
+
+
+=== THE FAMILY SWEEP (thresholds across all three sim arcs) ===
+
+[PASS] arc 1 — the bench PAYS (OUT): the shipped walk (threshold 0) reproduces the arc's canonical events
+-- arc 1 — the bench PAYS (OUT) --
+    no re-arm on this arc — thresholds have nothing to deny
+
+[PASS] arc 2 — the bench COSTS (RISING): the shipped walk (threshold 0) reproduces the arc's canonical events
+-- arc 2 — the bench COSTS (RISING) --
+    the shipped re-arm at 2026-W43 cleared a pool of +0.4700/fire
+    +0.25: PASSES (margin +0.2200/fire) — identical walk
+    +0.50: DELAYS the re-arm (shipped ['2026-W43'] vs threshold ['2026-W45'])
+
+[PASS] arc 3 — the re-arm COSTS (FLAT): the shipped walk (threshold 0) reproduces the arc's canonical events
+-- arc 3 — the re-arm COSTS (FLAT) --
+    the shipped re-arm at 2026-W41 cleared a pool of +0.1900/fire
+    +0.25: DENIES the re-arm at ['2026-W41']
+    +0.50: DENIES the re-arm at ['2026-W41']
+
+-- THE FAMILY DOLLARS (each threshold priced on its divergence from the shipped governance) --
+
+  arc 1 — the bench PAYS (OUT) @ +0.25: identical governance — nothing to price
+  arc 1 — the bench PAYS (OUT) @ +0.50: identical governance — nothing to price
+
+  arc 2 — the bench COSTS (RISING) @ +0.25: identical governance — nothing to price
+  arc 2 — the bench COSTS (RISING) @ +0.50: 2 divergent week(s) vs the shipped governance -> COSTS $180.40
+
+  arc 3 — the re-arm COSTS (FLAT) @ +0.25: 3 divergent week(s) vs the shipped governance -> SAVES $307.50
+  arc 3 — the re-arm COSTS (FLAT) @ +0.50: 3 divergent week(s) vs the shipped governance -> SAVES $307.50
+
+-- THE FAMILY LEDGER (denied-then-priced dollars, by threshold) --
+    +0.25: arc 3 $+307.50  (unpriceable: arc 1, arc 2)
+      net: $+307.50
+    +0.50: arc 2 $-180.40 · arc 3 $+307.50  (unpriceable: arc 1)
+      net: $+127.10
+
+-- THE ANSWER (family-wide) --
+  the counter-case is no longer hypothetical — it prices:
+  arc 3's bad re-arm denial saves $307.50 (the fit under-
+  earned its whole governed window), while arc 2's GOOD re-
+  arm — denied only by the strict dial after one bad recovery
+  week was shaved off — costs $180.40 (the fit out-earned
+  its bench two weeks running). +0.25 keeps arc 2's re-arm
+  (margin +0.22/fire) and banks the full $307.50; +0.50
+  denies BOTH and nets $127.10 — the extra strictness is
+  priced, not free: it buys no additional savings on the
+  family (arc 3 is denied by either dial) and pays real
+  dollars whenever a fat recovery clears +0.25 but not
+  +0.50. The margin story sharpened too: arc 2's re-arm
+  pool reads +0.47 — 3¢ above the strict bar — so one soft
+  week flips the verdict. Still honest: these are SEEDED
+  arcs, not lived flip-backs — the live ledger grades the
+  dial monthly, and POOL_MIN ships at 0.0 until real
+  re-arms price the family themselves.
+
+  THE MATURITY HANDOVER (Sep 13): when the real ledger
+  carries a few real flip-backs, recommend_pool_min runs
+  THIS walked machinery on the LIVED streams (the threshold-0
+  walk must reproduce the real events first) and the default
+  POOL_MIN ships from that evidence — the sim arcs seed the
+  worked examples, the lived ledger takes the dial.
+
+[PASS] the counter-case prices in real dollars: arc 2's denied paying re-arm COSTS $180.40, arc 3's denial SAVES $307.50
+[PASS] arc 2's re-arm pool sits strictly between the dials (+0.25 < pool < +0.50) — the window where the family disagrees
+
+[PASS] the shipped gate constants are restored (FLIP_BACK_WEEKS=2, FLIP_WEEKS=3, ROLLING_WEEKS=4, POOL_MIN=0.0)
+[PASS] the audit trail was never touched
+
+ALL GREEN - 14/14 checks

@@ -1,0 +1,27 @@
+[
+  {
+    "content": "[cfg-1] config.py: add min 24h volume threshold",
+    "id": "1",
+    "status": "completed"
+  },
+  {
+    "content": "[bridge-2] signal_bridge.py: DCA signal write + count functions",
+    "id": "2",
+    "status": "completed"
+  },
+  {
+    "content": "[scan-3] background_scanner.py: liquidity filter in tournament, DCA logic in exit check, losers volume floor",
+    "id": "3",
+    "status": "completed"
+  },
+  {
+    "content": "[bot-4] scout_signal_reader.py: accept scout_dca source, skip holding/max-pos checks",
+    "id": "4",
+    "status": "completed"
+  },
+  {
+    "content": "[test-5] compile + functional tests + cleanup",
+    "id": "5",
+    "status": "completed"
+  }
+]

@@ -1,0 +1,18 @@
+﻿2026-08-24 09:28:29,733 [scout_signal_reader] INFO: Scout BUY RENDER/USD â€” at max positions (4/3), running the challenge
+2026-08-24 09:28:30,704 [scout_signal_reader] INFO:   CHALLENGE WIN: RENDER/USD (92%) beats TAO/USD (now 0% hold, 1.5% PnL)
+2026-08-24 09:28:39,855 [events] INFO: EVENT SELL TAO/USD (PROFIT) :: Sold 0.29589 TAO @ $244.1846 | PnL: $+0.96 | Reason: Challenge: displaced by stronger signal RENDER (92% vs 0%)
+2026-08-24 09:28:41,879 [scout_signal_reader] INFO:   CHALLENGE SWAP: sold TAO to make room for RENDER
+2026-08-24 09:28:57,588 [bot_engine] INFO: LIQUIDITY GATE: RENDER/USD buy skipped â€” depth unstable: best-level depth $106â†’$4175
+2026-08-24 09:28:57,589 [scout_signal_reader] WARNING: Scout BUY failed: Liquidity: depth unstable: best-level depth $106â†’$4175
+2026-08-24 09:28:57,607 [signal_bridge] INFO: Signal 58276c93 rejected: Liquidity: depth unstable: best-level depth $106â†’$4175
+2026-08-24 09:30:17,443 [bot_engine] INFO: LIQUIDITY GATE: ASTER/USD buy skipped â€” depth unstable: best-level depth $1188â†’$1509
+2026-08-24 09:30:17,443 [scout_signal_reader] WARNING: Scout BUY failed: Liquidity: depth unstable: best-level depth $1188â†’$1509
+2026-08-24 09:30:17,466 [signal_bridge] INFO: Signal 2267124f rejected: Liquidity: depth unstable: best-level depth $1188â†’$1509
+2026-08-24 09:30:22,498 [__main__] INFO:   ETH/USD: buy(45%) PnL +0.1%
+2026-08-24 09:30:22,627 [__main__] INFO:   Position #139: ETH/USD 0.054439 @ $2519.7
+2026-08-24 09:33:43,146 [bot_engine] INFO: LIQUIDITY GATE: ZEC/USD buy skipped â€” depth unstable: best-level depth $17752â†’$341
+2026-08-24 09:33:43,146 [scout_signal_reader] WARNING: Scout BUY failed: Liquidity: depth unstable: best-level depth $17752â†’$341
+2026-08-24 09:33:43,163 [signal_bridge] INFO: Signal 87072c40 rejected: Liquidity: depth unstable: best-level depth $17752â†’$341
+2026-08-24 09:34:51,721 [bot_engine] INFO: LIQUIDITY GATE: AIXBT/USD buy skipped â€” liquidity health 59 < 60
+2026-08-24 09:34:51,722 [scout_signal_reader] WARNING: Scout BUY failed: Liquidity: liquidity health 59 < 60
+2026-08-24 09:34:51,744 [signal_bridge] INFO: Signal 6264a540 rejected: Liquidity: liquidity health 59 < 60

@@ -1,0 +1,32 @@
+[
+  {
+    "content": "[mit-1] Create kraken_scout/execution_tiers.py — tiers, health score, slippage forecast, stability, tiered exec, audit, blacklist, scale-in, state JSON",
+    "id": "mit-1",
+    "status": "completed"
+  },
+  {
+    "content": "[mit-2] bot_engine.py — buy gate pipeline + tiered sell",
+    "id": "mit-2",
+    "status": "completed"
+  },
+  {
+    "content": "[mit-3] scout_signal_reader.py — scale drain + tiered direct sell",
+    "id": "mit-3",
+    "status": "completed"
+  },
+  {
+    "content": "[mit-4] app.py — Quick Check liquidity advisory panel",
+    "id": "mit-4",
+    "status": "completed"
+  },
+  {
+    "content": "[mit-5] background_scanner.py — alert advisory line + blacklist skip",
+    "id": "mit-5",
+    "status": "completed"
+  },
+  {
+    "content": "[mit-6] Unit tests + live book probe + end-to-end verify + stack restart",
+    "id": "mit-6",
+    "status": "completed"
+  }
+]

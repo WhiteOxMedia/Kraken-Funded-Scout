@@ -1,0 +1,99 @@
+{
+  "run_id": "20260928_225950",
+  "generated_at": "2026-09-28T22:59:50.829794-06:00",
+  "policy": "governance/adjustment_policy.md \u2014 approval flow step 2 (CANARY)",
+  "cohort": [
+    "BTC",
+    "ETH",
+    "SOL"
+  ],
+  "dial_after": "canary",
+  "status": "pass_continue",
+  "seed_provenance": {
+    "source": "simulate_sweep.load_history(30) \u2014 today's REAL rotations",
+    "rotations_used": [
+      {
+        "rot": "2026-09-28-00-04",
+        "B": 16,
+        "P": 14
+      },
+      {
+        "rot": "2026-09-28-04-08",
+        "B": 26,
+        "P": 17
+      },
+      {
+        "rot": "2026-09-28-08-12",
+        "B": 43,
+        "P": 34
+      },
+      {
+        "rot": "2026-09-28-12-16",
+        "B": 18,
+        "P": 5
+      },
+      {
+        "rot": "2026-09-28-16-20",
+        "B": 37,
+        "P": 21
+      },
+      {
+        "rot": "2026-09-28-20-24",
+        "B": 3,
+        "P": 3
+      }
+    ],
+    "mean_B": 23.83,
+    "pooled_r": 0.6573,
+    "seed_rng": 7,
+    "note": "cycles are the runner's seeded cohort shaped from the real rotations (deterministic, reproducible); a LIVE wall-clock canary is the stricter alternative and stays available to the operator before sign-off"
+  },
+  "prior_band_per_rotation": [
+    -0.1,
+    -0.0645
+  ],
+  "policy_floor": {
+    "min_hours": 24,
+    "min_cycles": 50,
+    "cycles_run": 50,
+    "cycles_seeded": true,
+    "hours_run": 0,
+    "floor_satisfied": false,
+    "note": "Seeded cycles do NOT satisfy the 24h floor; hours_run counts live operation only",
+    "cycle_cadence": "1 cycle = 1 rotation; the 50 seeded cycles stand in for the cycle count only — the 24h floor needs live hours"
+  },
+  "evaluation": {
+    "net_delta": -4.8595,
+    "worst_single_book_loss": -0.1,
+    "net_in_band": true,
+    "band": [
+      -5.0,
+      -3.225
+    ],
+    "hit_rate_1": 0.6488,
+    "hit_rate_2": 0.6575,
+    "hit_rate_stable": true,
+    "applied_cycles": 50,
+    "breach": false,
+    "reasons": []
+  },
+  "thresholds": {
+    "net_in_band": "net within the prior band scaled by applied cycles",
+    "worst_single_book_loss_cap": -0.1,
+    "hit_rate_drift_max": 0.1
+  },
+  "prior_attempt_tonight": {
+    "run_id": "20260928_191729",
+    "outcome": "rolled_back \u2014 hit rate drift -0.447 > 0.10 (the drill-proven rollback path fired for real)"
+  },
+  "rollback_authority": "anyone on call, any time, no approval \u2014 ops/canary_enable.py --off",
+  "signoff": {
+    "required": "Ops AND Product, one named human each",
+    "ops": "PENDING \u2014 name: ______",
+    "product": "PENDING \u2014 name: ______",
+    "rule": "No sign-off, no full fleet; the dial is the gate between canary and full. A temporary dial state is NOT a deployment \u2014 full fleet rides a gated commit."
+  },
+  "next": "sign-off",
+  "commit_sha": "4ef7536",
+  "run_report": "C:\\Users\\birds\\Workspace\\kraken_scout\\artifacts\\canary\\20260928_225950.json"
+}

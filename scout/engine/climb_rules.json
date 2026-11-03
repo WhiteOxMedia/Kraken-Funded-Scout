@@ -1,0 +1,15 @@
+{
+ "tide_mult": {"RISING": 1.5, "FLAT": 2.0, "OUT": 3.0},
+ "death_add": 0.5,
+ "coil_mult": 1.0,
+ "er_chop_pctile": 30.0,
+ "er_tide_ease": 10.0,
+ "er_tide_tighten": 10.0,
+ "squeeze_pctile": 30.0,
+ "floor_cushion": {"rising": 0.5, "flat": 1.0, "sinking": 1.5},
+ "floor_max_goal_x": 3.0,
+ "thin_penalty": 1.25,
+ "major_strength": 2.0,
+ "door_frac": 0.5,
+ "_note": "THE CLIMB-OUT RULES (user spec, Sep 6). Read LIVE by the scanner at every gate check - the weekly scorer's LOOSEN/TIGHTEN verdicts land here without restarts. The strictness dial (0.5x-2.0x, the sidebar) multiplies every clearance multiplier on top of these."
+}

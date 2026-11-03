@@ -1,0 +1,157 @@
+### diag_extfade — co_filename=diag_extfade.py firstlineno=1
+DOCSTRING:
+diag_extfade.py - THE EXTENSION-FADE HINDSIGHT STUDY (Sep 19).
+
+WHY THIS EXISTS: the proposal on the table is a fade gate - deny or
+shrink a fire when the coin is over-extended at fire time (stretched
+above its EMA20 / big 24h run-up) because "extended buys fade." Before
+wiring any such gate, this study grades the idea's hindsight on the
+deep 1h stores: every REAL popup fire (Sep 12 -> today, from the dated
+scanner log rotations), its extension features at fire time, and what
+the trade actually did in its 4h contest window - per extension band.
+
+If the fade shape pays (extended fires LOSE money), the gate has a
+case. If extended fires are the fleet's best trades (momentum), the
+gate is a money-burner and stays unwired. Either way the wiring
+decision gets data instead of instinct.
+
+Convention (same as the fleet's other hindsight studies): $1,000
+position, forward 4h window (the contest rotation), end-to-end close
+and MFE >= +3% = "ran". Pure core = grader + band verdicts so the
+study is pinnable hermetically and the monthly driver can reuse it.
+
+Run: .venv\Scripts\python.exe -X utf8 diag_extfade.py
+Writes _extfade.txt. Read-only on ledgers; the fires are parsed from
+the dated scanne
+
+TOP-LEVEL NAMES (imports/defs in order):
+  IMPORT __future__
+  IMPORT annotations
+  STORE  annotations
+  IMPORT glob
+  STORE  glob
+  IMPORT json
+  STORE  json
+  IMPORT re
+  STORE  re
+  IMPORT pathlib
+  IMPORT Path
+  STORE  Path
+  IMPORT numpy
+  STORE  np
+  IMPORT pandas
+  STORE  pd
+  STORE  ROOT
+  STORE  OUT
+  STORE  OUT_JSON
+  STORE  POS_USD
+  STORE  H
+  STORE  RAN_MFE_PCT
+  STORE  LOG_GLOB
+  STORE  LOG_TODAY
+  STORE  LINE
+  STORE  LINE2
+  STORE  harvest_fires
+  STORE  grade_fire
+  STORE  load_store
+  STORE  band_verdict
+  STORE  terciles
+  STORE  main
+
+ALL STRINGS (dedup, order-preserving, >=4 chars):
+  diag_extfade.py - THE EXTENSION-FADE HINDSIGHT STUDY (Sep 19).
+
+WHY THIS EXISTS: the proposal on the table is a fade gate - deny or
+shrink a fire when the coin is over-extended at fire time (stretched
+above its EMA20 / b
+  _extfade.txt
+  _extfade_rows.json
+  scanner.log.2026-09-*
+  scanner.log
+  (\d{1,2}):(\d{2}) (AM|PM)\s+\[\w+\]\s+(?:🚀 )?BIG ALERT: BUY (\S+) - (\d+)% - entry \$([0-9.]+)
+  (\d{1,2}):(\d{2}) (AM|PM)\s+\[\w+\]\s+🚀 BIG ALERT: BUY (\S+) — (\d+)% — entry \$([0-9.]+)
+  log_glob
+  today_log
+  str | None
+  return
+  list[dict]
+  Parse dated scanner-log rotations into (pair, ts, conf) fires.
+
+Wall-clock times are -06:00 (the fleet's fixed MST7MDT offset).
+Deduped to (pair, hour) so a re-armed fire inside the same hour
+prices once. Today's fires r
+  (\d{4})-(\d{2})-(\d{2})$
+  utf-8
+  replace
+  pair
+  /USD
+  conf
+  pd.DataFrame
+  pd.Timestamp
+  dict | None
+  Extension features + forward outcome for one fire hour.
+
+df: deep 1h store (utc DatetimeIndex, OHLCV), ts: naive fire time
+in fleet-local wall clock. Returns None when ungradeable (short
+history or the forward window sti
+  MST7MDT
+  right
+  close
+  high
+  entry
+  run24
+  rngpos
+  path
+  str | Path
+  pd.DataFrame | None
+  date
+  rows
+  bands
+  list[tuple[str, float, float]]
+  dict
+  Price fires in each named band of a feature. Pure.
+  end_usd
+  avg_mfe
+  tuple[float, float]
+  None
+  EXTENSION-FADE HINDSIGHT (Sep 19) - were extended fires good or bad?
+  convention: $
+   position, 
+  h window, MFE >= +
+  % = ran
+  fires parsed (dated rotations, deduped to pair-hour): 
+  surething_data
+  kraken
+  *_USD-1h.feather
+  fires graded on the deep store (closed 4h windows): 
+  EXT (stretch above EMA20) terciles: <= 
+  % | 
+  % | > 
+  LOW stretch
+  MID stretch
+  HIGH stretch (fade shape)
+  : n=
+   won=
+  %) ran3%=
+   end$ 
+  +,.2f
+   avg MFE 
+  +.2f
+  RUN24 (24h run-up) terciles: <= 
+  LOW run
+  MID run
+  HIGH run (fade shape)
+  %) end$ 
+  STRICT fade (both terciles): n=
+  STRICT fade (both terciles): no fires qualify
+  worst 5 fires:
+   conf 
+  % ext 
+  +.1f
+  % run24 
+  % end$ 
+  best 5 fires:
+  ALL FIRES: n=
+  __main__
+
+TOTAL STRINGS: 82

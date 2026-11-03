@@ -1,0 +1,34 @@
+{
+  "run_id": "20260928_184645",
+  "cohort": [
+    "BTC",
+    "ETH",
+    "SOL",
+    "AVAX",
+    "LINK"
+  ],
+  "dial": {
+    "dial": "canary",
+    "cohort_id": "canary-20260928_184645"
+  },
+  "cycles": 30,
+  "evaluation": {
+    "net_delta": 0.0,
+    "worst_single_book_loss": 0.0,
+    "net_in_band": true,
+    "band": [
+      0.0,
+      0.0
+    ],
+    "hit_rate_1": 0.0,
+    "hit_rate_2": 0.0,
+    "hit_rate_stable": true,
+    "applied_cycles": 0,
+    "breach": false,
+    "reasons": []
+  },
+  "commit_sha": "892cea3",
+  "rollback": null,
+  "status": "pass_continue",
+  "next": "collect 24-72h, then request Ops + Product sign-off (governance/adjustment_policy.md)"
+}

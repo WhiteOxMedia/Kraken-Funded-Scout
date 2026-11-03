@@ -1,0 +1,32 @@
+[
+  {
+    "content": "[enhance] config.py — add multi-timeframe, liquidity, streak protection params",
+    "id": "e1",
+    "status": "completed"
+  },
+  {
+    "content": "[enhance] strategy.py — regime-specific scoring + volatility regime detection",
+    "id": "e2",
+    "status": "completed"
+  },
+  {
+    "content": "[enhance] scanner.py — multi-timeframe confluence + signal stability + liquidity/spread filters + survival probability",
+    "id": "e3",
+    "status": "completed"
+  },
+  {
+    "content": "[enhance] db.py — add streak tracking to challenge state",
+    "id": "e4",
+    "status": "completed"
+  },
+  {
+    "content": "[enhance] app.py — display confluence, stability, liquidity, survival prob, streak status",
+    "id": "e5",
+    "status": "completed"
+  },
+  {
+    "content": "[test] Verify enhanced scanner against live Kraken data",
+    "id": "e6",
+    "status": "completed"
+  }
+]

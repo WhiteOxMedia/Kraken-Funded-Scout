@@ -1,0 +1,73 @@
+# ops/payer_alert.yaml — the 60-70%-of-medfill recovery alert
+# (the user's "1.085-style FIL alert", made generic and reviewable —
+# Oct 1, the burial-hindsight follow-up's immediate action #1).
+#
+# WHY THIS SHAPE: this fleet's alerting lives in Python watchers that
+# ride the SAME private ntfy pipe as the scanner's pushes
+# (ops/price_alert.py send_ntfy, the reminders/*_tripwire.ps1 idiom)
+# and scheduled tasks — there is no YAML engine in the stack. So this
+# file is the SPEC OF RECORD: the ops/payer_alert.py watcher (NEXT
+# step — this spec lands first, the watcher is its contract) parses
+# it with a TINY SUBSET ONLY — nested mappings of scalar values,
+# single-quoted strings, # comments. No lists, no block scalars, no
+# flow mappings: every knob is `key: value` at one nesting level.
+#
+# THE 1.085 LESSON, GENERALIZED: a buried candidate gets ONE recovery
+# watch. The threshold is not a magic number — it is FRACTION of the
+# gate's medfill expectation (the EV table's medfill* for that family,
+# scratch/gate_ev_table.txt), floored above the fee-drag noise band.
+# The alert DELIBERATELY fires BELOW the scanner's 1.8% entry floor —
+# its whole job is to end blind waits by catching the recovery leg
+# BEFORE the funnel would re-fire (1.085 ≈ 65% of the 1.67 FIL
+# medfill). One push with the book snapshot attached; the watch
+# RETIRES on fire — no re-arm, no spam.
+
+name: payer-recovery-alert
+enabled: true
+
+source: popup_suppressions.jsonl
+candidates: first_seen_per_pair
+horizon_hours: 7
+max_parallel: 6
+per_pair_cooldown_min: 240
+
+fraction_of_medfill: 0.65
+min_threshold_pct: 0.55
+confirm_candles: 1
+book_required: true
+book_max_spread_bps: 30
+
+pipe: ntfy
+topic_file: push_topic.txt
+priority: high
+tag: recovery
+title: '{pair} recovery leg — {threshold:.3f}% crossed ({gate})'
+body: 'buried {hours_ago:.1f}h ago by {gate} (quick {quick}) - medfill {medfill:.2f}% - alert at {threshold:.3f}% ({fraction:.0%} of medfill) - crossed {crossed_at} @ {crossed_price} - book: tob {ask_tob_usd:.0f} ask / {spread_bps:.1f} bps'
+retry_on_send_fail: true
+metrics_csv: 'pair,gate,threshold,crossed_at,crossed_price,fired_at,peak_after_pct,peak_at,beat_funnel,ask_tob_usd,spread_bps'
+
+# THE HINDSIGHT BACKFILL (user ask, Oct 1: fill the metrics csv's empty
+# peak_after_pct once each fired watch's 7h horizon closes, and record
+# whether the alert beat the funnel). Each cycle, AFTER the watch loop,
+# the backfill measures the fired watch's realized peak: the highest 5m
+# close inside the window [fired_at, fired_at + horizon_hours] as a
+# percent over the fire's crossed_price (the SAME honesty as the fire:
+# pre-fire and post-horizon closes never inflate it, a failed feed
+# leaves the row empty for the next cycle — fire-time peaks are
+# fiction, so are hindsight peaks measured on a stale feed).
+#   peak_after_pct: the measured peak, 3 decimals
+#   peak_at:        the peak candle's MST instant
+#   beat_funnel:    true when the peak reached the funnel's own entry
+#                   floor (funnel_entry_floor_pct) — did the alert beat
+#                   the funnel? A leg that never reached the floor could
+#                   not have been re-entered by the funnel anyway; the
+#                   honest miss is the measurement.
+hindsight_backfill: true
+funnel_entry_floor_pct: 1.8
+
+# per-gate overrides (flat keys, one per family; missing = the global
+# fraction_of_medfill above)
+fraction_sure_thing_deep_veto: 0.70
+fraction_rcl_drift_reentry: 0.60
+fraction_tide_out: 0.70
+fraction_stale_move: 0.60

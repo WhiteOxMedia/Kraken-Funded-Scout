@@ -1,0 +1,30 @@
+bridge signals for PUMP today: 2
+  2026-08-24T10:07:13.152046-07:00 buy filled src=bot_strategy conf=66.0 entry=0.004735 tp=None
+  2026-08-24T11:06:11.872364-06:00 buy filled src=scout_auto conf=66.0 entry=0.00473 tp=0.005253
+winners query failed: no such table: tournament_winners
+
+ohlcv tables: ['ohlcv']
+  ohlcv cols: ['pair', 'ts', 'open', 'high', 'low', 'close', 'volume']
+  PUMP candles in ohlcv (ts>=~08:00 Denver today): 8
+ohlcv query failed: [Errno 22] Invalid argument
+
+console_state.json: {
+ "tier": "$5,000",
+ "watch_on": true,
+ "exit_checks": 2
+}
+scanner_state.json: {
+ "last_flatten_date": "2026-08-23"
+}
+payout_track.json: {
+ "payouts": {
+  "LIKHTS-ZRD5W-YE4LOK": {
+   "amount": 115.92,
+   "ts": 1787407691978
+  },
+  "L3M2WS-EWCCD-M5V6VL": {
+   "amount": 135.72,
+   "ts": 1787364617857
+  }
+ }
+}

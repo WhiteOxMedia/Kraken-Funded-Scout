@@ -1,0 +1,2 @@
+TIDE BAR: the lived arc-3 sweep adopts a default POOL_MIN of +0.50 (net $+160.00 across 3 priced real re-arms) — the flip-back gate now demands a recovery worth more before re-arming
+RESULT: 150 passed, 0 failed

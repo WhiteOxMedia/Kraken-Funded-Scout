@@ -1,0 +1,3 @@
+[helper] pid 23324 is a live python - lock left in place
+[helper] spawned background_scanner pid 4532 (hidden) -> logs\scanner _*.log
+[helper] background_scanner DIED at boot (exit unknown (exit handle lost)) - see logs\scanner_stderr.log

@@ -1,0 +1,43 @@
+NOW: 2026-08-31 12:00:59 | tide context below
+
+1. JUP BRIDGE ROWS (10):
+  2026-08-31T11:53  buy  conf 87.0  src scout_auto  status rejected  entry 0.2147  tide FLAT/38.23529411764706
+      reason: Regime: low_vol (volatility rank 18/100); 🔥 BREAKOUT — Phase 1 — Breakout — +3.5% move with 1.9x volume;   Breaking Bollinger upper band (BB%B=0.97)
+  2026-08-27T15:57  buy  conf 100.0  src scout_auto  status rejected  entry 0.2388  tide None/None
+      reason: Regime: bull_trend (volatility rank 68/100); 🔥 BREAKOUT — Phase 1 — Breakout — +2.8% move with 4.6x volume;   Breaking Bollinger upper band (BB%B=0.93)
+  2026-08-27T15:47  buy  conf 100.0  src scout_auto  status rejected  entry 0.23884  tide None/None
+      reason: Regime: bull_trend (volatility rank 67/100); 🔥 BREAKOUT — Phase 1 — Breakout — +2.8% move with 4.5x volume;   Breaking Bollinger upper band (BB%B=0.93)
+  2026-08-27T15:37  buy  conf 76.0  src scout_auto  status rejected  entry 0.23805  tide None/None
+      reason: Regime: bull_trend (volatility rank 68/100); 🔥 BREAKOUT — Phase 1 — Breakout — +2.4% move with 4.3x volume;   Breaking Bollinger upper band (BB%B=0.91)
+  2026-08-27T15:26  buy  conf 100.0  src scout_auto  status rejected  entry 0.23767  tide None/None
+      reason: Regime: bull_trend (volatility rank 62/100); 🔥 BREAKOUT — Phase 1 — Breakout — +2.3% move with 4.2x volume;   Breaking Bollinger upper band (BB%B=0.90)
+  2026-08-27T13:57  buy  conf 76.0  src scout_auto  status rejected  entry 0.23564  tide None/None
+      reason: Regime: ranging (volatility rank 74/100); 🔥 BREAKOUT — Phase 1 — Breakout — +3.5% move with 1.4x volume;   Breaking Bollinger upper band (BB%B=0.93)
+  2026-08-27T13:46  buy  conf 76.0  src scout_auto  status rejected  entry 0.23709  tide None/None
+      reason: Regime: ranging (volatility rank 74/100); 🔥 BREAKOUT — Phase 1 — Breakout — +4.1% move with 1.2x volume;   Breaking Bollinger upper band (BB%B=0.97)
+  2026-08-27T12:49  buy  conf 91.0  src scout_auto  status rejected  entry 0.23412  tide None/None
+      reason: Regime: high_vol (volatility rank 79/100); 🔥 BREAKOUT — Phase 1 — Breakout — +1.9% move with 3.0x volume;   Breaking Bollinger upper band (BB%B=0.95)
+  2026-08-27T12:38  buy  conf 91.0  src scout_auto  status rejected  entry 0.23584  tide None/None
+      reason: Regime: high_vol (volatility rank 77/100); 🔥 BREAKOUT — Phase 1 — Breakout — +2.6% move with 2.9x volume;   Breaking Bollinger upper band (BB%B=1.00)
+  2026-08-27T12:28  buy  conf 91.0  src scout_auto  status rejected  entry 0.23689  tide None/None
+      reason: Regime: ranging (volatility rank 75/100); 🔥 BREAKOUT — Phase 1 — Breakout — +3.1% move with 2.6x volume;   Breaking Bollinger upper band (BB%B=1.03)
+
+2. HER WORDS mentioning JUP (4):
+  2026-08-31T11:56  New pick! JUP! Twenty dollars in about 65 minutes! If it hasn't paid by 2:06, get out!
+  2026-08-31T11:59  JUP added to the watch!
+  2026-08-31T11:59  All good. JUP, plus 0 dollars, about 129 minutes left, go walk around.
+  2026-08-31T12:00  All good. JUP, minus 0 dollars, about 185 minutes left, go walk around.
+
+3. JUP/USD last 12h (15m closes, newest last):
+   first 0.2057  high 0.2147  low 0.2056  last 0.2139
+   12h change: +3.99%
+   10:45  O 0.2136  H 0.2140  L 0.2135  C 0.2135
+   11:00  O 0.2139  H 0.2144  L 0.2138  C 0.2138
+   11:15  O 0.2130  H 0.2130  L 0.2126  C 0.2126
+   11:30  O 0.2121  H 0.2138  L 0.2121  C 0.2138
+   11:45  O 0.2145  H 0.2155  L 0.2139  C 0.2139
+   12:00  O 0.2139  H 0.2139  L 0.2139  C 0.2139
+   ticker: last 0.21389  24h pct 4.484392555322163
+
+4. TIDE NOW: FLAT (38.23529411764706% fleet up)
+   rotation bar now: 60

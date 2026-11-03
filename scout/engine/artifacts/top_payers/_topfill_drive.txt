@@ -1,0 +1,14 @@
+PASS  the fill math prices both spread halves and the round-trip fee (a +10% peak fills at 9.63%: 1.09945/1.0005, then the fee)
+PASS  a sub-fee peak captures ZERO (the round-trip-to-nowhere class)
+PASS  only payers above the goal ride the export (the dud is out)
+PASS  the export sorts by expected payoff, best first (BIG leads)
+PASS  the fill-adjusted column is BELOW the peak (honest gap shown)
+PASS  the sub-fee run captures ZERO (the floor class)
+PASS  alpha scales by the capture ratio (60% real pays 60%)
+PASS  the capture floor keeps alpha conservative, never zero
+PASS  the scaling is monotone in capture
+PASS  an out-of-range capture clamps into the floor-cap band
+PASS  the console aggregate's model block names spread, fee, and capture floor
+PASS  the LIVE rotation exports its top payers read-only
+
+RESULT: 12 passed, 0 failed

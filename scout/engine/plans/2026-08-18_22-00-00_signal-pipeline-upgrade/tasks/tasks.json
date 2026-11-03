@@ -1,0 +1,32 @@
+[
+  {
+    "content": "[1] Replace JSON with SQLite in signal_bridge.py",
+    "id": "s1",
+    "status": "completed"
+  },
+  {
+    "content": "[2] Add signal validity window + cooldown manager",
+    "id": "s2",
+    "status": "completed"
+  },
+  {
+    "content": "[3] Add kill switch + circuit breaker",
+    "id": "s3",
+    "status": "completed"
+  },
+  {
+    "content": "[4] Add signal acknowledgment + execution feedback",
+    "id": "s4",
+    "status": "completed"
+  },
+  {
+    "content": "[5] Update background_scanner.py + scout_signal_reader.py to use new SQLite bridge",
+    "id": "s5",
+    "status": "completed"
+  },
+  {
+    "content": "[6] Copy updated files to XRP bot + verify end-to-end",
+    "id": "s6",
+    "status": "completed"
+  }
+]
