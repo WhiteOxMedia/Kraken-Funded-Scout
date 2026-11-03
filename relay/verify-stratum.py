@@ -74,7 +74,11 @@ def probe(host: str, port: int, timeout: float) -> tuple[bool, str]:
 
     result = reply.get("result")
     if not isinstance(result, dict):
-        return False, f"reply has no result object: {line[:120]!r}"
+        # The xmrig dialect and the ccminer dialect disagree here (Nov 3 RV):
+        # a Verus pool answers `login` with a bare result:true — which is not
+        # a malformed lane, it is a different pool grammar. Re-open and speak
+        # the miner's own; a lane that cannot push a job STILL fails there.
+        return _verus_negotiate(host, port, timeout)
 
     job = result.get("job") if isinstance(result.get("job"), dict) else {}
     status = result.get("status")
@@ -85,6 +89,60 @@ def probe(host: str, port: int, timeout: float) -> tuple[bool, str]:
     if job:
         detail += f" job_id={job.get('job_id')!r} blob_bytes={len(str(job.get('blob', '')))}"
     return True, f"stratum answered in {elapsed_ms} ms ({detail})"
+
+
+VERUS_SUBSCRIBE = b'{"id":1,"method":"mining.subscribe","params":["relay-check/1.0"]}\n'
+VERUS_AUTHORIZE = b'{"id":2,"method":"mining.authorize","params":["relay-check.wallet.worker1","x"]}\n'
+
+
+def _verus_negotiate(host: str, port: int, timeout: float) -> tuple[bool, str]:
+    """The ccminer-dialect follow-up: the Verus pools answer an xmrig-style
+    `login` with a bare result:true (Nov 3 lane RV), so when the first reply
+    carries no result object this probe re-opens the lane and speaks the
+    dialect the resident miner actually speaks. PASS needs BOTH the subscribe
+    answer AND a pushed mining.notify — an authorize alone proves nothing,
+    because a dead upstream would still accept the login echo."""
+    started = time.time()
+    try:
+        sock = socket.create_connection((host, port), timeout=timeout)
+    except OSError as exc:
+        return False, f"cannot connect to {host}:{port} - {type(exc).__name__}: {exc}"
+    try:
+        sock.sendall(VERUS_SUBSCRIBE + VERUS_AUTHORIZE)
+        sock.settimeout(timeout)
+        buf = b""
+        answered_subscribe = False
+        while len(buf) < 65536:
+            chunk = sock.recv(4096)
+            if not chunk:
+                break
+            buf += chunk
+            for raw in buf.split(b"\n"):
+                if b'"mining.notify"' in raw:
+                    if not answered_subscribe:
+                        return False, "notify pushed before any subscribe answer"
+                    return True, ("ccminer-dialect lane answered in "
+                                  f"{int((time.time() - started) * 1000)} ms "
+                                  "(subscribe + authorize + pushed job)")
+                if b'"id":1' in raw and b"mining" not in raw:
+                    try:
+                        reply = json.loads(raw.decode("utf-8", "replace"))
+                    except ValueError:
+                        continue
+                    result = reply.get("result") if isinstance(reply, dict) else None
+                    if isinstance(result, list) and result and result[0] is None:
+                        answered_subscribe = True
+            if answered_subscribe and not buf.endswith(b"\n"):
+                # keep reading: the job push is what proves the end to end lane
+                pass
+    except OSError as exc:
+        return False, f"connected but no ccminer-dialect reply - {type(exc).__name__}: {exc}"
+    finally:
+        sock.close()
+    if not answered_subscribe:
+        head = buf.split(b"\n", 1)[0].decode("utf-8", "replace")[:120]
+        return False, f"ccminer-dialect subscribe never answered: {head!r}"
+    return False, "subscribe answered but no job was pushed - the upstream is not mining"
 
 
 CHECKHOST = "https://check-host.net"
